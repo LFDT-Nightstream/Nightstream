@@ -275,12 +275,9 @@ impl PreparedLifecycle {
         let Some((running, fresh)) = envelope.active_parts() else {
             return Err(CompressionError::Input("an initial proof has no fold to finish"));
         };
-        let (running, mut fresh) = (running.clone(), fresh.clone());
-        self.checked_prior_state(&state, &running, &fresh.claim)?;
-        nifs::validate_running_children(&self.params, &self.structure, &running)
-            .map_err(CompressionError::PriorFamily)?;
-        // The complete Z opening is the source; w is a redundant cache.
-        fresh.witness.w.clear();
+        let (running, fresh) = (running.clone(), fresh.clone());
+        let (bound, _, _) = self.checked_prior_state(&state, &running, &fresh.claim)?;
+        nifs::validate_running_children(&self.params, &self.structure, bound).map_err(CompressionError::PriorFamily)?;
         self.validate_prover_sources(&fresh, &running)?;
         // The state hash reads only the claims; the witnesses go into the fold.
         let semantic = running.claims_only();
@@ -338,7 +335,7 @@ impl PreparedLifecycle {
     /// has no output state: the prior preimage fills its output-preimage
     /// segment, so the canonical and context rows of PiCCS hold for it too.
     pub(crate) fn terminal_inputs(&self, last: &LastFold) -> Result<PiCcsV1_2PackageInputs, StepInputError> {
-        let (prior_preimage, prior_digest) = self.checked_prior_state(&last.state, &last.running, &last.fresh)?;
+        let (_, prior_preimage, prior_digest) = self.checked_prior_state(&last.state, &last.running, &last.fresh)?;
         let prior_children = pi_ccs_v1_2_prior_children(&last.running.claims)?;
         let prior_public_input = encode_pi_ccs_v1_2_public_input(prior_digest)?;
         Ok(

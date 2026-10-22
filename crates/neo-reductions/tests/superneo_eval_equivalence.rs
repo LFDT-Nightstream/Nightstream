@@ -4,8 +4,8 @@ use neo_ccs::{
 use neo_math::{superneo_bar_block, KExtensions, Rq};
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::{
-    build_superneo_eval_cache, check_ccs_relation_zero_cached, check_ccs_relation_zero_cached_with_blocks,
-    eval_all_mats_cached, eval_all_mats_cached_with_blocks, eval_all_mats_direct, eval_all_mats_ring_cached,
+    build_superneo_eval_cache, check_ccs_relation_zero_cached_with_blocks, eval_all_mats_cached,
+    eval_all_mats_cached_with_blocks, eval_all_mats_direct, eval_all_mats_ring_cached,
     eval_all_mats_ring_cached_with_blocks, eval_all_mats_transformed, eval_ring_linear_forms_real_z_blocks,
     SuperneoCachedRelationError, SuperneoCompactRowOffsets, SuperneoZBlocks,
 };
@@ -54,7 +54,7 @@ fn column_mask_witness_blocks_match_row_major_signed_unit_blocks() {
         }
     }
 
-    let row_major = Mat::compact_signed_unit(D, cols, values);
+    let row_major = Mat::from_row_major(D, cols, values);
     let column_masks: Mat<F> = Mat::compact_signed_unit_from_column_masks(D, cols, &positive, &negative)
         .expect("valid signed-unit column masks");
     let expected_m = D * cols - 3;
@@ -94,8 +94,12 @@ fn signed_digit_masks_of_signed_unit_storage_match_dense_storage() {
             _ => F::ZERO,
         })
         .collect();
-    let signed = SuperneoZBlocks::from_witness_mat(&Mat::compact_signed_unit(D, cols, values.clone()), D * cols)
-        .expect("signed-unit blocks");
+    let signs = (0..cols)
+        .flat_map(|block| (0..D).map(move |lane| lane * cols + block))
+        .map(|index| [1, -1, 0][(index * 7) % 3])
+        .collect::<Vec<i8>>();
+    let packed = Mat::<F>::compact_signed_unit_from_column_major_prefix(D, cols, &signs).expect("signed-unit columns");
+    let signed = SuperneoZBlocks::from_witness_mat(&packed, D * cols).expect("signed-unit blocks");
     assert!(signed.signed_unit_masks().is_some());
     let z: Vec<K> = (0..cols)
         .flat_map(|block| (0..D).map(move |lane| (lane, block)))
@@ -219,7 +223,6 @@ fn compact_relation_authority_matches_exact_rowwise_ccs_satisfaction() {
     let mut assignment = (0..D)
         .map(|index| F::from_bool(index % 2 == 0))
         .collect::<Vec<_>>();
-    let as_extension = |values: &[F]| values.iter().copied().map(K::from).collect::<Vec<_>>();
     let as_blocks = |values: &[F]| {
         let positive = values
             .iter()
@@ -239,16 +242,11 @@ fn compact_relation_authority_matches_exact_rowwise_ccs_satisfaction() {
     };
 
     check_ccs_rowwise_zero(&structure, &assignment, &[]).expect("raw rowwise relation");
-    check_ccs_relation_zero_cached(&cache, &structure.f, &as_extension(&assignment)).expect("compact rowwise relation");
     check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &as_blocks(&assignment))
         .expect("column-mask rowwise relation");
 
     assignment[7] = -F::ONE;
     assert!(check_ccs_rowwise_zero(&structure, &assignment, &[]).is_err());
-    assert_eq!(
-        check_ccs_relation_zero_cached(&cache, &structure.f, &as_extension(&assignment)),
-        Err(SuperneoCachedRelationError::UnsatisfiedRow { row: 7 }),
-    );
     assert_eq!(
         check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &as_blocks(&assignment)),
         Err(SuperneoCachedRelationError::UnsatisfiedRow { row: 7 }),
@@ -265,17 +263,9 @@ fn compact_relation_authority_checks_padded_width_and_real_assignment() {
     .expect("padded relation");
     let cache = build_superneo_eval_cache(&structure).expect("SuperNeo cache");
     let mut assignment = vec![K::ZERO; 2 * D];
-    check_ccs_relation_zero_cached(&cache, &structure.f, &assignment).expect("complete dense width");
     check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &SuperneoZBlocks::from_z(&assignment))
         .expect("complete block width");
 
-    assert_eq!(
-        check_ccs_relation_zero_cached(&cache, &structure.f, &assignment[..logical_width]),
-        Err(SuperneoCachedRelationError::AssignmentWidth {
-            expected: 2 * D,
-            got: logical_width,
-        }),
-    );
     assert_eq!(
         check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &SuperneoZBlocks::with_block_len(1)),
         Err(SuperneoCachedRelationError::AssignmentWidth {
@@ -284,10 +274,6 @@ fn compact_relation_authority_checks_padded_width_and_real_assignment() {
         }),
     );
     assignment[0] = K::from_coeffs([F::ZERO, F::ONE]);
-    assert_eq!(
-        check_ccs_relation_zero_cached(&cache, &structure.f, &assignment),
-        Err(SuperneoCachedRelationError::NonRealAssignment),
-    );
     assert_eq!(
         check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &SuperneoZBlocks::from_z(&assignment)),
         Err(SuperneoCachedRelationError::NonRealAssignment),
@@ -1051,7 +1037,6 @@ fn cached_superneo_ring_real_z_blocks_match_scalar_eval() {
 fn chunked_row_dots_match_complete_rows_and_expanded_csc() {
     let rows = 2 * D + 5;
     let columns = 3 * D;
-    // One run every seventh row; the runs cross ring-block boundaries.
     let runs: Vec<_> = (0..rows)
         .step_by(7)
         .map(|row| {
@@ -1104,7 +1089,6 @@ fn chunked_row_dots_match_complete_rows_and_expanded_csc() {
         .fill_row_dots_real_with_blocks(&mut expected, &z_blocks);
     assert_eq!(complete, expected);
 
-    // Disjoint row ranges, split inside and at the end of ring blocks.
     for splits in [vec![rows / 3], vec![D / 3, D, D + 17, 2 * D]] {
         let mut chunked = vec![K::ZERO; rows];
         let mut rest = chunked.as_mut_slice();

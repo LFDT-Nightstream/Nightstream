@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""Compare all saved independent Lean rounds and reject changed Rust targets.
-
-Generation provenance and final individual evaluations are separate evidence.
-"""
 
 import copy
 import json

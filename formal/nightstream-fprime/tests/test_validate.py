@@ -1,5 +1,3 @@
-"""Check the validation wrapper without invoking Lean or its build cache."""
-
 import os
 from pathlib import Path
 import subprocess

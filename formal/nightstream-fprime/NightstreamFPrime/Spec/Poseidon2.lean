@@ -7,7 +7,6 @@ rounds over Goldilocks, with the plonky3 external layer (`M₄` on each block,
 then the circulant sum) and the internal layer `diag(v) + J`. The round-constant
 table is protocol authority; Rust is checked against it by test vectors.
 
-Capacity 4 (256 bits) and a 4-word digest give 128-bit collision security.
 Plonky3 `poseidon2_round_numbers_128` checks 8 full and 22 partial rounds for
 width 16 with `x⁷` over Goldilocks.
 
@@ -25,13 +24,10 @@ def digestLen : Nat := 4
 def halfFullRounds : Nat := 4
 def partialRounds : Nat := 22
 
-/-- Permutation state: exactly `width` lanes, materialized so that executable
-evaluation is linear in the round count. -/
 abbrev State := List F
 
 def ofNat (n : Nat) : F := ⟨n % goldilocksModulus, Nat.mod_lt _ (by decide)⟩
 
-/-- Round constants for the four initial full rounds, sixteen lanes each. -/
 def initialConstants : List (List Nat) :=
   [[15504881536434223753, 2212164856944708396, 1885257220781225929, 17531637481572944510,
     16769640728293682348, 445908668462176974, 1308472042479836079, 17465001500823438575,
@@ -50,7 +46,6 @@ def initialConstants : List (List Nat) :=
     2710107888698774842, 2801523468128575786, 15894340394120906162, 13510783799941644149,
     7917164295139071913, 13839801071899888959, 6672989303670154677, 4519956214037211385]]
 
-/-- Round constants for the twenty-two partial rounds: lane zero only. -/
 def internalConstants : List Nat :=
   [3785078240232899765, 13753534232687663059, 15164579152346391244,
    7188840087678967607, 14466302407008998516, 13002203018489042439,
@@ -61,7 +56,6 @@ def internalConstants : List Nat :=
    447570613036226838, 16267896682506996530, 14710998805405468930,
    3269000544927978862]
 
-/-- Round constants for the four terminal full rounds, sixteen lanes each. -/
 def terminalConstants : List (List Nat) :=
   [[7482194551502142718, 3471957803411196592, 8846669050136897522, 4431017908497072775,
     14382646627736292998, 15636596632746594248, 14521990061611210983, 4351091752509404379,
@@ -94,13 +88,11 @@ def internalDiagonal : List Nat :=
 def constantAt (rows : List (List Nat)) (round lane : Nat) : F :=
   ofNat ((rows.getD round []).getD lane 0)
 
-/-- `x⁷`. -/
 def sbox (x : F) : F :=
   let x2 := x * x
   let x4 := x2 * x2
   x4 * x2 * x
 
-/-- `M₄ = [[2,3,1,1],[1,2,3,1],[1,1,2,3],[3,1,1,2]]` on one 4-lane block. -/
 def mat4 : List F → List F
   | [x0, x1, x2, x3] =>
     [2 * x0 + 3 * x1 + x2 + x3,
@@ -109,8 +101,6 @@ def mat4 : List F → List F
      3 * x0 + x1 + x2 + 2 * x3]
   | other => other
 
-/-- External linear layer: `M₄` on each four-lane block, then every lane
-adds the sum of the block lanes congruent to it mod 4. -/
 def externalLayer (s : State) : State :=
   let blocks := (List.range (width / 4)).flatMap fun block =>
     mat4 ((s.drop (4 * block)).take 4)
@@ -119,7 +109,6 @@ def externalLayer (s : State) : State :=
       ((List.range (width / 4)).map fun block =>
         blocks.getD (4 * block + i % 4) 0).foldl (· + ·) 0
 
-/-- Internal linear layer: `s_i ← v_i · s_i + Σ_j s_j`. -/
 def internalLayer (s : State) : State :=
   let sum := s.foldl (· + ·) 0
   (List.range width).map fun i =>
@@ -137,7 +126,6 @@ def partialRound (round : Nat) (s : State) : State :=
 def rounds (step : Nat → State → State) (count : Nat) (s : State) : State :=
   (List.range count).foldl (fun acc r => step r acc) s
 
-/-- The Poseidon2 permutation. -/
 def permute (s : State) : State :=
   let s := externalLayer s
   let s := rounds (fullRound initialConstants) halfFullRounds s
@@ -157,7 +145,6 @@ private theorem rounds_length (step : Nat → State → State)
   | nil => exact fixed
   | cons index rest inductionHypothesis => exact inductionHypothesis _ (lengths index state)
 
-/-- Every permutation output has exactly `width` lanes. -/
 theorem permute_length (state : State) : (permute state).length = width := by
   unfold permute rounds
   apply rounds_length
@@ -171,13 +158,10 @@ theorem permute_length (state : State) : (permute state).length = width := by
         simp [fullRound, externalLayer]
       · simp [externalLayer]
 
-/-- Every absorption output has exactly `width` lanes. -/
 theorem absorbBlock_length (state : State) (block : List F) :
     (absorbBlock state block).length = width :=
   permute_length _
 
-/-- Absorbing an all-zero block into a full-width state is a plain
-permutation. -/
 theorem absorbBlock_zero (state : State) (fixed : state.length = width)
     {block : List F} (zeros : ∀ index, block.getD index 0 = 0) :
     absorbBlock state block = permute state := by
@@ -196,11 +180,6 @@ theorem absorbBlock_zero (state : State) (fixed : state.length = width)
     simp only [List.getElem_map, List.getElem_range]
     exact (List.getElem_eq_getD 0).symm
 
-/-- Tail-recursive absorption of the first `count` rate-sized blocks.
-
-Unlike the indexed reference expression in `hash`, this function drops only
-the next fixed-size block. Its executable cost is linear in the input length.
--/
 def absorbBlocksFast : Nat → State → List F → State
   | 0, state, _ => state
   | count + 1, state, input =>
@@ -238,9 +217,6 @@ def hash (input : List F) : List F :=
     if i = 0 then absorbed.getD 0 0 + 1 else absorbed.getD i 0)
   padded.take digestLen
 
-/-- Linear executable form of `hash`. The theorem below keeps `hash` as the
-semantic authority and installs this definition only for compiled execution.
--/
 def hashFast (input : List F) : List F :=
   let blockCount := (input.length + rate - 1) / rate
   let absorbed := absorbBlocksFast blockCount zeroState input
@@ -248,7 +224,6 @@ def hashFast (input : List F) : List F :=
     if i = 0 then absorbed.getD 0 0 + 1 else absorbed.getD i 0)
   padded.take digestLen
 
-/-- Every digest has exactly `digestLen` words. -/
 theorem hash_length (input : List F) : (hash input).length = digestLen := by
   unfold hash
   dsimp only

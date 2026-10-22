@@ -132,20 +132,12 @@ struct Assignment<'a> {
     public_values: &'a [u64],
     constant_column: usize,
     total_columns: usize,
-    unavailable_private: Option<Range<usize>>,
     changed_column: Option<usize>,
 }
 
 impl Assignment<'_> {
     fn value(&self, column: usize) -> u64 {
         assert!(column < self.total_columns, "canonical assignment column");
-        assert!(
-            !self
-                .unavailable_private
-                .as_ref()
-                .is_some_and(|range| range.contains(&column)),
-            "canonical assignment reads an unavailable private column",
-        );
         let value = if column < self.constant_column {
             self.private_values[column]
         } else if column == self.constant_column {
@@ -420,8 +412,6 @@ fn event_row_count(event: Event<'_>, raw: &RawPackage) -> usize {
     }
 }
 
-/// Check every physical row in one canonical schema-8 Lean raw package.
-/// `Err` contains one unsatisfied physical row.
 pub fn evaluate_canonical_assignment(
     bytes: &[u8],
     private_values: &[u64],
@@ -430,9 +420,6 @@ pub fn evaluate_canonical_assignment(
     evaluate_canonical_rows(bytes, private_values, public_values, 0..usize::MAX)
 }
 
-/// Check only the physical rows in `rows`, after the same complete schedule
-/// checks. `Ok` contains the number of checked rows; `Err` contains one
-/// unsatisfied row.
 pub fn evaluate_canonical_rows(
     bytes: &[u8],
     private_values: &[u64],
@@ -455,7 +442,6 @@ pub fn evaluate_canonical_rows(
         public_values,
         constant_column: word(raw.3 .2),
         total_columns: word(raw.3 .4),
-        unavailable_private: None,
         changed_column: None,
     };
     assert_eq!(private_values.len(), assignment.constant_column);
@@ -505,119 +491,6 @@ pub fn evaluate_canonical_rows(
     Ok(rows.len())
 }
 
-/// Check exactly the Pilot and PiCCS row prefix in one canonical schema-8
-/// Lean raw package. The function still checks the complete physical row
-/// schedule before it selects the prefix. `Err` contains one unsatisfied
-/// prefix row.
-pub fn evaluate_pi_ccs_prefix_assignment(
-    bytes: &[u8],
-    private_values: &[u64],
-    public_values: &[u64],
-) -> Result<usize, usize> {
-    const PI_CCS_ROW_END: usize = 19_936_967;
-    const PI_CCS_PRIVATE_END: usize = 20_064_545;
-
-    let raw: RawPackage = serde_json::from_slice(bytes).expect("canonical raw-package decode");
-    assert_eq!(raw.0, 8, "canonical raw-package schema");
-    assert_eq!(raw.3 .1, raw.3 .2, "canonical private/constant boundary");
-    assert_eq!(raw.2 .0, raw.5 .0, "canonical template width");
-    assert_eq!(raw.2 .6, raw.5 .1, "canonical template local count");
-    assert_eq!(raw.2 .7, raw.5 .2, "canonical template output start");
-
-    let rate = word(raw.2 .1);
-    assert_ne!(rate, 0, "canonical Poseidon rate");
-    let local_count = word(raw.5 .1);
-    let output_local_start = word(raw.5 .2);
-    // This assignment contains no private suffix. The existing indexed read
-    // therefore fails if any selected row reads a private column at or after
-    // the PiCCS boundary.
-    let assignment = Assignment {
-        private_values,
-        public_values,
-        constant_column: word(raw.3 .2),
-        total_columns: word(raw.3 .4),
-        unavailable_private: None,
-        changed_column: None,
-    };
-    assert_eq!(private_values.len(), PI_CCS_PRIVATE_END);
-    assert!(PI_CCS_PRIVATE_END < assignment.constant_column);
-    assert_eq!(public_values.len(), word(raw.3 .3));
-    assert_eq!(
-        assignment.total_columns,
-        assignment.constant_column + 1 + public_values.len(),
-    );
-    assert!(private_values
-        .iter()
-        .chain(public_values)
-        .all(|value| *value < GOLDILOCKS_MODULUS));
-
-    let schedule = events(&raw);
-    let mut row_cursor = 0;
-    for &event in &schedule {
-        assert_eq!(event.row_start(), row_cursor, "canonical raw row schedule");
-        row_cursor += event_row_count(event, &raw);
-    }
-    assert_eq!(row_cursor, word(raw.3 .0), "canonical raw row coverage");
-
-    let prefix_event_count = schedule.partition_point(|event| event.row_start() < PI_CCS_ROW_END);
-    let prefix = &schedule[..prefix_event_count];
-    let suffix = &schedule[prefix_event_count..];
-    assert!(!prefix.is_empty(), "canonical PiCCS prefix rows");
-    assert_eq!(
-        prefix
-            .last()
-            .map(|event| event.row_start() + event_row_count(*event, &raw)),
-        Some(PI_CCS_ROW_END),
-        "canonical PiCCS row end",
-    );
-    assert_eq!(
-        suffix.first().map(|event| event.row_start()),
-        Some(PI_CCS_ROW_END),
-        "canonical first PiRLC row",
-    );
-    match suffix.first().copied() {
-        Some(Event::Permutation {
-            row_start,
-            invocation: Invocation::Explicit(invocation),
-        }) => {
-            assert_eq!(row_start, PI_CCS_ROW_END, "canonical first PiRLC row");
-            assert_eq!(invocation.0, 7, "canonical first PiRLC phase");
-            assert_eq!(word(invocation.2), PI_CCS_PRIVATE_END, "canonical first PiRLC column");
-        }
-        _ => panic!("canonical first PiRLC event"),
-    }
-    assert!(prefix
-        .iter()
-        .all(|event| event.row_start() + event_row_count(*event, &raw) <= PI_CCS_ROW_END));
-    assert!(suffix
-        .iter()
-        .all(|event| event.row_start() >= PI_CCS_ROW_END));
-
-    prefix.par_iter().try_for_each(|&event| {
-        for ordinal in 0..event_row_count(event, &raw) {
-            let row = event.row_start() + ordinal;
-            let [a, b, c] = [Side::A, Side::B, Side::C].map(|side| {
-                event_value(
-                    event,
-                    ordinal,
-                    &raw.5,
-                    side,
-                    rate,
-                    local_count,
-                    output_local_start,
-                    &assignment,
-                )
-            });
-            if mul_mod(a, b) != c {
-                return Err(row);
-            }
-        }
-        Ok(())
-    })?;
-
-    Ok(PI_CCS_ROW_END)
-}
-
 #[derive(Debug)]
 pub struct PilotAssignmentReport {
     pub rows: usize,
@@ -631,7 +504,6 @@ fn pilot_hash_row_mutations(raw: &RawPackage, assignment: &Assignment<'_>) -> (u
     let mut row_mutations = 0;
     let mut column_mutations = 0;
     for chain in &raw.6 {
-        // Each owner starts with the first row of its first hash invocation.
         let event = Event::Permutation {
             row_start: word(chain.1),
             invocation: Invocation::Hash { chain, ordinal: 0 },
@@ -665,8 +537,6 @@ fn pilot_hash_row_mutations(raw: &RawPackage, assignment: &Assignment<'_>) -> (u
         let mut rejected = false;
         'sides: for side in [Side::A, Side::B, Side::C] {
             for (term_index, term) in template_side(&raw.5 .3[0], side).1.iter().enumerate() {
-                // These are the exact input and local column domains in the
-                // decoded permutation schema, not a sample of assignment data.
                 for replacement in (0..word(raw.5 .0))
                     .map(|lane| RawColumnRef(0, lane as u64))
                     .chain((0..word(raw.5 .1)).map(|lane| RawColumnRef(1, lane as u64)))
@@ -728,104 +598,4 @@ fn evaluate_event_range(
         Ok(())
     })?;
     Ok(range.len())
-}
-
-/// Check every canonical pilot row on the standalone pilot assignment.
-/// The proof-input gap, private suffix, and non-pilot public context are
-/// unavailable. Mutations use the same raw evaluator and exact binding rows.
-pub fn evaluate_pilot_assignment(
-    bytes: &[u8],
-    private_values: &[u64],
-    public_values: &[u64],
-) -> Result<PilotAssignmentReport, usize> {
-    // PilotProduction.physicalRowCountValue_eq and PilotValues fix the
-    // rows. Stage1.sourceToSpartan relocates the pilot private boundary.
-    const PILOT_ROW_END: usize = 5_086_126;
-    const PILOT_PRIVATE_END: usize = 5_156_678;
-    const PILOT_PUBLIC_COUNT: usize = 274;
-    let raw: RawPackage = serde_json::from_slice(bytes).expect("canonical pilot raw-package decode");
-    assert_eq!(raw.0, 8, "canonical pilot raw-package schema");
-    assert_eq!(raw.3 .1, raw.3 .2, "canonical private/constant boundary");
-    assert_eq!((raw.2 .0, raw.2 .1, raw.2 .6, raw.2 .7), (16, 12, 1096, 1080));
-    assert_eq!((raw.5 .0, raw.5 .1, raw.5 .2), (16, 1096, 1080));
-    assert_eq!(private_values.len(), PILOT_PRIVATE_END);
-    assert_eq!(public_values.len(), word(raw.3 .3));
-    assert_eq!(public_values.len(), PILOT_PUBLIC_COUNT + 4);
-    assert_eq!(word(raw.3 .4), word(raw.3 .2) + 1 + public_values.len());
-    assert!(private_values
-        .iter()
-        .chain(public_values)
-        .all(|value| *value < GOLDILOCKS_MODULUS));
-    assert_eq!(raw.6.len(), 2, "pilot hash-owner count");
-    let prior = &raw.6[0];
-    let output = &raw.6[1];
-    assert_eq!((prior.0, prior.1, prior.3, prior.4, prior.5), (1, 0, 0, 27_819, 70_830));
-    assert_eq!((output.0, output.1, output.3, output.4), (2, 2_543_402, 27_819, 27_819));
-    assert_eq!(word(output.1 + output.2), PILOT_ROW_END);
-    let binding_rows = [
-        word(prior.1 + prior.6)..word(output.1),
-        word(output.1 + output.6)..PILOT_ROW_END,
-    ];
-
-    let schedule = events(&raw);
-    let mut row_cursor = 0;
-    for &event in &schedule {
-        assert_eq!(event.row_start(), row_cursor, "canonical raw row schedule");
-        row_cursor += event_row_count(event, &raw);
-    }
-    assert_eq!(row_cursor, word(raw.3 .0), "canonical raw row coverage");
-    let suffix = schedule.partition_point(|event| event.row_start() < PILOT_ROW_END);
-    assert_eq!(schedule[suffix].row_start(), PILOT_ROW_END, "first PiCCS assertion row");
-    assert_eq!(
-        schedule[suffix - 1].row_start() + event_row_count(schedule[suffix - 1], &raw),
-        PILOT_ROW_END
-    );
-
-    let mut assignment = Assignment {
-        private_values,
-        public_values: &public_values[..PILOT_PUBLIC_COUNT],
-        constant_column: word(raw.3 .2),
-        total_columns: word(raw.3 .4),
-        unavailable_private: Some(word(output.3 + output.4)..word(prior.5)),
-        changed_column: None,
-    };
-    let rows = evaluate_event_range(&raw, &schedule, &assignment, 0..PILOT_ROW_END)?;
-    println!("independent pilot physical rows: {rows}");
-    let (row_mutations, column_mutations) = pilot_hash_row_mutations(&raw, &assignment);
-
-    let mut public_mutations = 0;
-    for public in 0..PILOT_PUBLIC_COUNT {
-        assignment.changed_column = Some(assignment.constant_column + 1 + public);
-        let owner = usize::from(public >= PILOT_PUBLIC_COUNT - word(raw.2 .1));
-        assert!(
-            evaluate_event_range(&raw, &schedule, &assignment, binding_rows[owner].clone()).is_err(),
-            "pilot public word {public} mutation must reject",
-        );
-        public_mutations += 1;
-    }
-
-    let mut generated_mutations = 0;
-    for (owner, chain) in raw.6.iter().enumerate() {
-        assignment.changed_column = Some(word(chain.5));
-        assert!(
-            evaluate_event_range(&raw, &schedule, &assignment, word(chain.1)..word(chain.1) + 1).is_err(),
-            "pilot hash owner {owner} first generated value mutation must reject",
-        );
-        generated_mutations += 1;
-        for lane in 0..word(raw.2 .1) {
-            assignment.changed_column = Some(word(chain.5) + word(chain.7) * word(raw.5 .1) + word(raw.5 .2) + lane);
-            assert!(
-                evaluate_event_range(&raw, &schedule, &assignment, binding_rows[owner].clone()).is_err(),
-                "pilot hash owner {owner} generated digest lane {lane} mutation must reject",
-            );
-            generated_mutations += 1;
-        }
-    }
-    Ok(PilotAssignmentReport {
-        rows,
-        public_mutations,
-        generated_mutations,
-        row_mutations,
-        column_mutations,
-    })
 }

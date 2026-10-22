@@ -11,9 +11,6 @@ use super::{EqualityWeights, SuperneoEvalCache, SuperneoZBlocks};
 use crate::PiCcsError;
 
 impl SuperneoEvalCache {
-    /// Evaluate all D Pad coefficients and all genuine matrix coefficients
-    /// from concrete real witness blocks over the complete carrier.
-    /// The cache and witnesses are prover data, not verifier authority.
     pub fn eval_real_v1_2_openings(
         &self,
         point: &[K],
@@ -76,10 +73,6 @@ impl SuperneoEvalCache {
     }
 }
 
-/// Factor each block's equality weights at the next power of two above D.
-/// Blocks have only `PHASES` offsets in that tensor factor. Distributivity
-/// lets us sum weighted witnesses first and perform the ring products once
-/// per offset, including the second factor when a block crosses a boundary.
 pub(super) fn pad_openings(witnesses: &[SuperneoZBlocks], point: &[K]) -> Vec<[K; D]> {
     const LOW_WIDTH: usize = D.next_power_of_two();
     const PHASES: usize = LOW_WIDTH >> D.trailing_zeros();

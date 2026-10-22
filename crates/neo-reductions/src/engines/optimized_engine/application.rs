@@ -13,7 +13,6 @@ use crate::engines::pi_ccs_joint::gamma_power;
 use crate::superneo_eval::{EqualityWeights, MatrixRows, MatrixShape, MatrixWindow, SuperneoZBlocks};
 use crate::PiCcsError;
 
-// Rows per concurrent first-round row-dot task.
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 const ROW_DOT_CHUNK: usize = 1 << 14;
 
@@ -28,8 +27,6 @@ pub(super) struct ApplicationTables {
     rows: usize,
     challenges: Vec<K>,
     resident: Option<Values>,
-    // The first-round window over every row, kept for the output openings
-    // while it fits beside the round's live values.
     complete: Option<MatrixWindow>,
     workspace_bytes: usize,
     peak_bytes: usize,
@@ -89,7 +86,6 @@ impl ApplicationTables {
             .map_or(0, MatrixWindow::storage_bytes)
     }
 
-    /// Hand the retained complete row window to the output openings.
     pub(super) fn take_complete_window(&mut self) -> Option<MatrixWindow> {
         self.complete.take()
     }
@@ -155,9 +151,6 @@ impl ApplicationTables {
             }
             self.record(external + window.workspace_peak_bytes())?;
             if self.challenges.is_empty() {
-                // Each table owns its output slice. Write real values directly
-                // into it; parallel construction needs no worker row buffers.
-                // Row chunks balance tables whose row lengths differ widely.
                 let matrices = window.cache().matrix_caches();
                 let range = original.start - row_start..original.end - row_start;
                 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
@@ -309,8 +302,6 @@ impl ApplicationTables {
                 .min(pairs)
                 .min(available / bytes(scratch_words)?);
             if workers > 1 {
-                // Allocate each worker's complete payload before dispatch. Rayon
-                // cannot create additional result or coordinate vectors.
                 let mut scratch = vec![K::ZERO; workers * scratch_words];
                 let peak = live_bytes
                     .checked_add(bytes(scratch.capacity())?)
@@ -497,8 +488,6 @@ impl ApplicationTables {
             values.words.par_chunks_mut(rows).for_each(fold_table);
             #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
             values.words.chunks_mut(rows).for_each(fold_table);
-            // All original table reads are complete before prefixes move into
-            // earlier slices of the same allocation.
             for table in 1..self.fresh_count * self.shape.matrices {
                 values
                     .words

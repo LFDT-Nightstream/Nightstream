@@ -39,7 +39,6 @@ type Queue = Retained<ProtocolObject<dyn MTLCommandQueue>>;
 type Buffer = Retained<ProtocolObject<dyn MTLBuffer>>;
 type Pipeline = Retained<ProtocolObject<dyn MTLComputePipelineState>>;
 
-// Serialize limit checks across sessions sharing the same device.
 static BUFFER_ALLOCATION: Mutex<()> = Mutex::new(());
 
 #[derive(Default)]
@@ -52,14 +51,9 @@ struct ActivityCounters {
     downloaded_bytes: AtomicU64,
 }
 
-/// Long-lived owner of one Metal device and its reusable prover resources.
-///
-/// The primary queue preserves dependencies within the proof pipeline. The
-/// independent queue is reserved for work that can overlap that pipeline.
 pub struct MetalSession {
     device: Device,
     queue: Queue,
-    // Primitive arithmetic, hashing, and transcript pipelines.
     goldilocks_ops: Pipeline,
     goldilocks_ops_native: Pipeline,
     copy_k_words: Pipeline,
@@ -71,7 +65,6 @@ pub struct MetalSession {
     poseidon2_hash_uniform_simd: Pipeline,
     poseidon2_hash_rows_overwrite: Pipeline,
     poseidon2_constants: Buffer,
-    // Ajtai commitment pipelines.
     ajtai_mat_vec: Pipeline,
     ajtai_low_norm_products: Pipeline,
     ajtai_reduce_columns: Pipeline,
@@ -110,7 +103,6 @@ pub struct MetalSession {
     dec_sparse_ring_sum_chunks: Pipeline,
     joint_carried_projection: Pipeline,
     fe_weighted_row_table: Pipeline,
-    // Shared convolution kernels for batched full and lane commitments.
     dec_ring_reduce_phi81: Pipeline,
     // A prover keeps the production key rows after their first commitment;
     // `None` expands the needed rows in every call.
@@ -125,7 +117,6 @@ pub struct MetalSession {
 // between threads; callers that share it still serialize calls (a mutex).
 unsafe impl Send for MetalSession {}
 
-/// Resident Ajtai matrix and reduction scratch reused across commitments.
 pub struct MetalAjtaiLowNormPlan {
     matrix: Buffer,
     shapes: Buffer,
@@ -136,7 +127,6 @@ pub struct MetalAjtaiLowNormPlan {
     product_words: usize,
 }
 
-/// Ping-pong buffers for repeated quadratic-extension multiply-add rounds.
 pub struct MetalKxChainPlan {
     initial: Buffer,
     multipliers: Buffer,
@@ -145,7 +135,6 @@ pub struct MetalKxChainPlan {
     elements: usize,
 }
 
-/// Resident fixed-width Poseidon2 batch with reusable output storage.
 pub struct MetalPoseidonUniformPlan {
     fields: Buffer,
     output: Buffer,
@@ -642,8 +631,6 @@ impl MetalSession {
         self.prepare_ajtai_low_norm_from_buffer(matrix, rows, cols)
     }
 
-    /// Turns an owned matrix buffer into a reusable reduction plan, including
-    /// every halving shape and both ping-pong workspaces.
     fn prepare_ajtai_low_norm_from_buffer(
         &self,
         matrix: Buffer,
@@ -683,7 +670,6 @@ impl MetalSession {
         self.ajtai_low_norm_with_plan_on_queue(plan, message, &self.queue)
     }
 
-    /// Packs the signed-unit message and executes the prepared commitment.
     fn ajtai_low_norm_with_plan_on_queue(
         &self,
         plan: &MetalAjtaiLowNormPlan,
@@ -725,8 +711,6 @@ impl MetalSession {
         Ok(self.read_buffer::<u64>(output, plan.rows * RING_DEGREE))
     }
 
-    /// Encodes products and the complete column-reduction tree into one command,
-    /// returning whichever ping-pong buffer owns the final row sums.
     fn encode_ajtai_low_norm_masks<'a>(
         &self,
         command: &ProtocolObject<dyn MTLCommandBuffer>,
@@ -913,9 +897,7 @@ impl MetalSession {
                 limit: BUFFER_LIMIT_BYTES,
             });
         }
-        // Shared storage is required for explicit CPU boundaries on Apple
-        // unified memory. It does not make those boundaries free, so reads and
-        // writes are still counted separately below.
+        // Shared storage is required for explicit CPU boundaries on Apple unified memory.
         let buffer = self
             .device
             .newBufferWithLength_options(bytes, MTLResourceOptions::StorageModeShared)
@@ -936,6 +918,25 @@ impl MetalSession {
                 bytes,
             );
         }
+        self.activity
+            .uploaded_bytes
+            .fetch_add(bytes as u64, Ordering::Relaxed);
+        Ok(buffer)
+    }
+
+    fn filled_buffer(
+        &self,
+        words: usize,
+        fill: impl FnOnce(&mut [u64]) -> Result<(), MetalError>,
+    ) -> Result<Buffer, MetalError> {
+        let bytes = words
+            .checked_mul(size_of::<u64>())
+            .ok_or(MetalError::Shape("Metal buffer size overflows"))?;
+        let buffer = self.buffer(bytes)?;
+        // SAFETY: Metal gives a shared-storage buffer a CPU-visible, aligned `contents()`
+        // pointer that stays valid while the buffer lives; this new buffer has no device readers.
+        let destination = unsafe { std::slice::from_raw_parts_mut(buffer.contents().as_ptr().cast::<u64>(), words) };
+        fill(destination)?;
         self.activity
             .uploaded_bytes
             .fetch_add(bytes as u64, Ordering::Relaxed);
@@ -1051,8 +1052,11 @@ impl MetalSession {
             allocated_bytes: self.activity.allocated_bytes.load(Ordering::Relaxed),
             uploaded_bytes: self.activity.uploaded_bytes.load(Ordering::Relaxed),
             downloaded_bytes: self.activity.downloaded_bytes.load(Ordering::Relaxed),
-            current_allocated_bytes: self.device.currentAllocatedSize() as u64,
         }
+    }
+
+    pub(crate) fn current_allocated_bytes(&self) -> usize {
+        self.device.currentAllocatedSize()
     }
 
     pub fn reset_activity(&self) {

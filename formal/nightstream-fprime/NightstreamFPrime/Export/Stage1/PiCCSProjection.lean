@@ -5,8 +5,7 @@ Owns recipe-free symbolic projections of the PiCCS transcript states used by
 the compact permutation plan.
 
 The full Duplex compiler and the existing compact traces remain the proof
-meaning. The equalities below permit package emission to skip construction of
-Poseidon2 recipes that the compact plan does not serialize.
+meaning.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSProjection

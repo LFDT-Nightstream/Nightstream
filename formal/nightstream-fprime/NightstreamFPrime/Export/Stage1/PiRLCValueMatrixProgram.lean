@@ -50,8 +50,6 @@ def evalAGrid (program : Program) : SourceGrid :=
     (PiCCSInputs.outputEvaluationStart + 108 - PiCCSInputs.priorChildrenStart)
     540 0
 
-/-- Exact invocation-major value map. The six key domains are disjoint and
-cover the four product families in their canonical order. -/
 def substitution (program : Program) : SourceSubstitution where
   ranges := [freshCommitmentRange program, freshPublicRange program]
   grids := [runningCommitmentGrid program, runningPublicGrid program,
@@ -634,8 +632,6 @@ private theorem substitution_form?_descriptor
         operand, index, proofInputSlot, ringDegree,
         Nat.zero_add, Nat.add_assoc] using! evalAGrid_lookup geometry source operand
 
-/-- Every compact input key resolves to its existing authoritative PiCCS
-form. The proof is symbolic in the descriptor and does not expand the table. -/
 theorem substitution_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)

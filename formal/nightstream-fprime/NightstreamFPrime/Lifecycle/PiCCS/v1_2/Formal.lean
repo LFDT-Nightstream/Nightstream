@@ -41,11 +41,9 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
-/-- The one shared symbolic carrier for all PiCCS children. -/
 structure Interface (logicalWidth degreeBound : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) where
-  /-- Proof-only phase base. `atOffset` overwrites every caller value. -/
   baseOffset : Nat := 0
   priorState : Nat → Nat → Expr
   outputState : Nat → Nat → Expr
@@ -56,8 +54,6 @@ structure Interface (logicalWidth degreeBound : Nat)
     RoundTranscript.Message degreeBound
   output : Nat → OutputBinding.OutputExpr
 
-/-- Freeze every shared value at the parent entry offset. Child allocation
-offsets affect only private witness ranges, never protocol wiring. -/
 def atOffset {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -72,8 +68,6 @@ def atOffset {logicalWidth degreeBound : Nat}
   round := fun _ => interface.round parentOffset
   output := fun _ => interface.output parentOffset
 
-/-- Exactly the caller-owned PiCCS expressions. These values must precede
-the phase allocation. Derived transcript and arithmetic outputs are excluded. -/
 structure ExternalInputsBelow
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -149,8 +143,6 @@ def evalOutput {logicalWidth degreeBound : Nat}
     ((interface.output offset).matrixCoordinate source matrix coefficient).eval
       env
 
-/-- Replace only the PiCCS-owned part of the one NIFS proof. Later PiDEC
-message fields remain opaque to this phase. -/
 def evalProof
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -196,8 +188,6 @@ def statementAbsorptionInterface {logicalWidth degreeBound : Nat}
   running := interface.running
   fresh := interface.fresh
 
-/-- The first transcript child owns this state. Statement absorption starts
-after the statement-binding sign columns. -/
 def statementFinalState {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -215,8 +205,6 @@ def challengeInterface {logicalWidth degreeBound : Nat}
     ChallengeDerivation.Interface where
   initialState := fun _ => statementFinalState interface parentOffset
 
-/-- Parent wiring: challenge derivation consumes exactly the statement
-absorption state. The challenge input is not witness-selected. -/
 theorem challengeInterface_initialState {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -226,8 +214,6 @@ theorem challengeInterface_initialState {logicalWidth degreeBound : Nat}
       statementFinalState interface parentOffset := by
   simp only [challengeInterface]
 
-/-- Fixed start of the owned challenge child in a frozen phase view: after
-the 270 statement-binding sign columns and the 134,808 absorption columns. -/
 def challengeStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -292,8 +278,6 @@ def roundTranscriptFinalState {logicalWidth degreeBound : Nat}
   RoundTranscript.finalState (roundTranscriptInterface interface)
     (roundTranscriptStart interface)
 
-/-- `r′` is derived by the round transcript and is never a separate witness
-field. -/
 def roundPoint {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -315,7 +299,6 @@ def initialClaimInterface {logicalWidth degreeBound : Nat}
     ((interface.running offset).evaluation coordinate.running).eval_A
       coordinate.matrix coordinate.coefficient
 
-/-- First private variable of the child-owned initial-claim Horner program. -/
 def initialClaimStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -324,7 +307,6 @@ def initialClaimStart {logicalWidth degreeBound : Nat}
     (RoundTranscript.program (roundTranscriptInterface interface)
       (roundTranscriptStart interface)).recipes.length
 
-/-- Executable projection of the fixed round-transcript footprint. -/
 def initialClaimStartFast {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -347,7 +329,6 @@ theorem initialClaimStart_eq_initialClaimStartFast_pointwise
   funext logicalWidth degreeBound publicFits interface
   exact initialClaimStart_eq_initialClaimStartFast_pointwise interface
 
-/-- The initial SumCheck claim is an output of the preceding Horner child. -/
 def initialClaimOutput {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -364,14 +345,12 @@ def sumcheckInterface {logicalWidth degreeBound : Nat}
   initial := initialClaimOutput interface
   round := roundTranscriptRound interface
 
-/-- Start of the SumCheck child, which stores its round evaluations. -/
 def sumcheckStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
   initialClaimStart interface + InitialClaim.privateCount
 
-/-- The chain-owned stored final `p_i(r_i)` value. -/
 def sumcheckOutput {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -380,8 +359,6 @@ def sumcheckOutput {logicalWidth degreeBound : Nat}
   SumcheckChain.output (sumcheckInterface interface)
     (sumcheckStart interface)
 
-/-- The parent-facing SumCheck output uses only variables that precede the
-end of the canonical SumCheck child. -/
 theorem sumcheckOutput_varsBelow_end {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -407,14 +384,12 @@ def evalKInterface {logicalWidth degreeBound : Nat}
     (interface.output offset).padCoordinate
       (runningSourceIndex coordinate.running) coordinate.coefficient
 
-/-- Eval_K starts where the SumCheck child's stored interval ends. -/
 def evalKStart {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
   sumcheckStart interface + SumcheckChain.privateCount degreeBound
 
-/-- Child-owned unshifted `E_K`. -/
 def evalKOutput {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -502,7 +477,6 @@ def normInterface
     (interface.output offset).padCoordinate source
       (constantCoefficient relation)
 
-/-- The norm leaf starts after the two child-owned CCS residual wires. -/
 def normStart
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -510,7 +484,6 @@ def normStart
     (interface : Interface logicalWidth degreeBound publicFits) : Nat :=
   ccsStart interface + CcsTerminal.privateCount
 
-/-- Child-owned strict-base-2 norm term. -/
 def normOutput
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -536,9 +509,6 @@ def finalIdentityInterface {logicalWidth degreeBound : Nat}
   norm := normOutput relation interface
   terminal := sumcheckOutput interface
 
-/-- The final-identity terminal input is exactly the SumCheck child's output.
-This wiring theorem prevents parent proofs from reducing either child
-expression. -/
 theorem finalIdentityTerminal_eq_sumcheckOutput
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -552,8 +522,6 @@ theorem finalIdentityTerminal_eq_sumcheckOutput
   unfold finalIdentityInterface sumcheckOutput
   rw [startEq]
 
-/-- The norm and final-identity children share the same verifier-derived
-gamma expression at every child offset. -/
 theorem normGamma_eq_finalIdentityGamma
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -565,7 +533,6 @@ theorem normGamma_eq_finalIdentityGamma
       (finalIdentityInterface relation interface).gamma finalAt := by
   rfl
 
-/-- The final-identity norm input is exactly the norm child's owned output. -/
 theorem finalIdentityNorm_eq_normOutput
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -989,7 +956,6 @@ def finalOffset
   nextOffset (outputBindingCircuit (atOffset interface offset))
     (outputBindingOffset relation interface offset)
 
-/-- The output-binding child owns the post-PiCCS transcript state. -/
 def outputBindingFinalState
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -1001,8 +967,6 @@ def outputBindingFinalState
     (outputBindingInterface (atOffset interface offset))
     (outputBindingOffset relation interface offset)
 
-/-- Complete deterministic meaning of the PiCCS phase. The outgoing state
-is computed by the final child and is not part of the caller interface. -/
 structure PhaseHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

@@ -1,8 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixSource
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPolynomial
 
-/-! The prepared fresh contribution uses the original source endpoints.
-Only the existing row fold, selector cache and power cache are composed here. -/
+/-! The prepared fresh contribution uses the original source endpoints. -/
 
 set_option autoImplicit false
 
@@ -114,8 +113,6 @@ private theorem optional_coefficients
   exact congrArg some (prepared_coefficients input data agreement alpha gamma challenges dimension
     suffix low high lowFields highFields)
 
-/-- The same prepared contribution called by the fresh-prefix runner,
-with its two rows supplied by the existing source row fold. -/
 def coefficients? (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (challenges : List K)
     {remaining : Nat} (suffix : BooleanVertex remaining) : Option (List K) := do
@@ -131,8 +128,6 @@ def coefficients? (input : PiCCSPublicReplay.Input)
       (PiCCSPrefixSelector.dropPoint coins.alpha challenges.length).coordinates.tail)
     low high).coefficients
 
-/-- Every coefficient of one prepared fresh contribution is the original
-source term. Source reads, both row endpoints and cache correctness are derived. -/
 theorem coefficients_eq_freshTerm (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (challenges : List K) {remaining : Nat}
     (dimension : cubeVariables = challenges.length + remaining + 1)

@@ -14,8 +14,6 @@ pub(super) struct RingEvalScratch {
     pub(super) active_blocks: Vec<usize>,
 }
 
-/// One contiguous block range of a scratch. Parts of one scratch are
-/// disjoint, so they can be filled concurrently.
 pub(super) struct ScratchPart<'a> {
     first_block: usize,
     values: &'a mut [K],
@@ -47,7 +45,6 @@ impl RingEvalScratch {
         self.active_blocks.clear();
     }
 
-    /// The whole scratch as one part.
     pub(super) fn part(&mut self) -> ScratchPart<'_> {
         ScratchPart {
             first_block: 0,
@@ -57,8 +54,6 @@ impl RingEvalScratch {
         }
     }
 
-    /// Run `fill` on disjoint contiguous block ranges, one per worker thread.
-    /// Touched blocks are appended in range order.
     pub(super) fn fill_parts(&mut self, fill: impl Fn(&mut ScratchPart<'_>) + Sync) {
         #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
         {
@@ -109,7 +104,6 @@ impl ScratchPart<'_> {
         self.first_block..self.first_block + self.touched.len()
     }
 
-    /// Mark one block of this part active and return its coefficients.
     #[inline]
     fn slot(&mut self, block: usize) -> &mut [K] {
         let local = block - self.first_block;
@@ -125,8 +119,6 @@ impl ScratchPart<'_> {
         self.slot(block)[local] += K::from_coeffs([real, imaginary]);
     }
 
-    /// Add `term * ratio^k` to the `k`th slot of `locals` in one block and
-    /// return the term for the next slot.
     #[inline]
     pub(super) fn add_geometric(&mut self, block: usize, locals: Range<usize>, mut term: [F; 2], ratio: F) -> [F; 2] {
         for value in &mut self.slot(block)[locals] {
@@ -136,23 +128,16 @@ impl ScratchPart<'_> {
         term
     }
 
-    /// Add a geometric event at one column. `resolve_geometric` later turns
-    /// the events into run sums.
     #[inline]
     pub(super) fn add_event(&mut self, column: usize, term: [F; 2]) {
         self.slot(column / D)[column % D] += K::from_coeffs(term);
     }
 
-    /// Mark a block covered by a run without adding a value to it.
     #[inline]
     pub(super) fn touch(&mut self, block: usize) {
         self.slot(block);
     }
 
-    /// Replace every value by `ratio * previous + event`, so each start event
-    /// spreads as a geometric run until its end event cancels it. Values must
-    /// hold events only. Every block a run covers is touched, so the running
-    /// sum is exactly zero across untouched blocks.
     pub(super) fn resolve_geometric(&mut self, ratio: F) {
         let mut running = [F::ZERO; 2];
         for (&touched, values) in self.touched.iter().zip(self.values.chunks_exact_mut(D)) {
@@ -173,7 +158,6 @@ impl ScratchPart<'_> {
         }
     }
 
-    /// Replace every active block of this part by its `bar` image.
     pub(super) fn bar_active(&mut self) {
         for &block in self.active_blocks.iter() {
             let local = block - self.first_block;

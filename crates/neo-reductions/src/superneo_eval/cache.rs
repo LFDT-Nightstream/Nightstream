@@ -44,10 +44,6 @@ where
     cache
 }
 
-/// Intern equal ring-coefficient patterns before compact storage is emitted.
-/// The row block still owns its column-block index; only the 54 coefficients
-/// are shared. Fingerprints select comparison buckets, but exact field-array
-/// equality decides every merge.
 fn deduplicate_dense_blocks(cache: &mut SuperneoMatrixCache) {
     let DenseBlockStore::Building(patterns) = &mut cache.dense_orig else {
         return;
@@ -476,8 +472,6 @@ where
 }
 
 impl SuperneoEvalCache {
-    /// Common `(rows, columns, matrix count)` checked by cache construction
-    /// and artifact decoding. An empty cache has no relation shape.
     pub fn relation_shape(&self) -> Option<(usize, usize, usize)> {
         self.mats
             .first()

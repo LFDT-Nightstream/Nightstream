@@ -1,38 +1,19 @@
-//! Ajtai matrix commitment (Neo).
-//!
-//! MUST: Ajtai L: F_q^{d×m} → C via c = cf(M·cf^{-1}(Z)) (Def. 9, 11, 12, 13). S-homomorphic,
-//! (d,m,B)-binding, with pay-per-bit embedding (Sec. 3.2–3.3). Provides decomp_b/split_b,
-//! verified openings, and range checks used by Π_DEC and Π_RLC pipelines.
-//!
-//! SHOULD: Docs for Goldilocks parameters (Sec. 6.2) + estimator pointers (App. B.12).
-//!
-//! ## API Guard: verify_linear
-//!
-//! This crate intentionally does NOT export `verify_linear`. The Π_RLC verifier in
-//! `neo-reductions` checks linear relations.
-//!
-//! ```compile_fail
-//! // This must fail to compile - verify_linear is not provided by neo-ajtai
-//! use neo_ajtai::verify_linear;
-//! ```
+//! Ajtai matrix commitment.
 
 #![forbid(unsafe_code)]
 
 mod commit;
-mod decomp;
 mod error;
 pub mod nightstream_fprime_setup;
 mod types;
-pub mod util;
 
 pub mod s_module;
 
 pub use commit::{
     commit, commit_masked_ct, commit_precomp_ct, commit_row_major, precompute_rot_columns, s_lincomb, s_mul, s_mul_add,
     s_mul_add_from_rot_col, scale_commitment, scale_commitment_add_inplace, setup, try_commit, try_commit_row_major,
-    verify_open, verify_split_open,
+    verify_open,
 };
-pub use decomp::{assert_range_b, decomp_b, decomp_b_row_major, decomp_b_row_major_into, split_b, DecompStyle};
 pub use error::{AjtaiError, AjtaiResult};
 pub use types::{Commitment, PP};
 

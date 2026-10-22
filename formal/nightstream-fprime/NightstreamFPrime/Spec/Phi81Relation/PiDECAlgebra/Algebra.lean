@@ -1,15 +1,10 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Commitment
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/PiDECAlgebra/Algebra.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Complete typed Phi81 algebra used by the semantic `Pi_DEC` verifier.
 
 Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 16`.
-Phase: construction of the independently specified verifier algebra.
-Constraint family: semantic operations and laws only; this file emits no rows.
 
 Owns: one concrete `PiDEC.Algebra` assembled from deterministic signed-binary
 splitting, exact assignment recomposition, typed Ajtai commitment
@@ -19,22 +14,6 @@ recomposition, and both production norm directions.
 Does not own: child CE membership, PiCCS or PiRLC acceptance, Ajtai/MSIS
 binding security, key generation or serialization, transcript binding, NIFS
 composition, Rust/R1CS refinement, row removal, or constraint counts.
-
-Emits constraints: no.
-
-Authority boundary: every algebra operation is executable and every law is a
-theorem over that operation. The verifier-owned typed Ajtai key is an explicit
-input. No caller supplies a split, recomposition equation, homomorphism, norm
-law, digest, or circuit acceptance fact.
-
-| Stage path | Algebra field | Concrete owner | Authority class |
-|---|---|---|---|
-| `nifs.pi_dec.verify.radix.split` | `splitAssignment` | `Radix.splitAssignment` | computed |
-| `nifs.pi_dec.verify.radix.recompose` | `recomposeAssignment`, `split_recompose` | `Radix.recomposeAssignment`, `Radix.split_recompose` | computed / derived |
-| `nifs.pi_dec.verify.radix.norm` | `split_norm`, `recompose_norm` | `Radix.split_norm`, `Radix.recompose_norm` | derived |
-| `nifs.pi_dec.verify.commitment_hom` | `recomposeCommitment`, `commit_hom` | `Commitment.recomposeCommitment`, `Commitment.relation_commit_hom` | computed / derived |
-| `nifs.pi_dec.verify.public_input_hom` | `recomposePublicInput`, `publicInput_hom` | `PublicInput.recomposePublicInput`, `PublicInput.relation_publicInput_hom` | computed / derived |
-| `nifs.pi_dec.verify.evaluation_hom` | `recomposeEvaluations`, `evaluations_hom` | `EvaluationHomomorphism.PiDEC.recomposeEvaluations`, `relation_evaluations_hom` | computed / derived |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Algebra
@@ -44,9 +23,6 @@ open NightstreamFPrime.Spec.Phi81Relation
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Folding
 
-/-- The complete independent Phi81 `Pi_DEC` algebra for one exact typed Ajtai
-key. The verifier-row count remains generic; a production bridge must later
-prove the concrete row count, key decoding, and binding assumptions. -/
 def concrete {shape : Shape} {verifierRows : Nat}
     (key : PiRLCAlgebra.Commitment.Key shape verifierRows) :
     PiDEC.Algebra

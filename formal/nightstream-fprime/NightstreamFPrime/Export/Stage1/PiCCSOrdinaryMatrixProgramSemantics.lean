@@ -2,8 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 
 /-!
 Proves row-by-row equality between the compact PiCCS ordinary matrix program
-and the canonical direct 4-matrix plan. The package row accessor is an
-explicit identity-checked premise.
+and the canonical direct 4-matrix plan.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
@@ -69,8 +68,6 @@ theorem block_row?
     (PiCCSOrdinaryDirectSource.programRow_bounded relation index)
     agreesA agreesB agreesC
 
-/-- Every compact PiCCS ordinary row is the exact row of the canonical direct
-Lean plan. -/
 theorem matrixProgram_row?
     {program : Program} {logicalWidth : Nat}
     (relation : Lifecycle.ProductionKey.LogicalRelation relationLogicalWidth

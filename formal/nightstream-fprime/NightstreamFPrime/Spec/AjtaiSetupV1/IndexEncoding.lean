@@ -6,7 +6,6 @@ premises are essential. No statement about SHAKE128 output is made. -/
 
 namespace NightstreamFPrime.Spec.AjtaiSetupV1
 
-/-- Equal encodings agree on every encoded bit. -/
 theorem littleEndianBytes_mod (count left right : Nat)
     (same : littleEndianBytes count left = littleEndianBytes count right) :
     left % 256 ^ count = right % 256 ^ count := by
@@ -20,7 +19,6 @@ theorem elementInput_length (seed : Seed) (row block : Nat) :
     (elementInput seed.bytes row block).length = 81 := by
   simp [elementInput, seed.length_eq]
 
-/-- Distinct seeds or in-range coordinates never share a SHAKE128 input. -/
 theorem elementInput_injective (left right : Seed)
     (leftRow leftBlock rightRow rightBlock : Nat)
     (leftRowBound : leftRow < 2 ^ 32) (rightRowBound : rightRow < 2 ^ 32)
@@ -46,7 +44,6 @@ theorem elementInput_injective (left right : Seed)
   cases seedBytes
   rfl
 
-/-- Every coefficient word reads squeezed output, never a default lane. -/
 theorem elementLanes_length (seed : List Nat) (row block : Nat) :
     (elementLanes seed row block).length = 4 * ringDegree :=
   Shake128.lanes_length _ _

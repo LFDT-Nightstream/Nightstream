@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSGammaAggregation
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 
 /-! Proof-only transport from nested original-source weighted reads to the
-existing optional numeric matrix interpreter. No row lookup is assumed. -/
+existing optional numeric matrix interpreter. -/
 
 set_option autoImplicit false
 
@@ -21,8 +21,6 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle
 
-/-- Both weighted index levels pass through the existing sparse row.
-Optional failures and all repeated indices and entries are preserved. -/
 theorem row?_nested {Outer : Type uOuter} {Inner : Type uInner}
     (program : MatrixProgram.Program) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row)
@@ -64,8 +62,6 @@ theorem row?_nested {Outer : Type uOuter} {Inner : Type uInner}
       exact (PiCCSSparseEvaluation.weighted_reads form inner innerWeight
         (read output)).symm
 
-/-- Prepared basis coefficients and combined original source blocks give
-exactly the nested source/output read, including complete carrier tails. -/
 theorem carriedRead_value
     (forms : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
     (outputWeight : Fin ringDegree → K) (powers : Nat → K)
@@ -85,8 +81,6 @@ theorem carriedRead_value
     (fun source block => PiCCSSourceImages.blockAt
       (assignments (runningSourceIndex source)) block) column
 
-/-- The actual prepared carried row is the same nested weighted family of
-original-source numeric images. The reference lookup remains optional. -/
 theorem row?_prepared (program : MatrixProgram.Program)
     (sourceRow : Nat → Option R1CS.Row)
     (forms : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
@@ -155,8 +149,6 @@ private theorem sparseValues_empty {columns : Nat} (read : Fin columns → F) :
     Vector.getElem_replicate]
   cases meaningfulPort? ⟨index, bounded⟩ <;> rfl
 
--- This optional form occurs only in proof statements. The executable
--- continues to call the numeric interpreter, including in the active case.
 private theorem scalarRows_reference (program : MatrixProgram.Program)
     (sourceRow : Nat → Option R1CS.Row)
     (read : Fin PiCCSSourceImages.logicalWidth → F)
@@ -279,9 +271,6 @@ private theorem images_of_rows (program : MatrixProgram.Program)
     bind, Option.bind, get_ofFn]
   rfl
 
-/-- The aggregated endpoint is a total optional image transformation.
-Fresh/norm fields are unchanged; unused carried fields are zero, and the
-returned scalars are the complete factored carried sums. Failures agree. -/
 theorem endpoint_images (program : MatrixProgram.Program)
     (sourceRow : Nat → Option R1CS.Row)
     (forms : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
@@ -396,10 +385,6 @@ noncomputable abbrev selectedMessage (input : PiCCSPublicReplay.Input)
       (PiCCSPublicReplay.running input) (PiCCSPublicReplay.fresh input)).sourceProtocolData
         K.embed witness) vertex
 
-/-- The selected endpoint retains the exact nonlinear vertex fields and
-returns both complete canonical carried sums. Source rows, the full-carrier
-layout and both prepared bases are fixed by their checked owners. The pair
-kernel applies the global matrix shift separately, exactly once. -/
 theorem endpoint_sourceProtocolData (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (vertex : BooleanVertex cubeVariables) :

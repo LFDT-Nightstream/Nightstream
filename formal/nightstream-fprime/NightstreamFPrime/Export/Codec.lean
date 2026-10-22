@@ -8,13 +8,11 @@ all schema tags and validation; this module owns only lossless composition.
 
 namespace NightstreamFPrime.Export.Codec
 
-/-- Canonical structured value before deterministic text rendering. -/
 inductive Value where
   | atom (value : Nat)
   | array (values : List Value)
 deriving Repr
 
-/-- A codec carries its round-trip theorem with its implementation. -/
 structure Format (Alpha : Type) where
   encode : Alpha → Value
   decode : Value → Except String Alpha
@@ -87,9 +85,6 @@ def Value.render : Value → String
   | .array values =>
       "[" ++ String.intercalate "," (values.map Value.render) ++ "]"
 
-/-- Linear accumulator renderer for executable emission. It writes the same
-numeric-array syntax as `Value.render` without retaining one rendered string
-for every sibling value. -/
 def Value.renderInto : Value → ByteArray → ByteArray
   | .atom value, output => output ++ (toString value).toUTF8
   | .array values, output =>
@@ -110,7 +105,6 @@ private def rightBracketBytes : ByteArray := ByteArray.empty.push 93
 private def commaBytes : ByteArray := ByteArray.empty.push 44
 private def newlineBytes : ByteArray := ByteArray.empty.push 10
 
-/-- Write common punctuation without allocating a new singleton byte array. -/
 def writeByte (handle : IO.FS.Handle) (byte : UInt8) : IO Unit :=
   handle.write <| match byte with
     | 91 => leftBracketBytes
@@ -119,9 +113,6 @@ def writeByte (handle : IO.FS.Handle) (byte : UInt8) : IO Unit :=
     | 10 => newlineBytes
     | _ => ByteArray.empty.push byte
 
-/-- Write the canonical numeric-array encoding directly to a file handle.
-The traversal uses the same atom, bracket, comma, and child order as
-`renderInto`, but it does not retain the complete artifact in memory. -/
 partial def Value.writeCanonical (handle : IO.FS.Handle) : Value → IO Nat
   | .atom value => do
       let text := toString value
@@ -141,7 +132,6 @@ partial def Value.writeCanonical (handle : IO.FS.Handle) : Value → IO Nat
       writeByte handle 93
       pure (children + 2)
 
-/-- Write a canonical array with one item action at a time. -/
 partial def writeListWith (handle : IO.FS.Handle)
     (writeItem : Alpha → IO Unit) : List Alpha → IO Unit
   | values => do
@@ -158,8 +148,6 @@ partial def writeListWith (handle : IO.FS.Handle)
       writeValues values
       writeByte handle 93
 
-/-- Write a canonical codec list without first constructing its complete
-`Value.array`. Only the current encoded item is retained. -/
 def writeListCanonical (handle : IO.FS.Handle)
     (item : Format Alpha) (values : List Alpha) : IO Unit :=
   writeListWith handle
@@ -168,9 +156,6 @@ def writeListCanonical (handle : IO.FS.Handle)
       pure ())
     values
 
-/-- Append items to an array that a caller opened. `first` records whether
-the array is still empty, so callers can stream several logical list segments
-without constructing their concatenation. -/
 partial def writeArrayItemsWith (handle : IO.FS.Handle)
     (writeItem : Alpha → IO Unit) : Bool → List Alpha → IO Bool
   | first, [] => pure first

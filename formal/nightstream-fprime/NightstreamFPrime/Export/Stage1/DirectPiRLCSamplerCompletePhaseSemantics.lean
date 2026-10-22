@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCDirectPhaseSemantics
 
 /-!
 Owns the phase-local PiRLC lifecycle theorem for the sampler-complete direct
-prefix. It composes retained semantic evidence and does not close PiRLC or
-package conformance status.
+prefix.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePhaseSemantics
@@ -19,8 +18,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- The sampler-complete direct prefix entails the deterministic PiRLC phase
-relation from its own retained semantic evidence. -/
 theorem semantics_imply_piRlcPhaseHolds
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
@@ -68,8 +65,6 @@ theorem semantics_imply_piRlcPhaseHolds
   · exact semantics.prior.prior.piRlc
   · exact assumptions
 
-/-- Zero rows of the sampler-complete direct prefix, its exact retained
-encoding, and the canonical assumptions force deterministic PiRLC acceptance. -/
 theorem rowsZero_implies_piRlcPhaseHolds
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤

@@ -114,7 +114,6 @@ impl MetalSession {
         }
         for row_start in (0..plan.rows).step_by(capacity) {
             let count = capacity.min(plan.rows - row_start);
-            // Exact verification never uses the prover's satisfied-row substitution.
             let tables = self.build_joint_application_window(plan, &check.masks, 1, count, row_start)?;
             if let Some(row) = check.check_tables(self, &tables, row_start, count)? {
                 return Ok(Some(row));

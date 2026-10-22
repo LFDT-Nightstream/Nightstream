@@ -11,7 +11,6 @@ fn decode_witness_z_rejects_neo_digit_layout_compat_mode() {
     let m = 6usize;
     let mut z_mat = Mat::zero(D, m, F::ZERO);
 
-    // z[c] = z0 + b*z1 + b^2*z2 for b=2 with small signed digits.
     let one = F::ONE;
     let neg_one = F::ZERO - one;
     let d0 = [one, F::ZERO, one, neg_one, one, F::ZERO];

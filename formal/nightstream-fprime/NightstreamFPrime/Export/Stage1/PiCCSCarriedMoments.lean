@@ -2,7 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
 import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
 
 /-! Mathematical factoring of the complete first-round carried contribution
-into two weighted endpoint moments. No source reader or runtime scan is added. -/
+into two weighted endpoint moments. -/
 
 set_option autoImplicit false
 
@@ -196,8 +196,6 @@ private theorem sum_affine (ops : InterpolationOps Field) (laws : InterpolationE
       FiniteSumAlgebra.sumMap_congr ops _ _ _ (fun index _ => FiniteSumAlgebra.mul_sub ops laws _ _ _)
     _ = _ := FiniteSumAlgebra.sumMap_sub ops laws indices _ _
 
-/-- Exactly the first two addends of pairPolynomialWithNorm. The matrix
-scalar is the global matrixEvaluationOffset shift, applied once. -/
 def carriedPair (ops : InterpolationOps Field) {degree : Nat} (bound : 2 ≤ degree)
     (selector : FixedPolynomial Field 1) (matrixShift padLow padHigh matrixLow matrixHigh : Field) :
     FixedPolynomial Field degree :=
@@ -216,8 +214,6 @@ private theorem carriedPair_factor (ops : InterpolationOps Field) (laws : Interp
   rw [← applyHead_scale ops laws, ← applyHead_add ops laws, affine_combine ops laws,
     applyHead_scaled_head ops laws]
 
-/-- General finite carried sum. Repeated indices and empty lists keep their
-original meaning. No endpoint-validity or coverage premise is required. -/
 theorem sum_carriedPair (ops : InterpolationOps Field) (laws : InterpolationEvaluationLaws ops)
     {degree : Nat} (bound : 2 ≤ degree) (head : FixedPolynomial Field 1)
     (indices : List Index) (weight : Index → Field) (matrixShift : Field)
@@ -235,7 +231,6 @@ theorem sum_carriedPair (ops : InterpolationOps Field) (laws : InterpolationEval
   rw [← applyHead_sum ops laws, sum_affine ops laws]
   rfl
 
-/-- The exact head factor of the original equality selector. -/
 def headSelector (ops : InterpolationOps Field) {arity : Nat}
     (prior : CubePoint Field arity) : FixedPolynomial Field 1 :=
   match prior.coordinates with
@@ -273,8 +268,6 @@ private def matrixValue (ops : InterpolationOps Field) {shape : Shape} (gamma : 
   sumMap ops (canonicalMatrixCoordinates shape) (fun coordinate =>
     ops.mul (TargetPolynomial.power ops.toOps gamma coordinate.localGammaExponent) (message.matrixImage coordinate))
 
-/-- Mathematical endpoint moment on the full numeric suffix domain.
-The original canonical coordinate families include every carried source. -/
 def moment (ops : InterpolationOps Field) {shape : Shape}
     (data : ProtocolPolynomial.Data Field shape) (gamma : Field) {remaining : Nat}
     (dimension : shape.cubeVariables = remaining + 1) (bit : Bool) : Field :=
@@ -286,10 +279,6 @@ def moment (ops : InterpolationOps Field) {shape : Shape}
         (ops.mul (TargetPolynomial.power ops.toOps gamma shape.matrixEvaluationOffset)
           (matrixValue ops gamma message)))
 
-/-- Full mathematical carried contribution. Instantiating data with the
-selected statement's sourceProtocolData uses the original assignments; no
-matrix-image equality is an extra premise. The two endpoint moments replace
-the full carried pair sum, preserving every fixed-width coefficient. -/
 theorem complete_carried_sum (ops : InterpolationOps Field) (laws : InterpolationEvaluationLaws ops)
     {shape : Shape} (data : ProtocolPolynomial.Data Field shape) (gamma : Field)
     {remaining : Nat} (dimension : shape.cubeVariables = remaining + 1) :
@@ -312,8 +301,6 @@ theorem complete_carried_sum (ops : InterpolationOps Field) (laws : Interpolatio
   rw [sum_carriedPair ops laws]
   rfl
 
-/-- The carriedPair above is the exact carried branch of the existing pair
-constructor. The nonlinear branch and its constraint shift are unchanged. -/
 theorem pairPolynomialWithNorm_split (ops : InterpolationOps Field) (laws : InterpolationEvaluationLaws ops)
     {shape : Shape} (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
     (alphaSelector priorSelector : FixedPolynomial Field 1)
@@ -335,8 +322,6 @@ theorem pairPolynomialWithNorm_split (ops : InterpolationOps Field) (laws : Inte
   unfold PiCCSFirstRoundPair.pairPolynomialWithNorm carriedPair applyHead
   exact (PiCCSPolynomialRange.add_assoc ops laws _ _ _).symm
 
-/-- The separate Pad/matrix affine polynomials use the same combined moments
-as complete_carried_sum. This is coefficient equality, for arbitrary inputs. -/
 theorem carriedPair_combined (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) {degree : Nat} (bound : 2 ≤ degree)
     (head : FixedPolynomial Field 1) (matrixShift padLow padHigh matrixLow matrixHigh : Field) :
@@ -349,9 +334,6 @@ theorem carriedPair_combined (ops : InterpolationOps Field)
   rw [← applyHead_scale ops laws, ← applyHead_add ops laws, affine_combine ops laws]
   rfl
 
-/-- The one generic formula join needed by the selected composer: complete
-carried moments plus the fresh and norm pair sums give the original complete
-first-round polynomial. Every source field is read from the same data. -/
 theorem full_components_eq_firstRound (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) {shape : Shape}
     (data : ProtocolPolynomial.Data Field shape)

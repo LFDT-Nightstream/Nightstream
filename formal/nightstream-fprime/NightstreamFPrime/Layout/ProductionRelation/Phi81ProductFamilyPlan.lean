@@ -18,7 +18,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- Sparse forms for an ordered family of complete ring products. -/
 structure Interface (logicalWidth invocationCount : Nat) where
   left : Fin invocationCount → Phi81ProductPlan.State logicalWidth
   right : Fin invocationCount → Phi81ProductPlan.State logicalWidth
@@ -106,7 +105,6 @@ theorem plan_residual_at {logicalWidth invocationCount : Nat}
   rw [plan_rowImage_at]
   rfl
 
-/-- The actual family rows encode exactly the quotient evaluation equations. -/
 theorem planRowsZero_iff {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
     (rowCount_le : invocationCount * 108 ≤
@@ -138,7 +136,6 @@ theorem planRowsZero_iff {logicalWidth invocationCount : Nat}
       (ringInterface interface decoded.1) assignment).mpr
         (equations decoded.1) decoded.2
 
-/-- Satisfying family rows force every complete `prior + ringFMul` result. -/
 theorem planRowsZero_implies_ringProduct {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
     (rowCount_le : invocationCount * 108 ≤

@@ -25,13 +25,10 @@ abbrev Cache := Query → Option Draw
 
 def zeroBlock : Draw := fun _ => 0
 
-/-- The existing scalar-domain block, padded to the four-lane rate. -/
 def scalarDomain (coordinate : Fin 17) : Draw := fun lane =>
   if lane.val = 0 then Poseidon2.ofNat 4
   else if lane.val = 1 then Poseidon2.ofNat coordinate.val else 0
 
-/-- Output position is represented by the actual zero-addition advances,
-so two descriptions of the same normalized history name the same query. -/
 def scalarQuery (history : List Draw) (coordinate : Fin 17) (position : Nat) : Query :=
   ⟨history ++ [scalarDomain coordinate] ++ List.replicate position zeroBlock, by
     intro empty
@@ -74,8 +71,6 @@ structure Outcome (State : Type*) where
   cache : Cache
   queries : Nat
 
-/-- q is an experiment parameter, not a deployment limit. A caller can
-stop early; unused tape cells have no effect. -/
 def run {State : Type*} (program : Program State) (state : State) (cache : Cache) :
     (q : Nat) → (Fin q → Draw) → Outcome State
   | 0, _ => ⟨state, cache, 0⟩
@@ -109,8 +104,6 @@ theorem run_preserves {State : Type*} (program : Program State) (state : State) 
       | none => exact known
       | some next => exact ih _ _ _ (ask_preserves cache next query (tape 0) value known)
 
-/-- Adaptive keys, raw-lane observations, and repeated-query consistency
-are all included in the deterministic test of the complete draw tape. -/
 theorem run_bias_bound {State : Type*} (program : Program State) (initial : State) (q : Nat)
     (test : Outcome State → ℝ) (nonnegative : ∀ result, 0 ≤ test result)
     (atMostOne : ∀ result, test result ≤ 1) :
@@ -121,8 +114,6 @@ theorem run_bias_bound {State : Type*} (program : Program State) (initial : Stat
     raw_blocks_difference_abs_le (fun tape : Fin q → Draw => test (run program initial empty q tape))
       (fun _ => nonnegative _) (fun _ => atMostOne _)
 
-/-- An explicitly supplied block-oracle approximation error remains a
-separate term. No value for it is asserted for concrete Poseidon2. -/
 theorem under_block_oracle_assumption {State : Type*} (program : Program State)
     (initial : State) (q : Nat) (test : Outcome State → ℝ)
     (nonnegative : ∀ result, 0 ≤ test result) (atMostOne : ∀ result, test result ≤ 1)

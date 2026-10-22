@@ -1,8 +1,9 @@
 import NightstreamFPrime.Export.Stage1.CheckedReplaySuccessor
 import NightstreamFPrime.Export.Stage1.HyperNovaInput
 
-/-! Reuse the accepted exact successor as the next checked replay's prior.
-The fresh claim and all seventeen source witnesses are the prior result. -/
+/-!
+Reuse the accepted exact successor as the next checked replay's prior.
+-/
 
 set_option autoImplicit false
 
@@ -14,8 +15,6 @@ open NightstreamFPrime.Layout.Stage1
 open PerApplicationCanonicalAssignment
 open Poseidon2HashChainV1Package (application)
 
-/-- Re-encoding the next C input preserves the exact accepted predecessor
-payload. The next proof supplies only the next execution's local data. -/
 theorem prior_eq_payload
     (result : Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))

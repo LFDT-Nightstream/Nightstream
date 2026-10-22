@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial.Types
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckInitial
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolPolynomial.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 The actual off-cube polynomial and terminal authority for paper joint `Pi_CCS`.
 
@@ -26,25 +23,6 @@ Fiat--Shamir, semantic degree bounds, root probabilities, Rust,
 R1CS, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: residual-table interpolation is not used as the off-cube
-paper polynomial. `qAtPoint` first evaluates each underlying multilinear image
-and then applies the nonlinear CCS/norm formulas, exactly in paper order.
-Executable `check` receives only `VerifierInput`, never the hidden tables in
-`Data`. If the raw output message does not match the semantic polynomial at the
-derived point, the main theorem returns `OutputMismatch` as a named event.
-
-| Protocol | Phase | Family | Mathematical owner |
-|---|---|---|---|
-| `Pi_CCS` | source images | fresh-matrix / assignment / Pad / matrix tables | `Data` |
-| `Pi_CCS` | verifier input | polynomial / prior point / public claims | `Data.toVerifierInput` |
-| `Pi_CCS` | nonlinear point evaluation | `F`, `NC`, `Eval_K`, `Eval_A`, `Q` | `ccsAtMessage`, `normAtMessage`, `padAtMessage`, `matrixAtMessage`, `terminalFromMessage` |
-| `Pi_CCS` | prover output | values at `r'` only | `OutputMessage` |
-| `Pi_CCS` | honest output | evaluate every source table at `r'` | `messageAt` |
-| `Pi_CCS` | Boolean restriction | actual `Q` equals signed residual `Q` on the cube | `qAtPoint_toCubePoint_eq_tableQ` |
-| `Pi_CCS` | SumCheck truth path | completion sums of actual `Q` | `canonicalGhosts_honest` |
-| `Pi_CCS` | executable check | finite chain with message-derived terminal | `check` |
-| assurance | deterministic soundness | table truth or mixing root or round collision or output mismatch | `check_implies_tableTruth_or_badEvent` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
@@ -54,8 +32,7 @@ open NightstreamFPrime.Spec.SumCheck
 
 universe uField
 
-/-- The paper's strict-`b = 2` norm polynomial over the active carrier.
-The raw source value is interpolated first; the cubic is applied afterwards. -/
+/-- The paper's strict-`b = 2` norm polynomial over the active carrier. -/
 def strictNormResidual
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -63,11 +40,6 @@ def strictNormResidual
   ops.mul (ops.mul (ops.add value ops.one) value)
     (ops.sub value ops.one)
 
-/-- Explicit data from which the paper polynomial is constructed.
-
-Unlike `SignedJointIdentity.JointData`, the CCS and norm fields are the
-underlying image tables rather than already-composed residual truth tables.
-That distinction preserves nonlinear off-cube evaluation. -/
 structure Data (Field : Type uField) (shape : Shape) where
   constraintPolynomial :
     CCSResidualTable.ConstraintPolynomial Field shape.matrixCount
@@ -85,9 +57,6 @@ structure Data (Field : Type uField) (shape : Shape) where
 
 namespace Data
 
-/-- Restrict the actual protocol formulas to Boolean vertices. This produces
-the independent signed residual object used for alpha/gamma coefficient
-reasoning; it does not define off-cube evaluation. -/
 def toJointData
     {Field : Type uField}
     {shape : Shape}
@@ -105,8 +74,6 @@ def toJointData
   claimedPadCoefficient := data.claimedPadCoefficient
   claimedMatrixCoefficient := data.claimedMatrixCoefficient
 
-/-- Erase every hidden semantic table from the executable verifier surface.
-All retained fields are verifier-owned structure or public claim data. -/
 def toVerifierInput
     {Field : Type uField}
     {shape : Shape}
@@ -116,8 +83,6 @@ def toVerifierInput
   claimedPadCoefficient := data.claimedPadCoefficient
   claimedMatrixCoefficient := data.claimedMatrixCoefficient
 
-/-- Rich semantic sources with the same three authoritative fields project to
-the same executable input, regardless of every hidden assignment/image table. -/
 theorem toVerifierInput_eq
     {Field : Type uField}
     {shape : Shape}
@@ -138,8 +103,6 @@ theorem toVerifierInput_eq
 
 end Data
 
-/-- Canonical output values at one typed point, derived from the polynomial
-source tables rather than supplied by a semantic callback. -/
 def messageAt
     {Field : Type uField}
     {shape : Shape}
@@ -156,7 +119,6 @@ def messageAt
   matrixImage := fun coordinate =>
     (data.matrixImages coordinate).evaluate ops point
 
-/-- The exact output-message values at a Boolean vertex. -/
 def vertexMessage
     {Field : Type uField}
     {shape : Shape}
@@ -174,8 +136,6 @@ def vertexMessage
 
 namespace VerifierInput
 
-/-- The v1.2 target polynomial is constructed solely from the separate public
-Pad and matrix coefficients. -/
 def targetCoefficients
     {Field : Type uField}
     {shape : Shape}
@@ -184,8 +144,7 @@ def targetCoefficients
   pad := input.claimedPadCoefficient
   matrix := input.claimedMatrixCoefficient
 
-/-- Verifier-owned v1.2 initial claim `T_K + gamma^(k*d) * T_A`.
-Hidden semantic tables cannot affect this value. -/
+/-- Verifier-owned v1.2 initial claim `T_K + gamma^(k*d) * T_A`. -/
 def initial
     {Field : Type uField}
     {shape : Shape}
@@ -196,8 +155,6 @@ def initial
 
 end VerifierInput
 
-/-- Projecting rich semantic data does not change the paper-joint initial
-claim used by the existing truth-path theorem. -/
 theorem verifierInput_initial_eq_joint_initial
     {Field : Type uField}
     {shape : Shape}
@@ -208,7 +165,6 @@ theorem verifierInput_initial_eq_joint_initial
       SumCheckInitial.verifierInitial ops (data.toJointData ops) gamma := by
   rfl
 
-/-- Paper `F(r', gamma)` derived from the fresh output evaluations. -/
 def ccsAtMessage
     {Field : Type uField}
     {shape : Shape}
@@ -222,7 +178,6 @@ def ccsAtMessage
         CCSResidualTable.evaluatePolynomial ops input.constraintPolynomial
           (message.freshMatrixImage source)
 
-/-- Paper `NC(r', gamma)` derived from all output assignment evaluations. -/
 def normAtMessage
     {Field : Type uField}
     {shape : Shape}
@@ -234,7 +189,6 @@ def normAtMessage
       SignedJointIdentity.gammaTerm ops gamma source.val <|
         strictNormResidual ops (message.sourceAssignment source)
 
-/-- Paper `Eval_K(r', gamma)` derived from the Pad output evaluations. -/
 def padAtMessage
     {Field : Type uField}
     {shape : Shape}
@@ -250,7 +204,7 @@ def padAtMessage
           coordinate.localGammaExponent (message.padImage coordinate)
 
 /-- Paper `Eval_A(r', gamma)` derived from the CCS-matrix output
-evaluations. Its `k*d` shift is applied by `terminalFromMessage`. -/
+evaluations. -/
 def matrixAtMessage
     {Field : Type uField}
     {shape : Shape}
@@ -287,8 +241,6 @@ def terminalFromMessage
             (SignedJointIdentity.gammaTerm ops gamma shape.freshCount
               (normAtMessage ops gamma message))))
 
-/-- The actual paper polynomial at an arbitrary field point. Underlying image
-tables are evaluated first and nonlinear formulas are applied second. -/
 def qAtPoint
     {Field : Type uField}
     {shape : Shape}
@@ -300,8 +252,6 @@ def qAtPoint
   terminalFromMessage ops data.toVerifierInput alpha gamma point
     (messageAt ops data point)
 
-/-- Total coordinate-list form of the actual paper polynomial. Wrong arity
-fails closed rather than selecting an arbitrary point representation. -/
 def polynomial
     {Field : Type uField}
     {shape : Shape}
@@ -315,8 +265,6 @@ def polynomial
   else
     ops.zero
 
-/-- The output message derived at a Boolean point contains exactly the
-underlying table leaves. -/
 theorem messageAt_toCubePoint_eq_vertexMessage
     {Field : Type uField}
     {shape : Shape}
@@ -324,7 +272,7 @@ theorem messageAt_toCubePoint_eq_vertexMessage
     (laws : InterpolationEvaluationLaws ops)
     (data : Data Field shape)
     (vertex : BooleanVertex shape.cubeVariables) :
-    messageAt ops data (SumCheckTruthPath.VertexEncoding.toCubePoint ops vertex) =
+    messageAt ops data (BooleanVertex.toCubePoint ops vertex) =
       vertexMessage data vertex := by
   apply OutputMessage.ext
   · funext source matrix
@@ -340,8 +288,6 @@ theorem messageAt_toCubePoint_eq_vertexMessage
     exact SumCheckTruthPath.evaluate_toCubePoint_eq_valueAt
       ops laws (data.matrixImages coordinate) vertex
 
-/-- At a Boolean vertex, the message-derived paper formula is exactly the
-independently constructed signed residual `Q`. -/
 theorem terminalFromVertexMessage_eq_tableQ
     {Field : Type uField}
     {shape : Shape}
@@ -352,7 +298,7 @@ theorem terminalFromVertexMessage_eq_tableQ
     (gamma : Field)
     (vertex : BooleanVertex shape.cubeVariables) :
     terminalFromMessage ops data.toVerifierInput alpha gamma
-        (SumCheckTruthPath.VertexEncoding.toCubePoint ops vertex)
+        (BooleanVertex.toCubePoint ops vertex)
         (vertexMessage data vertex) =
       SignedJointIdentity.qAt ops (data.toJointData ops) alpha gamma vertex := by
   simp only [terminalFromMessage, ccsAtMessage, normAtMessage,
@@ -364,8 +310,6 @@ theorem terminalFromVertexMessage_eq_tableQ
     BooleanTable.valueAt_tabulate,
     SumCheckTruthPath.pointEquality_toCubePoint_eq_equalityWeight ops laws]
 
-/-- The actual off-cube polynomial and residual-table object agree exactly on
-the Boolean cube, which is the only equality needed for the initial sum. -/
 theorem qAtPoint_toCubePoint_eq_tableQ
     {Field : Type uField}
     {shape : Shape}
@@ -376,14 +320,12 @@ theorem qAtPoint_toCubePoint_eq_tableQ
     (gamma : Field)
     (vertex : BooleanVertex shape.cubeVariables) :
     qAtPoint ops data alpha gamma
-        (SumCheckTruthPath.VertexEncoding.toCubePoint ops vertex) =
+        (BooleanVertex.toCubePoint ops vertex) =
       SignedJointIdentity.qAt ops (data.toJointData ops) alpha gamma vertex := by
   unfold qAtPoint
   rw [messageAt_toCubePoint_eq_vertexMessage ops laws]
   exact terminalFromVertexMessage_eq_tableQ ops laws data alpha gamma vertex
 
-/-- Coordinate-list evaluation at a canonical Boolean vertex is the signed
-residual `Q` leaf. -/
 theorem polynomial_fieldCoordinates_eq_tableQ
     {Field : Type uField}
     {shape : Shape}
@@ -394,15 +336,13 @@ theorem polynomial_fieldCoordinates_eq_tableQ
     (gamma : Field)
     (vertex : BooleanVertex shape.cubeVariables) :
     polynomial ops data alpha gamma
-        (SumCheckTruthPath.VertexEncoding.fieldCoordinates ops vertex) =
+        (BooleanVertex.fieldCoordinates ops vertex) =
       SignedJointIdentity.qAt ops (data.toJointData ops) alpha gamma vertex := by
   unfold polynomial
   rw [dif_pos
-    (SumCheckTruthPath.VertexEncoding.fieldCoordinates_length ops vertex)]
+    (BooleanVertex.fieldCoordinates_length ops vertex)]
   exact qAtPoint_toCubePoint_eq_tableQ ops laws data alpha gamma vertex
 
-/-- The actual paper polynomial has the same Boolean initial sum as the
-independent signed residual object. No off-cube equality is asserted. -/
 theorem sumCompletions_polynomial_eq_summedQ
     {Field : Type uField}
     {shape : Shape}
@@ -423,8 +363,6 @@ theorem sumCompletions_polynomial_eq_summedQ
   exact polynomial_fieldCoordinates_eq_tableQ
     ops laws data alpha gamma vertex
 
-/-- The semantic expected-round list is derived from the actual protocol
-polynomial, never from a prover callback or the residual-table MLE. -/
 def canonicalExpected
     {Field : Type uField}
     {shape : Shape}
@@ -436,7 +374,6 @@ def canonicalExpected
   SumCheck.Finite.HypercubeTruth.expectedPolynomials ops.toOps
     (polynomial ops data alpha gamma) challenges
 
-/-- Semantic ghosts for the actual protocol polynomial. -/
 def canonicalGhosts
     {Field : Type uField}
     {shape : Shape}
@@ -449,8 +386,6 @@ def canonicalGhosts
     ops (data.toJointData ops) alpha gamma
   expected := canonicalExpected ops data alpha gamma challenges
 
-/-- Structurally derived truth path for the actual paper polynomial. The
-semantic degree bound remains intentionally separate. -/
 theorem canonicalGhosts_honest
     {Field : Type uField}
     {shape : Shape}
@@ -475,8 +410,6 @@ theorem canonicalGhosts_honest
     sumCompletions_polynomial_eq_summedQ ops laws data alpha gamma,
     polynomial, roundPoint.dimension, dif_pos] using generic
 
-/-- The output message fails to represent the actual polynomial terminal at
-the verifier-derived point. This is a named semantic event, not acceptance. -/
 def OutputMismatch
     {Field : Type uField}
     {shape : Shape}
@@ -489,9 +422,6 @@ def OutputMismatch
   terminalFromMessage ops data.toVerifierInput alpha gamma point message ≠
     qAtPoint ops data alpha gamma point
 
-/-- Executable finite verifier with the initial target derived from public
-Pad and matrix claims and the terminal derived from the prover's output
-message. -/
 def check
     {Field : Type uField}
     [DecidableEq Field]
@@ -509,7 +439,6 @@ def check
     (terminalFromMessage ops input alpha gamma roundPoint message)
     certificate
 
-/-- Exact executable/logical correspondence for the message-terminal checker. -/
 theorem check_eq_true_iff_accepted
     {Field : Type uField}
     [DecidableEq Field]
@@ -534,12 +463,6 @@ theorem check_eq_true_iff_accepted
     (terminalFromMessage ops input alpha gamma roundPoint message)
     certificate
 
-/-- Deterministic soundness boundary for the actual protocol polynomial.
-
-Acceptance yields residual-table truth, an alpha/gamma mixing root, a concrete
-SumCheck collision under the actual polynomial's expected rounds, or an
-explicit mismatch between the output message and the semantic terminal.
-No probability or extraction claim is hidden in this theorem. -/
 theorem check_implies_tableTruth_or_badEvent
     {Field : Type uField}
     [DecidableEq Field]

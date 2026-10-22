@@ -33,7 +33,6 @@ def evalKFamily : ProductFamily :=
 def evalAFamily : ProductFamily :=
   { sourceCount := 17, blockCount := productionProfile.ccsMatrices, cellCount := 2 }
 
-/-- Exact SuperNeo family order: commitment, public input, Eval_K, Eval_A. -/
 def families : List ProductFamily :=
   [commitmentFamily, publicInputFamily, evalKFamily, evalAFamily]
 
@@ -51,10 +50,8 @@ def families : List ProductFamily :=
     MatrixProgram.Phi81Product.Family.ringCount,
     commitmentFamily, publicInputFamily, evalKFamily, evalAFamily, productionProfile]
 
-/-- First checked coefficient word of source zero. -/
 def challengeSlotStart : Nat := 0
 
-/-- Each source owns exactly 54 checked coefficient words. -/
 def challengeSourceStride : Nat := 54
 
 theorem prefixGeometry {program : Lifecycle.Stage1.Application.Program}
@@ -72,7 +69,6 @@ def inputs {program : Lifecycle.Stage1.Application.Program}
   PiRLCRetainedInputs.productInputs (PiRLCValueWiring.form geometry)
     (prefixGeometry geometry)
 
-/-- One compact product-family block over the canonical retained assignment. -/
 def block {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :

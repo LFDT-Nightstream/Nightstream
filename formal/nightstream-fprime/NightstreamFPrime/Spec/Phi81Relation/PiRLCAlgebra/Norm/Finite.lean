@@ -2,16 +2,10 @@ import NightstreamFPrime.Spec.Profile
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLCFinite
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/PiRLCAlgebra/Norm/Finite.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Finite-batch production norm growth for the typed Phi81 `PiRLC.Algebra`.
 
 Protocol: SuperNeo v1.2 Definition 22 and `Pi_RLC`.
-Phase: valid challenge actions followed by the canonical finite assignment
-combination.
-Constraint family: semantic norm only; this file emits no rows.
 
 Owns: the coordinatewise `216` action bound, centered accumulation over the
 exact head-first `PiRLCFinite.combineAssignments` fold, production arity
@@ -21,20 +15,6 @@ shape.
 Does not own: transcript derivation of valid challenges, commitments,
 evaluation/public-input homomorphisms, Rust/R1CS refinement, row removal, or
 constraint counts.
-
-Emits constraints: no.
-
-Authority boundary: the final theorem accepts only the algebra field's
-verifier-owned arity cap, exact production-set challenge predicate, and fresh
-relation norm facts. It calls the executable quotient-ring proof; no expansion
-oracle or circuit result is an input.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `nifs.pi_rlc.verify.norm_growth.assignment.action` | every coordinate of one valid action is at most `216` | derived | `act_coordinate_le_expansion` |
-| `nifs.pi_rlc.verify.norm_growth.assignment.finite` | `n` canonical actions accumulate to at most `n * 216` | derived | `combineAssignments_le` |
-| `nifs.pi_rlc.verify.norm_growth.assignment.production` | `n ≤ 303` implies `n * 216 < 2^16` | verifier parameter theorem | `production_total_bound` |
-| `nifs.pi_rlc.verify.norm_growth.algebra` | exact concrete `PiRLC.Algebra.norm_growth` field | derived | `relation_norm_growth` |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Finite
@@ -44,8 +24,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81Relation
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 
-/-- One coordinate of a valid challenge action satisfies the executable
-production expansion bound. -/
 theorem act_coordinate_le_expansion
     {shape : Shape} (challenge : RingF) (assignment : Assignment shape)
     (challengeValid : Challenge.challengeValid challenge)
@@ -63,8 +41,6 @@ theorem act_coordinate_le_expansion
   · intro lane
     exact assignmentFresh (CarrierAction.carrierColumn packed.1 lane)
 
-/-- The exact head-first finite assignment combination has coordinate norm at
-most the number of sources times the production expansion factor. -/
 theorem combineAssignments_le
     {shape : Shape} {count : Nat}
     (challenges : Fin count -> RingF)
@@ -113,10 +89,6 @@ theorem production_total_bound {count : Nat}
   change count * 216 < 65536
   omega
 
-/-- Exact theorem supplied to the production `PiRLC.Algebra.norm_growth`
-field. Its arguments and conclusion deliberately match that field after
-specializing `params = productionGlobalParams` and
-`combineAssignment = PiRLCFinite.combineAssignments`. -/
 theorem relation_norm_growth
     {shape : Shape} {Commitment : Type}
     (commit : Assignment shape -> Commitment)

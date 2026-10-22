@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 
 /-!
 Connect decoded HyperNova claims to the existing NIFS checker input, at every
-application width. The conversion preserves every claim and PiCCS message
-field. It introduces no alternate statement, transcript, matrix source, or
-witness representation.
+application width.
 -/
 
 set_option autoImplicit false
@@ -54,7 +52,6 @@ variable {logicalWidth : Nat}
 local notation "Running" => Lifecycle.Running (logicalWidth := logicalWidth) (publicFits := publicFits)
 local notation "Fresh" => Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)
 
-/-- Serialize the existing typed running bundle into the checker's fixed arrays. -/
 def runningInput (value : Running) : PiCCSInputCheck.RunningInput where
   point := ⟨value.point.coordinates.toArray, by simpa using! value.point.dimension⟩
   commitments := Vector.ofFn fun source => commitmentWords (value.commitments source)
@@ -63,7 +60,6 @@ def runningInput (value : Running) : PiCCSInputCheck.RunningInput where
   evalA := Vector.ofFn fun source => Vector.ofFn fun matrix =>
     Vector.ofFn ((value.evaluations source).matrix matrix)
 
-/-- Recover the same typed bundle, including the complete Pad and matrix families. -/
 theorem runningFromInput_runningInput (value : Running) :
     PiCCSInputCheck.runningFromInput (runningInput value) = value := by
   apply running_ext
@@ -89,7 +85,6 @@ theorem runningFromInput_runningInput (value : Running) :
     · funext matrix coefficient
       simp only [PiCCSInputCheck.runningFromInput, runningInput, vector_get_ofFn]
 
-/-- Preserve the actual PiCCS messages when forming the existing checker input. -/
 def ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 8) :
     PiCCSInputCheck.Input where
   commitment := commitmentWords (fresh.commitments ⟨0, by decide⟩)
@@ -102,12 +97,10 @@ def ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 8) :
     Vector.ofFn (proof.piCcsOutput.matrixCoordinate source matrix)
   running := runningInput running
 
-/-- The checked source statement retains the exact decoded running claims. -/
 theorem running_ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 8) :
     PiCCSInputCheck.running (ofClaims running fresh proof) = running :=
   runningFromInput_runningInput running
 
-/-- The checked source statement retains the exact decoded fresh claim. -/
 theorem fresh_ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 8) :
     PiCCSInputCheck.fresh (ofClaims running fresh proof) = fresh := by
   apply fresh_ext

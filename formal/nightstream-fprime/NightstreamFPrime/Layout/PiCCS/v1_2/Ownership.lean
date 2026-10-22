@@ -23,7 +23,6 @@ variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Mathematical owner of one PiCCS child row family. -/
 inductive ChildOwner where
   | statementBinding
   | statementAbsorption
@@ -143,7 +142,6 @@ theorem rowOwners_length
       (totalRowCount_eq_deltas relation interface offset).symm
     _ = _ := (physicalRowCount_eq relation interface offset).symm
 
-/-- Total owner function for the complete physical row list. -/
 def rowOwner
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -168,7 +166,6 @@ theorem ownedRows_length
   rw [ownedRows, List.length_zip, rowOwners_length]
   simp [physicalRowCount, physicalRows, R1CS.LoweringPlan.rowCount]
 
-/-- Exact child-private deltas in `Formal.opsAt` order. -/
 def logicalPrivateDeltas
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -182,7 +179,6 @@ theorem logicalPrivateDeltas_length
     (logicalPrivateDeltas relation interface offset).length = 12 := by
   simp [logicalPrivateDeltas, Formal.opsAt]
 
-/-- Parent assembly contributes no logical copy columns. -/
 theorem noBoundaryColumns
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -192,7 +188,6 @@ theorem noBoundaryColumns
   rw [logicalColumnCount_eq relation interface offset, Formal.main_ops]
   rfl
 
-/-- Parent assembly contributes no logical copy rows. -/
 theorem noBoundaryRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -218,8 +213,6 @@ inductive ColumnOwner where
   | r1csIntermediate (index : Nat)
 deriving Repr, DecidableEq
 
-/-- Total column owner classifier. Zero-length child intervals are retained in
-the type so the ownership vocabulary matches all 12 leaves. -/
 def columnOwnerAt
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -260,7 +253,6 @@ def columnOwnerAt
     .r1csIntermediate
       (column - logicalColumnCount relation interface offset)
 
-/-- Every physical column has one owner. -/
 def columnOwner
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)

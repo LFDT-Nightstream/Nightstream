@@ -1,6 +1,4 @@
 //! Complete recursive production, golden handoff and later terminal checks.
-//! The baseline full producer exceeded the normal test cap. This gate needs
-//! approval for its specific invocation; an ignored result is not evidence.
 
 use std::time::Instant;
 
@@ -8,7 +6,7 @@ use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_ma
 use p3_field::PrimeCharacteristicRing;
 
 use super::*;
-use crate::folding::{ajtai_dec_mixer, ajtai_rlc_mixer, transcript::Transcript};
+use crate::folding::{ajtai_dec_mixer, ajtai_rlc_mixer, transcript::Transcript, BoundRunning};
 use crate::lifecycle::{
     encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_state_hash, serialize_pi_ccs_v1_2_state_preimage, ProofState,
     Stage1Envelope, VerifyError,
@@ -27,8 +25,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
 
     let base = read(artifact("nightstream-fprime-stage1-base-step-fixture-v1.json"));
     let private: Vec<u64> = serde_json::from_value(base[2].clone()).unwrap();
-    // `z0` sits in the prior preimage tail `vk, i, z0, zi`.
-    let initial: [u64; 4] = private[27_811..27_815].try_into().unwrap();
+    let initial: [u64; 4] = private[INITIAL_STATE_WORDS].try_into().unwrap();
     let message: [u64; 4] = private[private.len() - 4..].try_into().unwrap();
     let initial = initial.map(F::from_u64);
     let message = message.map(F::from_u64);
@@ -60,7 +57,6 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     let (next, proof) = package.prove(fresh, running).unwrap();
     eprintln!("first full C/R/D elapsed={:?}", first_fold.elapsed());
 
-    // Only assertions read expected proof bytes. They never enter the prover.
     let saved = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/stage1_actual_nifs");
     assert_eq!(proof.canonical_bytes(), fs::read(saved.join("proof.native")).unwrap());
     let expected_nifs = read(artifact("nightstream-fprime-stage1-base-nifs-result-v1.json"));
@@ -80,7 +76,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         &fresh_claim,
-        &prior,
+        BoundRunning::from_checked_prior(&prior),
         &proof,
     )
     .unwrap();
@@ -129,7 +125,6 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     assert_eq!(successor.state().current().as_slice(), fields(&request[2]));
     eprintln!("golden successor completed elapsed={:?}", started.elapsed());
 
-    // The newly produced successor is the actual input of the next full fold.
     let final_output = application
         .execute(successor.state().current(), &recursive_message)
         .unwrap()
@@ -159,7 +154,6 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
         })
     );
 
-    // Rebuilding the digest and commitment must not hide a false running opening.
     let changed = rehash_false_running_opening(&package, final_proof);
     eprintln!(
         "rehashed running-opening rejection started elapsed={:?}",
@@ -168,7 +162,6 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     let error = package
         .verify(&expected_state, &changed)
         .expect_err("a rehashed false opening must be rejected");
-    // The combined row evaluator checks the fresh relation first.
     assert!(
         matches!(
             error,
@@ -181,7 +174,6 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     eprintln!("complete recursive gate elapsed={:?}", started.elapsed());
 }
 
-/// Keep this exact rehash/recommit attack shared by the full and staged gates.
 pub(super) fn rehash_false_running_opening(package: &PreparedLifecycle, final_proof: Stage1Envelope) -> Stage1Envelope {
     let expected_state = *final_proof.state();
     let (_, proof_state) = final_proof.into_parts();

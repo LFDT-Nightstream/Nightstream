@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Run the fixed extra-cell probe in an existing clean scratch worktree.
-# The caller owns scratch creation/cache preparation. No production source moves.
-# A failed full build is diagnostic evidence; classify its named failures before
-# deciding whether an unrelated phase proof depends on the changed allocation.
 set -euo pipefail
 
 if (( $# != 2 )); then
@@ -43,14 +39,12 @@ run_target() {
   return "$rc"
 }
 
-# A failed leaf is an invalid experiment, not evidence about parent interfaces.
 run_target leaf NightstreamFPrime.Layout.PiDEC.v1_2.Leaves.SignedSplitScalar
 control_failed=0
 run_target piccs NightstreamFPrime.Layout.PiCCS.v1_2.Lowering || control_failed=1
 run_target pirlc NightstreamFPrime.Layout.PiRLC.v1_2.Lowering || control_failed=1
 run_target pirlc_input NightstreamFPrime.Layout.Stage1.PiRLCInputBounds || control_failed=1
 full_failed=0
-# Distinguish interface/consumer failures from value-only default-profile checks.
 run_target pidec_ranges NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData || full_failed=1
 run_target nifs_consumer NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixEntry || full_failed=1
 run_target full NightstreamFPrime || full_failed=1

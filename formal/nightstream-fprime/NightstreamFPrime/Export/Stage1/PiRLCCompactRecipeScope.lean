@@ -2,8 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCCombinationTemplates
 
 /-!
 Each canonical PiRLC compact recipe reads only normalized inputs before its
-output. These structural bounds do not depend on field values or physical
-column geometry.
+output.
 -/
 
 set_option autoImplicit false

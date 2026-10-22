@@ -1,6 +1,5 @@
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-/// Return the centered representative in [-(q-1)/2, +(q-1)/2].
 #[inline]
 pub fn to_balanced_i128<F: PrimeField64 + PrimeCharacteristicRing>(v: F) -> i128 {
     let q = F::ORDER_U64 as u128;
@@ -13,7 +12,6 @@ pub fn to_balanced_i128<F: PrimeField64 + PrimeCharacteristicRing>(v: F) -> i128
     }
 }
 
-/// NC bound check: |x| < b, i.e. x in {-(b-1), ..., +(b-1)}.
 #[inline]
 pub fn within_nc_bound<F: PrimeField64 + PrimeCharacteristicRing>(v: F, b: u32) -> bool {
     if b < 2 {

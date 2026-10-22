@@ -33,24 +33,18 @@ def exactRowCount : Nat := 18
 theorem exactPrivateCount_pos : 0 < exactPrivateCount := by
   decide
 
-/-! ## Shared signed-digit rows -/
-
-/-- `Σ_j 2^j · digit_j` with the production radix weights. -/
 def recomposeDigits (digits : Radix.ChildIndex → Expr) : Expr :=
   ((List.ofFn digits).zip
       (List.ofFn fun index : Radix.ChildIndex =>
         EvaluationHomomorphism.PiDEC.radixWeight index)).foldr
     (fun pair suffix => Expr.const pair.2 * pair.1 + suffix) 0
 
-/-- The non-authoritative centered-sign bit of one source value. -/
 def bitHint (source : Expr) : Hint :=
   .bit source signBitIndex
 
-/-- The sign bit is Boolean. -/
 def signRow (bit : Expr) : Expr :=
   bit * (bit - 1)
 
-/-- One digit is zero or the common sign `1 - 2 · bit`. -/
 def digitRow (bit digit : Expr) : Expr :=
   digit * (digit - (1 - 2 * bit))
 
@@ -142,8 +136,6 @@ theorem recomposeExpr_eval (interface : Interface) (offset : Nat) (env : Env) :
       Radix.recomposeScalar (digitValues interface offset env) :=
   recomposeDigits_eval (interface.digit offset) env
 
-/-- A property closed under constants, sums and constant scaling holds on
-every recomposition of digits that satisfy it. -/
 theorem recomposeDigits_closed (Holds : Expr → Prop)
     (constant : ∀ value, Holds (Expr.const value))
     (add : ∀ left right, Holds left → Holds right → Holds (left + right))
@@ -399,7 +391,6 @@ theorem bitHintValue_val (source : Expr) (env : Env) :
   exact lt_trans (Nat.mod_lt _ (by decide : 0 < 2)) (by
     norm_num [goldilocksModulus])
 
-/-- The bit hint of a bounded centered value is its sign branch. -/
 theorem bitHint_eq_branchBit (source : Expr) (env : Env)
     (bounded : centeredMagnitude (source.eval env) < Radix.combinedBound) :
     Hint.eval env (bitHint source) =
@@ -461,8 +452,6 @@ private theorem signHint_eq_branchBit
       if Radix.isNonnegative (parentValue interface offset env) then 0 else 1 :=
   bitHint_eq_branchBit (interface.parent offset) env bounded
 
-/-- Uniform-sign digits satisfy the Boolean row and every digit row under the
-hinted sign bit of their own recomposition. -/
 theorem signedDigitRows_of_constraint
     (digits : Radix.ChildIndex → Expr) (env : Env) {sign : F}
     (constraint : Radix.UniformSignedDigits.ConstraintPredicate sign

@@ -84,8 +84,6 @@ theorem physical_implies_typed_recursive
   spec_typed_recursive_eq_piDecOutput relation
     (physical_implies_specHolds relation env physical) iterationNonzero canonical
 
-/-- Every running-transition row is confined to the exact physical endpoint.
-This is a static layout fact and needs no satisfying phase witness. -/
 theorem physicalRows_varsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

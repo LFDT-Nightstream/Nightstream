@@ -4,9 +4,7 @@ import NightstreamFPrime.Layout.R1CS.Completeness
 /-!
 Owns physical R1CS lowering for one canonical Goldilocks field lane.
 
-The logical child allocates 66 values. The current optimized lowering adds
-36 multiplication values and emits 103 rows. This owner changes no logical
-predicate and adds no boundary-copy row.
+This owner changes no logical predicate and adds no boundary-copy row.
 -/
 
 namespace NightstreamFPrime.Layout.Range.CanonicalU64

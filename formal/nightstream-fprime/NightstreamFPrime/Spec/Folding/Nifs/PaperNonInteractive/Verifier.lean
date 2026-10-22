@@ -1,30 +1,11 @@
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Types
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/Nifs/PaperNonInteractive/Verifier.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Compact executable verifier for the paper SuperNeo NIFS message.
 
 Owns: the two executable checks (`Pi_CCS` joint polynomial and operational
 `Pi_DEC` recomposition), the deterministic `Option` result, and exact Boolean
 and graph correspondences.
-
-Does not own: semantic soundness/completeness, extraction, security-event
-bounds, concrete hashing/commitments, Rust, R1CS, artifacts, minimality, or
-costs.
-
-Emits constraints: no.
-
-`Pi_RLC` has no prover-carried acceptance bit: its challenge vector and parent
-are computed by `Types.Key` before `Pi_DEC` is checked.
-
-| Protocol phase | Retained executable obligation | Runtime owner |
-|---|---|---|
-| `Pi_CCS` | fixed-width round equations and verifier-computed terminal identity | `piCcsCheck` |
-| `Pi_RLC` | fail-closed bounded sampling; parent exists only on success | `Key.piRlcChallenges`, `Key.parent` |
-| `Pi_DEC` | parent stage/arity and exact commitment/evaluation recomposition | `piDecCheck` |
-| NIFS | accept iff both retained checks pass; return only the computed running output | `verify` |
 -/
 
 set_option autoImplicit false
@@ -37,7 +18,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 universe uExtension uCommitment uPublicInput uScalar uState
 
-/-- Executable transcript-bound joint-`Pi_CCS` check. -/
 def piCcsCheck
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -62,7 +42,6 @@ def piCcsCheck
       execution.coins.alpha execution.coins.gamma execution.coins.roundPoint
       (key.piCcsCertificate running fresh proof).output)
 
-/-- Executable operational `Pi_DEC` check over the computed parent. -/
 def piDecCheck
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -83,7 +62,6 @@ def piDecCheck
       decide (PiDEC.PaperVerifier.Accepted key.piDecAlgebra
         key.piDecPublicInputSplit key.piDecEvaluationArity attempt)
 
-/-- The one-message deterministic NIFS verifier. -/
 def verify
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -129,9 +107,6 @@ def verify
     letI := key.piDecDecision attempt
     simp [attemptEq]
 
-/-- The typed `Pi_CCS` checker contains only the round recurrence and terminal
-equation. Coefficient width is guaranteed by `FixedPolynomial`; no
-canonical-list or degree Boolean is present. -/
 @[simp] theorem piCcsCheck_eq_true_iff
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -172,8 +147,6 @@ canonical-list or degree Boolean is present. -/
     (key.piCcsFixedCertificate running fresh proof).rounds
     (key.piCcsExecution running fresh proof).coins.roundPoint.coordinates
 
-/-- The probe's raw rounds are the canonical encoding of the proof's typed
-fixed-width round polynomials. -/
 theorem piCcsProbe_rounds
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -200,9 +173,6 @@ theorem piCcsProbe_rounds
     List.ofFn fun round => (proof.piCcsRounds round).toMessage
   rfl
 
-/-- The executable NIFS check is exactly the fixed-width public-coin probe
-accepted by the PiCCS strong reduction. The raw-message view is the canonical
-encoding of the same typed fixed-width certificate. -/
 theorem piCcsCheck_eq_true_iff_fixedWidthAccepted
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -225,8 +195,6 @@ theorem piCcsCheck_eq_true_iff_fixedWidthAccepted
   rw [piCcsProbe_rounds, SumCheck.Finite.FixedPhase.RawCertificate.check_encode]
   rfl
 
-/-- Sampler shortfall rejects before a PiDEC attempt or running output can
-be accepted. -/
 theorem verify_eq_none_of_piRlcFailure
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -249,8 +217,6 @@ theorem verify_eq_none_of_piRlcFailure
     simp [Key.piDecAttempt, parentFailure]
   simp [verify, piDecCheck, attemptFailure]
 
-/-- Accepted graph points are exactly the two executable checks plus the
-verifier-computed optional output. -/
 theorem verify_eq_some_iff
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}

@@ -2,6 +2,7 @@
 //!
 //! It does not own paper-exact cross-check formulas or DEC.
 
+use crate::engines::RlcMixer;
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{D, K};
@@ -96,28 +97,7 @@ where
         }
         return;
     }
-    if a.is_packed_signed_unit() {
-        let owned_masks;
-        let (positive, negative) = if let Some(masks) = a.packed_signed_unit_column_masks() {
-            masks
-        } else {
-            // Convert older row-packed inputs to masks, without entry lists.
-            let mut positive = vec![0u64; m];
-            let mut negative = vec![0u64; m];
-            for row in 0..D {
-                let bit = 1u64 << row;
-                for column in 0..m {
-                    let value = a[(row, column)];
-                    if value == Ff::ONE {
-                        positive[column] |= bit;
-                    } else if value != Ff::ZERO {
-                        negative[column] |= bit;
-                    }
-                }
-            }
-            owned_masks = (positive, negative);
-            (owned_masks.0.as_slice(), owned_masks.1.as_slice())
-        };
+    if let Some((positive, negative)) = a.packed_signed_unit_column_masks() {
         add_signed_unit_columns(acc, rho_data, positive, negative);
         return;
     }
@@ -368,9 +348,6 @@ where
     m.as_slice().iter().all(|&entry| entry == Ff::ZERO)
 }
 
-/// The witness half of Π_RLC: `Z_mix = Σ ρ_i · Z_i`. Split out so device
-/// backends can own this (the bulk-data cost) while `rlc_combine_claims`
-/// keeps the small claim algebra on the host.
 pub fn rlc_mix_witnesses<Ff>(s_m: usize, rhos: &[Mat<Ff>], Zs: &[&Mat<Ff>]) -> Mat<Ff>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
@@ -379,7 +356,7 @@ where
     assert_eq!(rhos.len(), Zs.len(), "Π_RLC: |rhos| must equal |Zs|");
     let z_cols = Zs[0].cols();
     for (idx, z) in Zs.iter().enumerate() {
-        crate::common::validate_superneo_witness_mat(*z, s_m)
+        crate::common::validate_superneo_witness_shape(*z, s_m)
             .unwrap_or_else(|e| panic!("Π_RLC(optimized): invalid witness shape at input {idx}: {e}"));
         assert_eq!(
             z.cols(),
@@ -398,15 +375,13 @@ where
     Z
 }
 
-/// The claim half of Π_RLC: every combined-CE field except the witness and
-/// the commitment (`out.c` is a placeholder copy of input 0's commitment;
-/// callers overwrite it via their commitment mixer).
 pub fn rlc_combine_claims<Ff>(
     s: &CcsStructure<Ff>,
     params: &NeoParams,
     rhos: &[Mat<Ff>],
     me_inputs: &[CeClaim<Cmt, Ff, K>],
     ell_d: usize,
+    c: Cmt,
 ) -> CeClaim<Cmt, Ff, K>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
@@ -473,7 +448,7 @@ where
 
     #[cfg(feature = "perf-timers")]
     let t_x = std::time::Instant::now();
-    let mut X = Mat::zero(D, neo_ccs::superneo_public_x_cols(m_in), Ff::ZERO);
+    let mut X = Mat::zero(D, me_inputs[0].X.cols(), Ff::ZERO);
     for (rho, inst) in rhos.iter().zip(me_inputs.iter()) {
         left_mul_acc_optimized(&mut X, rho, &inst.X);
     }
@@ -485,7 +460,7 @@ where
 
     CeClaim::<Cmt, Ff, K> {
         adv: None,
-        c: me_inputs[0].c.clone(),
+        c,
         X,
         r,
         eval_k,
@@ -495,53 +470,18 @@ where
     }
 }
 
-fn rlc_reduction_optimized_from_refs<Ff>(
+pub fn rlc_reduction_optimized_with_commit_mix<Ff>(
     s: &CcsStructure<Ff>,
     params: &NeoParams,
     rhos: &[Mat<Ff>],
     me_inputs: &[CeClaim<Cmt, Ff, K>],
     Zs: &[&Mat<Ff>],
     ell_d: usize,
+    combine_commit: RlcMixer<Ff>,
 ) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
-{
-    assert_eq!(Zs.len(), me_inputs.len(), "Π_RLC: |Zs| must equal |inputs|");
-    let Z = rlc_mix_witnesses(s.m, rhos, Zs);
-    let out = rlc_combine_claims(s, params, rhos, me_inputs, ell_d);
-    (out, Z)
-}
-
-pub fn rlc_reduction_optimized<Ff>(
-    s: &CcsStructure<Ff>,
-    params: &NeoParams,
-    rhos: &[Mat<Ff>],
-    me_inputs: &[CeClaim<Cmt, Ff, K>],
-    Zs: &[Mat<Ff>],
-    ell_d: usize,
-) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
-where
-    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    K: From<Ff>,
-{
-    let z_refs: Vec<&Mat<Ff>> = Zs.iter().collect();
-    rlc_reduction_optimized_from_refs::<Ff>(s, params, rhos, me_inputs, &z_refs, ell_d)
-}
-
-pub fn rlc_reduction_optimized_with_commit_mix<Ff, Comb>(
-    s: &CcsStructure<Ff>,
-    params: &NeoParams,
-    rhos: &[Mat<Ff>],
-    me_inputs: &[CeClaim<Cmt, Ff, K>],
-    Zs: &[&Mat<Ff>],
-    ell_d: usize,
-    combine_commit: Comb,
-) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
-where
-    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    K: From<Ff>,
-    Comb: Fn(&[Mat<Ff>], &[Cmt]) -> Cmt,
 {
     rlc_reduction_optimized_with_mixers(
         s,
@@ -555,38 +495,37 @@ where
     )
 }
 
-pub fn rlc_reduction_optimized_with_mixers<Ff, Comb, MixWitness>(
+pub fn rlc_reduction_optimized_with_mixers<Ff, MixWitness>(
     s: &CcsStructure<Ff>,
     params: &NeoParams,
     rhos: &[Mat<Ff>],
     me_inputs: &[CeClaim<Cmt, Ff, K>],
     Zs: &[&Mat<Ff>],
     ell_d: usize,
-    combine_commit: Comb,
+    combine_commit: RlcMixer<Ff>,
     mix_witnesses: MixWitness,
 ) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
-    Comb: Fn(&[Mat<Ff>], &[Cmt]) -> Cmt,
     MixWitness: Fn(&[Mat<Ff>], &[&Mat<Ff>]) -> Mat<Ff>,
 {
     #[cfg(feature = "perf-timers")]
     let t_core = std::time::Instant::now();
     assert_eq!(Zs.len(), me_inputs.len(), "Pi_RLC: |Zs| must equal |inputs|");
-    let Z = mix_witnesses(rhos, Zs);
-    let mut out = rlc_combine_claims(s, params, rhos, me_inputs, ell_d);
-    #[cfg(feature = "perf-timers")]
-    let core_s = t_core.elapsed().as_secs_f64();
     #[cfg(feature = "perf-timers")]
     let t_commit = std::time::Instant::now();
     let inputs_c: Vec<Cmt> = me_inputs.iter().map(|m| m.c.clone()).collect();
-    out.c = combine_commit(rhos, &inputs_c);
+    let c = combine_commit(rhos, &inputs_c);
+    #[cfg(feature = "perf-timers")]
+    let commit_s = t_commit.elapsed().as_secs_f64();
+    let Z = mix_witnesses(rhos, Zs);
+    let out = rlc_combine_claims(s, params, rhos, me_inputs, ell_d, c);
     #[cfg(feature = "perf-timers")]
     eprintln!(
         "[pi-rlc] core {:>7.2}s commit_mix {:>7.2}s inputs={}",
-        core_s,
-        t_commit.elapsed().as_secs_f64(),
+        t_core.elapsed().as_secs_f64() - commit_s,
+        commit_s,
         me_inputs.len(),
     );
     (out, Z)

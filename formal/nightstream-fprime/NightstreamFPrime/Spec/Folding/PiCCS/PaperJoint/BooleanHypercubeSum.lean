@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanDomain
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanEvaluation
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/BooleanHypercubeSum.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Equality-weighted hypercube expansion of the canonical Boolean-table MLE.
 
@@ -22,20 +19,6 @@ or Rust serialization; alpha/gamma mixing; SumCheck; Fiat--Shamir; R1CS; or
 constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: the outermost, newly introduced Boolean coordinate is the
-head of both `BooleanVertex` and `CubePoint.coordinates`. `false` has factor
-`1 - r_head`, `true` has factor `r_head`, and tails recurse in the same order.
-The finite sum traverses `BooleanVertex.all`; no second cube enumeration or
-caller-supplied evaluator is accepted.
-
-| Protocol object | Phase | Family / leaf | Exact mathematical obligation |
-|---|---|---|---|
-| `Pi_CCS` Boolean cube | evaluation | `equalityWeight` | `eq(x,r) = product_i (x_i ? r_i : 1-r_i)` in prepended-coordinate order |
-| `Pi_CCS` Boolean cube | evaluation | `equalityWeightedSum` | `sum_{x in BooleanVertex.all ell} eq(x,r) * table[x]` |
-| `Pi_CCS` Boolean cube | tabulation lookup | `valueAt_tabulate` | a canonical table returns its defining value at every typed vertex |
-| `Pi_CCS` Boolean cube | evaluation | `evaluate_eq_equalityWeightedSum` | recursive MLE equals the explicit hypercube sum at every typed point |
-| `Pi_CCS` Boolean cube | evaluation | `toAlphaPolynomial_evaluate_eq_equalityWeightedSum` | canonical coefficient polynomial equals the same explicit hypercube sum |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -44,38 +27,33 @@ universe uField
 
 namespace BooleanVertex
 
-/-- Raw equality-weight recursion. Mismatch cases only make the function total;
-`CubePoint` makes them unreachable in `equalityWeight`. The newly prepended
-vertex coordinate is paired with the head point coordinate. -/
 def equalityWeightCoordinates
     {Field : Type uField}
     (ops : InterpolationOps Field) :
-    {variables : Nat} -> BooleanVertex variables -> List Field -> Field
-  | 0, .nil, [] => ops.one
-  | _ + 1, .cons false tail, coordinate :: coordinates =>
+    {variables : Nat} -> BooleanVertex variables ->
+      (coordinates : List Field) -> coordinates.length = variables -> Field
+  | 0, .nil, [], _ => ops.one
+  | _ + 1, .cons false tail, coordinate :: coordinates, dimension =>
       ops.mul (ops.sub ops.one coordinate)
-        (equalityWeightCoordinates ops tail coordinates)
-  | _ + 1, .cons true tail, coordinate :: coordinates =>
-      ops.mul coordinate (equalityWeightCoordinates ops tail coordinates)
-  | _, _, _ => ops.zero
+        (equalityWeightCoordinates ops tail coordinates (Nat.succ.inj dimension))
+  | _ + 1, .cons true tail, coordinate :: coordinates, dimension =>
+      ops.mul coordinate
+        (equalityWeightCoordinates ops tail coordinates (Nat.succ.inj dimension))
+  | 0, .nil, _ :: _, dimension => absurd dimension (by simp)
+  | _ + 1, _, [], dimension => absurd dimension (by simp)
 
-/-- The explicit paper equality weight at a dimension-checked cube point.
-For each coordinate, bit `false` contributes `1-r_i` and bit `true`
-contributes `r_i`. -/
 def equalityWeight
     {Field : Type uField}
     (ops : InterpolationOps Field)
     {variables : Nat}
     (vertex : BooleanVertex variables)
     (point : CubePoint Field variables) : Field :=
-  equalityWeightCoordinates ops vertex point.coordinates
+  equalityWeightCoordinates ops vertex point.coordinates point.dimension
 
 end BooleanVertex
 
 namespace BooleanTable
 
-/-- Value of an explicit table at a typed Boolean vertex. The indexed types
-make every lookup branch exhaustive without a default value. -/
 def valueAt
     {Field : Type uField} :
     {variables : Nat} -> BooleanTable Field variables ->
@@ -84,9 +62,6 @@ def valueAt
   | _ + 1, .branch low _, .cons false tail => valueAt low tail
   | _ + 1, .branch _ high, .cons true tail => valueAt high tail
 
-/-- Canonical tabulation is pointwise exact at every typed Boolean vertex.
-This is a leaf-level bridge only: it deliberately makes no claim that an
-off-cube table MLE equals a nonlinear protocol polynomial. -/
 @[simp] theorem valueAt_tabulate
     {Field : Type uField}
     {variables : Nat}
@@ -99,8 +74,6 @@ off-cube table MLE equals a nonlinear protocol polynomial. -/
       cases coordinate <;>
         simp [tabulate, valueAt, inductionHypothesis]
 
-/-- Explicit right-associated finite sum using the same addition and zero as
-the interpolation model. -/
 def finiteSum
     {Field : Type uField}
     (ops : InterpolationOps Field) : List Field -> Field
@@ -280,10 +253,6 @@ private theorem equalityWeightedSum_probe
             lowInduction tailPoint, highInduction tailPoint]
           exact weightedBranches_eq_interpolation ops laws _ _ _
 
-/-- At every dimension-checked point, the independently recursive canonical
-Boolean-table MLE equals the explicit paper hypercube sum of equality weights.
-This is a model-level algebraic theorem. It makes no paper-bit-order, Rust,
-R1CS, or constraint claim. -/
 theorem evaluate_eq_equalityWeightedSum
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -294,9 +263,6 @@ theorem evaluate_eq_equalityWeightedSum
     table.evaluate ops point = table.equalityWeightedSum ops point := by
   exact (equalityWeightedSum_probe ops laws table point).symm
 
-/-- The verifier-owned canonical alpha polynomial therefore evaluates to the
-same explicit equality-weighted hypercube sum. This composes two independently
-proved model-level identities; it does not add an external-order refinement. -/
 theorem toAlphaPolynomial_evaluate_eq_equalityWeightedSum
     {Field : Type uField}
     (ops : InterpolationOps Field)

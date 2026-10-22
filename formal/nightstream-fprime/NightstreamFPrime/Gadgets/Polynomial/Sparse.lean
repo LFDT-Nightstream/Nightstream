@@ -50,7 +50,6 @@ theorem pow_varsBelow (value : KExpr) (bound : Nat)
       KExpr.mul_varsBelow _ _ bound (pow_varsBelow value bound below exponent)
         below
 
-/-- Skip zero powers instead of materializing multiplication by one. -/
 def multiplyPower (accumulated value : KExpr) (exponent : Nat) : KExpr :=
   if exponent = 0 then accumulated else KExpr.mul accumulated (pow value exponent)
 
@@ -311,8 +310,6 @@ theorem completeness {matrixCount : Nat}
   (circuit polynomial interface).completeness env offset assumptions
     specification
 
-/-- The sparse polynomial specification is stable when every external input
-wire is unchanged. -/
 theorem specHolds_of_agree_below {matrixCount : Nat}
     (polynomial : ConstraintPolynomial K matrixCount)
     (interface : Interface matrixCount) (offset : Nat)
@@ -378,22 +375,11 @@ theorem flatConstraints_varsBelow {matrixCount : Nat}
     exact evaluate_varsBelow polynomial (interface.point offset) offset
       assumptions.1
 
-/-! ## Child-owned output variant -/
-
 namespace Owned
-
-/-!
-Each monomial multiplies its factors in the specification's index order. The
-coefficient scales the first factor, so a monomial of total degree `d > 0`
-stores `d - 1` products in `3 * (d - 1)` cells. The last two cells hold the
-sum of all terms.
--/
 
 structure Interface (matrixCount : Nat) where
   point : Nat → Fin matrixCount → KExpr
 
-/-- Multiplication by a fixed extension constant. Each coordinate stays
-affine in `value`. -/
 def scale (coefficient : K) (value : KExpr) : KExpr :=
   ⟨Expr.const coefficient.c0 * value.c0 +
       Expr.const (7 * coefficient.c1) * value.c1,
@@ -405,13 +391,11 @@ def scale (coefficient : K) (value : KExpr) : KExpr :=
       K.mul coefficient (value.eval env) := by
   rfl
 
-/-- The factors of one monomial in the specification's index order. -/
 def factors {matrixCount : Nat} (monomial : Monomial K matrixCount)
     (point : Fin matrixCount → KExpr) : List KExpr :=
   (canonicalFinIndices matrixCount).flatMap fun index =>
     List.replicate (monomial.exponents index) (point index)
 
-/-- Multiply `accumulated` by each factor. Each product owns three cells. -/
 def storeProducts (start : Nat) (accumulated : KExpr) :
     List KExpr → Horner.Program
   | [] => ⟨[], accumulated⟩
@@ -420,8 +404,6 @@ def storeProducts (start : Nat) (accumulated : KExpr) :
       ⟨Horner.mulRecipes start accumulated factor ++ tail.recipes,
         tail.output⟩
 
-/-- One monomial. The coefficient scales the first factor, so a monomial of
-total degree `d > 0` stores `d - 1` products. -/
 def compileMonomial {matrixCount : Nat} (start : Nat)
     (monomial : Monomial K matrixCount)
     (point : Fin matrixCount → KExpr) : Horner.Program :=
@@ -430,7 +412,6 @@ def compileMonomial {matrixCount : Nat} (start : Nat)
   | first :: rest =>
       storeProducts start (scale monomial.coefficient first) rest
 
-/-- The terms in specification order, added to `sum`. -/
 def compileTerms {matrixCount : Nat} (point : Fin matrixCount → KExpr) :
     Nat → KExpr → List (Monomial K matrixCount) → Horner.Program
   | _, sum, [] => ⟨[], sum⟩
@@ -440,12 +421,9 @@ def compileTerms {matrixCount : Nat} (point : Fin matrixCount → KExpr) :
         (KExpr.add sum term.output) rest
       ⟨term.recipes ++ tail.recipes, tail.output⟩
 
-/-- Number of stored product cells for the whole polynomial. -/
 def productCount {matrixCount : Nat}
     (polynomial : ConstraintPolynomial K matrixCount) : Nat :=
   (polynomial.terms.map fun monomial => 3 * (monomial.totalDegree - 1)).sum
-
-/-! ### Lengths -/
 
 theorem storeProducts_length (start : Nat) (accumulated : KExpr)
     (rest : List KExpr) :
@@ -486,8 +464,6 @@ theorem compileTerms_length {matrixCount : Nat}
   | start, sum, monomial :: rest => by
       simp only [compileTerms, List.length_append, compileMonomial_length,
         compileTerms_length point _ _ rest, List.map_cons, List.sum_cons]
-
-/-! ### Causality -/
 
 private theorem storeProducts_causal (start : Nat) (accumulated : KExpr)
     (rest : List KExpr)
@@ -591,8 +567,6 @@ private theorem compileTerms_causal {matrixCount : Nat}
           simp only [List.length_append]
           omega
         simpa [compileTerms, term, bound] using tail.2
-
-/-! ### Soundness -/
 
 theorem storeProducts_sound (env : Env) :
     ∀ (start : Nat) (accumulated : KExpr) (rest : List KExpr),
@@ -704,8 +678,6 @@ theorem compileTerms_sound {matrixCount : Nat} (env : Env)
       rw [tail, KExpr.eval_add, termSound]
       rfl
 
-/-! ### Owned circuit -/
-
 def program {matrixCount : Nat}
     (polynomial : ConstraintPolynomial K matrixCount)
     (interface : Interface matrixCount) (offset : Nat) : Horner.Program :=
@@ -718,7 +690,6 @@ theorem program_length {matrixCount : Nat}
       productCount polynomial :=
   compileTerms_length _ _ _ _
 
-/-- Stored products, then the two result cells. -/
 def recipes {matrixCount : Nat}
     (polynomial : ConstraintPolynomial K matrixCount)
     (interface : Interface matrixCount) (offset : Nat) : List Expr :=
@@ -889,7 +860,6 @@ theorem soundness {matrixCount : Nat}
     SpecHolds polynomial interface offset env :=
   (circuit polynomial interface).soundness env offset assumptions rows
 
-/-- Honest execution constructs the owned result with no semantic premise. -/
 theorem build {matrixCount : Nat}
     (polynomial : ConstraintPolynomial K matrixCount)
     (interface : Interface matrixCount) (env : Env) (offset : Nat)

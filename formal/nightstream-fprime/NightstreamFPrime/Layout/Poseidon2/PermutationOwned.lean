@@ -5,8 +5,6 @@ import NightstreamFPrime.Layout.Poseidon2
 Owns physical lowering for one verifier-owned Poseidon2 permutation.
 
 Every permutation recipe is affine or one rank-one product of affine values.
-The optimized lowering therefore adds no column and emits one physical row per
-logical recipe.
 -/
 
 namespace NightstreamFPrime.Layout.Poseidon2.PermutationOwned

@@ -3,10 +3,6 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns expression-level value preservation for the sealed assignment transport.
-It proves that final physical-column renaming preserves source evaluation, then
-specializes that result to the Pilot output-digest recipe.
-
-This module does not execute the transport or derive product-family values.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExpressions
@@ -22,8 +18,6 @@ open PerApplicationCanonicalAssignment
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 
-/-- Renaming an original Stage 1 expression to its final physical package
-columns preserves evaluation in the corresponding retained-source view. -/
 theorem physicalExpr_eval_sourceEnv (program : Program)
     (source : Fin (PiCCSActionPayloadBlock.prefixSourceWidth program) → F)
     (expression : Expr) :
@@ -58,8 +52,6 @@ private theorem outputDigest_pilot_lt
     PilotValues.digestWords, PriorStateHash.publicWidth_eq] at laneBound ⊢
   omega
 
-/-- At each Pilot output-digest source, the retained-source package view and
-the original Pilot pullback read the same package-bound base value. -/
 private theorem packageEnv_outputDigest_eq_pilot
     (program : Program) (raw : RawValues program)
     (lane : Fin PilotProduction.digestWords) :
@@ -90,8 +82,6 @@ private theorem packageEnv_outputDigest_eq_pilot
   rw [← sourceMap]
   rfl
 
-/-- Pointwise lookup of one mapped output-digest expression does not expand
-the four-expression list. -/
 @[simp] theorem outputDigestExpressions_getD (program : Program)
     (lane : Fin PilotProduction.digestWords) :
     (outputDigestExpressions program).getD lane.val 0 =
@@ -99,8 +89,6 @@ the four-expression list. -/
   unfold outputDigestExpressions
   exact NightstreamFPrime.Lifecycle.PriorStateHash.ofFn_getD _ lane 0
 
-/-- Every mapped output-digest expression computes the matching digest word
-derived from the constrained raw Pilot source. -/
 theorem outputDigestExpression_eval (program : Program)
     (raw : RawValues program) (lane : Fin PilotProduction.digestWords) :
     ((outputDigestExpressions program).getD lane.val 0).eval

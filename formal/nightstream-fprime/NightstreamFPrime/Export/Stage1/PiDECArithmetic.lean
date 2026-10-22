@@ -5,12 +5,10 @@ import NightstreamFPrime.Layout.Stage1.PiDECStarts
 /-!
 Owns the ordinary-row encoding of the exact PiDEC v1_2 phase.
 
-The relation-parameterized input and output binding children have no rows.
-The exported list therefore contains, in parent order, only the public split,
-commitment recomposition, separate `Eval_K` recomposition, and separate
-4-matrix `Eval_A` recomposition constraints. The equality theorem below ties
-that relation-independent executable list to the canonical Lean lowering for
-every verifier-owned logical relation.
+The relation-parameterized input and output binding children have no rows. The
+exported list therefore contains, in parent order, only the public split,
+commitment recomposition, separate `Eval_K` recomposition, and separate 4-matrix
+`Eval_A` recomposition constraints.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiDECArithmetic
@@ -77,7 +75,6 @@ def evalAConstraints
     (Formal.evalACircuit shared)
     (Formal.evalAOffset NightstreamFPrime.Layout.Stage1.PiDECInputs.phaseOffset)
 
-/-- The four nonempty PiDEC child lists in exact parent order. -/
 def constraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -113,8 +110,6 @@ structure Plan where
   freshStart : Nat
   constraints : List Expr
 
-/-- Generic executable expansion. Its inputs remain explicit so Lean does not
-specialize a phase-sized row list while it checks this module. -/
 abbrev Plan.rows (plan : Plan) : List Rows.CompiledRow :=
   PiCCSArithmetic.compilePacket plan.rowStart plan.freshStart plan.constraints
 
@@ -145,9 +140,6 @@ theorem Plan.rows_toR1CS (plan : Plan) :
   PiCCSArithmetic.compilePacket_toR1CS
     plan.rowStart plan.freshStart plan.constraints
 
-/-- A matching generative plan expands to the exact Lean layout rows. This
-theorem is parametric in both plans, so its proof cost is independent of the
-number of rows in a concrete phase. -/
 theorem Plan.rows_to_layout (packagePlan : Plan)
     (layoutPlan : R1CS.LoweringPlan)
     (agreement : packagePlan.MatchesLayout layoutPlan) :

@@ -43,15 +43,19 @@ pub fn prepare(
     application: &ApplicationCircuit,
 ) -> Result<(LoadedPerApplicationPackage, Stage1VerifierBinding), AssemblyError> {
     std::thread::scope(|scope| {
-        // Reference authorization and candidate identity have independent
-        // Poseidon2 preimages. Neither result authorizes the other.
-        let reference = scope.spawn(|| load_poseidon2_hash_chain_v1_package(reference_bytes).map(drop));
+        // Reference and candidate identity have independent Poseidon2 preimages.
+        // Neither result authorizes the other.
+        let reference = scope.spawn(|| check_reference_pins(reference_bytes));
         let candidate = prepare_application(reference_bytes, application);
         reference
             .join()
             .map_err(|_| AssemblyError::Invalid("reference validation worker failed"))??;
         candidate
     })
+}
+
+fn check_reference_pins(reference_bytes: &[u8]) -> Result<(), PackageError> {
+    load_poseidon2_hash_chain_v1_package(reference_bytes).map(drop)
 }
 
 fn prepare_application(

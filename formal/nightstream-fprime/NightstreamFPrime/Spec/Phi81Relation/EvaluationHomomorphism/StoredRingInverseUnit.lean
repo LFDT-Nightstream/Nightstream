@@ -4,9 +4,7 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
 
 /-!
 The executed stored inverse agrees with every unit witness of the selected
-PiRLC scalar ring. Unit witnesses appear only in correctness statements;
-the candidate computes its own inverse from the stored input coefficients.
-This module supplies no work bound.
+PiRLC scalar ring.
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseUnit
@@ -80,8 +78,6 @@ private theorem coprime_of_unit (value : StoredRing)
             RingFPolynomial.modulus) := by ring
     _ = 1 := remainder
 
-/-- The candidate from the actual stored call is a ring inverse whenever
-that input is a unit of the existing selected PiRLC ring. -/
 theorem candidate_mul_value (value : StoredRing)
     (unit : UnitWitness Phi81Relation.PiRLCAlgebra.ForkStrongSet.ring value.get) :
     ringFMul (candidate value).get value.get = ringFOne := by
@@ -90,8 +86,6 @@ theorem candidate_mul_value (value : StoredRing)
     ← modulus_view, RingFPolynomial.toPolynomial_one]
   exact StoredRingInverseCorrect.candidatePolynomial_mul_mod value (coprime_of_unit value unit)
 
-/-- This is the inverse equality required by the extraction primitive's
-Correct.unitInverse field. The unit's inverse is not used by the program. -/
 theorem candidate_eq_unitInverse (value : StoredRing)
     (unit : UnitWitness Phi81Relation.PiRLCAlgebra.ForkStrongSet.ring value.get) :
     (candidate value).get = unit.inverse := by

@@ -16,11 +16,9 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Completed PiCCS boundaries. -/
 def phaseLogicalStart : Nat := PiRLCInputs.phaseOffset
 def phaseRowStart : Nat := 6162451
 
-/-- The phase lowering starts after all seven logical child intervals. -/
 def phaseFreshStart : Nat :=
   phaseLogicalStart + Formal.logicalPrivateCount
 
@@ -45,8 +43,6 @@ def evalKFreshStart : Nat := publicInputFreshStart + 688500
 def evalAFreshStart : Nat := evalKFreshStart + 275400
 def outputFreshStart : Nat := evalAFreshStart + 1101600
 
-/-- One scalar owns 4,267 logical columns, 3,071 physical rows,
-and 144 R1CS lowering columns. -/
 def samplerSourceLogicalStart (source : Nat) : Nat :=
   SamplerChain.sourceOffset samplerLogicalStart source
 
@@ -68,7 +64,6 @@ def advanceLogicalStart (source : Nat) : Nat := Sampler.advanceOffset (samplerSo
 
 def advanceRowStart (source : Nat) : Nat := rangeRowStart source + 825
 
-/-- The sampler checks each digit word before the combination circuit reads it. -/
 def challengeWordStart (source : Nat) : Nat := Sampler.wordsOffset (samplerSourceLogicalStart source)
 
 def challengeWordRowStart (source : Nat) : Nat := advanceRowStart source + 1096

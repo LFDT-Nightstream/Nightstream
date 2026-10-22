@@ -5,8 +5,6 @@ import NightstreamFPrime.Export.Stage1.Package
 /-!
 Owns the phase-local join from the retained PiRLC sampler semantics and exact
 compact combination rows to the canonical seven-child PiRLC parent.
-
-This module does not claim package conformance or close PiRLC status.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCDirectPhaseSemantics
@@ -22,8 +20,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- The retained sampler chain and exact four-family combination packets
-assemble the canonical seven-child PiRLC specification. -/
 theorem directSampler_imply_specHolds_of_combinationRows
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
@@ -135,9 +131,6 @@ theorem directSampler_imply_specHolds_of_combinationRows
     intro operation member
     cases member
 
-/-- Retained sampler semantics and the self-derived direct product plan
-assemble the canonical seven-child PiRLC specification without compact row
-acceptance as an authority edge. -/
 theorem directSampler_imply_specHolds_of_productSemantics
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
@@ -253,8 +246,6 @@ theorem directSampler_imply_specHolds_of_productSemantics
     intro operation member
     cases member
 
-/-- The same phase-local evidence entails the deterministic PiRLC accepted
-predicate and its verifier-owned sampler replay. -/
 theorem directSampler_imply_phaseHolds_of_combinationRows
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
@@ -306,8 +297,6 @@ theorem directSampler_imply_phaseHolds_of_combinationRows
     ordinaryGeometry samplerGeometry assignment base groupValue
     piCcsEncoding endpointRows ordinaryRows poseidonSemantics combinationRows assumptions
 
-/-- The self-derived product plan and retained sampler evidence entail the
-deterministic PiRLC accepted predicate and verifier-owned sampler replay. -/
 theorem directSampler_imply_phaseHolds_of_productSemantics
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤

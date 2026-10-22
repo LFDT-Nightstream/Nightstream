@@ -7,7 +7,6 @@ one newly allocated half-open interval.
 
 namespace NightstreamFPrime.Circuit.SupportRange
 
-/-- Existing support plus one local half-open interval. -/
 def Extend (allowed : Nat → Prop) (start finish index : Nat) : Prop :=
   allowed index ∨ (start ≤ index ∧ index < finish)
 
@@ -27,7 +26,6 @@ theorem mono_finish {allowed : Nat → Prop} {start middle finish index : Nat}
   · exact Or.inl support
   · exact Or.inr ⟨lower, Nat.lt_of_lt_of_le upper middleLe⟩
 
-/-- Flatten two adjacent support extensions into their complete interval. -/
 theorem flatten {allowed : Nat → Prop}
     {start middle finish index : Nat}
     (startLeMiddle : start ≤ middle) (middleLeFinish : middle ≤ finish)

@@ -3,13 +3,7 @@ import NightstreamFPrime.Export.Stage1.PilotPoseidonPreservation
 import NightstreamFPrime.Export.PermutationOutput
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompleteness
 
-/-!
-Owns the pilot hash-row consumer for the complete canonical source copy.
-Actual prior/output hash rows determine each retained S-box source value and
-its complete source permutation trace. The existing adjacent compiler theorem
-then proves the direct pilot plan's rows. No hash-output or retained-equation
-assumption replaces the physical hash rows.
--/
+/-! Owns the pilot hash-row consumer for the complete canonical source copy. -/
 
 set_option autoImplicit false
 
@@ -283,7 +277,6 @@ private theorem outputInput_form (slot : Fin Data.outputChain.inputLength) :
   exact Nat.lt_of_lt_of_le (Nat.add_lt_add_left slot.isLt _)
     PoseidonInputRetainedBlock.outputInputEnd
 
-/-- Each canonical retained prior-hash output equals the same physical invocation output. -/
 theorem prior_output
     (hashRows : HashChainHolds (Data.circuitPackage ()) Data.priorChain target)
     (invocation : Fin PilotPoseidonPlan.invocationCount) :
@@ -308,7 +301,6 @@ theorem prior_output
   funext current
   exact prior_form application target applicationPrivate raw baseEq invocation _
 
-/-- Each canonical retained output-hash value equals the same physical invocation output. -/
 theorem output_output
     (hashRows : HashChainHolds (Data.circuitPackage ()) Data.outputChain target)
     (invocation : Fin PilotPoseidonPlan.invocationCount) :
@@ -434,10 +426,6 @@ private theorem output_input
     R1CS.LinearCombination.eval_add, R1CS.LinearCombination.eval_ofVar,
     R1CS.LinearCombination.eval_zero, R1CS.LinearCombination.eval_one, Nat.add_assoc]
 
-/-- Actual prior and output hash-template rows imply every compact direct
-pilot row on the exact canonical source copy. All retained S-box equations,
-input absorption values, and previous-output links are derived from those
-rows and the existing source projection. No hash-output equality is assumed. -/
 private theorem rowsZero_of_hashRows
     (priorRows : HashChainHolds (Data.circuitPackage ()) Data.priorChain target)
     (outputRows : HashChainHolds (Data.circuitPackage ()) Data.outputChain target) :
@@ -476,9 +464,6 @@ private theorem rowsZero_of_hashRows
 
 end Copied
 
-/-- Actual physical pilot hash rows give the exact compact pilot row family
-on the canonical source copy. Source-slot and S-box equations are derived;
-the caller supplies no equality between assignment environments. -/
 theorem rowsZero_of_completed_hashRows
     (application : Lifecycle.Stage1.Application.Program) (target : Env)
     (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F)

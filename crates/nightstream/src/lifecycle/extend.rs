@@ -73,17 +73,15 @@ impl PreparedLifecycle {
     }
 
     /// Prove the NIFS fold of an active envelope after the prior state check
-    /// and the child-family check. The frame digests and `w` are not read.
+    /// and the child-family check. The frame digests are not read.
     pub(super) fn prove_active(
         &self,
         state: Stage1State,
         running: RunningInstance,
-        mut fresh: CcsInstance,
+        fresh: CcsInstance,
     ) -> Result<ProvedFold, ExtendError> {
-        self.checked_prior_state(&state, &running, &fresh.claim)?;
-        nifs::validate_running_children(&self.params, &self.structure, &running).map_err(ExtendError::PriorFamily)?;
-        // The complete Z opening is the source; w is a redundant cache.
-        fresh.witness.w.clear();
+        let (bound, _, _) = self.checked_prior_state(&state, &running, &fresh.claim)?;
+        nifs::validate_running_children(&self.params, &self.structure, bound).map_err(ExtendError::PriorFamily)?;
         let prior = running.claims_only();
         let fresh_claim = fresh.claim.clone();
         let (next, proof) = self.prove(fresh, running)?;

@@ -1,9 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
-/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/MatrixCoefficientSource.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
-SuperNeo v1.2 canonical Pad and 4-matrix coefficient sources. -/
-
 /-!
 One authoritative source for the canonical Pad and every CCS ring-matrix
 coefficient family.
@@ -26,25 +22,6 @@ matrix cache instantiates this kernel, production padding/order, transcript,
 SumCheck, R1CS, row removal, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: `MatrixSource.matrices` is stored exactly once.
-`coefficientMatrix` is a definition computed from it, the partial padded
-column layout, and a named kernel. Missing final-block positions are zero by
-definition rather than caller data. `ConnectedInputs` therefore makes the disconnected
-countermodel in `Necessity.CoefficientConnectivity` unconstructible. The
-constant-term theorem is conditional on the explicit kernel law; a production
-assurance theorem must instantiate that law with the exact Phi81 transform.
-
-| Protocol | Phase | Family | Mathematical obligation |
-|---|---|---|---|
-| coefficient embedding | field layout | logical column / padded block and coefficient | `RingColumnLayout` is an exact partial inverse with explicit padding holes |
-| coefficient embedding | ring action | output / row / assignment coefficient | `CoefficientKernel.weight` owns the bilinear map |
-| coefficient embedding | constant term | transformed ring product | `ConstantTermLaw` is the Kronecker inner-product law |
-| `Pi_CCS` | CCS source | structure matrix | `MatrixSource.matrices` is the sole stored `M` |
-| `Pi_CCS` | Pad source | coefficient matrices | expansion is derived from the canonical padded identity and the kernel |
-| `Pi_CCS` | matrix source | coefficient matrices | expansion is derived from each stored `M_j` and the kernel |
-| `Pi_CCS` | semantic input | all residual families | `ConnectedInputs.toUnifiedInputs` has no independent coefficient view |
-| assurance | cross-view connection | coefficient zero / CCS image | `matrixImageConstantAt_eq_ccsImageAt` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
@@ -56,7 +33,6 @@ open UnifiedSources
 
 universe uBase uExtension
 
-/-- Explicit finite sum over the natural range `0 .. count - 1`. -/
 def sumRange
     {Base : Type uBase}
     (ops : InterpolationOps Base) : Nat -> (Nat -> Base) -> Base
@@ -64,7 +40,6 @@ def sumRange
   | count + 1, term =>
       ops.add (sumRange ops count term) (term count)
 
-/-- Pointwise equality over the active range preserves the finite sum. -/
 theorem sumRange_congr
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -80,7 +55,6 @@ theorem sumRange_congr
       · intro index indexLt
         exact equal index (Nat.lt_trans indexLt (Nat.lt_succ_self count))
 
-/-- A finite sum vanishes when every active term vanishes. -/
 theorem sumRange_eq_zero
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -98,7 +72,6 @@ theorem sumRange_eq_zero
       · intro index indexLt
         exact zero index (Nat.lt_trans indexLt (Nat.lt_succ_self count))
 
-/-- A finite sum with one selected natural index returns exactly that term. -/
 theorem sumRange_select
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -129,10 +102,6 @@ theorem sumRange_select
         · exact laws.add_zero _
         · exact Ne.symm last
 
-/-- Exact placement of logical field columns into padded ring positions.
-`encode? = none` represents a final-block padding position. Every logical
-column round-trips, and every present padded position decodes to its unique
-logical column. -/
 structure RingColumnLayout
     (coefficientCount blockCount columns : Nat) where
   decode : Fin columns -> Fin blockCount × Fin coefficientCount
@@ -143,9 +112,6 @@ structure RingColumnLayout
   encode_decode : forall column,
     encode? (decode column).1 (decode column).2 = some column
 
-/-- Finite bilinear kernel for one coefficient of the transformed ring
-product. `weight output row assignment` is the coefficient multiplying one
-field-matrix entry and one assignment entry. -/
 structure CoefficientKernel (Base : Type uBase) (coefficientCount : Nat) where
   constant : Fin coefficientCount
   weight : Fin coefficientCount -> Fin coefficientCount ->
@@ -162,8 +128,6 @@ structure ConstantTermLaw
     kernel.weight kernel.constant row assignment =
       if row = assignment then ops.one else ops.zero
 
-/-- The sole paper structure owner. All carried coefficient matrices are
-computed from these field matrices rather than supplied beside them. -/
 structure MatrixSource
     (Base : Type uBase)
     (shape : Shape)
@@ -178,7 +142,6 @@ structure MatrixSource
 
 namespace MatrixSource
 
-/-- The CCS view is a direct projection of the sole stored field matrices. -/
 def system
     {Base : Type uBase}
     {shape : Shape}
@@ -188,8 +151,6 @@ def system
   matrices := source.matrices
   constraintPolynomial := source.constraintPolynomial
 
-/-- One explicit field-matrix entry at a padded block/coefficient position.
-A position beyond the logical column count is canonically zero. -/
 def paddedEntry
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -204,7 +165,6 @@ def paddedEntry
   | some column => matrix vertex column
   | none => ops.zero
 
-/-- One stored CCS matrix entry at a padded block/coefficient position. -/
 def paddedMatrixEntry
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -217,7 +177,6 @@ def paddedMatrixEntry
     (coefficient : Fin shape.coefficientCount) : Base :=
   source.paddedEntry ops (source.matrices matrix) vertex block coefficient
 
-/-- One coefficient-expanded matrix derived from an explicit field matrix. -/
 def coefficientMatrixOf
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -239,9 +198,6 @@ def coefficientMatrixOf
       else
         ops.zero
 
-/-- One coefficient-expanded matrix derived from the sole stored `M`.
-The finite sum linearizes one blockwise transformed ring product against an
-assignment coefficient. -/
 def coefficientMatrix
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -253,7 +209,6 @@ def coefficientMatrix
     BooleanMatrix Base shape.cubeVariables columns :=
   source.coefficientMatrixOf ops (source.matrices matrix) output
 
-/-- Complete coefficient family, derived rather than stored. -/
 def coefficientMatrices
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -264,8 +219,6 @@ def coefficientMatrices
       BooleanMatrix Base shape.cubeVariables columns :=
   fun matrix coefficient => source.coefficientMatrix ops matrix coefficient
 
-/-- The constant derived coefficient of any explicit field matrix is exactly
-its original entry. -/
 theorem coefficientMatrixOf_constant_apply
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -340,8 +293,6 @@ theorem coefficientMatrixOf_constant_apply
       simp only [paddedEntry]
       rw [source.columnLayout.encode_decode column]
 
-/-- The constant derived coefficient of one stored CCS matrix is its original
-field-matrix entry. -/
 theorem coefficientMatrix_constant_apply
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -358,7 +309,6 @@ theorem coefficientMatrix_constant_apply
   exact coefficientMatrixOf_constant_apply ops laws source constantLaw
     (source.matrices matrix) vertex column
 
-/-- Functional constant-term connection for any explicit field matrix. -/
 theorem coefficientMatrixOf_constant_eq
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -373,7 +323,6 @@ theorem coefficientMatrixOf_constant_eq
   exact coefficientMatrixOf_constant_apply ops laws source constantLaw
     matrix vertex column
 
-/-- Functional form of the constant-term connection for a whole matrix. -/
 theorem coefficientMatrix_constant_eq
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -391,8 +340,6 @@ theorem coefficientMatrix_constant_eq
 
 end MatrixSource
 
-/-- Connected paper inputs. Unlike `UnifiedInputs`, this structure has no
-field in which a caller can place independent coefficient matrices. -/
 structure ConnectedInputs
     (Extension : Type uExtension)
     (shape : Shape)
@@ -419,8 +366,6 @@ def padMatrix
     data.cubeLayout.paddedIdentityEntry
       baseOps.zero baseOps.one vertex column
 
-/-- All `Eval_K` coefficient matrices, derived from canonical Pad through the
-same coefficient kernel as the CCS matrices. -/
 def padCoefficientMatrices
     {Extension : Type uExtension}
     {shape : Shape}
@@ -432,9 +377,6 @@ def padCoefficientMatrices
   fun coefficient => data.matrixSource.coefficientMatrixOf baseOps
     (data.padMatrix baseOps) coefficient
 
-/-- Internal projection into the already-proved joint residual stack. Every
-coefficient matrix is derived from `matrixSource`; no field is copied from the
-caller. -/
 def toUnifiedInputs
     {Extension : Type uExtension}
     {shape : Shape}
@@ -452,7 +394,6 @@ def toUnifiedInputs
   claimedPadCoefficient := data.claimedPadCoefficient
   claimedMatrixCoefficient := data.claimedMatrixCoefficient
 
-/-- The CCS structure is exactly the sole stored matrix source. -/
 theorem toUnifiedInputs_system_eq
     {Extension : Type uExtension}
     {shape : Shape}
@@ -462,8 +403,6 @@ theorem toUnifiedInputs_system_eq
     (data.toUnifiedInputs baseOps).system = data.matrixSource.system := by
   rfl
 
-/-- Every Pad coefficient matrix is definitionally derived from canonical
-Pad and the source kernel. -/
 theorem toUnifiedInputs_padCoefficientMatrices_eq
     {Extension : Type uExtension}
     {shape : Shape}
@@ -474,8 +413,6 @@ theorem toUnifiedInputs_padCoefficientMatrices_eq
       data.padCoefficientMatrices baseOps := by
   rfl
 
-/-- Every CCS-matrix coefficient family is definitionally the source-derived
-kernel expansion of all stored matrices. -/
 theorem toUnifiedInputs_matrixCoefficientMatrices_eq
     {Extension : Type uExtension}
     {shape : Shape}
@@ -486,7 +423,6 @@ theorem toUnifiedInputs_matrixCoefficientMatrices_eq
       data.matrixSource.coefficientMatrices baseOps := by
   rfl
 
-/-- The constant Pad coefficient matrix is exactly canonical Pad. -/
 theorem padCoefficientMatrix_constant_eq
     {Extension : Type uExtension}
     {shape : Shape}
@@ -500,7 +436,6 @@ theorem padCoefficientMatrix_constant_eq
   exact data.matrixSource.coefficientMatrixOf_constant_eq
     baseOps baseLaws constantLaw (data.padMatrix baseOps)
 
-/-- Semantic truth exposed only through the connected projection. -/
 def SemanticTruth
     {Extension : Type uExtension}
     {shape : Shape}
@@ -511,8 +446,6 @@ def SemanticTruth
     (lift : F -> Extension) : Prop :=
   (data.toUnifiedInputs baseOps).SemanticTruth baseOps extensionOps lift
 
-/-- The constant coefficient of a matrix image is exactly the CCS
-matrix image at the same Boolean row and authoritative running assignment. -/
 theorem matrixImageConstantAt_eq_ccsImageAt
     {Extension : Type uExtension}
     {shape : Shape}
@@ -545,8 +478,6 @@ theorem matrixImageConstantAt_eq_ccsImageAt
   rw [data.matrixSource.coefficientMatrix_constant_eq baseOps baseLaws
     constantLaw matrix]
 
-/-- The constant coefficient of a Pad image is exactly the image of canonical
-Pad at the same Boolean row and authoritative running assignment. -/
 theorem padImageConstantAt_eq_padMatrixImageAt
     {Extension : Type uExtension}
     {shape : Shape}

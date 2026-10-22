@@ -3,12 +3,6 @@
 //! The expected path has its own raw package decoder, source-row custody,
 //! Goldilocks sparse arithmetic, and interpreter for every matrix-program
 //! opcode. It does not call the production interpreter for expected rows.
-//!
-//! Run the full ignored gate with:
-//!
-//! ```text
-//! RUSTC_WRAPPER="" cargo test -p nightstream-fprime --release --test per_application_logical_matrix_conformance -- --ignored --nocapture
-//! ```
 
 use std::{fs, path::PathBuf};
 
@@ -196,8 +190,6 @@ fn valid_matrix_mutations_decode_but_fail_the_pinned_structural_identity() {
     check_matrix_mutations(current, sealed_bytes);
 }
 
-/// Apply the matrix mutations to a package that passed the selected identity
-/// check. Every mutation must decode and then fail that same identity check.
 pub fn check_matrix_mutations(current: LoadedPerApplicationPackage, sealed_bytes: Vec<u8>) {
     let expected_identity = current.structural_identifier();
     drop(current);
@@ -284,8 +276,6 @@ fn final_four_matrices_equal_the_independent_sealed_interpretation() {
     check_logical_matrices(package, sealed_bytes);
 }
 
-/// Compare the actual final matrix rows with the independent sealed
-/// interpretation for an already identity-checked package.
 pub fn check_logical_matrices(package: LoadedPerApplicationPackage, sealed_bytes: Vec<u8>) {
     let artifact = SourcePackage::decode(&sealed_bytes).expect("independent sealed package decoder");
     drop(sealed_bytes);

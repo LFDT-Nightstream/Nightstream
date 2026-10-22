@@ -29,7 +29,6 @@ pub const PI_CCS_V1_2_ROUND_COUNT: usize = 28;
 pub const PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT: usize = 9;
 pub const PI_CCS_V1_2_STATE_PREIMAGE_WORDS: usize = 27_819;
 pub const PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS: usize = 270;
-/// The sixteen child public inputs, child-major. The circuit owns their signs.
 pub const PI_CCS_V1_2_PRIOR_CHILDREN_WORDS: usize = PI_DEC_V1_2_CHILD_COUNT * PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS;
 pub const PI_CCS_V1_2_FRESH_COMMITMENT_WORDS: usize = 1_188;
 pub const PI_CCS_V1_2_VERIFIER_CONTEXT_WORDS: usize = 4;
@@ -50,8 +49,6 @@ const PI_DEC_EVAL_A_WORDS: usize =
 const PI_DEC_CHILD_PUBLIC_INPUT_WORDS: usize = PI_DEC_V1_2_CHILD_COUNT * PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD;
 const PI_DEC_WITNESS_WORDS: usize = 270;
 const RUNNING_TRANSITION_WITNESS_WORDS: usize = 2;
-/// Two preimages, prior children, fresh commitment and round messages precede
-/// the PiCCS output segments.
 const INPUT_SEGMENT_ROLES: [u64; 5] = [
     PRIOR_PREIMAGE_ROLE,
     OUTPUT_PREIMAGE_ROLE,
@@ -60,8 +57,6 @@ const INPUT_SEGMENT_ROLES: [u64; 5] = [
     ROUND_MESSAGES_ROLE,
 ];
 const OUTPUT_SEGMENT_START: usize = INPUT_SEGMENT_ROLES.len();
-/// The application witness, then the PiDEC and running-transition segments,
-/// follow the PiCCS output segments.
 const SUFFIX_SEGMENT_ROLES: [u64; 7] = [
     WITNESS_ROLE,
     PI_DEC_COMMITMENTS_ROLE,
@@ -135,10 +130,6 @@ pub(super) fn validate_public_segments(segments: &[Segment]) -> Result<(), Packa
     Ok(())
 }
 
-/// Exact loaded PiCCS v1_2 output message.
-///
-/// `eval_k[source][coefficient]` is the Pad family. The separate
-/// `eval_a[source][matrix][coefficient]` value is the CCS-matrix family.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiCcsV1_2OutputEvaluations {
     eval_k: Vec<Vec<[u64; EXTENSION_WORDS]>>,
@@ -183,10 +174,6 @@ impl PiCcsV1_2OutputEvaluations {
     }
 }
 
-/// Caller-owned fields for the current Stage 1 PiCCS package prefix.
-///
-/// The package owns the physical offsets. This value keeps only the semantic
-/// segment order that Lean emits.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiCcsV1_2PackageInputs {
     prior_preimage: Vec<u64>,
@@ -259,10 +246,6 @@ impl PiCcsV1_2PackageInputs {
     }
 }
 
-/// Caller-owned PiDEC v1.2 messages and verifier-computed child public inputs.
-///
-/// The four fields follow the exact segment order emitted by Lean. Eval_K and
-/// the 4-matrix Eval_A family remain separate.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiDecV1_2PackageInputs {
     child_commitments: Vec<Vec<u64>>,
@@ -337,7 +320,6 @@ impl PiDecV1_2PackageInputs {
     }
 }
 
-/// Flat values accepted by [`LoadedPackage::execute_witness`].
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiCcsV1_2EncodedInputs {
     private_values: Vec<u64>,
@@ -362,8 +344,6 @@ impl PiCcsV1_2EncodedInputs {
 }
 
 impl LoadedPackage {
-    /// Encode typed v1_2 values in the exact segment order owned by this
-    /// verifier-checked package.
     pub fn encode_pi_ccs_v1_2_inputs(
         &self,
         inputs: &PiCcsV1_2PackageInputs,
@@ -431,8 +411,6 @@ impl LoadedPackage {
         })
     }
 
-    /// Decode the caller-owned PiCCS output words according to the exact
-    /// segment order emitted by Lean.
     pub fn pi_ccs_v1_2_output_evaluations(
         &self,
         private_inputs: &[u64],

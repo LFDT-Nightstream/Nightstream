@@ -641,7 +641,6 @@ dependencies = [
  "keccak 0.2.2",
  "neo-ccs",
  "neo-math",
- "neo-params",
  "p3-field 0.5.3",
  "p3-goldilocks 0.5.3",
  "p3-matrix 0.5.3",
@@ -694,7 +693,6 @@ dependencies = [
  "serde",
  "serde_json",
  "subtle",
- "thiserror",
 ]
 
 [[package]]

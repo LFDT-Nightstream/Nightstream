@@ -39,7 +39,6 @@ variable {logicalWidth : Nat}
   (digestFixed : digest.length = PilotProduction.digestWords)
   (proofValues : ProofValues)
 
-/-- Each loaded prior-state word is the canonical serialized word. -/
 theorem protocolEnv_priorWord (index : Nat)
     (bound : index < PilotProduction.stateHashWords) :
     protocolEnv prior priorPublic outputPreimage digest priorFixed outputFixed
@@ -68,7 +67,6 @@ theorem protocolEnv_priorWord (index : Nat)
       exact (List.getD_eq_get _ 0 _).symm
     _ = _ := by rw [show PilotProduction.priorPreimageStart = 0 from rfl, Nat.zero_add]
 
-/-- Each loaded region digit is the prior child public input. -/
 theorem protocolEnv_priorDigit (source : Fin productionShape.runningCount)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
     protocolEnv prior priorPublic outputPreimage digest priorFixed outputFixed
@@ -84,7 +82,6 @@ theorem protocolEnv_priorDigit (source : Fin productionShape.runningCount)
   rw [eval_childWord _ _ (by unfold priorChildrenWords; omega)]
   exact serializeChildPublicInputs_getD _ source column
 
-/-- The honest region satisfies every prior child-split row. -/
 theorem childrenSplit_protocolEnv
     (canonical : Lifecycle.ChildrenCanonical (prior.running functionIndex)) :
     StateBinding.ChildrenSplit
@@ -135,8 +132,6 @@ theorem childrenSplit_protocolEnv
       serializeRunningFields_length, Nat.add_sub_cancel_left]
     exact finRange_map_getD _ word
 
-/-- The combined protocol environment presents the exact authoritative prior
-running instance to PiCCS. -/
 theorem evalRunning_protocolEnv_eq_priorRunning
     (canonical : Lifecycle.ChildrenCanonical (prior.running functionIndex)) :
     StatementAbsorption.evalRunning (runningExpr logicalWidth publicFits)
@@ -161,7 +156,6 @@ theorem evalRunning_protocolEnv_eq_priorRunning
 
 end Protocol
 
-/-- Relation-typed parent view of the authoritative running instance. -/
 theorem formalEvalRunning_protocolEnv_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -187,8 +181,6 @@ theorem formalEvalRunning_protocolEnv_eq
   exact evalRunning_protocolEnv_eq_priorRunning prior priorPublic outputPreimage
     digest priorFixed outputFixed digestFixed proofValues canonical
 
-/-- Complete semantic coverage of every caller-owned value read by the
-production PiCCS parent. -/
 theorem protocolInputs_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

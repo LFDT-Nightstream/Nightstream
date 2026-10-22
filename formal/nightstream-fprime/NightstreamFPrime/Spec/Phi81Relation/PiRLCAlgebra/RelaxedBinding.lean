@@ -4,8 +4,7 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 import NightstreamFPrime.Spec.Profile
 
 /-! The selected `(2B,C)` relaxed-binding collision yields a nonzero integer
-kernel vector below `8TB`. Both difference challenges come from the actual
-production set, and the matrix is unchanged. Hardness remains external. -/
+kernel vector below `8TB`. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
 
@@ -36,8 +35,6 @@ private theorem ringFMul_sub_left (left right value : RingF) :
     (ringFMul left value lane : ZMod goldilocksModulus) - ringFMul right value lane
   exact (eq_sub_iff_add_eq).mpr atLane.symm
 
-/-- A difference of two production challenges expands a coordinate bound by
-at most `2T=432`. The bound applies to every complete-carrier coordinate. -/
 theorem difference_action_bounded {shape : Shape} {bound : Nat}
     (delta : RingF) (assignment : Assignment shape)
     (valid : differenceChallenge delta)
@@ -57,8 +54,6 @@ theorem difference_action_bounded {shape : Shape} {bound : Nat}
     right block rightValid blockBounded packed.2
   exact (Norm.Centered.centeredMagnitude_sub_le _ _).trans (by omega)
 
-/-- The literal relaxed collision event maps to the paper's MSIS norm for
-the selected `b=2`, `k_rho=16` profile. No injectivity assumption is used. -/
 def relaxedBindingCollision_to_shortKernel {shape : Shape} {rows : Nat}
     (key : Commitment.Key shape rows) (commitment : Commitment.Value rows)
     (collision : Folding.PiRLC.RelaxedBindingCollision
@@ -88,7 +83,6 @@ def relaxedBindingCollision_to_shortKernel {shape : Shape} {rows : Nat}
       collision.delta₂Valid firstBound column
     have triangle := Norm.Centered.centeredMagnitude_sub_le (left column) (right column)
     change centeredMagnitude (left column - right column) < _
-    -- These values reduce from `2T(2B-1)` and `8TB` in the selected profile.
     change centeredMagnitude (left column) ≤ 56622672 at leftBound
     change centeredMagnitude (right column) ≤ 56622672 at rightBound
     change centeredMagnitude (left column - right column) < 113246208

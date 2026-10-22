@@ -14,7 +14,6 @@ private def coefficients : K ≃ F × F where
 
 theorem base_cardinality : Nat.card F = goldilocksModulus := Nat.card_fin _
 
-/-- The actual extension carrier has the size stated by the selected profile. -/
 theorem extension_cardinality :
     Nat.card K = goldilocksModulus ^ productionProfile.extensionDegree := by
   rw [Nat.card_congr coefficients, Nat.card_prod, base_cardinality]
@@ -24,7 +23,6 @@ theorem embed_injective : Function.Injective K.embed := by
   intro left right same
   exact congrArg K.c0 same
 
-/-- Every extension value has the stated coordinates on the basis `(1,u)`. -/
 theorem basis_reconstruct (value : K) :
     K.add (K.embed value.c0) (K.mul (K.embed value.c1) ⟨0, 1⟩) = value := by
   cases value

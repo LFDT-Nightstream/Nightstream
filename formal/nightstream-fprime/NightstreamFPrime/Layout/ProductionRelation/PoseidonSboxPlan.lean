@@ -23,7 +23,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 abbrev State (logicalWidth : Nat) := SparseLayer.State logicalWidth
 
-/-- Final-assignment forms supplied by one invocation owner. -/
 structure Interface (logicalWidth : Nat) where
   oneColumn : Fin logicalWidth
   input : State logicalWidth
@@ -139,7 +138,6 @@ theorem partialRowsZero_output {logicalWidth : Nat}
   rw [seventhPower_eq_sboxF] at semantic
   exact semantic.symm
 
-/-- One direct schedule step and its exact retained-row suffix. -/
 structure StepResult (logicalWidth : Nat) where
   nextSbox : Nat
   state : State logicalWidth
@@ -169,8 +167,6 @@ def compileStep {logicalWidth : Nat} (interface : Interface logicalWidth)
         rows := fullRows interface Spec.Poseidon2.terminalConstants round
           nextSbox state }
 
-/-- Zero residuals of one compact step force the exact reference Poseidon2
-step on the evaluated sparse-form state. -/
 theorem compileStep_sound {logicalWidth : Nat}
     (interface : Interface logicalWidth) (nextSbox : Nat)
     (state : State logicalWidth) (step : Permutation.Step)
@@ -246,7 +242,6 @@ theorem compileStep_sound {logicalWidth : Nat}
       rw [outputsEqual]
       simp [fullInput, SparseLayer.evalState, one]
 
-/-- Structural schedule compiler. Rows stay in exact schedule and lane order. -/
 def compile {logicalWidth : Nat} (interface : Interface logicalWidth) :
     Nat → State logicalWidth → List Permutation.Step →
       StepResult logicalWidth
@@ -266,8 +261,6 @@ private theorem sboxRowsZero_append {logicalWidth : Nat}
       SboxRowsZero assignment left ∧ SboxRowsZero assignment right := by
   simp [SboxRowsZero, or_imp, forall_and]
 
-/-- Zero residuals of a compact step sequence force the exact reference
-Poseidon2 step sequence. -/
 theorem compile_sound {logicalWidth : Nat}
     (interface : Interface logicalWidth) (nextSbox : Nat)
     (state : State logicalWidth) (steps : List Permutation.Step)
@@ -307,15 +300,10 @@ def trace {logicalWidth : Nat} (interface : Interface logicalWidth) :
     StepResult logicalWidth :=
   compile interface 0 interface.input Permutation.schedule
 
-/-- Constant-time final state of the fixed production trace. The last
-terminal full round owns S-box outputs 134 through 149 and the final external
-linear layer. -/
 def directOutput {logicalWidth : Nat} (interface : Interface logicalWidth) :
     State logicalWidth :=
   SparseLayer.external (fullOutput interface 134)
 
-/-- The closed-form output is definitionally the output of the canonical
-fixed schedule. -/
 @[simp] theorem trace_state_eq_directOutput {logicalWidth : Nat}
     (interface : Interface logicalWidth) :
     (trace interface).state = directOutput interface := by
@@ -412,14 +400,12 @@ def RowsZero {logicalWidth : Nat} (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth) : Prop :=
   ∀ row ∈ rows interface, row.residual assignment = 0
 
-/-- Exact S-box equations for every retained trace row. -/
 def SboxEquations {logicalWidth : Nat} (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth) : Prop :=
   ∀ forms ∈ (trace interface).rows,
     forms.output.eval assignment =
       Layer.sboxF (forms.input.eval assignment)
 
-/-- Exact equality between caller-owned outputs and the compiled trace. -/
 def OutputEquations {logicalWidth : Nat} (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth) : Prop :=
   ∀ lane,
@@ -496,8 +482,6 @@ theorem rowsZero_implies_pinRowsZero {logicalWidth : Nat}
     exact List.mem_append_right _ (List.mem_map_of_mem member))
   exact selected
 
-/-- The complete 94-row template forces the exact Poseidon2 permutation on
-the caller-owned input and output forms. -/
 theorem rowsZero_implies_permute {logicalWidth : Nat}
     (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -549,8 +533,6 @@ theorem rowsZero_implies_permute {logicalWidth : Nat}
     (rows interface).length = 166 := by
   simp [rows]
 
-/-- Exact 4-matrix template plan, built by the common
-`ProductionRelation.Plan` constructor. -/
 def plan {logicalWidth : Nat} (interface : Interface logicalWidth) :
     ProductionRelation.Plan logicalWidth where
   rowCount := (rows interface).length
@@ -617,8 +599,6 @@ theorem rowsZero_implies_planRowsZero {logicalWidth : Nat}
   rw [plan_residual_at interface assignment row]
   exact rowsZero ((rows interface).get row) (List.get_mem _ _)
 
-/-- Exact Poseidon2 trace equations construct a satisfying assignment for
-all live rows of the actual 4-matrix plan. -/
 theorem planRowsZero_of_equations {logicalWidth : Nat}
     (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -629,8 +609,6 @@ theorem planRowsZero_of_equations {logicalWidth : Nat}
     (rowsZero_of_equations interface assignment sboxEquations
       outputEquations)
 
-/-- Live rows of the actual 4-matrix plan force the exact Poseidon2
-permutation. Padding is zero by the common plan type. -/
 theorem planRowsZero_implies_permute {logicalWidth : Nat}
     (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth)

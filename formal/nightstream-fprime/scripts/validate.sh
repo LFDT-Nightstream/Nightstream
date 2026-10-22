@@ -77,7 +77,6 @@ lean_file() {
     -DautoImplicit=false -DrelaxedAutoImplicit=false -DwarningAsError=true "$1"
 }
 
-# Every [[lean_exe]] target name in the lakefile. No name contains a space.
 executables() {
   awk '/^\[\[lean_exe\]\]/ { exe = 1; next } /^\[\[/ { exe = 0 }
     exe && /^name *=/ { gsub(/"/, "", $3); print $3 }' lakefile.toml
@@ -101,7 +100,6 @@ case "$phase" in
     capped lake build --wfail NightstreamFPrimeTests && lean_file tests/EndpointCensus.lean
     ;;
   executables)
-    # The names are split on purpose: one lake call builds every executable.
     capped lake build --wfail $(executables)
     ;;
   pi-ccs-first-round)

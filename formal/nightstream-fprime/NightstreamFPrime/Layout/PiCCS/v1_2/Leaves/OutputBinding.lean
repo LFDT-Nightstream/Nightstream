@@ -43,8 +43,6 @@ variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Stable physical wire shape for every caller-owned expression read by the
-output serializer. -/
 structure InputsAffine
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.Interface)
@@ -57,8 +55,6 @@ structure InputsAffine
     KExprAffine
       ((interface.output offset).matrixCoordinate source matrix coefficient)
 
-/-- Causal range premise for the incoming state and the separate v1_2 Pad and
-matrix output families read by the serializer. -/
 structure InputsBelow
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.Interface)
@@ -249,8 +245,6 @@ private theorem actions_below
   subst action
   exact outputWords_below interface offset inputs
 
-/-- The fixed output serializer supplies the exact causal assumption of the
-owned duplex child. -/
 theorem assumptions_of_inputsBelow
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.Interface)

@@ -5,8 +5,7 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.RelaxedBinding
 
 /-!
 The selected fork extractor and relaxed-binding game use the same scalar
-and assignment operations. Two B-bounded response assignments have a strict
-2B-bounded difference. No statement about arbitrary ambient openings is used.
+and assignment operations. No statement about arbitrary ambient openings is used.
 -/
 
 set_option autoImplicit false
@@ -33,8 +32,6 @@ theorem subtraction_eq
   change left column + -right column = left column - right column
   exact (Fin.sub_eq_add_neg _ _).symm
 
-/-- All four compatibility facts are derived from the selected deterministic
-operations and the response norm bound. A collision conclusion is not a premise. -/
 theorem compatible :
     PiRLC.PaperForkBinding.Compatible
       (algebra := (ProductionKey.key relation ajtai).piRlcAlgebra)

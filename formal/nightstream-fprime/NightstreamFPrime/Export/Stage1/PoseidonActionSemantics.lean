@@ -3,10 +3,7 @@ import NightstreamFPrime.Export.Stage1.PoseidonActionSchedule
 
 /-!
 Owns the structural value-semantics bridge from an indexed Poseidon2 action
-schedule to the authoritative Duplex trace. The proof is generic in the
-action list and does not materialize a production schedule.
-
-This module does not select a concrete phase or package assignment.
+schedule to the authoritative Duplex trace.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PoseidonActionSemantics
@@ -47,8 +44,6 @@ theorem runKinds_absorbBlocks (env : Env) (state : State)
       simp only [List.map_cons, runKinds, runKind, List.foldl_cons]
       exact inductionHypothesis _
 
-/-- Each read sees the value state after the invocations that precede it in
-the same action list. -/
 def ReadsAt (env : Env) (stateAt : Nat → State) :
     Nat → List Formal.Action → Prop
   | _, [] => True
@@ -58,7 +53,6 @@ def ReadsAt (env : Env) (stateAt : Nat → State) :
       expected.eval env = Read.referenceSample (stateAt index) pair ∧
         ReadsAt env stateAt index actions
 
-/-- The value state after `index` invocations of an indexed schedule. -/
 def stateAfter {count : Nat} (initial : State) (output : Fin count → State)
     (index : Nat) : State :=
   if index = 0 then
@@ -68,7 +62,6 @@ def stateAfter {count : Nat} (initial : State) (output : Fin count → State)
   else
     initial
 
-/-- Default kind for a total list lookup. Every lookup below is bounded. -/
 private def noKind : PoseidonActionSchedule.Kind := .absorb []
 
 private theorem runKinds_of_steps (env : Env) (stateAt : Nat → State) :
@@ -254,8 +247,6 @@ theorem IndexedSemantics.slice {env : Env} {total : Nat} {initial : State}
     rw [previousState_slice initial output offset count fits offsetBound current]
     exact semantics.step (sliceIndex offset count fits current)
 
-/-- Held invocations and reads of one indexed schedule imply the exact
-Duplex trace of its action list. -/
 theorem indexed_traceHolds (count : Nat) (env : Env) (initial : State)
     (kindAt : Fin count → PoseidonActionSchedule.Kind)
     (output : Fin count → State) (actions : List Formal.Action)
@@ -296,8 +287,6 @@ theorem indexed_traceHolds (count : Nat) (env : Env) (initial : State)
   rw [lengthEq, Nat.zero_add] at trace
   simpa [stateAfter] using trace
 
-/-- Reads are sound when every symbolic state of the compiled action list
-evaluates to the indexed value state at the same position. -/
 theorem readsAt_of_outputs (env : Env) (stateAt : Nat → State) :
     ∀ (actions : List Formal.Action) (start offset : Nat)
       (symbolic : Layer.EState),

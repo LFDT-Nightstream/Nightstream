@@ -1,4 +1,3 @@
-"""Fail-closed cases for the artifact digest and reuse checker."""
 import os
 from pathlib import Path
 import shutil

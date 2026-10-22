@@ -1,8 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericBooleanDomain
 
-/-! Cache the reference tensor weights in two coordinate tables. The split
-is half the coordinate count. For 27 coordinates the tables have 8192 and
-16384 entries. Lookup retains the reference fallback for missing entries. -/
+/-! Cache the reference tensor weights in two coordinate tables. -/
 
 set_option autoImplicit false
 
@@ -14,8 +12,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericBooleanDomain
 universe uField
 variable {Field : Type uField}
 
-/-- Concatenation keeps the reference's least-significant-coordinate order.
-Only the existing multiplicative weight laws are used. -/
 theorem tensorWeightCoordinates_append (ops : InterpolationOps Field)
     (laws : WeightProductLaws ops) (left right : List Field) (index : Nat) :
     tensorWeightCoordinates ops (left ++ right) index =
@@ -30,8 +26,6 @@ theorem tensorWeightCoordinates_append (ops : InterpolationOps Field)
         inductionHypothesis, Nat.div_div_eq_div_mul, Nat.pow_succ']
       exact (laws.mul_assoc _ _ _).symm
 
-/-- A finite coordinate list reads only its corresponding low index bits.
-This identity holds for every index and requires no algebraic laws. -/
 theorem tensorWeightCoordinates_mod (ops : InterpolationOps Field)
     (coordinates : List Field) (index : Nat) :
     tensorWeightCoordinates ops coordinates (index % 2 ^ coordinates.length) =
@@ -73,8 +67,6 @@ private theorem split_value (ops : InterpolationOps Field)
   simpa only [List.take_append_drop, leftLength] using tensorWeightCoordinates_append ops laws
     (coordinates.take (coordinates.length / 2)) (coordinates.drop (coordinates.length / 2)) index
 
-/-- Materialize only reference weights. Both extents are derived from the
-coordinate count; the two coordinate sublists are shared during preparation. -/
 def prepare (ops : InterpolationOps Field) (coordinates : List Field) :
     Array Field × Array Field :=
   let split := coordinates.length / 2
@@ -85,22 +77,17 @@ def prepare (ops : InterpolationOps Field) (coordinates : List Field) :
    Array.ofFn (fun index : Fin (2 ^ (coordinates.length - split)) =>
       tensorWeightCoordinates ops right index.val))
 
-/-- Exact arity-derived extents, including empty and odd-length inputs. -/
 theorem prepare_sizes (ops : InterpolationOps Field) (coordinates : List Field) :
     (prepare ops coordinates).1.size = 2 ^ (coordinates.length / 2) ∧
       (prepare ops coordinates).2.size = 2 ^ (coordinates.length - coordinates.length / 2) := by
   constructor <;> simp only [prepare, Array.size_ofFn]
 
-/-- Read the low and high index portions. A missing entry calls the original
-weight function; the fallback is evaluated only in that branch. -/
 def lookup (ops : InterpolationOps Field) (coordinates : List Field)
     (tables : Array Field × Array Field) (index : Nat) : Field :=
   match tables.1[index % tables.1.size]?, tables.2[index / tables.1.size]? with
   | some left, some right => ops.mul left right
   | _, _ => tensorWeightCoordinates ops coordinates index
 
-/-- Every prepared lookup equals the reference, including arbitrary indices
-outside the prepared high table. No index bound is a caller premise. -/
 theorem lookup_prepare (ops : InterpolationOps Field) (laws : WeightProductLaws ops)
     (coordinates : List Field) (index : Nat) :
     lookup ops coordinates (prepare ops coordinates) index =

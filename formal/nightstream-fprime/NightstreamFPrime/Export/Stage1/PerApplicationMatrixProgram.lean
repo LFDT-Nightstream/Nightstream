@@ -14,11 +14,7 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
 import NightstreamFPrime.Layout.PiDEC.v1_2.Values
 
 /-!
-Owns the exact compact 4-matrix row program for one Lean-authored
-application. Its fourteen children use the same order and geometry projections
-as `PerApplicationProductionPlan.canonical`.
-
-This module selects no package bytes, verification key, or Rust consumer.
+Owns the exact compact 4-matrix row program for one Lean-authored application.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgram
@@ -110,7 +106,6 @@ def recursivePublicOutputProgram (application : ApplicationProgram) : Program :=
   PinMatrixPrograms.recursivePublicOutputProgram
     (applicationGeometry application)
 
-/-- Compact row program selected by one semantic block opcode. -/
 def blockProgram (application : ApplicationProgram) :
     PerApplicationProductionPlan.BlockKind → Program
   | .pilotPoseidon => pilotPoseidonProgram application
@@ -143,7 +138,6 @@ theorem blockProgram_rowCount (application : ApplicationProgram)
       nextPreimageProgram, recursivePublicOutputProgram,
       Layout.PiDEC.v1_2.exactRowCount_value]
 
-/-- Interpret the same ordered tree as a compact matrix program. -/
 def compileMatrix (application : ApplicationProgram) :
     PerApplicationProductionPlan.Program → Program
   | .leaf kind => blockProgram application kind
@@ -186,7 +180,6 @@ def runningCompleteProgram (application : ApplicationProgram) : Program :=
   (piDecCompleteProgram application).append
     (runningTransitionProgram application)
 
-/-- Running prefix followed by the selected application rows. -/
 def applicationCompleteProgram (application : ApplicationProgram) : Program :=
   (runningCompleteProgram application).append (applicationProgram application)
 
@@ -194,7 +187,6 @@ def throughNextPreimageProgram (application : ApplicationProgram) : Program :=
   (applicationCompleteProgram application).append
     (nextPreimageProgram application)
 
-/-- The one compact matrix program for the selected application. -/
 def matrixProgram (application : ApplicationProgram) : Program :=
   (throughNextPreimageProgram application).append
     (recursivePublicOutputProgram application)
@@ -204,7 +196,6 @@ def matrixProgram (application : ApplicationProgram) : Program :=
       matrixProgram application := by
   rfl
 
-/-- Named child programs paired with the canonical semantic opcode order. -/
 def children (application : ApplicationProgram) :
     List (PerApplicationProductionPlan.BlockKind × Program) :=
   [(.pilotPoseidon, pilotPoseidonProgram application),

@@ -132,7 +132,6 @@ theorem ownedRows_length
     physicalRows_length]
   simp
 
-/-- The transition adds no copy or file-boundary row. -/
 theorem noBoundaryRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤

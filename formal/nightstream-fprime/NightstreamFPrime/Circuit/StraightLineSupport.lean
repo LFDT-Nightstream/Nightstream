@@ -7,8 +7,6 @@ It does not select a protocol support set or a circuit layout.
 
 namespace NightstreamFPrime.Circuit
 
-/-- Generic straight-line rows preserve one caller-selected support predicate
-when every recipe and allocated target already satisfies it. -/
 theorem recipeConstraints_varsSatisfy
     (start : Nat) (recipes : List Expr) (allowed : Nat → Prop)
     (recipesSupported : ∀ recipe ∈ recipes,

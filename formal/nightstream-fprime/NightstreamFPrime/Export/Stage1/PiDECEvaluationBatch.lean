@@ -1,10 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights
 
 /-!
-Weighted row batches in the existing stored extension-ring vectors. Each
-step computes its point weight and complete child-row batch once. Child
-projections equal the scalar accumulator; range sums can be combined in Lean.
-No expected values, work premises, IO, or new row representation is used.
+Weighted row batches in the existing stored extension-ring vectors.
 -/
 
 set_option autoImplicit false
@@ -18,7 +15,6 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArith
   (StoredRing)
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace (MaterializedRingK)
 
-/-- One stored zero for every child. -/
 def zero (k : Nat) : Vector MaterializedRingK k :=
   Vector.replicate k (MaterializedRingK.ofRing ringKZero)
 
@@ -27,7 +23,6 @@ theorem zero_value {k : Nat} (child : Fin k) :
   change ((Vector.replicate k (MaterializedRingK.ofRing ringKZero))[child.val]).toRing = _
   rw [Vector.getElem_replicate, MaterializedRingK.toRing_ofRing]
 
-/-- Combine complete extension-field partial sums, without Rust arithmetic. -/
 def add {k : Nat} (left right : Vector MaterializedRingK k) :
     Vector MaterializedRingK k :=
   Vector.ofFn fun child => MaterializedRingK.ofRing
@@ -41,7 +36,6 @@ theorem add_value {k : Nat} (left right : Vector MaterializedRingK k)
     (ringKAdd (left.get selected).toRing (right.get selected).toRing)))[child.val]).toRing = _
   rw [Vector.getElem_ofFn, MaterializedRingK.toRing_ofRing]
 
-/-- The row producer and point weight each occur once outside the child loop. -/
 @[specialize] def step {arity k : Nat} (point : CubePoint K arity)
     (rows : Nat → Vector StoredRing k) (index : Nat)
     (initial : Vector MaterializedRingK k) : Vector MaterializedRingK k :=
@@ -61,8 +55,6 @@ theorem step_child {arity k : Nat} (point : CubePoint K arity)
     (initial.get selected) ((rows index).get selected)))[child.val] = _
   rw [Vector.getElem_ofFn]
 
-/-- Continue from a stored batch over [start, start + count). Weights always
-use the global row index, including when the range starts after zero. -/
 @[specialize] def foldFrom {arity k : Nat} (start count : Nat) (point : CubePoint K arity)
     (rows : Nat → Vector StoredRing k) (initial : Vector MaterializedRingK k) :
     Vector MaterializedRingK k :=
@@ -76,7 +68,6 @@ private theorem foldFrom_succ {arity k : Nat} (start count : Nat)
       step point rows (start + count) (foldFrom start count point rows initial) := by
   simp only [foldFrom, Nat.fold_succ]
 
-/-- Exact scalar projection of a continued weighted range. -/
 theorem foldFrom_value {arity k : Nat} (start count : Nat)
     (point : CubePoint K arity) (rows : Nat → Vector StoredRing k)
     (initial : Vector MaterializedRingK k) (child : Fin k) (lane : Fin ringDegree) :
@@ -106,7 +97,6 @@ theorem foldFrom_value {arity k : Nat} (start count : Nat)
       rw [inductionHypothesis]
       exact extensionLaws.add_assoc _ _ _
 
-/-- Independently compute one range from zero. -/
 @[specialize] def range {arity k : Nat} (start count : Nat) (point : CubePoint K arity)
     (rows : Nat → Vector StoredRing k) : Vector MaterializedRingK k :=
   foldFrom start count point rows (zero k)
@@ -121,13 +111,10 @@ theorem range_value {arity k : Nat} (start count : Nat)
   rw [range, foldFrom_value, zero_value]
   exact extensionLaws.zero_add _
 
-/-- The full prefix interface, with no range or zero-suffix assumption. -/
 def accumulate {arity k : Nat} (count : Nat) (point : CubePoint K arity)
     (rows : Nat → Vector StoredRing k) : Vector MaterializedRingK k :=
   range 0 count point rows
 
-/-- Every child has exactly the existing scalar accumulator's complete
-54-lane extension-ring value. This includes both field coordinates. -/
 theorem accumulate_child {arity k : Nat} (count : Nat)
     (point : CubePoint K arity) (rows : Nat → Vector StoredRing k) (child : Fin k) :
     ((accumulate count point rows).get child).toRing =
@@ -137,7 +124,6 @@ theorem accumulate_child {arity k : Nat} (count : Nat)
   rw [accumulate, range_value, PiDECEvaluationWeights.accumulate_value]
   simp only [Nat.zero_add]
 
-/-- Splitting a numeric range is exactly continuation of the same fold. -/
 theorem foldFrom_append {arity k : Nat} (start leftCount rightCount : Nat)
     (point : CubePoint K arity) (rows : Nat → Vector StoredRing k)
     (initial : Vector MaterializedRingK k) :
@@ -148,7 +134,6 @@ theorem foldFrom_append {arity k : Nat} (start leftCount rightCount : Nat)
   rw [Nat.fold_add]
   simp only [Nat.add_assoc]
 
-/-- Continuing from an initial batch adds the independently computed range. -/
 theorem foldFrom_eq_add_range {arity k : Nat} (start count : Nat)
     (point : CubePoint K arity) (rows : Nat → Vector StoredRing k)
     (initial : Vector MaterializedRingK k) (child : Fin k) :
@@ -160,7 +145,6 @@ theorem foldFrom_eq_add_range {arity k : Nat} (start count : Nat)
       (((range start count point rows).get child).toRing lane)
   rw [foldFrom_value, range_value]
 
-/-- Adding independent adjacent ranges in Lean preserves the complete value. -/
 theorem range_append {arity k : Nat} (start leftCount rightCount : Nat)
     (point : CubePoint K arity) (rows : Nat → Vector StoredRing k) (child : Fin k) :
     ((range start (leftCount + rightCount) point rows).get child).toRing =
@@ -170,8 +154,6 @@ theorem range_append {arity k : Nat} (start leftCount rightCount : Nat)
   exact foldFrom_eq_add_range (start + leftCount) rightCount point rows
     (range start leftCount point rows) child
 
-/-- Final partial-batch addition remains in Lean. The caller supplies the
-validated finite range count and each computed partial batch. -/
 def sum {k : Nat} (count : Nat) (parts : Nat → Vector MaterializedRingK k) :
     Vector MaterializedRingK k :=
   Nat.fold count (fun index _ initial => add initial (parts index)) (zero k)
@@ -181,7 +163,6 @@ private theorem sum_succ {k : Nat} (count : Nat)
     sum (count + 1) parts = add (sum count parts) (parts count) := by
   simp only [sum, Nat.fold_succ]
 
-/-- Every final child/lane is the exact numeric sum of its partial values. -/
 theorem sum_value {k : Nat} (count : Nat)
     (parts : Nat → Vector MaterializedRingK k) (child : Fin k) (lane : Fin ringDegree) :
     ((sum count parts).get child).toRing lane =

@@ -71,7 +71,6 @@ fn check_lean_setup_fixture(bytes: &[u8]) {
     assert_eq!(empty, SHAKE128_EMPTY, "FIPS 202 SHAKE128 example");
     assert_eq!(nat_list(&root[3]), SHAKE128_EMPTY.map(u64::from));
 
-    // Fixed-length fields: setup ID, seed, row little-endian, block little-endian.
     let mut expected_input = SETUP_ID.to_vec();
     expected_input.extend(test_seed());
     expected_input.extend([1, 2, 3, 4]);
@@ -102,8 +101,6 @@ fn check_lean_setup_fixture(bytes: &[u8]) {
     assert_eq!(nat_list(&root[6]), production_authority_words());
     assert_eq!(production_authority_words().len(), 73);
 
-    // One complete element: every lane, including the lanes that cross a
-    // 168-byte rate boundary.
     assert_eq!(
         nat_list(&root[7]),
         element_bytes(&PRODUCTION_SEED, 1, 32_768).map(u64::from)

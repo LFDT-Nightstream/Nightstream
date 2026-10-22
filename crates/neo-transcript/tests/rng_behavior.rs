@@ -5,12 +5,6 @@ use neo_transcript::{Poseidon2Transcript, Transcript, TranscriptRngBuilder};
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
 
-// ---------------------------------------------------------------------------
-// Obligation 8: RNG binding — different witness/entropy -> different output
-// ---------------------------------------------------------------------------
-
-/// Different witness data or external
-/// entropy produces different RNG output.
 #[test]
 fn rng_binding_changes_on_inputs() {
     let mut tr = Poseidon2Transcript::new(b"rng/test");
@@ -44,21 +38,13 @@ fn rng_binding_changes_on_inputs() {
     trrng2.fill_bytes(&mut out2);
     trrng3.fill_bytes(&mut out3);
 
-    // Witness change -> output changes
     assert_ne!(out1, out2, "different witness data must produce different RNG output");
-    // External entropy change -> output changes
     assert_ne!(
         out1, out3,
         "different external entropy must produce different RNG output"
     );
 }
 
-// ---------------------------------------------------------------------------
-// Obligation 9: RNG determinism — same inputs -> same output
-// ---------------------------------------------------------------------------
-
-/// Identical transcript state, witness
-/// data, and external entropy produce identical RNG output.
 #[test]
 fn rng_determinism_same_inputs() {
     let mut tr = Poseidon2Transcript::new(b"rng/test2");
@@ -83,11 +69,6 @@ fn rng_determinism_same_inputs() {
     assert_eq!(out_a, out_b, "same inputs must produce identical RNG output");
 }
 
-// ---------------------------------------------------------------------------
-// Additional: RNG field() produces non-trivial output
-// ---------------------------------------------------------------------------
-
-/// TranscriptRng::field() produces field elements (basic sanity check).
 #[test]
 fn rng_field_produces_elements() {
     let mut tr = Poseidon2Transcript::new(b"rng/field");
@@ -108,12 +89,6 @@ fn rng_field_produces_elements() {
     assert!(seen_nonzero, "TranscriptRng::field() produced only zeros in 10 calls");
 }
 
-// ---------------------------------------------------------------------------
-// Additional: RNG is transcript-bound (different transcript -> different RNG)
-// ---------------------------------------------------------------------------
-
-/// Different transcript states produce different RNG outputs, even with
-/// identical witness and entropy.
 #[test]
 fn rng_transcript_binding() {
     let mut tr1 = Poseidon2Transcript::new(b"rng/bind");
@@ -145,9 +120,6 @@ fn rng_transcript_binding() {
     );
 }
 
-/// Red-team regression: witness-rekey labels and vectors must be framed as
-/// separate inputs. These two different `(label, witness)` pairs currently
-/// absorb the same field-element sequence: `[b'L', 2, 1, x]`.
 #[test]
 fn rng_rekey_frames_label_separately_from_witness_fields() {
     let tr = Poseidon2Transcript::new(b"rng/rekey-framing");

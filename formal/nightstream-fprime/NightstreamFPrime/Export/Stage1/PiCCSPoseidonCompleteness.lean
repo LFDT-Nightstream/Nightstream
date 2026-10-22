@@ -8,8 +8,6 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompletenes
 
 /-!
 Owns the direct C permutation-plan proof from the actual completed C rows.
-Source input and retained S-box values are tied to the same compact compiler
-invocation. Coins are permutation-output lanes, so the plan has no coin pins.
 -/
 
 set_option autoImplicit false
@@ -333,9 +331,6 @@ private theorem invocation_values (index : InvocationIndex) (lane : Fin 16) :
           current lane
 
 include relation physical in
-/-- Actual physical C rows satisfy the canonical direct C Poseidon plan.
-Inputs and retained S-box values are derived from the same compiler
-invocations and their exact source expressions. -/
 theorem rowsZero_of_completed :
     (PiCCSPoseidonPlan.plan payload geometry).RowsZero (raw).assignment := by
   apply PiCCSPoseidonPlan.equations_imply_rowsZero payload geometry (raw).assignment

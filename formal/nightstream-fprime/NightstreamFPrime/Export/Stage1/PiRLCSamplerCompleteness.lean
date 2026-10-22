@@ -5,9 +5,8 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
 import NightstreamFPrime.Layout.PiRLC.v1_2.SamplerSegments
 
 /-!
-Owns the constructive bridge from the exact PiRLC sampler physical packet to
-the compact sampler package. Child selection stays structural and does not
-unfold the opaque scalar children.
+Owns the constructive bridge from the exact PiRLC sampler physical packet to the
+compact sampler package.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerCompleteness
@@ -80,8 +79,6 @@ private theorem sourceFreshPrefix
   rw [countsEq]
   exact sum_take_ofFn_const 144 source
 
-/-- The remapped sampler packet projects to one exact source sampler lowering
-under the final-column pullback. -/
 theorem remappedPacket_implies_sourceRows (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env)
     (source : Fin SamplerChain.Logical.sourceCount) :
@@ -150,8 +147,6 @@ private theorem entryInputChunks_eq (source : Nat) :
     NightstreamFPrime.Gadgets.Poseidon2.Hash.inputChunks
   norm_num [NightstreamFPrime.Spec.Poseidon2.rate]
 
-/-- The scalar-domain entry list contains exactly its one additive
-Poseidon2 invocation, with the existing state and frame words. -/
 theorem entryInvocations_eq_singleton (source : Nat) :
     PiRLCSamplerInvocations.entryInvocations
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
@@ -262,8 +257,6 @@ private theorem entryPermutationState_affine (source : Nat) :
   · exact PiRLCSamplerInvocations.entryState_affine source
   · exact entryWords_affine source
 
-/-- One selected scalar-entry child constructs its sole compact Poseidon2
-invocation, including the exact 1096 internal witness rows. -/
 theorem remappedPacket_implies_entryPermutations (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env)
     (source : Fin SamplerChain.Logical.sourceCount) :
@@ -284,7 +277,6 @@ theorem remappedPacket_implies_entryPermutations (env : Env)
   · exact entryPermutationState_affine source.val
   · exact sourceHolds
 
-/-- The scalar's sole advance permutation is the emitted permutation. -/
 theorem remappedPacket_implies_advancePermutation (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env)
     (source : Fin SamplerChain.Logical.sourceCount) :
@@ -313,7 +305,6 @@ theorem remappedPacket_implies_advancePermutation (env : Env)
   · exact PiRLCSamplerInvocations.advanceState_affine source.val
   · exact sourceHolds
 
-/-- The physical packet supplies both permutations for every scalar. -/
 theorem remappedPacket_implies_permutationInvocations (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env) :
     ∀ current ∈ PiRLCSamplerInvocations.invocations
@@ -349,7 +340,6 @@ theorem remappedPacket_implies_wordRows (env : Env)
   rw [PiRLCSamplerOrdinaryRows.wordRows_toR1CS, Spartan.remapRows_hold]
   exact (remappedPacket_implies_sourceChildren env packets source).words
 
-/-- The physical packet supplies all checked range and coefficient-word rows. -/
 theorem remappedPacket_implies_ordinaryRows (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env) :
     R1CS.RowsHold env ((PiRLCSamplerOrdinaryRows.rows

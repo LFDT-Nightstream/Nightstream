@@ -2,8 +2,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationStreamingIdentity
 
 /-!
 Owns the allocation-bounded application component of the verifier context.
-It streams the canonical application `Plan` codec twice: once for the framed
-word count and once through the proved native Poseidon2 sponge.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationVerifierContextStreaming
@@ -48,9 +46,6 @@ theorem applicationAuthorityWordCount_eq (plan : ApplicationPackage.Plan) :
     _ = (ApplicationPackage.authorityWords plan).length := by
       rfl
 
-/-- Two aligned native blocks for `VerifierContext.componentDomain`. The last
-seven domain words, the component, and the framed authority length stay
-pending. -/
 def componentInitialState64 (component wordCount : Nat) :
     NativePoseidon2.HashState64 where
   sponge := NativePoseidon2.absorbWords64
@@ -149,13 +144,11 @@ private theorem applicationComponentStreamedAbsorbed
   rw [PerApplicationStreamingIdentity.processApplicationPlanWith_eq_processValueWith]
   rfl
 
-/-- Allocation-bounded executable application component digest. -/
 @[inline] def applicationComponentDigestDirect
     (plan : ApplicationPackage.Plan) : VerifierContext.Digest4 :=
   VerifierContext.Digest4.ofList
     (NativePoseidon2.finalize64 (applicationComponentState64 plan)).denote
 
-/-- The native two-pass stream is the canonical application authority digest. -/
 theorem applicationComponentDigestDirect_eq
     (plan : ApplicationPackage.Plan) :
     applicationComponentDigestDirect plan =

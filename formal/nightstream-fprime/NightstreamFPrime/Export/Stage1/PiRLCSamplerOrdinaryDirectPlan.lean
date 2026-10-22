@@ -344,9 +344,6 @@ def resolvedForm {program : Lifecycle.Stage1.Application.Program}
   | none => .empty
   | some location => location.form geometry
 
-/-- Assignment-derived source environment for the exact canonical sampler
-ordinary rows. Supported columns select a retained form; unsupported columns
-are irrelevant to those rows and evaluate to zero. -/
 def resolvedEnv {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -418,7 +415,6 @@ theorem inputs_preserve
     preservesCombination geometry assignment _ _ ,
     preservesCombination geometry assignment _ _ ⟩
 
-/-- Exact row-local preservation for one indexed canonical sampler row. -/
 theorem programRow_preserve
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -437,7 +433,6 @@ theorem programRow_preserve
     preservesCombination geometry assignment _ _,
     preservesCombination geometry assignment _ _ ⟩
 
-/-- Exact sparse forms for one canonical Lean-lowered sampler row. -/
 def rowForms
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (_relation : ProductionKey.LogicalRelation relationLogicalWidth
@@ -453,7 +448,6 @@ def rowForms
       (logicalWidth := relationLogicalWidth)
       (publicFits := relationPublicFits) index)
 
-/-- Canonical direct 4-matrix rows for every sampler ordinary constraint. -/
 def plan
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (_relation : ProductionKey.LogicalRelation relationLogicalWidth

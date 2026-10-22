@@ -10,7 +10,6 @@ use std::sync::Arc;
 
 #[test]
 fn device_relation_matches_cpu_for_valid_invalid_and_constant_polynomials() {
-    // Cross the session's 256-thread dispatch boundary and a partial ring block.
     let rows = 257;
     let columns = 2 * D + 1;
     let polynomial = SparsePoly::new(
@@ -111,8 +110,6 @@ fn device_relation_matches_cpu_for_valid_invalid_and_constant_polynomials() {
     witness[(0, 1)] = -F::ONE;
     assert!(compare(&structure, &witness).is_some_and(|row| row > 0));
     witness[(0, 1)] = F::ONE;
-    // Matrix rows do not use the completion tail. The terminal caller checks
-    // fresh-tail zero separately; the row evaluator must preserve that split.
     witness[(D - 1, columns / D)] = -F::ONE;
     assert_eq!(compare(&structure, &witness), None);
     structure.f = SparsePoly::new(4, vec![]);

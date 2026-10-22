@@ -16,9 +16,6 @@ import sys
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
-# Cargo path dependencies of nightstream, including the current golden
-# checker. Metal is checked
-# against the CPU result; CUDA currently has only an unavailable boundary.
 CRATES = {
     "nightstream", "nightstream-fprime",
     "neo-math", "neo-params", "neo-ccs", "neo-ajtai", "neo-transcript",
@@ -30,7 +27,6 @@ BUILD_FILES = {"Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.tom
 
 
 def check_dependency_roots(root: Path) -> None:
-    """Fail if a new Cargo path dependency has no checked-in trigger rule."""
     workspace = tomllib.loads((root / "Cargo.toml").read_text())
     pending, seen = [root / "crates/nightstream"], set()
     while pending:
@@ -75,7 +71,7 @@ def checks_for_path(name: str) -> tuple[str, ...]:
             or name.startswith(".github/workflows/")):
         return ALL
     if name == "crates/nightstream/tests/fixtures/dec_mutation_manifest.json":
-        return ("native",)  # Input to the mutation-generator regression.
+        return ("native",)
     if name == "crates/nightstream/tests/restore_golden_inputs.py":
         return ALL
     if name == "scripts/build_metal_shaders.sh":
@@ -93,7 +89,7 @@ def checks_for_path(name: str) -> tuple[str, ...]:
     if part == "tests":
         if crate == "nightstream":
             if len(path.parts) > 3 and path.parts[3] == "evidence":
-                return ()  # Historical receipts are not execution inputs.
+                return ()
             return ALL if "fixtures" in path.parts[3:4] else NATIVE
         if crate == "nightstream-fprime":
             return NATIVE

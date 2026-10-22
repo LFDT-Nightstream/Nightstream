@@ -78,7 +78,6 @@ private theorem parentPoint_varsBelow
     RunningTransitionInputs.roundSampleC1Offset]
   omega
 
-/-- Every caller-owned PiDEC expression precedes the phase allocation. -/
 theorem inputsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -204,8 +203,6 @@ theorem inputsBelow
         Fin.cast (PiDEC.v1_2.PublicInputSplit.coordinateCount_eq
           logicalWidth publicFits) coordinate, rfl⟩))
 
-/-- The production PiDEC assumptions are fully derived from the canonical
-zero-copy input layout; no caller supplies a causal-scope hypothesis. -/
 theorem assumptions
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

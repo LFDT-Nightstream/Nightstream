@@ -3,12 +3,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
 
 /-!
 Owns compact source-index metadata for the final retained assignment program.
-Every block is derived from the existing Lean opcode interpreter. The run
-codec changes only representation; `sourceRuns_expand` proves exact source
-order and `sourceRuns_count` proves total coverage.
-
-This module does not install the metadata in a sealed package or authorize a
-Rust interpreter.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks
@@ -22,7 +16,6 @@ open PerApplicationAssignmentPlan
 
 abbrev ProgramApplication := Lifecycle.Stage1.Application.Program
 
-/-- The two value domains consumed by the retained assignment. -/
 inductive SourceDomain where
   | retained
   | physicalBase
@@ -54,8 +47,6 @@ def slotKindFormat : Format LowNormSlot.Kind where
     intro kind
     cases kind <;> rfl
 
-/-- A value-free packet exposes the same block geometry and source-index
-functions as every real packet. -/
 def zeroRaw (application : ProgramApplication) : RawValues application where
   base := fun _ => 0
   groupValue := fun _ _ => 0
@@ -68,8 +59,6 @@ def sourceDomainOf : BlockKind → SourceDomain
   | .applicationWitness | .applicationLocal => .physicalBase
   | _ => .retained
 
-/-- Exact source index selected by one retained slot. Both source domains
-start at zero. -/
 def sourceIndex (application : ProgramApplication)
     (kind : BlockKind)
     (slot : Fin (entry application kind).block.slotCount) : Nat :=
@@ -83,16 +72,12 @@ def sourceRunsFor (application : ProgramApplication)
     (kind : BlockKind) : List AffineRuns.Run :=
   AffineRuns.compress (sourceIndices application kind)
 
-/-- Allocation-bounded executable source-run construction. The selected
-block is retained once while its source indices are scanned from right to
-left. -/
 @[inline] def directSourceRunsFor (application : ProgramApplication)
     (kind : BlockKind) : List AffineRuns.Run :=
   let selected := entry application kind
   AffineRuns.compressIndexedTR fun slot : Fin selected.block.slotCount =>
     (selected.block.source slot).val
 
-/-- The allocation-bounded source scan emits the exact canonical run list. -/
 theorem directSourceRunsFor_eq_sourceRunsFor
     (application : ProgramApplication) (kind : BlockKind) :
     directSourceRunsFor application kind = sourceRunsFor application kind := by
@@ -100,7 +85,6 @@ theorem directSourceRunsFor_eq_sourceRunsFor
   unfold sourceRunsFor sourceIndices sourceIndex
   cases kind <;> rfl
 
-/-- Compiled package emission uses the proved allocation-bounded scan. -/
 @[csimp] theorem sourceRunsFor_eq_directSourceRunsFor :
     @sourceRunsFor = @directSourceRunsFor := by
   funext application kind
@@ -112,14 +96,12 @@ theorem sourceIndices_length (application : ProgramApplication)
       (entry application kind).block.slotCount := by
   simp [sourceIndices]
 
-/-- Run expansion recovers every Lean-selected source index in exact order. -/
 theorem sourceRuns_expand (application : ProgramApplication)
     (kind : BlockKind) :
   AffineRuns.expand (sourceRunsFor application kind) =
       sourceIndices application kind := by
   exact AffineRuns.expand_compress _
 
-/-- The compact source map covers every retained slot exactly once. -/
 theorem sourceRuns_count (application : ProgramApplication)
     (kind : BlockKind) :
     ((sourceRunsFor application kind).map AffineRuns.Run.count).sum =
@@ -178,8 +160,6 @@ def BlockPlan.ofKind (application : ProgramApplication)
       (entry application kind).block.slotCount := by
   rfl
 
-/-- An opcode selects fixed block geometry. Raw values change only its source
-values. -/
 theorem entry_block_eq_expand (application : ProgramApplication)
     (raw : RawValues application) (kind : BlockKind) :
     (entry application kind).block = (kind.expand raw).block := by

@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNativeDot
 
-/-! Executable checks of the native dot loop against the original arithmetic.
-The reference is expanded here so the dot-product compiler rewrite cannot
-replace both sides of the comparison. Cases cover word boundaries and all
-real/imaginary boundary pairs at empty, single-lane and production lengths. -/
+/-! Executable checks of the native dot loop against the original arithmetic. -/
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint

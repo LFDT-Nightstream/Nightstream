@@ -3,10 +3,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment
 
 /-!
 Owns the compact transport plan for the canonical per-application assignment.
-Each opcode selects one existing retained block and its Lean-owned source
-view. `RawValues.schedule` remains the semantic assignment authority.
-
-The plan stores no expanded slots, coordinates, rows, or assignment values.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
@@ -19,8 +15,6 @@ open NightstreamFPrime.Lifecycle
 
 abbrev ProgramApplication := Lifecycle.Stage1.Application.Program
 
-/-- Fixed retained-assignment block vocabulary. Enum order has no semantic
-effect; `canonicalKinds` owns the transport order. -/
 inductive BlockKind where
   | priorPoseidon
   | outputPoseidon
@@ -130,8 +124,6 @@ structure BlockTemplate (application : ProgramApplication) where
   source : RawValues application → Fin sourceWidth →
     NightstreamFPrime.Spec.F
 
-/-- One opcode selects one Lean-owned block and its value-source domain.
-Raw values are applied only after this template fixes the block geometry. -/
 def BlockKind.template (application : ProgramApplication) :
     BlockKind → BlockTemplate application
   | .priorPoseidon =>
@@ -213,33 +205,25 @@ def BlockKind.template (application : ProgramApplication) :
       ⟨_, ApplicationRetainedBlocks.localBlock application,
         fun raw => raw.applicationSource⟩
 
-/-- Interpret one compact opcode through its Lean-owned block template. -/
 def BlockKind.expand {application : ProgramApplication}
     (raw : RawValues application) (kind : BlockKind) :
       CanonicalBlockAssignment.BlockValue :=
   let template := BlockKind.template application kind
   Canonical.ofBlock template.block (template.source raw)
 
-/-- Expand the fixed compact plan. The result remains a 26-entry schedule;
-no retained slot or assignment coordinate is materialized. -/
 def expand {application : ProgramApplication} (raw : RawValues application) :
     Canonical.Schedule :=
   canonicalKinds.map (BlockKind.expand raw)
 
-/-- The compact plan is exactly the existing canonical assignment schedule. -/
 theorem expand_eq_schedule {application : ProgramApplication}
     (raw : RawValues application) : expand raw = raw.schedule := by
   rfl
 
-/-- Execute the Lean-authored transport program as the final retained
-assignment. -/
 def execute {application : ProgramApplication} (raw : RawValues application) :
     Fin (PerApplicationFixedPoint.logicalWidth application) →
       NightstreamFPrime.Spec.F :=
   Canonical.assignment (encodedHashCells raw.outputDigest) (expand raw)
 
-/-- The executable transport program is exactly the canonical assignment
-used by the final structural relation. -/
 theorem execute_eq_assignment {application : ProgramApplication}
     (raw : RawValues application) : execute raw = raw.assignment := by
   unfold execute RawValues.assignment

@@ -18,7 +18,6 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Layout
 
-/-- In `serializePreimage`, the current state is the last tail block. -/
 def currentWordStart : Nat := 27815
 
 def inputSourceColumn
@@ -35,9 +34,6 @@ def inputColumn (index : Lifecycle.Stage1.Application.StateIndex) : Nat :=
 def outputColumn (index : Lifecycle.Stage1.Application.StateIndex) : Nat :=
   Spartan.sourceToSpartan (outputSourceColumn index)
 
-/-- New caller-owned application witness words begin at the current private
-endpoint. The final per-application layout moves the constant and public suffix
-after this complete new private interval. -/
 def witnessStart : Nat := Spartan.privateColumnCount
 
 def witnessColumn {witnessWordCount : Nat}

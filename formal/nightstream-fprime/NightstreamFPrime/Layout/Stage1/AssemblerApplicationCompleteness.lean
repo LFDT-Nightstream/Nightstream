@@ -18,7 +18,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Honest completion of the exact eight-child Stage 1 operation list. -/
 theorem completeStage1
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -196,8 +195,6 @@ theorem completeStage1
       finalOffset) = finalOffset
     rw [Lifecycle.Stage1.NextPreimage.localLength_eq, Nat.add_zero]
 
-/-- The canonical compact layout supplies the proof-only root completion used
-by the sole logical Stage 1 circuit. -/
 theorem rootCompleteness
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

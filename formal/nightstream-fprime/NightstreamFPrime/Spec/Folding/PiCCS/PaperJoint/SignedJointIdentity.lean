@@ -180,7 +180,6 @@ def constraintAt
     (ops.add (ccsAt ops data gamma vertex)
       (gammaTerm ops gamma shape.freshCount (normAt ops data gamma vertex)))
 
-/-- Exact v1.2 four-term pointwise polynomial. -/
 def qAt
     {Field : Type uField} {shape : Shape}
     (ops : InterpolationOps Field) (data : JointData Field shape)
@@ -607,7 +606,6 @@ private theorem sub_targets_and_three
       congr 1
       exact (laws.add_assoc _ _ _).symm
 
-/-- Exact v1.2 finite joint identity, for every verifier challenge. -/
 theorem paperDifference_eq_signedResidualBlocks
     {Field : Type uField} {shape : Shape}
     (ops : InterpolationOps Field)

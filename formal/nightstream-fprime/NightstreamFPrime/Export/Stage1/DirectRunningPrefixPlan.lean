@@ -3,10 +3,9 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 
 /-!
 Owns the one ordered direct 4-matrix plan through the running-instance
-transition. The existing pilot/PiCCS/PiRLC direct prefix comes first, followed
-by the canonical transition rows.
+transition.
 
-This remains a phase-local plan. It does not include accumulator,
+This is a phase-local plan. It does not include accumulator,
 application, output-hash, terminal, or final package-identity work.
 -/
 
@@ -149,8 +148,6 @@ private theorem prefixOne
   rw [columns]
   exact one
 
-/-- One direct-plan acceptance proof forces every prior direct semantic and
-the canonical running transition on the same per-application package data. -/
 theorem rowsZero_implies_semantics
     {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}

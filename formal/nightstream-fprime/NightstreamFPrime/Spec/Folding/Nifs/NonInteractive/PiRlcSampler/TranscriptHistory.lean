@@ -41,8 +41,6 @@ private theorem historyAt_succ (initial : List Draw) (coordinate : Nat) :
     List.flatMap_nil, List.append_nil, List.append_assoc]
   rfl
 
-/-- The concrete state before every scalar entry is the replay of its full
-normalized history. The initial history may include all earlier phases. -/
 theorem stateAt_replay (seed : Poseidon2.State) (initial : List Draw) (coordinate : Nat) :
     replay seed (historyAt initial coordinate) =
       Transcript.stateAt (replay seed initial) coordinate := by
@@ -59,8 +57,6 @@ theorem stateAt_replay (seed : Poseidon2.State) (initial : List Draw) (coordinat
 def answer (seed : Poseidon2.State) (query : Query) : Draw :=
   Transcript.block (replay seed query.val)
 
-/-- Each of the 17 query keys reads exactly the four lanes used by the
-candidate, with its existing [4,i] domain entry and one digest advance. -/
 theorem queryAt_answer (seed : Poseidon2.State) (initial : List Draw) (coordinate : Fin 17) :
     answer seed (queryAt initial coordinate) =
       Transcript.drawAt (replay seed initial) coordinate.val := by

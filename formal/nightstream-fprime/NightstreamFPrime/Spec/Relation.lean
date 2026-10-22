@@ -5,18 +5,13 @@ verifier-owned global parameters (SuperNeo v1.2 Definitions
 evaluation operations are the
 `RelationSemantics` record; `Spec.Profile` instantiates it. Does not own
 folding, transcripts, or circuits.
-
-Provenance: copied from
-`formal/nightstream-lean/Nightstream/SuperNeo/Relations.lean` at commit
-`fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; doc strings shortened, definitions unchanged.
 -/
 
 namespace NightstreamFPrime.Spec
 
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
 
-/-- Verifier-owned global reduction parameters (SuperNeo v1.2 Definition 22).
-The inequality is stated at maximum arity so every smaller fold inherits it. -/
+/-- Verifier-owned global reduction parameters (SuperNeo v1.2 Definition 22). -/
 structure GlobalParams where
   q : Nat
   b : Nat
@@ -27,10 +22,8 @@ structure GlobalParams where
 
 namespace GlobalParams
 
-/-- `B = b^k`, the Π_RLC output bound. -/
 def bigB (p : GlobalParams) : Nat := p.b ^ p.k
 
-/-- Least strict bound containing every centered residue of odd `q`. -/
 def ambientBound (p : GlobalParams) : Nat := p.q / 2 + 1
 
 /-- MSIS ∞-norm at which (2B, C)-relaxed binding must be assumed (SuperNeo v1.2 Section 8). -/
@@ -51,8 +44,6 @@ theorem rlc_bound_for (p : GlobalParams) {fresh : Nat}
 
 end GlobalParams
 
-/-- Norm stage of a statement: `fresh` = `CE(b)`, `combined` = `CE(B)`,
-`ambient` = `CE(⌊q/2⌋+1)` where rewinding extraction lands. -/
 inductive NormStage where
   | fresh
   | combined
@@ -64,7 +55,6 @@ def NormStage.bound (p : GlobalParams) : NormStage → Nat
   | .combined => p.bigB
   | .ambient => p.ambientBound
 
-/-- Operations needed to state CCS and CE membership. -/
 structure RelationSemantics
     (Structure : Type uStructure)
     (Assignment : Type uAssignment)
@@ -76,7 +66,6 @@ structure RelationSemantics
   projectPublicInput : Assignment → PublicInput
   normBounded : Nat → Assignment → Prop
   ccsSatisfied : Structure → Assignment → Prop
-  /-- Verifier-owned domain check for the CE evaluation point. -/
   evaluationPointValid : Structure → Point → Prop
   evaluations : Structure → Assignment → Point → Array Evaluation
 
@@ -86,7 +75,6 @@ variable {Structure : Type uStructure} {Assignment : Type uAssignment}
 
 namespace Opening
 
-/-- Commitment, public-input, and norm obligations of one opening. -/
 def Holds
     (semantics : RelationSemantics
       Structure Assignment PublicInput Point Evaluation Commitment)
@@ -96,8 +84,6 @@ def Holds
   semantics.projectPublicInput assignment = publicInput ∧
   semantics.normBounded normBound assignment
 
-/-- Two distinct bounded openings of one commitment: the model-level event a
-concrete scheme must reduce to its binding assumption. -/
 structure BindingCollision
     (semantics : RelationSemantics
       Structure Assignment PublicInput Point Evaluation Commitment)

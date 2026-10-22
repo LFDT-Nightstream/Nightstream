@@ -3,10 +3,8 @@ import NightstreamFPrime.Export.Stage1.PermutationPlan
 import NightstreamFPrime.Export.Stage1.PiCCSPackets
 
 /-!
-Prepared physical sources retain only classified rows, runtime witness batches,
-and permutation blocks. Source indices and their equalities are erased. The
-records do not retain source packets or unclassified source rows. This module
-owns data provenance, not final-plan coverage or row-checker correctness.
+This module owns data provenance, not final-plan coverage or row-checker
+correctness.
 -/
 
 set_option autoImplicit false
@@ -24,7 +22,6 @@ structure ClassifiedRows (source : List Rows.CompiledRow) extends RowPayload whe
   rows_eq : (witnessInstructions, assertionRows) =
     (Rows.witnessInstructionsTR source, Rows.assertionRowsTR source)
 
-/-- Classify once; the unclassified source is not part of the result. -/
 def prepareRows (source : List Rows.CompiledRow) : ClassifiedRows source :=
   let classified := Rows.classifyRowsTR source
   { witnessInstructions := classified.1
@@ -37,7 +34,6 @@ abbrev PreparedRowBlock (source : OrdinaryRowPlan.Block) :=
 def prepareRowBlock (source : OrdinaryRowPlan.Block) : PreparedRowBlock source :=
   prepareRows (source.rows Data.logicalWidth Data.publicFits)
 
-/-- Every payload is tied to its source block in the original order. -/
 structure PreparedRowBlocks (sources : List OrdinaryRowPlan.Block) where
   blocks : List RowPayload
   rows_eq :
@@ -65,7 +61,6 @@ def PreparedRowBlocks.append {left right : List OrdinaryRowPlan.Block}
 abbrev PreparedPiRlcSource (source : Nat) :=
   PreparedRowBlocks (OrdinaryRowPlan.piRlcSourceBlocks source)
 
-/-- Includes all digest-lane blocks and the final selector block, in order. -/
 def preparePiRlcSource (source : Nat) : PreparedPiRlcSource source :=
   prepareRowBlocks (OrdinaryRowPlan.piRlcSourceBlocks source)
 
@@ -77,7 +72,6 @@ structure PreparedWitnessGroup (build : Unit → PiCCSPackets.Packet)
     (Rows.witnessInstructionsTR (build ()).rows,
       Rows.assertionRowsTR (build ()).rows)
 
-/-- Build one packet once, then reuse the common rows classifier. -/
 def prepareWitnessGroup (build : Unit → PiCCSPackets.Packet) :
     PreparedWitnessGroup build :=
   let packet := build ()
@@ -108,7 +102,6 @@ abbrev NormGroup := PreparedWitnessGroup
 abbrev FinalIdentityGroup := PreparedWitnessGroup
   (fun _ => PiCCSPackets.finalIdentity Data.logicalWidth Data.publicFits)
 
-/-- Keep the seven exact source indices after collecting task results. -/
 structure PreparedWitnessGroups where
   initialClaim : InitialClaimGroup
   sumcheck : SumcheckGroup
@@ -118,7 +111,6 @@ structure PreparedWitnessGroups where
   norm : NormGroup
   finalIdentity : FinalIdentityGroup
 
-/-- The emitter's task boundaries can carry these proofs without an IO axiom. -/
 structure PreparedWitnessTasks where
   initialClaim : Task (Except IO.Error InitialClaimGroup)
   sumcheck : Task (Except IO.Error SumcheckGroup)

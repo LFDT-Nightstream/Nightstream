@@ -3,7 +3,6 @@ import NightstreamFPrime.Export.RowSemantics
 
 /-!
 Stored execution of the existing ordinary witness instruction.
-Row satisfaction retains the owner's input-avoidance premises.
 -/
 
 set_option autoImplicit false

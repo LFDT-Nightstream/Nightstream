@@ -1,9 +1,6 @@
 import Std
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Coefficients
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/BooleanTable.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Canonical Boolean-table coefficient transform for the paper-level `Pi_CCS`
 model.
@@ -18,19 +15,6 @@ semantics, SumCheck, transcript sampling, root counting, Rust, R1CS, or
 constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: protocol data supplies finite table entries; the algebraic
-environment separately supplies explicit operations and zero laws. The alpha
-basis, coefficient order, transform, and squarefree shape are derived. A later
-theorem must still prove Boolean-point evaluation semantics. This is a
-table-level zero-equivalence theorem, not SuperNeo v1.2 Appendix B.2 Lemma 9.
-
-| Object | Canonical representation | Proven property |
-|---|---|---|
-| alpha basis | all squarefree exponent vectors, low branch then high branch | verifier-owned, duplicate-free, size `2^ell` |
-| Boolean table | depth-indexed binary tree | exactly `2^ell` explicit leaves |
-| coefficient transform | `p0 + A * (p1 - p0)` recursively | no evaluator or degree is supplied |
-| zero condition | every derived coefficient is zero | iff every table leaf is zero |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -39,38 +23,30 @@ open NightstreamFPrime.Spec.SumCheck
 
 universe uField
 
-/-- Operations needed for the recursive table-to-coefficient transform. The
-inherited finite operations are the ones a later evaluation theorem must use. -/
 structure InterpolationOps (Field : Type uField)
     extends SumCheck.Finite.Ops Field where
   neg : Field -> Field
 
 namespace InterpolationOps
 
-/-- Derived subtraction; it is not caller-provided polynomial behavior. -/
 def sub {Field : Type uField} (ops : InterpolationOps Field)
     (left right : Field) : Field :=
   ops.add left (ops.neg right)
 
 end InterpolationOps
 
-/-- The only algebraic laws needed for the zero-equivalence proof. -/
 structure InterpolationZeroLaws
     {Field : Type uField}
     (ops : InterpolationOps Field) : Prop where
   add_zero : forall value, ops.add value ops.zero = value
   neg_zero : ops.neg ops.zero = ops.zero
 
-/-- Squarefree exponent vectors in recursive low/high order. A successor
-prepends the newly introduced variable, so interpolation coefficients and
-basis monomials have exactly the same order. -/
 def canonicalExponentVectors : Nat -> List (List Nat)
   | 0 => [[]]
   | variables + 1 =>
       (canonicalExponentVectors variables).map (fun exponents => 0 :: exponents) ++
         (canonicalExponentVectors variables).map (fun exponents => 1 :: exponents)
 
-/-- Every canonical exponent vector has the requested arity. -/
 theorem canonicalExponentVectors_entry_length
     {variables : Nat}
     {exponents : List Nat}
@@ -86,8 +62,6 @@ theorem canonicalExponentVectors_entry_length
       · simp [inductionHypothesis priorMember]
       · simp [inductionHypothesis priorMember]
 
-/-- The canonical exponent enumeration has exactly one entry per Boolean
-point. -/
 theorem canonicalExponentVectors_length (variables : Nat) :
     (canonicalExponentVectors variables).length = 2 ^ variables := by
   induction variables with
@@ -97,7 +71,6 @@ theorem canonicalExponentVectors_length (variables : Nat) :
         inductionHypothesis, Nat.pow_succ]
       omega
 
-/-- No squarefree exponent vector occurs twice. -/
 theorem canonicalExponentVectors_nodup (variables : Nat) :
     (canonicalExponentVectors variables).Nodup := by
   induction variables with
@@ -117,7 +90,6 @@ theorem canonicalExponentVectors_nodup (variables : Nat) :
         rcases List.mem_map.mp highMember with ⟨high, _, rfl⟩
         simp
 
-/-- Canonical monomials over the shape's alpha variables. -/
 def canonicalAlphaMonomials (shape : Shape) : List (AlphaMonomial shape) :=
   List.pmap
     (fun exponents arity =>
@@ -126,12 +98,10 @@ def canonicalAlphaMonomials (shape : Shape) : List (AlphaMonomial shape) :=
     (canonicalExponentVectors shape.cubeVariables)
     (fun _ member => canonicalExponentVectors_entry_length member)
 
-/-- Canonical monomial count. -/
 theorem canonicalAlphaMonomials_length (shape : Shape) :
     (canonicalAlphaMonomials shape).length = 2 ^ shape.cubeVariables := by
   simp [canonicalAlphaMonomials, canonicalExponentVectors_length]
 
-/-- The verifier-owned canonical alpha basis for `ell = cubeVariables`. -/
 def canonicalAlphaBasis (shape : Shape) : AlphaBasis shape where
   monomials := canonicalAlphaMonomials shape
   nodup := by
@@ -142,8 +112,6 @@ def canonicalAlphaBasis (shape : Shape) : AlphaBasis shape where
     intro left _ right _ notEqual equal
     exact notEqual (congrArg AlphaMonomial.exponents equal)
 
-/-- An explicit table on a Boolean cube. Branches introduce the newly
-prepended variable; `low` is its zero slice and `high` its one slice. -/
 inductive BooleanTable (Field : Type uField) : Nat -> Type uField where
   | leaf (value : Field) : BooleanTable Field 0
   | branch {variables : Nat}
@@ -152,13 +120,11 @@ inductive BooleanTable (Field : Type uField) : Nat -> Type uField where
 
 namespace BooleanTable
 
-/-- Canonical low/high leaf order. -/
 def entries {Field : Type uField} :
     {variables : Nat} -> BooleanTable Field variables -> List Field
   | 0, .leaf value => [value]
   | _ + 1, .branch low high => low.entries ++ high.entries
 
-/-- Every explicit table has exactly `2^ell` leaves. -/
 theorem entries_length
     {Field : Type uField}
     {variables : Nat}
@@ -171,8 +137,6 @@ theorem entries_length
         Nat.pow_succ]
       omega
 
-/-- Independent table-level obligation: every explicit residual entry is
-zero. It is defined before and without reference to polynomial coefficients. -/
 def AllEntriesZero
     {Field : Type uField}
     {variables : Nat}
@@ -180,10 +144,6 @@ def AllEntriesZero
     (table : BooleanTable Field variables) : Prop :=
   forall value, value ∈ table.entries -> value = ops.zero
 
-/-- Recursive squarefree coefficient transform in canonical basis order. For a
-branch, coefficients are those of `p0`, followed by those of `p1 - p0`
-multiplying the newly prepended variable. Its Boolean-point evaluation
-semantics remain an open theorem. -/
 def interpolateCoefficients
     {Field : Type uField}
     (ops : InterpolationOps Field) :
@@ -195,7 +155,6 @@ def interpolateCoefficients
       lowCoefficients ++
         List.zipWith ops.sub highCoefficients lowCoefficients
 
-/-- The transform derives one coefficient for every canonical monomial. -/
 theorem interpolateCoefficients_length
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -288,9 +247,6 @@ private theorem listZero_zipWith_sub_iff
                 laws.neg_zero, laws.add_zero]
             · exact tailDifferencesZero value tailMember
 
-/-- The recursive transform is zero at coefficient level exactly when every
-explicit Boolean-table entry is zero. This closes only table/coefficient
-zero-equivalence; semantic residual-table construction remains open. -/
 theorem interpolateCoefficients_zero_iff_allEntriesZero
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -327,7 +283,6 @@ theorem interpolateCoefficients_zero_iff_allEntriesZero
           rw [interpolateCoefficients_length, interpolateCoefficients_length]
         exact (listZero_zipWith_sub_iff ops laws sameLength lowZero).mpr highZero
 
-/-- The canonical alpha polynomial derived from an explicit Boolean table. -/
 def toAlphaPolynomial
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -339,9 +294,6 @@ def toAlphaPolynomial
     rw [interpolateCoefficients_length]
     exact (canonicalAlphaMonomials_length shape).symm
 
-/-- Coefficient-zero of the derived canonical polynomial is equivalent to the
-independent leafwise table obligation. No per-leaf iff is supplied by a
-caller. -/
 theorem toAlphaPolynomial_coefficientZero_iff_allEntriesZero
     {Field : Type uField}
     (ops : InterpolationOps Field)

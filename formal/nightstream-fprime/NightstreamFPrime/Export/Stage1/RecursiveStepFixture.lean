@@ -3,9 +3,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 
 /-!
 Owns the next caller packet from an explicit prior state, application message,
-actual PiCCS proof and sixteen child claims. It uses the existing typed state,
-transcript and caller-packet schema. Opening validity and the complete exported
-witness assignment must be checked separately.
+actual PiCCS proof and sixteen child claims. Opening validity and the complete
+exported witness assignment must be checked separately.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.RecursiveStepFixture
@@ -126,9 +125,6 @@ private def valueFromPriorIO (context : VerifierContext.Digest4)
       wordsValue phase.outgoing, wordsValue batch.finalState,
       wordsValue parentValues.toList]]
 
-/-- Construct a later caller packet from the actual prior state and C input.
-The caller supplies the verifier context; running claims come from the same
-typed C input whose fresh public hash is checked by the shared constructor. -/
 def valueFromStateIO (context : VerifierContext.Digest4)
     (iteration : Nat) (z0 current : AppState) (message : AppWitness)
     (input : PiCCSInputCheck.Input) (children : PiCCSInputCheck.RunningInput) :
@@ -141,7 +137,6 @@ def valueFromStateIO (context : VerifierContext.Digest4)
     running := fun _ => PiCCSInputCheck.running input
     pc := 1 } message input children
 
-/-- Preserve the checked base-output fixture as the default caller. -/
 def valueIO (context : VerifierContext.Digest4)
     (input : PiCCSInputCheck.Input) (children : PiCCSInputCheck.RunningInput) :
     IO Value :=

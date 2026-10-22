@@ -56,9 +56,6 @@ fn cache_aware_matrix_digest_changes_when_matrix_order_changes() {
     assert_ne!(baseline, changed);
 }
 
-/// Structure with one nonzero at `(row, col)`; everything else (dims,
-/// value, nonzero count) is held fixed so position-only mutations can
-/// be isolated.
 fn single_entry_structure(row: usize, col: usize) -> CcsStructure<F> {
     let mut m0 = Mat::zero(8, 12, F::ZERO);
     m0[(row, col)] = F::from_u64(42);
@@ -72,9 +69,6 @@ fn csc_vals(s: &CcsStructure<F>) -> &[F] {
     &csc.vals
 }
 
-/// A digest that only mixes dimensions, values, or nonzero counts —
-/// not the sparse `(row, col)` placement — collapses these two
-/// structures. The digest must bind `row_idx`.
 #[test]
 fn cache_aware_matrix_digest_changes_when_nonzero_moves_to_another_row() {
     let base = single_entry_structure(2, 5);
@@ -89,9 +83,6 @@ fn cache_aware_matrix_digest_changes_when_nonzero_moves_to_another_row() {
     );
 }
 
-/// Same as above for the column coordinate: moving the entry across
-/// columns leaves `row_idx` and `vals` identical and only shifts
-/// `col_ptr`. The digest must bind `col_ptr`.
 #[test]
 fn cache_aware_matrix_digest_changes_when_nonzero_moves_to_another_column() {
     let base = single_entry_structure(2, 5);

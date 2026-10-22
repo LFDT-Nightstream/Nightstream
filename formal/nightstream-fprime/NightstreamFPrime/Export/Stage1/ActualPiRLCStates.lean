@@ -2,8 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerDirectSemantics
 
 /-!
 Owns the exact deterministic sampler-state sequence read from retained
-Poseidon values. The initial state is the retained PiCCS endpoint. Every
-scalar entry and advance use the verifier's four-field schedule.
+Poseidon values.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualPiRLCStates
@@ -63,7 +62,6 @@ theorem advance_eq (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     PiRLCSamplerDirectSemantics.previousValue_advance geometry assignment source] at equation
   exact equation
 
-/-- Each scalar starts from the state left by the preceding complete sampler. -/
 theorem incoming_eq_stateAt (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) (semantics : CanonicalSemantics geometry assignment)
     (source : Fin sourceCount) :
@@ -82,7 +80,6 @@ theorem incoming_eq_stateAt (geometry : PiCCSPoseidonPlan.Geometry program logic
         rfl
   exact atSource source.val source.isLt
 
-/-- The retained draw state is the verifier's domain-separated entry. -/
 theorem entry_eq_verifier (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) (semantics : CanonicalSemantics geometry assignment)
     (source : Fin sourceCount) :

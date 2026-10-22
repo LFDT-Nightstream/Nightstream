@@ -3,9 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics
 
 /-!
-Owns the arbitrary-assignment PiCCS transcript link. Accepted Poseidon rows
-and parent-owned payload forms imply the indexed transcript in the same
-decoded environment as the arithmetic leaves. No raw encoding is assumed.
+Owns the arbitrary-assignment PiCCS transcript link.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSDecodedTranscript
@@ -85,9 +83,6 @@ private theorem absorb_input
   simp only [PiCCSActionPayloadBlock.selectedBlock, found,
     PiCCSActionPayloadBlock.selectedBlockForKind, Hash.absorbF]
 
-/-- The actual parent forms and arbitrary accepted Poseidon rows force the
-complete indexed transcript. The only value premise is the enforced constant
-coordinate; no retained encoding or semantic representation is supplied. -/
 theorem rowsZero_implies_indexedSemantics
     (ordinary : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (poseidon : PiCCSPoseidonPlan.Geometry program logicalWidth)

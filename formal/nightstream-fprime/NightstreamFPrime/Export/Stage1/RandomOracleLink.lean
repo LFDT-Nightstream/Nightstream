@@ -7,26 +7,13 @@ import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 /-!
 Owns the random-oracle knowledge theorem with the prior-state link: the
 verifier accepts a claim only when the adversary's prior preimage links the
-running statement to the absorbed digest (owner decision 2026-10-06).
+running statement to the absorbed digest.
 
 Inputs: an oracle adversary whose output gives a claim and a prior preimage,
 and the verifier-owned context digest.
 
-Outputs:
-- `linkedClaim`: the claim whose `linked` check is `PriorLink`;
-- `succeeds_iff_realSuccess`: at an oracle that answers the claim's
-  challenges as the sponge does, the linked success event is
-  `NifsRealSuccess.RealSuccess`;
-- `link_collision`: two linked claims with one fresh statement and different
-  running statements give a `StateHashCollision`;
-- `mismatch_collision`, `moves_collision`: every `Π_RLC` retry (Lemma 5) and
-  every binding-reduction rerun (Lemma 6) that changes the running statement
-  gives such a collision;
-- `knowledge_error_le_linked`: the knowledge theorem with those two error
-  terms replaced by state-hash collision events (`hashMismatchChance`,
-  `hashRunningChance`). The third named term, `collisionChance`, is at most
-  the chance that the binding reduction returns a short kernel vector of the
-  key (`RandomOracleBinding.collisionChance_le_kernelChance`).
+Outputs: `linkedClaim`, `succeeds_iff_realSuccess`, `link_collision`,
+`mismatch_collision`, `moves_collision` and `knowledge_error_le_linked`.
 
 Does not own: the hardness of the state hash or of MSIS.
 -/
@@ -54,8 +41,6 @@ attribute [local instance low] Classical.propDecidable
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Two linked preimages for one fresh statement and different running
-statements collide: their hashes both equal the absorbed prior digest. -/
 theorem link_collision {left right : Lifecycle.HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)}
     {running running' : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
     {fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)} {context : KeyDigest}
@@ -81,27 +66,21 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 local notation "Oracle" => Point logicalWidth publicFits (ProductionKey.degreeBound relation) → Answer
 local notation "Retries" => Fin Nifs.PaperProfile.arity.total → Answer
 
-/-- The claim with the verifier's prior-state check as its `linked` field. -/
 def linkedClaim (output : Output) : Claim relation :=
   { claim output with
     linked := PriorLink (prior output) (claim output).running (claim output).fresh contextDigest }
 
 local notation "Linked" => linkedClaim relation claim prior contextDigest
 
-/-- A claim passes the `linked` check exactly when its prior preimage links it. -/
 theorem linked_iff (oracle : Oracle) :
     (claimed relation adversary Linked oracle).linked ↔
       PriorLink (prior (adversary.run oracle)) (claimed relation adversary Linked oracle).running
         (claimed relation adversary Linked oracle).fresh contextDigest :=
   Iff.rfl
 
-/-- The adversary's output as a real-success output. -/
 def realOutput (output : Output) : NifsRealSuccess.RealOutput relation :=
   ⟨prior output, (claim output).proof, (claim output).children⟩
 
-/-- At an oracle that answers the claim's challenges as the sponge does, the
-linked success event is the real success event: `PriorLink`, acceptance by
-`PaperNonInteractive.verify`, and openings of the exact returned children. -/
 theorem succeeds_iff_realSuccess (oracle : Oracle)
     (deployed : RandomOracleFidelity.Deployed oracle (claimed relation adversary Linked oracle).fresh (claimed relation adversary Linked oracle).proof) :
     Succeeds relation ajtai adversary Linked oracle ↔
@@ -128,9 +107,6 @@ theorem succeeds_iff_realSuccess (oracle : Oracle)
     rw [← opens result verified]
     exact holds _
 
-/-- A `Π_RLC` retry that changes the running statement is a state-hash
-collision: the retry hits the same oracle point, so it outputs the same fresh
-statement (`rhoPoint_identifies`). -/
 theorem mismatch_collision {oracle : Oracle} {index : Fin Nifs.PaperProfile.arity.total}
     {answer : Answer}
     (succeeds : Succeeds relation ajtai adversary Linked oracle)
@@ -146,9 +122,6 @@ theorem mismatch_collision {oracle : Oracle} {index : Fin Nifs.PaperProfile.arit
   rw [sameFresh] at link'
   exact link_collision link link' moved
 
-/-- A binding-reduction rerun that changes the running statement is a
-state-hash collision: the rerun forks at the same index, so it outputs the
-same fresh statement (`fresh_eq_of_fork`). -/
 theorem moves_collision {oracle : Oracle} {retries otherRetries : Retries} (fresh : Oracle)
     (valid : Valid relation ajtai adversary Linked oracle retries)
     (forked : forkIndex relation adversary Linked
@@ -169,10 +142,6 @@ theorem moves_collision {oracle : Oracle} {retries otherRetries : Retries} (fres
   rw [sameFresh] at link'
   exact link_collision link link' moved
 
-/-! ## The knowledge theorem with collision events -/
-
-/-- The chance that a retry at `index` gives a state-hash collision with the
-base run. -/
 noncomputable def hashMismatchChance (index : Fin Nifs.PaperProfile.arity.total) (oracle : Oracle) : ℝ :=
   mass (retrySets relation ajtai adversary Linked oracle index ∩
       {answer | StateHashCollision (prior (adversary.run oracle))
@@ -180,8 +149,6 @@ noncomputable def hashMismatchChance (index : Fin Nifs.PaperProfile.arity.total)
           (rhoPoint relation adversary Linked index oracle) answer)))}) /
     mass (retrySets relation ajtai adversary Linked oracle index)
 
-/-- The binding reduction's chance that a rerun gives a state-hash collision
-with the base run. -/
 noncomputable def hashRunningChance : ℝ :=
   reductionChance relation ajtai adversary Linked fun oracle _ other _ =>
     StateHashCollision (prior (adversary.run oracle)) (prior (adversary.run other))
@@ -208,9 +175,6 @@ theorem runningChance_le :
         moves_collision relation ajtai adversary claim prior contextDigest fresh valid forked otherValid moved
   · exact le_rfl
 
-/-- The knowledge error with the prior-state link: the statistical part, the
-state-hash collision chances of the retries and reruns, and the binding
-reduction's collision chance. -/
 noncomputable def linkedKnowledgeError (queries : Nat) : ℝ :=
   statisticalError queries +
   (𝔼 oracle, (if Succeeds relation ajtai adversary Linked oracle then
@@ -218,10 +182,6 @@ noncomputable def linkedKnowledgeError (queries : Nat) : ℝ :=
     collisionChance relation ajtai adversary Linked +
     hashRunningChance relation ajtai adversary claim prior contextDigest)
 
-/-- **ROM knowledge soundness with the prior-state link.** The extractor
-succeeds with probability at least the linked acceptance probability minus
-the statistical error, two state-hash collision chances and the binding
-reduction's collision chance. -/
 theorem knowledge_error_le_linked {queries : Nat} (bounded : adversary.QueryBound queries) :
     𝔼 oracle, (if Succeeds relation ajtai adversary Linked oracle then (1 : ℝ) else 0) ≤
       𝔼 oracle, ∑ retries, weight relation ajtai adversary Linked oracle retries *

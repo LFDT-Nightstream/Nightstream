@@ -26,8 +26,6 @@ open NightstreamFPrime.Layout.Stage1
 abbrev EState := Layer.EState
 abbrev Action := Formal.Action
 
-/-- Executable affine lowering. The zero fallback is unreachable for the
-proved transcript action inputs. -/
 def affineCombination (expression : Expr) : R1CS.LinearCombination :=
   match R1CS.lowerAffine expression with
   | some lowered => lowered.combination
@@ -39,7 +37,6 @@ theorem affineCombination_eq
     affineCombination expression = lowered.combination := by
   simp [affineCombination, result]
 
-/-- Convert one source-layout affine expression to its Spartan combination. -/
 def inputCombination (expression : Expr) : SparseCombination :=
   sparseCombination
     (Spartan.remapCombination (affineCombination expression))
@@ -53,8 +50,6 @@ theorem inputCombination_eval {expression : Expr}
   rw [sparseCombination_toR1CS, Spartan.remapCombination_eval,
     affineCombination_eq loweredEq, lowered.sound]
 
-/-- Every term of a lowered PiCCS-local invocation input maps either before
-that invocation or into the stable Spartan public suffix. -/
 theorem inputCombination_termsOutside (expression : Expr)
     (start ceiling : Nat)
     (startLocal : Spartan.piCcsPhaseOffset ≤ start)
@@ -98,8 +93,6 @@ def invocation (phase rowStart witnessStart : Nat)
       Spartan.sourceToSpartan witnessStart := by
   rfl
 
-/-- Every sparse input of one invocation is either fixed before its local
-witness interval or belongs to the stable suffix after the complete schedule. -/
 def InvocationInputsOutside (ceiling : Nat)
     (invocation : PermutationInvocation) : Prop :=
   ∀ lane : Fin 16,
@@ -128,9 +121,6 @@ theorem invocation_inputsOutside (phase rowStart witnessStart ceiling : Nat)
   exact inputCombination_termsOutside (state lane) witnessStart ceiling
     witnessLocal ceilingPrivate (stateAffine lane) (stateBelow lane) term member
 
-/-- The fixed production permutation writes its final eight lanes in the last
-eight cells of its 1096-cell witness interval. Package tracing needs this state,
-not the 1096 internal recipe expressions. -/
 def permutationOutput (witnessStart : Nat) : EState :=
   Permutation.freshState (witnessStart + 1080)
 
@@ -139,16 +129,12 @@ theorem permutationOutput_affine (witnessStart : Nat) :
   intro lane
   simp [permutationOutput, Permutation.freshState]
 
-/-- The compact output slice is exactly the output of the authoritative
-Poseidon2 circuit compiler. -/
 theorem permutationOutput_eq_compile (witnessStart : Nat) (state : EState) :
     permutationOutput witnessStart =
       (Permutation.compile witnessStart state Permutation.schedule).output := by
   funext lane
   rfl
 
-/-- One satisfying compact invocation is the exact symbolic Poseidon2
-transition at its source-layout witness interval. -/
 theorem invocation_sound (phase rowStart witnessStart : Nat)
     (state : EState) (env : Env)
     (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
@@ -220,8 +206,6 @@ def compileBlocks (phase : Nat) : Nat → Nat → EState →
       ⟨tail.rowNext, tail.witnessNext, tail.state,
         invocation phase rowStart witnessStart input :: tail.invocations⟩
 
-/-- A held compact absorb trace has the exact reference block-fold
-semantics. The proof follows the block list, not a materialized row list. -/
 theorem compileBlocks_sound (phase rowStart witnessStart : Nat)
     (state : EState) (blocks : List (List Expr)) (env : Env)
     (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
@@ -309,8 +293,6 @@ theorem compileBlocks_state_eq
       rw [inductionHypothesis]
       rw [permutationOutput_eq_compile]
 
-/-- Compact package tracing and the authoritative Duplex compiler finish in
-the same symbolic state. The proof is structural in the action list. -/
 theorem compileActions_state_eq (phase rowStart witnessStart : Nat)
     (state : EState) (actions : List Action) :
     (compileActions phase rowStart witnessStart state actions).state =
@@ -359,8 +341,6 @@ theorem expectedSamples_eq_samples_of_assertionCount_zero
       | readK pair expected =>
           simp [Formal.assertionCount, Formal.Action.assertionCount] at none
 
-/-- Held compact invocations imply the exact Duplex trace semantics when the
-leaf wires every expected read value to the compiler-owned sample list. -/
 theorem compileActions_traceHolds (phase rowStart witnessStart : Nat)
     (state : EState) (actions : List Action) (env : Env)
     (witnessLocal : Spartan.piCcsPhaseOffset ≤ witnessStart)
@@ -471,8 +451,6 @@ theorem compileActions_traceHolds (phase rowStart witnessStart : Nat)
           rw [expectedParts.1]
           exact Read.sample_eval _ state pair
 
-/-- Read expectations own assertion rows only. Equal action shapes produce
-the same compact permutation trace. -/
 theorem compileActions_eq_of_shapes (phase rowStart witnessStart : Nat)
     (state : EState) (left right : List Action)
     (same : left.map Formal.Action.shape =
@@ -510,8 +488,6 @@ def Action.invocationCount : Action → Nat
 def invocationCount (actions : List Action) : Nat :=
   (actions.map Action.invocationCount).sum
 
-/-- Exact affine premise read by the compact invocation compiler. Read
-expectations are assertion data and do not occur in permutation inputs. -/
 def actionShapeInputsAffine : Formal.ActionShape → Prop
   | .absorb input => Poseidon2.ListAffine input
   | .readK _ => True
@@ -520,7 +496,6 @@ def ActionsInvocationInputsAffine (actions : List Action) : Prop :=
   ∀ shape ∈ actions.map Formal.Action.shape,
     actionShapeInputsAffine shape
 
-/-- Exact source-bound premise read by the compact invocation compiler. -/
 def actionShapeInputsBelow
     (bound : Nat) : Formal.ActionShape → Prop
   | .absorb input => ∀ expression ∈ input, expression.VarsBelow bound
@@ -681,10 +656,6 @@ theorem compileActions_invocation_inputs
       | readK pair expected =>
           exact inductionHypothesis _ _ _ member
 
-/-! ## Constructive package invocation execution -/
-
-/-- One ordered invocation list inside `[bound, ceiling)`. The stable suffix
-permits relocated Spartan public inputs after every private witness interval. -/
 def ScheduleWithin : Nat → Nat → List PermutationInvocation → Prop
   | _, _, [] => True
   | bound, ceiling, invocation :: rest =>
@@ -1024,8 +995,6 @@ theorem compileActions_scheduleWithin
             (witnessStart := witnessStart) (state := state) witnessLocal
             endWithin stateAffine stateBelow tailAffine tailBelow
 
-/-- Two environments agree at every column not owned by an invocation in the
-given list. -/
 def AgreesOutsideInvocations (before after : Env)
     (invocations : List PermutationInvocation) : Prop :=
   ∀ index,
@@ -1034,10 +1003,6 @@ def AgreesOutsideInvocations (before after : Env)
         invocation.witnessStart + 1096 ≤ index) →
       after index = before index
 
-/-- Honest execution of an ordered invocation schedule has one completed
-environment that preserves both sides of the full private schedule interval
-and satisfies every emitted template invocation. The proof follows the list,
-not its production length. -/
 theorem completeInvocations
     (env : Env) (bound ceiling : Nat)
     (invocations : List PermutationInvocation)

@@ -4,10 +4,8 @@ import NightstreamFPrime.Export.Stage1.PiDECCommitmentFold
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 
 /-!
-Connect the selected structural-plan row product to its existing Phi81
-block-row semantics on the same complete stored child assignment. Matrix
-agreement is discharged by the selected plan theorem, not supplied by callers.
-No point weighting, row accumulation or expected evaluation is introduced.
+Connect the selected structural-plan row product to its existing Phi81 block-row
+semantics on the same complete stored child assignment.
 -/
 
 set_option autoImplicit false
@@ -60,10 +58,6 @@ private abbrev selectedShape :=
     (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
     (PerApplicationFixedPoint.publicFits Poseidon2HashChainV1Package.application)
 
-/-- At each selected active row and all four ports, the computed product
-is exactly the corresponding block contribution of the key-facing system.
-All children retain their complete carrier block, including carried tail
-coordinates. No matrix-agreement, norm, opening or split premise is required. -/
 theorem rowBlock_eq_blockRowRing
     (row : Fin (PerApplicationFixedPoint.structuralPlan
       Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits).rowCount)

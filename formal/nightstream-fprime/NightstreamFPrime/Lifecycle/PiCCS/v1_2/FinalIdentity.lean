@@ -61,8 +61,6 @@ theorem constraintExponent_eq : constraintExponent = 4320 := by
     Phi81MatrixSource.phi81Shape, Shape.constraintOffset,
     Shape.padEvaluationCount, Shape.matrixEvaluationCount, ringDegree]
 
-/-- `gamma^(k d (t + 1)) = (gamma^(k d))^(t + 1)`: the constraint power raises
-the matrix power, not `gamma`. -/
 def constraintFactor : Nat := productionProfile.ccsMatrices + 1
 
 theorem constraintFactor_eq : constraintFactor = 5 := by
@@ -229,7 +227,6 @@ structure Assumptions (interface : Interface) (offset : Nat)
   normBelow : (interface.norm offset).VarsBelow offset
   terminalBelow : (interface.terminal offset).VarsBelow offset
 
-/-- The exact paper value, expressed only through authoritative entry wires. -/
 def referenceTerminal (interface : Interface) (offset : Nat) (env : Env) : K :=
   K.add (interface.eval_K offset |>.eval env) <|
     K.add
@@ -250,8 +247,6 @@ def referenceTerminal (interface : Interface) (offset : Nat) (env : Env) : K :=
             (K.mul (interface.gamma offset |>.eval env)
               (interface.norm offset |>.eval env)))
 
-/-- Named semantic predicate: the SumCheck terminal equals exact v1.2
-`Q(r')`. Internal child outputs are not caller premises. -/
 def SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   (interface.terminal offset).eval env = referenceTerminal interface offset env
 
@@ -472,7 +467,6 @@ private theorem evalRightPoint_eq_of_agree_below (interface : Interface)
   exact (interface.alpha offset coordinate).eval_eq_of_agree_below
     offset after before (assumptions.point coordinate).2 agrees
 
-/-- The semantic final identity is stable when entry wires are unchanged. -/
 theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
     (agrees : ∀ index, index < offset → after index = before index)
@@ -928,7 +922,6 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
         omega)
       expression terminalMember
 
-/-- Private symbolic variables owned by the fixed production leaf. -/
 def privateCount : Nat := 2717
 
 theorem localLength_eq (interface : Interface) (offset : Nat) :
@@ -969,8 +962,6 @@ theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     List.length_append, pointFlat, matrixFlat, constraintFlat]
   simp [terminalAssertions, KExpr.equalities]
 
-/-- Concrete parent coverage: the owned child values and terminal assertions
-are exactly production `ProtocolPolynomial.terminalFromMessage`. -/
 theorem spec_implies_keyTerminal
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -1057,8 +1048,6 @@ theorem spec_implies_keyTerminal
   simpa [input, execution, message, matrixExponent, constraintExponent] using!
     specification
 
-/-- Exact completeness direction: the canonical SumCheck terminal equality
-and the six computed terminal components imply this leaf's specification. -/
 theorem keyTerminal_implies_spec
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

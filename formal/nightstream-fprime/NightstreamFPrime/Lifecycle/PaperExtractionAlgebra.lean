@@ -1036,9 +1036,6 @@ private theorem combineEvaluations_getD
         rw [allDefault]
         exact (linearCombination_zero coefficients).symm
 
-/-- The exact deterministic extraction algebra used by the production
-`PaperAlgebra.piRlcAlgebra`. The strong-set theorem remains a separate,
-explicit security premise. -/
 def extractionAlgebra
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns <=

@@ -2,17 +2,10 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.Embedding
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 
-/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/PiRLC.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces were renamed and
-the v1.2 explicit-matrix evaluation section was added for canonical Pad. -/
-
 /-!
 Orchestration of the typed Phi81 `Pi_RLC` evaluation map.
 
 Protocol: SuperNeo v1.2 Theorem 11, evaluation-homomorphism branch of `Pi_RLC`.
-Phase: one complete-carrier action through matrix rows, Boolean MLE, and every
-canonical matrix.
-Constraint family: semantic evaluation only; this file emits no rows.
 
 Owns: the exact local product-order predicate and its discharge by executable
 Phi81 multiplication; exact assembly of the existing carrier, embedding, and
@@ -21,23 +14,6 @@ extension-evaluation leaves; and one-source matrix homomorphism theorems.
 Does not own: commitments, public input projection, finite-source RingF
 combination, norm preservation, transcript challenges, `Pi_RLC` acceptance,
 Rust, R1CS, row removal, or counts.
-
-Emits constraints: no.
-
-Authority boundary: matrices, complete assignments, points, and challenges
-are explicit typed values. Every derived row, lane, matrix, and array is
-computed from the canonical Phi81 source. `ProductOrderLaw challenge` names
-exactly the reassociation `bar * (rho * z) = rho * (bar * z)` and is discharged
-for every challenge by the symbolic executable-ring proof in `RingFLaws`.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `nifs.pi_rlc.verify.evaluation_hom.product_order` | `bar * (rho * z) = rho * (bar * z)` for one row basis and block | derived | `productOrderLaw` |
-| `nifs.pi_rlc.verify.evaluation_hom.row.blocks` | complete flat carrier equals the block/lane contraction of the canonical basis-defined kernel | derived | `rowRing_eq_blockSum` |
-| `nifs.pi_rlc.verify.evaluation_hom.row.selector` | a zero or one-hot original matrix row selects exactly zero or one basis-kernel image | derived | `rowRing_eq_zero_of_padded_row_zero`, `rowRing_eq_kernelImage_of_unit_padded_row` |
-| `nifs.pi_rlc.verify.evaluation_hom.row.action` | the local law distributes through matrix-row coefficients and blocks | derived | `rowRing_act` with `productOrderLaw` |
-| `nifs.pi_rlc.verify.evaluation_hom.mle` | coefficientwise embedding and Boolean MLE preserve the action | derived | `matrixEvaluation_act` with `productOrderLaw` |
-| `nifs.pi_rlc.verify.evaluation_hom.matrices` | every canonical matrix evaluation preserves the action | derived | `evaluations_act` with `productOrderLaw` |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLC
@@ -47,9 +23,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
 
 
-/-- The exact product-order identity needed for one challenge. It is strictly
-weaker than exposing global associativity and commutativity as separate
-premises. -/
 def ProductOrderLaw (challenge : RingF) : Prop :=
   forall (row : Fin ringDegree) (block : RingF),
     ringFMul (Phi81CoefficientKernel.barBasis row)
@@ -57,13 +30,9 @@ def ProductOrderLaw (challenge : RingF) : Prop :=
       ringFMul challenge
         (ringFMul (Phi81CoefficientKernel.barBasis row) block)
 
-/-- The executable Phi81 quotient multiplication satisfies the exact local
-product-order predicate for every verifier challenge. -/
 theorem productOrderLaw (challenge : RingF) : ProductOrderLaw challenge :=
   fun row block =>
     RingFLaws.ringFMul_barBasis_productOrder row challenge block
-
-/-! ## Canonical finite sums and carrier regrouping -/
 
 local instance : Std.Associative (fun (left right : F) => left + right) :=
   ⟨Lean.Grind.Fin.add_assoc⟩
@@ -179,8 +148,6 @@ private theorem sumRange_append
         inductionHypothesis]
       exact Lean.Grind.Fin.add_assoc _ _ _
 
-/-- A complete block-major carrier is the consecutive concatenation of its
-54-lane chunks. -/
 private theorem sumRange_chunks
     (blockCount : Nat) (term : Nat -> F) :
     sumRange ConcreteCarrier.baseOps (blockCount * ringDegree) term =
@@ -350,8 +317,6 @@ private theorem sumFinF_swap
       unfold guarded
       simp only [dif_pos outerLt, dif_pos innerLt]
 
-/-! ## Ring-valued finite sums -/
-
 private def ringFSumRange : Nat -> (Nat -> RingF) -> RingF
   | 0, _ => ringFZero
   | count + 1, term =>
@@ -456,8 +421,6 @@ private theorem matrixVectorAt_eq_sumFinF
       ConcreteCarrier.baseLaws.zero_add _
     _ = _ := listSum_canonical_eq_sumFinF _
 
-/-- Regrouping the complete carrier into its canonical 54-lane blocks changes
-only the indexing, not the finite sum. -/
 private theorem sumFinF_carrier_blocks
     {shape : Shape} (term : Fin shape.carrierWidth -> F) :
     sumFinF term =
@@ -522,9 +485,6 @@ private theorem sumFinF_carrier_blocks
       apply Fin.ext
       rfl
 
-/-! ## Matrix-row decomposition -/
-
-/-- Exact base-ring value of one derived matrix image at one Boolean row. -/
 def rowRing {shape : Shape}
     (system : Structure shape) (assignment : Assignment shape)
     (matrix : Fin shape.matrixCount)
@@ -534,9 +494,6 @@ def rowRing {shape : Shape}
       (system.matrixSource.coefficientMatrix ConcreteCarrier.baseOps matrix output)
       assignment vertex
 
-/-- Contribution of one complete 54-lane assignment block to one original
-matrix row. The original matrix coefficient is applied only after the
-canonical basis-kernel contraction. -/
 def blockRowRing {shape : Shape}
     (system : Structure shape) (assignment : Assignment shape)
     (matrix : Fin shape.matrixCount)
@@ -549,7 +506,6 @@ def blockRowRing {shape : Shape}
         CarrierAction.kernelImage row
           (CarrierAction.assignmentBlock assignment block) output
 
-/-- Canonical sum of the block contributions for one original matrix row. -/
 def blockRowSum {shape : Shape}
     (system : Structure shape) (assignment : Assignment shape)
     (matrix : Fin shape.matrixCount)
@@ -559,9 +515,6 @@ def blockRowSum {shape : Shape}
         Fin (Phi81ColumnLayout.blockCount shape.carrierWidth) =>
       blockRowRing system assignment matrix vertex block output
 
-/-- At a canonical block/lane column, the derived coefficient matrix is
-exactly the finite contraction of the canonical basis-defined kernel against
-that lane. -/
 private theorem coefficientMatrix_carrierColumn
     {shape : Shape}
     (system : Structure shape) (matrix : Fin shape.matrixCount)
@@ -585,8 +538,6 @@ private theorem coefficientMatrix_carrierColumn
   rfl
 
 set_option maxRecDepth 100000 in -- fixed-size: ring degree 54, not artifact data
-/-- The canonical basis-kernel contraction has the same explicit finite-sum
-coordinate used by the connected matrix source. -/
 theorem kernelImage_apply
     (row : Fin ringDegree) (block : RingF) (output : Fin ringDegree) :
     CarrierAction.kernelImage row block output =
@@ -609,9 +560,6 @@ private theorem kernelImage_eq_sumFinF
   rw [kernelImage_apply]
   rfl
 
-/-- The flat derived matrix-vector product is exactly the canonical
-block/row/kernel tree. This is the structural connection used by the action
-proof; it is not a second evaluator supplied by the caller. -/
 theorem rowRing_eq_blockSum
     {shape : Shape}
     (system : Structure shape) (assignment : Assignment shape)
@@ -682,8 +630,6 @@ theorem rowRing_eq_blockSum
       rw [kernelImage_eq_sumFinF]
     _ = _ := rfl
 
-/-- A verifier-owned all-zero original matrix row produces the zero derived
-Phi81 row. This is a local selector fact, not an authority claim. -/
 theorem rowRing_eq_zero_of_padded_row_zero
     {shape : Shape}
     (system : Structure shape) (assignment : Assignment shape)
@@ -700,9 +646,6 @@ theorem rowRing_eq_zero_of_padded_row_zero
   unfold blockRowSum blockRowRing ringFZero
   simp only [rowZero, Fin.zero_mul, sumFinF_zero]
 
-/-- A verifier-owned one-hot original matrix row selects exactly the named
-basis-kernel image of the named supplied complete-assignment block. This is a
-local algebraic fact and does not establish opening authority. -/
 theorem rowRing_eq_kernelImage_of_unit_padded_row
     {shape : Shape}
     (system : Structure shape) (assignment : Assignment shape)
@@ -767,8 +710,6 @@ theorem rowRing_eq_kernelImage_of_unit_padded_row
           (CarrierAction.assignmentBlock assignment selectedBlock) output := by
       rw [sumFinF_select selectedBlock, sumFinF_select selectedLane]
 
-/-! ## Conditional assignment action -/
-
 private theorem blockRowRing_eq_sumRingF
     {shape : Shape}
     (system : Structure shape) (assignment : Assignment shape)
@@ -827,9 +768,6 @@ private theorem weightedKernel_act
       (CarrierAction.ringFMul_scale_right challenge scalar
         (CarrierAction.kernelImage row block)).symm
 
-/-- One canonical carrier block preserves its complete derived matrix-row
-contribution under the RingF assignment action, conditional only on the exact
-local product-order law. -/
 theorem blockRowRing_act
     {shape : Shape}
     (system : Structure shape) (challenge : RingF)
@@ -871,7 +809,6 @@ theorem blockRowRing_act
                 (CarrierAction.assignmentBlock assignment block))) :=
       (ringFMul_sumRingF_right challenge _).symm
 
-/-- Summing every canonical block preserves the same RingF action. -/
 theorem blockRowSum_act
     {shape : Shape}
     (system : Structure shape) (challenge : RingF)
@@ -901,8 +838,6 @@ theorem blockRowSum_act
             blockRowRing system assignment matrix vertex block) :=
       (ringFMul_sumRingF_right challenge _).symm
 
-/-- The canonical derived matrix row commutes with the complete RingF
-assignment action. The theorem carries exactly one local algebraic premise. -/
 theorem rowRing_act
     {shape : Shape}
     (system : Structure shape) (challenge : RingF)
@@ -915,8 +850,6 @@ theorem rowRing_act
   rw [rowRing_eq_blockSum, rowRing_eq_blockSum]
   exact blockRowSum_act system challenge law assignment matrix vertex
 
-/-- The existing typed matrix evaluator is exactly Boolean MLE of the
-coefficientwise-embedded canonical row rings. -/
 theorem matrixEvaluation_eq_evaluateRows
     {shape : Shape}
     (system : Structure shape) (assignment : Assignment shape)
@@ -927,9 +860,6 @@ theorem matrixEvaluation_eq_evaluateRows
           (rowRing system assignment matrix vertex)) point := by
   rfl
 
-/-- One complete Phi81 matrix evaluation commutes with the exact RingF
-assignment action. All carrier and embedding work is discharged before the
-existing Boolean-MLE action theorem is used. -/
 theorem matrixEvaluation_act
     {shape : Shape}
     (system : Structure shape) (challenge : RingF)
@@ -960,13 +890,6 @@ theorem matrixEvaluation_act
           (RingKAction.evaluateRows rows point) :=
       RingKAction.evaluateRows_embeddedChallenge_action challenge rows point
     _ = _ := rfl
-
-/-! ## Explicit completed-matrix action
-
-SuperNeo v1.2 owns `Pad` separately from the CCS matrix family. These
-definitions generalize the stored-matrix proof above to one explicit
-completed matrix while retaining the canonical Phi81 source, kernel, and
-carrier layout. -/
 
 namespace ExplicitMatrix
 
@@ -1104,9 +1027,6 @@ private theorem rowRing_eq_blockSum
       rw [kernelImage_eq_sumFinF]
     _ = _ := rfl
 
-/-- Public complete-carrier block sum for an explicit matrix, including Pad.
-This exposes the existing decomposition through `sumRange`; callers do not
-need the private block representations or a new decomposition proof. -/
 theorem rowRing_eq_sumRange
     {shape : Shape}
     (system : Structure shape)
@@ -1252,7 +1172,6 @@ private theorem rowRing_act
   rw [rowRing_eq_blockSum, rowRing_eq_blockSum]
   exact blockRowSum_act system matrix challenge law assignment vertex
 
-/-- Complete 54-lane evaluation of one explicit completed matrix. -/
 def evaluate
     {shape : Shape}
     (system : Structure shape)
@@ -1387,8 +1306,6 @@ theorem evaluate_act
       RingKAction.evaluateRows_embeddedChallenge_action challenge rows point
     _ = _ := rfl
 
-/-- Evaluation of one explicit completed matrix commutes with the canonical
-finite base-field combination used by PiDEC. -/
 theorem evaluate_baseCombine
     {shape : Shape} {count : Nat}
     (system : Structure shape)
@@ -1412,8 +1329,6 @@ theorem evaluate_baseCombine
 
 end ExplicitMatrix
 
-/-- Array-level form of `matrixEvaluation_act`: every canonical matrix and
-all 54 evaluation lanes preserve the same RingF action. -/
 theorem evaluations_act
     {shape : Shape}
     (system : Structure shape) (challenge : RingF)

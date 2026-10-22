@@ -6,10 +6,8 @@ import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationFromBlocks
 
 /-!
-Connect one selected Poseidon invocation to its canonical matrix range.
-The parent supplies digits; the selected program supplies all matrix rows.
-Only block selection, interface loading and the executed range bound are
-operational premises. No expected child or matrix value selects a result.
+Connect one selected Poseidon invocation to its canonical matrix range. The
+parent supplies digits; the selected program supplies all matrix rows.
 -/
 
 set_option autoImplicit false
@@ -58,14 +56,11 @@ private theorem get_ofFn_function {Alpha : Type} {count : Nat}
   funext index
   exact get_ofFn values index
 
-/-- Existing scalar splits in the existing stored block type. This reference
-is not constructed by the executable parent reader. -/
 def splitBlocks {count : Nat} (parents : Fin count → StoredRing)
     (block : Fin count) : Vector StoredRing productionGlobalParams.k :=
   Vector.ofFn fun child => Vector.ofFn fun input =>
     Radix.splitScalar ((parents block).get input) child
 
-/-- The exact guarded read used by the invocation runner. -/
 def parentRead {count columns : Nat} (parents : Fin count → StoredRing)
     (child : Fin productionGlobalParams.k) : Fin ringDegree → Fin columns → F :=
   let forms := PiDECParentSparseRead.prepare ()
@@ -169,11 +164,6 @@ private theorem numericSum_congr (count : Nat) (left right : Nat → K) :
         equal index (Nat.lt_trans live (Nat.lt_succ_self count))),
         equal count (Nat.lt_succ_self count)]
 
-/-- Every child, matrix port and output lane of the selected invocation is
-the exact canonical weighted range. The whole parent carrier is available;
-the explicit zero suffix follows the same guard as the canonical block reader.
-Successful full splitting can subsequently identify splitBlocks with the
-existing childBlocks used by familyFromBlocks_honestMessages. -/
 theorem selectedInvocation_eq_range
     (parents : Fin blockCount → StoredRing) (point : PaperAlgebra.Point)
     (blockIndex : Nat) (block : Poseidon.Block)
@@ -243,8 +233,6 @@ theorem selectedInvocation_eq_range
   funext column
   exact parentRead_value parents child output column
 
-/-- The same guarded parent reader over the existing centered integer cache.
-The quotient/remainder addressing and zero branch match the field reader. -/
 def intParentRead {count columns : Nat} (parents : Fin count → Vector Int ringDegree)
     (child : Fin productionGlobalParams.k) : Fin ringDegree → Fin columns → F :=
   let forms := PiDECParentSparseRead.prepare ()
@@ -254,9 +242,6 @@ def intParentRead {count columns : Nat} (parents : Fin count → Vector Int ring
         ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩ child output
     else 0
 
-/-- Mapping the actual field parents to centered integers preserves the
-complete guarded read. The bound covers all parent lanes, including tails;
-no caller supplies a cache-correctness premise. -/
 theorem intParentRead_map_valMinAbs {count columns : Nat}
     (parents : Fin count → StoredRing)
     (bounded : ∀ block input,
@@ -276,9 +261,6 @@ theorem intParentRead_map_valMinAbs {count columns : Nat}
       ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩ child output
   · simp only [dif_neg live]
 
-/-- The integer-parent invocation computes the same selected canonical range.
-Selection, interface loading and range bounds are unchanged. The additional
-strict bound is exactly the existing loader check on every parent coefficient. -/
 theorem selectedIntInvocation_eq_range
     (parents : Fin blockCount → StoredRing)
     (bounded : ∀ block input,
@@ -348,11 +330,6 @@ theorem sumInvocationParts_eq_range {arity ports children : Nat}
           joined.symm
         _ = _ := by rw [Nat.mul_succ]
 
-/-- The ordered integer-parent invocation range is exactly the corresponding
-canonical matrix range for every child and port. The loaded interfaces must
-be those selected by the existing program at firstInvocation + index. All
-parent lanes retain the same strict bound as the single-invocation runner.
-No expected value or caller source/read agreement is assumed. -/
 theorem selectedIntInvocationRange_eq_range
     (parents : Fin blockCount → StoredRing)
     (bounded : ∀ block input,
@@ -414,11 +391,6 @@ theorem selectedIntInvocationRange_eq_range
   rw [startEq] at single
   exact single
 
-/-- A contiguous vector loaded by the exact canonical program yields its
-complete canonical weighted range for every child and port. All parent
-lanes retain the existing strict bound, including carried tails. The only
-row premise records successful canonical loads; no expected matrix values
-or caller read/source agreement are accepted. -/
 theorem selectedIntSparseRange_eq_range
     (parents : Fin blockCount → StoredRing)
     (bounded : ∀ block input,
@@ -468,9 +440,6 @@ theorem selectedIntSparseRange_eq_range
   funext column
   exact parentRead_value parents child output column
 
-/-- Loading a selected block row through the canonical cache is exactly the
-canonical program load at its global offset. Both some and none results
-are preserved; no row or source agreement is supplied by the caller. -/
 theorem selectedCachedBlockRow_eq_program
     (blockIndex : Nat) (block : MatrixProgram.Block)
     (selected : selectedProgram.blocks[blockIndex]? = some block)
@@ -494,9 +463,6 @@ theorem selectedCachedBlockRow_eq_program
     _ = _ := (program_selected_row selectedProgram selectedColumns selectedSource
       blockIndex block selected localOrdinal live).symm
 
-/-- A bounded slice of the already loaded invocation vector computes its
-canonical subrange. Slice loads come from the original full-vector loads;
-no new interface or value-agreement premise is supplied. -/
 theorem selectedIntInvocationSlice_eq_range
     (parents : Fin blockCount → StoredRing)
     (bounded : ∀ block input,
@@ -551,9 +517,6 @@ theorem selectedIntInvocationSlice_eq_range
   dsimp only at result ⊢
   simpa only [Nat.min_eq_left hi_le_count, Nat.mul_add, Nat.add_assoc] using result
 
-/-- A bounded slice of the already loaded sparse rows computes the matching
-canonical subrange. The source, parent bounds and full-vector load authority
-are unchanged; the slice introduces only its explicit index bounds. -/
 theorem selectedIntSparseSlice_eq_range
     (parents : Fin blockCount → StoredRing)
     (bounded : ∀ block input,

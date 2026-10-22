@@ -4,7 +4,8 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::api::{
     dec_children_with_commit, dec_children_with_commit_superneo_cached_from_trusted_split_digits, rlc_public,
-    rlc_public_matches, rlc_with_commit, split_b_matrix_k_with_nonzero_flags, verify_dec_public, FoldingMode, RotRho,
+    rlc_public_matches, rlc_with_commit, split_b_matrix_k_with_nonzero_flags, verify_dec_public, DecOutcome,
+    FoldingMode, RotRho,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -125,8 +126,9 @@ fn dec_constructors_reject_malformed_child_commitments() {
     let structure = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).unwrap();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let parent = zero_claim(&params);
-    let (digits, flags) =
+    let split =
         split_b_matrix_k_with_nonzero_flags(&Mat::zero(D, 1, F::ZERO), params.k_rho as usize, params.b).unwrap();
+    let digits = split.planes();
     let commitments = vec![parent.c.clone(); digits.len()];
     let construct = |commitments: &[Commitment]| {
         [
@@ -137,7 +139,7 @@ fn dec_constructors_reject_malformed_child_commitments() {
                     &structure,
                     &params,
                     &parent,
-                    &digits,
+                    digits,
                     ell_d,
                     commitments,
                     dec_mix,
@@ -150,22 +152,28 @@ fn dec_constructors_reject_malformed_child_commitments() {
                     &structure,
                     &params,
                     &parent,
-                    &digits,
-                    &flags,
+                    &split,
                     ell_d,
                     commitments,
                     dec_mix,
-                    None,
                     None,
                     None,
                 ),
             ),
         ]
     };
-    for (path, (children, y, x, c)) in construct(&commitments) {
-        assert!(y && x && c, "{path}: honest DEC constructor");
+    for (path, outcome) in construct(&commitments) {
+        assert!(
+            outcome.ok_y && outcome.ok_x && outcome.ok_c,
+            "{path}: honest DEC constructor"
+        );
         assert!(verify_dec_public(
-            &structure, &params, &parent, &children, dec_mix, ell_d
+            &structure,
+            &params,
+            &parent,
+            &outcome.children,
+            dec_mix,
+            ell_d
         ));
     }
 
@@ -176,9 +184,9 @@ fn dec_constructors_reject_malformed_child_commitments() {
     for bad_commitment in [truncated, wider] {
         let mut malformed = commitments.clone();
         *malformed.last_mut().unwrap() = bad_commitment;
-        for (path, (children, y, x, c)) in construct(&malformed) {
+        for (path, outcome) in construct(&malformed) {
             assert!(
-                children.is_empty() && !y && !x && !c,
+                outcome == DecOutcome::rejected(),
                 "{path}: DEC constructor accepted a malformed child commitment"
             );
         }

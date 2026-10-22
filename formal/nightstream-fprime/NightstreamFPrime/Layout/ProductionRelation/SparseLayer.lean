@@ -73,7 +73,6 @@ def block {logicalWidth : Nat} (state : State logicalWidth) (index : Nat) :
     SparseForm logicalWidth :=
   mat4 state (4 * (index / 4)) (index % 4)
 
-/-- Left-nested sum of forms, mirroring the field-level `foldl`. -/
 def sumForms {logicalWidth : Nat} (forms : List (SparseForm logicalWidth)) :
     SparseForm logicalWidth :=
   forms.foldl add .empty

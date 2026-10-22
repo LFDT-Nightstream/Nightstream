@@ -20,7 +20,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 abbrev Record := PoseidonScheduleTrace.Record
 
-/-- A fail-closed compiled S-box list, with exact source-list custody. -/
 structure SboxListPlan (inputs outputs : List Expr) where
   rows : List
     (PoseidonSourceRows.SboxSource PoseidonScheduleTrace.sourceColumnCount)
@@ -42,8 +41,6 @@ private theorem compileSbox?_expressions {input output : Expr}
   subst row
   exact ⟨rfl, rfl⟩
 
-/-- Compile two equal-length S-box expression lists and retain exact custody
-of both lists in the result type. -/
 def compileSboxList? :
     (inputs outputs : List Expr) → Option (SboxListPlan inputs outputs)
   | [], [] =>
@@ -69,7 +66,6 @@ def compileSboxList? :
                       tail.outputExpressions_eq] }
   | _, _ => none
 
-/-- A fail-closed compiled output list, with exact source-list custody. -/
 structure OutputListPlan (outputs linears : List Expr) where
   rows : List
     (PoseidonSourceRows.OutputSource PoseidonScheduleTrace.sourceColumnCount)
@@ -91,8 +87,6 @@ private theorem compileOutput?_expressions {output linear : Expr}
   subst row
   exact ⟨rfl, rfl⟩
 
-/-- Compile two equal-length output expression lists and retain exact custody
-of both lists in the result type. -/
 def compileOutputList? :
     (outputs linears : List Expr) → Option (OutputListPlan outputs linears)
   | [], [] =>
@@ -145,19 +139,14 @@ def compileRecord? (record : Record) : Option StepPlan := do
 def compilePlan? : Option (List StepPlan) :=
   PoseidonScheduleTrace.records.mapM compileRecord?
 
-/-- Executable production plan. The success theorem below proves the default
-branch is unreachable. -/
 def plan : List StepPlan := compilePlan?.getD []
 
-/-- Every one of the fixed template's 646 expression pairs passes exact
-bounded compilation. -/
 theorem compilePlan?_eq : compilePlan? = some plan := by
   rfl
 
 @[simp] theorem plan_length : plan.length = 31 := by
   rfl
 
-/-- The compiled plan covers the canonical schedule ledger in exact order. -/
 @[simp] theorem plan_records_eq :
     plan.map (fun step => step.record) = PoseidonScheduleTrace.records := by
   rfl
@@ -186,7 +175,6 @@ private theorem map_eq_map_of_forall_mem {α β : Type}
       exact congrArg (List.cons (right head))
         (induction fun row member => equal row (by simp [member]))
 
-/-- Exact direct-row equations required by one canonical schedule record. -/
 def StepPlan.Holds (step : StepPlan) (env : Env) : Prop :=
   (∀ row ∈ step.sboxes,
       row.outputExpression.eval env =
@@ -194,8 +182,6 @@ def StepPlan.Holds (step : StepPlan) (env : Env) : Prop :=
     ∀ row ∈ step.outputs,
       row.outputExpression.eval env = row.linearExpression.eval env
 
-/-- Every compiled direct row of one schedule step has zero selective
-residual on the final assignment. -/
 def StepPlan.RowsZero {logicalWidth : Nat} (step : StepPlan)
     (sourceMap : SourceCompiler.SourceMap
       PoseidonScheduleTrace.sourceColumnCount logicalWidth)
@@ -206,7 +192,6 @@ def StepPlan.RowsZero {logicalWidth : Nat} (step : StepPlan)
     ∀ row ∈ step.outputs,
       (row.step.compile sourceMap oneColumn).residual assignment = 0
 
-/-- Every direct row of every compiled schedule step has zero residual. -/
 def PlanRowsZero {logicalWidth : Nat}
     (sourceMap : SourceCompiler.SourceMap
       PoseidonScheduleTrace.sourceColumnCount logicalWidth)
@@ -221,8 +206,6 @@ private theorem seventhPower_eq_sboxF (value : F) :
     CCSResidualTable.pow, ConcreteCarrier.baseOps, Layer.sboxF,
     Spec.Poseidon2.sbox, mul_assoc]
 
-/-- Zero residuals of the compiled sparse rows are equivalent to the exact
-retained trace equations under the proved source substitution. -/
 theorem StepPlan.rowsZero_iff_holds {logicalWidth : Nat} (step : StepPlan)
     (sourceMap : SourceCompiler.SourceMap
       PoseidonScheduleTrace.sourceColumnCount logicalWidth)
@@ -255,8 +238,6 @@ theorem StepPlan.rowsZero_iff_holds {logicalWidth : Nat} (step : StepPlan)
         sourceMap oneColumn assignment env one preserves).mpr
           (outputs row member)
 
-/-- The compiled expression lists are exactly the retained mathematical trace
-of their canonical Poseidon2 schedule record. -/
 theorem StepPlan.holds_implies_trace (step : StepPlan) (env : Env)
     (holds : step.Holds env) :
     PoseidonStepTrace.Holds env step.record.start step.record.step
@@ -309,8 +290,6 @@ theorem StepPlan.holds_implies_trace (step : StepPlan) (env : Env)
             step.record.step step.record.state lane).eval env) :=
         (List.ofFn_comp' _ _).symm
 
-/-- Every satisfying compiled step has the exact mathematical Poseidon2 step
-semantics. -/
 theorem StepPlan.holds_implies_step_sound (step : StepPlan) (env : Env)
     (holds : step.Holds env) :
     Layer.evalState env
@@ -320,8 +299,6 @@ theorem StepPlan.holds_implies_step_sound (step : StepPlan) (env : Env)
   PoseidonStepTrace.holds_implies_step_sound env step.record.start
     step.record.step step.record.state (step.holds_implies_trace env holds)
 
-/-- The final sparse selective rows imply the exact mathematical Poseidon2
-step, through the proved source substitution. -/
 theorem StepPlan.rowsZero_implies_step_sound {logicalWidth : Nat}
     (step : StepPlan)
     (sourceMap : SourceCompiler.SourceMap
@@ -338,8 +315,6 @@ theorem StepPlan.rowsZero_implies_step_sound {logicalWidth : Nat}
     ((step.rowsZero_iff_holds sourceMap oneColumn assignment env one
       preserves).mp rows)
 
-/-- Zero residuals of the complete compiled template imply the exact
-reference Poseidon2 permutation in the final retained output lanes. -/
 theorem planRowsZero_implies_permute {logicalWidth : Nat}
     (sourceMap : SourceCompiler.SourceMap
       PoseidonScheduleTrace.sourceColumnCount logicalWidth)

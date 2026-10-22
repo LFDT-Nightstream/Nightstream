@@ -8,9 +8,6 @@ import NightstreamFPrime.Export.MatrixProgram.Program
 
 /-!
 Owns the direct bounded-memory traversal of the final Stage 1 sealed package.
-The traversal follows the codec order, but it expands large package fields one
-proved block at a time. `PerApplicationCanonicalPackage.sealedPackageValue`
-and `Package.relationIdentifierValue` remain the semantic authority.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationStreamingIdentity
@@ -58,9 +55,6 @@ private theorem map_liftPilotInstructions_append
   rw [List.map_append, List.map_map]
   rfl
 
-/-! ## Generic mapped streams -/
-
-/-- Process a mapped typed list without constructing the mapped list. -/
 @[inline, specialize push format transform] def processMappedEncodedItemsWith
     {State Alpha Beta : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
@@ -86,7 +80,6 @@ theorem processMappedEncodedItemsWith_eq_items
       simp [processMappedEncodedItemsWith,
         StreamingIdentity.processEncodedItemsWith, inductionHypothesis]
 
-/-- Process one mapped typed list under one array header. -/
 @[inline, specialize push format transform] def processMappedEncodedListWith
     {State Alpha Beta : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
@@ -109,8 +102,6 @@ theorem processMappedEncodedListWith_eq_processValueWith
   exact StreamingIdentity.processEncodedListWith_eq_processValueWith
     push state format (values.map transform)
 
-/-- Process mapped block expansions without constructing either the flattened
-expansion or its mapped result. -/
 @[inline, specialize push format transform expand]
 def processMappedFlatMapItemsWith {State Block Alpha Beta : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
@@ -139,7 +130,6 @@ theorem processMappedFlatMapItemsWith_eq_items
         List.flatMap_cons, List.map_append,
         StreamingIdentity.processEncodedItemsWith_append]
 
-/-- Process mapped block expansions under one array header. -/
 @[inline, specialize push format transform expand]
 def processMappedFlatMapWith {State Block Alpha Beta : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
@@ -176,8 +166,6 @@ private theorem processEncodedItemsWith_header_eq_processValueWith
   simpa only [StreamingIdentity.processEncodedListWith] using
     (StreamingIdentity.processEncodedListWith_eq_processValueWith
       push state format values)
-
-/-! ## Proof-only flattened package views -/
 
 def piCcsPacketBatches (_ : Unit) : List WitnessBatch :=
   WitnessProgram.statementBindingBatches Data.logicalWidth Data.publicFits ++
@@ -475,8 +463,6 @@ theorem directAssertionRows_eq
       simpa only [PerApplicationPackage.basePackage] using
         (PerApplicationPackage.package_assertionRows context.program).symm
 
-/-! ## Allocation-bounded package fields -/
-
 def directWitnessBatchCount (application : ApplicationPackage.Plan) : Nat :=
   (PilotData.priorWordBatches ()).length +
     (WitnessProgram.statementBindingBatches
@@ -757,8 +743,6 @@ theorem processCompactRowInvocationsWith_eq_processValueWith
     PackagePlan.CompactInvocationBlock.expand
     PackagePlan.canonicalCompactBlocks
 
-/-! ## Fixed codec records -/
-
 @[specialize push] def processApplicationPlanWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (state : State)
     (plan : ApplicationPackage.Plan) : State :=
@@ -871,8 +855,6 @@ private theorem processValueWith_array {State : Type}
         (push state ⟨1, values.length⟩) := by
   simp only [StreamingIdentity.processValueWith]
 
-/-- Proof view of the exact 14-child package codec value. The executable
-traversal below does not reference this materialized value. -/
 def directInnerValue (context : PerApplicationCachedShift.Context)
     (application : ApplicationPackage.Plan) : Value :=
   .array [
@@ -1199,11 +1181,6 @@ theorem processInnerPackageOfProgramWith_eq_processValueWith {State : Type}
     (processInnerPackageWith_eq_processValueWith push state
       (PerApplicationCachedShift.Context.ofProgram program) fits)
 
-/-! ## Sealed root traversal -/
-
-/-- Direct traversal of the seven-child sealed root. It is generic in the
-state representation and in the one authoritative node transition supplied
-by the caller. -/
 @[specialize push] def directStateWith {State : Type}
     (push : State → StreamingIdentity.Node → State) (initial : State)
     (program : Program) : State :=
@@ -1253,8 +1230,6 @@ theorem semanticState_eq
   exact directStateWith_eq_processValueWith
     StreamingIdentity.pushNode StreamingIdentity.initialState program fits
 
-/-- Semantic streaming digest. This name is separate from the final native
-entry point so the executable boundary has one monomorphic state type. -/
 def structuralPackageIdentityStream (program : Program)
     (_fits : FitsTwoPow28 program) : VerifierContext.Digest4 :=
   VerifierContext.Digest4.ofList
@@ -1273,10 +1248,6 @@ theorem structuralPackageIdentityStream_eq
   rw [StreamingIdentity.relationIdentifierValueFast_eq]
   rfl
 
-/-! ## Monomorphic native boundary -/
-
-/-- First-order native traversal. Each bounded child is compiled separately,
-so the compiler does not normalize the complete generic traversal at once. -/
 def directState (program : Program) : NativePoseidon2.HashState64 :=
   let context := PerApplicationCachedShift.Context.ofProgram program
   let application := PerApplicationPackage.directApplicationPlan program
@@ -1304,8 +1275,6 @@ private theorem directState_eq_directStateWith (program : Program) :
         NativePoseidon2.initialState64 program := by
   rfl
 
-/-- One whole-traversal refinement. Runtime stays in `HashState64`; the proof
-maps only the final state to the semantic Poseidon2 state. -/
 theorem directState_denote (program : Program) (fits : FitsTwoPow28 program) :
     (directState program).denote = semanticState program := by
   rw [directState_eq_directStateWith]
@@ -1322,14 +1291,11 @@ theorem directState_denote (program : Program) (fits : FitsTwoPow28 program) :
   rw [NativePoseidon2.initialState64_denote] at simulation
   exact simulation
 
-/-- Allocation-bounded executable identity for the final sealed package. -/
 @[inline] def structuralPackageIdentityDirect (program : Program)
     (_fits : FitsTwoPow28 program) : VerifierContext.Digest4 :=
   VerifierContext.Digest4.ofList
     (NativePoseidon2.finalize64 (directState program)).denote
 
-/-- The native result is the canonical relation identifier. The canonical
-package value remains the semantic authority. -/
 theorem structuralPackageIdentityDirect_eq
     (program : Program) (fits : FitsTwoPow28 program) :
     structuralPackageIdentityDirect program fits =
@@ -1338,8 +1304,6 @@ theorem structuralPackageIdentityDirect_eq
   rw [NativePoseidon2.finalize64_denote, directState_denote program fits]
   exact structuralPackageIdentityStream_eq program fits
 
-/-- Replace the former artifact-sized executable traversal only after both
-executables have been proved equal to the canonical structural identity. -/
 @[csimp] theorem structuralPackageIdentityFast_eq_direct :
     @PerApplicationCanonicalPackage.structuralPackageIdentityFast =
       @structuralPackageIdentityDirect := by

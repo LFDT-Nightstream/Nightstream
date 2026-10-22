@@ -6,7 +6,7 @@ import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcrip
 
 /-! PiRLC scalar circuit: the scalar domain entry, one checked
 wide reduction of its four rate lanes, and one digest advance. The child
-interfaces are opaque. Soundness fixes every digit; honest completion is total. -/
+interfaces are opaque. -/
 
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler
 
@@ -198,7 +198,6 @@ theorem soundness (interface : Interface) (coordinate : Nat) (env : Env) (offset
     rw [outputWord, SamplerWords.outputWord_eq _ _ env words, WideReduction.Program.outputWord_eval]
     exact congrArg WideReduction.fieldOfNat digit
 
-/-- The four checked child specifications determine the scalar result. -/
 theorem spec_of_children (interface : Interface) (coordinate : Nat) (env : Env) (offset : Nat)
     (inputs : Assumptions interface offset)
     (entered : TranscriptAbsorption.SpecHolds interface coordinate offset env)

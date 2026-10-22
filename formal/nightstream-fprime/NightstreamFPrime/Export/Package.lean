@@ -16,7 +16,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export.Codec
 
-/-- The one fixed Nightstream Goldilocks production profile. -/
 structure Profile where
   fieldModulus : Nat
   decompositionBase : Nat
@@ -56,7 +55,6 @@ def Profile.format : Format Profile where
     cases value
     rfl
 
-/-- Poseidon2 parameters that every hash-chain template uses. -/
 structure PoseidonSchedule where
   width : Nat
   rate : Nat
@@ -91,7 +89,6 @@ def PoseidonSchedule.format : Format PoseidonSchedule where
     cases value
     rfl
 
-/-- One named contiguous segment in the final Spartan column order. -/
 structure Segment where
   role : Nat
   start : Nat
@@ -110,7 +107,6 @@ def Segment.format : Format Segment where
     cases value
     rfl
 
-/-- Complete physical layout after the proved Lean-to-Spartan permutation. -/
 structure PhysicalLayout where
   rowCount : Nat
   privateColumnCount : Nat
@@ -144,8 +140,6 @@ def PhysicalLayout.format : Format PhysicalLayout where
     cases value
     simp [Format.decode_encode]; rfl
 
-/-- The physical R1CS matrix selected for one logical CCS matrix slot. Pad is
-not a source: SuperNeo v1.2 carries its evaluations in `Eval_K`. -/
 inductive CcsMatrixSource where
   | a
   | b
@@ -169,8 +163,6 @@ def CcsMatrixSource.format : Format CcsMatrixSource where
     intro value
     cases value <;> rfl
 
-/-- One sparse term of the logical CCS constraint polynomial. Exponents use
-the same canonical matrix-slot order as `matrixSources`. -/
 structure CcsPolynomialTerm where
   coefficient : Nat
   exponents : List Nat
@@ -221,7 +213,6 @@ def CcsRelation.format : Format CcsRelation where
     cases value
     simp [Format.decode_encode]; rfl
 
-/-- Exact gate matrix-slot order. Pad remains outside this list. -/
 def productionMatrixSources : List CcsMatrixSource :=
   [.a, .b, .c, .sboxInput]
 
@@ -234,8 +225,6 @@ def encodeProductionTerm
 def productionTerms : List CcsPolynomialTerm :=
   Spec.ProductionRelation.polynomial.terms.map encodeProductionTerm
 
-/-- Wire form of the exact production relation from `Spec.ProductionRelation`.
-Only its physical dimensions are supplied by the selected layout. -/
 def productionCcsRelation
     (rowCount columnCount cubeVariables : Nat) : CcsRelation where
   rowCount := rowCount
@@ -266,8 +255,6 @@ def productionCcsRelation
   rw [List.length_map, Spec.ProductionRelation.polynomial_terms]
   exact Spec.ProductionRelation.GatePolynomial.terms_length
 
-/-- A sparse template column is one of eight invocation inputs or one local
-witness column. -/
 inductive ColumnRef where
   | input (index : Nat)
   | local (index : Nat)
@@ -319,8 +306,6 @@ def TemplateCombination.format : Format TemplateCombination where
     cases value
     simp [Format.decode_encode]
 
-/-- One sparse template equation. `outputLocal` is the witness instruction:
-the interpreter writes `A · B` there, and the same row checks the result. -/
 structure TemplateRow where
   outputLocal : Nat
   a : TemplateCombination
@@ -346,7 +331,6 @@ def TemplateRow.format : Format TemplateRow where
     cases value
     simp [TemplateCombination.format.decode_encode]; rfl
 
-/-- Sparse matrix data for one Poseidon2 permutation. -/
 structure PermutationTemplate where
   inputCount : Nat
   localColumnCount : Nat
@@ -371,9 +355,6 @@ def PermutationTemplate.format : Format PermutationTemplate where
     cases value
     simp [Format.decode_encode]
 
-/-- One exact instantiation chain. Absorb permutations precede the one final
-padding permutation. `digestLength` records how many caller-owned digest
-columns are bound by ordinary rows after the permutation rows. -/
 structure HashChain where
   phase : Nat
   rowStart : Nat
@@ -444,9 +425,6 @@ def SparseCombination.format : Format SparseCombination where
     cases value
     simp [Format.decode_encode]
 
-/-- One explicit use of the canonical Poseidon2 permutation template.
-`inputs` contains one absolute sparse combination for each of the eight input
-lanes. The template owns the adjacent witness and row intervals. -/
 structure PermutationInvocation where
   phase : Nat
   rowStart : Nat
@@ -470,9 +448,6 @@ def PermutationInvocation.format : Format PermutationInvocation where
     cases value
     simp [Format.decode_encode]
 
-/-- One row in a generic compact template. A witness row names the local
-column that receives `A * B`. An assertion row has no output target and only
-checks its exact `A * B = C` equation. -/
 structure CompactTemplateRow where
   outputLocal : Option Nat
   a : TemplateCombination
@@ -513,9 +488,6 @@ def CompactTemplateRow.format : Format CompactTemplateRow where
       TemplateCombination.format.decode_encode
       ]; rfl
 
-/-- One Lean-authored generic row template. `outputRecipe` computes the one
-logical output column selected by `outputInput`. The rows then compute the
-template-local R1CS intermediates and check the final assertion. -/
 structure CompactRowTemplate where
   inputCount : Nat
   localColumnCount : Nat
@@ -524,8 +496,6 @@ structure CompactRowTemplate where
   rows : List CompactTemplateRow
 deriving Repr
 
-/-- One contiguous affine binding from template input slots to final package
-columns. Slot `inputStart + i` reads `columnStart + i * columnStride`. -/
 structure CompactInputRange where
   inputStart : Nat
   inputCount : Nat
@@ -547,9 +517,6 @@ def CompactInputRange.format : Format CompactInputRange where
     cases value
     rfl
 
-/-- One exact use of a compact row template. The invocation owns one logical
-output column, one contiguous local interval, and one contiguous row interval.
-Its input ranges contain only final package column numbers. -/
 structure CompactRowInvocation where
   phase : Nat
   templateIndex : Nat
@@ -576,9 +543,6 @@ def CompactRowInvocation.format : Format CompactRowInvocation where
     cases value
     simp [Format.decode_encode]
 
-/-- One generic straight-line witness instruction and its authoritative row.
-The interpreter writes `a * b` to `target`; the same package row checks that
-value. `rowIndex` fixes its position in the physical circuit. -/
 structure WitnessInstruction where
   rowIndex : Nat
   target : Nat
@@ -603,7 +567,6 @@ def WitnessInstruction.format : Format WitnessInstruction where
     cases value
     simp [SparseCombination.format.decode_encode]; rfl
 
-/-- An assertion-only absolute sparse row. Witness rows live in the template. -/
 structure SparseRow where
   rowIndex : Nat
   a : SparseCombination
@@ -628,8 +591,6 @@ def SparseRow.format : Format SparseRow where
     cases value
     simp [SparseCombination.format.decode_encode]; rfl
 
-/-- Terminal metadata becomes present when the terminal phase is added to the
-same package path. -/
 structure TerminalLayout where
   rowStart : Nat
   rowCount : Nat
@@ -650,7 +611,6 @@ def TerminalLayout.format : Format TerminalLayout where
     cases value
     rfl
 
-/-- Lossless wire encoding of the existing symbolic witness-expression IR. -/
 def encodeExpr : Expr → Value
   | .var index => .array [.atom 0, .atom index]
   | .const value => .array [.atom 1, .atom value.val]
@@ -708,7 +668,6 @@ def CompactRowTemplate.format : Format CompactRowTemplate where
     cases value
     simp [exprFormat.decode_encode, Format.decode_encode]; rfl
 
-/-- Lossless wire encoding of non-authoritative witness hints. -/
 def encodeHint : Hint → Value
   | .bit source index =>
       .array [.atom 0, encodeExpr source, .atom index]
@@ -825,13 +784,6 @@ def prependIdentityNode (tag value : Nat) (tail : List F) : List F :=
     Poseidon2.ofNat ((value / limbBase) % limbBase) ::
     Poseidon2.ofNat (value % limbBase) :: Poseidon2.ofNat tag :: tail
 
-/-- Reverse-accumulating traversal of the canonical numeric-array codec.
-
-An atom contributes tag `0` and three base-`2^32` limbs. An array contributes
-tag `1`, three limbs for its length, and then its children in order. The tags
-and array lengths make the token stream prefix-free. `List.foldl` keeps the
-cost linear in the encoded package size and avoids one Poseidon2 call per
-codec node. -/
 def valuePreimageRev : Value → List F → List F
   | .atom value, tail => prependIdentityNode 0 value tail
   | .array values, tail =>
@@ -860,16 +812,10 @@ def identityDomain : List F :=
     70, 80, 114, 105, 109, 101, 47, 112, 97, 99, 107, 97, 103,
     101, 47, 118, 50]
 
-/-- Verifier-bound Poseidon2 identity of one canonical codec value. -/
 def relationIdentifierValue (value : Value) : List F :=
   Poseidon2.hash (identityDomain ++
     valuePreimage value)
 
-/-- Verifier-bound Poseidon2 identity of every canonical package field.
-
-Version 2 hashes one prefix-free token stream. It replaces the version-1
-per-node digest tree, whose executable cost was one Poseidon2 hash for every
-codec node. -/
 def relationIdentifier (value : CircuitPackage) : List F :=
   relationIdentifierValue (CircuitPackage.format.encode value)
 

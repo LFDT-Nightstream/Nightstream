@@ -50,7 +50,6 @@ where
     K::from(v).real()
 }
 
-/// Row dot-product via on-the-fly SuperNeo lift from an original matrix row.
 pub fn superneo_row_dot_from_original<Ff>(mat: &CcsMatrix<Ff>, row: usize, z: &[K]) -> K
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
@@ -92,7 +91,6 @@ where
     K::from_coeffs([acc_re, acc_im])
 }
 
-/// Evaluate `\tilde{(M z)}(r)` using transformed matrix rows and `ct` products.
 pub fn eval_mle_transformed_matrix(mat_bar: &CcsMatrix<F>, z: &[K], chi_r: &[K], n_eff: usize) -> K {
     let row_cap = min(min(mat_bar.rows(), n_eff), chi_r.len());
     let mut acc = K::ZERO;
@@ -105,7 +103,6 @@ pub fn eval_mle_transformed_matrix(mat_bar: &CcsMatrix<F>, z: &[K], chi_r: &[K],
     acc
 }
 
-/// Evaluate `\tilde{(M z)}(r)` by lifting original rows through the SuperNeo `bar` transform.
 pub fn eval_mle_superneo_from_original<Ff>(mat: &CcsMatrix<Ff>, z: &[K], chi_r: &[K], n_eff: usize) -> K
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
@@ -122,7 +119,6 @@ where
     acc
 }
 
-/// Evaluate `\tilde{(M z)}(r)` directly from `M`.
 pub fn eval_mle_direct_matrix<Ff>(mat: &CcsMatrix<Ff>, z: &[K], chi_r: &[K], n_eff: usize) -> K
 where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,

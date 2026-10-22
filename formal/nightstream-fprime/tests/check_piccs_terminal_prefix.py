@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""Compare the terminal fields provided by complete Lean prefixes.
-
-PiCCSInputCheck.outputMessage selects coefficient zero of every Eval_K and
-coefficient zero of source-zero Eval_A for the fresh matrix values. This
-check does not cover the other individual evaluation coefficients.
-"""
 
 import copy
 import json
@@ -52,7 +46,7 @@ def main():
     fresh_dir, norm_dir = map(Path, sys.argv[3:5])
     proof, phase = [json.loads(Path(path).read_bytes()) for path in sys.argv[5:7]]
     compare_round(public, final_round, proof, phase, 27)
-    point = phase[4]  # Comparison target only; no producer runs in this script.
+    point = phase[4]
     fresh = values(fresh_dir, 2, 4, point)
     require({path.name for path in norm_dir.iterdir()} ==
             {f"source-{source}" for source in range(17)}, "missing or extra final norm source")
@@ -69,8 +63,6 @@ def main():
             changed[5][0][3][0][1] = (changed[5][0][3][0][1] + 1) % P
             changed_phase[13] = copy.deepcopy(changed[5])
             expected = "freshMatrixImage[3] differs"
-        # A mutually consistent proof/phase mutation must still fail the actual
-        # field comparison. It must not reject only for mismatched target copies.
         compare_round(public, final_round, changed, changed_phase, 27)
         try:
             compare_terminal(norm, fresh, changed)

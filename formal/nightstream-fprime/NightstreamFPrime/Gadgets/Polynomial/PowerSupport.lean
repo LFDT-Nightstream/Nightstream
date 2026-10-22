@@ -23,7 +23,6 @@ private theorem coefficientExprs_supported (exponent : Nat)
   · exact Horner.KSupported.zero allowed
   · exact Horner.KSupported.one allowed
 
-/-- Exact support propagation through one fixed-exponent power circuit. -/
 theorem flatConstraints_varsSatisfy (exponent : Nat)
     (interface : Interface) (offset : Nat) (allowed : Nat → Prop)
     (pointSupport : Horner.KSupported (interface.point offset) allowed)
@@ -45,8 +44,6 @@ theorem flatConstraints_varsSatisfy (exponent : Nat)
       simpa [circuit] using! upper)
   simpa [circuit] using supported
 
-/-- The fixed-power output uses the same point support and exact Horner
-interval as its rows. -/
 theorem output_varsSatisfy (exponent : Nat) (interface : Interface)
     (offset : Nat) (allowed : Nat → Prop)
     (pointSupport : Horner.KSupported (interface.point offset) allowed)

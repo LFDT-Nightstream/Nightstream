@@ -104,8 +104,6 @@ private def normTerm (fixed : List K) (arity : Nat)
       (ProtocolPolynomial.strictNormResidual extensionOps (values.getD index K.zero))
   else K.zero
 
-/-- Numeric completion sum from the actual plan and assignment. The finite
-matrix vector is cached once. No Boolean-domain index list is allocated. -/
 def completionSum {logicalWidth : Nat} (plan : Plan logicalWidth)
     (assignment : Fin logicalWidth → F) (fixed : List K) (arity : Nat)
     (alpha : CubePoint K cubeVariables) (gamma : K) : K :=
@@ -307,9 +305,6 @@ private theorem term_eq_polynomial (plan : Plan logicalWidth)
   rw [weighted_add, images, freshRead]
   exact reduction.symm
 
-/-- The executable numeric prefixes sum the exact production polynomial over
-all Boolean completions. The omitted matrix and assignment suffixes are
-proved zero from their constructors; no table or relation premise is supplied. -/
 theorem completionSum_eq_sumCompletions (plan : Plan logicalWidth)
     (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -354,14 +349,11 @@ theorem completionSum_eq_sumCompletions (plan : Plan logicalWidth)
   intro vertex _
   exact term_eq_polynomial plan cubeFits ajtai fresh assignment fixed dimension alpha gamma vertex
 
-/-- One round evaluates after the prior challenges and the trial value. -/
 def roundSum (plan : Plan logicalWidth) (assignment : Fin logicalWidth → F)
     (challenges : List K) (trial : K) (alpha : CubePoint K cubeVariables) (gamma : K) : K :=
   completionSum plan assignment (challenges ++ [trial])
     (cubeVariables - challenges.length - 1) alpha gamma
 
-/-- Exact numeric round-oracle contract at every available round and every
-trial value. This is the canonical nonlinear protocol polynomial. -/
 theorem roundSum_eq_sumCompletions (plan : Plan logicalWidth)
     (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))

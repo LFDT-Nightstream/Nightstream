@@ -18,13 +18,10 @@ with certified row counts, and `AgreesOutside` completeness.
 
 namespace NightstreamFPrime.Circuit
 
--- The `Circuit` monad is named after its namespace on purpose; renaming the
--- API used across the gadgets for this naming lint is not worth the churn.
 set_option linter.dupNamespace false
 
 open NightstreamFPrime.Spec
 
-/-- Arithmetic expressions over variables addressed by absolute offset. -/
 inductive Expr where
   | var (index : Nat)
   | const (value : F)
@@ -32,7 +29,6 @@ inductive Expr where
   | mul (left right : Expr)
 deriving Repr, DecidableEq, Inhabited
 
-/-- An environment assigns every variable a field value. -/
 abbrev Env := Nat → F
 
 namespace Expr
@@ -67,8 +63,6 @@ instance : Sub Expr := ⟨Expr.sub⟩
 
 end Expr
 
-/-- Non-authoritative witness computations that field expressions cannot
-perform. A circuit must bind each output with explicit constraints. -/
 inductive Hint where
   | bit (source : Expr) (index : Nat)
   | inverseOrZero (source : Expr)
@@ -84,7 +78,6 @@ def ofNat (value : Nat) : F :=
 def inverse (value : F) : F :=
   ZMod.inv goldilocksModulus value
 
-/-- Executable hint meaning. This computation is not circuit authority. -/
 def eval (env : Env) : Hint → F
   | .bit source index =>
       ofNat (((source.eval env).val >>> index) &&& 1)
@@ -100,20 +93,14 @@ def source : Hint → Expr
 
 end Hint
 
-/-- A flat constraint list is the physical relation that `Layout/` lowers.
-Witness allocation has no constraint row and is tracked separately. -/
 def ConstraintsHold (env : Env) (constraints : List Expr) : Prop :=
   ∀ e ∈ constraints, e.eval env = 0
 
-/-- Canonical equations for a straight-line witness batch. Recipe `i` fills
-variable `start + i`; the emitted row checks that value against the recipe. -/
 def recipeConstraints (start : Nat) : List Expr → List Expr
   | [] => []
   | recipe :: rest =>
       (Expr.var start - recipe) :: recipeConstraints (start + 1) rest
 
-/-- Tail-recursive executable form of `recipeConstraints`. The kernel keeps
-the structural definition above; compiled emission uses this proved form. -/
 @[inline] def recipeConstraintsTR (start : Nat) (recipes : List Expr) :
     List Expr :=
   go start recipes []
@@ -146,9 +133,6 @@ where
   | nil => rfl
   | cons recipe rest ih => simp [recipeConstraints, ih]
 
-/-- Exportable witness-program instruction. `recipe` expressions are data,
-not native closures, and their results remain non-authoritative until the
-corresponding rows pass. -/
 structure WitnessBatch where
   start : Nat
   recipes : List Expr
@@ -205,8 +189,6 @@ def WitnessBatch.hinted (start : Nat) (hints : List Hint) : WitnessBatch :=
     (WitnessBatch.hinted start hints).outputLength = hints.length := by
   simp [WitnessBatch.hinted, WitnessBatch.outputLength]
 
-/-- A proof-carrying opaque child. Parents use only `spec`; `Layout/` uses
-`constraints`. The proof is the only authority that connects the two. -/
 structure Subcircuit where
   name : String
   localLength : Nat
@@ -217,16 +199,11 @@ structure Subcircuit where
   spec : Env → Prop
   soundness : ∀ env, ConstraintsHold env constraints → spec env
 
-/-- One circuit operation. A `witness` allocates `count` fresh variables
-starting at the current offset; the exported witness program fills them. An
-`assertZero` contributes one flat constraint. A `subcircuit` is opaque to its
-parent and carries its own soundness proof. -/
 inductive Op where
   | witness (batch : WitnessBatch)
   | assertZero (e : Expr)
   | subcircuit (child : Subcircuit)
 
-/-- Number of variables an operation list allocates. -/
 def Op.localLength : Op → Nat
   | .witness batch => batch.outputLength
   | .assertZero _ => 0
@@ -234,8 +211,6 @@ def Op.localLength : Op → Nat
 
 def localLength (ops : List Op) : Nat := (ops.map Op.localLength).sum
 
-/-- The relation an operation list imposes on an environment. A subcircuit
-contributes its spec, not its operations: parents never see inside. -/
 def Op.holds (env : Env) : Op → Prop
   | .witness batch => ConstraintsHold env (recipeConstraints batch.start batch.recipes)
   | .assertZero e => e.eval env = 0
@@ -243,7 +218,6 @@ def Op.holds (env : Env) : Op → Prop
 
 def holds (env : Env) (ops : List Op) : Prop := ∀ op ∈ ops, op.holds env
 
-/-- The exact constraints below one operation. -/
 def Op.flatConstraints : Op → List Expr
   | .witness batch => recipeConstraints batch.start batch.recipes
   | .assertZero e => [e]
@@ -251,9 +225,6 @@ def Op.flatConstraints : Op → List Expr
 
 def flatConstraints (ops : List Op) : List Expr := ops.flatMap Op.flatConstraints
 
-/-- Exact logical-row count carried by an operation. Opaque children expose a
-certified count, so a parent never evaluates their constraint lists to count
-rows. -/
 def Op.rowCount : Op → Nat
   | .witness batch => batch.recipes.length
   | .assertZero _ => 1
@@ -271,9 +242,6 @@ theorem Op.flatConstraints_length_eq_rowCount (operation : Op) :
   | subcircuit child =>
       exact child.rowCount_eq
 
-/-- Flattened logical rows have exactly the sum of their certified operation
-counts. This proof is structural in the operation list and does not inspect an
-opaque child's constraints. -/
 theorem flatConstraints_length_eq_rowCount (ops : List Op) :
     (flatConstraints ops).length = rowCount ops := by
   induction ops with
@@ -305,16 +273,12 @@ def Op.witnesses : Op → List WitnessBatch
 
 def witnesses (ops : List Op) : List WitnessBatch := ops.flatMap Op.witnesses
 
-/-- The exact flattened relation, used only by `Layout/` to connect emitted
-rows to opaque logical specifications. -/
 def Op.holdsFlat (env : Env) (op : Op) : Prop :=
   ConstraintsHold env op.flatConstraints
 
 def holdsFlat (env : Env) (ops : List Op) : Prop :=
   ConstraintsHold env (flatConstraints ops)
 
-/-- Offset-state writer monad: a circuit consumes an offset and returns a
-result, the new offset, and the operations it emitted. -/
 def Circuit (α : Type) := Nat → α × Nat × List Op
 
 namespace Circuit
@@ -332,13 +296,10 @@ instance : Monad Circuit where
   pure := pure'
   bind := bind'
 
-/-- Allocate one fresh variable with a canonical witness recipe. -/
 def witness (recipe : Expr) : Circuit Expr := fun n =>
   (Expr.var n, n + 1,
     [Op.witness (WitnessBatch.arithmetic n [recipe])])
 
-/-- Allocate one non-authoritative hint output. The caller owns all binding
-constraints for this value. -/
 def hint (instruction : Hint) : Circuit Expr := fun n =>
   (Expr.var n, n + 1,
     [Op.witness (WitnessBatch.hinted n [instruction])])
@@ -400,8 +361,6 @@ theorem Op.holds_of_holdsFlat (env : Env) (op : Op) :
   | subcircuit child =>
       exact child.soundness env
 
-/-- Physical satisfaction implies the opaque logical meaning of every child.
-This is the generic layout-to-builder soundness bridge. -/
 theorem holdsFlat_implies_holds (env : Env) (ops : List Op) :
     holdsFlat env ops → holds env ops := by
   intro h op hop
@@ -411,11 +370,9 @@ theorem holdsFlat_implies_holds (env : Env) (ops : List Op) :
   simp only [flatConstraints, List.mem_flatMap]
   exact ⟨op, hop, he⟩
 
-/-- Environments may change only variables allocated by a circuit call. -/
 def AgreesOutside (before after : Env) (offset count : Nat) : Prop :=
   ∀ index, index < offset ∨ offset + count ≤ index → after index = before index
 
-/-- Adjacent witness ranges compose into one exact changed interval. -/
 theorem AgreesOutside.append {before middle after : Env}
     {offset firstCount secondCount : Nat}
     (first : AgreesOutside before middle offset firstCount)
@@ -430,8 +387,6 @@ theorem AgreesOutside.append {before middle after : Env}
       after index = middle index := second index (Or.inr (by omega))
       _ = before index := first index (Or.inr (by omega))
 
-/-- Flattened physical completeness implies opaque logical completeness.
-Parents use only the logical result; Layout retains the flattened premise. -/
 theorem logicalCompleteness_of_flat
     {env : Env} {offset : Nat} {ops : List Op}
     (flat : ∃ completed,
@@ -443,9 +398,6 @@ theorem logicalCompleteness_of_flat
   rcases flat with ⟨completed, agrees, rows⟩
   exact ⟨completed, agrees, holdsFlat_implies_holds completed ops rows⟩
 
-/-- The one proved-circuit object. Soundness quantifies over arbitrary witness
-values. Completeness supplies an environment that satisfies the actual
-flattened rows while preserving every external variable. -/
 structure FormalCircuit where
   main : Circuit Unit
   assumptions : Nat → Env → Prop := fun _ _ => True
@@ -471,8 +423,6 @@ structure FormalCircuit where
 
 namespace FormalCircuit
 
-/-- Replace only the footprint metadata of a proved circuit. The supplied
-equalities certify the metadata against the unchanged authoritative operations. -/
 def withConstantFootprint (circuit : FormalCircuit)
     (privateCount rowCount : Nat)
     (privateCount_eq : ∀ offset,
@@ -518,8 +468,6 @@ def withConstantFootprint (circuit : FormalCircuit)
       rowCount_eq).rowCount offset = rowCount := by
   rfl
 
-/-- Package a proved circuit as one opaque operation. Its visible meaning is
-`assumptions → spec`; its physical constraints are the flattened child rows. -/
 def asSubcircuit (circuit : FormalCircuit) (name : String) (offset : Nat) : Subcircuit where
   name := name
   localLength := circuit.privateCount offset
@@ -560,8 +508,6 @@ end FormalCircuit
 
 namespace Circuit
 
-/-- Call a proved child. The parent operation contains the child's flattened
-rows but exposes only the child's proved interface. -/
 def call (name : String) (circuit : FormalCircuit) : Circuit Unit := fun offset =>
   let child := circuit.asSubcircuit name offset
   ((), offset + child.localLength, [Op.subcircuit child])

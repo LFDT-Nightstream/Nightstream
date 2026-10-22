@@ -118,7 +118,6 @@ private theorem compileTerms_supported {matrixCount : Nat}
       · exact termSupport.1 recipe first
       · exact tail.1 recipe second
 
-/-- Exact support propagation through the owned sparse evaluator. -/
 theorem flatConstraints_varsSatisfy {matrixCount : Nat}
     (polynomial : ConstraintPolynomial K matrixCount)
     (interface : Interface matrixCount) (offset : Nat)
@@ -162,7 +161,6 @@ theorem flatConstraints_varsSatisfy {matrixCount : Nat}
   · rw [recipes_length] at indexBound
     omega
 
-/-- The owned sparse result is the exact two-cell localCells output. -/
 theorem output_varsSatisfy {matrixCount : Nat}
     (polynomial : ConstraintPolynomial K matrixCount)
     (interface : Interface matrixCount) (offset : Nat)

@@ -39,21 +39,18 @@ variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The exact constraints of the sole logical PiCCS assembler. -/
 def logicalConstraints
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : List Expr :=
   flatConstraints (Circuit.ops (Formal.main relation interface) offset)
 
-/-- First column after external inputs and PiCCS-owned logical witnesses. -/
 def logicalColumnCount
     (_relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (_interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : Nat :=
   offset + Formal.privateCount degreeBound
 
-/-- R1CS multiplication columns start after the exact logical interval. -/
 def plan
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)

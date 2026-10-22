@@ -155,7 +155,6 @@ theorem ownedRows_length
   rw [ownedRows, List.length_zip, rowOwners_length, physicalRows_length]
   simp
 
-/-- Parent assembly contributes no logical copy columns. -/
 theorem noBoundaryColumns
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat) :
@@ -164,7 +163,6 @@ theorem noBoundaryColumns
   rw [logicalColumnCount_eq, Formal.main_ops]
   rfl
 
-/-- Parent assembly contributes no logical copy rows. -/
 theorem noBoundaryRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat) :
@@ -184,7 +182,6 @@ inductive ColumnOwner where
   | r1csIntermediate (index : Nat)
 deriving Repr, DecidableEq
 
-/-- Total owner function for every external, logical, and R1CS-fresh column. -/
 def columnOwner
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)

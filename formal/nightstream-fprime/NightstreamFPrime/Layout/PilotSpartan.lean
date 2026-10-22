@@ -12,24 +12,19 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Layout
 
-/-- Materialized source-column count for executable package emission. -/
 def SourceColumnCount : Nat := PilotValues.sourceColumnCount
 
-/-- The recursive public input has 270 cells and `XOut` has four cells. -/
 def publicColumnCount : Nat :=
   PriorStateHash.publicWidth + PilotProduction.digestWords
 
-/-- All hash-preimage and recipe columns are private advice. -/
 def privateColumnCount : Nat :=
   PilotValues.privateColumnCount
 
-/-- Spartan inserts its constant column between private and public columns. -/
 def constantColumn : Nat := privateColumnCount
 
 def spartanColumnCount : Nat :=
   privateColumnCount + 1 + publicColumnCount
 
-/-- Exact source-order boundaries of the fixed production pilot. -/
 def priorPublicStart : Nat := PilotProduction.stateHashWords
 def outputPreimageStart : Nat :=
   priorPublicStart + PriorStateHash.publicWidth
@@ -81,7 +76,6 @@ theorem firstPublicStart_value : firstPublicStart = 5141487 := by
 theorem secondPublicStart_value : secondPublicStart = 5141757 := by
   rfl
 
-/-- The materialized count is exactly the proved semantic pilot layout count. -/
 theorem sourceColumnCount_matches :
     SourceColumnCount =
       Pilot.physicalColumnCount PilotProduction.interface
@@ -107,7 +101,6 @@ theorem sourceBoundaries_eq :
       witnessStart = PilotProduction.witnessOffset := by
   exact ⟨rfl, rfl, rfl, rfl⟩
 
-/-- Visibility in the Lean source-column order. -/
 inductive Visibility where
   | privateInput
   | publicInput
@@ -123,8 +116,6 @@ def visibility (column : Nat) : Visibility :=
   else
     .privateInput
 
-/-- Map a Lean physical column to direct Spartan's private/constant/public
-order. The image never contains `constantColumn`. -/
 def sourceToSpartan (column : Nat) : Nat :=
   if column < priorPublicStart then
     column
@@ -159,8 +150,6 @@ theorem sourceToSpartan_pilotWitness (index : Nat) :
   rw [show PilotProduction.witnessOffset = witnessStart by rfl]
   exact sourceToSpartan_witness index
 
-/-- Partial inverse because the Spartan constant column has no Lean source
-column. -/
 def spartanToSource (column : Nat) : Option Nat :=
   if column < secondPrivateStart then
     some column
@@ -277,18 +266,13 @@ theorem remapRows_hold (target : Env) (rows : List R1CS.Row) :
     rcases member with ⟨source, sourceMember, rfl⟩
     exact (remapRow_holds target source).mpr (holds source sourceMember)
 
-/-- The generic Spartan variable and row domains use the production cube. -/
 def domainSize : Nat := 2 ^ cubeVariables
 
-/-- Spartan moves the constant and public columns after the padded private
-domain. -/
 def paddedConstantColumn : Nat := domainSize
 
 def paddedSpartanColumnCount : Nat :=
   domainSize + 1 + publicColumnCount
 
-/-- Roles introduced by the generic Spartan padding step. Source-private rows
-and columns retain their detailed owners from `Layout.Pilot`. -/
 inductive PaddedColumnRole where
   | sourcePrivate (index : Nat)
   | privatePadding (index : Nat)
@@ -337,7 +321,6 @@ theorem privateColumnCount_bounds :
   rw [privateColumnCount_value]
   norm_num [domainSize, cubeVariables]
 
-/-- Column index used by the padded Spartan matrices. -/
 def spartanToPadded (column : Nat) : Nat :=
   if column < constantColumn then
     column
@@ -396,8 +379,6 @@ private theorem zeroRows_hold (target : Env) (count : Nat) :
   subst row
   simp [zeroRow, R1CS.Row.Holds]
 
-/-- Exact matrix rows seen by direct Spartan: remapped source rows followed by
-semantically empty rows up to the fixed production domain. -/
 def paddedRows (_unit : Unit) : List R1CS.Row :=
   padRows (remapRows (sourceRows ())) ++
     List.replicate (domainSize - (sourceRows ()).length) zeroRow
@@ -407,7 +388,6 @@ theorem paddedRows_length : (paddedRows ()).length = domainSize := by
   rw [List.length_append, List.length_map, List.length_map,
     List.length_replicate, Nat.add_sub_of_le sourceRowCount_bounds.2]
 
-/-- Generic Spartan padding preserves and reflects every Lean source row. -/
 theorem paddedRows_hold (target : Env) :
     R1CS.RowsHold target (paddedRows ()) ↔
       Pilot.PhysicalHolds PilotProduction.interface

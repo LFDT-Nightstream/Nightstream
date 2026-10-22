@@ -39,7 +39,6 @@ pub(crate) fn paper_exact_prove_with_trace<L: neo_ccs::traits::SModuleHomomorphi
     )
 }
 
-/// Direct paper evaluation of a header with circuit-owned original matrix rows.
 pub fn paper_exact_prove_with_rows(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -91,7 +90,7 @@ fn prove_with_rows_inner(
     let prior_point = paper_prior_point(running_claims, dims.variables)?;
     let mut trace = ProtocolTrace::default();
     let challenges = bind_and_sample(transcript, &mut trace, structure, fresh_claims, running_claims, dims)?;
-    let initial = initial_claim(structure, &challenges, fresh_claims.len(), running_claims)?;
+    let initial = initial_claim(structure, &challenges, running_claims)?;
     let mut oracle = match rows {
         Some(rows) => PaperJointOracle::from_rows(
             structure,

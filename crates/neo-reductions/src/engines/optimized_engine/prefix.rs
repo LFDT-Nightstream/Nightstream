@@ -34,8 +34,6 @@ fn fold_pairs<T: Copy + Send + Sync>(values: &mut Vec<T>, zero: T, combine: impl
     let workers = rayon::current_num_threads();
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     let workers = 1;
-    // Even chunks keep pairs together. Each worker writes only inside its
-    // own chunk; compaction starts after every worker has finished reading.
     let chunk_len = 2 * next_len.div_ceil(workers);
     let fold_chunk = |chunk: &mut [T]| {
         for index in 0..chunk.len().div_ceil(2) {
@@ -55,9 +53,6 @@ fn fold_pairs<T: Copy + Send + Sync>(values: &mut Vec<T>, zero: T, combine: impl
     values.truncate(next_len);
 }
 
-/// Signed-unit prefixes share their possible field values. Early folds store
-/// u16 indices into that table instead of one extension-field value per entry.
-/// Other inputs use the ordinary dense fold.
 pub(super) enum Assignment<'a> {
     Input {
         witness: &'a Mat<F>,
@@ -119,7 +114,6 @@ impl<'a> Assignment<'a> {
         (self.get(2 * index), self.get(2 * index + 1))
     }
 
-    /// The pair codes of a prefix whose pairs take few distinct values.
     pub(super) fn early_pairs(&self) -> Option<EarlyPairs<'_>> {
         match self {
             Self::Input { witness, len } if *len != 0 => witness
@@ -215,13 +209,11 @@ impl<'a> Assignment<'a> {
 #[path = "../../../tests/unit/assignment_prefix.rs"]
 mod tests;
 
-/// At most 81 values give at most 6,561 distinct pairs.
-const MAX_EARLY_VALUES: usize = 81;
+const MAX_EARLY_VALUES: usize = 3usize.pow(4);
+const ZERO_PAIR: usize = 1 + 3 * 1;
+const _: () = assert!(D.is_multiple_of(2));
 
-/// Pairs of an early prefix. Pair `index` is `(values[code % base],
-/// values[code / base])` for `code = self.code(index)` and `base = values.len()`.
 pub(super) enum EarlyPairs<'a> {
-    /// Signed-unit input columns; codes 0, 1, 2 are -1, 0, 1.
     Masks {
         positive: &'a [u64],
         negative: &'a [u64],
@@ -246,10 +238,9 @@ impl EarlyPairs<'_> {
     pub(super) fn code(&self, index: usize) -> usize {
         match self {
             Self::Masks { positive, negative } => {
-                // D is even, so both coordinates of a pair share one column.
                 let (column, lane) = ((2 * index) / D, (2 * index) % D);
                 let (Some(&positive), Some(&negative)) = (positive.get(column), negative.get(column)) else {
-                    return 4;
+                    return ZERO_PAIR;
                 };
                 let unit = |lane: usize| (1 + (positive >> lane & 1) - (negative >> lane & 1)) as usize;
                 unit(lane) + 3 * unit(lane + 1)
@@ -262,20 +253,12 @@ impl EarlyPairs<'_> {
     }
 }
 
-/// `sum_index weight(offset + index) * norm_pair(pair(index))` over the
-/// first `pairs` pairs. Weights are summed per pair code first; field sums
-/// are exact, so each distinct pair's norm is evaluated once.
-pub(super) fn early_norm_coefficients(
-    early: &EarlyPairs<'_>,
-    pairs: usize,
-    weights: &EqualityWeights,
-    offset: usize,
-) -> [K; 4] {
+pub(super) fn early_norm_coefficients(early: &EarlyPairs<'_>, pairs: usize, weights: &EqualityWeights) -> [K; 4] {
     let values = early.values();
     let base = values.len();
     let zero = || vec![K::ZERO; base * base];
     let add = |mut buckets: Vec<K>, index: usize| {
-        buckets[early.code(index)] += weights.at(offset + index);
+        buckets[early.code(index)] += weights.at(index);
         buckets
     };
     let merge = |mut left: Vec<K>, right: Vec<K>| {

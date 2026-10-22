@@ -1,19 +1,11 @@
-"""Offline stage decomposition for raw Nsight Systems traces."""
-
 from collections import Counter, defaultdict
 import json
 from pathlib import Path
 
-try:
-    from .levers import build_levers
-    from .parse import build_phases, load_timeline, select_input_bundle
-    from .taxonomy import KNOWN_STAGES, TAXONOMY_VERSION, ancestors, ordered_stage_ids, source_for
-    from .validate import validate_against_gpuprof
-except ImportError:  # Direct `python scripts/gpuscope/cli.py ...` execution.
-    from levers import build_levers
-    from parse import build_phases, load_timeline, select_input_bundle
-    from taxonomy import KNOWN_STAGES, TAXONOMY_VERSION, ancestors, ordered_stage_ids, source_for
-    from validate import validate_against_gpuprof
+from levers import build_levers
+from parse import build_phases, load_timeline, select_input_bundle
+from taxonomy import KNOWN_STAGES, TAXONOMY_VERSION, ancestors, ordered_stage_ids, source_for
+from validate import validate_against_gpuprof
 
 SCHEMA_VERSION = 1
 EPSILON_MS = 0.001

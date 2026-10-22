@@ -5,8 +5,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanBounds
 
 /-!
 Owns indexed access to the four nonempty canonical PiDEC row packets for the
-direct 4-matrix compiler. Each packet keeps its own proved expression support;
-the exact R1CS append law fixes their combined order.
+direct 4-matrix compiler.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
@@ -130,7 +129,6 @@ def evalARows (logicalWidth : Nat)
     (R1CS.lowerConstraints (evalAConstraints logicalWidth publicFits)
       (evalAFreshStart logicalWidth publicFits)).rows
 
-/-- Exact nonempty PiDEC parent order. -/
 def sourceRows (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
@@ -270,7 +268,6 @@ theorem constraints_eq_sources :
         evalAConstraints logicalWidth publicFits := by
   rfl
 
-/-- The four packets concatenate to the exact canonical compiled PiDEC rows. -/
 theorem sourceRows_eq_canonical :
     sourceRows logicalWidth publicFits =
       (PiDECArithmetic.canonicalPlan logicalWidth publicFits).rows.map

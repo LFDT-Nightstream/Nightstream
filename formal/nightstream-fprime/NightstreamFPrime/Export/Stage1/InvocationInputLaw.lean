@@ -3,9 +3,6 @@ import NightstreamFPrime.Export.Stage1.InvocationLastOutput
 
 /-!
 Owns the indexed input-value law for the existing compact Duplex compiler.
-Block/action induction identifies each actual invocation and its predecessor.
-The final law reads the stored preceding output and the actual affine payload.
-No row satisfaction or alternative transcript representation is assumed.
 -/
 
 set_option autoImplicit false
@@ -210,9 +207,6 @@ private theorem invocation_input
   exact Lifecycle.PriorStateHash.ofFn_getD
     (fun current : Fin 16 => inputCombination (state current)) lane zeroSparseCombination
 
-/-- Each actual indexed invocation reads the preceding stored output and adds
-its actual payload lane. The only premises are the compiler's existing
-affine-input contract and its local source interval, never row validity. -/
 theorem compileActions_input_eval
     (phase rowStart witnessStart : Nat) (state : EState)
     (actions : List Action) (target : Env)

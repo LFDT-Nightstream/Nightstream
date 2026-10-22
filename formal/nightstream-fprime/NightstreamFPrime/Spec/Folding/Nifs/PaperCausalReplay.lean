@@ -25,8 +25,6 @@ universe uContext uState
 variable {Context : Type uContext} {State : Type uState}
   {shape : Shape} {width : Nat}
 
-/-- Emit one fixed polynomial from past challenges, then absorb it and derive
-the next challenge. The supplied index list is the only recursion axis. -/
 def generatedMessages (oracle : FiatShamir.Oracle Context K State shape)
     (strategy : Strategy width) (fixed : List K) :
     State → List (Fin shape.cubeVariables) →
@@ -149,9 +147,6 @@ private theorem map_canonicalFinIndices {Value : Type*} (count : Nat)
   simp only [canonicalFinIndices, List.map_ofFn, Function.comp_def]
   rfl
 
-/-- A strategy that returns on every full challenge list also returns on its
-own transcript. The generated messages have the same issued receipt and final
-state when the verifier replays them in canonical round order. -/
 theorem generated_messages_replay
     (oracle : FiatShamir.Oracle Context K State shape) (strategy : Strategy width)
     (state : State)
@@ -184,9 +179,6 @@ theorem generated_messages_replay
       (canonicalFinIndices shape.cubeVariables) [] state rounds finalState returned ordered
     simpa only [listEq] using replay
 
-/-- The existing all-coin causal-prover success property supplies the totality
-used above. No additional transcript, output-correctness, or sampling premise
-is introduced; the honest PiCCS theorem supplies this property. -/
 theorem prover_generated_messages_replay {columns : Nat}
     (oracle : FiatShamir.Oracle Context K State shape)
     (prover : CausalExecution.Prover shape columns width)

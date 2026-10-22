@@ -58,10 +58,6 @@ private def referenceBatch
     let pair : Fin productionShape.sourceCount × Fin matrixCount := Fin.decodeProd code
     (bySource.get pair.1).get pair.2
 
-/-- Evaluate product invocations `lo` to `hi`. The 108 rows of one invocation are
-built from its interface and share their columns, so one set of column weights
-serves all sources. Invocation sums are exact field sums, so their total is the
-slice sum. -/
 @[specialize] private def productBatch {columns arity invocations : Nat}
     (zeroSource : Fin productionShape.sourceCount → Bool) (firstRow : Nat)
     (point : CubePoint K arity)
@@ -202,8 +198,6 @@ def matrixRanges (point : PaperAlgebra.Point) (sourcePath : System.FilePath)
         ("start", Lean.toJson first), ("end", Lean.toJson finish),
         ("load_ns", Lean.toJson ((← IO.monoNanosNow) - loadStarted))]
       unless 0 < unitCount do throw (IO.userError "empty selected matrix unit range")
-      -- Sixteen slices per worker; each of `workers` threads takes the next slice, so
-      -- faster cores take more of the range and the last slices are short.
       let parts := min unitCount (16 * workers)
       let arithmeticStarted ← IO.monoNanosNow
       let tasks ← ParallelChunks.start workers parts fun slice =>

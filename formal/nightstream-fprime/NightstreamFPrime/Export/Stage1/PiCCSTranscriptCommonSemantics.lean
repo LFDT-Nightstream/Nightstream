@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSCommonEnvironmentCustody
 
 /-!
 Owns transport of the four PiCCS transcript specifications into the complete
-PiRLC sampler environment. The proof changes no row and no transcript value.
-It uses only declared child footprints and the canonical assignment custody
-theorem.
+PiRLC sampler environment.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSTranscriptCommonSemantics
@@ -90,8 +88,6 @@ private theorem outputEnd_beforeSampler
     PiRLCInputs.phaseOffset,
     NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerOffset_eq]
 
-/-- The four transcript leaves proved in the retained transcript environment
-also hold in the one complete PiRLC sampler environment. -/
 theorem transcriptSpecs_to_common
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}

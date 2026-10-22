@@ -76,8 +76,6 @@ pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
     7_044_842_614_397_459_900,
 ];
 
-/// Verifier-owned context derived from one identity-checked package and the
-/// canonical serialization of its commitment setup.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiCcsV1_2VerifierContext {
     package_identity: [u64; 4],
@@ -123,8 +121,6 @@ impl PiCcsV1_2VerifierContext {
     }
 }
 
-/// Application digest and exact preimage length, computed during compilation
-/// or retained as non-authoritative prepared-package metadata.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct ApplicationIdentity {
     digest: [u64; 4],
@@ -150,7 +146,6 @@ impl ApplicationIdentity {
     }
 }
 
-/// Complete Stage 1 binding; circuit authority belongs to the caller.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stage1VerifierBinding {
     structural_identifier: [u64; 4],

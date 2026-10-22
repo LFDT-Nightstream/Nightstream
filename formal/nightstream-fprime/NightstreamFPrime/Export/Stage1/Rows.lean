@@ -49,7 +49,6 @@ theorem sparseCombination_toR1CS (combination : R1CS.LinearCombination) :
                 simp [sparseTerm, fieldValue_val]
           _ = terms := by simp
 
-/-- Recognize exactly `0 + 1·target`. -/
 def target? (combination : R1CS.LinearCombination) : Option Nat :=
   if combination.constant = 0 then
     match combination.terms with
@@ -165,7 +164,6 @@ private theorem lowerConstraintsRev_eq (constraints : List Expr)
       · rfl
       · simp [List.reverse_append, List.append_assoc]
 
-/-- Stack-safe executable form of the proved physical lowering. -/
 def lowerConstraintsTR (constraints : List Expr) (start : Nat) :
     R1CS.LoweredConstraints :=
   lowerConstraintsRev constraints start []
@@ -203,7 +201,6 @@ private theorem compileRowsFromRev_eq (freshStart rowStart : Nat)
       rw [inductionHypothesis]
       simp [List.reverse_cons, List.append_assoc]
 
-/-- Stack-safe executable form of the lossless row compiler. -/
 def compileRowsTR (freshStart rowStart : Nat) (rows : List R1CS.Row) :
     List CompiledRow :=
   compileRowsFromRev freshStart rowStart rows []
@@ -249,7 +246,6 @@ private theorem witnessInstructionsRev_eq (rows : List CompiledRow)
           simp only [witnessInstructionsRev, witnessInstructions]
           exact inductionHypothesis instructionsRev
 
-/-- Stack-safe executable witness-instruction classifier. -/
 def witnessInstructionsTR (rows : List CompiledRow) :
     List WitnessInstruction :=
   witnessInstructionsRev rows []
@@ -283,7 +279,6 @@ private theorem assertionRowsRev_eq (rows : List CompiledRow)
           rw [inductionHypothesis]
           simp [List.reverse_cons, List.append_assoc]
 
-/-- Stack-safe executable assertion-row classifier. -/
 def assertionRowsTR (rows : List CompiledRow) : List SparseRow :=
   assertionRowsRev rows []
 
@@ -349,7 +344,6 @@ private theorem classifyRowsRev_eq (rows : List CompiledRow)
           rw [inductionHypothesis]
           simp [List.reverse_cons, List.append_assoc]
 
-/-- Classify one compiled-row block in one stack-safe pass. -/
 def classifyRowsTR (rows : List CompiledRow) :
     List WitnessInstruction × List SparseRow :=
   classifyRowsRev rows [] []
@@ -361,8 +355,6 @@ theorem classifyRowsTR_eq (rows : List CompiledRow) :
     assertionRowsTR_eq]
   rfl
 
-/-- Compact classification preserves every ordinary physical row exactly
-once. -/
 theorem witnessInstructions_length_add_assertionRows_length
     (rows : List CompiledRow) :
     (witnessInstructions rows).length + (assertionRows rows).length =
@@ -374,8 +366,6 @@ theorem witnessInstructions_length_add_assertionRows_length
         simp only [witnessInstructions, assertionRows, List.length_cons]
       all_goals omega
 
-/-- The stack-safe classifiers also partition every compiled row exactly
-once. This form lets large executable packets keep their row lists opaque. -/
 theorem witnessInstructionsTR_length_add_assertionRowsTR_length
     (rows : List CompiledRow) :
     (witnessInstructionsTR rows).length +
@@ -413,8 +403,6 @@ private theorem rowsHold_cons (env : Env) (head : R1CS.Row)
     · exact headHolds
     · exact tailHolds row member
 
-/-- Splitting ordinary rows into witness instructions and assertions preserves
-their complete R1CS satisfaction predicate. -/
 theorem compiledRows_hold_iff (rows : List CompiledRow) (env : Env) :
     R1CS.RowsHold env (rows.map CompiledRow.toR1CS) ↔
       (∀ instruction ∈ witnessInstructions rows, instruction.Holds env) ∧
@@ -471,7 +459,6 @@ theorem compileRowsTR_toR1CS (freshStart rowStart : Nat)
     (compileRowsTR freshStart rowStart rows).length = rows.length := by
   rw [compileRowsTR_eq, compileRows_length]
 
-/-- Compiled rows own one exact contiguous physical row interval. -/
 theorem compileRows_rowIndices (freshStart rowStart : Nat)
     (rows : List R1CS.Row) :
     (compileRows freshStart rowStart rows).map CompiledRow.rowIndex =
@@ -482,7 +469,6 @@ theorem compileRows_rowIndices (freshStart rowStart : Nat)
   | cons row rows inductionHypothesis =>
       simp [compileRowsFrom, inductionHypothesis, List.range'_succ]
 
-/-- The stack-safe executable compiler preserves the same exact interval. -/
 theorem compileRowsTR_rowIndices (freshStart rowStart : Nat)
     (rows : List R1CS.Row) :
     (compileRowsTR freshStart rowStart rows).map CompiledRow.rowIndex =

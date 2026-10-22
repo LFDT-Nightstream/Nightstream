@@ -2,7 +2,6 @@ import NightstreamFPrime.Layout.MatrixProgram.Phi81Product
 
 /-!
 Load the existing Phi81 product interface with direct finite-index selection.
-The returned interface and every rejection agree with the canonical loader.
 -/
 
 set_option autoImplicit false
@@ -25,8 +24,6 @@ private theorem select_eq_cases {Alpha : Type} {count : Nat}
   funext index
   refine Fin.cases ?_ (fun _ => ?_) index <;> rfl
 
-/-- Load all elements in order, then select only the requested tail index.
-Any missing element rejects the complete function. -/
 def loadFin? {Alpha : Type} :
     (count : Nat) → (Fin count → Option Alpha) →
       Option (Fin count → Alpha)
@@ -36,7 +33,6 @@ def loadFin? {Alpha : Type} :
       let tail ← loadFin? count (fun index => load index.succ)
       pure (select head tail)
 
-/-- Total equality includes every pattern of missing elements. -/
 theorem loadFin?_value {Alpha : Type} (count : Nat)
     (load : Fin count → Option Alpha) :
     loadFin? count load = Phi81Product.loadFin? count load := by
@@ -46,7 +42,6 @@ theorem loadFin?_value {Alpha : Type} (count : Nat)
       simp only [loadFin?, Phi81Product.loadFin?,
         inductionHypothesis, select_eq_cases]
 
-/-- The quotient operands and guards, using the proved direct loader. -/
 def interface? (block : Phi81Product.Block) (logicalWidth : Nat)
     (descriptor : Phi81Product.Descriptor) :
     Option (Phi81ProductPlan.Interface logicalWidth) := do
@@ -71,7 +66,6 @@ def interface? (block : Phi81Product.Block) (logicalWidth : Nat)
     SparseForm.add (challenge lane) (SparseForm.singleton oneColumn (-2))
   pure { left, right := input, quotient, prior, output }
 
-/-- Exact equality includes all missing-input rejections. -/
 theorem interface?_value (block : Phi81Product.Block) (logicalWidth : Nat)
     (descriptor : Phi81Product.Descriptor) :
     interface? block logicalWidth descriptor =

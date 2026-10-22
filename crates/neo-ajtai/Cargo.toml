@@ -9,24 +9,19 @@ workspace = true
 
 [features]
 default = []
-# Expose testing utilities (like commit_spec) without making them part of the stable API
 testing = []
 wasm-threads = ["neo-ccs/wasm-threads"]
 
 [dependencies]
-# Workspace deps
 neo-math = { path = "../neo-math" }
-neo-params = { path = "../neo-params" }
 neo-ccs = { path = "../neo-ccs" }
 rand = "0.9"
 serde = { version = "1.0", features = ["derive"] }
-# The production key expander. `asm` uses the ARMv8 SHA3 instructions on
-# aarch64 after a run-time check and has no effect on other targets.
+# `asm` uses the ARMv8 SHA3 instructions on aarch64 after a run-time check and has no effect on other targets.
 sha3 = { version = "0.10.8", features = ["asm"] }
 keccak = { version = "0.2.2", features = ["parallel"] }
 thiserror = "2"
 
-# Plonky3 (field + small dense matrix)
 p3-field = { workspace = true }
 p3-goldilocks = { workspace = true }
 p3-matrix = { workspace = true }

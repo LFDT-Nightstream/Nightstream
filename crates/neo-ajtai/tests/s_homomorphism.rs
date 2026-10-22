@@ -8,7 +8,6 @@ use rand::rngs::StdRng;
 use rand::{RngCore, SeedableRng};
 
 fn sample_Z(d: usize, m: usize, b: u32) -> Vec<Fq> {
-    // random digits in {0,1} (b=2) to exercise pay-per-bit path
     let mut rng = StdRng::seed_from_u64(7);
     (0..d * m)
         .map(|_| if rng.next_u64() & 1 == 1 { Fq::ONE } else { Fq::ZERO })
@@ -27,7 +26,6 @@ fn s_module_homomorphism() {
     let c1 = commit(&pp, &Z1);
     let c2 = commit(&pp, &Z2);
 
-    // Sample ρ1, ρ2 as rotations of random small ring elements
     let small = |val: i32| -> RqEl {
         let coeffs: [Fq; neo_math::ring::D] = (0..neo_math::ring::D)
             .map(|i| {
@@ -45,7 +43,6 @@ fn s_module_homomorphism() {
     let rho1 = small(1);
     let rho2 = small(2);
 
-    // ρ1 L(Z1)+ ρ2 L(Z2)
     let left = {
         let t1 = s_mul(&rho1, &c1);
         let t2 = s_mul(&rho2, &c2);
@@ -54,9 +51,7 @@ fn s_module_homomorphism() {
         sum
     };
 
-    // L(ρ1 Z1 + ρ2 Z2)
     let right = {
-        // Apply ρ·Z in coefficient space (matrix * matrix by columns)
         let mut comb = vec![Fq::ZERO; d * m];
         let mut apply = |rho: &RqEl, Z: &Vec<Fq>| {
             let s_action = SAction::from_ring(*rho);

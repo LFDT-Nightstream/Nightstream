@@ -3,9 +3,7 @@ import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-! Indexed access and exact read support for the sampler's ordinary rows.
-Only the four transcript lanes, checked core, lowering values, and coefficient
-words are read. Temporary witness helpers do not enter the retained assignment. -/
+/-! Indexed access and exact read support for the sampler's ordinary rows. -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectSource
 
@@ -150,7 +148,6 @@ private theorem wordLowered_supported (source : Nat) (sourceLt : source < 17) :
   · exact supported
   · omega
 
-/-- No row reads the temporary quotient-construction helpers. -/
 theorem sourceRows_varsSatisfy :
     ∀ row ∈ sourceRows (logicalWidth := logicalWidth) (publicFits := publicFits),
       row.VarsSatisfy Target := by
@@ -273,8 +270,6 @@ private theorem predicate_iff_of_eq {Alpha : Type} (predicate : Alpha → Prop)
   cases equal
   rfl
 
-/-- Indexed canonical sampler rows hold exactly when the complete Lean-lowered
-row list holds in package order. -/
 theorem programRows_hold_iff_rowsHold (env : Env) :
     (∀ index : Fin 14943,
       (programRow (logicalWidth := logicalWidth)

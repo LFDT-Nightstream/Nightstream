@@ -105,7 +105,7 @@ fn accepts(
         &fixture.structure,
         ajtai_rlc_mixer,
         fresh,
-        running,
+        folding::BoundRunning::from_checked_prior(running),
         &proof.pi_ccs,
         &proof.pi_rlc,
     ) else {

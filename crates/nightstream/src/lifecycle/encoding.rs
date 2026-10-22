@@ -164,7 +164,6 @@ impl PreparedLifecycle {
                 adv: None,
             },
             witness: CcsWitness {
-                w: Vec::new(),
                 Z: input.witness(&shape)?,
             },
         };

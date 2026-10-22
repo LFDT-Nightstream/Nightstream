@@ -7,9 +7,7 @@ Owns structural decoding of the fixed Stage 1 state block.
 
 The decoder is a value view only. It reads the running fields and the tail in
 place and takes every child public input as `split_b` of the unpacked parent.
-Hence `serializeRunning ∘ running` is the identity on every word array, and
-`running ∘ serializeRunning` is the identity on every canonical running
-instance. It does not select a package, application, verification key, or
+It does not select a package, application, verification key, or
 transcript.
 -/
 
@@ -27,7 +25,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- A bounded logical slice of an unbounded state-word view. -/
 def slice (state : Nat → F) (start count : Nat) : List F :=
   List.ofFn fun index : Fin count => state (start + index.val)
 
@@ -44,7 +41,6 @@ theorem slice_congr (left right : Nat → F) (start count : Nat)
   funext index
   exact equal index
 
-/-- Adjacent state slices concatenate without inspecting their contents. -/
 theorem slice_add (state : Nat → F) (start left right : Nat) :
     slice state start (left + right) =
       slice state start left ++ slice state (start + left) right := by
@@ -66,8 +62,6 @@ theorem slice_getD (state : Nat → F) (start count index : Nat)
     (fun position : Fin count => state (start + position.val))
     ⟨index, bound⟩ 0
 
-/-- A repeated fixed-width interval is the ordered concatenation of its
-subintervals. -/
 theorem slice_mul (state : Nat → F) (start count width : Nat) :
     slice state start (count * width) =
       (List.finRange count).flatMap fun index =>
@@ -190,8 +184,6 @@ def evaluations (state : Nat → F) (source : Nat) :
 def packedWords (state : Nat → F) : Fin packedParentWords → F :=
   fun word => state (StateBinding.packedWordStart + word.val)
 
-/-- The running instance stored in one state block. Each child public input
-is `split_b` of the unpacked parent coordinate. -/
 def running
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -235,7 +227,6 @@ theorem serializeParentPublic_running (state : Nat → F) :
     unpackParent_packedColumn, StateEncoding.packWord_unpackWord]
   rfl
 
-/-- Every word array is the serialization of its decoded running instance. -/
 theorem serializeRunning_running (state : Nat → F) :
     serializeRunning (publicFits := publicFits)
         (running logicalWidth publicFits state) =
@@ -305,7 +296,6 @@ theorem serializeRunning_running (state : Nat → F) :
     slice_add state 12 19008 1728]
   rfl
 
-/-- A canonical running instance is the decode of its serialized words. -/
 theorem running_eq_of_serialized {state : Nat → F}
     {value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
     (canonical : Lifecycle.ChildrenCanonical value)
@@ -354,9 +344,6 @@ theorem running_eq_of_serialized {state : Nat → F}
   rw [unpackParent_packedColumn, unpacked, ← canonical.childDigits_eq]
   rfl
 
-/-! ## Fixed words, tail, and preimage -/
-
-/-- The value-level form of the fixed-word rows: the domain chunk. -/
 def Canonical (state : Nat → F) : Prop :=
   ∀ word ∈ StateBinding.fixedWords, state word.index = word.value
 
@@ -385,8 +372,6 @@ def currentState (state : Nat → F) : AppState :=
   slice state RunningTransitionInputs.currentStateWordStart
     Lifecycle.Stage1.Application.stateWordCount
 
-/-- Decode the exact Construction 2 state preimage. Stage 1 has one key,
-one running slot, and the one-based program counter is fixed to one. -/
 def preimage
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -422,8 +407,6 @@ theorem serializeTail_preimage (state : Nat → F) :
     slice_add state _ 4 1]
   rfl
 
-/-- Every value array accepted by the fixed-word rows is exactly the
-canonical serialization of its decode. -/
 theorem serializePreimage_preimage
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -478,8 +461,6 @@ theorem iteration_lt (state : Nat → F) :
     (preimage logicalWidth publicFits state).iteration < goldilocksModulus :=
   (state RunningTransitionInputs.iterationWordIndex).isLt
 
-/-- Canonical decoded words represent the complete prior hash preimage at
-the pilot interface. The agreement is over the actual hashed word interval. -/
 theorem priorRepresents
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -498,8 +479,6 @@ theorem priorRepresents
   rw [serializePreimage_preimage _ _ canonical]
   exact congrArg List.ofFn (funext agrees)
 
-/-- Canonical decoded words represent the complete output hash preimage at
-the pilot interface. No coordinate-encoding premise is needed. -/
 theorem outputRepresents
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -519,8 +498,6 @@ theorem outputRepresents
   rw [serializePreimage_preimage _ _ canonical]
   exact congrArg List.ofFn (funext agrees)
 
-/-! ## PiCCS and running-transition readback -/
-
 private theorem cubePoint_ext {variableCount : Nat}
     {left right : CubePoint K variableCount}
     (coordinates : left.coordinates = right.coordinates) : left = right := by
@@ -536,7 +513,6 @@ private theorem evaluationFamily_ext
   cases right
   simp_all
 
-/-- The decode reads only the running words, all below the tail. -/
 theorem running_congr {left right : Nat → F}
     (agree : ∀ word, word < StateBinding.contextWordStart → left word = right word) :
     running logicalWidth publicFits left = running logicalWidth publicFits right := by
@@ -595,8 +571,6 @@ theorem running_congr {left right : Nat → F}
         PiCCSInputs.runningEvalAWords
       rw [agree _ (by omega), agree _ (by omega)]
 
-/-- PiCCS reads the decoded prior running instance whenever its child-split
-rows hold: the region digits are `split_b` of the unpacked hashed parent. -/
 theorem evalRunning_eq_running (env : Env)
     (split : StateBinding.ChildrenSplit
       (Formal.statementBindingInterface
@@ -672,8 +646,6 @@ theorem evalRunning_eq_running (env : Env)
         PilotProduction.priorPreimageStart, productionShape,
         Phi81MatrixSource.phi81Shape, ringDegree]
 
-/-- The checked prior child digits make the decoded prior running instance
-canonical. -/
 theorem running_canonical (env : Env)
     (split : StateBinding.ChildrenSplit
       (Formal.statementBindingInterface
@@ -687,7 +659,6 @@ theorem running_canonical (env : Env)
   rcases StateEncoding.packedColumn_cover column with ⟨word, lane, rfl⟩
   exact split.digits word lane
 
-/-- The running-transition output words are the output block's running words. -/
 theorem outputWords_eq_slice (env : Env) :
     Lifecycle.Stage1.RunningTransition.outputWords (RunningTransitionInputs.interface logicalWidth publicFits)
         RunningTransitionInputs.phaseOffset env =
@@ -699,7 +670,6 @@ theorem outputWords_eq_slice (env : Env) :
   simp [RunningTransitionInputs.interface, RunningTransitionInputs.outputWord,
     RunningTransitionInputs.outputBase, Nat.add_assoc]
 
-/-- Output words that serialize a canonical running instance decode to it. -/
 theorem outputRunning_eq_of_serialized (env : Env)
     {value : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
     (canonical : Lifecycle.ChildrenCanonical value)

@@ -249,9 +249,6 @@ private theorem piRlcPhase_of_piCcs
     piRlcInterface piRlcOffset left right samplerRight attemptEq piRlcLeft,
     attemptEq⟩
 
-/-- Honest completion through the PiRLC parent child. The parent keeps PiRLC
-opaque while the canonical PiRLC builder completes its seven internal
-children. -/
 theorem completePiRlcPrefix
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

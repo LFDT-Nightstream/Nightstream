@@ -6,8 +6,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionPointBoundsDirect
 
 /-!
 Owns the shared forms for PiCCS transcript output lanes and the running
-evaluation point. Each form is the actual output of the retained Poseidon
-plan. The compact grids reconstruct the same final external layer.
+evaluation point.
 
 This module adds no allocation, copy row, or assumption about an assignment.
 -/
@@ -48,8 +47,6 @@ theorem transcriptForm_eq_outputState
       PiCCSPoseidonPlan.outputState geometry (invocation index) lane := by
   rfl
 
-/-- Round `r` reads its coin from the output of the second permutation of its
-message absorb. -/
 def pointInvocation (coordinate : Fin Lifecycle.productionShape.cubeVariables) :
     TranscriptIndex :=
   ⟨128 + coordinate.val * 2, by
@@ -58,7 +55,6 @@ def pointInvocation (coordinate : Fin Lifecycle.productionShape.cubeVariables) :
     rw [PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
     omega⟩
 
-/-- The two coin components are rate lanes 0 and 1. -/
 def pointLane (component : Fin 2) : Fin Poseidon2.width :=
   ⟨component.val, by
     have componentBound := component.isLt
@@ -131,7 +127,6 @@ def transcriptGrid (program : ApplicationProgram) : SourceGrid :=
     (Spartan.sourceToSpartan transcriptSourceStart)
     PiCCSOrdinarySourceSupport.transcriptInvocationCount 1096 1 16 16 134 150 0
 
-/-- One grid reads both coin lanes of every round. -/
 def pointGrid (program : ApplicationProgram) : SourceGrid :=
   SourceGrid.externalOfSemantic
     (PiCCSPoseidonPlan.retainedBlock program)
@@ -140,8 +135,6 @@ def pointGrid (program : ApplicationProgram) : SourceGrid :=
     Lifecycle.productionShape.cubeVariables RunningTransitionInputs.roundStride
     1 2 2 19334 300 0
 
-/-- Exact compact interpretation of all pre-ordinary transcript output lanes.
-The final sixteen retained S-box slots supply each external-layer output. -/
 theorem transcriptGrid_form?
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -206,8 +199,6 @@ theorem transcriptGrid_form?
   rw [sourceEq]
   simpa [transcriptGrid, minor] using result
 
-/-- The same compact external-layer operation supplies both running-point
-components from the exact indexed PiCCS outputs. -/
 theorem pointGrid_form?
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -281,7 +272,6 @@ theorem pointGrid_form?
   rw [sourceEq]
   simpa [pointGrid, offset, minor] using result
 
-/-- The logical transcript source and the physical readout use one address. -/
 theorem transcriptSource_column (index : TranscriptIndex) (lane : Fin 16) :
     PermutationOutput.Readout.outputColumn PiCCSTranscriptReadout.transcriptStart
         index lane = Spartan.sourceToSpartan (transcriptSource index lane) := by
@@ -296,9 +286,6 @@ theorem transcriptSource_column (index : TranscriptIndex) (lane : Fin 16) :
     PermutationOutput.Readout.witnessStart PiCCSTranscriptReadout.transcriptStart
   omega
 
-/-- Retained S-box encoding is enough to evaluate the shared transcript form.
-The target is the computed readout, so no equality to an arbitrary copied
-output word is assumed. -/
 theorem transcriptForm_eval
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -330,7 +317,6 @@ theorem transcriptForm_eval
   rw [startEq] at values
   exact values
 
-/-- The running point is read from the same computed transcript output. -/
 theorem pointForm_eval
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)

@@ -1,12 +1,7 @@
-"""Command-line entry point for gpuscope."""
-
 import argparse
 import sys
 
-try:
-    from .analyze import EPSILON_MS, analyze_bundle
-except ImportError:  # Direct `python scripts/gpuscope/cli.py ...` execution.
-    from analyze import EPSILON_MS, analyze_bundle
+from analyze import EPSILON_MS, analyze_bundle
 
 
 def main(argv=None):

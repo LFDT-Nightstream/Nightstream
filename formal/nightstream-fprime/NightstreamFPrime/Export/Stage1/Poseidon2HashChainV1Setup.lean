@@ -5,9 +5,7 @@ import NightstreamFPrime.Spec.AjtaiSetupV1.Framing
 
 /-!
 Owns the verifier-selected Ajtai setup for the canonical
-`Poseidon2HashChainV1` package. It derives every key dimension from the
-recursive fixed point and fixes the owner-approved production seed. It does
-not claim an MSIS estimate or close package conformance.
+`Poseidon2HashChainV1` package.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
@@ -45,8 +43,6 @@ abbrev Setup :=
   PerApplicationCanonicalPackage.CommitmentSetup
     Poseidon2HashChainV1Package.application
 
-/-- The exact indexed key accepted by the application-fixed SuperNeo
-relation. No expanded key list is constructed. -/
 def ajtaiKey (setup : Setup) :
     PaperAlgebra.AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth
@@ -55,8 +51,6 @@ def ajtaiKey (setup : Setup) :
         Poseidon2HashChainV1Package.application) :=
   PerApplicationCanonicalPackage.commitmentKey setup
 
-/-- Compact static words that must feed the commitment-key component of the
-verifier context. -/
 def authorityWords (setup : Setup) : List F :=
   PerApplicationCanonicalPackage.commitmentKeyWords setup
 
@@ -64,8 +58,6 @@ def authorityWords (setup : Setup) : List F :=
     (authorityWords setup).length = 73 := by
   exact setup.authorityWords_length
 
-/-- For the selected key dimensions, equal descriptor words imply exactly the
-same setup. The field-word framing cannot hide a change to the seed. -/
 theorem authorityWords_injective : Function.Injective authorityWords := by
   intro left right sameWords
   have rowsBound : verifierRows < goldilocksModulus := by
@@ -88,8 +80,6 @@ theorem authorityWords_injective : Function.Injective authorityWords := by
           cases sameBytes
           rfl
 
-/-- At the selected production dimensions, matching descriptor words force
-the exact lazy key used by the relation. -/
 theorem ajtaiKey_eq_of_authorityWords (left right : Setup)
     (sameWords : authorityWords left = authorityWords right) :
     ajtaiKey left = ajtaiKey right :=
@@ -108,15 +98,11 @@ theorem productionSeedBytes_canonical :
 def productionSeed : AjtaiSetupV1.Seed :=
   Poseidon2HashChainV1SetupAuthority.productionSeed
 
-/-- The sole production commitment setup for this application package. -/
 def productionSetup : Setup where
   seed := productionSeed
 
-/-- The semantic key used by `ProductionKey.key`. It is the lazy indexed
-projection of `productionSetup`; no key matrix is materialized. -/
 def productionAjtaiKey := ajtaiKey productionSetup
 
-/-- The exact compact setup authority hashed by the verifier context. -/
 def productionAuthorityWords : List F := authorityWords productionSetup
 
 @[simp] theorem productionAuthorityWords_length :

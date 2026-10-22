@@ -6,9 +6,7 @@ Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5.
 Obligation: Own the cumulative physical starts of the twelve PiCCS leaves in
 the same order as the logical parent and physical lowering.
 
-This module materializes only fixed prefix sums. The proofs below connect the
-row starts to `physicalRowDeltas`, the R1CS-fresh starts to
-`physicalFreshDeltas`, and both bases to their existing layout owners.
+This module materializes only fixed prefix sums.
 -/
 
 namespace NightstreamFPrime.Layout.Stage1.PiCCSStarts
@@ -23,12 +21,10 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Start of each child interval from an initial base and ordered deltas. -/
 def prefixStarts : Nat → List Nat → List Nat
   | _, [] => []
   | base, delta :: deltas => base :: prefixStarts (base + delta) deltas
 
-/-- The completed pilot owns the physical row prefix. -/
 def rowBase : Nat := 5086126
 
 theorem rowBase_eq_layout :
@@ -49,16 +45,12 @@ def normRowStart : Nat := ccsRowStart + 23
 def finalIdentityRowStart : Nat := normRowStart + 800
 def outputBindingRowStart : Nat := finalIdentityRowStart + 3593
 
-/-- Row starts in the exact twelve-child parent order. -/
 def rowStarts : List Nat :=
   [statementBindingRowStart, statementAbsorptionRowStart, challengeRowStart,
     roundTranscriptRowStart, initialClaimRowStart, sumcheckRowStart,
     evalKRowStart, evalARowStart, ccsRowStart, normRowStart,
     finalIdentityRowStart, outputBindingRowStart]
 
-/-- The logical child starts are also the witness starts for the four
-Poseidon2 invocation packets. The statement-binding leaf owns the first 270
-columns: one hinted sign per packed parent coordinate. -/
 def statementBindingLogicalStart : Nat := PiCCSInputs.phaseOffset
 def statementWitnessStart : Nat := statementBindingLogicalStart + 270
 def challengeWitnessStart : Nat := statementWitnessStart + 134808
@@ -96,8 +88,6 @@ theorem outputBindingWitnessStart_eq :
     sumcheckLogicalStart initialClaimLogicalStart
   rw [roundTranscriptWitnessStart_eq]
 
-/-- The materialized output-child start is the exact start selected by the
-canonical PiCCS parent for every production relation. -/
 theorem outputBindingWitnessStart_matches
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     outputBindingWitnessStart =
@@ -111,8 +101,6 @@ theorem outputBindingWitnessStart_matches
     FinalIdentity.localLength_eq]
   rfl
 
-/-- Generic R1CS multiplication columns begin after all PiCCS logical
-variables. -/
 def logicalFreshBase : Nat := PiCCSInputs.phaseOffset + 1068869
 
 theorem logicalFreshBase_eq_layout
@@ -139,15 +127,12 @@ def normFreshStart : Nat := ccsFreshStart
 def finalIdentityFreshStart : Nat := normFreshStart + 752
 def outputBindingFreshStart : Nat := finalIdentityFreshStart + 665 + 209
 
-/-- R1CS-fresh starts in the exact twelve-child parent order. -/
 def freshStarts : List Nat :=
   [statementBindingFreshStart, statementAbsorptionFreshStart,
     challengeFreshStart, roundTranscriptFreshStart, initialClaimFreshStart,
     sumcheckFreshStart, evalKFreshStart, evalAFreshStart, ccsFreshStart,
     normFreshStart, finalIdentityFreshStart, outputBindingFreshStart]
 
-/-- The materialized row starts are exactly the cumulative proved physical
-row deltas. -/
 theorem rowStarts_eq_layout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     rowStarts = prefixStarts rowBase
@@ -166,8 +151,6 @@ theorem rowStarts_eq_layout
       inputs]
   rfl
 
-/-- The materialized R1CS-fresh starts are exactly the cumulative proved
-fresh-column deltas. -/
 theorem freshStarts_eq_layout
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     freshStarts = prefixStarts logicalFreshBase

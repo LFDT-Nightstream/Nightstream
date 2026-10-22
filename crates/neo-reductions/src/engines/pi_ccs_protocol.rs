@@ -11,7 +11,6 @@ use p3_field::{Field, PrimeCharacteristicRing};
 
 use crate::error::PiCcsError;
 
-/// Fiat--Shamir challenges used by a `Pi_CCS` proof.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Challenges {
     pub alpha: Vec<K>,
@@ -19,7 +18,6 @@ pub struct Challenges {
 }
 
 impl Challenges {
-    /// The paper's one-joint challenge pair `(alpha, gamma)`.
     pub fn new(alpha: Vec<K>, gamma: K) -> Self {
         Self { alpha, gamma }
     }
@@ -29,25 +27,21 @@ impl Challenges {
     }
 }
 
-/// Reject a noncanonical public-input coefficient embedding.
 pub fn validate_canonical_x_shape<Ff>(label: &str, claim: &CeClaim<Cmt, Ff, K>) -> Result<(), PiCcsError>
 where
     Ff: Field,
 {
-    let active_columns = neo_ccs::superneo_public_x_cols(claim.m_in);
-    if !claim.m_in.is_multiple_of(D) || claim.X.rows() != D || claim.X.cols() != active_columns {
+    if claim.X.rows() != D || neo_ccs::superneo_public_x_cols(claim.m_in) != Some(claim.X.cols()) {
         return Err(PiCcsError::InvalidInput(format!(
-            "{label}: X has shape {}x{} for m_in={}, expected a whole-ring {D}x{} coefficient embedding",
+            "{label}: X has shape {}x{} for m_in={}, expected a whole-ring {D}x(m_in/{D}) coefficient embedding",
             claim.X.rows(),
             claim.X.cols(),
-            claim.m_in,
-            active_columns
+            claim.m_in
         )));
     }
     Ok(())
 }
 
-/// Public proof message for `Pi_CCS`.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct PiCcsProof {
     pub sumcheck_rounds: Vec<Vec<K>>,
@@ -58,13 +52,10 @@ impl PiCcsProof {
         Self { sumcheck_rounds }
     }
 
-    /// Normalize field representatives before serialization.
     pub fn canonicalize(&mut self) {
         canonicalize_rounds(&mut self.sumcheck_rounds);
     }
 
-    /// Canonical bytes used for exact engine cross-checks and transport.
-    /// The codec records one coefficient count, so every round must have it.
     pub fn canonical_bytes(&self) -> Result<Vec<u8>, PiCcsError> {
         let coefficient_count = self.sumcheck_rounds.first().map_or(0, Vec::len);
         if self
@@ -95,9 +86,6 @@ fn push_k(output: &mut Vec<u8>, value: K) {
     push_u64(output, high);
 }
 
-/// Versioned PiCCS message codec. It encodes only the one-joint SumCheck
-/// messages. Transcript-derived challenges and terminal values are not wire
-/// authority.
 fn encode_padded_row_identity(proof: &PiCcsProof) -> Vec<u8> {
     let coefficient_count = proof.sumcheck_rounds.first().map_or(0, Vec::len);
     let mut output = Vec::with_capacity(4 * 8 + proof.sumcheck_rounds.len() * coefficient_count * 16);

@@ -20,7 +20,6 @@ attribute [local instance] Classical.propDecidable
 
 universe uCommitment uPublicInput
 
-/-- The two interactive algebraic losses in the paper's test bound. -/
 noncomputable def testError (shape : Shape) (width : Nat) : ℝ :=
   (shape.cubeVariables : ℝ) * width / (goldilocksModulus ^ 2 : Nat) +
     ((shape.jointCoefficientCount - 1 + shape.cubeVariables : Nat) : ℝ) /

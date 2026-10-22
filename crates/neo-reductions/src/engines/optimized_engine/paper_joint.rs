@@ -15,7 +15,7 @@ use crate::engines::pi_ccs_joint::{
 use crate::engines::pi_ccs_joint_protocol::{self, PaperJointRoundOracle, V1_2OutputOpening};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
-use crate::superneo_eval::{CachedMatrixRows, MatrixRows, MatrixWindow, SuperneoEvalCache};
+use crate::superneo_eval::{CachedMatrixRows, MatrixRows, MatrixWindow};
 
 use super::OptimizedStructureCache;
 
@@ -53,7 +53,6 @@ pub(crate) fn identity_ring_mle(assignment: &[K], weights: &[K]) -> [K; D] {
 pub(crate) fn initial_claim<Ff>(
     structure: &CcsStructure<Ff>,
     challenges: &Challenges,
-    fresh_count: usize,
     running: &[CeClaim<Cmt, Ff, K>],
 ) -> Result<K, PiCcsError>
 where
@@ -89,7 +88,6 @@ where
             }
         }
     }
-    let _ = fresh_count;
     Ok(eval_k + gamma_power(challenges.gamma, running_count * D) * eval_a)
 }
 
@@ -194,10 +192,6 @@ where
     Ok(terminal_components(structure, params, challenges, fresh_count, prior_point, point, outputs)?.terminal)
 }
 
-/// Canonical inputs available to an implementation of the one-joint oracle.
-///
-/// These values are prover inputs. The canonical driver remains responsible
-/// for the transcript and for all verifier-visible proof messages.
 pub struct PaperJointOracleInput<'a> {
     pub structure: &'a CcsStructure<F>,
     pub params: &'a neo_params::NeoParams,
@@ -210,16 +204,12 @@ pub struct PaperJointOracleInput<'a> {
     pub workspace_bytes: usize,
 }
 
-/// Factory for a protocol-neutral one-joint evaluator.
 pub trait PaperJointOracleBackend {
     fn create<'a>(
         &'a mut self,
         input: PaperJointOracleInput<'a>,
     ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, PiCcsError>;
 
-    /// Evaluate separate v1_2 PiDEC child openings with the same static
-    /// matrix plan. The canonical PiDEC prover checks their radix
-    /// recomposition before it returns a proof.
     fn dec_openings(
         &mut self,
         _cache: &OptimizedStructureCache,
@@ -402,7 +392,7 @@ fn prove_with_trace_inner(
         )?;
     }
     for witness in running_witnesses {
-        crate::common::validate_superneo_witness_mat(witness, structure.m)?;
+        crate::common::validate_superneo_witness_shape(witness, structure.m)?;
     }
     let bind_started = std::time::Instant::now();
     let mut trace = ProtocolTrace::default();
@@ -416,7 +406,7 @@ fn prove_with_trace_inner(
     )?;
     let bind_ms = bind_started.elapsed().as_secs_f64() * 1_000.0;
     let prior_point = crate::engines::utils::shared_me_input_r(running_claims, dims.variables)?;
-    let initial = initial_claim(structure, &challenges, fresh_claims.len(), running_claims)?;
+    let initial = initial_claim(structure, &challenges, running_claims)?;
     let sumcheck_started = std::time::Instant::now();
     #[cfg(feature = "perf-timers")]
     let oracle_started = std::time::Instant::now();
@@ -547,7 +537,7 @@ fn prove_with_trace_inner(
             "optimized terminal value does not match the paper output message".into(),
         ));
     }
-    let digest = pi_ccs_joint_protocol::absorb_outputs(transcript, &mut trace, &outputs, fresh_claims.len(), dims)?;
+    let digest = pi_ccs_joint_protocol::absorb_outputs(transcript, &mut trace, &outputs, dims)?;
     for output in &mut outputs {
         output.fold_digest = digest;
     }
@@ -618,10 +608,6 @@ pub fn prove(
     Ok((outputs, proof, perf))
 }
 
-/// Run the canonical optimized prover with an already prepared evaluator.
-/// The evaluator must use these exact ordered sources and prepared challenges,
-/// and return all ring openings. The driver rebinds the statement and rejects
-/// missing openings; this route never constructs a host cache or full tensor.
 pub fn prove_with_complete_oracle(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -656,45 +642,6 @@ pub fn prove_with_complete_oracle(
     )
 }
 
-/// Prove with row-cache arithmetic supplied by the owning relation adapter.
-/// This cache is prover data. This function does not create or validate a
-/// verifier-artifact authority; the owner must supply its matching header.
-pub fn prove_with_row_cache(
-    transcript: &mut Poseidon2Transcript,
-    params: &neo_params::NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    cache: &SuperneoEvalCache,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        super::PiCcsProvePerf,
-        ProtocolTrace,
-    ),
-    PiCcsError,
-> {
-    let rows = CachedMatrixRows::new(cache)?;
-    let workspace_bytes = resident_row_workspace(&rows, fresh_witnesses.len())?;
-    prove_with_matrix_rows(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        &rows,
-        workspace_bytes,
-        None,
-    )
-}
-
-// The existing resident-cache entrypoints have no workspace argument. Derive
-// their full resident requirement instead of assigning a numeric default.
 fn resident_row_workspace(rows: &dyn MatrixRows, fresh_count: usize) -> Result<usize, PiCcsError> {
     let shape = rows.shape();
     let payload = fresh_count
@@ -702,14 +649,11 @@ fn resident_row_workspace(rows: &dyn MatrixRows, fresh_count: usize) -> Result<u
         .and_then(|count| count.checked_mul(core::mem::size_of::<K>()))
         .and_then(|bytes| bytes.checked_add(core::mem::size_of::<F>() + core::mem::size_of::<K>()))
         .ok_or_else(|| PiCcsError::InvalidInput("resident row payload overflow".into()))?;
-    // Host construction and device upload can hold separate copies.
     MatrixWindow::required_workspace(rows, 0..shape.rows, payload)?
         .checked_mul(2)
         .ok_or_else(|| PiCcsError::InvalidInput("resident row workspace overflow".into()))
 }
 
-/// Prove from original rows with explicit working storage and an optional
-/// device evaluator. The caller owns row authority and total live-memory accounting.
 pub fn prove_with_matrix_rows<'a>(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,

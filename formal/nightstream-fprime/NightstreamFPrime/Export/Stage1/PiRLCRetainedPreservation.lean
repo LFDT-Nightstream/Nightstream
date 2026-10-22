@@ -24,16 +24,12 @@ def sourceAssignment (program : Lifecycle.Stage1.Application.Program)
     Fin (sourceWidth program) → F :=
   PiRLCProductPlan.sourceAssignment program base groupValue
 
-/-- Canonical embedding of the complete application-package source prefix
-through the product-group suffix. -/
 def baseSourceColumn (program : Lifecycle.Stage1.Application.Program)
     (column : Fin (PiRLCProductPlan.baseSourceWidth program)) :
     Fin (sourceWidth program) :=
   ProductRetainedBlock.baseColumn (PiRLCProductPlan.baseSourceWidth program)
       PiRLCProductSchedule.invocationCount column
 
-/-- The nested retained source assignment preserves every package-prefix
-column exactly. -/
 theorem sourceAssignment_base
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)

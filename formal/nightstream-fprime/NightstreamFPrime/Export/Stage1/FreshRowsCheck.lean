@@ -3,9 +3,9 @@ import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImages
 
-/-! Check the scalar production polynomial on every active canonical row.
-The Poseidon path stores one invocation's existing 150 numeric rows. The
-source-row cache is fixed by the canonical package theorem. -/
+/-!
+Check the scalar production polynomial on every active canonical row.
+-/
 
 set_option autoImplicit false
 
@@ -73,8 +73,6 @@ def checkProgram (program : MatrixProgram.Program) {columns : Nat}
   program.blocks.all (fun block => checkBlock block sourceRow read)
 
 
-/-- Poseidon work stays invocation-local, so one unit builds the same existing
-150-row table. Other block kinds use their existing scalar rows as units. -/
 def checkBlockUnits : MatrixProgram.Block → Nat
   | .poseidon block => block.invocationCount
   | other => other.rowCount
@@ -91,8 +89,6 @@ def checkBlockUnits : MatrixProgram.Block → Nat
         checkRow (PiDECMatrixNumericRows.blockRow? other sourceRow read unit)
       else false
 
-/-- A task checks exactly this half-open interval of the unchanged block
-units. Empty ranges succeed; an out-of-bounds visited unit rejects. -/
 @[specialize] def checkBlockRange (block : MatrixProgram.Block) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → F)
     (first count : Nat) : Bool :=
@@ -118,8 +114,6 @@ theorem checkBlockRange_unit (block : MatrixProgram.Block) {columns : Nat}
     checkBlockUnit block sourceRow read unit = true :=
   allFrom_sound (checkBlockUnit block sourceRow read) first count checked unit lower upper
 
-/-- Checking every active unit recovers the original block result, including
-zero-sized blocks. No row arithmetic or result predicate changes. -/
 theorem checkBlock_of_units (block : MatrixProgram.Block) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → F)
     (checked : ∀ unit, unit < checkBlockUnits block →
@@ -155,8 +149,6 @@ theorem checkBlock_of_units (block : MatrixProgram.Block) {columns : Nat}
         simpa only [Nat.zero_add] using upper
       simpa only [checkBlockUnit, if_pos bounded] using checked unit bounded
 
-/-- Every active unit must occur in a returned successful task. The proof
-allows repeated or empty ranges; they cannot hide an unchecked active unit. -/
 theorem checkBlock_of_ranges (block : MatrixProgram.Block) {columns parts : Nat}
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → F)
     (first count : Fin parts → Nat)
@@ -170,8 +162,6 @@ theorem checkBlock_of_ranges (block : MatrixProgram.Block) {columns parts : Nat}
   exact checkBlockRange_unit block sourceRow read (first part) (count part)
     (checked part) unit lower upper
 
-/-- The CLI's hardware-count ceiling chunks cover every active unit. This
-includes a short final chunk and empty chunks when workers exceed the units. -/
 theorem ceiling_ranges_cover (units workers : Nat) (positive : 0 < workers) :
     let chunk := (units + workers - 1) / workers
     ∀ unit, unit < units →
@@ -206,8 +196,6 @@ theorem ceiling_ranges_cover (units workers : Nat) (positive : 0 < workers) :
   · rw [Nat.min_eq_right (by omega)]
     omega
 
-/-- The exact schedule used by the CLI needs only a positive worker count and
-every task result. Coverage is proved here, not trusted as an IO assertion. -/
 theorem checkBlock_of_workerRanges (block : MatrixProgram.Block) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → F)
     (workers : Nat) (positive : 0 < workers)
@@ -295,8 +283,6 @@ private theorem select_checked {columns : Nat}
         simpa only [PiDECMatrixNumericRows.row?.select, if_neg selected] using
           inductionHypothesis restChecked (row - block.rowCount) (by omega)
 
-/-- Missing active rows reject. All returned matrix values feed the exact
-production polynomial. -/
 theorem rowsZero_of_blockChecks {columns : Nat}
     (program : MatrixProgram.Program) (plan : ProductionRelation.Plan columns)
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → F)
@@ -349,7 +335,6 @@ theorem checkProgram_rowsZero
   apply canonical_blocks_rowsZero application fits read
   simpa only [checkProgram, List.all_eq_true] using checked
 
-/-- No padding row is scanned or omitted from the semantic conclusion. -/
 theorem rowsZero_allVertices {columns : Nat} (plan : ProductionRelation.Plan columns)
     (read : Fin columns → F) (checked : plan.RowsZero read)
     (vertex : BooleanVertex Lifecycle.cubeVariables) :
@@ -393,8 +378,6 @@ private theorem completeAssignment_embed
     Phi81CarrierLayout.embedLogical]
   exact dif_pos column.isLt
 
-/-- Assignment transport supplies this exact value equality. It is not a
-file-hash premise or a claim that file parsing has been proved in Lean. -/
 theorem checked_raw (bytes : ByteArray)
     (raw : PerApplicationCanonicalAssignment.RawValues Poseidon2HashChainV1Package.application)
     (custody : carrierRead bytes = raw.completeAssignment)

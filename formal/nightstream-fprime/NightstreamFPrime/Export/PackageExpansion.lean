@@ -57,8 +57,6 @@ def CircuitPackage.assertionR1CSRows (package : CircuitPackage) :
     List R1CS.Row :=
   package.assertionRows.map SparseRow.toR1CS
 
-/-- One exact row list for the grouped package semantics. Category order is
-canonical for this expansion; protocol row-index order is proved separately. -/
 def CircuitPackage.expandedRows (package : CircuitPackage) : List R1CS.Row :=
   package.hashRows ++ package.permutationRows ++ package.compactRows ++
     package.instructionRows ++ package.assertionR1CSRows
@@ -175,8 +173,6 @@ private theorem assertionRows_hold_iff (package : CircuitPackage)
     exact (sparseRow_holds assertion env).mpr
       (holds assertion sourceMember)
 
-/-- The grouped package predicate is exactly one expanded R1CS row predicate,
-plus fail-closed validity of every compact template reference. -/
 theorem rowsHold_iff_expandedRows (package : CircuitPackage) (env : Env) :
     package.RowsHold env ↔
       package.CompactTemplatesValid ∧

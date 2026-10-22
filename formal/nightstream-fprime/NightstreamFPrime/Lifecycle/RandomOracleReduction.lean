@@ -53,25 +53,18 @@ open StrongReduction ConcreteCarrier
 
 attribute [local instance low] Classical.propDecidable
 
-/-- A run the reduction made: its oracle and the record of the adversary's run
-there. -/
 structure Run (Oracle Record : Type) where
   oracle : Oracle
   record : Record
 
-/-- An extraction in progress: at each coordinate, the retry answer and the
-record of the retry run. -/
 structure Forks (Coordinate Answer Record : Type) where
   retries : Coordinate → Answer
   records : Coordinate → Record
 
-/-- What follows an extraction: the base run's rerun loop, or the end of a
-rerun of `base`. -/
 inductive Purpose (Run Forks : Type)
   | first
   | second (base : Run) (baseForks : Forks)
 
-/-- The reduction between two adversary runs. -/
 inductive State (Run Forks Coordinate : Type)
   | start
   | extract (purpose : Purpose Run Forks) (run : Run) (index : Coordinate) (rest : List Coordinate)
@@ -94,19 +87,13 @@ local notation "Made" => Run Oracle Record
 local notation "Retried" => Forks Coordinate Answer Record
 local notation "Progress" => State Made Retried Coordinate
 
-/-! ## The algorithm -/
-
-/-- The claims of a run and its retries. -/
 noncomputable def forkClaims (run : Made) (forks : Retried) : ForkClaims relation :=
   ⟨run.oracle, claim run.record.output, forks.retries, fun index => claim (forks.records index).output⟩
 
-/-- The oracle point of coordinate `index` of a run's claim. -/
 noncomputable def rhoPointAt (run : Made) (index : Coordinate) :
     Point logicalWidth publicFits (ProductionKey.degreeBound relation) :=
   rhoPointOf relation (claim run.record.output) index
 
-/-- After a run's last retry loop: a valid base run starts its rerun loop; a
-valid rerun finishes; an invalid rerun restarts the rerun loop. -/
 noncomputable def afterExtraction : Purpose Made Retried → Made → Retried → Progress
   | .first, run, forks =>
       if ValidOf relation ajtai (forkClaims relation claim run forks) then .rerun run forks else .failed
@@ -114,21 +101,15 @@ noncomputable def afterExtraction : Purpose Made Retried → Made → Retried �
       if ValidOf relation ajtai (forkClaims relation claim run forks) then .finished base baseForks run forks
       else .rerun base baseForks
 
-/-- The retry loops still pending on `run`. -/
 noncomputable def extracted (purpose : Purpose Made Retried) (run : Made) :
     List Coordinate → Retried → Progress
   | [], forks => afterExtraction relation ajtai claim purpose run forks
   | index :: rest, forks => .extract purpose run index rest forks
 
-/-- Retry loops on every coordinate, starting from the run's own answers and
-record. -/
 noncomputable def startExtraction (purpose : Purpose Made Retried) (run : Made) : Progress :=
   extracted relation ajtai claim purpose run (List.finRange _)
     ⟨fun index => run.oracle (rhoPointAt relation claim run index), fun _ => run.record⟩
 
-/-- The oracle of the next run, from the state and one fresh oracle: a retry
-changes one `Π_RLC` answer of its run; a rerun keeps the base run's fork
-context (`RandomOracleUniqueness.contextOf`) and takes the rest from `fresh`. -/
 noncomputable def query : Progress → Oracle → Oracle
   | .extract _ run index _ _, fresh =>
       Function.update run.oracle (rhoPointAt relation claim run index) (fresh (rhoPointAt relation claim run index))
@@ -139,7 +120,6 @@ noncomputable def query : Progress → Oracle → Oracle
         base.oracle fresh
   | _, fresh => fresh
 
-/-- The state after the run on `query state fresh`, from that run's record. -/
 noncomputable def next : Progress → Oracle → Record → Progress
   | .start, fresh, record =>
       if SucceedsOf relation ajtai fresh (claim record.output) then
@@ -163,8 +143,6 @@ noncomputable def next : Progress → Oracle → Record → Progress
   | .finished base forks other otherForks, _, _ => .finished base forks other otherForks
   | .failed, _, _ => .failed
 
-/-- **The binding reduction.** One adversary run per step; it halts when it
-finishes or fails. -/
 noncomputable def reduction : RunMachine Progress Oracle Oracle Record where
   query := query relation claim
   next := next relation ajtai claim
@@ -173,38 +151,28 @@ noncomputable def reduction : RunMachine Progress Oracle Oracle Record where
     | .failed => true
     | _ => false
 
-/-- The binding reduction's output on the two runs it finished with. -/
 noncomputable def output : Progress → Option (Binding.ShortKernelVector ajtai productionGlobalParams.msisNormBound)
   | .finished base forks other otherForks =>
       rerunKernelOf relation ajtai (forkClaims relation claim base forks) (forkClaims relation claim other otherForks)
   | _ => none
 
-/-! ## The algorithm on an adversary -/
-
 variable (adversary : OracleComp (Point logicalWidth publicFits (ProductionKey.degreeBound relation))
   Answer Output)
 
-/-- Where the reduction ends with budget `budget` on the adversary's records. -/
 noncomputable def finalState (budget : ℕ) (tape : Fin budget → Oracle) : Progress :=
   ((reduction relation ajtai claim).program budget .start tape).run adversary.record
 
-/-- The oracles of the runs that the reduction makes, in order. -/
 noncomputable def runs (budget : ℕ) (tape : Fin budget → Oracle) : List Oracle :=
   ((reduction relation ajtai claim).program budget .start tape).queries adversary.record
 
-/-- **The strict algorithm**: the binding reduction with at most `budget`
-adversary runs. -/
 noncomputable def solve (budget : ℕ) (tape : Fin budget → Oracle) :
     Option (Binding.ShortKernelVector ajtai productionGlobalParams.msisNormBound) :=
   output relation ajtai claim (finalState relation ajtai claim adversary budget tape)
 
-/-- **Strict work.** At most `budget` adversary runs on every tape. -/
 theorem runs_length_le (budget : ℕ) (tape : Fin budget → Oracle) :
     (runs relation ajtai claim adversary budget tape).length ≤ budget :=
   ((reduction relation ajtai claim).program_bound budget .start tape).queries_length_le _
 
-/-- **Causal runs.** The first `step + 1` runs depend on the adversary only
-through the records of the first `step`. -/
 theorem runs_take_congr
     (other : OracleComp (Point logicalWidth publicFits (ProductionKey.degreeBound relation)) Answer Output)
     (budget : ℕ) (tape : Fin budget → Oracle) (step : ℕ)
@@ -214,8 +182,6 @@ theorem runs_take_congr
       (runs relation ajtai claim adversary budget tape).take (step + 1) :=
   OracleComp.take_succ_queries_congr _ _ _ step agree
 
-/-- **Causal output.** The output depends on the adversary only through the
-records of the runs made. -/
 theorem solve_congr
     (other : OracleComp (Point logicalWidth publicFits (ProductionKey.degreeBound relation)) Answer Output)
     (budget : ℕ) (tape : Fin budget → Oracle)

@@ -88,7 +88,6 @@ def hashF (input : List F) : Fin 4 → F :=
   digestF (Permutation.runF Permutation.schedule
     (padF (absorbManyF zeroF (inputChunks input))))
 
-/-- One straight-line program for a sequence of absorb permutations. -/
 structure AbsorbProgram where
   recipes : List Expr
   output : EState
@@ -102,8 +101,6 @@ def compileAbsorptions (start : Nat) (state : EState) :
       let tail := compileAbsorptions (start + 1096) permutation.output rest
       ⟨permutation.recipes ++ tail.recipes, tail.output⟩
 
-/-- Tail-recursive executable form of `compileAbsorptions`. The kernel keeps
-the structural definition above; compiled emission uses this proved form. -/
 @[inline] def compileAbsorptionsTR (start : Nat) (state : EState)
     (blocks : List (List Expr)) : AbsorbProgram :=
   go start state blocks []
@@ -138,7 +135,6 @@ private theorem compileAbsorptionsTR_go_eq (start : Nat) (state : EState)
   rw [compileAbsorptionsTR, compileAbsorptionsTR_go_eq]
   rfl
 
-/-- The complete sponge program, including the final padding permutation. -/
 structure Program where
   recipes : List Expr
   output : EState
@@ -318,8 +314,6 @@ theorem compile_causal (start : Nat) (input : List Expr)
   apply Permutation.recipesCausal_append_causal start _ _ habsorbed
   exact hfinal
 
-/-- Every final sponge output expression reads only the input prefix and the
-exact recipe interval allocated by `compile`. -/
 theorem compile_output_varsBelow (start : Nat) (input : List Expr)
     (hinput : ∀ expression ∈ input, expression.VarsBelow start)
     (lane : Fin 16) :
@@ -428,8 +422,6 @@ theorem inputChunks_eval (env : Env) (input : List Expr) :
       inputChunks (evalList env input) := by
   simp [inputChunks, evalList, List.map_map, Function.comp_def]
 
-/-- The complete generated sponge rows imply the exact executable Poseidon2
-digest over the evaluated symbolic input. -/
 theorem compile_sound (env : Env) (start : Nat) (input : List Expr)
     (hrows : ConstraintsHold env
       (recipeConstraints start (compile start input).recipes)) :

@@ -6,8 +6,7 @@ H.3. An accepted terminal opening identifies the decoded application step
 and its predecessor, or supplies the existing state-hash collision.
 
 The recursive case consumes valid openings for the exact decoded source
-instances. Their extraction is a separate obligation. The iteration-one
-case returns the bottom proof without any source-opening premise.
+instances. Their extraction is a separate obligation.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaPredecessor
@@ -74,10 +73,6 @@ private theorem step_implies_predecessor
       exact (sources positive).1
     · exact (sources positive).2
 
-/-- The exact decoded source openings construct an accepted predecessor.
-The four success fields identify its natural counter, initial state,
-recovered application transition, and terminal proof. The source-opening
-premise is used only when the decoded predecessor counter is positive. -/
 theorem terminal_implies_predecessorOrCollision
     (application : Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -158,9 +153,6 @@ theorem terminal_implies_predecessorOrCollision
         sourceHolds⟩
   · exact Or.inr collision
 
-/-- Reverse iteration one uses the base branch, recovers its actual
-application witness, and accepts the unique bottom predecessor. It requires
-no NIFS call, extracted source witness, or source-membership premise. -/
 theorem terminal_one_implies_baseOrCollision
     (application : Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

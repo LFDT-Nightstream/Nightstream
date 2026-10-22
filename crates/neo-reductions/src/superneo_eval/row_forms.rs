@@ -8,14 +8,10 @@ use p3_field::PrimeCharacteristicRing;
 use super::{scratch::ScratchPart, RingEvalScratch, SuperneoMatrixCache, SuperneoZBlocks};
 
 impl SuperneoMatrixCache {
-    /// Fill `out[row] = (M * z)[row]` for a real packed witness from the
-    /// prebuilt row cache.
     pub fn fill_row_dots_real_with_blocks(&self, out: &mut [K], z_blocks: &SuperneoZBlocks) {
         self.fill_row_dots_real_from(0, out, z_blocks);
     }
 
-    /// Row dots for rows `first_row..first_row + out.len()`, so disjoint row
-    /// ranges of one matrix can be filled concurrently.
     pub fn fill_row_dots_real_from(&self, first_row: usize, out: &mut [K], z_blocks: &SuperneoZBlocks) {
         debug_assert!(first_row + out.len() <= self.rows, "row-dot output exceeds matrix rows");
         debug_assert_eq!(
@@ -59,9 +55,6 @@ impl SuperneoMatrixCache {
         }
     }
 
-    /// Base-field form of [`Self::fill_row_dots_real_with_blocks`]. The
-    /// initial row tables contain no extension component, so retaining only
-    /// this limb halves their peak storage before the first sumcheck fold.
     pub fn fill_row_dots_base_with_blocks(&self, out: &mut [F], z_blocks: &SuperneoZBlocks) {
         debug_assert!(out.len() <= self.rows, "row-dot output exceeds matrix rows");
         debug_assert_eq!(
@@ -129,8 +122,6 @@ impl SuperneoMatrixCache {
         self.accumulate_original_ring_form_part(row_cap, &mut scratch.part(), weight);
     }
 
-    /// Accumulate the weighted rows and apply `bar`, with one disjoint block
-    /// range per worker thread.
     pub(super) fn accumulate_barred_ring_form_parallel(
         &self,
         row_cap: usize,
@@ -144,7 +135,6 @@ impl SuperneoMatrixCache {
         });
     }
 
-    /// Accumulate only the entries whose block lies in `part`.
     fn accumulate_original_ring_form_part(
         &self,
         row_cap: usize,
@@ -166,8 +156,6 @@ impl SuperneoMatrixCache {
             }
             return;
         }
-        // Runs with one shared ratio become start and end events; a single
-        // sweep turns them into run sums before any other entry is added.
         let event_ratio = self.event_ratio();
         if let Some(ratio) = event_ratio {
             for row in 0..row_cap {

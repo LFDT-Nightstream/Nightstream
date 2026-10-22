@@ -1,5 +1,3 @@
-"""Shared helpers for gpuprof: subprocess, paths, formatting, interval math."""
-
 import json
 import os
 import re
@@ -101,7 +99,6 @@ def overlap(a0, a1, b0, b1):
 
 
 def interval_union(intervals):
-    """Merge (start, end) intervals into a sorted disjoint union."""
     merged = []
     for s, e in sorted(intervals):
         if merged and s <= merged[-1][1]:
@@ -112,7 +109,6 @@ def interval_union(intervals):
 
 
 def union_overlap(window_start, window_end, union):
-    """Total overlap of [window_start, window_end] with a disjoint union."""
     total = 0.0
     for s, e in union:
         if s >= window_end:
@@ -122,7 +118,6 @@ def union_overlap(window_start, window_end, union):
 
 
 def complement_intervals(window_start, window_end, union):
-    """Gaps of [window_start, window_end] not covered by a disjoint union."""
     gaps, cursor = [], window_start
     for s, e in union:
         if e <= window_start:

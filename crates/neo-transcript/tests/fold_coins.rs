@@ -21,7 +21,11 @@ fn coins_walk_the_rate_pairs_and_refresh_after_the_sixth() {
     for index in 0..RATE / 2 {
         let coin = transcript.read_coin_v1_2();
         assert_eq!(coin.value, pair(&first, index), "coin {index} reads pair {index}");
-        assert_eq!(coin.refreshed, index == RATE / 2 - 1, "only the sixth coin refreshes");
+        assert_eq!(
+            coin.absorbed_zero_chunk,
+            index == RATE / 2 - 1,
+            "only the sixth coin refreshes"
+        );
     }
 
     let mut expected = Poseidon2Transcript::from_state_and_absorbed(first, 0);
@@ -32,7 +36,7 @@ fn coins_walk_the_rate_pairs_and_refresh_after_the_sixth() {
 
     let coin = transcript.read_coin_v1_2();
     assert_eq!(coin.value, pair(&second, 0));
-    assert!(!coin.refreshed);
+    assert!(!coin.absorbed_zero_chunk);
 }
 
 #[test]
@@ -50,5 +54,5 @@ fn an_absorb_restarts_the_coins_at_pair_zero() {
         pair(&state, 0),
         "the first coin after an absorb reads pair 0"
     );
-    assert!(!coin.refreshed);
+    assert!(!coin.absorbed_zero_chunk);
 }

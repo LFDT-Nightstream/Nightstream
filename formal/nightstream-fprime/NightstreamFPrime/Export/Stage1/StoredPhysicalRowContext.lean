@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
 /-!
 Transport final physical row checks from the runtime pilot header to the exact
-selected source package. Only the metadata read by each checker is compared.
-The source package occurs in proofs; no executable package builder is added.
+selected source package.
 -/
 
 set_option autoImplicit false
@@ -55,7 +54,6 @@ private theorem hashInvocation_eq_of_metadata (left right : CircuitPackage)
         poseidonEqual, permutationEqual]
   simp only [StoredPhysicalRowCheck.hashInvocation, permutationEqual, columns]
 
-/-- All hash ordinals and all environments use the exact source-package rows. -/
 theorem hashInvocation_iff (header : CircuitPackage)
     (templates : Array CompactRowTemplate)
     (headerEqual : header =
@@ -67,7 +65,6 @@ theorem hashInvocation_iff (header : CircuitPackage)
     (header_poseidon templates) (header_permutation templates)]
   exact StoredPhysicalRowCheck.hashInvocation_iff sourcePackage chain ordinal env
 
-/-- Explicit permutation checks read only the unchanged permutation template. -/
 theorem permutationInvocation_iff (header : CircuitPackage)
     (templates : Array CompactRowTemplate)
     (headerEqual : header =
@@ -83,7 +80,6 @@ theorem permutationInvocation_iff (header : CircuitPackage)
   rw [equal]
   exact StoredPhysicalRowCheck.permutationInvocation_iff sourcePackage invocation env
 
-/-- Canonical templates preserve both successful checks and missing-template rejection. -/
 theorem compactInvocation_iff (header : CircuitPackage)
     (templates : Array CompactRowTemplate)
     (headerEqual : header =

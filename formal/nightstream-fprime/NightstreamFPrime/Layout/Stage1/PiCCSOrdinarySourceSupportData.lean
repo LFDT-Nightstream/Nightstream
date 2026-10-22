@@ -17,19 +17,12 @@ namespace NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport
 def InRange (start count column : Nat) : Prop :=
   start ≤ column ∧ column < start + count
 
-/-- Exact caller-supplied PiCCS interval: the prior child region, then the
-proof inputs. -/
 def callerInputCount : Nat :=
   PiCCSInputs.phaseOffset - PiCCSInputs.priorChildrenStart
 
-/-- Every retained column before the first transcript permutation: the
-caller-supplied interval, then the 270 hinted sign columns of the
-statement-binding leaf. -/
 def proofInputCount : Nat :=
   PiCCSStarts.statementWitnessStart - PiCCSInputs.priorChildrenStart
 
-/-- Statement, challenge, and round-transcript permutations before the first
-ordinary PiCCS child. -/
 def transcriptInvocationCount : Nat :=
   (PiCCSStarts.initialClaimLogicalStart - PiCCSStarts.statementWitnessStart) / 1096
 
@@ -72,12 +65,9 @@ def External (column : Nat) : Prop :=
       column ∨
     InRange PiCCSInputs.priorChildrenStart callerInputCount column
 
-/-- One of the 270 hinted sign columns of the statement-binding leaf. -/
 def StatementSign (column : Nat) : Prop :=
   InRange PiCCSStarts.statementBindingLogicalStart 270 column
 
-/-- One of the eight state lanes output by a pre-ordinary PiCCS transcript
-permutation. Intermediate permutation recipes are not included. -/
 def TranscriptOutput (column : Nat) : Prop :=
   ∃ (invocation : Fin transcriptInvocationCount)
       (lane : Fin NightstreamFPrime.Spec.Poseidon2.width),

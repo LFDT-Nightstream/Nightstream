@@ -16,7 +16,6 @@ open NightstreamFPrime.Spec
 
 namespace Expr
 
-/-- Every variable read by an expression has an index below `bound`. -/
 def VarsBelow (bound : Nat) : Expr → Prop
   | .var index => index < bound
   | .const _ => True
@@ -66,7 +65,6 @@ end Expr
 
 namespace Env
 
-/-- Functional update used by the exported witness interpreter. -/
 def set (env : Env) (index : Nat) (value : F) : Env :=
   fun current => if current = index then value else env current
 
@@ -80,8 +78,6 @@ theorem set_of_ne (env : Env) (index current : Nat) (value : F)
 
 end Env
 
-/-- Causality for one witness batch: recipe `i` reads only external values or
-results produced before `start + i`. -/
 def RecipesCausal : Nat → List Expr → Prop
   | _, [] => True
   | start, recipe :: rest =>
@@ -115,7 +111,6 @@ theorem recipesCausal_of_all_below (start : Nat) (recipes : List Expr)
         exact Expr.VarsBelow.mono expression
           (hbelow expression (by simp [hmem])) (by omega)
 
-/-- Every authoritative recipe row reads only the complete batch prefix. -/
 theorem recipeConstraints_varsBelow_of_causal (start : Nat)
     (recipes : List Expr) (causal : RecipesCausal start recipes) :
     ∀ expression ∈ recipeConstraints start recipes,
@@ -139,7 +134,6 @@ theorem recipeConstraints_varsBelow_of_causal (start : Nat)
           causal.2 expression member
         convert below using 1; simp only [List.length_cons]; omega
 
-/-- Satisfaction is stable when every referenced variable is unchanged. -/
 theorem constraintsHold_of_agree_below
     (before after : Env) (constraints : List Expr) (bound : Nat)
     (scope : ∀ expression ∈ constraints, expression.VarsBelow bound)
@@ -151,8 +145,6 @@ theorem constraintsHold_of_agree_below
     (scope expression member) agrees]
   exact holdsBefore expression member
 
-/-- Appending a batch whose recipes read only the completed prefix preserves
-causality. The proof is structural in the prefix and suffix lists. -/
 theorem recipesCausal_append (start : Nat) (existing added : List Expr)
     (hexisting : RecipesCausal start existing)
     (hadded : ∀ expression ∈ added,
@@ -169,8 +161,6 @@ theorem recipesCausal_append (start : Nat) (existing added : List Expr)
         have h := hadded expression hmem
         convert h using 1; simp only [List.length_cons]; omega
 
-/-- Recipe constraints split at the exact variable offset allocated by the
-first recipe list. -/
 theorem recipeConstraints_append (start : Nat)
     (first second : List Expr) :
     recipeConstraints start (first ++ second) =
@@ -185,8 +175,6 @@ theorem recipeConstraints_append (start : Nat)
       congr 2
       omega
 
-/-- Satisfaction of an appended constraint list is exactly satisfaction of
-both parts. -/
 theorem constraintsHold_append (env : Env) (first second : List Expr) :
     ConstraintsHold env (first ++ second) ↔
       ConstraintsHold env first ∧ ConstraintsHold env second := by
@@ -202,7 +190,6 @@ theorem constraintsHold_append (env : Env) (first second : List Expr) :
     · exact firstHolds expression member
     · exact secondHolds expression member
 
-/-- Read the exact equality carried by one indexed straight-line recipe row. -/
 theorem recipeConstraints_value (env : Env) (start : Nat)
     (recipes : List Expr) (rows : ConstraintsHold env
       (recipeConstraints start recipes))
@@ -229,7 +216,6 @@ theorem recipeConstraints_value (env : Env) (start : Nat)
           have value := inductionHypothesis (start + 1) tailRows index tailBound
           simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using value
 
-/-- Indexed recipe equalities satisfy the complete straight-line row list. -/
 theorem recipeConstraints_hold_of_values (env : Env) (start : Nat)
     (recipes : List Expr)
     (values : ∀ index (bounded : index < recipes.length),
@@ -256,7 +242,6 @@ theorem recipeConstraints_hold_of_values (env : Env) (start : Nat)
           simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using value
         · exact tailMember
 
-/-- Execute the canonical witness recipes in order. -/
 def executeRecipes : Env → Nat → List Expr → Env
   | env, _, [] => env
   | env, start, recipe :: rest =>
@@ -304,8 +289,6 @@ theorem executeRecipes_agreesOutside (env : Env) (start : Nat) (recipes : List E
   · exact executeRecipes_agrees_below env start recipes index hbelow
   · exact executeRecipes_agrees_above env start recipes index habove
 
-/-- Honest execution of a causal batch satisfies every authoritative recipe
-row. The proof is structural in the recipe list. -/
 theorem executeRecipes_holds_recipeConstraints (env : Env) (start : Nat)
     (recipes : List Expr) (hcausal : RecipesCausal start recipes) :
     ConstraintsHold (executeRecipes env start recipes)
@@ -341,9 +324,6 @@ theorem executeRecipes_holds_recipeConstraints (env : Env) (start : Nat)
       · change expression.eval completed = 0
         exact ih assigned (start + 1) hrest expression hmem
 
-/-! ## Non-authoritative hint execution -/
-
-/-- Every hint in one batch reads only caller-owned values below its start. -/
 def HintsReadBelow (start : Nat) (hints : List Hint) : Prop :=
   ∀ hint ∈ hints, hint.source.VarsBelow start
 
@@ -365,8 +345,6 @@ theorem Hint.eval_eq_of_agree_below (hint : Hint) (bound : Nat)
       simp only [Hint.eval]
       rw [source.eval_eq_of_agree_below bound left right below agrees]
 
-/-- Execute a hint list in order. Hints remain non-authoritative until later
-rows constrain their output variables. -/
 def executeHints : Env → Nat → List Hint → Env
   | env, _, [] => env
   | env, start, hint :: rest =>
@@ -417,8 +395,6 @@ theorem executeHints_agreesOutside
   · exact executeHints_agrees_below env start hints index below
   · exact executeHints_agrees_above env start hints index above
 
-/-- An external-read hint has its exact executable value at its assigned
-slot after the whole batch completes. -/
 theorem executeHints_value_of_readBelow
     (env : Env) (start : Nat) (hints : List Hint)
     (readBelow : HintsReadBelow start hints)

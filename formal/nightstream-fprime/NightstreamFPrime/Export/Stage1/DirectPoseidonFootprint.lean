@@ -5,9 +5,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedSlots
 
 /-!
 Owns the constant-time footprint guard for the current all-direct Poseidon2
-low-norm plan. Existing Lean counts imply that opening only its retained S-box
-outputs with the canonical 41-trit field encoding fit below the fixed `2^28`
-carrier domain. This is not a complete Stage 1 fit theorem.
+low-norm plan. This is not a complete Stage 1 fit theorem.
 
 This module does not select or authorize a replacement binding schedule.
 -/
@@ -20,22 +18,17 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- The two pilot chains each contain 2,319 absorption permutations and one
-final padding permutation. -/
 def pilotPermutationCount : Nat :=
   2 * (PilotValues.absorbCount + 1)
 
 @[simp] theorem pilotPermutationCount_eq : pilotPermutationCount = 4640 := by
   rfl
 
-/-- PiCCS and PiRLC sampler permutations in the current Stage 1 package. -/
 def laterPermutationCount : Nat := 948 + 34
 
 @[simp] theorem laterPermutationCount_eq : laterPermutationCount = 982 := by
   rfl
 
-/-- The two phase schedule owners have exactly the fixed later count at every
-valid production-width instantiation. -/
 theorem phaseInvocations_length (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) :
@@ -54,8 +47,6 @@ def totalPermutationCount : Nat :=
 @[simp] theorem totalPermutationCount_eq : totalPermutationCount = 5622 := by
   simp [totalPermutationCount]
 
-/-- One authoritative general-field slot for every retained S-box output in
-the current direct template. -/
 def directSboxFieldCount : Nat :=
   totalPermutationCount *
     PoseidonRetainedSlots.slots.length
@@ -64,8 +55,6 @@ def directSboxFieldCount : Nat :=
   rw [directSboxFieldCount, totalPermutationCount_eq,
     PoseidonRetainedSlots.slots_length]
 
-/-- Canonical low-norm coordinates of the actual retained S-box slot plan.
-This excludes final outputs and every non-Poseidon source value. -/
 def directSboxCoordinateCount : Nat :=
   totalPermutationCount *
     LowNormAssignment.logicalWidth PoseidonRetainedSlots.slots
@@ -75,9 +64,6 @@ def directSboxCoordinateCount : Nat :=
   rw [directSboxCoordinateCount, totalPermutationCount_eq,
     PoseidonRetainedSlots.slots_logicalWidth]
 
-/-- The retained S-box coordinates in the current direct plan fit below the
-Stage 1 carrier domain. Other assignment coordinates still require the final
-joint-domain proof. -/
 theorem directSboxCoordinates_le_cube :
     directSboxCoordinateCount ≤
       2 ^ NightstreamFPrime.Lifecycle.cubeVariables := by

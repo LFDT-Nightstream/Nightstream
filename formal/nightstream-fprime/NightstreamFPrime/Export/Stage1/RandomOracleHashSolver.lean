@@ -7,26 +7,8 @@ adversary runs whose success bounds `RandomOracleSetup.hashCollisions`.
 Inputs: an adversary for each value of the setup chunks, its claim and prior
 preimage, the verifier-owned context digest, and a budget `T`.
 
-Outputs:
-- `HashCollision`: two prior preimages with different encodings and one
-  state hash (`PiCCSSecurity.StateHashCollision`);
-- `lineFinder`: the finder of one `Π_RLC` coordinate: the base run, then
-  retries that resample the base run's answer at that coordinate's point until
-  one hits the point again (Lemma 5). It compares the two prior preimages;
-- `hashSolve`: one finder for each of the 18 targets: a line finder for each
-  of the 17 coordinates, or the binding reduction
-  (`RandomOracleReduction.reduction`) on its two finished runs. Each finder
-  is a program that holds no adversary: it makes at most `T` runs on every
-  tape (`hashRuns_length_le`), each run depends only on the records of the
-  earlier runs (`hashRuns_take_congr`), and the output only on the records of
-  the runs made (`hashSolve_congr`);
-- `hashAdvantage`: its success when it draws the chunks, the target and the
-  tape uniformly;
-- `hashCollisions_le_solver`:
-  `𝔼 hashCollisions ≤ 18 · hashAdvantage T + (52 Q + 959) / T`. Each line
-  finder takes at most `Q + 18` expected runs
-  (`RandomOracleExtraction.expected_retries_at_le`), and the binding reduction
-  `35 Q + 653` (`RandomOracleSolver.expected_runs_le`).
+Outputs: `HashCollision`, `lineFinder`, `hashSolve`, `hashAdvantage` and
+`hashCollisions_le_solver`.
 
 `hashCollisions` is a sum over the 18 targets, so each target needs its own
 finder; one finder that stops at the first collision would bound only the
@@ -61,7 +43,6 @@ open StrongReduction ConcreteCarrier
 
 attribute [local instance low] Classical.propDecidable
 
-/-- The line finder between runs. -/
 inductive LineState (Run : Type)
   | start
   | retry (base : Run)
@@ -71,7 +52,6 @@ inductive LineState (Run : Type)
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Two prior preimages with different encodings and one state hash. -/
 def HashCollision :=
   {pair : Lifecycle.HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits) ×
       Lifecycle.HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits) //
@@ -95,25 +75,17 @@ local notation "Retried" => Forks Coordinate Answer Record
 limit on this type). -/
 noncomputable local instance (budget : ℕ) : Fintype (Fin budget → Oracle) := Pi.instFintype
 
-/-! ## The finders -/
-
-/-- The prior preimages of two runs, when they collide. -/
 noncomputable def collisionOf (base other : Made) :
     Option (HashCollision (logicalWidth := logicalWidth) (publicFits := publicFits)) :=
   if collides : StateHashCollision (prior base.record.output) (prior other.record.output) then
     some ⟨(prior base.record.output, prior other.record.output), collides⟩
   else none
 
-/-- The oracle of the line finder's next run: a retry resamples the base run's
-answer at its `index`-th `Π_RLC` point. -/
 noncomputable def lineQuery (index : Coordinate) : LineState Made → Oracle → Oracle
   | .retry base, fresh =>
       Function.update base.oracle (rhoPointAt relation Linked base index) (fresh (rhoPointAt relation Linked base index))
   | _, fresh => fresh
 
-/-- **The line finder of coordinate `index`.** One adversary run per step; it
-halts when a retry hits the base run's point again, or when the base run
-fails. -/
 noncomputable def lineFinder (index : Coordinate) : RunMachine (LineState Made) Oracle Oracle Record where
   query := lineQuery relation claim prior contextDigest index
   next
@@ -131,12 +103,10 @@ noncomputable def lineFinder (index : Coordinate) : RunMachine (LineState Made) 
     | .failed => true
     | _ => false
 
-/-- The line finder's output on the two runs it finished with. -/
 noncomputable def lineOutput : LineState Made → Option (HashCollision (logicalWidth := logicalWidth) (publicFits := publicFits))
   | .finished base other => collisionOf relation prior base other
   | _ => none
 
-/-- The binding reduction's output as a finder, on the two runs it finished with. -/
 noncomputable def rerunOutput :
     State Made Retried Coordinate → Option (HashCollision (logicalWidth := logicalWidth) (publicFits := publicFits))
   | .finished base _ other _ => collisionOf relation prior base other
@@ -145,8 +115,6 @@ noncomputable def rerunOutput :
 variable (adversary : OracleComp (Point logicalWidth publicFits (ProductionKey.degreeBound relation))
   Answer Output)
 
-/-- **The collision finder of `target`**, with at most `budget` adversary
-runs: the line finder of a coordinate, or the binding reduction. -/
 noncomputable def hashSolve (target : Option Coordinate) (budget : ℕ) (tape : Fin budget → Oracle) :
     Option (HashCollision (logicalWidth := logicalWidth) (publicFits := publicFits)) :=
   match target with
@@ -154,14 +122,12 @@ noncomputable def hashSolve (target : Option Coordinate) (budget : ℕ) (tape : 
       (((lineFinder relation ajtai claim prior contextDigest index).program budget .start tape).run adversary.record)
   | none => rerunOutput relation prior (finalState relation ajtai Linked adversary budget tape)
 
-/-- The oracles of the runs that `hashSolve` makes, in order. -/
 noncomputable def hashRuns (target : Option Coordinate) (budget : ℕ) (tape : Fin budget → Oracle) : List Oracle :=
   match target with
   | some index => ((lineFinder relation ajtai claim prior contextDigest index).program budget .start tape).queries
       adversary.record
   | none => runs relation ajtai Linked adversary budget tape
 
-/-- **Strict work.** At most `budget` adversary runs on every tape. -/
 theorem hashRuns_length_le (target : Option Coordinate) (budget : ℕ) (tape : Fin budget → Oracle) :
     (hashRuns relation ajtai claim prior contextDigest adversary target budget tape).length ≤ budget := by
   cases target with
@@ -169,8 +135,6 @@ theorem hashRuns_length_le (target : Option Coordinate) (budget : ℕ) (tape : F
       exact ((lineFinder relation ajtai claim prior contextDigest index).program_bound budget .start tape).queries_length_le _
   | none => exact runs_length_le relation ajtai Linked adversary budget tape
 
-/-- **Causal runs.** The first `step + 1` runs depend on the adversary only
-through the records of the first `step`. -/
 theorem hashRuns_take_congr
     (other : OracleComp (Point logicalWidth publicFits (ProductionKey.degreeBound relation)) Answer Output)
     (target : Option Coordinate) (budget : ℕ) (tape : Fin budget → Oracle) (step : ℕ)
@@ -182,8 +146,6 @@ theorem hashRuns_take_congr
   | some index => exact OracleComp.take_succ_queries_congr _ _ _ step agree
   | none => exact runs_take_congr relation ajtai Linked adversary other budget tape step agree
 
-/-- **Causal output.** The output depends on the adversary only through the
-records of the runs made. -/
 theorem hashSolve_congr
     (other : OracleComp (Point logicalWidth publicFits (ProductionKey.degreeBound relation)) Answer Output)
     (target : Option Coordinate) (budget : ℕ) (tape : Fin budget → Oracle)
@@ -199,12 +161,9 @@ theorem hashSolve_congr
       simp only [hashSolve, finalState]
       rw [OracleComp.run_congr _ _ _ agree]
 
-/-- The chance that the finder of `target` returns a collision. -/
 noncomputable def targetChance (target : Option Coordinate) (budget : ℕ) : ℝ :=
   𝔼 tape : Fin budget → Oracle,
     if (hashSolve relation ajtai claim prior contextDigest adversary target budget tape).isSome then 1 else 0
-
-/-! ## The line finder's laws -/
 
 private theorem collision_indicator (base other : Made) :
     (if (collisionOf relation prior base other).isSome then (1 : ℝ) else 0) =
@@ -212,7 +171,6 @@ private theorem collision_indicator (base other : Made) :
   by_cases collides : StateHashCollision (prior base.record.output) (prior other.record.output) <;>
     simp [collisionOf, collides]
 
-/-- A retry loop's outcome law gives the base run's collision chance. -/
 private theorem lineAverage_collision (index : Coordinate) (base : Oracle) :
     lineAverage (retrySets relation ajtai adversary Linked base index) (fun answer =>
         if StateHashCollision (prior (adversary.run base))
@@ -251,8 +209,6 @@ private noncomputable def lineWork (index : Coordinate) : LineState Made → ℝ
       (rhoPoint relation adversary Linked index base.oracle) base.oracle
   | _ => 0
 
-/-- A pending retry loop stores the adversary's record of a base run that
-succeeds. -/
 private def LineGood : LineState Made → Prop
   | .retry base => base = runOf relation adversary base.oracle ∧ Succeeds relation ajtai adversary Linked base.oracle
   | _ => True
@@ -265,8 +221,6 @@ private theorem hashMismatchChance_nonnegative (index : Coordinate) (base : Orac
     0 ≤ hashMismatchChance relation ajtai adversary claim prior contextDigest index base :=
   div_nonneg (mass_nonnegative _) (mass_nonnegative _)
 
-/-- The line finder's potentials: its eventual chance of a collision and its
-expected remaining runs, exactly. -/
 private noncomputable def lineBounds (index : Coordinate) :
     ((lineFinder relation ajtai claim prior contextDigest index).rewinding adversary.record).Bounds
       (fun state => (lineOutput relation prior state).isSome) where
@@ -396,7 +350,6 @@ private noncomputable def lineBounds (index : Coordinate) :
     | finished => simp [RunMachine.rewinding, lineFinder] at unhalted
     | failed => simp [RunMachine.rewinding, lineFinder] at unhalted
 
-/-- **The Markov loss of one line finder.** -/
 private theorem line_le {queries : Nat} (bounded : adversary.QueryBound queries) (index : Coordinate)
     (budget : ℕ) :
     budget * (𝔼 oracle, (if Succeeds relation ajtai adversary Linked oracle then
@@ -420,10 +373,6 @@ private theorem line_le {queries : Nat} (bounded : adversary.QueryBound queries)
   show 1 + _ ≤ _
   linarith
 
-/-! ## The bound -/
-
-/-- **Per key.** With budget `T`, the 18 finders lose at most
-`(52 Q + 959) / T` of `hashCollisions`. -/
 private theorem collisions_le_targets {queries : Nat} (bounded : adversary.QueryBound queries) (budget : ℕ) :
     budget * ((𝔼 oracle, (if Succeeds relation ajtai adversary Linked oracle then
           ∑ index, hashMismatchChance relation ajtai adversary claim prior contextDigest index oracle else 0) +
@@ -460,8 +409,6 @@ private theorem collisions_le_targets {queries : Nat} (bounded : adversary.Query
   rw [split, Fintype.sum_option]
   linarith
 
-/-- The finders' success over uniform chunks, a uniform target and a uniform
-tape. -/
 noncomputable def hashAdvantage
     (adversary : (SetupIndex logicalWidth publicFits → Chunk) →
       OracleComp (Point logicalWidth publicFits (ProductionKey.degreeBound relation)) Answer Output)
@@ -469,9 +416,6 @@ noncomputable def hashAdvantage
   𝔼 chunks : SetupIndex logicalWidth publicFits → Chunk, 𝔼 target : Option Coordinate,
     targetChance relation (setupKey chunks) claim prior contextDigest (adversary chunks) target budget
 
-/-- **The state-hash term at strict work.** The 18 finders with a strict
-budget of `T` adversary runs bound the state-hash collision chances of the
-knowledge theorem, with a loss of `(52 Q + 959) / T`. -/
 theorem hashCollisions_le_solver
     (adversary : (SetupIndex logicalWidth publicFits → Chunk) →
       OracleComp (Point logicalWidth publicFits (ProductionKey.degreeBound relation)) Answer Output)

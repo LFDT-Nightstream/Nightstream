@@ -4,9 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPreservation
 import NightstreamFPrime.Export.Stage1.PilotPoseidonPlan
 
 /-!
-Owns the canonical direct-plan prefix through PiRLC. Plan order is pilot
-Poseidon2, PiCCS Poseidon2, PiRLC sampler Poseidon2, then PiRLC product
-rows.
+Owns the canonical direct-plan prefix through PiRLC.
 
 This is a phase-local compiler plan. It does not include ordinary rows,
 PiDEC, accumulator, application, terminal work, or a final package identity.

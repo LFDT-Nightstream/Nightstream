@@ -22,12 +22,10 @@ mod prove;
 mod rlc;
 mod verify;
 
-// Re-export commonly used items
 pub use crate::engines::pi_ccs_joint_protocol::PaperJointRoundOracle;
 pub use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 pub use paper_joint::prove_with_complete_oracle as optimized_prove_with_complete_oracle;
 pub use paper_joint::prove_with_matrix_rows as optimized_prove_with_matrix_rows;
-pub use paper_joint::prove_with_row_cache as optimized_prove_with_row_cache;
 pub use paper_joint::{PaperJointOracleBackend, PaperJointOracleInput};
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -39,7 +37,6 @@ pub struct PiCcsProvePerf {
     pub total_ms: f64,
 }
 
-/// Prover-only data shared by adjacent Π_CCS and Π_DEC phases.
 #[derive(Debug, Clone)]
 pub struct PiDecProverPrecompute {
     pub row_chals: Vec<K>,
@@ -61,19 +58,15 @@ pub struct PiCcsVerifyPerf {
 }
 
 pub use common::{dec_reduction_optimized, dec_reduction_optimized_with_digit_flags};
-pub use rlc::{
-    rlc_combine_claims, rlc_mix_witnesses, rlc_reduction_optimized, rlc_reduction_optimized_with_commit_mix,
-    rlc_reduction_optimized_with_mixers,
-};
-// The normal optimized interface implements SuperNeo v1.2 PiCCS.
 pub use prove::optimized_prove as pi_ccs_prove;
 pub use prove::optimized_prove_with_cache_and_perf;
 pub use prove::optimized_prove_with_cache_and_precompute_and_perf;
+pub use rlc::{
+    rlc_combine_claims, rlc_mix_witnesses, rlc_reduction_optimized_with_commit_mix, rlc_reduction_optimized_with_mixers,
+};
 pub use verify::optimized_verify as pi_ccs_verify;
 pub use verify::optimized_verify_with_trace;
 
-/// Canonical oracle types exposed only for the independent PaperExact audit
-/// suite. Normal clients use the prover and verifier entrypoints.
 #[cfg(feature = "paper-exact")]
 pub mod canonical_audit {
     pub use super::paper_joint::OptimizedPaperJointOracle;
@@ -83,8 +76,6 @@ pub mod canonical_audit {
 pub struct OptimizedStructureCache {
     superneo: Arc<SuperneoEvalCache>,
     matrix_digest: [Goldilocks; 4],
-    /// Shape fingerprint of the source structure: `(n, m, t)`.
-    /// Full cache validation also checks the matrix digest.
     shape: (usize, usize, usize),
 }
 
@@ -187,10 +178,6 @@ impl OptimizedStructureCache {
         &self.matrix_digest
     }
 
-    /// Check that this cache belongs to the selected CCS structure.
-    ///
-    /// The canonical matrix digest is recomputed to keep the public
-    /// low-level API safe against same-shape cache substitution.
     pub fn validate_structure(&self, structure: &CcsStructure<F>) -> Result<(), PiCcsError> {
         if self.shape != (structure.n, structure.m, structure.t()) {
             return Err(PiCcsError::InvalidInput(

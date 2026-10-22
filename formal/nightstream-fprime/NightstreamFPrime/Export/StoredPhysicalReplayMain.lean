@@ -100,7 +100,6 @@ private def run (callerPath outputPath : System.FilePath) : IO UInt32 := do
   if ← outputPath.pathExists then throw (IO.userError "physical output already exists")
   let started ← IO.monoNanosNow
   let caller ← checked (Lean.Json.parse (← IO.FS.readFile callerPath))
-  -- Check the caller before the plan: the layout does not depend on the plan.
   let mut values ← seed (StoredPhysicalPlan.layout ()) caller
   let plan ← StoredPhysicalPlan.prepare
   let pilot := plan.pilot.val

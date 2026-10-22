@@ -12,10 +12,6 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 /-!
 Owns structural proofs for the one Stage 1 pilot + PiCCS + PiRLC + PiDEC +
 running-transition package.
-
-No theorem evaluates the package artifact. Counts follow from the pilot
-proofs, the compact invocation compiler, the ordinary-row classifier, and the
-proved PiCCS leaf footprints.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.Package
@@ -206,7 +202,6 @@ theorem circuitPackage_jointDomain_le_twoPow28 :
   norm_num [Data.physicalLayout,
     NightstreamFPrime.Layout.Stage1.Spartan.spartanColumnCount]
 
-/-- The generic ordinary-row encoding classifies every arithmetic row once. -/
 theorem arithmetic_partition
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :
@@ -251,8 +246,6 @@ theorem circuitPackage_ordinary_rows
         RunningTransitionArithmetic.canonicalPlan_rowCount relation]
     _ = 87334 := by norm_num
 
-/-- Construct all 7,604 PiCCS Poseidon2 invocations in their proved private
-intervals. Sampler invocations have a separate package completion owner. -/
 theorem complete_piCcsInvocations
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (env : Env) :
@@ -280,9 +273,6 @@ theorem complete_piCcsInvocations
     rw [Data.circuitPackage_permutation]
     simpa [PilotData.circuitPackage] using pilotHolds
 
-/-- Package satisfaction covers every losslessly classified PiCCS arithmetic
-row. This proof is structural in the classifier and does not evaluate the
-materialized row packet. -/
 theorem circuitPackage_implies_arithmeticRows
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
@@ -306,9 +296,6 @@ theorem circuitPackage_implies_arithmeticRows
     rw [Rows.assertionRowsTR_eq, Data.components_arithmeticRows]
     exact member
 
-/-- Exact compiled arithmetic-row satisfaction supplies the two ordinary-row
-predicates carried by the canonical package. Pilot assertions remain under
-their separate pilot completeness owner. -/
 theorem arithmeticRows_imply_packageOrdinary
     (env : Env)
     (holds : R1CS.RowsHold env
@@ -348,8 +335,6 @@ private theorem compiledRowsHold_four_iff
         R1CS.RowsHold env (fourth.map Rows.CompiledRow.toR1CS) := by
   simp only [List.map_append, R1CS.rowsHold_append, and_assoc]
 
-/-- The four phase-local ordinary packets compose into the exact classified
-ordinary surface of the current canonical package. -/
 theorem phaseArithmeticRows_imply_packageOrdinary
     (env : Env)
     (pilot : ∀ instruction ∈
@@ -378,7 +363,6 @@ theorem phaseArithmeticRows_imply_packageOrdinary
   exact (compiledRowsHold_four_iff env _ _ _ _).mpr
     ⟨piCcs, piRlc, piDec, runningTransition⟩
 
-/-- The ordinary package packet preserves the exact PiCCS arithmetic prefix. -/
 theorem circuitPackage_implies_piCcsArithmeticRows
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
@@ -389,8 +373,6 @@ theorem circuitPackage_implies_piCcsArithmeticRows
   rw [Data.arithmeticRows_eq] at combined
   exact (compiledRowsHold_four_iff env _ _ _ _).mp combined |>.1
 
-/-- The ordinary package packet preserves the exact PiRLC sampler-row
-suffix selected by `Data.arithmeticRows`. -/
 theorem circuitPackage_implies_piRlcSamplerOrdinaryRows
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
@@ -401,8 +383,6 @@ theorem circuitPackage_implies_piRlcSamplerOrdinaryRows
   rw [Data.arithmeticRows_eq] at combined
   exact (compiledRowsHold_four_iff env _ _ _ _).mp combined |>.2.1
 
-/-- The ordinary package packet preserves the exact PiDEC row suffix selected
-by the canonical generative plan. -/
 theorem circuitPackage_implies_piDecArithmeticRows
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
@@ -414,8 +394,6 @@ theorem circuitPackage_implies_piDecArithmeticRows
   rw [Data.arithmeticRows_eq] at combined
   exact (compiledRowsHold_four_iff env _ _ _ _).mp combined |>.2.2.1
 
-/-- The ordinary package packet preserves the exact running-transition row
-suffix selected by the canonical generative plan. -/
 theorem circuitPackage_implies_runningTransitionArithmeticRows
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
@@ -427,8 +405,6 @@ theorem circuitPackage_implies_runningTransitionArithmeticRows
   rw [Data.arithmeticRows_eq] at combined
   exact (compiledRowsHold_four_iff env _ _ _ _).mp combined |>.2.2.2
 
-/-- Canonical package rows imply the exact PiDEC verifier semantics through
-the Lean-owned lowering plan and Spartan column permutation. -/
 theorem circuitPackage_implies_piDecPhaseHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)
@@ -462,8 +438,6 @@ theorem circuitPackage_implies_piDecPhaseHolds
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
     assumptions physical
 
-/-- Package satisfaction supplies every exact PiRLC sampler permutation
-invocation through the one canonical Poseidon2 template. -/
 theorem circuitPackage_implies_piRlcSamplerInvocations
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
@@ -538,7 +512,6 @@ private theorem samplerSourceRows
   rw [PiRLCSamplerOrdinaryRows.sourceRows, List.map_append] at selected
   exact (R1CS.rowsHold_append env _ _).mp selected
 
-/-- All four emitted children force the exact scalar challenge and state. -/
 theorem circuitPackage_implies_piRlcSamplerSpec
     (env : Env) (holds : (Data.circuitPackage ()).RowsHold env)
     (source : Nat) (sourceLt : source < PiRLCSamplerInvocations.sourceCount)
@@ -568,7 +541,6 @@ theorem circuitPackage_implies_piRlcSamplerSpec
   · intro _
     exact PiRLCSamplerOrdinaryRows.wordRows_imply_spec source env ordinary.2
 
-/-- Every scalar in the one emitted batch follows the verifier transcript. -/
 theorem circuitPackage_implies_piRlcSamplerChain
     (env : Env) (holds : (Data.circuitPackage ()).RowsHold env)
     (assumptions : SamplerChain.Assumptions
@@ -594,8 +566,6 @@ theorem circuitPackage_implies_piRlcSamplerChain
   exact circuitPackage_implies_piRlcSamplerSpec env holds source sourceLt
     childInputs
 
-/-- Exact template-selection equation required to interpret every compact
-PiRLC combination invocation. -/
 def PiRLCCombinationTemplateSelection (package : CircuitPackage) : Prop :=
   ∀ source : Fin PiRLCCombinationInvocations.sourceCount,
     ∀ lane : Fin ringDegree,
@@ -659,8 +629,6 @@ private theorem familyInvocationRows_of_package
   rw [CompactRows.instantiateRows_eq_package]
   exact packageRows
 
-/-- Exact instantiated compact rows for the four PiRLC combination
-families, before their package-template lookup is discharged. -/
 structure PiRLCCombinationRowsHold (env : Env) : Prop where
   commitment : PiRLCCombinationConformance.FamilyInvocationRowsHold
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.commitmentLogicalStart
@@ -683,8 +651,6 @@ structure PiRLCCombinationRowsHold (env : Env) : Prop where
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalAFreshStart 4 2 2
     PiRLCCombinationInvocations.evalAValueSourceStart env
 
-/-- Canonical package satisfaction supplies all four exact combination-row
-packets from its Lean-selected templates. -/
 theorem circuitPackage_implies_piRlcCombinationRows
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
@@ -725,8 +691,6 @@ theorem circuitPackage_implies_piRlcCombinationRows
     apply List.mem_append_right
     exact PiRLCCombinationInvocations.familyInvocation_mem _ _ _ _ _ _ _ source index
 
-/-- Package-backed sampler rows plus the four exact combination packets
-assemble the authoritative seven-child PiRLC parent specification. -/
 theorem circuitPackage_implies_piRlcSpecHolds_of_combinationRows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)
@@ -789,8 +753,6 @@ theorem circuitPackage_implies_piRlcSpecHolds_of_combinationRows
     intro operation member
     cases member
 
-/-- The same package-backed parent entails the complete deterministic PiRLC
-phase semantics for the caller-selected relation and Ajtai key. -/
 theorem circuitPackage_implies_piRlcPhaseHolds_of_combinationRows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)
@@ -814,8 +776,6 @@ theorem circuitPackage_implies_piRlcPhaseHolds_of_combinationRows
     holds assumptions
     combinationRows
 
-/-- Canonical package satisfaction implies the exact seven-child PiRLC
-parent specification. -/
 theorem circuitPackage_implies_piRlcSpecHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)
@@ -834,8 +794,6 @@ theorem circuitPackage_implies_piRlcSpecHolds
   exact circuitPackage_implies_piRlcSpecHolds_of_combinationRows relation env
     holds assumptions (circuitPackage_implies_piRlcCombinationRows env holds)
 
-/-- Canonical package satisfaction entails the complete deterministic PiRLC
-phase semantics. -/
 theorem circuitPackage_implies_piRlcPhaseHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)
@@ -856,8 +814,6 @@ theorem circuitPackage_implies_piRlcPhaseHolds
   apply Semantics.spec_implies_phaseHolds
   exact circuitPackage_implies_piRlcSpecHolds relation env holds assumptions
 
-/-- The combined package enforces the complete 270-cell prior-state relation
-and the exact output hash after the pilot-column lift. -/
 theorem circuitPackage_implies_pilotHashFacts
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
@@ -984,8 +940,6 @@ theorem circuitPackage_implies_pilotHashFacts
             PilotData.outputChain (pilotEnv env)) := by
         rw [outputInputs]
 
-/-- Satisfaction of the combined pilot+PiCCS package implies both logical
-pilot builder specifications. -/
 theorem circuitPackage_implies_pilotSpec
     (env : Env)
     (holds : (Data.circuitPackage ()).RowsHold env) :
@@ -995,9 +949,6 @@ theorem circuitPackage_implies_pilotSpec
   exact NightstreamFPrime.Export.Pilot.hashFacts_imply_spec
     (pilotEnv env) (circuitPackage_implies_pilotHashFacts env holds)
 
-/-- The combined package rows, together with the fixed protocol ABI
-representation below the pilot witness boundary, imply both concrete recursive
-hash slots. -/
 theorem circuitPackage_implies_recursive_hash_slots
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * PaperAlgebra.publicRingColumns <=
@@ -1039,9 +990,6 @@ theorem circuitPackage_implies_recursive_hash_slots
     relation ajtai vk F input output priorFixed outputFixed digestFixed
       (pilotEnv env) agrees (circuitPackage_implies_pilotHashFacts env holds)
 
-/-- Package satisfaction supplies all four exact PiCCS transcript predicates.
-The rewrite below changes only the package wrapper; both packages use the one
-canonical Poseidon2 permutation template. -/
 theorem circuitPackage_implies_piCcsTranscriptSpecs
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (env : Env)
@@ -1061,9 +1009,6 @@ theorem circuitPackage_implies_piCcsTranscriptSpecs
   rw [Data.circuitPackage_permutation] at packageInvocation
   simpa [PilotData.circuitPackage] using packageInvocation
 
-/-- Satisfaction of the one emitted package covers all twelve children of the
-canonical PiCCS `FormalCircuit`. The parent proof owns only packet projection
-and child wiring. -/
 theorem circuitPackage_implies_piCcsSpecHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (env : Env)
@@ -1112,18 +1057,12 @@ theorem circuitPackage_implies_piCcsSpecHolds
   · exact arithmetic.finalIdentity_parent
   · exact transcripts.outputBinding_parent relation
 
-/-- The production verifier selects the four public context words by
-recomputing them from its static authority. -/
 def SelectedVerifierContext
     (authority : VerifierContext.Authority) (env : Env) : Prop :=
   ∀ lane : Fin 4,
     env (NightstreamFPrime.Layout.Stage1.Spartan.expectedContextPublicStart +
       lane.val) = (VerifierContext.digest authority).getD lane.val 0
 
-/-- Package satisfaction binds both canonical state preimages to the exact
-verifier-selected context digest. The digest is a public verifier input; the
-prover cannot choose a different state context that still satisfies these
-rows. -/
 theorem circuitPackage_implies_selectedVerifierContext
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (authority : VerifierContext.Authority)
@@ -1175,8 +1114,6 @@ theorem circuitPackage_implies_selectedVerifierContext
     rw [NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan_expectedContext]
     exact selected lane
 
-/-- Authoritative emitted-package soundness edge for the exact SuperNeo v1.2
-PiCCS phase. -/
 theorem circuitPackage_implies_piCcsPhaseHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (ajtai : AjtaiKey

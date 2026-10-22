@@ -1,8 +1,6 @@
 use super::*;
 use crate::superneo_eval::MatrixShape;
 
-/// Unit, dense and geometric runs, an empty matrix, and a matrix that is
-/// empty on odd rows.
 struct MixedRows {
     rows: usize,
 }

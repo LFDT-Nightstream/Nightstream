@@ -57,7 +57,6 @@ def Block.invocationInterface (block : Block) (logicalWidth : Nat)
     output := PoseidonRetainedFamily.outputState schedule
       block.retained.start fits invocation }
 
-/-- Decode one Poseidon2 family row. Every malformed geometry returns none. -/
 def Block.rowWithInput? (block : Block) (logicalWidth : Nat)
     (inputState : Nat → Option (InputState logicalWidth))
     (ordinal : Nat) : Option (RowForms logicalWidth) :=
@@ -89,7 +88,6 @@ def Block.rowWithInput? (block : Block) (logicalWidth : Nat)
   else
     none
 
-/-- Package-only row decoding through the block-owned input program. -/
 def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
     Option (RowForms logicalWidth) :=
   block.rowWithInput? logicalWidth
@@ -104,8 +102,6 @@ def Block.ofSemantic {sourceWidth invocationCount logicalWidth : Nat}
   retained := RetainedBlock.ofSemantic schedule.block retainedStart
   input := input
 
-/-- Once all wire guards hold and the input state is present, row decoding is
-exactly selection from the generated 150-row invocation interface. -/
 theorem Block.rowWithInput?_of_valid (block : Block) (logicalWidth : Nat)
     (inputState : Nat → Option (InputState logicalWidth)) (ordinal : Nat)
     (rowBound : ordinal < block.rowCount)
@@ -135,8 +131,6 @@ theorem Block.rowWithInput?_of_valid (block : Block) (logicalWidth : Nat)
   rw [loaded]
   rfl
 
-/-- Erasing a semantic retained block preserves the exact Poseidon2
-per-invocation interface. -/
 theorem Block.invocationInterface_ofSemantic
     {sourceWidth invocationCount logicalWidth : Nat}
     (schedule : PoseidonRetainedFamily.Schedule sourceWidth invocationCount)
@@ -160,8 +154,6 @@ theorem Block.invocationInterface_ofSemantic
         oneColumn input invocation := by
   rfl
 
-/-- A canonical wire block returns every row of the exact semantic
-invocation-major Poseidon2 family. -/
 theorem Block.rowWithInput?_ofSemantic
     {sourceWidth invocationCount logicalWidth : Nat}
     (schedule : PoseidonRetainedFamily.Schedule sourceWidth invocationCount)
@@ -228,8 +220,6 @@ theorem Block.rowWithInput?_ofSemantic
         oneColumn inputProgram fits input decoded.1]
       rfl
 
-/-- The package-owned input program and retained block generate the exact
-semantic Poseidon2 family rows. -/
 theorem Block.row?_ofSemantic
     {sourceWidth invocationCount logicalWidth : Nat}
     (schedule : PoseidonRetainedFamily.Schedule sourceWidth invocationCount)

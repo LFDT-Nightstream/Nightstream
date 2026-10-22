@@ -329,8 +329,6 @@ private theorem fromWord_denote (word : UInt64) (canonical : word.toNat < goldil
   change word.toNat = word.toNat % goldilocksModulus
   exact (Nat.mod_eq_of_lt canonical).symm
 
-/-- Convert each input once and share raw degrees 54–80 across both output
-halves. Return the same stored base-field ring; no caller supplies canonicality. -/
 def multiply (key digit : StoredRing) : StoredRing :=
   let keyWords := toWords key
   let digitWords := toWords digit
@@ -339,7 +337,6 @@ def multiply (key digit : StoredRing) : StoredRing :=
     fromWord (coefficient64 keyWords digitWords folded output)
       (coefficient64_canonical keyWords digitWords output (toWords_canonical key))
 
-/-- The complete native-word product is the existing Phi81 multiplication. -/
 theorem multiply_value (key digit : StoredRing) :
     (multiply key digit).get = ringFMul key.get digit.get := by
   funext output
@@ -350,19 +347,15 @@ theorem multiply_value (key digit : StoredRing) :
   rw [Vector.getElem_ofFn, fromWord_denote]
   exact coefficient64_denote key digit output
 
-/-- A key ring converted once for reuse by the children at one row/block. -/
 structure PreparedKey where
   private mk ::
   private words : Vector UInt64 ringDegree
   private canonical : ∀ lane, (words.get lane).toNat < goldilocksModulus
 
-/-- Preserve the complete key ring while preparing its native words. -/
 def prepareKey (key : StoredRing) : PreparedKey where
   words := toWords key
   canonical := toWords_canonical key
 
-/-- One child ring prepared once for all key rows. None records the exact
-zero decision; only nonzero children allocate canonical native words. -/
 structure PreparedDigit where
   private mk ::
   private words : Option (Vector UInt64 ringDegree)
@@ -381,8 +374,6 @@ def prepareDigit (digit : StoredRing) : PreparedDigit :=
   if digit.all (fun value => value == 0) then ⟨none⟩
   else ⟨some (toWords digit)⟩
 
-/-- One canonical native-word ring accumulator. Its field view is materialized
-only when the caller finishes a partial sum. -/
 structure Accumulator where
   private mk ::
   private words : Vector UInt64 ringDegree
@@ -390,7 +381,6 @@ structure Accumulator where
 
 namespace Accumulator
 
-/-- Convert the completed native sum to the existing stored field boundary. -/
 def finish (value : Accumulator) : StoredRing :=
   Vector.ofFn fun lane => fromWord (value.words.get lane) (value.canonical lane)
 
@@ -400,7 +390,6 @@ private theorem finish_get (value : Accumulator) (lane : Fin ringDegree) :
     fromWord (value.words.get index) (value.canonical index)))[lane.val] = _
   rw [Vector.getElem_ofFn, fromWord_denote]
 
-/-- Start an empty native ring sum. -/
 def zero : Accumulator where
   words := Vector.replicate ringDegree 0
   canonical := by
@@ -415,7 +404,6 @@ theorem zero_value : zero.finish.get = ringFZero := by
   change ((Vector.replicate ringDegree (0 : UInt64))[lane.val]).denote = (0 : F)
   rw [Vector.getElem_replicate, zero_denote]
 
-/-- Merge native partial sums without constructing intermediate field values. -/
 def add (left right : Accumulator) : Accumulator where
   words := Vector.ofFn fun lane => add64 (left.words.get lane) (right.words.get lane)
   canonical := by
@@ -449,12 +437,9 @@ theorem add_value (left right : Accumulator) :
       exact add64_canonical _ _ (initial.canonical output)
         (coefficient64_canonical keyWords digitWords output key.canonical) }
 
-/-- Add the existing complete ring product directly to a native sum. All
-field-valued key and digit inputs retain the generic multiplication path. -/
 def addProduct (initial : Accumulator) (key : PreparedKey) (digit : StoredRing) : Accumulator :=
   addWordProduct initial key (toWords digit)
 
-/-- Reuse the child's zero decision and native words across key rows. -/
 def addPreparedProduct (initial : Accumulator) (key : PreparedKey)
     (digit : PreparedDigit) : Accumulator :=
   match digit.words with

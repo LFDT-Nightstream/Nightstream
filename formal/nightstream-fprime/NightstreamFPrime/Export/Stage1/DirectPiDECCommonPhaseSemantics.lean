@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiDECEnvironmentCustody
 
 /-!
 Owns the deterministic PiDEC phase theorem in the complete PiRLC sampler
-environment. The proof transports only the exact PiDEC row support and adds no
-row. This is phase-local evidence and does not close PiDEC status.
+environment.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.DirectPiDECCommonPhaseSemantics
@@ -49,8 +48,6 @@ private theorem sourceRows_varsSatisfy
   · exact PiDECOrdinaryDirectSource.evalARows_varsSatisfy relation row
       evalAMember
 
-/-- The sampler-complete direct-prefix semantics entail PiDEC in the same
-environment as PiRLC. -/
 theorem semantics_imply_piDecPhaseHolds
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤

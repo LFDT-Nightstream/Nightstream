@@ -2,8 +2,6 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonStepTrace
 
 /-!
 Owns the compact fixed-schedule ledger for one production Poseidon2 template.
-The template has sixteen caller inputs, 1096 local source columns, 31 schedule
-steps, and 646 direct selective rows.
 
 This module is constant-size. Package invocation count is not evaluated here.
 -/
@@ -22,13 +20,11 @@ def sourceColumnCount : Nat := inputCount + localColumnCount
 
 def canonicalState : EState := fun lane => Expr.var lane.val
 
-/-- One step and the exact source-column state entering it. -/
 structure Record where
   start : Nat
   step : Step
   state : EState
 
-/-- Structural scan of the fixed step schedule. -/
 def recordsFrom : Nat → EState → List Step → List Record
   | _, _, [] => []
   | start, state, step :: rest =>
@@ -54,8 +50,6 @@ def finalStart : Nat → List Step → Nat
     finalStart inputCount Permutation.schedule = sourceColumnCount := by
   rfl
 
-/-- Every invocation replaces the 1096 source recipe rows by exactly 646
-direct selective rows. -/
 @[simp] theorem directRowCount_eq :
     (records.map fun record =>
       PoseidonStepTrace.directRowCount record.step).sum = 646 := by
@@ -64,8 +58,6 @@ direct selective rows. -/
 @[simp] theorem removedRowCount_eq : localColumnCount - 646 = 450 := by
   rfl
 
-/-- Exact composition of one scanned schedule. Only the retained boundary
-equation of each record is used. -/
 theorem recordsFrom_imply_runF (env : Env) (start : Nat) (state : EState)
     (steps : List Step)
     (holds : ∀ record ∈ recordsFrom start state steps,
@@ -87,8 +79,6 @@ theorem recordsFrom_imply_runF (env : Env) (start : Nat) (state : EState)
         (fun record member => holds record (by simp [recordsFrom, member]))
       simpa [Permutation.compile, Permutation.runF, head] using tail
 
-/-- The retained boundary equations of all 31 canonical records imply the
-exact reference Poseidon2 permutation. -/
 theorem records_imply_permute (env : Env)
     (holds : ∀ record ∈ records,
       Layer.evalState env

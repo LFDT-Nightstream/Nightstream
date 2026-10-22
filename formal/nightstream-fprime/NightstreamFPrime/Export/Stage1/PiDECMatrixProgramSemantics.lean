@@ -486,8 +486,6 @@ theorem recompositionProgram_row?
       (evaluationProgram_row? relation geometry sourceRow loadedK loadedA)
       global)
 
-/-- Every row of the complete compact PiDEC program is the exact canonical
-PiDEC plan row. -/
 theorem matrixProgram_row?
     {program : ApplicationProgram} {logicalWidth : Nat}
     (relation : ProductionKey.LogicalRelation relationLogicalWidth

@@ -1,5 +1,3 @@
-"""Execute approved gates with project caps and a shared process lock."""
-
 from __future__ import annotations
 
 import datetime
@@ -103,7 +101,6 @@ def runtime_inputs(command, work, environment):
 
 
 def command_environment(command):
-    # Record the effective environment without forwarding credentials or build injection.
     inherited = ("PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "SYSTEMROOT",
                  "ELAN_HOME", "RUSTUP_HOME", "CARGO_HOME")
     environment = {name: os.environ[name] for name in inherited if name in os.environ}
@@ -193,7 +190,7 @@ def run_gate(name, policy, manifest, snapshot, store, authority=None):
     if missing:
         raise EvidenceError("missing required dependencies: " + ", ".join(missing))
     started, clock, timings = now(), time.monotonic(), {}
-    with build_lock(store):
+    with build_lock():
         with measured(timings, "preflight"):
             if any(command["kind"] in ("lean", "rust") for command in gate["commands"]):
                 check_build_processes()
@@ -215,7 +212,6 @@ def run_gate(name, policy, manifest, snapshot, store, authority=None):
                                        declaration_records(policy, manifest, runs))
             if precise:
                 record["declarations"] = precise
-        # A killed runner leaves this non-passing record, never an implicit success.
         write_json(run_dir / "result.json", authority.sign(record) if authority else {"record": record})
         try:
             with ExitStack() as staging:
@@ -230,7 +226,6 @@ def run_gate(name, policy, manifest, snapshot, store, authority=None):
                                         copy_function=copy_file)
                     seed = work / "inputs/library_seed"
                     if seed.exists() and any(command["kind"] == "lean" for command in gate["commands"]):
-                        # Lake may update only this disposable dependency copy.
                         installed = work / "source/formal/nightstream-fprime/.lake/packages"
                         if installed.exists():
                             shutil.rmtree(installed)
@@ -269,8 +264,6 @@ def run_gate(name, policy, manifest, snapshot, store, authority=None):
                             metadata_name = f"metadata-{index}.json"
                             write_json(run_dir / metadata_name, metadata)
                             record["artifacts"][metadata_name] = file_entry(run_dir / metadata_name)
-                            # Retain the exact raw export in compressed form. The graph
-                            # record keeps fingerprints and edges, not repeated term bodies.
                             compressed = run_dir / (log_name + ".gz")
                             with (run_dir / log_name).open("rb") as raw, gzip.open(compressed, "wb") as output:
                                 shutil.copyfileobj(raw, output)
@@ -283,7 +276,6 @@ def run_gate(name, policy, manifest, snapshot, store, authority=None):
                 else:
                     record["outcome"] = "pass"
                 with measured(timings, "input_validation"):
-                    # Byte and inode/time checks also detect edits restored before exit.
                     for name, expected in entries(manifest).items():
                         actual = file_entry(work / name)
                         if (actual["sha256"] != expected["sha256"] or

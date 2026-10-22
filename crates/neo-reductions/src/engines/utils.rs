@@ -1,10 +1,9 @@
 //! Shared PiCCS transcript binding, dimensions, and public-output checks.
-//!
-//! Contains only the essential functions needed by prove and verify.
 
 #![allow(non_snake_case)]
 
 use crate::error::PiCcsError;
+use neo_ccs::crypto::poseidon2_goldilocks::{RATE, WIDTH};
 use neo_ccs::{CcsMatrix, CcsStructure, CeClaim};
 use neo_math::K;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
@@ -13,9 +12,6 @@ use p3_symmetric::Permutation;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-/// Validate that all ME inputs share the same evaluation point `r`.
-///
-/// Returns `None` when `me_inputs` is empty, otherwise returns a shared `r` slice.
 pub fn shared_me_input_r<C, Ff>(me_inputs: &[CeClaim<C, Ff, K>], ell_n: usize) -> Result<Option<&[K]>, PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
@@ -53,19 +49,12 @@ where
     Ok(Some(r0))
 }
 
-/// Compute the canonical Poseidon2 digest of the sparse CCS artifact.
-///
-/// The canonical CSC arrays and compact row descriptors uniquely determine
-/// every dense matrix entry. This function hashes that representation instead
-/// of materializing or scanning the dense matrix tables.
 pub fn digest_ccs_matrices<F: Field + PrimeField64 + Sync>(s: &CcsStructure<F>) -> Vec<Goldilocks> {
     digest_ccs_matrices_tree(s)
 }
 
 const CCS_DIGEST_SEED: u64 = 0x434353445F4D4154;
-// Keep four Goldilocks capacity elements. This gives the width-16 sponge the
-// same 256-bit capacity as the canonical width-8 Poseidon2 transcript.
-const CCS_DIGEST_RATE: usize = 12;
+const CCS_DIGEST_RATE: usize = RATE;
 const CCS_DIGEST_CHUNK_WORDS: usize = 65_536;
 const CCS_DIGEST_GEOMETRIC_RUNS_PER_CHUNK: usize = 8_192;
 
@@ -110,17 +99,17 @@ enum CcsDigestLeaf<'a, Ff> {
     },
 }
 
-fn new_ccs_digest_poseidon2() -> Poseidon2Goldilocks<16> {
+fn new_ccs_digest_poseidon2() -> Poseidon2Goldilocks<WIDTH> {
     use rand_chacha_p3::{rand_core::SeedableRng, ChaCha8Rng};
 
     let mut rng = ChaCha8Rng::seed_from_u64(CCS_DIGEST_SEED);
-    Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng)
+    Poseidon2Goldilocks::<WIDTH>::new_from_rng_128(&mut rng)
 }
 
 #[inline]
 fn absorb_digest_limb(
-    poseidon2: &Poseidon2Goldilocks<16>,
-    state: &mut [Goldilocks; 16],
+    poseidon2: &Poseidon2Goldilocks<WIDTH>,
+    state: &mut [Goldilocks; WIDTH],
     absorbed: &mut usize,
     v: Goldilocks,
 ) {
@@ -133,15 +122,20 @@ fn absorb_digest_limb(
 }
 
 #[inline]
-fn absorb_digest_u64(poseidon2: &Poseidon2Goldilocks<16>, state: &mut [Goldilocks; 16], absorbed: &mut usize, v: u64) {
+fn absorb_digest_u64(
+    poseidon2: &Poseidon2Goldilocks<WIDTH>,
+    state: &mut [Goldilocks; WIDTH],
+    absorbed: &mut usize,
+    v: u64,
+) {
     absorb_digest_limb(poseidon2, state, absorbed, Goldilocks::from_u64(v & 0xffff_ffff));
     absorb_digest_limb(poseidon2, state, absorbed, Goldilocks::from_u64(v >> 32));
 }
 
 #[inline]
 fn absorb_digest_bytes(
-    poseidon2: &Poseidon2Goldilocks<16>,
-    state: &mut [Goldilocks; 16],
+    poseidon2: &Poseidon2Goldilocks<WIDTH>,
+    state: &mut [Goldilocks; WIDTH],
     absorbed: &mut usize,
     bytes: &[u8],
 ) {
@@ -152,7 +146,7 @@ fn absorb_digest_bytes(
 
 fn digest_ccs_matrix_leaf<Ff: PrimeField64>(leaf: &CcsDigestLeaf<'_, Ff>) -> [Goldilocks; 4] {
     let poseidon2 = new_ccs_digest_poseidon2();
-    let mut state = [Goldilocks::ZERO; 16];
+    let mut state = [Goldilocks::ZERO; WIDTH];
     let mut absorbed = 0usize;
 
     absorb_digest_bytes(&poseidon2, &mut state, &mut absorbed, b"neo/ccs/matrix-leaf/v3");
@@ -273,12 +267,6 @@ fn push_field_digest_chunks<'a, Ff>(leaves: &mut Vec<CcsDigestLeaf<'a, Ff>>, mat
     }
 }
 
-/// Compute the CCS matrix digest from the authoritative sparse structure.
-///
-/// This binds a native CSC encoding under a Poseidon2 tree (`v3-tree`).
-/// Matrix/segment leaves are hashed independently so preprocessing can use CPU parallelism,
-/// then the root absorbs the ordered leaf digests. Prover/verifier soundness is preserved
-/// because both sides bind the same domain, dimensions, matrix order, and full CSC content.
 fn digest_ccs_matrices_tree<Ff: Field + PrimeField64 + Sync>(s: &CcsStructure<Ff>) -> Vec<Goldilocks> {
     let mut leaves = Vec::new();
 
@@ -344,7 +332,7 @@ fn digest_ccs_matrices_tree<Ff: Field + PrimeField64 + Sync>(s: &CcsStructure<Ff
     let leaf_digests: Vec<[Goldilocks; 4]> = leaves.iter().map(digest_ccs_matrix_leaf).collect();
 
     let poseidon2 = new_ccs_digest_poseidon2();
-    let mut state = [Goldilocks::ZERO; 16];
+    let mut state = [Goldilocks::ZERO; WIDTH];
     let mut absorbed = 0usize;
     absorb_digest_bytes(&poseidon2, &mut state, &mut absorbed, b"neo/ccs/matrices/v3-tree");
     absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.n as u64);

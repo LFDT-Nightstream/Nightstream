@@ -1,5 +1,3 @@
-"""Run the checks needed by one owner criterion; resume applicable results."""
-
 import sys
 
 from .policy import gate_order

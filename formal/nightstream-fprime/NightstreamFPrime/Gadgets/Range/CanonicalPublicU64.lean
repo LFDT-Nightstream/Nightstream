@@ -51,7 +51,6 @@ def Assumptions (interface : Interface) (offset : Nat) (_env : Env) : Prop :=
     ∀ index, index < bitCount →
       (interface.bit offset index).VarsBelow offset
 
-/-- Each public cell is the canonical little-endian bit of `source`. -/
 def SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   ∀ index, index < bitCount →
     ((interface.bit offset index).eval env).val =
@@ -149,8 +148,6 @@ theorem flatConstraints_varsBelow
         CanonicalU64.auxiliaryCount] at bounded ⊢
       omega
 
-/-- Every public-word constraint reads only the caller-supported source,
-public bits, and the exact 66 local columns. -/
 theorem flatConstraints_varsSatisfy
     (interface : Interface) (offset : Nat) (allowed : Nat → Prop)
     (sourceSupported : (interface.source offset).VarsSatisfy allowed)

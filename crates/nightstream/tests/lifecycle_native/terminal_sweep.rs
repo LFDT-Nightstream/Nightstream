@@ -1,17 +1,6 @@
 //! Terminal tamper sweep on a folded proof. Each case changes one envelope
 //! field and checks the exact decision: the first check that fails, or
-//! acceptance for a documented non-authoritative field. The rejected cases stop
-//! at the statement, shape, projection, state-hash and commitment checks. The
-//! accepted cases run the complete verifier. Two balanced `Π_DEC` opening
-//! changes, completed through `prove_active` and `complete_fold` with a rebuilt
-//! fresh witness, pass every earlier check and reach the `Eval_K` and `Eval_A`
-//! opening checks. A relation failure is covered by the recursive and staged
-//! terminal tests. The patterns
-//! below name every proof variant and every claim, instance, witness and
-//! commitment field, so a new field must at least be named here. The second
-//! fold starts from decoded proof bytes. The
-//! `Stage1State` and `Stage1Envelope` fields are private; `Parts` and the
-//! state cases cover them.
+//! acceptance for a documented non-authoritative field.
 use super::staged::opening_tests::{change_openings, labels, Opening};
 use super::*;
 use crate::engine::Backend;
@@ -41,7 +30,6 @@ impl Parts {
     }
 }
 
-/// The terminal checks a case can reach, by error kind and reason.
 #[derive(Debug, PartialEq)]
 enum Rejection {
     Statement(&'static str),
@@ -58,14 +46,12 @@ fn rejection(error: VerifyError) -> Rejection {
     }
 }
 
-/// One envelope change and the terminal decision it must produce.
 struct Case {
     name: &'static str,
     change: fn(&mut Parts),
     expected: Result<(), Rejection>,
 }
 
-/// Change one signed-unit coordinate of a witness to another unit value.
 fn flip(matrix: &mut Mat<F>, position: usize) {
     let (row, column) = (position % D, position / D);
     let value = if matrix[(row, column)] == F::ZERO {
@@ -114,7 +100,7 @@ fn cases() -> Vec<Case> {
         rejected(
             "zero state iteration",
             |parts| parts.with_state(0, parts.state.z0(), parts.state.current()),
-            Statement("an active proof requires a positive iteration"),
+            Statement("an active proof requires a positive canonical iteration"),
         ),
         rejected(
             "non-canonical state iteration",
@@ -356,9 +342,6 @@ fn cases() -> Vec<Case> {
                 claim.fold_digest[0] ^= 1;
             }
         }),
-        ignored("fresh private witness cache w", |parts| {
-            parts.fresh.witness.w = vec![F::ONE]
-        }),
     ]
 }
 
@@ -379,15 +362,10 @@ fn terminal_rejects_every_authoritative_envelope_change() {
     let base = package
         .extend_with_output(Stage1Envelope::initial(initial), &words, first, None)
         .unwrap();
-    // Fold from the decoded bytes, as a separate prover would. In the base
-    // envelope only the state and the fresh instance are nonzero;
-    // `proof_bytes_round_trip_exactly` covers nonzero running claims.
     let base = package
         .decode_proof(&package.encode_proof(&base).unwrap())
         .unwrap();
     let second = output(first, message);
-    // Prove the second fold once; the honest envelope and the balanced
-    // opening changes complete from the same proof.
     let (state, base) = base.into_parts();
     let ProofState::Active { running, fresh } = base else {
         panic!("the base proof is active");
@@ -427,7 +405,7 @@ fn terminal_rejects_every_authoritative_envelope_change() {
         m_in: _,
         adv: _,
     } = &honest.fresh.claim;
-    let CcsWitness { w: _, Z: _ } = &honest.fresh.witness;
+    let CcsWitness { Z: _ } = &honest.fresh.witness;
     let Commitment {
         d: _,
         kappa: _,
@@ -439,8 +417,6 @@ fn terminal_rejects_every_authoritative_envelope_change() {
         "the folded proof carries a non-default running instance"
     );
 
-    // Each change is verified against the envelope's own state, so the state
-    // cases must fail at the state-hash binding, not at the state comparison.
     for case in cases() {
         let mut parts = honest.clone();
         (case.change)(&mut parts);
@@ -450,9 +426,6 @@ fn terminal_rejects_every_authoritative_envelope_change() {
         eprintln!("{}: {actual:?} elapsed={:?}", case.name, timer.elapsed());
         assert_eq!(actual, case.expected, "{}", case.name);
     }
-    // A balanced change to two `Π_DEC` child openings keeps the weighted
-    // recomposition, so the NIFS verifier accepts it and the fresh witness is
-    // valid; only the terminal opening checks can reject the result.
     let radix = K::from(F::from_u64(package.params.b() as u64));
     for opening in [Opening::K, Opening::A] {
         let (name, reason) = labels(opening);

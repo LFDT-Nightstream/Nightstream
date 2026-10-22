@@ -99,14 +99,10 @@ private def measure (parentPath outputPath : System.FilePath) : IO UInt32 := do
   unless start = 0 && block = 0 do throw (IO.userError "expected actual parent block zero")
   let some children := StoredSplit.splitChecked parent
     | throw (IO.userError "parent exceeds the strict B bound")
-  -- A distinct second row separates initialization from repeated work.
   measureRow block children ⟨1, by decide⟩ outputPath
   measureRow block children ⟨2, by decide⟩ (outputPath.toString ++ ".next.json")
   return 0
 
-/-- Process every Pad row of actual block zero with the point derived by C.
-Output: [1,totalBlocks,block,rowCount,point[28][2],pad[16][54][2]].
-This is one complete block contribution, not the full Pad evaluation. -/
 private def measurePad (ccsPath parentPath outputPath : System.FilePath) : IO UInt32 := do
   unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
   let started ← IO.monoNanosNow
@@ -131,7 +127,6 @@ private def measurePad (ccsPath parentPath outputPath : System.FilePath) : IO UI
     else
       Vector.replicate productionGlobalParams.k (Vector.replicate ringDegree (0 : F))
   let prepared ← IO.monoNanosNow
-  -- Waiting forces the stored batch before stopping the kernel timer.
   let computed ← IO.wait (Task.spawn fun _ =>
     PiDECEvaluationBatch.accumulate ringDegree phase.point rows)
   let computedAt ← IO.monoNanosNow

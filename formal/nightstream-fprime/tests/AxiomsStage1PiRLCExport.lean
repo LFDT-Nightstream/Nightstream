@@ -223,7 +223,6 @@ import NightstreamFPrime.Spec.Phi81StrongSet
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.circuitPackage_implies_piRlcCombinationRows
 #audit_axioms NightstreamFPrime.Export.Stage1.Package.arithmetic_partition
 
-/-! Direct retained sampler and phase-local PiRLC assurance. -/
 #audit_axioms NightstreamFPrime.Export.Stage1.InvocationLastOutput.compileBlocks_state_last
 #audit_axioms NightstreamFPrime.Export.Stage1.InvocationLastOutput.compileActions_state_of_invocationCount_zero
 #audit_axioms NightstreamFPrime.Export.Stage1.InvocationLastOutput.compileActions_state_last

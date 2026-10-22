@@ -26,17 +26,14 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The one concrete symbolic PiCCS interface of the current prefix. -/
 def interface : Formal.Interface logicalWidth 8 publicFits :=
   PiCCSInputs.interface logicalWidth publicFits
 
-/-- PiCCS starts after the completed pilot and all parent-owned proof inputs. -/
 def piCcsOffset : Nat := PiCCSInputs.phaseOffset
 
 theorem piCcsOffset_eq : piCcsOffset = 5156956 := by
   exact PiCCSInputs.phaseOffset_eq
 
-/-- Exact physical row order of the current Stage 1 prefix. -/
 def physicalRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List R1CS.Row :=
@@ -65,7 +62,6 @@ def PhysicalHolds
     (env : Env) : Prop :=
   R1CS.RowsHold env (physicalRows relation)
 
-/-- Stage 1 row endpoints after each PiCCS leaf. -/
 def cumulativePhysicalRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List Nat :=
@@ -73,7 +69,6 @@ def cumulativePhysicalRows
     (interface (publicFits := publicFits)) piCcsOffset).map
       (PilotProduction.physicalRowCountValue + ·)
 
-/-- Stage 1 private-column endpoints after each PiCCS leaf. -/
 def cumulativePhysicalColumns
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List Nat :=
@@ -81,7 +76,6 @@ def cumulativePhysicalColumns
     (interface (publicFits := publicFits)) piCcsOffset).map
       (piCcsOffset + ·)
 
-/-- Stage 1 joint-domain endpoints after each PiCCS leaf. -/
 def cumulativeJointDomains
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List Nat :=
@@ -136,8 +130,6 @@ theorem jointDomain_le_twoPow28
   rw [jointDomain_eq relation]
   norm_num
 
-/-- One transported ledger states every PiCCS delta and every Stage 1
-endpoint after the completed pilot and parent-owned proof inputs. -/
 theorem cumulativeFootprints_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     NightstreamFPrime.Layout.PiCCS.v1_2.physicalRowDeltas relation

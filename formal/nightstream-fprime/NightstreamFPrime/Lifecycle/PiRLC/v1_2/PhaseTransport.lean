@@ -15,8 +15,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 namespace SamplerChain.SpecHolds
 
-/-- Exact initial state, checked words, and final state transport the same
-sampler specification across environments and offsets. -/
 theorem of_cross_eval_eq
     (leftInterface rightInterface : SamplerChain.Interface)
     (leftOffset rightOffset : Nat) (left right : Env)
@@ -52,8 +50,6 @@ end SamplerChain.SpecHolds
 
 namespace Semantics.PhaseHolds
 
-/-- Transport a complete PiRLC phase after independently establishing the
-sampler relation and equality of the canonical public attempt. -/
 theorem of_attempt_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -74,7 +70,6 @@ theorem of_attempt_eq
   rw [← attemptEq]
   exact phase.accepted
 
-/-- Cross-interface form used by the compact Stage 1 assembler. -/
 theorem of_cross_attempt_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

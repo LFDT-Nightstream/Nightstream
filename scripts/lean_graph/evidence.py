@@ -91,8 +91,6 @@ def main(argv=None):
         if not isinstance(inputs, dict) or not set(inputs) <= policy["inputs"].keys():
             raise EvidenceError("unknown input name or invalid inputs object")
         if "library_seed" in policy["inputs"]:
-            # Third-party source, Git metadata, and compiled modules are one explicit
-            # toolchain input. Accepted runs use the operator's protected copy.
             expected = (authority.directory / "libraries" if authority else
                         source / "formal/nightstream-fprime/.lake/packages")
             selected = Path(inputs.get("library_seed", expected)).resolve()
@@ -110,8 +108,6 @@ def main(argv=None):
             raise EvidenceError("select an active owner criterion before running a gate")
         if args.command == "checkpoint":
             state = {"obligation": args.obligation, "evidence": "checkpoint " + args.obligation}
-            # Criterion selection belongs to this invocation. Other tasks can
-            # use this store without overwriting one shared active pointer.
         snapshot_started = time.monotonic()
         if args.snapshot:
             if not args.snapshot.isalnum():

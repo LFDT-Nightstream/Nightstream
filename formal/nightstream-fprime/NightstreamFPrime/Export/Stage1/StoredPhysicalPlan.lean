@@ -11,10 +11,9 @@ import NightstreamFPrime.Export.Stage1.PreparedPhysicalInputs
 import NightstreamFPrime.Export.RowSemantics
 
 /-!
-Canonical physical preparation with final-state row coverage. Events are built
-once in canonical source order. Execution sorts a copy; final checks use the
-unsorted array. This proves row satisfaction from completed checks, not witness
-execution order, caller parsing, or source IO provenance.
+Canonical physical preparation with final-state row coverage. This proves
+row satisfaction from completed checks, not witness execution order, caller
+parsing, or source IO provenance.
 -/
 
 set_option autoImplicit false
@@ -31,7 +30,6 @@ inductive Event where
   | batch (value : WitnessBatch)
   | instruction (value : WitnessInstruction)
 
-/-- The native assignment schedule orders these same global write targets. -/
 def Event.target : Event → Nat
   | .hash chain ordinal => chain.witnessStart +
       ordinal * PilotData.poseidonSchedule.recipesPerPermutation
@@ -40,8 +38,6 @@ def Event.target : Event → Nat
   | .batch value => value.start
   | .instruction value => value.target
 
-/-- Final-state equations checked for each prepared event. Batches carry write
-recipes; the package gives them no separate row-satisfaction clause. -/
 def Event.RowsHold (event : Event) (package : CircuitPackage) (env : Env) : Prop :=
   match event with
   | .hash chain ordinal => TemplateInvocationHolds package chain ordinal env
@@ -292,13 +288,9 @@ private theorem assemble_sound (sources : PreparedPhysicalInputs.Inputs)
   · intro row member
     exact (StoredPhysicalRowCheck.sparseRow_iff _ env).mp (nextPreimageChecks row member)
 
-/-- The selected application's final physical layout. It does not depend on
-the prepared sources, so a caller can be checked against it first. -/
 def layout (_ : Unit) : PhysicalLayout :=
   PerApplicationPackage.directFinalLayout selectedApplication
 
-/-- Construct each event once. Final checks retain canonical source order;
-only the execution array is sorted by the existing write-target comparison. -/
 def ofSources (sources : PreparedPhysicalInputs.Inputs) : Plan :=
   let templates := (Data.compactRowTemplates ()).toArray
   let canonical : templates.toList = Data.compactRowTemplates () := List.toList_toArray
@@ -312,7 +304,6 @@ def ofSources (sources : PreparedPhysicalInputs.Inputs) : Plan :=
     assertions := assembled.assertions
     sound := assemble_sound sources templates canonical }
 
-/-- Concrete assembly coverage, independent of the execution sort or schedule. -/
 theorem ofSources_rowsHold (sources : PreparedPhysicalInputs.Inputs) (env : Env)
     (eventChecks : ∀ event ∈ (ofSources sources).rowEvents,
       event.check { (ofSources sources).pilot.val with

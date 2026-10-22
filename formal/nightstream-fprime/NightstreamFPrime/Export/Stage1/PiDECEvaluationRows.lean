@@ -3,9 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedRows
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationPadBlock
 
 /-!
-Stored sparse accumulation of complete PiDEC matrix and Pad rows. Each
-coefficient projects to the existing full sumRange. No point weighting, expected
-row, IO, or selected setup/plan expansion is introduced.
+Stored sparse accumulation of complete PiDEC matrix and Pad rows.
 -/
 
 set_option autoImplicit false
@@ -23,9 +21,6 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArith
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle
 
-/-- Visit the blocks used by a sparse row and return the selected child sum.
-The block support is computed from the original entries, without changing
-repeated entries or requiring a support certificate from the caller. -/
 def row {shape : Phi81Relation.Shape} {columns : Nat}
     (form : SparseForm columns)
     (assignments : Vector (Vector F shape.carrierWidth) productionGlobalParams.k)
@@ -60,7 +55,6 @@ private theorem row_sumRange {shape : Phi81Relation.Shape} {columns : Nat}
   intro block live
   simp only [dif_pos live]
 
-/-- An empty form computes zero without reading any child block. -/
 theorem row_empty_value {shape : Phi81Relation.Shape} {columns : Nat}
     (assignments : Vector (Vector F shape.carrierWidth) productionGlobalParams.k)
     (child : Fin productionGlobalParams.k) :
@@ -79,9 +73,6 @@ private abbrev selectedShape :=
     (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
     (PerApplicationFixedPoint.publicFits Poseidon2HashChainV1Package.application)
 
-/-- Every selected active matrix row, including all four ports, is the
-existing complete derived-matrix row. The selected block theorem discharges
-matrix correspondence; no expected-row or matrix-agreement premise remains. -/
 theorem matrixRow_value
     (rowIndex : Fin (PerApplicationFixedPoint.structuralPlan
       Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits).rowCount)
@@ -126,9 +117,6 @@ theorem matrixRow_value
     (PiDECEvaluationSelectedRows.rowBlock_eq_blockRowRing
       rowIndex matrix assignments ⟨block, live⟩ child)
 
-/-- The complete Pad row uses the authoritative full-carrier identity
-layout. This generic statement includes carrier tails and every Boolean row;
-it requires no norm, split, opening, or expected-value premise. -/
 theorem padRow_value {shape : Phi81Relation.Shape}
     (system : Phi81Relation.Structure shape)
     (layout : ColumnLayout shape.rowVariables shape.carrierWidth)

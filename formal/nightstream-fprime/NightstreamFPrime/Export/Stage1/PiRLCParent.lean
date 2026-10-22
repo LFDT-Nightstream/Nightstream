@@ -62,7 +62,6 @@ private theorem mapM_some_pairs {Alpha Beta : Type} (f : Alpha → Option Beta)
               cases same
               exact .cons hx (ih rest hs)
 
-/-- The pure values materialized by the C/R check's independent tasks. -/
 def computedParent (input : Input) (batch : Batch) : Option Values :=
   PiRLCInputCheck.finalParent (PiCCSInputCheck.execute input).point batch
     (commitmentPartials batch.challenges (PiRLCInputCheck.commitments input))
@@ -91,8 +90,6 @@ def inputBatch (input : Input) :
   evaluationCount := 1
   evaluationsSize := fun _ => rfl
 
-/-- The complete actual R input is the batch selected by the exact executed
-C probe: source order, relation, point, public values and both evaluations. -/
 theorem inputBatch_eq_probe (input : Input) :
     inputBatch input =
       Nifs.PaperStrongInterface.piRlcBatchForProbe
@@ -123,9 +120,6 @@ private theorem claim_ext (left right : PiDECInputCheck.Claim)
   cases right
   simp_all
 
-/-- The public action depends on the five public rings, not on the width of
-the private assignment carrier. Induction keeps the proof independent of
-the selected package's column count. -/
 private theorem combinePublicInputs_width
     (leftWidth rightWidth : Nat)
     (leftFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth leftWidth)
@@ -144,8 +138,6 @@ private theorem combinePublicInputs_width
       rw [ih (fun index => challenges index.succ) (fun index => inputs index.succ)]
       rfl
 
-/-- The actual materialized endpoint is the paper R output, including both
-evaluation families and all selected relation, point and stage fields. -/
 theorem computedParent_eq_combined (input : Input) (batch : Batch) (values : Values)
     (returned : computedParent input batch = some values) :
     PiDECInputCheck.parent values =
@@ -258,8 +250,6 @@ private theorem computedParent_returns (input : Input) (batch : Batch) :
   simp only [computedParent, PiRLCInputCheck.finalParent, Option.bind_eq_bind,
     hc, hx, hk, ha, Option.bind_some, dif_pos size, Option.pure_apply]
 
-/-- Canonical traces cannot take the incomplete-parent branch. The returned
-value is the exact paper output and retains the sampler's full endpoint. -/
 theorem computedParent_correct (input : Input) (batch : Batch) :
     ∃ values, computedParent input batch = some values ∧
       PiDECInputCheck.parent values =

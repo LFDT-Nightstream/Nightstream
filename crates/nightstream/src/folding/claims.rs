@@ -5,16 +5,12 @@ use neo_math::ring::{cf_inv, Rq};
 use neo_math::{D, F, K};
 use p3_field::PrimeCharacteristicRing;
 
-/// Evaluation vectors use the padded ring degree; the lanes from `D` on are zero.
 pub(crate) const EVALUATION_WIDTH: usize = D.next_power_of_two();
 
-/// The one canonical encoding of an `Eval_K` vector or an `Eval_A` row.
 pub(crate) fn is_canonical_evaluation(values: &[K]) -> bool {
     values.len() == EVALUATION_WIDTH && values[D..].iter().all(|lane| *lane == K::ZERO)
 }
 
-/// The canonical evaluation families of one claim: `Eval_K` and `matrices`
-/// rows of `Eval_A`, each a canonical evaluation.
 pub(crate) fn has_canonical_evaluations(claim: &CeClaim, matrices: usize) -> bool {
     claim.eval_a.len() == matrices
         && is_canonical_evaluation(&claim.eval_k)
@@ -26,8 +22,6 @@ pub struct CcsInstance {
     pub claim: CcsClaim,
     pub witness: CcsWitness,
 }
-/// The running PiDEC children and, for the prover, their openings. No check
-/// reads a running claim's `fold_digest` frame.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct RunningInstance {
     pub claims: Vec<CeClaim>,
@@ -47,18 +41,13 @@ impl RunningInstance {
         self.claims.len() == self.witnesses.len()
     }
     pub(crate) fn canonical_zero(pp: &Params, s: &Structure, m_in: usize) -> Result<Self, &'static str> {
-        if m_in > s.m || !m_in.is_multiple_of(D) {
+        let Some(x_cols) = superneo_public_x_cols(m_in).filter(|_| m_in <= s.m) else {
             return Err("canonical zero public input shape");
-        }
-        let ell = s
-            .domain_rows()
-            .max(neo_reductions::common::superneo_carrier_width(s.m))
-            .next_power_of_two()
-            .max(2)
-            .trailing_zeros() as usize;
+        };
+        let ell = s.cube_variables();
         let claim = CeClaim {
             c: Commitment::zeros(D, pp.kappa() as usize),
-            X: Mat::virtual_constant(D, superneo_public_x_cols(m_in), F::ZERO),
+            X: Mat::virtual_constant(D, x_cols, F::ZERO),
             r: vec![K::ZERO; ell],
             eval_k: vec![K::ZERO; EVALUATION_WIDTH],
             eval_a: vec![vec![K::ZERO; EVALUATION_WIDTH]; s.t()],
@@ -73,7 +62,7 @@ impl RunningInstance {
     }
 }
 pub(crate) fn superneo_has_canonical_x_shape(x: &Mat<F>, m_in: usize) -> bool {
-    m_in.is_multiple_of(D) && x.rows() == D && x.cols() == superneo_public_x_cols(m_in)
+    x.rows() == D && superneo_public_x_cols(m_in) == Some(x.cols())
 }
 pub fn ajtai_rlc_mixer(rhos: &[Mat<F>], commits: &[Commitment]) -> Commitment {
     debug_assert!(!commits.is_empty(), "commit_mix: empty commitments");

@@ -27,7 +27,7 @@ Parent coverage:
 - `v1_2.Coverage.input_eval_A`;
 - `v1_2.Statement.Holds`.
 
-This leaf is an audited wiring boundary. It does not add a second statement
+It does not add a second statement
 carrier, and it does not replace binding with an assumption.
 -/
 
@@ -40,24 +40,18 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- One shared symbolic carrier for both sides of the statement binding. -/
 structure Interface where
   state : StateBinding.Interface
   priorPoint : Nat -> Fin productionShape.cubeVariables -> KExpr
   eval_K : Nat -> PadCoordinate productionShape -> KExpr
   eval_A : Nat -> MatrixCoordinate productionShape -> KExpr
 
-/-- The verifier view of the prior point. This is deliberately a projection,
-not a second caller-supplied value. -/
 def verifierPriorPoint (interface : Interface) := interface.priorPoint
 
-/-- The verifier view of `Eval_K`. -/
 def verifierEval_K (interface : Interface) := interface.eval_K
 
-/-- The verifier view of `Eval_A`. -/
 def verifierEval_A (interface : Interface) := interface.eval_A
 
-/-- Symbolic form of the three exact v1.2 statement-binding conjuncts. -/
 structure SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop where
   state : StateBinding.SpecHolds interface.state offset env
   priorPoint : forall coordinate,
@@ -70,7 +64,6 @@ structure SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop wh
     ((verifierEval_A interface) offset coordinate).eval env =
       (interface.eval_A offset coordinate).eval env
 
-/-- Canonical state rows plus the definitionally shared PiCCS statement. -/
 def circuit (interface : Interface) : FormalCircuit where
   main := (StateBinding.circuit interface.state).main
   assumptions := StateBinding.Assumptions interface.state
@@ -99,8 +92,6 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
       holdsFlat completed (Circuit.ops (circuit interface).main offset) :=
   (circuit interface).completeness env offset assumptions specification
 
-/-- Every row holds whenever the statement holds and every sign column holds
-its hinted value. -/
 theorem constraintsHold_of_signs (interface : Interface) (env : Env)
     (offset : Nat) (specification : SpecHolds interface offset env)
     (signs : ∀ word lane, (StateBinding.signBit offset word lane).eval env =
@@ -113,13 +104,11 @@ theorem constraintsHold_of_signs (interface : Interface) (env : Env)
   exact StateBinding.constraintsHold_of_signs interface.state env offset
     specification.state signs
 
-/-- This boundary allocates exactly the hinted sign columns. -/
 theorem localLength_eq (interface : Interface) (offset : Nat) :
     localLength (Circuit.ops (circuit interface).main offset) =
       StateBinding.signCount := by
   exact StateBinding.localLength_eq interface.state offset
 
-/-- Each state-binding assertion lowers to one direct row. -/
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
       4712 := by
@@ -131,8 +120,6 @@ theorem flatConstraints_eq_stateAssertions (interface : Interface)
       StateBinding.assertions interface.state offset := by
   exact StateBinding.flatConstraints_opsAt interface.state offset
 
-/-- The definitionally shared statement view is stable under every
-environment change. -/
 theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
     (before after : Env)
     (assumptions : StateBinding.Assumptions interface.state offset before)
@@ -143,7 +130,6 @@ theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
       before after assumptions agrees specification.state,
     fun _ => rfl, fun _ => rfl, fun _ => rfl⟩
 
-/-- Every state-binding row uses parent-owned wires and its own sign columns. -/
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) :
     StateBinding.Assumptions interface.state offset env →
@@ -156,9 +142,6 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
   exact StateBinding.flatConstraints_varsBelow interface.state offset
     env assumptions expression member
 
-/-- Exact parent coverage: the production verifier input is constructed from
-the production statement, so it satisfies the canonical v1.2 binding
-predicate. The circuit proves that both symbolic views use the same wires. -/
 theorem spec_implies_keyStatement
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns <=

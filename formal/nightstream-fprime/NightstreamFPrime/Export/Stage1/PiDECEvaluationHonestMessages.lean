@@ -4,10 +4,9 @@ import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 
 /-!
-Compute the selected child Pad and matrix evaluation families from
-the same stored assignments and parent point, then connect them to the honest
-PiDEC messages. The prefix bounds and zero suffixes are derived here. No
-expected evaluation, matrix agreement, opening or runtime premise is supplied.
+Compute the selected child Pad and matrix evaluation families from the same
+stored assignments and parent point, then connect them to the honest PiDEC
+messages.
 -/
 
 set_option autoImplicit false
@@ -34,8 +33,6 @@ private abbrev selectedPlan := PerApplicationFixedPoint.structuralPlan
 private abbrev selectedRelation := PerApplicationFixedPoint.relation
   Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
 
-/-- Materialize Pad and every matrix once, then expose the existing ring views.
-Only the independently computed rows and the supplied point enter each sum. -/
 def family
     (assignments : Vector (StoredAssignment selectedShape.carrierWidth)
       productionGlobalParams.k)
@@ -50,8 +47,6 @@ def family
   { pad := pad.toRing
     matrix := fun matrix => (matrices.get matrix).toRing }
 
-/-- Transport between the two existing source wrappers while the relation
-remains symbolic. The sole authority is evaluationFamily_eq_paper. -/
 private theorem evaluationFamily_rows {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -75,9 +70,6 @@ private theorem evaluationFamily_rows {logicalWidth : Nat}
     (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).cubeLayout
     relation.system assignment point
 
-/-- The executed prefixes produce the complete selected semantic family.
-Both prefix bounds and all omitted zero rows are proved from their owners;
-all carried tail coefficients and all matrix slots are retained. -/
 theorem family_eq_evaluationFamily
     (assignments : Vector (StoredAssignment selectedShape.carrierWidth)
       productionGlobalParams.k)
@@ -113,11 +105,6 @@ theorem family_eq_evaluationFamily
     exact congrArg (fun value : RingF => K.embed (value lane))
       (PiDECEvaluationSelectedPrefix.matrixRow_value assignments child matrix vertex)
 
-/-- For the successful checked split of this parent witness, the computed
-array is the exact honest child-message evaluation array at values.point.
-The selected source is fixed by PiDECInputCheck.parent. Successful splitting
-is the only premise; expected commitments and evaluations are not inputs to
-family and no parent-opening or acceptance premise is needed. -/
 theorem family_honestMessages
     (values : PiDECInputCheck.ParentValues)
     (parentWitness : StoredAssignment selectedShape.carrierWidth)

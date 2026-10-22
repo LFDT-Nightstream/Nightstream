@@ -5,9 +5,6 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption
 Owns the physical lowering of one Π_RLC scalar-domain entry.
 
 The lifecycle leaf absorbs `[4, coordinate]` with one Poseidon2 permutation.
-All 1096 recipes lower directly, so this owner adds no lowering column and no
-boundary-copy row. Physical and logical satisfaction are proved in both
-directions through the generic R1CS lowering boundary.
 -/
 
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.Leaves.TranscriptAbsorption
@@ -138,7 +135,6 @@ def loweringPlan (interface : Leaf.Interface) (coordinate offset firstFresh : Na
     (Circuit.ops (Leaf.circuit interface coordinate).main offset)
   firstFresh := firstFresh
 
-/-- Physical rows imply the exact verifier-owned transcript entry. -/
 theorem physical_implies_spec (interface : Leaf.Interface)
     (coordinate offset firstFresh : Nat) (env : Env)
     (assumptions : Leaf.Assumptions interface offset env)
@@ -152,7 +148,6 @@ theorem physical_implies_spec (interface : Leaf.Interface)
   apply Leaf.soundness interface coordinate env offset assumptions
   exact holdsFlat_implies_holds env _ logical
 
-/-- Honest logical execution also satisfies the exact physical rows. -/
 theorem physical_complete (interface : Leaf.Interface)
     (coordinate offset firstFresh : Nat) (env : Env)
     (inputs : InputsAffine interface offset)

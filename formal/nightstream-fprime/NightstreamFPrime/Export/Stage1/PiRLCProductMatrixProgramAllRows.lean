@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCRetainedPlan
 
 /-!
 Connects every row of the compact PiRLC product matrix program to the exact
-canonical product plan. This is literal sparse-form equality for all 13
-meaningful matrix ports.
+canonical product plan.
 
 Later Stage 1 phases are composed by the enclosing prefix plan.
 -/
@@ -15,8 +14,6 @@ open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- Every compact product-program row is the same row as the canonical
-invocation-major PiRLC product plan. -/
 theorem matrixProgram_plan_row?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)

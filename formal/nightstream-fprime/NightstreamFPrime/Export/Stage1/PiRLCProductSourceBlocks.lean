@@ -59,7 +59,6 @@ def challengeBlock (program : Lifecycle.Stage1.Application.Program) :
   change PiRLCCombinationInvocations.sourceCount * ringDegree * 41 = 37638
   norm_num [PiRLCCombinationInvocations.sourceCount, ringDegree]
 
-/-- The retained word is the exact coefficient source read by the product. -/
 theorem challengeBlock_source (program : Lifecycle.Stage1.Application.Program)
     (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
     (challengeBlock program).source (challengeIndex descriptor.source lane) =

@@ -13,8 +13,6 @@ open NightstreamFPrime.Lifecycle
 
 def schema : Nat := 1
 
-/-- Schema 1 fields: cube variables, sum-check width, fresh count, running
-count, coefficient lanes, CCS matrix count, and the test numerator. -/
 def parityValue : Value :=
   .array [
     .atom schema,

@@ -16,8 +16,6 @@ def SegmentsHold (env : Env) : List (List Expr) → Nat → Prop
       RowsHold env (lowerConstraints segment start).rows ∧
         SegmentsHold env rest (start + totalFreshCount segment)
 
-/-- Lowering a flattened outer list holds exactly when each opaque segment
-holds at the fresh-column endpoint of its predecessor. -/
 theorem rowsHold_flatten_iff (env : Env) (segments : List (List Expr))
     (start : Nat) :
     RowsHold env (lowerConstraints segments.flatten start).rows ↔
@@ -30,9 +28,6 @@ theorem rowsHold_flatten_iff (env : Env) (segments : List (List Expr))
       simp only [SegmentsHold]
       exact and_congr Iff.rfl (inductionHypothesis _)
 
-/-- Complete an ordered list of opaque constraint segments without reducing
-the full flattened list in the caller's proof term. Each segment starts at
-the exact fresh-column endpoint of its predecessor. -/
 theorem lowerSegments_complete (env : Env) (segments : List (List Expr))
     (start : Nat)
     (scope : ∀ expression ∈ segments.flatten,
@@ -90,9 +85,6 @@ theorem lowerSegments_complete (env : Env) (segments : List (List Expr))
       have combined := firstAgrees.append restAgrees
       simpa [List.flatten_cons, next] using combined
 
-/-- Held lowering of an indexed segment list projects to one segment at the
-sum of the exact preceding segment fresh counts. The proof is structural in
-the outer list and does not inspect a segment's constraints. -/
 theorem segmentsHold_ofFn_get (env : Env) {count : Nat}
     (segments : Fin count → List Expr) (start : Nat)
     (holds : SegmentsHold env (List.ofFn segments) start)
@@ -113,8 +105,6 @@ theorem segmentsHold_ofFn_get (env : Env) {count : Nat}
           (start + totalFreshCount (segments 0)) holds.2 tailIndex
         simpa [List.ofFn_succ, Nat.add_assoc] using tail
 
-/-- Held lowering of an arbitrary segment list projects to one segment at the
-sum of the exact preceding segment fresh counts. -/
 theorem segmentsHold_get (env : Env) (segments : List (List Expr))
     (start : Nat) (holds : SegmentsHold env segments start)
     (index : Fin segments.length) :
@@ -131,8 +121,6 @@ theorem segmentsHold_get (env : Env) (segments : List (List Expr))
     (fun current : Fin segments.length => segments.get current)
     start normalized index
 
-/-- Held lowering of an indexed constraint list projects to one optimized
-constraint lowering at the sum of its exact preceding fresh counts. -/
 theorem rowsHold_lowerConstraints_ofFn_get (env : Env) {count : Nat}
     (constraints : Fin count → Expr) (start : Nat)
     (holds : RowsHold env (lowerConstraints (List.ofFn constraints) start).rows)
@@ -160,8 +148,6 @@ theorem rowsHold_lowerConstraints_ofFn_get (env : Env) {count : Nat}
           (start + constraintFreshCount (constraints 0)) separated.2 tailIndex
         simpa [List.ofFn_succ, Nat.add_assoc] using tail
 
-/-- A constraint with a positive optimized fresh count cannot use a direct
-row, so its optimized lowering is its generic lowering. -/
 theorem lowerConstraint_eq_lowerGenericConstraint_of_fresh_pos
     (expression : Expr) (start : Nat)
     (positive : 0 < constraintFreshCount expression) :
@@ -172,9 +158,6 @@ theorem lowerConstraint_eq_lowerGenericConstraint_of_fresh_pos
 
 namespace LoweringPlan
 
-/-- A plan whose constraints are a segmented flatten has exactly the same row
-predicate as ordered segment satisfaction. The caller supplies only the
-constraint-list equality, so its concrete rows stay opaque. -/
 theorem rowsHold_iff_segments_of_constraints (plan : LoweringPlan) (env : Env)
     (segments : List (List Expr))
     (constraintsEq : plan.constraints = segments.flatten) :
@@ -184,9 +167,6 @@ theorem rowsHold_iff_segments_of_constraints (plan : LoweringPlan) (env : Env)
   rw [constraintsEq]
   exact rowsHold_flatten_iff env segments plan.firstFresh
 
-/-- A lowering plan whose constraint list is a segmented flatten projects
-held physical rows to the ordered segment predicate. The plan stays symbolic,
-so this theorem does not reduce any caller-owned production row list. -/
 theorem rowsHold_segments_of_constraints (plan : LoweringPlan) (env : Env)
     (segments : List (List Expr))
     (constraintsEq : plan.constraints = segments.flatten)

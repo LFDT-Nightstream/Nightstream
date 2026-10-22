@@ -17,7 +17,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- Sparse forms supplied by one ordered family of Poseidon2 invocations. -/
 structure Interface (logicalWidth invocationCount : Nat) where
   oneColumn : Fin logicalWidth
   input : Fin invocationCount → PoseidonSboxPlan.State logicalWidth
@@ -70,7 +69,6 @@ def rowForms {logicalWidth invocationCount : Nat}
     SparseForm logicalWidth :=
   (rowAt interface invocation row).meaningfulForm port
 
-/-- Exact invocation-major family plan. -/
 def plan {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
     (rowCount_le : invocationCount * 150 ≤
@@ -137,8 +135,6 @@ theorem rowAt_mem {logicalWidth invocationCount : Nat}
   unfold rowAt
   exact List.get_mem _ _
 
-/-- Family rows vanish exactly when every indexed Poseidon2 child row
-vanishes. -/
 theorem planRowsZero_iff {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
     (rowCount_le : invocationCount * 150 ≤
@@ -179,8 +175,6 @@ theorem planRowsZero_iff {logicalWidth invocationCount : Nat}
       (invocation_output_eq_trace interface decoded.1)).mp (children decoded.1)
       (rowAt interface decoded.1 decoded.2) (rowAt_mem interface decoded.1 decoded.2)
 
-/-- Family acceptance forces the exact Poseidon2 permutation for every
-indexed invocation. -/
 theorem planRowsZero_implies_permute {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
     (rowCount_le : invocationCount * 150 ≤
@@ -199,7 +193,6 @@ theorem planRowsZero_implies_permute {logicalWidth invocationCount : Nat}
       ((planRowsZero_iff interface rowCount_le assignment).mp
         rowsZero invocation)
 
-/-- Exact child equations make every row of the family plan vanish. -/
 theorem equations_imply_planRowsZero {logicalWidth invocationCount : Nat}
     (interface : Interface logicalWidth invocationCount)
     (rowCount_le : invocationCount * 150 ≤

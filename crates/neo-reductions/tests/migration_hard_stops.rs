@@ -2,7 +2,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 fn workspace_root() -> PathBuf {
-    // CARGO_MANIFEST_DIR = .../crates/neo-reductions
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     manifest_dir
         .parent()

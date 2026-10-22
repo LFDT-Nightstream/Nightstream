@@ -3,12 +3,7 @@ import NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignment
 
 /-!
 Owns the canonical low-norm assignment constructor for one Lean-authored
-application. One raw value packet supplies the package source values and the
-derived PiRLC product values. The assignment uses the exact retained-block
-order already owned by the direct Stage 1 geometry.
-
-This module constructs values only. It does not assume row acceptance or
-select a production application.
+application.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment
@@ -55,15 +50,12 @@ end Canonical
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 
-/-- Raw prover values before canonical low-norm coordinate encoding. -/
 structure RawValues (application : Program) where
   base : Fin (PiRLCProductPlan.baseSourceWidth application) → F
   groupValue : Fin PiRLCProductSchedule.invocationCount → Fin 1 → F
 
 namespace RawValues
 
-/-- The recursive public digest is read from the same pilot output columns
-that the Stage 1 rows constrain. It is not caller-supplied authority. -/
 def outputDigest {application : Program} (raw : RawValues application) : Digest :=
   List.ofFn fun lane : Fin PilotProduction.digestWords =>
     (PilotProduction.outputInterface.digest
@@ -81,8 +73,6 @@ def applicationSource {application : Program} (raw : RawValues application) :
     Fin (ApplicationRetainedBlocks.sourceWidth application) → F :=
   DirectApplicationPrefixPlan.applicationSource application raw.base
 
-/-- Exact retained block order from the public prefix through the selected
-application. The list is small; no slot or coordinate list is materialized. -/
 def schedule {application : Program} (raw : RawValues application) :
     Canonical.Schedule :=
   [ Canonical.ofBlock (PiRLCRetainedGeometry.priorPoseidonBlock application)
@@ -152,8 +142,6 @@ end RawValues
     (raw : RawValues application) : raw.schedule.length = 26 := by
   rfl
 
-/-- The block schedule has exactly the final logical width after its 270-word
-public prefix. -/
 theorem schedule_width {application : Program} (raw : RawValues application) :
     ProductionAssignment.publicWidth +
         Canonical.coordinateCount raw.schedule =
@@ -226,8 +214,6 @@ theorem publicFits {application : Program} :
 
 namespace RawValues
 
-/-- Canonical zero-padding from the logical assignment to the complete Phi81
-carrier used by the key-facing SuperNeo relation. -/
 def completeAssignment {application : Program} (raw : RawValues application) :
     Lifecycle.PaperAlgebra.Assignment
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
@@ -241,8 +227,6 @@ def completeAssignment {application : Program} (raw : RawValues application) :
 
 end RawValues
 
-/-- The final paper-carrier assignment exposes exactly the encoding of the
-digest read from the constrained step output. -/
 theorem projectPublicInput_completeAssignment {application : Program}
     (raw : RawValues application) :
     Spec.Phi81Relation.projectPublicInput raw.completeAssignment =
@@ -265,8 +249,6 @@ theorem projectPublicInput_completeAssignment {application : Program}
     (encodedHashCells raw.outputDigest) raw.schedule
     (publicFits (application := application)) column
 
-/-- The relation's distinguished one-coordinate is fixed by the verifier-owned
-encoded-hash public input. -/
 theorem assignment_one {application : Program} (raw : RawValues application) :
     raw.assignment
         (ApplicationRetainedGeometry.oneColumn

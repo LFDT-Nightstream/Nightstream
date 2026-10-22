@@ -30,7 +30,6 @@ RSS_POLL_SECONDS = 1
 
 
 def resident_bytes(pid: int, remaining: float) -> int | None:
-    """Read current RSS; None means the process exited during observation."""
     if sys.platform == "linux":
         try:
             status = Path(f"/proc/{pid}/status").read_text()
@@ -54,7 +53,6 @@ def resident_bytes(pid: int, remaining: float) -> int | None:
 
 
 def run_test(command: list[str], request: dict, output) -> dict:
-    """Kill on sampled excess and also reject a peak detected after exit."""
     if sys.platform not in ("linux", "darwin"):
         raise ValueError(f"RSS guard does not support {sys.platform}")
     started = time.monotonic()
@@ -67,7 +65,6 @@ def run_test(command: list[str], request: dict, output) -> dict:
 
     before = resource.getrusage(resource.RUSAGE_CHILDREN)
     # Keep the inherited process group so an outer timeout also stops the test.
-    # The Rust phase starts no children.
     process = subprocess.Popen(command, cwd=ROOT, stdin=subprocess.PIPE,
                                stdout=output, stderr=subprocess.STDOUT)
     previous, sampled_peak = {}, 0
@@ -102,8 +99,7 @@ def run_test(command: list[str], request: dict, output) -> dict:
                     rss = resident_bytes(process.pid, remaining)
                     if rss is None:
                         # The kernel can remove the address space before wait
-                        # reports exit. Use only the existing deadline to reap;
-                        # the mandatory final peak check still applies below.
+                        # reports exit.
                         remaining = CAPS["rust"] - elapsed()
                         if remaining <= 0:
                             code, outcome = 124, "timed-out"

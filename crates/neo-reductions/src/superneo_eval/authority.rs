@@ -1,7 +1,7 @@
 //! Exact CCS relation checks over the verifier-owned compact matrix cache.
 
 use neo_ccs::SparsePoly;
-use neo_math::{D, F, K};
+use neo_math::{D, F};
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
@@ -10,7 +10,6 @@ use rayon::prelude::*;
 
 use super::{SuperneoEvalCache, SuperneoZBlocks};
 
-/// Failure of an exact row-wise CCS check over a compact relation.
 #[derive(Clone, Debug, Error, PartialEq, Eq)]
 pub enum SuperneoCachedRelationError {
     #[error("compact relation cache has no matrices")]
@@ -27,28 +26,6 @@ pub enum SuperneoCachedRelationError {
     UnsatisfiedRow { row: usize },
 }
 
-/// Check `f(M₁z, …, Mₜz) = 0` on every row using the exact compact matrices
-/// selected by the verifier. The assignment must contain real base-field
-/// values represented in `K` and include the cache's complete padded width.
-pub fn check_ccs_relation_zero_cached(
-    cache: &SuperneoEvalCache,
-    polynomial: &SparsePoly<F>,
-    assignment: &[K],
-) -> Result<(), SuperneoCachedRelationError> {
-    let (_, columns, _) = cache
-        .relation_shape()
-        .ok_or(SuperneoCachedRelationError::Empty)?;
-    if assignment.len() != columns {
-        return Err(SuperneoCachedRelationError::AssignmentWidth {
-            expected: columns,
-            got: assignment.len(),
-        });
-    }
-    check_ccs_relation_zero_cached_with_blocks(cache, polynomial, &SuperneoZBlocks::from_z(assignment))
-}
-
-/// Check the same exact CCS rows directly from complete witness blocks.
-/// All blocks must be real and cover the cache's complete padded width.
 pub fn check_ccs_relation_zero_cached_with_blocks(
     cache: &SuperneoEvalCache,
     polynomial: &SparsePoly<F>,

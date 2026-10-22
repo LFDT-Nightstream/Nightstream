@@ -1,5 +1,3 @@
-// Check the exact CCS polynomial on every row of the supplied matrix tables.
-// The host owns statement binding and validates table and polynomial dimensions.
 kernel void ccs_first_unsatisfied_row(
     device const ulong *tables [[buffer(0)]],
     device const ulong *term_headers [[buffer(1)]],

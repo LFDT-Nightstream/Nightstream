@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.SumCheck.Polynomial
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/Coefficients.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Finite coefficient ownership for the SuperNeo v1.2 joint `Pi_CCS` polynomial.
 
@@ -16,24 +13,6 @@ SumCheck rounds, sampled challenges, root counting, Fiat--Shamir, the
 production data-layout refinement, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: a polynomial is finite coefficient data over one
-verifier-owned alpha monomial basis. No evaluation function or degree claim is
-prover data. The block positions do not construct any CCS, norm, target, or
-evaluation formula and do not prove the signed joint identity.
-`ResidualizationBoundary` is an explicit, unclosed assumption relating
-caller-stated semantic obligations to these residual coefficients; it is not
-itself a proof of Appendix B.2, Lemma 9.
-
-| Gamma coefficient block | Selected positions | Stored data | Zero obligation |
-|---|---|---:|---|
-| Pad evaluation (`Eval_K`) | `0 .. kd - 1` | scalar residuals | every entry is zero |
-| matrix evaluation (`Eval_A`) | `kd .. kd(t+1)-1` | scalar residuals | every entry is zero |
-| CCS | `kd(t+1) .. kd(t+1)+K-1` | alpha-polynomial residuals | every entry is zero |
-| norm | `kd(t+1)+K .. kd(t+1)+2K+k-1` | alpha-polynomial residuals | every entry is zero |
-
-This is the v1.2 layout from Section 7.3 and Appendix B.2. `Pad` is a
-separate family and is not one of the `t` CCS matrices.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -42,11 +21,8 @@ open NightstreamFPrime.Spec.SumCheck
 
 universe uField uLeft uRight
 
-/-- Paper dimensions used by the coefficient layout.
-
-`freshCount`, `runningCount`, `matrixCount`, and `coefficientCount` correspond
-to `K`, `k`, `t`, and `d`. `cubeVariables` is `log m`. This is deliberately
-paper-shaped rather than production-mode-shaped. -/
+/-- `freshCount`, `runningCount`, `matrixCount`, and `coefficientCount` correspond
+to `K`, `k`, `t`, and `d`. `cubeVariables` is `log m`. -/
 structure Shape where
   cubeVariables : Nat
   freshCount : Nat
@@ -57,39 +33,30 @@ deriving Repr, DecidableEq
 
 namespace Shape
 
-/-- Number of CCS/CE sources whose norms are checked. -/
 def sourceCount (shape : Shape) : Nat :=
   shape.freshCount + shape.runningCount
 
-/-- Number of scalar `Eval_K` residuals (`k * d`). -/
 def padEvaluationCount (shape : Shape) : Nat :=
   shape.runningCount * shape.coefficientCount
 
-/-- Number of scalar `Eval_A` residuals (`k * t * d`). -/
 def matrixEvaluationCount (shape : Shape) : Nat :=
   shape.runningCount * shape.matrixCount * shape.coefficientCount
 
-/-- First gamma exponent owned by `Eval_A`. -/
 def matrixEvaluationOffset (shape : Shape) : Nat :=
   shape.padEvaluationCount
 
-/-- First gamma exponent owned by the CCS and norm constraint block. -/
 def constraintOffset (shape : Shape) : Nat :=
   shape.padEvaluationCount + shape.matrixEvaluationCount
 
-/-- First gamma exponent owned by the CCS residual block. -/
 def ccsOffset (shape : Shape) : Nat :=
   shape.constraintOffset
 
-/-- First gamma exponent owned by the norm residual block. -/
 def normOffset (shape : Shape) : Nat :=
   shape.constraintOffset + shape.freshCount
 
-/-- Number of gamma coefficients in the complete joint residual polynomial. -/
 def jointCoefficientCount (shape : Shape) : Nat :=
   shape.constraintOffset + shape.freshCount + shape.sourceCount
 
-/-- The paper's `k*d*(t+1)` constraint offset. -/
 theorem constraintOffset_eq (shape : Shape) :
     shape.constraintOffset =
       shape.runningCount * shape.coefficientCount *
@@ -125,7 +92,6 @@ def localGammaExponent {shape : Shape}
     (coordinate : PadCoordinate shape) : Nat :=
   coordinate.running.val + shape.runningCount * coordinate.coefficient.val
 
-/-- `Eval_K` starts at exponent zero. -/
 def gammaExponent {shape : Shape}
     (coordinate : PadCoordinate shape) : Nat :=
   coordinate.localGammaExponent
@@ -149,41 +115,34 @@ def localGammaExponent {shape : Shape}
   coordinate.running.val + shape.runningCount * coordinate.matrix.val +
     shape.runningCount * shape.matrixCount * coordinate.coefficient.val
 
-/-- The absolute gamma exponent after the paper's `k*d` block shift. -/
 def gammaExponent {shape : Shape}
     (coordinate : MatrixCoordinate shape) : Nat :=
   shape.matrixEvaluationOffset + coordinate.localGammaExponent
 
 end MatrixCoordinate
 
-/-- Canonical increasing enumeration of a finite index type. -/
 def canonicalFinIndices (count : Nat) : List (Fin count) :=
   List.ofFn id
 
-/-- The canonical finite-index enumeration has the declared size. -/
 theorem canonicalFinIndices_length (count : Nat) :
     (canonicalFinIndices count).length = count := by
   simp [canonicalFinIndices]
 
-/-- Position `index` of the canonical enumeration is the coordinate `index`. -/
 theorem canonicalFinIndices_getElem (count index : Nat)
     (bound : index < (canonicalFinIndices count).length) :
     (canonicalFinIndices count)[index] =
       ⟨index, by simpa [canonicalFinIndices] using bound⟩ := by
   simp [canonicalFinIndices]
 
-/-- Every coordinate occurs in the canonical enumeration. -/
 theorem mem_canonicalFinIndices {count : Nat} (index : Fin count) :
     index ∈ canonicalFinIndices count := by
   simp [canonicalFinIndices]
 
-/-- Every coordinate below `bound` occurs in the first `bound` positions. -/
 theorem mem_take_canonicalFinIndices {count : Nat} (index : Fin count) {bound : Nat}
     (below : index.val < bound) : index ∈ (canonicalFinIndices count).take bound := by
   rw [List.mem_iff_getElem]
   exact ⟨index.val, by simp [canonicalFinIndices]; omega, by simp [canonicalFinIndices]⟩
 
-/-- The canonical finite-index enumeration contains no repeated coordinate. -/
 theorem canonicalFinIndices_nodup (count : Nat) :
     (canonicalFinIndices count).Nodup := by
   induction count with
@@ -203,8 +162,6 @@ theorem canonicalFinIndices_nodup (count : Nat) :
             exact different (Fin.succ_inj.mp equal))
         simpa [canonicalFinIndices, Function.comp_def] using mapped
 
-/-- The typed finite-index traversal is exactly `0, ..., count - 1` after
-forgetting the bounds. This is the positional fact used by gamma blocks. -/
 theorem canonicalFinIndices_values (count : Nat) :
     (canonicalFinIndices count).map (fun index => index.val) =
       List.range count := by
@@ -226,15 +183,12 @@ private theorem canonical_length_flatMap_constant
   | cons index indices inductionHypothesis =>
       simp [eachLength, inductionHypothesis, Nat.add_mul, Nat.add_comm]
 
-/-- Canonical traversal of `Eval_K` coordinates. -/
 def canonicalPadCoordinates (shape : Shape) : List (PadCoordinate shape) :=
   (canonicalFinIndices shape.coefficientCount).flatMap fun coefficient =>
     (canonicalFinIndices shape.runningCount).map fun running =>
       { running := running
         coefficient := coefficient }
 
-/-- Canonical traversal of `Eval_A` coordinates. `running` changes fastest,
-then `matrix`, then `coefficient`. -/
 def canonicalMatrixCoordinates (shape : Shape) :
     List (MatrixCoordinate shape) :=
   (canonicalFinIndices shape.coefficientCount).flatMap fun coefficient =>
@@ -244,7 +198,6 @@ def canonicalMatrixCoordinates (shape : Shape) :
           matrix := matrix
           coefficient := coefficient }
 
-/-- The canonical Pad traversal has exactly `k * d` entries. -/
 theorem canonicalPadCoordinates_length (shape : Shape) :
     (canonicalPadCoordinates shape).length = shape.padEvaluationCount := by
   unfold canonicalPadCoordinates
@@ -257,7 +210,6 @@ theorem canonicalPadCoordinates_length (shape : Shape) :
     _ = shape.padEvaluationCount := by
       simp [canonicalFinIndices, Shape.padEvaluationCount, Nat.mul_comm]
 
-/-- The canonical matrix traversal has exactly `k * t * d` entries. -/
 theorem canonicalMatrixCoordinates_length (shape : Shape) :
     (canonicalMatrixCoordinates shape).length =
       shape.matrixEvaluationCount := by
@@ -295,8 +247,6 @@ private theorem flatMap_congr_local
       exact inductionHypothesis fun prior member =>
         equal prior (by simp [member])
 
-/-- Consecutive fixed-width ranges concatenate to one consecutive range. This
-is the arithmetic fact used to audit the nested carried-coordinate order. -/
 private theorem range_flatMap_chunks
     (start chunk blockCount : Nat) :
     (List.range blockCount).flatMap (fun block =>
@@ -411,7 +361,6 @@ private theorem matrixExponentBlock
         (shape.runningCount * shape.matrixCount) := by
       rw [Nat.mul_comm shape.matrixCount shape.runningCount]
 
-/-- The Pad traversal induces exactly `0, ..., k*d - 1`. -/
 theorem canonicalPadCoordinates_localGammaExponents (shape : Shape) :
     (canonicalPadCoordinates shape).map PadCoordinate.localGammaExponent =
       List.range shape.padEvaluationCount := by
@@ -448,7 +397,6 @@ theorem canonicalPadCoordinates_localGammaExponents (shape : Shape) :
       unfold Shape.padEvaluationCount
       exact Nat.mul_comm shape.coefficientCount shape.runningCount
 
-/-- The matrix traversal induces exactly `0, ..., k*t*d - 1`. -/
 theorem canonicalMatrixCoordinates_localGammaExponents (shape : Shape) :
     (canonicalMatrixCoordinates shape).map
         MatrixCoordinate.localGammaExponent =
@@ -494,22 +442,17 @@ theorem canonicalMatrixCoordinates_localGammaExponents (shape : Shape) :
         shape.coefficientCount
         (shape.runningCount * shape.matrixCount)
 
-/-- One alpha monomial, represented by its finite exponent vector. -/
 structure AlphaMonomial (shape : Shape) where
   exponents : List Nat
   arity : exponents.length = shape.cubeVariables
 deriving Repr, DecidableEq
 
 /-- Verifier-owned finite basis for polynomials in Appendix B.2's indeterminates
-`A_1, ..., A_logm`. Distinct basis monomials make coefficient truth
-unambiguous. -/
+`A_1, ..., A_logm`. -/
 structure AlphaBasis (shape : Shape) where
   monomials : List (AlphaMonomial shape)
   nodup : monomials.Nodup
 
-/-- Finite alpha polynomial. Coefficients align positionally with one fixed
-verifier-owned basis; there is no function-valued evaluator or declared
-degree. -/
 structure AlphaPolynomial
     (Field : Type uField)
     {shape : Shape}
@@ -519,7 +462,6 @@ structure AlphaPolynomial
 
 namespace AlphaPolynomial
 
-/-- Coefficient-level zero for an alpha polynomial. -/
 def CoefficientZero
     {Field : Type uField}
     {shape : Shape}
@@ -530,7 +472,6 @@ def CoefficientZero
 
 end AlphaPolynomial
 
-/-- The four finite residual families in the v1.2 gamma exponent order. -/
 structure Residuals
     (Field : Type uField)
     (shape : Shape)
@@ -546,9 +487,6 @@ structure Residuals
   norm : List (AlphaPolynomial Field basis)
   normCount : norm.length = shape.sourceCount
 
-/-- Independent semantic obligations which a later concrete paper
-arithmetization must residualize. These are propositions, not conclusions
-carried by a prover or imported from Rust. -/
 structure Obligations (shape : Shape) where
   padEvaluation : List Prop
   padEvaluationCount :
@@ -563,7 +501,6 @@ structure Obligations (shape : Shape) where
 
 namespace Obligations
 
-/-- All paper obligation leaves hold before alpha/gamma compression. -/
 def AllHold {shape : Shape} (obligations : Obligations shape) : Prop :=
   (forall obligation, obligation ∈ obligations.padEvaluation -> obligation) ∧
   (forall obligation, obligation ∈ obligations.matrixEvaluation -> obligation) ∧
@@ -572,8 +509,6 @@ def AllHold {shape : Shape} (obligations : Obligations shape) : Prop :=
 
 end Obligations
 
-/-- Length-preserving pointwise relation between two finite lists. Lean's core
-library intentionally keeps this small relation local to the model. -/
 inductive Aligned {Left : Type uLeft} {Right : Type uRight}
     (relation : Left -> Right -> Prop) : List Left -> List Right -> Prop where
   | nil : Aligned relation [] []
@@ -582,8 +517,6 @@ inductive Aligned {Left : Type uLeft} {Right : Type uRight}
       relation left right -> Aligned relation lefts rights ->
         Aligned relation (left :: lefts) (right :: rights)
 
-/-- Unclosed per-leaf residualization boundary. A concrete Appendix B.2 model
-must construct this from independent Pad, matrix, CCS, and norm semantics. -/
 structure ResidualizationBoundary
     {Field : Type uField}
     {shape : Shape}
@@ -608,8 +541,6 @@ structure ResidualizationBoundary
       residual.CoefficientZero ops ↔ obligation)
     residuals.norm obligations.norm
 
-/-- One coefficient in the formula-agnostic zero-equivalence serialization.
-Evaluation entries are scalars; CCS and norm entries are alpha polynomials. -/
 inductive JointCoefficient
     (Field : Type uField)
     {shape : Shape}
@@ -619,7 +550,6 @@ inductive JointCoefficient
 
 namespace JointCoefficient
 
-/-- Coefficient-level zero for one joint gamma coefficient. -/
 def Zero
     {Field : Type uField}
     {shape : Shape}
@@ -633,7 +563,6 @@ end JointCoefficient
 
 namespace Residuals
 
-/-- Constant-first serialization of the four v1.2 residual families. -/
 def jointCoefficients
     {Field : Type uField}
     {shape : Shape}
@@ -646,8 +575,6 @@ def jointCoefficients
     residuals.norm.map JointCoefficient.alpha ++
     []
 
-/-- Coefficient-level truth of the complete joint polynomial, before sampling
-alpha or gamma. -/
 def CoefficientTruth
     {Field : Type uField}
     {shape : Shape}
@@ -657,7 +584,6 @@ def CoefficientTruth
   forall coefficient,
     coefficient ∈ residuals.jointCoefficients -> coefficient.Zero ops
 
-/-- The serialized list has exactly the four v1.2 block sizes. -/
 theorem jointCoefficients_length
     {Field : Type uField}
     {shape : Shape}
@@ -669,7 +595,6 @@ theorem jointCoefficients_length
     residuals.matrixEvaluationCount, residuals.ccsCount,
     residuals.normCount, Nat.add_assoc]
 
-/-- Joint coefficient truth is exactly the four v1.2 residual families. -/
 theorem coefficientTruth_iff_residualFamilies
     {Field : Type uField}
     {shape : Shape}
@@ -732,7 +657,6 @@ private theorem forall₂_iff_all
       simp only [List.mem_cons, forall_eq_or_imp]
       exact and_congr headExact inductionHypothesis
 
-/-- Conditional coefficient-level composition for the four v1.2 blocks. -/
 theorem coefficientTruth_iff_allObligations
     {Field : Type uField}
     {shape : Shape}

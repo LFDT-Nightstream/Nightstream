@@ -86,8 +86,6 @@ theorem retainedFits {program : Lifecycle.Stage1.Application.Program}
   rw [PiRLCRetainedGeometry.laterPoseidonBlock_coordinateCount] at whole
   omega
 
-/-- The retained PiCCS block is exactly the zero-offset slice of the shared
-later-Poseidon block, lifted through the payload suffix source domain. -/
 theorem retainedBlock_encodesAt
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)

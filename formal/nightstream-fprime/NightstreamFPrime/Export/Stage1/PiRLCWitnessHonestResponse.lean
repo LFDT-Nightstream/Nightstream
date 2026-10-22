@@ -37,8 +37,6 @@ private def context : PiRLC.PaperCompleteness.Context
   evaluationCount := (PaperAlgebra.evaluationArity Poseidon2HashChainV1Setup.productionAjtaiKey).count
   evaluationsSize := (PaperAlgebra.evaluationArity Poseidon2HashChainV1Setup.productionAjtaiKey).evaluations_size
 
-/-- The selected honest prover's assignment is definitionally the same
-complete-carrier combination used by the executable block theorem. -/
 theorem honestResponse_assignment
     (assignments : Fin SourceCount → Phi81Relation.Assignment selectedShape)
     (challenges : Fin SourceCount → RingF)
@@ -46,8 +44,6 @@ theorem honestResponse_assignment
     (PiRLC.PaperCompleteness.honestResponse context assignments ⟨challenges, valid⟩).assignment =
       PiRLCFinite.combineAssignments challenges assignments := rfl
 
-/-- The last prepared block is the corresponding block of the existing
-honest response. No source-opening or expected-output premise is added. -/
 theorem preparedWitnessBlockPartials_honestResponse
     (assignments : Fin SourceCount → Phi81Relation.Assignment selectedShape)
     (challenges : Fin SourceCount → RingF)

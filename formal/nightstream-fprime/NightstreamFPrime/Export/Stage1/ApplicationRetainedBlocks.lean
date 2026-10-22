@@ -3,8 +3,6 @@ import NightstreamFPrime.Layout.LowNormBlock
 
 /-!
 Owns the retained witness and local field blocks for one selected application.
-The input and output blocks are four-word source views. Their geometry reuses
-the actual pilot preimage coordinates; they allocate no application suffix.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationRetainedBlocks
@@ -145,8 +143,6 @@ theorem retainedCoordinateCount_eq
     BalancedTernary.width]
   omega
 
-/-- Every application source has a witness/local owner or a shared pilot
-input/output view. The views do not allocate additional coordinates. -/
 theorem sourceAllowed_covered
     (application : Lifecycle.Stage1.Application.Program)
     (column : Fin (sourceWidth application))

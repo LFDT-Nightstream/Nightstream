@@ -72,8 +72,6 @@ def preimageWord (index : Lifecycle.Stage1.Application.StateIndex) :
       PilotValues.stateHashWords, PilotValues.stateHashBaseWords] at bound ⊢
     omega⟩
 
-/-- Application input wires are the actual prior-hash preimage forms for every
-assignment. No representation premise or copy row supplies this equality. -/
 theorem input_form_eq_pilot
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry application logicalWidth)
@@ -93,8 +91,6 @@ theorem input_form_eq_pilot
       Layout.Stage1.ApplicationInputs.currentWordStart]
     omega
 
-/-- Application output wires are the actual output-hash preimage forms for
-every assignment. This is the parent-owned application-to-hash connection. -/
 theorem output_form_eq_pilot
     {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry application logicalWidth)

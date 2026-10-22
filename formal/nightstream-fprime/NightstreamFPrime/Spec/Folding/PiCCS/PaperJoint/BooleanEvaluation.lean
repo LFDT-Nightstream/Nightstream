@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanTable
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Sampling
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/BooleanEvaluation.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Evaluation semantics for the canonical Boolean-table coefficient transform.
 
@@ -17,15 +14,6 @@ construction, SumCheck, sampling, root counting, Fiat--Shamir, Rust, R1CS, or
 constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: the table and evaluation point are explicit finite data.
-The polynomial coefficients and basis are derived by `BooleanTable`; no
-caller-supplied evaluator or polynomial identity is assumed.
-
-| Mathematical object | Independent definition | Proven relation |
-|---|---|---|
-| table MLE | recurse as `low + x * (high - low)` | equals canonical polynomial evaluation |
-| canonical polynomial | `toAlphaPolynomial` on the squarefree alpha basis | no external evaluation oracle |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -34,8 +22,6 @@ open NightstreamFPrime.Spec.SumCheck
 
 universe uField
 
-/-- Explicit algebraic laws used by the evaluation proof. They are stated over
-the same operations that construct and evaluate the polynomial. -/
 structure InterpolationEvaluationLaws
     {Field : Type uField}
     (ops : InterpolationOps Field) : Prop where
@@ -106,8 +92,6 @@ private theorem alphaPolynomial_evaluate_eq_evaluateTerms
           congr 1
           exact inductionHypothesis monomials
 
-/-- Independent recursive multilinear extension of a Boolean table. Mismatch
-branches only make the raw function total; a `CubePoint` rules them out. -/
 def evaluateCoordinates
     {Field : Type uField}
     (ops : InterpolationOps Field) :
@@ -122,7 +106,6 @@ def evaluateCoordinates
             (low.evaluateCoordinates ops coordinates)))
   | _, _, _ => ops.zero
 
-/-- Evaluate the independent table MLE at a dimension-checked point. -/
 def evaluate
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -493,10 +476,6 @@ private theorem evaluation_probe
               evaluate] using! result
           rw [lowEvaluation, highEvaluation]
 
-/-- Evaluating the canonical polynomial derived from a Boolean table equals
-the independently recursive multilinear extension at every dimension-checked
-point. This is a model-level algebraic theorem; it makes no implementation or
-constraint claim. -/
 theorem toAlphaPolynomial_evaluate_eq_evaluate
     {Field : Type uField}
     (ops : InterpolationOps Field)

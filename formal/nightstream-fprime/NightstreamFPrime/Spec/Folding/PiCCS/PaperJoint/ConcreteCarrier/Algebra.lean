@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConstraintPolynomialLift.Evaluation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormResidualTable
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ConcreteCarrier/Algebra.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Concrete carrier algebra for paper joint `Pi_CCS`.
 
@@ -23,20 +20,6 @@ Goldilocks modulus Euclid property, transcript hashing, SumCheck degree,
 Rust/R1CS refinement, row removal, or counts.
 
 Emits constraints: no.
-
-Authority boundary: all operations are definitions over the already-owned
-concrete `F` and `K` types. The embedding laws are proved directly from those
-definitions; callers do not supply arithmetic or evaluation callbacks.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `pi_ccs.carrier.base.ops` | Goldilocks zero/one/add/mul/neg | computed | `baseOps` |
-| `pi_ccs.carrier.base.laws` | interpolation algebra over `F` | derived | `baseLaws` |
-| `pi_ccs.carrier.extension.ops` | quadratic-extension zero/one/add/mul/neg | computed | `extensionOps` |
-| `pi_ccs.carrier.extension.laws` | interpolation algebra over `K` | derived | `extensionLaws` |
-| `pi_ccs.carrier.extension.sub` | derived subtraction equals concrete `K.sub` | derived | `derived_sub_eq_concrete_sub` |
-| `pi_ccs.carrier.embed.algebra` | embedding preserves zero/one/add/mul | derived | `embed_zero`, `embed_one`, `embed_add`, `embed_mul` |
-| `pi_ccs.ccs.lift.algebra` | concrete sparse-polynomial evaluation laws | derived | `constraintEvaluationLaws` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
@@ -44,7 +27,6 @@ namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Canonical paper arithmetic over the production Goldilocks residue type. -/
 def baseOps : InterpolationOps F where
   zero := 0
   one := 1
@@ -52,7 +34,6 @@ def baseOps : InterpolationOps F where
   mul := (· * ·)
   neg := fun value => 0 - value
 
-/-- Canonical paper arithmetic over the production quadratic extension. -/
 def extensionOps : InterpolationOps K where
   zero := K.zero
   one := K.one
@@ -60,7 +41,6 @@ def extensionOps : InterpolationOps K where
   mul := K.mul
   neg := fun value => K.sub K.zero value
 
-/-- The semantic base zero is definitionally the concrete Goldilocks zero. -/
 theorem baseZeroAgreement : NormResidualTable.BaseZeroAgreement baseOps where
   zero_eq := rfl
 
@@ -118,8 +98,6 @@ local instance : Std.Associative (fun (left right : F) => left * right) :=
 local instance : Std.Commutative (fun (left right : F) => left * right) :=
   ⟨fmul_comm⟩
 
-/-- The concrete Goldilocks operations satisfy every algebraic law needed by
-finite matrix images and coefficient-kernel expansion. -/
 theorem baseLaws : InterpolationEvaluationLaws baseOps := by
   constructor
   · exact fadd_assoc
@@ -167,8 +145,6 @@ private theorem k_add_mul (left middle right : K) :
   rw [k_mul_comm, k_mul_add]
   congr 1 <;> rw [k_mul_comm]
 
-/-- Subtraction derived by `InterpolationOps` agrees with the concrete
-quadratic-extension subtraction on both coefficients. -/
 theorem derived_sub_eq_concrete_sub (left right : K) :
     extensionOps.sub left right = K.sub left right := by
   rcases left with ⟨left0, left1⟩
@@ -176,8 +152,6 @@ theorem derived_sub_eq_concrete_sub (left right : K) :
   simp only [InterpolationOps.sub, extensionOps, K.add, K.sub, K.zero,
     Fin.sub_eq_add_neg, Fin.zero_add]
 
-/-- The concrete quadratic-extension operations satisfy every algebraic law
-used by Boolean interpolation, SumCheck truth, and carried evaluation. -/
 theorem extensionLaws : InterpolationEvaluationLaws extensionOps := by
   constructor
   · intro left middle right
@@ -235,38 +209,29 @@ theorem extensionLaws : InterpolationEvaluationLaws extensionOps := by
       Fin.sub_eq_add_neg, Fin.zero_add, Lean.Grind.Fin.neg_mul, fmul_neg,
       fneg_add]
 
-/-- The zero laws used by the coefficient transform are a direct projection
-of the stronger concrete evaluation laws. -/
 theorem extensionZeroLaws : InterpolationZeroLaws extensionOps where
   add_zero := extensionLaws.add_zero
   neg_zero := by
     simp only [extensionOps, K.sub, K.zero, Fin.sub_self]
 
-/-- The concrete embedding maps base zero to extension zero. -/
 theorem embed_zero : K.embed baseOps.zero = extensionOps.zero := by
   rfl
 
-/-- The concrete embedding maps the base unit to the extension unit. -/
 theorem embed_one : K.embed baseOps.one = extensionOps.one := by
   rfl
 
-/-- The concrete embedding commutes with addition. -/
 theorem embed_add (left right : F) :
     K.embed (baseOps.add left right) =
       extensionOps.add (K.embed left) (K.embed right) := by
   simp only [baseOps, extensionOps, K.embed, K.add,
     Fin.add_zero]
 
-/-- The concrete embedding commutes with multiplication. -/
 theorem embed_mul (left right : F) :
     K.embed (baseOps.mul left right) =
       extensionOps.mul (K.embed left) (K.embed right) := by
   simp only [baseOps, extensionOps, K.embed, K.mul,
     Fin.mul_zero, Fin.zero_mul, Fin.add_zero]
 
-/-- Direct concrete algebraic contract for structurally lifting sparse CCS
-polynomials from `F` to `K`. This contract is independent of norm semantics
-and the high-level protocol verifier. -/
 theorem constraintEvaluationLaws :
     ConstraintPolynomialLift.Evaluation.EvaluationLaws
       baseOps extensionOps K.embed where

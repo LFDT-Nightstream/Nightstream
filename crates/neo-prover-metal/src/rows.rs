@@ -12,7 +12,6 @@ use neo_reductions::{
 use crate::session::MetalPaperJointOracle;
 use crate::{oracle_error, MetalActivity, MetalError, MetalSession};
 
-/// Retains the device session; each operation loads bounded original-row windows.
 pub struct MetalRowProver {
     session: MetalSession,
 }
@@ -108,8 +107,6 @@ impl MetalRowProver {
         self.session.activity()
     }
 
-    /// Commit complete signed-unit witnesses with the verifier-owned indexed key.
-    /// Key generation, ring products, and reduction run on the device.
     pub fn commit_production_prefixes<W: std::borrow::Borrow<Mat<F>>>(
         &self,
         witnesses: &[W],
@@ -127,17 +124,13 @@ impl MetalRowProver {
         }
     }
 
-    /// Mix the Π_RLC witnesses `Σ ρ_i·Z_i` and split the parent into `digits`
-    /// balanced base-`base` planes on the device; the parent stays there.
-    /// Returns the planes and their nonzero flags. Unsupported inputs return
-    /// an error; callers do not receive an implicit host fallback.
     pub fn split_rlc_witnesses(
         &self,
         rhos: &[Mat<F>],
         witnesses: &[&Mat<F>],
         digits: usize,
         base: u32,
-    ) -> Result<(Vec<Mat<F>>, Vec<bool>), PiCcsError> {
+    ) -> Result<neo_reductions::common::SplitDigits, PiCcsError> {
         #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
         {
             self.session
@@ -151,8 +144,6 @@ impl MetalRowProver {
         }
     }
 
-    /// Compute every supplied child opening on the device. Unsupported shapes
-    /// return an error; callers do not receive an implicit host fallback.
     pub fn child_openings(
         &mut self,
         rows: &dyn MatrixRows,
@@ -183,8 +174,6 @@ impl MetalRowProver {
         }
     }
 
-    /// Check every row against a complete signed-unit witness on the device.
-    /// `None` means all rows satisfy the polynomial; errors do not trigger a host fallback.
     pub fn first_unsatisfied_row(
         &mut self,
         rows: &dyn MatrixRows,
@@ -209,8 +198,6 @@ impl MetalRowProver {
         }
     }
 
-    /// Compute running openings and check the fresh relation while each
-    /// original matrix window remains loaded. Both operations run on Metal.
     pub fn evaluate_terminal_rows(
         &mut self,
         rows: &dyn MatrixRows,

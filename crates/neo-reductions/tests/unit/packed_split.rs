@@ -42,7 +42,7 @@ fn packed_split_matches_scalar_balanced_digits_across_column_ranges() {
         for column in 0..columns {
             let mut value = values[row * columns + column];
             for plane in 0..k {
-                let (digit, quotient) = balanced_divrem_i64_base2(value);
+                let (digit, quotient) = signed_divrem_base2(value);
                 used[plane] |= digit != 0;
                 assert_eq!(
                     digits[plane][(row, column)],
@@ -58,10 +58,10 @@ fn packed_split_matches_scalar_balanced_digits_across_column_ranges() {
 }
 
 #[test]
-fn packed_split_leaves_out_of_range_entries_to_the_serial_error() {
+fn packed_split_reports_the_out_of_range_entry() {
     let (rows, columns) = (54, CHUNK_COLUMNS + 3);
     let (z, _) = witness(rows, columns, Some(7 * columns + CHUNK_COLUMNS + 1));
-    assert!(split_base2_packed(&z, 16).is_none());
+    assert_eq!(split_base2_packed(&z, 16).err(), Some(7 * columns + CHUNK_COLUMNS + 1));
     let error = super::super::split_b_matrix_k_with_nonzero_flags(&z, 16, 2).unwrap_err();
     assert!(
         error

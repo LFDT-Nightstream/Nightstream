@@ -30,7 +30,7 @@ where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
 {
-    dec_reduction_optimized_inner(s, params, parent, Z_split, ell_d, None, None, None, None)
+    dec_reduction_optimized_inner(s, params, parent, Z_split, ell_d, None, None, None)
 }
 
 pub fn dec_reduction_optimized_with_digit_flags<Ff>(
@@ -41,7 +41,6 @@ pub fn dec_reduction_optimized_with_digit_flags<Ff>(
     digit_nonzero: &[bool],
     ell_d: usize,
     cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
-    ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
     precomputed_openings: Option<&[V1_2OutputOpening]>,
 ) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
 where
@@ -61,7 +60,6 @@ where
         ell_d,
         cache,
         Some(digit_nonzero),
-        ring_linear_forms,
         precomputed_openings,
     )
 }
@@ -74,7 +72,6 @@ fn dec_reduction_optimized_inner<Ff>(
     ell_d: usize,
     cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
     digit_nonzero: Option<&[bool]>,
-    ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
     precomputed_openings: Option<&[V1_2OutputOpening]>,
 ) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool)
 where
@@ -87,9 +84,6 @@ where
     let matrix_count = s.t();
     assert_eq!(parent.eval_k.len(), d_pad, "PiDEC Eval_K width mismatch");
     assert_eq!(parent.eval_a.len(), matrix_count, "PiDEC Eval_A count mismatch");
-    if let Some(forms) = ring_linear_forms {
-        assert_eq!(forms.len(), s.t(), "PiDEC ring-form count mismatch");
-    }
     if let Some(openings) = precomputed_openings {
         assert_eq!(openings.len(), Z_split.len(), "PiDEC precomputed child count mismatch");
         assert!(
@@ -99,29 +93,22 @@ where
             "PiDEC precomputed v1_2 shape mismatch"
         );
     }
-    assert!(
-        precomputed_openings.is_none() || ring_linear_forms.is_none(),
-        "PiDEC accepts precomputed rows or ring forms, not both"
-    );
 
-    // The normal path computes complete openings from the actual split.
-    // Legacy supplied adapter material is handled only in its existing branch.
-    let computed_openings = (precomputed_openings.is_none() && ring_linear_forms.is_none())
-        .then(|| witness_openings(s, Z_split, &parent.r, cache, digit_nonzero));
-    let precomputed_openings = precomputed_openings.or(computed_openings.as_deref());
-    let row_weights = if precomputed_openings.is_some() {
-        Vec::new()
-    } else {
-        neo_ccs::utils::tensor_point_parallel::<K>(&parent.r)
+    let computed_openings;
+    let openings = match precomputed_openings {
+        Some(openings) => openings,
+        None => {
+            computed_openings = witness_openings(s, Z_split, &parent.r, cache, digit_nonzero);
+            &computed_openings
+        }
     };
-    let streamed = streamed_application_rows(s, Z_split, digit_nonzero, ring_linear_forms, precomputed_openings);
     let m_in = parent.m_in;
     let build_child = |index: usize| {
         if digit_nonzero.is_some_and(|flags| !flags[index]) {
             return CeClaim {
                 adv: None,
                 c: parent.c.clone(),
-                X: Mat::zero(D, neo_ccs::superneo_public_x_cols(m_in), Ff::ZERO),
+                X: Mat::zero(D, parent.X.cols(), Ff::ZERO),
                 r: parent.r.clone(),
                 eval_k: vec![K::ZERO; d_pad],
                 eval_a: vec![vec![K::ZERO; d_pad]; matrix_count],
@@ -133,19 +120,13 @@ where
         let witness = &Z_split[index];
         let X = crate::common::project_x_from_witness_mat(witness, s.m, m_in)
             .unwrap_or_else(|error| panic!("PiDEC X projection failed: {error}"));
-        let identity = precomputed_openings
-            .map(|openings| extension_block(&openings[index].eval_k))
-            .unwrap_or_else(|| {
-                let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, s.m)
-                    .unwrap_or_else(|error| panic!("PiDEC identity assignment decode failed: {error}"));
-                super::paper_joint::identity_ring_mle(&assignment, &row_weights)
-            });
-        let mut eval_k = identity.to_vec();
+        let mut eval_k = extension_block(&openings[index].eval_k).to_vec();
         eval_k.resize(d_pad, K::ZERO);
-        let eval_a = streamed[index]
+        let eval_a = openings[index]
+            .eval_a
             .iter()
             .map(|coefficients| {
-                let mut row = coefficients.to_vec();
+                let mut row = extension_block(coefficients).to_vec();
                 row.resize(d_pad, K::ZERO);
                 row
             })
@@ -206,44 +187,6 @@ where
         })
     });
     (children, eval_k_ok && eval_a_ok, x_ok)
-}
-
-fn streamed_application_rows<Ff>(
-    s: &CcsStructure<Ff>,
-    Z_split: &[Mat<Ff>],
-    digit_nonzero: Option<&[bool]>,
-    ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
-    precomputed_openings: Option<&[V1_2OutputOpening]>,
-) -> Vec<Vec<[K; D]>>
-where
-    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    K: From<Ff>,
-{
-    if let Some(openings) = precomputed_openings {
-        return openings
-            .iter()
-            .map(|child| {
-                child
-                    .eval_a
-                    .iter()
-                    .map(|row| extension_block(row))
-                    .collect()
-            })
-            .collect();
-    }
-    let forms = ring_linear_forms.expect("normal PiDEC has computed its complete openings");
-    Z_split
-        .iter()
-        .enumerate()
-        .map(|(index, witness)| {
-            if digit_nonzero.is_some_and(|flags| !flags[index]) {
-                return vec![[K::ZERO; D]; s.t()];
-            }
-            let blocks = crate::superneo_eval::SuperneoZBlocks::from_witness_mat(witness, s.m)
-                .unwrap_or_else(|error| panic!("PiDEC child block view failed: {error}"));
-            crate::superneo_eval::eval_ring_linear_forms_real_z_blocks(forms, &blocks)
-        })
-        .collect()
 }
 
 fn witness_openings<Ff>(

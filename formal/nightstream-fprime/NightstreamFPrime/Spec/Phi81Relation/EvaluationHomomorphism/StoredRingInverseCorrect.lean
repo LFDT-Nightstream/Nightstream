@@ -2,8 +2,7 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInv
 import Mathlib.Tactic.Ring
 
 /-! Polynomial correctness of the executed normalized-GCD candidate under
-explicit coprimality. This does not identify RingF units with coprime
-polynomial representatives and gives no execution-work bound. -/
+explicit coprimality. -/
 
 set_option autoImplicit false
 
@@ -31,7 +30,6 @@ theorem modulus_degree :
   · rw [lower, Polynomial.degree_X_pow]
     decide
 
-/-- Monic reduction bounds the candidate's degree on every stored input. -/
 theorem candidatePolynomial_degree_lt (value : StoredRing) :
     (candidatePolynomial value).toPoly.degree < (ringDegree : WithBot Nat) := by
   rw [candidatePolynomial_toPolynomial, ← modulus_degree]
@@ -43,8 +41,6 @@ private theorem one_modulus :
   rw [Polynomial.degree_one, modulus_degree]
   decide
 
-/-- Coprimality makes the cofactor from the actual normalized-GCD call a
-polynomial inverse. The stored RingF unit premise is not established here. -/
 theorem candidatePolynomial_mul_mod (value : StoredRing)
     (coprime : IsCoprime (encode value).toPoly (modulus ()).toPoly) :
     ((candidatePolynomial value).toPoly * (encode value).toPoly) %ₘ

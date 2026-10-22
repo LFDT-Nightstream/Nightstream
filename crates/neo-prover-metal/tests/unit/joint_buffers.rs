@@ -27,8 +27,6 @@ fn empty_rows_do_not_read_dummy_offsets() {
         .unwrap();
     let matrix = &window.matrices[0];
     assert_eq!(matrix.row_offset_width, 0);
-    // Empty-table buffers carry no entries. Poison them with a plausible
-    // nonzero row so an accidental read produces the wrong application value.
     session
         .write_shared(&matrix.row_offsets, &[0u32, 1u32])
         .unwrap();
@@ -99,7 +97,6 @@ fn zero_carried_tables_fit_their_advertised_length() {
     let dims = build_joint_dims(&params, &structure, 1, params.k_rho as usize).unwrap();
     let point = vec![K::ZERO; dims.variables];
     let fresh = [neo_ccs::CcsWitness {
-        w: vec![],
         Z: Mat::zero(D, 1, F::ZERO),
     }];
     let running = vec![Mat::zero(D, 1, F::ZERO); params.k_rho as usize];
@@ -129,8 +126,6 @@ fn zero_carried_tables_fit_their_advertised_length() {
 fn application_storage_does_not_reserve_future_rounds() {
     let session = MetalSession::new().unwrap();
     let mut bytes = Vec::new();
-    // Both relations fit in the same assignment domain. Only the actual
-    // application row count changes, so future rounds need no new storage yet.
     for rows in [3, 5] {
         let mut cache = SuperneoEvalCacheBuilder::new(rows, D, 1).unwrap();
         for row in 0..rows {
@@ -170,7 +165,6 @@ fn application_storage_does_not_reserve_future_rounds() {
         let dims = build_joint_dims(&params, &structure, 1, params.k_rho as usize).unwrap();
         let point = vec![K::ZERO; dims.variables];
         let fresh = [neo_ccs::CcsWitness {
-            w: vec![],
             Z: Mat::virtual_constant(D, 1, F::ZERO),
         }];
         let running = vec![Mat::virtual_constant(D, 1, F::ZERO); params.k_rho as usize];
@@ -189,7 +183,6 @@ fn application_storage_does_not_reserve_future_rounds() {
         let _oracle = MetalPaperJointOracle::new(&session, plan, input).unwrap();
         bytes.push(session.activity().allocated_bytes - before);
     }
-    // Empty matrices have no row-offset arrays: only two current F values grow.
     assert_eq!(bytes[1] - bytes[0], (2 * size_of::<F>()) as u64);
 }
 

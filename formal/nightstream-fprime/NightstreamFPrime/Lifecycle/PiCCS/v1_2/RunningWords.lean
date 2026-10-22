@@ -21,8 +21,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
 
-/-- Parent coordinate `column` of the sixteen child public-input expressions,
-with the production radix weights. -/
 def parentPublicExpr {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -33,7 +31,6 @@ def parentPublicExpr {logicalWidth : Nat}
       (Fin.cast NightstreamFPrime.Lifecycle.runningCount_eq_radixChildCount.symm child)
       column
 
-/-- The packed parent public input of the sixteen children. -/
 def serializeParentPublicExpr {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -44,9 +41,6 @@ def serializeParentPublicExpr {logicalWidth : Nat}
       (parentPublicExpr running (NightstreamFPrime.Lifecycle.packedColumn word 1))
       (parentPublicExpr running (NightstreamFPrime.Lifecycle.packedColumn word 2))
 
-/-- Canonical expression form of the hashed running section in
-`XOut.serializeRunning` order: commitments, `Eval_K`, `Eval_A`, the point,
-then the packed parent public input. -/
 def serializeRunningExpr {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -70,8 +64,6 @@ theorem serializeRunningExpr_length {logicalWidth : Nat}
     serializeEvalAExpr_length, productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape, NightstreamFPrime.Lifecycle.packedParentWords]
 
-/-- Every hashed running word is one commitment coefficient, one `Eval_K` or
-`Eval_A` limb, one point limb, or one packed parent word. -/
 theorem serializeRunningExpr_mem {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -106,8 +98,6 @@ theorem serializeRunningExpr_mem {logicalWidth : Nat}
     rcases parent with ⟨word, _, rfl⟩
     exact Or.inr (Or.inr (Or.inr (Or.inr ⟨word, rfl⟩)))
 
-/-- A property closed under constants, sums and constant scaling holds on
-every packed parent word whose child public inputs satisfy it. -/
 theorem packWordExpr_parent_closed {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

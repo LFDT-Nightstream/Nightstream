@@ -40,7 +40,6 @@ private def decodeBlock (line : String) :
       else throw "expected 54 parent coefficients"
   | _ => throw "expected parent block and coefficient array"
 
-/-- One decoded line of a parent range file. -/
 private inductive ParentLine where
   | header (line : String)
   | terminator
@@ -48,8 +47,6 @@ private inductive ParentLine where
 
 instance : Inhabited ParentLine := ⟨.terminator⟩
 
-/-- Check the complete parent range file and return the carrier width and the
-records with `start ≤ block < finish`, in block order. -/
 def select (path : System.FilePath) (start finish : Nat) :
     IO (Nat × Array (Nat × StoredAssignment ringDegree)) := do
   let lines : Array (Nat × ParentLine) ←

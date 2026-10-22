@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiRLC/PaperCompleteness.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Deterministic completeness and public coins for the paper `Pi_RLC` reduction.
 
@@ -14,16 +11,8 @@ successful response for the exact verifier-computed `PiRLC.combinedOutput`.
 Canonical fresh inputs made directly from assignments are a separate
 corollary, not the primary completeness statement.
 
-Does not own: coordinate-wise rewinding, probability, relaxed-binding
-uniqueness, Fiat--Shamir, a concrete commitment or field, Rust, R1CS, or costs.
-
-Emits constraints: no.
-
-The primary theorem assumes only the paper's source relation: each public
-input is at stage `fresh` and has an honest opening.  It preserves those
-public instances exactly.  The output relation is a conclusion:
-`Algebra.norm_growth` is the abstract form of the paper's expansion-factor calculation
-`(K + k) * T * (b - 1) < B` stored in `GlobalParams.rlc_bound`.
+`Algebra.norm_growth` is the abstract form of the paper's expansion-factor
+calculation `(K + k) * T * (b - 1) < B` stored in `GlobalParams.rlc_bound`.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiRLC.PaperCompleteness
@@ -35,8 +24,6 @@ open NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
   uScalar
 
-/-- The exact deterministic operations and deployment parameters used by one
-paper `Pi_RLC` execution. -/
 structure Context
     (Structure : Type uStructure)
     (Assignment : Type uAssignment)
@@ -56,8 +43,6 @@ structure Context
     (semantics.evaluations system assignment point).size =
       evaluationCount system
 
-/-- Canonical source statement made from one honest assignment at the shared
-constraint system and evaluation point. -/
 def honestInput
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -79,8 +64,6 @@ def honestInput
   evaluations := context.semantics.evaluations system assignment point
   stage := .fresh
 
-/-- The canonical source statement satisfies the exact `CE(b)` relation.  No
-source-validity proposition is assumed. -/
 theorem honestInput_holds
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -100,7 +83,6 @@ theorem honestInput_holds
       (honestInput context system point assignment) assignment := by
   exact ⟨⟨rfl, rfl, sourceNorm⟩, pointValid, rfl⟩
 
-/-- Canonical shared-system/shared-point input batch. -/
 def honestBatch
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -125,9 +107,6 @@ def honestBatch
   evaluationsSize := fun index =>
     context.evaluationsSize system (assignments index) point
 
-/-- All verifier randomness for paper `Pi_RLC`.  Membership in the strong
-sampling set is attached to the verifier-generated coins, not supplied as a
-prover assertion. -/
 structure PublicCoins
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -141,8 +120,6 @@ structure PublicCoins
   challenges : Fin context.arity.total -> Scalar
   valid : forall index, context.algebra.challengeValid (challenges index)
 
-/-- The honest prover applies exactly the public challenge vector to the
-source assignments. -/
 def honestResponse
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -159,9 +136,6 @@ def honestResponse
   challenges := coins.challenges
   assignment := combinedWitness context.algebra coins.challenges assignments
 
-/-- The canonical honest response opens the verifier-computed `CE(B)` output.
-The only semantic premises are the source `b`-norms and validity of the shared
-evaluation point. -/
 theorem honestResponse_success
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -192,9 +166,6 @@ theorem honestResponse_success
       (sourceNorms index) pointValid)
     pointValid
 
-/-- The honest response preserves an arbitrary public input batch and opens
-its exact verifier-computed `CE(B)` output.  Shared-point validity is derived
-from one source opening; production arity is nonempty by `BatchArity`. -/
 theorem honestResponse_success_of_inputHolds
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -226,7 +197,6 @@ theorem honestResponse_success_of_inputHolds
     assignments inputFresh batch.sameSystem batch.samePoint coins.valid
     inputHolds pointValid
 
-/-- Pointwise perfect completeness for the actual public source instances. -/
 def PerfectComplete
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -252,8 +222,6 @@ def PerfectComplete
       response.Success context.semantics context.params context.algebra
         batch
 
-/-- Every valid public `CE(b)` batch constructs a successful response.  Target
-membership is not a premise. -/
 theorem perfectComplete
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -270,7 +238,6 @@ theorem perfectComplete
     honestResponse_success_of_inputHolds context batch assignments coins
       inputFresh inputHolds⟩
 
-/-- Canonical-instance completeness is retained as a useful corollary. -/
 def CanonicalPerfectComplete
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -289,7 +256,6 @@ def CanonicalPerfectComplete
       context.semantics context.params context.algebra
       (honestBatch context system point assignments)
 
-/-- Canonical source instances satisfy the primary operational theorem. -/
 theorem canonicalPerfectComplete
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -305,8 +271,6 @@ theorem canonicalPerfectComplete
   exact honestResponse_success context system point assignments coins
     sourceNorms pointValid
 
-/-- Public-coin ownership: the verifier's output is computed from exactly the
-public challenge vector and contains no hidden verifier randomness. -/
 def PublicCoin
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -325,8 +289,6 @@ def PublicCoin
       combinedOutput context.algebra batch.system batch.point batch.inputs
         coins.challenges
 
-/-- Paper `Pi_RLC` is public coin: its sole verifier message is the sampled
-challenge vector used definitionally by `combinedOutput`. -/
 theorem publicCoin
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}

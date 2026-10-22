@@ -18,7 +18,6 @@ abbrev Word := UInt64
 private def modulus64 : UInt64 := 0xffffffff00000001
 def radix : Nat := 4294967296
 
-/-- Interpret one machine word as a Goldilocks residue. -/
 def _root_.UInt64.denote (value : UInt64) : F := Poseidon2.ofNat value.toNat
 
 private theorem modulus64_toNat : modulus64.toNat = goldilocksModulus := by

@@ -6,14 +6,7 @@ Evaluate rows that share their columns by pushing the row weights through the
 columns. The 108 rows of one Phi81 product invocation list the same columns in
 the same order with different coefficients, so for each port and lane
 `Σ_r w_r Σ_j c_rj x_j = Σ_j (Σ_r w_r c_rj) x_j`: one pass over the columns
-replaces one pass per row. The column weights do not depend on the read, so
-`prepare` computes them once for every source or child, as one entry list that
-carries both extension coordinates; `evaluate` reads each listed column once
-for both. Rows that do not list the same columns merge the weighted
-coefficients of each column instead, so each distinct column is read once per
-port and lane rather than once per row that uses it. Every
-port and lane equals `PiDECMatrixSparseRange.sum` for every read; no row, read
-or alignment premise is needed.
+replaces one pass per row.
 -/
 
 set_option autoImplicit false
@@ -28,36 +21,30 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace (MaterializedRingK)
 
-/-- The stored form of one port; the zero port is empty. -/
 def portForm {columns : Nat} (selected : MatrixProgram.RowForms columns)
     (port : Fin matrixCount) : SparseForm columns :=
   match meaningfulPort? port with
   | some meaningful => selected meaningful
   | none => SparseForm.empty
 
-/-- `weight · embed coefficient` without the embedded zero terms. -/
 def scale (weight : K) (coefficient : F) : K :=
   ⟨weight.c0 * coefficient, weight.c1 * coefficient⟩
 
-/-- Add each weighted coefficient of one row to the weight of its position. -/
 def addRow (weight : K) : List K → List F → List K
   | total :: totals, coefficient :: coefficients =>
       K.add total (scale weight coefficient) :: addRow weight totals coefficients
   | _, _ => []
 
-/-- The sum of position-wise products. -/
 def dot : List K → List K → K
   | weight :: weights, value :: values =>
       extensionOps.add (extensionOps.mul weight value) (dot weights values)
   | _, _ => extensionOps.zero
 
-/-- One sparse form per extension coordinate of the column weights. -/
 def coordinateForms {columns : Nat} (selected : List (Fin columns)) (weights : List K) :
     SparseForm columns × SparseForm columns :=
   (⟨List.zipWith (fun column weight => ⟨column, weight.c0⟩) selected weights⟩,
     ⟨List.zipWith (fun column weight => ⟨column, weight.c1⟩) selected weights⟩)
 
-/-- The coefficients of one row and port, or none past the rows. -/
 def rowCoefficients {columns count : Nat}
     (forms : Vector (MatrixProgram.RowForms columns) count) (port : Fin matrixCount)
     (index : Nat) : List F :=
@@ -65,7 +52,6 @@ def rowCoefficients {columns count : Nat}
     (portForm (forms.get ⟨index, live⟩) port).entries.map (·.coefficient)
   else []
 
-/-- The columns of one port in the first row. -/
 def columnsOf {columns count : Nat}
     (forms : Vector (MatrixProgram.RowForms columns) count) (port : Fin matrixCount) :
     List (Fin columns) :=
@@ -73,14 +59,12 @@ def columnsOf {columns count : Nat}
     (portForm (forms.get ⟨0, nonempty⟩) port).entries.map (·.column)
   else []
 
-/-- Every row lists the columns of the first row, in order, in every port. -/
 def aligned {columns count : Nat}
     (forms : Vector (MatrixProgram.RowForms columns) count) : Bool :=
   (List.finRange matrixCount).all fun port =>
     forms.toList.all fun row =>
       (portForm row port).entries.map (·.column) == columnsOf forms port
 
-/-- The weighted coefficient sum of every column position of one port. -/
 def portWeights {columns arity count : Nat} (firstRow : Nat) (point : CubePoint K arity)
     (forms : Vector (MatrixProgram.RowForms columns) count) (port : Fin matrixCount)
     (positions : Nat) : List K :=
@@ -89,30 +73,21 @@ def portWeights {columns arity count : Nat} (firstRow : Nat) (point : CubePoint 
         (rowCoefficients forms port index))
     (List.replicate positions extensionOps.zero)
 
-/--
-Column weights of rows that need not list the same columns: the distinct
-columns in order of first use and their summed weights. `slots` only suggests
-where a column is; an update uses a slot after checking that it holds the
-column, and otherwise appends the column, so the weights never depend on the
-map.
--/
 structure Merged (columns : Nat) where
   keys : Array (Fin columns)
   weights : Array K
-  slots : Std.HashMap Nat Nat
+  slotHints : Std.HashMap Nat Nat
 
-/-- Append a column with its weight. -/
 def Merged.push {columns : Nat} (merged : Merged columns) (column : Fin columns) (weight : K) :
     Merged columns :=
   -- The slot is read before the push, so that both arrays stay unshared and grow in place.
   let slot := merged.keys.size
   { keys := merged.keys.push column, weights := merged.weights.push weight,
-    slots := merged.slots.insert column.val slot }
+    slotHints := merged.slotHints.insert column.val slot }
 
-/-- Add `weight` to the weight of `column`. -/
 def Merged.add {columns : Nat} (merged : Merged columns) (column : Fin columns) (weight : K) :
     Merged columns :=
-  match merged.slots[column.val]? with
+  match merged.slotHints[column.val]? with
   | some slot =>
       if bound : slot < merged.weights.size then
         if merged.keys[slot]? = some column then
@@ -121,13 +96,11 @@ def Merged.add {columns : Nat} (merged : Merged columns) (column : Fin columns) 
       else merged.push column weight
   | none => merged.push column weight
 
-/-- The entries of one row and port, or none past the rows. -/
 def rowEntries {columns count : Nat}
     (forms : Vector (MatrixProgram.RowForms columns) count) (port : Fin matrixCount)
     (index : Nat) : List (SparseEntry columns) :=
   if live : index < count then (portForm (forms.get ⟨index, live⟩) port).entries else []
 
-/-- The merged column weights of one port. -/
 def mergedPort {columns arity count : Nat} (firstRow : Nat) (point : CubePoint K arity)
     (forms : Vector (MatrixProgram.RowForms columns) count) (port : Fin matrixCount) :
     Merged columns :=
@@ -137,17 +110,13 @@ def mergedPort {columns arity count : Nat} (firstRow : Nat) (point : CubePoint K
         merged.add entry.column (scale weight entry.coefficient)) merged)
     ⟨#[], #[], {}⟩
 
-/-- The column weights as entries with both extension coordinates. -/
 def pairEntries {columns : Nat} (selected : List (Fin columns)) (weights : List K) :
     List (Fin columns × F × F) :=
   List.zipWith (fun column weight => (column, weight.c0, weight.c1)) selected weights
 
-/-- Column weights of every port, shared by all reads of the same rows. -/
 structure Prepared (columns : Nat) where
   ports : Vector (List (Fin columns × F × F)) matrixCount
 
-/-- Compute the column weights once: by position when the rows list the same
-columns, and merged by column otherwise. -/
 def prepare {columns arity count : Nat} (firstRow : Nat) (point : CubePoint K arity)
     (forms : Vector (MatrixProgram.RowForms columns) count) : Prepared columns :=
   if aligned forms then
@@ -159,8 +128,6 @@ def prepare {columns arity count : Nat} (firstRow : Nat) (point : CubePoint K ar
         let merged := mergedPort firstRow point forms port
         pairEntries merged.keys.toList merged.weights.toList }
 
-/-- The range sum of one read from prepared column weights, reading each
-column once for both extension coordinates. -/
 @[specialize] def evaluate {columns : Nat} (prepared : Prepared columns)
     (read : Fin ringDegree → Fin columns → F) : Vector MaterializedRingK matrixCount :=
   Vector.ofFn fun port =>
@@ -209,7 +176,6 @@ theorem evalSparse_cons {columns : Nat} (entry : SparseEntry columns)
   unfold SparseForm.evalSparse
   rw [List.foldl_cons, foldl_from, Fin.zero_add]
 
-/-- The two coordinate forms evaluate to the weighted dot product. -/
 private theorem coordinateForms_eval {columns : Nat} (read : Fin columns → F) :
     ∀ (selected : List (Fin columns)) (weights : List K),
       selected.length = weights.length →
@@ -225,7 +191,6 @@ private theorem coordinateForms_eval {columns : Nat} (read : Fin columns → F) 
   | [], _ :: _, same => by simp at same
   | _ :: _, [], same => by simp at same
 
-/-- Paired entries evaluate as the two coordinate forms. -/
 private theorem pairEntries_eval {columns : Nat} (read : Fin columns → F)
     (selected : List (Fin columns)) (weights : List K) :
     (⟨(SparseForm.mk ((pairEntries selected weights).map fun entry =>
@@ -254,7 +219,6 @@ private theorem length_addRow (weight : K) :
   | [], _ :: _, same => by simp at same
   | _ :: _, [], same => by simp at same
 
-/-- Adding one weighted row adds its weighted dot product. -/
 private theorem dot_addRow (weight : K) :
     ∀ (totals : List K) (coefficients : List F) (values : List K),
       totals.length = values.length → coefficients.length = values.length →
@@ -293,8 +257,6 @@ private theorem embed_foldl {columns : Nat} (read : Fin columns → F) :
       exact (embed_add _ _).trans (congrArg (extensionOps.add (K.embed initial))
         (embed_mul _ _))
 
-/-- The embedded sparse evaluation is the dot product of its embedded
-coefficients and embedded column reads. -/
 theorem embed_evalSparse {columns : Nat} (form : SparseForm columns)
     (read : Fin columns → F) :
     K.embed (form.evalSparse read) =
@@ -309,7 +271,6 @@ theorem numericSum_succ (count : Nat) (term : Nat → K) :
         (term count) := by
   simp only [NumericCompletionSum.numericSum, Nat.fold_succ]
 
-/-- Row-by-row weight sums give the weighted sum of the row dot products. -/
 private theorem fold_dot (weight : Nat → K) (coefficients : Nat → List F)
     (values : List K) (term : Nat → K) :
     ∀ (count : Nat),
@@ -347,7 +308,6 @@ private theorem aligned_rows {columns count : Nat}
     exact Vector.getElem_mem live)
   exact beq_iff_eq.mp row
 
-/-- Appending one weight adds its product. -/
 theorem dot_append_single :
     ∀ (weights values : List K) (weight value : K), weights.length = values.length →
       dot (weights ++ [weight]) (values ++ [value]) =
@@ -364,7 +324,6 @@ theorem dot_append_single :
   | [], _ :: _, _, _, same => by simp at same
   | _ :: _, [], _, _, same => by simp at same
 
-/-- Adding to one weight adds its product. -/
 theorem dot_set_add :
     ∀ (weights values : List K) (slot : Nat) (weight : K) (bound : slot < weights.length)
       (same : weights.length = values.length),
@@ -387,7 +346,6 @@ theorem dot_set_add :
       exact (extensionLaws.add_assoc _ _ _).symm
   | [], _, _, _, bound, _ => by simp at bound
 
-/-- The weighted sum of the values of the merged columns. -/
 private def Merged.value {columns : Nat} (merged : Merged columns) (values : Fin columns → K) :
     K :=
   dot merged.weights.toList (merged.keys.toList.map values)
@@ -402,7 +360,6 @@ private theorem push_value {columns : Nat} (merged : Merged columns) (column : F
     List.map_nil]
   exact dot_append_single _ _ _ _ (by simp [sizes])
 
-/-- Adding a weighted column adds its weighted value, whichever slot is used. -/
 private theorem add_value {columns : Nat} (merged : Merged columns) (column : Fin columns)
     (weight : K) (values : Fin columns → K) (sizes : merged.keys.size = merged.weights.size) :
     (merged.add column weight).keys.size = (merged.add column weight).weights.size ∧
@@ -433,7 +390,6 @@ private theorem add_value {columns : Nat} (merged : Merged columns) (column : Fi
       exact push_value merged column weight values sizes
   · exact push_value merged column weight values sizes
 
-/-- Adding the weighted entries of one row adds the weighted row. -/
 private theorem foldl_add_value {columns : Nat} (weight : K) (values : Fin columns → K) :
     ∀ (entries : List (SparseEntry columns)) (merged : Merged columns),
       merged.keys.size = merged.weights.size →
@@ -463,7 +419,6 @@ private theorem foldl_add_value {columns : Nat} (weight : K) (values : Fin colum
             (entries.map fun entry => values entry.column))))
       rw [extensionLaws.left_distrib, extensionLaws.mul_assoc, extensionLaws.add_assoc]
 
-/-- Row-by-row merging gives the weighted sum of the row dot products. -/
 private theorem fold_merged {columns : Nat} (weight : Nat → K)
     (entriesOf : Nat → List (SparseEntry columns)) (values : Fin columns → K)
     (term : Nat → K) :
@@ -490,8 +445,6 @@ private theorem fold_merged {columns : Nat} (weight : Nat → K)
       refine ⟨row.1, ?_⟩
       rw [row.2, before.2, terms count (by omega)]
 
-/-- Prepared weights give the existing sparse range sum for every read, port,
-lane and both field coordinates, whether or not the rows are aligned. -/
 theorem evaluate_prepare_toRing {columns arity count : Nat} (firstRow : Nat)
     (point : CubePoint K arity) (read : Fin ringDegree → Fin columns → F)
     (forms : Vector (MatrixProgram.RowForms columns) count) (port : Fin matrixCount) :

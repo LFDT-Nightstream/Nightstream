@@ -6,7 +6,9 @@ use p3_field::PrimeCharacteristicRing;
 #[test]
 fn split_b_does_not_allocate_structurally_zero_digit_planes() {
     let input = Mat::from_row_major(2, 3, vec![F::ZERO, F::ONE, -F::ONE, F::ZERO, F::ONE, F::ZERO]);
-    let (digits, nonzero) = split_b_matrix_k_with_nonzero_flags(&input, 14, 2).expect("balanced split");
+    let (digits, nonzero) = split_b_matrix_k_with_nonzero_flags(&input, 14, 2)
+        .expect("balanced split")
+        .into_parts();
 
     assert!(nonzero[0]);
     assert!(!digits[0].is_virtual_constant());

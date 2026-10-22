@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCProductSemanticCustody
 import NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
 
 /-!
-Owns exact environment custody for the PiDEC direct-row source support. PiDEC
-reads either final PiRLC product outputs or columns after every sampler-owned
-source. This module adds no row and does not close PiDEC status.
+Owns exact environment custody for the PiDEC direct-row source support.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiDECEnvironmentCustody
@@ -119,8 +117,6 @@ private theorem parent_interval {source : Nat}
       source < PiRLCStarts.phaseFreshStart := by
   exact PiDECSourceSupport.parent_within_piRlc support
 
-/-- Every source used by a nonempty PiDEC row has the same value in the
-complete sampler environment and canonical transition environment. -/
 theorem semanticEnv_source_eq_transitionEnv
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program

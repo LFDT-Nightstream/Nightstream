@@ -2,12 +2,7 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
 /-!
 Owns theorem-only conformance evidence for the final 4-matrix
-`Poseidon2HashChainV1` logical relation. The evidence connects the compact
-program carried by the sealed package to the exact structural plan and proves
-the complete Boolean-domain padding suffix is zero.
-
-This module does not expand matrix entries, emit an artifact, or define a
-second relation.
+`Poseidon2HashChainV1` logical relation.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
@@ -46,8 +41,6 @@ private theorem padding_coefficient_zero
   unfold ProductionRelation.Plan.matrix
   rw [decoded]
 
-/-- The compact program carried by the sealed package returns the exact
-structural-plan forms for every active row. -/
 theorem compactProgram_row?_eq_structuralPlan_forms
     (row : Fin (PerApplicationFixedPoint.structuralPlan
       Poseidon2HashChainV1Package.application
@@ -66,9 +59,6 @@ theorem compactProgram_row?_eq_structuralPlan_forms
     Poseidon2HashChainV1Package.application
     Poseidon2HashChainV1Package.fits row
 
-/-- Every one of the 4 structural-plan ports supplies the corresponding
-coefficient of the final key-facing logical relation at the canonical active
-row vertex. -/
 theorem allPort_coefficient_eq_logicalRelation_matrix
     (row : Fin (PerApplicationFixedPoint.structuralPlan
       Poseidon2HashChainV1Package.application
@@ -88,8 +78,6 @@ theorem allPort_coefficient_eq_logicalRelation_matrix
   rw [PerApplicationFixedPoint.relation_matrices]
   exact portForm_coefficient_eq_matrix _ row port column
 
-/-- Every matrix coefficient is zero after the active-row prefix and through
-the end of the exact `2^28` Boolean row domain. -/
 theorem padding_matrix_coefficient_zero
     (ordinal : Fin (2 ^ Lifecycle.cubeVariables))
     (padding : (PerApplicationFixedPoint.structuralPlan

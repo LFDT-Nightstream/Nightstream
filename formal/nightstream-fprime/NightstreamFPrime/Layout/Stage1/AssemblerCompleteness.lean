@@ -388,9 +388,6 @@ private theorem completePilotPrefix
       _ = AssemblerInputs.piCcsOffset program :=
         AssemblerInputs.parent_piCcsOffset_eq relation program
 
-/-- Honest completion of the pilot and PiCCS parent prefix. PiCCS remains one
-opaque Stage 1 child even though its canonical builder internally completes
-all 12 PiCCS leaves. -/
 theorem completePiCcsPrefix
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

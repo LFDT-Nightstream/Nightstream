@@ -1,6 +1,5 @@
 //! Public assignment returned by package execution.
 
-/// The exact direct-Spartan assignment produced by the package witness IR.
 #[derive(Clone, Debug)]
 pub struct WitnessAssignment {
     pub(super) private_values: Vec<u64>,

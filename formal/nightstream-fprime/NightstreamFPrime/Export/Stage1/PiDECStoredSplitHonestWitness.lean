@@ -4,8 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 
 /-!
 Connect stored PiDEC digits to the selected honest witness and message
-specification. The block theorem supports the streamed replay. Commitment
-and evaluation execution remain separate obligations for those same digits.
+specification.
 -/
 
 set_option autoImplicit false
@@ -30,9 +29,6 @@ private abbrev Claim := CE.Instance (PaperAlgebra.Structure selectedShape.logica
   (Phi81Relation.PublicInput selectedShape) PaperAlgebra.Point
   PaperAlgebra.Evaluation PaperAlgebra.Commitment
 
-/-- All sixteen successful stored outputs are the exact private witnesses
-used by the selected honest messages and children. The only premise is the
-successful checked split of the supplied complete parent assignment. -/
 theorem splitChecked_honestWitness
     (parent : Claim)
     (parentWitness : StoredAssignment selectedShape.carrierWidth)
@@ -67,9 +63,6 @@ theorem splitChecked_honestWitness
   · simp only [PiDEC.childrenOf, ← witnessExact]
     rfl
 
-/-- The same witness identity for the actual 54-coefficient block call.
-Applying this at every complete-carrier block identifies all sixteen private
-witnesses, without constructing a full-carrier vector in the executable. -/
 theorem splitChecked_block_honestWitness
     (parentWitness : Phi81Relation.Assignment selectedShape)
     (block : Fin (Phi81ColumnLayout.blockCount selectedShape.carrierWidth))

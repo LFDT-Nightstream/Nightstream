@@ -2,9 +2,7 @@ import NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness
 
 /-!
 Owns acceptance of the canonical base dummy by the complete production NIFS
-verifier using its total transcript sampler. Public-input bounds are
-derived from the encoded prior hash and valid sampled challenges. Acceptance
-does not assert a fresh opening or valid openings for the dummy D children.
+verifier using its total transcript sampler. Acceptance does not assert a fresh opening or valid openings for the dummy D children.
 -/
 
 namespace NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness
@@ -180,9 +178,6 @@ private theorem parent_evaluations_zero
   change PaperAlgebra.combineEvaluations challenges (fun _ => #[evaluationZero]) = _
   exact combined_evaluations_zero (show 0 < 17 from by decide) challenges
 
-/-- The verifier's sampled base parent satisfies the public norm bound. This
-uses the real encoded prior hash and derives the bound from the production
-17-source inequality; it assumes no opening for the base dummy claim. -/
 theorem zeroProof_parentBounded
     (challenges : Fin (ProductionKey.key relation ajtai).arity.total → RingF)
     (sampled : (ProductionKey.key relation ajtai).piRlcChallenges defaultRunning
@@ -238,8 +233,6 @@ private theorem verify_some_of_checks
     PiDEC.PaperVerifier.PublicInputSplit.checked_eq_some _ _ accepted.parentBounded]
   rfl
 
-/-- The zero base messages pass the actual PiDEC checks with the total
-production sampler. This is verifier acceptance, not validity of the dummy child openings. -/
 theorem zeroProof_piDecCheck :
     Nifs.PaperNonInteractive.piDecCheck (ProductionKey.key relation ajtai)
       defaultRunning (baseFresh prior) zeroProof = true := by
@@ -267,9 +260,6 @@ theorem zeroProof_piDecCheck :
         PaperAlgebra.recomposeEvaluations (fun _ => #[evaluationZero])
     rw [parent_evaluations_zero relation ajtai prior challenges, recomposed_evaluations_zero]
 
-/-- The canonical base dummy is accepted by the complete production NIFS
-verifier using its total transcript sampler. The result uses the
-verifier-computed point and split public inputs; no child opening is asserted. -/
 theorem zeroProof_verify :
     ∃ output, Nifs.PaperNonInteractive.verify (ProductionKey.key relation ajtai)
       defaultRunning (baseFresh prior) zeroProof = some output := by

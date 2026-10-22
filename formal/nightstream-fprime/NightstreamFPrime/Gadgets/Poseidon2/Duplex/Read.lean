@@ -16,7 +16,6 @@ open NightstreamFPrime.Gadgets.Poseidon2
 
 abbrev EState := Layer.EState
 
-/-- The six quadratic-extension values of one rate chunk. -/
 abbrev Pair := Fin (Spec.Poseidon2.rate / 2)
 
 def lowLane (pair : Pair) : Fin 16 :=

@@ -11,7 +11,6 @@ mod rng;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
-/// Minimal, byte-first API + typed helpers (Merlin-inspired).
 pub trait Transcript {
     fn new(app_label: &'static [u8]) -> Self;
     fn append_message(&mut self, label: &'static [u8], msg: &[u8]);
@@ -38,12 +37,8 @@ pub trait TranscriptProtocol {
 
 pub use poseidon2::{domain_chunk_v1_2, fold_domain_chunk_v1_2, FoldCoin, Poseidon2Transcript};
 
-/// Lean `ProductionKey.priorDigest` (`decodeHash`) of a v1.2 fresh public
-/// input: digest word `w` is `sum over bit < 64 of 2^bit * input[1 + 64 w + bit]`,
-/// computed in the field. Cells past a shorter input read as zero. The caller
-/// checks that the input has its fixed length, and the PiCCS transcript absorbs
-/// the complete input after the digest, so the digest adds no binding of its
-/// own.
+/// Lean `ProductionKey.priorDigest` of a v1.2 fresh public input. The PiCCS transcript absorbs
+/// the complete input after the digest, so the digest adds no binding of its own.
 pub fn prior_digest_v1_2(public_input: &[F]) -> [F; 4] {
     core::array::from_fn(|word| {
         (0..64).fold(F::ZERO, |value, bit| {

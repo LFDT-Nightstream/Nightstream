@@ -20,7 +20,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Lifecycle
 
-/-- The three live sparse forms of one ordinary source equation. -/
 structure Forms (logicalWidth : Nat) where
   a : SparseForm logicalWidth
   b : SparseForm logicalWidth
@@ -29,7 +28,6 @@ deriving Repr, DecidableEq
 
 namespace Forms
 
-/-- Exact meaningful-port placement for an ordinary multiplication row. -/
 def meaningfulForm {logicalWidth : Nat} (forms : Forms logicalWidth)
     (port : Fin Spec.ProductionRelation.meaningfulPortCount) :
     SparseForm logicalWidth :=
@@ -39,7 +37,6 @@ def meaningfulForm {logicalWidth : Nat} (forms : Forms logicalWidth)
   | 2 => forms.c
   | _ => .empty
 
-/-- Complete 4-port view. -/
 def portForm {logicalWidth : Nat} (forms : Forms logicalWidth)
     (port : Fin Spec.ProductionRelation.matrixCount) : SparseForm logicalWidth :=
   match ProductionRelation.meaningfulPort? port with
@@ -65,13 +62,11 @@ private theorem portImages_eq_multiplication {logicalWidth : Nat}
       Spec.ProductionRelation.RowSemantics.multiplication,
       Spec.ProductionRelation.RowSemantics.PortValues.get]
 
-/-- Residual of the sole production polynomial on this compiled row. -/
 def residual {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) : F :=
   evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
     (forms.portImages assignment)
 
-/-- The complete 3-term gate reduces to the source residual. -/
 theorem residual_eq {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) :
     forms.residual assignment =
@@ -81,7 +76,6 @@ theorem residual_eq {logicalWidth : Nat} (forms : Forms logicalWidth)
   rw [portImages_eq_multiplication]
   exact Spec.ProductionRelation.RowSemantics.evaluate_multiplication _ _ _
 
-/-- The compiled forms reconstruct one source row under these two assignments. -/
 def Preserves {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) (source : Circuit.Env)
     (row : R1CS.Row) : Prop :=
@@ -89,8 +83,6 @@ def Preserves {logicalWidth : Nat} (forms : Forms logicalWidth)
     forms.b.eval assignment = row.b.eval source ∧
     forms.c.eval assignment = row.c.eval source
 
-/-- A preserving ordinary-row compilation accepts exactly when its source
-R1CS equation holds. -/
 theorem residual_zero_iff {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) (source : Circuit.Env)
     (row : R1CS.Row) (preserves : forms.Preserves assignment source row) :
@@ -104,7 +96,6 @@ theorem residual_zero_iff {logicalWidth : Nat} (forms : Forms logicalWidth)
 
 end Forms
 
-/-- A canonical plan built directly from row-local ordinary forms. -/
 def planOfForms {logicalWidth rowCount : Nat}
     (rowCount_le : rowCount ≤ 2 ^ cubeVariables)
     (forms : Fin rowCount → Forms logicalWidth) :
@@ -121,7 +112,6 @@ private theorem planOfForms_portForm {logicalWidth rowCount : Nat}
       (forms row).portForm port := by
   rfl
 
-/-- One direct ordinary-form row accepts exactly its preserved source row. -/
 theorem planOfForms_residual_zero_iff {logicalWidth rowCount : Nat}
     (rowCount_le : rowCount ≤ 2 ^ cubeVariables)
     (forms : Fin rowCount → Forms logicalWidth)
@@ -144,13 +134,10 @@ theorem planOfForms_residual_zero_iff {logicalWidth rowCount : Nat}
   rw [images]
   exact Forms.residual_zero_iff _ _ _ _ preserves
 
-/-- One source equation together with its final sparse matrix forms. -/
 structure Row (logicalWidth : Nat) where
   source : R1CS.Row
   forms : Forms logicalWidth
 
-/-- Generative ordinary-row program. The row bound is carried once and does
-not require construction of a full row list in the kernel. -/
 structure Program (logicalWidth : Nat) where
   rowCount : Nat
   rowCount_le : rowCount ≤ 2 ^ cubeVariables
@@ -182,14 +169,12 @@ private theorem rowImage_at {logicalWidth : Nat}
   exact congrArg (fun form => form.eval assignment)
     (toPlan_portForm program row port)
 
-/-- Every row of a program reconstructs its named source equation. -/
 def Preserves {logicalWidth : Nat} (program : Program logicalWidth)
     (assignment : Assignment F logicalWidth) (source : Circuit.Env) : Prop :=
   ∀ row,
     (program.row row).forms.Preserves assignment source
       (program.row row).source
 
-/-- A selected live row needs only its own preservation proof. -/
 theorem residualAt_live_zero_iff_row {logicalWidth : Nat}
     (program : Program logicalWidth) (assignment : Assignment F logicalWidth)
     (source : Circuit.Env) (row : Fin program.rowCount)
@@ -208,8 +193,6 @@ theorem residualAt_live_zero_iff_row {logicalWidth : Nat}
   rw [images]
   exact Forms.residual_zero_iff _ _ _ _ preserves
 
-/-- At every live Boolean row, the exact plan residual vanishes exactly when
-the corresponding source R1CS equation holds. -/
 theorem residualAt_live_zero_iff {logicalWidth : Nat}
     (program : Program logicalWidth) (assignment : Assignment F logicalWidth)
     (source : Circuit.Env) (preserves : program.Preserves assignment source)

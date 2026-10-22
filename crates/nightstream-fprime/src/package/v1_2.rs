@@ -22,6 +22,12 @@ const PI_DEC_WITNESS_ROLE: u64 = 15;
 const RUNNING_TRANSITION_WITNESS_ROLE: u64 = 16;
 const PRIOR_CHILDREN_ROLE: u64 = 19;
 
+/// The Nightstream Goldilocks decomposition profile: base `b`, digit count
+/// `k_rho`, and norm bound `B = b^k_rho`.
+pub const DECOMPOSITION_BASE: u64 = 2;
+pub const DECOMPOSITION_K_RHO: u32 = 16;
+pub const DECOMPOSITION_NORM_BOUND: u64 = DECOMPOSITION_BASE.pow(DECOMPOSITION_K_RHO);
+
 pub const PI_CCS_V1_2_SOURCE_COUNT: usize = 17;
 pub const PI_CCS_V1_2_COEFFICIENT_COUNT: usize = 54;
 pub const PI_CCS_V1_2_MATRIX_COUNT: usize = 4;

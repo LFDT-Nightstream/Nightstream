@@ -38,7 +38,7 @@ fn word(value: &Value) -> Result<usize, AssemblyError> {
 
 /// Prepare an application against the selected verifier, profile and setup.
 /// The reference must pass the existing package and verification-key pins.
-pub fn prepare(
+pub(crate) fn prepare(
     reference_bytes: &[u8],
     application: &ApplicationCircuit,
 ) -> Result<(LoadedPerApplicationPackage, Stage1VerifierBinding), AssemblyError> {
@@ -88,3 +88,7 @@ fn assemble(
 #[cfg(test)]
 #[path = "../../tests/assembly_internal/encoding.rs"]
 mod encoding_tests;
+
+#[cfg(test)]
+#[path = "../../tests/assembly_internal/circuits.rs"]
+mod circuit_tests;

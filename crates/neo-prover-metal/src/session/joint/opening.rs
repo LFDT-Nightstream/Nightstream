@@ -6,11 +6,11 @@ use neo_ccs::V1_2Evaluations;
 use neo_math::{KExtensions, D, F, K};
 use neo_reductions::superneo_eval::SuperneoMatrixCache;
 use objc2_foundation::NSString;
-use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder};
 use p3_field::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
-use super::{matrix_window::smaller_window, Buffer, MetalJointMatrixPlan, MetalSession, MetalWitnessMasks};
+use super::{matrix_window::smaller_window, Arg, Buffer, Grid, MetalJointMatrixPlan, MetalSession, MetalWitnessMasks};
 use crate::MetalError;
 
 #[path = "spans.rs"]
@@ -664,14 +664,17 @@ impl MetalSession {
         }
         self.encode_joint_tensor_point(&command, &chi_high, 0, &point[low_bits..], &mut tensor_resources)?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.dec_build_row_weights);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&chi_low), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&chi_high), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&weight_shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&chi), 0, 3);
-        }
-        self.dispatch(&encoder, &self.dec_build_row_weights, plan.rows);
+        self.launch(
+            &encoder,
+            &self.dec_build_row_weights,
+            &[
+                Arg::Buffer(0, &chi_low),
+                Arg::Buffer(1, &chi_high),
+                Arg::Buffer(2, &weight_shape),
+                Arg::Buffer(3, &chi),
+            ],
+            Grid::Threads(plan.rows),
+        );
         encoder.endEncoding();
         self.finish(&command)?;
         drop(encoder);
@@ -725,92 +728,101 @@ impl MetalSession {
             ])?;
             let command = self.command_buffer("nightstream.pi_ccs.joint.openings")?;
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.joint_zero_words);
-            unsafe { encoder.setBuffer_offset_atIndex(Some(&forms), 0, 0) };
-            self.dispatch(&encoder, &self.joint_zero_words, form_words);
+            self.launch(
+                &encoder,
+                &self.joint_zero_words,
+                &[Arg::Buffer(0, &forms)],
+                Grid::Threads(form_words),
+            );
             encoder.endEncoding();
             drop(encoder);
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.opening.forms")));
-            encoder.setComputePipelineState(&self.dec_build_ring_forms);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&plan.pattern_locals), 0, 11);
-                encoder.setBuffer_offset_atIndex(Some(&plan.pattern_coefficients), 0, 12);
-                encoder.setBuffer_offset_atIndex(Some(&chi_low), 0, 13);
-                encoder.setBuffer_offset_atIndex(Some(&chi_high), 0, 14);
-                encoder.setBuffer_offset_atIndex(Some(&plan.active_offsets), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&plan.active_local_masks), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&plan.matrix_identity), 0, 2);
-                encoder.setBuffer_offset_atIndex(Some(&plan.entries), 0, 3);
-                encoder.setBuffer_offset_atIndex(Some(&plan.pattern_offsets), 0, 4);
-                encoder.setBuffer_offset_atIndex(Some(&chi), 0, 5);
-                encoder.setBuffer_offset_atIndex(Some(&form_shape), 0, 6);
-                encoder.setBuffer_offset_atIndex(Some(&forms), 0, 7);
-                encoder.setBuffer_offset_atIndex(Some(&plan.active_blocks), 0, 8);
-            }
-            self.dispatch(&encoder, &self.dec_build_ring_forms, form_words);
+            self.launch(
+                &encoder,
+                &self.dec_build_ring_forms,
+                &[
+                    Arg::Buffer(0, &plan.active_offsets),
+                    Arg::Buffer(1, &plan.active_local_masks),
+                    Arg::Buffer(2, &plan.matrix_identity),
+                    Arg::Buffer(3, &plan.entries),
+                    Arg::Buffer(4, &plan.pattern_offsets),
+                    Arg::Buffer(5, &chi),
+                    Arg::Buffer(6, &form_shape),
+                    Arg::Buffer(7, &forms),
+                    Arg::Buffer(8, &plan.active_blocks),
+                    Arg::Buffer(11, &plan.pattern_locals),
+                    Arg::Buffer(12, &plan.pattern_coefficients),
+                    Arg::Buffer(13, &chi_low),
+                    Arg::Buffer(14, &chi_high),
+                ],
+                Grid::Threads(form_words),
+            );
             encoder.endEncoding();
 
             if plan.parallel_form_list_count != 0 {
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                encoder.setComputePipelineState(&self.dec_build_parallel_original_forms);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&plan.pattern_locals), 0, 11);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.pattern_coefficients), 0, 12);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.active_offsets), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.active_local_masks), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.entries), 0, 3);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.pattern_offsets), 0, 4);
-                    encoder.setBuffer_offset_atIndex(Some(&chi), 0, 5);
-                    encoder.setBuffer_offset_atIndex(Some(&form_shape), 0, 6);
-                    encoder.setBuffer_offset_atIndex(Some(&forms), 0, 7);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.parallel_form_lists), 0, 9);
-                }
-                self.dispatch_threadgroups(
+                self.launch(
                     &encoder,
                     &self.dec_build_parallel_original_forms,
-                    2 * plan.parallel_form_list_count,
-                    FORM_REDUCTION_THREADS,
+                    &[
+                        Arg::Buffer(0, &plan.active_offsets),
+                        Arg::Buffer(1, &plan.active_local_masks),
+                        Arg::Buffer(3, &plan.entries),
+                        Arg::Buffer(4, &plan.pattern_offsets),
+                        Arg::Buffer(5, &chi),
+                        Arg::Buffer(6, &form_shape),
+                        Arg::Buffer(7, &forms),
+                        Arg::Buffer(9, &plan.parallel_form_lists),
+                        Arg::Buffer(11, &plan.pattern_locals),
+                        Arg::Buffer(12, &plan.pattern_coefficients),
+                    ],
+                    Grid::Groups {
+                        groups: 2 * plan.parallel_form_list_count,
+                        threads: FORM_REDUCTION_THREADS,
+                    },
                 );
                 encoder.endEncoding();
             }
             if plan.tiled_form_tile_count != 0 {
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                encoder.setComputePipelineState(&self.dec_build_parallel_original_form_tiles);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&plan.pattern_locals), 0, 11);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.pattern_coefficients), 0, 12);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.active_offsets), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.active_local_masks), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.entries), 0, 3);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.pattern_offsets), 0, 4);
-                    encoder.setBuffer_offset_atIndex(Some(&chi), 0, 5);
-                    encoder.setBuffer_offset_atIndex(Some(&form_shape), 0, 6);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.tiled_form_tiles), 0, 9);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.tiled_form_partials), 0, 10);
-                }
-                self.dispatch_threadgroups(
+                self.launch(
                     &encoder,
                     &self.dec_build_parallel_original_form_tiles,
-                    2 * plan.tiled_form_tile_count,
-                    FORM_REDUCTION_THREADS,
+                    &[
+                        Arg::Buffer(0, &plan.active_offsets),
+                        Arg::Buffer(1, &plan.active_local_masks),
+                        Arg::Buffer(3, &plan.entries),
+                        Arg::Buffer(4, &plan.pattern_offsets),
+                        Arg::Buffer(5, &chi),
+                        Arg::Buffer(6, &form_shape),
+                        Arg::Buffer(9, &plan.tiled_form_tiles),
+                        Arg::Buffer(10, &plan.tiled_form_partials),
+                        Arg::Buffer(11, &plan.pattern_locals),
+                        Arg::Buffer(12, &plan.pattern_coefficients),
+                    ],
+                    Grid::Groups {
+                        groups: 2 * plan.tiled_form_tile_count,
+                        threads: FORM_REDUCTION_THREADS,
+                    },
                 );
                 encoder.endEncoding();
 
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                encoder.setComputePipelineState(&self.dec_reduce_parallel_original_form_tiles);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&forms), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.tiled_form_lists), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.tiled_form_tile_offsets), 0, 2);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.tiled_form_partials), 0, 3);
-                    encoder.setBuffer_offset_atIndex(Some(&form_shape), 0, 4);
-                }
-                self.dispatch_threadgroups(
+                self.launch(
                     &encoder,
                     &self.dec_reduce_parallel_original_form_tiles,
-                    2 * plan.tiled_form_list_count,
-                    FORM_REDUCTION_THREADS,
+                    &[
+                        Arg::Buffer(0, &forms),
+                        Arg::Buffer(1, &plan.tiled_form_lists),
+                        Arg::Buffer(2, &plan.tiled_form_tile_offsets),
+                        Arg::Buffer(3, &plan.tiled_form_partials),
+                        Arg::Buffer(4, &form_shape),
+                    ],
+                    Grid::Groups {
+                        groups: 2 * plan.tiled_form_list_count,
+                        threads: FORM_REDUCTION_THREADS,
+                    },
                 );
                 encoder.endEncoding();
             }
@@ -818,89 +830,99 @@ impl MetalSession {
             for layer in plan.geometric.iter().filter(|layer| layer.matrix == matrix) {
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
                 encoder.setLabel(Some(&NSString::from_str("dec_geometric_span_weights")));
-                encoder.setComputePipelineState(&self.dec_geometric_span_weights);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&layer.offsets), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&layer.rows), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&layer.coefficients), 0, 2);
-                    encoder.setBuffer_offset_atIndex(Some(&chi), 0, 3);
-                    encoder.setBuffer_offset_atIndex(Some(&form_shape), 0, 4);
-                    encoder.setBuffer_offset_atIndex(Some(&span_weights), 0, 5);
-                }
-                self.dispatch(&encoder, &self.dec_geometric_span_weights, layer.span_count);
+                self.launch(
+                    &encoder,
+                    &self.dec_geometric_span_weights,
+                    &[
+                        Arg::Buffer(0, &layer.offsets),
+                        Arg::Buffer(1, &layer.rows),
+                        Arg::Buffer(2, &layer.coefficients),
+                        Arg::Buffer(3, &chi),
+                        Arg::Buffer(4, &form_shape),
+                        Arg::Buffer(5, &span_weights),
+                    ],
+                    Grid::Threads(layer.span_count),
+                );
                 encoder.endEncoding();
 
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
                 encoder.setLabel(Some(&NSString::from_str("dec_add_geometric_span_forms")));
-                encoder.setComputePipelineState(&self.dec_add_geometric_span_forms);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&layer.starts), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&layer.ranks), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&layer.shapes), 0, 2);
-                    encoder.setBuffer_offset_atIndex(Some(&span_weights), 0, 3);
-                    encoder.setBuffer_offset_atIndex(Some(&form_shape), 0, 4);
-                    encoder.setBuffer_offset_atIndex(Some(&forms), 0, 5);
-                    encoder.setBuffer_offset_atIndex(Some(&plan.active_blocks), 0, 6);
-                    encoder.setBuffer_offset_atIndex(Some(&layer.longest), 0, 7);
-                }
-                self.dispatch(
+                self.launch(
                     &encoder,
                     &self.dec_add_geometric_span_forms,
-                    (active_end - active_start) * D,
+                    &[
+                        Arg::Buffer(0, &layer.starts),
+                        Arg::Buffer(1, &layer.ranks),
+                        Arg::Buffer(2, &layer.shapes),
+                        Arg::Buffer(3, &span_weights),
+                        Arg::Buffer(4, &form_shape),
+                        Arg::Buffer(5, &forms),
+                        Arg::Buffer(6, &plan.active_blocks),
+                        Arg::Buffer(7, &layer.longest),
+                    ],
+                    Grid::Threads((active_end - active_start) * D),
                 );
                 encoder.endEncoding();
             }
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("dec_bar_ring_forms_in_place")));
-            encoder.setComputePipelineState(&self.dec_bar_ring_forms_in_place);
-            unsafe { encoder.setBuffer_offset_atIndex(Some(&forms), 0, 0) };
-            self.dispatch(
+            self.launch(
                 &encoder,
                 &self.dec_bar_ring_forms_in_place,
-                (active_end - active_start) * 2 * 14,
+                &[Arg::Buffer(0, &forms)],
+                Grid::Threads((active_end - active_start) * 2 * 14),
             );
             encoder.endEncoding();
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("dec_sparse_ring_partials")));
-            encoder.setComputePipelineState(&self.dec_sparse_ring_partials);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&forms), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(masks.words()), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&tail_shape), 0, 2);
-                encoder.setBuffer_offset_atIndex(Some(&partials), 0, 3);
-                encoder.setBuffer_offset_atIndex(Some(&active_witnesses), 0, 4);
-                encoder.setBuffer_offset_atIndex(Some(&plan.active_blocks), 0, 5);
-                encoder.setBuffer_offset_atIndex(Some(&plan.active_chunk_bases), chunk_start * size_of::<u32>(), 6);
-                encoder.setBuffer_offset_atIndex(Some(&chunk_matrices), 0, 7);
-                encoder.setBuffer_offset_atIndex(Some(&plan.matrix_active_offsets), matrix * size_of::<u32>(), 8);
-                encoder.setBuffer_offset_atIndex(Some(&active_witnesses), 0, 9);
-            }
-            self.dispatch(&encoder, &self.dec_sparse_ring_partials, partial_words);
+            self.launch(
+                &encoder,
+                &self.dec_sparse_ring_partials,
+                &[
+                    Arg::Buffer(0, &forms),
+                    Arg::Buffer(1, masks.words()),
+                    Arg::Buffer(2, &tail_shape),
+                    Arg::Buffer(3, &partials),
+                    Arg::Buffer(4, &active_witnesses),
+                    Arg::Buffer(5, &plan.active_blocks),
+                    Arg::BufferAt(6, &plan.active_chunk_bases, chunk_start * size_of::<u32>()),
+                    Arg::Buffer(7, &chunk_matrices),
+                    Arg::BufferAt(8, &plan.matrix_active_offsets, matrix * size_of::<u32>()),
+                    Arg::Buffer(9, &active_witnesses),
+                ],
+                Grid::Threads(partial_words),
+            );
             encoder.endEncoding();
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("dec_sparse_ring_sum_chunks")));
-            encoder.setComputePipelineState(&self.dec_sparse_ring_sum_chunks);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&partials), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&tail_shape), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&sums), 0, 2);
-                encoder.setBuffer_offset_atIndex(Some(&chunk_offsets), 0, 3);
-            }
-            self.dispatch(&encoder, &self.dec_sparse_ring_sum_chunks, sum_words);
+            self.launch(
+                &encoder,
+                &self.dec_sparse_ring_sum_chunks,
+                &[
+                    Arg::Buffer(0, &partials),
+                    Arg::Buffer(1, &tail_shape),
+                    Arg::Buffer(2, &sums),
+                    Arg::Buffer(3, &chunk_offsets),
+                ],
+                Grid::Threads(sum_words),
+            );
             encoder.endEncoding();
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("dec_ring_reduce_phi81")));
-            encoder.setComputePipelineState(&self.dec_ring_reduce_phi81);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&sums), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&tail_shape), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&output), 0, 2);
-            }
-            self.dispatch(&encoder, &self.dec_ring_reduce_phi81, output_words);
+            self.launch(
+                &encoder,
+                &self.dec_ring_reduce_phi81,
+                &[
+                    Arg::Buffer(0, &sums),
+                    Arg::Buffer(1, &tail_shape),
+                    Arg::Buffer(2, &output),
+                ],
+                Grid::Threads(output_words),
+            );
             encoder.endEncoding();
             self.finish(&command)?;
 

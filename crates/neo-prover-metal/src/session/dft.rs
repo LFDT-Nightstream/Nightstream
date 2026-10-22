@@ -1,11 +1,9 @@
 //! The DFT of the columns of a row-major matrix, in place when the memory
 //! spans whole pages: the layer-1 prover's Reed-Solomon encodings.
 
-use objc2_metal::{
-    MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder, MTLDevice, MTLResourceOptions,
-};
+use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLDevice, MTLResourceOptions};
 
-use super::{Buffer, MetalSession};
+use super::{Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
 
 impl MetalSession {
@@ -66,31 +64,31 @@ impl MetalSession {
             .collect::<Result<Vec<_>, MetalError>>()?;
         let command = self.command_buffer("nightstream.dft_columns")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.dft_twiddles);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&twiddles), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&twiddle_shape), 0, 1);
-        }
-        self.dispatch(&encoder, &self.dft_twiddles, rows / 2);
+        self.launch(
+            &encoder,
+            &self.dft_twiddles,
+            &[Arg::Buffer(0, &twiddles), Arg::Buffer(1, &twiddle_shape)],
+            Grid::Threads(rows / 2),
+        );
         // Serial dispatches: each pass reads what the one before wrote.
-        encoder.setComputePipelineState(&self.dft_dif_pass);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(data), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&twiddles), 0, 1);
-        }
         let chunks = width / width.min(COLUMNS);
         for (shape, stages) in &passes {
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(shape), 0, 2);
-            }
-            self.dispatch_threadgroups(&encoder, &self.dft_dif_pass, (rows >> stages) * chunks, THREADS);
+            self.launch(
+                &encoder,
+                &self.dft_dif_pass,
+                &[Arg::Buffer(0, data), Arg::Buffer(1, &twiddles), Arg::Buffer(2, shape)],
+                Grid::Groups {
+                    groups: (rows >> stages) * chunks,
+                    threads: THREADS,
+                },
+            );
         }
-        encoder.setComputePipelineState(&self.dft_bit_reverse);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(data), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&reverse_shape), 0, 1);
-        }
-        self.dispatch(&encoder, &self.dft_bit_reverse, rows);
+        self.launch(
+            &encoder,
+            &self.dft_bit_reverse,
+            &[Arg::Buffer(0, data), Arg::Buffer(1, &reverse_shape)],
+            Grid::Threads(rows),
+        );
         encoder.endEncoding();
         self.finish(&command)?;
         if let Some(data) = &copied {

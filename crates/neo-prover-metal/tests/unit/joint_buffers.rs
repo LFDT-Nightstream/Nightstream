@@ -53,21 +53,24 @@ fn empty_rows_do_not_read_dummy_offsets() {
         .unwrap();
     let command = session.command_buffer("test.empty_matrix_offsets").unwrap();
     let encoder = command.computeCommandEncoder().unwrap();
-    encoder.setComputePipelineState(&session.joint_build_application_tables);
-    unsafe {
-        encoder.setBuffer_offset_atIndex(Some(&matrix.row_offsets), 0, 0);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.row_blocks), 0, 1);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_offsets), 0, 2);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_locals), 0, 3);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_coefficients), 0, 4);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_row_offsets), 0, 5);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_runs), 0, 6);
-        encoder.setBuffer_offset_atIndex(Some(masks.words()), 0, 7);
-        encoder.setBuffer_offset_atIndex(Some(&shape), 0, 8);
-        encoder.setBuffer_offset_atIndex(Some(&table), 0, 9);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_row_blocks), 0, 10);
-    }
-    session.dispatch(&encoder, &session.joint_build_application_tables, 1);
+    session.launch(
+        &encoder,
+        &session.joint_build_application_tables,
+        &[
+            Arg::Buffer(0, &matrix.row_offsets),
+            Arg::Buffer(1, &matrix.row_blocks),
+            Arg::Buffer(2, &matrix.dense_offsets),
+            Arg::Buffer(3, &matrix.dense_locals),
+            Arg::Buffer(4, &matrix.dense_coefficients),
+            Arg::Buffer(5, &matrix.geometric_row_offsets),
+            Arg::Buffer(6, &matrix.geometric_runs),
+            Arg::Buffer(7, masks.words()),
+            Arg::Buffer(8, &shape),
+            Arg::Buffer(9, &table),
+            Arg::Buffer(10, &matrix.dense_row_blocks),
+        ],
+        Grid::Threads(1),
+    );
     encoder.endEncoding();
     session.finish(&command).unwrap();
     assert_eq!(session.read_buffer::<u64>(&table, 1), vec![0]);

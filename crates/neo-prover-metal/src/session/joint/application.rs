@@ -190,14 +190,17 @@ impl ApplicationTables {
             } else {
                 &session.joint_fold_k_tables
             };
-            encoder.setComputePipelineState(pipeline);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&values), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&challenge), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
-                encoder.setBuffer_offset_atIndex(Some(&next), 0, 3);
-            }
-            session.dispatch(&encoder, pipeline, self.table_count * next_rows);
+            session.launch(
+                &encoder,
+                pipeline,
+                &[
+                    Arg::Buffer(0, &values),
+                    Arg::Buffer(1, &challenge),
+                    Arg::Buffer(2, &shape),
+                    Arg::Buffer(3, &next),
+                ],
+                Grid::Threads(self.table_count * next_rows),
+            );
             encoder.endEncoding();
             session.finish(&command)?;
             drop(encoder);
@@ -237,11 +240,12 @@ impl ApplicationTables {
         let output = session.buffer(bytes)?;
         let command = session.command_buffer("nightstream.pi_ccs.application.replay.zero")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&session.joint_zero_words);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&output), 0, 0);
-        }
-        session.dispatch(&encoder, &session.joint_zero_words, bytes / size_of::<u64>());
+        session.launch(
+            &encoder,
+            &session.joint_zero_words,
+            &[Arg::Buffer(0, &output)],
+            Grid::Threads(bytes / size_of::<u64>()),
+        );
         encoder.endEncoding();
         session.finish(&command)?;
         drop(encoder);
@@ -272,13 +276,16 @@ impl ApplicationTables {
                 let shape = session.buffer_from_slice(&[self.table_count as u64, 2, column as u64, real, imaginary])?;
                 let command = session.command_buffer("nightstream.pi_ccs.application.replay.accumulate")?;
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                encoder.setComputePipelineState(&session.joint_accumulate_application);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&folded.values), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&shape), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&output), 0, 2);
-                }
-                session.dispatch(&encoder, &session.joint_accumulate_application, self.table_count);
+                session.launch(
+                    &encoder,
+                    &session.joint_accumulate_application,
+                    &[
+                        Arg::Buffer(0, &folded.values),
+                        Arg::Buffer(1, &shape),
+                        Arg::Buffer(2, &output),
+                    ],
+                    Grid::Threads(self.table_count),
+                );
                 encoder.endEncoding();
                 session.finish(&command)?;
             }
@@ -311,14 +318,17 @@ impl ApplicationTables {
                 } else {
                     &session.joint_fold_k_tables
                 };
-                encoder.setComputePipelineState(pipeline);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&window.values), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&challenge), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
-                    encoder.setBuffer_offset_atIndex(Some(&output), 0, 3);
-                }
-                session.dispatch(&encoder, pipeline, self.table_count * next_rows);
+                session.launch(
+                    &encoder,
+                    pipeline,
+                    &[
+                        Arg::Buffer(0, &window.values),
+                        Arg::Buffer(1, &challenge),
+                        Arg::Buffer(2, &shape),
+                        Arg::Buffer(3, &output),
+                    ],
+                    Grid::Threads(self.table_count * next_rows),
+                );
                 encoder.endEncoding();
                 session.finish(&command)?;
                 self.resident = Some(ApplicationWindow {
@@ -389,9 +399,12 @@ impl MetalSession {
         let output = self.buffer(bytes)?;
         let command = self.command_buffer("nightstream.pi_ccs.joint.application.zero")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.joint_zero_words);
-        unsafe { encoder.setBuffer_offset_atIndex(Some(&output), 0, 0) };
-        self.dispatch(&encoder, &self.joint_zero_words, bytes / size_of::<u64>());
+        self.launch(
+            &encoder,
+            &self.joint_zero_words,
+            &[Arg::Buffer(0, &output)],
+            Grid::Threads(bytes / size_of::<u64>()),
+        );
         encoder.endEncoding();
         self.finish(&command)?;
         drop(encoder);
@@ -440,21 +453,24 @@ impl MetalSession {
                     (window.rows.start - output_rows.start) as u64,
                 ])?;
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                encoder.setComputePipelineState(&self.joint_build_application_tables);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.row_offsets), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.row_blocks), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_offsets), 0, 2);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_locals), 0, 3);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_coefficients), 0, 4);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_row_offsets), 0, 5);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_runs), 0, 6);
-                    encoder.setBuffer_offset_atIndex(Some(masks.words()), 0, 7);
-                    encoder.setBuffer_offset_atIndex(Some(&shape), 0, 8);
-                    encoder.setBuffer_offset_atIndex(Some(output), 0, 9);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_row_blocks), 0, 10);
-                }
-                self.dispatch(&encoder, &self.joint_build_application_tables, local_rows);
+                self.launch(
+                    &encoder,
+                    &self.joint_build_application_tables,
+                    &[
+                        Arg::Buffer(0, &matrix.row_offsets),
+                        Arg::Buffer(1, &matrix.row_blocks),
+                        Arg::Buffer(2, &matrix.dense_offsets),
+                        Arg::Buffer(3, &matrix.dense_locals),
+                        Arg::Buffer(4, &matrix.dense_coefficients),
+                        Arg::Buffer(5, &matrix.geometric_row_offsets),
+                        Arg::Buffer(6, &matrix.geometric_runs),
+                        Arg::Buffer(7, masks.words()),
+                        Arg::Buffer(8, &shape),
+                        Arg::Buffer(9, output),
+                        Arg::Buffer(10, &matrix.dense_row_blocks),
+                    ],
+                    Grid::Threads(local_rows),
+                );
                 encoder.endEncoding();
                 resources.push(shape);
             }

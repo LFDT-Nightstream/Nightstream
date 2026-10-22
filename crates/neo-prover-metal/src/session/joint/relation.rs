@@ -3,9 +3,9 @@
 use neo_ccs::{CcsStructure, Mat};
 use neo_math::{D, F};
 use neo_reductions::superneo_eval::SuperneoZBlocks;
-use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder};
 
-use super::{joint_term_metadata, nonempty, Buffer, MetalJointMatrixPlan, MetalSession, MetalWitnessMasks};
+use super::{joint_term_metadata, nonempty, Arg, Buffer, Grid, MetalJointMatrixPlan, MetalSession, MetalWitnessMasks};
 use crate::MetalError;
 
 pub(super) struct TerminalRowCheck<'a> {
@@ -46,15 +46,18 @@ impl TerminalRowCheck<'_> {
             session.buffer_from_slice(&[count as u64, self.structure.f.terms().len() as u64, row_start as u64])?;
         let command = session.command_buffer("nightstream.terminal.relation")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&session.ccs_first_unsatisfied_row);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(tables), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&self.headers), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&self.variables), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 3);
-            encoder.setBuffer_offset_atIndex(Some(&self.first_failure), 0, 4);
-        }
-        session.dispatch(&encoder, &session.ccs_first_unsatisfied_row, count);
+        session.launch(
+            &encoder,
+            &session.ccs_first_unsatisfied_row,
+            &[
+                Arg::Buffer(0, tables),
+                Arg::Buffer(1, &self.headers),
+                Arg::Buffer(2, &self.variables),
+                Arg::Buffer(3, &shape),
+                Arg::Buffer(4, &self.first_failure),
+            ],
+            Grid::Threads(count),
+        );
         encoder.endEncoding();
         session.finish(&command)?;
         let first = session.read_buffer::<u32>(&self.first_failure, 1)[0];

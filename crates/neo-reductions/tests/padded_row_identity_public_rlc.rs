@@ -18,7 +18,7 @@ fn selected_claim(structure: &CcsStructure<F>, params: &NeoParams) -> CeClaim<Co
     let padded_coefficients = D.next_power_of_two();
     CeClaim {
         adv: None,
-        c: Commitment::zeros(params.d as usize, params.kappa as usize),
+        c: Commitment::zeros(params.d() as usize, params.kappa() as usize),
         X: Mat::zero(D, 0, F::ZERO),
         r: vec![K::ZERO; variables],
         eval_k: vec![K::ZERO; padded_coefficients],

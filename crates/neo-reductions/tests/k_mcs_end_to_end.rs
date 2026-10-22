@@ -25,7 +25,7 @@ fn setup_ajtai_committer(params: &NeoParams, m: usize) -> PP<neo_math::ring::Rq>
     let m_commit = commit_cols_for_ccs_m(m);
     let mut rng = ChaCha8Rng::seed_from_u64(19);
 
-    ajtai_setup(&mut rng, D, params.kappa as usize, m_commit).expect("Ajtai setup")
+    ajtai_setup(&mut rng, D, params.kappa() as usize, m_commit).expect("Ajtai setup")
 }
 
 fn build_mcs_step(
@@ -100,7 +100,7 @@ fn run_case(k_mcs: usize) {
 fn make_dummy_me_input(params: &NeoParams, m_in: usize, r: Vec<K>) -> CeClaim<neo_ajtai::Commitment, F, K> {
     CeClaim {
         adv: None,
-        c: neo_ajtai::Commitment::zeros(D, params.kappa as usize),
+        c: neo_ajtai::Commitment::zeros(D, params.kappa() as usize),
         X: Mat::zero(D, neo_ccs::superneo_public_x_cols(m_in).unwrap(), F::ZERO),
         r,
         eval_k: vec![K::ZERO; D.next_power_of_two()],

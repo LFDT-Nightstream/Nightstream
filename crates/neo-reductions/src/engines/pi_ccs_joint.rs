@@ -67,10 +67,10 @@ fn build_joint_dims_for_shape(
     fresh_count: usize,
     running_count: usize,
 ) -> Result<JointDims, PiCcsError> {
-    if params.q != F::ORDER_U64 {
+    if params.q() != F::ORDER_U64 {
         return Err(PiCcsError::InvalidInput(format!(
             "PaddedRowIdentity parameter modulus {} does not match the Goldilocks field modulus {}",
-            params.q,
+            params.q(),
             F::ORDER_U64,
         )));
     }
@@ -92,10 +92,10 @@ fn build_joint_dims_for_shape(
             "PaddedRowIdentity fresh source count {fresh_count} exceeds {max_fresh_count}"
         )));
     }
-    if running_count > params.k_rho as usize {
+    if running_count > params.k_rho() as usize {
         return Err(PiCcsError::InvalidInput(format!(
             "PaddedRowIdentity running source count {running_count} exceeds k_rho={}",
-            params.k_rho
+            params.k_rho()
         )));
     }
 
@@ -111,7 +111,7 @@ fn build_joint_dims_for_shape(
         .checked_add(1)
         .ok_or_else(|| PiCcsError::InvalidInput("PaddedRowIdentity degree overflows usize".into()))?;
     let norm_degree = 2usize
-        .checked_mul(params.b as usize)
+        .checked_mul(params.b() as usize)
         .ok_or_else(|| PiCcsError::InvalidInput("PaddedRowIdentity norm degree overflows usize".into()))?;
     let degree = ccs_degree.max(norm_degree).max(2);
 

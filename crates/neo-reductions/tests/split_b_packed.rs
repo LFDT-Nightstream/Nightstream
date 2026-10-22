@@ -49,7 +49,7 @@ fn check_split(rows: usize, columns: usize, values: &[i128], count: usize) {
 
 #[test]
 fn base_two_split_matches_signed_radix_digits() {
-    let count = NeoParams::nightstream_goldilocks_k16().k_rho as usize;
+    let count = NeoParams::nightstream_goldilocks_k16().k_rho() as usize;
     let bound = 1i128 << count;
     let cases = [-(bound - 1), -(bound / 2), -3, -2, -1, 0, 1, 2, 3, bound / 2, bound - 1];
     let mut values = (0..D * 2)
@@ -73,7 +73,7 @@ fn base_two_split_matches_signed_radix_digits() {
 
 #[test]
 fn base_two_split_keeps_zero_planes_and_tall_matrix_fallback() {
-    let count = NeoParams::nightstream_goldilocks_k16().k_rho as usize;
+    let count = NeoParams::nightstream_goldilocks_k16().k_rho() as usize;
     check_split(D, 2, &vec![0; D * 2], count);
     check_split(2, 2, &[0, 1, -1, 0], count);
 

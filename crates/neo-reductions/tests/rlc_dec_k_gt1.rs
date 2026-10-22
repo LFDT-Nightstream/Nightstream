@@ -126,7 +126,7 @@ fn make_sparse_signed_unit_z(seed: usize, m: usize) -> Mat<F> {
 }
 
 fn make_commitment(params: &NeoParams, seed: u64) -> Commitment {
-    let mut c = Commitment::zeros(params.d as usize, 1);
+    let mut c = Commitment::zeros(params.d() as usize, 1);
     c.data[0] = F::from_u64(seed);
     c
 }
@@ -606,9 +606,9 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     let m_in = D;
     let r = vec![k(13); 6];
 
-    let k_dec = params.k_rho as usize;
+    let k_dec = params.k_rho() as usize;
     let Z_parent = make_z(1000, s.m);
-    let Z_split = split_b_matrix_k(&Z_parent, k_dec, params.b).expect("parent must have a canonical split");
+    let Z_split = split_b_matrix_k(&Z_parent, k_dec, params.b()).expect("parent must have a canonical split");
     let mut parent = build_me_from_z(
         &params,
         &s,
@@ -623,7 +623,7 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     let child_commitments: Vec<Commitment> = (0..k_dec)
         .map(|i| make_commitment(&params, 56_000 + i as u64))
         .collect();
-    parent.c = combine_commitments_b_pows(&child_commitments, params.b);
+    parent.c = combine_commitments_b_pows(&child_commitments, params.b());
 
     let DecOutcome {
         children,
@@ -655,7 +655,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
     let s = build_structure(D, D);
     let m_in = D;
     let r = vec![k(17); 6];
-    let k_dec = params.k_rho as usize;
+    let k_dec = params.k_rho() as usize;
 
     let cols = s.m / D;
     let mut z_parent = Mat::zero(D, cols, F::ZERO);
@@ -667,7 +667,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         }
     }
 
-    let split = split_b_matrix_k_with_nonzero_flags(&z_parent, k_dec, params.b).expect("split small witness");
+    let split = split_b_matrix_k_with_nonzero_flags(&z_parent, k_dec, params.b()).expect("split small witness");
     let child_commitments: Vec<Commitment> = (0..k_dec)
         .map(|i| make_commitment(&params, 72_000 + i as u64))
         .collect();
@@ -681,7 +681,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
         make_commitment(&params, 71_000),
         91_000,
     );
-    parent.c = combine_commitments_b_pows(&child_commitments, params.b);
+    parent.c = combine_commitments_b_pows(&child_commitments, params.b());
     let superneo_cache = build_superneo_eval_cache(&s).expect("SuperNeo-compatible test structure");
 
     let checked = dec_children_with_commit_superneo_cached_with_digit_flags(
@@ -759,9 +759,9 @@ fn dec_children_with_commit_optimized_matches_paper_exact() {
     let m_in = D;
     let r = vec![k(19); 6];
 
-    let k_dec = params.k_rho as usize;
+    let k_dec = params.k_rho() as usize;
     let Z_parent = make_z(1300, s.m);
-    let Z_split = split_b_matrix_k(&Z_parent, k_dec, params.b).expect("parent must have a canonical split");
+    let Z_split = split_b_matrix_k(&Z_parent, k_dec, params.b()).expect("parent must have a canonical split");
 
     let mut parent = build_me_from_z(
         &params,
@@ -777,7 +777,7 @@ fn dec_children_with_commit_optimized_matches_paper_exact() {
     let child_commitments: Vec<Commitment> = (0..k_dec)
         .map(|i| make_commitment(&params, 67_000 + i as u64))
         .collect();
-    parent.c = combine_commitments_b_pows(&child_commitments, params.b);
+    parent.c = combine_commitments_b_pows(&child_commitments, params.b());
 
     let out_opt = dec_children_with_commit(
         FoldingMode::Optimized,

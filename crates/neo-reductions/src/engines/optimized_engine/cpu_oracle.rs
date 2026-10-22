@@ -118,7 +118,7 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             structure,
             source,
             workspace_bytes,
-            base: params.b,
+            base: params.b(),
             challenges: challenges.clone(),
             dims,
             point: Vec::with_capacity(dims.variables),

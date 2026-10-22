@@ -441,7 +441,7 @@ impl PreparedLifecycle {
 
     /// PiRLC's guard bound `sources · T · (b - 1)`.
     fn compression_bound(&self) -> u32 {
-        PI_CCS_V1_2_SOURCE_COUNT as u32 * self.params.inner().T * (self.params.b() - 1)
+        PI_CCS_V1_2_SOURCE_COUNT as u32 * self.params.inner().T() * (self.params.b() - 1)
     }
 
     /// The bits each compression layer must reach: layer 1 and the shrink

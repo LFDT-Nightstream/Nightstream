@@ -49,7 +49,7 @@ fn relation<'k>(
     parent: &CeClaim,
 ) -> Result<neo_spartan::Relation<'k>, neo_spartan::Error> {
     let params = &fixture.params;
-    let bound = 17 * params.inner().T * (params.b() - 1);
+    let bound = 17 * params.inner().T() * (params.b() - 1);
     // `CompressionKey` gives layer 1 one bit more than the compression share.
     let bits = params.compression_security_bits().unwrap() + 1.0;
     neo_spartan::Relation::new(key, parent.m_in / D, parent.r.len(), bound, bits)

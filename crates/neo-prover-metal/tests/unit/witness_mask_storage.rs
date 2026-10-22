@@ -62,7 +62,7 @@ fn zero_suffix_does_not_allocate_host_mask_words() {
     let session = MetalSession::new().unwrap();
     let matrix = Mat::<F>::compact_signed_unit_from_column_masks(D, 2, &[1, 2], &[4, 8]).unwrap();
     let active = SuperneoZBlocks::from_witness_mat(&matrix, D + 1).unwrap();
-    let count = neo_params::NeoParams::nightstream_goldilocks_k16().k_rho as usize + 1;
+    let count = neo_params::NeoParams::nightstream_goldilocks_k16().k_rho() as usize + 1;
     let mut sources = vec![SuperneoZBlocks::with_block_len(2); count];
     sources[0] = active;
     // Initialize the driver before comparing Rust host allocations.

@@ -16,7 +16,7 @@ fn parent_relation_arguments_are_the_lean_constants() {
     assert_eq!(PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, 5 * D);
     assert_eq!(PI_CCS_V1_2_ROUND_COUNT, 28);
     assert_eq!(PI_CCS_V1_2_MATRIX_COUNT, 4);
-    let bound = PI_CCS_V1_2_SOURCE_COUNT as u32 * params.inner().T * (params.b() - 1);
+    let bound = PI_CCS_V1_2_SOURCE_COUNT as u32 * params.inner().T() * (params.b() - 1);
     assert_eq!(bound, 3672);
     assert_eq!(params.big_b(), 1 << 16);
 }

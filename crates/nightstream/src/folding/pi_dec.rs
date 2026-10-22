@@ -56,7 +56,7 @@ pub(crate) fn prove_with_production_key(
     if pp.b() != production.b()
         || pp.k_rho() != production.k_rho()
         || pp.big_b() != production.big_b()
-        || u64::from(pp.inner().kappa) != PRODUCTION_VERIFIER_ROWS
+        || u64::from(pp.inner().kappa()) != PRODUCTION_VERIFIER_ROWS
         || blocks == 0
         || blocks > MAX_MESSAGE_COLUMNS as usize
         || rows.shape()

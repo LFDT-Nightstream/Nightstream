@@ -61,7 +61,7 @@ impl Case {
         .unwrap();
         let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(columns, columns).unwrap();
         let mut rng = ChaCha8Rng::seed_from_u64(0x636f6d706c657465);
-        let commitment = setup(&mut rng, D, params.kappa as usize, columns.div_ceil(D)).unwrap();
+        let commitment = setup(&mut rng, D, params.kappa() as usize, columns.div_ceil(D)).unwrap();
         let mut assignment = Mat::zero(D, columns.div_ceil(D), F::ZERO);
         for column in 0..columns {
             assignment[(column % D, column / D)] = match column % 3 {
@@ -79,7 +79,7 @@ impl Case {
         let witnesses = vec![CcsWitness { Z: assignment }];
         let dims = build_joint_dims(&params, &structure, 1, 1).unwrap();
         let running = vec![Output {
-            c: Commitment::zeros(D, params.kappa as usize),
+            c: Commitment::zeros(D, params.kappa() as usize),
             X: Mat::zero(D, 1, F::ZERO),
             r: vec![K::ZERO; dims.variables],
             eval_k: vec![K::ZERO; D.next_power_of_two()],

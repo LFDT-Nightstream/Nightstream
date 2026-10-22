@@ -35,7 +35,7 @@ fn build_fixture(
     let s = CcsStructure::new(vec![identity_left(n, m)], zero_poly(1)).expect("ccs");
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(123);
-    let pp = ajtai_setup(&mut rng, D, params.kappa as usize, m / D).expect("ajtai setup");
+    let pp = ajtai_setup(&mut rng, D, params.kappa() as usize, m / D).expect("ajtai setup");
     let l = pp;
 
     let z = Mat::from_row_major(D, m / D, vec![F::ZERO; D * (m / D)]);
@@ -267,7 +267,7 @@ fn raw_pi_ccs_rejects_running_count_above_parameter_profile() {
     let (params, s, claim, witness, _) = build_fixture(4, D);
     let (seed, seed_witnesses) = zero_running::zero_running(&params, &s, 1, claim.m_in);
 
-    let count = params.k_rho as usize + 1;
+    let count = params.k_rho() as usize + 1;
     let running = vec![seed[0].clone(); count];
     let running_witnesses = vec![seed_witnesses[0].clone(); count];
     let mut tr_p = Poseidon2Transcript::new_v1_2();
@@ -284,6 +284,6 @@ fn raw_pi_ccs_rejects_running_count_above_parameter_profile() {
     assert!(
         result.is_err(),
         "raw Pi_CCS accepted {count} running claims under a profile fixed to k_rho={}",
-        params.k_rho
+        params.k_rho()
     );
 }

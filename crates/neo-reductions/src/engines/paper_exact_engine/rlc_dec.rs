@@ -20,8 +20,8 @@ fn read_rho<Ff>(params: &NeoParams, matrix: &Mat<Ff>) -> [Fq; D]
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy,
 {
-    assert_eq!(params.d as usize, D, "PaperExact PiRLC ring degree mismatch");
-    assert_eq!(params.eta as usize, ETA, "PaperExact PiRLC cyclotomic mismatch");
+    assert_eq!(params.d() as usize, D, "PaperExact PiRLC ring degree mismatch");
+    assert_eq!(params.eta() as usize, ETA, "PaperExact PiRLC cyclotomic mismatch");
     assert_eq!(matrix.rows(), D, "PaperExact PiRLC rho row count");
     assert_eq!(matrix.cols(), D, "PaperExact PiRLC rho column count");
 
@@ -322,10 +322,10 @@ where
     Combine: Fn(&[Cmt], u32) -> Cmt,
 {
     validate_claim(structure, parent, ell_d);
-    assert_eq!(split_witnesses.len(), params.k_rho as usize);
+    assert_eq!(split_witnesses.len(), params.k_rho() as usize);
     assert_eq!(split_witnesses.len(), child_commitments.len());
-    assert!(params.b >= 2);
-    let split_valid = canonical_split_matches(split_witnesses, params.b);
+    assert!(params.b() >= 2);
+    let split_valid = canonical_split_matches(split_witnesses, params.b());
     let ring = PaperRing::new();
     let matrix_count = structure.t();
     let mut children = Vec::with_capacity(split_witnesses.len());
@@ -359,7 +359,7 @@ where
         });
     }
 
-    let base_f = Ff::from_u64(params.b as u64);
+    let base_f = Ff::from_u64(params.b() as u64);
     let base_k = K::from(base_f);
     let mut y_valid = split_valid;
     for coefficient in 0..D.next_power_of_two() {
@@ -396,7 +396,7 @@ where
             x_valid &= reconstructed == parent.X[(row, column)];
         }
     }
-    let commitment_valid = split_valid && combine(child_commitments, params.b) == parent.c;
+    let commitment_valid = split_valid && combine(child_commitments, params.b()) == parent.c;
     DecOutcome {
         children,
         ok_y: y_valid,

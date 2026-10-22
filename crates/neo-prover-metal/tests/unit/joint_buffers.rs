@@ -96,13 +96,15 @@ fn zero_carried_tables_fit_their_advertised_length() {
             neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
         )
         .unwrap();
-    params.lambda = params.lambda.min(security.security_bits);
-    let dims = build_joint_dims(&params, &structure, 1, params.k_rho as usize).unwrap();
+    params = params
+        .with_lambda(params.lambda().min(security.security_bits))
+        .unwrap();
+    let dims = build_joint_dims(&params, &structure, 1, params.k_rho() as usize).unwrap();
     let point = vec![K::ZERO; dims.variables];
     let fresh = [neo_ccs::CcsWitness {
         Z: Mat::zero(D, 1, F::ZERO),
     }];
-    let running = vec![Mat::zero(D, 1, F::ZERO); params.k_rho as usize];
+    let running = vec![Mat::zero(D, 1, F::ZERO); params.k_rho() as usize];
     let input = PaperJointOracleInput {
         structure: &structure,
         params: &params,
@@ -164,13 +166,15 @@ fn application_storage_does_not_reserve_future_rounds() {
                 neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
             )
             .unwrap();
-        params.lambda = params.lambda.min(security.security_bits);
-        let dims = build_joint_dims(&params, &structure, 1, params.k_rho as usize).unwrap();
+        params = params
+            .with_lambda(params.lambda().min(security.security_bits))
+            .unwrap();
+        let dims = build_joint_dims(&params, &structure, 1, params.k_rho() as usize).unwrap();
         let point = vec![K::ZERO; dims.variables];
         let fresh = [neo_ccs::CcsWitness {
             Z: Mat::virtual_constant(D, 1, F::ZERO),
         }];
-        let running = vec![Mat::virtual_constant(D, 1, F::ZERO); params.k_rho as usize];
+        let running = vec![Mat::virtual_constant(D, 1, F::ZERO); params.k_rho() as usize];
         let input = PaperJointOracleInput {
             structure: &structure,
             params: &params,
@@ -229,7 +233,7 @@ fn application_row_scratch_does_not_expand_the_carrier() {
 #[test]
 fn zero_witness_suffix_does_not_allocate_device_masks() {
     let session = MetalSession::new().unwrap();
-    let count = neo_params::NeoParams::nightstream_goldilocks_k16().k_rho as usize + 1;
+    let count = neo_params::NeoParams::nightstream_goldilocks_k16().k_rho() as usize + 1;
     let blocks = 2;
     let mut words = vec![0u64; count * 2 * blocks];
     words[0] = 1;

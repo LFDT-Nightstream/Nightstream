@@ -31,7 +31,7 @@ fn prove_accepts_nc_alphabet_packed_witness_values() {
     let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
 
     let mut rng = ChaCha8Rng::seed_from_u64(99);
-    let pp = ajtai_setup(&mut rng, D, params.kappa as usize, ccs.m / D).expect("Ajtai setup");
+    let pp = ajtai_setup(&mut rng, D, params.kappa() as usize, ccs.m / D).expect("Ajtai setup");
     let l = pp;
 
     let mut Z = Mat::zero(D, ccs.m / D, F::ZERO);

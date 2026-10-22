@@ -496,7 +496,7 @@ impl<'a> MetalPaperJointOracle<'a> {
         if !plan.matches(input.rows)
             || plan.rows != input.structure.n
             || plan.matrix_count != input.structure.t()
-            || input.params.b != 2
+            || input.params.b() != 2
             || input.dims.degree + 1 > MAX_COEFFICIENTS
             || input.dims.row_count < 2
         {
@@ -522,7 +522,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             .map(|witness| SuperneoZBlocks::from_witness_mat(witness, input.structure.m))
             .collect::<Result<Vec<_>, _>>()?;
         let masks = session
-            .prepare_joint_witness_masks(&source_blocks, input.params.b, input.structure.m)
+            .prepare_joint_witness_masks(&source_blocks, input.params.b(), input.structure.m)
             .map_err(oracle_error)?;
         let assignment_source_indices = masks
             .active_witnesses()
@@ -627,7 +627,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             blocks: plan.blocks,
             assignment_width: input.dims.assignment_width,
             coefficient_count,
-            range_base: input.params.b,
+            range_base: input.params.b(),
             f_vanishes_at_zero: input.structure.f.eval(&vec![F::ZERO; plan.matrix_count]) == F::ZERO,
             rounds: input.dims.variables,
             round: 0,

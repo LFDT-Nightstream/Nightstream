@@ -43,18 +43,22 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
     .unwrap();
     let cache = build_superneo_eval_cache(&structure).unwrap();
     let mut params = NeoParams::nightstream_goldilocks_k16();
-    params.lambda = params.lambda.min(
-        params
-            .padded_row_security_summary_for_shape(
-                rows,
-                logical,
-                structure.t(),
-                structure.max_degree(),
-                neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
-            )
-            .unwrap()
-            .security_bits,
-    );
+    params = params
+        .with_lambda(
+            params.lambda().min(
+                params
+                    .padded_row_security_summary_for_shape(
+                        rows,
+                        logical,
+                        structure.t(),
+                        structure.max_degree(),
+                        neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+                    )
+                    .unwrap()
+                    .security_bits,
+            ),
+        )
+        .unwrap();
     let mut fresh_values = vec![F::ZERO; width];
     fresh_values[0] = F::ONE;
     fresh_values[logical - 1] = -F::ONE;
@@ -75,7 +79,7 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
     };
     let running_witness = packed(&running_values);
     let fresh_claim = CcsClaim {
-        c: Commitment::zeros(D, params.kappa as usize),
+        c: Commitment::zeros(D, params.kappa() as usize),
         x: fresh_values[..D].to_vec(),
         m_in: D,
         adv: None,
@@ -99,7 +103,7 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
         })
         .collect();
     let running_claim = CeClaim {
-        c: Commitment::zeros(D, params.kappa as usize),
+        c: Commitment::zeros(D, params.kappa() as usize),
         X: Mat::zero(D, 1, F::ZERO),
         r: point,
         eval_k,

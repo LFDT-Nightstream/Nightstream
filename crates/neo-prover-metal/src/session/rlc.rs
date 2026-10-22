@@ -11,10 +11,10 @@ use std::{mem::size_of, sync::atomic::Ordering};
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_reductions::common::SplitDigits;
-use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use super::{Arg, Grid, MetalSession};
+use super::{host_view, Arg, Grid, MetalSession};
 use crate::MetalError;
 
 const CHILDREN_PER_THREAD: usize = 14;
@@ -125,8 +125,7 @@ impl MetalSession {
         self.activity
             .downloaded_bytes
             .fetch_add((digits * 2 * columns * size_of::<u64>()) as u64, Ordering::Relaxed);
-        let words =
-            unsafe { std::slice::from_raw_parts(planes.contents().as_ptr().cast::<u64>(), digits * 2 * columns) };
+        let words = host_view::<u64>(&planes, digits * 2 * columns);
         let children = words
             .chunks_exact(2 * columns)
             .zip(&flags)

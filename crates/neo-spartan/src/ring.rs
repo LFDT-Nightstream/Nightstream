@@ -25,7 +25,8 @@ use crate::circuit::Backend;
 use crate::circuit::Native;
 use crate::device::Accelerator;
 use crate::field::{ext_words, gl, re_im, Ext, Gl};
-use crate::{ClaimWords, Shape};
+use crate::relation::Shape;
+use crate::ClaimWords;
 
 /// Coefficients of `Σ_b ω_b ⋆ z_b` before reduction: degree below `2D - 1`.
 const PRODUCT: usize = 2 * D - 1;

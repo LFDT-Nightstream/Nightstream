@@ -15,8 +15,9 @@ use super::{commit, word, Scratch, Toy};
 use crate::circuit::Native;
 use crate::device::Accelerator;
 use crate::field::{Ext, Gl};
+use crate::prover::witness_table;
 use crate::ring::{self, Mixing};
-use crate::{prove, verify, witness_table, Claim, ClaimWords, Key, Proof, Relation, Setup, LANES};
+use crate::{prove, verify, Claim, ClaimWords, Key, Proof, Relation, Setup, LANES};
 
 /// The honest parent bound for 17 folded sources: 17 · T · (b - 1) = 17 · 216.
 pub(super) const BOUND: u32 = 3672;

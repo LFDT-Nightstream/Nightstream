@@ -28,6 +28,21 @@ jobs:
     - name: Check formatting
       run: cargo fmt --all --check
 
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Rust
+      uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
+
+    - name: Check lints
+      run: cargo clippy --workspace --all-targets
+
   test:
     name: Nightstream and shared regression tests
     runs-on: self-hosted

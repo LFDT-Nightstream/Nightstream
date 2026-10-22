@@ -166,7 +166,7 @@ fn read_parent(package: &PreparedLifecycle, root: &Path, step: u64) -> SavedPare
     parent
 }
 fn committed_split(package: &PreparedLifecycle, witness: &Mat<F>, parent: &CeClaim) -> (SplitDigits, Vec<Commitment>) {
-    validate_superneo_witness_shape(witness, package.structure.m).unwrap();
+    validate_superneo_witness_shape(witness, package.structure.m()).unwrap();
     let params = params(package);
     let digits = split_b_matrix_k_with_nonzero_flags(witness, params.k_rho() as usize, params.b()).unwrap();
     assert_eq!(digits.planes().len(), 16);
@@ -464,7 +464,7 @@ pub(super) fn openings(root: &Path, step: u64) {
     }
     let blocks = digits
         .iter()
-        .map(|digit| SuperneoZBlocks::from_witness_mat(digit, package.structure.m).unwrap())
+        .map(|digit| SuperneoZBlocks::from_witness_mat(digit, package.structure.m()).unwrap())
         .collect::<Vec<_>>();
     drop(digits);
     let started = Instant::now();
@@ -512,7 +512,7 @@ pub(super) fn child(root: &Path, step: u64, child: usize, engine: EvaluationEngi
         parent.rlc_parent.c
     );
     let witness: Mat<F> = load(&directory.join("parent-witness.json"));
-    validate_superneo_witness_shape(&witness, package.structure.m).unwrap();
+    validate_superneo_witness_shape(&witness, package.structure.m()).unwrap();
     let digit: Mat<F> = load(&directory.join(format!("digit-{child}.json")));
     let params = params(&package);
     let (expected, flags) = split_b_matrix_k_with_nonzero_flags(&witness, params.k_rho() as usize, params.b())
@@ -530,7 +530,7 @@ pub(super) fn child(root: &Path, step: u64, child: usize, engine: EvaluationEngi
         let started = Instant::now();
         let mut openings = match engine {
             EvaluationEngine::Optimized => {
-                let blocks = SuperneoZBlocks::from_witness_mat(&digit, package.structure.m).unwrap();
+                let blocks = SuperneoZBlocks::from_witness_mat(&digit, package.structure.m()).unwrap();
                 eval_real_v1_2_openings_from_rows(
                     &rows,
                     &parent.rlc_parent.r,
@@ -548,7 +548,7 @@ pub(super) fn child(root: &Path, step: u64, child: usize, engine: EvaluationEngi
                         workspace_bytes,
                         std::slice::from_ref(&digit),
                         &parent.rlc_parent.r,
-                        package.structure.m,
+                        package.structure.m(),
                     )
                     .unwrap();
                 assert!(device.activity().dispatches > 0);

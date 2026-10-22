@@ -26,7 +26,7 @@ fn claim(
 ) -> CeClaim<Commitment, F, K> {
     let point_len = structure
         .domain_rows()
-        .max(neo_reductions::common::superneo_carrier_width(structure.m))
+        .max(neo_reductions::common::superneo_carrier_width(structure.m()))
         .next_power_of_two()
         .trailing_zeros() as usize;
     CeClaim {

@@ -419,7 +419,7 @@ fn shaped_proof(prover: &Prover) -> Stage1Envelope {
 
     let structure = prover.lifecycle.structure();
     let public_width = prover.compiled.package.logical_public_input_count();
-    let columns = structure.m.div_ceil(D);
+    let columns = structure.m().div_ceil(D);
     let extension = |value: u64| neo_math::from_complex(F::from_u64(value), F::from_u64(value + 1));
     let evaluations = |seed: u64| {
         let mut values: Vec<K> = (0..D as u64).map(|lane| extension(seed + lane)).collect();
@@ -479,7 +479,7 @@ fn proof_offsets(prover: &Prover) -> (usize, usize, usize) {
     let d = neo_math::D;
     let header = 16 + 8 + 9 * 8;
     let claim = (d * 22 + public_width + 2 * 28 + (structure.t() + 1) * 2 * d) * 8;
-    let witness = structure.m.div_ceil(d) * 16;
+    let witness = structure.m().div_ceil(d) * 16;
     (header, claim, witness)
 }
 

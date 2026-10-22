@@ -220,7 +220,7 @@ fn prepare_with_engine(engine: EvaluationEngine) -> PreparedLifecycle {
 fn params(package: &PreparedLifecycle) -> Params {
     Params::for_ccs_shape(
         package.structure.domain_rows(),
-        package.structure.m,
+        package.structure.m(),
         package.structure.t(),
         package.structure.max_degree(),
         114,
@@ -287,8 +287,8 @@ fn load_claims(package: &PreparedLifecycle, directory: &Path, step: u64) -> (Sta
 fn load_sources(package: &PreparedLifecycle, directory: &Path, step: u64) -> Sources {
     let (state, claim, mut running) = load_claims(package, directory, step);
     let witness: Mat<F> = load(&directory.join("fresh-witness.json"));
-    validate_fresh_witness_tail_zero(&witness, package.structure.m, "staged fresh source").unwrap();
-    let projected = project_x_from_witness_mat(&witness, package.structure.m, claim.m_in).unwrap();
+    validate_fresh_witness_tail_zero(&witness, package.structure.m(), "staged fresh source").unwrap();
+    let projected = project_x_from_witness_mat(&witness, package.structure.m(), claim.m_in).unwrap();
     for (column, value) in claim.x.iter().enumerate() {
         assert_eq!(projected[(column % D, column / D)], *value);
     }
@@ -296,7 +296,7 @@ fn load_sources(package: &PreparedLifecycle, directory: &Path, step: u64) -> Sou
         let witness: Mat<F> = load(&directory.join(format!("digit-{child}.json")));
         let claim = &running.claims[child];
         assert_eq!(
-            project_x_from_witness_mat(&witness, package.structure.m, claim.m_in).unwrap(),
+            project_x_from_witness_mat(&witness, package.structure.m(), claim.m_in).unwrap(),
             claim.X
         );
         running.witnesses.push(witness);

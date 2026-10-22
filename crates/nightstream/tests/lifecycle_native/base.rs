@@ -64,7 +64,7 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
     let physical = loaded.execute_witness(&private, &public).unwrap();
     let logical = loaded.execute_logical_assignment(&physical).unwrap();
     drop(physical);
-    assert_eq!(logical.len(), package.structure().m);
+    assert_eq!(logical.len(), package.structure().m());
     for (column, &value) in logical.balanced_values().iter().enumerate() {
         let expected = match value {
             -1 => -F::ONE,
@@ -80,7 +80,7 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
     }
     neo_reductions::common::validate_fresh_witness_tail_zero(
         &fresh.witness.Z,
-        package.structure().m,
+        package.structure().m(),
         "public base extension",
     )
     .unwrap();

@@ -38,7 +38,7 @@ impl PreparedLifecycle {
         if running.claims.len() != PI_DEC_V1_2_CHILD_COUNT || !running.prover_shape_is_valid() {
             return Err(ProveError::Input("source counts do not match the selected profile"));
         }
-        let blocks = self.structure.m.div_ceil(D);
+        let blocks = self.structure.m().div_ceil(D);
         let public = PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS;
         if fresh.claim.m_in != public
             || fresh.claim.x.len() != public

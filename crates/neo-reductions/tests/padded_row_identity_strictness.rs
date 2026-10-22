@@ -86,12 +86,13 @@ fn padded_row_identity_rejects_an_extra_sumcheck_round() {
 #[test]
 fn padded_row_identity_uses_one_joint_row_cube() {
     let (params, s, mcs_inst, mcs_wit, mut tr_p) = build_fixture(4, D);
-    let assignment_width = neo_reductions::common::superneo_carrier_width(s.m);
-    let variables =
-        s.n.max(assignment_width)
-            .next_power_of_two()
-            .max(2)
-            .trailing_zeros() as usize;
+    let assignment_width = neo_reductions::common::superneo_carrier_width(s.m());
+    let variables = s
+        .n()
+        .max(assignment_width)
+        .next_power_of_two()
+        .max(2)
+        .trailing_zeros() as usize;
 
     let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs_inst.m_in);
     let (out_me, proof) = pi_ccs_prove(

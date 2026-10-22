@@ -30,7 +30,7 @@ pub fn build_joint_dims(
     fresh_count: usize,
     running_count: usize,
 ) -> Result<JointDims, PiCcsError> {
-    if structure.n == 0 || structure.m == 0 {
+    if structure.n() == 0 || structure.m() == 0 {
         return Err(PiCcsError::InvalidInput(
             "PaddedRowIdentity requires nonzero CCS dimensions".into(),
         ));
@@ -41,7 +41,7 @@ pub fn build_joint_dims(
         ));
     }
     let zero = vec![F::ZERO; structure.t()];
-    if structure.f.eval(&zero) != F::ZERO {
+    if structure.f().eval(&zero) != F::ZERO {
         return Err(PiCcsError::InvalidInput(
             "the selected zero-row padding requires f(0,...,0)=0".into(),
         ));
@@ -50,7 +50,7 @@ pub fn build_joint_dims(
     build_joint_dims_for_shape(
         params,
         structure.domain_rows(),
-        structure.m,
+        structure.m(),
         structure.t(),
         structure.max_degree(),
         fresh_count,

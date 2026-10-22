@@ -46,9 +46,9 @@ fn honest_proof() -> HonestProof {
     .expect("structure");
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(983);
-    let pp = ajtai_setup(&mut rng, D, params.kappa() as usize, structure.m / D).expect("Ajtai setup");
+    let pp = ajtai_setup(&mut rng, D, params.kappa() as usize, structure.m() / D).expect("Ajtai setup");
     let commitment_scheme = pp;
-    let z = Mat::from_row_major(D, structure.m / D, vec![F::ZERO; structure.m]);
+    let z = Mat::from_row_major(D, structure.m() / D, vec![F::ZERO; structure.m()]);
     let claim = CcsClaim {
         c: commit_row_major(&commitment_scheme, &z),
         x: vec![],

@@ -106,7 +106,7 @@ fn validate_input_shape(
     if !running.is_empty() && running.claims.len() as u32 != pp.k_rho() {
         return Err(Error::Shape("running length does not match params.k_rho()"));
     }
-    if fresh_claim.m_in > s.m {
+    if fresh_claim.m_in > s.m() {
         return Err(Error::Shape("fresh m_in exceeds structure.m"));
     }
     if !fresh_claim.m_in.is_multiple_of(D) {
@@ -115,7 +115,7 @@ fn validate_input_shape(
     if fresh_claim.x.len() != fresh_claim.m_in {
         return Err(Error::Shape("fresh x length does not match m_in"));
     }
-    if fresh_witness.private_len(fresh_claim.m_in, s.m).is_none() {
+    if fresh_witness.private_len(fresh_claim.m_in, s.m()).is_none() {
         return Err(Error::Shape("fresh m_in + witness length must equal structure.m"));
     }
     validate_canonical_x_shape(

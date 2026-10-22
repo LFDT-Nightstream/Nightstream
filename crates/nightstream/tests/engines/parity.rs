@@ -63,7 +63,7 @@ impl Fixture {
     fn context<'a>(&'a self, rows: &'a CachedMatrixRows<'_>) -> FoldContext<'a> {
         let dims = build_joint_dims(self.params.inner(), &self.structure, 1, self.running.witnesses.len()).unwrap();
         let row_payload = self.structure.t() * size_of::<K>() + size_of::<F>() + size_of::<K>();
-        let row_window = MatrixWindow::required_workspace(rows, 0..self.structure.n, row_payload).unwrap();
+        let row_window = MatrixWindow::required_workspace(rows, 0..self.structure.n(), row_payload).unwrap();
         let witnesses = (1 + self.running.witnesses.len()) * dims.assignment_width;
         let openings = self.params.k_rho() as usize * (self.structure.t() + 1) * D;
         FoldContext {
@@ -106,7 +106,7 @@ impl Fixture {
         };
         witness[(D - 1, 1)] = -F::ONE;
         let mut running = RunningInstance::canonical_zero(&params, &structure, D).unwrap();
-        let blocks = SuperneoZBlocks::from_witness_mat(&witness, structure.m).unwrap();
+        let blocks = SuperneoZBlocks::from_witness_mat(&witness, structure.m()).unwrap();
         let opening = cache
             .eval_real_v1_2_openings(&running.claims[0].r, &[blocks])
             .unwrap()
@@ -161,7 +161,8 @@ impl Fixture {
                 .unwrap()
                 .ccs_structure_header()
                 .unwrap()
-                .f
+                .f()
+                .clone()
         });
         let count = polynomial.terms()[0].exps.len();
         assert!(polynomial.terms().iter().all(|term| term.exps[C_PORT] <= 1));

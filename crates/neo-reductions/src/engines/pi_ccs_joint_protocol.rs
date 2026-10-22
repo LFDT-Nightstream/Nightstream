@@ -76,14 +76,14 @@ fn validate_selected_inputs(
     dims: JointDims,
 ) -> Result<(), PiCcsError> {
     for (index, claim) in fresh.iter().enumerate() {
-        if claim.m_in > structure.m || claim.x.len() != claim.m_in || claim.m_in % D != 0 {
+        if claim.m_in > structure.m() || claim.x.len() != claim.m_in || claim.m_in % D != 0 {
             return Err(PiCcsError::InvalidInput(format!(
                 "optimized fresh claim {index} is not a complete whole-ring public input"
             )));
         }
     }
     for (index, claim) in running.iter().enumerate() {
-        if claim.m_in > structure.m
+        if claim.m_in > structure.m()
             || claim.X.rows() != D
             || neo_ccs::superneo_public_x_cols(claim.m_in) != Some(claim.X.cols())
             || claim.eval_k.len() != D.next_power_of_two()

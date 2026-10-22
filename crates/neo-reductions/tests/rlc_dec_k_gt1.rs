@@ -223,7 +223,7 @@ fn build_me_from_z(
     _aux_seed: u64,
 ) -> CeClaim<Commitment, F, K> {
     let evaluations = compute_v1_2_evaluations_from_z_and_r(s, Z, r, ell_d);
-    let X = neo_reductions::common::project_x_from_witness_mat(Z, s.m, m_in).expect("project X");
+    let X = neo_reductions::common::project_x_from_witness_mat(Z, s.m(), m_in).expect("project X");
     CeClaim {
         adv: None,
         c,
@@ -247,7 +247,7 @@ fn rlc_with_commit_k4_matches_public_recompute_and_detects_rho_tamper() {
     let mut Zs = Vec::new();
     let mut me_inputs = Vec::new();
     for i in 0..4usize {
-        let Z = make_z(1000 + i as u64 * 100, s.m);
+        let Z = make_z(1000 + i as u64 * 100, s.m());
         let c = make_commitment(2000 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,
@@ -323,7 +323,7 @@ fn rlc_with_commit_sampled_rotation_rhos_matches_public_z_mix() {
     let mut Zs = Vec::new();
     let mut me_inputs = Vec::new();
     for i in 0..5usize {
-        let Z = make_z(4_200 + i as u64 * 137, s.m);
+        let Z = make_z(4_200 + i as u64 * 137, s.m());
         let c = make_commitment(5_200 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,
@@ -372,12 +372,12 @@ fn rlc_with_commit_sparse_rotation_rhs_matches_public_z_mix() {
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let s = build_wide_structure(D, D * 512);
     let m_in = D;
-    let r = vec![k(37); s.n.max(s.m).next_power_of_two().trailing_zeros() as usize];
+    let r = vec![k(37); s.n().max(s.m()).next_power_of_two().trailing_zeros() as usize];
 
     let mut Zs = Vec::new();
     let mut me_inputs = Vec::new();
     for i in 0..5usize {
-        let Z = make_sparse_signed_unit_z(i, s.m);
+        let Z = make_sparse_signed_unit_z(i, s.m());
         let c = make_commitment(7_200 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,
@@ -431,7 +431,7 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
     let mut Zs = Vec::new();
     let mut me_inputs = Vec::new();
     for i in 0..2usize {
-        let Z = make_z(4000 + i as u64 * 100, s.m);
+        let Z = make_z(4000 + i as u64 * 100, s.m());
         let c = make_commitment(5000 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,
@@ -468,7 +468,7 @@ fn rlc_x_projection_tracks_mixed_witness_under_rotation_rhos() {
         mix_commitments_from_rhos,
     )
     .expect("optimized rlc_with_commit");
-    let projected = project_x_from_witness_mat(&Z_mix, s.m, m_in).expect("project mixed witness X");
+    let projected = project_x_from_witness_mat(&Z_mix, s.m(), m_in).expect("project mixed witness X");
 
     assert_eq!(
         parent.X, projected,
@@ -487,7 +487,7 @@ fn rlc_public_matches_accepts_valid_inputs_and_rejects_tampered_rhos() {
     let mut Zs = Vec::new();
     let mut me_inputs = Vec::new();
     for i in 0..4usize {
-        let Z = make_z(2200 + i as u64 * 97, s.m);
+        let Z = make_z(2200 + i as u64 * 97, s.m());
         let c = make_commitment(3300 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,
@@ -553,7 +553,7 @@ fn rlc_with_commit_k4_optimized_matches_paper_exact() {
     let mut Zs = Vec::new();
     let mut me_inputs = Vec::new();
     for i in 0..4usize {
-        let Z = make_z(1500 + i as u64 * 101, s.m);
+        let Z = make_z(1500 + i as u64 * 101, s.m());
         let c = make_commitment(6000 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,
@@ -607,7 +607,7 @@ fn dec_children_with_commit_fixed_arity_public_and_tamper_checks() {
     let r = vec![k(13); 6];
 
     let k_dec = params.k_rho() as usize;
-    let Z_parent = make_z(1000, s.m);
+    let Z_parent = make_z(1000, s.m());
     let Z_split = split_b_matrix_k(&Z_parent, k_dec, params.b()).expect("parent must have a canonical split");
     let mut parent = build_me_from_z(&params, &s, &Z_parent, &r, ell_d, m_in, make_commitment(55_000), 88_000);
 
@@ -648,7 +648,7 @@ fn dec_children_trusted_split_digits_matches_checked_path() {
     let r = vec![k(17); 6];
     let k_dec = params.k_rho() as usize;
 
-    let cols = s.m / D;
+    let cols = s.m() / D;
     let mut z_parent = Mat::zero(D, cols, F::ZERO);
     for rho in 0..D {
         for blk in 0..cols {
@@ -742,7 +742,7 @@ fn dec_children_with_commit_optimized_matches_paper_exact() {
     let r = vec![k(19); 6];
 
     let k_dec = params.k_rho() as usize;
-    let Z_parent = make_z(1300, s.m);
+    let Z_parent = make_z(1300, s.m());
     let Z_split = split_b_matrix_k(&Z_parent, k_dec, params.b()).expect("parent must have a canonical split");
 
     let mut parent = build_me_from_z(&params, &s, &Z_parent, &r, ell_d, m_in, make_commitment(66_000), 99_000);
@@ -799,7 +799,7 @@ fn rlc_with_commit_k61_boundary_smoke() {
     let mut me_inputs = Vec::with_capacity(k_inputs);
 
     for i in 0..k_inputs {
-        let Z = make_z(1000 + i as u64 * 19, s.m);
+        let Z = make_z(1000 + i as u64 * 19, s.m());
         let c = make_commitment(30_000 + i as u64);
         me_inputs.push(build_me_from_z(
             &params,

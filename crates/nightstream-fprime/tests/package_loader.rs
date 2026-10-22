@@ -77,8 +77,8 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
         PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS
     );
     assert!(header.is_verifier_artifact_header());
-    assert_eq!(header.n, relation.row_count());
-    assert_eq!(header.m, relation.column_count());
+    assert_eq!(header.n(), relation.row_count());
+    assert_eq!(header.m(), relation.column_count());
     assert!(
         relation
             .row_count()
@@ -88,8 +88,8 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
     assert_eq!(header.domain_rows(), 1 << PI_CCS_V1_2_ROUND_COUNT);
     assert_eq!(header.t(), relation.matrix_sources().len());
     assert_eq!(header.max_degree() as usize + 1, relation.degree_bound());
-    assert_eq!(header.f.terms().len(), relation.terms().len());
-    for (actual, expected) in header.f.terms().iter().zip(relation.terms()) {
+    assert_eq!(header.f().terms().len(), relation.terms().len());
+    for (actual, expected) in header.f().terms().iter().zip(relation.terms()) {
         assert_eq!(actual.coeff.as_canonical_u64(), expected.coefficient());
         assert_eq!(
             actual

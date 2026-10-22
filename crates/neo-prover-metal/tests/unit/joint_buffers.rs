@@ -89,8 +89,8 @@ fn zero_carried_tables_fit_their_advertised_length() {
     let mut params = neo_params::NeoParams::nightstream_goldilocks_k16();
     let security = params
         .padded_row_security_summary_for_shape(
-            structure.n,
-            structure.m,
+            structure.n(),
+            structure.m(),
             structure.t(),
             structure.max_degree(),
             neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,

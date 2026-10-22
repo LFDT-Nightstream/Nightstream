@@ -327,7 +327,7 @@ impl PreparedLifecycle {
             "the fold error leaves no room under the security minimum",
         ))?;
         let package = terminal::package()?;
-        if !package.checks(&self.structure.f) {
+        if !package.checks(self.structure.f()) {
             return Err(CompressionError::Key(
                 "the terminal package checks another CCS polynomial",
             ));

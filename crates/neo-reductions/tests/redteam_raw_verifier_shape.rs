@@ -19,7 +19,7 @@ fn raw_pi_ccs_verifier_rejects_malformed_ce_shape_without_panicking() {
         m_in: 1,
         adv: None,
     };
-    let ell_n = s.n.next_power_of_two().max(2).trailing_zeros() as usize;
+    let ell_n = s.n().next_power_of_two().max(2).trailing_zeros() as usize;
     let malformed = CeClaim {
         c: commitment,
         X: Mat::zero(D, 1, F::ZERO),
@@ -61,7 +61,7 @@ fn public_pi_ccs_verifier_handles_documented_unpadded_v1_2_evaluations() {
         m_in: 1,
         adv: None,
     };
-    let ell_n = structure.n.next_power_of_two().max(2).trailing_zeros() as usize;
+    let ell_n = structure.n().next_power_of_two().max(2).trailing_zeros() as usize;
     let claim = CeClaim {
         c: commitment,
         X: Mat::zero(D, 1, F::ZERO),

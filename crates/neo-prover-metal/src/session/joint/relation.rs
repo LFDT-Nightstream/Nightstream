@@ -43,7 +43,7 @@ impl TerminalRowCheck<'_> {
         count: usize,
     ) -> Result<Option<usize>, MetalError> {
         let shape =
-            session.buffer_from_slice(&[count as u64, self.structure.f.terms().len() as u64, row_start as u64])?;
+            session.buffer_from_slice(&[count as u64, self.structure.f().terms().len() as u64, row_start as u64])?;
         let command = session.command_buffer("nightstream.terminal.relation")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         session.launch(
@@ -129,12 +129,12 @@ impl MetalSession {
         structure: &'a CcsStructure<F>,
         witness: &Mat<F>,
     ) -> Result<TerminalRowCheck<'a>, MetalError> {
-        if structure.n != plan.rows
-            || structure.m.div_ceil(D) != plan.blocks
+        if structure.n() != plan.rows
+            || structure.m().div_ceil(D) != plan.blocks
             || structure.t() != plan.matrix_count
-            || structure.f.arity() != plan.matrix_count
+            || structure.f().arity() != plan.matrix_count
             || structure
-                .f
+                .f()
                 .terms()
                 .iter()
                 .any(|term| term.exps.len() != plan.matrix_count)
@@ -142,12 +142,12 @@ impl MetalSession {
             return Err(MetalError::Shape("terminal relation dimensions or polynomial arity"));
         }
         let rows = u32::try_from(plan.rows).map_err(|_| MetalError::Shape("terminal row index exceeds u32"))?;
-        let blocks = SuperneoZBlocks::from_witness_mat(witness, structure.m)
+        let blocks = SuperneoZBlocks::from_witness_mat(witness, structure.m())
             .map_err(|_| MetalError::Shape("terminal witness shape"))?;
         let words = blocks
             .signed_digit_masks(2)
             .ok_or(MetalError::Shape("terminal witness is not signed-unit"))?;
-        let masks = self.prepare_witness_digit_masks(&words, 1, plan.blocks, 1, structure.m)?;
+        let masks = self.prepare_witness_digit_masks(&words, 1, plan.blocks, 1, structure.m())?;
         drop(words);
         drop(blocks);
         let (headers, variables) =

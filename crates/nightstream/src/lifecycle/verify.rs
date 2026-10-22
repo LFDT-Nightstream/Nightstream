@@ -105,7 +105,7 @@ impl PreparedLifecycle {
                     reason: "evaluation shape or nonzero surplus coefficients",
                 });
             }
-            let projected = project_x_from_witness_mat(witness, self.structure.m, claim.m_in).map_err(|_| {
+            let projected = project_x_from_witness_mat(witness, self.structure.m(), claim.m_in).map_err(|_| {
                 VerifyError::Running {
                     index,
                     reason: "complete witness shape",
@@ -152,7 +152,7 @@ impl PreparedLifecycle {
                 "public input differs from the recomputed terminal state hash",
             ));
         }
-        validate_fresh_witness_tail_zero(&fresh.witness.Z, self.structure.m, "selected terminal")
+        validate_fresh_witness_tail_zero(&fresh.witness.Z, self.structure.m(), "selected terminal")
             .map_err(|_| VerifyError::Fresh("complete witness shape or nonzero fresh completion tail"))?;
         for (column, value) in fresh.claim.x.iter().enumerate() {
             if fresh.witness.Z[(column % D, column / D)] != *value {

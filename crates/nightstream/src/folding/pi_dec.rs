@@ -55,7 +55,7 @@ pub(crate) fn prove_with_production_key(
         workspace_bytes,
     } = context;
     let production = Params::production();
-    let blocks = s.m.div_ceil(D);
+    let blocks = s.m().div_ceil(D);
     if pp.b() != production.b()
         || pp.k_rho() != production.k_rho()
         || pp.big_b() != production.big_b()
@@ -64,7 +64,7 @@ pub(crate) fn prove_with_production_key(
         || blocks > MAX_MESSAGE_COLUMNS as usize
         || rows.shape()
             != (MatrixShape {
-                rows: s.n,
+                rows: s.n(),
                 columns: blocks * D,
                 matrices: s.t(),
             })
@@ -77,7 +77,7 @@ pub(crate) fn prove_with_production_key(
     if parent.adv.is_some() {
         return Err(Error::Auxiliary);
     }
-    neo_reductions::common::validate_superneo_witness_shape(&parent_witness, s.m).map_err(engine::Error::from)?;
+    neo_reductions::common::validate_superneo_witness_shape(&parent_witness, s.m()).map_err(engine::Error::from)?;
     let split =
         neo_reductions::common::split_b_matrix_k_with_nonzero_flags(&parent_witness, pp.k_rho() as usize, pp.b())
             .map_err(engine::Error::from)?;
@@ -87,7 +87,7 @@ pub(crate) fn prove_with_production_key(
     let blocks = split
         .planes()
         .iter()
-        .map(|witness| SuperneoZBlocks::from_witness_mat(witness, s.m))
+        .map(|witness| SuperneoZBlocks::from_witness_mat(witness, s.m()))
         .collect::<Result<Vec<_>, _>>()
         .map_err(engine::Error::from)?;
     let openings =

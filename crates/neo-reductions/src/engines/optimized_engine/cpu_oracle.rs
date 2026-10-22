@@ -87,8 +87,8 @@ impl<'a> OptimizedPaperJointOracle<'a> {
         if !challenges.has_expected_dimension(dims.variables)
             || running.is_empty() != prior_point.is_none()
             || prior_point.is_some_and(|point| point.len() != dims.variables)
-            || (shape.rows, shape.columns, shape.matrices) != (structure.n, dims.assignment_width, structure.t())
-            || structure.f.eval(&vec![F::ZERO; structure.t()]) != F::ZERO
+            || (shape.rows, shape.columns, shape.matrices) != (structure.n(), dims.assignment_width, structure.t())
+            || structure.f().eval(&vec![F::ZERO; structure.t()]) != F::ZERO
         {
             return Err(PiCcsError::InvalidInput("optimized CPU oracle input shape".into()));
         }
@@ -99,7 +99,7 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             .collect::<Vec<_>>();
         let witness_blocks = witnesses
             .iter()
-            .map(|source| SuperneoZBlocks::from_witness_mat(*source, structure.m))
+            .map(|source| SuperneoZBlocks::from_witness_mat(*source, structure.m()))
             .collect::<Result<Vec<_>, _>>()?;
         let assignments = witnesses
             .iter()
@@ -111,7 +111,7 @@ impl<'a> OptimizedPaperJointOracle<'a> {
             &witness_blocks[fresh.len()..],
             challenges.gamma,
             dims,
-            structure.n,
+            structure.n(),
             workspace_bytes,
         )?;
         Ok(Self {
@@ -137,7 +137,7 @@ impl<'a> OptimizedPaperJointOracle<'a> {
         self.fresh_tables.evals_at(
             self.source,
             &self.witness_blocks[..self.fresh_tables.fresh_count()],
-            &self.structure.f,
+            self.structure.f(),
             self.challenges.gamma,
             points,
             weights,

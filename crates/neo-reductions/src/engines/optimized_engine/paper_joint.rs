@@ -123,7 +123,7 @@ where
             .map(|evaluation| evaluation.first().copied())
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| PiCcsError::InvalidInput("optimized Eval_A output is empty".into()))?;
-        fresh_residual += gamma_power(challenges.gamma, source) * structure.f.eval_in_ext::<K>(&matrix_evaluations);
+        fresh_residual += gamma_power(challenges.gamma, source) * structure.f().eval_in_ext::<K>(&matrix_evaluations);
     }
     let mut norm = K::ZERO;
     for (source, output) in outputs.iter().enumerate() {
@@ -282,12 +282,12 @@ fn build_outputs(
         let weights = weights
             .as_deref()
             .expect("host openings require the equality tensor");
-        let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, structure.m)?;
+        let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, structure.m())?;
         let mut eval_k = identity_ring_mle(&assignment, weights).to_vec();
         eval_k.resize(d_pad, K::ZERO);
         let cache = cache.expect("host openings require the validated structure cache");
         let eval_a =
-            crate::superneo_eval::eval_all_mats_ring_cached(cache.superneo(), &assignment, weights, structure.n)
+            crate::superneo_eval::eval_all_mats_ring_cached(cache.superneo(), &assignment, weights, structure.n())
                 .into_iter()
                 .map(|coefficients| {
                     let mut row = coefficients.to_vec();
@@ -303,7 +303,7 @@ fn build_outputs(
         let opening = openings(source, &witness.Z)?;
         outputs.push(CeClaim {
             c: claim.c.clone(),
-            X: crate::common::project_x_from_witness_mat(&witness.Z, structure.m, claim.m_in)?,
+            X: crate::common::project_x_from_witness_mat(&witness.Z, structure.m(), claim.m_in)?,
             r: point.to_vec(),
             eval_k: opening.eval_k,
             eval_a: opening.eval_a,
@@ -347,8 +347,8 @@ fn prove_with_trace_inner(
             let shape = rows.shape();
             if (shape.rows, shape.columns, shape.matrices)
                 != (
-                    structure.n,
-                    crate::common::superneo_carrier_width(structure.m),
+                    structure.n(),
+                    crate::common::superneo_carrier_width(structure.m()),
                     structure.t(),
                 )
             {
@@ -368,12 +368,12 @@ fn prove_with_trace_inner(
     for (index, witness) in fresh_witnesses.iter().enumerate() {
         crate::common::validate_fresh_witness_tail_zero(
             &witness.Z,
-            structure.m,
+            structure.m(),
             &format!("optimized fresh witness {index}"),
         )?;
     }
     for witness in running_witnesses {
-        crate::common::validate_superneo_witness_shape(witness, structure.m)?;
+        crate::common::validate_superneo_witness_shape(witness, structure.m())?;
     }
     let mut trace = ProtocolTrace::default();
     let (dims, challenges) = pi_ccs_joint_protocol::bind_and_sample_with_trace(

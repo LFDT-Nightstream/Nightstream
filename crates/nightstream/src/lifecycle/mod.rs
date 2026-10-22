@@ -66,12 +66,12 @@ impl PreparedLifecycle {
         let structure = package.ccs_structure_header()?;
         let params = crate::folding::Params::for_ccs_shape(
             structure.domain_rows(),
-            structure.m,
+            structure.m(),
             structure.t(),
             structure.max_degree(),
             minimum_security_bits,
         )?;
-        validate_key_prefix(structure.m, binding.verifier_context().commitment_key_words())?;
+        validate_key_prefix(structure.m(), binding.verifier_context().commitment_key_words())?;
         if matches!(backend.engine(), Engine::PaperExact | Engine::Crosscheck) {
             package.validate_all_matrix_rows()?;
         }

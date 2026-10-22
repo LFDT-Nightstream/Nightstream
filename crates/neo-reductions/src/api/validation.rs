@@ -13,10 +13,10 @@ use crate::error::PiCcsError;
 
 #[inline]
 pub(crate) fn ensure_superneo_width(s: &CcsStructure<F>) -> Result<(), PiCcsError> {
-    if s.m == 0 {
+    if s.m() == 0 {
         return Err(PiCcsError::InvalidInput(format!(
             "SuperNeo-only mode requires CCS width m > 0 (got m={})",
-            s.m
+            s.m()
         )));
     }
     Ok(())
@@ -52,10 +52,11 @@ pub(crate) fn validate_ce_claim_shape(
             "{label}: no reduction binds auxiliary lane commitments"
         )));
     }
-    if ce.m_in > s.m {
+    if ce.m_in > s.m() {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: m_in={} exceeds CCS width m={}",
-            ce.m_in, s.m
+            ce.m_in,
+            s.m()
         )));
     }
     let Some(x_cols) = neo_ccs::superneo_public_x_cols(ce.m_in) else {
@@ -134,10 +135,11 @@ pub(crate) fn validate_pi_ccs_outputs(
     for (index, output) in outputs.iter().enumerate() {
         let owner = format!("{label}[{index}]");
         let matrix_count = s.t();
-        let Some(x_cols) = neo_ccs::superneo_public_x_cols(output.m_in).filter(|_| output.m_in <= s.m) else {
+        let Some(x_cols) = neo_ccs::superneo_public_x_cols(output.m_in).filter(|_| output.m_in <= s.m()) else {
             return Err(PiCcsError::InvalidInput(format!(
                 "{owner}: m_in={} must not exceed m={} and must contain whole degree-{D} ring elements",
-                output.m_in, s.m
+                output.m_in,
+                s.m()
             )));
         };
         if output.X.rows() != D || output.X.cols() != x_cols {
@@ -252,7 +254,7 @@ pub(crate) fn validate_dec_boundary_inputs(
     checked_superneo_d_pad("DEC ell_d", ell_d)?;
     for (idx, (z, commitment)) in z_split.iter().zip(child_commitments).enumerate() {
         validate_commitment_shape("dec_child", commitment, parent.c.kappa())?;
-        crate::common::validate_packed_witness_dec_representable(params, z, s.m, &format!("dec: Z_split[{idx}]"))?;
+        crate::common::validate_packed_witness_dec_representable(params, z, s.m(), &format!("dec: Z_split[{idx}]"))?;
     }
     Ok(())
 }
@@ -284,7 +286,7 @@ pub(crate) fn validate_dec_boundary_inputs_from_trusted_split(
     checked_superneo_d_pad("DEC ell_d", ell_d)?;
     for (idx, (z, commitment)) in z_split.iter().zip(child_commitments).enumerate() {
         validate_commitment_shape("dec_child", commitment, parent.c.kappa())?;
-        crate::common::validate_superneo_witness_shape(z, s.m)
+        crate::common::validate_superneo_witness_shape(z, s.m())
             .map_err(|e| PiCcsError::InvalidInput(format!("dec trusted split: Z_split[{idx}] shape failed: {e}")))?;
     }
     Ok(())

@@ -142,7 +142,7 @@ impl Case {
     ) -> Complete<'a> {
         let dims = build_joint_dims(&self.params, &self.structure, 1, 1).unwrap();
         let payload = self.witnesses.len() * self.structure.t() * size_of::<K>() + size_of::<F>() + size_of::<K>();
-        let workspace_bytes = MatrixWindow::required_workspace(source, 0..self.structure.n, payload).unwrap()
+        let workspace_bytes = MatrixWindow::required_workspace(source, 0..self.structure.n(), payload).unwrap()
             + (dims.degree + 1 + self.structure.t()) * size_of::<K>();
         Complete {
             inner: OptimizedPaperJointOracle::new(
@@ -303,7 +303,7 @@ fn complete_oracle_rejects_missing_or_incomplete_openings() {
 #[test]
 fn cached_optimized_prover_keeps_its_matrix_binding_check() {
     let case = Case::new();
-    let changed = CcsStructure::new(vec![Mat::zero(D / 2, D + 1, F::ONE); 2], case.structure.f.clone()).unwrap();
+    let changed = CcsStructure::new(vec![Mat::zero(D / 2, D + 1, F::ONE); 2], case.structure.f().clone()).unwrap();
     let error = optimized_prove_with_cache(
         &mut transcript(),
         &case.params,

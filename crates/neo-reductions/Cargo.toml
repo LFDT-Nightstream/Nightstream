@@ -10,7 +10,6 @@ workspace = true
 
 [features]
 default = ["paper-exact"]
-testing = []
 paper-exact = []
 debug-logs = []
 perf-timers = []

@@ -14,13 +14,13 @@ const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 // The selected Nightstream profile, in the exported profile field order.
 const PROFILE: [u64; 8] = [
     GOLDILOCKS_MODULUS,
-    2,
-    16,
-    65536,
-    54,
-    28,
+    crate::DECOMPOSITION_BASE,
+    crate::DECOMPOSITION_K_RHO as u64,
+    crate::DECOMPOSITION_NORM_BOUND,
+    crate::PI_CCS_V1_2_COEFFICIENT_COUNT as u64,
+    crate::PI_CCS_V1_2_ROUND_COUNT as u64,
     crate::PI_CCS_V1_2_MATRIX_COUNT as u64,
-    4,
+    MATRIX_PORTS as u64,
 ];
 const MATRIX_PORTS: usize = 4;
 

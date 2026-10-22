@@ -9,11 +9,11 @@ use super::{wire::Envelope, AssemblyError};
 
 const PROFILE: [u64; 8] = [
     0xffff_ffff_0000_0001,
-    2,
-    16,
-    65536,
-    54,
-    28,
+    nightstream_fprime::DECOMPOSITION_BASE,
+    nightstream_fprime::DECOMPOSITION_K_RHO as u64,
+    nightstream_fprime::DECOMPOSITION_NORM_BOUND,
+    nightstream_fprime::PI_CCS_V1_2_COEFFICIENT_COUNT as u64,
+    nightstream_fprime::PI_CCS_V1_2_ROUND_COUNT as u64,
     nightstream_fprime::PI_CCS_V1_2_MATRIX_COUNT as u64,
     4,
 ];

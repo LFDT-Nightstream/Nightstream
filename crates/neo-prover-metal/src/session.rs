@@ -15,7 +15,7 @@ use objc2_metal::{
     MTLCreateSystemDefaultDevice, MTLDevice, MTLLibrary, MTLResourceOptions, MTLSize,
 };
 
-use crate::{MetalActivity, MetalError, BUFFER_LIMIT_BYTES};
+use crate::{poseidon2, MetalActivity, MetalError, BUFFER_LIMIT_BYTES};
 
 mod dft;
 mod gkr;
@@ -29,7 +29,6 @@ pub(crate) use joint::MetalPaperJointOracle;
 pub(crate) use masks::MetalWitnessMasks;
 
 static METALLIB: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/nightstream-metal.metallib"));
-static POSEIDON2_CONSTANT_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/poseidon2.constants"));
 type Device = Retained<ProtocolObject<dyn MTLDevice>>;
 type Queue = Retained<ProtocolObject<dyn MTLCommandQueue>>;
 type Buffer = Retained<ProtocolObject<dyn MTLBuffer>>;
@@ -110,7 +109,7 @@ impl MetalSession {
             .newLibraryWithData_error(&data)
             .map_err(|error| MetalError::Library(format!("{error:?}")))?;
         let poseidon2_hash_rows_overwrite = pipeline(&device, &library, "poseidon2_hash_rows_overwrite")?;
-        let poseidon2_constants = buffer_from_slice(&device, &poseidon2_round_constants())?;
+        let poseidon2_constants = pre_session_buffer(&device, &poseidon2::round_constant_words())?;
         let production_key_row = pipeline(&device, &library, "production_key_row")?;
         let production_key_weights = pipeline(&device, &library, "production_key_weights")?;
         let dft_twiddles = pipeline(&device, &library, "dft_twiddles")?;
@@ -389,14 +388,9 @@ fn dispatch(
     );
 }
 
-fn poseidon2_round_constants() -> Vec<u64> {
-    POSEIDON2_CONSTANT_BYTES
-        .chunks_exact(size_of::<u64>())
-        .map(|bytes| u64::from_le_bytes(bytes.try_into().expect("chunks_exact has width 8")))
-        .collect()
-}
-
-fn buffer_from_slice<T: Copy>(device: &ProtocolObject<dyn MTLDevice>, values: &[T]) -> Result<Buffer, MetalError> {
+/// Uploads `values` before the session exists, so outside its memory limit
+/// and activity counters.
+fn pre_session_buffer<T: Copy>(device: &ProtocolObject<dyn MTLDevice>, values: &[T]) -> Result<Buffer, MetalError> {
     let bytes = size_of_val(values);
     let buffer = device
         .newBufferWithLength_options(bytes, MTLResourceOptions::StorageModeShared)

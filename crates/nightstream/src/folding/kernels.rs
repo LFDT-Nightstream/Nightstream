@@ -115,7 +115,13 @@ pub fn verify_pi_rlc(
     nr::rlc_public_matches(s, pp.inner(), rhos, me_inputs, expected, mix_rhos_commits, ell_d()).map_err(Into::into)
 }
 
-pub fn verify_pi_dec<MB>(pp: &Params, s: &Structure, parent: &CeClaim, children: &[CeClaim], combine_b_pows: MB) -> bool
+pub fn verify_pi_dec<MB>(
+    pp: &Params,
+    s: &Structure,
+    parent: &CeClaim,
+    children: &[CeClaim],
+    combine_b_pows: MB,
+) -> Result<(), neo_reductions::PiCcsError>
 where
     MB: Fn(&[Commitment], u32) -> Commitment,
 {

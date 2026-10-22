@@ -241,14 +241,15 @@ fn verify_dec_public_rejects_common_short_row_point() {
     }
 
     assert!(
-        !verify_dec_public(
+        verify_dec_public(
             &structure,
             &params,
             &parent,
             &children,
             combine_commitments_b_pows,
             ell_d,
-        ),
+        )
+        .is_err(),
         "public DEC verifier accepted CE row points shorter than log2(n)"
     );
 }
@@ -275,14 +276,15 @@ fn verify_dec_public_rejects_child_count_different_from_k_rho() {
 
     assert_eq!(params.k_rho, 14);
     assert!(
-        !verify_dec_public(
+        verify_dec_public(
             &structure,
             &params,
             &parent,
             core::slice::from_ref(&child),
             combine_commitments_b_pows,
             ell_d,
-        ),
+        )
+        .is_err(),
         "public DEC verifier accepted one child although params.k_rho is 14"
     );
 }
@@ -348,14 +350,15 @@ fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
 
     assert_eq!(children.len(), child_count);
     assert!(
-        !verify_dec_public(
+        verify_dec_public(
             &structure,
             &params,
             &parent,
             &children,
             combine_commitments_b_pows,
             ell_d,
-        ),
+        )
+        .is_err(),
         "public DEC verifier accepted a child X coordinate outside CE(b)"
     );
 }
@@ -478,14 +481,15 @@ fn verify_dec_public_rejects_children_from_different_fold_transcript() {
     children[1].fold_digest[0] = 1;
 
     assert!(
-        !verify_dec_public(
+        verify_dec_public(
             &structure,
             &params,
             &parent,
             &children,
             combine_commitments_b_pows,
             ell_d,
-        ),
+        )
+        .is_err(),
         "public DEC accepted a child authenticated by a different fold transcript"
     );
 }
@@ -504,14 +508,15 @@ fn verify_dec_public_rejects_malformed_commitment_payloads() {
     }
 
     assert!(
-        !verify_dec_public(
+        verify_dec_public(
             &structure,
             &params,
             &parent,
             &children,
             combine_commitments_b_pows,
             ell_d,
-        ),
+        )
+        .is_err(),
         "public DEC accepted commitments whose declared dimensions do not match their payloads"
     );
 }

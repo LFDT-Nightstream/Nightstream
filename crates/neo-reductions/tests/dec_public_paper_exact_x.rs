@@ -71,6 +71,7 @@ fn verify(params: &NeoParams, parent: &CeClaim<Commitment, F, K>, children: &[Ce
         combine_zero_commitments,
         D.next_power_of_two().trailing_zeros() as usize,
     )
+    .is_ok()
 }
 
 #[test]

@@ -14,8 +14,8 @@ use p3_field::PrimeField64;
 pub enum Error {
     #[error("PiDEC child count {got}, expected {expected}")]
     ChildCount { expected: usize, got: usize },
-    #[error("PiDEC public recomposition failed")]
-    VerifyRejected,
+    #[error("PiDEC public recomposition failed: {0}")]
+    VerifyRejected(#[source] neo_reductions::PiCcsError),
     #[error("PiDEC public shape in {0}")]
     NoncanonicalXShape(&'static str),
     #[error("PiDEC child public input exceeds unit norm")]
@@ -125,10 +125,7 @@ pub fn verify(
     proof: &Proof,
 ) -> Result<Vec<CeClaim>, Error> {
     validate_verifier_inputs(pp, s, parent, proof)?;
-    let ok = engine::verify_pi_dec(pp, s, parent, &proof.children, |cs, b| combine(cs, b));
-    if !ok {
-        return Err(Error::VerifyRejected);
-    }
+    engine::verify_pi_dec(pp, s, parent, &proof.children, |cs, b| combine(cs, b)).map_err(Error::VerifyRejected)?;
     Ok(proof.children.clone())
 }
 

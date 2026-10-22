@@ -253,18 +253,8 @@ impl MetalSession {
     }
 
     fn buffer_from_slice<T: Copy>(&self, values: &[T]) -> Result<Buffer, MetalError> {
-        let bytes = size_of_val(values);
-        let buffer = self.buffer(bytes)?;
-        unsafe {
-            std::ptr::copy_nonoverlapping(
-                values.as_ptr().cast::<u8>(),
-                buffer.contents().as_ptr().cast::<u8>(),
-                bytes,
-            );
-        }
-        self.activity
-            .uploaded_bytes
-            .fetch_add(bytes as u64, Ordering::Relaxed);
+        let buffer = self.buffer(size_of_val(values))?;
+        self.write_shared(&buffer, values)?;
         Ok(buffer)
     }
 
@@ -276,11 +266,8 @@ impl MetalSession {
         let bytes = words
             .checked_mul(size_of::<u64>())
             .ok_or(MetalError::Shape("Metal buffer size overflows"))?;
-        let buffer = self.buffer(bytes)?;
-        // SAFETY: Metal gives a shared-storage buffer a CPU-visible, aligned `contents()`
-        // pointer that stays valid while the buffer lives; this new buffer has no device readers.
-        let destination = unsafe { std::slice::from_raw_parts_mut(buffer.contents().as_ptr().cast::<u64>(), words) };
-        fill(destination)?;
+        let mut buffer = self.buffer(bytes)?;
+        fill(host_view_mut(&mut buffer, words))?;
         self.activity
             .uploaded_bytes
             .fetch_add(bytes as u64, Ordering::Relaxed);
@@ -371,20 +358,10 @@ impl MetalSession {
     }
 
     fn write_shared<T: Copy>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, values: &[T]) -> Result<(), MetalError> {
-        let bytes = size_of_val(values);
-        if bytes > buffer.length() as usize {
-            return Err(MetalError::Shape("Metal shared-buffer write exceeds capacity"));
-        }
-        unsafe {
-            std::ptr::copy_nonoverlapping(
-                values.as_ptr().cast::<u8>(),
-                buffer.contents().as_ptr().cast::<u8>(),
-                bytes,
-            );
-        }
+        upload(buffer, values)?;
         self.activity
             .uploaded_bytes
-            .fetch_add(bytes as u64, Ordering::Relaxed);
+            .fetch_add(size_of_val(values) as u64, Ordering::Relaxed);
         Ok(())
     }
 
@@ -394,24 +371,21 @@ impl MetalSession {
     }
 
     /// `read_buffer` with the copy split over the CPU cores.
-    fn read_buffer_parallel<T: Copy + Send + Sync>(
-        &self,
-        buffer: &ProtocolObject<dyn MTLBuffer>,
-        len: usize,
-    ) -> Vec<T> {
+    fn read_buffer_parallel<T: Pod>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> Vec<T> {
         use rayon::prelude::*;
+        let values = host_view::<T>(buffer, len);
         self.activity
             .downloaded_bytes
-            .fetch_add((len * size_of::<T>()) as u64, Ordering::Relaxed);
-        let source = unsafe { std::slice::from_raw_parts(buffer.contents().as_ptr().cast::<T>(), len) };
-        source.par_iter().copied().collect()
+            .fetch_add(size_of_val(values) as u64, Ordering::Relaxed);
+        values.par_iter().copied().collect()
     }
 
-    fn read_buffer<T: Copy>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> Vec<T> {
+    fn read_buffer<T: Pod>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> Vec<T> {
+        let values = host_view::<T>(buffer, len);
         self.activity
             .downloaded_bytes
-            .fetch_add((len * size_of::<T>()) as u64, Ordering::Relaxed);
-        read_buffer(buffer, len)
+            .fetch_add(size_of_val(values) as u64, Ordering::Relaxed);
+        values.to_vec()
     }
 
     pub fn activity(&self) -> MetalActivity {
@@ -441,6 +415,25 @@ fn pre_session_buffer<T: Copy>(device: &ProtocolObject<dyn MTLDevice>, values: &
     let buffer = device
         .newBufferWithLength_options(bytes, MTLResourceOptions::StorageModeShared)
         .ok_or(MetalError::Buffer { bytes })?;
+    upload(&buffer, values)?;
+    Ok(buffer)
+}
+
+/// Copy `values` to the start of `buffer`, a buffer that Metal allocated
+/// and that no command is using.
+fn upload<T: Copy>(buffer: &ProtocolObject<dyn MTLBuffer>, values: &[T]) -> Result<(), MetalError> {
+    let bytes = size_of_val(values);
+    if bytes > buffer.length() {
+        return Err(MetalError::Shape("Metal shared-buffer write exceeds capacity"));
+    }
+    // SAFETY: the source is a live slice of `bytes` bytes, and the
+    // destination is the start of the buffer's shared memory, which holds
+    // at least `bytes` bytes (checked above) and lives as long as `buffer`.
+    // The copy is untyped, so it needs no alignment. The ranges do not
+    // overlap, because callers upload only into buffers that Metal
+    // allocated, never into a wrapped one. No command uses the buffer during
+    // the copy: every command finishes inside the call that encodes it (see
+    // `launch`).
     unsafe {
         std::ptr::copy_nonoverlapping(
             values.as_ptr().cast::<u8>(),
@@ -448,7 +441,7 @@ fn pre_session_buffer<T: Copy>(device: &ProtocolObject<dyn MTLDevice>, values: &
             bytes,
         );
     }
-    Ok(buffer)
+    Ok(())
 }
 
 fn pipeline(
@@ -478,11 +471,63 @@ fn wait(command: &ProtocolObject<dyn MTLCommandBuffer>) -> Result<(), MetalError
     Ok(())
 }
 
-fn read_buffer<T: Copy>(buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> Vec<T> {
-    let mut out = Vec::<T>::with_capacity(len);
-    unsafe {
-        std::ptr::copy_nonoverlapping(buffer.contents().as_ptr().cast::<T>(), out.as_mut_ptr(), len);
-        out.set_len(len);
-    }
-    out
+/// A type that device bytes can be read as: it has no padding, and every bit
+/// pattern is a value.
+///
+/// # Safety
+///
+/// Implement it only for such types.
+unsafe trait Pod: Copy + Send + Sync {}
+
+// SAFETY: an integer has no padding, and every bit pattern is a value.
+unsafe impl Pod for u8 {}
+// SAFETY: an integer has no padding, and every bit pattern is a value.
+unsafe impl Pod for u16 {}
+// SAFETY: an integer has no padding, and every bit pattern is a value.
+unsafe impl Pod for u32 {}
+// SAFETY: an integer has no padding, and every bit pattern is a value.
+unsafe impl Pod for u64 {}
+// SAFETY: an array has no padding between its elements, so an array of
+// `Pod` values has no padding, and every bit pattern is a value.
+unsafe impl<T: Pod, const N: usize> Pod for [T; N] {}
+
+/// The start of `buffer`'s shared memory as `len` values of `T`. It panics
+/// unless they fit in the buffer from an aligned start: the length comes
+/// from the same shape that sized the buffer, so a mismatch is a bug here,
+/// and the panic stops an out-of-bounds read.
+fn host_contents<T>(buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> *mut T {
+    let contents = buffer.contents().as_ptr().cast::<T>();
+    assert!(
+        len.checked_mul(size_of::<T>())
+            .is_some_and(|bytes| bytes <= buffer.length())
+            && contents.is_aligned(),
+        "a host view of {len} values does not fit its Metal buffer"
+    );
+    contents
+}
+
+/// The first `len` values of a buffer that Metal allocated, after its
+/// commands finished.
+fn host_view<T: Pod>(buffer: &ProtocolObject<dyn MTLBuffer>, len: usize) -> &[T] {
+    let contents = host_contents::<T>(buffer, len);
+    // SAFETY: `host_contents` checked that `len` values of `T` fit in the
+    // buffer's shared memory from an aligned, non-null start. That memory
+    // lives as long as the `buffer` borrow. Metal zero-fills a new buffer,
+    // so every byte is initialized, and every bit pattern is a `T` (`Pod`).
+    // No Rust reference aliases it, because callers view only buffers that
+    // Metal allocated, never a wrapped one. Every command finishes inside
+    // the call that encodes it (see `launch`), and callers take a view only
+    // after `finish`, so no kernel writes the memory while the view lives.
+    unsafe { std::slice::from_raw_parts(contents, len) }
+}
+
+/// The first `len` words of a buffer that the caller has just allocated.
+fn host_view_mut(buffer: &mut Buffer, len: usize) -> &mut [u64] {
+    let contents = host_contents::<u64>(buffer, len);
+    // SAFETY: `host_contents` checked that `len` words fit in the buffer's
+    // shared memory from an aligned, non-null start, and Metal zero-fills a
+    // new buffer. The caller has just allocated `buffer`, so no other handle
+    // and no command uses it, and the `&mut` borrow keeps it from being
+    // bound or viewed again while this view lives.
+    unsafe { std::slice::from_raw_parts_mut(contents, len) }
 }

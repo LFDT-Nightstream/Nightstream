@@ -1,9 +1,9 @@
 //! The DFT of the columns of a row-major matrix, in place when the memory
 //! spans whole pages: the layer-1 prover's Reed-Solomon encodings.
 
-use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLDevice, MTLResourceOptions};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLDevice, MTLResourceOptions};
 
-use super::{Arg, Buffer, Grid, MetalSession};
+use super::{host_view, host_view_mut, Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
 
 impl MetalSession {
@@ -33,10 +33,8 @@ impl MetalSession {
         let copied = match wrapped {
             Some(_) => None,
             None => {
-                let data = self.buffer(size_of_val(values))?;
-                let words =
-                    unsafe { std::slice::from_raw_parts_mut(data.contents().as_ptr().cast::<u64>(), values.len()) };
-                words
+                let mut data = self.buffer(size_of_val(values))?;
+                host_view_mut(&mut data, values.len())
                     .par_chunks_mut(width)
                     .zip(values.par_chunks(width))
                     .for_each(|(to, from)| to.copy_from_slice(from));
@@ -92,7 +90,7 @@ impl MetalSession {
         encoder.endEncoding();
         self.finish(&command)?;
         if let Some(data) = &copied {
-            let words = unsafe { std::slice::from_raw_parts(data.contents().as_ptr().cast::<u64>(), values.len()) };
+            let words = host_view::<u64>(data, values.len());
             values
                 .par_chunks_mut(width)
                 .zip(words.par_chunks(width))

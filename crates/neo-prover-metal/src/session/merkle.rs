@@ -1,9 +1,9 @@
 //! The Poseidon2 Merkle tree of a row-major matrix in one command buffer,
 //! or its leaf digests alone: the layer-1 prover's commitments.
 
-use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder};
 
-use super::{Arg, Grid, MetalSession};
+use super::{host_view_mut, Arg, Grid, MetalSession};
 use crate::{poseidon2, MetalError, PoseidonDigest};
 
 impl MetalSession {
@@ -26,8 +26,12 @@ impl MetalSession {
                 "a Merkle tree needs a positive width and a power-of-two height",
             ));
         }
-        let input = self.buffer(rows * width * size_of::<u64>())?;
-        fill(unsafe { std::slice::from_raw_parts_mut(input.contents().as_ptr().cast::<u64>(), rows * width) });
+        let bytes = rows
+            .checked_mul(width)
+            .and_then(|words| words.checked_mul(size_of::<u64>()))
+            .ok_or(MetalError::Shape("a Merkle tree's rows overflow"))?;
+        let mut input = self.buffer(bytes)?;
+        fill(host_view_mut(&mut input, rows * width));
         let sizes: Vec<usize> = std::iter::successors(Some(rows), |&n| (n > 1).then_some(n / 2)).collect();
         let layers = sizes
             .iter()

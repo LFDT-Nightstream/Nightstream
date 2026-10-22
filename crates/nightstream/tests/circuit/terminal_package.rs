@@ -7,7 +7,7 @@ use super::*;
 use crate::application::poseidon2_hash_chain_v1;
 use crate::lifecycle::TERMINAL_PACKAGE_IDENTIFIER;
 use neo_math::KExtensions;
-use nightstream_fprime::{load_terminal_package, PackageError};
+use nightstream_fprime::{load_terminal_package, IdentityKind, PackageError};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use std::{fs, path::PathBuf, time::Instant};
 
@@ -45,7 +45,11 @@ fn terminal_package_rejects_a_changed_number() {
     let digit = bytes.iter().rposition(u8::is_ascii_digit).unwrap();
     bytes[digit] = if bytes[digit] == b'9' { b'0' } else { bytes[digit] + 1 };
     match load_error(&bytes, TERMINAL_PACKAGE_IDENTIFIER) {
-        PackageError::ExpectedIdentityMismatch { expected, computed } => {
+        PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
+            expected,
+            computed,
+        } => {
             assert_eq!(expected, TERMINAL_PACKAGE_IDENTIFIER);
             assert_ne!(computed, TERMINAL_PACKAGE_IDENTIFIER);
         }
@@ -58,7 +62,8 @@ fn terminal_package_rejects_another_identifier() {
     let mut expected = TERMINAL_PACKAGE_IDENTIFIER;
     expected[3] ^= 1;
     match load_error(&read("artifacts/compression-terminal-v1.json"), expected) {
-        PackageError::ExpectedIdentityMismatch {
+        PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
             expected: reported,
             computed,
         } => {

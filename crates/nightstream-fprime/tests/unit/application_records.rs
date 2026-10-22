@@ -154,12 +154,12 @@ fn reused_recipe_evaluator_clears_pending_frames_after_lookup_error() {
         evaluator.evaluate(0, |variable| {
             looked_up.push(variable);
             if variable == 1 {
-                Err(PackageError::Invalid("injected recipe lookup failure"))
+                Err(PackageError::Input("injected recipe lookup failure"))
             } else {
                 Ok(values[variable])
             }
         }),
-        Err(PackageError::Invalid("injected recipe lookup failure"))
+        Err(PackageError::Input("injected recipe lookup failure"))
     ));
     assert_eq!(looked_up, [0, 1]);
     assert_eq!(

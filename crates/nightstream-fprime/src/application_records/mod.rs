@@ -51,22 +51,22 @@ pub enum ApplicationRecipeNode {
     Multiply,
 }
 
-fn invalid(message: &'static str) -> PackageError {
-    PackageError::Invalid(message)
+fn malformed(message: &'static str) -> PackageError {
+    PackageError::Malformed(message)
 }
 fn word(value: usize) -> Result<u64, PackageError> {
-    u64::try_from(value).map_err(|_| invalid("application index exceeds u64"))
+    u64::try_from(value).map_err(|_| malformed("application index exceeds u64"))
 }
 fn index(value: u64) -> Result<usize, PackageError> {
-    usize::try_from(value).map_err(|_| invalid("application index exceeds address space"))
+    usize::try_from(value).map_err(|_| malformed("application index exceeds address space"))
 }
 fn add(a: usize, b: usize) -> Result<usize, PackageError> {
     a.checked_add(b)
-        .ok_or_else(|| invalid("application record count overflow"))
+        .ok_or_else(|| malformed("application record count overflow"))
 }
 fn mul(a: usize, b: usize) -> Result<usize, PackageError> {
     a.checked_mul(b)
-        .ok_or_else(|| invalid("application record count overflow"))
+        .ok_or_else(|| malformed("application record count overflow"))
 }
 fn canonical(value: u64) -> Result<Goldilocks, PackageError> {
     if value >= Goldilocks::ORDER_U64 {
@@ -109,7 +109,7 @@ impl ApplicationRecordsWriter {
         terms: impl IntoIterator<Item = Result<ApplicationTerm, PackageError>>,
     ) -> Result<usize, PackageError> {
         if self.poisoned {
-            return Err(invalid("application record writer is poisoned"));
+            return Err(PackageError::Input("application record writer is poisoned"));
         }
         self.poisoned = true;
         let row = self.row_count;
@@ -128,9 +128,9 @@ impl ApplicationRecordsWriter {
             for _ in 0..header.term_counts[form.index()] {
                 let term = terms
                     .next()
-                    .ok_or_else(|| invalid("application row has missing terms"))??;
+                    .ok_or_else(|| malformed("application row has missing terms"))??;
                 if term.form != form {
-                    return Err(invalid("application terms are not in form order"));
+                    return Err(malformed("application terms are not in form order"));
                 }
                 let _ = canonical(term.coefficient)?;
                 self.data.word(word(term.variable)?)?;
@@ -138,7 +138,7 @@ impl ApplicationRecordsWriter {
             }
         }
         if terms.next().transpose()?.is_some() {
-            return Err(invalid("application row has extra terms"));
+            return Err(malformed("application row has extra terms"));
         }
         self.rows.word(offset)?;
         self.row_count = next_count;
@@ -153,11 +153,11 @@ impl ApplicationRecordsWriter {
         nodes: impl IntoIterator<Item = Result<ApplicationRecipeNode, PackageError>>,
     ) -> Result<usize, PackageError> {
         if self.poisoned {
-            return Err(invalid("application record writer is poisoned"));
+            return Err(PackageError::Input("application record writer is poisoned"));
         }
         self.poisoned = true;
         if generated_row >= self.row_count {
-            return Err(invalid("application recipe row is out of range"));
+            return Err(malformed("application recipe row is out of range"));
         }
         let recipe = self.recipe_count;
         let next_count = add(recipe, 1)?;
@@ -168,7 +168,7 @@ impl ApplicationRecordsWriter {
         for node in nodes {
             let node = node?;
             if pending == 0 {
-                return Err(invalid("application recipe has extra nodes"));
+                return Err(malformed("application recipe has extra nodes"));
             }
             pending -= 1;
             let (tag, payload) = match node {
@@ -192,7 +192,7 @@ impl ApplicationRecordsWriter {
             count = add(count, 1)?;
         }
         if pending != 0 {
-            return Err(invalid("application recipe has missing nodes"));
+            return Err(malformed("application recipe has missing nodes"));
         }
         word(words)?;
         for value in [offset, word(count)?, word(generated_row)?] {
@@ -213,7 +213,7 @@ impl ApplicationRecordsWriter {
 
     pub fn finish(self) -> Result<ApplicationRecords, PackageError> {
         if self.poisoned {
-            return Err(invalid("application record writer is poisoned"));
+            return Err(PackageError::Input("application record writer is poisoned"));
         }
         Ok(ApplicationRecords {
             data: self.data.finish()?,
@@ -267,7 +267,7 @@ impl ApplicationRecords {
 
     fn row_offset(&self, row: usize) -> Result<u64, PackageError> {
         if row >= self.row_count {
-            return Err(invalid("application row is out of range"));
+            return Err(PackageError::Input("application row is out of range"));
         }
         self.rows.word(word(mul(row, size_of::<u64>())?)?)
     }
@@ -298,7 +298,7 @@ impl ApplicationRecords {
         let start = self
             .row_offset(row)?
             .checked_add(6 * size_of::<u64>() as u64)
-            .ok_or_else(|| invalid("application term offset overflow"))?;
+            .ok_or_else(|| malformed("application term offset overflow"))?;
         let mut input = self
             .data
             .cursor(start, word(mul(count, 2 * size_of::<u64>())?)?)?;
@@ -323,7 +323,7 @@ impl ApplicationRecords {
 
     fn recipe_location(&self, recipe: usize) -> Result<(u64, usize, usize), PackageError> {
         if recipe >= self.recipe_count {
-            return Err(invalid("application recipe is out of range"));
+            return Err(PackageError::Input("application recipe is out of range"));
         }
         let mut input = self
             .recipes
@@ -351,7 +351,7 @@ impl ApplicationRecords {
         let mut pending = 1;
         for _ in 0..count {
             if pending == 0 {
-                return Err(invalid("application recipe has extra stored nodes"));
+                return Err(malformed("application recipe has extra stored nodes"));
             }
             pending -= 1;
             let tag = read_word(&mut input)?;
@@ -370,14 +370,14 @@ impl ApplicationRecords {
                     pending = add(pending, 2)?;
                     ApplicationRecipeNode::Multiply
                 }
-                _ => return Err(invalid("invalid stored application recipe node")),
+                _ => return Err(malformed("invalid stored application recipe node")),
             };
             if visit(node)?.is_break() {
                 return Ok(ControlFlow::Break(()));
             }
         }
         if pending != 0 {
-            return Err(invalid("application recipe has missing stored nodes"));
+            return Err(malformed("application recipe has missing stored nodes"));
         }
         Ok(ControlFlow::Continue(()))
     }
@@ -419,7 +419,7 @@ impl ApplicationRecords {
         let start = self
             .row_offset(row)?
             .checked_add(word(add(6 * size_of::<u64>(), mul(preceding, 2 * size_of::<u64>())?)?)?)
-            .ok_or_else(|| invalid("application form offset overflow"))?;
+            .ok_or_else(|| malformed("application form offset overflow"))?;
         let mut input = self.data.cursor(
             start,
             word(mul(header.term_counts[form.index()], 2 * size_of::<u64>())?)?,
@@ -480,14 +480,14 @@ impl<'a> RecipeEvaluator<'a> {
                 current = if operation == 0 { left + current } else { left * current };
             }
             if result.replace(current.as_canonical_u64()).is_some() {
-                return Err(invalid("application recipe produced extra values"));
+                return Err(malformed("application recipe produced extra values"));
             }
             Ok(ControlFlow::Continue(()))
         })?;
         if flow.is_break() {
-            return Err(invalid("application recipe evaluation stopped early"));
+            return Err(malformed("application recipe evaluation stopped early"));
         }
-        result.ok_or_else(|| invalid("application recipe produced no value"))
+        result.ok_or_else(|| malformed("application recipe produced no value"))
     }
 }
 

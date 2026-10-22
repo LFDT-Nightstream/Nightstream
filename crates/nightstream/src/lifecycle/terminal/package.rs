@@ -93,7 +93,7 @@ fn load() -> Result<Package, PackageError> {
     let (loaded, outputs) = load_terminal_package(ARTIFACT, IDENTIFIER)?;
     // `apply` reads the first caller inputs as the prior state preimage.
     if loaded.prior_preimage_inputs() != Some(0..PI_CCS_V1_2_STATE_PREIMAGE_WORDS) {
-        return Err(PackageError::Invalid(
+        return Err(PackageError::Malformed(
             "the prior state preimage is not the first caller input",
         ));
     }
@@ -137,7 +137,7 @@ fn load() -> Result<Package, PackageError> {
         columns
             .iter()
             .map(|&column| match index[column] {
-                u32::MAX => Err(PackageError::Invalid("terminal output column without a row")),
+                u32::MAX => Err(PackageError::Malformed("terminal output column without a row")),
                 system => Ok(system as usize),
             })
             .collect()

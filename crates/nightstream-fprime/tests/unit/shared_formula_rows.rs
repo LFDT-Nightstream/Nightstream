@@ -391,9 +391,9 @@ fn template_visitors_stop_before_invalid_later_invocations() {
         assert_eq!(visited, 1);
 
         let failure = program.visit_rows_until(logical_width, 0, count, &source, |_, _| {
-            Err(PackageError::Invalid("test visitor stop"))
+            Err(PackageError::Input("test visitor stop"))
         });
-        assert!(matches!(failure, Err(PackageError::Invalid("test visitor stop"))));
+        assert!(matches!(failure, Err(PackageError::Input("test visitor stop"))));
     }
 }
 

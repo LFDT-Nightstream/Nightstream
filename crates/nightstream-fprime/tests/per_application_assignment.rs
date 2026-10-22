@@ -4,7 +4,8 @@ use std::{fs, path::PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use nightstream_fprime::{
-    load_per_application_package, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, PackageError,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, IdentityKind, LoadedPerApplicationPackage,
+    PackageError,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -410,7 +411,11 @@ fn check_logical_assignment(
         let changed_bytes = logical_reference::mutation::self_consistent_bytes(&sealed_bytes, family)
             .expect("self-consistent derived-recipe mutation");
         match load_per_application_package(&changed_bytes, expected_identity) {
-            Err(PackageError::ExpectedIdentityMismatch { expected, computed }) => {
+            Err(PackageError::IdentityMismatch {
+                kind: IdentityKind::Relation,
+                expected,
+                computed,
+            }) => {
                 assert_eq!(expected, expected_identity);
                 assert_ne!(
                     computed, expected,

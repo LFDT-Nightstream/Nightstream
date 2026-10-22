@@ -3,7 +3,7 @@
 //! This module reads package-owned segments. It does not define PiCCS
 //! semantics, choose offsets, or merge the Pad and CCS evaluation families.
 
-use super::{canonical_field, LoadedPackage, PackageError, Segment};
+use super::{canonical_field, require_input_length, IdentityKind, LoadedPackage, PackageError, Segment};
 use crate::identity::PiCcsV1_2VerifierContext;
 
 pub(crate) const PRIOR_PREIMAGE_ROLE: u64 = 1;
@@ -106,12 +106,12 @@ pub(super) fn validate_private_segments(segments: &[Segment]) -> Result<(), Pack
         .zip(input_lengths)
         .any(|(segment, length)| segment.length != length)
     {
-        return Err(PackageError::Invalid("PiCCS v1_2 input segments"));
+        return Err(PackageError::Malformed("PiCCS v1_2 input segments"));
     }
     let output = &segments[OUTPUT_SEGMENT_START..OUTPUT_SEGMENT_START + 2 * PI_CCS_V1_2_SOURCE_COUNT];
     for pair in output.chunks_exact(2) {
         if pair[0].length != EVAL_K_WORDS || pair[1].length != EVAL_A_WORDS {
-            return Err(PackageError::Invalid("PiCCS v1_2 output segments"));
+            return Err(PackageError::Malformed("PiCCS v1_2 output segments"));
         }
     }
     let suffix = &segments[OUTPUT_SEGMENT_START + 2 * PI_CCS_V1_2_SOURCE_COUNT..];
@@ -122,7 +122,7 @@ pub(super) fn validate_private_segments(segments: &[Segment]) -> Result<(), Pack
         || suffix[5].length != PI_DEC_WITNESS_WORDS
         || suffix[6].length != RUNNING_TRANSITION_WITNESS_WORDS
     {
-        return Err(PackageError::Invalid("PiDEC v1_2 private segments"));
+        return Err(PackageError::Malformed("PiDEC v1_2 private segments"));
     }
     Ok(())
 }
@@ -133,7 +133,7 @@ pub(super) fn validate_public_segments(segments: &[Segment]) -> Result<(), Packa
         || segments[2].role != VERIFIER_CONTEXT_ROLE
         || segments[2].length != PI_CCS_V1_2_VERIFIER_CONTEXT_WORDS
     {
-        return Err(PackageError::Invalid("PiCCS v1_2 public segments"));
+        return Err(PackageError::Malformed("PiCCS v1_2 public segments"));
     }
     Ok(())
 }
@@ -149,17 +149,15 @@ impl PiCcsV1_2OutputEvaluations {
         eval_k: Vec<Vec<[u64; EXTENSION_WORDS]>>,
         eval_a: Vec<Vec<Vec<[u64; EXTENSION_WORDS]>>>,
     ) -> Result<Self, PackageError> {
-        if eval_k.len() != PI_CCS_V1_2_SOURCE_COUNT || eval_a.len() != PI_CCS_V1_2_SOURCE_COUNT {
-            return Err(PackageError::Invalid("PiCCS v1_2 output source count"));
-        }
+        const SOURCES: &str = "PiCCS v1_2 output source count";
+        require_input_length(SOURCES, PI_CCS_V1_2_SOURCE_COUNT, eval_k.len())?;
+        require_input_length(SOURCES, PI_CCS_V1_2_SOURCE_COUNT, eval_a.len())?;
+        const SHAPE: &str = "PiCCS v1_2 output family shape";
         for source in 0..PI_CCS_V1_2_SOURCE_COUNT {
-            if eval_k[source].len() != PI_CCS_V1_2_COEFFICIENT_COUNT
-                || eval_a[source].len() != PI_CCS_V1_2_MATRIX_COUNT
-                || eval_a[source]
-                    .iter()
-                    .any(|matrix| matrix.len() != PI_CCS_V1_2_COEFFICIENT_COUNT)
-            {
-                return Err(PackageError::Invalid("PiCCS v1_2 output family shape"));
+            require_input_length(SHAPE, PI_CCS_V1_2_COEFFICIENT_COUNT, eval_k[source].len())?;
+            require_input_length(SHAPE, PI_CCS_V1_2_MATRIX_COUNT, eval_a[source].len())?;
+            for matrix in &eval_a[source] {
+                require_input_length(SHAPE, PI_CCS_V1_2_COEFFICIENT_COUNT, matrix.len())?;
             }
             for value in &eval_k[source] {
                 validate_extension(*value, "PiCCS v1_2 Eval_K")?;
@@ -248,24 +246,28 @@ impl PiDecV1_2PackageInputs {
         child_eval_a: Vec<Vec<Vec<[u64; EXTENSION_WORDS]>>>,
         child_public_inputs: Vec<Vec<u64>>,
     ) -> Result<Self, PackageError> {
-        if child_commitments.len() != PI_DEC_V1_2_CHILD_COUNT
-            || child_eval_k.len() != PI_DEC_V1_2_CHILD_COUNT
-            || child_eval_a.len() != PI_DEC_V1_2_CHILD_COUNT
-            || child_public_inputs.len() != PI_DEC_V1_2_CHILD_COUNT
-        {
-            return Err(PackageError::Invalid("PiDEC v1_2 child count"));
-        }
+        const CHILDREN: &str = "PiDEC v1_2 child count";
+        require_input_length(CHILDREN, PI_DEC_V1_2_CHILD_COUNT, child_commitments.len())?;
+        require_input_length(CHILDREN, PI_DEC_V1_2_CHILD_COUNT, child_eval_k.len())?;
+        require_input_length(CHILDREN, PI_DEC_V1_2_CHILD_COUNT, child_eval_a.len())?;
+        require_input_length(CHILDREN, PI_DEC_V1_2_CHILD_COUNT, child_public_inputs.len())?;
+        const SHAPE: &str = "PiDEC v1_2 child shape";
         for child in 0..PI_DEC_V1_2_CHILD_COUNT {
-            if child_commitments[child].len() != PI_DEC_V1_2_COMMITMENT_WORDS_PER_CHILD
-                || child_eval_k[child].len() != PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD
-                || child_eval_a[child].len() != PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD
-                || child_eval_a[child]
-                    .iter()
-                    .any(|matrix| matrix.len() != PI_CCS_V1_2_COEFFICIENT_COUNT)
-                || child_public_inputs[child].len() != PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD
-            {
-                return Err(PackageError::Invalid("PiDEC v1_2 child shape"));
+            require_input_length(
+                SHAPE,
+                PI_DEC_V1_2_COMMITMENT_WORDS_PER_CHILD,
+                child_commitments[child].len(),
+            )?;
+            require_input_length(SHAPE, PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD, child_eval_k[child].len())?;
+            require_input_length(SHAPE, PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD, child_eval_a[child].len())?;
+            for matrix in &child_eval_a[child] {
+                require_input_length(SHAPE, PI_CCS_V1_2_COEFFICIENT_COUNT, matrix.len())?;
             }
+            require_input_length(
+                SHAPE,
+                PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD,
+                child_public_inputs[child].len(),
+            )?;
             validate_words(&child_commitments[child], "PiDEC v1_2 child commitment")?;
             for value in &child_eval_k[child] {
                 validate_extension(*value, "PiDEC v1_2 child Eval_K")?;
@@ -337,7 +339,11 @@ impl LoadedPackage {
         structural_identifier: [u64; 4],
     ) -> Result<PiCcsV1_2EncodedInputs, PackageError> {
         if inputs.verifier_context.structural_identifier() != structural_identifier {
-            return Err(PackageError::Invalid("PiCCS v1_2 verifier-context package identity"));
+            return Err(PackageError::IdentityMismatch {
+                kind: IdentityKind::VerifierContext,
+                expected: structural_identifier,
+                computed: inputs.verifier_context.structural_identifier(),
+            });
         }
         self.encode_pi_ccs_segments(inputs)
     }
@@ -360,7 +366,7 @@ impl LoadedPackage {
             .private_segments
             .iter()
             .find(|segment| segment.role == WITNESS_ROLE)
-            .ok_or(PackageError::Invalid("witness segment"))?
+            .ok_or(PackageError::Malformed("witness segment"))?
             .start;
         let mut private_values = Vec::with_capacity(pi_ccs_input_count);
         private_values.extend_from_slice(inputs.prior_preimage.as_slice());
@@ -383,7 +389,7 @@ impl LoadedPackage {
             }
         }
         if private_values.len() != pi_ccs_input_count {
-            return Err(PackageError::Invalid("PiCCS v1_2 encoded private-input length"));
+            return Err(PackageError::Malformed("PiCCS v1_2 encoded private-input length"));
         }
 
         let mut public_values = Vec::with_capacity(self.layout.public_column_count);
@@ -391,7 +397,7 @@ impl LoadedPackage {
         public_values.extend_from_slice(&inputs.output_digest);
         public_values.extend_from_slice(&inputs.verifier_context.digest());
         if public_values.len() != self.layout.public_column_count {
-            return Err(PackageError::Invalid("PiCCS v1_2 encoded public-input length"));
+            return Err(PackageError::Malformed("PiCCS v1_2 encoded public-input length"));
         }
         Ok(PiCcsV1_2EncodedInputs {
             private_values,
@@ -408,11 +414,9 @@ impl LoadedPackage {
             .private_segments
             .iter()
             .find(|segment| segment.role == WITNESS_ROLE)
-            .ok_or(PackageError::Invalid("witness segment"))?
+            .ok_or(PackageError::Malformed("witness segment"))?
             .start;
-        if private_inputs.len() != witness_start {
-            return Err(PackageError::Invalid("private input length"));
-        }
+        require_input_length("private input length", witness_start, private_inputs.len())?;
 
         let mut eval_k = Vec::with_capacity(PI_CCS_V1_2_SOURCE_COUNT);
         let mut eval_a = Vec::with_capacity(PI_CCS_V1_2_SOURCE_COUNT);
@@ -458,10 +462,10 @@ fn segment_words(private_inputs: &[u64], segment: Segment) -> Result<&[u64], Pac
     let end = segment
         .start
         .checked_add(segment.length)
-        .ok_or(PackageError::Invalid("PiCCS v1_2 segment end"))?;
+        .ok_or(PackageError::Malformed("PiCCS v1_2 segment end"))?;
     let words = private_inputs
         .get(segment.start..end)
-        .ok_or(PackageError::Invalid("PiCCS v1_2 segment range"))?;
+        .ok_or(PackageError::Malformed("PiCCS v1_2 segment range"))?;
     for word in words {
         canonical_field(*word, "PiCCS v1_2 output")?;
     }

@@ -4,7 +4,7 @@
 use std::io::{Read, Write};
 
 use super::{
-    index, invalid, read_word, word, ApplicationForm, ApplicationRecipeNode, ApplicationRecords,
+    index, malformed, read_word, word, ApplicationForm, ApplicationRecipeNode, ApplicationRecords,
     ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm, PackageError,
 };
 use std::ops::ControlFlow;
@@ -30,7 +30,7 @@ impl ApplicationRecords {
                 Ok(ControlFlow::Continue(()))
             })?;
             if flow.is_break() {
-                return Err(invalid("application row serialization stopped early"));
+                return Err(malformed("application row serialization stopped early"));
             }
         }
         for recipe in 0..self.recipe_count() {
@@ -49,7 +49,7 @@ impl ApplicationRecords {
                 Ok(ControlFlow::Continue(()))
             })?;
             if flow.is_break() {
-                return Err(invalid("application recipe serialization stopped early"));
+                return Err(malformed("application recipe serialization stopped early"));
             }
         }
         Ok(())
@@ -63,7 +63,7 @@ impl ApplicationRecords {
         let rows = index(read_word(input)?)?;
         let recipes = index(read_word(input)?)?;
         if rows != expected_rows || recipes != expected_recipes {
-            return Err(invalid("application stream record counts"));
+            return Err(malformed("application stream record counts"));
         }
         let mut writer = ApplicationRecordsWriter::new()?;
         for _ in 0..rows {
@@ -107,7 +107,7 @@ impl ApplicationRecords {
                     (1, value) => Ok(ApplicationRecipeNode::Constant(value)),
                     (2, 0) => Ok(ApplicationRecipeNode::Add),
                     (3, 0) => Ok(ApplicationRecipeNode::Multiply),
-                    _ => Err(invalid("invalid application stream recipe node")),
+                    _ => Err(malformed("invalid application stream recipe node")),
                 }
             });
             writer.append_recipe(row, nodes)?;

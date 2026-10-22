@@ -17,7 +17,7 @@ fn library() -> Result<&'static FormulaLibrary, PackageError> {
     LIBRARY
         .get_or_init(|| FormulaLibrary::from_json(include_bytes!("../../../artifacts/shared-formulas-v1.json")))
         .as_ref()
-        .map_err(|_| PackageError::Invalid("compiled Lean formula library"))
+        .map_err(|_| PackageError::Malformed("compiled Lean formula library"))
 }
 
 pub(in crate::package) fn formula_digest() -> Result<[u64; 4], PackageError> {
@@ -28,12 +28,12 @@ fn variant(id: &str, index: usize) -> Result<&'static FormulaVariant, PackageErr
     library()?
         .component(id)
         .and_then(|component| component.variant(index))
-        .ok_or(PackageError::Invalid("compiled Lean formula component"))
+        .ok_or(PackageError::Malformed("compiled Lean formula component"))
 }
 
 fn check_inputs(template: &FormulaVariant, forms: &[Form], logical_width: usize) -> Result<(), PackageError> {
     if forms.len() != template.input_count() {
-        return Err(PackageError::Invalid("matrix template input count"));
+        return Err(PackageError::Malformed("matrix template input count"));
     }
     for form in forms {
         validate_form(form, logical_width)?;
@@ -55,12 +55,12 @@ pub(super) fn substitute_into(
             }
             count
                 .checked_add(inputs[input].terms().len())
-                .ok_or(PackageError::Invalid("matrix template run count"))
+                .ok_or(PackageError::Malformed("matrix template run count"))
         })?;
     if required > terms.capacity() {
         terms
             .try_reserve_exact(required)
-            .map_err(|_| PackageError::Invalid("matrix template run allocation"))?;
+            .map_err(|_| PackageError::TooLarge("matrix template run allocation"))?;
     }
     for (input, coefficient) in form.entries() {
         if coefficient != 0 {
@@ -93,7 +93,7 @@ impl RowScratch {
         check_inputs(template, forms, logical_width)?;
         for row in template
             .row_templates(range)
-            .map_err(|_| PackageError::Invalid("matrix template row substitution"))?
+            .map_err(|_| PackageError::Malformed("matrix template row substitution"))?
         {
             for (port, terms) in self.ports.iter_mut().enumerate() {
                 substitute_into(&row.ports()[port], forms, terms)?;

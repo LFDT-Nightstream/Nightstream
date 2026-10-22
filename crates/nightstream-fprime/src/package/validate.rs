@@ -71,7 +71,7 @@ pub(super) fn decode_components(
         terminal,
     ) = raw;
     if schema != sealed::INNER_PACKAGE_SCHEMA {
-        return Err(PackageError::Invalid("schema version"));
+        return Err(PackageError::Malformed("schema version"));
     }
     validate_profile(profile)?;
     validate_poseidon(poseidon)?;
@@ -97,7 +97,7 @@ pub(super) fn decode_components(
 
     let witness_start = witness_segments(&layout)
         .first()
-        .ok_or(PackageError::Invalid("witness segment"))?
+        .ok_or(PackageError::Malformed("witness segment"))?
         .start;
     let compact_invocations =
         compact::validate_invocations(compact_invocations, &compact_templates, &layout, witness_start)?;
@@ -204,7 +204,7 @@ pub(super) fn owned_witness_intervals(
         .iter()
         .any(|&(start, end)| !interval_owned_by_witness_segment(start, end, segments))
     {
-        return Err(PackageError::Invalid("witness interval ownership"));
+        return Err(PackageError::Malformed("witness interval ownership"));
     }
     Ok(witness_intervals)
 }
@@ -241,7 +241,7 @@ pub(super) fn validate_profile(raw: RawProfile) -> Result<(), PackageError> {
         PI_CCS_V1_2_MATRIX_COUNT as u64,
         PI_CCS_V1_2_ROUND_COUNT as u64,
     ) {
-        return Err(PackageError::Invalid("fixed production profile"));
+        return Err(PackageError::Malformed("fixed production profile"));
     }
     Ok(())
 }
@@ -249,7 +249,7 @@ pub(super) fn validate_profile(raw: RawProfile) -> Result<(), PackageError> {
 pub(super) fn validate_poseidon(raw: RawPoseidonSchedule) -> Result<(), PackageError> {
     let RawPoseidonSchedule(width, rate, digest, initial, partial, terminal, recipes, output_start) = raw;
     if (width, rate, digest, initial, partial, terminal, recipes, output_start) != (16, 12, 4, 4, 22, 4, 1096, 1080) {
-        return Err(PackageError::Invalid("Poseidon2 schedule"));
+        return Err(PackageError::Malformed("Poseidon2 schedule"));
     }
     Ok(())
 }
@@ -261,25 +261,25 @@ pub(super) fn validate_terminal(
     match raw {
         [Value::Number(tag), Value::Array(layout)] if tag.as_u64() == Some(1) => {
             let [row_start, row_count, running, fresh] = layout.as_slice() else {
-                return Err(PackageError::Invalid("pilot terminal option"));
+                return Err(PackageError::Malformed("pilot terminal option"));
             };
             let decoded = LoadedTerminalLayout {
                 row_start: row_start
                     .as_u64()
                     .and_then(|value| usize::try_from(value).ok())
-                    .ok_or(PackageError::Invalid("pilot terminal option"))?,
+                    .ok_or(PackageError::Malformed("pilot terminal option"))?,
                 row_count: row_count
                     .as_u64()
                     .and_then(|value| usize::try_from(value).ok())
-                    .ok_or(PackageError::Invalid("pilot terminal option"))?,
+                    .ok_or(PackageError::Malformed("pilot terminal option"))?,
                 running_claim_count: running
                     .as_u64()
                     .and_then(|value| usize::try_from(value).ok())
-                    .ok_or(PackageError::Invalid("pilot terminal option"))?,
+                    .ok_or(PackageError::Malformed("pilot terminal option"))?,
                 fresh_claim_count: fresh
                     .as_u64()
                     .and_then(|value| usize::try_from(value).ok())
-                    .ok_or(PackageError::Invalid("pilot terminal option"))?,
+                    .ok_or(PackageError::Malformed("pilot terminal option"))?,
             };
             if decoded
                 != (LoadedTerminalLayout {
@@ -289,11 +289,11 @@ pub(super) fn validate_terminal(
                     fresh_claim_count: 1,
                 })
             {
-                return Err(PackageError::Invalid("pilot terminal option"));
+                return Err(PackageError::Malformed("pilot terminal option"));
             }
             Ok(Some(decoded))
         }
-        _ => Err(PackageError::Invalid("pilot terminal option")),
+        _ => Err(PackageError::Malformed("pilot terminal option")),
     }
 }
 
@@ -306,17 +306,17 @@ pub(super) fn validate_layout(raw: RawPhysicalLayout) -> Result<Layout, PackageE
     let total_column_count = word_to_usize(total, "total column count")?;
 
     if private_column_count != constant_column {
-        return Err(PackageError::Invalid("constant column position"));
+        return Err(PackageError::Malformed("constant column position"));
     }
     if private_column_count
         .checked_add(1)
         .and_then(|value| value.checked_add(public_column_count))
         != Some(total_column_count)
     {
-        return Err(PackageError::Invalid("total column count"));
+        return Err(PackageError::Malformed("total column count"));
     }
     if row_count.max(total_column_count.saturating_sub(1)) > MAX_JOINT_DOMAIN {
-        return Err(PackageError::Invalid("2^28 joint domain"));
+        return Err(PackageError::TooLarge("2^28 joint domain"));
     }
 
     let mut expected_private_roles = v1_2::private_segment_roles();
@@ -346,7 +346,7 @@ fn validate_segments(
     zero_length_suffix: usize,
 ) -> Result<Vec<Segment>, PackageError> {
     if raw.len() != expected_roles.len() {
-        return Err(PackageError::Invalid("layout segment count"));
+        return Err(PackageError::Malformed("layout segment count"));
     }
     let mut cursor = first;
     let mut segments = Vec::with_capacity(raw.len());
@@ -356,18 +356,18 @@ fn validate_segments(
         let start = word_to_usize(start, "segment start")?;
         let length = word_to_usize(length, "segment length")?;
         if role != *expected_role || start != cursor || (length == 0 && ordinal < zero_length_start) {
-            return Err(PackageError::Invalid("layout segment partition"));
+            return Err(PackageError::Malformed("layout segment partition"));
         }
         cursor = cursor
             .checked_add(length)
-            .ok_or(PackageError::Invalid("segment end overflow"))?;
+            .ok_or(PackageError::Malformed("segment end overflow"))?;
         if cursor > end {
-            return Err(PackageError::Invalid("segment end"));
+            return Err(PackageError::Malformed("segment end"));
         }
         segments.push(Segment { role, start, length });
     }
     if cursor != end {
-        return Err(PackageError::Invalid("layout segment coverage"));
+        return Err(PackageError::Malformed("layout segment coverage"));
     }
     Ok(segments)
 }
@@ -378,7 +378,7 @@ fn validate_permutation(raw: RawPermutationTemplate) -> Result<PermutationTempla
     let local_column_count = word_to_usize(local_count, "template local count")?;
     let output_local_start = word_to_usize(output_start, "template output start")?;
     if (input_count, local_column_count, output_local_start) != (16, 1096, 1080) || rows.len() != local_column_count {
-        return Err(PackageError::Invalid("permutation template shape"));
+        return Err(PackageError::Malformed("permutation template shape"));
     }
 
     let rows = rows
@@ -404,7 +404,7 @@ fn validate_template_row(
     let RawTemplateRow(output, a, b, c) = raw;
     let output_local = word_to_usize(output, "template output")?;
     if output_local != ordinal {
-        return Err(PackageError::Invalid("template output order"));
+        return Err(PackageError::Malformed("template output order"));
     }
     let a = validate_template_combination(a, input_count, local_count, Some(output_local))?;
     let b = validate_template_combination(b, input_count, local_count, Some(output_local))?;
@@ -414,7 +414,7 @@ fn validate_template_row(
         || c.terms[0].column != ColumnRef::Local(output_local)
         || c.terms[0].coefficient != Goldilocks::ONE
     {
-        return Err(PackageError::Invalid("template witness output equation"));
+        return Err(PackageError::Malformed("template witness output equation"));
     }
     Ok(TemplateRow { output_local, a, b, c })
 }
@@ -436,11 +436,11 @@ pub(super) fn validate_template_combination(
                 0 if index < input_count => ColumnRef::Input(index),
                 1 if index < local_count => {
                     if causal_before.is_some_and(|bound| index >= bound) {
-                        return Err(PackageError::Invalid("noncausal template reference"));
+                        return Err(PackageError::Malformed("noncausal template reference"));
                     }
                     ColumnRef::Local(index)
                 }
-                _ => return Err(PackageError::Invalid("template column reference")),
+                _ => return Err(PackageError::Malformed("template column reference")),
             };
             Ok(TemplateTerm {
                 column,
@@ -488,19 +488,19 @@ fn validate_chain(
     let expected_absorbs = chain
         .input_length
         .checked_add(rate - 1)
-        .ok_or(PackageError::Invalid("hash input length overflow"))?
+        .ok_or(PackageError::Malformed("hash input length overflow"))?
         / rate;
     let expected_witness = chain
         .absorb_count
         .checked_add(1)
         .and_then(|count| count.checked_mul(template.rows.len()))
-        .ok_or(PackageError::Invalid("hash witness length overflow"))?;
+        .ok_or(PackageError::Malformed("hash witness length overflow"))?;
     if chain.absorb_count != expected_absorbs
         || chain.witness_length != expected_witness
         || chain.digest_length > 4
         || chain.row_count != chain.witness_length + chain.digest_length
     {
-        return Err(PackageError::Invalid("hash chain dimensions"));
+        return Err(PackageError::Malformed("hash chain dimensions"));
     }
     if checked_end(chain.row_start, chain.row_count)? > layout.row_count
         || checked_end(chain.input_start, chain.input_length)? > layout.private_column_count
@@ -509,14 +509,14 @@ fn validate_chain(
             && (chain.digest_start <= layout.constant_column
                 || checked_end(chain.digest_start, chain.digest_length)? > layout.total_column_count))
     {
-        return Err(PackageError::Invalid("hash chain range"));
+        return Err(PackageError::Malformed("hash chain range"));
     }
     Ok(chain)
 }
 
 fn validate_chain_order(chains: &[HashChain]) -> Result<(), PackageError> {
     if chains.len() != 2 || chains[0].phase != 1 || chains[1].phase != 2 {
-        return Err(PackageError::Invalid("pilot phase order"));
+        return Err(PackageError::Malformed("pilot phase order"));
     }
     Ok(())
 }
@@ -534,7 +534,7 @@ fn validate_permutation_invocation(
         || checked_end(row_start, template.rows.len())? > layout.row_count
         || checked_end(witness_start, template.local_column_count)? > layout.private_column_count
     {
-        return Err(PackageError::Invalid("permutation invocation shape"));
+        return Err(PackageError::Malformed("permutation invocation shape"));
     }
     let inputs = inputs
         .into_iter()
@@ -545,7 +545,7 @@ fn validate_permutation_invocation(
         .flat_map(|input| &input.terms)
         .any(|term| term.column < layout.constant_column && term.column >= witness_start)
     {
-        return Err(PackageError::Invalid("noncausal invocation input"));
+        return Err(PackageError::Malformed("noncausal invocation input"));
     }
     Ok(PermutationInvocation {
         phase,
@@ -560,7 +560,7 @@ fn validate_permutation_invocation_order(invocations: &[PermutationInvocation]) 
         .windows(2)
         .any(|pair| pair[0].row_start >= pair[1].row_start || pair[0].phase > pair[1].phase)
     {
-        return Err(PackageError::Invalid("permutation invocation order"));
+        return Err(PackageError::Malformed("permutation invocation order"));
     }
     Ok(())
 }
@@ -576,10 +576,10 @@ fn validate_witness_instruction(
         .private_segments
         .iter()
         .find(|segment| segment.role == 3)
-        .ok_or(PackageError::Invalid("witness segment"))?
+        .ok_or(PackageError::Malformed("witness segment"))?
         .start;
     if row_index >= layout.row_count || target < witness_start || target >= layout.private_column_count {
-        return Err(PackageError::Invalid("witness instruction range"));
+        return Err(PackageError::Malformed("witness instruction range"));
     }
     let a = validate_sparse_combination(a, layout)?;
     let b = validate_sparse_combination(b, layout)?;
@@ -588,7 +588,7 @@ fn validate_witness_instruction(
         .chain(&b.terms)
         .any(|term| term.column < layout.constant_column && term.column >= target)
     {
-        return Err(PackageError::Invalid("noncausal witness instruction"));
+        return Err(PackageError::Malformed("noncausal witness instruction"));
     }
     Ok(WitnessInstruction {
         row_index,
@@ -603,7 +603,7 @@ fn validate_witness_instruction_order(instructions: &[WitnessInstruction]) -> Re
         .windows(2)
         .any(|pair| pair[0].row_index >= pair[1].row_index)
     {
-        return Err(PackageError::Invalid("witness instruction order"));
+        return Err(PackageError::Malformed("witness instruction order"));
     }
     Ok(())
 }
@@ -612,7 +612,7 @@ fn validate_sparse_row(raw: RawSparseRow, layout: &Layout) -> Result<SparseRow, 
     let RawSparseRow(row_index, a, b, c) = raw;
     let row_index = word_to_usize(row_index, "assertion row index")?;
     if row_index >= layout.row_count {
-        return Err(PackageError::Invalid("assertion row range"));
+        return Err(PackageError::Malformed("assertion row range"));
     }
     Ok(SparseRow {
         row_index,
@@ -631,7 +631,7 @@ fn validate_sparse_combination(raw: RawSparseCombination, layout: &Layout) -> Re
             canonical_field(coefficient, "assertion coefficient")?;
             let column = word_to_usize(column, "assertion column")?;
             if column >= layout.total_column_count || column == layout.constant_column {
-                return Err(PackageError::Invalid("assertion column range"));
+                return Err(PackageError::Malformed("assertion column range"));
             }
             Ok(SparseTerm {
                 column,
@@ -650,7 +650,7 @@ fn validate_assertion_order(rows: &[SparseRow]) -> Result<(), PackageError> {
         .windows(2)
         .any(|pair| pair[0].row_index >= pair[1].row_index)
     {
-        return Err(PackageError::Invalid("assertion row order"));
+        return Err(PackageError::Malformed("assertion row order"));
     }
     Ok(())
 }
@@ -697,12 +697,12 @@ pub(super) fn validate_row_coverage(package: &LoadedPackage) -> Result<(), Packa
     let mut cursor = 0usize;
     for (start, end) in intervals {
         if start != cursor || end <= start {
-            return Err(PackageError::Invalid("physical row coverage"));
+            return Err(PackageError::Malformed("physical row coverage"));
         }
         cursor = end;
     }
     if cursor != package.layout.row_count {
-        return Err(PackageError::Invalid("physical row count coverage"));
+        return Err(PackageError::Malformed("physical row count coverage"));
     }
     Ok(())
 }

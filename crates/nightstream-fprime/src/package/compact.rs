@@ -105,9 +105,9 @@ fn validate_template(raw: RawCompactRowTemplate) -> Result<CompactRowTemplate, P
     let output_input = word_to_usize(output_input, "compact template output input")?;
     let expected_rows = local_column_count
         .checked_add(1)
-        .ok_or(PackageError::Invalid("compact template row count overflow"))?;
+        .ok_or(PackageError::Malformed("compact template row count overflow"))?;
     if input_count == 0 || output_input >= input_count || rows.len() != expected_rows {
-        return Err(PackageError::Invalid("compact template shape"));
+        return Err(PackageError::Malformed("compact template shape"));
     }
     let output_recipe = decode_template_expr(&output_recipe, input_count, output_input)?;
     let rows = rows
@@ -144,10 +144,10 @@ fn validate_template_row(
             || c.terms[0].column != ColumnRef::Local(ordinal)
             || c.terms[0].coefficient != Goldilocks::ONE
         {
-            return Err(PackageError::Invalid("compact witness row shape"));
+            return Err(PackageError::Malformed("compact witness row shape"));
         }
     } else if output_local.is_some() {
-        return Err(PackageError::Invalid("compact assertion row shape"));
+        return Err(PackageError::Malformed("compact assertion row shape"));
     }
 
     Ok(CompactTemplateRow { output_local, a, b, c })
@@ -156,15 +156,15 @@ fn validate_template_row(
 fn decode_optional_nat(value: Value) -> Result<Option<usize>, PackageError> {
     let fields = value
         .as_array()
-        .ok_or(PackageError::Invalid("compact optional output"))?;
+        .ok_or(PackageError::Malformed("compact optional output"))?;
     match fields.as_slice() {
         [tag] if tag.as_u64() == Some(0) => Ok(None),
         [tag, output] if tag.as_u64() == Some(1) => output
             .as_u64()
-            .ok_or(PackageError::Invalid("compact optional output"))
+            .ok_or(PackageError::Malformed("compact optional output"))
             .and_then(|output| word_to_usize(output, "compact optional output"))
             .map(Some),
-        _ => Err(PackageError::Invalid("compact optional output")),
+        _ => Err(PackageError::Malformed("compact optional output")),
     }
 }
 
@@ -183,7 +183,7 @@ pub(super) fn validate_invocations(
             || pair[0].phase > pair[1].phase
             || pair[0].row_start + pair[0].row_count(templates) > pair[1].row_start
     }) {
-        return Err(PackageError::Invalid("compact invocation order"));
+        return Err(PackageError::Malformed("compact invocation order"));
     }
     Ok(invocations)
 }
@@ -198,7 +198,7 @@ fn validate_invocation(
     let template_index = word_to_usize(template_index, "compact invocation template")?;
     let template = templates
         .get(template_index)
-        .ok_or(PackageError::Invalid("compact invocation template"))?;
+        .ok_or(PackageError::Malformed("compact invocation template"))?;
     let row_start = word_to_usize(row_start, "compact invocation row start")?;
     let local_start = word_to_usize(local_start, "compact invocation local start")?;
     if phase == 0
@@ -206,7 +206,7 @@ fn validate_invocation(
         || local_start < witness_start
         || checked_end(local_start, template.local_column_count)? > layout.private_column_count
     {
-        return Err(PackageError::Invalid("compact invocation shape"));
+        return Err(PackageError::Malformed("compact invocation shape"));
     }
 
     let input_ranges = validate_input_ranges(input_ranges, template.input_count, layout)?;
@@ -221,7 +221,7 @@ fn validate_invocation(
     let output_column = invocation.input_column(template.output_input);
     invocation.output_column = output_column;
     if output_column < witness_start || output_column >= layout.private_column_count || output_column >= local_start {
-        return Err(PackageError::Invalid("compact invocation output"));
+        return Err(PackageError::Malformed("compact invocation output"));
     }
     for input in 0..template.input_count {
         if input == template.output_input {
@@ -229,7 +229,7 @@ fn validate_invocation(
         }
         let column = invocation.input_column(input);
         if column < layout.constant_column && column >= output_column {
-            return Err(PackageError::Invalid("noncausal compact input"));
+            return Err(PackageError::Malformed("noncausal compact input"));
         }
     }
     Ok(invocation)
@@ -249,24 +249,24 @@ fn validate_input_ranges(
         let column_start = word_to_usize(column_start, "compact column start")?;
         let column_stride = word_to_usize(column_stride, "compact column stride")?;
         if input_start != cursor || range_count == 0 || column_stride == 0 {
-            return Err(PackageError::Invalid("compact input partition"));
+            return Err(PackageError::Malformed("compact input partition"));
         }
         cursor = checked_end(input_start, range_count)?;
         if cursor > input_count {
-            return Err(PackageError::Invalid("compact input partition"));
+            return Err(PackageError::Malformed("compact input partition"));
         }
         let last_column = column_start
             .checked_add(
                 (range_count - 1)
                     .checked_mul(column_stride)
-                    .ok_or(PackageError::Invalid("compact input range overflow"))?,
+                    .ok_or(PackageError::Malformed("compact input range overflow"))?,
             )
-            .ok_or(PackageError::Invalid("compact input range overflow"))?;
+            .ok_or(PackageError::Malformed("compact input range overflow"))?;
         if last_column >= layout.total_column_count
             || column_start == layout.constant_column
             || (column_start < layout.constant_column && last_column >= layout.constant_column)
         {
-            return Err(PackageError::Invalid("compact input column range"));
+            return Err(PackageError::Malformed("compact input column range"));
         }
         ranges.push(CompactInputRange {
             input_start,
@@ -276,7 +276,7 @@ fn validate_input_ranges(
         });
     }
     if cursor != input_count {
-        return Err(PackageError::Invalid("compact input coverage"));
+        return Err(PackageError::Malformed("compact input coverage"));
     }
     Ok(ranges)
 }
@@ -290,7 +290,7 @@ pub(super) fn execute_invocation(
     assignment[invocation.output_column] = template
         .output_recipe
         .eval_with(&|input| assignment[invocation.input_column(input)]);
-    for row in &template.rows {
+    for (ordinal, row) in template.rows.iter().enumerate() {
         let left = eval_combination(&row.a, invocation, assignment);
         let right = eval_combination(&row.b, invocation, assignment);
         if let Some(output_local) = row.output_local {
@@ -298,7 +298,9 @@ pub(super) fn execute_invocation(
         }
         let output = eval_combination(&row.c, invocation, assignment);
         if left * right != output {
-            return Err(PackageError::Invalid("unsatisfied compact row"));
+            return Err(PackageError::UnsatisfiedAssertionRow {
+                row: invocation.row_start + ordinal,
+            });
         }
     }
     Ok(())

@@ -23,8 +23,8 @@ use super::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum VerifyError {
-    #[error("selected terminal commitment: {0}")]
-    Commitment(#[from] crate::engine::EngineError),
+    #[error("selected terminal engine: {0}")]
+    Engine(#[from] crate::engine::EngineError),
     #[error("selected terminal device evaluation: {0}")]
     Device(#[source] PiCcsError),
     #[error("selected terminal statement: {0}")]
@@ -190,7 +190,7 @@ impl PreparedLifecycle {
                     point,
                     &fresh.witness.Z,
                 )
-                .map_err(VerifyError::Device)?,
+                .map_err(device_error)?,
             _ => {
                 let blocks = running
                     .witnesses
@@ -245,10 +245,23 @@ impl PreparedLifecycle {
 
 #[cfg(feature = "metal")]
 fn device_lock_error() -> VerifyError {
-    VerifyError::Device(PiCcsError::BackendFailure {
-        backend: "metal",
+    VerifyError::Engine(crate::engine::EngineError::Failure {
+        engine: crate::Engine::Metal,
         reason: "terminal device session lock was poisoned".into(),
     })
+}
+
+/// A device failure judges nothing, so it is an engine error. A shape error
+/// from the device is a rejection of the proof.
+#[cfg(feature = "metal")]
+fn device_error(error: PiCcsError) -> VerifyError {
+    match error {
+        PiCcsError::BackendFailure { reason, .. } => VerifyError::Engine(crate::engine::EngineError::Failure {
+            engine: crate::Engine::Metal,
+            reason,
+        }),
+        error => VerifyError::Device(error),
+    }
 }
 
 fn commitment_has_selected_shape(commitment: &Commitment) -> bool {

@@ -1,6 +1,6 @@
 //! Selected native proof construction from the prepared relation.
 use super::PreparedLifecycle;
-use crate::engine::{paper_exact, Backend};
+use crate::engine::paper_exact;
 use crate::folding::{self as nifs, transcript::Transcript, CcsInstance, RunningInstance};
 use neo_math::D;
 use nightstream_fprime::{PackageError, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_DEC_V1_2_CHILD_COUNT};
@@ -25,29 +25,9 @@ impl PreparedLifecycle {
         let mut transcript = Transcript::session();
         let rows = self.matrix_rows();
         let context = self.fold_context(&rows)?;
-        Ok(match &self.backend {
-            #[cfg(feature = "metal")]
-            Backend::Metal(device) => {
-                let mut device = crate::engine::metal::lock(device)?;
-                crate::engine::metal::prove(&mut device, &mut transcript, context, fresh, running)?
-            }
-            Backend::Optimized => nifs::prove_owned_with_rows(&mut transcript, context, fresh, running)?,
-            Backend::PaperExact => paper_exact::prove(
-                &mut transcript,
-                &self.params,
-                &self.structure,
-                &paper_exact::PackageRows(&self.package),
-                fresh,
-                running,
-            )?,
-            Backend::Crosscheck => crate::engine::crosscheck::prove(
-                &mut transcript,
-                context,
-                &paper_exact::PackageRows(&self.package),
-                fresh,
-                running,
-            )?,
-        })
+        let reference = paper_exact::PackageRows(&self.package);
+        self.backend
+            .prove(&mut transcript, context, &reference, fresh, running)
     }
 
     pub(super) fn validate_prover_sources(

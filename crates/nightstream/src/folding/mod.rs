@@ -15,7 +15,7 @@ pub(crate) use claims::{
     ajtai_dec_mixer, ajtai_rlc_mixer, has_canonical_evaluations, is_canonical_evaluation,
     superneo_has_canonical_x_shape, EVALUATION_WIDTH,
 };
-pub use claims::{CcsInstance, RunningInstance};
+pub(crate) use claims::{CcsInstance, RunningInstance};
 #[cfg(test)]
 pub(crate) use compose::verify_parent;
 pub(crate) use compose::{
@@ -25,10 +25,10 @@ use neo_ajtai::Commitment;
 pub(crate) use neo_ccs::superneo_public_x_cols;
 use neo_math::{F, K};
 pub(crate) use params::Params;
-pub use proof::NifsProof;
-pub type CcsClaim = neo_ccs::CcsClaim<Commitment, F>;
-pub type CeClaim = neo_ccs::CeClaim<Commitment, F, K>;
-pub type CcsWitness = neo_ccs::CcsWitness<F>;
+pub(crate) use proof::NifsProof;
+pub(crate) type CcsClaim = neo_ccs::CcsClaim<Commitment, F>;
+pub(crate) type CeClaim = neo_ccs::CeClaim<Commitment, F, K>;
+pub(crate) type CcsWitness = neo_ccs::CcsWitness<F>;
 pub(crate) type Structure = neo_ccs::CcsStructure<F>;
 pub(crate) use neo_reductions::api::RlcMixer;
 pub(crate) type DecMixer = fn(&[Commitment], u32) -> Commitment;

@@ -190,7 +190,7 @@ fn valid_matrix_mutations_decode_but_fail_the_pinned_structural_identity() {
     check_matrix_mutations(current, sealed_bytes);
 }
 
-pub fn check_matrix_mutations(current: LoadedPerApplicationPackage, sealed_bytes: Vec<u8>) {
+pub(crate) fn check_matrix_mutations(current: LoadedPerApplicationPackage, sealed_bytes: Vec<u8>) {
     let expected_identity = current.structural_identifier();
     drop(current);
 
@@ -276,7 +276,7 @@ fn final_four_matrices_equal_the_independent_sealed_interpretation() {
     check_logical_matrices(package, sealed_bytes);
 }
 
-pub fn check_logical_matrices(package: LoadedPerApplicationPackage, sealed_bytes: Vec<u8>) {
+pub(crate) fn check_logical_matrices(package: LoadedPerApplicationPackage, sealed_bytes: Vec<u8>) {
     let artifact = SourcePackage::decode(&sealed_bytes).expect("independent sealed package decoder");
     drop(sealed_bytes);
 

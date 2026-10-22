@@ -8,13 +8,13 @@ use super::relation::Relation;
 use super::source::SourcePackage;
 use super::{empty_row, Field, Form, Result, RowForms, MATRIX_COUNT};
 
-pub const ACTIVE_ROWS: usize = 1_004_131;
-pub const PADDED_ROWS: usize = 1 << 28;
-pub const LOGICAL_WIDTH: usize = 43_963_750;
-pub const CARRIER_WIDTH: usize = 43_963_776;
+pub(crate) const ACTIVE_ROWS: usize = 1_004_131;
+pub(crate) const PADDED_ROWS: usize = 1 << 28;
+pub(crate) const LOGICAL_WIDTH: usize = 43_963_750;
+pub(crate) const CARRIER_WIDTH: usize = 43_963_776;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Evaluation {
+pub(crate) struct Evaluation {
     pub active_rows: usize,
     pub relation_terms: usize,
     pub carrier_padding_columns: usize,
@@ -24,7 +24,7 @@ pub struct Evaluation {
     pub public_digest_word_mutations: usize,
 }
 
-pub fn verify_satisfaction_with(
+pub(crate) fn verify_satisfaction_with(
     program: &MatrixProgram,
     sources: &SourcePackage,
     relation: &Relation,
@@ -73,7 +73,7 @@ pub fn verify_satisfaction_with(
     Ok(())
 }
 
-pub fn verify_satisfaction_range_with(
+pub(crate) fn verify_satisfaction_range_with(
     program: &MatrixProgram,
     sources: &SourcePackage,
     relation: &Relation,
@@ -231,7 +231,7 @@ fn evaluate_range(
     })
 }
 
-pub fn evaluate(
+pub(crate) fn evaluate(
     program: &MatrixProgram,
     sources: &SourcePackage,
     relation: &Relation,
@@ -341,7 +341,7 @@ pub fn evaluate(
     })
 }
 
-pub fn first_failure(
+pub(crate) fn first_failure(
     program: &MatrixProgram,
     sources: &SourcePackage,
     relation: &Relation,
@@ -400,7 +400,7 @@ fn evaluate_row_with(row: &RowForms, value_at: &mut impl FnMut(usize) -> Field) 
     values
 }
 
-pub fn evaluate_row_with_result(
+pub(crate) fn evaluate_row_with_result(
     row: &RowForms,
     value_at: &mut impl FnMut(usize) -> Result<Field>,
 ) -> Result<[Field; MATRIX_COUNT]> {

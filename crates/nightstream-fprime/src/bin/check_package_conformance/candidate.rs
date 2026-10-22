@@ -143,7 +143,7 @@ fn setup_authority_words(message_columns: u64) -> Vec<u64> {
     authority
 }
 
-pub fn check_sparse_commitment(path: &Path) {
+pub(crate) fn check_sparse_commitment(path: &Path) {
     let started = Instant::now();
     let LeanSparseCommitment(schema, authority, support, expected_rows) =
         serde_json::from_value(read_metadata(path)).expect("Lean sparse-commitment schema");
@@ -331,7 +331,7 @@ impl Candidate {
     }
 }
 
-pub fn run(
+pub(crate) fn run(
     mode: &str,
     candidate_path: &Path,
     binding_path: &Path,

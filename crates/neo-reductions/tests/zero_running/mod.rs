@@ -7,7 +7,7 @@ use neo_params::NeoParams;
 use neo_reductions::engines::pi_ccs_joint::build_joint_dims;
 use p3_field::PrimeCharacteristicRing;
 
-pub fn zero_running(
+pub(crate) fn zero_running(
     params: &NeoParams,
     structure: &CcsStructure<F>,
     fresh_count: usize,

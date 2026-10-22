@@ -69,7 +69,7 @@ struct Segment {
 }
 
 #[derive(Clone, Debug)]
-pub struct Layout {
+pub(crate) struct Layout {
     pub row_count: usize,
     pub private_columns: usize,
     pub constant_column: usize,
@@ -105,19 +105,19 @@ struct IndexedRow {
 }
 
 #[derive(Clone, Debug)]
-pub struct SourceCombination {
+pub(crate) struct SourceCombination {
     pub constant: Field,
     pub terms: Vec<Entry>,
 }
 
 #[derive(Clone, Debug)]
-pub struct SourceRow {
+pub(crate) struct SourceRow {
     pub a: SourceCombination,
     pub b: SourceCombination,
     pub c: SourceCombination,
 }
 
-pub struct Artifact {
+pub(crate) struct Artifact {
     pub sealed_schema: u64,
     pub sources: SourcePackage,
     pub matrix_program: Value,
@@ -127,13 +127,13 @@ pub struct Artifact {
     pub logical_public_inputs: usize,
 }
 
-pub struct SourcePackage {
+pub(crate) struct SourcePackage {
     pub layout: Layout,
     rows: Vec<IndexedRow>,
 }
 
 impl SourcePackage {
-    pub fn decode(bytes: &[u8]) -> Result<Artifact> {
+    pub(crate) fn decode(bytes: &[u8]) -> Result<Artifact> {
         if bytes.last() != Some(&b'\n') {
             return Err("sealed package is not newline terminated".into());
         }
@@ -216,7 +216,7 @@ impl SourcePackage {
         })
     }
 
-    pub fn row(&self, index: usize) -> Result<SourceRow> {
+    pub(crate) fn row(&self, index: usize) -> Result<SourceRow> {
         let row = self
             .rows
             .binary_search_by_key(&index, |row| row.index)

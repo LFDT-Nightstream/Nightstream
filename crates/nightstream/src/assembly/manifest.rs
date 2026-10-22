@@ -63,7 +63,7 @@ pub(super) struct Counts {
     pub rows: usize,
 }
 impl Counts {
-    pub fn of(application: &ApplicationCircuit) -> Self {
+    pub(super) fn of(application: &ApplicationCircuit) -> Self {
         Self {
             witness: application.private_input_count(),
             local: application.generated_range().len(),
@@ -76,7 +76,7 @@ impl Counts {
 #[serde(transparent)]
 pub(super) struct Dimension([usize; 4]);
 impl Dimension {
-    pub fn eval(&self, counts: Counts) -> Result<usize, AssemblyError> {
+    pub(super) fn eval(&self, counts: Counts) -> Result<usize, AssemblyError> {
         self.0
             .iter()
             .zip([1, counts.witness, counts.local, counts.rows])
@@ -102,7 +102,7 @@ pub(super) struct Port {
     pub slot_kind: usize,
 }
 impl Port {
-    pub fn source_columns(&self, counts: Counts) -> Result<Vec<usize>, AssemblyError> {
+    pub(super) fn source_columns(&self, counts: Counts) -> Result<Vec<usize>, AssemblyError> {
         let start = self.source_start.eval(counts)?;
         let end = start
             .checked_add(self.count.eval(counts)?)
@@ -227,7 +227,7 @@ pub(super) struct Manifest {
 }
 
 impl Manifest {
-    pub fn parse(bytes: &[u8]) -> Result<Self, AssemblyError> {
+    pub(super) fn parse(bytes: &[u8]) -> Result<Self, AssemblyError> {
         let manifest: Self = serde_json::from_slice(bytes)?;
         if manifest.format != "nightstream.shared-verifier"
             || manifest.version != 3
@@ -337,27 +337,27 @@ impl Manifest {
         Ok(manifest)
     }
 
-    pub fn reference(&self) -> Counts {
+    pub(super) fn reference(&self) -> Counts {
         Counts {
             witness: self.reference[0],
             local: self.reference[1],
             rows: self.reference[2],
         }
     }
-    pub fn port(&self, name: &str) -> Result<&Port, AssemblyError> {
+    pub(super) fn port(&self, name: &str) -> Result<&Port, AssemblyError> {
         self.ports
             .iter()
             .find(|port| port.name == name)
             .ok_or(AssemblyError::Invalid("missing verifier port"))
     }
-    pub fn application_child(&self) -> &Child {
+    pub(super) fn application_child(&self) -> &Child {
         self.children
             .iter()
             .find(|child| child.replaceable)
             .expect("validated application child")
     }
 
-    pub fn check_dimensions(&self, counts: Counts) -> Result<(), AssemblyError> {
+    pub(super) fn check_dimensions(&self, counts: Counts) -> Result<(), AssemblyError> {
         let g = &self.geometry;
         if g.domain != 1usize << PROFILE[5] || g.ring_degree != PROFILE[4] as usize || g.field_slot_width != 41 {
             return Err(AssemblyError::Invalid("shared verifier encoding or domain"));
@@ -482,7 +482,7 @@ impl Manifest {
         Ok(())
     }
 
-    pub fn check_reference(&self, reference: &Envelope) -> Result<(), AssemblyError> {
+    pub(super) fn check_reference(&self, reference: &Envelope) -> Result<(), AssemblyError> {
         let counts = self.reference();
         let g = &self.geometry;
         let layout = &reference.source.layout;

@@ -4,27 +4,27 @@
 
 use super::reference::{Field, Result};
 
-pub const DEGREE: usize = 54;
+pub(crate) const DEGREE: usize = 54;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Extension(pub [Field; 2]);
+pub(crate) struct Extension(pub [Field; 2]);
 
 impl Extension {
-    pub const ZERO: Self = Self([Field::ZERO; 2]);
-    pub const ONE: Self = Self([Field::ONE, Field::ZERO]);
+    pub(crate) const ZERO: Self = Self([Field::ZERO; 2]);
+    pub(crate) const ONE: Self = Self([Field::ONE, Field::ZERO]);
 
-    pub fn checked(words: [u64; 2]) -> Result<Self> {
+    pub(crate) fn checked(words: [u64; 2]) -> Result<Self> {
         Ok(Self([
             Field::checked(words[0], "extension real")?,
             Field::checked(words[1], "extension second")?,
         ]))
     }
 
-    pub fn words(self) -> [u64; 2] {
+    pub(crate) fn words(self) -> [u64; 2] {
         self.0.map(Field::canonical)
     }
 
-    pub fn scale(self, value: Field) -> Self {
+    pub(crate) fn scale(self, value: Field) -> Self {
         Self(self.0.map(|coefficient| coefficient * value))
     }
 }
@@ -61,10 +61,10 @@ impl std::ops::Mul for Extension {
     }
 }
 
-pub type Ring = [Extension; DEGREE];
+pub(crate) type Ring = [Extension; DEGREE];
 
 /// Closed form of `T^{-1}` from SuperNeo v1.2 Lemma 5 and Definition 15 for Phi81.
-pub fn inverse_constant_term_matrix(values: &Ring) -> Ring {
+pub(crate) fn inverse_constant_term_matrix(values: &Ring) -> Ring {
     std::array::from_fn(|row| match row {
         0 => values[0],
         1..27 => -(values[27 - row] + values[54 - row]),
@@ -72,7 +72,7 @@ pub fn inverse_constant_term_matrix(values: &Ring) -> Ring {
     })
 }
 
-pub fn multiply_signed(left: &Ring, right: &[u8]) -> Ring {
+pub(crate) fn multiply_signed(left: &Ring, right: &[u8]) -> Ring {
     assert_eq!(right.len(), DEGREE);
     const _: () = assert!(
         4 * DEGREE as u128 * DEGREE as u128 * (super::reference::GOLDILOCKS_MODULUS as u128) < i128::MAX as u128
@@ -113,15 +113,15 @@ pub fn multiply_signed(left: &Ring, right: &[u8]) -> Ring {
     })
 }
 
-pub fn evaluate_block(weights: &Ring, carrier: &[u8]) -> Ring {
+pub(crate) fn evaluate_block(weights: &Ring, carrier: &[u8]) -> Ring {
     multiply_signed(&inverse_constant_term_matrix(weights), carrier)
 }
 
-pub fn add_rings(left: Ring, right: Ring) -> Ring {
+pub(crate) fn add_rings(left: Ring, right: Ring) -> Ring {
     std::array::from_fn(|index| left[index] + right[index])
 }
 
-pub struct EqualityTensor {
+pub(crate) struct EqualityTensor {
     low: Vec<Extension>,
     high: Vec<Extension>,
     split: usize,
@@ -140,7 +140,7 @@ fn tensor(point: &[Extension]) -> Vec<Extension> {
 }
 
 impl EqualityTensor {
-    pub fn new(point: &[Extension]) -> Self {
+    pub(crate) fn new(point: &[Extension]) -> Self {
         assert_eq!(point.len(), 28);
         let split = point.len() / 2;
         Self {
@@ -150,7 +150,7 @@ impl EqualityTensor {
         }
     }
 
-    pub fn at(&self, row: usize) -> Extension {
+    pub(crate) fn at(&self, row: usize) -> Extension {
         self.low[row & ((1 << self.split) - 1)] * self.high[row >> self.split]
     }
 }

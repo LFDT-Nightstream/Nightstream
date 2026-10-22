@@ -51,7 +51,7 @@ impl PreparedLifecycle {
     /// Check the selected `Terminal.HoldsFor` boundary. The external state
     /// fixes the advertised endpoint. Active envelopes perform full CE and
     /// CCS opening checks, with no extra fold or caller-supplied evaluator.
-    pub fn verify(&self, expected_state: &Stage1State, envelope: &Stage1Envelope) -> Result<(), VerifyError> {
+    pub(crate) fn verify(&self, expected_state: &Stage1State, envelope: &Stage1Envelope) -> Result<(), VerifyError> {
         if envelope.state() != expected_state {
             return Err(VerifyError::Statement("envelope differs from the external state"));
         }

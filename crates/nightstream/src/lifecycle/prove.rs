@@ -16,7 +16,7 @@ pub enum ProveError {
     Nifs(#[from] nifs::Error),
 }
 impl PreparedLifecycle {
-    pub fn prove(
+    pub(crate) fn prove(
         &self,
         fresh: CcsInstance,
         running: RunningInstance,

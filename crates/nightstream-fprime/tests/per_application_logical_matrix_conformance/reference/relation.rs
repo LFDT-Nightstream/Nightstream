@@ -14,7 +14,7 @@ struct Term {
 }
 
 #[derive(Clone, Debug)]
-pub struct Relation {
+pub(crate) struct Relation {
     terms: Vec<Term>,
 }
 
@@ -48,7 +48,7 @@ struct RawPackage(
 );
 
 impl Relation {
-    pub fn decode(sealed_bytes: &[u8]) -> Result<Self> {
+    pub(crate) fn decode(sealed_bytes: &[u8]) -> Result<Self> {
         if sealed_bytes.last() != Some(&b'\n') {
             return Err("sealed package is not newline terminated".into());
         }
@@ -117,7 +117,7 @@ impl Relation {
         Ok(Self { terms })
     }
 
-    pub fn evaluate(&self, matrix_values: &[Field; MATRIX_COUNT]) -> Field {
+    pub(crate) fn evaluate(&self, matrix_values: &[Field; MATRIX_COUNT]) -> Field {
         self.terms.iter().fold(Field::ZERO, |sum, term| {
             let mut product = term.coefficient;
             for (value, exponent) in matrix_values.iter().zip(term.exponents) {
@@ -132,10 +132,10 @@ impl Relation {
         })
     }
 
-    pub fn term_count(&self) -> usize {
+    pub(crate) fn term_count(&self) -> usize {
         self.terms.len()
     }
-    pub fn slot_degrees(&self) -> [usize; MATRIX_COUNT] {
+    pub(crate) fn slot_degrees(&self) -> [usize; MATRIX_COUNT] {
         std::array::from_fn(|slot| {
             self.terms
                 .iter()

@@ -5,10 +5,7 @@ use neo_math::{D, F};
 use neo_reductions::superneo_eval::SuperneoZBlocks;
 use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
 
-use super::{
-    application, joint_term_metadata, nonempty, ApplicationTables, Buffer, MetalJointMatrixPlan, MetalSession,
-    MetalWitnessMasks,
-};
+use super::{joint_term_metadata, nonempty, Buffer, MetalJointMatrixPlan, MetalSession, MetalWitnessMasks};
 use crate::MetalError;
 
 pub(super) struct TerminalRowCheck<'a> {
@@ -69,6 +66,7 @@ impl TerminalRowCheck<'_> {
 }
 
 impl MetalSession {
+    #[cfg(test)]
     pub(crate) fn first_unsatisfied_row(
         &self,
         plan: &MetalJointMatrixPlan,
@@ -89,6 +87,7 @@ impl MetalSession {
         self.check_relation_windows(plan, structure, witness, Some(workspace_bytes))
     }
 
+    #[cfg(test)]
     fn check_relation_windows(
         &self,
         plan: &MetalJointMatrixPlan,
@@ -97,8 +96,8 @@ impl MetalSession {
         workspace: Option<usize>,
     ) -> Result<Option<usize>, MetalError> {
         let check = self.prepare_terminal_row_check(plan, structure, witness)?;
-        let reserved = ApplicationTables::scratch_bytes(plan, 1)? + 3 * size_of::<u64>();
-        let budget = application::available_workspace(self, reserved).min(workspace.unwrap_or(usize::MAX));
+        let reserved = super::ApplicationTables::scratch_bytes(plan, 1)? + 3 * size_of::<u64>();
+        let budget = super::application::available_workspace(self, reserved).min(workspace.unwrap_or(usize::MAX));
         let row_bytes = plan
             .matrix_count
             .checked_mul(size_of::<F>())

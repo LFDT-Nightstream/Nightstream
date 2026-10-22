@@ -251,75 +251,6 @@ inline PoseidonState poseidon_permute(PoseidonState state, constant const ulong 
     return state;
 }
 
-inline PoseidonState poseidon_load(device const ulong *words, uint base) {
-    return PoseidonState{
-        gl_from_word(words[base]),
-        gl_from_word(words[base + 1]),
-        gl_from_word(words[base + 2]),
-        gl_from_word(words[base + 3]),
-        gl_from_word(words[base + 4]),
-        gl_from_word(words[base + 5]),
-        gl_from_word(words[base + 6]),
-        gl_from_word(words[base + 7]),
-        gl_from_word(words[base + 8]),
-        gl_from_word(words[base + 9]),
-        gl_from_word(words[base + 10]),
-        gl_from_word(words[base + 11]),
-        gl_from_word(words[base + 12]),
-        gl_from_word(words[base + 13]),
-        gl_from_word(words[base + 14]),
-        gl_from_word(words[base + 15])};
-}
-
-inline void poseidon_store(device ulong *words, uint base, PoseidonState state) {
-    words[base] = state.s0;
-    words[base + 1] = state.s1;
-    words[base + 2] = state.s2;
-    words[base + 3] = state.s3;
-    words[base + 4] = state.s4;
-    words[base + 5] = state.s5;
-    words[base + 6] = state.s6;
-    words[base + 7] = state.s7;
-    words[base + 8] = state.s8;
-    words[base + 9] = state.s9;
-    words[base + 10] = state.s10;
-    words[base + 11] = state.s11;
-    words[base + 12] = state.s12;
-    words[base + 13] = state.s13;
-    words[base + 14] = state.s14;
-    words[base + 15] = state.s15;
-}
-
-inline void transcript_set(thread PoseidonState &state, uint lane, ulong value) {
-    switch (lane) {
-        case 0: state.s0 = value; break;
-        case 1: state.s1 = value; break;
-        case 2: state.s2 = value; break;
-        case 3: state.s3 = value; break;
-        case 4: state.s4 = value; break;
-        case 5: state.s5 = value; break;
-        case 6: state.s6 = value; break;
-        case 7: state.s7 = value; break;
-        case 8: state.s8 = value; break;
-        case 9: state.s9 = value; break;
-        case 10: state.s10 = value; break;
-        default: state.s11 = value; break;
-    }
-}
-
-inline void transcript_absorb(
-    thread PoseidonState &state,
-    thread uint &cursor,
-    ulong value,
-    constant const ulong *round_constants) {
-    if (cursor >= POSEIDON_RATE) {
-        state = poseidon_permute(state, round_constants);
-        cursor = 0;
-    }
-    transcript_set(state, cursor, gl_from_word(value));
-    cursor += 1;
-}
-
 // Merkle leaf digests of rows: Plonky3's overwrite sponge (PaddingFreeSponge).
 // Each row starts from the zero state; each block of up to POSEIDON_RATE words
 // overwrites the first lanes and is followed by one permutation.
@@ -355,30 +286,6 @@ kernel void poseidon2_hash_rows_overwrite(
     output[base + 3] = state.s3;
 }
 
-kernel void transcript_absorb_challenge2(
-    device ulong *transcript_state [[buffer(0)]],
-    device const ulong *fields [[buffer(1)]],
-    device ulong *challenge [[buffer(2)]],
-    constant const ulong *round_constants [[buffer(3)]],
-    device const ulong *shape [[buffer(4)]],
-    uint index [[thread_position_in_grid]]) {
-    if (index != 0) return;
-    PoseidonState state = poseidon_load(transcript_state, 0);
-    uint cursor = (uint)transcript_state[POSEIDON_WIDTH];
-    ulong field_count = shape[0];
-    transcript_absorb(state, cursor, field_count, round_constants);
-    for (ulong field = 0; field < field_count; ++field) {
-        transcript_absorb(state, cursor, fields[field], round_constants);
-    }
-    transcript_absorb(state, cursor, 1, round_constants);
-    state = poseidon_permute(state, round_constants);
-    cursor = 0;
-    challenge[0] = state.s0;
-    challenge[1] = state.s1;
-    poseidon_store(transcript_state, 0, state);
-    transcript_state[POSEIDON_WIDTH] = cursor;
-}
-
 inline WideProduct wide_sum_add_small(WideProduct sum, ulong value, uint scale) {
     ulong low_product = (value & LIMB_MASK) * scale;
     ulong high_product = (value >> 32) * scale;
@@ -401,63 +308,6 @@ inline void accumulate_small_signed(
     } else if (coefficient < 0) {
         negative = wide_sum_add_small(negative, value, magnitude);
     }
-}
-
-constant ulong SIS_BALANCED_TERNARY_SHIFT = 18236498188585393201ul;
-constant ulong SIS_MODULUS_MINUS_SHIFT = 210245880829191120ul;
-constant ulong SIS_BALANCED_TERNARY_DIGITS = 41ul;
-
-kernel void sis_balanced_ternary_message(
-    device const ulong *fields [[buffer(0)]],
-    device char *message [[buffer(1)]],
-    device const ulong *shape [[buffer(2)]],
-    uint field [[thread_position_in_grid]]) {
-    ulong field_count = shape[0];
-    ulong message_cols = shape[1];
-    if (field >= field_count || message_cols == 0) {
-        return;
-    }
-    ulong value = fields[field];
-    ulong remaining = value >= SIS_MODULUS_MINUS_SHIFT
-        ? value - SIS_MODULUS_MINUS_SHIFT
-        : value + SIS_BALANCED_TERNARY_SHIFT;
-    for (ulong digit = 0; digit < SIS_BALANCED_TERNARY_DIGITS; ++digit) {
-        ulong trit = remaining % 3;
-        remaining /= 3;
-        ulong logical = (ulong)field * SIS_BALANCED_TERNARY_DIGITS + digit;
-        ulong row = logical / message_cols;
-        ulong column = logical % message_cols;
-        message[column * RING_DEGREE + row] = (char)((int)trit - 1);
-    }
-}
-
-kernel void sis_pack_signed_masks(
-    device const char *message [[buffer(0)]],
-    device ulong *masks [[buffer(1)]],
-    device const ulong *shape [[buffer(2)]],
-    uint column [[thread_position_in_grid]]) {
-    ulong field_count = shape[0];
-    ulong message_cols = shape[1];
-    if (column >= message_cols) {
-        return;
-    }
-    ulong logical_len = field_count * SIS_BALANCED_TERNARY_DIGITS;
-    ulong positive = 0;
-    ulong negative = 0;
-    for (ulong row = 0; row < RING_DEGREE; ++row) {
-        ulong logical = row * message_cols + column;
-        if (logical >= logical_len) {
-            break;
-        }
-        char digit = message[(ulong)column * RING_DEGREE + row];
-        if (digit > 0) {
-            positive |= 1ul << row;
-        } else if (digit < 0) {
-            negative |= 1ul << row;
-        }
-    }
-    masks[2 * column] = positive;
-    masks[2 * column + 1] = negative;
 }
 
 constant uint SUMCHECK_MAX_COEFFS = 10;
@@ -483,19 +333,6 @@ kernel void tensor_point_expand_k(
     table[2 * index + 1] = low.c1;
     table[2 * (index + step)] = high.c0;
     table[2 * (index + step) + 1] = high.c1;
-}
-
-inline void poly_mul_affine(
-    thread Kx *poly,
-    Kx a,
-    Kx b,
-    uint current_degree) {
-    Kx previous = Kx{0, 0};
-    for (uint degree = 0; degree <= current_degree + 1; ++degree) {
-        Kx old = poly[degree];
-        poly[degree] = kx_add(kx_mul(a, old), kx_mul(b, previous));
-        previous = old;
-    }
 }
 
 inline ulong compact_row_offset(device const uchar *offsets, ulong row, ulong width) {
@@ -637,75 +474,6 @@ kernel void rlc_witness_mix_signed_masks(
         gl_reduce_sum(negative.lo, negative.hi));
 }
 
-kernel void rlc_witness_mix(
-    device const char *rhos [[buffer(0)]],
-    device const ulong *witnesses [[buffer(1)]],
-    device const ulong *shape [[buffer(2)]],
-    device ulong *output [[buffer(3)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong input_count = shape[0];
-    ulong cols = shape[1];
-    ulong row = index / cols;
-    ulong column = index % cols;
-    WideProduct positive = WideProduct{0, 0};
-    WideProduct negative = WideProduct{0, 0};
-    for (ulong input = 0; input < input_count; ++input) {
-        ulong rho_base = input * RING_DEGREE * RING_DEGREE + row * RING_DEGREE;
-        ulong witness_base = input * RING_DEGREE * cols + column;
-        for (ulong inner = 0; inner < RING_DEGREE; ++inner) {
-            accumulate_small_signed(
-                gl_from_word(witnesses[witness_base + inner * cols]),
-                (int)rhos[rho_base + inner],
-                positive,
-                negative);
-        }
-    }
-    output[index] = gl_sub(
-        gl_reduce_sum(positive.lo, positive.hi),
-        gl_reduce_sum(negative.lo, negative.hi));
-}
-
-kernel void rlc_witness_mix_dense_fresh_resident_masks(
-    device const char *rhos [[buffer(0)]],
-    device const ulong *fresh_witnesses [[buffer(1)]],
-    device const ulong *resident_masks [[buffer(2)]],
-    device const ulong *shape [[buffer(3)]],
-    device ulong *output [[buffer(4)]],
-    uint index [[thread_position_in_grid]]) {
-    ulong input_count = shape[0];
-    ulong fresh_count = shape[1];
-    ulong cols = shape[2];
-    ulong row = index / cols;
-    ulong column = index % cols;
-    WideProduct positive = WideProduct{0, 0};
-    WideProduct negative = WideProduct{0, 0};
-    for (ulong input = 0; input < input_count; ++input) {
-        ulong rho_base = input * RING_DEGREE * RING_DEGREE + row * RING_DEGREE;
-        if (input >= fresh_count) {
-            ulong mask_base = 2 * ((input - fresh_count) * cols + column);
-            accumulate_signed_mask_rhos(
-                rhos,
-                rho_base,
-                resident_masks[mask_base],
-                resident_masks[mask_base + 1],
-                positive,
-                negative);
-            continue;
-        }
-        ulong witness_base = input * RING_DEGREE * cols + column;
-        for (ulong inner = 0; inner < RING_DEGREE; ++inner) {
-            accumulate_small_signed(
-                gl_from_word(fresh_witnesses[witness_base + inner * cols]),
-                (int)rhos[rho_base + inner],
-                positive,
-                negative);
-        }
-    }
-    output[index] = gl_sub(
-        gl_reduce_sum(positive.lo, positive.hi),
-        gl_reduce_sum(negative.lo, negative.hi));
-}
-
 #include "decomposition.metal"
 
 constant uint SUMCHECK_REDUCTION_THREADS = 64;
@@ -726,128 +494,6 @@ kernel void sumcheck_reduce_partials(
     }
     output[2 * coefficient] = total.c0;
     output[2 * coefficient + 1] = total.c1;
-}
-
-kernel void fe_round_partials(
-    device const ulong *tables [[buffer(0)]],
-    device const ulong *shape [[buffer(1)]],
-    device const ulong *mcs_headers [[buffer(2)]],
-    device const ulong *mcs_table_indices [[buffer(3)]],
-    device const ulong *gammas [[buffer(4)]],
-    device const ulong *term_headers [[buffer(5)]],
-    device const ulong *term_variables [[buffer(6)]],
-    device ulong *partials [[buffer(7)]],
-    uint pair [[thread_position_in_grid]],
-    uint lane [[thread_index_in_threadgroup]],
-    uint group [[threadgroup_position_in_grid]]) {
-    ulong table_len = shape[0];
-    ulong active_len = shape[1];
-    uint coefficient_count = (uint)shape[2];
-    uint row_degree = (uint)shape[3];
-    uint active_coefficients = min(row_degree + 1, SUMCHECK_MAX_COEFFS);
-    ulong eq_table = shape[4];
-    ulong eq_inputs_plus_one = shape[5];
-    ulong eval_plus_one = shape[6];
-    ulong mcs_count = shape[7];
-    ulong term_count = shape[8];
-    Kx f_at_zero = Kx{shape[9], shape[10]};
-    Kx gamma_to_k = Kx{shape[11], shape[12]};
-    threadgroup Kx shared[SUMCHECK_REDUCTION_THREADS * SUMCHECK_MAX_COEFFS];
-    Kx local[SUMCHECK_MAX_COEFFS];
-    for (uint degree = 0; degree < SUMCHECK_MAX_COEFFS; ++degree) {
-        local[degree] = Kx{0, 0};
-    }
-    ulong pairs = (active_len + 1) / 2;
-    if (pair < pairs) {
-        ulong index = 2 * pair;
-        Kx eq0 = load_k(tables, eq_table * table_len + index);
-        Kx eq1 = kx_sub(load_k(tables, eq_table * table_len + index + 1), eq0);
-        Kx inner[SUMCHECK_MAX_COEFFS];
-        for (uint degree = 0; degree < SUMCHECK_MAX_COEFFS; ++degree) {
-            inner[degree] = Kx{0, 0};
-        }
-        for (ulong mcs = 0; mcs < mcs_count; ++mcs) {
-            ulong header = 3 * mcs;
-            bool is_zero = mcs_headers[header] != 0;
-            ulong table_start = mcs_headers[header + 1];
-            ulong table_count = mcs_headers[header + 2];
-            Kx gamma = load_k(gammas, mcs);
-            if (is_zero) {
-                inner[0] = kx_add(inner[0], kx_mul(f_at_zero, gamma));
-                continue;
-            }
-            for (ulong term = 0; term < term_count; ++term) {
-                ulong term_header = 4 * term;
-                Kx term_coefficient = Kx{term_headers[term_header], term_headers[term_header + 1]};
-                ulong variable_start = term_headers[term_header + 2];
-                ulong variable_count = term_headers[term_header + 3];
-                Kx polynomial[SUMCHECK_MAX_COEFFS];
-                for (uint degree = 0; degree < SUMCHECK_MAX_COEFFS; ++degree) {
-                    polynomial[degree] = Kx{0, 0};
-                }
-                polynomial[0] = kx_mul(term_coefficient, gamma);
-                uint current_degree = 0;
-                for (ulong variable = 0; variable < variable_count; ++variable) {
-                    ulong variable_header = 2 * (variable_start + variable);
-                    ulong variable_position = term_variables[variable_header];
-                    uint exponent = (uint)term_variables[variable_header + 1];
-                    if (variable_position >= table_count) {
-                        continue;
-                    }
-                    ulong table_index = mcs_table_indices[table_start + variable_position];
-                    Kx a = load_k(tables, table_index * table_len + index);
-                    Kx b = kx_sub(load_k(tables, table_index * table_len + index + 1), a);
-                    for (uint power = 0; power < exponent && current_degree < row_degree; ++power) {
-                        poly_mul_affine(polynomial, a, b, current_degree);
-                        current_degree += 1;
-                    }
-                }
-                uint limit = min(current_degree, row_degree);
-                for (uint degree = 0; degree <= limit; ++degree) {
-                    inner[degree] = kx_add(inner[degree], polynomial[degree]);
-                }
-            }
-        }
-        local[0] = kx_mul(eq0, inner[0]);
-        for (uint coefficient = 1; coefficient < active_coefficients; ++coefficient) {
-            local[coefficient] = kx_add(
-                kx_mul(eq0, inner[coefficient]),
-                kx_mul(eq1, inner[coefficient - 1]));
-        }
-        if (eq_inputs_plus_one != 0 && eval_plus_one != 0) {
-            ulong eq_inputs = eq_inputs_plus_one - 1;
-            ulong eval = eval_plus_one - 1;
-            Kx r0 = load_k(tables, eq_inputs * table_len + index);
-            Kx r1 = kx_sub(load_k(tables, eq_inputs * table_len + index + 1), r0);
-            Kx v0 = load_k(tables, eval * table_len + index);
-            Kx v1 = kx_sub(load_k(tables, eval * table_len + index + 1), v0);
-            local[0] = kx_add(local[0], kx_mul(gamma_to_k, kx_mul(r0, v0)));
-            local[1] = kx_add(local[1], kx_mul(gamma_to_k, kx_add(kx_mul(r0, v1), kx_mul(r1, v0))));
-            local[2] = kx_add(local[2], kx_mul(gamma_to_k, kx_mul(r1, v1)));
-        }
-    }
-    for (uint coefficient = 0; coefficient < active_coefficients; ++coefficient) {
-        shared[lane * SUMCHECK_MAX_COEFFS + coefficient] = local[coefficient];
-    }
-    threadgroup_barrier(mem_flags::mem_threadgroup);
-    for (uint stride = SUMCHECK_REDUCTION_THREADS / 2; stride > 0; stride >>= 1) {
-        if (lane < stride) {
-            for (uint coefficient = 0; coefficient < active_coefficients; ++coefficient) {
-                uint dst = lane * SUMCHECK_MAX_COEFFS + coefficient;
-                uint src = (lane + stride) * SUMCHECK_MAX_COEFFS + coefficient;
-                shared[dst] = kx_add(shared[dst], shared[src]);
-            }
-        }
-        threadgroup_barrier(mem_flags::mem_threadgroup);
-    }
-    if (lane == 0) {
-        for (uint coefficient = 0; coefficient < coefficient_count; ++coefficient) {
-            Kx value = coefficient < active_coefficients ? shared[coefficient] : Kx{0, 0};
-            ulong output_index = group * coefficient_count + coefficient;
-            partials[2 * output_index] = value.c0;
-            partials[2 * output_index + 1] = value.c1;
-        }
-    }
 }
 
 #include "dec_forms.metal"

@@ -74,8 +74,6 @@ def checks_for_path(name: str) -> tuple[str, ...]:
         return ("native",)
     if name == "crates/nightstream/tests/restore_golden_inputs.py":
         return ALL
-    if name == "scripts/build_metal_shaders.sh":
-        return ("metal",)
     if len(path.parts) < 3 or path.parts[0] != "crates" or path.parts[1] not in CRATES:
         return ()
     crate, part = path.parts[1:3]

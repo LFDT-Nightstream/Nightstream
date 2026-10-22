@@ -1,7 +1,4 @@
-use std::sync::Arc;
-
-use neo_ajtai::{setup as ajtai_setup, AjtaiSModule};
-use neo_ccs::traits::SModuleHomomorphism;
+use neo_ajtai::{commit_row_major, setup as ajtai_setup};
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, Mat, SparsePoly};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
@@ -39,10 +36,10 @@ fn build_fixture(
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(123);
     let pp = ajtai_setup(&mut rng, D, params.kappa as usize, m / D).expect("ajtai setup");
-    let l = AjtaiSModule::new(Arc::new(pp));
+    let l = pp;
 
     let z = Mat::from_row_major(D, m / D, vec![F::ZERO; D * (m / D)]);
-    let c = l.commit(&z);
+    let c = commit_row_major(&l, &z);
     let mcs_inst = CcsClaim {
         adv: None,
         c,

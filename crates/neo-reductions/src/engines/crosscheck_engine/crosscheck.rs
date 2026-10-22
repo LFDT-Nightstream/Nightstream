@@ -48,7 +48,7 @@ fn checkpoint(transcript: &Poseidon2Transcript) -> ([F; neo_ccs::crypto::poseido
     (transcript.state(), transcript.absorbed())
 }
 
-pub fn crosscheck_prove<L>(
+pub fn crosscheck_prove(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,
@@ -56,11 +56,7 @@ pub fn crosscheck_prove<L>(
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    commitment: &L,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError>
-where
-    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync,
-{
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
     let cache = OptimizedStructureCache::build(structure)?;
     let mut reference_transcript = transcript.clone();
     let (optimized, reference) = run_pair(
@@ -85,7 +81,6 @@ where
                 fresh_witnesses,
                 running_claims,
                 running_witnesses,
-                commitment,
             )
         },
     )?;

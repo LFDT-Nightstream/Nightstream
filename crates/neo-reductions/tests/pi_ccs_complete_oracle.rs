@@ -2,10 +2,8 @@
 
 #![cfg(feature = "paper-exact")]
 
-use std::sync::Arc;
-
-use neo_ajtai::{setup, AjtaiSModule, Commitment};
-use neo_ccs::{traits::SModuleHomomorphism, CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term};
+use neo_ajtai::{commit_row_major, setup, Commitment};
+use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::{
@@ -63,9 +61,7 @@ impl Case {
         .unwrap();
         let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(columns, columns).unwrap();
         let mut rng = ChaCha8Rng::seed_from_u64(0x636f6d706c657465);
-        let commitment = AjtaiSModule::new(Arc::new(
-            setup(&mut rng, D, params.kappa as usize, columns.div_ceil(D)).unwrap(),
-        ));
+        let commitment = setup(&mut rng, D, params.kappa as usize, columns.div_ceil(D)).unwrap();
         let mut assignment = Mat::zero(D, columns.div_ceil(D), F::ZERO);
         for column in 0..columns {
             assignment[(column % D, column / D)] = match column % 3 {
@@ -75,7 +71,7 @@ impl Case {
             };
         }
         let fresh = vec![CcsClaim {
-            c: commitment.commit(&assignment),
+            c: commit_row_major(&commitment, &assignment),
             x: (0..D).map(|column| assignment[(column, 0)]).collect(),
             m_in: D,
             adv: None,

@@ -14,10 +14,10 @@ use neo_ajtai::{
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use objc2_foundation::NSString;
-use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder, MTLComputePipelineState, MTLDevice};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputePipelineState, MTLDevice};
 use p3_field::PrimeCharacteristicRing;
 
-use super::{Buffer, MetalSession};
+use super::{Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
 
 /// Measured on an M5 Max with 16 dense witnesses at production width: 128,
@@ -82,14 +82,17 @@ impl MetalSession {
         for (row, slab) in rows.iter().enumerate() {
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("production_key_row")));
-            encoder.setComputePipelineState(&self.production_key_row);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&prefix), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&all_columns), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&shapes), row * 6 * size_of::<u64>(), 2);
-                encoder.setBuffer_offset_atIndex(Some(slab), 0, 3);
-            }
-            self.dispatch(&encoder, &self.production_key_row, columns);
+            self.launch(
+                &encoder,
+                &self.production_key_row,
+                &[
+                    Arg::Buffer(0, &prefix),
+                    Arg::Buffer(1, &all_columns),
+                    Arg::BufferAt(2, &shapes, row * 6 * size_of::<u64>()),
+                    Arg::Buffer(3, slab),
+                ],
+                Grid::Threads(columns),
+            );
             encoder.endEncoding();
         }
         self.finish(&command)?;
@@ -136,24 +139,30 @@ impl MetalSession {
         let command = self.command_buffer("nightstream.production_key_weights")?;
         for (index, (power, shape)) in inputs.iter().enumerate() {
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.production_key_row);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&prefix), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&all_columns), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&shapes), index * 6 * size_of::<u64>(), 2);
-                encoder.setBuffer_offset_atIndex(Some(&row), 0, 3);
-            }
-            self.dispatch(&encoder, &self.production_key_row, columns);
+            self.launch(
+                &encoder,
+                &self.production_key_row,
+                &[
+                    Arg::Buffer(0, &prefix),
+                    Arg::Buffer(1, &all_columns),
+                    Arg::BufferAt(2, &shapes, index * 6 * size_of::<u64>()),
+                    Arg::Buffer(3, &row),
+                ],
+                Grid::Threads(columns),
+            );
             encoder.endEncoding();
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.production_key_weights);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&row), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&out), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(power), 0, 2);
-                encoder.setBuffer_offset_atIndex(Some(shape), 0, 3);
-            }
-            self.dispatch(&encoder, &self.production_key_weights, elements);
+            self.launch(
+                &encoder,
+                &self.production_key_weights,
+                &[
+                    Arg::Buffer(0, &row),
+                    Arg::Buffer(1, &out),
+                    Arg::Buffer(2, power),
+                    Arg::Buffer(3, shape),
+                ],
+                Grid::Threads(elements),
+            );
             encoder.endEncoding();
         }
         self.finish(&command)?;
@@ -288,14 +297,17 @@ impl MetalSession {
                 KeyRows::Streamed { prefix, slab } => {
                     let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
                     encoder.setLabel(Some(&NSString::from_str("production_key_row")));
-                    encoder.setComputePipelineState(key_row);
-                    unsafe {
-                        encoder.setBuffer_offset_atIndex(Some(prefix), 0, 0);
-                        encoder.setBuffer_offset_atIndex(Some(&device_columns), 0, 1);
-                        encoder.setBuffer_offset_atIndex(Some(&shapes), shape_offset, 2);
-                        encoder.setBuffer_offset_atIndex(Some(slab), 0, 3);
-                    }
-                    self.dispatch(&encoder, key_row, count);
+                    self.launch(
+                        &encoder,
+                        key_row,
+                        &[
+                            Arg::Buffer(0, prefix),
+                            Arg::Buffer(1, &device_columns),
+                            Arg::BufferAt(2, &shapes, shape_offset),
+                            Arg::Buffer(3, slab),
+                        ],
+                        Grid::Threads(count),
+                    );
                     encoder.endEncoding();
                     slab
                 }
@@ -303,27 +315,36 @@ impl MetalSession {
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("production_ajtai_accumulate")));
-            encoder.setComputePipelineState(accumulate);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(key), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&device_masks), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&shapes), shape_offset, 2);
-                encoder.setBuffer_offset_atIndex(Some(&partials), 0, 3);
-                encoder.setBuffer_offset_atIndex(Some(&key_columns), 0, 4);
-                encoder.setThreadgroupMemoryLength_atIndex(scratch_bytes, 0);
-            }
-            self.dispatch_threadgroups(&encoder, accumulate, groups * witness_blocks, 64 * witnesses_per_group);
+            self.launch(
+                &encoder,
+                accumulate,
+                &[
+                    Arg::Buffer(0, key),
+                    Arg::Buffer(1, &device_masks),
+                    Arg::BufferAt(2, &shapes, shape_offset),
+                    Arg::Buffer(3, &partials),
+                    Arg::Buffer(4, &key_columns),
+                    Arg::Threadgroup(0, scratch_bytes),
+                ],
+                Grid::Groups {
+                    groups: groups * witness_blocks,
+                    threads: 64 * witnesses_per_group,
+                },
+            );
             encoder.endEncoding();
 
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
             encoder.setLabel(Some(&NSString::from_str("production_ajtai_sum_groups")));
-            encoder.setComputePipelineState(&self.production_ajtai_sum_groups);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&partials), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&shapes), shape_offset, 1);
-                encoder.setBuffer_offset_atIndex(Some(&sums), row * active.len() * D * size_of::<u64>(), 2);
-            }
-            self.dispatch(&encoder, &self.production_ajtai_sum_groups, active.len() * D);
+            self.launch(
+                &encoder,
+                &self.production_ajtai_sum_groups,
+                &[
+                    Arg::Buffer(0, &partials),
+                    Arg::BufferAt(1, &shapes, shape_offset),
+                    Arg::BufferAt(2, &sums, row * active.len() * D * size_of::<u64>()),
+                ],
+                Grid::Threads(active.len() * D),
+            );
             encoder.endEncoding();
         }
         self.finish(&command)?;

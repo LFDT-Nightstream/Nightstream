@@ -1,9 +1,9 @@
 //! The Poseidon2 Merkle tree of a row-major matrix in one command buffer,
 //! or its leaf digests alone: the layer-1 prover's commitments.
 
-use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
+use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder};
 
-use super::MetalSession;
+use super::{Arg, Grid, MetalSession};
 use crate::{poseidon2, MetalError, PoseidonDigest};
 
 impl MetalSession {
@@ -37,19 +37,20 @@ impl MetalSession {
         let node_width = self.buffer_from_slice(&[2 * poseidon2::DIGEST_LEN as u64])?;
         let command = self.command_buffer("nightstream.poseidon2.merkle_layers")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.poseidon2_hash_rows_overwrite);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&self.poseidon2_constants), 0, 2);
-        }
         // Serial dispatches: each layer reads the one written before it.
         let mut source = (&input, &leaf_width);
         for (layer, &n) in layers.iter().zip(&sizes) {
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(source.0), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(layer), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(source.1), 0, 3);
-            }
-            self.dispatch(&encoder, &self.poseidon2_hash_rows_overwrite, n);
+            self.launch(
+                &encoder,
+                &self.poseidon2_hash_rows_overwrite,
+                &[
+                    Arg::Buffer(0, source.0),
+                    Arg::Buffer(1, layer),
+                    Arg::Buffer(2, &self.poseidon2_constants),
+                    Arg::Buffer(3, source.1),
+                ],
+                Grid::Threads(n),
+            );
             source = (layer, &node_width);
         }
         encoder.endEncoding();
@@ -84,14 +85,17 @@ impl MetalSession {
         let leaf_width = self.buffer_from_slice(&[width as u64])?;
         let command = self.command_buffer("nightstream.poseidon2.merkle_leaves")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.poseidon2_hash_rows_overwrite);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(input), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&output), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&self.poseidon2_constants), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&leaf_width), 0, 3);
-        }
-        self.dispatch(&encoder, &self.poseidon2_hash_rows_overwrite, rows);
+        self.launch(
+            &encoder,
+            &self.poseidon2_hash_rows_overwrite,
+            &[
+                Arg::Buffer(0, input),
+                Arg::Buffer(1, &output),
+                Arg::Buffer(2, &self.poseidon2_constants),
+                Arg::Buffer(3, &leaf_width),
+            ],
+            Grid::Threads(rows),
+        );
         encoder.endEncoding();
         self.finish(&command)?;
         drop(wrapped);

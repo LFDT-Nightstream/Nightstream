@@ -36,6 +36,33 @@ type Pipeline = Retained<ProtocolObject<dyn MTLComputePipelineState>>;
 
 static BUFFER_ALLOCATION: Mutex<()> = Mutex::new(());
 
+/// Entries in a Metal kernel's buffer table, and in its threadgroup memory
+/// table (Apple's Metal feature set tables).
+const ARGUMENT_SLOTS: usize = 31;
+
+/// One kernel argument, at the index that the shader signature gives it.
+#[derive(Clone, Copy)]
+enum Arg<'a> {
+    /// `[[buffer(index)]]` from the buffer's first byte.
+    Buffer(usize, &'a ProtocolObject<dyn MTLBuffer>),
+    /// `[[buffer(index)]]` from a byte offset.
+    BufferAt(usize, &'a ProtocolObject<dyn MTLBuffer>, usize),
+    /// `[[buffer(index)]]` as words that Metal copies into the command.
+    Words(usize, &'a [u64]),
+    /// `[[threadgroup(index)]]` memory of a byte length.
+    Threadgroup(usize, usize),
+}
+
+/// The threads of one dispatch.
+#[derive(Clone, Copy)]
+enum Grid {
+    /// Exactly this many threads, in threadgroups of the pipeline's width
+    /// (at most 256).
+    Threads(usize),
+    /// Whole threadgroups.
+    Groups { groups: usize, threads: usize },
+}
+
 #[derive(Default)]
 struct ActivityCounters {
     command_buffers: AtomicU64,
@@ -272,36 +299,75 @@ impl MetalSession {
         Ok(command)
     }
 
-    fn dispatch(
+    /// Bind `args` and dispatch `pipeline` over `grid`. This is the only
+    /// place that binds kernel arguments.
+    fn launch(
         &self,
         encoder: &ProtocolObject<dyn MTLComputeCommandEncoder>,
         pipeline: &ProtocolObject<dyn MTLComputePipelineState>,
-        elements: usize,
+        args: &[Arg<'_>],
+        grid: Grid,
     ) {
+        let slot = |index: usize| {
+            assert!(
+                index < ARGUMENT_SLOTS,
+                "Metal argument index {index} is outside the table"
+            );
+            index
+        };
+        encoder.setComputePipelineState(pipeline);
+        for &arg in args {
+            // SAFETY: `slot` asserts that each index is inside the kernel's
+            // argument table, and a `BufferAt` offset is asserted to be inside
+            // its buffer. `words` is a live slice of `size_of_val(words)`
+            // bytes, and Metal copies it before `setBytes` returns. A bound
+            // buffer lives until its command completes: the command buffer
+            // (from `commandBuffer`) retains it, and every caller commits and
+            // waits (`finish`) before it returns. The session is not `Sync`,
+            // so no host code reads or writes `contents()` while a kernel
+            // runs, and Metal's default hazard tracking orders the dispatches
+            // that share a buffer. Each caller owns the rest. For `grid` and
+            // the shape words that it binds, the kernel reads and writes only
+            // inside the bound buffers (from their offsets) and inside the
+            // buffers that the caller made resident with `useResource`. The
+            // kernel reads each slot as the element type that the caller
+            // stored there, at an offset aligned to that type. A `Threadgroup`
+            // length is a multiple of 16 bytes that fits beside the
+            // pipeline's static threadgroup memory.
+            unsafe {
+                match arg {
+                    Arg::Buffer(index, buffer) => encoder.setBuffer_offset_atIndex(Some(buffer), 0, slot(index)),
+                    Arg::BufferAt(index, buffer, offset) => {
+                        assert!(
+                            offset < buffer.length(),
+                            "Metal buffer offset {offset} is outside the buffer"
+                        );
+                        encoder.setBuffer_offset_atIndex(Some(buffer), offset, slot(index));
+                    }
+                    Arg::Words(index, words) => encoder.setBytes_length_atIndex(
+                        std::ptr::NonNull::from(words).cast(),
+                        size_of_val(words),
+                        slot(index),
+                    ),
+                    Arg::Threadgroup(index, bytes) => encoder.setThreadgroupMemoryLength_atIndex(bytes, slot(index)),
+                }
+            }
+        }
         self.activity.dispatches.fetch_add(1, Ordering::Relaxed);
-        dispatch(encoder, pipeline, elements);
-    }
-
-    fn dispatch_threadgroups(
-        &self,
-        encoder: &ProtocolObject<dyn MTLComputeCommandEncoder>,
-        _pipeline: &ProtocolObject<dyn MTLComputePipelineState>,
-        groups: usize,
-        threads: usize,
-    ) {
-        self.activity.dispatches.fetch_add(1, Ordering::Relaxed);
-        encoder.dispatchThreadgroups_threadsPerThreadgroup(
-            MTLSize {
-                width: groups,
-                height: 1,
-                depth: 1,
-            },
-            MTLSize {
-                width: threads,
-                height: 1,
-                depth: 1,
-            },
-        );
+        let line = |width| MTLSize {
+            width,
+            height: 1,
+            depth: 1,
+        };
+        match grid {
+            Grid::Threads(threads) => encoder.dispatchThreads_threadsPerThreadgroup(
+                line(threads),
+                line(pipeline.maxTotalThreadsPerThreadgroup().clamp(1, 256)),
+            ),
+            Grid::Groups { groups, threads } => {
+                encoder.dispatchThreadgroups_threadsPerThreadgroup(line(groups), line(threads))
+            }
+        }
     }
 
     fn write_shared<T: Copy>(&self, buffer: &ProtocolObject<dyn MTLBuffer>, values: &[T]) -> Result<(), MetalError> {
@@ -367,26 +433,6 @@ impl MetalSession {
 #[cfg(test)]
 #[path = "../tests/unit/buffer_limit.rs"]
 mod buffer_limit_tests;
-
-fn dispatch(
-    encoder: &ProtocolObject<dyn MTLComputeCommandEncoder>,
-    pipeline: &ProtocolObject<dyn MTLComputePipelineState>,
-    elements: usize,
-) {
-    let width = pipeline.maxTotalThreadsPerThreadgroup().clamp(1, 256);
-    encoder.dispatchThreads_threadsPerThreadgroup(
-        MTLSize {
-            width: elements,
-            height: 1,
-            depth: 1,
-        },
-        MTLSize {
-            width,
-            height: 1,
-            depth: 1,
-        },
-    );
-}
 
 /// Uploads `values` before the session exists, so outside its memory limit
 /// and activity counters.

@@ -66,7 +66,7 @@ fn records(variable: usize, recipe_variable: usize) -> Arc<ApplicationRecords> {
             [
                 term(ApplicationForm::A, 0, 1),
                 term(ApplicationForm::A, variable, 3),
-                term(ApplicationForm::A, 0, super::super::GOLDILOCKS_MODULUS - 1),
+                term(ApplicationForm::A, 0, Goldilocks::ORDER_U64 - 1),
                 term(ApplicationForm::C, 9, 1),
             ],
         )
@@ -108,7 +108,7 @@ fn sealed_native_rows_preserve_raw_terms_and_map_bounded_runtime_coefficients() 
         .unwrap();
     assert_eq!(flow, ControlFlow::Continue(()));
     assert_eq!(original[0], (0, 0, 1));
-    assert_eq!(original[2], (0, 0, super::super::GOLDILOCKS_MODULUS - 1));
+    assert_eq!(original[2], (0, 0, Goldilocks::ORDER_U64 - 1));
     let row = application.assertion(0).unwrap();
     assert_eq!(row.row_index, 2);
     assert_eq!(row.a.terms.len(), 1);

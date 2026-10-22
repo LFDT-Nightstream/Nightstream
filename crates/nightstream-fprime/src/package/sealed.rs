@@ -21,9 +21,9 @@ use super::matrix_program::{MatrixProgram, MatrixRun, RowForms, MEANINGFUL_PORTS
 use super::native_application::PreparedApplication;
 use super::wire::RawPackage;
 use super::{
-    relation_identifier, Layout, LoadedAssignmentPlan, LoadedPackage, LoadedTerminalLayout, LogicalAssignment,
-    PackageError, PackageR1cs, PiCcsV1_2EncodedInputs, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs,
-    PiDecV1_2PackageInputs, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS,
+    relation_identifier, word_to_usize, Layout, LoadedAssignmentPlan, LoadedPackage, LoadedTerminalLayout,
+    LogicalAssignment, PackageError, PackageR1cs, PiCcsV1_2EncodedInputs, PiCcsV1_2OutputEvaluations,
+    PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS,
 };
 use crate::application_records::{ApplicationRecords, PrivateSnapshot};
 use crate::identity::{
@@ -992,10 +992,6 @@ fn validate_next_preimage_assertion_suffix(
         return Err(PackageError::Invalid("next preimage package suffix"));
     }
     Ok(())
-}
-
-fn word_to_usize(value: u64, location: &'static str) -> Result<usize, PackageError> {
-    usize::try_from(value).map_err(|_| PackageError::Invalid(location))
 }
 
 #[cfg(test)]

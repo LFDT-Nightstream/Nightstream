@@ -3,6 +3,8 @@ use crate::application_records::{
     ApplicationForm, ApplicationRecipeNode, ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm,
 };
 use crate::package::load_prepared_application_records;
+use p3_field::PrimeField64;
+use p3_goldilocks::Goldilocks;
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
@@ -163,7 +165,7 @@ fn prepared_loading_keeps_cached_identity_components_non_authoritative() {
     let (original, encoded) = fixture();
     let mut changed = encoded.clone();
     let start = MAGIC.len() + size_of::<u64>();
-    let replacement = (original.structural_identifier()[0] + 1) % GOLDILOCKS_MODULUS;
+    let replacement = (original.structural_identifier()[0] + 1) % Goldilocks::ORDER_U64;
     changed[start..start + 8].copy_from_slice(&replacement.to_le_bytes());
     let loaded = load_prepared_package(changed.as_slice()).unwrap();
     assert_eq!(loaded.structural_identifier()[0], replacement);
@@ -188,7 +190,7 @@ fn prepared_loading_rejects_bad_framing_fields_and_cached_word_count() {
     ));
     let mut bad = encoded.clone();
     let start = MAGIC.len() + size_of::<u64>();
-    bad[start..start + 8].copy_from_slice(&GOLDILOCKS_MODULUS.to_le_bytes());
+    bad[start..start + 8].copy_from_slice(&Goldilocks::ORDER_U64.to_le_bytes());
     assert!(matches!(
         load_prepared_package(bad.as_slice()),
         Err(PackageError::NonCanonicalField { .. })

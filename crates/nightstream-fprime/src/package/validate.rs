@@ -6,7 +6,7 @@
 
 use std::sync::Arc;
 
-use p3_field::PrimeCharacteristicRing;
+use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
@@ -20,7 +20,7 @@ use super::{
     canonical_field, checked_end, compact, relation, sealed, v1_2, word_to_usize, ColumnRef, HashChain, Layout,
     LoadedPackage, LoadedTerminalLayout, PackageError, PermutationInvocation, PermutationTemplate, Segment,
     TemplateCombination, TemplateRow, TemplateTerm, DECOMPOSITION_BASE, DECOMPOSITION_K_RHO, DECOMPOSITION_NORM_BOUND,
-    GOLDILOCKS_MODULUS, MAX_JOINT_DOMAIN, PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT,
+    MAX_JOINT_DOMAIN, PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT,
     PI_DEC_V1_2_CHILD_COUNT,
 };
 use crate::sparse::{SparseCombination, SparseRow, SparseTerm, WitnessInstruction};
@@ -230,7 +230,7 @@ pub(super) fn validate_profile(raw: RawProfile) -> Result<(), PackageError> {
         matrices,
         cube,
     ) != (
-        GOLDILOCKS_MODULUS,
+        Goldilocks::ORDER_U64,
         DECOMPOSITION_BASE,
         DECOMPOSITION_K_RHO as u64,
         DECOMPOSITION_NORM_BOUND,

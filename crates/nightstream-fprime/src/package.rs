@@ -12,7 +12,9 @@ use crate::WitnessAssignment;
 mod assignment_transport;
 pub use assignment_transport::{LoadedAssignmentPlan, LogicalAssignment};
 mod compact;
+pub(crate) mod json;
 use compact::{CompactRowInvocation, CompactRowTemplate};
+use json::{canonical_field, word_to_usize};
 mod matrix_program;
 pub use matrix_program::MatrixRun;
 pub(crate) mod native_application;
@@ -46,7 +48,6 @@ mod pi_ccs_v1_2_transcript;
 mod source_row;
 pub use pi_ccs_v1_2_transcript::{derive_pi_ccs_v1_2_transcript, PiCcsV1_2Transcript};
 
-pub(super) const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 const MAX_JOINT_DOMAIN_VARIABLES: u32 = 28;
 const MAX_JOINT_DOMAIN: usize = 1usize << MAX_JOINT_DOMAIN_VARIABLES;
 
@@ -622,18 +623,6 @@ fn scheduled_assignments(package: &LoadedPackage) -> Result<Vec<ScheduledAssignm
     }
     scheduled.sort_unstable_by_key(|witness| witness.target_start());
     Ok(scheduled)
-}
-
-fn canonical_field(value: u64, location: &'static str) -> Result<(), PackageError> {
-    if value >= GOLDILOCKS_MODULUS {
-        Err(PackageError::NonCanonicalField { location, value })
-    } else {
-        Ok(())
-    }
-}
-
-fn word_to_usize(value: u64, location: &'static str) -> Result<usize, PackageError> {
-    usize::try_from(value).map_err(|_| PackageError::Invalid(location))
 }
 
 fn checked_end(start: usize, length: usize) -> Result<usize, PackageError> {

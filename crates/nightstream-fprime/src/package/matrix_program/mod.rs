@@ -9,7 +9,8 @@ use rayon::prelude::*;
 use serde_json::Value;
 use std::ops::ControlFlow;
 
-use super::{PackageError, GOLDILOCKS_MODULUS};
+use super::json::{array, canonical_field, exact_array, usize_atom};
+use super::PackageError;
 
 const POSEIDON_WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 
@@ -958,34 +959,8 @@ pub(super) fn validate_form(form: &Form, logical_width: usize) -> Result<(), Pac
 }
 
 pub(super) fn field(value: u64, location: &'static str) -> Result<Goldilocks, PackageError> {
-    if value >= GOLDILOCKS_MODULUS {
-        return Err(PackageError::NonCanonicalField { location, value });
-    }
+    canonical_field(value, location)?;
     Ok(Goldilocks::from_u64(value))
-}
-
-pub(super) fn array<'a>(value: &'a Value, location: &'static str) -> Result<&'a [Value], PackageError> {
-    value
-        .as_array()
-        .map(Vec::as_slice)
-        .ok_or(PackageError::Invalid(location))
-}
-
-pub(super) fn exact_array<'a>(
-    value: &'a Value,
-    length: usize,
-    location: &'static str,
-) -> Result<&'a [Value], PackageError> {
-    let values = array(value, location)?;
-    if values.len() != length {
-        return Err(PackageError::Invalid(location));
-    }
-    Ok(values)
-}
-
-pub(super) fn usize_atom(value: &Value, location: &'static str) -> Result<usize, PackageError> {
-    let value = value.as_u64().ok_or(PackageError::Invalid(location))?;
-    usize::try_from(value).map_err(|_| PackageError::Invalid(location))
 }
 
 pub(super) fn field_atom(value: &Value, location: &'static str) -> Result<Goldilocks, PackageError> {

@@ -22,37 +22,19 @@ impl PreparedLifecycle {
         running: RunningInstance,
     ) -> Result<(RunningInstance, nifs::NifsProof), ProveError> {
         self.validate_prover_sources(&fresh, &running)?;
-        let params = &self.params;
         let mut transcript = Transcript::session();
         let rows = self.matrix_rows();
-        let workspace_bytes = self.matrix_workspace_bytes()?;
+        let context = self.fold_context(&rows)?;
         Ok(match &self.backend {
             #[cfg(feature = "metal")]
             Backend::Metal(device) => {
                 let mut device = crate::engine::metal::lock(device)?;
-                crate::engine::metal::prove(
-                    &mut device,
-                    &mut transcript,
-                    params,
-                    &self.structure,
-                    &rows,
-                    workspace_bytes,
-                    fresh,
-                    running,
-                )?
+                crate::engine::metal::prove(&mut device, &mut transcript, context, fresh, running)?
             }
-            Backend::Optimized => nifs::prove_owned_with_rows(
-                &mut transcript,
-                params,
-                &self.structure,
-                &rows,
-                workspace_bytes,
-                fresh,
-                running,
-            )?,
+            Backend::Optimized => nifs::prove_owned_with_rows(&mut transcript, context, fresh, running)?,
             Backend::PaperExact => paper_exact::prove(
                 &mut transcript,
-                params,
+                &self.params,
                 &self.structure,
                 &paper_exact::PackageRows(&self.package),
                 fresh,
@@ -60,10 +42,7 @@ impl PreparedLifecycle {
             )?,
             Backend::Crosscheck => crate::engine::crosscheck::prove(
                 &mut transcript,
-                params,
-                &self.structure,
-                &rows,
-                workspace_bytes,
+                context,
                 &paper_exact::PackageRows(&self.package),
                 fresh,
                 running,

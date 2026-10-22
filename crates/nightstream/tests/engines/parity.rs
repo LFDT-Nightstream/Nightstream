@@ -4,7 +4,7 @@ use super::{Backend, Engine, EngineError};
 use crate::folding::{
     self, ajtai_dec_mixer, ajtai_rlc_mixer,
     transcript::{Poseidon2TranscriptSnapshot, Transcript},
-    CcsClaim, CcsInstance, CcsWitness, NifsProof, Params, RunningInstance, Structure,
+    CcsClaim, CcsInstance, CcsWitness, FoldContext, NifsProof, Params, RunningInstance, Structure,
 };
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ccs::{poly::Term, Mat, SparsePoly};
@@ -60,13 +60,19 @@ struct Fixture {
 }
 
 impl Fixture {
-    fn workspace_bytes(&self, rows: &CachedMatrixRows<'_>) -> usize {
+    fn context<'a>(&'a self, rows: &'a CachedMatrixRows<'_>) -> FoldContext<'a> {
         let dims = build_joint_dims(self.params.inner(), &self.structure, 1, self.running.witnesses.len()).unwrap();
         let row_payload = self.structure.t() * size_of::<K>() + size_of::<F>() + size_of::<K>();
         let row_window = MatrixWindow::required_workspace(rows, 0..self.structure.n, row_payload).unwrap();
         let witnesses = (1 + self.running.witnesses.len()) * dims.assignment_width;
         let openings = self.params.k_rho() as usize * (self.structure.t() + 1) * D;
-        2 * row_window + (witnesses + openings + dims.degree + 1 + self.structure.t()) * size_of::<K>()
+        FoldContext {
+            params: &self.params,
+            structure: &self.structure,
+            rows,
+            workspace_bytes: 2 * row_window
+                + (witnesses + openings + dims.degree + 1 + self.structure.t()) * size_of::<K>(),
+        }
     }
 
     fn new(polynomial: SparsePoly<F>, matrices: Vec<Vec<Vec<(usize, F)>>>) -> Self {
@@ -193,17 +199,11 @@ struct Run {
 fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Error>> {
     let mut transcript = Transcript::session();
     let matrix_rows = CachedMatrixRows::new(&fixture.cache)?;
-    let workspace_bytes = fixture.workspace_bytes(&matrix_rows);
+    let context = fixture.context(&matrix_rows);
     let (running, proof) = match Backend::new(engine)? {
-        Backend::Optimized => folding::prove_owned_with_rows(
-            &mut transcript,
-            &fixture.params,
-            &fixture.structure,
-            &matrix_rows,
-            workspace_bytes,
-            fixture.fresh.clone(),
-            fixture.running.clone(),
-        )?,
+        Backend::Optimized => {
+            folding::prove_owned_with_rows(&mut transcript, context, fixture.fresh.clone(), fixture.running.clone())?
+        }
         Backend::PaperExact => super::paper_exact::prove(
             &mut transcript,
             &fixture.params,
@@ -220,10 +220,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
             };
             let result = super::crosscheck::prove(
                 &mut transcript,
-                &fixture.params,
-                &fixture.structure,
-                &matrix_rows,
-                workspace_bytes,
+                context,
                 &rows,
                 fixture.fresh.clone(),
                 fixture.running.clone(),
@@ -240,10 +237,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
             let result = super::metal::prove(
                 &mut device,
                 &mut transcript,
-                &fixture.params,
-                &fixture.structure,
-                &matrix_rows,
-                workspace_bytes,
+                context,
                 fixture.fresh.clone(),
                 fixture.running.clone(),
             )?;
@@ -361,18 +355,14 @@ fn crosscheck_rejects_different_rows_without_updating_the_transcript() {
     fixture.rows.matrices[0][0].clear();
     fixture.running = RunningInstance::canonical_zero(&fixture.params, &fixture.structure, D).unwrap();
     let matrix_rows = CachedMatrixRows::new(&fixture.cache).unwrap();
-    let workspace_bytes = fixture.workspace_bytes(&matrix_rows);
     let mut transcript = Transcript::session();
     let before = transcript.snapshot();
     let result = super::crosscheck::prove(
         &mut transcript,
-        &fixture.params,
-        &fixture.structure,
-        &matrix_rows,
-        workspace_bytes,
+        fixture.context(&matrix_rows),
         &fixture.rows,
-        fixture.fresh,
-        fixture.running,
+        fixture.fresh.clone(),
+        fixture.running.clone(),
     );
     assert!(matches!(result, Err(EngineError::CrosscheckMismatch { .. })));
     assert_eq!(transcript.snapshot(), before);
@@ -383,18 +373,14 @@ fn crosscheck_rejects_a_prover_error_without_updating_the_transcript() {
     let mut fixture = Fixture::bit();
     fixture.rows.matrices.clear();
     let matrix_rows = CachedMatrixRows::new(&fixture.cache).unwrap();
-    let workspace_bytes = fixture.workspace_bytes(&matrix_rows);
     let mut transcript = Transcript::session();
     let before = transcript.snapshot();
     let result = super::crosscheck::prove(
         &mut transcript,
-        &fixture.params,
-        &fixture.structure,
-        &matrix_rows,
-        workspace_bytes,
+        fixture.context(&matrix_rows),
         &fixture.rows,
-        fixture.fresh,
-        fixture.running,
+        fixture.fresh.clone(),
+        fixture.running.clone(),
     );
     assert!(matches!(
         result,
@@ -416,18 +402,14 @@ fn crosscheck_rejects_a_worker_panic_without_updating_the_transcript() {
     }
     let fixture = Fixture::bit();
     let matrix_rows = CachedMatrixRows::new(&fixture.cache).unwrap();
-    let workspace_bytes = fixture.workspace_bytes(&matrix_rows);
     let mut transcript = Transcript::session();
     let before = transcript.snapshot();
     let result = super::crosscheck::prove(
         &mut transcript,
-        &fixture.params,
-        &fixture.structure,
-        &matrix_rows,
-        workspace_bytes,
+        fixture.context(&matrix_rows),
         &PanickingRows,
-        fixture.fresh,
-        fixture.running,
+        fixture.fresh.clone(),
+        fixture.running.clone(),
     );
     assert!(matches!(
         result,

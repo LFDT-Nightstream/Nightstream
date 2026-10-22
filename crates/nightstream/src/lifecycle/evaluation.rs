@@ -3,6 +3,7 @@
 
 use super::PreparedLifecycle;
 use crate::engine::CPU_MEMORY_LIMIT_BYTES;
+use crate::folding::FoldContext;
 use neo_ccs::GeometricRowRun;
 use neo_math::{D, F};
 use neo_reductions::superneo_eval::{MatrixRowSink, MatrixRows, MatrixShape, RetainedMatrixWindow};
@@ -67,6 +68,16 @@ impl MatrixRows for PackageRows<'_> {
 impl PreparedLifecycle {
     pub(crate) fn matrix_rows(&self) -> PackageRows<'_> {
         PackageRows(&self.package, &self.matrix_window)
+    }
+
+    /// The engine inputs of this circuit over `rows`, its `matrix_rows()`.
+    pub(crate) fn fold_context<'a>(&'a self, rows: &'a PackageRows<'_>) -> Result<FoldContext<'a>, PackageError> {
+        Ok(FoldContext {
+            params: &self.params,
+            structure: &self.structure,
+            rows,
+            workspace_bytes: self.matrix_workspace_bytes()?,
+        })
     }
 
     /// A prover commits at every step, so a Metal prover keeps the commitment

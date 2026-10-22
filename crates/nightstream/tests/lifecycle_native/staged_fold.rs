@@ -234,16 +234,13 @@ pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine, cpu_referenc
     let source = load_sources(&package, &step_dir(root, step), step);
     let started = Instant::now();
     let rows = package.matrix_rows();
-    let workspace_bytes = package.matrix_workspace_bytes().unwrap();
+    let context = package.fold_context(&rows).unwrap();
     let mut transcript = Transcript::session();
     let proving = Instant::now();
     let proof = match engine {
         EvaluationEngine::Optimized => pi_ccs::prove_from_parts_with_rows(
             &mut transcript,
-            &params(&package),
-            &package.structure,
-            &rows,
-            workspace_bytes,
+            context,
             &source.fresh.claim,
             &source.fresh.witness,
             &source.running,
@@ -260,8 +257,8 @@ pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine, cpu_referenc
                 std::slice::from_ref(&source.fresh.witness),
                 &source.running.claims,
                 &source.running.witnesses,
-                &rows,
-                workspace_bytes,
+                context.rows,
+                context.workspace_bytes,
                 Some(&mut device),
             )
             .unwrap();

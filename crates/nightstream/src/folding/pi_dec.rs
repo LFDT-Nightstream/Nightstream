@@ -1,14 +1,14 @@
 //! Selected radix-two decomposition under the existing production key.
 use super::{
     ajtai_dec_mixer, has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape,
-    superneo_public_x_cols, CeClaim, DecMixer, Params, Structure,
+    superneo_public_x_cols, CeClaim, DecMixer, FoldContext, Params, Structure,
 };
 use neo_ajtai::nightstream_fprime_setup::{
     commit_production_signed_unit_prefix_matrices, MAX_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS,
 };
 use neo_ccs::Mat;
 use neo_math::{balanced::within_nc_bound, D, F};
-use neo_reductions::superneo_eval::{eval_real_v1_2_openings_from_rows, MatrixRows, MatrixShape, SuperneoZBlocks};
+use neo_reductions::superneo_eval::{eval_real_v1_2_openings_from_rows, MatrixShape, SuperneoZBlocks};
 use p3_field::PrimeField64;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -44,13 +44,16 @@ pub(crate) struct Proof {
     pub children: Vec<CeClaim>,
 }
 pub(crate) fn prove_with_production_key(
-    pp: &Params,
-    s: &Structure,
-    rows: &dyn MatrixRows,
-    workspace_bytes: usize,
+    context: FoldContext<'_>,
     parent: &CeClaim,
     parent_witness: Mat<F>,
 ) -> Result<(Children, Proof), Error> {
+    let FoldContext {
+        params: pp,
+        structure: s,
+        rows,
+        workspace_bytes,
+    } = context;
     let production = Params::production();
     let blocks = s.m.div_ceil(D);
     if pp.b() != production.b()

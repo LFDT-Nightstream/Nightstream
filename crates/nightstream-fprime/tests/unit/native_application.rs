@@ -294,47 +294,43 @@ fn native_records_reject_unmapped_terms_noncausal_recipes_and_dynamic_placeholde
 #[test]
 fn native_row_coverage_rejects_fixed_rows_inside_the_overlay() {
     let application = PreparedApplication::from_metadata(&metadata(), records(4, 4)).unwrap();
-    let permutation = PermutationTemplate {
-        input_count: 0,
-        local_column_count: 0,
-        output_local_start: 0,
-        rows: Vec::new(),
-    };
+    let relation = super::super::relation::validate(
+        serde_json::from_value(json!([5, 1, 28, [0, 1, 2, 3], 2, [[1, [1, 0, 0, 0]]]])).unwrap(),
+    )
+    .unwrap();
     let empty = SparseCombination {
         constant: Goldilocks::ZERO,
         terms: Vec::new(),
     };
-    let mut fixed = [0, 1, 4].map(|row_index| SparseRow {
-        row_index,
-        a: empty.clone(),
-        b: empty.clone(),
-        c: empty.clone(),
-    });
-    super::super::validate_row_coverage(
-        &layout(),
-        &permutation,
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        &fixed,
-        Some(&application),
-    )
-    .unwrap();
-    fixed[2].row_index = 2;
-    assert!(super::super::validate_row_coverage(
-        &layout(),
-        &permutation,
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        &fixed,
-        Some(&application)
-    )
-    .is_err());
+    let mut package = LoadedPackage {
+        layout: layout(),
+        relation,
+        terminal: None,
+        permutation: PermutationTemplate {
+            input_count: 0,
+            local_column_count: 0,
+            output_local_start: 0,
+            rows: Vec::new(),
+        },
+        hash_chains: Vec::new(),
+        permutation_invocations: Vec::new(),
+        compact_templates: Vec::new(),
+        compact_invocations: Vec::new(),
+        witness_batches: Vec::new(),
+        witness_instructions: Vec::new(),
+        assertion_rows: [0, 1, 4]
+            .map(|row_index| SparseRow {
+                row_index,
+                a: empty.clone(),
+                b: empty.clone(),
+                c: empty.clone(),
+            })
+            .to_vec(),
+        native_application: Some(Arc::new(application)),
+    };
+    super::super::validate::validate_row_coverage(&package).unwrap();
+    package.assertion_rows[2].row_index = 2;
+    assert!(super::super::validate::validate_row_coverage(&package).is_err());
 }
 
 #[test]

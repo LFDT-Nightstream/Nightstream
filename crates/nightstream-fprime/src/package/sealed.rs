@@ -19,10 +19,11 @@ use serde_json::Value;
 use super::assignment_transport;
 use super::matrix_program::{MatrixProgram, MatrixRun, RowForms, MEANINGFUL_PORTS};
 use super::native_application::PreparedApplication;
+use super::wire::RawPackage;
 use super::{
     relation_identifier, Layout, LoadedAssignmentPlan, LoadedPackage, LoadedTerminalLayout, LogicalAssignment,
     PackageError, PackageR1cs, PiCcsV1_2EncodedInputs, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs,
-    PiDecV1_2PackageInputs, RawPackage, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS,
+    PiDecV1_2PackageInputs, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS,
 };
 use crate::application_records::{ApplicationRecords, PrivateSnapshot};
 use crate::identity::{
@@ -624,7 +625,7 @@ fn decode_sealed(
             .get(4)
             .ok_or(PackageError::Invalid("sealed relation authority"))?,
     )?;
-    let circuit = super::validate_package(raw_circuit, native_application.cloned())?;
+    let circuit = super::validate::validate_package(raw_circuit, native_application.cloned())?;
     let matrix_program = MatrixProgram::decode(&raw_matrix)?;
     matrix_program.validate(circuit.layout.row_count)?;
     if matrix_program.row_count()? != circuit.relation.row_count() {
@@ -673,9 +674,9 @@ pub(super) fn prepared_record_counts(fixed: &Value) -> Result<(usize, usize), Pa
         .as_array()
         .filter(|values| values.len() == 14 && values[0].as_u64() == Some(INNER_PACKAGE_SCHEMA))
         .ok_or(PackageError::Invalid("prepared source package"))?;
-    super::validate_profile(Deserialize::deserialize(&source[1])?)?;
-    super::validate_poseidon(Deserialize::deserialize(&source[2])?)?;
-    let layout = super::validate_layout(Deserialize::deserialize(&source[3])?)?;
+    super::validate::validate_profile(Deserialize::deserialize(&source[1])?)?;
+    super::validate::validate_poseidon(Deserialize::deserialize(&source[2])?)?;
+    let layout = super::validate::validate_layout(Deserialize::deserialize(&source[3])?)?;
     let application = decode_native_application_plan(&envelope[3])?;
     let witness = layout
         .private_segments

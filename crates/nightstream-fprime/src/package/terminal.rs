@@ -10,7 +10,8 @@ use super::v1_2::{
     PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
     PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COUNT,
 };
-use super::{decode_components, owned_witness_intervals, witness_segments, LoadedPackage, PackageError};
+use super::validate::{decode_components, owned_witness_intervals, witness_segments};
+use super::{LoadedPackage, PackageError};
 use crate::identity::relation_identifier;
 
 const ARTIFACT_SCHEMA: u64 = 1;

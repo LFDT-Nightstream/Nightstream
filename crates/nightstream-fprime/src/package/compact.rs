@@ -9,10 +9,9 @@ use p3_goldilocks::Goldilocks;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use super::{
-    checked_end, validate_template_combination, word_to_usize, ColumnRef, Layout, PackageError, RawTemplateCombination,
-    TemplateCombination,
-};
+use super::validate::validate_template_combination;
+use super::wire::RawTemplateCombination;
+use super::{checked_end, word_to_usize, ColumnRef, Layout, PackageError, TemplateCombination};
 use crate::witness::{decode_template_expr, WitnessExpr};
 
 #[cfg(test)]

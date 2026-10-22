@@ -6,10 +6,14 @@ use crate::folding::{
     self, ajtai_dec_mixer, ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsClaim, CcsInstance,
     CcsWitness, FoldContext, NifsProof, RunningInstance,
 };
+use crate::lifecycle::VerifyError;
 use neo_ajtai::{scale_commitment_add_inplace, Commitment};
-use neo_math::{D, F};
+use neo_ccs::Mat;
+use neo_math::{D, F, K};
 use neo_prover_metal::MetalRowProver;
-use neo_reductions::optimized_engine::optimized_prove_with_matrix_rows;
+use neo_reductions::{
+    optimized_engine::optimized_prove_with_matrix_rows, superneo_eval::TerminalEvaluations, PiCcsError,
+};
 use p3_field::PrimeCharacteristicRing;
 
 use super::{Engine, EngineError};
@@ -123,6 +127,34 @@ pub(crate) fn prove_parent(
         &sources,
     )?;
     Ok((c, parent, r))
+}
+
+/// Terminal openings on the device. A device failure judges nothing, so it
+/// is an engine error. A shape error from the device is a rejection of the
+/// proof.
+pub(crate) fn evaluate_terminal_rows(
+    device: &std::sync::Mutex<MetalRowProver>,
+    context: FoldContext<'_>,
+    running: &[Mat<F>],
+    point: &[K],
+    fresh: &Mat<F>,
+) -> Result<TerminalEvaluations, VerifyError> {
+    lock(device)?
+        .evaluate_terminal_rows(
+            context.rows,
+            context.workspace_bytes,
+            context.structure,
+            running,
+            point,
+            fresh,
+        )
+        .map_err(|error| match error {
+            PiCcsError::BackendFailure { reason, .. } => VerifyError::Engine(EngineError::Failure {
+                engine: Engine::Metal,
+                reason,
+            }),
+            error => VerifyError::Device(error),
+        })
 }
 
 /// PiCCS with its round oracle on the device.

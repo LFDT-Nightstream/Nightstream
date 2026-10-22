@@ -8,7 +8,7 @@ use neo_ajtai::{nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS, Commitment};
 use neo_math::{D, F, K};
 use neo_reductions::{
     common::{project_x_from_witness_mat, validate_fresh_witness_tail_zero},
-    superneo_eval::{evaluate_terminal_rows, SuperneoCachedRelationError, SuperneoZBlocks},
+    superneo_eval::SuperneoCachedRelationError,
     PiCcsError,
 };
 use nightstream_fprime::{PackageError, PI_CCS_V1_2_ROUND_COUNT, PI_DEC_V1_2_CHILD_COUNT};
@@ -176,37 +176,12 @@ impl PreparedLifecycle {
         }
 
         let rows = self.matrix_rows();
-        let workspace_bytes = self.matrix_workspace_bytes()?;
-        let evaluated = match &self.backend {
-            #[cfg(feature = "metal")]
-            crate::engine::Backend::Metal(device) => crate::engine::metal::lock(device)?
-                .evaluate_terminal_rows(
-                    &rows,
-                    workspace_bytes,
-                    &self.structure,
-                    &running.witnesses,
-                    point,
-                    &fresh.witness.Z,
-                )
-                .map_err(device_error)?,
-            _ => {
-                let blocks = running
-                    .witnesses
-                    .iter()
-                    .enumerate()
-                    .map(|(index, witness)| {
-                        SuperneoZBlocks::from_witness_mat(witness, self.structure.m).map_err(|_| VerifyError::Running {
-                            index,
-                            reason: "complete witness block conversion",
-                        })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let fresh_blocks = SuperneoZBlocks::from_witness_mat(&fresh.witness.Z, self.structure.m)
-                    .map_err(|_| VerifyError::Fresh("complete witness block conversion"))?;
-                evaluate_terminal_rows(&rows, point, &blocks, &self.structure.f, &fresh_blocks, workspace_bytes)
-                    .map_err(VerifyError::RunningOpenings)?
-            }
-        };
+        let evaluated = self.backend.evaluate_terminal_rows(
+            self.fold_context(&rows)?,
+            &running.witnesses,
+            point,
+            &fresh.witness.Z,
+        )?;
         if let Some(row) = evaluated.first_unsatisfied_row {
             return Err(VerifyError::FreshRelation(
                 SuperneoCachedRelationError::UnsatisfiedRow { row },
@@ -238,19 +213,6 @@ impl PreparedLifecycle {
             }
         }
         Ok(())
-    }
-}
-
-/// A device failure judges nothing, so it is an engine error. A shape error
-/// from the device is a rejection of the proof.
-#[cfg(feature = "metal")]
-fn device_error(error: PiCcsError) -> VerifyError {
-    match error {
-        PiCcsError::BackendFailure { reason, .. } => VerifyError::Engine(crate::engine::EngineError::Failure {
-            engine: crate::Engine::Metal,
-            reason,
-        }),
-        error => VerifyError::Device(error),
     }
 }
 

@@ -245,7 +245,8 @@ fn padded_row_identity_raw_verify_rejects_noncanonical_extra_output_x_column() {
 fn raw_pi_ccs_rejects_fresh_count_above_parameter_profile() {
     let label = b"test/padded_row_identity/redteam/fresh_count_policy";
     let (params, s, claim, witness, mut tr_p) = build_fixture(label, 4, D);
-    let count = neo_params::goldilocks_paper_b2::MAX_FRESH_K as usize + 1;
+    let cap = params.max_fresh_count_from_rlc_guard().expect("guard") as usize;
+    let count = cap + 1;
     let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, claim.m_in);
     let claims = vec![claim; count];
     let witnesses = vec![witness; count];
@@ -268,7 +269,7 @@ fn raw_pi_ccs_rejects_fresh_count_above_parameter_profile() {
         error.contains(&format!("fresh source count {count} exceeds")),
         "raw Pi_CCS accepted {} fresh claims under a profile capped at {}: {error}",
         count,
-        neo_params::goldilocks_paper_b2::MAX_FRESH_K
+        cap
     );
 }
 

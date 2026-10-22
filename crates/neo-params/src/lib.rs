@@ -52,7 +52,6 @@ pub mod goldilocks_paper_b2 {
     pub const T: u32 = 216;
     pub const EXTENSION_DEGREE: u32 = 2;
     pub const LAMBDA: u32 = 125;
-    pub const MAX_FRESH_K: u32 = 61;
     pub const B_INV_FLOOR: u64 = 2_500_000_000;
     pub const CHALLENGE_SET_CARDINALITY: u128 = 55_511_151_231_257_827_021_181_583_404_541_015_625;
     pub static PHI_COEFFS: [i32; D] = {

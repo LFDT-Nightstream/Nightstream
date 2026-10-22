@@ -80,7 +80,7 @@ pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiCcsV1_2VerifierContext {
-    package_identity: [u64; 4],
+    structural_identifier: [u64; 4],
     relation_words: Vec<u64>,
     application: ApplicationIdentity,
     nifs_key_words: Vec<u64>,
@@ -119,7 +119,7 @@ impl PiCcsV1_2VerifierContext {
     }
 
     pub(crate) fn structural_identifier(&self) -> [u64; 4] {
-        self.package_identity
+        self.structural_identifier
     }
 }
 
@@ -230,7 +230,7 @@ pub(super) fn stage1_verifier_binding(
     let digest = poseidon_words(&descriptor_words);
 
     let verifier_context = PiCcsV1_2VerifierContext {
-        package_identity: structural_identifier,
+        structural_identifier,
         relation_words,
         application: application.clone(),
         nifs_key_words,

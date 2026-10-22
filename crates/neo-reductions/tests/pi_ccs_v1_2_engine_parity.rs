@@ -11,11 +11,11 @@ use neo_params::NeoParams;
 use neo_reductions::api::{dec_children_with_commit, rlc_with_commit, DecOutcome, FoldingMode};
 use neo_reductions::engines::crosscheck_engine::{crosscheck_prove, crosscheck_verify};
 use neo_reductions::engines::paper_exact_engine::paper_joint::PaperJointOracle;
+use neo_reductions::engines::paper_exact_engine::{paper_exact_prove, paper_exact_verify};
 use neo_reductions::engines::pi_ccs_joint::{
     build_joint_dims, eval_a_gamma_exponent, eval_k_gamma_exponent, gamma_power, TraceEvent,
 };
 use neo_reductions::engines::pi_ccs_protocol::Challenges;
-use neo_reductions::engines::{CrossCheckEngine, OptimizedEngine, PaperExactEngine, PiCcsEngine};
 use neo_reductions::optimized_engine::canonical_audit::OptimizedPaperJointOracle;
 use neo_reductions::optimized_engine::{optimized_verify_with_trace, OptimizedStructureCache, PaperJointRoundOracle};
 use neo_reductions::sumcheck::RoundOracle;
@@ -135,7 +135,16 @@ fn mode_prove(
     log: &AjtaiSModule,
 ) -> Result<(Vec<Output>, PiCcsProof), PiCcsError> {
     match mode {
-        FoldingMode::Optimized => OptimizedEngine.prove(
+        FoldingMode::Optimized => neo_reductions::pi_ccs_prove(
+            transcript,
+            params,
+            structure,
+            claims,
+            witnesses,
+            running,
+            running_witnesses,
+        ),
+        FoldingMode::PaperExact => paper_exact_prove(
             transcript,
             params,
             structure,
@@ -145,17 +154,7 @@ fn mode_prove(
             running_witnesses,
             log,
         ),
-        FoldingMode::PaperExact => PaperExactEngine.prove(
-            transcript,
-            params,
-            structure,
-            claims,
-            witnesses,
-            running,
-            running_witnesses,
-            log,
-        ),
-        FoldingMode::OptimizedWithCrosscheck => crosscheck().prove(
+        FoldingMode::OptimizedWithCrosscheck => crosscheck_prove(
             transcript,
             params,
             structure,
@@ -181,21 +180,12 @@ fn mode_verify(
 ) -> Result<bool, PiCcsError> {
     match mode {
         FoldingMode::Optimized => {
-            OptimizedEngine.verify(transcript, params, structure, claims, running, outputs, proof)
+            neo_reductions::pi_ccs_verify(transcript, params, structure, claims, running, outputs, proof)
         }
-        FoldingMode::PaperExact => {
-            PaperExactEngine.verify(transcript, params, structure, claims, running, outputs, proof)
-        }
+        FoldingMode::PaperExact => paper_exact_verify(transcript, params, structure, claims, running, outputs, proof),
         FoldingMode::OptimizedWithCrosscheck => {
-            crosscheck().verify(transcript, params, structure, claims, running, outputs, proof)
+            crosscheck_verify(transcript, params, structure, claims, running, outputs, proof)
         }
-    }
-}
-
-fn crosscheck() -> CrossCheckEngine<OptimizedEngine, PaperExactEngine> {
-    CrossCheckEngine {
-        inner: OptimizedEngine,
-        ref_oracle: PaperExactEngine,
     }
 }
 
@@ -464,8 +454,6 @@ fn v1_2_transcript_matches_the_independent_reference() {
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, claim.m_in);
     let label = b"pi-ccs/v1_2/crosscheck";
     let (outputs, proof) = crosscheck_prove(
-        &(),
-        &(),
         &mut Poseidon2Transcript::new(label),
         &params,
         &structure,
@@ -477,8 +465,6 @@ fn v1_2_transcript_matches_the_independent_reference() {
     )
     .expect("v1_2 transcript crosscheck proof");
     assert!(crosscheck_verify(
-        &(),
-        &(),
         &mut Poseidon2Transcript::new(label),
         &params,
         &structure,
@@ -527,8 +513,6 @@ fn prior_digest_comes_from_the_fresh_public_input() {
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, public);
     let label = b"pi-ccs/v1_2/prior-digest";
     let (outputs, proof) = crosscheck_prove(
-        &(),
-        &(),
         &mut Poseidon2Transcript::new(label),
         &params,
         &structure,
@@ -543,8 +527,6 @@ fn prior_digest_comes_from_the_fresh_public_input() {
     let mut reframed = running.clone();
     reframed[0].fold_digest = [7; 32];
     assert!(crosscheck_verify(
-        &(),
-        &(),
         &mut Poseidon2Transcript::new(label),
         &params,
         &structure,

@@ -23,28 +23,15 @@ neo-ccs = { path = "../neo-ccs" }
 neo-params = { path = "../neo-params" }
 neo-transcript = { path = "../neo-transcript" }
 p3-field = { workspace = true }
-p3-matrix = { workspace = true }
-p3-challenger = { workspace = true }
-p3-poseidon2 = { workspace = true }
 p3-goldilocks = { workspace = true }
 p3-symmetric = { workspace = true }
-rand = { workspace = true }
 rand_chacha_p3 = { workspace = true }
 thiserror = { workspace = true }
-bincode = { workspace = true }
 serde = { workspace = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-rayon = { workspace = true }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
 rayon = { workspace = true }
 
 [dev-dependencies]
-criterion = { workspace = true }
-rand = { workspace = true }
 rand_chacha = { workspace = true }
-proptest = { workspace = true }
 p3-goldilocks = { workspace = true }
 p3-field = { workspace = true }
 serde = { workspace = true }

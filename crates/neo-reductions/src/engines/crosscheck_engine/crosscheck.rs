@@ -48,15 +48,7 @@ fn checkpoint(transcript: &Poseidon2Transcript) -> [u8; 32] {
     transcript.clone().digest32()
 }
 
-#[derive(Clone, Debug)]
-pub struct CrossCheckEngine<I, R> {
-    pub inner: I,
-    pub ref_oracle: R,
-}
-
-pub fn crosscheck_prove<I, R, L>(
-    _inner: &I,
-    _reference: &R,
+pub fn crosscheck_prove<L>(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,
@@ -143,9 +135,7 @@ where
     Ok((optimized_outputs, optimized_proof))
 }
 
-pub fn crosscheck_verify<I, R>(
-    _inner: &I,
-    _reference: &R,
+pub fn crosscheck_verify(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,

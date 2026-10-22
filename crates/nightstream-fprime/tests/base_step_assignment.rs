@@ -9,7 +9,8 @@ use std::{fs, path::PathBuf, time::Instant};
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ccs::{crypto::poseidon2_goldilocks::poseidon2_hash, Mat};
 use nightstream_fprime::{
-    derive_pi_ccs_v1_2_transcript, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, WitnessAssignment,
+    derive_pi_ccs_v1_2_transcript, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage,
+    StructuralIdentifier, WitnessAssignment,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -222,8 +223,11 @@ fn external_pi_rlc_value_wiring_rejects_detached_values() {
         .expect("external paths");
     let inputs: Inputs = serde_json::from_str(&input).expect("external assignment inputs");
     let sealed = fs::read(inputs.package).expect("candidate package");
-    let package = nightstream_fprime::load_per_application_package(&sealed, inputs.structural_identity)
-        .expect("selected candidate identity");
+    let package = nightstream_fprime::load_per_application_package(
+        &sealed,
+        StructuralIdentifier::from_words(inputs.structural_identity),
+    )
+    .expect("selected candidate identity");
     let Fixture(schema, context, private, public, _) =
         serde_json::from_slice(&fs::read(inputs.caller_fixture).expect("nonzero caller fixture"))
             .expect("caller fixture schema");

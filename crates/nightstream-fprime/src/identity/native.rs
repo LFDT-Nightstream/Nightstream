@@ -13,14 +13,16 @@ const RECIPE_BATCH_HEADER_WORDS: usize = 16;
 pub(crate) fn native_relation_identifier(
     fixed: &Value,
     application: &PreparedApplication,
-) -> Result<[u64; 4], PackageError> {
+) -> Result<StructuralIdentifier, PackageError> {
     let mut input = poseidon2::Poseidon2Hasher::default();
     update_words(&mut input, &IDENTITY_DOMAIN);
     visit_native_preimage_words(fixed, application, &mut |words| {
         update_words(&mut input, words);
         Ok(())
     })?;
-    Ok(input.finalize().map(|value| value.as_canonical_u64()))
+    Ok(StructuralIdentifier(
+        input.finalize().map(|value| value.as_canonical_u64()),
+    ))
 }
 
 pub(crate) fn native_application_identity(

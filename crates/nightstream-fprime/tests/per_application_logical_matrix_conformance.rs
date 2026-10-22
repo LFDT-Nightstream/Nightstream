@@ -8,7 +8,7 @@ use std::{fs, path::PathBuf};
 
 use nightstream_fprime::{
     load_per_application_package, load_poseidon2_hash_chain_v1_package, CcsMatrixSource, IdentityKind,
-    LoadedPerApplicationPackage, LogicalMatrixRow, PackageError, PI_CCS_V1_2_MATRIX_COUNT,
+    LoadedPerApplicationPackage, LogicalMatrixRow, PackageError, StructuralIdentifier, PI_CCS_V1_2_MATRIX_COUNT,
     POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
 };
 use rayon::prelude::*;
@@ -117,7 +117,7 @@ fn assert_independent_decode_then_identity_rejection(
     label: &str,
     package: &Value,
     artifact: &Artifact,
-    expected_identity: [u64; 4],
+    expected_identity: StructuralIdentifier,
     expected_row: (usize, &RowForms),
 ) {
     let changed = MatrixProgram::decode(
@@ -142,7 +142,7 @@ fn assert_independent_decode_then_identity_rejection(
             expected,
             computed,
         }) => {
-            assert_eq!(expected, expected_identity);
+            assert_eq!(expected, expected_identity.words());
             assert_ne!(computed, expected, "{label} did not change the structural identity");
         }
         Err(error) => panic!("{label} failed for a reason other than the selected structural identity: {error}"),

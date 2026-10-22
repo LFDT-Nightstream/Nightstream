@@ -271,7 +271,7 @@ struct Sources {
 fn load_claims(package: &PreparedLifecycle, directory: &Path, step: u64) -> (Stage1State, CcsClaim, RunningInstance) {
     let saved: SavedEnvelope = load(&directory.join("envelope.json"));
     assert_eq!(saved.schema, 1);
-    assert_eq!(saved.package_identity, package.package_identity());
+    assert_eq!(saved.package_identity, package.package_identity().words());
     assert_eq!(saved.child_witness_count, 16);
     assert_eq!(saved.running_claims.len(), 16);
     let state = Stage1State::new(saved.iteration, saved.z0.map(field), saved.current.map(field));
@@ -340,7 +340,7 @@ fn save_envelope(
         &directory.join("envelope.json"),
         &SavedEnvelope {
             schema: 1,
-            package_identity: package.package_identity(),
+            package_identity: package.package_identity().words(),
             iteration: state.iteration(),
             z0: state.z0().map(|value| value.as_canonical_u64()),
             current: state.current().map(|value| value.as_canonical_u64()),
@@ -395,7 +395,7 @@ fn sources(root: &Path, step: u64, engine: EvaluationEngine) {
         );
     }
     let receipt = destination.join("sources-checked.json");
-    let checked = json!({"schema":1,"package_identity":package.package_identity(),"step":step});
+    let checked = json!({"schema":1,"package_identity":package.package_identity().words(),"step":step});
     if receipt.exists() {
         assert_eq!(load::<Value>(&receipt), checked);
     } else {

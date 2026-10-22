@@ -120,12 +120,16 @@ pub(super) fn check_saved(package_path: &Path, actual: &Value, reference: &Value
     let package_bytes = fs::read(package_path).expect("selected package");
     let package = nightstream_fprime::load_poseidon2_hash_chain_v1_package(&package_bytes)
         .expect("verifier-owned selected package");
-    assert_eq!(json!(package.structural_identifier()), actual["structural_identifier"]);
+    assert_eq!(
+        json!(package.structural_identifier().words()),
+        actual["structural_identifier"]
+    );
     assert_eq!(
         json!(package
             .production_verifier_binding()
             .unwrap()
-            .package_identity()),
+            .package_identity()
+            .words()),
         actual["package_identity"]
     );
     let structure = package.ccs_structure_header().unwrap();

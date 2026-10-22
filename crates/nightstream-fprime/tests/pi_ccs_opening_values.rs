@@ -2,7 +2,7 @@
 
 use std::{fs, path::PathBuf, time::Instant};
 
-use nightstream_fprime::load_per_application_package;
+use nightstream_fprime::{load_per_application_package, StructuralIdentifier};
 use rayon::prelude::*;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -201,7 +201,8 @@ fn check_positive_opening(sources: OpeningSources) {
             Some(matrix)
         };
     let bytes = fs::read(&paths.package).expect("Lean canonical package");
-    let package = load_per_application_package(&bytes, paths.structural_identity).expect("selected candidate identity");
+    let package = load_per_application_package(&bytes, StructuralIdentifier::from_words(paths.structural_identity))
+        .expect("selected candidate identity");
     let logical_width = package.logical_column_count();
     let row_count = package.row_count();
     let context = package

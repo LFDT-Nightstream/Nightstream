@@ -4,7 +4,7 @@ use std::{fs, path::PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use nightstream_fprime::{
-    load_per_application_package, load_poseidon2_hash_chain_v1_package, PI_CCS_V1_2_ROUND_COUNT,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, StructuralIdentifier, PI_CCS_V1_2_ROUND_COUNT,
     PI_CCS_V1_2_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -375,7 +375,8 @@ struct ExternalPilot {
 fn external_current_pilot_and_positive_pi_ccs_prior() {
     let paths: ExternalPilot = serde_json::from_reader(std::io::stdin().lock()).expect("external pilot paths");
     let bytes = fs::read(paths.package).expect("external Lean package");
-    let package = load_per_application_package(&bytes, paths.structural_identity).expect("selected candidate identity");
+    let package = load_per_application_package(&bytes, StructuralIdentifier::from_words(paths.structural_identity))
+        .expect("selected candidate identity");
     let expected_context = package
         .production_verifier_binding()
         .expect("selected binding")

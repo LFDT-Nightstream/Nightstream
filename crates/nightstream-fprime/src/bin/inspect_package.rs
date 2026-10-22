@@ -3,7 +3,7 @@
 
 use std::{env, fs, io, path::PathBuf};
 
-use nightstream_fprime::load_per_application_package;
+use nightstream_fprime::{load_per_application_package, StructuralIdentifier};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut arguments = env::args_os().skip(1);
@@ -30,10 +30,10 @@ fn inspect_sealed(arguments: &mut impl Iterator<Item = std::ffi::OsString>) -> R
     }
 
     let bytes = fs::read(path)?;
-    let package = load_per_application_package(&bytes, expected)?;
+    let package = load_per_application_package(&bytes, StructuralIdentifier::from_words(expected))?;
     let binding = package.production_verifier_binding()?;
-    println!("structural_identity={:?}", package.structural_identifier());
-    println!("package_identity={:?}", binding.package_identity());
+    println!("structural_identity={:?}", package.structural_identifier().words());
+    println!("package_identity={:?}", binding.package_identity().words());
     println!("verifier_context={:?}", binding.verifier_context().digest());
     println!(
         "verifier_context_descriptor={:?}",

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use serde_json::Value;
 
 use crate::application_records::{ApplicationRecords, PrivateSnapshot};
-use crate::identity::{native_application_word_count, ApplicationIdentity};
+use crate::identity::{native_application_word_count, ApplicationIdentity, StructuralIdentifier};
 
 use super::assignment_transport::FIELD_COORDINATES;
 use super::sealed::{decode_native_application_records, prepared_record_counts};
@@ -70,7 +70,7 @@ pub(super) fn write(
     mut output: impl Write,
     source: &PrivateSnapshot,
     records: &ApplicationRecords,
-    structural_identifier: [u64; 4],
+    structural_identifier: StructuralIdentifier,
     application_identity: &ApplicationIdentity,
 ) -> Result<(), PackageError> {
     check_source_bytes(source.len())?;
@@ -79,7 +79,11 @@ pub(super) fn write(
         u64::try_from(word_count).map_err(|_| PackageError::Malformed("prepared application identity length"))?;
     output.write_all(MAGIC)?;
     write_word(&mut output, source.len())?;
-    for word in structural_identifier.into_iter().chain(application_digest) {
+    for word in structural_identifier
+        .words()
+        .into_iter()
+        .chain(application_digest)
+    {
         write_word(&mut output, word)?;
     }
     write_word(&mut output, word_count)?;
@@ -95,7 +99,7 @@ pub fn load_prepared_package(mut input: impl Read) -> Result<LoadedPerApplicatio
     }
     let source_bytes = read_word(&mut input)?;
     check_source_bytes(source_bytes)?;
-    let structural_identifier = read_digest(&mut input)?;
+    let structural_identifier = StructuralIdentifier::from_words(read_digest(&mut input)?);
     let application_digest = read_digest(&mut input)?;
     let word_count = usize::try_from(read_word(&mut input)?)
         .map_err(|_| PackageError::Malformed("prepared application identity length"))?;

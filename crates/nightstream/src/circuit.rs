@@ -138,7 +138,7 @@ impl Circuit {
     /// value without recomputing it, so equality does not authenticate a loaded
     /// package. The caller selects the expected verifier configuration.
     pub fn identity(&self) -> [u64; 4] {
-        self.compiled.binding.package_identity()
+        self.compiled.binding.package_identity().words()
     }
 
     /// Require the selected profile to meet the caller's positive statistical minimum.

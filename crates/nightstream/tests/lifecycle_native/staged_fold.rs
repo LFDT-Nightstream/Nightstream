@@ -106,9 +106,9 @@ impl SavedNifs {
 }
 fn check_identity(package: &PreparedLifecycle, schema: u64, structural: [u64; 4], identity: [u64; 4], key: [u64; 4]) {
     assert_eq!(schema, 1);
-    assert_eq!(structural, package.package.structural_identifier());
-    assert_eq!(identity, package.package_identity());
-    assert_eq!(key, package.binding.verification_key_digest());
+    assert_eq!(structural, package.package.structural_identifier().words());
+    assert_eq!(identity, package.package_identity().words());
+    assert_eq!(key, package.binding.verification_key_digest().words());
 }
 fn replay_ccs(
     package: &PreparedLifecycle,
@@ -292,9 +292,9 @@ pub(super) fn ccs(root: &Path, step: u64, engine: EvaluationEngine, cpu_referenc
         &directory.join("ccs.json"),
         &SavedCcs {
             schema: 1,
-            structural_identifier: package.package.structural_identifier(),
-            package_identity: package.package_identity(),
-            verification_key_digest: package.binding.verification_key_digest(),
+            structural_identifier: package.package.structural_identifier().words(),
+            package_identity: package.package_identity().words(),
+            verification_key_digest: package.binding.verification_key_digest().words(),
             sumcheck: proof.sumcheck,
             outputs: proof.outputs,
         },
@@ -344,9 +344,9 @@ pub(super) fn rlc(root: &Path, step: u64) {
     assert_eq!(transcript.snapshot(), verifier.snapshot());
     let record = SavedParent {
         schema: 1,
-        structural_identifier: package.package.structural_identifier(),
-        package_identity: package.package_identity(),
-        verification_key_digest: package.binding.verification_key_digest(),
+        structural_identifier: package.package.structural_identifier().words(),
+        package_identity: package.package_identity().words(),
+        verification_key_digest: package.binding.verification_key_digest().words(),
         sumcheck: proof.sumcheck,
         ccs_outputs: proof.outputs,
         rlc_parent: parent.claim,
@@ -397,9 +397,9 @@ pub(super) fn prove(root: &Path, step: u64, engine: EvaluationEngine, reference_
     );
     let parent = SavedParent {
         schema: 1,
-        structural_identifier: package.package.structural_identifier(),
-        package_identity: package.package_identity(),
-        verification_key_digest: package.binding.verification_key_digest(),
+        structural_identifier: package.package.structural_identifier().words(),
+        package_identity: package.package_identity().words(),
+        verification_key_digest: package.binding.verification_key_digest().words(),
         sumcheck: proof.pi_ccs.sumcheck,
         ccs_outputs: proof.pi_ccs.outputs,
         rlc_parent: proof.pi_rlc.combined,

@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.PilotPoseidonPlan
 
 /-!
 Owns the value-preservation bridge for the two direct pilot Poseidon2 chains.
-It connects retained preimage forms to the exact lifted pilot environment and
-then derives the canonical sponge recurrence from the direct permutation rows.
-
-This module does not claim that the unused legacy permutation locals satisfy
-the old expanded template rows.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotPoseidonPreservation
@@ -52,8 +47,6 @@ private theorem constant_le_total :
   rw [constant, total]
   omega
 
-/-- A retained source that names one private physical package column reads
-the same final per-application package value as the transition environment. -/
 private theorem sourceAssignment_privatePhysical
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
@@ -131,7 +124,6 @@ private theorem outputInputLift (index : Fin Data.outputChain.inputLength) :
   unfold Data.outputChain Data.liftPilotChain
   exact lifted.symm
 
-/-- Every direct prior-chain input form is the exact canonical pilot word. -/
 theorem priorInputForm_eval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
@@ -156,7 +148,6 @@ theorem priorInputForm_eval
   unfold PilotOrdinaryDirectPlan.pilotEnv
   rw [priorInputLift index]
 
-/-- Every direct output-chain input form is the exact canonical pilot word. -/
 theorem outputInputForm_eval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
@@ -437,8 +428,6 @@ structure CanonicalSemantics (chain : HashChain) (env : Circuit.Env)
       Spec.Poseidon2.permute
         (List.ofFn (canonicalInput chain env output current))
 
-/-- Direct pilot permutation semantics use the exact canonical sponge inputs
-for both hash chains. -/
 theorem canonicalSemantics
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)
@@ -548,8 +537,6 @@ private theorem permute_eq_runF (state : Layer.FState) :
     _ = List.ofFn (Permutation.runF Permutation.schedule state) :=
       (Permutation.runF_eq_reference _ _).symm
 
-/-- Before invocation `count`, the direct carried state is exactly the
-canonical sponge state after `count` absorbed blocks. -/
 theorem previousValue_eq_chainAbsorbed
     (chain : HashChain) (env : Circuit.Env)
     (output : Fin PilotPoseidonPlan.invocationCount → Layer.FState)
@@ -619,8 +606,6 @@ def directDigest (chain : HashChain)
     Fin 4 → F :=
   Hash.digestF (output (finalInvocation chain countEq))
 
-/-- The final direct invocation is the exact padded permutation over the
-complete absorbed state. -/
 theorem finalOutput_eq_hashState
     (chain : HashChain) (env : Circuit.Env)
     (output : Fin PilotPoseidonPlan.invocationCount → Layer.FState)
@@ -700,8 +685,6 @@ private theorem chainAbsorbed_final_eq_absorbManyF (chain : HashChain)
           (NightstreamFPrime.Export.Pilot.chainInputValues chain env)) := by
       rw [chainChunks_eq_inputChunks chain env countEq]
 
-/-- The first four lanes of the final direct state are the exact reference
-Poseidon2 hash of the canonical chain input. -/
 theorem directDigest_eq_hash
     (chain : HashChain) (env : Circuit.Env)
     (output : Fin PilotPoseidonPlan.invocationCount → Layer.FState)
@@ -775,7 +758,6 @@ structure HashFacts {program : Lifecycle.Stage1.Application.Program}
       (NightstreamFPrime.Export.Pilot.chainInputValues PilotData.outputChain
         env)
 
-/-- Both fixed pilot chains compute their exact canonical Poseidon2 hashes. -/
 theorem semantics_imply_hashFacts
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth)

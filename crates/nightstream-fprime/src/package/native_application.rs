@@ -1,5 +1,4 @@
 //! One sealed application snapshot with its final physical-column mapping.
-//! Raw records bind identity; row lookup aggregates only distinct local variables.
 
 use std::{collections::BTreeMap, ops::ControlFlow, sync::Arc};
 
@@ -240,7 +239,6 @@ impl PreparedApplication {
                 assignment[column] = value;
             }
         }
-        // The enclosing witness executor still checks every assertion row.
         Ok(())
     }
 

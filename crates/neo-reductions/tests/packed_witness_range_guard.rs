@@ -29,21 +29,19 @@ fn f_from_i64(v: i64) -> F {
 
 #[test]
 fn prove_accepts_nc_alphabet_packed_witness_values() {
-    let n = D; // SuperNeo-packed compatible width
+    let n = D;
     let ccs = identity_ccs(n);
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
 
     let mut rng = ChaCha8Rng::seed_from_u64(99);
     let pp = ajtai_setup(&mut rng, D, params.kappa as usize, ccs.m / D).expect("Ajtai setup");
     let l = AjtaiSModule::new(Arc::new(pp));
 
-    // Keep witness values inside the NC polynomial support range |x| < b for Π_CCS proving.
     let mut Z = Mat::zero(D, ccs.m / D, F::ZERO);
     for rho in 0..D {
-        let centered = (rho % 3) as i64 - 1; // cycles through -1,0,1
+        let centered = (rho % 3) as i64 - 1;
         Z[(rho, 0)] = f_from_i64(centered);
     }
-    let w: Vec<F> = (0..ccs.m).map(|c| Z[(c % D, c / D)]).collect();
 
     let c = l.commit(&Z);
     let mcs_list = vec![CcsClaim {
@@ -52,7 +50,7 @@ fn prove_accepts_nc_alphabet_packed_witness_values() {
         x: vec![],
         m_in: 0,
     }];
-    let mcs_witnesses = vec![CcsWitness { w, Z }];
+    let mcs_witnesses = vec![CcsWitness { Z }];
     let (running, running_witnesses) = zero_running::zero_running(&params, &ccs, 1, 0);
 
     let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/packed_range_accept");

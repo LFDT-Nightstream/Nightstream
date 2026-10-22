@@ -80,7 +80,6 @@ private theorem combine64_denote (a b : Word)
     double64_denote a ha]
   ring
 
-/-- Sixteen direct machine-word lanes. `canonical` is erased by compilation. -/
 structure State64 where
   x0 : UInt64
   x1 : UInt64
@@ -229,8 +228,6 @@ private theorem mat3_denote (a b c d : Word)
     (double64_canonical d hd), triple64_denote a ha,
     double64_denote d hd]
 
-/-- `M₄` on each four-lane block, then each lane adds the sum of the
-block outputs congruent to it mod 4. -/
 @[inline] def externalLayer64 (state : State64) : State64 :=
   let m0 := mat0 state.x0 state.x1 state.x2 state.x3
   let m1 := mat1 state.x0 state.x1 state.x2 state.x3

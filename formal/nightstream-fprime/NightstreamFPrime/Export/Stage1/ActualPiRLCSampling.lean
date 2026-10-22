@@ -95,7 +95,6 @@ private theorem draw_eq_verifier
     Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.drawAt,
     Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.block] using stateEq
 
-/-- Every retained coefficient is forced by the exact verifier draw. -/
 theorem rowsZero_implies_challenge
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -136,7 +135,6 @@ theorem rowsZero_implies_challenge
   rw [word]
   exact (SamplerChain.centered_digit _).symm
 
-/-- All 17 challenges and the final state agree with the total verifier batch. -/
 theorem rowsZero_implies_batch
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)

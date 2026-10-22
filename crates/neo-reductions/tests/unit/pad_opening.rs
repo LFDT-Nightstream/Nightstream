@@ -2,7 +2,6 @@ use super::*;
 use neo_ccs::Mat;
 use neo_math::{Rq, F};
 
-/// The original Pad formula: two full ring products per block.
 fn dense_products(value_at: impl Fn(usize, usize) -> F, blocks: usize, weights: &EqualityWeights) -> [K; D] {
     let mut out = [K::ZERO; D];
     for block in 0..blocks {
@@ -25,7 +24,6 @@ fn batched_pad_openings_match_dense_ring_products_for_every_witness_storage() {
         .collect();
     let weights = EqualityWeights::new(&point);
 
-    // Unit, small non-unit and full-field digits use the dense digit storage.
     let digits: Vec<F> = (0..blocks * D)
         .map(|index| match index % 7 {
             0 | 6 => F::ONE,
@@ -42,12 +40,10 @@ fn batched_pad_openings_match_dense_ring_products_for_every_witness_storage() {
             .map(|&digit| K::from(digit))
             .collect::<Vec<_>>(),
     );
-    // Packed signed-unit masks, including a zero block and the top lane.
     let positive = [0b1011u64, 0, 1 << (D - 1)];
     let negative = [0b0100u64, 0, 1];
     let packed = Mat::compact_signed_unit_from_column_masks(D, blocks, &positive, &negative).unwrap();
     let signed = SuperneoZBlocks::from_witness_mat(&packed, blocks * D).unwrap();
-    // A zero witness between them keeps its place in the batch.
     let zero = SuperneoZBlocks::from_z(&vec![K::ZERO; blocks * D]);
     assert_eq!(
         pad_openings(&[dense, zero, signed], &point),

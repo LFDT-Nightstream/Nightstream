@@ -1,5 +1,3 @@
-"""Explain file and registered-declaration changes without changing freshness."""
-
 from pathlib import Path
 import re
 

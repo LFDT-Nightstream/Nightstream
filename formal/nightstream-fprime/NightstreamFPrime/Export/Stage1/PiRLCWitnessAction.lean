@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 import Mathlib.Tactic.SplitIfs
 
 /-!
-Stored Phi81 basis actions for the actual PiRLC challenges. Signed-unit
-source blocks use table reads, additions and negations. The table is computed
-from the challenge; its result is proved equal to the existing ring product.
+Stored Phi81 basis actions for the actual PiRLC challenges.
 -/
 
 set_option autoImplicit false
@@ -17,7 +15,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 
-/-- Compute all 54 basis images once for one transcript-derived challenge. -/
 def prepare (challenge : MaterializedRingF) : FixedArray MaterializedRingF ringDegree :=
   FixedArray.ofFn fun input =>
     MaterializedRingF.ofRing <|
@@ -64,7 +61,6 @@ private def applySigned (table : FixedArray MaterializedRingF ringDegree)
           ((table.get ⟨input, live⟩).toRing output)
       else 0) 0
 
-/-- Reject any coefficient outside {-1, 0, 1} before using the signed action. -/
 def multiplySigned (table : FixedArray MaterializedRingF ringDegree)
     (source : MaterializedRingF) : Option MaterializedRingF :=
   if ∀ lane : Fin ringDegree,
@@ -87,8 +83,6 @@ private theorem applySigned_toRing (challenge source : MaterializedRingF)
     MaterializedRingF.toRing_ofRing, CarrierAction.rightCoefficient]
   exact signedTerm_eq_mul _ _ (signed ⟨input, live⟩)
 
-/-- Exact success and rejection behavior for the computed basis table.
-The arithmetic equality uses the existing right-input linearization theorem. -/
 theorem multiplySigned_correct (challenge source : MaterializedRingF) :
     (multiplySigned (prepare challenge) source).map MaterializedRingF.toRing =
       if ∀ lane : Fin ringDegree,

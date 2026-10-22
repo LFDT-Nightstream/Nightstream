@@ -19,8 +19,6 @@ open NightstreamFPrime.Spec.Phi81Relation
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra
 
-/-- The retained key coefficient has the same seed, row, block, and lane.
-The number of message columns is not part of the PRG address. -/
 theorem verifierKey_prefix {rows smallColumns largeColumns : Nat}
     (small : Setup rows smallColumns) (large : Setup rows largeColumns)
     (sameSeed : small.seed = large.seed) (fits : smallColumns ≤ largeColumns)
@@ -32,8 +30,6 @@ theorem verifierKey_prefix {rows smallColumns largeColumns : Nat}
     wideCoefficientNat large.seed.bytes row.val block.val lane.val
   rw [sameSeed]
 
-/-- Preserve the full smaller vector as a prefix and append zeros. The size
-proof excludes truncation; no coordinate is inserted in the retained prefix. -/
 def zeroExtend {Value : Type*} [Zero Value] {smallWidth largeWidth : Nat}
     (_fits : smallWidth ≤ largeWidth) (value : Fin smallWidth → Value) :
     Fin largeWidth → Value :=
@@ -139,8 +135,6 @@ private theorem ringFSum_prefix {smallCount largeCount : Nat}
             ringFAdd (small 0) (Commitment.ringFSum (fun index => small index.succ))
           rw [head, induction bound _ _ tails tailOutside]
 
-/-- Commit the smaller complete carrier against the same-seed key prefix.
-Only complete zero blocks are appended, so the exact commitment is preserved. -/
 theorem commit_zeroExtend {rows : Nat} {smallShape largeShape : Phi81Relation.Shape}
     (fits : smallShape.carrierWidth ≤ largeShape.carrierWidth)
     (small : Setup rows (Phi81ColumnLayout.blockCount smallShape.carrierWidth))
@@ -179,9 +173,6 @@ private theorem kernel_bound_positive {shape : Phi81Relation.Shape} {rows bound 
     simpa only [zero] using solution.bounded column
   exact False.elim (Nat.not_lt_zero _ impossible)
 
-/-- A smaller same-seed MSIS solution gives a larger-key solution by appending
-integer zeros after the complete smaller carrier. The strict bound is unchanged;
-its positivity follows from the supplied nonzero solution. -/
 def extendShortKernel {rows bound : Nat} {smallShape largeShape : Phi81Relation.Shape}
     (fits : smallShape.carrierWidth ≤ largeShape.carrierWidth)
     (small : Setup rows (Phi81ColumnLayout.blockCount smallShape.carrierWidth))

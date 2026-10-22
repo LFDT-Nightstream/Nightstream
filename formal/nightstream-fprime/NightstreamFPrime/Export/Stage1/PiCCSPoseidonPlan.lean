@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Retained
 /-!
 Owns the direct Poseidon2 plan for all four PiCCS transcript action families.
 Each invocation uses retained S-box outputs, the previous invocation's
-closed-form output, and the exact Lean action payload. No expanded invocation
-list or recursive trace reconstruction is used by the plan.
+closed-form output, and the exact Lean action payload.
 
 This module does not close PiCCS status or bind the final package identity.
 -/
@@ -17,7 +16,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- The parent supplies the exact typed action-word forms. -/
 abbrev Payload (logicalWidth : Nat) :=
   Fin PiCCSActionPayloadBlock.payloadCount → SparseForm logicalWidth
 
@@ -104,8 +102,6 @@ theorem rowsZero_implies_semantics
   exact PoseidonSboxFamilyPlan.planRowsZero_implies_permute
     (interface payload geometry) familyRowCount_le assignment one sboxRows invocation
 
-/-- Honest retained S-box equations are sufficient for all PiCCS Poseidon2
-rows. Final-output equations are definitional custody checks. -/
 theorem equations_imply_rowsZero
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (payload : Payload logicalWidth)

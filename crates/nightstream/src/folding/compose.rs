@@ -24,6 +24,15 @@ pub(crate) fn prove_owned_with_rows(
         },
     ))
 }
+/// PiCCS absorbs the prior digest from the fresh public input, not from the running claims, so
+/// the caller must first bind that digest to these claims (`checked_prior_state`).
+#[derive(Clone, Copy)]
+pub(crate) struct BoundRunning<'a>(&'a RunningInstance);
+impl<'a> BoundRunning<'a> {
+    pub(crate) fn from_checked_prior(running: &'a RunningInstance) -> Self {
+        Self(running)
+    }
+}
 /// PiCCS then PiRLC: one CE(B) parent claim and its witness (paper Lemma 1).
 /// A normal fold continues with PiDEC; compression proves the parent instead.
 /// The fresh witness and the running instance drop on return, before PiDEC.
@@ -44,10 +53,6 @@ pub(crate) fn prove_parent_with_rows(
     let (parent, r) = pi_rlc::prove_refs(tr, pp, s, ajtai_rlc_mixer, &c.outputs, &all)?;
     Ok((c, parent, r))
 }
-/// Replay the NIFS verifier for one fold. PiCCS absorbs the prior digest that
-/// the fresh public input carries, not the running claims, so the caller must
-/// first bind that digest to these claims (the lifecycle uses
-/// `checked_prior_state`).
 pub(crate) fn verify(
     tr: &mut Transcript,
     pp: &Params,
@@ -55,7 +60,7 @@ pub(crate) fn verify(
     mix: RlcMixer,
     combine: DecMixer,
     fresh: &CcsClaim,
-    running: &RunningInstance,
+    running: BoundRunning<'_>,
     proof: &NifsProof,
 ) -> Result<RunningInstance, Error> {
     let parent = verify_parent(tr, pp, s, mix, fresh, running, &proof.pi_ccs, &proof.pi_rlc)?;
@@ -69,20 +74,18 @@ pub(crate) fn verify_parent(
     s: &Structure,
     mix: RlcMixer,
     fresh: &CcsClaim,
-    running: &RunningInstance,
+    running: BoundRunning<'_>,
     c: &pi_ccs::Proof,
     r: &pi_rlc::Proof,
 ) -> Result<CeClaim, Error> {
     validate_running_children(pp, s, running)?;
-    let outputs = pi_ccs::verify(tr, pp, s, fresh, running, c)?;
+    let outputs = pi_ccs::verify(tr, pp, s, fresh, running.0, c)?;
     Ok(pi_rlc::verify(tr, pp, s, mix, &outputs, r)?)
 }
-/// A nonempty running instance must be one PiDEC child family. The caller
-/// binds the claims to the prior digest that PiCCS absorbs.
-pub(crate) fn validate_running_children(pp: &Params, s: &Structure, running: &RunningInstance) -> Result<(), Error> {
-    if running.claims.is_empty() {
+pub(crate) fn validate_running_children(pp: &Params, s: &Structure, running: BoundRunning<'_>) -> Result<(), Error> {
+    if running.0.claims.is_empty() {
         return Ok(());
     }
-    pi_dec::validate_children(pp, s, &running.claims)?;
+    pi_dec::validate_children_without_frames(pp, s, &running.0.claims)?;
     Ok(())
 }

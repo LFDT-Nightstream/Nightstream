@@ -5,8 +5,7 @@ import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 
 /-!
 Owns the value connection from arbitrary accepted product rows to PiCCS
-operands and PiDEC parents. Every source is read from the final assignment.
-No honest-encoding or caller-supplied representation premise is used.
+operands and PiDEC parents.
 
 Sampler transcript validity and the full augmented step are separate claims.
 -/
@@ -123,7 +122,6 @@ private theorem piCcsValue_withLane
   rcases descriptor with ⟨family, source, block, oldLane, cell⟩
   cases family <;> rfl
 
-/-- All product rows force the recurrence on the actual shared input values. -/
 theorem rowsZero_implies_equation
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -197,7 +195,6 @@ private theorem prefix_sum
       rw [Finset.sum_range_succ]
       simpa only [contributionAt, dif_pos bound] using equation
 
-/-- The complete recurrence uniquely fixes each accumulated coefficient. -/
 theorem rowsZero_implies_sum
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -210,7 +207,6 @@ theorem rowsZero_implies_sum
   simpa only [withSource_self] using! prefix_sum geometry assignment one rows
     descriptor descriptor.source.val descriptor.source.isLt
 
-/-- The PiDEC commitment parent is the complete sum of the shared PiCCS values. -/
 theorem rowsZero_implies_parentCommitment_sum
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -225,7 +221,6 @@ theorem rowsZero_implies_parentCommitment_sum
   exact rowsZero_implies_sum geometry assignment one rows
     (PiDECValueWiring.finalDescriptor .commitment index)
 
-/-- The PiDEC publicInput parent is the complete sum of the shared PiCCS values. -/
 theorem rowsZero_implies_parentPublicInput_sum
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -240,7 +235,6 @@ theorem rowsZero_implies_parentPublicInput_sum
   exact rowsZero_implies_sum geometry assignment one rows
     (PiDECValueWiring.finalDescriptor .publicInput index)
 
-/-- The PiDEC evalK parent is the complete sum of the shared PiCCS values. -/
 theorem rowsZero_implies_parentEvalK_sum
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -255,7 +249,6 @@ theorem rowsZero_implies_parentEvalK_sum
   exact rowsZero_implies_sum geometry assignment one rows
     (PiDECValueWiring.finalDescriptor .evalK index)
 
-/-- The PiDEC evalA parent is the complete sum of the shared PiCCS values. -/
 theorem rowsZero_implies_parentEvalA_sum
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -270,10 +263,6 @@ theorem rowsZero_implies_parentEvalA_sum
   exact rowsZero_implies_sum geometry assignment one rows
     (PiDECValueWiring.finalDescriptor .evalA index)
 
-/-- The selected complete rows and actual public marker supply every premise
-of the shared-value sum theorem. In particular, no product-row or one-cell
-premise is supplied by a witness constructor. The four parent form identities
-select the final source of this same recurrence. -/
 theorem selectedRowsAndPublic_imply_sums
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

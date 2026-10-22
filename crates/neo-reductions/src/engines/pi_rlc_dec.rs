@@ -1,10 +1,8 @@
 //! RLC/DEC engine trait and implementations.
-//!
-//! Provides engine implementations for Random Linear Combination (RLC)
-//! and Decomposition (DEC) steps that work alongside the Π_CCS engines.
 
 #![allow(non_snake_case)]
 
+use super::{DecOutcome, RlcMixer};
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{F, K};
@@ -47,24 +45,17 @@ fn digit_flags_match(split: &[Mat<F>], digit_nonzero: &[bool]) -> bool {
         })
 }
 
-/// Trait for RLC/DEC algebraic operations over ME instances.
 pub trait RlcDecOps {
-    /// RLC: compute parent ME and combined witness Z_mix = Σ ρ_i · Z_i.
-    /// The `mix_commits` closure must implement the commitment S-action mix: Σ ρ_i · c_i.
-    fn rlc_with_commit<Comb>(
+    fn rlc_with_commit(
         s: &CcsStructure<F>,
         params: &NeoParams,
         rhos: &[Mat<F>],
         me_inputs: &[CeClaim<Cmt, F, K>],
         Zs: &[Mat<F>],
         ell_d: usize,
-        mix_commits: Comb,
-    ) -> (CeClaim<Cmt, F, K>, Mat<F>)
-    where
-        Comb: Fn(&[Mat<F>], &[Cmt]) -> Cmt;
+        mix_commits: RlcMixer,
+    ) -> (CeClaim<Cmt, F, K>, Mat<F>);
 
-    /// DEC: given parent and a provided split Z = Σ b^i · Z_i, build children with correct
-    /// commitments and return (children, ok_y, ok_X, ok_c).
     fn dec_children_with_commit<Comb>(
         s: &CcsStructure<F>,
         params: &NeoParams,
@@ -73,12 +64,11 @@ pub trait RlcDecOps {
         ell_d: usize,
         child_commitments: &[Cmt],
         combine_b_pows: Comb,
-    ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
+    ) -> DecOutcome
     where
         Comb: Fn(&[Cmt], u32) -> Cmt;
 }
 
-/// Optimized RLC/DEC implementation.
 #[derive(Clone, Debug, Default, Copy)]
 pub struct OptimizedRlcDec;
 
@@ -93,14 +83,13 @@ impl OptimizedRlcDec {
         child_commitments: &[Cmt],
         combine_b_pows: Comb,
         superneo_cache: &crate::superneo_eval::SuperneoEvalCache,
-        ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
         precomputed_openings: Option<&[neo_ccs::V1_2Evaluations<K>]>,
-    ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
+    ) -> DecOutcome
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,
     {
         if Z_split.len() != params.k_rho as usize || child_commitments.len() != Z_split.len() {
-            return (Vec::new(), false, false, false);
+            return DecOutcome::rejected();
         }
         let split_valid = canonical_dec_split(Z_split, params.b) && digit_flags_match(Z_split, digit_nonzero);
         let (mut children, ok_y, ok_X) = super::optimized_engine::dec_reduction_optimized_with_digit_flags::<F>(
@@ -111,7 +100,6 @@ impl OptimizedRlcDec {
             digit_nonzero,
             ell_d,
             Some(superneo_cache),
-            ring_linear_forms,
             precomputed_openings,
         );
 
@@ -119,73 +107,75 @@ impl OptimizedRlcDec {
             ch.c = c.clone();
         }
         let ok_c = split_valid && combine_b_pows(child_commitments, params.b) == parent.c;
-        (children, split_valid && ok_y, split_valid && ok_X, ok_c)
+        DecOutcome {
+            children,
+            ok_y: split_valid && ok_y,
+            ok_x: split_valid && ok_X,
+            ok_c,
+        }
     }
 
-    /// Build PiDEC children from the exact digit planes and flags returned by
-    /// `split_b_matrix_k_with_nonzero_flags`.
-    ///
-    /// The caller owns the canonical split boundary. This path keeps the
-    /// public y, X, and commitment recomposition checks, but it does not
-    /// reconstruct and split the full witness a second time.
     pub fn dec_children_with_commit_superneo_cached_from_trusted_split_digits<Comb>(
         s: &CcsStructure<F>,
         params: &NeoParams,
         parent: &CeClaim<Cmt, F, K>,
-        z_split: &[Mat<F>],
-        digit_nonzero: &[bool],
+        split: &crate::common::SplitDigits,
         ell_d: usize,
         child_commitments: &[Cmt],
         combine_b_pows: Comb,
         superneo_cache: Option<&crate::superneo_eval::SuperneoEvalCache>,
-        ring_linear_forms: Option<&[crate::superneo_eval::SuperneoRingLinearForm]>,
         precomputed_openings: Option<&[neo_ccs::V1_2Evaluations<K>]>,
-    ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
+    ) -> DecOutcome
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,
     {
-        if z_split.len() != params.k_rho as usize
-            || digit_nonzero.len() != z_split.len()
-            || child_commitments.len() != z_split.len()
-        {
-            return (Vec::new(), false, false, false);
+        let z_split = split.planes();
+        if z_split.len() != params.k_rho as usize || child_commitments.len() != z_split.len() {
+            return DecOutcome::rejected();
         }
         let (mut children, ok_y, ok_x) = super::optimized_engine::dec_reduction_optimized_with_digit_flags::<F>(
             s,
             params,
             parent,
             z_split,
-            digit_nonzero,
+            split.nonzero(),
             ell_d,
             superneo_cache,
-            ring_linear_forms,
             precomputed_openings,
         );
         for (child, commitment) in children.iter_mut().zip(child_commitments) {
             child.c = commitment.clone();
         }
         let ok_c = combine_b_pows(child_commitments, params.b) == parent.c;
-        (children, ok_y, ok_x, ok_c)
+        DecOutcome {
+            children,
+            ok_y,
+            ok_x,
+            ok_c,
+        }
     }
 }
 
 impl RlcDecOps for OptimizedRlcDec {
-    fn rlc_with_commit<Comb>(
+    fn rlc_with_commit(
         s: &CcsStructure<F>,
         params: &NeoParams,
         rhos: &[Mat<F>],
         me_inputs: &[CeClaim<Cmt, F, K>],
         Zs: &[Mat<F>],
         ell_d: usize,
-        mix_commits: Comb,
-    ) -> (CeClaim<Cmt, F, K>, Mat<F>)
-    where
-        Comb: Fn(&[Mat<F>], &[Cmt]) -> Cmt,
-    {
-        let (mut out, Z) = super::optimized_engine::rlc_reduction_optimized(s, params, rhos, me_inputs, Zs, ell_d);
-        let inputs_c: Vec<Cmt> = me_inputs.iter().map(|m| m.c.clone()).collect();
-        out.c = mix_commits(rhos, &inputs_c);
-        (out, Z)
+        mix_commits: RlcMixer,
+    ) -> (CeClaim<Cmt, F, K>, Mat<F>) {
+        let z_refs: Vec<&Mat<F>> = Zs.iter().collect();
+        super::optimized_engine::rlc_reduction_optimized_with_commit_mix(
+            s,
+            params,
+            rhos,
+            me_inputs,
+            &z_refs,
+            ell_d,
+            mix_commits,
+        )
     }
 
     fn dec_children_with_commit<Comb>(
@@ -196,21 +186,25 @@ impl RlcDecOps for OptimizedRlcDec {
         ell_d: usize,
         child_commitments: &[Cmt],
         combine_b_pows: Comb,
-    ) -> (Vec<CeClaim<Cmt, F, K>>, bool, bool, bool)
+    ) -> DecOutcome
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,
     {
         if Z_split.len() != params.k_rho as usize || child_commitments.len() != Z_split.len() {
-            return (Vec::new(), false, false, false);
+            return DecOutcome::rejected();
         }
         let split_valid = canonical_dec_split(Z_split, params.b);
         let (mut children, ok_y, ok_X) =
             super::optimized_engine::dec_reduction_optimized(s, params, parent, Z_split, ell_d);
-        // Patch children commitments and check c relation
         for (ch, c) in children.iter_mut().zip(child_commitments.iter()) {
             ch.c = c.clone();
         }
         let ok_c = split_valid && combine_b_pows(child_commitments, params.b) == parent.c;
-        (children, split_valid && ok_y, split_valid && ok_X, ok_c)
+        DecOutcome {
+            children,
+            ok_y: split_valid && ok_y,
+            ok_x: split_valid && ok_X,
+            ok_c,
+        }
     }
 }

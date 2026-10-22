@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.Relation
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiDEC.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Model-level Π_DEC recomposition reduction and standard parent-opening binding
 boundary.
@@ -11,32 +8,15 @@ Owns: exact base-`b` recomposition semantics, completeness, knowledge reduction,
 and the model-level collision exposed when a separately valid parent opening
 differs from the opening reconstructed from valid children.
 
-Does not own: computational binding security, concrete Ajtai/MSIS instantiation,
-matrix packing, transcript timing, Rust/R1CS refinement, or row removal.
-
-Emits constraints: no.
-
-Authority boundary: accepted public recomposition plus valid child openings
-constructs a parent opening. Equality with an independently supplied valid
-parent opening holds only outside the explicit standard binding collision.
-
 This module's `Accepted` is intentionally the reusable recomposition core. It
 is weaker than the Section-7.5 operational verifier, which computes child
 public inputs from the parent; that verifier is owned by `PiDEC.PaperVerifier`.
-
-| Surface | Guarantee | Assumptions | Permits row removal? |
-|---|---|---|---|
-| `complete`, `reduce_knowledge` | Honest split and reverse knowledge reduction | `Algebra` laws and valid CE openings | No |
-| `Accepted.parent_eq_of_children_eq` | Strictly accepted parents over the same nonempty child family are identical as public statements | `k > 0` and both public Π_DEC acceptances | Yes, for duplicate parent authority checks once child binding is retained |
-| `ParentOpeningBindingCollision` | Two distinct `B`-bounded openings of one parent commitment | Model-level commitment semantics | No |
-| `accepted_parent_eq_recompose_or_bindingCollision` | Parent opening equals child recomposition or exposes that collision | Accepted Π_DEC and valid parent/child CE openings | No — concrete security/refinement open |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiDEC
 
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
 
-/-- Digit decomposition and the homomorphism laws checked by Π_DEC. -/
 structure Algebra
     (Structure : Type uStructure)
     (Assignment : Type uAssignment)
@@ -72,7 +52,6 @@ structure Algebra
       recomposeEvaluations
         (fun i => semantics.evaluations system (assignments i) point)
 
-/-- Public parent and exactly `k` decomposed child statements. -/
 structure Attempt
     (Structure : Type uStructure)
     (PublicInput : Type uPublicInput)
@@ -116,12 +95,6 @@ structure Accepted
     attempt.parent.evaluations =
       algebra.recomposeEvaluations (fun i => (attempt.children i).evaluations)
 
-/-- Public recomposition acceptance makes the parent statement a deterministic
-function of one nonempty child family.
-
-This is statement-level uniqueness, not commitment-opening uniqueness: every
-parent public field is either fixed by the recomposition equations or copied
-from the first child. -/
 theorem Accepted.parent_eq_of_children_eq
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -204,7 +177,6 @@ theorem Accepted.parent_eq_of_children_eq
   rcases rightParent with ⟨_, _, _, _, _, _⟩
   simp_all
 
-/-- Canonical fresh child statements produced from the parent's digit witnesses. -/
 def childrenOf
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -230,7 +202,6 @@ def childrenOf
     stage := .fresh
   }
 
-/-- Each honest digit is a fresh CE opening. -/
 theorem childrenOf_holds
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -256,7 +227,6 @@ theorem childrenOf_holds
   exact ⟨⟨rfl, rfl, algebra.split_norm assignment combinedNorm i⟩,
     parentValid.2.1, rfl⟩
 
-/-- Perfect completeness of the Π_DEC recomposition core. -/
 theorem complete
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -324,7 +294,6 @@ theorem complete
   · exact childrenOf_holds semantics params algebra parent assignment
       parentCombined parentValid
 
-/-- Exact digit recomposition is exposed as a first-class theorem. -/
 theorem split_recompose_exact
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -341,10 +310,6 @@ theorem split_recompose_exact
     algebra.recomposeAssignment (algebra.splitAssignment assignment) = assignment :=
   algebra.split_recompose assignment
 
-/--
-Π_DEC reduction of knowledge: valid fresh child witnesses and accepted public
-recomposition equations construct a valid combined parent witness.
--/
 theorem reduce_knowledge
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -411,14 +376,6 @@ theorem reduce_knowledge
       ((congrArg algebra.recomposeEvaluations evaluationsAgree).trans
         accepted.evaluationEquation.symm)
 
-/--
-A standard `B`-binding collision at the Π_DEC parent commitment.
-
-Both openings and both `B = b^k` norm obligations are retained explicitly so a
-concrete commitment layer can refine this event to its Ajtai/MSIS binding game.
-This model-level event does not itself assert that such collisions are
-computationally hard.
--/
 structure ParentOpeningBindingCollision
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -438,20 +395,6 @@ structure ParentOpeningBindingCollision
   recomposedNorm : semantics.normBounded params.bigB recomposedOpening
   different : parentOpening ≠ recomposedOpening
 
-/--
-The hard binding gate for treating a checked Π_DEC parent as the exact
-pointwise radix recomposition of its children.
-
-Accepted Π_DEC equations and valid fresh child openings derive both the
-commitment equation and the `B` norm of the recomposed opening. A separately
-valid combined parent derives the other commitment equation and `B` norm. Thus
-the assignments are equal, or those derived facts form a standard parent
-opening collision.
-
-This is deliberately only a model-level dichotomy. A later concrete theorem
-must map the collision to the canonical Ajtai opening shape and MSIS event
-before any production constraint may be removed.
--/
 theorem accepted_parent_eq_recompose_or_bindingCollision
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}

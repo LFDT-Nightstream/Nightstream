@@ -7,11 +7,6 @@ import NightstreamFPrime.Layout.Stage1.Preservation
 Owns the reverse row-level bridge for the final package slices whose canonical
 R1CS source lists are already explicit: PiDEC, running transition,
 application, and NextPreimage.
-
-The remaining Pilot, PiCCS, and PiRLC template families have separate package
-representations and remain obligations of the complete prefix bridge. This
-module adds no semantic predicate and does not use phase acceptance as a
-substitute for physical row satisfaction.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPhysicalPreservation

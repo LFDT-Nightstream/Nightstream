@@ -30,8 +30,6 @@ pub fn verify_satisfaction_with(
     relation: &Relation,
     value_at: impl Fn(usize) -> Field + Sync,
 ) -> Result<()> {
-    // Use the existing runtime pool for independent immutable row ranges.
-    // Keep results in range order so rejection still names the first failure.
     let range_size = ACTIVE_ROWS.div_ceil(rayon::current_num_threads());
     let ranges = (0..ACTIVE_ROWS)
         .step_by(range_size)
@@ -75,9 +73,6 @@ pub fn verify_satisfaction_with(
     Ok(())
 }
 
-/// Evaluate one exact logical-row range through a fallible assignment view.
-/// This is the phase-local form of the full relation check: unavailable
-/// assignment values remain errors and cannot be replaced with zero.
 pub fn verify_satisfaction_range_with(
     program: &MatrixProgram,
     sources: &SourcePackage,
@@ -108,8 +103,6 @@ pub fn verify_satisfaction_range_with(
     Ok(next - start)
 }
 
-// Each range visits the same raw rows and tests the same mutations as the
-// serial gate. Ranges share immutable inputs; coverage is joined in row order.
 struct MutationCoverage {
     assignment: [Option<usize>; super::assignment::BLOCK_COUNT],
     referenced: [bool; super::assignment::BLOCK_COUNT],
@@ -175,8 +168,6 @@ fn evaluate_range(
         for (slot, detected) in matrix_mutations.iter_mut().enumerate() {
             if detected.is_none() {
                 let mut changed = matrix_values;
-                // A unit change can remain a root of a range polynomial.
-                // Its decoded degree gives the required distinct probes.
                 for _ in 0..matrix_degrees[slot] {
                     changed[slot] += Field::ONE;
                     if relation.evaluate(&changed) != Field::ZERO {
@@ -359,8 +350,6 @@ pub fn first_failure(
     if assignment.len() != LOGICAL_WIDTH {
         return Err("mutated logical assignment has the wrong width".into());
     }
-    // Match the complete independent evaluator's immutable row partition.
-    // Each range retains scalar row order; the minimum is the first failure.
     let range_size = ACTIVE_ROWS.div_ceil(rayon::current_num_threads());
     let starts = (0..ACTIVE_ROWS).step_by(range_size).collect::<Vec<_>>();
     let failures = starts

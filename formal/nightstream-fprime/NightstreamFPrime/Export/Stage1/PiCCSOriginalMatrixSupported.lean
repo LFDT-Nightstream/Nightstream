@@ -19,8 +19,6 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle (productionShape)
 
-/-- The zero branch precedes all source arithmetic. The column weights of the
-rows are prepared once for every nonzero source. -/
 @[specialize] def weighted {columns arity count : Nat}
     (zeroSource : Fin productionShape.sourceCount → Bool)
     (firstRow : Nat) (point : CubePoint K arity)
@@ -34,8 +32,6 @@ rows are prepared once for every nonzero source. -/
     let pair : Fin productionShape.sourceCount × Fin matrixCount := Fin.decodeProd code
     (bySource.get pair.1).get pair.2
 
-/-- Skip preparation when every source is zero; otherwise prepare the invocation
-weights once and retain every source/port slot. -/
 @[specialize] def invocations {columns arity count : Nat}
     (zeroSource : Fin productionShape.sourceCount → Bool)
     (firstRow : Nat) (point : CubePoint K arity)

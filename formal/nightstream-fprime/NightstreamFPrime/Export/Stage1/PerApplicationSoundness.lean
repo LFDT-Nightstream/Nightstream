@@ -5,14 +5,6 @@ import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
 
 /-!
 Owns deterministic soundness of one generic per-application Stage 1 package.
-
-The representation record identifies the package's canonical external columns
-with one typed HyperNova input and output. Package rows then imply the exact
-application transition, prior/output hash slots, SuperNeo accumulator update,
-and base/recursive running-instance branch. This module adds no row or column.
-
-The final relation plan, concrete application, static-key serializers,
-recursive fixed point, and outer terminal verifier remain separate obligations.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationSoundness
@@ -33,7 +25,6 @@ def sourceEnv (program : Application.Program) (env : Env) : Env :=
   Layout.Stage1.Spartan.pullback
     (PerApplicationPackage.baseEnv program env)
 
-/-- Exact pilot-package environment after the per-application column shift. -/
 def pilotEnv (program : Application.Program) (env : Env) : Env :=
   fun column => PerApplicationPackage.baseEnv program env
     (Layout.Stage1.Spartan.liftPilotColumn column)
@@ -46,9 +37,6 @@ private theorem slot_eq_functionIndex (slot : Fin slotCount) :
   change slot.val = 0
   omega
 
-/-- Typed meaning of the canonical external package columns. Every field is
-an ABI equality or a fixed-length condition; no field assumes an application
-transition, hash result, NIFS acceptance, or terminal relation. -/
 structure Represents
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)
@@ -147,8 +135,6 @@ private theorem application_eq
     _ = program.step input.zi input.witness := by
       rw [represents.applicationInput, represents.applicationWitness]
 
-/-- Every satisfying final-package assignment that represents one typed ABI
-satisfies the exact per-application HyperNova augmented-step relation. -/
 theorem packageRows_imply_stepHoldsFor
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)

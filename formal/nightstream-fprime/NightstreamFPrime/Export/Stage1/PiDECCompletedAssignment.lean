@@ -3,10 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
 import NightstreamFPrime.Layout.Stage1.SpartanRows
 
 /-!
-Owns the PiDEC part of the completed canonical assignment. The actual physical
-prefix supplies the PiDEC rows. The existing source copy preserves their
-declared support, which lies after the PiCCS transcript readout interval.
-No encoded-row or source-agreement premise is supplied by the caller.
+Owns the PiDEC part of the completed canonical assignment.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment
@@ -77,9 +74,6 @@ private theorem sourceRows_of_physical
     PiDECArithmetic.Plan.rows_to_layout _ _ (PiDECArithmetic.canonicalPlan_matches relation)]
   exact (Spartan.remapRows_hold target _).mpr dRows
 
-/-- The completed physical prefix makes the PiDEC rows of the exact canonical
-low-norm assignment zero. Source transport and retained encodings are derived
-from the existing constructor; they are not additional hypotheses. -/
 theorem rowsZero_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

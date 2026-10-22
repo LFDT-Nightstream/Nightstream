@@ -26,8 +26,9 @@ fn result_value(
         children: children.to_vec(),
     };
     let accepted = pi_dec::verify(params, structure, ajtai_dec_mixer, parent, &proof).is_ok();
-    let (digits, _) =
-        split_b_matrix_k_with_nonzero_flags(&parent.X, CHILDREN, 2).expect("bounded actual public parent");
+    let (digits, _) = split_b_matrix_k_with_nonzero_flags(&parent.X, CHILDREN, 2)
+        .expect("bounded actual public parent")
+        .into_parts();
     let public_digits = digits.iter().map(public_words).collect::<Vec<_>>();
     let parent_bounds = public_words(&parent.X)
         .into_iter()
@@ -65,7 +66,6 @@ fn result_value(
             }
         }
     }
-    // Public outputs belong to the verifier's canonical split and shared point.
     let computed_children = children
         .iter()
         .zip(digits)

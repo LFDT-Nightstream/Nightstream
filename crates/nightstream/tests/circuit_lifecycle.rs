@@ -1,6 +1,6 @@
 //! Public application assembly, base proving and terminal verification without Lean.
 
-use std::{fs, path::PathBuf, time::Instant};
+use std::{fs, ops::Range, path::PathBuf, time::Instant};
 
 use nightstream::{
     application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder},
@@ -9,6 +9,8 @@ use nightstream::{
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
 use serde_json::Value;
+
+const INITIAL_STATE_WORDS: Range<usize> = 27_811..27_815;
 
 fn artifact(name: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -308,9 +310,7 @@ fn poseidon_lifecycle(engine: Engine, recursive: bool) {
     .unwrap();
     assert_eq!(reference[0], 1);
     let private: Vec<u64> = serde_json::from_value(reference[2].clone()).unwrap();
-    // These are the state and application-advice fields of the saved caller packet.
-    // `z0` sits in the prior preimage tail `vk, i, z0, zi`.
-    let initial: [u64; 4] = private[27_811..27_815].try_into().unwrap();
+    let initial: [u64; 4] = private[INITIAL_STATE_WORDS].try_into().unwrap();
     let message: [u64; 4] = private[private.len() - 4..].try_into().unwrap();
     let recorded_output: [u64; 4] = serde_json::from_value(reference[4][0].clone()).unwrap();
     let initial = initial.map(F::from_u64);

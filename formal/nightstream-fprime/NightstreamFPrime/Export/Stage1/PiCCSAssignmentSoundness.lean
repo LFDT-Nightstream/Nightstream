@@ -3,8 +3,7 @@ import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 
 /-!
 Owns the PiCCS arithmetic environment decoded from an arbitrary logical
-assignment. Accepted ordinary rows imply all eight arithmetic child contracts
-in that same environment. Transcript contracts and phase closure are separate.
+assignment. Transcript contracts and phase closure are separate.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSAssignmentSoundness
@@ -23,8 +22,6 @@ variable {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
   {relationPublicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth relationLogicalWidth}
 
-/-- The decoded values are evaluations of the existing compiled source map.
-No raw source packet or coordinate-encoding premise is supplied. -/
 def decodedEnv
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) : Env :=
@@ -41,8 +38,6 @@ theorem decodedEnv_preserves
     (fun column => ((PiCCSOrdinaryDirectPlan.sourceMap geometry).form column).eval
       assignment) column).symm
 
-/-- Accepted compiled ordinary rows imply their original row predicates in
-the environment decoded from the same arbitrary assignment. -/
 theorem rowsZero_implies_sourceRows
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -67,8 +62,6 @@ theorem rowsZero_implies_sourceRows
     assignment (decodedEnv geometry assignment) index
     (PiCCSOrdinaryDirectSource.programRow relation index) preserves).mp (rows index)
 
-/-- Each declared location resolves to its own compiled form, including
-every shared preimage or transcript location selected by the source map. -/
 theorem decodedEnv_location
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -94,9 +87,6 @@ theorem decodedEnv_location
       column.val = _
   rw [SourceCompiler.sourceEnv_at, sameForms]
 
-/-- The same decoded environment satisfies every non-permutation PiCCS
-child. Parent-owned offsets and affine assumptions are proved by the existing
-layout; no semantic assumption is added to the accepted-row boundary. -/
 theorem rowsZero_implies_arithmeticSpecs
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)

@@ -32,15 +32,11 @@ private theorem coefficientExprs_supported (interface : Interface)
   rcases member with ⟨source, _sourceMember, rfl⟩
   exact residualExpr_supported _ allowed (sourceSupport source)
 
-/-- The support-facing operation list is definitionally the canonical norm
-circuit operation list. Keeping this equation separate avoids expanding the
-fixed 17-term Horner program while elaborating support theorem types. -/
 theorem circuit_ops_eq_ownedOps (interface : Interface) (offset : Nat) :
     Circuit.ops (circuit interface).main offset =
       Horner.Owned.opsAt (ownedInterface interface) offset := by
   rfl
 
-/-- Exact support propagation through the production norm terminal. -/
 theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
     (allowed : Nat → Prop)
     (gammaSupport : Horner.KSupported (interface.gamma offset) allowed)
@@ -64,7 +60,6 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
   rw [Horner.Owned.circuit_ops] at supported
   exact supported
 
-/-- The child-owned strict norm output preserves the exact row support. -/
 theorem output_varsSatisfy (interface : Interface) (offset : Nat)
     (allowed : Nat → Prop)
     (gammaSupport : Horner.KSupported (interface.gamma offset) allowed)

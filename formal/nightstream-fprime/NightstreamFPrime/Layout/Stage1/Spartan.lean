@@ -25,46 +25,32 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Fixed completed pilot source interval. -/
 def pilotSourceColumnCount : Nat := 5141760
 
-/-- Fixed completed pilot private interval. -/
 def pilotPrivateColumnCount : Nat := 5141486
 
-/-- Caller-supplied pilot private inputs precede all generated witnesses. -/
 def pilotInputPrivateColumnCount : Nat := 55638
 
-/-- Caller-supplied PiCCS inputs: the 4,320-word prior child region, then the
-10,872 proof-input words. -/
 def proofInputColumnCount : Nat := 15192
 
-/-- Verifier-owned context words that follow the pilot source interval. -/
 def expectedContextColumnCount : Nat := 4
 
-/-- Source boundary between public context and private PiCCS inputs. -/
 def proofInputSourceStart : Nat := 5141764
 
-/-- Source boundary between proof inputs and PiCCS local witnesses. -/
 def piCcsPhaseOffset : Nat := 5156956
 
-/-- Target boundary after proof inputs and shifted pilot witnesses. -/
 def piCcsLocalStart : Nat := 5156678
 
-/-- All source columns before Spartan inserts its constant column. -/
 def SourceColumnCount : Nat := RunningTransitionLayout.physicalEnd
 
-/-- Private columns appended after the fixed pilot and verifier context. -/
 def appendedPrivateColumnCount : Nat :=
   SourceColumnCount - (pilotSourceColumnCount + expectedContextColumnCount)
 
-/-- Public columns owned by the closed pilot. -/
 def pilotPublicColumnCount : Nat := 274
 
-/-- Pilot public columns followed by four verifier-context words. -/
 def publicColumnCount : Nat :=
   pilotPublicColumnCount + expectedContextColumnCount
 
-/-- The pilot-private prefix followed by all PiCCS columns. -/
 def privateColumnCount : Nat :=
   pilotPrivateColumnCount + appendedPrivateColumnCount
 
@@ -72,11 +58,9 @@ def constantColumn : Nat := privateColumnCount
 
 def spartanColumnCount : Nat := SourceColumnCount + 1
 
-/-- First final public column owned by the verifier context. -/
 def expectedContextPublicStart : Nat :=
   privateColumnCount + 1 + pilotPublicColumnCount
 
--- Normalize the fixed pilot prefix; keep the appended allocation symbolic.
 attribute [local simp] pilotPrivateColumnCount pilotSourceColumnCount
   expectedContextColumnCount pilotPublicColumnCount
 
@@ -97,11 +81,9 @@ theorem constantColumn_eq_private :
     constantColumn = privateColumnCount := by
   rfl
 
-/-- The map consumes the physical endpoint certified by the running owner. -/
 theorem sourceColumnCount_eq_physicalEnd :
     SourceColumnCount = RunningTransitionLayout.physicalEnd := by rfl
 
-/-- The PiDEC input phase precedes the final physical source endpoint. -/
 theorem sourceColumnCount_ge_piDecPhaseOffset :
     PiDECInputs.phaseOffset ≤ SourceColumnCount := by
   apply Nat.le_trans RunningTransitionInputs.piDecPhaseOffset_le
@@ -114,7 +96,6 @@ private theorem piCcsPhaseOffset_le_sourceColumnCount :
   exact Nat.le_trans (by decide : piCcsPhaseOffset ≤ PiDECInputs.phaseOffset)
     sourceColumnCount_ge_piDecPhaseOffset
 
-/-- The appended private interval includes every PiCCS proof input. -/
 theorem proofInputColumnCount_le_appendedPrivateColumnCount :
     proofInputColumnCount ≤ appendedPrivateColumnCount := by
   have bound := piCcsPhaseOffset_le_sourceColumnCount
@@ -142,14 +123,12 @@ theorem sourceColumnCount_add_constant :
     spartanColumnCount = SourceColumnCount + 1 := by
   rfl
 
-/-- The final order is private columns, one constant, then public columns. -/
 theorem spartanColumnCount_decomposition :
     spartanColumnCount = privateColumnCount + 1 + publicColumnCount := by
   rw [sourceColumnCount_add_constant, sourceColumnCount_decomposition]
   norm_num [privateColumnCount, publicColumnCount]
   omega
 
-/-- Extending the private suffix preserves the completed pilot interval. -/
 theorem pilotPrivateColumnCount_le_constantColumn :
     pilotPrivateColumnCount ≤ constantColumn := by
   rw [constantColumn_eq_private, privateColumnCount_decomposition]
@@ -164,7 +143,6 @@ private theorem contextColumn_lt (column : Nat)
     proofInputSourceStart] at bound ⊢
   omega
 
-/-- Relocate one pilot-Spartan column into the combined Spartan layout. -/
 def liftPilotColumn (column : Nat) : Nat :=
   if column < pilotInputPrivateColumnCount then
     column
@@ -235,7 +213,6 @@ theorem liftPilotColumn_ne_constant (column : Nat)
       pilotPrivateColumnCount, pilotInputPrivateColumnCount,
       proofInputColumnCount] at *; omega)
 
-/-- Map the cumulative Lean source order into combined Spartan order. -/
 def sourceToSpartan (column : Nat) : Nat :=
   if column < pilotSourceColumnCount then
     liftPilotColumn (PilotSpartan.sourceToSpartan column)
@@ -246,7 +223,6 @@ def sourceToSpartan (column : Nat) : Nat :=
   else
     piCcsLocalStart + (column - piCcsPhaseOffset)
 
-/-- The endpoint of the source private interval maps to the constant boundary. -/
 theorem sourceToSpartan_sourceColumnCount :
     sourceToSpartan SourceColumnCount = privateColumnCount := by
   have bound := piCcsPhaseOffset_le_sourceColumnCount
@@ -261,7 +237,6 @@ theorem sourceToSpartan_sourceColumnCount :
     proofInputColumnCount] at appendedBound ⊢
   omega
 
-/-- Each verifier-context source word maps to its matching public lane. -/
 theorem sourceToSpartan_expectedContext (lane : Fin 4) :
     sourceToSpartan
         (NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart +
@@ -279,8 +254,6 @@ theorem sourceToSpartan_expectedContext (lane : Fin 4) :
   norm_num [pilotSourceColumnCount,
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart]
 
-/-- The pilot prior-preimage interval remains in the first private Spartan
-interval, so offsets inside that interval are preserved exactly. -/
 theorem sourceToSpartan_add_of_pilotPriorPrivate (start offset : Nat)
     (upper : start + offset < PilotProduction.priorPublicInputStart) :
     sourceToSpartan (start + offset) = sourceToSpartan start + offset := by
@@ -306,8 +279,6 @@ theorem sourceToSpartan_add_of_pilotPriorPrivate (start offset : Nat)
       at upper ⊢
     omega)
 
-/-- The 270-word pilot prior-public interval remains one contiguous public
-Spartan interval, including the outer Stage 1 lift. -/
 theorem sourceToSpartan_add_of_pilotPriorPublic (start offset : Nat)
     (lower : PilotProduction.priorPublicInputStart ≤ start)
     (upper : start + offset < PilotProduction.outputPreimageStart) :
@@ -349,8 +320,6 @@ theorem sourceToSpartan_add_of_pilotPriorPublic (start offset : Nat)
   rw [if_pos sumPilot, if_pos startPilot, pilotAffine]
   exact liftPilotColumn_add_of_public _ _ mappedLower
 
-/-- PiCCS proof inputs form one contiguous private interval before the
-PiCCS-local witness suffix. -/
 theorem sourceToSpartan_add_of_proofInput (start offset : Nat)
     (lower : proofInputSourceStart ≤ start)
     (upper : start + offset < piCcsPhaseOffset) :
@@ -368,8 +337,6 @@ theorem sourceToSpartan_add_of_proofInput (start offset : Nat)
     if_neg startNotPilot, if_neg startNotContext, if_pos startUpper]
   omega
 
-/-- A source column before the PiCCS phase maps either before every PiCCS
-local witness or into the relocated public suffix after all private columns. -/
 theorem sourceToSpartan_before_piCcsPhase (column : Nat)
     (before : column < piCcsPhaseOffset) :
     sourceToSpartan column < piCcsLocalStart ∨
@@ -416,8 +383,6 @@ theorem sourceToSpartan_before_piCcsPhase (column : Nat)
           piCcsPhaseOffset, piCcsLocalStart] at *
         omega)
 
-/-- The PiCCS-local interval is translated by one fixed displacement, so
-relative offsets are preserved exactly. -/
 theorem sourceToSpartan_add_of_piCcsLocal (start offset : Nat)
     (startLocal : piCcsPhaseOffset ≤ start) :
     sourceToSpartan (start + offset) = sourceToSpartan start + offset := by
@@ -458,8 +423,6 @@ theorem sourceToSpartan_lt_of_piCcsLocal (left right : Nat)
   rw [mapped]
   omega
 
-/-- A source variable before a PiCCS-local witness start maps either before
-that Spartan witness start or into the relocated public suffix. -/
 theorem sourceToSpartan_before_piCcsLocal (column start : Nat)
     (startLocal : piCcsPhaseOffset ≤ start) (before : column < start) :
     sourceToSpartan column < sourceToSpartan start ∨
@@ -481,7 +444,6 @@ theorem sourceToSpartan_before_piCcsLocal (column start : Nat)
   · exact Or.inl (sourceToSpartan_lt_of_piCcsLocal column start
       (by omega) before)
 
-/-- Partial inverse. The combined constant column has no source column. -/
 def spartanToSource (column : Nat) : Option Nat :=
   if column < pilotInputPrivateColumnCount then
     PilotSpartan.spartanToSource column
@@ -772,8 +734,6 @@ theorem sourceToSpartan_injective {left right : Nat}
 def pullback (target : Env) : Env :=
   fun source => target (sourceToSpartan source)
 
-/-- Copy one completed PiCCS-local source interval into its contiguous
-Spartan interval. Every other target column keeps its prior value. -/
 def copyMappedInterval (base source : Env) (sourceStart length : Nat) : Env :=
   fun target =>
     if sourceToSpartan sourceStart ≤ target ∧
@@ -794,9 +754,6 @@ theorem copyMappedInterval_agreesOutside (base source : Env)
   · omega
   · omega
 
-/-- Pulling a mapped interval copy back to source order gives the completed
-source environment exactly. The source completion must agree with the base
-outside that interval, and the mapped interval must stay private. -/
 theorem pullback_copyMappedInterval_eq (base source : Env)
     (sourceStart length : Nat)
     (startLocal : piCcsPhaseOffset ≤ sourceStart)
@@ -908,7 +865,6 @@ theorem remapRows_hold_copyMappedInterval (rows : List R1CS.Row)
     targetEndPrivate sourceAgrees]
   exact holds
 
-/-- The generic Spartan row and private-variable domains use the fixed cube. -/
 def domainSize : Nat := 2 ^ cubeVariables
 
 def paddedConstantColumn : Nat := domainSize
@@ -919,7 +875,6 @@ def paddedSpartanColumnCount : Nat :=
 theorem domainSize_eq : domainSize = 268435456 := by
   norm_num [domainSize, cubeVariables]
 
-/-- Move the unpadded constant and public suffix after the private domain. -/
 def spartanToPadded (column : Nat) : Nat :=
   if column < constantColumn then
     column

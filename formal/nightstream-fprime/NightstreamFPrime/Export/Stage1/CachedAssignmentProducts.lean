@@ -3,7 +3,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExecutio
 /-!
 Cache the canonical product recipes, selected source blocks and base width.
 The existing transport owns all arithmetic and source-column selection.
-The prepared record separates structural construction from coefficient reads.
 -/
 
 set_option autoImplicit false
@@ -20,8 +19,6 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 abbrev BaseValues (program : Program) :=
   PerApplicationAssignmentTransportProducts.BaseValues program
 
-/-- All runtime boundaries and block records are data. Their proof fields
-link them to the same canonical transport used by canonicalRawValues. -/
 structure Prepared (program : Program) where
   baseWidth : Nat
   baseWidth_eq : baseWidth = PiRLCProductPlan.baseSourceWidth program
@@ -31,8 +28,6 @@ structure Prepared (program : Program) where
   challenge_eq : challenge =
     PerApplicationAssignmentBlocks.entry program phi81.challengeBlock
 
-/-- Return a record, not a curried slot reader. Each selected block and the
-numeric source width are constructed before any product callback is used. -/
 @[noinline] def prepare (program : Program) : Prepared program :=
   let phi81 := phi81QuotientRecipe program
   { baseWidth := PiRLCProductPlan.baseSourceWidth program
@@ -42,8 +37,6 @@ numeric source width are constructed before any product callback is used. -/
     challenge := PerApplicationAssignmentBlocks.entry program phi81.challengeBlock
     challenge_eq := rfl }
 
-/-- Reuse the total source reader with the stored numeric width. Fin.cast
-changes only the erased bound proof, not the physical source coordinate. -/
 @[noinline] private def sourceValue {program : Program}
     (prepared : Prepared program) (base : BaseValues program) (column : Nat) : F :=
   @SourceCompiler.sourceEnv prepared.baseWidth
@@ -61,8 +54,6 @@ private theorem sourceValue_eq {program : Program}
     sourceValue prepared base column = SourceCompiler.sourceEnv base column := by
   exact congrFun (sourceEnv_cast prepared.baseWidth_eq base) column
 
-/-- Keep both original guards: the slot must exist, and its physical source
-must lie within the base domain. No block is reconstructed here. -/
 @[noinline] private def blockValue {program : Program}
     (prepared : Prepared program) (base : BaseValues program)
     (selected : CanonicalBlockAssignment.BlockValue) (slot : Nat) : F :=
@@ -124,7 +115,6 @@ private theorem valueRing_eq {program : Program}
   funext lane
   exact sourceValue_eq prepared base _
 
-/-- Reuse the checked quotient formula on the prepared ring operands. -/
 def groupValue {program : Program} (prepared : Prepared program)
     (base : BaseValues program)
     (invocation : Fin PiRLCProductSchedule.invocationCount) (_group : Nat) : F :=
@@ -135,7 +125,6 @@ def groupValue {program : Program} (prepared : Prepared program)
     (challengeRing prepared base descriptor) (valueRing prepared base descriptor)
     (PiRLCProductSchedule.descriptor invocation).lane
 
-/-- Exact equality for every retained Phi81 quotient coefficient. -/
 theorem groupValue_eq {program : Program} (prepared : Prepared program)
     (base : BaseValues program)
     (invocation : Fin PiRLCProductSchedule.invocationCount) (group : Fin 1) :
@@ -149,14 +138,11 @@ theorem groupValue_eq {program : Program} (prepared : Prepared program)
   rw [prepared.phi81_eq]
   rfl
 
-/-- Supply the same physical base and the cached Phi81 product callback. -/
 def rawValues {program : Program} (prepared : Prepared program)
     (base : BaseValues program) : RawValues program where
   base := base
   groupValue := fun invocation group => groupValue prepared base invocation group.val
 
-/-- The entire packet is unchanged, so the existing assignment schedule and
-all of its refinement theorems apply without a new assignment premise. -/
 theorem rawValues_eq {program : Program} (prepared : Prepared program)
     (base : BaseValues program) :
     rawValues prepared base =

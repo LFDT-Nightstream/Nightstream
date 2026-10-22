@@ -10,32 +10,15 @@ use std::{collections::BTreeMap, sync::Arc};
 fn streamed_identity_matches_the_original_numeric_array_preimage() {
     let value = json!([0, [7, u64::MAX], []]);
     let mut words = IDENTITY_DOMAIN.to_vec();
-    words.extend([
-        1,
-        3,
-        0,
-        0, // outer array
-        0,
-        0,
-        0,
-        0, // zero
-        1,
-        2,
-        0,
-        0, // nested array
-        0,
-        7,
-        0,
-        0, // seven
-        0,
-        0xffff_ffff,
-        0xffff_ffff,
-        0, // both limbs of u64::MAX
-        1,
-        0,
-        0,
-        0, // empty array
-    ]);
+    let outer_array = [1, 3, 0, 0];
+    let zero = [0, 0, 0, 0];
+    let nested_array = [1, 2, 0, 0];
+    let seven = [0, 7, 0, 0];
+    let u64_max_limbs = [0, 0xffff_ffff, 0xffff_ffff, 0];
+    let empty_array = [1, 0, 0, 0];
+    for node in [outer_array, zero, nested_array, seven, u64_max_limbs, empty_array] {
+        words.extend(node);
+    }
     let fields: Vec<_> = words.into_iter().map(Goldilocks::from_u64).collect();
     assert_eq!(
         relation_identifier(&value).unwrap(),

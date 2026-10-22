@@ -4,11 +4,10 @@ import NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily
 import NightstreamFPrime.Layout.PiRLC.v1_2.Composition
 
 /-!
-Owns list-level conformance between the compact PiRLC combination export and
-the exact production parent constraints.
+Owns list-level conformance between the compact PiRLC combination export and the
+exact production parent constraints.
 
-The proofs preserve the parent's source order and its finite-product index
-order. This module does not own templates, package assembly, or witness data.
+This module does not own templates, package assembly, or witness data.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationConformance
@@ -284,8 +283,6 @@ def combinationConstraints (_delay : Unit := ()) : List Expr :=
       EvalACombination.blockCount RingKCombination.cellCount 2
       evalAValueSourceStart
 
-/-- Satisfaction of one intended compact invocation implies its exact source
-constraint under the Stage 1 column pullback. -/
 theorem invocationRows_imply_sourceConstraint
     (logicalStart rowStart freshStart blockCount cellCount valueStride source
       block cell : Nat) (lane : Fin ringDegree)
@@ -315,9 +312,6 @@ theorem invocationRows_imply_sourceConstraint
   apply R1CS.lowerGenericConstraint_sound
   exact (Spartan.remapRows_hold env _).mp holds
 
-/-- The exact Lean-lowered source rows imply the matching compact invocation
-after the Stage 1 column map. This is the constructive direction used by
-package completeness; it does not execute a second witness program. -/
 theorem sourceRows_imply_invocationRows
     (logicalStart rowStart freshStart blockCount cellCount valueStride source
       block cell : Nat) (lane : Fin ringDegree)

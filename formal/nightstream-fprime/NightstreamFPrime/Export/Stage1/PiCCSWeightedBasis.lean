@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSSparseEvaluation
 
-/-! Prepare extension-field weights for an existing family of sparse forms.
-The coefficient vector evaluates every weighted output through one source
-read per lane. Repeated entries and cancellation retain their existing
-`SparseForm` meanings. Source reads may already contain weighted sources. -/
+/-! Prepare extension-field weights for an existing family of sparse forms. -/
 
 set_option autoImplicit false
 
@@ -15,20 +12,17 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- Combine all output weights once, in canonical output order. -/
 def prepare {outputs lanes : Nat} (forms : Fin outputs → SparseForm lanes)
     (weights : Fin outputs → K) : Vector K lanes :=
   Vector.ofFn fun lane =>
     sumMap extensionOps (canonicalFinIndices outputs) fun output =>
       extensionOps.mul (weights output) (K.embed ((forms output).coefficient lane))
 
-/-- Evaluate the prepared coefficients on extension-field source reads. -/
 def dotK {lanes : Nat} (prepared : Vector K lanes)
     (source : Fin lanes → K) : K :=
   sumMap extensionOps (canonicalFinIndices lanes) fun lane =>
     extensionOps.mul (prepared.get lane) (source lane)
 
-/-- Preparation stores the exact coefficient sum; it accepts no supplied table. -/
 theorem prepare_value {outputs lanes : Nat}
     (forms : Fin outputs → SparseForm lanes) (weights : Fin outputs → K)
     (lane : Fin lanes) :
@@ -56,8 +50,6 @@ private theorem pair_foldl {Index : Type} (indices : List Index)
               ⟨left current, right current⟩)) := inductionHypothesis _
         _ = _ := extensionLaws.add_assoc initial ⟨left index, right index⟩ _
 
-/-- The two stored-entry evaluations equal the complete coefficient sum.
-Repeated and cancelling entries need no separate hypothesis. -/
 theorem evaluateK_eq_coefficients {lanes : Nat}
     (form : SparseForm lanes) (source : Fin lanes → K) :
     PiCCSSparseEvaluation.evaluateK form source =
@@ -89,8 +81,6 @@ private theorem sumMap_mul_right {Index : Type} (indices : List Index)
       sumMap_mul_left extensionOps extensionLaws factor indices value
     _ = _ := extensionLaws.mul_comm _ _
 
-/-- One prepared dot product equals all weighted extension-field sparse
-outputs. This is total: it has no validity, norm, or support premise. -/
 theorem dotK_prepare {outputs lanes : Nat}
     (forms : Fin outputs → SparseForm lanes) (weights : Fin outputs → K)
     (source : Fin lanes → K) :

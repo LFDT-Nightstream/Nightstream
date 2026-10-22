@@ -3,9 +3,10 @@ import NightstreamFPrime.Export.Stage1.PiDECComputedChildren
 import NightstreamFPrime.Export.Stage1.FreshRowsCheck
 import NightstreamFPrime.Export.Stage1.CheckedReplayHandoff
 
-/-! Exact accepted successor and literal second-prior handoff for the supplied
-C/R/D replay, source files and checked fresh carrier. The only semantic starting
-premise is acceptance of the actual original prior with its original openings. -/
+/-!
+Exact accepted successor and literal second-prior handoff for the supplied
+C/R/D replay, source files and checked fresh carrier.
+-/
 
 set_option autoImplicit false
 
@@ -33,11 +34,6 @@ private abbrev FreshWitness := Stage1.Terminal.FreshWitness
   (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
   (publicFits := PerApplicationFixedPoint.publicFits application)
 
-/-- The actual computed D fields and fresh carrier form an accepted successor.
-The second conclusion can be used literally as the next call's prior.
-Custody premises connect supplied bytes to the exact source/field constructors;
-all output, parent opening, child openings, row validity and norm conclusions
-are derived by the source and check theorems. -/
 theorem accepted_and_handoff
     (statement : HyperNovaHistory.Statement) (input : PiCCSInputCheck.Input)
     (runningWitness : RunningWitness) (freshWitness : FreshWitness)

@@ -17,8 +17,6 @@ Execute a contiguous selected matrix-row range from the independent
 Lean parent. The accepted C execution supplies the point. Every child, matrix
 port and Phi81 output coefficient is computed; native outputs are not inputs.
 This is a staged matrix replay result, not a complete matrix-family result.
-The guard's equality proofs are in PiDECMatrixZeroRead. Importing those
-reference-plan proofs here would initialize the full plan at startup.
 -/
 
 set_option autoImplicit false
@@ -59,10 +57,6 @@ private def parseRangeRequests : List String → Except String (List RangeReques
         remaining)
   | _ => throw "expected complete output/block/first/last groups"
 
-/-- Evaluate product invocations `lo` to `hi` for every active child. The 108 rows
-of one invocation are built from its interface and share their columns, so one
-set of column weights serves all children. Invocation sums are exact field sums,
-so their total is the slice sum. -/
 @[specialize] private def productChildren {columns arity invocations children : Nat}
     (firstRow : Nat) (point : CubePoint K arity)
     (read : Fin children → Fin ringDegree → Fin columns → F) (active : Fin children → Bool)
@@ -83,8 +77,6 @@ so their total is the slice sum. -/
         else totals.get child
   return totals
 
-/-- Every active child of one slice of sparse rows. The column weights of the
-slice do not depend on the child, so they are prepared once. -/
 @[specialize] private def sparseChildren {columns arity count children : Nat}
     (firstRow : Nat) (point : CubePoint K arity)
     (read : Fin children → Fin ringDegree → Fin columns → F) (active : Fin children → Bool)
@@ -95,8 +87,6 @@ slice do not depend on the child, so they are prepared once. -/
     if active child then PiDECMatrixWeightedRange.evaluate prepared (read child)
     else PiDECEvaluationBatch.zero matrixCount
 
-/-- Every active child of one slice of Poseidon invocations. The column weights
-of the slice do not depend on the child, so they are prepared once. -/
 @[specialize] private def poseidonChildren {columns arity count children : Nat}
     (firstRow : Nat) (point : CubePoint K arity)
     (read : Fin children → Fin ringDegree → Fin columns → F) (active : Fin children → Bool)
@@ -247,7 +237,6 @@ private def ranges (ccsPath : System.FilePath) (requests : List RangeRequest)
       let children := List.finRange productionGlobalParams.k
       let activeCount := (children.filter active).length
       let arithmeticStarted ← IO.monoNanosNow
-      -- Shared slices compute every active child. Zero parents start no workers.
       let sharedSlices ←
         if 0 < activeCount then do
           let parts := min unitCount (16 * workers)

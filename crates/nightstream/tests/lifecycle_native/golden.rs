@@ -201,11 +201,9 @@ fn claim(output: &mut Vec<u8>, value: &Value, digest: &Value) {
     }
     word(output, 270);
     numbers(output, digest);
-    output.push(0); // No auxiliary lane commitments in this selected profile.
+    output.push(0);
 }
 
-/// Encode raw Lean result fields in the documented native wire format.
-/// This uses raw numeric fields and does not call the native proof encoder.
 fn encode_wire(reference: &Value) -> Vec<u8> {
     let mut expected = b"NS-NIFS-PROOF".to_vec();
     word(&mut expected, 1);

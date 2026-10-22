@@ -2,8 +2,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
 
-/-! Proof-only fresh-array and prefix-MLE transport. Do not import this module
-into an executable. It does not prove an IO cache loop or file decoder. -/
+/-! Proof-only fresh-array and prefix-MLE transport.
+It does not prove an IO cache loop or file decoder. -/
 
 set_option autoImplicit false
 
@@ -78,8 +78,6 @@ private def reference {arity ports : Nat} (tables : Fin ports → BooleanTable K
   Array.ofFn fun row : Fin count => Vector.ofFn fun port =>
     (tables port).valueAt (NumericBooleanDomain.vertex arity ⟨row.val, Nat.lt_of_lt_of_le row.isLt fits⟩)
 
-/-- The optional numeric traversal succeeds for every original witness and
-returns all active source-protocol images in numeric row order. -/
 theorem rows?_value (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (source : Fin productionShape.freshCount) :
@@ -108,7 +106,6 @@ private theorem reference_size {arity ports : Nat} (tables : Fin ports → Boole
     Option.map Array.size (some (reference tables count fits)) = some count := by
   simp only [Option.map_some, reference, Array.size_ofFn]
 
-/-- Exact active-row extent of the successful selected fresh initializer. -/
 theorem rows?_size (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (source : Fin productionShape.freshCount) :
@@ -193,9 +190,6 @@ private theorem reference_fold {arity ports remaining : Nat}
     (by simpa only [reference, Array.size_map, Array.size_ofFn] using fits)]
   rw [reference_port tables count fits port padding]
 
-/-- Every port's executable prefix fold is the original source table MLE at
-prefix ++ suffix. All row-success and zero-padding facts are discharged here.
-This does not assert that a saved file or an IO cache loop equals rows?. -/
 theorem fold_evaluate (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (source : Fin productionShape.freshCount) (port : Fin Spec.ProductionRelation.matrixCount)

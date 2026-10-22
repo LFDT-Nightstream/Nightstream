@@ -18,7 +18,6 @@ def PhysicalHolds (interface : Logical.Interface) (offset : Nat)
     (env : Env) : Prop :=
   R1CS.RowsHold env (physicalRows interface offset)
 
-/-- Physical chain rows imply the exact logical 17-sampler relation. -/
 theorem physical_implies_relation (interface : Logical.Interface)
     (offset : Nat) (env : Env)
     (assumptions : Logical.Assumptions interface offset)

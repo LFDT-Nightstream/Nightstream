@@ -6,9 +6,6 @@ import Mathlib.Tactic.Ring
 
 /-!
 SuperNeo B.2's source-witness projection on the actual Phi81 public prefix.
-Fresh witnesses contain only coordinates after `publicWidth`; running
-witnesses retain every coordinate. `reconstruct` restores the full
-assignments from the verifier-owned public prefix.
 -/
 
 set_option autoImplicit false
@@ -22,12 +19,10 @@ open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result
 def privateWidth (carrier : Phi81Relation.Shape) : Nat :=
   carrier.carrierWidth - carrier.publicWidth
 
-/-- Materialized fresh tails and full running witnesses in exact source order. -/
 structure SourceWitness (shape : Shape) (carrier : Phi81Relation.Shape) where
   fresh : List.Vector (List.Vector F (privateWidth carrier)) shape.freshCount
   running : List.Vector (List.Vector F carrier.carrierWidth) shape.runningCount
 
-/-- Reattach only the verifier-owned public prefix to a fresh private tail. -/
 def joinFresh {carrier : Phi81Relation.Shape} (publicInput : Phi81Relation.PublicInput carrier)
     (tail : List.Vector F (privateWidth carrier)) : Phi81Relation.Assignment carrier :=
   fun column => if inside : column.val < carrier.publicWidth then publicInput ⟨column.val, inside⟩ else
@@ -37,8 +32,6 @@ def joinFresh {carrier : Phi81Relation.Shape} (publicInput : Phi81Relation.Publi
       unfold privateWidth
       omega⟩
 
-/-- Interpret the returned source witness through the existing complete
-assignment representation. Fresh public values come only from the statement. -/
 def reconstruct {shape : Shape} {carrier : Phi81Relation.Shape}
     (publicInputs : Fin shape.sourceCount → Phi81Relation.PublicInput carrier)
     (witness : SourceWitness shape carrier) : OutputWitness shape carrier.carrierWidth where

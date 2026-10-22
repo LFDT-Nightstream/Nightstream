@@ -3,9 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCWitnessAction
 import Mathlib.Tactic.SplitIfs
 
 /-!
-Executable PiRLC combination of one complete witness block. The same stored
-54-coefficient type and source scan serve the public partial traces. The final
-value is the corresponding block of the existing complete-assignment fold.
+Executable PiRLC combination of one complete witness block.
 -/
 
 set_option autoImplicit false
@@ -19,8 +17,6 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Export.Stage1.PiRLCNonzero (SourceCount)
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 
-/-- An exactly zero source leaves the stored accumulator unchanged.
-Otherwise materialize the ring action and addition before the next source. -/
 def witnessBlockStep (challenges : Fin SourceCount → RingF)
     (sources : Fin SourceCount → MaterializedRingF)
     (current : MaterializedRingF) (source : Fin SourceCount) : MaterializedRingF :=
@@ -29,7 +25,6 @@ def witnessBlockStep (challenges : Fin SourceCount → RingF)
   else MaterializedRingF.ofRing <|
     ringFAdd current.toRing (ringFMul (challenges source) value.toRing)
 
-/-- Skipping an exactly zero source preserves the existing ring expression. -/
 theorem witnessBlockStep_toRing (challenges : Fin SourceCount → RingF)
     (sources : Fin SourceCount → MaterializedRingF)
     (current : MaterializedRingF) (source : Fin SourceCount) :
@@ -43,7 +38,6 @@ theorem witnessBlockStep_toRing (challenges : Fin SourceCount → RingF)
     exact (ConcreteCarrier.baseLaws.add_zero _).symm
   · exact MaterializedRingF.toRing_ofRing _
 
-/-- All 17 source prefixes in the existing fresh-then-running order. -/
 def witnessBlockPartials (challenges : Fin SourceCount → RingF)
     (sources : Fin SourceCount → MaterializedRingF) : List MaterializedRingF :=
   scan (MaterializedRingF.ofRing ringFZero) (witnessBlockStep challenges sources)
@@ -112,8 +106,6 @@ local instance : Std.LawfulIdentity ringFAdd ringFZero where
   left_id := ringFZero_add
   right_id := ringFAdd_zero
 
-/-- The executable block result is the exact typed PiRLC assignment block.
-No source-validity or zero-tail premise is needed for this arithmetic identity. -/
 theorem witnessBlockPartials_getLast?
     {shape : Phi81Relation.Shape}
     (challenges : Fin SourceCount → RingF)
@@ -132,7 +124,6 @@ theorem witnessBlockPartials_getLast?
   rw [← List.foldl_map, ← List.foldr_eq_foldl, List.foldr_map]
   exact (assignmentBlock_combine_eq_foldr block challenges assignments).symm
 
-/-- Prepare the 17 transcript-derived ring actions once, outside the block scan. -/
 def prepareWitnessActions (challenges : Fin SourceCount → RingF) :
     FixedArray (FixedArray MaterializedRingF ringDegree) SourceCount :=
   FixedArray.ofFn fun source =>
@@ -178,8 +169,6 @@ private theorem preparedProduct_toRing (challenge : RingF)
   simpa only [MaterializedRingF.toRing_ofRing] using
     PiRLCWitnessAction.multiplySigned_correct (MaterializedRingF.ofRing challenge) source
 
-/-- Use the stored action table for signed sources. The general ring product
-is evaluated only in the rejected signed-unit branch of `preparedProduct`. -/
 def preparedWitnessBlockStep (challenges : Fin SourceCount → RingF)
     (tables : FixedArray (FixedArray MaterializedRingF ringDegree) SourceCount)
     (sources : Fin SourceCount → MaterializedRingF)
@@ -190,7 +179,6 @@ def preparedWitnessBlockStep (challenges : Fin SourceCount → RingF)
     let product := preparedProduct (challenges source) (tables.get source) value
     MaterializedRingF.ofRing (ringFAdd current.toRing product.toRing)
 
-/-- The prepared step has the same ring value as the original total step. -/
 theorem preparedWitnessBlockStep_toRing (challenges : Fin SourceCount → RingF)
     (sources : Fin SourceCount → MaterializedRingF)
     (current : MaterializedRingF) (source : Fin SourceCount) :
@@ -207,14 +195,12 @@ theorem preparedWitnessBlockStep_toRing (challenges : Fin SourceCount → RingF)
   · simp only [MaterializedRingF.toRing_ofRing, prepareWitnessActions,
       FixedArray.get_ofFn, preparedProduct_toRing]
 
-/-- Replay all source prefixes using the caller's once-prepared tables. -/
 def preparedWitnessBlockPartials (challenges : Fin SourceCount → RingF)
     (tables : FixedArray (FixedArray MaterializedRingF ringDegree) SourceCount)
     (sources : Fin SourceCount → MaterializedRingF) : List MaterializedRingF :=
   scan (MaterializedRingF.ofRing ringFZero)
     (preparedWitnessBlockStep challenges tables sources)
 
-/-- Every prepared prefix agrees with the existing executable block scan. -/
 theorem preparedWitnessBlockPartials_toRing (challenges : Fin SourceCount → RingF)
     (sources : Fin SourceCount → MaterializedRingF) :
     (preparedWitnessBlockPartials challenges (prepareWitnessActions challenges) sources).map
@@ -228,8 +214,6 @@ theorem preparedWitnessBlockPartials_toRing (challenges : Fin SourceCount → Ri
     rw [preparedWitnessBlockStep_toRing, witnessBlockStep_toRing]
     rfl
 
-/-- Prepared replay computes the same complete assignment block, with no
-source-validity premise and no supplied expected witness. -/
 theorem preparedWitnessBlockPartials_getLast?
     {shape : Phi81Relation.Shape}
     (challenges : Fin SourceCount → RingF)

@@ -208,7 +208,6 @@ fn superneo_transform_general_matrix_matches_field_matrix_vector_product() {
     let mut mat = Mat::zero(n, m, F::ZERO);
     for r in 0..n {
         for c in (r..m).step_by(17) {
-            // Keep matrix sparse but nontrivial across both D-blocks.
             mat[(r, c)] = F::from_u64((r as u64 + 3) * (c as u64 + 5));
         }
     }

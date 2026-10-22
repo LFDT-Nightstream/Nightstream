@@ -4,21 +4,15 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{AjtaiError, AjtaiResult};
 
-/// Public parameters for Ajtai: M ∈ R_q^{κ×m}, stored row-major.
-/// Outside this crate `new` is the only constructor, so every value has its
-/// declared shape.
 #[derive(Clone, Debug)]
 pub struct PP<RqEl> {
     pub(crate) kappa: usize,
     pub(crate) m: usize,
     pub(crate) d: usize,
-    /// Ajtai matrix rows; each row is a vector of ring elements of length m.
     pub(crate) m_rows: Vec<Vec<RqEl>>,
 }
 
 impl<RqEl> PP<RqEl> {
-    /// Require `d == D`, nonzero `kappa` and `m`, `kappa` rows, and `m`
-    /// ring elements in every row.
     pub fn new(d: usize, kappa: usize, m: usize, m_rows: Vec<Vec<RqEl>>) -> AjtaiResult<Self> {
         if d != neo_math::ring::D || kappa == 0 || m == 0 {
             return Err(AjtaiError::InvalidDimensions(
@@ -50,12 +44,10 @@ impl<RqEl> PP<RqEl> {
     }
 }
 
-/// Commitment c ∈ F_q^{d×κ}, stored as column-major flat matrix (κ columns, each length d).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Commitment {
     pub d: usize,
     pub kappa: usize,
-    /// data[c * d + i] = i-th row of column c
     pub data: Vec<Fq>,
 }
 

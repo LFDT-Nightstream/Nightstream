@@ -35,7 +35,6 @@ open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Layout.Stage1.PiCCSInputs
 
-/-- Exactly the prover-owned PiCCS values on the production interface. -/
 structure ProofValues where
   freshCommitment : PaperAlgebra.Commitment
   roundCoefficient : Fin productionShape.cubeVariables → Fin (8 + 1) → K
@@ -45,14 +44,12 @@ structure ProofValues where
     Fin productionShape.matrixCount →
     Fin productionShape.coefficientCount → K
 
-/-- The semantic fixed polynomial carried by one round message. -/
 def roundPolynomial (values : ProofValues)
     (roundIndex : Fin productionShape.cubeVariables) :
     NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial K 8 where
   coefficients := List.ofFn (values.roundCoefficient roundIndex)
   coefficients_length := by simp
 
-/-- The semantic v1_2 output with Pad and CCS matrix families kept separate. -/
 def output (values : ProofValues) :
     FullOutputCoordinates.FullOutput K productionShape where
   padCoordinate := values.outputEval_K
@@ -73,8 +70,6 @@ def serializeOutput (values : ProofValues) : List F :=
   (List.finRange productionShape.sourceCount).flatMap fun source =>
     serializeEvaluations (outputEvaluation values source)
 
-/-- Canonical external proof-input order. It is the exact order used by
-`PiCCSInputs`: commitment, rounds, then separate output evaluation families. -/
 def serializeProofInputs (values : ProofValues) : List F :=
   serializeCommitment values.freshCommitment ++
     serializeRounds values ++ serializeOutput values
@@ -179,7 +174,6 @@ private theorem serializeEvaluations_evalA_getD
         (fun index => serializeK_length (evaluations.matrix matrix index))
         coefficient component.val component.isLt
 
-/-- The prior child region: the sixteen child public inputs, child-major. -/
 def priorChildWords
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -188,15 +182,11 @@ def priorChildWords
     List F :=
   serializeChildPublicInputs (publicFits := publicFits) running
 
-/-- One combined source for the pilot columns, the prior child region, and
-the new PiCCS proof-input columns. -/
 structure ExternalValues where
   pilot : PilotProduction.ExternalValues
   children : List F
   proof : ProofValues
 
-/-- Load the pilot prefix unchanged, then the child region, then the
-canonical PiCCS proof words. -/
 def loadExternal (values : ExternalValues) : Env := fun index =>
   if index < priorChildrenStart then
     PilotProduction.loadExternal values.pilot index
@@ -205,15 +195,12 @@ def loadExternal (values : ExternalValues) : Env := fun index =>
   else
     (serializeProofInputs values.proof).getD (index - proofInputStart) 0
 
-/-- Load the verifier-owned context into its four existing source slots.
-The pilot and proof-input values keep their current source addresses. -/
 def loadExpectedContext (env : Env) (context : VerifierContext.Digest4) : Env :=
   (((env.set expectedContextStart context.c0).set
     (expectedContextStart + 1) context.c1).set
     (expectedContextStart + 2) context.c2).set
     (expectedContextStart + 3) context.c3
 
-/-- Every expected-context expression reads its exact verifier-owned word. -/
 theorem loadExpectedContext_read (env : Env) (context : VerifierContext.Digest4)
     (lane : Fin 4) :
     (expectedContext lane).eval (loadExpectedContext env context) =
@@ -222,8 +209,6 @@ theorem loadExpectedContext_read (env : Env) (context : VerifierContext.Digest4)
     simp [loadExpectedContext, expectedContext, Env.set,
       VerifierContext.Digest4.toList]
 
-/-- Loading context preserves every other source coordinate, including the
-pilot prefix and the child region starting immediately after these slots. -/
 theorem loadExpectedContext_agreesOutside (env : Env)
     (context : VerifierContext.Digest4) :
     AgreesOutside env (loadExpectedContext env context)
@@ -310,8 +295,6 @@ private theorem serializeProofInputs_freshCommitment_getD
     norm_num [productionProfile, ringDegree, roundMessageWords]
     omega
 
-/-- One fresh commitment coefficient evaluates from its canonical external
-proof word. -/
 theorem eval_freshCommitment
     (values : ExternalValues)
     (source : Fin productionShape.freshCount)
@@ -337,8 +320,6 @@ theorem eval_freshCommitment
   exact serializeProofInputs_freshCommitment_getD
     values.proof row coefficient
 
-/-- One fresh public-input coordinate reuses the authoritative pilot public
-column. -/
 theorem eval_freshPublicInput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -365,8 +346,6 @@ theorem eval_freshPublicInput
       publicRingColumns, ringDegree] at columnBound ⊢
     omega
 
-/-- The typed fresh PiCCS statement represented by the combined external
-values. -/
 def fresh
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -396,8 +375,6 @@ private theorem fresh_ext
   cases right
   simp_all
 
-/-- The concrete symbolic fresh interface evaluates to the typed proof and
-pilot values. -/
 theorem evalFresh_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -534,8 +511,6 @@ private theorem eval_roundComponent
   exact serializeProofInputs_round_getD
     values.proof roundIndex coefficient component
 
-/-- One degree-eight round coefficient evaluates from the canonical round
-segment. -/
 theorem eval_roundCoefficient
     (values : ExternalValues)
     (roundIndex : Fin productionShape.cubeVariables)
@@ -558,8 +533,6 @@ private theorem fixedPolynomial_ext {degree : Nat}
   cases right
   simp_all
 
-/-- One symbolic round message evaluates to its constant-first semantic
-degree-eight polynomial. -/
 theorem eval_roundMessage
     (values : ExternalValues)
     (roundIndex : Fin productionShape.cubeVariables) :
@@ -575,7 +548,6 @@ theorem eval_roundMessage
   funext coefficient
   exact eval_roundCoefficient values roundIndex coefficient
 
-/-- All 28 symbolic round messages evaluate to the typed proof values. -/
 theorem eval_rounds (values : ExternalValues) :
     (fun roundIndex =>
       (roundMessage roundIndex).semanticPolynomial (loadExternal values)) =
@@ -827,7 +799,6 @@ private theorem eval_outputEvalAComponent
   exact serializeProofInputs_outputEvalA_getD
     values.proof source matrix coefficient component
 
-/-- One output `Eval_K` coordinate evaluates from the separate Pad segment. -/
 theorem eval_outputEval_K
     (values : ExternalValues)
     (source : Fin productionShape.sourceCount)
@@ -842,8 +813,6 @@ theorem eval_outputEval_K
       eval_outputEvalKComponent values source coefficient 1
     simpa [outputEval_K, pairAt, serializeK] using! componentEquality
 
-/-- One output `Eval_A` coordinate evaluates from the separate CCS-matrix
-segment. -/
 theorem eval_outputEval_A
     (values : ExternalValues)
     (source : Fin productionShape.sourceCount)
@@ -867,8 +836,6 @@ private theorem fullOutput_ext
   cases right
   simp_all
 
-/-- The concrete symbolic output evaluates to the exact separate v1_2 output
-families. -/
 theorem evalOutput_eq (values : ExternalValues) :
     ∀ {logicalWidth : Nat}
       {publicFits : ringDegree * publicRingColumns ≤
@@ -883,7 +850,6 @@ theorem evalOutput_eq (values : ExternalValues) :
   · funext source matrix coefficient
     exact eval_outputEval_A values source matrix coefficient
 
-/-- Replace only the PiCCS-owned fields of the one semantic proof. -/
 def proof (values : ProofValues) (template : Proof 8) : Proof 8 where
   piCcsRounds := roundPolynomial values
   piCcsOutput := output values
@@ -923,8 +889,6 @@ private def relationRoundPolynomial
       (relationCoefficientIndex relation coefficient)
   coefficients_length := by simp
 
-/-- Normalize only the degree-indexed round field. All other interface fields
-stay definitionally equal to the concrete production interface. -/
 def relationInterface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -942,8 +906,6 @@ def relationInterface
     ((interface logicalWidth publicFits).round offset roundIndex)
   output := (interface logicalWidth publicFits).output
 
-/-- Build the relation-typed proof directly from the fixed production proof
-values. Only the PiDEC fields come from the template. -/
 def relationProof
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -1039,8 +1001,6 @@ private theorem evalFresh_relationInterface
       Formal.evalFresh (interface logicalWidth publicFits) offset env := by
   rfl
 
-/-- `Formal.evalProof` reads exactly the typed PiCCS rounds and separate
-output families, while it leaves both later PiDEC fields unchanged. -/
 theorem evalProof_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -1091,7 +1051,6 @@ private theorem running_ext
   simp only [NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Running.mk.injEq]
   exact ⟨point, commitments, publicInputs, evaluations⟩
 
-/-- Concrete protocol values for the pilot plus one typed PiCCS proof input. -/
 def protocolValues
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -1131,8 +1090,6 @@ def protocolEnv
     priorFixed outputFixed digestFixed proofValues)
 
 
-/-- Exact semantic fresh instance: the proof commitment and the lifecycle
-public input. -/
 def protocolFresh
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -1148,7 +1105,6 @@ def protocolFresh
   commitments := fun _ => proofValues.freshCommitment
   publicInputs := fun _ => priorPublic
 
-/-- Relation-typed parent view of the exact fresh instance. -/
 theorem formalEvalFresh_protocolEnv_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -1176,7 +1132,6 @@ theorem formalEvalFresh_protocolEnv_eq
       priorFixed outputFixed digestFixed proofValues)
   simpa [protocolEnv, protocolValues, fresh, protocolFresh] using! evaluated
 
-/-- Relation-typed parent view of the proof with only PiCCS fields replaced. -/
 theorem formalEvalProof_protocolEnv_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -1203,9 +1158,6 @@ theorem formalEvalProof_protocolEnv_eq
     (protocolValues prior priorPublic outputPreimage digest
       priorFixed outputFixed digestFixed proofValues) template
 
-/-- Loading the selected context preserves the exact running, fresh and proof
-inputs. Their source ranges exclude the four context slots, so this applies
-to `protocolEnv` without assuming agreement on the entire phase prefix. -/
 theorem loadExpectedContext_inputs_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

@@ -1,9 +1,8 @@
 import NightstreamFPrime.Layout.ProductionRelation.SparseEvaluation
 import NightstreamFPrime.Export.NativePoseidon2RoundCore
 
-/-! Native-word accumulation for the existing stored sparse form. Entry
-order and reads are unchanged. Field arithmetic belongs to the existing
-proved Goldilocks word operations. -/
+/-! Native-word accumulation for the existing stored sparse form. Field
+arithmetic belongs to the existing proved Goldilocks word operations. -/
 
 set_option autoImplicit false
 
@@ -47,7 +46,6 @@ private theorem mulWord_value (left right : CanonicalWord) :
   rw [toF_denote, toF_denote left, toF_denote right]
   simpa only [mulWord] using mul64_denote left.val right.val left.property right.property
 
-/-- Traverse the stored entries with a native-word accumulator. -/
 @[inline] private def accumulate {columns : Nat} (read : Fin columns → F)
     (entries : List (SparseEntry columns)) (initial : CanonicalWord) : CanonicalWord :=
   entries.foldl (fun total entry =>
@@ -65,25 +63,19 @@ private theorem accumulate_value {columns : Nat} (read : Fin columns → F)
       simp only [List.foldl_cons, ih,
         addWord_value, mulWord_value, toF_fromF]
 
-/-- Evaluate the same sparse entries with a native field accumulator. -/
 @[specialize] def nativeEvalSparse {columns : Nat} (form : SparseForm columns)
     (read : Fin columns → F) : F :=
   toF (accumulate read form.entries (fromF 0))
 
-/-- Exact equality for every form and read, including empty forms, repeated
-columns, zero coefficients and cancellation. No validity premise is required. -/
 theorem nativeEvalSparse_eq_spec {columns : Nat} (form : SparseForm columns)
     (read : Fin columns → F) : nativeEvalSparse form read = form.evalSparse read := by
   unfold nativeEvalSparse SparseForm.evalSparse
   rw [accumulate_value, toF_fromF]
 
-/-- Two native-word accumulators. -/
 private structure PairWords where
   low : CanonicalWord
   high : CanonicalWord
 
-/-- Traverse entries with two coefficients each: two native-word accumulators
-and one read per entry. -/
 @[inline] private def accumulatePair {columns : Nat} (read : Fin columns → F)
     (entries : List (Fin columns × F × F)) (initial : PairWords) : PairWords :=
   entries.foldl (fun state entry =>
@@ -103,14 +95,11 @@ private theorem accumulatePair_value {columns : Nat} (read : Fin columns → F)
   | cons entry entries ih =>
       simp only [List.foldl_cons, ih, addWord_value, mulWord_value, toF_fromF, and_self]
 
-/-- Evaluate two sparse forms over the same columns with one read per column. -/
 @[specialize] def nativeEvalPair {columns : Nat} (entries : List (Fin columns × F × F))
     (read : Fin columns → F) : F × F :=
   let result := accumulatePair read entries ⟨fromF 0, fromF 0⟩
   (toF result.low, toF result.high)
 
-/-- Each coordinate is the evaluation of its own sparse form, for every list of
-entries and every read. -/
 theorem nativeEvalPair_eq_spec {columns : Nat} (entries : List (Fin columns × F × F))
     (read : Fin columns → F) :
     nativeEvalPair entries read =
@@ -120,8 +109,6 @@ theorem nativeEvalPair_eq_spec {columns : Nat} (entries : List (Fin columns × F
   rw [toF_fromF] at value
   simp only [nativeEvalPair, SparseForm.evalSparse, List.foldl_map, value.1, value.2]
 
-/-- An entry with two coefficient pairs whose four coefficients are canonical
-words, so that reading the same entries for many lanes converts them once. -/
 structure TwoPairEntry (columns : Nat) where
   column : Fin columns
   firstLow : { word : UInt64 // word.toNat < goldilocksModulus }
@@ -129,19 +116,16 @@ structure TwoPairEntry (columns : Nat) where
   secondLow : { word : UInt64 // word.toNat < goldilocksModulus }
   secondHigh : { word : UInt64 // word.toNat < goldilocksModulus }
 
-/-- The words of one entry. -/
 def TwoPairEntry.ofEntry {columns : Nat} (entry : Fin columns × (F × F) × (F × F)) :
     TwoPairEntry columns :=
   ⟨entry.1, fromF entry.2.1.1, fromF entry.2.1.2, fromF entry.2.2.1, fromF entry.2.2.2⟩
 
-/-- Four native-word accumulators: two pairs. -/
 private structure TwoPairWords where
   firstLow : CanonicalWord
   firstHigh : CanonicalWord
   secondLow : CanonicalWord
   secondHigh : CanonicalWord
 
-/-- Add one entry times its read to the four accumulators. -/
 @[inline] private def stepTwoPairs {columns : Nat} (read : Fin columns → F)
     (state : TwoPairWords) (entry : TwoPairEntry columns) : TwoPairWords :=
   let value := fromF (read entry.column)
@@ -170,8 +154,6 @@ private theorem foldTwoPairs_value {columns : Nat} (read : Fin columns → F)
       simp only [List.map_cons, List.foldl_cons, ih, stepTwoPairs, TwoPairEntry.ofEntry,
         addWord_value, mulWord_value, toF_fromF, and_self]
 
-/-- Evaluate two pairs of sparse forms over the same columns with one read per
-column. -/
 @[specialize] def nativeEvalTwoPairs {columns : Nat} (entries : Array (TwoPairEntry columns))
     (read : Fin columns → F) : (F × F) × (F × F) :=
   let zero := fromF 0
@@ -179,8 +161,6 @@ column. -/
   ((toF result.firstLow, toF result.firstHigh),
     (toF result.secondLow, toF result.secondHigh))
 
-/-- Each coordinate of each pair is the evaluation of its own sparse form, for
-every list of entries and every read. -/
 theorem nativeEvalTwoPairs_eq_spec {columns : Nat}
     (entries : List (Fin columns × (F × F) × (F × F))) (read : Fin columns → F) :
     nativeEvalTwoPairs (entries.map TwoPairEntry.ofEntry).toArray read =

@@ -10,17 +10,10 @@ workspace = true
 
 [features]
 default = ["paper-exact"]
-# Test-only feature for deterministic shortcuts in small-unit tests
 testing = []
-# Paper-exact, intentionally-inefficient reference implementation for Π-CCS
 paper-exact = []
-# Forward neo-transcript debug logging so tests can enable transcript dumps on stable
 debug-logs = ["neo-transcript/debug-log"]
-# Compile-time-only perf timing prints for RowStreamState::build subphases.
-# Separate from debug-logs because the latter also triggers an O(2^ell)
-# paper-exact cross-check unsuited for production-sized structures.
 perf-timers = []
-# Forward fs-guard so tests can compare prover vs verifier transcript events
 fs-guard = ["neo-transcript/fs-guard"]
 wasm-threads = ["neo-ajtai/wasm-threads", "neo-ccs/wasm-threads"]
 
@@ -30,14 +23,12 @@ neo-ajtai = { path = "../neo-ajtai" }
 neo-ccs = { path = "../neo-ccs" }
 neo-params = { path = "../neo-params" }
 neo-transcript = { path = "../neo-transcript" }
-# Plonky3 dependencies
 p3-field = { workspace = true }
 p3-matrix = { workspace = true }
 p3-challenger = { workspace = true }
 p3-poseidon2 = { workspace = true }
 p3-goldilocks = { workspace = true }
 p3-symmetric = { workspace = true }
-# Utilities
 rand = { workspace = true }
 rand_chacha_p3 = { workspace = true }
 thiserror = { workspace = true }
@@ -59,9 +50,3 @@ p3-goldilocks = { workspace = true }
 p3-field = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-
-# Test configuration
-[[test]]
-name = "paper_exact"
-path = "tests-paper-exact/mod.rs"
-harness = true

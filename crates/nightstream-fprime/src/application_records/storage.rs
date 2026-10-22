@@ -140,7 +140,6 @@ impl Write for Writer {
     }
 }
 
-/// Crate-owned immutable bytes; serialization never retains the source tree.
 pub(crate) struct PrivateSnapshot(Reader);
 
 impl std::fmt::Debug for PrivateSnapshot {
@@ -215,7 +214,6 @@ impl Reader {
             .checked_add(bytes)
             .filter(|&end| end <= self.length)
             .ok_or(PackageError::Invalid("application record range exceeds file"))?;
-        // Use the standard library's buffer policy. No row-sized buffer is kept.
         Ok(BufReader::new(Cursor {
             reader: self,
             position: offset,
@@ -272,8 +270,6 @@ pub(super) fn read_word(input: &mut (impl Read + ?Sized)) -> Result<u64, Package
     Ok(u64::from_le_bytes(word))
 }
 
-/// A buffered continuation stack. Its resident block follows the standard
-/// library I/O buffer policy; only deeper frames spill to the private file.
 pub(super) struct RecipeStack {
     file: File,
     _reader: File,

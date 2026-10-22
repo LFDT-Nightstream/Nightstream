@@ -6,8 +6,6 @@ use p3_goldilocks::Goldilocks;
 
 use super::{Entry, PackageError};
 
-/// Add `coefficient * ratio^i` at `column + i` for each coordinate in this run.
-/// Runs in a row can overlap; their contributions add in the field.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MatrixRun {
     column: usize,
@@ -153,6 +151,13 @@ impl Form {
     }
 
     pub(super) fn from_terms(mut terms: Vec<MatrixRun>) -> Self {
+        debug_assert!(
+            terms.windows(2).all(|pair| pair[0].key() < pair[1].key())
+                && terms
+                    .iter()
+                    .all(|term| term.coefficient != Goldilocks::ZERO),
+            "matrix form terms must be sorted, unique and nonzero"
+        );
         match terms.len() {
             0 => Self::Empty,
             1 => Self::One(terms.pop().expect("one term")),

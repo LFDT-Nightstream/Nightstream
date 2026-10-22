@@ -25,7 +25,7 @@ const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_2_ROUND_COUNT;
 const DOMAIN_WORDS: usize = 12;
 const PACKED_PARENT_WORDS: usize = 90;
 /// `Lifecycle.XOut.serializeTail`: `vk, i, z0, zi` close the preimage.
-const TAIL_START: usize = STATE_PREIMAGE_WORDS - 13;
+const TAIL_START: usize = STATE_PREIMAGE_WORDS - pi_ccs_parent::TAIL_WORDS;
 
 #[derive(Clone, Deserialize)]
 struct RawInput(Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>);
@@ -142,8 +142,6 @@ fn lean_result(raw: RawResult) -> PilotResult {
 
 /// `Lifecycle.XOut.stateDomainChunk`: the tag, eight little-endian bytes per
 /// word, then zero words up to one sponge rate.
-/// Lean `stateDomainChunk`: "HyperNova/NIVC/state/v2" as zero-padded
-/// little-endian words, written out here as an independent check.
 const DOMAIN_CHUNK: [u64; DOMAIN_WORDS] = [
     0x766f_4e72_6570_7948,
     0x732f_4356_494e_2f61,
@@ -239,8 +237,6 @@ fn pilot_fixture_has_valid_zero_running_openings() {
 
 fn check_zero_running_openings(input: &RawInput) {
     for words in [&input.0, &input.2] {
-        // The zero carrier has norm below b = 2. Its linear commitment,
-        // separate Pad/matrix evaluations, point and parent are zero.
         assert!(
             words[DOMAIN_WORDS..TAIL_START]
                 .iter()

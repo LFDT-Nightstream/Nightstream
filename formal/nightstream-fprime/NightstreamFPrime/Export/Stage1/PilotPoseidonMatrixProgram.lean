@@ -3,10 +3,7 @@ import NightstreamFPrime.Export.Stage1.PilotPoseidonPlan
 
 /-!
 Owns the compact wire input programs and Poseidon2 matrix blocks for the two
-pilot state-hash chains. Each chain uses the same four-rule shape and its own
-Lean-owned retained blocks.
-
-This module does not select later transcript families or package order.
+pilot state-hash chains.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgram
@@ -107,8 +104,6 @@ def outputBlock {program : Program} {logicalWidth : Nat}
         (PiRLCPoseidonGeometry.oneColumn geometry) (outputInputProgram program)
     _ = 348000 := by norm_num
 
-/-- The exact Pilot Poseidon row order: prior-state hash, then output-state
-hash. -/
 def matrixProgram {program : Program} {logicalWidth : Nat}
     (geometry : PiRLCPoseidonGeometry.Geometry program logicalWidth) :
     MatrixProgram.Program :=

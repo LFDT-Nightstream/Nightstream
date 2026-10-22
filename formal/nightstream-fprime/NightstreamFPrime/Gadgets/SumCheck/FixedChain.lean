@@ -17,7 +17,6 @@ open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- One prover polynomial paired with its verifier-owned challenge. -/
 structure Round (degree : Nat) where
   coefficient : Fin (degree + 1) → KExpr
   challenge : KExpr
@@ -42,7 +41,6 @@ def Round.semanticPolynomial {degree : Nat} (env : Env)
   coefficients := round.coefficients.map (KExpr.eval env)
   coefficients_length := by simp [Round.coefficients]
 
-/-- Constant-first Horner evaluation, identical to the semantic verifier. -/
 def evaluateCoefficients (point : KExpr) : List KExpr → KExpr
   | [] => KExpr.zero
   | coefficient :: rest =>
@@ -100,7 +98,6 @@ theorem evaluateRound_varsBelow {degree : Nat} (round : Round degree)
   rcases member with ⟨index, rfl⟩
   exact roundBelow.1 index
 
-/-- Flat equations for the exact claimed chain. -/
 def chainConstraints {degree : Nat} (current : KExpr) :
     List (Round degree) → KExpr → List Expr
   | [], terminal => KExpr.equalities current terminal
@@ -195,8 +192,6 @@ theorem chainConstraints_hold_iff {degree : Nat} (env : Env)
         KExpr.eval_one]
       simp [extensionOps]
 
-/-- Fixed finite interface. All expressions are supplied by the parent ABI;
-the gadget allocates no challenge or prover-message authority. -/
 structure Interface (degree roundCount : Nat) where
   initial : KExpr
   round : Fin roundCount → Round degree
@@ -378,7 +373,6 @@ theorem holdsFlat_assertions_iff (env : Env) (expressions : List Expr) :
   unfold holdsFlat
   rw [flatten]
 
-/-- The one opaque fixed-chain circuit. -/
 def circuit {degree roundCount : Nat}
     (interface : Interface degree roundCount) : FormalCircuit where
   main := main interface
@@ -399,39 +393,14 @@ def circuit {degree roundCount : Nat}
       exact (chainConstraints_hold_iff env interface.initial
         interface.terminal interface.rounds).mpr specification
 
-/-! ## Child-owned terminal variant -/
-
 namespace Owned
-
-/-!
-Obligation: Enforce every SumCheck round equation and export the final
-`p_i(r_i)` value directly to the terminal-check owner.
-
-Inputs:
-- one initial claim;
-- indexed prover polynomials and verifier-owned challenges.
-
-Output:
-- the final claimed value after all indexed rounds.
-
-Constraint groups:
-- C1: the stored Horner products of every `p_i(r_i)`;
-- C2: two base-field rows per round for `claim_i = p_i(0) + p_i(1)`.
-
-`p_i(0)` is the constant coefficient and `p_i(1)` is the coefficient sum, so
-C2 has no multiplication. Each later round and the terminal owner read a
-stored `p_i(r_i)`, never a repeated expression. The final equality belongs to
-the protocol terminal gadget; this circuit has no terminal copy row.
--/
 
 open NightstreamFPrime.Gadgets.Polynomial
 
-/-- `p(1)`: the sum of all coefficients, in the semantic evaluation order. -/
 def coefficientSum : List KExpr → KExpr
   | [] => KExpr.zero
   | coefficient :: rest => KExpr.add coefficient (coefficientSum rest)
 
-/-- `p(0) + p(1)`: the constant coefficient plus the coefficient sum. -/
 def boundarySum : List KExpr → KExpr
   | [] => KExpr.add KExpr.zero KExpr.zero
   | coefficient :: rest =>
@@ -500,7 +469,6 @@ theorem boundarySum_varsBelow (coefficients : List KExpr) (bound : Nat)
       exact KExpr.add_varsBelow _ _ bound (below coefficient (by simp))
         (coefficientSum_varsBelow (coefficient :: rest) bound below)
 
-/-- `p(0) + p(1)` of one round. -/
 def roundBoundary {degree : Nat} (round : Round degree) : KExpr :=
   boundarySum round.coefficients
 
@@ -521,7 +489,6 @@ private theorem Round.coefficients_below {degree : Nat} (round : Round degree)
   rcases member with ⟨index, rfl⟩
   exact below.1 index
 
-/-- The stored Horner evaluation of one round at its challenge. -/
 def roundProgram {degree : Nat} (start : Nat) (round : Round degree) :
     Horner.Program :=
   Horner.compile start round.challenge round.coefficients
@@ -542,21 +509,18 @@ theorem roundProgram_output_eval {degree : Nat} (env : Env) (start : Nat)
   (Horner.compile_output_sound env start round.challenge round.coefficients
     rows).trans (Horner.evaluate_eq_messageEvaluate _ _)
 
-/-- Stored products of every round, in round order. -/
 def recipesFrom {degree : Nat} (start : Nat) : List (Round degree) → List Expr
   | [] => []
   | round :: rounds =>
       (roundProgram start round).recipes ++
         recipesFrom (start + 3 * degree) rounds
 
-/-- The final stored claim; an empty chain returns its input claim. -/
 def outputFrom {degree : Nat} (start : Nat) :
     KExpr → List (Round degree) → KExpr
   | current, [] => current
   | _, round :: rounds =>
       outputFrom (start + 3 * degree) (roundProgram start round).output rounds
 
-/-- The round equations `claim_i = p_i(0) + p_i(1)`. -/
 def equalitiesFrom {degree : Nat} (start : Nat) :
     KExpr → List (Round degree) → List Expr
   | _, [] => []
@@ -673,8 +637,6 @@ theorem equalitiesFrom_varsBelow {degree : Nat} (start : Nat) (current : KExpr)
         rw [← boundEq]
         exact step
 
-/-- Soundness core: stored products and round equations give the exact
-claimed chain ending at the stored final claim. -/
 theorem chain_of_rows {degree : Nat} (env : Env) (start : Nat)
     (current : KExpr) (rounds : List (Round degree))
     (recipeRows : ConstraintsHold env
@@ -709,8 +671,6 @@ theorem chain_of_rows {degree : Nat} (env : Env) (start : Nat)
       rw [← outputEq]
       exact tail
 
-/-- Completeness core: with the stored products in place, an accepted chain
-satisfies every round equation and its terminal is the stored final claim. -/
 theorem rows_of_chain {degree : Nat} (env : Env) (start : Nat)
     (current : KExpr) (rounds : List (Round degree))
     (recipeRows : ConstraintsHold env
@@ -769,7 +729,6 @@ private theorem Interface.rounds_below {degree roundCount : Nat}
   rcases member with ⟨index, rfl⟩
   exact below.2 index
 
-/-- Number of stored base-field values: two for each Horner product. -/
 def privateCount (degree roundCount : Nat) : Nat := 3 * degree * roundCount
 
 def recipes {degree roundCount : Nat}
@@ -780,7 +739,6 @@ def assertions {degree roundCount : Nat}
     (interface : Interface degree roundCount) (offset : Nat) : List Expr :=
   equalitiesFrom offset interface.initial interface.rounds
 
-/-- The stored final claim `p_n(r_n)`. -/
 def output {degree roundCount : Nat}
     (interface : Interface degree roundCount) (offset : Nat) : KExpr :=
   outputFrom offset interface.initial interface.rounds
@@ -858,8 +816,6 @@ theorem soundness {degree roundCount : Nat}
   exact chain_of_rows env offset interface.initial interface.rounds
     recipeRows equalityRows
 
-/-- Honest execution from an accepted chain over the input wires. It stores
-every product and returns the chain terminal as the owned output. -/
 theorem build {degree roundCount : Nat}
     (interface : Interface degree roundCount) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) (terminal : K)
@@ -977,7 +933,6 @@ theorem flatConstraints_length {degree roundCount : Nat}
   rw [flatConstraints_eq, List.length_append, recipeConstraints_length,
     recipes_length, assertions_length]
 
-/-- Every row reads only input wires or this child's stored interval. -/
 theorem flatConstraints_varsBelow {degree roundCount : Nat}
     (interface : Interface degree roundCount) (offset : Nat)
     (below : interface.VarsBelow offset) :
@@ -996,7 +951,6 @@ theorem flatConstraints_varsBelow {degree roundCount : Nat}
       assertionMember
     simpa [Interface.rounds, privateCount] using scope
 
-/-- The owned result lies inside the child's stored interval. -/
 theorem output_varsBelow {degree roundCount : Nat}
     (interface : Interface degree roundCount) (offset : Nat)
     (below : interface.VarsBelow offset) :
@@ -1006,8 +960,6 @@ theorem output_varsBelow {degree roundCount : Nat}
     below.1 (Interface.rounds_below interface offset below)
   simpa [output, Interface.rounds, privateCount] using scope
 
-/-- The specification is stable when the input wires and the stored interval
-are unchanged. -/
 theorem specHolds_eq_of_agree_below {degree roundCount : Nat}
     (interface : Interface degree roundCount) (offset : Nat)
     (left right : Env) (below : interface.VarsBelow offset)

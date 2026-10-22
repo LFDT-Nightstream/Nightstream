@@ -13,7 +13,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- Execute only stored entries; no logical-column enumeration is built. -/
 @[specialize] def evalSparse {columns : Nat} (form : SparseForm columns)
     (assignment : Assignment F columns) : F :=
   form.entries.foldl (fun total entry =>
@@ -35,8 +34,6 @@ private theorem foldl_entries_from {columns : Nat}
       simp only [zero_add]
       exact baseLaws.add_assoc _ _ _
 
-/-- The stored-entry traversal is exactly the existing matrix-row meaning.
-Every duplicate entry contributes to the same canonical column coefficient. -/
 theorem evalSparse_eq_eval {columns : Nat}
     (form : SparseForm columns) (assignment : Assignment F columns) :
     form.evalSparse assignment = form.eval assignment := by

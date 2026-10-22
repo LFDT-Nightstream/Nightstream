@@ -51,15 +51,10 @@ open StrongReduction ConcreteCarrier
 
 attribute [local instance low] Classical.propDecidable
 
-/-! ## Answers -/
-
-/-- An oracle answer: one four-word block, as the `Π_RLC` sampler reads. -/
 abbrev Answer := Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Draw
 
-/-- The extension challenge in an answer: its first two words. -/
 def decodeK (answer : Answer) : K := ⟨answer ⟨0, by decide⟩, answer ⟨1, by decide⟩⟩
 
-/-- An answer is two extension elements' worth of words. -/
 private def splitAnswer : Answer ≃ (F × F) × (F × F) where
   toFun answer := ((answer ⟨0, by decide⟩, answer ⟨1, by decide⟩),
     (answer ⟨2, by decide⟩, answer ⟨3, by decide⟩))
@@ -80,7 +75,6 @@ private def splitAnswer : Answer ≃ (F × F) × (F × F) where
         exact absurd inside (by unfold Spec.Folding.Nifs.NonInteractive.PiRlcSampler.drawWidth; omega)
   right_inv _ := rfl
 
-/-- Every extension element, once: one for each pair of words. -/
 def pairs : Finset K :=
   Finset.univ.map ⟨fun words : F × F => (⟨words.1, words.2⟩ : K), fun left right same => by
     cases left
@@ -91,7 +85,6 @@ def pairs : Finset K :=
 theorem pairs_card : (pairs.card : ℝ) = (goldilocksModulus ^ 2 : Nat) := by
   simp [pairs, Fintype.card_prod, Fintype.card_fin, pow_two]
 
-/-- The extension read of a uniform answer is uniform on `K`. -/
 theorem expect_decodeK (value : K → ℝ) :
     𝔼 answer : Answer, value (decodeK answer) = 𝔼 element ∈ pairs, value element := by
   refine (Fintype.expect_equiv splitAnswer (fun answer => value (decodeK answer))
@@ -105,8 +98,6 @@ theorem expect_decodeK (value : K → ℝ) :
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
-
-/-! ## Oracle domain -/
 
 private theorem exists_bound (degree : Nat) : ∃ bound : Nat,
     ∀ (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -122,11 +113,9 @@ private theorem exists_bound (degree : Nat) : ∃ bound : Nat,
       (fun _ _ => Nat.zero_le _) (Finset.mem_univ challenge)
   · exact ⟨0, fun fresh proof _ => absurd ⟨⟨fresh, proof⟩⟩ inhabited⟩
 
-/-- A length that every challenge's calls fit in. No result depends on it. -/
 noncomputable def pointBound (degree : Nat) : Nat :=
   Classical.choose (exists_bound (logicalWidth := logicalWidth) (publicFits := publicFits) degree)
 
-/-- A call list no longer than `pointBound`. -/
 abbrev BoundedCalls (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
     (degree : Nat) :=
@@ -136,20 +125,17 @@ abbrev BoundedCalls (logicalWidth : Nat)
 noncomputable instance (degree : Nat) : Fintype (BoundedCalls logicalWidth publicFits degree) :=
   (List.finite_length_le Call _).fintype
 
-/-- An oracle point: a bounded call list and a slot of the state after it. -/
 abbrev Point (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth)
     (degree : Nat) :=
   BoundedCalls logicalWidth publicFits degree × Slot
 
-/-- The oracle point of one challenge of one execution: its address. -/
 noncomputable def point {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) (challenge : Challenge) : Point logicalWidth publicFits degree :=
   (⟨challengeCalls fresh proof challenge,
     Classical.choose_spec (exists_bound degree) fresh proof challenge⟩, challenge.slot)
 
-/-- Distinct challenges of one execution have distinct points. -/
 theorem point_injective {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) {challenge other : Challenge}
@@ -159,14 +145,12 @@ theorem point_injective {degree : Nat}
     have slot := congrArg Prod.snd same
     exact Prod.ext calls slot)
 
-/-- The extension read of an address: the oracle answer at its point. -/
 noncomputable def read {degree : Nat} (oracle : Point logicalWidth publicFits degree → Answer)
     (address : List Call × Slot) : K :=
   if fits : address.1.length ≤ pointBound (logicalWidth := logicalWidth)
       (publicFits := publicFits) degree then decodeK (oracle (⟨address.1, fits⟩, address.2))
   else K.zero
 
-/-- The PiCCS coins of one execution under `oracle`. -/
 noncomputable def coins {degree : Nat} (oracle : Point logicalWidth publicFits degree → Answer)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) : PublicCoins K productionShape :=
@@ -188,16 +172,12 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 local notation "Degree" => ProductionKey.degreeBound relation
 local notation "Oracle" => Point logicalWidth publicFits (ProductionKey.degreeBound relation) → Answer
 
-/-- The key's PiCCS probe with oracle coins. The key's own coins read the
-sponge state instead (`TranscriptCoverage.piCcsProbe_coins`). -/
 noncomputable def oracleProbe (oracle : Oracle)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation)) : Probe K productionShape :=
   { (ProductionKey.key relation ajtai).piCcsProbe running fresh proof with
     coins := coins oracle fresh proof }
 
-/-- The oracle probe is accepted and `witness` opens its output, but `witness`
-fails the source relation of the statement. -/
 def FalseAcceptance (oracle : Oracle)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation)) : Prop :=
@@ -209,15 +189,10 @@ def FalseAcceptance (oracle : Oracle)
     ¬ SourceHolds extensionOps K.embed (PaperAlgebra.openingMaps ajtai) productionGlobalParams
       ((ProductionKey.key relation ajtai).statement running fresh) witness
 
-/-! ## Bad sets -/
-
-/-- The source data of `fresh` for the fixed running statement and witness. -/
 noncomputable def source (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     ProtocolPolynomial.Data K productionShape :=
   ((ProductionKey.key relation ajtai).statement running fresh).sourceProtocolData K.embed witness
 
-/-- The bad set of one coin: `RoundByRound`'s set for the source data of
-`fresh`. `Π_RLC` coins have none here. -/
 noncomputable def coinBad (challenge : Challenge) (coins : PublicCoins K productionShape)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation)) : Set K :=
@@ -231,15 +206,12 @@ noncomputable def coinBad (challenge : Challenge) (coins : PublicCoins K product
       (proof.piCcsRounds index) (productionShape.cubeVariables - index.val - 1)
   | .rho _ => ∅
 
-/-- The answers at `target` that put its challenge's coin into that coin's bad
-set, for any execution whose challenge reads `target`. -/
 def bad (challenge : Challenge) (target : Point logicalWidth publicFits Degree) (oracle : Oracle) :
     Set Answer :=
   {answer | ∃ fresh proof, point fresh proof challenge = target ∧
     decodeK answer ∈ coinBad relation ajtai running witness challenge (coins oracle fresh proof)
       fresh proof}
 
-/-- The error of one challenge's bad set. -/
 noncomputable def error : Challenge → ℝ
   | .alpha _ => 1 / (goldilocksModulus ^ 2 : Nat)
   | .gamma => (productionShape.jointCoefficientCount - 1 : Nat) / (goldilocksModulus ^ 2 : Nat)
@@ -248,8 +220,6 @@ noncomputable def error : Challenge → ℝ
 
 theorem error_nonnegative (challenge : Challenge) : 0 ≤ error challenge := by
   cases challenge <;> simp only [error] <;> positivity
-
-/-! ## Coins after one changed answer -/
 
 private theorem cubePoint_eq {size : Nat} {left right : CubePoint K size}
     (same : left.coordinates = right.coordinates) : left = right := by
@@ -270,7 +240,6 @@ private theorem read_update {degree : Nat} (oracle : Point logicalWidth publicFi
   rw [read_challengeAddress, read_challengeAddress, Function.update_of_ne apart]
 
 omit relation ajtai running witness in
-/-- Changing the answer at a non-`α` point leaves `α` unchanged. -/
 private theorem alpha_update {degree : Nat} (oracle : Point logicalWidth publicFits degree → Answer)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) {challenge : Challenge} (notAlpha : ∀ index, challenge ≠ .alpha index)
@@ -284,7 +253,6 @@ private theorem alpha_update {degree : Nat} (oracle : Point logicalWidth publicF
   exact read_update oracle fresh proof (fun same => notAlpha index same.symm) answer
 
 omit relation ajtai running witness in
-/-- Changing the answer at `α` coordinate `index` changes only that coordinate. -/
 private theorem alpha_update_self {degree : Nat}
     (oracle : Point logicalWidth publicFits degree → Answer)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -314,7 +282,6 @@ private theorem gamma_update {degree : Nat} (oracle : Point logicalWidth publicF
   read_update oracle fresh proof (Ne.symm notGamma) answer
 
 omit relation ajtai running witness in
-/-- Changing the answer at round `index` leaves the earlier rounds unchanged. -/
 private theorem rounds_update {degree : Nat} (oracle : Point logicalWidth publicFits degree → Answer)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) (index : Fin productionShape.cubeVariables) (answer : Answer) :
@@ -331,7 +298,6 @@ private theorem rounds_update {degree : Nat} (oracle : Point logicalWidth public
     simp at this
     omega) answer
 
-/-- A coin's bad set does not read that coin. -/
 private theorem coinBad_update (challenge : Challenge) (oracle : Oracle)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation)) (answer : Answer) :
@@ -352,7 +318,6 @@ private theorem coinBad_update (challenge : Challenge) (oracle : Oracle)
         gamma_update oracle fresh proof (by simp), rounds_update]
   | rho => rfl
 
-/-- Each bad set reads the oracle only away from its own point. -/
 theorem bad_local (challenge : Challenge) : Local (bad relation ajtai running witness challenge) := by
   intro target oracle answer
   ext candidate
@@ -364,8 +329,6 @@ theorem bad_local (challenge : Challenge) : Local (bad relation ajtai running wi
     subst located
     exact ⟨fresh, proof, rfl, by rwa [coinBad_update]⟩
 
-/-! ## Mass -/
-
 omit relation ajtai running witness in
 private theorem below_of_mem_take {count bound : Nat} {index : Fin count}
     (member : index ∈ (canonicalFinIndices count).take bound) : index.val < bound := by
@@ -376,7 +339,6 @@ private theorem below_of_mem_take {count bound : Nat} {index : Fin count}
   omega
 
 omit relation ajtai running witness in
-/-- A round's calls read the statement and the messages up to that round only. -/
 private theorem challengeCalls_round_congr {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof proof' : Proof degree) (index : Fin productionShape.cubeVariables)
@@ -418,7 +380,6 @@ private theorem coordinate_round {degree : Nat}
   simp only [RoundByRound.coordinate, coins, coinsFrom, List.getElem_ofFn, read_challengeAddress]
 
 omit relation ajtai running witness in
-/-- `α` and `γ` read only the statement calls, not the proof. -/
 private theorem alpha_gamma_proof_irrelevant {degree : Nat}
     (oracle : Point logicalWidth publicFits degree → Answer)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -433,8 +394,6 @@ private theorem alpha_gamma_proof_irrelevant {degree : Nat}
   · simp only [coins, coinsFrom, alpha]
   · simp only [coins, coinsFrom, gamma]
 
-/-- Two executions whose challenge reads the same point have the same bad set
-there. -/
 private theorem coinBad_congr (challenge : Challenge) (oracle : Oracle)
     {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
     {proof proof' : Proof (ProductionKey.degreeBound relation)}
@@ -522,7 +481,6 @@ private theorem coinBad_probability_le (challenge : Challenge) (coins : PublicCo
       simp only [coinBad, error, Set.mem_empty_iff_false, if_false, Finset.expect_const_zero,
         le_refl]
 
-/-- Each bad set has probability at most its challenge's error. -/
 theorem bad_mass_le (challenge : Challenge) (target : Point logicalWidth publicFits Degree)
     (oracle : Oracle) :
     mass (bad relation ajtai running witness challenge target oracle) ≤ error challenge := by
@@ -549,8 +507,6 @@ theorem bad_mass_le (challenge : Challenge) (target : Point logicalWidth publicF
     simp only [mass, Set.mem_empty_iff_false, if_false, Finset.expect_const_zero]
     exact error_nonnegative challenge
 
-/-! ## Test error -/
-
 omit relation ajtai running witness in
 private theorem indicator_le_sum {Index : Type} [Fintype Index] (event : Index → Prop)
     (chosen : Index) (holds : event chosen) :
@@ -564,8 +520,6 @@ private theorem indicator_sum_nonnegative {Index : Type} [Fintype Index] (event 
     (0 : ℝ) ≤ ∑ index, if event index then (1 : ℝ) else 0 :=
   Finset.sum_nonneg fun index _ => by split <;> norm_num
 
-/-- The `α`, `γ` and round coins of a false acceptance: one of them hits its
-bad set at its own point. -/
 theorem falseAcceptance_hits (oracle : Oracle)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof (ProductionKey.degreeBound relation))
@@ -604,9 +558,6 @@ theorem falseAcceptance_hits (oracle : Oracle)
     rwa [coordinate_round] at member
 
 omit ajtai running witness in
-/-- An event that always hits one PiCCS coin's event has chance at most
-`scale * testError` when each coin's event has chance at most
-`scale * error`. -/
 theorem hits_error_le (event : Oracle → Prop) (hit : Challenge → Oracle → Prop) (scale : ℝ)
     (hits : ∀ oracle, event oracle → (∃ index, hit (.alpha index) oracle) ∨ hit .gamma oracle ∨
       ∃ index, hit (.round index) oracle)
@@ -661,10 +612,6 @@ theorem hits_error_le (event : Oracle → Prop) (hit : Challenge → Oracle → 
   push_cast
   ring
 
-/-- PiCCS test error in the random-oracle model. An adaptive adversary with at
-most `queries` oracle queries outputs a fresh statement and a proof; the
-oracle probe of that output is a false acceptance for the fixed witness with
-probability at most `(queries + 1) * testError`. -/
 theorem test_error_le {Output : Type}
     (adversary : OracleComp (Point logicalWidth publicFits (ProductionKey.degreeBound relation))
       Answer Output)

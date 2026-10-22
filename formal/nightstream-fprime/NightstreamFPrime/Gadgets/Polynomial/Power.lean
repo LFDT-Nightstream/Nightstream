@@ -29,7 +29,6 @@ def hornerInterface (exponent : Nat) (interface : Interface) :
   point := interface.point
   coefficients := fun _ => coefficientExprs exponent
 
-/-- The child-owned symbolic power. -/
 def output (exponent : Nat) (interface : Interface) (offset : Nat) : KExpr :=
   Horner.Owned.output (hornerInterface exponent interface) offset
 
@@ -64,7 +63,6 @@ theorem soundness (exponent : Nat) (interface : Interface)
   Horner.Owned.soundness (hornerInterface exponent interface) env offset
     assumptions rows
 
-/-- Honest execution constructs the owned power with no semantic premise. -/
 theorem build (exponent : Nat) (interface : Interface)
     (env : Env) (offset : Nat)
     (assumptions : Assumptions exponent interface offset env) :
@@ -137,7 +135,6 @@ theorem flatConstraints_varsBelow_exact (exponent : Nat)
   rw [localLength_eq exponent interface offset] at scope
   exact scope
 
-/-- The owned fixed power lies inside its exact symbolic interval. -/
 theorem output_varsBelow (exponent : Nat) (interface : Interface)
     (offset : Nat) (env : Env)
     (assumptions : Assumptions exponent interface offset env) :
@@ -175,7 +172,6 @@ theorem coefficientExprs_eval (env : Env) (exponent : Nat) :
       List.replicate exponent K.zero ++ [K.one] := by
   simp [coefficientExprs]
 
-/-- The child specification is exactly fixed exponentiation. -/
 theorem spec_implies_power (exponent : Nat) (interface : Interface)
     (offset : Nat) (env : Env)
     (specification : SpecHolds exponent interface offset env) :

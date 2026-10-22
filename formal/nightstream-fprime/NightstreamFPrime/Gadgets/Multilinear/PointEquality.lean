@@ -21,7 +21,7 @@ Constraint groups:
 - C2: multiply the factors through one causal witness batch;
 - C3: two output-component equalities.
 
-The empty product is one. No challenge is a witness output.
+No challenge is a witness output.
 -/
 
 namespace NightstreamFPrime.Gadgets.Multilinear.PointEquality
@@ -36,7 +36,6 @@ structure CoordinateExpr where
   left : KExpr
   right : KExpr
 
-/-- The proved affine form of one paper equality factor. -/
 def factorExpr (coordinate : CoordinateExpr) : KExpr :=
   let oneMinusRight := KExpr.sub KExpr.one coordinate.right
   KExpr.add oneMinusRight
@@ -73,8 +72,6 @@ structure Program where
   recipes : List Expr
   output : KExpr
 
-/-- Compile from the tail so every product reads only materialized factors
-and a completed tail product. -/
 def compile (start : Nat) : List CoordinateExpr → Program
   | [] => ⟨[], KExpr.one⟩
   | [coordinate] =>
@@ -88,7 +85,6 @@ def compile (start : Nat) : List CoordinateExpr → Program
           mulRecipes factor tail.output,
         materializedAt productStart⟩
 
-/-- Semantic product over the same ordered coordinate list. -/
 def evaluate (env : Env) : List CoordinateExpr → K
   | [] => K.one
   | coordinate :: rest =>
@@ -201,7 +197,6 @@ theorem compile_recipes_length (start : Nat) :
       simp only [List.length_cons]
       omega
 
-/-- Causality and output scope are structural in the coordinate list. -/
 theorem compile_causal_and_output_below
     (start : Nat) (coordinates : List CoordinateExpr)
     (coordinatesBelow : ∀ coordinate ∈ coordinates,
@@ -496,8 +491,6 @@ theorem evaluate_eq_reference {variableCount : Nat}
   simp [SumCheckTruthPath.pointEquality, coordinateExprs,
     evalLeftPoint, evalRightPoint, List.map_map, Function.comp_def]
 
-/-- The semantic point-equality check is stable when every external input
-wire is unchanged. -/
 theorem specHolds_of_agree_below {variableCount : Nat}
     (interface : Interface variableCount) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
@@ -691,8 +684,6 @@ theorem flatConstraints_length_of_positive {variableCount : Nat}
   simp [allAssertions, KExpr.equalities]
   omega
 
-/-- Every flattened child row reads only external wires or this child's
-completed private interval. -/
 theorem flatConstraints_varsBelow {variableCount : Nat}
     (interface : Interface variableCount) (offset : Nat) (env : Env)
     (assumptions : Assumptions interface offset env) :
@@ -720,18 +711,7 @@ theorem flatConstraints_varsBelow {variableCount : Nat}
       outputBelow expectedBelow expression (by
         simpa [allAssertions] using assertionMember)
 
-/-! ## Child-owned output variant -/
-
 namespace Owned
-
-/-!
-Obligation: Compute the multilinear point-equality polynomial and expose the
-compiler output directly to a parent circuit.
-
-This interface has no external expected-output wire. It owns the same causal
-factor/product recipes as `PointEquality.circuit` and removes the two final
-copy rows.
--/
 
 structure Interface (variableCount : Nat) where
   left : Nat → Fin variableCount → KExpr
@@ -832,7 +812,6 @@ theorem soundness {variableCount : Nat} (interface : Interface variableCount)
     (coordinateExprs interface offset) recipeRows).trans
       (evaluate_eq_reference interface offset env)
 
-/-- Honest execution constructs the owned result with no semantic premise. -/
 theorem completeness {variableCount : Nat}
     (interface : Interface variableCount) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
@@ -934,8 +913,6 @@ theorem flatConstraints_varsBelow {variableCount : Nat}
   exact recipeConstraints_varsBelow_of_causal offset
     (program interface offset).recipes causal
 
-/-- The owned point-equality result lies inside the child's declared
-symbolic interval. -/
 theorem output_varsBelow {variableCount : Nat}
     (interface : Interface variableCount) (offset : Nat) (env : Env)
     (assumptions : Assumptions interface offset env) :

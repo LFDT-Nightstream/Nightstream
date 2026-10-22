@@ -1,18 +1,7 @@
 import NightstreamFPrime.Lifecycle.TranscriptCoverage
+import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 
-/-!
-Checks for the transcript coverage contract.
-
-The pins restate the dependency specification `AgreeOnAbsorbed` by `Iff.rfl`.
-By `rfl` they also pin the fold domain chunk, the coin positions, the lane pair
-that a coin reads, the `Π_RLC` scalar domain `[4, i]`, the plain round absorb,
-and that the key absorbs the domain chunk before the statement stream. A
-change to any of them must also change this file. The two refutations take
-copies of the schedule, one without the fresh commitment and one with `y′`
-words without the matrix coordinates, and show that the identify property
-fails for them. They show only that the property is not vacuous;
-`challenge_seal` and the identify theorems tie it to the key.
--/
+/-! Checks for the transcript coverage contract. -/
 
 namespace NightstreamFPrime.Tests.TranscriptCoverageChecks
 
@@ -58,7 +47,20 @@ end Pins
 section TagsAndLabels
 
 example : Transcript.foldDomainBytes =
-    "Nightstream/SuperNeo/fold/v2".toList.map Char.toNat :=
+    [78, 105, 103, 104, 116, 115, 116, 114, 101, 97, 109, 47,
+      83, 117, 112, 101, 114, 78, 101, 111, 47, 102, 111, 108, 100, 47, 118, 50] :=
+  rfl
+
+example : Lifecycle.stateDomainBytes =
+    [72, 121, 112, 101, 114, 78, 111, 118, 97, 47, 78, 73, 86, 67,
+      47, 115, 116, 97, 116, 101, 47, 118, 50] :=
+  rfl
+
+example : Lifecycle.Stage1.Poseidon2HashChainV1.domainTagBytes =
+    [78, 105, 103, 104, 116, 115, 116, 114, 101, 97,
+      109, 47, 83, 116, 97, 103, 101, 49, 47, 80,
+      111, 115, 101, 105, 100, 111, 110, 50, 72, 97,
+      115, 104, 67, 104, 97, 105, 110, 47, 118, 49] :=
   rfl
 
 example (coordinate : Fin productionShape.cubeVariables) :
@@ -113,7 +115,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The key's statement calls with the fresh commitment removed. -/
 private def droppedCommitmentCalls
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) : List Call :=
   absorbCalls Transcript.foldDomainChunk ++
@@ -138,7 +139,6 @@ example :
 
 end Refutations
 
-/-- `y′` words with the matrix coordinates removed. -/
 private def padOnlyWords (output : FullOutputCoordinates.FullOutput K productionShape) :
     List F :=
   (List.finRange productionShape.sourceCount).flatMap fun source =>

@@ -1,5 +1,3 @@
-"""Capture source and input bytes; exclude result records from source identity."""
-
 from __future__ import annotations
 
 import fnmatch
@@ -58,7 +56,6 @@ def safe_relative(value):
     return path
 
 
-# Reuse the existing review manifest's file identity and exclusion rules.
 _spec = importlib.util.spec_from_file_location(
     "stage1_review_manifest", Path(__file__).parents[1] / "fprime_stage1_review_manifest.py")
 _review = importlib.util.module_from_spec(_spec)
@@ -99,12 +96,6 @@ def file_entry(path):
 
 
 def copy_file(source, destination):
-    """Copy into owned staging space; preserve executable mode at creation.
-
-    The installed library seed is several gigabytes. macOS clonefile retains
-    copy-on-write isolation without duplicating those blocks for each gate.
-    Other filesystems use the standard streaming copy.
-    """
     source, destination = Path(source), Path(destination)
     if destination.exists():
         destination.unlink()
@@ -163,7 +154,6 @@ def files(root, exclusions=(), skip_build=True):
 
 
 def inspect(source, policy, inputs, scope=None):
-    """Return identity and source paths. Missing external inputs remain explicit."""
     source = Path(source)
     scope = scope if scope is not None else {
         "sources": list(policy["sources"]), "inputs": list(policy["inputs"])}
@@ -264,7 +254,6 @@ def capture(source, policy, inputs, store, scope=None):
                                     for name, path in origins.items()):
             raise EvidenceError("source or input changed during snapshot capture")
         write_json(temporary / "manifest.json", manifest)
-        # Rename the complete capture. The retained directory is never a build tree.
         os.rename(temporary, destination)
     return identity, manifest, destination
 

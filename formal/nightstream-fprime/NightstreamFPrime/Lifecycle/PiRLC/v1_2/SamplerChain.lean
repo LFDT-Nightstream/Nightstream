@@ -183,7 +183,6 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
   rw [states source.val source.isLt.le] at digit
   exact digit
 
-/-- Composition uses the same scalar relation as the logical circuit. -/
 theorem spec_of_children (interface : Interface) (env : Env) (offset : Nat)
     (inputs : Assumptions interface offset)
     (children : ∀ source : Fin sourceCount,

@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSNormContribution
 import NightstreamFPrime.Export.Stage1.PiCCSNormRangeMerge
 import NightstreamFPrime.Export.Stage1.PiCCSGammaPowers
 
-/-! Proof-only closure of the original-mask norm scan. The complete carrier
-is grouped into its existing adjacent pairs; the remaining Boolean-domain
-pairs are proved zero. No matrix or protocol-data table is evaluated. -/
+/-! Proof-only closure of the original-mask norm scan. -/
 
 set_option autoImplicit false
 
@@ -24,8 +22,6 @@ private abbrev message (masks : Array (Array (Nat × Nat)))
   PiCCSAggregatedImages.nonlinearMessage (canonicalLayout ()) (assignments masks)
     (PiCCSFirstRound.endpointVertex (arity := cubeVariables) (by decide) bit suffix) fresh
 
-/-- The existing pair kernel's norm component at an absolute numeric suffix.
-The out-of-domain branch retains the original numeric-pair zero convention. -/
 def numericPairNorm (input : ProtocolPolynomial.VerifierInput K productionShape)
     (powers : Nat → K) (alpha : CubePoint K cubeVariables)
     (masks : Array (Array (Nat × Nat)))
@@ -122,10 +118,6 @@ private theorem numericPairNorm_padding
     masks suffix (freshLow index) (freshHigh index)
     (by simpa only [suffix, NumericBooleanDomain.index_vertex] using padding)
 
-/-- Finishing the implemented whole-carrier norm scan and applying the
-common head factor and gamma shifts gives exactly the full selected numeric
-pair-norm sum. Missing masks and the entire padded suffix keep their proved
-zero meaning. The result is equality of every retained polynomial coefficient. -/
 theorem finished_norm_eq_fullPairSum
     (input : ProtocolPolynomial.VerifierInput K productionShape)
     (gamma : K) (alpha : CubePoint K cubeVariables)
@@ -185,9 +177,6 @@ theorem finished_norm_eq_fullPairSum
   rw [coverage] at complete
   exact coveredRange.trans complete.symm
 
-/-- The runner's prepared powers, prepared tensor weights and ordered worker
-merge give the same complete norm sum. The number of workers is arbitrary;
-it changes only the partition, not any retained polynomial coefficient. -/
 theorem prepared_workers_eq_fullPairSum
     (input : ProtocolPolynomial.VerifierInput K productionShape)
     (gamma : K) (alpha : CubePoint K cubeVariables)

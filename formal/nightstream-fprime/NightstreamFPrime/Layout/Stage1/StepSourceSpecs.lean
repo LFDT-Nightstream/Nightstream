@@ -47,10 +47,6 @@ private theorem current_word
     Lifecycle.Stage1.Application.stateWordCount index.val index.isLt).symm.trans
       (congrArg (fun words => words.getD index.val 0) current)
 
-/-- Exact bounded source words and the selected step establish both existing
-specifications. WellFormed keeps the prior and successor natural counters
-below the modulus. No generated phase specification or row is a premise.
-The NIFS result is used only in the positive branch. -/
 theorem specs_of_step
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))

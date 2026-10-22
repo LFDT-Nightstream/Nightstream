@@ -16,19 +16,16 @@ open NightstreamFPrime.Export.Stage1
 open PiRLCNonzero (SourceCount)
 open PiRLCPartialTrace
 
-/-- Read one original signed-unit coefficient from its two masks. -/
 def scalar (masks : Array (Nat × Nat)) (source : Fin SourceCount)
     (lane : Fin ringDegree) : F :=
   let pair := masks[source.val]?.getD (0, 0)
   if pair.1.testBit lane.val then 1
   else if pair.2.testBit lane.val then -1 else 0
 
-/-- The original PiRLC source block, with no mixed-witness input. -/
 def sourceBlock (masks : Array (Nat × Nat)) (source : Fin SourceCount) :
     MaterializedRingF :=
   FixedArray.ofFn (scalar masks source)
 
-/-- Decode the existing ordered nonzero-source record and reject invalid masks. -/
 def decodeBlock (line : String) :
     Except String (Nat × Array (Nat × Nat)) := do
   let values ← (← Lean.Json.parse line).getArr?
@@ -60,7 +57,6 @@ private def checked {Alpha : Type} (value : Except String Alpha) : IO Alpha :=
   | .ok value => pure value
   | .error error => throw (IO.userError error)
 
-/-- One decoded line of a source file. -/
 private inductive SourceLine where
   | header (line : String)
   | terminator
@@ -68,11 +64,6 @@ private inductive SourceLine where
 
 instance : Inhabited SourceLine := ⟨.terminator⟩
 
-/-- Load the same source capture for random matrix-column reads. The caller
-supplies the selected carrier block count. Every input record is validated,
-including records outside the first arithmetic range. Lines are decoded on the
-configured worker threads; the header, the strictly increasing block order, the
-terminator and the end of the file are then checked in file order. -/
 def read (path : System.FilePath) (blocks : Nat) :
     IO (Array (Array (Nat × Nat)) × Nat) := do
   let lines : Array (Nat × SourceLine) ←

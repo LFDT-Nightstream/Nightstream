@@ -1,5 +1,4 @@
 //! Check the complete-oracle driver boundary against the cached optimized prover.
-//! These small cases test the API; selected honest evidence uses the fixture CLI.
 
 #![cfg(feature = "paper-exact")]
 
@@ -63,7 +62,7 @@ impl Case {
             ),
         )
         .unwrap();
-        let params = NeoParams::goldilocks_auto_r1cs_ccs(columns).unwrap();
+        let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(columns, columns).unwrap();
         let mut rng = ChaCha8Rng::seed_from_u64(0x636f6d706c657465);
         let commitment = AjtaiSModule::new(Arc::new(
             setup(&mut rng, D, params.kappa as usize, columns.div_ceil(D)).unwrap(),
@@ -82,10 +81,7 @@ impl Case {
             m_in: D,
             adv: None,
         }];
-        let witnesses = vec![CcsWitness {
-            w: vec![assignment[(0, 1)]],
-            Z: assignment,
-        }];
+        let witnesses = vec![CcsWitness { Z: assignment }];
         let dims = build_joint_dims(&params, &structure, 1, 1).unwrap();
         let running = vec![Output {
             c: Commitment::zeros(D, params.kappa as usize),
@@ -185,8 +181,6 @@ impl Case {
     }
 }
 
-// The inner evaluator is the optimized implementation. The existing audit
-// export only makes its type available; no PaperExact engine is executed.
 struct Complete<'a> {
     inner: OptimizedPaperJointOracle<'a>,
     openings: Option<Vec<V1_2OutputOpening>>,

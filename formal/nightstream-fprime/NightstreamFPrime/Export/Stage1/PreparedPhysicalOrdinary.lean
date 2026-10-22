@@ -3,9 +3,6 @@ import NightstreamFPrime.Export.Stage1.PreparedPhysicalSources
 
 /-!
 Assemble the canonical ordinary-row payloads from already prepared sources.
-The source equalities occur only in erased fields. Packet batches remain in
-PreparedWitnessGroups for generation. This module does not collect tasks or
-claim coverage of the other selected package row categories.
 -/
 
 set_option autoImplicit false
@@ -56,7 +53,6 @@ private def singleton {source : OrdinaryRowPlan.Block}
   { blocks := [prepared.toRowPayload]
     rows_eq := congrArg (fun value => [value]) prepared.rows_eq }
 
-/-- Assemble only payload references, in the canonical ordinary block order. -/
 def assemble (statement : PreparedRowBlock .statementBinding)
     (groups : PreparedWitnessGroups)
     (piRlc : PreparedRowBlocks (OrdinaryRowPlan.piRlcBlocks ()))
@@ -77,8 +73,6 @@ private theorem payloadFor {sources : List OrdinaryRowPlan.Block}
   rw [prepared.rows_eq]
   exact List.mem_map.mpr ⟨source, member, rfl⟩
 
-/-- Checking all assembled payloads covers both classified arithmetic fields.
-No source-row list is materialized by this proposition or its proof. -/
 theorem holds (prepared : PreparedRowBlocks (OrdinaryRowPlan.canonicalBlocks ()))
     (env : Env)
     (instructions : ∀ block ∈ prepared.blocks,

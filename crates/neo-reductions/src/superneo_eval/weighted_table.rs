@@ -232,8 +232,6 @@ pub(crate) fn weighted_identity_projection(z_blocks: &SuperneoZBlocks, weights: 
     out
 }
 
-// Combine real witnesses only within the ring block being projected. The caller
-// can reuse the full projection for another weight vector after evaluating rows.
 pub(crate) fn fill_combined_projection(
     witnesses: &[SuperneoZBlocks],
     coefficients: &[K],
@@ -262,8 +260,6 @@ pub(crate) fn fill_combined_projection(
     let bar_re = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[0])));
     let bar_im = Rq(superneo_bar_block(weights.map(|value| value.as_coeffs()[1])));
     let bar_sum = Rq(std::array::from_fn(|lane| bar_re.0[lane] + bar_im.0[lane]));
-    // K = F[u]/(u^2 - W), so (bar_re + u bar_im)(real + u imag) is
-    // (bar_re real + W bar_im imag) + u (bar_re imag + bar_im real).
     let generator = K::from_coeffs([F::ZERO, F::ONE]);
     let w = (generator * generator).as_coeffs()[0];
     let fill = |(block, output): (usize, &mut [K])| {
@@ -306,7 +302,6 @@ pub(crate) fn fill_combined_projection(
                 (Rq(imaginary_part.0.map(|value| w * value)), bar_re.mul(&imaginary))
             }
             (true, true) => {
-                // Three ring products instead of four.
                 let real_part = bar_re.mul(&real);
                 let imaginary_part = bar_im.mul(&imaginary);
                 let sum = bar_sum.mul(&Rq(std::array::from_fn(|lane| real.0[lane] + imaginary.0[lane])));
@@ -330,7 +325,6 @@ pub(crate) fn fill_combined_projection(
     output.chunks_mut(D).enumerate().for_each(fill);
 }
 
-/// Add `(coefficient_re, coefficient_im)` on every lane set in `mask`.
 #[inline]
 fn add_signed_units(real: &mut Rq, imaginary: &mut Rq, mut mask: u64, coefficient_re: F, coefficient_im: F) {
     while mask != 0 {

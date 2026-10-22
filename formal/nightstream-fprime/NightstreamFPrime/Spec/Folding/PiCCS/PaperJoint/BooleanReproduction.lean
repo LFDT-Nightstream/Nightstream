@@ -2,9 +2,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanHypercubeSum
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericBooleanDomain
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/BooleanReproduction.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Boolean-selector reproduction for the canonical `Pi_CCS` hypercube.
 
@@ -21,19 +18,6 @@ polynomials, off-cube polynomial degree, SumCheck, Fiat--Shamir, Rust, R1CS,
 or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: every sum traverses exactly `BooleanVertex.all`; every
-table is derived by `BooleanTable.tabulate`; and all rearrangement uses the
-shared `FiniteSumAlgebra.sumMap`. No caller-supplied enumeration or evaluator
-is accepted.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `pi_ccs.boolean.vertex.field_point` | `false -> 0`, `true -> 1`, preserving prepended-coordinate order | computed | `BooleanVertex.toCubePoint` |
-| `pi_ccs.boolean.selector.partition` | `sum_x eq(x,r) = 1` | derived | `equalityWeight_sum_eq_one` |
-| `pi_ccs.boolean.selector.reproduce` | `sum_x eq(x,r) * f(x) = MLE(f)(r)` | derived | `equalityWeighted_tabulate_eq_evaluate` |
-| `pi_ccs.boolean.selector.linear` | equality weighting commutes with an explicit weighted family sum | derived | `equalityWeighted_sumMap` |
-| `pi_ccs.boolean.selector.tensor` | `sum_x eq(x,r) * chi_i(x) = chi_i(r)` | derived | `equalityWeighted_tensorWeight_eq_tensorWeight` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -44,8 +28,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 namespace BooleanVertex
 
-/-- Canonical field-coordinate serialization of a typed Boolean vertex. The
-head Boolean coordinate remains the head field coordinate. -/
 @[simp] def fieldCoordinates
     {Field : Type uField}
     (ops : InterpolationOps Field) :
@@ -65,7 +47,6 @@ theorem fieldCoordinates_length
   | cons coordinate tail inductionHypothesis =>
       cases coordinate <;> simp [fieldCoordinates, inductionHypothesis]
 
-/-- Canonical Boolean vertex embedded as a dimension-checked field point. -/
 def toCubePoint
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -86,9 +67,6 @@ end BooleanVertex
 
 namespace BooleanReproduction
 
-/-- Equality-weighted sum of an explicit value at every canonical Boolean
-vertex. This is notation over the shared finite-sum owner, not a second sum
-implementation. -/
 def equalityWeighted
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -138,10 +116,6 @@ private theorem evaluateCoordinates_tabulate_constant
           unfold InterpolationOps.sub
           rw [laws.add_neg, laws.mul_zero, laws.add_zero]
 
-/-- A canonically tabulated constant evaluates to that constant. This helper
-is stated publicly because partition of unity is its `value = 1` consequence
-and later Boolean-domain proofs may need the same fact without redoing the
-recursion. -/
 theorem evaluate_tabulate_constant
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -155,8 +129,6 @@ theorem evaluate_tabulate_constant
   exact evaluateCoordinates_tabulate_constant ops laws value
     point.coordinates point.dimension
 
-/-- Equality-weighted values at every canonical Boolean vertex reproduce the
-independently recursive MLE of their canonical table. -/
 theorem equalityWeighted_tabulate_eq_evaluate
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -171,9 +143,6 @@ theorem equalityWeighted_tabulate_eq_evaluate
     (BooleanTable.evaluate_eq_equalityWeightedSum ops laws
       (BooleanTable.tabulate values) point).symm
 
-/-- Equality weighting commutes with a separately indexed finite weighted
-family. This is the shared linearity step used by the joint residual
-decomposition. -/
 theorem equalityWeighted_sumMap
     {Field : Type uField}
     {Index : Type uIndex}
@@ -238,8 +207,6 @@ theorem equalityWeighted_sumMap
         exact FiniteSumAlgebra.sumMap_mul_left ops laws (weights index)
           (BooleanVertex.all variables) _
 
-/-- The canonical Boolean equality weights form a partition of unity at every
-dimension-checked point. -/
 theorem equalityWeight_sum_eq_one
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -284,9 +251,6 @@ private theorem zero_mul
     ops.mul ops.zero value = ops.zero := by
   rw [laws.mul_comm, laws.mul_zero]
 
-/-- Equality weight at a canonically embedded Boolean point is the exact
-Kronecker selector. This proof is structural in the typed cube and does not
-pass through a numeric enumeration. -/
 theorem equalityWeight_toCubePoint
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -304,7 +268,8 @@ theorem equalityWeight_toCubePoint
       | cons sampledBit sampledTail =>
           have tailInduction :
               BooleanVertex.equalityWeightCoordinates ops selectedTail
-                  (BooleanVertex.fieldCoordinates ops sampledTail) =
+                  (BooleanVertex.fieldCoordinates ops sampledTail)
+                  (BooleanVertex.fieldCoordinates_length ops sampledTail) =
                 if selectedTail = sampledTail then ops.one else ops.zero := by
             simpa only [BooleanVertex.equalityWeight,
               BooleanVertex.toCubePoint] using
@@ -386,9 +351,6 @@ theorem sumMap_ite_eq_of_mem_nodup
                 BooleanTable.finiteSum, headSelected, if_false]]
         rw [inductionHypothesis selectedInTail parts.2, laws.zero_add]
 
-/-- Equality weighting reproduces another equality selector whose selected
-point is Boolean. This is the structural selector identity used by the
-numeric tensor corollary. -/
 theorem equalityWeighted_equalityWeight_eq_equalityWeight
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -422,10 +384,6 @@ theorem equalityWeighted_equalityWeight_eq_equalityWeight
         (fun sampled => sampled.equalityWeight ops point)
         (BooleanVertex.mem_all selected) (BooleanVertex.all_nodup variables)
 
-/-- Equality weighting of the shared little-endian numeric tensor selector at
-every canonical Boolean vertex reproduces that selector at the target point.
-No equality between numeric enumeration order and `BooleanVertex.all` is used;
-the bounded numeric index is decoded once to its typed selected vertex. -/
 theorem equalityWeighted_tensorWeight_eq_tensorWeight
     {Field : Type uField}
     (ops : InterpolationOps Field)

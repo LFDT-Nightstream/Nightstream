@@ -8,9 +8,6 @@ import NightstreamFPrime.Layout.ProductionRelation.FieldSuffixBlock
 Owns the payload source view for every PiCCS Poseidon2 invocation.
 The exact action lists remain the transcript authority. This module only
 selects their absorb chunks in invocation-major order.
-
-Original PiCCS expressions are evaluated through the per-application column
-pullback. The prover does not select an application or an action schedule.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock
@@ -139,7 +136,6 @@ def kindAt : Fin invocationCount → PoseidonActionSchedule.Kind :=
   Fin.append statementKindAt <|
     Fin.append challengeKindAt <| Fin.append roundKindAt outputKindAt
 
-/-- The random-access schedule materializes to the canonical action expansion. -/
 theorem kindAt_materializes :
     List.ofFn kindAt =
       PoseidonActionSchedule.kinds statementActions ++
@@ -158,8 +154,6 @@ theorem kindAt_materializes :
       rw [statementKindAt_materializes, challengeKindAt_materializes,
         roundKindAt_materializes, outputKindAt_materializes]
 
-/-- Materialize each action expansion once. In particular, the PiCCS output
-absorb is chunked once instead of once per random payload lookup. -/
 def materializedPayloadKinds (_delay : Unit := ()) :
     List PoseidonActionSchedule.Kind :=
   PoseidonActionSchedule.kinds statementActions ++
@@ -195,7 +189,6 @@ def payloadExprForKind (kind : PoseidonActionSchedule.Kind)
     (lane : Fin Spec.Poseidon2.rate) : Expr :=
   (selectedBlockForKind kind).getD lane.val 0
 
-/-- One exact rate-lane payload. `getD` is the canonical absorb padding rule. -/
 def payloadExpr (invocation : Fin invocationCount)
     (lane : Fin Spec.Poseidon2.rate) : Expr :=
   (selectedBlock invocation).getD lane.val 0
@@ -212,7 +205,6 @@ def payloadExpression (index : Fin payloadCount) : Expr :=
   simp [payloadExpression]
 
 
-/-- Expand each invocation once, then visit its rate lanes in canonical order. -/
 def materializedPayloadExpressions (_delay : Unit := ()) : List Expr :=
   List.flatten <| (materializedPayloadKinds ()).map fun kind =>
     List.ofFn fun lane : Fin Spec.Poseidon2.rate => payloadExprForKind kind lane
@@ -243,7 +235,6 @@ private theorem ofFn_decodeProd_eq_nested {Alpha : Type}
     simp [combined, Fin.encodeProd, Nat.mul_comm]
   rw [combined_eq, Fin.decodeProd_encodeProd]
 
-/-- Ordered materialization equals every declared indexed payload expression. -/
 theorem materializedPayloadExpressions_eq :
     materializedPayloadExpressions () = List.ofFn payloadExpression := by
   unfold materializedPayloadExpressions
@@ -267,8 +258,6 @@ def payloadColumn (program : Lifecycle.Stage1.Application.Program)
     (index : Fin payloadCount) : Fin (sourceWidth program) :=
   FieldSuffixBlock.derivedColumn (prefixSourceWidth program) payloadCount index
 
-/-- Original PiCCS expressions read the exact shifted per-application package
-columns from the retained prefix. -/
 def packageEnv (program : Lifecycle.Stage1.Application.Program)
     (prefixAssignment : Fin (prefixSourceWidth program) → F) : Env :=
   NightstreamFPrime.Layout.Stage1.Spartan.pullback <|

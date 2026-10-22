@@ -18,13 +18,11 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- Sparse reconstruction form for every source field in a fixed domain. -/
 structure SourceMap (sourceWidth logicalWidth : Nat) where
   form : Fin sourceWidth → SparseForm logicalWidth
 
 namespace SourceMap
 
-/-- The sparse forms reconstruct the exact source assignment. -/
 def Preserves {sourceWidth logicalWidth : Nat}
     (sourceMap : SourceMap sourceWidth logicalWidth)
     (assignment : Assignment F logicalWidth) (source : Circuit.Env) : Prop :=
@@ -32,19 +30,15 @@ def Preserves {sourceWidth logicalWidth : Nat}
 
 end SourceMap
 
-/-- Every source index used by one sparse R1CS linear combination is inside
-the declared source domain. -/
 def CombinationBounded (sourceWidth : Nat)
     (combination : R1CS.LinearCombination) : Prop :=
   ∀ term ∈ combination.terms, term.1 < sourceWidth
 
-/-- All three source forms of one R1CS row are bounded. -/
 def RowBounded (sourceWidth : Nat) (row : R1CS.Row) : Prop :=
   CombinationBounded sourceWidth row.a ∧
     CombinationBounded sourceWidth row.b ∧
     CombinationBounded sourceWidth row.c
 
-/-- Proof-carrying result of bounded affine source recognition. -/
 structure AffineSource (sourceWidth : Nat) where
   expression : Circuit.Expr
   combination : R1CS.LinearCombination
@@ -75,7 +69,6 @@ def combinationBoundedDecidable (sourceWidth : Nat)
     Decidable (CombinationBounded sourceWidth combination) :=
   termsBoundedDecidable sourceWidth combination.terms
 
-/-- Fail-closed affine recognition in one declared source domain. -/
 def lowerAffine? (sourceWidth : Nat) (expression : Circuit.Expr) :
     Option (AffineSource sourceWidth) :=
   match R1CS.lowerAffine expression with
@@ -90,8 +83,6 @@ def lowerAffine? (sourceWidth : Nat) (expression : Circuit.Expr) :
               sound := lowered.sound }
       | isFalse _ => none
 
-/-- A successful bounded affine recognition evaluates exactly as its source
-expression. -/
 theorem lowerAffine?_sound {sourceWidth : Nat} (expression : Circuit.Expr)
     (result : AffineSource sourceWidth)
     (found : lowerAffine? sourceWidth expression = some result)
@@ -110,7 +101,6 @@ theorem lowerAffine?_sound {sourceWidth : Nat} (expression : Circuit.Expr)
       | isFalse unbounded =>
           simp [loweredEq, boundedEq] at found
 
-/-- Compile only the variable terms of one source linear combination. -/
 def compileTerms {sourceWidth logicalWidth : Nat}
     (sourceMap : SourceMap sourceWidth logicalWidth) :
     (terms : List (Nat × F)) →
@@ -123,7 +113,6 @@ def compileTerms {sourceWidth logicalWidth : Nat}
         (compileTerms sourceMap rest fun candidate member =>
           bounded candidate (by simp [member]))
 
-/-- Compiled source terms evaluate to the exact source term sum. -/
 theorem compileTerms_eval {sourceWidth logicalWidth : Nat}
     (sourceMap : SourceMap sourceWidth logicalWidth)
     (assignment : Assignment F logicalWidth) (source : Circuit.Env)
@@ -144,8 +133,6 @@ theorem compileTerms_eval {sourceWidth logicalWidth : Nat}
       exact congrArg (fun value => term.2 * source term.1 + value)
         (inductionHypothesis restBound)
 
-/-- Compile one complete affine source form. The constant is carried by a
-verifier-owned coordinate whose assignment value is proved to be one. -/
 def compileCombination {sourceWidth logicalWidth : Nat}
     (sourceMap : SourceMap sourceWidth logicalWidth)
     (oneColumn : Fin logicalWidth) (combination : R1CS.LinearCombination)
@@ -154,7 +141,6 @@ def compileCombination {sourceWidth logicalWidth : Nat}
   SparseForm.add (SparseForm.singleton oneColumn combination.constant)
     (compileTerms sourceMap combination.terms bounded)
 
-/-- Exact source semantics of one compiled affine form. -/
 theorem compileCombination_eval {sourceWidth logicalWidth : Nat}
     (sourceMap : SourceMap sourceWidth logicalWidth)
     (oneColumn : Fin logicalWidth) (combination : R1CS.LinearCombination)
@@ -168,7 +154,6 @@ theorem compileCombination_eval {sourceWidth logicalWidth : Nat}
     one, mul_one, compileTerms_eval sourceMap assignment source preserves]
   rfl
 
-/-- Compile one bounded ordinary R1CS row into the four live selective forms. -/
 def compileRow {sourceWidth logicalWidth : Nat}
     (sourceMap : SourceMap sourceWidth logicalWidth)
     (oneColumn : Fin logicalWidth) (row : R1CS.Row)
@@ -177,8 +162,6 @@ def compileRow {sourceWidth logicalWidth : Nat}
     b := compileCombination sourceMap oneColumn row.b bounded.2.1
     c := compileCombination sourceMap oneColumn row.c bounded.2.2 }
 
-/-- Equal source rows compile to equal sparse forms. Boundedness certificates
-are proof-irrelevant and do not affect the matrix data. -/
 theorem compileRow_eq_of_row {sourceWidth logicalWidth : Nat}
     (sourceMap : SourceMap sourceWidth logicalWidth)
     (oneColumn : Fin logicalWidth) {left right : R1CS.Row}
@@ -190,8 +173,6 @@ theorem compileRow_eq_of_row {sourceWidth logicalWidth : Nat}
   subst right
   rfl
 
-/-- A compiled bounded row satisfies the exact preservation premise of the
-ordinary-row selective semantics. -/
 theorem compileRow_preserves {sourceWidth logicalWidth : Nat}
     (sourceMap : SourceMap sourceWidth logicalWidth)
     (oneColumn : Fin logicalWidth) (row : R1CS.Row)
@@ -209,8 +190,6 @@ theorem compileRow_preserves {sourceWidth logicalWidth : Nat}
   · exact compileCombination_eval sourceMap oneColumn row.c bounded.2.2
       assignment source one preserves
 
-/-- Total R1CS environment induced by one bounded source assignment. Indices
-outside the declared source domain are canonical zero. -/
 def sourceEnv {sourceWidth : Nat} (source : Fin sourceWidth → F) : Circuit.Env :=
   fun index => if bounded : index < sourceWidth then source ⟨index, bounded⟩ else 0
 
@@ -220,7 +199,6 @@ def sourceEnv {sourceWidth : Nat} (source : Fin sourceWidth → F) : Circuit.Env
   unfold sourceEnv
   rw [dif_pos column.isLt]
 
-/-- A source map that retains every source coordinate at one owned slot. -/
 structure RetainedMap {sourceWidth : Nat}
     (slots : List (LowNormAssignment.Slot sourceWidth)) where
   slotFor : Fin sourceWidth → Fin slots.length
@@ -234,7 +212,6 @@ def sourceMap {sourceWidth : Nat}
     SourceMap sourceWidth (ProductionAssignment.logicalWidth slots) where
   form := fun column => RetainedSlot.form slots (retained.slotFor column)
 
-/-- Retained slot ownership is sufficient for exact source reconstruction. -/
 theorem preserves {sourceWidth : Nat}
     (publicInput : Fin ProductionAssignment.publicWidth → F)
     (slots : List (LowNormAssignment.Slot sourceWidth))
@@ -247,13 +224,11 @@ theorem preserves {sourceWidth : Nat}
 
 end RetainedMap
 
-/-- The verifier-owned constant-one column in the recursive public prefix. -/
 def markerColumn {sourceWidth : Nat}
     {slots : List (LowNormAssignment.Slot sourceWidth)} :
     Fin (ProductionAssignment.logicalWidth slots) :=
   ProductionAssignment.publicColumn Lifecycle.encHashMarkerIndex
 
-/-- The canonical recursive public input fixes the marker column to one. -/
 theorem markerColumn_eq_one {sourceWidth : Nat} (digest : Lifecycle.Digest)
     (slots : List (LowNormAssignment.Slot sourceWidth))
     (source : Fin sourceWidth → F) :

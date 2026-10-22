@@ -3,8 +3,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedRows
 
 /-!
 Evaluate the existing Poseidon invocation rows as stored field values. The
-schedule and retained coordinates remain owned by PoseidonSboxPlan. Numeric
-state is stored between steps; no expanded sparse trace is executed.
+schedule and retained coordinates remain owned by PoseidonSboxPlan.
 -/
 
 set_option autoImplicit false
@@ -41,8 +40,6 @@ private theorem stateStep_eq {columns : Nat} (read : Fin columns → F)
   exact congrFun ((stateStep_value read interface next state step).trans
     (stateValues_value read _).symm) ⟨lane, bounded⟩
 
-/-- Preserve the existing schedule and lane order while carrying stored
-numeric state. Every emitted value comes from the original sparse reads. -/
 def rowsFrom {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
     Nat → Vector F 16 → List Permutation.Step → List PortValues
@@ -52,8 +49,6 @@ def rowsFrom {columns : Nat} (read : Fin columns → F)
         rowsFrom read interface (nextIndex next step)
           (stateStep read interface next state step) rest
 
-/-- The numeric schedule returns exactly the evaluated canonical S-box rows,
-without an assignment-validity or constant-column premise. -/
 theorem rowsFrom_value {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) (next : Nat)
     (state : PoseidonSboxPlan.State columns) (steps : List Permutation.Step) :
@@ -67,8 +62,6 @@ theorem rowsFrom_value {columns : Nat} (read : Fin columns → F)
         nextIndex_value interface next state step, inductionHypothesis]
       simp only [PoseidonSboxPlan.compile, List.map_append]
 
-/-- Carry the final stored state with the row list. The paired step shares
-its retained reads between row construction and the next linear state. -/
 @[specialize] def rowsWithState {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
     Nat → Vector F 16 → List Permutation.Step → List PortValues × Vector F 16
@@ -107,7 +100,6 @@ private theorem referenceRowValues_get {columns : Nat} (read : Fin columns → F
           PinRow.Forms.meaningfulForm, meaningfulPort?, RowSemantics.pin,
           RowSemantics.multiplication, PortValues.get]
 
-/-- Compute exactly the retained nonlinear rows; no final pin is emitted. -/
 @[specialize] def values {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) : List PortValues :=
   (rowsWithState read interface 0
@@ -121,19 +113,15 @@ private theorem values_eq_rows {columns : Nat} (read : Fin columns → F)
   simp only [PoseidonRetainedRows.rows, PoseidonSboxPlan.trace,
     List.map_map, Function.comp_def, referenceRowValues]
 
-/-- The numeric result has exactly the row count of the canonical template. -/
 theorem values_length {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
     (values read interface).length = 150 := by
   rw [values_eq_rows, List.length_map, PoseidonRetainedRows.rows_length]
 
-/-- Store the complete invocation result for constant-time indexed reads. -/
 @[inline] def stored {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) : Vector PortValues 150 :=
   ⟨(values read interface).toArray, by simp only [List.size_toArray, values_length]⟩
 
-/-- Every computed port equals the original row's sparse evaluation. This
-includes the empty ports and requires no valid-row or one-column assumption. -/
 theorem stored_value {columns : Nat} (read : Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) (row : Fin 150)
     (port : Fin matrixCount) :

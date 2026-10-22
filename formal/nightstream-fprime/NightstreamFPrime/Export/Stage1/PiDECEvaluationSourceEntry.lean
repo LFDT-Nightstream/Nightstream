@@ -1,9 +1,8 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81MatrixSource
 
 /-!
-Reduce one original matrix entry at a complete Phi81 carrier block/lane to
-its logical-width bound check. The completed matrix suffix is zero; this
-statement imposes no condition on the carried assignment suffix.
+Reduce one original matrix entry at a complete Phi81 carrier block/lane to its
+logical-width bound check.
 -/
 
 set_option autoImplicit false
@@ -15,9 +14,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- Every complete carrier block/lane first encodes to its actual carrier
-column, then reads the original matrix exactly when that column is logical.
-No divisibility, selected-plan, matrix-equality or assignment premise is used. -/
 theorem source_paddedMatrixEntry
     (cubeVariables freshCount runningCount matrixCount logicalWidth : Nat)
     (matrices : Fin matrixCount → BooleanMatrix F cubeVariables logicalWidth)

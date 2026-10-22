@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingKAction
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/Embedding.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Coefficientwise `RingF -> RingK` compatibility with executable Phi81
 quotient multiplication.
@@ -15,17 +12,6 @@ Does not own: associativity or commutativity of either quotient
 multiplication, the complete-carrier action, Boolean MLE, the full `Pi_RLC`
 evaluation-homomorphism theorem, Rust/R1CS refinement, row removal, or cost
 counts.
-
-Emits constraints: no.
-
-Authority boundary: the embedding is the fixed coefficientwise
-`RingKAction.embedChallenge`; both products are the executable concrete
-definitions. No caller supplies a multiplication law or quotient witness.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner | Emits constraints |
-|---|---|---|---|---|
-| `nifs.pi_rlc.verify.evaluation_hom.embedding.raw_convolution` | embedding preserves every finite schoolbook coefficient sum | computed | `rawMulCoeffK_embedChallenge` | no |
-| `nifs.pi_rlc.verify.evaluation_hom.embedding.phi81_reduction` | embedding preserves the exact `X^54 = -X^27 - 1` reduction | computed | `embedChallenge_ringFMul` | no |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.Embedding
@@ -94,8 +80,6 @@ private theorem foldl_raw_embedChallenge
       · simp only [if_neg active]
         exact inductionHypothesis initial
 
-/-- Coefficientwise embedding preserves every raw schoolbook coefficient,
-before the cyclotomic reduction is applied. -/
 theorem rawMulCoeffK_embedChallenge
     (left right : RingF) (degree : Nat) :
     rawMulCoeffK
@@ -114,8 +98,6 @@ private theorem embed_reduction (raw folded twice : F) :
       K.add (K.sub (K.embed raw) (K.embed folded)) (K.embed twice) := by
   rw [embed_add, embed_sub]
 
-/-- The fixed coefficientwise `RingF -> RingK` embedding preserves the exact
-executable Phi81 quotient multiplication. -/
 theorem embedChallenge_ringFMul (left right : RingF) :
     RingKAction.embedChallenge (ringFMul left right) =
       ringKMul
@@ -123,7 +105,8 @@ theorem embedChallenge_ringFMul (left right : RingF) :
         (RingKAction.embedChallenge right) := by
   funext output
   by_cases foldedLow : output.val < ringMiddleDegree
-  · by_cases hasTwice : output.val + 81 <= 106
+  · by_cases hasTwice :
+      output.val + (ringDegree + ringMiddleDegree) <= 2 * (ringDegree - 1)
     · simp only [RingKAction.embedChallenge, ringFMul, ringKMul,
         if_pos foldedLow, if_pos hasTwice,
         rawMulCoeffK_embedChallenge]
@@ -132,7 +115,8 @@ theorem embedChallenge_ringFMul (left right : RingF) :
         if_pos foldedLow, if_neg hasTwice,
         rawMulCoeffK_embedChallenge]
       exact embed_reduction _ _ _
-  · by_cases hasTwice : output.val + 81 <= 106
+  · by_cases hasTwice :
+      output.val + (ringDegree + ringMiddleDegree) <= 2 * (ringDegree - 1)
     · simp only [RingKAction.embedChallenge, ringFMul, ringKMul,
         if_neg foldedLow, if_pos hasTwice,
         rawMulCoeffK_embedChallenge]

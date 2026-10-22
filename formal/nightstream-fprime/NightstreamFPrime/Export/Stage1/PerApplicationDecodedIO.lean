@@ -9,11 +9,7 @@ import NightstreamFPrime.Layout.Stage1.StateDecoder
 
 /-!
 Owns the typed HyperNova input and output decoded from one canonical raw
-per-application value packet. The application and relation are Lean inputs;
-the caller does not supply a typed lifecycle value or representation record.
-
-This module decodes values only. Row acceptance and semantic soundness remain
-in the per-application fixed-point soundness module.
+per-application value packet.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationDecodedIO
@@ -125,8 +121,6 @@ def priorState {application : Program} (raw : RawValues application) : Nat → F
 def outputState {application : Program} (raw : RawValues application) : Nat → F :=
   fun word => transitionEnv raw (PilotProduction.outputPreimageStart + word)
 
-/-- The context key carried by the raw state. Final package closure must prove
-that this value is the verifier-owned canonical verifier-context digest. -/
 def contextKey {application : Program} (raw : RawValues application) : KeyDigest :=
   StateDecoder.keyDigest (priorState raw)
 

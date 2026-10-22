@@ -8,9 +8,6 @@ use p3_symmetric::Permutation;
 const APP_DOMAIN: &[u8] = b"neo/transcript/v1|poseidon2-goldilocks-w8-r4";
 const FOLD_DOMAIN: &[u8] = b"Nightstream/SuperNeo/fold/v2";
 
-/// The constant first chunk of the v1.2 fold transcript:
-/// `Nightstream/SuperNeo/fold/v2`, eight little-endian bytes per word, then
-/// zero words up to one rate chunk.
 pub fn fold_domain_chunk_v1_2() -> [F; p2::RATE] {
     domain_chunk_v1_2(FOLD_DOMAIN)
 }
@@ -30,26 +27,20 @@ pub fn domain_chunk_v1_2(label: &[u8]) -> [F; p2::RATE] {
 
 const OP_APPEND_MESSAGE: u64 = 1;
 const OP_APPEND_FIELDS: u64 = 2;
-const OP_APPEND_U64S: u64 = 3;
 const QUERY_FIELDS: u64 = 0x101;
 const QUERY_BYTES: u64 = 0x102;
 const QUERY_NONZERO_FIELD: u64 = 0x103;
 const QUERY_DIGEST32: u64 = 0x104;
 
-/// One coin of the v1.2 fold transcript.
 pub struct FoldCoin {
-    /// The quadratic-extension value: two adjacent rate lanes.
     pub value: [F; 2],
-    /// The read was the sixth from its state, so the transcript then absorbed
-    /// one zero chunk. A caller that records absorptions records this one.
-    pub refreshed: bool,
+    pub absorbed_zero_chunk: bool,
 }
 
 #[derive(Clone)]
 pub struct Poseidon2Transcript {
     st: [Goldilocks; p2::WIDTH],
     absorbed: usize,
-    /// Fold coins read from the current state. Every permutation resets it.
     coins_read: usize,
     perm: &'static Poseidon2Goldilocks<{ p2::WIDTH }>,
     #[cfg(feature = "debug-log")]
@@ -57,20 +48,16 @@ pub struct Poseidon2Transcript {
 }
 
 impl Poseidon2Transcript {
-    /// Construct the zero-state transcript used by the Lean v1_2 relation.
     pub fn new_v1_2() -> Self {
         Self::empty()
     }
 
-    /// Reset to the Lean-defined SuperNeo v1.2 transcript state.
     pub fn reset_v1_2(&mut self) {
         self.st = [Goldilocks::ZERO; p2::WIDTH];
         self.absorbed = 0;
         self.coins_read = 0;
     }
 
-    /// Add each word into the rate lanes and permute after every complete or
-    /// partial chunk. This is the exact Lean v1.2 absorb operation.
     pub fn absorb_v1_2(&mut self, fields: &[F]) {
         assert_eq!(self.absorbed, 0, "v1_2 transcript cannot inherit an absorb cursor");
         for chunk in fields.chunks(p2::RATE) {
@@ -81,25 +68,23 @@ impl Poseidon2Transcript {
         }
     }
 
-    /// Read the next coin of the v1.2 fold transcript. The `n`-th coin read
-    /// from one state is the quadratic-extension value in rate lanes `2n` and
-    /// `2n + 1`. After the sixth coin, absorb one zero chunk, so the next coin
-    /// comes from a new state. This is the Lean `squeezeAt` schedule.
+    /// Coin `n` of one state is rate lanes `2n` and `2n + 1`; after the sixth, one zero chunk is
+    /// absorbed. This is the Lean `squeezeAt` schedule.
     pub fn read_coin_v1_2(&mut self) -> FoldCoin {
         assert_eq!(self.absorbed, 0, "v1_2 transcript cannot inherit an absorb cursor");
         let pair = self.coins_read;
         let value = [self.st[2 * pair], self.st[2 * pair + 1]];
         self.coins_read += 1;
-        let refreshed = self.coins_read == p2::RATE / 2;
-        if refreshed {
+        let absorbed_zero_chunk = self.coins_read == p2::RATE / 2;
+        if absorbed_zero_chunk {
             self.absorb_v1_2(&[F::ZERO; p2::RATE]);
         }
-        FoldCoin { value, refreshed }
+        FoldCoin {
+            value,
+            absorbed_zero_chunk,
+        }
     }
 
-    /// Return the first four lanes, then apply one permutation.
-    /// This is the exact fixed-window digest step used by the Lean PiRLC
-    /// sampler. It does not add a query tag or change the absorb schedule.
     pub fn squeeze_digest_v1_2(&mut self) -> [F; p2::DIGEST_LEN] {
         assert_eq!(self.absorbed, 0, "v1_2 transcript cannot inherit an absorb cursor");
         let digest = std::array::from_fn(|lane| F::from_u64(self.st[lane].as_canonical_u64()));
@@ -107,8 +92,6 @@ impl Poseidon2Transcript {
         digest
     }
 
-    /// Non-mutating four-lane compression for legacy receipt fields. The
-    /// authoritative v1.2 handoff remains the complete sixteen-lane state.
     pub fn state_prefix_v1_2(&self) -> [u8; 32] {
         let mut output = [0u8; 32];
         for lane in 0..4 {
@@ -143,7 +126,6 @@ impl Poseidon2Transcript {
         let mut src_idx = 0;
         let len = inputs.len();
 
-        // 1. Fill remaining buffer
         while self.absorbed < p2::RATE && src_idx < len {
             self.st[self.absorbed] = inputs[src_idx];
             self.absorbed += 1;
@@ -154,16 +136,13 @@ impl Poseidon2Transcript {
             self.permute();
         }
 
-        // 2. Process full chunks
         while len - src_idx >= p2::RATE {
-            // Overwrite the rate lanes to match absorb_elem behavior.
             self.st[..p2::RATE].copy_from_slice(&inputs[src_idx..src_idx + p2::RATE]);
 
             self.permute();
             src_idx += p2::RATE;
         }
 
-        // 3. Buffer remaining
         while src_idx < len {
             self.st[self.absorbed] = inputs[src_idx];
             self.absorbed += 1;
@@ -175,8 +154,7 @@ impl Poseidon2Transcript {
     fn absorb_packed_bytes_with_len(&mut self, bytes: &[u8]) {
         self.absorb_elem(Goldilocks::from_u64(bytes.len() as u64));
 
-        // Pack 7 bytes per limb so every encoded integer is < 2^56 < p_goldilocks.
-        // This preserves injectivity under Goldilocks::from_u64 reduction.
+        // Every limb value is below 2^56 < p, so packing stays injective.
         const BYTES_PER_LIMB: usize = 7;
         const LIMB_CHUNK: usize = 64;
         let mut packed = [Goldilocks::ZERO; LIMB_CHUNK];
@@ -210,26 +188,6 @@ impl Poseidon2Transcript {
     }
 
     #[inline]
-    fn absorb_u64_slice(&mut self, values: &[u64]) {
-        // Encode each u64 as two 32-bit limbs to preserve full-range injectivity.
-        const WORD_CHUNK: usize = 64;
-        let mut buf = [Goldilocks::ZERO; WORD_CHUNK * 2];
-        let mut i = 0usize;
-        while i < values.len() {
-            let take = (values.len() - i).min(WORD_CHUNK);
-            for j in 0..take {
-                let v = values[i + j];
-                let lo = (v & 0xFFFF_FFFF) as u64;
-                let hi = v >> 32;
-                buf[2 * j] = Goldilocks::from_u64(lo);
-                buf[2 * j + 1] = Goldilocks::from_u64(hi);
-            }
-            self.absorb_slice(&buf[..2 * take]);
-            i += take;
-        }
-    }
-
-    #[inline]
     fn permute(&mut self) {
         self.st = self.perm.permute(self.st);
         self.absorbed = 0;
@@ -242,12 +200,10 @@ impl Poseidon2Transcript {
         self.absorb_elem(Goldilocks::from_u64(output_len as u64));
     }
 
-    /// Export current internal state (for RNG binding).
     pub fn state(&self) -> [Goldilocks; p2::WIDTH] {
         self.st
     }
 
-    /// Export the current absorb cursor within the rate portion.
     pub fn absorbed(&self) -> usize {
         self.absorbed
     }
@@ -305,11 +261,9 @@ impl Transcript for Poseidon2Transcript {
         self.append_message(b"chal/label", label);
         let mut produced = 0usize;
         while produced < out.len() {
-            // Domain gate before squeezing to avoid state reuse issues.
             self.absorb_elem(Goldilocks::ONE);
             self.permute();
             for i in 0..4 {
-                // 4 limbs = 32 bytes per squeeze
                 let limb = self.st[i].as_canonical_u64().to_le_bytes();
                 let take = (out.len() - produced).min(8);
                 out[produced..produced + take].copy_from_slice(&limb[..take]);
@@ -329,7 +283,6 @@ impl Transcript for Poseidon2Transcript {
     }
 
     fn challenge_field(&mut self, label: &'static [u8]) -> F {
-        // Uniform over F (including zero).
         self.append_message(b"chal/label", label);
         self.absorb_elem(Goldilocks::ONE);
         self.permute();
@@ -417,31 +370,7 @@ impl TranscriptProtocol for Poseidon2Transcript {
     }
 }
 
-// Convenience helpers (not in the Transcript trait for minimal surface)
 impl Poseidon2Transcript {
-    /// Absorb protocol fields without an implicit length word.
-    ///
-    /// Use this only for schedules that carry explicit tags and lengths. It
-    /// matches the value-level `Poseidon2Duplex.absorbList` model used by the
-    /// canonical Lean verifier.
-    pub fn append_fields_unframed(&mut self, fs: &[F]) {
-        self.absorb_slice(fs);
-        #[cfg(feature = "debug-log")]
-        self.log.push(crate::debug::Event::new(
-            "append_fields_unframed",
-            b"",
-            fs.len(),
-            &self.st,
-        ));
-        #[cfg(feature = "fs-guard")]
-        crate::fs_guard::record(crate::debug::Event::new(
-            "append_fields_unframed",
-            b"",
-            fs.len(),
-            &self.st,
-        ));
-    }
-
     pub fn append_fields_raw(&mut self, fs: &[F]) {
         self.absorb_elem(Goldilocks::from_u64(fs.len() as u64));
         self.absorb_slice(fs);
@@ -471,7 +400,6 @@ impl Poseidon2Transcript {
     }
 
     pub fn challenge_nonzero_field(&mut self, label: &'static [u8]) -> F {
-        // Rejection sampling to obtain an element in F\{0}.
         self.append_message(b"chal/label", label);
         loop {
             self.absorb_elem(Goldilocks::ONE);
@@ -482,50 +410,6 @@ impl Poseidon2Transcript {
                 return x;
             }
         }
-    }
-    pub fn append_u64s(&mut self, label: &'static [u8], us: &[u64]) {
-        self.absorb_elem(Goldilocks::from_u64(OP_APPEND_U64S));
-        self.absorb_packed_bytes_with_len(label);
-        self.absorb_elem(Goldilocks::from_u64(us.len() as u64));
-        self.absorb_u64_slice(us);
-        #[cfg(feature = "debug-log")]
-        self.log
-            .push(crate::debug::Event::new("append_u64s", label, us.len(), &self.st));
-    }
-
-    pub fn append_u64s_iter<I>(&mut self, label: &'static [u8], len: usize, iter: I)
-    where
-        I: IntoIterator<Item = u64>,
-    {
-        self.absorb_elem(Goldilocks::from_u64(OP_APPEND_U64S));
-        self.absorb_packed_bytes_with_len(label);
-        self.absorb_elem(Goldilocks::from_u64(len as u64));
-
-        const WORD_CHUNK: usize = 64;
-        let mut buf = [Goldilocks::ZERO; WORD_CHUNK * 2];
-        let mut used = 0usize;
-        let mut seen = 0usize;
-        for value in iter {
-            let lo = (value & 0xFFFF_FFFF) as u64;
-            let hi = value >> 32;
-            buf[2 * used] = Goldilocks::from_u64(lo);
-            buf[2 * used + 1] = Goldilocks::from_u64(hi);
-            used += 1;
-            seen += 1;
-            if used == WORD_CHUNK {
-                self.absorb_slice(&buf);
-                used = 0;
-            }
-        }
-        if used > 0 {
-            self.absorb_slice(&buf[..used * 2]);
-        }
-        if seen != len {
-            panic!("append_u64s_iter: iterator length mismatch (seen={seen}, len={len})");
-        }
-        #[cfg(feature = "debug-log")]
-        self.log
-            .push(crate::debug::Event::new("append_u64s_iter", label, len, &self.st));
     }
 
     pub fn append_fields_iter<I>(&mut self, label: &'static [u8], len: usize, iter: I)
@@ -613,20 +497,5 @@ mod tests {
         let d2 = t2.digest32();
 
         assert_ne!(d1, d2, "packed byte encoding must be injective");
-    }
-
-    #[test]
-    fn append_u64s_is_injective_over_full_u64_range() {
-        const GOLDILOCKS_P: u64 = 0xFFFF_FFFF_0000_0001;
-
-        let mut t1 = <Poseidon2Transcript as crate::Transcript>::new(b"test/domain");
-        t1.append_u64s(b"x", &[0u64]);
-        let d1 = t1.digest32();
-
-        let mut t2 = <Poseidon2Transcript as crate::Transcript>::new(b"test/domain");
-        t2.append_u64s(b"x", &[GOLDILOCKS_P]);
-        let d2 = t2.digest32();
-
-        assert_ne!(d1, d2, "u64 encoding must be injective");
     }
 }

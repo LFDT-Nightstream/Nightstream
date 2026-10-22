@@ -5,7 +5,6 @@ use p3_field::PrimeCharacteristicRing;
 
 use super::{DenseBlockStore, RealBlockStorage, SuperneoMatrixCache, SuperneoZBlocks};
 
-/// Packed row-offset storage borrowed by an accelerator backend.
 #[doc(hidden)]
 #[derive(Clone, Copy)]
 pub enum SuperneoCompactRowOffsets<'a> {
@@ -19,7 +18,6 @@ pub enum SuperneoCompactRowOffsets<'a> {
     U32(&'a [u32]),
 }
 
-/// Borrowed, structure-static parts of one compact SuperNeo matrix cache.
 #[doc(hidden)]
 pub struct SuperneoCompactDeviceParts<'a> {
     pub row_offsets: SuperneoCompactRowOffsets<'a>,
@@ -34,7 +32,6 @@ pub struct SuperneoCompactDeviceParts<'a> {
 }
 
 impl SuperneoZBlocks {
-    /// Packed positive/negative masks when the real plane is signed-unit.
     pub fn signed_unit_masks(&self) -> Option<(&[u64], &[u64])> {
         match &self.re {
             RealBlockStorage::SignedUnit { positive, negative } => Some((positive, negative)),
@@ -42,10 +39,6 @@ impl SuperneoZBlocks {
         }
     }
 
-    /// Pack each real coefficient into positive/negative magnitude masks.
-    ///
-    /// The per-block layout is `[+1, -1, +2, -2, ...]`. This is the compact
-    /// accelerator form for the exact SuperNeo radix alphabet.
     #[doc(hidden)]
     pub fn signed_digit_masks(&self, base: u32) -> Option<Vec<u64>> {
         if !(2..=4).contains(&base) || !self.imag_all_zero() {
@@ -53,7 +46,6 @@ impl SuperneoZBlocks {
         }
         let magnitudes = (base - 1) as usize;
         let mut masks = vec![0; self.block_len() * 2 * magnitudes];
-        // Signed-unit storage already holds the magnitude-one masks.
         if let Some((positive, negative)) = self.signed_unit_masks() {
             for (block, target) in masks.chunks_exact_mut(2 * magnitudes).enumerate() {
                 target[0] = positive[block];
@@ -95,7 +87,6 @@ impl SuperneoZBlocks {
 }
 
 impl SuperneoMatrixCache {
-    /// Borrow the finished compact storage without expanding scalar entries.
     #[doc(hidden)]
     pub fn compact_device_parts(&self) -> Option<SuperneoCompactDeviceParts<'_>> {
         let row_offsets = match &self.row_offsets {
@@ -153,12 +144,10 @@ impl SuperneoMatrixCache {
         })
     }
 
-    /// `(rows, scalar columns, identity)` for the explicit matrix component.
     pub fn compact_explicit_shape(&self) -> (usize, usize, bool) {
         (self.rows, self.cols, self.identity)
     }
 
-    /// Number of scalar coefficients in the compact explicit matrix.
     pub fn compact_explicit_coefficient_count(&self) -> usize {
         if self.identity {
             return 0;
@@ -173,17 +162,14 @@ impl SuperneoMatrixCache {
             .sum()
     }
 
-    /// Whether one row contains at least one compact geometric run.
     pub fn has_compact_geometric_row(&self, row: usize) -> bool {
         row < self.rows && self.geometric_row_offsets.get(row) != self.geometric_row_offsets.get(row + 1)
     }
 
-    /// Number of compact geometric runs retained outside the explicit CSR.
     pub fn compact_geometric_run_count(&self) -> usize {
         self.geometric_runs.len()
     }
 
-    /// Visit compact geometric runs in canonical row order.
     pub fn for_each_compact_geometric_run(&self, mut visit: impl FnMut(usize, usize, usize, usize, F, F)) {
         for row in 0..self.rows {
             for index in self.geometric_row_offsets.range(row) {
@@ -200,10 +186,6 @@ impl SuperneoMatrixCache {
         }
     }
 
-    /// Visit the nonzero original coefficients in one explicit row.
-    ///
-    /// Identity matrices are reported by [`Self::compact_explicit_shape`] and
-    /// intentionally have no stored coefficients.
     pub fn for_each_compact_explicit_row_coefficient(&self, row: usize, mut visit: impl FnMut(u32, u8, F)) {
         if self.identity || row >= self.rows {
             return;

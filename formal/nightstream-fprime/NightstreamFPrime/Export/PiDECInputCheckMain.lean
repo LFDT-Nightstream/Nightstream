@@ -32,8 +32,6 @@ private def decodeExtension (value : Lean.Json) : Except String K := do
   let words ← PiCCSInputCheck.decodeVector 2 PiCCSInputCheck.decodeField value
   return ⟨words.get 0, words.get 1⟩
 
-/-- Read complete independently computed commitments and evaluations. Public
-inputs are filled later by the verifier-owned children of the derived parent. -/
 private def decodeReplay (commitmentText evaluationText : String) :
     Except String PiDECInputCheck.Messages := do
   let commitmentFields ← (← Lean.Json.parse commitmentText).getArr?

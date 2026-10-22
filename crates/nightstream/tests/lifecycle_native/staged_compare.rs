@@ -4,8 +4,6 @@ use std::io::Cursor;
 #[test]
 fn source_comparison_checks_content_and_length_across_read_boundaries() {
     let source = b"source witness bytes";
-    // A one-byte buffer is the smallest read unit; the other reader returns
-    // the complete slice. Equal files need not have equal read boundaries.
     assert!(equal_contents(BufReader::with_capacity(1, Cursor::new(source)), Cursor::new(source)).unwrap());
     assert!(!equal_contents(Cursor::new(source), Cursor::new(b"source witness byteX")).unwrap());
     assert!(!equal_contents(Cursor::new(source), Cursor::new(&source[..source.len() - 1])).unwrap());

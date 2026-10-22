@@ -4,9 +4,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 
 /-!
 Owns the compact matrix program for one verifier-selected Stage 1
-application. Lean maps the input/output sources into the actual pilot
-preimages and retains only witness/local suffix values. The application row
-order is unchanged.
+application.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
@@ -41,7 +39,6 @@ def localRange (application : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (localBlock application) (localStart application)
     (ApplicationInputs.localStart application) (localCount application) 0
 
-/-- Complete fail-closed source substitution for one selected application. -/
 def substitution (application : ApplicationProgram) : SourceSubstitution where
   ranges := [inputRange application, witnessRange application,
     outputRange application, localRange application]

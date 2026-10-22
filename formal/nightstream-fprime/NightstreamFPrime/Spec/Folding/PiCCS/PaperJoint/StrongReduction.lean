@@ -2,10 +2,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FullOutputCoordinates
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialFixedWidth
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperCorrections
 
-/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/StrongReduction.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
-SuperNeo v1.2 Pad and 4-matrix evaluation families. -/
-
 /-!
 Operational public-coin core of the paper's strong `Pi_CCS` reduction.
 
@@ -29,27 +25,6 @@ probability, Fiat--Shamir, Poseidon2, commitment hardness, Rust, R1CS, row
 removal, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: the statement owns matrices, prior claims, commitments,
-and public inputs. The response owns neither a verifier input nor a public
-output instance. The verifier constructs every output instance by copying
-the statement commitment/public input and attaching its sampled point and the
-response's one complete output family. Ambient membership is stated literally
-with `PiRLC.PaperCorrections.CorrectedAmbientHolds`. It is not source validity.
-Those ambient evaluation equations derive that the response is `honestAt`,
-so the generic protocol-polynomial `OutputMismatch` branch is impossible.
-
-| Protocol path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `pi_ccs.strong.statement` | public structure, prior claims, commitments, and public inputs | direct dataflow | `Statement` |
-| `pi_ccs.strong.public_coins` | independent `alpha`, `gamma`, and all SumCheck round challenges | checked | `PublicCoins` |
-| `pi_ccs.strong.response` | finite round messages plus one complete `y'` family | prover message | `Response` |
-| `pi_ccs.strong.output` | output CE instances are verifier constructed | computed | `Statement.publicOutput` |
-| `pi_ccs.strong.phi` | repeated outputs copy the same statement commitments | derived/definitional | `repeatedPublicOutputs_same_phi` |
-| `pi_ccs.strong.ambient` | each output witness satisfies the corrected strict ambient relation | checked target relation | `AmbientOutputHolds` |
-| `pi_ccs.strong.output_adapter` | output witness becomes one connected all-running source family | computed | `ambientConnectedInputs` / `ambientUnifiedInputs` |
-| `pi_ccs.strong.output_exact` | ambient evaluation truth forces the complete response to be honest | derived | `fullOutput_eq_honestAt_of_ambientOutputHolds` |
-| `pi_ccs.strong.extract` | acceptance gives source truth, a mixing root, or a SumCheck collision | derived | `acceptedProbe_extracts_source_or_badEvent` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
@@ -65,21 +40,14 @@ open UnifiedSources
 
 universe uExtension uCommitment uPublicInput
 
-/-- One source's complete v1.2 CE evaluation value: canonical Pad and every
-CCS matrix, with typed coefficient coordinates. -/
 structure EvaluationFamily (Extension : Type uExtension) (shape : Shape) where
   pad : Fin shape.coefficientCount -> Extension
   matrix : Fin shape.matrixCount -> Fin shape.coefficientCount -> Extension
 
-/-- Public structure data needed by the v1.2 relation: the canonical Pad
-layout and all CCS matrices have distinct owners. -/
 structure RelationSource (shape : Shape) (columns blockCount : Nat) where
   cubeLayout : ColumnLayout shape.cubeVariables columns
   matrixSource : MatrixSource F shape columns blockCount
 
-/-- Public binding maps shared by the source and corrected-ambient target
-relations. Their cryptographic properties are outside this deterministic
-leaf. -/
 structure OpeningMaps
     (Commitment : Type uCommitment)
     (PublicInput : Type uPublicInput)
@@ -87,9 +55,6 @@ structure OpeningMaps
   commit : Assignment F columns -> Commitment
   projectPublicInput : Assignment F columns -> PublicInput
 
-/-- Canonical paper relation operations over the connected matrix source.
-The evaluation array has one typed element containing the complete
-matrix/coefficient family; no coordinate is omitted or reordered. -/
 def paperRelationSemantics
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -132,9 +97,6 @@ def paperRelationSemantics
           assignment vertex)).evaluate extensionOps point
   }]
 
-/-- The public input to one v1.2 `Pi_CCS` execution. Source assignments are
-deliberately absent. Canonical Pad is derived from `cubeLayout`; all CCS
-matrices remain in `matrixSource`. -/
 structure Statement
     (Extension : Type uExtension)
     (Commitment : Type uCommitment)
@@ -150,15 +112,11 @@ structure Statement
   claimedPadCoefficient : PadCoordinate shape -> Extension
   claimedMatrixCoefficient : MatrixCoordinate shape -> Extension
 
-/-- An extracted output witness is exactly one assignment for every source in
-the statement's canonical `K+k` order. -/
 structure OutputWitness (shape : Shape) (columns : Nat) where
   assignments : Fin shape.sourceCount -> Assignment F columns
 
 namespace Statement
 
-/-- Attach an extracted assignment vector to the public source statement.
-This is the sole source-side `ConnectedInputs` constructor in this leaf. -/
 def sourceConnectedInputs
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -177,8 +135,6 @@ def sourceConnectedInputs
   claimedPadCoefficient := statement.claimedPadCoefficient
   claimedMatrixCoefficient := statement.claimedMatrixCoefficient
 
-/-- Complete public relation source with separate canonical Pad layout and
-CCS matrix owner. -/
 def relationSource
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -191,8 +147,6 @@ def relationSource
   cubeLayout := statement.cubeLayout
   matrixSource := statement.matrixSource
 
-/-- Verifier-visible protocol input derived solely from public statement
-fields. No source assignment or semantic table is consulted. -/
 def verifierInput
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -211,7 +165,6 @@ def verifierInput
   claimedPadCoefficient := statement.claimedPadCoefficient
   claimedMatrixCoefficient := statement.claimedMatrixCoefficient
 
-/-- Rich source protocol data used only in the semantic reduction theorem. -/
 def sourceProtocolData
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -227,8 +180,6 @@ def sourceProtocolData
   ProtocolDataRefinement.toProtocolData baseOps lift
     ((statement.sourceConnectedInputs witness).toUnifiedInputs baseOps)
 
-/-- Attaching a witness changes hidden semantic tables but not the verifier's
-public input. -/
 theorem sourceProtocolData_toVerifierInput
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -244,8 +195,6 @@ theorem sourceProtocolData_toVerifierInput
       statement.verifierInput lift := by
   rfl
 
-/-- Verifier projection of one complete v1.2 response. Assignment values use
-the Pad constant coordinate; fresh CCS values use matrix constants. -/
 def projectOutput
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -270,8 +219,6 @@ def projectOutput
     output.matrixCoordinate (runningSourceIndex coordinate.running)
       coordinate.matrix coordinate.coefficient
 
-/-- The verifier projection is exactly the projection from the complete
-output owner proved in `FullOutputCoordinates`. -/
 theorem projectOutput_eq_toOutputMessage
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -289,28 +236,21 @@ theorem projectOutput_eq_toOutputMessage
 
 end Statement
 
-/-- All verifier randomness in one interactive paper probe. The prover does
-not supply any of these values. -/
 structure PublicCoins (Extension : Type uExtension) (shape : Shape) where
   alpha : CubePoint Extension shape.cubeVariables
   gamma : Extension
   roundPoint : CubePoint Extension shape.cubeVariables
 
-/-- The prover's complete response after the public coins: one finite
-SumCheck certificate and one complete `y'` family. -/
 structure Response (Extension : Type uExtension) (shape : Shape) where
   rounds : SumCheck.Finite.Certificate Extension
   fullOutput : FullOutput Extension shape
 
-/-- One deterministic probe of the public-coin interaction. -/
 structure Probe (Extension : Type uExtension) (shape : Shape) where
   coins : PublicCoins Extension shape
   response : Response Extension shape
 
 namespace Probe
 
-/-- Operational acceptance with explicit public coins. This is intentionally
-the paper-polynomial checker, not Fiat--Shamir or `TranscriptReplay`. -/
 def Accepted
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -329,9 +269,6 @@ def Accepted
     (statement.projectOutput probe.response.fullOutput)
     probe.response.rounds = true
 
-/-- Operational paper acceptance at one verifier-owned common coefficient
-width.  Unlike `Accepted`, this relation does not impose canonical trimming;
-it rejects only width mismatch or a failed SumCheck equation. -/
 def FixedWidthAccepted
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -354,9 +291,6 @@ def FixedWidthAccepted
 
 end Probe
 
-/-- Exact fixed-width SumCheck collision exposed from the submitted raw
-certificate.  The decoder receipt prevents an existential certificate from
-being substituted after the fact. -/
 def FixedWidthSumCheckFailure
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -380,7 +314,6 @@ def FixedWidthSumCheckFailure
         probe.coins.alpha probe.coins.gamma width challengeSetSize
         probe.coins.roundPoint certificate
 
-/-- The verifier's complete public output product. -/
 abbrev PublicOutput
     (Extension : Type uExtension)
     (Commitment : Type uCommitment)
@@ -397,8 +330,6 @@ abbrev PublicOutput
 
 namespace Statement
 
-/-- Construct the public output CE product. Commitments and public inputs are
-copied from the statement; the point and evaluations come from this probe. -/
 def publicOutput
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -430,8 +361,6 @@ def publicOutput
 
 end Statement
 
-/-- The strong-reduction projection of a public output is its complete
-commitment vector. -/
 def outputPhi
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -443,9 +372,6 @@ def outputPhi
     Fin shape.sourceCount -> Commitment :=
   fun source => (output source).commitment
 
-/-- Repeated public outputs for one statement have identical `phi` by
-reduction, because the verifier copies commitments rather than accepting them
-from either response. -/
 theorem repeatedPublicOutputs_same_phi
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -460,9 +386,6 @@ theorem repeatedPublicOutputs_same_phi
       outputPhi (statement.publicOutput right) := by
   rfl
 
-/-- The corrected ambient target relation for the verifier-constructed output
-product. This is literally the relation shared with `Pi_RLC`; no fresh norm
-convention or `q / 2` alias is introduced here. -/
 def AmbientOutputHolds
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -484,10 +407,6 @@ def AmbientOutputHolds
       params (statement.publicOutput probe source)
       (witness.assignments source)
 
-/-- The source relation extracted by this bounded strong-reduction leaf:
-every assignment opens the statement at the verifier-owned fresh bound, and
-the single connected paper source family satisfies CCS, strict norm, and
-prior carried-evaluation semantics. -/
 def SourceHolds
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -511,8 +430,6 @@ def SourceHolds
   (statement.sourceConnectedInputs witness).SemanticTruth
     baseOps extensionOps lift
 
-/-- Re-index every output as a running CE source. This is the paper target's
-`K+k` evaluation product, not a new protocol shape. -/
 def ambientShape (shape : Shape) : Shape where
   cubeVariables := shape.cubeVariables
   freshCount := 0
@@ -536,9 +453,6 @@ private def ambientMatrixSource
 
 namespace Statement
 
-/-- Corrected-ambient output adapter into the same connected source
-vocabulary used by the paper polynomial. Every original source is a running
-evaluation source at the verifier's sampled output point. -/
 def ambientConnectedInputs
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -563,8 +477,6 @@ def ambientConnectedInputs
     probe.response.fullOutput.matrixCoordinate coordinate.running
       coordinate.matrix coordinate.coefficient
 
-/-- Unified form of the corrected-ambient output adapter. Coefficient
-matrices remain derived from the sole statement matrix source. -/
 def ambientUnifiedInputs
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -602,9 +514,6 @@ private theorem fullOutput_ext
           · funext source matrix coefficient
             exact matrixEqual source matrix coefficient
 
-/-- Corrected-ambient evaluation truth forces every coordinate in the
-response's complete output family to be the honest evaluation of the extracted
-assignment at the verifier's sampled point. -/
 theorem fullOutput_eq_honestAt_of_ambientOutputHolds
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -731,9 +640,6 @@ theorem fullOutput_eq_honestAt_of_ambientOutputHolds
     exact (congrFun (congrFun
       (congrArg EvaluationFamily.matrix familyEqual) matrix) coefficient).symm
 
-/-- Consequently the verifier's projected response is exactly
-`ProtocolPolynomial.messageAt`; the generic `OutputMismatch` event has no
-remaining premise. -/
 theorem projectedOutput_eq_messageAt_of_ambientOutputHolds
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -775,10 +681,6 @@ theorem projectedOutput_eq_messageAt_of_ambientOutputHolds
         (statement.sourceConnectedInputs witness) constantLaw
         probe.coins.roundPoint
 
-/-- One accepted explicit public-coin probe plus a witness for the
-verifier-constructed corrected-ambient output yields source membership, an
-explicit alpha/gamma mixing-polynomial root, or a concrete SumCheck bad
-challenge. There is no output-mismatch or generic refinement branch. -/
 theorem acceptedProbe_extracts_source_or_badEvent
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -883,11 +785,6 @@ theorem acceptedProbe_extracts_source_or_badEvent
       baseLaws baseZero extensionOps lift openingMaps params statement constantLaw
       probe witness ambient]
 
-/-- Fixed-width counterpart of `acceptedProbe_extracts_source_or_badEvent`.
-
-It accepts the same exact-width messages as the frozen NIFS verifier and
-exposes the same fixed-phase bad-challenge event; canonical variable-length
-encoding is absent. `RoundByRound.falseAcceptance_splits` consumes it. -/
 theorem fixedWidthAcceptedProbe_extracts_source_or_badEvent
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}

@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOriginalReadsPreservation
 import NightstreamFPrime.Export.Stage1.PiDECPadBlockRange
 
 /-! Proof-only transport from original-source block products to the complete
-Pad evaluation. Fixed-width reference arrays do not enter runtime execution. -/
+Pad evaluation. -/
 
 set_option autoImplicit false
 
@@ -116,8 +116,6 @@ private theorem products_value (point : PaperAlgebra.Point)
   rw [products_eq_weighted, PiDECPadWeightedProduct.products_value]
   simp only [weights_get, blockValues_get]
 
-/-- Every returned coefficient is the exact signed-mask Pad sum over the
-requested complete blocks, with the original global point weights. -/
 theorem range_value (firstBlock count : Nat) (point : PaperAlgebra.Point)
     (masks : Array (Array (Nat × Nat))) (source : Fin productionShape.sourceCount)
     (output : Fin ringDegree) :
@@ -150,8 +148,6 @@ private theorem numericSum_append (leftCount rightCount : Nat) (term : Nat → K
       rw [Nat.add_succ, numericSum_succ, ih, numericSum_succ]
       exact extensionLaws.add_assoc _ _ _
 
-/-- Adding adjacent complete-block ranges preserves every source coefficient,
-with no restriction on the masks or the requested block indices. -/
 theorem range_append (firstBlock leftCount rightCount : Nat) (point : PaperAlgebra.Point)
     (masks : Array (Array (Nat × Nat))) (source : Fin productionShape.sourceCount) :
     ((range firstBlock (leftCount + rightCount) point masks).get source).toRing =
@@ -280,8 +276,6 @@ private theorem referenceRow_value (masks : Array (Array (Nat × Nat)))
     rw [Vector.getElem_replicate, PiDECCommitmentFold.zero_value]
     rfl
 
-/-- Flattening complete blocks preserves the ordinary scalar Pad row sum.
-The bound states exact containment in the selected complete carrier. -/
 theorem range_eq_rows (firstBlock count : Nat) (point : PaperAlgebra.Point)
     (masks : Array (Array (Nat × Nat))) (source : Fin productionShape.sourceCount)
     (output : Fin ringDegree)
@@ -313,8 +307,6 @@ private theorem carrierWidth_eq_blocks_of_shape (shape : Phi81Relation.Shape) :
 private abbrev carrierWidth_eq_blocks :=
   carrierWidth_eq_blocks_of_shape PiCCSSourceImages.shape
 
-/-- The full original-source block range is the complete paper Pad family.
-This holds for every source, including fresh source 0 and all carrier tails. -/
 theorem complete_eq_evaluationFamily (point : PaperAlgebra.Point)
     (masks : Array (Array (Nat × Nat))) (source : Fin productionShape.sourceCount) :
     ((range 0 PiCCSSourceImages.blockCount point masks).get source).toRing =

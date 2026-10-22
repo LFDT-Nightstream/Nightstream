@@ -21,11 +21,6 @@ impl crate::folding::pi_ccs::Proof {
 }
 
 impl NifsProof {
-    /// Versioned exact encoding used by backend crosschecks and golden tests.
-    ///
-    /// This is not a digest. It contains every verifier-visible NIFS proof
-    /// field and therefore detects a backend that emits different bytes for
-    /// the same call.
     pub fn canonical_bytes(&self) -> Vec<u8> {
         let mut output = Vec::new();
         output.extend_from_slice(b"NS-NIFS-PROOF");

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Phase-attributed GPU profiling for neo-prover-cuda parity gates."""
 
 import argparse
 import bisect
@@ -72,7 +71,6 @@ ALIASES = {
 UNIT_NS = {"s": 1e9, "ms": 1e6, "µs": 1e3, "us": 1e3, "ns": 1.0}
 
 def parse_phase_line(line):
-    """Return (label, elapsed_ns) for a recognized timer line, else None."""
     m = DUR_RE.search(line)
     if not m:
         return None
@@ -235,18 +233,14 @@ def align_phases(err_path, session_start_epoch_ns, nvtx_ranges=None):
     if nvtx_phases:
         phases = [p for p in phases if p["family"] != "cuda"] + nvtx_phases
 
-    # Chain tagging: [neo-prover-cuda] lines only exist on the GPU chain;
-    # engine lines fire on both chains, split by where the GPU chain's
-    # first adapter stage begins.
     adapter_starts = [p["start"] for p in phases if p["family"] == "cuda"]
-    boundary = min(adapter_starts) if adapter_starts else 0
+    gpu_chain_start = min(adapter_starts) if adapter_starts else 0
     for p in phases:
         if p["family"] == "cuda":
             p["chain"] = "gpu"
         else:
-            p["chain"] = "gpu" if p["end"] >= boundary else "cpu"
+            p["chain"] = "gpu" if p["end"] >= gpu_chain_start else "cpu"
 
-    # Mark the last fold as the terminal (finalize) fold.
     ingest_starts = sorted(p["start"] for p in phases if p["label"] == "fold.ingest")
     if len(ingest_starts) >= 2:
         last = ingest_starts[-1]
@@ -306,15 +300,6 @@ def indexed_complement_intervals(window_start, window_end, union, index):
 
 
 def attribute(phases, kernels, memcpys, memsets, syncs, api_calls):
-    """Attribute CUDA activity to phase windows.
-
-    Device work (kernels/memcpys/memsets) is attributed by ENQUEUE time when
-    its launching API row is known via correlation id — the phase that issued
-    the work owns it even when it executes later under async command streams —
-    falling back to the execution midpoint. Sync and API rows attribute by
-    their own midpoint. Idle is decomposed per phase window on the execution
-    timeline into sync-wait / other-API / host-gap components.
-    """
     api_by_corr = {a["correlation_id"]: a for a in api_calls if a.get("correlation_id")}
 
     def enqueue_time(activity):
@@ -379,10 +364,6 @@ def attribute(phases, kernels, memcpys, memsets, syncs, api_calls):
         st[f"api_{bucket}_calls"] += 1
         st.setdefault("cuda_api", defaultdict(float))[name] += elapsed_ms
 
-    # Idle decomposition: for each phase window, the time not covered by any
-    # device activity (execution timeline), split by what the host was doing
-    # in the gap — blocked in a sync call, in other CUDA API calls (launch
-    # latency, allocs), or pure host think-time.
     device_union = interval_union(
         [(k["start"], k["end"]) for k in kernels]
         + [(c["start"], c["end"]) for c in memcpys]
@@ -712,7 +693,6 @@ def stage_for_time(phases, t):
 
 
 def narrowest_values_for_times(ranges, times, value):
-    """Return a value from the narrowest enclosing range for each timestamp."""
     starts = sorted(
         (
             row["start"],
@@ -739,7 +719,6 @@ def narrowest_values_for_times(ranges, times, value):
 
 
 def stages_for_times(phases, times):
-    """Return the narrowest phase containing each timestamp in O((P + T) log P)."""
     return narrowest_values_for_times(phases, times, lambda phase, _index: phase["label"].split(":", 1)[-1])
 
 
@@ -1250,7 +1229,6 @@ HISTORY_PATH = os.path.join("benchmark-results", "gpuprof-history.jsonl")
 
 
 def append_history(gate, report, json_path):
-    """One line per run: the campaign trend log. Never breaks the run."""
     try:
         summary = report.get("summary")
         online = summary.get("online") if isinstance(summary, dict) else None
@@ -1274,7 +1252,7 @@ def append_history(gate, report, json_path):
         with open(HISTORY_PATH, "a") as f:
             f.write(json.dumps(entry) + "\n")
         print(f"history: appended to {HISTORY_PATH}")
-    except Exception as exc:  # trend log must never fail a run
+    except Exception as exc:
         print(f"history: skipped ({exc})")
 
 
@@ -1339,7 +1317,6 @@ def report_stages(report):
 
 
 def cmd_check(args):
-    """Regression gate: exit 1 if the candidate run regresses past tolerance."""
     base = json.load(open(args.baseline))
     cand = json.load(open(args.candidate))
     tol, floor = args.tolerance, args.abs_floor_ms

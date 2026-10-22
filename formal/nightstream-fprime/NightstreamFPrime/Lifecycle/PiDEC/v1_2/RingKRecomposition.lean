@@ -20,7 +20,7 @@ Constraint group:
 
 Parent coverage:
 - the separate Pad `Eval_K` equation;
-- each of the 14 separate matrix `Eval_A` equations.
+- each of the 4 separate matrix `Eval_A` equations.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.RingKRecomposition

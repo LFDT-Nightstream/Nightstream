@@ -44,6 +44,7 @@ mod application_tests;
 const EQUALITY_CHUNK_BITS: usize = 8;
 const EQUALITY_CHUNK_VALUES: usize = 1 << EQUALITY_CHUNK_BITS;
 const MAX_COEFFICIENTS: usize = 10;
+const ZERO_FAMILY_LEN: usize = 1;
 
 struct MetalCompactMatrix {
     row_offsets: Buffer,
@@ -59,7 +60,6 @@ struct MetalCompactMatrix {
     identity: bool,
 }
 
-/// Borrowed matrix authority and shape; device metadata belongs to one row window.
 pub(crate) struct MetalJointMatrixPlan<'a> {
     source: &'a dyn MatrixRows,
     matrix_count: usize,
@@ -78,7 +78,6 @@ impl MetalJointMatrixPlan<'_> {
     }
 }
 
-/// Device-resident implementation of the reduction engine's oracle seam.
 pub(crate) struct MetalPaperJointOracle<'a> {
     session: &'a MetalSession,
     plan: MetalJointMatrixPlan<'a>,
@@ -108,7 +107,7 @@ pub(crate) struct MetalPaperJointOracle<'a> {
     assignment_width: usize,
     coefficient_count: usize,
     range_base: u32,
-    zero_application_padding: bool,
+    f_vanishes_at_zero: bool,
     rounds: usize,
     round: usize,
     current_len: usize,
@@ -224,24 +223,20 @@ impl MetalSession {
         masks: &MetalWitnessMasks,
         has_carried: bool,
     ) -> Result<(Buffer, usize), MetalError> {
-        // A zero carried family has a single zero value, with zero padding.
-        // Device reads and folds must use that allocated length as well.
-        let common_len = if has_carried {
-            input.structure.n.max(input.dims.assignment_width)
-        } else {
-            1
-        };
+        if !has_carried {
+            return self.zero_family_table();
+        }
+        let common_len = input.structure.n.max(input.dims.assignment_width);
         let first_words = common_len
             .checked_mul(2)
             .ok_or(MetalError::Shape("one-joint common table size overflow"))?;
         let first = self.buffer(first_words * size_of::<u64>())?;
-
-        if has_carried {
-            self.build_joint_carried_table(plan, input, masks, &first, common_len)?;
-        } else {
-            self.write_shared(&first, &[0u64; 2])?;
-        }
+        self.build_joint_carried_table(plan, input, masks, &first, common_len)?;
         Ok((first, common_len))
+    }
+
+    fn zero_family_table(&self) -> Result<(Buffer, usize), MetalError> {
+        Ok((self.buffer_from_slice(&[0u64; 2 * ZERO_FAMILY_LEN])?, ZERO_FAMILY_LEN))
     }
 
     fn encode_joint_tensor_point(
@@ -345,7 +340,6 @@ impl MetalSession {
         encoder.endEncoding();
         drop(encoder);
 
-        // The common output temporarily holds the matrix projection.
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.joint.carried.combine")));
         encoder.setComputePipelineState(&self.joint_carried_projection);
@@ -422,8 +416,6 @@ impl MetalSession {
         }
 
         let command = self.command_buffer("nightstream.pi_ccs.joint.carried.pad")?;
-        // All matrix reads are complete. Replace the temporary projection
-        // with the identity term and add the matrix contribution where it exists.
         let final_shape = self.buffer_from_slice(&[
             stored_running as u64,
             plan.blocks as u64,
@@ -622,7 +614,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             assignment_width: input.dims.assignment_width,
             coefficient_count,
             range_base: input.params.b,
-            zero_application_padding: input.structure.f.eval(&vec![F::ZERO; plan.matrix_count]) == F::ZERO,
+            f_vanishes_at_zero: input.structure.f.eval(&vec![F::ZERO; plan.matrix_count]) == F::ZERO,
             rounds: input.dims.variables,
             round: 0,
             current_len: input.dims.row_count,
@@ -675,7 +667,6 @@ impl<'a> MetalPaperJointOracle<'a> {
             }
             let remaining = self.active_len.div_ceil(2) - pairs;
             if remaining != 0 {
-                // No application coordinate is read in this assignment-only suffix.
                 let partial = self.round_window(&self.output, pairs * 2, 0, pairs, remaining)?;
                 for (sum, value) in coefficients.iter_mut().zip(partial) {
                     *sum += value;
@@ -737,7 +728,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             prior_slope_re,
             prior_slope_im,
             self.range_base as u64,
-            u64::from(self.zero_application_padding),
+            u64::from(self.f_vanishes_at_zero),
             assignments.encoding() as u64,
             pair_offset as u64,
             pair_count as u64,
@@ -853,8 +844,6 @@ impl<'a> MetalPaperJointOracle<'a> {
             self.common = Some(common);
             self.common_len = self.common_len.div_ceil(2).max(1);
         }
-        // Release the completed command and old tables before allocating
-        // the next norm prefix.
         drop(command);
         self.assignments
             .as_mut()

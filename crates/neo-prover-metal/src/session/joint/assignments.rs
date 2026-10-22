@@ -18,6 +18,34 @@ enum Prefix {
     Dense(Buffer),
 }
 
+#[repr(u64)]
+#[derive(Clone, Copy)]
+pub(super) enum AssignmentEncoding {
+    Masks = 0,
+    U8Codes = 1,
+    U16Codes = 2,
+    Dense = 16,
+}
+
+impl AssignmentEncoding {
+    fn entry_bytes(self) -> usize {
+        match self {
+            Self::Masks => 0,
+            Self::U8Codes => size_of::<u8>(),
+            Self::U16Codes => size_of::<u16>(),
+            Self::Dense => size_of::<K>(),
+        }
+    }
+
+    fn for_codes(alphabet: Option<usize>) -> Self {
+        match alphabet {
+            Some(size) if size <= usize::from(u8::MAX) + 1 => Self::U8Codes,
+            Some(_) => Self::U16Codes,
+            None => Self::Dense,
+        }
+    }
+}
+
 pub(super) struct AssignmentTables {
     prefix: Prefix,
     pub(super) sources: Buffer,
@@ -46,13 +74,11 @@ impl AssignmentTables {
         })
     }
 
-    // Shader ABI: 0 = original masks, 1/2 = index bytes, 16 = dense K.
-    pub(super) fn encoding(&self) -> usize {
+    pub(super) fn encoding(&self) -> AssignmentEncoding {
         match &self.prefix {
-            Prefix::Masks(_) => 0,
-            Prefix::Codes { alphabet, .. } if *alphabet <= usize::from(u8::MAX) + 1 => 1,
-            Prefix::Codes { .. } => 2,
-            Prefix::Dense(_) => size_of::<K>(),
+            Prefix::Masks(_) => AssignmentEncoding::Masks,
+            Prefix::Codes { alphabet, .. } => AssignmentEncoding::for_codes(Some(*alphabet)),
+            Prefix::Dense(_) => AssignmentEncoding::Dense,
         }
     }
 
@@ -81,11 +107,7 @@ impl AssignmentTables {
         let next = alphabet
             .checked_mul(alphabet)
             .filter(|&n| n > 0 && n <= usize::from(u16::MAX) + 1);
-        let entry_bytes = match next {
-            Some(n) if n <= usize::from(u8::MAX) + 1 => 1,
-            Some(_) => 2,
-            None => size_of::<K>(),
-        };
+        let entry_bytes = AssignmentEncoding::for_codes(next).entry_bytes();
         self.count
             .checked_mul(self.len.div_ceil(2))
             .and_then(|n| n.checked_mul(entry_bytes))
@@ -112,11 +134,8 @@ impl AssignmentTables {
         let next_alphabet = alphabet
             .checked_mul(alphabet)
             .filter(|&size| size > 0 && size <= usize::from(u16::MAX) + 1);
-        let bytes = match next_alphabet {
-            Some(size) if size <= usize::from(u8::MAX) + 1 => 1,
-            Some(_) => 2,
-            None => size_of::<K>(),
-        };
+        let next_encoding = AssignmentEncoding::for_codes(next_alphabet);
+        let bytes = next_encoding.entry_bytes();
         let entries = self
             .count
             .checked_mul(next_len)
@@ -134,7 +153,7 @@ impl AssignmentTables {
             self.encoding() as u64,
             alphabet as u64,
             zero as u64,
-            bytes as u64,
+            next_encoding as u64,
         ])?;
         let next_values = next_alphabet
             .map(|size| session.buffer(size * size_of::<K>()))

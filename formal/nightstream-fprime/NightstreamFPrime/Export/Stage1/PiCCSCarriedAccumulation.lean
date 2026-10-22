@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder
 import NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment
 
 /-! Proof-only scalar accumulation from exact source callbacks to the two
-complete carried moments. Callback equalities are explicit; the selected
-source-value module discharges them. This file makes no IO/cache-loop claim. -/
+complete carried moments. This file makes no IO/cache-loop claim. -/
 
 set_option autoImplicit false
 
@@ -30,9 +29,6 @@ private theorem numericSum_congr (ops : InterpolationOps Field)
   intro index _
   exact equal index.val index.isLt
 
-/-- Flatten the actual complete-block kernel. Its whole-block zero shortcut
-is already covered by blockMoment_value. The only callback premise identifies
-its exact dot products with the same flat column values. -/
 theorem blockMoments_eq_flat_sum
     (basis : FixedArray (Vector K ringDegree) ringDegree)
     (weight : Nat → K) (blocks : Nat → Vector K ringDegree)
@@ -87,10 +83,6 @@ private def sourceMatrix (ops : InterpolationOps Field) {shape : Shape}
     ops.mul (TargetPolynomial.power ops.toOps gamma coordinate.localGammaExponent)
       ((ProtocolPolynomial.vertexMessage data vertex).matrixImage coordinate)
 
-/-- Complete scalar carried accumulation. All callback/source and omitted-row
-conditions are stated explicitly. They concern exact values, not witness
-validity, commitments, or expected output artifacts. The global matrix shift
-is applied once when the two independently accumulated families are joined. -/
 theorem moment_of_exact_row_callbacks (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) {shape : Shape}
     (data : ProtocolPolynomial.Data Field shape) (gamma : Field) {remaining : Nat}

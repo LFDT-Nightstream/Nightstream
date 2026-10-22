@@ -3,9 +3,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckTruthPath
 import NightstreamFPrime.Spec.SumCheck.VerifierCertificate
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/SumCheckInitial.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Finite SumCheck initial-claim binding for paper-level joint `Pi_CCS`.
 
@@ -27,23 +24,6 @@ root-counting probability, Fiat--Shamir, Rust,
 R1CS, or counts.
 
 Emits constraints: no.
-
-Authority boundary: the claimed initial is computed as `T_abs`; the semantic
-initial is computed as the explicit `sum_x Q`. Neither is certificate data.
-The certificate supplies only finite coefficient messages. The strongest
-checker theorem derives expected rounds and the terminal from one explicit
-joint polynomial; it accepts no caller-supplied expected function or honesty
-proof. Exact challenge-vector length remains an explicit verifier obligation.
-
-| Protocol | Phase | Value owner | Exact obligation |
-|---|---|---|---|
-| `Pi_CCS` | SumCheck initial claim | verifier | `claimedInitial = T_abs(alpha,gamma)` |
-| `Pi_CCS` | SumCheck truth path | semantics | `trueInitial = sum_x Q(x,alpha,gamma)` |
-| `Pi_CCS` | expected rounds | canonical joint polynomial | each round fixes the prior challenges and sums the remaining Boolean suffix |
-| `Pi_CCS` | terminal | verifier | the same explicit `Q` evaluated at the full challenge vector |
-| `Pi_CCS` | initial equality | derived signed polynomial | `Claim.True iff signedPolynomial(gamma)=0` |
-| `Pi_CCS` | coefficient truth | independent residual tables | sampled zero means table truth or a signed mixing root |
-| `Pi_CCS` | false acceptance | finite verifier + canonical truth path | table truth, a signed mixing root, or a named SumCheck round collision |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckInitial
@@ -53,7 +33,6 @@ universe uField
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.SumCheck
 
-/-- Verifier-owned initial claim: the corrected shifted target. -/
 def verifierInitial
     {Field : Type uField}
     {shape : Shape}
@@ -62,7 +41,6 @@ def verifierInitial
     (gamma : Field) : Field :=
   SignedJointIdentity.targetAbsolute ops data gamma
 
-/-- Independent semantic initial value: the explicit hypercube sum of `Q`. -/
 def semanticInitial
     {Field : Type uField}
     {shape : Shape}
@@ -72,8 +50,6 @@ def semanticInitial
     (gamma : Field) : Field :=
   SignedJointIdentity.summedQ ops data alpha gamma
 
-/-- Semantic ghosts for the finite-to-symbolic bridge. Only the true initial
-is fixed here; expected round polynomials remain an explicit semantic input. -/
 def semanticGhosts
     {Field : Type uField}
     {shape : Shape}
@@ -86,9 +62,6 @@ def semanticGhosts
   trueInitial := semanticInitial ops data alpha gamma
   expected := expected
 
-/-- Canonical expected-round list derived from the same explicit joint
-polynomial that owns the verifier terminal. This is semantic proof data, not a
-certificate field. -/
 def canonicalExpected
     {Field : Type uField}
     {shape : Shape}
@@ -100,10 +73,6 @@ def canonicalExpected
   SumCheck.Finite.HypercubeTruth.expectedPolynomials ops.toOps
     (SumCheckTruthPath.jointPolynomial ops data alpha gamma) challenges
 
-/-- Typed one-joint SumCheck checker. The challenge vector carries its exact
-paper arity, so round-count authority is part of the input type rather than a
-caller proposition or prover field. The certificate still contains only raw
-finite coefficient messages. -/
 def checkJoint
     {Field : Type uField}
     [DecidableEq Field]
@@ -121,8 +90,6 @@ def checkJoint
       roundPoint.coordinates)
     certificate
 
-/-- The exact symbolic instance produced from a finite verifier-visible
-certificate with both initial values fixed by the paper model. -/
 def symbolicInstance
     {Field : Type uField}
     {shape : Shape}
@@ -140,9 +107,6 @@ def symbolicInstance
     (verifierInitial ops data gamma) challenges terminal certificate
     (semanticGhosts ops data alpha gamma expected)
 
-/-- Exact initial-claim semantics: the finite/symbolic SumCheck claim is true
-if and only if the independently serialized signed gamma polynomial vanishes.
--/
 theorem claimTrue_iff_polynomial_evaluate_eq_zero
     {Field : Type uField}
     {shape : Shape}
@@ -169,11 +133,6 @@ theorem claimTrue_iff_polynomial_evaluate_eq_zero
   rw [SignedCoefficientPolynomial.paperDifference_eq_evaluate
     ops laws data alpha gamma]
 
-/-- A finite accepted chain plus an independently honest expected path yields
-the exact deterministic outcome: the signed joint polynomial vanishes, or a
-specific bounded-degree SumCheck round collides at its verifier challenge.
-
-No probability bound is claimed here. -/
 theorem accepted_implies_polynomial_zero_or_badChallenge
     {Field : Type uField}
     {shape : Shape}
@@ -221,10 +180,6 @@ theorem accepted_implies_polynomial_zero_or_badChallenge
         ops laws data alpha gamma maxDegree challengeSetSize challenges
         terminal certificate expected).1 claimTrue
 
-/-- The polynomial-zero branch is refined to the unsampled signed object.
-Thus finite acceptance exposes either all finite residual coefficients as
-zero, a precise alpha/gamma mixing root, or a precise SumCheck round
-collision. -/
 theorem accepted_implies_coefficientTruth_or_mixingRoot_or_badChallenge
     {Field : Type uField}
     {shape : Shape}
@@ -260,7 +215,6 @@ theorem accepted_implies_coefficientTruth_or_mixingRoot_or_badChallenge
     · exact Or.inr (Or.inl mixingRoot)
   · exact Or.inr (Or.inr badRound)
 
-/-- The same dichotomy starts directly from the executable finite checker. -/
 theorem checked_implies_polynomial_zero_or_badChallenge
     {Field : Type uField}
     [DecidableEq Field]
@@ -295,8 +249,6 @@ theorem checked_implies_polynomial_zero_or_badChallenge
       (verifierInitial ops data gamma) challenges terminal certificate).1 checked
   · exact honestGhosts
 
-/-- Executable finite checking has the same coefficient-level deterministic
-outcome. No challenge-distribution or probability claim is hidden here. -/
 theorem checked_implies_coefficientTruth_or_mixingRoot_or_badChallenge
     {Field : Type uField}
     [DecidableEq Field]
@@ -331,10 +283,6 @@ theorem checked_implies_coefficientTruth_or_mixingRoot_or_badChallenge
       (verifierInitial ops data gamma) challenges terminal certificate).1 checked
   · exact honestGhosts
 
-/-- Executable acceptance reaches the independently defined explicit table
-obligations, unless alpha/gamma mixing or a SumCheck round challenge hits its
-named bad set. The concrete construction of those tables remains a separate
-refinement boundary. -/
 theorem checked_implies_tableObligations_or_mixingRoot_or_badChallenge
     {Field : Type uField}
     [DecidableEq Field]
@@ -372,11 +320,6 @@ theorem checked_implies_tableObligations_or_mixingRoot_or_badChallenge
         ops zeroLaws data).1 truth
   · exact Or.inr bad
 
-/-- Strong canonical checker theorem. Both the expected round polynomials and
-the terminal are derived from the one explicit paper-level joint polynomial.
-The caller supplies neither an expected-polynomial callback nor an honesty
-proof. The remaining `challengeLength` premise is deliberately visible: a
-concrete verifier must enforce exactly one challenge per Boolean variable. -/
 theorem checkedCanonical_implies_tableObligations_or_mixingRoot_or_badChallenge
     {Field : Type uField}
     [DecidableEq Field]
@@ -437,10 +380,6 @@ theorem checkedCanonical_implies_tableObligations_or_mixingRoot_or_badChallenge
     certificate (canonicalExpected ops data alpha gamma challenges) checked
     honestGhosts
 
-/-- Public typed form of the canonical checker theorem. Exact round count is
-now discharged by `CubePoint.dimension`; no external shape or honesty premise
-remains. The still-open degree theorem concerns the semantic polynomial, not
-the verifier-visible coefficient-list bound already checked by `checkJoint`. -/
 theorem checkJoint_implies_tableObligations_or_mixingRoot_or_badChallenge
     {Field : Type uField}
     [DecidableEq Field]

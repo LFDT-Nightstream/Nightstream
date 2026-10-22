@@ -36,14 +36,13 @@ fn build_fixture(
     CcsWitness<F>,
     Poseidon2Transcript,
 ) {
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(n).expect("params");
+    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(n, n).expect("params");
     let s = CcsStructure::new(vec![identity_left(n, m)], zero_poly(1)).expect("ccs");
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(123);
     let pp = ajtai_setup(&mut rng, D, params.kappa as usize, m / D).expect("ajtai setup");
     let l = AjtaiSModule::new(Arc::new(pp));
 
-    // Z entries are all zero digits (in-range for any b>=2).
     let z = Mat::from_row_major(D, m / D, vec![F::ZERO; D * (m / D)]);
     let c = l.commit(&z);
     let mcs_inst = CcsClaim {
@@ -52,10 +51,7 @@ fn build_fixture(
         x: vec![],
         m_in: 0,
     };
-    let mcs_wit = CcsWitness {
-        w: vec![F::ZERO; m],
-        Z: z,
-    };
+    let mcs_wit = CcsWitness { Z: z };
 
     let tr = Poseidon2Transcript::new(label);
     (params, s, mcs_inst, mcs_wit, tr)
@@ -207,10 +203,9 @@ fn padded_row_identity_raw_verify_rejects_eval_a_mutation() {
 #[test]
 fn padded_row_identity_raw_verify_rejects_noncanonical_extra_output_x_column() {
     let label = b"test/padded_row_identity/redteam/inactive_output_x";
-    let (params, s, mut mcs, mut wit, mut tr_p) = build_fixture(label, 4, D);
+    let (params, s, mut mcs, wit, mut tr_p) = build_fixture(label, 4, D);
     mcs.m_in = D;
     mcs.x = vec![F::ZERO; D];
-    wit.w.clear();
 
     let (running, running_witnesses) = zero_running::zero_running(&params, &s, 1, mcs.m_in);
     let (mut outputs, proof) = pi_ccs_prove(

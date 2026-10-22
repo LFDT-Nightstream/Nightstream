@@ -5,9 +5,9 @@ import NightstreamFPrime.Spec.ProductionRelation
 import NightstreamFPrime.Lifecycle.Types
 
 /-!
-One fresh CCS contribution from two retained extension-field rows. The
-original production shape and nine coefficient slots are retained. Prepared
-selector/power equality is proved here; origin of the retained rows is not.
+One fresh CCS contribution from two retained extension-field rows.
+Prepared selector/power equality is proved here; origin of the retained rows
+is not.
 -/
 
 set_option autoImplicit false
@@ -20,8 +20,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Lifecycle
 
-/-- Only freshMatrixImage is consumed by the CCS constructor. The selected
-profile has one fresh source; the other message fields are unused zeros. -/
 def message (row : Vector K ProductionRelation.matrixCount) :
     ProtocolPolynomial.OutputMessage K productionShape where
   freshMatrixImage := fun _ matrix => row.get matrix
@@ -29,7 +27,6 @@ def message (row : Vector K ProductionRelation.matrixCount) :
   padImage := fun _ => K.zero
   matrixImage := fun _ => K.zero
 
-/-- The original fresh constructor and its single outer gamma shift. -/
 def contribution (input : ProtocolPolynomial.VerifierInput K productionShape)
     (alpha : CubePoint K productionShape.cubeVariables) (challenges : List K)
     {remaining : Nat} (suffix : BooleanVertex remaining) (powers : Nat → K)
@@ -42,7 +39,6 @@ def contribution (input : ProtocolPolynomial.VerifierInput K productionShape)
         (PiCCSPrefixSelector.cachedSelector extensionOps challenges suffix alpha tables)
         (message low) (message high)))
 
-/-- Prepared lookups preserve every coefficient of the original CCS constructor. -/
 theorem contribution_prepared (input : ProtocolPolynomial.VerifierInput K productionShape)
     (alpha : CubePoint K productionShape.cubeVariables) (gamma : K) (challenges : List K)
     {remaining : Nat} (suffix : BooleanVertex remaining)

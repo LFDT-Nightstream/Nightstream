@@ -54,8 +54,6 @@ theorem scale (coefficient : F) (combination : LinearCombination)
 
 end LinearCombination.VarsSatisfy
 
-/-- Evaluation depends only on variables admitted by the selected support
-predicate. -/
 theorem LinearCombination.eval_eq_of_agree
     (combination : LinearCombination) (allowed : Nat → Prop)
     (left right : Env) (scope : combination.VarsSatisfy allowed)
@@ -85,8 +83,6 @@ theorem mono {allowed larger : Nat → Prop} (row : Row)
 
 end Row.VarsSatisfy
 
-/-- A row remains satisfied when its environment changes only outside the
-row's selected support. -/
 theorem Row.holds_of_agree (row : Row) (allowed : Nat → Prop)
     (before after : Env) (scope : row.VarsSatisfy allowed)
     (agrees : ∀ index, allowed index → after index = before index)
@@ -97,8 +93,6 @@ theorem Row.holds_of_agree (row : Row) (allowed : Nat → Prop)
     row.c.eval_eq_of_agree allowed after before scope.2.2 agrees]
   exact holds
 
-/-- A row family remains satisfied when two environments agree on every
-selected source column used by that family. -/
 theorem rowsHold_of_agree (rows : List Row) (allowed : Nat → Prop)
     (before after : Env)
     (scope : ∀ row ∈ rows, row.VarsSatisfy allowed)
@@ -108,7 +102,6 @@ theorem rowsHold_of_agree (rows : List Row) (allowed : Nat → Prop)
   exact row.holds_of_agree allowed before after (scope row member) agrees
     (holds row member)
 
-/-- Source support extended by one half-open fresh interval. -/
 def SourceOrFresh (allowed : Nat → Prop) (start finish index : Nat) : Prop :=
   allowed index ∨ (start ≤ index ∧ index < finish)
 
@@ -726,8 +719,6 @@ theorem lowerConstraints_rows_varsSatisfy (constraints : List Expr)
 
 namespace LoweringPlan
 
-/-- The opaque lowering-plan boundary preserves generic source support
-without exposing the concrete constraint list to parent proofs. -/
 theorem rows_varsSatisfy (plan : LoweringPlan) (allowed : Nat → Prop)
     (scope : ∀ expression ∈ plan.constraints,
       expression.VarsSatisfy allowed) :

@@ -1,10 +1,7 @@
-"""Chrome/Perfetto trace-event export for gpuprof timelines."""
-
 from util import api_bucket, copy_kind_name, short_kernel_name
 
 
 def chrome_trace(phases, kernels, memcpys, memsets, syncs, api_calls, nvtx):
-    """Return Chrome/Perfetto trace events for protocol phases and CUDA work."""
 
     def complete(name, cat, start_ns, end_ns, pid, tid, args=None):
         dur_us = max(0.0, (end_ns - start_ns) / 1e3)

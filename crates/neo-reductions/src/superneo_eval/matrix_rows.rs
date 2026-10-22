@@ -10,7 +10,6 @@ use p3_field::PrimeCharacteristicRing;
 use super::{RetainedMatrixWindow, SuperneoEvalCache};
 use crate::PiCcsError;
 
-/// Global source dimensions. Columns include the complete padded carrier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct MatrixShape {
     pub rows: usize,
@@ -34,17 +33,11 @@ impl MatrixShape {
     }
 }
 
-/// Immutable original coefficients, visited in `(global row, matrix)` order.
-/// Runs within a slot may overlap and need not be sorted. Each slot must end
-/// once, even when empty. A source must stop immediately when its sink breaks.
-/// Repeated visits to a range must produce the same matrix coefficients.
 pub trait MatrixRows: Sync {
     fn shape(&self) -> MatrixShape;
 
     fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError>;
 
-    /// Where the owner of this source keeps its complete window between
-    /// operations. The slot must serve this source only. `None` keeps nothing.
     fn retained_window(&self) -> Option<&RetainedMatrixWindow> {
         None
     }
@@ -56,7 +49,6 @@ pub trait MatrixRowSink {
     fn finish_matrix_row(&mut self, row: usize, matrix: usize) -> Result<ControlFlow<()>, PiCcsError>;
 }
 
-/// Borrow a cache without copying its rows.
 pub struct CachedMatrixRows<'a> {
     cache: &'a SuperneoEvalCache,
     shape: MatrixShape,

@@ -1,20 +1,4 @@
 //! Production Poseidon2 Implementation over Goldilocks Field
-//!
-//! This module provides the Poseidon2 hash function implementation.
-//! All parameters (WIDTH, CAPACITY, etc.) are imported from `neo-params`
-//! which serves as the single source of truth.
-//!
-//! ## Usage
-//!
-//! ```rust
-//! use neo_ccs::crypto::poseidon2_goldilocks as p2;
-//! use p3_goldilocks::Goldilocks;
-//! use p3_field::PrimeCharacteristicRing;
-//!
-//! // Hash field elements
-//! let input = [Goldilocks::from_u64(42); 10];
-//! let digest = p2::poseidon2_hash(&input);
-//! ```
 
 use once_cell::sync::Lazy;
 use p3_field::PrimeCharacteristicRing;
@@ -23,57 +7,34 @@ use p3_symmetric::Permutation;
 use rand_chacha_p3::rand_core::SeedableRng;
 use rand_chacha_p3::ChaCha8Rng;
 
-// Import parameters from neo-params (single source of truth)
 pub use neo_params::poseidon2_goldilocks::{CAPACITY, DIGEST_LEN, RATE, SEED, WIDTH};
 
-/// Cached Poseidon2 permutation instance.
-///
-/// Computed once at first use and cached forever for performance.
-/// Round constant generation is expensive (~milliseconds), so this avoids
-/// recomputing them on every hash operation.
-///
-/// Uses parameters from `neo-params` for consistency across the codebase.
 pub static PERM: Lazy<Poseidon2Goldilocks<{ WIDTH }>> = Lazy::new(|| {
     let mut rng = ChaCha8Rng::from_seed(SEED);
     Poseidon2Goldilocks::<{ WIDTH }>::new_from_rng_128(&mut rng)
 });
 
-/// Returns a reference to the cached Poseidon2 permutation.
-///
-/// This is the primary way to access the permutation. It ensures:
-/// - Consistent parameters across the entire codebase
-/// - Optimal performance (no recomputation of round constants)
-/// - Thread-safe lazy initialization
 pub fn permutation() -> &'static Poseidon2Goldilocks<{ WIDTH }> {
     &PERM
 }
 
-/// Apply one raw Poseidon2 permutation to a full-width state.
 #[inline]
 pub fn permute_state(state: [Goldilocks; WIDTH]) -> [Goldilocks; WIDTH] {
     permutation().permute(state)
 }
 
-/// Round constants and internal diagonal of [`PERM`], as canonical u64 limbs.
-///
-/// For backends that re-implement the permutation on other hardware (e.g. the
-/// CUDA transcript) and must be bit-identical. Regenerated from `SEED` with
+/// Regenerated from `SEED` with
 /// the same draw order as `Poseidon2::new_from_rng_128` (external constants,
-/// then internal); `tests/poseidon2_round_constants.rs` pins the regeneration
-/// against [`PERM`] itself.
+/// then internal).
 pub struct Poseidon2RoundConstants {
-    /// Initial external rounds, one `[u64; WIDTH]` row per round.
     pub initial: Vec<[u64; WIDTH]>,
     /// Internal rounds, one constant (added to lane 0) per round.
     pub internal: Vec<u64>,
-    /// Terminal external rounds, one `[u64; WIDTH]` row per round.
     pub terminal: Vec<[u64; WIDTH]>,
     /// Diagonal of the internal linear layer `1 + diag(v)`.
     pub diag: [u64; WIDTH],
 }
 
-/// Regenerate the round constants of [`PERM`] from `SEED`. See
-/// [`Poseidon2RoundConstants`] for the bit-exactness contract.
 pub fn round_constants() -> Poseidon2RoundConstants {
     use p3_field::PrimeField64;
     use p3_poseidon2::ExternalLayerConstants;
@@ -101,21 +62,10 @@ pub fn round_constants() -> Poseidon2RoundConstants {
     }
 }
 
-/// Standard sponge construction with proper padding.
-///
-/// Implements the Poseidon2 sponge: absorb input → pad → squeeze output.
-/// Padding: Add 1 to first state element, then permute.
-///
-/// # Security
-/// - Input is absorbed in chunks of RATE (12 elements)
-/// - Each chunk is XORed into state and permuted
-/// - Final padding prevents length-extension attacks
-/// - Output squeezed from first DIGEST_LEN elements
 pub fn poseidon2_hash(input: &[Goldilocks]) -> [Goldilocks; DIGEST_LEN] {
     let perm = permutation();
     let mut state = [Goldilocks::ZERO; WIDTH];
 
-    // Absorb phase: XOR input into state at rate, permute after each chunk
     for chunk in input.chunks(RATE) {
         for (i, &x) in chunk.iter().enumerate() {
             state[i] += x;
@@ -123,18 +73,14 @@ pub fn poseidon2_hash(input: &[Goldilocks]) -> [Goldilocks; DIGEST_LEN] {
         state = perm.permute(state);
     }
 
-    // Padding: Add 1 to first position and final permute
     state[0] += Goldilocks::ONE;
     state = perm.permute(state);
 
-    // Squeeze phase: Extract first DIGEST_LEN elements as output
     let mut out = [Goldilocks::ZERO; DIGEST_LEN];
     out.copy_from_slice(&state[..DIGEST_LEN]);
     out
 }
 
-/// Incremental form of [`poseidon2_hash`]. Update boundaries add no framing.
-/// Only the permutation state and the position in its rate are retained.
 #[derive(Default)]
 pub struct Poseidon2Hasher {
     state: [Goldilocks; WIDTH],
@@ -142,7 +88,6 @@ pub struct Poseidon2Hasher {
 }
 
 impl Poseidon2Hasher {
-    /// Absorb field elements in order without retaining the input slice.
     pub fn update(&mut self, input: &[Goldilocks]) {
         for &value in input {
             self.state[self.used] += value;
@@ -154,8 +99,6 @@ impl Poseidon2Hasher {
         }
     }
 
-    /// Permute a partial final block, if present, then apply the same final
-    /// `+1` padding and permutation as the slice-based hash.
     pub fn finalize(mut self) -> [Goldilocks; DIGEST_LEN] {
         if self.used != 0 {
             self.state = permutation().permute(self.state);
@@ -168,9 +111,6 @@ impl Poseidon2Hasher {
     }
 }
 
-/// Hash a single field element.
-///
-/// Convenience function for hashing a single Goldilocks element.
 pub fn poseidon2_hash_single(x: Goldilocks) -> [Goldilocks; DIGEST_LEN] {
     poseidon2_hash(&[x])
 }

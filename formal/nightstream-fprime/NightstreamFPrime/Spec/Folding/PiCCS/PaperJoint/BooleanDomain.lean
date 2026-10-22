@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanTable
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/BooleanDomain.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Canonical Boolean-domain ownership for paper-level joint `Pi_CCS` residuals.
 
@@ -20,29 +17,12 @@ serialization, matrix row numbering, alpha/gamma identities, SumCheck,
 Fiat--Shamir, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: the paper's Boolean cube is represented once, with the
-newly introduced coordinate prepended and the `false` branch before the `true`
-branch. Residual families import this order; they must not invent independent
-leaf permutations. A later refinement must prove how external numeric row and
-bit encodings map into this semantic order.
-
-| Shared owner | Mathematical object | Canonical choice | Proven relation |
-|---|---|---|---|
-| `BooleanVertex` | `x in {0,1}^ell` | prepended coordinate | typed cube point |
-| `BooleanVertex.all` | full Boolean cube | low subtree then high subtree | length `2^ell`, no duplicates, every vertex present |
-| `BooleanTable.tabulate` | residual truth table | recurse on the same low/high split | callers cannot permute leaves |
-| `BooleanTable.entries_tabulate` | table serialization | `BooleanVertex.all.map values` | exact leaf order |
-| `BooleanTable.tabulate_allEntriesZero_iff` | leafwise zero condition | direct pointwise equality | no supplied semantic iff |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 universe uField
 
-/-- A Boolean hypercube vertex in the same recursive coordinate order used by
-`BooleanTable`: the newly introduced coordinate is prepended, and `false`
-precedes `true`. -/
 inductive BooleanVertex : Nat -> Type where
   | nil : BooleanVertex 0
   | cons {variables : Nat} (coordinate : Bool)
@@ -51,15 +31,12 @@ deriving Repr, DecidableEq
 
 namespace BooleanVertex
 
-/-- Canonical low/high enumeration of all Boolean vertices. This enumeration
-belongs to the semantic model, not to a prover or production serializer. -/
 def all : (variables : Nat) -> List (BooleanVertex variables)
   | 0 => [.nil]
   | variables + 1 =>
       (all variables).map (fun tail => .cons false tail) ++
         (all variables).map (fun tail => .cons true tail)
 
-/-- The explicit enumeration has exactly one slot per Boolean-cube point. -/
 theorem all_length (variables : Nat) :
     (all variables).length = 2 ^ variables := by
   induction variables with
@@ -67,7 +44,6 @@ theorem all_length (variables : Nat) :
   | succ variables inductionHypothesis =>
       simp [all, inductionHypothesis, Nat.pow_succ, Nat.mul_two]
 
-/-- The canonical enumeration contains no duplicate Boolean vertex. -/
 theorem all_nodup (variables : Nat) :
     (all variables).Nodup := by
   induction variables with
@@ -88,7 +64,6 @@ theorem all_nodup (variables : Nat) :
         rcases List.mem_map.mp highMember with ⟨high, _, rfl⟩
         simp
 
-/-- Every typed Boolean vertex occurs in the canonical enumeration. -/
 theorem mem_all {variables : Nat} (vertex : BooleanVertex variables) :
     vertex ∈ all variables := by
   induction vertex with
@@ -100,8 +75,6 @@ end BooleanVertex
 
 namespace BooleanTable
 
-/-- Construct an explicit Boolean table from a semantic value at every typed
-vertex. The recursion fixes low/high placement; callers cannot permute leaves. -/
 def tabulate
     {Field : Type uField} :
     {variables : Nat} ->
@@ -112,7 +85,6 @@ def tabulate
         (tabulate (fun tail => values (.cons false tail)))
         (tabulate (fun tail => values (.cons true tail)))
 
-/-- Tabulation leaves are exactly the canonical low/high vertex enumeration. -/
 theorem entries_tabulate
     {Field : Type uField}
     {variables : Nat}
@@ -125,8 +97,6 @@ theorem entries_tabulate
       rw [inductionHypothesis, inductionHypothesis]
       simp [Function.comp_def]
 
-/-- A tabulated residual is leafwise zero exactly when its independently
-defined value is zero at every Boolean vertex. -/
 theorem tabulate_allEntriesZero_iff
     {Field : Type uField}
     (ops : InterpolationOps Field)

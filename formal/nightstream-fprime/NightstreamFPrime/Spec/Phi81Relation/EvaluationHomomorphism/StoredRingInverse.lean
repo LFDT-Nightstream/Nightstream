@@ -5,10 +5,6 @@ import Init.Data.Vector.OfFn
 
 /-!
 Executable normalized extended-GCD candidate for the fixed Phi81 ring.
-Inputs and outputs are stored 54-coefficient vectors. Polynomial views are
-used only in proofs. This module supplies no inverse-by-choice operation or
-work total. The RingF multiplication bridge and complete cost proof remain
-separate obligations.
 -/
 
 set_option autoImplicit false
@@ -23,16 +19,12 @@ local instance : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldil
 
 abbrev StoredRing := Vector F ringDegree
 
-/-- Trim only trailing zero coefficients of the actual stored array. -/
 def encode (value : StoredRing) : CPolynomial Base :=
   CPolynomial.ofArray (R := Base) value.toArray
 
-/-- The fixed monic divisor, delayed behind a call argument. -/
 def modulus (_ : Unit) : CPolynomial Base :=
   CPolynomial.X ^ ringDegree + (CPolynomial.X ^ ringMiddleDegree + 1)
 
-/-- Use the first normalized Bezout cofactor, then reduce by the monic
-Phi81 divisor. CompPoly's general scaled-remainder operation is not used. -/
 def candidatePolynomial (value : StoredRing) : CPolynomial Base :=
   let divisor := modulus ()
   let bezout := CPolynomial.normXgcd (encode value) divisor 0
@@ -79,8 +71,6 @@ theorem candidatePolynomial_toPolynomial (value : StoredRing) :
       (CPolynomial.normXgcd (encode value) (modulus ()) 0).2.1.toPoly %ₘ (modulus ()).toPoly :=
   CPolynomial.modByMonic_toPoly_eq_modByMonic _ _ divisor_monic
 
-/-- The same executed extended-GCD call supplies all three coefficients of
-its Bezout identity. A caller does not supply the gcd or the cofactors. -/
 theorem normalized_bezout (value : StoredRing) :
     let result := CPolynomial.normXgcd (encode value) (modulus ()) 0
     result.1.toPoly = result.2.1.toPoly * (encode value).toPoly +

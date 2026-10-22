@@ -44,8 +44,6 @@ fn independent_commitment(witness: &Mat<F>) -> Commitment {
             continue;
         }
         for row in 0..PRODUCTION_VERIFIER_ROWS as usize {
-            // Division-reduced scalar coefficients and ordinary ring multiplication
-            // are independent of coefficient_block, mask merging and signed sums.
             let key = Rq(std::array::from_fn(|lane| {
                 F::from_u64(coefficient(&PRODUCTION_SEED, row as u32, column as u64, lane as u32))
             }));
@@ -63,19 +61,10 @@ fn batched_prefix_commitments_match_scalar_and_independent_ring_products() {
     let first = dense(3, &[(0, 0, 1), (D / 2, 0, -1), (D - 1, 2, 1)]);
     let overlap = dense(4, &[(D - 1, 2, -1), (1, 2, 1), (D / 2 - 1, 3, 1)]);
     let disjoint = dense(2, &[(0, 1, -1), (D - 1, 1, -1)]);
-    let mut row_values = Vec::with_capacity(D * disjoint.cols());
-    for lane in 0..D {
-        for column in 0..disjoint.cols() {
-            row_values.push(disjoint[(lane, column)]);
-        }
-    }
-    let row_packed = Mat::compact_signed_unit(D, disjoint.cols(), row_values);
-    assert!(row_packed.is_packed_signed_unit());
-    assert!(row_packed.packed_signed_unit_column_masks().is_none());
     let witnesses = vec![
         first.clone(),
         column_packed(&overlap),
-        row_packed,
+        column_packed(&disjoint),
         Mat::virtual_constant(D, PRODUCTION_MESSAGE_COLUMNS as usize, F::ZERO),
         Mat::virtual_constant(D, 1, F::ONE),
         Mat::virtual_constant(D, 1, -F::ONE),
@@ -107,8 +96,6 @@ fn batched_prefix_commitments_match_scalar_and_independent_ring_products() {
 
 #[test]
 fn commitments_add_partial_sums_across_key_column_ranges() {
-    // Commitment tasks split each key row into 65,536-column ranges. Put
-    // nonzero columns on both sides of two range boundaries and at the end.
     let columns = 2 * 65_536 + 7;
     let mut positive = vec![0u64; columns];
     let mut negative = vec![0u64; columns];

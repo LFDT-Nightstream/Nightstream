@@ -3,12 +3,7 @@ import NightstreamFPrime.Lifecycle.Stage1.Terminal
 
 /-!
 Owns the outer terminal verifier for one verifier-selected application
-package. The relation, application, Ajtai key, and verifier-context digest are
-the same values used by the recursive step. The full verification-key digest
-remains a separate package binding.
-
-The terminal verifier adds no matrix row. It checks all running CE openings
-and the fresh CCS opening against the self-derived relation.
+package.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationTerminal

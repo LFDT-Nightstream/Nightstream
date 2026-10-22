@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Check finish-original rejection. Run from the Nightstream repository root.
-
-Arguments: executable public evaluations new-output-directory 28-Lean-round-paths.
-This check does not run a successful finish or claim source-bridge coverage.
-"""
 
 import copy
 import json
@@ -69,12 +64,9 @@ def main():
         command = ["bash", str(validator), "lean-executable", str(executable),
                    "finish-original", str(public), str(selected_evaluations),
                    *output_arguments, *map(str, selected_rounds)]
-        # Match the existing rejection-test cap. The caller also applies the
-        # project test guard; no nested graph guard is started here.
         result = subprocess.run(command, cwd=formal, capture_output=True, timeout=300)
         log = result.stdout + result.stderr
         (case / "run.log").write_bytes(log)
-        # Check the files before the error text so partial output is always reported.
         for path, content in before.items():
             if content is None:
                 require(not path.exists(), f"{name}: rejected input wrote {path.name}")
@@ -95,7 +87,6 @@ def main():
         changed_round=(27, changed))
     run("duplicate-outputs", "duplicate final PiCCS output path", duplicate=True)
     run("aliased-outputs", "duplicate final PiCCS output path", alias=True)
-    # An existing third slot must reject before either earlier output is written.
     run("existing-last-output", "output already exists", existing=True)
     run("schema", "unexpected complete original evaluation schema",
         change=lambda value: value.__setitem__(0, 2))
@@ -118,8 +109,6 @@ def main():
         change=lambda value: value[3][16][3][53].__setitem__(1, P))
     run("matrix-word-type", "Natural number expected",
         change=lambda value: value[3][16][3][53].__setitem__(1, "not-a-field"))
-    # These remain well-formed and canonical, so the independent final check
-    # must reject the changed values rather than a decoder rejecting the shape.
     run("changed-pad", "independent final PiCCS check rejected",
         change=lambda value: value[2][16][53].__setitem__(1, (value[2][16][53][1] + 1) % P))
     run("changed-matrix", "independent final PiCCS check rejected",

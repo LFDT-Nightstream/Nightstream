@@ -2,14 +2,7 @@ import Batteries.Data.Fin.Coding
 import NightstreamFPrime.Export.Stage1.Data
 import NightstreamFPrime.Export.Stage1.PiCCSProjection
 
-/-!
-Owns the Lean-authored generative plan for Stage 1 Poseidon2 invocations.
-
-Action blocks carry source-layout expressions and exact physical starts. Their
-interpreter is the existing invocation compiler. Direct blocks cover the
-PiRLC digest windows. The canonical expansion theorem fixes every invocation
-and keeps affine lowering out of package emission.
--/
+/-! Owns the Lean-authored generative plan for Stage 1 Poseidon2 invocations. -/
 
 namespace NightstreamFPrime.Export.Stage1.PermutationPlan
 
@@ -39,8 +32,6 @@ theorem stateOfList_ofFn (state : EState) :
 
 namespace ActionShape
 
-/-- Read expectations own assertion rows and do not affect permutation
-invocations. Zero is the canonical erased expectation. -/
 def toAction : ActionShape → Formal.Action
   | .absorb input => .absorb input
   | .readK pair => .readK pair KExpr.zero
@@ -74,8 +65,6 @@ def format : Format ActionShape where
 
 end ActionShape
 
-/-- One exact invocation trace compiled from a verifier-owned Duplex action
-schedule. The state and absorb inputs remain in Lean source-column order. -/
 structure ActionBlock where
   phase : Nat
   rowStart : Nat
@@ -132,7 +121,6 @@ theorem ActionBlock.ofActions_expand
       ((actions.map Formal.Action.shape).map ActionShape.toAction) actions
       (by simp))
 
-/-- One direct invocation whose eight inputs remain as source expressions. -/
 structure DirectBlock where
   phase : Nat
   rowStart : Nat
@@ -175,7 +163,6 @@ theorem DirectBlock.ofState_expand
   unfold DirectBlock.expand DirectBlock.ofState
   rw [stateOfList_ofFn]
 
-/-- Each block expands by one fixed Lean interpreter. -/
 inductive Block where
   | actions (block : ActionBlock)
   | direct (block : DirectBlock)
@@ -198,9 +185,6 @@ def Block.format : Format Block where
     intro value
     cases value <;> simp [Format.decode_encode]
 
-/-! ## Exact witness-start projection -/
-
-/-- Consecutive final-layout witness starts for one compiled action trace. -/
 private def sequentialWitnessStarts : Nat → Nat → List Nat
   | _witnessStart, 0 => []
   | witnessStart, count + 1 =>
@@ -284,8 +268,6 @@ private theorem compileActions_witnessStarts
           simp only [Invocations.compileActions]
           rw [inductionHypothesis]
           simp [Invocations.invocationCount, Invocations.Action.invocationCount]
-
-/-! ## Canonical PiCCS blocks -/
 
 def statementBlock (_unit : Unit) : ActionBlock :=
   ActionBlock.ofActions PiCCSInvocations.statementPhase
@@ -407,7 +389,6 @@ theorem piCcsBlocks_expand :
     roundBlock_expand, outputBlock_expand]
   simp only [List.append_assoc]
 
-/-- Lightweight exact witness-start schedule for all four PiCCS packets. -/
 def piCcsWitnessStarts (_unit : Unit) : List Nat :=
   sequentialWitnessStarts PiCCSInvocations.statementWitnessStart 123 ++
     sequentialWitnessStarts PiCCSInvocations.challengeWitnessStart 4 ++
@@ -454,8 +435,6 @@ private theorem piCcsWitnessStarts_length :
     (piCcsWitnessStarts ()).length = 948 := by
   rw [piCcsWitnessStarts_transcriptPrefix, List.length_append,
     sequentialWitnessStarts_length, sequentialWitnessStarts_length]
-
-/-! ## Canonical PiRLC sampler blocks -/
 
 def samplerEntryBlock (source : Nat) : ActionBlock :=
   ActionBlock.ofActions PiRLCSamplerInvocations.phase
@@ -547,14 +526,11 @@ theorem piRlcSamplerBlocks_expand :
   simpa only using
     samplerBlocks_expand (List.range PiRLCSamplerInvocations.sourceCount)
 
-/-! ## Random-access sampler witness starts -/
-
 def samplerStepsPerSource : Nat := 2
 
 @[simp] theorem samplerStepsPerSource_eq : samplerStepsPerSource = 2 := by
   rfl
 
-/-- One source-local block in entry-then-advance order. -/
 def samplerSourceBlockAt (source : Nat) (step : Fin samplerStepsPerSource) :
     Block :=
   if step.val = 0 then
@@ -562,8 +538,6 @@ def samplerSourceBlockAt (source : Nat) (step : Fin samplerStepsPerSource) :
   else
     .direct (samplerAdvanceBlock source)
 
-/-- One source-local final invocation witness start after the canonical
-Spartan permutation. -/
 def samplerSourceWitnessStartAt (source : Nat)
     (step : Fin samplerStepsPerSource) : Nat :=
   if step.val = 0 then
@@ -681,8 +655,6 @@ private theorem ofFn_flatMap_witnessStarts {count : Nat}
         (fun index => block index.succ) (fun index => value index.succ)
         (fun index => each index.succ)
 
-/-- The random-access witness-start schedule materializes to the exact
-canonical sampler invocation list. -/
 theorem samplerWitnessStartAt_materializes :
     List.ofFn samplerWitnessStartAt =
       (PiRLCSamplerInvocations.invocations
@@ -711,7 +683,6 @@ theorem samplerWitnessStartAt_materializes :
             (fun invocation => invocation.witnessStart) := by
       rw [piRlcSamplerBlocks_expand]
 
-/-- Lightweight exact witness-start schedule for every non-pilot invocation. -/
 def canonicalWitnessStarts (_unit : Unit) : List Nat :=
   piCcsWitnessStarts () ++ List.ofFn samplerWitnessStartAt
 
@@ -738,8 +709,6 @@ private theorem canonicalWitnessStarts_transcript_getD
   exact sequentialWitnessStarts_getD PiCCSInvocations.statementWitnessStart
     183 index bound
 
-/-- The selected pre-ordinary PiCCS invocation has its exact affine source
-address. The proof uses the structural schedule and does not expand it. -/
 theorem canonicalInvocation_witnessStart_of_transcript
     (index : Fin (Data.permutationInvocations ()).length)
     (bound : index.val < 183) :
@@ -771,8 +740,6 @@ private theorem canonicalWitnessStarts_output_getD
   exact sequentialWitnessStarts_getD PiCCSInvocations.outputWitnessStart
     765 (index - 183) (by omega)
 
-/-- A selected post-ordinary C invocation has the source address owned by
-the output-absorption schedule. No invocation list is evaluated. -/
 theorem canonicalInvocation_witnessStart_of_output
     (index : Fin (Data.permutationInvocations ()).length)
     (afterTranscript : 183 ≤ index.val) (bound : index.val < 948) :
@@ -791,7 +758,6 @@ theorem canonicalInvocation_witnessStart_of_output
 def canonicalBlocks (_unit : Unit) : List Block :=
   piCcsBlocks () ++ piRlcSamplerBlocks ()
 
-/-- The generative plan expands to the exact package invocation list. -/
 theorem canonicalBlocks_expand :
     (canonicalBlocks ()).flatMap Block.expand =
       Data.permutationInvocations () := by

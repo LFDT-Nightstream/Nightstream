@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOriginalReadsPreservation
 
 /-!
 A successful complete mask check gives the zero original assignment and zero
-coefficient callbacks. The proof covers missing blocks and entries, carrier
-tails and outside columns. No source index is removed or renumbered here.
+coefficient callbacks.
 -/
 
 set_option autoImplicit false
@@ -27,8 +26,6 @@ private theorem pair_eq_zero (masks : Array (Array (Nat × Nat)))
   · simp only [Array.getElem?_eq_none (Nat.le_of_not_lt live), Option.getD_none,
       Array.getElem?_empty]
 
-/-- A complete zero-mask check makes every original carrier column zero.
-No capture-size or source-entry presence premise is needed. -/
 theorem assignment_eq_zero (masks : Array (Array (Nat × Nat)))
     (source : Fin productionShape.sourceCount) (zero : isZero masks source = true) :
     PiCCSOriginalReads.assignment masks source = fun _ => 0 := by
@@ -37,8 +34,6 @@ theorem assignment_eq_zero (masks : Array (Array (Nat × Nat)))
   rw [pair_eq_zero masks source zero (column.val / ringDegree)]
   simp only [Nat.zero_testBit, Bool.false_eq_true, if_false]
 
-/-- Every original coefficient callback is zero for arbitrary prepared forms
-and arbitrary requested column widths, including the complete zero suffix. -/
 theorem read_eq_zero {columns : Nat}
     (tables : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
     (masks : Array (Array (Nat × Nat))) (source : Fin productionShape.sourceCount)

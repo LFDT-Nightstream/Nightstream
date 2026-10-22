@@ -5,8 +5,6 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the fixed PiCCS transcript readout used by ordinary arithmetic sources.
-The family start and count come from the exact phase layout. Each output is
-computed from the final retained S-box values in its own permutation.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout
@@ -21,7 +19,6 @@ open NightstreamFPrime.Export.Package
 
 abbrev Index := Fin PiCCSOrdinarySourceSupport.transcriptInvocationCount
 
-/-- Spartan column of the first PiCCS transcript permutation. -/
 def transcriptStart : Nat := Spartan.sourceToSpartan PiCCSStarts.statementWitnessStart
 
 theorem transcriptStart_eq : transcriptStart = 5156948 := by
@@ -56,8 +53,6 @@ theorem sourceColumn_target (index : Index) (lane : Fin 16) :
       norm_num [PiCCSStarts.statementWitnessStart_eq, Spartan.piCcsPhaseOffset])]
   omega
 
-/-- Readout preserves every source outside the exact transcript-output family,
-including public columns moved by the physical permutation. -/
 theorem env_source_of_notTranscript (source : Env) (column : Nat)
     (bound : column < Spartan.SourceColumnCount)
     (outside : ¬ PiCCSOrdinarySourceSupport.TranscriptOutput column) :
@@ -125,8 +120,6 @@ theorem invocation_witnessStart (index : Index) :
     (index.val * 1096) (by
       norm_num [PiCCSStarts.statementWitnessStart_eq, Spartan.piCcsPhaseOffset])
 
-/-- The actual transcript permutation rows force their stored outputs to
-equal the computed readout. Other package rows are not required. -/
 theorem env_eq_of_invocations (source : Env)
     (rows : ∀ index, PermutationInvocationHolds (PilotData.circuitPackage ())
       (invocation index) source) :
@@ -149,7 +142,6 @@ theorem env_eq_of_invocations (source : Env)
       rw [invocation_witnessStart] at selected
       exact selected.symm
 
-/-- Accepted package rows supply the exact transcript invocation rows. -/
 theorem env_eq_of_rows (source : Env)
     (rows : PoseidonRetainedBlock.basePackage.RowsHold source) :
     env source = source := by

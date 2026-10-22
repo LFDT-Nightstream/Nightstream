@@ -2,8 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
 import NightstreamFPrime.Spec.ProductionRelation
 
 /-!
-Add matrix range results in their existing child/matrix/ring order. The
-arithmetic remains the existing PiDECEvaluationBatch addition. This module
+Add matrix range results in their existing child/matrix/ring order. This module
 owns no file format, point selection, or source-row correctness premise.
 -/
 
@@ -33,22 +32,18 @@ private theorem get_ofFn {Alpha : Type} {count : Nat}
   change (Vector.ofFn values)[index.val] = _
   rw [Vector.getElem_ofFn]
 
-/-- The initial accumulator has zero in every complete matrix ring. -/
 theorem zero_value (child : Fin productionGlobalParams.k) (port : Fin matrixCount) :
     (((zero).get child).get port).toRing = ringKZero := by
   change (((Vector.replicate productionGlobalParams.k
     (PiDECEvaluationBatch.zero matrixCount))[child.val]).get port).toRing = _
   rw [Vector.getElem_replicate, PiDECEvaluationBatch.zero_value]
 
-/-- Every child/port projection is the existing complete extension-ring sum. -/
 theorem add_value (left right : Values) (child : Fin productionGlobalParams.k)
     (port : Fin matrixCount) :
     (((add left right).get child).get port).toRing =
       ringKAdd ((left.get child).get port).toRing ((right.get child).get port).toRing := by
   rw [add, get_ofFn, PiDECEvaluationBatch.add_value]
 
-/-- Adjacent batches at the same point compose to the exact combined row
-range. This is a structural statement for arbitrary row producers. -/
 theorem add_ranges {arity : Nat} (start leftCount rightCount : Nat)
     (point : CubePoint K arity)
     (rows : Fin productionGlobalParams.k → Nat → Vector StoredRing matrixCount)

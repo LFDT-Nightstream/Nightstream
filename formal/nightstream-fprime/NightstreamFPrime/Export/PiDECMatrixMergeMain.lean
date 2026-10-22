@@ -94,9 +94,6 @@ private def writeResult (outputPath : System.FilePath)
           encodeK (((values.get child).get port).toRing output))))]
   IO.FS.writeFile outputPath (result.render ++ "\n")
 
-/-- The C execution selects the point before any partial is accepted.
-Partial ranges must form one positive, ordered partition of the complete
-selected row domain. Only the current partial and accumulated sum are retained. -/
 def merge (ccsPath padPath outputPath : System.FilePath)
     (partPaths : List String) : IO UInt32 := do
   unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
@@ -105,7 +102,6 @@ def merge (ccsPath padPath outputPath : System.FilePath)
   let phase ← IO.wait (Task.spawn fun _ => PiCCSInputCheck.execute ccs)
   unless phase.accepted do throw (IO.userError "C input rejected")
   let pad ← checked (decodePad phase.point (← IO.FS.readFile padPath))
-  -- directStructuralRowCount_eq identifies this executable count with the selected plan.
   let rowCount := PerApplicationCanonicalPackage.directStructuralRowCount
     Poseidon2HashChainV1Package.application
   let mut cursor := 0

@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Write or check the deterministic F-prime Stage 1 review manifest.
-
-Run this command only while other processes do not write to the scoped tree.
-Two complete matching hash passes enforce that quiescent review window.
-"""
 
 from __future__ import annotations
 
@@ -77,8 +72,6 @@ REQUIRED_ARTIFACTS = (
     ),
 )
 
-# The crate ships these four canonical formal artifacts through file links.
-# Bind the link text and hash each target once under its authoritative path.
 ARTIFACT_ALIASES = {
     Path("crates/nightstream/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"):
         Path("formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),

@@ -67,8 +67,6 @@ fn multiply_mod_phi81(left: [K; D], right: [K; D]) -> [K; D] {
         }
     }
 
-    // X^54 = -X^27 - 1. A descending pass is sufficient because every
-    // replacement has lower degree than the term that it replaces.
     for degree in (D..2 * D - 1).rev() {
         let coefficient = product[degree];
         product[degree] = K::ZERO;

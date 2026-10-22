@@ -23,8 +23,6 @@ class NormFieldFoldTests(unittest.TestCase):
             root = Path(directory)
             (root / "manifest.json").write_text(json.dumps(
                 [1, 2, sources, carrier, 0, count, challenges[:2]]))
-            # Sparse files exercise the complete profile's framing without
-            # allocating or claiming to verify their arithmetic payloads.
             for source in range(sources):
                 with (root / f"source-{source}.bin").open("wb") as output:
                     output.truncate(count)

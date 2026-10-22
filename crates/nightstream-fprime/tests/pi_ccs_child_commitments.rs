@@ -1,6 +1,4 @@
 //! Independent commitment openings for the sixteen actual folded digits.
-//! Each row shares indexed key expansion across the children. The full check
-//! decodes the raw parent once, without the fixture generator or its ring code.
 
 use std::{fs, path::Path, path::PathBuf, time::Instant};
 

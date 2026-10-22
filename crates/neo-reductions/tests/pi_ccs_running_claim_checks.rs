@@ -33,7 +33,7 @@ fn transcript() -> Poseidon2Transcript {
 
 fn fixture() -> Fixture {
     let structure = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).unwrap();
-    let params = NeoParams::goldilocks_auto_r1cs_ccs(D).unwrap();
+    let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(D, D).unwrap();
     let mut rng = ChaCha8Rng::seed_from_u64(0x0072_756e_6e69_6e67);
     let committer = AjtaiSModule::new(Arc::new(setup(&mut rng, D, params.kappa as usize, 1).unwrap()));
     let zero = Mat::zero(D, 1, F::ZERO);
@@ -43,7 +43,7 @@ fn fixture() -> Fixture {
         m_in: D,
         adv: None,
     };
-    let witness = CcsWitness { w: Vec::new(), Z: zero };
+    let witness = CcsWitness { Z: zero };
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, D);
     let (outputs, proof) = pi_ccs_prove(
         &mut transcript(),

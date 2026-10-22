@@ -6,8 +6,7 @@ import NightstreamFPrime.Layout.Stage1.PiCCSStarts
 /-!
 Owns the compact row- and column-ownership sidecar for the physical PiCCS
 packet in the selected Stage 1 package. The exported spans use global physical
-indices. Their counts and starts are proved against the sole Lean layout, and
-the artifact is bound to the selected package's structural identity.
+indices.
 
 This module does not define package data, matrix data, or a second ownership
 classifier.
@@ -33,7 +32,6 @@ noncomputable abbrev interface : Formal.Interface logicalWidth 8 publicFits :=
 noncomputable abbrev parentOffset : Nat :=
   NightstreamFPrime.Layout.Stage1.PilotPiCCS.piCcsOffset
 
-/-- One closed half-open owner interval. -/
 structure Span (Owner : Type) where
   owner : Owner
   start : Nat
@@ -43,27 +41,23 @@ deriving Repr, DecidableEq
 def Span.endExclusive {Owner : Type} (span : Span Owner) : Nat :=
   span.start + span.count
 
-/-- Build adjacent spans from one base, one owner order, and its deltas. -/
 def spansFrom {Owner : Type} : Nat → List Owner → List Nat → List (Span Owner)
   | _, [], _ => []
   | _, _, [] => []
   | start, owner :: owners, count :: counts =>
       ⟨owner, start, count⟩ :: spansFrom (start + count) owners counts
 
-/-- Expand a span ledger to one owner value per covered point. -/
 def expandSpans {Owner : Type} : List (Span Owner) → List Owner
   | [] => []
   | span :: spans =>
       List.replicate span.count span.owner ++ expandSpans spans
 
-/-- Neighboring spans share an endpoint. Zero-count spans are retained. -/
 def Adjacent {Owner : Type} : List (Span Owner) → Prop
   | [] => True
   | [_] => True
   | first :: second :: rest =>
       first.endExclusive = second.start ∧ Adjacent (second :: rest)
 
-/-- The list partitions one complete half-open interval. -/
 def CoversFrom {Owner : Type} (start finish : Nat) : List (Span Owner) → Prop
   | [] => start = finish
   | span :: spans =>
@@ -73,7 +67,6 @@ def rowCounts : List Nat :=
   [4712, 134808, 4384, 61376, 12957, 728, 3364, 11140,
     23, 800, 3593, 838440]
 
-/-- The 12 global physical row spans in the sole parent order. -/
 def rowSpans : List
     (Span NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ChildOwner) :=
   spansFrom NightstreamFPrime.Layout.Stage1.PiCCSStarts.rowBase
@@ -228,8 +221,6 @@ private theorem ownersForChildren_childProjection
             ownersFor_childProjection, List.map_cons, repeatOwners]
           rw [inductionHypothesis rest]
 
-/-- Run-length expansion agrees with every authoritative physical row owner.
-The proof is structural and does not enumerate the concrete row list. -/
 theorem rowSpans_pointwise_ownerAgreement :
     expandSpans rowSpans =
       (NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.rowOwners relation
@@ -243,7 +234,6 @@ theorem rowSpans_pointwise_ownerAgreement :
     (NightstreamFPrime.Layout.PiCCS.v1_2.childConstraintLists relation
       interface parentOffset)).symm
 
-/-- Stable column-owner vocabulary. -/
 inductive ColumnFamily where
   | external
   | statementBinding
@@ -271,8 +261,6 @@ def columnCounts : List Nat :=
   [5156956, 270, 134808, 4384, 61376, 12957, 672, 2699, 10475, 23,
     48, 2717, 838440, 2956]
 
-/-- The 14 global physical column spans, in the ordered vocabulary. The
-statement-binding family owns the 270 hinted sign columns. -/
 def columnSpans : List (Span ColumnFamily) :=
   spansFrom 0 columnOrder columnCounts
 
@@ -351,7 +339,6 @@ theorem columnSpans_cover_layout :
     columnSpans_exact]
   norm_num [CoversFrom, Span.endExclusive]
 
-/-- Forget only the local index from the authoritative column owner. -/
 def columnFamily :
     NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.ColumnOwner → ColumnFamily
   | .external _ => .external
@@ -369,13 +356,11 @@ def columnFamily :
   | .outputBinding _ => .outputBinding
   | .r1csIntermediate _ => .r1csIntermediate
 
-/-- Proof-side family classifier with the authoritative layout boundaries. -/
 noncomputable def exportedColumnFamily (column : Nat) : ColumnFamily :=
   columnFamily
     (NightstreamFPrime.Layout.PiCCS.v1_2.Ownership.columnOwnerAt relation
       interface parentOffset column)
 
-/-- Read an ordered, adjacent span ledger by its recorded exclusive ends. -/
 def familyAtSpanEnds {Owner : Type} (fallback : Owner) :
     List (Span Owner) → Nat → Owner
   | [], _ => fallback
@@ -383,7 +368,6 @@ def familyAtSpanEnds {Owner : Type} (fallback : Owner) :
       if column < span.endExclusive then span.owner
       else familyAtSpanEnds fallback spans column
 
-/-- Column-family lookup derived directly from `columnSpans`. -/
 def columnSpanFamily (column : Nat) : ColumnFamily :=
   familyAtSpanEnds .r1csIntermediate columnSpans column
 
@@ -577,8 +561,6 @@ private theorem columnSpanFamily_eq_exportedColumnFamily (column : Nat) :
   rw [apply_ite columnFamily]
   rfl
 
-/-- Every physical column receives the same family from the exported spans
-and from the authoritative PiCCS owner function. -/
 theorem columnSpans_pointwise_ownerAgreement
     (column : Fin (NightstreamFPrime.Layout.PiCCS.v1_2.physicalColumnCount
       relation interface parentOffset)) :
@@ -590,8 +572,6 @@ theorem columnSpans_pointwise_ownerAgreement
     exportedColumnFamily
   rfl
 
-/-- Direct lookup in the exported span ledger agrees with the authoritative
-owner of every physical column. -/
 theorem columnSpans_lookup_ownerAgreement
     (column : Fin (NightstreamFPrime.Layout.PiCCS.v1_2.physicalColumnCount
       relation interface parentOffset)) :
@@ -674,9 +654,6 @@ private def renderSpan {Owner : Type} (tag : Owner → String)
     ",\"start\":" ++ toString span.start ++
     ",\"count\":" ++ toString span.count ++ "}"
 
-/-- Compact schema-1 JSON object for a consumer-recomputed structural identity.
-Identity words are strings so consumers do not lose field precision; span
-coordinates are natural-number JSON values. -/
 def render (identity : VerifierContext.Digest4) : String :=
   "{\"schemaVersion\":1,\"structuralIdentity\":" ++
     renderList (identity.toList.map (fun word => quote (toString word.val))) ++

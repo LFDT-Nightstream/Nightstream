@@ -3,11 +3,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 
 /-!
-Owns the compact matrix program for the running-instance transition. Lean
-fixes the one contiguous row schedule and the six source families. The state
-and output ranges point to the actual pilot preimage coordinates.
-The two round-challenge families use affine grids; all other families use
-contiguous ranges.
+Owns the compact matrix program for the running-instance transition.
 
 This module defines executable package data. Exact row equality to the
 canonical direct plan is proved separately.
@@ -44,7 +40,6 @@ def freshRange (program : ApplicationProgram) : SourceRange :=
   SourceRange.ofSemantic (freshBlock program) (freshStart program)
     (Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset) freshCount 0
 
-/-- Complete fail-closed running-transition source substitution. -/
 def substitution (program : ApplicationProgram) : SourceSubstitution where
   ranges := [stateRange program, outputRange program, piDecRange program,
     freshRange program]
@@ -63,7 +58,6 @@ def ordinaryBlock {program : ApplicationProgram} {logicalWidth : Nat}
   substitution := substitution program
   projection := PerApplicationSourceProjection.base program
 
-/-- The transition is one ordered ordinary-row block. -/
 def matrixProgram {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) : MatrixProgram.Program where
   blocks := [.ordinary (ordinaryBlock geometry)]

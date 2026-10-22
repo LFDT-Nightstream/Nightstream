@@ -1,10 +1,13 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, ops::Range};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use nightstream::application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1, ApplicationCircuit};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde_json::{json, Value};
+
+const ITERATION_WORD: usize = 27_810;
+const INPUT_STATE_WORDS: Range<usize> = 27_815..27_819;
 
 fn reference() -> Value {
     serde_json::from_slice(include_bytes!("fixtures/poseidon2-application-reference.json")).unwrap()
@@ -145,11 +148,8 @@ fn poseidon2_computation_matches_stored_lean_base_and_recursive_steps() {
         let saved: Value = serde_json::from_slice(bytes).unwrap();
         assert_eq!(saved[0], 1, "{name} fixture version");
         let private = saved[2].as_array().unwrap();
-        // The saved caller preimage ends with `vk, i, z0, zi`: the counter at
-        // word 27,810 and the current state at words 27,815..27,819. Its final
-        // private words are the application's message.
-        assert_eq!(index(&private[27_810]), step, "{name} prior iteration");
-        let input = std::array::from_fn(|lane| field(&private[27_815 + lane]));
+        assert_eq!(index(&private[ITERATION_WORD]), step, "{name} prior iteration");
+        let input = std::array::from_fn(|lane| field(&private[INPUT_STATE_WORDS][lane]));
         let message: Vec<_> = private[private.len() - circuit.private_input_count()..]
             .iter()
             .map(field)
@@ -175,7 +175,6 @@ fn poseidon2_computation_matches_stored_lean_base_and_recursive_steps() {
                 row[0]
             );
         }
-        // Check the exported constraints, independently of circuit.check.
         let output_column = columns[circuit.output_state()[0].index()];
         *values.get_mut(&output_column).unwrap() += Goldilocks::ONE;
         assert!(

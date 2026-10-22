@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Compare complete original-source range bytes with the existing scalar kernels."""
 
 import copy
 import hashlib

@@ -12,23 +12,18 @@ set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.ParallelLines
 
-/-- Bytes per work item: large enough that a part holds many lines, and small
-enough that faster cores take more parts. -/
 private def partBytes : Nat := 4 * 2 ^ 20
 
-/-- The offset just after the first line terminator at or after `position`, or `size`. -/
 private partial def nextLineStart (bytes : ByteArray) (position : Nat) : Nat :=
   if position < bytes.size then
     if bytes.get! position == 10 then position + 1 else nextLineStart bytes (position + 1)
   else bytes.size
 
-/-- The offset of the first line terminator at or after `position`, or `size`. -/
 private partial def lineEnd (bytes : ByteArray) (position : Nat) : Nat :=
   if position < bytes.size then
     if bytes.get! position == 10 then position else lineEnd bytes (position + 1)
   else bytes.size
 
-/-- Decode the lines that start in `[lo, hi)`, in order. -/
 private partial def decodePart {Alpha : Type} (bytes : ByteArray)
     (decode : Nat → String → Alpha) (hi start : Nat) (results : Array (Nat × Alpha)) :
     Except String (Array (Nat × Alpha)) :=
@@ -40,8 +35,6 @@ private partial def decodePart {Alpha : Type} (bytes : ByteArray)
     | none => .error s!"invalid UTF-8 in the line at byte {start}"
   else .ok results
 
-/-- Decode each line of `bytes` with its byte offset, in parts of about `size`
-bytes on `threads` threads. A part decodes the lines that start inside it. -/
 def decodeBytes {Alpha : Type} (bytes : ByteArray) (size threads : Nat)
     (decode : Nat → String → Alpha) : IO (Array (Nat × Alpha)) := do
   let parts := max 1 ((bytes.size + size - 1) / max 1 size)
@@ -59,7 +52,6 @@ def decodeBytes {Alpha : Type} (bytes : ByteArray) (size threads : Nat)
     | .error error => throw error
   return results
 
-/-- Read a file and decode each line with its byte offset, on `threads` threads. -/
 def decode {Alpha : Type} (path : System.FilePath) (threads : Nat)
     (decode : Nat → String → Alpha) : IO (Array (Nat × Alpha)) := do
   try decodeBytes (← IO.FS.readBinFile path) partBytes threads decode

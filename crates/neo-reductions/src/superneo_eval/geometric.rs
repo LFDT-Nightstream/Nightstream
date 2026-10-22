@@ -80,15 +80,10 @@ impl SuperneoMatrixCache {
         out
     }
 
-    /// The ratio whose runs are added as events: the first run's, if any.
     pub(super) fn event_ratio(&self) -> Option<F> {
         self.geometric_runs.first().map(|&run| decode(run).3)
     }
 
-    /// Record this row's runs with `event_ratio` as a start event and, inside
-    /// the part, an end event `-start * ratio^len`, and touch every covered
-    /// block. A run that begins before the part starts at the part's first
-    /// column with its advanced term.
     pub(super) fn add_geometric_events(
         &self,
         row: usize,
@@ -122,7 +117,6 @@ impl SuperneoMatrixCache {
         }
     }
 
-    /// Add this row's runs directly, except those with `event_ratio`.
     pub(super) fn accumulate_geometric_ring_form_row(
         &self,
         row: usize,

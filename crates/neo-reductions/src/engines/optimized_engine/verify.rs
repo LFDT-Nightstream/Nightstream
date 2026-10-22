@@ -11,9 +11,6 @@ use crate::error::PiCcsError;
 
 use super::PiCcsProof;
 
-/// Verify PiCCS and return every verifier-computed conformance value.
-///
-/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 pub fn optimized_verify_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -34,10 +31,6 @@ pub fn optimized_verify_with_trace(
     )
 }
 
-/// Replay the public protocol against the caller-selected relation header.
-/// Matrix evaluator caches belong to preprocessing and proving.
-///
-/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 pub fn optimized_verify(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,

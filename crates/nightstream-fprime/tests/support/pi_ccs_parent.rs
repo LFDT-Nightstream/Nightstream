@@ -9,7 +9,7 @@ const RUNNING_COUNT: usize = 16;
 const MATRIX_COUNT: usize = 4;
 const PRIOR_PUBLIC_WORDS: usize = 270;
 const DOMAIN_WORDS: usize = 12;
-const TAIL_WORDS: usize = 13;
+pub const TAIL_WORDS: usize = 13;
 const MODULUS: u128 = 0xffff_ffff_0000_0001;
 
 struct Running {
@@ -64,7 +64,6 @@ fn parent(running: &Running) -> Vec<u64> {
         .collect()
 }
 
-/// Replace the running instance of `base` and keep its domain chunk and tail.
 pub fn with_running(base: &[u64], running: &serde_json::Value) -> Vec<u64> {
     assert_eq!(base.len(), STATE_PREIMAGE_WORDS);
     let running = parse(running);
@@ -82,7 +81,6 @@ pub fn with_running(base: &[u64], running: &serde_json::Value) -> Vec<u64> {
     words
 }
 
-/// The PiCCS prior child region: the child public inputs, child-major.
 pub fn prior_children(running: &serde_json::Value) -> Vec<u64> {
     parse(running).public.iter().flatten().copied().collect()
 }

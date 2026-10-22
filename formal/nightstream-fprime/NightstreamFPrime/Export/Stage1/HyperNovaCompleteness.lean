@@ -4,9 +4,7 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness
 
 /-!
 Owns the honest selected NIFS call from an accepted recursive terminal
-payload. Its existing fresh and running witnesses supply source membership.
-C messages are fixed before the total sampler runs; the normal verifier and
-all new running openings are conclusions. No security or work law is assumed.
+payload. No security or work law is assumed.
 -/
 
 set_option autoImplicit false
@@ -142,11 +140,6 @@ private theorem sourceHolds_of_terminalHolds
 
 end SourceMembership
 
-/-- An accepted selected recursive payload supplies the actual old witnesses.
-They construct one causal C prefix and a normal production NIFS proof with
-valid openings for every returned child. The production sampler is total.
-No accepted local proof, intermediate output, or new witness validity is an
-input. This does not construct the next fresh application assignment. -/
 theorem recursive_nifs
     (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload application)
     (accepted : PerApplicationTerminal.Holds application fits setup

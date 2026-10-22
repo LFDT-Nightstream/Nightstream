@@ -5,9 +5,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationVerifierContextStreaming
 
 /-!
 Owns canonical-source and component-replay fixtures for the
-`Poseidon2HashChainV1` verification-key binding. Canonical mode derives its
-authority from the current Lean package. Component replay remains conditional
-on separate checks of the supplied component digests.
+`Poseidon2HashChainV1` verification-key binding.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1BindingParity
@@ -27,9 +25,6 @@ private def packageIdentityFromParts
         VerifierContext.framed structural.toList ++
         VerifierContext.framed context.serialize))
 
-/-- Construct the complete binding from separately replayed component digests.
-This bounded constructor stays local to the parity emitter. Each digest is
-evidence only after a consumer checks its complete authority stream. -/
 private def bindingFromComponentDigests
     (structural relation application nifsKey commitmentKey :
       VerifierContext.Digest4) :
@@ -91,9 +86,6 @@ private def bindingValue (structural : VerifierContext.Digest4)
     fieldWordsValue currentBinding.digest,
     fieldWordsValue currentBinding.formulas.toList]
 
-/-- Schema 2 fields: structural package identity, final package identity,
-serialized verifier-context descriptor, complete binding preimage, final
-verification-key digest, and formula-library digest. This mode replays supplied component digests. -/
 def parityValue (structural relation application nifsKey commitmentKey :
     VerifierContext.Digest4) : Value :=
   bindingValue structural
@@ -116,8 +108,6 @@ private def canonicalValues (_delay : Unit) :
       structural applicationDigest
   (structural, currentBinding)
 
-/-- Canonical mode derives the complete binding from Lean's package and
-authority definitions. No caller supplies a digest or a canonicality premise. -/
 theorem canonicalValues_eq_production :
     canonicalValues () =
       (PerApplicationCanonicalPackage.structuralPackageIdentity
@@ -139,9 +129,6 @@ theorem canonicalValues_eq_production :
     PerApplicationCanonicalPackage.verificationKeyBindingFromStructural_canonical]
   rfl
 
-/-- Compute the structural package identity once. The existing structural
-constructor derives and shares one authority/context value for the package
-identity, binding preimage, and binding digest. -/
 def canonicalParityValueIO (_delay : Unit) : IO Value := do
   let cached := canonicalValues ()
   pure (bindingValue cached.1 cached.2)

@@ -5,8 +5,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSNonzero
 Paper authority: SuperNeo v1.2, Section 7.3, steps 1--5.
 Obligation: Emit the complete synthetic PiCCS input, proof, and verifier
 result for Lean--Rust result comparison. This fixture does not establish
-valid bounded openings. Lean uses the production transcript schedule and
-fixed-width SumCheck checker.
+valid bounded openings.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSParity
@@ -109,13 +108,6 @@ def assuranceValue (computed : Computed) : Value :=
     boolValue (outputEval_KNonzero computed.output),
     boolValue (outputEval_ANonzero computed.output)]
 
-/-- Caller-owned input and proof tuple.
-
-Order: prior preimage, output preimage, prior public input, output digest,
-verifier-context digest, fresh commitment, round messages, output `Eval_K`, output
-`Eval_A`, complete digest-only transcript blocks, semantic verifier-input
-blocks, prior child digits. The production verifier recomputes the key digest from the canonical
-sealed package and fixed setup; the fixture does not duplicate that authority. -/
 def inputValue (computed : Computed) : Value :=
   .array [fieldWordsValue computed.statement.preimageWords,
     fieldWordsValue computed.statement.preimageWords,
@@ -131,13 +123,6 @@ def inputValue (computed : Computed) : Value :=
     fieldBlocksValue (Transcript.verifierInputBlocks verifierInput),
     fieldWordsValue (Layout.Stage1.PiCCSProofInputs.priorChildWords running)]
 
-/-- Complete verifier result tuple.
-
-Order: acceptance, alpha, gamma, pre-SumCheck state, every round challenge,
-every intermediate round state, `r'`, initial claim, every post-round claim,
-terminal components, all output commitments, all output public inputs, all
-separate output `Eval_K`, all separate output `Eval_A`, outgoing state, and
-nonzero assurance flags. -/
 def resultValue (computed : Computed) : Value :=
   .array [boolValue computed.accepted,
     extensionWordsValue computed.preSumcheck.alpha.coordinates,
@@ -156,8 +141,6 @@ def resultValue (computed : Computed) : Value :=
     stateValue computed.outgoingState,
     assuranceValue computed]
 
-/-- Schema 8 binds the context through the separately loaded canonical
-production package and removes the old fixture-owned authority duplicate. -/
 private def parityValueFrom (computed : Computed) : Value :=
   .array [.atom 8, inputValue computed, resultValue computed]
 
@@ -165,7 +148,6 @@ def parityValue (_ : Unit)
     (vk : KeyDigest := stateVerifierKey ()) : Value :=
   parityValueFrom (compute () vk)
 
-/-- Schedule independent fixture calculations before deterministic emission. -/
 def parityValueIO (vk : KeyDigest := stateVerifierKey ()) : IO Value := do
   pure (parityValueFrom (← computeIO vk))
 

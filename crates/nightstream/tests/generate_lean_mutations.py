@@ -105,8 +105,6 @@ def generate(input_path, children_path, output):
         change(f"encoding_{name}", indices, lambda values: values[:-1], "decoder")
     change("encoding_noncanonical_field", (1, 0, 0), lambda _word: MODULUS, "decoder")
     write("encoding_extra_field", children + [0], "decoder")
-    # Preserve the retained case name. Its alternate bytes are whitespace,
-    # not a changed arithmetic value; the canonical parser must reject it.
     canonical = numeric_json(children)
     write("encoding_alternate_number", children, "decoder", canonical[:1] + " " + canonical[1:])
 

@@ -34,8 +34,6 @@ theorem StateSupported.mono {state : EState} {allowed larger : Nat → Prop}
   intro lane
   exact Expr.VarsSatisfy.mono (state lane) (support lane) includes
 
-/-- Prior allowed values plus the eight output lanes of each completed
-Poseidon2 permutation in one contiguous Duplex trace. -/
 def OutputPrefix (allowed : Nat → Prop) (base count index : Nat) : Prop :=
   allowed index ∨
     ∃ (invocation : Fin count) (lane : Fin Spec.Poseidon2.width),
@@ -49,12 +47,10 @@ theorem outputPrefix_mono {allowed : Nat → Prop} {base prior later index : Nat
   · exact Or.inr ⟨⟨invocation.val,
         Nat.lt_of_lt_of_le invocation.isLt le⟩, lane, source⟩
 
-/-- Number of Poseidon2 permutations executed by one Duplex action. -/
 def Action.permutationCount : Action → Nat
   | .absorb input => (Hash.inputChunks input).length
   | .readK _ _ => 0
 
-/-- Number of Poseidon2 permutations executed by a complete Duplex trace. -/
 def permutationCount (actions : List Action) : Nat :=
   (actions.map Action.permutationCount).sum
 
@@ -99,9 +95,6 @@ private theorem compileAbsorbWiring_outputPrefix_supported
       rw [show prior + (blocks.length + 1) = prior + 1 + blocks.length by omega]
       exact tail
 
-/-- A nonempty absorb chain exposes the fresh output of its last permutation.
-The result depends only on the block count, not on block contents or the
-incoming symbolic state. -/
 theorem compileAbsorbWiring_output_cons
     (start : Nat) (state : EState) (block : List Expr)
     (rest : List (List Expr)) :
@@ -117,8 +110,6 @@ theorem compileAbsorbWiring_output_cons
       simp only [List.length_cons]
       omega
 
-/-- Every exposed lane of a nonempty absorb chain is allocated at or after
-the chain start. -/
 theorem compileAbsorbWiring_output_supported_from_start
     (start : Nat) (state : EState) (block : List Expr)
     (rest : List (List Expr)) :
@@ -131,9 +122,6 @@ theorem compileAbsorbWiring_output_supported_from_start
   have laneBound := lane.isLt
   omega
 
-/-- The recipe-free Duplex projection exposes only the initial allowed
-values and permutation output lanes. Intermediate permutation recipes do not
-escape into samples or the final state. -/
 theorem compileWiring_outputPrefix_supported
     (allowed : Nat → Prop) (base prior : Nat) (state : EState)
     (actions : List Action)
@@ -233,8 +221,6 @@ private theorem compileAbsorbWiring_output_supported
         omega
       simpa only [compileAbsorbWiring, endEq] using tail
 
-/-- Every exposed sample and final state uses only prior supported variables
-or variables allocated inside this exact wiring interval. -/
 theorem compileWiring_supported (allowed : Nat → Prop)
     (base start : Nat) (state : EState) (actions : List Action)
     (baseLeStart : base ≤ start)

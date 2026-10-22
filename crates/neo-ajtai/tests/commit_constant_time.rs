@@ -1,11 +1,3 @@
-//! Tests for constant-time commit variants
-//!
-//! Tests verify that the optimized constant-time commit variants (masked_ct and precomp_ct)
-//! match the reference specification and maintain branch-free execution.
-//!
-//! These tests require the 'testing' feature to access commit_spec for differential testing.
-//! Run with: cargo test -p neo-ajtai --features testing
-
 #![cfg(feature = "testing")]
 
 mod test_helpers;
@@ -18,19 +10,17 @@ use test_helpers::commit_spec;
 
 #[test]
 fn masked_ct_matches_spec_various_patterns() {
-    // Test that masked constant-time commit matches specification across various input patterns
     let mut rng = StdRng::seed_from_u64(123);
     let d = neo_math::D;
     let kappa = 3;
     let m = 4;
     let pp = setup(&mut rng, d, kappa, m).unwrap();
 
-    // Test case 1: Mix of {0,±1} and small integers
     let mut z_mixed = vec![Fq::ZERO; d * m];
     for (i, z) in z_mixed.iter_mut().enumerate() {
         *z = match i % 5 {
             0 => Fq::ONE,
-            1 => Fq::ZERO - Fq::ONE, // -1
+            1 => Fq::ZERO - Fq::ONE,
             2 => Fq::from_u64(2),
             3 => Fq::ZERO,
             _ => Fq::from_u64(7),
@@ -43,7 +33,6 @@ fn masked_ct_matches_spec_various_patterns() {
     assert_eq!(c_spec, c_masked, "Masked CT commit should match spec for mixed pattern");
     assert!(verify_open(&pp, &c_masked, &z_mixed), "Masked CT commit should verify");
 
-    // Test case 2: All zeros (edge case)
     let z_zeros = vec![Fq::ZERO; d * m];
     let c_spec_zeros = commit_spec(&pp, &z_zeros);
     let c_masked_zeros = commit_masked_ct(&pp, &z_zeros);
@@ -54,7 +43,6 @@ fn masked_ct_matches_spec_various_patterns() {
     );
     assert!(verify_open(&pp, &c_masked_zeros, &z_zeros), "All zeros should verify");
 
-    // Test case 3: Sparse {-1, 0, 1} pattern
     let z_sparse: Vec<Fq> = (0..d * m)
         .map(|i| match i % 3 {
             0 => Fq::ZERO,
@@ -80,14 +68,12 @@ fn masked_ct_matches_spec_various_patterns() {
 
 #[test]
 fn precomp_ct_matches_spec_various_patterns() {
-    // Test that precomputed constant-time commit matches specification across various input patterns
     let mut rng = StdRng::seed_from_u64(456);
     let d = neo_math::D;
     let kappa = 2;
     let m = 3;
     let pp = setup(&mut rng, d, kappa, m).unwrap();
 
-    // Test case 1: Dense random pattern
     let z_dense: Vec<Fq> = (0..d * m)
         .map(|i| Fq::from_u64((i * 17 + 42) as u64))
         .collect();
@@ -104,7 +90,6 @@ fn precomp_ct_matches_spec_various_patterns() {
         "Precomp CT commit should verify"
     );
 
-    // Test case 2: All ones
     let z_ones = vec![Fq::ONE; d * m];
     let c_spec_ones = commit_spec(&pp, &z_ones);
     let c_precomp_ones = commit_precomp_ct(&pp, &z_ones);
@@ -112,7 +97,6 @@ fn precomp_ct_matches_spec_various_patterns() {
     assert_eq!(c_spec_ones, c_precomp_ones, "Precomp CT should match spec for all ones");
     assert!(verify_open(&pp, &c_precomp_ones, &z_ones), "All ones should verify");
 
-    // Test case 3: Mixed values including larger elements
     let mut z_mixed = vec![Fq::ZERO; d * m];
     for i in 0..z_mixed.len() {
         z_mixed[i] = match i % 7 {
@@ -143,29 +127,24 @@ fn precomp_ct_matches_spec_various_patterns() {
 
 #[test]
 fn both_ct_variants_equivalent() {
-    // Test that both constant-time variants produce identical results
     let mut rng = StdRng::seed_from_u64(789);
     let d = neo_math::D;
     let kappa = 3;
     let m = 2;
     let pp = setup(&mut rng, d, kappa, m).unwrap();
 
-    // Create test vectors with various patterns
     let test_vectors = vec![
-        // Pattern 1: Alternating {-1, 0, 1, 2}
         (0..d * m)
             .map(|i| match i % 4 {
-                0 => Fq::ZERO - Fq::ONE, // -1
+                0 => Fq::ZERO - Fq::ONE,
                 1 => Fq::ZERO,
                 2 => Fq::ONE,
                 _ => Fq::from_u64(2),
             })
             .collect::<Vec<Fq>>(),
-        // Pattern 2: Random values
         (0..d * m)
             .map(|i| Fq::from_u64(((i * 13 + 7) % 100) as u64))
             .collect::<Vec<Fq>>(),
-        // Pattern 3: Mostly zeros with some spikes
         {
             let mut v = vec![Fq::ZERO; d * m];
             for i in (0..v.len()).step_by(10) {
@@ -199,7 +178,6 @@ fn both_ct_variants_equivalent() {
             pattern_num + 1
         );
 
-        // Verify all commitments open correctly
         assert!(
             verify_open(&pp, &c_masked, z),
             "Pattern {}: Masked CT should verify",
@@ -217,14 +195,12 @@ fn both_ct_variants_equivalent() {
 
 #[test]
 fn ct_variants_deterministic() {
-    // Test that both CT variants are deterministic (same input → same output)
     let mut rng = StdRng::seed_from_u64(999);
     let d = neo_math::D;
     let kappa = 2;
     let m = 2;
     let pp = setup(&mut rng, d, kappa, m).unwrap();
 
-    // Create test input
     let z: Vec<Fq> = (0..d * m)
         .map(|i| match i % 6 {
             0 => Fq::ZERO,
@@ -236,17 +212,14 @@ fn ct_variants_deterministic() {
         })
         .collect();
 
-    // Test masked CT determinism
     let c_masked_1 = commit_masked_ct(&pp, &z);
     let c_masked_2 = commit_masked_ct(&pp, &z);
     assert_eq!(c_masked_1, c_masked_2, "Masked CT should be deterministic");
 
-    // Test precomp CT determinism
     let c_precomp_1 = commit_precomp_ct(&pp, &z);
     let c_precomp_2 = commit_precomp_ct(&pp, &z);
     assert_eq!(c_precomp_1, c_precomp_2, "Precomp CT should be deterministic");
 
-    // Both should verify
     assert!(verify_open(&pp, &c_masked_1, &z), "Masked CT should verify");
     assert!(verify_open(&pp, &c_precomp_1, &z), "Precomp CT should verify");
 
@@ -255,19 +228,16 @@ fn ct_variants_deterministic() {
 
 #[test]
 fn ct_variants_binding_property() {
-    // Test that different inputs produce different commitments (binding property)
     let mut rng = StdRng::seed_from_u64(1337);
     let d = neo_math::D;
     let kappa = 2;
     let m = 2;
     let pp = setup(&mut rng, d, kappa, m).unwrap();
 
-    // Create two different inputs
     let z1: Vec<Fq> = (0..d * m).map(|i| Fq::from_u64(i as u64)).collect();
     let mut z2 = z1.clone();
-    z2[0] = z2[0] + Fq::ONE; // Change one element
+    z2[0] = z2[0] + Fq::ONE;
 
-    // Test masked CT binding
     let c1_masked = commit_masked_ct(&pp, &z1);
     let c2_masked = commit_masked_ct(&pp, &z2);
     assert_ne!(
@@ -275,7 +245,6 @@ fn ct_variants_binding_property() {
         "Masked CT: different inputs should produce different commitments"
     );
 
-    // Test precomp CT binding
     let c1_precomp = commit_precomp_ct(&pp, &z1);
     let c2_precomp = commit_precomp_ct(&pp, &z2);
     assert_ne!(
@@ -283,7 +252,6 @@ fn ct_variants_binding_property() {
         "Precomp CT: different inputs should produce different commitments"
     );
 
-    // Each should verify with its correct opening
     assert!(verify_open(&pp, &c1_masked, &z1), "Masked CT c1 should verify with z1");
     assert!(verify_open(&pp, &c2_masked, &z2), "Masked CT c2 should verify with z2");
     assert!(
@@ -295,7 +263,6 @@ fn ct_variants_binding_property() {
         "Precomp CT c2 should verify with z2"
     );
 
-    // Cross-verification should fail
     assert!(
         !verify_open(&pp, &c1_masked, &z2),
         "Masked CT c1 should not verify with z2"

@@ -19,10 +19,6 @@ Constraint groups:
 - C1: three rank-one witness recipes for each non-final extension
   multiplication;
 - C2: two final component equalities.
-
-The singleton branch returns its coefficient directly, so the circuit does
-not multiply by the semantic trailing zero. The correctness theorem proves
-equality to `SumCheck.Finite.Message.evaluateCoefficients`.
 -/
 
 namespace NightstreamFPrime.Gadgets.Polynomial.Horner
@@ -32,17 +28,12 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- Three rank-one recipes for one extension-field multiplication whose
-cells start at `start`:
-`t = l₁·r₁`, `c₀ = l₀·r₀ + 7t`, `c₁ = (l₀ + l₁)·(r₀ + r₁) − c₀ + 6t`.
-With `X² = 7`, the last two cells are the two product components. -/
 def mulRecipes (start : Nat) (left right : KExpr) : List Expr :=
   [left.c1 * right.c1,
     left.c0 * right.c0 + 7 * Expr.var start,
     (left.c0 + left.c1) * (right.c0 + right.c1) +
       (-Expr.var (start + 1) + 6 * Expr.var start)]
 
-/-- The two product components of the multiplication stored at `start`. -/
 def productAt (start : Nat) : KExpr :=
   ⟨Expr.var (start + 1), Expr.var (start + 2)⟩
 
@@ -54,8 +45,6 @@ structure Program where
   recipes : List Expr
   output : KExpr
 
-/-- High coefficients are evaluated first. Every reused accumulator is
-materialized before the next lower coefficient reads it. -/
 def compile (start : Nat) (point : KExpr) : List KExpr → Program
   | [] => ⟨[], KExpr.zero⟩
   | [coefficient] => ⟨[], coefficient⟩
@@ -66,9 +55,6 @@ def compile (start : Nat) (point : KExpr) : List KExpr → Program
       ⟨tail.recipes ++ mulRecipes productStart point tail.output,
         KExpr.add coefficient product⟩
 
-/-- Linear executable builder for `compile`. The difference list preserves
-the structural compiler's tail-first recipe order, while `recipeCount` avoids
-rescanning the growing recipe prefix at each Horner step. -/
 structure ProgramBuilder where
   recipes : List Expr → List Expr
   recipeCount : Nat
@@ -143,7 +129,6 @@ theorem compileFast_eq_compile (start : Nat) (point : KExpr)
   funext start point coefficients
   exact (compileFast_eq_compile start point coefficients).symm
 
-/-- Optimized semantic Horner form with no trailing multiplication by zero. -/
 def evaluate (point : K) : List K → K
   | [] => K.zero
   | [coefficient] => coefficient
@@ -171,7 +156,6 @@ private theorem add_varsBelow (left right : KExpr) (bound : Nat)
   exact ⟨⟨leftBelow.1, rightBelow.1⟩,
     ⟨leftBelow.2, rightBelow.2⟩⟩
 
-/-- Causality composes across two recipe lists at the exact boundary. -/
 theorem recipesCausal_concat (start : Nat) (first second : List Expr)
     (firstCausal : RecipesCausal start first)
     (secondCausal : RecipesCausal (start + first.length) second) :
@@ -187,8 +171,6 @@ theorem recipesCausal_concat (start : Nat) (first second : List Expr)
       rw [shifted]
       exact secondCausal
 
-/-- Each recipe reads its operands and only earlier cells of its own
-product. -/
 theorem mulRecipes_causal (start : Nat) (left right : KExpr)
     (leftBelow : left.VarsBelow start)
     (rightBelow : right.VarsBelow start) :
@@ -226,8 +208,6 @@ theorem compile_recipes_length (start : Nat) (point : KExpr) :
       simp only [List.length_cons]
       omega
 
-/-- Causality and output scope are proved together so no concrete coefficient
-count is reduced in the kernel. -/
 theorem compile_causal_and_output_below
     (start : Nat) (point : KExpr) (coefficients : List KExpr)
     (pointBelow : point.VarsBelow start)
@@ -287,7 +267,6 @@ theorem compile_causal
     coefficientsBelow).1
 
 open Fin.CommRing in
-/-- The three recipe rows force the stored pair to the extension product. -/
 theorem productAt_sound (env : Env) (start : Nat)
     (left right : KExpr)
     (rows : ConstraintsHold env
@@ -520,7 +499,6 @@ theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     recipeConstraints_length]
   simp [allAssertions, KExpr.equalities, program, compile_recipes_length]
 
-/-- The specification is stable when every external input wire is unchanged. -/
 theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
     (agrees : ∀ index, index < offset → after index = before index)
@@ -545,8 +523,6 @@ theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
   rw [expectedEq, pointEq, coefficientsEq]
   exact specification
 
-/-- Every flattened child row reads only external wires or this child's
-completed private interval. -/
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints (Circuit.ops (circuit interface).main offset),
@@ -573,18 +549,7 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
       outputBelow expectedBelow expression (by
         simpa [allAssertions] using assertionMember)
 
-/-! ## Child-owned output variant -/
-
 namespace Owned
-
-/-!
-Obligation: Evaluate one constant-first polynomial and expose the compiler
-output directly to a parent circuit.
-
-Unlike `Horner.Interface`, this interface has no external expected-output
-wire. The child owns its accumulator interval. A parent can use `output`
-without adding copy rows.
--/
 
 structure Interface where
   point : Nat → KExpr
@@ -637,7 +602,6 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     (interface.coefficients offset) recipeRows).trans
       (evaluate_eq_messageEvaluate _ _)
 
-/-- Honest execution constructs the owned result with no semantic premise. -/
 theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     ∃ completed,
@@ -715,7 +679,6 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
   rw [main_ops, flatConstraints_opsAt]
   simpa [opsAt, localLength, Op.localLength] using scope
 
-/-- The owned result lies inside the child's declared symbolic interval. -/
 theorem output_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     (output interface offset).VarsBelow

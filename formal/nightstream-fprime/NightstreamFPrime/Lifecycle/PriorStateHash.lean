@@ -33,8 +33,6 @@ def RepresentsPublicInput (interface : Interface) (offset : Nat) (env : Env)
       (publicFits := publicFits)) : Prop :=
   ∀ column, (interface.publicInput offset column).eval env = publicInput column
 
-/-- The logical builder's specification implies the exact recursive relation
-slot, with the same authoritative preimage and public input. -/
 theorem builder_implies_priorPublicInput
     (interface : Interface) (offset : Nat) (env : Env)
     (preimage : HashPreimage (logicalWidth := logicalWidth)
@@ -60,8 +58,6 @@ theorem builder_implies_priorPublicInput
         (stateHash (publicFits := publicFits) preimage) column := by
       rfl
 
-/-- Production specialization: the builder proves the exact
-`RecursiveHolds.priorPublicInput` equation of `StepHolds`. -/
 theorem builder_implies_recursive_slot
     (interface : Interface) (offset : Nat) (env : Env)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

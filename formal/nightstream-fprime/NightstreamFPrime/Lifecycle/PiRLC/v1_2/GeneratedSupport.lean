@@ -17,8 +17,6 @@ open NightstreamFPrime.Spec.Phi81Relation
 
 namespace CombinationFamily
 
-/-- One final combination coordinate is unchanged when environments agree
-from the family start onward. -/
 theorem output_eval_eq_of_agree_from
     {blockCount cellCount : Nat} [NeZero cellCount]
     (interface : Interface blockCount cellCount) (offset : Nat)
@@ -60,8 +58,6 @@ private theorem evaluation_ext (left right : PaperAlgebra.Evaluation)
   cases right
   simp_all
 
-/-- The complete combined PiRLC output is stable under equality of the shared
-point and preservation of the PiRLC-owned suffix. -/
 theorem evalOutput_eq_of_point_and_agree_from
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -153,8 +149,6 @@ theorem evalOutput_eq_of_point_and_agree_from
             omega)))
   · rfl
 
-/-- Equality of the three canonical attempt components is equality of the
-public PiRLC attempt itself. -/
 theorem attempt_eq_of_components
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -173,8 +167,6 @@ theorem attempt_eq_of_components
   unfold attempt
   rw [inputsEq, challengesEq, outputEq]
 
-/-- Cross-interface equality of the public PiRLC attempt follows from exact
-equality of its three canonical components. -/
 theorem attempt_eq_of_cross_components
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

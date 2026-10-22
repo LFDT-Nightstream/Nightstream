@@ -69,8 +69,6 @@ private def evalAWord {degree : Nat} (proof : Proof degree)
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Load the actual prover messages and the verifier-computed public digits
-into the four existing D source ranges. All other source values are retained. -/
 def load {degree : Nat} (env : Env) (proof : Proof degree)
     (parent : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) : Env :=
   writeFamily
@@ -81,8 +79,6 @@ def load {degree : Nat} (env : Env) (proof : Proof degree)
       evalAInputStart (evalAWord proof))
     publicInputStart (Phi81Relation.PiDECAlgebra.PublicInput.splitPublicInput parent)
 
-/-- Loading D input fields preserves every source outside the existing
-proof-input interval, including all earlier C/R witness and transcript values. -/
 theorem load_agreesOutside {degree : Nat} (env : Env) (proof : Proof degree)
     (parent : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     AgreesOutside env (load env proof parent) proofInputStart proofInputColumnCount := by
@@ -170,7 +166,6 @@ private theorem k_ext (left right : K)
   cases right
   simp_all
 
-/-- Every loaded commitment coefficient is the actual D proof coefficient. -/
 theorem eval_childCommitment {degree : Nat} (env : Env) (proof : Proof degree)
     (parent : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     (child : Phi81Relation.PiDECAlgebra.Radix.ChildIndex)
@@ -190,7 +185,6 @@ private theorem ringIndex_val {blocks : Nat} (block : Fin blocks) (lane : Fin ri
       cell.val + RingKRecomposition.cellCount * lane.val +
         (ringDegree * RingKRecomposition.cellCount) * block.val := rfl
 
-/-- Every loaded Pad coefficient is the actual D proof coefficient. -/
 theorem eval_childEvalK {degree : Nat} (env : Env) (proof : Proof degree)
     (parent : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     (child : Phi81Relation.PiDECAlgebra.Radix.ChildIndex)
@@ -215,7 +209,6 @@ theorem eval_childEvalK {degree : Nat} (env : Env) (proof : Proof degree)
   · exact (congrArg (load env proof parent) (address RingKRecomposition.c1Cell)).symm.trans
       (cell RingKRecomposition.c1Cell)
 
-/-- Every loaded matrix-evaluation coefficient is the actual D proof coefficient. -/
 theorem eval_childEvalA {degree : Nat} (env : Env) (proof : Proof degree)
     (parent : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     (child : Phi81Relation.PiDECAlgebra.Radix.ChildIndex)
@@ -241,7 +234,6 @@ theorem eval_childEvalA {degree : Nat} (env : Env) (proof : Proof degree)
   · exact (congrArg (load env proof parent) (address RingKRecomposition.c1Cell)).symm.trans
       (cell RingKRecomposition.c1Cell)
 
-/-- Loaded public digits are the verifier's deterministic split of the parent. -/
 theorem eval_childPublicInput {degree : Nat} (env : Env) (proof : Proof degree)
     (parent : PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))
     (child : Phi81Relation.PiDECAlgebra.Radix.ChildIndex) (coordinate : Fin 270) :

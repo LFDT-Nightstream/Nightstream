@@ -58,10 +58,7 @@ pub fn build_joint_dims(
     )
 }
 
-/// Build the selected joint geometry from a matrix-independent relation
-/// header. The caller must separately validate the concrete matrices and the
-/// zero-padding identity `f(0,...,0)=0`.
-pub fn build_joint_dims_for_shape(
+fn build_joint_dims_for_shape(
     params: &NeoParams,
     rows: usize,
     columns: usize,
@@ -145,7 +142,6 @@ pub enum TraceEvent {
     },
 }
 
-/// Complete verifier-computed SuperNeo v1.2 terminal components.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TerminalComponents {
     pub eval_k: K,

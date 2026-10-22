@@ -4,9 +4,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
 
 /-!
-Owns the indexed source-row program for the Stage 1 running transition. Its
-rows are exactly the canonical Lean lowering after the established Spartan
-permutation.
+Owns the indexed source-row program for the Stage 1 running transition.
 
 This module does not select final retained coordinates or compile sparse
 forms over the final low-norm assignment.
@@ -23,8 +21,6 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Canonical running-transition source rows in the established Spartan
-column order. -/
 def sourceRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -42,7 +38,6 @@ theorem sourceRows_length
     RunningTransitionLayout.physicalRows_length,
     RunningTransitionLayout.physicalRowCount_eq relation]
 
-/-- Every remapped row is confined to the exact Spartan source domain. -/
 theorem sourceRows_varsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -68,7 +63,6 @@ theorem sourceRows_rowCount_le
   rw [sourceRows_length relation]
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
 
-/-- Proof-oriented indexed access to the exact canonical source rows. -/
 def program
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -89,8 +83,6 @@ def program
     (program relation).rowCount = 27800 := by
   exact sourceRows_length relation
 
-/-- The indexed transition program depends on relation shape only. Matrix
-entries are semantic inputs to the verifier, not inputs to row generation. -/
 theorem program_eq_of_same_shape
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -99,8 +91,6 @@ theorem program_eq_of_same_shape
     program left = program right := by
   rfl
 
-/-- The indexed program is the same ordered row list as the existing
-canonical package compiler. -/
 theorem sourceRows_eq_canonicalRows
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -117,8 +107,6 @@ theorem sourceRows_eq_canonicalRows
       (RunningTransitionArithmetic.canonicalPlan_matches logicalWidth
         publicFits))
 
-/-- Indexed source-row satisfaction is exactly list-based R1CS
-satisfaction. -/
 theorem program_holds_iff_rowsHold
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -136,8 +124,6 @@ theorem program_holds_iff_rowsHold
   · intro holds index
     exact holds _ (List.get_mem _ index)
 
-/-- The indexed source program accepts exactly the existing physical running
-transition after the established Spartan pullback. -/
 theorem program_holds_iff_physical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

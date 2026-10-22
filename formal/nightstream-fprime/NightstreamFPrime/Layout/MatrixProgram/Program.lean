@@ -16,8 +16,6 @@ namespace NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- Generic block vocabulary. New constructors must carry all operands that
-determine their rows; a consumer may not select hidden phase data. -/
 inductive Block where
   | ordinary (block : Ordinary.Block)
   | multiplicationGrid (block : MultiplicationGrid.Block)
@@ -33,8 +31,6 @@ def Block.rowCount : Block → Nat
   | .pin block => block.rowCount
   | .poseidon block => block.rowCount
 
-/-- Decode one block row. `sourceRow` is the identity-checked package R1CS
-row accessor and is used only by ordinary blocks. -/
 def Block.row? (block : Block) (logicalWidth : Nat)
     (sourceRow : Nat → Option R1CS.Row) (ordinal : Nat) :
     Option (RowForms logicalWidth) :=
@@ -53,7 +49,6 @@ def Block.row? (block : Block) (logicalWidth : Nat)
   | .poseidon poseidonBlock =>
       poseidonBlock.row? logicalWidth ordinal
 
-/-- One identity-bound ordered matrix program. -/
 structure Program where
   blocks : List Block
 deriving Repr, DecidableEq
@@ -61,11 +56,9 @@ deriving Repr, DecidableEq
 def Program.rowCount (program : Program) : Nat :=
   (program.blocks.map Block.rowCount).sum
 
-/-- Canonical ordered concatenation of two compact matrix programs. -/
 def Program.append (left right : Program) : Program where
   blocks := left.blocks ++ right.blocks
 
-/-- Select one row without expanding any block. -/
 def Program.row? (program : Program) (logicalWidth : Nat)
     (sourceRow : Nat → Option R1CS.Row) : Nat →
     Option (RowForms logicalWidth)
@@ -123,7 +116,6 @@ private theorem Program.select_append_right (blocks tail : List Block)
       rw [shifted]
       exact ih
 
-/-- A row in the left child keeps its exact compact interpretation. -/
 theorem Program.append_left_row? (left right : Program)
     (logicalWidth : Nat) (sourceRow : Nat → Option R1CS.Row)
     (ordinal : Nat) (bound : ordinal < left.rowCount) :
@@ -132,7 +124,6 @@ theorem Program.append_left_row? (left right : Program)
   exact Program.select_append_left left.blocks right.blocks logicalWidth
     sourceRow ordinal bound
 
-/-- A row in the right child is selected after the exact left row count. -/
 theorem Program.append_right_row? (left right : Program)
     (logicalWidth : Nat) (sourceRow : Nat → Option R1CS.Row)
     (ordinal : Nat) :

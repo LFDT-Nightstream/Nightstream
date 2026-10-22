@@ -3,9 +3,9 @@ import NightstreamFPrime.Export.Stage1.PiCCSPrefixComposition
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixSelectorFactor
 
 /-! Pure carried-prefix accumulation and complete-sum composition.
-Pad and matrix arrays keep independent extents. This module proves scalar
-updates, ordered joins, and selected-source coefficients; it does not prove
-file decoding, mutable IO loops, or the origin of retained files. -/
+This module proves scalar updates, ordered joins, and selected-source
+coefficients; it does not prove file decoding, mutable IO loops, or the origin
+of retained files. -/
 
 set_option autoImplicit false
 
@@ -22,8 +22,6 @@ open FiniteSumAlgebra (sumMap)
 universe uField
 variable {Field : Type uField}
 
-/-- The scalar projection of carriedFromPrefix on one parity. Indices are
-absolute, so a chunk boundary cannot reset either parity or suffix weight. -/
 def rangeMoment (ops : InterpolationOps Field) (weight : Nat → Field)
     (values : Array Field) (first count : Nat) (bit : Fin 2) : Field :=
   numericSum ops count fun offset =>
@@ -41,7 +39,6 @@ private theorem rangeMoment_succ_raw (ops : InterpolationOps Field)
         else ops.zero) := by
   simp only [rangeMoment, numericSum, Nat.fold_succ]
 
-/-- Exactly the per-value update used by the retained scalar runner. -/
 theorem rangeMoment_step (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (weight : Nat → Field) (values : Array Field) (first count : Nat) (bit : Fin 2) :
@@ -53,7 +50,6 @@ theorem rangeMoment_step (ops : InterpolationOps Field)
   rw [rangeMoment_succ_raw]
   split_ifs <;> simp only [laws.add_zero]
 
-/-- Consecutive chunks join in the same numeric order as the runner. -/
 theorem rangeMoment_append (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (weight : Nat → Field) (values : Array Field) (first left right : Nat) (bit : Fin 2) :
@@ -70,13 +66,10 @@ theorem rangeMoment_append (ops : InterpolationOps Field)
       simp only [Nat.add_assoc]
       exact laws.add_assoc _ _ _
 
-/-- The complete retained array, with no common Pad/matrix extent. -/
 def moment (ops : InterpolationOps Field) (weight : Nat → Field)
     (values : Array Field) (bit : Fin 2) : Field :=
   rangeMoment ops weight values 0 values.size bit
 
-/-- An odd last value, a singleton and the empty prefix all use the same
-zero-extended full-domain sum. No endpoint-correctness premise is used here. -/
 theorem moment_eq_finSum (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) (remaining : Nat)
     (weight : Nat → Field) (values : Array Field)
@@ -103,8 +96,6 @@ theorem moment_eq_finSum (ops : InterpolationOps Field)
     omega
   rw [quotient]
 
-/-- The exact ceil-division extent used by PrefixMain.foldedCount. A
-singleton is still folded for every remaining challenge. -/
 theorem foldPrefix_size (ops : InterpolationOps Field)
     (values : Array Field) (challenges : List Field) :
     (PrefixFold.foldPrefix ops values challenges).size =
@@ -135,8 +126,6 @@ private theorem weighted_join {Index : Type} (ops : InterpolationOps Field)
   apply congrArg (ops.add (ops.mul (weight index) (left index)))
   rw [← laws.mul_assoc, laws.mul_comm shift, laws.mul_assoc]
 
-/-- Join the four actual scalar accumulators into every polynomial
-coefficient. The global matrix shift occurs once, after separate sums. -/
 theorem carried_from_moments (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) {degree : Nat} (bound : 2 ≤ degree)
     (remaining : Nat) (head : FixedPolynomial Field 1) (weight : Nat → Field)
@@ -183,8 +172,6 @@ private def carriedCoefficients
     (moment extensionOps weight matrix ⟨0, by decide⟩)
     (moment extensionOps weight matrix ⟨1, by decide⟩)).coefficients
 
-/-- Pure scalar projection of composePrefix fed by the original retained
-Pad/matrix constructors. A failed matrix initializer stays failed. -/
 def coefficients? (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (challenges : List K) : Option (List K) := do
   let gamma := (PiCCSPublicReplay.pre input).gamma
@@ -194,9 +181,6 @@ def coefficients? (input : PiCCSPublicReplay.Input)
   let matrix := PrefixFold.foldPrefix extensionOps originalMatrix challenges
   return carriedCoefficients verifier gamma challenges pad matrix
 
-/-- Selected original inputs close every endpoint and source-load premise.
-Only the dimension-correct challenge prefix is a caller hypothesis. This
-states complete carried coefficients, not the full fresh/norm composition. -/
 theorem selected_coefficients (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (challenges : List K) {remaining : Nat}
     (dimension : cubeVariables = challenges.length + remaining + 1) :

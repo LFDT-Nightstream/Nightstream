@@ -3,10 +3,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 
 /-!
 Owns the one production CCS polynomial for the Nightstream F-prime relation.
-
-The relation uses the Lean-owned low-norm gate `a * b - c + sboxInput ^ 7`.
-Its 4 matrix slots are the gate ports. SuperNeo Pad is not a CCS matrix and
-remains the separate `Eval_K` family.
+SuperNeo Pad is not a CCS matrix and remains the separate `Eval_K` family.
 -/
 
 namespace NightstreamFPrime.Spec.ProductionRelation
@@ -15,13 +12,10 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- Fixed SuperNeo v1.2 `Eval_A` arity. -/
 def matrixCount : Nat := GatePolynomial.matrixCount
 
-/-- Number of matrix slots used by the gate compiler. -/
 def meaningfulPortCount : Nat := GatePolynomial.meaningfulPortCount
 
-/-- The sole production CCS polynomial. -/
 def polynomial : ConstraintPolynomial F matrixCount :=
   GatePolynomial.polynomial
 
@@ -124,8 +118,6 @@ private theorem foldl_add_eq_zero_of_all_zero
       intro current member
       exact allZero current (by simp [member])
 
-/-- Canonical padding rows are valid: with every matrix image zero, the fixed
-gate polynomial has value zero. -/
 theorem polynomial_zeroImages :
     evaluatePolynomial baseOps polynomial (fun _ => 0) = 0 := by
   unfold evaluatePolynomial polynomial GatePolynomial.polynomial

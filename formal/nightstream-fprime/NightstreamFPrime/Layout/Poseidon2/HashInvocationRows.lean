@@ -31,8 +31,6 @@ private theorem output_nonempty (start : Nat) (state : Permutation.EState)
       simp only [List.length_cons]
       omega
 
-/-- Each actual absorption invocation inherits its complete recipe rows from
-its containing hash compiler. Its input uses the preceding allocated state. -/
 theorem absorption_rows (env : Env) (start : Nat)
     (state : Permutation.EState) (blocks : List (List Expr))
     (rows : ConstraintsHold env (recipeConstraints start
@@ -80,8 +78,6 @@ theorem absorption_rows (env : Env) (start : Nat)
             simpa only [Nat.succ_eq_add_one, Nat.add_sub_cancel,
               Nat.succ_ne_zero, if_false, List.getD_cons_succ] using tail
 
-/-- Every absorption or final-padding permutation inherits its source rows
-from the complete hash compiler, with the same allocated previous state. -/
 theorem hash_rows (env : Env) (start : Nat) (input : List Expr)
     (rows : ConstraintsHold env
       (recipeConstraints start (Hash.compile start input).recipes))
@@ -123,7 +119,6 @@ theorem hash_rows (env : Env) (start : Nat) (input : List Expr)
           simpa using output_nonempty start Hash.zeroE block rest
     simpa only [Hash.compileAbsorptions_recipes_length, previous] using separated.2
 
-/-- The ordinary hash compiler packet contains its complete recipe packet. -/
 theorem recipeRows_of_hashConstraints (interface : Formal.Interface)
     (start : Nat) (env : Env)
     (rows : ConstraintsHold env (hashConstraints interface start)) :
@@ -135,8 +130,6 @@ theorem recipeRows_of_hashConstraints (interface : Formal.Interface)
     (Hash.compile start (interface.input start)).recipes)) (by
       exact List.mem_cons_self)
 
-/-- Each asserted digest lane equals the compiler's actual stored output.
-This projects only the existing hash assertion; no input-shape premise is needed. -/
 theorem digest_eq_expected_of_hashConstraints (interface : Formal.Interface)
     (start : Nat) (env : Env)
     (rows : ConstraintsHold env (hashConstraints interface start)) (lane : Fin 4) :

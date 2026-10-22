@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanDomain
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanEvaluation
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/PaperLinearAlgebra.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Shared finite linear algebra for paper-level joint `Pi_CCS` residual families.
 
@@ -20,21 +17,6 @@ base-to-extension embedding, external row/bit serialization, SumCheck,
 Fiat--Shamir, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: matrix entries and assignment columns are explicit data;
-the matrix image is derived by a canonical increasing `Fin` traversal. Both
-residual families consume this single owner so they cannot silently disagree
-on column order or dot-product arithmetic.
-
-| Shared owner | Mathematical object | Exact construction |
-|---|---|---|
-| `Assignment` | one finite `z` | `Fin columns -> Field` |
-| `BooleanMatrix` | one `M_j` over the Boolean row domain | `BooleanVertex -> Fin columns -> Field` |
-| `matrixVectorAt` | `(M_j z)(x)` | canonical-column fold of `M[x,c] * z[c]` |
-| `matrixVectorAt_zero` | canonical zero assignment | every finite matrix-vector row is zero |
-| `matrixVectorAt_zeroRow` | one zero matrix row | every assignment maps to zero on that row |
-| `matrixVectorAt_oneHot` | one selected assignment coordinate | exact selected matrix entry times its value |
-| `matrixVectorAt_identityRow` | one identity-matrix row | exact selected assignment value |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
@@ -43,17 +25,13 @@ universe uField
 
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- An assignment with exactly the paper structure's declared column count. -/
 abbrev Assignment (Field : Type uField) (columns : Nat) := Fin columns -> Field
 
-/-- One `2^ell`-row matrix indexed by the shared semantic Boolean domain. -/
 abbrev BooleanMatrix
     (Field : Type uField)
     (variables columns : Nat) :=
   BooleanVertex variables -> Fin columns -> Field
 
-/-- One matrix-vector row `(M z)(x)`, derived as a finite dot product in
-canonical assignment-column order. -/
 def matrixVectorAt
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -67,9 +45,6 @@ def matrixVectorAt
         (ops.mul (matrix vertex column) (assignment column)))
     ops.zero
 
-/-- Every matrix sends the canonical zero assignment to zero. This theorem
-owns the finite-column fold once, so source-semantics proofs do not need to
-unfold a profile-specific carrier width. -/
 theorem matrixVectorAt_zero
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -86,7 +61,6 @@ theorem matrixVectorAt_zero
       rw [List.foldl_cons, laws.mul_zero, laws.add_zero]
       exact inductionHypothesis
 
-/-- A canonical zero matrix row sends every assignment to zero. -/
 theorem matrixVectorAt_zeroRow
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -107,7 +81,6 @@ theorem matrixVectorAt_zeroRow
         laws.add_zero]
       exact inductionHypothesis
 
-/-- Assignment supported at exactly one selected coordinate. -/
 def oneHotAssignment
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -175,9 +148,6 @@ private theorem foldl_oneHot
         rw [if_neg headEq, laws.add_zero]
         exact inductionHypothesis (List.nodup_cons.mp nodup).2 memberTail
 
-/-- A one-coordinate assignment contributes exactly its selected matrix
-entry. This structural theorem avoids reducing an entire padded carrier when
-auditing whether one completed coordinate is semantically live. -/
 theorem matrixVectorAt_oneHot
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -211,9 +181,6 @@ theorem matrixVectorAt_oneHot
     (canonicalFinIndices_nodup columns)
     (by simp [canonicalFinIndices])
 
-/-- A row of the identity matrix returns exactly the assignment coordinate
-selected by that row. The premise exposes the matrix entries directly; no
-caller-provided matrix-image equality is assumed. -/
 theorem matrixVectorAt_identityRow
     {Field : Type uField}
     (ops : InterpolationOps Field)

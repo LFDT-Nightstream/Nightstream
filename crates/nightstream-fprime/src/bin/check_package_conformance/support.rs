@@ -13,10 +13,7 @@ mod owner_mutations;
 mod raw_assignment;
 mod reference;
 #[allow(unused_imports)]
-pub use canonical_assignment::{
-    evaluate_canonical_assignment, evaluate_canonical_rows, evaluate_pi_ccs_prefix_assignment,
-    evaluate_pilot_assignment,
-};
+pub use canonical_assignment::{evaluate_canonical_assignment, evaluate_canonical_rows};
 #[allow(unused_imports)]
 pub use independent_assignment::{
     check_piccs_owner_mutations, compare_lean_expanded_matrices, compare_sealed_matrices,
@@ -434,8 +431,6 @@ fn event_row_count(event: Event<'_>, raw: &RawPackage) -> usize {
     }
 }
 
-/// The separately emitted physical reference must be the exact inner
-/// package of the sealed candidate used for every later check.
 pub fn require_sealed_expansion(sealed_bytes: &[u8], expanded_bytes: &[u8]) {
     let sealed: Value = serde_json::from_slice(sealed_bytes).expect("sealed candidate JSON");
     let inner = sealed

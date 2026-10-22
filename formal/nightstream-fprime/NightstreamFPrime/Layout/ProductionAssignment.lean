@@ -19,18 +19,15 @@ open NightstreamFPrime.Spec.Phi81Relation
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
-/-- Exact public prefix used by the paper relation. -/
 def publicWidth : Nat := ringDegree * publicRingColumns
 
 @[simp] theorem publicWidth_eq : publicWidth = 270 := by
   rfl
 
-/-- Logical matrix width before Phi81 ring completion. -/
 def logicalWidth {sourceWidth : Nat}
     (slots : List (LowNormAssignment.Slot sourceWidth)) : Nat :=
   publicWidth + LowNormAssignment.logicalWidth slots
 
-/-- The fixed public prefix always fits the completed assignment carrier. -/
 theorem publicFits {sourceWidth : Nat}
     (slots : List (LowNormAssignment.Slot sourceWidth)) :
     ringDegree * publicRingColumns ≤
@@ -46,7 +43,6 @@ private def privateCoordinate {sourceWidth : Nat}
     (index : Fin (LowNormAssignment.logicalWidth slots)) : F :=
   LowNormAssignment.coordinateAt source slots index.val
 
-/-- Exact logical assignment before ring-alignment padding. -/
 def logicalAssignment {sourceWidth : Nat}
     (publicInput : Fin publicWidth → F)
     (slots : List (LowNormAssignment.Slot sourceWidth))
@@ -62,7 +58,6 @@ def logicalAssignment {sourceWidth : Nat}
           simp only [logicalWidth] at columnBound
           omega⟩
 
-/-- Canonical embedding of one public coordinate into the logical relation. -/
 def publicColumn {sourceWidth : Nat}
     {slots : List (LowNormAssignment.Slot sourceWidth)}
     (column : Fin publicWidth) : Fin (logicalWidth slots) :=
@@ -70,7 +65,6 @@ def publicColumn {sourceWidth : Nat}
     simp only [logicalWidth]
     omega⟩
 
-/-- Canonical embedding of one retained-private coordinate. -/
 def privateColumn {sourceWidth : Nat}
     {slots : List (LowNormAssignment.Slot sourceWidth)}
     (column : Fin (LowNormAssignment.logicalWidth slots)) :
@@ -103,8 +97,6 @@ def privateColumn {sourceWidth : Nat}
   apply Fin.ext
   simp
 
-/-- One canonical retained-slot coordinate is read from its exact private
-position in the final logical assignment. -/
 theorem logicalAssignment_slotCoordinate {sourceWidth : Nat}
     (publicInput : Fin publicWidth → F)
     (slots : List (LowNormAssignment.Slot sourceWidth))
@@ -118,7 +110,6 @@ theorem logicalAssignment_slotCoordinate {sourceWidth : Nat}
   exact LowNormAssignment.coordinateAt_coordinateIndex
     slots source slot coordinate
 
-/-- The complete paper assignment, with zero-only Phi81 alignment padding. -/
 def completeAssignment {sourceWidth : Nat}
     (publicInput : Fin publicWidth → F)
     (slots : List (LowNormAssignment.Slot sourceWidth))
@@ -131,8 +122,6 @@ def completeAssignment {sourceWidth : Nat}
     else
       0
 
-/-- The complete assignment projects to the exact verifier-owned public
-prefix, not to the old R1CS package's auxiliary public columns. -/
 theorem projectPublicInput_completeAssignment {sourceWidth : Nat}
     (publicInput : Fin publicWidth → F)
     (slots : List (LowNormAssignment.Slot sourceWidth))
@@ -178,8 +167,6 @@ theorem logicalAssignment_norm {sourceWidth : Nat}
       (l := LowNormAssignment.coordinates slots source) (d := 0) privateBound]
     exact List.getElem_mem privateBound
 
-/-- Every complete coordinate, including alignment padding, satisfies the
-exact fresh-opening norm. -/
 theorem completeAssignment_norm {sourceWidth : Nat}
     (publicInput : Fin publicWidth → F)
     (slots : List (LowNormAssignment.Slot sourceWidth))
@@ -195,7 +182,6 @@ theorem completeAssignment_norm {sourceWidth : Nat}
     exact logicalAssignment_norm publicInput slots source publicNorm privateValid _
   next paddingRegion => decide
 
-/-- Specialization to the sole recursive public-input constructor. -/
 theorem encHash_completeAssignment_norm {sourceWidth : Nat}
     (digest : Digest)
     (slots : List (LowNormAssignment.Slot sourceWidth))

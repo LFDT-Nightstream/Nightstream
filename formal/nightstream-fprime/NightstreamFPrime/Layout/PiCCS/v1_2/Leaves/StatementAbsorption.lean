@@ -40,8 +40,6 @@ variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Affine physical-input premise for the two fresh expression families read
-by the digest-only statement serializer. -/
 structure InputsAffine
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.Interface
@@ -53,7 +51,6 @@ structure InputsAffine
   freshPublicInput : ∀ source column,
     R1CS.IsAffine ((interface.fresh offset).publicInput source column)
 
-/-- Range premise for the same two caller-owned expression families. -/
 structure InputsBelow
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.Interface
@@ -65,8 +62,6 @@ structure InputsBelow
   freshPublicInput : ∀ source column,
     ((interface.fresh offset).publicInput source column).VarsBelow offset
 
-/-- The first fold-domain absorb establishes one permutation-owned state block,
-which every later statement absorb preserves. -/
 theorem finalState_fresh
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.Interface
@@ -373,8 +368,6 @@ private theorem publicInputBlocks_below
     · exact serializePublicInputExpr_below offset (fresh.publicInput index)
         (inputs.freshPublicInput index)
 
-/-- The fixed statement serializer supplies the exact causal assumption of
-the statement-absorption child. -/
 theorem assumptions_of_inputsBelow
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.Interface
@@ -393,7 +386,6 @@ theorem assumptions_of_inputsBelow
     exact publicInputBlocks_below interface offset inputs block blockMember
       expression member
 
-/-- The compiler-owned statement state lies below the next child boundary. -/
 theorem finalState_varsBelow
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption.Interface
@@ -412,8 +404,6 @@ theorem finalState_varsBelow
     (assumptions_of_inputsBelow interface offset inputs (fun _ => 0))).1
   exact scope
 
-/-- Exact parent-facing physical footprint, conditional only on the declared
-affine form of caller-owned symbolic inputs. -/
 def footprint
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (inputs : ∀ offset,

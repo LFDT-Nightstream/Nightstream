@@ -16,8 +16,6 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Spec
 
-/-- Apply one fail-closed package substitution to an ordered source-term
-list. -/
 def compileTerms? (substitution : SourceSubstitution) (logicalWidth : Nat) :
     List (Nat × F) → Option (SparseForm logicalWidth)
   | [] => some .empty
@@ -26,7 +24,6 @@ def compileTerms? (substitution : SourceSubstitution) (logicalWidth : Nat) :
       let tail ← compileTerms? substitution logicalWidth rest
       pure (SparseForm.add (SparseForm.scale term.2 head) tail)
 
-/-- Apply the package substitution to one affine source combination. -/
 def compileCombination? (substitution : SourceSubstitution)
     {logicalWidth : Nat} (oneColumn : Fin logicalWidth)
     (combination : R1CS.LinearCombination) : Option (SparseForm logicalWidth) := do
@@ -34,7 +31,6 @@ def compileCombination? (substitution : SourceSubstitution)
   pure (SparseForm.add
     (SparseForm.singleton oneColumn combination.constant) terms)
 
-/-- Fail-closed ordinary-row compilation. -/
 def compileRow? (substitution : SourceSubstitution) (logicalWidth oneColumn : Nat)
     (row : R1CS.Row) : Option (OrdinaryRow.Forms logicalWidth) :=
   if oneBound : oneColumn < logicalWidth then do
@@ -48,7 +44,6 @@ def compileRow? (substitution : SourceSubstitution) (logicalWidth oneColumn : Na
   else
     none
 
-/-- Complete package operands for one ordinary matrix block. -/
 structure Block where
   rows : IndexSchedule
   oneColumn : Nat
@@ -59,8 +54,6 @@ deriving Repr, DecidableEq
 def Block.rowCount (block : Block) : Nat :=
   block.rows.count
 
-/-- Read and compile one selected package row without materializing the
-block. -/
 def Block.row? (block : Block) (logicalWidth : Nat)
     (sourceRow : Nat → Option R1CS.Row) (ordinal : Nat) :
     Option (OrdinaryRow.Forms logicalWidth) := do
@@ -69,8 +62,6 @@ def Block.row? (block : Block) (logicalWidth : Nat)
   let row ← block.projection.row? packageRow
   compileRow? block.substitution logicalWidth block.oneColumn row
 
-/-- Agreement is needed only on source columns that occur in this term
-list. -/
 def AgreesOnTerms {sourceWidth logicalWidth : Nat}
     (substitution : SourceSubstitution)
     (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)
@@ -79,7 +70,6 @@ def AgreesOnTerms {sourceWidth logicalWidth : Nat}
     substitution.form? logicalWidth term.1 =
       some (sourceMap.form ⟨term.1, bounded⟩)
 
-/-- Exact term-list agreement with the proof-oriented source compiler. -/
 theorem compileTerms?_eq_compileTerms
     {sourceWidth logicalWidth : Nat}
     (substitution : SourceSubstitution)
@@ -102,8 +92,6 @@ theorem compileTerms?_eq_compileTerms
         inductionHypothesis restBound restAgrees]
       rfl
 
-/-- Exact affine-combination agreement with the proof-oriented source
-compiler. -/
 theorem compileCombination?_eq_compileCombination
     {sourceWidth logicalWidth : Nat}
     (substitution : SourceSubstitution)
@@ -119,8 +107,6 @@ theorem compileCombination?_eq_compileCombination
     bounded agrees]
   rfl
 
-/-- Exact complete-row agreement with the canonical ordinary selective
-compiler. -/
 theorem compileRow?_eq_compileRow
     {sourceWidth logicalWidth : Nat}
     (substitution : SourceSubstitution)
@@ -142,8 +128,6 @@ theorem compileRow?_eq_compileRow
     oneColumn row.c bounded.2.2 agreesC]
   rfl
 
-/-- An ordinary wire block that selects this source row and carries this
-substitution returns the exact canonical compiled forms. -/
 theorem Block.row?_eq_compileRow
     {sourceWidth logicalWidth : Nat}
     (block : Block)

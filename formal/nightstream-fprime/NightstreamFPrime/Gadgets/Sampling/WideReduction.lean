@@ -31,8 +31,6 @@ open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Phi81StrongSet
 
-/-! ### Parameters and layout -/
-
 abbrev fieldCount : Nat := 4
 def childWidth : Nat := CanonicalU64.auxiliaryCount
 def quotientBitCount : Nat := 131
@@ -40,13 +38,11 @@ def digitCount : Nat := 54
 def digitBitCount : Nat := 3
 abbrev checkCount : Nat := 6
 def checkBitCount : Nat := 10
-/-- Number of result-side terms; it keeps honest check quotients nonnegative. -/
 def checkBias : Nat := quotientBitCount + digitCount * digitBitCount
 def newBitCount : Nat :=
   quotientBitCount + digitCount * digitBitCount + checkCount * checkBitCount
 def privateCount : Nat := childWidth * fieldCount + newBitCount
 
-/-- Pairwise coprime check moduli below `2^50`. -/
 def modulus : Fin checkCount → Nat :=
   ![1125899906842623, 1125899906842621, 1125899906842619,
     1125899906842615, 1125899906842613, 1125899906842609]
@@ -76,8 +72,6 @@ def childInterface (interface : Interface) (parentOffset : Nat) (index : Fin fie
     CanonicalU64.Interface where
   source := fun _ => interface.source index parentOffset
 
-/-! ### Linear forms -/
-
 def fieldTerms (offset index : Nat) : List (Nat × Expr) :=
   (List.range CanonicalU64.bitCount).map fun bit =>
     (2 ^ bit * goldilocksModulus ^ index, fieldBit offset index bit)
@@ -97,8 +91,6 @@ def resultTerms (offset : Nat) : List (Nat × Expr) :=
 def checkTerms (offset : Nat) (check : Fin checkCount) : List (Nat × Expr) :=
   (List.range checkBitCount).map fun bit => (modulus check * 2 ^ bit, checkBit offset check bit)
 
-/-! ### Rows and operations -/
-
 def booleanRow (atom : Expr) : Expr := atom * (atom - 1)
 
 def digitRangeRow (offset digit : Nat) : Expr :=
@@ -110,7 +102,6 @@ def checkRow (offset : Nat) (check : Fin checkCount) : Expr :=
     (linearExpr (reduceTerms (modulus check) (resultTerms offset)) +
       linearExpr (checkTerms offset check))
 
-/-- Every new bit, in allocation order. -/
 def newBits (offset : Nat) : List Expr :=
   (List.range quotientBitCount).map (quotientBit offset) ++
     (List.range digitCount).flatMap (fun digit => (List.range digitBitCount).map (digitBit offset digit)) ++
@@ -130,17 +121,13 @@ def rowOps (offset : Nat) : List Op :=
     (List.range digitCount).map (fun digit => Op.assertZero (digitRangeRow offset digit)) ++
     (List.finRange checkCount).map (fun check => Op.assertZero (checkRow offset check))
 
-/-- The witness program of the new bits is supplied by the caller. -/
 def operations (interface : Interface) (hints : Nat → List Hint) (offset : Nat) : List Op :=
   childOps interface offset ++
     [Op.witness (WitnessBatch.hinted (quotientStart offset) (hints offset))] ++ rowOps offset
 
-/-! ### Specification -/
-
 def drawOf (interface : Interface) (env : Env) (offset : Nat) : Draw :=
   fun index => (interface.source index offset).eval env
 
-/-- Value `b₀ + 2 b₁ + 4 b₂` of digit `j`. -/
 def digitValue (env : Env) (offset digit : Nat) : Nat :=
   ((digitBit offset digit 0).eval env).val + 2 * ((digitBit offset digit 1).eval env).val +
     4 * ((digitBit offset digit 2).eval env).val
@@ -148,7 +135,6 @@ def digitValue (env : Env) (offset digit : Nat) : Nat :=
 def Assumptions (interface : Interface) (offset : Nat) : Prop :=
   ∀ index, (interface.source index offset).VarsBelow offset
 
-/-- Every digit is the sampled coefficient. -/
 def SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   ∀ digit : Fin coefficientCount,
     digitValue env offset digit.val = (sample (drawOf interface env offset) digit).val

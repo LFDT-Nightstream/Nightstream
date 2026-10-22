@@ -80,7 +80,6 @@ private theorem compileTerms_direct {matrixCount : Nat}
           R1CS.IsAffine.add sumAffine.2 termDirect.2.2⟩
       exact ⟨R1CS.recipesDirect_append start _ _ termDirect.1 tail.1, tail.2⟩
 
-/-- Every stored product and both result cells are one rank-one row. -/
 theorem recipes_direct {matrixCount : Nat}
     (polynomial : ConstraintPolynomial K matrixCount)
     (interface : Owned.Interface matrixCount) (offset : Nat)

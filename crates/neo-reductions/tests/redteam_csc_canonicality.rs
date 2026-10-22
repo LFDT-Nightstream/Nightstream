@@ -4,9 +4,6 @@ use p3_field::PrimeCharacteristicRing;
 
 #[test]
 fn duplicate_csc_entries_are_rejected_at_the_relation_boundary() {
-    // This is the single-entry matrix [2 + 4], represented with two entries
-    // at the same coordinate. `CcsStructure::new_sparse` accepts this public
-    // representation and ordinary CSC multiplication sums both entries.
     let duplicated = CscMat {
         nrows: 1,
         ncols: 1,
@@ -20,10 +17,6 @@ fn duplicate_csc_entries_are_rejected_at_the_relation_boundary() {
 
 #[test]
 fn unsorted_csc_rows_are_rejected_at_the_relation_boundary() {
-    // Both coordinates are in bounds, but the row indices in this column are
-    // descending. Ordinary CSC multiplication remains well-defined and sees
-    // row 1, while the SuperNeo evaluator performs a binary search that assumes
-    // ascending row indices.
     let unsorted = CscMat {
         nrows: 2,
         ncols: 1,

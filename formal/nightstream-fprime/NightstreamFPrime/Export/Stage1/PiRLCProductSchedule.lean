@@ -3,9 +3,7 @@ import Mathlib.Data.List.OfFn
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 
 /-!
-Owns the constant-time production selector for the four PiRLC product
-families. The selector uses the same family, source, block, lane, and cell
-order as the proof-oriented compact-invocation lists.
+Owns the constant-time production selector for the four PiRLC product families.
 
 This module does not construct matrix rows or select retained assignment
 columns.
@@ -19,7 +17,6 @@ open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 
-/-- The four product families in exact SuperNeo order. -/
 inductive Family where
   | commitment
   | publicInput
@@ -79,8 +76,6 @@ def invocationCount (family : Family) : Nat :=
 
 end Family
 
-/-- One fully decoded product invocation. Dependent fields carry all bounds
-needed by the source-layout formulas. -/
 structure Descriptor where
   family : Family
   source : Fin sourceCount
@@ -199,7 +194,6 @@ def priorExpr (descriptor : Descriptor) : NightstreamFPrime.Circuit.Expr :=
 def outputExpr (descriptor : Descriptor) : NightstreamFPrime.Circuit.Expr :=
   NightstreamFPrime.Circuit.Expr.var descriptor.outputColumn
 
-/-- The exact source expression constrained by this product invocation. -/
 def sourceConstraint (descriptor : Descriptor) :
     NightstreamFPrime.Circuit.Expr :=
   match descriptor with
@@ -220,8 +214,6 @@ def sourceConstraint (descriptor : Descriptor) :
         PiRLCStarts.evalALogicalStart 4 2 2 source.val block.val cell.val
           evalAValueSourceStart lane
 
-/-- The direct descriptor expressions are definitionally the current
-canonical PiRLC source constraint in all four families. -/
 theorem sourceConstraint_eq_direct (descriptor : Descriptor) :
     descriptor.sourceConstraint =
       descriptor.outputExpr -
@@ -240,7 +232,6 @@ theorem sourceConstraint_eq_direct (descriptor : Descriptor) :
 
 end Descriptor
 
-/-- Constant-time source-major decoding inside one family. -/
 def familyDescriptor (family : Family)
     (index : Fin family.invocationCount) : Descriptor :=
   let decoded : Fin sourceCount × Fin family.privateCount :=
@@ -252,7 +243,6 @@ def familyDescriptor (family : Family)
     lane := coordinates.2.1
     cell := coordinates.2.2 }
 
-/-- The existing compact invocation selected by one decoded descriptor. -/
 def Descriptor.compactInvocation (descriptor : Descriptor) :
     CompactRowInvocation :=
   match descriptor with
@@ -281,7 +271,6 @@ def familyCompactInvocation (family : Family) :
     Fin family.invocationCount → CompactRowInvocation :=
   fun index => (familyDescriptor family index).compactInvocation
 
-/-- Proof-oriented materialization of one direct family selector. -/
 def familyCompactInvocations (family : Family) :
     List CompactRowInvocation :=
   List.ofFn (familyCompactInvocation family)
@@ -384,7 +373,6 @@ theorem evalACompactInvocations_eq :
           PiRLCStarts.evalAFreshStart 4 2 2 source coordinates.1.val
             coordinates.2.1.val coordinates.2.2.val evalAValueSourceStart))
 
-/-- Total count expressed as the exact four-family sum. -/
 def invocationCount : Nat :=
   Family.invocationCount .commitment +
     (Family.invocationCount .publicInput +
@@ -393,7 +381,6 @@ def invocationCount : Nat :=
 @[simp] theorem invocationCount_eq : invocationCount = 33966 := by
   norm_num [invocationCount]
 
-/-- Constant-time semantic descriptor selector in exact family order. -/
 def descriptor : Fin invocationCount → Descriptor :=
   Fin.append (familyDescriptor .commitment) <|
     Fin.append (familyDescriptor .publicInput) <|
@@ -434,7 +421,6 @@ theorem familyDescriptor_familyIndex (descriptor : Descriptor) :
     exact finProdFinEquiv.apply_symm_apply _]
   exact Fin.encodeProd_decodeProd index
 
-/-- Constant-time inverse of `descriptor` in exact family order. -/
 def Descriptor.invocation (descriptor : Descriptor) : Fin invocationCount :=
   match descriptor with
   | ⟨.commitment, source, block, lane, cell⟩ =>
@@ -475,8 +461,6 @@ def Descriptor.invocation (descriptor : Descriptor) : Fin invocationCount :=
     exact familyDescriptor_familyIndex
       ({ family := .evalA, source, block, lane, cell } : Descriptor)
 
-/-- The four-family decoder and encoder are inverse in the index direction.
-Thus no physical product invocation is omitted or duplicated. -/
 @[simp] theorem invocation_descriptor (index : Fin invocationCount) :
     (descriptor index).invocation = index := by
   unfold descriptor
@@ -517,7 +501,6 @@ Thus no physical product invocation is omitted or duplicated. -/
         rw [familyIndex_familyDescriptor]
         rfl
 
-/-- Flat invocation coordinates in the four-family order. -/
 theorem Descriptor.invocation_val (descriptor : PiRLCProductSchedule.Descriptor) :
     descriptor.invocation.val =
       (match descriptor.family with
@@ -542,7 +525,6 @@ theorem Descriptor.invocation_val (descriptor : PiRLCProductSchedule.Descriptor)
       ringDegree]
     omega
 
-/-- Constant-time selector in exact family order. -/
 def compactInvocation : Fin invocationCount → CompactRowInvocation :=
   Fin.append (familyCompactInvocation .commitment) <|
     Fin.append (familyCompactInvocation .publicInput) <|
@@ -559,20 +541,15 @@ private theorem map_append {Alpha Beta : Type} {m n : Nat}
   · simp
   · simp
 
-/-- Decoding and then constructing the compact record is exactly the fast
-compact-record selector. -/
 theorem compactInvocation_eq_descriptor :
     compactInvocation = fun index => (descriptor index).compactInvocation := by
   unfold compactInvocation familyCompactInvocation descriptor
   rw [← map_append, ← map_append, ← map_append]
   rfl
 
-/-- Proof-oriented materialization of the total constant-time selector. -/
 def compactInvocations : List CompactRowInvocation :=
   List.ofFn compactInvocation
 
-/-- The fast selector has exactly the current canonical invocation order and
-contents. -/
 theorem compactInvocations_eq : compactInvocations = invocations := by
   unfold compactInvocations compactInvocation invocationCount
   rw [List.ofFn_fin_append, List.ofFn_fin_append, List.ofFn_fin_append]

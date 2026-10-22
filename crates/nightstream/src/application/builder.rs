@@ -103,7 +103,7 @@ impl ApplicationBuilder {
 
     pub fn affine(&mut self, value: Affine) -> Result<Variable, ApplicationError> {
         self.validate(&value, true)?;
-        let value = value.compact_shared();
+        let value = value.flatten_if_nested_shared();
         let recipe = value.expression.clone();
         self.generate(value, Affine::constant(Goldilocks::ONE), recipe)
     }
@@ -111,8 +111,8 @@ impl ApplicationBuilder {
     pub fn multiply(&mut self, a: Affine, b: Affine) -> Result<Variable, ApplicationError> {
         self.validate(&a, true)?;
         self.validate(&b, true)?;
-        let a = a.compact_shared();
-        let b = b.compact_shared();
+        let a = a.flatten_if_nested_shared();
+        let b = b.flatten_if_nested_shared();
         let recipe = Arc::new(Expression::Multiply(a.expression.clone(), b.expression.clone()));
         self.generate(a, b, recipe)
     }
@@ -142,8 +142,8 @@ impl ApplicationBuilder {
     fn equality_row(&mut self, left: Affine, right: Affine) -> Result<OutputRow, ApplicationError> {
         self.validate(&left, false)?;
         self.validate(&right, false)?;
-        let left = left.compact_shared();
-        let right = right.compact_shared();
+        let left = left.flatten_if_nested_shared();
+        let right = right.flatten_if_nested_shared();
         // This direction preserves the existing Lean direct-recipe lowering.
         let (row, form) = if left.as_variable().is_some() {
             (
@@ -285,8 +285,7 @@ impl ApplicationCircuit {
                 2 => ApplicationForm::C,
                 _ => return Err(PackageError::Invalid("prepared output form").into()),
             };
-            // `equality_row` puts a variable output on the C side; otherwise C is zero.
-            let derived = if records.row_header(row)?.term_counts[2] == 0 {
+            let derived = if records.row_header(row)?.term_counts[ApplicationForm::C.index()] == 0 {
                 ApplicationForm::A
             } else {
                 ApplicationForm::C
@@ -359,11 +358,13 @@ impl ApplicationCircuit {
             let [a, b, _] = self.evaluate_row(row, &values)?;
             values[self.generated_start + offset] = a * b;
         }
-        // All output variables remain zero here. The non-variable lowering's
-        // A form is original_expression - output_variable, so it has the same value.
         let mut output_state = [Goldilocks::ZERO; 4];
-        for (value, output) in output_state.iter_mut().zip(self.outputs) {
-            *value = self.evaluate(output.row, output.form, &values)?;
+        for ((value, output), variable) in output_state
+            .iter_mut()
+            .zip(self.outputs)
+            .zip(self.output_state())
+        {
+            *value = self.output_expression(output, variable, &values)?;
         }
         values[self.generated_start - 4..self.generated_start].copy_from_slice(&output_state);
         self.check(&values)?;
@@ -411,6 +412,20 @@ impl ApplicationCircuit {
                 .ok_or(PackageError::Invalid("application record variable out of scope"))
         })?;
         Ok(Goldilocks::from_u64(value))
+    }
+
+    fn output_expression(
+        &self,
+        output: OutputRow,
+        variable: Variable,
+        values: &[Goldilocks],
+    ) -> Result<Goldilocks, ApplicationError> {
+        let value = self.evaluate(output.row, output.form, values)?;
+        if output.form == ApplicationForm::A {
+            Ok(value + values[variable.0])
+        } else {
+            Ok(value)
+        }
     }
 }
 

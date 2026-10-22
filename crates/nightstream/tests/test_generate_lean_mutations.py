@@ -10,7 +10,6 @@ SPEC = importlib.util.spec_from_file_location(
     "generate_lean_mutations", Path(__file__).with_name("generate_lean_mutations.py"))
 mutations = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(mutations)
-# The retained manifest records the case table of the older 14-matrix format.
 RETAINED = Path(__file__).with_name("fixtures") / "dec_mutation_manifest.json"
 VECTORS = Path(__file__).with_name("fixtures") / "golden-v1.zip"
 

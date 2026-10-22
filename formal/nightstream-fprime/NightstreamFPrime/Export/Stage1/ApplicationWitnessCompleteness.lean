@@ -9,11 +9,6 @@ import NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness
 /-!
 Owns construction of an application's private suffix from its real witness
 and the state frames constructed by the physical prefix, for every application.
-The witness width is the application's input ABI, not a generated-output
-assumption. The application's own circuit completeness
-(`Lifecycle.Stage1.Application.Program.completeness`) fills its local interval,
-and the R1CS lowering completeness fills the lowering columns. The source
-packet retains the preceding prefix through the existing per-application shift.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationWitnessCompleteness
@@ -30,8 +25,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 variable (application : Lifecycle.Stage1.Application.Program)
 
-/-- The environment with the witness words at the application's witness
-columns. -/
 private def loadWitness (env : Env) (witness : AppWitness) : Env := fun index =>
   if ApplicationInputs.witnessStart ≤ index ∧
       index < ApplicationInputs.witnessStart + application.witnessWordCount then
@@ -343,11 +336,8 @@ private theorem application_rowsZero_of_source_rows
   rw [dif_pos sourceBound]
   exact DirectApplicationPrefixPlan.applicationSource_eq_sourceEnv application raw.base ⟨index, sourceBound⟩
 
-/-- An admissible semantic step of any application constructs the physical
-prefix and the application suffix from its actual witness. The witness width is
-the application's input ABI, also enforced by the Rust encoder. All source words
-and application rows are outputs of the construction. The canonical carrier
-public input is the encoding of the same output digest. -/
+/-- The witness width is the application's input ABI, also enforced by the
+Rust encoder. -/
 theorem complete
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

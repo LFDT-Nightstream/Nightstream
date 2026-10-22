@@ -3,8 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry
 
 /-!
 Owns the canonical low-norm placement of one verifier-selected application.
-Only witness and local blocks extend the prefix. The four input and four
-output words reuse the actual pilot Poseidon2 preimage coordinates.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
@@ -40,9 +38,6 @@ theorem completeLogicalWidth_eq
   unfold retainedCoordinateCount
   omega
 
-/-- Closed production formula for the only application-dependent retained
-coordinates. The fixed Stage 1 prefix accounts for the constant term;
-application input/output words already belong to that prefix. -/
 theorem completeLogicalWidth_eq_applicationCounts
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application =
@@ -51,8 +46,6 @@ theorem completeLogicalWidth_eq_applicationCounts
   rw [completeLogicalWidth_eq, retainedCoordinateCount_eq,
     retainedSlotCount_eq]
 
-/-- Exact retained-word budget for one application in the owner-selected
-`2^28` carrier. -/
 theorem completeLogicalWidth_le_twoPow28_iff
     (application : Lifecycle.Stage1.Application.Program) :
     completeLogicalWidth application ≤
@@ -62,8 +55,6 @@ theorem completeLogicalWidth_le_twoPow28_iff
   norm_num [NightstreamFPrime.Lifecycle.cubeVariables]
   omega
 
-/-- Exact application-word budget after completing the logical width to whole
-54-coordinate Phi81 blocks. -/
 theorem carrierWidth_le_twoPow28_iff
     (application : Lifecycle.Stage1.Application.Program) :
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth
@@ -77,15 +68,11 @@ theorem carrierWidth_le_twoPow28_iff
     NightstreamFPrime.Lifecycle.cubeVariables]
   omega
 
-/-- One concrete application must separately prove its low-norm retained
-width fits the owner-selected row cube. -/
 structure FitsTwoPow28
     (application : Lifecycle.Stage1.Application.Program) : Prop where
   complete : completeLogicalWidth application ≤
     2 ^ NightstreamFPrime.Lifecycle.cubeVariables
 
-/-- Construct the retained carrier proof from the small application-only
-word budget. -/
 theorem fitsTwoPow28OfApplicationCounts
     (application : Lifecycle.Stage1.Application.Program)
     (fits : application.witnessWordCount + localCount application ≤ 5480403) :
@@ -117,8 +104,6 @@ def oneColumn {application : Lifecycle.Stage1.Application.Program}
     Fin logicalWidth :=
   PiRLCSamplerOrdinaryRetainedGeometry.oneColumn (prefixGeometry geometry)
 
-/-- The selected application reads the preimage geometry used by the actual
-pilot Poseidon2 chains. This projection adds no coordinates. -/
 theorem pilotGeometry {application : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry application logicalWidth) :
     PiRLCPoseidonGeometry.Geometry application logicalWidth where

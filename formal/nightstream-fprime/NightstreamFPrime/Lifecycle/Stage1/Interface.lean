@@ -21,7 +21,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
-/-- Symbolic child interfaces for one fixed Stage 1 application. -/
 structure Interface
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

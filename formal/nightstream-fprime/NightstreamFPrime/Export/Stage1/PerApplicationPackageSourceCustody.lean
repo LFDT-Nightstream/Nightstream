@@ -3,9 +3,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceRows
 
 /-!
 Constructs matrix source-row custody from one Lean-authored per-application
-package. No caller supplies rows or selects an application relation.
-
-This module does not claim package identity or production closure.
+package.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceCustody

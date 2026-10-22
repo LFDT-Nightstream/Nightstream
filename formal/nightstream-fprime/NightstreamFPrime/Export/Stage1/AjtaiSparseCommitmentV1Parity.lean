@@ -6,7 +6,6 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.CommitmentSparse
 Owns executable commitment conformance for one sparse full-carrier assignment.
 Its three block addresses include the selected package's last carrier block.
 The last coefficient is a carried coordinate, not a fresh CCS padding claim.
-The output is proved equal to the existing full-domain commitment relation.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.AjtaiSparseCommitmentV1Parity
@@ -39,7 +38,6 @@ def assignment : Phi81Relation.Assignment shape :=
       (CommitmentSparse.singleBlock (shape := shape) middleBlock (ringFMonomial 27 (-1)))
       (CommitmentSparse.singleBlock (shape := shape) lastBlock (ringFMonomial 53 1)))
 
-/-- The complete carrier contains exactly the three selected coordinates. -/
 theorem assignment_coordinate (column : Fin shape.carrierWidth) :
     assignment column =
       (if column.val = 0 then 1 else 0) +
@@ -69,8 +67,6 @@ private theorem cacheRing_eq (value : RingF) : cacheRing value = value := by
   funext lane
   simp [cacheRing]
 
-/-- Only three 54-coefficient key blocks are evaluated per row. Cached values
-retain the exact selected key and use the existing ring multiplication. -/
 def sparseCommitment : Commitment.Value Poseidon2HashChainV1Setup.verifierRows :=
   fun row =>
     let first := cacheRing (Poseidon2HashChainV1Setup.productionAjtaiKey row firstBlock)
@@ -80,8 +76,6 @@ def sparseCommitment : Commitment.Value Poseidon2HashChainV1Setup.verifierRows :
       (ringFAdd (ringFMul middle (ringFMonomial 27 (-1)))
         (ringFMul last (ringFMonomial 53 1)))
 
-/-- Sparse execution is the exact full-carrier Ajtai commitment. The proof
-uses structural support elimination and the existing additive theorem. -/
 theorem sparseCommitment_eq_commit :
     sparseCommitment =
       Commitment.commit (shape := shape) Poseidon2HashChainV1Setup.productionAjtaiKey assignment := by
@@ -110,8 +104,6 @@ private def rowValue (row : Fin Poseidon2HashChainV1Setup.verifierRows) : Value 
       (ringFMul last (ringFMonomial 53 1)))
   .array (List.ofFn fun lane : Fin ringDegree => .atom (result lane).val)
 
-/-- Array buffers are constructed once per emitted row. Their output is the
-same complete commitment relation, without repeated key expansion per read. -/
 theorem rowValue_eq_commit (row : Fin Poseidon2HashChainV1Setup.verifierRows) :
     rowValue row = .array (List.ofFn fun lane : Fin ringDegree =>
       .atom ((Commitment.commit (shape := shape)
@@ -119,8 +111,6 @@ theorem rowValue_eq_commit (row : Fin Poseidon2HashChainV1Setup.verifierRows) :
   rw [← sparseCommitment_eq_commit]
   rfl
 
-/-- Schema 1: authority words, original block/lane/scalar support, and all
-22 by 54 commitment coefficients. Existing setup fixtures are unchanged. -/
 def parityValue (_delay : Unit := ()) : Value :=
   .array [.atom 1,
     .array (Poseidon2HashChainV1Setup.directProductionAuthorityNats.map Value.atom),

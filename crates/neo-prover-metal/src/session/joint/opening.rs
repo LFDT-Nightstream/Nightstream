@@ -58,7 +58,6 @@ pub(super) struct MetalJointOpeningPlan {
     blocks: usize,
 }
 
-/// One span layer of one matrix's geometric runs.
 struct DeviceGeometricOpeningPlan {
     matrix: usize,
     starts: Buffer,
@@ -85,16 +84,11 @@ struct OpeningLayout {
     max_chunks: usize,
     max_spans: usize,
     metadata_bytes: usize,
-    /// Span layers of each application matrix; empty without geometric runs.
     spans: Vec<Vec<SpanLayer>>,
-    /// Host bytes that the span census reserved, with its temporary arrays.
     census_bytes: usize,
 }
 
 impl OpeningLayout {
-    /// Size the opening metadata of one window. The active-block bitmap and
-    /// the span census allocate at most `host_bytes` host bytes together;
-    /// `None` means they need more.
     fn measure(
         matrices: &[SuperneoMatrixCache],
         blocks: usize,
@@ -109,7 +103,6 @@ impl OpeningLayout {
             max_chunks: pad.div_ceil(CHUNK_BLOCKS),
             ..Self::default()
         };
-        // The bitmap stays live beside the census, so it is reserved first.
         let Some(census_bytes) = host_bytes.checked_sub(blocks * size_of::<bool>()) else {
             return Ok(None);
         };
@@ -185,7 +178,6 @@ impl OpeningLayout {
             ])?);
         }
         let matrices = matrices.len() + 1;
-        // These capacities cover all original-row paths.
         let arrays = [
             (layout.active + 1, 8),
             (layout.active, 8),
@@ -211,8 +203,6 @@ impl OpeningLayout {
                 checked_product(&[count.max(1), width], "opening index size overflow")?,
             ])?;
         }
-        // The host census, with its temporary arrays, stays live while its
-        // device copy exists.
         let mut geometric = layout.census_bytes;
         for layer in layout.spans.iter().flatten() {
             layout.max_spans = layout.max_spans.max(layer.span_count());
@@ -309,8 +299,6 @@ impl MetalSession {
             let reserved = checked_sum(&[floor, plan.blocks])?;
             let mut requested_end = plan.rows;
             loop {
-                // The opening plan carries its own geometric data; only the
-                // terminal row check reads the uploaded matrix metadata.
                 let window = self.load_matrix_window(plan, next_row..requested_end, reserved, terminal.is_some())?;
                 let count = window.rows.end - window.rows.start;
                 let count_peak = checked_sum(&[window.workspace_peak_bytes, plan.blocks])?;
@@ -318,9 +306,6 @@ impl MetalSession {
                     requested_end = next_row + smaller_window(count, count_peak, plan.workspace_bytes)?;
                     continue;
                 }
-                // The bitmap and the census are host memory beside the window.
-                // They stop before they exceed the workspace; then the window
-                // shrinks.
                 let host_bytes = plan
                     .workspace_bytes
                     .saturating_sub(window.workspace_peak_bytes);
@@ -428,8 +413,6 @@ impl MetalSession {
         let mut tiled_form_tile_offsets = Vec::with_capacity(layout.tiled + 1);
         tiled_form_tile_offsets.push(0u32);
         let mut tiled_form_tiles = Vec::with_capacity(layout.tiles * 3);
-        // Each matrix's patterns follow the previous matrices' patterns, so
-        // the transposes are independent once those bases are known.
         let mut pattern_bases = Vec::with_capacity(matrices.len());
         let mut pattern_count = 0usize;
         for matrix in matrices {
@@ -635,8 +618,6 @@ impl MetalSession {
         if active_count == 0 {
             return Ok(to_evaluations(openings));
         }
-        // A matrix opening is an independent sum. Reuse one matrix's storage
-        // instead of keeping every matrix form live at the same point.
         let max_blocks = plan
             .matrix_active_offsets_host
             .windows(2)

@@ -1,15 +1,9 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/RingKAction.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Boolean-MLE compatibility with the concrete Phi81 `RingK` action.
 
 Protocol: SuperNeo v1.2 Theorem 11 and the evaluation branch of `Pi_RLC`.
-Phase: fixed ring action on every Boolean row, followed by evaluation at the
-verifier-owned extension-field point.
-Constraint family: semantic evaluation only; this file emits no rows.
 
 Owns: coefficientwise placement of a `RingF` challenge in `RingK`; exact
 right-linearity of the concrete `ringKMul`; zero/add/scale operations and
@@ -21,22 +15,6 @@ Does not own: the action of a `RingF` challenge on the complete assignment,
 the Phi81 coefficient-kernel action law, proof that coefficientwise embedding
 preserves quotient-ring multiplication, commitments, transcripts, Rust,
 R1CS, row removal, or counts.
-
-Emits constraints: no.
-
-Authority boundary: row values and the evaluation point are explicit. The
-action result and every evaluated lane are definitions; no caller supplies a
-linearity oracle. The challenge specialization uses only coefficientwise
-`K.embed`, so this file does not silently assume the still-separate
-`RingF -> RingK` quotient-multiplication theorem.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `nifs.pi_rlc.verify.evaluation_action.ringk.raw` | every raw-convolution coefficient is right-linear | derived | `rawMulCoeffK_zero`, `rawMulCoeffK_add`, `rawMulCoeffK_scale` |
-| `nifs.pi_rlc.verify.evaluation_action.ringk.reduction` | Phi81 reduction preserves right-linearity | derived | `ringKMul_right_zero`, `ringKMul_right_add`, `ringKMul_right_scale` |
-| `nifs.pi_rlc.verify.evaluation_action.mle.linear` | Boolean MLE preserves row-wise zero, addition, and extension scaling | derived | `evaluateRows_zero`, `evaluateRows_add`, `evaluateRows_scale` |
-| `nifs.pi_rlc.verify.evaluation_action.mle` | row-wise fixed `RingK` action commutes with all 54 evaluated lanes | derived | `evaluateRows_action` |
-| `nifs.pi_rlc.verify.evaluation_action.challenge_embed` | the MLE bridge accepts coefficientwise embedded `RingF` challenges | computed | `evaluateRows_embeddedChallenge_action` |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingKAction
@@ -44,58 +22,44 @@ namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingKActio
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Coefficientwise placement of one `RingF` challenge in the extension ring.
-This definition alone does not assert preservation of quotient multiplication. -/
 def embedChallenge (challenge : RingF) : RingK :=
   fun lane => K.embed (challenge lane)
 
-/-- Coefficientwise multiplication of one `RingK` value by a `K` scalar. -/
 def scale (scalar : K) (value : RingK) : RingK :=
   fun lane => K.mul scalar (value lane)
 
-/-- Coefficientwise negation using the same operation as Boolean MLE. -/
 def neg (value : RingK) : RingK :=
   fun lane => ConcreteCarrier.extensionOps.neg (value lane)
 
-/-- Coefficientwise subtraction using the same derived operation as Boolean
-MLE. -/
 def sub (left right : RingK) : RingK :=
   fun lane => ConcreteCarrier.extensionOps.sub (left lane) (right lane)
 
-/-- Ring-valued interpolation performed independently in all 54 lanes. -/
 def interpolate (coordinate : K) (low high : RingK) : RingK :=
   ringKAdd low (scale coordinate (sub high low))
 
-/-- One explicit `RingK` value at every Boolean row. -/
 abbrev Rows (variables : Nat) := BooleanVertex variables -> RingK
 
-/-- Evaluate all 54 coefficient tables at one typed extension-field point. -/
 def evaluateRows {variables : Nat}
     (rows : Rows variables) (point : CubePoint K variables) : RingK :=
   fun lane =>
     (BooleanTable.tabulate (fun vertex => rows vertex lane)).evaluate
       ConcreteCarrier.extensionOps point
 
-/-- Apply one fixed extension-ring element independently at every Boolean row. -/
 def actRows {variables : Nat}
     (scalar : RingK) (rows : Rows variables) : Rows variables :=
   fun vertex => ringKMul scalar (rows vertex)
 
-/-- Canonical zero at every Boolean row. -/
 def zeroRows {variables : Nat} : Rows variables :=
   fun _ => ringKZero
 
-/-- Add two ring-valued Boolean row tables coefficientwise. -/
 def addRows {variables : Nat}
     (left right : Rows variables) : Rows variables :=
   fun vertex => ringKAdd (left vertex) (right vertex)
 
-/-- Scale every ring-valued Boolean row by one extension-field scalar. -/
 def scaleRows {variables : Nat}
     (scalar : K) (rows : Rows variables) : Rows variables :=
   fun vertex => scale scalar (rows vertex)
 
-/-- Evaluation of the canonical zero row table is the zero `RingK` value. -/
 theorem evaluateRows_zero
     {variables : Nat}
     (point : CubePoint K variables) :
@@ -104,7 +68,6 @@ theorem evaluateRows_zero
   unfold evaluateRows zeroRows ringKZero
   exact BaseLinear.evaluateTabulated_zero point
 
-/-- Ring-valued Boolean-row evaluation is additive. -/
 theorem evaluateRows_add
     {variables : Nat}
     (left right : Rows variables)
@@ -117,8 +80,6 @@ theorem evaluateRows_add
     (fun vertex => left vertex lane)
     (fun vertex => right vertex lane) point
 
-/-- Ring-valued Boolean-row evaluation commutes with one fixed extension
-scalar. -/
 theorem evaluateRows_scale
     {variables : Nat}
     (scalar : K) (rows : Rows variables)
@@ -164,8 +125,6 @@ private theorem k_mul_zero (value : K) : K.mul value K.zero = K.zero :=
 private theorem f_neg_add (left right : F) :
     -(left + right) = -left + -right :=
   ConcreteCarrier.baseLaws.neg_add left right
-
-/-! ## Raw convolution linearity -/
 
 private def sumTerms (indices : List Nat) (term : Nat -> K) : K :=
   match indices with
@@ -348,8 +307,6 @@ private theorem rawMulCoeffK_scale
           exact rawTerm_scale left scalar right degree index
     _ = _ := sumTerms_scale _ _ _
 
-/-! ## Reduced quotient-ring linearity -/
-
 private theorem reduction_add
     (left0 left1 folded0 folded1 twice0 twice1 : K) :
     K.add
@@ -411,14 +368,12 @@ private theorem reduction_scale_zero
   simpa only [k_mul_zero] using
     (reduction_scale scalar left folded K.zero)
 
-/-- Concrete Phi81 multiplication maps the zero right input to zero. -/
 theorem ringKMul_right_zero (left : RingK) :
     ringKMul left ringKZero = ringKZero := by
   funext output
   simp only [ringKMul, rawMulCoeffK_zero]
   split <;> split <;> rfl
 
-/-- Concrete Phi81 multiplication is additive in its right input. -/
 theorem ringKMul_right_add (left right other : RingK) :
     ringKMul left (ringKAdd right other) =
       ringKAdd (ringKMul left right) (ringKMul left other) := by
@@ -432,8 +387,6 @@ theorem ringKMul_right_add (left right other : RingK) :
     | exact reduction_add _ _ _ _ _ _
     | exact reduction_add_zero _ _ _ _
 
-/-- Concrete Phi81 multiplication commutes with scaling its right input by
-an arbitrary quadratic-extension scalar. -/
 theorem ringKMul_right_scale
     (left : RingK) (scalar : K) (right : RingK) :
     ringKMul left (scale scalar right) =
@@ -481,8 +434,6 @@ private theorem ringKMul_interpolate
   unfold interpolate
   rw [ringKMul_right_add, ringKMul_right_scale, ringKMul_right_sub]
 
-/-! ## Boolean-MLE action theorem -/
-
 private def evaluateRowsCoordinates {variables : Nat}
     (rows : Rows variables) (coordinates : List K) : RingK :=
   fun lane =>
@@ -523,8 +474,6 @@ private theorem evaluateRowsCoordinates_action
           rw [low, high]
           exact (ringKMul_interpolate left coordinate _ _).symm
 
-/-- Boolean MLE of row-wise multiplication by any fixed `RingK` element is
-exactly multiplication of the lane-wise evaluated row ring. -/
 theorem evaluateRows_action
     {variables : Nat}
     (left : RingK) (rows : Rows variables) (point : CubePoint K variables) :
@@ -533,9 +482,6 @@ theorem evaluateRows_action
   unfold evaluateRows BooleanTable.evaluate
   exact evaluateRowsCoordinates_action left rows point.coordinates
 
-/-- The exact MLE bridge used when a `Pi_RLC` challenge is placed
-coefficientwise in `RingK`. This does not assert the separate carrier-action
-bridge from complete assignments to row rings. -/
 theorem evaluateRows_embeddedChallenge_action
     {variables : Nat}
     (challenge : RingF) (rows : Rows variables)

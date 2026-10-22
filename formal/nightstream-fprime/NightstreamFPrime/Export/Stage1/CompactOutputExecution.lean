@@ -1,7 +1,8 @@
 import NightstreamFPrime.Export.Stage1.CompactConstraintExecution
 
-/-! Connect the initial output write to both canonical compact row families.
-Recipes read only earlier normalized inputs, so the output write preserves them. -/
+/-!
+Connect the initial output write to both canonical compact row families.
+-/
 
 set_option autoImplicit false
 

@@ -3,8 +3,6 @@ use neo_math::KExtensions;
 
 #[test]
 fn encoded_prefix_matches_dense_folding_through_the_representation_change() {
-    // The last coefficient makes the first folded prefix odd. Both signs and
-    // zeros occur in every block; the following positions are implicit zero.
     let mut positive = [0u64; 2];
     let mut negative = [0u64; 2];
     for index in 0..2 * D - 2 {
@@ -37,7 +35,6 @@ fn encoded_prefix_matches_dense_folding_through_the_representation_change() {
 
 #[test]
 fn early_norm_coefficients_match_the_per_pair_sum() {
-    // Three columns with every sign, a zero column and an odd final length.
     let positive = [0b1001_0110u64, 0, 1 << 17];
     let negative = [0b0110_1000u64 | 1 << (D - 1), 0, 0b101];
     let packed = Mat::compact_signed_unit_from_column_masks(D, 3, &positive, &negative).unwrap();
@@ -46,18 +43,17 @@ fn early_norm_coefficients_match_the_per_pair_sum() {
         .map(|index| K::from_coeffs([F::from_u64(11 * index + 5), F::from_u64(3 * index + 7)]))
         .collect();
     let weights = EqualityWeights::new(&point);
-    let offset = 3;
     let mut early_rounds = 0;
     for round in 0..5u64 {
         let pairs = assignment.len().div_ceil(2);
         let expected = (0..pairs).fold([K::ZERO; 4], |total, index| {
             let (low, high) = assignment.pair(index);
             let norm = norm_pair(low, high);
-            std::array::from_fn(|coefficient| total[coefficient] + norm[coefficient] * weights.at(offset + index))
+            std::array::from_fn(|coefficient| total[coefficient] + norm[coefficient] * weights.at(index))
         });
         if let Some(early) = assignment.early_pairs() {
             assert_eq!(
-                early_norm_coefficients(&early, pairs, &weights, offset),
+                early_norm_coefficients(&early, pairs, &weights),
                 expected,
                 "round {round}"
             );
@@ -65,6 +61,5 @@ fn early_norm_coefficients_match_the_per_pair_sum() {
         }
         assignment.fold(K::from_coeffs([F::from_u64(round + 4), F::from_u64(round + 13)]));
     }
-    // Signed units, then 9 and 81 encoded values; 6,561 values are too many.
     assert_eq!(early_rounds, 3);
 }

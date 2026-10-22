@@ -16,7 +16,6 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Exact source-support premises for every caller-owned PiCCS family. -/
 structure ExternalInputsSupported
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -81,8 +80,6 @@ structure ExternalInputsSupported
       Expr.VarsSatisfy allowed
         ((interface.output offset).matrixCoordinate source matrix coefficient).c1
 
-/-- Caller-input support remains valid when the allowed source predicate is
-enlarged. -/
 theorem ExternalInputsSupported.mono
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

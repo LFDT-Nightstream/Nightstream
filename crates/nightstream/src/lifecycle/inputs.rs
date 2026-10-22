@@ -58,7 +58,7 @@ pub enum PiCcsV1_2PackageBridgeError {
 
 /// Exact PiCCS-owned part of one Lean package assignment.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct PiCcsV1_2ProofInputs {
+pub(crate) struct PiCcsV1_2ProofInputs {
     fresh_commitment: Box<[u64; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS]>,
     round_messages: Box<[[[u64; 2]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT]>,
     output_evaluations: PiCcsV1_2OutputEvaluations,
@@ -66,7 +66,7 @@ pub struct PiCcsV1_2ProofInputs {
 
 impl PiCcsV1_2ProofInputs {
     /// Convert one native v1_2 PiCCS proof without changing its order.
-    pub fn from_proof(fresh: &CcsClaim, proof: &pi_ccs::Proof) -> Result<Self, PiCcsV1_2PackageBridgeError> {
+    pub(crate) fn from_proof(fresh: &CcsClaim, proof: &pi_ccs::Proof) -> Result<Self, PiCcsV1_2PackageBridgeError> {
         if fresh.c.d != PI_CCS_V1_2_COEFFICIENT_COUNT
             || fresh.c.kappa != COMMITMENT_WIDTH
             || fresh.c.data.len() != PI_CCS_V1_2_FRESH_COMMITMENT_WORDS
@@ -128,7 +128,7 @@ impl PiCcsV1_2ProofInputs {
 
     /// Add the lifecycle-owned fields after their canonical serializer has
     /// produced them.
-    pub fn into_package_inputs(
+    pub(crate) fn into_package_inputs(
         self,
         prior_preimage: Vec<u64>,
         output_preimage: Vec<u64>,
@@ -168,7 +168,7 @@ pub(super) fn fixed<const N: usize>(
 /// inputs enter only through their parent, so this rejects any running
 /// instance whose children are not the canonical split of that parent
 /// (SuperNeo Π_DEC verifier step 2); a second split cannot reuse the hash.
-pub fn serialize_pi_ccs_v1_2_state_preimage(
+pub(crate) fn serialize_pi_ccs_v1_2_state_preimage(
     verifier_context_digest: [F; 4],
     iteration: u64,
     z0: [F; 4],
@@ -228,7 +228,7 @@ pub fn serialize_pi_ccs_v1_2_state_preimage(
 /// The PiCCS prior child region: the sixteen child public inputs, child-major.
 /// The children must be the canonical split of their parent; the circuit
 /// derives each lane's sign from its own digits.
-pub fn pi_ccs_v1_2_prior_children(running: &[CeClaim]) -> Result<Vec<u64>, PiCcsV1_2PackageBridgeError> {
+pub(crate) fn pi_ccs_v1_2_prior_children(running: &[CeClaim]) -> Result<Vec<u64>, PiCcsV1_2PackageBridgeError> {
     canonical_parent(running)?;
     let mut words = Vec::with_capacity(PI_CCS_V1_2_PRIOR_CHILDREN_WORDS);
     for claim in running {
@@ -312,7 +312,7 @@ fn public_input(claim: &CeClaim, column: usize) -> u64 {
 }
 
 /// Recompute the Lean `stateHash` from its canonical serialized preimage.
-pub fn pi_ccs_v1_2_state_hash(preimage: &[u64]) -> Result<[u64; 4], PiCcsV1_2PackageBridgeError> {
+pub(crate) fn pi_ccs_v1_2_state_hash(preimage: &[u64]) -> Result<[u64; 4], PiCcsV1_2PackageBridgeError> {
     if preimage.len() != PI_CCS_V1_2_STATE_PREIMAGE_WORDS || preimage.iter().any(|word| *word >= F::ORDER_U64) {
         return Err(PiCcsV1_2PackageBridgeError::Shape("state preimage words"));
     }
@@ -321,7 +321,7 @@ pub fn pi_ccs_v1_2_state_hash(preimage: &[u64]) -> Result<[u64; 4], PiCcsV1_2Pac
 }
 
 /// Exact Lean `encHash`: marker, 256 little-endian digest bits, then zero padding.
-pub fn encode_pi_ccs_v1_2_public_input(digest: [u64; 4]) -> Result<Vec<u64>, PiCcsV1_2PackageBridgeError> {
+pub(crate) fn encode_pi_ccs_v1_2_public_input(digest: [u64; 4]) -> Result<Vec<u64>, PiCcsV1_2PackageBridgeError> {
     if digest.iter().any(|word| *word >= F::ORDER_U64) {
         return Err(PiCcsV1_2PackageBridgeError::Shape("state digest words"));
     }

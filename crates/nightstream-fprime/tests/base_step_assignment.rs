@@ -449,7 +449,12 @@ fn checked_base_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -> 
     Fixture(schema, context, private, public, expected)
 }
 
-pub fn check_base_assignment(package: LoadedPerApplicationPackage, sealed: Vec<u8>, bytes: Vec<u8>, expanded: Vec<u8>) {
+pub(crate) fn check_base_assignment(
+    package: LoadedPerApplicationPackage,
+    sealed: Vec<u8>,
+    bytes: Vec<u8>,
+    expanded: Vec<u8>,
+) {
     let fixture = checked_base_fixture(&package, &bytes);
     check_assignment(package, sealed, fixture, expanded);
 }
@@ -679,7 +684,7 @@ fn base_step_assignment_has_a_selected_key_commitment() {
     );
 }
 
-pub fn check_base_commitment(package: LoadedPerApplicationPackage, bytes: Vec<u8>) -> Vec<u64> {
+pub(crate) fn check_base_commitment(package: LoadedPerApplicationPackage, bytes: Vec<u8>) -> Vec<u64> {
     let started = Instant::now();
     let Fixture(_, _, private, public, expected) = checked_base_fixture(&package, &bytes);
     let physical = package
@@ -741,7 +746,7 @@ fn base_step_rows_reject_a_detached_application_output() {
     check_detached_application(package, sealed, bytes);
 }
 
-pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: Vec<u8>, bytes: Vec<u8>) {
+pub(crate) fn check_detached_application(package: LoadedPerApplicationPackage, sealed: Vec<u8>, bytes: Vec<u8>) {
     let started = Instant::now();
     let Fixture(_, _, private, public, expected) = checked_base_fixture(&package, &bytes);
     let physical = package

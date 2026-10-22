@@ -21,7 +21,7 @@ impl crate::folding::pi_ccs::Proof {
 }
 
 impl NifsProof {
-    pub fn canonical_bytes(&self) -> Vec<u8> {
+    pub(crate) fn canonical_bytes(&self) -> Vec<u8> {
         let mut output = Vec::new();
         output.extend_from_slice(b"NS-NIFS-PROOF");
         push_u64(&mut output, 1);

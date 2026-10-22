@@ -207,7 +207,7 @@ const DIAGONAL: [u64; WIDTH] = [
 ];
 
 #[derive(Clone, Debug)]
-pub struct Block {
+pub(crate) struct Block {
     invocation_count: usize,
     one_column: usize,
     retained: RetainedBlock,
@@ -215,7 +215,7 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn decode(value: &Value, logical_width: usize) -> Result<Self> {
+    pub(crate) fn decode(value: &Value, logical_width: usize) -> Result<Self> {
         let fields = exact_array(value, 4, "Poseidon2 matrix block")?;
         let block = Self {
             invocation_count: word(&fields[0], "Poseidon2 invocation count")?,
@@ -230,11 +230,11 @@ impl Block {
         Ok(block)
     }
 
-    pub fn row_count(&self) -> Result<usize> {
+    pub(crate) fn row_count(&self) -> Result<usize> {
         checked_mul(self.invocation_count, ROWS_PER_INVOCATION, "Poseidon2 rows")
     }
 
-    pub fn row(&self, logical_width: usize, ordinal: usize) -> Result<RowForms> {
+    pub(crate) fn row(&self, logical_width: usize, ordinal: usize) -> Result<RowForms> {
         if ordinal >= self.row_count()? || self.one_column >= logical_width {
             return Err("Poseidon2 matrix row is out of range".into());
         }
@@ -254,7 +254,7 @@ impl Block {
         self.sbox_row(logical_width, invocation, local_row)
     }
 
-    pub fn visit_rows(
+    pub(crate) fn visit_rows(
         &self,
         logical_width: usize,
         start: usize,

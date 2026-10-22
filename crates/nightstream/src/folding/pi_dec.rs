@@ -40,7 +40,7 @@ pub(crate) struct Children {
     pub witnesses: Vec<Mat<F>>,
 }
 #[derive(Clone, Debug, PartialEq)]
-pub struct Proof {
+pub(crate) struct Proof {
     pub children: Vec<CeClaim>,
 }
 pub(crate) fn prove_with_production_key(
@@ -117,7 +117,7 @@ pub(crate) fn prove_with_production_key(
     ))
 }
 
-pub fn verify(
+pub(crate) fn verify(
     pp: &Params,
     s: &Structure,
     combine: DecMixer,

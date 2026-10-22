@@ -179,17 +179,17 @@ fn compare_raw_matrices(
     ]
 }
 
-pub fn compare_sealed_matrices(bytes: &[u8], matrices: &nightstream_fprime::PackageR1cs) -> [usize; 3] {
+pub(crate) fn compare_sealed_matrices(bytes: &[u8], matrices: &nightstream_fprime::PackageR1cs) -> [usize; 3] {
     let (raw, layout) = sealed_raw(bytes);
     compare_raw_matrices(&raw, &layout, matrices)
 }
 
-pub fn compare_lean_expanded_matrices(bytes: &[u8], matrices: &nightstream_fprime::PackageR1cs) -> [usize; 3] {
+pub(crate) fn compare_lean_expanded_matrices(bytes: &[u8], matrices: &nightstream_fprime::PackageR1cs) -> [usize; 3] {
     let (raw, layout) = expanded_raw(bytes);
     compare_raw_matrices(&raw, &layout, matrices)
 }
 
-pub fn check_piccs_owner_mutations(
+pub(crate) fn check_piccs_owner_mutations(
     bytes: &[u8],
     ownership_bytes: &[u8],
     expected_structural_identity: [u64; 4],

@@ -87,7 +87,7 @@ impl PreparedLifecycle {
     /// Complete one prover envelope from the checked NIFS caller packet and
     /// its supplied child witnesses. Running completion tails are retained;
     /// the newly generated fresh carrier has a zero completion tail.
-    pub fn complete_step(
+    pub(crate) fn complete_step(
         &self,
         inputs: Stage1StepInputs,
         child_witnesses: Vec<Mat<F>>,

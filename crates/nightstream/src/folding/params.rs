@@ -9,14 +9,14 @@ pub(crate) struct Params {
     fold_error_bits: f64,
 }
 impl Params {
-    pub fn production() -> Self {
+    pub(crate) fn production() -> Self {
         Self {
             inner: NeoParams::nightstream_goldilocks_k16(),
             minimum_security_bits: 0,
             fold_error_bits: f64::INFINITY,
         }
     }
-    pub fn for_ccs_shape(
+    pub(crate) fn for_ccs_shape(
         rows: usize,
         columns: usize,
         matrix_count: usize,
@@ -55,23 +55,23 @@ impl Params {
     }
     /// `-log2` of the error the compression argument may add after a final
     /// fold, so that the total stays within the caller's minimum.
-    pub fn compression_security_bits(&self) -> Option<f64> {
+    pub(crate) fn compression_security_bits(&self) -> Option<f64> {
         let remaining = (-f64::from(self.minimum_security_bits)).exp2() - (-self.fold_error_bits).exp2();
         (remaining > 0.0).then(|| -remaining.log2())
     }
-    pub fn b(&self) -> u32 {
+    pub(crate) fn b(&self) -> u32 {
         self.inner.b
     }
-    pub fn k_rho(&self) -> u32 {
+    pub(crate) fn k_rho(&self) -> u32 {
         self.inner.k_rho
     }
-    pub fn big_b(&self) -> u64 {
+    pub(crate) fn big_b(&self) -> u64 {
         self.inner.B
     }
-    pub fn kappa(&self) -> u32 {
+    pub(crate) fn kappa(&self) -> u32 {
         self.inner.kappa
     }
-    pub fn inner(&self) -> &NeoParams {
+    pub(crate) fn inner(&self) -> &NeoParams {
         &self.inner
     }
     pub(crate) fn ring(&self) -> neo_reductions::common::RotRing {

@@ -58,7 +58,7 @@ pub enum StepInputError {
 /// Derived caller data for the emitted witness program. This packet is not
 /// an accepted envelope; `next_running` contains no prover witnesses.
 #[derive(Debug)]
-pub struct Stage1StepInputs {
+pub(crate) struct Stage1StepInputs {
     pub(super) pi_ccs: PiCcsV1_2PackageInputs,
     pub(super) pi_dec: PiDecV1_2PackageInputs,
     pub(super) application_witness: Vec<u64>,
@@ -72,38 +72,38 @@ pub struct Stage1StepInputs {
 }
 
 impl Stage1StepInputs {
-    pub fn pi_ccs(&self) -> &PiCcsV1_2PackageInputs {
+    pub(crate) fn pi_ccs(&self) -> &PiCcsV1_2PackageInputs {
         &self.pi_ccs
     }
 
-    pub fn pi_dec(&self) -> &PiDecV1_2PackageInputs {
+    pub(crate) fn pi_dec(&self) -> &PiDecV1_2PackageInputs {
         &self.pi_dec
     }
 
-    pub fn application_witness(&self) -> &[u64] {
+    pub(crate) fn application_witness(&self) -> &[u64] {
         &self.application_witness
     }
 
     #[cfg(test)]
-    pub fn output_preimage(&self) -> &[u64] {
+    pub(crate) fn output_preimage(&self) -> &[u64] {
         &self.output_preimage
     }
 
     #[cfg(test)]
-    pub fn output_digest(&self) -> [u64; 4] {
+    pub(crate) fn output_digest(&self) -> [u64; 4] {
         self.output_digest
     }
 
-    pub fn next_public_input(&self) -> &[u64] {
+    pub(crate) fn next_public_input(&self) -> &[u64] {
         &self.next_public_input
     }
 
-    pub fn next_state(&self) -> Stage1State {
+    pub(crate) fn next_state(&self) -> Stage1State {
         self.next_state
     }
 
     /// The verified PiDEC children: the next running claims.
-    pub fn next_running(&self) -> &RunningInstance {
+    pub(crate) fn next_running(&self) -> &RunningInstance {
         &self.next_running
     }
 
@@ -116,7 +116,7 @@ impl PreparedLifecycle {
     /// Replay the native NIFS verifier and construct the exact recursive
     /// caller packet. The package owns the context and parameters.
     /// `execute_step_witness` executes the selected relation on this data.
-    pub fn step_inputs(
+    pub(crate) fn step_inputs(
         &self,
         state: &Stage1State,
         running: &RunningInstance,

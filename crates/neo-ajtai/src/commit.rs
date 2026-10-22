@@ -56,7 +56,7 @@ fn rot_step_phi_81(cur: &[Fq; D], next: &mut [Fq; D]) {
 }
 
 #[inline(always)]
-pub fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
+pub(crate) fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
     rot_step_phi_81(cur, next)
 }
 

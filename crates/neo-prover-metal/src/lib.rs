@@ -4,6 +4,8 @@
 //! assembly, and verification. This crate owns Metal device state and the
 //! row evaluator.
 
+#![warn(clippy::undocumented_unsafe_blocks)]
+
 pub mod poseidon2;
 
 #[cfg(all(feature = "metal", not(target_vendor = "apple")))]

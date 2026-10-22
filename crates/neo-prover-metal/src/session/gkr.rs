@@ -6,15 +6,13 @@
 //! allocation). Does not own the protocol or the tables: the caller draws
 //! every challenge, builds every layer and reads the children.
 
-use std::marker::PhantomData;
-
 use neo_math::F;
 use objc2::runtime::ProtocolObject;
 use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder, MTLResourceUsage};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
-use super::{Arg, Buffer, Grid, MetalSession};
+use super::{dft::WrappedPages, Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
 
 /// Address slots of the table list; `GKR_PARTS` in `gkr.metal`.
@@ -31,14 +29,13 @@ type Ext = [u64; 3];
 /// logical entry `j` of a table sits at element `j·2^r`.
 pub struct MetalGkrLayer<'a> {
     /// Each tree's factor count and parts (factors, then the denominator).
-    trees: Vec<(usize, Vec<Buffer>)>,
-    eq: Buffer,
+    trees: Vec<(usize, Vec<WrappedPages<&'a mut [u64]>>)>,
+    eq: WrappedPages<&'a mut [u64]>,
     /// One partial sum per message group, sized for the first round.
     partials: Buffer,
     stride: usize,
     /// Pairs of the next round: half the eq table's live length.
     pairs: usize,
-    tables: PhantomData<&'a mut [u64]>,
 }
 
 impl MetalSession {
@@ -64,7 +61,7 @@ impl MetalSession {
             ));
         }
         let partials = self.buffer(pairs.div_ceil(THREADS) * NODES * 3 * size_of::<u64>())?;
-        let wrap = |table: &mut [u64]| {
+        let wrap = |table| {
             self.wrap_pages(table)
                 .ok_or(MetalError::Shape("a GKR table must span whole pages"))
         };
@@ -82,7 +79,6 @@ impl MetalSession {
             partials,
             stride: 1,
             pairs,
-            tables: PhantomData,
         })
     }
 
@@ -113,7 +109,7 @@ impl MetalSession {
             shape.extend(weight);
             first += parts.len();
         }
-        let tables: Vec<&Buffer> = layer.trees.iter().flat_map(|(_, parts)| parts).collect();
+        let tables: Vec<_> = layer.trees.iter().flat_map(|(_, parts)| parts).collect();
         let mut addresses = [0u64; PARTS];
         for (slot, table) in addresses.iter_mut().zip(&tables) {
             *slot = table.gpuAddress();

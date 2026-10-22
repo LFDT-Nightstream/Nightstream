@@ -1,10 +1,30 @@
 //! The DFT of the columns of a row-major matrix, in place when the memory
 //! spans whole pages: the layer-1 prover's Reed-Solomon encodings.
 
-use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLDevice, MTLResourceOptions};
+use std::marker::PhantomData;
+
+use objc2::runtime::ProtocolObject;
+use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLDevice, MTLResourceOptions};
 
 use super::{host_view, host_view_mut, Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
+
+/// A no-copy buffer over caller memory. It holds the borrow `B` of that
+/// memory (`&mut [u64]`, or `&[u64]` when kernels only read it) for as long
+/// as the buffer lives. Never retain the buffer: a retained handle would
+/// outlive the borrow.
+pub(super) struct WrappedPages<B> {
+    buffer: Buffer,
+    borrow: PhantomData<B>,
+}
+
+impl<B> std::ops::Deref for WrappedPages<B> {
+    type Target = ProtocolObject<dyn MTLBuffer>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.buffer
+    }
+}
 
 impl MetalSession {
     /// The DFT of every column of the row-major matrix `values` of `width`
@@ -29,21 +49,20 @@ impl MetalSession {
         }
         let log_rows = rows.trailing_zeros();
         // Page-aligned memory is used in place; otherwise it is copied.
-        let wrapped = self.wrap_pages(values);
-        let copied = match wrapped {
-            Some(_) => None,
+        let (wrapped, copied) = match self.wrap_pages(values) {
+            Some(pages) => (Some(pages), None),
             None => {
                 let mut data = self.buffer(size_of_val(values))?;
                 host_view_mut(&mut data, values.len())
                     .par_chunks_mut(width)
                     .zip(values.par_chunks(width))
                     .for_each(|(to, from)| to.copy_from_slice(from));
-                Some(data)
+                (None, Some(data))
             }
         };
         let data = wrapped
-            .as_ref()
-            .or(copied.as_ref())
+            .as_deref()
+            .or(copied.as_deref())
             .expect("one of the two buffers");
         let twiddles = self.buffer(rows / 2 * size_of::<u64>())?;
         let twiddle_shape = self.buffer_from_slice(&[generator])?;
@@ -89,6 +108,7 @@ impl MetalSession {
         );
         encoder.endEncoding();
         self.finish(&command)?;
+        drop(wrapped);
         if let Some(data) = &copied {
             let words = host_view::<u64>(data, values.len());
             values
@@ -100,24 +120,33 @@ impl MetalSession {
     }
 
     /// `values` as a shared buffer over the same memory, when it starts on a
-    /// page and spans whole pages (16 KiB, the Apple silicon VM page). The
-    /// buffer must be dropped before `values` is used again.
-    pub(super) fn wrap_pages(&self, values: &mut [u64]) -> Option<Buffer> {
+    /// page and spans whole pages (16 KiB, the Apple silicon VM page).
+    pub(super) fn wrap_pages<'a>(&self, values: &'a mut [u64]) -> Option<WrappedPages<&'a mut [u64]>> {
         self.wrap(values.as_mut_ptr(), size_of_val(values))
     }
 
     /// `wrap_pages` for memory that kernels only read.
-    pub(super) fn wrap_read_pages(&self, values: &[u64]) -> Option<Buffer> {
+    pub(super) fn wrap_read_pages<'a>(&self, values: &'a [u64]) -> Option<WrappedPages<&'a [u64]>> {
         self.wrap(values.as_ptr().cast_mut(), size_of_val(values))
     }
 
-    fn wrap(&self, words: *mut u64, bytes: usize) -> Option<Buffer> {
+    fn wrap<B>(&self, words: *mut u64, bytes: usize) -> Option<WrappedPages<B>> {
         const PAGE: usize = 16 * 1024;
         let pointer = std::ptr::NonNull::new(words.cast::<std::ffi::c_void>())?;
         if !(pointer.as_ptr() as usize).is_multiple_of(PAGE) || !bytes.is_multiple_of(PAGE) {
             return None;
         }
-        unsafe {
+        // SAFETY: `pointer` and `bytes` come from one live Rust slice (the
+        // two callers above), start on a page and span whole pages, as Metal
+        // requires. With no deallocator, Metal never frees that memory. The
+        // returned guard holds the slice's borrow for as long as Rust holds
+        // the buffer, and no Rust code retains the buffer past the guard. A
+        // command buffer that retains it completes inside the call that
+        // encodes it (see `launch`), so no kernel touches the memory after
+        // the borrow ends. A buffer from `wrap_read_pages` is bound only to
+        // kernel arguments that the shaders declare `device const`, so no
+        // kernel writes memory that Rust lends as shared.
+        let buffer = unsafe {
             self.device
                 .newBufferWithBytesNoCopy_length_options_deallocator(
                     pointer,
@@ -125,6 +154,10 @@ impl MetalSession {
                     MTLResourceOptions::StorageModeShared,
                     None,
                 )
-        }
+        }?;
+        Some(WrappedPages {
+            buffer,
+            borrow: PhantomData,
+        })
     }
 }

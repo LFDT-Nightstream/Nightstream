@@ -9,8 +9,6 @@ pub mod poseidon2;
 #[cfg(all(feature = "metal", not(target_vendor = "apple")))]
 compile_error!("the `metal` feature requires an Apple target");
 
-use std::time::Duration;
-
 use thiserror::Error;
 
 mod rows;
@@ -19,65 +17,19 @@ pub use rows::MetalRowProver;
 #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
 mod session;
 #[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-pub use session::{MetalAjtaiLowNormPlan, MetalGkrLayer, MetalKxChainPlan, MetalPoseidonUniformPlan, MetalSession};
+pub use session::{MetalGkrLayer, MetalSession};
 
 #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
 mod unsupported;
 #[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
-pub use unsupported::{MetalAjtaiLowNormPlan, MetalGkrLayer, MetalKxChainPlan, MetalPoseidonUniformPlan, MetalSession};
+pub use unsupported::{MetalGkrLayer, MetalSession};
 
 /// Owner's Metal memory ceiling, chosen so a prover can run on a current
 /// iPhone. Device buffer requests stay below it; CPU memory is measured
 /// separately.
 pub const BUFFER_LIMIT_BYTES: usize = 24_000_000_000;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct GoldilocksOps {
-    pub add: u64,
-    pub sub: u64,
-    pub mul: u64,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct KWords {
-    pub c0: u64,
-    pub c1: u64,
-}
-
-pub type PoseidonState = [u64; poseidon2::WIDTH];
 pub type PoseidonDigest = [u64; 4];
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum GoldilocksMulVariant {
-    Limb32,
-    Native64,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PoseidonHashVariant {
-    Scalar,
-    SimdGroup,
-}
-
-impl KWords {
-    pub const fn new(c0: u64, c1: u64) -> Self {
-        Self { c0, c1 }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct MetalRunStats {
-    pub elements: usize,
-    pub dispatches: usize,
-    pub elapsed: Duration,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MetalDeviceInfo {
-    pub name: String,
-    pub unified_memory: bool,
-    pub recommended_working_set_bytes: u64,
-}
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct MetalActivity {

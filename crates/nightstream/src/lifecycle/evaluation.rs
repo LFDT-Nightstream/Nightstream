@@ -73,7 +73,7 @@ impl PreparedLifecycle {
     /// key on the device when the key fits in the headroom that its ceiling
     /// has above the CPU engines' ceiling. Rows then keep at least the working
     /// space that the CPU ceiling gives them. A wider circuit streams key rows.
-    pub(crate) fn keep_commitment_key_when_it_fits(&mut self) {
+    pub(crate) fn keep_commitment_key_when_it_fits(&mut self) -> Result<(), crate::EngineError> {
         let headroom = self
             .backend
             .memory_limit_bytes()
@@ -84,9 +84,10 @@ impl PreparedLifecycle {
             .commitment_key_bytes(columns)
             .filter(|&key| key <= headroom)
         {
-            self.backend.keep_commitment_key();
+            self.backend.keep_commitment_key()?;
             self.kept_key_bytes = key;
         }
+        Ok(())
     }
 
     /// Reserve the selected profile's packed witness copies, carried table,

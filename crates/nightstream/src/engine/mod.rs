@@ -60,9 +60,7 @@ impl Backend {
         };
         match self {
             #[cfg(feature = "metal")]
-            Self::Metal(device) => device
-                .lock()
-                .map_err(|_| failure("device lock was poisoned".into()))?
+            Self::Metal(device) => metal::lock(device)?
                 .commit_production_prefixes(witnesses)
                 .map_err(|error| failure(error.to_string())),
             _ => match witnesses {
@@ -126,25 +124,21 @@ impl Backend {
     }
 
     /// Keep the commitment key on the device after the first commitment.
-    pub(crate) fn keep_commitment_key(&mut self) {
+    pub(crate) fn keep_commitment_key(&mut self) -> Result<(), EngineError> {
         #[cfg(feature = "metal")]
         if let Self::Metal(device) = self {
-            device
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .keep_commitment_key();
+            metal::lock(device)?.keep_commitment_key();
         }
+        Ok(())
     }
 
     /// Free a kept commitment key until the next commitment.
-    pub(crate) fn release_commitment_key_rows(&self) {
+    pub(crate) fn release_commitment_key_rows(&self) -> Result<(), EngineError> {
         #[cfg(feature = "metal")]
         if let Self::Metal(device) = self {
-            device
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner)
-                .release_commitment_key_rows();
+            metal::lock(device)?.release_commitment_key_rows();
         }
+        Ok(())
     }
 
     /// Where the compression prover's batch loops run. Only Metal has a

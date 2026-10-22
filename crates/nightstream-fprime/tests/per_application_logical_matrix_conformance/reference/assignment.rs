@@ -334,20 +334,12 @@ struct Physical<'a> {
     public: &'a [u64],
     constant_column: usize,
     total_columns: usize,
-    unavailable_private: Option<Range<usize>>,
 }
 
 impl Physical<'_> {
     fn value(&self, column: usize) -> Result<u64> {
         if column >= self.total_columns {
             return Err(format!("physical assignment column {column} is out of range"));
-        }
-        if self
-            .unavailable_private
-            .as_ref()
-            .is_some_and(|range| range.contains(&column))
-        {
-            return Err(format!("physical private column {column} is unavailable"));
         }
         let value = if column < self.constant_column {
             self.private
@@ -438,7 +430,6 @@ impl LogicalAssignment {
             public: public_values,
             constant_column: constant,
             total_columns: PHYSICAL_COLUMNS,
-            unavailable_private: None,
         };
         for column in 0..PHYSICAL_COLUMNS {
             physical.value(column)?;
@@ -623,7 +614,6 @@ impl<'a> PartialLogicalAssignment<'a> {
                 public: public_values,
                 constant_column: constant,
                 total_columns: PHYSICAL_COLUMNS,
-                unavailable_private: None,
             },
             block_ranges,
             quotients: OnceLock::new(),
@@ -633,16 +623,6 @@ impl<'a> PartialLogicalAssignment<'a> {
 
     pub fn len(&self) -> usize {
         LOGICAL_WIDTH
-    }
-
-    pub fn decode_pilot(sealed_bytes: &[u8], private_prefix: &'a [u64], public_values: &'a [u64]) -> Result<Self> {
-        if private_prefix.len() != 5_156_678 {
-            return Err("pilot physical-assignment prefix has the wrong length".into());
-        }
-        let mut assignment = Self::decode(sealed_bytes, private_prefix, public_values)?;
-        assignment.physical.unavailable_private = Some(55_638..70_830);
-        assignment.physical.public = &public_values[..274];
-        Ok(assignment)
     }
 
     pub fn value(&self, column: usize) -> Result<Field> {

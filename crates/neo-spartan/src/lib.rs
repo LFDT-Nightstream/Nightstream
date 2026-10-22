@@ -101,12 +101,10 @@ pub enum Error {
     Rejected(&'static str),
     #[error("layer-1 proof bytes: {0}")]
     Codec(&'static str),
-    #[error("layer-1 setup files: {0}")]
+    #[error("layer-1 file I/O: {0}")]
     Io(#[from] std::io::Error),
     #[error("layer-1 device: {0}")]
     Device(String),
-    #[error("layer-1 scratch file: {0}")]
-    Scratch(String),
 }
 
 /// The verifier's constants of one circuit: the setup root, the sizes and the

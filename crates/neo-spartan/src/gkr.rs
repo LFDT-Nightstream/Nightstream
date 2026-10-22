@@ -159,10 +159,6 @@ struct Spilled {
     nodes: usize,
 }
 
-fn scratch_error(error: std::io::Error) -> Error {
-    Error::Scratch(format!("GKR: {error}"))
-}
-
 /// Append `tree`'s parts at word `end`.
 fn spill(file: &std::fs::File, end: &mut usize, tree: &Tree) -> Result<Spilled, Error> {
     let spilled = Spilled {
@@ -171,7 +167,7 @@ fn spill(file: &std::fs::File, end: &mut usize, tree: &Tree) -> Result<Spilled, 
         nodes: tree.denominator.len(),
     };
     for part in tree.parts() {
-        scratch::write(file, *end, table_words(part)).map_err(scratch_error)?;
+        scratch::write(file, *end, table_words(part))?;
         *end += 3 * part.len();
     }
     Ok(spilled)
@@ -182,7 +178,7 @@ fn restore(file: &std::fs::File, spilled: &Spilled) -> Result<Tree, Error> {
         .map(|part| {
             let mut values = vec![Ext::ZERO; spilled.nodes];
             let offset = spilled.offset + 3 * spilled.nodes * part;
-            scratch::read(file, offset, ext_words_mut(&mut values)).map_err(scratch_error)?;
+            scratch::read(file, offset, ext_words_mut(&mut values))?;
             Ok(values)
         })
         .collect::<Result<Vec<_>, Error>>()?;
@@ -407,7 +403,7 @@ pub(crate) fn prove(
     challenger: &mut Challenger,
     accelerator: &Accelerator,
 ) -> Result<(GkrProof, Vec<TreeClaim<Ext>>), Error> {
-    let file = scratch::file().map_err(scratch_error)?;
+    let file = scratch::file()?;
     let mut end = 0;
     let depths: Vec<usize> = trees.iter().map(|leaves| leaves.depth).collect();
     let mut roots: Vec<[Ext; 2]> = Vec::new();

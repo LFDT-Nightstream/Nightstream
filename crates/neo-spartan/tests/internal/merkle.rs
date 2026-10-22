@@ -16,6 +16,7 @@ use crate::device::{Accelerator, Device};
 use crate::field::{Ext, Gl};
 use crate::hash::{compress, hash_leaf, plain};
 use crate::merkle::{Mmcs, Tree};
+use crate::Error;
 
 /// A device that builds trees one hash at a time with the CPU sponge and
 /// runs DFTs with Plonky3's, and records the shape of every request.
@@ -259,6 +260,9 @@ fn a_failed_scratch_read_fails_the_opening() {
     assert!(opener.check().is_ok(), "a readable tree opens");
     tree.lose_scratch();
     opener.open_multi_batch(&[0, 5], &tree);
-    assert!(opener.check().is_err(), "the failed read fails the opener");
+    assert!(
+        matches!(opener.check(), Err(Error::Io(_))),
+        "the failed read fails the opener with its I/O error"
+    );
     assert!(committer.check().is_ok(), "the commitment itself held");
 }

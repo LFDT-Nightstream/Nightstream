@@ -1,11 +1,11 @@
 //! Selected PiCCS validation and shared native proving.
 use super::{
     has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CcsClaim,
-    CcsWitness, CeClaim, Params, RunningInstance, Structure,
+    CcsWitness, CeClaim, FoldContext, Params, RunningInstance, Structure,
 };
 use neo_math::D;
 pub(crate) use neo_reductions::api::PiCcsProof as SumcheckProof;
-use neo_reductions::{optimized_engine::optimized_prove_with_matrix_rows, superneo_eval::MatrixRows};
+use neo_reductions::optimized_engine::optimized_prove_with_matrix_rows;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("PiCCS shape: {0}")]
@@ -26,14 +26,17 @@ fn reject_auxiliary(fresh: &CcsClaim, running: &[CeClaim]) -> Result<(), Error> 
 }
 pub(crate) fn prove_from_parts_with_rows(
     tr: &mut Transcript,
-    pp: &Params,
-    s: &Structure,
-    rows: &dyn MatrixRows,
-    workspace_bytes: usize,
+    context: FoldContext<'_>,
     fresh_claim: &CcsClaim,
     fresh_witness: &CcsWitness,
     running: &RunningInstance,
 ) -> Result<Proof, Error> {
+    let FoldContext {
+        params: pp,
+        structure: s,
+        rows,
+        workspace_bytes,
+    } = context;
     reject_auxiliary(fresh_claim, &running.claims)?;
     validate_input_shape(pp, s, fresh_claim, fresh_witness, running)?;
     let (outputs, sumcheck, _) = optimized_prove_with_matrix_rows(

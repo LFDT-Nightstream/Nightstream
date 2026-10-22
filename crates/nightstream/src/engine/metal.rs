@@ -4,12 +4,12 @@
 
 use crate::folding::{
     self, ajtai_dec_mixer, ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsClaim, CcsInstance,
-    CcsWitness, NifsProof, Params, RunningInstance, Structure,
+    CcsWitness, FoldContext, NifsProof, RunningInstance,
 };
 use neo_ajtai::{scale_commitment_add_inplace, Commitment};
 use neo_math::{D, F};
 use neo_prover_metal::MetalRowProver;
-use neo_reductions::{optimized_engine::optimized_prove_with_matrix_rows, superneo_eval::MatrixRows};
+use neo_reductions::optimized_engine::optimized_prove_with_matrix_rows;
 use p3_field::PrimeCharacteristicRing;
 
 use super::{Engine, EngineError};
@@ -28,25 +28,18 @@ pub(crate) fn lock(
 pub(crate) fn prove(
     device: &mut MetalRowProver,
     transcript: &mut Transcript,
-    params: &Params,
-    structure: &Structure,
-    rows: &dyn MatrixRows,
-    workspace_bytes: usize,
+    context: FoldContext<'_>,
     fresh: CcsInstance,
     running: RunningInstance,
 ) -> Result<(RunningInstance, NifsProof), folding::Error> {
-    let CcsInstance { claim, witness } = fresh;
-    let c = prove_pi_ccs(
-        device,
-        transcript,
+    let FoldContext {
         params,
         structure,
         rows,
         workspace_bytes,
-        &claim,
-        &witness,
-        &running,
-    )?;
+    } = context;
+    let CcsInstance { claim, witness } = fresh;
+    let c = prove_pi_ccs(device, transcript, context, &claim, &witness, &running)?;
     let sources: Vec<_> = std::iter::once(&witness.Z)
         .chain(running.witnesses.iter())
         .collect();
@@ -112,29 +105,23 @@ pub(crate) fn prove(
 pub(crate) fn prove_parent(
     device: &mut MetalRowProver,
     transcript: &mut Transcript,
-    params: &Params,
-    structure: &Structure,
-    rows: &dyn MatrixRows,
-    workspace_bytes: usize,
+    context: FoldContext<'_>,
     fresh: CcsInstance,
     running: RunningInstance,
 ) -> Result<(pi_ccs::Proof, pi_rlc::Output, pi_rlc::Proof), folding::Error> {
     let CcsInstance { claim, witness } = fresh;
-    let c = prove_pi_ccs(
-        device,
-        transcript,
-        params,
-        structure,
-        rows,
-        workspace_bytes,
-        &claim,
-        &witness,
-        &running,
-    )?;
+    let c = prove_pi_ccs(device, transcript, context, &claim, &witness, &running)?;
     let sources: Vec<_> = std::iter::once(&witness.Z)
         .chain(running.witnesses.iter())
         .collect();
-    let (parent, r) = pi_rlc::prove_refs(transcript, params, structure, ajtai_rlc_mixer, &c.outputs, &sources)?;
+    let (parent, r) = pi_rlc::prove_refs(
+        transcript,
+        context.params,
+        context.structure,
+        ajtai_rlc_mixer,
+        &c.outputs,
+        &sources,
+    )?;
     Ok((c, parent, r))
 }
 
@@ -142,24 +129,21 @@ pub(crate) fn prove_parent(
 fn prove_pi_ccs(
     device: &mut MetalRowProver,
     transcript: &mut Transcript,
-    params: &Params,
-    structure: &Structure,
-    rows: &dyn MatrixRows,
-    workspace_bytes: usize,
+    context: FoldContext<'_>,
     claim: &CcsClaim,
     witness: &CcsWitness,
     running: &RunningInstance,
 ) -> Result<pi_ccs::Proof, folding::Error> {
     let (outputs, sumcheck, _) = optimized_prove_with_matrix_rows(
         transcript.inner_mut(),
-        params.inner(),
-        structure,
+        context.params.inner(),
+        context.structure,
         std::slice::from_ref(claim),
         std::slice::from_ref(witness),
         &running.claims,
         &running.witnesses,
-        rows,
-        workspace_bytes,
+        context.rows,
+        context.workspace_bytes,
         Some(device),
     )
     .map_err(folding::kernels::Error::from)

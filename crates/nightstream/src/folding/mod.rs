@@ -33,6 +33,16 @@ pub(crate) type Structure = neo_ccs::CcsStructure<F>;
 pub(crate) use neo_reductions::api::RlcMixer;
 pub(crate) type DecMixer = fn(&[Commitment], u32) -> Commitment;
 
+/// What every engine call reads about one circuit: the folding parameters,
+/// the structure, its matrix rows and the rows' working-storage allowance.
+#[derive(Clone, Copy)]
+pub(crate) struct FoldContext<'a> {
+    pub(crate) params: &'a Params,
+    pub(crate) structure: &'a Structure,
+    pub(crate) rows: &'a dyn neo_reductions::superneo_eval::MatrixRows,
+    pub(crate) workspace_bytes: usize,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error(transparent)]

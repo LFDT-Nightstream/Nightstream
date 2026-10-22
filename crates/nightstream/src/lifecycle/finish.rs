@@ -286,32 +286,17 @@ impl PreparedLifecycle {
         let fresh_claim = fresh.claim.clone();
 
         let rows = self.matrix_rows();
-        let workspace_bytes = self.matrix_workspace_bytes()?;
+        let context = self.fold_context(&rows)?;
         let mut transcript = Transcript::session();
         let (pi_ccs, parent, _) = match &self.backend {
             #[cfg(feature = "metal")]
             crate::engine::Backend::Metal(device) => {
                 let mut device = crate::engine::metal::lock(device).map_err(ProveError::from)?;
-                crate::engine::metal::prove_parent(
-                    &mut device,
-                    &mut transcript,
-                    &self.params,
-                    &self.structure,
-                    &rows,
-                    workspace_bytes,
-                    fresh,
-                    running,
-                )?
+                crate::engine::metal::prove_parent(&mut device, &mut transcript, context, fresh, running)?
             }
-            crate::engine::Backend::Optimized => nifs::prove_parent_with_rows(
-                &mut transcript,
-                &self.params,
-                &self.structure,
-                &rows,
-                workspace_bytes,
-                fresh,
-                running,
-            )?,
+            crate::engine::Backend::Optimized => {
+                nifs::prove_parent_with_rows(&mut transcript, context, fresh, running)?
+            }
             crate::engine::Backend::PaperExact | crate::engine::Backend::Crosscheck => {
                 return Err(CompressionError::Input(
                     "compression runs only on the Optimized and Metal engines",

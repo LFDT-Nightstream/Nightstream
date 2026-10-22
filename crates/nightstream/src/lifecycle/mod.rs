@@ -59,7 +59,9 @@ impl PreparedLifecycle {
         minimum_security_bits: u32,
     ) -> Result<Self, super::Error> {
         if package.production_verifier_binding()? != binding {
-            return Err(PackageError::Malformed("lifecycle binding differs from the prepared relation").into());
+            return Err(super::Error::Circuit(
+                "lifecycle binding differs from the prepared relation",
+            ));
         }
         let structure = package.ccs_structure_header()?;
         let params = crate::folding::Params::for_ccs_shape(
@@ -111,16 +113,14 @@ impl PreparedLifecycle {
     }
 }
 /// The package binds its exact prefix dimensions; the selected seed and rows are fixed.
-pub(crate) fn validate_key_prefix(logical_width: usize, commitment_key_words: &[u64]) -> Result<(), PackageError> {
+pub(crate) fn validate_key_prefix(logical_width: usize, commitment_key_words: &[u64]) -> Result<(), super::Error> {
     if logical_width == 0 || logical_width > MAX_CARRIER_WIDTH {
-        return Err(PackageError::Malformed(
-            "logical width exceeds the approved key capacity",
-        ));
+        return Err(super::Error::Circuit("logical width exceeds the approved key capacity"));
     }
     let columns = logical_width.div_ceil(D) as u64;
     let expected = authority_words(PRODUCTION_VERIFIER_ROWS, columns, &PRODUCTION_SEED);
     if commitment_key_words != expected {
-        return Err(PackageError::Malformed(
+        return Err(super::Error::Circuit(
             "commitment authority differs from the exact production key prefix",
         ));
     }

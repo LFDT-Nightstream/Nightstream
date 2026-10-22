@@ -382,11 +382,11 @@ impl ApplicationRecords {
         Ok(ControlFlow::Continue(()))
     }
 
-    pub fn evaluate_row(
+    pub fn evaluate_row<E: From<PackageError>>(
         &self,
         row: usize,
-        mut value: impl FnMut(usize) -> Result<u64, PackageError>,
-    ) -> Result<[u64; 3], PackageError> {
+        mut value: impl FnMut(usize) -> Result<u64, E>,
+    ) -> Result<[u64; 3], E> {
         let mut input = self.data.tail(self.row_offset(row)?)?;
         let mut values = [Goldilocks::ZERO; 3];
         let mut counts = [0; 3];
@@ -404,12 +404,12 @@ impl ApplicationRecords {
         Ok(values.map(|value| value.as_canonical_u64()))
     }
 
-    pub fn evaluate_form(
+    pub fn evaluate_form<E: From<PackageError>>(
         &self,
         row: usize,
         form: ApplicationForm,
-        mut value: impl FnMut(usize) -> Result<u64, PackageError>,
-    ) -> Result<u64, PackageError> {
+        mut value: impl FnMut(usize) -> Result<u64, E>,
+    ) -> Result<u64, E> {
         let header = self.row_header(row)?;
         let mut result = canonical(header.constants[form.index()])?;
         let preceding = header.term_counts[..form.index()]

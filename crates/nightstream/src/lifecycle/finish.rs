@@ -286,7 +286,7 @@ impl PreparedLifecycle {
         let fresh_claim = fresh.claim.clone();
 
         let rows = self.matrix_rows();
-        let context = self.fold_context(&rows)?;
+        let context = self.fold_context(&rows).map_err(ProveError::from)?;
         let mut transcript = Transcript::session();
         let (pi_ccs, parent, _) = self
             .backend

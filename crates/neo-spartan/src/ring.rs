@@ -24,7 +24,7 @@ use crate::circuit::algebra;
 use crate::circuit::Backend;
 use crate::circuit::Native;
 use crate::device::Accelerator;
-use crate::field::{ext_words, gl, re_im, Ext, Gl};
+use crate::field::{ext_words, from_word, gl, re_im, Ext, Gl};
 use crate::relation::Shape;
 use crate::ClaimWords;
 
@@ -106,7 +106,7 @@ pub(crate) fn key_weights(shape: &Shape, mixing: &Mixing<Ext>, accelerator: &Acc
                 let power = mixing.commitment(key_row);
                 let key = coefficient_block(&PRODUCTION_SEED, key_row as u32, block as u64);
                 for (out, &coefficient) in out.iter_mut().zip(&key) {
-                    *out += power * Gl::new(coefficient);
+                    *out += power * from_word(coefficient);
                 }
             }
             out

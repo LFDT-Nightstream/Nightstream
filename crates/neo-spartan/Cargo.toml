@@ -22,8 +22,8 @@ rayon = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
 
-# Plonky3 0.8 for WHIR. Only this crate names these types; values cross to the
-# workspace's Plonky3 0.5 types as canonical u64 in `field.rs`.
+# Plonky3 0.8 for WHIR. Only this crate names these types. Workspace values
+# enter them through `field.rs`.
 p3-whir = { version = "=0.8.0", features = ["parallel"] }
 p3-challenger-v08 = { package = "p3-challenger", version = "=0.8.0" }
 p3-commit-v08 = { package = "p3-commit", version = "=0.8.0" }

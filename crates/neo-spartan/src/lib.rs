@@ -66,7 +66,7 @@ use p3_field_v08::PrimeCharacteristicRing;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::field::{gl, re_im, Ext, Gl};
+use crate::field::{from_word, gl, re_im, Ext, Gl};
 use crate::gkr::GkrProof;
 use crate::matrix::{EarlyValues, Structure, Tables};
 use crate::relation::{kappa, Shape};
@@ -236,7 +236,7 @@ fn oracle(tables: &Tables, blocks: usize, k: usize, variables: usize) -> Vec<Gl>
         .for_each(|(block, cells)| {
             let key = coefficient_block(&PRODUCTION_SEED, k as u32, block as u64);
             for (cell, &coefficient) in cells.iter_mut().zip(&key) {
-                *cell = Gl::new(coefficient);
+                *cell = from_word(coefficient);
             }
         });
     column

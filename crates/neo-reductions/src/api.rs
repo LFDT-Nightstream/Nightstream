@@ -69,40 +69,11 @@ pub fn rlc_with_commit(
     ell_d: usize,
     mix_commits: RlcMixer,
 ) -> Result<(CeClaim<Cmt, F, K>, Mat<F>), PiCcsError> {
-    use crate::engines::pi_rlc_dec::{OptimizedRlcDec, RlcDecOps};
+    use crate::engines::pi_rlc_dec::OptimizedRlcDec;
 
-    ensure_superneo_width(s)?;
-    if me_inputs.is_empty() {
-        return Err(PiCcsError::InvalidInput("rlc_with_commit: empty inputs".into()));
-    }
-    if rhos.len() != me_inputs.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "rlc_with_commit: |rhos| mismatch (expected {}, got {})",
-            me_inputs.len(),
-            rhos.len()
-        )));
-    }
-    if Zs.len() != me_inputs.len() {
-        return Err(PiCcsError::InvalidInput(format!(
-            "rlc_with_commit: |Zs| mismatch (expected {}, got {})",
-            me_inputs.len(),
-            Zs.len()
-        )));
-    }
+    let z_refs: Vec<&Mat<F>> = Zs.iter().collect();
+    validate_rlc_refs("rlc_with_commit", s, params, rhos, me_inputs, &z_refs, ell_d)?;
     let rho_mats = crate::common::rot_rhos_to_mats(rhos);
-    validate_ce_claims_shape("rlc_with_commit: me_inputs", s, me_inputs)?;
-    validate_pi_ccs_outputs("rlc_with_commit: selected inputs", s, me_inputs)?;
-    validate_rlc_batch_compatibility("rlc_with_commit", params, me_inputs)?;
-    checked_superneo_d_pad("rlc_with_commit ell_d", ell_d)?;
-    let _ = crate::engines::utils::shared_me_input_r(me_inputs, s.cube_variables())?;
-    for (idx, z) in Zs.iter().enumerate() {
-        crate::common::validate_packed_witness_dec_representable(
-            params,
-            z,
-            s.m,
-            &format!("rlc_with_commit: Zs[{idx}]"),
-        )?;
-    }
 
     let (out, Z_mix) = match mode {
         FoldingMode::Optimized => {
@@ -250,7 +221,7 @@ pub fn dec_children_with_commit<Comb>(
 where
     Comb: Fn(&[Cmt], u32) -> Cmt,
 {
-    use crate::engines::pi_rlc_dec::{OptimizedRlcDec, RlcDecOps};
+    use crate::engines::pi_rlc_dec::OptimizedRlcDec;
     if let Err(e) = validate_dec_boundary_inputs(s, params, parent, Z_split, child_commitments, ell_d) {
         eprintln!("dec_children_with_commit input validation failed: {e}");
         return DecOutcome::rejected();

@@ -1,4 +1,4 @@
-//! RLC/DEC engine trait and implementations.
+//! Optimized PiRLC and PiDEC reductions behind the public `api` entry points.
 
 #![allow(non_snake_case)]
 
@@ -43,30 +43,6 @@ fn digit_flags_match(split: &[Mat<F>], digit_nonzero: &[bool]) -> bool {
         && split.iter().zip(digit_nonzero).all(|(matrix, &flag)| {
             flag == (0..matrix.rows()).any(|row| (0..matrix.cols()).any(|column| matrix[(row, column)] != F::ZERO))
         })
-}
-
-pub trait RlcDecOps {
-    fn rlc_with_commit(
-        s: &CcsStructure<F>,
-        params: &NeoParams,
-        rhos: &[Mat<F>],
-        me_inputs: &[CeClaim<Cmt, F, K>],
-        Zs: &[Mat<F>],
-        ell_d: usize,
-        mix_commits: RlcMixer,
-    ) -> (CeClaim<Cmt, F, K>, Mat<F>);
-
-    fn dec_children_with_commit<Comb>(
-        s: &CcsStructure<F>,
-        params: &NeoParams,
-        parent: &CeClaim<Cmt, F, K>,
-        Z_split: &[Mat<F>],
-        ell_d: usize,
-        child_commitments: &[Cmt],
-        combine_b_pows: Comb,
-    ) -> DecOutcome
-    where
-        Comb: Fn(&[Cmt], u32) -> Cmt;
 }
 
 #[derive(Clone, Debug, Default, Copy)]
@@ -156,8 +132,8 @@ impl OptimizedRlcDec {
     }
 }
 
-impl RlcDecOps for OptimizedRlcDec {
-    fn rlc_with_commit(
+impl OptimizedRlcDec {
+    pub fn rlc_with_commit(
         s: &CcsStructure<F>,
         params: &NeoParams,
         rhos: &[Mat<F>],
@@ -178,7 +154,7 @@ impl RlcDecOps for OptimizedRlcDec {
         )
     }
 
-    fn dec_children_with_commit<Comb>(
+    pub fn dec_children_with_commit<Comb>(
         s: &CcsStructure<F>,
         params: &NeoParams,
         parent: &CeClaim<Cmt, F, K>,

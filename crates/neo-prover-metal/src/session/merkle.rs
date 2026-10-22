@@ -82,8 +82,8 @@ impl MetalSession {
             None => Some(self.buffer_from_slice(values)?),
         };
         let input = wrapped
-            .as_ref()
-            .or(copied.as_ref())
+            .as_deref()
+            .or(copied.as_deref())
             .expect("one of the two buffers");
         let output = self.buffer(rows * poseidon2::DIGEST_LEN * size_of::<u64>())?;
         let leaf_width = self.buffer_from_slice(&[width as u64])?;

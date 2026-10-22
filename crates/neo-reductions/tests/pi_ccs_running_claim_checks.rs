@@ -10,7 +10,7 @@ use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, LaneCommitments, Mat,
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::{pi_ccs_prove, pi_ccs_verify, PiCcsProof};
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::{rand_core::SeedableRng, ChaCha8Rng};
 
@@ -28,7 +28,7 @@ struct Fixture {
 }
 
 fn transcript() -> Poseidon2Transcript {
-    Poseidon2Transcript::new(b"neo.reductions/running-claim-checks")
+    Poseidon2Transcript::new_v1_2()
 }
 
 fn fixture() -> Fixture {

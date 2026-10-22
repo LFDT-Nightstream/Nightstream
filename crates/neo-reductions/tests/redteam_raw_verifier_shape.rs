@@ -5,7 +5,7 @@ use neo_ccs::{CcsClaim, CcsStructure, CeClaim, Mat, SparsePoly};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::PiCcsProof;
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
@@ -33,7 +33,7 @@ fn raw_pi_ccs_verifier_rejects_malformed_ce_shape_without_panicking() {
     let proof = PiCcsProof::new(Vec::new());
 
     let result = catch_unwind(AssertUnwindSafe(|| {
-        let mut tr = Poseidon2Transcript::new(b"redteam/raw_pi_ccs_shape");
+        let mut tr = Poseidon2Transcript::new_v1_2();
         neo_reductions::pi_ccs_verify(
             &mut tr,
             &params,
@@ -75,7 +75,7 @@ fn public_pi_ccs_verifier_handles_documented_unpadded_v1_2_evaluations() {
     let output = claim.clone();
     let proof = PiCcsProof::new(Vec::new());
     let result = catch_unwind(AssertUnwindSafe(|| {
-        let mut transcript = Poseidon2Transcript::new(b"redteam/unpadded-v1_2-evaluations");
+        let mut transcript = Poseidon2Transcript::new_v1_2();
         neo_reductions::pi_ccs_verify(
             &mut transcript,
             &params,

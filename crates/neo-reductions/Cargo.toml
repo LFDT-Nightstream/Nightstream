@@ -12,9 +12,8 @@ workspace = true
 default = ["paper-exact"]
 testing = []
 paper-exact = []
-debug-logs = ["neo-transcript/debug-log"]
+debug-logs = []
 perf-timers = []
-fs-guard = ["neo-transcript/fs-guard"]
 wasm-threads = ["neo-ajtai/wasm-threads", "neo-ccs/wasm-threads"]
 
 [dependencies]

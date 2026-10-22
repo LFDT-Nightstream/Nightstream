@@ -9,7 +9,7 @@ use neo_reductions::api::{
     FoldingMode,
 };
 use neo_reductions::common::{compute_v1_2_evaluations_from_z_and_r, sample_rot_rhos_n_typed, RotRing};
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 
 fn k(v: u64) -> K {
@@ -420,7 +420,7 @@ fn rlc_public_rejects_instance_count_above_parameter_guard() {
     );
     let inputs = vec![input; INPUT_COUNT];
 
-    let mut transcript = Poseidon2Transcript::new(b"redteam/rlc-count-guard");
+    let mut transcript = Poseidon2Transcript::new_v1_2();
     assert!(
         sample_rot_rhos_n_typed(&mut transcript, &params, &RotRing::goldilocks(), INPUT_COUNT,).is_err(),
         "control: the parameter guard must reject sampling 76 challenges"

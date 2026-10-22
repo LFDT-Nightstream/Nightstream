@@ -9,7 +9,7 @@ use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::optimized_engine::PiCcsProof;
 use neo_reductions::{pi_ccs_prove, pi_ccs_verify};
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 
@@ -26,7 +26,6 @@ fn identity_left(n: usize, m: usize) -> Mat<F> {
 type OutputClaim = CeClaim<Commitment, F, K>;
 
 struct HonestProof {
-    label: &'static [u8],
     params: NeoParams,
     structure: CcsStructure<F>,
     claim: CcsClaim<Commitment, F>,
@@ -35,7 +34,7 @@ struct HonestProof {
     proof: PiCcsProof,
 }
 
-fn honest_proof(label: &'static [u8]) -> HonestProof {
+fn honest_proof() -> HonestProof {
     let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(4, 4).expect("params");
     let structure = CcsStructure::new(
         vec![identity_left(4, D)],
@@ -63,7 +62,7 @@ fn honest_proof(label: &'static [u8]) -> HonestProof {
 
     let (running, running_witnesses) = zero_running::zero_running(&params, &structure, 1, 0);
 
-    let mut prover_transcript = Poseidon2Transcript::new(label);
+    let mut prover_transcript = Poseidon2Transcript::new_v1_2();
     let (outputs, proof) = pi_ccs_prove(
         &mut prover_transcript,
         &params,
@@ -76,7 +75,6 @@ fn honest_proof(label: &'static [u8]) -> HonestProof {
     .expect("honest proof");
 
     HonestProof {
-        label,
         params,
         structure,
         claim,
@@ -87,7 +85,7 @@ fn honest_proof(label: &'static [u8]) -> HonestProof {
 }
 
 fn raw_accepts(fixture: &HonestProof, outputs: &[OutputClaim], proof: &PiCcsProof) -> bool {
-    let mut verifier_transcript = Poseidon2Transcript::new(fixture.label);
+    let mut verifier_transcript = Poseidon2Transcript::new_v1_2();
     pi_ccs_verify(
         &mut verifier_transcript,
         &fixture.params,
@@ -102,7 +100,7 @@ fn raw_accepts(fixture: &HonestProof, outputs: &[OutputClaim], proof: &PiCcsProo
 
 #[test]
 fn raw_pi_ccs_rejects_nonzero_fresh_output_eval_k_padding() {
-    let fixture = honest_proof(b"redteam/raw-pi-ccs/eval-k-padding");
+    let fixture = honest_proof();
     let mut malformed = fixture.outputs.clone();
     assert!(D < malformed[0].eval_k.len(), "fixture must expose Eval_K padding");
     malformed[0].eval_k[D] = K::ONE;
@@ -115,7 +113,7 @@ fn raw_pi_ccs_rejects_nonzero_fresh_output_eval_k_padding() {
 
 #[test]
 fn raw_pi_ccs_rejects_noncanonical_output_widths() {
-    let fixture = honest_proof(b"redteam/raw-pi-ccs/output-widths");
+    let fixture = honest_proof();
     assert!(
         raw_accepts(&fixture, &fixture.outputs, &fixture.proof),
         "baseline proof must verify"

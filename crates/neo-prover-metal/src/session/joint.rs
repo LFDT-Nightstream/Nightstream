@@ -27,7 +27,10 @@ mod support;
 use crate::oracle_error;
 use application::ApplicationTables;
 use assignments::AssignmentTables;
-use support::*;
+use support::{
+    equality_round_affine, equality_suffix_chunk_words, joint_term_metadata, k_power, k_words, nonempty,
+    restrict_equality_prefix, ring_words,
+};
 
 #[cfg(test)]
 #[path = "../../tests/unit/joint_buffers.rs"]

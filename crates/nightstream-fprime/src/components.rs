@@ -10,10 +10,9 @@ use serde::Deserialize;
 use serde_json::Value;
 use thiserror::Error;
 
-const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 // The selected Nightstream profile, in the exported profile field order.
 const PROFILE: [u64; 8] = [
-    GOLDILOCKS_MODULUS,
+    Goldilocks::ORDER_U64,
     crate::DECOMPOSITION_BASE,
     crate::DECOMPOSITION_K_RHO as u64,
     crate::DECOMPOSITION_NORM_BOUND,
@@ -42,7 +41,7 @@ impl SparseForm {
     pub fn new(entries: impl IntoIterator<Item = (usize, u64)>) -> Result<Self, ComponentError> {
         let mut terms = Vec::new();
         for (column, coefficient) in entries {
-            if coefficient >= GOLDILOCKS_MODULUS {
+            if coefficient >= Goldilocks::ORDER_U64 {
                 return Err(ComponentError::Invalid("noncanonical field coefficient"));
             }
             terms.push((column, Goldilocks::from_u64(coefficient)));

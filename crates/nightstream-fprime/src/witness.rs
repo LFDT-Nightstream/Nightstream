@@ -5,7 +5,7 @@ use p3_goldilocks::Goldilocks;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::package::{PackageError, GOLDILOCKS_MODULUS};
+use crate::package::PackageError;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(super) struct RawWitnessBatch(pub(super) u64, pub(super) Vec<Value>, pub(super) Vec<Value>);
@@ -249,7 +249,7 @@ fn decode_expr_with(
             let constant = constant
                 .as_u64()
                 .ok_or(PackageError::Invalid("witness expression constant"))?;
-            if constant >= GOLDILOCKS_MODULUS {
+            if constant >= Goldilocks::ORDER_U64 {
                 return Err(PackageError::NonCanonicalField {
                     location: "witness expression constant",
                     value: constant,

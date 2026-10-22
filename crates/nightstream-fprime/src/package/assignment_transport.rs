@@ -1,10 +1,13 @@
 //! Strict decoding and execution of the Lean-owned final-assignment transport.
 
+use p3_field::PrimeField64;
+use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use crate::WitnessAssignment;
 
-use super::{Layout, PackageError, GOLDILOCKS_MODULUS};
+use super::json::{exact_array, usize_atom};
+use super::{Layout, PackageError};
 
 const TRANSPORT_SCHEMA: usize = 3;
 pub(super) const BLOCK_COUNT: usize = 26;
@@ -12,7 +15,7 @@ pub(super) const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
 const PHI81_INVOCATIONS: usize = 33_966;
 const PHI81_RING_DEGREE: usize = 54;
-const CENTERED_HALF_MODULUS: u64 = (GOLDILOCKS_MODULUS - 1) / 2;
+const CENTERED_HALF_MODULUS: u64 = (Goldilocks::ORDER_U64 - 1) / 2;
 
 const PRODUCT_QUOTIENT_BLOCK: usize = 3;
 const CHALLENGE_WORDS_BLOCK: usize = 4;
@@ -92,7 +95,7 @@ impl LogicalAssignment {
 
     pub fn value(&self, column: usize) -> Result<u64, PackageError> {
         match self.values.get(column).copied() {
-            Some(-1) => Ok(GOLDILOCKS_MODULUS - 1),
+            Some(-1) => Ok(Goldilocks::ORDER_U64 - 1),
             Some(0) => Ok(0),
             Some(1) => Ok(1),
             Some(_) => Err(PackageError::Invalid("logical assignment coordinate")),
@@ -130,7 +133,7 @@ impl Expression {
             .ok_or(PackageError::Invalid("assignment expression tag"))?;
         match (tag, fields.as_slice()) {
             (0, [_, column]) => {
-                let column = word(column, "assignment expression column")?;
+                let column = usize_atom(column, "assignment expression column")?;
                 if column >= physical_width {
                     return Err(PackageError::Invalid("assignment expression column bound"));
                 }
@@ -140,7 +143,7 @@ impl Expression {
                 let constant = constant
                     .as_u64()
                     .ok_or(PackageError::Invalid("assignment expression constant"))?;
-                if constant >= GOLDILOCKS_MODULUS {
+                if constant >= Goldilocks::ORDER_U64 {
                     return Err(PackageError::NonCanonicalField {
                         location: "assignment expression constant",
                         value: constant,
@@ -179,7 +182,7 @@ impl Expression {
 
 impl SourceDomain {
     fn decode(value: &Value) -> Result<Self, PackageError> {
-        match word(value, "assignment source domain")? {
+        match usize_atom(value, "assignment source domain")? {
             0 => Ok(Self::Retained),
             1 => Ok(Self::Physical),
             _ => Err(PackageError::Invalid("assignment source domain")),
@@ -211,9 +214,9 @@ fn decode_source_runs(value: &Value, expected_count: usize, domain_width: usize)
     let mut covered = 0usize;
     for value in run_values {
         let fields = exact_array(value, 3, "assignment source run")?;
-        let first = word(&fields[0], "assignment source run first")?;
-        let step = word(&fields[1], "assignment source run step")?;
-        let count = word(&fields[2], "assignment source run count")?;
+        let first = usize_atom(&fields[0], "assignment source run first")?;
+        let step = usize_atom(&fields[1], "assignment source run step")?;
+        let count = usize_atom(&fields[2], "assignment source run count")?;
         if count == 0 || (count == 1 && step != 0) {
             return Err(PackageError::Invalid("noncanonical assignment source run"));
         }
@@ -273,14 +276,14 @@ impl BlockPlan {
         retained_width: usize,
     ) -> Result<Self, PackageError> {
         let fields = exact_array(value, 5, "assignment block plan")?;
-        let opcode = word(&fields[0], "assignment block opcode")?;
+        let opcode = usize_atom(&fields[0], "assignment block opcode")?;
         if opcode != expected_opcode {
             return Err(PackageError::Invalid("assignment block order"));
         }
-        if word(&fields[1], "assignment slot kind")? != 2 {
+        if usize_atom(&fields[1], "assignment slot kind")? != 2 {
             return Err(PackageError::Invalid("assignment slot kind"));
         }
-        let slot_count = word(&fields[2], "assignment block slot count")?;
+        let slot_count = usize_atom(&fields[2], "assignment block slot count")?;
         let domain = SourceDomain::decode(&fields[3])?;
         let expected_domain = match opcode {
             24..=25 => SourceDomain::Physical,
@@ -428,7 +431,7 @@ impl Phi81Recipe {
         let expected_constants = [54, 27, 81, 54];
         let constants = fields[..4]
             .iter()
-            .map(|value| word(value, "Phi81 assignment constant"))
+            .map(|value| usize_atom(value, "Phi81 assignment constant"))
             .collect::<Result<Vec<_>, _>>()?;
         if constants != expected_constants {
             return Err(PackageError::Invalid("Phi81 assignment constants"));
@@ -446,9 +449,9 @@ impl Phi81Recipe {
         for (value, expected) in shapes.iter().zip(expected_shapes) {
             let shape = exact_array(value, 3, "Phi81 family shape")?;
             let decoded = [
-                word(&shape[0], "Phi81 family source count")?,
-                word(&shape[1], "Phi81 family block count")?,
-                word(&shape[2], "Phi81 family cell count")?,
+                usize_atom(&shape[0], "Phi81 family source count")?,
+                usize_atom(&shape[1], "Phi81 family block count")?,
+                usize_atom(&shape[2], "Phi81 family cell count")?,
             ];
             if decoded != expected {
                 return Err(PackageError::Invalid("Phi81 family shape"));
@@ -469,11 +472,11 @@ impl Phi81Recipe {
         }
 
         let selectors = [
-            word(&fields[5], "Phi81 challenge block")?,
-            word(&fields[6], "Phi81 challenge slot base")?,
-            word(&fields[7], "Phi81 challenge source stride")?,
-            word(&fields[8], "Phi81 challenge shift")?,
-            word(&fields[10], "Phi81 quotient output block")?,
+            usize_atom(&fields[5], "Phi81 challenge block")?,
+            usize_atom(&fields[6], "Phi81 challenge slot base")?,
+            usize_atom(&fields[7], "Phi81 challenge source stride")?,
+            usize_atom(&fields[8], "Phi81 challenge shift")?,
+            usize_atom(&fields[10], "Phi81 quotient output block")?,
         ];
         if selectors != [CHALLENGE_WORDS_BLOCK, 0, 54, 2, PRODUCT_QUOTIENT_BLOCK] {
             return Err(PackageError::Invalid("Phi81 assignment selectors"));
@@ -548,7 +551,7 @@ pub(super) fn decode(
     logical_width: usize,
 ) -> Result<LoadedAssignmentPlan, PackageError> {
     let fields = exact_array(value, 5, "assignment transport plan")?;
-    if word(&fields[0], "assignment transport schema")? != TRANSPORT_SCHEMA {
+    if usize_atom(&fields[0], "assignment transport schema")? != TRANSPORT_SCHEMA {
         return Err(PackageError::Invalid("assignment transport schema version"));
     }
 
@@ -583,7 +586,7 @@ pub(super) fn decode(
     }
 
     phi81.validate(&blocks, physical_width)?;
-    let output_digest_block = word(&fields[3], "output digest block selector")?;
+    let output_digest_block = usize_atom(&fields[3], "output digest block selector")?;
     if output_digest_block != OUTPUT_DIGEST_BLOCK {
         return Err(PackageError::Invalid("output digest block selector"));
     }
@@ -668,7 +671,7 @@ impl<'a> PhysicalAssignment<'a> {
                 .get(column - self.constant_column - 1)
                 .ok_or(PackageError::Invalid("physical public assignment column"))?
         };
-        if value >= GOLDILOCKS_MODULUS {
+        if value >= Goldilocks::ORDER_U64 {
             return Err(PackageError::NonCanonicalField {
                 location: "physical assignment",
                 value,
@@ -824,7 +827,7 @@ fn append_public(
 }
 
 fn encode_slot(value: u64, output: &mut Vec<i8>) -> Result<(), PackageError> {
-    if value >= GOLDILOCKS_MODULUS {
+    if value >= Goldilocks::ORDER_U64 {
         return Err(PackageError::NonCanonicalField {
             location: "logical assignment source",
             value,
@@ -840,7 +843,7 @@ fn encode_slot(value: u64, output: &mut Vec<i8>) -> Result<(), PackageError> {
 
 fn encode_field(value: u64, output: &mut Vec<i8>) {
     let negative = value > CENTERED_HALF_MODULUS;
-    let mut magnitude = if negative { GOLDILOCKS_MODULUS - value } else { value };
+    let mut magnitude = if negative { Goldilocks::ORDER_U64 - value } else { value };
     for _ in 0..FIELD_COORDINATES {
         let remainder = magnitude % 3;
         let unsigned = match remainder {
@@ -855,18 +858,18 @@ fn encode_field(value: u64, output: &mut Vec<i8>) {
 }
 
 fn add_mod(left: u64, right: u64) -> u64 {
-    ((u128::from(left) + u128::from(right)) % u128::from(GOLDILOCKS_MODULUS)) as u64
+    ((u128::from(left) + u128::from(right)) % u128::from(Goldilocks::ORDER_U64)) as u64
 }
 
 fn mul_mod(left: u64, right: u64) -> u64 {
-    ((u128::from(left) * u128::from(right)) % u128::from(GOLDILOCKS_MODULUS)) as u64
+    ((u128::from(left) * u128::from(right)) % u128::from(Goldilocks::ORDER_U64)) as u64
 }
 
 fn neg_mod(value: u64) -> u64 {
     if value == 0 {
         0
     } else {
-        GOLDILOCKS_MODULUS - value
+        Goldilocks::ORDER_U64 - value
     }
 }
 
@@ -895,21 +898,6 @@ fn block(blocks: &[BlockPlan], opcode: usize) -> Result<&BlockPlan, PackageError
         .get(opcode)
         .filter(|block| block.opcode == opcode)
         .ok_or(PackageError::Invalid("assignment block selector"))
-}
-
-fn exact_array<'a>(value: &'a Value, expected_len: usize, location: &'static str) -> Result<&'a [Value], PackageError> {
-    let values = value.as_array().ok_or(PackageError::Invalid(location))?;
-    if values.len() != expected_len {
-        return Err(PackageError::Invalid(location));
-    }
-    Ok(values)
-}
-
-fn word(value: &Value, location: &'static str) -> Result<usize, PackageError> {
-    value
-        .as_u64()
-        .and_then(|word| usize::try_from(word).ok())
-        .ok_or(PackageError::Invalid(location))
 }
 
 #[cfg(test)]

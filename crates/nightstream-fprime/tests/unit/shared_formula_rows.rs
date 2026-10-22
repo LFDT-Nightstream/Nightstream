@@ -323,7 +323,7 @@ fn template_scratch_matches_append_normalization_and_reuses_empty_ports() {
         vec![(0, 3), (1, 3), (2, 1), (3, 1), (4, 1), (5, 7), (6, 1)],
         vec![(2, 1)],
         vec![(5, 1)],
-        vec![(2, GOLDILOCKS_MODULUS - 1)],
+        vec![(2, Goldilocks::ORDER_U64 - 1)],
         vec![(2, 0)],
         vec![(0, 1), (1, 1)],
         vec![(0, 1), (1, 1), (2, 1)],

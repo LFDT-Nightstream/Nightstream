@@ -177,7 +177,7 @@ fn every_lean_matrix_opcode_decodes_exact_rows() {
     let phi_row = poseidon_row + 150;
     assert_eq!(
         entries(&program, phi_row, 0),
-        vec![(7_000, 1), (9_999, GOLDILOCKS_MODULUS - 2)]
+        vec![(7_000, 1), (9_999, Goldilocks::ORDER_U64 - 2)]
     );
     assert_eq!(entries(&program, phi_row, 1), vec![(7_054, 1)]);
     assert_eq!(entries(&program, phi_row, 2), vec![(7_108, 1), (7_162, 1)]);
@@ -235,7 +235,7 @@ fn malformed_matrix_programs_fail_closed() {
         Err(PackageError::Invalid("production matrix block tag"))
     ));
     assert!(matches!(
-        MatrixProgram::decode(&json!([[1, [[[0, GOLDILOCKS_MODULUS]]]]])),
+        MatrixProgram::decode(&json!([[1, [[[0, Goldilocks::ORDER_U64]]]]])),
         Err(PackageError::NonCanonicalField { .. })
     ));
 

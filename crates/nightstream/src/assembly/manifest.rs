@@ -1,5 +1,7 @@
 use std::collections::BTreeSet;
 
+use p3_field::PrimeField64;
+use p3_goldilocks::Goldilocks;
 use serde::Deserialize;
 use serde_json::Value;
 
@@ -8,7 +10,7 @@ use crate::application::ApplicationCircuit;
 use super::{wire::Envelope, AssemblyError};
 
 const PROFILE: [u64; 8] = [
-    0xffff_ffff_0000_0001,
+    Goldilocks::ORDER_U64,
     nightstream_fprime::DECOMPOSITION_BASE,
     nightstream_fprime::DECOMPOSITION_K_RHO as u64,
     nightstream_fprime::DECOMPOSITION_NORM_BOUND,

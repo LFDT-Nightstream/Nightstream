@@ -69,7 +69,7 @@ fn mul(a: usize, b: usize) -> Result<usize, PackageError> {
         .ok_or_else(|| invalid("application record count overflow"))
 }
 fn canonical(value: u64) -> Result<Goldilocks, PackageError> {
-    if value >= crate::package::GOLDILOCKS_MODULUS {
+    if value >= Goldilocks::ORDER_U64 {
         return Err(PackageError::NonCanonicalField {
             location: "application record",
             value,

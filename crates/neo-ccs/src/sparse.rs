@@ -7,16 +7,40 @@ use p3_field::{Field, PrimeCharacteristicRing};
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+/// A canonical compressed-sparse-column matrix: column pointers start at 0
+/// and end at the entry count, rows are strictly increasing in each column,
+/// and no stored value is zero. The fields are private, so every matrix keeps
+/// that form.
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CscMat<Ff> {
-    pub nrows: usize,
-    pub ncols: usize,
-    pub col_ptr: Vec<u32>,
-    pub row_idx: Vec<u32>,
-    pub vals: Vec<Ff>,
+    nrows: usize,
+    ncols: usize,
+    col_ptr: Vec<u32>,
+    row_idx: Vec<u32>,
+    vals: Vec<Ff>,
 }
 
 impl<Ff> CscMat<Ff> {
+    pub fn nrows(&self) -> usize {
+        self.nrows
+    }
+
+    pub fn ncols(&self) -> usize {
+        self.ncols
+    }
+
+    pub fn col_ptr(&self) -> &[u32] {
+        &self.col_ptr
+    }
+
+    pub fn row_idx(&self) -> &[u32] {
+        &self.row_idx
+    }
+
+    pub fn vals(&self) -> &[Ff] {
+        &self.vals
+    }
+
     #[inline]
     pub fn column_range(&self, column: usize) -> core::ops::Range<usize> {
         self.col_ptr[column] as usize..self.col_ptr[column + 1] as usize
@@ -29,7 +53,28 @@ impl<Ff> CscMat<Ff> {
 }
 
 impl<Ff: Field> CscMat<Ff> {
-    pub fn is_canonical(&self) -> bool {
+    /// Build a matrix from its parts, and reject parts that are not canonical.
+    pub fn new(
+        nrows: usize,
+        ncols: usize,
+        col_ptr: Vec<u32>,
+        row_idx: Vec<u32>,
+        vals: Vec<Ff>,
+    ) -> Result<Self, crate::RelationError> {
+        let matrix = Self {
+            nrows,
+            ncols,
+            col_ptr,
+            row_idx,
+            vals,
+        };
+        if !matrix.is_canonical() {
+            return Err(crate::RelationError::Message("CSC matrix is not canonical".into()));
+        }
+        Ok(matrix)
+    }
+
+    fn is_canonical(&self) -> bool {
         if self.col_ptr.len() != self.ncols + 1
             || self.row_idx.len() != self.vals.len()
             || self.col_ptr.first().copied() != Some(0)
@@ -380,7 +425,7 @@ fn compact_csc_indices(indices: Vec<usize>, kind: &str) -> Vec<u32> {
         .collect()
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum CcsMatrix<Ff> {
     Identity {
         n: usize,

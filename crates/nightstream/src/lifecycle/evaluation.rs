@@ -89,7 +89,7 @@ impl PreparedLifecycle {
             .backend
             .memory_limit_bytes()
             .saturating_sub(CPU_MEMORY_LIMIT_BYTES);
-        let columns = self.structure.m.div_ceil(D);
+        let columns = self.structure.m().div_ceil(D);
         if let Some(key) = self
             .backend
             .commitment_key_bytes(columns)
@@ -106,8 +106,8 @@ impl PreparedLifecycle {
     /// before giving rows working space. This accounts for engine payload, not
     /// package/allocator/driver RSS.
     pub(crate) fn matrix_workspace_bytes(&self) -> Result<usize, EngineError> {
-        let width = self.structure.m.div_ceil(D) as u128 * D as u128;
-        let rows = self.structure.n as u128;
+        let width = self.structure.m().div_ceil(D) as u128 * D as u128;
+        let rows = self.structure.n() as u128;
         let sources = nightstream_fprime::PI_CCS_V1_2_SOURCE_COUNT as u128;
         let blocks = width / D as u128;
         let masks = sources * blocks * (4 * size_of::<u64>() + size_of::<bool>()) as u128;

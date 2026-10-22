@@ -268,18 +268,14 @@ fn push_field_digest_chunks<'a, Ff>(leaves: &mut Vec<CcsDigestLeaf<'a, Ff>>, mat
 fn digest_ccs_matrices_tree<Ff: Field + PrimeField64 + Sync>(s: &CcsStructure<Ff>) -> Vec<Goldilocks> {
     let mut leaves = Vec::new();
 
-    for (j, matrix) in s.matrices.iter().enumerate() {
+    for (j, matrix) in s.matrices().iter().enumerate() {
         match matrix {
             CcsMatrix::Identity { n } => {
                 leaves.push(CcsDigestLeaf::Identity { matrix: j, n: *n });
             }
             CcsMatrix::Csc(csc_from_s) => {
-                let (nrows, ncols) = (csc_from_s.nrows, csc_from_s.ncols);
-                let (col_ptr, row_idx, vals) = (
-                    csc_from_s.col_ptr.as_slice(),
-                    csc_from_s.row_idx.as_slice(),
-                    csc_from_s.vals.as_slice(),
-                );
+                let (nrows, ncols) = (csc_from_s.nrows(), csc_from_s.ncols());
+                let (col_ptr, row_idx, vals) = (csc_from_s.col_ptr(), csc_from_s.row_idx(), csc_from_s.vals());
 
                 leaves.push(CcsDigestLeaf::Metadata {
                     matrix: j,
@@ -296,15 +292,15 @@ fn digest_ccs_matrices_tree<Ff: Field + PrimeField64 + Sync>(s: &CcsStructure<Ff
             CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
                 leaves.push(CcsDigestLeaf::Metadata {
                     matrix: j,
-                    nrows: csc.nrows,
-                    ncols: csc.ncols,
-                    col_ptr_len: csc.col_ptr.len(),
-                    row_idx_len: csc.row_idx.len(),
-                    vals_len: csc.vals.len(),
+                    nrows: csc.nrows(),
+                    ncols: csc.ncols(),
+                    col_ptr_len: csc.col_ptr().len(),
+                    row_idx_len: csc.row_idx().len(),
+                    vals_len: csc.vals().len(),
                 });
-                push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_COL_PTR, &csc.col_ptr);
-                push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, &csc.row_idx);
-                push_field_digest_chunks(&mut leaves, j, &csc.vals);
+                push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_COL_PTR, csc.col_ptr());
+                push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, csc.row_idx());
+                push_field_digest_chunks(&mut leaves, j, csc.vals());
                 for (chunk, values) in geometric_runs
                     .chunks(CCS_DIGEST_GEOMETRIC_RUNS_PER_CHUNK)
                     .enumerate()
@@ -333,8 +329,8 @@ fn digest_ccs_matrices_tree<Ff: Field + PrimeField64 + Sync>(s: &CcsStructure<Ff
     let mut state = [Goldilocks::ZERO; WIDTH];
     let mut absorbed = 0usize;
     absorb_digest_bytes(&poseidon2, &mut state, &mut absorbed, b"neo/ccs/matrices/v3-tree");
-    absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.n as u64);
-    absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.m as u64);
+    absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.n() as u64);
+    absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.m() as u64);
     absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.t() as u64);
     absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, leaf_digests.len() as u64);
     poseidon2.permute_mut(&mut state);

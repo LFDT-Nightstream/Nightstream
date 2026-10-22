@@ -25,7 +25,7 @@ where
         PiCcsError::ProtocolError(format!("verify_dec_public: {reason}"))
     }
 
-    if s.m == 0 {
+    if s.m() == 0 {
         return Err(reject("empty structure"));
     }
     if params.b() < 2 {
@@ -62,7 +62,7 @@ where
         return Err(reject("parent point differs from the children"));
     }
 
-    if parent.m_in > s.m {
+    if parent.m_in > s.m() {
         return Err(reject("parent public width exceeds the structure"));
     }
     let Some(x_cols) = neo_ccs::superneo_public_x_cols(parent.m_in) else {
@@ -72,7 +72,7 @@ where
         return Err(reject("parent X shape"));
     }
     for ch in children {
-        if ch.m_in > s.m {
+        if ch.m_in > s.m() {
             return Err(reject("child public width exceeds the structure"));
         }
         if ch.m_in != parent.m_in {

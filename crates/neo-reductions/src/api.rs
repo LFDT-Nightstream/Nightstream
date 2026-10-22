@@ -140,7 +140,7 @@ fn validate_rlc_refs(
     checked_superneo_d_pad(&format!("{label} ell_d"), ell_d)?;
     let _ = crate::engines::utils::shared_me_input_r(me_inputs, s.cube_variables())?;
     for (idx, z) in Zs.iter().enumerate() {
-        crate::common::validate_packed_witness_dec_representable(params, z, s.m, &format!("{label}: Zs[{idx}]"))?;
+        crate::common::validate_packed_witness_dec_representable(params, z, s.m(), &format!("{label}: Zs[{idx}]"))?;
     }
     Ok(())
 }

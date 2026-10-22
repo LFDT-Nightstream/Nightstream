@@ -61,8 +61,8 @@ impl OptimizedStructureCache {
                     let out = build_superneo_eval_cache(s).ok_or_else(|| {
                         PiCcsError::InvalidInput(format!(
                             "optimized cache requires SuperNeo-compatible CCS shape (m={}, matrices={})",
-                            s.m,
-                            s.matrices.len()
+                            s.m(),
+                            s.matrices().len()
                         ))
                     });
                     #[cfg(feature = "perf-timers")]
@@ -135,7 +135,7 @@ impl OptimizedStructureCache {
         Ok(Self {
             superneo: Arc::new(superneo),
             matrix_digest,
-            shape: (s.n, s.m, s.matrices.len()),
+            shape: (s.n(), s.m(), s.matrices().len()),
         })
     }
 
@@ -148,7 +148,7 @@ impl OptimizedStructureCache {
     }
 
     pub fn validate_structure(&self, structure: &CcsStructure<F>) -> Result<(), PiCcsError> {
-        if self.shape != (structure.n, structure.m, structure.t()) {
+        if self.shape != (structure.n(), structure.m(), structure.t()) {
             return Err(PiCcsError::InvalidInput(
                 "optimized structure cache shape does not match the selected CCS structure".into(),
             ));

@@ -27,8 +27,8 @@ pub(super) fn check(package_path: &Path, identity: [u64; 4], input_path: &Path, 
     drop((package, bytes));
     let level = neo_params::NeoParams::nightstream_goldilocks_k16()
         .padded_row_security_summary_for_shape(
-            structure.n,
-            structure.m,
+            structure.n(),
+            structure.m(),
             structure.t(),
             structure.max_degree(),
             neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
@@ -37,7 +37,7 @@ pub(super) fn check(package_path: &Path, identity: [u64; 4], input_path: &Path, 
         .security_bits;
     let params = Params::for_ccs_shape(
         structure.domain_rows(),
-        structure.m,
+        structure.m(),
         structure.t(),
         structure.max_degree(),
         level,

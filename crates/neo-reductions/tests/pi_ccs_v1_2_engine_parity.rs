@@ -57,7 +57,7 @@ fn selected_parameters(structure: &CcsStructure<F>) -> NeoParams {
     let summary = params
         .padded_row_security_summary_for_shape(
             structure.domain_rows(),
-            structure.m,
+            structure.m(),
             structure.t(),
             structure.max_degree(),
             neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
@@ -336,7 +336,7 @@ fn every_joint_round_polynomial_and_fold_matches() {
         let cache = OptimizedStructureCache::build(&structure).expect("cache");
         let source = CachedMatrixRows::new(cache.superneo()).expect("matrix rows");
         let payload = fresh.len() * structure.t() * size_of::<K>() + size_of::<F>() + size_of::<K>();
-        let workspace_bytes = MatrixWindow::required_workspace(&source, 0..structure.n, payload)
+        let workspace_bytes = MatrixWindow::required_workspace(&source, 0..structure.n(), payload)
             .expect("fixture row workspace")
             + (dims.degree + 1 + structure.t()) * size_of::<K>();
         let mut paper = PaperJointOracle::new(

@@ -67,13 +67,13 @@ fn verify_rejects_a_second_split_of_the_running_parent() {
     let structure = package.structure();
     let params = Params::for_ccs_shape(
         structure.domain_rows(),
-        structure.m,
+        structure.m(),
         structure.t(),
         structure.max_degree(),
         114,
     )
     .unwrap();
-    let blocks = structure.m.div_ceil(D);
+    let blocks = structure.m().div_ceil(D);
     let state = Stage1State::new(1, [F::ZERO; 4], [F::ONE; 4]);
     let envelope = |digits: &[(usize, F)]| {
         let mut running = RunningInstance::canonical_zero(&params, structure, PARENT_COORDINATES).unwrap();

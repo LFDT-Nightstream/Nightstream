@@ -8,7 +8,7 @@ fn verifier_artifact_header_is_shape_only_and_cannot_enter_sparse_constructor() 
         .expect("valid verifier-artifact header");
     header.validate().expect("valid header shape");
     assert!(header.is_verifier_artifact_header());
-    assert_eq!((header.n, header.m, header.t()), (4, 8, 2));
+    assert_eq!((header.n(), header.m(), header.t()), (4, 8, 2));
 
     let marker = CcsMatrix::<F>::VerifierArtifact { rows: 4, cols: 8 };
     assert!(CcsStructure::new_sparse(vec![marker; 2], SparsePoly::new(2, Vec::new())).is_err());
@@ -33,7 +33,7 @@ fn declared_domain_sets_the_joint_rows_and_must_hold_the_carrier() {
         .with_domain_variables(10)
         .expect("the rows and the carrier fit 2^10");
     pinned.validate().expect("valid pinned header");
-    assert_eq!((pinned.n, pinned.domain_rows()), (4, 1 << 10));
+    assert_eq!((pinned.n(), pinned.domain_rows()), (4, 1 << 10));
 
     assert!(header.with_domain_variables(5).is_err());
 }

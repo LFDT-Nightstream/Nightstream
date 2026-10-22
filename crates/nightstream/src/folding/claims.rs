@@ -41,7 +41,7 @@ impl RunningInstance {
         self.claims.len() == self.witnesses.len()
     }
     pub(crate) fn canonical_zero(pp: &Params, s: &Structure, m_in: usize) -> Result<Self, &'static str> {
-        let Some(x_cols) = superneo_public_x_cols(m_in).filter(|_| m_in <= s.m) else {
+        let Some(x_cols) = superneo_public_x_cols(m_in).filter(|_| m_in <= s.m()) else {
             return Err("canonical zero public input shape");
         };
         let ell = s.cube_variables();
@@ -57,7 +57,7 @@ impl RunningInstance {
         };
         Ok(Self::new(
             vec![claim; pp.k_rho() as usize],
-            vec![Mat::virtual_constant(D, s.m.div_ceil(D), F::ZERO); pp.k_rho() as usize],
+            vec![Mat::virtual_constant(D, s.m().div_ceil(D), F::ZERO); pp.k_rho() as usize],
         ))
     }
 }

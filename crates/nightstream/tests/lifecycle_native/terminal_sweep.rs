@@ -347,7 +347,11 @@ fn terminal_rejects_every_authoritative_envelope_change() {
     let (source, binding) = crate::assembly::prepare(&bytes, &application).unwrap();
     drop(bytes);
     let package = PreparedLifecycle::from_package(source.into(), binding, Backend::Optimized, 114).unwrap();
-    assert_ne!(package.structure.m % D, 0, "the selected carrier has a completion tail");
+    assert_ne!(
+        package.structure.m() % D,
+        0,
+        "the selected carrier has a completion tail"
+    );
     let first = output(initial, message);
     let base = package
         .extend_with_output(Stage1Envelope::initial(initial), &words, first, None)

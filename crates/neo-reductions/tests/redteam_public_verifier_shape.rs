@@ -106,7 +106,7 @@ fn build_me_from_z(
     _aux_seed: u64,
 ) -> CeClaim<Commitment, F, K> {
     let evaluations = compute_v1_2_evaluations_from_z_and_r(structure, z, r, ell_d);
-    let X = neo_reductions::common::project_x_from_witness_mat(z, structure.m, m_in).expect("project X");
+    let X = neo_reductions::common::project_x_from_witness_mat(z, structure.m(), m_in).expect("project X");
     CeClaim {
         c: commitment,
         X,
@@ -125,10 +125,10 @@ fn rlc_public_matches_rejects_common_short_row_point() {
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let m_in = D;
-    let r = vec![k(5); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
+    let r = vec![k(5); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
 
-    let z0 = make_z(91_000, structure.m);
-    let z1 = make_z(92_000, structure.m);
+    let z0 = make_z(91_000, structure.m());
+    let z1 = make_z(92_000, structure.m());
     let mut inputs = vec![
         build_me_from_z(
             &params,
@@ -191,8 +191,8 @@ fn verify_dec_public_rejects_common_short_row_point() {
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
     let m_in = D;
-    let r = vec![k(13); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
-    let z_split = vec![Mat::zero(D, structure.m / D, F::ZERO); params.k_rho() as usize];
+    let r = vec![k(13); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
+    let z_split = vec![Mat::zero(D, structure.m() / D, F::ZERO); params.k_rho() as usize];
 
     let mut z_parent = Mat::zero(D, z_split[0].cols(), F::ZERO);
     let mut power = F::ONE;
@@ -259,8 +259,8 @@ fn verify_dec_public_rejects_child_count_different_from_k_rho() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
-    let r = vec![k(17); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
-    let mut z = Mat::zero(D, structure.m / D, F::ZERO);
+    let r = vec![k(17); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
+    let mut z = Mat::zero(D, structure.m() / D, F::ZERO);
     z[(0, 0)] = F::ONE;
     let child = build_me_from_z(&params, &structure, &z, &r, ell_d, D, make_commitment(120_001), 120_002);
     let parent = child.clone();
@@ -285,10 +285,10 @@ fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
-    let r = vec![k(19); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
+    let r = vec![k(19); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
     let child_count = params.k_rho() as usize;
 
-    let mut child_zs = vec![Mat::zero(D, structure.m / D, F::ZERO); child_count];
+    let mut child_zs = vec![Mat::zero(D, structure.m() / D, F::ZERO); child_count];
     child_zs[0][(0, 0)] = F::from_u64(params.b() as u64);
 
     let child_commitments = (0..child_count)
@@ -316,7 +316,7 @@ fn verify_dec_public_rejects_out_of_range_child_x_at_correct_arity() {
         "control: public child coordinate b must be outside CE(b)"
     );
 
-    let mut parent_z = Mat::zero(D, structure.m / D, F::ZERO);
+    let mut parent_z = Mat::zero(D, structure.m() / D, F::ZERO);
     let mut power = F::ONE;
     let b_f = F::from_u64(params.b() as u64);
     for z in &child_zs {
@@ -399,8 +399,8 @@ fn rlc_public_rejects_instance_count_above_parameter_guard() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
-    let r = vec![k(23); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
-    let z = Mat::zero(D, structure.m / D, F::ZERO);
+    let r = vec![k(23); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
+    let z = Mat::zero(D, structure.m() / D, F::ZERO);
     let input = build_me_from_z(&params, &structure, &z, &r, ell_d, D, make_commitment(130_000), 130_001);
     let inputs = vec![input; INPUT_COUNT];
 
@@ -424,8 +424,8 @@ fn rlc_public_rejects_inputs_from_different_fold_transcripts() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
-    let r = vec![k(29); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
-    let z = Mat::zero(D, structure.m / D, F::ZERO);
+    let r = vec![k(29); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
+    let z = Mat::zero(D, structure.m() / D, F::ZERO);
     let first = build_me_from_z(&params, &structure, &z, &r, ell_d, D, make_commitment(131_000), 131_001);
     let mut second = first.clone();
     second.c = make_commitment(131_002);
@@ -446,8 +446,8 @@ fn verify_dec_public_rejects_children_from_different_fold_transcript() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
-    let r = vec![k(31); structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
-    let z = Mat::zero(D, structure.m / D, F::ZERO);
+    let r = vec![k(31); structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
+    let z = Mat::zero(D, structure.m() / D, F::ZERO);
     let parent = build_me_from_z(&params, &structure, &z, &r, ell_d, D, Commitment::zeros(1), 132_000);
     let mut children = vec![parent.clone(); params.k_rho() as usize];
     children[1].fold_digest[0] = 1;
@@ -504,8 +504,8 @@ fn rlc_with_commit_rejects_mixed_public_widths_without_panicking() {
     let params = NeoParams::goldilocks_paper_b2();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let structure = build_structure(D, D);
-    let r = vec![K::ZERO; structure.n.next_power_of_two().max(2).trailing_zeros() as usize];
-    let z = Mat::zero(D, structure.m / D, F::ZERO);
+    let r = vec![K::ZERO; structure.n().next_power_of_two().max(2).trailing_zeros() as usize];
+    let z = Mat::zero(D, structure.m() / D, F::ZERO);
     let inputs = vec![
         build_me_from_z(&params, &structure, &z, &r, ell_d, D, make_commitment(140_000), 140_001),
         build_me_from_z(&params, &structure, &z, &r, ell_d, 0, make_commitment(140_002), 140_003),

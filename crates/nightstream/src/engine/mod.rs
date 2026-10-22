@@ -144,7 +144,7 @@ impl Backend {
             #[cfg(feature = "metal")]
             Self::Metal(device) => metal::evaluate_terminal_rows(device, context, running, point, fresh),
             _ => {
-                let m = context.structure.m;
+                let m = context.structure.m();
                 let blocks = running
                     .iter()
                     .enumerate()
@@ -161,7 +161,7 @@ impl Backend {
                     context.rows,
                     point,
                     &blocks,
-                    &context.structure.f,
+                    context.structure.f(),
                     &fresh,
                     context.workspace_bytes,
                 )

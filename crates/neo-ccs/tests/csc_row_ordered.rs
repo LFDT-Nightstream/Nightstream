@@ -21,11 +21,11 @@ fn counted_constructor_matches_canonical_csc_bytes() {
     let canonical = CscMat::from_triplets(triplets.clone(), 37, 19);
     triplets.reverse();
     let direct = CscMat::from_counted_triplets(triplets, 37, 19);
-    assert_eq!(direct.nrows, canonical.nrows);
-    assert_eq!(direct.ncols, canonical.ncols);
-    assert_eq!(direct.col_ptr, canonical.col_ptr);
-    assert_eq!(direct.row_idx, canonical.row_idx);
-    assert_eq!(direct.vals, canonical.vals);
+    assert_eq!(direct.nrows(), canonical.nrows());
+    assert_eq!(direct.ncols(), canonical.ncols());
+    assert_eq!(direct.col_ptr(), canonical.col_ptr());
+    assert_eq!(direct.row_idx(), canonical.row_idx());
+    assert_eq!(direct.vals(), canonical.vals());
 }
 
 #[test]
@@ -43,9 +43,9 @@ fn direct_geometric_constructor_matches_expanded_canonical_csc_bytes() {
 
     let canonical = CscMat::from_triplets(expanded, 23, 29);
     let direct = CscMat::from_triplets_and_geometric_runs(explicit, &runs, 23, 29);
-    assert_eq!(direct.nrows, canonical.nrows);
-    assert_eq!(direct.ncols, canonical.ncols);
-    assert_eq!(direct.col_ptr, canonical.col_ptr);
-    assert_eq!(direct.row_idx, canonical.row_idx);
-    assert_eq!(direct.vals, canonical.vals);
+    assert_eq!(direct.nrows(), canonical.nrows());
+    assert_eq!(direct.ncols(), canonical.ncols());
+    assert_eq!(direct.col_ptr(), canonical.col_ptr());
+    assert_eq!(direct.row_idx(), canonical.row_idx());
+    assert_eq!(direct.vals(), canonical.vals());
 }

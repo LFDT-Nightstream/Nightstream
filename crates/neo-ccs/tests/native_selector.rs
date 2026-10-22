@@ -22,7 +22,7 @@ fn native_selector_has_the_lean_owned_shape() {
     assert_eq!(relation.t(), 4);
     assert_eq!(relation.max_degree(), 3);
 
-    let terms = relation.f.terms();
+    let terms = relation.f().terms();
     assert_eq!(terms.len(), 2);
     assert_eq!(terms[0].coeff, F::ONE);
     assert_eq!(terms[0].exps, [1, 1, 0, 1]);

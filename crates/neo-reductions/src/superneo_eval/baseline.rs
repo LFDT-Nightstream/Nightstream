@@ -19,15 +19,15 @@ fn matrix_entry<Ff: Field + PrimeCharacteristicRing + Copy>(mat: &CcsMatrix<Ff>,
         }
         CcsMatrix::Csc(csc) => {
             let range = csc.column_range(col);
-            match csc.row_idx[range.clone()].binary_search(&(row as u32)) {
-                Ok(idx) => csc.vals[range.start + idx],
+            match csc.row_idx()[range.clone()].binary_search(&(row as u32)) {
+                Ok(idx) => csc.vals()[range.start + idx],
                 Err(_) => Ff::ZERO,
             }
         }
         CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
             let range = csc.column_range(col);
-            let mut value = match csc.row_idx[range.clone()].binary_search(&(row as u32)) {
-                Ok(idx) => csc.vals[range.start + idx],
+            let mut value = match csc.row_idx()[range.clone()].binary_search(&(row as u32)) {
+                Ok(idx) => csc.vals()[range.start + idx],
                 Err(_) => Ff::ZERO,
             };
             for run in geometric_runs {
@@ -149,8 +149,8 @@ pub fn is_superneo_compatible_shape(cols: usize) -> bool {
 }
 
 pub fn eval_all_mats_transformed(s_bar: &CcsStructure<F>, z: &[K], chi_r: &[K], n_eff: usize) -> Vec<K> {
-    let mut out = Vec::with_capacity(s_bar.matrices.len());
-    for m in &s_bar.matrices {
+    let mut out = Vec::with_capacity(s_bar.matrices().len());
+    for m in s_bar.matrices() {
         out.push(eval_mle_transformed_matrix(m, z, chi_r, n_eff));
     }
     out
@@ -161,8 +161,8 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
-    let mut out = Vec::with_capacity(s.matrices.len());
-    for m in &s.matrices {
+    let mut out = Vec::with_capacity(s.matrices().len());
+    for m in s.matrices() {
         out.push(eval_mle_direct_matrix(m, z, chi_r, n_eff));
     }
     out
@@ -173,8 +173,8 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
-    let mut out = Vec::with_capacity(s.matrices.len());
-    for m in &s.matrices {
+    let mut out = Vec::with_capacity(s.matrices().len());
+    for m in s.matrices() {
         out.push(eval_mle_superneo_from_original(m, z, chi_r, n_eff));
     }
     out

@@ -8,9 +8,9 @@ use super::{EQUALITY_CHUNK_BITS, EQUALITY_CHUNK_VALUES};
 pub(super) fn joint_term_metadata(
     structure: &neo_ccs::CcsStructure<F>,
 ) -> Result<(Vec<u64>, Vec<u64>), neo_reductions::PiCcsError> {
-    let mut headers = Vec::with_capacity(structure.f.terms().len() * 3);
+    let mut headers = Vec::with_capacity(structure.f().terms().len() * 3);
     let mut variables = Vec::new();
-    for term in structure.f.terms() {
+    for term in structure.f().terms() {
         let start = variables.len() / 2;
         for (matrix, &exponent) in term.exps.iter().enumerate() {
             if exponent != 0 {

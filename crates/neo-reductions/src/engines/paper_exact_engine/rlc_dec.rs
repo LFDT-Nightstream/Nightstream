@@ -157,7 +157,7 @@ where
     let output = rlc_claim_paper_exact_with_commit_mix(structure, params, rhos, inputs, ell_d, combine);
     let ring = PaperRing::new();
     let coefficients: Vec<[Fq; D]> = rhos.iter().map(|rho| read_rho(params, rho)).collect();
-    let witness_columns = structure.m.div_ceil(D);
+    let witness_columns = structure.m().div_ceil(D);
     let mut mixed_witness = Mat::zero(D, witness_columns, Ff::ZERO);
     for (rho, witness) in coefficients.iter().zip(witnesses) {
         assert_eq!(witness.rows(), D);
@@ -332,7 +332,7 @@ where
 
     for (witness, commitment) in split_witnesses.iter().zip(child_commitments) {
         assert_eq!(witness.rows(), D);
-        assert_eq!(witness.cols(), structure.m.div_ceil(D));
+        assert_eq!(witness.cols(), structure.m().div_ceil(D));
         let assignment: Vec<K> = (0..witness.cols() * D)
             .map(|column| K::from(witness[(column % D, column / D)]))
             .collect();
@@ -348,7 +348,7 @@ where
         }
         children.push(CeClaim {
             c: commitment.clone(),
-            X: super::paper_joint::direct_public_input(witness, structure.m, parent.m_in)
+            X: super::paper_joint::direct_public_input(witness, structure.m(), parent.m_in)
                 .expect("validated PaperExact PiDEC public projection"),
             r: parent.r.clone(),
             eval_k,

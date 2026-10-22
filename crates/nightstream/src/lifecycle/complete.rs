@@ -136,7 +136,7 @@ impl PreparedLifecycle {
             .zip(&child_witnesses)
             .enumerate()
         {
-            let projected = project_x_from_witness_mat(witness, self.structure.m, claim.m_in).map_err(|_| {
+            let projected = project_x_from_witness_mat(witness, self.structure.m(), claim.m_in).map_err(|_| {
                 CompleteStepError::ChildWitness {
                     index,
                     reason: "witness shape or public dimensions differ from the selected carrier",
@@ -168,8 +168,8 @@ impl PreparedLifecycle {
         let started = std::time::Instant::now();
         let logical = self.package.execute_logical_assignment(&physical)?;
         drop(physical);
-        let blocks = self.structure.m.div_ceil(D);
-        if logical.len() != self.structure.m || blocks == 0 || blocks > MAX_MESSAGE_COLUMNS as usize {
+        let blocks = self.structure.m().div_ceil(D);
+        if logical.len() != self.structure.m() || blocks == 0 || blocks > MAX_MESSAGE_COLUMNS as usize {
             return Err(CompleteStepError::Input(
                 "fresh logical assignment differs from the fixed-key carrier",
             ));

@@ -310,19 +310,22 @@ fn terminal_replay_reports_the_global_row_in_the_final_window() {
     let fixture = Fixture::new(7);
     let session = MetalSession::new().unwrap();
     let source = CachedMatrixRows::new(fixture.cache.superneo()).unwrap();
-    let metadata_workspace = matrix_workspace(&source, 0..fixture.structure.n);
+    let metadata_workspace = matrix_workspace(&source, 0..fixture.structure.n());
     let plan = session
         .prepare_joint_matrix_plan(&source, metadata_workspace)
         .unwrap();
     let mut witness = fixture.fresh[0].Z.clone();
     for expected in [None, Some(6)] {
-        let blocks = SuperneoZBlocks::from_witness_mat(&witness, fixture.structure.m).unwrap();
-        let cpu =
-            match check_ccs_relation_zero_cached_with_blocks(fixture.cache.superneo(), &fixture.structure.f, &blocks) {
-                Ok(()) => None,
-                Err(SuperneoCachedRelationError::UnsatisfiedRow { row }) => Some(row),
-                Err(error) => panic!("unexpected CPU relation error: {error}"),
-            };
+        let blocks = SuperneoZBlocks::from_witness_mat(&witness, fixture.structure.m()).unwrap();
+        let cpu = match check_ccs_relation_zero_cached_with_blocks(
+            fixture.cache.superneo(),
+            fixture.structure.f(),
+            &blocks,
+        ) {
+            Ok(()) => None,
+            Err(SuperneoCachedRelationError::UnsatisfiedRow { row }) => Some(row),
+            Err(error) => panic!("unexpected CPU relation error: {error}"),
+        };
         assert_eq!(cpu, expected);
         assert_eq!(
             session

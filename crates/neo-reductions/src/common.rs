@@ -851,14 +851,14 @@ where
             .expect("v1_2 evaluation cache must build for valid CCS width");
         &local_cache
     };
-    let z_vec = decode_superneo_coeffs_from_witness_mat(Z, s.m)
+    let z_vec = decode_superneo_coeffs_from_witness_mat(Z, s.m())
         .unwrap_or_else(|e| panic!("v1_2 evaluation failed to decode packed witness coefficients: {e}"));
     let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_z(&z_vec);
     let d_pad = 1usize << ell_d;
     let mut eval_k = identity_ring_mle(&z_vec, rb).to_vec();
     eval_k.resize(d_pad, K::ZERO);
 
-    let n_eff = core::cmp::min(s.n, rb.len());
+    let n_eff = core::cmp::min(s.n(), rb.len());
     let application_images = crate::superneo_eval::eval_all_mats_ring_cached_with_blocks(cache, &z_blocks, rb, n_eff);
     let eval_a = application_images
         .into_iter()

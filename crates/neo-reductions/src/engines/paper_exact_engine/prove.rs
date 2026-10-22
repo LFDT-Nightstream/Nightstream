@@ -84,7 +84,7 @@ fn prove_with_rows_inner(
     validate_public_instances(structure, fresh_claims, running_claims)?;
     let dims = dimensions(params, structure, fresh_claims.len(), running_claims.len())?;
     for witness in fresh_witnesses {
-        validate_fresh_assignment(&witness.Z, structure.m, dims)?;
+        validate_fresh_assignment(&witness.Z, structure.m(), dims)?;
     }
     let prior_point = paper_prior_point(running_claims, dims.variables)?;
     let mut trace = ProtocolTrace::default();

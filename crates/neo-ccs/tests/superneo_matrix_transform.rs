@@ -29,12 +29,12 @@ fn ring_row_eval(matrix: &CcsMatrix<F>, row: usize, z_ring: &[Rq], ncols: usize)
             panic!("identity sentinel should not appear after superneo transform")
         }
         CcsMatrix::Csc(m) => {
-            for c in 0..m.ncols {
+            for c in 0..m.ncols() {
                 let block = c / D;
                 let local = c % D;
                 for k in m.column_range(c) {
                     if m.row_index(k) == row {
-                        row_blocks[block][local] += m.vals[k];
+                        row_blocks[block][local] += m.vals()[k];
                     }
                 }
             }
@@ -155,7 +155,7 @@ fn superneo_transform_identity_matrix_recovers_z_via_ct() {
     let z = deterministic_vec(m, 0x1111_2222_3333_4444);
     let z_ring = to_ring_blocks(&z);
 
-    let matrix_bar = &s_bar.matrices[0];
+    let matrix_bar = &s_bar.matrices()[0];
     for (r, zr) in z.iter().enumerate().take(n) {
         let got = ring_ct_row_eval(matrix_bar, r, &z_ring, m);
         assert_eq!(*zr, got, "identity row mismatch at row={r}");
@@ -175,7 +175,7 @@ fn superneo_evaluation_homomorphism_holds_for_ring_challenge_linear_combinations
 
     let s = CcsStructure::new(vec![mat], SparsePoly::new(1, vec![])).expect("valid CCS");
     let s_bar = s.transform_matrices_superneo().expect("superneo transform");
-    let matrix_bar = &s_bar.matrices[0];
+    let matrix_bar = &s_bar.matrices()[0];
     let z1 = to_ring_blocks(&deterministic_vec(m, 0xaaaa_bbbb_cccc_dddd));
     let z2 = to_ring_blocks(&deterministic_vec(m, 0xdddd_cccc_bbbb_aaaa));
     let rho1 = to_ring_blocks(&deterministic_vec(D, 0x0102_0304_0506_0708))
@@ -218,8 +218,8 @@ fn superneo_transform_general_matrix_matches_field_matrix_vector_product() {
     let z = deterministic_vec(m, 0x9999_aaaa_bbbb_cccc);
     let z_ring = to_ring_blocks(&z);
 
-    let y_field = field_mul_rows(&s.matrices[0], &z, n);
-    let matrix_bar = &s_bar.matrices[0];
+    let y_field = field_mul_rows(&s.matrices()[0], &z, n);
+    let matrix_bar = &s_bar.matrices()[0];
     for (r, y) in y_field.iter().enumerate().take(n) {
         let got = ring_ct_row_eval(matrix_bar, r, &z_ring, m);
         assert_eq!(*y, got, "row mismatch at row={r}");

@@ -16,7 +16,7 @@ fn square_r1cs_uses_three_matrix_embedding() {
 
     let ccs = r1cs_to_ccs(a, b, c);
     assert_eq!(ccs.t(), 3, "square R1CS must not auto-insert identity matrix");
-    assert!(!ccs.matrices[0].is_identity(), "M0 should be A, not identity");
+    assert!(!ccs.matrices()[0].is_identity(), "M0 should be A, not identity");
 }
 
 #[test]
@@ -33,8 +33,8 @@ fn rectangular_r1cs_uses_three_matrix_embedding() {
 
     let ccs = r1cs_to_ccs(a, b, c);
     assert_eq!(ccs.t(), 3);
-    assert_eq!(ccs.n, n);
-    assert_eq!(ccs.m, m);
+    assert_eq!(ccs.n(), n);
+    assert_eq!(ccs.m(), m);
 }
 
 #[test]
@@ -47,10 +47,12 @@ fn sparse_r1cs_embedding_preserves_rowwise_relation_without_dense_matrices() {
 
     let ccs = sparse_r1cs_to_ccs(a, b, c).expect("sparse R1CS embedding");
     assert_eq!(ccs.t(), 3);
-    assert_eq!(ccs.n, n);
-    assert_eq!(ccs.m, m);
+    assert_eq!(ccs.n(), n);
+    assert_eq!(ccs.m(), m);
     assert!(
-        ccs.matrices.iter().all(|matrix| matrix.as_csc().is_some()),
+        ccs.matrices()
+            .iter()
+            .all(|matrix| matrix.as_csc().is_some()),
         "sparse R1CS embedding should preserve CSC matrices"
     );
 

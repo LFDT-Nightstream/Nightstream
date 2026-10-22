@@ -84,7 +84,7 @@ impl PreparedLifecycle {
         }
         Ok(Shape {
             public_width,
-            witness_columns: self.structure.m.div_ceil(D),
+            witness_columns: self.structure.m().div_ceil(D),
             matrices: self.structure.t(),
         })
     }

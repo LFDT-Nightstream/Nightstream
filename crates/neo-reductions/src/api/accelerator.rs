@@ -61,7 +61,7 @@ where
                 commitment_elapsed.as_secs_f64() * 1_000.0,
                 total_started.elapsed().as_secs_f64() * 1_000.0,
                 witnesses.len(),
-                s.m,
+                s.m(),
             );
             Ok((out, resident))
         }

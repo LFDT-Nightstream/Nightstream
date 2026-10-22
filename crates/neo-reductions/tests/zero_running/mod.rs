@@ -27,5 +27,5 @@ pub(crate) fn zero_running(
         fold_digest: [0; 32],
         adv: None,
     };
-    (vec![claim], vec![Mat::zero(D, structure.m.div_ceil(D), F::ZERO)])
+    (vec![claim], vec![Mat::zero(D, structure.m().div_ceil(D), F::ZERO)])
 }

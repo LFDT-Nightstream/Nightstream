@@ -192,13 +192,13 @@ impl MetalSession {
         let blocks = witnesses
             .iter()
             .map(|witness| {
-                SuperneoZBlocks::from_witness_mat(witness, structure.m)
+                SuperneoZBlocks::from_witness_mat(witness, structure.m())
                     .map_err(|_| MetalError::Shape("terminal running witness shape"))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let masks = self.prepare_joint_witness_masks(&blocks, 2, structure.m)?;
+        let masks = self.prepare_joint_witness_masks(&blocks, 2, structure.m())?;
         drop(blocks);
-        self.eval_streamed_rows(plan, &masks, point, witnesses.len(), structure.m, Some(&terminal))
+        self.eval_streamed_rows(plan, &masks, point, witnesses.len(), structure.m(), Some(&terminal))
     }
 
     pub(crate) fn prepare_joint_matrix_plan<'a>(
@@ -229,7 +229,7 @@ impl MetalSession {
         if !has_carried {
             return self.zero_family_table();
         }
-        let common_len = input.structure.n.max(input.dims.assignment_width);
+        let common_len = input.structure.n().max(input.dims.assignment_width);
         let first_words = common_len
             .checked_mul(2)
             .ok_or(MetalError::Shape("one-joint common table size overflow"))?;
@@ -287,7 +287,7 @@ impl MetalSession {
         table_len: usize,
     ) -> Result<(), MetalError> {
         let width = plan.blocks * D;
-        let rows = input.structure.n;
+        let rows = input.structure.n();
         if input.dims.assignment_width != width
             || rows == 0
             || table_len < width.max(rows)
@@ -331,7 +331,7 @@ impl MetalSession {
             plan.blocks as u64,
             plan.matrix_count as u64,
             plan.rows as u64,
-            input.structure.n as u64,
+            input.structure.n() as u64,
             rows as u64,
             masks.magnitudes() as u64,
             width as u64,
@@ -494,7 +494,7 @@ impl<'a> MetalPaperJointOracle<'a> {
         workspace: Option<usize>,
     ) -> Result<Self, neo_reductions::PiCcsError> {
         if !plan.matches(input.rows)
-            || plan.rows != input.structure.n
+            || plan.rows != input.structure.n()
             || plan.matrix_count != input.structure.t()
             || input.params.b() != 2
             || input.dims.degree + 1 > MAX_COEFFICIENTS
@@ -519,10 +519,10 @@ impl<'a> MetalPaperJointOracle<'a> {
             .collect::<Vec<_>>();
         let source_blocks = witness_mats
             .iter()
-            .map(|witness| SuperneoZBlocks::from_witness_mat(witness, input.structure.m))
+            .map(|witness| SuperneoZBlocks::from_witness_mat(witness, input.structure.m()))
             .collect::<Result<Vec<_>, _>>()?;
         let masks = session
-            .prepare_joint_witness_masks(&source_blocks, input.params.b(), input.structure.m)
+            .prepare_joint_witness_masks(&source_blocks, input.params.b(), input.structure.m())
             .map_err(oracle_error)?;
         let assignment_source_indices = masks
             .active_witnesses()
@@ -538,7 +538,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             .build_joint_common_tables(&plan, &input, &masks, has_carried)
             .map_err(oracle_error)?;
 
-        let application_len = input.structure.n;
+        let application_len = input.structure.n();
         let assignment_len = input.dims.assignment_width;
         let assignments = AssignmentTables::new(session, &masks, assignment_len).map_err(oracle_error)?;
 
@@ -561,7 +561,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             .buffer_from_slice(nonempty(&term_variables))
             .map_err(oracle_error)?;
         let coefficient_count = input.dims.degree + 1;
-        let active_len = input.structure.n.max(input.dims.assignment_width);
+        let active_len = input.structure.n().max(input.dims.assignment_width);
         let output = session
             .buffer(coefficient_count * 2 * size_of::<u64>())
             .map_err(oracle_error)?;
@@ -628,7 +628,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             assignment_width: input.dims.assignment_width,
             coefficient_count,
             range_base: input.params.b(),
-            f_vanishes_at_zero: input.structure.f.eval(&vec![F::ZERO; plan.matrix_count]) == F::ZERO,
+            f_vanishes_at_zero: input.structure.f().eval(&vec![F::ZERO; plan.matrix_count]) == F::ZERO,
             rounds: input.dims.variables,
             round: 0,
             current_len: input.dims.row_count,

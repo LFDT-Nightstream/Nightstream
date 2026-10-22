@@ -73,7 +73,7 @@ pub(crate) fn prove(
         .map_err(pi_dec::Error::from)?;
     commitments.insert(0, lowest_child_commitment(&parent.c, &commitments, params.b()));
     let openings = device
-        .child_openings(rows, workspace_bytes, split.planes(), &parent.r, structure.m)
+        .child_openings(rows, workspace_bytes, split.planes(), &parent.r, structure.m())
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
     let children = neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(

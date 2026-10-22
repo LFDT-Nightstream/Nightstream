@@ -15,6 +15,7 @@ wasm-threads = ["neo-ccs/wasm-threads"]
 [dependencies]
 neo-math = { path = "../neo-math" }
 neo-ccs = { path = "../neo-ccs" }
+neo-params = { path = "../neo-params" }
 rand = { workspace = true }
 serde = { workspace = true }
 # `asm` uses the ARMv8 SHA3 instructions on aarch64 after a run-time check and has no effect on other targets.

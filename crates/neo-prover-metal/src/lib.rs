@@ -11,18 +11,14 @@ compile_error!("the `metal` feature requires an Apple target");
 
 use thiserror::Error;
 
+#[cfg(feature = "metal")]
 mod rows;
-pub use rows::MetalRowProver;
-
-#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+#[cfg(feature = "metal")]
 mod session;
-#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+#[cfg(feature = "metal")]
+pub use rows::MetalRowProver;
+#[cfg(feature = "metal")]
 pub use session::{MetalGkrLayer, MetalSession};
-
-#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
-mod unsupported;
-#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
-pub use unsupported::{MetalGkrLayer, MetalSession};
 
 /// Owner's Metal memory ceiling, chosen so a prover can run on a current
 /// iPhone. Device buffer requests stay below it; CPU memory is measured
@@ -43,8 +39,6 @@ pub struct MetalActivity {
 
 #[derive(Debug, Error)]
 pub enum MetalError {
-    #[error("Metal is unavailable on this target or its precompiled shader library was not built")]
-    Unavailable,
     #[error("Metal device creation failed")]
     Device,
     #[error("Metal command queue creation failed")]
@@ -77,6 +71,7 @@ pub enum MetalError {
     Commitment(#[from] neo_ajtai::AjtaiError),
 }
 
+#[cfg(feature = "metal")]
 pub(crate) fn oracle_error(error: MetalError) -> neo_reductions::PiCcsError {
     match error {
         MetalError::Shape(reason) => neo_reductions::PiCcsError::InvalidInput(reason.into()),
@@ -88,6 +83,6 @@ pub(crate) fn oracle_error(error: MetalError) -> neo_reductions::PiCcsError {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "metal"))]
 #[path = "../tests/unit/oracle_errors.rs"]
 mod oracle_errors;

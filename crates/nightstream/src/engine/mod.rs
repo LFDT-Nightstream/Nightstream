@@ -83,15 +83,9 @@ impl Backend {
             #[cfg(feature = "metal")]
             Engine::Metal => neo_prover_metal::MetalRowProver::new()
                 .map(|device| Self::Metal(std::sync::Arc::new(std::sync::Mutex::new(device))))
-                .map_err(|error| match error {
-                    neo_prover_metal::MetalError::Unavailable => EngineError::Unavailable {
-                        engine,
-                        reason: "Metal requires an Apple device and compiled shaders",
-                    },
-                    error => EngineError::Failure {
-                        engine,
-                        reason: error.to_string(),
-                    },
+                .map_err(|error| EngineError::Failure {
+                    engine,
+                    reason: error.to_string(),
                 }),
             #[cfg(not(feature = "metal"))]
             Engine::Metal => Err(EngineError::Unavailable {

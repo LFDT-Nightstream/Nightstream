@@ -1,4 +1,4 @@
-#![cfg(all(feature = "metal", target_vendor = "apple", neo_metal_shaders))]
+#![cfg(feature = "metal")]
 
 use neo_ccs::crypto::poseidon2_goldilocks as p2;
 use neo_math::{D, F};

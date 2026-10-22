@@ -152,7 +152,12 @@ fn wide_key(block_variables: usize) -> Key {
 /// domain above `2^32`, so no relation has more.
 #[test]
 fn relations_refuse_setups_past_31_variables() {
-    let p1 = |key: &Key| Pcs::new(crate::pcs::LAYER1, crate::p1_plans(key, 0), 101.0, &|_| Vec::new()).is_ok();
+    let p1 = |key: &Key| {
+        Pcs::new(crate::pcs::LAYER1, crate::relation::p1_plans(key, 0), 101.0, &|_| {
+            Vec::new()
+        })
+        .is_ok()
+    };
     let fits = wide_key(29);
     assert_eq!(fits.setup_variables(), 35);
     assert!(p1(&fits));

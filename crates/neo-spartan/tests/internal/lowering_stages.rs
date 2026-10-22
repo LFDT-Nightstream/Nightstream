@@ -20,12 +20,13 @@ use crate::circuit::{Backend, Native};
 use crate::field::{Ext, Gl};
 use crate::gkr::{self, GkrView, TreeShape};
 use crate::matrix::{Class, EarlyChallenges, EarlyOpenings, EarlyValues, LateOpenings, Structure};
+use crate::relation::{kappa, p1_points, setup_point};
 use crate::ring::{self, Mixing};
 use crate::setup::{self, LeafView, FOLD};
 use crate::shrink::Program;
 use crate::verifier::{combine, early_shapes, from_coordinates, lane_value, observe_early, observe_pairs};
 use crate::whir::OpeningView;
-use crate::{kappa, mle, norm, p1_points, setup_point, sumcheck, whir, Claim, ClaimWords, Error, Proof, Relation};
+use crate::{mle, norm, sumcheck, whir, Claim, ClaimWords, Error, Proof, Relation};
 use crate::{LANE_VARIABLES, RUN_ORACLES};
 
 /// Every branch of `record.rs`: merged, cancelled, zero-weight and long

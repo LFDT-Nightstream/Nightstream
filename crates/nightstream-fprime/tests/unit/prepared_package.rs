@@ -186,7 +186,7 @@ fn prepared_loading_rejects_bad_framing_fields_and_cached_word_count() {
     bad.push(0);
     assert!(matches!(
         load_prepared_package(bad.as_slice()),
-        Err(PackageError::Invalid("prepared package has trailing bytes"))
+        Err(PackageError::Malformed("prepared package has trailing bytes"))
     ));
     let mut bad = encoded.clone();
     let start = MAGIC.len() + size_of::<u64>();
@@ -201,7 +201,7 @@ fn prepared_loading_rejects_bad_framing_fields_and_cached_word_count() {
     bad[start..start + 8].copy_from_slice(&(count + 1).to_le_bytes());
     assert!(matches!(
         load_prepared_package(bad.as_slice()),
-        Err(PackageError::Invalid("prepared application identity word count"))
+        Err(PackageError::Malformed("prepared application identity word count"))
     ));
 }
 
@@ -211,7 +211,7 @@ fn prepared_source_byte_bound_is_checked_before_copy_or_body_decode() {
     encoded.extend_from_slice(&(MAX_FIXED_SOURCE_BYTES + 1).to_le_bytes());
     assert!(matches!(
         load_prepared_package(encoded.as_slice()),
-        Err(PackageError::Invalid(
+        Err(PackageError::TooLarge(
             "prepared fixed envelope exceeds compiler byte bound"
         ))
     ));

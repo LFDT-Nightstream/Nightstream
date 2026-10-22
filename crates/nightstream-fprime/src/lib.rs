@@ -26,7 +26,7 @@ pub use identity::{
 };
 pub use package::{
     derive_pi_ccs_v1_2_transcript, load_per_application_package, load_poseidon2_hash_chain_v1_package,
-    load_prepared_application_records, load_prepared_package, load_terminal_package, CcsMatrixSource,
+    load_prepared_application_records, load_prepared_package, load_terminal_package, CcsMatrixSource, IdentityKind,
     LoadedApplicationPlan, LoadedAssignmentPlan, LoadedPackage, LoadedPerApplicationPackage, LoadedTerminalLayout,
     LogicalAssignment, LogicalMatrixEntry, LogicalMatrixRow, MatrixRun, PackageCcsRelation, PackageError,
     PackagePolynomialTerm, PackageR1cs, PackageSparseMatrix, PiCcsV1_2EncodedInputs, PiCcsV1_2OutputEvaluations,

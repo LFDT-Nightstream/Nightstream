@@ -13,7 +13,7 @@ pub(crate) fn array<'a>(value: &'a Value, location: &'static str) -> Result<&'a 
     value
         .as_array()
         .map(Vec::as_slice)
-        .ok_or(PackageError::Invalid(location))
+        .ok_or(PackageError::Malformed(location))
 }
 
 pub(crate) fn exact_array<'a>(
@@ -23,17 +23,17 @@ pub(crate) fn exact_array<'a>(
 ) -> Result<&'a [Value], PackageError> {
     let values = array(value, location)?;
     if values.len() != length {
-        return Err(PackageError::Invalid(location));
+        return Err(PackageError::Malformed(location));
     }
     Ok(values)
 }
 
 pub(crate) fn usize_atom(value: &Value, location: &'static str) -> Result<usize, PackageError> {
-    word_to_usize(value.as_u64().ok_or(PackageError::Invalid(location))?, location)
+    word_to_usize(value.as_u64().ok_or(PackageError::Malformed(location))?, location)
 }
 
 pub(crate) fn word_to_usize(value: u64, location: &'static str) -> Result<usize, PackageError> {
-    usize::try_from(value).map_err(|_| PackageError::Invalid(location))
+    usize::try_from(value).map_err(|_| PackageError::Malformed(location))
 }
 
 pub(crate) fn canonical_field(value: u64, location: &'static str) -> Result<(), PackageError> {

@@ -40,10 +40,10 @@ impl Block {
 
     fn validate(&self, logical_width: usize) -> Result<(), PackageError> {
         if self.one_column >= logical_width {
-            return Err(PackageError::Invalid("Poseidon2 matrix one column"));
+            return Err(PackageError::Malformed("Poseidon2 matrix one column"));
         }
         if self.retained.kind() != RetainedKind::Field {
-            return Err(PackageError::Invalid("Poseidon2 retained kind"));
+            return Err(PackageError::Malformed("Poseidon2 retained kind"));
         }
         let expected_slots = checked_mul(
             self.invocation_count,
@@ -51,21 +51,21 @@ impl Block {
             "Poseidon2 retained slot count",
         )?;
         if self.retained.slot_count() != expected_slots || !self.retained.fits(logical_width)? {
-            return Err(PackageError::Invalid("Poseidon2 retained geometry"));
+            return Err(PackageError::Malformed("Poseidon2 retained geometry"));
         }
         Ok(())
     }
 
     pub(super) fn row(&self, logical_width: usize, ordinal: usize) -> Result<RowForms, PackageError> {
         if ordinal >= self.row_count()? {
-            return Err(PackageError::Invalid("Poseidon2 matrix row ordinal"));
+            return Err(PackageError::Malformed("Poseidon2 matrix row ordinal"));
         }
         let mut result = None;
         let _ = self.visit_rows_until(logical_width, ordinal, ordinal + 1, |row| {
             result = Some(owned_row(row));
             Ok(ControlFlow::Break(()))
         })?;
-        result.ok_or(PackageError::Invalid("Poseidon2 template row count"))
+        result.ok_or(PackageError::Malformed("Poseidon2 template row count"))
     }
 
     pub(super) fn visit_rows_until(
@@ -76,7 +76,7 @@ impl Block {
         mut visit: impl FnMut(RowView<'_>) -> Result<ControlFlow<()>, PackageError>,
     ) -> Result<ControlFlow<()>, PackageError> {
         if start > end || end > self.row_count()? {
-            return Err(PackageError::Invalid("Poseidon2 matrix row range"));
+            return Err(PackageError::Malformed("Poseidon2 matrix row range"));
         }
         if start == end {
             return Ok(ControlFlow::Continue(()));

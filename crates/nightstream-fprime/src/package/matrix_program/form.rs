@@ -266,7 +266,7 @@ impl Form {
                     .checked_add(term.count)
                     .is_none_or(|end| end > columns)
         }) {
-            return Err(PackageError::Invalid("matrix sparse column"));
+            return Err(PackageError::Malformed("matrix sparse column"));
         }
         Ok(())
     }

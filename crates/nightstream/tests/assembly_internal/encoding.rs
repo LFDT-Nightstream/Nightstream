@@ -1,6 +1,6 @@
 use super::*;
 use crate::application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder};
-use nightstream_fprime::{ApplicationForm, ApplicationRecipeNode};
+use nightstream_fprime::{ApplicationForm, ApplicationRecipeNode, IdentityKind};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use serde_json::json;
@@ -219,7 +219,10 @@ fn preparation_rejects_a_changed_reference_even_when_assembly_repairs_it() {
     drop(expected);
     assert!(matches!(
         prepare(&changed, &application),
-        Err(AssemblyError::Package(PackageError::ExpectedIdentityMismatch { .. }))
+        Err(AssemblyError::Package(PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
+            ..
+        }))
     ));
 }
 

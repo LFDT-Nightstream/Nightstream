@@ -59,33 +59,55 @@ pub enum PackageError {
     Json(#[from] serde_json::Error),
     #[error("circuit-package bytes are not the canonical Lean encoding")]
     NonCanonicalBytes,
-    #[error("invalid circuit package: {0}")]
-    Invalid(&'static str),
+    #[error("malformed circuit package: {0}")]
+    Malformed(&'static str),
+    #[error("circuit package exceeds a size limit: {0}")]
+    TooLarge(&'static str),
+    /// A caller argument is invalid; the package is not at fault.
+    #[error("invalid input: {0}")]
+    Input(&'static str),
+    #[error("{what}: expected {expected}, got {actual}")]
+    InputLength {
+        what: &'static str,
+        expected: usize,
+        actual: usize,
+    },
     #[error("unsatisfied assertion row {row}")]
     UnsatisfiedAssertionRow { row: usize },
     #[error("noncanonical Goldilocks word in {location}: {value}")]
     NonCanonicalField { location: &'static str, value: u64 },
-    #[error(
-        "relation identifier does not match the verifier-owned identity: expected {expected:?}, computed {computed:?}"
-    )]
-    ExpectedIdentityMismatch {
+    #[error("{kind} does not match: expected {expected:?}, computed {computed:?}")]
+    IdentityMismatch {
+        kind: IdentityKind,
         expected: [u64; 4],
         computed: [u64; 4],
     },
-    #[error(
-        "final package identity does not match the verifier-owned application: expected {expected:?}, computed {computed:?}"
-    )]
-    ExpectedPackageIdentityMismatch {
-        expected: [u64; 4],
-        computed: [u64; 4],
-    },
-    #[error(
-        "verification-key binding does not match the verifier-owned application: expected {expected:?}, computed {computed:?}"
-    )]
-    ExpectedVerificationKeyBindingMismatch {
-        expected: [u64; 4],
-        computed: [u64; 4],
-    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IdentityKind {
+    Relation,
+    Package,
+    VerificationKeyBinding,
+    VerifierContext,
+}
+
+impl std::fmt::Display for IdentityKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Relation => "relation identifier",
+            Self::Package => "final package identity",
+            Self::VerificationKeyBinding => "verification-key binding",
+            Self::VerifierContext => "verifier-context package identity",
+        })
+    }
+}
+
+pub(crate) fn require_input_length(what: &'static str, expected: usize, actual: usize) -> Result<(), PackageError> {
+    if expected != actual {
+        return Err(PackageError::InputLength { what, expected, actual });
+    }
+    Ok(())
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -352,11 +374,14 @@ impl LoadedPackage {
         application_values: Option<&[Goldilocks]>,
     ) -> Result<WitnessAssignment, PackageError> {
         if application_values.is_some() && self.native_application.is_none() {
-            return Err(PackageError::Invalid("precomputed values require a native application"));
+            return Err(PackageError::Input("precomputed values require a native application"));
         }
-        if private_inputs.len() != self.private_input_count() {
-            return Err(PackageError::Invalid("private input length"));
-        }
+        require_input_length("private input length", self.private_input_count(), private_inputs.len())?;
+        require_input_length(
+            "public input length",
+            self.layout.public_column_count,
+            public_values.len(),
+        )?;
         if self
             .layout
             .public_segments
@@ -364,9 +389,8 @@ impl LoadedPackage {
             .map(|segment| segment.length)
             .sum::<usize>()
             != public_values.len()
-            || public_values.len() != self.layout.public_column_count
         {
-            return Err(PackageError::Invalid("public input length"));
+            return Err(PackageError::Malformed("public input length"));
         }
         for value in private_inputs {
             canonical_field(*value, "private input")?;
@@ -448,7 +472,7 @@ impl LoadedPackage {
             assignment[output_column] = left * right;
             let output = self.eval_template_combination(&row.c, invocation, assignment);
             if assignment[output_column] != output {
-                return Err(PackageError::Invalid("unsatisfied witness row"));
+                return Err(PackageError::Malformed("unsatisfied witness row"));
             }
         }
         Ok(())
@@ -523,10 +547,10 @@ fn scheduled_invocations(package: &LoadedPackage) -> Result<Vec<ScheduledInvocat
         .iter()
         .map(|chain| chain.absorb_count + 1)
         .try_fold(0usize, |sum, count| sum.checked_add(count))
-        .ok_or(PackageError::Invalid("invocation count overflow"))?;
+        .ok_or(PackageError::Malformed("invocation count overflow"))?;
     let capacity = hash_count
         .checked_add(package.permutation_invocations.len())
-        .ok_or(PackageError::Invalid("invocation count overflow"))?;
+        .ok_or(PackageError::Malformed("invocation count overflow"))?;
     let mut scheduled = Vec::with_capacity(capacity);
     for chain in &package.hash_chains {
         for ordinal in 0..=chain.absorb_count {
@@ -555,7 +579,7 @@ fn scheduled_witnesses(package: &LoadedPackage) -> Result<Vec<ScheduledWitness<'
         .checked_add(package.compact_invocations.len())
         .and_then(|count| count.checked_add(package.witness_instructions.len()))
         .and_then(|count| count.checked_add(usize::from(package.native_application.is_some())))
-        .ok_or(PackageError::Invalid("witness schedule overflow"))?;
+        .ok_or(PackageError::Malformed("witness schedule overflow"))?;
     let mut scheduled = Vec::with_capacity(capacity);
     scheduled.extend(invocations.into_iter().map(ScheduledWitness::Permutation));
     scheduled.extend(
@@ -589,7 +613,7 @@ fn scheduled_assignments(package: &LoadedPackage) -> Result<Vec<ScheduledAssignm
         .and_then(|count| count.checked_add(package.witness_batches.len()))
         .and_then(|count| count.checked_add(package.witness_instructions.len()))
         .and_then(|count| count.checked_add(usize::from(package.native_application.is_some())))
-        .ok_or(PackageError::Invalid("assignment schedule overflow"))?;
+        .ok_or(PackageError::Malformed("assignment schedule overflow"))?;
     let mut scheduled = Vec::with_capacity(capacity);
     scheduled.extend(
         invocations
@@ -628,5 +652,5 @@ fn scheduled_assignments(package: &LoadedPackage) -> Result<Vec<ScheduledAssignm
 fn checked_end(start: usize, length: usize) -> Result<usize, PackageError> {
     start
         .checked_add(length)
-        .ok_or(PackageError::Invalid("range overflow"))
+        .ok_or(PackageError::Malformed("range overflow"))
 }

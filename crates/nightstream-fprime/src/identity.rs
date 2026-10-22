@@ -202,7 +202,7 @@ pub(super) fn stage1_verifier_binding(
     formula_digest: [u64; 4],
 ) -> Result<Stage1VerifierBinding, PackageError> {
     let message_columns = u64::try_from(logical_columns.div_ceil(54))
-        .map_err(|_| PackageError::Invalid("Stage 1 carrier block count"))?;
+        .map_err(|_| PackageError::Malformed("Stage 1 carrier block count"))?;
     let commitment_key_words = authority_words(PRODUCTION_VERIFIER_ROWS, message_columns, &PRODUCTION_SEED);
     validate_context_words(relation_value_words)?;
     validate_context_words(&commitment_key_words)?;
@@ -266,7 +266,7 @@ fn component_digest(component: u64, words: &[u64]) -> Result<[u64; 4], PackageEr
 }
 
 fn component_hasher(component: u64, word_count: usize) -> Result<poseidon2::Poseidon2Hasher, PackageError> {
-    let length = u64::try_from(word_count).map_err(|_| PackageError::Invalid("verifier-context word length"))?;
+    let length = u64::try_from(word_count).map_err(|_| PackageError::Malformed("verifier-context word length"))?;
     let mut input = poseidon2::Poseidon2Hasher::default();
     for &byte in VERIFIER_CONTEXT_COMPONENT_DOMAIN {
         input.update(&[Goldilocks::from_u64(u64::from(byte))]);
@@ -276,7 +276,7 @@ fn component_hasher(component: u64, word_count: usize) -> Result<poseidon2::Pose
 }
 
 fn append_framed(target: &mut Vec<u64>, words: &[u64]) -> Result<(), PackageError> {
-    let length = u64::try_from(words.len()).map_err(|_| PackageError::Invalid("verifier-context word length"))?;
+    let length = u64::try_from(words.len()).map_err(|_| PackageError::Malformed("verifier-context word length"))?;
     target.push(length);
     target.extend_from_slice(words);
     Ok(())
@@ -288,7 +288,7 @@ fn bytes_as_words(bytes: &[u8]) -> Vec<u64> {
 
 fn validate_context_words(words: &[u64]) -> Result<(), PackageError> {
     if words.iter().any(|word| *word >= Goldilocks::ORDER_U64) {
-        return Err(PackageError::Invalid("noncanonical verifier-context authority word"));
+        return Err(PackageError::Malformed("noncanonical verifier-context authority word"));
     }
     Ok(())
 }
@@ -335,13 +335,13 @@ impl CanonicalSink<'_> {
     }
 
     fn index(&mut self, value: usize) -> Result<(), PackageError> {
-        self.number(u64::try_from(value).map_err(|_| PackageError::Invalid("package index"))?)
+        self.number(u64::try_from(value).map_err(|_| PackageError::Malformed("package index"))?)
     }
 
     fn array(&mut self, length: usize) -> Result<(), PackageError> {
         self.node(
             1,
-            u64::try_from(length).map_err(|_| PackageError::Invalid("array length"))?,
+            u64::try_from(length).map_err(|_| PackageError::Malformed("array length"))?,
         )
     }
 
@@ -350,7 +350,7 @@ impl CanonicalSink<'_> {
             Value::Number(number) => self.number(
                 number
                     .as_u64()
-                    .ok_or(PackageError::Invalid("non-natural package atom"))?,
+                    .ok_or(PackageError::Malformed("non-natural package atom"))?,
             ),
             Value::Array(values) => {
                 self.array(values.len())?;
@@ -359,7 +359,7 @@ impl CanonicalSink<'_> {
                 }
                 Ok(())
             }
-            _ => Err(PackageError::Invalid("nonnumeric package value")),
+            _ => Err(PackageError::Malformed("nonnumeric package value")),
         }
     }
 }

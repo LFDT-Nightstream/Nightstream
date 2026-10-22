@@ -121,7 +121,9 @@ impl PreparedLifecycle {
         let reserved = masks + common + assignments.max(matrix_projection) + self.kept_key_bytes as u128;
         let remaining = (self.backend.memory_limit_bytes() as u128)
             .checked_sub(reserved)
-            .ok_or(PackageError::Invalid("selected row workspace exceeds memory allowance"))?;
-        usize::try_from(remaining).map_err(|_| PackageError::Invalid("selected row workspace exceeds address space"))
+            .ok_or(PackageError::Malformed(
+                "selected row workspace exceeds memory allowance",
+            ))?;
+        usize::try_from(remaining).map_err(|_| PackageError::Malformed("selected row workspace exceeds address space"))
     }
 }

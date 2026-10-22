@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use nightstream_fprime::{
     derive_pi_ccs_v1_2_transcript, load_per_application_package, load_poseidon2_hash_chain_v1_package, CcsMatrixSource,
-    PackageError, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs,
+    IdentityKind, PackageError, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs,
     PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
     PI_CCS_V1_2_PRIOR_CHILDREN_WORDS, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT,
     PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT, PI_CCS_V1_2_STATE_PREIMAGE_WORDS, PI_DEC_V1_2_CHILD_COUNT,
@@ -331,7 +331,10 @@ fn v1_2_input_encoder_rejects_a_missing_eval_a_matrix() {
 fn loader_rejects_a_different_verifier_owned_identity() {
     assert!(matches!(
         load_per_application_package(&sealed_artifact_bytes(), [0; 4]),
-        Err(PackageError::ExpectedIdentityMismatch { .. })
+        Err(PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
+            ..
+        })
     ));
 }
 
@@ -350,7 +353,10 @@ fn loader_binds_the_lean_owned_ccs_polynomial_to_the_relation_identity() {
 
     assert!(matches!(
         load_poseidon2_hash_chain_v1_package(&canonical_bytes(&value)),
-        Err(PackageError::ExpectedIdentityMismatch { .. })
+        Err(PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
+            ..
+        })
     ));
 }
 
@@ -382,13 +388,17 @@ fn loader_rejects_a_missing_sampler_coefficient_witness_batch() {
     batches.remove(index);
     let changed = canonical_bytes(&value);
     let identity = match load_per_application_package(&changed, [0; 4]) {
-        Err(PackageError::ExpectedIdentityMismatch { computed, .. }) => computed,
+        Err(PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
+            computed,
+            ..
+        }) => computed,
         _ => panic!("the mutation must change the structural identity"),
     };
     let error = load_per_application_package(&changed, identity)
         .expect_err("a rehashed incomplete witness program must be rejected");
     assert!(
-        matches!(error, PackageError::Invalid("witness column coverage")),
+        matches!(error, PackageError::Malformed("witness column coverage")),
         "{error:?}"
     );
 }
@@ -401,13 +411,17 @@ fn loader_rejects_a_rehashed_matrix_slot_permutation() {
     *sources = json!([1, 0, 2, 3]);
     let changed = canonical_bytes(&value);
     let identity = match load_per_application_package(&changed, [0; 4]) {
-        Err(PackageError::ExpectedIdentityMismatch { computed, .. }) => computed,
+        Err(PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
+            computed,
+            ..
+        }) => computed,
         _ => panic!("the mutation must change the structural identity"),
     };
     let error =
         load_per_application_package(&changed, identity).expect_err("a rehashed matrix permutation must be rejected");
     assert!(
-        matches!(error, PackageError::Invalid("CCS relation matrix order")),
+        matches!(error, PackageError::Malformed("CCS relation matrix order")),
         "{error:?}"
     );
 }

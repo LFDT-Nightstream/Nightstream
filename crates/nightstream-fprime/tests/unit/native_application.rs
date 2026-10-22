@@ -266,17 +266,17 @@ fn native_records_reject_unmapped_terms_noncausal_recipes_and_dynamic_placeholde
     let invalid_column = PreparedApplication::from_metadata(&metadata(), records(10, 4)).unwrap();
     assert!(matches!(
         invalid_column.validate(&layout()),
-        Err(PackageError::Invalid("native application variable"))
+        Err(PackageError::Malformed("native application variable"))
     ));
     let future_recipe = PreparedApplication::from_metadata(&metadata(), records(4, 9)).unwrap();
     assert!(matches!(
         future_recipe.validate(&layout()),
-        Err(PackageError::Invalid("noncausal witness expression"))
+        Err(PackageError::Malformed("noncausal witness expression"))
     ));
     let output_recipe = PreparedApplication::from_metadata(&metadata(), records(4, 5)).unwrap();
     assert!(matches!(
         output_recipe.validate(&layout()),
-        Err(PackageError::Invalid("noncausal witness expression"))
+        Err(PackageError::Malformed("noncausal witness expression"))
     ));
     for field in 9..16 {
         let mut changed = metadata();
@@ -287,7 +287,7 @@ fn native_records_reject_unmapped_terms_noncausal_recipes_and_dynamic_placeholde
     changed[8] = json!(3);
     assert!(matches!(
         PreparedApplication::from_metadata(&changed, records(4, 4)),
-        Err(PackageError::Invalid("native application record counts"))
+        Err(PackageError::Malformed("native application record counts"))
     ));
 }
 
@@ -348,7 +348,7 @@ fn native_loader_rejects_dynamic_source_payload_before_fixed_decoding() {
         let fixed = json!([6, source, [], metadata(), [], [4, 1], 270]);
         assert!(matches!(
             super::super::load_prepared_application_records(fixed, records(4, 4)),
-            Err(PackageError::Invalid(
+            Err(PackageError::Malformed(
                 "native application dynamic source slots are not empty"
             ))
         ));

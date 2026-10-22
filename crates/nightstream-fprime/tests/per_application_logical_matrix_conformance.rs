@@ -7,8 +7,9 @@
 use std::{fs, path::PathBuf};
 
 use nightstream_fprime::{
-    load_per_application_package, load_poseidon2_hash_chain_v1_package, CcsMatrixSource, LoadedPerApplicationPackage,
-    LogicalMatrixRow, PackageError, PI_CCS_V1_2_MATRIX_COUNT, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, CcsMatrixSource, IdentityKind,
+    LoadedPerApplicationPackage, LogicalMatrixRow, PackageError, PI_CCS_V1_2_MATRIX_COUNT,
+    POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
 };
 use rayon::prelude::*;
 use serde_json::Value;
@@ -136,7 +137,11 @@ fn assert_independent_decode_then_identity_rejection(
     drop(changed);
 
     match load_per_application_package(&canonical_bytes(package), expected_identity) {
-        Err(PackageError::ExpectedIdentityMismatch { expected, computed }) => {
+        Err(PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
+            expected,
+            computed,
+        }) => {
             assert_eq!(expected, expected_identity);
             assert_ne!(computed, expected, "{label} did not change the structural identity");
         }

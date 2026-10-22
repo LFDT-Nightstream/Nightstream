@@ -122,7 +122,7 @@ impl Block {
     fn ring_count(&self) -> Result<usize, PackageError> {
         self.families.iter().try_fold(0usize, |sum, family| {
             sum.checked_add(family.ring_count()?)
-                .ok_or(PackageError::Invalid("Phi81 ring count"))
+                .ok_or(PackageError::Malformed("Phi81 ring count"))
         })
     }
 
@@ -132,14 +132,14 @@ impl Block {
 
     pub(super) fn row(&self, logical_width: usize, ordinal: usize) -> Result<RowForms, PackageError> {
         if ordinal >= self.row_count()? {
-            return Err(PackageError::Invalid("Phi81 product row ordinal"));
+            return Err(PackageError::Malformed("Phi81 product row ordinal"));
         }
         let mut result = None;
         let _ = self.visit_rows_until(logical_width, ordinal, ordinal + 1, |row| {
             result = Some(owned_row(row));
             Ok(ControlFlow::Break(()))
         })?;
-        result.ok_or(PackageError::Invalid("Phi81 template row count"))
+        result.ok_or(PackageError::Malformed("Phi81 template row count"))
     }
 
     pub(super) fn visit_rows_until(
@@ -150,13 +150,13 @@ impl Block {
         mut visit: impl FnMut(RowView<'_>) -> Result<ControlFlow<()>, PackageError>,
     ) -> Result<ControlFlow<()>, PackageError> {
         if start > end || end > self.row_count()? {
-            return Err(PackageError::Invalid("Phi81 product row range"));
+            return Err(PackageError::Malformed("Phi81 product row range"));
         }
         if start == end {
             return Ok(ControlFlow::Continue(()));
         }
         if self.one_column >= logical_width {
-            return Err(PackageError::Invalid("Phi81 one column"));
+            return Err(PackageError::Malformed("Phi81 one column"));
         }
 
         let mut scratch = template::RowScratch::default();
@@ -192,7 +192,7 @@ impl Block {
             if index < ring_count {
                 let rings_per_source = checked_mul(family.block_count, family.cell_count, "Phi81 rings per source")?;
                 if rings_per_source == 0 || family.cell_count == 0 {
-                    return Err(PackageError::Invalid("Phi81 family geometry"));
+                    return Err(PackageError::Malformed("Phi81 family geometry"));
                 }
                 let source = index / rings_per_source;
                 let coordinate = index % rings_per_source;
@@ -207,7 +207,7 @@ impl Block {
             family_offset = checked_add(family_offset, family.invocation_count()?, "Phi81 family offset")?;
             index -= ring_count;
         }
-        Err(PackageError::Invalid("Phi81 family descriptor"))
+        Err(PackageError::Malformed("Phi81 family descriptor"))
     }
 
     fn challenge_state(
@@ -251,7 +251,7 @@ impl Block {
                     descriptor
                         .invocation_at_lane(lane)?
                         .checked_sub(descriptor.family.private_count()?)
-                        .ok_or(PackageError::Invalid("Phi81 prior output slot"))?,
+                        .ok_or(PackageError::Malformed("Phi81 prior output slot"))?,
                 )
             }
         })?);
@@ -271,5 +271,5 @@ fn fixed_ring_state(
         .collect::<Result<Vec<_>, _>>()?;
     forms
         .try_into()
-        .map_err(|_| PackageError::Invalid("Phi81 ring state"))
+        .map_err(|_| PackageError::Malformed("Phi81 ring state"))
 }

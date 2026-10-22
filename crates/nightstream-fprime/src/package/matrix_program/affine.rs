@@ -76,7 +76,7 @@ impl Term {
                 coefficient: field_atom(&fields[6], "affine coefficient")?,
             }),
             Some(1) if fields.len() == 2 => Ok(Self::Constant(field_atom(&fields[1], "affine constant")?)),
-            _ => Err(PackageError::Invalid("affine-grid term")),
+            _ => Err(PackageError::Malformed("affine-grid term")),
         }
     }
 
@@ -112,7 +112,7 @@ impl Term {
             }
             Self::Constant(coefficient) => {
                 if one_column >= logical_width {
-                    return Err(PackageError::Invalid("affine one column"));
+                    return Err(PackageError::Malformed("affine one column"));
                 }
                 Ok(Form::singleton(one_column, *coefficient))
             }

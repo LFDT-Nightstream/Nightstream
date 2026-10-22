@@ -384,7 +384,6 @@ impl<F: Copy> CcsWitness<F> {
     }
 }
 
-#[allow(non_camel_case_types)]
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct V1_2Evaluations<K> {
     pub eval_k: Vec<K>,

@@ -4,8 +4,6 @@
 //! zero-padded rectangular row domain. This module does not import optimized
 //! or cached evaluator code.
 
-#![allow(non_snake_case)]
-
 pub mod paper_joint;
 mod paper_matrix;
 mod paper_ring;

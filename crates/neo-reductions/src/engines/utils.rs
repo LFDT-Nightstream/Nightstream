@@ -1,7 +1,5 @@
 //! Shared PiCCS transcript binding, dimensions, and public-output checks.
 
-#![allow(non_snake_case)]
-
 use crate::error::PiCcsError;
 use neo_ccs::crypto::poseidon2_goldilocks::{RATE, WIDTH};
 use neo_ccs::{CcsMatrix, CcsStructure, CeClaim};

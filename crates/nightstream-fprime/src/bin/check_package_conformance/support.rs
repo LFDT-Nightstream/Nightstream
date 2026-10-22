@@ -6,10 +6,8 @@ use serde_json::Value;
 
 #[allow(dead_code)]
 mod canonical_assignment;
-#[allow(dead_code)]
 mod independent_assignment;
 mod owner_mutations;
-#[allow(dead_code)]
 mod raw_assignment;
 mod reference;
 #[allow(unused_imports)]

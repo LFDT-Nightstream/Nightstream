@@ -1,5 +1,4 @@
 //! Sparse matrix utilities for CCS.
-#![allow(non_snake_case)]
 
 use crate::geometric::GeometricRowRun;
 use crate::matrix::Mat;

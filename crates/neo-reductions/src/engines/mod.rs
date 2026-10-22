@@ -2,8 +2,6 @@
 //! backends, the cross-checking wrapper, and the shared protocol and receipt
 //! modules.
 
-#![allow(non_snake_case)]
-
 pub mod utils;
 
 #[derive(Clone, Debug, PartialEq)]

@@ -184,7 +184,6 @@ impl NeoParams {
         })
     }
 
-    #[allow(non_snake_case)]
     pub fn goldilocks_paper_b2() -> Self {
         Self::new(
             goldilocks_paper_b2::Q,
@@ -201,7 +200,6 @@ impl NeoParams {
         .unwrap()
     }
 
-    #[allow(non_snake_case)]
     pub fn nightstream_goldilocks_k16() -> Self {
         Self::new(
             nightstream_goldilocks_k16::Q,

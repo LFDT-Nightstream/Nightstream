@@ -4,8 +4,6 @@
 //! protocol messages and transcript flow. Their polynomial evaluators are
 //! separate so tests can require exact proof-byte equality.
 
-#![allow(non_snake_case)]
-
 pub mod api;
 pub mod common;
 pub mod engines;

@@ -1,36 +1,11 @@
 # neo-ajtai
 
-Ajtai matrix commitment with pay‑per‑bit embedding.
+Ajtai commitments over `Rq`.
 
-## Surface
-- `Setup`: sample **M ∈ R_q^{κ×m}** (κ, m come from `neo-params`).
-- `Commit(pp, Z)`: **L(Z) = cf(M · cf^{-1}(Z))**.
-- **S‑homomorphism:** for ρ ∈ S, `ρ·L(Z) = L(ρ·Z)`; linear in Z.
-- **Verified openings (v1)**: range/decomposition recomposition only:
-  - `verify_open(pp, c, Z)`
-  - ⚠️ **Linear openings (`y = Z·v`) are intentionally NOT PROVIDED**.
-    Use `neo_fold::verify_linear` (Π_RLC) for linear relation verification instead.
+- `Commitment` and its linear operations: `scale_commitment`, `scale_commitment_add_inplace` and `s_mul_add`.
+- `nightstream_fprime_setup`: the production key. SHAKE128 expands a fixed seed into each key element
+  (`SETUP_ID` is `nightstream-ajtai-shake128-wide256-v1`), with κ = 22 rows. It commits signed-unit witnesses.
+- `setup`, `commit` and `PP`: a key that an RNG samples. Nothing in production calls them. The tests use
+  them as the reference for the production key.
 
-## Properties
-- (d,m,B)‑binding and (d,m,B,C)‑relaxed binding under MSIS presets from `neo-params`.
-- **Pay‑per‑bit ring multiply** so commit cost scales with Hamming weight.
-
-## Tests
-
-### Standard Tests
-- S‑linearity; decomp/split recomposition; negative cases.
-- Opening‑verification tests; microbench showing pay‑per‑bit scaling.
-- Security test confirms `verify_linear()` is not provided (use `neo_fold::verify_linear` instead).
-
-### Testing Feature
-Some tests require the `testing` feature to access internal functions:
-
-```bash
-# Run standard tests
-cargo test --package neo-ajtai
-
-# Run tests that require internal access (e.g., rotation_tests.rs)
-cargo test --package neo-ajtai --features testing
-```
-
-The `testing` feature exposes `rot_step` for integration testing but is **not part of the stable API** and may change without notice in future versions.
+The `testing` feature exposes `rot_step` to the tests that need it.

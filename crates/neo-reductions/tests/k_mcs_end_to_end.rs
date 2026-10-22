@@ -1,9 +1,6 @@
 #![allow(non_snake_case)]
 
-use std::sync::Arc;
-
-use neo_ajtai::{setup as ajtai_setup, AjtaiSModule};
-use neo_ccs::traits::SModuleHomomorphism;
+use neo_ajtai::{commit_row_major, setup as ajtai_setup, PP};
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
@@ -24,16 +21,16 @@ fn commit_cols_for_ccs_m(ccs_m: usize) -> usize {
     ccs_m.div_ceil(D)
 }
 
-fn setup_ajtai_committer(params: &NeoParams, m: usize) -> AjtaiSModule {
+fn setup_ajtai_committer(params: &NeoParams, m: usize) -> PP<neo_math::ring::Rq> {
     let m_commit = commit_cols_for_ccs_m(m);
     let mut rng = ChaCha8Rng::seed_from_u64(19);
     let pp = ajtai_setup(&mut rng, D, params.kappa as usize, m_commit).expect("Ajtai setup");
-    AjtaiSModule::new(Arc::new(pp))
+    pp
 }
 
 fn build_mcs_step(
     _params: &NeoParams,
-    l: &AjtaiSModule,
+    l: &PP<neo_math::ring::Rq>,
     m: usize,
     m_in: usize,
     base: i64,
@@ -46,12 +43,12 @@ fn build_mcs_step(
     for (c, val) in z.iter().copied().enumerate() {
         Z[(c % D, c / D)] = val;
     }
-    let c = l.commit(&Z);
+    let c = commit_row_major(l, &Z);
     (CcsClaim { adv: None, c, x, m_in }, CcsWitness { Z })
 }
 
 fn build_mcs_step_packed_digits(
-    l: &AjtaiSModule,
+    l: &PP<neo_math::ring::Rq>,
     m: usize,
     m_in: usize,
     seed: u64,
@@ -69,7 +66,7 @@ fn build_mcs_step_packed_digits(
         Z[(c % D, c / D)] = val;
     }
     let x: Vec<F> = z_cols[..m_in].to_vec();
-    let c = l.commit(&Z);
+    let c = commit_row_major(l, &Z);
     (CcsClaim { adv: None, c, x, m_in }, CcsWitness { Z })
 }
 

@@ -2,10 +2,7 @@
 //! commitment payload must match its declared shape, and auxiliary lane
 //! commitments are rejected until a reduction binds them.
 
-use std::sync::Arc;
-
-use neo_ajtai::{setup, AjtaiSModule, Commitment};
-use neo_ccs::traits::SModuleHomomorphism;
+use neo_ajtai::{commit_row_major, setup, Commitment};
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, LaneCommitments, Mat, SparsePoly};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
@@ -35,10 +32,10 @@ fn fixture() -> Fixture {
     let structure = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).unwrap();
     let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(D, D).unwrap();
     let mut rng = ChaCha8Rng::seed_from_u64(0x0072_756e_6e69_6e67);
-    let committer = AjtaiSModule::new(Arc::new(setup(&mut rng, D, params.kappa as usize, 1).unwrap()));
+    let committer = setup(&mut rng, D, params.kappa as usize, 1).unwrap();
     let zero = Mat::zero(D, 1, F::ZERO);
     let fresh = CcsClaim {
-        c: committer.commit(&zero),
+        c: commit_row_major(&committer, &zero),
         x: vec![F::ZERO; D],
         m_in: D,
         adv: None,

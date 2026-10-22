@@ -17,7 +17,7 @@ use super::paper_joint::{
 use super::transcript::{absorb_outputs, assemble_proof, bind_and_sample, prove_sumcheck};
 use super::PaperMatrixRows;
 
-pub(crate) fn paper_exact_prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub(crate) fn paper_exact_prove_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,
@@ -25,7 +25,6 @@ pub(crate) fn paper_exact_prove_with_trace<L: neo_ccs::traits::SModuleHomomorphi
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    _commitment: &L,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
     prove_with_rows_inner(
         transcript,
@@ -145,7 +144,7 @@ fn prove_with_rows_inner(
     Ok((outputs, proof, trace))
 }
 
-pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub fn paper_exact_prove(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,
@@ -153,7 +152,6 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    commitment: &L,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
     let (outputs, proof, _) = paper_exact_prove_with_trace(
         transcript,
@@ -163,7 +161,6 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         fresh_witnesses,
         running_claims,
         running_witnesses,
-        commitment,
     )?;
     Ok((outputs, proof))
 }

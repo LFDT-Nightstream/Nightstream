@@ -1,9 +1,6 @@
 //! Rejects noncanonical public outputs for the selected padded-row PiCCS protocol.
 
-use std::sync::Arc;
-
-use neo_ajtai::{setup as ajtai_setup, AjtaiSModule, Commitment};
-use neo_ccs::traits::SModuleHomomorphism;
+use neo_ajtai::{commit_row_major, setup as ajtai_setup, Commitment};
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
@@ -50,10 +47,10 @@ fn honest_proof() -> HonestProof {
 
     let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(983);
     let pp = ajtai_setup(&mut rng, D, params.kappa as usize, structure.m / D).expect("Ajtai setup");
-    let commitment_scheme = AjtaiSModule::new(Arc::new(pp));
+    let commitment_scheme = pp;
     let z = Mat::from_row_major(D, structure.m / D, vec![F::ZERO; structure.m]);
     let claim = CcsClaim {
-        c: commitment_scheme.commit(&z),
+        c: commit_row_major(&commitment_scheme, &z),
         x: vec![],
         m_in: 0,
         adv: None,

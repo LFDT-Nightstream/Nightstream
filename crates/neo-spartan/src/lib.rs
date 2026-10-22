@@ -62,7 +62,7 @@ use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::MatrixRows;
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing as _;
-use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
+use p3_field_v08::PrimeCharacteristicRing;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
@@ -114,7 +114,9 @@ pub enum Error {
 /// a pinned copy. Never take a key from a prover.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Key {
-    root: [u64; 4],
+    /// The setup root. Plonky3's encoding of a field word is canonical, so a
+    /// word `>= p` does not decode.
+    root: [Gl; 4],
     blocks: usize,
     rows: usize,
     structure: Structure,
@@ -162,7 +164,7 @@ impl Key {
     }
 
     fn root(&self) -> [Gl; 4] {
-        self.root.map(Gl::new)
+        self.root
     }
 
     fn words(&self) -> Vec<Gl> {
@@ -205,7 +207,7 @@ fn key(rows: &dyn MatrixRows, tables: &Tables, dir: Option<&Path>) -> Result<Key
         return Err(Error::Shape("matrix columns"));
     }
     let mut key = Key {
-        root: [0; 4],
+        root: [Gl::ZERO; 4],
         blocks,
         rows: shape.rows,
         structure: tables.structure().clone(),
@@ -217,7 +219,7 @@ fn key(rows: &dyn MatrixRows, tables: &Tables, dir: Option<&Path>) -> Result<Key
         |k| oracle(tables, blocks, k, variables),
         dir,
     )?;
-    key.root = root.map(|word| word.as_canonical_u64());
+    key.root = root;
     Ok(key)
 }
 

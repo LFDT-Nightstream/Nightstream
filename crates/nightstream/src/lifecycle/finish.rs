@@ -271,7 +271,7 @@ impl PreparedLifecycle {
 
     /// Run PiCCS and PiRLC on the running and fresh claims of `envelope`.
     pub(crate) fn last_fold(&self, envelope: &Stage1Envelope) -> Result<LastFold, CompressionError> {
-        let state = envelope.state().clone();
+        let state = *envelope.state();
         let Some((running, fresh)) = envelope.active_parts() else {
             return Err(CompressionError::Input("an initial proof has no fold to finish"));
         };

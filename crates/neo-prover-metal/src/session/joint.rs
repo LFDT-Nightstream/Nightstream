@@ -722,7 +722,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             self.matrix_count as u64,
             self.assignment_count as u64,
             self.coefficient_count as u64,
-            (self.term_headers.length() as usize / (3 * size_of::<u64>())) as u64,
+            (self.term_headers.length() / (3 * size_of::<u64>())) as u64,
             u64::from(base_round),
             self.blocks as u64,
             self.assignment_width as u64,

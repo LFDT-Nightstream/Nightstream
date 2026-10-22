@@ -350,11 +350,12 @@ impl PiCcsV1_2EncodedInputs {
 }
 
 impl LoadedPackage {
-    pub fn encode_pi_ccs_v1_2_inputs(
+    pub(super) fn encode_pi_ccs_v1_2_inputs(
         &self,
         inputs: &PiCcsV1_2PackageInputs,
+        structural_identifier: [u64; 4],
     ) -> Result<PiCcsV1_2EncodedInputs, PackageError> {
-        if inputs.verifier_context.structural_identifier() != self.relation_identifier {
+        if inputs.verifier_context.structural_identifier() != structural_identifier {
             return Err(PackageError::Invalid("PiCCS v1_2 verifier-context package identity"));
         }
         self.encode_pi_ccs_segments(inputs)

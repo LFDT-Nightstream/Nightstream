@@ -167,34 +167,41 @@ pub struct LoadedPerApplicationPackage {
     logical_public_input_count: usize,
     structural_identifier: [u64; 4],
     relation_value_words: Vec<u64>,
-    application_words: Vec<u64>,
     application_identity: ApplicationIdentity,
-    native_application: Option<Arc<PreparedApplication>>,
-    prepared_source: Option<Arc<PrivateSnapshot>>,
+    application_source: ApplicationSource,
+}
+
+/// Where the application words come from.
+#[derive(Clone, Debug)]
+enum ApplicationSource {
+    /// The application value of a sealed JSON envelope, as preimage words.
+    Words(Vec<u64>),
+    /// Native application records and the fixed envelope they were sealed with.
+    Native {
+        application: Arc<PreparedApplication>,
+        source: Arc<PrivateSnapshot>,
+    },
 }
 
 impl LoadedPerApplicationPackage {
     pub fn write_prepared(&self, output: impl std::io::Write) -> Result<(), PackageError> {
-        let source = self
-            .prepared_source
-            .as_deref()
-            .ok_or(PackageError::Invalid("package has no prepared native source"))?;
-        let records = self
-            .application_records()
-            .ok_or(PackageError::Invalid("package has no native application records"))?;
+        let ApplicationSource::Native { application, source } = &self.application_source else {
+            return Err(PackageError::Invalid("package has no prepared native source"));
+        };
         super::prepared::write(
             output,
             source,
-            records,
+            application.records_arc(),
             self.structural_identifier,
             &self.application_identity,
         )
     }
 
     pub fn application_records(&self) -> Option<&Arc<ApplicationRecords>> {
-        self.native_application
-            .as_ref()
-            .map(|application| application.records_arc())
+        match &self.application_source {
+            ApplicationSource::Words(_) => None,
+            ApplicationSource::Native { application, .. } => Some(application.records_arc()),
+        }
     }
 
     pub fn structural_identifier(&self) -> [u64; 4] {
@@ -299,10 +306,9 @@ impl LoadedPerApplicationPackage {
         &self,
         visit: &mut dyn FnMut(&[u64]) -> Result<(), PackageError>,
     ) -> Result<(), PackageError> {
-        if let Some(application) = &self.native_application {
-            visit_native_application_words(application, visit)
-        } else {
-            visit(&self.application_words)
+        match &self.application_source {
+            ApplicationSource::Words(words) => visit(words),
+            ApplicationSource::Native { application, .. } => visit_native_application_words(application, visit),
         }
     }
 
@@ -322,7 +328,9 @@ impl LoadedPerApplicationPackage {
         &self,
         inputs: &PiCcsV1_2PackageInputs,
     ) -> Result<PiCcsV1_2EncodedInputs, PackageError> {
-        let encoded = self.circuit.encode_pi_ccs_v1_2_inputs(inputs)?;
+        let encoded = self
+            .circuit
+            .encode_pi_ccs_v1_2_inputs(inputs, self.structural_identifier)?;
         let mut public_values = encoded.public_values().to_vec();
         let verifier_context = self
             .production_verifier_binding()?
@@ -504,12 +512,11 @@ impl NativePackage {
     }
 
     pub(super) fn bind(
-        mut self,
+        self,
         structural_identifier: [u64; 4],
         application_identity: ApplicationIdentity,
         source: PrivateSnapshot,
     ) -> LoadedPerApplicationPackage {
-        self.circuit.relation_identifier = structural_identifier;
         LoadedPerApplicationPackage {
             circuit: self.circuit,
             matrix_program: self.matrix_program,
@@ -519,10 +526,11 @@ impl NativePackage {
             logical_public_input_count: self.logical_public_input_count,
             structural_identifier,
             relation_value_words: self.relation_value_words,
-            application_words: Vec::new(),
             application_identity,
-            native_application: Some(self.application),
-            prepared_source: Some(Arc::new(source)),
+            application_source: ApplicationSource::Native {
+                application: self.application,
+                source: Arc::new(source),
+            },
         }
     }
 }
@@ -531,12 +539,12 @@ pub(super) fn decode_native_application_records(
     fixed_envelope: &Value,
     records: Arc<ApplicationRecords>,
 ) -> Result<NativePackage, PackageError> {
-    let application = PreparedApplication::from_metadata(
+    let application = Arc::new(PreparedApplication::from_metadata(
         fixed_envelope
             .get(3)
             .ok_or(PackageError::Invalid("native application metadata"))?,
         records,
-    )?;
+    )?);
     let source = fixed_envelope
         .get(1)
         .and_then(Value::as_array)
@@ -575,12 +583,7 @@ pub(super) fn decode_native_application_records(
     if schema != SEALED_PACKAGE_SCHEMA {
         return Err(PackageError::Invalid("sealed package schema version"));
     }
-    let circuit = super::validate_package(raw_circuit, [0; 4], Some(application))?;
-    let application = circuit
-        .native_application
-        .as_ref()
-        .expect("validated native application")
-        .clone();
+    let circuit = super::validate_package(raw_circuit, Some(Arc::clone(&application)))?;
     let next_preimage_rows = decode_next_preimage_range(raw_next_preimage, &circuit.layout)?;
     if application.plan().row_range().end != next_preimage_rows.start {
         return Err(PackageError::Invalid("application plan range"));
@@ -681,7 +684,7 @@ fn decode_per_application_value(value: Value, computed: [u64; 4]) -> Result<Load
     let relation_value_words = value_preimage_words(relation_value)?;
     let application_words = value_preimage_words(&raw_application)?;
     let application_identity = ApplicationIdentity::from_words(&application_words)?;
-    let circuit = super::validate_package(raw_circuit, computed, None)?;
+    let circuit = super::validate_package(raw_circuit, None)?;
     let matrix_program = MatrixProgram::decode(&raw_matrix)?;
     matrix_program.validate(circuit.layout.row_count)?;
     if matrix_program.row_count()? != circuit.relation.row_count() {
@@ -713,10 +716,8 @@ fn decode_per_application_value(value: Value, computed: [u64; 4]) -> Result<Load
         logical_public_input_count,
         structural_identifier: computed,
         relation_value_words,
-        application_words,
         application_identity,
-        native_application: None,
-        prepared_source: None,
+        application_source: ApplicationSource::Words(application_words),
     })
 }
 

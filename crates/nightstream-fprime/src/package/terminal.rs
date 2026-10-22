@@ -59,11 +59,7 @@ pub fn load_terminal_package(
         return Err(PackageError::Invalid("terminal artifact schema"));
     }
     let raw_outputs = parts.pop().expect("three parts");
-    let (package, terminal) = decode_components(
-        serde_json::from_value(parts.pop().expect("three parts"))?,
-        computed,
-        None,
-    )?;
+    let (package, terminal) = decode_components(serde_json::from_value(parts.pop().expect("three parts"))?, None)?;
     if terminal != [Value::from(0u64)] {
         return Err(PackageError::Invalid("terminal package option"));
     }

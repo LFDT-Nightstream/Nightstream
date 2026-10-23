@@ -71,14 +71,18 @@ jobs:
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: nico-ubuntu22-${{ runner.arch }}-portable-v1-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
+        key: nico-ubuntu22-${{ runner.arch }}-portable-no-lto-cgu16-v1-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
         restore-keys: |
-          nico-ubuntu22-${{ runner.arch }}-portable-v1-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-
+          nico-ubuntu22-${{ runner.arch }}-portable-no-lto-cgu16-v1-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-
 
     - name: Build test archive
+      # Avoid repeating whole-program LTO for each test binary.
       run: >-
         cargo nextest archive --release --locked --workspace --exclude spartan2
-        --features "testing,debug-log,fs-guard" --archive-file ci-tests.tar.zst
+        --features "testing,debug-log,fs-guard"
+        --config 'profile.release.lto="off"'
+        --config 'profile.release.codegen-units=16'
+        --archive-file ci-tests.tar.zst
 
     - name: Run source checks on the build machine
       run: >-
@@ -91,6 +95,8 @@ jobs:
       run: >-
         cargo test --release --locked --workspace
         --exclude spartan2 --features "testing,debug-log,fs-guard" --doc
+        --config 'profile.release.lto="off"'
+        --config 'profile.release.codegen-units=16'
 
     - name: Run eight test shards with four workers
       run: |

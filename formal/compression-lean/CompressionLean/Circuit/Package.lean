@@ -19,6 +19,8 @@ value; the `terminalCheck` executable compares the two on the artifact.
   column, the terms by column, equal columns summed, zero sums dropped.
 - Columns: the package columns that some row names, in increasing order.
   System column `k` is the `k`-th of them.
+- `templatesNamed`: every compact row invocation names a template, decided
+  (`CompactTemplatesValid`, `compactTemplatesValid_of_named`).
 -/
 
 namespace CompressionLean.Circuit.Package
@@ -215,5 +217,15 @@ def load (package : CircuitPackage) (map : Terminal.Outputs) : Except String Loa
   pure {
     system := rows.map fun r => ⟨reindex index r.a, reindex index r.b, reindex index r.c⟩
     sources, computed, outputs }
+
+/-- Every compact row invocation names a template (`CompactTemplatesValid`),
+decided. -/
+def templatesNamed (package : CircuitPackage) : Bool :=
+  package.compactRowInvocations.all fun invocation => (package.compactRowTemplates[invocation.templateIndex]?).isSome
+
+/-- A package whose invocations all name a template has `CompactTemplatesValid`. -/
+theorem compactTemplatesValid_of_named {package : CircuitPackage} (named : templatesNamed package = true) :
+    package.CompactTemplatesValid := fun invocation member =>
+  Option.isSome_iff_exists.mp (List.all_eq_true.mp named invocation member)
 
 end CompressionLean.Circuit.Package

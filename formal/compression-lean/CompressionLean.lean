@@ -31,4 +31,5 @@ import CompressionLean.Circuit.SimHonest
 import CompressionLean.Circuit.SimRing
 import CompressionLean.Circuit.SimWhir
 import CompressionLean.Circuit.SimLinear
+import CompressionLean.Circuit.SimEarly
 import CompressionLean.Circuit.PackageRows

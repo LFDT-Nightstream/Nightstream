@@ -78,7 +78,7 @@ case "${1:-}" in
     ;;
   docs)
     for package in nightstream neo-spartan; do
-      cargo test "${common[@]}" -p "$package" --doc
+      cargo test "${common[@]}" --no-fail-fast -p "$package" --doc -- --test-threads=1
     done
     ;;
   *)

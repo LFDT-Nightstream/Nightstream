@@ -194,6 +194,8 @@ class CIRustTests(unittest.TestCase):
         for arguments in self.calls["calls"]:
             self.assertEqual(arguments[0], "test")
             self.assertIn("--doc", arguments)
+            self.assertIn("--no-fail-fast", arguments)
+            self.assertEqual(arguments[-2:], ["--", "--test-threads=1"])
             self.assert_common_build_options(arguments)
 
 

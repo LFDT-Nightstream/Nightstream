@@ -98,14 +98,26 @@ jobs:
         --config 'profile.release.lto="off"'
         --config 'profile.release.codegen-units=16'
 
-    - name: Run eight test shards with four workers
+    - name: Run tests with four workers
       run: |
-        printf '%s\n' {1..8} | xargs --max-procs=4 --max-args=1 bash -e -o pipefail -c '
+        printf '%s\n' cached {1..8} | xargs --max-procs=4 --max-args=1 bash -e -o pipefail -c '
+          # Keep each binary in one process so its OnceLock fixtures are shared.
+          if [[ "$1" == cached ]]; then
+            exec cargo test --release --locked --no-fail-fast --workspace --exclude spartan2 \
+              --features "testing,debug-log,fs-guard" \
+              --config "profile.release.lto=\"off\"" \
+              --config profile.release.codegen-units=16 \
+              --test system_fibonacci_compiler_recursive_step \
+              --test system_fibonacci_compiler_unified_structure \
+              -- --test-threads=1
+          fi
           printf "Starting test shard %s/8\n" "$1"
           exec cargo-nextest nextest run --profile ci \
             --archive-file ci-tests.tar.zst \
             --workspace-remap "$GITHUB_WORKSPACE" \
-            -E "not binary(=migration_hard_stops)" \
+            -E "not (binary(=migration_hard_stops) | \
+              binary(=system_fibonacci_compiler_recursive_step) | \
+              binary(=system_fibonacci_compiler_unified_structure))" \
             --partition "hash:$1/8"
         ' _
 

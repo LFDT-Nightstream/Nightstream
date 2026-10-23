@@ -7,7 +7,7 @@ We welcome contributions of all kinds—bug fixes, documentation, examples, and 
 ## Getting Started
 
 1. Fork the repository and create a feature branch: `git checkout -b feature/my-change`.
-2. Install the toolchain: Rust 1.88 or newer, `cargo`, and (optional) `clang` for optimized builds.
+2. Install the toolchain: Rust 1.97 or newer, `cargo`, and (optional) `clang` for optimized builds.
 3. Run `cargo fmt`, `cargo clippy --workspace --all-targets`, and `cargo test --workspace` before submitting changes.
 
 ## Pull Request Checklist

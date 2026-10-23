@@ -4,6 +4,7 @@ import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Late
 import CompressionLean.Circuit.Parse
 import CompressionLean.Circuit.Digest
+import CompressionLean.Final.KeyFacts
 
 /-!
 The `lowerCheck` executable. It reads one export of `neo-spartan`'s
@@ -25,7 +26,8 @@ run:
   `Early.lean` on a structure that the toy relation does not have. The whole
   IR must match.
 - `layer1 <input.json>`: the Lean side of `Layer1::run` for the relation and
-  the two `WhirKey`s in the file. The whole IR must match.
+  the two `WhirKey`s in the file. The whole IR must match, and the key must
+  have `KeyFacts` (`keyFailure`).
 - `linear <input.json>`: the Lean side of `Linear`, the linear stage
   (`linearStage`) from the state after the early stage. The whole IR must
   match.
@@ -370,32 +372,32 @@ def check (mirror : Option Mirror) : Parser String := do
   pure s!"match: {instrs.size} instructions, {rows.size} rows, {run.cells} glue cells, {run.blocks} blocks, \
     {run.publics.length} statement words{mirrored}; digest {(runDigest run rows).toList.map Gl.toNat}"
 
-/-- The export's path and Lean's program for it, from the arguments. -/
-def arguments : List String → IO (Except String (String × Option Mirror))
-  | [path] => pure (.ok (path, none))
-  | [path, "shared"] => pure (.ok (path, some ⟨shared.program, true⟩))
-  | [path, "early"] => pure (.ok (path, some ⟨early.program, true⟩))
+/-- The export's path, Lean's program for it and the layer-1 key, from the arguments. -/
+def arguments : List String → IO (Except String (String × Option Mirror × Option Layer1Input))
+  | [path] => pure (.ok (path, none, none))
+  | [path, "shared"] => pure (.ok (path, some ⟨shared.program, true⟩, none))
+  | [path, "early"] => pure (.ok (path, some ⟨early.program, true⟩, none))
   | [path, "layer1", input] => do
       let json ← IO.FS.readFile input
       pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := Layer1Input)).map fun input =>
-        (path, some ⟨(layer1 input).program, true⟩)
+        (path, some ⟨(layer1 input).program, true⟩, some input)
   | [path, "linear", input] => do
       let json ← IO.FS.readFile input
       pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := StageInput)).map fun input =>
-        (path, some ⟨(linear input).program, true⟩)
+        (path, some ⟨(linear input).program, true⟩, none)
   | [path, "honest", input] => do
       let json ← IO.FS.readFile input
       pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := StageInput)).map fun input =>
-        (path, some ⟨(honest input).program, true⟩)
+        (path, some ⟨(honest input).program, true⟩, none)
   | [path, "late", input] => do
       let json ← IO.FS.readFile input
       pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := StageInput)).map fun input =>
-        (path, some ⟨(late input).program, true⟩)
-  | [path, "lane_split"] => pure (.ok (path, some ⟨laneSplit.program, true⟩))
+        (path, some ⟨(late input).program, true⟩, none)
+  | [path, "lane_split"] => pure (.ok (path, some ⟨laneSplit.program, true⟩, none))
   | [path, "openings", input] => do
       let json ← IO.FS.readFile input
       pure <| (Lean.Json.parse json >>= Lean.fromJson? (α := OpeningsJson)).map fun input =>
-        (path, some ⟨(openings input).program, true⟩)
+        (path, some ⟨(openings input).program, true⟩, none)
   | _ => pure (.error "usage: lowerCheck <export.txt> [shared | early | layer1 <layer1.json> | \
       linear <linear.json> | honest <honest.json> | late <late.json> | lane_split | openings <openings.json>]")
 
@@ -403,9 +405,13 @@ end CompressionLean.LowerCheck
 
 open CompressionLean.LowerCheck in
 def main (args : List String) : IO UInt32 := do
-  let (path, mirror) ← match ← arguments args with
+  let (path, mirror, key) ← match ← arguments args with
     | .ok parsed => pure parsed
     | .error message => IO.eprintln message; return 2
+  if let some key := key then
+    match CompressionLean.Final.keyFailure key with
+    | some fact => IO.println s!"key fact fails: {fact}"; return 1
+    | none => IO.println "key facts hold"
   match ((check mirror).run 0).run (← IO.FS.readBinFile path) with
   | .ok (message, _) => IO.println message; return 0
   | .error message => IO.println s!"mismatch: {message}"; return 1

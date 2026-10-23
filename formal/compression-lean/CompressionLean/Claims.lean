@@ -9,7 +9,10 @@ link its premises to a proof or to a check. Each claim is stated in full here;
 its proof is in the library.
 
 - `production_bound`: the soundness bound of `CompressionKey::verify` for the
-  production final program, for F′'s reference application.
+  production final program. It is stated at F′'s reference width
+  (`Data.logicalWidth`), which is no application's width: the production key,
+  of the Poseidon2 hash-chain application, does not meet its `ParentShape`
+  premise. So no claim covers the production key yet.
 - `honest_setup_of_build`: the honest setup from Rust's setup build and
   `RunsGive`.
 - `key_facts_of_check`, `package_templates_of_check`: a key or a terminal

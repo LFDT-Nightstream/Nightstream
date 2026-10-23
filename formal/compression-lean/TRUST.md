@@ -70,9 +70,11 @@ and key expander (`Final/RustSetup.lean`). A port equals its Rust only as far as
 
 ## 6. Scope
 
-The final theorems are stated for F′'s reference relation (`Data.logicalWidth`), and the terminal
-package, so the production final program, is F′'s reference application. An application of another
-width is outside the claims. They describe the
+The final theorems are stated for F′'s reference relation (`Data.logicalWidth`, 27,420,587 columns).
+That width is a reference shape, not an application's: every application is wider, and the production
+key's application (the Poseidon2 hash chain, 43,963,750 columns) does not meet the `ParentShape`
+premise at it. So no claim covers the production key yet. The terminal package does not depend on the
+width. They describe the
 native verifier and the circuit that Rust records; they say nothing about code paths that Lean does
 not model.
 

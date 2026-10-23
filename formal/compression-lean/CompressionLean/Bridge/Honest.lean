@@ -46,6 +46,12 @@ theorem pointK_padded (n : ℕ) (p : Array Ext) : pointK (K := K) (Replay.padded
 /-- The model's partials of the proof's. -/
 def partialsOf (proof : Replay.Proof) (g : Fin 2) : ℕ → K := tableK (proof.partials[(g : ℕ)]!)
 
+/-- The model's messages of the replay's honest fold: the partials and the
+P1 candidates. -/
+def honestMsgs (proof : Replay.Proof) {L1 : ℕ} (p1 : {l : List (P1Tables K) // l.length ≤ L1}) :
+    List (Σ M : Type, M) :=
+  [⟨Fin 2 → ℕ → K, partialsOf proof⟩, ⟨{l : List (P1Tables K) // l.length ≤ L1}, p1⟩]
+
 /-- The model's query words of the replay's. -/
 def wordsOf (queries : ℕ) (ws : Array Gl) : Fin queries → Fin goldilocks :=
   fun j => ⟨(ws[(j : ℕ)]!).word.toNat, word_lt _⟩
@@ -106,9 +112,10 @@ theorem toK_runValue (rel : Replay.Relation) (proof : Replay.Proof) (S : Setup F
 
 variable [DecidableEq K]
 
-/-- A successful honest-fold replay is a path of `honestGame` that draws the
-replay's `μ`, `α` and query words and ends in the model's `HonestOut` of the
-replay's values; along it both partial checks hold. -/
+/-- A successful honest-fold replay is a path of `honestGame` that receives
+the partials and the P1 candidates, draws the replay's `μ`, `α` and query
+words and ends in the model's `HonestOut` of the replay's values; along it
+both partial checks hold. -/
 theorem honest_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : ProofShape rel proof) (S : Setup Fp)
     (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
     (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S) (sizes : HonestSizes rel)
@@ -124,7 +131,7 @@ theorem honest_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : P
       Game.Reaches (honestGame (shapeOf rel) S L1 (2 ^ (rel.setupVars - 2)) goldilocks q
           (⟨cands, histOf proof, challengesOf early.challenges, mc, valuesOf early.values⟩ : Layer1.EarlyOut Fp K)
           (linearOutOf proof lin))
-        (ds.map (drawn (K := K) rel.queries))
+        (honestMsgs proof ⟨p1, short⟩) (ds.map (drawn (K := K) rel.queries))
         (some ⟨honest.mu.toK, partialsOf proof, pointK honest.alpha, p1,
           lowBits (2 ^ (rel.setupVars - 2)) (wordsOf rel.queries honest.words)⟩) := by
   have small : ∀ u, u < 5 → u < rel.earlyShapes.size := fun u lt => by rw [earlyShapes_size]; exact lt
@@ -192,17 +199,18 @@ theorem honest_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : P
   · rw [wordDraws, run_observeAll h9, run_observeAll h8, run_sampleExt h5, run_sampleExt h4, run_sampleExt h3,
       run_observeExts h2, run_sampleExt h1]
     simp
-  · unfold honestGame
+  · unfold honestGame honestMsgs
     simp only [List.map_cons, List.map_nil, drawn_ext]
     apply Game.Reaches.draw mu.toK
     apply Game.Reaches.recv (partialsOf proof)
-    refine Game.Reaches.bind (ds₁ := [⟨K, a0.toK⟩, ⟨K, a1.toK⟩, ⟨K, a2.toK⟩]) (a := pointK #[a0, a1, a2]) ?_ ?_
+    refine Game.Reaches.bind (ms₁ := []) (ds₁ := [⟨K, a0.toK⟩, ⟨K, a1.toK⟩, ⟨K, a2.toK⟩])
+      (a := pointK #[a0, a1, a2]) ?_ ?_
     · apply Game.Reaches.draw a0.toK
       apply Game.Reaches.draw a1.toK
       apply Game.Reaches.draw a2.toK
       exact Game.Reaches.pure _
     · rw [if_pos checks]
-      apply Game.Reaches.recv ⟨p1, short⟩
+      apply Game.Reaches.recv (⟨p1, short⟩ : {l : List (P1Tables K) // l.length ≤ L1})
       exact Game.Reaches.draw (wordsOf rel.queries words) (Game.Reaches.pure _)
 
 end CompressionLean.Bridge

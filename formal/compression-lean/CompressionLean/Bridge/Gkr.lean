@@ -132,6 +132,11 @@ theorem drawn_ext (q : ℕ) (v : Ext) : drawn (K := K) q (.ext v) = ⟨K, v.toK�
 
 theorem drawn_pair (q : ℕ) (a b : Ext) : drawn (K := K) q (.pair a b) = ⟨K × K, (a.toK, b.toK)⟩ := rfl
 
+/-- The model's messages of the replay's sum-check rounds: each round's
+values in `K`. -/
+def sumcheckMsgs (d : ℕ) (rounds : List (Array Ext)) : List (Σ M : Type, M) :=
+  rounds.map fun m => ⟨Fin (d + 1) → K, fun j => (m[(j : ℕ)]!).toK⟩
+
 section SumCheck
 
 variable [DecidableEq K]
@@ -143,7 +148,7 @@ theorem sumcheck_reaches {W : Type} (worlds : Finset W) (d : ℕ) (round : W →
       (∀ m ∈ rounds, m.size = d + 1) → Runs (sumcheckRounds rounds point claim) t result t' →
       ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧
         Game.Reaches (sumcheck worlds d round extra rounds.length (pointK point) claim.toK)
-          (ds.map (drawn (K := K) q)) (pointK result.1, result.2.toK)
+          (sumcheckMsgs (K := K) d rounds) (ds.map (drawn (K := K) q)) (pointK result.1, result.2.toK)
   | [], point, claim, t, t', result, _, run => by
       rw [sumcheckRounds] at run
       obtain ⟨rfl, rfl⟩ := run_pure run
@@ -355,6 +360,19 @@ theorem advance_agrees {gs : GkrShape} {shapes : Array TreeShape} (agree : Shape
 
 /-! ### The game -/
 
+/-- The model's messages of the replay's GKR layers from layer `k`: each
+layer's sum-check rounds, then its children. -/
+def gkrLayersMsgs (shapes : Array TreeShape) : List GkrLayer → ℕ → List (Σ M : Type, M)
+  | [], _ => []
+  | layer :: rest, k =>
+      sumcheckMsgs (K := K) (layerDegree (layerFactors shapes k) - 1) layer.rounds.toList ++
+        ⟨ℕ → ℕ → K × K, childrenOf ((activeTrees shapes k).zip layer.children).toList⟩ ::
+          gkrLayersMsgs shapes rest (k + 1)
+
+/-- The model's messages of the replay's GKR proof: the roots, then every layer. -/
+def gkrMsgs (shapes : Array TreeShape) (proof : GkrProof) : List (Σ M : Type, M) :=
+  ⟨ℕ → K × K, fun t => pairK (proof.roots[t]!)⟩ :: gkrLayersMsgs (K := K) shapes proof.layers.toList 1
+
 section Games
 
 variable [DecidableEq K]
@@ -386,8 +404,8 @@ theorem gkrLayers_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : Sh
       ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧ ∃ mc', ClaimsAgree shapes.size c' mc' ∧
         (∀ u, u < shapes.size → (shapes[u]!).depth < k + layers.length →
           (c'.leafPoint[u]!).size = (shapes[u]!).depth) ∧
-        Game.Reaches (Layer1.gkrLayers gs worlds batch extra layers.length k mc) (ds.map (drawn (K := K) q))
-          (some mc')
+        Game.Reaches (Layer1.gkrLayers gs worlds batch extra layers.length k mc)
+          (gkrLayersMsgs (K := K) shapes layers k) (ds.map (drawn (K := K) q)) (some mc')
   | [], k, c, mc, t, t', c', _, _, claims, _, lengths, run => by
       rw [Replay.gkrLayers] at run
       obtain ⟨rfl, rfl⟩ := run_pure run
@@ -465,6 +483,7 @@ theorem gkrLayers_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : Sh
             wsum nu.toK (fun t => (mc.current t).1 + mu.toK * (mc.current t).2) (gs.active k) := by
           rw [toK_batchClaim c.current mu nu mc shapes.size claims.current pairs small, firsts]
         rw [Array.length_toList, roundsSize, claim0, show pointK (K := K) #[] = [] from rfl] at reachS
+        rw [gkrLayersMsgs, ← degree_eq agree k]
         refine Game.Reaches.bind reachS ?_
         apply Game.Reaches.recv (childrenOf pairs)
         rw [if_pos]
@@ -476,15 +495,17 @@ theorem gkrLayers_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : Sh
           refine congrArg (fun x => Layer1.eqEval mc.point (pointK result.1) * x) (wsum_congr _ fun t member => ?_)
           rw [partFactors_eq agree k t (active_lt k t (by rwa [← active_eq agree]))]
 
-/-- A successful GKR replay is a path of the model's GKR ending in claims that
-agree with the replay's on every tree. -/
+/-- A successful GKR replay is a path of the model's GKR that receives the
+proof's messages and ends in claims that agree with the replay's on every
+tree. -/
 theorem gkr_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : ShapesAgree gs shapes)
     {W : Type} (worlds : Finset W) (batch : W → Batch K) (extra : ℕ → List K → Finset K) (q : ℕ)
     {proof : GkrProof} (read : readGkr proof shapes = .ok ()) {t t' : Replay.Transcript} {c : Replay.GkrClaims}
     (run : Runs (gkrVerify proof shapes) t c t') :
     ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧ ∃ mc, ClaimsAgree shapes.size c mc ∧
       (∀ u, u < shapes.size → (c.leafPoint[u]!).size = (shapes[u]!).depth) ∧
-      Game.Reaches (Layer1.gkr gs worlds batch extra) (ds.map (drawn (K := K) q)) (some mc) := by
+      Game.Reaches (Layer1.gkr gs worlds batch extra) (gkrMsgs (K := K) shapes proof) (ds.map (drawn (K := K) q))
+        (some mc) := by
   obtain ⟨roots, layers, layersOk⟩ := readGkr_ok read
   unfold gkrVerify at run
   obtain ⟨_, t1, h1, run⟩ := run_bind run

@@ -2,17 +2,16 @@ import CompressionLean.Circuit.SimAlgebra
 import CompressionLean.Replay.Transcript
 
 /-!
-Owns the simulation of the hashes of `Hash.lean`: the duplex challenger
-against the replay's (`Replay/Transcript.lean`), the leaf sponge, node
-compression and Merkle paths against the replay's `hashLeaf`, `compress` and
-`merkleRoot`. `permutes_poseidon2` gives `Permutes` for Goldilocks and
-Poseidon2.
+Owns the simulation of the duplex challenger of `Hash.lean` against the
+replay's (`Replay/Transcript.lean`): `observe`, `sample`, `sample_ext` and
+`sample_bits`. `SimMerkle.lean` owns the leaf sponge, node compression and
+Merkle paths.
 
 - `IsWords`: an array of handles is an array of words, entry by entry.
 - `IsDuplex`: the builder's duplex is the replay's, lane by lane.
-- The path words of a Merkle path are free: `merkleRoot` says that the
-  handles of the computed root are the replay's root of the words that the
-  path handles hold. Only the caller's root check binds those words.
+- `bits_digits`: a decomposition that passes the 64-bit check is the binary
+  one. So once its check holds, `sampleBits` gives the sample's digits
+  (`Ensures`).
 -/
 
 namespace CompressionLean.Circuit
@@ -187,6 +186,99 @@ theorem IsDuplex.permuted {c : Ctx F} {m : ℕ} (t : Array Gl) (outs : Fin 16 �
   dsimp only
   exact wo.extract 0 rate
 
+theorem duplexing_output_size (r : Replay.Duplex) : r.duplexing.output.size = Replay.rate := by
+  unfold Replay.Duplex.duplexing
+  simp [permute_size, Replay.rate]
+
+/-- Pop the last output lane of matching duplexes. -/
+theorem IsDuplex.pop {c : Ctx F} {m : ℕ} {d : Duplex} {r : Replay.Duplex} (h : IsDuplex c m d r)
+    (ne : 0 < r.output.size) :
+    IsWord c m d.output.back! r.output.back! ∧
+      IsDuplex c m { d with output := d.output.pop } { r with output := r.output.pop } :=
+  ⟨h.output.back (h.output.1 ▸ ne), ⟨h.state, h.input, h.output.pop, h.width⟩⟩
+
+/-- Matching duplexes take the same branch before a sample. -/
+theorem IsDuplex.cond {c : Ctx F} {m : ℕ} {d : Duplex} {r : Replay.Duplex} (h : IsDuplex c m d r) :
+    (!d.input.isEmpty || d.output.isEmpty) = (!r.input.isEmpty || r.output.isEmpty) := by
+  unfold Array.isEmpty
+  rw [h.input.1, h.output.1]
+
+/-- The sum of `2^i·β i` below `k`, for bits `β`, is below `2^k` and has
+digit `j` equal to `β j`. -/
+theorem binary_sum (β : ℕ → ℕ) : ∀ k, (∀ i < k, β i ≤ 1) →
+    ((List.range k).map fun i => 2 ^ i * β i).sum < 2 ^ k ∧
+      ∀ j < k, ((List.range k).map fun i => 2 ^ i * β i).sum / 2 ^ j % 2 = β j
+  | 0, _ => ⟨by simp, fun j hj => absurd hj (by omega)⟩
+  | k + 1, hβ => by
+      obtain ⟨lt, digits⟩ := binary_sum β k fun i hi => hβ i (by omega)
+      rw [List.range_succ, List.map_append, List.sum_append, List.map_singleton, List.sum_singleton]
+      generalize ((List.range k).map fun i => 2 ^ i * β i).sum = S at lt digits
+      have hk := hβ k (by omega)
+      refine ⟨by rw [pow_succ]; nlinarith, fun j hj => ?_⟩
+      rcases Nat.lt_succ_iff_lt_or_eq.mp hj with lo | rfl
+      · have e : 2 ^ k * β k = 2 ^ j * (2 * (2 ^ (k - j - 1) * β k)) := by
+          rw [← mul_assoc, ← mul_assoc, ← pow_succ, ← pow_add]
+          congr 2
+          omega
+        rw [e, Nat.add_mul_div_left _ _ (by positivity), Nat.add_mul_mod_self_left]
+        exact digits j lo
+      · rw [Nat.add_mul_div_left _ _ (by positivity), Nat.div_eq_of_lt lt, zero_add]
+        omega
+
+/-- **A canonical decomposition is the binary one.** If `b` passes the 64-bit
+check for the word `g`, bit `i` is digit `i` of `g`. -/
+theorem bits_digits [CharP F goldilocksModulus] {g : Gl} {b : ℕ → F}
+    (h : Bits (word g : F) 64 b) : ∀ i < 64, b i = word (Gl.ofNat (g.toNat / 2 ^ i % 2)) := by
+  classical
+  have one_ne : (1 : F) ≠ 0 := by
+    intro e
+    have := (CharP.cast_eq_zero_iff F goldilocksModulus 1).mp (by simpa using e)
+    norm_num [goldilocksModulus] at this
+  obtain ⟨β, hβ⟩ : ∃ β : ℕ → ℕ, ∀ i < 64, b i = (β i : F) ∧ β i ≤ 1 :=
+    ⟨fun i => if b i = 1 then 1 else 0, fun i hi => by
+      rcases h.boolean i hi with z | o
+      · have : b i ≠ 1 := z ▸ one_ne.symm
+        exact ⟨by dsimp only; rw [if_neg this, Nat.cast_zero, z], by dsimp only; rw [if_neg this]; omega⟩
+      · simp [o]⟩
+  obtain ⟨lt, digits⟩ := binary_sum β 64 fun i hi => (hβ i hi).2
+  generalize hN : ((List.range 64).map fun i => 2 ^ i * β i).sum = N at lt digits
+  have cast : (word g : F) = (N : F) := by
+    rw [h.sum, ← hN, Nat.cast_list_sum, List.map_map]
+    refine congrArg List.sum (List.map_congr_left fun i hi => ?_)
+    simp [(hβ i (List.mem_range.mp hi)).1]
+  have small : N < goldilocksModulus := by
+    by_contra big
+    have high : N / 2 ^ 32 = 2 ^ 32 - 1 := by
+      norm_num [goldilocksModulus] at big lt ⊢
+      omega
+    have table : ∀ k < 32, (2 ^ 32 - 1) / 2 ^ k % 2 = 1 := by decide
+    have ones : ∀ j, 32 ≤ j → j < 64 → b j = 1 := fun j lo hj => by
+      obtain ⟨k, rfl⟩ : ∃ k, j = 32 + k := ⟨j - 32, by omega⟩
+      rw [(hβ _ hj).1, ← digits _ hj, pow_add, ← Nat.div_div_eq_div_mul, high, table k (by omega), Nat.cast_one]
+    have zeros := h.canonical rfl ones
+    have low : N % 2 ^ 32 = 0 := by
+      apply Nat.eq_of_testBit_eq
+      intro i
+      rw [Nat.testBit_mod_two_pow, Nat.zero_testBit]
+      by_cases hi : i < 32
+      · rw [decide_eq_true hi, Bool.true_and, Nat.testBit_eq_decide_div_mod_eq, digits i (by omega)]
+        have bi := (hβ i (by omega)).1
+        rw [zeros i hi] at bi
+        by_cases one : β i = 1
+        · rw [one, Nat.cast_one] at bi
+          exact absurd bi.symm one_ne
+        · simp [one]
+      · simp [hi]
+    have : N = 2 ^ 32 * (2 ^ 32 - 1) := by
+      rw [← Nat.div_add_mod N (2 ^ 32), high, low, add_zero]
+    norm_num [goldilocksModulus, this] at big
+  have eq : N = g.toNat := by
+    rw [word, eq_comm] at cast
+    have := (CharP.natCast_eq_natCast F goldilocksModulus).mp cast
+    exact Nat.ModEq.eq_of_lt_of_lt this small g.canonical
+  intro i hi
+  rw [(hβ i hi).1, word_ofNat, ← eq, digits i hi]
+
 namespace Sim
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
@@ -333,6 +425,76 @@ theorem observeExt {d : Duplex} {r : Replay.Duplex} {a : ExtVar} {e : Ext} (hp :
   rw [StateT.run_bind]
   refine Sim.bind₀ (observe hp (fun h => h.2) fun h => (ha h.1 1).mono l₁) fun res₂ m₂ l₂ => ?_
   exact observe hp (fun h => h.2) fun h => (ha h.1.1 2).mono (l₁.trans l₂)
+
+
+/-- `sample`: duplex when there is input or no output, then pop the last
+output lane. -/
+theorem sample {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
+    Sim c n P (Duplex.sample.run d) (fun res m => IsWord c m res.1 r.sample.1 ∧ IsDuplex c m res.2 r.sample.2)
+      True := by
+  unfold Duplex.sample
+  rw [StateT.run_bind, StateT.run_get, pure_bind]
+  dsimp only
+  split
+  · rename_i cond
+    rw [StateT.run_bind]
+    refine (duplexing hp hd).bind₀ fun res m _ => ?_
+    rw [StateT.run_bind, StateT.run_get, pure_bind, StateT.run_bind, StateT.run_set, pure_bind, StateT.run_pure]
+    refine Sim.pure fun h => ?_
+    have e : (!r.input.isEmpty || r.output.isEmpty) = true := (hd h.1).cond ▸ cond
+    simp only [Replay.Duplex.sample, e, if_true]
+    exact h.2.pop (by rw [duplexing_output_size]; decide)
+  · rename_i cond
+    rw [StateT.run_bind, StateT.run_get, pure_bind, StateT.run_bind, StateT.run_set, pure_bind, StateT.run_pure]
+    refine Sim.pure fun h => ?_
+    have e : ¬(!r.input.isEmpty || r.output.isEmpty) = true := (hd h).cond ▸ cond
+    simp only [Replay.Duplex.sample, e]
+    refine (hd h).pop ?_
+    simp only [Bool.or_eq_true, Bool.not_eq_true', Array.isEmpty_iff_size_eq_zero, not_or] at e
+    omega
+
+/-- `sample_ext`: coordinate `i` is the `i`-th sample. -/
+theorem sampleExt {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
+    Sim c n P (Duplex.sampleExt.run d)
+      (fun res m => IsExt c m res.1 ⟨r.sample.1, r.sample.2.sample.1, r.sample.2.sample.2.sample.1⟩ ∧
+        IsDuplex c m res.2 r.sample.2.sample.2.sample.2) True := by
+  unfold Duplex.sampleExt
+  rw [StateT.run_bind]
+  refine (sample hp hd).bind₀ fun x m₁ l₁ => ?_
+  rw [StateT.run_bind]
+  refine (sample hp fun h => h.2.2).bind₀ fun y m₂ l₂ => ?_
+  rw [StateT.run_bind]
+  refine (sample hp fun h => h.2.2).bind₀ fun z m₃ l₃ => ?_
+  rw [StateT.run_pure]
+  refine Sim.pure fun h => ⟨fun k => ?_, h.2.2⟩
+  fin_cases k
+  · exact h.1.1.2.1.mono (l₂.trans l₃)
+  · exact h.1.2.1.mono l₃
+  · exact h.2.1
+
+/-- `sample_bits`: the low `bits` bits of the canonical sample. Once the
+decomposition's check holds, bit `i` is digit `i` of the sample. -/
+theorem sampleBits {d : Duplex} {r : Replay.Duplex} (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm)
+    (hd : P → IsDuplex c n d r) :
+    Ensures c n P ((Duplex.sampleBits bits).run d)
+      (fun res m => res.1.size = bits ∧ (∀ i < bits, IsWord c m res.1[i]! (Gl.ofNat (r.sample.1.toNat / 2 ^ i % 2))) ∧
+        IsDuplex c m res.2 r.sample.2) := by
+  unfold Duplex.sampleBits
+  refine Ensures.tbind (sample hp hd).ensures fun w e m₁ _ => ?_
+  rw [StateT.run_bind]
+  refine (Ensures.lift (Sim.bits 64 fun h => h.2.1.1).ensures).bind fun res m₂ l₂ => ?_
+  rw [StateT.run_pure]
+  refine Ensures.pure fun h => ?_
+  obtain ⟨⟨-, ⟨-, hd'⟩, -⟩, ⟨cells, check⟩, he⟩ := h
+  refine ⟨by simp [small], fun i hi => ?_, he ▸ hd'.mono l₂⟩
+  have get : ((Array.ofFn res.1).extract 0 bits)[i]! = res.1 ⟨i, by omega⟩ := by
+    rw [getElem!_pos _ _ (by simp; omega)]
+    simp
+  rw [get]
+  obtain ⟨at_, lt_, val⟩ := cells ⟨i, by omega⟩
+  refine ⟨lt_, ?_⟩
+  rw [val, at_]
+  exact bits_digits check i (by omega)
 
 end Sim
 

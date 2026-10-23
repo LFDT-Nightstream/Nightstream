@@ -1,0 +1,2 @@
+[profile.ci]
+test-threads = 1

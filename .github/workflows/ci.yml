@@ -56,6 +56,12 @@ jobs:
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
+    - name: Install Nextest
+      uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+      with:
+        tool: cargo-nextest@0.9.149
+        fallback: none
+
     - name: Get Rust cache key
       id: rust
       run: echo "cachekey=$(rustc -vV | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
@@ -74,11 +80,14 @@ jobs:
     - name: Build selected Rust tests
       run: bash scripts/ci_rust_tests.sh build
 
+    - name: Run doctests
+      run: bash scripts/ci_rust_tests.sh docs
+
     - name: Run selected Rust tests with four workers
       run: bash scripts/ci_rust_tests.sh test
 
     - name: Run conformance coordinator tests
       run: |
-        timeout --signal=KILL 300 python3 -B -m unittest scripts.tests.test_golden_conformance_ci scripts.tests.test_golden_conformance_changes scripts.lean_graph.tests.test_guard scripts.lean_graph.tests.test_replay_coverage
+        timeout --signal=KILL 300 python3 -B -m unittest scripts.tests.test_ci_rust_tests scripts.tests.test_golden_conformance_ci scripts.tests.test_golden_conformance_changes scripts.lean_graph.tests.test_guard scripts.lean_graph.tests.test_replay_coverage
         timeout --signal=KILL 300 python3 -B -m unittest discover -s crates/nightstream/tests -p 'test_*.py'
         timeout --signal=KILL 300 python3 -B -m unittest discover -s formal/nightstream-fprime/tests -p 'test_*.py'

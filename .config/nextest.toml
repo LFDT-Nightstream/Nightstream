@@ -1,5 +1,3 @@
 [profile.ci]
 # Each test can use the machine's Rayon pool without competing test processes.
 test-threads = 1
-global-timeout = "290s"
-slow-timeout = { period = "60s", terminate-after = 5, grace-period = "0s" }

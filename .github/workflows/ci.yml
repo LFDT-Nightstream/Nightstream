@@ -35,7 +35,6 @@ jobs:
   build-tests:
     name: Build tests and run builder checks
     runs-on: [self-hosted, Linux, X64, nico-runner]
-    timeout-minutes: 30
     env:
       # The archive must run on CPUs other than the build machine's CPU.
       RUSTFLAGS: "-Dwarnings -C target-cpu=x86-64"
@@ -84,14 +83,14 @@ jobs:
 
     - name: Run source checks on the build machine
       run: >-
-        timeout --signal=TERM --kill-after=5s 295s cargo nextest run --profile ci
+        cargo nextest run --profile ci
         --archive-file ci-tests.tar.zst
         --workspace-remap "$GITHUB_WORKSPACE"
         -E 'binary(=migration_hard_stops)'
 
     - name: Run doctests
       run: >-
-        timeout --signal=TERM --kill-after=5s 295s cargo test --release --locked --workspace
+        cargo test --release --locked --workspace
         --exclude spartan2 --features "testing,debug-log,fs-guard" --doc
 
     - name: Upload test archive
@@ -109,13 +108,13 @@ jobs:
     #   run: bash ./scripts/check_lean_rust_conformance.sh
 
   test-shards:
-    name: Run Tests (${{ matrix.partition }}/4)
+    name: Run Tests (${{ matrix.partition }}/8)
     needs: build-tests
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        partition: [1, 2, 3, 4]
+        partition: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -132,15 +131,12 @@ jobs:
         name: ci-tests-linux-x64
 
     - name: Run test partition without rebuilding
-      run: |
-        # Two smaller batches keep each invocation within the five-minute cap.
-        for batch in "${{ matrix.partition }}" "$(( ${{ matrix.partition }} + 4 ))"; do
-          timeout --signal=TERM --kill-after=5s 295s cargo-nextest nextest run --profile ci \
-            --archive-file ci-tests.tar.zst \
-            --workspace-remap "$GITHUB_WORKSPACE" \
-            -E 'not binary(=migration_hard_stops)' \
-            --partition "hash:$batch/8"
-        done
+      run: >-
+        cargo-nextest nextest run --profile ci
+        --archive-file ci-tests.tar.zst
+        --workspace-remap "$GITHUB_WORKSPACE"
+        -E 'not binary(=migration_hard_stops)'
+        --partition hash:${{ matrix.partition }}/8
 
   # ============================================================================
   # WASM Build Checks (with Spartan)

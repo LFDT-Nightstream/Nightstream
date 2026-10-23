@@ -1,3 +1,3 @@
 [profile.ci]
-# Run one test per shard; the workflow runs four shards at a time.
+# Run one test per shard; the workflow uses four worker slots.
 test-threads = 1

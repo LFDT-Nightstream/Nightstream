@@ -16,17 +16,18 @@ use crate::adapters::wasmtime::WasmProgramTables;
 use crate::batch::{self, BatchError};
 use crate::comm_chain::CommChainState;
 use crate::ir::{
-    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmHostEventState, WasmOutputState, WasmStepState,
+    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmFrameMoveState, WasmHostEventState, WasmOutputState,
+    WasmStepState,
 };
 use crate::layout::{
     COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_BEFORE, COL_EVBUF_BEFORE,
+    COL_FRAME_MOVE_ACTIVE_BEFORE, COL_FRAME_MOVE_DISTANCE_BEFORE, COL_FRAME_MOVE_REMAINING_BEFORE,
     COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENT_ARGS_BASE_BEFORE,
     COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_LOCALS_FBP_BEFORE,
     COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_BEFORE, COL_MAX_MEMORY_PAGES_BEFORE,
     COL_MEMORY_PAGES_BEFORE, COL_OBJECT_ACTIVE_BEFORE, COL_OUTER_CHAIN_BEFORE, COL_OUTER_PREFIX_BEFORE,
-    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_BEFORE, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE,
-    COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE, COL_TAIL_CALL_PENDING_BEFORE,
+    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_BEFORE, COL_PC_BEFORE,
+    COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE, COL_PERM_STATE_BEFORE, COL_SP_BEFORE, COL_STACK_FRAME_BASE_BEFORE,
     COL_TRAPPED_BEFORE, COL_TURN_EXPORT_FREF_BEFORE,
 };
 use crate::relation_layout::build_wasm_relation_layout;
@@ -201,10 +202,13 @@ pub fn host_event_top_level_initial_state(
             "host-event bindings have no export template for selected export fref {export_fref}"
         ))
     })?;
+    let (params, total_locals) = export_frame_shape(tables, export_fref)?;
+    // The export frame starts at the stack bottom: entry inputs fill the
+    // parameters, then LocalZero rows push the declared locals.
     let mut state = WasmStepState {
         pc: entry_pc,
-        sp: 0,
-        stack_frame_base: 0,
+        sp: u64::from(params),
+        stack_frame_base: u64::from(total_locals),
         output: WasmOutputState::ZERO,
         call_stack_depth: 0,
         memory_pages: tables.initial_memory_pages,
@@ -212,9 +216,11 @@ pub fn host_event_top_level_initial_state(
         locals_fbp: 0,
         activation_finished: false,
         trapped: false,
-        param_init: WasmCountdownState::ZERO,
-        local_zero: WasmCountdownState::ZERO,
-        tail_call_pending: false,
+        frame_move: WasmFrameMoveState::ZERO,
+        local_zero: WasmCountdownState {
+            active: total_locals != u32::from(params),
+            remaining: total_locals - u32::from(params),
+        },
         host_callee_fref: 0,
         comm_chain: initial_comm_chain.canonical_u64(),
         event_absorb: WasmEventAbsorbState::ZERO,
@@ -224,6 +230,25 @@ pub fn host_event_top_level_initial_state(
     state.host_events.turn_export_fref = export_fref;
     state.host_events.events_remaining = template.entry.len() as u32;
     Ok(state)
+}
+
+/// `(parameters, parameters plus declared locals)` of a guest function.
+fn export_frame_shape(tables: &WasmProgramTables, fref: u32) -> Result<(u8, u32), WasmBuildError> {
+    let lookup = |rows: &[(u64, u64)], what: &str| {
+        rows.iter()
+            .find_map(|&(function_ref, value)| (function_ref == u64::from(fref)).then_some(value))
+            .ok_or_else(|| WasmBuildError::Trace(format!("missing {what} for export fref {fref}")))
+    };
+    let (params, _, _) =
+        crate::ir::function_call_metadata_shape(lookup(&tables.function_call_metadata, "call metadata")?);
+    let total_locals = u32::try_from(lookup(&tables.function_local_counts, "local count")?)
+        .map_err(|_| WasmBuildError::Trace(format!("local count of export fref {fref} does not fit u32")))?;
+    if total_locals < u32::from(params) {
+        return Err(WasmBuildError::Trace(format!(
+            "export fref {fref} has a total local count smaller than its parameter count"
+        )));
+    }
+    Ok((params, total_locals))
 }
 
 /// Convenience wrapper for the common top-level export-entry boundary.
@@ -288,9 +313,9 @@ fn carried_state_field(state: WasmStepState, column: usize) -> F {
         COL_LOCALS_FBP_BEFORE => F::from_u64(state.locals_fbp),
         COL_LOCAL_ZERO_ACTIVE_BEFORE => bool_field(state.local_zero.active),
         COL_LOCAL_ZERO_REMAINING_BEFORE => F::from_u64(u64::from(state.local_zero.remaining)),
-        COL_PARAM_INIT_ACTIVE_BEFORE => bool_field(state.param_init.active),
-        COL_PARAM_INIT_REMAINING_BEFORE => F::from_u64(u64::from(state.param_init.remaining)),
-        COL_TAIL_CALL_PENDING_BEFORE => bool_field(state.tail_call_pending),
+        COL_FRAME_MOVE_ACTIVE_BEFORE => bool_field(state.frame_move.active),
+        COL_FRAME_MOVE_REMAINING_BEFORE => F::from_u64(u64::from(state.frame_move.remaining)),
+        COL_FRAME_MOVE_DISTANCE_BEFORE => F::from_u64(state.frame_move.distance),
         COL_HOST_CALLEE_FREF_BEFORE => F::from_u64(u64::from(state.host_callee_fref)),
         COL_TURN_EXPORT_FREF_BEFORE => F::from_u64(u64::from(state.host_events.turn_export_fref)),
         COL_HOST_EVENTS_REMAINING_BEFORE => F::from_u64(u64::from(state.host_events.events_remaining)),

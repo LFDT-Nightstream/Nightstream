@@ -1,10 +1,10 @@
 use neo_math::F;
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::layout::{
-    COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_CURRENT_FUNCTION_REF, COL_EXPECTED_TYPE_ID, COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET, COL_LOCAL_INDEX,
-    COL_OPCODE_CODE, COL_STACK_READ_VALUE_HI, COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX, COL_TABLE_SIZE,
-    COL_TABLE_VALUE, PC_ROM_CALL_RETURN_CHOICE,
+    COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CURRENT_FUNCTION_REF,
+    COL_ENTERED_FUNCTION_NUM_LOCALS, COL_EXPECTED_TYPE_ID, COL_FUNCTION_TYPE_ID, COL_LINEAR_MEM_IMM_OFFSET,
+    COL_LOCAL_INDEX, COL_OPCODE_CODE, COL_STACK_READ_VALUE_HI, COL_STACK_WRITE0_VALUE_HI, COL_TABLE_INDEX,
+    COL_TABLE_SIZE, COL_TABLE_VALUE, PC_ROM_CALL_RETURN_CHOICE,
 };
 use neo_wasm::{
     build_wasm_relation_layout, collect_wasmtime_steps, extract_wasm_program_artifacts, preload_from_program_artifacts,
@@ -280,19 +280,21 @@ fn memory_semantics_rejects_return_pc_not_read_from_call_stack() {
 }
 
 #[test]
-fn memory_semantics_rejects_wrong_current_function_local_count() {
+fn memory_semantics_rejects_wrong_entered_function_local_count() {
     let (trace, mut witnesses, preload) = witness_run(
         r#"(module
-            (func (export "run") (result i32)
+            (func $callee (result i32)
                 (local i32 i32)
-                i32.const 5))
+                i32.const 5)
+            (func (export "run") (result i32)
+                call $callee))
         "#,
     );
     let row_index = trace
         .iter()
-        .position(|row| row.row_kind.is_program())
-        .expect("program row");
-    witnesses[row_index][COL_CURRENT_FUNCTION_NUM_LOCALS] += F::ONE;
+        .position(|row| row.call_stack_push.is_some())
+        .expect("guest call row");
+    witnesses[row_index][COL_ENTERED_FUNCTION_NUM_LOCALS] += F::ONE;
 
     let layout = build_wasm_relation_layout();
     let err = sanity_check_memory_rows(layout, &witnesses, &preload).expect_err("wrong local count must fail");

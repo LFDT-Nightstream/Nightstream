@@ -362,18 +362,13 @@ fn reentered_export_zeroes_an_unmapped_i64_local() {
         .iter()
         .filter(|row| row.row_kind.is_local_zero())
         .collect();
-    assert_eq!(zero_rows.len(), 1, "re-entry clears only the scratch local");
-    assert_eq!(
-        zero_rows
-            .iter()
-            .map(|row| row.local_index)
-            .collect::<Vec<_>>(),
-        [Some(1)]
-    );
-    assert_eq!(
-        (zero_rows[0].local_write_value, zero_rows[0].local_write_value_hi),
-        (Some(0), Some(0))
-    );
+    assert_eq!(zero_rows.len(), 2, "each turn clears only its scratch local");
+    // Both turns open the export frame at the stack bottom, so the scratch
+    // local is cell 1 each time.
+    assert!(zero_rows.iter().all(|row| {
+        row.stack_write0
+            .is_some_and(|write| write.addr_lo == 2 && write.value_lo == 0 && write.value_hi == Some(0))
+    }));
     common::sanity_check_trace_with_bindings(&trace, &run.artifacts, &bindings);
     common::ccs_check_trace(&trace);
 
@@ -499,8 +494,10 @@ fn turn_boundary_row_bridges_the_turns() {
     assert_eq!(tb.state_before.host_events.events_remaining, 0);
     assert_eq!(tb.state_before.call_stack_depth, 0);
 
-    // Fresh turn.
-    assert_eq!(tb.state_after.sp, 0);
+    // Fresh turn: the export frame reopens at the stack bottom, with its
+    // parameters reserved for the entry inputs.
+    assert_eq!(tb.state_after.locals_fbp, 0);
+    assert_eq!(tb.state_after.sp, u64::from(tb.call_param_count.unwrap()));
     assert!(!tb.state_after.output.enabled);
     assert_eq!(tb.state_after.host_events.events_remaining, 1);
     assert_eq!(tb.state_after.host_events.event_index, 0);

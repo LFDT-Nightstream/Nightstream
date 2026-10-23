@@ -10,8 +10,8 @@ use neo_wasm::{
     build_wasm_relation, build_wasm_relation_layout, collect_wasmtime_steps, opcode_info_from_code,
     preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, top_level_initial_state_digest,
     traces_from_wasmtime_steps, witness_builder::build_witness_vector, LinearMemoryAccess, StackValueAccess,
-    WasmCountdownState, WasmOpcode, WasmOutputState, WasmPcEdgeKind, WasmProgramArtifacts, WasmRowKind, WasmStepState,
-    WasmVmStep, WasmtimeTraceRun,
+    WasmCountdownState, WasmFrameMoveState, WasmOpcode, WasmOutputState, WasmPcEdgeKind, WasmProgramArtifacts,
+    WasmRowKind, WasmStepState, WasmVmStep, WasmtimeTraceRun,
 };
 
 pub struct CheckedWasmRun {
@@ -167,9 +167,8 @@ pub fn step(
             locals_fbp: 0,
             activation_finished,
             trapped: false,
-            param_init: WasmCountdownState::ZERO,
+            frame_move: WasmFrameMoveState::ZERO,
             local_zero: WasmCountdownState::ZERO,
-            tail_call_pending: false,
             host_callee_fref: 0,
             comm_chain: [0; 4],
             event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
@@ -218,7 +217,6 @@ pub fn step(
         stack_writes_override: None,
         output_captured: false,
         current_function_ref: 0,
-        current_function_num_locals: 0,
         stack_read0: physical(stack_read0),
         stack_read1: physical(stack_read1),
         stack_read2: physical(stack_read2),

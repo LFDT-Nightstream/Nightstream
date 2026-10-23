@@ -40,9 +40,9 @@ pub use ccs::host_event_chain::write_turn_schedule_guard_witness;
 pub use comm_chain::CommChainState;
 pub use ir::{
     boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBoundaryState,
-    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmHostContext, WasmHostEventMemoryWidth,
-    WasmHostEventRomEntry, WasmHostEventRomVariant, WasmHostEventSlotKind, WasmHostEventState, WasmOutputState,
-    WasmPcEdgeKind, WasmProgramError, WasmRowKind, WasmStepState, WasmVmStep,
+    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmFrameMoveState, WasmHostContext,
+    WasmHostEventMemoryWidth, WasmHostEventRomEntry, WasmHostEventRomVariant, WasmHostEventSlotKind,
+    WasmHostEventState, WasmOutputState, WasmPcEdgeKind, WasmProgramError, WasmRowKind, WasmStepState, WasmVmStep,
 };
 pub use isa::{
     opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpTable,

@@ -4,11 +4,11 @@ use super::layout::{
     selector_col, Column, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_INDIRECT_TYPE_INDEX, COL_CALL_STACK_ADDR,
     COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_POP_PRESENT,
     COL_CALL_STACK_PUSH_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_HOST_CALL,
-    COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_ENTERED_FUNCTION_NUM_LOCALS,
-    COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID,
-    COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE,
-    COL_GLOBAL_VALUE_HI, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE,
-    COL_HOST_CALL_ACTIVE, COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT, COL_HOST_EVENT_INDEX_BEFORE,
+    COL_CONTROL_CHOICE, COL_CURRENT_FUNCTION_REF, COL_ENTERED_FUNCTION_NUM_LOCALS, COL_EXPECTED_TYPE_ID,
+    COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GATHER_ACTIVE,
+    COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI,
+    COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_CALL_ACTIVE,
+    COL_HOST_EVENT_EXIT_LATCH, COL_HOST_EVENT_EXIT_SCHEDULE_COUNT, COL_HOST_EVENT_INDEX_BEFORE,
     COL_HOST_EVENT_INITIAL_SCHEDULE_COUNT, COL_HOST_EVENT_SLOT_ARG, COL_HOST_EVENT_SLOT_CURSOR_BEFORE,
     COL_HOST_EVENT_SLOT_IMMEDIATE0, COL_HOST_EVENT_SLOT_IMMEDIATE1, COL_HOST_EVENT_SLOT_KIND,
     COL_HOST_EVENT_SLOT_VARIANT, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
@@ -37,10 +37,10 @@ use super::layout::{
     COL_LINEAR_MEM_LANE_ADDR, COL_LINEAR_MEM_LANE_LOAD_ACTIVE, COL_LINEAR_MEM_LANE_STORE_ACTIVE,
     COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_LANE_VALUE_BEFORE, COL_LINEAR_MEM_OFFSET_IS_0,
     COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3, COL_LINEAR_MEM_USE_LANE0,
-    COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE,
-    COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED,
-    COL_OP_TABLE_ID, COL_OUTPUT_CAPTURED, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND,
-    COL_PC_FREF_ACTIVE, COL_PC_ROM_ACTIVE, COL_PC_ROM_CALL_RETURN_CHOICE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
+    COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCAL_ADDR_HI, COL_LOCAL_ADDR_LO, COL_LOCAL_INDEX,
+    COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED,
+    COL_OP_TABLE_ID, COL_OUTPUT_CAPTURED, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_FREF_ACTIVE,
+    COL_PC_ROM_ACTIVE, COL_PC_ROM_CALL_RETURN_CHOICE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
     COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT,
     COL_SIGN_EXT_LOW7, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
     COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO,
@@ -442,6 +442,62 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                     },
                     activation: active_when(Column(COL_STACK_WRITE0_HI_ACTIVE)),
                 },
+                // Locals live in their frame at `2 * (fbp + index)`.
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCAL_ADDR_LO)]),
+                    value_column: COL_LOCAL_VALUE,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::LocalGet).unwrap())),
+                },
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCAL_ADDR_LO)]),
+                    value_column: COL_LOCAL_VALUE,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(crate::ccs::host_event_chain::gather_memory_local_base_col())),
+                },
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCAL_ADDR_LO)]),
+                    value_column: COL_LOCAL_VALUE,
+                    kind: MemoryPortKind::Write {
+                        value_before_column: None,
+                    },
+                    activation: active_when(Column(COL_LOCAL_WRITE_ENABLED)),
+                },
+                // Input bootstrap: lo-lane entry gather rows write the
+                // entry-input word into the entry frame's locals.
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCAL_ADDR_LO)]),
+                    value_column: COL_LOCAL_VALUE,
+                    kind: MemoryPortKind::Write {
+                        value_before_column: None,
+                    },
+                    activation: active_when(Column(COL_GATHER_LOCAL_WRITE_LO)),
+                },
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCAL_ADDR_HI)]),
+                    value_column: COL_LOCAL_VALUE_HI,
+                    kind: MemoryPortKind::Read,
+                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::LocalGet).unwrap())),
+                },
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCAL_ADDR_HI)]),
+                    value_column: COL_LOCAL_VALUE_HI,
+                    kind: MemoryPortKind::Write {
+                        value_before_column: None,
+                    },
+                    activation: active_when(Column(COL_LOCAL_WRITE_ENABLED)),
+                },
+                // Input bootstrap: every input-local row writes the hi
+                // lane — zero on lo rows (total write), the input word on
+                // hi rows (the CCS pins the value column either way).
+                MemoryPortSpec {
+                    address_columns: memory_columns([Column(COL_LOCAL_ADDR_HI)]),
+                    value_column: COL_LOCAL_VALUE_HI,
+                    kind: MemoryPortKind::Write {
+                        value_before_column: None,
+                    },
+                    activation: active_when(Column(COL_GATHER_LOCAL_WRITE)),
+                },
             ],
         },
         MemorySpec {
@@ -574,106 +630,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
                         value_before_column: Some(linear_memory.lane0_value_before.0),
                     },
                     activation: active_when(Column(crate::ccs::host_event_chain::gather_memory_write_kind_col())),
-                },
-            ],
-        },
-        MemorySpec {
-            id: WasmMemoryId::LocalLo,
-            kind: MemoryKind::Ram,
-            ports: vec![
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
-                    value_column: COL_LOCAL_VALUE,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::LocalGet).unwrap())),
-                },
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
-                    value_column: COL_LOCAL_VALUE,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(crate::ccs::host_event_chain::gather_memory_local_base_col())),
-                },
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
-                    value_column: COL_LOCAL_VALUE,
-                    kind: MemoryPortKind::Write {
-                        value_before_column: None,
-                    },
-                    activation: active_when(Column(COL_LOCAL_WRITE_ENABLED)),
-                },
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
-                    value_column: COL_LOCAL_VALUE,
-                    kind: MemoryPortKind::Write {
-                        value_before_column: None,
-                    },
-                    activation: active_when(Column(COL_PARAM_INIT_ACTIVE_BEFORE)),
-                },
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
-                    value_column: COL_LOCAL_VALUE,
-                    kind: MemoryPortKind::Write {
-                        value_before_column: None,
-                    },
-                    activation: active_when(Column(COL_LOCAL_ZERO_ACTIVE_BEFORE)),
-                },
-                // Input bootstrap: lo-lane entry gather rows write the
-                // entry-input word into the entry frame's locals.
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
-                    value_column: COL_LOCAL_VALUE,
-                    kind: MemoryPortKind::Write {
-                        value_before_column: None,
-                    },
-                    activation: active_when(Column(COL_GATHER_LOCAL_WRITE_LO)),
-                },
-            ],
-        },
-        // Parallel high-limb cells log for locals, keyed like `locals`.
-        MemorySpec {
-            id: WasmMemoryId::LocalHi,
-            kind: MemoryKind::Ram,
-            ports: vec![
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
-                    value_column: COL_LOCAL_VALUE_HI,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(selector_col(super::isa::WasmOpcode::LocalGet).unwrap())),
-                },
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
-                    value_column: COL_LOCAL_VALUE_HI,
-                    kind: MemoryPortKind::Write {
-                        value_before_column: None,
-                    },
-                    activation: active_when(Column(COL_LOCAL_WRITE_ENABLED)),
-                },
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
-                    value_column: COL_LOCAL_VALUE_HI,
-                    kind: MemoryPortKind::Write {
-                        value_before_column: None,
-                    },
-                    activation: active_when(Column(COL_PARAM_INIT_ACTIVE_BEFORE)),
-                },
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
-                    value_column: COL_LOCAL_VALUE_HI,
-                    kind: MemoryPortKind::Write {
-                        value_before_column: None,
-                    },
-                    activation: active_when(Column(COL_LOCAL_ZERO_ACTIVE_BEFORE)),
-                },
-                // Input bootstrap: every input-local row writes the hi
-                // lane — zero on lo rows (total write), the input word on
-                // hi rows (the CCS pins the value column either way).
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_LOCALS_FBP_BEFORE), Column(COL_LOCAL_INDEX)]),
-                    value_column: COL_LOCAL_VALUE_HI,
-                    kind: MemoryPortKind::Write {
-                        value_before_column: None,
-                    },
-                    activation: active_when(Column(COL_GATHER_LOCAL_WRITE)),
                 },
             ],
         },
@@ -829,26 +785,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
             id: WasmMemoryId::FunctionLocalCount,
             kind: MemoryKind::Rom,
             ports: vec![
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_CURRENT_FUNCTION_REF)]),
-                    value_column: COL_CURRENT_FUNCTION_NUM_LOCALS,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_IS_PROGRAM_ROW)),
-                },
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_CURRENT_FUNCTION_REF)]),
-                    value_column: COL_CURRENT_FUNCTION_NUM_LOCALS,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(COL_LOCAL_ZERO_ACTIVE_BEFORE)),
-                },
-                // Suspend uses its continuation PC's function identity, already
-                // authenticated by PcFunctionRef, to bound the saved locals end.
-                MemoryPortSpec {
-                    address_columns: memory_columns([Column(COL_CURRENT_FUNCTION_REF)]),
-                    value_column: COL_CURRENT_FUNCTION_NUM_LOCALS,
-                    kind: MemoryPortKind::Read,
-                    activation: active_when(Column(crate::layout::COL_HOST_SUSPEND)),
-                },
                 MemoryPortSpec {
                     address_columns: memory_columns([Column(COL_FUNCTION_REF)]),
                     value_column: COL_ENTERED_FUNCTION_NUM_LOCALS,
@@ -1143,7 +1079,6 @@ fn build_wasm_relation_layout_uncached() -> WasmRelationLayout {
         WasmMemoryId::HostContextArgsBase,
         WasmMemoryId::HostContextParentDepth,
         WasmMemoryId::HostContextSp,
-        WasmMemoryId::HostContextLocalsEnd,
     ];
     for (id, value_column) in context_memories.into_iter().zip(COL_HOST_CONTEXT) {
         let ports = vec![

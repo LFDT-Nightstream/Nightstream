@@ -310,7 +310,7 @@ fn i64_param_bootstraps_both_lanes() {
         ],
     );
 
-    // The locals RAM sees the zero-init + lane writes and the guest's i64
+    // The stack memory sees the zero-init + lane writes and the guest's i64
     // read back out of them.
     let artifacts = neo_wasm::extract_first_component_core_program_artifacts(&component_bytes).expect("artifacts");
     let mut preload = neo_wasm::memory_semantics::preload_from_program_artifacts(&artifacts);

@@ -10,10 +10,10 @@ use std::collections::BTreeMap;
 /// Initial cells for the WASM application's 32-bit logical memories.
 pub type WasmMemoryPreload = MemoryPreload<WasmMemoryId>;
 
-/// The preload is program-derived only: the locals RAM starts all-zero
-/// ([`RamInitialization::Zero`]), so entry-frame inputs must arrive through the export
-/// template's `InputLocal` bootstrap; subsequent entry frames are cleared by
-/// LocalZero rows before input or call-parameter writes.
+/// The preload is program-derived only: locals live in explicitly initialized
+/// stack memory, so every frame writes its locals before reading them. Entry
+/// inputs arrive through the export template's `InputLocal` bootstrap, call
+/// arguments are already in place, and LocalZero rows push the rest.
 pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmMemoryPreload {
     let tables = &artifacts.tables;
     let mut preload = WasmMemoryPreload::default();
@@ -364,18 +364,14 @@ fn memory_init_mode(memory: WasmMemoryId) -> Option<RamInitialization> {
         | WasmMemoryId::HostContextArgsBase
         | WasmMemoryId::HostContextParentDepth
         | WasmMemoryId::HostContextSp
-        | WasmMemoryId::HostContextLocalsEnd
         | WasmMemoryId::Stack
         | WasmMemoryId::CallStackReturnPc
         | WasmMemoryId::CallStackCallerFbp
         | WasmMemoryId::CallStackCallerSpBase
         | WasmMemoryId::TableSize => Some(RamInitialization::Explicit),
-        WasmMemoryId::LinearMemory
-        | WasmMemoryId::LocalLo
-        | WasmMemoryId::LocalHi
-        | WasmMemoryId::GlobalLo
-        | WasmMemoryId::GlobalHi
-        | WasmMemoryId::TableElement => Some(RamInitialization::Zero),
+        WasmMemoryId::LinearMemory | WasmMemoryId::GlobalLo | WasmMemoryId::GlobalHi | WasmMemoryId::TableElement => {
+            Some(RamInitialization::Zero)
+        }
         _ => None,
     }
 }

@@ -195,18 +195,11 @@ fn emit_stack_proof_indices(relation: &ApplicationRelation<WasmConstraintScope>,
             C,
             column("GHC_PARAMS"),
         ),
-        ("tailDiscardInactiveRow", "tail call transition", A, COL_ONE),
         (
             "gatherMemoryKindRow",
             "host-event gather binding",
             C,
             column("GMEM_LOCAL"),
-        ),
-        (
-            "gatherLocalLowWriteRow",
-            "host-event gather binding",
-            C,
-            column("COL_GATHER_LOCAL_WRITE_LO"),
         ),
         ("gatherHighLimbRow", "host-event gather binding", C, column("GK2_HI")),
         (
@@ -373,8 +366,6 @@ fn emit_rocq_memory_catalog() -> String {
     }
     out.push_str("].\n\n");
     for (id, name) in [
-        (WasmMemoryId::LocalLo, "localLoId"),
-        (WasmMemoryId::LocalHi, "localHiId"),
         (WasmMemoryId::Stack, "stackId"),
         (WasmMemoryId::CallStackReturnPc, "callStackReturnPcId"),
         (WasmMemoryId::CallStackCallerFbp, "callStackCallerFbpId"),

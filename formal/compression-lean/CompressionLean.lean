@@ -19,3 +19,5 @@ import CompressionLean.Bridge.Openings
 import CompressionLean.Bridge.Main
 import CompressionLean.Circuit.Exec
 import CompressionLean.Circuit.Sound
+import CompressionLean.Circuit.SimHash
+import CompressionLean.Circuit.PackageRows

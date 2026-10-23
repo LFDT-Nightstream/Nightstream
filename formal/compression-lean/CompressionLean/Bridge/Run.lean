@@ -187,10 +187,21 @@ theorem runs_sampleExt (t : Transcript) :
     let v : Ext := ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
     Runs sampleExt t v { duplex := t.duplex.sample.2.sample.2.sample.2, draws := t.draws.push (.ext v) } := rfl
 
+theorem runs_samplePair (t : Transcript) :
+    let first : Ext := ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
+    let d := t.duplex.sample.2.sample.2.sample.2
+    let second : Ext := ⟨d.sample.1, d.sample.2.sample.1, d.sample.2.sample.2.sample.1⟩
+    Runs samplePair t (first, second)
+      { duplex := d.sample.2.sample.2.sample.2, draws := t.draws.push (.pair first second) } := rfl
+
 theorem runs_record (d : Draw) (t : Transcript) : Runs (record d) t () { t with draws := t.draws.push d } := rfl
 
 theorem runs_observeAll (vs : Array Gl) (t : Transcript) :
     Runs (observeAll vs) t () { t with duplex := vs.foldl Duplex.observe t.duplex } := rfl
+
+theorem runs_observeExts (vs : Array Ext) (t : Transcript) :
+    Runs (observeExts vs) t ()
+      { t with duplex := (vs.flatMap fun v => #[v.c0, v.c1, v.c2]).foldl Duplex.observe t.duplex } := rfl
 
 theorem runs_ensure {ok : Bool} (h : ok = true) (what : String) (t : Transcript) : Runs (ensure ok what) t () t := by
   subst h

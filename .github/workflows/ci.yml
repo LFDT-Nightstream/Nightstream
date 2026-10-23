@@ -12,6 +12,9 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  NEO_PI_CCS_PREFLIGHT: "1"
+  NEO_SELF_VERIFY: "1"
+  NEO_STRICT_IO_PARITY: "1"
 
 jobs:
   fmt:
@@ -31,7 +34,9 @@ jobs:
 
   test:
     name: Run Tests
-    runs-on: self-hosted
+    runs-on: [self-hosted, Linux, X64, nico-runner]
+    env:
+      RUSTFLAGS: "-Dwarnings -C target-cpu=x86-64"
     
     steps:
     - name: Checkout code
@@ -39,6 +44,12 @@ jobs:
       
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
+
+    - name: Install Nextest
+      uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
+      with:
+        tool: cargo-nextest@0.9.149
+        fallback: none
 
     # Temporarily disabled while the merge path is focused on Rust-side
     # stabilization and we are not gating CI on Lean conformance.
@@ -49,19 +60,66 @@ jobs:
     #     fi
     #     echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       
+    - name: Get Rust cache key
+      id: rust
+      run: echo "cachekey=$(rustc -vV | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
     - name: Cache dependencies
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
         path: |
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        key: nico-ubuntu22-${{ runner.arch }}-portable-no-lto-cgu16-v1-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
         restore-keys: |
-          ${{ runner.os }}-cargo-
-          
-    - name: Run tests
-      run: NEO_PI_CCS_PREFLIGHT=1 NEO_SELF_VERIFY=1 NEO_STRICT_IO_PARITY=1 cargo test --release --workspace --exclude spartan2 --features "testing,debug-log,fs-guard"
+          nico-ubuntu22-${{ runner.arch }}-portable-no-lto-cgu16-v1-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-
+
+    - name: Build test archive
+      # Avoid repeating whole-program LTO for each test binary.
+      run: >-
+        cargo nextest archive --release --locked --workspace --exclude spartan2
+        --features "testing,debug-log,fs-guard"
+        --config 'profile.release.lto="off"'
+        --config 'profile.release.codegen-units=16'
+        --archive-file ci-tests.tar.zst
+
+    - name: Run source checks on the build machine
+      run: >-
+        cargo nextest run --profile ci
+        --archive-file ci-tests.tar.zst
+        --workspace-remap "$GITHUB_WORKSPACE"
+        -E 'binary(=migration_hard_stops)'
+
+    - name: Run doctests
+      run: >-
+        cargo test --release --locked --workspace
+        --exclude spartan2 --features "testing,debug-log,fs-guard" --doc
+        --config 'profile.release.lto="off"'
+        --config 'profile.release.codegen-units=16'
+
+    - name: Run tests with four workers
+      run: |
+        printf '%s\n' cached {1..8} | xargs --max-procs=4 --max-args=1 bash -e -o pipefail -c '
+          # Keep each binary in one process so its OnceLock fixtures are shared.
+          if [[ "$1" == cached ]]; then
+            exec cargo test --release --locked --no-fail-fast --workspace --exclude spartan2 \
+              --features "testing,debug-log,fs-guard" \
+              --config "profile.release.lto=\"off\"" \
+              --config profile.release.codegen-units=16 \
+              --test system_fibonacci_compiler_recursive_step \
+              --test system_fibonacci_compiler_unified_structure \
+              -- --test-threads=1
+          fi
+          printf "Starting test shard %s/8\n" "$1"
+          exec cargo-nextest nextest run --profile ci \
+            --archive-file ci-tests.tar.zst \
+            --workspace-remap "$GITHUB_WORKSPACE" \
+            -E "not (binary(=migration_hard_stops) | \
+              binary(=system_fibonacci_compiler_recursive_step) | \
+              binary(=system_fibonacci_compiler_unified_structure))" \
+            --partition "hash:$1/8"
+        ' _
 
     # Temporarily disabled while the merge path is focused on Rust-side
     # stabilization and we are not gating CI on Lean conformance.

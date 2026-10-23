@@ -1,14 +1,11 @@
 #![allow(non_snake_case)]
 
-use std::sync::Arc;
-
-use neo_ajtai::{setup as ajtai_setup, AjtaiSModule};
-use neo_ccs::traits::SModuleHomomorphism;
+use neo_ajtai::{commit_row_major, setup as ajtai_setup};
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, Mat, SparsePoly};
 use neo_math::{D, F};
 use neo_params::NeoParams;
 use neo_reductions::{pi_ccs_prove, pi_ccs_verify};
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 use rand_chacha::rand_core::SeedableRng;
 use rand_chacha::ChaCha8Rng;
@@ -35,7 +32,7 @@ fn prove_accepts_nc_alphabet_packed_witness_values() {
 
     let mut rng = ChaCha8Rng::seed_from_u64(99);
     let pp = ajtai_setup(&mut rng, D, params.kappa as usize, ccs.m / D).expect("Ajtai setup");
-    let l = AjtaiSModule::new(Arc::new(pp));
+    let l = pp;
 
     let mut Z = Mat::zero(D, ccs.m / D, F::ZERO);
     for rho in 0..D {
@@ -43,7 +40,7 @@ fn prove_accepts_nc_alphabet_packed_witness_values() {
         Z[(rho, 0)] = f_from_i64(centered);
     }
 
-    let c = l.commit(&Z);
+    let c = commit_row_major(&l, &Z);
     let mcs_list = vec![CcsClaim {
         adv: None,
         c,
@@ -53,7 +50,7 @@ fn prove_accepts_nc_alphabet_packed_witness_values() {
     let mcs_witnesses = vec![CcsWitness { Z }];
     let (running, running_witnesses) = zero_running::zero_running(&params, &ccs, 1, 0);
 
-    let mut tr_p = Poseidon2Transcript::new(b"neo.reductions/packed_range_accept");
+    let mut tr_p = Poseidon2Transcript::new_v1_2();
     let (out, proof) = pi_ccs_prove(
         &mut tr_p,
         &params,
@@ -65,7 +62,7 @@ fn prove_accepts_nc_alphabet_packed_witness_values() {
     )
     .expect("prove should accept NC-range packed witness values");
 
-    let mut tr_v = Poseidon2Transcript::new(b"neo.reductions/packed_range_accept");
+    let mut tr_v = Poseidon2Transcript::new_v1_2();
     let ok = pi_ccs_verify(&mut tr_v, &params, &ccs, &mcs_list, &running, &out, &proof).expect("verify should run");
     assert!(ok, "verify should pass for NC-range packed witness values");
 }

@@ -3,7 +3,6 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
 fn main() {
-    println!("cargo:rustc-check-cfg=cfg(neo_metal_shaders)");
     println!("cargo:rerun-if-changed=shaders/nightstream.metal");
     println!("cargo:rerun-if-changed=shaders/joint.metal");
     println!("cargo:rerun-if-changed=shaders/assignments.metal");
@@ -36,8 +35,6 @@ fn main() {
     let source = manifest.join("shaders/nightstream.metal");
     let air = out.join("nightstream.air");
     let library = out.join("nightstream-metal.metallib");
-    let constants = out.join("poseidon2.constants");
-    write_poseidon2_constants(&constants);
     let developer_dir = developer_dir();
 
     let compile = run_xcrun(
@@ -64,28 +61,6 @@ fn main() {
     if !link.status.success() {
         panic!("link Metal library: {}", String::from_utf8_lossy(&link.stderr).trim());
     }
-
-    println!("cargo:rustc-cfg=neo_metal_shaders");
-}
-
-fn write_poseidon2_constants(path: &Path) {
-    let constants = neo_ccs::crypto::poseidon2_goldilocks::round_constants();
-    let mut words = Vec::with_capacity(
-        constants.initial.len() * neo_ccs::crypto::poseidon2_goldilocks::WIDTH
-            + constants.internal.len()
-            + constants.terminal.len() * neo_ccs::crypto::poseidon2_goldilocks::WIDTH
-            + constants.diag.len(),
-    );
-    words.extend(constants.initial.into_iter().flatten());
-    words.extend(constants.internal);
-    words.extend(constants.terminal.into_iter().flatten());
-    words.extend(constants.diag);
-
-    let mut bytes = Vec::with_capacity(words.len() * size_of::<u64>());
-    for word in words {
-        bytes.extend_from_slice(&word.to_le_bytes());
-    }
-    std::fs::write(path, bytes).expect("write canonical Poseidon2 constants");
 }
 
 fn developer_dir() -> Option<PathBuf> {

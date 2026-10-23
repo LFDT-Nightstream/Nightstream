@@ -209,16 +209,6 @@ pub trait PaperJointOracleBackend {
         &'a mut self,
         input: PaperJointOracleInput<'a>,
     ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, PiCcsError>;
-
-    fn dec_openings(
-        &mut self,
-        _cache: &OptimizedStructureCache,
-        _witnesses: &[Mat<F>],
-        _point: &[K],
-        _assignment_width: usize,
-    ) -> Result<Option<Vec<V1_2OutputOpening>>, PiCcsError> {
-        Ok(None)
-    }
 }
 
 enum OracleSource<'a> {
@@ -347,16 +337,7 @@ fn prove_with_trace_inner(
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
     source: OracleSource<'_>,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        super::PiCcsProvePerf,
-        ProtocolTrace,
-    ),
-    PiCcsError,
-> {
-    let started = std::time::Instant::now();
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
     let cache = match &source {
         OracleSource::Cached { cache, .. } => {
             cache.validate_structure(structure)?;
@@ -394,7 +375,6 @@ fn prove_with_trace_inner(
     for witness in running_witnesses {
         crate::common::validate_superneo_witness_shape(witness, structure.m)?;
     }
-    let bind_started = std::time::Instant::now();
     let mut trace = ProtocolTrace::default();
     let (dims, challenges) = pi_ccs_joint_protocol::bind_and_sample_with_trace(
         transcript,
@@ -404,10 +384,8 @@ fn prove_with_trace_inner(
         fresh_claims,
         running_claims,
     )?;
-    let bind_ms = bind_started.elapsed().as_secs_f64() * 1_000.0;
     let prior_point = crate::engines::utils::shared_me_input_r(running_claims, dims.variables)?;
     let initial = initial_claim(structure, &challenges, running_claims)?;
-    let sumcheck_started = std::time::Instant::now();
     #[cfg(feature = "perf-timers")]
     let oracle_started = std::time::Instant::now();
     let cached_rows = cache
@@ -508,7 +486,7 @@ fn prove_with_trace_inner(
         pi_ccs_joint_protocol::prove_phase(transcript, &mut trace, initial, oracle)?;
     #[cfg(feature = "perf-timers")]
     eprintln!("[pi-ccs/phase] rounds={:.3}s", rounds_started.elapsed().as_secs_f64());
-    let sumcheck_ms = sumcheck_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
     let output_started = std::time::Instant::now();
     let precomputed_openings = oracle.output_openings(&round_challenges)?;
     drop(built_oracle);
@@ -544,15 +522,7 @@ fn prove_with_trace_inner(
     #[cfg(feature = "perf-timers")]
     eprintln!("[pi-ccs/phase] outputs={:.3}s", output_started.elapsed().as_secs_f64());
     let proof = pi_ccs_joint_protocol::assemble_proof(rounds);
-    let output_materialize_ms = output_started.elapsed().as_secs_f64() * 1_000.0;
-    let perf = super::PiCcsProvePerf {
-        bind_ms,
-        sample_challenges_ms: 0.0,
-        sumcheck_ms,
-        output_materialize_ms,
-        total_ms: started.elapsed().as_secs_f64() * 1_000.0,
-    };
-    Ok((outputs, proof, perf, trace))
+    Ok((outputs, proof, trace))
 }
 
 pub(crate) fn prove_with_trace(
@@ -564,15 +534,7 @@ pub(crate) fn prove_with_trace(
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
     cache: &OptimizedStructureCache,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        super::PiCcsProvePerf,
-        ProtocolTrace,
-    ),
-    PiCcsError,
-> {
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
     prove_with_trace_inner(
         transcript,
         params,
@@ -585,29 +547,6 @@ pub(crate) fn prove_with_trace(
     )
 }
 
-pub fn prove(
-    transcript: &mut Poseidon2Transcript,
-    params: &neo_params::NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    cache: &OptimizedStructureCache,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, super::PiCcsProvePerf), PiCcsError> {
-    let (outputs, proof, perf, _) = prove_with_trace(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        cache,
-    )?;
-    Ok((outputs, proof, perf))
-}
-
 pub fn prove_with_complete_oracle(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -618,15 +557,7 @@ pub fn prove_with_complete_oracle(
     running_witnesses: &[Mat<F>],
     prepared: &Challenges,
     oracle: &mut dyn PaperJointRoundOracle,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        super::PiCcsProvePerf,
-        ProtocolTrace,
-    ),
-    PiCcsError,
-> {
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
     prove_with_trace_inner(
         transcript,
         params,
@@ -665,15 +596,7 @@ pub fn prove_with_matrix_rows<'a>(
     rows: &'a dyn MatrixRows,
     workspace_bytes: usize,
     backend: Option<&'a mut dyn PaperJointOracleBackend>,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        super::PiCcsProvePerf,
-        ProtocolTrace,
-    ),
-    PiCcsError,
-> {
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
     prove_with_trace_inner(
         transcript,
         params,

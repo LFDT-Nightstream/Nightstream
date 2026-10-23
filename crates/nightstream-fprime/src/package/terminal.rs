@@ -10,7 +10,8 @@ use super::v1_2::{
     PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
     PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COUNT,
 };
-use super::{decode_components, owned_witness_intervals, witness_segments, LoadedPackage, PackageError};
+use super::validate::{decode_components, owned_witness_intervals, witness_segments};
+use super::{LoadedPackage, PackageError};
 use crate::identity::relation_identifier;
 
 const ARTIFACT_SCHEMA: u64 = 1;
@@ -59,11 +60,7 @@ pub fn load_terminal_package(
         return Err(PackageError::Invalid("terminal artifact schema"));
     }
     let raw_outputs = parts.pop().expect("three parts");
-    let (package, terminal) = decode_components(
-        serde_json::from_value(parts.pop().expect("three parts"))?,
-        computed,
-        None,
-    )?;
+    let (package, terminal) = decode_components(serde_json::from_value(parts.pop().expect("three parts"))?, None)?;
     if terminal != [Value::from(0u64)] {
         return Err(PackageError::Invalid("terminal package option"));
     }

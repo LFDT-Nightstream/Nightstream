@@ -13,7 +13,7 @@ use p3_field::PrimeCharacteristicRing;
 
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
 
-pub fn check_proof_mutations(
+pub(crate) fn check_proof_mutations(
     params: &NeoParams,
     structure: &CcsStructure<F>,
     fresh: &CcsClaim<Commitment, F>,
@@ -76,7 +76,7 @@ fn change_digest(digest: &mut [u8; 32], lane: usize) {
     digest[start..start + 8].copy_from_slice(&next.to_le_bytes());
 }
 
-pub fn check_claim_mutations(
+pub(crate) fn check_claim_mutations(
     params: &NeoParams,
     structure: &CcsStructure<F>,
     fresh: &CcsClaim<Commitment, F>,

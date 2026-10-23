@@ -9,7 +9,7 @@ fn header() -> ApplicationRowHeader {
 }
 
 fn terms() -> [ApplicationTerm; 3] {
-    [3, crate::package::GOLDILOCKS_MODULUS - 3, 0].map(|coefficient| ApplicationTerm {
+    [3, Goldilocks::ORDER_U64 - 3, 0].map(|coefficient| ApplicationTerm {
         form: ApplicationForm::A,
         variable: 1,
         coefficient,
@@ -315,7 +315,7 @@ fn streamed_records_preserve_exact_words_and_rebuild_sealed_indices() {
     let (original, bytes) = serialized_records();
     let row_and_recipe_counts = [1, 1];
     let interleaved_constants_and_term_counts = [5, 3, 1, 0, 5, 0];
-    let ordered_terms = [1, 3, 1, crate::package::GOLDILOCKS_MODULUS - 3, 1, 0];
+    let ordered_terms = [1, 3, 1, Goldilocks::ORDER_U64 - 3, 1, 0];
     let linked_row_and_node_count = [0, 5];
     let add_constant_times_variable = [2, 0, 1, 5, 3, 0, 1, 0, 0, 1];
     let words = [
@@ -419,7 +419,7 @@ fn streamed_records_rebuild_indices_after_interleaved_appends() {
 #[test]
 fn streamed_records_reject_bad_fields_counts_grammar_and_every_truncation() {
     let (_, bytes) = serialized_records();
-    let modulus = crate::package::GOLDILOCKS_MODULUS;
+    let modulus = Goldilocks::ORDER_U64;
     for (case, word, value) in [
         ("row count differs from outer metadata", 0, 2),
         ("recipe count differs from outer metadata", 1, 2),

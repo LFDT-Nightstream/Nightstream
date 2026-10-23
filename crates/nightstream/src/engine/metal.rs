@@ -137,7 +137,7 @@ fn prove_pi_ccs(
     witness: &CcsWitness,
     running: &RunningInstance,
 ) -> Result<pi_ccs::Proof, folding::Error> {
-    let (outputs, sumcheck, _, _) = optimized_prove_with_matrix_rows(
+    let (outputs, sumcheck, _) = optimized_prove_with_matrix_rows(
         transcript.inner_mut(),
         params.inner(),
         structure,

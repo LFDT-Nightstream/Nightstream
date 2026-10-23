@@ -84,10 +84,12 @@ fn build_joint_dims_for_shape(
             "PaddedRowIdentity requires at least one fresh source".into(),
         ));
     }
-    if fresh_count > neo_params::goldilocks_paper_b2::MAX_FRESH_K as usize {
+    let max_fresh_count = params
+        .max_fresh_count_from_rlc_guard()
+        .map_err(|error| PiCcsError::InvalidInput(format!("PaddedRowIdentity RLC guard: {error}")))?;
+    if fresh_count > max_fresh_count as usize {
         return Err(PiCcsError::InvalidInput(format!(
-            "PaddedRowIdentity fresh source count {fresh_count} exceeds {}",
-            neo_params::goldilocks_paper_b2::MAX_FRESH_K
+            "PaddedRowIdentity fresh source count {fresh_count} exceeds {max_fresh_count}"
         )));
     }
     if running_count > params.k_rho as usize {

@@ -507,7 +507,7 @@ fn sample_rot_rhos_n(
     let b = params.b as u128;
     let lhs = (count as u128) * T * (b.saturating_sub(1));
     let k_required = min_k_rho_for_rlc_count(params, ring, count)?;
-    let b_pow_k = (b as u128)
+    let b_pow_k = b
         .checked_pow(params.k_rho)
         .ok_or_else(|| PiCcsError::InvalidInput(format!("b^k_rho overflow: b={}, k_rho={}", b, params.k_rho)))?;
 

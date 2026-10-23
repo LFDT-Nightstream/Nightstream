@@ -12,10 +12,8 @@ use std::{
 
 use nightstream::{
     application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1},
-    Circuit, Engine, State, Verifier,
+    Circuit, Engine, Goldilocks as F, PrimeCharacteristicRing, PrimeField64, State, Verifier,
 };
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as F;
 use serde_json::{json, Value};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;

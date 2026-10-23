@@ -32,7 +32,7 @@ pub enum Error {
     Engine(#[from] engine::Error),
 }
 #[derive(Clone, Debug, PartialEq)]
-pub struct Proof {
+pub(crate) struct Proof {
     pub combined: CeClaim,
 }
 pub(crate) struct Output {

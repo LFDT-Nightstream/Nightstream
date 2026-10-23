@@ -8,15 +8,16 @@ use neo_math::{F, K};
 use neo_reductions::superneo_eval::CachedMatrixRows;
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
-use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing as _};
+use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing as _, PrimeField64 as _};
 use p3_sumcheck_v08::OpeningBatch;
 
 use super::{commit, word, Scratch, Toy};
 use crate::circuit::Native;
 use crate::device::Accelerator;
 use crate::field::{Ext, Gl};
+use crate::prover::witness_table;
 use crate::ring::{self, Mixing};
-use crate::{prove, verify, witness_table, Claim, ClaimWords, Key, Proof, Relation, Setup, LANES};
+use crate::{prove, verify, Claim, ClaimWords, Key, Proof, Relation, Setup, LANES};
 
 /// The honest parent bound for 17 folded sources: 17 · T · (b - 1) = 17 · 216.
 pub(super) const BOUND: u32 = 3672;
@@ -198,6 +199,21 @@ fn malformed_keys_do_not_decode() {
     for (malformed, what) in [(class, "segment class"), (lane, "segment lane"), (runs, "run bounds")] {
         assert!(Key::from_bytes(&malformed.to_bytes()).is_err(), "{what}");
     }
+}
+
+/// A root word `w + p` names the same field element as `w`, so it would be a
+/// second encoding of one key. It does not decode. The root's first word
+/// leads the key's encoding.
+#[test]
+fn non_canonical_root_words_do_not_decode() {
+    let toy = Toy::new(5, 4, 6, 4, BOUND);
+    let mut bytes = Key::derive(&CachedMatrixRows::new(&toy.cache).unwrap())
+        .unwrap()
+        .to_bytes();
+    bytes[..8].copy_from_slice(&1u64.to_le_bytes());
+    assert!(Key::from_bytes(&bytes).is_ok(), "canonical root word");
+    bytes[..8].copy_from_slice(&(1 + Gl::ORDER_U64).to_le_bytes());
+    assert!(Key::from_bytes(&bytes).is_err(), "root word w + p");
 }
 
 /// `Relation::new` gives the sizes of the Lean `parentShape_of`

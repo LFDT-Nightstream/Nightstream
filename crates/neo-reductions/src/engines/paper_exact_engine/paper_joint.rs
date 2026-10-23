@@ -4,8 +4,6 @@
 //! genuine CCS matrices. This file uses explicit loops and owns its formula
 //! copy. It does not import optimized evaluators, caches, or protocol flow.
 
-#![allow(non_snake_case)]
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{Fq, D, K};
@@ -34,9 +32,12 @@ where
             "PaperExact requires nonzero dimensions and at least one fresh source".into(),
         ));
     }
-    if fresh_count > neo_params::goldilocks_paper_b2::MAX_FRESH_K as usize {
+    let max_fresh_count = params
+        .max_fresh_count_from_rlc_guard()
+        .map_err(|error| PiCcsError::InvalidInput(format!("PaperExact RLC guard: {error}")))?;
+    if fresh_count > max_fresh_count as usize {
         return Err(PiCcsError::InvalidInput(
-            "PaperExact fresh source count exceeds the paper profile".into(),
+            "PaperExact fresh source count exceeds the RLC guard of the selected parameters".into(),
         ));
     }
     if running_count > params.k_rho as usize {

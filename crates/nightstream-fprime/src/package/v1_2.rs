@@ -22,6 +22,12 @@ const PI_DEC_WITNESS_ROLE: u64 = 15;
 const RUNNING_TRANSITION_WITNESS_ROLE: u64 = 16;
 const PRIOR_CHILDREN_ROLE: u64 = 19;
 
+/// The Nightstream Goldilocks decomposition profile: base `b`, digit count
+/// `k_rho`, and norm bound `B = b^k_rho`.
+pub const DECOMPOSITION_BASE: u64 = 2;
+pub const DECOMPOSITION_K_RHO: u32 = 16;
+pub const DECOMPOSITION_NORM_BOUND: u64 = DECOMPOSITION_BASE.pow(DECOMPOSITION_K_RHO);
+
 pub const PI_CCS_V1_2_SOURCE_COUNT: usize = 17;
 pub const PI_CCS_V1_2_COEFFICIENT_COUNT: usize = 54;
 pub const PI_CCS_V1_2_MATRIX_COUNT: usize = 4;
@@ -39,6 +45,8 @@ pub const PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD: usize = PI_CCS_V1_2_MATRIX_COUN
 pub const PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD: usize = PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS;
 
 const EXTENSION_WORDS: usize = 2;
+/// The PiCCS sum-check messages: every round's coefficients, each in `K`.
+type RoundMessages = [[[u64; EXTENSION_WORDS]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT];
 const ROUND_MESSAGE_WORDS: usize = PI_CCS_V1_2_ROUND_COUNT * PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT * EXTENSION_WORDS;
 const EVAL_K_WORDS: usize = PI_CCS_V1_2_COEFFICIENT_COUNT * EXTENSION_WORDS;
 const EVAL_A_WORDS: usize = PI_CCS_V1_2_MATRIX_COUNT * PI_CCS_V1_2_COEFFICIENT_COUNT * EXTENSION_WORDS;
@@ -176,60 +184,39 @@ impl PiCcsV1_2OutputEvaluations {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiCcsV1_2PackageInputs {
-    prior_preimage: Vec<u64>,
-    output_preimage: Vec<u64>,
-    prior_children: Vec<u64>,
-    fresh_commitment: Vec<u64>,
-    round_messages: Vec<Vec<[u64; EXTENSION_WORDS]>>,
+    prior_preimage: Box<[u64; PI_CCS_V1_2_STATE_PREIMAGE_WORDS]>,
+    output_preimage: Box<[u64; PI_CCS_V1_2_STATE_PREIMAGE_WORDS]>,
+    prior_children: Box<[u64; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS]>,
+    fresh_commitment: Box<[u64; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS]>,
+    round_messages: Box<RoundMessages>,
     output_evaluations: PiCcsV1_2OutputEvaluations,
-    prior_public_input: Vec<u64>,
+    prior_public_input: Box<[u64; PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS]>,
     output_digest: [u64; 4],
     verifier_context: PiCcsV1_2VerifierContext,
 }
 
 impl PiCcsV1_2PackageInputs {
     pub fn new(
-        prior_preimage: Vec<u64>,
-        output_preimage: Vec<u64>,
-        prior_children: Vec<u64>,
-        fresh_commitment: Vec<u64>,
-        round_messages: Vec<Vec<[u64; EXTENSION_WORDS]>>,
+        prior_preimage: Box<[u64; PI_CCS_V1_2_STATE_PREIMAGE_WORDS]>,
+        output_preimage: Box<[u64; PI_CCS_V1_2_STATE_PREIMAGE_WORDS]>,
+        prior_children: Box<[u64; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS]>,
+        fresh_commitment: Box<[u64; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS]>,
+        round_messages: Box<RoundMessages>,
         output_evaluations: PiCcsV1_2OutputEvaluations,
-        prior_public_input: Vec<u64>,
+        prior_public_input: Box<[u64; PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS]>,
         output_digest: [u64; 4],
         verifier_context: PiCcsV1_2VerifierContext,
     ) -> Result<Self, PackageError> {
-        if prior_preimage.len() != PI_CCS_V1_2_STATE_PREIMAGE_WORDS
-            || output_preimage.len() != PI_CCS_V1_2_STATE_PREIMAGE_WORDS
-        {
-            return Err(PackageError::Invalid("PiCCS v1_2 state preimage shape"));
-        }
-        if prior_children.len() != PI_CCS_V1_2_PRIOR_CHILDREN_WORDS {
-            return Err(PackageError::Invalid("PiCCS v1_2 prior children shape"));
-        }
-        if fresh_commitment.len() != PI_CCS_V1_2_FRESH_COMMITMENT_WORDS {
-            return Err(PackageError::Invalid("PiCCS v1_2 fresh commitment shape"));
-        }
-        if round_messages.len() != PI_CCS_V1_2_ROUND_COUNT
-            || round_messages
-                .iter()
-                .any(|round| round.len() != PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT)
-        {
-            return Err(PackageError::Invalid("PiCCS v1_2 round-message shape"));
-        }
-        if prior_public_input.len() != PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS {
-            return Err(PackageError::Invalid("PiCCS v1_2 prior public-input shape"));
-        }
-        validate_words(&prior_preimage, "PiCCS v1_2 prior preimage")?;
-        validate_words(&output_preimage, "PiCCS v1_2 output preimage")?;
-        validate_words(&prior_children, "PiCCS v1_2 prior children")?;
-        validate_words(&fresh_commitment, "PiCCS v1_2 fresh commitment")?;
-        for round in &round_messages {
+        validate_words(prior_preimage.as_slice(), "PiCCS v1_2 prior preimage")?;
+        validate_words(output_preimage.as_slice(), "PiCCS v1_2 output preimage")?;
+        validate_words(prior_children.as_slice(), "PiCCS v1_2 prior children")?;
+        validate_words(fresh_commitment.as_slice(), "PiCCS v1_2 fresh commitment")?;
+        for round in round_messages.iter() {
             for value in round {
                 validate_extension(*value, "PiCCS v1_2 round message")?;
             }
         }
-        validate_words(&prior_public_input, "PiCCS v1_2 prior public input")?;
+        validate_words(prior_public_input.as_slice(), "PiCCS v1_2 prior public input")?;
         validate_words(&output_digest, "PiCCS v1_2 output digest")?;
         validate_words(&verifier_context.digest(), "PiCCS v1_2 verifier context")?;
         Ok(Self {
@@ -344,11 +331,12 @@ impl PiCcsV1_2EncodedInputs {
 }
 
 impl LoadedPackage {
-    pub fn encode_pi_ccs_v1_2_inputs(
+    pub(super) fn encode_pi_ccs_v1_2_inputs(
         &self,
         inputs: &PiCcsV1_2PackageInputs,
+        structural_identifier: [u64; 4],
     ) -> Result<PiCcsV1_2EncodedInputs, PackageError> {
-        if inputs.verifier_context.structural_identifier() != self.relation_identifier {
+        if inputs.verifier_context.structural_identifier() != structural_identifier {
             return Err(PackageError::Invalid("PiCCS v1_2 verifier-context package identity"));
         }
         self.encode_pi_ccs_segments(inputs)
@@ -375,11 +363,11 @@ impl LoadedPackage {
             .ok_or(PackageError::Invalid("witness segment"))?
             .start;
         let mut private_values = Vec::with_capacity(pi_ccs_input_count);
-        private_values.extend_from_slice(&inputs.prior_preimage);
-        private_values.extend_from_slice(&inputs.output_preimage);
-        private_values.extend_from_slice(&inputs.prior_children);
-        private_values.extend_from_slice(&inputs.fresh_commitment);
-        for round in &inputs.round_messages {
+        private_values.extend_from_slice(inputs.prior_preimage.as_slice());
+        private_values.extend_from_slice(inputs.output_preimage.as_slice());
+        private_values.extend_from_slice(inputs.prior_children.as_slice());
+        private_values.extend_from_slice(inputs.fresh_commitment.as_slice());
+        for round in inputs.round_messages.iter() {
             for value in round {
                 private_values.extend_from_slice(value);
             }
@@ -399,7 +387,7 @@ impl LoadedPackage {
         }
 
         let mut public_values = Vec::with_capacity(self.layout.public_column_count);
-        public_values.extend_from_slice(&inputs.prior_public_input);
+        public_values.extend_from_slice(inputs.prior_public_input.as_slice());
         public_values.extend_from_slice(&inputs.output_digest);
         public_values.extend_from_slice(&inputs.verifier_context.digest());
         if public_values.len() != self.layout.public_column_count {

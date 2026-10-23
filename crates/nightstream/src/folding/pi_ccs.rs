@@ -4,7 +4,7 @@ use super::{
     CcsWitness, CeClaim, Params, RunningInstance, Structure,
 };
 use neo_math::D;
-pub use neo_reductions::api::PiCcsProof as SumcheckProof;
+pub(crate) use neo_reductions::api::PiCcsProof as SumcheckProof;
 use neo_reductions::{optimized_engine::optimized_prove_with_matrix_rows, superneo_eval::MatrixRows};
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -14,7 +14,7 @@ pub enum Error {
     Engine(#[from] engine::Error),
 }
 #[derive(Clone, Debug, PartialEq)]
-pub struct Proof {
+pub(crate) struct Proof {
     pub sumcheck: SumcheckProof,
     pub outputs: Vec<CeClaim>,
 }
@@ -36,7 +36,7 @@ pub(crate) fn prove_from_parts_with_rows(
 ) -> Result<Proof, Error> {
     reject_auxiliary(fresh_claim, &running.claims)?;
     validate_input_shape(pp, s, fresh_claim, fresh_witness, running)?;
-    let (outputs, sumcheck, _, _) = optimized_prove_with_matrix_rows(
+    let (outputs, sumcheck, _) = optimized_prove_with_matrix_rows(
         tr.inner_mut(),
         pp.inner(),
         s,
@@ -53,7 +53,7 @@ pub(crate) fn prove_from_parts_with_rows(
     Ok(Proof { sumcheck, outputs })
 }
 
-pub fn verify(
+pub(crate) fn verify(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,

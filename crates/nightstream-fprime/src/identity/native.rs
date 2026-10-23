@@ -268,10 +268,7 @@ fn add(left: usize, right: usize) -> Result<usize, PackageError> {
 }
 
 fn array(value: &Value) -> Result<&[Value], PackageError> {
-    value
-        .as_array()
-        .map(Vec::as_slice)
-        .ok_or(PackageError::Invalid("native identity array"))
+    crate::package::json::array(value, "native identity array")
 }
 
 fn tuple(value: &Value, length: usize) -> Result<&[Value], PackageError> {

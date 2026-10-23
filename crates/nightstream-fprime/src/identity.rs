@@ -7,7 +7,9 @@ use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use crate::package::{
-    PackageError, PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT,
+    PackageError, DECOMPOSITION_BASE, DECOMPOSITION_K_RHO, DECOMPOSITION_NORM_BOUND, PI_CCS_V1_2_COEFFICIENT_COUNT,
+    PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT,
+    PI_DEC_V1_2_CHILD_COUNT,
 };
 
 mod native;
@@ -24,17 +26,17 @@ const IDENTITY_DOMAIN: [u64; 29] = [
 const VERIFIER_CONTEXT_PROFILE: [u64; 14] = [
     4_294_967_295,
     1,
-    2,
-    16,
-    65_536,
+    DECOMPOSITION_BASE,
+    DECOMPOSITION_K_RHO as u64,
+    DECOMPOSITION_NORM_BOUND,
     1,
-    16,
-    17,
-    16,
+    PI_DEC_V1_2_CHILD_COUNT as u64,
+    PI_CCS_V1_2_SOURCE_COUNT as u64,
+    PI_DEC_V1_2_CHILD_COUNT as u64,
     PI_CCS_V1_2_MATRIX_COUNT as u64,
     PI_CCS_V1_2_ROUND_COUNT as u64,
     (PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT - 1) as u64,
-    54,
+    PI_CCS_V1_2_COEFFICIENT_COUNT as u64,
     22,
 ];
 const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [
@@ -78,7 +80,7 @@ pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiCcsV1_2VerifierContext {
-    package_identity: [u64; 4],
+    structural_identifier: [u64; 4],
     relation_words: Vec<u64>,
     application: ApplicationIdentity,
     nifs_key_words: Vec<u64>,
@@ -117,7 +119,7 @@ impl PiCcsV1_2VerifierContext {
     }
 
     pub(crate) fn structural_identifier(&self) -> [u64; 4] {
-        self.package_identity
+        self.structural_identifier
     }
 }
 
@@ -228,7 +230,7 @@ pub(super) fn stage1_verifier_binding(
     let digest = poseidon_words(&descriptor_words);
 
     let verifier_context = PiCcsV1_2VerifierContext {
-        package_identity: structural_identifier,
+        structural_identifier,
         relation_words,
         application: application.clone(),
         nifs_key_words,

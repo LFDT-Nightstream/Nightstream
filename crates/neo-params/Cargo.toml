@@ -1,11 +1,11 @@
 [package]
 name = "neo-params"
-version = "0.1.0"
-edition = "2021"
+version.workspace = true
+edition.workspace = true
 authors = ["Nico Arqueros <nico.arquerosr@gmail.com>"]
 description = "Nightstream parameter sets with validation and sum-check soundness policy"
 license = "Apache-2.0"
-rust-version = "1.88"
+rust-version.workspace = true
 
 [lints]
 workspace = true
@@ -16,4 +16,4 @@ thiserror = { workspace = true }
 num-bigint = { workspace = true }
 
 [dev-dependencies]
-serde_json = "1"
+serde_json = { workspace = true }

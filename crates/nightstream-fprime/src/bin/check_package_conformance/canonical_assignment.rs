@@ -412,7 +412,7 @@ fn event_row_count(event: Event<'_>, raw: &RawPackage) -> usize {
     }
 }
 
-pub fn evaluate_canonical_assignment(
+pub(crate) fn evaluate_canonical_assignment(
     bytes: &[u8],
     private_values: &[u64],
     public_values: &[u64],
@@ -420,7 +420,7 @@ pub fn evaluate_canonical_assignment(
     evaluate_canonical_rows(bytes, private_values, public_values, 0..usize::MAX)
 }
 
-pub fn evaluate_canonical_rows(
+pub(crate) fn evaluate_canonical_rows(
     bytes: &[u8],
     private_values: &[u64],
     public_values: &[u64],
@@ -492,7 +492,7 @@ pub fn evaluate_canonical_rows(
 }
 
 #[derive(Debug)]
-pub struct PilotAssignmentReport {
+pub(super) struct PilotAssignmentReport {
     pub rows: usize,
     pub public_mutations: usize,
     pub generated_mutations: usize,

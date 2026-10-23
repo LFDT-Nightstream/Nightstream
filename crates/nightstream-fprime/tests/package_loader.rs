@@ -115,16 +115,16 @@ fn sealed_stage1_encoder_appends_the_exact_application_witness() {
         vec![vec![vec![[0, 0]; PI_CCS_V1_2_COEFFICIENT_COUNT]; PI_CCS_V1_2_MATRIX_COUNT]; PI_CCS_V1_2_SOURCE_COUNT],
     )
     .expect("zero output evaluations");
-    let mut prior_public_input = vec![0; PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS];
+    let mut prior_public_input = [0; PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS];
     prior_public_input[0] = 1;
     let pi_ccs = PiCcsV1_2PackageInputs::new(
-        vec![0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS],
-        vec![0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS],
-        vec![0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS],
-        vec![0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS],
-        vec![vec![[0, 0]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT],
+        Box::new([0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS]),
+        Box::new([0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS]),
+        Box::new([0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS]),
+        Box::new([0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS]),
+        Box::new([[[0, 0]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT]),
         output_evaluations,
-        prior_public_input,
+        Box::new(prior_public_input),
         [0; 4],
         binding.verifier_context().clone(),
     )
@@ -202,16 +202,16 @@ fn lean_emitted_v1_2_pi_ccs_output_keeps_eval_k_and_eval_a_separate() {
 
     let output = PiCcsV1_2OutputEvaluations::new(expected_eval_k.clone(), expected_eval_a.clone())
         .expect("separate v1_2 output families");
-    let mut prior_public_input = vec![0; PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS];
+    let mut prior_public_input = [0; PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS];
     prior_public_input[0] = 1;
     let inputs = PiCcsV1_2PackageInputs::new(
-        vec![0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS],
-        vec![0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS],
-        vec![0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS],
-        vec![0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS],
-        vec![vec![[0, 0]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT],
+        Box::new([0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS]),
+        Box::new([0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS]),
+        Box::new([0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS]),
+        Box::new([0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS]),
+        Box::new([[[0, 0]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT]),
         output,
-        prior_public_input,
+        Box::new(prior_public_input),
         [0; 4],
         binding.verifier_context().clone(),
     )
@@ -281,14 +281,30 @@ fn rust_v1_2_pi_ccs_transcript_matches_lean_emitted_vector() {
     let derived_context = binding.verifier_context().clone();
     let output_evaluations = PiCcsV1_2OutputEvaluations::new(expected_eval_k.clone(), expected_eval_a.clone())
         .expect("nonzero output evaluations");
+    let rounds = rounds
+        .into_iter()
+        .map(|round| round.try_into().expect("round coefficient count"))
+        .collect::<Vec<_>>();
     let inputs = PiCcsV1_2PackageInputs::new(
-        state_preimage,
-        output_preimage,
-        vec![0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS],
-        fresh_commitment,
-        rounds,
+        state_preimage
+            .into_boxed_slice()
+            .try_into()
+            .expect("prior preimage width"),
+        output_preimage
+            .into_boxed_slice()
+            .try_into()
+            .expect("output preimage width"),
+        Box::new([0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS]),
+        fresh_commitment
+            .into_boxed_slice()
+            .try_into()
+            .expect("fresh commitment width"),
+        rounds.into_boxed_slice().try_into().expect("round count"),
         output_evaluations,
-        state_public_input,
+        state_public_input
+            .into_boxed_slice()
+            .try_into()
+            .expect("prior public input width"),
         state_digest,
         derived_context,
     )

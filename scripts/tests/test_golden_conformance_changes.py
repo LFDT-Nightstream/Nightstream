@@ -62,8 +62,7 @@ class GoldenConformanceChangesTests(unittest.TestCase):
         for path in (
             "crates/neo-prover-metal/src/session.rs",
             "crates/neo-prover-metal/build.rs", "crates/neo-prover-metal/Cargo.toml",
-            "crates/neo-prover-metal/shaders/include/goldilocks.metal",
-            "scripts/build_metal_shaders.sh",
+            "crates/neo-prover-metal/shaders/joint.metal",
         ):
             with self.subTest(path=path):
                 self.assertEqual(checks_for_path(path), ("metal",))

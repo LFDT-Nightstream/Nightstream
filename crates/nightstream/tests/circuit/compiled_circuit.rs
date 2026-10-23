@@ -620,3 +620,28 @@ fn verifier_requires_the_padded_evaluation_width() {
         );
     }
 }
+
+#[test]
+fn engine_failures_reach_the_caller_as_engine_errors() {
+    let failure = || EngineError::Failure {
+        engine: Engine::Metal,
+        reason: "device lost".into(),
+    };
+    assert!(matches!(
+        Error::from(ExtendError::Prove(ProveError::Engine(failure()))),
+        Error::Engine(_)
+    ));
+    assert!(matches!(
+        Error::from(ExtendError::Complete(CompleteStepError::Commitment(failure()))),
+        Error::Engine(_)
+    ));
+    assert!(matches!(Error::from(VerifyError::Engine(failure())), Error::Engine(_)));
+    assert!(matches!(
+        Error::from(CompressionError::Prove(ProveError::Engine(failure()))),
+        Error::Engine(_)
+    ));
+    assert!(
+        matches!(Error::from(VerifyError::Statement("rejected")), Error::Verify(_)),
+        "a rejection stays a verify error"
+    );
+}

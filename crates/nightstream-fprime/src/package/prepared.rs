@@ -11,7 +11,7 @@ use crate::identity::{native_application_word_count, ApplicationIdentity};
 
 use super::assignment_transport::FIELD_COORDINATES;
 use super::sealed::{decode_native_application_records, prepared_record_counts};
-use super::{LoadedPerApplicationPackage, PackageError, GOLDILOCKS_MODULUS};
+use super::{canonical_field, LoadedPerApplicationPackage, PackageError};
 
 mod value;
 
@@ -61,12 +61,7 @@ fn read_digest(input: &mut impl Read) -> Result<[u64; 4], PackageError> {
     let mut digest = [0; 4];
     for value in &mut digest {
         *value = read_word(input)?;
-        if *value >= GOLDILOCKS_MODULUS {
-            return Err(PackageError::NonCanonicalField {
-                location: "prepared package identity",
-                value: *value,
-            });
-        }
+        canonical_field(*value, "prepared package identity")?;
     }
     Ok(digest)
 }
@@ -92,9 +87,7 @@ pub(super) fn write(
     records.write_to(&mut output)
 }
 
-pub fn load_trusted_compiled_application_package(
-    mut input: impl Read,
-) -> Result<LoadedPerApplicationPackage, PackageError> {
+pub fn load_prepared_package(mut input: impl Read) -> Result<LoadedPerApplicationPackage, PackageError> {
     let mut magic = [0; MAGIC.len()];
     input.read_exact(&mut magic)?;
     if magic != *MAGIC {

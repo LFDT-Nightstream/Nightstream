@@ -97,8 +97,9 @@ impl PreparedLifecycle {
     }
 
     /// Complete the step from the running instance that `prove` returned for
-    /// it. Every backend committed every digit witness, so the commitments are
-    /// compared with the verified children instead of recomputed.
+    /// it. The engine committed every digit witness, and its commitments are
+    /// used as they are, not recomputed. The terminal verifier recommits all
+    /// witnesses.
     pub(super) fn complete_proved_step(
         &self,
         inputs: Stage1StepInputs,

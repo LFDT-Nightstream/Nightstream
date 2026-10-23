@@ -5,6 +5,7 @@ import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Sound
 import CompressionLean.Circuit.RecordCounts
 import CompressionLean.Bridge.Main
+import CompressionLean.Final.KeyFacts
 
 /-!
 Owns `ProgramEncodes` (`Claim.lean`) for the production final program
@@ -247,37 +248,31 @@ private theorem statementOf_ctxOf (key : Layer1Input) (loaded : Loaded) (context
 /-- **`ProgramEncodes` for the production final program**
 (`lifecycle/terminal/mod.rs:54-80`), for a key that meets the premises. -/
 theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Replay.Gl}
-    {authority : Lifecycle.VerifierContext.Authority} (S : Setup Fp) (facts : RelationFacts key.relation S)
-    (L0 L1 : ℕ)
+    {authority : Lifecycle.VerifierContext.Authority} (S : Setup Fp) (keyFacts : KeyFacts key)
+    (fits : S.Fits (shapeOf key.relation))
+    (describes : (structureOf key.relation.key.layout).Describes (shapeOf key.relation) S) (L0 L1 : ℕ)
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
-      Circuit.word (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0)
-    (hrun : key.relation.key.layout.runVariables ≠ 0) (hrow : key.relation.key.layout.rowVariables ≠ 0)
-    (hslot : key.relation.key.layout.slotVariables + key.relation.matrixVars ≠ 0)
-    (kappa : key.relation.kappa = 22) (blocks : key.relation.publicBlocks = 5)
-    (point : key.relation.pointVariables = 28) (matrices : key.relation.matrices = 4)
-    (root : key.relation.key.root.size = 4) (short : ∀ cl ∈ key.relation.key.layout.classes, cl.len ≤ Replay.D)
-    (k1 : key.p1Key.batches.size = key.relation.p1Whir.batches.size)
-    (k0 : key.p0Key.batches.size = key.relation.p0Whir.batches.size)
-    (hp1 : ∀ b ∈ key.relation.p1Whir.batches, b.size % 3 = 0)
-    (hp1count : (key.relation.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * key.relation.queries + 4)
-    (hp0 : key.relation.p0Whir.batches.toList.map (·.size) =
-      [1, 1, 2, 2 * key.relation.matrices, 1, 2 * key.relation.matrices + 1, 1]) :
+      Circuit.word (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0) :
     ProgramEncodes (F := Fp) Block.poseidonTemplate (lower (program key loaded context).program ([] : List Spec.F)).counts
       (prog key loaded context) authority (game key.relation S L0 L1) (Reads key loaded context S L0 L1) := by
   intro x wit holds
   rw [lower_counts _ [] (List.ofFn x)] at holds
+  obtain ⟨hrun, hrow, hslot, kappa, blocks, point, matrices, root, short, k1, k0, hp1, hp1count, hp0, rowFits,
+    matricesFit, bits, publicFits, sizes, high, checked⟩ := keyFacts
+  have facts : RelationFacts key.relation S :=
+    ⟨rowFits, matricesFit, bits, publicFits, sizes, high, fits, checked, describes⟩
   have named : ∀ s ∈ key.relation.key.layout.segments,
       s.classIndex < key.relation.key.layout.classes.size ∧ s.lane < Replay.D := fun s member => by
     obtain ⟨i, inside, rfl⟩ := Array.mem_iff_getElem.mp member
-    have lane := Bridge.segment_lane key.relation S facts.fits facts.checked facts.describes inside
-    have named := facts.checked.class_named i inside
+    have lane := Bridge.segment_lane key.relation S fits checked describes inside
+    have named := checked.class_named i inside
     simp only [structureOf] at named
     rw [getElem!_pos key.relation.key.layout.segments i inside] at lane named
     exact ⟨named, lane⟩
   obtain ⟨env, terminal, claim, points, t', run⟩ := program_gives loads valid hctx hrun hrow hslot kappa blocks
-    point matrices facts.bits.long root (by have := facts.high; omega) short named k1 k0 hp1 hp1count hp0 x wit holds
+    point matrices bits.long root (by omega) short named k1 k0 hp1 hp1count hp0 x wit holds
   rw [statementOf_ctxOf] at terminal
   refine ⟨env, terminal, fun p reads => ?_⟩
   obtain ⟨cands, short0, p1, short1, msgs, draws, whir, merkle⟩ := reads

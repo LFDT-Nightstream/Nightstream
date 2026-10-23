@@ -4,8 +4,9 @@ import CompressionLean.Replay.Stages
 Owns what a successful replay run says: `Runs x t a t'` when the replay
 action `x`, started from the transcript `t`, returns `a` and ends in `t'`.
 A run decomposes along `>>=` (`run_bind`); observing leaves the draws, a
-sample appends exactly its draw, and a check that passed held. `Grows`
-says that an action only appends draws; the WHIR transcript does
+sample appends exactly its draw, and a check that passed held. The `runs_*`
+lemmas build a run forward, step by step, as the circuit's simulation does.
+`Grows` says that an action only appends draws; the WHIR transcript does
 (`whirTranscript_grows`), so its draws follow the model's.
 -/
 
@@ -164,6 +165,41 @@ theorem Except.ensure_ok {ok : Bool} {what : String} {u : Unit} (h : (ensure ok 
   cases ok
   · cases h
   · rfl
+
+/-! ## Runs forward -/
+
+theorem runs_bind {α β : Type} {x : ReplayM α} {f : α → ReplayM β} {t t' t'' : Transcript} {a : α} {b : β}
+    (hx : Runs x t a t') (hf : Runs (f a) t' b t'') : Runs (x >>= f) t b t'' := by
+  unfold Runs at *
+  rw [eval_bind, hx]
+  exact hf
+
+theorem runs_pure {α : Type} (a : α) (t : Transcript) : Runs (Pure.pure a) t a t := rfl
+
+theorem runs_sampleWord (t : Transcript) :
+    Runs sampleWord t t.duplex.sample.1 { t with duplex := t.duplex.sample.2 } := rfl
+
+theorem runs_drawExt (t : Transcript) :
+    Runs drawExt t ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
+      { t with duplex := t.duplex.sample.2.sample.2.sample.2 } := rfl
+
+theorem runs_sampleExt (t : Transcript) :
+    let v : Ext := ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
+    Runs sampleExt t v { duplex := t.duplex.sample.2.sample.2.sample.2, draws := t.draws.push (.ext v) } := rfl
+
+theorem runs_record (d : Draw) (t : Transcript) : Runs (record d) t () { t with draws := t.draws.push d } := rfl
+
+theorem runs_observeAll (vs : Array Gl) (t : Transcript) :
+    Runs (observeAll vs) t () { t with duplex := vs.foldl Duplex.observe t.duplex } := rfl
+
+theorem runs_ensure {ok : Bool} (h : ok = true) (what : String) (t : Transcript) : Runs (ensure ok what) t () t := by
+  subst h
+  rfl
+
+theorem runs_liftExcept {α : Type} {e : Except String α} {a : α} (h : e = .ok a) (t : Transcript) :
+    Runs (liftExcept e) t a t := by
+  subst h
+  rfl
 
 /-! ## Draws only grow -/
 

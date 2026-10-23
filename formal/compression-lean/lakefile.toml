@@ -6,15 +6,16 @@ defaultTargets = ["CompressionLean", "CompressionLeanTests"]
 name = "nightstream_fprime"
 path = "../nightstream-fprime"
 
+# Warnings are errors, so a plain `lake build` fails as a strict check would.
 [[lean_lib]]
 name = "CompressionLean"
 roots = ["CompressionLean"]
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_lib]]
 name = "CompressionLeanTests"
 roots = ["CompressionLeanTests.Axioms", "CompressionLeanTests.BlockDigest"]
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_exe]]
 name = "emitTerminal"

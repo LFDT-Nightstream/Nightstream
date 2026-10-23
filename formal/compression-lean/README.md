@@ -344,6 +344,9 @@ re-read. `STATUS.md` lists the claims with their axioms and open premises, the
 ports and the digest pins. `lake exe status > STATUS.md` writes it, and
 `lake build` fails when it is out of date.
 
+`scripts/crosschecks.sh` runs the replay, lowering, production, terminal and
+full checks below, in that order.
+
 Replay check. `Replay/` is an executable layer-1 verifier in the model's
 stage order. It draws every challenge as Rust does and runs every check of
 `verifier.rs` except WHIR's own: it replays each WHIR transcript and takes the

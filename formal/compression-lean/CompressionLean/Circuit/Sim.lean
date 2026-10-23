@@ -552,8 +552,29 @@ theorem loopT {xs : List δ} {init : γ} {body : δ → γ → Transcript (ForIn
   (loopT_from I D step _ 0 rfl (Nat.zero_le _) init d n le_rfl).post (fun _ _ _ h => h)
     fun _ => ⟨fun h k hk => h k (Nat.zero_le _) hk, fun h k _ hk => h k hk⟩
 
-end Sim
+/-- `mapM` over a list: result `i` meets `R` at entry `i`, which survives
+later values. -/
+theorem listMapM {f : δ → Build α} (R : δ → α → ℕ → Prop) (mono : ∀ x a m m', R x a m → m ≤ m' → R x a m') :
+    ∀ (xs : List δ) {n : ℕ} {P : Prop}, (∀ x ∈ xs, ∀ m, n ≤ m → Sim c m P (f x) (R x) True) →
+      Sim c n P (xs.mapM f) (fun as m => List.Forall₂ (fun x a => R x a m) xs as) True
+  | [], n, P, _ => by
+      rw [List.mapM_nil]
+      exact Sim.pure fun _ => List.Forall₂.nil
+  | x :: xs, n, P, h => by
+      rw [List.mapM_cons]
+      refine (h x List.mem_cons_self n le_rfl).bind₀ fun a m le => ?_
+      refine (listMapM R mono xs (P := P ∧ R x a m) fun y hy m' le' =>
+        (h y (List.mem_cons_of_mem _ hy) m' (le.trans le')).pre fun h => h.1).bind₀ fun as m' le' => ?_
+      exact Sim.pure fun hh => List.Forall₂.cons (mono _ _ _ _ hh.1.2 le') hh.2
 
+/-- `mapM` over an array. -/
+theorem mapM {n : ℕ} {P : Prop} {xs : Array δ} {f : δ → Build α} (R : δ → α → ℕ → Prop)
+    (mono : ∀ x a m m', R x a m → m ≤ m' → R x a m') (h : ∀ x ∈ xs, ∀ m, n ≤ m → Sim c m P (f x) (R x) True) :
+    Sim c n P (xs.mapM f) (fun as m => List.Forall₂ (fun x a => R x a m) xs.toList as.toList) True := by
+  rw [Array.mapM_eq_mapM_toList]
+  exact (listMapM R mono xs.toList fun x hx => h x (Array.mem_toList_iff.mp hx)).map fun as m h => by simpa using h
+
+end Sim
 
 /-! ## Soundness only -/
 

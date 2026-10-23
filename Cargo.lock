@@ -821,8 +821,11 @@ dependencies = [
  "nightstream-fprime",
  "p3-field 0.5.3",
  "p3-goldilocks 0.5.3",
+ "proc-macro2",
+ "quote",
  "serde",
  "serde_json",
+ "syn",
  "thiserror",
 ]
 

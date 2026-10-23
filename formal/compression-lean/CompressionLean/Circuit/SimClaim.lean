@@ -12,10 +12,9 @@ statement as the bridge reads it.
   statement view (`claimView`, `TerminalCheck.lean`), and that view read
   through `w`.
 - `isClaim_decode`: handles below `m` hold the decoded statement (`IsClaim`).
-- `ClaimVars.Shaped`: `D` words per ring row and `D` pairs per `Eval_A` row,
-  as `chunks_exact` makes them (`terminal/package.rs:222-239`). `ClaimHolds`
-  keeps only the flat handle lists, so the last two lemmas take it as a
-  premise.
+- `ClaimHolds` keeps only the flat handle lists, so the last two lemmas also
+  take the row shape (`ClaimVars.Shaped`, `SimTerminal.lean`), which
+  `Handoff` gives.
 - `fits_decode`, `statementOf_decode`: under `ClaimHolds`, the decoded
   statement has the production sizes, and `statementOf` reads it as
   `Final.claimOf env`.
@@ -38,12 +37,6 @@ def ClaimView.decode (w : Var → Gl) (v : ClaimView) : Replay.Statement :=
   { commitment := v.commitment.map (·.map w), publicInput := v.publicInput.map (·.map w),
     point := v.point.map (Prod.map w w), evalK := v.evalK.map (Prod.map w w),
     evalA := v.evalA.map (·.map (Prod.map w w)) }
-
-/-- Every ring row of the claim has `D` words, and every `Eval_A` row `D` pairs
-(`chunks_exact`, `terminal/package.rs:222-239`). -/
-def Terminal.ClaimVars.Shaped (claim : ClaimVars) : Prop :=
-  (∀ row ∈ claim.commitment, row.size = D) ∧ (∀ row ∈ claim.publicInput, row.size = D) ∧
-    ∀ row ∈ claim.evalA, row.size = D
 
 section Decode
 

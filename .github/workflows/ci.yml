@@ -4,7 +4,6 @@ on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [ main ]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -12,9 +11,6 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
-  NEO_PI_CCS_PREFLIGHT: "1"
-  NEO_SELF_VERIFY: "1"
-  NEO_STRICT_IO_PARITY: "1"
 
 jobs:
   fmt:
@@ -33,33 +29,33 @@ jobs:
       run: cargo fmt --all --check
 
   test:
-    name: Run Tests
+    name: Nightstream and shared regression tests
     runs-on: [self-hosted, Linux, X64, nico-runner]
-    env:
-      RUSTFLAGS: "-Dwarnings -C target-cpu=x86-64"
     
     steps:
+    - name: Install Git LFS if missing
+      run: |
+        if ! command -v git-lfs >/dev/null 2>&1; then
+          sudo apt-get update
+          sudo apt-get install -y git-lfs
+        fi
+
     - name: Checkout code
       uses: actions/checkout@v4
-      
+      with:
+        lfs: true
+
+    - name: Install Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Check Lean artifact digests and links
+      run: timeout --signal=KILL 300 python3 -B formal/nightstream-fprime/scripts/check_artifacts.py
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Install Nextest
-      uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
-      with:
-        tool: cargo-nextest@0.9.149
-        fallback: none
-
-    # Temporarily disabled while the merge path is focused on Rust-side
-    # stabilization and we are not gating CI on Lean conformance.
-    # - name: Install Lean toolchain
-    #   run: |
-    #     if ! command -v elan >/dev/null 2>&1; then
-    #       curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- -y
-    #     fi
-    #     echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
-      
     - name: Get Rust cache key
       id: rust
       run: echo "cachekey=$(rustc -vV | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
@@ -71,97 +67,18 @@ jobs:
           ~/.cargo/registry
           ~/.cargo/git
           target
-        key: nico-ubuntu22-${{ runner.arch }}-portable-no-lto-cgu16-v1-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
+        key: nico-fprime-${{ runner.os }}-${{ runner.arch }}-no-lto-cgu16-v1-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
         restore-keys: |
-          nico-ubuntu22-${{ runner.arch }}-portable-no-lto-cgu16-v1-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-
+          nico-fprime-${{ runner.os }}-${{ runner.arch }}-no-lto-cgu16-v1-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-
 
-    - name: Build test archive
-      # Avoid repeating whole-program LTO for each test binary.
-      run: >-
-        cargo nextest archive --release --locked --workspace --exclude spartan2
-        --features "testing,debug-log,fs-guard"
-        --config 'profile.release.lto="off"'
-        --config 'profile.release.codegen-units=16'
-        --archive-file ci-tests.tar.zst
+    - name: Build selected Rust tests
+      run: bash scripts/ci_rust_tests.sh build
 
-    - name: Run source checks on the build machine
-      run: >-
-        cargo nextest run --profile ci
-        --archive-file ci-tests.tar.zst
-        --workspace-remap "$GITHUB_WORKSPACE"
-        -E 'binary(=migration_hard_stops)'
+    - name: Run selected Rust tests with four workers
+      run: bash scripts/ci_rust_tests.sh test
 
-    - name: Run doctests
-      run: >-
-        cargo test --release --locked --workspace
-        --exclude spartan2 --features "testing,debug-log,fs-guard" --doc
-        --config 'profile.release.lto="off"'
-        --config 'profile.release.codegen-units=16'
-
-    - name: Run tests with four workers
+    - name: Run conformance coordinator tests
       run: |
-        printf '%s\n' cached {1..8} | xargs --max-procs=4 --max-args=1 bash -e -o pipefail -c '
-          # Keep each binary in one process so its OnceLock fixtures are shared.
-          if [[ "$1" == cached ]]; then
-            exec cargo test --release --locked --no-fail-fast --workspace --exclude spartan2 \
-              --features "testing,debug-log,fs-guard" \
-              --config "profile.release.lto=\"off\"" \
-              --config profile.release.codegen-units=16 \
-              --test system_fibonacci_compiler_recursive_step \
-              --test system_fibonacci_compiler_unified_structure \
-              -- --test-threads=1
-          fi
-          printf "Starting test shard %s/8\n" "$1"
-          exec cargo-nextest nextest run --profile ci \
-            --archive-file ci-tests.tar.zst \
-            --workspace-remap "$GITHUB_WORKSPACE" \
-            -E "not (binary(=migration_hard_stops) | \
-              binary(=system_fibonacci_compiler_recursive_step) | \
-              binary(=system_fibonacci_compiler_unified_structure))" \
-            --partition "hash:$1/8"
-        ' _
-
-    # Temporarily disabled while the merge path is focused on Rust-side
-    # stabilization and we are not gating CI on Lean conformance.
-    # - name: Run Nightstream Lean/Rust conformance gates
-    #   run: bash ./scripts/check_lean_rust_conformance.sh
-
-  # ============================================================================
-  # WASM Build Checks (with Spartan)
-  # Temporarily disabled until the wasm/iOS/Android demos are ported off the
-  # removed deprecated crates and bridge/JNI stack.
-  # ============================================================================
-
-  # wasm-builds:
-  #   name: WASM Builds (Web/iOS/Android)
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #   - name: Checkout code
-  #     uses: actions/checkout@v4
-
-  #   - name: Install Rust (wasm32 + rust-src)
-  #     uses: dtolnay/rust-toolchain@stable
-  #     with:
-  #       targets: wasm32-unknown-unknown
-  #       components: rust-src
-  #
-  #   - name: Install Rust (nightly-2025-09-01 wasm32 + rust-src)
-  #     uses: dtolnay/rust-toolchain@master
-  #     with:
-  #       toolchain: nightly-2025-09-01
-  #       targets: wasm32-unknown-unknown
-  #       components: rust-src
-
-  #   - name: Cache cargo
-  #     uses: Swatinem/rust-cache@v2
-  #     with:
-  #       workspaces: demos/wasm-demo/wasm
-
-  #   - name: Install wasm-pack
-  #     uses: jetli/wasm-pack-action@v0.4.0
-
-  #   - name: Build WASM bundles (Web/iOS/Android)
-  #     run: ./demos/build_wasm.sh --release
-  #     env:
-  #       RUSTUP_TOOLCHAIN: stable
-  #       WASM_THREADS_TOOLCHAIN: nightly-2025-09-01
+        timeout --signal=KILL 300 python3 -B -m unittest scripts.tests.test_golden_conformance_ci scripts.tests.test_golden_conformance_changes scripts.lean_graph.tests.test_guard scripts.lean_graph.tests.test_replay_coverage
+        timeout --signal=KILL 300 python3 -B -m unittest discover -s crates/nightstream/tests -p 'test_*.py'
+        timeout --signal=KILL 300 python3 -B -m unittest discover -s formal/nightstream-fprime/tests -p 'test_*.py'

@@ -247,12 +247,19 @@ def ClaimHolds (c : Ctx NightstreamFPrime.Spec.F) (m : ℕ) (claim : ClaimVars) 
 def StateHolds (c : Ctx NightstreamFPrime.Spec.F) (m : ℕ) (state : Fin 16 → Var) (env : Env) : Prop :=
   HoldsValues c m env (List.ofFn state) CompressionLean.Terminal.outputs.state
 
+/-- Every ring row of the claim has `D` words, and every `Eval_A` row `D` pairs
+(`chunks_exact`, `terminal/package.rs:222-239`). -/
+def ClaimVars.Shaped (claim : ClaimVars) : Prop :=
+  (∀ row ∈ claim.commitment, row.size = Replay.D) ∧ (∀ row ∈ claim.publicInput, row.size = Replay.D) ∧
+    ∀ row ∈ claim.evalA, row.size = Replay.D
+
 /-- What `apply` hands to `verify_with` (`terminal/mod.rs:70-79`): a terminal
 assignment for the run's statement, whose output values the claim and state
-handles hold. -/
+handles hold, in rows of the claim's shape. -/
 def Handoff (c : Ctx NightstreamFPrime.Spec.F) (authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority)
     (r : ClaimVars × (Fin 16 → Var)) (m : ℕ) : Prop :=
-  ∃ env, Final.TerminalFor authority (statementOf c) env ∧ ClaimHolds c m r.1 env ∧ StateHolds c m r.2 env
+  ∃ env, Final.TerminalFor authority (statementOf c) env ∧ ClaimHolds c m r.1 env ∧ StateHolds c m r.2 env ∧
+    r.1.Shaped
 
 /-! ## Chunks -/
 
@@ -583,7 +590,7 @@ theorem apply_ensures
         (ks.map fun k => columns.getD k 0).size = list.length := fun h =>
     ⟨Array.toList_map .., by rw [Array.size_map, (outputColumns_ok h).1]⟩
   refine ⟨terminalEnv c context columns, ⟨env_rows loads valid cols rows, env_context loads cols hctx,
-    env_prior loads cols hstmt reads, nz⟩, ⟨?_, ?_, ?_, ?_, ?_⟩, ?_⟩
+    env_prior loads cols hstmt reads, nz⟩, ⟨?_, ?_, ?_, ?_, ?_⟩, ?_, ?_⟩
   · show HoldsValues c m₃ _ ((chunks Replay.D (loaded.outputs.commitment.map _)).toList.flatMap Array.toList) _
     rw [chunks_flatten (by rw [(read hcom).2, lcom]; exact Nat.dvd_mul_left _ _), (read hcom).1]
     exact read_holds loads cols hcom
@@ -607,6 +614,10 @@ theorem apply_ensures
   · show HoldsValues c m₃ _ (List.ofFn fun lane : Fin 16 => columns.getD (loaded.outputs.state.getD lane 0) 0) _
     rw [state_list (by rw [(outputColumns_ok hst).1, lst])]
     exact read_holds loads cols hst
+  · refine ⟨fun _ mem => chunks_size mem, fun _ mem => chunks_size mem, fun row mem => ?_⟩
+    obtain ⟨chunk, mem', rfl⟩ := Array.mem_map.mp mem
+    simp only [pairs, chunks, Array.size_map, Array.size_range, chunks_size mem']
+    omega
 
 /-- The iteration check, then `Package::apply`, simulated: the check gives a
 nonzero iteration (`terminal/mod.rs:60-72`). -/

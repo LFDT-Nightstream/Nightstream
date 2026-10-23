@@ -34,4 +34,5 @@ import CompressionLean.Circuit.SimLinear
 import CompressionLean.Circuit.SimEarly
 import CompressionLean.Circuit.SimClaim
 import CompressionLean.Final.Encodes
+import CompressionLean.Circuit.SimLate
 import CompressionLean.Circuit.PackageRows

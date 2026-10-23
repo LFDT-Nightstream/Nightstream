@@ -47,6 +47,10 @@ and key expander (`Final/RustSetup.lean`). A port equals its Rust only as far as
 
 - Rust tests in CI pin digests that Lean computes from the lowered programs, so a change to the
   circuit's instruction stream fails CI.
+- `ports.json` names the Rust item that each port transcribes, with a hash of its tokens. The CI test
+  `lean_ports` fails when a ported Rust item changes, until someone re-reads the port and updates the
+  hash. It detects a change; it does not show that the port is right. `lake build` fails when a
+  declaration that cites Rust has no entry.
 - Ignored Rust tests compare the replay's draws and verdicts, and the programs' instructions, with
   Rust on fixed inputs. They run by hand, not in CI.
 

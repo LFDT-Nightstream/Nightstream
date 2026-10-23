@@ -2,6 +2,7 @@ import CompressionLean.Circuit.Terminal
 import CompressionLean.Circuit.Parse
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Digest
+import CompressionLean.Final.KeyFacts
 
 /-!
 The `terminalCheck` executable. It reads an export of `nightstream`'s
@@ -11,10 +12,10 @@ claim and state handles that `Package::apply` hands to layer 1. It loads the
 Lean terminal package (`Package.load`) and writes `finalProgram`. Without a
 layer-1 key the layer-1 step returns its arguments, and the check requires
 the same instructions, one by one, and the same handles. With the key file
-of `neo-spartan`'s `lowering.rs` the step is `verifyWith`, and the check
-requires every instruction of the final program. It prints `match`, the
-counts and the run digest of Lean's program (`runDigest`), or the first
-difference and exits with 1.
+of `neo-spartan`'s `lowering.rs` the step is `verifyWith`, the key must have
+`KeyFacts` (`keyFailure`), and the check requires every instruction of the
+final program. It prints `match`, the counts and the run digest of Lean's
+program (`runDigest`), or the first difference and exits with 1.
 -/
 
 namespace CompressionLean.TerminalCheck
@@ -116,7 +117,10 @@ def main (args : List String) : IO UInt32 := do
     | [path] => pure (path, none)
     | [path, keyPath] =>
         match Lean.Json.parse (← IO.FS.readFile keyPath) >>= Lean.fromJson? (α := CompressionLean.Circuit.Layer1Input) with
-        | .ok key => pure (path, some key)
+        | .ok key =>
+            match CompressionLean.Final.keyFailure key with
+            | some fact => IO.println s!"key fact fails: {fact}"; return 1
+            | none => IO.println "key facts hold"; pure (path, some key)
         | .error message => IO.eprintln s!"{keyPath}: {message}"; return 2
     | _ => IO.eprintln "usage: terminalCheck <export.txt> [<layer1.json>]"; return 2
   match CompressionLean.Circuit.Package.load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs with

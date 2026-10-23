@@ -331,6 +331,13 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.final_sound_parent
 #audit_axioms CompressionLean.Final.final_restore_budget_parent
 
+/-! Axiom gate for the encoding premise of the production final program. -/
+
+#audit_axioms CompressionLean.Circuit.verify_ensures
+#audit_axioms CompressionLean.Final.Encodes.phi_eq_modulus
+#audit_axioms CompressionLean.Final.Encodes.programEncodes
+#audit_axioms CompressionLean.Final.final_restore_budget_program
+
 /-! Axiom gate for the soundness of the lowering. -/
 
 #audit_axioms CompressionLean.Shrink.slot_inj

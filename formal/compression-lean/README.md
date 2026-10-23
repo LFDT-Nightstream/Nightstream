@@ -334,7 +334,15 @@ timeout --signal=KILL 1500 lake build emitTerminal
 timeout --signal=KILL 1500 .lake/build/bin/emitTerminal artifacts/compression-terminal-v1.json
 ```
 
-`lake build` also runs the axiom audit (`CompressionLeanTests/Axioms.lean`).
+`lake build` also runs the axiom audit (`CompressionLeanTests/Axioms.lean`)
+and the ports gate (`CompressionLeanTests/Ports.lean`).
+
+Ports. `ports.json` pairs each Lean port of Rust with the Rust item that it
+transcribes and a hash of the item's tokens. The CI test `lean_ports`
+(`nightstream`) fails when an item changes and names the Lean declaration to
+re-read. `STATUS.md` lists the claims with their axioms and open premises, the
+ports and the digest pins. `lake exe status > STATUS.md` writes it, and
+`lake build` fails when it is out of date.
 
 Replay check. `Replay/` is an executable layer-1 verifier in the model's
 stage order. It draws every challenge as Rust does and runs every check of

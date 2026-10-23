@@ -14,8 +14,20 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsErro
 
 [[lean_lib]]
 name = "CompressionLeanTests"
-roots = ["CompressionLeanTests.Axioms", "CompressionLeanTests.BlockDigest"]
+roots = ["CompressionLeanTests.Axioms", "CompressionLeanTests.BlockDigest", "CompressionLeanTests.Inventory", "CompressionLeanTests.Ports"]
+needs = ["ports", "statusPage"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
+
+# The ports gate reads these files, so a change to them reruns it.
+[[input_file]]
+name = "ports"
+path = "ports.json"
+text = true
+
+[[input_file]]
+name = "statusPage"
+path = "STATUS.md"
+text = true
 
 [[lean_exe]]
 name = "emitTerminal"
@@ -35,4 +47,9 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 [[lean_exe]]
 name = "terminalCheck"
 root = "CompressionLean.Circuit.TerminalCheck"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "status"
+root = "CompressionLeanTests.Status"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

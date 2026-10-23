@@ -1,4 +1,5 @@
 import CompressionLean
+import CompressionLeanTests.Inventory
 
 /-!
 The axiom gate. `lake build` runs it.
@@ -6,11 +7,11 @@ The axiom gate. `lake build` runs it.
 - Every theorem in a `CompressionLean` module, a later one too, uses only
   `propext`, `Classical.choice` and `Quot.sound` (`#audit_library_axioms`).
   A `sorry` or a `native_decide` anywhere in the library fails the build.
-- Each claim exists and uses exactly the axioms pinned beside it
-  (`#pin_axioms`). A renamed or deleted claim fails the build.
+- Each claim of `Inventory.claims` exists and uses exactly the axioms pinned
+  beside it (`#pin_claims`). A renamed or deleted claim fails the build.
 -/
 
-open Lean Elab Command
+open Lean Elab Command CompressionLeanTests.Inventory
 
 /-- The axioms that every theorem of the library may use. -/
 def allowedAxioms : Array Name := #[``propext, ``Classical.choice, ``Quot.sound]
@@ -28,30 +29,13 @@ elab "#audit_library_axioms " root:ident : command => do
       throwError m!"{name} depends on disallowed axioms: {bad}"
   logInfo m!"{count} theorems in {root.getId} use only {allowedAxioms}"
 
-elab "#pin_axioms " decl:ident " [" pinned:ident,* "]" : command => do
-  let name ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo decl
-  let expected ← pinned.getElems.mapM fun a => liftCoreM <| realizeGlobalConstNoOverloadWithInfo a
-  let actual ← liftCoreM (collectAxioms name)
-  unless (actual.qsort Name.lt) == (expected.qsort Name.lt) do
-    throwError m!"{name} uses {actual}, pinned {expected}"
+elab "#pin_claims" : command => do
+  for (claim, pinned) in claims do
+    unless (← getEnv).contains claim do throwError "claim {claim} is not declared"
+    let actual := (← liftCoreM (collectAxioms claim)).toList
+    unless actual.mergeSort Name.lt == pinned.mergeSort Name.lt do
+      throwError m!"{claim} uses {actual}, pinned {pinned}"
 
 #audit_library_axioms CompressionLean
 
-/-! ## Claims -/
-
-#pin_axioms CompressionLean.Terminal.circuitPackage_implies_terminal [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Layer1.layer1_sound [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Layer1.layer1_restore_sound [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Layer1.layer1_restore_budget [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Shrink.shrink_sound [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Circuit.lower_valid [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Circuit.lower_sound [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Bridge.replay_accepts_sound [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Final.honestSetup_of_build [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Final.parent_holds [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Final.final_sound [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Final.final_restore_sound [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Final.final_budget [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Final.final_restore_budget [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Final.final_sound_parent [propext, Classical.choice, Quot.sound]
-#pin_axioms CompressionLean.Final.final_restore_budget_parent [propext, Classical.choice, Quot.sound]
+#pin_claims

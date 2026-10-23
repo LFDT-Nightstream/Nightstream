@@ -23,4 +23,5 @@ import CompressionLean.Circuit.SimHash
 import CompressionLean.Circuit.SimFold
 import CompressionLean.Circuit.SimMerkle
 import CompressionLean.Circuit.SimSumcheck
+import CompressionLean.Circuit.SimViews
 import CompressionLean.Circuit.PackageRows

@@ -129,6 +129,28 @@ theorem holds_of_steps {c : Ctx F} {L : List Instr} {E : Exec.State F} (h : (c.s
   | nil => exact h
   | cons i L ih => exact holds_of_step (ih h)
 
+/-- **The statement words.** A program that starts with `k` `public`
+instructions (`record.rs:297-303`): the first `k` values of its run are the
+first `k` statement words. -/
+theorem run_pubs {L : Array Instr} {k : ℕ} {rest : List Instr} (pre : L.toList = List.replicate k .pub ++ rest)
+    {j : ℕ} (hj : j < k) : (Exec.run c.perm c.stmt c.tape L).value j = c.stmt.getD j 0 := by
+  have pubs : ∀ k, (c.steps (List.replicate k .pub) Exec.start).values = (List.range k).map (c.stmt.getD · 0) ∧
+      (c.steps (List.replicate k .pub) Exec.start).reads = k := by
+    intro k
+    induction k with
+    | zero => exact ⟨rfl, rfl⟩
+    | succ k ih =>
+        rw [List.replicate_succ', c.steps_append]
+        show (c.step _ .pub).values = _ ∧ (c.step _ .pub).reads = _
+        simp only [Ctx.step, Exec.step, ih.1, ih.2, List.range_succ, List.map_append]
+        exact ⟨rfl, trivial⟩
+  have run : Exec.run c.perm c.stmt c.tape L = c.steps rest (c.steps (List.replicate k .pub) Exec.start) := by
+    rw [← c.steps_append, ← pre]
+    rfl
+  obtain ⟨more, hm, -⟩ := c.steps_values rest (c.steps (List.replicate k .pub) Exec.start)
+  rw [run, Exec.State.value, hm, (pubs k).1, List.getD_append _ _ _ _ (by simpa using hj)]
+  simp [hj]
+
 end Ctx
 
 /-- Handle `h` is one of the first `n` values, and `val` gives it the word
@@ -383,6 +405,18 @@ theorem assertEqual {a b : Var} {ga gb : Gl} (ha : P → IsWord c n a ga) (hb : 
     Sim c n P (Build.assertEqual a b) (fun _ _ => True) (ga = gb) :=
   ((sub ha hb).bind fun _ _ _ => assertZero fun h => h.2).post (fun _ _ _ h => h)
     (fun _ => by rw [true_and, gl_sub_eq_zero])
+
+omit [CharP F goldilocksModulus] in
+/-- `r1cs` (`record.rs:450-460`): the rows hold on the values of the column
+handles. -/
+theorem r1cs {rows : List (Shrink.R1csRow Gl)} {columns : List Var} (hc : P → ∀ h ∈ columns, h < n) :
+    Sim c n P (Build.r1cs rows columns) (fun _ _ => True)
+      (∀ r ∈ rows, R1csRow.Holds (fun j => (columns.map c.val).getD j 0) r) := by
+  refine ((emit (Q := fun _ _ => True) (C := ∀ r ∈ rows, R1csRow.Holds (fun j => (columns.map c.val).getD j 0) r)
+    (.r1cs rows columns) fun hP E hl hF => ⟨trivial, ?_⟩).bind fun _ _ _ => pure fun _ => trivial).post
+    (fun _ _ _ h => h) (fun _ => Iff.of_eq (and_true _))
+  show E.holds ∧ (∀ r ∈ rows, R1csRow.Holds (fun j => (columns.map E.value).getD j 0) r) ↔ _
+  rw [List.map_congr_left fun h mem => Ctx.follows_of_step hF h (hl ▸ hc hP h mem)]
 
 theorem extMul {a b : ExtVar} {ga gb : Ext} (ha : P → IsExt c n a ga) (hb : P → IsExt c n b gb) :
     Sim c n P (Build.extMul a b) (fun r m => IsExt c m r (ga * gb)) True :=

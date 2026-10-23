@@ -22,4 +22,5 @@ import CompressionLean.Circuit.Sound
 import CompressionLean.Circuit.SimHash
 import CompressionLean.Circuit.SimFold
 import CompressionLean.Circuit.SimMerkle
+import CompressionLean.Circuit.SimSumcheck
 import CompressionLean.Circuit.PackageRows

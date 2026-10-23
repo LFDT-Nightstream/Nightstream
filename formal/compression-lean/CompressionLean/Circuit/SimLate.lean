@@ -208,128 +208,6 @@ private theorem slotStep_sim {layout : Replay.Layout} {point : Array ExtVar} {gp
 
 end Lanes
 
-private theorem depth_bounds {proof : Replay.GkrProof} {shapes : Array TreeShape}
-    (read : Replay.readGkr proof shapes = .ok ()) {u : ℕ} (inside : u < shapes.size) :
-    1 ≤ shapes[u]!.depth ∧ shapes[u]!.depth ≤ Replay.layerCount shapes := by
-  refine ⟨?_, ?_⟩
-  · unfold Replay.readGkr at read
-    split_ifs at read with bad
-    · obtain ⟨_, thrown, _⟩ := Replay.Except.bind_ok read
-      cases thrown
-    · simp only [Bool.or_eq_true, bne_iff_ne, ne_eq, not_or] at bad
-      have := bad.1.1
-      simp only [Array.any_eq_true, not_exists, Bool.or_eq_true, beq_iff_eq, decide_eq_true_eq, not_or] at this
-      rw [getElem!_pos shapes u inside]
-      have := (this u inside).1
-      omega
-  · unfold Replay.layerCount
-    suffices h : ∀ l : List ℕ, u ∈ l → shapes[u]!.depth ≤ l.foldr (fun t d => max d shapes[t]!.depth) 0 from
-      h _ (List.mem_range.mpr inside)
-    intro l member
-    induction l with
-    | nil => cases member
-    | cons t rest ih =>
-        rw [List.foldr_cons]
-        rcases List.mem_cons.mp member with rfl | inside
-        · exact le_max_right _ _
-        · exact (ih inside).trans (le_max_left _ _)
-
-private theorem reducedOf_size {shapes : Array TreeShape} {k u : ℕ} {layer : Replay.GkrLayer} {tau : Ext}
-    (ok : Replay.layerShapeOk shapes k layer = true) (inside : u < shapes.size) (ends : shapes[u]!.depth = k) :
-    (Replay.reducedOf ((Replay.activeTrees shapes k).zip layer.children).toList tau u).size =
-      shapes[u]!.factors + 1 := by
-  simp only [Replay.layerShapeOk, Bool.and_eq_true, beq_iff_eq] at ok
-  obtain ⟨⟨⟨-, -⟩, childrenSize⟩, childSizes⟩ := ok
-  have active : u ∈ (Replay.activeTrees shapes k).toList := by
-    have ends' : shapes[u].depth = k := by rw [← getElem!_pos shapes u inside]; exact ends
-    unfold Replay.activeTrees
-    simp [inside, ends']
-  obtain ⟨s, hs, hsu⟩ := List.mem_iff_getElem.mp active
-  have member : ((Replay.activeTrees shapes k)[s]'(by simpa using hs), layer.children[s]'(by
-      rw [childrenSize]; simpa using hs)) ∈ ((Replay.activeTrees shapes k).zip layer.children).toList := by
-    rw [Array.toList_zip]
-    exact List.mem_iff_getElem.mpr ⟨s, by simp [childrenSize]; simpa using hs, by simp⟩
-  unfold Replay.reducedOf
-  split
-  · rename_i pair found
-    have key : pair.1 = u := by simpa using List.find?_some found
-    have size := Array.all_eq_true'.mp childSizes pair (Array.mem_toList_iff.mp (List.mem_of_find?_eq_some found))
-    simp only [beq_iff_eq] at size
-    rw [Array.size_map, Array.size_range, size, key, Replay.partFactors, if_pos ends]
-    omega
-  · rename_i missing
-    exact absurd (List.find?_eq_none.mp missing _ member) (by simp [← hsu])
-
-private theorem gkrLayers_sizes {shapes : Array TreeShape} :
-    ∀ (layers : List Replay.GkrLayer) (k : ℕ) (cl g : Replay.GkrClaims) (t t' : Replay.Transcript),
-      Runs (Replay.gkrLayers shapes k layers cl) t g t' → 1 ≤ k →
-      (∀ i (h : i < layers.length), Replay.layerShapeOk shapes (k + i) layers[i] = true) →
-      cl.leafValues.size = shapes.size → cl.leafPoint.size = shapes.size →
-      g.roots = cl.roots ∧ g.leafValues.size = shapes.size ∧ g.leafPoint.size = shapes.size ∧
-        ∀ u < shapes.size, ((g.leafValues[u]!).size, (g.leafPoint[u]!).size) =
-          if k ≤ shapes[u]!.depth ∧ shapes[u]!.depth < k + layers.length then
-            (shapes[u]!.factors + 1, shapes[u]!.depth) else ((cl.leafValues[u]!).size, (cl.leafPoint[u]!).size)
-  | [], k, cl, g, t, t', run, _, _, vsize, psize => by
-      rw [Replay.gkrLayers] at run
-      obtain ⟨rfl, rfl⟩ := Replay.run_pure run
-      exact ⟨rfl, vsize, psize, fun u _ => by rw [if_neg (by simp)]⟩
-  | layer :: rest, k, cl, g, t, t', run, one, ok, vsize, psize => by
-      rw [Replay.gkrLayers] at run
-      obtain ⟨_, t1, -, run⟩ := Replay.run_bind run
-      obtain ⟨_, t2, -, run⟩ := Replay.run_bind run
-      obtain ⟨result, t3, sum, run⟩ := Replay.run_bind run
-      obtain ⟨_, t4, -, run⟩ := Replay.run_bind run
-      obtain ⟨_, t5, -, run⟩ := Replay.run_bind run
-      obtain ⟨tau, t6, -, run⟩ := Replay.run_bind run
-      have ok₀ : Replay.layerShapeOk shapes k layer = true := ok 0 (by simp)
-      have rounds : result.1.size = k - 1 := by
-        have := Bridge.sumcheckRounds_size _ _ _ _ _ _ sum
-        have shape := ok₀
-        simp only [Replay.layerShapeOk, Bool.and_eq_true, beq_iff_eq] at shape
-        rw [this, Array.length_toList, shape.1.1.1]
-        simp
-      obtain ⟨roots, vsize', psize', values⟩ := gkrLayers_sizes rest (k + 1) _ g t6 t' run (by omega)
-        (fun i h => by
-          have := ok (i + 1) (by simp; omega)
-          simpa [Nat.add_assoc, Nat.add_comm 1 i] using this) (by simp [Replay.advance, vsize])
-        (by simp [Replay.advance, psize])
-      refine ⟨roots, vsize', psize', fun u hu => ?_⟩
-      rw [values u hu]
-      have adv : (Replay.advance shapes k cl ((Replay.activeTrees shapes k).zip layer.children).toList result.1
-          tau).leafValues[u]! = if shapes[u]!.depth = k then
-            Replay.reducedOf ((Replay.activeTrees shapes k).zip layer.children).toList tau u
-          else cl.leafValues[u]! := by
-        simp only [Replay.advance]
-        exact Bridge.getElem!_map_range _ _ (by omega)
-      have advPoint : (Replay.advance shapes k cl ((Replay.activeTrees shapes k).zip layer.children).toList result.1
-          tau).leafPoint[u]! = if shapes[u]!.depth = k then result.1.push tau else cl.leafPoint[u]! := by
-        simp only [Replay.advance]
-        exact Bridge.getElem!_map_range _ _ (by omega)
-      rw [adv, advPoint]
-      by_cases e : shapes[u]!.depth = k
-      · rw [if_neg (by omega), if_pos e, if_pos e, if_pos (by simp; omega), reducedOf_size ok₀ hu e, Array.size_push,
-          rounds, e, Nat.sub_add_cancel one]
-      · rw [if_neg e, if_neg e]
-        simp only [List.length_cons]
-        split_ifs <;> first | rfl | omega
-
-private theorem gkrVerify_sizes {proof : Replay.GkrProof} {shapes : Array TreeShape} {t t' : Replay.Transcript}
-    {g : Replay.GkrClaims} (read : Replay.readGkr proof shapes = .ok ())
-    (run : Runs (Replay.gkrVerify proof shapes) t g t') :
-    g.roots = proof.roots ∧ ∀ u < shapes.size,
-      (g.leafValues[u]!).size = shapes[u]!.factors + 1 ∧ (g.leafPoint[u]!).size = shapes[u]!.depth := by
-  obtain ⟨-, layersSize, layersOk⟩ := Bridge.readGkr_ok read
-  unfold Replay.gkrVerify at run
-  obtain ⟨_, t1, -, run⟩ := Replay.run_bind run
-  obtain ⟨roots, -, -, values⟩ := gkrLayers_sizes proof.layers.toList 1 _ g t1 t' run le_rfl (fun i h => by
-    rw [Nat.add_comm]
-    simpa using layersOk i (by simpa using h)) (by simp) (by simp)
-  refine ⟨roots, fun u hu => ?_⟩
-  have bounds := depth_bounds read hu
-  have e := values u hu
-  rw [if_pos ⟨bounds.1, by rw [Array.length_toList, layersSize]; omega⟩] at e
-  exact Prod.mk.inj e
-
 /-- What the openings read of the late stage (`verifier.rs:251-260`): the
 pair point, the block value, the block point and `Ω^A` at it. -/
 def IsLateOut (c : Ctx F) (m : ℕ) (v : LateOpeningsView) (out : Replay.LateOut) : Prop :=
@@ -340,8 +218,6 @@ def IsLateOut (c : Ctx F) (m : ℕ) (v : LateOpeningsView) (out : Replay.LateOut
 theorem IsLateOut.mono {c : Ctx F} {n m : ℕ} {v : LateOpeningsView} {out : Replay.LateOut}
     (h : IsLateOut c n v out) (le : n ≤ m) : IsLateOut c m v out :=
   ⟨h.1.mono le, h.2.1.mono le, h.2.2.1.mono le, h.2.2.2.mono le⟩
-
-private theorem ext_beq_of_eq {a b : Ext} (e : a = b) : (a == b) = true := e ▸ ext_beq_self a
 
 private theorem checkLate_of {layout : Replay.Layout} {beta : Ext} {m : Replay.Mixing}
     {lanes : Array (Array Ext × Array Ext)} {claims : Replay.GkrClaims} {pairs : Array (Ext × Ext)}
@@ -459,35 +335,6 @@ private theorem checkLate_ensures {layout : Replay.Layout} {beta : ExtVar} {gbet
     value 1 0 (by omega) hP N₁₆ (by have := (hsizes hP).2.1; omega)⟩
 
 end Check
-
-private theorem forall₂_entries {α β : Type} [Inhabited β] {R : α → β → Prop} {xs : Array α} {ys : Array β}
-    (h : List.Forall₂ R xs.toList ys.toList) : xs.size = ys.size ∧ ∀ i (hi : i < xs.size), R xs[i] ys[i]! := by
-  obtain ⟨len, get⟩ := List.forall₂_iff_get.mp h
-  simp only [Array.length_toList] at len
-  refine ⟨len, fun i hi => ?_⟩
-  have := get i (by simpa using hi) (by simpa [← len] using hi)
-  rw [getElem!_pos ys i (by omega)]
-  simpa using this
-
-private theorem IsGkr.entries {c : Ctx F} {n : ℕ} {v : GkrView} {gp : Replay.GkrProof} (h : IsGkr c n v gp) :
-    (v.roots.size = gp.roots.size ∧ ∀ i < v.roots.size,
-      IsExt c n (v.roots[i]!).1 (gp.roots[i]!).1 ∧ IsExt c n (v.roots[i]!).2 (gp.roots[i]!).2) ∧
-    (v.layers.size = gp.layers.size ∧ ∀ i (hi : i < v.layers.size),
-      (v.layers[i].rounds.size = (gp.layers[i]!).rounds.size ∧
-        ∀ r < v.layers[i].rounds.size, IsExts c n v.layers[i].rounds[r]! (gp.layers[i]!).rounds[r]!) ∧
-      (v.layers[i].children.size = (gp.layers[i]!).children.size ∧
-        ∀ s < v.layers[i].children.size, IsExts c n v.layers[i].children[s]! (gp.layers[i]!).children[s]!)) := by
-  obtain ⟨roots, layers⟩ := h
-  obtain ⟨rs, re⟩ := forall₂_entries roots
-  obtain ⟨ls, le⟩ := forall₂_entries layers
-  refine ⟨⟨rs, fun i hi => ?_⟩, ls, fun i hi => ?_⟩
-  · rw [getElem!_pos v.roots i hi]
-    exact re i hi
-  · obtain ⟨rounds, children⟩ := le i hi
-    obtain ⟨rs', re'⟩ := forall₂_entries rounds
-    obtain ⟨cs', ce'⟩ := forall₂_entries children
-    exact ⟨⟨rs', fun r hr => by rw [getElem!_pos _ r hr]; exact re' r hr⟩, cs',
-      fun s hs => by rw [getElem!_pos _ s hs]; exact ce' s hs⟩
 
 section Stage
 

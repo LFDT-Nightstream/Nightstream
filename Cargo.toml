@@ -86,7 +86,7 @@ strip = false  # Keep symbols for profiler
 edition = "2021"
 version = "0.1.0"
 authors = ["Nico Arqueros (Shinkai Labs) <nico@shinkai.com>"]
-rust-version = "1.88"
+rust-version = "1.97"
 license = "Apache-2.0"
 repository = "https://github.com/LFDT-Nightstream/Nightstream"
 

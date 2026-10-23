@@ -8,7 +8,7 @@ Open Scope Z_scope.
 Local Number Notation nat Nat.of_num_uint Nat.to_num_uint (abstract after 1000) : nat_scope.
 
 Definition selectorColumns : list Column :=
-  seq 61%nat 85%nat ++ seq 293%nat 30%nat.
+  seq COL_SEL_NOP 85 ++ seq COL_SEL_I32_WRAP_I64 30.
 
 Definition selectorRow : Row :=
   (map (fun column => (column, 1)) selectorColumns ++
@@ -325,9 +325,8 @@ Proof.
 Qed.
 
 Definition rowKindRow : Row :=
-  ([(COL_IS_PROGRAM_ROW, 1); (COL_PARAM_INIT_ACTIVE_BEFORE, 1);
-    (COL_LOCAL_ZERO_ACTIVE_BEFORE, 1); (COL_TAIL_ENTER_ACTIVE, 1);
-    (COL_PADDING_ACTIVE, 1); (COL_GATHER_ACTIVE, 1);
+  ([(COL_IS_PROGRAM_ROW, 1); (COL_FRAME_MOVE_ACTIVE_BEFORE, 1);
+    (COL_LOCAL_ZERO_ACTIVE_BEFORE, 1); (COL_PADDING_ACTIVE, 1); (COL_GATHER_ACTIVE, 1);
     (COL_TURN_BOUNDARY, 1); (COL_HOST_RESUME, 1); (COL_HOST_SUSPEND, 1);
     (COL_PERM_PENDING_BEFORE, 1); (COL_PERM_ROUND_BEFORE_IS_ZERO, -1)],
    [(COL_ONE, 1)], []).
@@ -349,9 +348,9 @@ Qed.
 Lemma full_opcode_aux_gates_zero : forall (w : Witness) selected,
   Range.fieldPrime -> FullRelation.satFull w ->
   In selected selectorColumns -> w selected = 1 ->
-  w COL_PARAM_INIT_ACTIVE_BEFORE = 0 /\
+  w COL_FRAME_MOVE_ACTIVE_BEFORE = 0 /\
   w COL_LOCAL_ZERO_ACTIVE_BEFORE = 0 /\
-  w COL_GATHER_ACTIVE = 0 /\ w COL_TAIL_ENTER_ACTIVE = 0.
+  w COL_GATHER_ACTIVE = 0.
 Proof.
   intros w selected Hprime Hfull HselectedIn HselectedValue.
   pose proof (full_opcode_selectors_one_hot w Hprime Hfull)
@@ -362,9 +361,8 @@ Proof.
   assert (Hprogram : w COL_IS_PROGRAM_ROW = 1).
   { destruct HprogramBit; lia. }
   destruct Hfull as [Hone Hall].
-  pose proof (Range.full_boolean w COL_PARAM_INIT_ACTIVE_BEFORE Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hparam.
+  pose proof (Range.full_boolean w COL_FRAME_MOVE_ACTIVE_BEFORE Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hparam.
   pose proof (Range.full_boolean w COL_LOCAL_ZERO_ACTIVE_BEFORE Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hzero.
-  pose proof (Range.full_boolean w COL_TAIL_ENTER_ACTIVE Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Htail.
   pose proof (Range.full_boolean w COL_PADDING_ACTIVE Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hpadding.
   pose proof (Range.full_boolean w COL_GATHER_ACTIVE Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hgather.
   pose proof (Range.full_boolean w COL_TURN_BOUNDARY Hprime (conj Hone Hall) ltac:(vm_compute; reflexivity)) as Hturn.
@@ -497,23 +495,21 @@ Ltac full_row index name :=
   unfold sat in name; cbn [eval fold_right] in name; normalize_columns
   end.
 
-(* Gather and tail-entry terms appear in rows shared by every row kind. *)
+(* Gather terms appear in rows shared by every row kind. *)
 Record ProgramRowQuiet (w : Witness) : Prop := {
   quiet_gather_kinds : forall column, In column gatherKindColumns -> w column = 0;
   quiet_gather_high : w GK2_HI = 0;
   quiet_gather_local : w GMEM_LOCAL = 0;
-  quiet_gather_output : w GMEM_OUTPUT = 0;
-  quiet_tail_discard : w COL_TAIL_DISCARD_COUNT = 0
+  quiet_gather_output : w GMEM_OUTPUT = 0
 }.
 
 Lemma full_quiet_from_gates : forall (w : Witness),
   Range.fieldPrime -> FullRelation.satFull w ->
-  w COL_GATHER_ACTIVE = 0 -> w COL_TAIL_ENTER_ACTIVE = 0 -> ProgramRowQuiet w.
+  w COL_GATHER_ACTIVE = 0 -> ProgramRowQuiet w.
 Proof.
-  intros w Hprime Hfull Hgather Htail.
+  intros w Hprime Hfull Hgather.
   assert (Hkinds : forall column, In column gatherKindColumns -> w column = 0)
     by (intros; eapply full_no_gather_kind; eassumption).
-  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   assert (Hhigh : w GK2_HI = 0).
   { full_row gatherHighLimbRow Hrow. zero_gather_kinds Hkinds Hrow.
     pose proof (value_bound w GK2_HI). field_linear Hrow. }
@@ -524,9 +520,6 @@ Proof.
     pose proof (full_boolean_at w GMEM_HALF gmemHalfBooleanRow Hprime Hfull eq_refl).
     pose proof (full_boolean_at w GMEM_OUTPUT gmemOutputBooleanRow Hprime Hfull eq_refl).
     field_linear Hrow. }
-  assert (Hdiscard : w COL_TAIL_DISCARD_COUNT = 0).
-  { full_row tailDiscardInactiveRow Hrow. rewrite Hone, Htail in Hrow.
-    pose proof (value_bound w COL_TAIL_DISCARD_COUNT). field_linear Hrow. }
   destruct Hgmem. constructor; assumption.
 Qed.
 
@@ -536,8 +529,8 @@ Theorem full_program_row_quiet : forall (w : Witness) selected,
 Proof.
   intros w selected Hprime Hfull Hin Hselected.
   pose proof (full_opcode_aux_gates_zero w selected Hprime Hfull Hin Hselected)
-    as [_ [_ [Hgather Htail]]].
-  exact (full_quiet_from_gates w Hprime Hfull Hgather Htail).
+    as [_ [_ Hgather]].
+  exact (full_quiet_from_gates w Hprime Hfull Hgather).
 Qed.
 
 Ltac selected_row chosen index name :=

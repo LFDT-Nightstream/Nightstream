@@ -190,8 +190,8 @@ Proof.
   intros w selected Hprime Hfull Hin Hselected.
   pose proof (full_selected_is_program_row w selected Hprime Hfull Hin Hselected) as Hprogram.
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
-  circuit_boolean COL_PARAM_INIT_ACTIVE_BEFORE Hb1. circuit_boolean COL_LOCAL_ZERO_ACTIVE_BEFORE Hb2.
-  circuit_boolean COL_TAIL_ENTER_ACTIVE Hb3. circuit_boolean COL_PADDING_ACTIVE Hb4.
+  circuit_boolean COL_FRAME_MOVE_ACTIVE_BEFORE Hb1. circuit_boolean COL_LOCAL_ZERO_ACTIVE_BEFORE Hb2.
+  circuit_boolean COL_PADDING_ACTIVE Hb4.
   circuit_boolean COL_GATHER_ACTIVE Hb5. circuit_boolean COL_TURN_BOUNDARY Hb6.
   circuit_boolean COL_HOST_RESUME Hb7. circuit_boolean COL_HOST_SUSPEND Hb8.
   circuit_boolean COL_PERM_PENDING_BEFORE Hb9. circuit_boolean COL_PERM_ROUND_BEFORE_IS_ZERO Hb10.
@@ -232,3 +232,40 @@ Ltac zero_host_switch H :=
           try rewrite Hd in H; clear Hin Ha Hb Hc Hd
       end
   end.
+
+Lemma gated_value_zero : forall gate value,
+  (gate * (1 * value + 0) - 0) mod modulus = 0 -> gate = 1 -> 0 <= value < modulus -> value = 0.
+Proof.
+  intros gate value Hrow -> Hbound.
+  rewrite Z.add_0_r, Z.sub_0_r, !Z.mul_1_l, Z.mod_small in Hrow by exact Hbound. exact Hrow.
+Qed.
+
+(* Only frame transitions drop stack cells outside the stack balance: returns,
+   tail calls, entries, and clean activation returns, which set the exit latch. *)
+Lemma full_frame_sp_drop_idle : forall (w : Witness),
+  Range.fieldPrime -> FullRelation.satFull w ->
+  w COL_CALL_STACK_POP_PRESENT = 0 -> w COL_GUEST_ENTRY_ACTIVE = w COL_CALL_STACK_PUSH_PRESENT ->
+  w COL_TURN_BOUNDARY = 0 -> w COL_HOST_EVENT_EXIT_LATCH = 0 ->
+  w COL_FRAME_SP_DROP = 0.
+Proof.
+  intros w Hprime Hfull Hpop Hentry Hturn Hlatch.
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_TRAPPED_AFTER, -1);
+    (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1)],
+    [(COL_ONE, 1)], ([] : SparseRow)) Hstate.
+  circuit_row ([(COL_ONE, 1); (COL_CALL_STACK_POP_PRESENT, -1); (COL_GUEST_ENTRY_ACTIVE, -1);
+    (COL_CALL_STACK_PUSH_PRESENT, 1); (COL_TURN_BOUNDARY, -1); (COL_ACTIVATION_FINISHED_AFTER, -1);
+    (COL_ACTIVATION_FINISHED_BEFORE, 1); (COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1);
+    (COL_HOST_CLEAR_ACTIVATION_FINISHED, -1)], [(COL_FRAME_SP_DROP, 1)], ([] : SparseRow)) Hrow.
+  unfold sat in Hstate, Hrow. cbn [eval fold_right] in Hstate, Hrow.
+  assert (Hclean : w COL_ACTIVATION_FINISHED_AFTER - w COL_ACTIVATION_FINISHED_BEFORE - w COL_TRAPPED_AFTER +
+    w COL_TRAPPED_BEFORE + w COL_HOST_CLEAR_ACTIVATION_FINISHED = 0).
+  { circuit_boolean COL_ACTIVATION_FINISHED_AFTER Hfa. circuit_boolean COL_ACTIVATION_FINISHED_BEFORE Hfb.
+    circuit_boolean COL_TRAPPED_AFTER Hta. circuit_boolean COL_TRAPPED_BEFORE Htb.
+    circuit_boolean COL_HOST_CLEAR_ACTIVATION_FINISHED Hclear.
+    rewrite Hone, Hlatch in Hstate.
+    apply Z.mod_divide in Hstate; [ | unfold modulus; lia]. destruct Hstate as [k Hstate].
+    unfold modulus in Hstate. lia. }
+  apply (gated_value_zero _ _ Hrow); [ | exact (value_bound w COL_FRAME_SP_DROP)].
+  rewrite Hone, Hpop, Hentry, Hturn. lia.
+Qed.

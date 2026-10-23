@@ -1,6 +1,7 @@
 (* Stack port activation, addresses, and memory effects for arithmetic and local instructions. *)
 From Stdlib Require Import List ZArith Lia Bool.
-Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog.
+Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
+  CallInitialization LocalBindings.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -42,7 +43,12 @@ Record BinaryStackShape (w : Witness) : Prop := {
   stack_write_address : w COL_STACK_WRITE0_ADDR_LO = 2 * (w COL_SP_BEFORE - 2);
   stack_write_hi_address : w COL_STACK_WRITE0_ADDR_HI = 2 * (w COL_SP_BEFORE - 2) + 1;
   stack_pointer_after : w COL_SP_AFTER = w COL_SP_BEFORE - 1;
-  stack_base_after : w COL_STACK_FRAME_BASE_AFTER = w COL_STACK_FRAME_BASE_BEFORE
+  stack_base_after : w COL_STACK_FRAME_BASE_AFTER = w COL_STACK_FRAME_BASE_BEFORE;
+  stack_local_get_inactive : w COL_SEL_LOCAL_GET = 0;
+  stack_local_write_inactive : w COL_LOCAL_WRITE_ENABLED = 0;
+  stack_gmem_local_inactive : w GMEM_LOCAL = 0;
+  stack_gather_local_lo_inactive : w COL_GATHER_LOCAL_WRITE_LO = 0;
+  stack_gather_local_inactive : w COL_GATHER_LOCAL_WRITE = 0
 }.
 
 Theorem full_binary_stack_shape : forall (w : Witness) chosen,
@@ -55,9 +61,13 @@ Proof.
   { destruct Hchoice; subst chosen; vm_compute; tauto. }
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   pose proof (full_opcode_aux_gates_zero w chosen Hprime Hfull Hin Hchosen)
-    as [Hparam [Hzero [Hgather _]]].
+    as [Hparam [Hzero Hgather]].
   destruct (full_program_row_quiet w chosen Hprime Hfull Hin Hchosen)
-    as [Hkinds Hhi Hlocal Houtput Hdiscard].
+    as [Hkinds Hhi Hlocal Houtput].
+  destruct (full_body_frame_sp_drop_idle w chosen Hprime Hfull Hin Hchosen
+    ltac:(destruct Hchoice; subst chosen; vm_compute; intuition discriminate))
+    as [HbodyPop HbodyPush Hguest Hturn Hdiscard].
+  destruct (full_no_gather_local_ports w Hfull Hgather) as [HgatherLocal HgatherLocalLo].
   pose proof (full_sp_before_u32 w Hprime Hfull) as Hsp.
   assert (Hcapture : w COL_OUTPUT_CAPTURED = 0).
   { arithmetic_row outputCaptureSupportRow Hrow. rewrite Hone in Hrow.
@@ -75,7 +85,7 @@ Proof.
     pose proof (value_bound w COL_STACK_READS). field_linear Hrow. }
   assert (Hwrites : w COL_STACK_WRITES = 1).
   { arithmetic_row stackWritesArityRow Hrow.
-    rewrite Hone, Hgather in Hrow.
+    rewrite Hone, Hgather, Hparam, Hzero in Hrow.
     pose proof (value_bound w COL_STACK_WRITES). field_linear Hrow. }
   assert (Hread2 : w (List.nth 2%nat COL_STACK_READ_ACTIVE 0%nat) = 0).
   { arithmetic_row stackRead2SupportRow Hrow. rewrite Hone in Hrow.
@@ -99,6 +109,12 @@ Proof.
   assert (Hpop : w COL_CALL_STACK_POP_PRESENT = 0).
   { arithmetic_row callStackPopSupportRow Hrow. rewrite Hone in Hrow.
     pose proof (value_bound w COL_CALL_STACK_POP_PRESENT). field_linear Hrow. }
+  assert (HlocalGet : w COL_SEL_LOCAL_GET = 0).
+  { refine (full_opcode_selector_exclusive w chosen COL_SEL_LOCAL_GET Hprime Hfull Hchosen Hin _ _);
+      [vm_compute; tauto | destruct Hchoice; subst chosen; discriminate]. }
+  assert (HlocalWrite : w COL_LOCAL_WRITE_ENABLED = 0).
+  { arithmetic_row localWriteGateIndex Hrow. rewrite Hone in Hrow.
+    pose proof (value_bound w COL_LOCAL_WRITE_ENABLED). field_linear Hrow. }
   destruct Hread01 as [Hread0 Hread1]. constructor; try assumption.
   - arithmetic_row binaryRead0AddressRow Hrow. rewrite Hone in Hrow.
     pose proof (value_bound w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)). field_linear Hrow.
@@ -117,7 +133,7 @@ Proof.
     rewrite Hone, Hreads, Hwrites, Hdiscard, Hlocal, Houtput, Hcapture, Hparams in Hrow.
     pose proof (value_bound w COL_SP_AFTER). field_linear Hrow.
   - arithmetic_row stackFrameBasePreservedRow Hrow. zero_host_switch Hrow.
-    rewrite Hone, Hpush, Hpop in Hrow.
+    rewrite Hone, Hguest, Hturn, Hpop in Hrow.
     pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE).
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
 Qed.
@@ -140,7 +156,7 @@ Lemma binary_stack_event_prefix : forall w,
     binaryStackEvents w ++ eventsForRow (tl MemoryCatalog.memories) w.
 Proof.
   intros w Hshape.
-  destruct Hshape as [Hr0 Hr1 Hr2 Hw Hwh Hcap Ha0 Ha1 Haw Hawh Hsp Hbase].
+  destruct Hshape as [Hr0 Hr1 Hr2 Hw Hwh Hcap Ha0 Ha1 Haw Hawh Hsp Hbase Hget Hset Hgmem Hglo Hg].
   change (flat_map (fun p => match portEvent MemoryCatalog.stackId w p with
       Some event => [event] | None => [] end)
     (ports (hd (mkMemory 0%nat Ram []) MemoryCatalog.memories)) ++
@@ -149,7 +165,7 @@ Proof.
   cbn [hd MemoryCatalog.memories ports flat_map portEvent active activation
     addressColumns valueColumn portKind map option_map].
   unfold portEvent, active. cbn [activation addressColumns valueColumn portKind map option_map].
-  normalize_columns. rewrite Hr0, Hr1, Hr2, Hw, Hwh, Hcap. reflexivity.
+  normalize_columns. rewrite Hr0, Hr1, Hr2, Hw, Hwh, Hcap, Hget, Hset, Hgmem, Hglo, Hg. reflexivity.
 Qed.
 
 Lemma stack_only_first_memory :
@@ -182,7 +198,9 @@ Proof.
   apply read_only_row. exact stack_only_first_memory.
 Qed.
 
-Record UnaryStackShape (w : Witness) (isSet : bool) : Prop := {
+(* One operand popped (`isSet`) or pushed, and for local.get/local.set the
+   local's cell read or written (`local`). *)
+Record UnaryStackShape (w : Witness) (isSet local : bool) : Prop := {
   local_read_active : w (List.nth 0%nat COL_STACK_READ_ACTIVE 0%nat) = (if isSet then 1 else 0);
   local_read1_inactive : w (List.nth 1%nat COL_STACK_READ_ACTIVE 0%nat) = 0;
   local_read2_inactive : w (List.nth 2%nat COL_STACK_READ_ACTIVE 0%nat) = 0;
@@ -194,19 +212,30 @@ Record UnaryStackShape (w : Witness) (isSet : bool) : Prop := {
   local_write_address : isSet = false -> w COL_STACK_WRITE0_ADDR_LO = 2 * w COL_SP_BEFORE;
   local_write_hi_address : isSet = false -> w COL_STACK_WRITE0_ADDR_HI = 2 * w COL_SP_BEFORE + 1;
   local_stack_pointer_after : w COL_SP_AFTER = w COL_SP_BEFORE + (if isSet then -1 else 1);
-  local_stack_base_after : w COL_STACK_FRAME_BASE_AFTER = w COL_STACK_FRAME_BASE_BEFORE
+  local_stack_base_after : w COL_STACK_FRAME_BASE_AFTER = w COL_STACK_FRAME_BASE_BEFORE;
+  local_get_gate : w COL_SEL_LOCAL_GET = (if local && negb isSet then 1 else 0);
+  local_write_gate : w COL_LOCAL_WRITE_ENABLED = (if local && isSet then 1 else 0);
+  local_gmem_inactive : w GMEM_LOCAL = 0;
+  local_gather_lo_inactive : w COL_GATHER_LOCAL_WRITE_LO = 0;
+  local_gather_inactive : w COL_GATHER_LOCAL_WRITE = 0
 }.
 
-Ltac unary_stack_facts chosen reads writes :=
+Ltac unary_stack_facts chosen reads writes localWrite :=
   let Hrow := fresh "Hrow" in
   intros w Hprime Hfull Hchosen Hdepth;
   assert (Hin : In chosen selectorColumns) by
     (vm_compute; tauto);
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull);
   pose proof (full_opcode_aux_gates_zero w chosen Hprime Hfull Hin Hchosen)
-    as [Hparam [Hzero [Hgather _]]];
+    as [Hparam [Hzero Hgather]];
   destruct (full_program_row_quiet w chosen Hprime Hfull Hin Hchosen)
-    as [Hkinds Hhi Hlocal Houtput Hdiscard];
+    as [Hkinds Hhi Hlocal Houtput];
+  destruct (full_body_frame_sp_drop_idle w chosen Hprime Hfull Hin Hchosen
+    ltac:(vm_compute; intuition discriminate)) as [HbodyPop HbodyPush Hguest Hturn Hdiscard];
+  destruct (full_no_gather_local_ports w Hfull Hgather) as [HgatherLocal HgatherLocalLo];
+  assert (HlocalWrite : w COL_LOCAL_WRITE_ENABLED = localWrite) by
+    (selected_row chosen localWriteGateIndex Hrow; rewrite Hone in Hrow;
+     pose proof (value_bound w COL_LOCAL_WRITE_ENABLED); field_linear Hrow);
   pose proof (full_sp_before_u32 w Hprime Hfull) as Hsp;
   assert (Hcapture : w COL_OUTPUT_CAPTURED = 0) by
     (selected_row chosen outputCaptureSupportRow Hrow; rewrite Hone in Hrow;
@@ -222,7 +251,7 @@ Ltac unary_stack_facts chosen reads writes :=
     (selected_row chosen stackReadsArityRow Hrow; rewrite Hone, Hgather, Hparam in Hrow;
      pose proof (value_bound w COL_STACK_READS); field_linear Hrow);
   assert (Hwrites : w COL_STACK_WRITES = writes) by
-    (selected_row chosen stackWritesArityRow Hrow; rewrite Hone, Hgather in Hrow;
+    (selected_row chosen stackWritesArityRow Hrow; rewrite Hone, Hgather, Hparam, Hzero in Hrow;
      pose proof (value_bound w COL_STACK_WRITES); field_linear Hrow);
   assert (Hread2 : w (List.nth 2%nat COL_STACK_READ_ACTIVE 0%nat) = 0) by
     (selected_row chosen stackRead2SupportRow Hrow; rewrite Hone in Hrow;
@@ -248,9 +277,12 @@ Ltac unary_stack_facts chosen reads writes :=
 
 Theorem full_local_set_stack_shape : forall (w : Witness),
   Range.fieldPrime -> FullRelation.satFull w -> w COL_SEL_LOCAL_SET = 1 ->
-  1 <= w COL_SP_BEFORE -> UnaryStackShape w true.
+  1 <= w COL_SP_BEFORE -> UnaryStackShape w true true.
 Proof.
-  unary_stack_facts COL_SEL_LOCAL_SET 1 0.
+  unary_stack_facts COL_SEL_LOCAL_SET 1 0 1.
+  assert (HlocalGet : w COL_SEL_LOCAL_GET = 0).
+  { refine (full_opcode_selector_exclusive w COL_SEL_LOCAL_SET COL_SEL_LOCAL_GET Hprime Hfull Hchosen Hin _ _);
+      [vm_compute; tauto | discriminate]. }
   constructor; try assumption;
   try (intro H; discriminate H);
   [ intro H; selected_row COL_SEL_LOCAL_SET unaryReadAddressRow Hrow; rewrite Hone in Hrow;
@@ -258,16 +290,16 @@ Proof.
   | selected_row COL_SEL_LOCAL_SET stackPointerBalanceRow Hrow; zero_host_switch Hrow; zero_gather_kinds Hkinds Hrow;
     rewrite Hone, Hreads, Hwrites, Hdiscard, Hlocal, Houtput, Hcapture, Hparams in Hrow;
     pose proof (value_bound w COL_SP_AFTER); field_linear Hrow
-  | selected_row COL_SEL_LOCAL_SET stackFrameBasePreservedRow Hrow; zero_host_switch Hrow; rewrite Hone, Hpush, Hpop in Hrow;
+  | selected_row COL_SEL_LOCAL_SET stackFrameBasePreservedRow Hrow; zero_host_switch Hrow; rewrite Hone, Hguest, Hturn, Hpop in Hrow;
     pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE);
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER); field_linear Hrow ].
 Qed.
 
 Theorem full_local_get_stack_shape : forall (w : Witness),
   Range.fieldPrime -> FullRelation.satFull w -> w COL_SEL_LOCAL_GET = 1 ->
-  0 <= w COL_SP_BEFORE -> UnaryStackShape w false.
+  0 <= w COL_SP_BEFORE -> UnaryStackShape w false true.
 Proof.
-  unary_stack_facts COL_SEL_LOCAL_GET 0 1.
+  unary_stack_facts COL_SEL_LOCAL_GET 0 1 0.
   constructor; try assumption; try (intro H; discriminate H).
   - intro H. selected_row COL_SEL_LOCAL_GET nullaryWriteAddressRow Hrow. rewrite Hone in Hrow.
     pose proof (value_bound w COL_STACK_WRITE0_ADDR_LO). field_linear Hrow.
@@ -281,51 +313,99 @@ Proof.
   - selected_row COL_SEL_LOCAL_GET stackPointerBalanceRow Hrow. zero_host_switch Hrow. zero_gather_kinds Hkinds Hrow.
     rewrite Hone, Hreads, Hwrites, Hdiscard, Hlocal, Houtput, Hcapture, Hparams in Hrow.
     pose proof (value_bound w COL_SP_AFTER). field_linear Hrow.
-  - selected_row COL_SEL_LOCAL_GET stackFrameBasePreservedRow Hrow. zero_host_switch Hrow. rewrite Hone, Hpush, Hpop in Hrow.
+  - selected_row COL_SEL_LOCAL_GET stackFrameBasePreservedRow Hrow. zero_host_switch Hrow. rewrite Hone, Hguest, Hturn, Hpop in Hrow.
     pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE).
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
 Qed.
 
-Definition localStackEvents (w : Witness) (isSet : bool) : list Event :=
-  if isSet then
+(* The operand port events, then the local's cell events, in port order. *)
+Definition localStackEvents (w : Witness) (isSet local : bool) : list Event :=
+  (if isSet then
     [ReadEvent MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)]
        (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat));
      ReadEvent MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_HI 0%nat)]
        (w (List.nth 0%nat COL_STACK_READ_VALUE_HI 0%nat))]
   else
     [WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO) None;
-     WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI] (w COL_STACK_WRITE0_VALUE_HI) None].
+     WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI] (w COL_STACK_WRITE0_VALUE_HI) None]) ++
+  (if negb local then [] else if isSet then
+    [WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE) None;
+     WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] (w COL_LOCAL_VALUE_HI) None]
+  else
+    [ReadEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE);
+     ReadEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] (w COL_LOCAL_VALUE_HI)]).
 
-Lemma local_stack_event_prefix : forall w isSet,
-  UnaryStackShape w isSet ->
+Lemma local_stack_event_prefix : forall w isSet local,
+  UnaryStackShape w isSet local ->
   eventsForRow MemoryCatalog.memories w =
-    localStackEvents w isSet ++ eventsForRow (tl MemoryCatalog.memories) w.
+    localStackEvents w isSet local ++ eventsForRow (tl MemoryCatalog.memories) w.
 Proof.
-  intros w isSet Hshape.
-  destruct Hshape as [Hr0 Hr1 Hr2 Hw Hwh Hcap Ha0 Haw Hawh Hsp Hbase].
+  intros w isSet local Hshape.
+  destruct Hshape as [Hr0 Hr1 Hr2 Hw Hwh Hcap Ha0 Haw Hawh Hsp Hbase Hget Hset Hgmem Hglo Hg].
   change (flat_map (fun p => match portEvent MemoryCatalog.stackId w p with
       Some event => [event] | None => [] end)
     (ports (hd (mkMemory 0%nat Ram []) MemoryCatalog.memories)) ++
     eventsForRow (tl MemoryCatalog.memories) w =
-    localStackEvents w isSet ++ eventsForRow (tl MemoryCatalog.memories) w).
+    localStackEvents w isSet local ++ eventsForRow (tl MemoryCatalog.memories) w).
   cbn [hd MemoryCatalog.memories ports flat_map portEvent active activation
     addressColumns valueColumn portKind map option_map].
   unfold portEvent, active. cbn [activation addressColumns valueColumn portKind map option_map].
-  normalize_columns. rewrite Hr0, Hr1, Hr2, Hw, Hwh, Hcap.
-  destruct isSet; reflexivity.
+  normalize_columns. rewrite Hr0, Hr1, Hr2, Hw, Hwh, Hcap, Hget, Hset, Hgmem, Hglo, Hg.
+  destruct isSet, local; reflexivity.
 Qed.
 
+Ltac unary_replay_steps :=
+  repeat match goal with
+  | H : Replay _ (_ :: _) _ |- _ => inversion H; subst; clear H
+  | H : EventStep _ _ _ |- _ => inversion H; subst; clear H
+  | H : Replay _ [] _ |- _ => inversion H; subst; clear H
+  end.
+
 Theorem pop_stack_replay : forall w initial final,
-  UnaryStackShape w true -> Replay initial (eventsForRow MemoryCatalog.memories w) final ->
+  UnaryStackShape w true false -> Replay initial (eventsForRow MemoryCatalog.memories w) final ->
   initial MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)] =
     Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) /\
   forall address, final MemoryCatalog.stackId address = initial MemoryCatalog.stackId address.
 Proof.
   intros w initial final Hshape Hreplay.
-  rewrite (local_stack_event_prefix w true Hshape) in Hreplay.
-  destruct (replay_app_inv (localStackEvents w true) _ _ _ Hreplay)
+  rewrite (local_stack_event_prefix w true false Hshape) in Hreplay.
+  destruct (replay_app_inv (localStackEvents w true false) _ _ _ Hreplay) as [middle [Hstack Hrest]].
+  cbn [localStackEvents negb app] in Hstack. unary_replay_steps.
+  split; [assumption | ]. intro address.
+  eapply replay_preserves; [exact Hrest | ].
+  apply read_only_row. exact stack_only_first_memory.
+Qed.
+
+Theorem local_set_stack_replay : forall w initial final,
+  UnaryStackShape w true true -> Replay initial (eventsForRow MemoryCatalog.memories w) final ->
+  initial MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)] =
+    Some (w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) /\
+  forall address, final MemoryCatalog.stackId address =
+    update (update initial MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE))
+      MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] (w COL_LOCAL_VALUE_HI) MemoryCatalog.stackId address.
+Proof.
+  intros w initial final Hshape Hreplay.
+  rewrite (local_stack_event_prefix w true true Hshape) in Hreplay.
+  destruct (replay_app_inv (localStackEvents w true true) _ _ _ Hreplay) as [middle [Hstack Hrest]].
+  cbn [localStackEvents negb app] in Hstack. unary_replay_steps.
+  split; [assumption | ]. intro address.
+  eapply replay_preserves; [exact Hrest | ].
+  apply read_only_row. exact stack_only_first_memory.
+Qed.
+
+Theorem local_get_stack_replay : forall w initial final,
+  UnaryStackShape w false true -> Replay initial (eventsForRow MemoryCatalog.memories w) final ->
+  let pushed := update (update initial MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO]
+      (w COL_STACK_WRITE0_VALUE_LO)) MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI]
+      (w COL_STACK_WRITE0_VALUE_HI) in
+  pushed MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] = Some (w COL_LOCAL_VALUE) /\
+  forall address, final MemoryCatalog.stackId address = pushed MemoryCatalog.stackId address.
+Proof.
+  intros w initial final Hshape Hreplay pushed.
+  rewrite (local_stack_event_prefix w false true Hshape) in Hreplay.
+  destruct (replay_app_inv (localStackEvents w false true) _ _ _ Hreplay)
     as [middle [Hstack Hrest]].
-  cbn [localStackEvents] in Hstack.
+  cbn [localStackEvents negb app] in Hstack.
   repeat match goal with
   | H : Replay _ (_ :: _) _ |- _ => inversion H; subst; clear H
   | H : EventStep _ _ _ |- _ => inversion H; subst; clear H
@@ -333,26 +413,5 @@ Proof.
   end.
   split; [assumption | ]. intro address.
   eapply replay_preserves; [exact Hrest | ].
-  apply read_only_row. exact stack_only_first_memory.
-Qed.
-
-Theorem local_get_stack_replay : forall w initial final,
-  UnaryStackShape w false -> Replay initial (eventsForRow MemoryCatalog.memories w) final ->
-  forall address, final MemoryCatalog.stackId address =
-    update (update initial MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO]
-      (w COL_STACK_WRITE0_VALUE_LO)) MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI]
-      (w COL_STACK_WRITE0_VALUE_HI) MemoryCatalog.stackId address.
-Proof.
-  intros w initial final Hshape Hreplay.
-  rewrite (local_stack_event_prefix w false Hshape) in Hreplay.
-  destruct (replay_app_inv (localStackEvents w false) _ _ _ Hreplay)
-    as [middle [Hstack Hrest]].
-  cbn [localStackEvents] in Hstack.
-  repeat match goal with
-  | H : Replay _ (_ :: _) _ |- _ => inversion H; subst; clear H
-  | H : EventStep _ _ _ |- _ => inversion H; subst; clear H
-  | H : Replay _ [] _ |- _ => inversion H; subst; clear H
-  end.
-  intro address. eapply replay_preserves; [exact Hrest | ].
   apply read_only_row. exact stack_only_first_memory.
 Qed.

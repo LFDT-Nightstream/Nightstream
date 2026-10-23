@@ -352,8 +352,9 @@ Proof.
 Qed.
 
 (* What a frame at its position inherits from the program's validation. *)
-Lemma view_facts : forall program s memory base fbp pending f view,
-  store_FUNCS s = program -> programValidated program s -> FrameAt program memory base fbp pending f view ->
+Lemma view_facts : forall program s memory base fbp pending moved distance f view,
+  store_FUNCS s = program -> programValidated program s ->
+  FrameAt program memory base fbp pending moved distance f view ->
   let position := viewPosition view in
   let callees := programCallees program (guestModule f) in
   let rest := skipn (positionOffset position) (innerCode f position) in
@@ -365,8 +366,8 @@ Lemma view_facts : forall program s memory base fbp pending f view,
   LabelsReady (guestBody f) (positionLabels position) (viewSegments view) /\
   Forall wf_instr (innerCode f position).
 Proof.
-  intros program s memory base fbp pending f view Hstore Hvalid
-    [Hf [Hpath [Hheights [_ [Hoperands _]]]]] position callees rest.
+  intros program s memory base fbp pending moved distance f view Hstore Hvalid
+    [Hf [Hpath [Hheights [_ [_ [Hoperands _]]]]]] position callees rest.
   destruct (function_facts _ _ _ _ Hstore Hvalid Hf) as [Hfacts [Hresults [Hsupport Hbranches]]].
   destruct (path_facts _ _ _ _ _ _ _ _ _ Hfacts Hsupport Hbranches Hpath Hheights) as [Hrest [Hsup [Hbr Hblock]]].
   pose proof (code_facts_wf _ _ _ _ Hfacts) as Hwf.

@@ -34,13 +34,22 @@ Proof.
   destruct Hstate as [f [inner [Hactive [Hactivestate [Hsusp [Hbase0 [Hdepth ->]]]]]]].
   cbn [activePosition suspendedCalls] in Hactive, Hactivestate, Hsusp, Hdepth.
   cbn [beforeBoundary boundaryStackBase boundaryLocalsBase boundaryCallDepth] in Hsusp, Hdepth.
+  (* Padding stutters in any state. *)
+  destruct (Z.eq_dec (row COL_PADDING_ACTIVE) 1) as [Hpadding | Hnotpadding].
+  { eapply padding_row; eassumption. }
   destruct active as [view | function arguments].
   2: eapply init_row; eassumption.
   cbn [activeFunction] in Hactive.
-  pose proof Hactivestate as [f' [Hframe [Hoffset [_ [_ [Hidle _]]]]]].
+  pose proof Hactivestate as [f' [Hframe [Hoffset [_ [_ [[Hma Hza] [Hzr _]]]]]]].
   pose proof Hframe as [Hf' _]. rewrite Hactive in Hf'. injection Hf' as <-.
+  cbn [beforeBoundary boundaryMoveActive boundaryMoveRemaining boundaryZeroActive boundaryZeroRemaining]
+    in Hma, Hza, Hzr.
+  (* A pending move runs its rows before the frame's code resumes. *)
+  destruct (Z.eq_dec (row COL_FRAME_MOVE_ACTIVE_BEFORE) 1) as [Hmove | Hidle].
+  { eapply move_row; eassumption. }
   assert (Hprogram : row COL_IS_PROGRAM_ROW = 1).
-  { destruct Hidle as [_ [_ [Hza Hpa]]]. cbn in Hza, Hpa. destruct Hkind as [Hp | [Hz | Hq]]; [exact Hp | lia | lia]. }
+  { rewrite Hzr in Hza. destruct (row COL_FRAME_MOVE_REMAINING_BEFORE =? 0); cbn in Hza;
+      destruct Hkind as [Hp | [Hz | [Hq | Hpad]]]; first [exact Hp | lia]. }
   (* A row that stays in the active frame keeps every suspended caller. *)
   assert (Hkeep : RowResult program s initial final row f inner view ->
       exists cursor' c1, Steps (plugCalls stack inner) c1 /\
@@ -51,10 +60,10 @@ Proof.
     exists f, inner'. split; [exact Hf' | ]. split; [exact Hstate' | ].
     split; [ | split; [exact Hbase0 | split; [cbn [afterBoundary boundaryCallDepth suspendedCalls] in *; lia |
       reflexivity]]].
-    cbn [suspendedCalls afterBoundary boundaryStackBase boundaryLocalsBase boundaryCallDepth].
-    rewrite Hd, Hb, Hfbp. eapply frame_effect_suspended; [exact Heffect | exact Hsusp]. }
+    cbn [suspendedCalls afterBoundary boundaryLocalsBase boundaryCallDepth].
+    rewrite Hd, Hfbp. eapply frame_effect_suspended; [exact Heffect | exact Hsusp]. }
   destruct (nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view))) as [i | ] eqn:Hi.
-  - destruct (view_facts _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [[Hsup _] _]].
+  - destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [[Hsup _] _]].
     rewrite (skipn_at_instruction _ _ _ Hi) in Hsup.
     destruct (supported_cases _ _ (Forall_inv Hsup)) as [Hop | [[x ->] | [[body ->] | [l ->]]]].
     + apply Hkeep. eapply code_ordinary_row; eassumption.
@@ -68,7 +77,7 @@ Proof.
       assert (Hbody : innerCode f (viewPosition view) = guestBody f) by (unfold innerCode; rewrite Hlabels; reflexivity).
       rewrite Hbody in Hend.
       destruct stack as [ | top rest].
-      * exfalso. destruct (Hbase ltac:(cbn in Hdepth; lia)) as [_ Hpop].
+      * exfalso. pose proof (Hbase ltac:(cbn in Hdepth; lia)) as Hpop.
         destruct (function_end_selected program s view f initial final row _ Hprime Hloaded Hfull
           Hprogram Hreplay Hactivestate Hactive Hlabels Hend) as [HselEnd Hedge].
         destruct (full_function_end_exits row Hprime Hfull HselEnd Hedge); lia.

@@ -1,6 +1,8 @@
-(* Circuit-derived local memory gates and frame-base preservation. *)
+(* Local gates, frame-base preservation, and the stack-memory writes of a row.
+   Locals live in their frame's stack cells, so a row's local writes are stack writes. *)
 From Stdlib Require Import List ZArith Lia Bool.
-Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog.
+Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrace MemoryCatalog
+  CallInitialization.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -25,14 +27,10 @@ Proof.
   destruct Hchoice as [<- | [<- | [<- | [<- | []]]]];
     cbn [COL_SEL_I32_ADD COL_SEL_I32_SUB COL_SEL_LOCAL_GET COL_SEL_LOCAL_SET Nat.eqb orb];
     match goal with Hchosen : value w ?chosen = 1 |- _ =>
-      assert (Hguest : w COL_GUEST_ENTRY_ACTIVE = 0) by
-        (selected_row chosen guestEntryFlagRow Hrow;
-         pose proof (value_bound w COL_GUEST_ENTRY_ACTIVE); field_linear Hrow);
-      assert (Hpop : w COL_CALL_STACK_POP_PRESENT = 0) by
-        (selected_row chosen callStackPopSupportRow Hrow; rewrite Hone in Hrow;
-         pose proof (value_bound w COL_CALL_STACK_POP_PRESENT); field_linear Hrow);
+      destruct (full_body_frame_sp_drop_idle w chosen Hprime Hfull Hin Hchosen
+        ltac:(vm_compute; intuition discriminate)) as [Hpop Hpush _ Hturn _];
       split;
-      [ selected_row chosen localsBasePreservedRow Hrow; zero_host_switch Hrow; rewrite Hone, Hguest, Hpop in Hrow;
+      [ selected_row chosen localsBasePreservedRow Hrow; zero_host_switch Hrow; rewrite Hone, Hpush, Hpop, Hturn in Hrow;
         pose proof (value_bound w COL_LOCALS_FBP_BEFORE);
         pose proof (value_bound w COL_LOCALS_FBP_AFTER); field_linear Hrow
       | split;
@@ -43,109 +41,108 @@ Proof.
     end.
 Qed.
 
-Definition localSpec : MemorySpec :=
-  nth MemoryCatalog.localLoId MemoryCatalog.memories (mkMemory 0%nat Ram []).
-
-Definition localGetPort : PortSpec :=
-  mkPort [COL_LOCALS_FBP_BEFORE; COL_LOCAL_INDEX] COL_LOCAL_VALUE Read
-    (When COL_SEL_LOCAL_GET).
-
-Lemma local_spec_in : In localSpec MemoryCatalog.memories.
-Proof.
-  unfold localSpec.
-  apply nth_In.
-  vm_compute. lia.
-Qed.
-
-Lemma local_get_port_in_catalog :
-  nth_error (ports localSpec) 0%nat = Some localGetPort.
-Proof. vm_compute. reflexivity. Qed.
-
-Lemma local_get_event : forall (w : Witness),
-  w COL_SEL_LOCAL_GET = 1 ->
-  portEvent MemoryCatalog.localLoId w localGetPort =
-    Some (ReadEvent MemoryCatalog.localLoId
-      [w COL_LOCALS_FBP_BEFORE; w COL_LOCAL_INDEX] (w COL_LOCAL_VALUE)).
-Proof.
-  intros w Hgate.
-  unfold portEvent, active, localGetPort.
-  simpl. rewrite Hgate. reflexivity.
-Qed.
-
-Lemma local_get_event_in_row : forall (w : Witness),
-  w COL_SEL_LOCAL_GET = 1 ->
-  In (ReadEvent MemoryCatalog.localLoId
-      [w COL_LOCALS_FBP_BEFORE; w COL_LOCAL_INDEX] (w COL_LOCAL_VALUE))
-    (eventsForRow MemoryCatalog.memories w).
-Proof.
-  intros w Hgate.
-  eapply port_event_in_row with (specification := localSpec) (port := localGetPort).
-  - exact local_spec_in.
-  - eapply nth_error_In. exact local_get_port_in_catalog.
-  - exact (local_get_event w Hgate).
-Qed.
-
-Lemma full_no_gather_local_write : forall (w : Witness) chosen,
+(* Locals share the stack memory; their address columns follow the frame base. *)
+Lemma full_local_addresses : forall (w : Witness),
   Range.fieldPrime -> FullRelation.satFull w ->
-  In chosen selectorColumns -> w chosen = 1 ->
-  w COL_GATHER_LOCAL_WRITE_LO = 0.
+  w COL_LOCAL_ADDR_LO = 2 * (w COL_LOCALS_FBP_BEFORE + w COL_LOCAL_INDEX) /\
+  w COL_LOCAL_ADDR_HI = w COL_LOCAL_ADDR_LO + 1.
 Proof.
-  intros w chosen Hprime Hfull Hin Hchosen.
-  pose proof (quiet_gather_kinds w
-    (full_program_row_quiet w chosen Hprime Hfull Hin Hchosen)) as Hkinds.
-  selected_row chosen gatherLocalLowWriteRow Hrow.
-  zero_gather_kinds Hkinds Hrow.
-  pose proof (value_bound w COL_GATHER_LOCAL_WRITE_LO). field_linear Hrow.
+  intros w Hprime Hfull.
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_range COL_LOCAL_ADDR_LO Hlo. circuit_range COL_LOCAL_ADDR_HI Hhi.
+  circuit_range COL_LOCALS_FBP_BEFORE Hfbp. circuit_range COL_LOCAL_INDEX Hindex.
+  circuit_row ([(COL_LOCAL_ADDR_LO, 1); (COL_LOCALS_FBP_BEFORE, -2); (COL_LOCAL_INDEX, -2)], [(COL_ONE, 1)],
+    ([] : SparseRow)) Hrow.
+  circuit_row ([(COL_LOCAL_ADDR_HI, 1); (COL_LOCAL_ADDR_LO, -1); (COL_ONE, -1)], [(COL_ONE, 1)],
+    ([] : SparseRow)) Hnext.
+  expand_row Hrow. expand_row Hnext. rewrite Hone in Hrow, Hnext.
+  split; [field_linear Hrow | field_linear Hnext].
 Qed.
 
-Definition isLocalWrite (event : Event) : bool :=
+(* Gather rows alone write entry inputs into locals. *)
+Lemma full_no_gather_local_ports : forall (w : Witness),
+  FullRelation.satFull w -> w COL_GATHER_ACTIVE = 0 ->
+  w COL_GATHER_LOCAL_WRITE = 0 /\ w COL_GATHER_LOCAL_WRITE_LO = 0.
+Proof.
+  intros w Hfull Hgather.
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_row ([(COL_GATHER_LOCAL_WRITE, 1)], [(COL_ONE, 1); (COL_GATHER_ACTIVE, -1)], ([] : SparseRow)) Hall.
+  circuit_row ([(COL_GATHER_LOCAL_WRITE_LO, 1)], [(COL_ONE, 1); (COL_GATHER_ACTIVE, -1)], ([] : SparseRow)) Hlo.
+  expand_row Hall. expand_row Hlo. rewrite Hone, Hgather in Hall, Hlo.
+  pose proof (value_bound w COL_GATHER_LOCAL_WRITE). pose proof (value_bound w COL_GATHER_LOCAL_WRITE_LO).
+  split; [field_linear Hall | field_linear Hlo].
+Qed.
+
+Definition isStackWrite (event : Event) : bool :=
   match event with
-  | WriteEvent memory _ _ _ => Nat.eqb memory MemoryCatalog.localLoId
+  | WriteEvent memory _ _ _ => Nat.eqb memory MemoryCatalog.stackId
   | ReadEvent _ _ _ => false
   end.
 
-Lemma filter_other_memory_ports : forall w memory ports,
-  memory <> MemoryCatalog.localLoId ->
-  filter isLocalWrite
-    (flat_map (fun p => match portEvent memory w p with
-       | Some event => [event] | None => [] end) ports) = [].
+Definition writeIf (gate : Z) (event : Event) : list Event := if Z.eqb gate 1 then [event] else [].
+
+(* The stack-memory writes of a row, in port order: the operand write, then the
+   local's cell from local.set/tee or an entry input. *)
+Definition stackPortWrites (w : Witness) : list Event :=
+  writeIf (w COL_STACK_WRITE0_ACTIVE)
+    (WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_LO] (w COL_STACK_WRITE0_VALUE_LO) None) ++
+  writeIf (w COL_STACK_WRITE0_HI_ACTIVE)
+    (WriteEvent MemoryCatalog.stackId [w COL_STACK_WRITE0_ADDR_HI] (w COL_STACK_WRITE0_VALUE_HI) None) ++
+  writeIf (w COL_LOCAL_WRITE_ENABLED)
+    (WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE) None) ++
+  writeIf (w COL_GATHER_LOCAL_WRITE_LO)
+    (WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_LO] (w COL_LOCAL_VALUE) None) ++
+  writeIf (w COL_LOCAL_WRITE_ENABLED)
+    (WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] (w COL_LOCAL_VALUE_HI) None) ++
+  writeIf (w COL_GATHER_LOCAL_WRITE)
+    (WriteEvent MemoryCatalog.stackId [w COL_LOCAL_ADDR_HI] (w COL_LOCAL_VALUE_HI) None).
+
+Lemma filter_read_only_memory : forall w catalog,
+  readOnlyMemory MemoryCatalog.stackId catalog = true ->
+  filter isStackWrite (eventsForRow catalog w) = [].
 Proof.
-  intros w memory ports Hother.
-  induction ports.
-  - reflexivity.
-  - cbn [flat_map]. rewrite filter_app, IHports.
-    unfold portEvent.
-    destruct (active w (activation a)); destruct (portKind a);
-      cbn [filter isLocalWrite].
-    all: try reflexivity.
-    apply Nat.eqb_neq in Hother. rewrite Hother. reflexivity.
+  intros w catalog. induction catalog as [ | specification rest IH]; [reflexivity | ].
+  intros Hread. cbn [readOnlyMemory forallb] in Hread. apply andb_prop in Hread as [Hhead Hrest].
+  unfold eventsForRow in *. cbn [flat_map]. rewrite filter_app, (IH Hrest), app_nil_r.
+  destruct (Nat.eqb (memoryId specification) MemoryCatalog.stackId) eqn:Hsame.
+  - induction (ports specification) as [ | port ports IHports]; [reflexivity | ].
+    cbn [forallb] in Hhead. apply andb_prop in Hhead as [Hport Hports].
+    cbn [flat_map]. rewrite filter_app, (IHports Hports).
+    unfold portEvent. destruct (active w (activation port)); [ | reflexivity].
+    destruct (portKind port); [reflexivity | discriminate].
+  - induction (ports specification) as [ | port ports IHports]; [reflexivity | ].
+    cbn [flat_map]. rewrite filter_app, IHports.
+    unfold portEvent. destruct (active w (activation port)); [ | reflexivity].
+    destruct (portKind port); cbn [filter isStackWrite]; [reflexivity | rewrite Hsame; reflexivity].
 Qed.
 
-Lemma filter_other_memories : forall w catalog,
-  Forall (fun specification =>
-    memoryId specification <> MemoryCatalog.localLoId) catalog ->
-  filter isLocalWrite (eventsForRow catalog w) = [].
+Lemma stack_writes_in_row : forall (w : Witness),
+  filter isStackWrite (eventsForRow MemoryCatalog.memories w) = stackPortWrites w.
 Proof.
-  intros w catalog Hother.
-  induction Hother.
-  - reflexivity.
-  - unfold eventsForRow in *.
-    cbn [flat_map]. rewrite filter_app.
-    rewrite (filter_other_memory_ports w (memoryId x) (ports x) H).
-    exact IHHother.
+  intros w.
+  change (filter isStackWrite (flat_map (fun p => match portEvent MemoryCatalog.stackId w p with
+      Some event => [event] | None => [] end) (ports (hd (mkMemory 0%nat Ram []) MemoryCatalog.memories)) ++
+    eventsForRow (tl MemoryCatalog.memories) w) = stackPortWrites w).
+  rewrite filter_app, filter_read_only_memory by (vm_compute; reflexivity). rewrite app_nil_r.
+  cbn [hd MemoryCatalog.memories ports]. unfold portEvent, active, stackPortWrites, writeIf.
+  cbn [activation addressColumns valueColumn portKind map option_map flat_map].
+  normalize_columns.
+  repeat match goal with |- context [Z.eqb (value w ?c) 1] =>
+    let b := fresh "b" in destruct (Z.eqb (value w c) 1) eqn:b end;
+  reflexivity.
 Qed.
 
-Lemma local_catalog_split :
-  MemoryCatalog.memories =
-    firstn MemoryCatalog.localLoId MemoryCatalog.memories ++
-      localSpec :: skipn (S MemoryCatalog.localLoId) MemoryCatalog.memories /\
-  Forall (fun specification =>
-    memoryId specification <> MemoryCatalog.localLoId)
-    (firstn MemoryCatalog.localLoId MemoryCatalog.memories) /\
-  Forall (fun specification =>
-    memoryId specification <> MemoryCatalog.localLoId)
-    (skipn (S MemoryCatalog.localLoId) MemoryCatalog.memories).
-Proof. vm_compute. repeat split; repeat constructor; discriminate. Qed.
+Lemma no_stack_writes_preserve : forall initial events final,
+  Replay initial events final -> filter isStackWrite events = [] ->
+  forall address, final MemoryCatalog.stackId address = initial MemoryCatalog.stackId address.
+Proof.
+  intros initial events final Hreplay. induction Hreplay as [ | before middle after event events Hstep _ IH];
+    intros Hfilter address; [reflexivity | ].
+  cbn [filter] in Hfilter. destruct (isStackWrite event) eqn:Hwrite; [discriminate | ].
+  rewrite (IH Hfilter address). eapply event_step_preserves; [exact Hstep | ].
+  destruct event as [memory addr value | memory addr value prior]; cbn; auto.
+  unfold isStackWrite in Hwrite. apply Nat.eqb_neq in Hwrite. auto.
+Qed.
 
 Lemma events_for_row_app : forall first second w,
   eventsForRow (first ++ second) w =
@@ -159,114 +156,21 @@ Lemma events_for_row_cons : forall specification rest w,
     eventsForRow rest w.
 Proof. reflexivity. Qed.
 
-Lemma local_writes_in_row : forall (w : Witness),
-  w COL_PARAM_INIT_ACTIVE_BEFORE = 0 ->
-  w COL_LOCAL_ZERO_ACTIVE_BEFORE = 0 ->
-  w COL_GATHER_LOCAL_WRITE_LO = 0 ->
-  filter isLocalWrite (eventsForRow MemoryCatalog.memories w) =
-    if Z.eqb (w COL_LOCAL_WRITE_ENABLED) 1 then
-      [WriteEvent MemoryCatalog.localLoId
-      [w COL_LOCALS_FBP_BEFORE; w COL_LOCAL_INDEX]
-      (w COL_LOCAL_VALUE) None] else [].
+(* A row with every stack write gate off leaves the stack memory unchanged. *)
+Lemma stack_writes_inactive : forall (w : Witness) address,
+  w COL_STACK_WRITE0_ACTIVE = 0 -> w COL_STACK_WRITE0_HI_ACTIVE = 0 -> w COL_LOCAL_WRITE_ENABLED = 0 ->
+  w COL_GATHER_LOCAL_WRITE_LO = 0 -> w COL_GATHER_LOCAL_WRITE = 0 ->
+  Forall (NoWriteTo MemoryCatalog.stackId address) (eventsForRow MemoryCatalog.memories w).
 Proof.
-  intros w Hparam Hzero Hgather.
-  unfold COL_LOCAL_WRITE_ENABLED.
-  destruct local_catalog_split as [Hsplit [Hbefore Hafter]].
-  rewrite Hsplit.
-  rewrite events_for_row_app, events_for_row_cons.
-  repeat rewrite filter_app.
-  rewrite (filter_other_memories w _ Hbefore).
-  rewrite (filter_other_memories w _ Hafter).
-  cbn [app].
-  unfold localSpec.
-  unfold MemoryCatalog.localLoId.
-  cbn [nth MemoryCatalog.memories ports memoryId flat_map filter].
-  cbv [portEvent active].
-  cbn [flat_map filter map Nat.eqb memoryId ports
-    activation portKind addressColumns valueColumn].
-  normalize_columns.
-  rewrite Hparam, Hzero, Hgather.
-  unfold isLocalWrite.
-  repeat rewrite filter_app.
-  let get := eval compute in COL_SEL_LOCAL_GET in
-  let gather := eval compute in GMEM_LOCAL in
-  let write := eval compute in COL_LOCAL_WRITE_ENABLED in
-  destruct (w get =? 1); destruct (w gather =? 1); destruct (w write =? 1);
-    cbn [Z.eqb filter flat_map app Nat.eqb]; reflexivity.
-Qed.
-
-Lemma filter_no_local_writes : forall events,
-  filter isLocalWrite events = [] ->
-  Forall (fun event => match event with
-    | ReadEvent _ _ _ => True
-    | WriteEvent memory _ _ _ => memory <> MemoryCatalog.localLoId
-    end) events.
-Proof.
-  intros events Hfilter.
-  induction events.
-  - constructor.
-  - cbn [filter] in Hfilter.
-    destruct (isLocalWrite a) eqn:Hwrite; try discriminate.
-    constructor.
-    + destruct a as [memory address value | memory address value prior].
-      * exact I.
-      * unfold isLocalWrite in Hwrite.
-        apply Nat.eqb_neq in Hwrite.
-        exact Hwrite.
-    + apply IHevents. exact Hfilter.
-Qed.
-
-Lemma full_straight_line_local_writes : forall (w : Witness) chosen,
-  Range.fieldPrime -> FullRelation.satFull w ->
-  straightLineSelector chosen -> w chosen = 1 ->
-  filter isLocalWrite (eventsForRow MemoryCatalog.memories w) =
-    if Nat.eqb chosen COL_SEL_LOCAL_SET then
-      [WriteEvent MemoryCatalog.localLoId
-        [w COL_LOCALS_FBP_BEFORE; w COL_LOCAL_INDEX] (w COL_LOCAL_VALUE) None]
-    else [].
-Proof.
-  intros w chosen Hprime Hfull Hchoice Hchosen.
-  pose proof (straight_line_selector_in chosen Hchoice) as Hin.
-  pose proof (full_opcode_aux_gates_zero w chosen Hprime Hfull Hin Hchosen)
-    as [Hparam [Hzero _]].
-  pose proof (full_no_gather_local_write w chosen Hprime Hfull Hin Hchosen) as Hlo.
-  rewrite (local_writes_in_row w Hparam Hzero Hlo).
-  destruct (full_straight_line_local_gates w chosen Hprime Hfull Hchoice Hchosen)
-    as [_ [Hwrite _]].
-  rewrite Hwrite. destruct (Nat.eqb chosen COL_SEL_LOCAL_SET); reflexivity.
-Qed.
-
-Lemma no_local_writes_preserve : forall initial events final,
-  Replay initial events final -> filter isLocalWrite events = [] ->
-  forall address, final MemoryCatalog.localLoId address = initial MemoryCatalog.localLoId address.
-Proof.
-  intros initial events final Hreplay Hfilter address.
-  eapply replay_preserves; [exact Hreplay | ].
-  pose proof (filter_no_local_writes events Hfilter) as Hno.
-  eapply Forall_impl; [ | exact Hno].
-  intros [memory addr value | memory addr value prior] H; cbn in *; auto.
-Qed.
-
-Lemma one_local_write_effect : forall initial events final address value prior,
-  Replay initial events final ->
-  filter isLocalWrite events = [WriteEvent MemoryCatalog.localLoId address value prior] ->
-  forall target, final MemoryCatalog.localLoId target =
-    update initial MemoryCatalog.localLoId address value MemoryCatalog.localLoId target.
-Proof.
-  intros initial events final address value prior Hreplay.
-  induction Hreplay; intros Hfilter target; [discriminate | ].
-  cbn [filter] in Hfilter.
-  destruct (isLocalWrite event) eqn:His.
-  - destruct event as [mem addr val | mem addr val old]; [discriminate | ].
-    unfold isLocalWrite in His. apply Nat.eqb_eq in His. subst mem.
-    injection Hfilter as Haddr Hval Hold Htail. subst addr val old.
-    rewrite (no_local_writes_preserve _ _ _ Hreplay Htail target).
-    inversion H; subst. reflexivity.
-  - rewrite (IHHreplay Hfilter target).
-    destruct (list_eq_dec Z.eq_dec target address) as [<- | Hneq].
-    + rewrite !update_same. reflexivity.
-    + rewrite !update_other by (right; congruence).
-      eapply event_step_preserves; [exact H | ].
-      destruct event as [mem addr val | mem addr val old]; cbn; auto.
-      unfold isLocalWrite in His. apply Nat.eqb_neq in His. auto.
+  intros w address Hlo Hhi Hlocal Hgatherlo Hgather.
+  assert (Hwrites : filter isStackWrite (eventsForRow MemoryCatalog.memories w) = []).
+  { rewrite stack_writes_in_row. unfold stackPortWrites, writeIf.
+    rewrite Hlo, Hhi, Hlocal, Hgatherlo, Hgather. reflexivity. }
+  apply Forall_forall. intros event Hin.
+  destruct event as [memory addr value | memory addr value prior]; [exact I | ].
+  cbn. left. intro Hsame. subst memory.
+  assert (Hfiltered : In (WriteEvent MemoryCatalog.stackId addr value prior)
+    (filter isStackWrite (eventsForRow MemoryCatalog.memories w))).
+  { apply filter_In. split; [exact Hin | reflexivity]. }
+  rewrite Hwrites in Hfiltered. contradiction.
 Qed.

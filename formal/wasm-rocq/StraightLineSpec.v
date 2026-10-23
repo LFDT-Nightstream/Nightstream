@@ -17,7 +17,8 @@ Definition supportedStraightLineProgram (program : list instr) : Prop :=
   Forall (fun instruction => exists code, encodedOpcode instruction = Some code) program.
 
 (* The continuity-linked registers a state between two rows depends on: the
-   active frame, the call depth, and the frame-initialization countdowns. *)
+   active frame, the call depth, and the frame-initialization and frame-move
+   countdowns. *)
 Record Boundary := mkBoundary {
   boundaryPC : Z;
   boundarySP : Z;
@@ -25,25 +26,27 @@ Record Boundary := mkBoundary {
   boundaryLocalsBase : Z;
   boundaryCallDepth : Z;
   boundaryZeroRemaining : Z;
-  boundaryParamRemaining : Z;
+  boundaryMoveRemaining : Z;
   boundaryZeroActive : Z;
-  boundaryParamActive : Z
+  boundaryMoveActive : Z;
+  boundaryMoveDistance : Z
 }.
 
 Definition beforeBoundary (w : Witness) : Boundary :=
   mkBoundary (w COL_PC_BEFORE) (w COL_SP_BEFORE) (w COL_STACK_FRAME_BASE_BEFORE) (w COL_LOCALS_FBP_BEFORE)
-    (w COL_CALL_STACK_DEPTH_BEFORE) (w COL_LOCAL_ZERO_REMAINING_BEFORE) (w COL_PARAM_INIT_REMAINING_BEFORE)
-    (w COL_LOCAL_ZERO_ACTIVE_BEFORE) (w COL_PARAM_INIT_ACTIVE_BEFORE).
+    (w COL_CALL_STACK_DEPTH_BEFORE) (w COL_LOCAL_ZERO_REMAINING_BEFORE) (w COL_FRAME_MOVE_REMAINING_BEFORE)
+    (w COL_LOCAL_ZERO_ACTIVE_BEFORE) (w COL_FRAME_MOVE_ACTIVE_BEFORE) (w COL_FRAME_MOVE_DISTANCE_BEFORE).
 
 Definition afterBoundary (w : Witness) : Boundary :=
   mkBoundary (w COL_PC_AFTER) (w COL_SP_AFTER) (w COL_STACK_FRAME_BASE_AFTER) (w COL_LOCALS_FBP_AFTER)
-    (w COL_CALL_STACK_DEPTH_AFTER) (w COL_LOCAL_ZERO_REMAINING_AFTER) (w COL_PARAM_INIT_REMAINING_AFTER)
-    (w COL_LOCAL_ZERO_ACTIVE_AFTER) (w COL_PARAM_INIT_ACTIVE_AFTER).
+    (w COL_CALL_STACK_DEPTH_AFTER) (w COL_LOCAL_ZERO_REMAINING_AFTER) (w COL_FRAME_MOVE_REMAINING_AFTER)
+    (w COL_LOCAL_ZERO_ACTIVE_AFTER) (w COL_FRAME_MOVE_ACTIVE_AFTER) (w COL_FRAME_MOVE_DISTANCE_AFTER).
 
-(* No frame initialization is pending at this boundary. *)
+(* No frame initialization or move is pending at this boundary. A finished
+   move may leave its distance behind; the next program row clears it. *)
 Definition initializationIdle (boundary : Boundary) : Prop :=
-  boundaryZeroRemaining boundary = 0 /\ boundaryParamRemaining boundary = 0 /\
-  boundaryZeroActive boundary = 0 /\ boundaryParamActive boundary = 0.
+  boundaryZeroRemaining boundary = 0 /\ boundaryMoveRemaining boundary = 0 /\
+  boundaryZeroActive boundary = 0 /\ boundaryMoveActive boundary = 0.
 
 (* Values are ordered bottom-to-top. i32 uses the low limb at 2 * stack index. *)
 Definition stackMatches (memory : MemoryState) (boundary : Boundary)
@@ -58,11 +61,12 @@ Definition stackMatches (memory : MemoryState) (boundary : Boundary)
 Definition stateLocals (z : state) : list val :=
   match z with mk_state _ f => LOCALS f end.
 
-(* Every local in the active frame is an i32 represented by its low memory limb. *)
+(* Every local in the active frame is an i32 represented by the low limb of its
+   stack cell, `fbp + index`. *)
 Definition localsMatch (memory : MemoryState) (boundary : Boundary) (z : state) : Prop :=
   forall index v, nth_error (stateLocals z) index = Some v ->
     exists value, v = i32Value value /\ 0 <= value < i32Modulus /\
-      memory MemoryCatalog.localLoId [boundaryLocalsBase boundary; Z.of_nat index] = Some value.
+      memory MemoryCatalog.stackId [2 * (boundaryLocalsBase boundary + Z.of_nat index)] = Some value.
 
 (* Unsupported instructions and insufficient operands have no successor height. *)
 Definition instructionStackHeight (instruction : instr) (height : nat) : option nat :=

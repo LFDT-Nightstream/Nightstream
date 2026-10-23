@@ -76,14 +76,15 @@ Proof.
       apply supported_call with (f := nestedGuest 1 [CALL (mk_uN 0)] 2); [reflexivity | cbn; lia | cbn; lia].
 Qed.
 
-(* Every local is zero; top's frame base is 7, relay's 8, readZero's 9. The saved
-   contexts return to top at pc 5 (level 0) and to relay at pc 3 (level 1). *)
+(* Every local is zero; each frame is its one local: top's at cell 7, relay's at
+   8, readZero's at 9. The saved contexts return to top at pc 5 (level 0) and to
+   relay at pc 3 (level 1), with each caller's frame and operand bases. *)
 Definition nestedMemory := loadProgram nestedProgram (fun memory address =>
-  if Nat.eqb memory localLoId then
-    match address with [7; 0] | [8; 0] | [9; 0] => Some 0 | _ => None end
+  if Nat.eqb memory stackId then
+    match address with [14] | [16] | [18] => Some 0 | _ => None end
   else if Nat.eqb memory callStackReturnPcId then match address with [0] => Some 5 | [1] => Some 3 | _ => None end
   else if Nat.eqb memory callStackCallerFbpId then match address with [0] => Some 7 | [1] => Some 8 | _ => None end
-  else if Nat.eqb memory callStackCallerSpBaseId then match address with [0] | [1] => Some 4 | _ => None end
+  else if Nat.eqb memory callStackCallerSpBaseId then match address with [0] => Some 8 | [1] => Some 9 | _ => None end
   else None).
 
 Definition zeroFrame := MKframe [i32Value 0] nestedModule.
@@ -92,7 +93,7 @@ Definition zeroFrame := MKframe [i32Value 0] nestedModule.
 Example nested_suspended_calls_decode :
   option_map fst (decodeControl nestedProgram nestedStore 0
     (controlShape [codePosition 1 [] 0; codePosition 2 [] 0] (siteCode (codePosition 0 [] 0)))
-    nestedMemory (mkBoundary 0 4 4 9 2 0 0 0 0)) =
+    nestedMemory (mkBoundary 0 10 10 9 2 0 0 0 0 0)) =
   Some (mk_config (mk_state nestedStore zeroFrame)
     [FRAME_ 1%N zeroFrame [LABEL_ 1%N [] [FRAME_ 1%N zeroFrame [LABEL_ 1%N []
       [admininstr_instr (LOCAL_GET (mk_uN 0))]]]]]).
@@ -101,7 +102,7 @@ Proof. vm_compute. reflexivity. Qed.
 (* The start of top: the theorem's premise holds for a nested program. *)
 Example nested_initial_config :
   CircuitConfig nestedProgram nestedStore 0 (controlShape [] (siteCode (codePosition 2 [] 0)))
-    nestedMemory (mkBoundary 4 4 4 7 0 0 0 0 0)
+    nestedMemory (mkBoundary 4 8 8 7 0 0 0 0 0 0)
     (mk_config (mk_state nestedStore zeroFrame) [admininstr_instr (CALL (mk_uN 1))]).
 Proof.
   split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact nested_program_validated | ].
@@ -111,10 +112,10 @@ Qed.
 (* Any run of top's rows refines SpecTec, through both nested calls and back. *)
 Example nested_program_refines : forall rows final,
   fieldPrime -> validCircuitRun nestedMemory rows final ->
-  runFragment (mkBoundary 4 4 4 7 0 0 0 0 0) 0 rows ->
+  runFragment (mkBoundary 4 8 8 7 0 0 0 0 0 0) 0 rows ->
   exists shape c, Steps (mk_config (mk_state nestedStore zeroFrame) [admininstr_instr (CALL (mk_uN 1))]) c /\
     programLoaded nestedProgram final /\
-    CircuitConfig nestedProgram nestedStore 0 shape final (rowsFinalBoundary (mkBoundary 4 4 4 7 0 0 0 0 0) rows) c.
+    CircuitConfig nestedProgram nestedStore 0 shape final (rowsFinalBoundary (mkBoundary 4 8 8 7 0 0 0 0 0 0) rows) c.
 Proof.
   intros rows final Hprime Hrun Hfragment.
   exact (run_refinement nestedProgram nestedStore 0 _ rows nestedMemory final _ _ Hprime

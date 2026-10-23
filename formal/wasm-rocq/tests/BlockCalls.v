@@ -93,13 +93,13 @@ Proof.
       apply supported_call with (f := blockGuest 0 [LOCAL_GET (mk_uN 0)] 0); [reflexivity | cbn; lia | cbn; lia].
 Qed.
 
-(* The caller's local is 5 at frame base 7; readZero's is 0 at 8. The saved
-   context returns to pc 5 with the caller's frame and stack bases. *)
+(* The caller's local is 5 at cell 7; readZero's is 0 at cell 8. The saved context
+   returns to pc 5 with the caller's frame and operand bases. *)
 Definition blockMemory := loadProgram blockProgram (fun memory address =>
-  if Nat.eqb memory localLoId then match address with [7; 0] => Some 5 | [8; 0] => Some 0 | _ => None end
+  if Nat.eqb memory stackId then match address with [14] => Some 5 | [16] => Some 0 | _ => None end
   else if Nat.eqb memory callStackReturnPcId then match address with [0] => Some 5 | _ => None end
   else if Nat.eqb memory callStackCallerFbpId then match address with [0] => Some 7 | _ => None end
-  else if Nat.eqb memory callStackCallerSpBaseId then match address with [0] => Some 4 | _ => None end
+  else if Nat.eqb memory callStackCallerSpBaseId then match address with [0] => Some 8 | _ => None end
   else None).
 
 Definition callerFrame := MKframe [i32Value 5] blockModule.
@@ -110,7 +110,7 @@ Definition zeroFrame := MKframe [i32Value 0] blockModule.
 Example block_suspended_call_decodes :
   option_map fst (decodeControl blockProgram blockStore 0
     (controlShape [codePosition 1 [0; 0]%nat 0] (siteCode (codePosition 0 [] 0)))
-    blockMemory (mkBoundary 0 4 4 8 1 0 0 0 0)) =
+    blockMemory (mkBoundary 0 9 9 8 1 0 0 0 0 0)) =
   Some (mk_config (mk_state blockStore callerFrame)
     [LABEL_ 0%N [] [LABEL_ 0%N []
       [FRAME_ 1%N zeroFrame [LABEL_ 1%N [] [admininstr_instr (LOCAL_GET (mk_uN 0))]];
@@ -122,12 +122,12 @@ Proof. vm_compute. reflexivity. Qed.
 Example block_wrong_return_rejected :
   decodeControl blockProgram blockStore 0
     (controlShape [codePosition 1 [0; 0]%nat 0] (siteCode (codePosition 0 [] 0)))
-    (update blockMemory callStackReturnPcId [0] 8) (mkBoundary 0 4 4 8 1 0 0 0 0) = None.
+    (update blockMemory callStackReturnPcId [0] 8) (mkBoundary 0 9 9 8 1 0 0 0 0 0) = None.
 Proof. vm_compute. reflexivity. Qed.
 
 Example block_initial_config :
   CircuitConfig blockProgram blockStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    blockMemory (mkBoundary 2 4 4 7 0 0 0 0 0) (stackConfig (mk_state blockStore callerFrame) [] callerBody).
+    blockMemory (mkBoundary 2 8 8 7 0 0 0 0 0 0) (stackConfig (mk_state blockStore callerFrame) [] callerBody).
 Proof.
   split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact block_program_validated | ].
   exists True. split; [vm_compute; reflexivity | exact I].
@@ -136,10 +136,10 @@ Qed.
 (* Any run of the caller's rows refines SpecTec, into both blocks, through the call and out. *)
 Example block_program_refines : forall rows final,
   fieldPrime -> validCircuitRun blockMemory rows final ->
-  runFragment (mkBoundary 2 4 4 7 0 0 0 0 0) 0 rows ->
+  runFragment (mkBoundary 2 8 8 7 0 0 0 0 0 0) 0 rows ->
   exists shape c, Steps (stackConfig (mk_state blockStore callerFrame) [] callerBody) c /\
     programLoaded blockProgram final /\
-    CircuitConfig blockProgram blockStore 0 shape final (rowsFinalBoundary (mkBoundary 2 4 4 7 0 0 0 0 0) rows) c.
+    CircuitConfig blockProgram blockStore 0 shape final (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0) rows) c.
 Proof.
   intros rows final Hprime Hrun Hfragment.
   exact (run_refinement blockProgram blockStore 0 _ rows blockMemory final _ _ Hprime

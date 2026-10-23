@@ -33,7 +33,7 @@ Record ControlShape := controlShape { callSites : list CodePosition; activeSite 
 Definition siteFunction (site : ActiveSite) : nat :=
   match site with siteCode position => positionFunction position | siteEntering function => function end.
 
-(* An i32 occupies its low memory limb. *)
+(* An i32 occupies the low limb of its stack cell. *)
 Definition i32Cell (cell : option Z) : option Z :=
   match cell with
   | Some value => if (0 <=? value) && (value <? i32Modulus) then Some value else None
@@ -53,8 +53,16 @@ Fixpoint readCells (cell : Z -> option Z) (first : Z) (count : nat) : option (li
 Definition readStack (memory : MemoryState) (first : Z) (count : nat) : option (list Z) :=
   readCells (fun index => memory stackId [2 * index]) first count.
 
+(* A frame's locals are its first stack cells, from fbp. *)
 Definition readLocals (memory : MemoryState) (fbp : Z) (count : nat) : option (list Z) :=
-  readCells (fun index => memory localLoId [fbp; index]) 0 count.
+  readStack memory fbp count.
+
+(* A frame's operands from its base; while a move is pending, the top `moved`
+   operands still sit `distance` cells higher. *)
+Definition readOperands (memory : MemoryState) (base : Z) (count moved : nat) (distance : Z) : option (list Z) :=
+  let? low := readStack memory base (count - moved) in
+  let? high := readStack memory (base + Z.of_nat (count - moved) + distance) moved in
+  Some (low ++ high).
 
 Definition frameLocals (f : GuestFunction) : nat := (guestParams f + guestLocals f)%nat.
 
@@ -100,53 +108,56 @@ Fixpoint wrapLabels (code : list instr) (labels : list nat) (segments : list (li
 Definition callAt (code : list instr) (offset : nat) : option funcidx :=
   match nth_error code offset with Some (CALL x) => Some x | _ => None end.
 
-Definition initializationIdleb (boundary : Boundary) : bool :=
-  (boundaryZeroRemaining boundary =? 0) && (boundaryParamRemaining boundary =? 0) &&
-  (boundaryZeroActive boundary =? 0) && (boundaryParamActive boundary =? 0).
-
-(* The countdown flags follow the counters, as the circuit computes them. *)
+(* The countdown flags follow the counters, as the circuit computes them: a
+   pending move runs before zeroing. *)
 Definition initializationFlagsb (boundary : Boundary) : bool :=
-  (boundaryZeroActive boundary =? (if boundaryZeroRemaining boundary =? 0 then 0 else 1)) &&
-  (boundaryParamActive boundary =?
-    (if boundaryZeroRemaining boundary =? 0 then
-       if boundaryParamRemaining boundary =? 0 then 0 else 1 else 0)).
+  (boundaryMoveActive boundary =? (if boundaryMoveRemaining boundary =? 0 then 0 else 1)) &&
+  (boundaryZeroActive boundary =?
+    (if boundaryMoveRemaining boundary =? 0 then
+       if boundaryZeroRemaining boundary =? 0 then 0 else 1 else 0)).
 
-(* The active frame. A callee being initialized has, for SpecTec, already been
-   entered with its arguments and zeroed locals; the circuit catches up row by row. *)
+(* The active frame. A frame at code may still be moving its top operands (a
+   callee's results) down to their cells; SpecTec has already returned. A callee
+   being initialized has, for SpecTec, already been entered with its arguments and
+   zeroed locals; the circuit catches up row by row. *)
 Definition decodeActive (program : Program) (s : store) (memory : MemoryState) (boundary : Boundary)
     (site : ActiveSite) : option (config * Prop) :=
   let base := boundaryStackBase boundary in
+  let fbp := boundaryLocalsBase boundary in
   match site with
   | siteCode position =>
       let labels := positionLabels position in
       let offset := positionOffset position in
+      let moved := Z.to_nat (boundaryMoveRemaining boundary) in
+      let distance := boundaryMoveDistance boundary in
       let? f := functionAt program (positionFunction position) in
       let? inner := pathCode (guestBody f) labels in
       let? heights := pathHeights (programCallees program (guestModule f)) (guestBody f) labels offset in
-      check initializationIdleb boundary && (0 <=? base) &&
+      check initializationFlagsb boundary && (boundaryZeroRemaining boundary =? 0) &&
+        (moved <=? snd heights)%nat &&
+        (0 <=? fbp) && (base =? fbp + Z.of_nat (frameLocals f)) &&
         (boundarySP boundary =? base + Z.of_nat (totalHeight heights)) && (offset <=? length inner)%nat &&
         (boundaryPC boundary =? guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in
-      let? stack := readStack memory base (totalHeight heights) in
-      let? locals := readLocals memory (boundaryLocalsBase boundary) (frameLocals f) in
+      let? stack := readOperands memory base (totalHeight heights) moved distance in
+      let? locals := readLocals memory fbp (frameLocals f) in
       let split := splitSegments (fst heights) stack in
       Some (wrapLabels (guestBody f) labels (fst split)
         (stackConfig (mk_state s (activeFrame f locals)) (snd split) (skipn offset inner)), True)
   | siteEntering function =>
       let? f := functionAt program function in
-      check initializationFlagsb boundary &&
-        (0 <? boundaryZeroRemaining boundary + boundaryParamRemaining boundary) &&
-        (boundaryPC boundary =? guestEntry f) in
-      let? arguments := readStack memory base (guestParams f) in
+      check initializationFlagsb boundary && (boundaryMoveRemaining boundary =? 0) &&
+        (0 <? boundaryZeroRemaining boundary) && (boundaryPC boundary =? guestEntry f) in
+      let? arguments := readStack memory fbp (guestParams f) in
       Some (stackConfig (mk_state s (enteredFrame (guestModule f) arguments (guestLocals f))) [] (guestBody f),
-        InitializingFrame memory boundary arguments (Z.of_nat (guestLocals f))
-          (boundaryZeroRemaining boundary) (boundaryParamRemaining boundary))
+        InitializingFrame memory boundary arguments (Z.of_nat (guestLocals f)) (boundaryZeroRemaining boundary))
   end.
 
-(* Each suspended caller, relative to the frame registers and depth of the frame it
-   called: its return context is the one saved one level down. Its operands below
-   the callee's arguments stay with it; the callee's configuration goes inside its
-   FRAME_/LABEL_ context, inside the caller's enclosing labels. *)
-Fixpoint decodeCalls (program : Program) (memory : MemoryState) (callee : nat) (base fbp depth : Z)
+(* Each suspended caller, relative to the frame base pointer and depth of the
+   frame it called: its return context is the one saved one level down. The
+   callee's frame starts right above the caller's operands below its arguments,
+   which became the callee's first locals. The callee's configuration goes inside
+   the caller's FRAME_/LABEL_ context, inside the caller's enclosing labels. *)
+Fixpoint decodeCalls (program : Program) (memory : MemoryState) (callee : nat) (fbp depth : Z)
     (sites : list CodePosition) (c : config) (obligations : Prop) : option (config * Prop) :=
   match sites with
   | [] => Some (c, obligations)
@@ -165,12 +176,12 @@ Fixpoint decodeCalls (program : Program) (memory : MemoryState) (callee : nat) (
       let below := (totalHeight heights - guestParams f)%nat in
       check (N.to_nat address =? callee)%nat && (guestParams f <=? snd heights)%nat &&
         (returnPC =? guestEntry g + Z.of_nat (pathOffset (guestBody g) labels (S offset))) &&
-        (0 <=? callerBase) && (base =? callerBase + Z.of_nat below) &&
-        (fbp =? callerFbp + Z.of_nat (frameLocals g)) in
+        (0 <=? callerFbp) && (callerBase =? callerFbp + Z.of_nat (frameLocals g)) &&
+        (fbp =? callerBase + Z.of_nat below) in
       let? stack := readStack memory callerBase below in
       let? locals := readLocals memory callerFbp (frameLocals g) in
       let split := splitSegments (fst heights) stack in
-      decodeCalls program memory (positionFunction site) callerBase callerFbp (depth - 1) rest
+      decodeCalls program memory (positionFunction site) callerFbp (depth - 1) rest
         (wrapLabels (guestBody g) labels (fst split)
           (stackPrefix (snd split) (instructionSuffix (skipn (S offset) inner)
             (callContext (activeFrame g locals) (N.of_nat (guestResults f)) c))))
@@ -182,7 +193,7 @@ Definition decodeControl (program : Program) (s : store) (baseDepth : Z) (shape 
     (memory : MemoryState) (boundary : Boundary) : option (config * Prop) :=
   check (0 <=? baseDepth) && (boundaryCallDepth boundary =? baseDepth + Z.of_nat (length (callSites shape))) in
   let? active := decodeActive program s memory boundary (activeSite shape) in
-  decodeCalls program memory (siteFunction (activeSite shape)) (boundaryStackBase boundary)
+  decodeCalls program memory (siteFunction (activeSite shape))
     (boundaryLocalsBase boundary) (boundaryCallDepth boundary) (callSites shape) (fst active) (snd active).
 
 (* The circuit state denotes c: the store holds the program, which validates, and

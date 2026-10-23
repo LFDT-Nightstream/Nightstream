@@ -17,7 +17,7 @@ every function in the store must pass SpecTec validation. A run may stop anywher
 in its base frame, including inside blocks, inside calls, or during a callee's
 frame initialization; the final shape resumes the next run. The store is an input:
 the circuit does not hold it. A run's activation never finishes (no export return
-or trap). Padding, host rows, indirect calls, loops, `if`, `br`/`br_table`, branches
+or trap). Padding is supported. Host rows, indirect calls, loops, `if`, `br`/`br_table`, branches
 to the function's own label and returning out of the base frame are excluded.
 Selected zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory

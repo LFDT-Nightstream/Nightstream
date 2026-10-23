@@ -4,68 +4,63 @@ Require Import MemoryTrace.
 Import ListNotations.
 
 Definition memories : list MemorySpec :=
-  [(* stack *) mkMemory 0%nat Ram [mkPort [176%nat] 182%nat Read (When 55%nat); mkPort [179%nat] 185%nat Read (When 55%nat); mkPort [176%nat] 182%nat Read (When 13%nat); mkPort [179%nat] 185%nat Read (When 13%nat); mkPort [177%nat] 183%nat Read (When 56%nat); mkPort [180%nat] 186%nat Read (When 56%nat); mkPort [178%nat] 184%nat Read (When 57%nat); mkPort [181%nat] 187%nat Read (When 57%nat); mkPort [188%nat] 190%nat (Write None) (When 58%nat); mkPort [189%nat] 191%nat (Write None) (When 59%nat)];
-   (* call_stack_return_pc *) mkMemory 1%nat Ram [mkPort [48%nat] 43%nat (Write None) (When 41%nat); mkPort [48%nat] 43%nat Read (When 42%nat); mkPort [368%nat] 369%nat (Write None) (When 362%nat); mkPort [368%nat] 369%nat Read (When 367%nat)];
-   (* call_stack_caller_fbp *) mkMemory 2%nat Ram [mkPort [48%nat] 44%nat (Write None) (When 41%nat); mkPort [48%nat] 44%nat Read (When 42%nat); mkPort [368%nat] 370%nat (Write None) (When 362%nat); mkPort [368%nat] 370%nat Read (When 367%nat)];
-   (* call_stack_caller_sp_base *) mkMemory 3%nat Ram [mkPort [48%nat] 45%nat (Write None) (When 41%nat); mkPort [48%nat] 45%nat Read (When 42%nat); mkPort [368%nat] 371%nat (Write None) (When 362%nat); mkPort [368%nat] 371%nat Read (When 367%nat)];
-   (* linear_memory *) mkMemory 4%nat Ram [mkPort [205%nat] 208%nat Read (When 199%nat); mkPort [206%nat] 209%nat Read (When 200%nat); mkPort [207%nat] 210%nat Read (When 201%nat); mkPort [205%nat] 208%nat (Write (Some 268%nat)) (When 202%nat); mkPort [206%nat] 209%nat (Write (Some 269%nat)) (When 203%nat); mkPort [207%nat] 210%nat (Write (Some 270%nat)) (When 204%nat); mkPort [205%nat] 208%nat Read (When 574%nat); mkPort [205%nat] 208%nat (Write (Some 268%nat)) (When 575%nat)];
-   (* local *) mkMemory 5%nat Ram [mkPort [152%nat; 154%nat] 155%nat Read (When 130%nat); mkPort [152%nat; 154%nat] 155%nat Read (When 585%nat); mkPort [152%nat; 154%nat] 155%nat (Write None) (When 146%nat); mkPort [152%nat; 154%nat] 155%nat (Write None) (When 29%nat); mkPort [152%nat; 154%nat] 155%nat (Write None) (When 23%nat); mkPort [152%nat; 154%nat] 155%nat (Write None) (When 481%nat)];
-   (* local_hi *) mkMemory 6%nat Ram [mkPort [152%nat; 154%nat] 156%nat Read (When 130%nat); mkPort [152%nat; 154%nat] 156%nat (Write None) (When 146%nat); mkPort [152%nat; 154%nat] 156%nat (Write None) (When 29%nat); mkPort [152%nat; 154%nat] 156%nat (Write None) (When 23%nat); mkPort [152%nat; 154%nat] 156%nat (Write None) (When 480%nat)];
-   (* global *) mkMemory 7%nat Ram [mkPort [157%nat] 158%nat Read (When 133%nat); mkPort [157%nat] 158%nat (Write None) (When 134%nat)];
-   (* global_hi *) mkMemory 8%nat Ram [mkPort [157%nat] 159%nat Read (When 133%nat); mkPort [157%nat] 159%nat (Write None) (When 134%nat)];
-   (* table_element *) mkMemory 9%nat Ram [mkPort [160%nat; 161%nat] 162%nat Read (When 151%nat); mkPort [160%nat; 161%nat] 162%nat (Write None) (When 83%nat)];
-   (* table_size *) mkMemory 10%nat Ram [mkPort [160%nat] 163%nat Read (When 344%nat)];
-   (* program_opcode *) mkMemory 11%nat Rom [mkPort [8%nat] 7%nat Read (When 19%nat)];
-   (* program_local_index *) mkMemory 12%nat Rom [mkPort [8%nat] 154%nat Read (When 147%nat)];
-   (* program_global_index *) mkMemory 13%nat Rom [mkPort [8%nat] 157%nat Read (When 148%nat)];
-   (* program_table_id *) mkMemory 14%nat Rom [mkPort [8%nat] 160%nat Read (When 149%nat)];
-   (* program_memory_offset *) mkMemory 15%nat Rom [mkPort [8%nat] 194%nat Read (When 198%nat)];
-   (* program_call_indirect_type_index *) mkMemory 16%nat Rom [mkPort [8%nat] 169%nat Read (When 150%nat)];
-   (* program_call_indirect_expected_type_id *) mkMemory 17%nat Rom [mkPort [8%nat] 171%nat Read (When 150%nat)];
-   (* program_i32_const_value *) mkMemory 18%nat Rom [mkPort [8%nat] 190%nat Read (When 62%nat)];
-   (* program_i64_const_value_lo *) mkMemory 19%nat Rom [mkPort [8%nat] 190%nat Read (When 63%nat)];
-   (* program_i64_const_value_hi *) mkMemory 20%nat Rom [mkPort [8%nat] 191%nat Read (When 63%nat)];
-   (* program_ref_func_ref *) mkMemory 21%nat Rom [mkPort [8%nat] 190%nat Read (When 64%nat)];
-   (* function_type *) mkMemory 22%nat Rom [mkPort [164%nat] 170%nat Read (When 340%nat)];
-   (* function_local_count *) mkMemory 23%nat Rom [mkPort [50%nat] 51%nat Read (When 19%nat); mkPort [50%nat] 51%nat Read (When 23%nat); mkPort [50%nat] 51%nat Read (When 362%nat); mkPort [164%nat] 52%nat Read (When 40%nat); mkPort [404%nat] 52%nat Read (When 483%nat)];
-   (* pc_function_ref *) mkMemory 24%nat Rom [mkPort [8%nat] 50%nat Read (When 484%nat)];
-   (* function_call_metadata *) mkMemory 25%nat Rom [mkPort [164%nat] 168%nat Read (When 127%nat); mkPort [164%nat] 168%nat Read (When 321%nat); mkPort [164%nat] 168%nat Read (When 339%nat); mkPort [404%nat] 168%nat Read (When 483%nat)];
-   (* module_type *) mkMemory 26%nat Rom [mkPort [169%nat] 171%nat Read (When 128%nat); mkPort [169%nat] 171%nat Read (When 322%nat)];
-   (* call_target *) mkMemory 27%nat Rom [mkPort [8%nat] 164%nat Read (When 127%nat); mkPort [8%nat] 164%nat Read (When 321%nat)];
-   (* function_entry *) mkMemory 28%nat Rom [mkPort [164%nat] 9%nat Read (When 40%nat); mkPort [404%nat] 9%nat Read (When 483%nat)];
-   (* pc_edge_kind *) mkMemory 29%nat Rom [mkPort [8%nat] 11%nat Read (When 19%nat)];
-   (* host_event_slot_kind *) mkMemory 30%nat Rom [mkPort [403%nat; 467%nat; 471%nat] 473%nat Read (When 461%nat)];
-   (* host_event_slot_arg *) mkMemory 31%nat Rom [mkPort [403%nat; 467%nat; 471%nat] 474%nat Read (When 461%nat)];
-   (* host_event_slot_variant *) mkMemory 32%nat Rom [mkPort [403%nat; 467%nat; 471%nat] 475%nat Read (When 461%nat)];
-   (* host_event_slot_immediate_0 *) mkMemory 33%nat Rom [mkPort [403%nat; 467%nat; 471%nat] 476%nat Read (When 461%nat)];
-   (* host_event_slot_immediate_1 *) mkMemory 34%nat Rom [mkPort [403%nat; 467%nat; 471%nat] 477%nat Read (When 461%nat)];
-   (* host_event_import_schedule_count *) mkMemory 35%nat Rom [mkPort [164%nat] 378%nat Read (When 462%nat); mkPort [404%nat] 378%nat Read (When 364%nat)];
-   (* host_event_export_entry_schedule_count *) mkMemory 36%nat Rom [mkPort [405%nat] 478%nat Read (When 482%nat); mkPort [404%nat] 478%nat Read (When 483%nat)];
-   (* host_event_export_exit_schedule_count *) mkMemory 37%nat Rom [mkPort [405%nat] 479%nat Read (When 482%nat); mkPort [404%nat] 479%nat Read (When 483%nat)];
-   (* pc_rom *) mkMemory 38%nat Rom [mkPort [8%nat; 10%nat] 9%nat Read (When 20%nat); mkPort [8%nat; 49%nat] 43%nat Read (When 41%nat); mkPort [8%nat; 49%nat] 9%nat Read (When 485%nat)];
-   (* program_br_table_len *) mkMemory 39%nat Rom [mkPort [8%nat] 350%nat Read (When 126%nat)];
-   (* host_context_export *) mkMemory 40%nat Ram [mkPort [368%nat] 372%nat (Write None) (When 362%nat); mkPort [368%nat] 372%nat Read (When 367%nat)];
-   (* host_context_import *) mkMemory 41%nat Ram [mkPort [368%nat] 373%nat (Write None) (When 362%nat); mkPort [368%nat] 373%nat Read (When 367%nat)];
-   (* host_context_argsbase *) mkMemory 42%nat Ram [mkPort [368%nat] 374%nat (Write None) (When 362%nat); mkPort [368%nat] 374%nat Read (When 367%nat)];
-   (* host_context_parentdepth *) mkMemory 43%nat Ram [mkPort [368%nat] 375%nat (Write None) (When 362%nat); mkPort [368%nat] 375%nat Read (When 367%nat)];
-   (* host_context_sp *) mkMemory 44%nat Ram [mkPort [368%nat] 376%nat (Write None) (When 362%nat); mkPort [368%nat] 376%nat Read (When 367%nat)];
-   (* host_context_localsend *) mkMemory 45%nat Ram [mkPort [368%nat] 377%nat (Write None) (When 362%nat); mkPort [368%nat] 377%nat Read (When 367%nat)]].
+  [(* stack *) mkMemory 0%nat Ram [mkPort [176%nat] 182%nat Read (When 53%nat); mkPort [179%nat] 185%nat Read (When 53%nat); mkPort [176%nat] 182%nat Read (When 13%nat); mkPort [179%nat] 185%nat Read (When 13%nat); mkPort [177%nat] 183%nat Read (When 54%nat); mkPort [180%nat] 186%nat Read (When 54%nat); mkPort [178%nat] 184%nat Read (When 55%nat); mkPort [181%nat] 187%nat Read (When 55%nat); mkPort [188%nat] 190%nat (Write None) (When 56%nat); mkPort [189%nat] 191%nat (Write None) (When 57%nat); mkPort [153%nat] 155%nat Read (When 128%nat); mkPort [153%nat] 155%nat Read (When 584%nat); mkPort [153%nat] 155%nat (Write None) (When 144%nat); mkPort [153%nat] 155%nat (Write None) (When 480%nat); mkPort [154%nat] 156%nat Read (When 128%nat); mkPort [154%nat] 156%nat (Write None) (When 144%nat); mkPort [154%nat] 156%nat (Write None) (When 479%nat)];
+   (* call_stack_return_pc *) mkMemory 1%nat Ram [mkPort [47%nat] 42%nat (Write None) (When 40%nat); mkPort [47%nat] 42%nat Read (When 41%nat); mkPort [368%nat] 369%nat (Write None) (When 362%nat); mkPort [368%nat] 369%nat Read (When 367%nat)];
+   (* call_stack_caller_fbp *) mkMemory 2%nat Ram [mkPort [47%nat] 43%nat (Write None) (When 40%nat); mkPort [47%nat] 43%nat Read (When 41%nat); mkPort [368%nat] 370%nat (Write None) (When 362%nat); mkPort [368%nat] 370%nat Read (When 367%nat)];
+   (* call_stack_caller_sp_base *) mkMemory 3%nat Ram [mkPort [47%nat] 44%nat (Write None) (When 40%nat); mkPort [47%nat] 44%nat Read (When 41%nat); mkPort [368%nat] 371%nat (Write None) (When 362%nat); mkPort [368%nat] 371%nat Read (When 367%nat)];
+   (* linear_memory *) mkMemory 4%nat Ram [mkPort [205%nat] 208%nat Read (When 199%nat); mkPort [206%nat] 209%nat Read (When 200%nat); mkPort [207%nat] 210%nat Read (When 201%nat); mkPort [205%nat] 208%nat (Write (Some 268%nat)) (When 202%nat); mkPort [206%nat] 209%nat (Write (Some 269%nat)) (When 203%nat); mkPort [207%nat] 210%nat (Write (Some 270%nat)) (When 204%nat); mkPort [205%nat] 208%nat Read (When 573%nat); mkPort [205%nat] 208%nat (Write (Some 268%nat)) (When 574%nat)];
+   (* global *) mkMemory 5%nat Ram [mkPort [157%nat] 158%nat Read (When 131%nat); mkPort [157%nat] 158%nat (Write None) (When 132%nat)];
+   (* global_hi *) mkMemory 6%nat Ram [mkPort [157%nat] 159%nat Read (When 131%nat); mkPort [157%nat] 159%nat (Write None) (When 132%nat)];
+   (* table_element *) mkMemory 7%nat Ram [mkPort [160%nat; 161%nat] 162%nat Read (When 149%nat); mkPort [160%nat; 161%nat] 162%nat (Write None) (When 81%nat)];
+   (* table_size *) mkMemory 8%nat Ram [mkPort [160%nat] 163%nat Read (When 344%nat)];
+   (* program_opcode *) mkMemory 9%nat Rom [mkPort [8%nat] 7%nat Read (When 19%nat)];
+   (* program_local_index *) mkMemory 10%nat Rom [mkPort [8%nat] 152%nat Read (When 145%nat)];
+   (* program_global_index *) mkMemory 11%nat Rom [mkPort [8%nat] 157%nat Read (When 146%nat)];
+   (* program_table_id *) mkMemory 12%nat Rom [mkPort [8%nat] 160%nat Read (When 147%nat)];
+   (* program_memory_offset *) mkMemory 13%nat Rom [mkPort [8%nat] 194%nat Read (When 198%nat)];
+   (* program_call_indirect_type_index *) mkMemory 14%nat Rom [mkPort [8%nat] 169%nat Read (When 148%nat)];
+   (* program_call_indirect_expected_type_id *) mkMemory 15%nat Rom [mkPort [8%nat] 171%nat Read (When 148%nat)];
+   (* program_i32_const_value *) mkMemory 16%nat Rom [mkPort [8%nat] 190%nat Read (When 60%nat)];
+   (* program_i64_const_value_lo *) mkMemory 17%nat Rom [mkPort [8%nat] 190%nat Read (When 61%nat)];
+   (* program_i64_const_value_hi *) mkMemory 18%nat Rom [mkPort [8%nat] 191%nat Read (When 61%nat)];
+   (* program_ref_func_ref *) mkMemory 19%nat Rom [mkPort [8%nat] 190%nat Read (When 62%nat)];
+   (* function_type *) mkMemory 20%nat Rom [mkPort [164%nat] 170%nat Read (When 340%nat)];
+   (* function_local_count *) mkMemory 21%nat Rom [mkPort [164%nat] 50%nat Read (When 39%nat); mkPort [403%nat] 50%nat Read (When 482%nat)];
+   (* pc_function_ref *) mkMemory 22%nat Rom [mkPort [8%nat] 49%nat Read (When 483%nat)];
+   (* function_call_metadata *) mkMemory 23%nat Rom [mkPort [164%nat] 168%nat Read (When 125%nat); mkPort [164%nat] 168%nat Read (When 321%nat); mkPort [164%nat] 168%nat Read (When 339%nat); mkPort [403%nat] 168%nat Read (When 482%nat)];
+   (* module_type *) mkMemory 24%nat Rom [mkPort [169%nat] 171%nat Read (When 126%nat); mkPort [169%nat] 171%nat Read (When 322%nat)];
+   (* call_target *) mkMemory 25%nat Rom [mkPort [8%nat] 164%nat Read (When 125%nat); mkPort [8%nat] 164%nat Read (When 321%nat)];
+   (* function_entry *) mkMemory 26%nat Rom [mkPort [164%nat] 9%nat Read (When 39%nat); mkPort [403%nat] 9%nat Read (When 482%nat)];
+   (* pc_edge_kind *) mkMemory 27%nat Rom [mkPort [8%nat] 11%nat Read (When 19%nat)];
+   (* host_event_slot_kind *) mkMemory 28%nat Rom [mkPort [402%nat; 466%nat; 470%nat] 472%nat Read (When 460%nat)];
+   (* host_event_slot_arg *) mkMemory 29%nat Rom [mkPort [402%nat; 466%nat; 470%nat] 473%nat Read (When 460%nat)];
+   (* host_event_slot_variant *) mkMemory 30%nat Rom [mkPort [402%nat; 466%nat; 470%nat] 474%nat Read (When 460%nat)];
+   (* host_event_slot_immediate_0 *) mkMemory 31%nat Rom [mkPort [402%nat; 466%nat; 470%nat] 475%nat Read (When 460%nat)];
+   (* host_event_slot_immediate_1 *) mkMemory 32%nat Rom [mkPort [402%nat; 466%nat; 470%nat] 476%nat Read (When 460%nat)];
+   (* host_event_import_schedule_count *) mkMemory 33%nat Rom [mkPort [164%nat] 377%nat Read (When 461%nat); mkPort [403%nat] 377%nat Read (When 364%nat)];
+   (* host_event_export_entry_schedule_count *) mkMemory 34%nat Rom [mkPort [404%nat] 477%nat Read (When 481%nat); mkPort [403%nat] 477%nat Read (When 482%nat)];
+   (* host_event_export_exit_schedule_count *) mkMemory 35%nat Rom [mkPort [404%nat] 478%nat Read (When 481%nat); mkPort [403%nat] 478%nat Read (When 482%nat)];
+   (* pc_rom *) mkMemory 36%nat Rom [mkPort [8%nat; 10%nat] 9%nat Read (When 20%nat); mkPort [8%nat; 48%nat] 42%nat Read (When 40%nat); mkPort [8%nat; 48%nat] 9%nat Read (When 484%nat)];
+   (* program_br_table_len *) mkMemory 37%nat Rom [mkPort [8%nat] 350%nat Read (When 124%nat)];
+   (* host_context_export *) mkMemory 38%nat Ram [mkPort [368%nat] 372%nat (Write None) (When 362%nat); mkPort [368%nat] 372%nat Read (When 367%nat)];
+   (* host_context_import *) mkMemory 39%nat Ram [mkPort [368%nat] 373%nat (Write None) (When 362%nat); mkPort [368%nat] 373%nat Read (When 367%nat)];
+   (* host_context_argsbase *) mkMemory 40%nat Ram [mkPort [368%nat] 374%nat (Write None) (When 362%nat); mkPort [368%nat] 374%nat Read (When 367%nat)];
+   (* host_context_parentdepth *) mkMemory 41%nat Ram [mkPort [368%nat] 375%nat (Write None) (When 362%nat); mkPort [368%nat] 375%nat Read (When 367%nat)];
+   (* host_context_sp *) mkMemory 42%nat Ram [mkPort [368%nat] 376%nat (Write None) (When 362%nat); mkPort [368%nat] 376%nat Read (When 367%nat)]].
 
-Definition localLoId : nat := 5%nat.
-Definition localHiId : nat := 6%nat.
 Definition stackId : nat := 0%nat.
 Definition callStackReturnPcId : nat := 1%nat.
 Definition callStackCallerFbpId : nat := 2%nat.
 Definition callStackCallerSpBaseId : nat := 3%nat.
-Definition functionLocalCountId : nat := 23%nat.
-Definition functionCallMetadataId : nat := 25%nat.
-Definition pcFunctionRefId : nat := 24%nat.
-Definition callTargetId : nat := 27%nat.
-Definition functionEntryId : nat := 28%nat.
-Definition programOpcodeId : nat := 11%nat.
-Definition programLocalIndexId : nat := 12%nat.
-Definition pcEdgeKindId : nat := 29%nat.
-Definition pcRomId : nat := 38%nat.
+Definition functionLocalCountId : nat := 21%nat.
+Definition functionCallMetadataId : nat := 23%nat.
+Definition pcFunctionRefId : nat := 22%nat.
+Definition callTargetId : nat := 25%nat.
+Definition functionEntryId : nat := 26%nat.
+Definition programOpcodeId : nat := 9%nat.
+Definition programLocalIndexId : nat := 10%nat.
+Definition pcEdgeKindId : nat := 27%nat.
+Definition pcRomId : nat := 36%nat.
 
 Definition continuityLinks : list ContinuityLink :=
   [(353%nat, 352%nat);
@@ -78,29 +73,30 @@ Definition continuityLinks : list ContinuityLink :=
    (2%nat, 1%nat);
    (4%nat, 3%nat);
    (6%nat, 5%nat);
-   (47%nat, 46%nat);
+   (46%nat, 45%nat);
    (173%nat, 172%nat);
    (175%nat, 174%nat);
-   (153%nat, 152%nat);
+   (151%nat, 150%nat);
    (324%nat, 323%nat);
    (24%nat, 23%nat);
    (26%nat, 25%nat);
    (30%nat, 29%nat);
-   (37%nat, 36%nat);
+   (36%nat, 35%nat);
    (32%nat, 31%nat);
-   (404%nat, 403%nat);
-   (406%nat, 405%nat);
+   (403%nat, 402%nat);
+   (405%nat, 404%nat);
+   (410%nat, 406%nat);
    (411%nat, 407%nat);
    (412%nat, 408%nat);
    (413%nat, 409%nat);
-   (414%nat, 410%nat);
-   (464%nat, 463%nat);
-   (468%nat, 467%nat);
-   (470%nat, 469%nat);
-   (472%nat, 471%nat);
-   (386%nat, 385%nat);
-   (432%nat, 431%nat);
-   (434%nat, 433%nat);
+   (463%nat, 462%nat);
+   (467%nat, 466%nat);
+   (469%nat, 468%nat);
+   (471%nat, 470%nat);
+   (385%nat, 384%nat);
+   (431%nat, 430%nat);
+   (433%nat, 432%nat);
+   (422%nat, 414%nat);
    (423%nat, 415%nat);
    (424%nat, 416%nat);
    (425%nat, 417%nat);
@@ -108,7 +104,7 @@ Definition continuityLinks : list ContinuityLink :=
    (427%nat, 419%nat);
    (428%nat, 420%nat);
    (429%nat, 421%nat);
-   (430%nat, 422%nat);
+   (448%nat, 436%nat);
    (449%nat, 437%nat);
    (450%nat, 438%nat);
    (451%nat, 439%nat);
@@ -120,12 +116,11 @@ Definition continuityLinks : list ContinuityLink :=
    (457%nat, 445%nat);
    (458%nat, 446%nat);
    (459%nat, 447%nat);
-   (460%nat, 448%nat);
+   (390%nat, 386%nat);
    (391%nat, 387%nat);
    (392%nat, 388%nat);
    (393%nat, 389%nat);
-   (394%nat, 390%nat);
+   (398%nat, 394%nat);
    (399%nat, 395%nat);
    (400%nat, 396%nat);
-   (401%nat, 397%nat);
-   (402%nat, 398%nat)].
+   (401%nat, 397%nat)].

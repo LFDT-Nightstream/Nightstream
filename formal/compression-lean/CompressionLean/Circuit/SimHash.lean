@@ -110,6 +110,15 @@ theorem setRange (h : IsWords c n hs gs) (k : ℕ) (lane : ℕ → ℕ) {f : ℕ
       rw [List.range_succ, List.foldl_append, List.foldl_append]
       exact (ih fun i hi => hf i (by omega)).set (hf k (by omega)) _
 
+/-- Entry-wise words, as `mapM` lemmas state them. -/
+theorem of_forall₂ (h : List.Forall₂ (fun g v => IsWord c n v g) gs.toList hs.toList) : IsWords c n hs gs := by
+  have size := h.length_eq
+  simp only [Array.length_toList] at size
+  refine ⟨size.symm, fun i hi => ?_⟩
+  have := List.forall₂_iff_get.mp h |>.2 i (by simp [size]; omega) (by simpa using hi)
+  rw [getElem!_pos hs i hi, getElem!_pos gs i (by omega)]
+  simpa using this
+
 end IsWords
 
 /-- The `i`-th pair of `l.zipIdx` is `(l[i], i)`. -/

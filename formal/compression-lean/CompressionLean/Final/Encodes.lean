@@ -1,5 +1,6 @@
 import CompressionLean.Circuit.SimClaim
 import CompressionLean.Circuit.SimFold
+import CompressionLean.Circuit.SimVerify
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Sound
 import CompressionLean.Circuit.RecordCounts
@@ -18,7 +19,7 @@ Owns `ProgramEncodes` (`Claim.lean`) for the production final program
   that the in-circuit verifier computes from them, and candidate lists that
   WHIR's openings and the key's Merkle root bind.
 - `programEncodes`: `ProgramEncodes` from the `verify` composition
-  (`VerifyEnsures`) and premises on the key.
+  (`verify_ensures`) and premises on the key.
 
 Adversary: the prover picks the whole witness. Nothing here assumes that a
 word is in range or that a hint is honest; the circuit's checks and the
@@ -83,18 +84,6 @@ end Runs
 /-- The empty replay transcript, where `verify` starts (`verifier.rs:136`). -/
 def start : Replay.Transcript := ⟨Replay.Duplex.new, #[]⟩
 
-/-- `verify` (`verifier.rs:136-316`) simulated: when the inputs hold a seed, a
-statement that fits the relation and a proof that it reads, the replay
-accepts them. -/
-def VerifyEnsures (key : Layer1Input) : Prop :=
-  ∀ {c : Ctx Spec.F} {n : ℕ} {P : Prop} {w : Var → Replay.Gl} {seed : DigestVar} {statement : ClaimView}
-    {proof : Circuit.ProofView} {seedWords : Array Replay.Gl} {st : Replay.Statement} {g : Replay.Proof},
-    Permutes c.perm →
-    (P → Decodes c w ∧ IsDigest c n seed seedWords ∧ IsClaim c n statement st ∧ st.fits key.relation = true ∧
-      IsProof c w n proof g ∧ Replay.readProof key.relation g = .ok ()) →
-    Ensures c n P (verify key.relation key.p1Key key.p0Key seed statement proof)
-      (fun _ _ => ∃ points t', Replay.Runs (Replay.verify key.relation seedWords st g) start points t')
-
 section Gives
 
 variable {key : Layer1Input} {loaded : Loaded} {context : Array Replay.Gl}
@@ -112,11 +101,22 @@ def Gives (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl)
 
 /-- `verify_with` (`neo-spartan/src/lib.rs:692-703`) from the handles that
 the terminal part hands it. -/
-private theorem verifyWith_at (hverify : VerifyEnsures key) (hp : Permutes c.perm) (hw : Decodes c w)
+private theorem verifyWith_at (hp : Permutes c.perm) (hw : Decodes c w)
     (hrun : key.relation.key.layout.runVariables ≠ 0) (hrow : key.relation.key.layout.rowVariables ≠ 0)
     (hslot : key.relation.key.layout.slotVariables + key.relation.matrixVars ≠ 0)
     (kappa : key.relation.kappa = 22) (blocks : key.relation.publicBlocks = 5)
-    (point : key.relation.pointVariables = 28) (matrices : key.relation.matrices = 4) :
+    (point : key.relation.pointVariables = 28) (matrices : key.relation.matrices = 4)
+    (long : Nat.log2 (Replay.D * 2 ^ key.relation.blockVars).nextPowerOfTwo ≤ key.relation.pointVariables)
+    (root : key.relation.key.root.size = 4) (small : key.relation.setupVars + 1 - Replay.foldVars ≤ 64)
+    (short : ∀ cl ∈ key.relation.key.layout.classes, cl.len ≤ Replay.D)
+    (named : ∀ s ∈ key.relation.key.layout.segments,
+      s.classIndex < key.relation.key.layout.classes.size ∧ s.lane < Replay.D)
+    (k1 : key.p1Key.batches.size = key.relation.p1Whir.batches.size)
+    (k0 : key.p0Key.batches.size = key.relation.p0Whir.batches.size)
+    (hp1 : ∀ b ∈ key.relation.p1Whir.batches, b.size % 3 = 0)
+    (hp1count : (key.relation.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * key.relation.queries + 4)
+    (hp0 : key.relation.p0Whir.batches.toList.map (·.size) =
+      [1, 1, 2, 2 * key.relation.matrices, 1, 2 * key.relation.matrices + 1, 1]) :
     EnsuresAt c (prefixRun loaded context).2
       (ReadsStatement c ∧ Handoff c authority (prefixRun loaded context).1 (prefixRun loaded context).2.values)
       (verifyWith key (prefixRun loaded context).1.2 (prefixRun loaded context).1.1.view)
@@ -133,8 +133,9 @@ private theorem verifyWith_at (hverify : VerifyEnsures key) (hp : Permutes c.per
       simpa using hw ((prefixRun loaded context).1.2 lane)
   refine EnsuresAt.bind (EnsuresAt.of_ensures (Sim.ProofView.read key.relation _ _ hrun hrow hslot fun _ => hw).ensures)
     fun le₂ => ?_
-  refine (EnsuresAt.of_ensures (hverify (w := w) (seedWords := seedWith loaded context w)
-    (st := statementWith loaded context w) (g := proofWith key loaded context w) hp fun h => ?_)).post fun h runs => ?_
+  refine (EnsuresAt.of_ensures (verify_ensures hrun hrow hslot long root small short named k1 k0 hp1 hp1count hp0
+    (w := w) (seedWords := seedWith loaded context w) (st := statementWith loaded context w)
+    (g := proofWith key loaded context w) hp fun h => ?_)).post fun h runs => ?_
   · obtain ⟨⟨⟨-, env, -, holds, -, shaped⟩, seed, -⟩, ⟨proof, read⟩, -⟩ := h
     refine ⟨hw, ⟨?_, fun lane => (seed lane).mono le₂⟩, (isClaim_decode hw (claimHolds_words_lt holds)).mono
       (le₁.trans le₂), fits_decode w holds shaped kappa blocks point matrices, proof, read⟩
@@ -153,7 +154,7 @@ private theorem program_eq (key : Layer1Input) (loaded : Loaded) (context : Arra
   rw [program, finalProgram_eq, terminalPrefix, bind_assoc]
 
 /-- A witness of the program's CCS gives what `Gives` states. -/
-private theorem program_gives (hverify : VerifyEnsures key)
+private theorem program_gives
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
@@ -162,6 +163,17 @@ private theorem program_gives (hverify : VerifyEnsures key)
     (hslot : key.relation.key.layout.slotVariables + key.relation.matrixVars ≠ 0)
     (kappa : key.relation.kappa = 22) (blocks : key.relation.publicBlocks = 5)
     (point : key.relation.pointVariables = 28) (matrices : key.relation.matrices = 4)
+    (long : Nat.log2 (Replay.D * 2 ^ key.relation.blockVars).nextPowerOfTwo ≤ key.relation.pointVariables)
+    (root : key.relation.key.root.size = 4) (small : key.relation.setupVars + 1 - Replay.foldVars ≤ 64)
+    (short : ∀ cl ∈ key.relation.key.layout.classes, cl.len ≤ Replay.D)
+    (named : ∀ s ∈ key.relation.key.layout.segments,
+      s.classIndex < key.relation.key.layout.classes.size ∧ s.lane < Replay.D)
+    (k1 : key.p1Key.batches.size = key.relation.p1Whir.batches.size)
+    (k0 : key.p0Key.batches.size = key.relation.p0Whir.batches.size)
+    (hp1 : ∀ b ∈ key.relation.p1Whir.batches, b.size % 3 = 0)
+    (hp1count : (key.relation.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * key.relation.queries + 4)
+    (hp0 : key.relation.p0Whir.batches.toList.map (·.size) =
+      [1, 1, 2, 2 * key.relation.matrices, 1, 2 * key.relation.matrices + 1, 1])
     (x : StateWords) (wit : ℕ → Spec.F)
     (holds : ((prog key loaded context x).ccs Block.poseidonTemplate (prog key loaded context x).counts).Relation wit) :
     Gives key loaded context authority (ctxOf key loaded context x wit) (wordsOf key loaded context x wit) := by
@@ -176,7 +188,8 @@ private theorem program_gives (hverify : VerifyEnsures key)
     EnsuresAt.bind (EnsuresAt.of_ensures (checkedApply_ensures loads valid hctx fun h => by
       rw [statementHandles_run]
       exact ⟨rfl, le_rfl, h⟩)) fun _ =>
-      verifyWith_at hverify permutes_poseidon2 hw hrun hrow hslot kappa blocks point matrices
+      verifyWith_at permutes_poseidon2 hw hrun hrow hslot kappa blocks point matrices long root small short named k1
+        k0 hp1 hp1count hp0
   obtain ⟨new, hi, -⟩ := tail ⟨List.replicate 9 0, 0, True⟩ (by rw [statementHandles_run]; simp)
   have pre : (program key loaded context).program.toList = List.replicate 9 .pub ++ new := by
     rw [Build.program, program_eq, run_bind, hi, statementHandles_run]
@@ -227,7 +240,7 @@ private theorem statementOf_ctxOf (key : Layer1Input) (loaded : Loaded) (context
 premises on the key. -/
 theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Replay.Gl}
     {authority : Lifecycle.VerifierContext.Authority} (S : Setup Fp) (facts : RelationFacts key.relation S)
-    (L0 L1 : ℕ) (hverify : VerifyEnsures key)
+    (L0 L1 : ℕ)
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
@@ -235,13 +248,28 @@ theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Re
     (hrun : key.relation.key.layout.runVariables ≠ 0) (hrow : key.relation.key.layout.rowVariables ≠ 0)
     (hslot : key.relation.key.layout.slotVariables + key.relation.matrixVars ≠ 0)
     (kappa : key.relation.kappa = 22) (blocks : key.relation.publicBlocks = 5)
-    (point : key.relation.pointVariables = 28) (matrices : key.relation.matrices = 4) :
+    (point : key.relation.pointVariables = 28) (matrices : key.relation.matrices = 4)
+    (root : key.relation.key.root.size = 4) (short : ∀ cl ∈ key.relation.key.layout.classes, cl.len ≤ Replay.D)
+    (k1 : key.p1Key.batches.size = key.relation.p1Whir.batches.size)
+    (k0 : key.p0Key.batches.size = key.relation.p0Whir.batches.size)
+    (hp1 : ∀ b ∈ key.relation.p1Whir.batches, b.size % 3 = 0)
+    (hp1count : (key.relation.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * key.relation.queries + 4)
+    (hp0 : key.relation.p0Whir.batches.toList.map (·.size) =
+      [1, 1, 2, 2 * key.relation.matrices, 1, 2 * key.relation.matrices + 1, 1]) :
     ProgramEncodes (F := Fp) Block.poseidonTemplate (lower (program key loaded context).program ([] : List Spec.F)).counts
       (prog key loaded context) authority (game key.relation S L0 L1) (Reads key loaded context S L0 L1) := by
   intro x wit holds
   rw [lower_counts _ [] (List.ofFn x)] at holds
-  obtain ⟨env, terminal, claim, points, t', run⟩ := program_gives hverify loads valid hctx hrun hrow hslot kappa blocks
-    point matrices x wit holds
+  have named : ∀ s ∈ key.relation.key.layout.segments,
+      s.classIndex < key.relation.key.layout.classes.size ∧ s.lane < Replay.D := fun s member => by
+    obtain ⟨i, inside, rfl⟩ := Array.mem_iff_getElem.mp member
+    have lane := Bridge.segment_lane key.relation S facts.fits facts.checked facts.describes inside
+    have named := facts.checked.class_named i inside
+    simp only [structureOf] at named
+    rw [getElem!_pos key.relation.key.layout.segments i inside] at lane named
+    exact ⟨named, lane⟩
+  obtain ⟨env, terminal, claim, points, t', run⟩ := program_gives loads valid hctx hrun hrow hslot kappa blocks
+    point matrices facts.bits.long root (by have := facts.high; omega) short named k1 k0 hp1 hp1count hp0 x wit holds
   rw [statementOf_ctxOf] at terminal
   refine ⟨env, terminal, fun p reads => ?_⟩
   obtain ⟨cands, short0, p1, short1, msgs, draws, whir, merkle⟩ := reads

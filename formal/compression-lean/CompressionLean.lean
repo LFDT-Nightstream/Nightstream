@@ -28,4 +28,5 @@ import CompressionLean.Circuit.SimTerminal
 import CompressionLean.Circuit.SimGkr
 import CompressionLean.Circuit.SimHonest
 import CompressionLean.Circuit.SimRing
+import CompressionLean.Circuit.SimWhir
 import CompressionLean.Circuit.PackageRows

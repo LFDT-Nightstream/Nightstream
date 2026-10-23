@@ -22,6 +22,9 @@ on the instructions that a program writes, read as replay words.
 - `Ensures c n P b Q`: `Sim` in one direction, for soundness. When the run's
   checks hold, the result meets `Q`, which may use them. `Ensures.exec`
   reads `Q` off an accepting run.
+- `EnsuresAt c p P b Q`: `Ensures` from one builder state `p`. Its `bind`
+  hands the next program the handles that `b` returns, so a statement about
+  a whole program can name the handles of its parts.
 
 `P` and `C` are propositions about `val`. Only the meaning of the run
 depends on `P`, never which instructions the program writes, so `bind` can
@@ -758,5 +761,58 @@ theorem exec {b : Build α} (h : Ensures c 0 P b Q) (hP : P)
   exact hs hP (fun v _ => by rw [hval, run]) (by rw [Exec, run] at accepts; exact accepts)
 
 end Ensures
+
+/-- `Ensures` from one builder state `p`. The program's result is then a
+known term, `(b.run p).1`, so the next program can name the handles that the
+run writes. -/
+def EnsuresAt (c : Ctx F) (p : Builder) (P : Prop) (b : Build α) (Q : α → ℕ → Prop) : Prop :=
+  ∀ (E : Exec.State F), E.values.length = p.values →
+    ∃ new : List Instr, (b.run p).2.instrs = p.instrs ++ new.toArray ∧
+      (c.steps new E).values.length = (b.run p).2.values ∧
+      (P → c.Follows (c.steps new E) → (c.steps new E).holds → Q (b.run p).1 (b.run p).2.values)
+
+namespace EnsuresAt
+
+variable {α β : Type} {P : Prop}
+
+theorem of_ensures {p : Builder} {b : Build α} {Q : α → ℕ → Prop} (h : Ensures c p.values P b Q) :
+    EnsuresAt c p P b Q := fun E hE => h p E rfl hE
+
+/-- `bind` at the state that `b` leaves, with the result that `b` returns. -/
+theorem bind {p : Builder} {b : Build α} {f : α → Build β} {Q : α → ℕ → Prop} {R : β → ℕ → Prop}
+    (hb : EnsuresAt c p P b Q)
+    (hf : EnsuresAt c (b.run p).2 (P ∧ Q (b.run p).1 (b.run p).2.values) (f (b.run p).1) R) :
+    EnsuresAt c p P (b >>= f) R := by
+  intro E hE
+  obtain ⟨new₁, hi₁, hl₁, hs₁⟩ := hb E hE
+  obtain ⟨new₂, hi₂, hl₂, hs₂⟩ := hf (c.steps new₁ E) hl₁
+  refine ⟨new₁ ++ new₂, ?_, ?_, ?_⟩
+  · show ((f (b.run p).1).run (b.run p).2).2.instrs = _
+    rw [hi₂, hi₁]
+    simp
+  · rw [Ctx.steps_append]
+    exact hl₂
+  · intro hP hF hh
+    rw [Ctx.steps_append] at hF hh
+    exact hs₂ ⟨hP, hs₁ hP (Ctx.follows_of_steps hF) (Ctx.holds_of_steps hh)⟩ hF hh
+
+theorem post {p : Builder} {b : Build α} {Q Q' : α → ℕ → Prop} (h : EnsuresAt c p P b Q)
+    (hq : P → Q (b.run p).1 (b.run p).2.values → Q' (b.run p).1 (b.run p).2.values) : EnsuresAt c p P b Q' := by
+  intro E hE
+  obtain ⟨new, hi, hl, hs⟩ := h E hE
+  exact ⟨new, hi, hl, fun hP hF hh => hq hP (hs hP hF hh)⟩
+
+/-- **An accepting run meets what the program ensures from the empty builder.** -/
+theorem exec {b : Build α} {Q : α → ℕ → Prop} (h : EnsuresAt c {} P b Q) (hP : P)
+    (hval : c.val = (Exec.run c.perm c.stmt c.tape b.program).value)
+    (accepts : Exec c.perm b.program c.stmt c.tape) : Q (b.run {}).1 (b.run {}).2.values := by
+  obtain ⟨new, hi, -, hs⟩ := h Exec.start rfl
+  have run : Exec.run c.perm c.stmt c.tape b.program = c.steps new Exec.start := by
+    rw [Exec.run, Build.program, hi]
+    simp only [Array.empty_append, List.toList_toArray]
+    rfl
+  exact hs hP (fun v _ => by rw [hval, run]) (by rw [Exec, run] at accepts; exact accepts)
+
+end EnsuresAt
 
 end CompressionLean.Circuit

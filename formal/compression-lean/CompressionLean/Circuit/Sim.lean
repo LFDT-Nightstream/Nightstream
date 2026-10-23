@@ -19,6 +19,9 @@ on the instructions that a program writes, read as replay words.
   earlier checks and `C` hold.
 - `Sim.exec`: for a program that `Sim` describes from the empty builder,
   with `val` the values of its run, the executor accepts it iff `C`.
+- `Ensures c n P b Q`: `Sim` in one direction, for soundness. When the run's
+  checks hold, the result meets `Q`, which may use them. `Ensures.exec`
+  reads `Q` off an accepting run.
 
 `P` and `C` are propositions about `val`. Only the meaning of the run
 depends on `P`, never which instructions the program writes, so `bind` can
@@ -116,6 +119,15 @@ theorem follows_of_steps {c : Ctx F} {L : List Instr} {E : Exec.State F} (h : c.
   intro v hv
   have := h v (by rw [hm]; simp; omega)
   rwa [Exec.State.value, hm, List.getD_append _ _ _ _ hv] at this
+
+/-- Checks only accumulate: a step that holds started from a state that held. -/
+theorem holds_of_step {c : Ctx F} {E : Exec.State F} {i : Instr} (h : (c.step E i).holds) : E.holds := by
+  cases i <;> simp only [Ctx.step, Exec.step, Exec.State.next] at h <;> first | exact h | exact h.1
+
+theorem holds_of_steps {c : Ctx F} {L : List Instr} {E : Exec.State F} (h : (c.steps L E).holds) : E.holds := by
+  induction L generalizing E with
+  | nil => exact h
+  | cons i L ih => exact holds_of_step (ih h)
 
 end Ctx
 
@@ -407,21 +419,21 @@ theorem extInv {a : ExtVar} {ga gi : Ext} (ha : P → IsExt c n a ga)
 
 omit [CharP F goldilocksModulus] in
 theorem bits {a : Var} {ga : Gl} (count : ℕ) (ha : P → IsWord c n a ga) :
-    Sim c n P (Build.bits a count) (fun bs m => ∀ i, bs i < m ∧ c.val (bs i) = c.tape (bs i))
+    Sim c n P (Build.bits a count) (fun bs m => ∀ i, bs i = n + i ∧ bs i < m ∧ c.val (bs i) = c.tape (bs i))
       (Bits (word ga) count fun i => c.tape (n + i)) :=
-  (emit (Q := fun h m => ∀ i : Fin count, h + i < m ∧ c.val (h + i) = c.tape (h + i)) _ fun hP E hl hF => by
-    refine ⟨fun i => ⟨by simp [Instr.outputs], ?_⟩, ?_⟩
+  (emit (Q := fun h m => h = n ∧ ∀ i : Fin count, h + i < m ∧ c.val (h + i) = c.tape (h + i)) _ fun hP E hl hF => by
+    refine ⟨⟨rfl, fun i => ⟨by simp [Instr.outputs], ?_⟩⟩, ?_⟩
     · rw [← hl, Ctx.val_next hF (by simp)]
       simp
     · show E.holds ∧ Bits (E.value a) count (fun i => c.tape (E.values.length + i)) ↔ _
-      rw [(ha hP).read (Ctx.follows_of_step hF) hl, hl]).map fun _ _ h i => h i
+      rw [(ha hP).read (Ctx.follows_of_step hF) hl, hl]).map fun _ _ h i => ⟨by rw [← h.1]; rfl, h.2 i⟩
 
 omit [CharP F goldilocksModulus] in
 theorem hint (count : ℕ) :
-    Sim c n P (Build.hint count) (fun hs m => ∀ i, hs i < m ∧ c.val (hs i) = c.tape (hs i)) True :=
-  (emit (Q := fun h m => ∀ i : Fin count, h + i < m ∧ c.val (h + i) = c.tape (h + i)) _ fun _ E hl hF =>
-    ⟨fun i => ⟨by simp [Instr.outputs], by rw [← hl, Ctx.val_next hF (by simp)]; simp⟩, Iff.rfl⟩).map
-    fun _ _ h i => h i
+    Sim c n P (Build.hint count) (fun hs m => ∀ i, hs i = n + i ∧ hs i < m ∧ c.val (hs i) = c.tape (hs i)) True :=
+  (emit (Q := fun h m => h = n ∧ ∀ i : Fin count, h + i < m ∧ c.val (h + i) = c.tape (h + i)) _ fun _ E hl hF =>
+    ⟨⟨rfl, fun i => ⟨by simp [Instr.outputs], by rw [← hl, Ctx.val_next hF (by simp)]; simp⟩⟩, Iff.rfl⟩).map
+    fun _ _ h i => ⟨by rw [← h.1]; rfl, h.2 i⟩
 
 omit [CharP F goldilocksModulus] in
 theorem permute {state : Fin 16 → Var} {gs : Array Gl} (hp : Permutes c.perm)
@@ -541,5 +553,155 @@ theorem loopT {xs : List δ} {init : γ} {body : δ → γ → Transcript (ForIn
     fun _ => ⟨fun h k hk => h k (Nat.zero_le _) hk, fun h k _ hk => h k hk⟩
 
 end Sim
+
+
+/-! ## Soundness only -/
+
+/-- **A builder program, simulated for soundness.** `Sim` in one direction:
+when the run's checks hold, `b`'s result meets `Q`, and `Q` may use those
+checks. `ProgramEncodes` needs only this direction. A result that means
+something only once a check passes (a bit, a Merkle path) then feeds the
+rest of the program, and a check may name the tape cells of its own run. -/
+def Ensures {α : Type} (c : Ctx F) (n : ℕ) (P : Prop) (b : Build α) (Q : α → ℕ → Prop) : Prop :=
+  ∀ (p : Builder) (E : Exec.State F), p.values = n → E.values.length = n →
+    ∃ new : List Instr, (b.run p).2.instrs = p.instrs ++ new.toArray ∧
+      (c.steps new E).values.length = (b.run p).2.values ∧
+      (P → c.Follows (c.steps new E) → (c.steps new E).holds → Q (b.run p).1 (b.run p).2.values)
+
+variable {c : Ctx F} {α β γ δ : Type} {n : ℕ} {P : Prop} {Q : α → ℕ → Prop}
+
+/-- A simulated program ensures its result and its checks. -/
+theorem Sim.ensures {b : Build α} {C : Prop} (h : Sim c n P b Q C) : Ensures c n P b fun a m => Q a m ∧ C := by
+  intro p E hp hE
+  obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
+  exact ⟨new, hi, hl, fun hP hF hh => ⟨(hs hP hF).1, ((hs hP hF).2.mp hh).2⟩⟩
+
+namespace Ensures
+
+theorem pure {a : α} (h : P → Q a n) : Ensures c n P (Pure.pure a) Q := by
+  intro p E hp hE
+  refine ⟨[], by show p.instrs = p.instrs ++ #[]; simp, by show E.values.length = p.values; rw [hE, hp],
+    fun hP _ _ => ?_⟩
+  exact hp ▸ h hP
+
+theorem bind {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} (hb : Ensures c n P b Q)
+    (hf : ∀ a m, n ≤ m → Ensures c m (P ∧ Q a m) (f a) R) : Ensures c n P (b >>= f) R := by
+  intro p E hp hE
+  obtain ⟨new₁, hi₁, hl₁, hs₁⟩ := hb p E hp hE
+  have hle : n ≤ (b.run p).2.values := by
+    obtain ⟨more, hm, -⟩ := c.steps_values new₁ E
+    rw [← hl₁, hm, List.length_append, hE]
+    omega
+  obtain ⟨new₂, hi₂, hl₂, hs₂⟩ := hf (b.run p).1 _ hle (b.run p).2 (c.steps new₁ E) rfl hl₁
+  refine ⟨new₁ ++ new₂, ?_, ?_, ?_⟩
+  · show ((f (b.run p).1).run (b.run p).2).2.instrs = _
+    rw [hi₂, hi₁]
+    simp
+  · rw [Ctx.steps_append]
+    exact hl₂
+  · intro hP hF hh
+    rw [Ctx.steps_append] at hF hh
+    exact hs₂ ⟨hP, hs₁ hP (Ctx.follows_of_steps hF) (Ctx.holds_of_steps hh)⟩ hF hh
+
+theorem post {b : Build α} {Q' : α → ℕ → Prop} (h : Ensures c n P b Q) (hq : P → ∀ a m, Q a m → Q' a m) :
+    Ensures c n P b Q' := by
+  intro p E hp hE
+  obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
+  exact ⟨new, hi, hl, fun hP hF hh => hq hP _ _ (hs hP hF hh)⟩
+
+theorem pre {b : Build α} {P' : Prop} (h : Ensures c n P' b Q) (hp : P → P') : Ensures c n P b Q := by
+  intro p E hp' hE
+  obtain ⟨new, hi, hl, hs⟩ := h p E hp' hE
+  exact ⟨new, hi, hl, fun hP hF hh => hs (hp hP) hF hh⟩
+
+theorem map {b : Build α} {f : α → β} {Q' : β → ℕ → Prop} (h : Ensures c n P b Q)
+    (hq : ∀ a m, Q a m → Q' (f a) m) : Ensures c n P (f <$> b) Q' := by
+  intro p E hp hE
+  obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
+  exact ⟨new, hi, hl, fun hP hF hh => hq _ _ (hs hP hF hh)⟩
+
+/-- `t >>= g` in a transcript. -/
+theorem tbind {t : Transcript α} {g : α → Transcript β} {d : Duplex} {R : β × Duplex → ℕ → Prop}
+    {Q : α × Duplex → ℕ → Prop} (ht : Ensures c n P (t.run d) Q)
+    (hg : ∀ a e m, n ≤ m → Ensures c m (P ∧ Q (a, e) m) ((g a).run e) R) : Ensures c n P ((t >>= g).run d) R := by
+  rw [StateT.run_bind]
+  exact ht.bind fun r m le => hg r.1 r.2 m le
+
+/-- A builder call in a transcript. -/
+theorem lift {b : Build α} {d : Duplex} (h : Ensures c n P b Q) :
+    Ensures c n P ((monadLift b : Transcript α).run d) (fun r m => Q r.1 m ∧ r.2 = d) := by
+  rw [StateT.run_monadLift]
+  exact h.bind fun a m _ => Ensures.pure fun h => ⟨h.2, rfl⟩
+
+/-- A loop from step `j` on. -/
+theorem loop_from {xs : List δ} {body : δ → γ → Build (ForInStep γ)} (I : ℕ → γ → ℕ → Prop)
+    (step : ∀ k (hk : k < xs.length) acc m, n ≤ m → Ensures c m (P ∧ I k acc m) (body xs[k] acc)
+      (fun r m' => r = .yield r.value ∧ I (k + 1) r.value m')) :
+    ∀ t j, xs.length - j = t → j ≤ xs.length → ∀ acc m, n ≤ m →
+      Ensures c m (P ∧ I j acc m) (forIn (xs.drop j) acc body) (fun r m' => I xs.length r m')
+  | 0, j, ht, hj, acc, m, _ => by
+      have e : j = xs.length := by omega
+      subst e
+      rw [List.drop_length, List.forIn_nil]
+      exact Ensures.pure fun h => h.2
+  | t + 1, j, ht, hj, acc, m, hm => by
+      have hj' : j < xs.length := by omega
+      rw [List.drop_eq_getElem_cons hj', List.forIn_cons]
+      refine (step j hj' acc m hm).bind fun r m' le => ?_
+      cases r with
+      | done b => exact (Ensures.pure (Q := fun _ _ => True) fun _ => trivial).post fun h => absurd h.2.1 (by simp)
+      | yield b => exact (loop_from I step t (j + 1) (by omega) hj' b m' (hm.trans le)).pre fun h => ⟨h.1.1, h.2.2⟩
+
+/-- **A loop over a list.** `I k acc m`: after `k` steps the accumulator is
+`acc` with `m` values. -/
+theorem loop {xs : List δ} {init : γ} {body : δ → γ → Build (ForInStep γ)} (I : ℕ → γ → ℕ → Prop)
+    (step : ∀ k (hk : k < xs.length) acc m, n ≤ m → Ensures c m (P ∧ I k acc m) (body xs[k] acc)
+      (fun r m' => r = .yield r.value ∧ I (k + 1) r.value m')) :
+    Ensures c n (P ∧ I 0 init n) (forIn xs init body) (fun r m => I xs.length r m) :=
+  loop_from I step _ 0 rfl (Nat.zero_le _) init n le_rfl
+
+/-- A loop over a list in a transcript; `I k acc e m` also names the duplex. -/
+theorem loopT_from {xs : List δ} {body : δ → γ → Transcript (ForInStep γ)} (I : ℕ → γ → Duplex → ℕ → Prop)
+    (step : ∀ k (hk : k < xs.length) acc e m, n ≤ m → Ensures c m (P ∧ I k acc e m) ((body xs[k] acc).run e)
+      (fun r m' => r.1 = .yield r.1.value ∧ I (k + 1) r.1.value r.2 m')) :
+    ∀ t j, xs.length - j = t → j ≤ xs.length → ∀ acc e m, n ≤ m →
+      Ensures c m (P ∧ I j acc e m) ((forIn (xs.drop j) acc body).run e) (fun r m' => I xs.length r.1 r.2 m')
+  | 0, j, ht, hj, acc, e, m, _ => by
+      have h : j = xs.length := by omega
+      subst h
+      rw [List.drop_length, List.forIn_nil, StateT.run_pure]
+      exact Ensures.pure fun h => h.2
+  | t + 1, j, ht, hj, acc, e, m, hm => by
+      have hj' : j < xs.length := by omega
+      rw [List.drop_eq_getElem_cons hj', List.forIn_cons, StateT.run_bind]
+      refine (step j hj' acc e m hm).bind fun r m' le => ?_
+      obtain ⟨r, e'⟩ := r
+      cases r with
+      | done b =>
+          show Ensures c m' _ (Pure.pure (b, e') : Build (γ × Duplex)) _
+          exact (Ensures.pure (Q := fun _ _ => True) fun _ => trivial).post fun h => absurd h.2.1 (by simp)
+      | yield b =>
+          exact (loopT_from I step t (j + 1) (by omega) hj' b e' m' (hm.trans le)).pre fun h => ⟨h.1.1, h.2.2⟩
+
+/-- **A loop over a list in a transcript.** -/
+theorem loopT {xs : List δ} {init : γ} {body : δ → γ → Transcript (ForInStep γ)} {d : Duplex}
+    (I : ℕ → γ → Duplex → ℕ → Prop)
+    (step : ∀ k (hk : k < xs.length) acc e m, n ≤ m → Ensures c m (P ∧ I k acc e m) ((body xs[k] acc).run e)
+      (fun r m' => r.1 = .yield r.1.value ∧ I (k + 1) r.1.value r.2 m')) :
+    Ensures c n (P ∧ I 0 init d n) ((forIn xs init body).run d) (fun r m => I xs.length r.1 r.2 m) :=
+  loopT_from I step _ 0 rfl (Nat.zero_le _) init d n le_rfl
+
+/-- **An accepting run meets what the program ensures.** -/
+theorem exec {b : Build α} (h : Ensures c 0 P b Q) (hP : P)
+    (hval : c.val = (Exec.run c.perm c.stmt c.tape b.program).value)
+    (accepts : Exec c.perm b.program c.stmt c.tape) : Q (b.run {}).1 (b.run {}).2.values := by
+  obtain ⟨new, hi, -, hs⟩ := h {} Exec.start rfl rfl
+  have run : Exec.run c.perm c.stmt c.tape b.program = c.steps new Exec.start := by
+    rw [Exec.run, Build.program, hi]
+    simp only [Array.empty_append, List.toList_toArray]
+    rfl
+  exact hs hP (fun v _ => by rw [hval, run]) (by rw [Exec, run] at accepts; exact accepts)
+
+end Ensures
 
 end CompressionLean.Circuit

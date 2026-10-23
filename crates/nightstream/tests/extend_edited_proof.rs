@@ -1,5 +1,5 @@
 //! Extending a proof whose fresh commitment was edited in its bytes.
-//! The rule: every proof that `extend` hands back verifies.
+//! Every engine refuses it at the PiDEC commitment check.
 
 use std::{fs, path::PathBuf, time::Instant};
 
@@ -43,9 +43,8 @@ fn edit_fresh_commitment(mut bytes: Vec<u8>) -> Vec<u8> {
 }
 
 /// Prove one step on `engine`, edit the fresh commitment of its bytes, and
-/// extend the decoded proof. Returns whether extend handed back a proof, and
-/// the verifier's answer for that proof.
-fn extend_edited(engine: Engine) -> Option<Result<(), String>> {
+/// require extend to refuse the decoded proof at the PiDEC commitment check.
+fn extend_refuses_an_edited_fresh_commitment(engine: Engine) {
     let started = Instant::now();
     let circuit = compiled();
     let prover = circuit.prover(engine, 114).unwrap();
@@ -68,36 +67,27 @@ fn extend_edited(engine: Engine) -> Option<Result<(), String>> {
         "the edit must hit the fresh commitment: {rejected}"
     );
 
-    let outcome = match prover.extend(&edited, &message) {
-        Err(error) => {
-            eprintln!("{engine:?} extend failed: {error}");
-            None
-        }
-        Ok(next) => {
-            let verdict = verifier
-                .verify(next.state(), &next)
-                .map_err(|error| error.to_string());
-            eprintln!("{engine:?} extend returned a proof; verify: {verdict:?}");
-            Some(verdict)
-        }
-    };
-    eprintln!("elapsed={:?}", started.elapsed());
-    outcome
+    let error = prover
+        .extend(&edited, &message)
+        .err()
+        .unwrap_or_else(|| panic!("{engine:?} extend returned a proof of the edited proof"))
+        .to_string();
+    eprintln!("{engine:?} extend failed: {error}, elapsed={:?}", started.elapsed());
+    assert!(
+        error.contains("PiDEC public checks failed") && error.contains("c=false"),
+        "{engine:?} extend must fail the PiDEC commitment check: {error}"
+    );
 }
 
 #[test]
 #[ignore = "Full production profile; run this test separately under the 300-second cap."]
-fn cpu_extend_of_an_edited_fresh_commitment_returns_no_unverifiable_proof() {
-    if let Some(verdict) = extend_edited(Engine::Optimized) {
-        verdict.expect("extend handed back a proof that verify rejects");
-    }
+fn cpu_extend_refuses_an_edited_fresh_commitment() {
+    extend_refuses_an_edited_fresh_commitment(Engine::Optimized);
 }
 
 #[cfg(feature = "metal")]
 #[test]
 #[ignore = "Full production Metal profile; run this test separately under the 300-second cap."]
-fn metal_extend_of_an_edited_fresh_commitment_returns_no_unverifiable_proof() {
-    if let Some(verdict) = extend_edited(Engine::Metal) {
-        verdict.expect("extend handed back a proof that verify rejects");
-    }
+fn metal_extend_refuses_an_edited_fresh_commitment() {
+    extend_refuses_an_edited_fresh_commitment(Engine::Metal);
 }

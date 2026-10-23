@@ -178,9 +178,15 @@ theorem pointK_extract_take (p : Array Ext) (n : ℕ) : pointK (K := K) (p.extra
 
 variable [DecidableEq K]
 
-/-- A successful late replay is a path of `lateGame` that draws the replay's
-`β` and GKR challenges and ends in the model's `LateOut` of the replay's
-values; along it every `LateChecks` condition holds. -/
+/-- The model's messages of the replay's late stage: the GKR messages and
+the late values. -/
+def lateMsgs (rel : Replay.Relation) (proof : Replay.Proof) : List (Σ M : Type, M) :=
+  gkrMsgs (K := K) rel.lateShapes proof.late ++ [⟨ℕ → K × K, fun j => pairK (proof.lateValues[j]!)⟩]
+
+/-- A successful late replay is a path of `lateGame` that receives the
+proof's messages, draws the replay's `β` and GKR challenges and ends in the
+model's `LateOut` of the replay's values; along it every `LateChecks`
+condition holds. -/
 theorem late_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : ProofShape rel proof) (S : Setup Fp)
     (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
     (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S) {lin : Replay.LinearOut}
@@ -191,7 +197,8 @@ theorem late_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : Pro
       (∀ u, u < rel.lateShapes.size → (late.gkr.leafPoint[u]!).size = (rel.lateShapes[u]!).depth) ∧
       late.pairs = proof.lateValues ∧ late.openings = lateOpeningsOf rel.key.layout late.beta late.gkr ∧
       Game.Reaches (lateGame (shapeOf rel) S lin.lam.toK (laneWeight (shapeOf rel) barOf lin.zeta.toK) cands p1)
-        (ds.map (drawn (K := K) q)) (some ⟨late.beta.toK, mc, fun j => pairK (proof.lateValues[j]!)⟩) := by
+        (lateMsgs (K := K) rel proof) (ds.map (drawn (K := K) q))
+        (some ⟨late.beta.toK, mc, fun j => pairK (proof.lateValues[j]!)⟩) := by
   unfold lateStage at run
   obtain ⟨beta, t1, h1, run⟩ := run_bind run
   obtain ⟨claims, t2, h2, run⟩ := run_bind run
@@ -235,10 +242,10 @@ theorem late_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : Pro
   refine ⟨.ext beta :: dsG, ?_, mc, claimsAgree, lengths, rfl, checked'.openings, ?_⟩
   · rw [run_observeExts h4, drawsG, run_sampleExt h1]
     simp
-  · unfold lateGame
+  · unfold lateGame lateMsgs
     rw [List.map_cons, drawn_ext]
     apply Game.Reaches.draw beta.toK
-    refine Game.Reaches.congr (Game.Reaches.bind reachG ?_) (List.append_nil _)
+    refine Game.Reaches.congr (Game.Reaches.bind reachG ?_) rfl (List.append_nil _)
     apply Game.Reaches.recv (fun j => pairK (proof.lateValues[j]!))
     rw [if_pos checks]
     exact Game.Reaches.pure _

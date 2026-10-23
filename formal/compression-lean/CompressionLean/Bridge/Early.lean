@@ -138,6 +138,13 @@ def histOf (proof : Replay.Proof) (i : ℕ) : Fp := (proof.histogram[i]!).toF
 def challengesOf (ch : Replay.EarlyChallenges) : Layer1.EarlyChallenges K :=
   ⟨ch.beta.toK, pairK ch.lookup, pairK ch.scatter⟩
 
+/-- The model's messages of the replay's early stage: the P0 candidates, the
+histogram, the GKR messages and the early values. -/
+def earlyMsgs (rel : Replay.Relation) (proof : Replay.Proof) {L0 : ℕ}
+    (cands : {l : List (P0Tables Fp) // l.length ≤ L0}) : List (Σ M : Type, M) :=
+  ⟨{l : List (P0Tables Fp) // l.length ≤ L0}, cands⟩ :: ⟨ℕ → Fp, histOf proof⟩ ::
+    (gkrMsgs (K := K) rel.earlyShapes proof.early ++ [⟨Layer1.EarlyValues K, valuesOf proof.earlyValues⟩])
+
 theorem earlyShapes_size (rel : Replay.Relation) : rel.earlyShapes.size = 5 := rfl
 
 theorem earlyShapes_agree (rel : Replay.Relation) : ShapesAgree (earlyShape (shapeOf rel)) rel.earlyShapes where
@@ -172,9 +179,10 @@ section Stage
 
 variable [DecidableEq K]
 
-/-- A successful early replay is a path of `earlyGame` that draws the
-replay's challenges and ends in the model's `EarlyOut` of the replay's
-values; along it every `EarlyChecks` condition holds. -/
+/-- A successful early replay is a path of `earlyGame` that receives the
+candidates and the proof's messages, draws the replay's challenges and ends
+in the model's `EarlyOut` of the replay's values; along it every
+`EarlyChecks` condition holds. -/
 theorem early_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof)
     (shape : ProofShape rel proof) (fits : st.fits rel = true)
     (rowFits : rel.key.layout.rowVariables ≤ rel.pointVariables) (matricesFit : rel.matrices ≤ 2 ^ rel.matrixVars)
@@ -185,8 +193,8 @@ theorem early_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : R
       (∀ u, u < rel.earlyShapes.size → (o.gkr.leafPoint[u]!).size = (rel.earlyShapes[u]!).depth) ∧
       o.values = proof.earlyValues ∧ o.zLeaf = o.challenges.beta - o.gkr.leafValue 0 0 ∧
       o.openings = earlyOpeningsOf rel.key.layout o.challenges o.gkr proof.earlyValues ∧
-      Game.Reaches (earlyGame (shapeOf rel) S (statementOf st) L0) (ds.map (drawn (K := K) q))
-        (some ⟨cands, histOf proof, challengesOf o.challenges, mc, valuesOf o.values⟩) := by
+      Game.Reaches (earlyGame (shapeOf rel) S (statementOf st) L0) (earlyMsgs (K := K) rel proof ⟨cands, short⟩)
+        (ds.map (drawn (K := K) q)) (some ⟨cands, histOf proof, challengesOf o.challenges, mc, valuesOf o.values⟩) := by
   unfold earlyStage at run
   obtain ⟨_, t1, h1, run⟩ := run_bind run
   obtain ⟨_, t2, h2, run⟩ := run_bind run
@@ -269,14 +277,14 @@ theorem early_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : R
   · rw [run_observeExts h12, drawsG, run_samplePair h6, run_samplePair h5, run_sampleExt h4, run_observeAll h3,
       run_observeAll h2, run_observeAll h1]
     simp
-  · unfold earlyGame
-    apply Game.Reaches.recv ⟨cands, short⟩
+  · unfold earlyGame earlyMsgs
+    apply Game.Reaches.recv (⟨cands, short⟩ : {l : List (P0Tables Fp) // l.length ≤ L0})
     apply Game.Reaches.recv (histOf proof)
     simp only [List.map_cons, List.cons_append, List.nil_append, drawn_ext, drawn_pair]
     apply Game.Reaches.draw beta.toK
     apply Game.Reaches.draw (pairK lookup)
     apply Game.Reaches.draw (pairK scatter)
-    refine Game.Reaches.congr (Game.Reaches.bind reachG ?_) (List.append_nil _)
+    refine Game.Reaches.congr (Game.Reaches.bind reachG ?_) rfl (List.append_nil _)
     apply Game.Reaches.recv (valuesOf proof.earlyValues)
     rw [if_pos checks]
     exact Game.Reaches.pure _

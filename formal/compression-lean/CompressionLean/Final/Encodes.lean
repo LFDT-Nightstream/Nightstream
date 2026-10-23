@@ -4,6 +4,7 @@ import CompressionLean.Circuit.SimVerify
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Sound
 import CompressionLean.Circuit.RecordCounts
+import CompressionLean.Circuit.Valid
 import CompressionLean.Bridge.Main
 import CompressionLean.Final.KeyFacts
 
@@ -49,6 +50,10 @@ Irreducible, so that no check evaluates the program. -/
 /-- The shrink run of the final program for the statement `x`. -/
 noncomputable def prog (x : StateWords) : Shrink.Run Spec.F :=
   lower (program key loaded context).program (List.ofFn x)
+
+/-- Each shrink run of the program names only its own cells (`lower_valid`). -/
+theorem prog_valid (x : StateWords) : (prog key loaded context x).Valid Block.poseidonTemplate :=
+  lower_valid Block.poseidonTemplate (Nat.le_of_eq rfl) _ _
 
 /-- The executor's run of the final program on `x` and the witness `w`. -/
 noncomputable def ctxOf (x : StateWords) (w : ℕ → Spec.F) : Ctx Spec.F :=

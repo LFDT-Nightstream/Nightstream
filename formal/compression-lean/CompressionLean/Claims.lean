@@ -1,41 +1,51 @@
 import CompressionLean.Final.Encodes
 import CompressionLean.Final.ParentClaim
-import CompressionLean.Circuit.Valid
+import CompressionLean.Final.KeyFacts
+import CompressionLean.Final.RustSetup
 
 /-!
-Owns the production bound for the production final program: the bound of
-`final_restore_budget_parent` with the program `Encodes.prog`, its Poseidon2
-template and its reading `Encodes.Reads`, where `programEncodes` gives the
-encoding premise.
+Owns the claims of the library: the production bound, and the theorems that
+link its premises to a proof or to a check. Each claim is stated in full here;
+its proof is in the library.
 
-The premises that remain are facts about the layer-1 key, the terminal
-package and the setup. None is about the witness.
+- `production_bound`: the soundness bound of `CompressionKey::verify` for the
+  production final program, for F′'s reference application.
+- `honest_setup_of_build`: the honest setup from Rust's setup build and
+  `RunsGive`.
+- `key_facts_of_check`, `package_templates_of_check`: a key or a terminal
+  package that passes the check of `lowerCheck` and `terminalCheck` has the
+  premise that the check decides.
+
+`CompressionLeanTests/Axioms.lean` pins the axioms of exactly these theorems.
+`STATUS.md` lists the named premises of each claim and how each one is met;
+`TRUST.md` lists what the claims trust.
 -/
 
-namespace CompressionLean.Final
+namespace CompressionLean.Claims
 
 open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle NightstreamFPrime.Export.Stage1
+open NightstreamFPrime.Export.Package (CircuitPackage)
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
 open CompressionLean.Bridge (shapeOf structureOf barOf queryAt)
 open CompressionLean.Circuit (Layer1Input)
 open CompressionLean.Circuit.Package (Loaded load)
+open CompressionLean.Final
 open CompressionLean.Final.Encodes
 open CompressionLean.Circuit.Goldilocks Fin.CommRing
 
 attribute [local instance] Circuit.challengeCubic
 
-/-- Each shrink run of the program names only its own cells. -/
-private theorem prog_valid (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl) (x : StateWords) :
-    (prog key loaded context x).Valid Circuit.Block.poseidonTemplate :=
-  Circuit.lower_valid Circuit.Block.poseidonTemplate (Nat.le_of_eq rfl) _ _
-
-/-- **The production bound for the final program** (`CompressionKey::verify`,
-`lifecycle/finish.rs:131-145`). Under Fiat–Shamir, with the charged terms of
-each commitment within Rust's split, a prover with `calls` queries makes the
-final verifier accept a statement whose F′ claim is false, while every
-program witness among the shrink candidates has a reading that layer 1 ran,
-with probability at most `calls / 2^t`. -/
-theorem final_restore_budget_program (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl)
+/-- **The production bound** (`CompressionKey::verify`,
+`lifecycle/finish.rs:131-145`). Take the production final program for the
+layer-1 key `key` (`Encodes.prog`), the terminal package with the context
+words of `authority`, and an honest setup `S` of F′'s relation. Under
+Fiat–Shamir, with the charged terms of each commitment within Rust's split,
+a prover with `calls` queries makes the final verifier accept a statement
+whose F′ claim (`ParentClaim`) is false, while every program witness among
+the shrink candidates has a reading that layer 1 ran (`Encodes.Reads`), with
+probability at most `calls / 2^t`. -/
+theorem production_bound (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl)
     (authority : Lifecycle.VerifierContext.Authority) (S : Layer1.Setup Gl)
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
@@ -72,4 +82,29 @@ theorem final_restore_budget_program (key : Layer1Input) (loaded : Loaded) (cont
     (prog_valid key loaded context) authority (Reads key loaded context S L0 L1)
     (programEncodes S facts fits describes L0 L1 loads valid hctx) calls prover
 
-end CompressionLean.Final
+/-- **The honest setup from the build** (`neo_spartan::Setup::build`). A setup
+that `build` returns for the seed of an Ajtai setup, from runs that give F′'s
+matrices (`RunsGive`), is an honest setup for that setup's key. -/
+theorem honest_setup_of_build {lw : ℕ}
+    {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
+    (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
+    (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
+      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)))
+    (relation : ProductionKey.LogicalRelation lw pf) (pushes : List Push) {S : Layer1.Setup Gl}
+    (built : build setup.seed.bytes (Phi81CarrierLayout.carrierWidth lw) productionProfile.ccsMatrices pushes = some S)
+    (gives : RunsGive pushes relation) :
+    HonestSetup s S relation setup.verifierKey :=
+  honestSetup_of_build s D lanes setup relation pushes built gives
+
+/-- **The key check** of `lowerCheck` and `terminalCheck`: a key that fails no
+check has `KeyFacts`. -/
+theorem key_facts_of_check {key : Layer1Input} (pass : keyFailure key = none) : KeyFacts key :=
+  keyFacts_of_check pass
+
+/-- **The package check** of `terminalCheck`: a package whose compact row
+invocations all name a template has `CompactTemplatesValid`. -/
+theorem package_templates_of_check {package : CircuitPackage}
+    (named : Circuit.Package.templatesNamed package = true) : package.CompactTemplatesValid :=
+  Circuit.Package.compactTemplatesValid_of_named named
+
+end CompressionLean.Claims

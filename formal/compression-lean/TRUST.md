@@ -1,14 +1,16 @@
 # What is trusted
 
 Everything that, if wrong, could make a claim of this project false without a Lean error. The claims
-are the theorems that `CompressionLeanTests/Axioms.lean` pins. `lake build` checks that each one uses
-only `propext`, `Classical.choice` and `Quot.sound`. The README states, per layer, what each part
-assumes; this file lists the layers in one place.
+are the theorems of `CompressionLean/Claims.lean`, and `CompressionLeanTests/Axioms.lean` pins their
+axioms. `lake build` checks that every theorem of the library uses only `propext`, `Classical.choice`
+and `Quot.sound`. The README states, per layer, what each part assumes; this file lists the layers in
+one place.
 
 ## 1. The Lean kernel and the build cache
 
 The toolchain in `lean-toolchain`. No proof may use `native_decide` (the axiom audit rejects
-`Lean.ofReduceBool`), so the compiled evaluator is not trusted. The `.olean` files of Mathlib and of
+`Lean.ofReduceBool`), so no proof trusts the compiled evaluator. The executables of section 5 do: they
+link the claims to Rust's artifacts. The `.olean` files of Mathlib and of
 `nightstream-fprime` come from a build cache that `lake build` does not re-check. Re-checking the
 environment with `lean4checker`, or building both from source, removes this layer.
 
@@ -33,11 +35,18 @@ The claims bound a probability. They take these as part of the model, not as Lea
 - **Merkle binding.** A setup leaf that reaches the key root and disagrees with the setup gives a
   Poseidon2 collision (`MerkleBinds`).
 
-## 4. Open premises
+## 4. Premises
 
-Two premises of the final theorems are hypotheses, not theorems, until they are proved:
-`ProgramEncodes` (`Final/Claim.lean`) and `RunsGive` (`Final/RustSetup.lean`). A claim that takes
-one says nothing about a program or a setup that does not meet it.
+A claim that takes a premise says nothing about a key, a package or a setup that does not meet it.
+`STATUS.md` lists the named premises of each claim and how each one is met. `ProgramEncodes`
+(`Final/Claim.lean`) is not one of them: `Final/Encodes.lean` proves it for the production final
+program, so `production_bound` does not take it. These remain open:
+
+- `RunsGive` (`Final/RustSetup.lean`): the runs that Rust's `PackageRows::visit_rows` pushes give
+  F′'s matrices. With the port of Rust's setup build, it gives `HonestSetup`
+  (`honest_setup_of_build`).
+- The facts of the setup that Rust builds (`Setup.Fits`, `Structure.Describes`), and the sizes of the
+  key's shape that the key check does not decide (`ParentShape`, `Shape.Sizes`).
 
 ## 5. The ports
 
@@ -52,11 +61,18 @@ and key expander (`Final/RustSetup.lean`). A port equals its Rust only as far as
   hash. It detects a change; it does not show that the port is right. `lake build` fails when a
   declaration that cites Rust has no entry.
 - Ignored Rust tests compare the replay's draws and verdicts, and the programs' instructions, with
-  Rust on fixed inputs. They run by hand, not in CI.
+  Rust on fixed inputs. They run by hand, not in CI (`scripts/crosschecks.sh`).
+- The executables check the production artifacts against premises of the claims: `lowerCheck` and
+  `terminalCheck` refuse a key without `KeyFacts`, and `terminalCheck` refuses a terminal package
+  that does not load or whose compact rows name a missing template. `key_facts_of_check` and
+  `package_templates_of_check` prove that a pass gives the premise; that the executables ran on the
+  production artifacts is the evidence of these Rust tests.
 
 ## 6. Scope
 
-The final theorems are stated for F′'s reference relation (`Data.logicalWidth`). They describe the
+The final theorems are stated for F′'s reference relation (`Data.logicalWidth`), and the terminal
+package, so the production final program, is F′'s reference application. An application of another
+width is outside the claims. They describe the
 native verifier and the circuit that Rust records; they say nothing about code paths that Lean does
 not model.
 

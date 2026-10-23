@@ -200,14 +200,23 @@ The shrink layer assumes, and does not prove:
   base field is Goldilocks, and their challenge field is
   `Cubic = Gl[x]/(x³ - x - 1)` with `p³` elements (`Fields.lean`). The
   production bound is `calls / 2^t` under Fiat–Shamir.
+- Production result (`Claims.lean`): `production_bound` is
+  `final_restore_budget_parent` for the production final program
+  (`Final/Encodes.lean`), where `programEncodes` gives the encoding. Its
+  other premises are facts about the key (`KeyFacts`), the terminal package
+  and the setup. `Claims.lean` holds the library's claims; `STATUS.md`
+  lists each claim's premises and how each one is met.
 
 The chain takes these premises:
 
-- Encoding (`ProgramEncodes`, open): a witness of the final program's CCS
+- Encoding (`ProgramEncodes`): a witness of the final program's CCS
   holds a terminal assignment for its statement, and every reading of its
   layer-1 part is an accepting layer-1 path for the parent claim of that
   assignment. It stands for `FinalProgram::run`, recorded by `record.rs`
-  and placed by `layout.rs`. No Lean proof of it exists.
+  and placed by `layout.rs`. `programEncodes` (`Final/Encodes.lean`) proves
+  it for the production final program, for a key with `KeyFacts`: the
+  `Sim*` files show that each stage of the circuit computes the replay's
+  values, and the bridge turns the accepting replay into a layer-1 path.
 - Readings: a reading of a witness takes its statement, proof words and
   challenges from the witness. At each commitment it takes a candidate list
   with a table that agrees with every value that the witness opens there.
@@ -270,8 +279,8 @@ The chain takes these premises:
 
 ## Lowering
 
-`Circuit/` is the first step toward `ProgramEncodes`. A program is Lean
-data, and Lean lowers it to the shrink run as `record.rs` does.
+`Circuit/` gives `ProgramEncodes`. A program is Lean data, and Lean lowers
+it to the shrink run as `record.rs` does.
 
 - Model (`Ir.lean`): a program is a flat list of instructions over value
   handles (`Instr`). An instruction is one `Backend` call that `record.rs`
@@ -320,9 +329,6 @@ The lowering assumes, and does not prove:
   production key's relation.
 - Fields: the check runs `lower` in Goldilocks. In another field, the zero
   tests of constant folding can differ from Rust's.
-- Encoding: that an accepting run of `Exec` on the final program is an
-  accepting run of the layer-1 verifier for its terminal claim
-  (`ProgramEncodes`).
 
 Build and emit (each Lean command under the 1,500 s cap). Copy the F′ build
 cache into `.lake` first (`cp -cR ../nightstream-fprime/.lake/packages .lake/`)

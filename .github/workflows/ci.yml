@@ -2,7 +2,7 @@ name: Test Workflow
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, nico/f-prime-constraints-cuda-formal ]
   pull_request:
 
 concurrency:

@@ -85,6 +85,21 @@ def layer1Msgs (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.P
   ⟨Layer1.Statement Fp, statementOf st⟩ :: (earlyMsgs (K := K) rel proof cands ++
     (linearMsgs (K := K) rel proof ++ (honestMsgs proof p1 ++ lateMsgs (K := K) rel proof)))
 
+/-- The replay up to the late stage: `verify` before WHIR's transcripts and the
+opening checks. Its draws are the draws of the layer-1 game. -/
+def verifyStages (rel : Replay.Relation) (seed : Array Gl) (st : Replay.Statement) (proof : Replay.Proof) :
+    ReplayM Unit := do
+  ensure (st.fits rel) "claim words"
+  liftExcept (readProof rel proof)
+  observeAll seed
+  observeAll rel.words
+  observeAll st.words
+  let early ← earlyStage rel st proof
+  let lin ← linearStage rel st proof
+  let _ ← honestStage rel proof early lin
+  let _ ← lateStage rel proof lin
+  pure ()
+
 /-- **The bridge.** Take a run that the replay accepts, with WHIR's guarantee
 at the points that it returns. Some path of `layer1Game` receives the
 replay's statement, proof and candidate lists, draws the replay's
@@ -96,8 +111,9 @@ theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Fp) (fact
     (short1 : p1.length ≤ L1) {t t' : Replay.Transcript} {points : OpeningPoints}
     (run : Runs (verify rel seed st proof) t points t') (whir : WhirOpens (shapeOf rel) proof points cands p1) :
     ∃ (tr : Transcript Fp K (shapeOf rel).queries (2 ^ (rel.setupVars - 2))) (ds rest : List Draw),
-      t'.draws.toList = t.draws.toList ++ ds ++ rest ∧ tr.statement = statementOf st ∧
-      tr.early.candidates = cands ∧
+      t'.draws.toList = t.draws.toList ++ ds ++ rest ∧
+      (∃ t₄, Runs (verifyStages rel seed st proof) t () t₄ ∧ t₄.draws.toList = t.draws.toList ++ ds) ∧
+      tr.statement = statementOf st ∧ tr.early.candidates = cands ∧
       Game.Reaches (layer1Game (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocks (queryAt rel))
         (layer1Msgs rel st proof ⟨cands, short0⟩ ⟨p1, short1⟩) (ds.map (drawn (K := K) rel.queries)) (some tr) := by
   unfold verify at run
@@ -134,8 +150,12 @@ theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Fp) (fact
   have opens := opens_of_replay (K := K) rel st proof shape S merkle facts.sizes.setup facts.high cands p1 agree
     values zLeaf openings linRun honestRun agreeL latePairs lateOpenings p1ok p0ok whir
   refine ⟨transcriptOf rel st proof cands p1 early mc lin honest late mcL, dsE ++ dsL ++ dsH ++ dsT, dsW1 ++ dsW0,
-    ?_, rfl, rfl, ?_⟩
+    ?_, ⟨t9, ?_, ?_⟩, rfl, rfl, ?_⟩
   · rw [drawsW0, drawsW1, drawsT, drawsH, drawsL, drawsE, run_observeAll h5, run_observeAll h4, run_observeAll h3]
+    simp only [List.append_assoc]
+  · exact runs_bind h1 (runs_bind h2 (runs_bind h3 (runs_bind h4 (runs_bind h5 (runs_bind h6 (runs_bind h7
+      (runs_bind h8 (runs_bind h9 (runs_pure () t9)))))))))
+  · rw [drawsT, drawsH, drawsL, drawsE, run_observeAll h5, run_observeAll h4, run_observeAll h3]
     simp only [List.append_assoc]
   · unfold layer1Game layer1Msgs
     apply Game.Reaches.recv (statementOf st)
@@ -167,7 +187,7 @@ theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Fp) (facts : Rel
         Game.Pos.draws _ p = ds.map (drawn (K := K) rel.queries) ∧
         (∃ tr, Game.Pos.node _ p = .pure (some tr)) ∧
         (Game.Pos.Avoids _ p → ∃ w ∈ cands, Relation (shapeOf rel) phi barOf S (statementOf st) w.z) := by
-  obtain ⟨tr, ds, rest, draws, statement, candidates, p, node, pathDraws, -⟩ :=
+  obtain ⟨tr, ds, rest, draws, -, statement, candidates, p, node, pathDraws, -⟩ :=
     replay_accepts_implies_path rel S facts seed st proof merkle L0 L1 cands short0 p1 short1 run whir
   refine ⟨ds, rest, draws, p, pathDraws, ⟨tr, node⟩, fun clean => ?_⟩
   have witness := Game.Pos.sound (layer1Game_avoids (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2))

@@ -62,10 +62,20 @@ jobs:
     #     fi
     #     echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
       
+    - name: Get Rust cache key
+      id: rust
+      run: echo "cachekey=$(rustc -vV | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+
     - name: Cache dependencies
-      uses: Swatinem/rust-cache@v2
+      uses: actions/cache@v4
       with:
-        shared-key: nico-runner-portable-tests
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: nico-ubuntu22-${{ runner.arch }}-portable-v1-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-${{ hashFiles('Cargo.lock') }}
+        restore-keys: |
+          nico-ubuntu22-${{ runner.arch }}-portable-v1-${{ steps.rust.outputs.cachekey }}-${{ hashFiles('.cargo/config.toml', 'rust-toolchain.toml', '**/Cargo.toml') }}-
 
     - name: Build test archive
       run: >-
@@ -122,12 +132,15 @@ jobs:
         name: ci-tests-linux-x64
 
     - name: Run test partition without rebuilding
-      run: >-
-        timeout --signal=TERM --kill-after=5s 295s cargo-nextest nextest run --profile ci
-        --archive-file ci-tests.tar.zst
-        --workspace-remap "$GITHUB_WORKSPACE"
-        -E 'not binary(=migration_hard_stops)'
-        --partition hash:${{ matrix.partition }}/4
+      run: |
+        # Two smaller batches keep each invocation within the five-minute cap.
+        for batch in "${{ matrix.partition }}" "$(( ${{ matrix.partition }} + 4 ))"; do
+          timeout --signal=TERM --kill-after=5s 295s cargo-nextest nextest run --profile ci \
+            --archive-file ci-tests.tar.zst \
+            --workspace-remap "$GITHUB_WORKSPACE" \
+            -E 'not binary(=migration_hard_stops)' \
+            --partition "hash:$batch/8"
+        done
 
   # ============================================================================
   # WASM Build Checks (with Spartan)

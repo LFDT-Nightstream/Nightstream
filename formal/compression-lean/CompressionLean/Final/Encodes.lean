@@ -19,7 +19,8 @@ Owns `ProgramEncodes` (`Claim.lean`) for the production final program
   that the in-circuit verifier computes from them, and candidate lists that
   WHIR's openings and the key's Merkle root bind.
 - `programEncodes`: `ProgramEncodes` from the `verify` composition
-  (`verify_ensures`) and premises on the key.
+  (`verify_ensures`) and premises on the key. The game uses F′'s modulus,
+  which is the bridge's `phi` (`phi_eq_modulus`).
 
 Adversary: the prover picks the whole witness. Nothing here assumes that a
 word is in range or that a hint is honest; the circuit's checks and the
@@ -32,6 +33,7 @@ open CompressionLean.Circuit CompressionLean.Circuit.Terminal CompressionLean.Ci
 open CompressionLean.Bridge CompressionLean.Layer1
 open NightstreamFPrime
 open CompressionLean.Circuit.Goldilocks Fin.CommRing
+open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial (modulus)
 
 attribute [local instance] challengeCubic
 
@@ -205,9 +207,16 @@ private theorem program_gives
 
 end Gives
 
-/-- The layer-1 game of the relation `rel` and the setup `S`. -/
+/-- The bridge's `Φ81` is F′'s modulus. -/
+theorem phi_eq_modulus : phi = modulus := by
+  unfold phi modulus
+  rw [add_assoc]
+  rfl
+
+/-- The layer-1 game of the relation `rel` and the setup `S`, with F′'s
+modulus, as the final theorems state it. -/
 noncomputable abbrev game (rel : Replay.Relation) (S : Setup Fp) (L0 L1 : ℕ) :=
-  layer1Game (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocks (queryAt (K := Final.Cubic) rel)
+  layer1Game (shapeOf rel) modulus barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocks (queryAt (K := Final.Cubic) rel)
 
 /-- **The reading.** The path `p` reads, from the witness `wit` of program
 `x`, the statement and the proof that the in-circuit verifier reads, the
@@ -236,8 +245,7 @@ private theorem statementOf_ctxOf (key : Layer1Input) (loaded : Loaded) (context
   fin_cases k <;> rfl
 
 /-- **`ProgramEncodes` for the production final program**
-(`lifecycle/terminal/mod.rs:54-80`), from the `verify` composition and
-premises on the key. -/
+(`lifecycle/terminal/mod.rs:54-80`), for a key that meets the premises. -/
 theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Replay.Gl}
     {authority : Lifecycle.VerifierContext.Authority} (S : Setup Fp) (facts : RelationFacts key.relation S)
     (L0 L1 : ℕ)
@@ -273,8 +281,10 @@ theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Re
   rw [statementOf_ctxOf] at terminal
   refine ⟨env, terminal, fun p reads => ?_⟩
   obtain ⟨cands, short0, p1, short1, msgs, draws, whir, merkle⟩ := reads
-  obtain ⟨tr, ds, rest, -, ⟨t₄, run₄, draws₄⟩, statement, -, p₀, node, pathDraws, pathMsgs⟩ :=
+  obtain ⟨tr, ds, rest, -, ⟨t₄, run₄, draws₄⟩, statement, -, reach⟩ :=
     replay_accepts_implies_path key.relation S facts _ _ _ merkle L0 L1 cands short0 p1 short1 run (whir _ _ run)
+  rw [phi_eq_modulus] at reach
+  obtain ⟨p₀, node, pathDraws, pathMsgs⟩ := reach
   have same : p = p₀ := by
     refine Game.Pos.eq_of_msgs_draws (msgs.trans pathMsgs.symm) (draws.trans ?_)
     rw [show Replay.eval _ start = _ from run₄, draws₄]

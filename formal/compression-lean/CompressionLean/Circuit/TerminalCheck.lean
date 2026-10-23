@@ -9,7 +9,9 @@ The `terminalCheck` executable. It reads an export of `nightstream`'s
 `tests/lifecycle_native/terminal_ir.rs`: the context words, the IR that Rust
 logs for `FinalProgram::run`, and for a run that stops at `verify_with` the
 claim and state handles that `Package::apply` hands to layer 1. It loads the
-Lean terminal package (`Package.load`) and writes `finalProgram`. Without a
+Lean terminal package (`Package.load`), after it checks that every compact
+row invocation names a template (`templatesNamed`), and writes
+`finalProgram`. Without a
 layer-1 key the layer-1 step returns its arguments, and the check requires
 the same instructions, one by one, and the same handles. With the key file
 of `neo-spartan`'s `lowering.rs` the step is `verifyWith`, the key must have
@@ -123,7 +125,11 @@ def main (args : List String) : IO UInt32 := do
             | none => IO.println "key facts hold"; pure (path, some key)
         | .error message => IO.eprintln s!"{keyPath}: {message}"; return 2
     | _ => IO.eprintln "usage: terminalCheck <export.txt> [<layer1.json>]"; return 2
-  match CompressionLean.Circuit.Package.load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs with
+  let circuit := CompressionLean.Terminal.circuitPackage ()
+  unless CompressionLean.Circuit.Package.templatesNamed circuit do
+    IO.println "a compact row invocation of the Lean package names no template"; return 1
+  IO.println "package templates hold"
+  match CompressionLean.Circuit.Package.load circuit CompressionLean.Terminal.outputs with
   | .error message => IO.println s!"the Lean package does not load: {message}"; return 1
   | .ok package =>
       match (check package key |>.run 0).run (← IO.FS.readBinFile path) with

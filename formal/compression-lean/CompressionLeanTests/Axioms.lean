@@ -335,6 +335,7 @@ import CompressionLean
 
 #audit_axioms CompressionLean.Circuit.verify_ensures
 #audit_axioms CompressionLean.Final.keyFacts_of_check
+#audit_axioms CompressionLean.Circuit.Package.compactTemplatesValid_of_named
 #audit_axioms CompressionLean.Final.Encodes.phi_eq_modulus
 #audit_axioms CompressionLean.Final.Encodes.programEncodes
 #audit_axioms CompressionLean.Final.final_restore_budget_program

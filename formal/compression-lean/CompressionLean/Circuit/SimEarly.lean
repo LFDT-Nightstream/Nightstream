@@ -14,6 +14,9 @@ Owns the simulation of the layer-1 verifier's early stage (`earlyStage` of
 - `Sim.lessThan`, `Sim.step`, `Sim.identity`, `Sim.chi`, `checkPair_ensures`,
   `Sim.observePairs`: the parts of `mle.rs` and `matrix.rs` that the late
   stage reads too.
+- `gkrVerify_sizes`, `IsGkr.entries` and their helpers: the sizes of the
+  replay's GKR claims and the entries of a GKR view, which the late stage
+  reads too.
 - The circuit and the replay may add or multiply in different orders. Their
   values agree in the challenge field `Final.Cubic`, where `Ext.toK` is
   injective (`toK_inj`). So an inverse hint that passes its check is the
@@ -344,7 +347,7 @@ private theorem ext_mul_inv {a : Ext} (ne : a ≠ 0) : a * a.inv = 1 := by
   exact mul_inv_cancel₀ fun z => ne (Replay.Ext.eq_zero_of_toK z)
 
 /-- Equal values pass the replay's equality test (`field.rs`). -/
-private theorem ext_beq_of_eq {a b : Ext} (e : a = b) : (a == b) = true := by
+theorem ext_beq_of_eq {a b : Ext} (e : a = b) : (a == b) = true := by
   subst e
   show (a.c0.word == a.c0.word && a.c1.word == a.c1.word && a.c2.word == a.c2.word) = true
   simp
@@ -398,7 +401,7 @@ private theorem checkEarly_ok {layout : Replay.Layout} {r : Array (Gl × Gl)} {c
 
 /-- The trees of `GkrView::read` (`gkr.rs:608-656`): none is empty, and each
 ends by the last layer. -/
-private theorem depth_bounds {proof : Replay.GkrProof} {shapes : Array TreeShape}
+theorem depth_bounds {proof : Replay.GkrProof} {shapes : Array TreeShape}
     (read : Replay.readGkr proof shapes = .ok ()) {u : ℕ} (inside : u < shapes.size) :
     1 ≤ shapes[u]!.depth ∧ shapes[u]!.depth ≤ Replay.layerCount shapes := by
   refine ⟨?_, ?_⟩
@@ -426,7 +429,7 @@ private theorem depth_bounds {proof : Replay.GkrProof} {shapes : Array TreeShape
 
 /-- A tree that ends at layer `k` gets one leaf value per part
 (`gkr.rs:727-740`). -/
-private theorem reducedOf_size {shapes : Array TreeShape} {k u : ℕ} {layer : Replay.GkrLayer} {tau : Ext}
+theorem reducedOf_size {shapes : Array TreeShape} {k u : ℕ} {layer : Replay.GkrLayer} {tau : Ext}
     (ok : Replay.layerShapeOk shapes k layer = true) (inside : u < shapes.size) (ends : shapes[u]!.depth = k) :
     (Replay.reducedOf ((Replay.activeTrees shapes k).zip layer.children).toList tau u).size =
       shapes[u]!.factors + 1 := by
@@ -452,33 +455,42 @@ private theorem reducedOf_size {shapes : Array TreeShape} {k u : ℕ} {layer : R
   · rename_i missing
     exact absurd (List.find?_eq_none.mp missing _ member) (by simp [← hsu])
 
-/-- After the layers from `k` on, the roots are kept, and a tree that ends
-among them has one leaf value per part (`gkr.rs:694-750`). -/
-private theorem gkrLayers_facts {shapes : Array TreeShape} :
+/-- The roots, leaf values and leaf points after the GKR layers from layer `k`
+(`gkr.rs:694-746`). -/
+theorem gkrLayers_sizes {shapes : Array TreeShape} :
     ∀ (layers : List Replay.GkrLayer) (k : ℕ) (cl g : Replay.GkrClaims) (t t' : Replay.Transcript),
-      Runs (Replay.gkrLayers shapes k layers cl) t g t' →
+      Runs (Replay.gkrLayers shapes k layers cl) t g t' → 1 ≤ k →
       (∀ i (h : i < layers.length), Replay.layerShapeOk shapes (k + i) layers[i] = true) →
-      cl.leafValues.size = shapes.size →
-      g.roots = cl.roots ∧ g.leafValues.size = shapes.size ∧ ∀ u < shapes.size,
-        (g.leafValues[u]!).size = if k ≤ shapes[u]!.depth ∧ shapes[u]!.depth < k + layers.length then
-          shapes[u]!.factors + 1 else (cl.leafValues[u]!).size
-  | [], k, cl, g, t, t', run, _, size => by
+      cl.leafValues.size = shapes.size → cl.leafPoint.size = shapes.size →
+      g.roots = cl.roots ∧ g.leafValues.size = shapes.size ∧ g.leafPoint.size = shapes.size ∧
+        ∀ u < shapes.size, ((g.leafValues[u]!).size, (g.leafPoint[u]!).size) =
+          if k ≤ shapes[u]!.depth ∧ shapes[u]!.depth < k + layers.length then
+            (shapes[u]!.factors + 1, shapes[u]!.depth) else ((cl.leafValues[u]!).size, (cl.leafPoint[u]!).size)
+  | [], k, cl, g, t, t', run, _, _, vsize, psize => by
       rw [Replay.gkrLayers] at run
       obtain ⟨rfl, rfl⟩ := Replay.run_pure run
-      exact ⟨rfl, size, fun u _ => by rw [if_neg (by simp)]⟩
-  | layer :: rest, k, cl, g, t, t', run, ok, size => by
+      exact ⟨rfl, vsize, psize, fun u _ => by rw [if_neg (by simp)]⟩
+  | layer :: rest, k, cl, g, t, t', run, one, ok, vsize, psize => by
       rw [Replay.gkrLayers] at run
       obtain ⟨_, t1, -, run⟩ := Replay.run_bind run
       obtain ⟨_, t2, -, run⟩ := Replay.run_bind run
-      obtain ⟨result, t3, -, run⟩ := Replay.run_bind run
+      obtain ⟨result, t3, sum, run⟩ := Replay.run_bind run
       obtain ⟨_, t4, -, run⟩ := Replay.run_bind run
       obtain ⟨_, t5, -, run⟩ := Replay.run_bind run
       obtain ⟨tau, t6, -, run⟩ := Replay.run_bind run
       have ok₀ : Replay.layerShapeOk shapes k layer = true := ok 0 (by simp)
-      obtain ⟨roots, vsize, values⟩ := gkrLayers_facts rest (k + 1) _ g t6 t' run (fun i h => by
-        have := ok (i + 1) (by simp; omega)
-        simpa [Nat.add_assoc, Nat.add_comm 1 i] using this) (by simp [Replay.advance, size])
-      refine ⟨roots, vsize, fun u hu => ?_⟩
+      have rounds : result.1.size = k - 1 := by
+        have := Bridge.sumcheckRounds_size _ _ _ _ _ _ sum
+        have shape := ok₀
+        simp only [Replay.layerShapeOk, Bool.and_eq_true, beq_iff_eq] at shape
+        rw [this, Array.length_toList, shape.1.1.1]
+        simp
+      obtain ⟨roots, vsize', psize', values⟩ := gkrLayers_sizes rest (k + 1) _ g t6 t' run (by omega)
+        (fun i h => by
+          have := ok (i + 1) (by simp; omega)
+          simpa [Nat.add_assoc, Nat.add_comm 1 i] using this) (by simp [Replay.advance, vsize])
+        (by simp [Replay.advance, psize])
+      refine ⟨roots, vsize', psize', fun u hu => ?_⟩
       rw [values u hu]
       have adv : (Replay.advance shapes k cl ((Replay.activeTrees shapes k).zip layer.children).toList result.1
           tau).leafValues[u]! = if shapes[u]!.depth = k then
@@ -486,28 +498,36 @@ private theorem gkrLayers_facts {shapes : Array TreeShape} :
           else cl.leafValues[u]! := by
         simp only [Replay.advance]
         exact Bridge.getElem!_map_range _ _ (by omega)
-      rw [adv]
+      have advPoint : (Replay.advance shapes k cl ((Replay.activeTrees shapes k).zip layer.children).toList result.1
+          tau).leafPoint[u]! = if shapes[u]!.depth = k then result.1.push tau else cl.leafPoint[u]! := by
+        simp only [Replay.advance]
+        exact Bridge.getElem!_map_range _ _ (by omega)
+      rw [adv, advPoint]
       by_cases e : shapes[u]!.depth = k
-      · rw [if_neg (by omega), if_pos e, if_pos (by simp; omega), reducedOf_size ok₀ hu e]
-      · rw [if_neg e]
+      · rw [if_neg (by omega), if_pos e, if_pos e, if_pos (by simp; omega), reducedOf_size ok₀ hu e, Array.size_push,
+          rounds, e, Nat.sub_add_cancel one]
+      · rw [if_neg e, if_neg e]
         simp only [List.length_cons]
         split_ifs <;> first | rfl | omega
 
 /-- The roots of `verify` (`gkr.rs:679-751`) are the proof's, and each tree
-has one leaf value per part. -/
-private theorem gkrVerify_facts {proof : Replay.GkrProof} {shapes : Array TreeShape} {t t' : Replay.Transcript}
+has one leaf value per part and a leaf point of its depth. -/
+theorem gkrVerify_sizes {proof : Replay.GkrProof} {shapes : Array TreeShape} {t t' : Replay.Transcript}
     {g : Replay.GkrClaims} (read : Replay.readGkr proof shapes = .ok ())
     (run : Runs (Replay.gkrVerify proof shapes) t g t') :
-    g.roots = proof.roots ∧ ∀ u < shapes.size, (g.leafValues[u]!).size = shapes[u]!.factors + 1 := by
+    g.roots = proof.roots ∧ ∀ u < shapes.size,
+      (g.leafValues[u]!).size = shapes[u]!.factors + 1 ∧ (g.leafPoint[u]!).size = shapes[u]!.depth := by
   obtain ⟨-, layersSize, layersOk⟩ := Bridge.readGkr_ok read
   unfold Replay.gkrVerify at run
   obtain ⟨_, t1, -, run⟩ := Replay.run_bind run
-  obtain ⟨roots, -, values⟩ := gkrLayers_facts proof.layers.toList 1 _ g t1 t' run (fun i h => by
+  obtain ⟨roots, -, -, values⟩ := gkrLayers_sizes proof.layers.toList 1 _ g t1 t' run le_rfl (fun i h => by
     rw [Nat.add_comm]
-    simpa using layersOk i (by simpa using h)) (by simp)
+    simpa using layersOk i (by simpa using h)) (by simp) (by simp)
   refine ⟨roots, fun u hu => ?_⟩
   have bounds := depth_bounds read hu
-  rw [values u hu, if_pos ⟨bounds.1, by rw [Array.length_toList, layersSize]; omega⟩]
+  have e := values u hu
+  rw [if_pos ⟨bounds.1, by rw [Array.length_toList, layersSize]; omega⟩] at e
+  exact Prod.mk.inj e
 
 
 /-- Tree `t`'s claim is the replay's (`TreeClaim`, `gkr.rs:70-78`). -/
@@ -549,7 +569,7 @@ private theorem extract_one {α : Type} [Inhabited α] (xs : Array α) (i : ℕ)
   · rw [getElem!_neg _ i (by simp; omega), getElem!_neg xs (i + 1) hi]
 
 /-- The entries of two related arrays (`verifier.rs:43-122`). -/
-private theorem forall₂_entries {α β : Type} [Inhabited β] {R : α → β → Prop} {xs : Array α} {ys : Array β}
+theorem forall₂_entries {α β : Type} [Inhabited β] {R : α → β → Prop} {xs : Array α} {ys : Array β}
     (h : List.Forall₂ R xs.toList ys.toList) : xs.size = ys.size ∧ ∀ i (hi : i < xs.size), R xs[i] ys[i]! := by
   obtain ⟨len, get⟩ := List.forall₂_iff_get.mp h
   simp only [Array.length_toList] at len
@@ -559,7 +579,7 @@ private theorem forall₂_entries {α β : Type} [Inhabited β] {R : α → β �
   simpa using this
 
 /-- A GKR view's roots and layers, entry by entry (`gkr.rs:591-656`). -/
-private theorem IsGkr.entries {c : Ctx F} {n : ℕ} {v : GkrView} {gp : Replay.GkrProof} (h : IsGkr c n v gp) :
+theorem IsGkr.entries {c : Ctx F} {n : ℕ} {v : GkrView} {gp : Replay.GkrProof} (h : IsGkr c n v gp) :
     (v.roots.size = gp.roots.size ∧ ∀ i < v.roots.size,
       IsExt c n (v.roots[i]!).1 (gp.roots[i]!).1 ∧ IsExt c n (v.roots[i]!).2 (gp.roots[i]!).2) ∧
     (v.layers.size = gp.layers.size ∧ ∀ i (hi : i < v.layers.size),
@@ -1094,10 +1114,10 @@ theorem earlyStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay
         hμ.mono (l₈.trans l₉), tableOk, hT.mono l₉, run, hc, hd₉⟩
   have five : ∀ {m}, IsGkrClaims c m claims gc → Runs (Replay.gkrVerify g.early rel.earlyShapes) t₇ gc t₉ →
       claims.size = 5 := fun hc run => by
-    rw [hc.1, (gkrVerify_facts shape.early run).1, rootsSize, Bridge.earlyShapes_size]
+    rw [hc.1, (gkrVerify_sizes shape.early run).1, rootsSize, Bridge.earlyShapes_size]
   have leaves : Runs (Replay.gkrVerify g.early rel.earlyShapes) t₇ gc t₉ → ∀ u < 5,
       (gc.leafValues[u]!).size = (rel.earlyShapes[u]!).factors + 1 :=
-    fun run u hu => (gkrVerify_facts shape.early run).2 u (by rw [Bridge.earlyShapes_size]; exact hu)
+    fun run u hu => ((gkrVerify_sizes shape.early run).2 u (by rw [Bridge.earlyShapes_size]; exact hu)).1
   have tree : ∀ {m}, IsGkrClaims c m claims gc → claims.size = 5 → ∀ u < 5, IsTree c m claims[u]! gc u :=
     fun hc h5 u hu => ⟨(hc.2 u (by omega)).1, (hc.2 u (by omega)).2.1, (hc.2 u (by omega)).2.2.1,
       (hc.2 u (by omega)).2.2.2⟩

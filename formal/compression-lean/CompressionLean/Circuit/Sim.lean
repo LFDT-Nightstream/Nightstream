@@ -781,11 +781,16 @@ theorem of_ensures {p : Builder} {b : Build α} {Q : α → ℕ → Prop} (h : E
 /-- `bind` at the state that `b` leaves, with the result that `b` returns. -/
 theorem bind {p : Builder} {b : Build α} {f : α → Build β} {Q : α → ℕ → Prop} {R : β → ℕ → Prop}
     (hb : EnsuresAt c p P b Q)
-    (hf : EnsuresAt c (b.run p).2 (P ∧ Q (b.run p).1 (b.run p).2.values) (f (b.run p).1) R) :
+    (hf : p.values ≤ (b.run p).2.values →
+      EnsuresAt c (b.run p).2 (P ∧ Q (b.run p).1 (b.run p).2.values) (f (b.run p).1) R) :
     EnsuresAt c p P (b >>= f) R := by
   intro E hE
   obtain ⟨new₁, hi₁, hl₁, hs₁⟩ := hb E hE
-  obtain ⟨new₂, hi₂, hl₂, hs₂⟩ := hf (c.steps new₁ E) hl₁
+  have hle : p.values ≤ (b.run p).2.values := by
+    obtain ⟨more, hm, -⟩ := c.steps_values new₁ E
+    rw [← hl₁, hm, List.length_append, hE]
+    omega
+  obtain ⟨new₂, hi₂, hl₂, hs₂⟩ := hf hle (c.steps new₁ E) hl₁
   refine ⟨new₁ ++ new₂, ?_, ?_, ?_⟩
   · show ((f (b.run p).1).run (b.run p).2).2.instrs = _
     rw [hi₂, hi₁]
@@ -795,6 +800,12 @@ theorem bind {p : Builder} {b : Build α} {f : α → Build β} {Q : α → ℕ 
   · intro hP hF hh
     rw [Ctx.steps_append] at hF hh
     exact hs₂ ⟨hP, hs₁ hP (Ctx.follows_of_steps hF) (Ctx.holds_of_steps hh)⟩ hF hh
+
+theorem pre {P' : Prop} {p : Builder} {b : Build α} {Q : α → ℕ → Prop} (h : EnsuresAt c p P b Q) (hp : P' → P) :
+    EnsuresAt c p P' b Q := by
+  intro E hE
+  obtain ⟨new, hi, hl, hs⟩ := h E hE
+  exact ⟨new, hi, hl, fun h' => hs (hp h')⟩
 
 theorem post {p : Builder} {b : Build α} {Q Q' : α → ℕ → Prop} (h : EnsuresAt c p P b Q)
     (hq : P → Q (b.run p).1 (b.run p).2.values → Q' (b.run p).1 (b.run p).2.values) : EnsuresAt c p P b Q' := by

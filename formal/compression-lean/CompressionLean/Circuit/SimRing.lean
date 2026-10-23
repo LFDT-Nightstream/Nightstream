@@ -31,7 +31,7 @@ open Polynomial
 /-! ## Identities in the challenge field -/
 
 /-- `Final.Cubic` is a challenge field. -/
-@[reducible] private noncomputable def challengeCubic : ChallengeField Final.Cubic where
+@[reducible] noncomputable def challengeCubic : ChallengeField Final.Cubic where
   root := AdjoinRoot.root Final.cubic
   cubic := by
     have h : AdjoinRoot.mk Final.cubic (X ^ 3 - X - 1) = 0 := AdjoinRoot.mk_self

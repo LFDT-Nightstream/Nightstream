@@ -32,11 +32,10 @@ jobs:
     - name: Check formatting
       run: cargo fmt --all --check
 
-  build-tests:
-    name: Build tests and run builder checks
+  test:
+    name: Run Tests
     runs-on: [self-hosted, Linux, X64, nico-runner]
     env:
-      # The archive must run on CPUs other than the build machine's CPU.
       RUSTFLAGS: "-Dwarnings -C target-cpu=x86-64"
     
     steps:
@@ -93,50 +92,21 @@ jobs:
         cargo test --release --locked --workspace
         --exclude spartan2 --features "testing,debug-log,fs-guard" --doc
 
-    - name: Upload test archive
-      uses: actions/upload-artifact@v4
-      with:
-        name: ci-tests-linux-x64
-        path: ci-tests.tar.zst
-        if-no-files-found: error
-        compression-level: 0
-        retention-days: 1
+    - name: Run eight test shards with four workers
+      run: |
+        printf '%s\n' {1..8} | xargs --max-procs=4 --max-args=1 bash -e -o pipefail -c '
+          printf "Starting test shard %s/8\n" "$1"
+          exec cargo-nextest nextest run --profile ci \
+            --archive-file ci-tests.tar.zst \
+            --workspace-remap "$GITHUB_WORKSPACE" \
+            -E "not binary(=migration_hard_stops)" \
+            --partition "hash:$1/8"
+        ' _
 
     # Temporarily disabled while the merge path is focused on Rust-side
     # stabilization and we are not gating CI on Lean conformance.
     # - name: Run Nightstream Lean/Rust conformance gates
     #   run: bash ./scripts/check_lean_rust_conformance.sh
-
-  test-shards:
-    name: Run Tests (${{ matrix.partition }}/8)
-    needs: build-tests
-    runs-on: ubuntu-22.04
-    strategy:
-      fail-fast: false
-      matrix:
-        partition: [1, 2, 3, 4, 5, 6, 7, 8]
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Install Nextest
-      uses: taiki-e/install-action@a4d3f3f761dcd95cce1b72cb61cb6d1963438177 # v2.87.30
-      with:
-        tool: cargo-nextest@0.9.149
-        fallback: none
-
-    - name: Download test archive
-      uses: actions/download-artifact@v4
-      with:
-        name: ci-tests-linux-x64
-
-    - name: Run test partition without rebuilding
-      run: >-
-        cargo-nextest nextest run --profile ci
-        --archive-file ci-tests.tar.zst
-        --workspace-remap "$GITHUB_WORKSPACE"
-        -E 'not binary(=migration_hard_stops)'
-        --partition hash:${{ matrix.partition }}/8
 
   # ============================================================================
   # WASM Build Checks (with Spartan)

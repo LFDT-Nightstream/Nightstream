@@ -3,9 +3,11 @@ import CompressionLean.Circuit.SimSumcheck
 
 /-!
 Owns the simulation of our WHIR verifier (`whirVerify`, `whir/mod.rs:506-661`)
-against the replay's transcript of one opening (`Replay.whirTranscript`): when
-the checks hold, the duplex is the replay's and the opened values are the
-opening's (`whirVerify_ensures`).
+and of the openings (`openingsStage`, `verifier.rs:266-315`) against the
+replay. `whirVerify_ensures`: when the checks hold, the duplex follows
+`Replay.whirTranscript` and the opened values are the opening's.
+`openingsStage_ensures`: the tail of `Replay.verify` runs, both WHIR
+transcripts and both `openingsAgree` checks.
 
 - `Appends`, `Quiet`: a builder program appends instructions and one value per
   output; a transcript program also keeps the duplex. The `appends` tactic
@@ -14,16 +16,16 @@ opening's (`whirVerify_ensures`).
 - `Tracks c n H t x Q`: from a duplex that is the replay's, when the checks of
   `t` hold, a run of `x` ends at its duplex. Its combinators match a program to
   the replay step by step.
-- A query index's inverse check keeps the sample from `p - 1`
-  (`Ensures.extInv_ne`), as the replay's `whirQueries` checks.
+- A query index's inverse check keeps the sample from `p - 1`, as the replay's
+  `whirQueries` checks.
+- The circuit compares opened and expected values pair by pair. The replay
+  also compares their sizes, which Rust asserts, so the batch sizes are
+  premises.
 -/
-
 namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (Gl Ext WhirShape SumcheckShape Runs ReplayM)
 open NightstreamFPrime.Spec (goldilocksModulus)
-
-/-! ## Programs that the replay does not take -/
 
 /-- `b` appends instructions and one value per output. -/
 private def Appends {α : Type} (b : Build α) : Prop :=
@@ -252,8 +254,6 @@ local macro_rules
     | with_reducible exact Appends.hashLeaf _ | with_reducible exact Appends.merkleRoot _ _ _
     | with_reducible exact Appends.powerFromBits _ _)
 
-/-! ## Following the replay -/
-
 section Tracks
 
 variable {F : Type} [CommRing F] {c : Ctx F} {n : ℕ} {P : Prop} {α β γ δ ε : Type}
@@ -300,18 +300,28 @@ private theorem pure {a : α} {b : β} {Q : α → ℕ → Prop} (h : H → Q a 
     rw [StateT.run_pure]
     exact Ensures.pure fun hP => ⟨h hP.1, b, tr, Replay.runs_pure _ _, hP.2⟩
 
+private theorem pre {t : Transcript α} {x : ReplayM β} {Q : α → ℕ → Prop} {H' : Prop} (h : Tracks c n H' t x Q)
+    (hH : H → H') : Tracks c n H t x Q := fun d tr => (h d tr).pre fun hP => ⟨hH hP.1, hP.2⟩
+
+/-- A step that the replay takes, then the rest, which knows `t`'s result by `Q`. -/
+private theorem bindQ [Inhabited β] {t : Transcript α} {g : α → Transcript γ} {x : ReplayM β} {y : ReplayM δ}
+    {Q : α → ℕ → Prop} {R : γ → ℕ → Prop} (ht : Tracks c n H t x Q)
+    (hg : ∀ a m, n ≤ m → Tracks c m (H ∧ Q a m) (g a) y R) : Tracks c n H (t >>= g) (x >>= fun _ => y) R :=
+  fun d tr => by
+    refine Ensures.tbind (ht d tr) fun a e m le => ?_
+    refine Ensures.elim ((default : β), tr) (R := fun w : β × Replay.Transcript =>
+      (H ∧ IsDuplex c n d tr.duplex) ∧ Q a m ∧ Runs x tr w.1 w.2 ∧ IsDuplex c m e w.2.duplex) (fun w => ?_) ?_
+    · refine ((hg a m le e w.2).pre fun h => ⟨⟨h.1.1, h.2.1⟩, h.2.2.2⟩).post fun h _ _ q => ⟨q.1, ?_⟩
+      obtain ⟨b', tr'', hrun, hd⟩ := q.2
+      exact ⟨b', tr'', Replay.runs_bind h.2.2.1 hrun, hd⟩
+    · rintro ⟨hP, hq, b, tr', hrun, hd⟩
+      exact ⟨(b, tr'), hP, hq, hrun, hd⟩
+
 /-- A step that the replay takes, then the rest. -/
 private theorem bind [Inhabited β] {t : Transcript α} {g : α → Transcript γ} {x : ReplayM β} {y : ReplayM δ}
     {R : γ → ℕ → Prop} (ht : Tracks c n H t x fun _ _ => True) (hg : ∀ a m, n ≤ m → Tracks c m H (g a) y R) :
-    Tracks c n H (t >>= g) (x >>= fun _ => y) R := fun d tr => by
-  refine Ensures.tbind (ht d tr) fun a e m le => ?_
-  refine Ensures.elim ((default : β), tr) (R := fun w : β × Replay.Transcript =>
-    (H ∧ IsDuplex c n d tr.duplex) ∧ Runs x tr w.1 w.2 ∧ IsDuplex c m e w.2.duplex) (fun w => ?_) ?_
-  · refine ((hg a m le e w.2).pre fun h => ⟨h.1.1, h.2.2⟩).post fun h _ _ q => ⟨q.1, ?_⟩
-    obtain ⟨b', tr'', hrun, hd⟩ := q.2
-    exact ⟨b', tr'', Replay.runs_bind h.2.1 hrun, hd⟩
-  · rintro ⟨hP, -, b, tr', hrun, hd⟩
-    exact ⟨(b, tr'), hP, hrun, hd⟩
+    Tracks c n H (t >>= g) (x >>= fun _ => y) R :=
+  bindQ ht fun a m le => (hg a m le).pre fun h => h.1
 
 /-- The replay's last step, then a rest that the replay does not take. -/
 private theorem bindLast {t : Transcript α} {g : α → Transcript γ} {x : ReplayM PUnit} {R : γ → ℕ → Prop}
@@ -325,6 +335,14 @@ private theorem quiet {t : Transcript α} {g : α → Transcript γ} {y : Replay
     (hg : ∀ a m, n ≤ m → Tracks c m H (g a) y R) : Tracks c n H (t >>= g) y R := fun d tr =>
   Ensures.tbind (ht.ensures d) fun a e m le =>
     (hg a m le e tr).pre fun h => ⟨h.1.1, by rw [show e = d from h.2.1]; exact h.1.2.mono le⟩
+
+/-- A step that keeps the duplex and that the replay does not take; the rest
+knows its result by `Q` and its checks by `C`. -/
+private theorem keep {t : Transcript α} {g : α → Transcript γ} {y : ReplayM δ} {Q : α → ℕ → Prop} {C : Prop}
+    {R : γ → ℕ → Prop} (ht : ∀ d, Sim c n H (t.run d) (fun r m => Q r.1 m ∧ r.2 = d) C)
+    (hg : ∀ a m, n ≤ m → Tracks c m (H ∧ Q a m ∧ C) (g a) y R) : Tracks c n H (t >>= g) y R := fun d tr =>
+  Ensures.tbind ((ht d).pre fun h => h.1).ensures fun a e m le =>
+    (hg a m le e tr).pre fun h => ⟨⟨h.1.1, h.2.1.1, h.2.2⟩, by rw [show e = d from h.2.1.2]; exact h.1.2.mono le⟩
 
 /-- A builder call that the replay does not take. -/
 private theorem lift {b : Build α} {g : α → Transcript γ} {y : ReplayM δ} {R : γ → ℕ → Prop} (hb : Appends b)
@@ -346,6 +364,17 @@ private theorem replay {t : Transcript α} {x x' : ReplayM β} {Q : α → ℕ �
 private theorem replay_eq {t : Transcript α} {x x' : ReplayM β} {Q : α → ℕ → Prop} (h : Tracks c n H t x Q)
     (e : H → x = x') : Tracks c n H t x' Q :=
   h.replay fun hH _ _ _ run => e hH ▸ run
+
+/-- A check that the replay makes and the program does not. -/
+private theorem check {t : Transcript α} {e : Except String PUnit} {y : ReplayM δ} {R : α → ℕ → Prop}
+    (ok : H → e = .ok ()) (h : Tracks c n H t y R) : Tracks c n H t (liftExcept e >>= fun _ => y) R :=
+  h.replay fun hH tr _ _ run => Replay.runs_bind (Replay.runs_liftExcept (ok hH) tr) run
+
+/-- The replay's last check. -/
+private theorem checkLast {t : Transcript α} {e : Except String PUnit} {R : α → ℕ → Prop}
+    (ok : H → e = .ok ()) (h : Tracks c n H t (Pure.pure ()) R) : Tracks c n H t (liftExcept e) R := by
+  have h := check ok h
+  rwa [bind_pure_unit] at h
 
 /-- A loop and the replay's loop over lists of one length under `H`. -/
 private theorem loop [Inhabited ε] {xs : List δ} {ys : List ε} {init : γ} {body : δ → γ → Transcript (ForInStep γ)}
@@ -379,8 +408,6 @@ end Tracks
 /-- Pass the builder calls that the replay does not take. -/
 local macro "lift_steps" : tactic =>
   `(tactic| repeat (with_reducible refine Tracks.lift (by appends) fun _ _ _ => ?_))
-
-/-! ## The duplex steps of WHIR -/
 
 section Steps
 
@@ -584,19 +611,33 @@ end Tracks
 
 end Steps
 
-/-! ## The verifier -/
-
 section Verify
 
 variable {F : Type} [CommRing F] [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P H : Prop}
 
-private theorem readOpening_evals {shape : WhirShape} {g : Replay.Opening} (h : Replay.readOpening shape g = .ok ()) :
-    g.evals.size = shape.batches.size := by
+private theorem map_eq_of_zip {α β γ : Type} {f : α → γ} {g : β → γ} :
+    ∀ {l₁ : List α} {l₂ : List β}, l₁.length = l₂.length → (∀ p ∈ l₁.zip l₂, f p.1 = g p.2) →
+      l₁.map f = l₂.map g
+  | [], [], _, _ => rfl
+  | [], _ :: _, len, _ => by simp at len
+  | _ :: _, [], len, _ => by simp at len
+  | a :: l₁, b :: l₂, len, h => by
+      rw [List.map_cons, List.map_cons, h (a, b) (by simp),
+        map_eq_of_zip (by simpa using len) fun p hp => h p (by simp [hp])]
+
+/-- `readOpening`'s batch sizes are the shape's. -/
+private theorem readOpening_sizes {shape : WhirShape} {g : Replay.Opening} (h : Replay.readOpening shape g = .ok ()) :
+    g.evals.toList.map (·.size) = shape.batches.toList.map (·.size) := by
   unfold Replay.readOpening at h
   obtain ⟨_, h1, -⟩ := Replay.Except.bind_ok h
   have h1 := Replay.Except.ensure_ok h1
-  simp only [Bool.and_eq_true, beq_iff_eq] at h1
-  exact h1.1.1.2
+  simp only [Bool.and_eq_true, beq_iff_eq, ← Array.all_toList, List.all_eq_true, Array.toList_zip] at h1
+  refine (map_eq_of_zip (by simpa using h1.1.1.2.symm) fun p hp => ?_).symm
+  exact (h1.2 p hp).symm
+
+private theorem readOpening_evals {shape : WhirShape} {g : Replay.Opening} (h : Replay.readOpening shape g = .ok ()) :
+    g.evals.size = shape.batches.size := by
+  simpa using congrArg List.length (readOpening_sizes h)
 
 private theorem forall₂_getElem!_array {α β : Type} [Inhabited β] {R : α → β → Prop} {xs : Array α} {ys : Array β}
     (h : List.Forall₂ R xs.toList ys.toList) {k : ℕ} (hk : k < xs.size) : R xs[k] ys[k]! := by
@@ -728,5 +769,349 @@ theorem whirVerify_ensures (hp : Permutes c.perm) {shape : WhirShape} {key : Whi
     exact ⟨t', run, opened, hd'⟩
 
 end Verify
+
+section Openings
+
+variable {F : Type} [CommRing F] {c : Ctx F} {n : ℕ} {P H : Prop}
+
+private theorem isExts_iff {xs : Array ExtVar} {gs : Array Ext} :
+    IsExts c n xs gs ↔ List.Forall₂ (IsExt c n) xs.toList gs.toList := by
+  rw [List.forall₂_iff_get]
+  constructor
+  · intro h
+    refine ⟨by simp [h.1], fun i h1 h2 => ?_⟩
+    have := h.2 i (by simpa using h1)
+    rw [getElem!_pos xs i (by simpa using h1), getElem!_pos gs i (by simpa using h2)] at this
+    simpa using this
+  · intro h
+    have size : xs.size = gs.size := by simpa using h.1
+    refine ⟨size, fun i hi => ?_⟩
+    rw [getElem!_pos xs i hi, getElem!_pos gs i (size ▸ hi)]
+    simpa using h.2 i (by simpa using hi) (by simpa [← size] using hi)
+
+private theorem forall₂_zip {xs ys : List ExtVar} {gs hs : List Ext} (hx : List.Forall₂ (IsExt c n) xs gs)
+    (hy : List.Forall₂ (IsExt c n) ys hs) : List.Forall₂ (IsPair c n) (xs.zip ys) (gs.zip hs) := by
+  induction hx generalizing ys hs with
+  | nil => exact .nil
+  | cons a _ ih =>
+      cases hy with
+      | nil => exact .nil
+      | cons b rest => exact .cons ⟨a, b⟩ (ih rest)
+
+private theorem isExts_slice {xs : Array ExtVar} {gs : Array Ext} (h : IsExts c n xs gs) (a b : ℕ) :
+    IsExts c n (xs.extract a b) (gs.extract a b) := by
+  rw [isExts_iff] at h ⊢
+  rw [Array.toList_extract, Array.toList_extract, List.extract_eq_take_drop, List.extract_eq_take_drop]
+  exact List.forall₂_take _ (List.forall₂_drop _ h)
+
+private theorem isExts_pair {a b : ExtVar} {ga gb : Ext} (ha : IsExt c n a ga) (hb : IsExt c n b gb) :
+    IsExts c n #[a, b] #[ga, gb] :=
+  (IsExts.empty.push ha).push hb
+
+/-- The coordinate groups of opened batches whose sizes are multiples of
+three (`batch.chunks(3)`, `verifier.rs:276`). -/
+private theorem groups_rel {opened : Array (Array ExtVar)} {evals : Array (Array Ext)}
+    (h : List.Forall₂ (IsExts c n) opened.toList evals.toList) (div : ∀ b ∈ evals.toList, b.size % 3 = 0) :
+    List.Forall₂ (IsExts c n)
+      (opened.flatMap fun batch => (Array.range ((batch.size + 2) / 3)).map fun i =>
+        batch.extract (3 * i) (3 * i + 3)).toList
+      (evals.flatMap fun batch => (Array.range (batch.size / 3)).map fun i =>
+        batch.extract (3 * i) (3 * i + 3)).toList := by
+  rw [Array.toList_flatMap, Array.toList_flatMap]
+  generalize opened.toList = xs at h
+  generalize evals.toList = ys at h div
+  induction h with
+  | nil => exact .nil
+  | @cons x y xs ys hxy _ ih =>
+      rw [List.flatMap_cons, List.flatMap_cons]
+      refine List.rel_append ?_ (ih fun b hb => div b (List.mem_cons_of_mem _ hb))
+      have hs : (x.size + 2) / 3 = y.size / 3 := by
+        have := div y List.mem_cons_self
+        rw [hxy.1]
+        omega
+      rw [hs, Array.toList_map, Array.toList_map, List.forall₂_map_left_iff, List.forall₂_map_right_iff,
+        List.forall₂_same]
+      exact fun i _ => isExts_slice hxy _ _
+
+/-- `flat` (`verifier.rs:295`) against the replay's `flatPairs`. -/
+private theorem flat_rel {pairs : Array (ExtVar × ExtVar)} {gpairs : Array (Ext × Ext)}
+    {f : ExtVar × ExtVar → Array ExtVar} (hf : ∀ a b, f (a, b) = #[a, b])
+    (h : List.Forall₂ (IsPair c n) pairs.toList gpairs.toList) :
+    IsExts c n (pairs.flatMap f) (Replay.flatPairs gpairs) := by
+  rw [isExts_iff, Replay.flatPairs, Array.toList_flatMap, Array.toList_flatMap]
+  generalize pairs.toList = xs at h
+  generalize gpairs.toList = ys at h
+  induction h with
+  | nil => exact .nil
+  | @cons x y xs ys hxy _ ih =>
+      obtain ⟨a, b⟩ := x
+      rw [List.flatMap_cons, List.flatMap_cons, hf]
+      exact List.rel_append (.cons hxy.1 (.cons hxy.2 .nil)) ih
+
+private theorem flatPairs_size (pairs : Array (Ext × Ext)) : (Replay.flatPairs pairs).size = 2 * pairs.size := by
+  rw [Replay.flatPairs, Array.size_flatMap, ← Array.sum_toList, Array.toList_map]
+  simp [List.sum_replicate, Nat.mul_comm]
+
+private theorem ext_beq_refl (a : Ext) : (a == a) = true := by simp [BEq.beq]
+
+/-- `openingsAgree` passes on batches of the expected sizes and equal values. -/
+private theorem agree_of {opened expected : Array (Array Ext)} {what : String}
+    (sizes : opened.map (·.size) = expected.map (·.size))
+    (same : ∀ p ∈ (opened.flatten.zip expected.flatten).toList, p.1 = p.2) :
+    Replay.openingsAgree opened expected what = .ok () := by
+  have all : ((opened.flatten.zip expected.flatten).all fun pair => pair.1 == pair.2) = true := by
+    rw [← Array.all_toList, List.all_eq_true]
+    intro p hp
+    rw [same p hp]
+    exact ext_beq_refl p.2
+  unfold Replay.openingsAgree
+  rw [show (opened.map (·.size) == expected.map (·.size)) = true from beq_iff_eq.mpr sizes, all]
+  rfl
+
+variable [CharP F goldilocksModulus]
+
+namespace Sim
+
+/-- `from_coordinates` (`verifier.rs:352-362`). -/
+private theorem fromCoordinates {values : Array ExtVar} {gvalues : Array Ext} (hv : P → IsExts c n values gvalues) :
+    Sim c n P (Circuit.fromCoordinates values) (fun r m => IsExt c m r (Replay.fromCoordinates gvalues)) True := by
+  unfold Circuit.fromCoordinates Replay.fromCoordinates
+  refine extZero.bind₀ fun total m₁ l₁ => ?_
+  refine ((loop₀ (P := P ∧ IsExt c m₁ total 0)
+    (fun k acc m => IsExt c m acc (Replay.sumRange k fun i => Ext.basis i * gvalues[i]!))
+    fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun r m _ => Sim.pure fun h => ?_
+  · have hk' : k < values.size := by simpa using hk
+    rw [show values.zipIdx[k] = (values[k]!, k) by simp [getElem!_pos, hk']]
+    exact (extConstant (Ext.basis k)).bind₀ fun basis m₂ l₂ =>
+      (Sim.extMul (fun h => h.2) fun h => ((hv h.1.1.1).2 k hk').mono (l₁.trans (lm.trans l₂))).bind₀
+        fun term m₃ l₃ => (extAdd (fun h => h.1.1.2.mono (l₂.trans l₃)) fun h => h.2).bind₀
+        fun total' m₄ l₄ => Sim.pure fun h => ⟨rfl, by rw [sumRange_succ]; exact h.2⟩
+  · have e := h.2
+    rw [Array.size_zipIdx, (hv h.1.1).1] at e
+    exact e
+
+/-- `combine` (`verifier.rs:334-337`). -/
+private theorem combineValue {partials point : Array ExtVar} {gpartials gpoint : Array Ext}
+    (hp : P → IsExts c n partials gpartials) (hq : P → IsExts c n point gpoint) :
+    Sim c n P (Circuit.combinePartials partials point) (fun r m => IsExt c m r (Replay.combine gpartials gpoint))
+      True :=
+  (eqTable hq).bind₀ fun _ _ l => dot (fun h => h.2) fun h => (hp h.1).mono l
+
+omit [CharP F goldilocksModulus] in
+/-- `mapM` over a list that `R` relates to `ys`: result `i` meets `S` at `ys[i]`. -/
+private theorem listMapM₂ {δ ε α : Type} [Inhabited ε] {f : δ → Build α} {R : δ → ε → ℕ → Prop}
+    {S : α → ε → ℕ → Prop} (monoR : ∀ x y m m', R x y m → m ≤ m' → R x y m')
+    (monoS : ∀ a y m m', S a y m → m ≤ m' → S a y m')
+    (h : ∀ x y m (Q : Prop), (Q → R x y m) → Sim c m Q (f x) (S · y) True) :
+    ∀ (xs : List δ) (ys : List ε) {n : ℕ} {P : Prop}, (P → List.Forall₂ (R · · n) xs ys) →
+      Sim c n P (xs.mapM f) (fun as m => List.Forall₂ (S · · m) as ys) True
+  | [], ys, n, P, hr => by
+      rw [List.mapM_nil]
+      exact Sim.pure fun hP => by cases hr hP; exact .nil
+  | x :: xs, [], n, P, hr => by
+      rw [List.mapM_cons]
+      refine (h x default n P fun hP => absurd (hr hP) (by simp)).bind₀ fun a m _ => ?_
+      exact (listMapM₂ monoR monoS h xs [] (P := P ∧ S a default m) fun hP => absurd (hr hP.1) (by simp)).bind₀
+        fun _ _ _ => Sim.pure fun hP => absurd (hr hP.1.1) (by simp)
+  | x :: xs, y :: ys, n, P, hr => by
+      rw [List.mapM_cons]
+      refine (h x y n P fun hP => (List.forall₂_cons.mp (hr hP)).1).bind₀ fun a m le => ?_
+      refine (listMapM₂ monoR monoS h xs ys (P := P ∧ S a y m) fun hP =>
+        (List.forall₂_cons.mp (hr hP.1)).2.imp fun _ _ r => monoR _ _ _ _ r le).bind₀ fun as m' le' => ?_
+      exact Sim.pure fun hP => .cons (monoS _ _ _ _ hP.1.2 le') hP.2
+
+/-- The equality checks of `verifier.rs:280-282` and `verifier.rs:312-314`:
+once they hold, each pair's values are equal. -/
+private theorem assertPairs {xs : Array (ExtVar × ExtVar)} {gs : Array (Ext × Ext)}
+    {body : ExtVar × ExtVar → PUnit → Transcript (ForInStep PUnit)}
+    (hb : ∀ a b u, body (a, b) u = (do liftM (Build.assertExtEqual a b); Pure.pure (ForInStep.yield PUnit.unit)))
+    (hl : P → List.Forall₂ (IsPair c n) xs.toList gs.toList) (d : Duplex) :
+    Sim c n P ((forIn xs PUnit.unit body).run d) (fun r _ => True ∧ r.2 = d) (∀ p ∈ gs.toList, p.1 = p.2) := by
+  rw [← Array.forIn_toList]
+  generalize xs.toList = l at hl
+  generalize gs.toList = gl at hl ⊢
+  refine ((loopT (fun _ _ e _ => e = d) (fun k => (gl[k]!).1 = (gl[k]!).2) fun k hk _ e m le => ?_).pre
+    fun h => ⟨h, rfl⟩).post (fun _ _ _ h => ⟨trivial, h⟩) fun hP => ?_
+  · have hpair : P → IsPair c m l[k] gl[k]! := fun h => (forall₂_getElem! (hl h) hk).mono le
+    rcases hx : l[k] with ⟨a, b⟩
+    rw [hx] at hpair
+    rw [hb]
+    refine ((Sim.tbind (Sim.lift (assertExtEqual (fun h => (hpair h.1).1) fun h => (hpair h.1).2)) fun _ e' m' _ =>
+      Sim.pure fun h => ⟨rfl, h.2.2.trans h.1.2⟩).post (fun _ _ _ q => q) fun _ => Iff.of_eq (and_true _))
+  · have len := (hl hP).length_eq
+    constructor
+    · intro hall p hp
+      obtain ⟨k, hk, rfl⟩ := List.mem_iff_getElem.mp hp
+      have := hall k (len ▸ hk)
+      rwa [getElem!_pos gl k hk] at this
+    · intro hall k hk
+      rw [getElem!_pos gl k (len ▸ hk)]
+      exact hall _ (List.getElem_mem _)
+
+end Sim
+
+end Openings
+
+section Stage
+
+variable {F : Type} [CommRing F] [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P H : Prop}
+
+/-- The openings (`verifier.rs:266-315`) track the tail of `Replay.verify`. -/
+private theorem Tracks.openingsStage (hp : Permutes c.perm) {rel : Replay.Relation} {p1Key p0Key : WhirKey}
+    {o : OpeningsInput} {proof : Replay.Proof} {early : Replay.EarlyOut} {lin : Replay.LinearOut}
+    {honest : Replay.HonestOut} {late : Replay.LateOut} {w : Var → Gl}
+    (h1 : H → IsOpening c w n o.p1Opening proof.p1Opening) (h0 : H → IsOpening c w n o.p0Opening proof.p0Opening)
+    (hpartials : H → List.Forall₂ (IsExts c n) o.partials.toList proof.partials.toList)
+    (halpha : H → IsExts c n o.alpha honest.alpha) (hqueried : H → IsExts c n o.queried honest.queried)
+    (homega : H → IsExt c n o.omegaValue lin.omegaValue) (hlateOmega : H → IsExt c n o.lateOmega late.openings.omega)
+    (hzLeaf : H → IsExt c n o.zLeaf early.zLeaf) (hzValue : H → IsExt c n o.zValue lin.zValue)
+    (hruns : H → IsExts c n o.earlyValues.runs #[early.values.eRe, early.values.eIm, early.values.row])
+    (hpairs : H → List.Forall₂ (IsPair c n) o.earlyValues.pairs.toList early.values.pairs.toList)
+    (hblock : H → IsExt c n o.earlyValues.block early.values.block)
+    (hlateValues : H → List.Forall₂ (IsPair c n) o.lateValues.toList late.pairs.toList)
+    (hlateBlock : H → IsExt c n o.lateBlock late.openings.block) (hmult : H → IsExt c n o.mult early.openings.mult)
+    (r1 : H → Replay.readOpening rel.p1Whir proof.p1Opening = .ok ())
+    (r0 : H → Replay.readOpening rel.p0Whir proof.p0Opening = .ok ())
+    (hqsize : H → honest.queried.size = 2 * rel.queries) (hesize : H → early.values.pairs.size = rel.matrices)
+    (hlsize : H → late.pairs.size = rel.matrices)
+    (k1 : p1Key.batches.size = rel.p1Whir.batches.size) (k0 : p0Key.batches.size = rel.p0Whir.batches.size)
+    (hp1 : ∀ b ∈ rel.p1Whir.batches, b.size % 3 = 0)
+    (hp1count : (rel.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * rel.queries + 4)
+    (hp0 : rel.p0Whir.batches.toList.map (·.size) = [1, 1, 2, 2 * rel.matrices, 1, 2 * rel.matrices + 1, 1]) :
+    Tracks c n H (Circuit.openingsStage rel p1Key p0Key o) (do
+        Replay.whirTranscript rel.p1Whir proof.p1Opening
+        liftExcept (Replay.openingsAgree #[Replay.p1Values proof.p1Opening.evals]
+          #[Replay.p1Expected proof honest lin late] "P1 openings")
+        Replay.whirTranscript rel.p0Whir proof.p0Opening
+        liftExcept (Replay.openingsAgree proof.p0Opening.evals (Replay.p0Expected early lin late) "P0 openings"))
+      fun _ _ => True := by
+  have div : H → ∀ b ∈ proof.p1Opening.evals.toList, b.size % 3 = 0 := fun h b hb => by
+    have hm : b.size ∈ rel.p1Whir.batches.toList.map (·.size) := by
+      rw [← readOpening_sizes (r1 h)]
+      exact List.mem_map_of_mem hb
+    obtain ⟨b', hb', e⟩ := List.mem_map.mp hm
+    rw [← e]
+    exact hp1 b' (Array.mem_toList_iff.mp hb')
+  unfold Circuit.openingsStage
+  dsimp only
+  refine bindQ (Tracks.whirVerify hp h1 r1 k1) fun opened m₁ l₁ => ?_
+  refine keep (fun _ => Sim.lift (Sim.combineValue (fun h => (IsExts.getElem! (hpartials h.1) 0).mono l₁)
+    fun h => (halpha h.1).mono l₁)) fun keyGroup m₂ l₂ => ?_
+  refine keep (fun _ => Sim.lift (Sim.combineValue (fun h => (IsExts.getElem! (hpartials h.1.1) 1).mono
+    (l₁.trans l₂)) fun h => (halpha h.1.1).mono (l₁.trans l₂))) fun runGroup m₃ l₃ => ?_
+  refine keep (Q := fun a m => IsExts c m a (Replay.p1Values proof.p1Opening.evals)) (C := True)
+    (fun _ => Sim.lift (Q := fun a m => IsExts c m a (Replay.p1Values proof.p1Opening.evals)) ?_)
+    fun values m₄ l₄ => ?_
+  · rw [Array.mapM_eq_mapM_toList]
+    refine (Sim.listMapM₂ (R := fun x y m => IsExts c m x y)
+      (S := fun a y m => IsExt c m a (Replay.fromCoordinates y)) (fun _ _ _ _ h le => h.mono le)
+      (fun _ _ _ _ h le => h.mono le) (fun _ _ _ _ hq => Sim.fromCoordinates hq) _
+      (proof.p1Opening.evals.flatMap fun batch => (Array.range (batch.size / 3)).map fun i =>
+        batch.extract (3 * i) (3 * i + 3)).toList fun h => ?_).map fun as m hf => ?_
+    · exact groups_rel (h.1.1.2.imp fun _ _ x => x.mono (l₂.trans l₃)) (div h.1.1.1)
+    · have e : Replay.p1Values proof.p1Opening.evals = (proof.p1Opening.evals.flatMap fun batch =>
+          (Array.range (batch.size / 3)).map fun i => batch.extract (3 * i) (3 * i + 3)).map
+            Replay.fromCoordinates := by
+        rw [Array.map_flatMap]
+        simp only [Array.map_map]
+        rfl
+      rw [isExts_iff, List.toList_toArray, e, Array.toList_map, List.forall₂_map_right_iff]
+      exact hf
+  refine keep (Q := fun _ _ => True) (fun e => Sim.assertPairs (gs := (Replay.p1Values proof.p1Opening.evals).zip
+      (Replay.p1Expected proof honest lin late)) (fun _ _ _ => rfl) (fun h => ?_) e) fun _ m₅ l₅ => ?_
+  · rw [Array.toList_zip, Array.toList_zip]
+    refine forall₂_zip (isExts_iff.mp h.2.1) (isExts_iff.mp ?_)
+    exact ((isExts_pair (h.1.1.2.1.mono (l₃.trans l₄)) (h.1.2.1.mono l₄)).append
+      ((hqueried h.1.1.1.1).mono (by omega))).append
+      (isExts_pair ((homega h.1.1.1.1).mono (by omega)) ((hlateOmega h.1.1.1.1).mono (by omega)))
+  refine check (fun h => ?_) (pre ?_ fun h => h.1.1.1.1.1)
+  · refine agree_of ?_ ?_
+    · have e1 : (Replay.p1Values proof.p1Opening.evals).size = 2 * rel.queries + 4 := by
+        rw [Replay.p1Values, Array.size_flatMap, ← Array.sum_toList, Array.toList_map]
+        simp only [Array.size_map, Array.size_range]
+        rw [show (proof.p1Opening.evals.toList.map fun a => a.size / 3) =
+            (proof.p1Opening.evals.toList.map (·.size)).map (· / 3) by simp [Function.comp_def],
+          readOpening_sizes (r1 h.1.1.1.1.1), List.map_map]
+        exact hp1count
+      have e2 : (Replay.p1Expected proof honest lin late).size = 2 * rel.queries + 4 := by
+        simp [Replay.p1Expected, hqsize h.1.1.1.1.1]
+        omega
+      simp [e1, e2]
+    · rw [Array.flatten_singleton, Array.flatten_singleton]
+      exact h.2.2
+  refine bindQ (Tracks.whirVerify hp (fun h => (h0 h).mono (by omega)) r0 k0) fun opened m₆ l₆ => ?_
+  refine keep (Q := fun _ _ => True) (fun e => Sim.assertPairs (gs := proof.p0Opening.evals.flatten.zip
+      (Replay.p0Expected early lin late).flatten) (fun _ _ _ => rfl) (fun h => ?_) e) fun _ m₇ l₇ => ?_
+  · have hH := h.1
+    rw [Array.toList_zip, Array.toList_zip, Array.toList_flatten, Array.toList_flatten, Array.toList_flatten,
+      Array.toList_flatten]
+    refine forall₂_zip (List.rel_flatten ?_) (List.rel_flatten ?_) <;>
+      rw [List.forall₂_map_left_iff, List.forall₂_map_right_iff]
+    · exact h.2.imp fun _ _ x => isExts_iff.mp x
+    · refine .cons ?_ (.cons ?_ (.cons ?_ (.cons ?_ (.cons ?_ (.cons ?_ (.cons ?_ .nil)))))) <;>
+        refine isExts_iff.mp ?_
+      · exact IsExts.empty.push ((hzLeaf hH).mono (by omega))
+      · exact IsExts.empty.push ((hzValue hH).mono (by omega))
+      · exact isExts_pair (((hruns hH).2 0 (by simp [(hruns hH).1])).mono (by omega))
+          (((hruns hH).2 1 (by simp [(hruns hH).1])).mono (by omega))
+      · exact flat_rel (fun _ _ => rfl) ((hpairs hH).imp fun _ _ x => x.mono (by omega))
+      · exact IsExts.empty.push ((hblock hH).mono (by omega))
+      · exact (flat_rel (fun _ _ => rfl) ((hlateValues hH).imp fun _ _ x => x.mono (by omega))).append
+          (IsExts.empty.push ((hlateBlock hH).mono (by omega)))
+      · exact IsExts.empty.push ((hmult hH).mono (by omega))
+  refine checkLast (fun h => ?_) (pure fun _ => trivial)
+  refine agree_of ?_ h.2.2
+  apply Array.ext'
+  rw [Array.toList_map, Array.toList_map, readOpening_sizes (r0 h.1.1), hp0]
+  simp [Replay.p0Expected, flatPairs_size, hesize h.1.1, hlsize h.1.1]
+
+/-- **The openings** (`verifier.rs:266-315`): when the checks hold, the
+replay's two WHIR transcripts and its two opening checks (`openingsAgree`),
+the tail of `Replay.verify`, run from the matching transcript and end at the
+circuit's duplex.
+
+The handles hold the replay's values field by field. Both openings pass
+`readOpening`, and the honest, early and late outputs have the proof's
+sizes. The keys have their shapes' batch counts. The relation's P1 batches
+are triples of coordinates, one per expected value, and its P0 batches have
+the sizes of the expected values; Rust asserts both (`verifier.rs:279`,
+`verifier.rs:308-311`). -/
+theorem openingsStage_ensures (hp : Permutes c.perm) {rel : Replay.Relation} {p1Key p0Key : WhirKey}
+    {o : OpeningsInput} {proof : Replay.Proof} {early : Replay.EarlyOut} {lin : Replay.LinearOut}
+    {honest : Replay.HonestOut} {late : Replay.LateOut} {w : Var → Gl} {d : Duplex} {t : Replay.Transcript}
+    (hd : P → IsDuplex c n d t.duplex)
+    (h1 : P → IsOpening c w n o.p1Opening proof.p1Opening) (h0 : P → IsOpening c w n o.p0Opening proof.p0Opening)
+    (hpartials : P → List.Forall₂ (IsExts c n) o.partials.toList proof.partials.toList)
+    (halpha : P → IsExts c n o.alpha honest.alpha) (hqueried : P → IsExts c n o.queried honest.queried)
+    (homega : P → IsExt c n o.omegaValue lin.omegaValue) (hlateOmega : P → IsExt c n o.lateOmega late.openings.omega)
+    (hzLeaf : P → IsExt c n o.zLeaf early.zLeaf) (hzValue : P → IsExt c n o.zValue lin.zValue)
+    (hruns : P → IsExts c n o.earlyValues.runs #[early.values.eRe, early.values.eIm, early.values.row])
+    (hpairs : P → List.Forall₂ (IsPair c n) o.earlyValues.pairs.toList early.values.pairs.toList)
+    (hblock : P → IsExt c n o.earlyValues.block early.values.block)
+    (hlateValues : P → List.Forall₂ (IsPair c n) o.lateValues.toList late.pairs.toList)
+    (hlateBlock : P → IsExt c n o.lateBlock late.openings.block) (hmult : P → IsExt c n o.mult early.openings.mult)
+    (r1 : P → Replay.readOpening rel.p1Whir proof.p1Opening = .ok ())
+    (r0 : P → Replay.readOpening rel.p0Whir proof.p0Opening = .ok ())
+    (hqsize : P → honest.queried.size = 2 * rel.queries) (hesize : P → early.values.pairs.size = rel.matrices)
+    (hlsize : P → late.pairs.size = rel.matrices)
+    (k1 : p1Key.batches.size = rel.p1Whir.batches.size) (k0 : p0Key.batches.size = rel.p0Whir.batches.size)
+    (hp1 : ∀ b ∈ rel.p1Whir.batches, b.size % 3 = 0)
+    (hp1count : (rel.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * rel.queries + 4)
+    (hp0 : rel.p0Whir.batches.toList.map (·.size) = [1, 1, 2, 2 * rel.matrices, 1, 2 * rel.matrices + 1, 1]) :
+    Ensures c n P ((openingsStage rel p1Key p0Key o).run d) fun res m =>
+      ∃ t', Runs (do
+          Replay.whirTranscript rel.p1Whir proof.p1Opening
+          liftExcept (Replay.openingsAgree #[Replay.p1Values proof.p1Opening.evals]
+            #[Replay.p1Expected proof honest lin late] "P1 openings")
+          Replay.whirTranscript rel.p0Whir proof.p0Opening
+          liftExcept (Replay.openingsAgree proof.p0Opening.evals (Replay.p0Expected early lin late) "P0 openings"))
+        t () t' ∧ IsDuplex c m res.2 t'.duplex :=
+  ((Tracks.openingsStage hp h1 h0 hpartials halpha hqueried homega hlateOmega hzLeaf hzValue hruns hpairs hblock
+    hlateValues hlateBlock hmult r1 r0 hqsize hesize hlsize k1 k0 hp1 hp1count hp0 d t).pre
+      fun h => ⟨h, hd h⟩).post fun _ _ _ q => by
+    obtain ⟨-, b, t', run, hd'⟩ := q
+    exact ⟨t', run, hd'⟩
+
+end Stage
 
 end CompressionLean.Circuit

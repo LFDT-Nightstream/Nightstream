@@ -204,8 +204,10 @@ The shrink layer assumes, and does not prove:
   `final_restore_budget_parent` for the production final program
   (`Final/Encodes.lean`), where `programEncodes` gives the encoding. Its
   other premises are facts about the key (`KeyFacts`), the terminal package
-  and the setup. `Claims.lean` holds the library's claims; `STATUS.md`
-  lists each claim's premises and how each one is met.
+  and the setup. It is stated at F′'s reference width, which no application
+  has, so it does not cover the production key yet (`TRUST.md`).
+  `Claims.lean` holds the library's claims; `STATUS.md` lists each claim's
+  premises and how each one is met.
 
 The chain takes these premises:
 

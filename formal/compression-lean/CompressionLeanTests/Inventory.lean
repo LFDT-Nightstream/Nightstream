@@ -41,7 +41,7 @@ def premises : List (Name × String) := [
     "From Rust's setup build and `RunsGive` (`honest_setup_of_build`)."),
   (`CompressionLean.Final.RunsGive, "Open: no Lean proof and no check."),
   (`CompressionLean.Final.ParentShape,
-    "Open: `parentShape_of` gives it from the key's sizes, and `KeyFacts` does not check its block count and norm bound."),
+    "Open: it fixes F′'s reference width, which no application has; the production key does not meet it."),
   (`CompressionLean.Layer1.Shape.Sizes, "Open: sizes of the key's shape that `KeyFacts` does not check."),
   (`CompressionLean.Layer1.Setup.Fits, "Open: a fact of the setup that Rust builds."),
   (`CompressionLean.Layer1.Structure.Describes, "Open: a fact of the setup that Rust builds.")]

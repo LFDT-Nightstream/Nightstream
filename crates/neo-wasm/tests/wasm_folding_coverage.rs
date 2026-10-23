@@ -2,7 +2,7 @@
 //! fibonacci does not exercise:
 //!
 //! - **Nested calls** — exercises the `call_stack_depth`, `locals_fbp`,
-//!   and `param_init` columns the semantic-state digest carries through
+//!   and `frame_move` columns the semantic-state digest carries through
 //!   call/return boundaries.
 //! - **Memory mutation** — `memory.grow` plus a tight `i32.store` loop;
 //!   exercises `memory_pages` digest carrying and linear-memory writes
@@ -41,7 +41,7 @@ fn folding_proof_covers_nested_calls() {
 
     // batch_size 4 with two call boundaries guarantees at least one
     // call/return crosses a batch edge, so the semantic-state digest must
-    // carry `call_stack_depth` / `locals_fbp` / `param_init` correctly.
+    // carry `call_stack_depth` / `locals_fbp` / `frame_move` correctly.
     let batch_size = 4;
     let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
     let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");

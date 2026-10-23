@@ -26,7 +26,6 @@ fn row_context(state: WasmStepState, current: &NormalizedStep) -> HostEventRowCo
         locals_fbp: state.locals_fbp,
         host_callee_fref: state.host_callee_fref,
         current_function_ref: current.current_function_ref.unwrap_or(0),
-        current_function_num_locals: current.num_locals,
         activation_finished: state.activation_finished,
     }
 }
@@ -76,18 +75,20 @@ pub(super) fn enter<'a>(
     after.host_events.events_remaining = setup.entry_plans.len() as u32;
     after.host_events.event_index = 0;
     after.host_events.slot_cursor = 0;
+    // The entered frame starts above every suspended cell, or at the stack
+    // bottom for a root entry; its parameters are reserved for the inputs.
     if let Some(suspended) = suspended {
-        after.locals_fbp = suspended.context.locals_end;
-        after.stack_frame_base = suspended.context.retained_sp;
         if before.sp != suspended.context.retained_sp {
             return Err(WasmBuildError::Trace(
                 "reentrant guest invocation did not preserve suspended operand storage".into(),
             ));
         }
+        after.locals_fbp = suspended.context.retained_sp;
     } else {
-        after.sp = 0;
-        after.stack_frame_base = 0;
+        after.locals_fbp = 0;
     }
+    after.sp = after.locals_fbp + u64::from(setup.param_count);
+    after.stack_frame_base = after.locals_fbp + u64::from(next.num_locals);
     let remaining = next
         .num_locals
         .checked_sub(u32::from(setup.param_count))

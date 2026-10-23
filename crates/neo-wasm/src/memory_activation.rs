@@ -6,24 +6,23 @@ use std::collections::{BTreeMap, BTreeSet};
 use crate::isa::{opcode_code, opcode_info_from_code, WasmMemoryAccessKind, WasmOpcode};
 use crate::layout::{
     selector_col, COL_CALL_INDIRECT_IS_NOT_TRAP, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
-    COL_CI_HOST_CALL, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_GATHER_ACTIVE, COL_GATHER_LOCAL_WRITE,
-    COL_GATHER_LOCAL_WRITE_LO, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALL_ACTIVE, COL_HOST_EVENT_EXIT_LATCH,
-    COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_LANE_LOAD_ACTIVE, COL_LINEAR_MEM_LANE_STORE_ACTIVE, COL_LINEAR_MEM_USE_LANE0,
-    COL_LOCAL_WRITE_ENABLED, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_OUTPUT_CAPTURED, COL_PARAM_INIT_ACTIVE_BEFORE,
+    COL_CI_HOST_CALL, COL_FRAME_MOVE_ACTIVE_BEFORE, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_GATHER_ACTIVE,
+    COL_GATHER_LOCAL_WRITE, COL_GATHER_LOCAL_WRITE_LO, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALL_ACTIVE,
+    COL_HOST_EVENT_EXIT_LATCH, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_LANE_LOAD_ACTIVE, COL_LINEAR_MEM_LANE_STORE_ACTIVE,
+    COL_LINEAR_MEM_USE_LANE0, COL_LOCAL_WRITE_ENABLED, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_OUTPUT_CAPTURED,
     COL_PC_FREF_ACTIVE, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
     COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE,
     COL_STACK_READ_ACTIVE, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_HI_ACTIVE, COL_TABLE_READ_ENABLED,
-    COL_TABLE_SIZE_READ_ENABLED, COL_TAIL_ENTER_ACTIVE, COL_TURN_BOUNDARY, SELECTOR_COLS,
+    COL_TABLE_SIZE_READ_ENABLED, COL_TURN_BOUNDARY, SELECTOR_COLS,
 };
 
 /// Auxiliary row-kind columns that are pairwise disjoint with each other and
 /// with every opcode selector under the CCS row-kind and opcode one-hots.
-const AUXILIARY_ROW_SUPPORT_ATOMS: [usize; 7] = [
+const AUXILIARY_ROW_SUPPORT_ATOMS: [usize; 6] = [
     crate::layout::COL_HOST_RESUME,
     crate::layout::COL_HOST_SUSPEND,
     COL_LOCAL_ZERO_ACTIVE_BEFORE,
-    COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_TAIL_ENTER_ACTIVE,
+    COL_FRAME_MOVE_ACTIVE_BEFORE,
     COL_GATHER_ACTIVE,
     COL_TURN_BOUNDARY,
 ];
@@ -234,7 +233,7 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         read0_selectors
             .iter()
             .copied()
-            .chain([COL_PARAM_INIT_ACTIVE_BEFORE, COL_GATHER_ACTIVE]),
+            .chain([COL_FRAME_MOVE_ACTIVE_BEFORE, COL_GATHER_ACTIVE]),
     );
     for (name, gate, minimum_reads) in [
         ("stack read lane 1", COL_STACK_READ_ACTIVE[1], 2),
@@ -258,7 +257,11 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
             .filter(|opcode| opcode_info_from_code(opcode_code(*opcode)).stack_writes >= 1),
     )
     .into_iter()
-    .chain([COL_GATHER_ACTIVE])
+    .chain([
+        COL_FRAME_MOVE_ACTIVE_BEFORE,
+        COL_LOCAL_ZERO_ACTIVE_BEFORE,
+        COL_GATHER_ACTIVE,
+    ])
     .collect::<Vec<_>>();
     for (name, gate) in [
         ("stack write lane 0", COL_STACK_WRITE0_ACTIVE),
@@ -291,9 +294,8 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
         "pc-to-function reads",
         COL_PC_FREF_ACTIVE,
         program_selectors.iter().copied().chain([
-            COL_PARAM_INIT_ACTIVE_BEFORE,
+            COL_FRAME_MOVE_ACTIVE_BEFORE,
             COL_LOCAL_ZERO_ACTIVE_BEFORE,
-            COL_TAIL_ENTER_ACTIVE,
             crate::layout::COL_HOST_SUSPEND,
         ]),
     );

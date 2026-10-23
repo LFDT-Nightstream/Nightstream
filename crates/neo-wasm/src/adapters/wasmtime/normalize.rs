@@ -113,8 +113,8 @@ struct NormalizedStep {
     pc_after_instruction: Option<u64>,
     /// Total number of locals (params + declared) in this frame at this step.
     num_locals: u32,
-    /// Parsed local values at this step (before execution). Used to build aux param-init rows at
-    /// call boundaries.
+    /// Parsed local values at this step (before execution). Used to check and
+    /// plan export entry and exit events.
     locals_snapshot: Vec<(u32, u32)>,
     linear_memory: Option<LinearMemoryAccess>,
     linear_memory_offset: u64,
@@ -149,8 +149,8 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
     let operand_stack = row.operand_stack_words.clone();
     let operand_stack_hi = row.operand_stack_words_hi.clone();
     let code = opcode_code(opcode);
-    // Call rows pop only the indirect table index, if any. Args are popped by
-    // aux rows (param-init for guest callees, host-arg for host callees) and
+    // Call rows pop only the indirect table index, if any. Guest args stay in
+    // place as the callee's params; host args are read by gather rows and
     // host results are pushed by a host-result aux row.
     let (stack_reads_override, stack_writes_override) = match opcode {
         WasmOpcode::Call | WasmOpcode::ReturnCall => (Some(0), Some(0)),

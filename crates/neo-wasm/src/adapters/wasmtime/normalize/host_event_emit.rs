@@ -13,8 +13,8 @@ use crate::host_event_bindings::{
 };
 use crate::ir::{
     LinearMemoryAccess, StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmEventAbsorbState,
-    WasmHostEventMemoryWidth, WasmHostEventRomVariant, WasmHostEventSlotKind, WasmOutputState, WasmPcEdgeKind,
-    WasmRowKind, WasmStepState, WasmVmStep,
+    WasmFrameMoveState, WasmHostEventMemoryWidth, WasmHostEventRomVariant, WasmHostEventSlotKind, WasmOutputState,
+    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -617,7 +617,6 @@ pub(super) struct HostEventRowContext {
     pub(super) locals_fbp: u64,
     pub(super) host_callee_fref: u32,
     pub(super) current_function_ref: u32,
-    pub(super) current_function_num_locals: u32,
     /// The carried activation_finished latch on both sides of these aux rows (true for
     /// post-return exit gathers, false mid-turn).
     pub(super) activation_finished: bool,
@@ -641,9 +640,8 @@ impl HostEventRowContext {
             locals_fbp: self.locals_fbp,
             activation_finished: self.activation_finished,
             trapped: false,
-            param_init: WasmCountdownState::ZERO,
+            frame_move: WasmFrameMoveState::ZERO,
             local_zero: WasmCountdownState::ZERO,
-            tail_call_pending: false,
             host_callee_fref: self.host_callee_fref,
             comm_chain,
             event_absorb,
@@ -673,7 +671,6 @@ impl HostEventRowContext {
             stack_writes_override: Some(0),
             output_captured: false,
             current_function_ref: self.current_function_ref,
-            current_function_num_locals: self.current_function_num_locals,
             stack_read0: None,
             stack_read1: None,
             stack_read2: None,

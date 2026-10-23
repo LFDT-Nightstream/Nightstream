@@ -327,7 +327,7 @@ fn push_call_indirect_trap_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         [(COL_CALL_INDIRECT_IS_NOT_TRAP, F::ONE)],
     );
     // A trapping row never enters the callee: no call-stack push (and via
-    // the existing enter-mode gating, no param-init mode).
+    // the guest-entry gating, no new frame).
     b.push_row(
         [(COL_CALL_INDIRECT_IS_TRAP, F::ONE)],
         [(COL_GUEST_ENTRY_ACTIVE, F::ONE)],

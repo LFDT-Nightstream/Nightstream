@@ -31,7 +31,7 @@ define_column_region! {
         COL_HOST_NESTED_EXIT: Boolean => "export exit above a suspended host frame",
         COL_HOST_CONTEXT_READ: Boolean => "read suspended context at nested entry or resume",
         COL_HOST_CONTEXT_ADDR: U32 => "suspended context call-stack address",
-        COL_HOST_CONTEXT: [U32; 9] => "saved pc, fbp, stack base, export, import, args base, parent host depth, sp, locals end",
+        COL_HOST_CONTEXT: [U32; 8] => "saved pc, fbp, stack base, export, import, args base, parent host depth, sp",
         COL_HOST_IMPORT_SCHEDULE_COUNTS: U32 => "packed import call/return biased counts",
         COL_HOST_INITIAL_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "import call-block count plus one",
         COL_HOST_RETURN_COUNT: (Bits(IMPORT_SCHEDULE_COUNT_BITS)) => "zero for atomic, otherwise one plus the import return-schedule length",

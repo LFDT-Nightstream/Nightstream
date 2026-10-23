@@ -13,8 +13,8 @@ use neo_wasm::layout::{
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
-    opcode_code, opcode_info_from_code, StackValueAccess, WasmCountdownState, WasmOpcode, WasmOutputState,
-    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
+    opcode_code, opcode_info_from_code, StackValueAccess, WasmCountdownState, WasmFrameMoveState, WasmOpcode,
+    WasmOutputState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -39,9 +39,8 @@ fn step(
             locals_fbp: 0,
             activation_finished: false,
             trapped: false,
-            param_init: WasmCountdownState::ZERO,
+            frame_move: WasmFrameMoveState::ZERO,
             local_zero: WasmCountdownState::ZERO,
-            tail_call_pending: false,
             host_callee_fref: 0,
             comm_chain: [0; 4],
             event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
@@ -69,7 +68,6 @@ fn step(
         stack_writes_override: None,
         output_captured: false,
         current_function_ref: 0,
-        current_function_num_locals: 0,
         stack_read0: physical(stack_read0),
         stack_read1: physical(stack_read1),
         stack_read2: None,

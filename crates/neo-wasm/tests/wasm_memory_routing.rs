@@ -12,7 +12,7 @@ fn slot_plan_is_deterministic_and_covers_every_logical_port_once() {
     assert_eq!(ports, (0..plan.logical_ports).collect::<Vec<_>>());
     assert!(plan.slots.iter().all(|slot| !slot.is_empty()));
     let max_load = plan.support_loads.values().copied().max().unwrap();
-    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (104, 22, 22));
+    assert_eq!((plan.logical_ports, plan.slots.len(), max_load), (95, 21, 21));
     assert!(plan.slots.len() >= max_load + plan.conservative_singletons);
     assert!(plan.slots.len() < plan.logical_ports);
     assert_eq!(

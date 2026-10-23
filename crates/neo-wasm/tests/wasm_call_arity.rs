@@ -1,5 +1,5 @@
-//! Call-row stack-arity regressions: guest calls defer arg pops to the
-//! param-init aux rows, so callee arity is not capped by the 3 read lanes,
+//! Call-row stack-arity regressions: guest call args stay in place as the
+//! callee's params, so callee arity is not capped by the 3 read lanes,
 //! and `call_indirect` binds its table index to the popped stack operand.
 
 mod common;

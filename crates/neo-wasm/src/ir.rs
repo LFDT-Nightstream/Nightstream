@@ -86,8 +86,7 @@ pub struct LinearMemoryAccess {
 }
 
 /// Carried state of an aux-row countdown mode: `active` while `remaining`
-/// counts down to zero, one aux row per tick. Used for local zeroing and
-/// call parameter initialization.
+/// counts down to zero, one aux row per tick. Used for local zeroing.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct WasmCountdownState {
     pub active: bool,
@@ -105,6 +104,24 @@ impl Default for WasmCountdownState {
     fn default() -> Self {
         Self::ZERO
     }
+}
+
+/// Pending frame move: `remaining` cells still to copy down by `distance`.
+/// The seeding row already lowered sp to the moved region's end, so each
+/// row copies cell `sp - remaining + distance` to `sp - remaining`.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct WasmFrameMoveState {
+    pub active: bool,
+    pub remaining: u32,
+    pub distance: u64,
+}
+
+impl WasmFrameMoveState {
+    pub const ZERO: Self = Self {
+        active: false,
+        remaining: 0,
+        distance: 0,
+    };
 }
 
 /// Carried state of the in-circuit host-event absorb machinery.
@@ -215,9 +232,8 @@ pub struct WasmBoundaryState {
     pub locals_fbp: u64,
     pub activation_finished: bool,
     pub trapped: bool,
-    pub param_init: WasmCountdownState,
+    pub frame_move: WasmFrameMoveState,
     pub local_zero: WasmCountdownState,
-    pub tail_call_pending: bool,
     pub host_callee_fref: u32,
     pub comm_chain: [u64; 4],
     pub event_absorb: WasmEventAbsorbState,
@@ -275,11 +291,8 @@ pub struct WasmStepState {
     /// a captured output; carried into the semantic-state digest so a
     /// verifier can assert "this execution trapped".
     pub trapped: bool,
-    pub param_init: WasmCountdownState,
+    pub frame_move: WasmFrameMoveState,
     pub local_zero: WasmCountdownState,
-    /// A tail call has initialized its replacement frame but still needs to
-    /// discard the replaced frame's residual operand stack.
-    pub tail_call_pending: bool,
     /// Callee attribution for host-call events: set from the call row's
     /// (ROM/table-bound) `COL_FUNCTION_REF` on every host call and preserved
     /// on all other rows until the next host call overwrites it. Consumers
@@ -308,12 +321,11 @@ pub struct WasmHostContext {
     pub args_base: u64,
     pub parent_host_frame_depth: u64,
     pub retained_sp: u64,
-    pub locals_end: u64,
 }
 
 impl WasmHostContext {
     /// Ordered values for `COL_HOST_CONTEXT` and its corresponding RAM ports.
-    pub(crate) fn to_words(self) -> [u64; 9] {
+    pub(crate) fn to_words(self) -> [u64; 8] {
         [
             self.continuation_pc,
             self.locals_fbp,
@@ -323,7 +335,6 @@ impl WasmHostContext {
             self.args_base,
             self.parent_host_frame_depth,
             self.retained_sp,
-            self.locals_end,
         ]
     }
 }
@@ -346,11 +357,11 @@ impl WasmStepState {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WasmAuxOpcode {
-    CallParamInit,
+    /// Copies one cell of a returning or tail-called frame down to its new
+    /// position. See [`WasmFrameMoveState`].
+    FrameMove,
+    /// Pushes one zero-initialized declared local of a new frame.
     LocalZero,
-    /// Drops residual operands from the replaced frame after tail-call
-    /// parameters have been copied into the callee's locals.
-    TailEnter,
     /// One row of the host-event chain permutation group: a full-round row or
     /// a partial-pair row of the width-12 Poseidon2 block absorb (see
     /// [`crate::comm_chain::COMM_CHAIN_PERM_ROWS`]). Scheduled whenever
@@ -387,12 +398,8 @@ impl WasmRowKind {
         matches!(self, Self::Aux(WasmAuxOpcode::LocalZero))
     }
 
-    pub fn is_call_param_init(self) -> bool {
-        matches!(self, Self::Aux(WasmAuxOpcode::CallParamInit))
-    }
-
-    pub fn is_tail_enter(self) -> bool {
-        matches!(self, Self::Aux(WasmAuxOpcode::TailEnter))
+    pub fn is_frame_move(self) -> bool {
+        matches!(self, Self::Aux(WasmAuxOpcode::FrameMove))
     }
 
     pub fn is_host_event_perm(self) -> bool {
@@ -586,8 +593,8 @@ pub struct WasmVmStep {
     pub opcode: WasmOpcode,
     pub info: WasmOpcodeInfo,
     /// Dynamic stack read count when opcode metadata is not enough.
-    /// Call-like rows read only an indirect table index; args are popped by
-    /// guest param-init or host-arg aux rows.
+    /// Call-like rows read only an indirect table index; guest args stay in
+    /// place as the callee's params, and host args are read by gather rows.
     pub stack_reads_override: Option<u8>,
     /// Dynamic stack write count when opcode metadata is not enough.
     /// Guest calls produce their return values in later guest rows; host
@@ -597,7 +604,6 @@ pub struct WasmVmStep {
     /// Normalized function reference for the currently executing frame.
     /// `function_ref` below is opcode-target metadata, not this frame identity.
     pub current_function_ref: u32,
-    pub current_function_num_locals: u32,
     pub stack_read0: Option<StackValueAccess>,
     pub stack_read1: Option<StackValueAccess>,
     pub stack_read2: Option<StackValueAccess>,
@@ -707,9 +713,8 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     locals_fbp: row.state_before.locals_fbp,
                     activation_finished: row.state_before.activation_finished,
                     trapped: row.state_before.trapped,
-                    param_init: row.state_before.param_init,
+                    frame_move: row.state_before.frame_move,
                     local_zero: row.state_before.local_zero,
-                    tail_call_pending: row.state_before.tail_call_pending,
                     host_callee_fref: row.state_before.host_callee_fref,
                     comm_chain: row.state_before.comm_chain,
                     event_absorb: row.state_before.event_absorb,
@@ -726,9 +731,8 @@ pub fn boundary_states(trace: &[WasmVmStep]) -> Vec<(WasmBoundaryState, WasmBoun
                     locals_fbp: row.state_after.locals_fbp,
                     activation_finished: row.state_after.activation_finished,
                     trapped: row.state_after.trapped,
-                    param_init: row.state_after.param_init,
+                    frame_move: row.state_after.frame_move,
                     local_zero: row.state_after.local_zero,
-                    tail_call_pending: row.state_after.tail_call_pending,
                     host_callee_fref: row.state_after.host_callee_fref,
                     comm_chain: row.state_after.comm_chain,
                     event_absorb: row.state_after.event_absorb,

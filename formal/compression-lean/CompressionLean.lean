@@ -5,6 +5,7 @@ import CompressionLean.Replay.Stages
 import CompressionLean.Final
 import CompressionLean.Circuit.Block
 import CompressionLean.Circuit.Valid
+import CompressionLean.Circuit.RecordCounts
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Terminal
 import CompressionLean.Bridge.Path

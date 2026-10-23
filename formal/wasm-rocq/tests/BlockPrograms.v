@@ -28,29 +28,44 @@ Ltac typed_step inputs outputs extra :=
   apply instrs_cons_ok with (mid := (extra + outputs)%nat);
     [repeat constructor | repeat constructor | repeat constructor | typed_instr inputs outputs extra | ].
 
-(* A function's first instruction, with its locals at the frame base. *)
+(* A function's first instruction, with its locals as its first cells. *)
 Lemma function_start_config : forall program s index f locals memory boundary,
   store_FUNCS s = program -> wf_store s -> programValidated program s ->
   functionAt program index = Some f -> length locals = frameLocals f ->
   Forall (fun v => 0 <= v < i32Modulus) locals ->
-  (forall i v, nth_error locals i = Some v -> memory localLoId [boundaryLocalsBase boundary; Z.of_nat i] = Some v) ->
-  0 <= boundaryStackBase boundary -> boundarySP boundary = boundaryStackBase boundary ->
-  boundaryPC boundary = guestEntry f -> initializationIdle boundary -> 0 <= boundaryCallDepth boundary ->
+  (forall i v, nth_error locals i = Some v ->
+    memory stackId [2 * (boundaryLocalsBase boundary + Z.of_nat i)] = Some v) ->
+  0 <= boundaryLocalsBase boundary ->
+  boundaryStackBase boundary = boundaryLocalsBase boundary + Z.of_nat (frameLocals f) ->
+  boundarySP boundary = boundaryStackBase boundary ->
+  boundaryPC boundary = guestEntry f -> initializationIdle boundary ->
+  0 <= boundaryCallDepth boundary ->
   CircuitConfig program s (boundaryCallDepth boundary) (controlShape [] (siteCode (codePosition index [] 0)))
     memory boundary (stackConfig (mk_state s (activeFrame f locals)) [] (guestBody f)).
 Proof.
-  intros program s index f locals memory boundary Hstore Hwf Hvalid Hf Hlen Hbounds Hcells Hbase Hsp Hpc Hidle Hdepth.
+  intros program s index f locals memory boundary Hstore Hwf Hvalid Hf Hlen Hbounds Hcells Hfbp Hbase Hsp Hpc Hidle
+    Hdepth.
   apply (control_state_circuit _ _ _ (controlCursor [] (atCode (frameView (codePosition index [] 0) [] [] locals))));
     [exact Hstore | exact Hwf | exact Hvalid | ].
   exists f, (stackConfig (mk_state s (activeFrame f locals)) [] (guestBody f)).
   split; [exact Hf | ]. split.
-  - exists f. unfold FrameAt, viewOperands.
-    cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset concat app].
-    split.
-    + split; [exact Hf | ]. split; [reflexivity | ]. split; [reflexivity | ]. split; [exact Hbase | ].
-      split; [constructor | ]. split; [intros [ | i] v Hv; discriminate | ].
-      split; [exact Hlen | ]. split; [exact Hbounds | exact Hcells].
-    + split; [cbn; lia | ]. split; [cbn; lia | ]. split; [rewrite Hpc; cbn; lia | ]. split; [exact Hidle | reflexivity].
+  - pose proof (FrameRows.idle_active_state program s memory boundary f
+      (frameView (codePosition index [] 0) [] [] locals)) as Hstate.
+    cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset] in Hstate.
+    unfold innerCode in Hstate. cbn [pathCode] in Hstate.
+    replace (stackConfig (mk_state s (activeFrame f locals)) [] (guestBody f)) with
+      (frameConfig f (frameView (codePosition index [] 0) [] [] locals)
+        (stackConfig (mk_state s (activeFrame f locals)) [] (skipn 0 (guestBody f)))) by reflexivity.
+    apply Hstate; clear Hstate.
+    + apply FrameRows.frame_at_unmoved_intro; unfold viewOperands;
+        cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset concat app];
+        try assumption; try reflexivity.
+      * constructor.
+      * intros [ | i] v Hv; discriminate.
+    + cbn. lia.
+    + unfold viewOperands. cbn. lia.
+    + rewrite Hpc. cbn. lia.
+    + exact Hidle.
   - split; [exact I | ]. split; [exact Hdepth | ]. split; [cbn; lia | reflexivity].
 Qed.
 
@@ -62,10 +77,11 @@ Definition conditionalProgram := [conditionalFunction].
 Definition conditionalStore := MKstore conditionalProgram [] [] [] [] [].
 Definition conditionalState condition := mk_state conditionalStore
   (MKframe [i32Value condition; i32Value 9] conditionalModule).
+(* The frame's two locals at cells 7 and 8, and a stale value at cell 9, its
+   empty operand stack's first cell. *)
 Definition conditionalRam condition : MemoryState := fun memory address =>
-  if Nat.eqb memory stackId then match address with [8] => Some 42 | _ => None end
-  else if Nat.eqb memory localLoId then
-    match address with [7; 0] => Some condition | [7; 1] => Some 9 | _ => None end
+  if Nat.eqb memory stackId then
+    match address with [14] => Some condition | [16] => Some 9 | [18] => Some 42 | _ => None end
   else None.
 Definition conditionalMemory condition := loadProgram conditionalProgram (conditionalRam condition).
 
@@ -173,13 +189,13 @@ Qed.
 Example conditional_initial_config : forall condition,
   0 <= condition < i32Modulus ->
   CircuitConfig conditionalProgram conditionalStore 0 (controlShape [] (siteCode (codePosition 0 [] 0)))
-    (conditionalMemory condition) (mkBoundary 0 4 4 7 0 0 0 0 0)
+    (conditionalMemory condition) (mkBoundary 0 9 9 7 0 0 0 0 0 0)
     (stackConfig (conditionalState condition) [] conditionalCode).
 Proof.
   intros condition Hcondition.
   apply (function_start_config conditionalProgram conditionalStore 0
     (mkGuestFunction 0%N conditionalModule (mk_uN 0) 0 1 2 conditionalCode 0) [condition; 9] _
-    (mkBoundary 0 4 4 7 0 0 0 0 0)); try reflexivity; try (cbn; lia).
+    (mkBoundary 0 9 9 7 0 0 0 0 0 0)); try reflexivity; try (cbn; lia).
   - repeat constructor.
   - split; [constructor; [apply (conditional_function_validates 0) | constructor] | exact conditional_program_supported].
   - repeat constructor; unfold i32Modulus in *; lia.
@@ -192,12 +208,12 @@ Qed.
 Example conditional_program_refines : forall condition rows final,
   fieldPrime -> 0 <= condition < i32Modulus ->
   validCircuitRun (conditionalMemory condition) rows final ->
-  runFragment (mkBoundary 0 4 4 7 0 0 0 0 0) 0 rows ->
+  runFragment (mkBoundary 0 9 9 7 0 0 0 0 0 0) 0 rows ->
   exists shape c,
     Steps (stackConfig (conditionalState condition) [] conditionalCode) c /\
     programLoaded conditionalProgram final /\
     CircuitConfig conditionalProgram conditionalStore 0 shape final
-      (rowsFinalBoundary (mkBoundary 0 4 4 7 0 0 0 0 0) rows) c.
+      (rowsFinalBoundary (mkBoundary 0 9 9 7 0 0 0 0 0 0) rows) c.
 Proof.
   intros condition rows final Hprime Hcondition Hrun Hfragment.
   exact (run_refinement conditionalProgram conditionalStore 0 _ rows (conditionalMemory condition) final _ _ Hprime

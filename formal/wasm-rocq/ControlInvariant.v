@@ -26,60 +26,71 @@ Definition innerCode (f : GuestFunction) (position : CodePosition) : list instr 
 Definition frameConfig (f : GuestFunction) (view : FrameView) (c : config) : config :=
   wrapLabels (guestBody f) (positionLabels (viewPosition view)) (viewSegments view) c.
 
-(* A frame in memory: its operands from base, at the code's static heights, with
-   `pending` more that have moved to a callee as its arguments; its locals at fbp. *)
-Definition FrameAt (program : Program) (memory : MemoryState) (base fbp : Z) (pending : nat)
-    (f : GuestFunction) (view : FrameView) : Prop :=
+(* Where a frame's operand `index` sits: from base, except that the top `moved`
+   of `count` operands still sit `distance` cells higher while a move is pending. *)
+Definition operandCell (base : Z) (count moved : nat) (distance : Z) (index : nat) : Z :=
+  base + Z.of_nat index + (if (index <? count - moved)%nat then 0 else distance).
+
+(* A frame in memory: its locals are its first cells from fbp, and its operands
+   follow from base = fbp + locals, at the code's static heights, with `pending`
+   more that have moved to a callee as its arguments. *)
+Definition FrameAt (program : Program) (memory : MemoryState) (base fbp : Z) (pending moved : nat)
+    (distance : Z) (f : GuestFunction) (view : FrameView) : Prop :=
   let position := viewPosition view in
   functionAt program (positionFunction position) = Some f /\
   pathCode (guestBody f) (positionLabels position) = Some (innerCode f position) /\
   pathHeights (programCallees program (guestModule f)) (guestBody f) (positionLabels position)
     (positionOffset position) =
     Some (map (@length Z) (viewSegments view), (length (viewValues view) + pending)%nat) /\
-  0 <= base /\
+  0 <= fbp /\ base = fbp + Z.of_nat (frameLocals f) /\
   Forall (fun value => 0 <= value < i32Modulus) (viewOperands view) /\
   (forall index value, nth_error (viewOperands view) index = Some value ->
-    memory stackId [2 * (base + Z.of_nat index)] = Some value) /\
+    memory stackId [2 * operandCell base (length (viewOperands view)) moved distance index] = Some value) /\
   length (viewLocals view) = frameLocals f /\
   Forall (fun value => 0 <= value < i32Modulus) (viewLocals view) /\
   (forall index value, nth_error (viewLocals view) index = Some value ->
-    memory localLoId [fbp; Z.of_nat index] = Some value).
+    memory stackId [2 * (fbp + Z.of_nat index)] = Some value).
 
 Inductive ControlPosition :=
 | atCode (view : FrameView)
 | entering (function : nat) (arguments : list Z).
 
 (* The countdown flags follow the counters, as the circuit computes them on the row
-   before this boundary; the next row's kind is fixed by them. *)
+   before this boundary; the next row's kind is fixed by them. A pending move runs
+   before zeroing. *)
 Definition initializationFlags (boundary : Boundary) : Prop :=
-  boundaryZeroActive boundary = (if boundaryZeroRemaining boundary =? 0 then 0 else 1) /\
-  boundaryParamActive boundary =
-    (if boundaryZeroRemaining boundary =? 0 then
-       if boundaryParamRemaining boundary =? 0 then 0 else 1 else 0).
+  boundaryMoveActive boundary = (if boundaryMoveRemaining boundary =? 0 then 0 else 1) /\
+  boundaryZeroActive boundary =
+    (if boundaryMoveRemaining boundary =? 0 then
+       if boundaryZeroRemaining boundary =? 0 then 0 else 1 else 0).
 
-(* The active frame. Outside frame initialization no countdown is pending. While
-   a callee's frame is initialized, SpecTec has already entered it with zeroed
-   locals; the circuit catches up row by row, with no SpecTec step. *)
+(* The active frame. At code, no zeroing is pending, but the top operands may
+   still be moving down: SpecTec has already returned them from a callee, and the
+   circuit catches up row by row with no SpecTec step. While a callee's frame is
+   initialized, SpecTec has already entered it with zeroed locals; the circuit
+   catches up the same way. *)
 Definition ActiveState (program : Program) (s : store) (memory : MemoryState) (boundary : Boundary)
     (cursor : ControlPosition) (c : config) : Prop :=
   match cursor with
   | atCode view => exists f,
       let position := viewPosition view in
-      FrameAt program memory (boundaryStackBase boundary) (boundaryLocalsBase boundary) 0 f view /\
+      let moved := Z.to_nat (boundaryMoveRemaining boundary) in
+      FrameAt program memory (boundaryStackBase boundary) (boundaryLocalsBase boundary) 0 moved
+        (boundaryMoveDistance boundary) f view /\
       (positionOffset position <= length (innerCode f position))%nat /\
       boundarySP boundary = boundaryStackBase boundary + Z.of_nat (length (viewOperands view)) /\
       boundaryPC boundary =
         guestEntry f + Z.of_nat (pathOffset (guestBody f) (positionLabels position) (positionOffset position)) /\
-      initializationIdle boundary /\
+      initializationFlags boundary /\ boundaryZeroRemaining boundary = 0 /\
+      (moved <= length (viewValues view))%nat /\
       c = frameConfig f view (stackConfig (mk_state s (activeFrame f (viewLocals view))) (viewValues view)
         (skipn (positionOffset position) (innerCode f position)))
   | entering function arguments => exists f,
       functionAt program function = Some f /\ length arguments = guestParams f /\
       Forall (fun value => 0 <= value < i32Modulus) arguments /\
-      InitializingFrame memory boundary arguments (Z.of_nat (guestLocals f))
-        (boundaryZeroRemaining boundary) (boundaryParamRemaining boundary) /\
-      initializationFlags boundary /\
-      0 < boundaryZeroRemaining boundary + boundaryParamRemaining boundary /\
+      InitializingFrame memory boundary arguments (Z.of_nat (guestLocals f)) (boundaryZeroRemaining boundary) /\
+      initializationFlags boundary /\ boundaryMoveRemaining boundary = 0 /\
+      0 < boundaryZeroRemaining boundary /\
       boundaryPC boundary = guestEntry f /\
       c = stackConfig (mk_state s (enteredFrame (guestModule f) arguments (guestLocals f))) [] (guestBody f)
   end.
@@ -106,10 +117,12 @@ Definition callerConfig (suspended : SuspendedCall) (c : config) : config :=
 Fixpoint plugCalls (stack : list SuspendedCall) (c : config) : config :=
   match stack with [] => c | suspended :: rest => plugCalls rest (callerConfig suspended c) end.
 
-(* Each suspended call, relative to the frame registers and depth of the frame it
-   called. Its return context is the one saved at the depth below that frame. *)
+(* Each suspended call, relative to the base pointer and depth of the frame it
+   called: that frame starts right above the caller's operands, its arguments
+   having become its first locals. Its return context is the one saved at the
+   depth below that frame. *)
 Fixpoint SuspendedStack (program : Program) (memory : MemoryState) (callee : GuestFunction)
-    (base fbp depth : Z) (stack : list SuspendedCall) : Prop :=
+    (fbp depth : Z) (stack : list SuspendedCall) : Prop :=
   match stack with
   | [] => True
   | suspended :: rest =>
@@ -117,17 +130,16 @@ Fixpoint SuspendedStack (program : Program) (memory : MemoryState) (callee : Gue
       let view := callView suspended in
       let position := viewPosition view in
       exists x,
-      FrameAt program memory (callerBase suspended) (callerFbp suspended) (guestParams callee) g view /\
+      FrameAt program memory (callerBase suspended) (callerFbp suspended) (guestParams callee) 0 0 g view /\
       nth_error (innerCode g position) (positionOffset position) = Some (CALL x) /\
       programCallees program (guestModule g) (x :> N) = Some callee /\
       callResults suspended = guestResults callee /\
-      base = callerBase suspended + Z.of_nat (length (viewOperands view)) /\
-      fbp = callerFbp suspended + Z.of_nat (frameLocals g) /\
+      fbp = callerBase suspended + Z.of_nat (length (viewOperands view)) /\
       memory callStackReturnPcId [depth - 1] =
         Some (guestEntry g + Z.of_nat (pathOffset (guestBody g) (positionLabels position) (S (positionOffset position)))) /\
       memory callStackCallerFbpId [depth - 1] = Some (callerFbp suspended) /\
       memory callStackCallerSpBaseId [depth - 1] = Some (callerBase suspended) /\
-      SuspendedStack program memory g (callerBase suspended) (callerFbp suspended) (depth - 1) rest
+      SuspendedStack program memory g (callerFbp suspended) (depth - 1) rest
   end.
 
 Record ControlCursor := controlCursor {
@@ -147,7 +159,7 @@ Definition ControlState (program : Program) (s : store) (baseDepth : Z) (cursor 
   exists f inner,
     activeFunction program (activePosition cursor) = Some f /\
     ActiveState program s memory boundary (activePosition cursor) inner /\
-    SuspendedStack program memory f (boundaryStackBase boundary) (boundaryLocalsBase boundary)
+    SuspendedStack program memory f (boundaryLocalsBase boundary)
       (boundaryCallDepth boundary) (suspendedCalls cursor) /\
     0 <= baseDepth /\ boundaryCallDepth boundary = baseDepth + Z.of_nat (length (suspendedCalls cursor)) /\
     c = plugCalls (suspendedCalls cursor) inner.

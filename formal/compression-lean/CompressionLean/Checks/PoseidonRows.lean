@@ -21,8 +21,9 @@ its rows from the atoms into forms sorted by column, as Rust's
 Does not own a check of Rust's runs against these rows (`RunsGive`).
 -/
 
-namespace CompressionLean.Final.PoseidonRows
+namespace CompressionLean.Checks
 
+open CompressionLean.Final
 open CompressionLean.Game
 open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -899,4 +900,4 @@ theorem matrixSource_entry (application : Lifecycle.Stage1.Application.Program)
     exact (same _ _).symm
   · exact Phi81MatrixSource.source_matrix_tail_zero _ _ _ _ _ _ _ _ _ _ (by omega)
 
-end CompressionLean.Final.PoseidonRows
+end CompressionLean.Checks

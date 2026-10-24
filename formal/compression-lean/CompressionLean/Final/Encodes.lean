@@ -7,7 +7,7 @@ import CompressionLean.Lowering.RecordCounts
 import CompressionLean.Lowering.Valid
 import CompressionLean.Bridge.Main
 import CompressionLean.Final.Bridge
-import CompressionLean.Final.KeyFacts
+import CompressionLean.Checks.KeyFacts
 
 /-!
 Owns `ProgramEncodes` (`Claim.lean`) for the production final program
@@ -32,6 +32,7 @@ stage lemmas carry every such fact.
 
 namespace CompressionLean.Final.Encodes
 
+open CompressionLean.Checks
 open CompressionLean.Lowering CompressionLean.Lowering.Package
 open CompressionLean.Lib
 open CompressionLean.Game

@@ -10,7 +10,7 @@ Owns the facts about the layer-1 key that the final theorems assume
 read.
 -/
 
-namespace CompressionLean.Final
+namespace CompressionLean.Checks
 
 open CompressionLean.Game
 open CompressionLean.Circuit (Layer1Input)
@@ -144,4 +144,4 @@ def poseidon2Width : ℕ := 43963750
 def poseidon2Fits (key : Layer1Input) : Bool :=
   decide (WidthFits key poseidon2Width)
 
-end CompressionLean.Final
+end CompressionLean.Checks

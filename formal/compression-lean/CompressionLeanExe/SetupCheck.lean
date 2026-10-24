@@ -1,4 +1,4 @@
-import CompressionLean.Final.SetupFacts
+import CompressionLean.Checks.SetupFacts
 import CompressionLeanExe.Parse
 
 /-!
@@ -11,6 +11,7 @@ first fact that fails and exits with 1.
 
 namespace CompressionLeanExe.SetupCheck
 
+open CompressionLean.Checks
 open CompressionLean.Game
 open CompressionLean CompressionLean.Final
 open NightstreamFPrime.Spec (goldilocksModulus)
@@ -49,6 +50,6 @@ def main (args : List String) : IO UInt32 := do
   let [layer1, runs] := args | IO.eprintln "usage: setupCheck <layer1.json> <runs.bin>"; return 2
   let key ← IO.ofExcept (← CompressionLeanExe.Parse.readJson CompressionLean.Circuit.Layer1Input layer1)
   let pushes ← IO.ofExcept (readRuns (← IO.FS.readBinFile runs))
-  match CompressionLean.Final.setupFailure key pushes with
+  match CompressionLean.Checks.setupFailure key pushes with
   | none => IO.println "setup facts hold"; return 0
   | some fact => IO.println s!"setup fact fails: {fact}"; return 1

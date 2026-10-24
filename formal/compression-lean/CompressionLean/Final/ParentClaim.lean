@@ -19,9 +19,11 @@ concrete fields.
 namespace CompressionLean.Final
 
 open Polynomial NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle
-open NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
+
+variable {lw : ℕ} {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
 
 /-! ## Reading the output columns -/
 
@@ -66,7 +68,7 @@ theorem word_eq (list : List Circuit.Expr) (env : Circuit.Env) (k : ℕ) (values
 /-- **The claim names the parent.** The layer-1 claim that the final program
 reads from the terminal output columns (`claimOf`) is the statement of the
 PiRLC parent in those columns. -/
-theorem claimOf_parent (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
+theorem claimOf_parent (relation : ProductionKey.LogicalRelation lw pf)
     (env : Circuit.Env) :
     (claimOf env : Layer1.Statement Gl) = statementOf (Terminal.parent relation env) := by
   have commitment := Terminal.commitment_eval relation env
@@ -105,9 +107,9 @@ theorem claimOf_parent (relation : ProductionKey.LogicalRelation Data.logicalWid
   · funext j l
     split_ifs with hl h h
     · rw [word_eq _ env _ _ publicInput, getD_ofFn, dif_pos (show ringDegree * j + l <
-        (PaperAlgebra.FullShape Data.logicalWidth Data.publicFits).publicWidth from h.2)]
+        (PaperAlgebra.FullShape lw pf).publicWidth from h.2)]
     · rw [word_eq _ env _ _ publicInput, getD_ofFn, dif_neg (show ¬ (ringDegree * j + l <
-        (PaperAlgebra.FullShape Data.logicalWidth Data.publicFits).publicWidth) from fun lt => h ⟨hl, lt⟩)]
+        (PaperAlgebra.FullShape lw pf).publicWidth) from fun lt => h ⟨hl, lt⟩)]
       rfl
     · exact absurd h.1 hl
     · rfl
@@ -159,14 +161,14 @@ theorem claimOf_parent (relation : ProductionKey.LogicalRelation Data.logicalWid
 /-- The running claims of a terminal assignment, as F′'s accumulator reads
 them from the package columns. -/
 abbrev runningOf (env : Circuit.Env) :=
-  Layout.Stage1.AccumulatorInputs.running Data.logicalWidth Data.publicFits (Layout.Stage1.Spartan.pullback env)
+  Layout.Stage1.AccumulatorInputs.running lw pf (Layout.Stage1.Spartan.pullback env)
 
 /-- The fresh claim of a terminal assignment. -/
 abbrev freshOf (env : Circuit.Env) :=
-  Layout.Stage1.AccumulatorInputs.fresh Data.logicalWidth Data.publicFits (Layout.Stage1.Spartan.pullback env)
+  Layout.Stage1.AccumulatorInputs.fresh lw pf (Layout.Stage1.Spartan.pullback env)
 
 /-- The PiCCS proof of a terminal assignment. -/
-abbrev proofOf (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits) (env : Circuit.Env) :=
+abbrev proofOf (relation : ProductionKey.LogicalRelation lw pf) (env : Circuit.Env) :=
   Layout.Stage1.AccumulatorInputs.proof relation (Layout.Stage1.Spartan.pullback env)
 
 /-- **What a final proof for `x` claims, in F′'s terms.** Some terminal
@@ -174,8 +176,8 @@ assignment for `x` (`TerminalFor`) holds a PiCCS proof that F′'s verifier
 accepts for the key of `relation` and `ajtai`, and the PiRLC parent that the
 verifier computes from it has a witness of F′'s CE(B) relation (SuperNeo
 v1.2 Definition 21). -/
-def ParentClaim (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
-    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
+def ParentClaim (relation : ProductionKey.LogicalRelation lw pf)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
     (authority : Lifecycle.VerifierContext.Authority) (x : StateWords) : Prop :=
   ∃ env, TerminalFor authority x env ∧
     Spec.Folding.Nifs.PaperNonInteractive.piCcsCheck (ProductionKey.key relation ajtai) (runningOf env) (freshOf env)
@@ -188,9 +190,9 @@ def ParentClaim (relation : ProductionKey.LogicalRelation Data.logicalWidth Data
 witness of the parent claim is a witness of F′'s relation for the PiRLC
 parent (`parent_holds`). -/
 theorem parentClaim_of_terminalClaim (s1 : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Layer1.Setup Gl)
-    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
-    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
-    (shape : ParentShape s1 Data.logicalWidth) (blocks_le : s1.blocks ≤ 2 ^ s1.blockVars)
+    (relation : ProductionKey.LogicalRelation lw pf)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
+    (shape : ParentShape s1 lw) (blocks_le : s1.blocks ≤ 2 ^ s1.blockVars)
     (barEq : ∀ p l : Fin ringDegree, bar p l = gl (nativeBarEntry p l))
     (honest : HonestSetup s1 S relation ajtai) (authority : Lifecycle.VerifierContext.Authority) (x : StateWords)
     (claim : TerminalClaim s1 modulus bar S authority x) : ParentClaim relation ajtai authority x := by
@@ -212,9 +214,9 @@ F′ key, a prover makes the final verifier accept a statement whose F′ claim
 errors at `p³` challenges. The premises are those of `final_sound`, with `Φ`
 the Φ81 modulus, `bar` the Φ81 bar transform and `S` the honest setup. -/
 theorem final_sound_parent (s1 : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Layer1.Setup Gl)
-    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
-    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
-    (shape : ParentShape s1 Data.logicalWidth) (barEq : ∀ p l : Fin ringDegree, bar p l = gl (nativeBarEntry p l))
+    (relation : ProductionKey.LogicalRelation lw pf)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
+    (shape : ParentShape s1 lw) (barEq : ∀ p l : Fin ringDegree, bar p l = gl (nativeBarEntry p l))
     (honest : HonestSetup s1 S relation ajtai) (fits : S.Fits s1)
     (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → Cubic) (N : ℕ) (sizes : s1.Sizes N)
     (small : N ≤ goldilocksModulus) (distinct : ∀ i j, i < L → j < L → q i = q j → i = j)
@@ -244,9 +246,9 @@ within Rust's split (as in `final_restore_budget`), a prover with `calls`
 queries makes the final verifier accept a statement whose F′ claim is false
 with probability at most `calls / 2^t`. -/
 theorem final_restore_budget_parent (s1 : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Layer1.Setup Gl)
-    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
-    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
-    (shape : ParentShape s1 Data.logicalWidth) (barEq : ∀ p l : Fin ringDegree, bar p l = gl (nativeBarEntry p l))
+    (relation : ProductionKey.LogicalRelation lw pf)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
+    (shape : ParentShape s1 lw) (barEq : ∀ p l : Fin ringDegree, bar p l = gl (nativeBarEntry p l))
     (honest : HonestSetup s1 S relation ajtai) (fits : S.Fits s1)
     (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (index : s1.setupVars ≤ 35) (t : ℕ)
     (T : Shrink.Template Gl) (s : Shrink.Counts) (prog : StateWords → Shrink.Run Gl) (Ls : ℕ)

@@ -7,7 +7,10 @@ families: the prior hash chain, the permutation invocations, the compact
 PiRLC rows, and the ordinary rows.
 
 Each theorem only proves membership of an F′ component in the terminal
-package. The family lemmas of F′ give the meaning of the rows.
+package. The family lemmas of F′ give the meaning of the rows. F′'s row
+builders take the logical width as a parameter, but their output does not
+depend on it, so the package rows are F′'s rows at every width
+(`arithmeticRows_at`, `permutationInvocations_at`).
 -/
 
 namespace CompressionLean.Terminal
@@ -17,6 +20,25 @@ open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout
+open NightstreamFPrime.Spec (ringDegree)
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Lifecycle.PaperAlgebra (publicRingColumns)
+
+/-- The ordinary rows are F′'s `PiCCSArithmetic.arithmeticRows` and
+`PiRLCSamplerOrdinaryRows.rows` at any logical width. -/
+theorem arithmeticRows_at (lw : Nat)
+    (pf : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw) :
+    arithmeticRows () = PiCCSArithmetic.arithmeticRows lw pf ++
+      PiRLCSamplerOrdinaryRows.rows (logicalWidth := lw) (publicFits := pf) := by
+  rfl
+
+/-- The permutation invocations are F′'s `PiCCSInvocations.invocations` and
+`PiRLCSamplerInvocations.invocations` at any logical width. -/
+theorem permutationInvocations_at (lw : Nat)
+    (pf : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw) :
+    Data.permutationInvocations () = PiCCSInvocations.invocations lw pf ++
+      PiRLCSamplerInvocations.invocations (logicalWidth := lw) (publicFits := pf) := by
+  rfl
 
 theorem circuitPackage_witnessInstructions :
     (circuitPackage ()).witnessInstructions =
@@ -99,22 +121,23 @@ theorem arithmeticRows_hold (env : Env)
     rw [Rows.assertionRowsTR_eq]
     exact member
 
+variable {lw : Nat} {pf : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
+
 theorem piCcsArithmeticRows_hold (env : Env)
     (holds : (circuitPackage ()).RowsHold env) :
     R1CS.RowsHold env
-      ((PiCCSArithmetic.arithmeticRows Data.logicalWidth Data.publicFits).map
-        Rows.CompiledRow.toR1CS) := by
+      ((PiCCSArithmetic.arithmeticRows lw pf).map Rows.CompiledRow.toR1CS) := by
   have combined := arithmeticRows_hold env holds
-  rw [arithmeticRows, List.map_append] at combined
+  rw [arithmeticRows_at lw pf, List.map_append] at combined
   exact ((R1CS.rowsHold_append env _ _).mp combined).1
 
 theorem piRlcSamplerOrdinaryRows_hold (env : Env)
     (holds : (circuitPackage ()).RowsHold env) :
     R1CS.RowsHold env
-      ((PiRLCSamplerOrdinaryRows.rows (logicalWidth := Data.logicalWidth)
-        (publicFits := Data.publicFits)).map Rows.CompiledRow.toR1CS) := by
+      ((PiRLCSamplerOrdinaryRows.rows (logicalWidth := lw)
+        (publicFits := pf)).map Rows.CompiledRow.toR1CS) := by
   have combined := arithmeticRows_hold env holds
-  rw [arithmeticRows, List.map_append] at combined
+  rw [arithmeticRows_at lw pf, List.map_append] at combined
   exact ((R1CS.rowsHold_append env _ _).mp combined).2
 
 /-- Every F′ Stage 1 permutation invocation holds with the one canonical

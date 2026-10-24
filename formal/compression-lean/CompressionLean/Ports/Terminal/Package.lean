@@ -22,8 +22,9 @@ value; the `terminalCheck` executable compares the two on the artifact.
   System column `k` is the `k`-th of them.
 -/
 
-namespace CompressionLean.Circuit.Package
+namespace CompressionLean.Terminal.Package
 
+open CompressionLean.Circuit
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Layout
@@ -214,4 +215,4 @@ def load (package : CircuitPackage) (map : Terminal.Outputs) : Except String Loa
     system := rows.map fun r => ⟨reindex index r.a, reindex index r.b, reindex index r.c⟩
     sources, computed, outputs }
 
-end CompressionLean.Circuit.Package
+end CompressionLean.Terminal.Package

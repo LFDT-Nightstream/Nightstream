@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Package
+import CompressionLean.Ports.Terminal.Package
 import CompressionLean.Lowering.Exec
 import NightstreamFPrime.Export.PackageExpansion
 
@@ -39,7 +39,7 @@ end CompressionLean.Replay.Word
 
 namespace CompressionLean.Lowering.Package
 
-open CompressionLean.Circuit.Package
+open CompressionLean.Terminal.Package
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 open CompressionLean.Shrink (R1csRow)

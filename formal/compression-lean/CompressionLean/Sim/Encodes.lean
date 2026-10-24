@@ -35,7 +35,7 @@ namespace CompressionLean.Sim
 open CompressionLean.Final
 open CompressionLean.Checks
 open CompressionLean.Lowering
-open CompressionLean.Circuit CompressionLean.Circuit.Terminal CompressionLean.Circuit.Package
+open CompressionLean.Circuit CompressionLean.Terminal.Package CompressionLean.Terminal.Program
 open NightstreamFPrime.Spec (goldilocksModulus)
 open CompressionLean.Bridge CompressionLean.Layer1
 open NightstreamFPrime

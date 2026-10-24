@@ -32,6 +32,8 @@ import CompressionLean.Ports.Shrink.Evaluate
 import CompressionLean.Ports.Shrink.Game
 import CompressionLean.Ports.Shrink.Layout
 import CompressionLean.Ports.Shrink.Rounds
+import CompressionLean.Ports.Terminal.Package
+import CompressionLean.Ports.Terminal.Program
 
 /-!
 `Ports/` owns the hand transcriptions of Rust, and nothing else: definitions,

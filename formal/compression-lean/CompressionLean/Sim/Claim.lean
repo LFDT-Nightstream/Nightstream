@@ -24,13 +24,13 @@ namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
 open CompressionLean.Replay (Word D)
-open CompressionLean.Circuit.Terminal (ClaimVars)
+open CompressionLean.Terminal.Program (ClaimVars)
 open CompressionLean.Sim (ClaimHolds HoldsValues pairHandles)
 open NightstreamFPrime.Circuit (Env Expr)
 open Fin.CommRing
 
 /-- The terminal claim as the verifier's statement. -/
-def _root_.CompressionLean.Circuit.Terminal.ClaimVars.view (claim : ClaimVars) : ClaimView :=
+def _root_.CompressionLean.Terminal.Program.ClaimVars.view (claim : ClaimVars) : ClaimView :=
   { commitment := claim.commitment, publicInput := claim.publicInput, point := claim.point,
     evalK := claim.evalK, evalA := claim.evalA }
 
@@ -168,7 +168,7 @@ theorem claimHolds_words_lt {claim : ClaimVars} (holds : ClaimHolds c m claim en
     ∀ h ∈ claim.view.words, h < m := by
   obtain ⟨hcom, hpub, hpt, hk, ha⟩ := holds
   intro h mem
-  simp [ClaimView.words, Terminal.ClaimVars.view] at mem
+  simp [ClaimView.words, Terminal.Program.ClaimVars.view] at mem
   rcases mem with mem | mem | ⟨a, b, mem, e⟩ | ⟨a, b, mem, e⟩ | ⟨a, b, mem, e⟩
   · obtain ⟨row, hrow, hh⟩ := Array.mem_flatten.mp mem
     exact holds_lt hcom h (List.mem_flatMap.mpr ⟨row, Array.mem_toList_iff.mpr hrow, Array.mem_toList_iff.mpr hh⟩)
@@ -187,7 +187,7 @@ theorem fits_decode {claim : ClaimVars} (w : Var → Word) {rel : Replay.Relatio
     (shaped : claim.Shaped) (kappa : rel.kappa = 22) (blocks : rel.publicBlocks = 5) (point : rel.pointVariables = 28)
     (matrices : rel.matrices = 4) : (claim.view.decode w).fits rel = true := by
   obtain ⟨scom, spub, spt, sk, sa⟩ := claim_sizes holds shaped
-  simp only [Replay.Statement.fits, ClaimView.decode, Terminal.ClaimVars.view, Bool.and_eq_true,
+  simp only [Replay.Statement.fits, ClaimView.decode, Terminal.Program.ClaimVars.view, Bool.and_eq_true,
     Array.all_eq_true_iff_forall_mem]
   simp [scom, spub, spt, sk, sa, kappa, blocks, point, matrices]
   exact ⟨⟨shaped.1, shaped.2.1⟩, shaped.2.2⟩
@@ -227,7 +227,7 @@ theorem statementOf_decode (hw : Decodes c w) {claim : ClaimVars} (holds : Claim
   obtain ⟨hcom, hpub, hpt, hk, ha⟩ := holds
   obtain ⟨scom, spub, sa⟩ := shaped
   simp only [Bridge.statementOf, Final.claimOf, word_eq hw hcom, word_eq hw hpub, word_eq hw hpt, word_eq hw hk,
-    word_eq hw ha, ← hpt.length_eq, length_pairHandles, ClaimView.decode, Terminal.ClaimVars.view,
+    word_eq hw ha, ← hpt.length_eq, length_pairHandles, ClaimView.decode, Terminal.Program.ClaimVars.view,
     show NightstreamFPrime.Spec.ringDegree = D from rfl]
   congr 1
   · funext ρ l

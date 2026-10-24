@@ -60,7 +60,7 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   programs read: the data types (`Ports/Replay/Data.lean`), the fields (`Ports/Replay/Field.lean`), the bar
   transform (`Replay.bar`) and the GKR shape functions (`layerCount`, `layerDegree`,
   `layerFactors`, `partFactors`, `activeTrees`).
-- The terminal loader (`Package.load`).
+- The terminal loader (`Terminal.Package.load`).
 - The setup build and the key expander (`Final/RustSetup.lean`).
 - The Merkle hash that `MerkleBinds` reads (`Replay.pathOk`, `merkleRoot`, `compress`,
   `hashLeaf`). The Merkle binding of section 3 gives a Poseidon2 collision only if this is the

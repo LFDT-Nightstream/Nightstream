@@ -6,6 +6,10 @@ axioms. `lake build` checks that every theorem of the library uses only `propext
 and `Quot.sound`. The README states, per layer, what each part assumes; this file lists the layers in
 one place.
 
+A claim means what the definitions that it names mean. `CompressionLeanTests/Vocabulary.lean`
+keeps those in `Spec/`, the model and port folders (`Fields`, `Production`, `Game`, `Terminal`,
+`Layer1`, `Ports`), F′, Mathlib and core, so a reader of the claims reads no proof.
+
 ## 1. The Lean kernel and the build cache
 
 The toolchain in `lean-toolchain`. No proof may use `native_decide` (the axiom audit rejects
@@ -78,7 +82,7 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
 
 **Code that a cross-check compares with Rust but that cannot make a claim false.** The rest of
 `Ports/Replay/`: the replay of the layer-1 verifier, with its transcript, stages, formulas, GKR and WHIR.
-The claims read it only inside `Reads` (`Sim/Encodes.lean`): the draws of a reading are the
+The claims read it only inside `Reads` (`Spec/Bound.lean`): the draws of a reading are the
 replay's draws. The simulation (`Sim/`) proves that the circuit's checks give a run of
 the replay, and `Bridge/` proves that a run of the replay gives a path of the layer-1 game. So a
 claim holds whether or not the replay agrees with Rust's native verifier. `ports.json` lists the

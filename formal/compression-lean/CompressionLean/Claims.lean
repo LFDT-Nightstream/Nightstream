@@ -8,8 +8,9 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
 /-!
 Owns the claims of the library: the production bound, and the theorems that
-link its premises to a proof or to a check. Each claim is stated in full here;
-its proof is in the library.
+link its premises to a proof or to a check. Each claim is stated in full here,
+in the vocabulary of `Spec/` and of the model and port folders
+(`CompressionLeanTests/Vocabulary.lean`); its proof is in the library.
 
 - `production_bound`: the soundness bound of `CompressionKey::verify` for the
   production final program, for the relation of an application of any logical

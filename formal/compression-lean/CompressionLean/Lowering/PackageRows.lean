@@ -19,6 +19,24 @@ values (`assignment`).
 Does not own the program that reads the system (`Terminal.lean`).
 -/
 
+namespace CompressionLean.Replay.Word
+
+open NightstreamFPrime.Spec NightstreamFPrime.Export.NativePoseidon2
+
+open Fin.CommRing in
+/-- A word of F′'s field reads back. -/
+theorem cast_ofF (x : F) : (ofF x).cast = x := by
+  have denote := ofNat64_denote x.val
+  have canonical := ofNat64_canonical x.val
+  have value : (ofNat64 x.val).toNat = x.val := by
+    have := congrArg Fin.val denote
+    simpa [UInt64.denote, Poseidon2.ofNat, Nat.mod_eq_of_lt canonical, Nat.mod_eq_of_lt x.isLt] using this
+  show ((ofNat64 x.val).toNat : F) = x
+  rw [value]
+  exact Fin.cast_val_eq_self x
+
+end CompressionLean.Replay.Word
+
 namespace CompressionLean.Lowering.Package
 
 open CompressionLean.Circuit.Package

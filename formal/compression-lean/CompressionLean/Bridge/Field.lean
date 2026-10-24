@@ -25,6 +25,99 @@ open Polynomial
 open NightstreamFPrime.Spec NightstreamFPrime.Export.NativePoseidon2
 open CompressionLean.Layer1
 
+/-! ## Words -/
+
+namespace Word
+
+theorem toF_eq (a : Word) : a.toF = ((a.word.denote).val : Gl) := by
+  simp [toF, UInt64.denote, Poseidon2.ofNat, Nat.mod_eq_of_lt a.canonical]
+
+theorem add_mk (a b : Word) : a + b = ⟨add64 a.word b.word, add64_canonical _ _ a.canonical b.canonical⟩ := by
+  rfl
+
+theorem mul_mk (a b : Word) : a * b = ⟨mul64 a.word b.word, mul64_canonical _ _⟩ := by
+  rfl
+
+theorem sub_mk (a b : Word) : a - b = ⟨sub64 a.word b.word, sub64_canonical _ _ a.canonical b.canonical⟩ := by
+  rfl
+
+theorem toF_add (a b : Word) : (a + b).toF = a.toF + b.toF := by
+  rw [add_mk, toF_eq, toF_eq a, toF_eq b]
+  dsimp only
+  rw [add64_denote _ _ a.canonical b.canonical, Fin.val_add, ZMod.natCast_mod, Nat.cast_add]
+
+theorem toF_mul (a b : Word) : (a * b).toF = a.toF * b.toF := by
+  rw [mul_mk, toF_eq, toF_eq a, toF_eq b]
+  dsimp only
+  rw [mul64_denote _ _ a.canonical b.canonical, Fin.val_mul, ZMod.natCast_mod, Nat.cast_mul]
+
+theorem toF_sub (a b : Word) : (a - b).toF = a.toF - b.toF := by
+  rw [sub_mk, toF_eq, toF_eq a, toF_eq b]
+  dsimp only
+  rw [sub64_denote _ _ a.canonical b.canonical, Fin.sub_def]
+  dsimp only
+  rw [ZMod.natCast_mod, Nat.cast_add, Nat.cast_sub (b.word.denote).isLt.le, ZMod.natCast_self]
+  ring
+
+theorem toF_ofNat (n : ℕ) : (Word.ofNat n).toF = (n : Gl) := by
+  rw [toF_eq]
+  show (((ofNat64 n).denote).val : Gl) = _
+  rw [ofNat64_denote]
+  simp [Poseidon2.ofNat]
+
+@[simp] theorem toF_lit (n : ℕ) [n.AtLeastTwo] :
+    (no_index (OfNat.ofNat n : Word)).toF = (OfNat.ofNat n : Gl) := by
+  rw [show (OfNat.ofNat n : Word) = Word.ofNat n from rfl, toF_ofNat]
+  rfl
+
+@[simp] theorem toF_zero : (0 : Word).toF = 0 := by
+  rw [show (0 : Word) = Word.ofNat 0 from rfl, toF_ofNat, Nat.cast_zero]
+
+@[simp] theorem toF_one : (1 : Word).toF = 1 := by
+  rw [show (1 : Word) = Word.ofNat 1 from rfl, toF_ofNat, Nat.cast_one]
+
+theorem toF_neg (a : Word) : (-a).toF = -a.toF := by
+  rw [show -a = 0 - a from rfl, toF_sub, toF_zero, zero_sub]
+
+theorem toF_pow (a : Word) (e : ℕ) : (a.pow e).toF = a.toF ^ e := by
+  induction e using Nat.strong_induction_on generalizing a with
+  | _ e ih =>
+    rw [Word.pow]
+    by_cases zero : e = 0
+    · rw [if_pos zero, zero, toF_one, pow_zero]
+    · rw [if_neg zero]
+      dsimp only
+      have half := ih (e / 2) (by omega) (a * a)
+      rw [toF_mul] at half
+      have split := Nat.div_add_mod e 2
+      split_ifs with odd
+      · rw [toF_mul, half, ← pow_two, ← pow_mul, ← pow_succ]
+        congr 1
+        omega
+      · rw [half, ← pow_two, ← pow_mul]
+        congr 1
+        omega
+
+theorem toF_inv (a : Word) : a.inv.toF = a.toF⁻¹ := by
+  rw [Word.inv, toF_pow]
+  exact pow_card_sub_two goldilocksModulus three_le_modulus _ ZMod.pow_card_sub_one_eq_one
+
+theorem eq_of_word {a b : Word} (words : a.word = b.word) : a = b := by
+  obtain ⟨wa, ca⟩ := a
+  obtain ⟨wb, cb⟩ := b
+  cases words
+  rfl
+
+theorem eq_of_toF {a b : Word} (equal : a.toF = b.toF) : a = b := by
+  have same := (ZMod.natCast_eq_natCast_iff' _ _ _).mp equal
+  rw [Nat.mod_eq_of_lt a.canonical, Nat.mod_eq_of_lt b.canonical] at same
+  exact eq_of_word (UInt64.toNat_inj.mp same)
+
+theorem eq_of_beq {a b : Word} (equal : (a == b) = true) : a = b :=
+  eq_of_word (beq_iff_eq.mp equal)
+
+end Word
+
 /-! ## The challenge field -/
 
 section Challenge

@@ -1,129 +1,100 @@
 import CompressionLean.Ports.Circuit.Verifier
-import CompressionLean.Bridge.EvalK
-import CompressionLean.Bridge.Honest
+import CompressionLean.Bridge.Main
 import CompressionLean.Production
+import CompressionLean.Checks.Fact
 
 /-!
 Owns the facts about the layer-1 key that the final theorems assume
-(`KeyFacts`, `WidthFits`), and their check on a key (`keyFailure`,
-`poseidon2Fits`). The production key is read at run time, so
+(`KeyFacts`, with its parts `CircuitFacts`, `Bridge.RelationFacts` and
+`ProductionConstants`, and `WidthFits`), and their check on a key
+(`keyFailure`, `poseidon2Fits`). The production key is read at run time, so
 `lowerCheck layer1` and `terminalCheck` run the check on the key that they
 read.
 -/
 
 namespace CompressionLean.Checks
 
-open CompressionLean.Circuit (Layer1Input)
-open CompressionLean.Bridge (EvalKBits HonestSizes shapeOf structureOf)
+open CompressionLean.Circuit (Layer1Input WhirKey)
+open CompressionLean.Bridge (EvalKBits HonestSizes RelationFacts shapeOf structureOf)
 
-/-- The facts about the layer-1 key that the final theorems assume, with the
-size conditions of the layer-1 argument at the Goldilocks modulus (`shape`). Rust's
-`Structure::check` (`neo-spartan/src/matrix.rs:142`) enforces `short` and
-`checked`. `Relation::new` (`neo-spartan/src/lib.rs:334`) enforces `high`,
-and `publicFits` through `public_blocks ≤ blocks`. `norm` is PiRLC's guard
-bound (`compression_bound`, `nightstream/src/lifecycle/finish.rs`). -/
+/-- The facts of the key that the in-circuit verifier reads and the replay
+does not check (`verify_ensures`): nonempty run, row and slot points, a
+four-word Merkle root, classes no longer than a block, and WHIR keys with
+the batches of the relation's openings. Rust's `Structure::check`
+(`neo-spartan/src/matrix.rs:142`) enforces `short`. -/
+structure CircuitFacts (rel : Replay.Relation) (p1Key p0Key : WhirKey) : Prop where
+  run : rel.key.layout.runVariables ≠ 0
+  row : rel.key.layout.rowVariables ≠ 0
+  slot : rel.key.layout.slotVariables + rel.matrixVars ≠ 0
+  root : rel.key.root.size = 4
+  short : ∀ cl ∈ rel.key.layout.classes, cl.len ≤ Replay.D
+  k1 : p1Key.batches.size = rel.p1Whir.batches.size
+  k0 : p0Key.batches.size = rel.p0Whir.batches.size
+  p1 : ∀ b ∈ rel.p1Whir.batches, b.size % 3 = 0
+  p1count : (rel.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * rel.queries + 4
+  p0 : rel.p0Whir.batches.toList.map (·.size) = [1, 1, 2, 2 * rel.matrices, 1, 2 * rel.matrices + 1, 1]
+
+/-- The relation has the production constants (`Production`). `norm` is
+PiRLC's guard bound (`compression_bound`, `nightstream/src/lifecycle/finish.rs`). -/
+structure ProductionConstants (rel : Replay.Relation) : Prop where
+  kappa : rel.kappa = Production.kappa
+  blocks : rel.publicBlocks = Production.publicBlocks
+  point : rel.pointVariables = Production.pointVariables
+  matrices : rel.matrices = Production.matrices
+  norm : rel.normBound = Production.normBound
+
+/-- The facts about the layer-1 key that the final theorems assume: the facts
+that the in-circuit verifier reads, the relation facts of the bridge, the
+production constants, and the size conditions of the layer-1 argument at the
+Goldilocks modulus. Rust's `Structure::check` (`neo-spartan/src/matrix.rs:142`)
+enforces `checked`. `Relation::new` (`neo-spartan/src/lib.rs:334`) enforces
+`high`, and `publicFits` through `public_blocks ≤ blocks`. -/
 structure KeyFacts (key : Layer1Input) : Prop where
-  run : key.relation.key.layout.runVariables ≠ 0
-  row : key.relation.key.layout.rowVariables ≠ 0
-  slot : key.relation.key.layout.slotVariables + key.relation.matrixVars ≠ 0
-  kappa : key.relation.kappa = Production.kappa
-  blocks : key.relation.publicBlocks = Production.publicBlocks
-  point : key.relation.pointVariables = Production.pointVariables
-  matrices : key.relation.matrices = Production.matrices
-  root : key.relation.key.root.size = 4
-  short : ∀ cl ∈ key.relation.key.layout.classes, cl.len ≤ Replay.D
-  k1 : key.p1Key.batches.size = key.relation.p1Whir.batches.size
-  k0 : key.p0Key.batches.size = key.relation.p0Whir.batches.size
-  p1 : ∀ b ∈ key.relation.p1Whir.batches, b.size % 3 = 0
-  p1count : (key.relation.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * key.relation.queries + 4
-  p0 : key.relation.p0Whir.batches.toList.map (·.size) =
-    [1, 1, 2, 2 * key.relation.matrices, 1, 2 * key.relation.matrices + 1, 1]
-  rowFits : key.relation.key.layout.rowVariables ≤ key.relation.pointVariables
-  matricesFit : key.relation.matrices ≤ 2 ^ key.relation.matrixVars
-  bits : EvalKBits key.relation
-  publicFits : key.relation.publicBlocks ≤ 2 ^ key.relation.blockVars
-  sizes : HonestSizes key.relation
-  high : key.relation.setupVars + 1 ≤ 32
-  checked : (structureOf key.relation.key.layout).Checked (shapeOf key.relation)
-  norm : key.relation.normBound = Production.normBound
+  circuit : CircuitFacts key.relation key.p1Key key.p0Key
+  relation : RelationFacts key.relation
+  constants : ProductionConstants key.relation
   shape : (shapeOf key.relation).Sizes NightstreamFPrime.Spec.goldilocksModulus
 
-/-- Each fact of `KeyFacts` by name, decided on `key`. -/
-def keyChecks (key : Layer1Input) : List (String × Bool) :=
+/-- Each fact of `KeyFacts` by name, in field order. -/
+def keyChecks (key : Layer1Input) : List Fact :=
   let rel := key.relation
   let layout := rel.key.layout
-  let lg := Nat.log2 (Replay.D * 2 ^ rel.blockVars).nextPowerOfTwo
-  let s := structureOf layout
-  [("run", decide (layout.runVariables ≠ 0)),
-    ("row", decide (layout.rowVariables ≠ 0)),
-    ("slot", decide (layout.slotVariables + rel.matrixVars ≠ 0)),
-    ("kappa", decide (rel.kappa = Production.kappa)),
-    ("blocks", decide (rel.publicBlocks = Production.publicBlocks)),
-    ("point", decide (rel.pointVariables = Production.pointVariables)),
-    ("matrices", decide (rel.matrices = Production.matrices)),
-    ("root", decide (rel.key.root.size = 4)),
-    ("short", decide (∀ cl ∈ layout.classes, cl.len ≤ Replay.D)),
-    ("k1", decide (key.p1Key.batches.size = rel.p1Whir.batches.size)),
-    ("k0", decide (key.p0Key.batches.size = rel.p0Whir.batches.size)),
-    ("p1", decide (∀ b ∈ rel.p1Whir.batches, b.size % 3 = 0)),
-    ("p1count", decide ((rel.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * rel.queries + 4)),
-    ("p0", decide (rel.p0Whir.batches.toList.map (·.size) =
-      [1, 1, 2, 2 * rel.matrices, 1, 2 * rel.matrices + 1, 1])),
-    ("rowFits", decide (layout.rowVariables ≤ rel.pointVariables)),
-    ("matricesFit", decide (rel.matrices ≤ 2 ^ rel.matrixVars)),
-    ("bits", decide (rel.blockVars ≤ lg ∧ lg ≤ rel.pointVariables ∧ rel.key.blocks ≤ 2 ^ rel.blockVars ∧
-      Replay.D * rel.key.blocks ≤ 2 ^ lg ∧ rel.key.blocks < 2 ^ lg)),
-    ("publicFits", decide (rel.publicBlocks ≤ 2 ^ rel.blockVars)),
-    ("sizes", decide (rel.matrices ≤ layout.runBounds.size ∧ 3 ≤ rel.setupVars)),
-    ("high", decide (rel.setupVars + 1 ≤ 32)),
-    ("checked", decide (s.runBound 0 = 0 ∧ (∀ j, j < rel.matrices → s.runBound j ≤ s.runBound (j + 1)) ∧
-      (0 < s.segments → s.segmentFirst 0 = 0) ∧
-      (∀ i, i < s.segments - 1 → s.segmentFirst i < s.segmentFirst (i + 1)) ∧
-      (0 < s.segments → s.segmentFirst (s.segments - 1) < s.slots) ∧
-      (∀ i, i < s.segments → s.segmentClass i < s.classes) ∧
-      ∀ c, c < s.classes → 1 ≤ s.classLength c)),
-    ("norm", decide (rel.normBound = Production.normBound)),
-    ("shape", decide (let sh := shapeOf rel; let N := NightstreamFPrime.Spec.goldilocksModulus
-      5 ≤ N ∧
-      2 ^ sh.cubeVars < N ∧
-      2 ^ sh.runVars < N ∧
-      2 ^ sh.rowVars ≤ N ∧
-      2 ^ (sh.slotVars + sh.matrixVars) ≤ N ∧
-      2 ^ sh.blockVars + 1 < N ∧
-      sh.slotVars ≤ sh.runVars ∧
-      sh.matrices ≤ 2 ^ sh.matrixVars ∧
-      sh.publicBlocks ≤ sh.blocks ∧
-      sh.D ≤ 2 ^ sh.laneVars ∧
-      sh.blocks ≤ 2 ^ sh.blockVars ∧
-      1 ≤ sh.cubeVars ∧
-      1 ≤ sh.runVars ∧
-      1 ≤ sh.rowVars ∧
-      1 ≤ sh.slotVars + sh.matrixVars ∧
-      1 ≤ sh.blockVars ∧
-      3 ≤ sh.setupVars ∧
-      sh.laneVars + sh.blockVars ≤ sh.setupVars ∧
-      sh.runVars ≤ sh.setupVars))]
+  [⟨"run", layout.runVariables ≠ 0⟩,
+    ⟨"row", layout.rowVariables ≠ 0⟩,
+    ⟨"slot", layout.slotVariables + rel.matrixVars ≠ 0⟩,
+    ⟨"root", rel.key.root.size = 4⟩,
+    ⟨"short", ∀ cl ∈ layout.classes, cl.len ≤ Replay.D⟩,
+    ⟨"k1", key.p1Key.batches.size = rel.p1Whir.batches.size⟩,
+    ⟨"k0", key.p0Key.batches.size = rel.p0Whir.batches.size⟩,
+    ⟨"p1", ∀ b ∈ rel.p1Whir.batches, b.size % 3 = 0⟩,
+    ⟨"p1count", (rel.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * rel.queries + 4⟩,
+    ⟨"p0", rel.p0Whir.batches.toList.map (·.size) = [1, 1, 2, 2 * rel.matrices, 1, 2 * rel.matrices + 1, 1]⟩,
+    ⟨"rowFits", layout.rowVariables ≤ rel.pointVariables⟩,
+    ⟨"matricesFit", rel.matrices ≤ 2 ^ rel.matrixVars⟩,
+    ⟨"bits", EvalKBits rel⟩,
+    ⟨"publicFits", rel.publicBlocks ≤ 2 ^ rel.blockVars⟩,
+    ⟨"sizes", HonestSizes rel⟩,
+    ⟨"high", rel.setupVars + 1 ≤ 32⟩,
+    ⟨"checked", (structureOf layout).Checked (shapeOf rel)⟩,
+    ⟨"kappa", rel.kappa = Production.kappa⟩,
+    ⟨"blocks", rel.publicBlocks = Production.publicBlocks⟩,
+    ⟨"point", rel.pointVariables = Production.pointVariables⟩,
+    ⟨"matrices", rel.matrices = Production.matrices⟩,
+    ⟨"norm", rel.normBound = Production.normBound⟩,
+    ⟨"shape", (shapeOf rel).Sizes NightstreamFPrime.Spec.goldilocksModulus⟩]
 
 /-- The name of the first fact of `KeyFacts` that `key` fails. -/
 def keyFailure (key : Layer1Input) : Option String :=
-  ((keyChecks key).find? fun check => !check.2).map (·.1)
+  firstFailure (keyChecks key)
 
 /-- A key that fails no check has `KeyFacts`. -/
 theorem keyFacts_of_check {key : Layer1Input} (pass : keyFailure key = none) : KeyFacts key := by
-  have all : ∀ check ∈ keyChecks key, check.2 = true := by
-    simpa [keyFailure, List.find?_eq_none] using pass
-  simp only [keyChecks, List.mem_cons, List.not_mem_nil, or_false, forall_eq_or_imp, forall_eq,
-    decide_eq_true_eq] at all
-  obtain ⟨run, row, slot, kappa, blocks, point, matrices, root, short, k1, k0, p1, p1count, p0, rowFits,
-    matricesFit, ⟨deep, long, blocks_le, fits, strict⟩, publicFits, ⟨bounds, setup⟩, high,
-    ⟨run_zero, run_mono, segment_zero, segment_mono, segment_last, class_named, length_pos⟩, norm,
-    ⟨big_nodes, big_cube, big_runs, big_rows, big_pairs, big_blocks, slot_le_run, matrices_le, public_le, D_le, blocks_le, deep_cube, deep_runs, deep_rows, deep_pairs, deep_blocks, fold_three, fold_key, fold_run⟩⟩ := all
-  refine ⟨run, row, slot, kappa, blocks, point, matrices, root, short, k1, k0, p1, p1count, p0, rowFits,
-    matricesFit, ⟨deep, long, blocks_le, fits, strict⟩, publicFits, ⟨bounds, setup⟩, high,
-    ⟨run_zero, run_mono, segment_zero, fun i lt => segment_mono i (by omega), fun i last => ?_, class_named,
-      length_pos⟩, norm, ⟨big_nodes, big_cube, big_runs, big_rows, big_pairs, big_blocks, slot_le_run, matrices_le, public_le, D_le, blocks_le, deep_cube, deep_runs, deep_rows, deep_pairs, deep_blocks, fold_three, fold_key, fold_run⟩⟩
-  rw [show i = (structureOf key.relation.key.layout).segments - 1 by omega]
-  exact segment_last (by omega)
+  have all := holds_of_firstFailure pass
+  simp only [keyChecks, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff, implies_true, and_true] at all
+  obtain ⟨run, row, slot, root, short, k1, k0, p1, p1count, p0, rowFits, matricesFit, bits, publicFits, sizes, high,
+    checked, kappa, blocks, point, matrices, norm, shape⟩ := all
+  exact ⟨⟨run, row, slot, root, short, k1, k0, p1, p1count, p0⟩,
+    ⟨rowFits, matricesFit, bits, publicFits, sizes, high, checked⟩, ⟨kappa, blocks, point, matrices, norm⟩, shape⟩
 
 /-- The key has the `⌈lw / D⌉` blocks of an application of logical width
 `lw` (`Key::derive`, `neo-spartan/src/lib.rs`). Unlike `KeyFacts`, this fact

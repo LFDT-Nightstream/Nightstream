@@ -63,6 +63,9 @@ structure HonestSizes (rel : Replay.Relation) : Prop where
   bounds : rel.matrices ≤ rel.key.layout.runBounds.size
   setup : 3 ≤ rel.setupVars
 
+instance (rel : Replay.Relation) : Decidable (HonestSizes rel) :=
+  decidable_of_iff (_ ∧ _) ⟨fun ⟨a, b⟩ => ⟨a, b⟩, fun ⟨a, b⟩ => ⟨a, b⟩⟩
+
 /-- What the openings read of a successful honest-fold replay. -/
 structure HonestRun (rel : Replay.Relation) (proof : Replay.Proof) (early : Replay.EarlyOut) (lin : Replay.LinearOut)
     (honest : Replay.HonestOut) : Prop where

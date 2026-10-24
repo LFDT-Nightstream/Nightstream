@@ -128,6 +128,9 @@ structure EvalKBits (rel : Replay.Relation) : Prop where
   fits : D * rel.key.blocks ≤ 2 ^ Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo
   strict : rel.key.blocks < 2 ^ Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo
 
+instance (rel : Replay.Relation) : Decidable (EvalKBits rel) :=
+  decidable_of_iff (_ ∧ _ ∧ _ ∧ _ ∧ _) ⟨fun ⟨a, b, c, d, e⟩ => ⟨a, b, c, d, e⟩, fun ⟨a, b, c, d, e⟩ => ⟨a, b, c, d, e⟩⟩
+
 /-- The replay's Eval_K at the block point is the pair of the extensions of
 the model's Eval_K tables. -/
 theorem evalK_parts (rel : Replay.Relation) (st : Replay.Statement) (pointSize : st.point.size = rel.pointVariables)

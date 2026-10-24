@@ -147,7 +147,7 @@ structure Setup.Fits (S : Setup F) (s : Shape) : Prop where
   lane_lt : ∀ σ, S.slotLane σ < s.D
   length_le : ∀ σ, S.slotLength σ ≤ s.D
   inside : ∀ σ, s.D * S.slotBlock σ + S.slotLane σ + S.slotLength σ ≤ s.D * s.blocks
-  key_zero : ∀ i b l, (s.blocks ≤ b ∨ s.D ≤ l) → S.key i (2 ^ s.laneVars * b + l) = 0
+  key_zero : ∀ i b l, l < 2 ^ s.laneVars → (s.blocks ≤ b ∨ s.D ≤ l) → S.key i (2 ^ s.laneVars * b + l) = 0
 
 /-- The witness block `b` as a ring element. -/
 noncomputable def witnessBlock (s : Shape) (z : ℕ → F) (b : ℕ) : F[X] :=

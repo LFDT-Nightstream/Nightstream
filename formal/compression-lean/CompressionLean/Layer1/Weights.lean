@@ -116,7 +116,7 @@ theorem sum_range_pairs {M : Type} [AddCommMonoid M] (n : ℕ) (g : ℕ → M) :
 
 /-- `Ω_b` is the key, Eval_K, Eval_A and public parts. -/
 theorem omegaTrue_parts (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F) (fits : S.Fits s)
-    (public_le : s.publicBlocks ≤ s.blocks) (lam zeta : K) (b : ℕ) :
+    (public_le : s.publicBlocks ≤ s.blocks) (D_le : s.D ≤ 2 ^ s.laneVars) (lam zeta : K) (b : ℕ) :
     omegaTrue s bar S st lam zeta b =
       keyPart s S lam zeta b + evalKPart s bar st lam zeta b + evalAPart s bar S st lam zeta b +
         publicPart s lam b := by
@@ -193,10 +193,11 @@ theorem omegaTrue_parts (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st 
     have key : keyPart s S lam zeta b = 0 := by
       unfold keyPart keyGroup
       apply Finset.sum_eq_zero
-      intro l _
+      intro l member
       rw [Finset.sum_eq_zero, mul_zero]
       intro i _
-      rw [fits.key_zero i b l (Or.inl (by omega)), map_zero, mul_zero]
+      rw [fits.key_zero i b l (lt_of_lt_of_le (Finset.mem_range.mp member) D_le) (Or.inl (by omega)), map_zero,
+        mul_zero]
     have evalK : evalKPart s bar st lam zeta b = 0 := by
       simp [evalKPart, evalKTable, outside]
     have evalA : evalAPart s bar S st lam zeta b = 0 := by

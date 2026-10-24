@@ -171,6 +171,9 @@ variable {c : Ctx F} {n : ℕ} {xs : Array ExtVar} {gs : Array Ext}
 theorem mono (h : IsExts c n xs gs) {m : ℕ} (le : n ≤ m) : IsExts c m xs gs :=
   ⟨h.1, fun i hi => (h.2 i hi).mono le⟩
 
+/-- Entry `i`. -/
+theorem get (h : IsExts c n xs gs) {i : ℕ} (hi : i < gs.size) : IsExt c n xs[i]! gs[i]! := h.2 i (h.1 ▸ hi)
+
 theorem push (h : IsExts c n xs gs) {x : ExtVar} {g : Ext} (hx : IsExt c n x g) :
     IsExts c n (xs.push x) (gs.push g) := by
   refine ⟨by simp [h.1], fun i hi => ?_⟩

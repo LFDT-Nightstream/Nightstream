@@ -35,11 +35,6 @@ private theorem runs_gkrLayers_succ {shapes : Array TreeShape} {layers : Array G
   rw [e, gkrLayers_append, List.length_take, Array.length_toList, Nat.min_eq_left hj.le, Nat.add_comm 1 j]
   exact runs_bind pre step
 
-/-- A value passes the replay's equality test with itself (`gkr.rs:718`). -/
-private theorem ext_beq_self (a : Ext) : (a == a) = true := by
-  show (a.c0.word == a.c0.word && a.c1.word == a.c1.word && a.c2.word == a.c2.word) = true
-  simp
-
 /-- One layer of `verify` (`gkr.rs:694-746`): draw `μ` and `ν`, replay the
 sum-check, check its last claim, bind the children and draw `τ`. -/
 private theorem runs_gkrLayer {shapes : Array TreeShape} {k : ℕ} {layer : GkrLayer} {claims : GkrClaims}
@@ -52,7 +47,7 @@ private theorem runs_gkrLayer {shapes : Array TreeShape} {k : ℕ} {layer : GkrL
     Runs (gkrLayers shapes k [layer] claims) t
       (advance shapes k claims ((activeTrees shapes k).zip layer.children).toList point tau) t' := by
   rw [gkrLayers]
-  exact runs_bind hmu (runs_bind hnu (runs_bind sum (runs_bind (runs_ensure (by rw [← check]; exact ext_beq_self _) _ _)
+  exact runs_bind hmu (runs_bind hnu (runs_bind sum (runs_bind (runs_ensure (by rw [← check]; exact Ext.beq_self _) _ _)
     (runs_bind hobs (runs_bind htau (runs_pure _ _))))))
 
 /-- Every tree ends by the last layer (`gkr.rs:749`). -/
@@ -178,15 +173,6 @@ private theorem isExts_of_forall₂ {c : Ctx F} {n N : ℕ} {g : ℕ → Ext} {a
   rw [getElem!_pos _ i (by simpa using hi), getElem!_pos _ i (by simpa using hi')]
   simpa using this
 
-/-- A root or a current pair of `verify` (`gkr.rs:687-691`) is the replay's pair. -/
-private def IsPair (c : Ctx F) (m : ℕ) (a : ExtVar × ExtVar) (g : Ext × Ext) : Prop :=
-  IsExt c m a.1 g.1 ∧ IsExt c m a.2 g.2
-
-/-- A pair of `verify` (`gkr.rs:691`) at a larger count. -/
-private theorem IsPair.mono {c : Ctx F} {m m' : ℕ} {a : ExtVar × ExtVar} {g : Ext × Ext} (h : IsPair c m a g)
-    (le : m ≤ m') : IsPair c m' a g :=
-  ⟨h.1.mono le, h.2.mono le⟩
-
 /-- Tree `t`'s claim (`TreeClaim`, `gkr.rs:70-78`) is the replay's root,
 leaf point and leaf values. -/
 private def IsTreeClaim (c : Ctx F) (m : ℕ) (v : TreeClaimView) (g : Replay.GkrClaims) (t : ℕ) : Prop :=
@@ -296,31 +282,6 @@ private def drawnExt (t : Replay.Transcript) : Ext :=
 /-- The transcript after `sample_ext` (`gkr.rs:699`). -/
 private def afterExt (t : Replay.Transcript) : Replay.Transcript :=
   { duplex := t.duplex.sample.2.sample.2.sample.2, draws := t.draws.push (.ext (drawnExt t)) }
-
-namespace Ensures
-
-variable {c : Ctx F} {n : ℕ} {P : Prop}
-
-/-- Fix the witness of an existential precondition, such as the
-sum-check's run (`gkr.rs:715`). -/
-private theorem elim {α ι : Type} {b : Build α} {Q : α → ℕ → Prop} {R : ι → Prop} (x₀ : ι)
-    (h : ∀ x, Ensures c n (R x) b Q) (hp : P → ∃ x, R x) : Ensures c n P b Q := by
-  intro p E hp' hE
-  obtain ⟨new, hi, hl, -⟩ := h x₀ p E hp' hE
-  refine ⟨new, hi, hl, fun hP hF hh => ?_⟩
-  obtain ⟨x, hx⟩ := hp hP
-  obtain ⟨new', hi', -, hs⟩ := h x p E hp' hE
-  obtain rfl : new = new' := List.toArray_inj ((Array.append_right_inj _).mp (hi.symm.trans hi'))
-  exact hs hx hF hh
-
-/-- `tbind` after a step that checks nothing, such as a draw of
-`gkr.rs:699-700`. -/
-private theorem tbindSim {α β : Type} {t : Transcript α} {g : α → Transcript β} {d : Duplex}
-    {R : β × Duplex → ℕ → Prop} {Q : α × Duplex → ℕ → Prop} (ht : Sim c n P (t.run d) Q True)
-    (hg : ∀ a e m, n ≤ m → Ensures c m (P ∧ Q (a, e) m) ((g a).run e) R) : Ensures c n P ((t >>= g).run d) R :=
-  Ensures.tbind (ht.ensures.post fun _ _ _ h => h.1) hg
-
-end Ensures
 
 namespace Sim
 

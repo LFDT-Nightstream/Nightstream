@@ -25,22 +25,6 @@ open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
 
-private theorem Ensures.under {α : Type} {c : Ctx F} {n : ℕ} {P P₀ A : Prop} {b : Build α}
-    {Q Q₀ : α → ℕ → Prop} (h₀ : Ensures c n P₀ b Q₀) (hA : P → A) (h : A → Ensures c n P b Q) :
-    Ensures c n P b Q := by
-  intro p E hp hE
-  obtain ⟨new, hi, hl, -⟩ := h₀ p E hp hE
-  refine ⟨new, hi, hl, fun hP hF hh => ?_⟩
-  obtain ⟨new', hi', -, hs⟩ := h (hA hP) p E hp hE
-  obtain rfl : new = new' := List.toArray_inj ((Array.append_right_inj _).mp (hi.symm.trans hi'))
-  exact hs hP hF hh
-
-private theorem Ensures.witness {α ι : Type} {c : Ctx F} {n : ℕ} {P : Prop} {b : Build α} {Q : α → ℕ → Prop}
-    {X A : ι → Prop} (i₀ : ι) (h₀ : A i₀) (hA : ∀ i, X i → A i) (h : ∀ i, A i → Ensures c n (P ∧ X i) b Q) :
-    Ensures c n (P ∧ ∃ i, X i) b Q :=
-  Ensures.under (A := ∃ i, X i ∧ A i) (h i₀ h₀) (fun H => let ⟨i, hx⟩ := H.2; ⟨i, hx, hA i hx⟩) fun ⟨i, hx, ha⟩ =>
-    (h i ha).pre fun H => ⟨H.1, hx⟩
-
 private theorem IsWords.iff_forall₂ {c : Ctx F} {n : ℕ} {hs : Array Var} {gs : Array Gl} :
     IsWords c n hs gs ↔ List.Forall₂ (fun v g => IsWord c n v g) hs.toList gs.toList := by
   constructor

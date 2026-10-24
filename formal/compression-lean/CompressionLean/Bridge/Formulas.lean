@@ -170,15 +170,15 @@ theorem toK_step (p : Array Ext) (segs : List (ℕ × Ext)) (stop : ℕ) :
 def quadPoint (r : List (Gl × Gl)) : List (Quad Fp) := r.map fun v => ⟨v.1.toF, v.2.toF⟩
 
 theorem toQ_chiFactor (r : Gl × Gl) (x : Ext) :
-    (let scaled := (Kx.ofK r).scale (x + x - 1); ({ scaled with re := scaled.re + oneMinus x } : Kx)).toQ (K := K) =
+    (chiFactor r (some x)).toQ (K := K) =
       (1 - algebraMap K (QuadX K) x.toK) + fromK (K := K) (⟨r.1.toF, r.2.toF⟩ : Quad Fp) *
         (2 * algebraMap K (QuadX K) x.toK - 1) := by
   ext
-  · simp [Kx.toQ, Kx.scale, Kx.ofK, Ext.toK_add, Ext.toK_mul, Ext.toK_sub, Ext.toK_ofGl, toK_oneMinus,
+  · simp [chiFactor, Kx.toQ, Kx.scale, Kx.ofK, Ext.toK_add, Ext.toK_mul, Ext.toK_sub, Ext.toK_ofGl, toK_oneMinus,
       QuadraticAlgebra.algebraMap_eq, QuadraticAlgebra.re_one, QuadraticAlgebra.im_one, QuadraticAlgebra.re_ofNat,
       QuadraticAlgebra.im_ofNat]
     ring
-  · simp only [Kx.toQ, Kx.scale, Kx.ofK, Ext.toK_add, Ext.toK_mul, Ext.toK_sub, Ext.toK_ofGl, Ext.toK_one,
+  · simp only [chiFactor, Kx.toQ, Kx.scale, Kx.ofK, Ext.toK_add, Ext.toK_mul, Ext.toK_sub, Ext.toK_ofGl, Ext.toK_one,
       QuadraticAlgebra.algebraMap_eq, QuadraticAlgebra.im_one, QuadraticAlgebra.re_ofNat, QuadraticAlgebra.im_ofNat,
       QuadraticAlgebra.im_add, QuadraticAlgebra.im_sub, QuadraticAlgebra.im_mul, QuadraticAlgebra.re_one,
       QuadraticAlgebra.re_sub, QuadraticAlgebra.re_mul, fromK_re, fromK_im]
@@ -193,7 +193,7 @@ theorem toQ_chiList : ∀ (r : List (Gl × Gl)) (xs : List Ext),
       rw [Kx.toQ_mul, toQ_chiFactor, toQ_chiList rs xs]
       rfl
   | r :: rs, [] => by
-      simp only [chiList, quadPoint, List.map_cons, List.map_nil, chiValue]
+      simp only [chiList, chiFactor, quadPoint, List.map_cons, List.map_nil, chiValue]
       rw [Kx.toQ_mul, Kx.toQ_oneMinus, Kx.toQ_ofK, toQ_chiList rs []]
       rfl
 

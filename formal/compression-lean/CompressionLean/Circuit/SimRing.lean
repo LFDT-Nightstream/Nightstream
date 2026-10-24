@@ -12,7 +12,7 @@ closed forms of `Mle.lean` (`mle.rs`) against the replay's formulas
   `IsMixing`: the powers of `λ`, one per row, as the replay's `Mixing`
   reads them.
 - An identity of `Ext` or `Kx` holds when it holds in the challenge field
-  `Final.Cubic` (`ext_eq_of_toK`, `kx_eq_of_toQ`). So proof words that pass
+  `Final.Cubic` (`Ext.eq_of_toK`, `kx_eq_of_toQ`). So proof words that pass
   the inverse check are the replay's inverse (`inverse_of_check`), and
   `Ensures.scaledEqPoint` finds no pole.
 - `Sim.evalK`: the circuit keeps `Option` states and skips absent ones; the
@@ -42,35 +42,32 @@ open Polynomial
 
 attribute [local instance] challengeCubic
 
-private theorem ext_eq_of_toK {a b : Ext} (h : a.toK (K := Final.Cubic) = b.toK) : a = b :=
-  Sim.ext_sub_eq_zero.mp (Ext.eq_zero_of_toK (K := Final.Cubic) (by rw [Ext.toK_sub, h, sub_self]))
-
 private theorem kx_eq_of_toQ {a b : Kx} (h : a.toQ (K := Final.Cubic) = b.toQ) : a = b := by
   obtain ⟨ar, ai⟩ := a
   obtain ⟨br, bi⟩ := b
   have hr := congrArg QuadraticAlgebra.re h
   have hi := congrArg QuadraticAlgebra.im h
   simp only [Kx.toQ_re, Kx.toQ_im] at hr hi
-  rw [ext_eq_of_toK hr, ext_eq_of_toK hi]
+  rw [Ext.eq_of_toK (K := Final.Cubic) hr, Ext.eq_of_toK (K := Final.Cubic) hi]
 
 theorem ext_pow_zero (a : Ext) : a.pow 0 = 1 := by
   rw [Ext.pow, if_pos rfl]
 
 private theorem ext_pow_succ (a : Ext) (k : ℕ) : a.pow (k + 1) = a.pow k * a :=
-  ext_eq_of_toK (by rw [Ext.toK_mul, Ext.toK_pow, Ext.toK_pow, pow_succ])
+  Ext.eq_of_toK (K := Final.Cubic) (by rw [Ext.toK_mul, Ext.toK_pow, Ext.toK_pow, pow_succ])
 
 theorem ext_add_zero (a : Ext) : a + 0 = a :=
-  ext_eq_of_toK (by rw [Ext.toK_add, Ext.toK_zero, add_zero])
+  Ext.eq_of_toK (K := Final.Cubic) (by rw [Ext.toK_add, Ext.toK_zero, add_zero])
 
 theorem ext_add_assoc (a b d : Ext) : a + b + d = a + (b + d) :=
-  ext_eq_of_toK (by rw [Ext.toK_add, Ext.toK_add, Ext.toK_add, Ext.toK_add, add_assoc])
+  Ext.eq_of_toK (K := Final.Cubic) (by rw [Ext.toK_add, Ext.toK_add, Ext.toK_add, Ext.toK_add, add_assoc])
 
 private theorem ext_scale_zero (a : Ext) : a.scale 0 = 0 :=
-  ext_eq_of_toK (by rw [Ext.toK_scale, Ext.toK_zero, Replay.Gl.toF_zero, map_zero, mul_zero])
+  Ext.eq_of_toK (K := Final.Cubic) (by rw [Ext.toK_scale, Ext.toK_zero, Replay.Gl.toF_zero, map_zero, mul_zero])
 
 private theorem ext_mul_inv {a : Ext} (h : a ≠ 0) : a * a.inv = 1 := by
   have nz : a.toK (K := Final.Cubic) ≠ 0 := fun z => h (Ext.eq_zero_of_toK z)
-  exact ext_eq_of_toK (by rw [Ext.toK_mul, Ext.toK_inv, Ext.toK_one, mul_inv_cancel₀ nz])
+  exact Ext.eq_of_toK (K := Final.Cubic) (by rw [Ext.toK_mul, Ext.toK_inv, Ext.toK_one, mul_inv_cancel₀ nz])
 
 private theorem ext_isZero {a : Ext} (h : a ≠ 0) : a.isZero = false := by
   cases e : a.isZero
@@ -214,9 +211,6 @@ end IsMixing
 namespace IsExts
 
 variable {c : Ctx F} {n : ℕ} {xs : Array ExtVar} {gs : Array Ext}
-
-private theorem get (h : IsExts c n xs gs) {i : ℕ} (hi : i < gs.size) : IsExt c n xs[i]! gs[i]! :=
-  h.2 i (h.1 ▸ hi)
 
 /-- Handle `i` is `g i` for each `i < k`. -/
 private theorem map_range_iff {k : ℕ} {g : ℕ → Ext} :
@@ -570,10 +564,6 @@ private theorem extInvTape {a : ExtVar} {ga : Ext} (ha : P → IsExt c n a ga) :
       rw [ra, hl]).map fun _ _ h k => by
     obtain ⟨rfl, h⟩ := h
     exact h k
-
-private theorem ensures₀ {α : Type} {b : Build α} {Q : α → ℕ → Prop} (h : Sim c n P b Q True) :
-    Ensures c n P b Q :=
-  h.ensures.post fun _ _ _ h => h.1
 
 end Sim
 

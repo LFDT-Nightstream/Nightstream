@@ -72,13 +72,6 @@ def ProofView.decode (w : Var → Gl) (v : ProofView) : Replay.Proof :=
     lateValues := v.lateValues.map (decodePair w), p1Opening := v.p1Opening.decode w,
     p0Opening := v.p0Opening.decode w }
 
-/-- Both values of a pair. -/
-def IsPair (c : Ctx F) (n : ℕ) (a : ExtVar × ExtVar) (g : Ext × Ext) : Prop := IsExt c n a.1 g.1 ∧ IsExt c n a.2 g.2
-
-theorem IsPair.mono {c : Ctx F} {n m : ℕ} {a : ExtVar × ExtVar} {g : Ext × Ext} (h : IsPair c n a g) (le : n ≤ m) :
-    IsPair c m a g :=
-  ⟨h.1.mono le, h.2.mono le⟩
-
 /-- The round messages and the children of one GKR layer. -/
 def IsGkrLayer (c : Ctx F) (n : ℕ) (v : GkrLayerView) (g : Replay.GkrLayer) : Prop :=
   List.Forall₂ (IsExts c n) v.rounds.toList g.rounds.toList ∧

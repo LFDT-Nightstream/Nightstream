@@ -40,9 +40,6 @@ namespace IsExts
 
 variable {c : Ctx F} {n : ℕ} {xs ys : Array ExtVar} {gs hs : Array Ext}
 
-/-- Entry `i`. -/
-theorem get (h : IsExts c n xs gs) {i : ℕ} (hi : i < gs.size) : IsExt c n xs[i]! gs[i]! := h.2 i (h.1 ▸ hi)
-
 /-- `k` copies of one value. -/
 theorem replicate {z : ExtVar} {g : Ext} (hz : IsExt c n z g) (k : ℕ) :
     IsExts c n (Array.replicate k z) (Array.replicate k g) := by
@@ -108,28 +105,7 @@ theorem slice (h : IsExts c n xs gs) (a b : ℕ) : IsExts c n (xs.extract a b) (
 
 end IsExts
 
-/-! ## Preconditions -/
-
-/-- Name the witness of an existential precondition. The instructions do not
-depend on it. -/
-theorem Ensures.exists_and {c : Ctx F} {n : ℕ} {P : Prop} {α ι : Type} {b : Build α} {Q : α → ℕ → Prop}
-    {X : ι → Prop} (i₀ : ι) (h : ∀ i, Ensures c n (P ∧ X i) b Q) : Ensures c n (P ∧ ∃ i, X i) b Q := by
-  intro p E hp hE
-  obtain ⟨new, hi, hl, -⟩ := h i₀ p E hp hE
-  refine ⟨new, hi, hl, fun ⟨hP, i, hx⟩ hF hh => ?_⟩
-  obtain ⟨new', hi', -, hs⟩ := h i p E hp hE
-  have same : new' = new := by
-    have := (Array.append_right_inj p.instrs).mp (hi'.symm.trans hi)
-    simpa using congrArg Array.toList this
-  subst same
-  exact hs ⟨hP, hx⟩ hF hh
-
 /-! ## Replay facts -/
-
-/-- An extension value is `==` to itself. -/
-theorem ext_beq_self (a : Ext) : (a == a) = true := by
-  show (a.c0.word == a.c0.word && a.c1.word == a.c1.word && a.c2.word == a.c2.word) = true
-  simp
 
 /-- `a^(e+1) = a^e·a` for the replay's power by squaring. -/
 theorem ext_pow_succ (a : Ext) (e : ℕ) : a.pow (e + 1) = a.pow e * a := by
@@ -1133,10 +1109,10 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
   dsimp only at isize ibits hd₁₅ e₁₆ e₁₇ e₁₈ e₁₉ hq ⊢
   have keyOk : (Replay.combine proof.partials[0]! (gkey.extract 0 foldVars) == lin.keyValue) = true := by
     rw [keyCheck]
-    exact ext_beq_self _
+    exact Ext.beq_self _
   have runOk : (Replay.combine proof.partials[1]! (grun.extract 0 foldVars) == grv) = true := by
     rw [runCheck]
-    exact ext_beq_self _
+    exact Ext.beq_self _
   have M : m₁₄ ≤ m₁₉ := l₁₅.trans (l₁₆.trans (l₁₇.trans (l₁₈.trans l₁₉)))
   refine ⟨{ mu := gmu, alpha := #[ga₀, ga₁, ga₂], words := ws,
             queries := ws.map fun word => word.toNat % 2 ^ (rel.setupVars + 1 - foldVars), queried := gq },

@@ -28,7 +28,8 @@ on the instructions that a program writes, read as replay words.
 
 `P` and `C` are propositions about `val`. Only the meaning of the run
 depends on `P`, never which instructions the program writes, so `bind` can
-pass `P` on. The field has characteristic `p`, so `word` is a ring map on
+pass `P` on, and one run at any precondition fixes the instructions
+(`Sim.elim`, `Ensures.under`). The field has characteristic `p`, so `word` is a ring map on
 words (`word_add`, `word_mul`, `word_sub`) and is injective.
 -/
 
@@ -255,6 +256,18 @@ theorem map {b : Build α} {f : α → β} {Q' : β → ℕ → Prop} (h : Sim c
   obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
   exact ⟨new, hi, hl, fun hP hF => ⟨hq _ _ (hs hP hF).1, (hs hP hF).2⟩⟩
 
+/-- Fix the witness of an existential precondition. Any `x₀` gives the
+instructions, which do not depend on it. -/
+theorem elim {ι : Type} {b : Build α} {R : ι → Prop} (x₀ : ι) (h : ∀ x, Sim c n (R x) b Q C)
+    (hp : P → ∃ x, R x) : Sim c n P b Q C := by
+  intro p E hp' hE
+  obtain ⟨new, hi, hl, -⟩ := h x₀ p E hp' hE
+  refine ⟨new, hi, hl, fun hP hF => ?_⟩
+  obtain ⟨x, hx⟩ := hp hP
+  obtain ⟨new', hi', -, hs⟩ := h x p E hp' hE
+  obtain rfl : new = new' := List.toArray_inj ((Array.append_right_inj _).mp (hi.symm.trans hi'))
+  exact hs hx hF
+
 end Sim
 
 /-- **The executor accepts what a simulated program writes.** If `Sim`
@@ -284,6 +297,13 @@ def IsExt (c : Ctx F) (n : ℕ) (a : ExtVar) (e : Ext) : Prop := ∀ k, IsWord c
 
 theorem IsExt.mono {c : Ctx F} {n m : ℕ} {a : ExtVar} {e : Ext} (h : IsExt c n a e) (le : n ≤ m) : IsExt c m a e :=
   fun k => (h k).mono le
+
+/-- Both values of a pair. -/
+def IsPair (c : Ctx F) (n : ℕ) (a : ExtVar × ExtVar) (g : Ext × Ext) : Prop := IsExt c n a.1 g.1 ∧ IsExt c n a.2 g.2
+
+theorem IsPair.mono {c : Ctx F} {n m : ℕ} {a : ExtVar × ExtVar} {g : Ext × Ext} (h : IsPair c n a g) (le : n ≤ m) :
+    IsPair c m a g :=
+  ⟨h.1.mono le, h.2.mono le⟩
 
 /-- `Permutes perm`: on words, `perm` is the replay's Poseidon2 permutation. -/
 def Permutes (perm : List F → List F) : Prop :=
@@ -634,6 +654,12 @@ theorem Sim.ensures {b : Build α} {C : Prop} (h : Sim c n P b Q C) : Ensures c 
   obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
   exact ⟨new, hi, hl, fun hP hF hh => ⟨(hs hP hF).1, ((hs hP hF).2.mp hh).2⟩⟩
 
+/-- A simulated program that checks nothing ensures its result. -/
+theorem Sim.ensures₀ {b : Build α} (h : Sim c n P b Q True) : Ensures c n P b Q := by
+  intro p E hp hE
+  obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
+  exact ⟨new, hi, hl, fun hP hF _ => (hs hP hF).1⟩
+
 namespace Ensures
 
 theorem pure {a : α} (h : P → Q a n) : Ensures c n P (Pure.pure a) Q := by
@@ -678,12 +704,58 @@ theorem map {b : Build α} {f : α → β} {Q' : β → ℕ → Prop} (h : Ensur
   obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
   exact ⟨new, hi, hl, fun hP hF hh => hq _ _ (hs hP hF hh)⟩
 
+/-- Use a fact `A` that `P` gives. The instructions do not depend on the
+precondition, so `h₀`, at any precondition, fixes them. -/
+theorem under {P₀ A : Prop} {b : Build α} {Q₀ : α → ℕ → Prop} (h₀ : Ensures c n P₀ b Q₀) (hA : P → A)
+    (h : A → Ensures c n P b Q) : Ensures c n P b Q := by
+  intro p E hp hE
+  obtain ⟨new, hi, hl, -⟩ := h₀ p E hp hE
+  refine ⟨new, hi, hl, fun hP hF hh => ?_⟩
+  obtain ⟨new', hi', -, hs⟩ := h (hA hP) p E hp hE
+  obtain rfl : new = new' := List.toArray_inj ((Array.append_right_inj _).mp (hi.symm.trans hi'))
+  exact hs hP hF hh
+
+/-- Fix the witness of an existential precondition. Any `x₀` gives the
+instructions. -/
+theorem elim {ι : Type} {b : Build α} {R : ι → Prop} (x₀ : ι) (h : ∀ x, Ensures c n (R x) b Q)
+    (hp : P → ∃ x, R x) : Ensures c n P b Q :=
+  under (h x₀) hp fun ⟨x, hx⟩ => (h x).pre fun _ => hx
+
+/-- Name the witness of an existential precondition. -/
+theorem exists_and {ι : Type} {b : Build α} {X : ι → Prop} (i₀ : ι) (h : ∀ i, Ensures c n (P ∧ X i) b Q) :
+    Ensures c n (P ∧ ∃ i, X i) b Q :=
+  elim i₀ h fun ⟨hP, i, hx⟩ => ⟨i, hP, hx⟩
+
+/-- Name the witness, using a fact `A` of each witness; `i₀` has it and fixes
+the instructions. -/
+theorem witness {ι : Type} {b : Build α} {X A : ι → Prop} (i₀ : ι) (h₀ : A i₀) (hA : ∀ i, X i → A i)
+    (h : ∀ i, A i → Ensures c n (P ∧ X i) b Q) : Ensures c n (P ∧ ∃ i, X i) b Q :=
+  under (A := ∃ i, X i ∧ A i) (h i₀ h₀) (fun H => let ⟨i, hx⟩ := H.2; ⟨i, hx, hA i hx⟩) fun ⟨i, hx, ha⟩ =>
+    (h i ha).pre fun H => ⟨H.1, hx⟩
+
+/-- `bind` after a step that checks nothing. -/
+theorem bindSim {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} (hb : Sim c n P b Q True)
+    (hf : ∀ a m, n ≤ m → Ensures c m (P ∧ Q a m) (f a) R) : Ensures c n P (b >>= f) R :=
+  hb.ensures₀.bind hf
+
+/-- `bind` after an assertion. -/
+theorem bindCheck {b : Build α} {f : α → Build β} {C : Prop} {R : β → ℕ → Prop}
+    (hb : Sim c n P b (fun _ _ => True) C) (hf : ∀ a m, n ≤ m → Ensures c m (P ∧ C) (f a) R) :
+    Ensures c n P (b >>= f) R :=
+  (hb.ensures.post fun _ _ _ h => h.2).bind hf
+
 /-- `t >>= g` in a transcript. -/
 theorem tbind {t : Transcript α} {g : α → Transcript β} {d : Duplex} {R : β × Duplex → ℕ → Prop}
     {Q : α × Duplex → ℕ → Prop} (ht : Ensures c n P (t.run d) Q)
     (hg : ∀ a e m, n ≤ m → Ensures c m (P ∧ Q (a, e) m) ((g a).run e) R) : Ensures c n P ((t >>= g).run d) R := by
   rw [StateT.run_bind]
   exact ht.bind fun r m le => hg r.1 r.2 m le
+
+/-- `tbind` after a step that checks nothing. -/
+theorem tbindSim {t : Transcript α} {g : α → Transcript β} {d : Duplex} {R : β × Duplex → ℕ → Prop}
+    {Q : α × Duplex → ℕ → Prop} (ht : Sim c n P (t.run d) Q True)
+    (hg : ∀ a e m, n ≤ m → Ensures c m (P ∧ Q (a, e) m) ((g a).run e) R) : Ensures c n P ((t >>= g).run d) R :=
+  ht.ensures₀.tbind hg
 
 /-- A builder call in a transcript. -/
 theorem lift {b : Build α} {d : Duplex} (h : Ensures c n P b Q) :

@@ -261,12 +261,28 @@ theorem eq_zero_of_toK {a : Ext} (zero : a.toK (K := K) = 0) : a = 0 := by
   subst e0 e1 e2
   rfl
 
+/-- Values with one denotation are equal. -/
+theorem eq_of_toK {a b : Ext} (equal : a.toK (K := K) = b.toK) : a = b := by
+  have zero := eq_zero_of_toK (K := K) (a := a - b) (by rw [toK_sub, equal, sub_self])
+  obtain ⟨a0, a1, a2⟩ := a
+  obtain ⟨b0, b1, b2⟩ := b
+  have parts : (⟨a0 - b0, a1 - b1, a2 - b2⟩ : Ext) = ⟨0, 0, 0⟩ := zero
+  have word_eq (x y : Gl) (h : x - y = 0) : x = y :=
+    Gl.eq_of_toF (sub_eq_zero.mp (by rw [← Gl.toF_sub, h, Gl.toF_zero]))
+  simp only [Ext.mk.injEq] at parts
+  rw [word_eq _ _ parts.1, word_eq _ _ parts.2.1, word_eq _ _ parts.2.2]
+
 theorem eq_of_beq {a b : Ext} (equal : (a == b) = true) : a = b := by
   obtain ⟨a0, a1, a2⟩ := a
   obtain ⟨b0, b1, b2⟩ := b
   have parts : (a0.word = b0.word ∧ a1.word = b1.word) ∧ a2.word = b2.word := by
     simpa [BEq.beq, Bool.and_eq_true] using equal
   rw [Gl.eq_of_word parts.1.1, Gl.eq_of_word parts.1.2, Gl.eq_of_word parts.2]
+
+/-- A value passes the replay's equality test with itself. -/
+theorem beq_self (a : Ext) : (a == a) = true := by
+  show (a.c0.word == a.c0.word && a.c1.word == a.c1.word && a.c2.word == a.c2.word) = true
+  simp
 
 theorem toK_of_beq {a b : Ext} (equal : (a == b) = true) : a.toK (K := K) = b.toK := by
   rw [eq_of_beq equal]

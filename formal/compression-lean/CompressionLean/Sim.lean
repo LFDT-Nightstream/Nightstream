@@ -23,6 +23,6 @@ reads a builder program as replay words (`Calculus`), one file per part of
 the verifier and of the terminal program, and the encoding premise for the
 production final program (`Encodes`, `programEncodes`).
 
-It does not own the programs (`Circuit/`) or the lowering proofs
+It does not own the programs (`Ports/Circuit/`) or the lowering proofs
 (`Lowering/`).
 -/

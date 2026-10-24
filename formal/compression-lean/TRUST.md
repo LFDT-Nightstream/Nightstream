@@ -26,8 +26,8 @@ The claims bound a probability. They take these as part of the model, not as Lea
 
 - **WHIR.** An opening is accepted only when one listed candidate agrees with every opened value
   (`Opens`), except with that opening's error. The error figures come from Plonky3's Johnson-bound
-  report in Rust (`pcs.rs`) and enter `Budget.lean` as given. No Lean proof checks them. This is the
-  weakest numeric layer.
+  report in Rust (`pcs.rs`) and enter `Final/Budget.lean` and `Shrink/Budget.lean` as given. No
+  Lean proof checks them. This is the weakest numeric layer.
 - **Fiat–Shamir.** Poseidon2 acts as a random oracle, and the transcript encoding is injective on
   prefixes (`Game/Restoration.lean`, `Layer1/FiatShamir.lean`).
 - **The read condition.** Inside the final program, the hash acts as a random oracle and the
@@ -44,24 +44,29 @@ claim has no entry there.
 
 ## 5. The ports
 
-Lean transcribes parts of Rust by hand. The transcriptions are of two kinds.
+Lean transcribes parts of Rust by hand. Every transcription is a definition in `Ports/`, whose
+folders follow the Rust modules; the proofs about them are in the folders above. The
+transcriptions are of two kinds.
 
 **Ports that can make a claim false.** The claims are about these objects. If one differs from its
 Rust, a claim is about a verifier, a program, a file or a check that Rust does not have.
 
 - The shrink verifier, which is the final verifier (`CompressionKey::verify`, `shrink/mod.rs`
-  `verify`). Its checks as a game (`Shrink/Game.lean`). The shrink relation and its public value
-  (`Shrink/Ccs.lean`) and the batching (`batch`, `Shrink/Rounds.lean`). The matrix value: the
-  shape run's total (`Shrink/Evaluate.lean`) plus the closed form of `block_part`
-  (`Shrink/BlockPart.lean`, `Shrink/Diagonal.lean`). The layout that these read, the CCS of a run
-  and its counts (`Shrink/Layout.lean`, `Run.ccs`, `Run.counts`). The sum-check rounds and the eq
-  weights that the game takes from layer 1 (`sumcheck`, `roundValues`, `eqAt`, `eqEval`).
-- The circuit programs and their lowering (`Circuit/`), with the parts of `Replay/` that the
-  programs read: the data types (`Ports/Replay/Data.lean`), the fields (`Ports/Replay/Field.lean`), the bar
-  transform (`Replay.bar`) and the GKR shape functions (`layerCount`, `layerDegree`,
-  `layerFactors`, `partFactors`, `activeTrees`).
+  `verify`). Its checks as a game (`Ports/Shrink/Game.lean`). The shrink CCS and its public value
+  (`Ports/Shrink/Ccs.lean`), with the relation over it (`Ccs.Relation`, `Shrink/Ccs.lean`), and
+  the batching (`batch`, `Ports/Shrink/Rounds.lean`). The matrix value: the shape run's total
+  (`Ports/Shrink/Evaluate.lean`) plus the closed form of `block_part`
+  (`Ports/Shrink/BlockPart.lean`, `Ports/Shrink/Diagonal.lean`). The layout that these read, the
+  CCS of a run and its counts (`Ports/Shrink/Layout.lean`, `Run.ccs`, `Run.counts`). The sum-check
+  rounds and the eq weights that the game takes from layer 1 (`Game.sumcheck`, `Lib.roundValues`,
+  `Lib.eqAt`, `Lib.eqEval`). These four are the only `ports.json` entries outside `Ports/`
+  (`portsOutside`): `Layer1/`, which sits below `Ports/`, reads them too.
+- The circuit programs and their lowering (`Ports/Circuit/`), with the parts of `Ports/Replay/`
+  that the programs read: the data types (`Ports/Replay/Data.lean`), the fields
+  (`Ports/Replay/Field.lean`), the bar transform (`Replay.bar`) and the GKR shape functions
+  (`layerCount`, `layerDegree`, `layerFactors`, `partFactors`, `activeTrees`).
 - The terminal loader (`Terminal.Package.load`).
-- The setup build and the key expander (`Final/RustSetup.lean`).
+- The setup build and the key expander (`Ports/Setup.lean`).
 - The Merkle hash that `MerkleBinds` reads (`Replay.pathOk`, `merkleRoot`, `compress`,
   `hashLeaf`). The Merkle binding of section 3 gives a Poseidon2 collision only if this is the
   hash that made the key root.
@@ -72,7 +77,7 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   `CompressionLeanExe/SetupCheck.lean`): transcriptions of their formats.
 
 **Code that a cross-check compares with Rust but that cannot make a claim false.** The rest of
-`Replay/`: the replay of the layer-1 verifier, with its transcript, stages, formulas, GKR and WHIR.
+`Ports/Replay/`: the replay of the layer-1 verifier, with its transcript, stages, formulas, GKR and WHIR.
 The claims read it only inside `Reads` (`Sim/Encodes.lean`): the draws of a reading are the
 replay's draws. The simulation (`Sim/`) proves that the circuit's checks give a run of
 the replay, and `Bridge/` proves that a run of the replay gives a path of the layer-1 game. So a
@@ -86,8 +91,9 @@ These checks compare a transcription with its Rust:
 - `ports.json` names the Rust item that each transcription follows, with a hash of its tokens. The
   CI test `lean_ports` fails when a Rust item changes, until someone re-reads the Lean declaration
   and updates the hash. It detects a change; it does not show that the transcription is right.
-  `lake build` fails when a declaration of a port module (`Inventory.portModules`) cites Rust and
-  has no entry.
+  `lake build` fails when a definition of `Ports/` has neither an entry nor a reason in
+  `notPorts` (`CompressionLeanTests/Ports.lean`), when `Ports/` holds a theorem, and when an
+  entry names a declaration outside `Ports/` that `portsOutside` does not list.
 - Ignored Rust tests compare the replay's draws and verdicts, and the programs' instructions, with
   Rust on fixed inputs. They run by hand, not in CI (`scripts/crosschecks.sh`).
 - The executables (`CompressionLeanExe/`, which `lake build` builds with warnings as errors) check

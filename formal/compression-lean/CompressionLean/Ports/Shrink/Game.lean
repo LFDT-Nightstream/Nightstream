@@ -25,11 +25,11 @@ them. Then, in transcript order:
    (`mod.rs:263-274`), the opening holds, and `last = matrices·z̃(ry)` with
    `z̃(ry) = (1 - ry_n)·w̃(ry[..n]) + ry_n·x̃(ry[..n])` (`mod.rs:275-286`).
    `matrices` is the verifier's value of `Σ_j ρ^j·M̃_j(rx, ry)`: the shape
-   run's total plus `block_part` (`verifierMatrices`, `Evaluate.lean`).
+   run's total plus `block_part` (`verifierMatrices`, `Ports/Shrink/Evaluate.lean`).
 
 The opening is idealized (`Opens`): the verifier accepts it when one
 candidate agrees with the opened value. The WHIR error that this hides is a
-named term of the budget (`Budget.lean`). The proof's shape check
+named term of the budget (`Shrink/Budget.lean`). The proof's shape check
 (`mod.rs:236-242`) is in the message types. The statement words are the
 shape run's public words; Rust checks that they equal the program's
 statement (`mod.rs:272`).

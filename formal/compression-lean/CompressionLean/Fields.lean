@@ -76,7 +76,7 @@ theorem card_cubic : Fintype.card Cubic = goldilocksModulus ^ 3 := by
     (AdjoinRoot.powerBasis cubic_ne_zero).finrank, AdjoinRoot.powerBasis_dim, cubic_natDegree]
 
 /-- The challenge field is larger than `2^191`, as Rust's charges assume
-(`Budget.lean`). -/
+(`Final/Budget.lean`, `Shrink/Budget.lean`). -/
 theorem cubic_big : 2 ^ 191 ≤ Fintype.card Cubic := by
   rw [card_cubic]
   norm_num [goldilocksModulus]

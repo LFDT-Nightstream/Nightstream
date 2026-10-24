@@ -40,5 +40,22 @@ import CompressionLean.Ports.Terminal.Program
 `Ports/` owns the hand transcriptions of Rust, and nothing else: definitions,
 each with a `ports.json` entry or a reason in `CompressionLeanTests/Ports.lean`.
 A port's namespace is its path without `Ports/`. The proofs about the ports
-are in the folders above.
+are in the folders above it. The folders follow the Rust modules
+(`crates/neo-spartan/src/` unless named):
+
+- `Circuit/`: the builder and its recorder (`Ir`, `Record`:
+  `circuit/record.rs`), the Poseidon2 block (`Block`: `circuit/poseidon2.rs`),
+  the gadgets (`Algebra`, `Hash`, `Fold`: `circuit/algebra.rs`, `hash.rs`,
+  `fold.rs`), and the layer-1 verifier as builder programs (`Sumcheck`, `Gkr`,
+  `Mle`, `Ring`, `Whir`: `sumcheck.rs`, `gkr.rs`, `mle.rs`, `ring.rs`,
+  `whir/mod.rs`; `Views`, `Early`, `Linear`, `Honest`, `Late`, `Openings`,
+  `Verifier`: the stages of `verifier.rs`, with `matrix.rs` and `lib.rs`).
+- `Shrink/`: the shrink verifier (`shrink/mod.rs`, `layout.rs`, `evaluate.rs`).
+- `Replay/`: the replay of the layer-1 verifier on words (`verifier.rs` and
+  the modules that it calls).
+- `Terminal/`: the terminal package as `Package::apply` reads it (`Package`:
+  `crates/nightstream/src/lifecycle/terminal/package.rs`) and the final
+  program (`Program`: `terminal/mod.rs`).
+- `Setup.lean`: Rust's layer-1 setup build (`lib.rs`, `matrix.rs`).
+- `Layer1/Budget.lean`: the degrees of `outer_terms` (`lib.rs`).
 -/

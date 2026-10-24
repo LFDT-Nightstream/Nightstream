@@ -109,8 +109,9 @@ def premises : List (Name × List Premise) :=
       "`terminalCheck` evaluates `templatesNamed` on the terminal package."⟩]),
     (`CompressionLean.Claims.setup_facts_of_check, [⟨`pass, .rustFiles, setupPass⟩])]
 
-/-- The modules that port Rust by hand, with their submodules. -/
-def portModules : List Name := [`CompressionLean.Ports]
+/-- The folder of the hand ports of Rust: `CompressionLean/Ports/` and every
+module under it. -/
+def portRoot : Name := `CompressionLean.Ports
 
 /-- The Rust tests that pin a digest that Lean computes: the file, then the test. -/
 def digestPins : List (String × String) := [

@@ -28,6 +28,6 @@ statement and the setup (`Model`), each stage and what it forces (`Early`,
 paths (`Soundness`), its cost (`Cost`), and the closed
 forms that the bridge reads (`ClosedForms`, `EvalK`, `KeyStructure`).
 
-It does not own the replay (`Replay/`), the circuit (`Circuit/`), the link
+It does not own the replay (`Ports/Replay/`), the circuit (`Ports/Circuit/`), the link
 between them (`Bridge/`) or the budget at Rust's split (`Final/Budget.lean`).
 -/

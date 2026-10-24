@@ -132,13 +132,15 @@ private theorem verifyWith_at (hp : Permutes c.perm) (hw : Decodes c w)
   refine OldEnsuresAt.bind (OldEnsuresAt.of_ensures (Simulates.ProofView.read key.relation _ _ facts.circuit.run
     facts.circuit.row facts.circuit.slot fun _ => hw).ensures)
     fun le₂ => ?_
-  refine (OldEnsuresAt.of_ensures (verify_ensures facts.circuit facts.relation named (w := w)
-    (seedWords := seedWith loaded context w) (st := statementWith loaded context w)
-    (g := proofWith key loaded context w) hp fun h => ?_)).post fun h runs => ?_
+  refine (OldEnsuresAt.of_ensures (OldEnsures.of_ensures (Q := fun _ _ => ∃ points t',
+    Bridge.Runs (Replay.verify key.relation (seedWith loaded context w) (statementWith loaded context w)
+      (proofWith key loaded context w)) start points t') fun h => ?_)).post fun h runs => ?_
   · obtain ⟨⟨⟨-, env, -, holds, -, shaped⟩, seed, -⟩, ⟨proof, read⟩, -⟩ := h
-    refine ⟨hw, ⟨?_, fun lane => (seed lane).mono le₂⟩, (isClaim_decode hw (claimHolds_words_lt holds)).mono
-      (le₁.trans le₂), fits_decode w holds shaped facts.constants.kappa facts.constants.blocks facts.constants.point
-      facts.constants.matrices, proof, read⟩
+    refine verify_ensures facts.circuit facts.relation named (w := w) (seedWords := seedWith loaded context w)
+      (st := statementWith loaded context w) (g := proofWith key loaded context w) hp
+      ⟨?_, fun lane => (seed lane).mono le₂⟩ ((isClaim_decode hw (claimHolds_words_lt holds)).mono (le₁.trans le₂))
+      (fits_decode w holds shaped facts.constants.kappa facts.constants.blocks facts.constants.point
+        facts.constants.matrices) proof read
     rw [seedWith, FoldTranscript.handoffWords, Array.size_extract, FoldTranscript.absorbWords_size _ (by simp)]
     rfl
   · obtain ⟨⟨⟨-, env, terminal, holds, -, shaped⟩, -⟩, -⟩ := h

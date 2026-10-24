@@ -459,41 +459,4 @@ theorem honestStage_tracks {rel : Relation} {input : HonestInput} {proof : Repla
 
 end Stage
 
-/-! ## The old names, for the files that still use `Simulates` -/
-
-theorem Simulates.queryPoint [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {vars index : ℕ}
-    {bits : Array Var} (hsize : P → bits.size = vars + 1 - foldVars)
-    (hb : P → ∀ i < bits.size, IsWord c n bits[i]! (Word.ofNat (index / 2 ^ i % 2))) :
-    Simulates c n P (Circuit.queryPoint vars bits) (fun r m => IsExts c m r (Replay.leafQueryPoint vars index)) True :=
-  .of_ensures₀ fun h => queryPoint_ensures (hsize h) (hb h)
-
-theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {rel : Relation}
-    {input : HonestInput} {proof : Replay.Proof} {early : Replay.EarlyOut} {lin : Replay.LinearOut} {d : Duplex}
-    {t : Replay.Transcript} (hp : Permutes c.perm) (hd : P → IsDuplex c n d t.duplex)
-    (hlane : P → IsExts c n input.lanePoint lin.lanePoint) (hblock : P → IsExts c n input.blockPoint lin.blockPoint)
-    (hrun : P → IsExts c n input.runPoint early.openings.runPoint)
-    (hrow : P → IsExt c n input.setup.1 early.openings.rowClaim)
-    (hslot : P → IsExt c n input.setup.2.1 early.openings.slotClaim)
-    (hcoef : P → IsExt c n input.setup.2.2 early.openings.coefClaim)
-    (hblockValue : P → IsExt c n input.block early.values.block)
-    (hrows : P → IsExts c n input.commitmentRows ((Array.range rel.kappa).map lin.mixing.commitment))
-    (hkey : P → IsExt c n input.keyValue lin.keyValue)
-    (hpartials : P → input.partials.size = proof.partials.size ∧
-      ∀ g < input.partials.size, IsExts c n input.partials[g]! proof.partials[g]!)
-    (hp1 : P → IsDigest c n input.p1 proof.p1)
-    (hleaves : P → input.leaves.size = proof.leaves.size ∧ ∀ q (hq : q < input.leaves.size),
-      IsWords c n input.leaves[q].values (proof.leaves[q]!).values ∧
-      input.leaves[q].path.size = (proof.leaves[q]!).path.size ∧
-      input.leaves[q].path.size = rel.setupVars + 1 - foldVars ∧
-      ∀ k < input.leaves[q].path.size, IsDigest c n input.leaves[q].path[k]! (proof.leaves[q]!).path[k]!)
-    (keySize : (lin.lanePoint ++ lin.blockPoint).size ≤ rel.setupVars)
-    (runSize : early.openings.runPoint.size ≤ rel.setupVars) (root : rel.key.root.size = 4)
-    (small : rel.setupVars + 1 - foldVars ≤ 64) :
-    OldEnsures c n P ((Circuit.honestStage rel input).run d)
-      (fun res m => ∃ out t', Runs (Replay.honestStage rel proof early lin) t out t' ∧
-        IsHonestOut c m rel early lin res.1 out ∧ IsDuplex c m res.2 t'.duplex) :=
-  .of_ensures fun h => (honestStage_tracks hp (hlane h) (hblock h) (hrun h) (hrow h) (hslot h) (hcoef h)
-    (hblockValue h) (hrows h) (hkey h) (hpartials h).1 (hpartials h).2 (hp1 h) (hleaves h).1 (hleaves h).2 keySize
-    runSize root small d t (hd h)).post fun _ _ ⟨out, t', run, hdx, ho⟩ => ⟨out, t', run, ho, hdx⟩
-
 end CompressionLean.Sim

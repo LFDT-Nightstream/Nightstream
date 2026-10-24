@@ -156,6 +156,24 @@ theorem Duplex.observeSlice_tracks (hp : Permutes c.perm) {vs : Array Var} {gs :
     Tracks c n (Duplex.observeSlice vs) (Replay.observeAll gs) fun _ _ _ => True := fun _ tr hd =>
   (Duplex.observeSlice_ensures hp hd hv).post fun _ _ q => ⟨(), _, Bridge.runs_observeAll gs tr, q, trivial⟩
 
+/-- Each word as a constant, observed (`verifier.rs:137-142`, `whir/mod.rs:221-232`): the replay's
+`observeAll`. -/
+theorem Duplex.observeConsts_tracks (hp : Permutes c.perm) (words : Array Word) :
+    Tracks c n (forIn words () fun word _ => (do
+        let h ← liftM (Build.const word)
+        Duplex.observe h
+        Pure.pure (ForInStep.yield ()) : Transcript (ForInStep Unit)))
+      (Replay.observeAll words) fun _ _ _ => True := fun _ t hd => by
+  rw [← Array.forIn_toList]
+  refine (Ensures.loopT (fun k _ e m => IsDuplex c m e ((words.toList.take k).foldl Replay.Duplex.observe t.duplex))
+    hd fun k hk _ e m _ hI => ?_).post fun _ _ q => ⟨(), _, Bridge.runs_observeAll words t, ?_, trivial⟩
+  · refine Ensures.liftBind (const_ensures words.toList[k]) fun w _ _ hw => ?_
+    refine Ensures.tbind (Duplex.observe_ensures hp hI.mono hw) fun _ e' _ _ hd' => ?_
+    rw [StateT.run_pure]
+    refine Ensures.pure ⟨rfl, ?_⟩
+    rwa [List.take_succ_eq_append_getElem hk, List.foldl_append, List.foldl_cons, List.foldl_nil]
+  · rwa [List.take_of_length_le (by simp), Array.foldl_toList] at q
+
 /-- `sample_ext`: the program's extension value is the replay's sample. -/
 theorem Duplex.sampleExt_tracks (hp : Permutes c.perm) :
     Tracks c n Duplex.sampleExt Replay.sampleExt fun r g m => IsExt c m r g := fun _ tr hd =>

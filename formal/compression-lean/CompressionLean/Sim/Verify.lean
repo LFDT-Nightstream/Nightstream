@@ -5,16 +5,10 @@ import CompressionLean.Checks.KeyFacts
 
 /-!
 Owns `verify_ensures`: the circuit's `verify` (`Verifier.lean`, `verifier.rs:136-316`)
-simulated against the replay's (`Ports/Replay/Stages.lean`). The stage lemmas give each
-stage. The replay's runs give what later stages read: the early values, the sizes
-of the run, lane and block points, `τ`'s lanes and the queried values.
-
-`OldEnsures` also fixes the instructions, which do not depend on replay values. So a
-fact that only the precondition gives (the statement's fit, the proof's shape, the
-point sizes) serves as a plain premise of a stage lemma, and one run at values that
-have it (zeros of the relation's shape, or an empty point) gives the instructions
-(`OldEnsures.under`). `runs_observe3` and `isDuplex_mk` state the steps that observe
-the relation words on abstract words, so that no check evaluates those words.
+simulated against the replay's (`Ports/Replay/Stages.lean`). Each stage lemma tracks
+its stage, so the stages chain as `Tracks` steps. The replay's runs give what later
+stages read (`Tracks.runs`): the early values, the sizes of the run, lane and block
+points, `τ`'s lanes and the queried values.
 -/
 
 namespace CompressionLean.Sim
@@ -74,137 +68,6 @@ private theorem IsClaim.words {c : Ctx F} {n : ℕ} {v : ClaimView} {st : Replay
     exact (forall₂_of_index h.evalA).imp fun _ _ hab => forall₂_of_index hab
   simpa [Array.toList_flatMap, Array.toList_append, List.flatMap_append] using
     pairs_forall₂ (List.rel_append (List.rel_append point evalK) evalA)
-
-private theorem Simulates.observeConstants [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {d : Duplex}
-    {r : Replay.Duplex} (words : Array Word) (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
-    Simulates c n P (StateT.run (forIn words () fun word _ => (do
-        let h ← liftM (Build.const word)
-        Duplex.observe h
-        Pure.pure (ForInStep.yield ()) : Transcript (ForInStep Unit))) d)
-      (fun res m => IsDuplex c m res.2 (words.foldl Replay.Duplex.observe r)) True := by
-  rw [← Array.forIn_toList]
-  refine ((Simulates.loopT (xs := words.toList) (init := ()) (d := d) (P := P) (D := fun _ => True)
-      (I := fun k _ e m => IsDuplex c m e ((words.toList.take k).foldl Replay.Duplex.observe r))
-      fun k hk acc e m le => ?_).pre (fun h => ⟨h, by simpa using hd h⟩)).post
-    (fun _ res m h => by
-      rw [← Array.foldl_toList]
-      simpa [List.take_of_length_le (le_of_eq (Array.length_toList (xs := words)))] using h) (fun _ => by simp)
-  rw [StateT.run_bind]
-  refine Simulates.bind₀ (Simulates.lift (Simulates.const words.toList[k])) fun x m₁ l₁ => ?_
-  rw [StateT.run_bind]
-  refine Simulates.bind₀ (Simulates.observe hp (fun h => h.2.2 ▸ h.1.2.mono l₁) fun h => h.2.1) fun res m₂ l₂ => ?_
-  rw [StateT.run_pure]
-  refine Simulates.pure fun h => ⟨rfl, ?_⟩
-  rw [List.take_add_one, List.foldl_append, List.getElem?_eq_getElem hk]
-  simpa [← h.1.2.2] using h.2
-
-private def zeroGkr (shapes : Array TreeShape) : Replay.GkrProof :=
-  { roots := Array.replicate shapes.size (0, 0),
-    layers := (Array.range (Replay.layerCount shapes)).map fun i =>
-      { rounds := Array.replicate i (Array.replicate (Replay.layerDegree (Replay.layerFactors shapes (i + 1))) 0),
-        children := (Replay.activeTrees shapes (i + 1)).map fun t =>
-          Array.replicate (2 * (Replay.partFactors shapes (i + 1) t + 1)) 0 } }
-
-private theorem readGkr_zero {shapes : Array TreeShape} (h : ∀ s ∈ shapes, s.depth ≠ 0 ∧ s.factors ≤ 2) :
-    Replay.readGkr (zeroGkr shapes) shapes = .ok () := by
-  have any : shapes.any (fun s => s.depth == 0 || decide (s.factors > 2)) = false := by
-    rw [Array.any_eq_false]
-    intro i hi
-    have := h shapes[i] (Array.getElem_mem hi)
-    simp only [Bool.or_eq_true, beq_iff_eq, decide_eq_true_eq, not_or]
-    omega
-  have layers : ((List.range (Replay.layerCount shapes)).all fun i =>
-      Replay.layerShapeOk shapes (i + 1) (zeroGkr shapes).layers[i]!) = true := by
-    rw [List.all_eq_true]
-    intro x hx
-    rw [List.mem_range] at hx
-    simp only [zeroGkr]
-    rw [getElem!_map_range _ _ hx]
-    simp only [Replay.layerShapeOk, Bool.and_eq_true, beq_iff_eq]
-    rw [Array.all_eq_true, Array.all_eq_true]
-    simp
-  unfold Replay.readGkr
-  simp [zeroGkr, any, Replay.ensure] at layers ⊢
-  rw [if_pos layers]
-  rfl
-
-private def zeroOpening (shape : WhirShape) : Replay.Opening :=
-  { initialOod := Array.replicate shape.oodSamples 0, evals := shape.batches.map fun b => Array.replicate b.size 0,
-    initialSumcheck := Array.replicate shape.initialSumcheck.rounds (0, 0),
-    rounds := shape.rounds.map fun r =>
-      { root := #[], ood := Array.replicate r.oodSamples 0, sumcheck := Array.replicate r.sumcheck.rounds (0, 0) },
-    finalPoly := Array.replicate shape.finalPolyLen 0,
-    finalSumcheck := Array.replicate shape.finalSumcheck.rounds (0, 0) }
-
-private theorem readOpening_zero (shape : WhirShape) : Replay.readOpening shape (zeroOpening shape) = .ok () := by
-  have batches : ((shape.batches.zip (zeroOpening shape).evals).all fun pair => pair.2.size == pair.1.size) = true := by
-    rw [Array.all_eq_true]
-    simp [zeroOpening]
-  unfold Replay.readOpening
-  rw [← Array.forIn_toList, forIn_ok]
-  · simp only [batches]
-    simp [zeroOpening, Replay.ensure]
-  · rintro ⟨x, a⟩ hp
-    have same : List.Forall₂ (fun (x : Replay.WhirRoundShape) (a : Replay.WhirRound) =>
-        a.ood.size = x.oodSamples ∧ a.sumcheck.size = x.sumcheck.rounds) shape.rounds.toList
-        (zeroOpening shape).rounds.toList := by
-      rw [zeroOpening, Array.toList_map, List.forall₂_map_right_iff, List.forall₂_same]
-      simp
-    rw [Array.toList_zip] at hp
-    have := List.forall₂_zip same hp
-    simp [Replay.ensure, this.1, this.2]
-    rfl
-
-private def zeroProof (rel : Relation) : Replay.Proof :=
-  { p0 := Array.replicate 4 0, histogram := Array.replicate (2 * rel.normBound + 1) 0,
-    early := zeroGkr rel.earlyShapes, earlyValues := ⟨0, 0, 0, Array.replicate rel.matrices (0, 0), 0⟩,
-    quotient := Array.replicate (D - 1) 0, linear := Array.replicate rel.cubeVars (Array.replicate 2 0),
-    finals := Array.replicate 3 0, partials := Array.replicate 2 (Array.replicate (2 ^ foldVars) 0),
-    p1 := Array.replicate 4 0,
-    leaves := Array.replicate rel.queries
-      ⟨Array.replicate ((rel.kappa + runOracles) * 2 ^ foldVars) 0, Array.replicate (rel.setupVars + 1 - foldVars) #[]⟩,
-    late := zeroGkr rel.lateShapes, lateValues := Array.replicate rel.matrices (0, 0),
-    p1Opening := zeroOpening rel.p1Whir, p0Opening := zeroOpening rel.p0Whir }
-
-private theorem readProof_zero {rel : Relation} (hrun : rel.key.layout.runVariables ≠ 0)
-    (hrow : rel.key.layout.rowVariables ≠ 0) (hslot : rel.key.layout.slotVariables + rel.matrixVars ≠ 0) :
-    Replay.readProof rel (zeroProof rel) = .ok () := by
-  have early : ∀ s ∈ rel.earlyShapes, s.depth ≠ 0 ∧ s.factors ≤ 2 := by
-    simp [Relation.earlyShapes, Relation.cubeVars, Replay.laneVars, hrun, hrow]
-    omega
-  have late : ∀ s ∈ rel.lateShapes, s.depth ≠ 0 ∧ s.factors ≤ 2 := by
-    simp [Relation.lateShapes, Relation.blockVars, Replay.bitsAtLeastOne]
-  have linear : (Array.replicate rel.cubeVars (Array.replicate 2 (0 : Ext))).all (·.size == 2) = true := by
-    rw [Array.all_eq_true]
-    simp
-  have partials : (Array.replicate 2 (Array.replicate (2 ^ foldVars) (0 : Ext))).all (·.size == 2 ^ foldVars) =
-      true := by
-    rw [Array.all_eq_true]
-    simp
-  have leaves : ((zeroProof rel).leaves.all fun leaf =>
-      leaf.values.size == (rel.kappa + runOracles) * 2 ^ foldVars &&
-        leaf.path.size == rel.setupVars + 1 - foldVars) = true := by
-    rw [zeroProof, Array.all_eq_true]
-    simp
-  have gkrs : Replay.readGkr (zeroProof rel).early rel.earlyShapes = .ok () ∧
-      Replay.readGkr (zeroProof rel).late rel.lateShapes = .ok () := ⟨readGkr_zero early, readGkr_zero late⟩
-  have openings : Replay.readOpening rel.p1Whir (zeroProof rel).p1Opening = .ok () ∧
-      Replay.readOpening rel.p0Whir (zeroProof rel).p0Opening = .ok () := ⟨readOpening_zero _, readOpening_zero _⟩
-  unfold Replay.readProof
-  rw [leaves, gkrs.1, gkrs.2, openings.1, openings.2]
-  simp only [zeroProof, linear, partials]
-  simp [Replay.ensure]
-  rfl
-
-private def zeroStatement (rel : Relation) : Replay.Statement :=
-  ⟨Array.replicate rel.kappa (Array.replicate D 0), Array.replicate rel.publicBlocks (Array.replicate D 0),
-    Array.replicate rel.pointVariables (0, 0), Array.replicate D (0, 0),
-    Array.replicate rel.matrices (Array.replicate D (0, 0))⟩
-
-private theorem fits_zero (rel : Relation) : (zeroStatement rel).fits rel = true := by
-  simp only [zeroStatement, Replay.Statement.fits, Bool.and_eq_true]
-  rw [Array.all_eq_true, Array.all_eq_true, Array.all_eq_true]
-  simp
 
 private theorem readProof_openings {rel : Relation} {g : Replay.Proof} (read : Replay.readProof rel g = .ok ()) :
     Replay.readOpening rel.p1Whir g.p1Opening = .ok () ∧ Replay.readOpening rel.p0Whir g.p0Opening = .ok () := by
@@ -326,221 +189,9 @@ private theorem honest_run {rel : Relation} {g : Replay.Proof} {early : Replay.E
   rw [queried_size _ _ _ foldOk]
   simp [(run_sampleWords sampled).2, (Bridge.readProof_ok read).leaves]
 
-private theorem isDuplex_mk {c : Ctx F} {m : ℕ} {d : Duplex} {r : Replay.Duplex} {ds : Array Replay.Draw}
-    (h : IsDuplex c m d r) : IsDuplex c m d (Replay.Transcript.mk r ds).duplex :=
-  h
-
-private theorem runs_observe3 {β : Type} {a b e : Array Word} {d : Replay.Duplex} {ds : Array Replay.Draw}
-    {k : Replay.ReplayM β} {x : β} {t' : Replay.Transcript}
-    (h : Runs k ⟨e.foldl Replay.Duplex.observe (b.foldl Replay.Duplex.observe (a.foldl Replay.Duplex.observe d)), ds⟩
-      x t') :
-    Runs (do Replay.observeAll a; Replay.observeAll b; Replay.observeAll e; k) ⟨d, ds⟩ x t' :=
-  Bridge.runs_bind (Bridge.runs_observeAll _ _) (Bridge.runs_bind (Bridge.runs_observeAll _ _)
-    (Bridge.runs_bind (Bridge.runs_observeAll _ _) h))
-
-section Verify
-
-variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
-
-private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey} (circuit : CircuitFacts rel p1Key p0Key)
-    (relation : RelationFacts rel)
-    (named : ∀ s ∈ rel.key.layout.segments, s.classIndex < rel.key.layout.classes.size ∧ s.lane < D)
-    {w : Var → Word} {seed : DigestVar} {statement : ClaimView} {proof : ProofView} {seedWords : Array Word}
-    {st : Replay.Statement} {g : Replay.Proof} (hp : Permutes c.perm)
-    (fits : st.fits rel = true) (read : Replay.readProof rel g = .ok ())
-    (h : P → IsDigest c n seed seedWords ∧ IsClaim c n statement st ∧ IsProof c w n proof g) :
-    OldEnsures c n P (verify rel p1Key p0Key seed statement proof)
-      (fun _ _ => ∃ points t', Runs (Replay.verify rel seedWords st g) ⟨Replay.Duplex.new, #[]⟩ points t') := by
-  obtain ⟨-, -, -, root, short, k1, k0, hp1, hp1count, hp0⟩ := circuit
-  have long := relation.bits.long
-  have small : rel.setupVars + 1 - foldVars ≤ 64 := by have := relation.high; omega
-  have shape := Bridge.readProof_ok read
-  obtain ⟨r1, r0⟩ := readProof_openings read
-  unfold verify
-  refine OldEnsures.bind Simulates.duplexNew.ensures fun duplex m₀ l₀ => ?_
-  refine OldEnsures.bind (Q := fun _ _ => ∃ points t', Runs (Replay.verify rel seedWords st g)
-    ⟨Replay.Duplex.new, #[]⟩ points t') ?_ fun _ _ _ => OldEnsures.pure fun H => H.2
-  refine OldEnsures.tbind (Simulates.observeSlice hp (fun H => H.2.1)
-    fun H => IsWords.ofFn (h H.1).1.1 fun lane => ((h H.1).1.2 lane).mono l₀).ensures fun _ d₁ m₁ l₁ => ?_
-  refine OldEnsures.tbind (Simulates.observeConstants rel.words hp fun H => H.2.1).ensures fun _ d₂ m₂ l₂ => ?_
-  refine OldEnsures.tbind (Simulates.observeSlice hp (fun H => H.2.1)
-    fun H => ((h H.1.1.1).2.1.mono (l₀.trans (l₁.trans l₂))).words).ensures fun _ d₃ m₃ l₃ => ?_
-  have pf : P → IsProof c w n proof g := fun H => (h H).2.2
-  have L₃ : n ≤ m₃ := l₀.trans (l₁.trans (l₂.trans l₃))
-  refine OldEnsures.tbind (earlyStage_ensures (t := ⟨Array.foldl Replay.Duplex.observe (Array.foldl Replay.Duplex.observe
-      (Array.foldl Replay.Duplex.observe Replay.Duplex.new seedWords) rel.words) st.words, #[]⟩) hp
-    (fun H => isDuplex_mk H.2.1)
-    (fun H => ((h H.1.1.1.1).2.1.mono L₃).point) (fun H => (pf H.1.1.1.1).mono L₃) read) fun early d₄ m₄ l₄ => ?_
-  refine OldEnsures.witness (A := fun out : Replay.EarlyOut => out.openings.runPoint.size ≤ rel.setupVars)
-    ⟨⟨0, (0, 0), (0, 0)⟩, ⟨#[], #[], #[], #[], #[]⟩, ⟨0, 0, 0, #[], 0⟩, 0, ⟨#[], #[], #[], 0, 0, 0, 0⟩⟩
-    (Nat.zero_le _) (fun out ⟨_, run, _⟩ => by
-      rw [(early_run read run).2, Relation.setupVars]
-      omega) fun eout runSize => ?_
-  refine OldEnsures.exists_and ⟨Replay.Duplex.new, #[]⟩ fun t₁ => ?_
-  have L₄ : n ≤ m₄ := L₃.trans l₄
-  refine OldEnsures.pre (P' := P ∧ _) ?_ fun H => ⟨H.1.1.1.1.1, H.2⟩
-  refine OldEnsures.tbind (linearStage_ensures (t := t₁) hp (fun H => H.2.2.2) fits (fun H => (h H.1).2.1.mono L₄)
-    (fun H => by
-      obtain ⟨-, -, -, -, -, -, quotient, -⟩ := pf H.1
-      exact quotient.mono L₄)
-    (fun H => by
-      obtain ⟨-, -, -, -, -, -, -, linear, -⟩ := pf H.1
-      obtain ⟨size, get⟩ := forall₂_entries linear
-      exact ⟨size, fun i hi => by rw [getElem!_pos _ i hi]; exact (get i hi).mono L₄⟩)
-    (fun H => by
-      obtain ⟨-, -, -, -, -, -, -, -, finals, -⟩ := pf H.1
-      exact finals.mono L₄)
-    (fun _ => shape.linear) (fun _ m hm => by rw [shape.rounds m (Array.mem_toList_iff.mpr hm)]; omega)
-    (fun _ => shape.finals) long) fun lin d₅ m₅ l₅ => ?_
-  refine OldEnsures.witness (A := fun out : Replay.LinearOut => (out.lanePoint ++ out.blockPoint).size ≤ rel.setupVars)
-    ⟨0, 0, #[], 0, #[], 0, 0, 0, 0, #[], ⟨0, 0, 0⟩, #[]⟩ (Nat.zero_le _) (fun out ⟨_, run, _⟩ => by
-      obtain ⟨-, -, lane, block⟩ := linear_run read run
-      rw [Array.size_append, lane, block, Relation.setupVars, Relation.cubeVars]
-      omega) fun lout keySize => ?_
-  refine OldEnsures.exists_and t₁ fun t₂ => ?_
-  have L₅ : n ≤ m₅ := L₄.trans l₅
-  refine OldEnsures.pre (P' := P ∧ (_ ∧ IsEarlyOut c m₅ early eout) ∧ _) ?_
-    fun H => ⟨H.1.1, ⟨H.1.2.1, H.1.2.2.1.mono l₅⟩, H.2⟩
-  refine OldEnsures.tbind (honestStage_ensures (t := t₂) (proof := g) (early := eout) (lin := lout) hp
-    (fun H => H.2.2.2.2)
-    (fun H => by obtain ⟨-, -, -, lane, -⟩ := H.2.2.2.1; exact lane)
-    (fun H => by obtain ⟨-, -, block, -⟩ := H.2.2.2.1; exact block)
-    (fun H => by obtain ⟨-, -, run, -⟩ := H.2.1.2; exact run)
-    (fun H => by obtain ⟨-, -, -, -, -, -, row, -⟩ := H.2.1.2; exact row)
-    (fun H => by obtain ⟨-, -, -, -, -, -, -, slot, -⟩ := H.2.1.2; exact slot)
-    (fun H => by obtain ⟨-, -, -, -, -, -, -, -, coef⟩ := H.2.1.2; exact coef)
-    (fun H => by
-      obtain ⟨-, -, -, -, -, block, -⟩ := pf H.1
-      dsimp only
-      rw [(early_run read H.2.1.1).1]
-      exact block.mono L₅)
-    (fun H => by
-      obtain ⟨⟨mix, powers⟩, -⟩ := H.2.2.2.1
-      dsimp only
-      refine ⟨by simp, fun i hi => ?_⟩
-      simp only [Array.size_map, Array.size_range] at hi
-      rw [getElem!_map_range _ _ hi, getElem!_map_range _ _ hi]
-      exact mix.commitment (by rw [powers, Relation.rowCount]; omega))
-    (fun H => by obtain ⟨-, -, -, -, -, key, -⟩ := H.2.2.2.1; exact key)
-    (fun H => by
-      obtain ⟨-, -, -, -, -, -, -, -, -, partials, -⟩ := pf H.1
-      obtain ⟨size, get⟩ := forall₂_entries partials
-      exact ⟨size, fun i hi => by rw [getElem!_pos _ i hi]; exact (get i hi).mono L₅⟩)
-    (fun H => by
-      obtain ⟨-, -, -, -, -, -, -, -, -, -, p1, -⟩ := pf H.1
-      exact p1.mono L₅)
-    (fun H => by
-      obtain ⟨-, -, -, -, -, -, -, -, -, -, -, leaves, -⟩ := pf H.1
-      obtain ⟨size, get⟩ := forall₂_entries leaves
-      refine ⟨size, fun q hq => ?_⟩
-      obtain ⟨values, path⟩ := get q hq
-      obtain ⟨psize, pget⟩ := forall₂_entries path
-      have mem : g.leaves[q]! ∈ g.leaves.toList := by
-        rw [getElem!_pos _ q (size ▸ hq)]
-        exact Array.getElem_mem_toList _
-      exact ⟨values.mono L₅, psize, psize.trans (shape.leafShapes _ mem).2, fun k hk => by
-        rw [getElem!_pos _ k hk]
-        exact (pget k hk).mono L₅⟩)
-    keySize runSize root small) fun honest d₆ m₆ l₆ => ?_
-  refine OldEnsures.exists_and (⟨0, #[], #[], #[], #[]⟩ : Replay.HonestOut) fun hout => ?_
-  refine OldEnsures.exists_and t₂ fun t₃ => ?_
-  have L₆ : n ≤ m₆ := L₅.trans l₆
-  refine OldEnsures.pre (P' := P ∧ (_ ∧ IsEarlyOut c m₆ early eout) ∧ (_ ∧ IsLinearOut c m₆ rel lin lout) ∧ _) ?_
-    fun H => ⟨H.1.1, ⟨H.1.2.1.1, H.1.2.1.2.mono l₆⟩, ⟨H.1.2.2.1, H.1.2.2.2.1.mono l₆⟩, H.2⟩
-  refine OldEnsures.tbind (lateStage_ensures (t := t₃) (proof := g) (lin := lout) hp (fun H => H.2.2.2.2.2)
-    (fun H => by obtain ⟨-, tau, -⟩ := H.2.2.1.2; exact tau)
-    (fun H => (linear_run read H.2.2.1.1).2.1)
-    (fun H => by
-      obtain ⟨⟨mix, powers⟩, -⟩ := H.2.2.1.2
-      have kappa : lout.mixing.kappa = rel.kappa := by rw [(linear_run read H.2.2.1.1).1]
-      refine ⟨by simp, fun j hj => ?_⟩
-      simp only [Array.size_map, Array.size_range] at hj
-      rw [getElem!_map_range _ _ hj]
-      exact mix.evalA (by rw [powers, kappa, Relation.rowCount]; omega))
-    (fun H => by
-      obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, late, -⟩ := pf H.1
-      exact late.mono L₆)
-    (fun H => by
-      obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, values, -⟩ := pf H.1
-      exact values.imp fun _ _ x => x.mono L₆)
-    read short named) fun late d₇ m₇ l₇ => ?_
-  refine OldEnsures.exists_and (⟨0, ⟨#[], #[], #[], #[], #[]⟩, #[], ⟨#[], 0, #[], 0⟩⟩ : Replay.LateOut)
-    fun lateOut => ?_
-  refine OldEnsures.exists_and t₃ fun t₄ => ?_
-  have L₇ : n ≤ m₇ := L₆.trans l₇
-  refine OldEnsures.pre (P' := P ∧ (_ ∧ IsEarlyOut c m₇ early eout) ∧ (_ ∧ IsLinearOut c m₇ rel lin lout) ∧
-    (_ ∧ IsHonestOut c m₇ rel eout lout honest hout) ∧ _) ?_
-    fun H => ⟨H.1.1, ⟨H.1.2.1.1, H.1.2.1.2.mono l₇⟩, ⟨H.1.2.2.1.1, H.1.2.2.1.2.mono l₇⟩,
-      ⟨H.1.2.2.2.1, H.1.2.2.2.2.1.mono l₇⟩, H.2⟩
-  refine OldEnsures.tbind (OldEnsures.lift (Simulates.mapM (R := fun _ _ _ => True) (fun _ _ _ _ _ _ => trivial)
-    fun x hx m lm => by
-      obtain ⟨q, hq, rfl⟩ := Array.mem_iff_getElem.mp hx
-      refine (Simulates.queryPoint (index := hout.queries[q]!) (fun H => ?_) fun H => ?_).post
-        (fun _ _ _ _ => trivial) fun _ => Iff.rfl
-      · obtain ⟨-, -, -, -, bits, -⟩ := H.2.2.2.1.2
-        have size := (bits q hq).1
-        rwa [getElem!_pos _ q hq] at size
-      · obtain ⟨-, -, -, -, bits, -⟩ := H.2.2.2.1.2
-        intro i hi
-        have size := (bits q hq).1
-        rw [getElem!_pos _ q hq] at size
-        have word := ((bits q hq).2 i (size ▸ hi)).mono lm
-        rwa [getElem!_pos _ q hq] at word).ensures) fun _ d₈ m₈ l₈ => ?_
-  have L₈ : n ≤ m₈ := L₇.trans l₈
-  refine OldEnsures.pre (P' := P ∧ (_ ∧ IsEarlyOut c m₈ early eout) ∧ (_ ∧ IsLinearOut c m₈ rel lin lout) ∧
-    (_ ∧ IsHonestOut c m₈ rel eout lout honest hout) ∧ (_ ∧ IsLateOut c m₈ late lateOut ∧ _) ∧
-    IsDuplex c m₈ d₈ t₄.duplex) ?_ fun H =>
-      ⟨H.1.1, ⟨H.1.2.1.1, H.1.2.1.2.mono l₈⟩, ⟨H.1.2.2.1.1, H.1.2.2.1.2.mono l₈⟩,
-        ⟨H.1.2.2.2.1.1, H.1.2.2.2.1.2.mono l₈⟩, ⟨H.1.2.2.2.2.1, H.1.2.2.2.2.2.1.mono l₈, H.1.2.2.2.2.2.2.1⟩,
-        (show d₈ = d₇ from H.2.2) ▸ H.1.2.2.2.2.2.2.2.mono l₈⟩
-  refine (openingsStage_ensures (t := t₄) (proof := g) (early := eout) (lin := lout) (honest := hout)
-    (late := lateOut) hp (fun H => H.2.2.2.2.2)
-    (fun H => by
-      obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, p1, -⟩ := pf H.1
-      exact p1.mono L₈)
-    (fun H => by
-      obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, -, -, p0⟩ := pf H.1
-      exact p0.mono L₈)
-    (fun H => by
-      obtain ⟨-, -, -, -, -, -, -, -, -, partials, -⟩ := pf H.1
-      exact partials.imp fun _ _ x => x.mono L₈)
-    (fun H => H.2.2.2.1.2.1) (fun H => H.2.2.2.1.2.2.2.2.2.2)
-    (fun H => by obtain ⟨-, -, -, -, -, -, omega, -⟩ := H.2.2.1.2; exact omega)
-    (fun H => H.2.2.2.2.1.2.1.2.2.2) (fun H => H.2.1.2.2.1)
-    (fun H => by obtain ⟨-, -, -, -, -, -, -, zValue⟩ := H.2.2.1.2; exact zValue)
-    (fun H => by
-      obtain ⟨-, -, -, runs, -⟩ := pf H.1
-      rw [(early_run read H.2.1.1).1]
-      exact runs.mono L₈)
-    (fun H => by
-      obtain ⟨-, -, -, -, pairs, -⟩ := pf H.1
-      rw [(early_run read H.2.1.1).1]
-      exact pairs.imp fun _ _ x => x.mono L₈)
-    (fun H => by
-      obtain ⟨-, -, -, -, -, block, -⟩ := pf H.1
-      rw [(early_run read H.2.1.1).1]
-      exact block.mono L₈)
-    (fun H => by
-      obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, values, -⟩ := pf H.1
-      rw [H.2.2.2.2.1.2.2]
-      exact values.imp fun _ _ x => x.mono L₈)
-    (fun H => H.2.2.2.2.1.2.1.2.1)
-    (fun H => by obtain ⟨-, -, -, -, -, mult, -⟩ := H.2.1.2; exact mult)
-    (fun _ => r1) (fun _ => r0) (fun H => honest_run read H.2.2.2.1.1)
-    (fun H => by rw [(early_run read H.2.1.1).1]; exact shape.pairs)
-    (fun H => by rw [H.2.2.2.2.1.2.2]; exact shape.lateValues)
-    k1 k0 hp1 hp1count hp0).post fun H _ _ ⟨t', tail, _⟩ => ?_
-  obtain ⟨-, ⟨early, -⟩, ⟨linear, -⟩, ⟨honest, -⟩, ⟨late, -⟩, -⟩ := H
-  obtain ⟨_, _, whir1, tail⟩ := run_bind tail
-  obtain ⟨_, _, agree1, tail⟩ := run_bind tail
-  obtain ⟨_, _, whir0, agree0⟩ := run_bind tail
-  unfold Replay.verify
-  exact ⟨_, t', Bridge.runs_bind (Bridge.runs_ensure fits _ _) (Bridge.runs_bind (Bridge.runs_liftExcept read _)
-    (runs_observe3 (Bridge.runs_bind early (Bridge.runs_bind linear (Bridge.runs_bind honest
-    (Bridge.runs_bind late (Bridge.runs_bind whir1 (Bridge.runs_bind agree1 (Bridge.runs_bind whir0
-    (Bridge.runs_bind agree0 (Bridge.runs_pure _ _)))))))))))⟩
-
-end Verify
+instance verify_appends (rel : Relation) (p1Key p0Key : WhirKey) (seed : DigestVar) (statement : ClaimView)
+    (proof : ProofView) : Appends (Circuit.verify rel p1Key p0Key seed statement proof) := by
+  unfold Circuit.verify; appends
 
 /-- **`verify`** (`verifier.rs:136-316`, called by `verify_with`, `lib.rs:692-703`).
 When the inputs hold a seed, a statement that fits the relation and a proof that
@@ -550,17 +201,95 @@ theorem verify_ensures [CharP F goldilocksModulus] {key : Layer1Input}
     (circuit : CircuitFacts key.relation key.p1Key key.p0Key) (relation : RelationFacts key.relation)
     (named : ∀ s ∈ key.relation.key.layout.segments,
       s.classIndex < key.relation.key.layout.classes.size ∧ s.lane < D)
-    {c : Ctx F} {n : ℕ} {P : Prop} {w : Var → Word} {seed : DigestVar} {statement : ClaimView} {proof : ProofView}
+    {c : Ctx F} {n : ℕ} {w : Var → Word} {seed : DigestVar} {statement : ClaimView} {proof : ProofView}
     {seedWords : Array Word} {st : Replay.Statement} {g : Replay.Proof} (hp : Permutes c.perm)
-    (h : P → Decodes c w ∧ IsDigest c n seed seedWords ∧ IsClaim c n statement st ∧ st.fits key.relation = true ∧
-      IsProof c w n proof g ∧ Replay.readProof key.relation g = .ok ()) :
-    OldEnsures c n P (verify key.relation key.p1Key key.p0Key seed statement proof)
-      (fun _ _ => ∃ points t', Runs (Replay.verify key.relation seedWords st g) ⟨Replay.Duplex.new, #[]⟩ points t') :=
-  OldEnsures.under (A := st.fits key.relation = true ∧ Replay.readProof key.relation g = .ok ())
-    (verify_core (P := False) (w := w) (seedWords := #[]) circuit relation named hp (fits_zero _)
-      (readProof_zero circuit.run circuit.row circuit.slot) False.elim)
-    (fun H => ⟨(h H).2.2.2.1, (h H).2.2.2.2.2⟩) fun ⟨fits, read⟩ =>
-    verify_core circuit relation named hp fits read fun H =>
-      ⟨(h H).2.1, (h H).2.2.1, (h H).2.2.2.2.1⟩
+    (hseed : IsDigest c n seed seedWords) (hst : IsClaim c n statement st) (fits : st.fits key.relation = true)
+    (hproof : IsProof c w n proof g) (read : Replay.readProof key.relation g = .ok ()) :
+    Ensures c n (verify key.relation key.p1Key key.p0Key seed statement proof)
+      fun _ _ => ∃ points t', Runs (Replay.verify key.relation seedWords st g) ⟨Replay.Duplex.new, #[]⟩ points t' := by
+  obtain ⟨-, -, -, root, short, k1, k0, hp1, hp1count, hp0⟩ := circuit
+  have long := relation.bits.long
+  have small : key.relation.setupVars + 1 - foldVars ≤ 64 := by have := relation.high; omega
+  have shape := Bridge.readProof_ok read
+  obtain ⟨r1, r0⟩ := readProof_openings read
+  obtain ⟨-, -, -, hruns, hpairs, hblock, hquot, hlin, hfin, hpart, hp1', hleaves, hlate, hlateValues, hp1o, hp0o⟩ :=
+    id hproof
+  obtain ⟨hps, hpoint⟩ := hst.point
+  obtain ⟨linSize, linGet⟩ := forall₂_entries hlin
+  obtain ⟨partSize, partGet⟩ := forall₂_entries hpart
+  obtain ⟨leafSize, leafGet⟩ := forall₂_entries hleaves
+  unfold verify
+  refine Duplex.new_ensures.bind fun duplex _ _ hd => ?_
+  refine Ensures.bind (Q := fun _ _ => ∃ points t', Runs (Replay.verify key.relation seedWords st g)
+    ⟨Replay.Duplex.new, #[]⟩ points t') ((show Tracks c _ _ (Replay.verify key.relation seedWords st g)
+      (fun _ _ _ => True) from ?_) duplex ⟨Replay.Duplex.new, #[]⟩ hd |>.post
+      fun _ _ ⟨points, t', run, _, _⟩ => ⟨points, t', run⟩) fun _ _ _ h => Ensures.pure h
+  unfold Replay.verify
+  refine Tracks.ensure fits (Tracks.check read ?_)
+  refine Tracks.bind (Duplex.observeSlice_tracks hp (IsWords.ofFn hseed.1 fun lane => (hseed.2 lane).mono))
+    fun _ _ _ _ _ => ?_
+  refine Tracks.bind (Duplex.observeConsts_tracks hp key.relation.words) fun _ _ _ _ _ => ?_
+  refine Tracks.bind (Duplex.observeSlice_tracks hp hst.mono.words) fun _ _ _ _ _ => ?_
+  refine Tracks.bind (earlyStage_tracks hp hps (fun i hi => ⟨(hpoint i hi).1.mono, (hpoint i hi).2.mono⟩)
+    hproof.mono read).runs fun early eout _ _ he => ?_
+  obtain ⟨he, _, _, erun⟩ := he
+  obtain ⟨evalues, runSize⟩ := early_run read erun
+  obtain ⟨-, zLeaf, erunPoint, -, -, emult, erow, eslot, ecoef⟩ := he
+  refine Tracks.bind (linearStage_tracks hp fits hst.mono hquot.mono linSize
+    (fun i hi => by rw [getElem!_pos _ i hi]; exact (linGet i hi).mono) hfin.mono shape.linear
+    (fun m hm => by rw [shape.rounds m (Array.mem_toList_iff.mpr hm)]; omega) shape.finals long).runs
+    fun lin lout _ _ hl => ?_
+  obtain ⟨hl, _, _, lrun⟩ := hl
+  obtain ⟨mixEq, tauSize, laneSize, blockSize⟩ := linear_run read lrun
+  obtain ⟨⟨hmix, powers⟩, htau, hblockPoint, hlanePoint, -, hkey, homega, hz⟩ := hl
+  have kappa : lout.mixing.kappa = key.relation.kappa := by rw [mixEq]
+  refine Tracks.bind (honestStage_tracks (proof := g) (early := eout) (lin := lout) hp hlanePoint.mono
+    hblockPoint.mono erunPoint.mono erow.mono eslot.mono ecoef.mono (by rw [evalues]; exact hblock.mono)
+    ⟨by simp, fun i hi => ?_⟩ hkey.mono partSize (fun i hi => by rw [getElem!_pos _ i hi]; exact (partGet i hi).mono)
+    hp1'.mono leafSize (fun q hq => ?_)
+    (by rw [Array.size_append, laneSize, blockSize, Relation.setupVars, Relation.cubeVars]; omega)
+    (by rw [runSize, Relation.setupVars]; omega) root small).runs fun honest hout _ _ hh => ?_
+  · simp only [Array.size_map, Array.size_range] at hi
+    rw [getElem!_map_range _ _ hi, getElem!_map_range _ _ hi]
+    exact (hmix.commitment (by rw [powers, Relation.rowCount]; omega)).mono
+  · obtain ⟨values, path⟩ := leafGet q hq
+    obtain ⟨psize, pget⟩ := forall₂_entries path
+    have mem : g.leaves[q]! ∈ g.leaves.toList := by
+      rw [getElem!_pos _ q (leafSize ▸ hq)]
+      exact Array.getElem_mem_toList _
+    exact ⟨values.mono, psize, psize.trans (shape.leafShapes _ mem).2, fun k hk => by
+      rw [getElem!_pos _ k hk]
+      exact (pget k hk).mono⟩
+  obtain ⟨hh, _, _, hrun⟩ := hh
+  have qsize := honest_run read hrun
+  obtain ⟨halpha, -, -, -, ibits, hqueried⟩ := hh
+  refine Tracks.bind (lateStage_tracks (proof := g) (lin := lout) hp htau.mono tauSize (by simp) (fun j hj => ?_)
+    hlate.mono (hlateValues.imp fun _ _ x => x.mono) read short named) fun late lateOut _ _ hlt => ?_
+  · simp only [Array.size_map, Array.size_range] at hj
+    rw [getElem!_map_range _ _ hj]
+    have e := hmix.evalA (j := j) (by rw [powers, kappa, Relation.rowCount]; omega)
+    exact ⟨e.1.mono, e.2.mono⟩
+  obtain ⟨⟨-, hlblock, -, hlomega⟩, pairsEq⟩ := hlt
+  refine Tracks.lift (Ensures.mapM (R := fun _ _ _ => True) (fun _ _ _ _ _ _ => trivial) fun x hx m _ => ?_)
+    fun queryPoints _ _ _ => ?_
+  · obtain ⟨q, hq, rfl⟩ := Array.mem_iff_getElem.mp hx
+    have size := (ibits q hq).1
+    rw [getElem!_pos _ q hq] at size
+    refine (queryPoint_ensures (index := hout.queries[q]!) size fun i hi => ?_).post fun _ _ _ => trivial
+    have word := ((ibits q hq).2 i (size ▸ hi)).mono (m := m)
+    rwa [getElem!_pos _ q hq] at word
+  intro d tr hd
+  refine (openingsStage_tracks (proof := g) (early := eout) (lin := lout) (honest := hout) (late := lateOut) hp
+    hp1o.mono hp0o.mono (hpart.imp fun _ _ x => x.mono) halpha.mono hqueried.mono homega.mono hlomega.mono
+    zLeaf.mono hz.mono (by rw [evalues]; exact hruns.mono) (by rw [evalues]; exact hpairs.imp fun _ _ x => x.mono)
+    (by rw [evalues]; exact hblock.mono) (by rw [pairsEq]; exact hlateValues.imp fun _ _ x => x.mono) hlblock.mono
+    emult.mono r1 r0 qsize (by rw [evalues]; exact shape.pairs) (by rw [pairsEq]; exact shape.lateValues)
+    k1 k0 hp1 hp1count hp0 d tr hd).post fun _ _ h => ?_
+  obtain ⟨_, t', run, hdx, -⟩ := h
+  obtain ⟨_, _, whir1, tail⟩ := run_bind run
+  obtain ⟨_, _, agree1, tail⟩ := run_bind tail
+  obtain ⟨_, _, whir0, agree0⟩ := run_bind tail
+  exact ⟨_, t', Bridge.runs_bind whir1 (Bridge.runs_bind agree1 (Bridge.runs_bind whir0
+    (Bridge.runs_bind agree0 (Bridge.runs_pure _ _)))), hdx, trivial⟩
 
 end CompressionLean.Sim

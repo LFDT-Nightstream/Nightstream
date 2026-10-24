@@ -263,21 +263,8 @@ variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 /-- `absorb` (`whir/mod.rs:221-226`): the replay's `observeAll`. -/
 theorem Whir.absorb_tracks (hp : Permutes c.perm) (words : Array Word) :
     Tracks c n (Whir.absorb words) (Replay.observeAll words) fun _ _ _ => True := by
-  intro d t hd
   unfold Whir.absorb
-  rw [← Array.forIn_toList]
-  refine Ensures.tbind (Q := fun r m => IsDuplex c m r.2 (words.foldl Replay.Duplex.observe t.duplex)) ?_
-    fun _ e _ _ he => ?_
-  · refine (Ensures.loopT (fun k _ e m => IsDuplex c m e ((words.toList.take k).foldl Replay.Duplex.observe t.duplex))
-      hd fun k hk _ e m _ hI => ?_).post fun _ _ q => ?_
-    · refine Ensures.liftBind (const_ensures words.toList[k]) fun w _ _ hw => ?_
-      refine Ensures.tbind (Duplex.observe_ensures hp hI.mono hw) fun _ e' _ _ hd' => ?_
-      rw [StateT.run_pure]
-      refine Ensures.pure ⟨rfl, ?_⟩
-      rwa [List.take_succ_eq_append_getElem hk, List.foldl_append, List.foldl_cons, List.foldl_nil]
-    · rwa [List.take_of_length_le (by simp), Array.foldl_toList] at q
-  · rw [StateT.run_pure]
-    exact Ensures.pure ⟨(), _, Bridge.runs_observeAll words t, he, trivial⟩
+  exact Tracks.bindLast (Duplex.observeConsts_tracks hp words) fun _ _ _ _ _ => Tracks.pure trivial
 
 /-- `query_index` (`whir/mod.rs:399-416`): a sample that its inverse check
 keeps from `p - 1`, as the replay draws it. -/
@@ -619,42 +606,5 @@ theorem openingsStage_tracks (hp : Permutes c.perm) {rel : Replay.Relation} {p1K
   simp [Replay.p0Expected, flatPairs_size, hesize, hlsize]
 
 end Openings
-
-/-! ## The old names, for the files that still use `Simulates` -/
-
-theorem openingsStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} (hp : Permutes c.perm)
-    {rel : Replay.Relation} {p1Key p0Key : WhirKey} {o : OpeningsInput} {proof : Replay.Proof}
-    {early : Replay.EarlyOut} {lin : Replay.LinearOut} {honest : Replay.HonestOut} {late : Replay.LateOut}
-    {w : Var → Word} {d : Duplex} {t : Replay.Transcript} (hd : P → IsDuplex c n d t.duplex)
-    (h1 : P → IsOpening c w n o.p1Opening proof.p1Opening) (h0 : P → IsOpening c w n o.p0Opening proof.p0Opening)
-    (hpartials : P → List.Forall₂ (IsExts c n) o.partials.toList proof.partials.toList)
-    (halpha : P → IsExts c n o.alpha honest.alpha) (hqueried : P → IsExts c n o.queried honest.queried)
-    (homega : P → IsExt c n o.omegaValue lin.omegaValue) (hlateOmega : P → IsExt c n o.lateOmega late.openings.omega)
-    (hzLeaf : P → IsExt c n o.zLeaf early.zLeaf) (hzValue : P → IsExt c n o.zValue lin.zValue)
-    (hruns : P → IsExts c n o.earlyValues.runs #[early.values.eRe, early.values.eIm, early.values.row])
-    (hpairs : P → List.Forall₂ (IsPair c n) o.earlyValues.pairs.toList early.values.pairs.toList)
-    (hblock : P → IsExt c n o.earlyValues.block early.values.block)
-    (hlateValues : P → List.Forall₂ (IsPair c n) o.lateValues.toList late.pairs.toList)
-    (hlateBlock : P → IsExt c n o.lateBlock late.openings.block) (hmult : P → IsExt c n o.mult early.openings.mult)
-    (r1 : P → Replay.readOpening rel.p1Whir proof.p1Opening = .ok ())
-    (r0 : P → Replay.readOpening rel.p0Whir proof.p0Opening = .ok ())
-    (hqsize : P → honest.queried.size = 2 * rel.queries) (hesize : P → early.values.pairs.size = rel.matrices)
-    (hlsize : P → late.pairs.size = rel.matrices)
-    (k1 : p1Key.batches.size = rel.p1Whir.batches.size) (k0 : p0Key.batches.size = rel.p0Whir.batches.size)
-    (hp1 : ∀ b ∈ rel.p1Whir.batches, b.size % 3 = 0)
-    (hp1count : (rel.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * rel.queries + 4)
-    (hp0 : rel.p0Whir.batches.toList.map (·.size) = [1, 1, 2, 2 * rel.matrices, 1, 2 * rel.matrices + 1, 1]) :
-    OldEnsures c n P ((openingsStage rel p1Key p0Key o).run d) fun res m =>
-      ∃ t', Runs (do
-          Replay.whirTranscript rel.p1Whir proof.p1Opening
-          liftExcept (Replay.openingsAgree #[Replay.p1Values proof.p1Opening.evals]
-            #[Replay.p1Expected proof honest lin late] "P1 openings")
-          Replay.whirTranscript rel.p0Whir proof.p0Opening
-          liftExcept (Replay.openingsAgree proof.p0Opening.evals (Replay.p0Expected early lin late) "P0 openings"))
-        t () t' ∧ IsDuplex c m res.2 t'.duplex :=
-  .of_ensures fun h => (openingsStage_tracks hp (h1 h) (h0 h) (hpartials h) (halpha h) (hqueried h) (homega h)
-    (hlateOmega h) (hzLeaf h) (hzValue h) (hruns h) (hpairs h) (hblock h) (hlateValues h) (hlateBlock h) (hmult h)
-    (r1 h) (r0 h) (hqsize h) (hesize h) (hlsize h) k1 k0 hp1 hp1count hp0 d t (hd h)).post
-    fun _ _ ⟨_, t', run, hdx, _⟩ => ⟨t', run, hdx⟩
 
 end CompressionLean.Sim

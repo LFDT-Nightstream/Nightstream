@@ -372,21 +372,4 @@ theorem lateStage_tracks {rel : Relation} {tau : Array ExtVar} {evalA : Array (E
 
 end Stage
 
-/-! ## The old names, for the files that still use `Simulates` -/
-
-theorem lateStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {rel : Relation}
-    {tau : Array ExtVar} {evalA : Array (ExtVar × ExtVar)} {late : GkrView} {lateValues : Array (ExtVar × ExtVar)}
-    {proof : Replay.Proof} {lin : Replay.LinearOut} {d : Duplex} {t : Replay.Transcript} (hp : Permutes c.perm)
-    (hd : P → IsDuplex c n d t.duplex) (htau : P → IsExts c n tau lin.tau) (tauSize : P → lin.tau.size = D)
-    (hevalA : P → evalA.size = rel.matrices ∧ ∀ j < evalA.size, IsPair c n evalA[j]! (lin.mixing.evalA j))
-    (hlate : P → IsGkr c n late proof.late)
-    (hvalues : P → List.Forall₂ (IsPair c n) lateValues.toList proof.lateValues.toList)
-    (read : Replay.readProof rel proof = .ok ()) (short : ∀ cl ∈ rel.key.layout.classes, cl.len ≤ D)
-    (named : ∀ s ∈ rel.key.layout.segments, s.classIndex < rel.key.layout.classes.size ∧ s.lane < D) :
-    OldEnsures c n P ((Circuit.lateStage rel tau evalA late lateValues).run d)
-      (fun res m => ∃ out t', Bridge.Runs (Replay.lateStage rel proof lin) t out t' ∧ IsLateOut c m res.1 out ∧
-        out.pairs = proof.lateValues ∧ IsDuplex c m res.2 t'.duplex) :=
-  .of_ensures fun h => (lateStage_tracks hp (htau h) (tauSize h) (hevalA h).1 (hevalA h).2 (hlate h) (hvalues h)
-    read short named d t (hd h)).post fun _ _ ⟨out, t', run, hdx, ho, hpairs⟩ => ⟨out, t', run, ho, hpairs, hdx⟩
-
 end CompressionLean.Sim

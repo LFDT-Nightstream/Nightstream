@@ -20,8 +20,8 @@ circuits without change.
 
 - Model: the verifier is a public-coin game (`Game/Game.lean`). Each challenge
   names its bad set, from the earlier messages only. If every path that
-  avoids the bad sets ends in the claim, a prover breaks the claim with
-  probability at most the sum of the bad-set densities on the worst path.
+  avoids the bad sets ends in a true statement, a prover reaches a false one
+  with probability at most the sum of the bad-set densities on the worst path.
 - Adversary: the prover picks every message after it sees all earlier
   challenges, and it names the CE(B) statement first. It commits to at most
   `L0` P0 and `L1` P1 candidate tables (the WHIR lists). Every bad set is a
@@ -30,7 +30,7 @@ circuits without change.
   P0 candidate and one P1 candidate agree with every opened value
   (`Soundness.lean`, `Opens`). The WHIR error of this step is a named term
   of the budget (`Final/Budget.lean`), not proved here.
-- Claim: `Cost.lean`, `layer1_sound`. An accepted transcript has a P0
+- Result: `Cost.lean`, `layer1_sound`. An accepted transcript has a P0
   candidate that is a CE(B) witness (`Model.lean`, `Relation`), except with
   probability `layer1Error`. `Final/Budget.lean` bounds it at Rust's split:
   `2^-t` for layer bits `t`, when each WHIR commitment's composed error, as
@@ -124,7 +124,7 @@ under the same file names; the proofs about them are in `Shrink/`.
   candidate agrees with the opened value (`Game.lean`, `Opens`). The WHIR
   error of this step is a named term of the budget (`Shrink/Budget.lean`), not
   proved here.
-- Claim: `Cost.lean`, `shrink_sound`. An accepted transcript has a
+- Result: `Cost.lean`, `shrink_sound`. An accepted transcript has a
   candidate `w` such that `z = (w, 1, x)` satisfies every row of the named
   program's CCS, except with probability `shrinkError`. Per candidate, the
   error counts `m` bad values for `τ`, `8m` for the outer rounds, `7` for
@@ -157,7 +157,7 @@ The shrink layer assumes, and does not prove:
 
 ## End to end
 
-`Final/` chains the three layers into one claim about the final verifier
+`Final/` chains the three layers into one bound on the final verifier
 (`CompressionKey::verify`, `finish.rs`).
 
 - Chain: the shrink verifier accepts statement `x`, so a candidate `w`
@@ -166,17 +166,18 @@ The shrink layer assumes, and does not prove:
   claim. Layer 1 then gives a P0 candidate that is a CE(B) witness of that
   claim. `circuitPackage_implies_terminal` gives the F′ meaning of the
   assignment.
-- Claim (`Claim.lean`, `TerminalClaim`): some terminal assignment for `x`
-  has a parent claim with a CE(B) witness. In that assignment every row
-  holds, the public context columns hold the circuit's context, the prior
-  state preimage ends with `x`, and the iteration is not zero
-  (`TerminalFor`). Layer 1 reads the parent claim from the output columns
+- Terminal statement (`Final/Claim.lean`, `TerminalClaim`): some terminal
+  assignment for `x` has a parent claim with a CE(B) witness. In that
+  assignment every row holds, the public context columns hold the circuit's
+  context, the prior state preimage ends with `x`, and the iteration is not
+  zero (`TerminalFor`, `Spec/Parent.lean`). Layer 1 reads the parent claim from the output columns
   (`claimOf`).
-- F′ claim (`ParentClaim.lean`, `ParentClaim`): some terminal assignment
+- F′ statement (`Spec/Parent.lean`, `ParentClaim`): some terminal assignment
   for `x` holds a PiCCS proof that F′'s verifier accepts, and the PiRLC
   parent that the verifier computes has a witness of F′'s relation
   `Spec.CE.Holds` (SuperNeo v1.2 Definition 21). Under the honest setup,
-  the terminal claim gives it (`parentClaim_of_terminalClaim`). `claimOf`
+  the terminal statement gives it (`Final/ParentClaim.lean`,
+  `parentClaim_of_terminalClaim`). `claimOf`
   reads the parent's statement (`claimOf_parent`), and a layer-1 witness of
   that statement is an F′ witness (`Parent.lean`, `parent_holds`): the Ajtai
   commitment, the public input, the norm below `B`, and the Pad and matrix
@@ -190,20 +191,21 @@ The shrink layer assumes, and does not prove:
   candidate that satisfies the program's CCS, so the read condition below
   covers every such candidate.
 - Result (`Soundness.lean`): `final_sound` bounds the probability of an
-  accepted false claim by `layer1Error + shrinkError`.
+  accepted false statement by `layer1Error + shrinkError`.
   `final_restore_sound` bounds it by `calls · max shrinkError layer1Error`
   for `calls` queries in total. At Rust's split, `final_budget` gives
   `2 / 2^t` with the WHIR errors, and `final_restore_budget` gives
   `calls / 2^t`. Rust takes the layer bits `t` one above the bits that the
   fold leaves, so `2 / 2^t` is the error that the fold leaves.
 - F′ result (`ParentClaim.lean`): `final_sound_parent` and
-  `final_restore_budget_parent` give the same bounds for the F′ claim. Their
+  `final_restore_budget_parent` give the same bounds for the F′ statement. Their
   base field is Goldilocks, and their challenge field is
   `Cubic = Gl[x]/(x³ - x - 1)` with `p³` elements (`Fields.lean`). The
   production bound is `calls / 2^t` under Fiat–Shamir.
-- Production result (`Claims.lean`): `production_bound` is
+- Production claims (`Claims.lean`): `production_bound` is
   `final_restore_budget_parent` for the production final program
-  (`Sim/Encodes.lean`), where `programEncodes` gives the encoding. Its
+  (`productionProgram`, `Spec/Program.lean`), where `programEncodes`
+  (`Sim/Encodes.lean`) gives the encoding. Its
   other premises are facts about the key (`KeyFacts`), the terminal package
   and the setup. It holds for the relation of an application of any logical
   width `lw`, with `ParentShape` at `lw`. The terminal package is the same at
@@ -215,7 +217,8 @@ The shrink layer assumes, and does not prove:
   and the runs that Rust pushes, the Ajtai setup, `RunsGive` and the pass of
   `setupCheck` in place of the setup and its facts. The setup is
   `poseidon2Setup`, the one that `build` returns for the seed and the runs.
-  `Claims.lean` holds the library's claims; `STATUS.md` lists each claim's
+  The claims are the theorems of `Claims.lean`, stated in the vocabulary of
+  `Spec/` and of the model and port folders; `STATUS.md` lists each claim's
   premises and how each one is met.
 
 The chain takes these premises:
@@ -243,7 +246,7 @@ The chain takes these premises:
   prefix, so each layer has its own log. The shrink sponge starts with its
   domain words. The layer-1 sponge starts with the digest that the fold
   transcript hands off.
-- Honest setup (`Parent.lean`, `HonestSetup`), for the F′ claim: the
+- Honest setup (`Spec/Parent.lean`, `HonestSetup`), for the F′ statement: the
   layer-1 setup's key rows are the rows of F′'s Ajtai key, and its runs give
   every entry of every completed CCS matrix of F′'s relation, with row `i`
   in F′'s little-endian order. `Ports/Setup.lean` ports Rust's setup build
@@ -307,10 +310,10 @@ Lean lowers it to the shrink run as `record.rs` does.
   in Rust's order, keeps a form of at most four terms, folds constants, and
   numbers the glue cells, blocks, statement words and rows as Rust does. It
   computes in a field `F`.
-- Claim (`Lowering/Valid.lean`): `lower_valid`. Every glue row of `lower L stmt` names
+- Result (`Lowering/Valid.lean`): `lower_valid`. Every glue row of `lower L stmt` names
   only its own glue cells, the cells of its blocks, the constant one and its
   statement words (`Run.Valid`), for a template of at least 182 cells.
-- Claim (`Lowering/Sound.lean`): `lower_sound`. A witness of the CCS of `lower L stmt`
+- Result (`Lowering/Sound.lean`): `lower_sound`. A witness of the CCS of `lower L stmt`
   with the Poseidon2 template gives an accepting run of the executor `Exec`
   (`Lowering/Exec.lean`) on the tape read out of the witness (`tapeOf`): every
   `assertZero` value is zero, every `bits` decomposition is boolean, sums to
@@ -359,11 +362,20 @@ timeout --signal=KILL 1500 .lake/build/bin/emitTerminal artifacts/compression-te
 checks, their readers and the Lean side of the Rust test programs) with
 warnings as errors, and runs the axiom audit
 (`CompressionLeanTests/Axioms.lean`), the ports gate
-(`CompressionLeanTests/Ports.lean`) and the folder gate
+(`CompressionLeanTests/Ports.lean`), the folder gate
 (`CompressionLeanTests/Layers.lean`): a module imports only its own folder
 and lower ones, in the order `Lib`, `Fields`, `Production`, `Game`,
-`Terminal`, `Layer1`, `Ports`, `Shrink`, `Lowering`, `Bridge`, `Final`,
-`Checks`, `Sim`, `Claims`.
+`Terminal`, `Layer1`, `Ports`, `Shrink`, `Lowering`, `Spec`, `Bridge`,
+`Final`, `Checks`, `Sim`, `Claims`, and the vocabulary gate
+(`CompressionLeanTests/Vocabulary.lean`): a claim's type names only
+constants of `Spec/`, `Fields`, `Production`, `Game`, `Terminal`, `Layer1`,
+`Ports`, F′, Mathlib or core.
+
+Claims. `Claims.lean` states the claims; `Spec/` owns the definitions that
+they name and that no model or port folder owns (the reading `Reads`, the
+production final program, the key, setup and package facts and their
+checks, F′'s parent claim). `Spec/` holds definitions only. The proofs are in
+`Bridge/`, `Final/`, `Checks/` and `Sim/`.
 
 Ports. `Ports/` holds every hand transcription of Rust and nothing else: its
 folders follow the Rust modules (`Ports/Circuit/` for `circuit/` and the
@@ -389,7 +401,7 @@ stage order. It draws every challenge as Rust does and runs every check of
 opened values as `Opens` does. Build it with
 `timeout --signal=KILL 1500 lake build replayLayer1`, then run
 `cargo test --release -p neo-spartan --lib lean_replay -- --ignored` under the
-5-minute cap. The test proves a toy claim, writes the honest proof and
+5-minute cap. The test proves a toy statement, writes the honest proof and
 tampered variants to `target/lean-replay/layer1.json`, and requires the
 replay to draw the same challenges and give the same verdict as Rust. When
 Rust rejects inside WHIR, the replay must reject later.

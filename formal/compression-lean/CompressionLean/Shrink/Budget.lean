@@ -1,5 +1,5 @@
 import CompressionLean.Shrink.Cost
-import CompressionLean.Layer1.Restoration
+import CompressionLean.Game.Restoration
 
 /-!
 Owns the shrink error at Rust's charge (`shrink_budget`) and the shrink

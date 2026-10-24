@@ -31,6 +31,7 @@ its proof is in the library.
 
 namespace CompressionLean.Claims
 
+open CompressionLean.Game
 open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Export.Package (CircuitPackage)
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -71,8 +72,8 @@ theorem production_bound {lw : ℕ}
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
       Replay.Word.cast (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0)
-    (calls : ℕ) (prover : Layer1.Game.Strategy (RestoreOutcome Gl Cubic (game key.relation S L0 L1))) :
-    Layer1.Game.prob prover
+    (calls : ℕ) (prover : Game.Strategy (RestoreOutcome Gl Cubic (game key.relation S L0 L1))) :
+    Game.prob prover
         (restorePair (Shrink.shrinkGame (F := Gl) Circuit.Block.poseidonTemplate
           (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts (prog key loaded context) Ls)
           (game key.relation S L0 L1) calls [] [])
@@ -162,9 +163,9 @@ theorem poseidon2_bound (key : Layer1Input) (loaded : Loaded) (context : Array R
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
       Replay.Word.cast (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0)
-    (calls : ℕ) (prover : Layer1.Game.Strategy
+    (calls : ℕ) (prover : Game.Strategy
       (RestoreOutcome Gl Cubic (game key.relation (poseidon2Setup setup.seed.bytes pushes) L0 L1))) :
-    Layer1.Game.prob prover
+    Game.prob prover
         (restorePair (Shrink.shrinkGame (F := Gl) Circuit.Block.poseidonTemplate
           (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts (prog key loaded context) Ls)
           (game key.relation (poseidon2Setup setup.seed.bytes pushes) L0 L1) calls [] [])

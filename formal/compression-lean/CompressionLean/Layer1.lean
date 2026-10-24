@@ -1,4 +1,4 @@
-import CompressionLean.Layer1.Game
+import CompressionLean.Game.Game
 import CompressionLean.Layer1.Roots
 import CompressionLean.Layer1.Cube
 import CompressionLean.Layer1.SumCheck
@@ -25,7 +25,7 @@ import CompressionLean.Layer1.Stages
 import CompressionLean.Layer1.Soundness
 import CompressionLean.Layer1.Cost
 import CompressionLean.Layer1.Budget
-import CompressionLean.Layer1.Restoration
+import CompressionLean.Game.Restoration
 import CompressionLean.Layer1.FiatShamir
 import CompressionLean.Layer1.ClosedForms
 import CompressionLean.Layer1.KeyStructure

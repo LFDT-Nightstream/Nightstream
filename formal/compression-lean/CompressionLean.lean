@@ -8,7 +8,7 @@ import CompressionLean.Circuit.Valid
 import CompressionLean.Circuit.RecordCounts
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Terminal
-import CompressionLean.Bridge.Path
+import CompressionLean.Game.Path
 import CompressionLean.Bridge.Run
 import CompressionLean.Bridge.Formulas
 import CompressionLean.Bridge.Early

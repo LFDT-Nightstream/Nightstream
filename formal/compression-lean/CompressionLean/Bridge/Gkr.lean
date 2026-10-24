@@ -1,5 +1,5 @@
 import CompressionLean.Bridge.Formulas
-import CompressionLean.Bridge.Path
+import CompressionLean.Game.Path
 import CompressionLean.Bridge.Run
 import CompressionLean.Layer1.Budget
 import CompressionLean.Lib.Array

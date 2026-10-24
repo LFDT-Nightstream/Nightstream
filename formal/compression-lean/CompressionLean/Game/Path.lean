@@ -1,4 +1,4 @@
-import CompressionLean.Layer1.Restoration
+import CompressionLean.Game.Restoration
 
 /-!
 Owns the paths of a game. A path is a position (`Pos`, the output type of
@@ -13,7 +13,7 @@ An avoiding path of a game whose avoiding paths end in `Q` ends in `Q`
 event that `prob_not_le` and `restore_sound` bound.
 -/
 
-namespace CompressionLean.Layer1.Game
+namespace CompressionLean.Game
 
 variable {α β : Type}
 
@@ -125,4 +125,4 @@ theorem Pos.sound {g : Game α} {Q : α → Prop} (avoids : g.Avoids Q) :
       match p, clean, node with
       | some ⟨m, p'⟩, clean, node => exact ih m (avoids m) p' a clean node
 
-end CompressionLean.Layer1.Game
+end CompressionLean.Game

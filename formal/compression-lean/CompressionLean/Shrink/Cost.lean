@@ -50,7 +50,7 @@ theorem programGame_cost {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matric
       · have card : (rhoBad C cands.1 outer.1 values).card ≤ L * 7 :=
           (card_biUnion_le_mul _ _ 7 fun k _ => zeros_card_le_of_natDegree_le (batchPoly_natDegree _ _)).trans
             (Nat.mul_le_mul_right 7 count)
-        have := density_le _ _ card
+        have := Game.density_le _ _ card
         linarith
       · refine (Game.costLe_bind (δ := 0) (sumcheck_cost Finset.univ 1 nodes1 _ (fun _ => ∅) (C.cellVars + 1) 0
           (fun k _ => (combRound_truth (C.cellVars + 1) 1

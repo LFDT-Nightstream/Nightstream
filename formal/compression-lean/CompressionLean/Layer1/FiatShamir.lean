@@ -1,5 +1,5 @@
 import CompressionLean.Layer1.Budget
-import CompressionLean.Layer1.Restoration
+import CompressionLean.Game.Restoration
 
 /-!
 Owns layer-1 soundness against a Fiat–Shamir prover in the
@@ -11,7 +11,7 @@ Each query costs at most the whole interactive error `layer1Error`. The
 largest single term is the setup-query draw.
 
 Does not own: the step from Poseidon2 to the experiment (see
-`Restoration.lean`), or the Fiat–Shamir soundness of WHIR itself. The README
+`Game/Restoration.lean`), or the Fiat–Shamir soundness of WHIR itself. The README
 lists every assumption.
 -/
 

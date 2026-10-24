@@ -526,8 +526,8 @@ theorem gkrLayers_cost (worlds : Finset W) (batch : W → Batch K) (extra : ℕ 
         simp only [gkrCost, gkrLayerCost, rounds, later]
         ring
       rw [total]
-      refine draw_step _ _ _ _ (density_le _ _ (card_badMu batch k st worlds)) fun μ => ?_
-      refine draw_step _ _ _ _ (density_le _ _ (card_badNu batch k st μ worlds)) fun ν => ?_
+      refine Game.draw_step _ _ _ _ (Game.density_le _ _ (card_badMu batch k st worlds)) fun μ => ?_
+      refine Game.draw_step _ _ _ _ (Game.density_le _ _ (card_badNu batch k st μ worlds)) fun ν => ?_
       rw [Nat.cast_add, add_div]
       refine Game.costLe_bind ?_ ?_
       · have cost := sumcheck_cost worlds (s.degree k - 1) (distinct k low inside)
@@ -545,7 +545,7 @@ theorem gkrLayers_cost (worlds : Finset W) (batch : W → Batch K) (extra : ℕ 
       · intro result children
         dsimp only
         split_ifs
-        · refine draw_step _ _ (n * 1 + E k) _ (density_le _ _ ?_) fun τ => ih (k + 1) _ (by omega) (by omega)
+        · refine Game.draw_step _ _ (n * 1 + E k) _ (Game.density_le _ _ ?_) fun τ => ih (k + 1) _ (by omega) (by omega)
           exact (Finset.card_union_le _ _).trans (add_le_add (card_badTau batch k _ children worlds)
             (extra_card k _))
         · exact div_nonneg (Nat.cast_nonneg _) positive.le

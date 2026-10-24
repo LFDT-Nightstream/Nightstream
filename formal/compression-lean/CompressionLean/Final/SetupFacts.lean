@@ -21,6 +21,7 @@ The check reads the runs a fixed number of times. It computes `classesOf` and
 
 namespace CompressionLean.Final
 
+open CompressionLean.Game
 open CompressionLean.Lib
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open CompressionLean.Circuit (Layer1Input)

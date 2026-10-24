@@ -19,6 +19,7 @@ concrete fields.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Game
 open CompressionLean.Lib
 open Polynomial NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
@@ -197,8 +198,8 @@ theorem final_sound_parent (s1 : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : L
     (authority : Lifecycle.VerifierContext.Authority)
     (Reads : StateWords → (ℕ → Gl) → (Layer1.layer1Game s1 modulus bar S L0 L1 L P q).Pos → Prop)
     (encodes : ProgramEncodes T s prog authority (Layer1.layer1Game s1 modulus bar S L0 L1 L P q) Reads)
-    (prover : Layer1.Game.Strategy (Outcome Gl Cubic s1.queries L)) :
-    Layer1.Game.prob prover
+    (prover : Game.Strategy (Outcome Gl Cubic s1.queries L)) :
+    Game.prob prover
         (pair (Layer1.layer1Game s1 modulus bar S L0 L1 L P q) (Shrink.shrinkGame T s prog Ls))
         (FinalBreak (ParentClaim relation ajtai authority) T s prog (Layer1.layer1Game s1 modulus bar S L0 L1 L P q)
           Reads) ≤
@@ -237,9 +238,9 @@ theorem final_restore_budget_parent (s1 : Layer1.Shape) (bar : ℕ → ℕ → G
     (encodes : ProgramEncodes T s prog authority
       (Layer1.layer1Game s1 modulus bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q) Reads)
     (calls : ℕ)
-    (prover : Layer1.Game.Strategy
+    (prover : Game.Strategy
       (RestoreOutcome Gl Cubic (Layer1.layer1Game s1 modulus bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q))) :
-    Layer1.Game.prob prover
+    Game.prob prover
         (restorePair (Shrink.shrinkGame T s prog Ls)
           (Layer1.layer1Game s1 modulus bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q) calls [] [])
         (FinalRestoreBreak (ParentClaim relation ajtai authority) T s prog

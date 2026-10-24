@@ -18,7 +18,7 @@ circuits without change.
 `Layer1/` proves the soundness of the layer-1 verifier
 (`crates/neo-spartan/src/verifier.rs`) against an adaptive prover.
 
-- Model: the verifier is a public-coin game (`Game.lean`). Each challenge
+- Model: the verifier is a public-coin game (`Game/Game.lean`). Each challenge
   names its bad set, from the earlier messages only. If every path that
   avoids the bad sets ends in the claim, a prover breaks the claim with
   probability at most the sum of the bad-set densities on the worst path.
@@ -35,7 +35,7 @@ circuits without change.
   probability `layer1Error`. `Budget.lean` bounds it at Rust's split:
   `2^-t` for layer bits `t`, when each WHIR commitment's composed error, as
   Plonky3 charges it, is at most `2^-(t+1)`.
-- Fiat–Shamir: `Restoration.lean` lets the prover ask for challenges at any
+- Fiat–Shamir: `Game/Restoration.lean` lets the prover ask for challenges at any
   node, as often as it wants, and output one path that uses only answers it
   got. `FiatShamir.lean` bounds layer 1 there by `calls · layer1Error`,
   which is at most `calls / 2^t` at Rust's split.
@@ -59,7 +59,7 @@ Layer 1 assumes, and does not prove:
 - Fiat–Shamir: Poseidon2 acts as a random oracle, and the transcript
   encoding is injective on prefixes. One permutation call can give `k`
   challenges, so `Q` calls and the `R` draws of one path are at most
-  `k·Q + R` queries of `Restoration.lean`. WHIR's own Fiat–Shamir step is
+  `k·Q + R` queries of `Game/Restoration.lean`. WHIR's own Fiat–Shamir step is
   part of the WHIR error.
 - Query indices: the model draws each query leaf as a uniform Goldilocks
   word mod the leaf count, as `sample_bits` does (`HonestStage.lean`).
@@ -105,7 +105,7 @@ defines.
   builds the CCS of a program's shape run as `layout.rs` places it: the
   Poseidon2 block rows and cells in their wide and narrow parts, then the
   glue rows and cells, then the constant one and the statement words. The
-  verifier is a game in the model of `Layer1/Game.lean` (`Game.lean`): `τ`,
+  verifier is a game in the model of `Game/Game.lean` (`Game.lean`): `τ`,
   an outer sum-check of `m` rounds of degree 8 from `0`, the claimed values
   `M̃_j·z(rx)`, `ρ`, an inner sum-check of `n + 1` rounds of degree 2 from
   `Σ_j ρ^j·v_j`, the opening, and the checks of `mod.rs`.
@@ -132,7 +132,7 @@ defines.
   (`Budget.lean`, `shrinkCount_eq_rust`). So when `Pcs::new` accepts the
   configuration for the layer bits `t`, the WHIR error plus `shrinkError`
   is at most `2^-t` (`shrink_budget`).
-- Fiat–Shamir: in the state-restoration experiment of `Restoration.lean`,
+- Fiat–Shamir: in the state-restoration experiment of `Game/Restoration.lean`,
   the shrink layer errs with probability at most `calls · shrinkError`
   (`shrink_restore_sound`). At Rust's charge this is at most `calls / 2^t`
   (`shrink_restore_budget`).
@@ -180,7 +180,7 @@ The shrink layer assumes, and does not prove:
   that statement is an F′ witness (`Parent.lean`, `parent_holds`): the Ajtai
   commitment, the public input, the norm below `B`, and the Pad and matrix
   evaluations at the parent's point.
-- Model (`Compose.lean`): both layers' games run in one experiment. In
+- Model (`Game/Compose.lean`): both layers' games run in one experiment. In
   sequence, layer 1 runs and then the shrink layer (`pair`). Under
   Fiat–Shamir, one state-restoration experiment keeps one log per layer
   (`restorePair`). One bad-set argument covers both games, so the proof

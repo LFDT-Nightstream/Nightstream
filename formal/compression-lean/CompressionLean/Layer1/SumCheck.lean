@@ -1,4 +1,4 @@
-import CompressionLean.Layer1.Game
+import CompressionLean.Game.Game
 import CompressionLean.Layer1.Roots
 import CompressionLean.Layer1.Cube
 import Mathlib.LinearAlgebra.Lagrange

@@ -72,19 +72,19 @@ theorem earlyGame_cost (s : Shape) (S : Setup F) (st : Statement F) (L0 : ℕ)
   have short := cands.2
   have count : (Finset.univ : Finset (Fin cands.1.length)).card ≤ L0 := by simpa using short
   unfold earlyCount
-  apply draw_step _ _ _ _ (density_le _ _ ?_)
+  apply Game.draw_step _ _ _ _ (Game.density_le _ _ ?_)
   swap
   · refine (card_biUnion_le_mul _ _ (2 ^ s.cubeVars + (2 * s.normBound + 1)) fun w _ =>
       zeros_card_le_of_natDegree_le (normPoly_natDegree _ _ _ _)).trans (Nat.mul_le_mul_right _ count)
   intro beta
-  apply draw_step _ _ _ _ (density_pair _ _ ?_)
+  apply Game.draw_step _ _ _ _ (density_pair _ _ ?_)
   swap
   · refine (card_biUnion_le_mul _ _ ((2 * 2 ^ s.rowVars + (2 ^ s.runVars + 2 ^ s.rowVars)) * Fintype.card K)
       fun w _ => Lookup.bad_card _).trans ?_
     rw [← mul_assoc]
     exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ count)
   intro lookup
-  apply draw_step _ _ _ _ (density_pair _ _ ?_)
+  apply Game.draw_step _ _ _ _ (density_pair _ _ ?_)
   swap
   · refine (card_biUnion_le_mul _ _ ((1 + (2 ^ s.runVars + 2 ^ (s.slotVars + s.matrixVars))) * Fintype.card K)
       fun w _ => Scatter.bad_card _).trans ?_
@@ -160,12 +160,12 @@ theorem linearGame_cost (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : S
     (linearGame (K := K) s Φ bar S st cands).CostLe ((linearCount s L0 : ℝ) / Fintype.card K) := by
   have count : (Finset.univ : Finset (Fin cands.length)).card ≤ L0 := by simpa using short
   unfold linearCount
-  apply draw_step _ _ _ _ (density_le _ _ ?_)
+  apply Game.draw_step _ _ _ _ (Game.density_le _ _ ?_)
   swap
   · exact (card_biUnion_le_mul _ _ (s.rows - 1) fun w _ => RingRows.lambdaBad_card _ _ _).trans
       (Nat.mul_le_mul_right _ count)
   intro lam quotient
-  apply draw_step _ _ _ _ (density_le _ _ ?_)
+  apply Game.draw_step _ _ _ _ (Game.density_le _ _ ?_)
   swap
   · exact (card_biUnion_le_mul _ _ (2 * s.D - 2) fun w _ => RingRows.zetaBad_card _ _ _ s.D lam _
       (relationRows_weight_degree s bar S st) (fun b => coeffPoly_natDegree _ _)
@@ -207,7 +207,7 @@ theorem honestGame_cost (s : Shape) (S : Setup F) (L1 L P : ℕ) [NeZero L] [NeZ
     (distinct : ∀ i j, i < L → j < L → q i = q j → i = j) (o : EarlyOut F K) (lin : LinearOut K) :
     (honestGame s S L1 L P q o lin).CostLe (((9 : ℕ) : ℝ) / Fintype.card K + queryError s L1 L P) := by
   refine ⟨((3 : ℕ) : ℝ) * (((2 : ℕ) : ℝ) / Fintype.card K) + queryError s L1 L P, ?_, fun mu partials => ?_⟩
-  · have := density_le (zeros (runGroupPoly s S o)) 3
+  · have := Game.density_le (zeros (runGroupPoly s S o)) 3
       (zeros_card_le_of_natDegree_le (runGroupPoly_natDegree s S o))
     have nine : ((9 : ℕ) : ℝ) / Fintype.card K =
         ((3 : ℕ) : ℝ) / Fintype.card K + ((3 : ℕ) : ℝ) * (((2 : ℕ) : ℝ) / Fintype.card K) := by
@@ -276,7 +276,7 @@ theorem lateGame_cost (s : Shape) (S : Setup F) (lam : K) (τ : ℕ → K) (cand
   have count : (Finset.univ : Finset (Fin cands.length × Fin p1.length)).card ≤ L0 * L1 := by
     simpa using Nat.mul_le_mul short0 short1
   unfold lateCount
-  apply draw_step _ _ _ _ (density_le _ _ ?_)
+  apply Game.draw_step _ _ _ _ (Game.density_le _ _ ?_)
   swap
   · refine (card_biUnion_le_mul _ _ (2 ^ (s.slotVars + 1) + 2 ^ s.blockVars) fun w _ =>
       zeros_card_le_of_natDegree_le ?_).trans (Nat.mul_le_mul_right _ count)

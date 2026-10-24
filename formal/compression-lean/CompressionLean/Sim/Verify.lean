@@ -1,6 +1,7 @@
 import CompressionLean.Sim.Late
 import CompressionLean.Sim.Linear
 import CompressionLean.Sim.Whir
+import CompressionLean.Checks.KeyFacts
 
 /-!
 Owns `verify_ensures`: the circuit's `verify` (`Verifier.lean`, `verifier.rs:136-316`)
@@ -23,6 +24,8 @@ open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Relation TreeShape WhirShape D foldVars runOracles)
 open CompressionLean.Bridge (Runs run_bind run_pure run_liftExcept run_sampleWords)
 open NightstreamFPrime.Spec (goldilocksModulus)
+open CompressionLean.Checks (CircuitFacts)
+open CompressionLean.Bridge (RelationFacts)
 
 variable {F : Type} [CommRing F]
 
@@ -339,21 +342,18 @@ section Verify
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
 
-private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey}
-    (long : Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo ≤ rel.pointVariables)
-    (root : rel.key.root.size = 4) (small : rel.setupVars + 1 - foldVars ≤ 64)
-    (short : ∀ cl ∈ rel.key.layout.classes, cl.len ≤ D)
+private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey} (circuit : CircuitFacts rel p1Key p0Key)
+    (relation : RelationFacts rel)
     (named : ∀ s ∈ rel.key.layout.segments, s.classIndex < rel.key.layout.classes.size ∧ s.lane < D)
-    (k1 : p1Key.batches.size = rel.p1Whir.batches.size) (k0 : p0Key.batches.size = rel.p0Whir.batches.size)
-    (hp1 : ∀ b ∈ rel.p1Whir.batches, b.size % 3 = 0)
-    (hp1count : (rel.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * rel.queries + 4)
-    (hp0 : rel.p0Whir.batches.toList.map (·.size) = [1, 1, 2, 2 * rel.matrices, 1, 2 * rel.matrices + 1, 1])
     {w : Var → Word} {seed : DigestVar} {statement : ClaimView} {proof : ProofView} {seedWords : Array Word}
     {st : Replay.Statement} {g : Replay.Proof} (hp : Permutes c.perm)
     (fits : st.fits rel = true) (read : Replay.readProof rel g = .ok ())
     (h : P → IsDigest c n seed seedWords ∧ IsClaim c n statement st ∧ IsProof c w n proof g) :
     Ensures c n P (verify rel p1Key p0Key seed statement proof)
       (fun _ _ => ∃ points t', Runs (Replay.verify rel seedWords st g) ⟨Replay.Duplex.new, #[]⟩ points t') := by
+  obtain ⟨-, -, -, root, short, k1, k0, hp1, hp1count, hp0⟩ := circuit
+  have long := relation.bits.long
+  have small : rel.setupVars + 1 - foldVars ≤ 64 := by have := relation.high; omega
   have shape := Bridge.readProof_ok read
   obtain ⟨r1, r0⟩ := readProof_openings read
   unfold verify
@@ -547,19 +547,9 @@ When the inputs hold a seed, a statement that fits the relation and a proof that
 it reads, and the circuit's checks hold, the replay's `verify` accepts them from
 the empty transcript. -/
 theorem verify_ensures [CharP F goldilocksModulus] {key : Layer1Input}
-    (hrun : key.relation.key.layout.runVariables ≠ 0) (hrow : key.relation.key.layout.rowVariables ≠ 0)
-    (hslot : key.relation.key.layout.slotVariables + key.relation.matrixVars ≠ 0)
-    (long : Nat.log2 (D * 2 ^ key.relation.blockVars).nextPowerOfTwo ≤ key.relation.pointVariables)
-    (root : key.relation.key.root.size = 4) (small : key.relation.setupVars + 1 - foldVars ≤ 64)
-    (short : ∀ cl ∈ key.relation.key.layout.classes, cl.len ≤ D)
+    (circuit : CircuitFacts key.relation key.p1Key key.p0Key) (relation : RelationFacts key.relation)
     (named : ∀ s ∈ key.relation.key.layout.segments,
       s.classIndex < key.relation.key.layout.classes.size ∧ s.lane < D)
-    (k1 : key.p1Key.batches.size = key.relation.p1Whir.batches.size)
-    (k0 : key.p0Key.batches.size = key.relation.p0Whir.batches.size)
-    (hp1 : ∀ b ∈ key.relation.p1Whir.batches, b.size % 3 = 0)
-    (hp1count : (key.relation.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * key.relation.queries + 4)
-    (hp0 : key.relation.p0Whir.batches.toList.map (·.size) =
-      [1, 1, 2, 2 * key.relation.matrices, 1, 2 * key.relation.matrices + 1, 1])
     {c : Ctx F} {n : ℕ} {P : Prop} {w : Var → Word} {seed : DigestVar} {statement : ClaimView} {proof : ProofView}
     {seedWords : Array Word} {st : Replay.Statement} {g : Replay.Proof} (hp : Permutes c.perm)
     (h : P → Decodes c w ∧ IsDigest c n seed seedWords ∧ IsClaim c n statement st ∧ st.fits key.relation = true ∧
@@ -567,10 +557,10 @@ theorem verify_ensures [CharP F goldilocksModulus] {key : Layer1Input}
     Ensures c n P (verify key.relation key.p1Key key.p0Key seed statement proof)
       (fun _ _ => ∃ points t', Runs (Replay.verify key.relation seedWords st g) ⟨Replay.Duplex.new, #[]⟩ points t') :=
   Ensures.under (A := st.fits key.relation = true ∧ Replay.readProof key.relation g = .ok ())
-    (verify_core (P := False) (w := w) (seedWords := #[]) long root small short named k1 k0 hp1 hp1count
-      hp0 hp (fits_zero _) (readProof_zero hrun hrow hslot) False.elim)
+    (verify_core (P := False) (w := w) (seedWords := #[]) circuit relation named hp (fits_zero _)
+      (readProof_zero circuit.run circuit.row circuit.slot) False.elim)
     (fun H => ⟨(h H).2.2.2.1, (h H).2.2.2.2.2⟩) fun ⟨fits, read⟩ =>
-    verify_core long root small short named k1 k0 hp1 hp1count hp0 hp fits read fun H =>
+    verify_core circuit relation named hp fits read fun H =>
       ⟨(h H).2.1, (h H).2.2.1, (h H).2.2.2.2.1⟩
 
 end CompressionLean.Sim

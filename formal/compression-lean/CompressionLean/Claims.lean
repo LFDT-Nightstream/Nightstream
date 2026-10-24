@@ -84,9 +84,9 @@ theorem production_bound {lw : ℕ}
           (game key.relation S L0 L1) (Reads key loaded context S L0 L1)) ≤
       calls / 2 ^ t :=
   final_restore_budget_parent (shapeOf key.relation) barOf S relation ajtai shape barOf_eq honest fits L0 L1 h0 h1
-    (show key.relation.setupVars ≤ 35 by have := facts.high; omega) t Circuit.Block.poseidonTemplate _
+    (show key.relation.setupVars ≤ 35 by have := facts.relation.high; omega) t Circuit.Block.poseidonTemplate _
     (prog key loaded context) Ls p0 p1 rust (queryAt key.relation) goldilocksModulus facts.shape le_rfl
-    (Bridge.queryAt_distinct key.relation facts.high) Lowering.Block.poseidonTemplate_wellFormed
+    (Bridge.queryAt_distinct key.relation facts.relation.high) Lowering.Block.poseidonTemplate_wellFormed
     (prog_valid key loaded context) authority (Reads key loaded context S L0 L1)
     (programEncodes S facts fits describes L0 L1 loads valid hctx) calls prover
 
@@ -180,7 +180,8 @@ theorem poseidon2_bound (key : Layer1Input) (loaded : Loaded) (context : Array R
   obtain ⟨built, fits, describes⟩ := setup_facts_of_check setup.seed.bytes pass
   exact production_bound key loaded context authority _
     (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits)
-    setup.verifierKey (parentShape_of _ _ rfl rfl facts.kappa facts.matrices facts.blocks width facts.norm)
+    setup.verifierKey (parentShape_of _ _ rfl rfl facts.constants.kappa facts.constants.matrices
+      facts.constants.blocks width facts.constants.norm)
     (honest_setup_of_build _ rfl rfl setup _ pushes built gives) facts fits describes L0 L1 h0 h1 t Ls p0 p1 rust
     loads valid hctx calls prover
 

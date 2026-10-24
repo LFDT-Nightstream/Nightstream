@@ -55,6 +55,14 @@ structure Checked : Prop where
   class_named : ∀ i, i < key.segments → key.segmentClass i < key.classes
   length_pos : ∀ c, c < key.classes → 1 ≤ key.classLength c
 
+/-- `Checked` as bounded quantifiers. -/
+instance : Decidable (key.Checked s) :=
+  decidable_of_iff (_ ∧ _ ∧ _ ∧ (∀ i, i < key.segments - 1 → key.segmentFirst i < key.segmentFirst (i + 1)) ∧
+      (0 < key.segments → key.segmentFirst (key.segments - 1) < key.slots) ∧ _ ∧ _)
+    ⟨fun ⟨a, b, c, d, e, f, g⟩ => ⟨a, b, c, fun i lt => d i (by omega),
+      fun i last => by rw [show i = key.segments - 1 by omega]; exact e (by omega), f, g⟩,
+     fun ⟨a, b, c, d, e, f, g⟩ => ⟨a, b, c, fun i lt => d i (by omega), fun lt => e _ (by omega), f, g⟩⟩
+
 /-- What `Tables::from_rows` builds: the setup's run matrices and slot shapes
 are the key's step functions. -/
 structure Describes (S : Setup F) : Prop where

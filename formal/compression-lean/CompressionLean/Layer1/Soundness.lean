@@ -89,6 +89,13 @@ structure Shape.Sizes (s : Shape) (N : ℕ) : Prop where
   fold_key : s.laneVars + s.blockVars ≤ s.setupVars
   fold_run : s.runVars ≤ s.setupVars
 
+instance (s : Shape) (N : ℕ) : Decidable (s.Sizes N) :=
+  decidable_of_iff (_ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _)
+    ⟨fun ⟨a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, t⟩ =>
+      ⟨a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, t⟩,
+     fun ⟨a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, t⟩ =>
+      ⟨a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, t⟩⟩
+
 omit [Fintype K] [DecidableEq K] in
 /-- Interpolation nodes `0, ..., d + 1` are distinct when integers below `N` are. -/
 theorem nodes_of_cast (N : ℕ) (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (big : 5 ≤ N) :

@@ -6,8 +6,9 @@ Owns the bridge of the whole replay (`Replay.verify`) to the model's
 replay's draws before WHIR's are the path's challenges, and the path ends in
 the model's transcript of the replay's values (`replay_accepts_implies_path`).
 This holds under WHIR at the points that the replay returns (`WhirOpens`),
-Merkle binding (`MerkleBinds`) and the relation facts that the replay does
-not check (`RelationFacts`).
+Merkle binding (`MerkleBinds`), the relation facts that the replay does not
+check (`RelationFacts`), and a setup that fits the shape and that the key's
+structure describes.
 
 With `layer1Game_avoids`, a path that avoids every bad set ends in a
 statement that a P0 candidate satisfies (`replay_accepts_sound`). The other
@@ -65,18 +66,16 @@ theorem queryAt_distinct (rel : Replay.Relation) (high : rel.setupVars + 1 ≤ 3
 
 variable [DecidableEq K]
 
-/-- The relation facts that the replay does not check: sizes, and the key's
-structure for the setup `S`. -/
-structure RelationFacts (rel : Replay.Relation) (S : Setup Gl) : Prop where
+/-- The relation facts that the replay does not check: sizes, and the order
+part of the key's structure. -/
+structure RelationFacts (rel : Replay.Relation) : Prop where
   rowFits : rel.key.layout.rowVariables ≤ rel.pointVariables
   matricesFit : rel.matrices ≤ 2 ^ rel.matrixVars
   bits : EvalKBits rel
   publicFits : rel.publicBlocks ≤ 2 ^ rel.blockVars
   sizes : HonestSizes rel
   high : rel.setupVars + 1 ≤ 32
-  fits : S.Fits (shapeOf rel)
   checked : (structureOf rel.key.layout).Checked (shapeOf rel)
-  describes : (structureOf rel.key.layout).Describes (shapeOf rel) S
 
 /-- The model's messages of the replay's layer-1 proof: the statement, then
 the early, linear, honest-fold and late messages. -/
@@ -106,7 +105,8 @@ at the points that it returns. Some path of `layer1Game` receives the
 replay's statement, proof and candidate lists, draws the replay's
 challenges before WHIR's own and ends in a model transcript of the replay's
 statement and the prover's P0 candidates. -/
-theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Gl) (facts : RelationFacts rel S)
+theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Gl) (facts : RelationFacts rel)
+    (fits : S.Fits (shapeOf rel)) (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S)
     (seed : Array Word) (st : Replay.Statement) (proof : Replay.Proof) (merkle : MerkleBinds rel S proof.leaves)
     (L0 L1 : ℕ) (cands : List (P0Tables Gl)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K))
     (short1 : p1.length ≤ L1) {t t' : Replay.Transcript} {points : OpeningPoints}
@@ -133,19 +133,19 @@ theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Gl) (fact
   obtain ⟨_, t13, h13, h14⟩ := run_bind r12
   clear run r1 r2 r3 r4 r5 r6 r7 r8 r9 r10 r11 r12
   obtain ⟨rfl, rfl⟩ := run_pure h14
-  obtain ⟨fits, rfl⟩ := run_ensure h1
+  obtain ⟨claimFits, rfl⟩ := run_ensure h1
   obtain ⟨readOk, rfl⟩ := run_liftExcept h2
   obtain ⟨p1ok, rfl⟩ := run_liftExcept h11
   obtain ⟨p0ok, rfl⟩ := run_liftExcept h13
   have shape := readProof_ok readOk
   obtain ⟨dsE, drawsE, mc, agree, lengths, values, zLeaf, openings, reachE⟩ :=
-    early_reaches (K := K) rel st proof shape fits facts.rowFits facts.matricesFit S L0 cands short0 rel.queries h6
+    early_reaches (K := K) rel st proof shape claimFits facts.rowFits facts.matricesFit S L0 cands short0 rel.queries h6
   obtain ⟨dsL, drawsL, linRun, reachL⟩ :=
-    linear_reaches (K := K) rel st proof shape fits facts.bits facts.publicFits S cands rel.queries h7
-  obtain ⟨dsH, drawsH, honestRun, reachH⟩ := honest_reaches (K := K) rel proof shape S facts.fits facts.checked
-    facts.describes facts.sizes cands agree lengths values openings linRun L1 p1 short1 (queryAt rel) h8
+    linear_reaches (K := K) rel st proof shape claimFits facts.bits facts.publicFits S cands rel.queries h7
+  obtain ⟨dsH, drawsH, honestRun, reachH⟩ := honest_reaches (K := K) rel proof shape S fits facts.checked
+    describes facts.sizes cands agree lengths values openings linRun L1 p1 short1 (queryAt rel) h8
   obtain ⟨dsT, drawsT, mcL, agreeL, -, latePairs, lateOpenings, reachT⟩ := late_reaches (K := K) rel proof shape S
-    facts.fits facts.checked facts.describes linRun cands p1 rel.queries h9
+    fits facts.checked describes linRun cands p1 rel.queries h9
   obtain ⟨dsW1, drawsW1⟩ := whirTranscript_grows _ _ _ _ _ h10
   obtain ⟨dsW0, drawsW0⟩ := whirTranscript_grows _ _ _ _ _ h12
   have opens := opens_of_replay (K := K) rel st proof shape S merkle facts.sizes.setup facts.high cands p1 agree
@@ -176,7 +176,8 @@ with WHIR's guarantee at the points that it returns, is a path of
 avoids every bad set, a P0 candidate is a CE(B) witness for the replay's
 statement. The paths that do not avoid them are the event that
 `layer1_sound` bounds. -/
-theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Gl) (facts : RelationFacts rel S) (N : ℕ)
+theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Gl) (facts : RelationFacts rel)
+    (fits : S.Fits (shapeOf rel)) (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S) (N : ℕ)
     (sizes : (shapeOf rel).Sizes N) (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (seed : Array Word)
     (st : Replay.Statement) (proof : Replay.Proof) (merkle : MerkleBinds rel S proof.leaves) (L0 L1 : ℕ)
     (cands : List (P0Tables Gl)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K)) (short1 : p1.length ≤ L1)
@@ -189,10 +190,10 @@ theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Gl) (facts : Rel
         (∃ tr, Game.Pos.node _ p = .pure (some tr)) ∧
         (Game.Pos.Avoids _ p → ∃ w ∈ cands, Relation (shapeOf rel) phi barOf S (statementOf st) w.z) := by
   obtain ⟨tr, ds, rest, draws, -, statement, candidates, p, node, pathDraws, -⟩ :=
-    replay_accepts_implies_path rel S facts seed st proof merkle L0 L1 cands short0 p1 short1 run whir
+    replay_accepts_implies_path rel S facts fits describes seed st proof merkle L0 L1 cands short0 p1 short1 run whir
   refine ⟨ds, rest, draws, p, pathDraws, ⟨tr, node⟩, fun clean => ?_⟩
   have witness := Game.Pos.sound (layer1Game_avoids (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2))
-    goldilocksModulus (queryAt rel) N sizes cast facts.fits phi_monic phi_ne_one) p (some tr) clean node tr rfl
+    goldilocksModulus (queryAt rel) N sizes cast fits phi_monic phi_ne_one) p (some tr) clean node tr rfl
   rw [candidates, statement] at witness
   exact witness
 

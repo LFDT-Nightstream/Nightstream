@@ -10,9 +10,11 @@ program's result, the replay's result and the new count.
 - `Tracks.bind` steps the program and the replay together, and the rest
   receives both results; `Tracks.bindLast` ends the replay.
 - `Tracks.lift` and `Tracks.quiet` pass the program's steps that the replay
-  does not take: a builder call, or a transcript step that keeps the duplex.
-- `Tracks.check` passes a check that the replay makes and the program does
-  not; `Tracks.replay` changes the replay action to one that runs alike.
+  does not take: a builder call, or a transcript step that tracks the
+  replay's `pure ()`.
+- `Tracks.check` and `Tracks.ensure` pass a check that the replay makes and
+  the program does not; `Tracks.replay` changes the replay action to one
+  that runs alike.
 - `Tracks.loop` runs a program loop beside a replay loop of one length.
 - `Duplex.X_tracks`: the duplex steps that the replay takes.
 -/
@@ -69,28 +71,31 @@ theorem lift {b : Build α} {g : α → Transcript γ} {y : ReplayM δ} {Q : α 
     Tracks c n ((liftM b : Transcript α) >>= g) y R := fun d tr hd =>
   Ensures.liftBind hb (fun a m le hq => hg a m le hq d tr hd.mono) hb' hg'
 
-/-- A transcript step that keeps the duplex and that the replay does not
-take. -/
+/-- A transcript step that the replay does not take: it tracks the
+replay's `pure ()`. -/
 theorem quiet {t : Transcript α} {g : α → Transcript γ} {y : ReplayM δ} {Q : α → ℕ → Prop}
-    {R : γ → δ → ℕ → Prop} (ht : ∀ d, Ensures c n (t.run d) fun r m => Q r.1 m ∧ r.2 = d)
+    {R : γ → δ → ℕ → Prop} (ht : Tracks c n t (Pure.pure PUnit.unit) fun a _ m => Q a m)
     (hg : ∀ a m, n ≤ m → Q a m → Tracks c m (g a) y R)
     (ht' : ∀ d, Appends (t.run d) := by appends) (hg' : ∀ a d, Appends ((g a).run d) := by appends) :
-    Tracks c n (t >>= g) y R := fun d tr hd =>
-  (ht d).tbind (fun a e m le hq => by
-    obtain ⟨hq, he⟩ := hq
-    dsimp only at he
-    subst he
-    exact hg a m le hq _ tr hd.mono) (ht' d) hg'
+    Tracks c n (t >>= g) y R := by
+  have h := bind ht (fun a _ m le hq => hg a m le hq) ht' hg'
+  rwa [pure_bind] at h
 
 /-- Change the replay action to one that runs alike. -/
 theorem replay {t : Transcript α} {x x' : ReplayM β} {Q : α → β → ℕ → Prop} (h : Tracks c n t x Q)
     (same : ∀ tr b tr', Runs x tr b tr' → Runs x' tr b tr') : Tracks c n t x' Q := fun d tr hd =>
   (h d tr hd).post fun _ _ ⟨b, tr', hrun, hd', hq⟩ => ⟨b, tr', same _ _ _ hrun, hd', hq⟩
 
-/-- A check that the replay makes and the program does not. -/
-theorem check {t : Transcript α} {e : Except String PUnit} {y : ReplayM δ} {R : α → δ → ℕ → Prop}
-    (ok : e = .ok ()) (h : Tracks c n t y R) : Tracks c n t (liftExcept e >>= fun _ => y) R :=
+/-- A check that the replay makes and the program does not, with the value
+`a` that it returns. -/
+theorem check {t : Transcript α} {e : Except String ε} {a : ε} {y : ε → ReplayM δ} {R : α → δ → ℕ → Prop}
+    (ok : e = .ok a) (h : Tracks c n t (y a) R) : Tracks c n t (liftExcept e >>= y) R :=
   h.replay fun tr _ _ run => Bridge.runs_bind (Bridge.runs_liftExcept ok tr) run
+
+/-- The replay's `ensure` of a condition that holds. -/
+theorem ensure {t : Transcript α} {b : Bool} {what : String} {y : ReplayM δ} {R : α → δ → ℕ → Prop}
+    (ok : b = true) (h : Tracks c n t y R) : Tracks c n t (Replay.ensure b what >>= fun _ => y) R :=
+  h.replay fun tr _ _ run => Bridge.runs_bind (Bridge.runs_ensure ok what tr) run
 
 /-- **A program loop beside a replay loop of one length.** `I k acc m`: after
 `k` steps the accumulator is `acc`, with `m` values. -/

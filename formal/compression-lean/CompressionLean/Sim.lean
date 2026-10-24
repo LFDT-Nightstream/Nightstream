@@ -15,6 +15,7 @@ import CompressionLean.Sim.Merkle
 import CompressionLean.Sim.Old
 import CompressionLean.Sim.Ring
 import CompressionLean.Sim.Run
+import CompressionLean.Sim.SetupLeaf
 import CompressionLean.Sim.Sumcheck
 import CompressionLean.Sim.Terminal
 import CompressionLean.Sim.Tracks

@@ -359,8 +359,8 @@ re-read. `STATUS.md` lists the claims with their axioms and open premises, the
 ports and the digest pins. `lake exe status > STATUS.md` writes it, and
 `lake build` fails when it is out of date.
 
-`scripts/crosschecks.sh` runs the replay, lowering, production, terminal and
-full checks below, in that order.
+`scripts/crosschecks.sh` runs the replay, lowering, production, terminal,
+full and setup checks below, in that order.
 
 Replay check. `Replay/` is an executable layer-1 verifier in the model's
 stage order. It draws every challenge as Rust does and runs every check of
@@ -406,6 +406,22 @@ records the verifier's shape run (zero statement, no proof) and checks it as
 `layer1` above. It writes `production_layer1.txt` and
 `production_layer1.json`. The verifier is 1,928,933 instructions and
 1,280,147 rows; the test takes about 12 s and 1.7 GB.
+
+Setup check. `production_runs_rebuild_the_layer1_key` (`nightstream`,
+ignored) writes the runs that `PackageRows::visit_rows` pushes for the
+production circuit to `target/lean-lowering/production_runs.bin` and
+requires `Key::derive` of the file to be the committed key's layer-1 key. It
+writes 38,533,993 runs, about 1 GB, and takes about 94 s and 9.7 GB. Build
+the check with `timeout --signal=KILL 1500 lake build setupCheck`, then run
+`production_setup_matches_lean` (same crate, ignored) under the 5-minute cap.
+It runs `setupCheck` on that file and on the `production_layer1.json` of
+`production_layer1_matches_lean` (run both first) and requires
+`setup facts hold`. `setupFailure` (`Final/SetupFacts.lean`) decides that
+`build` returns `poseidon2Setup` for the runs, that it has `Setup.Fits` and
+that the key's structure describes it. It reads the runs a fixed number of
+times: the classes and the slot keys go through a hash set and a sort of the
+distinct values (`sortedValues`), which is `sortedSet`. The test takes about
+48 s and 5.4 GB.
 
 Digest pins. CI runs no Lean, so Rust pins the run digest that `lowerCheck`
 computes from Lean's lowered program (`runDigest`, `digest` on each `match`

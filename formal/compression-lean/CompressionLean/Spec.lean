@@ -7,6 +7,7 @@ import CompressionLean.Spec.Parent
 import CompressionLean.Spec.Program
 import CompressionLean.Spec.Bound
 import CompressionLean.Spec.PoseidonRows
+import CompressionLean.Spec.Runs
 
 /-!
 `Spec/` owns the vocabulary of the claims: every definition that a claim of
@@ -17,13 +18,14 @@ them are in the folders above (`Bridge/`, `Final/`, `Checks/`, `Sim/`).
 - `Relation`, `Replay`, `Messages`, `Openings`: the replay's relation,
   statement and proof as the layer-1 model reads them, and the WHIR and
   Merkle assumptions.
-- `Checks`: the facts that the claims take about Rust's files, and the checks
-  that decide them.
+- `Checks`, `Runs`: the facts that the claims take about Rust's files, and
+  the checks that decide them.
 - `Parent`: the claim of a final proof in F′'s terms, and the setup and runs
   of F′'s key.
 - `Program`, `Bound`: the production final program, what layer 1 reads from
   its witness, and the event that the production bound bounds.
-- `PoseidonRows`: a fast evaluator of the rows of F′'s Poseidon2 blocks.
+- `PoseidonRows`: a fast evaluator of the rows of F′'s Poseidon2 blocks,
+  which the run check reads.
 
 `CompressionLeanTests/Vocabulary.lean` fails the build when a claim names a
 constant of a proof folder.

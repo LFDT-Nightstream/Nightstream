@@ -20,7 +20,8 @@ facts (`Fact`); `firstFailure` names the first that fails.
   the setup that `build` returns for them (`poseidon2Setup`).
 - The terminal package: `templatesNamed`.
 
-The proofs that a pass gives each premise are in `Checks/`.
+The run check (`runsFailure`) is in `Spec/Runs.lean`. The proofs that a pass
+gives each premise are in `Checks/`.
 -/
 
 namespace CompressionLean.Spec

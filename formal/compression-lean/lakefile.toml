@@ -1,7 +1,7 @@
 name = "compression_lean"
 version = "0.1.0"
 defaultTargets = ["CompressionLean", "CompressionLeanTests", "CompressionLeanExe", "emitTerminal", "replayLayer1",
-  "lowerCheck", "terminalCheck", "setupCheck", "status"]
+  "lowerCheck", "terminalCheck", "setupCheck", "runsCheck", "status"]
 
 [[require]]
 name = "nightstream_fprime"
@@ -61,6 +61,11 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsErro
 [[lean_exe]]
 name = "setupCheck"
 root = "CompressionLeanExe.SetupCheck"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
+
+[[lean_exe]]
+name = "runsCheck"
+root = "CompressionLeanExe.RunsCheck"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_exe]]

@@ -14,48 +14,6 @@ Owns the simulation of the linear stage of `Linear.lean` (`verifier.rs:170-206`)
   Field addition is associative, so the values agree.
 -/
 
-namespace CompressionLean.Replay
-
-/-- Replaying from `point` appends the new challenges to `point` (`sumcheck.rs:24-44`). -/
-private theorem sumcheckRounds_point (l : List (Array Ext)) (point : Array Ext) (claim : Ext) :
-    sumcheckRounds l point claim = (fun r => (point ++ r.1, r.2)) <$> sumcheckRounds l #[] claim := by
-  induction l generalizing point claim with
-  | nil => simp [sumcheckRounds]
-  | cons msg rest ih =>
-      simp only [sumcheckRounds, map_bind]
-      refine bind_congr fun _ => bind_congr fun r => ?_
-      rw [ih (point.push r), ih (#[].push r), Functor.map_map]
-      congr 1
-      funext a
-      rw [Array.push_eq_append, Array.push_eq_append, Array.empty_append, Array.append_assoc]
-
-/-- One replay of `rounds` is a replay of its first `k` rounds, then a replay of the rest from that
-claim (`verifier.rs:178-180`). -/
-private theorem runs_sumcheckReplay_split {rounds : Array (Array Ext)} {claim : Ext} (k : ℕ)
-    {t t' : Transcript} {point : Array Ext} {final : Ext}
-    (run : Runs (sumcheckReplay rounds claim) t (point, final) t') :
-    ∃ first middle t₁ second, Runs (sumcheckReplay (rounds.extract 0 k) claim) t (first, middle) t₁ ∧
-      Runs (sumcheckReplay (rounds.extract k) middle) t₁ (second, final) t' ∧ point = first ++ second ∧
-      first.size = min k rounds.size ∧ second.size = rounds.size - k := by
-  have split : rounds.toList = (rounds.extract 0 k).toList ++ (rounds.extract k).toList := by
-    simp only [Array.toList_extract, List.extract_eq_take_drop, List.drop_zero, Nat.sub_zero]
-    rw [List.take_of_length_le (l := List.drop k rounds.toList) (by simp)]
-    simp
-  unfold sumcheckReplay at run
-  rw [split, sumcheckRounds_append] at run
-  obtain ⟨⟨first, middle⟩, t₁, h₁, h₂⟩ := run_bind run
-  rw [sumcheckRounds_point] at h₂
-  obtain ⟨⟨second, final'⟩, h₂, e⟩ := run_map h₂
-  simp only [Prod.mk.injEq] at e
-  obtain ⟨rfl, rfl⟩ := e
-  refine ⟨first, middle, t₁, second, h₁, h₂, rfl, ?_, ?_⟩
-  · rw [Bridge.sumcheckRounds_size _ _ _ _ _ _ h₁]
-    simp
-  · rw [Bridge.sumcheckRounds_size _ _ _ _ _ _ h₂]
-    simp
-
-end CompressionLean.Replay
-
 namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (Gl Ext Relation D laneVars Runs runs_bind runs_pure runs_sampleExt runs_observeExts

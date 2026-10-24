@@ -44,7 +44,7 @@ def digest (instrs : Array Instr) : List ℕ :=
 
 /-- Compare `finalProgram` on `package` with the export: up to layer 1, or
 with `verifyWith` for `key`. -/
-def check (package : Loaded) (key : Option Layer1Input) : Parser String := do
+def check (package : Loaded) (key : Option Layer1Key) : Parser String := do
   keyword "context"
   let context := (← many (← nat) glWord).toArray
   let rust ← program
@@ -80,7 +80,7 @@ def main (args : List String) : IO UInt32 := do
   let (path, key) ← match args with
     | [path] => pure (path, none)
     | [path, keyPath] =>
-        match ← CompressionLeanExe.Parse.readJson CompressionLean.Circuit.Layer1Input keyPath with
+        match ← CompressionLeanExe.Parse.readJson CompressionLean.Circuit.Layer1Key keyPath with
         | .ok key =>
             unless ← CompressionLeanExe.Key.printFacts key do return 1
             CompressionLeanExe.Key.printWidth key

@@ -26,7 +26,7 @@ open CompressionLean.Replay (Relation D runOracles foldVars)
 
 /-- What the verifier reads of its key (`layer1.json`, written by
 `lowering.rs`): the replay's relation and the `WhirKey` of each opening. -/
-structure Layer1Input where
+structure Layer1Key where
   relation : Relation
   p1Key : WhirKey
   p0Key : WhirKey
@@ -139,7 +139,7 @@ def verify (rel : Relation) (p1Key p0Key : WhirKey) (seed : DigestVar) (statemen
 /-- `verify_with` (`lib.rs:692-703`): the handoff of the fold transcript
 `state`, the proof view, then `verify`. The claim's shape check writes no
 instruction. -/
-def verifyWith (key : Layer1Input) (state : Fin 16 → Var) (claim : ClaimView) : Build Unit := do
+def verifyWith (key : Layer1Key) (state : Fin 16 → Var) (claim : ClaimView) : Build Unit := do
   let seed ← (FoldTranscript.fromState state).handoff
   let proof ← ProofView.read key.relation key.p1Key.rows key.p0Key.rows
   verify key.relation key.p1Key key.p0Key seed claim proof

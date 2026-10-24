@@ -111,7 +111,7 @@ def statementInput (rel : Replay.Relation) : Build ClaimView := do
 
 /-- `Layer1::run` (`tests/internal/shrink.rs`): the seed and the statement as
 statement words, the proof view, then the verifier. -/
-def layer1 (input : Layer1Input) : Build Unit := do
+def layer1 (input : Layer1Key) : Build Unit := do
   let seed ← (Array.range 4).mapM fun _ => Build.pub
   let statement ← statementInput input.relation
   let proof ← ProofView.read input.relation input.p1Key.rows input.p0Key.rows

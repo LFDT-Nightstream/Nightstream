@@ -41,7 +41,7 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
 
 section Runs
 
-variable (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
+variable (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word)
 
 /-- Each shrink run of the program names only its own cells (`lower_valid`). -/
 theorem shrinkRun_valid (x : StateWords) : (shrinkRun key loaded context x).Valid Block.poseidonTemplate :=
@@ -58,20 +58,20 @@ end Runs
 
 section Gives
 
-variable {key : Layer1Input} {loaded : Loaded} {context : Array Replay.Word}
+variable {key : Layer1Key} {loaded : Loaded} {context : Array Replay.Word}
   {authority : Lifecycle.VerifierContext.Authority} {c : Ctx Spec.F} {w : Var → Replay.Word}
 
 /-- What an accepting run gives: a terminal assignment for the run's
 statement whose claim is the decoded statement, and an accepting replay of
 the decoded seed, statement and proof. -/
-def Gives (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
+def Gives (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word)
     (authority : Lifecycle.VerifierContext.Authority) (c : Ctx Spec.F) (w : Var → Replay.Word) : Prop :=
   ∃ env, TerminalFor authority (Sim.statementOf c) env ∧
     Spec.statementOf (statementWith loaded context w) = claimOf env ∧
     ∃ points t', Spec.Runs (Replay.verify key.relation (seedWith loaded context w) (statementWith loaded context w)
       (proofWith key loaded context w)) start points t'
 
-instance verifyWith_appends (key : Layer1Input) (state : Fin 16 → Var) (claim : ClaimView) :
+instance verifyWith_appends (key : Layer1Key) (state : Fin 16 → Var) (claim : ClaimView) :
     Appends (Circuit.verifyWith key state claim) := by
   unfold Circuit.verifyWith; appends
 
@@ -143,14 +143,14 @@ theorem barOf_eq (p l : Fin Spec.ringDegree) :
   rw [dif_pos ⟨p.isLt, l.isLt⟩, Replay.Word.toF_ofNat]
   exact ZMod.natCast_zmod_val (show Gl from _)
 
-private theorem statementOf_ctxOf (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) (x : StateWords)
+private theorem statementOf_ctxOf (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word) (x : StateWords)
     (wit : ℕ → Spec.F) : Sim.statementOf (ctxOf key loaded context x wit) = x := by
   funext k
   fin_cases k <;> rfl
 
 /-- **`ProgramEncodes` for the production final program**
 (`lifecycle/terminal/mod.rs:54-80`), for a key that meets the premises. -/
-theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Replay.Word}
+theorem programEncodes {key : Layer1Key} {loaded : Loaded} {context : Array Replay.Word}
     {authority : Lifecycle.VerifierContext.Authority} (S : Setup Gl) (facts : KeyFacts key)
     (fits : S.Fits (shapeOf key.relation))
     (describes : (structureOf key.relation.key.layout).Describes (shapeOf key.relation) S) (L0 L1 : ℕ)

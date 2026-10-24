@@ -40,7 +40,7 @@ open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle Nights
 open NightstreamFPrime.Export.Package (CircuitPackage)
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
-open CompressionLean.Circuit (Layer1Input)
+open CompressionLean.Circuit (Layer1Key)
 open CompressionLean.Terminal.Package (Loaded load)
 open CompressionLean.Final CompressionLean.Setup
 
@@ -55,7 +55,7 @@ program witness among the shrink candidates has a reading that layer 1 ran
 (`Reads`), with probability at most `calls / 2^t`. -/
 theorem production_bound {lw : ℕ}
     {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
-    (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
+    (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word)
     (authority : Lifecycle.VerifierContext.Authority) (S : Layer1.Setup Gl)
     (relation : ProductionKey.LogicalRelation lw pf)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
@@ -104,13 +104,13 @@ theorem honest_setup_of_build {lw : ℕ}
 
 /-- **The key check** of `lowerCheck` and `terminalCheck`: a key that fails no
 check has `KeyFacts`. -/
-theorem key_facts_of_check {key : Layer1Input} (pass : keyFailure key = none) : KeyFacts key :=
+theorem key_facts_of_check {key : Layer1Key} (pass : keyFailure key = none) : KeyFacts key :=
   keyFacts_of_check pass
 
 /-- **The width check** of `lowerCheck` and `terminalCheck`: a key for which
 they print that it fits the Poseidon2 hash chain (`poseidon2Fits`) has the
 blocks of that application. -/
-theorem width_fits_of_check {key : Layer1Input} (pass : poseidon2Fits key = true) :
+theorem width_fits_of_check {key : Layer1Key} (pass : poseidon2Fits key = true) :
     WidthFits key Production.poseidon2Width :=
   of_decide_eq_true pass
 
@@ -124,7 +124,7 @@ theorem package_templates_of_check {package : CircuitPackage}
 of `setupFailure`, `build` returns `poseidon2Setup` at the carrier of the
 Poseidon2 hash chain and F′'s matrices, the setup fits the key's shape
 (`Setup.Fits`), and the key's structure describes it (`Structure.Describes`). -/
-theorem setup_facts_of_check {key : Layer1Input} {pushes : List Push} (seed : List ℕ)
+theorem setup_facts_of_check {key : Layer1Key} {pushes : List Push} (seed : List ℕ)
     (pass : setupFailure key pushes = none) :
     build seed (Phi81CarrierLayout.carrierWidth Production.poseidon2Width) productionProfile.ccsMatrices pushes =
         some (poseidon2Setup seed pushes) ∧
@@ -139,7 +139,7 @@ application. The setup is the one that `build` returns for the seed of the
 Ajtai setup and the runs (`poseidon2Setup`). The claim takes `WidthFits` in
 place of `ParentShape`, and `RunsGive` and the pass of `setupCheck` in place
 of the facts of the setup. -/
-theorem poseidon2_bound (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
+theorem poseidon2_bound (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word)
     (authority : Lifecycle.VerifierContext.Authority) (pushes : List Push)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
       (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth Production.poseidon2Width)))

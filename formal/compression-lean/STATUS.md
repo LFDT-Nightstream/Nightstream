@@ -28,7 +28,7 @@ Every hypothesis of each claim, by binder. A parameter is data that the claim ho
 
 ### `CompressionLean.Claims.production_bound`
 
-Parameters: `{lw : ℕ}`, `key : CompressionLean.Circuit.Layer1Input`, `loaded : CompressionLean.Terminal.Package.Loaded`, `context : Array CompressionLean.Replay.Word`, `authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority`, `S : CompressionLean.Layer1.Setup CompressionLean.Gl`, `relation : NightstreamFPrime.Lifecycle.ProductionKey.LogicalRelation lw pf`, `ajtai : NightstreamFPrime.Lifecycle.PaperAlgebra.AjtaiKey`, `L0 : ℕ`, `L1 : ℕ`, `t : ℕ`, `Ls : ℕ`, `calls : ℕ`, `prover : CompressionLean.Game.Strategy (CompressionLean.Spec.RestoreOutcome CompressionLean.Gl CompressionLean.Cubic (CompressionLean.Spec.game key S L0 L1))`.
+Parameters: `{lw : ℕ}`, `key : CompressionLean.Circuit.Layer1Key`, `loaded : CompressionLean.Terminal.Package.Loaded`, `context : Array CompressionLean.Replay.Word`, `authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority`, `S : CompressionLean.Layer1.Setup CompressionLean.Gl`, `relation : NightstreamFPrime.Lifecycle.ProductionKey.LogicalRelation lw pf`, `ajtai : NightstreamFPrime.Lifecycle.PaperAlgebra.AjtaiKey`, `L0 : ℕ`, `L1 : ℕ`, `t : ℕ`, `Ls : ℕ`, `calls : ℕ`, `prover : CompressionLean.Game.Strategy (CompressionLean.Spec.RestoreOutcome CompressionLean.Gl CompressionLean.Cubic (CompressionLean.Spec.game key S L0 L1))`.
 
 | Premise | Met by | How |
 |---|---|---|
@@ -49,7 +49,7 @@ Parameters: `{lw : ℕ}`, `key : CompressionLean.Circuit.Layer1Input`, `loaded :
 
 ### `CompressionLean.Claims.poseidon2_bound`
 
-Parameters: `key : CompressionLean.Circuit.Layer1Input`, `loaded : CompressionLean.Terminal.Package.Loaded`, `context : Array CompressionLean.Replay.Word`, `authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority`, `pushes : List CompressionLean.Setup.Push`, `setup : NightstreamFPrime.Spec.AjtaiSetupV1.Setup NightstreamFPrime.Spec.productionProfile.commitmentWidth (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth CompressionLean.Production.poseidon2Width))`, `L0 : ℕ`, `L1 : ℕ`, `t : ℕ`, `Ls : ℕ`, `calls : ℕ`, `prover : CompressionLean.Game.Strategy (CompressionLean.Spec.RestoreOutcome CompressionLean.Gl CompressionLean.Cubic (CompressionLean.Spec.game key (CompressionLean.Spec.poseidon2Setup setup.seed.bytes pushes) L0 L1))`.
+Parameters: `key : CompressionLean.Circuit.Layer1Key`, `loaded : CompressionLean.Terminal.Package.Loaded`, `context : Array CompressionLean.Replay.Word`, `authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority`, `pushes : List CompressionLean.Setup.Push`, `setup : NightstreamFPrime.Spec.AjtaiSetupV1.Setup NightstreamFPrime.Spec.productionProfile.commitmentWidth (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth CompressionLean.Production.poseidon2Width))`, `L0 : ℕ`, `L1 : ℕ`, `t : ℕ`, `Ls : ℕ`, `calls : ℕ`, `prover : CompressionLean.Game.Strategy (CompressionLean.Spec.RestoreOutcome CompressionLean.Gl CompressionLean.Cubic (CompressionLean.Spec.game key (CompressionLean.Spec.poseidon2Setup setup.seed.bytes pushes) L0 L1))`.
 
 | Premise | Met by | How |
 |---|---|---|
@@ -80,7 +80,7 @@ Parameters: `{lw : ℕ}`, `s : CompressionLean.Layer1.Shape`, `setup : Nightstre
 
 ### `CompressionLean.Claims.key_facts_of_check`
 
-Parameters: `{key : CompressionLean.Circuit.Layer1Input}`.
+Parameters: `{key : CompressionLean.Circuit.Layer1Key}`.
 
 | Premise | Met by | How |
 |---|---|---|
@@ -88,7 +88,7 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`.
 
 ### `CompressionLean.Claims.width_fits_of_check`
 
-Parameters: `{key : CompressionLean.Circuit.Layer1Input}`.
+Parameters: `{key : CompressionLean.Circuit.Layer1Key}`.
 
 | Premise | Met by | How |
 |---|---|---|
@@ -104,7 +104,7 @@ Parameters: `{package : NightstreamFPrime.Export.Package.CircuitPackage}`.
 
 ### `CompressionLean.Claims.setup_facts_of_check`
 
-Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List CompressionLean.Setup.Push}`, `seed : List ℕ`.
+Parameters: `{key : CompressionLean.Circuit.Layer1Key}`, `{pushes : List CompressionLean.Setup.Push}`, `seed : List ℕ`.
 
 | Premise | Met by | How |
 |---|---|---|

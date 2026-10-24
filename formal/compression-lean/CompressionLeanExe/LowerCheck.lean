@@ -94,12 +94,12 @@ def check (mirror : Option (Array Instr)) : Parser String := do
     {run.publics.length} statement words{mirrored}; digest {(runDigest run rows).toList.map Word.toNat}"
 
 /-- The export's path, Lean's program for it and the layer-1 key, from the arguments. -/
-def arguments : List String → IO (Except String (String × Option (Array Instr) × Option Layer1Input))
+def arguments : List String → IO (Except String (String × Option (Array Instr) × Option Layer1Key))
   | [path] => pure (.ok (path, none, none))
   | [path, "shared"] => pure (.ok (path, some shared.program, none))
   | [path, "early"] => pure (.ok (path, some early.program, none))
   | [path, "layer1", input] => do
-      pure <| (← readJson Layer1Input input).map fun key => (path, some (layer1 key).program, some key)
+      pure <| (← readJson Layer1Key input).map fun key => (path, some (layer1 key).program, some key)
   | [path, "linear", input] => do
       pure <| (← readJson StageInput input).map fun input => (path, some (linear input).program, none)
   | [path, "honest", input] => do

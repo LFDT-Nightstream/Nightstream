@@ -196,7 +196,7 @@ instance verify_appends (rel : Relation) (p1Key p0Key : WhirKey) (seed : DigestV
 When the inputs hold a seed, a statement that fits the relation and a proof that
 it reads, and the circuit's checks hold, the replay's `verify` accepts them from
 the empty transcript. -/
-theorem verify_ensures [CharP F goldilocksModulus] {key : Layer1Input}
+theorem verify_ensures [CharP F goldilocksModulus] {key : Layer1Key}
     (circuit : CircuitFacts key.relation key.p1Key key.p0Key) (relation : RelationFacts key.relation)
     (named : ∀ s ∈ key.relation.key.layout.segments,
       s.classIndex < key.relation.key.layout.classes.size ∧ s.lane < D)

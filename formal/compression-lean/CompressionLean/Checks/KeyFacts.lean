@@ -10,10 +10,10 @@ the key that they read.
 namespace CompressionLean.Checks
 
 open CompressionLean.Spec
-open CompressionLean.Circuit (Layer1Input)
+open CompressionLean.Circuit (Layer1Key)
 
 /-- A key that fails no check has `KeyFacts`. -/
-theorem keyFacts_of_check {key : Layer1Input} (pass : keyFailure key = none) : KeyFacts key := by
+theorem keyFacts_of_check {key : Layer1Key} (pass : keyFailure key = none) : KeyFacts key := by
   obtain ⟨run, row, slot, root, short, k1, k0, p1, p1count, p0, rowFits, matricesFit, bits, publicFits, sizes, high,
     checked, kappa, blocks, point, matrices, norm, shape, -⟩ := all_of_firstFailure pass
   exact ⟨⟨run, row, slot, root, short, k1, k0, p1, p1count, p0⟩,

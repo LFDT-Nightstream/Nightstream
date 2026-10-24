@@ -98,7 +98,7 @@
   {"lean": "CompressionLean.Circuit.KxVar.scale", "rust": "crates/neo-spartan/src/circuit/algebra.rs::Kx::scale", "hash": "22cab2ffb7eddf76"},
   {"lean": "CompressionLean.Circuit.KxVar.zero", "rust": "crates/neo-spartan/src/circuit/algebra.rs::Kx::zero", "hash": "c363db6fd4825d77"},
   {"lean": "CompressionLean.Circuit.LateOpeningsView", "rust": "crates/neo-spartan/src/matrix.rs::LateOpenings", "hash": "0c6682a9b4b3170a"},
-  {"lean": "CompressionLean.Circuit.Layer1Input", "rust": "crates/neo-spartan/tests/internal/lowering.rs::layer1_input", "hash": "fd07d9a6bfcdddb8"},
+  {"lean": "CompressionLean.Circuit.Layer1Key", "rust": "crates/neo-spartan/tests/internal/lowering.rs::layer1_input", "hash": "fd07d9a6bfcdddb8"},
   {"lean": "CompressionLean.Circuit.LeafView", "rust": "crates/neo-spartan/src/setup.rs::LeafView", "hash": "e9020032b55afacc"},
   {"lean": "CompressionLean.Circuit.LeafView.read", "rust": "crates/neo-spartan/src/setup.rs::LeafView::read", "hash": "f3d692d65f816fb7"},
   {"lean": "CompressionLean.Circuit.MixingVar", "rust": "crates/neo-spartan/src/ring.rs::Mixing", "hash": "9aad2e480866030c"},

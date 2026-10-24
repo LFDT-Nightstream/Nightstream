@@ -29,7 +29,7 @@ open CompressionLean.Setup
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Export.Package
 open CompressionLean.Replay (D)
-open CompressionLean.Circuit (Layer1Input WhirKey)
+open CompressionLean.Circuit (Layer1Key WhirKey)
 
 /-! ## Checks -/
 
@@ -110,14 +110,14 @@ production constants, and the size conditions of the layer-1 argument at the
 Goldilocks modulus. Rust's `Structure::check` (`neo-spartan/src/matrix.rs:142`)
 enforces `checked`. `Relation::new` (`neo-spartan/src/lib.rs:334`) enforces
 `high`, and `publicFits` through `public_blocks ≤ blocks`. -/
-structure KeyFacts (key : Layer1Input) : Prop where
+structure KeyFacts (key : Layer1Key) : Prop where
   circuit : CircuitFacts key.relation key.p1Key key.p0Key
   relation : RelationFacts key.relation
   constants : ProductionConstants key.relation
   shape : (shapeOf key.relation).Sizes NightstreamFPrime.Spec.goldilocksModulus
 
 /-- Each fact of `KeyFacts` by name, in field order. -/
-def keyChecks (key : Layer1Input) : List Fact :=
+def keyChecks (key : Layer1Key) : List Fact :=
   let rel := key.relation
   let layout := rel.key.layout
   [⟨"run", layout.runVariables ≠ 0⟩,
@@ -145,21 +145,21 @@ def keyChecks (key : Layer1Input) : List Fact :=
     ⟨"shape", (shapeOf rel).Sizes NightstreamFPrime.Spec.goldilocksModulus⟩]
 
 /-- The name of the first fact of `KeyFacts` that `key` fails. -/
-def keyFailure (key : Layer1Input) : Option String :=
+def keyFailure (key : Layer1Key) : Option String :=
   firstFailure (keyChecks key)
 
 /-- The key has the `⌈lw / D⌉` blocks of an application of logical width
 `lw` (`Key::derive`, `neo-spartan/src/lib.rs`). Unlike `KeyFacts`, this fact
 names one application, so a key of another application, such as the toy key
 of `lowering_matches_lean`, fails it. -/
-def WidthFits (key : Layer1Input) (lw : ℕ) : Prop :=
+def WidthFits (key : Layer1Key) (lw : ℕ) : Prop :=
   key.relation.key.blocks = NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount lw
 
-instance (key : Layer1Input) (lw : ℕ) : Decidable (WidthFits key lw) :=
+instance (key : Layer1Key) (lw : ℕ) : Decidable (WidthFits key lw) :=
   inferInstanceAs (Decidable (_ = _))
 
 /-- `WidthFits` at `Production.poseidon2Width`, decided on `key`. -/
-def poseidon2Fits (key : Layer1Input) : Bool :=
+def poseidon2Fits (key : Layer1Key) : Bool :=
   decide (WidthFits key Production.poseidon2Width)
 
 /-! ## The setup -/
@@ -181,7 +181,7 @@ def poseidon2Setup (seed : List ℕ) (pushes : List Push) : Layer1.Setup Gl :=
   setupOfRuns seed (poseidon2Columns / ringDegree) (runList Production.matrices pushes)
 
 /-- Each fact of the check by name, on the key and the runs. -/
-def setupChecks (key : Layer1Input) (pushes : List Push) : List Fact :=
+def setupChecks (key : Layer1Key) (pushes : List Push) : List Fact :=
   let rel := key.relation
   let layout := rel.key.layout
   let st := structureOf layout
@@ -205,7 +205,7 @@ def setupChecks (key : Layer1Input) (pushes : List Push) : List Fact :=
         codeRatio (keyCode classes w) = st.classRatio (st.segmentClass i) ∧ keyStart w % ringDegree = st.segmentLane i⟩]
 
 /-- The name of the first fact of the check that the key and the runs fail. -/
-def setupFailure (key : Layer1Input) (pushes : List Push) : Option String :=
+def setupFailure (key : Layer1Key) (pushes : List Push) : Option String :=
   firstFailure (setupChecks key pushes)
 
 /-! ## The terminal package -/

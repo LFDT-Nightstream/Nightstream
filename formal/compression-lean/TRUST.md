@@ -64,11 +64,13 @@ and key expander (`Final/RustSetup.lean`). A port equals its Rust only as far as
   declaration that cites Rust has no entry.
 - Ignored Rust tests compare the replay's draws and verdicts, and the programs' instructions, with
   Rust on fixed inputs. They run by hand, not in CI (`scripts/crosschecks.sh`).
-- The executables check the production artifacts against premises of the claims: `lowerCheck` and
-  `terminalCheck` refuse a key without `KeyFacts`, and `terminalCheck` refuses a terminal package
-  that does not load or whose compact rows name a missing template. Both print whether the key fits
-  the Poseidon2 hash chain (`WidthFits`); they do not refuse a key that does not, because the toy key
-  of `lowering_matches_lean` is of no application. `key_facts_of_check`, `width_fits_of_check` and
+- The executables check the production artifacts against premises of the claims. `terminalCheck`
+  refuses a key without `KeyFacts`, and a terminal package that does not load or whose compact rows
+  name a missing template. `lowerCheck` also reads the toy key of `lowering_matches_lean`, which has
+  neither production's constants nor an application's width, so it prints whether the key has
+  `KeyFacts` and fits the Poseidon2 hash chain (`WidthFits`), and both executables print the width
+  result. The production tests `production_layer1_matches_lean` and `final_program_matches_lean`
+  require each printed pass. `key_facts_of_check`, `width_fits_of_check` and
   `package_templates_of_check` prove that a pass gives the premise; that the executables ran on the
   production artifacts is the evidence of these Rust tests.
 

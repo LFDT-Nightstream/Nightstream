@@ -26,9 +26,9 @@ run:
   `Early.lean` on a structure that the toy relation does not have. The whole
   IR must match.
 - `layer1 <input.json>`: the Lean side of `Layer1::run` for the relation and
-  the two `WhirKey`s in the file. The whole IR must match, and the key must
-  have `KeyFacts` (`keyFailure`). It prints whether the key fits the
-  Poseidon2 hash chain (`poseidon2Fits`).
+  the two `WhirKey`s in the file. The whole IR must match. It prints whether
+  the key has `KeyFacts` (`keyFailure`) and whether it fits the Poseidon2
+  hash chain (`poseidon2Fits`); the toy key has neither.
 - `linear <input.json>`: the Lean side of `Linear`, the linear stage
   (`linearStage`) from the state after the early stage. The whole IR must
   match.
@@ -410,9 +410,9 @@ def main (args : List String) : IO UInt32 := do
     | .ok parsed => pure parsed
     | .error message => IO.eprintln message; return 2
   if let some key := key then
-    match CompressionLean.Final.keyFailure key with
-    | some fact => IO.println s!"key fact fails: {fact}"; return 1
-    | none => IO.println "key facts hold"
+    IO.println (match CompressionLean.Final.keyFailure key with
+      | some fact => s!"key fact fails: {fact}"
+      | none => "key facts hold")
     IO.println (if CompressionLean.Final.poseidon2Fits key then "key width fits the Poseidon2 hash chain"
       else "key width does not fit the Poseidon2 hash chain")
   match ((check mirror).run 0).run (← IO.FS.readBinFile path) with

@@ -328,7 +328,7 @@ fn workspace() -> PathBuf {
 
 /// Write `out` to `target/lean-lowering/<name>` and require `terminalCheck`
 /// to accept it with `args`.
-fn terminal_check(name: &str, out: &str, args: &[PathBuf]) {
+fn terminal_check(name: &str, out: &str, args: &[PathBuf]) -> String {
     let dir = workspace().join("target/lean-lowering");
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join(name);
@@ -347,6 +347,7 @@ fn terminal_check(name: &str, out: &str, args: &[PathBuf]) {
         "{stdout}{}",
         String::from_utf8_lossy(&output.stderr)
     );
+    stdout.into_owned()
 }
 
 /// The final program on the production key and package: the shape run of
@@ -371,5 +372,9 @@ fn final_program_matches_lean() {
         layer1.exists(),
         "run neo-spartan's production_layer1_matches_lean first"
     );
-    terminal_check("final.txt", &out, &[layer1]);
+    let stdout = terminal_check("final.txt", &out, &[layer1]);
+    assert!(
+        stdout.contains("key width fits the Poseidon2 hash chain"),
+        "the production key must fit the Poseidon2 hash chain's width: {stdout}"
+    );
 }

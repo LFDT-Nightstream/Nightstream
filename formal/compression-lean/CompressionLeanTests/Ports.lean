@@ -18,6 +18,9 @@ when `ports.json` or `STATUS.md` changes.
   `portsOutside` with the reason.
 - `STATUS.md` is what `lake exe status` prints. The page fails when a
   Prop-valued binder of a claim has no entry in `Inventory.premises`.
+- No source line cites Rust by line number (`.rs:` and then a digit), which drifts with
+  every Rust edit; a citation names the item (`file.rs::Item`). The pinned
+  crate versions in `pinnedLineCitations` keep their lines.
 -/
 
 open Lean Elab Command CompressionLeanTests.Inventory
@@ -123,5 +126,26 @@ elab "#check_status" : command => do
   unless page == (← IO.FS.readFile "STATUS.md") do
     throwError "STATUS.md is out of date: run `lake exe status > STATUS.md`"
 
+/-- The Rust citations that keep their line numbers: lines of crate versions
+that the workspace pins exactly, so they do not move. -/
+def pinnedLineCitations : List String := ["report.rs:100-111", "prescribed_pcs.rs:91-110"]
+
+/-- `line` cites a Rust line: `.rs:` and then a digit, outside `pinnedLineCitations`. -/
+def citesRustLine (line : String) : Bool :=
+  let rest := pinnedLineCitations.foldl (fun s pinned => s.replace pinned "") line
+  (rest.splitOn ".rs:").drop 1 |>.any fun after => after.toList.head?.any Char.isDigit
+
+elab "#check_citations" : command => do
+  let mut bad := #[]
+  for root in ["CompressionLean", "CompressionLeanExe", "CompressionLeanTests"] do
+    for file in ← System.FilePath.walkDir root do
+      unless file.extension == some "lean" do continue
+      for (line, k) in ((← IO.FS.readFile file).splitOn "\n").zipIdx do
+        if citesRustLine line then bad := bad.push s!"{file}:{k + 1}"
+  unless bad.isEmpty do
+    throwError "these lines cite Rust by line number, which drifts; cite the item (`file.rs::Item`):\n{bad}"
+  logInfo m!"no Rust line citations outside the pinned crates"
+
 #check_ports
 #check_status
+#check_citations

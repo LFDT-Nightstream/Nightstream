@@ -149,30 +149,48 @@ theorem tfoldlM_list {f : γ → δ → Transcript γ} (h : ∀ s x d, Appends (
       rw [List.foldlM_cons]
       exact tbind (h init x) fun s d => tfoldlM_list h l s d
 
+theorem tmapM_list {f : δ → Transcript α} (h : ∀ x d, Appends ((f x).run d)) :
+    ∀ (l : List δ) (d : Duplex), Appends ((l.mapM f).run d)
+  | [], _ => pure _
+  | x :: l, _ => by
+      rw [List.mapM_cons]
+      exact tbind (h x) fun _ _ => tbind (fun d => tmapM_list h l d) fun _ _ => tpure _ _
+
+theorem tmapM_array {f : δ → Transcript α} (h : ∀ x d, Appends ((f x).run d)) (xs : Array δ) (d : Duplex) :
+    Appends ((xs.mapM f).run d) := by
+  rw [Array.mapM_eq_mapM_toList, StateT.run_map]
+  exact map _ (tmapM_list h _ d)
+
 end Appends
+
+/-- One step of `appends`: an instance, a binder, or one bind, loop or branch
+of the program. -/
+syntax "appends_step" : tactic
+
+macro_rules
+  | `(tactic| appends_step) => `(tactic| first
+    | infer_instance
+    | intro _
+    | with_reducible refine Appends.bind ?_ ?_
+    | with_reducible refine Appends.tbind ?_ ?_
+    | with_reducible refine Appends.tlift ?_
+    | with_reducible refine Appends.map _ ?_
+    | with_reducible refine Appends.forIn_list _ _ ?_
+    | with_reducible refine Appends.forIn_array _ _ ?_
+    | with_reducible refine Appends.forIn_range _ _ ?_
+    | with_reducible refine Appends.tforIn_list _ _ ?_
+    | with_reducible refine Appends.tforIn_array _ _ ?_
+    | with_reducible refine Appends.tforIn_range _ _ ?_
+    | with_reducible refine Appends.tfoldlM_list ?_ _ _ _
+    | with_reducible refine Appends.tmapM_array ?_ _ _
+    | with_reducible refine Appends.tmapM_list ?_ _ _
+    | with_reducible refine Appends.mapM_array ?_ _
+    | with_reducible refine Appends.mapM_list ?_ _
+    | split)
 
 /-- Prove that a program appends: the instances of its instructions and
 named programs, and its binds, loops, branches and binders. -/
-syntax "appends" : tactic
-
-macro_rules
-  | `(tactic| appends) => `(tactic| first
-    | infer_instance
-    | (intro _; appends)
-    | (with_reducible refine Appends.bind ?_ ?_) <;> appends
-    | (with_reducible refine Appends.tbind ?_ ?_) <;> appends
-    | (with_reducible refine Appends.tlift ?_); appends
-    | (with_reducible refine Appends.map _ ?_); appends
-    | (with_reducible refine Appends.forIn_list _ _ ?_); appends
-    | (with_reducible refine Appends.forIn_array _ _ ?_); appends
-    | (with_reducible refine Appends.forIn_range _ _ ?_); appends
-    | (with_reducible refine Appends.tforIn_list _ _ ?_); appends
-    | (with_reducible refine Appends.tforIn_array _ _ ?_); appends
-    | (with_reducible refine Appends.tforIn_range _ _ ?_); appends
-    | (with_reducible refine Appends.tfoldlM_list ?_ _ _ _); appends
-    | (with_reducible refine Appends.mapM_array ?_ _); appends
-    | (with_reducible refine Appends.mapM_list ?_ _); appends
-    | split <;> appends)
+macro "appends" : tactic => `(tactic| ((repeat' appends_step); done))
 
 /-! The instructions and the builder's combinations (`Ir.lean`). -/
 

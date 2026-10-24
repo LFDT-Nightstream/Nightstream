@@ -2,6 +2,7 @@ import CompressionLean.Final.Encodes
 import CompressionLean.Final.ParentClaim
 import CompressionLean.Final.KeyFacts
 import CompressionLean.Final.RustSetup
+import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
 /-!
 Owns the claims of the library: the production bound, and the theorems that
@@ -11,11 +12,14 @@ its proof is in the library.
 - `production_bound`: the soundness bound of `CompressionKey::verify` for the
   production final program, for the relation of an application of any logical
   width `lw`. It takes `ParentShape` at `lw`.
+- `poseidon2_bound`: `production_bound` for F′'s relation of the Poseidon2
+  hash-chain application, the application of the production key. It takes
+  `WidthFits` in place of `ParentShape`.
 - `honest_setup_of_build`: the honest setup from Rust's setup build and
   `RunsGive`.
-- `key_facts_of_check`, `package_templates_of_check`: a key or a terminal
-  package that passes the check of `lowerCheck` and `terminalCheck` has the
-  premise that the check decides.
+- `key_facts_of_check`, `width_fits_of_check`, `package_templates_of_check`:
+  a key or a terminal package that passes the check of `lowerCheck` and
+  `terminalCheck` has the premise that the check decides.
 
 `CompressionLeanTests/Axioms.lean` pins the axioms of exactly these theorems.
 `STATUS.md` lists the named premises of each claim and how each one is met;
@@ -85,6 +89,52 @@ theorem production_bound {lw : ℕ}
     (prog_valid key loaded context) authority (Reads key loaded context S L0 L1)
     (programEncodes S facts fits describes L0 L1 loads valid hctx) calls prover
 
+/-- **The production bound for the Poseidon2 hash chain**: `production_bound`
+for F′'s relation of `Poseidon2HashChainV1Package.application`, at its
+logical width of 43,963,750 columns. The production key is of this
+application. `KeyFacts` and `WidthFits` give `ParentShape`
+(`parentShape_of`). -/
+theorem poseidon2_bound (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl)
+    (authority : Lifecycle.VerifierContext.Authority) (S : Layer1.Setup Gl)
+    (ajtai : PaperAlgebra.AjtaiKey
+      (logicalWidth := PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
+      (publicFits := PerApplicationFixedPoint.publicFits Poseidon2HashChainV1Package.application))
+    (barEq : ∀ p l : Fin ringDegree, barOf p l = gl (nativeBarEntry p l))
+    (honest : HonestSetup (shapeOf key.relation) S
+      (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits)
+      ajtai)
+    (facts : KeyFacts key) (width : WidthFits key
+      (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application))
+    (fits : S.Fits (shapeOf key.relation))
+    (describes : (structureOf key.relation.key.layout).Describes (shapeOf key.relation) S)
+    (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (t Ls : ℕ)
+    (p0 : (L0 : ℝ) * L1 * Layer1.rustDegrees (shapeOf key.relation) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1))
+    (p1 : (L1 : ℝ) * (1 / 2) ^ ((shapeOf key.relation).queries - 1) ≤ 1 / 2 ^ (t + 1))
+    (rust : (Ls : ℝ) * Shrink.rustDegrees (Shrink.Layout.rowVars Circuit.Block.poseidonTemplate
+        (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts)
+        (Shrink.Layout.cellVars Circuit.Block.poseidonTemplate
+        (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts) / 2 ^ 191 ≤ 1 / 2 ^ t)
+    (N : ℕ) (sizes : (shapeOf key.relation).Sizes N) (small : N ≤ goldilocksModulus)
+    (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
+    (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
+    (hctx : ∀ lane : Fin 4,
+      Circuit.word (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0)
+    (calls : ℕ) (prover : Layer1.Game.Strategy (RestoreOutcome Gl Cubic (game key.relation S L0 L1))) :
+    Layer1.Game.prob prover
+        (restorePair (Shrink.shrinkGame (F := Gl) Circuit.Block.poseidonTemplate
+          (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts (prog key loaded context) Ls)
+          (game key.relation S L0 L1) calls [] [])
+        (FinalRestoreBreak (F := Gl)
+          (ParentClaim (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
+            Poseidon2HashChainV1Package.fits) ajtai authority)
+          Circuit.Block.poseidonTemplate
+          (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts (prog key loaded context)
+          (game key.relation S L0 L1) (Reads key loaded context S L0 L1)) ≤
+      calls / 2 ^ t :=
+  production_bound key loaded context authority S _ ajtai
+    (parentShape_of _ _ rfl rfl facts.kappa facts.matrices facts.blocks width facts.norm) barEq honest facts fits
+    describes L0 L1 h0 h1 t Ls p0 p1 rust N sizes small loads valid hctx calls prover
+
 /-- **The honest setup from the build** (`neo_spartan::Setup::build`). A setup
 that `build` returns for the seed of an Ajtai setup, from runs that give F′'s
 matrices (`RunsGive`), is an honest setup for that setup's key. -/
@@ -103,6 +153,14 @@ theorem honest_setup_of_build {lw : ℕ}
 check has `KeyFacts`. -/
 theorem key_facts_of_check {key : Layer1Input} (pass : keyFailure key = none) : KeyFacts key :=
   keyFacts_of_check pass
+
+/-- **The width check** of `lowerCheck` and `terminalCheck`: a key for which
+they print that it fits the Poseidon2 hash chain (`poseidon2Fits`) has the
+blocks of that application. -/
+theorem width_fits_of_check {key : Layer1Input} (pass : poseidon2Fits key = true) :
+    WidthFits key (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application) := by
+  rw [Poseidon2HashChainV1Package.logicalWidth]
+  exact of_decide_eq_true pass
 
 /-- **The package check** of `terminalCheck`: a package whose compact row
 invocations all name a template has `CompactTemplatesValid`. -/

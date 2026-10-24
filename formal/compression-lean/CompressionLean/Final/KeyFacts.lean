@@ -4,9 +4,10 @@ import CompressionLean.Bridge.Honest
 
 /-!
 Owns the facts about the layer-1 key that the final theorems assume
-(`KeyFacts`), and their check on a key (`keyFailure`, `keyFacts_of_check`).
-The production key is read at run time, so `lowerCheck layer1` and
-`terminalCheck` run the check on the key that they read.
+(`KeyFacts`, `WidthFits`), and their check on a key (`keyFailure`,
+`poseidon2Fits`). The production key is read at run time, so
+`lowerCheck layer1` and `terminalCheck` run the check on the key that they
+read.
 -/
 
 namespace CompressionLean.Final
@@ -17,7 +18,8 @@ open CompressionLean.Bridge (EvalKBits HonestSizes shapeOf structureOf)
 /-- The facts about the layer-1 key that the final theorems assume. Rust's
 `Structure::check` (`neo-spartan/src/matrix.rs:142`) enforces `short` and
 `checked`. `Relation::new` (`neo-spartan/src/lib.rs:334`) enforces `high`,
-and `publicFits` through `public_blocks ≤ blocks`. -/
+and `publicFits` through `public_blocks ≤ blocks`. `norm` is PiRLC's guard
+bound (`compression_bound`, `nightstream/src/lifecycle/finish.rs`). -/
 structure KeyFacts (key : Layer1Input) : Prop where
   run : key.relation.key.layout.runVariables ≠ 0
   row : key.relation.key.layout.rowVariables ≠ 0
@@ -41,6 +43,7 @@ structure KeyFacts (key : Layer1Input) : Prop where
   sizes : HonestSizes key.relation
   high : key.relation.setupVars + 1 ≤ 32
   checked : (structureOf key.relation.key.layout).Checked (shapeOf key.relation)
+  norm : key.relation.normBound = 3672
 
 /-- Each fact of `KeyFacts` by name, decided on `key`. -/
 def keyChecks (key : Layer1Input) : List (String × Bool) :=
@@ -75,7 +78,8 @@ def keyChecks (key : Layer1Input) : List (String × Bool) :=
       (∀ i, i < s.segments - 1 → s.segmentFirst i < s.segmentFirst (i + 1)) ∧
       (0 < s.segments → s.segmentFirst (s.segments - 1) < s.slots) ∧
       (∀ i, i < s.segments → s.segmentClass i < s.classes) ∧
-      ∀ c, c < s.classes → 1 ≤ s.classLength c))]
+      ∀ c, c < s.classes → 1 ≤ s.classLength c)),
+    ("norm", decide (rel.normBound = 3672))]
 
 /-- The name of the first fact of `KeyFacts` that `key` fails. -/
 def keyFailure (key : Layer1Input) : Option String :=
@@ -89,12 +93,31 @@ theorem keyFacts_of_check {key : Layer1Input} (pass : keyFailure key = none) : K
     decide_eq_true_eq] at all
   obtain ⟨run, row, slot, kappa, blocks, point, matrices, root, short, k1, k0, p1, p1count, p0, rowFits,
     matricesFit, ⟨deep, long, blocks_le, fits, strict⟩, publicFits, ⟨bounds, setup⟩, high,
-    ⟨run_zero, run_mono, segment_zero, segment_mono, segment_last, class_named, length_pos⟩⟩ := all
+    ⟨run_zero, run_mono, segment_zero, segment_mono, segment_last, class_named, length_pos⟩, norm⟩ := all
   refine ⟨run, row, slot, kappa, blocks, point, matrices, root, short, k1, k0, p1, p1count, p0, rowFits,
     matricesFit, ⟨deep, long, blocks_le, fits, strict⟩, publicFits, ⟨bounds, setup⟩, high,
     ⟨run_zero, run_mono, segment_zero, fun i lt => segment_mono i (by omega), fun i last => ?_, class_named,
-      length_pos⟩⟩
+      length_pos⟩, norm⟩
   rw [show i = (structureOf key.relation.key.layout).segments - 1 by omega]
   exact segment_last (by omega)
+
+/-- The key has the `⌈lw / 54⌉` blocks of an application of logical width
+`lw` (`Key::derive`, `neo-spartan/src/lib.rs`). Unlike `KeyFacts`, this fact
+names one application, so a key of another application, such as the toy key
+of `lowering_matches_lean`, fails it. -/
+def WidthFits (key : Layer1Input) (lw : ℕ) : Prop :=
+  key.relation.key.blocks = (lw + 53) / 54
+
+instance (key : Layer1Input) (lw : ℕ) : Decidable (WidthFits key lw) :=
+  inferInstanceAs (Decidable (_ = _))
+
+/-- The logical width of the Poseidon2 hash-chain application, the
+application of the production key (F′'s
+`Poseidon2HashChainV1Package.logicalWidth`). -/
+def poseidon2Width : ℕ := 43963750
+
+/-- `WidthFits` at `poseidon2Width`, decided on `key`. -/
+def poseidon2Fits (key : Layer1Input) : Bool :=
+  decide (WidthFits key poseidon2Width)
 
 end CompressionLean.Final

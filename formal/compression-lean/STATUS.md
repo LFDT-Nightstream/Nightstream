@@ -9,8 +9,10 @@ Each claim of `CompressionLean/Claims.lean`, the axioms that it uses and the nam
 | Claim | Axioms | Premises |
 |---|---|---|
 | `CompressionLean.Claims.production_bound` | `propext`, `Classical.choice`, `Quot.sound` | `CompressionLean.Final.KeyFacts`, `CompressionLean.Circuit.Package.load`, `NightstreamFPrime.Export.Package.CircuitPackage.CompactTemplatesValid`, `CompressionLean.Final.HonestSetup`, `CompressionLean.Final.ParentShape`, `CompressionLean.Layer1.Shape.Sizes`, `CompressionLean.Layer1.Setup.Fits`, `CompressionLean.Layer1.Structure.Describes` |
+| `CompressionLean.Claims.poseidon2_bound` | `propext`, `Classical.choice`, `Quot.sound` | `CompressionLean.Final.KeyFacts`, `CompressionLean.Final.WidthFits`, `CompressionLean.Circuit.Package.load`, `NightstreamFPrime.Export.Package.CircuitPackage.CompactTemplatesValid`, `CompressionLean.Final.HonestSetup`, `CompressionLean.Layer1.Shape.Sizes`, `CompressionLean.Layer1.Setup.Fits`, `CompressionLean.Layer1.Structure.Describes` |
 | `CompressionLean.Claims.honest_setup_of_build` | `propext`, `Classical.choice`, `Quot.sound` | `CompressionLean.Final.RunsGive` |
 | `CompressionLean.Claims.key_facts_of_check` | `propext`, `Classical.choice`, `Quot.sound` |  |
+| `CompressionLean.Claims.width_fits_of_check` | `propext`, `Classical.choice`, `Quot.sound` |  |
 | `CompressionLean.Claims.package_templates_of_check` | `propext`, `Quot.sound` |  |
 
 ## Premises
@@ -20,11 +22,12 @@ How each named premise of a claim is met.
 | Premise | How it is met |
 |---|---|
 | `CompressionLean.Final.KeyFacts` | Checked on the production key by `lowerCheck` and `terminalCheck` (`key_facts_of_check`). |
+| `CompressionLean.Final.WidthFits` | Checked on the production key by `lowerCheck` and `terminalCheck`, which print whether the key fits the Poseidon2 hash chain (`width_fits_of_check`). |
 | `CompressionLean.Circuit.Package.load` | `terminalCheck` loads the terminal package and stops when the load fails. |
 | `NightstreamFPrime.Export.Package.CircuitPackage.CompactTemplatesValid` | Checked on the terminal package by `terminalCheck` (`package_templates_of_check`). |
 | `CompressionLean.Final.HonestSetup` | From Rust's setup build and `RunsGive` (`honest_setup_of_build`). |
 | `CompressionLean.Final.RunsGive` | Open: no Lean proof and no check. |
-| `CompressionLean.Final.ParentShape` | Open: it fixes F′'s reference width, which no application has; the production key does not meet it. |
+| `CompressionLean.Final.ParentShape` | From `KeyFacts` and `WidthFits` for the Poseidon2 hash chain (`parentShape_of`, in `poseidon2_bound`). Open for other applications. |
 | `CompressionLean.Layer1.Shape.Sizes` | Open: sizes of the key's shape that `KeyFacts` does not check. |
 | `CompressionLean.Layer1.Setup.Fits` | Open: a fact of the setup that Rust builds. |
 | `CompressionLean.Layer1.Structure.Describes` | Open: a fact of the setup that Rust builds. |

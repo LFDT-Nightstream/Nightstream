@@ -204,8 +204,14 @@ The shrink layer assumes, and does not prove:
   `final_restore_budget_parent` for the production final program
   (`Final/Encodes.lean`), where `programEncodes` gives the encoding. Its
   other premises are facts about the key (`KeyFacts`), the terminal package
-  and the setup. It is stated at F′'s reference width, which no application
-  has, so it does not cover the production key yet (`TRUST.md`).
+  and the setup. It holds for the relation of an application of any logical
+  width `lw`, with `ParentShape` at `lw`. The terminal package is the same at
+  every width: F′'s row builders take the width but do not use it
+  (`arithmeticRows_at`, `permutationInvocations_at`). `poseidon2_bound` is
+  `production_bound` for F′'s relation of the Poseidon2 hash-chain
+  application, the production key's, at 43,963,750 columns. There,
+  `KeyFacts` and the key's block count (`WidthFits`, 814,144 blocks) give
+  `ParentShape`.
   `Claims.lean` holds the library's claims; `STATUS.md` lists each claim's
   premises and how each one is met.
 
@@ -264,12 +270,13 @@ The chain takes these premises:
   the run matrices, the slot lengths, ratios and lanes, and their order.
 - Shape (`ParentShape`): `parentShape_of` gives it from Rust's sizes for
   `Relation::new`: `D = 54`, six lane variables, `κ = 22`, four matrices,
-  five public blocks, the carrier's blocks and the norm bound
+  five public blocks, the carrier's `⌈lw / 54⌉` blocks and the norm bound
   `H = 17·216·(b - 1) = 3672` (`compression_bound`). `H` is below
   `B = 2^16`, so layer 1's norm check gives F′'s. The Rust tests
   `relation_shape_has_the_lean_constants` (`neo-spartan`) and
   `parent_relation_arguments_are_the_lean_constants` (`nightstream`) pin
-  these numbers.
+  these numbers. `KeyFacts` checks `κ`, the matrices, the public blocks and
+  `H` on a key; `WidthFits` checks the blocks for one application.
 - Ring: `Φ` is `Φ81 = X^54 + X^27 + 1`, and `bar` is F′'s closed-form bar
   transform (`nativeBarEntry`). Only the manual test
   `neo-math/tests/phi81_bar_lean_parity.rs` compares Rust's runtime bar

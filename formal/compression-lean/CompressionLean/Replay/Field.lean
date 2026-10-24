@@ -1,8 +1,8 @@
 import NightstreamFPrime.Export.NativePoseidon2
 
 /-!
-Owns the replay's arithmetic: canonical Goldilocks words (`Gl`), the
-layer-1 challenge field `Ext = Gl[X]/(X³ - X - 1)` (Plonky3's
+Owns the replay's arithmetic: canonical Goldilocks words (`Word`), the
+layer-1 challenge field `Ext = Word[X]/(X³ - X - 1)` (Plonky3's
 `CubicTrinomialExtensionField`, `crates/neo-spartan/src/field.rs`) and
 `Kx = Ext[u]/(u² - 7)`, the `K ⊗ Ext` values of `circuit/algebra.rs`.
 
@@ -17,26 +17,26 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Export.NativePoseidon2
 
 /-- A canonical Goldilocks word. -/
-structure Gl where
+structure Word where
   word : UInt64
   canonical : word.toNat < goldilocksModulus
 
-namespace Gl
+namespace Word
 
-def ofNat (n : Nat) : Gl := ⟨ofNat64 n, ofNat64_canonical n⟩
+def ofNat (n : Nat) : Word := ⟨ofNat64 n, ofNat64_canonical n⟩
 
-instance (n : Nat) : OfNat Gl n := ⟨ofNat n⟩
-instance : Inhabited Gl := ⟨0⟩
-instance : Add Gl := ⟨fun a b => ⟨add64 a.word b.word, add64_canonical _ _ a.canonical b.canonical⟩⟩
-instance : Sub Gl := ⟨fun a b => ⟨sub64 a.word b.word, sub64_canonical _ _ a.canonical b.canonical⟩⟩
-instance : Mul Gl := ⟨fun a b => ⟨mul64 a.word b.word, mul64_canonical _ _⟩⟩
-instance : Neg Gl := ⟨fun a => 0 - a⟩
-instance : BEq Gl := ⟨fun a b => a.word == b.word⟩
+instance (n : Nat) : OfNat Word n := ⟨ofNat n⟩
+instance : Inhabited Word := ⟨0⟩
+instance : Add Word := ⟨fun a b => ⟨add64 a.word b.word, add64_canonical _ _ a.canonical b.canonical⟩⟩
+instance : Sub Word := ⟨fun a b => ⟨sub64 a.word b.word, sub64_canonical _ _ a.canonical b.canonical⟩⟩
+instance : Mul Word := ⟨fun a b => ⟨mul64 a.word b.word, mul64_canonical _ _⟩⟩
+instance : Neg Word := ⟨fun a => 0 - a⟩
+instance : BEq Word := ⟨fun a b => a.word == b.word⟩
 
-def toNat (a : Gl) : Nat := a.word.toNat
+def toNat (a : Word) : Nat := a.word.toNat
 
 /-- `a^e` by squaring. -/
-def pow (a : Gl) (e : Nat) : Gl :=
+def pow (a : Word) (e : Nat) : Word :=
   if e = 0 then 1
   else
     let half := pow (a * a) (e / 2)
@@ -45,31 +45,31 @@ termination_by e
 decreasing_by omega
 
 /-- The inverse by Fermat; zero maps to zero. -/
-def inv (a : Gl) : Gl := a.pow (goldilocksModulus - 2)
+def inv (a : Word) : Word := a.pow (goldilocksModulus - 2)
 
-end Gl
+end Word
 
 /-- Plonky3's `Goldilocks::GENERATOR`. -/
-def generator : Gl := 7
+def generator : Word := 7
 
 /-- Plonky3's `two_adic_generator(bits)` for `bits ≤ 32`: the table entry 32
 squared `32 - bits` times. -/
-def twoAdicGenerator (bits : Nat) : Gl :=
-  (List.range (32 - bits)).foldl (fun g _ => g * g) (Gl.ofNat 0x185629dcda58878c)
+def twoAdicGenerator (bits : Nat) : Word :=
+  (List.range (32 - bits)).foldl (fun g _ => g * g) (Word.ofNat 0x185629dcda58878c)
 
 /-- `a₀ + a₁·X + a₂·X²` with `X³ = X + 1`. -/
 structure Ext where
-  c0 : Gl
-  c1 : Gl
-  c2 : Gl
+  c0 : Word
+  c1 : Word
+  c2 : Word
 deriving Inhabited
 
 namespace Ext
 
 /-- A base value in the extension (`algebra::lift`). -/
-def ofGl (a : Gl) : Ext := ⟨a, 0, 0⟩
+def ofGl (a : Word) : Ext := ⟨a, 0, 0⟩
 
-instance (n : Nat) : OfNat Ext n := ⟨ofGl (Gl.ofNat n)⟩
+instance (n : Nat) : OfNat Ext n := ⟨ofGl (Word.ofNat n)⟩
 instance : Add Ext := ⟨fun a b => ⟨a.c0 + b.c0, a.c1 + b.c1, a.c2 + b.c2⟩⟩
 instance : Sub Ext := ⟨fun a b => ⟨a.c0 - b.c0, a.c1 - b.c1, a.c2 - b.c2⟩⟩
 instance : Neg Ext := ⟨fun a => 0 - a⟩
@@ -82,7 +82,7 @@ instance : Mul Ext := ⟨fun a b =>
   ⟨a.c0 * b.c0 + d3, a.c0 * b.c1 + a.c1 * b.c0 + d3 + d4, a.c0 * b.c2 + a.c1 * b.c1 + a.c2 * b.c0 + d4⟩⟩
 
 /-- `a·by` for a base value (`Backend::ext_scale`). -/
-def scale (a : Ext) (by_ : Gl) : Ext := ⟨a.c0 * by_, a.c1 * by_, a.c2 * by_⟩
+def scale (a : Ext) (by_ : Word) : Ext := ⟨a.c0 * by_, a.c1 * by_, a.c2 * by_⟩
 
 def isZero (a : Ext) : Bool := a == 0
 
@@ -115,7 +115,7 @@ def zero : Kx := ⟨0, 0⟩
 def one : Kx := ⟨1, 0⟩
 
 /-- A `K` value `[re, im]` (`Kx::from_k`). -/
-def ofK (value : Gl × Gl) : Kx := ⟨Ext.ofGl value.1, Ext.ofGl value.2⟩
+def ofK (value : Word × Word) : Kx := ⟨Ext.ofGl value.1, Ext.ofGl value.2⟩
 
 def add (a b : Kx) : Kx := ⟨a.re + b.re, a.im + b.im⟩
 

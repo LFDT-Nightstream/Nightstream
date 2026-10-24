@@ -28,7 +28,7 @@ Does not own layer 1 or the meaning of the rows (`Terminal/Soundness.lean`).
 namespace CompressionLean.Circuit.Terminal
 
 open CompressionLean.Circuit.Package
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 open NightstreamFPrime.Circuit (Env Expr)
 open NightstreamFPrime.Layout
 open Fin.CommRing
@@ -47,7 +47,7 @@ def ReadsStatement (c : Ctx NightstreamFPrime.Spec.F) : Prop := ∀ k : Fin 9, c
 def statementHandles : Build (Array Var) := (Array.range statementWords).mapM fun _ => Build.pub
 
 /-- The iteration check, then `Package::apply` (`terminal/mod.rs:60-72`). -/
-def checkedApply (package : Loaded) (context : Array Gl) (statement : Array Var) :
+def checkedApply (package : Loaded) (context : Array Word) (statement : Array Var) :
     Build (ClaimVars × (Fin 16 → Var)) := do
   let inverse ← Build.emit (.hint 1)
   let product ← Build.mul (statement.getD 0 0) inverse
@@ -56,12 +56,12 @@ def checkedApply (package : Loaded) (context : Array Gl) (statement : Array Var)
   apply package statement context
 
 /-- `FinalProgram::run` up to `verify_with` (`terminal/mod.rs:54-72`). -/
-def terminalPrefix (package : Loaded) (context : Array Gl) : Build (ClaimVars × (Fin 16 → Var)) :=
+def terminalPrefix (package : Loaded) (context : Array Word) : Build (ClaimVars × (Fin 16 → Var)) :=
   statementHandles >>= checkedApply package context
 
 /-- `FinalProgram::run` is `terminalPrefix`, then `verify_with`
 (`terminal/mod.rs:73-79`). -/
-theorem finalProgram_eq {α : Type} (package : Loaded) (context : Array Gl)
+theorem finalProgram_eq {α : Type} (package : Loaded) (context : Array Word)
     (layer1 : ClaimVars → (Fin 16 → Var) → Build α) :
     finalProgram package context layer1 = terminalPrefix package context >>= fun r => layer1 r.1 r.2 :=
   rfl
@@ -123,7 +123,7 @@ end
 handle below `m`. The one column holds one, a public context column its
 context word, and a statement column of the prior preimage its statement
 handle. -/
-private def ColumnHolds (c : Ctx NightstreamFPrime.Spec.F) (statement : Array Var) (context : Array Gl) (src : Source)
+private def ColumnHolds (c : Ctx NightstreamFPrime.Spec.F) (statement : Array Var) (context : Array Word) (src : Source)
     (h : Var) (m : ℕ) : Prop :=
   h < m ∧ match src with
     | .one => c.val h = 1
@@ -133,7 +133,7 @@ private def ColumnHolds (c : Ctx NightstreamFPrime.Spec.F) (statement : Array Va
     | .computed _ => True
 
 /-- A column handle stays below a larger count (`terminal/package.rs:197-218`). -/
-private theorem ColumnHolds.mono {c : Ctx NightstreamFPrime.Spec.F} {statement : Array Var} {context : Array Gl}
+private theorem ColumnHolds.mono {c : Ctx NightstreamFPrime.Spec.F} {statement : Array Var} {context : Array Word}
     {src : Source} {h : Var} {m m' : ℕ} (hold : ColumnHolds c statement context src h m) (le : m ≤ m') :
     ColumnHolds c statement context src h m' :=
   ⟨lt_of_lt_of_le hold.1 le, hold.2⟩
@@ -143,7 +143,7 @@ section
 variable {c : Ctx NightstreamFPrime.Spec.F} {n : ℕ} {P : Prop}
 
 /-- `column`, simulated (`terminal/package.rs:200-217`). -/
-private theorem column_sim (statement : Array Var) (context : Array Gl) (computed : Var) (src : Source)
+private theorem column_sim (statement : Array Var) (context : Array Word) (computed : Var) (src : Source)
     (hs : P → ∀ j, statement.getD j 0 < n) (hc : P → ∀ i, src = .computed i → computed + i < n) :
     Sim c n P (column statement context computed src) (ColumnHolds c statement context src) True := by
   have chunk : NightstreamFPrime.Lifecycle.stateDomainChunk.length ≤ contextStart := by
@@ -310,7 +310,7 @@ private theorem pairs_flatten {xs : Array Var} (dvd : 2 ∣ xs.size) : pairHandl
 column, the context words on the public context columns, the statement words
 on the statement columns of the prior preimage, and zero elsewhere
 (`terminal/package.rs:197-218`). -/
-private def unnamed (c : Ctx NightstreamFPrime.Spec.F) (context : Array Gl) (pc : ℕ) : NightstreamFPrime.Spec.F :=
+private def unnamed (c : Ctx NightstreamFPrime.Spec.F) (context : Array Word) (pc : ℕ) : NightstreamFPrime.Spec.F :=
   if pc = Stage1.Spartan.privateColumnCount then 1
   else if Stage1.Spartan.expectedContextPublicStart ≤ pc then
     word (context.getD (pc - Stage1.Spartan.expectedContextPublicStart) 0)
@@ -319,13 +319,13 @@ private def unnamed (c : Ctx NightstreamFPrime.Spec.F) (context : Array Gl) (pc 
 
 /-- The package assignment of a run: a named column holds the value of its
 system column (`assignment`, `terminal/package.rs:197-219`). -/
-private def terminalEnv (c : Ctx NightstreamFPrime.Spec.F) (context : Array Gl) (columns : Array Var) : Env :=
+private def terminalEnv (c : Ctx NightstreamFPrime.Spec.F) (context : Array Word) (columns : Array Var) : Env :=
   assignment (numbering (CompressionLean.Terminal.circuitPackage ())).1 (fun j => (columns.toList.map c.val).getD j 0)
     (unnamed c context)
 
 section Assignment
 
-variable {c : Ctx NightstreamFPrime.Spec.F} {statement : Array Var} {context : Array Gl} {columns : Array Var}
+variable {c : Ctx NightstreamFPrime.Spec.F} {statement : Array Var} {context : Array Word} {columns : Array Var}
   {m : ℕ} {loaded : Loaded}
 
 /-- A computed source names a hint output (`Source::Computed`,
@@ -546,7 +546,7 @@ private theorem state_list {columns : Array Var} {ks : Array ℕ} (size : ks.siz
 
 section Program
 
-variable {c : Ctx NightstreamFPrime.Spec.F} {P : Prop} {loaded : Loaded} {context : Array Gl}
+variable {c : Ctx NightstreamFPrime.Spec.F} {P : Prop} {loaded : Loaded} {context : Array Word}
   {authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority}
 
 /-- `Package::apply`, simulated (`terminal/package.rs:185-243`). -/
@@ -638,7 +638,7 @@ theorem checkedApply_ensures
   obtain ⟨⟨⟨⟨hP', -⟩, -⟩, -⟩, -, one⟩ := h
   obtain ⟨hstmt, le, reads⟩ := hP hP'
   refine ⟨hstmt, by omega, reads, fun zero0 => ?_⟩
-  have := congrArg (word : Gl → NightstreamFPrime.Spec.F) one
+  have := congrArg (word : Word → NightstreamFPrime.Spec.F) one
   rw [word_mul, word_word, word_word, word_one, zero hP', show c.val 0 = statementOf c 0 from reads 0, zero0,
     zero_mul] at this
   exact absurd this (by decide)

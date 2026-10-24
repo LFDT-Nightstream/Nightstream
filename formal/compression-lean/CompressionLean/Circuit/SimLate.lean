@@ -20,7 +20,7 @@ replay's GKR run gives these sizes.
 namespace CompressionLean.Circuit
 
 open CompressionLean.Lib
-open CompressionLean.Replay (Gl Ext Relation TreeShape D Runs runs_bind runs_pure runs_sampleExt
+open CompressionLean.Replay (Word Ext Relation TreeShape D Runs runs_bind runs_pure runs_sampleExt
   runs_observeExts runs_liftExcept)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
@@ -44,7 +44,7 @@ section Lanes
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
 
-private theorem laneSplit_sim {tau : Array ExtVar} {gtau : Array Ext} {length : ℕ} (ratio : Gl)
+private theorem laneSplit_sim {tau : Array ExtVar} {gtau : Array Ext} {length : ℕ} (ratio : Word)
     (ht : P → IsExts c n tau gtau) (size : P → gtau.size = D) (short : length ≤ D) :
     Sim c n P (Mle.laneSplit tau length ratio)
       (fun r m => IsExts c m r.1 (Replay.laneSplit gtau length ratio).1 ∧
@@ -112,7 +112,7 @@ private theorem laneSplit_sim {tau : Array ExtVar} {gtau : Array Ext} {length : 
     (((Sim.loop₀ (I := fun k s m => s.1.size = D ∧ (∀ i < k, IsExt c m s.1[i]! (S (i + 1))) ∧
       IsExt c m s.2.1 (S k) ∧ s.2.2 = ratio.pow k) fun k hk s m lm => ?_).post (fun h _ _ q => ?_)
       fun _ => Iff.rfl).pre fun h => ⟨h, by simp, fun i hi => absurd hi (by omega), h.2,
-      Gl.eq_of_toF (by rw [Gl.toF_pow, pow_zero, Gl.toF_one])⟩)
+      Word.eq_of_toF (by rw [Word.toF_pow, pow_zero, Word.toF_one])⟩)
     fun sums m₃ l₃ => ?_
   · have hk' : k < tau.size := by simpa using hk
     rw [show tau.zipIdx[k] = (tau[k]!, k) by simp [getElem!_pos, hk']]
@@ -129,7 +129,7 @@ private theorem laneSplit_sim {tau : Array ExtVar} {gtau : Array Ext} {length : 
     refine ⟨rfl, by simp [hs], fun i hi => ?_, next ▸ hacc, by
       show s.2.2 * ratio = ratio.pow (k + 1)
       rw [hpow]
-      exact Gl.eq_of_toF (by rw [Gl.toF_mul, Gl.toF_pow, Gl.toF_pow, pow_succ])⟩
+      exact Word.eq_of_toF (by rw [Word.toF_mul, Word.toF_pow, Word.toF_pow, pow_succ])⟩
     show IsExt c m₅ (s.1.set! k acc')[i]! (S (i + 1))
     rw [getElem!_set! _ _ _ _ (by omega)]
     split_ifs with same

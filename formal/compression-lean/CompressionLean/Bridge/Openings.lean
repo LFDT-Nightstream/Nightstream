@@ -170,14 +170,14 @@ theorem powerPoint_eq_map (x : K) (m : ℕ) : powerPoint x m = (List.range m).ma
 theorem pointK_leafQueryPoint (n index : ℕ) (inside : index < 2 ^ (n - 2)) (low : 2 ≤ n) :
     pointK (K := K) (leafQueryPoint n index) = powerPoint (ι (queryPoint n index)) (n - 3) := by
   have bits : n + 1 - foldVars = n - 2 := by simp only [foldVars]; omega
-  have seven : generator.toF = 7 := Gl.toF_lit 7
+  have seven : generator.toF = 7 := Word.toF_lit 7
   have value : (powerFromBits (twoAdicGenerator (n + 1 - foldVars)) index (n + 1 - foldVars) *
       generator.pow (2 ^ foldVars)).toF = queryPoint n index := by
-    rw [Gl.toF_mul, toF_powerFromBits, Gl.toF_pow, toF_twoAdicGenerator, seven, bits, Nat.mod_eq_of_lt inside,
+    rw [Word.toF_mul, toF_powerFromBits, Word.toF_pow, toF_twoAdicGenerator, seven, bits, Nat.mod_eq_of_lt inside,
       queryPoint, show (2 : ℕ) ^ foldVars = 8 from rfl]
     ring
   rw [powerPoint_eq_map]
-  simp only [leafQueryPoint, pointK, List.toList_toArray, List.map_map, Function.comp_def, Ext.toK_ofGl, Gl.toF_pow,
+  simp only [leafQueryPoint, pointK, List.toList_toArray, List.map_map, Function.comp_def, Ext.toK_ofGl, Word.toF_pow,
     value, map_pow]
   rfl
 

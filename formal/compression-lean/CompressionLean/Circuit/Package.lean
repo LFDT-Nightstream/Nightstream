@@ -29,10 +29,10 @@ open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Layout
 open CompressionLean.Shrink (R1csRow)
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 
 /-- A word of F′'s field as a canonical Goldilocks word. -/
-def word (value : NightstreamFPrime.Spec.F) : Gl := Gl.ofNat value.val
+def word (value : NightstreamFPrime.Spec.F) : Word := Word.ofNat value.val
 
 /-- Sum the coefficients of adjacent equal columns. -/
 def collect : List (ℕ × NightstreamFPrime.Spec.F) → List (ℕ × NightstreamFPrime.Spec.F)
@@ -42,12 +42,12 @@ def collect : List (ℕ × NightstreamFPrime.Spec.F) → List (ℕ × Nightstrea
 termination_by terms => terms.length
 
 /-- One side as `finish_row` writes it. -/
-def side (constantColumn : ℕ) (combination : R1CS.LinearCombination) : List (ℕ × Gl) :=
+def side (constantColumn : ℕ) (combination : R1CS.LinearCombination) : List (ℕ × Word) :=
   let terms := ((constantColumn, combination.constant) :: combination.terms).filter (·.2 ≠ 0)
   (collect (terms.mergeSort fun x y => x.1 ≤ y.1)).filterMap fun (c, x) =>
     if x = 0 then none else some (c, word x)
 
-def row (constantColumn : ℕ) (r : R1CS.Row) : R1csRow Gl :=
+def row (constantColumn : ℕ) (r : R1CS.Row) : R1csRow Word :=
   ⟨side constantColumn r.a, side constantColumn r.b, side constantColumn r.c⟩
 
 /-- One producer of rows (`ScheduledWitness`,
@@ -83,7 +83,7 @@ def schedule (package : CircuitPackage) : List Producer :=
 
 /-- The package rows in schedule order, over package columns
 (`expand_matrix` with `Placement::Ordered`). -/
-def orderedRows (package : CircuitPackage) : Array (R1csRow Gl) := Id.run do
+def orderedRows (package : CircuitPackage) : Array (R1csRow Word) := Id.run do
   let constant := package.layout.constantColumn
   let mut out := #[]
   let mut assertions := package.assertionRows
@@ -139,7 +139,7 @@ structure OutputColumns where
 /-- The package as `apply` reads it (`Package`, `package.rs:54-62`). -/
 structure Loaded where
   /-- The rows over system columns. -/
-  system : Array (R1csRow Gl)
+  system : Array (R1csRow Word)
   sources : Array Source
   /-- The package column of each computed value, in hint order. -/
   computed : Array ℕ
@@ -159,11 +159,11 @@ def outputColumns (layout : PhysicalLayout) (index : Array (Option ℕ))
     | _ => throw "terminal output expression"
 
 /-- Mark the columns of `terms`. -/
-def mark (used : Array Bool) (terms : List (ℕ × Gl)) : Array Bool :=
+def mark (used : Array Bool) (terms : List (ℕ × Word)) : Array Bool :=
   terms.foldl (fun used t => used.set! t.1 true) used
 
 /-- The package columns below `total` that some row names. -/
-def named (total : ℕ) (rows : Array (R1csRow Gl)) : Array Bool :=
+def named (total : ℕ) (rows : Array (R1csRow Word)) : Array Bool :=
   rows.foldl (fun used r => mark (mark (mark used r.a) r.b) r.c) (Array.replicate total false)
 
 /-- The numbering so far: the system column of each package column, the source
@@ -194,7 +194,7 @@ def number (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (used : 
   return state
 
 /-- Terms over package columns, moved to system columns. -/
-def reindex (index : Array (Option ℕ)) (terms : List (ℕ × Gl)) : List (ℕ × Gl) :=
+def reindex (index : Array (Option ℕ)) (terms : List (ℕ × Word)) : List (ℕ × Word) :=
   terms.map fun (c, x) => ((index[c]!).getD 0, x)
 
 /-- `load` (`package.rs:86-160`) on the Lean package and its output map. -/

@@ -12,7 +12,7 @@ builder's calls lift into it.
 
 namespace CompressionLean.Circuit
 
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 
 /-- The sponge rate (`RATE`); the width is 16. -/
 def rate : ℕ := 12
@@ -54,7 +54,7 @@ def duplexing : Transcript Unit := do
     let zeroWord ← Build.const 0
     for lane in [absorbed:rate] do
       state := state.set! lane zeroWord
-    let tag ← Build.const (Gl.ofNat absorbed)
+    let tag ← Build.const (Word.ofNat absorbed)
     state := state.set! rate (← Build.add state[rate]! tag)
   let next := Array.ofFn (← Build.permute fun lane => state[lane]!)
   set ({ state := next, input := #[], output := next.extract 0 rate } : Duplex)

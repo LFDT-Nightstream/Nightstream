@@ -9,7 +9,7 @@ the order of its Rust counterpart.
 
 namespace CompressionLean.Circuit
 
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 
 /-- The layer-1 domain label (`hash::DOMAIN`, `hash.rs:24`). -/
 def compressDomain : String := "Nightstream/SuperNeo/compress/v1"
@@ -17,10 +17,10 @@ def compressDomain : String := "Nightstream/SuperNeo/compress/v1"
 /-- `neo_transcript::domain_chunk_v1_2`: the label's bytes, eight per word,
 little-endian, zero-padded to one rate chunk. The label has at most 96
 bytes. -/
-def domainChunk (label : String) : Array Gl :=
+def domainChunk (label : String) : Array Word :=
   let bytes := label.toUTF8.data
   Array.ofFn fun word : Fin rate =>
-    Gl.ofNat ((List.range 8).foldl (fun acc i => acc + (bytes.getD (8 * word + i) 0).toNat * 256 ^ i) 0)
+    Word.ofNat ((List.range 8).foldl (fun acc i => acc + (bytes.getD (8 * word + i) 0).toNat * 256 ^ i) 0)
 
 /-- The fold transcript's 16 lanes; it never holds a partial chunk
 (`fold.rs:15-17`). -/
@@ -48,7 +48,7 @@ def absorb (t : FoldTranscript) (words : Array Var) : Build FoldTranscript := do
   pure ⟨state⟩
 
 /-- `fold.rs:49-52`. -/
-def absorbConstants (t : FoldTranscript) (words : Array Gl) : Build FoldTranscript := do
+def absorbConstants (t : FoldTranscript) (words : Array Word) : Build FoldTranscript := do
   let words ← words.mapM Build.const
   t.absorb words
 

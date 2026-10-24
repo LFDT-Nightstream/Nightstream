@@ -16,7 +16,7 @@ Owns the simulation of the linear stage of `Linear.lean` (`verifier.rs:170-206`)
 
 namespace CompressionLean.Circuit
 
-open CompressionLean.Replay (Gl Ext Relation D laneVars Runs runs_bind runs_pure runs_sampleExt runs_observeExts
+open CompressionLean.Replay (Word Ext Relation D laneVars Runs runs_bind runs_pure runs_sampleExt runs_observeExts
   runs_ensure runs_liftExcept)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
@@ -83,7 +83,7 @@ private theorem Sim.laneValue {zeta : ExtVar} {point : Array ExtVar} {gz : Ext} 
     exact e
 
 /-- `eval_k` (`mle.rs:146-204`) with the size of `r` known under `P`. -/
-private theorem Sim.evalK' {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Array (Gl × Gl)} {gs gt : Array Ext}
+private theorem Sim.evalK' {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Array (Word × Word)} {gs gt : Array Ext}
     (blocks : ℕ) (rSize : P → Nat.log2 (D * 2 ^ gs.size).nextPowerOfTwo ≤ gr.size) (tauSize : D ≤ gt.size)
     (hr : P → IsKs c n r gr) (hs : P → IsExts c n sBlock gs) (ht : P → IsExts c n tau gt) :
     Sim c n P (Mle.evalK r sBlock tau blocks) (fun res m => IsKx c m res (Replay.evalK gr gs gt blocks)) True := by

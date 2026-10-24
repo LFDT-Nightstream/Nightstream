@@ -86,7 +86,7 @@ end CompressionLean.Shrink
 namespace CompressionLean.Circuit
 
 open CompressionLean.Shrink
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 
 /-- The cells of a permutation block (`poseidon2::CELLS`,
 `circuit/poseidon2.rs:21`). -/
@@ -100,7 +100,7 @@ section Ring
 variable {F : Type} [CommRing F]
 
 /-- A Goldilocks word in `F` (`Gl::from_u64`). -/
-def word (g : Gl) : F := (g.toNat : F)
+def word (g : Word) : F := (g.toNat : F)
 
 /-- The coordinates of `a·b` in `F[x]/(x³ - x - 1)`. -/
 def extProduct (a b : Fin 3 → F) : Fin 3 → F :=
@@ -327,7 +327,7 @@ def push (forms : List (Form F)) : Lower F Unit :=
   modify fun s => { s with values := s.values ++ forms.toArray }
 
 /-- An R1CS row with its coefficients in `F`. -/
-def R1csRow.inField (r : R1csRow Gl) : R1csRow F :=
+def R1csRow.inField (r : R1csRow Word) : R1csRow F :=
   ⟨r.a.map fun t => (t.1, word t.2), r.b.map fun t => (t.1, word t.2), r.c.map fun t => (t.1, word t.2)⟩
 
 /-- One instruction (`Backend for Recorder`, `record.rs:285-474`). -/

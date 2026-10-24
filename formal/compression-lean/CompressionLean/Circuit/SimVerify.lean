@@ -19,13 +19,13 @@ the relation words on abstract words, so that no check evaluates those words.
 namespace CompressionLean.Circuit
 
 open CompressionLean.Lib
-open CompressionLean.Replay (Gl Ext Relation TreeShape WhirShape D foldVars runOracles Runs run_bind run_pure
+open CompressionLean.Replay (Word Ext Relation TreeShape WhirShape D foldVars runOracles Runs run_bind run_pure
   run_liftExcept run_sampleWords)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
 
-private theorem IsWords.iff_forall₂ {c : Ctx F} {n : ℕ} {hs : Array Var} {gs : Array Gl} :
+private theorem IsWords.iff_forall₂ {c : Ctx F} {n : ℕ} {hs : Array Var} {gs : Array Word} :
     IsWords c n hs gs ↔ List.Forall₂ (fun v g => IsWord c n v g) hs.toList gs.toList := by
   constructor
   · intro h
@@ -42,13 +42,13 @@ private theorem forall₂_of_index {α β : Type} [Inhabited α] [Inhabited β] 
   rw [getElem!_pos xs i (by simpa using h1), getElem!_pos gs i (by simpa using h2)] at this
   simpa using this
 
-private theorem pairs_forall₂ {c : Ctx F} {n : ℕ} {xs : List KVar} {gs : List (Gl × Gl)}
+private theorem pairs_forall₂ {c : Ctx F} {n : ℕ} {xs : List KVar} {gs : List (Word × Word)}
     (h : List.Forall₂ (IsK c n) xs gs) :
     List.Forall₂ (fun v g => IsWord c n v g) (xs.flatMap fun value => [value.1, value.2])
       (gs.flatMap fun value => [value.1, value.2]) :=
   List.rel_flatMap h fun _ _ hk => List.Forall₂.cons hk.1 (List.Forall₂.cons hk.2 List.Forall₂.nil)
 
-private theorem rows_forall₂ {c : Ctx F} {n : ℕ} {xs : Array (Array Var)} {gs : Array (Array Gl)}
+private theorem rows_forall₂ {c : Ctx F} {n : ℕ} {xs : Array (Array Var)} {gs : Array (Array Word)}
     (h : xs.size = gs.size ∧ ∀ i < xs.size, IsWords c n xs[i]! gs[i]!) :
     List.Forall₂ (fun v g => IsWord c n v g) xs.flatten.toList gs.flatten.toList := by
   simp only [Array.toList_flatten]
@@ -72,7 +72,7 @@ private theorem IsClaim.words {c : Ctx F} {n : ℕ} {v : ClaimView} {st : Replay
     pairs_forall₂ (List.rel_append (List.rel_append point evalK) evalA)
 
 private theorem Sim.observeConstants [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {d : Duplex}
-    {r : Replay.Duplex} (words : Array Gl) (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
+    {r : Replay.Duplex} (words : Array Word) (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
     Sim c n P (StateT.run (forIn words () fun word _ => (do
         let h ← liftM (Build.const word)
         Duplex.observe h
@@ -276,7 +276,7 @@ private theorem linear_run {rel : Relation} {st : Replay.Statement} {g : Replay.
   rw [Bridge.sumcheckRounds_size _ _ _ _ _ _ block]
   simp [shape.linear, Relation.cubeVars]
 
-private theorem setupCheck_size {root : Array Gl} {vars index : ℕ} {leaf : Replay.Leaf} {a b alpha : Array Ext}
+private theorem setupCheck_size {root : Array Word} {vars index : ℕ} {leaf : Replay.Leaf} {a b alpha : Array Ext}
     {vals : Array Ext} (ok : Replay.setupCheck root vars index leaf #[a, b] alpha = .ok vals) : vals.size = 2 := by
   by_cases path : Replay.pathOk root index leaf = true
   · rw [setupCheck_ok path] at ok
@@ -286,7 +286,7 @@ private theorem setupCheck_size {root : Array Gl} {vars index : ℕ} {leaf : Rep
     simp only [path, Replay.ensure] at ok
     cases ok
 
-private theorem queried_size {root : Array Gl} {vars : ℕ} {a b alpha : Array Ext} :
+private theorem queried_size {root : Array Word} {vars : ℕ} {a b alpha : Array Ext} :
     ∀ (l : List (ℕ × Replay.Leaf)) (init out : Array Ext),
       l.foldlM (fun queried pair => do
         pure (queried ++ (← Replay.setupCheck root vars pair.1 pair.2 #[a, b] alpha))) init = .ok out →
@@ -326,7 +326,7 @@ private theorem isDuplex_mk {c : Ctx F} {m : ℕ} {d : Duplex} {r : Replay.Duple
     (h : IsDuplex c m d r) : IsDuplex c m d (Replay.Transcript.mk r ds).duplex :=
   h
 
-private theorem runs_observe3 {β : Type} {a b e : Array Gl} {d : Replay.Duplex} {ds : Array Replay.Draw}
+private theorem runs_observe3 {β : Type} {a b e : Array Word} {d : Replay.Duplex} {ds : Array Replay.Draw}
     {k : Replay.ReplayM β} {x : β} {t' : Replay.Transcript}
     (h : Runs k ⟨e.foldl Replay.Duplex.observe (b.foldl Replay.Duplex.observe (a.foldl Replay.Duplex.observe d)), ds⟩
       x t') :
@@ -347,7 +347,7 @@ private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey}
     (hp1 : ∀ b ∈ rel.p1Whir.batches, b.size % 3 = 0)
     (hp1count : (rel.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * rel.queries + 4)
     (hp0 : rel.p0Whir.batches.toList.map (·.size) = [1, 1, 2, 2 * rel.matrices, 1, 2 * rel.matrices + 1, 1])
-    {w : Var → Gl} {seed : DigestVar} {statement : ClaimView} {proof : ProofView} {seedWords : Array Gl}
+    {w : Var → Word} {seed : DigestVar} {statement : ClaimView} {proof : ProofView} {seedWords : Array Word}
     {st : Replay.Statement} {g : Replay.Proof} (hp : Permutes c.perm)
     (fits : st.fits rel = true) (read : Replay.readProof rel g = .ok ())
     (h : P → IsDigest c n seed seedWords ∧ IsClaim c n statement st ∧ IsProof c w n proof g) :
@@ -559,8 +559,8 @@ theorem verify_ensures [CharP F goldilocksModulus] {key : Layer1Input}
     (hp1count : (key.relation.p1Whir.batches.toList.map fun b => b.size / 3).sum = 2 * key.relation.queries + 4)
     (hp0 : key.relation.p0Whir.batches.toList.map (·.size) =
       [1, 1, 2, 2 * key.relation.matrices, 1, 2 * key.relation.matrices + 1, 1])
-    {c : Ctx F} {n : ℕ} {P : Prop} {w : Var → Gl} {seed : DigestVar} {statement : ClaimView} {proof : ProofView}
-    {seedWords : Array Gl} {st : Replay.Statement} {g : Replay.Proof} (hp : Permutes c.perm)
+    {c : Ctx F} {n : ℕ} {P : Prop} {w : Var → Word} {seed : DigestVar} {statement : ClaimView} {proof : ProofView}
+    {seedWords : Array Word} {st : Replay.Statement} {g : Replay.Proof} (hp : Permutes c.perm)
     (h : P → Decodes c w ∧ IsDigest c n seed seedWords ∧ IsClaim c n statement st ∧ st.fits key.relation = true ∧
       IsProof c w n proof g ∧ Replay.readProof key.relation g = .ok ()) :
     Ensures c n P (verify key.relation key.p1Key key.p0Key seed statement proof)

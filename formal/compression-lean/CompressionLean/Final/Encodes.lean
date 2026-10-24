@@ -42,7 +42,7 @@ attribute [local instance] challengeCubic
 
 section Runs
 
-variable (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl)
+variable (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
 
 /-- `FinalProgram::run` with `verify_with` for `key` (`lifecycle/terminal/mod.rs:54-80`).
 Irreducible, so that no check evaluates the program. -/
@@ -64,7 +64,7 @@ noncomputable def ctxOf (x : StateWords) (w : ℕ → Spec.F) : Ctx Spec.F :=
   { perm := Spec.Poseidon2.permute, stmt, tape, val := (Exec.run Spec.Poseidon2.permute stmt tape L).value }
 
 /-- The words of that run, by handle. -/
-noncomputable def wordsOf (x : StateWords) (w : ℕ → Spec.F) : Var → Replay.Gl :=
+noncomputable def wordsOf (x : StateWords) (w : ℕ → Spec.F) : Var → Replay.Word :=
   fun h => Package.word ((ctxOf key loaded context x w).val h)
 
 /-- The builder after the terminal part (`lifecycle/terminal/mod.rs:54-72`). -/
@@ -79,14 +79,14 @@ def viewRun : Circuit.ProofView × Builder :=
   (Circuit.ProofView.read key.relation key.p1Key.rows key.p0Key.rows).run (seedRun loaded context).2
 
 /-- The statement that layer 1 reads, through `w`. -/
-def statementWith (w : Var → Replay.Gl) : Replay.Statement := (prefixRun loaded context).1.1.view.decode w
+def statementWith (w : Var → Replay.Word) : Replay.Statement := (prefixRun loaded context).1.1.view.decode w
 
 /-- The seed that layer 1 reads, through `w`. -/
-def seedWith (w : Var → Replay.Gl) : Array Replay.Gl :=
+def seedWith (w : Var → Replay.Word) : Array Replay.Word :=
   FoldTranscript.handoffWords (Array.ofFn fun lane => w ((prefixRun loaded context).1.2 lane))
 
 /-- The proof that layer 1 reads, through `w`. -/
-def proofWith (w : Var → Replay.Gl) : Replay.Proof := (viewRun key loaded context).1.decode w
+def proofWith (w : Var → Replay.Word) : Replay.Proof := (viewRun key loaded context).1.decode w
 
 end Runs
 
@@ -95,14 +95,14 @@ def start : Replay.Transcript := ⟨Replay.Duplex.new, #[]⟩
 
 section Gives
 
-variable {key : Layer1Input} {loaded : Loaded} {context : Array Replay.Gl}
-  {authority : Lifecycle.VerifierContext.Authority} {c : Ctx Spec.F} {w : Var → Replay.Gl}
+variable {key : Layer1Input} {loaded : Loaded} {context : Array Replay.Word}
+  {authority : Lifecycle.VerifierContext.Authority} {c : Ctx Spec.F} {w : Var → Replay.Word}
 
 /-- What an accepting run gives: a terminal assignment for the run's
 statement whose claim is the decoded statement, and an accepting replay of
 the decoded seed, statement and proof. -/
-def Gives (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl)
-    (authority : Lifecycle.VerifierContext.Authority) (c : Ctx Spec.F) (w : Var → Replay.Gl) : Prop :=
+def Gives (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
+    (authority : Lifecycle.VerifierContext.Authority) (c : Ctx Spec.F) (w : Var → Replay.Word) : Prop :=
   ∃ env, TerminalFor authority (Terminal.statementOf c) env ∧
     Bridge.statementOf (statementWith loaded context w) = claimOf env ∧
     ∃ points t', Replay.Runs (Replay.verify key.relation (seedWith loaded context w) (statementWith loaded context w)
@@ -157,7 +157,7 @@ private theorem run_bind {α β : Type} (x : Build α) (f : α → Build β) (p 
     (x >>= f).run p = (f (x.run p).1).run (x.run p).2 :=
   rfl
 
-private theorem program_eq (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl) :
+private theorem program_eq (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) :
     program key loaded context =
       statementHandles >>= fun s => checkedApply loaded context s >>= fun r => verifyWith key r.2 r.1.view := by
   rw [program, finalProgram_eq, terminalPrefix, bind_assoc]
@@ -224,7 +224,7 @@ theorem phi_eq_modulus : phi = modulus := by
 theorem barOf_eq (p l : Fin Spec.ringDegree) :
     barOf p l = Final.gl (Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel.nativeBarEntry p l) := by
   unfold barOf Replay.bar
-  rw [dif_pos ⟨p.isLt, l.isLt⟩, Replay.Gl.toF_ofNat]
+  rw [dif_pos ⟨p.isLt, l.isLt⟩, Replay.Word.toF_ofNat]
   exact ZMod.natCast_zmod_val (show Final.Gl from _)
 
 /-- The layer-1 game of the relation `rel` and the setup `S`, with F′'s
@@ -237,7 +237,7 @@ noncomputable abbrev game (rel : Replay.Relation) (S : Setup Fp) (L0 L1 : ℕ) :
 challenges that it computes from them (`verify` replayed up to WHIR), and
 candidate lists that agree with the WHIR openings at its points and with a
 setup that the key's Merkle root binds. -/
-def Reads (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl) (S : Setup Fp) (L0 L1 : ℕ)
+def Reads (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) (S : Setup Fp) (L0 L1 : ℕ)
     (x : StateWords) (wit : ℕ → Fp) (p : (game key.relation S L0 L1).Pos) : Prop :=
   let w := wordsOf key loaded context x wit
   let st := statementWith loaded context w
@@ -253,14 +253,14 @@ def Reads (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl) (S :
       WhirOpens (shapeOf key.relation) proof points cands p1) ∧
     MerkleBinds key.relation S proof.leaves
 
-private theorem statementOf_ctxOf (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl) (x : StateWords)
+private theorem statementOf_ctxOf (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) (x : StateWords)
     (wit : ℕ → Spec.F) : Terminal.statementOf (ctxOf key loaded context x wit) = x := by
   funext k
   fin_cases k <;> rfl
 
 /-- **`ProgramEncodes` for the production final program**
 (`lifecycle/terminal/mod.rs:54-80`), for a key that meets the premises. -/
-theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Replay.Gl}
+theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Replay.Word}
     {authority : Lifecycle.VerifierContext.Authority} (S : Setup Fp) (keyFacts : KeyFacts key)
     (fits : S.Fits (shapeOf key.relation))
     (describes : (structureOf key.relation.key.layout).Describes (shapeOf key.relation) S) (L0 L1 : ℕ)

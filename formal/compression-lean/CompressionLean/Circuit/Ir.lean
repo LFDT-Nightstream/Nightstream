@@ -25,7 +25,7 @@ computes it.
 namespace CompressionLean.Circuit
 
 open CompressionLean.Shrink
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 
 /-- A value handle: value `v` is the `v`-th value of the run. -/
 abbrev Var := ℕ
@@ -33,13 +33,13 @@ abbrev Var := ℕ
 /-- One `Backend` call that `record.rs` lowers by itself. -/
 inductive Instr where
   /-- `constant` (`record.rs:289-291`). -/
-  | const (value : Gl)
+  | const (value : Word)
   /-- `private`: a proof word (`record.rs:293-295`). -/
   | priv
   /-- `public`: the next statement word (`record.rs:297-303`). -/
   | pub
   /-- `Σ weight·part`: `add`, `sub` and `scale` (`record.rs:251-254`). -/
-  | linear (parts : List (Var × Gl))
+  | linear (parts : List (Var × Word))
   /-- `mul` (`record.rs:317-327`). -/
   | mul (a b : Var)
   /-- `ext_mul` on three coordinates each (`record.rs:349-373`). -/
@@ -55,7 +55,7 @@ inductive Instr where
   /-- `hint`: `count` free proof words (`record.rs:462-473`). -/
   | hint (count : ℕ)
   /-- `r1cs`: a fixed system over value columns (`record.rs:450-460`). -/
-  | r1cs (rows : List (R1csRow Gl)) (columns : List Var)
+  | r1cs (rows : List (R1csRow Word)) (columns : List Var)
 
 /-- The values an instruction appends. -/
 def Instr.outputs : Instr → ℕ
@@ -84,13 +84,13 @@ def emit (i : Instr) : Build Var :=
 /-- The handles `first, first + 1, …` of a run of outputs. -/
 def handles {n : ℕ} (first : Var) : Fin n → Var := fun k => first + k
 
-def const (value : Gl) : Build Var := emit (.const value)
+def const (value : Word) : Build Var := emit (.const value)
 def priv : Build Var := emit .priv
 def pub : Build Var := emit .pub
-def linear (parts : List (Var × Gl)) : Build Var := emit (.linear parts)
+def linear (parts : List (Var × Word)) : Build Var := emit (.linear parts)
 def add (a b : Var) : Build Var := linear [(a, 1), (b, 1)]
 def sub (a b : Var) : Build Var := linear [(a, 1), (b, -1)]
-def scale (a : Var) (by_ : Gl) : Build Var := linear [(a, by_)]
+def scale (a : Var) (by_ : Word) : Build Var := linear [(a, by_)]
 def mul (a b : Var) : Build Var := emit (.mul a b)
 def extMul (a b : Fin 3 → Var) : Build (Fin 3 → Var) := handles <$> emit (.extMul a b)
 def extInv (a : Fin 3 → Var) : Build (Fin 3 → Var) := handles <$> emit (.extInv a)
@@ -100,12 +100,12 @@ def assertZero (a : Var) : Build Unit := do
 def bits (a : Var) (count : ℕ) : Build (Fin count → Var) := handles <$> emit (.bits a count)
 def permute (state : Fin 16 → Var) : Build (Fin 16 → Var) := handles <$> emit (.permute state)
 def hint (count : ℕ) : Build (Fin count → Var) := handles <$> emit (.hint count)
-def r1cs (rows : List (R1csRow Gl)) (columns : List Var) : Build Unit := do
+def r1cs (rows : List (R1csRow Word)) (columns : List Var) : Build Unit := do
   let _ ← emit (.r1cs rows columns)
   pure ()
 
 /-- `ext_constant`: three constants (`record.rs:337-339`). -/
-def extConstant (value : Fin 3 → Gl) : Build (Fin 3 → Var) := do
+def extConstant (value : Fin 3 → Word) : Build (Fin 3 → Var) := do
   let x ← const (value 0)
   let y ← const (value 1)
   let z ← const (value 2)

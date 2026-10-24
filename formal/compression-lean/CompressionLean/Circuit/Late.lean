@@ -15,13 +15,13 @@ The stage starts from the duplex after the setup queries
 
 namespace CompressionLean.Circuit
 
-open CompressionLean.Replay (Gl Layout Relation D)
+open CompressionLean.Replay (Word Layout Relation D)
 
 namespace Mle
 
 /-- `lane_split`: the head and tail lane tables of a run class
 `(length ≤ D, ratio)` for the lane weights `tau` (`mle.rs:109-140`). -/
-def laneSplit (tau : Array ExtVar) (length : ℕ) (ratio : Gl) : Build (Array ExtVar × Array ExtVar) := do
+def laneSplit (tau : Array ExtVar) (length : ℕ) (ratio : Word) : Build (Array ExtVar × Array ExtVar) := do
   let ratioPower := ratio.pow length
   let mut head := Array.replicate D tau[D - 1]!
   for lane in (List.range (D - 1)).reverse do
@@ -33,7 +33,7 @@ def laneSplit (tau : Array ExtVar) (length : ℕ) (ratio : Gl) : Build (Array Ex
     head := head.set! lane value
   let mut sums := Array.replicate D tau[0]!
   let mut acc ← Algebra.extZero
-  let mut power : Gl := 1
+  let mut power : Word := 1
   for (value, k) in tau.zipIdx do
     let term ← Algebra.extScaleConstant value power
     acc ← Build.extAdd acc term

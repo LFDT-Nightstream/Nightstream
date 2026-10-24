@@ -23,7 +23,7 @@ The executor is arithmetic, as the recorder is: `select` is
 namespace CompressionLean.Circuit
 
 open CompressionLean.Shrink
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 
 variable {F : Type} [CommRing F]
 
@@ -37,8 +37,8 @@ structure Bits (a : F) (count : ℕ) (b : ℕ → F) : Prop where
 
 /-- Row `r` of a fixed R1CS system holds on the column values `column`:
 `(Σ a)·(Σ b) = Σ c` (`R1cs::sides`, `circuit/r1cs.rs:59-65`). -/
-def R1csRow.Holds (column : ℕ → F) (r : R1csRow Gl) : Prop :=
-  let side (terms : List (ℕ × Gl)) := (terms.map fun t => column t.1 * word t.2).sum
+def R1csRow.Holds (column : ℕ → F) (r : R1csRow Word) : Prop :=
+  let side (terms : List (ℕ × Word)) := (terms.map fun t => column t.1 * word t.2).sum
   side r.a * side r.b = side r.c
 
 /-- The executor's state after a prefix of the program. -/

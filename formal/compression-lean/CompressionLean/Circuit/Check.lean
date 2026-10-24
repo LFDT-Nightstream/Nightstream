@@ -49,7 +49,7 @@ namespace CompressionLean.LowerCheck
 
 open CompressionLean.Shrink CompressionLean.Circuit CompressionLean.Circuit.Parse NightstreamFPrime.Spec
 open CompressionLean.Circuit.Digest
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 
 def wire : Parser Wire := do
   match ← nat with
@@ -70,7 +70,7 @@ def traceSide : Parser (List (Wire × ℕ)) := do
 def handlesText {n : ℕ} (a : Fin n → Var) : String :=
   String.join ((List.finRange n).map fun k => s!" {a k}")
 
-def termsText (terms : List (ℕ × Gl)) : String :=
+def termsText (terms : List (ℕ × Word)) : String :=
   s!" {terms.length}" ++ String.join (terms.map fun t => s!" {t.1} {t.2.toNat}")
 
 /-- The line that `Log` writes for an instruction (`lowering.rs`). -/
@@ -264,7 +264,7 @@ with ratio 3 and of a run of 30 lanes with ratio `p - 2`, then every value
 into a duplex. -/
 def laneSplit : Build Unit := do
   let tau ← privateExts Replay.D
-  let classes := #[⟨Replay.D, 3⟩, ⟨30, Gl.ofNat (goldilocksModulus - 2)⟩]
+  let classes := #[⟨Replay.D, 3⟩, ⟨30, Word.ofNat (goldilocksModulus - 2)⟩]
   let layout : Replay.Layout := { matrices := 1, rowVariables := 1, runVariables := 1, slotVariables := 1,
                                   runBounds := #[0, 1], classes, segments := #[], slots := 1 }
   let lanes ← laneTables layout tau
@@ -371,7 +371,7 @@ def check (mirror : Option Mirror) : Parser String := do
     for s in List.finRange 7 do
       expect s!"row {r} side {s}" ((rows[r]'h.2.1).side s |>.map fun t => (t.1, t.2.val)) (← traceSide)
   pure s!"match: {instrs.size} instructions, {rows.size} rows, {run.cells} glue cells, {run.blocks} blocks, \
-    {run.publics.length} statement words{mirrored}; digest {(runDigest run rows).toList.map Gl.toNat}"
+    {run.publics.length} statement words{mirrored}; digest {(runDigest run rows).toList.map Word.toNat}"
 
 /-- The export's path, Lean's program for it and the layer-1 key, from the arguments. -/
 def arguments : List String → IO (Except String (String × Option Mirror × Option Layer1Input))

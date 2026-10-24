@@ -24,7 +24,7 @@ transcripts and both `openingsAgree` checks.
 -/
 namespace CompressionLean.Circuit
 
-open CompressionLean.Replay (Gl Ext WhirShape SumcheckShape Runs ReplayM)
+open CompressionLean.Replay (Word Ext WhirShape SumcheckShape Runs ReplayM)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 /-- `b` appends instructions and one value per output. -/
@@ -92,11 +92,11 @@ private theorem mapM_array {f : δ → Build α} (h : ∀ x, Appends (f x)) (xs 
   rw [Array.mapM_eq_mapM_toList]
   exact map _ (mapM_list h _)
 
-private theorem const (g : Gl) : Appends (Build.const g) := emit _
+private theorem const (g : Word) : Appends (Build.const g) := emit _
 private theorem add (a b : Var) : Appends (Build.add a b) := emit _
 private theorem sub (a b : Var) : Appends (Build.sub a b) := emit _
 private theorem mul (a b : Var) : Appends (Build.mul a b) := emit _
-private theorem scale (a : Var) (g : Gl) : Appends (Build.scale a g) := emit _
+private theorem scale (a : Var) (g : Word) : Appends (Build.scale a g) := emit _
 private theorem extMul (a b : ExtVar) : Appends (Build.extMul a b) := map _ (emit _)
 private theorem extInv (a : ExtVar) : Appends (Build.extInv a) := map _ (emit _)
 private theorem bits (a : Var) (count : ℕ) : Appends (Build.bits a count) := map _ (emit _)
@@ -240,7 +240,7 @@ private theorem merkleRoot (leaf : DigestVar) (bits : Array Var) (path : Array D
   unfold Circuit.merkleRoot Circuit.compress
   appends
 
-private theorem powerFromBits (g : Gl) (bits : Array Var) : Appends (Algebra.powerFromBits g bits) := by
+private theorem powerFromBits (g : Word) (bits : Array Var) : Appends (Algebra.powerFromBits g bits) := by
   unfold Algebra.powerFromBits
   appends
 
@@ -421,7 +421,7 @@ private theorem foldl_observePair (r : Replay.Duplex) (a b : Ext) :
   simp only [List.flatMap_cons, List.flatMap_nil, List.foldl_cons, List.foldl_nil, List.append_nil,
     List.cons_append, List.nil_append]
 
-private theorem runs_observeAll_eq {vs : Array Gl} {t t' : Replay.Transcript} {u : Unit}
+private theorem runs_observeAll_eq {vs : Array Word} {t t' : Replay.Transcript} {u : Unit}
     (h : Runs (Replay.observeAll vs) t u t') : t' = { t with duplex := vs.foldl Replay.Duplex.observe t.duplex } := by
   cases h
   rfl
@@ -441,7 +441,7 @@ private theorem runs_observePair {a b : Ext} {rest : ReplayM β} {tr tr' : Repla
 namespace Tracks
 
 /-- `absorb` (`whir/mod.rs:221-226`): the replay's `observeAll`. -/
-private theorem absorb (hp : Permutes c.perm) (words : Array Gl) :
+private theorem absorb (hp : Permutes c.perm) (words : Array Word) :
     Tracks c n H (Whir.absorb words) (Replay.observeAll words) fun _ _ => True := fun d tr => by
   unfold Whir.absorb
   rw [StateT.run_bind]
@@ -480,7 +480,7 @@ private theorem observeExts (hp : Permutes c.perm) {vs : Array ExtVar} {gs : Arr
   (Sim.observeExts hp (fun h => h.2) fun h => hv h.1).ensures.post fun _ _ _ q =>
     ⟨trivial, (), _, Replay.runs_observeExts gs tr, q.1⟩
 
-private theorem observeSlice (hp : Permutes c.perm) {vs : Array Var} {gs : Array Gl} (hv : H → IsWords c n vs gs) :
+private theorem observeSlice (hp : Permutes c.perm) {vs : Array Var} {gs : Array Word} (hv : H → IsWords c n vs gs) :
     Tracks c n H (Duplex.observeSlice vs) (Replay.observeAll gs) fun _ _ => True := fun _ tr =>
   (Sim.observeSlice hp (fun h => h.2) fun h => hv h.1).ensures.post fun _ _ _ q =>
     ⟨trivial, (), _, Replay.runs_observeAll gs tr, q.1⟩
@@ -534,7 +534,7 @@ private theorem queryIndex (hp : Permutes c.perm) (width : ℕ) :
     refine Replay.runs_bind (Replay.runs_sampleWord tr) (Replay.runs_bind (Replay.runs_ensure ?_ _ _)
       (Replay.runs_record _ _))
     rw [Bool.not_eq_true', Bool.eq_false_iff]
-    exact fun hb => hne (Replay.Gl.eq_of_beq hb)
+    exact fun hb => hne (Replay.Word.eq_of_beq hb)
   · have e : r.2 = e₁ := q.1.trans (h.2.2.trans (h.1.2.2.trans (h.1.1.2.2.trans h.1.1.1.2.2)))
     rw [e]
     exact h.1.1.1.1.2.1.2.mono (l₂.trans (l₃.trans (l₄.trans (l₅.trans q.2))))
@@ -645,7 +645,7 @@ private theorem IsExts.getElem! {xs : Array (Array ExtVar)} {gs : Array (Array E
 /-- `whir::verify` (`whir/mod.rs:506-661`) tracks the replay's transcript of
 the opening, and returns the opened values. -/
 private theorem Tracks.whirVerify (hp : Permutes c.perm) {shape : WhirShape} {key : WhirKey} {root : DigestVar}
-    {view : OpeningView} {points : Array (Array ExtVar)} {g : Replay.Opening} {w : Var → Gl}
+    {view : OpeningView} {points : Array (Array ExtVar)} {g : Replay.Opening} {w : Var → Word}
     (ho : H → IsOpening c w n view g) (hread : H → Replay.readOpening shape g = .ok ())
     (hbatches : key.batches.size = shape.batches.size) :
     Tracks c n H (Circuit.whirVerify shape key root view points) (Replay.whirTranscript shape g)
@@ -746,7 +746,7 @@ duplex follows the replay's transcript of the opening `g`, and the opened
 values are `g`'s. The key has the shape's batches, and `g` has the shape's
 counts (`readOpening`, which `OpeningView::read` gives). -/
 theorem whirVerify_ensures (hp : Permutes c.perm) {shape : WhirShape} {key : WhirKey} {root : DigestVar}
-    {view : OpeningView} {points : Array (Array ExtVar)} {g : Replay.Opening} {w : Var → Gl} {d : Duplex}
+    {view : OpeningView} {points : Array (Array ExtVar)} {g : Replay.Opening} {w : Var → Word} {d : Duplex}
     {t : Replay.Transcript} (hd : P → IsDuplex c n d t.duplex) (ho : P → IsOpening c w n view g)
     (hread : P → Replay.readOpening shape g = .ok ()) (hbatches : key.batches.size = shape.batches.size) :
     Ensures c n P ((whirVerify shape key root view points).run d) fun res m =>
@@ -947,7 +947,7 @@ variable {F : Type} [CommRing F] [CharP F goldilocksModulus] {c : Ctx F} {n : �
 /-- The openings (`verifier.rs:266-315`) track the tail of `Replay.verify`. -/
 private theorem Tracks.openingsStage (hp : Permutes c.perm) {rel : Replay.Relation} {p1Key p0Key : WhirKey}
     {o : OpeningsInput} {proof : Replay.Proof} {early : Replay.EarlyOut} {lin : Replay.LinearOut}
-    {honest : Replay.HonestOut} {late : Replay.LateOut} {w : Var → Gl}
+    {honest : Replay.HonestOut} {late : Replay.LateOut} {w : Var → Word}
     (h1 : H → IsOpening c w n o.p1Opening proof.p1Opening) (h0 : H → IsOpening c w n o.p0Opening proof.p0Opening)
     (hpartials : H → List.Forall₂ (IsExts c n) o.partials.toList proof.partials.toList)
     (halpha : H → IsExts c n o.alpha honest.alpha) (hqueried : H → IsExts c n o.queried honest.queried)
@@ -1066,7 +1066,7 @@ the sizes of the expected values; Rust asserts both (`verifier.rs:279`,
 `verifier.rs:308-311`). -/
 theorem openingsStage_ensures (hp : Permutes c.perm) {rel : Replay.Relation} {p1Key p0Key : WhirKey}
     {o : OpeningsInput} {proof : Replay.Proof} {early : Replay.EarlyOut} {lin : Replay.LinearOut}
-    {honest : Replay.HonestOut} {late : Replay.LateOut} {w : Var → Gl} {d : Duplex} {t : Replay.Transcript}
+    {honest : Replay.HonestOut} {late : Replay.LateOut} {w : Var → Word} {d : Duplex} {t : Replay.Transcript}
     (hd : P → IsDuplex c n d t.duplex)
     (h1 : P → IsOpening c w n o.p1Opening proof.p1Opening) (h0 : P → IsOpening c w n o.p0Opening proof.p0Opening)
     (hpartials : P → List.Forall₂ (IsExts c n) o.partials.toList proof.partials.toList)

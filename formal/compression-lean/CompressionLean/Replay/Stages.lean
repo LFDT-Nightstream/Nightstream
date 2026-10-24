@@ -43,13 +43,13 @@ structure EarlyChallenges where
   scatter : Ext × Ext
 
 /-- One slot of `table_sum`: `total + m_t/(β - (t - H))`, rejecting a pole. -/
-def tableSumStep (bound : Nat) (counts : Array Gl) (beta total : Ext) (slot : Nat) : Except String Ext := do
-  let denominator := beta - Ext.ofGl (Gl.ofNat slot - Gl.ofNat bound)
+def tableSumStep (bound : Nat) (counts : Array Word) (beta total : Ext) (slot : Nat) : Except String Ext := do
+  let denominator := beta - Ext.ofGl (Word.ofNat slot - Word.ofNat bound)
   ensure (!denominator.isZero) "histogram pole"
   pure (total + denominator.inv.scale counts[slot]!)
 
 /-- `Σ_t m_t/(β - (t - H))`; rejects a pole (`norm::table_sum`, the model's `tableSum`). -/
-def tableSum (bound : Nat) (counts : Array Gl) (beta : Ext) : Except String Ext :=
+def tableSum (bound : Nat) (counts : Array Word) (beta : Ext) : Except String Ext :=
   (List.range counts.size).foldlM (tableSumStep bound counts beta) 0
 
 /-- `P_x·Q_y = P_y·Q_x` with both denominators nonzero (`check_pair`, the model's `PairCheck`). -/
@@ -64,7 +64,7 @@ def tuple (gamma r e₁ e₂ : Ext) : Ext := r + gamma * (e₁ + gamma * e₂)
 /-- `j~` over runs: matrix `j` on its run range, zero on padding runs (`matrix_step`). -/
 def matrixStep (layout : Layout) (point : Array Ext) : Ext :=
   step point ((layout.runBounds.extract 0 layout.matrices).toList.zip
-    ((List.range layout.matrices).map fun j => Ext.ofGl (Gl.ofNat j))) layout.runBounds[layout.matrices]!
+    ((List.range layout.matrices).map fun j => Ext.ofGl (Word.ofNat j))) layout.runBounds[layout.matrices]!
 
 /-- What the early leaf checks leave to openings and to the honest fold. -/
 structure EarlyOpenings where
@@ -78,7 +78,7 @@ structure EarlyOpenings where
 
 /-- The early roots and leaf claims against the early values (`check_early`);
 the trees are numbered as in `Relation.earlyShapes`. -/
-def checkEarly (layout : Layout) (r : Array (Gl × Gl)) (ch : EarlyChallenges) (claims : GkrClaims)
+def checkEarly (layout : Layout) (r : Array (Word × Word)) (ch : EarlyChallenges) (claims : GkrClaims)
     (v : EarlyValues) : Except String EarlyOpenings := do
   pairCheck claims.roots[1]! claims.roots[2]! "row lookup"
   pairCheck claims.roots[3]! claims.roots[4]! "slot scatter"
@@ -89,7 +89,7 @@ def checkEarly (layout : Layout) (r : Array (Gl × Gl)) (ch : EarlyChallenges) (
     "row lookup row leaf"
   ensure (claims.leafValue 3 1 == v.eRe + ch.scatter.2 * v.eIm) "slot scatter run leaf"
   let runPoint := claims.leafPoint[3]!
-  let tag := (matrixStep layout runPoint).scale (Gl.ofNat (2 ^ layout.slotVariables))
+  let tag := (matrixStep layout runPoint).scale (Word.ofNat (2 ^ layout.slotVariables))
   let slotClaim := ch.scatter.1 - claims.leafValue 3 2 - tag
   let pairPoint := claims.leafPoint[4]!
   let eq := eqTable (pairPoint.extract layout.slotVariables pairPoint.size)
@@ -182,7 +182,7 @@ def padded (n : Nat) (point : Array Ext) : Array Ext := point ++ Array.replicate
 def combine (partials point : Array Ext) : Ext := dot (eqTable point) partials
 
 /-- The leaf's path reaches the key root, lane by lane (`merkle_root`). -/
-def pathOk (root : Array Gl) (index : Nat) (leaf : Leaf) : Bool :=
+def pathOk (root : Array Word) (index : Nat) (leaf : Leaf) : Bool :=
   let computed := merkleRoot (hashLeaf leaf.values) index leaf.path
   (List.range 4).all fun lane => computed[lane]! == root[lane]!
 
@@ -192,14 +192,14 @@ def monomial : List Ext → Nat → Ext
   | a :: rest, u => (if u % 2 = 1 then a else 1) * monomial rest (u / 2)
 
 /-- The weight of coset value `v`: `Σ_u α^[u]·2^-f·y^-u·ω^-uv` (the model's `leaf_formula`). -/
-def leafWeight (alpha : Array Ext) (yInverse omega : Gl) (v : Nat) : Ext :=
+def leafWeight (alpha : Array Ext) (yInverse omega : Word) (v : Nat) : Ext :=
   sumRange (2 ^ foldVars) fun u =>
-    ((monomial alpha.toList u).scale ((Gl.ofNat (2 ^ foldVars)).inv * yInverse.pow u)).scale
+    ((monomial alpha.toList u).scale ((Word.ofNat (2 ^ foldVars)).inv * yInverse.pow u)).scale
       (omega.pow ((2 ^ foldVars - u) * v % 2 ^ foldVars))
 
 /-- One queried setup leaf: its path to the key root, then each group's folded
 value `Σ_v w_v·Σ_k weight_k·Ô_k(y·ω^v)` (`setup::check`, the model's `leaf_formula`). -/
-def setupCheck (root : Array Gl) (setupVariables index : Nat) (leaf : Leaf) (groups : Array (Array Ext))
+def setupCheck (root : Array Word) (setupVariables index : Nat) (leaf : Leaf) (groups : Array (Array Ext))
     (alpha : Array Ext) : Except String (Array Ext) := do
   ensure (pathOk root index leaf) "setup leaf path"
   let yInverse := powerFromBits (twoAdicGenerator (setupVariables + 1)).inv index (setupVariables + 1 - foldVars) *
@@ -215,7 +215,7 @@ queried folded values. -/
 structure HonestOut where
   mu : Ext
   alpha : Array Ext
-  words : Array Gl
+  words : Array Word
   queries : Array Nat
   queried : Array Ext
 
@@ -359,7 +359,7 @@ def openingPoints (rel : Relation) (early : EarlyOut) (lin : LinearOut) (honest 
 /-- Replay Rust's layer-1 verifier on `proof` for `st` after `seed`. It
 returns the points that it gives WHIR, which the WHIR assumption names
 (`Bridge/Openings.lean`). -/
-def verify (rel : Relation) (seed : Array Gl) (st : Statement) (proof : Proof) : ReplayM OpeningPoints := do
+def verify (rel : Relation) (seed : Array Word) (st : Statement) (proof : Proof) : ReplayM OpeningPoints := do
   ensure (st.fits rel) "claim words"
   liftExcept (readProof rel proof)
   observeAll seed

@@ -23,7 +23,7 @@ columns hold.
 namespace CompressionLean.Circuit.Terminal
 
 open CompressionLean.Circuit.Package
-open CompressionLean.Replay (Gl D)
+open CompressionLean.Replay (Word D)
 open NightstreamFPrime.Layout
 
 /-- `ClaimWords` over handles (`lib.rs:776-787`); a `K` value is
@@ -51,7 +51,7 @@ def publicContextStart : ℕ := 270 + 4
 
 /-- The value of a system column (`apply`, `package.rs:191-212`). Hint
 output `k` is value `computed + k`. -/
-def column (statement : Array Var) (context : Array Gl) (computed : Var) : Source → Build Var
+def column (statement : Array Var) (context : Array Word) (computed : Var) : Source → Build Var
   | .one => Build.const 1
   | .priv i =>
       if i < NightstreamFPrime.Lifecycle.stateDomainChunk.length then
@@ -75,7 +75,7 @@ def pairs (list : Array Var) : Array (Var × Var) :=
 
 /-- `Package::apply`: the rows over the statement and the context, then the
 claim and the transcript state in the output columns. -/
-def apply (package : Loaded) (statement : Array Var) (context : Array Gl) :
+def apply (package : Loaded) (statement : Array Var) (context : Array Word) :
     Build (ClaimVars × (Fin 16 → Var)) := do
   let computed ← Build.emit (.hint package.computed.size)
   let columns ← package.sources.mapM (column statement context computed)
@@ -91,7 +91,7 @@ def apply (package : Loaded) (statement : Array Var) (context : Array Gl) :
   pure (claim, fun lane => columns.getD (outputs.state.getD lane 0) 0)
 
 /-- `FinalProgram::run`, with `layer1` for `verify_with`. -/
-def finalProgram {α : Type} (package : Loaded) (context : Array Gl)
+def finalProgram {α : Type} (package : Loaded) (context : Array Word)
     (layer1 : ClaimVars → (Fin 16 → Var) → Build α) : Build α := do
   let statement ← (Array.range statementWords).mapM fun _ => Build.pub
   -- An active proof has a positive iteration.

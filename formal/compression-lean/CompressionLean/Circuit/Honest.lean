@@ -15,7 +15,7 @@ counterpart.
 
 namespace CompressionLean.Circuit
 
-open CompressionLean.Replay (Gl Relation foldVars runOracles generator twoAdicGenerator)
+open CompressionLean.Replay (Word Relation foldVars runOracles generator twoAdicGenerator)
 
 /-- `setup_point`: `point` cut or padded to `vars` coordinates with one
 zero, which is written even when no coordinate needs it (`lib.rs:726-730`). -/
@@ -47,7 +47,7 @@ def setupCheck (root : DigestVar) (vars : ℕ) (bits : Array Var) (leaf : LeafVi
     for m in monomials do
       scaled := scaled.push (← Build.extMul m a)
     monomials := monomials ++ scaled
-  let mut scale ← Build.const (Gl.ofNat leafSize).inv
+  let mut scale ← Build.const (Word.ofNat leafSize).inv
   let mut coefficients := #[]
   for monomial in monomials do
     coefficients := coefficients.push (← Build.extScale monomial scale)

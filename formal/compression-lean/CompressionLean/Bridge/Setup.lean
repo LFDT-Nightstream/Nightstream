@@ -34,14 +34,14 @@ def twoAdic (bits : ℕ) : Fp := (0x185629dcda58878c : Fp) ^ (2 ^ (32 - bits))
 
 theorem toF_twoAdicGenerator (bits : ℕ) : (twoAdicGenerator bits).toF = twoAdic bits := by
   unfold twoAdicGenerator twoAdic
-  have squares : ∀ (l : List ℕ) (g : Gl), (l.foldl (fun g _ => g * g) g).toF = g.toF ^ (2 ^ l.length) := by
+  have squares : ∀ (l : List ℕ) (g : Word), (l.foldl (fun g _ => g * g) g).toF = g.toF ^ (2 ^ l.length) := by
     intro l
     induction l with
     | nil => intro g; simp
     | cons _ rest ih =>
         intro g
-        rw [List.foldl_cons, ih, Gl.toF_mul, ← sq, ← pow_mul, List.length_cons, pow_succ']
-  rw [squares, List.length_range, Gl.toF_ofNat]
+        rw [List.foldl_cons, ih, Word.toF_mul, ← sq, ← pow_mul, List.length_cons, pow_succ']
+  rw [squares, List.length_range, Word.toF_ofNat]
   norm_num
 
 theorem generator_pow_31 : (0x185629dcda58878c : Fp) ^ (2 ^ 31) = -1 := by
@@ -108,15 +108,15 @@ theorem leafY_pow_eight (n i : ℕ) (low : 2 ≤ n) (high : n + 1 ≤ 32) : leaf
 
 /-! ## Powers and monomials -/
 
-theorem toF_powerFromBits (bits : ℕ) : ∀ (g : Gl) (index : ℕ),
+theorem toF_powerFromBits (bits : ℕ) : ∀ (g : Word) (index : ℕ),
     (powerFromBits g index bits).toF = g.toF ^ (index % 2 ^ bits) := by
   induction bits with
   | zero => intro g index; simp [powerFromBits, Nat.mod_one]
   | succ bits ih =>
       intro g index
-      rw [powerFromBits, Gl.toF_mul, ih, Gl.toF_mul, ← sq, ← pow_mul, pow_succ', Nat.mod_mul, pow_add, pow_mul]
+      rw [powerFromBits, Word.toF_mul, ih, Word.toF_mul, ← sq, ← pow_mul, pow_succ', Nat.mod_mul, pow_add, pow_mul]
       rcases Nat.mod_two_eq_zero_or_one index with even | odd
-      · rw [if_neg (by omega), Gl.toF_one, even, pow_zero, one_mul]
+      · rw [if_neg (by omega), Word.toF_one, even, pow_zero, one_mul]
       · rw [if_pos odd, odd, pow_one]
 
 variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
@@ -197,7 +197,7 @@ omit [Fintype K] [ChallengeField K] in
 theorem omega_K : (ι (twoAdic 3)) ^ 8 = 1 := by rw [← map_pow, omega_pow_eight, map_one]
 
 /-- The replay's weight of coset value `v` is `leaf_formula`'s. -/
-theorem toK_leafWeight (alpha : Array Ext) (y : Fp) (yInverse : Gl) (hy : yInverse.toF = y⁻¹) (v : ℕ) :
+theorem toK_leafWeight (alpha : Array Ext) (y : Fp) (yInverse : Word) (hy : yInverse.toF = y⁻¹) (v : ℕ) :
     (leafWeight alpha yInverse (twoAdicGenerator foldVars) v).toK (K := K) =
       ∑ u ∈ Finset.range (2 ^ foldVars), Layer1.monomial (pointK alpha) u * ((2 ^ foldVars : ℕ) : K)⁻¹ *
         (ι y)⁻¹ ^ u * (ι (twoAdic 3))⁻¹ ^ (u * v) := by
@@ -206,7 +206,7 @@ theorem toK_leafWeight (alpha : Array Ext) (y : Fp) (yInverse : Gl) (hy : yInver
   intro u inside
   have small : u < 8 := Finset.mem_range.mp inside
   have eight : (2 : ℕ) ^ foldVars = 8 := rfl
-  rw [Ext.toK_scale, Ext.toK_scale, Gl.toF_mul, Gl.toF_pow, Gl.toF_pow, Gl.toF_inv, Gl.toF_ofNat, hy,
+  rw [Ext.toK_scale, Ext.toK_scale, Word.toF_mul, Word.toF_pow, Word.toF_pow, Word.toF_inv, Word.toF_ofNat, hy,
     toF_twoAdicGenerator, map_mul, map_pow, map_pow, map_inv₀, map_inv₀, map_natCast, eight,
     show foldVars = 3 from rfl, pow_dft omega_K small, toK_monomial]
   simp only [pointK, inv_pow]
@@ -236,7 +236,7 @@ theorem toK_groupValue (rel : Replay.Relation) (S : Setup Fp) (leaf : Leaf) (ind
     (codeword : ∀ o v, o < rel.kappa + runOracles → v < 2 ^ foldVars →
       (leaf.values[o * 2 ^ foldVars + v]!).toF =
         (univ rel.setupVars (setupOracle rel S o)).eval (leafY rel.setupVars index * twoAdic 3 ^ v))
-    (alpha : Array Ext) (alphaSize : alpha.size = foldVars) (yInverse : Gl)
+    (alpha : Array Ext) (alphaSize : alpha.size = foldVars) (yInverse : Word)
     (hy : yInverse.toF = (leafY rel.setupVars index)⁻¹) (weights : Array Ext) (offset : ℕ)
     (fit : offset + weights.size ≤ rel.kappa + runOracles) (G : ℕ → K)
     (group : ∀ x, G x = ∑ k ∈ Finset.range weights.size, (weights[k]!).toK * ι (setupOracle rel S (offset + k) x))
@@ -273,8 +273,8 @@ theorem toK_groupValue (rel : Replay.Relation) (S : Setup Fp) (leaf : Leaf) (ind
 
 theorem toF_yInverse (n index : ℕ) (inside : index < 2 ^ (n - 2)) (low : 2 ≤ n) :
     (powerFromBits (twoAdicGenerator (n + 1)).inv index (n + 1 - foldVars) * generator.inv).toF = (leafY n index)⁻¹ := by
-  have seven : generator.toF = 7 := Gl.toF_lit 7
-  rw [Gl.toF_mul, toF_powerFromBits, Gl.toF_inv, Gl.toF_inv, toF_twoAdicGenerator, seven,
+  have seven : generator.toF = 7 := Word.toF_lit 7
+  rw [Word.toF_mul, toF_powerFromBits, Word.toF_inv, Word.toF_inv, toF_twoAdicGenerator, seven,
     show n + 1 - foldVars = n - 2 by simp only [foldVars]; omega, Nat.mod_eq_of_lt inside, leafY, mul_inv, inv_pow,
     mul_comm]
 

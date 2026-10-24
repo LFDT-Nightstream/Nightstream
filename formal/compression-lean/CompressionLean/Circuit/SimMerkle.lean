@@ -18,27 +18,27 @@ replay's (`Replay/Transcript.lean`), and the F′ permutation on words
 namespace CompressionLean.Circuit
 
 open CompressionLean.Lib
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 open NightstreamFPrime.Spec (goldilocksModulus)
 open NightstreamFPrime.Export.NativePoseidon2 (State64)
 
 variable {F : Type} [CommRing F]
 
 /-- The four handles of `d` are the four words of `g`. -/
-def IsDigest (c : Ctx F) (n : ℕ) (d : DigestVar) (g : Array Gl) : Prop :=
+def IsDigest (c : Ctx F) (n : ℕ) (d : DigestVar) (g : Array Word) : Prop :=
   g.size = 4 ∧ ∀ lane : Fin 4, IsWord c n (d lane) g[lane]!
 
-theorem IsDigest.mono {c : Ctx F} {n m : ℕ} {d : DigestVar} {g : Array Gl} (h : IsDigest c n d g) (le : n ≤ m) :
+theorem IsDigest.mono {c : Ctx F} {n m : ℕ} {d : DigestVar} {g : Array Word} (h : IsDigest c n d g) (le : n ≤ m) :
     IsDigest c m d g :=
   ⟨h.1, fun lane => (h.2 lane).mono le⟩
 
 /-- The replay's sponge state after the first `k` chunks of `gs`. -/
-private def leafState (gs : Array Gl) (k : ℕ) : Array Gl :=
+private def leafState (gs : Array Word) (k : ℕ) : Array Word :=
   ((List.range k).map fun j => gs.extract (Replay.rate * j) (Replay.rate * j + Replay.rate)).foldl
     (fun state chunk => Replay.permute ((List.range chunk.size).foldl (fun s i => s.set! i chunk[i]!) state))
     (Array.replicate Replay.width 0)
 
-private theorem leafState_succ (gs : Array Gl) (k : ℕ) :
+private theorem leafState_succ (gs : Array Word) (k : ℕ) :
     leafState gs (k + 1) =
       Replay.permute ((List.range (gs.extract (Replay.rate * k) (Replay.rate * k + Replay.rate)).size).foldl
         (fun s i => s.set! i (gs.extract (Replay.rate * k) (Replay.rate * k + Replay.rate))[i]!) (leafState gs k)) := by
@@ -46,21 +46,21 @@ private theorem leafState_succ (gs : Array Gl) (k : ℕ) :
   rfl
 
 /-- The replay's node after the first `k` levels of `gpath`. -/
-private def merkleNode (gleaf : Array Gl) (index : ℕ) (gpath : Array (Array Gl)) (k : ℕ) : Array Gl :=
+private def merkleNode (gleaf : Array Word) (index : ℕ) (gpath : Array (Array Word)) (k : ℕ) : Array Word :=
   (List.range k).foldl
     (fun node level =>
       if index / 2 ^ level % 2 = 0 then Replay.compress node gpath[level]! else Replay.compress gpath[level]! node)
     gleaf
 
-private theorem merkleNode_succ (gleaf : Array Gl) (index : ℕ) (gpath : Array (Array Gl)) (k : ℕ) :
+private theorem merkleNode_succ (gleaf : Array Word) (index : ℕ) (gpath : Array (Array Word)) (k : ℕ) :
     merkleNode gleaf index gpath (k + 1) =
       if index / 2 ^ k % 2 = 0 then Replay.compress (merkleNode gleaf index gpath k) gpath[k]!
       else Replay.compress gpath[k]! (merkleNode gleaf index gpath k) := by
   rw [merkleNode, List.range_succ, List.foldl_append]
   rfl
 
-private theorem bit_cases (x : ℕ) (gn gp : Array Gl) :
-    ∃ b : Bool, Gl.ofNat (x % 2) = (if b then 1 else 0) ∧
+private theorem bit_cases (x : ℕ) (gn gp : Array Word) :
+    ∃ b : Bool, Word.ofNat (x % 2) = (if b then 1 else 0) ∧
       (if x % 2 = 0 then Replay.compress gn gp else Replay.compress gp gn) =
         if b then Replay.compress gp gn else Replay.compress gn gp := by
   rcases Nat.mod_two_eq_zero_or_one x with h | h
@@ -75,7 +75,7 @@ variable {c : Ctx F} {n : ℕ} {P : Prop}
 
 /-- `compress` (`hash.rs:104-111`): `[left, right, 0…]`, permute, the first
 four lanes. -/
-theorem compress {l r : DigestVar} {gl gr : Array Gl} (hp : Permutes c.perm) (hl : P → IsDigest c n l gl)
+theorem compress {l r : DigestVar} {gl gr : Array Word} (hp : Permutes c.perm) (hl : P → IsDigest c n l gl)
     (hr : P → IsDigest c n r gr) :
     Sim c n P (Circuit.compress l r) (fun res m => IsDigest c m res (Replay.compress gl gr)) True := by
   unfold Circuit.compress
@@ -105,7 +105,7 @@ theorem compress {l r : DigestVar} {gl gr : Array Gl} (hp : Permutes c.perm) (hl
 
 /-- `hash_leaf` (`hash.rs:93-101`): overwrite the lanes of each chunk of
 `RATE` words and permute; the digest is the first four lanes. -/
-theorem hashLeaf {vs : Array Var} {gs : Array Gl} (hp : Permutes c.perm) (hv : P → IsWords c n vs gs) :
+theorem hashLeaf {vs : Array Var} {gs : Array Word} (hp : Permutes c.perm) (hv : P → IsWords c n vs gs) :
     Sim c n P (Circuit.hashLeaf vs) (fun r m => IsDigest c m r (Replay.hashLeaf gs)) True := by
   unfold Circuit.hashLeaf
   refine (Sim.const 0).bind₀ fun z m₁ l₁ => ?_
@@ -155,9 +155,9 @@ theorem hashLeaf {vs : Array Var} {gs : Array Gl} (hp : Permutes c.perm) (hv : P
 left when the bit is zero, the other side is `node + sibling - left`, and the
 two compress. The replay branches on digit `level` of `index`. -/
 theorem merkleRoot [CharP F goldilocksModulus] {leaf : DigestVar} {bits : Array Var} {path : Array DigestVar}
-    {gleaf : Array Gl} {index : ℕ} {gpath : Array (Array Gl)} (hp : Permutes c.perm)
+    {gleaf : Array Word} {index : ℕ} {gpath : Array (Array Word)} (hp : Permutes c.perm)
     (hleaf : P → IsDigest c n leaf gleaf)
-    (hbits : P → ∀ i < bits.size, IsWord c n bits[i]! (Gl.ofNat (index / 2 ^ i % 2)))
+    (hbits : P → ∀ i < bits.size, IsWord c n bits[i]! (Word.ofNat (index / 2 ^ i % 2)))
     (hpath : P → ∀ k < path.size, IsDigest c n path[k]! gpath[k]!) (hsize : bits.size = path.size)
     (hgsize : path.size = gpath.size) :
     Sim c n P (Circuit.merkleRoot leaf bits path)
@@ -233,9 +233,9 @@ section Permutation
 
 open Fin.CommRing
 
-private theorem word_denote (g : Gl) : (word g : NightstreamFPrime.Spec.F) = g.word.denote := by
+private theorem word_denote (g : Word) : (word g : NightstreamFPrime.Spec.F) = g.word.denote := by
   apply Fin.ext
-  simp [word, Gl.toNat, UInt64.denote, NightstreamFPrime.Spec.Poseidon2.ofNat, Fin.val_natCast]
+  simp [word, Word.toNat, UInt64.denote, NightstreamFPrime.Spec.Poseidon2.ofNat, Fin.val_natCast]
 
 /-- `b.permute` in `hash.rs`: on words, F′'s Poseidon2 permutation is the
 replay's. -/

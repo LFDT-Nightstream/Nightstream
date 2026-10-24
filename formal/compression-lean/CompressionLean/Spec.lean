@@ -6,6 +6,7 @@ import CompressionLean.Spec.Checks
 import CompressionLean.Spec.Parent
 import CompressionLean.Spec.Program
 import CompressionLean.Spec.Bound
+import CompressionLean.Spec.PoseidonRows
 
 /-!
 `Spec/` owns the vocabulary of the claims: every definition that a claim of
@@ -22,6 +23,7 @@ them are in the folders above (`Bridge/`, `Final/`, `Checks/`, `Sim/`).
   of F′'s key.
 - `Program`, `Bound`: the production final program, what layer 1 reads from
   its witness, and the event that the production bound bounds.
+- `PoseidonRows`: a fast evaluator of the rows of F′'s Poseidon2 blocks.
 
 `CompressionLeanTests/Vocabulary.lean` fails the build when a claim names a
 constant of a proof folder.

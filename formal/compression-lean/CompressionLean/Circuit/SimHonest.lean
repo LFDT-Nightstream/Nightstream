@@ -175,7 +175,7 @@ theorem monomials_succ (l : List Ext) (x : Ext) :
 
 /-- `x + w·0 = x`: an absent leaf value adds nothing. -/
 theorem add_scale_zero (x w : Ext) : x + w.scale default = x :=
-  coords_injective (F := ZMod goldilocksModulus) (by
+  coords_injective (F := Gl) (by
     rw [coords_add, coords_scale]
     funext k
     simp [show (default : Word) = 0 from rfl])

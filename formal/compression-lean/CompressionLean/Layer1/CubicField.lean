@@ -14,6 +14,8 @@ The proof computes `x^p` in `F_p[x]/(x³ - x - 1)` with a loop the kernel
 evaluates (`cubicPow`, after `GoldilocksPrime.powMod`). If the cubic had a
 root `a` in `F_p`, then `a^p = a` would make `g = x^p - x` vanish at `a`. But
 `g` has an explicit inverse in the quotient ring, so `0 = 1`.
+
+The primality of `p` is an instance argument; `Fields.lean` owns the fact.
 -/
 
 namespace CompressionLean.Layer1
@@ -95,9 +97,9 @@ theorem frobenius_inverse :
   decide
 
 /-- `x³ - x - 1` has no root in the Goldilocks field. -/
-theorem cubic_no_root (a : ZMod goldilocksModulus) : a ^ 3 - a - 1 ≠ 0 := by
+theorem cubic_no_root [Fact (Nat.Prime goldilocksModulus)] (a : ZMod goldilocksModulus) :
+    a ^ 3 - a - 1 ≠ 0 := by
   intro root
-  haveI : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
   have power := cubicPow_eval a root 69 (0, 1, 0) goldilocksModulus (by decide)
   rw [show 69 + 1 = 70 from rfl, frobenius, ZMod.pow_card] at power
   have vanish : cubicEval a (10615703402128488253, 10050274602728160327, 11746561000929144102) = 0 := by
@@ -110,8 +112,8 @@ theorem cubic_no_root (a : ZMod goldilocksModulus) : a ^ 3 - a - 1 ≠ 0 := by
   simp [cubicEval] at one
 
 /-- `x³ - x - 1` is irreducible over the Goldilocks field. -/
-theorem cubic_irreducible : Irreducible (X ^ 3 - X - 1 : (ZMod goldilocksModulus)[X]) := by
-  haveI : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
+theorem cubic_irreducible [Fact (Nat.Prime goldilocksModulus)] :
+    Irreducible (X ^ 3 - X - 1 : (ZMod goldilocksModulus)[X]) := by
   apply Polynomial.irreducible_of_degree_le_three_of_not_isRoot
   · have degree : (X ^ 3 - X - 1 : (ZMod goldilocksModulus)[X]).natDegree = 3 := by compute_degree!
     simp [degree]

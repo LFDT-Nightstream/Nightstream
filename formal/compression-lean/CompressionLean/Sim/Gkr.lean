@@ -30,9 +30,8 @@ def IsGkrClaims (c : Ctx F) (m : ℕ) (claims : Array TreeClaimView) (g : Replay
 
 /-- The claims of `verify` (`gkr.rs:747-750`) at a larger count. -/
 theorem IsGkrClaims.mono {c : Ctx F} {m m' : ℕ} {claims : Array TreeClaimView} {g : Replay.GkrClaims}
-    (h : IsGkrClaims c m claims g) (le : m ≤ m') : IsGkrClaims c m' claims g :=
-  ⟨h.1, fun t ht => ⟨(h.2 t ht).1.mono le, (h.2 t ht).2.1.mono le, (h.2 t ht).2.2.1.mono le,
-    (h.2 t ht).2.2.2.mono le⟩⟩
+    (h : IsGkrClaims c m claims g) (le : m ≤ m' := by omega) : IsGkrClaims c m' claims g :=
+  ⟨h.1, fun t ht => let ⟨p, q, point, values⟩ := h.2 t ht; ⟨p.mono le, q.mono le, point.mono le, values.mono le⟩⟩
 
 /-- One step of the batched sum (`gkr.rs:704-714`): the running weight
 against Horner's rule. -/
@@ -81,8 +80,9 @@ private def IsTreeClaim (c : Ctx F) (m : ℕ) (v : TreeClaimView) (g : Replay.Gk
 
 /-- A tree's claim (`gkr.rs:736-740`) at a larger count. -/
 private theorem IsTreeClaim.mono {c : Ctx F} {m m' : ℕ} {v : TreeClaimView} {g : Replay.GkrClaims} {t : ℕ}
-    (h : IsTreeClaim c m v g t) (le : m ≤ m') : IsTreeClaim c m' v g t :=
-  ⟨h.1.mono le, h.2.1.mono le, h.2.2.mono le⟩
+    (h : IsTreeClaim c m v g t) (le : m ≤ m' := by omega) : IsTreeClaim c m' v g t :=
+  let ⟨root, point, values⟩ := h
+  ⟨root.mono le, point.mono le, values.mono le⟩
 
 /-- The state of `verify` after `j` layers (`gkr.rs:691-693`): every tree's
 current pair, and the claim of every tree of depth at most `j`. -/
@@ -95,9 +95,9 @@ private def IsLayerState (c : Ctx F) (m : ℕ) (shapes : Array TreeShape) (j : �
 /-- The state of `verify` (`gkr.rs:691-693`) at a larger count. -/
 private theorem IsLayerState.mono {c : Ctx F} {m m' : ℕ} {shapes : Array TreeShape} {j : ℕ}
     {cur : Array (ExtVar × ExtVar)} {cl : Array TreeClaimView} {g : Replay.GkrClaims}
-    (h : IsLayerState c m shapes j cur cl g) (le : m ≤ m') : IsLayerState c m' shapes j cur cl g :=
-  ⟨h.1, h.2.1, h.2.2.1, h.2.2.2.1, h.2.2.2.2.1, fun t ht =>
-    ⟨(h.2.2.2.2.2 t ht).1.mono le, fun hd => ((h.2.2.2.2.2 t ht).2 hd).mono le⟩⟩
+    (h : IsLayerState c m shapes j cur cl g) (le : m ≤ m' := by omega) : IsLayerState c m' shapes j cur cl g :=
+  let ⟨c1, c2, c3, c4, c5, trees⟩ := h
+  ⟨c1, c2, c3, c4, c5, fun t ht => ⟨(trees t ht).1.mono le, fun hd => ((trees t ht).2 hd).mono le⟩⟩
 
 section Advance
 
@@ -184,192 +184,183 @@ private def drawnExt (t : Replay.Transcript) : Ext :=
 private def afterExt (t : Replay.Transcript) : Replay.Transcript :=
   { duplex := t.duplex.sample.2.sample.2.sample.2, draws := t.draws.push (.ext (drawnExt t)) }
 
-namespace Simulates
+/-! ## Programs -/
 
-variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
+instance gkrCombine_appends (children : Array ExtVar) (mu : ExtVar) : Appends (Circuit.gkrCombine children mu) := by
+  unfold Circuit.gkrCombine; appends
+instance gkrVerify_appends (view : GkrView) (shapes : Array TreeShape) (d : Duplex) :
+    Appends ((Circuit.gkrVerify view shapes).run d) := by
+  unfold Circuit.gkrVerify; appends
+
+/-- `mapM` in a transcript whose steps keep the duplex (the reduction of
+`gkr.rs:727-733`). -/
+private theorem listMapMT {c : Ctx F} {δ α : Type} {f : δ → Transcript α} (R : δ → α → ℕ → Prop)
+    (mono : ∀ x a m m', R x a m → m ≤ m' → R x a m') (hf : ∀ x d, Appends ((f x).run d)) :
+    ∀ (xs : List δ) {n : ℕ} {d : Duplex},
+      (∀ x ∈ xs, ∀ m e, n ≤ m → Ensures c m ((f x).run e) fun r m => R x r.1 m ∧ r.2 = e) →
+      Ensures c n ((xs.mapM f).run d) fun r m => List.Forall₂ (fun x a => R x a m) xs r.1 ∧ r.2 = d
+  | [], n, d, _ => by
+      rw [List.mapM_nil, StateT.run_pure]
+      exact Ensures.pure ⟨List.Forall₂.nil, rfl⟩
+  | x :: xs, n, d, h => by
+      rw [List.mapM_cons]
+      refine (h x List.mem_cons_self n d le_rfl).tbind (fun a e m le hx => ?_) (hf x d)
+        fun _ _ => Appends.tbind (fun d => Appends.tmapM_list hf xs d) fun _ _ => Appends.tpure _ _
+      obtain ⟨ha, he⟩ := hx
+      refine (listMapMT R mono hf xs (d := e) fun y hy m' e' le' =>
+        h y (List.mem_cons_of_mem _ hy) m' e' (le.trans le')).tbind (fun as e' m' le' hxs => ?_)
+        (Appends.tmapM_list hf xs e) fun _ _ => Appends.tpure _ _
+      obtain ⟨has, he'⟩ := hxs
+      rw [StateT.run_pure]
+      exact Ensures.pure ⟨List.Forall₂.cons (mono _ _ _ _ ha le') has, he'.trans he⟩
+
+section Verify
+
+variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
 /-- `combine` (`gkr.rs:659-677`): the replay's `combineVals`. A tree has at
 least two child values. -/
-private theorem gkrCombine {children : Array ExtVar} {gchildren : Array Ext} {mu : ExtVar} {gmu : Ext}
-    (hc : P → IsExts c n children gchildren) (two : P → 2 ≤ gchildren.size) (hmu : P → IsExt c n mu gmu) :
-    Simulates c n P (Circuit.gkrCombine children mu) (fun r m => IsExt c m r (Replay.combineVals gchildren gmu)) True := by
+private theorem gkrCombine_ensures {children : Array ExtVar} {gchildren : Array Ext} {mu : ExtVar} {gmu : Ext}
+    (hc : IsExts c n children gchildren) (two : 2 ≤ gchildren.size) (hmu : IsExt c n mu gmu) :
+    Ensures c n (Circuit.gkrCombine children mu) fun r m => IsExt c m r (Replay.combineVals gchildren gmu) := by
   unfold Circuit.gkrCombine
   dsimp only
-  have numerator : ∀ side ≤ 1, ∀ {m : ℕ} {P' : Prop}, (P' → P) → n ≤ m →
-      Simulates c m P' (do
+  have numerator : ∀ side ≤ 1, ∀ {m : ℕ}, n ≤ m →
+      Ensures c m (do
           let total ← Algebra.extOne
           let total ← forIn [:children.size / 2 - 1] total fun j total => do
             let total ← Build.extMul total children[2 * j + side]!
             Pure.pure (ForInStep.yield total)
           Pure.pure total)
-        (fun r m' => IsExt c m' r (Replay.prodRange (children.size / 2 - 1) fun j => gchildren[2 * j + side]!))
-        True := by
-    intro side hside m P' hp le
-    refine extOne.bind₀ fun total m₁ l₁ => ?_
+        fun r m' => IsExt c m' r (Replay.prodRange (children.size / 2 - 1) fun j => gchildren[2 * j + side]!) := by
+    intro side hside m le
+    refine extOne_ensures.bind fun total _ _ hone => ?_
     rw [Std.Legacy.Range.forIn_eq_forIn_range', ← List.forIn_toArray]
-    refine ((loop₀ (P := P' ∧ IsExt c m₁ total 1)
-      (fun j acc m' => IsExt c m' acc (Replay.prodRange j fun j => gchildren[2 * j + side]!))
-      fun j hj acc m' lm' => ?_).pre fun h => ⟨h, h.2⟩).post (fun _ _ _ h => by simpa using h) fun _ => Iff.rfl
+    refine (Ensures.loopArray (fun j acc m' => IsExt c m' acc (Replay.prodRange j fun j => gchildren[2 * j + side]!))
+      hone fun j hj acc m' _ hacc => ?_).post fun _ _ hr => by simpa using hr
     have hj' : j < children.size / 2 - 1 := by simpa using hj
     rw [show (List.range' [:children.size / 2 - 1].start [:children.size / 2 - 1].size
       [:children.size / 2 - 1].step).toArray[j] = j by simp]
-    refine (Simulates.extMul (fun h => h.2) fun h => ((hc (hp h.1.1)).2 (2 * j + side) (by omega)).mono
-      (le.trans (l₁.trans lm'))).bind₀ fun total' m₃ l₃ => Simulates.pure fun h => ⟨rfl, ?_⟩
+    refine (extMul_ensures hacc (hc.2 (2 * j + side) (by omega)).mono).bind fun total' _ _ htotal =>
+      Ensures.pure ⟨rfl, ?_⟩
     rw [prodRange_succ]
-    exact h.2
-  have hq : ∀ i ≤ 1, ∀ {m : ℕ} {P' : Prop}, (P' → P) → n ≤ m → P' →
-      IsExt c m children[2 * (children.size / 2 - 1) + i]! gchildren[2 * (children.size / 2 - 1) + i]! :=
-    fun i hi m P' hp le h => ((hc (hp h)).2 _ (by have := two (hp h); have := (hc (hp h)).1; omega)).mono le
-  refine (numerator 0 (by omega) id le_rfl).bind₀ fun p0 m₁ l₁ => ?_
-  refine (numerator 1 le_rfl (fun h => h.1) l₁).bind₀ fun p1 m₂ l₂ => ?_
-  refine (Simulates.extMul (fun h => h.1.2.mono l₂) fun h => hq 1 le_rfl (fun h => h.1.1) (l₁.trans l₂) h).bind₀
-    fun a m₃ l₃ => ?_
-  refine (Simulates.extMul (fun h => h.1.2.mono l₃)
-    fun h => hq 0 (by omega) (fun h => h.1.1.1) (l₁.trans (l₂.trans l₃)) h).bind₀ fun b m₄ l₄ => ?_
-  refine (Simulates.extMul (fun h => hq 0 (by omega) (fun h => h.1.1.1.1) (l₁.trans (l₂.trans (l₃.trans l₄))) h)
-    fun h => hq 1 le_rfl (fun h => h.1.1.1.1) (l₁.trans (l₂.trans (l₃.trans l₄))) h).bind₀ fun qq m₅ l₅ => ?_
-  refine (Simulates.extMul (fun h => (hmu h.1.1.1.1.1).mono (l₁.trans (l₂.trans (l₃.trans (l₄.trans l₅)))))
-    fun h => h.2).bind₀ fun d m₆ l₆ => ?_
-  refine (Simulates.extAdd (fun h => h.1.1.1.2.mono (l₄.trans (l₅.trans l₆))) fun h => h.1.1.2.mono (l₅.trans l₆)).bind₀
-    fun sum m₇ l₇ => ?_
-  refine (Simulates.extAdd (fun h => h.2) fun h => h.1.2.mono l₇).post (fun h _ _ e => ?_) fun _ => Iff.rfl
-  rw [(hc h.1.1.1.1.1.1.1).1] at e
+    exact htotal
+  have hq : ∀ i ≤ 1,
+      IsExt c n children[2 * (children.size / 2 - 1) + i]! gchildren[2 * (children.size / 2 - 1) + i]! :=
+    fun i hi => hc.2 _ (by have := hc.1; omega)
+  refine (numerator 0 (by omega) le_rfl).bind fun p0 _ _ hp0 => ?_
+  refine (numerator 1 le_rfl (by omega)).bind fun p1 _ _ hp1 => ?_
+  refine (extMul_ensures hp0.mono (hq 1 le_rfl).mono).bind fun a _ _ ha => ?_
+  refine (extMul_ensures hp1.mono (hq 0 (by omega)).mono).bind fun b _ _ hb => ?_
+  refine (extMul_ensures (hq 0 (by omega)).mono (hq 1 le_rfl).mono).bind fun qq _ _ hqq => ?_
+  refine (extMul_ensures hmu.mono hqq).bind fun d _ _ hd => ?_
+  refine (extAdd_ensures ha.mono hb.mono).bind fun sum _ _ hsum => ?_
+  refine (extAdd_ensures hsum hd.mono).post fun _ _ e => ?_
+  rw [hc.1] at e
   simp only [Replay.combineVals, ext_mul_assoc]
   exact e
 
-omit [CharP F goldilocksModulus] in
-/-- `mapM` in a transcript whose steps keep the duplex (the reduction of
-`gkr.rs:727-733`). -/
-private theorem listMapMT {δ α : Type} {f : δ → Transcript α} (R : δ → α → ℕ → Prop)
-    (mono : ∀ x a m m', R x a m → m ≤ m' → R x a m') :
-    ∀ (xs : List δ) {n : ℕ} {P : Prop} {d : Duplex},
-      (∀ x ∈ xs, ∀ m e, n ≤ m → Simulates c m P ((f x).run e) (fun r m => R x r.1 m ∧ r.2 = e) True) →
-      Simulates c n P ((xs.mapM f).run d) (fun r m => List.Forall₂ (fun x a => R x a m) xs r.1 ∧ r.2 = d) True
-  | [], n, P, d, _ => by
-      rw [List.mapM_nil, StateT.run_pure]
-      exact Simulates.pure fun _ => ⟨List.Forall₂.nil, rfl⟩
-  | x :: xs, n, P, d, h => by
-      rw [List.mapM_cons, StateT.run_bind]
-      refine (h x List.mem_cons_self n d le_rfl).bind₀ fun r m le => ?_
-      rw [StateT.run_bind]
-      refine (listMapMT R mono xs (P := P ∧ (R x r.1 m ∧ r.2 = d)) (d := r.2) fun y hy m' e le' =>
-        (h y (List.mem_cons_of_mem _ hy) m' e (le.trans le')).pre fun h => h.1).bind₀ fun r' m' le' => ?_
-      rw [StateT.run_pure]
-      exact Simulates.pure fun hh => ⟨List.Forall₂.cons (mono _ _ _ _ hh.1.2.1 le') hh.2.1, hh.2.2.trans hh.1.2.2⟩
-
 /-- The reduced pairs of one tree (`gkr.rs:727-733`): the replay's `reduce`. -/
-private theorem reduceValues {values : Array ExtVar} {gvalues : Array Ext} {tau : ExtVar} {gtau : Ext}
-    {d : Duplex} (hv : P → IsExts c n values gvalues) (ht : P → IsExt c n tau gtau) :
-    Simulates c n P (((Array.range (values.size / 2)).mapM (m := Transcript) fun j => do
+private theorem reduceValues_ensures {values : Array ExtVar} {gvalues : Array Ext} {tau : ExtVar} {gtau : Ext}
+    {d : Duplex} (hv : IsExts c n values gvalues) (ht : IsExt c n tau gtau) :
+    Ensures c n (((Array.range (values.size / 2)).mapM (m := Transcript) fun j => do
         let difference ← liftM (Build.extSub values[2 * j + 1]! values[2 * j]!)
         let step ← liftM (Build.extMul tau difference)
         liftM (Build.extAdd values[2 * j]! step)).run d)
-      (fun res m => IsExts c m res.1
+      fun res m => IsExts c m res.1
         ((Array.range (gvalues.size / 2)).map fun j => Replay.reduce (gvalues[2 * j]!, gvalues[2 * j + 1]!) gtau) ∧
-        res.2 = d) True := by
+        res.2 = d := by
   rw [Array.mapM_eq_mapM_toList, StateT.run_map]
   refine ((listMapMT (fun j a m => IsExt c m a (Replay.reduce (gvalues[2 * j]!, gvalues[2 * j + 1]!) gtau))
-    (fun _ _ _ _ h le => h.mono le) _ fun j member m e le => ?_).map
+    (fun _ _ _ _ h le => h.mono le) (fun _ _ => by appends) _ fun j member m e _ => ?_).map
       (Q' := fun r m => List.Forall₂
         (fun j a => IsExt c m a (Replay.reduce (gvalues[2 * j]!, gvalues[2 * j + 1]!) gtau))
-        (List.range (values.size / 2)) r.1.toList ∧ r.2 = d) fun r m h => ?_).post (fun h r m q => ?_)
-      fun _ => Iff.rfl
+        (List.range (values.size / 2)) r.1.toList ∧ r.2 = d) fun r m h => by simpa using h).post fun r m q => ?_
   · have hj : 2 * j + 1 < values.size := by
       simp only [Array.toList_range, List.mem_range] at member
       omega
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.extSub (fun h => ((hv h).2 _ hj).mono le)
-      fun h => ((hv h).2 _ (by omega)).mono le)) fun diff e₁ m₁ l₁ => ?_
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.extMul (fun h => (ht h.1).mono (le.trans l₁)) fun h => h.2.1))
-      fun step e₂ m₂ l₂ => ?_
-    exact (Simulates.lift (Simulates.extAdd (fun h => ((hv h.1.1).2 _ (by omega)).mono (le.trans (l₁.trans l₂)))
-      fun h => h.2.1)).post (fun h r m q => ⟨q.1, q.2.trans (h.2.2.trans h.1.2.2)⟩) fun _ => Iff.rfl
-  · simpa using h
-  · rw [(hv h).1] at q
+    refine Ensures.liftBind (extSub_ensures (hv.2 _ hj).mono (hv.2 _ (by omega)).mono) fun diff _ _ hdiff => ?_
+    refine Ensures.liftBind (extMul_ensures ht.mono hdiff) fun step _ _ hstep => ?_
+    exact Ensures.lift (extAdd_ensures (hv.2 _ (by omega)).mono hstep)
+  · rw [hv.1] at q
     exact ⟨isExts_of_forall₂ q.1, q.2⟩
 
 /-- `for root in &view.roots` (`gkr.rs:687-690`): the replay's
 `observeExts (flatPairs roots)`. -/
-private theorem observePairs {d : Duplex} {r : Replay.Duplex} {vs : Array (ExtVar × ExtVar)}
-    {gs : Array (Ext × Ext)} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r)
-    (hv : P → vs.size = gs.size ∧ ∀ i < vs.size, IsExt c n (vs[i]!).1 (gs[i]!).1 ∧ IsExt c n (vs[i]!).2 (gs[i]!).2) :
-    Simulates c n P ((forIn vs PUnit.unit fun (x : ExtVar × ExtVar) _ => do
+private theorem observePairs_ensures {d : Duplex} {r : Replay.Duplex} {vs : Array (ExtVar × ExtVar)}
+    {gs : Array (Ext × Ext)} (hp : Permutes c.perm) (hd : IsDuplex c n d r) (hsize : vs.size = gs.size)
+    (hv : ∀ i < vs.size, IsExt c n (vs[i]!).1 (gs[i]!).1 ∧ IsExt c n (vs[i]!).2 (gs[i]!).2) :
+    Ensures c n ((forIn vs PUnit.unit fun (x : ExtVar × ExtVar) _ => do
         Duplex.observeExt x.1
         Duplex.observeExt x.2
         Pure.pure (ForInStep.yield PUnit.unit)).run d)
-      (fun res m => IsDuplex c m res.2
-        (((Replay.flatPairs gs).flatMap fun g => #[g.c0, g.c1, g.c2]).foldl Replay.Duplex.observe r)) True := by
+      fun res m => IsDuplex c m res.2
+        (((Replay.flatPairs gs).flatMap fun g => #[g.c0, g.c1, g.c2]).foldl Replay.Duplex.observe r) := by
   rw [← Array.forIn_toList]
-  refine ((loopT (fun k _ e m => IsDuplex c m e
+  refine (Ensures.loopT (fun k _ e m => IsDuplex c m e
       (((gs.toList.take k).flatMap fun g => [g.1.c0, g.1.c1, g.1.c2, g.2.c0, g.2.c1, g.2.c2]).foldl
-        Replay.Duplex.observe r)) (fun _ => True)
-    fun k hk _ e m le => ?_).pre fun h => ⟨h, by simpa using hd h⟩).post (fun h _ _ q => ?_)
-    fun _ => ⟨fun _ => trivial, fun _ _ _ => trivial⟩
+        Replay.Duplex.observe r)) (by simpa using hd) fun k hk _ e m _ he => ?_).post fun _ _ q => ?_
   · have hk' : k < vs.size := by simpa using hk
-    have hx : P → IsExt c n (vs.toList[k]).1 (gs[k]!).1 ∧ IsExt c n (vs.toList[k]).2 (gs[k]!).2 := fun h => by
+    have hx : IsExt c n (vs.toList[k]).1 (gs[k]!).1 ∧ IsExt c n (vs.toList[k]).2 (gs[k]!).2 := by
       rw [Array.getElem_toList, ← getElem!_pos vs k hk']
-      exact (hv h).2 k hk'
+      exact hv k hk'
     rw [StateT.run_bind]
-    refine (observeExt hp (fun h => h.2) fun h => ((hx h.1).1).mono le).bind₀ fun res m₁ l₁ => ?_
+    refine (Duplex.observeExt_ensures hp he hx.1.mono).bind fun res _ _ h₁ => ?_
     rw [StateT.run_bind]
-    refine (observeExt hp (fun h => h.2) fun h => ((hx h.1.1).2).mono (le.trans l₁)).bind₀ fun res₂ m₂ l₂ => ?_
+    refine (Duplex.observeExt_ensures hp h₁ hx.2.mono).bind fun res₂ _ _ h₂ => ?_
     rw [StateT.run_pure]
-    refine Simulates.pure fun h => ⟨rfl, ?_⟩
-    have hg : k < gs.size := (hv h.1.1.1).1 ▸ hk'
+    refine Ensures.pure ⟨rfl, ?_⟩
+    have hg : k < gs.size := hsize ▸ hk'
     rw [List.take_add_one, List.getElem?_eq_getElem (by simpa using hg), Option.toList_some, List.flatMap_append,
       List.foldl_append, Array.getElem_toList, ← getElem!_pos gs k hg]
     simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil, List.foldl_cons, List.foldl_nil]
-    exact h.2
-  · rw [show vs.toList.length = gs.toList.length by simp [(hv h).1], List.take_length] at q
+    exact h₂
+  · rw [show vs.toList.length = gs.toList.length by simp [hsize], List.take_length] at q
     rw [← Array.foldl_toList, Array.toList_flatMap, Replay.flatPairs, Array.toList_flatMap, List.flatMap_assoc]
     simpa using q
 
 /-- `for values in children` (`gkr.rs:719-723`): the replay's `observeExts`
 of the flattened children. -/
-private theorem observeChildren {d : Duplex} {r : Replay.Duplex} {vs : Array (Array ExtVar)}
-    {gs : Array (Array Ext)} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r)
-    (hv : P → vs.size = gs.size ∧ ∀ i < vs.size, IsExts c n vs[i]! gs[i]!) :
-    Simulates c n P ((forIn vs PUnit.unit fun values _ => do
+private theorem observeChildren_ensures {d : Duplex} {r : Replay.Duplex} {vs : Array (Array ExtVar)}
+    {gs : Array (Array Ext)} (hp : Permutes c.perm) (hd : IsDuplex c n d r) (hsize : vs.size = gs.size)
+    (hv : ∀ i < vs.size, IsExts c n vs[i]! gs[i]!) :
+    Ensures c n ((forIn vs PUnit.unit fun values _ => do
         forIn values PUnit.unit fun value _ => do
           Duplex.observeExt value
           Pure.pure (ForInStep.yield PUnit.unit)
         Pure.pure (ForInStep.yield PUnit.unit)).run d)
-      (fun res m => IsDuplex c m res.2 ((gs.flatten.flatMap fun g => #[g.c0, g.c1, g.c2]).foldl
-        Replay.Duplex.observe r)) True := by
+      fun res m => IsDuplex c m res.2 ((gs.flatten.flatMap fun g => #[g.c0, g.c1, g.c2]).foldl
+        Replay.Duplex.observe r) := by
   rw [← Array.forIn_toList]
-  refine ((loopT (fun k _ e m => IsDuplex c m e
+  refine (Ensures.loopT (fun k _ e m => IsDuplex c m e
       (((gs.toList.take k).flatMap fun g => g.toList.flatMap fun v => [v.c0, v.c1, v.c2]).foldl
-        Replay.Duplex.observe r)) (fun _ => True)
-    fun k hk _ e m le => ?_).pre fun h => ⟨h, by simpa using hd h⟩).post (fun h _ _ q => ?_)
-    fun _ => ⟨fun _ => trivial, fun _ _ _ => trivial⟩
+        Replay.Duplex.observe r)) (by simpa using hd) fun k hk _ e m _ he => ?_).post fun _ _ q => ?_
   · have hk' : k < vs.size := by simpa using hk
     rw [StateT.run_bind]
-    refine (observeExts (gs := gs[k]!) hp (fun h => h.2) fun h => ?_).bind₀ fun res m₁ l₁ => ?_
+    refine (observeExts_ensures (gs := gs[k]!) hp he ?_).bind fun res _ _ hres => ?_
     · rw [Array.getElem_toList, ← getElem!_pos vs k hk']
-      exact ((hv h.1).2 k hk').mono le
+      exact (hv k hk').mono
     rw [StateT.run_pure]
-    refine Simulates.pure fun h => ⟨rfl, ?_⟩
-    have hg : k < gs.size := (hv h.1.1).1 ▸ hk'
+    refine Ensures.pure ⟨rfl, ?_⟩
+    have hg : k < gs.size := hsize ▸ hk'
     rw [List.take_add_one, List.getElem?_eq_getElem (by simpa using hg), Option.toList_some, List.flatMap_append,
       List.foldl_append, Array.getElem_toList, ← getElem!_pos gs k hg]
     simp only [List.flatMap_cons, List.flatMap_nil, List.append_nil]
-    have := h.2
-    rw [← Array.foldl_toList, Array.toList_flatMap] at this
-    exact this
-  · rw [show vs.toList.length = gs.toList.length by simp [(hv h).1], List.take_length] at q
+    rw [← Array.foldl_toList, Array.toList_flatMap] at hres
+    exact hres
+  · rw [show vs.toList.length = gs.toList.length by simp [hsize], List.take_length] at q
     rw [← Array.foldl_toList, Array.toList_flatMap, Array.toList_flatten, flatMap_flatten, List.flatMap_map]
     exact q
 
 /-- The batched claim and its expected value at one layer
 (`gkr.rs:704-714`): the replay's `batchClaim` and `batchExpected`. -/
-private theorem batchLoop {active : Array ℕ} {children : Array (Array ExtVar)} {gchildren : Array (Array Ext)}
-    {cur : Array (ExtVar × ExtVar)} {gcur : Array (Ext × Ext)} {mu nu : ExtVar} {gmu gnu : Ext}
-    {init : ExtVar × ExtVar × ExtVar} {d : Duplex}
-    (hmu : P → IsExt c n mu gmu) (hnu : P → IsExt c n nu gnu)
-    (hcur : P → ∀ i ∈ active, IsExt c n (cur[i]!).1 (gcur[i]!).1 ∧ IsExt c n (cur[i]!).2 (gcur[i]!).2)
-    (hch : P → children.size = gchildren.size ∧
-      ∀ s < children.size, IsExts c n children[s]! gchildren[s]! ∧ 2 ≤ gchildren[s]!.size)
-    (hinit : P → IsExt c n init.1 0 ∧ IsExt c n init.2.1 0 ∧ IsExt c n init.2.2 1) :
-    Simulates c n P ((forIn (m := Transcript) (active.zip children) init
+private theorem batchLoop_ensures {active : Array ℕ} {children : Array (Array ExtVar)}
+    {gchildren : Array (Array Ext)} {cur : Array (ExtVar × ExtVar)} {gcur : Array (Ext × Ext)} {mu nu : ExtVar}
+    {gmu gnu : Ext} {init : ExtVar × ExtVar × ExtVar} {d : Duplex} (hmu : IsExt c n mu gmu) (hnu : IsExt c n nu gnu)
+    (hcur : ∀ i ∈ active, IsPair c n cur[i]! gcur[i]!) (hsize : children.size = gchildren.size)
+    (hch : ∀ s < children.size, IsExts c n children[s]! gchildren[s]! ∧ 2 ≤ gchildren[s]!.size)
+    (hclaim : IsExt c n init.1 0) (hexpected : IsExt c n init.2.1 0) (hweight : IsExt c n init.2.2 1) :
+    Ensures c n ((forIn (m := Transcript) (active.zip children) init
         fun (x : ℕ × Array ExtVar) (acc : ExtVar × ExtVar × ExtVar) => do
           let mq ← liftM (Build.extMul mu cur[x.1]!.2)
           let pq ← liftM (Build.extAdd cur[x.1]!.1 mq)
@@ -380,88 +371,58 @@ private theorem batchLoop {active : Array ℕ} {children : Array (Array ExtVar)}
           let expected ← liftM (Build.extAdd acc.2.1 term)
           let weight ← liftM (Build.extMul acc.2.2 nu)
           Pure.pure (ForInStep.yield (claim, expected, weight))).run d)
-      (fun res m => IsExt c m res.1.1 (Replay.batchClaim gcur gmu gnu (active.zip gchildren).toList) ∧
-        IsExt c m res.1.2.1 (Replay.batchExpected gmu gnu (active.zip gchildren).toList) ∧ res.2 = d) True := by
+      fun res m => IsExt c m res.1.1 (Replay.batchClaim gcur gmu gnu (active.zip gchildren).toList) ∧
+        IsExt c m res.1.2.1 (Replay.batchExpected gmu gnu (active.zip gchildren).toList) ∧ res.2 = d := by
   rw [← Array.forIn_toList]
   set pairs := (active.zip gchildren).toList with pairs_def
-  refine ((loopT (fun s acc e m => e = d ∧ ∃ A E W : Ext, IsExt c m acc.1 A ∧ IsExt c m acc.2.1 E ∧
+  refine (Ensures.loopT (fun s acc e m => e = d ∧ ∃ A E W : Ext, IsExt c m acc.1 A ∧ IsExt c m acc.2.1 E ∧
       IsExt c m acc.2.2 W ∧
       Replay.batchClaim gcur gmu gnu pairs = A + W * Replay.batchClaim gcur gmu gnu (pairs.drop s) ∧
-      Replay.batchExpected gmu gnu pairs = E + W * Replay.batchExpected gmu gnu (pairs.drop s)) (fun _ => True)
-    fun s hs acc e m le => ?_).pre fun h => ⟨h, rfl, 0, 0, 1, (hinit h).1, (hinit h).2.1, (hinit h).2.2,
-      zero_add_one_mul _, zero_add_one_mul _⟩).post (fun h r m q => ?_)
-      fun _ => ⟨fun _ => trivial, fun _ _ _ => trivial⟩
-  · have hsa : s < active.size := by simp at hs; omega
+      Replay.batchExpected gmu gnu pairs = E + W * Replay.batchExpected gmu gnu (pairs.drop s))
+    ⟨rfl, 0, 0, 1, hclaim, hexpected, hweight, zero_add_one_mul _, zero_add_one_mul _⟩
+    fun s hs acc e m _ hI => ?_).post fun r m q => ?_
+  · obtain ⟨he, A, E, W, hA, hE, hW, eA, eE⟩ := hI
+    have hsa : s < active.size := by simp at hs; omega
     have hsc : s < children.size := by simp at hs; omega
-    refine Simulates.elim (R := fun w : Ext × Ext × Ext => P ∧ e = d ∧ IsExt c m acc.1 w.1 ∧ IsExt c m acc.2.1 w.2.1 ∧
-        IsExt c m acc.2.2 w.2.2 ∧
-        Replay.batchClaim gcur gmu gnu pairs = w.1 + w.2.2 * Replay.batchClaim gcur gmu gnu (pairs.drop s) ∧
-        Replay.batchExpected gmu gnu pairs = w.2.1 + w.2.2 * Replay.batchExpected gmu gnu (pairs.drop s))
-      (0, 0, 0) (fun w => ?_) fun ⟨hP, he, A, E, W, h⟩ => ⟨(A, E, W), hP, he, h⟩
-    obtain ⟨A, E, W⟩ := w
-    dsimp only
     rw [show (active.zip children).toList[s] = (active[s], children[s]) by simp]
     dsimp only
-    have hi : P → IsExt c m (cur[active[s]]!).1 (gcur[active[s]]!).1 ∧
-        IsExt c m (cur[active[s]]!).2 (gcur[active[s]]!).2 :=
-      fun h => ⟨((hcur h _ (Array.getElem_mem _)).1).mono le, ((hcur h _ (Array.getElem_mem _)).2).mono le⟩
-    have hv : P → IsExts c m children[s] gchildren[s]! ∧ 2 ≤ gchildren[s]!.size := fun h => by
-      have := (hch h).2 s hsc
-      rw [getElem!_pos children s hsc] at this
-      exact ⟨this.1.mono le, this.2⟩
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.extMul (fun h => (hmu h.1).mono le) fun h => (hi h.1).2)) fun mq e₁ m₁ l₁ => ?_
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.extAdd (fun h => ((hi h.1.1).1).mono l₁) fun h => h.2.1)) fun pq e₂ m₂ l₂ => ?_
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.extMul (fun h => h.1.1.2.2.2.2.1.mono (l₁.trans l₂)) fun h => h.2.1))
-      fun t₁ e₃ m₃ l₃ => ?_
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.extAdd (fun h => h.1.1.1.2.2.1.mono (l₁.trans (l₂.trans l₃))) fun h => h.2.1))
-      fun cl e₄ m₄ l₄ => ?_
-    refine Simulates.tbind₀ (Simulates.lift (gkrCombine (fun h => (hv h.1.1.1.1.1).1.mono (l₁.trans (l₂.trans (l₃.trans l₄))))
-      (fun h => (hv h.1.1.1.1.1).2) fun h => (hmu h.1.1.1.1.1).mono (le.trans (l₁.trans (l₂.trans (l₃.trans l₄))))))
-      fun cb e₅ m₅ l₅ => ?_
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.extMul
-      (fun h => h.1.1.1.1.1.2.2.2.2.1.mono (l₁.trans (l₂.trans (l₃.trans (l₄.trans l₅))))) fun h => h.2.1))
-      fun t₂ e₆ m₆ l₆ => ?_
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.extAdd
-      (fun h => h.1.1.1.1.1.1.2.2.2.1.mono (l₁.trans (l₂.trans (l₃.trans (l₄.trans (l₅.trans l₆)))))) fun h => h.2.1))
-      fun ex e₇ m₇ l₇ => ?_
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.extMul
-      (fun h => h.1.1.1.1.1.1.1.2.2.2.2.1.mono (l₁.trans (l₂.trans (l₃.trans (l₄.trans (l₅.trans (l₆.trans l₇)))))))
-      fun h => (hnu h.1.1.1.1.1.1.1.1).mono
-        (le.trans (l₁.trans (l₂.trans (l₃.trans (l₄.trans (l₅.trans (l₆.trans l₇))))))))) fun w e₈ m₈ l₈ => ?_
+    have hi : IsPair c n cur[active[s]]! gcur[active[s]]! := hcur _ (Array.getElem_mem _)
+    have hv : IsExts c n children[s] gchildren[s]! ∧ 2 ≤ gchildren[s]!.size := by
+      have := hch s hsc
+      rwa [getElem!_pos children s hsc] at this
+    refine Ensures.liftBind (extMul_ensures hmu.mono hi.2.mono) fun mq _ _ hmq => ?_
+    refine Ensures.liftBind (extAdd_ensures hi.1.mono hmq) fun pq _ _ hpq => ?_
+    refine Ensures.liftBind (extMul_ensures hW.mono hpq) fun t₁ _ _ ht₁ => ?_
+    refine Ensures.liftBind (extAdd_ensures hA.mono ht₁) fun cl _ _ hcl => ?_
+    refine Ensures.liftBind (gkrCombine_ensures hv.1.mono hv.2 hmu.mono) fun cb _ _ hcb => ?_
+    refine Ensures.liftBind (extMul_ensures hW.mono hcb) fun t₂ _ _ ht₂ => ?_
+    refine Ensures.liftBind (extAdd_ensures hE.mono ht₂) fun ex _ _ hex => ?_
+    refine Ensures.liftBind (extMul_ensures hW.mono hnu.mono) fun w _ _ hw => ?_
     rw [StateT.run_pure]
-    refine Simulates.pure fun h => ⟨rfl, ?_, _, _, _, h.1.1.1.1.2.1.mono (l₅.trans (l₆.trans (l₇.trans l₈))),
-      h.1.2.1.mono l₈, h.2.1, ?_, ?_⟩
-    · obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨-, e0, -⟩, -, f₁⟩, -, f₂⟩, -, f₃⟩, -, f₄⟩, -, f₅⟩, -, f₆⟩, -, f₇⟩, -, f₈⟩ := h
-      exact f₈.trans (f₇.trans (f₆.trans (f₅.trans (f₄.trans (f₃.trans (f₂.trans (f₁.trans e0)))))))
-    · have hs : s < pairs.length := by
-        have := (hch h.1.1.1.1.1.1.1.1.1).1
-        simp [pairs_def, ← this, hsa, hsc]
-      rw [h.1.1.1.1.1.1.1.1.2.2.2.2.2.1, List.drop_eq_getElem_cons hs, Replay.batchClaim, horner_step]
+    have hs' : s < pairs.length := by simp [pairs_def, ← hsize, hsa, hsc]
+    refine Ensures.pure ⟨rfl, he, _, _, _, hcl.mono, hex.mono, hw, ?_, ?_⟩
+    · rw [eA, List.drop_eq_getElem_cons hs', Replay.batchClaim, horner_step]
       simp [pairs_def]
-    · have hs : s < pairs.length := by
-        have := (hch h.1.1.1.1.1.1.1.1.1).1
-        simp [pairs_def, ← this, hsa, hsc]
-      rw [h.1.1.1.1.1.1.1.1.2.2.2.2.2.2, List.drop_eq_getElem_cons hs, Replay.batchExpected, horner_step]
-      simp [pairs_def, getElem!_pos gchildren s (by have := (hch h.1.1.1.1.1.1.1.1.1).1; omega)]
+    · rw [eE, List.drop_eq_getElem_cons hs', Replay.batchExpected, horner_step]
+      simp [pairs_def, getElem!_pos gchildren s (by omega)]
   · obtain ⟨e, A, E, W, hA, hE, -, eA, eE⟩ := q
-    have len : (active.zip children).toList.length = pairs.length := by simp [pairs_def, (hch h).1]
+    have len : (active.zip children).toList.length = pairs.length := by simp [pairs_def, hsize]
     rw [len, List.drop_length, Replay.batchClaim, add_mul_zero] at eA
     rw [len, List.drop_length, Replay.batchExpected, add_mul_zero] at eE
     exact ⟨eA ▸ hA, eE ▸ hE, e⟩
 
 /-- The reduction of the active trees at `τ` (`gkr.rs:726-744`): the
 replay's `advance`. -/
-private theorem reduceLoop {shapes : Array TreeShape} {j : ℕ} {roots : Array (ExtVar × ExtVar)}
+private theorem reduceLoop_ensures {shapes : Array TreeShape} {j : ℕ} {roots : Array (ExtVar × ExtVar)}
     {next : Array ExtVar} {tau : ExtVar} {children : Array (Array ExtVar)} {gc : Replay.GkrClaims}
     {gchildren : Array (Array Ext)} {gnext : Array Ext} {gtau : Ext} {cur : Array (ExtVar × ExtVar)}
     {cl : Array TreeClaimView} {d : Duplex}
-    (hs : P → IsLayerState c n shapes j cur cl gc)
-    (hroots : P → ∀ t < shapes.size, IsPair c n roots[t]! gc.roots[t]!)
-    (hch : P → children.size = gchildren.size ∧ gchildren.size = (Replay.activeTrees shapes (j + 1)).size ∧
-      ∀ s < children.size, IsExts c n children[s]! gchildren[s]! ∧
-        gchildren[s]!.size = 2 * (Replay.partFactors shapes (j + 1) (Replay.activeTrees shapes (j + 1))[s]! + 1))
-    (hnext : P → IsExts c n next (gnext.push gtau)) (htau : P → IsExt c n tau gtau) :
-    Simulates c n P ((forIn (m := Transcript) ((Replay.activeTrees shapes (j + 1)).zip children) (cur, cl)
+    (hs : IsLayerState c n shapes j cur cl gc) (hroots : ∀ t < shapes.size, IsPair c n roots[t]! gc.roots[t]!)
+    (hcs : children.size = gchildren.size) (hga : gchildren.size = (Replay.activeTrees shapes (j + 1)).size)
+    (hch : ∀ s < children.size, IsExts c n children[s]! gchildren[s]! ∧
+      gchildren[s]!.size = 2 * (Replay.partFactors shapes (j + 1) (Replay.activeTrees shapes (j + 1))[s]! + 1))
+    (hnext : IsExts c n next (gnext.push gtau)) (htau : IsExt c n tau gtau) :
+    Ensures c n ((forIn (m := Transcript) ((Replay.activeTrees shapes (j + 1)).zip children) (cur, cl)
         fun (x : ℕ × Array ExtVar) (acc : Array (ExtVar × ExtVar) × Array TreeClaimView) => do
           let reduced ← Array.mapM (fun i => do
               let difference ← liftM (Build.extSub x.2[2 * i + 1]! x.2[2 * i]!)
@@ -471,19 +432,22 @@ private theorem reduceLoop {shapes : Array TreeShape} {j : ℕ} {roots : Array (
             Pure.pure (ForInStep.yield
               (acc.1, acc.2.set! x.1 { root := roots[x.1]!, point := next, values := reduced }))
           else Pure.pure (ForInStep.yield (acc.1.set! x.1 (reduced[0]!, reduced[1]!), acc.2))).run d)
-      (fun res m => res.2 = d ∧ IsLayerState c m shapes (j + 1) res.1.1 res.1.2
-        (Replay.advance shapes (j + 1) gc ((Replay.activeTrees shapes (j + 1)).zip gchildren).toList gnext gtau))
-      True := by
+      fun res m => res.2 = d ∧ IsLayerState c m shapes (j + 1) res.1.1 res.1.2
+        (Replay.advance shapes (j + 1) gc ((Replay.activeTrees shapes (j + 1)).zip gchildren).toList gnext gtau) := by
   rw [← Array.forIn_toList]
   have nodup := activeTrees_nodup shapes (j + 1)
+  obtain ⟨c1, c2, c3, c4, c5, c6⟩ := hs
   set act := Replay.activeTrees shapes (j + 1) with act_def
   set g := Replay.advance shapes (j + 1) gc (act.zip gchildren).toList gnext gtau with g_def
-  refine ((loopT (fun s acc e m => e = d ∧ acc.1.size = shapes.size ∧ acc.2.size = shapes.size ∧
+  refine (Ensures.loopT (fun s acc e m => e = d ∧ acc.1.size = shapes.size ∧ acc.2.size = shapes.size ∧
       ∀ t < shapes.size, IsPair c m acc.1[t]! (if t ∈ act.toList.take s then g.current[t]! else gc.current[t]!) ∧
         (shapes[t]!.depth ≤ j ∨ (t ∈ act.toList.take s ∧ shapes[t]!.depth = j + 1) → IsTreeClaim c m acc.2[t]! g t))
-    (fun _ => True) fun s hs' acc e m le => ?_).pre fun h => ⟨h, ?_⟩).post (fun h r m q => ?_)
-      fun _ => ⟨fun _ => trivial, fun _ _ _ => trivial⟩
-  · have hsa : s < act.size := by simp at hs'; omega
+    ⟨rfl, c1, c2, fun t ht => ⟨by simpa using (c6 t ht).1, fun hd => ?_⟩⟩ fun s hs' acc e m _ hI => ?_).post
+      fun r m q => ?_
+  · simp only [List.take_zero, List.not_mem_nil, false_and, or_false] at hd
+    exact ((c6 t ht).2 hd).advance (by omega) (by omega) (by omega)
+  · obtain ⟨he, sz1, sz2, inv⟩ := hI
+    have hsa : s < act.size := by simp at hs'; omega
     have hsc : s < children.size := by simp at hs'; omega
     have hsl : s < act.toList.length := by simpa using hsa
     rw [show (act.zip children).toList[s] = (act[s], children[s]) by simp]
@@ -493,78 +457,68 @@ private theorem reduceLoop {shapes : Array TreeShape} {j : ℕ} {roots : Array (
     obtain ⟨hin, hdeep⟩ := mem_activeTrees.mp hmem
     obtain ⟨split, fresh⟩ := mem_take_succ nodup hsl
     rw [Array.getElem_toList] at split fresh
-    have hv : P → IsExts c m children[s] gchildren[s]! ∧
-        gchildren[s]!.size = 2 * (Replay.partFactors shapes (j + 1) act[s] + 1) := fun h => by
-      have := (hch h).2.2 s hsc
+    have hv : IsExts c n children[s] gchildren[s]! ∧
+        gchildren[s]!.size = 2 * (Replay.partFactors shapes (j + 1) act[s] + 1) := by
+      have := hch s hsc
       rw [getElem!_pos children s hsc, getElem!_pos act s hsa] at this
-      exact ⟨this.1.mono le, this.2⟩
-    refine Simulates.tbind₀ (reduceValues (fun h => (hv h.1).1) fun h => (htau h.1).mono le) fun reduced e₁ m₁ l₁ => ?_
-    have hro : P → Replay.reducedOf (act.zip gchildren).toList gtau act[s] =
+      exact this
+    have hro : Replay.reducedOf (act.zip gchildren).toList gtau act[s] =
         (Array.range (gchildren[s]!.size / 2)).map fun i =>
           Replay.reduce ((gchildren[s]!)[2 * i]!, (gchildren[s]!)[2 * i + 1]!) gtau :=
-      fun h => reducedOf_active (hch h).2.1 hsa
+      reducedOf_active hga hsa
+    refine (reduceValues_ensures hv.1.mono htau.mono).tbind fun reduced e₁ m₁ _ hred => ?_
+    obtain ⟨hr, he₁⟩ := hred
     by_cases hk : shapes[act[s]]!.depth = j + 1
     · rw [if_pos hk, StateT.run_pure]
-      refine Simulates.pure fun h => ⟨rfl, ?_⟩
+      refine Ensures.pure ⟨rfl, ?_⟩
       dsimp only [ForInStep.value]
-      obtain ⟨⟨hP, he, sz1, sz2, inv⟩, hr, he₁⟩ := h
-      obtain ⟨c1, c2, c3, c4, c5, c6⟩ := hs hP
       refine ⟨he₁.trans he, sz1, by rw [Array.size_set!]; exact sz2, fun t ht => ⟨?_, fun hd => ?_⟩⟩
       · by_cases ts : t = act[s]
         · subst ts
           rw [if_pos ((split _).mpr (Or.inr rfl)), advance_current (by omega), if_neg (by omega)]
           have := (inv _ ht).1
           rw [if_neg fresh] at this
-          exact this.mono l₁
+          exact this.mono
         · have := (inv t ht).1
           simp only [(split t).trans (or_iff_left ts)]
-          exact this.mono l₁
+          exact this.mono
       · rw [getElem!_set! _ _ _ _ (by omega)]
         by_cases ts : act[s] = t
         · subst ts
           rw [if_pos rfl]
-          refine ⟨(hroots hP _ ht).mono (le.trans l₁), ?_, ?_⟩
+          refine ⟨(hroots _ ht).mono, ?_, ?_⟩
           · rw [advance_leafPoint (by omega), if_pos hk]
-            exact (hnext hP).mono (le.trans l₁)
-          · rw [advance_leafValues (by omega), if_pos hk, hro hP]
+            exact hnext.mono
+          · rw [advance_leafValues (by omega), if_pos hk, hro]
             exact hr
         · rw [if_neg ts]
           exact ((inv t ht).2 (hd.imp_right fun hd' =>
-            ⟨((split t).mp hd'.1).resolve_right (Ne.symm ts), hd'.2⟩)).mono l₁
+            ⟨((split t).mp hd'.1).resolve_right (Ne.symm ts), hd'.2⟩)).mono
     · rw [if_neg hk, StateT.run_pure]
-      refine Simulates.pure fun h => ⟨rfl, ?_⟩
+      refine Ensures.pure ⟨rfl, ?_⟩
       dsimp only [ForInStep.value]
-      obtain ⟨⟨hP, he, sz1, sz2, inv⟩, hr, he₁⟩ := h
-      obtain ⟨c1, c2, c3, c4, c5, c6⟩ := hs hP
       have inner : j + 1 < shapes[act[s]]!.depth := by omega
       refine ⟨he₁.trans he, by rw [Array.size_set!]; exact sz1, sz2, fun t ht => ⟨?_, fun hd => ?_⟩⟩
       · rw [getElem!_set! _ _ _ _ (by omega)]
         by_cases ts : act[s] = t
         · subst ts
-          rw [if_pos rfl, if_pos ((split _).mpr (Or.inr rfl)), advance_current (by omega), if_pos inner, hro hP]
+          rw [if_pos rfl, if_pos ((split _).mpr (Or.inr rfl)), advance_current (by omega), if_pos inner, hro]
           have size : gchildren[s]!.size / 2 = 2 := by
-            rw [(hv hP).2, Replay.partFactors, if_neg hk]
+            rw [hv.2, Replay.partFactors, if_neg hk]
           exact ⟨hr.2 0 (by rw [hr.1]; simp [size]), hr.2 1 (by rw [hr.1]; simp [size])⟩
         · rw [if_neg ts]
           have := (inv t ht).1
           simp only [(split t).trans (or_iff_left (Ne.symm ts))]
-          exact this.mono l₁
+          exact this.mono
       · by_cases ts : t = act[s]
         · subst ts
           exfalso
           rcases hd with hd | hd
           · omega
           · exact hk hd.2
-        · exact ((inv t ht).2 (hd.imp_right fun hd' => ⟨((split t).mp hd'.1).resolve_right ts, hd'.2⟩)).mono l₁
-  · obtain ⟨c1, c2, c3, c4, c5, c6⟩ := hs h
-    refine ⟨rfl, c1, c2, fun t ht => ⟨?_, fun hd => ?_⟩⟩
-    · simpa using (c6 t ht).1
-    · simp only [List.take_zero, List.not_mem_nil, false_and, or_false] at hd
-      exact ((c6 t ht).2 hd).advance (by omega) (by omega) (by omega)
+        · exact ((inv t ht).2 (hd.imp_right fun hd' => ⟨((split t).mp hd'.1).resolve_right ts, hd'.2⟩)).mono
   · obtain ⟨he, sz1, sz2, inv⟩ := q
-    obtain ⟨c1, c2, c3, c4, c5, c6⟩ := hs h
-    have len : (act.zip children).toList.length = act.toList.length := by
-      simp [(hch h).1, (hch h).2.1]
+    have len : (act.zip children).toList.length = act.toList.length := by simp [hcs, hga]
     rw [len, List.take_length] at inv
     refine ⟨he, sz1, sz2, by simp [g_def, Replay.advance, c3], by simp [g_def, Replay.advance, c4],
       by simp [g_def, Replay.advance, c5], fun t ht => ⟨?_, fun hd => ?_⟩⟩
@@ -580,11 +534,116 @@ private theorem reduceLoop {shapes : Array TreeShape} {j : ℕ} {roots : Array (
       · exact Or.inl deep
       · exact Or.inr ⟨mem_activeTrees.mpr ⟨ht, by omega⟩, by omega⟩
 
-end Simulates
-
-/-- `gkr::verify` (`gkr.rs:679-751`): the replay's `gkrVerify` runs, and
+/-- `gkr::verify` (`gkr.rs:679-751`) tracks the replay's `gkrVerify`, and
 every tree's claim is the replay's. The proof has the shapes' layers
 (`readGkr`). -/
+theorem gkrVerify_tracks {view : GkrView} {proof : Replay.GkrProof} {shapes : Array TreeShape}
+    (hp : Permutes c.perm) (hrs : view.roots.size = proof.roots.size)
+    (hroots : ∀ i < view.roots.size, IsPair c n view.roots[i]! proof.roots[i]!)
+    (hls : view.layers.size = proof.layers.size)
+    (hlayers : ∀ i (hi : i < view.layers.size),
+      (view.layers[i].rounds.size = (proof.layers[i]!).rounds.size ∧
+        ∀ r < view.layers[i].rounds.size, IsExts c n view.layers[i].rounds[r]! (proof.layers[i]!).rounds[r]!) ∧
+      (view.layers[i].children.size = (proof.layers[i]!).children.size ∧
+        ∀ s < view.layers[i].children.size,
+          IsExts c n view.layers[i].children[s]! (proof.layers[i]!).children[s]!))
+    (read : Replay.readGkr proof shapes = .ok ()) :
+    Tracks c n (Circuit.gkrVerify view shapes) (Replay.gkrVerify proof shapes)
+      fun res g m => IsGkrClaims c m res g := by
+  intro d t hd
+  obtain ⟨rootsSize, layersSize, layersOk⟩ := Bridge.readGkr_ok read
+  unfold Circuit.gkrVerify
+  dsimp only
+  set init : Replay.GkrClaims :=
+    { roots := proof.roots, point := #[], current := proof.roots,
+      leafPoint := shapes.map fun _ => #[], leafValues := shapes.map fun _ => #[] } with init_def
+  set t₁ : Replay.Transcript := { t with duplex :=
+    ((Replay.flatPairs proof.roots).flatMap fun v => #[v.c0, v.c1, v.c2]).foldl Replay.Duplex.observe t.duplex }
+    with t₁_def
+  refine Ensures.tbind (observePairs_ensures hp hd hrs hroots) fun _ e₀ m₀ _ hd₀ => ?_
+  refine Ensures.tbind (Q := fun r m => ∃ g tL, Runs (Replay.gkrLayers shapes 1 proof.layers.toList init) t₁ g tL ∧
+      IsDuplex c m r.2 tL.duplex ∧ IsLayerState c m shapes proof.layers.size r.1.1 r.1.2.1 g ∧ g.roots = proof.roots)
+    ?_ fun res e m _ hres => ?_
+  · rw [← Array.forIn_toList]
+    refine (Ensures.loopT (fun j acc e m => ∃ g tj,
+        Runs (Replay.gkrLayers shapes 1 (proof.layers.toList.take j) init) t₁ g tj ∧ IsDuplex c m e tj.duplex ∧
+        IsLayerState c m shapes j acc.1 acc.2.1 g ∧ IsExts c m acc.2.2 g.point ∧ g.roots = proof.roots)
+      ⟨init, t₁, Bridge.runs_pure _ _, hd₀, ?_, IsExts.empty, rfl⟩ fun j hj acc e m _ hI => ?_).post
+      fun r m q => ?_
+    · refine ⟨by rw [hrs, rootsSize], by simp, by simp [init_def, rootsSize], by simp [init_def],
+        by simp [init_def], fun u hu => ⟨(hroots u (by omega)).mono,
+          fun deep => absurd deep (by have := Bridge.readGkr_depth read hu; omega)⟩⟩
+    · obtain ⟨gc, tj, run₀, hdj, state, hpt, roots⟩ := hI
+      have hj' : j < view.layers.size := by simpa using hj
+      have hjp : j < proof.layers.size := hls ▸ hj'
+      rw [show view.layers.zipIdx.toList[j] = (view.layers[j], j) by simp]
+      dsimp only
+      obtain ⟨⟨hrsize, hrounds⟩, ⟨hcsize, hchildren⟩⟩ := hlayers j hj'
+      have hS : (proof.layers[j]!).rounds.size = j ∧ (∀ r ∈ (proof.layers[j]!).rounds, 3 ≤ r.size) ∧
+          (proof.layers[j]!).children.size = (Replay.activeTrees shapes (j + 1)).size ∧
+          ∀ s < (proof.layers[j]!).children.size, (proof.layers[j]!).children[s]!.size =
+            2 * (Replay.partFactors shapes (j + 1) (Replay.activeTrees shapes (j + 1))[s]! + 1) := by
+        have := Bridge.layerShapeOk_facts (layersOk j hjp)
+        rw [← getElem!_pos proof.layers j hjp, Nat.add_sub_cancel] at this
+        exact this
+      obtain ⟨-, wide, hga, hcount⟩ := hS
+      have state₀ := state
+      obtain ⟨c1, c2, c3, c4, c5, c6⟩ := state
+      refine Ensures.tbind (Duplex.sampleExt_ensures hp hdj) fun mu _ _ _ h₁ => ?_
+      refine Ensures.tbind (Duplex.sampleExt_ensures hp h₁.2) fun nu e₂ _ _ h₂ => ?_
+      refine Ensures.liftBind extZero_ensures fun z₁ _ _ hz₁ => ?_
+      refine Ensures.liftBind extZero_ensures fun z₂ _ _ hz₂ => ?_
+      refine Ensures.liftBind extOne_ensures fun o _ _ ho => ?_
+      refine Ensures.tbind (batchLoop_ensures (active := Replay.activeTrees shapes (j + 1))
+        (gchildren := (proof.layers[j]!).children) (gcur := gc.current) h₁.1.mono h₂.1.mono
+        (fun i hi => (c6 i (mem_activeTrees.mp (Array.mem_toList_iff.mpr hi)).1).1.mono) hcsize
+        (fun s hs => ⟨(hchildren s hs).mono, by have := hcount s (by rw [← hcsize]; exact hs); omega⟩)
+        hz₁.mono hz₂.mono ho) fun acc' e₆ _ _ h₆ => ?_
+      obtain ⟨hclaim, hexpected, he₆⟩ := h₆
+      have he₆' : e₆ = e₂ := he₆
+      refine Ensures.tbind (sumcheckReplay_tracks hp hrsize (fun r hr => (hrounds r hr).mono)
+        (fun r hr => by have := wide r hr; omega) hclaim _ (afterExt (afterExt tj))
+        (by rw [he₆']; exact h₂.2.mono)) fun sc e₇ _ _ h₇ => ?_
+      obtain ⟨⟨gpoint, gfinal⟩, ts, sum, hd₇, hnext, hlast⟩ := h₇
+      refine Ensures.liftBind (eqEval_ensures hpt.mono hnext) fun eq _ _ heq => ?_
+      refine Ensures.liftBind (extMul_ensures heq hexpected.mono) fun target _ _ htarget => ?_
+      refine Ensures.liftBind (assertExtEqual_ensures hlast.mono htarget) fun _ _ _ check => ?_
+      refine Ensures.tbind (observeChildren_ensures (r := ts.duplex) hp hd₇.mono hcsize
+        fun s hs => (hchildren s hs).mono) fun _ _ _ _ hd₁₁ => ?_
+      refine Ensures.tbind (Duplex.sampleExt_ensures hp hd₁₁) fun tau e₁₂ _ _ h₁₂ => ?_
+      refine Ensures.tbind (reduceLoop_ensures (gc := gc) (gchildren := (proof.layers[j]!).children)
+        (gnext := gpoint) state₀.mono
+        (fun u hu => by
+          rw [roots]
+          exact (hroots u (by rw [hrs, rootsSize]; exact hu)).mono)
+        hcsize hga (fun s hs => ⟨(hchildren s hs).mono, hcount s (by rw [← hcsize]; exact hs)⟩)
+        (hnext.mono.push h₁₂.1) h₁₂.1) fun st e₁₃ _ _ h₁₃ => ?_
+      obtain ⟨he₁₃, state₁₃⟩ := h₁₃
+      rw [StateT.run_pure]
+      refine Ensures.pure ⟨rfl, _, _, Bridge.runs_gkrLayers_succ hjp run₀ (Bridge.runs_gkrLayer
+        (Bridge.runs_sampleExt tj) (Bridge.runs_sampleExt _) sum check (Bridge.runs_observeExts _ _)
+        (Bridge.runs_sampleExt _)), ?_, state₁₃, hnext.mono.push h₁₂.1.mono, roots⟩
+      have he : e₁₃ = e₁₂ := he₁₃
+      rw [he]
+      exact h₁₂.2.mono
+    · obtain ⟨g, tL, run, hdx, state, -, roots⟩ := q
+      have len : view.layers.zipIdx.toList.length = proof.layers.toList.length := by simp [hls]
+      rw [len, List.take_length] at run
+      rw [len, Array.length_toList] at state
+      exact ⟨g, tL, run, hdx, state, roots⟩
+  · rw [StateT.run_pure]
+    obtain ⟨g, tL, run, hdx, state, roots⟩ := hres
+    obtain ⟨c1, c2, c3, c4, c5, c6⟩ := state
+    refine Ensures.pure ⟨g, tL, Bridge.runs_bind (Bridge.runs_observeExts _ _) run, hdx,
+      ⟨by rw [c2, roots, rootsSize], fun u hu => ?_⟩⟩
+    have hu' : u < shapes.size := by rw [← c2]; exact hu
+    obtain ⟨root, point, values⟩ := (c6 u hu').2 (by rw [layersSize]; exact Bridge.depth_le_layerCount shapes hu')
+    exact ⟨root.1, root.2, point, values⟩
+
+end Verify
+
+/-! ## The old names, for the files that still use `Simulates` -/
+
 theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {view : GkrView}
     {proof : Replay.GkrProof} {shapes : Array TreeShape} {d : Duplex} {t : Replay.Transcript}
     (hp : Permutes c.perm) (hd : P → IsDuplex c n d t.duplex)
@@ -599,149 +658,8 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
     (read : Replay.readGkr proof shapes = .ok ()) :
     OldEnsures c n P ((Circuit.gkrVerify view shapes).run d)
       (fun res m => ∃ g t', Runs (Replay.gkrVerify proof shapes) t g t' ∧ IsGkrClaims c m res.1 g ∧
-        IsDuplex c m res.2 t'.duplex) := by
-  obtain ⟨rootsSize, layersSize, layersOk⟩ := Bridge.readGkr_ok read
-  unfold Circuit.gkrVerify
-  dsimp only
-  set init : Replay.GkrClaims :=
-    { roots := proof.roots, point := #[], current := proof.roots,
-      leafPoint := shapes.map fun _ => #[], leafValues := shapes.map fun _ => #[] } with init_def
-  set t₁ : Replay.Transcript := { t with duplex :=
-    ((Replay.flatPairs proof.roots).flatMap fun v => #[v.c0, v.c1, v.c2]).foldl Replay.Duplex.observe t.duplex }
-    with t₁_def
-  refine OldEnsures.tbindSim (Simulates.observePairs hp hd fun h => hroots h) fun _ e₀ m₀ l₀ => ?_
-  refine OldEnsures.tbind (Q := fun r m => ∃ g tL, Runs (Replay.gkrLayers shapes 1 proof.layers.toList init) t₁ g tL ∧
-      IsDuplex c m r.2 tL.duplex ∧ IsLayerState c m shapes proof.layers.size r.1.1 r.1.2.1 g ∧ g.roots = proof.roots)
-    ?_ fun res e m le => ?_
-  · rw [← Array.forIn_toList]
-    refine ((OldEnsures.loopT (P := P) (fun j acc e m => ∃ g tj,
-        Runs (Replay.gkrLayers shapes 1 (proof.layers.toList.take j) init) t₁ g tj ∧ IsDuplex c m e tj.duplex ∧
-        IsLayerState c m shapes j acc.1 acc.2.1 g ∧ IsExts c m acc.2.2 g.point ∧ g.roots = proof.roots)
-      fun j hj acc e m le => ?_).pre fun h => ⟨h.1, init, t₁, Bridge.runs_pure _ _, h.2, ?_, IsExts.empty, rfl⟩).post
-      fun h r m q => ?_
-    · have hj' : j < view.layers.size := by simpa using hj
-      have N₀ : n ≤ m := l₀.trans le
-      rw [show view.layers.zipIdx.toList[j] = (view.layers[j], j) by simp]
-      dsimp only
-      have hL : ∀ h : P, (view.layers[j].rounds.size = (proof.layers[j]!).rounds.size ∧
-          ∀ r < view.layers[j].rounds.size, IsExts c n view.layers[j].rounds[r]! (proof.layers[j]!).rounds[r]!) ∧
-          (view.layers[j].children.size = (proof.layers[j]!).children.size ∧
-          ∀ s < view.layers[j].children.size,
-            IsExts c n view.layers[j].children[s]! (proof.layers[j]!).children[s]!) :=
-        fun h => (hlayers h).2 j hj'
-      have hS : P → (proof.layers[j]!).rounds.size = j ∧ (∀ r ∈ (proof.layers[j]!).rounds, 3 ≤ r.size) ∧
-          (proof.layers[j]!).children.size = (Replay.activeTrees shapes (j + 1)).size ∧
-          ∀ s < (proof.layers[j]!).children.size, (proof.layers[j]!).children[s]!.size =
-            2 * (Replay.partFactors shapes (j + 1) (Replay.activeTrees shapes (j + 1))[s]! + 1) := fun h => by
-        have hjp : j < proof.layers.size := (hlayers h).1 ▸ hj'
-        have := Bridge.layerShapeOk_facts (layersOk j hjp)
-        rw [← getElem!_pos proof.layers j hjp, Nat.add_sub_cancel] at this
-        exact this
-      refine OldEnsures.elim (R := fun w : Replay.GkrClaims × Replay.Transcript => P ∧
-          Runs (Replay.gkrLayers shapes 1 (proof.layers.toList.take j) init) t₁ w.1 w.2 ∧ IsDuplex c m e w.2.duplex ∧
-          IsLayerState c m shapes j acc.1 acc.2.1 w.1 ∧ IsExts c m acc.2.2 w.1.point ∧ w.1.roots = proof.roots)
-        (init, t₁) (fun w => ?_) fun ⟨hP, g, tj, h⟩ => ⟨(g, tj), hP, h⟩
-      obtain ⟨gc, tj⟩ := w
-      dsimp only
-      refine OldEnsures.tbindSim (Simulates.sampleExt hp fun h => h.2.2.1) fun mu e₁ m₁ l₁ => ?_
-      refine OldEnsures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun nu e₂ m₂ l₂ => ?_
-      refine OldEnsures.tbindSim (Simulates.lift Simulates.extZero) fun z₁ e₃ m₃ l₃ => ?_
-      refine OldEnsures.tbindSim (Simulates.lift Simulates.extZero) fun z₂ e₄ m₄ l₄ => ?_
-      refine OldEnsures.tbindSim (Simulates.lift Simulates.extOne) fun o e₅ m₅ l₅ => ?_
-      have L₅ : m ≤ m₅ := l₁.trans (l₂.trans (l₃.trans (l₄.trans l₅)))
-      refine OldEnsures.tbindSim (Simulates.batchLoop (active := Replay.activeTrees shapes (j + 1))
-        (gchildren := (proof.layers[j]!).children) (gcur := gc.current)
-        (fun h => h.1.1.1.1.2.1.mono (l₂.trans (l₃.trans (l₄.trans l₅))))
-        (fun h => h.1.1.1.2.1.mono (l₃.trans (l₄.trans l₅)))
-        (fun h i hi => ((h.1.1.1.1.1.2.2.2.1.2.2.2.2.2 i
-          (mem_activeTrees.mp (Array.mem_toList_iff.mpr hi)).1).1).mono L₅)
-        (fun h => ⟨(hL h.1.1.1.1.1.1).2.1, fun s hs => ⟨((hL h.1.1.1.1.1.1).2.2 s hs).mono (N₀.trans L₅), by
-          have := (hS h.1.1.1.1.1.1).2.2.2 s (by rw [← (hL h.1.1.1.1.1.1).2.1]; exact hs)
-          omega⟩⟩)
-        (fun h => ⟨h.1.1.2.1.mono (l₄.trans l₅), h.1.2.1.mono l₅, h.2.1⟩)) fun acc' e₆ m₆ l₆ => ?_
-      have L₆ : m ≤ m₆ := L₅.trans l₆
-      refine OldEnsures.tbindSim (Simulates.sumcheckReplay (t := afterExt (afterExt tj)) hp
-        (fun h => by
-          have he : e₆ = e₂ := h.2.2.2.trans (h.1.2.2.trans (h.1.1.2.2.trans h.1.1.1.2.2))
-          rw [he]
-          exact h.1.1.1.1.2.2.mono (l₃.trans (l₄.trans (l₅.trans l₆))))
-        (fun h => ⟨(hL h.1.1.1.1.1.1.1).1.1, fun r hr =>
-          ((hL h.1.1.1.1.1.1.1).1.2 r hr).mono (N₀.trans L₆)⟩)
-        (fun h r hr => by have := (hS h.1.1.1.1.1.1.1).2.1 r hr; omega)
-        (fun h => h.2.1)) fun sc e₇ m₇ l₇ => ?_
-      have L₇ : m ≤ m₇ := L₆.trans l₇
-      refine OldEnsures.elim (R := fun w : Array Ext × Ext × Replay.Transcript => P ∧
-          Runs (Replay.gkrLayers shapes 1 (proof.layers.toList.take j) init) t₁ gc tj ∧
-          IsLayerState c m₇ shapes j acc.1 acc.2.1 gc ∧ IsExts c m₇ acc.2.2 gc.point ∧ gc.roots = proof.roots ∧
-          IsExt c m₇ acc'.2.1 (Replay.batchExpected (drawnExt tj) (drawnExt (afterExt tj))
-            ((Replay.activeTrees shapes (j + 1)).zip (proof.layers[j]!).children).toList) ∧
-          Runs (Replay.sumcheckReplay (proof.layers[j]!).rounds (Replay.batchClaim gc.current (drawnExt tj)
-            (drawnExt (afterExt tj)) ((Replay.activeTrees shapes (j + 1)).zip (proof.layers[j]!).children).toList))
-            (afterExt (afterExt tj)) (w.1, w.2.1) w.2.2 ∧
-          IsExts c m₇ sc.1 w.1 ∧ IsExt c m₇ sc.2 w.2.1 ∧ IsDuplex c m₇ e₇ w.2.2.duplex)
-        (#[], 0, tj) (fun w => ?_) fun h => ?_
-      swap
-      · obtain ⟨⟨⟨⟨⟨⟨⟨⟨hP, run₀, -, state, hpt, roots⟩, -⟩, -⟩, -⟩, -⟩, -⟩, -, hexp, -⟩, point, final, ts, sum, hnext,
-          hlast, hdx⟩ := h
-        exact ⟨(point, final, ts), hP, run₀, state.mono L₇, hpt.mono L₇, roots, hexp.mono l₇, sum, hnext, hlast, hdx⟩
-      obtain ⟨gpoint, gfinal, ts⟩ := w
-      dsimp only
-      refine OldEnsures.tbindSim (Simulates.lift (Simulates.eqEval (fun h => h.2.2.2.1) fun h => h.2.2.2.2.2.2.2.1))
-        fun eq e₈ m₈ l₈ => ?_
-      refine OldEnsures.tbindSim (Simulates.lift (Simulates.extMul (fun h => h.2.1) fun h => h.1.2.2.2.2.2.1.mono l₈))
-        fun target e₉ m₉ l₉ => ?_
-      refine OldEnsures.tbind (Simulates.lift (Simulates.assertExtEqual (fun h => h.1.1.2.2.2.2.2.2.2.2.1.mono (l₈.trans l₉))
-        fun h => h.2.1)).ensures fun _ e₁₀ m₁₀ l₁₀ => ?_
-      have L₁₀ : m₇ ≤ m₁₀ := l₈.trans (l₉.trans l₁₀)
-      refine OldEnsures.tbindSim (Simulates.observeChildren (r := ts.duplex) hp
-        (fun h => by
-          have he : e₁₀ = e₇ := h.2.1.2.trans (h.1.2.2.trans h.1.1.2.2)
-          rw [he]
-          exact h.1.1.1.2.2.2.2.2.2.2.2.2.mono L₁₀)
-        (fun h => ⟨(hL h.1.1.1.1).2.1, fun s hs =>
-          ((hL h.1.1.1.1).2.2 s hs).mono (N₀.trans (L₇.trans L₁₀))⟩)) fun _ e₁₁ m₁₁ l₁₁ => ?_
-      refine OldEnsures.tbindSim (Simulates.sampleExt hp fun h => h.2) fun tau e₁₂ m₁₂ l₁₂ => ?_
-      have L₁₂ : m₇ ≤ m₁₂ := L₁₀.trans (l₁₁.trans l₁₂)
-      refine OldEnsures.tbindSim (Simulates.reduceLoop (gc := gc) (gchildren := (proof.layers[j]!).children)
-        (gnext := gpoint)
-        (fun h => h.1.1.1.1.1.2.2.1.mono L₁₂)
-        (fun h u hu => by
-          rw [h.1.1.1.1.1.2.2.2.2.1]
-          have := (hroots h.1.1.1.1.1.1).2 u (by rw [(hroots h.1.1.1.1.1.1).1, rootsSize]; exact hu)
-          exact ⟨this.1.mono (N₀.trans (L₇.trans L₁₂)), this.2.mono (N₀.trans (L₇.trans L₁₂))⟩)
-        (fun h => ⟨(hL h.1.1.1.1.1.1).2.1, (hS h.1.1.1.1.1.1).2.2.1, fun s hs =>
-          ⟨((hL h.1.1.1.1.1.1).2.2 s hs).mono (N₀.trans (L₇.trans L₁₂)),
-            (hS h.1.1.1.1.1.1).2.2.2 s (by rw [← (hL h.1.1.1.1.1.1).2.1]; exact hs)⟩⟩)
-        (fun h => (h.1.1.1.1.1.2.2.2.2.2.2.2.1.mono L₁₂).push h.2.1) fun h => h.2.1) fun st e₁₃ m₁₃ l₁₃ => ?_
-      rw [StateT.run_pure]
-      refine OldEnsures.pure fun h => ⟨rfl, ?_⟩
-      dsimp only [ForInStep.value]
-      obtain ⟨⟨⟨⟨⟨⟨⟨hP, run₀, -, -, roots, -, sum, hnext, -, -⟩, -⟩, -⟩, ⟨-, check⟩⟩, -⟩, hτ, hdτ⟩, he₁₃, state⟩ := h
-      have hjp : j < proof.layers.size := (hlayers hP).1 ▸ hj'
-      refine ⟨_, _, Bridge.runs_gkrLayers_succ hjp run₀ (Bridge.runs_gkrLayer (Bridge.runs_sampleExt tj)
-        (Bridge.runs_sampleExt _) sum check (Bridge.runs_observeExts _ _) (Bridge.runs_sampleExt _)), ?_, state,
-        (hnext.mono (L₁₂.trans l₁₃)).push (hτ.mono l₁₃), roots⟩
-      have he : e₁₃ = e₁₂ := he₁₃
-      rw [he]
-      exact hdτ.mono l₁₃
-    · have sz := (hroots h.1).1
-      refine ⟨by rw [sz, rootsSize], by simp, by simp [init_def, rootsSize], by simp [init_def],
-        by simp [init_def], fun u hu => ⟨?_, fun deep => absurd deep (by have := Bridge.readGkr_depth read hu; omega)⟩⟩
-      have := (hroots h.1).2 u (by omega)
-      exact ⟨this.1.mono l₀, this.2.mono l₀⟩
-    · obtain ⟨g, tL, run, hdx, state, -, roots⟩ := q
-      have len : view.layers.zipIdx.toList.length = proof.layers.toList.length := by simp [(hlayers h.1).1]
-      rw [len, List.take_length] at run
-      rw [len, Array.length_toList] at state
-      exact ⟨g, tL, run, hdx, state, roots⟩
-  · rw [StateT.run_pure]
-    refine OldEnsures.pure fun h => ?_
-    obtain ⟨g, tL, run, hdx, state, roots⟩ := h.2
-    obtain ⟨c1, c2, c3, c4, c5, c6⟩ := state
-    refine ⟨g, tL, Bridge.runs_bind (Bridge.runs_observeExts _ _) run, ⟨by rw [c2, roots, rootsSize], fun u hu => ?_⟩,
-      hdx⟩
-    have hu' : u < shapes.size := by rw [← c2]; exact hu
-    have := (c6 u hu').2 (by rw [layersSize]; exact Bridge.depth_le_layerCount shapes hu')
-    exact ⟨this.1.1, this.1.2, this.2.1, this.2.2⟩
+        IsDuplex c m res.2 t'.duplex) :=
+  .of_ensures fun h => (gkrVerify_tracks hp (hroots h).1 (hroots h).2 (hlayers h).1 (hlayers h).2 read d t
+    (hd h)).post fun _ _ ⟨g, t', run, hdx, claims⟩ => ⟨g, t', run, claims, hdx⟩
 
 end CompressionLean.Sim

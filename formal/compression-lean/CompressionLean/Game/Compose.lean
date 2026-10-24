@@ -1,4 +1,4 @@
-import CompressionLean.Layer1.Restoration
+import CompressionLean.Game.Restoration
 
 /-!
 Owns the composition of two public-coin verifier games into one experiment.
@@ -8,7 +8,7 @@ Owns the composition of two public-coin verifier games into one experiment.
   claims. So a prover breaks either claim with probability at most the sum
   of the two errors.
 - Side by side under Fiat–Shamir (`restorePair`, `restorePair_sound`): one
-  state-restoration experiment (`Layer1/Restoration.lean`) with one log per
+  state-restoration experiment (`Game/Restoration.lean`) with one log per
   game. Each query names a node of either game. The prover outputs one path
   of the first game. The result is its walk and the walk of every path of
   the second game under that game's log. Each query costs at most `ε`.
@@ -19,9 +19,7 @@ answer to one never answers the other.
 Does not own a protocol or an error term.
 -/
 
-namespace CompressionLean.Final
-
-open CompressionLean.Layer1 CompressionLean.Layer1.Game
+namespace CompressionLean.Game
 
 variable {α β : Type}
 
@@ -177,4 +175,4 @@ theorem restorePair_sound (g : Game α) (h : Game β) (s : Strategy (Option α �
     (restorePair_avoids g h Q R avoidsG avoidsH q [] [] (by simp [Keeps]) (by simp [Keeps]))
     (restorePair_cost g h ε densityG densityH nonneg q [] [])
 
-end CompressionLean.Final
+end CompressionLean.Game

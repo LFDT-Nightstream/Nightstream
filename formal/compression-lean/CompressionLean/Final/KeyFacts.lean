@@ -12,6 +12,7 @@ read.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Game
 open CompressionLean.Circuit (Layer1Input)
 open CompressionLean.Bridge (EvalKBits HonestSizes shapeOf structureOf)
 

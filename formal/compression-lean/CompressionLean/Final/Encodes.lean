@@ -32,6 +32,7 @@ stage lemmas carry every such fact.
 
 namespace CompressionLean.Final.Encodes
 
+open CompressionLean.Game
 open CompressionLean.Circuit CompressionLean.Circuit.Terminal CompressionLean.Circuit.Package
 open NightstreamFPrime.Spec (goldilocksModulus)
 open CompressionLean.Bridge CompressionLean.Layer1

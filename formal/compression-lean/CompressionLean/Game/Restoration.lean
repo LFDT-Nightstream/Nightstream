@@ -1,4 +1,4 @@
-import CompressionLean.Layer1.Game
+import CompressionLean.Game.Game
 
 /-!
 Owns the state-restoration experiment over a game (`Game.restore`) and its
@@ -22,9 +22,7 @@ give at most `k` challenges each is a prover here with at most `k·Q + R`
 queries (`R`, the draws on one path).
 -/
 
-namespace CompressionLean.Layer1
-
-namespace Game
+namespace CompressionLean.Game
 
 variable {α : Type}
 
@@ -185,6 +183,4 @@ theorem restore_sound (s : Strategy (Option α)) (g : Game α) (Q : α → Prop)
       by_contra none
       exact not fun a equal => by_contra fun outside => none ⟨a, equal, outside⟩
 
-end Game
-
-end CompressionLean.Layer1
+end CompressionLean.Game

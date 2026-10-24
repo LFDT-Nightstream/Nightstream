@@ -1,6 +1,6 @@
 import CompressionLean.Terminal.Soundness
 import CompressionLean.Layer1.Soundness
-import CompressionLean.Layer1.Restoration
+import CompressionLean.Game.Restoration
 import CompressionLean.Shrink.Layout
 
 /-!
@@ -22,6 +22,7 @@ Does not own the layers' games or their errors.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Game
 open CompressionLean NightstreamFPrime Polynomial
 
 variable {F K : Type} [Field F]
@@ -99,20 +100,20 @@ It stands for `FinalProgram::run` (`lifecycle/terminal/mod.rs:54-80`):
 by `circuit/record.rs` and placed by `shrink/layout.rs`. `programEncodes`
 (`Final/Encodes.lean`) proves it for the production final program. -/
 def ProgramEncodes {t L : ℕ} (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
-    (authority : Lifecycle.VerifierContext.Authority) (g : Layer1.Game (Option (Layer1.Transcript F K t L)))
+    (authority : Lifecycle.VerifierContext.Authority) (g : Game (Option (Layer1.Transcript F K t L)))
     (Reads : StateWords → (ℕ → F) → g.Pos → Prop) : Prop :=
   ∀ x w, ((prog x).ccs T s).Relation w → ∃ env, TerminalFor authority x env ∧
-    ∀ p, Reads x w p → ∃ tr, Layer1.Game.Pos.node g p = .pure (some tr) ∧ tr.statement = claimOf env
+    ∀ p, Reads x w p → ∃ tr, Game.Pos.node g p = .pure (some tr) ∧ tr.statement = claimOf env
 
 /-- One link of the chain. A witness of program `x`'s CCS and a reading of it
 whose leaf extracts a CE(B) witness give the terminal claim for `x`. -/
 theorem terminalClaim_of {t L : ℕ} {T : Shrink.Template F} {s : Shrink.Counts}
     {prog : StateWords → Shrink.Run F} {authority : Lifecycle.VerifierContext.Authority}
-    {g : Layer1.Game (Option (Layer1.Transcript F K t L))} {Reads : StateWords → (ℕ → F) → g.Pos → Prop}
+    {g : Game (Option (Layer1.Transcript F K t L))} {Reads : StateWords → (ℕ → F) → g.Pos → Prop}
     (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F)
     (encodes : ProgramEncodes T s prog authority g Reads) {x : StateWords} {w : ℕ → F}
     (holds : ((prog x).ccs T s).Relation w) {p : g.Pos} (reads : Reads x w p)
-    (extracts : ∀ r, Layer1.Game.Pos.node g p = .pure r →
+    (extracts : ∀ r, Game.Pos.node g p = .pure r →
       ∀ tr, r = some tr → ∃ v ∈ tr.early.candidates, Layer1.Relation s1 Φ bar S tr.statement v.z) :
     TerminalClaim s1 Φ bar S authority x := by
   obtain ⟨env, terminal, leaves⟩ := encodes x w holds

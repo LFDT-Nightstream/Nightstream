@@ -25,6 +25,7 @@ parity of Rust's SHAKE128 expander with `AjtaiSetupV1`.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Game
 open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 

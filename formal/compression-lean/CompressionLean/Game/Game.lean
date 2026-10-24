@@ -4,7 +4,7 @@ import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
 /-!
-Owns the probability model of the layer-1 soundness proof: a public-coin
+Owns the probability model of the soundness proofs: a public-coin
 verifier as a game tree against an adaptive prover.
 
 - `draw` samples a uniform challenge from a finite type. It names the bad set of
@@ -20,7 +20,7 @@ sum of the bad-set densities along the worst path (`prob_not_le`).
 Does not own a protocol, a field, or an error term.
 -/
 
-namespace CompressionLean.Layer1
+namespace CompressionLean
 
 open scoped BigOperators
 
@@ -177,8 +177,6 @@ theorem prob_congr (s : Strategy α) (g : Game α) {E E' : α → Prop} (same : 
     prob s g E = prob s g E' := by
   rw [show E = E' from funext fun a => propext (same a)]
 
-end Game
-
 theorem density_le {C : Type} [Fintype C] (bad : Finset C) (n : ℕ) (card : bad.card ≤ n) :
     (bad.card : ℝ) / Fintype.card C ≤ n / Fintype.card C :=
   div_le_div_of_nonneg_right (by exact_mod_cast card) (by positivity)
@@ -190,4 +188,6 @@ theorem draw_step {α C D : Type} [Fintype C] [Nonempty C] [Fintype D] (bad : Fi
     (Game.draw C bad next).CostLe (((a + rest : ℕ) : ℝ) / Fintype.card D) :=
   ⟨_, by push_cast; rw [add_div]; linarith, nexts⟩
 
-end CompressionLean.Layer1
+end Game
+
+end CompressionLean

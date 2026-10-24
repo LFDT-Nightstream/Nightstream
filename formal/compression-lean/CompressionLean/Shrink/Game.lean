@@ -4,7 +4,7 @@ import CompressionLean.Layer1.HonestStage
 
 /-!
 Owns the shrink verifier (`verify`, `mod.rs:233-288`) as a public-coin game
-against an adaptive prover, in the model of `Layer1/Game.lean`.
+against an adaptive prover, in the model of `Game/Game.lean`.
 
 The prover names the program first. Rust absorbs the program's key and
 statement before the commitment (`mod.rs:117-126`), so a prover may choose

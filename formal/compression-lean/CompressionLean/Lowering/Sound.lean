@@ -34,36 +34,34 @@ section Simulation
 
 variable {F : Type} [Field F] [DecidableEq F] {v : Wire → F} {perm : List F → List F}
 
-/-- `t` extends `s`: more calls, glue cells and blocks, and more values and
-statement words after those of `s`. -/
+/-- `t` extends `s`: more calls, glue cells and blocks, more values after
+those of `s`, and at least as many statement words. -/
 structure _root_.CompressionLean.Circuit.State.Extends (s t : State F) : Prop where
   calls : ∀ c ∈ s.calls, c ∈ t.calls
   blocks : s.blocks ≤ t.blocks
   values : ∃ more : List (Form F), t.values = s.values ++ more.toArray
-  publics : ∃ more : List F, t.publics = s.publics ++ more.toArray
+  publics : s.publics ≤ t.publics
 
 omit [Field F] [DecidableEq F] in
 theorem _root_.CompressionLean.Circuit.State.Extends.refl (s : State F) : s.Extends s :=
-  ⟨fun _ h => h, le_rfl, ⟨[], by simp⟩, ⟨[], by simp⟩⟩
+  ⟨fun _ h => h, le_rfl, ⟨[], by simp⟩, le_rfl⟩
 
 omit [Field F] [DecidableEq F] in
 theorem _root_.CompressionLean.Circuit.State.Extends.trans {s t u : State F} (h : s.Extends t) (h' : t.Extends u) : s.Extends u := by
   obtain ⟨m, hm⟩ := h.values
   obtain ⟨m', hm'⟩ := h'.values
-  obtain ⟨p, hp⟩ := h.publics
-  obtain ⟨p', hp'⟩ := h'.publics
   exact ⟨fun c hc => h'.calls c (h.calls c hc), h.blocks.trans h'.blocks, ⟨m ++ m', by rw [hm', hm]; simp⟩,
-    ⟨p ++ p', by rw [hp', hp]; simp⟩⟩
+    h.publics.trans h'.publics⟩
 
 omit [Field F] [DecidableEq F] in
 /-- A part that only adds, then a push of `forms`. -/
 theorem _root_.CompressionLean.Circuit.State.Adds.extends_push {s t : State F} (h : s.Adds t) (forms : List (Form F)) :
     s.Extends { t with values := t.values ++ forms.toArray } :=
-  ⟨h.calls, h.blocks, ⟨forms, by rw [h.values]⟩, ⟨[], by simp [h.publics]⟩⟩
+  ⟨h.calls, h.blocks, ⟨forms, by rw [h.values]⟩, h.publics.ge⟩
 
 omit [Field F] [DecidableEq F] in
 theorem _root_.CompressionLean.Circuit.State.Adds.extends {s t : State F} (h : s.Adds t) : s.Extends t :=
-  ⟨h.calls, h.blocks, ⟨[], by simp [h.values]⟩, ⟨[], by simp [h.publics]⟩⟩
+  ⟨h.calls, h.blocks, ⟨[], by simp [h.values]⟩, h.publics.ge⟩
 
 omit [Field F] [DecidableEq F] in
 theorem _root_.CompressionLean.Circuit.State.Extends.values_getD {s t : State F} (h : s.Extends t) {n : ℕ} (hn : n < s.values.size) (d : Form F) :
@@ -74,18 +72,6 @@ theorem _root_.CompressionLean.Circuit.State.Extends.values_getD {s t : State F}
 omit [Field F] [DecidableEq F] in
 theorem _root_.CompressionLean.Circuit.State.Extends.values_size {s t : State F} (h : s.Extends t) : s.values.size ≤ t.values.size := by
   obtain ⟨more, hm⟩ := h.values
-  rw [hm]
-  simp
-
-omit [Field F] [DecidableEq F] in
-theorem _root_.CompressionLean.Circuit.State.Extends.publics_getD {s t : State F} (h : s.Extends t) {k : ℕ} (hk : k < s.publics.size) (d : F) :
-    t.publics.getD k d = s.publics.getD k d := by
-  obtain ⟨more, hm⟩ := h.publics
-  rw [hm, array_getD_append, if_pos hk]
-
-omit [Field F] [DecidableEq F] in
-theorem _root_.CompressionLean.Circuit.State.Extends.publics_size {s t : State F} (h : s.Extends t) : s.publics.size ≤ t.publics.size := by
-  obtain ⟨more, hm⟩ := h.publics
   rw [hm]
   simp
 
@@ -121,13 +107,12 @@ omit [Field F] [DecidableEq F] in
     go (push forms) s = ((), { s with values := s.values ++ forms.toArray }) := rfl
 
 omit [DecidableEq F] in
-@[simp] theorem go_statementWord (stmt : Array F) (s : State F) :
-    go (statementWord stmt) s =
-      (.wire (.pub (s.publics.size + 1)), { s with publics := s.publics.push (stmt.getD s.publics.size 0) }) := rfl
+@[simp] theorem go_statementWord (s : State F) :
+    go (statementWord : Lower F (Form F)) s = (.wire (.pub (s.publics + 1)), { s with publics := s.publics + 1 }) := rfl
 
 /-- Each step extends its state. -/
-theorem step_extends (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (k : F) = 0 → k = 0) (stmt : Array F)
-    (i : Instr) (s : State F) : s.Extends (go (step stmt i) s).2 := by
+theorem step_extends (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (k : F) = 0 → k = 0)
+    (i : Instr) (s : State F) : s.Extends (go (step i) s).2 := by
   cases i with
   | const value => exact (State.Adds.refl s).extends_push _
   | priv =>
@@ -135,7 +120,7 @@ theorem step_extends (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (
       exact ((cell_sound (v := v) (perm := id) s).1).extends_push _
   | pub =>
       simp only [step, go_bind, go_statementWord, go_push]
-      exact ⟨fun _ h => h, le_rfl, ⟨[_], rfl⟩, ⟨[stmt.getD s.publics.size 0], by simp⟩⟩
+      exact ⟨fun _ h => h, le_rfl, ⟨[_], rfl⟩, Nat.le_succ _⟩
   | linear parts =>
       simp only [step, go_bind, go_readValues, go_push]
       exact ((linear_sound (v := v) (perm := id) _ s).1).extends_push _
@@ -164,11 +149,10 @@ theorem step_extends (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (
       simp only [step, go_bind, go_readValues]
       exact ((r1cs_sound (v := v) (perm := id) _ _ s).1).extends
 
-theorem steps_extends (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (k : F) = 0 → k = 0)
-    (stmt : Array F) :
-    ∀ (L : List Instr) (s : State F), s.Extends (steps stmt L s)
+theorem steps_extends (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (k : F) = 0 → k = 0) :
+    ∀ (L : List Instr) (s : State F), s.Extends (steps L s)
   | [], s => State.Extends.refl s
-  | i :: rest, s => (step_extends one small stmt i s).trans (steps_extends one small stmt rest _)
+  | i :: rest, s => (step_extends one small i s).trans (steps_extends one small rest _)
 
 variable (v) in
 /-- The simulation: every handle's form has the executor's value, the two have
@@ -176,14 +160,14 @@ read the same statement words, and every check so far holds. -/
 structure Agrees (S : State F) (E : Exec.State F) : Prop where
   length : E.values.length = S.values.size
   value : ∀ n, (S.values.getD n (.const 0)).evaluate v = E.value n
-  reads : E.reads = S.publics.size
+  reads : E.reads = S.publics
   holds : E.holds
 
 omit [DecidableEq F] in
 /-- Appending forms and their values keeps the simulation. -/
 theorem Agrees.append {S S' : State F} {E : Exec.State F} (agrees : Agrees v S E) {forms : List (Form F)}
     {outputs : List F} {reads : ℕ} {holds : Prop} (values : S'.values = S.values ++ forms.toArray)
-    (evaluates : forms.map (·.evaluate v) = outputs) (hr : reads = S'.publics.size) (hh : holds) :
+    (evaluates : forms.map (·.evaluate v) = outputs) (hr : reads = S'.publics) (hh : holds) :
     Agrees v S' ⟨E.values ++ outputs, reads, holds⟩ := by
   refine ⟨?_, fun n => ?_, hr, hh⟩
   · simp [values, agrees.length, ← evaluates]
@@ -201,7 +185,7 @@ theorem Agrees.append {S S' : State F} {E : Exec.State F} (agrees : Agrees v S E
 omit [DecidableEq F] in
 theorem Agrees.next {S S' : State F} {E : Exec.State F} (agrees : Agrees v S E) {forms : List (Form F)}
     {outputs : List F} {check : Prop} (values : S'.values = S.values ++ forms.toArray)
-    (publics : S'.publics.size = S.publics.size) (evaluates : forms.map (·.evaluate v) = outputs) (hc : check) :
+    (publics : S'.publics = S.publics) (evaluates : forms.map (·.evaluate v) = outputs) (hc : check) :
     Agrees v S' (E.next outputs check) :=
   agrees.append values evaluates (by rw [publics, agrees.reads]) ⟨agrees.holds, hc⟩
 
@@ -235,12 +219,10 @@ theorem Bits.congr {a : F} {count : ℕ} {b b' : ℕ → F} (h : ∀ i < count, 
 the tape is its forms' values, and its statement wires are its words. -/
 theorem step_agrees (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (k : F) = 0 → k = 0) (stmt : List F)
     (tape : ℕ → F) (i : Instr) {S : State F} {E : Exec.State F} (agrees : Agrees v S E)
-    (holds : (go (step stmt.toArray i) S).2.Holds v perm)
-    (free : ∀ n < (go (step stmt.toArray i) S).2.values.size,
-      tape n = ((go (step stmt.toArray i) S).2.values.getD n (.const 0)).evaluate v)
-    (pubs : ∀ k < (go (step stmt.toArray i) S).2.publics.size,
-      v (.pub (k + 1)) = (go (step stmt.toArray i) S).2.publics.getD k 0) :
-    Agrees v (go (step stmt.toArray i) S).2 (Exec.step perm stmt tape E i) := by
+    (holds : (go (step i) S).2.Holds v perm)
+    (free : ∀ n < (go (step i) S).2.values.size, tape n = ((go (step i) S).2.values.getD n (.const 0)).evaluate v)
+    (pubs : ∀ k < (go (step i) S).2.publics, v (.pub (k + 1)) = stmt.getD k 0) :
+    Agrees v (go (step i) S).2 (Exec.step perm stmt tape E i) := by
   cases i with
   | const value =>
       exact agrees.next rfl rfl (by simp [one]) trivial
@@ -256,9 +238,7 @@ theorem step_agrees (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (k
       simp [agrees.length]
   | pub =>
       simp only [step, go_bind, go_statementWord, go_push] at holds free pubs ⊢
-      have word : v (.pub (S.publics.size + 1)) = stmt.getD S.publics.size 0 := by
-        rw [pubs S.publics.size (by simp)]
-        simp [Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD]
+      have word : v (.pub (S.publics + 1)) = stmt.getD S.publics 0 := pubs S.publics (by simp)
       refine agrees.append rfl ?_ (by simp [agrees.reads]) agrees.holds
       simp [word, agrees.reads]
   | linear parts =>
@@ -394,19 +374,17 @@ and the statement wires are its words. -/
 theorem steps_agrees (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (k : F) = 0 → k = 0) (stmt : List F)
     (tape : ℕ → F) :
     ∀ (L : List Instr) (S : State F) (E : Exec.State F), Agrees v S E →
-      (steps stmt.toArray L S).Holds v perm →
-      (∀ n < (steps stmt.toArray L S).values.size,
-        tape n = ((steps stmt.toArray L S).values.getD n (.const 0)).evaluate v) →
-      (∀ k < (steps stmt.toArray L S).publics.size,
-        v (.pub (k + 1)) = (steps stmt.toArray L S).publics.getD k 0) →
-      Agrees v (steps stmt.toArray L S) (L.foldl (Exec.step perm stmt tape) E)
+      (steps L S).Holds v perm →
+      (∀ n < (steps L S).values.size, tape n = ((steps L S).values.getD n (.const 0)).evaluate v) →
+      (∀ k < (steps L S).publics, v (.pub (k + 1)) = stmt.getD k 0) →
+      Agrees v (steps L S) (L.foldl (Exec.step perm stmt tape) E)
   | [], _, _, agrees, _, _, _ => agrees
   | i :: rest, S, E, agrees, holds, free, pubs => by
-      have ext := steps_extends one small stmt.toArray rest (go (step stmt.toArray i) S).2
+      have ext := steps_extends one small rest (go (step i) S).2
       have next := step_agrees one small stmt tape i agrees (holds.mono ext.calls ext.blocks)
         (fun n hn => (free n (lt_of_lt_of_le hn ext.values_size)).trans
           (congrArg (Form.evaluate v) (ext.values_getD hn _)))
-        (fun k hk => (pubs k (lt_of_lt_of_le hk ext.publics_size)).trans (ext.publics_getD hk _))
+        (fun k hk => pubs k (lt_of_lt_of_le hk ext.publics))
       exact steps_agrees one small stmt tape rest _ _ next holds free pubs
 
 end Simulation
@@ -419,7 +397,7 @@ variable {F : Type} [Field F] [DecidableEq F]
 at the wire values of `w`. The executor reads it only at the free handles,
 whose forms are glue cells or, for a folded `extInv`, constants. -/
 noncomputable def tapeOf (T : Template F) (L : Array Instr) (stmt : List F) (w : ℕ → F) (n : ℕ) : F :=
-  ((steps stmt.toArray L.toList {}).values.getD n (.const 0)).evaluate
+  ((steps L.toList {}).values.getD n (.const 0)).evaluate
     ((lower L stmt).wireValue T (lower L stmt).counts w)
 
 /-- **Lowering soundness**, for any field, template and permutation: if the
@@ -434,17 +412,16 @@ theorem lower_exec (T : Template F) (wf : T.WellFormed) (perm : List F → List 
     Exec perm L stmt (tapeOf T L stmt w) := by
   have rows := Run.rows_hold wf rfl holds
   have blocks := Run.blocks_hold wf rfl holds
-  have final : (steps stmt.toArray L.toList {}).Holds ((lower L stmt).wireValue T (lower L stmt).counts w) perm :=
+  have final : (steps L.toList {}).Holds ((lower L stmt).wireValue T (lower L stmt).counts w) perm :=
     ⟨fun c hc row hrow => rows row (List.mem_flatMap.mpr ⟨c, Array.mem_toList_iff.mpr hc, hrow⟩),
       fun b hb => permutes _ (blocks b hb)⟩
   have start : Agrees ((lower L stmt).wireValue T (lower L stmt).counts w) {} (Exec.start : Exec.State F) :=
     ⟨rfl, fun n => by simp [Exec.State.value, Exec.start, Array.getD_eq_getD_getElem?], rfl, trivial⟩
-  have pubs : ∀ k < (steps stmt.toArray L.toList {}).publics.size,
-      (lower L stmt).wireValue T (lower L stmt).counts w (.pub (k + 1)) =
-        (steps stmt.toArray L.toList {}).publics.getD k 0 := by
-    intro k _
+  have pubs : ∀ k < (steps (F := F) L.toList {}).publics,
+      (lower L stmt).wireValue T (lower L stmt).counts w (.pub (k + 1)) = stmt.getD k 0 := by
+    intro k hk
     rw [Run.wireValue_pub]
-    simp [lower, Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD]
+    simp [lower, List.getD_eq_getElem?_getD, hk]
   exact (steps_agrees (Run.wireValue_one _ _ _ _) small stmt (tapeOf T L stmt w) L.toList {} Exec.start start
     final (fun _ _ => rfl) pubs).holds
 

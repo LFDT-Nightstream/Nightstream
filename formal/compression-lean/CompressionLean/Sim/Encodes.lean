@@ -3,7 +3,7 @@ import CompressionLean.Sim.Fold
 import CompressionLean.Sim.Verify
 import CompressionLean.Ports.Circuit.Verifier
 import CompressionLean.Lowering.Sound
-import CompressionLean.Lowering.RecordCounts
+import CompressionLean.Lowering.Record
 import CompressionLean.Lowering.Valid
 import CompressionLean.Bridge.Main
 import CompressionLean.Final.Bridge

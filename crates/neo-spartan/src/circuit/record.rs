@@ -622,7 +622,7 @@ impl Trace {
     }
 
     /// The run digest (`runDigest` in `formal/compression-lean`,
-    /// `Circuit/Digest.lean`): the Poseidon2 leaf sponge (`hash_leaf`) of the
+    /// `CompressionLeanExe/Digest.lean`): the Poseidon2 leaf sponge (`hash_leaf`) of the
     /// glue cell, block, statement word and row counts, then every row's
     /// words. Statement and cell values are not part of it.
     pub(crate) fn digest(&self) -> [u64; 4] {

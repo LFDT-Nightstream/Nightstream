@@ -5,7 +5,7 @@
 //! verifier on the toy proof. A stage program starts from the verifier's
 //! state at the stage's start, taken from a native run of the stages before
 //! it, with every value it reads as a proof word. Each program has a mirror
-//! in `Circuit/Check.lean`.
+//! in `CompressionLeanExe/Fixtures.lean`.
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_math::D;
@@ -109,7 +109,7 @@ impl Program for Edges {
 /// (`circuit/hash.rs`), the fold transcript and its handoff
 /// (`circuit/fold.rs`) and `sumcheck::replay`. The duplex absorbs a full and
 /// a partial chunk, reads its output, and duplexes once with no input.
-/// `shared` in `Circuit/Check.lean` writes the same program.
+/// `shared` in `CompressionLeanExe/Fixtures.lean` writes the same program.
 pub(super) struct Shared;
 
 impl Program for Shared {
@@ -174,7 +174,7 @@ impl Program for Shared {
 /// a structure that the toy relation does not have: three matrices, an
 /// empty run range, a run count of `2^run_variables`, a GKR tree of depth
 /// one and a row point shorter than `r`. The program then reads every
-/// early opening. `early` in `Circuit/Check.lean` writes the same program.
+/// early opening. `early` in `CompressionLeanExe/Fixtures.lean` writes the same program.
 pub(super) struct Early;
 
 impl Program for Early {
@@ -239,7 +239,7 @@ impl Program for Early {
 /// after `observe_early` and the proof's quotient, linear rounds and finals as
 /// proof words. The duplex's unread output is the first `output` lanes of its
 /// state. `run` makes the calls of `verifier.rs:170-206` in its order.
-/// `linear` in `Circuit/Check.lean` writes the same program.
+/// `linear` in `CompressionLeanExe/Fixtures.lean` writes the same program.
 pub(super) struct Linear<'a> {
     relation: &'a Relation<'a>,
     statement: ClaimWords<Gl>,
@@ -378,7 +378,7 @@ impl Program for Linear<'_> {
 /// stages and of the proof, as proof words. The duplex's unread output is the
 /// first `output` lanes of its state. `run` makes the calls of
 /// `verifier.rs:208-249`, then those of `verifier.rs:262-265`, in their
-/// order. `honest` in `Circuit/Check.lean` writes the same program.
+/// order. `honest` in `CompressionLeanExe/Fixtures.lean` writes the same program.
 pub(super) struct Honest<'a> {
     relation: &'a Relation<'a>,
     proof: &'a Proof,
@@ -555,7 +555,7 @@ impl Program for Honest<'_> {
 /// and the Eval_A weights as proof words, then the proof's late GKR and late
 /// values. The duplex's unread output is the first `output` lanes of its
 /// state. `run` makes the calls of `verifier.rs:251-260` in its order, then
-/// binds the late openings. `late` in `Circuit/Check.lean` writes the same
+/// binds the late openings. `late` in `CompressionLeanExe/Fixtures.lean` writes the same
 /// program.
 pub(super) struct Late<'a> {
     relation: &'a Relation<'a>,
@@ -685,7 +685,7 @@ impl Program for Late<'_> {
 /// a run of `D` lanes, and a run of 30 lanes whose ratio is `p - 2`. The toy's
 /// one class has length one and ratio one, so it never skips the dropped
 /// lane, never fills the tail and multiplies only by one. The program then
-/// binds every table value. `laneSplit` in `Circuit/Check.lean` writes the
+/// binds every table value. `laneSplit` in `CompressionLeanExe/Fixtures.lean` writes the
 /// same program.
 pub(super) struct LaneSplit;
 
@@ -733,7 +733,7 @@ impl Program for LaneSplit {
 /// after the query points: the duplex, what the earlier stages leave to the
 /// openings and the proof parts that the openings read, all as proof words.
 /// `run` makes the calls of `verifier.rs:266-315` in its order. `openings`
-/// in `Circuit/Check.lean` writes the same program.
+/// in `CompressionLeanExe/Fixtures.lean` writes the same program.
 pub(super) struct Openings<'a> {
     relation: &'a Relation<'a>,
     proof: &'a Proof,

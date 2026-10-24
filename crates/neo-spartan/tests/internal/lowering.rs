@@ -290,7 +290,7 @@ fn whir_key(pcs: &Pcs) -> String {
     )
 }
 
-/// What `layer1` in `Circuit/Check.lean` reads: the replay's relation and the
+/// What `layer1` in `CompressionLeanExe/Fixtures.lean` reads: the replay's relation and the
 /// `WhirKey` of each opening.
 fn layer1_input(relation: &Relation<'_>) -> String {
     format!(

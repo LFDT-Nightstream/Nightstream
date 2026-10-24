@@ -1,7 +1,7 @@
 import CompressionLean.Circuit.Terminal
-import CompressionLean.Circuit.Parse
+import CompressionLeanExe.Parse
 import CompressionLean.Circuit.Verifier
-import CompressionLean.Circuit.Digest
+import CompressionLeanExe.Digest
 import CompressionLean.Final.KeyFacts
 
 /-!
@@ -21,10 +21,10 @@ program. It prints `match`, the counts and the run digest of Lean's
 program (`runDigest`), or the first difference and exits with 1.
 -/
 
-namespace CompressionLean.TerminalCheck
+namespace CompressionLeanExe.TerminalCheck
 
-open CompressionLean.Shrink CompressionLean.Circuit CompressionLean.Circuit.Parse
-open CompressionLean.Circuit.Package CompressionLean.Circuit.Terminal CompressionLean.Circuit.Digest
+open CompressionLean CompressionLean.Shrink CompressionLean.Circuit CompressionLeanExe.Parse
+open CompressionLean.Circuit.Package CompressionLean.Circuit.Terminal CompressionLeanExe.Digest
 open CompressionLean.Replay (Word)
 
 instance : BEq (R1csRow Word) := ⟨fun x y => x.a == y.a && x.b == y.b && x.c == y.c⟩
@@ -111,9 +111,9 @@ def check (package : Loaded) (key : Option Layer1Input) : Parser String := do
   pure s!"match: {lean.size} instructions, {package.system.size} rows, {package.sources.size} columns, \
     {package.computed.size} computed; digest {digest lean}"
 
-end CompressionLean.TerminalCheck
+end CompressionLeanExe.TerminalCheck
 
-open CompressionLean.TerminalCheck in
+open CompressionLeanExe.TerminalCheck in
 def main (args : List String) : IO UInt32 := do
   let started ← IO.monoMsNow
   let (path, key) ← match args with

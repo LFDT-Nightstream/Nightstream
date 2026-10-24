@@ -6,8 +6,9 @@ Owns the terminal artifact writer. It streams the canonical encoding of
 decodes the package with the F′ package decoder.
 -/
 
-namespace CompressionLean.Terminal.Emit
+namespace CompressionLeanExe.EmitTerminal
 
+open CompressionLean CompressionLean.Terminal
 open NightstreamFPrime.Export
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Export.Codec
@@ -78,7 +79,7 @@ def main (arguments : List String) : IO UInt32 := do
       IO.eprintln "usage: lake exe emitTerminal -- <output-path>"
       pure 2
 
-end CompressionLean.Terminal.Emit
+end CompressionLeanExe.EmitTerminal
 
 def main (arguments : List String) : IO UInt32 :=
-  CompressionLean.Terminal.Emit.main arguments
+  CompressionLeanExe.EmitTerminal.main arguments

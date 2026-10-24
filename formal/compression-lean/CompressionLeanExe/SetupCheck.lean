@@ -8,9 +8,9 @@ setup check (`setupFailure`) on them. It prints `setup facts hold`, or the
 first fact that fails and exits with 1.
 -/
 
-namespace CompressionLean.SetupCheck
+namespace CompressionLeanExe.SetupCheck
 
-open CompressionLean.Final
+open CompressionLean CompressionLean.Final
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 /-- The little-endian word of the `n` bytes at `base`. -/
@@ -40,9 +40,9 @@ def readRuns (bytes : ByteArray) : Except String (List Push) := do
               ratio := ratio } :: runs
   return runs
 
-end CompressionLean.SetupCheck
+end CompressionLeanExe.SetupCheck
 
-open CompressionLean.SetupCheck in
+open CompressionLeanExe.SetupCheck in
 def main (args : List String) : IO UInt32 := do
   let [layer1, runs] := args | IO.eprintln "usage: setupCheck <layer1.json> <runs.bin>"; return 2
   let key ← IO.ofExcept (Lean.Json.parse (← IO.FS.readFile layer1) >>=

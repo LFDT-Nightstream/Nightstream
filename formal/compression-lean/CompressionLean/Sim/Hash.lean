@@ -35,7 +35,7 @@ namespace IsWords
 
 variable {c : Ctx F} {n : ℕ} {hs : Array Var} {gs : Array Word}
 
-theorem mono (h : IsWords c n hs gs) {m : ℕ} (le : n ≤ m) : IsWords c m hs gs :=
+theorem mono (h : IsWords c n hs gs) {m : ℕ} (le : n ≤ m := by omega) : IsWords c m hs gs :=
   ⟨h.1, fun i hi => (h.2 i hi).mono le⟩
 
 theorem get (h : IsWords c n hs gs) {i : ℕ} (hi : i < gs.size) : IsWord c n hs[i]! gs[i]! :=
@@ -171,8 +171,8 @@ structure IsDuplex (c : Ctx F) (n : ℕ) (d : Duplex) (r : Replay.Duplex) : Prop
   output : IsWords c n d.output r.output
   width : r.state.size = 16
 
-theorem IsDuplex.mono {c : Ctx F} {n m : ℕ} {d : Duplex} {r : Replay.Duplex} (h : IsDuplex c n d r) (le : n ≤ m) :
-    IsDuplex c m d r :=
+theorem IsDuplex.mono {c : Ctx F} {n m : ℕ} {d : Duplex} {r : Replay.Duplex} (h : IsDuplex c n d r)
+    (le : n ≤ m := by omega) : IsDuplex c m d r :=
   ⟨h.state.mono le, h.input.mono le, h.output.mono le, h.width⟩
 
 theorem permute_size (s : Array Word) : (Replay.permute s).size = 16 := rfl
@@ -283,19 +283,35 @@ theorem bits_digits [CharP F goldilocksModulus] {g : Word} {b : ℕ → F}
   intro i hi
   rw [(hβ i hi).1, word_ofNat, ← eq, digits i hi]
 
-namespace Simulates
+/-! ## Programs -/
 
-variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
+instance Duplex.new_appends : Appends Duplex.new := by unfold Duplex.new; appends
+instance Duplex.duplexing_appends (d : Duplex) : Appends (Duplex.duplexing.run d) := by
+  unfold Duplex.duplexing; appends
+instance Duplex.observe_appends (v : Var) (d : Duplex) : Appends ((Duplex.observe v).run d) := by
+  unfold Duplex.observe; appends
+instance Duplex.observeSlice_appends (vs : Array Var) (d : Duplex) : Appends ((Duplex.observeSlice vs).run d) := by
+  unfold Duplex.observeSlice Array.forM; rw [← Array.foldlM_toList]; appends
+instance Duplex.observeExt_appends (v : ExtVar) (d : Duplex) : Appends ((Duplex.observeExt v).run d) := by
+  unfold Duplex.observeExt; appends
+instance Duplex.sample_appends (d : Duplex) : Appends (Duplex.sample.run d) := by unfold Duplex.sample; appends
+instance Duplex.sampleExt_appends (d : Duplex) : Appends (Duplex.sampleExt.run d) := by
+  unfold Duplex.sampleExt; appends
+instance Duplex.sampleBits_appends (bits : ℕ) (d : Duplex) : Appends ((Duplex.sampleBits bits).run d) := by
+  unfold Duplex.sampleBits; appends
 
-omit [CharP F goldilocksModulus] in
-theorem duplexNew : Simulates c n P Duplex.new (fun d m => IsDuplex c m d Replay.Duplex.new) True :=
-  ((Simulates.const 0).bind fun _ _ _ => Simulates.pure fun h =>
-    ⟨IsWords.replicate h.2 16, IsWords.empty, IsWords.empty, rfl⟩).post (fun _ _ _ h => h) fun _ => by simp
+theorem Duplex.new_ensures {c : Ctx F} {n : ℕ} :
+    Ensures c n Duplex.new fun d m => IsDuplex c m d Replay.Duplex.new :=
+  (const_ensures 0).bind fun _ _ _ hz => Ensures.pure ⟨IsWords.replicate hz 16, IsWords.empty, IsWords.empty, rfl⟩
+
+section Duplex
+
+variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
 /-- `duplexing`: overwrite the absorbed lanes; after input, zero the rest of
 the rate and add the length tag; permute; refill the output. -/
-theorem duplexing {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
-    Simulates c n P (Duplex.duplexing.run d) (fun res m => IsDuplex c m res.2 r.duplexing) True := by
+theorem Duplex.duplexing_ensures {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : IsDuplex c n d r) :
+    Ensures c n (Duplex.duplexing.run d) fun res m => IsDuplex c m res.2 r.duplexing := by
   unfold Duplex.duplexing
   rw [StateT.run_bind, StateT.run_get, pure_bind]
   dsimp only
@@ -306,14 +322,13 @@ theorem duplexing {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : 
   simp only [Array.getElem!_toList, Array.length_toList]
   generalize hs₁ : (List.range d.input.size).foldl (fun s i => s.set! i d.input[i]!) d.state = s₁
   let t₁ := (List.range d.input.size).foldl (fun s i => s.set! i r.input[i]!) r.state
-  have ws₁ : P → IsWords c n s₁ t₁ := fun h => by
+  have ws₁ : IsWords c n s₁ t₁ := by
     rw [← hs₁]
-    exact (hd h).state.setRange _ (fun i => i) fun i hi => (hd h).input.get (by rw [← (hd h).input.1]; exact hi)
-  have wt₁ : P → t₁.size = 16 := fun h => by simp only [t₁, size_setRange, (hd h).width]
+    exact hd.state.setRange _ (fun i => i) fun i hi => hd.input.get (by rw [← hd.input.1]; exact hi)
+  have wt₁ : t₁.size = 16 := by simp only [t₁, size_setRange, hd.width]
   by_cases hpos : d.input.size > 0
   · rw [if_pos hpos]
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.const 0)) fun z e₁ m₁ l₁ => ?_
-    dsimp only
+    refine Ensures.liftBind (const_ensures 0) fun z m₁ _ hz => ?_
     rw [Std.Legacy.Range.forIn_eq_forIn_range', List.forIn_pure_yield_eq_foldl, StateT.run_bind, StateT.run_pure,
       pure_bind]
     dsimp only
@@ -321,177 +336,151 @@ theorem duplexing {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : 
     generalize hs₂ : (List.range (rate - d.input.size)).foldl (fun s i => s.set! (d.input.size + i) z) s₁ = s₂
     let t₂ := (List.range (rate - d.input.size)).foldl (fun s i => s.set! (d.input.size + i) (0 : Word)) t₁
     let t₃ := t₂.set! rate (t₂[rate]! + Word.ofNat d.input.size)
-    have wt₂ : P → t₂.size = 16 := fun h => by simp only [t₂, size_setRange, wt₁ h]
-    have ws₂ : P → IsWord c m₁ z 0 → IsWords c m₁ s₂ t₂ := fun h hz => by
+    have wt₂ : t₂.size = 16 := by simp only [t₂, size_setRange, wt₁]
+    have ws₂ : IsWords c m₁ s₂ t₂ := by
       rw [← hs₂]
-      exact ((ws₁ h).mono l₁).setRange _ (fun i => d.input.size + i) (f := fun _ => z) (g := fun _ => 0)
-        fun _ _ => hz
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.const (Word.ofNat d.input.size))) fun t e₂ m₂ l₂ => ?_
-    dsimp only
-    have add := Simulates.add (c := c) (n := m₂) (P := (P ∧ IsWord c m₁ z 0 ∧ e₁ = d) ∧
-        IsWord c m₂ t (Word.ofNat d.input.size) ∧ e₂ = e₁) (a := s₂[rate]!) (b := t) (ga := t₂[rate]!)
-      (gb := Word.ofNat d.input.size) (fun h => ((ws₂ h.1.1 h.1.2.1).mono l₂).get (by rw [wt₂ h.1.1]; decide))
-      fun h => h.2.1
-    refine Simulates.tbind₀ (Simulates.lift add) fun sum e₃ m₃ l₃ => ?_
-    dsimp only
-    have perm := Simulates.permute (c := c) (n := m₃) (gs := t₃) (state := fun lane => (s₂.set! rate sum)[lane]!) hp
-      (P := ((P ∧ IsWord c m₁ z 0 ∧ e₁ = d) ∧ IsWord c m₂ t (Word.ofNat d.input.size) ∧ e₂ = e₁) ∧
-        IsWord c m₃ sum (t₂[rate]! + Word.ofNat d.input.size) ∧ e₃ = e₂)
-      fun h k => (((ws₂ h.1.1.1 h.1.1.2.1).mono (l₂.trans l₃)).set h.2.1 rate).get
-        (by rw [Array.size_set!, wt₂ h.1.1.1]; exact k.isLt)
-    refine Simulates.tbind₀ (Simulates.lift perm) fun outs e₄ m₄ l₄ => ?_
+      exact ws₁.mono.setRange _ (fun i => d.input.size + i) (f := fun _ => z) (g := fun _ => 0) fun _ _ => hz
+    refine Ensures.liftBind (const_ensures (Word.ofNat d.input.size)) fun t _ _ ht => ?_
+    refine Ensures.liftBind (add_ensures (ws₂.mono.get (by rw [wt₂]; decide)) ht) fun sum _ _ hsum => ?_
+    refine Ensures.liftBind (permute_ensures (gs := t₃) (state := fun lane => (s₂.set! rate sum)[lane]!) hp
+      fun k => (ws₂.mono.set hsum rate).get (by rw [Array.size_set!, wt₂]; exact k.isLt)) fun outs _ _ houts => ?_
     rw [StateT.run_set]
-    refine Simulates.pure fun h => ?_
+    refine Ensures.pure ?_
     have hr : r.duplexing = ⟨Replay.permute t₃, #[], (Replay.permute t₃).extract 0 Replay.rate⟩ := by
       unfold Replay.Duplex.duplexing
-      simp only [← (hd h.1.1.1.1).input.1, if_pos hpos]
+      simp only [← hd.input.1, if_pos hpos]
       rfl
     rw [hr]
-    exact IsDuplex.permuted t₃ outs h.2.1
+    exact IsDuplex.permuted t₃ outs houts
   · rw [if_neg hpos]
-    have perm := Simulates.permute (c := c) (n := n) (gs := t₁) (state := fun lane => s₁[lane]!) hp (P := P)
-      fun h k => (ws₁ h).get (by rw [wt₁ h]; exact k.isLt)
-    refine Simulates.tbind₀ (Simulates.lift perm) fun outs e m l => ?_
+    refine Ensures.liftBind (permute_ensures (gs := t₁) (state := fun lane => s₁[lane]!) hp
+      fun k => ws₁.get (by rw [wt₁]; exact k.isLt)) fun outs _ _ houts => ?_
     rw [StateT.run_set]
-    refine Simulates.pure fun h => ?_
+    refine Ensures.pure ?_
     have hr : r.duplexing = ⟨Replay.permute t₁, #[], (Replay.permute t₁).extract 0 Replay.rate⟩ := by
       unfold Replay.Duplex.duplexing
-      simp only [← (hd h.1).input.1, if_neg hpos]
+      simp only [← hd.input.1, if_neg hpos]
       rfl
     rw [hr]
-    exact IsDuplex.permuted t₁ outs h.2.1
+    exact IsDuplex.permuted t₁ outs houts
 
 /-- `observe`: push the word, clear the output, and duplex at a full rate. -/
-theorem observe {d : Duplex} {r : Replay.Duplex} {v : Var} {g : Word} (hp : Permutes c.perm)
-    (hd : P → IsDuplex c n d r) (hv : P → IsWord c n v g) :
-    Simulates c n P ((Duplex.observe v).run d) (fun res m => IsDuplex c m res.2 (r.observe g)) True := by
+theorem Duplex.observe_ensures {d : Duplex} {r : Replay.Duplex} {v : Var} {g : Word} (hp : Permutes c.perm)
+    (hd : IsDuplex c n d r) (hv : IsWord c n v g) :
+    Ensures c n ((Duplex.observe v).run d) fun res m => IsDuplex c m res.2 (r.observe g) := by
   unfold Duplex.observe
   rw [StateT.run_bind, StateT.run_modify, pure_bind, StateT.run_bind, StateT.run_get, pure_bind]
   dsimp only
-  have hd' : P → IsDuplex c n ⟨d.state, d.input.push v, #[]⟩ ⟨r.state, r.input.push g, #[]⟩ := fun h =>
-    ⟨(hd h).state, (hd h).input.push (hv h), IsWords.empty, (hd h).width⟩
+  have hd' : IsDuplex c n ⟨d.state, d.input.push v, #[]⟩ ⟨r.state, r.input.push g, #[]⟩ :=
+    ⟨hd.state, hd.input.push hv, IsWords.empty, hd.width⟩
   by_cases full : (d.input.push v).size = rate
   · rw [if_pos full]
-    refine (duplexing hp hd').post (fun h _ _ q => ?_) fun _ => Iff.rfl
-    have e : (r.input.push g).size = Replay.rate := by rw [← (hd' h).input.1]; exact full
+    refine (Duplex.duplexing_ensures hp hd').post fun _ _ q => ?_
+    have e : (r.input.push g).size = Replay.rate := by rw [← hd'.input.1]; exact full
     have hr : r.observe g = Replay.Duplex.duplexing ⟨r.state, r.input.push g, #[]⟩ := by
       simp only [Replay.Duplex.observe, e, beq_self_eq_true, if_true]
     rw [hr]
     exact q
   · rw [if_neg full, StateT.run_pure]
-    refine Simulates.pure fun h => ?_
-    have e : ¬(r.input.push g).size = Replay.rate := by rw [← (hd' h).input.1]; exact full
+    refine Ensures.pure ?_
+    have e : ¬(r.input.push g).size = Replay.rate := by rw [← hd'.input.1]; exact full
     have hr : r.observe g = ⟨r.state, r.input.push g, #[]⟩ := by
       simp only [Replay.Duplex.observe, beq_iff_eq, e, if_false]
     rw [hr]
-    exact hd' h
+    exact hd'
 
 /-- `observe` of each word of a list, in order. -/
-theorem observeList (hp : Permutes c.perm) :
-    ∀ (l : List Var) (gl : List Word) {n : ℕ} {P : Prop} {d : Duplex} {r : Replay.Duplex}, (P → IsDuplex c n d r) →
-      (P → l.length = gl.length ∧ ∀ i < l.length, IsWord c n l[i]! gl[i]!) →
-      Simulates c n P ((l.foldlM (fun _ v => Duplex.observe v) ()).run d)
-        (fun res m => IsDuplex c m res.2 (gl.foldl Replay.Duplex.observe r)) True
-  | [], gl, n, P, d, r, hd, hl => by
-      rw [List.foldlM_nil, StateT.run_pure]
-      exact Simulates.pure fun h => by
-        rw [List.eq_nil_of_length_eq_zero (hl h).1.symm]
-        exact hd h
-  | v :: l, gl, n, P, d, r, hd, hl => by
+private theorem observeList_ensures (hp : Permutes c.perm) :
+    ∀ (l : List Var) (gl : List Word) {n : ℕ} {d : Duplex} {r : Replay.Duplex}, IsDuplex c n d r →
+      l.length = gl.length → (∀ i < l.length, IsWord c n l[i]! gl[i]!) →
+      Ensures c n ((l.foldlM (fun _ v => Duplex.observe v) ()).run d)
+        fun res m => IsDuplex c m res.2 (gl.foldl Replay.Duplex.observe r)
+  | [], gl, _, _, _, hd, hlen, _ => by
+      rw [List.foldlM_nil, StateT.run_pure, List.eq_nil_of_length_eq_zero hlen.symm]
+      exact Ensures.pure hd
+  | _ :: _, [], _, _, _, _, hlen, _ => absurd hlen (by simp)
+  | v :: l, g :: gl, _, _, _, hd, hlen, hl => by
       rw [List.foldlM_cons, StateT.run_bind]
-      obtain _ | ⟨g, gl⟩ := gl
-      · exact (Simulates.bind₀ (observe hp hd (g := 0) fun h => absurd (hl h).1 (by simp)) fun _ _ _ =>
-          observeList hp l [] (fun h => h.2) fun h => absurd (hl h.1).1 (by simp)).post
-          (fun h => absurd (hl h).1 (by simp)) fun h => absurd (hl h).1 (by simp)
-      refine Simulates.bind₀ (observe hp hd fun h => by simpa using (hl h).2 0 (by simp)) fun res m le => ?_
-      exact observeList hp l gl (fun h => h.2) fun h => ⟨by simpa using (hl h.1).1, fun i hi => by
-        simpa using ((hl h.1).2 (i + 1) (by simp; omega)).mono le⟩
+      refine (Duplex.observe_ensures hp hd (g := g) (by simpa using hl 0 (by simp))).bind fun res _ _ hres => ?_
+      exact observeList_ensures hp l gl hres (by simpa using hlen) fun i hi => by
+        simpa using (hl (i + 1) (by simp; omega)).mono
 
 /-- `observe_slice`: the replay's `foldl observe`. -/
-theorem observeSlice {d : Duplex} {r : Replay.Duplex} {vs : Array Var} {gs : Array Word} (hp : Permutes c.perm)
-    (hd : P → IsDuplex c n d r) (hv : P → IsWords c n vs gs) :
-    Simulates c n P ((Duplex.observeSlice vs).run d) (fun res m => IsDuplex c m res.2 (gs.foldl Replay.Duplex.observe r))
-      True := by
+theorem Duplex.observeSlice_ensures {d : Duplex} {r : Replay.Duplex} {vs : Array Var} {gs : Array Word}
+    (hp : Permutes c.perm) (hd : IsDuplex c n d r) (hv : IsWords c n vs gs) :
+    Ensures c n ((Duplex.observeSlice vs).run d)
+      fun res m => IsDuplex c m res.2 (gs.foldl Replay.Duplex.observe r) := by
   unfold Duplex.observeSlice Array.forM
   rw [← Array.foldlM_toList, ← Array.foldl_toList]
-  exact observeList hp vs.toList gs.toList hd fun h => ⟨by simpa using (hv h).1, fun i hi => by
+  exact observeList_ensures hp vs.toList gs.toList hd (by simpa using hv.1) fun i hi => by
     rw [Array.getElem!_toList, Array.getElem!_toList]
-    exact (hv h).2 i (by simpa using hi)⟩
+    exact hv.2 i (by simpa using hi)
 
 /-- `observe_ext`: the three coordinates in order. -/
-theorem observeExt {d : Duplex} {r : Replay.Duplex} {a : ExtVar} {e : Ext} (hp : Permutes c.perm)
-    (hd : P → IsDuplex c n d r) (ha : P → IsExt c n a e) :
-    Simulates c n P ((Duplex.observeExt a).run d)
-      (fun res m => IsDuplex c m res.2 (((r.observe e.c0).observe e.c1).observe e.c2)) True := by
+theorem Duplex.observeExt_ensures {d : Duplex} {r : Replay.Duplex} {a : ExtVar} {e : Ext} (hp : Permutes c.perm)
+    (hd : IsDuplex c n d r) (ha : IsExt c n a e) :
+    Ensures c n ((Duplex.observeExt a).run d)
+      fun res m => IsDuplex c m res.2 (((r.observe e.c0).observe e.c1).observe e.c2) := by
   unfold Duplex.observeExt
-  rw [StateT.run_bind]
-  refine Simulates.bind₀ (observe hp hd fun h => ha h 0) fun res₁ m₁ l₁ => ?_
-  rw [StateT.run_bind]
-  refine Simulates.bind₀ (observe hp (fun h => h.2) fun h => (ha h.1 1).mono l₁) fun res₂ m₂ l₂ => ?_
-  exact observe hp (fun h => h.2) fun h => (ha h.1.1 2).mono (l₁.trans l₂)
-
+  refine (Duplex.observe_ensures hp hd (ha 0)).tbind fun _ _ _ _ h₁ => ?_
+  refine (Duplex.observe_ensures hp h₁ (ha 1).mono).tbind fun _ _ _ _ h₂ => ?_
+  exact Duplex.observe_ensures hp h₂ (ha 2).mono
 
 /-- `sample`: duplex when there is input or no output, then pop the last
 output lane. -/
-theorem sample {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
-    Simulates c n P (Duplex.sample.run d) (fun res m => IsWord c m res.1 r.sample.1 ∧ IsDuplex c m res.2 r.sample.2)
-      True := by
+theorem Duplex.sample_ensures {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : IsDuplex c n d r) :
+    Ensures c n (Duplex.sample.run d) fun res m => IsWord c m res.1 r.sample.1 ∧ IsDuplex c m res.2 r.sample.2 := by
   unfold Duplex.sample
   rw [StateT.run_bind, StateT.run_get, pure_bind]
   dsimp only
   split
   · rename_i cond
     rw [StateT.run_bind]
-    refine (duplexing hp hd).bind₀ fun res m _ => ?_
+    refine (Duplex.duplexing_ensures hp hd).bind fun res _ _ hres => ?_
     rw [StateT.run_bind, StateT.run_get, pure_bind, StateT.run_bind, StateT.run_set, pure_bind, StateT.run_pure]
-    refine Simulates.pure fun h => ?_
-    have e : (!r.input.isEmpty || r.output.isEmpty) = true := (hd h.1).cond ▸ cond
+    refine Ensures.pure ?_
+    have e : (!r.input.isEmpty || r.output.isEmpty) = true := hd.cond ▸ cond
     simp only [Replay.Duplex.sample, e, if_true]
-    exact h.2.pop (by rw [duplexing_output_size]; decide)
+    exact hres.pop (by rw [duplexing_output_size]; decide)
   · rename_i cond
     rw [StateT.run_bind, StateT.run_get, pure_bind, StateT.run_bind, StateT.run_set, pure_bind, StateT.run_pure]
-    refine Simulates.pure fun h => ?_
-    have e : ¬(!r.input.isEmpty || r.output.isEmpty) = true := (hd h).cond ▸ cond
+    refine Ensures.pure ?_
+    have e : ¬(!r.input.isEmpty || r.output.isEmpty) = true := hd.cond ▸ cond
     simp only [Replay.Duplex.sample, e]
-    refine (hd h).pop ?_
+    refine hd.pop ?_
     simp only [Bool.or_eq_true, Bool.not_eq_true', Array.isEmpty_iff_size_eq_zero, not_or] at e
     omega
 
 /-- `sample_ext`: coordinate `i` is the `i`-th sample. -/
-theorem sampleExt {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
-    Simulates c n P (Duplex.sampleExt.run d)
-      (fun res m => IsExt c m res.1 ⟨r.sample.1, r.sample.2.sample.1, r.sample.2.sample.2.sample.1⟩ ∧
-        IsDuplex c m res.2 r.sample.2.sample.2.sample.2) True := by
+theorem Duplex.sampleExt_ensures {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : IsDuplex c n d r) :
+    Ensures c n (Duplex.sampleExt.run d)
+      fun res m => IsExt c m res.1 ⟨r.sample.1, r.sample.2.sample.1, r.sample.2.sample.2.sample.1⟩ ∧
+        IsDuplex c m res.2 r.sample.2.sample.2.sample.2 := by
   unfold Duplex.sampleExt
-  rw [StateT.run_bind]
-  refine (sample hp hd).bind₀ fun x m₁ l₁ => ?_
-  rw [StateT.run_bind]
-  refine (sample hp fun h => h.2.2).bind₀ fun y m₂ l₂ => ?_
-  rw [StateT.run_bind]
-  refine (sample hp fun h => h.2.2).bind₀ fun z m₃ l₃ => ?_
+  refine (Duplex.sample_ensures hp hd).tbind fun _ _ _ _ hx => ?_
+  refine (Duplex.sample_ensures hp hx.2).tbind fun _ _ _ _ hy => ?_
+  refine (Duplex.sample_ensures hp hy.2).tbind fun _ _ _ _ hz => ?_
   rw [StateT.run_pure]
-  refine Simulates.pure fun h => ⟨fun k => ?_, h.2.2⟩
+  refine Ensures.pure ⟨fun k => ?_, hz.2⟩
   fin_cases k
-  · exact h.1.1.2.1.mono (l₂.trans l₃)
-  · exact h.1.2.1.mono l₃
-  · exact h.2.1
+  · exact hx.1.mono
+  · exact hy.1.mono
+  · exact hz.1
 
 /-- `sample_bits`: the low `bits` bits of the canonical sample. Once the
 decomposition's check holds, bit `i` is digit `i` of the sample. -/
-theorem sampleBits {d : Duplex} {r : Replay.Duplex} (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm)
-    (hd : P → IsDuplex c n d r) :
-    OldEnsures c n P ((Duplex.sampleBits bits).run d)
-      (fun res m => res.1.size = bits ∧ (∀ i < bits, IsWord c m res.1[i]! (Word.ofNat (r.sample.1.toNat / 2 ^ i % 2))) ∧
-        IsDuplex c m res.2 r.sample.2) := by
+theorem Duplex.sampleBits_ensures {d : Duplex} {r : Replay.Duplex} (bits : ℕ) (small : bits ≤ 64)
+    (hp : Permutes c.perm) (hd : IsDuplex c n d r) :
+    Ensures c n ((Duplex.sampleBits bits).run d)
+      fun res m => res.1.size = bits ∧ (∀ i < bits, IsWord c m res.1[i]! (Word.ofNat (r.sample.1.toNat / 2 ^ i % 2))) ∧
+        IsDuplex c m res.2 r.sample.2 := by
   unfold Duplex.sampleBits
-  refine OldEnsures.tbind (sample hp hd).ensures fun w e m₁ _ => ?_
-  rw [StateT.run_bind]
-  refine (OldEnsures.lift (Simulates.bits 64 fun h => h.2.1.1).ensures).bind fun res m₂ l₂ => ?_
+  refine (Duplex.sample_ensures hp hd).tbind fun w e _ _ hw => ?_
+  refine Ensures.liftBind (bits_ensures 64 hw.1) fun res _ _ hres => ?_
+  obtain ⟨cells, check⟩ := hres
   rw [StateT.run_pure]
-  refine OldEnsures.pure fun h => ?_
-  obtain ⟨⟨-, ⟨-, hd'⟩, -⟩, ⟨cells, check⟩, he⟩ := h
-  refine ⟨by simp [small], fun i hi => ?_, he ▸ hd'.mono l₂⟩
-  have get : ((Array.ofFn res.1).extract 0 bits)[i]! = res.1 ⟨i, by omega⟩ := by
+  refine Ensures.pure ⟨by simp [small], fun i hi => ?_, hw.2.mono⟩
+  have get : ((Array.ofFn res).extract 0 bits)[i]! = res ⟨i, by omega⟩ := by
     rw [getElem!_pos _ _ (by simp; omega)]
     simp
   rw [get]
@@ -499,6 +488,53 @@ theorem sampleBits {d : Duplex} {r : Replay.Duplex} (bits : ℕ) (small : bits �
   refine ⟨lt_, ?_⟩
   rw [val, at_]
   exact bits_digits check i (by omega)
+
+end Duplex
+
+/-! ## The old names, for the files that still use `Simulates` -/
+
+namespace Simulates
+
+variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
+
+omit [CharP F goldilocksModulus] in
+theorem duplexNew : Simulates c n P Duplex.new (fun d m => IsDuplex c m d Replay.Duplex.new) True :=
+  .of_ensures₀ fun _ => Duplex.new_ensures
+
+theorem observe {d : Duplex} {r : Replay.Duplex} {v : Var} {g : Word} (hp : Permutes c.perm)
+    (hd : P → IsDuplex c n d r) (hv : P → IsWord c n v g) :
+    Simulates c n P ((Duplex.observe v).run d) (fun res m => IsDuplex c m res.2 (r.observe g)) True :=
+  .of_ensures₀ fun h => Duplex.observe_ensures hp (hd h) (hv h)
+
+theorem observeSlice {d : Duplex} {r : Replay.Duplex} {vs : Array Var} {gs : Array Word} (hp : Permutes c.perm)
+    (hd : P → IsDuplex c n d r) (hv : P → IsWords c n vs gs) :
+    Simulates c n P ((Duplex.observeSlice vs).run d) (fun res m => IsDuplex c m res.2 (gs.foldl Replay.Duplex.observe r))
+      True :=
+  .of_ensures₀ fun h => Duplex.observeSlice_ensures hp (hd h) (hv h)
+
+theorem observeExt {d : Duplex} {r : Replay.Duplex} {a : ExtVar} {e : Ext} (hp : Permutes c.perm)
+    (hd : P → IsDuplex c n d r) (ha : P → IsExt c n a e) :
+    Simulates c n P ((Duplex.observeExt a).run d)
+      (fun res m => IsDuplex c m res.2 (((r.observe e.c0).observe e.c1).observe e.c2)) True :=
+  .of_ensures₀ fun h => Duplex.observeExt_ensures hp (hd h) (ha h)
+
+theorem sample {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
+    Simulates c n P (Duplex.sample.run d) (fun res m => IsWord c m res.1 r.sample.1 ∧ IsDuplex c m res.2 r.sample.2)
+      True :=
+  .of_ensures₀ fun h => Duplex.sample_ensures hp (hd h)
+
+theorem sampleExt {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
+    Simulates c n P (Duplex.sampleExt.run d)
+      (fun res m => IsExt c m res.1 ⟨r.sample.1, r.sample.2.sample.1, r.sample.2.sample.2.sample.1⟩ ∧
+        IsDuplex c m res.2 r.sample.2.sample.2.sample.2) True :=
+  .of_ensures₀ fun h => Duplex.sampleExt_ensures hp (hd h)
+
+theorem sampleBits {d : Duplex} {r : Replay.Duplex} (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm)
+    (hd : P → IsDuplex c n d r) :
+    OldEnsures c n P ((Duplex.sampleBits bits).run d)
+      (fun res m => res.1.size = bits ∧ (∀ i < bits, IsWord c m res.1[i]! (Word.ofNat (r.sample.1.toNat / 2 ^ i % 2))) ∧
+        IsDuplex c m res.2 r.sample.2) :=
+  .of_ensures fun h => Duplex.sampleBits_ensures bits small hp (hd h)
 
 end Simulates
 

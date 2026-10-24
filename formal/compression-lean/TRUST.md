@@ -3,8 +3,7 @@
 Everything that, if wrong, could make a claim of this project false without a Lean error. The claims
 are the theorems of `CompressionLean/Claims.lean`, and `CompressionLeanTests/Axioms.lean` pins their
 axioms. `lake build` checks that every theorem of the library uses only `propext`, `Classical.choice`
-and `Quot.sound`. The README states, per layer, what each part assumes; this file lists the layers in
-one place.
+and `Quot.sound`. This file lists every assumption; the README does not repeat them.
 
 A claim means what the definitions that it names mean. `CompressionLeanTests/Vocabulary.lean`
 keeps those in `Spec/`, the model and port folders (`Fields`, `Production`, `Game`, `Terminal`,
@@ -31,13 +30,36 @@ The claims bound a probability. They take these as part of the model, not as Lea
 - **WHIR.** An opening is accepted only when one listed candidate agrees with every opened value
   (`Opens`), except with that opening's error. The error figures come from Plonky3's Johnson-bound
   report in Rust (`pcs.rs`) and enter `Final/Budget.lean` and `Shrink/Budget.lean` as given. No
-  Lean proof checks them. This is the weakest numeric layer.
+  Lean proof checks them. This is the weakest numeric layer. The candidates are tables over the base
+  field; candidates over `Ext` are not modeled. WHIR's own Fiat–Shamir step is part of its error.
 - **Fiat–Shamir.** Poseidon2 acts as a random oracle, and the transcript encoding is injective on
-  prefixes (`Game/Restoration.lean`, `Game/Compose.lean`).
+  prefixes (`Game/Restoration.lean`, `Game/Compose.lean`). One permutation call can give `k`
+  challenges, so `Q` calls and the `R` draws of one path are at most `k·Q + R` queries of the
+  experiment. The shrink transcript and the layer-1 transcript share no prefix, so each layer has
+  its own log: the shrink sponge starts with its domain words, and the layer-1 sponge starts with
+  the digest that the fold transcript hands off. The shape words fix the shrink statement length.
 - **The read condition.** Inside the final program, the hash acts as a random oracle and the
   openings follow the WHIR model (`Final/Soundness.lean`).
 - **Merkle binding.** A setup leaf that reaches the key root and disagrees with the setup gives a
   Poseidon2 collision (`MerkleBinds`).
+- **Query indices.** The model draws each query leaf as a uniform Goldilocks word modulo the leaf
+  count, as `sample_bits` does (`Layer1/HonestStage.lean`, `Layer1/Queries.lean`). The budget needs
+  at most 35 setup variables (`query_half`), and the replay bridge at most 31. `Relation::new`
+  refuses more than 31: the setup check draws a root of unity of order `2^(setupVars + 1)`, and
+  Goldilocks has none past `2^32`.
+- **Key structure.** The model reads the matrix column and slot lane tables as step functions of the
+  key's run bounds and slot segments (`Layer1/KeyStructure.lean`). That the key describes its setup
+  (`Structure.Describes`) and the order part that `Structure::check` enforces (`Structure.Checked`)
+  are premises (section 4).
+- **Recorder.** A shrink run is the sink calls that emit glue rows, and a row call has at most
+  three products (`Trace::row` asserts it). The model has one block kind, as `KINDS` has.
+- **Ring.** `Φ` is `Φ81 = X^54 + X^27 + 1`, and `bar` is F′'s closed-form bar transform
+  (`nativeBarEntry`). Only the manual test `neo-math/tests/phi81_bar_lean_parity.rs` compares Rust's
+  runtime bar matrix with Lean's.
+- **Fields.** `TerminalClaim` and `final_restore_sound` are generic in the base field `F` and the
+  challenge field `K`; the terminal's words enter `F` by `Nat.cast`. The claims fix `F = Gl` and
+  `K = Cubic`. `lowerCheck` runs `lower` in Goldilocks. In another field the zero tests of constant
+  folding can differ from Rust's.
 
 ## 4. Premises
 
@@ -70,7 +92,13 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   (`Ports/Replay/Field.lean`), the bar transform (`Replay.bar`) and the GKR shape functions
   (`layerCount`, `layerDegree`, `layerFactors`, `partFactors`, `activeTrees`).
 - The terminal loader (`Terminal.Package.load`).
-- The setup build and the key expander (`Ports/Setup.lean`).
+- The setup build and the key expander (`Ports/Setup.lean`). The build is Rust's slot key while
+  there are at most `2^24` run classes and the blocks fit 32 bits; `from_rows` refuses wider keys
+  (`slot key width`). The proof reads only `ReadsBack` of the port, and the Rust test
+  `derived_structure_steps_read_back_the_runs` checks the same property of `from_rows` on a
+  fixture. The Rust tests `lean_setup_vectors_match_rust_and_fips202` and
+  `streamed_key_blocks_match_all_lanes_of_authoritative_setup_cases` compare the key expander with
+  the vectors that Lean emits.
 - The Merkle hash that `MerkleBinds` reads (`Replay.pathOk`, `merkleRoot`, `compress`,
   `hashLeaf`). The Merkle binding of section 3 gives a Poseidon2 collision only if this is the
   hash that made the key root.
@@ -99,7 +127,12 @@ These checks compare a transcription with its Rust:
   `notPorts` (`CompressionLeanTests/Ports.lean`), when `Ports/` holds a theorem, and when an
   entry names a declaration outside `Ports/` that `portsOutside` does not list.
 - Ignored Rust tests compare the replay's draws and verdicts, and the programs' instructions, with
-  Rust on fixed inputs. They run by hand, not in CI (`scripts/crosschecks.sh`).
+  Rust on fixed inputs. They run by hand, not in CI (`scripts/crosschecks.sh`). The terminal checks
+  run on the pinned artifact with one context; the instructions do not depend on the statement
+  values, and the context words enter as constants.
+- The Rust tests `relation_shape_has_the_lean_constants` (`neo-spartan`) and
+  `parent_relation_arguments_are_the_lean_constants` (`nightstream`) pin the production constants of
+  `Production.lean`.
 - The executables (`CompressionLeanExe/`, which `lake build` builds with warnings as errors) check
   premises of two kinds. `loads` and `valid` are closed propositions about Lean values
   (`circuitPackage ()`). `terminalCheck` checks them by compiled evaluation, because the kernel does

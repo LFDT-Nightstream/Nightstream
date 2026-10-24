@@ -63,10 +63,11 @@ The claims bound a probability. They take these as part of the model, not as Lea
 
 ## 4. Premises
 
-A claim that takes a premise says nothing about a key, a package or a setup that does not meet it.
-`STATUS.md` lists every hypothesis of every claim and says, for each premise, how it is met.
-`CompressionLeanTests/Inventory.lean` holds that list, and `lake build` fails when a premise of a
-claim has no entry there.
+A claim that takes a premise says nothing about a key, a package, a setup or runs that do not meet
+it. `STATUS.md` lists every hypothesis of every claim and says, for each premise, how it is met: by a
+Lean proof, by a check of Rust's files, by a Lean value or by Rust. No premise of `poseidon2_bound`
+is open. `CompressionLeanTests/Inventory.lean` holds that list, and `lake build` fails when a premise
+of a claim has no entry there.
 
 ## 5. The ports
 
@@ -106,7 +107,7 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   `outer_terms` (`lib.rs`) or from `terms` (`shrink/mod.rs`), the premises `p0`, `p1` and `rust`
   are not the checks that `Pcs::new` makes.
 - The readers of the files that the Rust tests write (`Layer1Key`, `readRuns` in
-  `CompressionLeanExe/SetupCheck.lean`): transcriptions of their formats.
+  `CompressionLeanExe/Runs.lean`): transcriptions of their formats.
 
 **Code that a cross-check compares with Rust but that cannot make a claim false.** The rest of
 `Ports/Replay/`: the replay of the layer-1 verifier, with its transcript, stages, formulas, GKR and WHIR.
@@ -136,15 +137,18 @@ These checks compare a transcription with its Rust:
 - The executables (`CompressionLeanExe/`, which `lake build` builds with warnings as errors) check
   premises of two kinds. `loads` and `valid` are closed propositions about Lean values
   (`circuitPackage ()`). `terminalCheck` checks them by compiled evaluation, because the kernel does
-  not evaluate a package of this size. They say nothing about a Rust file. `KeyFacts`, `WidthFits`
-  and `setupFailure key pushes = none` are facts about the files that Rust writes. `lowerCheck`,
-  `terminalCheck` and `setupCheck` read those files, and a Rust test requires each pass.
-  `lowerCheck` also reads the toy key of `lowering_matches_lean`, which has neither production's
-  constants nor an application's width, so it prints each result and does not refuse the key.
-  `key_facts_of_check`, `width_fits_of_check`, `package_templates_of_check` and
-  `setup_facts_of_check` prove that a pass gives the premise. That the executables ran on the
-  production artifacts is the evidence of the Rust tests. `STATUS.md` names the executable and the
-  test of each premise.
+  not evaluate a package of this size. They say nothing about a Rust file. `KeyFacts`, `WidthFits`,
+  `setupFailure key pushes = none` and `runsFailure pushes = none` are facts about the files that
+  Rust writes. `lowerCheck`, `terminalCheck`, `setupCheck` and `runsCheck` read those files, and a
+  Rust test requires each pass. `setupCheck` and `runsCheck` read the runs with the same reader, so
+  their passes are about the same runs. `runsCheck` checks the rows in parallel tasks
+  (`Task.spawn`); in the logic a task is the value of its function, and the compiled evaluator runs
+  it on a thread. `lowerCheck` also reads the toy key of `lowering_matches_lean`, which has neither
+  production's constants nor an application's width, so it prints each result and does not refuse
+  the key. `key_facts_of_check`, `width_fits_of_check`, `package_templates_of_check`,
+  `setup_facts_of_check` and `runsGive_of_check` prove that a pass gives the premise. That the
+  executables ran on the production artifacts is the evidence of the Rust tests. `STATUS.md` names
+  the executable and the test of each premise.
 
 ## 6. Scope
 

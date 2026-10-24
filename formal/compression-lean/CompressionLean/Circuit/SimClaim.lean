@@ -121,16 +121,6 @@ private theorem length_flatMap_eq {α β : Type} {f : α → List β} {n : ℕ} 
         List.length_cons]
       ring
 
-private theorem outputs_length :
-    CompressionLean.Terminal.outputs.commitment.length = 22 * D ∧
-    CompressionLean.Terminal.outputs.publicInput.length = 5 * D ∧
-    CompressionLean.Terminal.outputs.point.length = 2 * 28 ∧
-    CompressionLean.Terminal.outputs.eval_K.length = 2 * D ∧
-    CompressionLean.Terminal.outputs.eval_A.length = 4 * (2 * D) := by
-  refine ⟨?_, ?_, ?_, ?_, ?_⟩ <;>
-    simp [CompressionLean.Terminal.outputs, CompressionLean.Terminal.extension, List.length_flatten, List.map_ofFn,
-      Function.comp_def] <;> decide
-
 private theorem pair_fst (xs : Array KVar) (k : ℕ) : (pairHandles xs)[2 * k]? = xs[k]?.map (·.1) := by
   have := flatMap_getElem? (f := fun p : KVar => [p.1, p.2]) (n := 2) (l := xs.toList) (fun _ _ => rfl) k
     (j := 0) (by decide)
@@ -154,7 +144,7 @@ private theorem claim_sizes {claim : ClaimVars} (holds : ClaimHolds c m claim en
       claim.evalA.size = 4 := by
   obtain ⟨hcom, hpub, hpt, hk, ha⟩ := holds
   obtain ⟨scom, spub, sa⟩ := shaped
-  obtain ⟨lcom, lpub, lpt, lk, la⟩ := outputs_length
+  obtain ⟨lcom, lpub, lpt, lk, la, -⟩ := Terminal.outputs_length
   have com := hcom.length_eq
   have pub := hpub.length_eq
   have pt := hpt.length_eq

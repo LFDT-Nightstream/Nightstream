@@ -22,8 +22,8 @@ namespace CompressionLean.Sim
 open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Lib
-open CompressionLean.Replay (Word Ext Relation TreeShape D Runs runs_bind runs_pure runs_sampleExt
-  runs_observeExts runs_liftExcept)
+open CompressionLean.Replay (Word Ext Relation TreeShape D)
+open CompressionLean.Bridge (Runs runs_bind runs_pure runs_sampleExt runs_observeExts runs_liftExcept)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]

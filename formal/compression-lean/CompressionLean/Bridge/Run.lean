@@ -11,7 +11,11 @@ lemmas build a run forward, step by step, as the circuit's simulation does.
 splits along its rounds (`sumcheckRounds_append`, `sumcheckRounds_point`).
 -/
 
-namespace CompressionLean.Replay
+namespace CompressionLean.Bridge
+
+open CompressionLean.Replay
+
+open CompressionLean.Bridge
 
 /-- The result and the final transcript of `x` run from `t`. -/
 def eval {α : Type} (x : ReplayM α) (t : Transcript) : Except String α × Transcript := (x.run.run t).run
@@ -323,4 +327,4 @@ theorem sumcheckRounds_point (l : List (Array Ext)) (point : Array Ext) (claim :
       funext a
       rw [Array.push_eq_append, Array.push_eq_append, Array.empty_append, Array.append_assoc]
 
-end CompressionLean.Replay
+end CompressionLean.Bridge

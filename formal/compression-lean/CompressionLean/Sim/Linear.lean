@@ -18,8 +18,9 @@ namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
 open CompressionLean.Lowering
-open CompressionLean.Replay (Word Ext Relation D laneVars Runs runs_bind runs_pure runs_sampleExt runs_observeExts
-  runs_ensure runs_liftExcept)
+open CompressionLean.Replay (Word Ext Relation D laneVars)
+open CompressionLean.Bridge (Runs runs_bind runs_pure runs_sampleExt runs_observeExts runs_ensure
+  runs_liftExcept)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
@@ -213,7 +214,7 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
     fun h r m q => ?_) fun res d₇ m₇ l₇ => ?_
   · obtain ⟨⟨gpoint, gfinal, t', run, hpt, hfin, hdup⟩, -⟩ := q
     obtain ⟨gb, gmiddle, t₅, glane, run₁, run₂, rfl, size₁, size₂⟩ :=
-      Replay.runs_sumcheckReplay_split rel.blockVars run
+      Bridge.runs_sumcheckReplay_split rel.blockVars run
     have bsize : gb.size = rel.blockVars := by
       rw [size₁, linearSize h.1, Relation.cubeVars]
       omega

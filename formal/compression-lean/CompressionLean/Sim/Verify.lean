@@ -21,8 +21,8 @@ namespace CompressionLean.Sim
 open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Lib
-open CompressionLean.Replay (Word Ext Relation TreeShape WhirShape D foldVars runOracles Runs run_bind run_pure
-  run_liftExcept run_sampleWords)
+open CompressionLean.Replay (Word Ext Relation TreeShape WhirShape D foldVars runOracles)
+open CompressionLean.Bridge (Runs run_bind run_pure run_liftExcept run_sampleWords)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
@@ -207,11 +207,11 @@ private theorem fits_zero (rel : Relation) : (zeroStatement rel).fits rel = true
 private theorem readProof_openings {rel : Relation} {g : Replay.Proof} (read : Replay.readProof rel g = .ok ()) :
     Replay.readOpening rel.p1Whir g.p1Opening = .ok () ∧ Replay.readOpening rel.p0Whir g.p0Opening = .ok () := by
   unfold Replay.readProof at read
-  obtain ⟨_, -, read⟩ := Replay.Except.bind_ok read
-  obtain ⟨_, -, read⟩ := Replay.Except.bind_ok read
-  obtain ⟨_, -, read⟩ := Replay.Except.bind_ok read
-  obtain ⟨_, -, read⟩ := Replay.Except.bind_ok read
-  obtain ⟨⟨⟩, p1, p0⟩ := Replay.Except.bind_ok read
+  obtain ⟨_, -, read⟩ := Bridge.Except.bind_ok read
+  obtain ⟨_, -, read⟩ := Bridge.Except.bind_ok read
+  obtain ⟨_, -, read⟩ := Bridge.Except.bind_ok read
+  obtain ⟨_, -, read⟩ := Bridge.Except.bind_ok read
+  obtain ⟨⟨⟩, p1, p0⟩ := Bridge.Except.bind_ok read
   exact ⟨p1, p0⟩
 
 private theorem early_run {rel : Relation} {st : Replay.Statement} {g : Replay.Proof} {t t' : Replay.Transcript}
@@ -243,16 +243,16 @@ private theorem scaledEqPoint_size (bits : ℕ) : ∀ (c : Ext) {k : Ext} {point
   | zero =>
       intro c k point ok
       rw [Replay.scaledEqPoint] at ok
-      obtain ⟨-, rfl⟩ := Prod.mk.inj (Replay.Except.pure_eq_ok ok)
+      obtain ⟨-, rfl⟩ := Prod.mk.inj (Bridge.Except.pure_eq_ok ok)
       rfl
   | succ bits ih =>
       intro c k point ok
       rw [Replay.scaledEqPoint] at ok
       split_ifs at ok with pole
-      · obtain ⟨_, thrown, _⟩ := Replay.Except.bind_ok ok
+      · obtain ⟨_, thrown, _⟩ := Bridge.Except.bind_ok ok
         cases thrown
-      · obtain ⟨⟨k', rest⟩, recursive, ok⟩ := Replay.Except.bind_ok ok
-        obtain ⟨-, rfl⟩ := Prod.mk.inj (Replay.Except.pure_eq_ok ok)
+      · obtain ⟨⟨k', rest⟩, recursive, ok⟩ := Bridge.Except.bind_ok ok
+        obtain ⟨-, rfl⟩ := Prod.mk.inj (Bridge.Except.pure_eq_ok ok)
         rw [Array.size_append, ih _ recursive]
         simp only [List.size_toArray, List.length_cons, List.length_nil]
         omega
@@ -298,9 +298,9 @@ private theorem queried_size {root : Array Word} {vars : ℕ} {a b alpha : Array
       simp
   | pair :: rest, init, out, h => by
       rw [List.foldlM_cons] at h
-      obtain ⟨_, step, h⟩ := Replay.Except.bind_ok h
-      obtain ⟨_, checked, step⟩ := Replay.Except.bind_ok step
-      obtain rfl := Replay.Except.pure_eq_ok step
+      obtain ⟨_, step, h⟩ := Bridge.Except.bind_ok h
+      obtain ⟨_, checked, step⟩ := Bridge.Except.bind_ok step
+      obtain rfl := Bridge.Except.pure_eq_ok step
       rw [queried_size rest _ _ h, Array.size_append, setupCheck_size checked, List.length_cons]
       ring
 
@@ -333,8 +333,8 @@ private theorem runs_observe3 {β : Type} {a b e : Array Word} {d : Replay.Duple
     (h : Runs k ⟨e.foldl Replay.Duplex.observe (b.foldl Replay.Duplex.observe (a.foldl Replay.Duplex.observe d)), ds⟩
       x t') :
     Runs (do Replay.observeAll a; Replay.observeAll b; Replay.observeAll e; k) ⟨d, ds⟩ x t' :=
-  Replay.runs_bind (Replay.runs_observeAll _ _) (Replay.runs_bind (Replay.runs_observeAll _ _)
-    (Replay.runs_bind (Replay.runs_observeAll _ _) h))
+  Bridge.runs_bind (Bridge.runs_observeAll _ _) (Bridge.runs_bind (Bridge.runs_observeAll _ _)
+    (Bridge.runs_bind (Bridge.runs_observeAll _ _) h))
 
 section Verify
 
@@ -536,10 +536,10 @@ private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey}
   obtain ⟨_, _, agree1, tail⟩ := run_bind tail
   obtain ⟨_, _, whir0, agree0⟩ := run_bind tail
   unfold Replay.verify
-  exact ⟨_, t', Replay.runs_bind (Replay.runs_ensure fits _ _) (Replay.runs_bind (Replay.runs_liftExcept read _)
-    (runs_observe3 (Replay.runs_bind early (Replay.runs_bind linear (Replay.runs_bind honest
-    (Replay.runs_bind late (Replay.runs_bind whir1 (Replay.runs_bind agree1 (Replay.runs_bind whir0
-    (Replay.runs_bind agree0 (Replay.runs_pure _ _)))))))))))⟩
+  exact ⟨_, t', Bridge.runs_bind (Bridge.runs_ensure fits _ _) (Bridge.runs_bind (Bridge.runs_liftExcept read _)
+    (runs_observe3 (Bridge.runs_bind early (Bridge.runs_bind linear (Bridge.runs_bind honest
+    (Bridge.runs_bind late (Bridge.runs_bind whir1 (Bridge.runs_bind agree1 (Bridge.runs_bind whir0
+    (Bridge.runs_bind agree0 (Bridge.runs_pure _ _)))))))))))⟩
 
 end Verify
 

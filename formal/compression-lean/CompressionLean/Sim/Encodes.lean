@@ -108,7 +108,7 @@ def Gives (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
     (authority : Lifecycle.VerifierContext.Authority) (c : Ctx Spec.F) (w : Var → Replay.Word) : Prop :=
   ∃ env, TerminalFor authority (Sim.statementOf c) env ∧
     Bridge.statementOf (statementWith loaded context w) = claimOf env ∧
-    ∃ points t', Replay.Runs (Replay.verify key.relation (seedWith loaded context w) (statementWith loaded context w)
+    ∃ points t', Bridge.Runs (Replay.verify key.relation (seedWith loaded context w) (statementWith loaded context w)
       (proofWith key loaded context w)) start points t'
 
 /-- `verify_with` (`neo-spartan/src/lib.rs:692-703`) from the handles that
@@ -250,9 +250,9 @@ def Reads (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) (S
     (short1 : p1.length ≤ L1),
     Game.Pos.msgs _ p = layer1Msgs key.relation st proof ⟨cands, short0⟩ ⟨p1, short1⟩ ∧
     Game.Pos.draws _ p =
-      ((Replay.eval (verifyStages key.relation seed st proof) start).2.draws.toList).map
+      ((Bridge.eval (verifyStages key.relation seed st proof) start).2.draws.toList).map
         (drawn (K := Cubic) key.relation.queries) ∧
-    (∀ points t', Replay.Runs (Replay.verify key.relation seed st proof) start points t' →
+    (∀ points t', Bridge.Runs (Replay.verify key.relation seed st proof) start points t' →
       WhirOpens (shapeOf key.relation) proof points cands p1) ∧
     MerkleBinds key.relation S proof.leaves
 
@@ -298,7 +298,7 @@ theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Re
   obtain ⟨p₀, node, pathDraws, pathMsgs⟩ := reach
   have same : p = p₀ := by
     refine Game.Pos.eq_of_msgs_draws (msgs.trans pathMsgs.symm) (draws.trans ?_)
-    rw [show Replay.eval _ start = _ from run₄, draws₄]
+    rw [show Bridge.eval _ start = _ from run₄, draws₄]
     exact pathDraws.symm
   subst same
   exact ⟨tr, node, statement.trans claim⟩

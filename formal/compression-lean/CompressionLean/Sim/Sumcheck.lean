@@ -15,7 +15,8 @@ namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
 open CompressionLean.Lowering
-open CompressionLean.Replay (Ext Runs)
+open CompressionLean.Replay (Ext)
+open CompressionLean.Bridge (Runs)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
@@ -100,7 +101,7 @@ theorem sumcheckReplay {rounds : Array (Array ExtVar)} {grounds : Array (Array E
         Runs (Replay.sumcheckRounds (grounds.toList.take k) #[] gclaim) t (point, final) t' ∧
           IsExts c m acc.1 point ∧ IsExt c m acc.2 final ∧ IsDuplex c m e t'.duplex) (fun _ => True)
       fun k hk acc e m le => ?_).pre
-        fun h => ⟨h, #[], gclaim, t, Replay.runs_pure _ _, IsExts.empty, hc h, hd h⟩).post
+        fun h => ⟨h, #[], gclaim, t, Bridge.runs_pure _ _, IsExts.empty, hc h, hd h⟩).post
         (fun h r m q => ?_) fun _ => ⟨fun _ => trivial, fun _ _ _ => trivial⟩
     · have hk' : k < rounds.size := by simpa using hk
       have hmsg : P → IsExts c n rounds.toList[k] grounds[k]! := fun h => by
@@ -130,8 +131,8 @@ theorem sumcheckReplay {rounds : Array (Array ExtVar)} {grounds : Array (Array E
       refine Simulates.pure fun h => ⟨rfl, ?_⟩
       have hg : k < grounds.size := (hr h.1.1.1.1.1).1 ▸ hk'
       rw [List.take_add_one, List.getElem?_eq_getElem (by simpa using hg), Option.toList_some,
-        Replay.sumcheckRounds_append, Array.getElem_toList, ← getElem!_pos grounds k hg]
-      exact ⟨_, _, _, Replay.runs_bind h.1.1.1.1.2.1 rfl,
+        Bridge.sumcheckRounds_append, Array.getElem_toList, ← getElem!_pos grounds k hg]
+      exact ⟨_, _, _, Bridge.runs_bind h.1.1.1.1.2.1 rfl,
         (h.1.1.1.1.2.2.1.mono (l₁.trans (l₂.trans (l₃.trans l₄)))).push (h.1.2.1.mono l₄), h.2.1,
         h.2.2 ▸ h.1.2.2.mono l₄⟩
     · rw [show rounds.toList.length = grounds.toList.length by simp [(hr h).1], List.take_length] at q

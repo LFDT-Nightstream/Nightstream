@@ -13,6 +13,9 @@ Every replay operation denotes the field operation. The denotation of `Ext`
 is injective, because `X³ - X - 1` is the minimal polynomial of `x`, so the
 replay's zero tests and equality tests are the field's. The replay's
 inverses by Fermat are the field inverses.
+
+The `Ext` and `Kx` lemmas are in the namespaces of the replay types, so that
+dot notation finds them. The sums and products of a range are the bridge's.
 -/
 
 namespace CompressionLean.Replay
@@ -209,6 +212,22 @@ theorem toQ_ofK (value : Word × Word) :
 
 end Kx
 
+end Challenge
+
+/-- A nonzero value times its inverse is one (`field.rs`). -/
+theorem Ext.mul_inv {a : Ext} (ne : a ≠ 0) : a * a.inv = 1 := by
+  apply Ext.eq_of_toK (K := Cubic)
+  rw [Ext.toK_mul, Ext.toK_inv, Ext.toK_one]
+  exact mul_inv_cancel₀ fun z => ne (Ext.eq_zero_of_toK z)
+
+end CompressionLean.Replay
+
+namespace CompressionLean.Bridge
+
+open CompressionLean.Replay
+
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
+
 /-! ## Sums and products -/
 
 theorem toK_sumRange (n : ℕ) (f : ℕ → Ext) :
@@ -243,12 +262,4 @@ theorem toQ_sumKx (n : ℕ) (f : ℕ → Kx) :
   | succ n ih => rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil, Kx.toQ_add, ih,
       Finset.sum_range_succ]
 
-end Challenge
-
-/-- A nonzero value times its inverse is one (`field.rs`). -/
-theorem Ext.mul_inv {a : Ext} (ne : a ≠ 0) : a * a.inv = 1 := by
-  apply Ext.eq_of_toK (K := Cubic)
-  rw [Ext.toK_mul, Ext.toK_inv, Ext.toK_one]
-  exact mul_inv_cancel₀ fun z => ne (Ext.eq_zero_of_toK z)
-
-end CompressionLean.Replay
+end CompressionLean.Bridge

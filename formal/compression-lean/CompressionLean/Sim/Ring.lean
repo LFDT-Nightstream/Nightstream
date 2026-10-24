@@ -90,7 +90,7 @@ private theorem sumKx_digits (k : ℕ) (f : ℕ → Kx) :
     Replay.sumKx (4 * k) f = Replay.sumKx k fun rem => Replay.sumKx 2 fun below => Replay.sumKx 2 fun bit =>
       f (4 * rem + 2 * below + bit) := by
   apply kx_eq_of_toQ
-  simp only [Replay.toQ_sumKx]
+  simp only [Bridge.toQ_sumKx]
   induction k with
   | zero => simp
   | succ k ih =>

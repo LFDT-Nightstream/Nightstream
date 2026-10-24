@@ -95,7 +95,7 @@ theorem final_restore_sound (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ �
 
 /-- **End-to-end budget at Rust's split under Fiat–Shamir.** With the
 charged terms of each commitment within its share, as in
-`layer1_restore_budget` and `shrink_restore_budget`, a prover with `calls`
+`layer1_budget` and `shrink_budget`, a prover with `calls`
 queries breaks the final verifier with probability at most `calls / 2^t`. -/
 theorem final_restore_budget (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F)
     (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (big : 2 ^ 191 ≤ Fintype.card K)

@@ -11,18 +11,6 @@ step names by an existential. Each round message must be nonempty: both read
 `message[0]!`, where Rust's `message[0]` panics.
 -/
 
-namespace CompressionLean.Replay
-
-/-- Replaying `l₁ ++ l₂` replays `l₁`, then `l₂` from its point and claim. -/
-theorem sumcheckRounds_append (l₁ l₂ : List (Array Ext)) (point : Array Ext) (claim : Ext) :
-    sumcheckRounds (l₁ ++ l₂) point claim =
-      sumcheckRounds l₁ point claim >>= fun r => sumcheckRounds l₂ r.1 r.2 := by
-  induction l₁ generalizing point claim with
-  | nil => simp [sumcheckRounds]
-  | cons msg rest ih => simp [sumcheckRounds, ih, bind_assoc]
-
-end CompressionLean.Replay
-
 namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (Ext Runs)

@@ -7,7 +7,8 @@ A run decomposes along `>>=` (`run_bind`); observing leaves the draws, a
 sample appends exactly its draw, and a check that passed held. The `runs_*`
 lemmas build a run forward, step by step, as the circuit's simulation does.
 `Grows` says that an action only appends draws; the WHIR transcript does
-(`whirTranscript_grows`), so its draws follow the model's.
+(`whirTranscript_grows`), so its draws follow the model's. A sum-check replay
+splits along its rounds (`sumcheckRounds_append`, `sumcheckRounds_point`).
 -/
 
 namespace CompressionLean.Replay
@@ -298,5 +299,28 @@ theorem whirTranscript_grows (shape : WhirShape) (o : Opening) : Grows (whirTran
     | with_reducible exact grows_observeExt _ | with_reducible exact grows_sampleExt
     | with_reducible exact grows_pure _
     | with_reducible apply grows_bind | with_reducible apply grows_forM | with_reducible intro)
+
+/-! ## Sum-check rounds -/
+
+/-- Replaying `l₁ ++ l₂` replays `l₁`, then `l₂` from its point and claim. -/
+theorem sumcheckRounds_append (l₁ l₂ : List (Array Ext)) (point : Array Ext) (claim : Ext) :
+    sumcheckRounds (l₁ ++ l₂) point claim =
+      sumcheckRounds l₁ point claim >>= fun r => sumcheckRounds l₂ r.1 r.2 := by
+  induction l₁ generalizing point claim with
+  | nil => simp [sumcheckRounds]
+  | cons msg rest ih => simp [sumcheckRounds, ih, bind_assoc]
+
+/-- Replaying from `point` appends the new challenges to `point` (`sumcheck.rs:24-44`). -/
+theorem sumcheckRounds_point (l : List (Array Ext)) (point : Array Ext) (claim : Ext) :
+    sumcheckRounds l point claim = (fun r => (point ++ r.1, r.2)) <$> sumcheckRounds l #[] claim := by
+  induction l generalizing point claim with
+  | nil => simp [sumcheckRounds]
+  | cons msg rest ih =>
+      simp only [sumcheckRounds, map_bind]
+      refine bind_congr fun _ => bind_congr fun r => ?_
+      rw [ih (point.push r), ih (#[].push r), Functor.map_map]
+      congr 1
+      funext a
+      rw [Array.push_eq_append, Array.push_eq_append, Array.empty_append, Array.append_assoc]
 
 end CompressionLean.Replay

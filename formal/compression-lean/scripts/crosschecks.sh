@@ -21,7 +21,7 @@ step() {
 }
 
 cd "$lean_dir" || exit 1
-step "lake build" timeout --signal=KILL 1500 lake build replayLayer1 lowerCheck terminalCheck setupCheck
+step "lake build" timeout --signal=KILL 1500 lake build
 cd "$repo" || exit 1
 built=""
 for check in "${checks[@]}"; do

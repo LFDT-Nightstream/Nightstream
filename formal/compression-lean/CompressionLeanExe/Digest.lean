@@ -8,9 +8,9 @@ pins (`run_digest`, `crates/neo-spartan/src/shrink/mod.rs`; `Trace::digest`,
 `circuit/record.rs`).
 -/
 
-namespace CompressionLean.Circuit.Digest
+namespace CompressionLeanExe.Digest
 
-open CompressionLean.Shrink NightstreamFPrime.Spec
+open CompressionLean CompressionLean.Shrink NightstreamFPrime.Spec
 open CompressionLean.Replay (Word)
 
 /-- The run digest (`Trace::digest`): Poseidon2's leaf sponge
@@ -29,4 +29,4 @@ def runDigest (run : Run Gl) (rows : Array (GlueRow Gl)) : Array Word :=
     (List.finRange 7).foldl (fun out s => out ++ sideWords (row.side s)) out
   Replay.hashLeaf (words.map Word.ofNat)
 
-end CompressionLean.Circuit.Digest
+end CompressionLeanExe.Digest

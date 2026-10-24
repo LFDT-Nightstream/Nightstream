@@ -22,9 +22,10 @@ instructions of `Ir.lean` to the shrink run of `Shrink/Layout.lean`.
   tie the block's first 16 cells to the inputs. Its outputs are cells 166 to
   181 (`circuit/poseidon2.rs:20-24`).
 
-The lowering computes in a field `F`. The check (`Check.lean`) runs it in
-Goldilocks, where its zero tests are Rust's, against the trace of
-`neo-spartan`'s `tests/internal/lowering.rs`. `Call.computedRows` is the
+The lowering computes in a field `F`. `lowerCheck`
+(`CompressionLeanExe/LowerCheck.lean`) runs it in Goldilocks, where its zero
+tests are Rust's, against the trace of `neo-spartan`'s
+`tests/internal/lowering.rs`. `Call.computedRows` is the
 model's `Call.rows` with decidable zero tests (`computedRows_eq`).
 -/
 

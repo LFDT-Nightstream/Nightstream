@@ -349,12 +349,14 @@ so that Lake does not rebuild Mathlib.
 
 ```bash
 timeout --signal=KILL 1500 lake build
-timeout --signal=KILL 1500 lake build emitTerminal
 timeout --signal=KILL 1500 .lake/build/bin/emitTerminal artifacts/compression-terminal-v1.json
 ```
 
-`lake build` also runs the axiom audit (`CompressionLeanTests/Axioms.lean`)
-and the ports gate (`CompressionLeanTests/Ports.lean`).
+`lake build` also builds the executables (`CompressionLeanExe/`: the
+checks, their readers and the Lean side of the Rust test programs) with
+warnings as errors, and runs the axiom audit
+(`CompressionLeanTests/Axioms.lean`) and the ports gate
+(`CompressionLeanTests/Ports.lean`).
 
 Ports. `ports.json` pairs each Lean port of Rust with the Rust item that it
 transcribes and a hash of the item's tokens. The CI test `lean_ports`

@@ -1,6 +1,7 @@
 name = "compression_lean"
 version = "0.1.0"
-defaultTargets = ["CompressionLean", "CompressionLeanTests"]
+defaultTargets = ["CompressionLean", "CompressionLeanTests", "CompressionLeanExe", "emitTerminal", "replayLayer1",
+  "lowerCheck", "terminalCheck", "setupCheck", "status"]
 
 [[require]]
 name = "nightstream_fprime"
@@ -18,6 +19,13 @@ roots = ["CompressionLeanTests.Axioms", "CompressionLeanTests.BlockDigest", "Com
 needs = ["ports", "statusPage"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
+# The executables, their readers and the Lean side of the Rust test programs.
+# Each module with a `main` is the root of one `lean_exe` below.
+[[lean_lib]]
+name = "CompressionLeanExe"
+globs = ["CompressionLeanExe.+"]
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
+
 # The ports gate reads these files, so a change to them reruns it.
 [[input_file]]
 name = "ports"
@@ -31,32 +39,32 @@ text = true
 
 [[lean_exe]]
 name = "emitTerminal"
-root = "CompressionLean.Terminal.Emit"
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+root = "CompressionLeanExe.EmitTerminal"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_exe]]
 name = "replayLayer1"
-root = "CompressionLean.Replay.Main"
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+root = "CompressionLeanExe.ReplayLayer1"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_exe]]
 name = "lowerCheck"
-root = "CompressionLean.Circuit.Check"
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+root = "CompressionLeanExe.LowerCheck"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_exe]]
 name = "terminalCheck"
-root = "CompressionLean.Circuit.TerminalCheck"
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+root = "CompressionLeanExe.TerminalCheck"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_exe]]
 name = "setupCheck"
-root = "CompressionLean.Final.SetupCheck"
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+root = "CompressionLeanExe.SetupCheck"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_exe]]
 name = "status"
-root = "CompressionLeanTests.Status"
+root = "CompressionLeanExe.Status"
 # The page pretty-prints the claims' binders, which runs imported code.
 supportInterpreter = true
-leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }

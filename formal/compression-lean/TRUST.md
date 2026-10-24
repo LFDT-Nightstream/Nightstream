@@ -68,8 +68,8 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
 - The error charges (`Layer1.rustDegrees`, `Shrink.rustDegrees`). If one differs from
   `outer_terms` (`lib.rs`) or from `terms` (`shrink/mod.rs`), the premises `p0`, `p1` and `rust`
   are not the checks that `Pcs::new` makes.
-- The readers of the files that the Rust tests write (`Layer1Input`, `readRuns`): transcriptions
-  of their formats.
+- The readers of the files that the Rust tests write (`Layer1Input`, `readRuns` in
+  `CompressionLeanExe/SetupCheck.lean`): transcriptions of their formats.
 
 **Code that a cross-check compares with Rust but that cannot make a claim false.** The rest of
 `Replay/`: the replay of the layer-1 verifier, with its transcript, stages, formulas, GKR and WHIR.
@@ -90,15 +90,16 @@ These checks compare a transcription with its Rust:
   has no entry.
 - Ignored Rust tests compare the replay's draws and verdicts, and the programs' instructions, with
   Rust on fixed inputs. They run by hand, not in CI (`scripts/crosschecks.sh`).
-- The executables check premises of two kinds. `loads` and `valid` are closed propositions about
-  Lean values (`circuitPackage ()`). `terminalCheck` checks them by compiled evaluation, because
-  the kernel does not evaluate a package of this size. They say nothing about a Rust file.
-  `KeyFacts`, `WidthFits` and `setupFailure key pushes = none` are facts about the files that Rust
-  writes. `lowerCheck`, `terminalCheck` and `setupCheck` read those files, and a Rust test
-  requires each pass. `lowerCheck` also reads the toy key of `lowering_matches_lean`, which has
-  neither production's constants nor an application's width, so it prints each result and does
-  not refuse the key. `key_facts_of_check`, `width_fits_of_check`, `package_templates_of_check`
-  and `setup_facts_of_check` prove that a pass gives the premise. That the executables ran on the
+- The executables (`CompressionLeanExe/`, which `lake build` builds with warnings as errors) check
+  premises of two kinds. `loads` and `valid` are closed propositions about Lean values
+  (`circuitPackage ()`). `terminalCheck` checks them by compiled evaluation, because the kernel does
+  not evaluate a package of this size. They say nothing about a Rust file. `KeyFacts`, `WidthFits`
+  and `setupFailure key pushes = none` are facts about the files that Rust writes. `lowerCheck`,
+  `terminalCheck` and `setupCheck` read those files, and a Rust test requires each pass.
+  `lowerCheck` also reads the toy key of `lowering_matches_lean`, which has neither production's
+  constants nor an application's width, so it prints each result and does not refuse the key.
+  `key_facts_of_check`, `width_fits_of_check`, `package_templates_of_check` and
+  `setup_facts_of_check` prove that a pass gives the premise. That the executables ran on the
   production artifacts is the evidence of the Rust tests. `STATUS.md` names the executable and the
   test of each premise.
 

@@ -7,9 +7,9 @@ Owns the reader of the IR exports that `neo-spartan`'s
 one instruction per opcode (`Log` in both files).
 -/
 
-namespace CompressionLean.Circuit.Parse
+namespace CompressionLeanExe.Parse
 
-open CompressionLean.Shrink CompressionLean.Circuit
+open CompressionLean CompressionLean.Shrink CompressionLean.Circuit
 open CompressionLean.Replay (Word)
 open NightstreamFPrime.Spec
 
@@ -110,4 +110,4 @@ def program : Parser (Array Instr) := do
 def expect {α : Type} [BEq α] [Repr α] (what : String) (lean rust : α) : Parser Unit :=
   if lean == rust then pure () else throw s!"{what}: Lean {repr lean}, Rust {repr rust}"
 
-end CompressionLean.Circuit.Parse
+end CompressionLeanExe.Parse

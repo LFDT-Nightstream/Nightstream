@@ -33,7 +33,7 @@ theorem priv_ensures : Ensures c n Build.priv fun h m => h = n ∧ m = n + 1 ∧
     rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
     rfl
 
-/-- `r1cs` (`record.rs:450-460`): the rows hold on the values of the column
+/-- `r1cs` (`record.rs::Recorder::r1cs`): the rows hold on the values of the column
 handles. -/
 theorem r1cs_ensures {rows : List (Shrink.R1csRow Word)} {columns : List Var} (hc : ∀ h ∈ columns, h < n) :
     Ensures c n (Build.r1cs rows columns) fun _ _ =>

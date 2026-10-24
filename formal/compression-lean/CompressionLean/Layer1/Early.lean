@@ -3,7 +3,7 @@ import CompressionLean.Lib.IdentityTest
 
 /-!
 Owns the early stage of the layer-1 verifier (`verifier.rs` up to
-`observe_early`, `matrix.rs::check_early`): the P0 candidates, the histogram,
+`observe_early`, `matrix.rs::Structure::check_early`): the P0 candidates, the histogram,
 the five early challenges, the batched early GKR over the norm, lookup and
 scatter trees, the early values and the early checks.
 

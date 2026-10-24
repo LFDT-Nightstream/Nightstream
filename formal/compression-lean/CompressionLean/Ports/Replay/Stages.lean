@@ -34,7 +34,7 @@ def readProof (rel : Relation) (proof : Proof) : Except String Unit := do
   readOpening rel.p1Whir proof.p1Opening
   readOpening rel.p0Whir proof.p0Opening
 
-/-! ## Early (`verifier.rs` to `observe_early`, `matrix.rs::check_early`) -/
+/-! ## Early (`verifier.rs` to `observe_early`, `matrix.rs::Structure::check_early`) -/
 
 /-- `β` (norm), `(β, γ)` (row lookup), `(β, μ)` (slot scatter). -/
 structure EarlyChallenges where
@@ -244,7 +244,7 @@ def honestStage (rel : Relation) (proof : Proof) (early : EarlyOut) (lin : Linea
     pure (queried ++ (← setupCheck rel.key.root setupVariables pair.1 pair.2 groups alpha))) #[])
   return { mu, alpha, words, queries, queried }
 
-/-! ## Late (`verifier.rs` after the setup queries, `matrix.rs::check_late`) -/
+/-! ## Late (`verifier.rs` after the setup queries, `matrix.rs::Structure::check_late`) -/
 
 /-- `Ĥ_t~` over slots: the class's lane table at the slot's lane (`slot_step`). -/
 def slotStep (layout : Layout) (point : Array Ext) (lanes : Array (Array Ext × Array Ext)) (t : Nat) : Ext :=

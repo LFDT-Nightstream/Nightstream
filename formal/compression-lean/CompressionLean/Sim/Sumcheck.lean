@@ -21,7 +21,7 @@ open NightstreamFPrime.Spec (goldilocksModulus)
 variable {F : Type} [CommRing F]
 
 
-/-- The loop of `observe_ext` calls over an array (`sumcheck.rs:36-38`). -/
+/-- The loop of `observe_ext` calls over an array (`sumcheck.rs::replay`). -/
 abbrev observeAllExts (vs : Array ExtVar) : Transcript PUnit :=
   forIn vs PUnit.unit fun value _ => do
     Duplex.observeExt value
@@ -36,7 +36,7 @@ section Rounds
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
 /-- `for &value in message { duplex.observe_ext(b, value) }`
-(`sumcheck.rs:36-38`): the replay's `observeExts`. -/
+(`sumcheck.rs::replay`): the replay's `observeExts`. -/
 theorem observeExts_ensures {d : Duplex} {r : Replay.Duplex} {vs : Array ExtVar} {gs : Array Ext}
     (hp : Permutes c.perm) (hd : IsDuplex c n d r) (hv : IsExts c n vs gs) :
     Ensures c n ((observeAllExts vs).run d)
@@ -66,7 +66,7 @@ theorem observeExts_tracks {vs : Array ExtVar} {gs : Array Ext} (hp : Permutes c
     Tracks c n (observeAllExts vs) (Replay.observeExts gs) fun _ _ _ => True := fun _ tr hd =>
   (observeExts_ensures hp hd hv).post fun _ _ q => ⟨(), _, Bridge.runs_observeExts gs tr, q, trivial⟩
 
-/-- `replay` (`sumcheck.rs:24-44`): the point and the final claim are the
+/-- `replay` (`sumcheck.rs::replay`): the point and the final claim are the
 replay's run. Each round message is nonempty. -/
 theorem sumcheckReplay_tracks {rounds : Array (Array ExtVar)} {grounds : Array (Array Ext)} {claim : ExtVar}
     {gclaim : Ext} (hp : Permutes c.perm) (hr : rounds.size = grounds.size)

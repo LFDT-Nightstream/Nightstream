@@ -5,8 +5,8 @@ import CompressionLean.Lowering.Sound
 
 /-!
 Owns the production final program (`FinalProgram::run`,
-`lifecycle/terminal/mod.rs:54-80`, with `verify_with`,
-`neo-spartan/src/lib.rs:692-703`) for a layer-1 key, and what layer 1 reads
+`lifecycle/terminal/mod.rs::FinalProgram::run`, with `verify_with`,
+`neo-spartan/src/lib.rs::verify_with`) for a layer-1 key, and what layer 1 reads
 from a witness of it.
 
 - `productionProgram`: the program. `shrinkRun`: its lowering at a
@@ -89,7 +89,7 @@ section FoldTranscript
 
 open CompressionLean.Circuit.FoldTranscript
 
-/-- One chunk added into the rate lanes, then a permutation (`fold.rs:39-46`). -/
+/-- One chunk added into the rate lanes, then a permutation (`fold.rs::FoldTranscript::absorb`). -/
 def _root_.CompressionLean.Circuit.FoldTranscript.absorbChunk (state chunk : Array Word) : Array Word :=
   Replay.permute ((List.range chunk.size).foldl (fun s i => s.set! i (s[i]! + chunk[i]!)) state)
 
@@ -99,7 +99,7 @@ def _root_.CompressionLean.Circuit.FoldTranscript.absorbWords (state words : Arr
     (fun s k => absorbChunk s (words.extract (rate * k) (rate * k + rate))) state
 
 /-- The seed that `handoff` returns: the first four lanes after the layer-1
-domain chunk (`fold.rs:68-72`). -/
+domain chunk (`fold.rs::FoldTranscript::handoff`). -/
 def _root_.CompressionLean.Circuit.FoldTranscript.handoffWords (state : Array Word) : Array Word :=
   (absorbWords state (domainChunk compressDomain)).extract 0 4
 
@@ -107,10 +107,10 @@ end FoldTranscript
 
 /-! ## The program -/
 
-/-- The nine `public` words of the statement (`terminal/mod.rs:55-59`). -/
+/-- The nine `public` words of the statement (`terminal/mod.rs::FinalProgram::run`). -/
 def statementHandles : Build (Array Var) := (Array.range statementWords).mapM fun _ => Build.pub
 
-/-- The iteration check, then `Package::apply` (`terminal/mod.rs:60-72`). -/
+/-- The iteration check, then `Package::apply` (`terminal/mod.rs::FinalProgram::run`). -/
 def checkedApply (package : Loaded) (context : Array Word) (statement : Array Var) :
     Build (ClaimVars × (Fin 16 → Var)) := do
   let inverse ← Build.emit (.hint 1)
@@ -119,7 +119,7 @@ def checkedApply (package : Loaded) (context : Array Word) (statement : Array Va
   Build.assertEqual product one
   apply package statement context
 
-/-- `FinalProgram::run` up to `verify_with` (`terminal/mod.rs:54-72`). -/
+/-- `FinalProgram::run` up to `verify_with` (`terminal/mod.rs::FinalProgram::run`). -/
 def terminalPrefix (package : Loaded) (context : Array Word) : Build (ClaimVars × (Fin 16 → Var)) :=
   statementHandles >>= checkedApply package context
 
@@ -127,7 +127,7 @@ section Runs
 
 variable (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word)
 
-/-- `FinalProgram::run` with `verify_with` for `key` (`lifecycle/terminal/mod.rs:54-80`).
+/-- `FinalProgram::run` with `verify_with` for `key` (`lifecycle/terminal/mod.rs::FinalProgram::run`).
 Irreducible, so that no check evaluates the program. -/
 @[irreducible] def productionProgram : Build Unit :=
   finalProgram loaded context fun claim state => verifyWith key state claim.view
@@ -149,14 +149,14 @@ noncomputable def wordsOf (x : StateWords) (w : ℕ → Spec.F) : Var → Replay
   fun h => Replay.Word.ofF
     ((Exec.run Spec.Poseidon2.permute stmt (tapeOf Block.poseidonTemplate L stmt w) L).value h)
 
-/-- The builder after the terminal part (`lifecycle/terminal/mod.rs:54-72`). -/
+/-- The builder after the terminal part (`lifecycle/terminal/mod.rs::FinalProgram::run`). -/
 def prefixRun : (ClaimVars × (Fin 16 → Var)) × Builder := (terminalPrefix loaded context).run {}
 
-/-- The builder after the handoff (`neo-spartan/src/lib.rs:697`). -/
+/-- The builder after the handoff (`neo-spartan/src/lib.rs::verify_with`). -/
 def seedRun : DigestVar × Builder :=
   (FoldTranscript.fromState (prefixRun loaded context).1.2).handoff.run (prefixRun loaded context).2
 
-/-- The builder after the proof view (`neo-spartan/src/lib.rs:698-702`). -/
+/-- The builder after the proof view (`neo-spartan/src/lib.rs::verify_with`). -/
 def viewRun : Circuit.ProofView × Builder :=
   (Circuit.ProofView.read key.relation key.p1Key.rows key.p0Key.rows).run (seedRun loaded context).2
 
@@ -172,7 +172,7 @@ def proofWith (w : Var → Replay.Word) : Replay.Proof := (viewRun key loaded co
 
 end Runs
 
-/-- The empty replay transcript, where `verify` starts (`verifier.rs:136`). -/
+/-- The empty replay transcript, where `verify` starts (`verifier.rs::verify`). -/
 def start : Replay.Transcript := ⟨Replay.Duplex.new, #[]⟩
 
 end CompressionLean.Spec

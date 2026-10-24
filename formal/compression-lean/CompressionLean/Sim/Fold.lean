@@ -45,12 +45,12 @@ instance FoldTranscript.handoff_appends (t : FoldTranscript) : Appends t.handoff
 
 attribute [local irreducible] Replay.permute
 
-/-- `new` (`fold.rs:27-30`). -/
+/-- `new` (`fold.rs::FoldTranscript::new`). -/
 theorem FoldTranscript.new_ensures {c : Ctx F} {n : ℕ} :
     Ensures c n FoldTranscript.new fun t m => IsWords c m t.state (Array.replicate 16 0) :=
   (const_ensures 0).bind fun _ _ _ hz => Ensures.pure (IsWords.replicate hz 16)
 
-/-- `squeeze_digest` (`fold.rs:55-59`). -/
+/-- `squeeze_digest` (`fold.rs::FoldTranscript::squeeze_digest`). -/
 theorem FoldTranscript.squeezeDigest_ensures {c : Ctx F} {n : ℕ} {t : FoldTranscript} {gs : Array Word}
     (hp : Permutes c.perm) (ht : IsWords c n t.state gs) (hsize : gs.size = 16) :
     Ensures c n t.squeezeDigest fun res m =>
@@ -65,7 +65,7 @@ section Absorb
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `absorb` (`fold.rs:39-46`). -/
+/-- `absorb` (`fold.rs::FoldTranscript::absorb`). -/
 theorem FoldTranscript.absorb_ensures {t : FoldTranscript} {words : Array Var} {gs gw : Array Word}
     (hp : Permutes c.perm) (ht : IsWords c n t.state gs) (hsize : gs.size = 16) (hw : IsWords c n words gw) :
     Ensures c n (t.absorb words) fun t' m => IsWords c m t'.state (FoldTranscript.absorbWords gs gw) := by
@@ -129,7 +129,7 @@ theorem FoldTranscript.absorb_ensures {t : FoldTranscript} {words : Array Var} {
     rw [count] at hacc
     exact hacc.1
 
-/-- `absorb_constants` (`fold.rs:49-52`). -/
+/-- `absorb_constants` (`fold.rs::FoldTranscript::absorb_constants`). -/
 theorem FoldTranscript.absorbConstants_ensures {t : FoldTranscript} {gs : Array Word} (words : Array Word)
     (hp : Permutes c.perm) (ht : IsWords c n t.state gs) (hsize : gs.size = 16) :
     Ensures c n (t.absorbConstants words) fun t' m => IsWords c m t'.state (FoldTranscript.absorbWords gs words) := by
@@ -137,7 +137,7 @@ theorem FoldTranscript.absorbConstants_ensures {t : FoldTranscript} {gs : Array 
   exact (Ensures.mapM (fun g v m => IsWord c m v g) (fun _ _ _ _ h le => h.mono le) fun g _ _ _ => const_ensures g).bind
     fun _ _ _ hs => FoldTranscript.absorb_ensures hp ht.mono hsize (IsWords.of_forall₂ hs)
 
-/-- `handoff` (`fold.rs:68-72`): the layer-1 seed. -/
+/-- `handoff` (`fold.rs::FoldTranscript::handoff`): the layer-1 seed. -/
 theorem FoldTranscript.handoff_ensures {t : FoldTranscript} {gs : Array Word} (hp : Permutes c.perm)
     (ht : IsWords c n t.state gs) (hsize : gs.size = 16) :
     Ensures c n t.handoff fun r m => ∀ lane : Fin 4, IsWord c m (r lane) (FoldTranscript.handoffWords gs)[lane]! := by

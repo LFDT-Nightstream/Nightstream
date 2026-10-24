@@ -195,7 +195,7 @@ theorem Ensures.rangeMapM {α : Type} {f : ℕ → Build α} (count : ℕ) (R : 
     refine ⟨size, fun i hi => ?_⟩
     simpa using hf.2 i (by simp; omega) (by simpa using hi)
 
-/-- `count` proof words, one `private` each (`algebra.rs:16`). -/
+/-- `count` proof words, one `private` each (`algebra.rs::private`). -/
 theorem privateWords_ensures (count : ℕ) (hw : Decodes c w) :
     Ensures c n ((Array.range count).mapM fun _ => Build.priv)
       fun hs m => IsWords c m hs (hs.map w) ∧ hs.size = count :=
@@ -203,13 +203,13 @@ theorem privateWords_ensures (count : ℕ) (hw : Decodes c w) :
     priv_ensures.post fun _ _ ⟨e₁, e₂, _⟩ => by rw [e₁, e₂]; exact Nat.lt_succ_self _).post fun _ _ h =>
       ⟨isWords_map hw h.2, h.1⟩
 
-/-- `exts` (`verifier.rs:58-62`): `count` extension values. -/
+/-- `exts` (`verifier.rs::ProofView::read`): `count` extension values. -/
 theorem privateExts_ensures (count : ℕ) (hw : Decodes c w) :
     Ensures c n (Circuit.privateExts count) fun xs m => IsExts c m xs (xs.map (decodeExt w)) ∧ xs.size = count :=
   (Ensures.rangeMapM count (fun _ a m => ∀ k, a k < m) (fun _ _ _ _ h le k => lt_of_lt_of_le (h k) le) fun _ _ _ _ =>
     privateExt_ensures.post fun _ _ h k => (h k).2.1).post fun _ _ h => ⟨isExts_map hw h.2, h.1⟩
 
-/-- `pairs` (`verifier.rs:63-67`): `count` pairs of extension values. -/
+/-- `pairs` (`verifier.rs::ProofView::read`): `count` pairs of extension values. -/
 theorem privatePairs_ensures (count : ℕ) (hw : Decodes c w) :
     Ensures c n (Circuit.privatePairs count)
       fun xs m => List.Forall₂ (IsPair c m) xs.toList (xs.map (decodePair w)).toList ∧ xs.size = count :=
@@ -219,7 +219,7 @@ theorem privatePairs_ensures (count : ℕ) (hw : Decodes c w) :
       Ensures.pure ⟨fun k => lt_of_lt_of_le (ha k).2.1 (by omega), fun k => (hb k).2.1⟩).post
     fun _ _ h => ⟨forall₂_map fun i hi => ⟨isExt_decode hw (h.2 i hi).1, isExt_decode hw (h.2 i hi).2⟩, h.1⟩
 
-/-- `root` (`verifier.rs:68-75`): a digest. -/
+/-- `root` (`verifier.rs::ProofView::read`): a digest. -/
 theorem privateDigest_ensures (hw : Decodes c w) :
     Ensures c n Circuit.privateDigest fun d m => IsDigest c m d (decodeDigest w d) :=
   (privateWords_ensures 4 hw).bind fun _ _ _ ⟨words, size⟩ => Ensures.pure ⟨rfl, fun lane => by
@@ -227,7 +227,7 @@ theorem privateDigest_ensures (hw : Decodes c w) :
     rw [hw]
     fin_cases lane <;> rfl⟩
 
-/-- `rows` (`whir/mod.rs:76-113`): `draws` rows of the row length. -/
+/-- `rows` (`whir/mod.rs::rows`): `draws` rows of the row length. -/
 theorem queryRows_ensures (draws width : ℕ) (base : Bool) (hw : Decodes c w) :
     Ensures c n (Circuit.queryRows draws width base) fun rows m => IsRows c w m rows ∧ rows.size = draws ∧
       ∀ row ∈ rows, row.size = if base then width else 3 * width :=
@@ -236,7 +236,7 @@ theorem queryRows_ensures (draws width : ℕ) (base : Bool) (hw : Decodes c w) :
       refine ⟨fun row hr => ?_, h.1, fun row hr => ?_⟩ <;> obtain ⟨i, hi, rfl⟩ := Array.mem_iff_getElem.mp hr
       exacts [(h.2 i hi).1, (h.2 i hi).2]
 
-/-- `LeafView::read` (`setup.rs:222-236`), with the sizes that `readProof` checks. -/
+/-- `LeafView::read` (`setup.rs::LeafView::read`), with the sizes that `readProof` checks. -/
 theorem LeafView.read_ensures (oracles setupVars : ℕ) (hw : Decodes c w) :
     Ensures c n (Circuit.LeafView.read oracles setupVars) fun v m => IsLeaf c m v (v.decode w) ∧
       (v.decode w).values.size = oracles * 2 ^ foldVars ∧ (v.decode w).path.size = setupVars + 1 - foldVars :=
@@ -245,7 +245,7 @@ theorem LeafView.read_ensures (oracles setupVars : ℕ) (hw : Decodes c w) :
       fun _ _ _ _ => privateDigest_ensures hw).bind fun _ _ _ ⟨length, path⟩ =>
         Ensures.pure ⟨⟨values.mono, forall₂_map path⟩, by simp [LeafView.decode, size], by simp [LeafView.decode, length]⟩
 
-/-- `GkrView::read` (`gkr.rs:608-656`): the replay's `readGkr` accepts the decoded proof. -/
+/-- `GkrView::read` (`gkr.rs::GkrView::read`): the replay's `readGkr` accepts the decoded proof. -/
 theorem GkrView.read_ensures (shapes : Array TreeShape) (hs : ∀ s ∈ shapes, s.depth ≠ 0 ∧ s.factors ≤ 2)
     (hw : Decodes c w) :
     Ensures c n (Circuit.GkrView.read shapes)
@@ -297,7 +297,7 @@ theorem GkrView.read_ensures (shapes : Array TreeShape) (hs : ∀ s ∈ shapes, 
     simp [Replay.ensure, hall]
     rfl
 
-/-- `OpeningView::read` (`whir/mod.rs:125-223`): the replay's `readOpening` accepts the decoded
+/-- `OpeningView::read` (`whir/mod.rs::OpeningView::read`): the replay's `readOpening` accepts the decoded
 opening. -/
 theorem OpeningView.read_ensures (shape : WhirShape) (rows : OpeningRows) (hw : Decodes c w) :
     Ensures c n (Circuit.OpeningView.read shape rows)
@@ -352,7 +352,7 @@ theorem OpeningView.read_ensures (shape : WhirShape) (rows : OpeningRows) (hw : 
     simp [Replay.ensure, this.1, this.2]
     rfl
 
-/-- `ProofView::read` (`verifier.rs:43-122`): the replay's `readProof` accepts the decoded
+/-- `ProofView::read` (`verifier.rs::ProofView::read`): the replay's `readProof` accepts the decoded
 proof. -/
 theorem ProofView.read_ensures (rel : Relation) (p1Rows p0Rows : OpeningRows)
     (hrun : rel.key.layout.runVariables ≠ 0) (hrow : rel.key.layout.rowVariables ≠ 0)

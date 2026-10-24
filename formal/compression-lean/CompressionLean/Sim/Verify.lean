@@ -4,7 +4,7 @@ import CompressionLean.Sim.Whir
 import CompressionLean.Checks.KeyFacts
 
 /-!
-Owns `verify_ensures`: the circuit's `verify` (`Verifier.lean`, `verifier.rs:136-316`)
+Owns `verify_ensures`: the circuit's `verify` (`Verifier.lean`, `verifier.rs::verify`)
 simulated against the replay's (`Ports/Replay/Stages.lean`). Each stage lemma tracks
 its stage, so the stages chain as `Tracks` steps. The replay's runs give what later
 stages read (`Tracks.runs`): the early values, the sizes of the run, lane and block
@@ -192,7 +192,7 @@ instance verify_appends (rel : Relation) (p1Key p0Key : WhirKey) (seed : DigestV
     (proof : ProofView) : Appends (Circuit.verify rel p1Key p0Key seed statement proof) := by
   unfold Circuit.verify; appends
 
-/-- **`verify`** (`verifier.rs:136-316`, called by `verify_with`, `lib.rs:692-703`).
+/-- **`verify`** (`verifier.rs::verify`, called by `verify_with`, `lib.rs::verify_with`).
 When the inputs hold a seed, a statement that fits the relation and a proof that
 it reads, and the circuit's checks hold, the replay's `verify` accepts them from
 the empty transcript. -/

@@ -11,7 +11,7 @@ namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (Word)
 
-/-- The layer-1 domain label (`hash::DOMAIN`, `hash.rs:24`). -/
+/-- The layer-1 domain label (`hash::DOMAIN`, `hash.rs::DOMAIN`). -/
 def compressDomain : String := "Nightstream/SuperNeo/compress/v1"
 
 /-- `neo_transcript::domain_chunk_v1_2`: the label's bytes, eight per word,
@@ -23,22 +23,22 @@ def domainChunk (label : String) : Array Word :=
     Word.ofNat ((List.range 8).foldl (fun acc i => acc + (bytes.getD (8 * word + i) 0).toNat * 256 ^ i) 0)
 
 /-- The fold transcript's 16 lanes; it never holds a partial chunk
-(`fold.rs:15-17`). -/
+(`fold.rs::FoldTranscript`). -/
 structure FoldTranscript where
   state : Array Var
 
 namespace FoldTranscript
 
-/-- The zero state (`fold.rs:27-30`). -/
+/-- The zero state (`fold.rs::FoldTranscript::new`). -/
 def new : Build FoldTranscript := do
   let zeroWord ← Build.const 0
   pure ⟨Array.replicate 16 zeroWord⟩
 
-/-- A transcript at a known state (`fold.rs:33-35`). -/
+/-- A transcript at a known state (`fold.rs::FoldTranscript::from_state`). -/
 def fromState (state : Fin 16 → Var) : FoldTranscript := ⟨Array.ofFn state⟩
 
 /-- Add each word into the rate lanes; permute after every complete or
-partial chunk (`fold.rs:39-46`). -/
+partial chunk (`fold.rs::FoldTranscript::absorb`). -/
 def absorb (t : FoldTranscript) (words : Array Var) : Build FoldTranscript := do
   let mut state := t.state
   for chunk in chunks words do
@@ -47,22 +47,22 @@ def absorb (t : FoldTranscript) (words : Array Var) : Build FoldTranscript := do
     state := Array.ofFn (← Build.permute fun lane => state[lane]!)
   pure ⟨state⟩
 
-/-- `fold.rs:49-52`. -/
+/-- `fold.rs::FoldTranscript::absorb_constants`. -/
 def absorbConstants (t : FoldTranscript) (words : Array Word) : Build FoldTranscript := do
   let words ← words.mapM Build.const
   t.absorb words
 
-/-- The first four lanes; the state does not change (`prefix`, `fold.rs:62-64`). -/
+/-- The first four lanes; the state does not change (`prefix`, `fold.rs::FoldTranscript::prefix`). -/
 def statePrefix (t : FoldTranscript) : DigestVar := fun lane => t.state[lane]!
 
-/-- The first four lanes, then one permutation (`fold.rs:55-59`). -/
+/-- The first four lanes, then one permutation (`fold.rs::FoldTranscript::squeeze_digest`). -/
 def squeezeDigest (t : FoldTranscript) : Build (DigestVar × FoldTranscript) := do
   let digest := t.statePrefix
   let lanes ← Build.permute fun lane => t.state[lane]!
   pure (digest, ⟨Array.ofFn lanes⟩)
 
 /-- Name layer 1 in the transcript and return the layer-1 seed
-(`fold.rs:68-72`). -/
+(`fold.rs::FoldTranscript::handoff`). -/
 def handoff (t : FoldTranscript) : Build DigestVar := do
   let t ← t.absorbConstants (domainChunk compressDomain)
   pure (← t.squeezeDigest).1

@@ -122,7 +122,7 @@ theorem holds_of_steps {c : Ctx F} {L : List Instr} {E : Exec.State F} (h : (c.s
   | cons i L ih => exact holds_of_step (ih h)
 
 /-- **The statement words.** A program that starts with `k` `public`
-instructions (`record.rs:297-303`): the first `k` values of its run are the
+instructions (`record.rs::Recorder::public`): the first `k` values of its run are the
 first `k` statement words. -/
 theorem run_pubs {L : Array Instr} {k : ℕ} {rest : List Instr} (pre : L.toList = List.replicate k .pub ++ rest)
     {j : ℕ} (hj : j < k) : (Exec.run c.perm c.stmt c.tape L).value j = c.stmt.getD j 0 := by

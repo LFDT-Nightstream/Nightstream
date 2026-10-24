@@ -3,14 +3,14 @@ import CompressionLean.Ports.Circuit.Ring
 import CompressionLean.Ports.Circuit.Sumcheck
 
 /-!
-Owns the linear stage of the layer-1 verifier (`crates/neo-spartan/src/verifier.rs:170-206`)
+Owns the linear stage of the layer-1 verifier (`crates/neo-spartan/src/verifier.rs::verify`)
 as a builder program: `λ` and the mixing, the quotient and `ζ`, the lifted
 target, the linear sum-check, the finals and the linear claim
 (`linearStage`), with `lane_value` (`laneValue`). It calls `Build` in Rust's
 order and returns what later stages read (`LinearView`).
 
 The stage starts from the duplex after the early stage (`observe_early`,
-`verifier.rs:168`) and reads the statement and three parts of the proof
+`verifier.rs::verify`) and reads the statement and three parts of the proof
 view; it reads nothing else that the early stage computes.
 -/
 
@@ -19,7 +19,7 @@ namespace CompressionLean.Circuit
 open CompressionLean.Replay (Relation D laneVars)
 
 /-- `Λ~(x) = Σ_{l<D} ζ^l·eq(x, l)` at the lane part of the linear point
-(`lane_value`, `verifier.rs:340-350`). -/
+(`lane_value`, `verifier.rs::lane_value`). -/
 def laneValue (zeta : ExtVar) (point : Array ExtVar) : Build ExtVar := do
   let eq ← Algebra.eqTable point
   let mut total ← Algebra.extZero
@@ -42,7 +42,7 @@ structure LinearView where
   omegaValue : ExtVar
   zValue : ExtVar
 
-/-- `verifier.rs:170-206` on the proof's `quotient`, `linear` round messages
+/-- `verifier.rs::verify` on the proof's `quotient`, `linear` round messages
 and `finals`. -/
 def linearStage (rel : Relation) (statement : ClaimView) (quotient : Array ExtVar)
     (linear : Array (Array ExtVar)) (finals : Array ExtVar) : Transcript LinearView := do
@@ -54,7 +54,7 @@ def linearStage (rel : Relation) (statement : ClaimView) (quotient : Array ExtVa
   let targets ← Ring.targets statement mixing
   let value ← Ring.liftedTarget targets quotient zeta
   let (point, last) ← sumcheckReplay linear value
-  -- The block bits bind first, then the lane bits (`verifier.rs:179-181`).
+  -- The block bits bind first, then the lane bits (`verifier.rs::verify`).
   let blockPoint := point.extract 0 rel.blockVars
   let lanePart := point.extract rel.blockVars point.size
   let (keyValue, omegaValue, zValue) := (finals[0]!, finals[1]!, finals[2]!)

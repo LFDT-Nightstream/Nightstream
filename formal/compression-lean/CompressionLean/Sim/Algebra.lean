@@ -519,7 +519,7 @@ theorem assertExtEqual_ensures {a b : ExtVar} {ga gb : Ext} (ha : IsExt c n a ga
     Ensures c n (Build.assertExtEqual a b) fun _ _ => ga = gb :=
   (extSub_ensures ha hb).bind fun _ _ _ hd => (assertExtZero_ensures hd).post fun _ _ h => ext_sub_eq_zero.mp h
 
-/-- `ext_inverse` (`record.rs:379-397`): once its check holds, the value is
+/-- `ext_inverse` (`record.rs::Recorder::ext_inverse`): once its check holds, the value is
 nonzero and the proof words are its inverse. -/
 theorem extInv_ensures {a : ExtVar} {ga : Ext} (ha : IsExt c n a ga) :
     Ensures c n (Build.extInv a) fun r m => ga ≠ 0 ∧ IsExt c m r ga.inv :=

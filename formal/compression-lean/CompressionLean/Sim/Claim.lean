@@ -6,7 +6,7 @@ import CompressionLean.Spec.Program
 
 /-!
 Owns the claim that layer 1 reads from the terminal package (`verify_with`,
-`terminal/mod.rs:73-79`): its decoding to the replay's statement, and that
+`terminal/mod.rs::FinalProgram::run`): its decoding to the replay's statement, and that
 statement as the bridge reads it.
 
 - `ClaimVars.view`, `ClaimView.decode` (`Spec/Program.lean`): the claim

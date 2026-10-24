@@ -2,7 +2,7 @@ import CompressionLean.Layer1.EarlySound
 
 /-!
 Owns the late stage of the layer-1 verifier (`verifier.rs` after the setup
-queries, `matrix.rs::check_late`): the late `β`, the two-tree late GKR (block
+queries, `matrix.rs::Structure::check_late`): the late `β`, the two-tree late GKR (block
 pairs and blocks), the late values and the late checks, and what they force
 on a P0/P1 candidate pair (`late_world`): the P1 block weights `Ω^A` are the
 slots' weights `Ū(σ)·Ĥ_t(σ)` summed at each block.

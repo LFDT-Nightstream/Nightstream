@@ -8,7 +8,7 @@ import CompressionLean.Ports.Circuit.Openings
 /-!
 Owns the layer-1 verifier of `crates/neo-spartan/src/verifier.rs` as a
 builder program: the view of a proof as handles (`ProofView`, its shape run
-`ProofView.read`) and `verify`, the whole of `verifier.rs:136-316`: the
+`ProofView.read`) and `verify`, the whole of `verifier.rs::verify`: the
 seed, the relation words and the statement words in the duplex, then the
 early stage (`earlyStage`), the linear stage (`linearStage`), the honest
 fold (`honestStage`), the late stage (`lateStage`), the query points and the
@@ -32,7 +32,7 @@ structure Layer1Key where
   p0Key : WhirKey
 deriving Lean.FromJson
 
-/-- A layer-1 proof as handles (`verifier.rs:24-39`). -/
+/-- A layer-1 proof as handles (`verifier.rs::ProofView`). -/
 structure ProofView where
   p0 : DigestVar
   histogram : Array Var
@@ -49,7 +49,7 @@ structure ProofView where
   p1Opening : OpeningView
   p0Opening : OpeningView
 
-/-- `ProofView::read` with `proof = None` (`verifier.rs:43-122`): every proof
+/-- `ProofView::read` with `proof = None` (`verifier.rs::ProofView::read`): every proof
 word in Rust's order. `p1Rows` and `p0Rows` are the query sets of the two
 openings. -/
 def ProofView.read (rel : Relation) (p1Rows p0Rows : OpeningRows) : Build ProofView := do
@@ -79,7 +79,7 @@ structure EarlyOut where
   zLeaf : ExtVar
   openings : EarlyOpeningsView
 
-/-- The early stage (`verifier.rs:153-168`): bind P0's root and the
+/-- The early stage (`verifier.rs::verify`): bind P0's root and the
 histogram, draw `β` and the lookup and scatter challenges, check the norm
 root against the histogram's fraction sum, then the matrix leaf claims, and
 bind the early values. -/
@@ -104,10 +104,10 @@ def earlyStage (rel : Relation) (statement : ClaimView) (proof : ProofView) : Tr
   observeEarly proof.earlyValues
   pure { normPoint := claims[0]!.point, zLeaf, openings }
 
-/-- `verify` (`verifier.rs:136-316`): a new duplex binds the seed, the
+/-- `verify` (`verifier.rs::verify`): a new duplex binds the seed, the
 relation words as constants and the statement words; then the early stage,
 the linear stage, the honest fold, the late stage, each query's point
-(`verifier.rs:262-265`) and the two openings. -/
+(`verifier.rs::verify`) and the two openings. -/
 def verify (rel : Relation) (p1Key p0Key : WhirKey) (seed : DigestVar) (statement : ClaimView)
     (proof : ProofView) : Build Unit := do
   let duplex ← Duplex.new
@@ -136,7 +136,7 @@ def verify (rel : Relation) (p1Key p0Key : WhirKey) (seed : DigestVar) (statemen
         lateValues := proof.lateValues, p1Opening := proof.p1Opening, p0Opening := proof.p0Opening }
   let _ ← run.run duplex
 
-/-- `verify_with` (`lib.rs:692-703`): the handoff of the fold transcript
+/-- `verify_with` (`lib.rs::verify_with`): the handoff of the fold transcript
 `state`, the proof view, then `verify`. The claim's shape check writes no
 instruction. -/
 def verifyWith (key : Layer1Key) (state : Fin 16 → Var) (claim : ClaimView) : Build Unit := do

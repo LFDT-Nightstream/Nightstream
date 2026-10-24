@@ -307,7 +307,7 @@ theorem sumcheckRounds_append (l₁ l₂ : List (Array Ext)) (point : Array Ext)
   | nil => simp [sumcheckRounds]
   | cons msg rest ih => simp [sumcheckRounds, ih, bind_assoc]
 
-/-- Replaying from `point` appends the new challenges to `point` (`sumcheck.rs:24-44`). -/
+/-- Replaying from `point` appends the new challenges to `point` (`sumcheck.rs::replay`). -/
 theorem sumcheckRounds_point (l : List (Array Ext)) (point : Array Ext) (claim : Ext) :
     sumcheckRounds l point claim = (fun r => (point ++ r.1, r.2)) <$> sumcheckRounds l #[] claim := by
   induction l generalizing point claim with

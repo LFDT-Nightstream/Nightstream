@@ -17,7 +17,7 @@ structure Template.WellFormed {F : Type} (T : Template F) : Prop where
   cell_lt : ∀ e ∈ T.entries, ∀ k, e.cell = some k → k < T.cells
 
 /-- A wire names a cell of the run. The recorder creates no other wire
-(`record.rs:189-303`). -/
+(`record.rs::Recorder`). -/
 def Wire.Valid {F : Type} (T : Template F) (run : Run F) : Wire → Prop
   | .glue c => c < run.cells
   | .block b k => b < run.blocks ∧ k < T.cells

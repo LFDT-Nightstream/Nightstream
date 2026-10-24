@@ -35,11 +35,11 @@ abbrev gl (x : F) : Gl := x
 
 /-- The statement of a final proof: the iteration, `z0` and the current
 state, the nine words that the final program makes public
-(`lifecycle/terminal/mod.rs:46-52`). -/
+(`lifecycle/terminal/mod.rs::FinalProgram::statement`). -/
 abbrev StateWords := Fin 9 → Spec.F
 
 /-- The statement words of the prior state preimage, after the four context
-words (`STATE_CONTEXT_START`, `lifecycle/inputs.rs:41-43`). -/
+words (`STATE_CONTEXT_START`, `lifecycle/inputs.rs::STATE_CONTEXT_START`). -/
 def priorStatement (env : Circuit.Env) : StateWords := fun k =>
   (Layout.Stage1.PiCCSInputs.priorStateWord
     (Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + 4 + k.val)).eval
@@ -48,8 +48,8 @@ def priorStatement (env : Circuit.Env) : StateWords := fun k =>
 /-- A terminal assignment for the statement `x`, as the final program wires
 it: every terminal row holds, the public context columns hold the circuit's
 context digest, the statement words of the prior state preimage are `x`
-(`terminal/package.rs:186-213`), and the iteration is not zero
-(`terminal/mod.rs:60-68`). -/
+(`terminal/package.rs::Package::apply`), and the iteration is not zero
+(`terminal/mod.rs::FinalProgram::run`). -/
 def TerminalFor (authority : Lifecycle.VerifierContext.Authority) (x : StateWords)
     (env : Circuit.Env) : Prop :=
   (Terminal.circuitPackage ()).RowsHold env ∧

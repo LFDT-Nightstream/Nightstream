@@ -18,7 +18,7 @@ open CompressionLean.Replay (D Word)
 namespace Mle
 
 /-- `κ = Π_t (1 + c^{2^t})` and `x_t = c^{2^t}/(1 + c^{2^t})`
-(`scaled_eq_point`, `mle.rs:21-34`). The inverse rejects a pole. -/
+(`scaled_eq_point`, `mle.rs::scaled_eq_point`). The inverse rejects a pole. -/
 def scaledEqPoint (c : ExtVar) (bits : ℕ) : Build (ExtVar × Array ExtVar) := do
   let one ← Algebra.extOne
   let mut kappa := one
@@ -33,7 +33,7 @@ def scaledEqPoint (c : ExtVar) (bits : ℕ) : Build (ExtVar × Array ExtVar) := 
   pure (kappa, point)
 
 /-- `less_than`: `Σ_{x < bound} eq(point, x)`, high bit first
-(`mle.rs:36-55`). -/
+(`mle.rs::less_than`). -/
 def lessThan (point : Array ExtVar) (bound : ℕ) : Build ExtVar := do
   if bound >>> point.size ≠ 0 then return ← Algebra.extOne
   let mut total ← Algebra.extZero
@@ -49,7 +49,7 @@ def lessThan (point : Array ExtVar) (bound : ℕ) : Build ExtVar := do
   pure total
 
 /-- `step`: `values[s]` on `[starts[s], starts[s + 1])`, the last segment
-ending at `stop` (`mle.rs:57-72`). -/
+ending at `stop` (`mle.rs::step`). -/
 def step (point : Array ExtVar) (starts : Array ℕ) (values : Array ExtVar) (stop : ℕ) : Build ExtVar := do
   let mut total ← Algebra.extZero
   let mut below ← lessThan point (starts[0]?.getD stop)
@@ -61,7 +61,7 @@ def step (point : Array ExtVar) (starts : Array ℕ) (values : Array ExtVar) (st
     below := upper
   pure total
 
-/-- `identity`: `Σ_t 2^t point_t` (`mle.rs:74-82`). -/
+/-- `identity`: `Σ_t 2^t point_t` (`mle.rs::identity`). -/
 def identity (point : Array ExtVar) : Build ExtVar := do
   let mut total ← Algebra.extZero
   for coordinate in point.reverse do
@@ -70,7 +70,7 @@ def identity (point : Array ExtVar) : Build ExtVar := do
   pure total
 
 /-- `chi`: `Π_{t<n} eq(r_t, point_t) · Π_{t≥n} (1 - r_t)` in `K ⊗ Ext`, with
-`eq(r, x) = (1 - x) + r·(2x - 1)` (`mle.rs:84-107`). -/
+`eq(r, x) = (1 - x) + r·(2x - 1)` (`mle.rs::chi`). -/
 def chi (r : Array KVar) (point : Array ExtVar) : Build KxVar := do
   let mut total ← KxVar.one
   for (value, t) in r.zipIdx do
@@ -89,7 +89,7 @@ def chi (r : Array KVar) (point : Array ExtVar) : Build KxVar := do
   pure total
 
 /-- `lane_split`: the head and tail lane tables of a run class
-`(length ≤ D, ratio)` for the lane weights `tau` (`mle.rs:109-140`). -/
+`(length ≤ D, ratio)` for the lane weights `tau` (`mle.rs::lane_split`). -/
 def laneSplit (tau : Array ExtVar) (length : ℕ) (ratio : Word) : Build (Array ExtVar × Array ExtVar) := do
   let ratioPower := ratio.pow length
   let mut head := Array.replicate D tau[D - 1]!
@@ -119,7 +119,7 @@ state is not reachable. -/
 abbrev DivisionStates := Array (Array (Option KxVar))
 
 /-- `Σ_{b<blocks} eq(s_block, b)·Σ_{l<D} τ_l·χ_r(D·b + l)` by long division of
-the coordinate by `D`, high bit first (`eval_k`, `mle.rs:146-204`). -/
+the coordinate by `D`, high bit first (`eval_k`, `mle.rs::eval_k`). -/
 def evalK (r : Array KVar) (sBlock tau : Array ExtVar) (blocks : ℕ) : Build KxVar := do
   let blockBits := sBlock.size
   let coordinateBits := Nat.log2 (D * 2 ^ blockBits).nextPowerOfTwo

@@ -1,7 +1,7 @@
 import CompressionLean.Sim.Ring
 
 /-!
-Owns the simulation of `eval_k` (`Mle.evalK`, `mle.rs:146-204`) against the
+Owns the simulation of `eval_k` (`Mle.evalK`, `mle.rs::eval_k`) against the
 replay's `Replay.evalK`: the long division over the coordinate bits.
 
 - The circuit keeps `Option` states and skips absent ones; the replay sums
@@ -224,7 +224,7 @@ section EvalK
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `eval_k` (`mle.rs:146-204`): the long division's value. An absent state
+/-- `eval_k` (`mle.rs::eval_k`): the long division's value. An absent state
 of the circuit is a zero state of the replay. -/
 theorem Mle.evalK_ensures {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Array (Word × Word)}
     {gs gt : Array Ext} (blocks : ℕ) (rSize : Nat.log2 (D * 2 ^ gs.size).nextPowerOfTwo ≤ gr.size)

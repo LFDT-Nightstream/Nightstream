@@ -6,17 +6,17 @@ import NightstreamFPrime.Layout.PilotProduction
 
 /-!
 Owns the terminal package as `Package::apply` reads it
-(`crates/nightstream/src/lifecycle/terminal/package.rs:86-160`): the package
+(`crates/nightstream/src/lifecycle/terminal/package.rs::load`): the package
 rows as one system, the source of each system column, and the output map in
 system columns. Each definition is a port of the Rust that builds the same
 value; the `terminalCheck` executable compares the two on the artifact.
 
-- Rows (`ordered_r1cs`, `nightstream-fprime/src/package/r1cs.rs:305-383`):
-  every producer of `scheduled_witnesses` (`package.rs:629-691`) by row
+- Rows (`ordered_r1cs`, `nightstream-fprime/src/package/r1cs.rs::expand_matrix`):
+  every producer of `scheduled_witnesses` (`package.rs::scheduled_witnesses`) by row
   start, each after the assertion rows that start before it. A producer's
   rows are F′'s instantiation (`RowSemantics.lean`), so they are the rows of
   `CircuitPackage.expandedRows`.
-- Sides (`finish_row`, `r1cs.rs:236-252`): the constant on the constant
+- Sides (`finish_row`, `r1cs.rs::CsrBuilder::finish_row`): the constant on the constant
   column, the terms by column, equal columns summed, zero sums dropped.
 - Columns: the package columns that some row names, in increasing order.
   System column `k` is the `k`-th of them.
@@ -48,7 +48,7 @@ def row (constantColumn : ℕ) (r : R1CS.Row) : R1csRow Word :=
   ⟨side constantColumn r.a, side constantColumn r.b, side constantColumn r.c⟩
 
 /-- One producer of rows (`ScheduledWitness`,
-`nightstream-fprime/src/package.rs:264-301`). The terminal package has no
+`nightstream-fprime/src/package.rs::ScheduledWitness`). The terminal package has no
 application rows. -/
 inductive Producer where
   /-- Invocation `ordinal` of a hash chain. -/
@@ -96,7 +96,7 @@ def orderedRows (package : CircuitPackage) : Array (R1csRow Word) := Id.run do
   return out
 
 /-- A private segment whose columns the witness program writes
-(`is_witness_role`, `nightstream-fprime/src/package/v1_2.rs:86-91`). -/
+(`is_witness_role`, `nightstream-fprime/src/package/v1_2.rs::is_witness_role`). -/
 def witnessRole (role : ℕ) : Bool :=
   role == Data.Role.witness || role == Data.Role.piDecWitness ||
     role == Data.Role.runningTransitionWitness ||
@@ -108,13 +108,13 @@ def callerSegments (layout : PhysicalLayout) : List (Segment × ℕ) :=
     (fun (out, offset) s => (out.push (s, offset), offset + s.length)) (#[], 0)).1.toList
 
 /-- The private input that holds `column` (`private_input_index`,
-`nightstream-fprime/src/package.rs:373-385`). -/
+`nightstream-fprime/src/package.rs::LoadedPackage::private_input_index`). -/
 def privateInput (segments : List (Segment × ℕ)) (column : ℕ) : Option ℕ :=
   (segments.find? fun (s, _) => s.start ≤ column ∧ column < s.start + s.length).map
     fun (s, offset) => offset + column - s.start
 
 /-- Where the value of one system column comes from (`Source`,
-`package.rs:44-52`). -/
+`package.rs::Source`). -/
 inductive Source where
   | one
   /-- Private input `index` of `execute_witness`. -/
@@ -133,7 +133,7 @@ structure OutputColumns where
   evalA : Array ℕ
   state : Array ℕ
 
-/-- The package as `apply` reads it (`Package`, `package.rs:54-62`). -/
+/-- The package as `apply` reads it (`Package`, `package.rs::Package`). -/
 structure Loaded where
   /-- The rows over system columns. -/
   system : Array (R1csRow Word)
@@ -194,7 +194,7 @@ def number (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (used : 
 def reindex (index : Array (Option ℕ)) (terms : List (ℕ × Word)) : List (ℕ × Word) :=
   terms.map fun (c, x) => ((index[c]!).getD 0, x)
 
-/-- `load` (`package.rs:86-160`) on the Lean package and its output map. -/
+/-- `load` (`package.rs::load`) on the Lean package and its output map. -/
 def load (package : CircuitPackage) (map : Terminal.Outputs) : Except String Loaded := do
   let layout := package.layout
   let segments := callerSegments layout

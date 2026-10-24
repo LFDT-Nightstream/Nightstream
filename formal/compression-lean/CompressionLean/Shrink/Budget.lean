@@ -5,14 +5,14 @@ import CompressionLean.Shrink.Cost
 Owns the shrink error at Rust's charge (`shrink_budget`).
 
 Rust charges the shrink layer's draws over WHIR's candidates (`terms`,
-`mod.rs:129-140`): four degrees over `|Ext|`, taken as `2^191`
+`mod.rs::terms`): four degrees over `|Ext|`, taken as `2^191`
 (`Ext::bits() - 1`). They are the zero-check point `m`, the outer sum-check
 `DEGREE·m = 8·m`, the matrix batching `MATRICES - 1 = 7` and the inner
 sum-check `2·(n + 1)`. Plonky3 charges each term over the `L` candidates
 (`over_candidates`, p3-security `report.rs:100-111`) and adds it to the WHIR
 terms (`error`, p3-sumcheck `prescribed_pcs.rs:91-110`). `Pcs::new` accepts
 the configuration only when this sum is at most `2^-t` for the layer bits
-`t` (`pcs.rs:196-200`; `Shrink::new` with `layer_bits`, `finish.rs:143`).
+`t` (`pcs.rs::Pcs::new`; `Shrink::new` with `layer_bits`, `finish.rs::CompressionKey::verify`).
 The Lean count is exactly `L` times Rust's degrees (`shrinkCount_eq_rust`),
 so the Lean error is at most what Rust charges.
 -/

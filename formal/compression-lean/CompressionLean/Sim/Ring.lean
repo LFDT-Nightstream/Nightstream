@@ -179,7 +179,7 @@ section Rows
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `Mixing::new` (`ring.rs:48-59`): `1, λ, λ², …`, one power per row. -/
+/-- `Mixing::new` (`ring.rs::Mixing::new`): `1, λ, λ², …`, one power per row. -/
 theorem MixingVar.new_ensures {lambda : ExtVar} {lam : Ext} (rel : Relation) (hl : IsExt c n lambda lam) :
     Ensures c n (MixingVar.new lambda rel)
       fun v m => IsMixing c m v ⟨lam, rel.kappa, rel.matrices⟩ ∧ v.powers.size = rel.rowCount := by
@@ -203,14 +203,14 @@ theorem MixingVar.new_ensures {lambda : ExtVar} {lam : Ext} (rel : Relation) (hl
     rw [show rel.rowCount - 1 + 1 = rel.rowCount by omega] at size get
     exact ⟨⟨rfl, rfl, fun i hi => get i (size ▸ hi)⟩, size⟩
 
-/-- `project` (`ring.rs:189-193`): `weights.1·Re + weights.2·Im`. -/
+/-- `project` (`ring.rs::project`): `weights.1·Re + weights.2·Im`. -/
 theorem Ring.project_ensures {value : KVar} {gv : Word × Word} {weights : ExtVar × ExtVar} {gw : Ext × Ext}
     (hv : IsK c n value gv) (hw : IsExt c n weights.1 gw.1 ∧ IsExt c n weights.2 gw.2) :
     Ensures c n (Ring.project value weights) fun r m => IsExt c m r (Replay.project gv gw) :=
   (extScale_ensures hw.1 hv.1).bind fun _ _ _ hre => (extScale_ensures hw.2.mono hv.2.mono).bind
     fun _ _ _ him => extAdd_ensures hre.mono him
 
-/-- `targets` (`ring.rs:164-184`): `Ȳ = Σ_rows λ^row·y_row`, lane by lane. -/
+/-- `targets` (`ring.rs::targets`): `Ȳ = Σ_rows λ^row·y_row`, lane by lane. -/
 theorem Ring.targets_ensures {v : ClaimView} {st : Replay.Statement} {mv : MixingVar} {lam : Ext} {rel : Relation}
     (fits : st.fits rel = true) (hv : IsClaim c n v st) (hm : IsMixing c n mv ⟨lam, rel.kappa, rel.matrices⟩)
     (hsize : mv.powers.size = rel.rowCount) :
@@ -295,7 +295,7 @@ theorem Ring.targets_ensures {v : ClaimView} {st : Replay.Statement} {mv : Mixin
       Ensures.pure ⟨rfl, by rw [sumRange_succ, ← ext_add_assoc]; exact htotal⟩
   rwa [Array.size_zipIdx, hv.publicInput.1] at htotal₄
 
-/-- `lifted_target` (`ring.rs:231-244`): `Ȳ(ζ) + Q(ζ)·Φ81(ζ)` with `Φ81 = X⁵⁴ + X²⁷ + 1`. -/
+/-- `lifted_target` (`ring.rs::lifted_target`): `Ȳ(ζ) + Q(ζ)·Φ81(ζ)` with `Φ81 = X⁵⁴ + X²⁷ + 1`. -/
 theorem Ring.liftedTarget_ensures {target quotient : Array ExtVar} {zeta : ExtVar} {gt gq : Array Ext} {gz : Ext}
     (ht : IsExts c n target gt) (hq : IsExts c n quotient gq) (hz : IsExt c n zeta gz) :
     Ensures c n (Ring.liftedTarget target quotient zeta) fun r m => IsExt c m r (Replay.liftedTarget gt gq gz) := by
@@ -317,7 +317,7 @@ theorem Ring.liftedTarget_ensures {target quotient : Array ExtVar} {zeta : ExtVa
   refine (extAdd_ensures htarget.mono hlifted).post fun _ _ h => ?_
   rwa [show (27 - 1 + 1 : ℕ) = 27 from rfl] at h
 
-/-- `tau` (`ring.rs:150-161`): `τ_l = Σ_p bar(p, l)·ζ^p`. -/
+/-- `tau` (`ring.rs::tau`): `τ_l = Σ_p bar(p, l)·ζ^p`. -/
 theorem Ring.tau_ensures {zeta : ExtVar} {gz : Ext} (hz : IsExt c n zeta gz) :
     Ensures c n (Ring.tau zeta) fun r m => IsExts c m r (Replay.tau gz) := by
   obtain ⟨S, hS⟩ : ∃ S : ℕ → ℕ → Ext,
@@ -417,7 +417,7 @@ section ScaledEqPoint
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `scaled_eq_point` (`mle.rs:21-34`): once each inverse checks, no denominator is a pole, the replay returns
+/-- `scaled_eq_point` (`mle.rs::scaled_eq_point`): once each inverse checks, no denominator is a pole, the replay returns
 `κ` and the point, and the handles hold them. -/
 theorem Mle.scaledEqPoint_ensures {cv : ExtVar} {gc : Ext} (bits : ℕ) (hc : IsExt c n cv gc) :
     Ensures c n (Mle.scaledEqPoint cv bits)

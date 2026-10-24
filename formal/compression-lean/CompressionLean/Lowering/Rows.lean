@@ -5,7 +5,7 @@ Owns what a witness of a run's CCS says about the run: every glue row holds
 (`Run.rows_hold`) and the cells of every block satisfy the template
 (`Run.blocks_hold`), at the wire values `Run.wireValue`.
 
-- The rows do not overlap (`layout.rs:116-151`). The block parts end where
+- The rows do not overlap (`layout.rs::Layout::block_row`). The block parts end where
   the glue rows begin, and distinct template rows of distinct blocks have
   distinct slots (`slot_inj`). So each CCS row is one glue row or one
   template row of one block.
@@ -24,7 +24,7 @@ def termsValue {F : Type} [CommRing F] (v : Wire → F) (terms : List (Wire × F
   (terms.map fun t => t.2 * v t.1).sum
 
 /-- A glue row holds at the wire values `v`: `Σ_i (A_i·v)·(B_i·v) = C·v`
-(`Trace::row_value`, `record.rs:586-596`). -/
+(`Trace::row_value`, `record.rs::Trace::row_value`). -/
 def _root_.CompressionLean.Shrink.GlueRow.Holds {F : Type} [CommRing F] (v : Wire → F) (row : GlueRow F) : Prop :=
   termsValue v (row.side 0) * termsValue v (row.side 1) + termsValue v (row.side 2) * termsValue v (row.side 3) +
       termsValue v (row.side 4) * termsValue v (row.side 5) =

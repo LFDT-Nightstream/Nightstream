@@ -25,7 +25,7 @@ def chunks (values : Array Var) : Array (Array Var) :=
   (Array.range ((values.size + rate - 1) / rate)).map fun c => values.extract (rate * c) (rate * c + rate)
 
 /-- The duplex state, the pending input and the unread output
-(`hash.rs:15-19`). The state has 16 lanes. -/
+(`hash.rs::Duplex`). The state has 16 lanes. -/
 structure Duplex where
   state : Array Var
   input : Array Var
@@ -36,14 +36,14 @@ abbrev Transcript := StateT Duplex Build
 
 namespace Duplex
 
-/-- The zero state (`hash.rs:22-29`). -/
+/-- The zero state (`hash.rs::Duplex::new`). -/
 def new : Build Duplex := do
   let zeroWord ← Build.const 0
   pure ⟨Array.replicate 16 zeroWord, #[], #[]⟩
 
 /-- Overwrite the absorbed lanes; after any input, zero the rest of the rate
 and add the length tag to lane `RATE`; permute and refill the output
-(`hash.rs:75-89`). -/
+(`hash.rs::Duplex::duplex`). -/
 def duplexing : Transcript Unit := do
   let d ← get
   let absorbed := d.input.size
@@ -59,23 +59,23 @@ def duplexing : Transcript Unit := do
   let next := Array.ofFn (← Build.permute fun lane => state[lane]!)
   set ({ state := next, input := #[], output := next.extract 0 rate } : Duplex)
 
-/-- `hash.rs:31-37`. -/
+/-- `hash.rs::Duplex::observe`. -/
 def observe (value : Var) : Transcript Unit := do
   modify fun d => { d with output := #[], input := d.input.push value }
   if (← get).input.size = rate then duplexing
 
-/-- `hash.rs:39-43`. -/
+/-- `hash.rs::Duplex::observe_slice`. -/
 def observeSlice (values : Array Var) : Transcript Unit :=
   values.forM observe
 
-/-- The coordinates in order (`hash.rs:46-50`). -/
+/-- The coordinates in order (`hash.rs::Duplex::observe_ext`). -/
 def observeExt (value : ExtVar) : Transcript Unit := do
   observe (value 0)
   observe (value 1)
   observe (value 2)
 
 /-- The last unread output lane, after a duplexing when there is input or no
-output (`hash.rs:52-59`). -/
+output (`hash.rs::Duplex::sample`). -/
 def sample : Transcript Var := do
   let d ← get
   if !d.input.isEmpty || d.output.isEmpty then duplexing
@@ -83,14 +83,14 @@ def sample : Transcript Var := do
   set { d with output := d.output.pop }
   pure d.output.back!
 
-/-- Coordinate `i` is the `i`-th sample (`hash.rs:62-65`). -/
+/-- Coordinate `i` is the `i`-th sample (`hash.rs::Duplex::sample_ext`). -/
 def sampleExt : Transcript ExtVar := do
   let x ← sample
   let y ← sample
   let z ← sample
   pure ![x, y, z]
 
-/-- The low `bits` of the canonical sample's 64 bits (`hash.rs:68-73`). -/
+/-- The low `bits` of the canonical sample's 64 bits (`hash.rs::Duplex::sample_bits`). -/
 def sampleBits (bits : ℕ) : Transcript (Array Var) := do
   let word ← sample
   let all ← Build.bits word 64
@@ -98,7 +98,7 @@ def sampleBits (bits : ℕ) : Transcript (Array Var) := do
 
 end Duplex
 
-/-- The overwrite sponge of Plonky3's `PaddingFreeSponge` (`hash.rs:93-101`). -/
+/-- The overwrite sponge of Plonky3's `PaddingFreeSponge` (`hash.rs::hash_leaf`). -/
 def hashLeaf (values : Array Var) : Build DigestVar := do
   let zeroWord ← Build.const 0
   let mut state := Array.replicate 16 zeroWord
@@ -108,7 +108,7 @@ def hashLeaf (values : Array Var) : Build DigestVar := do
     state := Array.ofFn (← Build.permute fun lane => state[lane]!)
   pure fun lane => state[lane]!
 
-/-- `[left, right, 0…]`, permute, the first four lanes (`hash.rs:104-111`). -/
+/-- `[left, right, 0…]`, permute, the first four lanes (`hash.rs::compress`). -/
 def compress (left right : DigestVar) : Build DigestVar := do
   let zeroWord ← Build.const 0
   let lanes ← Build.permute fun lane =>
@@ -118,7 +118,7 @@ def compress (left right : DigestVar) : Build DigestVar := do
   pure fun lane => lanes ⟨lane, by omega⟩
 
 /-- The root of `leaf` along `path`, bottom first; bit zero puts the node on
-the left (`hash.rs:115-129`). -/
+the left (`hash.rs::merkle_root`). -/
 def merkleRoot (leaf : DigestVar) (bits : Array Var) (path : Array DigestVar) : Build DigestVar := do
   let mut node := leaf
   for (bit, sibling) in bits.zip path do

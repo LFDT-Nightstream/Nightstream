@@ -1,4 +1,4 @@
-import CompressionLean.Sim.Ring
+import CompressionLean.Sim.EvalK
 import CompressionLean.Sim.Views
 import CompressionLean.Sim.Terminal
 import CompressionLean.Bridge.Relation

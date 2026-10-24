@@ -10,6 +10,7 @@ value (`toK_laneValue`: the extension of `laneTable`) and the lifted target
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 

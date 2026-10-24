@@ -13,7 +13,7 @@ and the inner rounds (degree 2 per round).
 
 namespace CompressionLean.Shrink
 
-open CompressionLean.Layer1 Polynomial
+open CompressionLean.Lib Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
 
@@ -33,11 +33,11 @@ theorem programGame_cost {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matric
   have positive : (0 : ℝ) < Fintype.card K := by exact_mod_cast Fintype.card_pos
   have tauCard : ∀ point : List K, (tauBad C cands.1 point).card ≤ L := fun point =>
     (card_biUnion_le_mul _ _ 1 fun k _ => foldBad_card _ _ _).trans (by simpa using count)
-  refine (Game.costLe_bind (drawPoint_cost (tauBad C cands.1) L tauCard C.rowVars []) fun tau =>
+  refine (Game.costLe_bind (Game.drawPoint_cost (tauBad C cands.1) L tauCard C.rowVars []) fun tau =>
     Game.costLe_bind
       (δ := ((L * 7 : ℕ) : ℝ) / Fintype.card K + ((C.cellVars + 1 : ℕ) : ℝ) *
         ((((Finset.univ : Finset (Fin cands.1.length)).card * (1 + 1) + 0 : ℕ) : ℝ) / (Fintype.card K : ℝ)))
-      (sumcheck_cost Finset.univ 7 nodes7 _ (fun _ => ∅) C.rowVars 0
+      (Game.sumcheck_cost Finset.univ 7 nodes7 _ (fun _ => ∅) C.rowVars 0
         (fun k _ => (combRound_truth C.rowVars 7 (outerTables C.entries (C.z (cands.1.get k)) tau) outerComb
           outerComb_degree).degree)
         (fun _ => by simp) C.rowVars [] 0 (by simp)) fun outer => ?_).mono ?_
@@ -52,7 +52,7 @@ theorem programGame_cost {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matric
             (Nat.mul_le_mul_right 7 count)
         have := Game.density_le _ _ card
         linarith
-      · refine (Game.costLe_bind (δ := 0) (sumcheck_cost Finset.univ 1 nodes1 _ (fun _ => ∅) (C.cellVars + 1) 0
+      · refine (Game.costLe_bind (δ := 0) (Game.sumcheck_cost Finset.univ 1 nodes1 _ (fun _ => ∅) (C.cellVars + 1) 0
           (fun k _ => (combRound_truth (C.cellVars + 1) 1
             (innerTables C.entries (C.z (cands.1.get k)) outer.1 rho) productComb productComb_degree).degree)
           (fun _ => by simp) (C.cellVars + 1) [] _ (by simp)) fun inner => ?_).mono (le_of_eq (add_zero _))

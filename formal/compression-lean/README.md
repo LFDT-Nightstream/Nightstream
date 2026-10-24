@@ -44,7 +44,7 @@ circuits without change.
   formulas equal to them. The statement carries the point `r`, and `χ_r` is
   `eq(r, ·)` in `K` (`Model.lean`). `chi` and `eval_k` run in `K ⊗ Ext`, and
   their two parts are the extensions of the re and im tables of `χ_r`.
-  `CubicField.lean` proves that `x³ - x - 1` is irreducible over Goldilocks,
+  `Lib/CubicField.lean` proves that `x³ - x - 1` is irreducible over Goldilocks,
   so the challenge field is a field.
 - Stage order (`Stages.lean`): early (norm, row lookup, slot scatter, GKR),
   linear (ring rows at `λ`, `ζ`, two sum-checks), honest fold (setup

@@ -21,7 +21,6 @@ run's CCS.
 namespace CompressionLean.Shrink
 
 open CompressionLean.Lib
-open CompressionLean.Layer1
 
 /-- `SplitEq::at` (`evaluate.rs:13-33`): the eq table of the low half of
 `point` at the low bits of `index`, times the high half's at the rest. -/

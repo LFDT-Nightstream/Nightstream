@@ -95,12 +95,12 @@ theorem vertexAt_bit (n i : ℕ) (bit : Bool) (small : i < 2 ^ n) :
 of its values over the cube, low coordinate first. -/
 theorem evaluate_tabulate (n : ℕ) (f : BooleanVertex n → K) (point : List K) (length : point.length = n) :
     toQuad ((BooleanTable.tabulate f).evaluateCoordinates ConcreteCarrier.extensionOps point) =
-      ∑ i ∈ Finset.range (2 ^ n), Layer1.eqAt (point.map toQuad) i * toQuad (f (vertexAt n i)) := by
+      ∑ i ∈ Finset.range (2 ^ n), Lib.eqAt (point.map toQuad) i * toQuad (f (vertexAt n i)) := by
   induction n generalizing point with
   | zero =>
       obtain rfl : point = [] := List.length_eq_zero_iff.mp length
       simp only [BooleanTable.tabulate, BooleanTable.evaluateCoordinates, pow_zero,
-        Finset.sum_range_one, List.map_nil, Layer1.eqAt, one_mul]
+        Finset.sum_range_one, List.map_nil, Lib.eqAt, one_mul]
       rfl
   | succ n ih =>
       obtain ⟨c, rest, rfl⟩ := List.exists_cons_of_length_eq_add_one length
@@ -114,7 +114,7 @@ theorem evaluate_tabulate (n : ℕ) (f : BooleanVertex n → K) (point : List K)
         simpa using vertexAt_bit n j false small
       have odd (j : ℕ) (small : j < 2 ^ n) : vertexAt (n + 1) (2 * j + 1) = .cons true (vertexAt n j) := by
         simpa using vertexAt_bit n j true small
-      simp only [List.map_cons, Layer1.eqAt]
+      simp only [List.map_cons, Lib.eqAt]
       have halfEven (j : ℕ) : 2 * j / 2 = j := by omega
       have halfOdd (j : ℕ) : (2 * j + 1) / 2 = j := by omega
       have modEven (j : ℕ) : ¬ (2 * j % 2 = 1) := by omega

@@ -17,6 +17,7 @@ inverses by Fermat are the field inverses.
 
 namespace CompressionLean.Replay
 
+open CompressionLean.Lib
 open Polynomial
 open NightstreamFPrime.Spec NightstreamFPrime.Export.NativePoseidon2
 open CompressionLean.Layer1

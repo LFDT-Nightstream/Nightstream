@@ -1,4 +1,4 @@
-import CompressionLean.Layer1.Gkr
+import CompressionLean.Lib.SumCheck
 
 /-!
 Owns the identity test of a table at a point whose coordinates are drawn one
@@ -10,7 +10,7 @@ The honest fold uses it for `α`; the early run point uses it to bind the
 copied slot blocks to the setup column.
 -/
 
-namespace CompressionLean.Layer1
+namespace CompressionLean.Lib
 
 open Polynomial
 
@@ -157,4 +157,4 @@ theorem Path.mono {extra extra' : List K → Finset K} (subset : ∀ q, extra' q
   | nil => intro _; trivial
   | cons c rest ih => exact fun path => ⟨fun hit => path.1 (subset point hit), ih _ path.2⟩
 
-end CompressionLean.Layer1
+end CompressionLean.Lib

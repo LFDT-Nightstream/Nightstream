@@ -18,6 +18,7 @@ and a monic `Φ81` of degree `D` (`phi_monic`, `phi_natDegree`).
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Lib
 open Polynomial
 open NightstreamFPrime.Spec (goldilocksModulus)
 open CompressionLean.Replay CompressionLean.Layer1

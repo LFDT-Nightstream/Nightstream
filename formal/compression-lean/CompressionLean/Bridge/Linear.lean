@@ -10,6 +10,7 @@ whose `LinearCheck` the replay's checks give (`linear_reaches`).
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 

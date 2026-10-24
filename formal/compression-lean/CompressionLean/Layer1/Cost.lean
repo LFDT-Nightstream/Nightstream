@@ -14,6 +14,7 @@ wrong P1 fold agrees with the honest fold.
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
@@ -174,9 +175,9 @@ theorem linearGame_cost (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : S
   intro zeta
   have rounds : ∀ (n : ℕ) (T : Fin cands.length → Fin 2 → ℕ → K) (point : List K) (claim : K),
       point.length + n ≤ n →
-      (sumcheck Finset.univ 1 (fun w => combRound n (T w) productComb) (fun _ => ∅) n point claim).CostLe
+      (Game.sumcheck Finset.univ 1 (fun w => combRound n (T w) productComb) (fun _ => ∅) n point claim).CostLe
         (n * (((Finset.univ : Finset (Fin cands.length)).card * (1 + 1) + 0 : ℕ) / (Fintype.card K : ℝ))) :=
-    fun n T => sumcheck_cost Finset.univ 1 nodes _ (fun _ => ∅) n 0
+    fun n T => Game.sumcheck_cost Finset.univ 1 nodes _ (fun _ => ∅) n 0
       (fun w _ => (combRound_truth n 1 (T w) productComb productComb_degree).degree) (by simp) n
   refine (Game.costLe_bind (rounds s.blockVars _ [] _ (by simp)) fun first =>
     Game.costLe_bind (δ := 0) (rounds s.laneVars _ [] _ (by simp)) fun second => ?_).mono ?_
@@ -214,7 +215,7 @@ theorem honestGame_cost (s : Shape) (S : Setup F) (L1 L P : ℕ) [NeZero L] [NeZ
       push_cast; ring
     rw [nine]
     linarith
-  refine Game.costLe_bind (drawPoint_cost _ 2 (fun point => ?_) 3 []) fun alpha => ?_
+  refine Game.costLe_bind (Game.drawPoint_cost _ 2 (fun point => ?_) 3 []) fun alpha => ?_
   · refine (Finset.card_union_le _ _).trans ?_
     have := foldBad_card (fun u => partials 0 u - truePartials (keyGroup s S lin.lam) (keyPoint s lin) u) 3 point
     have := foldBad_card (fun u => partials 1 u - truePartials (runGroup S mu) (padded s.setupVars o.runPoint) u)

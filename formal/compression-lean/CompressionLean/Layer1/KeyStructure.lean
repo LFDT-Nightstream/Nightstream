@@ -21,6 +21,8 @@ Rust step formulas equal to the extensions of the model's tables.
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
+
 /-- The verifier's run and slot structure (`matrix.rs::Structure`). -/
 structure Structure (F : Type) where
   /-- The first run of matrix `j`; at `j = matrices`, the run count. -/

@@ -1,5 +1,5 @@
 import CompressionLean.Shrink.Ccs
-import CompressionLean.Layer1.Linear
+import CompressionLean.Lib.Combination
 
 /-!
 Owns the tables of the shrink argument's two sum-checks and the batching
@@ -22,7 +22,7 @@ between them (`mod.rs:233-288`), and their true sums.
 
 namespace CompressionLean.Shrink
 
-open CompressionLean.Layer1 Polynomial
+open CompressionLean.Lib Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K]
 

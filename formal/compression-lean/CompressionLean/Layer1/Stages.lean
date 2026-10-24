@@ -9,6 +9,7 @@ sub-games' transfers (`earlyGame_avoids`, `linearGame_avoids`,
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
@@ -119,13 +120,13 @@ theorem linearGame_avoids (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S :
       ∀ lin, r = some lin → LinearGood s Φ bar S st cands lin := by
   intro lam hLam quotient zeta hζ
   rw [Game.avoids_bind]
-  refine (sumcheck_avoids Finset.univ 1 nodes
+  refine (Game.sumcheck_avoids Finset.univ 1 nodes
     (fun w : Fin cands.length => combTruth s.blockVars (blockTables s bar S st lam zeta (cands.get w).z) productComb)
     _ (fun _ => ∅) s.blockVars
     (fun w _ => combRound_truth s.blockVars 1 _ _ productComb_degree) s.blockVars [] _ (by simp)).mono ?_
   rintro ⟨blockPoint, middle⟩ ⟨⟨cs, shape, length, _⟩, first⟩
   rw [Game.avoids_bind]
-  refine (sumcheck_avoids Finset.univ 1 nodes
+  refine (Game.sumcheck_avoids Finset.univ 1 nodes
     (fun w : Fin cands.length =>
       combTruth s.laneVars (laneTables s bar S st lam zeta (cands.get w).z blockPoint) productComb)
     _ (fun _ => ∅) s.laneVars
@@ -163,7 +164,7 @@ theorem honestGame_avoids (s : Shape) (S : Setup F) (L1 L P : ℕ) [NeZero L] [N
     (honestGame s S L1 L P q o lin).Avoids fun r => ∀ h, r = some h → HonestGood s S q o lin h := by
   intro mu hμ partials
   rw [Game.avoids_bind]
-  refine (drawPoint_avoids _ 3 []).mono ?_
+  refine (Game.drawPoint_avoids _ 3 []).mono ?_
   rintro alpha ⟨cs, rfl, length, path⟩
   split_ifs with check
   · intro p1 words hq

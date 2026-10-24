@@ -12,6 +12,7 @@ checks give (`early_reaches`).
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 

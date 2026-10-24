@@ -4,7 +4,8 @@ import Mathlib.Tactic.Ring
 
 /-!
 Owns generic facts about lists: entries read with `getD` after `++`, `map`
-over `List.range`, `flatten` and `ofFn`, and a fold that adds.
+over `List.range`, `flatten` and `ofFn`, a fold that adds, and the lists of
+at most `L` entries (a WHIR commitment's candidates) as a nonempty type.
 -/
 
 namespace CompressionLean.Lib
@@ -64,5 +65,9 @@ theorem foldl_add_eq_sum {α M : Type} [AddCommMonoid M] (g : α → M) (l : Lis
   induction l generalizing init with
   | nil => simp
   | cons x rest ih => rw [List.foldl_cons, ih, List.map_cons, List.sum_cons, add_assoc]
+
+/-- A commitment is a list of at most `L` candidates (WHIR's list decoding). -/
+instance candidates_nonempty {α : Type} (L : ℕ) : Nonempty {l : List α // l.length ≤ L} :=
+  ⟨⟨[], by simp⟩⟩
 
 end CompressionLean.Lib

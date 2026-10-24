@@ -1,5 +1,5 @@
 import CompressionLean.Replay.Field
-import CompressionLean.Layer1.CubicField
+import CompressionLean.Lib.CubicField
 import Mathlib.FieldTheory.Finiteness
 import Mathlib.RingTheory.AdjoinRoot
 
@@ -12,7 +12,7 @@ Owns the fields of the library and the maps between them and replay words.
   need no instance opened at their site.
 - `Cubic = Gl[x]/(x³ - x - 1)`: the layer-1 challenge field, Plonky3's
   cubic trinomial extension (`crates/neo-spartan/src/field.rs`). It is a
-  field because the trinomial is irreducible (`CubicField.lean`), and it has
+  field because the trinomial is irreducible (`Lib/CubicField.lean`), and it has
   `p³` elements (`card_cubic`).
 - `ChallengeField`: a field of `p³` elements with a root of `x³ - x - 1`.
   `Cubic` is one, by a global instance.
@@ -56,7 +56,7 @@ class ChallengeField (K : Type) [Field K] [Algebra Gl K] [Fintype K] where
 /-- `x³ - x - 1`, the trinomial of the challenge field. -/
 noncomputable def cubic : Gl[X] := X ^ 3 - X - 1
 
-instance cubic_fact : Fact (Irreducible cubic) := ⟨Layer1.cubic_irreducible⟩
+instance cubic_fact : Fact (Irreducible cubic) := ⟨Lib.cubic_irreducible⟩
 
 /-- The layer-1 challenge field. -/
 abbrev Cubic := AdjoinRoot cubic

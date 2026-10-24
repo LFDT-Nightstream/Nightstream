@@ -9,10 +9,8 @@ link its premises to a proof or to a check. Each claim is stated in full here;
 its proof is in the library.
 
 - `production_bound`: the soundness bound of `CompressionKey::verify` for the
-  production final program. It is stated at F′'s reference width
-  (`Data.logicalWidth`), which is no application's width: the production key,
-  of the Poseidon2 hash-chain application, does not meet its `ParentShape`
-  premise. So no claim covers the production key yet.
+  production final program, for the relation of an application of any logical
+  width `lw`. It takes `ParentShape` at `lw`.
 - `honest_setup_of_build`: the honest setup from Rust's setup build and
   `RunsGive`.
 - `key_facts_of_check`, `package_templates_of_check`: a key or a terminal
@@ -42,17 +40,19 @@ attribute [local instance] Circuit.challengeCubic
 /-- **The production bound** (`CompressionKey::verify`,
 `lifecycle/finish.rs:131-145`). Take the production final program for the
 layer-1 key `key` (`Encodes.prog`), the terminal package with the context
-words of `authority`, and an honest setup `S` of F′'s relation. Under
-Fiat–Shamir, with the charged terms of each commitment within Rust's split,
-a prover with `calls` queries makes the final verifier accept a statement
-whose F′ claim (`ParentClaim`) is false, while every program witness among
-the shrink candidates has a reading that layer 1 ran (`Encodes.Reads`), with
-probability at most `calls / 2^t`. -/
-theorem production_bound (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl)
+words of `authority`, and an honest setup `S` of an F′ relation of logical
+width `lw`. Under Fiat–Shamir, with the charged terms of each commitment
+within Rust's split, a prover with `calls` queries makes the final verifier
+accept a statement whose F′ claim (`ParentClaim`) is false, while every
+program witness among the shrink candidates has a reading that layer 1 ran
+(`Encodes.Reads`), with probability at most `calls / 2^t`. -/
+theorem production_bound {lw : ℕ}
+    {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
+    (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl)
     (authority : Lifecycle.VerifierContext.Authority) (S : Layer1.Setup Gl)
-    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
-    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
-    (shape : ParentShape (shapeOf key.relation) Data.logicalWidth)
+    (relation : ProductionKey.LogicalRelation lw pf)
+    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
+    (shape : ParentShape (shapeOf key.relation) lw)
     (barEq : ∀ p l : Fin ringDegree, barOf p l = gl (nativeBarEntry p l))
     (honest : HonestSetup (shapeOf key.relation) S relation ajtai) (facts : KeyFacts key)
     (fits : S.Fits (shapeOf key.relation))

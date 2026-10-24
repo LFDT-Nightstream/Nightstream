@@ -11,7 +11,6 @@ file also owns the transcript on words that names the seed (`absorbWords`,
 
 namespace CompressionLean.Sim
 open CompressionLean.Circuit
-open CompressionLean.Lowering
 open CompressionLean.Replay (Word)
 open NightstreamFPrime.Spec (goldilocksModulus)
 

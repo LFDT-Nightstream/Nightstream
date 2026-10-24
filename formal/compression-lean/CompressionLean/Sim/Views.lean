@@ -20,7 +20,6 @@ proof, and the replay's shape check (`Replay.readProof`) accepts it.
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
-open CompressionLean.Lowering
 open CompressionLean.Replay (Word Ext Relation TreeShape WhirShape foldVars layerCount layerFactors layerDegree
   activeTrees partFactors layerShapeOk)
 

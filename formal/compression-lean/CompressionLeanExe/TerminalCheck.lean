@@ -25,9 +25,6 @@ program (`runDigest`), or the first difference and exits with 1.
 
 namespace CompressionLeanExe.TerminalCheck
 
-open CompressionLean.Sim
-open CompressionLean.Checks
-open CompressionLean.Lowering CompressionLean.Lowering.Package
 open CompressionLean CompressionLean.Shrink CompressionLean.Circuit CompressionLeanExe.Parse
 open CompressionLean.Circuit.Package CompressionLean.Circuit.Terminal CompressionLeanExe.Digest
 open CompressionLean.Replay (Word)

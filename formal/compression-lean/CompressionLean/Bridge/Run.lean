@@ -15,8 +15,6 @@ namespace CompressionLean.Bridge
 
 open CompressionLean.Replay
 
-open CompressionLean.Bridge
-
 /-- The result and the final transcript of `x` run from `t`. -/
 def eval {α : Type} (x : ReplayM α) (t : Transcript) : Except String α × Transcript := (x.run.run t).run
 

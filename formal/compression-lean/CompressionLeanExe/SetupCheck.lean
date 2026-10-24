@@ -11,8 +11,6 @@ first fact that fails and exits with 1.
 
 namespace CompressionLeanExe.SetupCheck
 
-open CompressionLean.Checks
-open CompressionLean.Game
 open CompressionLean CompressionLean.Final
 open NightstreamFPrime.Spec (goldilocksModulus)
 

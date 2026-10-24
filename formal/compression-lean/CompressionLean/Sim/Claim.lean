@@ -23,7 +23,6 @@ statement as the bridge reads it.
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
-open CompressionLean.Lowering
 open CompressionLean.Replay (Word D)
 open CompressionLean.Circuit.Terminal (ClaimVars)
 open CompressionLean.Sim (ClaimHolds HoldsValues pairHandles)

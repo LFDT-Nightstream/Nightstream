@@ -23,7 +23,6 @@ Does not own the terminal output columns (`ParentClaim.lean`) or the games.
 
 namespace CompressionLean.Final
 
-open CompressionLean.Game
 open Polynomial NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel

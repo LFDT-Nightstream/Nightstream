@@ -22,7 +22,6 @@ Does not own the layers' games or their errors.
 
 namespace CompressionLean.Final
 
-open CompressionLean.Game
 open CompressionLean NightstreamFPrime Polynomial
 
 variable {F K : Type} [Field F]

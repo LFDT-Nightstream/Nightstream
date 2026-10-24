@@ -21,7 +21,6 @@ algebra over `Gl`.
 
 namespace CompressionLean.Final
 
-open CompressionLean.Game
 open CompressionLean.Lib
 open Polynomial NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint

@@ -20,7 +20,7 @@ Owns the simulation of the layer-1 verifier's early stage (`earlyStage` of
 - The circuit and the replay may add or multiply in different orders. Their
   values agree in the challenge field `Cubic`, where `Ext.toK` is
   injective (`Ext.eq_of_toK`). So an inverse hint that passes its check is the
-  replay's inverse (`Ensures.extInv`).
+  replay's inverse (`OldEnsures.extInv`).
 -/
 
 namespace CompressionLean.Sim
@@ -605,8 +605,8 @@ private theorem inv_hint {ga : Ext} {u : Fin 3 → F} (h : extProduct (coords ga
 
 /-- `ext_inv` (`algebra.rs`): once its check holds, the operand is nonzero and
 the hint is its inverse. -/
-theorem Ensures.extInv {a : ExtVar} {ga : Ext} (ha : P → IsExt c n a ga) :
-    Ensures c n P (Build.extInv a) (fun r m => ga ≠ 0 ∧ IsExt c m r ga.inv) := by
+theorem OldEnsures.extInv {a : ExtVar} {ga : Ext} (ha : P → IsExt c n a ga) :
+    OldEnsures c n P (Build.extInv a) (fun r m => ga ≠ 0 ∧ IsExt c m r ga.inv) := by
   refine ((Simulates.emit (Q := fun h m => h = n ∧ ∀ k : Fin 3, h + k < m ∧ c.val (h + k) = c.tape (h + k))
     (C := extProduct (coords ga) (fun k => c.tape (n + k)) = ![1, 0, 0]) (.extInv a) fun hP E hl hF => ?_).map
     (Q' := fun r m => ∀ k : Fin 3, r k < m ∧ c.val (r k) = c.tape (n + k))
@@ -627,16 +627,16 @@ theorem Ensures.extInv {a : ExtVar} {ga : Ext} (ha : P → IsExt c n a ga) :
 theorem checkPair_ensures {x y : TreeClaimView} {gx gy : Ext × Ext} (name : String)
     (hx : P → IsExt c n x.root.1 gx.1 ∧ IsExt c n x.root.2 gx.2)
     (hy : P → IsExt c n y.root.1 gy.1 ∧ IsExt c n y.root.2 gy.2) :
-    Ensures c n P (checkPair x y) (fun _ _ => Replay.pairCheck gx gy name = .ok ()) := by
+    OldEnsures c n P (checkPair x y) (fun _ _ => Replay.pairCheck gx gy name = .ok ()) := by
   obtain ⟨⟨px, qx⟩, xp, xv⟩ := x
   obtain ⟨⟨py, qy⟩, yp, yv⟩ := y
   unfold checkPair
   dsimp only at hx hy ⊢
-  refine Ensures.bind (Ensures.extInv fun h => (hx h).2) fun _ m₁ l₁ => ?_
-  refine Ensures.bind (Ensures.extInv fun h => ((hy h.1).2).mono l₁) fun _ m₂ l₂ => ?_
-  refine Ensures.bind (Simulates.extMul (fun h => ((hx h.1.1).1).mono (l₁.trans l₂))
+  refine OldEnsures.bind (OldEnsures.extInv fun h => (hx h).2) fun _ m₁ l₁ => ?_
+  refine OldEnsures.bind (OldEnsures.extInv fun h => ((hy h.1).2).mono l₁) fun _ m₂ l₂ => ?_
+  refine OldEnsures.bind (Simulates.extMul (fun h => ((hx h.1.1).1).mono (l₁.trans l₂))
     fun h => ((hy h.1.1).2).mono (l₁.trans l₂)).ensures fun left m₃ l₃ => ?_
-  refine Ensures.bind (Simulates.extMul (fun h => ((hy h.1.1.1).1).mono (l₁.trans (l₂.trans l₃)))
+  refine OldEnsures.bind (Simulates.extMul (fun h => ((hy h.1.1.1).1).mono (l₁.trans (l₂.trans l₃)))
     fun h => ((hx h.1.1.1).2).mono (l₁.trans (l₂.trans l₃))).ensures fun right m₄ l₄ => ?_
   refine (Simulates.assertExtEqual (fun h => h.1.2.1.mono l₄) fun h => h.2.1).ensures.post fun h _ _ q => ?_
   unfold Replay.pairCheck
@@ -647,30 +647,30 @@ theorem checkPair_ensures {x y : TreeClaimView} {gx gy : Ext × Ext} (name : Str
 pole, and the sum is the replay's. -/
 private theorem tableSum_ensures {counts : Array Var} {gcounts : Array Word} {beta : ExtVar} {gbeta : Ext}
     (bound : ℕ) (hc : P → IsWords c n counts gcounts) (hb : P → IsExt c n beta gbeta) :
-    Ensures c n P (tableSum counts bound beta) (fun r m =>
+    OldEnsures c n P (tableSum counts bound beta) (fun r m =>
       Replay.tableSum bound gcounts gbeta = .ok (Replay.sumRange gcounts.size (tableTerm bound gcounts gbeta)) ∧
         IsExt c m r (Replay.sumRange gcounts.size (tableTerm bound gcounts gbeta))) := by
   unfold tableSum
-  refine Ensures.bind Simulates.extZero.ensures fun total m₁ l₁ => ?_
+  refine OldEnsures.bind Simulates.extZero.ensures fun total m₁ l₁ => ?_
   rw [← Array.forIn_toList]
-  refine Ensures.bind ((Ensures.loop (P := P ∧ (IsExt c m₁ total 0 ∧ True))
+  refine OldEnsures.bind ((OldEnsures.loop (P := P ∧ (IsExt c m₁ total 0 ∧ True))
     (fun k acc m => (∀ s < k, gbeta - Ext.ofGl (Word.ofNat s - Word.ofNat bound) ≠ 0) ∧
       IsExt c m acc (Replay.sumRange k (tableTerm bound gcounts gbeta)))
     fun k hk acc m lm => ?_).pre fun h => ⟨h, fun s hs => absurd hs (by omega), h.2.1⟩) fun r m _ =>
-      Ensures.pure fun h => ?_
+      OldEnsures.pure fun h => ?_
   · have hk' : k < counts.size := by simpa using hk
     rw [show counts.zipIdx.toList[k] = (counts[k]!, k) by simp [getElem!_pos, hk']]
     dsimp only
-    refine Ensures.bind (Simulates.extConstant (Ext.ofGl (Word.ofNat k - Word.ofNat bound))).ensures fun value m₂ l₂ => ?_
-    refine Ensures.bind (Simulates.extSub (fun h => (hb h.1.1.1).mono (l₁.trans (lm.trans l₂))) fun h => h.2.1).ensures
+    refine OldEnsures.bind (Simulates.extConstant (Ext.ofGl (Word.ofNat k - Word.ofNat bound))).ensures fun value m₂ l₂ => ?_
+    refine OldEnsures.bind (Simulates.extSub (fun h => (hb h.1.1.1).mono (l₁.trans (lm.trans l₂))) fun h => h.2.1).ensures
       fun den m₃ l₃ => ?_
-    refine Ensures.bind (Ensures.extInv fun h => h.2.1) fun inv m₄ l₄ => ?_
-    refine Ensures.bind (Simulates.extScale (fun h => h.2.2) fun h =>
+    refine OldEnsures.bind (OldEnsures.extInv fun h => h.2.1) fun inv m₄ l₄ => ?_
+    refine OldEnsures.bind (Simulates.extScale (fun h => h.2.2) fun h =>
       ((hc h.1.1.1.1.1).get ((hc h.1.1.1.1.1).1 ▸ hk')).mono (l₁.trans (lm.trans (l₂.trans (l₃.trans l₄))))).ensures
       fun term m₅ l₅ => ?_
-    refine Ensures.bind (Simulates.extAdd (fun h => h.1.1.1.1.2.2.mono (l₂.trans (l₃.trans (l₄.trans l₅))))
+    refine OldEnsures.bind (Simulates.extAdd (fun h => h.1.1.1.1.2.2.mono (l₂.trans (l₃.trans (l₄.trans l₅))))
       fun h => h.2.1).ensures fun total' m₆ l₆ => ?_
-    refine Ensures.pure fun h => ⟨rfl, fun s hs => ?_, by rw [sumRange_succ]; exact h.2.1⟩
+    refine OldEnsures.pure fun h => ⟨rfl, fun s hs => ?_, by rw [sumRange_succ]; exact h.2.1⟩
     rcases Nat.lt_succ_iff_lt_or_eq.mp hs with lt | rfl
     · exact h.1.1.1.1.1.2.1 s lt
     · exact h.1.1.2.1
@@ -822,7 +822,7 @@ private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr
     (hruns : P → IsExts c n values.runs #[gv.eRe, gv.eIm, gv.row])
     (hpairs : P → values.pairs.size = gv.pairs.size ∧
       ∀ j < values.pairs.size, IsPair c n values.pairs[j]! gv.pairs[j]!) :
-    Ensures c n P (checkEarly layout r { lookup := (lb, gamma), scatter := (sb, mu) } claims values)
+    OldEnsures c n P (checkEarly layout r { lookup := (lb, gamma), scatter := (sb, mu) } claims values)
       (fun res m => Replay.checkEarly layout gr ch g gv = .ok (Bridge.earlyOpeningsOf layout ch g gv) ∧
         IsOpenings c m res (Bridge.earlyOpeningsOf layout ch g gv)) := by
   have tree₁ : ∀ {m}, P → n ≤ m → IsTree c m claims[0]! g 1 := fun h le => (htrees h 0 (by omega)).mono le
@@ -842,67 +842,67 @@ private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr
     fun j hj h le => ((hpairs h).2 j hj).mono le
   unfold checkEarly
   dsimp only
-  refine Ensures.bind (checkPair_ensures (gx := g.roots[1]!) (gy := g.roots[2]!) "row lookup"
+  refine OldEnsures.bind (checkPair_ensures (gx := g.roots[1]!) (gy := g.roots[2]!) "row lookup"
     (fun h => ⟨(tree₁ h le_rfl).1, (tree₁ h le_rfl).2.1⟩)
     fun h => ⟨(tree₂ h le_rfl).1, (tree₂ h le_rfl).2.1⟩) fun _ m₁ l₁ => ?_
-  refine Ensures.bind (checkPair_ensures (gx := g.roots[3]!) (gy := g.roots[4]!) "slot scatter"
+  refine OldEnsures.bind (checkPair_ensures (gx := g.roots[3]!) (gy := g.roots[4]!) "slot scatter"
     (fun h => ⟨(tree₃ h.1 l₁).1, (tree₃ h.1 l₁).2.1⟩)
     fun h => ⟨(tree₄ h.1 l₁).1, (tree₄ h.1 l₁).2.1⟩) fun _ m₂ l₂ => ?_
   have L₂ : n ≤ m₂ := l₁.trans l₂
-  refine Ensures.pre (P' := P ∧ Replay.pairCheck g.roots[1]! g.roots[2]! "row lookup" = .ok () ∧
+  refine OldEnsures.pre (P' := P ∧ Replay.pairCheck g.roots[1]! g.roots[2]! "row lookup" = .ok () ∧
     Replay.pairCheck g.roots[3]! g.roots[4]! "slot scatter" = .ok ()) ?_ fun h => ⟨h.1.1, h.1.2, h.2⟩
-  refine Ensures.bindSim (tuple_sim (fun h => runRow h.1 L₂) (fun h => (chs h.1 L₂).2.1)
+  refine OldEnsures.bindSim (tuple_sim (fun h => runRow h.1 L₂) (fun h => (chs h.1 L₂).2.1)
     (fun h => runRe h.1 L₂) fun h => runIm h.1 L₂) fun combined m₃ l₃ => ?_
-  refine Ensures.bindSim (Simulates.extSub (fun h => (chs h.1.1 (L₂.trans l₃)).1) fun h => h.2) fun expected m₄ l₄ => ?_
-  refine Ensures.bindCheck (Simulates.assertExtEqual (fun h => (tree₁ h.1.1.1 (L₂.trans (l₃.trans l₄))).value
+  refine OldEnsures.bindSim (Simulates.extSub (fun h => (chs h.1.1 (L₂.trans l₃)).1) fun h => h.2) fun expected m₄ l₄ => ?_
+  refine OldEnsures.bindCheck (Simulates.assertExtEqual (fun h => (tree₁ h.1.1.1 (L₂.trans (l₃.trans l₄))).value
     (by have := (hsizes h.1.1.1).1; omega)) fun h => h.2) fun _ m₅ l₅ => ?_
   have L₅ : n ≤ m₅ := L₂.trans (l₃.trans (l₄.trans l₅))
-  refine Ensures.pre (P' := P ∧ Replay.pairCheck g.roots[1]! g.roots[2]! "row lookup" = .ok () ∧
+  refine OldEnsures.pre (P' := P ∧ Replay.pairCheck g.roots[1]! g.roots[2]! "row lookup" = .ok () ∧
     Replay.pairCheck g.roots[3]! g.roots[4]! "slot scatter" = .ok () ∧
     g.leafValue 1 0 = ch.lookup.1 - Replay.tuple ch.lookup.2 gv.row gv.eRe gv.eIm) ?_
     fun h => ⟨h.1.1.1.1, h.1.1.1.2.1, h.1.1.1.2.2, h.2⟩
-  refine Ensures.bindSim (Simulates.chi (fun h => ⟨(hr h.1).1, fun i hi => ⟨((hr h.1).2 i hi).1.mono L₅,
+  refine OldEnsures.bindSim (Simulates.chi (fun h => ⟨(hr h.1).1, fun i hi => ⟨((hr h.1).2 i hi).1.mono L₅,
     ((hr h.1).2 i hi).2.mono L₅⟩⟩) fun h => (tree₂ h.1 L₅).2.2.1) fun chi m₆ l₆ => ?_
-  refine Ensures.bindSim (Simulates.identity fun h => (tree₂ h.1.1 (L₅.trans l₆)).2.2.1) fun index m₇ l₇ => ?_
-  refine Ensures.bindSim (tuple_sim (fun h => h.2) (fun h => (chs h.1.1.1 (L₅.trans (l₆.trans l₇))).2.1)
+  refine OldEnsures.bindSim (Simulates.identity fun h => (tree₂ h.1.1 (L₅.trans l₆)).2.2.1) fun index m₇ l₇ => ?_
+  refine OldEnsures.bindSim (tuple_sim (fun h => h.2) (fun h => (chs h.1.1.1 (L₅.trans (l₆.trans l₇))).2.1)
     (fun h => h.1.2.1.mono l₇) fun h => h.1.2.2.mono l₇) fun combined' m₈ l₈ => ?_
-  refine Ensures.bindSim (Simulates.extSub (fun h => (chs h.1.1.1.1 (L₅.trans (l₆.trans (l₇.trans l₈)))).1)
+  refine OldEnsures.bindSim (Simulates.extSub (fun h => (chs h.1.1.1.1 (L₅.trans (l₆.trans (l₇.trans l₈)))).1)
     fun h => h.2) fun expected' m₉ l₉ => ?_
-  refine Ensures.bindCheck (Simulates.assertExtEqual (fun h =>
+  refine OldEnsures.bindCheck (Simulates.assertExtEqual (fun h =>
     (tree₂ h.1.1.1.1.1 (L₅.trans (l₆.trans (l₇.trans (l₈.trans l₉))))).value
     (by have := (hsizes h.1.1.1.1.1).2.1; omega)) fun h => h.2) fun _ m₁₀ l₁₀ => ?_
   have L₁₀ : n ≤ m₁₀ := L₅.trans (l₆.trans (l₇.trans (l₈.trans (l₉.trans l₁₀))))
-  refine Ensures.pre (P' := P ∧ Replay.pairCheck g.roots[1]! g.roots[2]! "row lookup" = .ok () ∧
+  refine OldEnsures.pre (P' := P ∧ Replay.pairCheck g.roots[1]! g.roots[2]! "row lookup" = .ok () ∧
     Replay.pairCheck g.roots[3]! g.roots[4]! "slot scatter" = .ok () ∧
     g.leafValue 1 0 = ch.lookup.1 - Replay.tuple ch.lookup.2 gv.row gv.eRe gv.eIm ∧
     g.leafValue 2 1 = ch.lookup.1 - Replay.tuple ch.lookup.2 (Replay.identityValue g.leafPoint[2]!)
       (Replay.chi gr g.leafPoint[2]!).re (Replay.chi gr g.leafPoint[2]!).im) ?_
     fun h => ⟨h.1.1.1.1.1.1, h.1.1.1.1.1.2.1, h.1.1.1.1.1.2.2.1, h.1.1.1.1.1.2.2.2, h.2⟩
-  refine Ensures.bindSim (Simulates.extMul (fun h => (chs h.1 L₁₀).2.2.2) fun h => runIm h.1 L₁₀) fun mixed m₁₁ l₁₁ => ?_
-  refine Ensures.bindSim (Simulates.extAdd (fun h => runRe h.1.1 (L₁₀.trans l₁₁)) fun h => h.2) fun e m₁₂ l₁₂ => ?_
-  refine Ensures.bindCheck (Simulates.assertExtEqual (fun h =>
+  refine OldEnsures.bindSim (Simulates.extMul (fun h => (chs h.1 L₁₀).2.2.2) fun h => runIm h.1 L₁₀) fun mixed m₁₁ l₁₁ => ?_
+  refine OldEnsures.bindSim (Simulates.extAdd (fun h => runRe h.1.1 (L₁₀.trans l₁₁)) fun h => h.2) fun e m₁₂ l₁₂ => ?_
+  refine OldEnsures.bindCheck (Simulates.assertExtEqual (fun h =>
     (tree₃ h.1.1.1 (L₁₀.trans (l₁₁.trans l₁₂))).value (by have := (hsizes h.1.1.1).2.2.1; omega))
     fun h => h.2) fun _ m₁₃ l₁₃ => ?_
   have L₁₃ : n ≤ m₁₃ := L₁₀.trans (l₁₁.trans (l₁₂.trans l₁₃))
-  refine Ensures.pre (P' := P ∧ Replay.pairCheck g.roots[1]! g.roots[2]! "row lookup" = .ok () ∧
+  refine OldEnsures.pre (P' := P ∧ Replay.pairCheck g.roots[1]! g.roots[2]! "row lookup" = .ok () ∧
     Replay.pairCheck g.roots[3]! g.roots[4]! "slot scatter" = .ok () ∧
     g.leafValue 1 0 = ch.lookup.1 - Replay.tuple ch.lookup.2 gv.row gv.eRe gv.eIm ∧
     g.leafValue 2 1 = ch.lookup.1 - Replay.tuple ch.lookup.2 (Replay.identityValue g.leafPoint[2]!)
       (Replay.chi gr g.leafPoint[2]!).re (Replay.chi gr g.leafPoint[2]!).im ∧
     g.leafValue 3 1 = gv.eRe + ch.scatter.2 * gv.eIm) ?_
     fun h => ⟨h.1.1.1.1, h.1.1.1.2.1, h.1.1.1.2.2.1, h.1.1.1.2.2.2.1, h.1.1.1.2.2.2.2, h.2⟩
-  refine Ensures.bindSim (matrixStep_sim (layout := layout) fun h => (tree₃ h.1 L₁₃).2.2.1)
+  refine OldEnsures.bindSim (matrixStep_sim (layout := layout) fun h => (tree₃ h.1 L₁₃).2.2.1)
     fun matrix m₁₄ l₁₄ => ?_
-  refine Ensures.bindSim (Simulates.extScaleConstant (Word.ofNat (2 ^ layout.slotVariables)) fun h => h.2)
+  refine OldEnsures.bindSim (Simulates.extScaleConstant (Word.ofNat (2 ^ layout.slotVariables)) fun h => h.2)
     fun tag m₁₅ l₁₅ => ?_
-  refine Ensures.bindSim (Simulates.extSub (fun h => (chs h.1.1.1 (L₁₃.trans (l₁₄.trans l₁₅))).2.2.1)
+  refine OldEnsures.bindSim (Simulates.extSub (fun h => (chs h.1.1.1 (L₁₃.trans (l₁₄.trans l₁₅))).2.2.1)
     fun h => (tree₃ h.1.1.1 (L₁₃.trans (l₁₄.trans l₁₅))).value
       (by have := (hsizes h.1.1.1).2.2.1; omega)) fun rest m₁₆ l₁₆ => ?_
-  refine Ensures.bindSim (Simulates.extSub (fun h => h.2) fun h => h.1.2.mono l₁₆) fun slot m₁₇ l₁₇ => ?_
+  refine OldEnsures.bindSim (Simulates.extSub (fun h => h.2) fun h => h.1.2.mono l₁₆) fun slot m₁₇ l₁₇ => ?_
   have L₁₇ : n ≤ m₁₇ := L₁₃.trans (l₁₄.trans (l₁₅.trans (l₁₆.trans l₁₇)))
   set slotClaim := ch.scatter.1 - g.leafValue 3 2 -
     (Replay.matrixStep layout g.leafPoint[3]!).scale (Word.ofNat (2 ^ layout.slotVariables))
-  refine Ensures.pre (P' := P ∧ Replay.pairCheck g.roots[1]! g.roots[2]! "row lookup" = .ok () ∧
+  refine OldEnsures.pre (P' := P ∧ Replay.pairCheck g.roots[1]! g.roots[2]! "row lookup" = .ok () ∧
     Replay.pairCheck g.roots[3]! g.roots[4]! "slot scatter" = .ok () ∧
     g.leafValue 1 0 = ch.lookup.1 - Replay.tuple ch.lookup.2 gv.row gv.eRe gv.eIm ∧
     g.leafValue 2 1 = ch.lookup.1 - Replay.tuple ch.lookup.2 (Replay.identityValue g.leafPoint[2]!)
@@ -911,10 +911,10 @@ private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr
     fun h => ⟨h.1.1.1.1.1, h.1.1.1.1.2.1, h.1.1.1.1.2.2.1, h.1.1.1.1.2.2.2.1, h.1.1.1.1.2.2.2.2.1,
       h.1.1.1.1.2.2.2.2.2, h.2⟩
   set geq := Replay.eqTable ((g.leafPoint[4]!).extract layout.slotVariables (g.leafPoint[4]!).size)
-  refine Ensures.bindSim (Simulates.eqTable (gpoint := (g.leafPoint[4]!).extract layout.slotVariables)
+  refine OldEnsures.bindSim (Simulates.eqTable (gpoint := (g.leafPoint[4]!).extract layout.slotVariables)
     fun h => (tree₄ h.1 L₁₇).2.2.1.extract layout.slotVariables) fun eq m₁₈ l₁₈ => ?_
-  refine Ensures.bindSim Simulates.extZero fun combined₀ m₁₉ l₁₉ => ?_
-  refine Ensures.bindSim (((Simulates.loop₀ (P := ((_ ∧ IsExts c m₁₈ eq geq) ∧ IsExt c m₁₉ combined₀ 0))
+  refine OldEnsures.bindSim Simulates.extZero fun combined₀ m₁₉ l₁₉ => ?_
+  refine OldEnsures.bindSim (((Simulates.loop₀ (P := ((_ ∧ IsExts c m₁₈ eq geq) ∧ IsExt c m₁₉ combined₀ 0))
     (fun k acc m => IsExt c m acc (Replay.sumRange k fun j => geq[j]! * ((gv.pairs[j]!).1 + ch.scatter.2 *
       (gv.pairs[j]!).2))) fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).post
     (Q' := fun r m => IsExt c m r (Replay.sumRange (min gv.pairs.size geq.size) fun j => geq[j]! *
@@ -935,17 +935,17 @@ private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr
       rw [Array.size_zip, (hpairs h.1.1.1).1, h.1.2.1]
     rw [size] at q
     exact q
-  refine Ensures.bindCheck (Simulates.assertExtEqual (fun h =>
+  refine OldEnsures.bindCheck (Simulates.assertExtEqual (fun h =>
     (tree₄ h.1.1.1.1 (L₁₇.trans (l₁₈.trans (l₁₉.trans l₂₀)))).value
       (by have := (hsizes h.1.1.1.1).2.2.2; omega)) fun h => h.2) fun _ m₂₁ l₂₁ => ?_
   have L₂₁ : n ≤ m₂₁ := L₁₇.trans (l₁₈.trans (l₁₉.trans (l₂₀.trans l₂₁)))
-  refine Ensures.bindSim (Simulates.identity fun h => (tree₄ h.1.1.1.1.1 L₂₁).2.2.1) fun index' m₂₂ l₂₂ => ?_
-  refine Ensures.bindSim (Simulates.extSub (fun h => (chs h.1.1.1.1.1.1 (L₂₁.trans l₂₂)).2.2.1) fun h => h.2)
+  refine OldEnsures.bindSim (Simulates.identity fun h => (tree₄ h.1.1.1.1.1 L₂₁).2.2.1) fun index' m₂₂ l₂₂ => ?_
+  refine OldEnsures.bindSim (Simulates.extSub (fun h => (chs h.1.1.1.1.1.1 (L₂₁.trans l₂₂)).2.2.1) fun h => h.2)
     fun expected'' m₂₃ l₂₃ => ?_
-  refine Ensures.bindCheck (Simulates.assertExtEqual (fun h =>
+  refine OldEnsures.bindCheck (Simulates.assertExtEqual (fun h =>
     (tree₄ h.1.1.1.1.1.1.1 (L₂₁.trans (l₂₂.trans l₂₃))).value
       (by have := (hsizes h.1.1.1.1.1.1.1).2.2.2; omega)) fun h => h.2) fun _ m₂₄ l₂₄ => ?_
-  refine Ensures.pure fun h => ?_
+  refine OldEnsures.pure fun h => ?_
   have L₂₄ : n ≤ m₂₄ := L₂₁.trans (l₂₂.trans (l₂₃.trans l₂₄))
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨hP, rows, slots, runLeaf, rowLeaf, scatterLeaf, hslot⟩, -⟩, -⟩, -⟩, pairLeaf⟩, -⟩, -⟩,
     indexLeaf⟩ := h
@@ -1005,7 +1005,7 @@ theorem earlyStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay
     (hpoint : P → statement.point.size = st.point.size ∧ ∀ i < statement.point.size,
       IsWord c n statement.point[i]!.1 st.point[i]!.1 ∧ IsWord c n statement.point[i]!.2 st.point[i]!.2)
     (hproof : P → IsProof c w n proof g) (read : Replay.readProof rel g = .ok ()) :
-    Ensures c n P ((Circuit.earlyStage rel statement proof).run d)
+    OldEnsures c n P ((Circuit.earlyStage rel statement proof).run d)
       (fun res m => ∃ out t', Runs (Replay.earlyStage rel st g) t out t' ∧ IsEarlyOut c m res.1 out ∧
         IsDuplex c m res.2 t'.duplex) := by
   have shape := Bridge.readProof_ok read
@@ -1019,32 +1019,32 @@ theorem earlyStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay
     (.pair ch.scatter.1 ch.scatter.2)⟩
   set T := Replay.sumRange g.histogram.size (tableTerm rel.normBound g.histogram ch.beta)
   unfold Circuit.earlyStage
-  refine Ensures.tbindSim (observeSeedRoot hp hd fun h => (hproof h).1) fun _ d₁ m₁ l₁ => ?_
-  refine Ensures.tbindSim (Simulates.observeSlice hp (fun h => h.2) fun h => (hproof h.1).2.1.mono l₁) fun _ d₂ m₂ l₂ => ?_
-  refine Ensures.tbindSim (Simulates.sampleExt hp fun h => h.2) fun beta d₃ m₃ l₃ => ?_
-  refine Ensures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun lookupBeta d₄ m₄ l₄ => ?_
-  refine Ensures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun gamma d₅ m₅ l₅ => ?_
-  refine Ensures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun scatterBeta d₆ m₆ l₆ => ?_
-  refine Ensures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun mu d₇ m₇ l₇ => ?_
+  refine OldEnsures.tbindSim (observeSeedRoot hp hd fun h => (hproof h).1) fun _ d₁ m₁ l₁ => ?_
+  refine OldEnsures.tbindSim (Simulates.observeSlice hp (fun h => h.2) fun h => (hproof h.1).2.1.mono l₁) fun _ d₂ m₂ l₂ => ?_
+  refine OldEnsures.tbindSim (Simulates.sampleExt hp fun h => h.2) fun beta d₃ m₃ l₃ => ?_
+  refine OldEnsures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun lookupBeta d₄ m₄ l₄ => ?_
+  refine OldEnsures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun gamma d₅ m₅ l₅ => ?_
+  refine OldEnsures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun scatterBeta d₆ m₆ l₆ => ?_
+  refine OldEnsures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun mu d₇ m₇ l₇ => ?_
   have L₇ : n ≤ m₇ := l₁.trans (l₂.trans (l₃.trans (l₄.trans (l₅.trans (l₆.trans l₇)))))
-  refine Ensures.pre (P' := P ∧ IsExt c m₇ beta ch.beta ∧ IsExt c m₇ lookupBeta ch.lookup.1 ∧
+  refine OldEnsures.pre (P' := P ∧ IsExt c m₇ beta ch.beta ∧ IsExt c m₇ lookupBeta ch.lookup.1 ∧
     IsExt c m₇ gamma ch.lookup.2 ∧ IsExt c m₇ scatterBeta ch.scatter.1 ∧ IsExt c m₇ mu ch.scatter.2 ∧
     IsDuplex c m₇ d₇ D₇) ?_ fun h => ⟨h.1.1.1.1.1.1.1, h.1.1.1.1.2.1.mono (l₄.trans (l₅.trans (l₆.trans l₇))),
       h.1.1.1.2.1.mono (l₅.trans (l₆.trans l₇)), h.1.1.2.1.mono (l₆.trans l₇), h.1.2.1.mono l₇, h.2.1, h.2.2⟩
-  refine Ensures.tbind (Ensures.lift (tableSum_ensures rel.normBound (fun h => (hproof h.1).2.1.mono L₇)
+  refine OldEnsures.tbind (OldEnsures.lift (tableSum_ensures rel.normBound (fun h => (hproof h.1).2.1.mono L₇)
     fun h => h.2.1)) fun total d₈ m₈ l₈ => ?_
-  refine Ensures.tbind (gkrVerify_ensures (t := t₇) hp (fun h => by
+  refine OldEnsures.tbind (gkrVerify_ensures (t := t₇) hp (fun h => by
       have e : d₈ = d₇ := h.2.2
       rw [e]; exact h.1.2.2.2.2.2.2.mono l₈)
     (fun h => (((hproof h.1.1).2.2.1).mono (L₇.trans l₈)).entries.1)
     (fun h => (((hproof h.1.1).2.2.1).mono (L₇.trans l₈)).entries.2) shape.early) fun claims d₉ m₉ l₉ => ?_
-  refine (Ensures.exists_and (X := fun x : Replay.GkrClaims × Replay.Transcript =>
+  refine (OldEnsures.exists_and (X := fun x : Replay.GkrClaims × Replay.Transcript =>
       Runs (Replay.gkrVerify g.early rel.earlyShapes) t₇ x.1 x.2 ∧ IsGkrClaims c m₉ claims x.1 ∧
         IsDuplex c m₉ d₉ x.2.duplex) (⟨#[], #[], #[], #[], #[]⟩, t) fun x => ?_).pre
     fun h => ⟨h.1, let ⟨gc, t₉, hx⟩ := h.2; ⟨(gc, t₉), hx⟩⟩
   obtain ⟨gc, t₉⟩ := x
   dsimp only
-  refine Ensures.pre (P' := P ∧ IsExt c m₉ beta ch.beta ∧ IsExt c m₉ lookupBeta ch.lookup.1 ∧
+  refine OldEnsures.pre (P' := P ∧ IsExt c m₉ beta ch.beta ∧ IsExt c m₉ lookupBeta ch.lookup.1 ∧
     IsExt c m₉ gamma ch.lookup.2 ∧ IsExt c m₉ scatterBeta ch.scatter.1 ∧ IsExt c m₉ mu ch.scatter.2 ∧
     Replay.tableSum rel.normBound g.histogram ch.beta = .ok T ∧ IsExt c m₉ total T ∧
     Runs (Replay.gkrVerify g.early rel.earlyShapes) t₇ gc t₉ ∧ IsGkrClaims c m₉ claims gc ∧
@@ -1061,19 +1061,19 @@ theorem earlyStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay
   have tree : ∀ {m}, IsGkrClaims c m claims gc → claims.size = 5 → ∀ u < 5, IsTree c m claims[u]! gc u :=
     fun hc h5 u hu => ⟨(hc.2 u (by omega)).1, (hc.2 u (by omega)).2.1, (hc.2 u (by omega)).2.2.1,
       (hc.2 u (by omega)).2.2.2⟩
-  refine Ensures.tbind (Ensures.lift (Ensures.extInv (ga := (gc.roots[0]!).2) fun h => by
+  refine OldEnsures.tbind (OldEnsures.lift (OldEnsures.extInv (ga := (gc.roots[0]!).2) fun h => by
     obtain ⟨-, -, -, -, -, -, -, -, run, hc, -⟩ := h
     exact (tree hc (five hc run) 0 (by omega)).2.1)) fun _ d₁₀ m₁₀ l₁₀ => ?_
-  refine Ensures.tbindSim (Simulates.lift (Simulates.extMul (ga := (gc.roots[0]!).2) (gb := T) (fun h => by
+  refine OldEnsures.tbindSim (Simulates.lift (Simulates.extMul (ga := (gc.roots[0]!).2) (gb := T) (fun h => by
       obtain ⟨⟨-, -, -, -, -, -, -, -, run, hc, -⟩, -⟩ := h
       exact (tree hc (five hc run) 0 (by omega)).2.1.mono l₁₀) fun h => by
       obtain ⟨⟨-, -, -, -, -, -, -, hT, -⟩, -⟩ := h
       exact hT.mono l₁₀)) fun expected d₁₁ m₁₁ l₁₁ => ?_
-  refine Ensures.tbind (Ensures.lift (Simulates.assertExtEqual (ga := (gc.roots[0]!).1) (fun h => by
+  refine OldEnsures.tbind (OldEnsures.lift (Simulates.assertExtEqual (ga := (gc.roots[0]!).1) (fun h => by
       obtain ⟨⟨⟨-, -, -, -, -, -, -, -, run, hc, -⟩, -⟩, -⟩ := h
       exact (tree hc (five hc run) 0 (by omega)).1.mono (l₁₀.trans l₁₁)) fun h => h.2.1).ensures)
     fun _ d₁₂ m₁₂ l₁₂ => ?_
-  refine Ensures.tbindSim (Simulates.lift (Simulates.extSub (fun h => by
+  refine OldEnsures.tbindSim (Simulates.lift (Simulates.extSub (fun h => by
       obtain ⟨⟨⟨⟨-, hβ, -⟩, -⟩, -⟩, -⟩ := h
       exact hβ.mono (l₁₀.trans (l₁₁.trans l₁₂))) fun h => by
       obtain ⟨⟨⟨⟨-, -, -, -, -, -, -, -, run, hc, -⟩, -⟩, -⟩, -⟩ := h
@@ -1083,7 +1083,7 @@ theorem earlyStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay
   have N₁₃ : n ≤ m₁₃ := L₇.trans (l₈.trans (l₉.trans L₁₃))
   have factors : (rel.earlyShapes[1]!).factors = 0 ∧ (rel.earlyShapes[2]!).factors = 1 ∧
       (rel.earlyShapes[3]!).factors = 2 ∧ (rel.earlyShapes[4]!).factors = 1 := ⟨rfl, rfl, rfl, rfl⟩
-  refine Ensures.tbind (Ensures.lift (checkEarly_ensures (gr := st.point) (ch := ch) (g := gc) (gv := g.earlyValues)
+  refine OldEnsures.tbind (OldEnsures.lift (checkEarly_ensures (gr := st.point) (ch := ch) (g := gc) (gv := g.earlyValues)
     (fun h => by
       obtain ⟨⟨⟨⟨⟨hP, -⟩, -⟩, -⟩, -⟩, -⟩ := h
       exact ⟨(hpoint hP).1, fun i hi => ⟨((hpoint hP).2 i hi).1.mono N₁₃, ((hpoint hP).2 i hi).2.mono N₁₃⟩⟩)
@@ -1107,7 +1107,7 @@ theorem earlyStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay
       obtain ⟨size, pairs⟩ := forall₂_entries (hproof hP).2.2.2.2.1
       exact ⟨size, fun j hj => by rw [getElem!_pos _ j hj]; exact (pairs j hj).mono N₁₃⟩)))
     fun openings d₁₄ m₁₄ l₁₄ => ?_
-  refine Ensures.tbindSim (observeEarly_sim (r := t₉.duplex) hp (fun h => by
+  refine OldEnsures.tbindSim (observeEarly_sim (r := t₉.duplex) hp (fun h => by
       obtain ⟨⟨⟨⟨⟨⟨-, -, -, -, -, -, -, -, -, -, hd₉⟩, -, e₁₀⟩, -, e₁₁⟩, -, e₁₂⟩, -, e₁₃⟩, -, e₁₄⟩ := h
       have e : d₁₄ = d₉ := e₁₄.trans (e₁₃.trans (e₁₂.trans (e₁₁.trans e₁₀)))
       rw [e]
@@ -1122,7 +1122,7 @@ theorem earlyStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay
       obtain ⟨⟨⟨⟨⟨⟨hP, -⟩, -⟩, -⟩, -⟩, -⟩, -⟩ := h
       exact (hproof hP).2.2.2.2.2.1.mono (N₁₃.trans l₁₄))) fun _ d₁₅ m₁₅ l₁₅ => ?_
   rw [StateT.run_pure]
-  refine Ensures.pure fun h => ?_
+  refine OldEnsures.pure fun h => ?_
   obtain ⟨⟨⟨⟨⟨⟨⟨hP, -, -, -, -, -, tableOk, -, run, hc, -⟩, ⟨qne, -⟩, -⟩, -, -⟩, ⟨-, rootEq⟩, -⟩, hz, -⟩,
     ⟨checkOk, hopen⟩, -⟩, hd₁₅⟩ := h
   have N₁₅ : m₉ ≤ m₁₅ := L₁₃.trans (l₁₄.trans l₁₅)

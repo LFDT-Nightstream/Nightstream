@@ -14,7 +14,7 @@ closed forms of `Mle.lean` (`mle.rs`) against the replay's formulas
 - An identity of `Ext` or `Kx` holds when it holds in the challenge field
   `Cubic` (`Ext.eq_of_toK`, `kx_eq_of_toQ`). So proof words that pass
   the inverse check are the replay's inverse (`inverse_of_check`), and
-  `Ensures.scaledEqPoint` finds no pole.
+  `OldEnsures.scaledEqPoint` finds no pole.
 - `Simulates.evalK`: the circuit keeps `Option` states and skips absent ones; the
   replay sums every transition. An absent state is a zero state
   (`IsState`), and one replay step is a sum over the `4·D` digits
@@ -552,14 +552,14 @@ private theorem extInvTape {a : ExtVar} {ga : Ext} (ha : P → IsExt c n a ga) :
 
 end Simulates
 
-namespace Ensures
+namespace OldEnsures
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
 
 /-- `ext_inverse` (`record.rs:379-397`): once its check holds, the value is nonzero and the proof words are
 its inverse. -/
 private theorem extInv {a : ExtVar} {ga : Ext} (ha : P → IsExt c n a ga) :
-    Ensures c n P (Build.extInv a) (fun r m => ga ≠ 0 ∧ IsExt c m r ga.inv) :=
+    OldEnsures c n P (Build.extInv a) (fun r m => ga ≠ 0 ∧ IsExt c m r ga.inv) :=
   (Simulates.extInvTape ha).ensures.post fun _ r m h => by
     obtain ⟨nz, inv⟩ := inverse_of_check h.2
     exact ⟨nz, fun k => ⟨(h.1 k).1, by rw [(h.1 k).2]; exact congrFun inv k⟩⟩
@@ -567,7 +567,7 @@ private theorem extInv {a : ExtVar} {ga : Ext} (ha : P → IsExt c n a ga) :
 /-- `scaled_eq_point` (`mle.rs:21-34`): once each inverse checks, no denominator is a pole, the replay returns
 `κ` and the point, and the handles hold them. -/
 theorem scaledEqPoint {cv : ExtVar} {gc : Ext} (bits : ℕ) (hc : P → IsExt c n cv gc) :
-    Ensures c n P (Mle.scaledEqPoint cv bits)
+    OldEnsures c n P (Mle.scaledEqPoint cv bits)
       (fun res m => ∃ kappa point, Replay.scaledEqPoint gc bits = .ok (kappa, point) ∧
         IsExt c m res.1 kappa ∧ IsExts c m res.2 point) := by
   obtain ⟨sq, hsq0, hsq⟩ : ∃ sq : ℕ → Ext, sq 0 = gc ∧ ∀ t, sq (t + 1) = sq t * sq t :=
@@ -576,11 +576,11 @@ theorem scaledEqPoint {cv : ExtVar} {gc : Ext} (bits : ℕ) (hc : P → IsExt c 
   refine Simulates.extOne.ensures₀.bind fun one m₁ l₁ => ?_
   dsimp only
   rw [Std.Legacy.Range.forIn_eq_forIn_range']
-  refine ((Ensures.loop (P := P ∧ IsExt c m₁ one 1)
+  refine ((OldEnsures.loop (P := P ∧ IsExt c m₁ one 1)
     (fun k acc m => IsExt c m acc.1 (Replay.prodRange k fun t => 1 + sq t) ∧
       IsExts c m acc.2.1 ((Array.range k).map fun t => sq t * (1 + sq t).inv) ∧ IsExt c m acc.2.2 (sq k) ∧
       ∀ t < k, 1 + sq t ≠ 0)
-    fun k hk acc m lm => ?_).pre fun h => ⟨h, ?_⟩).bind fun res m₂ _ => Ensures.pure fun h => ?_
+    fun k hk acc m lm => ?_).pre fun h => ⟨h, ?_⟩).bind fun res m₂ _ => OldEnsures.pure fun h => ?_
   · refine (Simulates.extAdd (fun h => h.1.2.mono lm) fun h => h.2.2.2.1).ensures₀.bind fun d m₃ l₃ => ?_
     refine (Simulates.extMul (fun h => h.1.2.1.mono l₃) fun h => h.2).ensures₀.bind fun kappa m₄ l₄ => ?_
     refine (extInv fun h => h.1.2.mono l₄).bind fun inv m₅ l₅ => ?_
@@ -588,7 +588,7 @@ theorem scaledEqPoint {cv : ExtVar} {gc : Ext} (bits : ℕ) (hc : P → IsExt c 
       fun x m₆ l₆ => ?_
     refine (Simulates.extMul (fun h => h.1.1.1.1.2.2.2.1.mono (l₃.trans (l₄.trans (l₅.trans l₆))))
       fun h => h.1.1.1.1.2.2.2.1.mono (l₃.trans (l₄.trans (l₅.trans l₆)))).ensures₀.bind fun power m₇ l₇ =>
-      Ensures.pure fun h => ⟨rfl, ?_, ?_, ?_, ?_⟩
+      OldEnsures.pure fun h => ⟨rfl, ?_, ?_, ?_, ?_⟩
     · rw [prodRange_succ]
       exact h.1.1.1.2.mono (l₅.trans (l₆.trans l₇))
     · rw [map_range_succ]
@@ -605,7 +605,7 @@ theorem scaledEqPoint {cv : ExtVar} {gc : Ext} (bits : ℕ) (hc : P → IsExt c 
     rw [len] at h
     exact ⟨_, _, by rw [← hsq0]; exact scaledEqPoint_eq bits sq hsq h.2.2.2.2, h.2.1, h.2.2.1⟩
 
-end Ensures
+end OldEnsures
 
 /-! ## Eval_K -/
 

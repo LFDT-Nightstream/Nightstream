@@ -9,11 +9,11 @@ simulated against the replay's (`Ports/Replay/Stages.lean`). The stage lemmas gi
 stage. The replay's runs give what later stages read: the early values, the sizes
 of the run, lane and block points, `τ`'s lanes and the queried values.
 
-`Ensures` also fixes the instructions, which do not depend on replay values. So a
+`OldEnsures` also fixes the instructions, which do not depend on replay values. So a
 fact that only the precondition gives (the statement's fit, the proof's shape, the
 point sizes) serves as a plain premise of a stage lemma, and one run at values that
 have it (zeros of the relation's shape, or an empty point) gives the instructions
-(`Ensures.under`). `runs_observe3` and `isDuplex_mk` state the steps that observe
+(`OldEnsures.under`). `runs_observe3` and `isDuplex_mk` state the steps that observe
 the relation words on abstract words, so that no check evaluates those words.
 -/
 
@@ -349,7 +349,7 @@ private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey} (circuit : 
     {st : Replay.Statement} {g : Replay.Proof} (hp : Permutes c.perm)
     (fits : st.fits rel = true) (read : Replay.readProof rel g = .ok ())
     (h : P → IsDigest c n seed seedWords ∧ IsClaim c n statement st ∧ IsProof c w n proof g) :
-    Ensures c n P (verify rel p1Key p0Key seed statement proof)
+    OldEnsures c n P (verify rel p1Key p0Key seed statement proof)
       (fun _ _ => ∃ points t', Runs (Replay.verify rel seedWords st g) ⟨Replay.Duplex.new, #[]⟩ points t') := by
   obtain ⟨-, -, -, root, short, k1, k0, hp1, hp1count, hp0⟩ := circuit
   have long := relation.bits.long
@@ -357,29 +357,29 @@ private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey} (circuit : 
   have shape := Bridge.readProof_ok read
   obtain ⟨r1, r0⟩ := readProof_openings read
   unfold verify
-  refine Ensures.bind Simulates.duplexNew.ensures fun duplex m₀ l₀ => ?_
-  refine Ensures.bind (Q := fun _ _ => ∃ points t', Runs (Replay.verify rel seedWords st g)
-    ⟨Replay.Duplex.new, #[]⟩ points t') ?_ fun _ _ _ => Ensures.pure fun H => H.2
-  refine Ensures.tbind (Simulates.observeSlice hp (fun H => H.2.1)
+  refine OldEnsures.bind Simulates.duplexNew.ensures fun duplex m₀ l₀ => ?_
+  refine OldEnsures.bind (Q := fun _ _ => ∃ points t', Runs (Replay.verify rel seedWords st g)
+    ⟨Replay.Duplex.new, #[]⟩ points t') ?_ fun _ _ _ => OldEnsures.pure fun H => H.2
+  refine OldEnsures.tbind (Simulates.observeSlice hp (fun H => H.2.1)
     fun H => IsWords.ofFn (h H.1).1.1 fun lane => ((h H.1).1.2 lane).mono l₀).ensures fun _ d₁ m₁ l₁ => ?_
-  refine Ensures.tbind (Simulates.observeConstants rel.words hp fun H => H.2.1).ensures fun _ d₂ m₂ l₂ => ?_
-  refine Ensures.tbind (Simulates.observeSlice hp (fun H => H.2.1)
+  refine OldEnsures.tbind (Simulates.observeConstants rel.words hp fun H => H.2.1).ensures fun _ d₂ m₂ l₂ => ?_
+  refine OldEnsures.tbind (Simulates.observeSlice hp (fun H => H.2.1)
     fun H => ((h H.1.1.1).2.1.mono (l₀.trans (l₁.trans l₂))).words).ensures fun _ d₃ m₃ l₃ => ?_
   have pf : P → IsProof c w n proof g := fun H => (h H).2.2
   have L₃ : n ≤ m₃ := l₀.trans (l₁.trans (l₂.trans l₃))
-  refine Ensures.tbind (earlyStage_ensures (t := ⟨Array.foldl Replay.Duplex.observe (Array.foldl Replay.Duplex.observe
+  refine OldEnsures.tbind (earlyStage_ensures (t := ⟨Array.foldl Replay.Duplex.observe (Array.foldl Replay.Duplex.observe
       (Array.foldl Replay.Duplex.observe Replay.Duplex.new seedWords) rel.words) st.words, #[]⟩) hp
     (fun H => isDuplex_mk H.2.1)
     (fun H => ((h H.1.1.1.1).2.1.mono L₃).point) (fun H => (pf H.1.1.1.1).mono L₃) read) fun early d₄ m₄ l₄ => ?_
-  refine Ensures.witness (A := fun out : Replay.EarlyOut => out.openings.runPoint.size ≤ rel.setupVars)
+  refine OldEnsures.witness (A := fun out : Replay.EarlyOut => out.openings.runPoint.size ≤ rel.setupVars)
     ⟨⟨0, (0, 0), (0, 0)⟩, ⟨#[], #[], #[], #[], #[]⟩, ⟨0, 0, 0, #[], 0⟩, 0, ⟨#[], #[], #[], 0, 0, 0, 0⟩⟩
     (Nat.zero_le _) (fun out ⟨_, run, _⟩ => by
       rw [(early_run read run).2, Relation.setupVars]
       omega) fun eout runSize => ?_
-  refine Ensures.exists_and ⟨Replay.Duplex.new, #[]⟩ fun t₁ => ?_
+  refine OldEnsures.exists_and ⟨Replay.Duplex.new, #[]⟩ fun t₁ => ?_
   have L₄ : n ≤ m₄ := L₃.trans l₄
-  refine Ensures.pre (P' := P ∧ _) ?_ fun H => ⟨H.1.1.1.1.1, H.2⟩
-  refine Ensures.tbind (linearStage_ensures (t := t₁) hp (fun H => H.2.2.2) fits (fun H => (h H.1).2.1.mono L₄)
+  refine OldEnsures.pre (P' := P ∧ _) ?_ fun H => ⟨H.1.1.1.1.1, H.2⟩
+  refine OldEnsures.tbind (linearStage_ensures (t := t₁) hp (fun H => H.2.2.2) fits (fun H => (h H.1).2.1.mono L₄)
     (fun H => by
       obtain ⟨-, -, -, -, -, -, quotient, -⟩ := pf H.1
       exact quotient.mono L₄)
@@ -392,16 +392,16 @@ private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey} (circuit : 
       exact finals.mono L₄)
     (fun _ => shape.linear) (fun _ m hm => by rw [shape.rounds m (Array.mem_toList_iff.mpr hm)]; omega)
     (fun _ => shape.finals) long) fun lin d₅ m₅ l₅ => ?_
-  refine Ensures.witness (A := fun out : Replay.LinearOut => (out.lanePoint ++ out.blockPoint).size ≤ rel.setupVars)
+  refine OldEnsures.witness (A := fun out : Replay.LinearOut => (out.lanePoint ++ out.blockPoint).size ≤ rel.setupVars)
     ⟨0, 0, #[], 0, #[], 0, 0, 0, 0, #[], ⟨0, 0, 0⟩, #[]⟩ (Nat.zero_le _) (fun out ⟨_, run, _⟩ => by
       obtain ⟨-, -, lane, block⟩ := linear_run read run
       rw [Array.size_append, lane, block, Relation.setupVars, Relation.cubeVars]
       omega) fun lout keySize => ?_
-  refine Ensures.exists_and t₁ fun t₂ => ?_
+  refine OldEnsures.exists_and t₁ fun t₂ => ?_
   have L₅ : n ≤ m₅ := L₄.trans l₅
-  refine Ensures.pre (P' := P ∧ (_ ∧ IsEarlyOut c m₅ early eout) ∧ _) ?_
+  refine OldEnsures.pre (P' := P ∧ (_ ∧ IsEarlyOut c m₅ early eout) ∧ _) ?_
     fun H => ⟨H.1.1, ⟨H.1.2.1, H.1.2.2.1.mono l₅⟩, H.2⟩
-  refine Ensures.tbind (honestStage_ensures (t := t₂) (proof := g) (early := eout) (lin := lout) hp
+  refine OldEnsures.tbind (honestStage_ensures (t := t₂) (proof := g) (early := eout) (lin := lout) hp
     (fun H => H.2.2.2.2)
     (fun H => by obtain ⟨-, -, -, lane, -⟩ := H.2.2.2.1; exact lane)
     (fun H => by obtain ⟨-, -, block, -⟩ := H.2.2.2.1; exact block)
@@ -442,12 +442,12 @@ private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey} (circuit : 
         rw [getElem!_pos _ k hk]
         exact (pget k hk).mono L₅⟩)
     keySize runSize root small) fun honest d₆ m₆ l₆ => ?_
-  refine Ensures.exists_and (⟨0, #[], #[], #[], #[]⟩ : Replay.HonestOut) fun hout => ?_
-  refine Ensures.exists_and t₂ fun t₃ => ?_
+  refine OldEnsures.exists_and (⟨0, #[], #[], #[], #[]⟩ : Replay.HonestOut) fun hout => ?_
+  refine OldEnsures.exists_and t₂ fun t₃ => ?_
   have L₆ : n ≤ m₆ := L₅.trans l₆
-  refine Ensures.pre (P' := P ∧ (_ ∧ IsEarlyOut c m₆ early eout) ∧ (_ ∧ IsLinearOut c m₆ rel lin lout) ∧ _) ?_
+  refine OldEnsures.pre (P' := P ∧ (_ ∧ IsEarlyOut c m₆ early eout) ∧ (_ ∧ IsLinearOut c m₆ rel lin lout) ∧ _) ?_
     fun H => ⟨H.1.1, ⟨H.1.2.1.1, H.1.2.1.2.mono l₆⟩, ⟨H.1.2.2.1, H.1.2.2.2.1.mono l₆⟩, H.2⟩
-  refine Ensures.tbind (lateStage_ensures (t := t₃) (proof := g) (lin := lout) hp (fun H => H.2.2.2.2.2)
+  refine OldEnsures.tbind (lateStage_ensures (t := t₃) (proof := g) (lin := lout) hp (fun H => H.2.2.2.2.2)
     (fun H => by obtain ⟨-, tau, -⟩ := H.2.2.1.2; exact tau)
     (fun H => (linear_run read H.2.2.1.1).2.1)
     (fun H => by
@@ -464,15 +464,15 @@ private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey} (circuit : 
       obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, -, values, -⟩ := pf H.1
       exact values.imp fun _ _ x => x.mono L₆)
     read short named) fun late d₇ m₇ l₇ => ?_
-  refine Ensures.exists_and (⟨0, ⟨#[], #[], #[], #[], #[]⟩, #[], ⟨#[], 0, #[], 0⟩⟩ : Replay.LateOut)
+  refine OldEnsures.exists_and (⟨0, ⟨#[], #[], #[], #[], #[]⟩, #[], ⟨#[], 0, #[], 0⟩⟩ : Replay.LateOut)
     fun lateOut => ?_
-  refine Ensures.exists_and t₃ fun t₄ => ?_
+  refine OldEnsures.exists_and t₃ fun t₄ => ?_
   have L₇ : n ≤ m₇ := L₆.trans l₇
-  refine Ensures.pre (P' := P ∧ (_ ∧ IsEarlyOut c m₇ early eout) ∧ (_ ∧ IsLinearOut c m₇ rel lin lout) ∧
+  refine OldEnsures.pre (P' := P ∧ (_ ∧ IsEarlyOut c m₇ early eout) ∧ (_ ∧ IsLinearOut c m₇ rel lin lout) ∧
     (_ ∧ IsHonestOut c m₇ rel eout lout honest hout) ∧ _) ?_
     fun H => ⟨H.1.1, ⟨H.1.2.1.1, H.1.2.1.2.mono l₇⟩, ⟨H.1.2.2.1.1, H.1.2.2.1.2.mono l₇⟩,
       ⟨H.1.2.2.2.1, H.1.2.2.2.2.1.mono l₇⟩, H.2⟩
-  refine Ensures.tbind (Ensures.lift (Simulates.mapM (R := fun _ _ _ => True) (fun _ _ _ _ _ _ => trivial)
+  refine OldEnsures.tbind (OldEnsures.lift (Simulates.mapM (R := fun _ _ _ => True) (fun _ _ _ _ _ _ => trivial)
     fun x hx m lm => by
       obtain ⟨q, hq, rfl⟩ := Array.mem_iff_getElem.mp hx
       refine (Simulates.queryPoint (index := hout.queries[q]!) (fun H => ?_) fun H => ?_).post
@@ -487,7 +487,7 @@ private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey} (circuit : 
         have word := ((bits q hq).2 i (size ▸ hi)).mono lm
         rwa [getElem!_pos _ q hq] at word).ensures) fun _ d₈ m₈ l₈ => ?_
   have L₈ : n ≤ m₈ := L₇.trans l₈
-  refine Ensures.pre (P' := P ∧ (_ ∧ IsEarlyOut c m₈ early eout) ∧ (_ ∧ IsLinearOut c m₈ rel lin lout) ∧
+  refine OldEnsures.pre (P' := P ∧ (_ ∧ IsEarlyOut c m₈ early eout) ∧ (_ ∧ IsLinearOut c m₈ rel lin lout) ∧
     (_ ∧ IsHonestOut c m₈ rel eout lout honest hout) ∧ (_ ∧ IsLateOut c m₈ late lateOut ∧ _) ∧
     IsDuplex c m₈ d₈ t₄.duplex) ?_ fun H =>
       ⟨H.1.1, ⟨H.1.2.1.1, H.1.2.1.2.mono l₈⟩, ⟨H.1.2.2.1.1, H.1.2.2.1.2.mono l₈⟩,
@@ -554,9 +554,9 @@ theorem verify_ensures [CharP F goldilocksModulus] {key : Layer1Input}
     {seedWords : Array Word} {st : Replay.Statement} {g : Replay.Proof} (hp : Permutes c.perm)
     (h : P → Decodes c w ∧ IsDigest c n seed seedWords ∧ IsClaim c n statement st ∧ st.fits key.relation = true ∧
       IsProof c w n proof g ∧ Replay.readProof key.relation g = .ok ()) :
-    Ensures c n P (verify key.relation key.p1Key key.p0Key seed statement proof)
+    OldEnsures c n P (verify key.relation key.p1Key key.p0Key seed statement proof)
       (fun _ _ => ∃ points t', Runs (Replay.verify key.relation seedWords st g) ⟨Replay.Duplex.new, #[]⟩ points t') :=
-  Ensures.under (A := st.fits key.relation = true ∧ Replay.readProof key.relation g = .ok ())
+  OldEnsures.under (A := st.fits key.relation = true ∧ Replay.readProof key.relation g = .ok ())
     (verify_core (P := False) (w := w) (seedWords := #[]) circuit relation named hp (fits_zero _)
       (readProof_zero circuit.run circuit.row circuit.slot) False.elim)
     (fun H => ⟨(h H).2.2.2.1, (h H).2.2.2.2.2⟩) fun ⟨fits, read⟩ =>

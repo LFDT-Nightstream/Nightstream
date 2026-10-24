@@ -21,7 +21,7 @@ hold the output values of that assignment.
 - `terminalPrefix_ensures`: when the first nine values are the statement
   words (`ReadsStatement`), an accepting run of `terminalPrefix` meets
   `Handoff`. `finalProgram_exec` proves those values from the run of the
-  final program, for a layer 1 that has its own `Ensures` lemma.
+  final program, for a layer 1 that has its own `OldEnsures` lemma.
 
 Does not own layer 1 or the meaning of the rows (`Terminal/Soundness.lean`).
 -/
@@ -108,7 +108,7 @@ variable {c : Ctx NightstreamFPrime.Spec.F} {n : ℕ} {P : Prop}
 
 /-- The nine `public` words, simulated (`terminal/mod.rs:55-59`). -/
 theorem statementHandles_ensures :
-    Ensures c n P statementHandles (fun s m => s = (List.range' n 9).toArray ∧ m = n + 9) := by
+    OldEnsures c n P statementHandles (fun s m => s = (List.range' n 9).toArray ∧ m = n + 9) := by
   intro p E hp hE
   refine ⟨List.replicate 9 .pub, by rw [statementHandles_run]; rfl, ?_, fun _ _ _ => ?_⟩
   · obtain ⟨more, hm, hl⟩ := c.steps_values (List.replicate 9 .pub) E
@@ -559,7 +559,7 @@ theorem apply_ensures
       Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
     {statement : Array Var} {n : ℕ}
     (hP : P → statement = (List.range' 0 9).toArray ∧ 9 ≤ n ∧ ReadsStatement c ∧ statementOf c 0 ≠ 0) :
-    Ensures c n P (apply loaded statement context) (Handoff c authority) := by
+    OldEnsures c n P (apply loaded statement context) (Handoff c authority) := by
   have hs : P → ∀ j, statement.getD j 0 < n := fun h j => by
     obtain ⟨e, le, -⟩ := hP h
     rw [e, range_getD]
@@ -575,7 +575,7 @@ theorem apply_ensures
       fun h i e => lt_of_lt_of_le (Nat.add_lt_add_left (computed_lt loads x mem i e) computed)
         (h.2.1.trans le')).ensures.bind fun columns m₂ le₂ => ?_
   refine (Simulates.r1cs (rows := loaded.system.toList) fun h => columns_lt h.2.1).ensures.bind fun _ m₃ le₃ => ?_
-  refine Ensures.pure fun h => ?_
+  refine OldEnsures.pure fun h => ?_
   obtain ⟨⟨⟨hP', -, -⟩, cols, -⟩, -, rows⟩ := h
   obtain ⟨hstmt, -, reads, nz⟩ := hP hP'
   replace cols := cols.imp fun _ _ hold => hold.mono le₃
@@ -625,7 +625,7 @@ theorem checkedApply_ensures
       Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
     {statement : Array Var} {n : ℕ}
     (hP : P → statement = (List.range' 0 9).toArray ∧ 9 ≤ n ∧ ReadsStatement c) :
-    Ensures c n P (checkedApply loaded context statement) (Handoff c authority) := by
+    OldEnsures c n P (checkedApply loaded context statement) (Handoff c authority) := by
   have zero : P → statement.getD 0 0 = 0 := fun h => by rw [(hP h).1, range_getD]; rfl
   unfold checkedApply
   refine (Simulates.emit (Q := fun h m => h < m) (C := True) (.hint 1) fun _ E hl hF =>
@@ -656,11 +656,11 @@ theorem terminalPrefix_ensures
     (hctx : ∀ lane : Fin 4,
       Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
     (reads : P → ReadsStatement c) :
-    Ensures c 0 P (terminalPrefix loaded context) (Handoff c authority) :=
+    OldEnsures c 0 P (terminalPrefix loaded context) (Handoff c authority) :=
   statementHandles_ensures.bind fun _ _ _ =>
     checkedApply_ensures loads valid hctx fun h => ⟨h.2.1, by rw [h.2.2], reads h.1⟩
 
-/-- `FinalProgram::run` with a layer 1 that has its own `Ensures` lemma
+/-- `FinalProgram::run` with a layer 1 that has its own `OldEnsures` lemma
 from `Handoff` (`terminal/mod.rs:54-80`). -/
 theorem finalProgram_ensures {α : Type} {layer1 : ClaimVars → (Fin 16 → Var) → Build α}
     {R : α → ℕ → Prop}
@@ -669,8 +669,8 @@ theorem finalProgram_ensures {α : Type} {layer1 : ClaimVars → (Fin 16 → Var
     (hctx : ∀ lane : Fin 4,
       Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
     (reads : P → ReadsStatement c)
-    (hlayer1 : ∀ r m, Ensures c m (P ∧ Handoff c authority r m) (layer1 r.1 r.2) R) :
-    Ensures c 0 P (finalProgram loaded context layer1) R := by
+    (hlayer1 : ∀ r m, OldEnsures c m (P ∧ Handoff c authority r m) (layer1 r.1 r.2) R) :
+    OldEnsures c 0 P (finalProgram loaded context layer1) R := by
   rw [finalProgram_eq]
   exact (terminalPrefix_ensures loads valid hctx reads).bind fun r m _ => hlayer1 r m
 
@@ -683,11 +683,11 @@ theorem finalProgram_exec {α : Type} {layer1 : ClaimVars → (Fin 16 → Var) �
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
       Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
-    (hlayer1 : ∀ r m, Ensures c m (P ∧ Handoff c authority r m) (layer1 r.1 r.2) R) (hP : P)
+    (hlayer1 : ∀ r m, OldEnsures c m (P ∧ Handoff c authority r m) (layer1 r.1 r.2) R) (hP : P)
     (hval : c.val = (Exec.run c.perm c.stmt c.tape (finalProgram loaded context layer1).program).value)
     (accepts : Exec c.perm (finalProgram loaded context layer1).program c.stmt c.tape) :
     R ((finalProgram loaded context layer1).run {}).1 ((finalProgram loaded context layer1).run {}).2.values := by
-  have tail : Ensures c 9 (P ∧ ReadsStatement c)
+  have tail : OldEnsures c 9 (P ∧ ReadsStatement c)
       (checkedApply loaded context (List.range' 0 9).toArray >>= fun r => layer1 r.1 r.2) R :=
     (checkedApply_ensures loads valid hctx fun h => ⟨rfl, le_rfl, h.2⟩).bind fun r m _ =>
       (hlayer1 r m).pre fun h => ⟨h.1.1, h.2⟩

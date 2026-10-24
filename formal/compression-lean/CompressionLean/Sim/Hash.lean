@@ -12,7 +12,7 @@ Merkle paths.
 - `IsDuplex`: the builder's duplex is the replay's, lane by lane.
 - `bits_digits`: a decomposition that passes the 64-bit check is the binary
   one. So once its check holds, `sampleBits` gives the sample's digits
-  (`Ensures`).
+  (`OldEnsures`).
 -/
 
 namespace CompressionLean.Sim
@@ -480,15 +480,15 @@ theorem sampleExt {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : 
 decomposition's check holds, bit `i` is digit `i` of the sample. -/
 theorem sampleBits {d : Duplex} {r : Replay.Duplex} (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm)
     (hd : P → IsDuplex c n d r) :
-    Ensures c n P ((Duplex.sampleBits bits).run d)
+    OldEnsures c n P ((Duplex.sampleBits bits).run d)
       (fun res m => res.1.size = bits ∧ (∀ i < bits, IsWord c m res.1[i]! (Word.ofNat (r.sample.1.toNat / 2 ^ i % 2))) ∧
         IsDuplex c m res.2 r.sample.2) := by
   unfold Duplex.sampleBits
-  refine Ensures.tbind (sample hp hd).ensures fun w e m₁ _ => ?_
+  refine OldEnsures.tbind (sample hp hd).ensures fun w e m₁ _ => ?_
   rw [StateT.run_bind]
-  refine (Ensures.lift (Simulates.bits 64 fun h => h.2.1.1).ensures).bind fun res m₂ l₂ => ?_
+  refine (OldEnsures.lift (Simulates.bits 64 fun h => h.2.1.1).ensures).bind fun res m₂ l₂ => ?_
   rw [StateT.run_pure]
-  refine Ensures.pure fun h => ?_
+  refine OldEnsures.pure fun h => ?_
   obtain ⟨⟨-, ⟨-, hd'⟩, -⟩, ⟨cells, check⟩, he⟩ := h
   refine ⟨by simp [small], fun i hi => ?_, he ▸ hd'.mono l₂⟩
   have get : ((Array.ofFn res.1).extract 0 bits)[i]! = res.1 ⟨i, by omega⟩ := by

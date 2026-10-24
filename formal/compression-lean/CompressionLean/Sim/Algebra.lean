@@ -169,7 +169,7 @@ namespace IsExts
 
 variable {c : Ctx F} {n : ℕ} {xs : Array ExtVar} {gs : Array Ext}
 
-theorem mono (h : IsExts c n xs gs) {m : ℕ} (le : n ≤ m) : IsExts c m xs gs :=
+theorem mono (h : IsExts c n xs gs) {m : ℕ} (le : n ≤ m := by omega) : IsExts c m xs gs :=
   ⟨h.1, fun i hi => (h.2 i hi).mono le⟩
 
 /-- Entry `i`. -/
@@ -199,10 +199,454 @@ end IsExts
 /-- The two parts of a `K ⊗ Ext` value. -/
 def IsKx (c : Ctx F) (n : ℕ) (a : KxVar) (v : Replay.Kx) : Prop := IsExt c n a.re v.re ∧ IsExt c n a.im v.im
 
-theorem IsKx.mono {c : Ctx F} {n m : ℕ} {a : KxVar} {v : Replay.Kx} (h : IsKx c n a v) (le : n ≤ m) : IsKx c m a v :=
+theorem IsKx.mono {c : Ctx F} {n m : ℕ} {a : KxVar} {v : Replay.Kx} (h : IsKx c n a v) (le : n ≤ m := by omega) :
+    IsKx c m a v :=
   ⟨h.1.mono le, h.2.mono le⟩
 
 /-! ## Programs -/
+
+instance extConstant_appends (e : Ext) : Appends (Algebra.extConstant e) := by
+  unfold Algebra.extConstant Build.extConstant; appends
+instance extZero_appends : Appends Algebra.extZero := extConstant_appends _
+instance extOne_appends : Appends Algebra.extOne := extConstant_appends _
+instance privateExt_appends : Appends Algebra.privateExt := by unfold Algebra.privateExt; appends
+instance lift_appends (a : Var) : Appends (Algebra.lift a) := by unfold Algebra.lift; appends
+instance extScaleConstant_appends (a : ExtVar) (g : Word) : Appends (Algebra.extScaleConstant a g) := by
+  unfold Algebra.extScaleConstant; appends
+instance oneMinus_appends (a : ExtVar) : Appends (Algebra.oneMinus a) := by unfold Algebra.oneMinus; appends
+instance eq1_appends (a b : ExtVar) : Appends (Algebra.eq1 a b) := by unfold Algebra.eq1; appends
+instance dot_appends (x y : Array ExtVar) : Appends (Algebra.dot x y) := by unfold Algebra.dot; appends
+instance eqEval_appends (x y : Array ExtVar) : Appends (Algebra.eqEval x y) := by unfold Algebra.eqEval; appends
+instance eqAt_appends (point : Array ExtVar) (index : ℕ) : Appends (Algebra.eqAt point index) := by
+  unfold Algebra.eqAt; appends
+instance eqTable_appends (point : Array ExtVar) : Appends (Algebra.eqTable point) := by
+  unfold Algebra.eqTable; appends
+instance interpolate_appends (values : Array ExtVar) (x : ExtVar) : Appends (Algebra.interpolate values x) := by
+  unfold Algebra.interpolate; appends
+instance horner_appends (coefficients : Array ExtVar) (x : ExtVar) : Appends (Algebra.horner coefficients x) := by
+  unfold Algebra.horner; appends
+instance powerFromBits_appends (g : Word) (bits : Array Var) : Appends (Algebra.powerFromBits g bits) := by
+  unfold Algebra.powerFromBits; appends
+instance KxVar.zero_appends : Appends Circuit.KxVar.zero := by unfold Circuit.KxVar.zero; appends
+instance KxVar.one_appends : Appends Circuit.KxVar.one := by unfold Circuit.KxVar.one; appends
+instance KxVar.fromK_appends (a : KVar) : Appends (Circuit.KxVar.fromK a) := by unfold Circuit.KxVar.fromK; appends
+instance KxVar.add_appends (a b : KxVar) : Appends (Circuit.KxVar.add a b) := by unfold Circuit.KxVar.add; appends
+instance KxVar.mul_appends (a b : KxVar) : Appends (Circuit.KxVar.mul a b) := by unfold Circuit.KxVar.mul; appends
+instance KxVar.scale_appends (a : KxVar) (e : ExtVar) : Appends (Circuit.KxVar.scale a e) := by
+  unfold Circuit.KxVar.scale; appends
+instance KxVar.oneMinus_appends (a : KxVar) : Appends (Circuit.KxVar.oneMinus a) := by
+  unfold Circuit.KxVar.oneMinus; appends
+
+theorem ext_sub_eq_zero {a b : Ext} : a - b = 0 ↔ a = b := by
+  obtain ⟨a0, a1, a2⟩ := a
+  obtain ⟨b0, b1, b2⟩ := b
+  show (⟨a0 - b0, a1 - b1, a2 - b2⟩ : Ext) = ⟨0, 0, 0⟩ ↔ _
+  simp only [Ext.mk.injEq, gl_sub_eq_zero]
+
+section Handles
+
+variable {c : Ctx F} {n : ℕ}
+
+/-- `ext_constant`. -/
+theorem extConstant_ensures (e : Ext) : Ensures c n (Algebra.extConstant e) fun r m => IsExt c m r e := by
+  unfold Algebra.extConstant Build.extConstant
+  refine (const_ensures _).bind fun x _ _ hx => (const_ensures _).bind fun y _ _ hy =>
+    (const_ensures _).bind fun z _ _ hz => Ensures.pure ?_
+  intro k
+  fin_cases k
+  · exact hx.mono
+  · exact hy.mono
+  · exact hz
+
+theorem extZero_ensures : Ensures c n Algebra.extZero fun r m => IsExt c m r 0 := extConstant_ensures 0
+
+theorem extOne_ensures : Ensures c n Algebra.extOne fun r m => IsExt c m r 1 := extConstant_ensures 1
+
+/-- `private_ext`: three proof words, raw tape cells. -/
+theorem privateExt_ensures :
+    Ensures c n Algebra.privateExt fun r m => ∀ k : Fin 3, r k = n + k ∧ r k < m ∧ c.val (r k) = c.tape (r k) := by
+  unfold Algebra.privateExt
+  refine priv_ensures.bind fun x m₁ _ hx => priv_ensures.bind fun y m₂ _ hy =>
+    priv_ensures.bind fun z m₃ _ hz => Ensures.pure ?_
+  obtain ⟨ex, e₁, vx⟩ := hx
+  obtain ⟨ey, e₂, vy⟩ := hy
+  obtain ⟨ez, e₃, vz⟩ := hz
+  subst x m₁ y m₂ z m₃
+  intro k
+  fin_cases k
+  · exact ⟨rfl, (by omega : n < n + 1 + 1 + 1), vx⟩
+  · exact ⟨rfl, (by omega : n + 1 < n + 1 + 1 + 1), vy⟩
+  · exact ⟨rfl, (by omega : n + 1 + 1 < n + 1 + 1 + 1), vz⟩
+
+/-- `lift`: a word as an extension value. -/
+theorem lift_ensures {a : Var} {g : Word} (ha : IsWord c n a g) :
+    Ensures c n (Algebra.lift a) fun r m => IsExt c m r (Ext.ofGl g) := by
+  unfold Algebra.lift
+  refine (const_ensures 0).bind fun z _ _ hz => Ensures.pure ?_
+  intro k
+  fin_cases k
+  · exact ha.mono
+  · exact hz
+  · exact hz
+
+/-- Three coordinate calls, each of `f` at its coordinate. -/
+theorem coordinatewise_ensures {f : Var → Var → Build Var} {a b : ExtVar} {e : Ext}
+    (hf : ∀ (k : Fin 3) m, n ≤ m → Ensures c m (f (a k) (b k)) fun h m' => IsWord c m' h (e.coord k))
+    (hfa : ∀ a b, Appends (f a b) := by appends) :
+    Ensures c n (Build.coordinatewise f a b) fun r m => IsExt c m r e := by
+  unfold Build.coordinatewise
+  refine (hf 0 n le_rfl).bind (fun x m₁ l₁ hx => (hf 1 m₁ l₁).bind (fun y m₂ l₂ hy =>
+    (hf 2 m₂ (l₁.trans l₂)).bind (fun z _ _ hz => Ensures.pure ?_) (hfa _ _) fun _ => Appends.pure _)
+      (hfa _ _) fun _ => Appends.bind (hfa _ _) fun _ => Appends.pure _)
+    (hfa _ _) fun _ => Appends.bind (hfa _ _) fun _ => Appends.bind (hfa _ _) fun _ => Appends.pure _
+  intro k
+  fin_cases k
+  · exact hx.mono
+  · exact hy.mono
+  · exact hz
+
+/-- `Kx::zero`. -/
+theorem KxVar.zero_ensures : Ensures c n Circuit.KxVar.zero fun r m => IsKx c m r Replay.Kx.zero :=
+  extZero_ensures.bind fun _ _ _ h => Ensures.pure ⟨h, h⟩
+
+/-- `Kx::one`. -/
+theorem KxVar.one_ensures : Ensures c n Circuit.KxVar.one fun r m => IsKx c m r Replay.Kx.one :=
+  extOne_ensures.bind fun _ _ _ h1 => extZero_ensures.bind fun _ _ _ h0 => Ensures.pure ⟨h1.mono, h0⟩
+
+/-- `Kx::from_k`. -/
+theorem KxVar.fromK_ensures {a : KVar} {g₁ g₂ : Word} (h₁ : IsWord c n a.1 g₁) (h₂ : IsWord c n a.2 g₂) :
+    Ensures c n (Circuit.KxVar.fromK a) fun r m => IsKx c m r (Replay.Kx.ofK (g₁, g₂)) :=
+  (lift_ensures h₁).bind fun _ _ _ hre => (lift_ensures h₂.mono).bind fun _ _ _ him => Ensures.pure ⟨hre.mono, him⟩
+
+end Handles
+
+section Values
+
+variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
+
+theorem extAdd_ensures {a b : ExtVar} {ga gb : Ext} (ha : IsExt c n a ga) (hb : IsExt c n b gb) :
+    Ensures c n (Build.extAdd a b) fun r m => IsExt c m r (ga + gb) :=
+  coordinatewise_ensures fun k m le => by
+    fin_cases k
+    · exact add_ensures (ha 0).mono (hb 0).mono
+    · exact add_ensures (ha 1).mono (hb 1).mono
+    · exact add_ensures (ha 2).mono (hb 2).mono
+
+theorem extSub_ensures {a b : ExtVar} {ga gb : Ext} (ha : IsExt c n a ga) (hb : IsExt c n b gb) :
+    Ensures c n (Build.extSub a b) fun r m => IsExt c m r (ga - gb) :=
+  coordinatewise_ensures fun k m le => by
+    fin_cases k
+    · exact sub_ensures (ha 0).mono (hb 0).mono
+    · exact sub_ensures (ha 1).mono (hb 1).mono
+    · exact sub_ensures (ha 2).mono (hb 2).mono
+
+/-- `ext_scale` by a word handle. -/
+theorem extScale_ensures {a : ExtVar} {s : Var} {ga : Ext} {gs : Word} (ha : IsExt c n a ga) (hs : IsWord c n s gs) :
+    Ensures c n (Build.extScale a s) fun r m => IsExt c m r (ga.scale gs) :=
+  coordinatewise_ensures fun k m le => by
+    fin_cases k
+    · exact mul_ensures (ha 0).mono hs.mono
+    · exact mul_ensures (ha 1).mono hs.mono
+    · exact mul_ensures (ha 2).mono hs.mono
+
+/-- `ext_scale_constant`. -/
+theorem extScaleConstant_ensures {a : ExtVar} {ga : Ext} (g : Word) (ha : IsExt c n a ga) :
+    Ensures c n (Algebra.extScaleConstant a g) fun r m => IsExt c m r (ga.scale g) :=
+  (const_ensures g).bind fun _ _ _ hg => extScale_ensures ha.mono hg
+
+/-- `one_minus`. -/
+theorem oneMinus_ensures {a : ExtVar} {ga : Ext} (ha : IsExt c n a ga) :
+    Ensures c n (Algebra.oneMinus a) fun r m => IsExt c m r (Replay.oneMinus ga) :=
+  extOne_ensures.bind fun _ _ _ hone => extSub_ensures hone ha.mono
+
+/-- `eq1`: `2xy + 1 - (x + y)`. -/
+theorem eq1_ensures {a b : ExtVar} {ga gb : Ext} (ha : IsExt c n a ga) (hb : IsExt c n b gb) :
+    Ensures c n (Algebra.eq1 a b) fun r m => IsExt c m r (Replay.eq1 ga gb) := by
+  refine (extMul_ensures ha hb).bind fun both _ _ hboth => ?_
+  refine (extAdd_ensures hboth hboth).bind fun twice _ _ htwice => ?_
+  refine extOne_ensures.bind fun one _ _ hone => ?_
+  refine (extAdd_ensures htwice.mono hone).bind fun shifted _ _ hshifted => ?_
+  refine (extAdd_ensures ha.mono hb.mono).bind fun sum _ _ hsum => ?_
+  exact extSub_ensures hshifted.mono hsum
+
+/-- `select`: `whenZero + bit·(whenOne - whenZero)` is `whenOne` when the bit
+is one and `whenZero` when it is zero. -/
+theorem select_ensures {bit w₀ w₁ : Var} {b : Bool} {g₀ g₁ : Word} (hb : IsWord c n bit (if b then 1 else 0))
+    (h₀ : IsWord c n w₀ g₀) (h₁ : IsWord c n w₁ g₁) :
+    Ensures c n (Build.select bit w₀ w₁) fun r m => IsWord c m r (if b then g₁ else g₀) := by
+  refine (sub_ensures h₁ h₀).bind fun d _ _ hd => (mul_ensures hb.mono hd).bind fun t _ _ ht =>
+    (add_ensures h₀.mono ht).post fun r m hr => hr.congr ?_
+  rw [word_add, word_mul, word_sub]
+  cases b <;> simp
+
+/-- `assert_zero` on three coordinates. -/
+theorem assertExtZero_ensures {a : ExtVar} {ga : Ext} (ha : IsExt c n a ga) :
+    Ensures c n (Build.assertExtZero a) fun _ _ => ga = 0 := by
+  refine (assertZero_ensures (ha 0)).bind fun _ _ _ h0 => (assertZero_ensures (ha 1).mono).bind fun _ _ _ h1 =>
+    (assertZero_ensures (ha 2).mono).post fun _ _ h2 => ?_
+  obtain ⟨a0, a1, a2⟩ := ga
+  simp only [Ext.coord] at h0 h1 h2
+  subst h0 h1 h2
+  rfl
+
+theorem assertExtEqual_ensures {a b : ExtVar} {ga gb : Ext} (ha : IsExt c n a ga) (hb : IsExt c n b gb) :
+    Ensures c n (Build.assertExtEqual a b) fun _ _ => ga = gb :=
+  (extSub_ensures ha hb).bind fun _ _ _ hd => (assertExtZero_ensures hd).post fun _ _ h => ext_sub_eq_zero.mp h
+
+/-- `dot`. -/
+theorem dot_ensures {x y : Array ExtVar} {gx gy : Array Ext} (hx : IsExts c n x gx) (hy : IsExts c n y gy) :
+    Ensures c n (Algebra.dot x y) fun r m => IsExt c m r (Replay.dot gx gy) := by
+  unfold Algebra.dot
+  refine extZero_ensures.bind fun total _ _ hzero => ?_
+  refine (Ensures.loopArray (fun k acc m => IsExt c m acc (Replay.sumRange k fun i => gx[i]! * gy[i]!)) hzero
+    fun k hk acc m _ hacc => ?_).bind fun r m _ hr => Ensures.pure ?_
+  · have hk' : k < x.size ∧ k < y.size := by simpa using hk
+    rw [show (x.zip y)[k] = (x[k]!, y[k]!) by simp [getElem!_pos, hk'.1, hk'.2]]
+    refine (extMul_ensures (hx.2 k hk'.1).mono (hy.2 k hk'.2).mono).bind fun term _ _ hterm => ?_
+    refine (extAdd_ensures hacc.mono hterm).bind fun total' _ _ htotal => Ensures.pure ⟨rfl, ?_⟩
+    rw [sumRange_succ]
+    exact htotal
+  · rw [Array.size_zip, hx.1, hy.1] at hr
+    exact hr
+
+/-- `eq_eval`. -/
+theorem eqEval_ensures {x y : Array ExtVar} {gx gy : Array Ext} (hx : IsExts c n x gx) (hy : IsExts c n y gy) :
+    Ensures c n (Algebra.eqEval x y) fun r m => IsExt c m r (Replay.eqEval gx gy) := by
+  unfold Algebra.eqEval
+  refine extOne_ensures.bind fun total _ _ hone => ?_
+  refine (Ensures.loopArray (fun k acc m => IsExt c m acc (Replay.prodRange k fun i => Replay.eq1 gx[i]! gy[i]!))
+    hone fun k hk acc m _ hacc => ?_).bind fun r m _ hr => Ensures.pure ?_
+  · have hk' : k < x.size ∧ k < y.size := by simpa using hk
+    rw [show (x.zip y)[k] = (x[k]!, y[k]!) by simp [getElem!_pos, hk'.1, hk'.2]]
+    refine (eq1_ensures (hx.2 k hk'.1).mono (hy.2 k hk'.2).mono).bind fun factor _ _ hfactor => ?_
+    refine (extMul_ensures hacc.mono hfactor).bind fun total' _ _ htotal => Ensures.pure ⟨rfl, ?_⟩
+    rw [prodRange_succ]
+    exact htotal
+  · rw [Array.size_zip, hx.1, hy.1] at hr
+    rw [Replay.eqEval, eqEvalList_eq, Array.length_toList, Array.length_toList]
+    simpa only [Array.getElem!_toList] using hr
+
+/-- `eq_at`. -/
+theorem eqAt_ensures {point : Array ExtVar} {gpoint : Array Ext} (index : ℕ) (hp : IsExts c n point gpoint) :
+    Ensures c n (Algebra.eqAt point index) fun r m => IsExt c m r (Replay.eqAt gpoint index) := by
+  unfold Algebra.eqAt
+  refine extOne_ensures.bind fun total _ _ hone => ?_
+  refine (Ensures.loopArray (fun k acc m => IsExt c m acc
+      (Replay.prodRange k fun t => if index.testBit t then gpoint[t]! else Replay.oneMinus gpoint[t]!)) hone
+    fun k hk acc m _ hacc => ?_).bind fun r m _ hr => Ensures.pure ?_
+  · have hk' : k < point.size := by simpa using hk
+    rw [show point.zipIdx[k] = (point[k]!, k) by simp [getElem!_pos, hk']]
+    dsimp only
+    split
+    · rename_i hb
+      rw [pure_bind]
+      exact (extMul_ensures hacc (hp.2 k hk').mono).bind fun total' _ _ htotal =>
+        Ensures.pure ⟨rfl, by rw [prodRange_succ, if_pos hb]; exact htotal⟩
+    · rename_i hb
+      exact (oneMinus_ensures (hp.2 k hk').mono).bind fun factor _ _ hfactor =>
+        (extMul_ensures hacc.mono hfactor).bind fun total' _ _ htotal =>
+        Ensures.pure ⟨rfl, by rw [prodRange_succ, if_neg hb]; exact htotal⟩
+  · rw [Array.size_zipIdx, hp.1] at hr
+    rw [eqAt_eq]
+    exact hr
+
+/-- `horner`. -/
+theorem horner_ensures {coefficients : Array ExtVar} {x : ExtVar} {gcoefficients : Array Ext} {gx : Ext}
+    (hc : IsExts c n coefficients gcoefficients) (hx : IsExt c n x gx) :
+    Ensures c n (Algebra.horner coefficients x) fun r m => IsExt c m r (Replay.horner gcoefficients gx) := by
+  unfold Algebra.horner
+  refine extZero_ensures.bind fun total _ _ hzero => ?_
+  refine (Ensures.loopArray
+    (fun k acc m => IsExt c m acc ((gcoefficients.reverse.toList.take k).foldl (fun t c => t * gx + c) 0)) hzero
+    fun k hk acc m _ hacc => ?_).bind fun r m _ hr => Ensures.pure ?_
+  · have hcoef : IsExt c n coefficients.reverse[k] gcoefficients.reverse[k]! := by
+      have := hc.reverse.2 k hk
+      rwa [getElem!_pos coefficients.reverse k hk] at this
+    refine (extMul_ensures hacc hx.mono).bind fun scaled _ _ hscaled => ?_
+    refine (extAdd_ensures hscaled hcoef.mono).bind fun total' _ _ htotal => Ensures.pure ⟨rfl, ?_⟩
+    have hk' : k < gcoefficients.reverse.toList.length := by simpa [← hc.1] using hk
+    rw [List.take_succ_eq_append_getElem hk', List.foldl_append, List.foldl_cons, List.foldl_nil,
+      Array.getElem_toList, ← getElem!_pos]
+    exact htotal
+  · rw [List.take_of_length_le (by simp [hc.1])] at hr
+    rw [Replay.horner, Array.foldr_eq_foldl_reverse, ← Array.foldl_toList]
+    exact hr
+
+/-- `power_from_bits`: bit `i` of `index` selects `generator^(2^i)`. -/
+theorem powerFromBits_ensures (generator : Word) {bits : Array Var} (index : ℕ)
+    (hb : ∀ i < bits.size, IsWord c n bits[i]! (Word.ofNat (index / 2 ^ i % 2))) :
+    Ensures c n (Algebra.powerFromBits generator bits)
+      fun r m => IsWord c m r (Replay.powerFromBits generator index bits.size) := by
+  unfold Algebra.powerFromBits
+  refine (const_ensures 1).bind fun total _ _ hone => ?_
+  refine (Ensures.loopArray (fun k acc m => IsWord c m acc.1 (Replay.powerFromBits generator index k) ∧
+      acc.2 = (fun g : Word => g * g)^[k] generator) ⟨hone, rfl⟩
+    fun k hk acc m _ hacc => ?_).bind fun r m _ hr => Ensures.pure hr.1
+  obtain ⟨htotal, hbase⟩ := hacc
+  have hbit : IsWord c n bits[k] (Word.ofNat (index / 2 ^ k % 2)) := by
+    have := hb k hk
+    rwa [getElem!_pos bits k hk] at this
+  refine (const_ensures 1).bind fun one _ _ hone' => ?_
+  refine (scale_ensures (acc.2 - 1) hbit.mono).bind fun fm _ _ hfm => ?_
+  refine (add_ensures hone'.mono hfm).bind fun factor _ _ hfactor => ?_
+  refine (mul_ensures htotal.mono hfactor).bind fun total' _ _ htotal' => Ensures.pure ⟨rfl, ?_, ?_⟩
+  · have e : Replay.powerFromBits generator index k * (1 + Word.ofNat (index / 2 ^ k % 2) * (acc.2 - 1)) =
+        Replay.powerFromBits generator index (k + 1) := by
+      have select : 1 + Word.ofNat (index / 2 ^ k % 2) * (acc.2 - 1) =
+          if index / 2 ^ k % 2 = 1 then acc.2 else 1 := by
+        apply Word.eq_of_toF
+        rcases Nat.mod_two_eq_zero_or_one (index / 2 ^ k) with hb | hb <;>
+          simp [hb, Word.toF_add, Word.toF_mul, Word.toF_sub, Word.toF_ofNat]
+      rw [select, powerFromBits_succ, hbase]
+    exact e ▸ htotal'
+  · rw [hbase, Function.iterate_succ_apply']
+    rfl
+
+/-- `interpolate`. -/
+theorem interpolate_ensures {values : Array ExtVar} {x : ExtVar} {gvalues : Array Ext} {gx : Ext}
+    (hv : IsExts c n values gvalues) (hx : IsExt c n x gx) :
+    Ensures c n (Algebra.interpolate values x) fun r m => IsExt c m r (Replay.interpolate gvalues gx) := by
+  unfold Algebra.interpolate
+  dsimp only
+  refine extZero_ensures.bind fun total _ _ hzero => ?_
+  refine (Ensures.loopArray (fun k acc m => IsExt c m acc (Replay.sumRange k fun i =>
+      gvalues[i]! * (Replay.prodRange gvalues.size fun j => if i = j then 1 else gx - Ext.ofGl (Word.ofNat j)).scale
+        (Replay.prodRangeGl gvalues.size fun j => if i = j then 1 else Word.ofNat i - Word.ofNat j).inv)) hzero
+    fun k hk acc m _ hacc => ?_).bind fun r m _ hr => Ensures.pure ?_
+  · have hk' : k < values.size := by simpa using hk
+    rw [show values.zipIdx[k] = (values[k]!, k) by simp [getElem!_pos, hk']]
+    dsimp only
+    refine extOne_ensures.bind fun numerator _ _ hone => ?_
+    rw [Std.Legacy.Range.forIn_eq_forIn_range', ← List.forIn_toArray]
+    refine (Ensures.loopArray
+      (fun j acc' m' =>
+        IsExt c m' acc'.1 (Replay.prodRange j fun j => if k = j then 1 else gx - Ext.ofGl (Word.ofNat j)) ∧
+        acc'.2 = Replay.prodRangeGl j fun j => if k = j then 1 else Word.ofNat k - Word.ofNat j) ⟨hone, rfl⟩
+      fun j hj acc' m' _ hacc' => ?_).bind fun r' _ _ hr' => ?_
+    · obtain ⟨hnum, hden⟩ := hacc'
+      rw [show (List.range' 0 [0:values.size].size 1).toArray[j] = j by simp]
+      split
+      · rename_i hkj
+        refine (extConstant_ensures _).bind fun node _ _ hnode => ?_
+        refine (extSub_ensures hx.mono hnode).bind fun factor _ _ hfactor => ?_
+        refine (extMul_ensures hnum.mono hfactor).bind fun num _ _ hnum' => Ensures.pure ⟨rfl, ?_, ?_⟩
+        · rw [prodRange_succ, if_neg hkj]
+          exact hnum'
+        · rw [prodRangeGl_succ, if_neg hkj, ← hden]
+          rfl
+      · rename_i hkj
+        exact Ensures.pure ⟨rfl, by rw [prodRange_succ, if_pos (not_not.mp hkj), ext_mul_one]; exact hnum,
+          by rw [prodRangeGl_succ, if_pos (not_not.mp hkj), gl_mul_one]; exact hden⟩
+    · obtain ⟨hnum, hden⟩ := hr'
+      have hlen : (List.range' 0 [0:values.size].size 1).toArray.size = gvalues.size := by simp [hv.1]
+      refine (extScaleConstant_ensures r'.2.inv hnum).bind fun weight _ _ hweight => ?_
+      refine (extMul_ensures (hv.2 k hk').mono hweight).bind fun term _ _ hterm => ?_
+      refine (extAdd_ensures hacc.mono hterm).bind fun total' _ _ htotal => Ensures.pure ⟨rfl, ?_⟩
+      rw [hden, hlen] at htotal
+      rw [sumRange_succ]
+      exact htotal
+  · rw [Array.size_zipIdx, hv.1] at hr
+    exact hr
+
+/-- `eq_table`. -/
+theorem eqTable_ensures {point : Array ExtVar} {gpoint : Array Ext} (hp : IsExts c n point gpoint) :
+    Ensures c n (Algebra.eqTable point) fun r m => IsExts c m r (Replay.eqTable gpoint) := by
+  obtain ⟨E, hE⟩ : ∃ E : ℕ → ℕ → Ext,
+      E = fun k i => Replay.prodRange k fun t => if i.testBit t then gpoint[t]! else Replay.oneMinus gpoint[t]! :=
+    ⟨_, rfl⟩
+  unfold Algebra.eqTable
+  refine extOne_ensures.bind fun one _ _ hone => ?_
+  dsimp only
+  refine (Ensures.loopArray (fun k acc m => IsExts c m acc ((Array.range (2 ^ k)).map (E k))) ?_
+    fun k hk acc m _ hacc => ?_).bind fun r m _ hr => Ensures.pure ?_
+  · refine ⟨by simp, fun i hi => ?_⟩
+    have i0 : i = 0 := by simpa using hi
+    subst i0
+    rw [getElem!_pos _ 0 (by simp), getElem!_pos _ 0 (by simp), Array.getElem_map, Array.getElem_range, hE]
+    simp only [prodRange_zero]
+    exact hone
+  · have hx : IsExt c n point[k] gpoint[k]! := by
+      have := hp.2 k hk
+      rwa [getElem!_pos point k hk] at this
+    have hsize : acc.size = 2 ^ k := by simpa using hacc.1
+    have hval : ∀ j (hj : j < acc.size), IsExt c m acc[j] (E k j) := fun j hj => by
+      have := hacc.2 j hj
+      rwa [getElem!_pos acc j hj, getElem!_pos _ j (by simpa [hsize] using hj), Array.getElem_map,
+        Array.getElem_range] at this
+    obtain ⟨H, hH⟩ : ∃ H : ℕ → Ext,
+        H = fun i => if i < 2 ^ k then E k i * Replay.oneMinus gpoint[k]! else E k (i - 2 ^ k) * gpoint[k]! :=
+      ⟨_, rfl⟩
+    refine (oneMinus_ensures hx.mono).bind fun low _ _ hlow => ?_
+    refine (Ensures.loopArray (fun j next m' => IsExts c m' next ((Array.range j).map H)) (by simp [IsExts])
+      fun j hj next m' _ hnext => ?_).bind fun next₁ _ _ hnext₁ => ?_
+    · refine (extMul_ensures (hval j hj).mono hlow.mono).bind fun v _ _ hv => Ensures.pure ⟨rfl, ?_⟩
+      rw [map_range_succ]
+      refine hnext.mono.push ?_
+      rw [hH]
+      dsimp only
+      rw [if_pos (hsize ▸ hj)]
+      exact hv
+    · refine (Ensures.loopArray (fun j next m' => IsExts c m' next ((Array.range (acc.size + j)).map H)) hnext₁
+        fun j hj next m' _ hnext => ?_).bind fun next₂ _ _ hnext₂ => Ensures.pure ⟨rfl, ?_⟩
+      · refine (extMul_ensures (hval j hj).mono hx.mono).bind fun v _ _ hv => Ensures.pure ⟨rfl, ?_⟩
+        rw [← Nat.add_assoc, map_range_succ]
+        refine hnext.mono.push ?_
+        rw [hH]
+        dsimp only
+        rw [if_neg (by rw [hsize]; omega), hsize, Nat.add_sub_cancel_left]
+        exact hv
+      · rw [hsize, show 2 ^ k + 2 ^ k = 2 ^ (k + 1) by rw [Nat.pow_succ]; omega] at hnext₂
+        have key : (Array.range (2 ^ (k + 1))).map H = (Array.range (2 ^ (k + 1))).map (E (k + 1)) :=
+          Array.map_inj_left.mpr fun i hi => by
+            rw [Array.mem_range] at hi
+            rw [hH, hE]
+            dsimp only
+            rw [prodRange_succ]
+            by_cases lt : i < 2 ^ k
+            · rw [if_pos lt, Nat.testBit_lt_two_pow lt, if_neg Bool.false_ne_true]
+            · obtain ⟨j, rfl⟩ : ∃ j, i = 2 ^ k + j := ⟨i - 2 ^ k, by omega⟩
+              have hj : j < 2 ^ k := by rw [Nat.pow_succ] at hi; omega
+              rw [if_neg lt, Nat.add_sub_cancel_left, Nat.testBit_two_pow_add_eq, Nat.testBit_lt_two_pow hj,
+                Bool.not_false, if_pos rfl]
+              exact congrArg (· * gpoint[k]!) (prodRange_congr fun t ht => by rw [Nat.testBit_two_pow_add_gt ht])
+        rw [key] at hnext₂
+        exact hnext₂
+  · rw [hp.1] at hr
+    rw [Replay.eqTable, show Replay.eqAt gpoint = E gpoint.size from funext fun i => by rw [eqAt_eq, hE]]
+    exact hr
+
+/-- `Kx::add`. -/
+theorem KxVar.add_ensures {a b : KxVar} {ga gb : Replay.Kx} (ha : IsKx c n a ga) (hb : IsKx c n b gb) :
+    Ensures c n (Circuit.KxVar.add a b) fun r m => IsKx c m r (ga.add gb) :=
+  (extAdd_ensures ha.1 hb.1).bind fun _ _ _ hre => (extAdd_ensures ha.2.mono hb.2.mono).bind fun _ _ _ him =>
+    Ensures.pure ⟨hre.mono, him⟩
+
+/-- `Kx::mul`. -/
+theorem KxVar.mul_ensures {a b : KxVar} {ga gb : Replay.Kx} (ha : IsKx c n a ga) (hb : IsKx c n b gb) :
+    Ensures c n (Circuit.KxVar.mul a b) fun r m => IsKx c m r (ga.mul gb) := by
+  refine (extMul_ensures ha.1 hb.1).bind fun rr _ _ hrr => ?_
+  refine (extMul_ensures ha.2.mono hb.2.mono).bind fun ii _ _ hii => ?_
+  refine (extScaleConstant_ensures 7 hii).bind fun seven _ _ hseven => ?_
+  refine (extMul_ensures ha.1.mono hb.2.mono).bind fun ri _ _ hri => ?_
+  refine (extMul_ensures ha.2.mono hb.1.mono).bind fun ir _ _ hir => ?_
+  refine (extAdd_ensures hrr.mono hseven.mono).bind fun re _ _ hre => ?_
+  exact (extAdd_ensures hri.mono hir.mono).bind fun im _ _ him => Ensures.pure ⟨hre.mono, him⟩
+
+/-- `Kx::scale`. -/
+theorem KxVar.scale_ensures {a : KxVar} {e : ExtVar} {ga : Replay.Kx} {ge : Ext} (ha : IsKx c n a ga)
+    (he : IsExt c n e ge) : Ensures c n (Circuit.KxVar.scale a e) fun r m => IsKx c m r (ga.scale ge) :=
+  (extMul_ensures ha.1 he).bind fun _ _ _ hre => (extMul_ensures ha.2.mono he.mono).bind fun _ _ _ him =>
+    Ensures.pure ⟨hre.mono, him⟩
+
+/-- `Kx::one_minus`. -/
+theorem KxVar.oneMinus_ensures {a : KxVar} {ga : Replay.Kx} (ha : IsKx c n a ga) :
+    Ensures c n (Circuit.KxVar.oneMinus a) fun r m => IsKx c m r ga.oneMinus :=
+  (Sim.oneMinus_ensures ha.1).bind fun _ _ _ hre => extZero_ensures.bind fun _ _ _ hzero =>
+    (extSub_ensures hzero ha.2.mono).bind fun _ _ _ him => Ensures.pure ⟨hre.mono, him⟩
+
+end Values
+
+/-! ## The old names, for the files that still use `Simulates` -/
 
 namespace Simulates
 
@@ -218,53 +662,24 @@ theorem loop₀ {δ γ : Type} {xs : Array δ} {init : γ} {body : δ → γ →
   exact (loop I (fun _ => True) step).post (fun _ _ _ h => h) fun _ => ⟨fun _ => trivial, fun _ _ _ => trivial⟩
 
 omit [CharP F goldilocksModulus] in
-/-- `ext_constant`. -/
-theorem extConstant (e : Ext) : Simulates c n P (Algebra.extConstant e) (fun r m => IsExt c m r e) True := by
-  refine ((Simulates.const _).bind fun x m₁ l₁ => (Simulates.const _).bind fun y m₂ l₂ =>
-    (Simulates.const _).bind fun z m₃ l₃ => Simulates.pure fun h => ?_).post (fun _ _ _ h => h) (fun _ => by simp)
-  obtain ⟨⟨⟨-, hx⟩, hy⟩, hz⟩ := h
-  intro k
-  fin_cases k
-  · exact hx.mono (l₂.trans l₃)
-  · exact hy.mono l₃
-  · exact hz
+theorem extConstant (e : Ext) : Simulates c n P (Algebra.extConstant e) (fun r m => IsExt c m r e) True :=
+  .of_ensures₀ fun _ => extConstant_ensures e
 
 omit [CharP F goldilocksModulus] in
-theorem extZero : Simulates c n P Algebra.extZero (fun r m => IsExt c m r 0) True := extConstant 0
+theorem extZero : Simulates c n P Algebra.extZero (fun r m => IsExt c m r 0) True := .of_ensures₀ fun _ => extZero_ensures
 
 omit [CharP F goldilocksModulus] in
-theorem extOne : Simulates c n P Algebra.extOne (fun r m => IsExt c m r 1) True := extConstant 1
+theorem extOne : Simulates c n P Algebra.extOne (fun r m => IsExt c m r 1) True := .of_ensures₀ fun _ => extOne_ensures
 
 omit [CharP F goldilocksModulus] in
-/-- `private_ext`: three proof words, raw tape cells. -/
 theorem privateExt : Simulates c n P Algebra.privateExt
-    (fun r m => ∀ k : Fin 3, r k = n + k ∧ r k < m ∧ c.val (r k) = c.tape (r k)) True := by
-  have priv : ∀ {n' : ℕ} {P' : Prop},
-      Simulates c n' P' Build.priv (fun h m => h = n' ∧ m = n' + 1 ∧ c.val h = c.tape h) True :=
-    fun {n'} {P'} => emit _ fun _ E hl hF => by
-      refine ⟨⟨rfl, rfl, ?_⟩, Iff.rfl⟩
-      rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
-      rfl
-  refine (priv.bind₀ fun x m₁ _ => priv.bind₀ fun y m₂ _ => priv.bind₀ fun z m₃ _ => Simulates.pure fun h => ?_)
-  obtain ⟨⟨⟨-, ex, e₁, vx⟩, ey, e₂, vy⟩, ez, e₃, vz⟩ := h
-  subst x m₁ y m₂ z m₃
-  intro k
-  fin_cases k
-  · exact ⟨rfl, (by omega : n < n + 1 + 1 + 1), vx⟩
-  · exact ⟨rfl, (by omega : n + 1 < n + 1 + 1 + 1), vy⟩
-  · exact ⟨rfl, (by omega : n + 1 + 1 < n + 1 + 1 + 1), vz⟩
+    (fun r m => ∀ k : Fin 3, r k = n + k ∧ r k < m ∧ c.val (r k) = c.tape (r k)) True :=
+  .of_ensures₀ fun _ => privateExt_ensures
 
 omit [CharP F goldilocksModulus] in
-/-- `lift`: a word as an extension value. -/
 theorem liftWord {a : Var} {g : Word} (ha : P → IsWord c n a g) :
-    Simulates c n P (Algebra.lift a) (fun r m => IsExt c m r (Ext.ofGl g)) True := by
-  refine ((Simulates.const 0).bind fun z m₁ l₁ => Simulates.pure fun h => ?_).post (fun _ _ _ h => h) (fun _ => by simp)
-  obtain ⟨hP, hz⟩ := h
-  intro k
-  fin_cases k
-  · exact (ha hP).mono l₁
-  · exact hz
-  · exact hz
+    Simulates c n P (Algebra.lift a) (fun r m => IsExt c m r (Ext.ofGl g)) True :=
+  .of_ensures₀ fun h => lift_ensures (ha h)
 
 omit [CharP F goldilocksModulus] in
 /-- Three coordinate calls, each of `f` at its coordinate. -/
@@ -283,375 +698,93 @@ theorem coordinatewise {f : Var → Var → Build Var} {a b : ExtVar} {e : Ext}
 
 theorem extAdd {a b : ExtVar} {ga gb : Ext} (ha : P → IsExt c n a ga) (hb : P → IsExt c n b gb) :
     Simulates c n P (Build.extAdd a b) (fun r m => IsExt c m r (ga + gb)) True :=
-  coordinatewise fun k _ _ hp le => by
-    fin_cases k
-    · exact Simulates.add (fun h => (ha (hp h) 0).mono le) (fun h => (hb (hp h) 0).mono le)
-    · exact Simulates.add (fun h => (ha (hp h) 1).mono le) (fun h => (hb (hp h) 1).mono le)
-    · exact Simulates.add (fun h => (ha (hp h) 2).mono le) (fun h => (hb (hp h) 2).mono le)
+  .of_ensures₀ fun h => extAdd_ensures (ha h) (hb h)
 
 theorem extSub {a b : ExtVar} {ga gb : Ext} (ha : P → IsExt c n a ga) (hb : P → IsExt c n b gb) :
     Simulates c n P (Build.extSub a b) (fun r m => IsExt c m r (ga - gb)) True :=
-  coordinatewise fun k _ _ hp le => by
-    fin_cases k
-    · exact Simulates.sub (fun h => (ha (hp h) 0).mono le) (fun h => (hb (hp h) 0).mono le)
-    · exact Simulates.sub (fun h => (ha (hp h) 1).mono le) (fun h => (hb (hp h) 1).mono le)
-    · exact Simulates.sub (fun h => (ha (hp h) 2).mono le) (fun h => (hb (hp h) 2).mono le)
+  .of_ensures₀ fun h => extSub_ensures (ha h) (hb h)
 
-/-- `ext_scale` by a word handle. -/
 theorem extScale {a : ExtVar} {s : Var} {ga : Ext} {gs : Word} (ha : P → IsExt c n a ga) (hs : P → IsWord c n s gs) :
     Simulates c n P (Build.extScale a s) (fun r m => IsExt c m r (ga.scale gs)) True :=
-  coordinatewise fun k _ _ hp le => by
-    fin_cases k
-    · exact Simulates.mul (fun h => (ha (hp h) 0).mono le) (fun h => (hs (hp h)).mono le)
-    · exact Simulates.mul (fun h => (ha (hp h) 1).mono le) (fun h => (hs (hp h)).mono le)
-    · exact Simulates.mul (fun h => (ha (hp h) 2).mono le) (fun h => (hs (hp h)).mono le)
+  .of_ensures₀ fun h => extScale_ensures (ha h) (hs h)
 
-/-- `ext_scale_constant`. -/
 theorem extScaleConstant {a : ExtVar} {ga : Ext} (g : Word) (ha : P → IsExt c n a ga) :
     Simulates c n P (Algebra.extScaleConstant a g) (fun r m => IsExt c m r (ga.scale g)) True :=
-  ((Simulates.const g).bind fun _ _ le => extScale (fun h => (ha h.1).mono le) fun h => h.2).post (fun _ _ _ h => h)
-    (fun _ => by simp)
+  .of_ensures₀ fun h => extScaleConstant_ensures g (ha h)
 
-/-- `one_minus`. -/
 theorem oneMinus {a : ExtVar} {ga : Ext} (ha : P → IsExt c n a ga) :
     Simulates c n P (Algebra.oneMinus a) (fun r m => IsExt c m r (Replay.oneMinus ga)) True :=
-  (extOne.bind fun _ _ le => extSub (fun h => h.2) fun h => (ha h.1).mono le).post (fun _ _ _ h => h)
-    (fun _ => by simp)
+  .of_ensures₀ fun h => oneMinus_ensures (ha h)
 
-/-- `eq1`: `2xy + 1 - (x + y)`. -/
-theorem eq1 {a b : ExtVar} {ga gb : Ext} (ha : P → IsExt c n a ga) (hb : P → IsExt c n b gb) :
-    Simulates c n P (Algebra.eq1 a b) (fun r m => IsExt c m r (Replay.eq1 ga gb)) True := by
-  refine ((Simulates.extMul ha hb).bind fun both m₁ l₁ =>
-    (extAdd (fun h => h.2) fun h => h.2).bind fun twice m₂ l₂ =>
-    extOne.bind fun one m₃ l₃ =>
-    (extAdd (fun h => h.1.2.mono l₃) fun h => h.2).bind fun shifted m₄ l₄ =>
-    (extAdd (fun h => (ha h.1.1.1.1).mono (l₁.trans (l₂.trans (l₃.trans l₄))))
-      fun h => (hb h.1.1.1.1).mono (l₁.trans (l₂.trans (l₃.trans l₄)))).bind fun sum m₅ l₅ =>
-    extSub (fun h => h.1.2.mono l₅) fun h => h.2).post (fun _ _ _ h => h) (fun _ => by simp)
-
-/-- `select`: `whenZero + bit·(whenOne - whenZero)` is `whenOne` when the bit
-is one and `whenZero` when it is zero. -/
 theorem select {bit w₀ w₁ : Var} {b : Bool} {g₀ g₁ : Word} (hb : P → IsWord c n bit (if b then 1 else 0))
     (h₀ : P → IsWord c n w₀ g₀) (h₁ : P → IsWord c n w₁ g₁) :
-    Simulates c n P (Build.select bit w₀ w₁) (fun r m => IsWord c m r (if b then g₁ else g₀)) True := by
-  refine ((Simulates.sub h₁ h₀).bind fun d m₁ l₁ => (Simulates.mul (fun h => (hb h.1).mono l₁) fun h => h.2).bind
-    fun t m₂ l₂ => Simulates.add (fun h => (h₀ h.1.1).mono (l₁.trans l₂)) fun h => h.2).post
-    (fun _ _ _ h => h.congr ?_) (fun _ => by simp)
-  rw [word_add, word_mul, word_sub]
-  cases b <;> simp
-
-/-- `assert_zero` on three coordinates. -/
-theorem assertExtZero {a : ExtVar} {ga : Ext} (ha : P → IsExt c n a ga) :
-    Simulates c n P (Build.assertExtZero a) (fun _ _ => True) (ga = 0) := by
-  refine ((Simulates.assertZero fun h => ha h 0).bind fun _ m₁ l₁ =>
-    (Simulates.assertZero fun h => (ha h.1 1).mono l₁).bind fun _ m₂ l₂ =>
-    Simulates.assertZero fun h => (ha h.1.1 2).mono (l₁.trans l₂)).post (fun _ _ _ h => h) fun _ => ?_
-  obtain ⟨a0, a1, a2⟩ := ga
-  exact ⟨fun ⟨h0, h1, h2⟩ => by simp only [Ext.coord] at h0 h1 h2; subst h0 h1 h2; rfl,
-    fun h => by cases h; exact ⟨rfl, rfl, rfl⟩⟩
-
-theorem ext_sub_eq_zero {a b : Ext} : a - b = 0 ↔ a = b := by
-  obtain ⟨a0, a1, a2⟩ := a
-  obtain ⟨b0, b1, b2⟩ := b
-  show (⟨a0 - b0, a1 - b1, a2 - b2⟩ : Ext) = ⟨0, 0, 0⟩ ↔ _
-  simp only [Ext.mk.injEq, gl_sub_eq_zero]
+    Simulates c n P (Build.select bit w₀ w₁) (fun r m => IsWord c m r (if b then g₁ else g₀)) True :=
+  .of_ensures₀ fun h => select_ensures (hb h) (h₀ h) (h₁ h)
 
 theorem assertExtEqual {a b : ExtVar} {ga gb : Ext} (ha : P → IsExt c n a ga) (hb : P → IsExt c n b gb) :
     Simulates c n P (Build.assertExtEqual a b) (fun _ _ => True) (ga = gb) :=
-  ((extSub ha hb).bind fun _ _ _ => assertExtZero fun h => h.2).post (fun _ _ _ h => h)
-    (fun _ => by rw [true_and, ext_sub_eq_zero])
+  .of_ensures fun h => (assertExtEqual_ensures (ha h) (hb h)).post fun _ _ q => ⟨trivial, q⟩
 
-/-- `dot`. -/
 theorem dot {x y : Array ExtVar} {gx gy : Array Ext} (hx : P → IsExts c n x gx) (hy : P → IsExts c n y gy) :
-    Simulates c n P (Algebra.dot x y) (fun r m => IsExt c m r (Replay.dot gx gy)) True := by
-  unfold Algebra.dot
-  refine extZero.bind₀ fun total m₁ l₁ => ?_
-  refine ((loop₀ (P := P ∧ IsExt c m₁ total 0)
-    (fun k acc m => IsExt c m acc (Replay.sumRange k fun i => gx[i]! * gy[i]!))
-    fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun r m _ => Simulates.pure fun h => ?_
-  · have hk' : k < x.size ∧ k < y.size := by simpa using hk
-    rw [show (x.zip y)[k] = (x[k]!, y[k]!) by simp [getElem!_pos, hk'.1, hk'.2]]
-    exact (Simulates.extMul (fun h => ((hx h.1.1).2 k hk'.1).mono (l₁.trans lm))
-      fun h => ((hy h.1.1).2 k hk'.2).mono (l₁.trans lm)).bind₀ fun term m₂ l₂ =>
-      (extAdd (fun h => h.1.2.mono l₂) fun h => h.2).bind₀ fun total' m₃ l₃ =>
-      Simulates.pure fun h => ⟨rfl, by rw [sumRange_succ]; exact h.2⟩
-  · have e := h.2
-    rw [Array.size_zip, (hx h.1.1).1, (hy h.1.1).1] at e
-    exact e
+    Simulates c n P (Algebra.dot x y) (fun r m => IsExt c m r (Replay.dot gx gy)) True :=
+  .of_ensures₀ fun h => dot_ensures (hx h) (hy h)
 
-/-- `eq_eval`. -/
 theorem eqEval {x y : Array ExtVar} {gx gy : Array Ext} (hx : P → IsExts c n x gx) (hy : P → IsExts c n y gy) :
-    Simulates c n P (Algebra.eqEval x y) (fun r m => IsExt c m r (Replay.eqEval gx gy)) True := by
-  unfold Algebra.eqEval
-  refine extOne.bind₀ fun total m₁ l₁ => ?_
-  refine ((loop₀ (P := P ∧ IsExt c m₁ total 1)
-    (fun k acc m => IsExt c m acc (Replay.prodRange k fun i => Replay.eq1 gx[i]! gy[i]!))
-    fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun r m _ => Simulates.pure fun h => ?_
-  · have hk' : k < x.size ∧ k < y.size := by simpa using hk
-    rw [show (x.zip y)[k] = (x[k]!, y[k]!) by simp [getElem!_pos, hk'.1, hk'.2]]
-    exact (Simulates.eq1 (fun h => ((hx h.1.1).2 k hk'.1).mono (l₁.trans lm))
-      fun h => ((hy h.1.1).2 k hk'.2).mono (l₁.trans lm)).bind₀ fun factor m₂ l₂ =>
-      (Simulates.extMul (fun h => h.1.2.mono l₂) fun h => h.2).bind₀ fun total' m₃ l₃ =>
-      Simulates.pure fun h => ⟨rfl, by rw [prodRange_succ]; exact h.2⟩
-  · have e := h.2
-    rw [Array.size_zip, (hx h.1.1).1, (hy h.1.1).1] at e
-    rw [Replay.eqEval, eqEvalList_eq, Array.length_toList, Array.length_toList]
-    simpa only [Array.getElem!_toList] using e
+    Simulates c n P (Algebra.eqEval x y) (fun r m => IsExt c m r (Replay.eqEval gx gy)) True :=
+  .of_ensures₀ fun h => eqEval_ensures (hx h) (hy h)
 
-/-- `eq_at`. -/
 theorem eqAt {point : Array ExtVar} {gpoint : Array Ext} (index : ℕ) (hp : P → IsExts c n point gpoint) :
-    Simulates c n P (Algebra.eqAt point index) (fun r m => IsExt c m r (Replay.eqAt gpoint index)) True := by
-  unfold Algebra.eqAt
-  refine extOne.bind₀ fun total m₁ l₁ => ?_
-  refine ((loop₀ (P := P ∧ IsExt c m₁ total 1)
-    (fun k acc m => IsExt c m acc
-      (Replay.prodRange k fun t => if index.testBit t then gpoint[t]! else Replay.oneMinus gpoint[t]!))
-    fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun r m _ => Simulates.pure fun h => ?_
-  · have hk' : k < point.size := by simpa using hk
-    rw [show point.zipIdx[k] = (point[k]!, k) by simp [getElem!_pos, hk']]
-    dsimp only
-    split
-    · rename_i hb
-      rw [pure_bind]
-      exact (Simulates.extMul (fun h => h.2) fun h => ((hp h.1.1).2 k hk').mono (l₁.trans lm)).bind₀ fun total' m₂ l₂ =>
-        Simulates.pure fun h => ⟨rfl, by rw [prodRange_succ, if_pos hb]; exact h.2⟩
-    · rename_i hb
-      exact (Simulates.oneMinus fun h => ((hp h.1.1).2 k hk').mono (l₁.trans lm)).bind₀ fun factor m₂ l₂ =>
-        (Simulates.extMul (fun h => h.1.2.mono l₂) fun h => h.2).bind₀ fun total' m₃ l₃ =>
-        Simulates.pure fun h => ⟨rfl, by rw [prodRange_succ, if_neg hb]; exact h.2⟩
-  · have e := h.2
-    rw [Array.size_zipIdx, (hp h.1.1).1] at e
-    rw [eqAt_eq]
-    exact e
+    Simulates c n P (Algebra.eqAt point index) (fun r m => IsExt c m r (Replay.eqAt gpoint index)) True :=
+  .of_ensures₀ fun h => eqAt_ensures index (hp h)
 
-/-- `horner`. -/
 theorem horner {coefficients : Array ExtVar} {x : ExtVar} {gcoefficients : Array Ext} {gx : Ext}
     (hc : P → IsExts c n coefficients gcoefficients) (hx : P → IsExt c n x gx) :
-    Simulates c n P (Algebra.horner coefficients x) (fun r m => IsExt c m r (Replay.horner gcoefficients gx)) True := by
-  unfold Algebra.horner
-  refine extZero.bind₀ fun total m₁ l₁ => ?_
-  refine ((loop₀ (P := P ∧ IsExt c m₁ total 0)
-    (fun k acc m => IsExt c m acc ((gcoefficients.reverse.toList.take k).foldl (fun t c => t * gx + c) 0))
-    fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun r m _ => Simulates.pure fun h => ?_
-  · have hcoef : P → IsExt c n coefficients.reverse[k] gcoefficients.reverse[k]! := fun h => by
-      have := (hc h).reverse.2 k hk
-      rwa [getElem!_pos coefficients.reverse k hk] at this
-    exact (Simulates.extMul (fun h => h.2) fun h => (hx h.1.1).mono (l₁.trans lm)).bind₀ fun scaled m₂ l₂ =>
-      (extAdd (fun h => h.2) fun h => (hcoef h.1.1.1).mono (l₁.trans (lm.trans l₂))).bind₀ fun total' m₃ l₃ =>
-      Simulates.pure fun h => ⟨rfl, by
-        have hk' : k < gcoefficients.reverse.toList.length := by simpa [← (hc h.1.1.1.1).1] using hk
-        rw [List.take_succ_eq_append_getElem hk', List.foldl_append, List.foldl_cons, List.foldl_nil,
-          Array.getElem_toList, ← getElem!_pos]
-        exact h.2⟩
-  · have e := h.2
-    rw [List.take_of_length_le (by simp [(hc h.1.1).1])] at e
-    rw [Replay.horner, Array.foldr_eq_foldl_reverse, ← Array.foldl_toList]
-    exact e
+    Simulates c n P (Algebra.horner coefficients x) (fun r m => IsExt c m r (Replay.horner gcoefficients gx)) True :=
+  .of_ensures₀ fun h => horner_ensures (hc h) (hx h)
 
-/-- `power_from_bits`: bit `i` of `index` selects `generator^(2^i)`. -/
 theorem powerFromBits (generator : Word) {bits : Array Var} (index : ℕ)
     (hb : P → ∀ i < bits.size, IsWord c n bits[i]! (Word.ofNat (index / 2 ^ i % 2))) :
     Simulates c n P (Algebra.powerFromBits generator bits)
-      (fun r m => IsWord c m r (Replay.powerFromBits generator index bits.size)) True := by
-  unfold Algebra.powerFromBits
-  refine (Simulates.const 1).bind₀ fun total m₁ l₁ => ?_
-  refine ((loop₀ (P := P ∧ IsWord c m₁ total 1)
-    (fun k acc m => IsWord c m acc.1 (Replay.powerFromBits generator index k) ∧
-      acc.2 = (fun g : Word => g * g)^[k] generator)
-    fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2, rfl⟩).bind₀ fun r m _ => Simulates.pure fun h => h.2.1
-  have hbit : P → IsWord c n bits[k] (Word.ofNat (index / 2 ^ k % 2)) := fun h => by
-    have := hb h k hk
-    rwa [getElem!_pos bits k hk] at this
-  refine (Simulates.const 1).bind₀ fun one m₂ l₂ =>
-    (Simulates.scale (acc.2 - 1) fun h => (hbit h.1.1.1).mono (l₁.trans (lm.trans l₂))).bind₀ fun fm m₃ l₃ =>
-    (Simulates.add (fun h => h.1.2.mono l₃) fun h => h.2).bind₀ fun factor m₄ l₄ =>
-    (Simulates.mul (fun h => h.1.1.1.2.1.mono (l₂.trans (l₃.trans l₄))) fun h => h.2).bind₀ fun total' m₅ l₅ =>
-    Simulates.pure fun h => ⟨rfl, ?_, by rw [h.1.1.1.1.2.2, Function.iterate_succ_apply']; rfl⟩
-  have e : Replay.powerFromBits generator index k * (1 + Word.ofNat (index / 2 ^ k % 2) * (acc.2 - 1)) =
-      Replay.powerFromBits generator index (k + 1) := by
-    have select : 1 + Word.ofNat (index / 2 ^ k % 2) * (acc.2 - 1) = if index / 2 ^ k % 2 = 1 then acc.2 else 1 := by
-      apply Word.eq_of_toF
-      rcases Nat.mod_two_eq_zero_or_one (index / 2 ^ k) with hb | hb <;>
-        simp [hb, Word.toF_add, Word.toF_mul, Word.toF_sub, Word.toF_ofNat]
-    rw [select, powerFromBits_succ, h.1.1.1.1.2.2]
-  exact e ▸ h.2
+      (fun r m => IsWord c m r (Replay.powerFromBits generator index bits.size)) True :=
+  .of_ensures₀ fun h => powerFromBits_ensures generator index (hb h)
 
-/-- `interpolate`. -/
 theorem interpolate {values : Array ExtVar} {x : ExtVar} {gvalues : Array Ext} {gx : Ext}
     (hv : P → IsExts c n values gvalues) (hx : P → IsExt c n x gx) :
-    Simulates c n P (Algebra.interpolate values x) (fun r m => IsExt c m r (Replay.interpolate gvalues gx)) True := by
-  unfold Algebra.interpolate
-  dsimp only
-  refine extZero.bind₀ fun total m₁ l₁ => ?_
-  refine ((loop₀ (P := P ∧ IsExt c m₁ total 0)
-    (fun k acc m => IsExt c m acc (Replay.sumRange k fun i =>
-      gvalues[i]! * (Replay.prodRange gvalues.size fun j => if i = j then 1 else gx - Ext.ofGl (Word.ofNat j)).scale
-        (Replay.prodRangeGl gvalues.size fun j => if i = j then 1 else Word.ofNat i - Word.ofNat j).inv))
-    fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun r m _ => Simulates.pure fun h => ?_
-  · have hk' : k < values.size := by simpa using hk
-    rw [show values.zipIdx[k] = (values[k]!, k) by simp [getElem!_pos, hk']]
-    dsimp only
-    refine extOne.bind₀ fun numerator m₂ l₂ => ?_
-    rw [Std.Legacy.Range.forIn_eq_forIn_range', ← List.forIn_toArray]
-    refine ((loop₀
-      (fun j acc' m' =>
-        IsExt c m' acc'.1 (Replay.prodRange j fun j => if k = j then 1 else gx - Ext.ofGl (Word.ofNat j)) ∧
-        acc'.2 = Replay.prodRangeGl j fun j => if k = j then 1 else Word.ofNat k - Word.ofNat j)
-      fun j hj acc' m' lm' => ?_).pre fun h => ⟨h, h.2, rfl⟩).bind₀ fun r' m₃ l₃ => ?_
-    · rw [show (List.range' 0 [0:values.size].size 1).toArray[j] = j by simp]
-      split
-      · rename_i hkj
-        exact (extConstant _).bind₀ fun node m₄ l₄ =>
-          (extSub (fun h => (hx h.1.1.1.1.1).mono (l₁.trans (lm.trans (l₂.trans (lm'.trans l₄))))) fun h => h.2).bind₀
-            fun factor m₅ l₅ =>
-          (Simulates.extMul (fun h => h.1.1.2.1.mono (l₄.trans l₅)) fun h => h.2).bind₀ fun num m₆ l₆ =>
-          Simulates.pure fun h => ⟨rfl, by rw [prodRange_succ, if_neg hkj]; exact h.2,
-            by rw [prodRangeGl_succ, if_neg hkj, ← h.1.1.1.2.2]; rfl⟩
-      · rename_i hkj
-        exact Simulates.pure fun h => ⟨rfl, by rw [prodRange_succ, if_pos (not_not.mp hkj), ext_mul_one]; exact h.2.1,
-          by rw [prodRangeGl_succ, if_pos (not_not.mp hkj), gl_mul_one]; exact h.2.2⟩
-    · have hlen : P → (List.range' 0 [0:values.size].size 1).toArray.size = gvalues.size := fun h => by
-        simp [(hv h).1]
-      exact (extScaleConstant r'.2.inv fun h => h.2.1).bind₀ fun weight m₄ l₄ =>
-        (Simulates.extMul (fun h => ((hv h.1.1.1.1.1).2 k hk').mono (l₁.trans (lm.trans (l₂.trans (l₃.trans l₄)))))
-          fun h => h.2).bind₀ fun term m₅ l₅ =>
-        (extAdd (fun h => h.1.1.1.1.2.mono (l₂.trans (l₃.trans (l₄.trans l₅)))) fun h => h.2).bind₀ fun total' m₆ l₆ =>
-        Simulates.pure fun h => ⟨rfl, by
-          have e := h.2
-          rw [h.1.1.1.2.2, hlen h.1.1.1.1.1.1.1] at e
-          rw [sumRange_succ]
-          exact e⟩
-  · have e := h.2
-    rw [Array.size_zipIdx, (hv h.1.1).1] at e
-    exact e
+    Simulates c n P (Algebra.interpolate values x) (fun r m => IsExt c m r (Replay.interpolate gvalues gx)) True :=
+  .of_ensures₀ fun h => interpolate_ensures (hv h) (hx h)
 
-/-- `eq_table`. -/
 theorem eqTable {point : Array ExtVar} {gpoint : Array Ext} (hp : P → IsExts c n point gpoint) :
-    Simulates c n P (Algebra.eqTable point) (fun r m => IsExts c m r (Replay.eqTable gpoint)) True := by
-  obtain ⟨E, hE⟩ : ∃ E : ℕ → ℕ → Ext,
-      E = fun k i => Replay.prodRange k fun t => if i.testBit t then gpoint[t]! else Replay.oneMinus gpoint[t]! :=
-    ⟨_, rfl⟩
-  unfold Algebra.eqTable
-  refine extOne.bind₀ fun one m₁ l₁ => ?_
-  dsimp only
-  refine ((loop₀ (P := P ∧ IsExt c m₁ one 1) (fun k acc m => IsExts c m acc ((Array.range (2 ^ k)).map (E k)))
-    fun k hk acc m lm => ?_).pre fun h => ⟨h, ?_⟩).bind₀ fun r m _ => Simulates.pure fun h => ?_
-  · have hx : P → IsExt c n point[k] gpoint[k]! := fun h => by
-      have := (hp h).2 k hk
-      rwa [getElem!_pos point k hk] at this
-    have hsize : ∀ {m'}, IsExts c m' acc ((Array.range (2 ^ k)).map (E k)) → acc.size = 2 ^ k := fun h => by
-      simpa using h.1
-    have hval : ∀ {m'} j (hj : j < acc.size),
-        IsExts c m' acc ((Array.range (2 ^ k)).map (E k)) → IsExt c m' acc[j] (E k j) :=
-      fun j hj h => by
-        have := h.2 j hj
-        rwa [getElem!_pos acc j hj, getElem!_pos _ j (by simpa [hsize h] using hj), Array.getElem_map,
-          Array.getElem_range] at this
-    obtain ⟨H, hH⟩ : ∃ H : ℕ → Ext,
-        H = fun i => if i < 2 ^ k then E k i * Replay.oneMinus gpoint[k]! else E k (i - 2 ^ k) * gpoint[k]! :=
-      ⟨_, rfl⟩
-    refine (Simulates.oneMinus fun h => (hx h.1.1).mono (l₁.trans lm)).bind₀ fun low m₂ l₂ => ?_
-    refine ((loop₀ (fun j next m' => IsExts c m' next ((Array.range j).map H)) fun j hj next m' lm' => ?_).pre
-      fun h => ⟨h, by simp [IsExts]⟩).bind₀ fun next₁ m₃ l₃ => ?_
-    · refine (Simulates.extMul (fun h => (hval j hj h.1.1.2).mono (l₂.trans lm')) fun h => h.1.2.mono lm').bind₀
-        fun v m₄ l₄ => Simulates.pure fun h => ⟨rfl, ?_⟩
-      rw [map_range_succ]
-      refine (h.1.2.mono l₄).push ?_
-      rw [hH]
-      dsimp only
-      rw [if_pos (hsize h.1.1.1.2 ▸ hj)]
-      exact h.2
-    · refine ((loop₀ (fun j next m' => IsExts c m' next ((Array.range (acc.size + j)).map H))
-        fun j hj next m' lm' => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun next₂ m₄ l₄ => Simulates.pure fun h => ⟨rfl, ?_⟩
-      · refine (Simulates.extMul (fun h => (hval j hj h.1.1.1.2).mono (l₂.trans (l₃.trans lm')))
-          fun h => (hx h.1.1.1.1.1).mono (l₁.trans (lm.trans (l₂.trans (l₃.trans lm'))))).bind₀
-          fun v m₅ l₅ => Simulates.pure fun h => ⟨rfl, ?_⟩
-        rw [← Nat.add_assoc, map_range_succ]
-        refine (h.1.2.mono l₅).push ?_
-        rw [hH]
-        dsimp only
-        rw [if_neg (by rw [hsize h.1.1.1.1.2]; omega), hsize h.1.1.1.1.2, Nat.add_sub_cancel_left]
-        exact h.2
-      · have e := h.2
-        rw [hsize h.1.1.1.2, show 2 ^ k + 2 ^ k = 2 ^ (k + 1) by rw [Nat.pow_succ]; omega] at e
-        have key : (Array.range (2 ^ (k + 1))).map H = (Array.range (2 ^ (k + 1))).map (E (k + 1)) :=
-          Array.map_inj_left.mpr fun i hi => by
-            rw [Array.mem_range] at hi
-            rw [hH, hE]
-            dsimp only
-            rw [prodRange_succ]
-            by_cases lt : i < 2 ^ k
-            · rw [if_pos lt, Nat.testBit_lt_two_pow lt, if_neg Bool.false_ne_true]
-            · obtain ⟨j, rfl⟩ : ∃ j, i = 2 ^ k + j := ⟨i - 2 ^ k, by omega⟩
-              have hj : j < 2 ^ k := by rw [Nat.pow_succ] at hi; omega
-              rw [if_neg lt, Nat.add_sub_cancel_left, Nat.testBit_two_pow_add_eq, Nat.testBit_lt_two_pow hj,
-                Bool.not_false, if_pos rfl]
-              exact congrArg (· * gpoint[k]!) (prodRange_congr fun t ht => by rw [Nat.testBit_two_pow_add_gt ht])
-        rw [key] at e
-        exact e
-  · refine ⟨by simp, fun i hi => ?_⟩
-    have i0 : i = 0 := by simpa using hi
-    subst i0
-    rw [getElem!_pos _ 0 (by simp), getElem!_pos _ 0 (by simp), Array.getElem_map, Array.getElem_range, hE]
-    simp only [prodRange_zero]
-    exact h.2
-  · have e := h.2
-    rw [(hp h.1.1).1] at e
-    rw [Replay.eqTable, show Replay.eqAt gpoint = E gpoint.size from funext fun i => by rw [eqAt_eq, hE]]
-    exact e
+    Simulates c n P (Algebra.eqTable point) (fun r m => IsExts c m r (Replay.eqTable gpoint)) True :=
+  .of_ensures₀ fun h => eqTable_ensures (hp h)
 
 omit [CharP F goldilocksModulus] in
-/-- `Kx::zero`. -/
 theorem KxVar.zero : Simulates c n P Circuit.KxVar.zero (fun r m => IsKx c m r Replay.Kx.zero) True :=
-  extZero.bind₀ fun _ _ _ => Simulates.pure fun h => ⟨h.2, h.2⟩
+  .of_ensures₀ fun _ => KxVar.zero_ensures
 
 omit [CharP F goldilocksModulus] in
-/-- `Kx::one`. -/
 theorem KxVar.one : Simulates c n P Circuit.KxVar.one (fun r m => IsKx c m r Replay.Kx.one) True :=
-  extOne.bind₀ fun _ _ _ => extZero.bind₀ fun _ _ l => Simulates.pure fun h => ⟨h.1.2.mono l, h.2⟩
+  .of_ensures₀ fun _ => KxVar.one_ensures
 
 omit [CharP F goldilocksModulus] in
-/-- `Kx::from_k`. -/
 theorem KxVar.fromK {a : KVar} {g₁ g₂ : Word} (h₁ : P → IsWord c n a.1 g₁) (h₂ : P → IsWord c n a.2 g₂) :
     Simulates c n P (Circuit.KxVar.fromK a) (fun r m => IsKx c m r (Replay.Kx.ofK (g₁, g₂))) True :=
-  (liftWord h₁).bind₀ fun _ _ l₁ => (liftWord fun h => (h₂ h.1).mono l₁).bind₀ fun _ _ l₂ =>
-    Simulates.pure fun h => ⟨h.1.2.mono l₂, h.2⟩
+  .of_ensures₀ fun h => KxVar.fromK_ensures (h₁ h) (h₂ h)
 
-/-- `Kx::add`. -/
 theorem KxVar.add {a b : KxVar} {ga gb : Replay.Kx} (ha : P → IsKx c n a ga) (hb : P → IsKx c n b gb) :
     Simulates c n P (Circuit.KxVar.add a b) (fun r m => IsKx c m r (ga.add gb)) True :=
-  (extAdd (fun h => (ha h).1) fun h => (hb h).1).bind₀ fun _ _ l₁ =>
-    (extAdd (fun h => (ha h.1).2.mono l₁) fun h => (hb h.1).2.mono l₁).bind₀ fun _ _ l₂ =>
-    Simulates.pure fun h => ⟨h.1.2.mono l₂, h.2⟩
+  .of_ensures₀ fun h => KxVar.add_ensures (ha h) (hb h)
 
-/-- `Kx::mul`. -/
 theorem KxVar.mul {a b : KxVar} {ga gb : Replay.Kx} (ha : P → IsKx c n a ga) (hb : P → IsKx c n b gb) :
-    Simulates c n P (Circuit.KxVar.mul a b) (fun r m => IsKx c m r (ga.mul gb)) True := by
-  refine (Simulates.extMul (fun h => (ha h).1) fun h => (hb h).1).bind₀ fun rr m₁ l₁ =>
-    (Simulates.extMul (fun h => (ha h.1).2.mono l₁) fun h => (hb h.1).2.mono l₁).bind₀ fun ii m₂ l₂ =>
-    (extScaleConstant 7 fun h => h.2).bind₀ fun seven m₃ l₃ =>
-    (Simulates.extMul (fun h => (ha h.1.1.1).1.mono (l₁.trans (l₂.trans l₃)))
-      fun h => (hb h.1.1.1).2.mono (l₁.trans (l₂.trans l₃))).bind₀ fun ri m₄ l₄ =>
-    (Simulates.extMul (fun h => (ha h.1.1.1.1).2.mono (l₁.trans (l₂.trans (l₃.trans l₄))))
-      fun h => (hb h.1.1.1.1).1.mono (l₁.trans (l₂.trans (l₃.trans l₄)))).bind₀ fun ir m₅ l₅ =>
-    (extAdd (fun h => h.1.1.1.1.2.mono (l₂.trans (l₃.trans (l₄.trans l₅)))) fun h => h.1.1.2.mono (l₄.trans l₅)).bind₀
-      fun re m₆ l₆ =>
-    (extAdd (fun h => h.1.1.2.mono (l₅.trans l₆)) fun h => h.1.2.mono l₆).bind₀ fun im m₇ l₇ =>
-    Simulates.pure fun h => ⟨h.1.2.mono l₇, h.2⟩
+    Simulates c n P (Circuit.KxVar.mul a b) (fun r m => IsKx c m r (ga.mul gb)) True :=
+  .of_ensures₀ fun h => KxVar.mul_ensures (ha h) (hb h)
 
-/-- `Kx::scale`. -/
 theorem KxVar.scale {a : KxVar} {e : ExtVar} {ga : Replay.Kx} {ge : Ext} (ha : P → IsKx c n a ga)
     (he : P → IsExt c n e ge) : Simulates c n P (Circuit.KxVar.scale a e) (fun r m => IsKx c m r (ga.scale ge)) True :=
-  (Simulates.extMul (fun h => (ha h).1) he).bind₀ fun _ _ l₁ =>
-    (Simulates.extMul (fun h => (ha h.1).2.mono l₁) fun h => (he h.1).mono l₁).bind₀ fun _ _ l₂ =>
-    Simulates.pure fun h => ⟨h.1.2.mono l₂, h.2⟩
+  .of_ensures₀ fun h => KxVar.scale_ensures (ha h) (he h)
 
-/-- `Kx::one_minus`. -/
 theorem KxVar.oneMinus {a : KxVar} {ga : Replay.Kx} (ha : P → IsKx c n a ga) :
     Simulates c n P (Circuit.KxVar.oneMinus a) (fun r m => IsKx c m r ga.oneMinus) True :=
-  (Simulates.oneMinus fun h => (ha h).1).bind₀ fun _ _ l₁ => extZero.bind₀ fun _ _ l₂ =>
-    (extSub (fun h => h.2) fun h => (ha h.1.1).2.mono (l₁.trans l₂)).bind₀ fun _ _ l₃ =>
-    Simulates.pure fun h => ⟨h.1.1.2.mono (l₂.trans l₃), h.2⟩
+  .of_ensures₀ fun h => KxVar.oneMinus_ensures (ha h)
 
 end Simulates
 

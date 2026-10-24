@@ -100,12 +100,12 @@ theorem honest_setup_of_build {lw : ℕ}
     (built : build setup.seed.bytes (Phi81CarrierLayout.carrierWidth lw) productionProfile.ccsMatrices pushes = some S)
     (gives : RunsGive pushes relation) :
     HonestSetup s S relation setup.verifierKey :=
-  honestSetup_of_build s D lanes setup relation pushes built gives
+  Final.build_honest s D lanes setup relation pushes built gives
 
 /-- **The key check** of `lowerCheck` and `terminalCheck`: a key that fails no
 check has `KeyFacts`. -/
 theorem key_facts_of_check {key : Layer1Key} (pass : keyFailure key = none) : KeyFacts key :=
-  keyFacts_of_check pass
+  Checks.keyFailure_sound pass
 
 /-- **The width check** of `lowerCheck` and `terminalCheck`: a key for which
 they print that it fits the Poseidon2 hash chain (`poseidon2Fits`) has the
@@ -118,7 +118,7 @@ theorem width_fits_of_check {key : Layer1Key} (pass : poseidon2Fits key = true) 
 invocations all name a template has `CompactTemplatesValid`. -/
 theorem package_templates_of_check {package : CircuitPackage}
     (named : Spec.templatesNamed package = true) : package.CompactTemplatesValid :=
-  Checks.compactTemplatesValid_of_named named
+  Checks.templatesNamed_sound named
 
 /-- **The setup check** of `setupCheck`: for a key and runs that fail no fact
 of `setupFailure`, `build` returns `poseidon2Setup` at the carrier of the
@@ -130,7 +130,7 @@ theorem setup_facts_of_check {key : Layer1Key} {pushes : List Push} (seed : List
         some (poseidon2Setup seed pushes) ∧
       (poseidon2Setup seed pushes).Fits (shapeOf key.relation) ∧
       (structureOf key.relation.key.layout).Describes (shapeOf key.relation) (poseidon2Setup seed pushes) :=
-  setupFacts_of_check seed pass
+  Checks.setupFailure_sound seed pass
 
 /-- **The production bound for the Poseidon2 hash chain**: `production_bound`
 for F′'s relation of `Poseidon2HashChainV1Package.application`, at its

@@ -248,7 +248,7 @@ The chain takes these premises:
   every entry of every completed CCS matrix of F′'s relation, with row `i`
   in F′'s little-endian order. `Ports/Setup.lean` ports Rust's setup build
   (`build`: `key` and `oracle` in `lib.rs` over `Tables::from_rows` in
-  `matrix.rs`). `honestSetup_of_build` proves `HonestSetup` of its result,
+  `matrix.rs`). `build_honest` proves `HonestSetup` of its result,
   for the key of the seeded Ajtai setup (`AjtaiSetupV1.Setup.verifierKey`).
   Its parts:
   - Source (`RunsGive`): the runs that `PackageRows::visit_rows`
@@ -438,7 +438,7 @@ the check with `timeout --signal=KILL 1500 lake build setupCheck`, then run
 It runs `setupCheck` on that file and on the `production_layer1.json` of
 `production_layer1_matches_lean` (run both first) and requires
 `setup facts hold`. `setupFailure` (`Checks/SetupFacts.lean`) decides the
-named facts of `setupChecks`, from which `setupFacts_of_check` proves that
+named facts of `setupChecks`, from which `setupFailure_sound` proves that
 `build` returns `poseidon2Setup` for the runs, that it has `Setup.Fits` and
 that the key's structure describes it. It reads the runs a fixed number of
 times: the classes and the slot keys go through a hash set and a sort of the

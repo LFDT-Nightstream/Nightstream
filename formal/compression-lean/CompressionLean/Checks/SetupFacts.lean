@@ -10,7 +10,7 @@ production key (`setupFailure`, `Spec/Checks.lean`). On the key and the runs
 that `PackageRows::visit_rows` pushes, the check decides that `build` returns `poseidon2Setup` at the carrier of the
 Poseidon2 hash chain, that this setup fits the key's shape (`Setup.Fits`) and
 that the key's structure describes it (`Structure.Describes`).
-`setupFacts_of_check` proves that a pass gives the three facts. The runs are
+`setupFailure_sound` proves that a pass gives the three facts. The runs are
 read at run time, so the `setupCheck` executable runs the check on the runs
 that it reads.
 
@@ -108,7 +108,7 @@ theorem poseidon2Columns_eq : poseidon2Columns = Phi81CarrierLayout.carrierWidth
 /-- **The setup check.** When the key and the runs fail no fact of the check,
 `build` returns `poseidon2Setup` at the carrier of the Poseidon2 hash chain,
 the setup fits the key's shape, and the key's structure describes it. -/
-theorem setupFacts_of_check {key : Layer1Key} {pushes : List Push} (seed : List ℕ)
+theorem setupFailure_sound {key : Layer1Key} {pushes : List Push} (seed : List ℕ)
     (pass : setupFailure key pushes = none) :
     build seed poseidon2Columns Production.matrices pushes = some (poseidon2Setup seed pushes) ∧
       (poseidon2Setup seed pushes).Fits (shapeOf key.relation) ∧

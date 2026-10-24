@@ -503,6 +503,22 @@ theorem assertExtEqual_ensures {a b : ExtVar} {ga gb : Ext} (ha : IsExt c n a ga
     Ensures c n (Build.assertExtEqual a b) fun _ _ => ga = gb :=
   (extSub_ensures ha hb).bind fun _ _ _ hd => (assertExtZero_ensures hd).post fun _ _ h => ext_sub_eq_zero.mp h
 
+/-- `ext_inverse`: an inverse that passes its check has a nonzero input. -/
+theorem extInv_ne_ensures {a : ExtVar} {ga : Ext} (ha : IsExt c n a ga) :
+    Ensures c n (Build.extInv a) fun _ _ => ga ≠ 0 := by
+  have one_ne : (1 : F) ≠ 0 := by
+    intro e
+    have := (CharP.cast_eq_zero_iff F goldilocksModulus 1).mp (by simpa using e)
+    norm_num [goldilocksModulus] at this
+  refine (Ensures.emit (Q := fun _ _ => ga ≠ 0) (.extInv a) fun E hl hF hh hz => ?_).map fun _ _ h => h
+  have holds : E.holds ∧
+      extProduct (fun i => E.value (a i)) (fun k => c.tape (E.values.length + k)) = ![1, 0, 0] := hh
+  have ra : (fun i => E.value (a i)) = coords ga := funext fun i => (ha i).read (Ctx.follows_of_step hF) hl
+  rw [ra, hz, coords_zero] at holds
+  have e := congrFun holds.2 0
+  simp [extProduct] at e
+  exact one_ne e.symm
+
 /-- `dot`. -/
 theorem dot_ensures {x y : Array ExtVar} {gx gy : Array Ext} (hx : IsExts c n x gx) (hy : IsExts c n y gy) :
     Ensures c n (Algebra.dot x y) fun r m => IsExt c m r (Replay.dot gx gy) := by

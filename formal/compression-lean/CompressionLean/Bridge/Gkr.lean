@@ -26,7 +26,7 @@ open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
 theorem goldilocks_eq_modulus : goldilocks = NightstreamFPrime.Spec.goldilocksModulus := by decide
 

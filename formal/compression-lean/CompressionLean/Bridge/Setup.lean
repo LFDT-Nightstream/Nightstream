@@ -24,13 +24,13 @@ def squarings : ℕ → ℕ → ℕ
   | 0, x => x
   | n + 1, x => squarings n (x * x % goldilocksModulus)
 
-theorem squarings_cast (n x : ℕ) : ((squarings n x : ℕ) : Fp) = (x : Fp) ^ (2 ^ n) := by
+theorem squarings_cast (n x : ℕ) : ((squarings n x : ℕ) : Gl) = (x : Gl) ^ (2 ^ n) := by
   induction n generalizing x with
   | zero => simp [squarings]
   | succ n ih => rw [squarings, ih, ZMod.natCast_mod, Nat.cast_mul, ← sq, ← pow_mul, pow_succ']
 
-/-- Plonky3's `two_adic_generator(bits)` in `Fp`, for `bits ≤ 32`. -/
-def twoAdic (bits : ℕ) : Fp := (0x185629dcda58878c : Fp) ^ (2 ^ (32 - bits))
+/-- Plonky3's `two_adic_generator(bits)` in `Gl`, for `bits ≤ 32`. -/
+def twoAdic (bits : ℕ) : Gl := (0x185629dcda58878c : Gl) ^ (2 ^ (32 - bits))
 
 theorem toF_twoAdicGenerator (bits : ℕ) : (twoAdicGenerator bits).toF = twoAdic bits := by
   unfold twoAdicGenerator twoAdic
@@ -44,19 +44,19 @@ theorem toF_twoAdicGenerator (bits : ℕ) : (twoAdicGenerator bits).toF = twoAdi
   rw [squares, List.length_range, Word.toF_ofNat]
   norm_num
 
-theorem generator_pow_31 : (0x185629dcda58878c : Fp) ^ (2 ^ 31) = -1 := by
+theorem generator_pow_31 : (0x185629dcda58878c : Gl) ^ (2 ^ 31) = -1 := by
   have computed : squarings 31 0x185629dcda58878c = goldilocksModulus - 1 := by decide
   have := squarings_cast 31 0x185629dcda58878c
   rw [computed, Nat.cast_sub (by decide), ZMod.natCast_self, Nat.cast_one, zero_sub, Nat.cast_ofNat] at this
   exact this.symm
 
-theorem generator_pow_32 : (0x185629dcda58878c : Fp) ^ (2 ^ 32) = 1 := by
+theorem generator_pow_32 : (0x185629dcda58878c : Gl) ^ (2 ^ 32) = 1 := by
   rw [pow_succ, pow_mul, generator_pow_31]
   norm_num
 
-theorem neg_one_ne_one : (-1 : Fp) ≠ 1 := by
+theorem neg_one_ne_one : (-1 : Gl) ≠ 1 := by
   intro same
-  have two : (2 : Fp) = 0 := by linear_combination -same
+  have two : (2 : Gl) = 0 := by linear_combination -same
   have := (ZMod.natCast_eq_zero_iff 2 goldilocksModulus).mp (by exact_mod_cast two)
   have := Nat.le_of_dvd (by norm_num) this
   have := three_le_modulus
@@ -73,7 +73,7 @@ theorem omega_pow_eight : twoAdic 3 ^ 8 = 1 := by
   rw [show (8 : ℕ) = 2 ^ 3 by norm_num, ← omega_order]
   exact pow_orderOf_eq_one _
 
-theorem generator_ne_zero : (0x185629dcda58878c : Fp) ≠ 0 := by
+theorem generator_ne_zero : (0x185629dcda58878c : Gl) ≠ 0 := by
   intro zero
   have := generator_pow_32
   rw [zero, zero_pow (by norm_num)] at this
@@ -88,12 +88,12 @@ theorem twoAdic_pow_eight (n : ℕ) (low : 2 ≤ n) (high : n + 1 ≤ 32) : twoA
   omega
 
 /-- The first point of leaf `i`'s coset: `y_i = g·ω_{2^(n+1)}^i`. -/
-def leafY (n i : ℕ) : Fp := 7 * twoAdic (n + 1) ^ i
+def leafY (n i : ℕ) : Gl := 7 * twoAdic (n + 1) ^ i
 
 /-- The query point of leaf `i`: `q_i = y_i^8 = g^8·ω_{2^(n-2)}^i` (`setup::query_point`). -/
-def queryPoint (n i : ℕ) : Fp := 7 ^ 8 * twoAdic (n - 2) ^ i
+def queryPoint (n i : ℕ) : Gl := 7 ^ 8 * twoAdic (n - 2) ^ i
 
-theorem seven_ne_zero : (7 : Fp) ≠ 0 := by
+theorem seven_ne_zero : (7 : Gl) ≠ 0 := by
   intro zero
   have := (ZMod.natCast_eq_zero_iff 7 goldilocksModulus).mp (by exact_mod_cast zero)
   have := Nat.le_of_dvd (by norm_num) this
@@ -119,9 +119,9 @@ theorem toF_powerFromBits (bits : ℕ) : ∀ (g : Word) (index : ℕ),
       · rw [if_neg (by omega), Word.toF_one, even, pow_zero, one_mul]
       · rw [if_pos odd, odd, pow_one]
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-local notation "ι" => algebraMap Fp K
+local notation "ι" => algebraMap Gl K
 
 theorem toK_monomial : ∀ (alpha : List Ext) (u : ℕ),
     (Replay.monomial alpha u).toK (K := K) = Layer1.monomial (alpha.map Ext.toK) u
@@ -131,25 +131,25 @@ theorem toK_monomial : ∀ (alpha : List Ext) (u : ℕ),
       split_ifs <;> simp
 
 omit [Fintype K] [ChallengeField K] in
-theorem powerPoint_map (x : Fp) : ∀ n, (powerPoint x n).map (algebraMap Fp K) = powerPoint (ι x) n := by
+theorem powerPoint_map (x : Gl) : ∀ n, (powerPoint x n).map (algebraMap Gl K) = powerPoint (ι x) n := by
   intro n
   induction n generalizing x with
   | zero => rfl
   | succ n ih => simp [powerPoint, ih, map_pow]
 
 omit [Fintype K] [ChallengeField K] in
-theorem mle_map (p : List Fp) (t : ℕ → Fp) : ι (mle p t) = mle (p.map ι) fun i => ι (t i) := by
+theorem mle_map (p : List Gl) (t : ℕ → Gl) : ι (mle p t) = mle (p.map ι) fun i => ι (t i) := by
   rw [mle_eq_cubeSum, mle_eq_cubeSum, cubeSum_eq_sum_range, cubeSum_eq_sum_range, List.length_map, map_sum]
   apply Finset.sum_congr rfl
   intro i _
   rw [map_mul, eqAt_map]
 
 omit [Fintype K] [ChallengeField K] in
-/-- A codeword value in `Fp` read in `K`. -/
-theorem univ_map (n : ℕ) (t : ℕ → Fp) (x : Fp) : ι ((univ n t).eval x) = (univ n fun i => ι (t i)).eval (ι x) := by
+/-- A codeword value in `Gl` read in `K`. -/
+theorem univ_map (n : ℕ) (t : ℕ → Gl) (x : Gl) : ι ((univ n t).eval x) = (univ n fun i => ι (t i)).eval (ι x) := by
   rw [univ_eval, univ_eval, mle_map, powerPoint_map]
 
-omit [Algebra Fp K] [Fintype K] [ChallengeField K] in
+omit [Algebra Gl K] [Fintype K] [ChallengeField K] in
 theorem univ_sum (n m : ℕ) (f : ℕ → ℕ → K) :
     univ n (fun x => ∑ k ∈ Finset.range m, f k x) = ∑ k ∈ Finset.range m, univ n (f k) := by
   induction m with
@@ -162,29 +162,29 @@ theorem univ_sum (n m : ℕ) (f : ℕ → ℕ → K) :
 
 /-! ## The leaf check -/
 
-/-- The honest setup oracles in `Fp`, in leaf order: the key rows, then the
+/-- The honest setup oracles in `Gl`, in leaf order: the key rows, then the
 run oracles row, slot, coefficient and slot block (`RUN_ORACLES`). -/
-def setupOracle (rel : Replay.Relation) (S : Setup Fp) (o x : ℕ) : Fp :=
+def setupOracle (rel : Replay.Relation) (S : Setup Gl) (o x : ℕ) : Gl :=
   if o < rel.kappa then S.key o x
-  else if o = rel.kappa then (S.runRow x : Fp)
-  else if o = rel.kappa + 1 then (S.runSlot x : Fp)
+  else if o = rel.kappa then (S.runRow x : Gl)
+  else if o = rel.kappa + 1 then (S.runSlot x : Gl)
   else if o = rel.kappa + 2 then S.runCoef x
-  else if x < S.slots then (S.slotBlock x : Fp) else 0
+  else if x < S.slots then (S.slotBlock x : Gl) else 0
 
 /-- **Merkle binding**, an assumption on the proof's leaves: a leaf whose path
 reaches the key root at index `i` holds, for each setup oracle, its codeword
 `Ô_o` on the coset `y_i·ω_8^v` of the honest leaf `i`. A leaf that breaks it
 and still reaches the root gives a hash collision. -/
-def MerkleBinds (rel : Replay.Relation) (S : Setup Fp) (leaves : Array Leaf) : Prop :=
+def MerkleBinds (rel : Replay.Relation) (S : Setup Gl) (leaves : Array Leaf) : Prop :=
   ∀ leaf ∈ leaves.toList, ∀ i, pathOk rel.key.root i leaf = true → ∀ o v, o < rel.kappa + runOracles →
     v < 2 ^ foldVars → (leaf.values[o * 2 ^ foldVars + v]!).toF =
       (univ rel.setupVars (setupOracle rel S o)).eval (leafY rel.setupVars i * twoAdic 3 ^ v)
 
-omit [Algebra Fp K] [Fintype K] [ChallengeField K] in
+omit [Algebra Gl K] [Fintype K] [ChallengeField K] in
 theorem pow_mod_eight {w : K} (root : w ^ 8 = 1) (n : ℕ) : w ^ (n % 8) = w ^ n := by
   conv_rhs => rw [← Nat.div_add_mod n 8, pow_add, pow_mul, root, one_pow, one_mul]
 
-omit [Algebra Fp K] [Fintype K] [ChallengeField K] in
+omit [Algebra Gl K] [Fintype K] [ChallengeField K] in
 /-- `ω^((8 - u)·v mod 8) = ω^-uv` for `ω^8 = 1`. -/
 theorem pow_dft {w : K} (root : w ^ 8 = 1) {u : ℕ} (small : u < 8) (v : ℕ) :
     w ^ ((8 - u) * v % 8) = w⁻¹ ^ (u * v) := by
@@ -197,7 +197,7 @@ omit [Fintype K] [ChallengeField K] in
 theorem omega_K : (ι (twoAdic 3)) ^ 8 = 1 := by rw [← map_pow, omega_pow_eight, map_one]
 
 /-- The replay's weight of coset value `v` is `leaf_formula`'s. -/
-theorem toK_leafWeight (alpha : Array Ext) (y : Fp) (yInverse : Word) (hy : yInverse.toF = y⁻¹) (v : ℕ) :
+theorem toK_leafWeight (alpha : Array Ext) (y : Gl) (yInverse : Word) (hy : yInverse.toF = y⁻¹) (v : ℕ) :
     (leafWeight alpha yInverse (twoAdicGenerator foldVars) v).toK (K := K) =
       ∑ u ∈ Finset.range (2 ^ foldVars), Layer1.monomial (pointK alpha) u * ((2 ^ foldVars : ℕ) : K)⁻¹ *
         (ι y)⁻¹ ^ u * (ι (twoAdic 3))⁻¹ ^ (u * v) := by
@@ -217,13 +217,13 @@ omit [Fintype K] [ChallengeField K] in
 theorem omega_K_primitive : ∀ k, 0 < k → k < 2 ^ 3 → (ι (twoAdic 3)) ^ k ≠ 1 := by
   intro k positive small one
   apply pow_ne_one_of_lt_orderOf (x := twoAdic 3) (n := k) (by omega) (by rw [omega_order]; exact small)
-  apply (algebraMap Fp K).injective
+  apply (algebraMap Gl K).injective
   rw [map_pow, one, map_one]
 
 omit [Fintype K] [ChallengeField K] in
 theorem eight_ne_zero : ((2 ^ 3 : ℕ) : K) ≠ 0 := by
-  rw [← map_natCast (algebraMap Fp K)]
-  refine (map_ne_zero (algebraMap Fp K)).mpr ?_
+  rw [← map_natCast (algebraMap Gl K)]
+  refine (map_ne_zero (algebraMap Gl K)).mpr ?_
   intro zero
   have := (ZMod.natCast_eq_zero_iff (2 ^ 3) goldilocksModulus).mp (by exact_mod_cast zero)
   have := Nat.le_of_dvd (by norm_num) this
@@ -232,7 +232,7 @@ theorem eight_ne_zero : ((2 ^ 3 : ℕ) : K) ≠ 0 := by
 
 /-- One group's value at a leaf, `Σ_v w_v·Σ_k weight_k·Ô_{offset+k}(y·ω^v)`, is
 the honest fold of the group at the leaf's query point. -/
-theorem toK_groupValue (rel : Replay.Relation) (S : Setup Fp) (leaf : Leaf) (index : ℕ)
+theorem toK_groupValue (rel : Replay.Relation) (S : Setup Gl) (leaf : Leaf) (index : ℕ)
     (codeword : ∀ o v, o < rel.kappa + runOracles → v < 2 ^ foldVars →
       (leaf.values[o * 2 ^ foldVars + v]!).toF =
         (univ rel.setupVars (setupOracle rel S o)).eval (leafY rel.setupVars index * twoAdic 3 ^ v))
@@ -258,7 +258,7 @@ theorem toK_groupValue (rel : Replay.Relation) (S : Setup Fp) (leaf : Leaf) (ind
       univ_mul_left, eval_mul, eval_C, map_mul, map_pow]
   have length : (pointK (K := K) alpha).length = 3 := by rw [pointK_length, alphaSize]; rfl
   have formula := leaf_formula (rel.setupVars - 3) G (pointK alpha) (ι (leafY rel.setupVars index))
-    (ι (twoAdic 3)) ((map_ne_zero (algebraMap Fp K)).mpr (leafY_ne_zero _ _)) (by rw [length]; exact omega_K)
+    (ι (twoAdic 3)) ((map_ne_zero (algebraMap Gl K)).mpr (leafY_ne_zero _ _)) (by rw [length]; exact omega_K)
     (by rw [length]; exact omega_K_primitive) (by rw [length]; exact eight_ne_zero)
   have target : (ι (leafY rel.setupVars index)) ^ 2 ^ (pointK (K := K) alpha).length =
       ι (queryPoint rel.setupVars index) := by
@@ -285,7 +285,7 @@ theorem two_groups (a b : Array Ext) (f : Array Ext × ℕ → Ext) :
 
 /-- The replay's two folded values at a queried leaf are the honest folds of
 the key group and of the run group at the leaf's query point. -/
-theorem setupCheck_value (rel : Replay.Relation) (S : Setup Fp) {leaves : Array Leaf} (merkle : MerkleBinds rel S leaves)
+theorem setupCheck_value (rel : Replay.Relation) (S : Setup Gl) {leaves : Array Leaf} (merkle : MerkleBinds rel S leaves)
     {index : ℕ} (inside : index < 2 ^ (rel.setupVars - 2)) {leaf : Leaf} (member : leaf ∈ leaves.toList) (lam mu : Ext)
     {alpha : Array Ext} (alphaSize : alpha.size = foldVars) (setup : 3 ≤ rel.setupVars) (high : rel.setupVars + 1 ≤ 32)
     {vals : Array Ext}
@@ -327,7 +327,7 @@ theorem setupCheck_value (rel : Replay.Relation) (S : Setup Fp) {leaves : Array 
       show ¬ (rel.kappa + 3 < rel.kappa) by omega, show rel.kappa + 1 ≠ rel.kappa by omega,
       show rel.kappa + 2 ≠ rel.kappa by omega, show rel.kappa + 2 ≠ rel.kappa + 1 by omega,
       show rel.kappa + 3 ≠ rel.kappa by omega, show rel.kappa + 3 ≠ rel.kappa + 1 by omega,
-      show rel.kappa + 3 ≠ rel.kappa + 2 by omega, add_zero, map_natCast, apply_ite (algebraMap Fp K), map_zero]
+      show rel.kappa + 3 ≠ rel.kappa + 2 by omega, add_zero, map_natCast, apply_ite (algebraMap Gl K), map_zero]
     ring
 
 end CompressionLean.Bridge

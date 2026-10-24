@@ -75,12 +75,12 @@ section Holds
 
 variable {c : Ctx NightstreamFPrime.Spec.F} {w : Var → Word} {m : ℕ} {env : Env}
 
-private theorem toF_word (g : Word) : g.toF = ((word g : NightstreamFPrime.Spec.F).val : Bridge.Fp) := by
+private theorem toF_word (g : Word) : g.toF = ((word g : NightstreamFPrime.Spec.F).val : Gl) := by
   rw [word, Fin.val_natCast, Nat.mod_eq_of_lt (show g.toNat < _ from g.canonical)]
   rfl
 
 private theorem word_eq (hw : Decodes c w) {hs : List Var} {list : List Expr} (holds : HoldsValues c m env hs list)
-    (k : ℕ) : Final.word (F := Bridge.Fp) list env k = ((hs[k]?.map w).getD 0).toF := by
+    (k : ℕ) : Final.word (F := Gl) list env k = ((hs[k]?.map w).getD 0).toF := by
   unfold HoldsValues at holds
   induction holds generalizing k with
   | nil => simp [Final.word]
@@ -220,7 +220,7 @@ private theorem row_toF {rows : Array (Array Var)} (shaped : ∀ row ∈ rows, r
 
 /-- The bridge reads the decoded statement as the claim of `env`. -/
 theorem statementOf_decode (hw : Decodes c w) {claim : ClaimVars} (holds : ClaimHolds c m claim env)
-    (shaped : claim.Shaped) : Bridge.statementOf (claim.view.decode w) = Final.claimOf (F := Bridge.Fp) env := by
+    (shaped : claim.Shaped) : Bridge.statementOf (claim.view.decode w) = Final.claimOf (F := Gl) env := by
   obtain ⟨-, -, spt, sk, -⟩ := claim_sizes holds shaped
   obtain ⟨hcom, hpub, hpt, hk, ha⟩ := holds
   obtain ⟨scom, spub, sa⟩ := shaped

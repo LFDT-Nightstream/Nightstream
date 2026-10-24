@@ -42,8 +42,6 @@ open CompressionLean.Final
 open CompressionLean.Final.Encodes
 open CompressionLean.Circuit.Goldilocks Fin.CommRing
 
-attribute [local instance] Circuit.challengeCubic
-
 /-- **The production bound** (`CompressionKey::verify`,
 `lifecycle/finish.rs:131-145`). Take the production final program for the
 layer-1 key `key` (`Encodes.prog`), the terminal package with the context

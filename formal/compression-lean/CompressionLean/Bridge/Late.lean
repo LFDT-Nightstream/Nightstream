@@ -17,9 +17,9 @@ open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-local notation "ι" => algebraMap Fp K
+local notation "ι" => algebraMap Gl K
 
 /-! ## The lane split -/
 
@@ -70,7 +70,7 @@ theorem toList_map_range {α β : Type} [Inhabited α] (a : Array α) (f : α �
 
 section Key
 
-variable (rel : Replay.Relation) (S : Setup Fp)
+variable (rel : Replay.Relation) (S : Setup Gl)
 
 /-- Each segment's lane is a lane of the ring: its first slot has it. -/
 theorem segment_lane (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
@@ -188,10 +188,10 @@ def lateMsgs (rel : Replay.Relation) (proof : Replay.Proof) : List (Σ M : Type,
 proof's messages, draws the replay's `β` and GKR challenges and ends in the
 model's `LateOut` of the replay's values; along it every `LateChecks`
 condition holds. -/
-theorem late_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : ProofShape rel proof) (S : Setup Fp)
+theorem late_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : ProofShape rel proof) (S : Setup Gl)
     (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
     (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S) {lin : Replay.LinearOut}
-    (linRun : LinearRun (K := K) rel proof lin) (cands : List (P0Tables Fp)) (p1 : List (P1Tables K)) (q : ℕ)
+    (linRun : LinearRun (K := K) rel proof lin) (cands : List (P0Tables Gl)) (p1 : List (P1Tables K)) (q : ℕ)
     {t t' : Replay.Transcript} {late : Replay.LateOut} (run : Runs (lateStage rel proof lin) t late t') :
     ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧ ∃ mc : Layer1.GkrClaims K,
       ClaimsAgree rel.lateShapes.size late.gkr mc ∧

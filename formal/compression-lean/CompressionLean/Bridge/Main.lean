@@ -47,7 +47,7 @@ theorem twoAdic_order (m : ℕ) (high : m ≤ 32) : orderOf (twoAdic m) = 2 ^ m 
         exact neg_one_ne_one
       · rw [twoAdic, ← pow_mul, ← pow_add, show 32 - (n + 1) + (n + 1) = 32 by omega, generator_pow_32]
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
 omit [Fintype K] [ChallengeField K] in
 /-- Distinct leaves have distinct query points. -/
@@ -55,7 +55,7 @@ theorem queryAt_distinct (rel : Replay.Relation) (high : rel.setupVars + 1 ≤ 3
     ∀ i j, i < 2 ^ (rel.setupVars - 2) → j < 2 ^ (rel.setupVars - 2) →
       queryAt (K := K) rel i = queryAt rel j → i = j := by
   intro i j hi hj same
-  have base := (algebraMap Fp K).injective same
+  have base := (algebraMap Gl K).injective same
   unfold queryPoint at base
   have powers := mul_left_cancel₀ (pow_ne_zero 8 seven_ne_zero) base
   have order := twoAdic_order (rel.setupVars - 2) (by omega)
@@ -66,7 +66,7 @@ variable [DecidableEq K]
 
 /-- The relation facts that the replay does not check: sizes, and the key's
 structure for the setup `S`. -/
-structure RelationFacts (rel : Replay.Relation) (S : Setup Fp) : Prop where
+structure RelationFacts (rel : Replay.Relation) (S : Setup Gl) : Prop where
   rowFits : rel.key.layout.rowVariables ≤ rel.pointVariables
   matricesFit : rel.matrices ≤ 2 ^ rel.matrixVars
   bits : EvalKBits rel
@@ -80,9 +80,9 @@ structure RelationFacts (rel : Replay.Relation) (S : Setup Fp) : Prop where
 /-- The model's messages of the replay's layer-1 proof: the statement, then
 the early, linear, honest-fold and late messages. -/
 def layer1Msgs (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof) {L0 L1 : ℕ}
-    (cands : {l : List (P0Tables Fp) // l.length ≤ L0}) (p1 : {l : List (P1Tables K) // l.length ≤ L1}) :
+    (cands : {l : List (P0Tables Gl) // l.length ≤ L0}) (p1 : {l : List (P1Tables K) // l.length ≤ L1}) :
     List (Σ M : Type, M) :=
-  ⟨Layer1.Statement Fp, statementOf st⟩ :: (earlyMsgs (K := K) rel proof cands ++
+  ⟨Layer1.Statement Gl, statementOf st⟩ :: (earlyMsgs (K := K) rel proof cands ++
     (linearMsgs (K := K) rel proof ++ (honestMsgs proof p1 ++ lateMsgs (K := K) rel proof)))
 
 /-- The replay up to the late stage: `verify` before WHIR's transcripts and the
@@ -105,12 +105,12 @@ at the points that it returns. Some path of `layer1Game` receives the
 replay's statement, proof and candidate lists, draws the replay's
 challenges before WHIR's own and ends in a model transcript of the replay's
 statement and the prover's P0 candidates. -/
-theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Fp) (facts : RelationFacts rel S)
+theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Gl) (facts : RelationFacts rel S)
     (seed : Array Word) (st : Replay.Statement) (proof : Replay.Proof) (merkle : MerkleBinds rel S proof.leaves)
-    (L0 L1 : ℕ) (cands : List (P0Tables Fp)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K))
+    (L0 L1 : ℕ) (cands : List (P0Tables Gl)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K))
     (short1 : p1.length ≤ L1) {t t' : Replay.Transcript} {points : OpeningPoints}
     (run : Runs (verify rel seed st proof) t points t') (whir : WhirOpens (shapeOf rel) proof points cands p1) :
-    ∃ (tr : Transcript Fp K (shapeOf rel).queries (2 ^ (rel.setupVars - 2))) (ds rest : List Draw),
+    ∃ (tr : Transcript Gl K (shapeOf rel).queries (2 ^ (rel.setupVars - 2))) (ds rest : List Draw),
       t'.draws.toList = t.draws.toList ++ ds ++ rest ∧
       (∃ t₄, Runs (verifyStages rel seed st proof) t () t₄ ∧ t₄.draws.toList = t.draws.toList ++ ds) ∧
       tr.statement = statementOf st ∧ tr.early.candidates = cands ∧
@@ -175,10 +175,10 @@ with WHIR's guarantee at the points that it returns, is a path of
 avoids every bad set, a P0 candidate is a CE(B) witness for the replay's
 statement. The paths that do not avoid them are the event that
 `layer1_sound` bounds. -/
-theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Fp) (facts : RelationFacts rel S) (N : ℕ)
+theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Gl) (facts : RelationFacts rel S) (N : ℕ)
     (sizes : (shapeOf rel).Sizes N) (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (seed : Array Word)
     (st : Replay.Statement) (proof : Replay.Proof) (merkle : MerkleBinds rel S proof.leaves) (L0 L1 : ℕ)
-    (cands : List (P0Tables Fp)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K)) (short1 : p1.length ≤ L1)
+    (cands : List (P0Tables Gl)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K)) (short1 : p1.length ≤ L1)
     {t t' : Replay.Transcript} {points : OpeningPoints} (run : Runs (verify rel seed st proof) t points t')
     (whir : WhirOpens (shapeOf rel) proof points cands p1) :
     ∃ ds rest : List Draw, t'.draws.toList = t.draws.toList ++ ds ++ rest ∧

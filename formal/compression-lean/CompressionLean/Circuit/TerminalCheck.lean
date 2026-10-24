@@ -78,7 +78,7 @@ def claimView (claim : ClaimVars) : ClaimView :=
 /-- The run digest of a program: its lowering's counts and rows. The rows do
 not depend on the statement values. -/
 def digest (instrs : Array Instr) : List ℕ :=
-  let run := lower (F := G) instrs []
+  let run := lower (F := Gl) instrs []
   (runDigest run (run.calls.flatMap Call.computedRows).toArray).toList.map Word.toNat
 
 /-- Compare `finalProgram` on `package` with the export: up to layer 1, or

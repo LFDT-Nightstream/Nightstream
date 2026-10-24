@@ -15,9 +15,9 @@ namespace CompressionLean.Bridge
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-local notation "ι" => algebraMap Fp K
+local notation "ι" => algebraMap Gl K
 
 /-! ## Checks -/
 
@@ -132,7 +132,7 @@ def valuesOf (v : Replay.EarlyValues) : Layer1.EarlyValues K :=
   ⟨v.eRe.toK, v.eIm.toK, v.row.toK, fun j => pairK (v.pairs[j]!), v.block.toK⟩
 
 /-- The model's histogram of the proof's counts. -/
-def histOf (proof : Replay.Proof) (i : ℕ) : Fp := (proof.histogram[i]!).toF
+def histOf (proof : Replay.Proof) (i : ℕ) : Gl := (proof.histogram[i]!).toF
 
 /-- The model's early challenges of the replay's. -/
 def challengesOf (ch : Replay.EarlyChallenges) : Layer1.EarlyChallenges K :=
@@ -141,8 +141,8 @@ def challengesOf (ch : Replay.EarlyChallenges) : Layer1.EarlyChallenges K :=
 /-- The model's messages of the replay's early stage: the P0 candidates, the
 histogram, the GKR messages and the early values. -/
 def earlyMsgs (rel : Replay.Relation) (proof : Replay.Proof) {L0 : ℕ}
-    (cands : {l : List (P0Tables Fp) // l.length ≤ L0}) : List (Σ M : Type, M) :=
-  ⟨{l : List (P0Tables Fp) // l.length ≤ L0}, cands⟩ :: ⟨ℕ → Fp, histOf proof⟩ ::
+    (cands : {l : List (P0Tables Gl) // l.length ≤ L0}) : List (Σ M : Type, M) :=
+  ⟨{l : List (P0Tables Gl) // l.length ≤ L0}, cands⟩ :: ⟨ℕ → Gl, histOf proof⟩ ::
     (gkrMsgs (K := K) rel.earlyShapes proof.early ++ [⟨Layer1.EarlyValues K, valuesOf proof.earlyValues⟩])
 
 theorem earlyShapes_size (rel : Replay.Relation) : rel.earlyShapes.size = 5 := rfl
@@ -186,7 +186,7 @@ in the model's `EarlyOut` of the replay's values; along it every
 theorem early_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof)
     (shape : ProofShape rel proof) (fits : st.fits rel = true)
     (rowFits : rel.key.layout.rowVariables ≤ rel.pointVariables) (matricesFit : rel.matrices ≤ 2 ^ rel.matrixVars)
-    (S : Setup Fp) (L0 : ℕ) (cands : List (P0Tables Fp)) (short : cands.length ≤ L0) (q : ℕ)
+    (S : Setup Gl) (L0 : ℕ) (cands : List (P0Tables Gl)) (short : cands.length ≤ L0) (q : ℕ)
     {t t' : Replay.Transcript} {o : Replay.EarlyOut} (run : Runs (earlyStage rel st proof) t o t') :
     ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧ ∃ mc : Layer1.GkrClaims K,
       ClaimsAgree rel.earlyShapes.size o.gkr mc ∧
@@ -233,7 +233,7 @@ theorem early_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : R
   have root : ∀ u, u < 5 → mc.roots u = pairK (claims.roots[u]!) := fun u lt => claimsAgree.roots u (small u lt)
   have checks : EarlyChecks (shapeOf rel) (statementOf st)
       (⟨cands, histOf proof, ⟨beta.toK, pairK lookup, pairK scatter⟩, mc, valuesOf proof.earlyValues⟩ :
-        Layer1.EarlyOut Fp K) := by
+        Layer1.EarlyOut Gl K) := by
     refine ⟨fun u inside => poles u (by rw [shape.histogram]; exact inside), ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [root 0 (by norm_num)]
       exact Ext.toK_ne_zero nonzero
@@ -278,7 +278,7 @@ theorem early_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : R
       run_observeAll h2, run_observeAll h1]
     simp
   · unfold earlyGame earlyMsgs
-    apply Game.Reaches.recv (⟨cands, short⟩ : {l : List (P0Tables Fp) // l.length ≤ L0})
+    apply Game.Reaches.recv (⟨cands, short⟩ : {l : List (P0Tables Gl) // l.length ≤ L0})
     apply Game.Reaches.recv (histOf proof)
     simp only [List.map_cons, List.cons_append, List.nil_append, drawn_ext, drawn_pair]
     apply Game.Reaches.draw beta.toK

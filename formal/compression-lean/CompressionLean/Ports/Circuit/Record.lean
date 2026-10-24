@@ -76,13 +76,14 @@ def combine (parts : List (Form F × F)) : List (Wire × F) × F :=
 def negate (terms : List (Wire × F)) : List (Wire × F) := terms.map fun t => (t.1, -t.2)
 
 /-- The recorder's state (`Recorder`, `record.rs:160-167`) and the forms of
-the values. -/
+the values. `publics` counts the statement words read; Rust's counter starts
+at the first word's wire, 1. -/
 structure State (F : Type) where
   values : Array (Form F) := #[]
   calls : Array (Call F) := #[]
   cells : ℕ := 0
   blocks : ℕ := 0
-  publics : Array F := #[]
+  publics : ℕ := 0
 
 /-- The lowering monad. -/
 abbrev Lower (F : Type) := StateM (State F)
@@ -236,10 +237,10 @@ def permute (inputs : Fin 16 → Form F) : Lower F (Fin 16 → Form F) := do
   pure fun k => .wire (.block b (outputCell + k))
 
 /-- The next statement word (`Recorder::public`, `record.rs:297-303`): wire
-`i + 1`, since wire `0` is the constant one. -/
-def statementWord (stmt : Array F) : Lower F (Form F) :=
-  modifyGet fun s =>
-    (.wire (.pub (s.publics.size + 1)), { s with publics := s.publics.push (stmt.getD s.publics.size 0) })
+`i + 1`, since wire `0` is the constant one. The lowering reads no
+statement value; `lower` attaches them to the run. -/
+def statementWord : Lower F (Form F) :=
+  modifyGet fun s => (.wire (.pub (s.publics + 1)), { s with publics := s.publics + 1 })
 
 /-- `r1cs` (`record.rs:450-460`): the system's rows over the column forms. -/
 def r1cs (rows : List (R1csRow F)) (columns : List (Form F)) : Lower F Unit :=
@@ -270,10 +271,10 @@ def R1csRow.inField (r : R1csRow Word) : R1csRow F :=
   ⟨r.a.map fun t => (t.1, Word.cast t.2), r.b.map fun t => (t.1, Word.cast t.2), r.c.map fun t => (t.1, Word.cast t.2)⟩
 
 /-- One instruction (`Backend for Recorder`, `record.rs:285-474`). -/
-def step (stmt : Array F) : Instr → Lower F Unit
+def step : Instr → Lower F Unit
   | .const value => push [.const (Word.cast value)]
   | .priv => do push [← cell]
-  | .pub => do push [← statementWord stmt]
+  | .pub => do push [← statementWord]
   | .linear parts => do
       let forms ← readValues (parts.map (·.1))
       push [← linear (forms.zip (parts.map fun p => Word.cast p.2))]
@@ -293,15 +294,16 @@ def step (stmt : Array F) : Instr → Lower F Unit
   | .r1cs rows columns => do r1cs (rows.map R1csRow.inField) (← readValues columns)
 
 /-- Lower the instructions from state `s` on. -/
-def steps (stmt : Array F) : List Instr → State F → State F
+def steps : List Instr → State F → State F
   | [], s => s
-  | i :: rest, s => steps stmt rest ((step stmt i).run s).2
+  | i :: rest, s => steps rest ((step i).run s).2
 
 /-- **The lowering**: the run that `record.rs` records for program `L` on
-the statement words `stmt`. -/
+the statement words `stmt`. The shape does not read `stmt`; word `i` of the
+run is `stmt`'s word `i`, as the sink receives it (`Sink::public`, `record.rs:145`). -/
 def lower (L : Array Instr) (stmt : List F) : Run F :=
-  let s := steps stmt.toArray L.toList {}
-  ⟨s.calls.toList, s.cells, s.blocks, s.publics.toList⟩
+  let s := steps L.toList {}
+  ⟨s.calls.toList, s.cells, s.blocks, (List.range s.publics).map fun i => stmt.getD i 0⟩
 
 end Lowering
 

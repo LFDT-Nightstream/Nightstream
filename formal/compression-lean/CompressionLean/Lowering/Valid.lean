@@ -36,7 +36,7 @@ constant one or a statement word read. -/
 def _root_.CompressionLean.Circuit.State.WireIn (s : State F) : Wire → Prop
   | .glue c => c < s.cells
   | .block b k => b < s.blocks ∧ k < blockCells
-  | .pub i => i ≤ s.publics.size
+  | .pub i => i ≤ s.publics
 
 /-- Terms on wires of the run so far. -/
 def _root_.CompressionLean.Circuit.State.TermsIn (s : State F) (terms : List (Wire × F)) : Prop := ∀ t ∈ terms, s.WireIn t.1
@@ -45,7 +45,7 @@ def _root_.CompressionLean.Circuit.State.TermsIn (s : State F) (terms : List (Wi
 structure _root_.CompressionLean.Circuit.State.Le (s t : State F) : Prop where
   cells : s.cells ≤ t.cells
   blocks : s.blocks ≤ t.blocks
-  publics : s.publics.size ≤ t.publics.size
+  publics : s.publics ≤ t.publics
 
 theorem _root_.CompressionLean.Circuit.State.Le.refl (s : State F) : s.Le s := ⟨le_rfl, le_rfl, le_rfl⟩
 
@@ -276,18 +276,15 @@ theorem cells_spec (count : ℕ) :
   have le : s.Le { s with cells := s.cells + count } := ⟨Nat.le_add_right _ _, le_rfl, le_rfl⟩
   exact ⟨ok.grow le rfl rfl, le, le_rfl⟩
 
-theorem statementWord_spec (stmt : Array F) :
-    Spec (fun _ => True) (statementWord stmt) (fun f t => t.TermsIn f.terms) := by
+theorem statementWord_spec : Spec (fun _ => True) (statementWord : Lower F (Form F)) (fun f t => t.TermsIn f.terms) := by
   intro s ok _
-  have le : s.Le { s with publics := s.publics.push (stmt.getD s.publics.size 0) } :=
-    ⟨le_rfl, le_rfl, by show s.publics.size ≤ (s.publics.push _).size; simp⟩
+  have le : s.Le { s with publics := s.publics + 1 } := ⟨le_rfl, le_rfl, Nat.le_succ _⟩
   refine ⟨ok.grow le rfl rfl, le, ?_⟩
   intro x hx
-  change x ∈ [(Wire.pub (s.publics.size + 1), (1 : F))] at hx
+  change x ∈ [(Wire.pub (s.publics + 1), (1 : F))] at hx
   simp only [List.mem_singleton] at hx
   subst hx
-  show s.publics.size + 1 ≤ (s.publics.push _).size
-  simp
+  exact le_rfl
 
 theorem push_spec (forms : List (Form F)) :
     Spec (fun s => ∀ f ∈ forms, s.TermsIn f.terms) (push forms) (fun _ _ => True) := by
@@ -619,7 +616,7 @@ theorem push_one {P : State F → Prop} {f : Form F} :
     subst hg
     exact h.2) fun _ _ h => h
 
-theorem step_spec (stmt : Array F) (i : Instr) : Spec (fun _ => True) (step stmt i) fun _ _ => True := by
+theorem step_spec (i : Instr) : Spec (fun _ => True) (step i : Lower F Unit) fun _ _ => True := by
   cases i with
   | const value =>
       exact (push_spec _).weaken (fun s _ f hf => by
@@ -627,7 +624,7 @@ theorem step_spec (stmt : Array F) (i : Instr) : Spec (fun _ => True) (step stmt
         subst hf
         exact State.TermsIn.nil s) fun _ _ h => h
   | priv => exact Spec.bind cell_spec fun _ => push_one.weaken (fun _ h => ⟨trivial, h⟩) fun _ _ h => h
-  | pub => exact Spec.bind (statementWord_spec stmt) fun _ => push_one.weaken (fun _ h => ⟨trivial, h⟩) fun _ _ h => h
+  | pub => exact Spec.bind statementWord_spec fun _ => push_one.weaken (fun _ h => ⟨trivial, h⟩) fun _ _ h => h
   | linear parts =>
       refine Spec.bind (readValues_spec _) fun forms => Spec.bind ((linear_spec _).weaken ?_ fun _ _ h => h)
         fun _ => push_one.weaken (fun _ h => ⟨trivial, h⟩) fun _ _ h => h
@@ -668,9 +665,9 @@ theorem step_spec (stmt : Array F) (i : Instr) : Spec (fun _ => True) (step stmt
       exact State.TermsIn.glue (show c < s.cells by omega) 1
   | r1cs rows columns => exact Spec.bind (readValues_spec columns) fun cs => r1cs_spec _ cs
 
-theorem steps_ok (stmt : Array F) : ∀ (L : List Instr) (s : State F), s.Ok → (steps stmt L s).Ok
+theorem steps_ok : ∀ (L : List Instr) (s : State F), s.Ok → (steps L s).Ok
   | [], _, ok => ok
-  | i :: rest, s, ok => steps_ok stmt rest _ (step_spec stmt i s ok trivial).1
+  | i :: rest, s, ok => steps_ok rest _ (step_spec i s ok trivial).1
 
 end Folding
 
@@ -683,10 +680,10 @@ theorem empty_ok : (({} : State F)).Ok :=
 constant one or a statement word of the run. -/
 theorem lower_valid [DecidableEq F] (T : Template F) (cells : blockCells ≤ T.cells) (L : Array Instr)
     (stmt : List F) : (lower L stmt).Valid T := by
-  have ok := steps_ok stmt.toArray L.toList {} empty_ok
+  have ok := steps_ok (F := F) L.toList {} empty_ok
   unfold lower
   dsimp only
-  generalize steps stmt.toArray L.toList {} = s at ok
+  generalize steps (F := F) L.toList {} = s at ok
   intro r hr side t ht
   simp only [Run.rows, List.mem_flatMap] at hr
   obtain ⟨c, hc, hr⟩ := hr

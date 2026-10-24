@@ -21,7 +21,13 @@ def notPorts : List (Name × String) := [
   (``CompressionLean.Circuit.HonestInput.lanePoint, "a field; `honestStage` reads it as `verify` does"),
   (``CompressionLean.Circuit.OpeningsInput, "the names of `verify`'s values; `openingsStage` reads them"),
   (``CompressionLean.Circuit.OpeningsInput.queryPoints, "a field; `openingsStage` reads it as `verify` does"),
-  (``CompressionLean.Circuit.Layer1Input, "the format of `layer1.json`, which a Rust test writes")]
+  (``CompressionLean.Circuit.Layer1Input, "the format of `layer1.json`, which a Rust test writes"),
+  (``CompressionLean.Shrink.Call, "the calls of the trait `Sink`; `Call.rows`, `Run.counts` and `glueTotal` port what the sinks do with them"),
+  (``CompressionLean.Shrink.Wire.Valid, "a fact about the lowering's wires, which `lower_valid` proves"),
+  (``CompressionLean.Shrink.Layout.blockEntries, "the block entries of the CCS; `blockPart_eq` gives their sum as `block_part`"),
+  (``CompressionLean.Shrink.Layout.rowEntries, "the glue entries of the CCS; `glueTotal_eq` gives their sum as `Evaluate`'s total"),
+  (``CompressionLean.Shrink.matrixValue, "the CCS's matrix value; `verifierMatrices_eq` gives the verifier's value as it"),
+  (``CompressionLean.Shrink.mle_z, "a theorem: the extension of `z`")]
 
 /-- `doc` names a Rust file: `.rs` not followed by a letter or a digit. -/
 def citesRust (doc : String) : Bool :=

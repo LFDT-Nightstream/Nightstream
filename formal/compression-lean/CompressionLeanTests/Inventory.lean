@@ -63,7 +63,10 @@ def portModules : List Name := [
   `CompressionLean.Circuit.Mle, `CompressionLean.Circuit.Linear, `CompressionLean.Circuit.Honest,
   `CompressionLean.Circuit.Late, `CompressionLean.Circuit.Whir, `CompressionLean.Circuit.Openings,
   `CompressionLean.Circuit.Verifier, `CompressionLean.Circuit.Terminal, `CompressionLean.Circuit.Package,
-  `CompressionLean.Final.RustSetup]
+  `CompressionLean.Final.RustSetup,
+  `CompressionLean.Shrink.Layout, `CompressionLean.Shrink.Ccs, `CompressionLean.Shrink.Rounds,
+  `CompressionLean.Shrink.Evaluate, `CompressionLean.Shrink.BlockPart, `CompressionLean.Shrink.Diagonal,
+  `CompressionLean.Shrink.Game, `CompressionLean.Shrink.Budget, `CompressionLean.Layer1.Budget]
 
 /-- The Rust tests that pin a digest that Lean computes: the file, then the test. -/
 def digestPins : List (String × String) := [

@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Linear
+import CompressionLean.Ports.Circuit.Linear
 import CompressionLean.Sim.Ring
 import CompressionLean.Sim.Honest
 

@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Views
+import CompressionLean.Ports.Circuit.Views
 
 /-!
 Owns our WHIR verifier of one opening (`crates/neo-spartan/src/whir/mod.rs`)

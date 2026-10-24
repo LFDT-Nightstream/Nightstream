@@ -1,9 +1,10 @@
-import CompressionLean.Circuit.Early
+import CompressionLean.Ports.Circuit.Mle
+import CompressionLean.Ports.Circuit.Early
 
 /-!
 Owns the late stage of the layer-1 verifier (`verifier.rs:251-260`) as a
 builder program (`lateStage`): the late `β`, the late GKR (`gkrVerify` at
-`Structure::late_shapes`), the lane tables (`lane_split`, `mle.rs:109-140`),
+`Structure::late_shapes`), the lane tables (over `Mle.laneSplit`),
 the late leaf checks (`Structure::check_late`, `matrix.rs:319-361`, with
 `slot_step`) and the binding of the late pairs. Each part calls `Build` in
 the order of its Rust counterpart.
@@ -16,36 +17,6 @@ The stage starts from the duplex after the setup queries
 namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (Word Layout Relation D)
-
-namespace Mle
-
-/-- `lane_split`: the head and tail lane tables of a run class
-`(length ≤ D, ratio)` for the lane weights `tau` (`mle.rs:109-140`). -/
-def laneSplit (tau : Array ExtVar) (length : ℕ) (ratio : Word) : Build (Array ExtVar × Array ExtVar) := do
-  let ratioPower := ratio.pow length
-  let mut head := Array.replicate D tau[D - 1]!
-  for lane in (List.range (D - 1)).reverse do
-    let carried ← Algebra.extScaleConstant head[lane + 1]! ratio
-    let mut value ← Build.extAdd tau[lane]! carried
-    if lane + length < D then
-      let dropped ← Algebra.extScaleConstant tau[lane + length]! ratioPower
-      value ← Build.extSub value dropped
-    head := head.set! lane value
-  let mut sums := Array.replicate D tau[0]!
-  let mut acc ← Algebra.extZero
-  let mut power : Word := 1
-  for (value, k) in tau.zipIdx do
-    let term ← Algebra.extScaleConstant value power
-    acc ← Build.extAdd acc term
-    sums := sums.set! k acc
-    power := power * ratio
-  let zero ← Algebra.extZero
-  let tail ← (Array.range D).mapM fun lane =>
-    if D + 1 ≤ lane + length then Algebra.extScaleConstant sums[lane + length - (D + 1)]! (ratio.pow (D - lane))
-    else pure zero
-  pure (head, tail)
-
-end Mle
 
 /-- `Structure::lane_tables`: `[H0, H1]` of every class (`matrix.rs:217-224`). -/
 def laneTables (layout : Layout) (tau : Array ExtVar) : Build (Array (Array ExtVar × Array ExtVar)) :=

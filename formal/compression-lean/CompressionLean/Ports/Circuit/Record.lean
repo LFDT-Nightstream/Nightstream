@@ -1,10 +1,10 @@
-import CompressionLean.Circuit.Ir
+import CompressionLean.Ports.Circuit.Ir
 import CompressionLean.Fields
 
 /-!
 Owns the lowering of a program (`lower`): an exact port of the constraint
 reading of `Backend` (`crates/neo-spartan/src/circuit/record.rs`) from the
-instructions of `Ir.lean` to the shrink run of `Shrink/Layout.lean`.
+instructions of `Ir.lean` to the shrink run of `Ports/Shrink/Layout.lean`.
 
 - Forms (`record.rs:39-98`) are `Σ coefficient·wire + constant`. `combine`
   merges the terms of weighted forms in first-wire order and drops zero
@@ -25,65 +25,8 @@ instructions of `Ir.lean` to the shrink run of `Shrink/Layout.lean`.
 The lowering computes in a field `F`. `lowerCheck`
 (`CompressionLeanExe/LowerCheck.lean`) runs it in Goldilocks, where its zero
 tests are Rust's, against the trace of `neo-spartan`'s
-`tests/internal/lowering.rs`. `Call.computedRows` is the
-model's `Call.rows` with decidable zero tests (`computedRows_eq`).
+`tests/internal/lowering.rs`. The proofs about it are in `Lowering/`.
 -/
-
-namespace CompressionLean.Shrink
-
-deriving instance DecidableEq, Repr for Wire
-
-variable {F : Type} [Field F] [DecidableEq F]
-
-namespace Form
-
-/-- `Form::constant` (`record.rs:49-56`). -/
-def const (c : F) : Form F := ⟨[], c⟩
-
-/-- `Form::wire` (`record.rs:58-64`). -/
-def wire (w : Wire) : Form F := ⟨[(w, 1)], 0⟩
-
-/-- `Form::is_constant` (`record.rs:70-72`). -/
-def isConstant (f : Form F) : Bool := f.terms.isEmpty
-
-/-- `Form::row_terms` (`record.rs:90-97`): the constant on the one column. -/
-def rowTerms (f : Form F) : List (Wire × F) := f.terms ++ if f.constant = 0 then [] else [(.pub 0, f.constant)]
-
-end Form
-
-/-- `expand` with decidable zero tests and array column reads
-(`record.rs:118-134`). -/
-def expandArray (side : List (ℕ × F)) (columns : Array (Form F)) : List (Wire × F) :=
-  side.flatMap fun t =>
-    (columns.getD t.1 ⟨[], 0⟩).terms.map (fun u => (u.1, u.2 * t.2)) ++
-      if (columns.getD t.1 ⟨[], 0⟩).constant ≠ 0 then [(.pub 0, (columns.getD t.1 ⟨[], 0⟩).constant * t.2)]
-      else []
-
-theorem expandArray_eq (side : List (ℕ × F)) (columns : List (Form F)) :
-    expandArray side columns.toArray = expand side columns := by
-  unfold expandArray expand
-  congr 1
-  funext t
-  have read : columns.toArray.getD t.1 ⟨[], 0⟩ = columns.getD t.1 ⟨[], 0⟩ := by
-    simp [Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD]
-  rw [read]
-  congr 1
-  split_ifs <;> rfl
-
-/-- The glue rows of a call, computed (`Trace::row`, `Trace::r1cs`,
-`record.rs:491-572`). The column array is built once per call, not once per
-row: the terminal package is one call of 8,800,800 rows. -/
-def Call.computedRows : Call F → List (GlueRow F)
-  | .row products linear _ => [GlueRow.ofCall products linear]
-  | .r1cs rows columns =>
-      let columns := columns.toArray
-      rows.map fun r =>
-        GlueRow.ofCall [(expandArray r.a columns, expandArray r.b columns)] (expandArray r.c columns)
-
-theorem Call.computedRows_eq (c : Call F) : c.computedRows = c.rows := by
-  cases c <;> simp [computedRows, Call.rows, expandArray_eq]
-
-end CompressionLean.Shrink
 
 namespace CompressionLean.Circuit
 
@@ -194,9 +137,6 @@ def extRow (a b : Fin 3 → Form F) : Fin 3 → List (List (Wire × F) × List (
     [pair 0 [b 1], pair 1 [b 0, b 2], pair 2 [b 1, b 2]],
     [pair 0 [b 2], pair 1 [b 1], pair 2 [b 0, b 2]]]
 
-theorem extRow_length (a b : Fin 3 → Form F) (k : Fin 3) : (extRow a b k).length ≤ 3 := by
-  fin_cases k <;> simp [extRow]
-
 /-- The inverse in `F[x]/(x³ - x - 1)`: Cramer's rule on multiplication by
 `a`, none when its determinant is zero. Over Goldilocks the determinant is
 the norm of `a`, zero only at zero (`Lib.cubic_irreducible`), so this is
@@ -214,7 +154,7 @@ def constants (a : Fin 3 → Form F) : Bool := (a 0).isConstant && (a 1).isConst
 /-- One product cell and its row (`record.rs:367-372`). -/
 def extCell (a b : Fin 3 → Form F) (k : Fin 3) : Lower F (Form F) := do
   let c ← cell
-  row (extRow a b k) c.terms (extRow_length a b k)
+  row (extRow a b k) c.terms (by fin_cases k <;> simp [extRow])
   pure c
 
 /-- `std::array::from_fn` over three coordinates: the calls in order. -/
@@ -243,9 +183,9 @@ def extInv (a : Fin 3 → Form F) : Lower F (Fin 3 → Form F) :=
   | some v => pure fun i => .const (v i)
   | none => do
       let inverse ← fromFn fun _ => cell
-      row (extRow a inverse 0) [(.pub 0, 1)] (extRow_length _ _ _)
-      row (extRow a inverse 1) [] (extRow_length _ _ _)
-      row (extRow a inverse 2) [] (extRow_length _ _ _)
+      row (extRow a inverse 0) [(.pub 0, 1)] (by simp [extRow])
+      row (extRow a inverse 1) [] (by simp [extRow])
+      row (extRow a inverse 2) [] (by simp [extRow])
       pure inverse
 
 /-- `assert_zero` (`record.rs:399-407`). -/

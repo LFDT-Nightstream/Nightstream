@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Hash
+import CompressionLean.Ports.Circuit.Hash
 
 /-!
 Owns the sum-check replay of `crates/neo-spartan/src/sumcheck.rs`

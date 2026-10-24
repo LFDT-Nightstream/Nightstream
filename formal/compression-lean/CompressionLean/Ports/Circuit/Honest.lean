@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Early
+import CompressionLean.Ports.Circuit.Early
 
 /-!
 Owns the honest-fold stage of the layer-1 verifier (`verifier.rs:208-249`)

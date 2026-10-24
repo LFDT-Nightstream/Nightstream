@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Verifier
+import CompressionLean.Ports.Circuit.Verifier
 import CompressionLean.Bridge.EvalK
 import CompressionLean.Bridge.Honest
 

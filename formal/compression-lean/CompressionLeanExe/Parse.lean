@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Ir
+import CompressionLean.Ports.Circuit.Ir
 
 /-!
 Owns the format of the IR exports that `neo-spartan`'s

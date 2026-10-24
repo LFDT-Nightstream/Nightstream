@@ -116,28 +116,28 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 
 | Lean module | Declarations |
 |---|---:|
-| `CompressionLean.Circuit.Algebra` | 24 |
-| `CompressionLean.Circuit.Early` | 15 |
-| `CompressionLean.Circuit.Fold` | 10 |
-| `CompressionLean.Circuit.Gkr` | 3 |
-| `CompressionLean.Circuit.Hash` | 13 |
-| `CompressionLean.Circuit.Honest` | 5 |
-| `CompressionLean.Circuit.Late` | 6 |
-| `CompressionLean.Circuit.Linear` | 2 |
-| `CompressionLean.Circuit.Mle` | 2 |
-| `CompressionLean.Circuit.Openings` | 2 |
 | `CompressionLean.Circuit.Package` | 13 |
-| `CompressionLean.Circuit.Record` | 33 |
-| `CompressionLean.Circuit.Ring` | 10 |
-| `CompressionLean.Circuit.Sumcheck` | 1 |
 | `CompressionLean.Circuit.Terminal` | 7 |
-| `CompressionLean.Circuit.Verifier` | 5 |
-| `CompressionLean.Circuit.Views` | 11 |
-| `CompressionLean.Circuit.Whir` | 14 |
 | `CompressionLean.Final.RustSetup` | 13 |
 | `CompressionLean.Game.SumCheck` | 1 |
 | `CompressionLean.Lib.Cube` | 2 |
 | `CompressionLean.Lib.SumCheck` | 1 |
+| `CompressionLean.Ports.Circuit.Algebra` | 24 |
+| `CompressionLean.Ports.Circuit.Early` | 11 |
+| `CompressionLean.Ports.Circuit.Fold` | 10 |
+| `CompressionLean.Ports.Circuit.Gkr` | 3 |
+| `CompressionLean.Ports.Circuit.Hash` | 13 |
+| `CompressionLean.Ports.Circuit.Honest` | 5 |
+| `CompressionLean.Ports.Circuit.Late` | 5 |
+| `CompressionLean.Ports.Circuit.Linear` | 2 |
+| `CompressionLean.Ports.Circuit.Mle` | 7 |
+| `CompressionLean.Ports.Circuit.Openings` | 2 |
+| `CompressionLean.Ports.Circuit.Record` | 27 |
+| `CompressionLean.Ports.Circuit.Ring` | 10 |
+| `CompressionLean.Ports.Circuit.Sumcheck` | 1 |
+| `CompressionLean.Ports.Circuit.Verifier` | 5 |
+| `CompressionLean.Ports.Circuit.Views` | 11 |
+| `CompressionLean.Ports.Circuit.Whir` | 14 |
 | `CompressionLean.Ports.Layer1.Budget` | 5 |
 | `CompressionLean.Ports.Replay.Data` | 22 |
 | `CompressionLean.Ports.Replay.Field` | 9 |
@@ -152,7 +152,7 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 | `CompressionLean.Ports.Shrink.Diagonal` | 8 |
 | `CompressionLean.Ports.Shrink.Evaluate` | 10 |
 | `CompressionLean.Ports.Shrink.Game` | 5 |
-| `CompressionLean.Ports.Shrink.Layout` | 26 |
+| `CompressionLean.Ports.Shrink.Layout` | 32 |
 | `CompressionLean.Ports.Shrink.Rounds` | 1 |
 
 | Rust file | Items |

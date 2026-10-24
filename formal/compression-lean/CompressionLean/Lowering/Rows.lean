@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Block
+import CompressionLean.Lowering.Block
 
 /-!
 Owns what a witness of a run's CCS says about the run: every glue row holds

@@ -1,5 +1,5 @@
-import CompressionLean.Circuit.Sumcheck
-import CompressionLean.Circuit.Views
+import CompressionLean.Ports.Circuit.Sumcheck
+import CompressionLean.Ports.Circuit.Views
 
 /-!
 Owns the batched GKR verifier of `crates/neo-spartan/src/gkr.rs`

@@ -1,4 +1,5 @@
-import CompressionLean.Circuit.Record
+import CompressionLean.Shrink.Layout
+import CompressionLean.Lowering.Record
 
 /-!
 Owns `lower_valid`: the run of every program names only its own cells

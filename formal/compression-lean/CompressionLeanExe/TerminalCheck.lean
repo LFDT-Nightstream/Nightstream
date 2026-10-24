@@ -1,6 +1,6 @@
 import CompressionLean.Circuit.Terminal
 import CompressionLeanExe.Parse
-import CompressionLean.Circuit.Verifier
+import CompressionLean.Ports.Circuit.Verifier
 import CompressionLean.Sim.Claim
 import CompressionLean.Checks.Templates
 import CompressionLeanExe.Digest

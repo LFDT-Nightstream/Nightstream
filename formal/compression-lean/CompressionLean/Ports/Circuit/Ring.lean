@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Views
+import CompressionLean.Ports.Circuit.Views
 
 /-!
 Owns the ring rows of `crates/neo-spartan/src/ring.rs` that the verifier

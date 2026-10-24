@@ -4,6 +4,8 @@
 //! `target/lean-lowering/production_runs.bin`. It then reads the file back as
 //! `MatrixRows` and requires `Key::derive` of it to equal the layer-1 key of
 //! the committed production key (`tests/fixtures/compression/key.bin`).
+//! `production_setup_matches_lean` runs the Lean `setupCheck` on that file and
+//! on neo-spartan's `production_layer1.json`, and requires its pass.
 //!
 //! The file is little endian: the rows, the columns, the matrices and the run
 //! count as `u64`, then each run in visit order as its row and start column
@@ -12,6 +14,7 @@
 
 use std::ops::{ControlFlow, Range};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::Instant;
 
 use neo_ccs::GeometricRowRun;
@@ -170,5 +173,37 @@ fn production_runs_rebuild_the_layer1_key() {
     assert!(
         key == committed_layer1(),
         "the runs in the file rebuild the committed production layer-1 key"
+    );
+}
+
+#[test]
+#[ignore = "needs production_runs.bin of production_runs_rebuild_the_layer1_key, the production_layer1.json of \
+            neo-spartan's production_layer1_matches_lean, and lake build setupCheck in formal/compression-lean"]
+fn production_setup_matches_lean() {
+    let dir = workspace().join("target/lean-lowering");
+    let layer1 = dir.join("production_layer1.json");
+    let runs = dir.join("production_runs.bin");
+    assert!(
+        layer1.exists(),
+        "run neo-spartan's production_layer1_matches_lean first"
+    );
+    assert!(runs.exists(), "run production_runs_rebuild_the_layer1_key first");
+    let check = workspace().join("formal/compression-lean/.lake/build/bin/setupCheck");
+    assert!(
+        check.exists(),
+        "build the check with `lake build setupCheck` in formal/compression-lean"
+    );
+    let started = Instant::now();
+    let output = Command::new(&check)
+        .arg(&layer1)
+        .arg(&runs)
+        .output()
+        .unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("setupCheck: {} in {:?}", stdout.trim_end(), started.elapsed());
+    assert!(
+        output.status.success() && stdout.contains("setup facts hold"),
+        "{stdout}{}",
+        String::from_utf8_lossy(&output.stderr)
     );
 }

@@ -20,8 +20,9 @@ The executor is arithmetic, as the recorder is: `select` is
 `whenZero + bit·(whenOne - whenZero)` (`Ir.lean`).
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Lowering
 
+open CompressionLean.Circuit
 open CompressionLean.Shrink
 open CompressionLean.Replay (Word)
 
@@ -97,4 +98,4 @@ tape `tape`: every check of the run holds. Blocks compute `perm`. -/
 def Exec (perm : List F → List F) (L : Array Instr) (stmt : List F) (tape : ℕ → F) : Prop :=
   (Exec.run perm stmt tape L).holds
 
-end CompressionLean.Circuit
+end CompressionLean.Lowering

@@ -1,6 +1,6 @@
-import CompressionLean.Circuit.Exec
-import CompressionLean.Circuit.Valid
-import CompressionLean.Circuit.Rows
+import CompressionLean.Lowering.Exec
+import CompressionLean.Lowering.Valid
+import CompressionLean.Lowering.Rows
 import Mathlib.Tactic.LinearCombination
 
 /-!
@@ -20,13 +20,17 @@ lowering, the fact that its rows give about its result (`Sound`).
   each part may use its own rows.
 -/
 
-namespace CompressionLean.Shrink
+namespace CompressionLean.Lowering
+
+open CompressionLean.Shrink CompressionLean.Circuit
+
+section Terms
 
 variable {F : Type} [CommRing F]
 
 /-- `Form::evaluate` (`record.rs:78-88`): the terms, and the constant on the
 one column. -/
-def Form.evaluate (v : Wire → F) (f : Form F) : F := termsValue v f.terms + f.constant * v (.pub 0)
+def _root_.CompressionLean.Shrink.Form.evaluate (v : Wire → F) (f : Form F) : F := termsValue v f.terms + f.constant * v (.pub 0)
 
 @[simp] theorem termsValue_nil (v : Wire → F) : termsValue v ([] : List (Wire × F)) = 0 := rfl
 
@@ -38,11 +42,7 @@ def Form.evaluate (v : Wire → F) (f : Form F) : F := termsValue v f.terms + f.
     termsValue v (a ++ b) = termsValue v a + termsValue v b := by
   simp [termsValue]
 
-end CompressionLean.Shrink
-
-namespace CompressionLean.Circuit
-
-open CompressionLean.Shrink
+end Terms
 
 section Values
 
@@ -187,27 +187,27 @@ def BlockPermutes (b : ℕ) : Prop :=
   List.ofFn (fun k : Fin 16 => v (.block b (outputCell + k))) = perm (List.ofFn fun k : Fin 16 => v (.block b k))
 
 /-- Every row of every call holds at `v`, and every block permutes. -/
-def State.Holds (s : State F) : Prop :=
+def _root_.CompressionLean.Circuit.State.Holds (s : State F) : Prop :=
   (∀ c ∈ s.calls, ∀ row ∈ c.rows, row.Holds v) ∧ ∀ b < s.blocks, BlockPermutes v perm b
 
 /-- `t` is `s` with more calls, glue cells and blocks; its values and statement
 words are those of `s`. -/
-structure State.Adds (s t : State F) : Prop where
+structure _root_.CompressionLean.Circuit.State.Adds (s t : State F) : Prop where
   calls : ∀ c ∈ s.calls, c ∈ t.calls
   blocks : s.blocks ≤ t.blocks
   values : t.values = s.values
   publics : t.publics = s.publics
 
 omit [Field F] in
-theorem State.Adds.refl (s : State F) : s.Adds s := ⟨fun _ h => h, le_rfl, rfl, rfl⟩
+theorem _root_.CompressionLean.Circuit.State.Adds.refl (s : State F) : s.Adds s := ⟨fun _ h => h, le_rfl, rfl, rfl⟩
 
 omit [Field F] in
-theorem State.Adds.trans {s t u : State F} (h : s.Adds t) (h' : t.Adds u) : s.Adds u :=
+theorem _root_.CompressionLean.Circuit.State.Adds.trans {s t u : State F} (h : s.Adds t) (h' : t.Adds u) : s.Adds u :=
   ⟨fun c hc => h'.calls c (h.calls c hc), h.blocks.trans h'.blocks, h'.values.trans h.values,
     h'.publics.trans h.publics⟩
 
 variable {v perm} in
-theorem State.Holds.mono {s t : State F} (calls : ∀ c ∈ s.calls, c ∈ t.calls) (blocks : s.blocks ≤ t.blocks)
+theorem _root_.CompressionLean.Circuit.State.Holds.mono {s t : State F} (calls : ∀ c ∈ s.calls, c ∈ t.calls) (blocks : s.blocks ≤ t.blocks)
     (h : t.Holds v perm) : s.Holds v perm :=
   ⟨fun c hc => h.1 c (calls c hc), fun b hb => h.2 b (lt_of_lt_of_le hb blocks)⟩
 
@@ -577,4 +577,4 @@ theorem permute_sound (inputs : Fin 16 → Form F) :
 
 end Parts
 
-end CompressionLean.Circuit
+end CompressionLean.Lowering

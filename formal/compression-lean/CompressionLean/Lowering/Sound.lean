@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Forms
+import CompressionLean.Lowering.Forms
 import Mathlib.Data.List.GetD
 import CompressionLean.Fields
 import CompressionLean.Lib.Array
@@ -23,8 +23,9 @@ permutation. `lower_sound` takes Goldilocks, the Poseidon2 template and
 Poseidon2.
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Lowering
 
+open CompressionLean.Circuit
 open CompressionLean.Lib
 open CompressionLean.Shrink
 open CompressionLean.Replay (Word)
@@ -35,18 +36,18 @@ variable {F : Type} [Field F] [DecidableEq F] {v : Wire → F} {perm : List F �
 
 /-- `t` extends `s`: more calls, glue cells and blocks, and more values and
 statement words after those of `s`. -/
-structure State.Extends (s t : State F) : Prop where
+structure _root_.CompressionLean.Circuit.State.Extends (s t : State F) : Prop where
   calls : ∀ c ∈ s.calls, c ∈ t.calls
   blocks : s.blocks ≤ t.blocks
   values : ∃ more : List (Form F), t.values = s.values ++ more.toArray
   publics : ∃ more : List F, t.publics = s.publics ++ more.toArray
 
 omit [Field F] [DecidableEq F] in
-theorem State.Extends.refl (s : State F) : s.Extends s :=
+theorem _root_.CompressionLean.Circuit.State.Extends.refl (s : State F) : s.Extends s :=
   ⟨fun _ h => h, le_rfl, ⟨[], by simp⟩, ⟨[], by simp⟩⟩
 
 omit [Field F] [DecidableEq F] in
-theorem State.Extends.trans {s t u : State F} (h : s.Extends t) (h' : t.Extends u) : s.Extends u := by
+theorem _root_.CompressionLean.Circuit.State.Extends.trans {s t u : State F} (h : s.Extends t) (h' : t.Extends u) : s.Extends u := by
   obtain ⟨m, hm⟩ := h.values
   obtain ⟨m', hm'⟩ := h'.values
   obtain ⟨p, hp⟩ := h.publics
@@ -56,41 +57,41 @@ theorem State.Extends.trans {s t u : State F} (h : s.Extends t) (h' : t.Extends 
 
 omit [Field F] [DecidableEq F] in
 /-- A part that only adds, then a push of `forms`. -/
-theorem State.Adds.extends_push {s t : State F} (h : s.Adds t) (forms : List (Form F)) :
+theorem _root_.CompressionLean.Circuit.State.Adds.extends_push {s t : State F} (h : s.Adds t) (forms : List (Form F)) :
     s.Extends { t with values := t.values ++ forms.toArray } :=
   ⟨h.calls, h.blocks, ⟨forms, by rw [h.values]⟩, ⟨[], by simp [h.publics]⟩⟩
 
 omit [Field F] [DecidableEq F] in
-theorem State.Adds.extends {s t : State F} (h : s.Adds t) : s.Extends t :=
+theorem _root_.CompressionLean.Circuit.State.Adds.extends {s t : State F} (h : s.Adds t) : s.Extends t :=
   ⟨h.calls, h.blocks, ⟨[], by simp [h.values]⟩, ⟨[], by simp [h.publics]⟩⟩
 
 omit [Field F] [DecidableEq F] in
-theorem State.Extends.values_getD {s t : State F} (h : s.Extends t) {n : ℕ} (hn : n < s.values.size) (d : Form F) :
+theorem _root_.CompressionLean.Circuit.State.Extends.values_getD {s t : State F} (h : s.Extends t) {n : ℕ} (hn : n < s.values.size) (d : Form F) :
     t.values.getD n d = s.values.getD n d := by
   obtain ⟨more, hm⟩ := h.values
   rw [hm, array_getD_append, if_pos hn]
 
 omit [Field F] [DecidableEq F] in
-theorem State.Extends.values_size {s t : State F} (h : s.Extends t) : s.values.size ≤ t.values.size := by
+theorem _root_.CompressionLean.Circuit.State.Extends.values_size {s t : State F} (h : s.Extends t) : s.values.size ≤ t.values.size := by
   obtain ⟨more, hm⟩ := h.values
   rw [hm]
   simp
 
 omit [Field F] [DecidableEq F] in
-theorem State.Extends.publics_getD {s t : State F} (h : s.Extends t) {k : ℕ} (hk : k < s.publics.size) (d : F) :
+theorem _root_.CompressionLean.Circuit.State.Extends.publics_getD {s t : State F} (h : s.Extends t) {k : ℕ} (hk : k < s.publics.size) (d : F) :
     t.publics.getD k d = s.publics.getD k d := by
   obtain ⟨more, hm⟩ := h.publics
   rw [hm, array_getD_append, if_pos hk]
 
 omit [Field F] [DecidableEq F] in
-theorem State.Extends.publics_size {s t : State F} (h : s.Extends t) : s.publics.size ≤ t.publics.size := by
+theorem _root_.CompressionLean.Circuit.State.Extends.publics_size {s t : State F} (h : s.Extends t) : s.publics.size ≤ t.publics.size := by
   obtain ⟨more, hm⟩ := h.publics
   rw [hm]
   simp
 
 omit [DecidableEq F] in
 /-- A push changes neither calls nor blocks. -/
-theorem State.Holds.of_push {s : State F} {forms : Array (Form F)}
+theorem _root_.CompressionLean.Circuit.State.Holds.of_push {s : State F} {forms : Array (Form F)}
     (h : ({ s with values := s.values ++ forms } : State F).Holds v perm) : s.Holds v perm := h
 
 omit [DecidableEq F] in
@@ -471,4 +472,4 @@ theorem lower_sound (L : Array Instr) (stmt : List Spec.F) (w : ℕ → Spec.F)
   lower_exec Block.poseidonTemplate Block.poseidonTemplate_wellFormed Spec.Poseidon2.permute
     (fun c h => Block.block_sound c h) Goldilocks.small L stmt w holds
 
-end CompressionLean.Circuit
+end CompressionLean.Lowering

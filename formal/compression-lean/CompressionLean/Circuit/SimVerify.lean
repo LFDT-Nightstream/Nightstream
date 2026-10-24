@@ -18,6 +18,7 @@ the relation words on abstract words, so that no check evaluates those words.
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Relation TreeShape WhirShape D foldVars runOracles Runs run_bind run_pure
   run_liftExcept run_sampleWords)

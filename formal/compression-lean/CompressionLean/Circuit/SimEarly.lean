@@ -25,6 +25,7 @@ Owns the simulation of the layer-1 verifier's early stage (`earlyStage` of
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)

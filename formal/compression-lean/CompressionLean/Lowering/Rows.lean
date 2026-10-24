@@ -15,7 +15,9 @@ Owns what a witness of a run's CCS says about the run: every glue row holds
   one is 1, and statement word `i + 1` is word `i` of the run.
 -/
 
-namespace CompressionLean.Shrink
+namespace CompressionLean.Lowering
+
+open CompressionLean.Shrink
 
 /-- `Σ coefficient·v(wire)` over a term list. -/
 def termsValue {F : Type} [CommRing F] (v : Wire → F) (terms : List (Wire × F)) : F :=
@@ -23,7 +25,7 @@ def termsValue {F : Type} [CommRing F] (v : Wire → F) (terms : List (Wire × F
 
 /-- A glue row holds at the wire values `v`: `Σ_i (A_i·v)·(B_i·v) = C·v`
 (`Trace::row_value`, `record.rs:586-596`). -/
-def GlueRow.Holds {F : Type} [CommRing F] (v : Wire → F) (row : GlueRow F) : Prop :=
+def _root_.CompressionLean.Shrink.GlueRow.Holds {F : Type} [CommRing F] (v : Wire → F) (row : GlueRow F) : Prop :=
   termsValue v (row.side 0) * termsValue v (row.side 1) + termsValue v (row.side 2) * termsValue v (row.side 3) +
       termsValue v (row.side 4) * termsValue v (row.side 5) =
     termsValue v (row.side 6)
@@ -201,20 +203,20 @@ section Witness
 variable {F : Type} [Field F] (T : Template F) (s : Counts) (run : Run F) (w : ℕ → F)
 
 /-- The value of each wire under the witness `w`: `z` at the wire's column. -/
-noncomputable def Run.wireValue (x : Wire) : F := (run.ccs T s).z w (Layout.column T s x)
+noncomputable def _root_.CompressionLean.Shrink.Run.wireValue (x : Wire) : F := (run.ccs T s).z w (Layout.column T s x)
 
 /-- The constant one is 1. -/
-theorem Run.wireValue_one : run.wireValue T s w (.pub 0) = 1 := by
+theorem _root_.CompressionLean.Shrink.Run.wireValue_one : run.wireValue T s w (.pub 0) = 1 := by
   simp [Run.wireValue, Ccs.z, Run.ccs, Layout.column, Layout.one, Ccs.publicTable]
 
 /-- Statement wire `i + 1` is word `i` of the run. -/
-theorem Run.wireValue_pub (i : ℕ) : run.wireValue T s w (.pub (i + 1)) = run.publics.getD i 0 := by
+theorem _root_.CompressionLean.Shrink.Run.wireValue_pub (i : ℕ) : run.wireValue T s w (.pub (i + 1)) = run.publics.getD i 0 := by
   simp [Run.wireValue, Ccs.z, Run.ccs, Layout.column, Layout.one, Ccs.publicTable]
 
 variable {T s run w}
 
 /-- **Every glue row holds** under a witness of the run's CCS. -/
-theorem Run.rows_hold (wf : T.WellFormed) (counts : run.counts = s) (holds : (run.ccs T s).Relation w) :
+theorem _root_.CompressionLean.Shrink.Run.rows_hold (wf : T.WellFormed) (counts : run.counts = s) (holds : (run.ccs T s).Relation w) :
     ∀ row ∈ run.rows, row.Holds (run.wireValue T s w) := by
   intro row member
   obtain ⟨g, hg, rfl⟩ := List.getElem_of_mem member
@@ -256,7 +258,7 @@ theorem Run.rows_hold (wf : T.WellFormed) (counts : run.counts = s) (holds : (ru
 
 /-- **The cells of every block satisfy the template** under a witness of the
 run's CCS. -/
-theorem Run.blocks_hold (wf : T.WellFormed) (counts : run.counts = s) (holds : (run.ccs T s).Relation w) :
+theorem _root_.CompressionLean.Shrink.Run.blocks_hold (wf : T.WellFormed) (counts : run.counts = s) (holds : (run.ccs T s).Relation w) :
     ∀ b < run.blocks, T.Holds fun c => run.wireValue T s w (.block b c) := by
   intro b hb k hk
   have blocks : run.blocks = s.blocks := congrArg Counts.blocks counts
@@ -284,4 +286,4 @@ theorem Run.blocks_hold (wf : T.WellFormed) (counts : run.counts = s) (holds : (
 
 end Witness
 
-end CompressionLean.Shrink
+end CompressionLean.Lowering

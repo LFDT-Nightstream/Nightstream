@@ -11,7 +11,7 @@ first fact that fails and exits with 1.
 
 namespace CompressionLeanExe.SetupCheck
 
-open CompressionLean CompressionLean.Final
+open CompressionLean CompressionLean.Final CompressionLean.Setup
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 /-- The little-endian word of the `n` bytes at `base`. -/

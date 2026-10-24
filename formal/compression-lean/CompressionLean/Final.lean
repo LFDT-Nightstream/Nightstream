@@ -11,7 +11,7 @@ import CompressionLean.Final.Soundness
 encoding premise (`Claim`), the layer-1 budget at Rust's split (`Budget`),
 the end-to-end bound (`Soundness`), F′'s parent
 claim and the bound for it (`Parent`, `ParentClaim`), the maps from F′'s
-algebra to the model's (`Bridge`), and Rust's setup build (`RustSetup`).
+algebra to the model's (`Bridge`), and what Rust's setup build gives (`RustSetup`).
 
 It does not own a check that an executable runs (`Checks/`) or the proof of
 the encoding premise (`Sim/Encodes.lean`).

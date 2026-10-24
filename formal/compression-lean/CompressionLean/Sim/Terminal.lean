@@ -1,6 +1,6 @@
 import CompressionLean.Ports.Terminal.Program
 import CompressionLean.Lowering.PackageRows
-import CompressionLean.Sim.Calculus
+import CompressionLean.Sim.Old
 import CompressionLean.Final.Claim
 import CompressionLean.Production
 

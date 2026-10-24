@@ -7,10 +7,13 @@ import CompressionLean.Sim.Fold
 import CompressionLean.Sim.Gkr
 import CompressionLean.Sim.Hash
 import CompressionLean.Sim.Honest
+import CompressionLean.Sim.Instr
 import CompressionLean.Sim.Late
 import CompressionLean.Sim.Linear
 import CompressionLean.Sim.Merkle
+import CompressionLean.Sim.Old
 import CompressionLean.Sim.Ring
+import CompressionLean.Sim.Run
 import CompressionLean.Sim.Sumcheck
 import CompressionLean.Sim.Terminal
 import CompressionLean.Sim.Verify

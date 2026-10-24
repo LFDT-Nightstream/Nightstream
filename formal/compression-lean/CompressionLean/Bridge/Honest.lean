@@ -16,11 +16,11 @@ namespace CompressionLean.Bridge
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-local notation "ι" => algebraMap Fp K
+local notation "ι" => algebraMap Gl K
 
-theorem toK_matrixStep (rel : Replay.Relation) (S : Setup Fp) (fits : S.Fits (shapeOf rel))
+theorem toK_matrixStep (rel : Replay.Relation) (S : Setup Gl) (fits : S.Fits (shapeOf rel))
     (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
     (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S)
     (bounds : rel.matrices ≤ rel.key.layout.runBounds.size) (p : Array Ext) :
@@ -85,10 +85,10 @@ theorem toK_embedded (p : Array Ext) (n : ℕ) (block : Ext) :
       ring
 
 /-- The replay's run value is the model's, at the model's early output. -/
-theorem toK_runValue (rel : Replay.Relation) (proof : Replay.Proof) (S : Setup Fp) (fits : S.Fits (shapeOf rel))
+theorem toK_runValue (rel : Replay.Relation) (proof : Replay.Proof) (S : Setup Gl) (fits : S.Fits (shapeOf rel))
     (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
     (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S) (sizes : HonestSizes rel)
-    (cands : List (P0Tables Fp)) {early : Replay.EarlyOut} {mc : Layer1.GkrClaims K}
+    (cands : List (P0Tables Gl)) {early : Replay.EarlyOut} {mc : Layer1.GkrClaims K}
     (agree : ClaimsAgree rel.earlyShapes.size early.gkr mc) (values : early.values = proof.earlyValues)
     (openings : early.openings = earlyOpeningsOf rel.key.layout early.challenges early.gkr proof.earlyValues) (mu : Ext) :
     (#[early.openings.coefClaim, early.openings.slotClaim, early.openings.rowClaim].foldl
@@ -96,7 +96,7 @@ theorem toK_runValue (rel : Replay.Relation) (proof : Replay.Proof) (S : Setup F
         ((early.openings.runPoint.extract rel.key.layout.slotVariables early.openings.runPoint.size).foldl
           (fun total x => total * oneMinus x) early.values.block)).toK (K := K) =
       runValue (shapeOf rel) S
-        (⟨cands, histOf proof, challengesOf early.challenges, mc, valuesOf early.values⟩ : Layer1.EarlyOut Fp K)
+        (⟨cands, histOf proof, challengesOf early.challenges, mc, valuesOf early.values⟩ : Layer1.EarlyOut Gl K)
         mu.toK := by
   have small : ∀ u, u < 5 → u < rel.earlyShapes.size := fun u lt => by rw [earlyShapes_size]; exact lt
   rw [List.foldl_toArray' _ _ _ (by simp)]
@@ -116,10 +116,10 @@ variable [DecidableEq K]
 the partials and the P1 candidates, draws the replay's `μ`, `α` and query
 words and ends in the model's `HonestOut` of the replay's values; along it
 both partial checks hold. -/
-theorem honest_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : ProofShape rel proof) (S : Setup Fp)
+theorem honest_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : ProofShape rel proof) (S : Setup Gl)
     (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
     (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S) (sizes : HonestSizes rel)
-    (cands : List (P0Tables Fp)) {early : Replay.EarlyOut} {mc : Layer1.GkrClaims K}
+    (cands : List (P0Tables Gl)) {early : Replay.EarlyOut} {mc : Layer1.GkrClaims K}
     (agree : ClaimsAgree rel.earlyShapes.size early.gkr mc)
     (lengths : ∀ u, u < rel.earlyShapes.size → (early.gkr.leafPoint[u]!).size = (rel.earlyShapes[u]!).depth)
     (values : early.values = proof.earlyValues)
@@ -129,7 +129,7 @@ theorem honest_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : P
     {t t' : Replay.Transcript} {honest : Replay.HonestOut} (run : Runs (honestStage rel proof early lin) t honest t') :
     ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧ HonestRun rel proof early lin honest ∧
       Game.Reaches (honestGame (shapeOf rel) S L1 (2 ^ (rel.setupVars - 2)) goldilocks q
-          (⟨cands, histOf proof, challengesOf early.challenges, mc, valuesOf early.values⟩ : Layer1.EarlyOut Fp K)
+          (⟨cands, histOf proof, challengesOf early.challenges, mc, valuesOf early.values⟩ : Layer1.EarlyOut Gl K)
           (linearOutOf proof lin))
         (honestMsgs proof ⟨p1, short⟩) (ds.map (drawn (K := K) rel.queries))
         (some ⟨honest.mu.toK, partialsOf proof, pointK honest.alpha, p1,
@@ -179,9 +179,9 @@ theorem honest_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : P
         (linearOutOf (K := K) proof lin).keyValue ∧
       mle ((Layer1.padded (shapeOf rel).setupVars
           (Layer1.EarlyOut.runPoint (⟨cands, histOf proof, challengesOf early.challenges, mc, valuesOf early.values⟩ :
-            Layer1.EarlyOut Fp K))).take 3) (partialsOf proof 1) =
+            Layer1.EarlyOut Gl K))).take 3) (partialsOf proof 1) =
         runValue (shapeOf rel) S
-          (⟨cands, histOf proof, challengesOf early.challenges, mc, valuesOf early.values⟩ : Layer1.EarlyOut Fp K)
+          (⟨cands, histOf proof, challengesOf early.challenges, mc, valuesOf early.values⟩ : Layer1.EarlyOut Gl K)
           mu.toK := by
     constructor
     · have key := Ext.toK_of_beq (K := K) keyCheck

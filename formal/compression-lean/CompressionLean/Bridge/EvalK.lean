@@ -15,9 +15,9 @@ open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-local notation "ι" => algebraMap Fp K
+local notation "ι" => algebraMap Gl K
 
 /-- The point `r` in `K ⊗ Ext`. -/
 def rQuad (r : Array (Word × Word)) : List (QuadX K) := (quadPoint r.toList).map fromK
@@ -146,7 +146,7 @@ theorem evalK_parts (rel : Replay.Relation) (st : Replay.Statement) (pointSize :
   funext l
   rw [tableK_tau (shapeOf rel) rfl]
 
-omit [Algebra Fp K] [Fintype K] [ChallengeField K] in
+omit [Algebra Gl K] [Fintype K] [ChallengeField K] in
 theorem mle_publicPart (s : Layer1.Shape) (lam : K) (p : List K) (small : s.publicBlocks ≤ 2 ^ p.length) :
     mle p (publicPart s lam) = ∑ b ∈ Finset.range s.publicBlocks, eqAt p b * lam ^ s.publicRow b := by
   rw [mle_eq_cubeSum, cubeSum_eq_sum_range]

@@ -14,9 +14,9 @@ namespace CompressionLean.Bridge
 
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-local notation "ι" => algebraMap Fp K
+local notation "ι" => algebraMap Gl K
 
 /-- A point of `Ext` coordinates in `K`. -/
 def pointK (p : Array Ext) : List K := p.toList.map Ext.toK
@@ -167,11 +167,11 @@ theorem toK_step (p : Array Ext) (segs : List (ℕ × Ext)) (stop : ℕ) :
   rw [Replay.step, stepValue, nextStart_map, ← toK_lessThan, stepLoop_toK, zero_add]
 
 /-- `r` as the model's point in `K = F[u]/(u² - 7)`. -/
-def quadPoint (r : List (Word × Word)) : List (Quad Fp) := r.map fun v => ⟨v.1.toF, v.2.toF⟩
+def quadPoint (r : List (Word × Word)) : List (Quad Gl) := r.map fun v => ⟨v.1.toF, v.2.toF⟩
 
 theorem toQ_chiFactor (r : Word × Word) (x : Ext) :
     (chiFactor r (some x)).toQ (K := K) =
-      (1 - algebraMap K (QuadX K) x.toK) + fromK (K := K) (⟨r.1.toF, r.2.toF⟩ : Quad Fp) *
+      (1 - algebraMap K (QuadX K) x.toK) + fromK (K := K) (⟨r.1.toF, r.2.toF⟩ : Quad Gl) *
         (2 * algebraMap K (QuadX K) x.toK - 1) := by
   ext
   · simp [chiFactor, Kx.toQ, Kx.scale, Kx.ofK, Ext.toK_add, Ext.toK_mul, Ext.toK_sub, Ext.toK_ofGl, toK_oneMinus,

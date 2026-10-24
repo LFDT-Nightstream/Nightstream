@@ -355,7 +355,7 @@ def check (mirror : Option Mirror) : Parser String := do
     | some (.ok message) => pure s!"; {message}"
     | some (.error message) => throw message
   let source := ((mirror.filter (·.whole)).map (·.instrs)).getD instrs
-  let run := lower (F := G) source (stmt.map fun g => (g.toNat : G))
+  let run := lower (F := Gl) source (stmt.map fun g => (g.toNat : Gl))
   keyword "cells"
   expect "glue cells" run.cells (← nat)
   keyword "blocks"

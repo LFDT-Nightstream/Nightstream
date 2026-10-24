@@ -1,7 +1,7 @@
 import CompressionLean.Circuit.SimSumcheck
 import CompressionLean.Circuit.Ring
 import CompressionLean.Circuit.Mle
-import CompressionLean.Final.Fields
+import CompressionLean.Fields
 
 /-!
 Owns the simulation of the ring rows of `Ring.lean` (`ring.rs`) and the
@@ -12,7 +12,7 @@ closed forms of `Mle.lean` (`mle.rs`) against the replay's formulas
   `IsMixing`: the powers of `λ`, one per row, as the replay's `Mixing`
   reads them.
 - An identity of `Ext` or `Kx` holds when it holds in the challenge field
-  `Final.Cubic` (`Ext.eq_of_toK`, `kx_eq_of_toQ`). So proof words that pass
+  `Cubic` (`Ext.eq_of_toK`, `kx_eq_of_toQ`). So proof words that pass
   the inverse check are the replay's inverse (`inverse_of_check`), and
   `Ensures.scaledEqPoint` finds no pole.
 - `Sim.evalK`: the circuit keeps `Option` states and skips absent ones; the
@@ -25,49 +25,33 @@ namespace CompressionLean.Circuit
 
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Kx Relation D)
-open CompressionLean.Bridge (ChallengeField)
 open NightstreamFPrime.Spec (goldilocksModulus)
 open Polynomial
 
 /-! ## Identities in the challenge field -/
 
-/-- `Final.Cubic` is a challenge field. -/
-@[reducible] noncomputable def challengeCubic : ChallengeField Final.Cubic where
-  root := AdjoinRoot.root Final.cubic
-  cubic := by
-    have h : AdjoinRoot.mk Final.cubic (X ^ 3 - X - 1) = 0 := AdjoinRoot.mk_self
-    rw [map_sub, map_sub, map_pow, AdjoinRoot.mk_X, map_one] at h
-    linear_combination h
-  card := Final.card_cubic
-
-attribute [local instance] challengeCubic
-
-private theorem kx_eq_of_toQ {a b : Kx} (h : a.toQ (K := Final.Cubic) = b.toQ) : a = b := by
+private theorem kx_eq_of_toQ {a b : Kx} (h : a.toQ (K := Cubic) = b.toQ) : a = b := by
   obtain ⟨ar, ai⟩ := a
   obtain ⟨br, bi⟩ := b
   have hr := congrArg QuadraticAlgebra.re h
   have hi := congrArg QuadraticAlgebra.im h
   simp only [Kx.toQ_re, Kx.toQ_im] at hr hi
-  rw [Ext.eq_of_toK (K := Final.Cubic) hr, Ext.eq_of_toK (K := Final.Cubic) hi]
+  rw [Ext.eq_of_toK (K := Cubic) hr, Ext.eq_of_toK (K := Cubic) hi]
 
 theorem ext_pow_zero (a : Ext) : a.pow 0 = 1 := by
   rw [Ext.pow, if_pos rfl]
 
 private theorem ext_pow_succ (a : Ext) (k : ℕ) : a.pow (k + 1) = a.pow k * a :=
-  Ext.eq_of_toK (K := Final.Cubic) (by rw [Ext.toK_mul, Ext.toK_pow, Ext.toK_pow, pow_succ])
+  Ext.eq_of_toK (K := Cubic) (by rw [Ext.toK_mul, Ext.toK_pow, Ext.toK_pow, pow_succ])
 
 theorem ext_add_zero (a : Ext) : a + 0 = a :=
-  Ext.eq_of_toK (K := Final.Cubic) (by rw [Ext.toK_add, Ext.toK_zero, add_zero])
+  Ext.eq_of_toK (K := Cubic) (by rw [Ext.toK_add, Ext.toK_zero, add_zero])
 
 theorem ext_add_assoc (a b d : Ext) : a + b + d = a + (b + d) :=
-  Ext.eq_of_toK (K := Final.Cubic) (by rw [Ext.toK_add, Ext.toK_add, Ext.toK_add, Ext.toK_add, add_assoc])
+  Ext.eq_of_toK (K := Cubic) (by rw [Ext.toK_add, Ext.toK_add, Ext.toK_add, Ext.toK_add, add_assoc])
 
 private theorem ext_scale_zero (a : Ext) : a.scale 0 = 0 :=
-  Ext.eq_of_toK (K := Final.Cubic) (by rw [Ext.toK_scale, Ext.toK_zero, Replay.Word.toF_zero, map_zero, mul_zero])
-
-private theorem ext_mul_inv {a : Ext} (h : a ≠ 0) : a * a.inv = 1 := by
-  have nz : a.toK (K := Final.Cubic) ≠ 0 := fun z => h (Ext.eq_zero_of_toK z)
-  exact Ext.eq_of_toK (K := Final.Cubic) (by rw [Ext.toK_mul, Ext.toK_inv, Ext.toK_one, mul_inv_cancel₀ nz])
+  Ext.eq_of_toK (K := Cubic) (by rw [Ext.toK_scale, Ext.toK_zero, Replay.Word.toF_zero, map_zero, mul_zero])
 
 private theorem ext_isZero {a : Ext} (h : a ≠ 0) : a.isZero = false := by
   cases e : a.isZero
@@ -539,7 +523,7 @@ private theorem inverse_of_check [CharP F goldilocksModulus] {ga : Ext} {t : Fin
     simp [extProduct] at this
   refine ⟨nz, ?_⟩
   have unit : extProduct (coords (F := F) ga) (coords ga.inv) = ![1, 0, 0] := by
-    rw [← coords_mul, ext_mul_inv nz, coords_one]
+    rw [← coords_mul, Ext.mul_inv nz, coords_one]
   calc t = extProduct t ![1, 0, 0] := (extProduct_one t).symm
     _ = extProduct (extProduct (coords ga) t) (coords ga.inv) := by
       rw [← unit, ← extProduct_assoc, extProduct_comm t]

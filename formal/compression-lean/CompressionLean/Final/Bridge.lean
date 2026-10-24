@@ -1,4 +1,4 @@
-import CompressionLean.Final.Fields
+import CompressionLean.Fields
 import CompressionLean.Layer1.Weights
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial

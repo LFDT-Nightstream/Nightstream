@@ -208,9 +208,9 @@ theorem final_sound_parent (s1 : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : L
   exact (prob_mono prover _ (finalBreak_mono
       (parentClaim_of_terminalClaim s1 bar S relation ajtai shape sizes.blocks_le barEq honest authority) T s prog _
         Reads)).trans
-    (final_sound s1 modulus bar S L0 L1 L P q N sizes (natCast_injective N small) distinct fits modulus_monic
+    (final_sound s1 modulus bar S L0 L1 L P q N sizes (cubic_natCast_injective N small) distinct fits modulus_monic
       (by rw [modulus_natDegree, shape.D]) (by rw [shape.D]; decide) T s prog Ls wf valid
-      (natCast_injective 9 (by norm_num [goldilocksModulus])) authority Reads encodes prover)
+      (cubic_natCast_injective 9 (by norm_num [goldilocksModulus])) authority Reads encodes prover)
 
 /-- **The production bound.** Under Fiat–Shamir, over the Goldilocks field
 and its cubic extension, and with the charged terms of each commitment
@@ -249,8 +249,8 @@ theorem final_restore_budget_parent (s1 : Layer1.Shape) (bar : ℕ → ℕ → G
       (parentClaim_of_terminalClaim s1 bar S relation ajtai shape sizes.blocks_le barEq honest authority) T s prog _
         Reads)).trans
     (final_restore_budget s1 modulus bar S L0 L1 h0 h1 cubic_big index t T s prog Ls p0 p1 rust q N sizes
-      (natCast_injective N small) distinct fits modulus_monic (by rw [modulus_natDegree, shape.D])
-      (by rw [shape.D]; decide) wf valid (natCast_injective 9 (by norm_num [goldilocksModulus])) authority Reads
+      (cubic_natCast_injective N small) distinct fits modulus_monic (by rw [modulus_natDegree, shape.D])
+      (by rw [shape.D]; decide) wf valid (cubic_natCast_injective 9 (by norm_num [goldilocksModulus])) authority Reads
       encodes calls prover)
 
 end CompressionLean.Final

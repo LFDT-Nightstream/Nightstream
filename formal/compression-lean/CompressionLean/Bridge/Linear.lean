@@ -13,7 +13,7 @@ namespace CompressionLean.Bridge
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
 /-- The model's linear output of the replay's. -/
 def linearOutOf (proof : Replay.Proof) (lin : Replay.LinearOut) : Layer1.LinearOut K :=
@@ -51,7 +51,7 @@ proof's messages, draws the replay's challenges and ends in the model's
 `LinearOut` of the replay's values; along it `LinearCheck` holds. -/
 theorem linear_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof)
     (shape : ProofShape rel proof) (fits : st.fits rel = true) (bits : EvalKBits rel)
-    (publicFits : rel.publicBlocks ≤ 2 ^ rel.blockVars) (S : Setup Fp) (cands : List (P0Tables Fp)) (q : ℕ)
+    (publicFits : rel.publicBlocks ≤ 2 ^ rel.blockVars) (S : Setup Gl) (cands : List (P0Tables Gl)) (q : ℕ)
     {t t' : Replay.Transcript} {lin : Replay.LinearOut} (run : Runs (linearStage rel st proof) t lin t') :
     ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧ LinearRun (K := K) rel proof lin ∧
       Game.Reaches (linearGame (K := K) (shapeOf rel) phi barOf S (statementOf st) cands)

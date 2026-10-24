@@ -1,7 +1,7 @@
 import CompressionLean.Circuit.SimGkr
 import CompressionLean.Circuit.SimViews
 import CompressionLean.Bridge.Early
-import CompressionLean.Final.Fields
+import CompressionLean.Fields
 
 /-!
 Owns the simulation of the layer-1 verifier's early stage (`earlyStage` of
@@ -18,7 +18,7 @@ Owns the simulation of the layer-1 verifier's early stage (`earlyStage` of
   replay's GKR claims and the entries of a GKR view, which the late stage
   reads too.
 - The circuit and the replay may add or multiply in different orders. Their
-  values agree in the challenge field `Final.Cubic`, where `Ext.toK` is
+  values agree in the challenge field `Cubic`, where `Ext.toK` is
   injective (`Ext.eq_of_toK`). So an inverse hint that passes its check is the
   replay's inverse (`Ensures.extInv`).
 -/
@@ -34,22 +34,11 @@ variable {F : Type} [CommRing F]
 
 /-! ## Exact arithmetic -/
 
-/-- `Final.Cubic` with the root of `x³ - x - 1` (`field.rs`). -/
-@[reducible] private noncomputable def cubicField : Bridge.ChallengeField Final.Cubic where
-  root := AdjoinRoot.root Final.cubic
-  cubic := by
-    have h : AdjoinRoot.mk Final.cubic (X ^ 3 - X - 1) = 0 := AdjoinRoot.mk_self
-    simp only [map_sub, map_pow, AdjoinRoot.mk_X, map_one] at h
-    linear_combination h
-  card := Final.card_cubic
-
-attribute [local instance] cubicField
-
 /-- `K ⊗ Ext` values with one denotation are equal (`algebra.rs`). -/
 private theorem IsKx.congr {c : Ctx F} {n : ℕ} {a : KxVar} {v v' : Replay.Kx} (h : IsKx c n a v)
-    (e : v.toQ (K := Final.Cubic) = v'.toQ) : IsKx c n a v' := by
-  have re : v.re = v'.re := Ext.eq_of_toK (K := Final.Cubic) (by simpa using congrArg QuadraticAlgebra.re e)
-  have im : v.im = v'.im := Ext.eq_of_toK (K := Final.Cubic) (by simpa using congrArg QuadraticAlgebra.im e)
+    (e : v.toQ (K := Cubic) = v'.toQ) : IsKx c n a v' := by
+  have re : v.re = v'.re := Ext.eq_of_toK (K := Cubic) (by simpa using congrArg QuadraticAlgebra.re e)
+  have im : v.im = v'.im := Ext.eq_of_toK (K := Cubic) (by simpa using congrArg QuadraticAlgebra.im e)
   exact ⟨re ▸ h.1, im ▸ h.2⟩
 
 /-! ## `mle.rs` in the replay -/
@@ -91,7 +80,7 @@ private theorem step_eq (gpoint : Array Ext) (starts : Array ℕ) (gvalues : Arr
       simp [Replay.nextStart, Array.getElem?_eq_none (by omega : starts.size ≤ j)]
   have tail : ∀ d j, starts.size - j = d → j ≤ starts.size →
       (Replay.stepSum gpoint stop (segs.drop j) (Replay.lessThan gpoint (starts[j]?.getD stop))).toK
-        (K := Final.Cubic) = ∑ s ∈ Finset.Ico j starts.size, (stepTerm gpoint starts gvalues stop s).toK := by
+        (K := Cubic) = ∑ s ∈ Finset.Ico j starts.size, (stepTerm gpoint starts gvalues stop s).toK := by
     intro d
     induction d with
     | zero =>
@@ -104,19 +93,19 @@ private theorem step_eq (gpoint : Array Ext) (starts : Array ℕ) (gvalues : Arr
         rw [List.drop_eq_getElem_cons lt, List.getElem_zip, Replay.stepSum, next, Replay.Ext.toK_add,
           ih (j + 1) (by omega) (by omega), Finset.sum_eq_sum_Ico_succ_bot (show j < starts.size by omega),
           add_left_inj, stepTerm, Array.getElem_toList, getElem!_pos gvalues j (by omega)]
-  have zero : ∀ s, starts.size ≤ s → (stepTerm gpoint starts gvalues stop s).toK (K := Final.Cubic) = 0 := by
+  have zero : ∀ s, starts.size ≤ s → (stepTerm gpoint starts gvalues stop s).toK (K := Cubic) = 0 := by
     intro s hs
     simp only [stepTerm, Array.getElem?_eq_none (by omega : starts.size ≤ s + 1),
       Array.getElem?_eq_none (by omega : starts.size ≤ s), Option.getD_none, Replay.Ext.toK_mul, Replay.Ext.toK_sub,
       sub_self, mul_zero]
-  apply Ext.eq_of_toK (K := Final.Cubic)
+  apply Ext.eq_of_toK (K := Cubic)
   rw [Replay.step, ← List.drop_zero (l := segs), next, tail _ 0 rfl (Nat.zero_le _), Replay.toK_sumRange,
     ← Finset.sum_range_add_sum_Ico _ size, Finset.sum_eq_zero (fun s hs => zero s (Finset.mem_Ico.mp hs).1),
     add_zero, Finset.range_eq_Ico]
 
 /-- `χ_r` (`mle.rs:84-107`) is the product of its factors. -/
 private theorem toQ_chiList : ∀ (l : List (Word × Word)) (xs : List Ext),
-    (Replay.chiList l xs).toQ (K := Final.Cubic) = ∏ t ∈ Finset.range l.length, (Replay.chiFactor l[t]! xs[t]?).toQ
+    (Replay.chiList l xs).toQ (K := Cubic) = ∏ t ∈ Finset.range l.length, (Replay.chiFactor l[t]! xs[t]?).toQ
   | [], _ => by simp [Replay.chiList]
   | r :: rs, [] => by
       simp only [Replay.chiList, Replay.Kx.toQ_mul, toQ_chiList rs [], List.length_cons, Finset.prod_range_succ',
@@ -129,7 +118,7 @@ private theorem toQ_chiList : ∀ (l : List (Word × Word)) (xs : List Ext),
 
 /-- A running product from one (`mle.rs:84-107`). -/
 private theorem toQ_foldl_mul (f : ℕ → Replay.Kx) (k : ℕ) :
-    ((List.range k).foldl (fun v t => v.mul (f t)) Replay.Kx.one).toQ (K := Final.Cubic) =
+    ((List.range k).foldl (fun v t => v.mul (f t)) Replay.Kx.one).toQ (K := Cubic) =
       ∏ t ∈ Finset.range k, (f t).toQ := by
   induction k with
   | zero => simp
@@ -328,12 +317,6 @@ end Sim
 /-! ## The early stage in the replay -/
 
 open CompressionLean.Replay (Relation TreeShape Runs)
-
-/-- A nonzero value times its inverse is one (`field.rs`). -/
-private theorem ext_mul_inv {a : Ext} (ne : a ≠ 0) : a * a.inv = 1 := by
-  apply Ext.eq_of_toK (K := Final.Cubic)
-  rw [Replay.Ext.toK_mul, Replay.Ext.toK_inv, Replay.Ext.toK_one]
-  exact mul_inv_cancel₀ fun z => ne (Replay.Ext.eq_zero_of_toK z)
 
 /-- Equal values pass the replay's equality test (`field.rs`). -/
 theorem ext_beq_of_eq {a b : Ext} (e : a = b) : (a == b) = true := e ▸ Ext.beq_self a
@@ -611,7 +594,7 @@ private theorem inv_hint {ga : Ext} {u : Fin 3 → F} (h : extProduct (coords ga
     simpa [extProduct] using (congrFun h 0).symm
   · refine ⟨z, ?_⟩
     have inv : extProduct (coords (F := F) ga) (coords ga.inv) = ![1, 0, 0] := by
-      rw [← coords_mul, ext_mul_inv z, coords_one]
+      rw [← coords_mul, Ext.mul_inv z, coords_one]
     calc u = extProduct u ![1, 0, 0] := (extProduct_one u).symm
       _ = extProduct u (extProduct (coords (F := F) ga) (coords ga.inv)) := by rw [inv]
       _ = extProduct (extProduct (coords (F := F) ga) u) (coords ga.inv) := by

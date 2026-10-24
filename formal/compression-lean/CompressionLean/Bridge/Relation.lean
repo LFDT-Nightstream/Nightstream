@@ -31,7 +31,7 @@ def shapeOf (rel : Replay.Relation) : Layer1.Shape where
   queries := rel.queries
 
 /-- The CE(B) statement of the replay's words. -/
-def statementOf (st : Replay.Statement) : Layer1.Statement Fp where
+def statementOf (st : Replay.Statement) : Layer1.Statement Gl where
   commitment ρ l := ((st.commitment[ρ]!)[l]!).toF
   publicInput b l := ((st.publicInput[b]!)[l]!).toF
   r := st.point.toList.map fun v => (v.1.toF, v.2.toF)
@@ -39,7 +39,7 @@ def statementOf (st : Replay.Statement) : Layer1.Statement Fp where
   evalA j l := (((st.evalA[j]!)[l]!).1.toF, ((st.evalA[j]!)[l]!).2.toF)
 
 /-- The key's run and slot structure. -/
-def structureOf (layout : Replay.Layout) : Layer1.Structure Fp where
+def structureOf (layout : Replay.Layout) : Layer1.Structure Gl where
   runBound j := layout.runBounds[j]!
   classLength c := (layout.classes[c]!).len
   classRatio c := (layout.classes[c]!).ratio.toF
@@ -50,11 +50,11 @@ def structureOf (layout : Replay.Layout) : Layer1.Structure Fp where
   segments := layout.segments.size
   slots := layout.slots
 
-/-- The `bar` transform of the F′ closed form, in `Fp`. -/
-def barOf (p l : ℕ) : Fp := (Replay.bar p l).toF
+/-- The `bar` transform of the F′ closed form, in `Gl`. -/
+def barOf (p l : ℕ) : Gl := (Replay.bar p l).toF
 
 /-- `Φ81 = X⁵⁴ + X²⁷ + 1`. -/
-noncomputable def phi : Fp[X] := X ^ 54 + X ^ 27 + 1
+noncomputable def phi : Gl[X] := X ^ 54 + X ^ 27 + 1
 
 theorem statement_point (st : Replay.Statement) : (statementOf st).point = quadPoint st.point.toList := by
   simp [Layer1.Statement.point, statementOf, quadPoint, Function.comp_def]

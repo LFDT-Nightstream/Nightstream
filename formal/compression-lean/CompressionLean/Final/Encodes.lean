@@ -38,8 +38,6 @@ open NightstreamFPrime
 open CompressionLean.Circuit.Goldilocks Fin.CommRing
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial (modulus)
 
-attribute [local instance] challengeCubic
-
 section Runs
 
 variable (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
@@ -225,30 +223,30 @@ theorem barOf_eq (p l : Fin Spec.ringDegree) :
     barOf p l = Final.gl (Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel.nativeBarEntry p l) := by
   unfold barOf Replay.bar
   rw [dif_pos ⟨p.isLt, l.isLt⟩, Replay.Word.toF_ofNat]
-  exact ZMod.natCast_zmod_val (show Final.Gl from _)
+  exact ZMod.natCast_zmod_val (show Gl from _)
 
 /-- The layer-1 game of the relation `rel` and the setup `S`, with F′'s
 modulus, as the final theorems state it. -/
-noncomputable abbrev game (rel : Replay.Relation) (S : Setup Fp) (L0 L1 : ℕ) :=
-  layer1Game (shapeOf rel) modulus barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocks (queryAt (K := Final.Cubic) rel)
+noncomputable abbrev game (rel : Replay.Relation) (S : Setup Gl) (L0 L1 : ℕ) :=
+  layer1Game (shapeOf rel) modulus barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocks (queryAt (K := Cubic) rel)
 
 /-- **The reading.** The path `p` reads, from the witness `wit` of program
 `x`, the statement and the proof that the in-circuit verifier reads, the
 challenges that it computes from them (`verify` replayed up to WHIR), and
 candidate lists that agree with the WHIR openings at its points and with a
 setup that the key's Merkle root binds. -/
-def Reads (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) (S : Setup Fp) (L0 L1 : ℕ)
-    (x : StateWords) (wit : ℕ → Fp) (p : (game key.relation S L0 L1).Pos) : Prop :=
+def Reads (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) (S : Setup Gl) (L0 L1 : ℕ)
+    (x : StateWords) (wit : ℕ → Gl) (p : (game key.relation S L0 L1).Pos) : Prop :=
   let w := wordsOf key loaded context x wit
   let st := statementWith loaded context w
   let seed := seedWith loaded context w
   let proof := proofWith key loaded context w
-  ∃ (cands : List (P0Tables Fp)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables Final.Cubic))
+  ∃ (cands : List (P0Tables Gl)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables Cubic))
     (short1 : p1.length ≤ L1),
     Game.Pos.msgs _ p = layer1Msgs key.relation st proof ⟨cands, short0⟩ ⟨p1, short1⟩ ∧
     Game.Pos.draws _ p =
       ((Replay.eval (verifyStages key.relation seed st proof) start).2.draws.toList).map
-        (drawn (K := Final.Cubic) key.relation.queries) ∧
+        (drawn (K := Cubic) key.relation.queries) ∧
     (∀ points t', Replay.Runs (Replay.verify key.relation seed st proof) start points t' →
       WhirOpens (shapeOf key.relation) proof points cands p1) ∧
     MerkleBinds key.relation S proof.leaves
@@ -261,14 +259,14 @@ private theorem statementOf_ctxOf (key : Layer1Input) (loaded : Loaded) (context
 /-- **`ProgramEncodes` for the production final program**
 (`lifecycle/terminal/mod.rs:54-80`), for a key that meets the premises. -/
 theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Replay.Word}
-    {authority : Lifecycle.VerifierContext.Authority} (S : Setup Fp) (keyFacts : KeyFacts key)
+    {authority : Lifecycle.VerifierContext.Authority} (S : Setup Gl) (keyFacts : KeyFacts key)
     (fits : S.Fits (shapeOf key.relation))
     (describes : (structureOf key.relation.key.layout).Describes (shapeOf key.relation) S) (L0 L1 : ℕ)
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
       Circuit.word (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0) :
-    ProgramEncodes (F := Fp) Block.poseidonTemplate (lower (program key loaded context).program ([] : List Spec.F)).counts
+    ProgramEncodes (F := Gl) Block.poseidonTemplate (lower (program key loaded context).program ([] : List Spec.F)).counts
       (prog key loaded context) authority (game key.relation S L0 L1) (Reads key loaded context S L0 L1) := by
   intro x wit holds
   rw [lower_counts _ [] (List.ofFn x)] at holds

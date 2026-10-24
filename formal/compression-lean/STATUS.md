@@ -112,7 +112,7 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 
 ## Ports
 
-`ports.json` has 554 entries: 511 Lean declarations transcribe 291 Rust items.
+`ports.json` has 556 entries: 513 Lean declarations transcribe 291 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -145,7 +145,7 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 | `CompressionLean.Ports.Replay.Stages` | 33 |
 | `CompressionLean.Ports.Replay.Transcript` | 19 |
 | `CompressionLean.Ports.Replay.Whir` | 4 |
-| `CompressionLean.Ports.Setup` | 13 |
+| `CompressionLean.Ports.Setup` | 15 |
 | `CompressionLean.Ports.Shrink.BlockPart` | 9 |
 | `CompressionLean.Ports.Shrink.Budget` | 1 |
 | `CompressionLean.Ports.Shrink.Ccs` | 6 |

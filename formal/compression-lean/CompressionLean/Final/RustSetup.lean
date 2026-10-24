@@ -123,9 +123,10 @@ theorem runList_perm (pushes : List Push) :
       · exact List.filter_congr fun p _ => by by_cases h : p.matrix < m <;> simp [h]; omega
       · exact List.filter_congr fun p _ => by by_cases h : p.matrix < m <;> simp [h] <;> omega
 
+/-- The slot key of a run decodes to the run's start and class. -/
 theorem slotKey_eq {classes : List ℕ} {p : Push} (block : p.start / ringDegree < 2 ^ 32) :
-    slotKey classes p % 2 ^ 32 * ringDegree + slotKey classes p / 2 ^ 32 % 2 ^ 8 = p.start ∧
-      slotKey classes p / 2 ^ 40 = classes.idxOf p.classCode := by
+    keyStart (slotKey classes p) = p.start ∧
+      keyCode classes (slotKey classes p) = classes.getD (classes.idxOf p.classCode) 0 := by
   have lane : p.start % ringDegree < 2 ^ 8 := (Nat.mod_lt _ (by decide)).trans (by decide)
   have shape : slotKey classes p =
       p.start / ringDegree + (classes.idxOf p.classCode * 2 ^ 8 + p.start % ringDegree) * 2 ^ 32 := by
@@ -135,12 +136,28 @@ theorem slotKey_eq {classes : List ℕ} {p : Push} (block : p.start / ringDegree
     rw [shape, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt block]
   have high : slotKey classes p / 2 ^ 32 = classes.idxOf p.classCode * 2 ^ 8 + p.start % ringDegree := by
     rw [shape, Nat.add_mul_div_right _ _ (by positivity), Nat.div_eq_of_lt block, zero_add]
-  refine ⟨?_, ?_⟩
-  · rw [low, high, Nat.mul_add_mod_of_lt lane]
-    exact Nat.div_add_mod' p.start ringDegree
-  · rw [show (2 : ℕ) ^ 40 = 2 ^ 32 * 2 ^ 8 by norm_num, ← Nat.div_div_eq_div_mul, high]
+  have index : slotKey classes p / 2 ^ 40 = classes.idxOf p.classCode := by
+    rw [show (2 : ℕ) ^ 40 = 2 ^ 32 * 2 ^ 8 by norm_num, ← Nat.div_div_eq_div_mul, high]
     simp only [Nat.reducePow] at lane ⊢
     omega
+  refine ⟨?_, by rw [keyCode, index]⟩
+  rw [keyStart, low, high, Nat.mul_add_mod_of_lt lane]
+  exact Nat.div_add_mod' p.start ringDegree
+
+/-- A class code decodes to the run's length and, past one column, its ratio. -/
+theorem classCode_decode (p : Push) :
+    codeLength p.classCode = p.len ∧ (p.len = 1 ∨ codeRatio p.classCode = p.ratio) := by
+  have word : p.ratioWord < 2 ^ 64 := by
+    unfold Push.ratioWord
+    split_ifs
+    · norm_num
+    · exact (ZMod.val_lt p.ratio).trans (by norm_num [goldilocksModulus])
+  refine ⟨by rw [codeLength, Push.classCode]; omega, ?_⟩
+  by_cases one : p.len = 1
+  · exact Or.inl one
+  · right
+    rw [codeRatio, Push.classCode, show (p.len * 2 ^ 64 + p.ratioWord) % 2 ^ 64 = p.ratioWord by omega,
+      Push.ratioWord, if_neg one, ZMod.natCast_zmod_val]
 
 theorem getD_idxOf {l : List ℕ} {x : ℕ} (member : x ∈ l) : l.getD (l.idxOf x) 0 = x := by
   rw [List.getD_eq_getElem _ _ (List.idxOf_lt_length_of_mem member), List.getElem_idxOf]
@@ -159,24 +176,13 @@ theorem lists_setupOfRuns (seed : List ℕ) (blocks : ℕ) (runs : List Push)
   have code : (classesOf runs).getD ((classesOf runs).idxOf p.classCode) 0 = p.classCode :=
     getD_idxOf (mem_sortedSet.mpr (List.mem_map.mpr ⟨p, member, rfl⟩))
   obtain ⟨start, index⟩ := slotKey_eq (classes := classesOf runs) (block p member)
-  have word : p.ratioWord < 2 ^ 64 := by
-    unfold Push.ratioWord
-    split_ifs
-    · norm_num
-    · exact (ZMod.val_lt p.ratio).trans (by norm_num [goldilocksModulus])
-  have cls : slotClass runs ((keysOf runs).idxOf (slotKey (classesOf runs) p)) = p.classCode := by
-    rw [slotClass, key, index, code]
+  obtain ⟨length, ratio⟩ := classCode_decode p
   simp only [setupOfRuns, if_pos inside]
   refine ⟨rfl, rfl, rfl, ?_, ?_, ?_⟩
-  · rw [slotStart, key, start]
+  · rw [key, start]
     exact Nat.div_add_mod p.start ringDegree
-  · rw [cls, Push.classCode]
-    omega
-  · by_cases one : p.len = 1
-    · exact Or.inl one
-    · right
-      rw [cls, Push.classCode, show (p.len * 2 ^ 64 + p.ratioWord) % 2 ^ 64 = p.ratioWord by omega,
-        Push.ratioWord, if_neg one, ZMod.natCast_zmod_val]
+  · rwa [key, index, code]
+  · rwa [key, index, code]
 
 /-- **The port reads back the runs.** A setup that `build` returns lists the
 pushed runs in setup order. -/

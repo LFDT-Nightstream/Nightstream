@@ -233,17 +233,17 @@ theorem final_restore_budget_parent (s1 : Layer1.Shape) (bar : ℕ → ℕ → G
     (wf : T.WellFormed) (valid : ∀ x, (prog x).Valid T)
     (authority : Lifecycle.VerifierContext.Authority)
     (Reads : StateWords → (ℕ → Gl) →
-      (Layer1.layer1Game s1 modulus bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q).Pos → Prop)
+      (Layer1.layer1Game s1 modulus bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q).Pos → Prop)
     (encodes : ProgramEncodes T s prog authority
-      (Layer1.layer1Game s1 modulus bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q) Reads)
+      (Layer1.layer1Game s1 modulus bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q) Reads)
     (calls : ℕ)
     (prover : Layer1.Game.Strategy
-      (RestoreOutcome Gl Cubic (Layer1.layer1Game s1 modulus bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q))) :
+      (RestoreOutcome Gl Cubic (Layer1.layer1Game s1 modulus bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q))) :
     Layer1.Game.prob prover
         (restorePair (Shrink.shrinkGame T s prog Ls)
-          (Layer1.layer1Game s1 modulus bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q) calls [] [])
+          (Layer1.layer1Game s1 modulus bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q) calls [] [])
         (FinalRestoreBreak (ParentClaim relation ajtai authority) T s prog
-          (Layer1.layer1Game s1 modulus bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q) Reads) ≤
+          (Layer1.layer1Game s1 modulus bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q) Reads) ≤
       calls / 2 ^ t :=
   (prob_mono prover _ (finalRestoreBreak_mono
       (parentClaim_of_terminalClaim s1 bar S relation ajtai shape sizes.blocks_le barEq honest authority) T s prog _

@@ -19,6 +19,7 @@ and a monic `Φ81` of degree `D` (`phi_monic`, `phi_natDegree`).
 namespace CompressionLean.Bridge
 
 open Polynomial
+open NightstreamFPrime.Spec (goldilocksModulus)
 open CompressionLean.Replay CompressionLean.Layer1
 
 /-! ## The game's parameters -/
@@ -114,7 +115,7 @@ theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Gl) (fact
       t'.draws.toList = t.draws.toList ++ ds ++ rest ∧
       (∃ t₄, Runs (verifyStages rel seed st proof) t () t₄ ∧ t₄.draws.toList = t.draws.toList ++ ds) ∧
       tr.statement = statementOf st ∧ tr.early.candidates = cands ∧
-      Game.Reaches (layer1Game (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocks (queryAt rel))
+      Game.Reaches (layer1Game (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocksModulus (queryAt rel))
         (layer1Msgs rel st proof ⟨cands, short0⟩ ⟨p1, short1⟩) (ds.map (drawn (K := K) rel.queries)) (some tr) := by
   unfold verify at run
   obtain ⟨_, t1, h1, r1⟩ := run_bind run
@@ -182,7 +183,7 @@ theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Gl) (facts : Rel
     {t t' : Replay.Transcript} {points : OpeningPoints} (run : Runs (verify rel seed st proof) t points t')
     (whir : WhirOpens (shapeOf rel) proof points cands p1) :
     ∃ ds rest : List Draw, t'.draws.toList = t.draws.toList ++ ds ++ rest ∧
-      ∃ p : Game.Pos (layer1Game (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocks
+      ∃ p : Game.Pos (layer1Game (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocksModulus
           (queryAt (K := K) rel)),
         Game.Pos.draws _ p = ds.map (drawn (K := K) rel.queries) ∧
         (∃ tr, Game.Pos.node _ p = .pure (some tr)) ∧
@@ -191,7 +192,7 @@ theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Gl) (facts : Rel
     replay_accepts_implies_path rel S facts seed st proof merkle L0 L1 cands short0 p1 short1 run whir
   refine ⟨ds, rest, draws, p, pathDraws, ⟨tr, node⟩, fun clean => ?_⟩
   have witness := Game.Pos.sound (layer1Game_avoids (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2))
-    goldilocks (queryAt rel) N sizes cast facts.fits phi_monic phi_ne_one) p (some tr) clean node tr rfl
+    goldilocksModulus (queryAt rel) N sizes cast facts.fits phi_monic phi_ne_one) p (some tr) clean node tr rfl
   rw [candidates, statement] at witness
   exact witness
 

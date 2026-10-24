@@ -33,6 +33,7 @@ stage lemmas carry every such fact.
 namespace CompressionLean.Final.Encodes
 
 open CompressionLean.Circuit CompressionLean.Circuit.Terminal CompressionLean.Circuit.Package
+open NightstreamFPrime.Spec (goldilocksModulus)
 open CompressionLean.Bridge CompressionLean.Layer1
 open NightstreamFPrime
 open CompressionLean.Circuit.Goldilocks Fin.CommRing
@@ -228,7 +229,7 @@ theorem barOf_eq (p l : Fin Spec.ringDegree) :
 /-- The layer-1 game of the relation `rel` and the setup `S`, with F′'s
 modulus, as the final theorems state it. -/
 noncomputable abbrev game (rel : Replay.Relation) (S : Setup Gl) (L0 L1 : ℕ) :=
-  layer1Game (shapeOf rel) modulus barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocks (queryAt (K := Cubic) rel)
+  layer1Game (shapeOf rel) modulus barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocksModulus (queryAt (K := Cubic) rel)
 
 /-- **The reading.** The path `p` reads, from the witness `wit` of program
 `x`, the statement and the proof that the in-circuit verifier reads, the

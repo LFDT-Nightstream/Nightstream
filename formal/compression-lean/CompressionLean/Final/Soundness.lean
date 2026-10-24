@@ -32,6 +32,7 @@ for the openings inside it.
 namespace CompressionLean.Final
 
 open CompressionLean NightstreamFPrime Polynomial
+open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
 
@@ -195,15 +196,15 @@ theorem final_budget (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (
     (cast9 : ∀ a b : ℕ, a < 9 → b < 9 → (a : K) = b → a = b)
     (authority : Lifecycle.VerifierContext.Authority)
     (Reads : StateWords → (ℕ → F) →
-      (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q).Pos → Prop)
+      (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q).Pos → Prop)
     (encodes : ProgramEncodes T s prog authority
-      (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q) Reads)
+      (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q) Reads)
     (prover : Layer1.Game.Strategy (Outcome F K s1.queries (2 ^ (s1.setupVars - 2)))) :
     whirP0 + whirP1 + whirS + Layer1.Game.prob prover
-        (pair (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q)
+        (pair (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q)
           (Shrink.shrinkGame T s prog Ls))
         (FinalBreak (TerminalClaim s1 Φ bar S authority) T s prog
-          (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q) Reads) ≤
+          (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q) Reads) ≤
       2 / 2 ^ t := by
   have sound := final_sound s1 Φ bar S L0 L1 _ _ q N sizes cast distinct fits monic degree two T s prog Ls wf
     valid cast9 authority Reads encodes prover
@@ -232,17 +233,17 @@ theorem final_restore_budget (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ 
     (cast9 : ∀ a b : ℕ, a < 9 → b < 9 → (a : K) = b → a = b)
     (authority : Lifecycle.VerifierContext.Authority)
     (Reads : StateWords → (ℕ → F) →
-      (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q).Pos → Prop)
+      (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q).Pos → Prop)
     (encodes : ProgramEncodes T s prog authority
-      (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q) Reads)
+      (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q) Reads)
     (calls : ℕ)
     (prover : Layer1.Game.Strategy
-      (RestoreOutcome F K (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q))) :
+      (RestoreOutcome F K (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q))) :
     Layer1.Game.prob prover
         (restorePair (Shrink.shrinkGame T s prog Ls)
-          (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q) calls [] [])
+          (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q) calls [] [])
         (FinalRestoreBreak (TerminalClaim s1 Φ bar S authority) T s prog
-          (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) Layer1.goldilocks q) Reads) ≤
+          (Layer1.layer1Game s1 Φ bar S L0 L1 (2 ^ (s1.setupVars - 2)) goldilocksModulus q) Reads) ≤
       calls / 2 ^ t := by
   refine (final_restore_sound s1 Φ bar S L0 L1 _ _ q N sizes cast distinct fits monic degree two T s prog Ls
     wf valid cast9 authority Reads encodes calls prover).trans ?_

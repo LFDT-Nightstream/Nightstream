@@ -1,4 +1,5 @@
 import CompressionLean.Layer1.Cost
+import NightstreamFPrime.Spec.Algebra
 
 /-!
 Owns the layer-1 budget at Rust's split (`layer1_budget`): layer 1 gets
@@ -20,6 +21,8 @@ most `1/2` (`query_half`), so the charge holds under that law.
 -/
 
 namespace CompressionLean.Layer1
+
+open NightstreamFPrime.Spec (goldilocksModulus)
 
 /-- `outer_terms`' degree of a GKR: per layer `k`, four per round and one
 per tree that reaches `k`. -/
@@ -117,24 +120,19 @@ theorem layer1Count_le_rust (s : Shape) (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 �
   unfold layer1Count rustDegrees
   nlinarith [Nat.mul_le_mul_right (rustEarly s) product, Nat.mul_le_mul_right (rustLinear s) product]
 
-/-- The Goldilocks order: `sample_bits` reads a uniform canonical word below it. -/
-def goldilocks : ℕ := 2 ^ 64 - 2 ^ 32 + 1
-
-instance : NeZero goldilocks := ⟨by decide⟩
-
 /-- `2·(2^(v-3) - 1)·(⌊p / 2^(v-2)⌋ + 1) ≤ p` up to `v = 35`; it fails at `36`. -/
-theorem goldilocks_half : ∀ v < 36, 2 * ((2 ^ (v - 3) - 1) * (goldilocks / 2 ^ (v - 2) + 1)) ≤ goldilocks := by
+theorem goldilocks_half : ∀ v < 36, 2 * ((2 ^ (v - 3) - 1) * (goldilocksModulus / 2 ^ (v - 2) + 1)) ≤ goldilocksModulus := by
   decide
 
 /-- A query leaf drawn as the low `setupVars - 2` bits of a Goldilocks word
 agrees with a wrong fold at most half the time, for at most 35 setup
 variables. -/
 theorem query_half (s : Shape) (index : s.setupVars ≤ 35) :
-    ((((2 ^ (s.setupVars - 3) - 1) * (goldilocks / 2 ^ (s.setupVars - 2) + 1) : ℕ) : ℝ) / goldilocks) ≤
+    ((((2 ^ (s.setupVars - 3) - 1) * (goldilocksModulus / 2 ^ (s.setupVars - 2) + 1) : ℕ) : ℝ) / goldilocksModulus) ≤
       1 / 2 := by
-  rw [div_le_div_iff₀ (by exact_mod_cast Nat.pos_of_neZero goldilocks) (by norm_num)]
+  rw [div_le_div_iff₀ (by exact_mod_cast Nat.pos_of_neZero goldilocksModulus) (by norm_num)]
   exact_mod_cast (by have := goldilocks_half s.setupVars (by omega); omega :
-    (2 ^ (s.setupVars - 3) - 1) * (goldilocks / 2 ^ (s.setupVars - 2) + 1) * 2 ≤ 1 * goldilocks)
+    (2 ^ (s.setupVars - 3) - 1) * (goldilocksModulus / 2 ^ (s.setupVars - 2) + 1) * 2 ≤ 1 * goldilocksModulus)
 
 /-- **The layer-1 budget at Rust's split.** If each commitment's composed
 error, as Plonky3 charges it, is at most `2^-(t+1)`, the whole layer errs
@@ -145,7 +143,7 @@ theorem layer1_budget (s : Shape) (L0 L1 size t : ℕ) (h0 : 1 ≤ L0) (h1 : 1 �
     (index : s.setupVars ≤ 35) (whirP0 whirP1 : ℝ)
     (p0 : whirP0 + L0 * L1 * rustDegrees s / 2 ^ 191 ≤ 1 / 2 ^ (t + 1))
     (p1 : whirP1 + L1 * (1 / 2) ^ (s.queries - 1) ≤ 1 / 2 ^ (t + 1)) :
-    whirP0 + whirP1 + layer1Error s L0 L1 (2 ^ (s.setupVars - 2)) goldilocks size ≤ 1 / 2 ^ t := by
+    whirP0 + whirP1 + layer1Error s L0 L1 (2 ^ (s.setupVars - 2)) goldilocksModulus size ≤ 1 / 2 ^ t := by
   unfold layer1Error queryError
   have positive : (0 : ℝ) < 2 ^ 191 := by positivity
   have sizeBig : (2 : ℝ) ^ 191 ≤ size := by exact_mod_cast big
@@ -154,12 +152,12 @@ theorem layer1_budget (s : Shape) (L0 L1 size t : ℕ) (h0 : 1 ≤ L0) (h1 : 1 �
   have field : (layer1Count s L0 L1 : ℝ) / size ≤ L0 * L1 * rustDegrees s / 2 ^ 191 :=
     div_le_div₀ (by positivity) count positive sizeBig
   have half := query_half s index
-  have shrink : ((((2 ^ (s.setupVars - 3) - 1) * (goldilocks / 2 ^ (s.setupVars - 2) + 1) : ℕ) : ℝ) /
-      goldilocks) ^ s.queries ≤ (1 / 2) ^ (s.queries - 1) :=
+  have shrink : ((((2 ^ (s.setupVars - 3) - 1) * (goldilocksModulus / 2 ^ (s.setupVars - 2) + 1) : ℕ) : ℝ) /
+      goldilocksModulus) ^ s.queries ≤ (1 / 2) ^ (s.queries - 1) :=
     (pow_le_pow_left₀ (by positivity) half _).trans
       (pow_le_pow_of_le_one (by norm_num) (by norm_num) (Nat.sub_le _ _))
-  have query : (L1 : ℝ) * ((((2 ^ (s.setupVars - 3) - 1) * (goldilocks / 2 ^ (s.setupVars - 2) + 1) : ℕ) : ℝ) /
-      goldilocks) ^ s.queries ≤ L1 * (1 / 2) ^ (s.queries - 1) :=
+  have query : (L1 : ℝ) * ((((2 ^ (s.setupVars - 3) - 1) * (goldilocksModulus / 2 ^ (s.setupVars - 2) + 1) : ℕ) : ℝ) /
+      goldilocksModulus) ^ s.queries ≤ L1 * (1 / 2) ^ (s.queries - 1) :=
     mul_le_mul_of_nonneg_left shrink (by positivity)
   have split : (1 : ℝ) / 2 ^ (t + 1) + 1 / 2 ^ (t + 1) = 1 / 2 ^ t := by
     rw [pow_succ]; field_simp; ring

@@ -2,15 +2,16 @@ import CompressionLean.Sim.EvalK
 import CompressionLean.Sim.Views
 import CompressionLean.Sim.Terminal
 import CompressionLean.Bridge.Relation
+import CompressionLean.Spec.Program
 
 /-!
 Owns the claim that layer 1 reads from the terminal package (`verify_with`,
 `terminal/mod.rs:73-79`): its decoding to the replay's statement, and that
 statement as the bridge reads it.
 
-- `ClaimVars.view`, `ClaimView.decode`: the claim handles as the verifier's
-  statement view, which `terminalCheck` passes to `verifyWith`, and that view
-  read through `w`.
+- `ClaimVars.view`, `ClaimView.decode` (`Spec/Program.lean`): the claim
+  handles as the verifier's statement view, which `terminalCheck` passes to
+  `verifyWith`, and that view read through `w`.
 - `isClaim_decode`: handles below `m` hold the decoded statement (`IsClaim`).
 - `ClaimHolds` keeps only the flat handle lists, so the last two lemmas also
   take the row shape (`ClaimVars.Shaped`, `Terminal.lean`), which
@@ -28,17 +29,6 @@ open CompressionLean.Terminal.Program (ClaimVars)
 open CompressionLean.Sim (ClaimHolds HoldsValues pairHandles)
 open NightstreamFPrime.Circuit (Env Expr)
 open Fin.CommRing
-
-/-- The terminal claim as the verifier's statement. -/
-def _root_.CompressionLean.Terminal.Program.ClaimVars.view (claim : ClaimVars) : ClaimView :=
-  { commitment := claim.commitment, publicInput := claim.publicInput, point := claim.point,
-    evalK := claim.evalK, evalA := claim.evalA }
-
-/-- The statement of a claim view: each handle reads as its word under `w`. -/
-def _root_.CompressionLean.Circuit.ClaimView.decode (w : Var → Word) (v : ClaimView) : Replay.Statement :=
-  { commitment := v.commitment.map (·.map w), publicInput := v.publicInput.map (·.map w),
-    point := v.point.map (Prod.map w w), evalK := v.evalK.map (Prod.map w w),
-    evalA := v.evalA.map (·.map (Prod.map w w)) }
 
 section Decode
 
@@ -222,11 +212,11 @@ private theorem row_toF {rows : Array (Array Var)} (shaped : ∀ row ∈ rows, r
 
 /-- The bridge reads the decoded statement as the claim of `env`. -/
 theorem statementOf_decode (hw : Decodes c w) {claim : ClaimVars} (holds : ClaimHolds c m claim env)
-    (shaped : claim.Shaped) : Bridge.statementOf (claim.view.decode w) = Final.claimOf (F := Gl) env := by
+    (shaped : claim.Shaped) : Spec.statementOf (claim.view.decode w) = Final.claimOf (F := Gl) env := by
   obtain ⟨-, -, spt, sk, -⟩ := claim_sizes holds shaped
   obtain ⟨hcom, hpub, hpt, hk, ha⟩ := holds
   obtain ⟨scom, spub, sa⟩ := shaped
-  simp only [Bridge.statementOf, Final.claimOf, word_eq hw hcom, word_eq hw hpub, word_eq hw hpt, word_eq hw hk,
+  simp only [Spec.statementOf, Final.claimOf, word_eq hw hcom, word_eq hw hpub, word_eq hw hpt, word_eq hw hk,
     word_eq hw ha, ← hpt.length_eq, length_pairHandles, ClaimView.decode, Terminal.Program.ClaimVars.view,
     show NightstreamFPrime.Spec.ringDegree = D from rfl]
   congr 1

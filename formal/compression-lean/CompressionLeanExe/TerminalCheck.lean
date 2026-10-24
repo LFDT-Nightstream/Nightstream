@@ -25,6 +25,7 @@ program (`runDigest`), or the first difference and exits with 1.
 
 namespace CompressionLeanExe.TerminalCheck
 
+open CompressionLean.Spec
 open CompressionLean CompressionLean.Shrink CompressionLean.Circuit CompressionLeanExe.Parse
 open CompressionLean.Terminal.Package CompressionLean.Terminal.Program CompressionLeanExe.Digest
 open CompressionLean.Replay (Word)
@@ -87,7 +88,7 @@ def main (args : List String) : IO UInt32 := do
         | .error message => IO.eprintln s!"{keyPath}: {message}"; return 2
     | _ => IO.eprintln "usage: terminalCheck <export.txt> [<layer1.json>]"; return 2
   let circuit := CompressionLean.Terminal.circuitPackage ()
-  unless CompressionLean.Checks.templatesNamed circuit do
+  unless CompressionLean.Spec.templatesNamed circuit do
     IO.println "a compact row invocation of the Lean package names no template"; return 1
   IO.println "package templates hold"
   match CompressionLean.Terminal.Package.load circuit CompressionLean.Terminal.outputs with

@@ -21,9 +21,9 @@ WHIR transcripts and both `openingsAgree` checks.
 
 namespace CompressionLean.Sim
 
+open CompressionLean.Spec
 open CompressionLean.Circuit
 open CompressionLean.Replay (Word Ext WhirShape SumcheckShape ReplayM)
-open CompressionLean.Bridge (Runs)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]

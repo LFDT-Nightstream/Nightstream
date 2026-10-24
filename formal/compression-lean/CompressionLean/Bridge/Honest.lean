@@ -1,4 +1,6 @@
 import CompressionLean.Bridge.Late
+import CompressionLean.Spec.Messages
+import CompressionLean.Spec.Checks
 
 /-!
 Owns the bridge of the honest-fold stage (`Replay.honestStage`) to the
@@ -13,6 +15,7 @@ feed the P1 openings, not this path (`Openings.lean`).
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
 open CompressionLean.Lib
 open Polynomial
 open NightstreamFPrime.Spec (goldilocksModulus)
@@ -45,26 +48,9 @@ theorem toK_matrixStep (rel : Replay.Relation) (S : Setup Gl) (fits : S.Fits (sh
 theorem pointK_padded (n : ℕ) (p : Array Ext) : pointK (K := K) (Replay.padded n p) = Layer1.padded n (pointK p) := by
   simp [Replay.padded, Layer1.padded, pointK]
 
-/-- The model's partials of the proof's. -/
-def partialsOf (proof : Replay.Proof) (g : Fin 2) : ℕ → K := tableK (proof.partials[(g : ℕ)]!)
-
-/-- The model's messages of the replay's honest fold: the partials and the
-P1 candidates. -/
-def honestMsgs (proof : Replay.Proof) {L1 : ℕ} (p1 : {l : List (P1Tables K) // l.length ≤ L1}) :
-    List (Σ M : Type, M) :=
-  [⟨Fin 2 → ℕ → K, partialsOf proof⟩, ⟨{l : List (P1Tables K) // l.length ≤ L1}, p1⟩]
-
 /-- The model's query words of the replay's. -/
 def wordsOf (queries : ℕ) (ws : Array Word) : Fin queries → Fin goldilocksModulus :=
   fun j => ⟨(ws[(j : ℕ)]!).word.toNat, Word.canonical _⟩
-
-/-- The relation's sizes the honest fold reads. -/
-structure HonestSizes (rel : Replay.Relation) : Prop where
-  bounds : rel.matrices ≤ rel.key.layout.runBounds.size
-  setup : 3 ≤ rel.setupVars
-
-instance (rel : Replay.Relation) : Decidable (HonestSizes rel) :=
-  decidable_of_iff (_ ∧ _) ⟨fun ⟨a, b⟩ => ⟨a, b⟩, fun ⟨a, b⟩ => ⟨a, b⟩⟩
 
 /-- What the openings read of a successful honest-fold replay. -/
 structure HonestRun (rel : Replay.Relation) (proof : Replay.Proof) (early : Replay.EarlyOut) (lin : Replay.LinearOut)

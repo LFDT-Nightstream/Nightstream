@@ -1,4 +1,5 @@
 import CompressionLean.Bridge.Honest
+import CompressionLean.Spec.Openings
 
 /-!
 Owns the bridge of the setup queries (`Replay.setupCheck`) to the model's
@@ -12,6 +13,7 @@ is the model's honest fold at the leaf's query point (`setupCheck_value`).
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
 open CompressionLean.Lib
 open Polynomial
 open NightstreamFPrime.Spec
@@ -28,9 +30,6 @@ theorem squarings_cast (n x : ℕ) : ((squarings n x : ℕ) : Gl) = (x : Gl) ^ (
   induction n generalizing x with
   | zero => simp [squarings]
   | succ n ih => rw [squarings, ih, ZMod.natCast_mod, Nat.cast_mul, ← sq, ← pow_mul, pow_succ']
-
-/-- Plonky3's `two_adic_generator(bits)` in `Gl`, for `bits ≤ 32`. -/
-def twoAdic (bits : ℕ) : Gl := (0x185629dcda58878c : Gl) ^ (2 ^ (32 - bits))
 
 theorem toF_twoAdicGenerator (bits : ℕ) : (twoAdicGenerator bits).toF = twoAdic bits := by
   unfold twoAdicGenerator twoAdic
@@ -86,12 +85,6 @@ theorem twoAdic_pow_eight (n : ℕ) (low : 2 ≤ n) (high : n + 1 ≤ 32) : twoA
   rw [twoAdic, twoAdic, ← pow_mul, show (8 : ℕ) = 2 ^ 3 by norm_num, ← pow_add]
   congr 2
   omega
-
-/-- The first point of leaf `i`'s coset: `y_i = g·ω_{2^(n+1)}^i`. -/
-def leafY (n i : ℕ) : Gl := 7 * twoAdic (n + 1) ^ i
-
-/-- The query point of leaf `i`: `q_i = y_i^8 = g^8·ω_{2^(n-2)}^i` (`setup::query_point`). -/
-def queryPoint (n i : ℕ) : Gl := 7 ^ 8 * twoAdic (n - 2) ^ i
 
 theorem seven_ne_zero : (7 : Gl) ≠ 0 := by
   intro zero
@@ -161,24 +154,6 @@ theorem univ_sum (n m : ℕ) (f : ℕ → ℕ → K) :
       rw [univ_add, ih]
 
 /-! ## The leaf check -/
-
-/-- The honest setup oracles in `Gl`, in leaf order: the key rows, then the
-run oracles row, slot, coefficient and slot block (`RUN_ORACLES`). -/
-def setupOracle (rel : Replay.Relation) (S : Setup Gl) (o x : ℕ) : Gl :=
-  if o < rel.kappa then S.key o x
-  else if o = rel.kappa then (S.runRow x : Gl)
-  else if o = rel.kappa + 1 then (S.runSlot x : Gl)
-  else if o = rel.kappa + 2 then S.runCoef x
-  else if x < S.slots then (S.slotBlock x : Gl) else 0
-
-/-- **Merkle binding**, an assumption on the proof's leaves: a leaf whose path
-reaches the key root at index `i` holds, for each setup oracle, its codeword
-`Ô_o` on the coset `y_i·ω_8^v` of the honest leaf `i`. A leaf that breaks it
-and still reaches the root gives a hash collision. -/
-def MerkleBinds (rel : Replay.Relation) (S : Setup Gl) (leaves : Array Leaf) : Prop :=
-  ∀ leaf ∈ leaves.toList, ∀ i, pathOk rel.key.root i leaf = true → ∀ o v, o < rel.kappa + runOracles →
-    v < 2 ^ foldVars → (leaf.values[o * 2 ^ foldVars + v]!).toF =
-      (univ rel.setupVars (setupOracle rel S o)).eval (leafY rel.setupVars i * twoAdic 3 ^ v)
 
 omit [Algebra Gl K] [Fintype K] [ChallengeField K] in
 theorem pow_mod_eight {w : K} (root : w ^ 8 = 1) (n : ℕ) : w ^ (n % 8) = w ^ n := by

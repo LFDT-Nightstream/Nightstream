@@ -1,10 +1,11 @@
 import CompressionLean.Sim.Merkle
 import CompressionLean.Ports.Circuit.Verifier
 import CompressionLean.Ports.Replay.Stages
+import CompressionLean.Spec.Program
 
 /-!
-Owns the decoding of a layer-1 proof view (`ProofView`) to the replay's proof
-(`Replay.Proof`), and the simulation of the proof reads of `Views.lean` and
+Owns, for the decoding of a layer-1 proof view to the replay's proof
+(`ProofView.decode`, `Spec/Program.lean`), the simulation of the proof reads of `Views.lean` and
 `Verifier.lean` (`ProofView.read`): the handles hold the words of the decoded
 proof, and the replay's shape check (`Replay.readProof`) accepts it.
 
@@ -19,6 +20,7 @@ proof, and the replay's shape check (`Replay.readProof`) accepts it.
 
 namespace CompressionLean.Sim
 
+open CompressionLean.Spec
 open CompressionLean.Circuit
 open CompressionLean.Replay (Word Ext Relation TreeShape WhirShape foldVars layerCount layerFactors layerDegree
   activeTrees partFactors layerShapeOk)
@@ -27,51 +29,6 @@ variable {F : Type} [CommRing F]
 
 /-- The value of each handle is the word that `w` gives it. -/
 def Decodes (c : Ctx F) (w : Var → Word) : Prop := ∀ h, c.val h = Word.cast (w h)
-
-/-- The extension value of three handles. -/
-def decodeExt (w : Var → Word) (e : ExtVar) : Ext := ⟨w (e 0), w (e 1), w (e 2)⟩
-
-/-- The four words of a digest. -/
-def decodeDigest (w : Var → Word) (d : DigestVar) : Array Word := #[w (d 0), w (d 1), w (d 2), w (d 3)]
-
-/-- A pair of extension values. -/
-def decodePair (w : Var → Word) (p : ExtVar × ExtVar) : Ext × Ext := (decodeExt w p.1, decodeExt w p.2)
-
-/-- One GKR layer. -/
-def _root_.CompressionLean.Circuit.GkrLayerView.decode (w : Var → Word) (l : GkrLayerView) : Replay.GkrLayer :=
-  { rounds := l.rounds.map (·.map (decodeExt w)), children := l.children.map (·.map (decodeExt w)) }
-
-/-- A GKR proof. -/
-def _root_.CompressionLean.Circuit.GkrView.decode (w : Var → Word) (v : GkrView) : Replay.GkrProof :=
-  { roots := v.roots.map (decodePair w), layers := v.layers.map (·.decode w) }
-
-/-- A queried setup leaf. -/
-def _root_.CompressionLean.Circuit.LeafView.decode (w : Var → Word) (v : LeafView) : Replay.Leaf :=
-  { values := v.values.map w, path := v.path.map (decodeDigest w) }
-
-/-- One WHIR round, without its query rows. -/
-def _root_.CompressionLean.Circuit.RoundView.decode (w : Var → Word) (r : RoundView) : Replay.WhirRound :=
-  { root := decodeDigest w r.root, ood := r.ood.map (decodeExt w), sumcheck := r.sumcheck.map (decodePair w) }
-
-/-- One WHIR opening, without its query rows. -/
-def _root_.CompressionLean.Circuit.OpeningView.decode (w : Var → Word) (v : OpeningView) : Replay.Opening :=
-  { initialOod := v.initialOod.map (decodeExt w), evals := v.evals.map (·.map (decodeExt w)),
-    initialSumcheck := v.initialSumcheck.map (decodePair w), rounds := v.rounds.map (·.decode w),
-    finalPoly := v.finalPoly.map (decodeExt w), finalSumcheck := v.finalSumcheck.map (decodePair w) }
-
-/-- A layer-1 proof. The run values are `e_re`, `e_im`, `row`, the order of
-`observe_early` and of the replay's `earlyStage`. -/
-def _root_.CompressionLean.Circuit.ProofView.decode (w : Var → Word) (v : ProofView) : Replay.Proof :=
-  { p0 := decodeDigest w v.p0, histogram := v.histogram.map w, early := v.early.decode w,
-    earlyValues :=
-      { eRe := decodeExt w v.earlyValues.runs[0]!, eIm := decodeExt w v.earlyValues.runs[1]!,
-        row := decodeExt w v.earlyValues.runs[2]!, pairs := v.earlyValues.pairs.map (decodePair w),
-        block := decodeExt w v.earlyValues.block },
-    quotient := v.quotient.map (decodeExt w), linear := v.linear.map (·.map (decodeExt w)),
-    finals := v.finals.map (decodeExt w), partials := v.partials.map (·.map (decodeExt w)),
-    p1 := decodeDigest w v.p1, leaves := v.leaves.map (·.decode w), late := v.late.decode w,
-    lateValues := v.lateValues.map (decodePair w), p1Opening := v.p1Opening.decode w,
-    p0Opening := v.p0Opening.decode w }
 
 /-- The round messages and the children of one GKR layer. -/
 def IsGkrLayer (c : Ctx F) (n : ℕ) (v : GkrLayerView) (g : Replay.GkrLayer) : Prop :=

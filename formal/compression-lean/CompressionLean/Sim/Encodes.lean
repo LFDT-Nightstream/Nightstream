@@ -8,19 +8,16 @@ import CompressionLean.Lowering.Valid
 import CompressionLean.Bridge.Main
 import CompressionLean.Final.Bridge
 import CompressionLean.Checks.KeyFacts
+import CompressionLean.Spec.Bound
 
 /-!
 Owns `ProgramEncodes` (`Claim.lean`) for the production final program
 (`FinalProgram::run`, `lifecycle/terminal/mod.rs:54-80`, with `verify_with`,
-`neo-spartan/src/lib.rs:692-703`), for any layer-1 key.
+`neo-spartan/src/lib.rs:692-703`), for any layer-1 key. The program, what
+layer 1 reads from its witness (`wordsOf`, `statementWith`, `seedWith`,
+`proofWith`) and the reading (`Reads`) are in `Spec/`.
 
-- `program`, `prog`: that program and its shrink run for a statement.
-- `ctxOf`, `wordsOf`: the executor's run on a witness, and its words.
-- `statementWith`, `seedWith`, `proofWith`: what layer 1 reads from those
-  words, through the handles that the program writes from the empty builder.
-- `Reads`: a layer-1 path reads that statement and proof, the challenges
-  that the in-circuit verifier computes from them, and candidate lists that
-  WHIR's openings and the key's Merkle root bind.
+- `ctxOf`: the executor's run on a witness, whose words are `wordsOf`.
 - `programEncodes`: `ProgramEncodes` from the `verify` composition
   (`verify_ensures`) and premises on the key. The game uses F′'s modulus,
   which is the bridge's `phi` (`phi_eq_modulus`).
@@ -32,6 +29,7 @@ stage lemmas carry every such fact.
 
 namespace CompressionLean.Sim
 
+open CompressionLean.Spec
 open CompressionLean.Final
 open CompressionLean.Checks
 open CompressionLean.Lowering
@@ -45,14 +43,6 @@ section Runs
 
 variable (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
 
-/-- `FinalProgram::run` with `verify_with` for `key` (`lifecycle/terminal/mod.rs:54-80`).
-Irreducible, so that no check evaluates the program. -/
-@[irreducible] def program : Build Unit := finalProgram loaded context fun claim state => verifyWith key state claim.view
-
-/-- The shrink run of the final program for the statement `x`. -/
-noncomputable def prog (x : StateWords) : Shrink.Run Spec.F :=
-  lower (program key loaded context).program (List.ofFn x)
-
 /-- Each shrink run of the program names only its own cells (`lower_valid`). -/
 theorem prog_valid (x : StateWords) : (prog key loaded context x).Valid Block.poseidonTemplate :=
   lower_valid Block.poseidonTemplate (Nat.le_of_eq rfl) _ _
@@ -64,35 +54,7 @@ noncomputable def ctxOf (x : StateWords) (w : ℕ → Spec.F) : Ctx Spec.F :=
   let tape := tapeOf Block.poseidonTemplate L stmt w
   { perm := Spec.Poseidon2.permute, stmt, tape, val := (Exec.run Spec.Poseidon2.permute stmt tape L).value }
 
-/-- The words of that run, by handle. -/
-noncomputable def wordsOf (x : StateWords) (w : ℕ → Spec.F) : Var → Replay.Word :=
-  fun h => Replay.Word.ofF ((ctxOf key loaded context x w).val h)
-
-/-- The builder after the terminal part (`lifecycle/terminal/mod.rs:54-72`). -/
-def prefixRun : (ClaimVars × (Fin 16 → Var)) × Builder := (terminalPrefix loaded context).run {}
-
-/-- The builder after the handoff (`neo-spartan/src/lib.rs:697`). -/
-def seedRun : DigestVar × Builder :=
-  (FoldTranscript.fromState (prefixRun loaded context).1.2).handoff.run (prefixRun loaded context).2
-
-/-- The builder after the proof view (`neo-spartan/src/lib.rs:698-702`). -/
-def viewRun : Circuit.ProofView × Builder :=
-  (Circuit.ProofView.read key.relation key.p1Key.rows key.p0Key.rows).run (seedRun loaded context).2
-
-/-- The statement that layer 1 reads, through `w`. -/
-def statementWith (w : Var → Replay.Word) : Replay.Statement := (prefixRun loaded context).1.1.view.decode w
-
-/-- The seed that layer 1 reads, through `w`. -/
-def seedWith (w : Var → Replay.Word) : Array Replay.Word :=
-  FoldTranscript.handoffWords (Array.ofFn fun lane => w ((prefixRun loaded context).1.2 lane))
-
-/-- The proof that layer 1 reads, through `w`. -/
-def proofWith (w : Var → Replay.Word) : Replay.Proof := (viewRun key loaded context).1.decode w
-
 end Runs
-
-/-- The empty replay transcript, where `verify` starts (`verifier.rs:136`). -/
-def start : Replay.Transcript := ⟨Replay.Duplex.new, #[]⟩
 
 section Gives
 
@@ -105,8 +67,8 @@ the decoded seed, statement and proof. -/
 def Gives (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
     (authority : Lifecycle.VerifierContext.Authority) (c : Ctx Spec.F) (w : Var → Replay.Word) : Prop :=
   ∃ env, TerminalFor authority (Sim.statementOf c) env ∧
-    Bridge.statementOf (statementWith loaded context w) = claimOf env ∧
-    ∃ points t', Bridge.Runs (Replay.verify key.relation (seedWith loaded context w) (statementWith loaded context w)
+    Spec.statementOf (statementWith loaded context w) = claimOf env ∧
+    ∃ points t', Spec.Runs (Replay.verify key.relation (seedWith loaded context w) (statementWith loaded context w)
       (proofWith key loaded context w)) start points t'
 
 instance verifyWith_appends (key : Layer1Input) (state : Fin 16 → Var) (claim : ClaimView) :
@@ -175,36 +137,10 @@ theorem phi_eq_modulus : phi = modulus := by
 
 /-- The bridge's bar transform is F′'s (`nativeBarEntry`). -/
 theorem barOf_eq (p l : Fin Spec.ringDegree) :
-    barOf p l = Final.gl (Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel.nativeBarEntry p l) := by
+    barOf p l = Spec.gl (Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel.nativeBarEntry p l) := by
   unfold barOf Replay.bar
   rw [dif_pos ⟨p.isLt, l.isLt⟩, Replay.Word.toF_ofNat]
   exact ZMod.natCast_zmod_val (show Gl from _)
-
-/-- The layer-1 game of the relation `rel` and the setup `S`, with F′'s
-modulus, as the final theorems state it. -/
-noncomputable abbrev game (rel : Replay.Relation) (S : Setup Gl) (L0 L1 : ℕ) :=
-  layer1Game (shapeOf rel) modulus barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocksModulus (queryAt (K := Cubic) rel)
-
-/-- **The reading.** The path `p` reads, from the witness `wit` of program
-`x`, the statement and the proof that the in-circuit verifier reads, the
-challenges that it computes from them (`verify` replayed up to WHIR), and
-candidate lists that agree with the WHIR openings at its points and with a
-setup that the key's Merkle root binds. -/
-def Reads (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) (S : Setup Gl) (L0 L1 : ℕ)
-    (x : StateWords) (wit : ℕ → Gl) (p : (game key.relation S L0 L1).Pos) : Prop :=
-  let w := wordsOf key loaded context x wit
-  let st := statementWith loaded context w
-  let seed := seedWith loaded context w
-  let proof := proofWith key loaded context w
-  ∃ (cands : List (P0Tables Gl)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables Cubic))
-    (short1 : p1.length ≤ L1),
-    Game.Pos.msgs _ p = layer1Msgs key.relation st proof ⟨cands, short0⟩ ⟨p1, short1⟩ ∧
-    Game.Pos.draws _ p =
-      ((Bridge.eval (verifyStages key.relation seed st proof) start).2.draws.toList).map
-        (drawn (K := Cubic) key.relation.queries) ∧
-    (∀ points t', Bridge.Runs (Replay.verify key.relation seed st proof) start points t' →
-      WhirOpens (shapeOf key.relation) proof points cands p1) ∧
-    MerkleBinds key.relation S proof.leaves
 
 private theorem statementOf_ctxOf (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) (x : StateWords)
     (wit : ℕ → Spec.F) : Sim.statementOf (ctxOf key loaded context x wit) = x := by
@@ -244,7 +180,7 @@ theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Re
   obtain ⟨p₀, node, pathDraws, pathMsgs⟩ := reach
   have same : p = p₀ := by
     refine Game.Pos.eq_of_msgs_draws (msgs.trans pathMsgs.symm) (draws.trans ?_)
-    rw [show Bridge.eval _ start = _ from run₄, draws₄]
+    rw [show Spec.eval _ start = _ from run₄, draws₄]
     exact pathDraws.symm
   subst same
   exact ⟨tr, node, statement.trans claim⟩

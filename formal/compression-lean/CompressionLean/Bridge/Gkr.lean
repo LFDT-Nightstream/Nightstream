@@ -3,6 +3,8 @@ import CompressionLean.Game.Path
 import CompressionLean.Bridge.Run
 import CompressionLean.Layer1.Cost
 import CompressionLean.Lib.Array
+import CompressionLean.Spec.Messages
+import CompressionLean.Spec.Replay
 
 /-!
 Owns the bridge of the sum-check and GKR replays (`Ports/Replay/Gkr.lean`) to the
@@ -22,21 +24,13 @@ layer at a time (`runs_gkrLayers_succ`, `runs_gkrLayer`), and the shapes that
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
 open CompressionLean.Lib
 open NightstreamFPrime.Spec (goldilocksModulus)
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
 variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
-
-/-- A replay draw as the model's challenge: an `Ext` value in `K`, a pair in
-`K × K`, the setup query words as `Fin queries → Fin goldilocksModulus`, a WHIR
-query word in `Fin goldilocksModulus`. -/
-def drawn (queries : ℕ) : Draw → (Σ C : Type, C)
-  | .ext v => ⟨K, v.toK⟩
-  | .pair a b => ⟨K × K, (a.toK, b.toK)⟩
-  | .words ws => ⟨Fin queries → Fin goldilocksModulus, fun j => ⟨(ws[j.val]!).word.toNat, Word.canonical _⟩⟩
-  | .sample w => ⟨Fin goldilocksModulus, ⟨w.word.toNat, w.canonical⟩⟩
 
 /-! ## Interpolation -/
 
@@ -135,11 +129,6 @@ theorem toK_round (d : ℕ) (m : Array Ext) (size : m.size = d + 1) (claim r : E
 theorem drawn_ext (q : ℕ) (v : Ext) : drawn (K := K) q (.ext v) = ⟨K, v.toK⟩ := rfl
 
 theorem drawn_pair (q : ℕ) (a b : Ext) : drawn (K := K) q (.pair a b) = ⟨K × K, (a.toK, b.toK)⟩ := rfl
-
-/-- The model's messages of the replay's sum-check rounds: each round's
-values in `K`. -/
-def sumcheckMsgs (d : ℕ) (rounds : List (Array Ext)) : List (Σ M : Type, M) :=
-  rounds.map fun m => ⟨Fin (d + 1) → K, fun j => (m[(j : ℕ)]!).toK⟩
 
 section SumCheck
 
@@ -251,12 +240,6 @@ end Shapes
 
 /-! ### Claims -/
 
-/-- The model's children message: tree `t`'s part pairs from the replay. -/
-def childrenOf (pairs : List (ℕ × Array Ext)) (t j : ℕ) : K × K :=
-  match pairs.find? (·.1 == t) with
-  | some pair => ((pair.2[2 * j]!).toK, (pair.2[2 * j + 1]!).toK)
-  | none => (0, 0)
-
 theorem find_of_mem {pairs : List (ℕ × Array Ext)} (nodup : (pairs.map Prod.fst).Nodup) {t : ℕ} {v : Array Ext}
     (member : (t, v) ∈ pairs) : pairs.find? (·.1 == t) = some (t, v) := by
   induction pairs with
@@ -358,19 +341,6 @@ theorem advance_agrees {gs : GkrShape} {shapes : Array TreeShape} (agree : Shape
   leafValues_size := by simp [Replay.advance, claims.leafValues_size]
 
 /-! ### The game -/
-
-/-- The model's messages of the replay's GKR layers from layer `k`: each
-layer's sum-check rounds, then its children. -/
-def gkrLayersMsgs (shapes : Array TreeShape) : List GkrLayer → ℕ → List (Σ M : Type, M)
-  | [], _ => []
-  | layer :: rest, k =>
-      sumcheckMsgs (K := K) (layerDegree (layerFactors shapes k) - 1) layer.rounds.toList ++
-        ⟨ℕ → ℕ → K × K, childrenOf ((activeTrees shapes k).zip layer.children).toList⟩ ::
-          gkrLayersMsgs shapes rest (k + 1)
-
-/-- The model's messages of the replay's GKR proof: the roots, then every layer. -/
-def gkrMsgs (shapes : Array TreeShape) (proof : GkrProof) : List (Σ M : Type, M) :=
-  ⟨ℕ → K × K, fun t => pairK (proof.roots[t]!)⟩ :: gkrLayersMsgs (K := K) shapes proof.layers.toList 1
 
 section Games
 
@@ -552,6 +522,7 @@ end CompressionLean.Bridge
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
 open CompressionLean.Replay
 
 /-- One replay of `rounds` is a replay of its first `k` rounds, then a replay of the rest from that

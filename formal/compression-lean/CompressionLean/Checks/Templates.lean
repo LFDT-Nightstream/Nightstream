@@ -1,20 +1,16 @@
-import NightstreamFPrime.Export.PackageExpansion
+import CompressionLean.Spec.Checks
 
 /-!
-Owns the template check of a terminal package (`templatesNamed`): every
-compact row invocation names a template. A pass gives F′'s
-`CompactTemplatesValid` (`compactTemplatesValid_of_named`). `terminalCheck`
-evaluates it on the terminal package.
+Owns the proof that a terminal package that passes the template check
+(`templatesNamed`, `Spec/Checks.lean`) has F′'s `CompactTemplatesValid`
+(`compactTemplatesValid_of_named`). `terminalCheck` evaluates the check on
+the terminal package.
 -/
 
 namespace CompressionLean.Checks
 
+open CompressionLean.Spec
 open NightstreamFPrime.Export.Package
-
-/-- Every compact row invocation names a template (`CompactTemplatesValid`),
-decided. -/
-def templatesNamed (package : CircuitPackage) : Bool :=
-  package.compactRowInvocations.all fun invocation => (package.compactRowTemplates[invocation.templateIndex]?).isSome
 
 /-- A package whose invocations all name a template has `CompactTemplatesValid`. -/
 theorem compactTemplatesValid_of_named {package : CircuitPackage} (named : templatesNamed package = true) :

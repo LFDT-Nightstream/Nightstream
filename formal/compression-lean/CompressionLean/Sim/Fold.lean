@@ -1,12 +1,13 @@
 import CompressionLean.Sim.Hash
 import CompressionLean.Ports.Circuit.Fold
+import CompressionLean.Spec.Program
 
 /-!
 Owns the simulation of the fold transcript of `Fold.lean` (`fold.rs`): the
 additive sponge (`absorb`, `absorbConstants`), `squeezeDigest` and the
-layer-1 `handoff`. The replay takes the layer-1 seed as an input, so this
-file also owns the transcript on words that names the seed (`absorbWords`,
-`handoffWords`).
+layer-1 `handoff`. The replay takes the layer-1 seed as an input; the
+transcript on words that names the seed (`absorbWords`, `handoffWords`) is in
+`Spec/Program.lean`.
 -/
 
 namespace CompressionLean.Sim
@@ -19,20 +20,6 @@ variable {F : Type} [CommRing F]
 section FoldTranscript
 
 open CompressionLean.Circuit.FoldTranscript
-
-/-- One chunk added into the rate lanes, then a permutation (`fold.rs:39-46`). -/
-def _root_.CompressionLean.Circuit.FoldTranscript.absorbChunk (state chunk : Array Word) : Array Word :=
-  Replay.permute ((List.range chunk.size).foldl (fun s i => s.set! i (s[i]! + chunk[i]!)) state)
-
-/-- `absorb` on words. -/
-def _root_.CompressionLean.Circuit.FoldTranscript.absorbWords (state words : Array Word) : Array Word :=
-  (List.range ((words.size + rate - 1) / rate)).foldl
-    (fun s k => absorbChunk s (words.extract (rate * k) (rate * k + rate))) state
-
-/-- The seed that `handoff` returns: the first four lanes after the layer-1
-domain chunk (`fold.rs:68-72`). -/
-def _root_.CompressionLean.Circuit.FoldTranscript.handoffWords (state : Array Word) : Array Word :=
-  (absorbWords state (domainChunk compressDomain)).extract 0 4
 
 theorem _root_.CompressionLean.Circuit.FoldTranscript.absorbWords_size {gs : Array Word} (gw : Array Word) (h : gs.size = 16) : (absorbWords gs gw).size = 16 := by
   unfold absorbWords

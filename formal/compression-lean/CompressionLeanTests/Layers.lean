@@ -13,7 +13,7 @@ open Lean Elab Command
 /-- The folders, lowest first. A top-level file (`Fields.lean`, `Production.lean`, `Claims.lean`)
 is a folder of its own. -/
 def layers : List String :=
-  ["Lib", "Fields", "Production", "Game", "Terminal", "Layer1", "Ports", "Shrink", "Lowering", "Bridge",
+  ["Lib", "Fields", "Production", "Game", "Terminal", "Layer1", "Ports", "Shrink", "Lowering", "Spec", "Bridge",
     "Final", "Checks", "Sim", "Claims"]
 
 /-- The folder of a library module: the component after `CompressionLean`. -/

@@ -1,4 +1,5 @@
 import CompressionLean.Ports.Replay.Stages
+import CompressionLean.Spec.Replay
 
 /-!
 Owns what a successful replay run says: `Runs x t a t'` when the replay
@@ -13,10 +14,8 @@ splits along its rounds (`sumcheckRounds_append`, `sumcheckRounds_point`).
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
 open CompressionLean.Replay
-
-/-- The result and the final transcript of `x` run from `t`. -/
-def eval {α : Type} (x : ReplayM α) (t : Transcript) : Except String α × Transcript := (x.run.run t).run
 
 theorem eval_bind {α β : Type} (x : ReplayM α) (f : α → ReplayM β) (t : Transcript) :
     eval (x >>= f) t = match eval x t with
@@ -35,10 +34,6 @@ theorem eval_map {α β : Type} (f : α → β) (x : ReplayM α) (t : Transcript
   rw [ExceptT.run_map, StateT.run_map, Id.run_map]
   rcases (ExceptT.run x).run t with ⟨e, s⟩
   cases e <;> rfl
-
-/-- `x` run from `t` returns `a` and ends in `t'`. -/
-def Runs {α : Type} (x : ReplayM α) (t : Transcript) (a : α) (t' : Transcript) : Prop :=
-  eval x t = (.ok a, t')
 
 theorem run_bind {α β : Type} {x : ReplayM α} {f : α → ReplayM β} {t : Transcript} {b : β} {t'' : Transcript}
     (h : Runs (x >>= f) t b t'') : ∃ a t', Runs x t a t' ∧ Runs (f a) t' b t'' := by

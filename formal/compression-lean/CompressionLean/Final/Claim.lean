@@ -2,6 +2,7 @@ import CompressionLean.Terminal.Soundness
 import CompressionLean.Layer1.Soundness
 import CompressionLean.Game.Restoration
 import CompressionLean.Shrink.Layout
+import CompressionLean.Spec.Parent
 
 /-!
 Owns the claim of a final proof and the encoding premise that links the
@@ -9,9 +10,9 @@ three layers.
 
 - `claimOf`: the layer-1 claim that the final program reads from the
   terminal output columns (`Package::apply`, `terminal/package.rs:215-236`).
-- `TerminalFor`: a terminal assignment for the statement `x`.
 - `TerminalClaim`: what a final proof for `x` claims. Some terminal
-  assignment for `x` has a parent claim with a CE(B) witness.
+  assignment for `x` (`TerminalFor`, `Spec/Parent.lean`) has a parent claim
+  with a CE(B) witness.
 - `ProgramEncodes`: the encoding that links the layers. A witness of the
   final program's CCS holds a terminal assignment and accepting layer-1
   transcripts for it. `programEncodes` (`Sim/Encodes.lean`) proves it for
@@ -22,6 +23,7 @@ Does not own the layers' games or their errors.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Spec
 open CompressionLean NightstreamFPrime Polynomial
 
 variable {F K : Type} [Field F]
@@ -50,29 +52,6 @@ def claimOf (env : Circuit.Env) : Layer1.Statement F where
       (word Terminal.outputs.eval_A env (2 * Spec.ringDegree * j + 2 * l),
         word Terminal.outputs.eval_A env (2 * Spec.ringDegree * j + 2 * l + 1))
     else 0
-
-/-- The statement of a final proof: the iteration, `z0` and the current
-state, the nine words that the final program makes public
-(`lifecycle/terminal/mod.rs:46-52`). -/
-abbrev StateWords := Fin 9 → Spec.F
-
-/-- The statement words of the prior state preimage, after the four context
-words (`STATE_CONTEXT_START`, `lifecycle/inputs.rs:41-43`). -/
-def priorStatement (env : Circuit.Env) : StateWords := fun k =>
-  (Layout.Stage1.PiCCSInputs.priorStateWord
-    (Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + 4 + k.val)).eval
-    (Layout.Stage1.Spartan.pullback env)
-
-/-- A terminal assignment for the statement `x`, as the final program wires
-it: every terminal row holds, the public context columns hold the circuit's
-context digest, the statement words of the prior state preimage are `x`
-(`terminal/package.rs:186-213`), and the iteration is not zero
-(`terminal/mod.rs:60-68`). -/
-def TerminalFor (authority : Lifecycle.VerifierContext.Authority) (x : StateWords)
-    (env : Circuit.Env) : Prop :=
-  (Terminal.circuitPackage ()).RowsHold env ∧
-    Export.Stage1.Package.SelectedVerifierContext authority env ∧
-    priorStatement env = x ∧ x 0 ≠ 0
 
 /-- What a final proof for statement `x` claims: some terminal assignment
 for `x` has a parent claim with a CE(B) witness. `circuitPackage_implies_terminal`

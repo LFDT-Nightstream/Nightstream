@@ -13,13 +13,12 @@ points, `τ`'s lanes and the queried values.
 
 namespace CompressionLean.Sim
 
+open CompressionLean.Spec
 open CompressionLean.Circuit
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Relation TreeShape WhirShape D foldVars runOracles)
-open CompressionLean.Bridge (Runs run_bind run_pure run_liftExcept run_sampleWords)
+open CompressionLean.Bridge (run_bind run_pure run_liftExcept run_sampleWords)
 open NightstreamFPrime.Spec (goldilocksModulus)
-open CompressionLean.Checks (CircuitFacts)
-open CompressionLean.Bridge (RelationFacts)
 
 variable {F : Type} [CommRing F]
 

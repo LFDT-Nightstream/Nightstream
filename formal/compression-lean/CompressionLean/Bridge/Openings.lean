@@ -1,11 +1,12 @@
 import CompressionLean.Bridge.Setup
+import CompressionLean.Spec.Openings
 
 /-!
 Owns the bridge of the two openings to the model's `Opens`. WHIR's guarantee
 is an assumption, as in the model. `WhirOpens` says that one listed P0
 candidate and one listed P1 candidate have the opened values at the points
 that the replay returns (`OpeningPoints`, computed as Rust computes them),
-in Rust's batch order (`p0Opened`, `p1Opened`). Those points are the model
+in Rust's batch order (`p0Opened`, `p1Opened`, `Spec/Openings.lean`). Those points are the model
 transcript's points (`p0Opened_eq`, `p1Opened_eq`). The replay checks that
 the opened values are the values it expects (`openingsAgree_ok`), and its
 queried values are the honest folds (`setupCheck_value`). So `Opens` holds
@@ -14,6 +15,7 @@ queried values are the honest folds (`setupCheck_value`). So `Opens` holds
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
 open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
@@ -105,9 +107,6 @@ theorem queried_toK (check : ℕ → Leaf → Except String (Array Ext)) (A B : 
       rw [ih _ _ (fun p member => value p (List.mem_cons_of_mem _ member)) h, Array.toList_append, List.map_append,
         value pair List.mem_cons_self _ checked, List.map_cons, List.flatMap_cons, List.append_assoc]
 
-/-- The query point of leaf `i` in `K` (`setup::query_point`). -/
-def queryAt (rel : Replay.Relation) (i : ℕ) : K := ι (queryPoint rel.setupVars i)
-
 /-- The two folded values of a successful leaf check. -/
 theorem setupCheck_toList (rel : Replay.Relation) (S : Setup Gl) {leaves : Array Leaf}
     (merkle : MerkleBinds rel S leaves) {index : ℕ} (inside : index < 2 ^ (rel.setupVars - 2)) {leaf : Leaf}
@@ -124,37 +123,6 @@ theorem setupCheck_toList (rel : Replay.Relation) (S : Setup Gl) {leaves : Array
   rfl
 
 /-! ## The WHIR assumption -/
-
-/-- P0 candidate `w`'s values at the points, one batch per point: `z` at the
-norm leaf and at the linear point, `e`, the early pairs, the early
-slot-block copy, the late pairs and copy, the row counts. -/
-noncomputable def p0Opened (s : Shape) (pts : OpeningPoints) (w : P0Tables Gl) : List (List K) :=
-  [[mle (pointK pts.norm) fun x => ι (w.z x)],
-    [mle (pointK pts.linear) fun x => ι (w.z x)],
-    [mle (pointK pts.run) fun k => ι (w.e k).1, mle (pointK pts.run) fun k => ι (w.e k).2],
-    (List.range s.matrices).flatMap (fun j => [mle (pointK pts.pairs) fun σ => ι (w.U j σ).1,
-      mle (pointK pts.pairs) fun σ => ι (w.U j σ).2]),
-    [mle (pointK pts.slots) fun σ => ι (w.blockCopy σ)],
-    (List.range s.matrices).flatMap (fun j => [mle (pointK pts.latePairs) fun σ => ι (w.U j σ).1,
-      mle (pointK pts.latePairs) fun σ => ι (w.U j σ).2]) ++
-      [mle (pointK pts.latePairs) fun σ => ι (w.blockCopy σ)],
-    [mle (pointK pts.rows) fun i => ι (w.mult i)]]
-
-/-- P1 candidate `v`'s values at the points: the key fold and the run fold at
-their tails, both folds at each query point, `Ω^A` at the two block points. -/
-noncomputable def p1Opened (pts : OpeningPoints) (v : P1Tables K) : List K :=
-  [mle (pointK pts.keyTail) v.foldKey, mle (pointK pts.runTail) v.foldRun] ++
-    pts.queries.toList.flatMap (fun pt => [mle (pointK pt) v.foldKey, mle (pointK pt) v.foldRun]) ++
-    [mle (pointK pts.block) v.omegaA, mle (pointK pts.lateBlock) v.omegaA]
-
-/-- **WHIR opens**, an assumption: one listed P0 candidate and one listed P1
-candidate have the opened values at the points that the verifier gives WHIR.
-A P1 value is read from its three coordinate openings (`from_coordinates`). -/
-def WhirOpens (s : Shape) (proof : Replay.Proof) (pts : OpeningPoints) (cands : List (P0Tables Gl))
-    (p1 : List (P1Tables K)) : Prop :=
-  ∃ w ∈ cands, ∃ v ∈ p1,
-    proof.p0Opening.evals.toList.map (fun batch => batch.toList.map (Ext.toK (K := K))) = p0Opened s pts w ∧
-      (Replay.p1Values proof.p1Opening.evals).toList.map (Ext.toK (K := K)) = p1Opened pts v
 
 omit [Algebra Gl K] [Fintype K] [ChallengeField K] in
 theorem powerPoint_eq_map (x : K) (m : ℕ) : powerPoint x m = (List.range m).map fun k => x ^ 2 ^ k := by

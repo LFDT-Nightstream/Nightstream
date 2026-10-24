@@ -6,10 +6,10 @@ import CompressionLean.Sim.Honest
 Owns the simulation of the linear stage of `Linear.lean` (`verifier.rs:170-206`) against
 `Replay.linearStage`.
 
-- `linearStage_ensures`: once the circuit's checks hold, the replay's linear stage runs, and
-  `IsLinearOut` gives what the honest fold, the late stage and the openings read.
+- `linearStage_tracks`: once the circuit's checks hold, the circuit's linear stage tracks the
+  replay's, and `IsLinearOut` gives what the honest fold, the late stage and the openings read.
 - The circuit runs one sum-check over every linear round and splits its point at the block bits; the
-  replay runs one sum-check per part (`runs_sumcheckReplay_split`).
+  replay runs one sum-check per part (`splitSumcheck_tracks`, from `runs_sumcheckReplay_split`).
 - The circuit adds the terms of `Ω~` in Rust's order, and `omegaComputed` sums the public terms first.
   Field addition is associative, so the values agree.
 -/
@@ -18,11 +18,18 @@ namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
 open CompressionLean.Replay (Word Ext Relation D laneVars)
-open CompressionLean.Bridge (Runs runs_bind runs_pure runs_sampleExt runs_observeExts runs_ensure
-  runs_liftExcept)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
+
+/-! ## Instruction shape -/
+
+instance laneValue_appends (zeta : ExtVar) (point : Array ExtVar) : Appends (Circuit.laneValue zeta point) := by
+  unfold Circuit.laneValue; appends
+instance linearStage_appends (rel : Relation) (statement : ClaimView) (quotient : Array ExtVar)
+    (linear : Array (Array ExtVar)) (finals : Array ExtVar) (d : Duplex) :
+    Appends ((Circuit.linearStage rel statement quotient linear finals).run d) := by
+  unfold Circuit.linearStage; appends
 
 /-- What the honest fold, the late stage and the openings read of the linear stage
 (`verifier.rs:170-206`): the mixing, `τ`, the block, lane and linear points, and the finals. -/
@@ -34,297 +41,222 @@ def IsLinearOut (c : Ctx F) (m : ℕ) (rel : Relation) (v : LinearView) (out : R
 
 /-- `IsLinearOut` survives later values. -/
 theorem IsLinearOut.mono {c : Ctx F} {n m : ℕ} {rel : Relation} {v : LinearView} {out : Replay.LinearOut}
-    (h : IsLinearOut c n rel v out) (le : n ≤ m) : IsLinearOut c m rel v out :=
-  ⟨⟨h.1.1.mono le, h.1.2⟩, h.2.1.mono le, h.2.2.1.mono le, h.2.2.2.1.mono le, h.2.2.2.2.1.mono le,
-    h.2.2.2.2.2.1.mono le, h.2.2.2.2.2.2.1.mono le, h.2.2.2.2.2.2.2.mono le⟩
+    (h : IsLinearOut c n rel v out) (le : n ≤ m := by omega) : IsLinearOut c m rel v out := by
+  obtain ⟨⟨mix, size⟩, tau, block, lane, linear, key, omega, z⟩ := h
+  exact ⟨⟨mix.mono le, size⟩, tau.mono le, block.mono le, lane.mono le, linear.mono le, key.mono le, omega.mono le,
+    z.mono le⟩
 
-variable {c : Ctx F} {n : ℕ} {P : Prop}
+section Stage
 
-/-- A builder call in a transcript keeps the duplex (`verifier.rs:187-206`). -/
-private theorem OldEnsures.liftBind {α β : Type} {b : Build α} {g : α → Transcript β} {d : Duplex}
-    {Q : α → ℕ → Prop} {R : β × Duplex → ℕ → Prop} (hb : OldEnsures c n P b Q)
-    (hg : ∀ a m, n ≤ m → OldEnsures c m (P ∧ Q a m) ((g a).run d) R) :
-    OldEnsures c n P ((monadLift b >>= g : Transcript β).run d) R := by
-  rw [StateT.run_bind, StateT.run_monadLift, bind_assoc]
-  exact hb.bind fun a m le => by rw [pure_bind]; exact hg a m le
-
-variable [CharP F goldilocksModulus]
+variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
 /-- `lane_value` (`verifier.rs:340-350`): `Σ_{l<D} eq(x, l)·ζ^l`. -/
-private theorem Simulates.laneValue {zeta : ExtVar} {point : Array ExtVar} {gz : Ext} {gpoint : Array Ext}
-    (size : P → D ≤ 2 ^ gpoint.size) (hz : P → IsExt c n zeta gz) (hp : P → IsExts c n point gpoint) :
-    Simulates c n P (Circuit.laneValue zeta point) (fun r m => IsExt c m r (Replay.laneValue gz gpoint)) True := by
+private theorem laneValue_ensures {zeta : ExtVar} {point : Array ExtVar} {gz : Ext} {gpoint : Array Ext}
+    (size : D ≤ 2 ^ gpoint.size) (hz : IsExt c n zeta gz) (hp : IsExts c n point gpoint) :
+    Ensures c n (Circuit.laneValue zeta point) fun r m => IsExt c m r (Replay.laneValue gz gpoint) := by
   unfold Circuit.laneValue
-  refine (Simulates.eqTable hp).bind₀ fun eq m₁ l₁ => Simulates.extZero.bind₀ fun total m₂ l₂ =>
-    Simulates.extOne.bind₀ fun power m₃ l₃ => ?_
-  refine ((Simulates.loop₀ (P := ((P ∧ IsExts c m₁ eq (Replay.eqTable gpoint)) ∧ IsExt c m₂ total 0) ∧
-      IsExt c m₃ power 1)
-    (fun k acc m => IsExt c m acc.1 (Replay.sumRange k fun l => (Replay.eqTable gpoint)[l]! * gz.pow l) ∧
-      IsExt c m acc.2 (gz.pow k)) fun k hk acc m lm => ?_).pre fun h => ⟨h, h.1.2.mono l₃, ?_⟩).bind₀
-    fun res m₄ l₄ => Simulates.pure fun h => ?_
-  · have hk' : k < eq.size := by simp at hk; omega
-    have weight : P ∧ IsExts c m₁ eq (Replay.eqTable gpoint) → IsExt c m₁ (eq.extract 0 D)[k]
-        (Replay.eqTable gpoint)[k]! := fun h => by
+  refine (eqTable_ensures hp).bind fun eq _ _ heq => extZero_ensures.bind fun total _ _ hzero =>
+    extOne_ensures.bind fun power _ _ hone => ?_
+  have eqSize : eq.size = 2 ^ gpoint.size := by rw [heq.1]; simp [Replay.eqTable]
+  refine (Ensures.loopArray (fun k acc m => IsExt c m acc.1 (Replay.sumRange k fun l =>
+      (Replay.eqTable gpoint)[l]! * gz.pow l) ∧ IsExt c m acc.2 (gz.pow k))
+    ⟨hzero.mono, by rw [ext_pow_zero]; exact hone⟩ fun k hk acc m _ hacc => ?_).bind
+    fun res _ _ hres => Ensures.pure ?_
+  · obtain ⟨htotal, hpower⟩ := hacc
+    have hk' : k < eq.size := by simp at hk; omega
+    have weight : IsExt c m (eq.extract 0 D)[k] (Replay.eqTable gpoint)[k]! := by
       have e : (eq.extract 0 D)[k] = eq[k]! := by rw [getElem!_pos eq k hk']; simp
       rw [e]
-      exact h.2.2 k hk'
-    refine (Simulates.extMul (fun h => (weight h.1.1.1).mono (l₂.trans (l₃.trans lm))) fun h => h.2.2).bind₀
-      fun term m₅ l₅ => (Simulates.extAdd (fun h => h.1.2.1.mono l₅) fun h => h.2).bind₀ fun total' m₆ l₆ =>
-      (Simulates.extMul (fun h => h.1.1.2.2.mono (l₅.trans l₆))
-        fun h => (hz h.1.1.1.1.1.1).mono (l₁.trans (l₂.trans (l₃.trans (lm.trans (l₅.trans l₆)))))).bind₀
-      fun power' m₇ l₇ => Simulates.pure fun h => ⟨rfl, ?_, ?_⟩
+      exact (heq.2 k hk').mono
+    refine (extMul_ensures weight hpower).bind fun term _ _ hterm => ?_
+    refine (extAdd_ensures htotal.mono hterm).bind fun total' _ _ htotal' => ?_
+    refine (extMul_ensures hpower.mono hz.mono).bind fun power' _ _ hpower' => Ensures.pure ⟨rfl, ?_, ?_⟩
     · rw [sumRange_succ]
-      exact h.1.2.mono l₇
+      exact htotal'.mono
     · rw [ext_pow_succ]
-      exact h.2
-  · rw [ext_pow_zero]
-    exact h.2
-  · have e := h.2.1
-    have eqSize : eq.size = 2 ^ gpoint.size := by rw [h.1.1.1.2.1]; simp [Replay.eqTable]
-    rw [Array.size_extract, eqSize, Nat.min_eq_left (size h.1.1.1.1), Nat.sub_zero] at e
+      exact hpower'
+  · have e := hres.1
+    rw [Array.size_extract, eqSize, Nat.min_eq_left size, Nat.sub_zero] at e
     exact e
 
-/-- `eval_k` (`mle.rs:146-204`) with the size of `r` known under `P`. -/
-private theorem Simulates.evalK' {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Array (Word × Word)} {gs gt : Array Ext}
-    (blocks : ℕ) (rSize : P → Nat.log2 (D * 2 ^ gs.size).nextPowerOfTwo ≤ gr.size) (tauSize : D ≤ gt.size)
-    (hr : P → IsKs c n r gr) (hs : P → IsExts c n sBlock gs) (ht : P → IsExts c n tau gt) :
-    Simulates c n P (Mle.evalK r sBlock tau blocks) (fun res m => IsKx c m res (Replay.evalK gr gs gt blocks)) True := by
-  by_cases h : Nat.log2 (D * 2 ^ gs.size).nextPowerOfTwo ≤ gr.size
-  · exact Simulates.evalK blocks h tauSize hr hs ht
-  · exact (Simulates.evalK (gr := Array.replicate (Nat.log2 (D * 2 ^ gs.size).nextPowerOfTwo) (0, 0)) blocks (by simp)
-      tauSize (fun hP => absurd (rSize hP) h) hs ht).post (fun hP => absurd (rSize hP) h) fun _ => Iff.rfl
-
-/-- The Eval_K terms `Σ weight·value` added to `Ω~` (`verifier.rs:192-196`). -/
-private theorem pairsLoop {d : Duplex} {xs : List (ExtVar × ExtVar)} {gxs : List (Ext × Ext)} {init : ExtVar}
+/-- The Eval_K terms `Σ weight·value` added to `Ω~` (`verifier.rs:192-196`), which the replay
+computes without a transcript step. -/
+private theorem pairs_tracks {xs : List (ExtVar × ExtVar)} {gxs : List (Ext × Ext)} {init : ExtVar}
     {ginit : Ext} (hlen : xs.length = gxs.length)
-    (hx : P → ∀ k (hk : k < xs.length), IsExt c n xs[k].1 (gxs[k]!).1 ∧ IsExt c n xs[k].2 (gxs[k]!).2)
-    (hi : P → IsExt c n init ginit) :
-    Simulates c n P ((forIn xs init fun x (omega : ExtVar) => do
+    (hx : ∀ k (hk : k < xs.length), IsExt c n xs[k].1 (gxs[k]!).1 ∧ IsExt c n xs[k].2 (gxs[k]!).2)
+    (hi : IsExt c n init ginit) :
+    Tracks c n (forIn xs init fun x (omega : ExtVar) => do
         let term ← liftM (Build.extMul x.1 x.2)
         let omega ← liftM (Build.extAdd omega term)
-        Pure.pure (ForInStep.yield omega) : Transcript ExtVar).run d)
-      (fun res m => IsExt c m res.1 (gxs.foldl (fun total p => total + p.1 * p.2) ginit) ∧ res.2 = d) True := by
-  refine ((Simulates.loopT (P := P) (d := d) (I := fun k (acc : ExtVar) e m =>
-      IsExt c m acc ((gxs.take k).foldl (fun total p => total + p.1 * p.2) ginit) ∧ e = d) (D := fun _ => True)
-      fun k hk acc e m lm => ?_).pre fun h => by exact ⟨h, hi h, rfl⟩).post (fun h _ _ q => ?_) fun _ => by simp
-  · refine Simulates.tbind₀ (Simulates.lift (Simulates.extMul (fun h => ((hx h.1) k hk).1.mono lm) fun h => ((hx h.1) k hk).2.mono lm))
-      fun term e₁ m₁ l₁ => ?_
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.extAdd (fun h => h.1.2.1.mono l₁) fun h => h.2.1)) fun total e₂ m₂ l₂ => ?_
+        Pure.pure (ForInStep.yield omega))
+      (Pure.pure PUnit.unit) fun res _ m => IsExt c m res (gxs.foldl (fun total p => total + p.1 * p.2) ginit) := by
+  intro d t hd
+  refine (Ensures.loopT (fun k (acc : ExtVar) e m =>
+      IsExt c m acc ((gxs.take k).foldl (fun total p => total + p.1 * p.2) ginit) ∧ IsDuplex c m e t.duplex)
+    ⟨hi, hd⟩ fun k hk acc e m _ hI => ?_).post fun _ _ q => ?_
+  · obtain ⟨hacc, he⟩ := hI
+    refine Ensures.liftBind (extMul_ensures (hx k hk).1.mono (hx k hk).2.mono) fun term _ _ hterm => ?_
+    refine Ensures.liftBind (extAdd_ensures hacc.mono hterm) fun total _ _ htotal => ?_
     rw [StateT.run_pure]
-    refine Simulates.pure fun h => ⟨rfl, ?_, h.2.2.trans (h.1.2.2.trans h.1.1.2.2)⟩
+    refine Ensures.pure ⟨rfl, ?_, he.mono⟩
     have hk' : k < gxs.length := hlen ▸ hk
     rw [List.take_add_one, List.getElem?_eq_getElem hk', Option.toList_some, List.foldl_append, List.foldl_cons,
       List.foldl_nil, ← getElem!_pos gxs k hk']
-    exact h.2.1
-  · rw [List.take_of_length_le (by omega)] at q
-    exact q
+    exact htotal
+  · obtain ⟨hres, he⟩ := q
+    rw [List.take_of_length_le (by omega)] at hres
+    exact ⟨(), t, Bridge.runs_pure _ _, he, hres⟩
 
-/-- The public terms `Σ_b eq(s_b, b)·λ^(public row b)` added to `Ω~` (`verifier.rs:198-202`). -/
-private theorem publicLoop {d : Duplex} {point : Array ExtVar} {gpoint : Array Ext} {mixing : MixingVar}
-    {mix : Replay.Mixing} {blocks : ℕ} {init : ExtVar} {ginit : Ext} (hp : P → IsExts c n point gpoint)
-    (hm : P → IsMixing c n mixing mix) (hsize : P → mix.kappa + 2 + 2 * mix.matrices + blocks ≤ mixing.powers.size)
-    (hi : P → IsExt c n init ginit) :
-    Simulates c n P ((forIn [:blocks] init fun block (omega : ExtVar) => do
+/-- The public terms `Σ_b eq(s_b, b)·λ^(public row b)` added to `Ω~` (`verifier.rs:198-202`), which
+the replay computes without a transcript step. -/
+private theorem public_tracks {point : Array ExtVar} {gpoint : Array Ext} {mixing : MixingVar}
+    {mix : Replay.Mixing} {blocks : ℕ} {init : ExtVar} {ginit : Ext} (hp : IsExts c n point gpoint)
+    (hm : IsMixing c n mixing mix) (hsize : mix.kappa + 2 + 2 * mix.matrices + blocks ≤ mixing.powers.size)
+    (hi : IsExt c n init ginit) :
+    Tracks c n (forIn [:blocks] init fun block (omega : ExtVar) => do
         let eq ← liftM (Algebra.eqAt point block)
         let term ← liftM (Build.extMul eq (mixing.public block))
         let omega ← liftM (Build.extAdd omega term)
-        Pure.pure (ForInStep.yield omega) : Transcript ExtVar).run d)
-      (fun res m => IsExt c m res.1 (ginit + Replay.sumRange blocks fun b => Replay.eqAt gpoint b * mix.public b) ∧
-        res.2 = d) True := by
+        Pure.pure (ForInStep.yield omega))
+      (Pure.pure PUnit.unit) fun res _ m =>
+        IsExt c m res (ginit + Replay.sumRange blocks fun b => Replay.eqAt gpoint b * mix.public b) := by
+  intro d t hd
   rw [Std.Legacy.Range.forIn_eq_forIn_range']
-  refine ((Simulates.loopT (P := P) (d := d) (I := fun k (acc : ExtVar) e m =>
-      IsExt c m acc (ginit + Replay.sumRange k fun b => Replay.eqAt gpoint b * mix.public b) ∧ e = d)
-      (D := fun _ => True) fun k hk acc e m lm => ?_).pre fun h => ⟨h, ?_, rfl⟩).post (fun h _ _ q => ?_)
-      fun _ => by simp
-  · have hk' : k < blocks := by simpa [Std.Legacy.Range.size] using hk
-    rw [List.getElem_range', Nat.zero_add, Nat.one_mul]
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.eqAt k fun h => (hp h.1).mono lm)) fun eq e₁ m₁ l₁ => ?_
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.extMul (fun h => h.2.1)
-      fun h => ((hm h.1.1).public (by have := hsize h.1.1; omega)).mono (lm.trans l₁))) fun term e₂ m₂ l₂ => ?_
-    refine Simulates.tbind₀ (Simulates.lift (Simulates.extAdd (fun h => h.1.1.2.1.mono (l₁.trans l₂)) fun h => h.2.1))
-      fun total e₃ m₃ l₃ => ?_
-    rw [StateT.run_pure]
-    refine Simulates.pure fun h => ⟨rfl, ?_, h.2.2.trans (h.1.2.2.trans (h.1.1.2.2.trans h.1.1.1.2.2))⟩
-    rw [sumRange_succ, ← ext_add_assoc]
-    exact h.2.1
+  refine (Ensures.loopT (fun k (acc : ExtVar) e m =>
+      IsExt c m acc (ginit + Replay.sumRange k fun b => Replay.eqAt gpoint b * mix.public b) ∧
+        IsDuplex c m e t.duplex) ⟨?_, hd⟩ fun k hk acc e m _ hI => ?_).post fun _ _ q => ?_
   · show IsExt c n init (ginit + 0)
     rw [ext_add_zero]
-    exact hi h
-  · rw [show (List.range' 0 [:blocks].size 1).length = blocks by simp [Std.Legacy.Range.size]] at q
-    exact q
+    exact hi
+  · obtain ⟨hacc, he⟩ := hI
+    have hk' : k < blocks := by simpa [Std.Legacy.Range.size] using hk
+    rw [List.getElem_range', Nat.zero_add, Nat.one_mul]
+    refine Ensures.liftBind (eqAt_ensures k hp.mono) fun eq _ _ heq => ?_
+    refine Ensures.liftBind (extMul_ensures heq (hm.public (by omega)).mono) fun term _ _ hterm => ?_
+    refine Ensures.liftBind (extAdd_ensures hacc.mono hterm) fun total _ _ htotal => ?_
+    rw [StateT.run_pure]
+    refine Ensures.pure ⟨rfl, ?_, he.mono⟩
+    rw [sumRange_succ, ← ext_add_assoc]
+    exact htotal
+  · obtain ⟨hres, he⟩ := q
+    rw [show (List.range' 0 [:blocks].size 1).length = blocks by simp [Std.Legacy.Range.size]] at hres
+    exact ⟨(), t, Bridge.runs_pure _ _, he, hres⟩
 
-/-- **The linear stage** (`verifier.rs:170-206`). Once the circuit's checks hold, the replay's linear
-stage runs from the matching transcript, the circuit's outputs are the replay's, and the duplexes still
-match. `long` is `EvalKBits.long`: `eval_k`'s coordinate bits fit the statement point. -/
-theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay.Statement}
+/-- The circuit's one sum-check over every round (`verifier.rs:179-181`), then the rest, tracks the
+replay's two, split at `k` (`runs_sumcheckReplay_split`). -/
+private theorem splitSumcheck_tracks {γ δ : Type} (hp : Permutes c.perm) {rounds : Array (Array ExtVar)}
+    {grounds : Array (Array Ext)} {claim : ExtVar} {gclaim : Ext} (k : ℕ) (hr : rounds.size = grounds.size)
+    (hm : ∀ i < rounds.size, IsExts c n rounds[i]! grounds[i]!) (hne : ∀ g ∈ grounds, 0 < g.size)
+    (hc : IsExt c n claim gclaim) {g : Array ExtVar × ExtVar → Transcript γ}
+    {y : Array Ext × Ext → Array Ext × Ext → Replay.ReplayM δ} {R : γ → δ → ℕ → Prop}
+    (hg : ∀ res first middle second last m, n ≤ m → first.size = min k grounds.size →
+      second.size = grounds.size - k → IsExts c m res.1 (first ++ second) → IsExt c m res.2 last →
+      Tracks c m (g res) (y (first, middle) (second, last)) R)
+    (hg' : ∀ a d, Appends ((g a).run d) := by appends) :
+    Tracks c n (Circuit.sumcheckReplay rounds claim >>= g) (Replay.sumcheckReplay (grounds.extract 0 k) gclaim >>=
+      fun p => Replay.sumcheckReplay (grounds.extract k) p.2 >>= fun q => y p q) R := by
+  intro d t hd
+  refine Ensures.tbind (sumcheckReplay_tracks hp hr hm hne hc d t hd) fun res e m le h => ?_
+  obtain ⟨out, t', run, hdx, hpt, hfin⟩ := h
+  obtain ⟨first, middle, t₁, second, run₁, run₂, hpoint, size₁, size₂⟩ := Bridge.runs_sumcheckReplay_split k run
+  refine (hg res first middle second out.2 m le size₁ size₂ (hpoint ▸ hpt) hfin e t' hdx).post
+    fun _ _ ⟨b, t'', run', hdx', hr'⟩ => ⟨b, t'', Bridge.runs_bind run₁ (Bridge.runs_bind run₂ run'), hdx', hr'⟩
+
+/-- **The linear stage** (`verifier.rs:170-206`). Once the circuit's checks hold, the circuit's
+linear stage tracks the replay's, and the circuit's outputs are the replay's. `long` is
+`EvalKBits.long`: `eval_k`'s coordinate bits fit the statement point. -/
+theorem linearStage_tracks {rel : Relation} {statement : ClaimView} {st : Replay.Statement}
     {quotient : Array ExtVar} {linear : Array (Array ExtVar)} {finals : Array ExtVar} {proof : Replay.Proof}
-    {d : Duplex} {t : Replay.Transcript} (hp : Permutes c.perm) (hd : P → IsDuplex c n d t.duplex)
-    (fits : st.fits rel = true) (hst : P → IsClaim c n statement st)
+    (hp : Permutes c.perm) (fits : st.fits rel = true) (hst : IsClaim c n statement st)
+    (hq : IsExts c n quotient proof.quotient) (hls : linear.size = proof.linear.size)
+    (hl : ∀ i < linear.size, IsExts c n linear[i]! proof.linear[i]!) (hf : IsExts c n finals proof.finals)
+    (linearSize : proof.linear.size = rel.cubeVars) (nonempty : ∀ g ∈ proof.linear, 0 < g.size)
+    (finalsSize : proof.finals.size = 3) (long : Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo ≤ rel.pointVariables) :
+    Tracks c n (Circuit.linearStage rel statement quotient linear finals) (Replay.linearStage rel st proof)
+      fun v out m => IsLinearOut c m rel v out := by
+  have pointSize : st.point.size = rel.pointVariables := by
+    have sizes := fits
+    simp only [Replay.Statement.fits, Bool.and_eq_true, beq_iff_eq] at sizes
+    exact sizes.1.1.1.2
+  have finalsAt : ∀ i < 3, IsExt c n finals[i]! proof.finals[i]! := fun i hi =>
+    hf.2 i (by rw [hf.1, finalsSize]; exact hi)
+  unfold Circuit.linearStage Replay.linearStage
+  refine Tracks.bind (Duplex.sampleExt_tracks hp) fun lambda glam _ _ hlam => ?_
+  refine Tracks.lift (MixingVar.new_ensures rel hlam) fun mixing _ _ hmix => ?_
+  obtain ⟨hmix, mixSize⟩ := hmix
+  refine Tracks.bind (observeExts_tracks hp hq.mono) fun _ _ _ _ _ => ?_
+  refine Tracks.bind (Duplex.sampleExt_tracks hp) fun zeta gz _ _ hz => ?_
+  refine Tracks.lift (Ring.targets_ensures fits hst.mono hmix.mono mixSize) fun targets _ _ htargets => ?_
+  refine Tracks.lift (Ring.liftedTarget_ensures htargets hq.mono hz.mono) fun value _ _ hvalue => ?_
+  refine splitSumcheck_tracks hp rel.blockVars hls (fun i hi => (hl i hi).mono) nonempty hvalue
+    fun res first middle second last _ _ size₁ size₂ hpt hlast => ?_
+  obtain ⟨point, lastV⟩ := res
+  dsimp only at hpt hlast ⊢
+  have bsize : first.size = rel.blockVars := by
+    rw [size₁, linearSize, Relation.cubeVars]
+    omega
+  have lsize : second.size = laneVars := by
+    rw [size₂, linearSize, Relation.cubeVars]
+    omega
+  have e₁ : (first ++ second).extract 0 rel.blockVars = first := by
+    rw [← bsize, Array.extract_append_left, Array.extract_size]
+  have e₂ : (first ++ second).extract rel.blockVars = second := by
+    rw [← bsize, Array.size_append, Array.extract_append_right, Array.extract_size]
+  have hb := hpt.slice 0 rel.blockVars
+  have hlane := hpt.extract rel.blockVars
+  rw [e₁] at hb
+  rw [e₂] at hlane
+  refine Tracks.bind (observeExts_tracks hp hf.mono) fun _ _ _ _ _ => ?_
+  refine Tracks.lift (Mle.scaledEqPoint_ensures laneVars hz.mono) fun sc _ _ hsc => ?_
+  obtain ⟨gscale, glanePoint, ok, hscale, hlp⟩ := hsc
+  refine Tracks.check ok ?_
+  obtain ⟨scale, lanePoint⟩ := sc
+  dsimp only at hscale hlp ⊢
+  refine Tracks.lift (Ring.tau_ensures hz.mono) fun tau _ _ htau => ?_
+  refine Tracks.lift (Mle.evalK_ensures rel.key.blocks (by rw [bsize, pointSize]; exact long) (by simp [Replay.tau])
+    hst.point.mono hb.mono htau) fun ek _ _ hek => ?_
+  refine Tracks.lift (extMul_ensures hscale.mono (finalsAt 0 (by decide)).mono) fun o₀ _ _ ho₀ => ?_
+  have hmk := hmix.evalK (by
+    rw [mixSize]
+    show rel.kappa + 1 < rel.kappa + 2 + 2 * rel.matrices + rel.publicBlocks
+    omega)
+  refine Tracks.quiet (pairs_tracks (gxs := [((⟨glam, rel.kappa, rel.matrices⟩ : Replay.Mixing).evalK.1,
+      (Replay.evalK st.point first (Replay.tau gz) rel.key.blocks).re),
+      ((⟨glam, rel.kappa, rel.matrices⟩ : Replay.Mixing).evalK.2,
+      (Replay.evalK st.point first (Replay.tau gz) rel.key.blocks).im)]) rfl (fun k hk => ?_) ho₀)
+    fun o₂ _ _ ho₂ => ?_
+  · obtain _ | _ | k := k
+    · exact ⟨hmk.1.mono, hek.1.mono⟩
+    · exact ⟨hmk.2.mono, hek.2.mono⟩
+    · simp at hk
+  refine Tracks.lift (extAdd_ensures ho₂ (finalsAt 1 (by decide)).mono) fun o₃ _ _ ho₃ => ?_
+  refine Tracks.quiet (public_tracks hb.mono hmix.mono (by rw [mixSize]; exact le_of_eq rfl) ho₃)
+    fun o₄ _ _ ho₄ => ?_
+  refine Tracks.lift (laneValue_ensures (by rw [lsize]; decide) hz.mono hlane.mono) fun lanes _ _ hlanes => ?_
+  refine Tracks.lift (extMul_ensures ho₄.mono hlanes) fun weighted _ _ hweighted => ?_
+  refine Tracks.lift (extMul_ensures hweighted (finalsAt 2 (by decide)).mono) fun expected _ _ hexpected => ?_
+  refine Tracks.lift (assertExtEqual_ensures hlast.mono hexpected) fun _ _ _ check => ?_
+  refine Tracks.ensure (by rw [check]; exact Replay.Ext.beq_self _) ?_
+  exact Tracks.pure ⟨⟨hmix.mono, mixSize⟩, htau.mono, hb.mono, hlp.mono, hlane.mono.append hb.mono,
+    (finalsAt 0 (by decide)).mono, (finalsAt 1 (by decide)).mono, (finalsAt 2 (by decide)).mono⟩
+
+end Stage
+
+/-! ## The old names, for the files that still use `Simulates` -/
+
+theorem linearStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {rel : Relation}
+    {statement : ClaimView} {st : Replay.Statement} {quotient : Array ExtVar} {linear : Array (Array ExtVar)}
+    {finals : Array ExtVar} {proof : Replay.Proof} {d : Duplex} {t : Replay.Transcript} (hp : Permutes c.perm)
+    (hd : P → IsDuplex c n d t.duplex) (fits : st.fits rel = true) (hst : P → IsClaim c n statement st)
     (hq : P → IsExts c n quotient proof.quotient)
     (hl : P → linear.size = proof.linear.size ∧ ∀ i < linear.size, IsExts c n linear[i]! proof.linear[i]!)
     (hf : P → IsExts c n finals proof.finals) (linearSize : P → proof.linear.size = rel.cubeVars)
     (nonempty : P → ∀ g ∈ proof.linear, 0 < g.size) (finalsSize : P → proof.finals.size = 3)
     (long : Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo ≤ rel.pointVariables) :
     OldEnsures c n P ((Circuit.linearStage rel statement quotient linear finals).run d)
-      (fun res m => ∃ out t', Runs (Replay.linearStage rel st proof) t out t' ∧
-        IsLinearOut c m rel res.1 out ∧ IsDuplex c m res.2 t'.duplex) := by
-  have pointSize : st.point.size = rel.pointVariables := by
-    have sizes := fits
-    simp only [Replay.Statement.fits, Bool.and_eq_true, beq_iff_eq] at sizes
-    exact sizes.1.1.1.2
-  have finalsAt : P → ∀ i < 3, IsExt c n finals[i]! proof.finals[i]! := fun h i hi =>
-    (hf h).2 i (by rw [(hf h).1, finalsSize h]; exact hi)
-  unfold Circuit.linearStage
-  refine OldEnsures.tbind (Simulates.sampleExt hp hd).ensures fun lambda d₁ m₁ l₁ => ?_
-  refine OldEnsures.tbind (OldEnsures.lift (Simulates.mixing rel fun h => h.2.1.1).ensures) fun mixing d₂ m₂ l₂ => ?_
-  refine OldEnsures.tbind (Simulates.observeExts hp (fun h => h.2.2 ▸ h.1.2.1.2.mono l₂)
-    fun h => (hq h.1.1).mono (l₁.trans l₂)).ensures fun _ d₃ m₃ l₃ => ?_
-  refine OldEnsures.tbind (Simulates.sampleExt hp fun h => h.2.1).ensures fun zeta d₄ m₄ l₄ => ?_
-  set glam : Ext := ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
-  set r₁ := t.duplex.sample.2.sample.2.sample.2
-  set r₃ := (proof.quotient.flatMap fun g => #[g.c0, g.c1, g.c2]).foldl Replay.Duplex.observe r₁
-  set gz : Ext := ⟨r₃.sample.1, r₃.sample.2.sample.1, r₃.sample.2.sample.2.sample.1⟩
-  set r₄ := r₃.sample.2.sample.2.sample.2
-  set mix : Replay.Mixing := ⟨glam, rel.kappa, rel.matrices⟩
-  have L₄ : n ≤ m₄ := l₁.trans (l₂.trans (l₃.trans l₄))
-  refine OldEnsures.pre (P' := P ∧ IsMixing c m₄ mixing mix ∧ mixing.powers.size = rel.rowCount ∧
-    IsExt c m₄ zeta gz ∧ IsDuplex c m₄ d₄ r₄) ?_ fun h => ⟨h.1.1.1.1, h.1.1.2.1.1.1.mono (l₃.trans l₄),
-      h.1.1.2.1.1.2, h.2.1.1, h.2.1.2⟩
-  refine OldEnsures.tbind (OldEnsures.lift (Simulates.targets fits (fun h => (hst h.1).mono L₄)
-    fun h => ⟨h.2.1, h.2.2.1⟩).ensures) fun targets d₅ m₅ l₅ => ?_
-  refine OldEnsures.tbind (OldEnsures.lift (Simulates.liftedTarget (fun h => h.2.1.1) (fun h => (hq h.1.1).mono (L₄.trans l₅))
-    fun h => h.1.2.2.2.1.mono l₅).ensures) fun value d₆ m₆ l₆ => ?_
-  set gvalue := Replay.liftedTarget (Replay.targets st mix) proof.quotient gz
-  set t₃ : Replay.Transcript := { duplex := r₄, draws := (t.draws.push (.ext glam)).push (.ext gz) }
-  have L₆ : m₄ ≤ m₆ := l₅.trans l₆
-  refine OldEnsures.pre (P' := P ∧ IsMixing c m₆ mixing mix ∧ mixing.powers.size = rel.rowCount ∧
-    IsExt c m₆ zeta gz ∧ IsExt c m₆ value gvalue ∧ IsDuplex c m₆ d₆ t₃.duplex) ?_ fun h => ?_
-  rotate_left
-  · obtain ⟨⟨⟨hP, hm, hs, hz, hd₄⟩, -, e₅⟩, ⟨hv, -⟩, e₆⟩ := h
-    dsimp only at e₅ e₆
-    exact ⟨hP, hm.mono L₆, hs, hz.mono L₆, hv, by rw [e₆, e₅]; exact hd₄.mono L₆⟩
-  refine OldEnsures.tbind ((Simulates.sumcheckReplay hp (t := t₃) (fun h => h.2.2.2.2.2)
-    (fun h => ⟨(hl h.1).1, fun i hi => ((hl h.1).2 i hi).mono (L₄.trans L₆)⟩) (fun h => nonempty h.1)
-    fun h => h.2.2.2.2.1).ensures.post (Q' := fun res m => ∃ gb gmiddle t₅ glane glast t₇,
-      Runs (Replay.sumcheckReplay (proof.linear.extract 0 rel.blockVars) gvalue) t₃ (gb, gmiddle) t₅ ∧
-      Runs (Replay.sumcheckReplay (proof.linear.extract rel.blockVars) gmiddle) t₅ (glane, glast) t₇ ∧
-      gb.size = rel.blockVars ∧ glane.size = laneVars ∧ IsExts c m (res.1.1.extract 0 rel.blockVars) gb ∧
-      IsExts c m (res.1.1.extract rel.blockVars) glane ∧ IsExt c m res.1.2 glast ∧ IsDuplex c m res.2 t₇.duplex)
-    fun h r m q => ?_) fun res d₇ m₇ l₇ => ?_
-  · obtain ⟨⟨gpoint, gfinal, t', run, hpt, hfin, hdup⟩, -⟩ := q
-    obtain ⟨gb, gmiddle, t₅, glane, run₁, run₂, rfl, size₁, size₂⟩ :=
-      Bridge.runs_sumcheckReplay_split rel.blockVars run
-    have bsize : gb.size = rel.blockVars := by
-      rw [size₁, linearSize h.1, Relation.cubeVars]
-      omega
-    have lsize : glane.size = laneVars := by
-      rw [size₂, linearSize h.1, Relation.cubeVars]
-      omega
-    have e₁ : (gb ++ glane).extract 0 rel.blockVars = gb := by
-      rw [← bsize, Array.extract_append_left, Array.extract_size]
-    have e₂ : (gb ++ glane).extract rel.blockVars = glane := by
-      rw [← bsize, Array.size_append, Array.extract_append_right, Array.extract_size]
-    have b₁ := hpt.slice 0 rel.blockVars
-    have b₂ := hpt.extract rel.blockVars
-    rw [e₁] at b₁
-    rw [e₂] at b₂
-    exact ⟨gb, gmiddle, t₅, glane, gfinal, t', run₁, run₂, bsize, lsize, b₁, b₂, hfin, hdup⟩
-  obtain ⟨point, last⟩ := res
-  refine OldEnsures.exists_and (#[] : Array Ext) fun gb => OldEnsures.exists_and (0 : Ext) fun gmiddle =>
-    OldEnsures.exists_and t fun t₅ => OldEnsures.exists_and (#[] : Array Ext) fun glane =>
-    OldEnsures.exists_and (0 : Ext) fun glast => OldEnsures.exists_and t fun t₇ => ?_
-  dsimp only
-  have L₇ : n ≤ m₇ := L₄.trans (L₆.trans l₇)
-  refine OldEnsures.tbind (Simulates.observeExts hp (fun h => h.2.2.2.2.2.2.2.2) fun h => (hf h.1.1).mono L₇).ensures
-    fun _ d₈ m₈ l₈ => ?_
-  refine OldEnsures.liftBind (OldEnsures.scaledEqPoint laneVars fun h => h.1.1.2.2.2.1.mono (l₇.trans l₈))
-    fun sc m₉ l₉ => ?_
-  obtain ⟨scale, lanePoint⟩ := sc
-  refine OldEnsures.exists_and (0 : Ext) fun gscale => OldEnsures.exists_and (#[] : Array Ext) fun glanePoint => ?_
-  dsimp only
-  set r₈ := (proof.finals.flatMap fun g => #[g.c0, g.c1, g.c2]).foldl Replay.Duplex.observe t₇.duplex
-  have M₉ : m₇ ≤ m₉ := l₈.trans l₉
-  refine OldEnsures.pre (P' := P ∧
-    (Runs (Replay.sumcheckReplay (proof.linear.extract 0 rel.blockVars) gvalue) t₃ (gb, gmiddle) t₅ ∧
-      Runs (Replay.sumcheckReplay (proof.linear.extract rel.blockVars) gmiddle) t₅ (glane, glast) t₇ ∧
-      gb.size = rel.blockVars ∧ glane.size = laneVars ∧
-      Replay.scaledEqPoint gz laneVars = .ok (gscale, glanePoint)) ∧
-    IsMixing c m₉ mixing mix ∧ mixing.powers.size = rel.rowCount ∧ IsExt c m₉ zeta gz ∧
-    IsExts c m₉ (point.extract 0 rel.blockVars) gb ∧ IsExts c m₉ (point.extract rel.blockVars) glane ∧
-    IsExt c m₉ last glast ∧ IsDuplex c m₉ d₈ r₈ ∧ IsExt c m₉ scale gscale ∧ IsExts c m₉ lanePoint glanePoint) ?_
-    fun h => ?_
-  rotate_left
-  · obtain ⟨⟨⟨⟨hP, hm, hs, hz, -, -⟩, run₁, run₂, bsize, lsize, hb, hlane, hlast, -⟩, hd₈, -⟩, ok, hsc, hlp⟩ := h
-    exact ⟨hP, ⟨run₁, run₂, bsize, lsize, ok⟩, hm.mono (l₇.trans M₉), hs, hz.mono (l₇.trans M₉), hb.mono M₉,
-      hlane.mono M₉, hlast.mono M₉, hd₈.mono l₉, hsc, hlp⟩
-  refine OldEnsures.liftBind (Simulates.tau fun h => h.2.2.2.2.1).ensures fun tau m₁₀ l₁₀ => ?_
-  refine OldEnsures.liftBind (Simulates.evalK' rel.key.blocks (fun h => by rw [h.1.2.1.2.2.1, pointSize]; exact long)
-    (by simp [Replay.tau]) (fun h => (hst h.1.1).point.mono (L₇.trans (M₉.trans l₁₀)))
-    (fun h => h.1.2.2.2.2.2.1.mono l₁₀) fun h => h.2.1).ensures fun ek m₁₁ l₁₁ => ?_
-  refine OldEnsures.liftBind (Simulates.extMul (fun h => h.1.1.2.2.2.2.2.2.2.2.2.1.mono (l₁₀.trans l₁₁))
-    (fun h => (finalsAt h.1.1.1 0 (by decide)).mono (L₇.trans (M₉.trans (l₁₀.trans l₁₁))))).ensures
-    fun o₀ m₁₂ l₁₂ => ?_
-  set gek := Replay.evalK st.point gb (Replay.tau gz) rel.key.blocks
-  refine OldEnsures.tbind (pairsLoop (gxs := [(mix.evalK.1, gek.re), (mix.evalK.2, gek.im)]) rfl (fun h k hk => ?_)
-    fun h => h.2.1).ensures fun o₂ d₁₃ m₁₃ l₁₃ => ?_
-  · have hmk := (h.1.1.1.2.2.1).evalK (by
-      rw [h.1.1.1.2.2.2.1]
-      show rel.kappa + 1 < rel.kappa + 2 + 2 * rel.matrices + rel.publicBlocks
-      omega)
-    have hek := h.1.2.1
-    obtain _ | _ | k := k
-    · exact ⟨hmk.1.mono (l₁₀.trans (l₁₁.trans l₁₂)), hek.1.mono l₁₂⟩
-    · exact ⟨hmk.2.mono (l₁₀.trans (l₁₁.trans l₁₂)), hek.2.mono l₁₂⟩
-    · simp at hk
-  refine OldEnsures.liftBind (Simulates.extAdd (fun h => h.2.1.1) fun h => (finalsAt h.1.1.1.1.1 1 (by decide)).mono
-    (L₇.trans (M₉.trans (l₁₀.trans (l₁₁.trans (l₁₂.trans l₁₃)))))).ensures fun o₃ m₁₄ l₁₄ => ?_
-  have M₁₄ : m₉ ≤ m₁₄ := l₁₀.trans (l₁₁.trans (l₁₂.trans (l₁₃.trans l₁₄)))
-  refine OldEnsures.tbind (publicLoop (fun h => h.1.1.1.1.1.2.2.2.2.2.1.mono M₁₄) (fun h => h.1.1.1.1.1.2.2.1.mono M₁₄)
-    (fun h => by rw [h.1.1.1.1.1.2.2.2.1]; exact le_of_eq rfl) fun h => h.2.1).ensures fun o₄ d₁₄ m₁₅ l₁₅ => ?_
-  set gomega := Replay.omegaComputed rel st mix (Replay.tau gz) gb gscale proof.finals[0]! proof.finals[1]!
-  have M₁₅ : m₉ ≤ m₁₅ := M₁₄.trans l₁₅
-  refine OldEnsures.pre (P' := P ∧
-    (Runs (Replay.sumcheckReplay (proof.linear.extract 0 rel.blockVars) gvalue) t₃ (gb, gmiddle) t₅ ∧
-      Runs (Replay.sumcheckReplay (proof.linear.extract rel.blockVars) gmiddle) t₅ (glane, glast) t₇ ∧
-      gb.size = rel.blockVars ∧ glane.size = laneVars ∧
-      Replay.scaledEqPoint gz laneVars = .ok (gscale, glanePoint)) ∧
-    IsMixing c m₁₅ mixing mix ∧ mixing.powers.size = rel.rowCount ∧ IsExt c m₁₅ zeta gz ∧
-    IsExts c m₁₅ (point.extract 0 rel.blockVars) gb ∧ IsExts c m₁₅ (point.extract rel.blockVars) glane ∧
-    IsExt c m₁₅ last glast ∧ IsDuplex c m₁₅ d₁₄ r₈ ∧ IsExts c m₁₅ lanePoint glanePoint ∧
-    IsExts c m₁₅ tau (Replay.tau gz) ∧ IsExt c m₁₅ o₄ gomega) ?_ fun h => ?_
-  rotate_left
-  · obtain ⟨⟨⟨⟨⟨⟨⟨hP, hR, hm, hs, hz, hb, hlane, hlast, hd₈, -, hlp⟩, htau, -⟩, -, -⟩, -, -⟩, ⟨-, e₁₃⟩, -⟩, -, -⟩,
-      ⟨ho, e₁₄⟩, -⟩ := h
-    dsimp only at e₁₃ e₁₄
-    exact ⟨hP, hR, hm.mono M₁₅, hs, hz.mono M₁₅, hb.mono M₁₅, hlane.mono M₁₅, hlast.mono M₁₅,
-      by rw [e₁₄, e₁₃]; exact hd₈.mono M₁₅, hlp.mono M₁₅,
-      htau.mono (l₁₁.trans (l₁₂.trans (l₁₃.trans (l₁₄.trans l₁₅)))), ho⟩
-  refine OldEnsures.liftBind (Simulates.laneValue (fun h => by rw [h.2.1.2.2.2.1]; decide) (fun h => h.2.2.2.2.1)
-    fun h => h.2.2.2.2.2.2.1).ensures fun lanes m₁₆ l₁₆ => ?_
-  refine OldEnsures.liftBind (Simulates.extMul (fun h => h.1.2.2.2.2.2.2.2.2.2.2.2.mono l₁₆) fun h => h.2.1).ensures
-    fun weighted m₁₇ l₁₇ => ?_
-  refine OldEnsures.liftBind (Simulates.extMul (fun h => h.2.1) fun h => (finalsAt h.1.1.1 2 (by decide)).mono
-    (L₇.trans (M₉.trans (M₁₅.trans (l₁₆.trans l₁₇))))).ensures fun expected m₁₈ l₁₈ => ?_
-  refine OldEnsures.liftBind (Simulates.assertExtEqual (fun h => h.1.1.1.2.2.2.2.2.2.2.1.mono (l₁₆.trans (l₁₇.trans l₁₈)))
-    fun h => h.2.1).ensures fun _ m₁₉ l₁₉ => ?_
-  rw [StateT.run_pure]
-  refine OldEnsures.pure fun h => ?_
-  obtain ⟨⟨⟨⟨⟨hP, ⟨run₁, run₂, -, -, ok⟩, hm, hs, -, hb, hlane, -, hdup, hlp, htau, -⟩, -, -⟩, -, -⟩, -, -⟩, -,
-    check⟩ := h
-  have N : m₁₅ ≤ m₁₉ := l₁₆.trans (l₁₇.trans (l₁₈.trans l₁₉))
-  have hfin : ∀ i < 3, IsExt c m₁₉ finals[i]! proof.finals[i]! := fun i hi =>
-    (finalsAt hP i hi).mono (L₇.trans (M₉.trans (M₁₅.trans N)))
-  have checkOk : (glast == gomega * Replay.laneValue gz glane * proof.finals[2]!) = true := by
-    rw [check]
-    exact Replay.Ext.beq_self _
-  refine ⟨{ lam := glam, zeta := gz, blockPoint := gb, middle := gmiddle, lanePart := glane, last := glast,
-            keyValue := proof.finals[0]!, omegaValue := proof.finals[1]!, zValue := proof.finals[2]!,
-            lanePoint := glanePoint, mixing := mix, tau := Replay.tau gz }, { t₇ with duplex := r₈ }, ?_,
-    ⟨⟨hm.mono N, hs⟩, htau.mono N, hb.mono N, hlp.mono N, (hlane.mono N).append (hb.mono N), hfin 0 (by decide),
-      hfin 1 (by decide), hfin 2 (by decide)⟩, hdup.mono N⟩
-  unfold Replay.linearStage
-  exact runs_bind (runs_sampleExt t) (runs_bind (runs_observeExts _ _) (runs_bind (runs_sampleExt _)
-    (runs_bind run₁ (runs_bind run₂ (runs_bind (runs_observeExts _ _) (runs_bind (runs_liftExcept ok _)
-    (runs_bind (runs_ensure checkOk _ _) (runs_pure _ _))))))))
+      (fun res m => ∃ out t', Bridge.Runs (Replay.linearStage rel st proof) t out t' ∧
+        IsLinearOut c m rel res.1 out ∧ IsDuplex c m res.2 t'.duplex) :=
+  .of_ensures fun h => (linearStage_tracks hp fits (hst h) (hq h) (hl h).1 (hl h).2 (hf h) (linearSize h)
+    (nonempty h) (finalsSize h) long d t (hd h)).post fun _ _ ⟨out, t', run, hdx, ho⟩ => ⟨out, t', run, ho, hdx⟩
 
 end CompressionLean.Sim

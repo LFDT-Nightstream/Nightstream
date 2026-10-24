@@ -456,41 +456,4 @@ theorem Mle.scaledEqPoint_ensures {cv : ExtVar} {gc : Ext} (bits : ℕ) (hc : Is
 
 end ScaledEqPoint
 
-/-! ## The old names, for the files that still use `Simulates` -/
-
-namespace Simulates
-
-variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
-
-theorem mixing {lambda : ExtVar} {lam : Ext} (rel : Relation) (hl : P → IsExt c n lambda lam) :
-    Simulates c n P (MixingVar.new lambda rel)
-      (fun v m => IsMixing c m v ⟨lam, rel.kappa, rel.matrices⟩ ∧ v.powers.size = rel.rowCount) True :=
-  .of_ensures₀ fun h => MixingVar.new_ensures rel (hl h)
-
-theorem targets {v : ClaimView} {st : Replay.Statement} {mv : MixingVar} {lam : Ext} {rel : Relation}
-    (fits : st.fits rel = true) (hv : P → IsClaim c n v st)
-    (hm : P → IsMixing c n mv ⟨lam, rel.kappa, rel.matrices⟩ ∧ mv.powers.size = rel.rowCount) :
-    Simulates c n P (Ring.targets v mv) (fun r m => IsExts c m r (Replay.targets st ⟨lam, rel.kappa, rel.matrices⟩))
-      True :=
-  .of_ensures₀ fun h => Ring.targets_ensures fits (hv h) (hm h).1 (hm h).2
-
-theorem liftedTarget {target quotient : Array ExtVar} {zeta : ExtVar} {gt gq : Array Ext} {gz : Ext}
-    (ht : P → IsExts c n target gt) (hq : P → IsExts c n quotient gq) (hz : P → IsExt c n zeta gz) :
-    Simulates c n P (Ring.liftedTarget target quotient zeta) (fun r m => IsExt c m r (Replay.liftedTarget gt gq gz))
-      True :=
-  .of_ensures₀ fun h => Ring.liftedTarget_ensures (ht h) (hq h) (hz h)
-
-theorem tau {zeta : ExtVar} {gz : Ext} (hz : P → IsExt c n zeta gz) :
-    Simulates c n P (Ring.tau zeta) (fun r m => IsExts c m r (Replay.tau gz)) True :=
-  .of_ensures₀ fun h => Ring.tau_ensures (hz h)
-
-end Simulates
-
-theorem OldEnsures.scaledEqPoint [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {cv : ExtVar} {gc : Ext}
-    (bits : ℕ) (hc : P → IsExt c n cv gc) :
-    OldEnsures c n P (Mle.scaledEqPoint cv bits)
-      (fun res m => ∃ kappa point, Replay.scaledEqPoint gc bits = .ok (kappa, point) ∧
-        IsExt c m res.1 kappa ∧ IsExts c m res.2 point) :=
-  .of_ensures fun h => Mle.scaledEqPoint_ensures bits (hc h)
-
 end CompressionLean.Sim

@@ -428,14 +428,4 @@ theorem Mle.evalK_ensures {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Arr
 
 end EvalK
 
-/-! ## The old name, for the files that still use `Simulates` -/
-
-theorem Simulates.evalK [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {r : Array KVar}
-    {sBlock tau : Array ExtVar} {gr : Array (Word × Word)} {gs gt : Array Ext} (blocks : ℕ)
-    (rSize : Nat.log2 (D * 2 ^ gs.size).nextPowerOfTwo ≤ gr.size) (tauSize : D ≤ gt.size)
-    (hr : P → IsKs c n r gr) (hs : P → IsExts c n sBlock gs) (ht : P → IsExts c n tau gt) :
-    Simulates c n P (Mle.evalK r sBlock tau blocks) (fun res m => IsKx c m res (Replay.evalK gr gs gt blocks))
-      True :=
-  .of_ensures₀ fun h => Mle.evalK_ensures blocks rSize tauSize (hr h) (hs h) (ht h)
-
 end CompressionLean.Sim

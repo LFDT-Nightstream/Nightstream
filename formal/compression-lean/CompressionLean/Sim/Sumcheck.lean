@@ -115,30 +115,4 @@ theorem sumcheckReplay_tracks {rounds : Array (Array ExtVar)} {grounds : Array (
 
 end Rounds
 
-/-! ## The old names, for the files that still use `Simulates` -/
-
-namespace Simulates
-
-variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
-
-theorem observeExts {d : Duplex} {r : Replay.Duplex} {vs : Array ExtVar} {gs : Array Ext} (hp : Permutes c.perm)
-    (hd : P → IsDuplex c n d r) (hv : P → IsExts c n vs gs) :
-    Simulates c n P
-      ((forIn vs PUnit.unit fun value _ => (do Duplex.observeExt value; Pure.pure (ForInStep.yield PUnit.unit))).run d)
-      (fun res m => IsDuplex c m res.2 ((gs.flatMap fun g => #[g.c0, g.c1, g.c2]).foldl Replay.Duplex.observe r))
-      True :=
-  .of_ensures₀ fun h => observeExts_ensures hp (hd h) (hv h)
-
-theorem sumcheckReplay {rounds : Array (Array ExtVar)} {grounds : Array (Array Ext)} {claim : ExtVar} {gclaim : Ext}
-    {d : Duplex} {t : Replay.Transcript} (hp : Permutes c.perm) (hd : P → IsDuplex c n d t.duplex)
-    (hr : P → rounds.size = grounds.size ∧ ∀ i < rounds.size, IsExts c n rounds[i]! grounds[i]!)
-    (hne : P → ∀ g ∈ grounds, 0 < g.size) (hc : P → IsExt c n claim gclaim) :
-    Simulates c n P ((Circuit.sumcheckReplay rounds claim).run d)
-      (fun res m => ∃ point final t', Runs (Replay.sumcheckReplay grounds gclaim) t (point, final) t' ∧
-        IsExts c m res.1.1 point ∧ IsExt c m res.1.2 final ∧ IsDuplex c m res.2 t'.duplex) True :=
-  .of_ensures₀ fun h => (sumcheckReplay_tracks hp (hr h).1 (hr h).2 (hne h) (hc h) d t (hd h)).post
-    fun _ _ ⟨out, t', hrun, hd', hpt, hfin⟩ => ⟨out.1, out.2, t', hrun, hpt, hfin, hd'⟩
-
-end Simulates
-
 end CompressionLean.Sim

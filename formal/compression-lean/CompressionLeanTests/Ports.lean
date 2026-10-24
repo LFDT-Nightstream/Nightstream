@@ -8,7 +8,8 @@ when `ports.json` or `STATUS.md` changes.
 - Every Lean name in `ports.json` is declared. Every declaration of a port
   module (`portModules`) whose docstring cites a Rust file (`.rs`) has an entry
   in `ports.json` or in `notPorts`.
-- `STATUS.md` is what `lake exe status` prints.
+- `STATUS.md` is what `lake exe status` prints. The page fails when a
+  Prop-valued binder of a claim has no entry in `Inventory.premises`.
 -/
 
 open Lean Elab Command CompressionLeanTests.Inventory

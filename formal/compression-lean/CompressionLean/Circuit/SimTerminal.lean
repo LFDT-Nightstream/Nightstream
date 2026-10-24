@@ -129,7 +129,7 @@ private def ColumnHolds (c : Ctx NightstreamFPrime.Spec.F) (statement : Array Va
     | .one => c.val h = 1
     | .priv i => contextStart + 4 ≤ i → i < PilotProduction.stateHashWords →
         h = statement.getD (i - contextStart - 4) 0
-    | .pub i => publicContextStart ≤ i → c.val h = word (context.getD (i - publicContextStart) 0)
+    | .pub i => publicContextStart ≤ i → c.val h = Word.cast (context.getD (i - publicContextStart) 0)
     | .computed _ => True
 
 /-- A column handle stays below a larger count (`terminal/package.rs:197-218`). -/
@@ -313,7 +313,7 @@ on the statement columns of the prior preimage, and zero elsewhere
 private def unnamed (c : Ctx NightstreamFPrime.Spec.F) (context : Array Word) (pc : ℕ) : NightstreamFPrime.Spec.F :=
   if pc = Stage1.Spartan.privateColumnCount then 1
   else if Stage1.Spartan.expectedContextPublicStart ≤ pc then
-    word (context.getD (pc - Stage1.Spartan.expectedContextPublicStart) 0)
+    Word.cast (context.getD (pc - Stage1.Spartan.expectedContextPublicStart) 0)
   else if contextStart + 4 ≤ pc ∧ pc < PilotProduction.stateHashWords then c.stmt.getD (pc - (contextStart + 4)) 0
   else 0
 
@@ -410,7 +410,7 @@ private theorem env_context
     (cols : List.Forall₂ (fun x a => ColumnHolds c statement context x a m) loaded.sources.toList columns.toList)
     {authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority}
     (hctx : ∀ lane : Fin 4,
-      word (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0) :
+      Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0) :
     NightstreamFPrime.Export.Stage1.Package.SelectedVerifierContext authority (terminalEnv c context columns) := by
   obtain ⟨hpc, -, htotal, hstart, -, -⟩ := layout_facts
   intro lane
@@ -554,7 +554,7 @@ theorem apply_ensures
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
-      word (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
+      Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
     {statement : Array Var} {n : ℕ}
     (hP : P → statement = (List.range' 0 9).toArray ∧ 9 ≤ n ∧ ReadsStatement c ∧ statementOf c 0 ≠ 0) :
     Ensures c n P (apply loaded statement context) (Handoff c authority) := by
@@ -620,7 +620,7 @@ theorem checkedApply_ensures
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
-      word (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
+      Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
     {statement : Array Var} {n : ℕ}
     (hP : P → statement = (List.range' 0 9).toArray ∧ 9 ≤ n ∧ ReadsStatement c) :
     Ensures c n P (checkedApply loaded context statement) (Handoff c authority) := by
@@ -628,18 +628,18 @@ theorem checkedApply_ensures
   unfold checkedApply
   refine (Sim.emit (Q := fun h m => h < m) (C := True) (.hint 1) fun _ E hl hF =>
     ⟨by simp [Instr.outputs], Iff.rfl⟩).ensures.bind fun inverse m₁ le₁ => ?_
-  refine (Sim.mul (ga := Package.word (c.val (statement.getD 0 0))) (gb := Package.word (c.val inverse))
+  refine (Sim.mul (ga := Word.ofF (c.val (statement.getD 0 0))) (gb := Word.ofF (c.val inverse))
     (fun h => ⟨by rw [zero h.1]; exact lt_of_lt_of_le (lt_of_lt_of_le (by decide) (hP h.1).2.1) le₁,
-      (word_word _).symm⟩)
-    fun h => ⟨h.2.1, (word_word _).symm⟩).ensures.bind fun product m₂ le₂ => ?_
+      (Word.cast_ofF _).symm⟩)
+    fun h => ⟨h.2.1, (Word.cast_ofF _).symm⟩).ensures.bind fun product m₂ le₂ => ?_
   refine (Sim.const 1).ensures.bind fun one m₃ le₃ => ?_
   refine (Sim.assertEqual (fun h => h.1.2.1.mono le₃) fun h => h.2.1).ensures.bind fun _ m₄ le₄ => ?_
   refine apply_ensures loads valid hctx fun h => ?_
   obtain ⟨⟨⟨⟨hP', -⟩, -⟩, -⟩, -, one⟩ := h
   obtain ⟨hstmt, le, reads⟩ := hP hP'
   refine ⟨hstmt, by omega, reads, fun zero0 => ?_⟩
-  have := congrArg (word : Word → NightstreamFPrime.Spec.F) one
-  rw [word_mul, word_word, word_word, word_one, zero hP', show c.val 0 = statementOf c 0 from reads 0, zero0,
+  have := congrArg (Word.cast : Word → NightstreamFPrime.Spec.F) one
+  rw [word_mul, Word.cast_ofF, Word.cast_ofF, word_one, zero hP', show c.val 0 = statementOf c 0 from reads 0, zero0,
     zero_mul] at this
   exact absurd this (by decide)
 
@@ -652,7 +652,7 @@ theorem terminalPrefix_ensures
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
-      word (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
+      Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
     (reads : P → ReadsStatement c) :
     Ensures c 0 P (terminalPrefix loaded context) (Handoff c authority) :=
   statementHandles_ensures.bind fun _ _ _ =>
@@ -665,7 +665,7 @@ theorem finalProgram_ensures {α : Type} {layer1 : ClaimVars → (Fin 16 → Var
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
-      word (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
+      Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
     (reads : P → ReadsStatement c)
     (hlayer1 : ∀ r m, Ensures c m (P ∧ Handoff c authority r m) (layer1 r.1 r.2) R) :
     Ensures c 0 P (finalProgram loaded context layer1) R := by
@@ -680,7 +680,7 @@ theorem finalProgram_exec {α : Type} {layer1 : ClaimVars → (Fin 16 → Var) �
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
-      word (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
+      Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
     (hlayer1 : ∀ r m, Ensures c m (P ∧ Handoff c authority r m) (layer1 r.1 r.2) R) (hP : P)
     (hval : c.val = (Exec.run c.perm c.stmt c.tape (finalProgram loaded context layer1).program).value)
     (accepts : Exec c.perm (finalProgram loaded context layer1).program c.stmt c.tape) :

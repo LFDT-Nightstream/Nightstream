@@ -27,6 +27,7 @@ namespace CompressionLean.Circuit
 
 open CompressionLean.Lib
 open CompressionLean.Shrink
+open CompressionLean.Replay (Word)
 
 section Simulation
 
@@ -262,7 +263,7 @@ theorem step_agrees (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (k
   | linear parts =>
       simp only [step, go_bind, go_readValues, go_push] at holds free ⊢
       obtain ⟨adds, post⟩ := linear_sound (v := v) (perm := perm)
-        (((parts.map (·.1)).map fun v => S.values.getD v (.const 0)).zip (parts.map fun p => word p.2)) S
+        (((parts.map (·.1)).map fun v => S.values.getD v (.const 0)).zip (parts.map fun p => Word.cast p.2)) S
       refine agrees.next (by rw [adds.values]) (by rw [adds.publics]) ?_ trivial
       rw [List.map_singleton, post (State.Holds.of_push holds), List.map_map, List.zip_map', List.map_map]
       congr 2

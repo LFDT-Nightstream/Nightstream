@@ -71,7 +71,7 @@ theorem production_bound {lw : ℕ}
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
-      Circuit.word (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0)
+      Replay.Word.cast (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0)
     (calls : ℕ) (prover : Layer1.Game.Strategy (RestoreOutcome Gl Cubic (game key.relation S L0 L1))) :
     Layer1.Game.prob prover
         (restorePair (Shrink.shrinkGame (F := Gl) Circuit.Block.poseidonTemplate
@@ -162,7 +162,7 @@ theorem poseidon2_bound (key : Layer1Input) (loaded : Loaded) (context : Array R
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
-      Circuit.word (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0)
+      Replay.Word.cast (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0)
     (calls : ℕ) (prover : Layer1.Game.Strategy
       (RestoreOutcome Gl Cubic (game key.relation (poseidon2Setup setup.seed.bytes pushes) L0 L1))) :
     Layer1.Game.prob prover

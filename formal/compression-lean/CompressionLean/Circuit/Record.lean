@@ -1,4 +1,5 @@
 import CompressionLean.Circuit.Ir
+import CompressionLean.Fields
 
 /-!
 Owns the lowering of a program (`lower`): an exact port of the constraint
@@ -98,9 +99,6 @@ def outputCell : ℕ := 166
 section Ring
 
 variable {F : Type} [CommRing F]
-
-/-- A Goldilocks word in `F` (`Gl::from_u64`). -/
-def word (g : Word) : F := (g.toNat : F)
 
 /-- The coordinates of `a·b` in `F[x]/(x³ - x - 1)`. -/
 def extProduct (a b : Fin 3 → F) : Fin 3 → F :=
@@ -328,16 +326,16 @@ def push (forms : List (Form F)) : Lower F Unit :=
 
 /-- An R1CS row with its coefficients in `F`. -/
 def R1csRow.inField (r : R1csRow Word) : R1csRow F :=
-  ⟨r.a.map fun t => (t.1, word t.2), r.b.map fun t => (t.1, word t.2), r.c.map fun t => (t.1, word t.2)⟩
+  ⟨r.a.map fun t => (t.1, Word.cast t.2), r.b.map fun t => (t.1, Word.cast t.2), r.c.map fun t => (t.1, Word.cast t.2)⟩
 
 /-- One instruction (`Backend for Recorder`, `record.rs:285-474`). -/
 def step (stmt : Array F) : Instr → Lower F Unit
-  | .const value => push [.const (word value)]
+  | .const value => push [.const (Word.cast value)]
   | .priv => do push [← cell]
   | .pub => do push [← statementWord stmt]
   | .linear parts => do
       let forms ← readValues (parts.map (·.1))
-      push [← linear (forms.zip (parts.map fun p => word p.2))]
+      push [← linear (forms.zip (parts.map fun p => Word.cast p.2))]
   | .mul a b => do push [← mul (← readValue a) (← readValue b)]
   | .extMul a b => do
       let p ← extMul (← readCoordinates a) (← readCoordinates b)

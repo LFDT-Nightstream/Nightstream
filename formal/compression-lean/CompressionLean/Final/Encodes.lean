@@ -64,7 +64,7 @@ noncomputable def ctxOf (x : StateWords) (w : ℕ → Spec.F) : Ctx Spec.F :=
 
 /-- The words of that run, by handle. -/
 noncomputable def wordsOf (x : StateWords) (w : ℕ → Spec.F) : Var → Replay.Word :=
-  fun h => Package.word ((ctxOf key loaded context x w).val h)
+  fun h => Replay.Word.ofF ((ctxOf key loaded context x w).val h)
 
 /-- The builder after the terminal part (`lifecycle/terminal/mod.rs:54-72`). -/
 def prefixRun : (ClaimVars × (Fin 16 → Var)) × Builder := (terminalPrefix loaded context).run {}
@@ -166,7 +166,7 @@ private theorem program_gives
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
-      Circuit.word (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0)
+      Replay.Word.cast (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0)
     (hrun : key.relation.key.layout.runVariables ≠ 0) (hrow : key.relation.key.layout.rowVariables ≠ 0)
     (hslot : key.relation.key.layout.slotVariables + key.relation.matrixVars ≠ 0)
     (kappa : key.relation.kappa = 22) (blocks : key.relation.publicBlocks = 5)
@@ -185,7 +185,7 @@ private theorem program_gives
     (x : StateWords) (wit : ℕ → Spec.F)
     (holds : ((prog key loaded context x).ccs Block.poseidonTemplate (prog key loaded context x).counts).Relation wit) :
     Gives key loaded context authority (ctxOf key loaded context x wit) (wordsOf key loaded context x wit) := by
-  have hw : Decodes (ctxOf key loaded context x wit) (wordsOf key loaded context x wit) := fun _ => (word_word _).symm
+  have hw : Decodes (ctxOf key loaded context x wit) (wordsOf key loaded context x wit) := fun _ => (Replay.Word.cast_ofF _).symm
   have accepts : Exec (ctxOf key loaded context x wit).perm (program key loaded context).program
       (ctxOf key loaded context x wit).stmt (ctxOf key loaded context x wit).tape :=
     lower_sound (program key loaded context).program (List.ofFn x) wit holds
@@ -266,7 +266,7 @@ theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Re
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
-      Circuit.word (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0) :
+      Replay.Word.cast (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0) :
     ProgramEncodes (F := Gl) Block.poseidonTemplate (lower (program key loaded context).program ([] : List Spec.F)).counts
       (prog key loaded context) authority (game key.relation S L0 L1) (Reads key loaded context S L0 L1) := by
   intro x wit holds

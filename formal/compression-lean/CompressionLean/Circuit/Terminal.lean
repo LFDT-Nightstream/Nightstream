@@ -55,7 +55,7 @@ def column (statement : Array Var) (context : Array Word) (computed : Var) : Sou
   | .one => Build.const 1
   | .priv i =>
       if i < NightstreamFPrime.Lifecycle.stateDomainChunk.length then
-        Build.const (word (NightstreamFPrime.Lifecycle.stateDomainChunk.getD i 0))
+        Build.const (Word.ofF (NightstreamFPrime.Lifecycle.stateDomainChunk.getD i 0))
       else if contextStart ≤ i ∧ i < contextStart + 4 then
         Build.const (context.getD (i - contextStart) 0)
       else if contextStart + 4 ≤ i ∧ i < PilotProduction.stateHashWords then

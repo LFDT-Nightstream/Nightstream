@@ -25,7 +25,7 @@ open CompressionLean.Replay (Word Ext Relation TreeShape WhirShape foldVars laye
 variable {F : Type} [CommRing F]
 
 /-- The value of each handle is the word that `w` gives it. -/
-def Decodes (c : Ctx F) (w : Var → Word) : Prop := ∀ h, c.val h = word (w h)
+def Decodes (c : Ctx F) (w : Var → Word) : Prop := ∀ h, c.val h = Word.cast (w h)
 
 /-- The extension value of three handles. -/
 def decodeExt (w : Var → Word) (e : ExtVar) : Ext := ⟨w (e 0), w (e 1), w (e 2)⟩

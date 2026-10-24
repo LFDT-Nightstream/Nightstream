@@ -29,10 +29,10 @@ circuits without change.
 - Idealized openings: the verifier accepts the two WHIR openings when one
   P0 candidate and one P1 candidate agree with every opened value
   (`Soundness.lean`, `Opens`). The WHIR error of this step is a named term
-  of the budget (`Budget.lean`), not proved here.
+  of the budget (`Final/Budget.lean`), not proved here.
 - Claim: `Cost.lean`, `layer1_sound`. An accepted transcript has a P0
   candidate that is a CE(B) witness (`Model.lean`, `Relation`), except with
-  probability `layer1Error`. `Budget.lean` bounds it at Rust's split:
+  probability `layer1Error`. `Final/Budget.lean` bounds it at Rust's split:
   `2^-t` for layer bits `t`, when each WHIR commitment's composed error, as
   Plonky3 charges it, is at most `2^-(t+1)`.
 - Fiat–Shamir: `Game/Restoration.lean` lets the prover ask for challenges at any
@@ -88,7 +88,7 @@ Layer 1 assumes, and does not prove:
   hash collision. Its premises are the relation facts that the replay does
   not check (`RelationFacts`), such as at most 31 setup variables.
 - Charges: Plonky3 composes a commitment's error as its WHIR terms plus each
-  charged term times its candidate count. `rustDegrees` (`Budget.lean`) is
+  charged term times its candidate count. `rustDegrees` (`Ports/Layer1/Budget.lean`) is
   `outer_terms` written in Lean, and `Pcs::new` enforces the two composed
   bounds that `layer1_budget` takes as premises.
 
@@ -97,7 +97,8 @@ Layer 1 assumes, and does not prove:
 `Shrink/` proves the soundness of the shrink verifier
 (`crates/neo-spartan/src/shrink/mod.rs`) against an adaptive prover. The
 argument is SuperSpartan (ePrint 2023/552) for the CCS that `layout.rs`
-defines.
+defines. The definitions that transcribe the verifier are in `Ports/Shrink/`,
+under the same file names; the proofs about them are in `Shrink/`.
 
 - Model: the relation is a CCS (`Ccs.lean`). Its eight matrices are a list
   of entries over `2^m` rows, and `z = (w, 1, x)` has `2^(n+1)` columns. A
@@ -121,7 +122,7 @@ defines.
   (the WHIR list). Every bad set is a union over these candidates.
 - Idealized opening: the verifier accepts the WHIR opening when one
   candidate agrees with the opened value (`Game.lean`, `Opens`). The WHIR
-  error of this step is a named term of the budget (`Budget.lean`), not
+  error of this step is a named term of the budget (`Shrink/Budget.lean`), not
   proved here.
 - Claim: `Cost.lean`, `shrink_sound`. An accepted transcript has a
   candidate `w` such that `z = (w, 1, x)` satisfies every row of the named
@@ -129,7 +130,7 @@ defines.
   error counts `m` bad values for `τ`, `8m` for the outer rounds, `7` for
   `ρ` and `2(n + 1)` for the inner rounds, over `|Ext|`.
 - Rust's charge: the count is exactly `L` times the degrees of `terms`
-  (`Budget.lean`, `shrinkCount_eq_rust`). So when `Pcs::new` accepts the
+  (`Shrink/Budget.lean`, `shrinkCount_eq_rust`). So when `Pcs::new` accepts the
   configuration for the layer bits `t`, the WHIR error plus `shrinkError`
   is at most `2^-t` (`shrink_budget`).
 - Fiat–Shamir: in the state-restoration experiment of `Game/Restoration.lean`,
@@ -245,7 +246,7 @@ The chain takes these premises:
 - Honest setup (`Parent.lean`, `HonestSetup`), for the F′ claim: the
   layer-1 setup's key rows are the rows of F′'s Ajtai key, and its runs give
   every entry of every completed CCS matrix of F′'s relation, with row `i`
-  in F′'s little-endian order. `RustSetup.lean` ports Rust's setup build
+  in F′'s little-endian order. `Ports/Setup.lean` ports Rust's setup build
   (`build`: `key` and `oracle` in `lib.rs` over `Tables::from_rows` in
   `matrix.rs`). `honestSetup_of_build` proves `HonestSetup` of its result,
   for the key of the seeded Ajtai setup (`AjtaiSetupV1.Setup.verifierKey`).
@@ -292,7 +293,7 @@ The chain takes these premises:
 
 ## Lowering
 
-`Circuit/` and `Lowering/` give `ProgramEncodes`. A program is Lean data, and
+`Ports/Circuit/` and `Lowering/` give `ProgramEncodes`. A program is Lean data, and
 Lean lowers it to the shrink run as `record.rs` does.
 
 - Model (`Ir.lean`): a program is a flat list of instructions over value
@@ -358,12 +359,18 @@ warnings as errors, and runs the axiom audit
 (`CompressionLeanTests/Axioms.lean`), the ports gate
 (`CompressionLeanTests/Ports.lean`) and the folder gate
 (`CompressionLeanTests/Layers.lean`): a module imports only its own folder
-and lower ones, in the order `Lib`, `Replay`, `Fields`, `Game`, `Terminal`,
-`Layer1`, `Shrink`, `Circuit`, `Lowering`, `Bridge`, `Final`, `Checks`, `Sim`,
-`Claims`.
+and lower ones, in the order `Lib`, `Fields`, `Game`, `Terminal`, `Layer1`,
+`Ports`, `Shrink`, `Lowering`, `Bridge`, `Final`, `Checks`, `Sim`, `Claims`.
 
-Ports. `ports.json` pairs each Lean port of Rust with the Rust item that it
-transcribes and a hash of the item's tokens. The CI test `lean_ports`
+Ports. `Ports/` holds every hand transcription of Rust and nothing else: its
+folders follow the Rust modules (`Ports/Circuit/` for `circuit/` and the
+verifier programs, `Ports/Shrink/` for `shrink/`, `Ports/Replay/`,
+`Ports/Terminal/`, `Ports/Setup.lean`, `Ports/Layer1/Budget.lean`), and a
+port's namespace is its path without `Ports/`. `ports.json` pairs each Lean
+port of Rust with the Rust item that it transcribes and a hash of the item's
+tokens. The ports gate fails on a theorem in `Ports/`, on a declaration
+outside its path's namespace, and on a definition of `Ports/` with neither a
+`ports.json` entry nor a reason in `notPorts`. The CI test `lean_ports`
 (`nightstream`) fails when an item changes and names the Lean declaration to
 re-read. `STATUS.md` lists the claims with their axioms and hypotheses, how each
 premise is met, the ports and the digest pins. `lake exe status > STATUS.md`
@@ -373,7 +380,7 @@ claim has no entry in `Inventory.premises`.
 `scripts/crosschecks.sh` runs the replay, lowering, production, terminal,
 full and setup checks below, in that order.
 
-Replay check. `Replay/` is an executable layer-1 verifier in the model's
+Replay check. `Ports/Replay/` is an executable layer-1 verifier in the model's
 stage order. It draws every challenge as Rust does and runs every check of
 `verifier.rs` except WHIR's own: it replays each WHIR transcript and takes the
 opened values as `Opens` does. Build it with

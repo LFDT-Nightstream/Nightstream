@@ -79,13 +79,13 @@ end Char
 /-! ## Sums and products -/
 
 theorem ext_mul_assoc (a b d : Ext) : a * b * d = a * (b * d) :=
-  coords_injective (F := ZMod goldilocksModulus) (by simp only [coords_mul, extProduct_assoc])
+  coords_injective (F := Gl) (by simp only [coords_mul, extProduct_assoc])
 
 theorem ext_mul_one (a : Ext) : a * 1 = a :=
-  coords_injective (F := ZMod goldilocksModulus) (by rw [coords_mul, coords_one, extProduct_one])
+  coords_injective (F := Gl) (by rw [coords_mul, coords_one, extProduct_one])
 
 theorem ext_one_mul (a : Ext) : 1 * a = a :=
-  coords_injective (F := ZMod goldilocksModulus) (by rw [coords_mul, coords_one, extProduct_comm, extProduct_one])
+  coords_injective (F := Gl) (by rw [coords_mul, coords_one, extProduct_comm, extProduct_one])
 
 theorem gl_mul_assoc (a b d : Word) : a * b * d = a * (b * d) :=
   Word.eq_of_toF (by simp only [Word.toF_mul, mul_assoc])

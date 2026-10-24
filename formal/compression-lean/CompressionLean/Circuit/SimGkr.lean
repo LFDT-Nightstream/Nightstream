@@ -35,21 +35,21 @@ theorem IsGkrClaims.mono {c : Ctx F} {m m' : ℕ} {claims : Array TreeClaimView}
 /-- One step of the batched sum (`gkr.rs:704-714`): the running weight
 against Horner's rule. -/
 private theorem horner_step (A W a nu R : Ext) : A + W * (a + nu * R) = A + W * a + W * nu * R :=
-  coords_injective (F := ZMod goldilocksModulus) (by
+  coords_injective (F := Gl) (by
     simp only [coords_add, coords_mul]
     funext k
     fin_cases k <;> simp [extProduct, Matrix.vecHead, Matrix.vecTail] <;> ring)
 
 /-- The batched sum after the last tree (`gkr.rs:704-714`). -/
 private theorem add_mul_zero (A W : Ext) : A + W * 0 = A :=
-  coords_injective (F := ZMod goldilocksModulus) (by
+  coords_injective (F := Gl) (by
     simp only [coords_add, coords_mul, coords_zero]
     funext k
     fin_cases k <;> simp [extProduct])
 
 /-- The batched sum before the first tree (`gkr.rs:701-703`). -/
 private theorem zero_add_one_mul (R : Ext) : R = 0 + 1 * R :=
-  coords_injective (F := ZMod goldilocksModulus) (by
+  coords_injective (F := Gl) (by
     simp only [coords_add, coords_mul, coords_zero, coords_one]
     funext k
     fin_cases k <;> simp [extProduct])

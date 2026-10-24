@@ -1,6 +1,7 @@
 import CompressionLean.Game.Compose
 import CompressionLean.Final.Claim
 import CompressionLean.Layer1.FiatShamir
+import CompressionLean.Final.Budget
 import CompressionLean.Shrink.Budget
 
 /-!
@@ -209,7 +210,7 @@ theorem final_budget (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (
       2 / 2 ^ t := by
   have sound := final_sound s1 Φ bar S L0 L1 _ _ q N sizes cast distinct fits monic degree two T s prog Ls wf
     valid cast9 authority Reads encodes prover
-  have layer1 := Layer1.layer1_budget s1 L0 L1 (Fintype.card K) t h0 h1 big index whirP0 whirP1 p0 p1
+  have layer1 := layer1_budget s1 L0 L1 (Fintype.card K) t h0 h1 big index whirP0 whirP1 p0 p1
   have shrink := Shrink.shrink_budget (Shrink.Layout.rowVars T s) (Shrink.Layout.cellVars T s) Ls
     (Fintype.card K) t big whirS rust
   have split : (2 : ℝ) / 2 ^ t = 1 / 2 ^ t + 1 / 2 ^ t := by ring
@@ -248,7 +249,7 @@ theorem final_restore_budget (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ 
       calls / 2 ^ t := by
   refine (final_restore_sound s1 Φ bar S L0 L1 _ _ q N sizes cast distinct fits monic degree two T s prog Ls
     wf valid cast9 authority Reads encodes calls prover).trans ?_
-  have layer1 := Layer1.layer1_budget s1 L0 L1 (Fintype.card K) t h0 h1 big index 0 0 (by simpa using p0)
+  have layer1 := layer1_budget s1 L0 L1 (Fintype.card K) t h0 h1 big index 0 0 (by simpa using p0)
     (by simpa using p1)
   have shrink := Shrink.shrink_budget _ _ Ls (Fintype.card K) t big 0 (by simpa using rust)
   rw [zero_add, zero_add] at layer1

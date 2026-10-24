@@ -1,4 +1,3 @@
-import CompressionLean.Layer1.Budget
 import CompressionLean.Layer1.ClosedForms
 import CompressionLean.Layer1.Cost
 import CompressionLean.Layer1.Early
@@ -26,9 +25,9 @@ import CompressionLean.Layer1.Weights
 (`crates/neo-spartan/src/verifier.rs`) as a game: the model of the key, the
 statement and the setup (`Model`), each stage and what it forces (`Early`,
 `Linear`, `HonestStage`, `Late`, `Stages`), the whole game and its accepting
-paths (`Soundness`), its cost and budget (`Cost`, `Budget`), and the closed
+paths (`Soundness`), its cost (`Cost`), and the closed
 forms that the bridge reads (`ClosedForms`, `EvalK`, `KeyStructure`).
 
-It does not own the replay (`Replay/`), the circuit (`Circuit/`) or the link
-between them (`Bridge/`).
+It does not own the replay (`Replay/`), the circuit (`Circuit/`), the link
+between them (`Bridge/`) or the budget at Rust's split (`Final/Budget.lean`).
 -/

@@ -113,9 +113,8 @@ theorem key_facts_of_check {key : Layer1Input} (pass : keyFailure key = none) : 
 they print that it fits the Poseidon2 hash chain (`poseidon2Fits`) has the
 blocks of that application. -/
 theorem width_fits_of_check {key : Layer1Input} (pass : poseidon2Fits key = true) :
-    WidthFits key (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application) := by
-  rw [Poseidon2HashChainV1Package.logicalWidth]
-  exact of_decide_eq_true pass
+    WidthFits key (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application) :=
+  of_decide_eq_true pass
 
 /-- **The package check** of `terminalCheck`: a package whose compact row
 invocations all name a template has `CompactTemplatesValid`. -/
@@ -133,9 +132,8 @@ theorem setup_facts_of_check {key : Layer1Input} {pushes : List Push} (seed : Li
         (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application))
         productionProfile.ccsMatrices pushes = some (poseidon2Setup seed pushes) ∧
       (poseidon2Setup seed pushes).Fits (shapeOf key.relation) ∧
-      (structureOf key.relation.key.layout).Describes (shapeOf key.relation) (poseidon2Setup seed pushes) := by
-  rw [Poseidon2HashChainV1Package.logicalWidth]
-  exact setupFacts_of_check seed pass
+      (structureOf key.relation.key.layout).Describes (shapeOf key.relation) (poseidon2Setup seed pushes) :=
+  setupFacts_of_check seed pass
 
 /-- **The production bound for the Poseidon2 hash chain**: `production_bound`
 for F′'s relation of `Poseidon2HashChainV1Package.application`, at its

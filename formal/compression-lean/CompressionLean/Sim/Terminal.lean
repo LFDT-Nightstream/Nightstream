@@ -2,6 +2,7 @@ import CompressionLean.Ports.Terminal.Program
 import CompressionLean.Lowering.PackageRows
 import CompressionLean.Sim.Calculus
 import CompressionLean.Final.Claim
+import CompressionLean.Production
 
 /-!
 Owns the terminal part of `ProgramEncodes`: when the executor accepts the
@@ -524,11 +525,11 @@ end Assignment
 /-- The lengths of the output lists that `ring` and `extension` read
 (`terminal/package.rs:222-241`). -/
 theorem outputs_length :
-    CompressionLean.Terminal.outputs.commitment.length = 22 * Replay.D ∧
-    CompressionLean.Terminal.outputs.publicInput.length = 5 * Replay.D ∧
-    CompressionLean.Terminal.outputs.point.length = 2 * 28 ∧
+    CompressionLean.Terminal.outputs.commitment.length = Production.kappa * Replay.D ∧
+    CompressionLean.Terminal.outputs.publicInput.length = Production.publicBlocks * Replay.D ∧
+    CompressionLean.Terminal.outputs.point.length = 2 * Production.pointVariables ∧
     CompressionLean.Terminal.outputs.eval_K.length = 2 * Replay.D ∧
-    CompressionLean.Terminal.outputs.eval_A.length = 4 * (2 * Replay.D) ∧
+    CompressionLean.Terminal.outputs.eval_A.length = Production.matrices * (2 * Replay.D) ∧
     CompressionLean.Terminal.outputs.state.length = 16 := by
   refine ⟨?_, ?_, ?_, ?_, ?_, by simp [CompressionLean.Terminal.outputs]⟩ <;>
     simp [CompressionLean.Terminal.outputs, CompressionLean.Terminal.extension, List.length_flatten, List.map_ofFn,

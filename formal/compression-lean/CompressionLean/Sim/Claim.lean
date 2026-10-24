@@ -142,8 +142,8 @@ private theorem length_pairHandles (xs : Array KVar) : (pairHandles xs).length =
     Array.length_toList]
 
 private theorem claim_sizes {claim : ClaimVars} (holds : ClaimHolds c m claim env) (shaped : claim.Shaped) :
-    claim.commitment.size = 22 ∧ claim.publicInput.size = 5 ∧ claim.point.size = 28 ∧ claim.evalK.size = D ∧
-      claim.evalA.size = 4 := by
+    claim.commitment.size = Production.kappa ∧ claim.publicInput.size = Production.publicBlocks ∧
+      claim.point.size = Production.pointVariables ∧ claim.evalK.size = D ∧ claim.evalA.size = Production.matrices := by
   obtain ⟨hcom, hpub, hpt, hk, ha⟩ := holds
   obtain ⟨scom, spub, sa⟩ := shaped
   obtain ⟨lcom, lpub, lpt, lk, la, -⟩ := Sim.outputs_length
@@ -184,8 +184,8 @@ theorem claimHolds_words_lt {claim : ClaimVars} (holds : ClaimHolds c m claim en
 
 /-- With the production sizes, the decoded statement fits the relation. -/
 theorem fits_decode {claim : ClaimVars} (w : Var → Word) {rel : Replay.Relation} (holds : ClaimHolds c m claim env)
-    (shaped : claim.Shaped) (kappa : rel.kappa = 22) (blocks : rel.publicBlocks = 5) (point : rel.pointVariables = 28)
-    (matrices : rel.matrices = 4) : (claim.view.decode w).fits rel = true := by
+    (shaped : claim.Shaped) (kappa : rel.kappa = Production.kappa) (blocks : rel.publicBlocks = Production.publicBlocks)
+    (point : rel.pointVariables = Production.pointVariables) (matrices : rel.matrices = Production.matrices) : (claim.view.decode w).fits rel = true := by
   obtain ⟨scom, spub, spt, sk, sa⟩ := claim_sizes holds shaped
   simp only [Replay.Statement.fits, ClaimView.decode, Terminal.Program.ClaimVars.view, Bool.and_eq_true,
     Array.all_eq_true_iff_forall_mem]

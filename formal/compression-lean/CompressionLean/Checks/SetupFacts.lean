@@ -111,19 +111,22 @@ theorem getD_mem_or_pad (l : List Push) (k : ℕ) : l.getD k Push.pad ∈ l ∨ 
 
 /-- The columns of the Poseidon2 hash chain's carrier, `carrierWidth` at its
 logical width: the `MatrixShape::columns` of the production circuit. -/
-def poseidon2Columns : ℕ := Phi81CarrierLayout.carrierWidth poseidon2Width
+def poseidon2Columns : ℕ := Phi81CarrierLayout.carrierWidth Production.poseidon2Width
+
+theorem poseidon2Columns_eq : poseidon2Columns = Phi81CarrierLayout.carrierWidth 43963750 := by
+  rw [poseidon2Columns, Production.poseidon2Width_eq]
 
 /-- The setup that `build` returns for `seed` and the runs at the Poseidon2
 hash chain's carrier and F′'s four matrices (`Setup::build`). -/
 def poseidon2Setup (seed : List ℕ) (pushes : List Push) : Layer1.Setup Gl :=
-  setupOfRuns seed (poseidon2Columns / ringDegree) (runList productionProfile.ccsMatrices pushes)
+  setupOfRuns seed (poseidon2Columns / ringDegree) (runList Production.matrices pushes)
 
 /-- Each fact of the check by name, decided on the key and the runs. -/
 def setupChecks (key : Layer1Input) (pushes : List Push) : List (String × Bool) :=
   let rel := key.relation
   let layout := rel.key.layout
   let st := structureOf layout
-  let matrices := productionProfile.ccsMatrices
+  let matrices := Production.matrices
   let rows := 2 ^ layout.rowVariables
   let classes := (sortedValues Push.classCode pushes).toList
   let keys := sortedValues (slotKey classes) pushes
@@ -156,7 +159,7 @@ def setupFailure (key : Layer1Input) (pushes : List Push) : Option String :=
 the setup fits the key's shape, and the key's structure describes it. -/
 theorem setupFacts_of_check {key : Layer1Input} {pushes : List Push} (seed : List ℕ)
     (pass : setupFailure key pushes = none) :
-    build seed poseidon2Columns productionProfile.ccsMatrices pushes = some (poseidon2Setup seed pushes) ∧
+    build seed poseidon2Columns Production.matrices pushes = some (poseidon2Setup seed pushes) ∧
       (poseidon2Setup seed pushes).Fits (shapeOf key.relation) ∧
       (structureOf key.relation.key.layout).Describes (shapeOf key.relation) (poseidon2Setup seed pushes) := by
   have all : ∀ check ∈ setupChecks key pushes, check.2 = true := by
@@ -168,7 +171,7 @@ theorem setupFacts_of_check {key : Layer1Input} {pushes : List Push} (seed : Lis
   simp only [nat_all_iff, decide_eq_true_eq] at bounds shapes
   obtain ⟨matrices, matrixVars⟩ := matrices
   obtain ⟨slots, slotBits⟩ := slots
-  set m := productionProfile.ccsMatrices
+  set m := Production.matrices
   set classes := (sortedValues Push.classCode pushes).toList with classes_def
   set keys := sortedValues (slotKey classes) pushes with keys_def
   have perm : (runList m pushes).Perm pushes := by
@@ -197,7 +200,8 @@ theorem setupFacts_of_check {key : Layer1Input} {pushes : List Push} (seed : Lis
     rw [hk, List.getD_eq_getElem?_getD, Array.getElem?_toList, Array.getD_eq_getD_getElem?]
   have size (σ : ℕ) := sizes _ (hk ▸ getD_mem_cons (keysOf (runList m pushes)) σ)
   have accepts : Accepts poseidon2Columns m pushes :=
-    ⟨by decide, by decide, by decide, by decide, fun p member =>
+    ⟨by rw [poseidon2Columns_eq]; decide, by decide, by rw [poseidon2Columns_eq]; decide,
+      by rw [poseidon2Columns_eq]; decide, fun p member =>
       ⟨(runs p member).1, (runs p member).2.1, (runs p member).2.2.1⟩⟩
   refine ⟨by rw [build, if_pos accepts]; rfl, ?_, ?_⟩
   · refine ⟨?_, fun k past => ?_, fun k => ?_, fun k => ?_, fun k => ?_, ?_, fun k inside => ?_, fun k inside => ?_,

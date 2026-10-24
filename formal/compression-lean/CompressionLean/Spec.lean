@@ -22,4 +22,7 @@ them are in the folders above (`Bridge/`, `Final/`, `Checks/`, `Sim/`).
   of F′'s key.
 - `Program`, `Bound`: the production final program, what layer 1 reads from
   its witness, and the event that the production bound bounds.
+
+`CompressionLeanTests/Vocabulary.lean` fails the build when a claim names a
+constant of a proof folder.
 -/

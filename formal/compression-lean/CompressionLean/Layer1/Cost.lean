@@ -2,9 +2,8 @@ import CompressionLean.Layer1.Soundness
 
 /-!
 Owns the error of the layer-1 verifier game: the bad-challenge count of each
-stage, the query term, and the main theorem (`layer1_sound`): against every
-adaptive prover, the verifier accepts while no P0 candidate is a CE(B)
-witness with probability at most `layer1Error`.
+stage, the query term, and the error bound (`layer1Game_cost`): the bad sets
+of `layer1Game` have total density at most `layer1Error` along every path.
 
 The field part counts bad challenges over `|K|`: per candidate, the
 polynomial degrees of the norm, lookup, scatter, sum-check, GKR, ring-row,
@@ -345,36 +344,6 @@ theorem layer1Game_cost (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : S
     unfold layer1Error layer1Count
     push_cast
     ring
-
-/-- Layer-1 soundness with idealized WHIR openings: against every adaptive
-prover, the verifier accepts while no P0 candidate is a CE(B) witness with
-probability at most `layer1Error`. -/
-theorem layer1_sound (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)
-    (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K) (N : ℕ) (sizes : s.Sizes N)
-    (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b)
-    (distinct : ∀ i j, i < L → j < L → q i = q j → i = j) (fits : S.Fits s) (monic : Φ.Monic)
-    (degree : Φ.natDegree = s.D) (two : 2 ≤ s.D) (prover : Game.Strategy (Option (Transcript F K s.queries L))) :
-    Game.prob prover (layer1Game s Φ bar S L0 L1 L P q)
-        (fun r => ∃ tr, r = some tr ∧ ¬ ∃ w ∈ tr.early.candidates, Relation s Φ bar S tr.statement w.z) ≤
-      layer1Error s L0 L1 L P (Fintype.card K) := by
-  have proper : Φ ≠ 1 := by
-    rintro rfl
-    rw [natDegree_one] at degree
-    omega
-  rw [Game.prob_congr _ _ (E' := fun r =>
-    ¬ ∀ tr, r = some tr → ∃ w ∈ tr.early.candidates, Relation s Φ bar S tr.statement w.z)]
-  · exact Game.prob_not_le _ _ _ _ (layer1Game_avoids s Φ bar S L0 L1 L P q N sizes cast fits monic proper)
-      (layer1Game_cost s Φ bar S L0 L1 L P q distinct (nodes_of_cast N cast sizes.big_nodes) degree two)
-  · intro r
-    constructor
-    · rintro ⟨tr, rfl, none⟩ all
-      exact none (all tr rfl)
-    · intro not
-      by_contra nothing
-      apply not
-      intro tr equal
-      by_contra no
-      exact nothing ⟨tr, equal, no⟩
 
 end Main
 

@@ -4,7 +4,6 @@ import CompressionLean.Layer1.Early
 import CompressionLean.Layer1.EarlySound
 import CompressionLean.Layer1.Encoding
 import CompressionLean.Layer1.EvalK
-import CompressionLean.Layer1.FiatShamir
 import CompressionLean.Layer1.Gkr
 import CompressionLean.Layer1.GkrLayer
 import CompressionLean.Layer1.HonestFold

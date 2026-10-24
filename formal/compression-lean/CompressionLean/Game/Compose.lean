@@ -1,17 +1,12 @@
 import CompressionLean.Game.Restoration
 
 /-!
-Owns the composition of two public-coin verifier games into one experiment.
-
-- In sequence (`pair`, `pair_sound`): the first game, then the second. Along
-  every path that avoids both games' bad sets, both results hold their
-  claims. So a prover breaks either claim with probability at most the sum
-  of the two errors.
-- Side by side under Fiat–Shamir (`restorePair`, `restorePair_sound`): one
-  state-restoration experiment (`Game/Restoration.lean`) with one log per
-  game. Each query names a node of either game. The prover outputs one path
-  of the first game. The result is its walk and the walk of every path of
-  the second game under that game's log. Each query costs at most `ε`.
+Owns the composition of two public-coin verifier games into one
+state-restoration experiment (`restorePair`, `restorePair_sound`): one
+experiment (`Game/Restoration.lean`) with one log per game. Each query names
+a node of either game. The prover outputs one path of the first game. The
+result is its walk and the walk of every path of the second game under that
+game's log. Each query costs at most `ε`.
 
 One log per game models two transcripts that share no prefix: an oracle
 answer to one never answers the other.
@@ -36,25 +31,6 @@ theorem prob_mono (s : Strategy α) (g : Game α) {E E' : α → Prop} (imp : �
         split_ifs <;> norm_num
   | draw C bad next ih => exact Finset.expect_le_expect fun c _ => ih c
   | recv M next ih => exact ih _
-
-/-- Two verifiers in sequence: `g`, then `h`. -/
-def pair (g : Game α) (h : Game β) : Game (α × β) :=
-  g.bind fun a => h.bind fun b => .pure (a, b)
-
-/-- **Sequential composition.** If `g` and `h` are sound with errors `εg`
-and `εh`, a prover breaks the claim of either result with probability at
-most `εg + εh`. -/
-theorem pair_sound (s : Strategy (α × β)) (g : Game α) (h : Game β) (Q : α → Prop) (R : β → Prop)
-    (εg εh : ℝ) (avoidsG : g.Avoids Q) (avoidsH : h.Avoids R) (costG : g.CostLe εg)
-    (costH : h.CostLe εh) :
-    prob s (pair g h) (fun r => ¬ (Q r.1 ∧ R r.2)) ≤ εg + εh := by
-  have avoids : (pair g h).Avoids fun r => Q r.1 ∧ R r.2 :=
-    (avoids_bind g _ _).mpr (avoidsG.mono fun a qa =>
-      (avoids_bind h _ _).mpr (avoidsH.mono fun b rb => ⟨qa, rb⟩))
-  have cost : (pair g h).CostLe (εg + (εh + 0)) :=
-    costLe_bind costG fun a => costLe_bind costH fun b => le_refl (0 : ℝ)
-  rw [add_zero] at cost
-  exact prob_not_le s _ _ _ avoids cost
 
 /-- A walk that accepts ends at the leaf it returns. -/
 theorem node_of_walk (log : Log α) (g : Game α) :

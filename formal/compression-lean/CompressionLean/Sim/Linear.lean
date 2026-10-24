@@ -1,6 +1,6 @@
 import CompressionLean.Circuit.Linear
-import CompressionLean.Circuit.SimRing
-import CompressionLean.Circuit.SimHonest
+import CompressionLean.Sim.Ring
+import CompressionLean.Sim.Honest
 
 /-!
 Owns the simulation of the linear stage of `Linear.lean` (`verifier.rs:170-206`) against
@@ -14,8 +14,9 @@ Owns the simulation of the linear stage of `Linear.lean` (`verifier.rs:170-206`)
   Field addition is associative, so the values agree.
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Replay (Word Ext Relation D laneVars Runs runs_bind runs_pure runs_sampleExt runs_observeExts
   runs_ensure runs_liftExcept)
@@ -326,4 +327,4 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
     (runs_bind run₁ (runs_bind run₂ (runs_bind (runs_observeExts _ _) (runs_bind (runs_liftExcept ok _)
     (runs_bind (runs_ensure checkOk _ _) (runs_pure _ _))))))))
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

@@ -1,4 +1,4 @@
-import CompressionLean.Final.Encodes
+import CompressionLean.Sim.Encodes
 import CompressionLean.Final.ParentClaim
 import CompressionLean.Checks.KeyFacts
 import CompressionLean.Final.RustSetup
@@ -32,6 +32,7 @@ its proof is in the library.
 
 namespace CompressionLean.Claims
 
+open CompressionLean.Sim
 open CompressionLean.Checks
 open CompressionLean.Game
 open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle NightstreamFPrime.Export.Stage1
@@ -42,17 +43,17 @@ open CompressionLean.Bridge (shapeOf structureOf barOf queryAt)
 open CompressionLean.Circuit (Layer1Input)
 open CompressionLean.Circuit.Package (Loaded load)
 open CompressionLean.Final
-open CompressionLean.Final.Encodes
+
 
 /-- **The production bound** (`CompressionKey::verify`,
 `lifecycle/finish.rs:131-145`). Take the production final program for the
-layer-1 key `key` (`Encodes.prog`), the terminal package with the context
+layer-1 key `key` (`Sim.prog`), the terminal package with the context
 words of `authority`, and an honest setup `S` of an F′ relation of logical
 width `lw`. Under Fiat–Shamir, with the charged terms of each commitment
 within Rust's split, a prover with `calls` queries makes the final verifier
 accept a statement whose F′ claim (`ParentClaim`) is false, while every
 program witness among the shrink candidates has a reading that layer 1 ran
-(`Encodes.Reads`), with probability at most `calls / 2^t`. -/
+(`Sim.Reads`), with probability at most `calls / 2^t`. -/
 theorem production_bound {lw : ℕ}
     {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
     (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)

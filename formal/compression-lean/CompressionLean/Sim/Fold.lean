@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.SimHash
+import CompressionLean.Sim.Hash
 import CompressionLean.Circuit.Fold
 
 /-!
@@ -9,30 +9,33 @@ file also owns the transcript on words that names the seed (`absorbWords`,
 `handoffWords`).
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Replay (Word)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
 
-namespace FoldTranscript
+section FoldTranscript
+
+open CompressionLean.Circuit.FoldTranscript
 
 /-- One chunk added into the rate lanes, then a permutation (`fold.rs:39-46`). -/
-def absorbChunk (state chunk : Array Word) : Array Word :=
+def _root_.CompressionLean.Circuit.FoldTranscript.absorbChunk (state chunk : Array Word) : Array Word :=
   Replay.permute ((List.range chunk.size).foldl (fun s i => s.set! i (s[i]! + chunk[i]!)) state)
 
 /-- `absorb` on words. -/
-def absorbWords (state words : Array Word) : Array Word :=
+def _root_.CompressionLean.Circuit.FoldTranscript.absorbWords (state words : Array Word) : Array Word :=
   (List.range ((words.size + rate - 1) / rate)).foldl
     (fun s k => absorbChunk s (words.extract (rate * k) (rate * k + rate))) state
 
 /-- The seed that `handoff` returns: the first four lanes after the layer-1
 domain chunk (`fold.rs:68-72`). -/
-def handoffWords (state : Array Word) : Array Word :=
+def _root_.CompressionLean.Circuit.FoldTranscript.handoffWords (state : Array Word) : Array Word :=
   (absorbWords state (domainChunk compressDomain)).extract 0 4
 
-theorem absorbWords_size {gs : Array Word} (gw : Array Word) (h : gs.size = 16) : (absorbWords gs gw).size = 16 := by
+theorem _root_.CompressionLean.Circuit.FoldTranscript.absorbWords_size {gs : Array Word} (gw : Array Word) (h : gs.size = 16) : (absorbWords gs gw).size = 16 := by
   unfold absorbWords
   generalize List.range _ = ks
   induction ks generalizing gs with
@@ -163,4 +166,4 @@ theorem handoff {t : FoldTranscript} {gs : Array Word} (hp : Permutes c.perm)
   exact h.2.1 lane
 end Simulates
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

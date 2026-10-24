@@ -73,8 +73,8 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
 
 **Code that a cross-check compares with Rust but that cannot make a claim false.** The rest of
 `Replay/`: the replay of the layer-1 verifier, with its transcript, stages, formulas, GKR and WHIR.
-The claims read it only inside `Reads` (`Final/Encodes.lean`): the draws of a reading are the
-replay's draws. The simulation (`Circuit/Sim*.lean`) proves that the circuit's checks give a run of
+The claims read it only inside `Reads` (`Sim/Encodes.lean`): the draws of a reading are the
+replay's draws. The simulation (`Sim/`) proves that the circuit's checks give a run of
 the replay, and `Bridge/` proves that a run of the replay gives a path of the layer-1 game. So a
 claim holds whether or not the replay agrees with Rust's native verifier. `ports.json` lists the
 replay, so a change to the Rust items that it transcribes still shows.

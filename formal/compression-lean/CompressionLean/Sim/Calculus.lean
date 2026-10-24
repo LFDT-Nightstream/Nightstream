@@ -33,8 +33,9 @@ pass `P` on, and one run at any precondition fixes the instructions
 words (`word_add`, `word_mul`, `word_sub`) and is injective.
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Replay (Word Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)
@@ -899,4 +900,4 @@ theorem exec {b : Build α} {Q : α → ℕ → Prop} (h : EnsuresAt c {} P b Q)
 
 end EnsuresAt
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

@@ -14,7 +14,7 @@ three layers.
   assignment for `x` has a parent claim with a CE(B) witness.
 - `ProgramEncodes`: the encoding that links the layers. A witness of the
   final program's CCS holds a terminal assignment and accepting layer-1
-  transcripts for it. `programEncodes` (`Final/Encodes.lean`) proves it for
+  transcripts for it. `programEncodes` (`Sim/Encodes.lean`) proves it for
   the production final program.
 
 Does not own the layers' games or their errors.
@@ -98,7 +98,7 @@ It stands for `FinalProgram::run` (`lifecycle/terminal/mod.rs:54-80`):
 `Package::apply` (`terminal/package.rs:179-237`) and `verify_with`
 (`neo-spartan/src/lib.rs:692-703`, `verifier.rs:136-316`), recorded as rows
 by `circuit/record.rs` and placed by `shrink/layout.rs`. `programEncodes`
-(`Final/Encodes.lean`) proves it for the production final program. -/
+(`Sim/Encodes.lean`) proves it for the production final program. -/
 def ProgramEncodes {t L : ℕ} (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
     (authority : Lifecycle.VerifierContext.Authority) (g : Game (Option (Layer1.Transcript F K t L)))
     (Reads : StateWords → (ℕ → F) → g.Pos → Prop) : Prop :=

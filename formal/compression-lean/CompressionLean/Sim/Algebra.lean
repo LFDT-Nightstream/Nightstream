@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Sim
+import CompressionLean.Sim.Calculus
 
 /-!
 Owns the simulation of the field helpers of `Algebra.lean` and of `select`
@@ -13,8 +13,9 @@ replay may multiply in different orders; their values have the same
 coordinates (`IsExt.congr`).
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Replay (Word Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)
@@ -655,4 +656,4 @@ theorem KxVar.oneMinus {a : KxVar} {ga : Replay.Kx} (ha : P → IsKx c n a ga) :
 
 end Simulates
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

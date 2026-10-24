@@ -1,6 +1,6 @@
-import CompressionLean.Circuit.SimLate
-import CompressionLean.Circuit.SimLinear
-import CompressionLean.Circuit.SimWhir
+import CompressionLean.Sim.Late
+import CompressionLean.Sim.Linear
+import CompressionLean.Sim.Whir
 
 /-!
 Owns `verify_ensures`: the circuit's `verify` (`Verifier.lean`, `verifier.rs:136-316`)
@@ -16,8 +16,9 @@ have it (zeros of the relation's shape, or an empty point) gives the instruction
 the relation words on abstract words, so that no check evaluates those words.
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Relation TreeShape WhirShape D foldVars runOracles Runs run_bind run_pure
@@ -573,4 +574,4 @@ theorem verify_ensures [CharP F goldilocksModulus] {key : Layer1Input}
     verify_core long root small short named k1 k0 hp1 hp1count hp0 hp fits read fun H =>
       ⟨(h H).2.1, (h H).2.2.1, (h H).2.2.2.2.1⟩
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

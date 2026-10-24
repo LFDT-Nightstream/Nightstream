@@ -10,7 +10,7 @@ one instruction per opcode (`Log` in both files).
 namespace CompressionLean.Circuit.Parse
 
 open CompressionLean.Shrink CompressionLean.Circuit
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 open NightstreamFPrime.Spec
 
 /-- Whitespace-separated tokens of the export. -/
@@ -48,9 +48,9 @@ def keyword (expected : String) : Parser Unit := do
   let got ← text
   if got ≠ expected then throw s!"expected {expected}, found {got}"
 
-def glWord : Parser Gl := do
+def glWord : Parser Word := do
   let value ← nat
-  if value < goldilocksModulus then pure (Gl.ofNat value)
+  if value < goldilocksModulus then pure (Word.ofNat value)
   else throw s!"word {value} is not a canonical Goldilocks value"
 
 /-- `count` items, read in a loop: the terminal export has lists of millions. -/
@@ -64,7 +64,7 @@ def coordinates (n : ℕ) : Parser (Fin n → Var) := do
   let handles := (← many n nat).toArray
   pure fun k => handles.getD k 0
 
-def term : Parser (ℕ × Gl) := do
+def term : Parser (ℕ × Word) := do
   let index ← nat
   pure (index, ← glWord)
 
@@ -94,7 +94,7 @@ def instr : String → Parser Instr
       let rows ← many rows do
         let a ← side
         let b ← side
-        pure (⟨a, b, ← side⟩ : R1csRow Gl)
+        pure (⟨a, b, ← side⟩ : R1csRow Word)
       pure (.r1cs rows columns)
   | other => throw s!"unknown instruction {other}"
 

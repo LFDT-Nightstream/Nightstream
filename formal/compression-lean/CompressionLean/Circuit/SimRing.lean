@@ -24,7 +24,7 @@ closed forms of `Mle.lean` (`mle.rs`) against the replay's formulas
 namespace CompressionLean.Circuit
 
 open CompressionLean.Lib
-open CompressionLean.Replay (Gl Ext Kx Relation D)
+open CompressionLean.Replay (Word Ext Kx Relation D)
 open CompressionLean.Bridge (ChallengeField)
 open NightstreamFPrime.Spec (goldilocksModulus)
 open Polynomial
@@ -63,7 +63,7 @@ theorem ext_add_assoc (a b d : Ext) : a + b + d = a + (b + d) :=
   Ext.eq_of_toK (K := Final.Cubic) (by rw [Ext.toK_add, Ext.toK_add, Ext.toK_add, Ext.toK_add, add_assoc])
 
 private theorem ext_scale_zero (a : Ext) : a.scale 0 = 0 :=
-  Ext.eq_of_toK (K := Final.Cubic) (by rw [Ext.toK_scale, Ext.toK_zero, Replay.Gl.toF_zero, map_zero, mul_zero])
+  Ext.eq_of_toK (K := Final.Cubic) (by rw [Ext.toK_scale, Ext.toK_zero, Replay.Word.toF_zero, map_zero, mul_zero])
 
 private theorem ext_mul_inv {a : Ext} (h : a ≠ 0) : a * a.inv = 1 := by
   have nz : a.toK (K := Final.Cubic) ≠ 0 := fun z => h (Ext.eq_zero_of_toK z)
@@ -132,18 +132,18 @@ private theorem forall₂_range {α : Type} [Inhabited α] {R : ℕ → α → P
 variable {F : Type} [CommRing F]
 
 /-- The two handles of `a` are the words of the `K` value `g`, `(re, im)`. -/
-def IsK (c : Ctx F) (n : ℕ) (a : KVar) (g : Gl × Gl) : Prop := IsWord c n a.1 g.1 ∧ IsWord c n a.2 g.2
+def IsK (c : Ctx F) (n : ℕ) (a : KVar) (g : Word × Word) : Prop := IsWord c n a.1 g.1 ∧ IsWord c n a.2 g.2
 
-theorem IsK.mono {c : Ctx F} {n m : ℕ} {a : KVar} {g : Gl × Gl} (h : IsK c n a g) (le : n ≤ m) : IsK c m a g :=
+theorem IsK.mono {c : Ctx F} {n m : ℕ} {a : KVar} {g : Word × Word} (h : IsK c n a g) (le : n ≤ m) : IsK c m a g :=
   ⟨h.1.mono le, h.2.mono le⟩
 
 /-- `xs` and `gs` have one size, and each pair of handles is its `K` value. -/
-def IsKs (c : Ctx F) (n : ℕ) (xs : Array KVar) (gs : Array (Gl × Gl)) : Prop :=
+def IsKs (c : Ctx F) (n : ℕ) (xs : Array KVar) (gs : Array (Word × Word)) : Prop :=
   xs.size = gs.size ∧ ∀ i < xs.size, IsK c n xs[i]! gs[i]!
 
 namespace IsKs
 
-variable {c : Ctx F} {n : ℕ} {xs : Array KVar} {gs : Array (Gl × Gl)}
+variable {c : Ctx F} {n : ℕ} {xs : Array KVar} {gs : Array (Word × Word)}
 
 theorem mono (h : IsKs c n xs gs) {m : ℕ} (le : n ≤ m) : IsKs c m xs gs :=
   ⟨h.1, fun i hi => (h.2 i hi).mono le⟩
@@ -282,7 +282,7 @@ theorem mixing {lambda : ExtVar} {lam : Ext} (rel : Relation) (hl : P → IsExt 
     exact ⟨⟨rfl, rfl, fun i hi => get i (size ▸ hi)⟩, size⟩
 
 /-- `project` (`ring.rs:189-193`): `weights.1·Re + weights.2·Im`. -/
-theorem project {value : KVar} {gv : Gl × Gl} {weights : ExtVar × ExtVar} {gw : Ext × Ext}
+theorem project {value : KVar} {gv : Word × Word} {weights : ExtVar × ExtVar} {gw : Ext × Ext}
     (hv : P → IsK c n value gv) (hw : P → IsExt c n weights.1 gw.1 ∧ IsExt c n weights.2 gw.2) :
     Sim c n P (Ring.project value weights) (fun r m => IsExt c m r (Replay.project gv gw)) True :=
   (extScale (fun h => (hw h).1) fun h => (hv h).1).bind₀ fun _ _ l₁ =>
@@ -460,7 +460,7 @@ theorem tau {zeta : ExtVar} {gz : Ext} (hz : P → IsExt c n zeta gz) :
         by_cases ic : i = col
         · subst ic
           rw [if_neg (Nat.lt_irrefl _)] at e
-          rw [if_pos (Nat.lt_succ_self _), succ, Replay.Gl.eq_of_beq zero, ext_scale_zero, ext_add_zero]
+          rw [if_pos (Nat.lt_succ_self _), succ, Replay.Word.eq_of_beq zero, ext_scale_zero, ext_add_zero]
           exact e
         · by_cases lt : i < col
           · rwa [if_pos lt, if_pos (by omega)] at *
@@ -642,24 +642,24 @@ private def IsStates (c : Ctx F) (n : ℕ) (states : Mle.DivisionStates) (g : �
 
 /-- The replay's next states after the first `i` digits of one step of the long division, digit
 `4·rem + 2·below + bit` (`evalKStates`). -/
-private def digitSum (gr : Array (Gl × Gl)) (gs : Array Ext) (blocks t : ℕ) (prev : Array (Array Kx))
+private def digitSum (gr : Array (Word × Word)) (gs : Array Ext) (blocks t : ℕ) (prev : Array (Array Kx))
     (i rem' below' : ℕ) : Kx :=
   Replay.sumKx i fun j => Replay.contribution (Replay.divStep blocks gs.size t (j / 4) (j / 2 % 2) (j % 2)) rem'
     below' (Replay.divFactor gr gs t (j % 2)) ((prev[j / 4]!)[j / 2 % 2]!)
 
-private theorem digitSum_succ (gr : Array (Gl × Gl)) (gs : Array Ext) (blocks t : ℕ) (prev : Array (Array Kx))
+private theorem digitSum_succ (gr : Array (Word × Word)) (gs : Array Ext) (blocks t : ℕ) (prev : Array (Array Kx))
     (i rem below : ℕ) :
     digitSum gr gs blocks t prev (i + 1) rem below = (digitSum gr gs blocks t prev i rem below).add
       (Replay.contribution (Replay.divStep blocks gs.size t (i / 4) (i / 2 % 2) (i % 2)) rem below
         (Replay.divFactor gr gs t (i % 2)) ((prev[i / 4]!)[i / 2 % 2]!)) :=
   sumKx_succ _ _
 
-private theorem evalKStates_zero (gr : Array (Gl × Gl)) (gs : Array Ext) (blocks cb : ℕ) {rem below : ℕ} (hr : rem < D)
+private theorem evalKStates_zero (gr : Array (Word × Word)) (gs : Array Ext) (blocks cb : ℕ) {rem below : ℕ} (hr : rem < D)
     (hb : below < 2) :
     ((Replay.evalKStates gr gs blocks cb 0)[rem]!)[below]! = if rem = 0 ∧ below = 0 then Kx.one else Kx.zero := by
   rw [Replay.evalKStates, getElem!_map_range _ _ hr, getElem!_map_range _ _ hb]
 
-private theorem evalKStates_succ (gr : Array (Gl × Gl)) (gs : Array Ext) (blocks cb k : ℕ) {rem below : ℕ} (hr : rem < D)
+private theorem evalKStates_succ (gr : Array (Word × Word)) (gs : Array Ext) (blocks cb k : ℕ) {rem below : ℕ} (hr : rem < D)
     (hb : below < 2) :
     ((Replay.evalKStates gr gs blocks cb (k + 1))[rem]!)[below]! =
       digitSum gr gs blocks (cb - 1 - k) (Replay.evalKStates gr gs blocks cb k) (4 * D) rem below := by
@@ -678,7 +678,7 @@ private theorem contribution_absent (step : Option (ℕ × ℕ × ℕ)) (rem bel
     · rfl
 
 /-- `divFactor` as the circuit computes it: `1 - r_t` or `r_t`, then the weight of `s_t`. -/
-private theorem divFactor_ifs (gr : Array (Gl × Gl)) (gs : Array Ext) (t bit q : ℕ) (hbit : bit < 2) :
+private theorem divFactor_ifs (gr : Array (Word × Word)) (gs : Array Ext) (t bit q : ℕ) (hbit : bit < 2) :
     Replay.divFactor gr gs t bit q =
       if t < gs.size then
         (if bit = 0 then (Kx.ofK gr[t]!).oneMinus else Kx.ofK gr[t]!).scale
@@ -701,7 +701,7 @@ private theorem divStep_ifs (blocks bb t rem below bit : ℕ) :
 
 namespace IsStates
 
-variable {c : Ctx F} {n : ℕ} {next : Mle.DivisionStates} {g : ℕ → ℕ → Kx} {gr : Array (Gl × Gl)}
+variable {c : Ctx F} {n : ℕ} {next : Mle.DivisionStates} {g : ℕ → ℕ → Kx} {gr : Array (Word × Word)}
   {gs : Array Ext} {blocks t : ℕ} {prev : Array (Array Kx)} {i : ℕ}
 
 private theorem mono (h : IsStates c n next g) {m : ℕ} (le : n ≤ m) : IsStates c m next g :=
@@ -777,7 +777,7 @@ variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
 
 /-- `eval_k` (`mle.rs:146-204`): the long division's value. An absent state of the circuit is a zero state of
 the replay. -/
-theorem evalK {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Array (Gl × Gl)} {gs gt : Array Ext} (blocks : ℕ)
+theorem evalK {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Array (Word × Word)} {gs gt : Array Ext} (blocks : ℕ)
     (rSize : Nat.log2 (D * 2 ^ gs.size).nextPowerOfTwo ≤ gr.size) (tauSize : D ≤ gt.size)
     (hr : P → IsKs c n r gr) (hs : P → IsExts c n sBlock gs) (ht : P → IsExts c n tau gt) :
     Sim c n P (Mle.evalK r sBlock tau blocks) (fun res m => IsKx c m res (Replay.evalK gr gs gt blocks)) True := by

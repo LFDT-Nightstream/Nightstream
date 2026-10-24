@@ -55,7 +55,7 @@ program witness among the shrink candidates has a reading that layer 1 ran
 (`Encodes.Reads`), with probability at most `calls / 2^t`. -/
 theorem production_bound {lw : ℕ}
     {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
-    (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl)
+    (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
     (authority : Lifecycle.VerifierContext.Authority) (S : Layer1.Setup Gl)
     (relation : ProductionKey.LogicalRelation lw pf)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
@@ -144,7 +144,7 @@ application. The setup is the one that `build` returns for the seed of the
 Ajtai setup and the runs (`poseidon2Setup`). The claim takes `WidthFits` in
 place of `ParentShape`, and `RunsGive` and the pass of `setupCheck` in place
 of the facts of the setup. -/
-theorem poseidon2_bound (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl)
+theorem poseidon2_bound (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
     (authority : Lifecycle.VerifierContext.Authority) (pushes : List Push)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
       (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth

@@ -64,7 +64,7 @@ theorem run_pure {α : Type} {a b : α} {t t' : Transcript} (h : Runs (Pure.pure
   cases h
   exact ⟨rfl, rfl⟩
 
-theorem run_observeAll {vs : Array Gl} {t t' : Transcript} {u : Unit} (h : Runs (observeAll vs) t u t') :
+theorem run_observeAll {vs : Array Word} {t t' : Transcript} {u : Unit} (h : Runs (observeAll vs) t u t') :
     t'.draws = t.draws := by
   cases h
   rfl
@@ -77,7 +77,7 @@ theorem run_observeExt {v : Ext} {t t' : Transcript} {u : Unit} (h : Runs (obser
     t'.draws = t.draws :=
   run_observeAll h
 
-theorem run_sampleWord {t t' : Transcript} {w : Gl} (h : Runs sampleWord t w t') : t'.draws = t.draws := by
+theorem run_sampleWord {t t' : Transcript} {w : Word} (h : Runs sampleWord t w t') : t'.draws = t.draws := by
   cases h
   rfl
 
@@ -123,7 +123,7 @@ theorem run_samplePair {t t' : Transcript} {v : Ext × Ext} (h : Runs samplePair
   rw [run_record h3, Array.toList_push, run_drawExt h2, run_drawExt h1]
 
 theorem run_wordsLoop :
-    ∀ (l : List ℕ) (init : Array Gl) (t t' : Transcript) (ws : Array Gl),
+    ∀ (l : List ℕ) (init : Array Word) (t t' : Transcript) (ws : Array Word),
       Runs (l.foldlM (fun values _ => do pure (values.push (← sampleWord))) init) t ws t' →
         t'.draws = t.draws ∧ ws.size = init.size + l.length := by
   intro l
@@ -141,7 +141,7 @@ theorem run_wordsLoop :
       obtain ⟨draws, size⟩ := ih _ _ _ _ h
       refine ⟨by rw [draws, run_sampleWord h2], by rw [size, Array.size_push, List.length_cons]; omega⟩
 
-theorem run_sampleWords {n : ℕ} {t t' : Transcript} {ws : Array Gl} (h : Runs (sampleWords n) t ws t') :
+theorem run_sampleWords {n : ℕ} {t t' : Transcript} {ws : Array Word} (h : Runs (sampleWords n) t ws t') :
     t'.draws.toList = t.draws.toList ++ [.words ws] ∧ ws.size = n := by
   obtain ⟨values, t1, h1, h⟩ := run_bind h
   obtain ⟨_, t2, h2, h⟩ := run_bind h
@@ -197,7 +197,7 @@ theorem runs_samplePair (t : Transcript) :
 
 theorem runs_record (d : Draw) (t : Transcript) : Runs (record d) t () { t with draws := t.draws.push d } := rfl
 
-theorem runs_observeAll (vs : Array Gl) (t : Transcript) :
+theorem runs_observeAll (vs : Array Word) (t : Transcript) :
     Runs (observeAll vs) t () { t with duplex := vs.foldl Duplex.observe t.duplex } := rfl
 
 theorem runs_observeExts (vs : Array Ext) (t : Transcript) :
@@ -238,7 +238,7 @@ theorem grows_map {α β : Type} (f : α → β) {x : ReplayM α} (hx : Grows x)
   obtain ⟨a, h1, -⟩ := run_map h
   exact hx _ _ _ h1
 
-theorem grows_observeAll (vs : Array Gl) : Grows (observeAll vs) :=
+theorem grows_observeAll (vs : Array Word) : Grows (observeAll vs) :=
   grows_of_draws fun _ _ _ h => run_observeAll h
 
 theorem grows_observeExts (vs : Array Ext) : Grows (observeExts vs) :=

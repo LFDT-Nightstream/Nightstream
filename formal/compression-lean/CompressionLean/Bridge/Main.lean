@@ -87,7 +87,7 @@ def layer1Msgs (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.P
 
 /-- The replay up to the late stage: `verify` before WHIR's transcripts and the
 opening checks. Its draws are the draws of the layer-1 game. -/
-def verifyStages (rel : Replay.Relation) (seed : Array Gl) (st : Replay.Statement) (proof : Replay.Proof) :
+def verifyStages (rel : Replay.Relation) (seed : Array Word) (st : Replay.Statement) (proof : Replay.Proof) :
     ReplayM Unit := do
   ensure (st.fits rel) "claim words"
   liftExcept (readProof rel proof)
@@ -106,7 +106,7 @@ replay's statement, proof and candidate lists, draws the replay's
 challenges before WHIR's own and ends in a model transcript of the replay's
 statement and the prover's P0 candidates. -/
 theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Fp) (facts : RelationFacts rel S)
-    (seed : Array Gl) (st : Replay.Statement) (proof : Replay.Proof) (merkle : MerkleBinds rel S proof.leaves)
+    (seed : Array Word) (st : Replay.Statement) (proof : Replay.Proof) (merkle : MerkleBinds rel S proof.leaves)
     (L0 L1 : ℕ) (cands : List (P0Tables Fp)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K))
     (short1 : p1.length ≤ L1) {t t' : Replay.Transcript} {points : OpeningPoints}
     (run : Runs (verify rel seed st proof) t points t') (whir : WhirOpens (shapeOf rel) proof points cands p1) :
@@ -176,7 +176,7 @@ avoids every bad set, a P0 candidate is a CE(B) witness for the replay's
 statement. The paths that do not avoid them are the event that
 `layer1_sound` bounds. -/
 theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Fp) (facts : RelationFacts rel S) (N : ℕ)
-    (sizes : (shapeOf rel).Sizes N) (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (seed : Array Gl)
+    (sizes : (shapeOf rel).Sizes N) (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (seed : Array Word)
     (st : Replay.Statement) (proof : Replay.Proof) (merkle : MerkleBinds rel S proof.leaves) (L0 L1 : ℕ)
     (cands : List (P0Tables Fp)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K)) (short1 : p1.length ≤ L1)
     {t t' : Replay.Transcript} {points : OpeningPoints} (run : Runs (verify rel seed st proof) t points t')

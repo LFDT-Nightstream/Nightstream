@@ -35,7 +35,7 @@ theorem toK_matrixStep (rel : Replay.Relation) (S : Setup Fp) (fits : S.Fits (sh
   intro j h1 h2
   have hj : j < rel.matrices := by simpa [shapeOf] using h2
   simp only [List.getElem_map, List.getElem_zip, Array.getElem_toList, Array.getElem_extract, List.getElem_range]
-  rw [Ext.toK_ofGl, Gl.toF_ofNat, map_natCast]
+  rw [Ext.toK_ofGl, Word.toF_ofNat, map_natCast]
   simp only [structureOf]
   rw [getElem!_pos rel.key.layout.runBounds j (by omega)]
   simp
@@ -53,7 +53,7 @@ def honestMsgs (proof : Replay.Proof) {L1 : ℕ} (p1 : {l : List (P1Tables K) //
   [⟨Fin 2 → ℕ → K, partialsOf proof⟩, ⟨{l : List (P1Tables K) // l.length ≤ L1}, p1⟩]
 
 /-- The model's query words of the replay's. -/
-def wordsOf (queries : ℕ) (ws : Array Gl) : Fin queries → Fin goldilocks :=
+def wordsOf (queries : ℕ) (ws : Array Word) : Fin queries → Fin goldilocks :=
   fun j => ⟨(ws[(j : ℕ)]!).word.toNat, word_lt _⟩
 
 /-- The relation's sizes the honest fold reads. -/
@@ -105,7 +105,7 @@ theorem toK_runValue (rel : Replay.Relation) (proof : Replay.Proof) (S : Setup F
   rw [openings]
   simp only [earlyOpeningsOf, runValue, Layer1.EarlyOut.rowClaim, Layer1.EarlyOut.slotClaim,
     Layer1.EarlyOut.coefClaim, Layer1.EarlyOut.embeddedBlock, Layer1.EarlyOut.runPoint, valuesOf, challengesOf,
-    pairK, Ext.toK_sub, Ext.toK_scale, Gl.toF_ofNat, Nat.cast_pow, Nat.cast_ofNat, map_pow, map_ofNat,
+    pairK, Ext.toK_sub, Ext.toK_scale, Word.toF_ofNat, Nat.cast_pow, Nat.cast_ofNat, map_pow, map_ofNat,
     toK_matrixStep rel S fits checked describes sizes.bounds, agree.leafPoint 3 (small 3 (by norm_num)),
     agree.leafValues 3 (small 3 (by norm_num)), values, shapeOf]
   ring

@@ -17,7 +17,7 @@ round's parameters and the query sets. The Merkle paths are a hint
 namespace CompressionLean.Circuit
 
 open Lean (FromJson)
-open CompressionLean.Replay (Gl Ext WhirShape SumcheckShape twoAdicGenerator)
+open CompressionLean.Replay (Word Ext WhirShape SumcheckShape twoAdicGenerator)
 
 /-- One column's slot in the stacked polynomial: `numVariables` selector bits
 with value `index`, high bit first (`Selector`). -/
@@ -61,7 +61,7 @@ deriving FromJson, Inhabited
 namespace Whir
 
 /-- Each word as a constant, observed (`absorb`, `whir/mod.rs:221-226`). -/
-def absorb (words : Array Gl) : Transcript Unit := do
+def absorb (words : Array Word) : Transcript Unit := do
   for word in words do
     Duplex.observe (← Build.const word)
 
@@ -210,7 +210,7 @@ def queryIndex (width : ℕ) : Transcript (Array Var × Var) := do
   let bits := (Array.ofFn (← Build.bits sample 64)).extract 0 width
   let mut index ← Build.const 0
   for (bit, i) in bits.zipIdx do
-    let weighted ← Build.scale bit (Gl.ofNat (2 ^ i))
+    let weighted ← Build.scale bit (Word.ofNat (2 ^ i))
     index ← Build.add index weighted
   pure (bits, index)
 
@@ -224,8 +224,8 @@ def stir (queries : Array (Array Var)) (draws indexBits logFoldedDomain : ℕ) (
   let mut indices : Array (Array Var × Var) := #[]
   if draws = 0 then
     for index in [0:2 ^ indexBits] do
-      let bits ← (Array.range indexBits).mapM fun i => Build.const (Gl.ofNat ((index >>> i) % 2))
-      let word ← Build.const (Gl.ofNat index)
+      let bits ← (Array.range indexBits).mapM fun i => Build.const (Word.ofNat ((index >>> i) % 2))
+      let word ← Build.const (Word.ofNat index)
       indices := indices.push (bits, word)
   else
     for _ in [0:draws] do
@@ -291,7 +291,7 @@ def whirVerify (shape : WhirShape) (key : WhirKey) (root : DigestVar) (view : Op
       let mut lifted := #[]
       for i in [0:selector.numVariables] do
         let bit := (selector.index >>> (selector.numVariables - 1 - i)) % 2
-        lifted := lifted.push (← Algebra.extConstant (Ext.ofGl (Gl.ofNat bit)))
+        lifted := lifted.push (← Algebra.extConstant (Ext.ofGl (Word.ofNat bit)))
       eq := eq.push (lifted ++ point, value)
   let first : Constraint := { challenge := alpha, initialPower := 0, numVariables := key.numVariables,
                               eq := eq ++ virtualClaims, select := #[] }

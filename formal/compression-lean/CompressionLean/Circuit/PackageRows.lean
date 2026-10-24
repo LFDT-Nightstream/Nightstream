@@ -24,7 +24,7 @@ namespace CompressionLean.Circuit.Package
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 open CompressionLean.Shrink (R1csRow)
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 open Fin.CommRing
 
 /-- A field word of F′, written as a package coefficient, reads back. -/
@@ -116,9 +116,9 @@ theorem foldl_push {α β : Type} (h : α → β) :
 
 /-- The producer loop of `orderedRows`: before each producer it moves the
 assertions that start earlier, then it writes the producer's rows. -/
-theorem scheduleFold_mem (f : R1CS.Row → R1csRow Gl) (g : SparseRow → R1csRow Gl)
+theorem scheduleFold_mem (f : R1CS.Row → R1csRow Word) (g : SparseRow → R1csRow Word)
     (rows : Producer → List R1CS.Row) (q : Producer → SparseRow → Bool) :
-    ∀ (ps : List Producer) (acc : Array (R1csRow Gl) × List SparseRow) (x : R1csRow Gl),
+    ∀ (ps : List Producer) (acc : Array (R1csRow Word) × List SparseRow) (x : R1csRow Word),
       x ∈ (ps.foldl (fun b a => ((rows a).foldl (fun b r => b.push (f r))
           ((b.2.takeWhile (q a)).foldl (fun b s => b.push (g s)) b.1), b.2.dropWhile (q a))) acc).1.toList ++
         (ps.foldl (fun b a => ((rows a).foldl (fun b r => b.push (f r))
@@ -159,7 +159,7 @@ theorem mem_scheduleRows (package : CircuitPackage) (r : R1CS.Row) :
 
 /-- **The ordered rows are F′'s rows**, each written as `finish_row` writes
 it: the expanded rows of the package, in another order. -/
-theorem mem_orderedRows (package : CircuitPackage) (x : R1csRow Gl) :
+theorem mem_orderedRows (package : CircuitPackage) (x : R1csRow Word) :
     x ∈ orderedRows package ↔ ∃ r ∈ package.expandedRows, x = row package.layout.constantColumn r := by
   have ordered : x ∈ orderedRows package ↔
       x ∈ ((schedule package).flatMap (Producer.rows package)).map (row package.layout.constantColumn) ∨
@@ -170,7 +170,7 @@ theorem mem_orderedRows (package : CircuitPackage) (x : R1csRow Gl) :
       (fun a => row package.layout.constantColumn a.toR1CS) (Producer.rows package)
       (fun a x => decide (x.rowIndex < Producer.rowStart package a)) (schedule package)
       (#[], package.assertionRows) x
-    show x ∈ (List.foldl (fun (b : Array (R1csRow Gl)) (a : SparseRow) =>
+    show x ∈ (List.foldl (fun (b : Array (R1csRow Word)) (a : SparseRow) =>
       b.push (row package.layout.constantColumn a.toR1CS)) _ _) ↔ _
     rw [← Array.mem_toList_iff, foldl_push, fold]
     simp only [List.mem_append, List.not_mem_nil, false_or]
@@ -193,12 +193,12 @@ end Rows
 
 section Named
 
-theorem mark_size (used : Array Bool) (terms : List (ℕ × Gl)) : (mark used terms).size = used.size := by
+theorem mark_size (used : Array Bool) (terms : List (ℕ × Word)) : (mark used terms).size = used.size := by
   induction terms generalizing used with
   | nil => rfl
   | cons t rest ih => rw [mark, List.foldl_cons, ← mark, ih]; simp [Array.set!]
 
-theorem mark_mono (used : Array Bool) (terms : List (ℕ × Gl)) (c : ℕ) (marked : used[c]? = some true) :
+theorem mark_mono (used : Array Bool) (terms : List (ℕ × Word)) (c : ℕ) (marked : used[c]? = some true) :
     (mark used terms)[c]? = some true := by
   induction terms generalizing used with
   | nil => exact marked
@@ -211,7 +211,7 @@ theorem mark_mono (used : Array Bool) (terms : List (ℕ × Gl)) (c : ℕ) (mark
       · subst h1; rw [Array.getElem?_eq_none (by omega)] at marked; cases marked
       · exact marked
 
-theorem mark_sets (used : Array Bool) (terms : List (ℕ × Gl)) (t : ℕ × Gl) (member : t ∈ terms)
+theorem mark_sets (used : Array Bool) (terms : List (ℕ × Word)) (t : ℕ × Word) (member : t ∈ terms)
     (lt : t.1 < used.size) : (mark used terms)[t.1]? = some true := by
   induction terms generalizing used with
   | nil => cases member
@@ -223,27 +223,27 @@ theorem mark_sets (used : Array Bool) (terms : List (ℕ × Gl)) (t : ℕ × Gl)
       · exact ih _ inside (by simp [Array.set!, lt])
 
 /-- Mark the columns of one row. -/
-abbrev markRow (used : Array Bool) (r : R1csRow Gl) : Array Bool := mark (mark (mark used r.a) r.b) r.c
+abbrev markRow (used : Array Bool) (r : R1csRow Word) : Array Bool := mark (mark (mark used r.a) r.b) r.c
 
-theorem markRows_size (rows : List (R1csRow Gl)) (used : Array Bool) :
+theorem markRows_size (rows : List (R1csRow Word)) (used : Array Bool) :
     (rows.foldl markRow used).size = used.size := by
   induction rows generalizing used with
   | nil => rfl
   | cons r rest ih => rw [List.foldl_cons, ih, mark_size, mark_size, mark_size]
 
-theorem markRows_mono (rows : List (R1csRow Gl)) (used : Array Bool) (c : ℕ) (marked : used[c]? = some true) :
+theorem markRows_mono (rows : List (R1csRow Word)) (used : Array Bool) (c : ℕ) (marked : used[c]? = some true) :
     (rows.foldl markRow used)[c]? = some true := by
   induction rows generalizing used with
   | nil => exact marked
   | cons r rest ih => exact ih _ (mark_mono _ _ c (mark_mono _ _ c (mark_mono _ _ c marked)))
 
 /-- A column below `total` that some row names is named. -/
-theorem named_mem (total : ℕ) (rows : Array (R1csRow Gl)) (r : R1csRow Gl) (member : r ∈ rows)
-    (t : ℕ × Gl) (side : t ∈ r.a ∨ t ∈ r.b ∨ t ∈ r.c) (lt : t.1 < total) :
+theorem named_mem (total : ℕ) (rows : Array (R1csRow Word)) (r : R1csRow Word) (member : r ∈ rows)
+    (t : ℕ × Word) (side : t ∈ r.a ∨ t ∈ r.b ∨ t ∈ r.c) (lt : t.1 < total) :
     (named total rows)[t.1]? = some true := by
   unfold named
   rw [← Array.foldl_toList]
-  have marks : ∀ (l : List (R1csRow Gl)) (used : Array Bool), r ∈ l → t.1 < used.size →
+  have marks : ∀ (l : List (R1csRow Word)) (used : Array Bool), r ∈ l → t.1 < used.size →
       (l.foldl markRow used)[t.1]? = some true := by
     intro l
     induction l with
@@ -386,8 +386,8 @@ theorem numbering_numbered (package : CircuitPackage) :
 
 /-- Every package column below the column count that an ordered row names has
 a system column, and no column past the count does. -/
-theorem numbering_named (package : CircuitPackage) (x : R1csRow Gl) (member : x ∈ orderedRows package)
-    (t : ℕ × Gl) (side : t ∈ x.a ∨ t ∈ x.b ∨ t ∈ x.c) : (numbering package).1[t.1]? ≠ some none := by
+theorem numbering_named (package : CircuitPackage) (x : R1csRow Word) (member : x ∈ orderedRows package)
+    (t : ℕ × Word) (side : t ∈ x.a ∨ t ∈ x.b ∨ t ∈ x.c) : (numbering package).1[t.1]? ≠ some none := by
   have numbered := numbering_numbered package
   by_cases lt : t.1 < package.layout.totalColumnCount
   · have marked := named_mem _ _ x member t side lt
@@ -514,7 +514,7 @@ def assignment (index : Array (Option ℕ)) (value rest : ℕ → NightstreamFPr
   if index[c]? = some none then rest c else value ((index[c]!).getD 0)
 
 theorem reindex_value (index : Array (Option ℕ)) (value rest : ℕ → NightstreamFPrime.Spec.F)
-    (terms : List (ℕ × Gl)) (named : ∀ t ∈ terms, index[t.1]? ≠ some none) :
+    (terms : List (ℕ × Word)) (named : ∀ t ∈ terms, index[t.1]? ≠ some none) :
     ((reindex index terms).map fun t => value t.1 * Circuit.word t.2).sum =
       (terms.map fun t => assignment index value rest t.1 * Circuit.word t.2).sum := by
   unfold reindex
@@ -527,7 +527,7 @@ theorem reindex_value (index : Array (Option ℕ)) (value rest : ℕ → Nightst
 /-- A row on system columns holds on the system values exactly when the row
 holds on the package assignment, when every column it names has a system
 column or lies past the column count. -/
-theorem reindex_holds (index : Array (Option ℕ)) (value rest : ℕ → NightstreamFPrime.Spec.F) (r : R1csRow Gl)
+theorem reindex_holds (index : Array (Option ℕ)) (value rest : ℕ → NightstreamFPrime.Spec.F) (r : R1csRow Word)
     (named : ∀ t, t ∈ r.a ∨ t ∈ r.b ∨ t ∈ r.c → index[t.1]? ≠ some none) :
     R1csRow.Holds value ⟨reindex index r.a, reindex index r.b, reindex index r.c⟩ ↔
       R1csRow.Holds (assignment index value rest) r := by

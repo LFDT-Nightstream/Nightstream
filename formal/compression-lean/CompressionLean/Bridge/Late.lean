@@ -23,7 +23,7 @@ local notation "ι" => algebraMap Fp K
 
 /-! ## The lane split -/
 
-theorem toK_headFrom (tau : Array Ext) (length : ℕ) (ratio : Gl) (d : ℕ) :
+theorem toK_headFrom (tau : Array Ext) (length : ℕ) (ratio : Word) (d : ℕ) :
     (Replay.headFrom tau length ratio (ratio.pow length) d).toK (K := K) =
       Layer1.headFrom D length (ι ratio.toF) (tableK tau) d := by
   induction d with
@@ -31,31 +31,31 @@ theorem toK_headFrom (tau : Array Ext) (length : ℕ) (ratio : Gl) (d : ℕ) :
   | succ d ih =>
       rw [Replay.headFrom, Layer1.headFrom]
       split_ifs
-      · rw [Ext.toK_sub, Ext.toK_add, Ext.toK_scale, Ext.toK_scale, ih, Gl.toF_pow, map_pow]
+      · rw [Ext.toK_sub, Ext.toK_add, Ext.toK_scale, Ext.toK_scale, ih, Word.toF_pow, map_pow]
         simp only [tableK]
         ring
       · rw [Ext.toK_add, Ext.toK_scale, ih]
         simp only [tableK]
         ring
 
-theorem toK_head (tau : Array Ext) (length : ℕ) (ratio : Gl) {lane : ℕ} (inside : lane < D) :
+theorem toK_head (tau : Array Ext) (length : ℕ) (ratio : Word) {lane : ℕ} (inside : lane < D) :
     (((Replay.laneSplit tau length ratio).1)[lane]!).toK (K := K) =
       headValue D length (ι ratio.toF) (tableK tau) lane := by
   simp only [Replay.laneSplit]
   rw [getElem!_map_range _ _ inside, toK_headFrom]
   rfl
 
-theorem toK_tail (tau : Array Ext) (length : ℕ) (ratio : Gl) {lane : ℕ} (inside : lane < D) :
+theorem toK_tail (tau : Array Ext) (length : ℕ) (ratio : Word) {lane : ℕ} (inside : lane < D) :
     (((Replay.laneSplit tau length ratio).2)[lane]!).toK (K := K) =
       tailValue D length (ι ratio.toF) (tableK tau) lane := by
   simp only [Replay.laneSplit]
   rw [getElem!_map_range _ _ inside, tailValue]
   split_ifs with long
-  · rw [Ext.toK_scale, prefixSum, toK_sumRange, Gl.toF_pow, map_pow]
+  · rw [Ext.toK_scale, prefixSum, toK_sumRange, Word.toF_pow, map_pow]
     congr 1
     apply Finset.sum_congr rfl
     intro i _
-    rw [Ext.toK_scale, Gl.toF_pow, map_pow]
+    rw [Ext.toK_scale, Word.toF_pow, map_pow]
     rfl
   · exact toK_default
 

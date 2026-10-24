@@ -18,7 +18,7 @@ The late stage reads `checkPair`, `Mle.identity`, `Mle.step` and
 
 namespace CompressionLean.Circuit
 
-open CompressionLean.Replay (Gl Ext Layout)
+open CompressionLean.Replay (Word Ext Layout)
 
 /-- The prover's early values (`matrix::EarlyValues`, `matrix.rs:103-113`):
 `e_re`, `e_im` and the row column at the run point, the matrix pairs and the
@@ -46,7 +46,7 @@ structure EarlyOpeningsView where
 
 /-- `observe_root`: the commitment separator `seed` as constants, then the
 root (`whir/mod.rs:221-232`). -/
-def observeRoot (seed : Array Gl) (root : DigestVar) : Transcript Unit := do
+def observeRoot (seed : Array Word) (root : DigestVar) : Transcript Unit := do
   for word in seed do
     Duplex.observe (← Build.const word)
   Duplex.observeSlice (Array.ofFn root)
@@ -56,7 +56,7 @@ def observeRoot (seed : Array Gl) (root : DigestVar) : Transcript Unit := do
 def tableSum (counts : Array Var) (bound : ℕ) (beta : ExtVar) : Build ExtVar := do
   let mut total ← Algebra.extZero
   for (count, slot) in counts.zipIdx do
-    let value ← Algebra.extConstant (Ext.ofGl (Gl.ofNat slot - Gl.ofNat bound))
+    let value ← Algebra.extConstant (Ext.ofGl (Word.ofNat slot - Word.ofNat bound))
     let denominator ← Build.extSub beta value
     let inverse ← Build.extInv denominator
     let term ← Build.extScale inverse count
@@ -144,7 +144,7 @@ def checkPair (x y : TreeClaimView) : Build Unit := do
 /-- `matrix_step`: `j~` over runs, matrix `j` on its run range and zero on
 padding runs (`matrix.rs:368-380`). -/
 def matrixStep (layout : Layout) (point : Array ExtVar) : Build ExtVar := do
-  let values ← (Array.range layout.matrices).mapM fun j => Algebra.extConstant (Ext.ofGl (Gl.ofNat j))
+  let values ← (Array.range layout.matrices).mapM fun j => Algebra.extConstant (Ext.ofGl (Word.ofNat j))
   Mle.step point (layout.runBounds.extract 0 layout.matrices) values layout.runBounds[layout.matrices]!
 
 /-- `Structure::check_early` (`matrix.rs:261-317`): the claims are the
@@ -172,7 +172,7 @@ def checkEarly (layout : Layout) (r : Array KVar) (challenges : EarlyChallengesV
   Build.assertExtEqual scatterRuns.values[1]! e
   let runPoint := scatterRuns.point
   let matrix ← matrixStep layout runPoint
-  let tag ← Algebra.extScaleConstant matrix (Gl.ofNat (2 ^ layout.slotVariables))
+  let tag ← Algebra.extScaleConstant matrix (Word.ofNat (2 ^ layout.slotVariables))
   let rest ← Build.extSub beta scatterRuns.values[2]!
   let slot ← Build.extSub rest tag
   let pairPoint := scatterPairs.point

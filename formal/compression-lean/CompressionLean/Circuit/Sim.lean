@@ -35,7 +35,7 @@ words (`word_add`, `word_mul`, `word_sub`) and is injective.
 
 namespace CompressionLean.Circuit
 
-open CompressionLean.Replay (Gl Ext)
+open CompressionLean.Replay (Word Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
@@ -46,33 +46,33 @@ section Words
 
 variable [CharP F goldilocksModulus]
 
-theorem word_eq_cast (g : Gl) : (word g : F) = ZMod.castHom (dvd_refl _) F g.toF := by
-  simp [word, Gl.toF, Gl.toNat]
+theorem word_eq_cast (g : Word) : (word g : F) = ZMod.castHom (dvd_refl _) F g.toF := by
+  simp [word, Word.toF, Word.toNat]
 
-theorem word_add (a b : Gl) : (word (a + b) : F) = word a + word b := by
-  rw [word_eq_cast, word_eq_cast, word_eq_cast, Gl.toF_add, map_add]
+theorem word_add (a b : Word) : (word (a + b) : F) = word a + word b := by
+  rw [word_eq_cast, word_eq_cast, word_eq_cast, Word.toF_add, map_add]
 
-theorem word_mul (a b : Gl) : (word (a * b) : F) = word a * word b := by
-  rw [word_eq_cast, word_eq_cast, word_eq_cast, Gl.toF_mul, map_mul]
+theorem word_mul (a b : Word) : (word (a * b) : F) = word a * word b := by
+  rw [word_eq_cast, word_eq_cast, word_eq_cast, Word.toF_mul, map_mul]
 
-theorem word_sub (a b : Gl) : (word (a - b) : F) = word a - word b := by
-  rw [word_eq_cast, word_eq_cast, word_eq_cast, Gl.toF_sub, map_sub]
+theorem word_sub (a b : Word) : (word (a - b) : F) = word a - word b := by
+  rw [word_eq_cast, word_eq_cast, word_eq_cast, Word.toF_sub, map_sub]
 
-theorem word_ofNat (k : ℕ) : (word (Gl.ofNat k) : F) = k := by
-  rw [word_eq_cast, Gl.toF_ofNat, map_natCast]
+theorem word_ofNat (k : ℕ) : (word (Word.ofNat k) : F) = k := by
+  rw [word_eq_cast, Word.toF_ofNat, map_natCast]
 
 @[simp] theorem word_zero : (word 0 : F) = 0 := by
-  rw [word_eq_cast, Gl.toF_zero, map_zero]
+  rw [word_eq_cast, Word.toF_zero, map_zero]
 
 @[simp] theorem word_one : (word 1 : F) = 1 := by
-  rw [word_eq_cast, Gl.toF_one, map_one]
+  rw [word_eq_cast, Word.toF_one, map_one]
 
-theorem word_neg (a : Gl) : (word (-a) : F) = -word a := by
-  rw [word_eq_cast, word_eq_cast, Gl.toF_neg, map_neg]
+theorem word_neg (a : Word) : (word (-a) : F) = -word a := by
+  rw [word_eq_cast, word_eq_cast, Word.toF_neg, map_neg]
 
-theorem word_injective : Function.Injective (word : Gl → F) := fun a b h => by
+theorem word_injective : Function.Injective (word : Word → F) := fun a b h => by
   rw [word_eq_cast, word_eq_cast] at h
-  exact Gl.eq_of_toF (ZMod.castHom_injective F h)
+  exact Word.eq_of_toF (ZMod.castHom_injective F h)
 
 end Words
 
@@ -159,17 +159,17 @@ end Ctx
 
 /-- Handle `h` is one of the first `n` values, and `val` gives it the word
 `g`. -/
-def IsWord (c : Ctx F) (n : ℕ) (h : Var) (g : Gl) : Prop := h < n ∧ c.val h = word g
+def IsWord (c : Ctx F) (n : ℕ) (h : Var) (g : Word) : Prop := h < n ∧ c.val h = word g
 
-theorem IsWord.mono {c : Ctx F} {n m : ℕ} {h : Var} {g : Gl} (w : IsWord c n h g) (le : n ≤ m) : IsWord c m h g :=
+theorem IsWord.mono {c : Ctx F} {n m : ℕ} {h : Var} {g : Word} (w : IsWord c n h g) (le : n ≤ m) : IsWord c m h g :=
   ⟨lt_of_lt_of_le w.1 le, w.2⟩
 
-theorem IsWord.congr {c : Ctx F} {n : ℕ} {h : Var} {g g' : Gl} (w : IsWord c n h g) (e : (word g : F) = word g') :
+theorem IsWord.congr {c : Ctx F} {n : ℕ} {h : Var} {g g' : Word} (w : IsWord c n h g) (e : (word g : F) = word g') :
     IsWord c n h g' :=
   ⟨w.1, w.2.trans e⟩
 
 /-- An executor state that follows `val` reads a word's value. -/
-theorem IsWord.read {c : Ctx F} {n : ℕ} {h : Var} {g : Gl} (w : IsWord c n h g) {E : Exec.State F}
+theorem IsWord.read {c : Ctx F} {n : ℕ} {h : Var} {g : Word} (w : IsWord c n h g) {E : Exec.State F}
     (hF : c.Follows E) (hl : E.values.length = n) : E.value h = word g :=
   (hF h (hl ▸ w.1)).trans w.2
 
@@ -290,7 +290,7 @@ theorem Sim.exec {c : Ctx F} {α : Type} {P : Prop} {b : Build α} {Q : α → �
 /-! ## Instructions -/
 
 /-- The coordinates of an extension value. -/
-def _root_.CompressionLean.Replay.Ext.coord (e : Ext) : Fin 3 → Gl := ![e.c0, e.c1, e.c2]
+def _root_.CompressionLean.Replay.Ext.coord (e : Ext) : Fin 3 → Word := ![e.c0, e.c1, e.c2]
 
 /-- The three handles of `a` are the coordinates of `e`. -/
 def IsExt (c : Ctx F) (n : ℕ) (a : ExtVar) (e : Ext) : Prop := ∀ k, IsWord c n (a k) (e.coord k)
@@ -307,7 +307,7 @@ theorem IsPair.mono {c : Ctx F} {n m : ℕ} {a : ExtVar × ExtVar} {g : Ext × E
 
 /-- `Permutes perm`: on words, `perm` is the replay's Poseidon2 permutation. -/
 def Permutes (perm : List F → List F) : Prop :=
-  ∀ (s : Array Gl) (k : Fin 16), (perm (List.ofFn fun i : Fin 16 => word s[i]!)).getD k 0 = word (Replay.permute s)[k]!
+  ∀ (s : Array Word) (k : Fin 16), (perm (List.ofFn fun i : Fin 16 => word s[i]!)).getD k 0 = word (Replay.permute s)[k]!
 
 namespace Ctx
 
@@ -359,18 +359,18 @@ theorem Ext.eq_of_coord {a b : Ext} (h : ∀ k, (word (a.coord k) : F) = word (b
 @[simp] theorem Ext.coord_zero : (0 : Ext).coord = ![0, 0, 0] := rfl
 
 omit [CharP F goldilocksModulus] in
-theorem gl_sub_eq_zero {a b : Gl} : a - b = 0 ↔ a = b := by
-  refine ⟨fun h => Gl.eq_of_toF ?_, fun h => ?_⟩
-  · have := congrArg Gl.toF h
-    rw [Gl.toF_sub, Gl.toF_zero] at this
+theorem gl_sub_eq_zero {a b : Word} : a - b = 0 ↔ a = b := by
+  refine ⟨fun h => Word.eq_of_toF ?_, fun h => ?_⟩
+  · have := congrArg Word.toF h
+    rw [Word.toF_sub, Word.toF_zero] at this
     exact sub_eq_zero.mp this
   · subst h
-    exact Gl.eq_of_toF (by rw [Gl.toF_sub, sub_self, Gl.toF_zero])
+    exact Word.eq_of_toF (by rw [Word.toF_sub, sub_self, Word.toF_zero])
 
 namespace Sim
 
 omit [CharP F goldilocksModulus] in
-theorem const (g : Gl) : Sim c n P (Build.const g) (fun h m => IsWord c m h g) True :=
+theorem const (g : Word) : Sim c n P (Build.const g) (fun h m => IsWord c m h g) True :=
   emit _ fun _ E hl hF => by
     refine ⟨⟨by simp [Instr.outputs], ?_⟩, Iff.rfl⟩
     rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
@@ -383,7 +383,7 @@ theorem priv : Sim c n P Build.priv (fun h m => h < m ∧ c.val h = c.tape h) Tr
     rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
     rfl
 
-theorem add {a b : Var} {ga gb : Gl} (ha : P → IsWord c n a ga) (hb : P → IsWord c n b gb) :
+theorem add {a b : Var} {ga gb : Word} (ha : P → IsWord c n a ga) (hb : P → IsWord c n b gb) :
     Sim c n P (Build.add a b) (fun h m => IsWord c m h (ga + gb)) True :=
   emit _ fun hP E hl hF => by
     have hE := Ctx.follows_of_step hF
@@ -391,7 +391,7 @@ theorem add {a b : Var} {ga gb : Gl} (ha : P → IsWord c n a ga) (hb : P → Is
     rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
     simp [(ha hP).read hE hl, (hb hP).read hE hl, word_add]
 
-theorem sub {a b : Var} {ga gb : Gl} (ha : P → IsWord c n a ga) (hb : P → IsWord c n b gb) :
+theorem sub {a b : Var} {ga gb : Word} (ha : P → IsWord c n a ga) (hb : P → IsWord c n b gb) :
     Sim c n P (Build.sub a b) (fun h m => IsWord c m h (ga - gb)) True :=
   emit _ fun hP E hl hF => by
     have hE := Ctx.follows_of_step hF
@@ -400,7 +400,7 @@ theorem sub {a b : Var} {ga gb : Gl} (ha : P → IsWord c n a ga) (hb : P → Is
     simp [(ha hP).read hE hl, (hb hP).read hE hl, word_sub, word_neg]
     ring
 
-theorem scale {a : Var} {ga : Gl} (by_ : Gl) (ha : P → IsWord c n a ga) :
+theorem scale {a : Var} {ga : Word} (by_ : Word) (ha : P → IsWord c n a ga) :
     Sim c n P (Build.scale a by_) (fun h m => IsWord c m h (ga * by_)) True :=
   emit _ fun hP E hl hF => by
     have hE := Ctx.follows_of_step hF
@@ -408,7 +408,7 @@ theorem scale {a : Var} {ga : Gl} (by_ : Gl) (ha : P → IsWord c n a ga) :
     rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
     simp [(ha hP).read hE hl, word_mul]
 
-theorem mul {a b : Var} {ga gb : Gl} (ha : P → IsWord c n a ga) (hb : P → IsWord c n b gb) :
+theorem mul {a b : Var} {ga gb : Word} (ha : P → IsWord c n a ga) (hb : P → IsWord c n b gb) :
     Sim c n P (Build.mul a b) (fun h m => IsWord c m h (ga * gb)) True :=
   emit _ fun hP E hl hF => by
     have hE := Ctx.follows_of_step hF
@@ -416,7 +416,7 @@ theorem mul {a b : Var} {ga gb : Gl} (ha : P → IsWord c n a ga) (hb : P → Is
     rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
     simp [(ha hP).read hE hl, (hb hP).read hE hl, word_mul]
 
-theorem assertZero {a : Var} {ga : Gl} (ha : P → IsWord c n a ga) :
+theorem assertZero {a : Var} {ga : Word} (ha : P → IsWord c n a ga) :
     Sim c n P (Build.assertZero a) (fun _ _ => True) (ga = 0) := by
   refine ((emit (Q := fun _ _ => True) (C := ga = 0) (.assertZero a) fun hP E hl hF => ⟨trivial, ?_⟩).bind
     fun _ _ _ => pure fun _ => trivial).post (fun _ _ _ h => h) (fun _ => Iff.of_eq (and_true _))
@@ -424,7 +424,7 @@ theorem assertZero {a : Var} {ga : Gl} (ha : P → IsWord c n a ga) :
   rw [(ha hP).read (Ctx.follows_of_step hF) hl]
   exact and_congr_right fun _ => ⟨fun h => word_injective (h.trans word_zero.symm), fun h => h ▸ word_zero⟩
 
-theorem assertEqual {a b : Var} {ga gb : Gl} (ha : P → IsWord c n a ga) (hb : P → IsWord c n b gb) :
+theorem assertEqual {a b : Var} {ga gb : Word} (ha : P → IsWord c n a ga) (hb : P → IsWord c n b gb) :
     Sim c n P (Build.assertEqual a b) (fun _ _ => True) (ga = gb) :=
   ((sub ha hb).bind fun _ _ _ => assertZero fun h => h.2).post (fun _ _ _ h => h)
     (fun _ => by rw [true_and, gl_sub_eq_zero])
@@ -432,7 +432,7 @@ theorem assertEqual {a b : Var} {ga gb : Gl} (ha : P → IsWord c n a ga) (hb : 
 omit [CharP F goldilocksModulus] in
 /-- `r1cs` (`record.rs:450-460`): the rows hold on the values of the column
 handles. -/
-theorem r1cs {rows : List (Shrink.R1csRow Gl)} {columns : List Var} (hc : P → ∀ h ∈ columns, h < n) :
+theorem r1cs {rows : List (Shrink.R1csRow Word)} {columns : List Var} (hc : P → ∀ h ∈ columns, h < n) :
     Sim c n P (Build.r1cs rows columns) (fun _ _ => True)
       (∀ r ∈ rows, R1csRow.Holds (fun j => (columns.map c.val).getD j 0) r) := by
   refine ((emit (Q := fun _ _ => True) (C := ∀ r ∈ rows, R1csRow.Holds (fun j => (columns.map c.val).getD j 0) r)
@@ -475,7 +475,7 @@ theorem extInv {a : ExtVar} {ga gi : Ext} (ha : P → IsExt c n a ga)
     fun _ _ h k => h k
 
 omit [CharP F goldilocksModulus] in
-theorem bits {a : Var} {ga : Gl} (count : ℕ) (ha : P → IsWord c n a ga) :
+theorem bits {a : Var} {ga : Word} (count : ℕ) (ha : P → IsWord c n a ga) :
     Sim c n P (Build.bits a count) (fun bs m => ∀ i, bs i = n + i ∧ bs i < m ∧ c.val (bs i) = c.tape (bs i))
       (Bits (word ga) count fun i => c.tape (n + i)) :=
   (emit (Q := fun h m => h = n ∧ ∀ i : Fin count, h + i < m ∧ c.val (h + i) = c.tape (h + i)) _ fun hP E hl hF => by
@@ -493,7 +493,7 @@ theorem hint (count : ℕ) :
     fun _ _ h i => ⟨by rw [← h.1]; rfl, h.2 i⟩
 
 omit [CharP F goldilocksModulus] in
-theorem permute {state : Fin 16 → Var} {gs : Array Gl} (hp : Permutes c.perm)
+theorem permute {state : Fin 16 → Var} {gs : Array Word} (hp : Permutes c.perm)
     (hs : P → ∀ k, IsWord c n (state k) gs[k]!) :
     Sim c n P (Build.permute state) (fun r m => ∀ k, IsWord c m (r k) (Replay.permute gs)[k]!) True :=
   (emit (Q := fun h m => ∀ k : Fin 16, IsWord c m (h + k) (Replay.permute gs)[k]!) _ fun hP E hl hF => by

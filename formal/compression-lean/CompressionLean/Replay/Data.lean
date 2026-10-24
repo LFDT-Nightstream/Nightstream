@@ -18,15 +18,15 @@ namespace CompressionLean.Replay
 
 open Lean NightstreamFPrime.Spec
 
-instance : FromJson Gl where
+instance : FromJson Word where
   fromJson? json := do
     let value ← json.getNat?
-    if value < goldilocksModulus then pure (Gl.ofNat value)
+    if value < goldilocksModulus then pure (Word.ofNat value)
     else throw s!"word {value} is not a canonical Goldilocks value"
 
 instance : FromJson Ext where
   fromJson? json := do
-    let words : Array Gl ← fromJson? json
+    let words : Array Word ← fromJson? json
     if h : words.size = 3 then pure ⟨words[0], words[1], words[2]⟩
     else throw "an extension value has three words"
 
@@ -43,7 +43,7 @@ def bitsAtLeastOne (n : Nat) : Nat := max 1 (Nat.log2 n.nextPowerOfTwo)
 /-- A run shape: its length and its ratio (`matrix::Class`). -/
 structure RunClass where
   len : Nat
-  ratio : Gl
+  ratio : Word
 deriving FromJson, Inhabited
 
 /-- Slots from `first` share one class and one lane (`matrix::Segment`). -/
@@ -67,7 +67,7 @@ deriving FromJson, Inhabited
 
 /-- The verifier key (`lib.rs::Key`). -/
 structure Key where
-  root : Array Gl
+  root : Array Word
   blocks : Nat
   rows : Nat
   layout : Layout
@@ -76,7 +76,7 @@ deriving FromJson, Inhabited
 /-- One quadratic sum-check of a WHIR run and the separator it absorbs first. -/
 structure SumcheckShape where
   rounds : Nat
-  seed : Array Gl
+  seed : Array Word
 deriving FromJson, Inhabited
 
 structure WhirRoundShape where
@@ -87,18 +87,18 @@ deriving FromJson, Inhabited
 
 /-- One opening batch: its separator and its column count. -/
 structure WhirBatch where
-  seed : Array Gl
+  seed : Array Word
   size : Nat
 deriving FromJson, Inhabited
 
 /-- The transcript of one WHIR opening (`whir::verify`) as fixed constants:
 every separator it absorbs and every count that fixes its draws. -/
 structure WhirShape where
-  virtualSeed : Array Gl
+  virtualSeed : Array Word
   oodSamples : Nat
   batches : Array WhirBatch
-  whirSeed : Array Gl
-  batchingSeed : Array Gl
+  whirSeed : Array Word
+  batchingSeed : Array Word
   initialSumcheck : SumcheckShape
   rounds : Array WhirRoundShape
   finalPolyLen : Nat
@@ -114,21 +114,21 @@ structure Relation where
   normBound : Nat
   kappa : Nat
   queries : Nat
-  p0Profile : Array Gl
-  p1Profile : Array Gl
+  p0Profile : Array Word
+  p1Profile : Array Word
   /-- The separator `whir::observe_root` absorbs before a root. -/
-  commitmentSeed : Array Gl
+  commitmentSeed : Array Word
   p0Whir : WhirShape
   p1Whir : WhirShape
 deriving FromJson, Inhabited
 
 /-- The CE(B) statement words (`ClaimWords`); a `K` value is `(re, im)`. -/
 structure Statement where
-  commitment : Array (Array Gl)
-  publicInput : Array (Array Gl)
-  point : Array (Gl × Gl)
-  evalK : Array (Gl × Gl)
-  evalA : Array (Array (Gl × Gl))
+  commitment : Array (Array Word)
+  publicInput : Array (Array Word)
+  point : Array (Word × Word)
+  evalK : Array (Word × Word)
+  evalA : Array (Array (Word × Word))
 deriving FromJson, Inhabited
 
 structure GkrLayer where
@@ -152,12 +152,12 @@ deriving FromJson, Inhabited
 
 /-- One queried setup leaf (`setup::Leaf`). -/
 structure Leaf where
-  values : Array Gl
-  path : Array (Array Gl)
+  values : Array Word
+  path : Array (Array Word)
 deriving FromJson, Inhabited
 
 structure WhirRound where
-  root : Array Gl
+  root : Array Word
   ood : Array Ext
   sumcheck : Array (Ext × Ext)
 deriving FromJson, Inhabited
@@ -174,15 +174,15 @@ deriving FromJson, Inhabited
 
 /-- A layer-1 proof (`lib.rs::Proof`), without the WHIR query rows and paths. -/
 structure Proof where
-  p0 : Array Gl
-  histogram : Array Gl
+  p0 : Array Word
+  histogram : Array Word
   early : GkrProof
   earlyValues : EarlyValues
   quotient : Array Ext
   linear : Array (Array Ext)
   finals : Array Ext
   partials : Array (Array Ext)
-  p1 : Array Gl
+  p1 : Array Word
   leaves : Array Leaf
   late : GkrProof
   lateValues : Array (Ext × Ext)
@@ -193,7 +193,7 @@ deriving FromJson, Inhabited
 /-- One input to replay: the layer-1 seed, a statement and a proof. -/
 structure Variant where
   name : String
-  seed : Array Gl
+  seed : Array Word
   statement : Statement
   proof : Proof
 deriving FromJson, Inhabited
@@ -231,26 +231,26 @@ def earlyShapes : Array TreeShape :=
 def lateShapes : Array TreeShape :=
   #[⟨rel.key.layout.slotVariables + 1, 2⟩, ⟨rel.blockVars, 1⟩]
 
-def layoutWords : Array Gl :=
+def layoutWords : Array Word :=
   let l := rel.key.layout
   (#[l.matrices, l.rowVariables, l.runVariables, l.slotVariables, l.classes.size, l.segments.size, l.slots] ++
-      l.runBounds).map Gl.ofNat ++
-    l.classes.flatMap (fun c => #[Gl.ofNat c.len, c.ratio]) ++
-    l.segments.flatMap (fun s => #[s.first, s.classIndex, s.lane].map Gl.ofNat)
+      l.runBounds).map Word.ofNat ++
+    l.classes.flatMap (fun c => #[Word.ofNat c.len, c.ratio]) ++
+    l.segments.flatMap (fun s => #[s.first, s.classIndex, s.lane].map Word.ofNat)
 
 /-- The relation as transcript words: the shape, the key, both WHIR profiles
 and the setup query count (`Relation::words`). -/
-def words : Array Gl :=
+def words : Array Word :=
   #[rel.cubeVars, rel.key.blocks, rel.key.rows, rel.matrices, rel.kappa, rel.publicBlocks,
-      rel.pointVariables, rel.normBound].map Gl.ofNat ++
-    rel.key.root ++ #[rel.key.blocks, rel.key.rows].map Gl.ofNat ++ rel.layoutWords ++
-    rel.p0Profile ++ rel.p1Profile ++ #[Gl.ofNat rel.queries]
+      rel.pointVariables, rel.normBound].map Word.ofNat ++
+    rel.key.root ++ #[rel.key.blocks, rel.key.rows].map Word.ofNat ++ rel.layoutWords ++
+    rel.p0Profile ++ rel.p1Profile ++ #[Word.ofNat rel.queries]
 
 end Relation
 
 /-- The statement as transcript words: the ring rows, then the `K` values
 (`ClaimWords::words`). -/
-def Statement.words (st : Statement) : Array Gl :=
+def Statement.words (st : Statement) : Array Word :=
   st.commitment.flatten ++ st.publicInput.flatten ++
     (st.point ++ st.evalK ++ st.evalA.flatten).flatMap fun value => #[value.1, value.2]
 

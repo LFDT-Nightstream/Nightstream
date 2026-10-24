@@ -21,7 +21,7 @@ against `Replay.honestStage`, and of the setup query point (`queryPoint`,
 namespace CompressionLean.Circuit
 
 open CompressionLean.Lib
-open CompressionLean.Replay (Gl Ext Relation foldVars runOracles generator twoAdicGenerator Runs runs_bind runs_pure
+open CompressionLean.Replay (Word Ext Relation foldVars runOracles generator twoAdicGenerator Runs runs_bind runs_pure
   runs_sampleWord runs_record runs_sampleExt runs_observeAll runs_observeExts runs_ensure runs_liftExcept)
 open CompressionLean.Bridge (two_groups)
 open NightstreamFPrime.Spec (goldilocksModulus)
@@ -178,7 +178,7 @@ theorem add_scale_zero (x w : Ext) : x + w.scale default = x :=
   coords_injective (F := ZMod goldilocksModulus) (by
     rw [coords_add, coords_scale]
     funext k
-    simp [show (default : Gl) = 0 from rfl])
+    simp [show (default : Word) = 0 from rfl])
 
 /-- Digit `i < b` of `x mod 2^b` is digit `i` of `x`. -/
 theorem digit_mod (x b i : ℕ) (hi : i < b) : x % 2 ^ b / 2 ^ i % 2 = x / 2 ^ i % 2 := by
@@ -188,7 +188,7 @@ theorem digit_mod (x b i : ℕ) (hi : i < b) : x % 2 ^ b / 2 ^ i % 2 = x / 2 ^ i
   omega
 
 /-- The circuit's lane checks (`setup.rs:255-257`) are the replay's `pathOk`. -/
-theorem pathOk_of {root : Array Gl} {index : ℕ} {leaf : Replay.Leaf}
+theorem pathOk_of {root : Array Word} {index : ℕ} {leaf : Replay.Leaf}
     (h : ∀ k < 4, (Replay.merkleRoot (Replay.hashLeaf leaf.values) index leaf.path)[k]! = root[k]!) :
     Replay.pathOk root index leaf = true := by
   unfold Replay.pathOk
@@ -198,7 +198,7 @@ theorem pathOk_of {root : Array Gl} {index : ℕ} {leaf : Replay.Leaf}
   exact beq_self_eq_true (root[lane]!).word
 
 /-- `setup::check` on a leaf whose path holds: one folded value per group. -/
-theorem setupCheck_ok {root : Array Gl} {vars index : ℕ} {leaf : Replay.Leaf} {a b alpha : Array Ext}
+theorem setupCheck_ok {root : Array Word} {vars index : ℕ} {leaf : Replay.Leaf} {a b alpha : Array Ext}
     (path : Replay.pathOk root index leaf = true) :
     Replay.setupCheck root vars index leaf #[a, b] alpha = .ok
       #[Replay.sumRange (2 ^ foldVars) fun v => Replay.leafWeight alpha
@@ -243,7 +243,7 @@ theorem combinePartials {partials point : Array ExtVar} {gpartials gpoint : Arra
 /-- `setup::query_point` (`setup.rs:203-213`): the power point of the leaf
 whose index has the little-endian bits `bits`. -/
 theorem queryPoint {vars index : ℕ} {bits : Array Var} (hsize : P → bits.size = vars + 1 - foldVars)
-    (hb : P → ∀ i < bits.size, IsWord c n bits[i]! (Gl.ofNat (index / 2 ^ i % 2))) :
+    (hb : P → ∀ i < bits.size, IsWord c n bits[i]! (Word.ofNat (index / 2 ^ i % 2))) :
     Sim c n P (Circuit.queryPoint vars bits) (fun r m => IsExts c m r (Replay.leafQueryPoint vars index)) True := by
   unfold Circuit.queryPoint Replay.leafQueryPoint
   dsimp only
@@ -262,13 +262,13 @@ theorem queryPoint {vars index : ℕ} {bits : Array Var} (hsize : P → bits.siz
   · refine (Sim.liftWord fun h => h.2.1).bind₀ fun lifted m₄ l₄ => ?_
     refine (Sim.mul (fun h => h.1.2.1.mono l₄) fun h => h.1.2.1.mono l₄).bind₀ fun next m₅ l₅ =>
       Sim.pure fun h => ⟨rfl, ?_, ?_⟩
-    · have e : q.pow (2 ^ k) * q.pow (2 ^ k) = q.pow (2 ^ (k + 1)) := Gl.eq_of_toF (by
-        rw [Gl.toF_mul, Gl.toF_pow, Gl.toF_pow, ← pow_add, ← two_mul, ← pow_succ'])
+    · have e : q.pow (2 ^ k) * q.pow (2 ^ k) = q.pow (2 ^ (k + 1)) := Word.eq_of_toF (by
+        rw [Word.toF_mul, Word.toF_pow, Word.toF_pow, ← pow_add, ← two_mul, ← pow_succ'])
       exact e ▸ h.2
     · rw [map_range_succ]
       exact (h.1.1.2.2.mono (l₄.trans l₅)).push (h.1.2.mono l₅)
   · rw [hsize h.1.1, hq] at h
-    have e : q = q.pow (2 ^ 0) := Gl.eq_of_toF (by rw [Gl.toF_pow, pow_zero, pow_one])
+    have e : q = q.pow (2 ^ 0) := Word.eq_of_toF (by rw [Word.toF_pow, pow_zero, pow_one])
     exact e ▸ h.2
   · have e := h.2.2
     simp only [List.length_range', Std.Legacy.Range.size] at e
@@ -281,7 +281,7 @@ theorem queryPoint {vars index : ℕ} {bits : Array Var} (hsize : P → bits.siz
 
 /-- `observe_root` (`whir/mod.rs:230-233`): the separator words as constants,
 then the root. -/
-theorem observeRoot {d : Duplex} {r : Replay.Duplex} {seed : Array Gl} {root : DigestVar} {groot : Array Gl}
+theorem observeRoot {d : Duplex} {r : Replay.Duplex} {seed : Array Word} {root : DigestVar} {groot : Array Word}
     (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) (hr : P → IsDigest c n root groot) :
     Sim c n P ((Circuit.observeRoot seed root).run d)
       (fun res m => IsDuplex c m res.2 (groot.foldl Replay.Duplex.observe (seed.foldl Replay.Duplex.observe r)))
@@ -364,15 +364,15 @@ theorem mapM_sampleExt {β : Type} (g : Array ExtVar → Transcript β) :
 draws from the same duplex. Once each decomposition's check holds, bit `i` of
 query `q` is digit `i` of word `q`. -/
 theorem sampleBitsList (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm) :
-    ∀ (l : List ℕ) {n : ℕ} {P : Prop} {d : Duplex} (t : Replay.Transcript) (init : Array Gl),
+    ∀ (l : List ℕ) {n : ℕ} {P : Prop} {d : Duplex} (t : Replay.Transcript) (init : Array Word),
       (P → IsDuplex c n d t.duplex) →
       Ensures c n P ((l.mapM fun _ => Duplex.sampleBits bits : Transcript (List (Array Var))).run d)
-        (fun res m => ∃ ws : List Gl, ∃ t' : Replay.Transcript,
+        (fun res m => ∃ ws : List Word, ∃ t' : Replay.Transcript,
           Runs (l.foldlM (fun values _ => do Pure.pure (values.push (← Replay.sampleWord))) init) t
             (init ++ ws.toArray) t' ∧
           ws.length = l.length ∧ res.1.length = l.length ∧
           (∀ q < l.length, (res.1[q]!).size = bits ∧
-            ∀ i < bits, IsWord c m (res.1[q]!)[i]! (Gl.ofNat ((ws[q]!).toNat / 2 ^ i % 2))) ∧
+            ∀ i < bits, IsWord c m (res.1[q]!)[i]! (Word.ofNat ((ws[q]!).toNat / 2 ^ i % 2))) ∧
           IsDuplex c m res.2 t'.duplex)
   | [], n, P, d, t, init, hd => by
       rw [List.mapM_nil, StateT.run_pure]
@@ -403,9 +403,9 @@ replay's `sampleWords`. -/
 theorem sampleBitsArray (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm) (k : ℕ) {d : Duplex}
     {t : Replay.Transcript} (hd : P → IsDuplex c n d t.duplex) :
     Ensures c n P (((Array.range k).mapM fun _ => Duplex.sampleBits bits : Transcript (Array (Array Var))).run d)
-      (fun res m => ∃ ws : Array Gl, ∃ t' : Replay.Transcript, Runs (Replay.sampleWords k) t ws t' ∧
+      (fun res m => ∃ ws : Array Word, ∃ t' : Replay.Transcript, Runs (Replay.sampleWords k) t ws t' ∧
         res.1.size = ws.size ∧ (∀ q < res.1.size, (res.1[q]!).size = bits ∧
-          ∀ i < bits, IsWord c m (res.1[q]!)[i]! (Gl.ofNat ((ws[q]!).toNat / 2 ^ i % 2))) ∧
+          ∀ i < bits, IsWord c m (res.1[q]!)[i]! (Word.ofNat ((ws[q]!).toNat / 2 ^ i % 2))) ∧
         IsDuplex c m res.2 t'.duplex) := by
   rw [Array.mapM_eq_mapM_toList, StateT.run_map, Array.toList_range]
   refine (sampleBitsList bits small hp (List.range k) t #[] hd).map fun res m h => ?_
@@ -446,7 +446,7 @@ theorem runWeightsLoop {d : Duplex} {one mu : ExtVar} {gmu : Ext} (hone : P → 
 
 omit [CharP F goldilocksModulus] in
 /-- The key root words as constants (`verifier.rs:245`). -/
-theorem rootConsts {d : Duplex} (words : Array Gl) :
+theorem rootConsts {d : Duplex} (words : Array Word) :
     Sim c n P ((forIn words (#[] : Array Var) fun word (root : Array Var) => do
         let w ← liftM (Build.const word)
         Pure.pure (ForInStep.yield (root.push w)) : Transcript (Array Var)).run d)
@@ -522,9 +522,9 @@ theorem runValueLoop {d : Duplex} {values : Array ExtVar} {gvalues : Array Ext} 
 /-! ## The leaf check -/
 
 /-- `merkle_root` (`circuit/hash.rs:115-129`) with the sizes known under `P`. -/
-theorem merkleRoot' {leaf : DigestVar} {bits : Array Var} {path : Array DigestVar} {gleaf : Array Gl} {index : ℕ}
-    {gpath : Array (Array Gl)} (hp : Permutes c.perm) (hleaf : P → IsDigest c n leaf gleaf)
-    (hbits : P → ∀ i < bits.size, IsWord c n bits[i]! (Gl.ofNat (index / 2 ^ i % 2)))
+theorem merkleRoot' {leaf : DigestVar} {bits : Array Var} {path : Array DigestVar} {gleaf : Array Word} {index : ℕ}
+    {gpath : Array (Array Word)} (hp : Permutes c.perm) (hleaf : P → IsDigest c n leaf gleaf)
+    (hbits : P → ∀ i < bits.size, IsWord c n bits[i]! (Word.ofNat (index / 2 ^ i % 2)))
     (hpath : P → ∀ k < path.size, IsDigest c n path[k]! gpath[k]!) (hsize : P → bits.size = path.size)
     (hgsize : P → path.size = gpath.size) :
     Sim c n P (Circuit.merkleRoot leaf bits path)
@@ -594,7 +594,7 @@ theorem monomials {alpha : Array ExtVar} {galpha : Array Ext} {one : ExtVar} (ho
   · rwa [Array.length_toList, (ha h).1, List.take_of_length_le (by simp)] at q
 
 /-- The coefficients `α^[u]·2^-f·y^-u` (`setup.rs:268-273`). -/
-theorem coefficients {monomials : Array ExtVar} {k : ℕ} {M : ℕ → Ext} {scale y : Var} {g0 gy : Gl}
+theorem coefficients {monomials : Array ExtVar} {k : ℕ} {M : ℕ → Ext} {scale y : Var} {g0 gy : Word}
     (hm : P → IsExts c n monomials ((Array.range k).map M)) (hs : P → IsWord c n scale g0)
     (hy : P → IsWord c n y gy) :
     Sim c n P (forIn monomials (scale, (#[] : Array ExtVar)) fun monomial (acc : Var × Array ExtVar) => do
@@ -613,13 +613,13 @@ theorem coefficients {monomials : Array ExtVar} {k : ℕ} {M : ℕ → Ext} {sca
       fun h => h.2.1).bind₀ fun coefficient m₁ l₁ => ?_
     refine (Sim.mul (fun h => h.1.2.1.mono l₁) fun h => (hy h.1.1).mono (lm.trans l₁)).bind₀
       fun next m₂ l₂ => Sim.pure fun h => ⟨rfl, ?_, ?_⟩
-    · have e : g0 * gy.pow j * gy = g0 * gy.pow (j + 1) := Gl.eq_of_toF (by
-        rw [Gl.toF_mul, Gl.toF_mul, Gl.toF_mul, Gl.toF_pow, Gl.toF_pow, pow_succ, mul_assoc])
+    · have e : g0 * gy.pow j * gy = g0 * gy.pow (j + 1) := Word.eq_of_toF (by
+        rw [Word.toF_mul, Word.toF_mul, Word.toF_mul, Word.toF_pow, Word.toF_pow, pow_succ, mul_assoc])
       rw [← e]
       exact h.2
     · rw [map_range_succ]
       exact (h.1.1.2.2.mono (l₁.trans l₂)).push (h.1.2.mono l₂)
-  · have e : g0 * gy.pow 0 = g0 := Gl.eq_of_toF (by rw [Gl.toF_mul, Gl.toF_pow, pow_zero, mul_one])
+  · have e : g0 * gy.pow 0 = g0 := Word.eq_of_toF (by rw [Word.toF_mul, Word.toF_pow, pow_zero, mul_one])
     rw [e]
     exact hs h
   · have size : monomials.size = k := by simpa using (hm h).1
@@ -627,7 +627,7 @@ theorem coefficients {monomials : Array ExtVar} {k : ℕ} {M : ℕ → Ext} {sca
     exact q.2
 
 /-- The leaf weights `Σ_u coefficient_u·ω^((f - u)·v mod f)` (`setup.rs:274-284`). -/
-theorem weights {coefficients : Array ExtVar} {k : ℕ} {C : ℕ → Ext} (omega : Gl)
+theorem weights {coefficients : Array ExtVar} {k : ℕ} {C : ℕ → Ext} (omega : Word)
     (hc : P → IsExts c n coefficients ((Array.range k).map C)) :
     Sim c n P (forIn [:2 ^ foldVars] (#[] : Array ExtVar) fun v (weight : Array ExtVar) => do
         let zero ← Algebra.extZero
@@ -669,7 +669,7 @@ theorem weights {coefficients : Array ExtVar} {k : ℕ} {C : ℕ → Ext} (omega
 /-- One group of the leaf check (`setup.rs:287-298`): each weight times its
 oracle's coset values, summed per coset position, then the dot product with
 the leaf weights. -/
-theorem groupStep {values : Array Var} {gvalues : Array Gl} {weight ws : Array ExtVar} {gweight : ℕ → Ext}
+theorem groupStep {values : Array Var} {gvalues : Array Word} {weight ws : Array ExtVar} {gweight : ℕ → Ext}
     {gws gfolded : Array Ext} {acc : ℕ × Array ExtVar} (hv : P → IsWords c n values gvalues)
     (hweight : P → IsExts c n weight ((Array.range (2 ^ foldVars)).map gweight)) (hws : P → IsExts c n ws gws)
     (hf : P → IsExts c n acc.2 gfolded) :
@@ -761,7 +761,7 @@ theorem groupStep {values : Array Var} {gvalues : Array Gl} {weight ws : Array E
     rw [getElem!_map_range _ _ hv, getElem!_map_range _ _ hv, show ws.toList.length = gws.size by simp [size], hS]
 
 /-- The computed root against the key root, lane by lane (`setup.rs:255-257`). -/
-theorem rootEqual {computed root : DigestVar} {gcomputed groot : Array Gl} (hc : P → IsDigest c n computed gcomputed)
+theorem rootEqual {computed root : DigestVar} {gcomputed groot : Array Word} (hc : P → IsDigest c n computed gcomputed)
     (hr : P → IsDigest c n root groot) :
     Sim c n P (forIn (List.finRange 4) PUnit.unit fun lane _ => do
         Build.assertEqual (computed lane) (root lane)
@@ -782,7 +782,7 @@ theorem rootEqual {computed root : DigestVar} {gcomputed groot : Array Gl} (hc :
 
 /-- The two groups of the leaf check (`setup.rs:285-298`): the key rows, then
 the run oracles from offset `|w₀|`. -/
-theorem groups {values : Array Var} {gvalues : Array Gl} {weight w₀ w₁ : Array ExtVar} {gweight : ℕ → Ext}
+theorem groups {values : Array Var} {gvalues : Array Word} {weight w₀ w₁ : Array ExtVar} {gweight : ℕ → Ext}
     {gw₀ gw₁ : Array Ext} (hv : P → IsWords c n values gvalues)
     (hweight : P → IsExts c n weight ((Array.range (2 ^ foldVars)).map gweight)) (hw₀ : P → IsExts c n w₀ gw₀)
     (hw₁ : P → IsExts c n w₁ gw₁) :
@@ -834,11 +834,11 @@ end Sim
 leaf's path reaches the key root and the replay's leaf check returns the
 circuit's folded values. -/
 theorem setupCheck_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {root : DigestVar}
-    {groot : Array Gl} {vars index : ℕ} {bits : Array Var} {leaf : LeafView} {g : Replay.Leaf}
+    {groot : Array Word} {vars index : ℕ} {bits : Array Var} {leaf : LeafView} {g : Replay.Leaf}
     {w₀ w₁ alpha : Array ExtVar} {gw₀ gw₁ galpha : Array Ext} (hp : Permutes c.perm)
     (hroot : P → IsDigest c n root groot)
     (hbits : P → bits.size = vars + 1 - foldVars ∧
-      ∀ i < bits.size, IsWord c n bits[i]! (Gl.ofNat (index / 2 ^ i % 2)))
+      ∀ i < bits.size, IsWord c n bits[i]! (Word.ofNat (index / 2 ^ i % 2)))
     (hvalues : P → IsWords c n leaf.values g.values)
     (hpath : P → leaf.path.size = g.path.size ∧ leaf.path.size = vars + 1 - foldVars ∧
       ∀ k < leaf.path.size, IsDigest c n leaf.path[k]! g.path[k]!)
@@ -867,7 +867,7 @@ theorem setupCheck_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P 
   refine Sim.extOne.ensures.bind fun one m₆ l₆ => ?_
   refine (Sim.monomials (fun h => h.2.1) fun h => (halpha h.1.1.1).mono (L.trans l₆)).ensures.bind
     fun monomials m₇ l₇ => ?_
-  refine (Sim.const (Gl.ofNat (2 ^ foldVars)).inv).ensures.bind fun scale m₈ l₈ => ?_
+  refine (Sim.const (Word.ofNat (2 ^ foldVars)).inv).ensures.bind fun scale m₈ l₈ => ?_
   refine (Sim.coefficients (fun h => h.1.2.1.mono l₈) (fun h => h.2.1)
     fun h => h.1.1.1.2.mono (l₆.trans (l₇.trans l₈))).ensures.bind fun coefs m₉ l₉ => ?_
   refine (Sim.weights (twoAdicGenerator foldVars) fun h => h.2.1).ensures.bind fun weight m₁₀ l₁₀ => ?_
@@ -882,12 +882,12 @@ theorem setupCheck_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P 
 /-- The setup queries (`verifier.rs:246-249`): once each leaf's checks hold,
 the replay's fold over the queries returns the circuit's folded values. -/
 theorem queriedLoop [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {d : Duplex} {rootV : Array Var}
-    {groot : Array Gl} {vars : ℕ} {indexBits : Array (Array Var)} {queries : Array ℕ} {leaves : Array LeafView}
+    {groot : Array Word} {vars : ℕ} {indexBits : Array (Array Var)} {queries : Array ℕ} {leaves : Array LeafView}
     {gleaves : Array Replay.Leaf} {w₀ w₁ alpha : Array ExtVar} {gw₀ gw₁ galpha : Array Ext} (hp : Permutes c.perm)
     (hroot : P → IsWords c n rootV groot) (root : groot.size = 4)
     (hbits : P → indexBits.size = queries.size ∧ ∀ q < indexBits.size,
       (indexBits[q]!).size = vars + 1 - foldVars ∧
-      ∀ i < vars + 1 - foldVars, IsWord c n (indexBits[q]!)[i]! (Gl.ofNat (queries[q]! / 2 ^ i % 2)))
+      ∀ i < vars + 1 - foldVars, IsWord c n (indexBits[q]!)[i]! (Word.ofNat (queries[q]! / 2 ^ i % 2)))
     (hleaves : P → leaves.size = gleaves.size ∧ ∀ q (hq : q < leaves.size),
       IsWords c n leaves[q].values (gleaves[q]!).values ∧ leaves[q].path.size = (gleaves[q]!).path.size ∧
       leaves[q].path.size = vars + 1 - foldVars ∧
@@ -950,7 +950,7 @@ def IsHonestOut (c : Ctx F) (m : ℕ) (rel : Relation) (early : Replay.EarlyOut)
     IsExts c m v.runPoint (Replay.padded rel.setupVars early.openings.runPoint) ∧
     v.indexBits.size = out.queries.size ∧
     (∀ q < v.indexBits.size, (v.indexBits[q]!).size = rel.setupVars + 1 - foldVars ∧
-      ∀ i < rel.setupVars + 1 - foldVars, IsWord c m (v.indexBits[q]!)[i]! (Gl.ofNat (out.queries[q]! / 2 ^ i % 2))) ∧
+      ∀ i < rel.setupVars + 1 - foldVars, IsWord c m (v.indexBits[q]!)[i]! (Word.ofNat (out.queries[q]! / 2 ^ i % 2))) ∧
     IsExts c m v.queried out.queried
 
 /-- `IsHonestOut` survives later values. -/
@@ -1073,12 +1073,12 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
   refine Ensures.tbind (Sim.sampleBitsArray (rel.setupVars + 1 - foldVars) small hp rel.queries
     (t := { duplex := r₇, draws := (((t.draws.push (.ext gmu)).push (.ext ga₀)).push (.ext ga₁)).push (.ext ga₂) })
     fun h => h.2.2.2.2.2.2.2) fun indexBits d₁₅ m₁₅ l₁₅ => ?_
-  refine Ensures.exists_and (#[] : Array Gl) fun ws => ?_
+  refine Ensures.exists_and (#[] : Array Word) fun ws => ?_
   refine Ensures.exists_and t fun t₈ => ?_
   have digits : ∀ {m : ℕ} {q : ℕ}, q < ws.size → ∀ i < rel.setupVars + 1 - foldVars,
-      IsWord c m (indexBits[q]!)[i]! (Gl.ofNat ((ws[q]!).toNat / 2 ^ i % 2)) →
+      IsWord c m (indexBits[q]!)[i]! (Word.ofNat ((ws[q]!).toNat / 2 ^ i % 2)) →
       IsWord c m (indexBits[q]!)[i]!
-        (Gl.ofNat ((ws.map fun word => word.toNat % 2 ^ (rel.setupVars + 1 - foldVars))[q]! / 2 ^ i % 2)) :=
+        (Word.ofNat ((ws.map fun word => word.toNat % 2 ^ (rel.setupVars + 1 - foldVars))[q]! / 2 ^ i % 2)) :=
       fun hq i hi w => by
     rw [getElem!_pos (ws.map fun word => word.toNat % 2 ^ (rel.setupVars + 1 - foldVars)) _ (by simpa using hq),
       Array.getElem_map, ← getElem!_pos ws _ hq, digit_mod _ _ _ hi]

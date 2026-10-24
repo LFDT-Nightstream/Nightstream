@@ -15,7 +15,7 @@ field value into a `u64`; here they are `Build.const`, `Build.priv` and
 
 namespace CompressionLean.Circuit
 
-open CompressionLean.Replay (Gl Ext)
+open CompressionLean.Replay (Word Ext)
 
 /-- An extension value: the handles of its three coordinates (`Backend::E`). -/
 abbrev ExtVar := Fin 3 → Var
@@ -44,7 +44,7 @@ def lift (value : Var) : Build ExtVar := do
   pure ![value, zeroWord, zeroWord]
 
 /-- `ext_scale_constant` (`algebra.rs:50-53`). -/
-def extScaleConstant (a : ExtVar) (by_ : Gl) : Build ExtVar := do
+def extScaleConstant (a : ExtVar) (by_ : Word) : Build ExtVar := do
   let by_ ← Build.const by_
   Build.extScale a by_
 
@@ -106,13 +106,13 @@ def interpolate (values : Array ExtVar) (x : ExtVar) : Build ExtVar := do
   let mut total ← extZero
   for (value, i) in values.zipIdx do
     let mut numerator ← extOne
-    let mut denominator : Gl := 1
+    let mut denominator : Word := 1
     for j in [0:n] do
       if i ≠ j then
-        let node ← extConstant (Ext.ofGl (Gl.ofNat j))
+        let node ← extConstant (Ext.ofGl (Word.ofNat j))
         let factor ← Build.extSub x node
         numerator ← Build.extMul numerator factor
-        denominator := denominator * (Gl.ofNat i - Gl.ofNat j)
+        denominator := denominator * (Word.ofNat i - Word.ofNat j)
     let weight ← extScaleConstant numerator denominator.inv
     let term ← Build.extMul value weight
     total ← Build.extAdd total term
@@ -128,7 +128,7 @@ def horner (coefficients : Array ExtVar) (x : ExtVar) : Build ExtVar := do
 
 /-- `power_from_bits`: `generator^index` from the little-endian bits of
 `index` (`algebra.rs:225-236`). -/
-def powerFromBits (generator : Gl) (bits : Array Var) : Build Var := do
+def powerFromBits (generator : Word) (bits : Array Var) : Build Var := do
   let mut total ← Build.const 1
   let mut base := generator
   for bit in bits do

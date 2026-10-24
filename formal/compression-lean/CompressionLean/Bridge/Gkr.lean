@@ -30,7 +30,7 @@ variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
 
 theorem goldilocks_eq_modulus : goldilocks = NightstreamFPrime.Spec.goldilocksModulus := by decide
 
-theorem word_lt (w : Gl) : w.word.toNat < goldilocks := goldilocks_eq_modulus ▸ w.canonical
+theorem word_lt (w : Word) : w.word.toNat < goldilocks := goldilocks_eq_modulus ▸ w.canonical
 
 /-- A replay draw as the model's challenge: an `Ext` value in `K`, a pair in
 `K × K`, the setup query words as `Fin queries → Fin goldilocks`, a WHIR
@@ -83,19 +83,19 @@ theorem toK_interpolate (values : Array Ext) (x : Ext) :
   rw [interpolate, toK_sumRange]
   apply Finset.sum_congr rfl
   intro i _
-  rw [Ext.toK_mul, Ext.toK_scale, toK_prodRange, Gl.toF_inv, map_inv₀, toF_prodRangeGl, map_prod]
+  rw [Ext.toK_mul, Ext.toK_scale, toK_prodRange, Word.toF_inv, map_inv₀, toF_prodRangeGl, map_prod]
   congr 2
   · apply Finset.prod_congr rfl
     intro j _
     split_ifs
     · exact Ext.toK_one
-    · rw [Ext.toK_sub, Ext.toK_ofGl, Gl.toF_ofNat, map_natCast]
+    · rw [Ext.toK_sub, Ext.toK_ofGl, Word.toF_ofNat, map_natCast]
   · congr 1
     apply Finset.prod_congr rfl
     intro j _
     split_ifs
-    · rw [Gl.toF_one, map_one]
-    · rw [Gl.toF_sub, Gl.toF_ofNat, Gl.toF_ofNat, map_sub, map_natCast, map_natCast]
+    · rw [Word.toF_one, map_one]
+    · rw [Word.toF_sub, Word.toF_ofNat, Word.toF_ofNat, map_sub, map_natCast, map_natCast]
 
 theorem roundValues_size (d : ℕ) (m : Array Ext) (size : m.size = d + 1) (claim : Ext) :
     (Replay.roundValues m claim).size = d + 2 := by

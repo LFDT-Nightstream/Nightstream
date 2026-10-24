@@ -10,7 +10,7 @@ file also owns the transcript on words that names the seed (`absorbWords`,
 -/
 
 namespace CompressionLean.Circuit
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
@@ -18,20 +18,20 @@ variable {F : Type} [CommRing F]
 namespace FoldTranscript
 
 /-- One chunk added into the rate lanes, then a permutation (`fold.rs:39-46`). -/
-def absorbChunk (state chunk : Array Gl) : Array Gl :=
+def absorbChunk (state chunk : Array Word) : Array Word :=
   Replay.permute ((List.range chunk.size).foldl (fun s i => s.set! i (s[i]! + chunk[i]!)) state)
 
 /-- `absorb` on words. -/
-def absorbWords (state words : Array Gl) : Array Gl :=
+def absorbWords (state words : Array Word) : Array Word :=
   (List.range ((words.size + rate - 1) / rate)).foldl
     (fun s k => absorbChunk s (words.extract (rate * k) (rate * k + rate))) state
 
 /-- The seed that `handoff` returns: the first four lanes after the layer-1
 domain chunk (`fold.rs:68-72`). -/
-def handoffWords (state : Array Gl) : Array Gl :=
+def handoffWords (state : Array Word) : Array Word :=
   (absorbWords state (domainChunk compressDomain)).extract 0 4
 
-theorem absorbWords_size {gs : Array Gl} (gw : Array Gl) (h : gs.size = 16) : (absorbWords gs gw).size = 16 := by
+theorem absorbWords_size {gs : Array Word} (gw : Array Word) (h : gs.size = 16) : (absorbWords gs gw).size = 16 := by
   unfold absorbWords
   generalize List.range _ = ks
   induction ks generalizing gs with
@@ -47,7 +47,7 @@ variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
 attribute [local irreducible] Replay.permute
 
 /-- `absorb` (`fold.rs:39-46`). -/
-theorem foldAbsorb {t : FoldTranscript} {words : Array Var} {gs gw : Array Gl} (hp : Permutes c.perm)
+theorem foldAbsorb {t : FoldTranscript} {words : Array Var} {gs gw : Array Word} (hp : Permutes c.perm)
     (ht : P → IsWords c n t.state gs ∧ gs.size = 16) (hw : P → IsWords c n words gw) :
     Sim c n P (t.absorb words) (fun t' m => IsWords c m t'.state (FoldTranscript.absorbWords gs gw)) True := by
   unfold FoldTranscript.absorb
@@ -121,7 +121,7 @@ theorem foldNew : Sim c n P FoldTranscript.new (fun t m => IsWords c m t.state (
     (fun _ => by simp)
 
 /-- `absorb_constants` (`fold.rs:49-52`). -/
-theorem foldAbsorbConstants {t : FoldTranscript} {gs : Array Gl} (words : Array Gl) (hp : Permutes c.perm)
+theorem foldAbsorbConstants {t : FoldTranscript} {gs : Array Word} (words : Array Word) (hp : Permutes c.perm)
     (ht : P → IsWords c n t.state gs ∧ gs.size = 16) :
     Sim c n P (t.absorbConstants words) (fun t' m => IsWords c m t'.state (FoldTranscript.absorbWords gs words))
       True := by
@@ -132,7 +132,7 @@ theorem foldAbsorbConstants {t : FoldTranscript} {gs : Array Gl} (words : Array 
 
 omit [CharP F goldilocksModulus] in
 /-- `squeeze_digest` (`fold.rs:55-59`). -/
-theorem squeezeDigest {t : FoldTranscript} {gs : Array Gl} (hp : Permutes c.perm)
+theorem squeezeDigest {t : FoldTranscript} {gs : Array Word} (hp : Permutes c.perm)
     (ht : P → IsWords c n t.state gs ∧ gs.size = 16) :
     Sim c n P t.squeezeDigest
       (fun res m => (∀ lane : Fin 4, IsWord c m (res.1 lane) gs[lane]!) ∧ IsWords c m res.2.state (Replay.permute gs))
@@ -144,7 +144,7 @@ theorem squeezeDigest {t : FoldTranscript} {gs : Array Gl} (hp : Permutes c.perm
   exact ((ht h.1).1.get (by rw [(ht h.1).2]; omega)).mono le
 
 /-- `handoff` (`fold.rs:68-72`): the layer-1 seed. -/
-theorem handoff {t : FoldTranscript} {gs : Array Gl} (hp : Permutes c.perm)
+theorem handoff {t : FoldTranscript} {gs : Array Word} (hp : Permutes c.perm)
     (ht : P → IsWords c n t.state gs ∧ gs.size = 16) :
     Sim c n P t.handoff (fun r m => ∀ lane : Fin 4, IsWord c m (r lane) (FoldTranscript.handoffWords gs)[lane]!)
       True := by

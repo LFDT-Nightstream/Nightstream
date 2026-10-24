@@ -167,9 +167,9 @@ theorem toK_step (p : Array Ext) (segs : List (ℕ × Ext)) (stop : ℕ) :
   rw [Replay.step, stepValue, nextStart_map, ← toK_lessThan, stepLoop_toK, zero_add]
 
 /-- `r` as the model's point in `K = F[u]/(u² - 7)`. -/
-def quadPoint (r : List (Gl × Gl)) : List (Quad Fp) := r.map fun v => ⟨v.1.toF, v.2.toF⟩
+def quadPoint (r : List (Word × Word)) : List (Quad Fp) := r.map fun v => ⟨v.1.toF, v.2.toF⟩
 
-theorem toQ_chiFactor (r : Gl × Gl) (x : Ext) :
+theorem toQ_chiFactor (r : Word × Word) (x : Ext) :
     (chiFactor r (some x)).toQ (K := K) =
       (1 - algebraMap K (QuadX K) x.toK) + fromK (K := K) (⟨r.1.toF, r.2.toF⟩ : Quad Fp) *
         (2 * algebraMap K (QuadX K) x.toK - 1) := by
@@ -184,7 +184,7 @@ theorem toQ_chiFactor (r : Gl × Gl) (x : Ext) :
       QuadraticAlgebra.re_sub, QuadraticAlgebra.re_mul, fromK_re, fromK_im]
     ring
 
-theorem toQ_chiList : ∀ (r : List (Gl × Gl)) (xs : List Ext),
+theorem toQ_chiList : ∀ (r : List (Word × Word)) (xs : List Ext),
     (chiList r xs).toQ (K := K) =
       chiValue ((quadPoint r).map (fromK (K := K))) ((xs.map Ext.toK).map (algebraMap K (QuadX K)))
   | [], xs => by simp [chiList, chiValue, quadPoint]
@@ -197,7 +197,7 @@ theorem toQ_chiList : ∀ (r : List (Gl × Gl)) (xs : List Ext),
       rw [Kx.toQ_mul, Kx.toQ_oneMinus, Kx.toQ_ofK, toQ_chiList rs []]
       rfl
 
-theorem toQ_chi (r : Array (Gl × Gl)) (p : Array Ext) :
+theorem toQ_chi (r : Array (Word × Word)) (p : Array Ext) :
     (Replay.chi r p).toQ (K := K) =
       chiValue ((quadPoint r.toList).map (fromK (K := K))) ((pointK p).map (algebraMap K (QuadX K))) :=
   toQ_chiList _ _
@@ -219,7 +219,7 @@ theorem toK_evalA (m : Mixing) (j : ℕ) :
     (m.public block).toK (K := K) = m.lam.toK ^ (m.kappa + 2 + 2 * m.matrices + block) :=
   Ext.toK_pow _ _
 
-theorem toK_project (value : Gl × Gl) (weights : Ext × Ext) :
+theorem toK_project (value : Word × Word) (weights : Ext × Ext) :
     (project value weights).toK (K := K) = weights.1.toK * ι value.1.toF + weights.2.toK * ι value.2.toF := by
   simp [project, Ext.toK_add, Ext.toK_scale]
 

@@ -21,17 +21,17 @@ namespace CompressionLean.Layer1
 open Polynomial NightstreamFPrime.Spec
 
 /-- `a + b·x + c·x²` in `F_p[x]/(x³ - x - 1)`, as residues. -/
-abbrev Cubic := ℕ × ℕ × ℕ
+abbrev CubicResidues := ℕ × ℕ × ℕ
 
 /-- The product, with `x³ = x + 1` and `x⁴ = x² + x`. -/
-def cubicMul (p : ℕ) (u v : Cubic) : Cubic :=
+def cubicMul (p : ℕ) (u v : CubicResidues) : CubicResidues :=
   ((u.1 * v.1 + (u.2.1 * v.2.2 + u.2.2 * v.2.1)) % p,
     (u.1 * v.2.1 + u.2.1 * v.1 + (u.2.1 * v.2.2 + u.2.2 * v.2.1) + u.2.2 * v.2.2) % p,
     (u.1 * v.2.2 + u.2.1 * v.2.1 + u.2.2 * v.1 + u.2.2 * v.2.2) % p)
 
 /-- Power by repeated squaring, structural on `fuel` so the kernel reduces it.
 Fuel exhaustion returns the poison value `0`. -/
-def cubicPow (p : ℕ) : ℕ → Cubic → ℕ → Cubic
+def cubicPow (p : ℕ) : ℕ → CubicResidues → ℕ → CubicResidues
   | 0, _, _ => (0, 0, 0)
   | _, _, 0 => (1 % p, 0, 0)
   | fuel + 1, base, exponent =>
@@ -39,10 +39,10 @@ def cubicPow (p : ℕ) : ℕ → Cubic → ℕ → Cubic
       else cubicPow p fuel (cubicMul p base base) (exponent / 2)
 
 /-- The value of a residue triple at `a`. -/
-def cubicEval {p : ℕ} (a : ZMod p) (u : Cubic) : ZMod p :=
+def cubicEval {p : ℕ} (a : ZMod p) (u : CubicResidues) : ZMod p :=
   (u.1 : ZMod p) + (u.2.1 : ZMod p) * a + (u.2.2 : ZMod p) * a ^ 2
 
-theorem cubicEval_mul {p : ℕ} (a : ZMod p) (root : a ^ 3 - a - 1 = 0) (u v : Cubic) :
+theorem cubicEval_mul {p : ℕ} (a : ZMod p) (root : a ^ 3 - a - 1 = 0) (u v : CubicResidues) :
     cubicEval a (cubicMul p u v) = cubicEval a u * cubicEval a v := by
   obtain ⟨u0, u1, u2⟩ := u
   obtain ⟨v0, v1, v2⟩ := v
@@ -51,7 +51,7 @@ theorem cubicEval_mul {p : ℕ} (a : ZMod p) (root : a ^ 3 - a - 1 = 0) (u v : C
   linear_combination (-((u1 : ZMod p) * v2 + (u2 : ZMod p) * v1 + (u2 : ZMod p) * v2 * a)) * root
 
 theorem cubicPow_eval {p : ℕ} (a : ZMod p) (root : a ^ 3 - a - 1 = 0) (fuel : ℕ) :
-    ∀ (base : Cubic) (exponent : ℕ), exponent < 2 ^ fuel →
+    ∀ (base : CubicResidues) (exponent : ℕ), exponent < 2 ^ fuel →
       cubicEval a (cubicPow p (fuel + 1) base exponent) = cubicEval a base ^ exponent := by
   induction fuel with
   | zero =>

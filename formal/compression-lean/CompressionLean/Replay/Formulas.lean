@@ -32,7 +32,7 @@ def sumRange (n : Nat) (f : Nat → Ext) : Ext := (List.range n).foldl (fun tota
 def prodRange (n : Nat) (f : Nat → Ext) : Ext := (List.range n).foldl (fun total i => total * f i) 1
 
 /-- `Π_{i < n} f i` in the base field. -/
-def prodRangeGl (n : Nat) (f : Nat → Gl) : Gl := (List.range n).foldl (fun total i => total * f i) 1
+def prodRangeGl (n : Nat) (f : Nat → Word) : Word := (List.range n).foldl (fun total i => total * f i) 1
 
 /-- `Σ_{i < n} f i` in `K ⊗ Ext`. -/
 def sumKx (n : Nat) (f : Nat → Kx) : Kx := (List.range n).foldl (fun total i => total.add (f i)) Kx.zero
@@ -68,8 +68,8 @@ def dot (x y : Array Ext) : Ext := sumRange (min x.size y.size) fun i => x[i]! *
 /-- The polynomial through `(i, values[i])` at `x` (`interpolate`). -/
 def interpolate (values : Array Ext) (x : Ext) : Ext :=
   sumRange values.size fun i =>
-    let numerator := prodRange values.size fun j => if i = j then 1 else x - Ext.ofGl (Gl.ofNat j)
-    let denominator := prodRangeGl values.size fun j => if i = j then 1 else Gl.ofNat i - Gl.ofNat j
+    let numerator := prodRange values.size fun j => if i = j then 1 else x - Ext.ofGl (Word.ofNat j)
+    let denominator := prodRangeGl values.size fun j => if i = j then 1 else Word.ofNat i - Word.ofNat j
     values[i]! * numerator.scale denominator.inv
 
 /-- `Σ_i c_i·x^i` by Horner (`horner`). -/
@@ -77,7 +77,7 @@ def horner (coefficients : Array Ext) (x : Ext) : Ext :=
   coefficients.foldr (fun c total => total * x + c) 0
 
 /-- `generator^index` from the low `bits` bits of `index` (`power_from_bits`). -/
-def powerFromBits (generator : Gl) (index : Nat) : Nat → Gl
+def powerFromBits (generator : Word) (index : Nat) : Nat → Word
   | 0 => 1
   | bits + 1 => (if index % 2 = 1 then generator else 1) * powerFromBits (generator * generator) (index / 2) bits
 
@@ -126,32 +126,32 @@ def identityValue (point : Array Ext) : Ext :=
 
 /-- The factor of `χ_r` at coordinate `r`: `(1 - x) + r·(2x - 1)` at a point
 coordinate `x`, `1 - r` past the point. -/
-def chiFactor (r : Gl × Gl) : Option Ext → Kx
+def chiFactor (r : Word × Word) : Option Ext → Kx
   | some x => let scaled := (Kx.ofK r).scale (x + x - 1); { scaled with re := scaled.re + oneMinus x }
   | none => (Kx.ofK r).oneMinus
 
 /-- One factor per coordinate of `r` (the model's `chiValue`). -/
-def chiList : List (Gl × Gl) → List Ext → Kx
+def chiList : List (Word × Word) → List Ext → Kx
   | [], _ => Kx.one
   | r :: rs, x :: xs => Kx.mul (chiFactor r (some x)) (chiList rs xs)
   | r :: rs, [] => Kx.mul (chiFactor r none) (chiList rs [])
 
 /-- `χ_r` at an `Ext` point of the low bits (`chi`). -/
-def chi (r : Array (Gl × Gl)) (point : Array Ext) : Kx := chiList r.toList point.toList
+def chi (r : Array (Word × Word)) (point : Array Ext) : Kx := chiList r.toList point.toList
 
 /-- The head `H0` by distance `d` from the top lane (the model's `headFrom`). -/
-def headFrom (tau : Array Ext) (length : Nat) (ratio ratioPower : Gl) : Nat → Ext
+def headFrom (tau : Array Ext) (length : Nat) (ratio ratioPower : Word) : Nat → Ext
   | 0 => tau[D - 1]!
   | d + 1 =>
       let value := tau[D - 2 - d]! + (headFrom tau length ratio ratioPower d).scale ratio
       if D - 2 - d + length < D then value - tau[D - 2 - d + length]!.scale ratioPower else value
 
 /-- `Σ_{i < n} τ_i·ratio^i`. -/
-def prefixSum (tau : Array Ext) (ratio : Gl) (n : Nat) : Ext := sumRange n fun i => tau[i]!.scale (ratio.pow i)
+def prefixSum (tau : Array Ext) (ratio : Word) (n : Nat) : Ext := sumRange n fun i => tau[i]!.scale (ratio.pow i)
 
 /-- The lane split `[H0, H1]` of a run class (`lane_split`, the model's
 `headValue`, `tailValue`). -/
-def laneSplit (tau : Array Ext) (length : Nat) (ratio : Gl) : Array Ext × Array Ext :=
+def laneSplit (tau : Array Ext) (length : Nat) (ratio : Word) : Array Ext × Array Ext :=
   ((Array.range D).map fun lane => headFrom tau length ratio (ratio.pow length) (D - 1 - lane),
     (Array.range D).map fun lane =>
       if lane + length ≥ D + 1 then (prefixSum tau ratio (lane + length - D)).scale (ratio.pow (D - lane)) else 0)
@@ -170,7 +170,7 @@ def divStep (blocks blockBits t rem below bit : Nat) : Option (Nat × Nat × Nat
 
 /-- The factor of a digit: `r_t` or `1 - r_t`, and below the block bits `s_t`
 or `1 - s_t` by the quotient bit (the model's `divFactor`). -/
-def divFactor (r : Array (Gl × Gl)) (sBlock : Array Ext) (t bit q : Nat) : Kx :=
+def divFactor (r : Array (Word × Word)) (sBlock : Array Ext) (t bit q : Nat) : Kx :=
   let factor := if bit = 1 then Kx.ofK r[t]! else (Kx.ofK r[t]!).oneMinus
   if t < sBlock.size then factor.scale (if q = 1 then sBlock[t]! else oneMinus sBlock[t]!) else factor
 
@@ -182,7 +182,7 @@ def contribution (step : Option (Nat × Nat × Nat)) (rem' below' : Nat) (factor
 
 /-- The states `[remainder][below]` after the top `k` digits of `cb` (the
 model's `evalKStates`); an absent state is zero. -/
-def evalKStates (r : Array (Gl × Gl)) (sBlock : Array Ext) (blocks cb : Nat) : Nat → Array (Array Kx)
+def evalKStates (r : Array (Word × Word)) (sBlock : Array Ext) (blocks cb : Nat) : Nat → Array (Array Kx)
   | 0 => (Array.range D).map fun rem => (Array.range 2).map fun below =>
       if rem = 0 ∧ below = 0 then Kx.one else Kx.zero
   | k + 1 =>
@@ -194,7 +194,7 @@ def evalKStates (r : Array (Gl × Gl)) (sBlock : Array Ext) (blocks cb : Nat) : 
 
 /-- `Σ_{b<blocks} eq(s_block, b)·Σ_{l<D} τ_l·χ_r(D·b + l)` by long division of
 the coordinate by `D`, high bit first (`eval_k`, the model's `evalKValue`). -/
-def evalK (r : Array (Gl × Gl)) (sBlock : Array Ext) (tau : Array Ext) (blocks : Nat) : Kx :=
+def evalK (r : Array (Word × Word)) (sBlock : Array Ext) (tau : Array Ext) (blocks : Nat) : Kx :=
   let cb := Nat.log2 (D * 2 ^ sBlock.size).nextPowerOfTwo
   let states := evalKStates r sBlock blocks cb cb
   let total := sumKx D fun rem => ((states[rem]!)[1]!).scale tau[rem]!
@@ -219,7 +219,7 @@ def «public» (m : Mixing) (block : Nat) : Ext := m.lam.pow (m.kappa + 2 + 2 * 
 end Mixing
 
 /-- `weights.1·Re + weights.2·Im` of a `K` value (`project`). -/
-def project (value : Gl × Gl) (weights : Ext × Ext) : Ext :=
+def project (value : Word × Word) (weights : Ext × Ext) : Ext :=
   weights.1.scale value.1 + weights.2.scale value.2
 
 /-- `Ȳ = Σ_rows λ^row·y_row` as a ring element (`targets`). -/
@@ -238,8 +238,8 @@ def liftedTarget (target quotient : Array Ext) (zeta : Ext) : Ext :=
   horner target zeta + horner quotient zeta * phi
 
 /-- `bar(p, l)` from the F′ closed form: rows are output coefficients. -/
-def bar (p l : Nat) : Gl :=
-  if h : p < ringDegree ∧ l < ringDegree then Gl.ofNat (nativeBarEntry ⟨p, h.1⟩ ⟨l, h.2⟩).val else 0
+def bar (p l : Nat) : Word :=
+  if h : p < ringDegree ∧ l < ringDegree then Word.ofNat (nativeBarEntry ⟨p, h.1⟩ ⟨l, h.2⟩).val else 0
 
 /-- `τ_l = Σ_p bar(p, l)·ζ^p` (`tau`, the model's `laneWeight`). -/
 def tau (zeta : Ext) : Array Ext :=

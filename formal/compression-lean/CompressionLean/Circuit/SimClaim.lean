@@ -22,7 +22,7 @@ statement as the bridge reads it.
 
 namespace CompressionLean.Circuit
 
-open CompressionLean.Replay (Gl D)
+open CompressionLean.Replay (Word D)
 open CompressionLean.Circuit.Terminal (ClaimVars ClaimHolds HoldsValues pairHandles)
 open NightstreamFPrime.Circuit (Env Expr)
 open Fin.CommRing
@@ -33,14 +33,14 @@ def Terminal.ClaimVars.view (claim : ClaimVars) : ClaimView :=
     evalK := claim.evalK, evalA := claim.evalA }
 
 /-- The statement of a claim view: each handle reads as its word under `w`. -/
-def ClaimView.decode (w : Var → Gl) (v : ClaimView) : Replay.Statement :=
+def ClaimView.decode (w : Var → Word) (v : ClaimView) : Replay.Statement :=
   { commitment := v.commitment.map (·.map w), publicInput := v.publicInput.map (·.map w),
     point := v.point.map (Prod.map w w), evalK := v.evalK.map (Prod.map w w),
     evalA := v.evalA.map (·.map (Prod.map w w)) }
 
 section Decode
 
-variable {F : Type} [CommRing F] {c : Ctx F} {w : Var → Gl} {m : ℕ}
+variable {F : Type} [CommRing F] {c : Ctx F} {w : Var → Word} {m : ℕ}
 
 private theorem isKs_map (hw : Decodes c w) {xs : Array KVar} (h : ∀ p ∈ xs, p.1 < m ∧ p.2 < m) :
     IsKs c m xs (xs.map (Prod.map w w)) := by
@@ -73,9 +73,9 @@ end Decode
 
 section Holds
 
-variable {c : Ctx NightstreamFPrime.Spec.F} {w : Var → Gl} {m : ℕ} {env : Env}
+variable {c : Ctx NightstreamFPrime.Spec.F} {w : Var → Word} {m : ℕ} {env : Env}
 
-private theorem toF_word (g : Gl) : g.toF = ((word g : NightstreamFPrime.Spec.F).val : Bridge.Fp) := by
+private theorem toF_word (g : Word) : g.toF = ((word g : NightstreamFPrime.Spec.F).val : Bridge.Fp) := by
   rw [word, Fin.val_natCast, Nat.mod_eq_of_lt (show g.toNat < _ from g.canonical)]
   rfl
 
@@ -181,7 +181,7 @@ theorem claimHolds_words_lt {claim : ClaimVars} (holds : ClaimHolds c m claim en
       List.mem_flatMap.mpr ⟨(a, b), Array.mem_toList_iff.mpr hp, by rcases e with rfl | rfl <;> simp⟩⟩)
 
 /-- With the production sizes, the decoded statement fits the relation. -/
-theorem fits_decode {claim : ClaimVars} (w : Var → Gl) {rel : Replay.Relation} (holds : ClaimHolds c m claim env)
+theorem fits_decode {claim : ClaimVars} (w : Var → Word) {rel : Replay.Relation} (holds : ClaimHolds c m claim env)
     (shaped : claim.Shaped) (kappa : rel.kappa = 22) (blocks : rel.publicBlocks = 5) (point : rel.pointVariables = 28)
     (matrices : rel.matrices = 4) : (claim.view.decode w).fits rel = true := by
   obtain ⟨scom, spub, spt, sk, sa⟩ := claim_sizes holds shaped
@@ -202,7 +202,7 @@ private theorem get_map_map {α β : Type} [Inhabited β] (f : α → β) (rows 
   | none => exact getElem!_neg _ _ (Nat.not_lt_zero j)
   | some r => simp [get_map]
 
-private theorem toF_default : (default : Gl).toF = 0 := Replay.Gl.toF_zero
+private theorem toF_default : (default : Word).toF = 0 := Replay.Word.toF_zero
 
 private theorem row_toF {rows : Array (Array Var)} (shaped : ∀ row ∈ rows, row.size = D) (ρ l : ℕ) :
     (((rows.map (·.map w))[ρ]!)[l]!).toF =

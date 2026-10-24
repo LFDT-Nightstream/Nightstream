@@ -26,7 +26,7 @@ Owns the simulation of the layer-1 verifier's early stage (`earlyStage` of
 namespace CompressionLean.Circuit
 
 open CompressionLean.Lib
-open CompressionLean.Replay (Gl Ext)
+open CompressionLean.Replay (Word Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)
 open Polynomial
 
@@ -115,7 +115,7 @@ private theorem step_eq (gpoint : Array Ext) (starts : Array ℕ) (gvalues : Arr
     add_zero, Finset.range_eq_Ico]
 
 /-- `χ_r` (`mle.rs:84-107`) is the product of its factors. -/
-private theorem toQ_chiList : ∀ (l : List (Gl × Gl)) (xs : List Ext),
+private theorem toQ_chiList : ∀ (l : List (Word × Word)) (xs : List Ext),
     (Replay.chiList l xs).toQ (K := Final.Cubic) = ∏ t ∈ Finset.range l.length, (Replay.chiFactor l[t]! xs[t]?).toQ
   | [], _ => by simp [Replay.chiList]
   | r :: rs, [] => by
@@ -261,7 +261,7 @@ theorem identity {point : Array ExtVar} {gpoint : Array Ext} (hp : P → IsExts 
 
 /-- `chi`: `Π_{t<n} eq(r_t, point_t) · Π_{t≥n} (1 - r_t)` in `K ⊗ Ext`
 (`mle.rs:84-107`). -/
-theorem chi {r : Array KVar} {gr : Array (Gl × Gl)} {point : Array ExtVar} {gpoint : Array Ext}
+theorem chi {r : Array KVar} {gr : Array (Word × Word)} {point : Array ExtVar} {gpoint : Array Ext}
     (hr : P → r.size = gr.size ∧ ∀ i < r.size, IsWord c n r[i]!.1 gr[i]!.1 ∧ IsWord c n r[i]!.2 gr[i]!.2)
     (hp : P → IsExts c n point gpoint) :
     Sim c n P (Mle.chi r point) (fun res m => IsKx c m res (Replay.chi gr gpoint)) True := by
@@ -345,12 +345,12 @@ private theorem ext_not_isZero {a : Ext} (ne : a ≠ 0) : (!a.isZero) = true := 
   · exact absurd (Replay.Ext.eq_of_beq h) ne
 
 /-- Term `t` of `table_sum`: `m_t/(β - (t - H))` (`norm.rs:36-49`). -/
-private def tableTerm (bound : ℕ) (counts : Array Gl) (beta : Ext) (slot : ℕ) : Ext :=
-  (beta - Ext.ofGl (Gl.ofNat slot - Gl.ofNat bound)).inv.scale counts[slot]!
+private def tableTerm (bound : ℕ) (counts : Array Word) (beta : Ext) (slot : ℕ) : Ext :=
+  (beta - Ext.ofGl (Word.ofNat slot - Word.ofNat bound)).inv.scale counts[slot]!
 
 /-- `table_sum` (`norm.rs:36-49`) accepts when no slot is a pole. -/
-private theorem tableSum_ok {bound : ℕ} {counts : Array Gl} {beta : Ext}
-    (poles : ∀ s < counts.size, beta - Ext.ofGl (Gl.ofNat s - Gl.ofNat bound) ≠ 0) :
+private theorem tableSum_ok {bound : ℕ} {counts : Array Word} {beta : Ext}
+    (poles : ∀ s < counts.size, beta - Ext.ofGl (Word.ofNat s - Word.ofNat bound) ≠ 0) :
     Replay.tableSum bound counts beta = .ok (Replay.sumRange counts.size (tableTerm bound counts beta)) := by
   unfold Replay.tableSum
   suffices h : ∀ k ≤ counts.size, (List.range k).foldlM (Replay.tableSumStep bound counts beta) 0 =
@@ -364,7 +364,7 @@ private theorem tableSum_ok {bound : ℕ} {counts : Array Gl} {beta : Ext}
 
 /-- `check_early` (`matrix.rs:261-317`) accepts when its pair checks pass and
 its leaf claims hold. -/
-private theorem checkEarly_ok {layout : Replay.Layout} {r : Array (Gl × Gl)} {ch : Replay.EarlyChallenges}
+private theorem checkEarly_ok {layout : Replay.Layout} {r : Array (Word × Word)} {ch : Replay.EarlyChallenges}
     {claims : Replay.GkrClaims} {v : Replay.EarlyValues}
     (rows : Replay.pairCheck claims.roots[1]! claims.roots[2]! "row lookup" = .ok ())
     (slots : Replay.pairCheck claims.roots[3]! claims.roots[4]! "slot scatter" = .ok ())
@@ -660,7 +660,7 @@ theorem checkPair_ensures {x y : TreeClaimView} {gx gy : Ext × Ext} (name : Str
 
 /-- `table_sum` (`norm.rs:36-49`): once the inverse checks hold, no slot is a
 pole, and the sum is the replay's. -/
-private theorem tableSum_ensures {counts : Array Var} {gcounts : Array Gl} {beta : ExtVar} {gbeta : Ext}
+private theorem tableSum_ensures {counts : Array Var} {gcounts : Array Word} {beta : ExtVar} {gbeta : Ext}
     (bound : ℕ) (hc : P → IsWords c n counts gcounts) (hb : P → IsExt c n beta gbeta) :
     Ensures c n P (tableSum counts bound beta) (fun r m =>
       Replay.tableSum bound gcounts gbeta = .ok (Replay.sumRange gcounts.size (tableTerm bound gcounts gbeta)) ∧
@@ -669,14 +669,14 @@ private theorem tableSum_ensures {counts : Array Var} {gcounts : Array Gl} {beta
   refine Ensures.bind Sim.extZero.ensures fun total m₁ l₁ => ?_
   rw [← Array.forIn_toList]
   refine Ensures.bind ((Ensures.loop (P := P ∧ (IsExt c m₁ total 0 ∧ True))
-    (fun k acc m => (∀ s < k, gbeta - Ext.ofGl (Gl.ofNat s - Gl.ofNat bound) ≠ 0) ∧
+    (fun k acc m => (∀ s < k, gbeta - Ext.ofGl (Word.ofNat s - Word.ofNat bound) ≠ 0) ∧
       IsExt c m acc (Replay.sumRange k (tableTerm bound gcounts gbeta)))
     fun k hk acc m lm => ?_).pre fun h => ⟨h, fun s hs => absurd hs (by omega), h.2.1⟩) fun r m _ =>
       Ensures.pure fun h => ?_
   · have hk' : k < counts.size := by simpa using hk
     rw [show counts.zipIdx.toList[k] = (counts[k]!, k) by simp [getElem!_pos, hk']]
     dsimp only
-    refine Ensures.bind (Sim.extConstant (Ext.ofGl (Gl.ofNat k - Gl.ofNat bound))).ensures fun value m₂ l₂ => ?_
+    refine Ensures.bind (Sim.extConstant (Ext.ofGl (Word.ofNat k - Word.ofNat bound))).ensures fun value m₂ l₂ => ?_
     refine Ensures.bind (Sim.extSub (fun h => (hb h.1.1.1).mono (l₁.trans (lm.trans l₂))) fun h => h.2.1).ensures
       fun den m₃ l₃ => ?_
     refine Ensures.bind (Ensures.extInv fun h => h.2.1) fun inv m₄ l₄ => ?_
@@ -698,7 +698,7 @@ omit [CharP F goldilocksModulus] in
 /-- `forM` over a list in a transcript (`verifier.rs:318-331`): entry `x`
 absorbs the words `f g` of its replay value `g`. -/
 private theorem forMList {α β : Type} [Inhabited β] {body : α → Transcript PUnit} {R : ℕ → α → β → Prop}
-    (f : β → List Gl) (mono : ∀ m m' x g, R m x g → m ≤ m' → R m' x g)
+    (f : β → List Word) (mono : ∀ m m' x g, R m x g → m ≤ m' → R m' x g)
     (hb : ∀ {n : ℕ} {P : Prop} {d : Duplex} {r : Replay.Duplex} x g, (P → IsDuplex c n d r) → (P → R n x g) →
       Sim c n P ((body x).run d) (fun res m => IsDuplex c m res.2 ((f g).foldl Replay.Duplex.observe r)) True) :
     ∀ (l : List α) (gl : List β) {n : ℕ} {P : Prop} {d : Duplex} {r : Replay.Duplex}, (P → IsDuplex c n d r) →
@@ -810,9 +810,9 @@ private theorem matrixStep_sim {layout : Replay.Layout} {point : Array ExtVar} {
     (hp : P → IsExts c n point gpoint) :
     Sim c n P (matrixStep layout point) (fun r m => IsExt c m r (Replay.matrixStep layout gpoint)) True := by
   unfold matrixStep
-  refine (Sim.rangeMapM layout.matrices (fun j a m => IsExt c m a (Ext.ofGl (Gl.ofNat j)))
+  refine (Sim.rangeMapM layout.matrices (fun j a m => IsExt c m a (Ext.ofGl (Word.ofNat j)))
     (fun _ _ _ _ h le => h.mono le) fun j _ m _ => Sim.extConstant _).bind₀ fun values m₁ l₁ => ?_
-  refine (Sim.step (gvalues := (Array.range layout.matrices).map fun j => Ext.ofGl (Gl.ofNat j)) _
+  refine (Sim.step (gvalues := (Array.range layout.matrices).map fun j => Ext.ofGl (Word.ofNat j)) _
     (fun h => (hp h.1).mono l₁) (fun h => ⟨by simp [h.2.1], fun i hi => ?_⟩) fun h => ?_).post
     (fun _ _ _ e => ?_) fun _ => Iff.rfl
   · have hi' : i < layout.matrices := h.2.1 ▸ hi
@@ -825,7 +825,7 @@ private theorem matrixStep_sim {layout : Replay.Layout} {point : Array ExtVar} {
 
 /-- `Structure::check_early` (`matrix.rs:261-317`): once its checks hold, the
 replay's `checkEarly` accepts, and the openings are the replay's. -/
-private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr : Array (Gl × Gl)}
+private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr : Array (Word × Word)}
     {lb gamma sb mu : ExtVar} {ch : Replay.EarlyChallenges} {claims : Array TreeClaimView}
     {g : Replay.GkrClaims} {values : EarlyValuesView} {gv : Replay.EarlyValues}
     (hr : P → r.size = gr.size ∧ ∀ i < r.size, IsWord c n r[i]!.1 gr[i]!.1 ∧ IsWord c n r[i]!.2 gr[i]!.2)
@@ -908,7 +908,7 @@ private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr
     fun h => ⟨h.1.1.1.1, h.1.1.1.2.1, h.1.1.1.2.2.1, h.1.1.1.2.2.2.1, h.1.1.1.2.2.2.2, h.2⟩
   refine Ensures.bindSim (matrixStep_sim (layout := layout) fun h => (tree₃ h.1 L₁₃).2.2.1)
     fun matrix m₁₄ l₁₄ => ?_
-  refine Ensures.bindSim (Sim.extScaleConstant (Gl.ofNat (2 ^ layout.slotVariables)) fun h => h.2)
+  refine Ensures.bindSim (Sim.extScaleConstant (Word.ofNat (2 ^ layout.slotVariables)) fun h => h.2)
     fun tag m₁₅ l₁₅ => ?_
   refine Ensures.bindSim (Sim.extSub (fun h => (chs h.1.1.1 (L₁₃.trans (l₁₄.trans l₁₅))).2.2.1)
     fun h => (tree₃ h.1.1.1 (L₁₃.trans (l₁₄.trans l₁₅))).value
@@ -916,7 +916,7 @@ private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr
   refine Ensures.bindSim (Sim.extSub (fun h => h.2) fun h => h.1.2.mono l₁₆) fun slot m₁₇ l₁₇ => ?_
   have L₁₇ : n ≤ m₁₇ := L₁₃.trans (l₁₄.trans (l₁₅.trans (l₁₆.trans l₁₇)))
   set slotClaim := ch.scatter.1 - g.leafValue 3 2 -
-    (Replay.matrixStep layout g.leafPoint[3]!).scale (Gl.ofNat (2 ^ layout.slotVariables))
+    (Replay.matrixStep layout g.leafPoint[3]!).scale (Word.ofNat (2 ^ layout.slotVariables))
   refine Ensures.pre (P' := P ∧ Replay.pairCheck g.roots[1]! g.roots[2]! "row lookup" = .ok () ∧
     Replay.pairCheck g.roots[3]! g.roots[4]! "slot scatter" = .ok () ∧
     g.leafValue 1 0 = ch.lookup.1 - Replay.tuple ch.lookup.2 gv.row gv.eRe gv.eIm ∧
@@ -972,8 +972,8 @@ private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr
 
 /-- `observe_root` (`whir/mod.rs:221-232`): the separator words as constants,
 then the root. -/
-private theorem observeSeedRoot {d : Duplex} {r : Replay.Duplex} {seed : Array Gl} {root : DigestVar}
-    {groot : Array Gl} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) (hr : P → IsDigest c n root groot) :
+private theorem observeSeedRoot {d : Duplex} {r : Replay.Duplex} {seed : Array Word} {root : DigestVar}
+    {groot : Array Word} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) (hr : P → IsDigest c n root groot) :
     Sim c n P ((Circuit.observeRoot seed root).run d)
       (fun res m => IsDuplex c m res.2 (groot.foldl Replay.Duplex.observe (seed.foldl Replay.Duplex.observe r)))
       True := by
@@ -1015,7 +1015,7 @@ theorem IsEarlyOut.mono {m m' : ℕ} {v : EarlyOut} {o : Replay.EarlyOut} (h : I
 hold, the replay's early stage runs from the matching transcript, the
 circuit's outputs are the replay's, and the duplexes still match. -/
 theorem earlyStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay.Statement} {proof : ProofView}
-    {w : Var → Gl} {g : Replay.Proof} {d : Duplex} {t : Replay.Transcript} (hp : Permutes c.perm)
+    {w : Var → Word} {g : Replay.Proof} {d : Duplex} {t : Replay.Transcript} (hp : Permutes c.perm)
     (hd : P → IsDuplex c n d t.duplex)
     (hpoint : P → statement.point.size = st.point.size ∧ ∀ i < statement.point.size,
       IsWord c n statement.point[i]!.1 st.point[i]!.1 ∧ IsWord c n statement.point[i]!.2 st.point[i]!.2)

@@ -11,7 +11,7 @@ pins (`run_digest`, `crates/neo-spartan/src/shrink/mod.rs`; `Trace::digest`,
 namespace CompressionLean.Circuit.Digest
 
 open CompressionLean.Shrink NightstreamFPrime.Spec
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 
 instance : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
 
@@ -23,7 +23,7 @@ abbrev G := ZMod goldilocksModulus
 then every row's seven sides, each as its term count and, per term, the wire
 (`0 cell`, `1 block cell` or `2 index`) and the coefficient. The statement
 and cell values are not part of it. -/
-def runDigest (run : Run G) (rows : Array (GlueRow G)) : Array Gl :=
+def runDigest (run : Run G) (rows : Array (GlueRow G)) : Array Word :=
   let wireWords : Wire → Array ℕ
     | .glue cell => #[0, cell]
     | .block b cell => #[1, b, cell]
@@ -32,6 +32,6 @@ def runDigest (run : Run G) (rows : Array (GlueRow G)) : Array Gl :=
     side.foldl (fun out (w, c) => (out ++ wireWords w).push c.val) #[side.length]
   let words := rows.foldl (init := #[run.cells, run.blocks, run.publics.length, rows.size]) fun out row =>
     (List.finRange 7).foldl (fun out s => out ++ sideWords (row.side s)) out
-  Replay.hashLeaf (words.map Gl.ofNat)
+  Replay.hashLeaf (words.map Word.ofNat)
 
 end CompressionLean.Circuit.Digest

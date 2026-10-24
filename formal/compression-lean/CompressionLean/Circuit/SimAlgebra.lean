@@ -15,7 +15,7 @@ coordinates (`IsExt.congr`).
 
 namespace CompressionLean.Circuit
 
-open CompressionLean.Replay (Gl Ext)
+open CompressionLean.Replay (Word Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
@@ -55,7 +55,7 @@ theorem coords_sub (a b : Ext) : coords (F := F) (a - b) = coords a - coords b :
   funext k
   fin_cases k <;> exact word_sub _ _
 
-theorem coords_scale (a : Ext) (g : Gl) : coords (F := F) (a.scale g) = fun k => coords a k * word g := by
+theorem coords_scale (a : Ext) (g : Word) : coords (F := F) (a.scale g) = fun k => coords a k * word g := by
   funext k
   fin_cases k <;> exact word_mul _ _
 
@@ -67,7 +67,7 @@ theorem coords_scale (a : Ext) (g : Gl) : coords (F := F) (a.scale g) = fun k =>
   funext k
   fin_cases k <;> simp [coords]
 
-theorem coords_ofGl (g : Gl) : coords (F := F) (Ext.ofGl g) = ![word g, 0, 0] := by
+theorem coords_ofGl (g : Word) : coords (F := F) (Ext.ofGl g) = ![word g, 0, 0] := by
   funext k
   fin_cases k <;> simp [coords, Ext.coord, Ext.ofGl]
 
@@ -87,12 +87,12 @@ theorem ext_mul_one (a : Ext) : a * 1 = a :=
 theorem ext_one_mul (a : Ext) : 1 * a = a :=
   coords_injective (F := ZMod goldilocksModulus) (by rw [coords_mul, coords_one, extProduct_comm, extProduct_one])
 
-theorem gl_mul_assoc (a b d : Gl) : a * b * d = a * (b * d) :=
-  Gl.eq_of_toF (by simp only [Gl.toF_mul, mul_assoc])
+theorem gl_mul_assoc (a b d : Word) : a * b * d = a * (b * d) :=
+  Word.eq_of_toF (by simp only [Word.toF_mul, mul_assoc])
 
-theorem gl_mul_one (a : Gl) : a * 1 = a := Gl.eq_of_toF (by rw [Gl.toF_mul, Gl.toF_one, mul_one])
+theorem gl_mul_one (a : Word) : a * 1 = a := Word.eq_of_toF (by rw [Word.toF_mul, Word.toF_one, mul_one])
 
-theorem gl_one_mul (a : Gl) : 1 * a = a := Gl.eq_of_toF (by rw [Gl.toF_mul, Gl.toF_one, one_mul])
+theorem gl_one_mul (a : Word) : 1 * a = a := Word.eq_of_toF (by rw [Word.toF_mul, Word.toF_one, one_mul])
 
 theorem prodRange_zero (f : ℕ → Ext) : Replay.prodRange 0 f = 1 := rfl
 
@@ -102,7 +102,7 @@ theorem sumRange_succ (k : ℕ) (f : ℕ → Ext) : Replay.sumRange (k + 1) f = 
 theorem prodRange_succ (k : ℕ) (f : ℕ → Ext) : Replay.prodRange (k + 1) f = Replay.prodRange k f * f k := by
   simp only [Replay.prodRange, List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
 
-theorem prodRangeGl_succ (k : ℕ) (f : ℕ → Gl) : Replay.prodRangeGl (k + 1) f = Replay.prodRangeGl k f * f k := by
+theorem prodRangeGl_succ (k : ℕ) (f : ℕ → Word) : Replay.prodRangeGl (k + 1) f = Replay.prodRangeGl k f * f k := by
   simp only [Replay.prodRangeGl, List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
 
 theorem prodRange_succ' (k : ℕ) (f : ℕ → Ext) :
@@ -142,9 +142,9 @@ theorem eqAt_eq (point : Array Ext) (index : ℕ) :
       simp only [List.getElem!_cons_zero, List.getElem!_cons_succ, Nat.testBit_zero, Nat.testBit_succ,
         decide_eq_true_eq]
 
-theorem powerFromBits_succ (k : ℕ) (g : Gl) (index : ℕ) :
+theorem powerFromBits_succ (k : ℕ) (g : Word) (index : ℕ) :
     Replay.powerFromBits g index (k + 1) =
-      Replay.powerFromBits g index k * (if index / 2 ^ k % 2 = 1 then (fun g : Gl => g * g)^[k] g else 1) := by
+      Replay.powerFromBits g index k * (if index / 2 ^ k % 2 = 1 then (fun g : Word => g * g)^[k] g else 1) := by
   induction k generalizing g index with
   | zero =>
       show _ * 1 = 1 * _
@@ -255,7 +255,7 @@ theorem privateExt : Sim c n P Algebra.privateExt
 
 omit [CharP F goldilocksModulus] in
 /-- `lift`: a word as an extension value. -/
-theorem liftWord {a : Var} {g : Gl} (ha : P → IsWord c n a g) :
+theorem liftWord {a : Var} {g : Word} (ha : P → IsWord c n a g) :
     Sim c n P (Algebra.lift a) (fun r m => IsExt c m r (Ext.ofGl g)) True := by
   refine ((Sim.const 0).bind fun z m₁ l₁ => Sim.pure fun h => ?_).post (fun _ _ _ h => h) (fun _ => by simp)
   obtain ⟨hP, hz⟩ := h
@@ -297,7 +297,7 @@ theorem extSub {a b : ExtVar} {ga gb : Ext} (ha : P → IsExt c n a ga) (hb : P 
     · exact Sim.sub (fun h => (ha (hp h) 2).mono le) (fun h => (hb (hp h) 2).mono le)
 
 /-- `ext_scale` by a word handle. -/
-theorem extScale {a : ExtVar} {s : Var} {ga : Ext} {gs : Gl} (ha : P → IsExt c n a ga) (hs : P → IsWord c n s gs) :
+theorem extScale {a : ExtVar} {s : Var} {ga : Ext} {gs : Word} (ha : P → IsExt c n a ga) (hs : P → IsWord c n s gs) :
     Sim c n P (Build.extScale a s) (fun r m => IsExt c m r (ga.scale gs)) True :=
   coordinatewise fun k _ _ hp le => by
     fin_cases k
@@ -306,7 +306,7 @@ theorem extScale {a : ExtVar} {s : Var} {ga : Ext} {gs : Gl} (ha : P → IsExt c
     · exact Sim.mul (fun h => (ha (hp h) 2).mono le) (fun h => (hs (hp h)).mono le)
 
 /-- `ext_scale_constant`. -/
-theorem extScaleConstant {a : ExtVar} {ga : Ext} (g : Gl) (ha : P → IsExt c n a ga) :
+theorem extScaleConstant {a : ExtVar} {ga : Ext} (g : Word) (ha : P → IsExt c n a ga) :
     Sim c n P (Algebra.extScaleConstant a g) (fun r m => IsExt c m r (ga.scale g)) True :=
   ((Sim.const g).bind fun _ _ le => extScale (fun h => (ha h.1).mono le) fun h => h.2).post (fun _ _ _ h => h)
     (fun _ => by simp)
@@ -330,7 +330,7 @@ theorem eq1 {a b : ExtVar} {ga gb : Ext} (ha : P → IsExt c n a ga) (hb : P →
 
 /-- `select`: `whenZero + bit·(whenOne - whenZero)` is `whenOne` when the bit
 is one and `whenZero` when it is zero. -/
-theorem select {bit w₀ w₁ : Var} {b : Bool} {g₀ g₁ : Gl} (hb : P → IsWord c n bit (if b then 1 else 0))
+theorem select {bit w₀ w₁ : Var} {b : Bool} {g₀ g₁ : Word} (hb : P → IsWord c n bit (if b then 1 else 0))
     (h₀ : P → IsWord c n w₀ g₀) (h₁ : P → IsWord c n w₁ g₁) :
     Sim c n P (Build.select bit w₀ w₁) (fun r m => IsWord c m r (if b then g₁ else g₀)) True := by
   refine ((Sim.sub h₁ h₀).bind fun d m₁ l₁ => (Sim.mul (fun h => (hb h.1).mono l₁) fun h => h.2).bind
@@ -448,17 +448,17 @@ theorem horner {coefficients : Array ExtVar} {x : ExtVar} {gcoefficients : Array
     exact e
 
 /-- `power_from_bits`: bit `i` of `index` selects `generator^(2^i)`. -/
-theorem powerFromBits (generator : Gl) {bits : Array Var} (index : ℕ)
-    (hb : P → ∀ i < bits.size, IsWord c n bits[i]! (Gl.ofNat (index / 2 ^ i % 2))) :
+theorem powerFromBits (generator : Word) {bits : Array Var} (index : ℕ)
+    (hb : P → ∀ i < bits.size, IsWord c n bits[i]! (Word.ofNat (index / 2 ^ i % 2))) :
     Sim c n P (Algebra.powerFromBits generator bits)
       (fun r m => IsWord c m r (Replay.powerFromBits generator index bits.size)) True := by
   unfold Algebra.powerFromBits
   refine (Sim.const 1).bind₀ fun total m₁ l₁ => ?_
   refine ((loop₀ (P := P ∧ IsWord c m₁ total 1)
     (fun k acc m => IsWord c m acc.1 (Replay.powerFromBits generator index k) ∧
-      acc.2 = (fun g : Gl => g * g)^[k] generator)
+      acc.2 = (fun g : Word => g * g)^[k] generator)
     fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2, rfl⟩).bind₀ fun r m _ => Sim.pure fun h => h.2.1
-  have hbit : P → IsWord c n bits[k] (Gl.ofNat (index / 2 ^ k % 2)) := fun h => by
+  have hbit : P → IsWord c n bits[k] (Word.ofNat (index / 2 ^ k % 2)) := fun h => by
     have := hb h k hk
     rwa [getElem!_pos bits k hk] at this
   refine (Sim.const 1).bind₀ fun one m₂ l₂ =>
@@ -466,12 +466,12 @@ theorem powerFromBits (generator : Gl) {bits : Array Var} (index : ℕ)
     (Sim.add (fun h => h.1.2.mono l₃) fun h => h.2).bind₀ fun factor m₄ l₄ =>
     (Sim.mul (fun h => h.1.1.1.2.1.mono (l₂.trans (l₃.trans l₄))) fun h => h.2).bind₀ fun total' m₅ l₅ =>
     Sim.pure fun h => ⟨rfl, ?_, by rw [h.1.1.1.1.2.2, Function.iterate_succ_apply']; rfl⟩
-  have e : Replay.powerFromBits generator index k * (1 + Gl.ofNat (index / 2 ^ k % 2) * (acc.2 - 1)) =
+  have e : Replay.powerFromBits generator index k * (1 + Word.ofNat (index / 2 ^ k % 2) * (acc.2 - 1)) =
       Replay.powerFromBits generator index (k + 1) := by
-    have select : 1 + Gl.ofNat (index / 2 ^ k % 2) * (acc.2 - 1) = if index / 2 ^ k % 2 = 1 then acc.2 else 1 := by
-      apply Gl.eq_of_toF
+    have select : 1 + Word.ofNat (index / 2 ^ k % 2) * (acc.2 - 1) = if index / 2 ^ k % 2 = 1 then acc.2 else 1 := by
+      apply Word.eq_of_toF
       rcases Nat.mod_two_eq_zero_or_one (index / 2 ^ k) with hb | hb <;>
-        simp [hb, Gl.toF_add, Gl.toF_mul, Gl.toF_sub, Gl.toF_ofNat]
+        simp [hb, Word.toF_add, Word.toF_mul, Word.toF_sub, Word.toF_ofNat]
     rw [select, powerFromBits_succ, h.1.1.1.1.2.2]
   exact e ▸ h.2
 
@@ -484,8 +484,8 @@ theorem interpolate {values : Array ExtVar} {x : ExtVar} {gvalues : Array Ext} {
   refine extZero.bind₀ fun total m₁ l₁ => ?_
   refine ((loop₀ (P := P ∧ IsExt c m₁ total 0)
     (fun k acc m => IsExt c m acc (Replay.sumRange k fun i =>
-      gvalues[i]! * (Replay.prodRange gvalues.size fun j => if i = j then 1 else gx - Ext.ofGl (Gl.ofNat j)).scale
-        (Replay.prodRangeGl gvalues.size fun j => if i = j then 1 else Gl.ofNat i - Gl.ofNat j).inv))
+      gvalues[i]! * (Replay.prodRange gvalues.size fun j => if i = j then 1 else gx - Ext.ofGl (Word.ofNat j)).scale
+        (Replay.prodRangeGl gvalues.size fun j => if i = j then 1 else Word.ofNat i - Word.ofNat j).inv))
     fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun r m _ => Sim.pure fun h => ?_
   · have hk' : k < values.size := by simpa using hk
     rw [show values.zipIdx[k] = (values[k]!, k) by simp [getElem!_pos, hk']]
@@ -494,8 +494,8 @@ theorem interpolate {values : Array ExtVar} {x : ExtVar} {gvalues : Array Ext} {
     rw [Std.Legacy.Range.forIn_eq_forIn_range', ← List.forIn_toArray]
     refine ((loop₀
       (fun j acc' m' =>
-        IsExt c m' acc'.1 (Replay.prodRange j fun j => if k = j then 1 else gx - Ext.ofGl (Gl.ofNat j)) ∧
-        acc'.2 = Replay.prodRangeGl j fun j => if k = j then 1 else Gl.ofNat k - Gl.ofNat j)
+        IsExt c m' acc'.1 (Replay.prodRange j fun j => if k = j then 1 else gx - Ext.ofGl (Word.ofNat j)) ∧
+        acc'.2 = Replay.prodRangeGl j fun j => if k = j then 1 else Word.ofNat k - Word.ofNat j)
       fun j hj acc' m' lm' => ?_).pre fun h => ⟨h, h.2, rfl⟩).bind₀ fun r' m₃ l₃ => ?_
     · rw [show (List.range' 0 [0:values.size].size 1).toArray[j] = j by simp]
       split
@@ -611,7 +611,7 @@ theorem KxVar.one : Sim c n P Circuit.KxVar.one (fun r m => IsKx c m r Replay.Kx
 
 omit [CharP F goldilocksModulus] in
 /-- `Kx::from_k`. -/
-theorem KxVar.fromK {a : KVar} {g₁ g₂ : Gl} (h₁ : P → IsWord c n a.1 g₁) (h₂ : P → IsWord c n a.2 g₂) :
+theorem KxVar.fromK {a : KVar} {g₁ g₂ : Word} (h₁ : P → IsWord c n a.1 g₁) (h₂ : P → IsWord c n a.2 g₂) :
     Sim c n P (Circuit.KxVar.fromK a) (fun r m => IsKx c m r (Replay.Kx.ofK (g₁, g₂))) True :=
   (liftWord h₁).bind₀ fun _ _ l₁ => (liftWord fun h => (h₂ h.1).mono l₁).bind₀ fun _ _ l₂ =>
     Sim.pure fun h => ⟨h.1.2.mono l₂, h.2⟩

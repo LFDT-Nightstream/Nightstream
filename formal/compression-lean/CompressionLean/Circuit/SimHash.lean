@@ -18,7 +18,7 @@ Merkle paths.
 namespace CompressionLean.Circuit
 
 open CompressionLean.Lib
-open CompressionLean.Replay (Gl Ext)
+open CompressionLean.Replay (Word Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
@@ -26,12 +26,12 @@ variable {F : Type} [CommRing F]
 /-! ## Arrays -/
 
 /-- `hs` and `gs` have one size, and each handle is its word. -/
-def IsWords (c : Ctx F) (n : ℕ) (hs : Array Var) (gs : Array Gl) : Prop :=
+def IsWords (c : Ctx F) (n : ℕ) (hs : Array Var) (gs : Array Word) : Prop :=
   hs.size = gs.size ∧ ∀ i < hs.size, IsWord c n hs[i]! gs[i]!
 
 namespace IsWords
 
-variable {c : Ctx F} {n : ℕ} {hs : Array Var} {gs : Array Gl}
+variable {c : Ctx F} {n : ℕ} {hs : Array Var} {gs : Array Word}
 
 theorem mono (h : IsWords c n hs gs) {m : ℕ} (le : n ≤ m) : IsWords c m hs gs :=
   ⟨h.1, fun i hi => (h.2 i hi).mono le⟩
@@ -41,7 +41,7 @@ theorem get (h : IsWords c n hs gs) {i : ℕ} (hi : i < gs.size) : IsWord c n hs
 
 theorem empty : IsWords c n #[] #[] := ⟨rfl, fun _ h => absurd h (by simp)⟩
 
-theorem set (h : IsWords c n hs gs) {x : Var} {g : Gl} (hx : IsWord c n x g) (j : ℕ) :
+theorem set (h : IsWords c n hs gs) {x : Var} {g : Word} (hx : IsWord c n x g) (j : ℕ) :
     IsWords c n (hs.set! j x) (gs.set! j g) := by
   refine ⟨by simp [h.1], fun i hi => ?_⟩
   rw [Array.size_set!] at hi
@@ -50,7 +50,7 @@ theorem set (h : IsWords c n hs gs) {x : Var} {g : Gl} (hx : IsWord c n x g) (j 
   · exact hx
   · exact h.2 i hi
 
-theorem push (h : IsWords c n hs gs) {x : Var} {g : Gl} (hx : IsWord c n x g) :
+theorem push (h : IsWords c n hs gs) {x : Var} {g : Word} (hx : IsWord c n x g) :
     IsWords c n (hs.push x) (gs.push g) := by
   refine ⟨by simp [h.1], fun i hi => ?_⟩
   rw [Array.size_push] at hi
@@ -81,7 +81,7 @@ theorem extract (h : IsWords c n hs gs) (a b : ℕ) : IsWords c n (hs.extract a 
     Array.getElem_extract, ← getElem!_pos, ← getElem!_pos]
   exact h.2 _ (by omega)
 
-theorem replicate {z : Var} {g : Gl} (hz : IsWord c n z g) (k : ℕ) :
+theorem replicate {z : Var} {g : Word} (hz : IsWord c n z g) (k : ℕ) :
     IsWords c n (Array.replicate k z) (Array.replicate k g) := by
   refine ⟨by simp, fun i hi => ?_⟩
   rw [Array.size_replicate] at hi
@@ -89,7 +89,7 @@ theorem replicate {z : Var} {g : Gl} (hz : IsWord c n z g) (k : ℕ) :
     Array.getElem_replicate]
   exact hz
 
-theorem ofFn {k : ℕ} {f : Fin k → Var} {gs : Array Gl} (size : gs.size = k) (hf : ∀ i : Fin k, IsWord c n (f i) gs[i]!) :
+theorem ofFn {k : ℕ} {f : Fin k → Var} {gs : Array Word} (size : gs.size = k) (hf : ∀ i : Fin k, IsWord c n (f i) gs[i]!) :
     IsWords c n (Array.ofFn f) gs := by
   refine ⟨by simp [size], fun i hi => ?_⟩
   rw [Array.size_ofFn] at hi
@@ -97,7 +97,7 @@ theorem ofFn {k : ℕ} {f : Fin k → Var} {gs : Array Gl} (size : gs.size = k) 
   exact hf ⟨i, hi⟩
 
 /-- Overwrite lanes `lane i` for `i < k` with `f i` and `g i`. -/
-theorem setRange (h : IsWords c n hs gs) (k : ℕ) (lane : ℕ → ℕ) {f : ℕ → Var} {g : ℕ → Gl}
+theorem setRange (h : IsWords c n hs gs) (k : ℕ) (lane : ℕ → ℕ) {f : ℕ → Var} {g : ℕ → Word}
     (hf : ∀ i < k, IsWord c n (f i) (g i)) :
     IsWords c n ((List.range k).foldl (fun s i => s.set! (lane i) (f i)) hs)
       ((List.range k).foldl (fun s i => s.set! (lane i) (g i)) gs) := by
@@ -173,13 +173,13 @@ theorem IsDuplex.mono {c : Ctx F} {n m : ℕ} {d : Duplex} {r : Replay.Duplex} (
     IsDuplex c m d r :=
   ⟨h.state.mono le, h.input.mono le, h.output.mono le, h.width⟩
 
-theorem permute_size (s : Array Gl) : (Replay.permute s).size = 16 := rfl
+theorem permute_size (s : Array Word) : (Replay.permute s).size = 16 := rfl
 
 /- Unifying two terms that contain the permutation must never evaluate it. -/
 attribute [local irreducible] Replay.permute
 
 /-- The duplex after a permutation, from the replay's last state `t`. -/
-theorem IsDuplex.permuted {c : Ctx F} {m : ℕ} (t : Array Gl) (outs : Fin 16 → Var)
+theorem IsDuplex.permuted {c : Ctx F} {m : ℕ} (t : Array Word) (outs : Fin 16 → Var)
     (h : ∀ k : Fin 16, IsWord c m (outs k) (Replay.permute t)[k]!) :
     IsDuplex c m ({ state := Array.ofFn outs, input := #[], output := (Array.ofFn outs).extract 0 rate } : Duplex)
       ⟨Replay.permute t, #[], (Replay.permute t).extract 0 Replay.rate⟩ := by
@@ -229,8 +229,8 @@ theorem binary_sum (β : ℕ → ℕ) : ∀ k, (∀ i < k, β i ≤ 1) →
 
 /-- **A canonical decomposition is the binary one.** If `b` passes the 64-bit
 check for the word `g`, bit `i` is digit `i` of `g`. -/
-theorem bits_digits [CharP F goldilocksModulus] {g : Gl} {b : ℕ → F}
-    (h : Bits (word g : F) 64 b) : ∀ i < 64, b i = word (Gl.ofNat (g.toNat / 2 ^ i % 2)) := by
+theorem bits_digits [CharP F goldilocksModulus] {g : Word} {b : ℕ → F}
+    (h : Bits (word g : F) 64 b) : ∀ i < 64, b i = word (Word.ofNat (g.toNat / 2 ^ i % 2)) := by
   classical
   have one_ne : (1 : F) ≠ 0 := by
     intro e
@@ -317,24 +317,24 @@ theorem duplexing {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : 
     dsimp only
     rw [range_foldl d.input.size rate (fun i (s : Array Var) => s.set! i z)]
     generalize hs₂ : (List.range (rate - d.input.size)).foldl (fun s i => s.set! (d.input.size + i) z) s₁ = s₂
-    let t₂ := (List.range (rate - d.input.size)).foldl (fun s i => s.set! (d.input.size + i) (0 : Gl)) t₁
-    let t₃ := t₂.set! rate (t₂[rate]! + Gl.ofNat d.input.size)
+    let t₂ := (List.range (rate - d.input.size)).foldl (fun s i => s.set! (d.input.size + i) (0 : Word)) t₁
+    let t₃ := t₂.set! rate (t₂[rate]! + Word.ofNat d.input.size)
     have wt₂ : P → t₂.size = 16 := fun h => by simp only [t₂, size_setRange, wt₁ h]
     have ws₂ : P → IsWord c m₁ z 0 → IsWords c m₁ s₂ t₂ := fun h hz => by
       rw [← hs₂]
       exact ((ws₁ h).mono l₁).setRange _ (fun i => d.input.size + i) (f := fun _ => z) (g := fun _ => 0)
         fun _ _ => hz
-    refine Sim.tbind₀ (Sim.lift (Sim.const (Gl.ofNat d.input.size))) fun t e₂ m₂ l₂ => ?_
+    refine Sim.tbind₀ (Sim.lift (Sim.const (Word.ofNat d.input.size))) fun t e₂ m₂ l₂ => ?_
     dsimp only
     have add := Sim.add (c := c) (n := m₂) (P := (P ∧ IsWord c m₁ z 0 ∧ e₁ = d) ∧
-        IsWord c m₂ t (Gl.ofNat d.input.size) ∧ e₂ = e₁) (a := s₂[rate]!) (b := t) (ga := t₂[rate]!)
-      (gb := Gl.ofNat d.input.size) (fun h => ((ws₂ h.1.1 h.1.2.1).mono l₂).get (by rw [wt₂ h.1.1]; decide))
+        IsWord c m₂ t (Word.ofNat d.input.size) ∧ e₂ = e₁) (a := s₂[rate]!) (b := t) (ga := t₂[rate]!)
+      (gb := Word.ofNat d.input.size) (fun h => ((ws₂ h.1.1 h.1.2.1).mono l₂).get (by rw [wt₂ h.1.1]; decide))
       fun h => h.2.1
     refine Sim.tbind₀ (Sim.lift add) fun sum e₃ m₃ l₃ => ?_
     dsimp only
     have perm := Sim.permute (c := c) (n := m₃) (gs := t₃) (state := fun lane => (s₂.set! rate sum)[lane]!) hp
-      (P := ((P ∧ IsWord c m₁ z 0 ∧ e₁ = d) ∧ IsWord c m₂ t (Gl.ofNat d.input.size) ∧ e₂ = e₁) ∧
-        IsWord c m₃ sum (t₂[rate]! + Gl.ofNat d.input.size) ∧ e₃ = e₂)
+      (P := ((P ∧ IsWord c m₁ z 0 ∧ e₁ = d) ∧ IsWord c m₂ t (Word.ofNat d.input.size) ∧ e₂ = e₁) ∧
+        IsWord c m₃ sum (t₂[rate]! + Word.ofNat d.input.size) ∧ e₃ = e₂)
       fun h k => (((ws₂ h.1.1.1 h.1.1.2.1).mono (l₂.trans l₃)).set h.2.1 rate).get
         (by rw [Array.size_set!, wt₂ h.1.1.1]; exact k.isLt)
     refine Sim.tbind₀ (Sim.lift perm) fun outs e₄ m₄ l₄ => ?_
@@ -360,7 +360,7 @@ theorem duplexing {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : 
     exact IsDuplex.permuted t₁ outs h.2.1
 
 /-- `observe`: push the word, clear the output, and duplex at a full rate. -/
-theorem observe {d : Duplex} {r : Replay.Duplex} {v : Var} {g : Gl} (hp : Permutes c.perm)
+theorem observe {d : Duplex} {r : Replay.Duplex} {v : Var} {g : Word} (hp : Permutes c.perm)
     (hd : P → IsDuplex c n d r) (hv : P → IsWord c n v g) :
     Sim c n P ((Duplex.observe v).run d) (fun res m => IsDuplex c m res.2 (r.observe g)) True := by
   unfold Duplex.observe
@@ -386,7 +386,7 @@ theorem observe {d : Duplex} {r : Replay.Duplex} {v : Var} {g : Gl} (hp : Permut
 
 /-- `observe` of each word of a list, in order. -/
 theorem observeList (hp : Permutes c.perm) :
-    ∀ (l : List Var) (gl : List Gl) {n : ℕ} {P : Prop} {d : Duplex} {r : Replay.Duplex}, (P → IsDuplex c n d r) →
+    ∀ (l : List Var) (gl : List Word) {n : ℕ} {P : Prop} {d : Duplex} {r : Replay.Duplex}, (P → IsDuplex c n d r) →
       (P → l.length = gl.length ∧ ∀ i < l.length, IsWord c n l[i]! gl[i]!) →
       Sim c n P ((l.foldlM (fun _ v => Duplex.observe v) ()).run d)
         (fun res m => IsDuplex c m res.2 (gl.foldl Replay.Duplex.observe r)) True
@@ -406,7 +406,7 @@ theorem observeList (hp : Permutes c.perm) :
         simpa using ((hl h.1).2 (i + 1) (by simp; omega)).mono le⟩
 
 /-- `observe_slice`: the replay's `foldl observe`. -/
-theorem observeSlice {d : Duplex} {r : Replay.Duplex} {vs : Array Var} {gs : Array Gl} (hp : Permutes c.perm)
+theorem observeSlice {d : Duplex} {r : Replay.Duplex} {vs : Array Var} {gs : Array Word} (hp : Permutes c.perm)
     (hd : P → IsDuplex c n d r) (hv : P → IsWords c n vs gs) :
     Sim c n P ((Duplex.observeSlice vs).run d) (fun res m => IsDuplex c m res.2 (gs.foldl Replay.Duplex.observe r))
       True := by
@@ -479,7 +479,7 @@ decomposition's check holds, bit `i` is digit `i` of the sample. -/
 theorem sampleBits {d : Duplex} {r : Replay.Duplex} (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm)
     (hd : P → IsDuplex c n d r) :
     Ensures c n P ((Duplex.sampleBits bits).run d)
-      (fun res m => res.1.size = bits ∧ (∀ i < bits, IsWord c m res.1[i]! (Gl.ofNat (r.sample.1.toNat / 2 ^ i % 2))) ∧
+      (fun res m => res.1.size = bits ∧ (∀ i < bits, IsWord c m res.1[i]! (Word.ofNat (r.sample.1.toNat / 2 ^ i % 2))) ∧
         IsDuplex c m res.2 r.sample.2) := by
   unfold Duplex.sampleBits
   refine Ensures.tbind (sample hp hd).ensures fun w e m₁ _ => ?_

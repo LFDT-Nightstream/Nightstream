@@ -19,8 +19,8 @@ def rate : Nat := 12
 def width : Nat := 16
 
 /-- The width-16 Poseidon2 permutation on sixteen words. -/
-def permute (s : Array Gl) : Array Gl :=
-  let w (i : Nat) : Gl := s[i]!
+def permute (s : Array Word) : Array Word :=
+  let w (i : Nat) : Word := s[i]!
   let out := State64.permute64
     { x0 := (w 0).word, x1 := (w 1).word, x2 := (w 2).word, x3 := (w 3).word,
       x4 := (w 4).word, x5 := (w 5).word, x6 := (w 6).word, x7 := (w 7).word,
@@ -37,9 +37,9 @@ def permute (s : Array Gl) : Array Gl :=
 
 /-- The Plonky3 duplex challenger of `circuit/hash.rs` (`Duplex`). -/
 structure Duplex where
-  state : Array Gl
-  input : Array Gl
-  output : Array Gl
+  state : Array Word
+  input : Array Word
+  output : Array Word
 
 namespace Duplex
 
@@ -53,16 +53,16 @@ def duplexing (d : Duplex) : Duplex :=
   let state :=
     if absorbed > 0 then
       let zeroed := (List.range (rate - absorbed)).foldl (fun s i => s.set! (absorbed + i) 0) state
-      zeroed.set! rate (zeroed[rate]! + Gl.ofNat absorbed)
+      zeroed.set! rate (zeroed[rate]! + Word.ofNat absorbed)
     else state
   let state := permute state
   ⟨state, #[], state.extract 0 rate⟩
 
-def observe (d : Duplex) (value : Gl) : Duplex :=
+def observe (d : Duplex) (value : Word) : Duplex :=
   let d := { d with output := #[], input := d.input.push value }
   if d.input.size == rate then d.duplexing else d
 
-def sample (d : Duplex) : Gl × Duplex :=
+def sample (d : Duplex) : Word × Duplex :=
   let d := if !d.input.isEmpty || d.output.isEmpty then d.duplexing else d
   (d.output.back!, { d with output := d.output.pop })
 
@@ -74,8 +74,8 @@ end Duplex
 inductive Draw where
   | ext (value : Ext)
   | pair (first second : Ext)
-  | words (values : Array Gl)
-  | sample (word : Gl)
+  | words (values : Array Word)
+  | sample (word : Word)
 
 structure Transcript where
   duplex : Duplex
@@ -89,7 +89,7 @@ def ensure {m : Type → Type} [Monad m] [MonadExcept String m] (ok : Bool) (wha
   unless ok do throw what
 
 /-- Absorb `values` in order. -/
-def observeAll (values : Array Gl) : ReplayM Unit :=
+def observeAll (values : Array Word) : ReplayM Unit :=
   modify fun t => { t with duplex := values.foldl Duplex.observe t.duplex }
 
 /-- The basis coefficients of each value in order (`observe_ext`). -/
@@ -100,7 +100,7 @@ def observeExt (value : Ext) : ReplayM Unit := observeExts #[value]
 
 def flatPairs (pairs : Array (Ext × Ext)) : Array Ext := pairs.flatMap fun pair => #[pair.1, pair.2]
 
-def sampleWord : ReplayM Gl :=
+def sampleWord : ReplayM Word :=
   modifyGet fun t => let (word, duplex) := t.duplex.sample; (word, { t with duplex })
 
 def record (draw : Draw) : ReplayM Unit :=
@@ -126,13 +126,13 @@ def samplePair : ReplayM (Ext × Ext) := do
   pure (first, second)
 
 /-- `count` words, recorded as one draw (the setup queries). -/
-def sampleWords (count : Nat) : ReplayM (Array Gl) := do
+def sampleWords (count : Nat) : ReplayM (Array Word) := do
   let values ← (List.range count).foldlM (fun values _ => do pure (values.push (← sampleWord))) #[]
   record (.words values)
   pure values
 
 /-- The overwrite sponge of Plonky3's `PaddingFreeSponge` (`hash_leaf`). -/
-def hashLeaf (values : Array Gl) : Array Gl :=
+def hashLeaf (values : Array Word) : Array Word :=
   let chunks := (List.range ((values.size + rate - 1) / rate)).map fun c => values.extract (rate * c) (rate * c + rate)
   let state := chunks.foldl
     (fun state chunk => permute ((List.range chunk.size).foldl (fun s i => s.set! i chunk[i]!) state))
@@ -140,12 +140,12 @@ def hashLeaf (values : Array Gl) : Array Gl :=
   state.extract 0 4
 
 /-- `[left, right, 0…]`, permute, first four lanes (`compress`). -/
-def compress (left right : Array Gl) : Array Gl :=
+def compress (left right : Array Word) : Array Word :=
   (permute (left ++ right ++ Array.replicate (width - 8) 0)).extract 0 4
 
 /-- The root of `leaf` at `index` along `path`, bottom first: bit zero puts
 the node on the left (`merkle_root`). -/
-def merkleRoot (leaf : Array Gl) (index : Nat) (path : Array (Array Gl)) : Array Gl :=
+def merkleRoot (leaf : Array Word) (index : Nat) (path : Array (Array Word)) : Array Word :=
   (List.range path.size).foldl
     (fun node level =>
       if (index / 2 ^ level) % 2 = 0 then compress node path[level]! else compress path[level]! node)

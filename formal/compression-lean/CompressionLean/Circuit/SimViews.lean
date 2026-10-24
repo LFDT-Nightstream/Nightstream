@@ -19,48 +19,48 @@ proof, and the replay's shape check (`Replay.readProof`) accepts it.
 
 namespace CompressionLean.Circuit
 
-open CompressionLean.Replay (Gl Ext Relation TreeShape WhirShape foldVars layerCount layerFactors layerDegree
+open CompressionLean.Replay (Word Ext Relation TreeShape WhirShape foldVars layerCount layerFactors layerDegree
   activeTrees partFactors layerShapeOk)
 
 variable {F : Type} [CommRing F]
 
 /-- The value of each handle is the word that `w` gives it. -/
-def Decodes (c : Ctx F) (w : Var → Gl) : Prop := ∀ h, c.val h = word (w h)
+def Decodes (c : Ctx F) (w : Var → Word) : Prop := ∀ h, c.val h = word (w h)
 
 /-- The extension value of three handles. -/
-def decodeExt (w : Var → Gl) (e : ExtVar) : Ext := ⟨w (e 0), w (e 1), w (e 2)⟩
+def decodeExt (w : Var → Word) (e : ExtVar) : Ext := ⟨w (e 0), w (e 1), w (e 2)⟩
 
 /-- The four words of a digest. -/
-def decodeDigest (w : Var → Gl) (d : DigestVar) : Array Gl := #[w (d 0), w (d 1), w (d 2), w (d 3)]
+def decodeDigest (w : Var → Word) (d : DigestVar) : Array Word := #[w (d 0), w (d 1), w (d 2), w (d 3)]
 
 /-- A pair of extension values. -/
-def decodePair (w : Var → Gl) (p : ExtVar × ExtVar) : Ext × Ext := (decodeExt w p.1, decodeExt w p.2)
+def decodePair (w : Var → Word) (p : ExtVar × ExtVar) : Ext × Ext := (decodeExt w p.1, decodeExt w p.2)
 
 /-- One GKR layer. -/
-def GkrLayerView.decode (w : Var → Gl) (l : GkrLayerView) : Replay.GkrLayer :=
+def GkrLayerView.decode (w : Var → Word) (l : GkrLayerView) : Replay.GkrLayer :=
   { rounds := l.rounds.map (·.map (decodeExt w)), children := l.children.map (·.map (decodeExt w)) }
 
 /-- A GKR proof. -/
-def GkrView.decode (w : Var → Gl) (v : GkrView) : Replay.GkrProof :=
+def GkrView.decode (w : Var → Word) (v : GkrView) : Replay.GkrProof :=
   { roots := v.roots.map (decodePair w), layers := v.layers.map (·.decode w) }
 
 /-- A queried setup leaf. -/
-def LeafView.decode (w : Var → Gl) (v : LeafView) : Replay.Leaf :=
+def LeafView.decode (w : Var → Word) (v : LeafView) : Replay.Leaf :=
   { values := v.values.map w, path := v.path.map (decodeDigest w) }
 
 /-- One WHIR round, without its query rows. -/
-def RoundView.decode (w : Var → Gl) (r : RoundView) : Replay.WhirRound :=
+def RoundView.decode (w : Var → Word) (r : RoundView) : Replay.WhirRound :=
   { root := decodeDigest w r.root, ood := r.ood.map (decodeExt w), sumcheck := r.sumcheck.map (decodePair w) }
 
 /-- One WHIR opening, without its query rows. -/
-def OpeningView.decode (w : Var → Gl) (v : OpeningView) : Replay.Opening :=
+def OpeningView.decode (w : Var → Word) (v : OpeningView) : Replay.Opening :=
   { initialOod := v.initialOod.map (decodeExt w), evals := v.evals.map (·.map (decodeExt w)),
     initialSumcheck := v.initialSumcheck.map (decodePair w), rounds := v.rounds.map (·.decode w),
     finalPoly := v.finalPoly.map (decodeExt w), finalSumcheck := v.finalSumcheck.map (decodePair w) }
 
 /-- A layer-1 proof. The run values are `e_re`, `e_im`, `row`, the order of
 `observe_early` and of the replay's `earlyStage`. -/
-def ProofView.decode (w : Var → Gl) (v : ProofView) : Replay.Proof :=
+def ProofView.decode (w : Var → Word) (v : ProofView) : Replay.Proof :=
   { p0 := decodeDigest w v.p0, histogram := v.histogram.map w, early := v.early.decode w,
     earlyValues :=
       { eRe := decodeExt w v.earlyValues.runs[0]!, eIm := decodeExt w v.earlyValues.runs[1]!,
@@ -99,37 +99,37 @@ theorem IsLeaf.mono {c : Ctx F} {n m : ℕ} {v : LeafView} {g : Replay.Leaf} (h 
   ⟨h.1.mono le, h.2.imp fun _ _ h => h.mono le⟩
 
 /-- Each query row holds the words that `w` gives it. -/
-def IsRows (c : Ctx F) (w : Var → Gl) (n : ℕ) (rows : Array (Array Var)) : Prop :=
+def IsRows (c : Ctx F) (w : Var → Word) (n : ℕ) (rows : Array (Array Var)) : Prop :=
   ∀ row ∈ rows, IsWords c n row (row.map w)
 
-theorem IsRows.mono {c : Ctx F} {w : Var → Gl} {n m : ℕ} {rows : Array (Array Var)} (h : IsRows c w n rows)
+theorem IsRows.mono {c : Ctx F} {w : Var → Word} {n m : ℕ} {rows : Array (Array Var)} (h : IsRows c w n rows)
     (le : n ≤ m) : IsRows c w m rows :=
   fun row hr => (h row hr).mono le
 
 /-- The root, the answers, the sum-check and the query rows of one WHIR round. -/
-def IsRound (c : Ctx F) (w : Var → Gl) (n : ℕ) (v : RoundView) (g : Replay.WhirRound) : Prop :=
+def IsRound (c : Ctx F) (w : Var → Word) (n : ℕ) (v : RoundView) (g : Replay.WhirRound) : Prop :=
   IsDigest c n v.root g.root ∧ IsExts c n v.ood g.ood ∧
     List.Forall₂ (IsPair c n) v.sumcheck.toList g.sumcheck.toList ∧ IsRows c w n v.queries
 
-theorem IsRound.mono {c : Ctx F} {w : Var → Gl} {n m : ℕ} {v : RoundView} {g : Replay.WhirRound}
+theorem IsRound.mono {c : Ctx F} {w : Var → Word} {n m : ℕ} {v : RoundView} {g : Replay.WhirRound}
     (h : IsRound c w n v g) (le : n ≤ m) : IsRound c w m v g :=
   ⟨h.1.mono le, h.2.1.mono le, h.2.2.1.imp fun _ _ h => h.mono le, h.2.2.2.mono le⟩
 
 /-- Each field of one WHIR opening, and its query rows. -/
-def IsOpening (c : Ctx F) (w : Var → Gl) (n : ℕ) (v : OpeningView) (g : Replay.Opening) : Prop :=
+def IsOpening (c : Ctx F) (w : Var → Word) (n : ℕ) (v : OpeningView) (g : Replay.Opening) : Prop :=
   IsExts c n v.initialOod g.initialOod ∧ List.Forall₂ (IsExts c n) v.evals.toList g.evals.toList ∧
     List.Forall₂ (IsPair c n) v.initialSumcheck.toList g.initialSumcheck.toList ∧
     List.Forall₂ (IsRound c w n) v.rounds.toList g.rounds.toList ∧ IsExts c n v.finalPoly g.finalPoly ∧
     IsRows c w n v.finalQueries ∧ List.Forall₂ (IsPair c n) v.finalSumcheck.toList g.finalSumcheck.toList
 
-theorem IsOpening.mono {c : Ctx F} {w : Var → Gl} {n m : ℕ} {v : OpeningView} {g : Replay.Opening}
+theorem IsOpening.mono {c : Ctx F} {w : Var → Word} {n m : ℕ} {v : OpeningView} {g : Replay.Opening}
     (h : IsOpening c w n v g) (le : n ≤ m) : IsOpening c w m v g :=
   ⟨h.1.mono le, h.2.1.imp fun _ _ h => h.mono le, h.2.2.1.imp fun _ _ h => h.mono le,
     h.2.2.2.1.imp fun _ _ h => h.mono le, h.2.2.2.2.1.mono le, h.2.2.2.2.2.1.mono le,
     h.2.2.2.2.2.2.imp fun _ _ h => h.mono le⟩
 
 /-- Each field of a layer-1 proof. -/
-def IsProof (c : Ctx F) (w : Var → Gl) (n : ℕ) (v : ProofView) (g : Replay.Proof) : Prop :=
+def IsProof (c : Ctx F) (w : Var → Word) (n : ℕ) (v : ProofView) (g : Replay.Proof) : Prop :=
   IsDigest c n v.p0 g.p0 ∧ IsWords c n v.histogram g.histogram ∧ IsGkr c n v.early g.early ∧
     IsExts c n v.earlyValues.runs #[g.earlyValues.eRe, g.earlyValues.eIm, g.earlyValues.row] ∧
     List.Forall₂ (IsPair c n) v.earlyValues.pairs.toList g.earlyValues.pairs.toList ∧
@@ -140,7 +140,7 @@ def IsProof (c : Ctx F) (w : Var → Gl) (n : ℕ) (v : ProofView) (g : Replay.P
     List.Forall₂ (IsPair c n) v.lateValues.toList g.lateValues.toList ∧
     IsOpening c w n v.p1Opening g.p1Opening ∧ IsOpening c w n v.p0Opening g.p0Opening
 
-theorem IsProof.mono {c : Ctx F} {w : Var → Gl} {n m : ℕ} {v : ProofView} {g : Replay.Proof}
+theorem IsProof.mono {c : Ctx F} {w : Var → Word} {n m : ℕ} {v : ProofView} {g : Replay.Proof}
     (h : IsProof c w n v g) (le : n ≤ m) : IsProof c w m v g := by
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11, h12, h13, h14, h15, h16⟩ := h
   exact ⟨h1.mono le, h2.mono le, h3.mono le, h4.mono le, h5.imp fun _ _ h => h.mono le, h6.mono le, h7.mono le,
@@ -149,7 +149,7 @@ theorem IsProof.mono {c : Ctx F} {w : Var → Gl} {n m : ℕ} {v : ProofView} {g
 
 section Decoded
 
-variable {c : Ctx F} {w : Var → Gl} {m : ℕ}
+variable {c : Ctx F} {w : Var → Word} {m : ℕ}
 
 /-- Three handles below `m` are their decoded value. -/
 theorem isExt_decode (hw : Decodes c w) {e : ExtVar} (h : ∀ k, e k < m) : IsExt c m e (decodeExt w e) := by
@@ -202,7 +202,7 @@ end Decoded
 
 namespace Sim
 
-variable {c : Ctx F} {n : ℕ} {P : Prop} {w : Var → Gl}
+variable {c : Ctx F} {n : ℕ} {P : Prop} {w : Var → Word}
 
 /-- `(0..count).map(…)`: entry `i` meets `R i`. -/
 theorem rangeMapM {α : Type} {f : ℕ → Build α} (count : ℕ) (R : ℕ → α → ℕ → Prop)

@@ -25,9 +25,9 @@ namespace CompressionLean.TerminalCheck
 
 open CompressionLean.Shrink CompressionLean.Circuit CompressionLean.Circuit.Parse
 open CompressionLean.Circuit.Package CompressionLean.Circuit.Terminal CompressionLean.Circuit.Digest
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Word)
 
-instance : BEq (R1csRow Gl) := ⟨fun x y => x.a == y.a && x.b == y.b && x.c == y.c⟩
+instance : BEq (R1csRow Word) := ⟨fun x y => x.a == y.a && x.b == y.b && x.c == y.c⟩
 
 def coordinates {n : ℕ} (a : Fin n → Var) : List Var := List.ofFn a
 
@@ -53,7 +53,7 @@ def difference : Instr → Instr → Option String
       match firstDifference columns.toArray columns'.toArray with
       | some k => s!"r1cs column {k}: {columns[k]?}, {columns'[k]?}"
       | none => (firstDifference rows.toArray rows'.toArray).map fun k =>
-          let side := fun (r : Option (R1csRow Gl)) =>
+          let side := fun (r : Option (R1csRow Word)) =>
             r.map fun r => [r.a, r.b, r.c].map fun s => s.map fun t => (t.1, t.2.toNat)
           s!"r1cs row {k}: {side rows[k]?}, {side rows'[k]?}"
   | _, _ => "opcodes"
@@ -79,7 +79,7 @@ def claimView (claim : ClaimVars) : ClaimView :=
 not depend on the statement values. -/
 def digest (instrs : Array Instr) : List ℕ :=
   let run := lower (F := G) instrs []
-  (runDigest run (run.calls.flatMap Call.computedRows).toArray).toList.map Gl.toNat
+  (runDigest run (run.calls.flatMap Call.computedRows).toArray).toList.map Word.toNat
 
 /-- Compare `finalProgram` on `package` with the export: up to layer 1, or
 with `verifyWith` for `key`. -/

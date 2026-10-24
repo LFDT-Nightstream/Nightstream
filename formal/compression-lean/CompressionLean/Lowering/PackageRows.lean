@@ -1,5 +1,5 @@
 import CompressionLean.Circuit.Package
-import CompressionLean.Circuit.Exec
+import CompressionLean.Lowering.Exec
 import NightstreamFPrime.Export.PackageExpansion
 
 /-!
@@ -19,8 +19,9 @@ values (`assignment`).
 Does not own the program that reads the system (`Terminal.lean`).
 -/
 
-namespace CompressionLean.Circuit.Package
+namespace CompressionLean.Lowering.Package
 
+open CompressionLean.Circuit.Package
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 open CompressionLean.Shrink (R1csRow)
@@ -552,4 +553,4 @@ theorem system_holds_iff {package : CircuitPackage} {map : Terminal.Outputs} {lo
 
 end System
 
-end CompressionLean.Circuit.Package
+end CompressionLean.Lowering.Package

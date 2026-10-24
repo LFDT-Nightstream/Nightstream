@@ -17,6 +17,7 @@ Merkle paths.
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)

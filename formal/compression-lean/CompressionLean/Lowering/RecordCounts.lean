@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Valid
+import CompressionLean.Lowering.Valid
 
 /-!
 Owns `lower_counts`: the counts of a lowered run do not depend on the
@@ -11,8 +11,9 @@ ignores it (`Frame`), and two lowerings of one program differ only in the
 statement values (`Same`).
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Lowering
 
+open CompressionLean.Circuit
 open CompressionLean.Shrink
 
 section Counts
@@ -184,4 +185,4 @@ theorem lower_counts (L : Array Instr) (stmt stmt' : List F) : (lower L stmt).co
 
 end Counts
 
-end CompressionLean.Circuit
+end CompressionLean.Lowering

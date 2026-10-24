@@ -2,9 +2,9 @@ import CompressionLean.Circuit.SimClaim
 import CompressionLean.Circuit.SimFold
 import CompressionLean.Circuit.SimVerify
 import CompressionLean.Circuit.Verifier
-import CompressionLean.Circuit.Sound
-import CompressionLean.Circuit.RecordCounts
-import CompressionLean.Circuit.Valid
+import CompressionLean.Lowering.Sound
+import CompressionLean.Lowering.RecordCounts
+import CompressionLean.Lowering.Valid
 import CompressionLean.Bridge.Main
 import CompressionLean.Final.Bridge
 import CompressionLean.Final.KeyFacts
@@ -32,6 +32,7 @@ stage lemmas carry every such fact.
 
 namespace CompressionLean.Final.Encodes
 
+open CompressionLean.Lowering CompressionLean.Lowering.Package
 open CompressionLean.Lib
 open CompressionLean.Game
 open CompressionLean.Circuit CompressionLean.Circuit.Terminal CompressionLean.Circuit.Package

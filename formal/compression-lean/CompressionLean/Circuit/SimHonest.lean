@@ -20,6 +20,7 @@ against `Replay.honestStage`, and of the setup query point (`queryPoint`,
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Relation foldVars runOracles generator twoAdicGenerator Runs runs_bind runs_pure
   runs_sampleWord runs_record runs_sampleExt runs_observeAll runs_observeExts runs_ensure runs_liftExcept)

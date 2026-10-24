@@ -16,6 +16,7 @@ Owns the simulation of the linear stage of `Linear.lean` (`verifier.rs:170-206`)
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lowering
 open CompressionLean.Replay (Word Ext Relation D laneVars Runs runs_bind runs_pure runs_sampleExt runs_observeExts
   runs_ensure runs_liftExcept)
 open NightstreamFPrime.Spec (goldilocksModulus)

@@ -19,6 +19,7 @@ replay's GKR run gives these sizes.
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Relation TreeShape D Runs runs_bind runs_pure runs_sampleExt
   runs_observeExts runs_liftExcept)

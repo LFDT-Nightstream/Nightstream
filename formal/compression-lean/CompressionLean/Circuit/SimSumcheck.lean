@@ -13,6 +13,7 @@ step names by an existential. Each round message must be nonempty: both read
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lowering
 open CompressionLean.Replay (Ext Runs)
 open NightstreamFPrime.Spec (goldilocksModulus)
 

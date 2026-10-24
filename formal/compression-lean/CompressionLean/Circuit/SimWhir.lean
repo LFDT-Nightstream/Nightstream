@@ -24,6 +24,7 @@ transcripts and both `openingsAgree` checks.
 -/
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lowering
 open CompressionLean.Replay (Word Ext WhirShape SumcheckShape Runs ReplayM)
 open NightstreamFPrime.Spec (goldilocksModulus)
 

@@ -13,8 +13,9 @@ keeps the invariant and grows the run from every state with `P`, and that
 its result satisfies `Q`.
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Lowering
 
+open CompressionLean.Circuit
 open CompressionLean.Shrink
 
 section Names
@@ -27,56 +28,56 @@ def go {α : Type} (m : Lower F α) (s : State F) : α × State F := (m.run s).r
 theorem go_bind {α β : Type} (m : Lower F α) (k : α → Lower F β) (s : State F) :
     go (m >>= k) s = go (k (go m s).1) (go m s).2 := rfl
 
-namespace State
+section State
 
 /-- A wire of the run so far: a glue cell made, a cell of a block made, the
 constant one or a statement word read. -/
-def WireIn (s : State F) : Wire → Prop
+def _root_.CompressionLean.Circuit.State.WireIn (s : State F) : Wire → Prop
   | .glue c => c < s.cells
   | .block b k => b < s.blocks ∧ k < blockCells
   | .pub i => i ≤ s.publics.size
 
 /-- Terms on wires of the run so far. -/
-def TermsIn (s : State F) (terms : List (Wire × F)) : Prop := ∀ t ∈ terms, s.WireIn t.1
+def _root_.CompressionLean.Circuit.State.TermsIn (s : State F) (terms : List (Wire × F)) : Prop := ∀ t ∈ terms, s.WireIn t.1
 
 /-- `t` has at least the cells, blocks and statement words of `s`. -/
-structure Le (s t : State F) : Prop where
+structure _root_.CompressionLean.Circuit.State.Le (s t : State F) : Prop where
   cells : s.cells ≤ t.cells
   blocks : s.blocks ≤ t.blocks
   publics : s.publics.size ≤ t.publics.size
 
-theorem Le.refl (s : State F) : s.Le s := ⟨le_rfl, le_rfl, le_rfl⟩
+theorem _root_.CompressionLean.Circuit.State.Le.refl (s : State F) : s.Le s := ⟨le_rfl, le_rfl, le_rfl⟩
 
-theorem Le.trans {s t u : State F} (h : s.Le t) (h' : t.Le u) : s.Le u :=
+theorem _root_.CompressionLean.Circuit.State.Le.trans {s t u : State F} (h : s.Le t) (h' : t.Le u) : s.Le u :=
   ⟨h.cells.trans h'.cells, h.blocks.trans h'.blocks, h.publics.trans h'.publics⟩
 
-theorem WireIn.mono {s t : State F} (h : s.Le t) : ∀ {w : Wire}, s.WireIn w → t.WireIn w
+theorem _root_.CompressionLean.Circuit.State.WireIn.mono {s t : State F} (h : s.Le t) : ∀ {w : Wire}, s.WireIn w → t.WireIn w
   | .glue _, hw => lt_of_lt_of_le hw h.cells
   | .block _ _, hw => ⟨lt_of_lt_of_le hw.1 h.blocks, hw.2⟩
   | .pub _, hw => le_trans hw h.publics
 
-theorem TermsIn.mono {s t : State F} (h : s.Le t) {terms : List (Wire × F)} (hs : s.TermsIn terms) :
+theorem _root_.CompressionLean.Circuit.State.TermsIn.mono {s t : State F} (h : s.Le t) {terms : List (Wire × F)} (hs : s.TermsIn terms) :
     t.TermsIn terms :=
-  fun x hx => WireIn.mono h (hs x hx)
+  fun x hx => State.WireIn.mono h (hs x hx)
 
-theorem TermsIn.append {s : State F} {a b : List (Wire × F)} (ha : s.TermsIn a) (hb : s.TermsIn b) :
+theorem _root_.CompressionLean.Circuit.State.TermsIn.append {s : State F} {a b : List (Wire × F)} (ha : s.TermsIn a) (hb : s.TermsIn b) :
     s.TermsIn (a ++ b) := by
   intro x hx
   rcases List.mem_append.mp hx with h | h
   · exact ha x h
   · exact hb x h
 
-theorem TermsIn.nil (s : State F) : s.TermsIn ([] : List (Wire × F)) := by
+theorem _root_.CompressionLean.Circuit.State.TermsIn.nil (s : State F) : s.TermsIn ([] : List (Wire × F)) := by
   intro x hx
   simp at hx
 
-theorem TermsIn.one (s : State F) (c : F) : s.TermsIn [(Wire.pub 0, c)] := by
+theorem _root_.CompressionLean.Circuit.State.TermsIn.one (s : State F) (c : F) : s.TermsIn [(Wire.pub 0, c)] := by
   intro x hx
   simp only [List.mem_singleton] at hx
   subst hx
   exact Nat.zero_le _
 
-theorem TermsIn.glue {s : State F} {c : ℕ} (h : c < s.cells) (coef : F) : s.TermsIn [(Wire.glue c, coef)] := by
+theorem _root_.CompressionLean.Circuit.State.TermsIn.glue {s : State F} {c : ℕ} (h : c < s.cells) (coef : F) : s.TermsIn [(Wire.glue c, coef)] := by
   intro x hx
   simp only [List.mem_singleton] at hx
   subst hx
@@ -145,20 +146,20 @@ section Lowering
 
 variable {F : Type} [Field F]
 
-namespace State
+section State
 
 /-- Every row of call `c` names wires of the run so far. -/
-def CallIn (s : State F) (c : Call F) : Prop := ∀ row ∈ c.rows, ∀ side, s.TermsIn (row.side side)
+def _root_.CompressionLean.Circuit.State.CallIn (s : State F) (c : Call F) : Prop := ∀ row ∈ c.rows, ∀ side, s.TermsIn (row.side side)
 
 /-- **The invariant.** Every call and every value names only wires of the run
 so far. -/
-def Ok (s : State F) : Prop := (∀ c ∈ s.calls, s.CallIn c) ∧ ∀ f ∈ s.values, s.TermsIn f.terms
+def _root_.CompressionLean.Circuit.State.Ok (s : State F) : Prop := (∀ c ∈ s.calls, s.CallIn c) ∧ ∀ f ∈ s.values, s.TermsIn f.terms
 
-theorem CallIn.mono {s t : State F} (h : s.Le t) {c : Call F} (hc : s.CallIn c) : t.CallIn c :=
+theorem _root_.CompressionLean.Circuit.State.CallIn.mono {s t : State F} (h : s.Le t) {c : Call F} (hc : s.CallIn c) : t.CallIn c :=
   fun row hrow side => (hc row hrow side).mono h
 
 /-- The invariant after the counts grow, with the same calls and values. -/
-theorem Ok.grow {s t : State F} (ok : s.Ok) (h : s.Le t) (calls : t.calls = s.calls) (values : t.values = s.values) :
+theorem _root_.CompressionLean.Circuit.State.Ok.grow {s t : State F} (ok : s.Ok) (h : s.Le t) (calls : t.calls = s.calls) (values : t.values = s.values) :
     t.Ok := by
   refine ⟨fun c hc => (ok.1 c (calls ▸ hc)).mono h, fun f hf => (ok.2 f (values ▸ hf)).mono h⟩
 
@@ -227,7 +228,7 @@ theorem expand_terms {s : State F} {columns : List (Form F)} (hc : ∀ f ∈ col
     · exact State.TermsIn.one s _ x hx
     · simp at hx
 
-theorem State.Ok.pushCall {s : State F} {c : Call F} (ok : s.Ok) (hc : s.CallIn c) :
+theorem _root_.CompressionLean.Circuit.State.Ok.pushCall {s : State F} {c : Call F} (ok : s.Ok) (hc : s.CallIn c) :
     ({ s with calls := s.calls.push c } : State F).Ok := by
   refine ⟨fun c' hc' => ?_, ok.2⟩
   rcases Array.mem_push.mp hc' with h | h
@@ -697,4 +698,4 @@ theorem lower_valid [DecidableEq F] (T : Template F) (cells : blockCells ≤ T.c
 
 end Lowering
 
-end CompressionLean.Circuit
+end CompressionLean.Lowering

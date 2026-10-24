@@ -15,6 +15,7 @@ coordinates (`IsExt.congr`).
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lowering
 open CompressionLean.Replay (Word Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)
 

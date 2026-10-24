@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Exec
+import CompressionLean.Lowering.Exec
 import CompressionLean.Circuit.Hash
 import CompressionLean.Bridge.Field
 import Mathlib.Data.List.GetD
@@ -35,6 +35,7 @@ words (`word_add`, `word_mul`, `word_sub`) and is injective.
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lowering
 open CompressionLean.Replay (Word Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)
 

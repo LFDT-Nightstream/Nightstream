@@ -4,8 +4,8 @@ import CompressionLean.Shrink
 import CompressionLean.Replay.Stages
 import CompressionLean.Final
 import CompressionLean.Circuit.Block
-import CompressionLean.Circuit.Valid
-import CompressionLean.Circuit.RecordCounts
+import CompressionLean.Lowering.Valid
+import CompressionLean.Lowering.RecordCounts
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Terminal
 import CompressionLean.Game.Path
@@ -18,8 +18,8 @@ import CompressionLean.Bridge.Honest
 import CompressionLean.Bridge.Setup
 import CompressionLean.Bridge.Openings
 import CompressionLean.Bridge.Main
-import CompressionLean.Circuit.Exec
-import CompressionLean.Circuit.Sound
+import CompressionLean.Lowering.Exec
+import CompressionLean.Lowering.Sound
 import CompressionLean.Circuit.SimHash
 import CompressionLean.Circuit.SimFold
 import CompressionLean.Circuit.SimMerkle
@@ -38,4 +38,4 @@ import CompressionLean.Circuit.SimVerify
 import CompressionLean.Final.KeyFacts
 import CompressionLean.Final.Encodes
 import CompressionLean.Claims
-import CompressionLean.Circuit.PackageRows
+import CompressionLean.Lowering.PackageRows

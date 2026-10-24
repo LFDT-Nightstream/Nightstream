@@ -17,6 +17,7 @@ replay's (`Replay/Transcript.lean`), and the F′ permutation on words
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word)
 open NightstreamFPrime.Spec (goldilocksModulus)

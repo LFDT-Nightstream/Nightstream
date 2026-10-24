@@ -292,8 +292,8 @@ The chain takes these premises:
 
 ## Lowering
 
-`Circuit/` gives `ProgramEncodes`. A program is Lean data, and Lean lowers
-it to the shrink run as `record.rs` does.
+`Circuit/` and `Lowering/` give `ProgramEncodes`. A program is Lean data, and
+Lean lowers it to the shrink run as `record.rs` does.
 
 - Model (`Ir.lean`): a program is a flat list of instructions over value
   handles (`Instr`). An instruction is one `Backend` call that `record.rs`
@@ -304,12 +304,12 @@ it to the shrink run as `record.rs` does.
   in Rust's order, keeps a form of at most four terms, folds constants, and
   numbers the glue cells, blocks, statement words and rows as Rust does. It
   computes in a field `F`.
-- Claim (`Valid.lean`): `lower_valid`. Every glue row of `lower L stmt` names
+- Claim (`Lowering/Valid.lean`): `lower_valid`. Every glue row of `lower L stmt` names
   only its own glue cells, the cells of its blocks, the constant one and its
   statement words (`Run.Valid`), for a template of at least 182 cells.
-- Claim (`Sound.lean`): `lower_sound`. A witness of the CCS of `lower L stmt`
+- Claim (`Lowering/Sound.lean`): `lower_sound`. A witness of the CCS of `lower L stmt`
   with the Poseidon2 template gives an accepting run of the executor `Exec`
-  (`Exec.lean`) on the tape read out of the witness (`tapeOf`): every
+  (`Lowering/Exec.lean`) on the tape read out of the witness (`tapeOf`): every
   `assertZero` value is zero, every `bits` decomposition is boolean, sums to
   its value and is canonical at 64 bits, every `extInv` output is an inverse,
   every `r1cs` row holds, and every block computes Poseidon2.

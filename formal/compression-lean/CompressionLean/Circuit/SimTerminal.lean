@@ -1,5 +1,5 @@
 import CompressionLean.Circuit.Terminal
-import CompressionLean.Circuit.PackageRows
+import CompressionLean.Lowering.PackageRows
 import CompressionLean.Circuit.Sim
 import CompressionLean.Final.Claim
 
@@ -27,6 +27,7 @@ Does not own layer 1 or the meaning of the rows (`Terminal/Soundness.lean`).
 
 namespace CompressionLean.Circuit.Terminal
 
+open CompressionLean.Lowering CompressionLean.Lowering.Package
 open CompressionLean.Circuit.Package
 open CompressionLean.Replay (Word)
 open NightstreamFPrime.Circuit (Env Expr)

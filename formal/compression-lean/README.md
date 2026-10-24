@@ -209,15 +209,11 @@ The shrink layer assumes, and does not prove:
   every width: F′'s row builders take the width but do not use it
   (`arithmeticRows_at`, `permutationInvocations_at`). `poseidon2_bound` is
   `production_bound` for F′'s relation of the Poseidon2 hash-chain
-  application, the production key's, at 43,963,750 columns. There,
-  `KeyFacts` and the key's block count (`WidthFits`, 814,144 blocks) give
-  `ParentShape`. It takes the runs that Rust pushes, the Ajtai setup,
-  `RunsGive` and the pass of `setupCheck` in place of the setup and its
-  facts. The setup is `poseidon2Setup`, the one that `build` returns for the
-  seed and the runs. The pass gives that `build` returns it, that it has
-  `Setup.Fits` and that the key's structure describes it
-  (`setup_facts_of_check`). With `RunsGive`, the build gives `HonestSetup`
-  (`honest_setup_of_build`).
+  application, the production key's, at 43,963,750 columns. It takes the
+  key's block count (`WidthFits`, 814,144 blocks) in place of `ParentShape`,
+  and the runs that Rust pushes, the Ajtai setup, `RunsGive` and the pass of
+  `setupCheck` in place of the setup and its facts. The setup is
+  `poseidon2Setup`, the one that `build` returns for the seed and the runs.
   `Claims.lean` holds the library's claims; `STATUS.md` lists each claim's
   premises and how each one is met.
 
@@ -253,15 +249,14 @@ The chain takes these premises:
   (`build`: `key` and `oracle` in `lib.rs` over `Tables::from_rows` in
   `matrix.rs`). `honestSetup_of_build` proves `HonestSetup` of its result,
   for the key of the seeded Ajtai setup (`AjtaiSetupV1.Setup.verifierKey`).
-  These parts remain:
-  - Source (`RunsGive`, open): the runs that `PackageRows::visit_rows`
+  Its parts:
+  - Source (`RunsGive`): the runs that `PackageRows::visit_rows`
     pushes name rows below `2^28` and give F′'s matrices. They are the rows
     of F′'s package that F′'s Rust prover and verifier also read. Rust
     visits only rows below the row count, and `Relation::new` checks that
     count against `2^28`. `PoseidonRows.lean` evaluates the rows of the
     Poseidon2 blocks of F′'s matrix program, 84% of the rows, and proves
-    that they give F′'s matrix entries (`matrixSource_entry`). No check yet
-    compares the runs with these rows.
+    that they give F′'s matrix entries (`matrixSource_entry`).
   - Port: Rust's `from_rows`, `key` and `oracle` are `build`. This is a
     reading of the code. The proof uses only `ReadsBack` of the port, and
     the Rust test `derived_structure_steps_read_back_the_runs` checks the
@@ -284,8 +279,8 @@ The chain takes these premises:
   `B = 2^16`, so layer 1's norm check gives F′'s. The Rust tests
   `relation_shape_has_the_lean_constants` (`neo-spartan`) and
   `parent_relation_arguments_are_the_lean_constants` (`nightstream`) pin
-  these numbers. `KeyFacts` checks `κ`, the matrices, the public blocks and
-  `H` on a key; `WidthFits` checks the blocks for one application.
+  these numbers. `KeyFacts` states `κ`, the matrices, the public blocks and
+  `H` of a key; `WidthFits` states the blocks for one application.
 - Ring: `Φ` is `Φ81 = X^54 + X^27 + 1`, and `bar` is F′'s closed-form bar
   transform (`nativeBarEntry`). Only the manual test
   `neo-math/tests/phi81_bar_lean_parity.rs` compares Rust's runtime bar
@@ -364,9 +359,10 @@ and the ports gate (`CompressionLeanTests/Ports.lean`).
 Ports. `ports.json` pairs each Lean port of Rust with the Rust item that it
 transcribes and a hash of the item's tokens. The CI test `lean_ports`
 (`nightstream`) fails when an item changes and names the Lean declaration to
-re-read. `STATUS.md` lists the claims with their axioms and open premises, the
-ports and the digest pins. `lake exe status > STATUS.md` writes it, and
-`lake build` fails when it is out of date.
+re-read. `STATUS.md` lists the claims with their axioms and hypotheses, how each
+premise is met, the ports and the digest pins. `lake exe status > STATUS.md`
+writes it. `lake build` fails when it is out of date, and when a premise of a
+claim has no entry in `Inventory.premises`.
 
 `scripts/crosschecks.sh` runs the replay, lowering, production, terminal,
 full and setup checks below, in that order.

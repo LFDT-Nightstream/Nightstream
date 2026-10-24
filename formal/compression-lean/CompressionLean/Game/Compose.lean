@@ -2,8 +2,8 @@ import CompressionLean.Game.Restoration
 
 /-!
 Owns the composition of two public-coin verifier games into one
-state-restoration experiment (`restorePair`, `restorePair_sound`): one
-experiment (`Game/Restoration.lean`) with one log per game. Each query names
+state-restoration experiment (`restorePair`, `restorePair_sound`), with one
+log per game (`Game/Restoration.lean`). Each query names
 a node of either game. The prover outputs one path of the first game. The
 result is its walk and the walk of every path of the second game under that
 game's log. Each query costs at most `ε`.

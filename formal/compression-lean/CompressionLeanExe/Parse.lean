@@ -1,10 +1,13 @@
 import CompressionLean.Circuit.Ir
 
 /-!
-Owns the reader of the IR exports that `neo-spartan`'s
+Owns the format of the IR exports that `neo-spartan`'s
 `tests/internal/lowering.rs` and `nightstream`'s
 `tests/lifecycle_native/terminal_ir.rs` write: whitespace-separated tokens,
-one instruction per opcode (`Log` in both files).
+one instruction per opcode (`Log` in both files). It reads an export, writes
+an instruction as `Log` does (`line`) and compares Lean's program with
+Rust's (`samePrograms`). It also reads the JSON files of those tests
+(`readJson`).
 -/
 
 namespace CompressionLeanExe.Parse
@@ -109,5 +112,44 @@ def program : Parser (Array Instr) := do
 
 def expect {α : Type} [BEq α] [Repr α] (what : String) (lean rust : α) : Parser Unit :=
   if lean == rust then pure () else throw s!"{what}: Lean {repr lean}, Rust {repr rust}"
+
+def handlesText {n : ℕ} (a : Fin n → Var) : String :=
+  String.join ((List.finRange n).map fun k => s!" {a k}")
+
+def termsText (terms : List (ℕ × Word)) : String :=
+  s!" {terms.length}" ++ String.join (terms.map fun t => s!" {t.1} {t.2.toNat}")
+
+/-- The line that `Log` writes for an instruction (`lowering.rs`). -/
+def line : Instr → String
+  | .const value => s!"c {value.toNat}"
+  | .priv => "p"
+  | .pub => "u"
+  | .linear parts => s!"l{termsText parts}"
+  | .mul a b => s!"m {a} {b}"
+  | .extMul a b => s!"x{handlesText a}{handlesText b}"
+  | .extInv a => s!"i{handlesText a}"
+  | .assertZero a => s!"z {a}"
+  | .bits a count => s!"b {a} {count}"
+  | .hint count => s!"h {count}"
+  | .permute state => s!"q{handlesText state}"
+  | .r1cs rows columns =>
+      s!"r {rows.length} {columns.length}" ++ String.join (columns.map (s!" {·}")) ++
+        String.join (rows.map fun row => termsText row.a ++ termsText row.b ++ termsText row.c)
+
+/-- Handles compare as their lists. -/
+instance {n : ℕ} : BEq (Fin n → Var) := ⟨fun a b => List.ofFn a == List.ofFn b⟩
+
+deriving instance BEq for R1csRow, Instr
+
+/-- Lean's instructions against Rust's, one by one. -/
+def samePrograms (lean rust : Array Instr) : Parser Unit := do
+  for k in [0:max lean.size rust.size] do
+    match lean[k]?, rust[k]? with
+    | some l, some r => unless l == r do throw s!"instruction {k}: Lean `{line l}`, Rust `{line r}`"
+    | _, _ => throw s!"Lean writes {lean.size} instructions, Rust {rust.size}"
+
+/-- The JSON file at `path` as an `α`. -/
+def readJson (α : Type) [Lean.FromJson α] (path : String) : IO (Except String α) := do
+  pure (Lean.Json.parse (← IO.FS.readFile path) >>= Lean.fromJson?)
 
 end CompressionLeanExe.Parse

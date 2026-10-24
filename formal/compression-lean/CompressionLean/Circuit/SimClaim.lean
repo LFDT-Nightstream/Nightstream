@@ -9,8 +9,8 @@ Owns the claim that layer 1 reads from the terminal package (`verify_with`,
 statement as the bridge reads it.
 
 - `ClaimVars.view`, `ClaimView.decode`: the claim handles as the verifier's
-  statement view (`claimView`, `CompressionLeanExe/TerminalCheck.lean`), and
-  that view read through `w`.
+  statement view, which `terminalCheck` passes to `verifyWith`, and that view
+  read through `w`.
 - `isClaim_decode`: handles below `m` hold the decoded statement (`IsClaim`).
 - `ClaimHolds` keeps only the flat handle lists, so the last two lemmas also
   take the row shape (`ClaimVars.Shaped`, `SimTerminal.lean`), which
@@ -27,8 +27,7 @@ open CompressionLean.Circuit.Terminal (ClaimVars ClaimHolds HoldsValues pairHand
 open NightstreamFPrime.Circuit (Env Expr)
 open Fin.CommRing
 
-/-- The terminal claim as the verifier's statement (`claimView`,
-`CompressionLeanExe/TerminalCheck.lean`). -/
+/-- The terminal claim as the verifier's statement. -/
 def Terminal.ClaimVars.view (claim : ClaimVars) : ClaimView :=
   { commitment := claim.commitment, publicInput := claim.publicInput, point := claim.point,
     evalK := claim.evalK, evalA := claim.evalA }

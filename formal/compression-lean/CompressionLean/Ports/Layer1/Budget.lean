@@ -21,7 +21,7 @@ def rustEarly (s : Shape) : ℕ :=
     (2 ^ s.runVars + 2 ^ (s.slotVars + s.matrixVars) + 1) + rustGkr (earlyShape s) + s.runVars
 
 /-- The linear terms: ring-row batching, the quotient at `ζ` and the linear
-sum-check. -/
+sum-check. `s.rows` is `ring::row_count` (`ring.rs`). -/
 def rustLinear (s : Shape) : ℕ := (s.rows - 1) + (2 * s.D - 2) + 2 * s.cubeVars
 
 /-- The late terms: block scatter and late GKR. -/

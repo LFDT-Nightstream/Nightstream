@@ -38,7 +38,7 @@ Parameters: `{lw : ℕ}`, `key : CompressionLean.Circuit.Layer1Key`, `loaded : C
 | `facts : CompressionLean.Spec.KeyFacts key` | Rust's files | `lowerCheck` and `terminalCheck` check it on the production key (`key_facts_of_check`). The production tests `production_layer1_matches_lean` and `final_program_matches_lean` require the pass. |
 | `fits : S.Fits (CompressionLean.Spec.shapeOf key.relation)` | Rust's files | From the pass of `setupCheck`, for the Poseidon2 hash chain (`setup_facts_of_check`, in `poseidon2_bound`). Open for other applications. |
 | `describes : (CompressionLean.Spec.structureOf key.relation.key.layout).Describes (CompressionLean.Spec.shapeOf key.relation) S` | Rust's files | As `fits`. |
-| `h0 : 1 ≤ L0` | Rust | `L0` is the candidate count of P0's WHIR configuration (`log2_max_candidates`, `pcs.rs`). A list holds at least one candidate. |
+| `h0 : 1 ≤ L0` | Rust | `L0` is the candidate count of P0's WHIR configuration (`log2_max_candidates`, `pcs.rs`). Plonky3 charges each term over `CandidateSet::from_log2` (`charge_reduction`, p3-sumcheck 0.8.0), which names no set for a count below one (p3-security 0.8.0, `report.rs`). The term then has zero bits, so `Pcs::new` refuses the configuration. `Relation::new` and `Shrink::new` keep only configurations that are charged at least one term. |
 | `h1 : 1 ≤ L1` | Rust | As `h0`, for P1. |
 | `p0 : ↑L0 * ↑L1 * ↑(CompressionLean.Layer1.rustDegrees (CompressionLean.Spec.shapeOf key.relation)) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1)` | Rust | `Relation::new` builds P0's WHIR configuration with `Pcs::new` at `t + 1` bits. `Pcs::new` refuses it unless its WHIR terms plus these charged terms, over its candidates, are at most `2^-(t+1)` (`pcs.rs`). The candidate counts and the WHIR terms come from Plonky3's Johnson-bound report. No Lean proof checks them (`TRUST.md` §3). |
 | `p1 : ↑L1 * (1 / 2) ^ ((CompressionLean.Spec.shapeOf key.relation).queries - 1) ≤ 1 / 2 ^ (t + 1)` | Rust | As `p0`, for P1, which is charged the setup queries. |
@@ -57,7 +57,7 @@ Parameters: `key : CompressionLean.Circuit.Layer1Key`, `loaded : CompressionLean
 | `width : CompressionLean.Spec.WidthFits key CompressionLean.Production.poseidon2Width` | Rust's files | `lowerCheck` and `terminalCheck` print whether the production key fits the Poseidon2 hash chain (`width_fits_of_check`). The production tests require the pass. |
 | `pass : CompressionLean.Spec.setupFailure key pushes = none` | Rust's files | `setupCheck` checks it on the production key and on the runs that `production_runs_rebuild_the_layer1_key` writes. That test requires `Key::derive` of the runs to be the committed layer-1 key, and `production_setup_matches_lean` requires the pass. |
 | `runs : CompressionLean.Spec.runsFailure pushes = none` | Rust's files | `runsCheck` checks it on the runs that `production_runs_rebuild_the_layer1_key` writes, which `setupCheck` reads too. `production_runs_match_lean` requires the pass. `runsGive_of_check` turns the pass into `RunsGive`. |
-| `h0 : 1 ≤ L0` | Rust | `L0` is the candidate count of P0's WHIR configuration (`log2_max_candidates`, `pcs.rs`). A list holds at least one candidate. |
+| `h0 : 1 ≤ L0` | Rust | `L0` is the candidate count of P0's WHIR configuration (`log2_max_candidates`, `pcs.rs`). Plonky3 charges each term over `CandidateSet::from_log2` (`charge_reduction`, p3-sumcheck 0.8.0), which names no set for a count below one (p3-security 0.8.0, `report.rs`). The term then has zero bits, so `Pcs::new` refuses the configuration. `Relation::new` and `Shrink::new` keep only configurations that are charged at least one term. |
 | `h1 : 1 ≤ L1` | Rust | As `h0`, for P1. |
 | `p0 : ↑L0 * ↑L1 * ↑(CompressionLean.Layer1.rustDegrees (CompressionLean.Spec.shapeOf key.relation)) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1)` | Rust | `Relation::new` builds P0's WHIR configuration with `Pcs::new` at `t + 1` bits. `Pcs::new` refuses it unless its WHIR terms plus these charged terms, over its candidates, are at most `2^-(t+1)` (`pcs.rs`). The candidate counts and the WHIR terms come from Plonky3's Johnson-bound report. No Lean proof checks them (`TRUST.md` §3). |
 | `p1 : ↑L1 * (1 / 2) ^ ((CompressionLean.Spec.shapeOf key.relation).queries - 1) ≤ 1 / 2 ^ (t + 1)` | Rust | As `p0`, for P1, which is charged the setup queries. |
@@ -120,7 +120,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 
 ## Ports
 
-`ports.json` has 556 entries: 513 Lean declarations transcribe 291 Rust items.
+`ports.json` has 558 entries: 513 Lean declarations transcribe 292 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -177,7 +177,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-spartan/src/circuit/poseidon2.rs` | 12 |
 | `crates/neo-spartan/src/circuit/r1cs.rs` | 1 |
 | `crates/neo-spartan/src/circuit/record.rs` | 40 |
-| `crates/neo-spartan/src/field.rs` | 3 |
+| `crates/neo-spartan/src/field.rs` | 4 |
 | `crates/neo-spartan/src/gkr.rs` | 10 |
 | `crates/neo-spartan/src/hash.rs` | 2 |
 | `crates/neo-spartan/src/lib.rs` | 20 |

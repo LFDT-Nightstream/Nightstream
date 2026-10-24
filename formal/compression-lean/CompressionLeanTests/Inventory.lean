@@ -69,7 +69,7 @@ def premises : List (Name × List Premise) :=
   let setupPass := "`setupCheck` checks it on the production key and on the runs that `production_runs_rebuild_the_layer1_key` writes. That test requires `Key::derive` of the runs to be the committed layer-1 key, and `production_setup_matches_lean` requires the pass."
   let runsPass := "`runsCheck` checks it on the runs that `production_runs_rebuild_the_layer1_key` writes, which `setupCheck` reads too. `production_runs_match_lean` requires the pass."
   let h0 : Premise := ⟨`h0, .rust,
-    "`L0` is the candidate count of P0's WHIR configuration (`log2_max_candidates`, `pcs.rs`). A list holds at least one candidate."⟩
+    "`L0` is the candidate count of P0's WHIR configuration (`log2_max_candidates`, `pcs.rs`). Plonky3 charges each term over `CandidateSet::from_log2` (`charge_reduction`, p3-sumcheck 0.8.0), which names no set for a count below one (p3-security 0.8.0, `report.rs`). The term then has zero bits, so `Pcs::new` refuses the configuration. `Relation::new` and `Shrink::new` keep only configurations that are charged at least one term."⟩
   let h1 : Premise := ⟨`h1, .rust, "As `h0`, for P1."⟩
   let p0 : Premise := ⟨`p0, .rust,
     "`Relation::new` builds P0's WHIR configuration with `Pcs::new` at `t + 1` bits. `Pcs::new` refuses it unless its WHIR terms plus these charged terms, over its candidates, are at most `2^-(t+1)` (`pcs.rs`). The candidate counts and the WHIR terms come from Plonky3's Johnson-bound report. No Lean proof checks them (`TRUST.md` §3)."⟩

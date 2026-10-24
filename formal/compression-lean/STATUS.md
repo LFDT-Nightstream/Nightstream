@@ -112,7 +112,7 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 
 ## Ports
 
-`ports.json` has 391 entries: 367 Lean declarations transcribe 240 Rust items.
+`ports.json` has 516 entries: 476 Lean declarations transcribe 288 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -120,66 +120,74 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 | `CompressionLean.Lib.Cube` | 2 |
 | `CompressionLean.Lib.SumCheck` | 1 |
 | `CompressionLean.Ports.Circuit.Algebra` | 24 |
+| `CompressionLean.Ports.Circuit.Block` | 21 |
 | `CompressionLean.Ports.Circuit.Early` | 11 |
 | `CompressionLean.Ports.Circuit.Fold` | 10 |
 | `CompressionLean.Ports.Circuit.Gkr` | 3 |
-| `CompressionLean.Ports.Circuit.Hash` | 13 |
+| `CompressionLean.Ports.Circuit.Hash` | 14 |
 | `CompressionLean.Ports.Circuit.Honest` | 5 |
+| `CompressionLean.Ports.Circuit.Ir` | 25 |
 | `CompressionLean.Ports.Circuit.Late` | 5 |
 | `CompressionLean.Ports.Circuit.Linear` | 2 |
 | `CompressionLean.Ports.Circuit.Mle` | 7 |
 | `CompressionLean.Ports.Circuit.Openings` | 2 |
-| `CompressionLean.Ports.Circuit.Record` | 27 |
+| `CompressionLean.Ports.Circuit.Record` | 32 |
 | `CompressionLean.Ports.Circuit.Ring` | 10 |
 | `CompressionLean.Ports.Circuit.Sumcheck` | 1 |
-| `CompressionLean.Ports.Circuit.Verifier` | 5 |
-| `CompressionLean.Ports.Circuit.Views` | 11 |
-| `CompressionLean.Ports.Circuit.Whir` | 14 |
+| `CompressionLean.Ports.Circuit.Verifier` | 6 |
+| `CompressionLean.Ports.Circuit.Views` | 17 |
+| `CompressionLean.Ports.Circuit.Whir` | 19 |
 | `CompressionLean.Ports.Layer1.Budget` | 5 |
-| `CompressionLean.Ports.Replay.Data` | 22 |
-| `CompressionLean.Ports.Replay.Field` | 9 |
-| `CompressionLean.Ports.Replay.Formulas` | 25 |
-| `CompressionLean.Ports.Replay.Gkr` | 8 |
-| `CompressionLean.Ports.Replay.Stages` | 26 |
+| `CompressionLean.Ports.Replay.Data` | 37 |
+| `CompressionLean.Ports.Replay.Field` | 16 |
+| `CompressionLean.Ports.Replay.Formulas` | 26 |
+| `CompressionLean.Ports.Replay.Gkr` | 11 |
+| `CompressionLean.Ports.Replay.Stages` | 27 |
 | `CompressionLean.Ports.Replay.Transcript` | 10 |
 | `CompressionLean.Ports.Replay.Whir` | 4 |
 | `CompressionLean.Ports.Setup` | 13 |
 | `CompressionLean.Ports.Shrink.BlockPart` | 9 |
 | `CompressionLean.Ports.Shrink.Budget` | 1 |
-| `CompressionLean.Ports.Shrink.Ccs` | 5 |
+| `CompressionLean.Ports.Shrink.Ccs` | 6 |
 | `CompressionLean.Ports.Shrink.Diagonal` | 8 |
 | `CompressionLean.Ports.Shrink.Evaluate` | 10 |
 | `CompressionLean.Ports.Shrink.Game` | 5 |
-| `CompressionLean.Ports.Shrink.Layout` | 32 |
-| `CompressionLean.Ports.Shrink.Rounds` | 1 |
-| `CompressionLean.Ports.Terminal.Package` | 13 |
+| `CompressionLean.Ports.Shrink.Layout` | 37 |
+| `CompressionLean.Ports.Shrink.Rounds` | 5 |
+| `CompressionLean.Ports.Terminal.Package` | 21 |
 | `CompressionLean.Ports.Terminal.Program` | 7 |
 
 | Rust file | Items |
 |---|---:|
+| `crates/neo-math/src/ring.rs` | 3 |
+| `crates/neo-params/src/poseidon2_goldilocks.rs` | 1 |
 | `crates/neo-spartan/src/circuit/algebra.rs` | 24 |
 | `crates/neo-spartan/src/circuit/block.rs` | 4 |
 | `crates/neo-spartan/src/circuit/fold.rs` | 8 |
 | `crates/neo-spartan/src/circuit/hash.rs` | 13 |
-| `crates/neo-spartan/src/circuit/poseidon2.rs` | 2 |
+| `crates/neo-spartan/src/circuit/mod.rs` | 6 |
+| `crates/neo-spartan/src/circuit/poseidon2.rs` | 12 |
 | `crates/neo-spartan/src/circuit/r1cs.rs` | 1 |
-| `crates/neo-spartan/src/circuit/record.rs` | 34 |
-| `crates/neo-spartan/src/gkr.rs` | 8 |
+| `crates/neo-spartan/src/circuit/record.rs` | 40 |
+| `crates/neo-spartan/src/field.rs` | 3 |
+| `crates/neo-spartan/src/gkr.rs` | 10 |
 | `crates/neo-spartan/src/hash.rs` | 1 |
-| `crates/neo-spartan/src/lib.rs` | 18 |
-| `crates/neo-spartan/src/matrix.rs` | 20 |
+| `crates/neo-spartan/src/lib.rs` | 20 |
+| `crates/neo-spartan/src/matrix.rs` | 21 |
 | `crates/neo-spartan/src/mle.rs` | 7 |
 | `crates/neo-spartan/src/norm.rs` | 1 |
-| `crates/neo-spartan/src/ring.rs` | 11 |
+| `crates/neo-spartan/src/ring.rs` | 12 |
 | `crates/neo-spartan/src/setup.rs` | 6 |
 | `crates/neo-spartan/src/shrink/evaluate.rs` | 8 |
 | `crates/neo-spartan/src/shrink/layout.rs` | 15 |
-| `crates/neo-spartan/src/shrink/mod.rs` | 10 |
+| `crates/neo-spartan/src/shrink/mod.rs` | 13 |
 | `crates/neo-spartan/src/sumcheck.rs` | 1 |
 | `crates/neo-spartan/src/verifier.rs` | 9 |
-| `crates/neo-spartan/src/whir/mod.rs` | 20 |
+| `crates/neo-spartan/src/whir/mod.rs` | 22 |
+| `crates/neo-spartan/tests/internal/lowering.rs` | 3 |
+| `crates/neo-spartan/tests/internal/replay.rs` | 4 |
 | `crates/neo-transcript/src/poseidon2.rs` | 1 |
-| `crates/nightstream-fprime/src/package.rs` | 4 |
+| `crates/nightstream-fprime/src/package.rs` | 5 |
 | `crates/nightstream-fprime/src/package/r1cs.rs` | 3 |
 | `crates/nightstream-fprime/src/package/terminal.rs` | 2 |
 | `crates/nightstream-fprime/src/package/v1_2.rs` | 1 |

@@ -43,16 +43,45 @@ theorem _root_.CompressionLean.Circuit.FoldTranscript.absorbWords_size {gs : Arr
 
 end FoldTranscript
 
-namespace Simulates
+/-! ## Programs -/
 
-variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
+instance FoldTranscript.new_appends : Appends FoldTranscript.new := by unfold FoldTranscript.new; appends
+instance FoldTranscript.absorb_appends (t : FoldTranscript) (words : Array Var) : Appends (t.absorb words) := by
+  unfold FoldTranscript.absorb; appends
+instance FoldTranscript.absorbConstants_appends (t : FoldTranscript) (words : Array Word) :
+    Appends (t.absorbConstants words) := by
+  unfold FoldTranscript.absorbConstants; appends
+instance FoldTranscript.squeezeDigest_appends (t : FoldTranscript) : Appends t.squeezeDigest := by
+  unfold FoldTranscript.squeezeDigest; appends
+instance FoldTranscript.handoff_appends (t : FoldTranscript) : Appends t.handoff := by
+  unfold FoldTranscript.handoff; appends
 
 attribute [local irreducible] Replay.permute
 
+/-- `new` (`fold.rs:27-30`). -/
+theorem FoldTranscript.new_ensures {c : Ctx F} {n : ℕ} :
+    Ensures c n FoldTranscript.new fun t m => IsWords c m t.state (Array.replicate 16 0) :=
+  (const_ensures 0).bind fun _ _ _ hz => Ensures.pure (IsWords.replicate hz 16)
+
+/-- `squeeze_digest` (`fold.rs:55-59`). -/
+theorem FoldTranscript.squeezeDigest_ensures {c : Ctx F} {n : ℕ} {t : FoldTranscript} {gs : Array Word}
+    (hp : Permutes c.perm) (ht : IsWords c n t.state gs) (hsize : gs.size = 16) :
+    Ensures c n t.squeezeDigest fun res m =>
+      (∀ lane : Fin 4, IsWord c m (res.1 lane) gs[lane]!) ∧ IsWords c m res.2.state (Replay.permute gs) := by
+  unfold FoldTranscript.squeezeDigest
+  refine (permute_ensures (state := fun lane => t.state[lane]!) (gs := gs) hp fun lane =>
+    ht.get (by rw [hsize]; exact lane.isLt)).bind fun outs _ _ houts =>
+      Ensures.pure ⟨fun lane => ?_, IsWords.ofFn (permute_size _) houts⟩
+  exact (ht.get (by rw [hsize]; omega)).mono
+
+section Absorb
+
+variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
+
 /-- `absorb` (`fold.rs:39-46`). -/
-theorem foldAbsorb {t : FoldTranscript} {words : Array Var} {gs gw : Array Word} (hp : Permutes c.perm)
-    (ht : P → IsWords c n t.state gs ∧ gs.size = 16) (hw : P → IsWords c n words gw) :
-    Simulates c n P (t.absorb words) (fun t' m => IsWords c m t'.state (FoldTranscript.absorbWords gs gw)) True := by
+theorem FoldTranscript.absorb_ensures {t : FoldTranscript} {words : Array Var} {gs gw : Array Word}
+    (hp : Permutes c.perm) (ht : IsWords c n t.state gs) (hsize : gs.size = 16) (hw : IsWords c n words gw) :
+    Ensures c n (t.absorb words) fun t' m => IsWords c m t'.state (FoldTranscript.absorbWords gs gw) := by
   unfold FoldTranscript.absorb
   dsimp only
   rw [← Array.forIn_toList]
@@ -65,15 +94,15 @@ theorem foldAbsorb {t : FoldTranscript} {words : Array Var} {gs gw : Array Word}
   have small : ∀ k, (words.extract (rate * k) (rate * k + rate)).size ≤ rate := fun k => by
     simp only [Array.size_extract]
     omega
-  refine (((Simulates.loop (c := c) (P := P) (D := fun _ => True)
-      (I := fun k acc m => IsWords c m acc (after k) ∧ (after k).size = 16) fun k hk acc m le => ?_).pre
-      (fun h => ⟨h, by simpa [after] using ht h⟩)).bind fun acc m le => Simulates.pure (c := c) fun h => ?_).post
-      (fun _ _ _ h => h) (fun _ => by simp)
-  · simp only [List.getElem_map, List.getElem_range]
+  refine (Ensures.loop (fun k acc m => IsWords c m acc (after k) ∧ (after k).size = 16)
+    ⟨by simpa [after] using ht, by simpa [after] using hsize⟩ fun k _ acc m _ hacc => ?_).bind
+    fun acc _ _ hacc => Ensures.pure ?_
+  · obtain ⟨wacc, sacc⟩ := hacc
+    simp only [List.getElem_map, List.getElem_range]
     rw [← Array.forIn_toList, Array.toList_zipIdx]
     generalize hwk : words.extract (rate * k) (rate * k + rate) = wk
     have wsmall : wk.size ≤ 12 := hwk ▸ small k
-    have hwk' : P → IsWords c m wk (chunk k) := fun h => hwk ▸ ((hw h).extract _ _).mono le
+    have hwk' : IsWords c m wk (chunk k) := hwk ▸ (hw.extract _ _).mono
     let inner (j : ℕ) := (List.range j).foldl (fun s i => s.set! i (s[i]! + (chunk k)[i]!)) (after k)
     have inner_size : ∀ j, (inner j).size = (after k).size := by
       intro j
@@ -83,86 +112,69 @@ theorem foldAbsorb {t : FoldTranscript} {words : Array Var} {gs gw : Array Word}
           simp only [inner, List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil,
             Array.size_set!] at ih ⊢
           exact ih
-    refine (Simulates.bind (C' := True) ((Simulates.loop (c := c) (P := P ∧ IsWords c m acc (after k) ∧ (after k).size = 16)
-        (D := fun _ => True) (I := fun j a m' => IsWords c m' a (inner j)) fun j hj a m' le' => ?_).pre
-        (fun h => ⟨h, h.2.1⟩)) fun a m₂ le₂ => ?_).post (fun _ _ _ h => h) (fun _ => by simp)
+    refine (Ensures.loop (fun j a m' => IsWords c m' a (inner j)) wacc fun j hj a m' _ ha => ?_).bind
+      fun a _ _ ha => ?_
     · simp only [List.getElem_zipIdx, Nat.zero_add]
       have hj' : j < wk.size := by simpa using hj
-      refine ((Simulates.add (a := a[j]!) (b := wk.toList[j]) (ga := (inner j)[j]!) (gb := (chunk k)[j]!)
-          (fun h => h.2.get (by rw [inner_size, h.1.2.2]; omega))
-          (fun h => by
-            rw [Array.getElem_toList, ← getElem!_pos wk j hj']
-            exact (((hwk' h.1.1).mono le').get (by rw [← (hwk' h.1.1).1]; exact hj')))).bind
-        fun sum m₃ le₃ => Simulates.pure (c := c) fun h => ⟨rfl, ?_⟩).post (fun _ _ _ h => h) (fun _ => by simp)
-      have e : inner (j + 1) = (inner j).set! j ((inner j)[j]! + (chunk k)[j]!) := by
-        simp only [inner, List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
-      rw [e]
-      exact (h.1.2.mono le₃).set h.2 j
-    · refine ((Simulates.permute (state := fun lane => a[lane]!) (gs := inner wk.size) hp fun h lane =>
-          ?_).bind fun outs m₃ le₃ => Simulates.pure (c := c) fun h => ⟨rfl, ?_, ?_⟩).post (fun _ _ _ h => h) (fun _ => by simp)
-      · simp only [List.length_zipIdx, Array.length_toList] at h
-        exact h.2.get (by rw [inner_size, h.1.2.2]; exact lane.isLt)
-      · have size : wk.size = (chunk k).size := (hwk' h.1.1.1).1
+      refine (add_ensures (a := a[j]!) (b := wk.toList[j]) (ga := (inner j)[j]!) (gb := (chunk k)[j]!)
+        (ha.get (by rw [inner_size, sacc]; omega)) ?_).bind fun sum _ _ hsum => Ensures.pure ⟨rfl, ?_⟩
+      · rw [Array.getElem_toList, ← getElem!_pos wk j hj']
+        exact hwk'.mono.get (by rw [← hwk'.1]; exact hj')
+      · have e : inner (j + 1) = (inner j).set! j ((inner j)[j]! + (chunk k)[j]!) := by
+          simp only [inner, List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
+        rw [e]
+        exact ha.mono.set hsum j
+    · refine (permute_ensures (state := fun lane => a[lane]!) (gs := inner wk.size) hp fun lane => ?_).bind
+        fun outs _ _ houts => Ensures.pure ⟨rfl, ?_, ?_⟩
+      · simp only [List.length_zipIdx, Array.length_toList] at ha
+        exact ha.get (by rw [inner_size, sacc]; exact lane.isLt)
+      · have size : wk.size = (chunk k).size := hwk'.1
         have e : after (k + 1) = Replay.permute (inner wk.size) := by
           simp only [after, inner, List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil,
             FoldTranscript.absorbChunk, size]
         rw [e]
-        exact IsWords.ofFn (permute_size _) h.2
+        exact IsWords.ofFn (permute_size _) houts
       · simp only [after, List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil,
           FoldTranscript.absorbChunk, permute_size]
   · have count : (List.map (fun k => words.extract (rate * k) (rate * k + rate))
         (List.range ((words.size + rate - 1) / rate))).length = (gw.size + rate - 1) / rate := by
-      simp [(hw h.1).1]
-    rw [count] at h
-    exact h.2.1
-
-
-omit [CharP F goldilocksModulus] in
-/-- `new` (`fold.rs:27-30`). -/
-theorem foldNew : Simulates c n P FoldTranscript.new (fun t m => IsWords c m t.state (Array.replicate 16 0)) True :=
-  ((Simulates.const 0).bind fun _ _ _ => Simulates.pure fun h => IsWords.replicate h.2 16).post (fun _ _ _ h => h)
-    (fun _ => by simp)
+      simp [hw.1]
+    rw [count] at hacc
+    exact hacc.1
 
 /-- `absorb_constants` (`fold.rs:49-52`). -/
-theorem foldAbsorbConstants {t : FoldTranscript} {gs : Array Word} (words : Array Word) (hp : Permutes c.perm)
-    (ht : P → IsWords c n t.state gs ∧ gs.size = 16) :
-    Simulates c n P (t.absorbConstants words) (fun t' m => IsWords c m t'.state (FoldTranscript.absorbWords gs words))
-      True := by
+theorem FoldTranscript.absorbConstants_ensures {t : FoldTranscript} {gs : Array Word} (words : Array Word)
+    (hp : Permutes c.perm) (ht : IsWords c n t.state gs) (hsize : gs.size = 16) :
+    Ensures c n (t.absorbConstants words) fun t' m => IsWords c m t'.state (FoldTranscript.absorbWords gs words) := by
   unfold FoldTranscript.absorbConstants
-  refine ((Simulates.mapM (fun g v m => IsWord c m v g) (fun _ _ _ _ h le => h.mono le) fun g _ m _ => Simulates.const g).bind
-    fun hs m le => foldAbsorb hp (fun h => ⟨(ht h.1).1.mono le, (ht h.1).2⟩)
-      fun h => IsWords.of_forall₂ h.2).post (fun _ _ _ h => h) (fun _ => by simp)
-
-omit [CharP F goldilocksModulus] in
-/-- `squeeze_digest` (`fold.rs:55-59`). -/
-theorem squeezeDigest {t : FoldTranscript} {gs : Array Word} (hp : Permutes c.perm)
-    (ht : P → IsWords c n t.state gs ∧ gs.size = 16) :
-    Simulates c n P t.squeezeDigest
-      (fun res m => (∀ lane : Fin 4, IsWord c m (res.1 lane) gs[lane]!) ∧ IsWords c m res.2.state (Replay.permute gs))
-      True := by
-  unfold FoldTranscript.squeezeDigest
-  refine ((Simulates.permute (state := fun lane => t.state[lane]!) (gs := gs) hp fun h lane =>
-    (ht h).1.get (by rw [(ht h).2]; exact lane.isLt)).bind fun outs m le => Simulates.pure fun h => ⟨fun lane => ?_,
-      IsWords.ofFn (permute_size _) h.2⟩).post (fun _ _ _ h => h) (fun _ => by simp)
-  exact ((ht h.1).1.get (by rw [(ht h.1).2]; omega)).mono le
+  exact (Ensures.mapM (fun g v m => IsWord c m v g) (fun _ _ _ _ h le => h.mono le) fun g _ _ _ => const_ensures g).bind
+    fun _ _ _ hs => FoldTranscript.absorb_ensures hp ht.mono hsize (IsWords.of_forall₂ hs)
 
 /-- `handoff` (`fold.rs:68-72`): the layer-1 seed. -/
-theorem handoff {t : FoldTranscript} {gs : Array Word} (hp : Permutes c.perm)
-    (ht : P → IsWords c n t.state gs ∧ gs.size = 16) :
-    Simulates c n P t.handoff (fun r m => ∀ lane : Fin 4, IsWord c m (r lane) (FoldTranscript.handoffWords gs)[lane]!)
-      True := by
+theorem FoldTranscript.handoff_ensures {t : FoldTranscript} {gs : Array Word} (hp : Permutes c.perm)
+    (ht : IsWords c n t.state gs) (hsize : gs.size = 16) :
+    Ensures c n t.handoff fun r m => ∀ lane : Fin 4, IsWord c m (r lane) (FoldTranscript.handoffWords gs)[lane]! := by
   unfold FoldTranscript.handoff
-  refine ((foldAbsorbConstants (domainChunk compressDomain) hp ht).bind fun t' m le =>
-    ((squeezeDigest hp fun h => ⟨h.2, FoldTranscript.absorbWords_size _ (ht h.1).2⟩).bind fun res m' le' =>
-      Simulates.pure fun h lane => ?_)).post (fun _ _ _ h => h) (fun _ => by simp)
+  refine (FoldTranscript.absorbConstants_ensures (domainChunk compressDomain) hp ht hsize).bind fun _ _ _ ht' => ?_
+  refine (FoldTranscript.squeezeDigest_ensures hp ht' (FoldTranscript.absorbWords_size _ hsize)).bind
+    fun res _ _ hres => Ensures.pure fun lane => ?_
   have e : (FoldTranscript.handoffWords gs)[lane]! =
       (FoldTranscript.absorbWords gs (domainChunk compressDomain))[lane]! := by
-    have size := FoldTranscript.absorbWords_size (domainChunk compressDomain) (ht h.1.1).2
+    have size := FoldTranscript.absorbWords_size (domainChunk compressDomain) hsize
     unfold FoldTranscript.handoffWords
     rw [getElem!_pos _ _ (by simp only [Array.size_extract, size]; omega), getElem!_pos _ _ (by omega)]
     simp [Array.getElem_extract]
   rw [e]
-  exact h.2.1 lane
-end Simulates
+  exact hres.1 lane
+
+end Absorb
+
+/-! ## The old names, for the files that still use `Simulates` -/
+
+theorem Simulates.handoff [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {t : FoldTranscript}
+    {gs : Array Word} (hp : Permutes c.perm) (ht : P → IsWords c n t.state gs ∧ gs.size = 16) :
+    Simulates c n P t.handoff (fun r m => ∀ lane : Fin 4, IsWord c m (r lane) (FoldTranscript.handoffWords gs)[lane]!)
+      True :=
+  .of_ensures₀ fun h => FoldTranscript.handoff_ensures hp (ht h).1 (ht h).2
 
 end CompressionLean.Sim

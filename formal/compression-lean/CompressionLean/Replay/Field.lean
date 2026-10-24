@@ -1,3 +1,4 @@
+import CompressionLean.Fields
 import NightstreamFPrime.Export.NativePoseidon2
 
 /-!
@@ -8,7 +9,10 @@ layer-1 challenge field `Ext = Word[X]/(X³ - X - 1)` (Plonky3's
 
 A word is canonical by construction. The machine operations are the F′
 package's proved Goldilocks words (`NativeGoldilocks`), so a later bridge can
-read every operation through `UInt64.denote`.
+read every operation through `UInt64.denote`. A word maps to its residue in
+`Gl` (`Word.toF`), to any ring as the circuit writes it (`Word.cast`), and
+back from an F′ field value (`Word.ofF`); `Bridge/Field.lean` proves what these
+maps keep.
 -/
 
 namespace CompressionLean.Replay
@@ -46,6 +50,15 @@ decreasing_by omega
 
 /-- The inverse by Fermat; zero maps to zero. -/
 def inv (a : Word) : Word := a.pow (goldilocksModulus - 2)
+
+/-- The residue of a word. -/
+def toF (a : Word) : Gl := (a.word.toNat : Gl)
+
+/-- A word in a ring `F` (`Gl::from_u64`). -/
+@[pp_nodot] def cast {F : Type} [CommRing F] (g : Word) : F := (g.toNat : F)
+
+/-- A word of F′'s field as a canonical word. -/
+def ofF (value : F) : Word := Word.ofNat value.val
 
 end Word
 

@@ -185,8 +185,6 @@ instance assertZero_appends (a : Var) : Appends (Build.assertZero a) := by unfol
 instance r1cs_appends (rows : List (Shrink.R1csRow Word)) (columns : List Var) :
     Appends (Build.r1cs rows columns) := by
   unfold Build.r1cs; appends
-instance extConstant_appends (v : Fin 3 → Word) : Appends (Build.extConstant v) := by
-  unfold Build.extConstant; appends
 instance extAdd_appends (a b : ExtVar) : Appends (Build.extAdd a b) := by
   unfold Build.extAdd Build.coordinatewise; appends
 instance extSub_appends (a b : ExtVar) : Appends (Build.extSub a b) := by

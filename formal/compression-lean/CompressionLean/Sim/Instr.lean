@@ -25,10 +25,10 @@ theorem const_ensures (g : Word) : Ensures c n (Build.const g) fun h m => IsWord
     rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
     rfl
 
-/-- `private`: a proof word, a raw tape cell. -/
-theorem priv_ensures : Ensures c n Build.priv fun h m => h < m ∧ c.val h = c.tape h :=
+/-- `private`: a proof word, a raw tape cell, the next handle. -/
+theorem priv_ensures : Ensures c n Build.priv fun h m => h = n ∧ m = n + 1 ∧ c.val h = c.tape h :=
   Ensures.emit _ fun E hl hF _ => by
-    refine ⟨by simp [Instr.outputs], ?_⟩
+    refine ⟨rfl, rfl, ?_⟩
     rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
     rfl
 

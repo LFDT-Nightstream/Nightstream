@@ -6,7 +6,6 @@ import CompressionLean.Lib.Fraction
 import CompressionLean.Lib.IdentityTest
 import CompressionLean.Lib.List
 import CompressionLean.Lib.LogUp
-import CompressionLean.Lib.Nat
 import CompressionLean.Lib.Roots
 import CompressionLean.Lib.SumCheck
 import CompressionLean.Lib.Univariate

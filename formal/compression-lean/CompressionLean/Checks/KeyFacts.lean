@@ -89,10 +89,8 @@ def keyFailure (key : Layer1Input) : Option String :=
 
 /-- A key that fails no check has `KeyFacts`. -/
 theorem keyFacts_of_check {key : Layer1Input} (pass : keyFailure key = none) : KeyFacts key := by
-  have all := holds_of_firstFailure pass
-  simp only [keyChecks, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff, implies_true, and_true] at all
   obtain ⟨run, row, slot, root, short, k1, k0, p1, p1count, p0, rowFits, matricesFit, bits, publicFits, sizes, high,
-    checked, kappa, blocks, point, matrices, norm, shape⟩ := all
+    checked, kappa, blocks, point, matrices, norm, shape, -⟩ := all_of_firstFailure pass
   exact ⟨⟨run, row, slot, root, short, k1, k0, p1, p1count, p0⟩,
     ⟨rowFits, matricesFit, bits, publicFits, sizes, high, checked⟩, ⟨kappa, blocks, point, matrices, norm⟩, shape⟩
 

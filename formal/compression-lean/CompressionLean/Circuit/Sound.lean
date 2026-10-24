@@ -1,6 +1,6 @@
 import CompressionLean.Circuit.Forms
 import Mathlib.Data.List.GetD
-import NightstreamFPrime.Spec.GoldilocksPrime
+import CompressionLean.Fields
 import CompressionLean.Lib.Array
 import CompressionLean.Lib.List
 
@@ -453,10 +453,6 @@ namespace Goldilocks
 
 open NightstreamFPrime.Spec
 
-/-- Goldilocks is a field (`goldilocks_natPrime`). -/
-scoped instance field : Field F :=
-  @ZMod.instField goldilocksModulus ⟨GoldilocksPrime.goldilocks_natPrime⟩
-
 /-- No count up to 32 is zero in Goldilocks. -/
 theorem small (k : ℕ) (hk : k ≤ 32) (zero : (k : F) = 0) : k = 0 := by
   have : goldilocksModulus ∣ k := (ZMod.natCast_eq_zero_iff k goldilocksModulus).mp zero
@@ -464,7 +460,7 @@ theorem small (k : ℕ) (hk : k ≤ 32) (zero : (k : F) = 0) : k = 0 := by
 
 end Goldilocks
 
-open NightstreamFPrime Goldilocks Fin.CommRing in
+open NightstreamFPrime in
 /-- **Lowering soundness.** If `w` satisfies the CCS of the lowered run of
 program `L` on the statement words `stmt`, with the Poseidon2 block template,
 then the executor accepts `L` on `stmt` and the tape read out of `w`, with

@@ -47,7 +47,7 @@ variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
 
 private theorem laneSplit_sim {tau : Array ExtVar} {gtau : Array Ext} {length : ℕ} (ratio : Word)
     (ht : P → IsExts c n tau gtau) (size : P → gtau.size = D) (short : length ≤ D) :
-    Sim c n P (Mle.laneSplit tau length ratio)
+    Simulates c n P (Mle.laneSplit tau length ratio)
       (fun r m => IsExts c m r.1 (Replay.laneSplit gtau length ratio).1 ∧
         IsExts c m r.2 (Replay.laneSplit gtau length ratio).2) True := by
   set H : ℕ → Ext := Replay.headFrom gtau length ratio (ratio.pow length) with hH
@@ -57,8 +57,8 @@ private theorem laneSplit_sim {tau : Array ExtVar} {gtau : Array Ext} {length : 
     fun h le hi => ((ht h).get (by rw [size h]; exact hi)).mono le
   unfold Mle.laneSplit
   dsimp only
-  refine Sim.bind₀ (Q := fun head m => head.size = D ∧ ∀ l < D, IsExt c m head[l]! (H (D - 1 - l)))
-    (((Sim.loop (P := P) (I := fun k head m => head.size = D ∧
+  refine Simulates.bind₀ (Q := fun head m => head.size = D ∧ ∀ l < D, IsExt c m head[l]! (H (D - 1 - l)))
+    (((Simulates.loop (P := P) (I := fun k head m => head.size = D ∧
       ∀ l, D - 1 - k ≤ l → l < D → IsExt c m head[l]! (H (D - 1 - l))) (fun _ => True)
       fun k hk head m lm => ?_).post (fun _ _ _ q => ?_) fun _ => ⟨fun _ => trivial, fun _ _ _ => trivial⟩).pre
       fun h => ⟨h, by simp, fun l lo hi => ?_⟩) fun head m₁ l₁ => ?_
@@ -68,9 +68,9 @@ private theorem laneSplit_sim {tau : Array ExtVar} {gtau : Array Ext} {length : 
       simp only [List.length_range]
       omega
     rw [xk]
-    refine (Sim.extScaleConstant ratio fun h => h.2.2 (D - 2 - k + 1) (by omega) (by omega)).bind₀
+    refine (Simulates.extScaleConstant ratio fun h => h.2.2 (D - 2 - k + 1) (by omega) (by omega)).bind₀
       fun carried m₂ l₂ => ?_
-    refine (Sim.extAdd (fun h => hget h.1.1 (lm.trans l₂) (by omega)) fun h => h.2).bind₀ fun value m₃ l₃ => ?_
+    refine (Simulates.extAdd (fun h => hget h.1.1 (lm.trans l₂) (by omega)) fun h => h.2).bind₀ fun value m₃ l₃ => ?_
     have next : ∀ {m' : ℕ} {v : ExtVar}, n ≤ m' → m ≤ m' → head.size = D →
         (∀ l, D - 1 - k ≤ l → l < D → IsExt c m head[l]! (H (D - 1 - l))) → IsExt c m' v (H (k + 1)) →
         ForInStep.yield (head.set! (D - 2 - k) v) = ForInStep.yield (ForInStep.yield (head.set! (D - 2 - k) v)).value ∧
@@ -87,10 +87,10 @@ private theorem laneSplit_sim {tau : Array ExtVar} {gtau : Array Ext} {length : 
     have top : D - 1 - (D - 2 - k + 1) = k := by omega
     split
     · rename_i inside
-      refine (Sim.extScaleConstant (ratio.pow length) fun h => hget h.1.1.1 (lm.trans (l₂.trans l₃)) inside).bind₀
+      refine (Simulates.extScaleConstant (ratio.pow length) fun h => hget h.1.1.1 (lm.trans (l₂.trans l₃)) inside).bind₀
         fun dropped m₄ l₄ => ?_
-      refine (Sim.extSub (fun h => h.1.2.mono l₄) fun h => h.2).bind₀ fun value' m₅ l₅ => ?_
-      refine Sim.pure fun h => next (lm.trans (l₂.trans (l₃.trans (l₄.trans l₅)))) (l₂.trans (l₃.trans (l₄.trans l₅)))
+      refine (Simulates.extSub (fun h => h.1.2.mono l₄) fun h => h.2).bind₀ fun value' m₅ l₅ => ?_
+      refine Simulates.pure fun h => next (lm.trans (l₂.trans (l₃.trans (l₄.trans l₅)))) (l₂.trans (l₃.trans (l₄.trans l₅)))
         h.1.1.1.1.2.1 h.1.1.1.1.2.2 ?_
       have e : H (k + 1) = gtau[D - 2 - k]! + (H (D - 1 - (D - 2 - k + 1))).scale ratio -
           gtau[D - 2 - k + length]!.scale (ratio.pow length) := by
@@ -98,7 +98,7 @@ private theorem laneSplit_sim {tau : Array ExtVar} {gtau : Array Ext} {length : 
       rw [e]
       exact h.2
     · rename_i outside
-      refine Sim.pure fun h => next (lm.trans (l₂.trans l₃)) (l₂.trans l₃) h.1.1.2.1 h.1.1.2.2 ?_
+      refine Simulates.pure fun h => next (lm.trans (l₂.trans l₃)) (l₂.trans l₃) h.1.1.2.1 h.1.1.2.2 ?_
       have e : H (k + 1) = gtau[D - 2 - k]! + (H (D - 1 - (D - 2 - k + 1))).scale ratio := by
         rw [top, hH, Replay.headFrom, if_neg outside]
       rw [e]
@@ -108,9 +108,9 @@ private theorem laneSplit_sim {tau : Array ExtVar} {gtau : Array Ext} {length : 
     subst e
     rw [getElem!_pos _ _ (by simp; omega), Array.getElem_replicate, Nat.sub_self, hH, Replay.headFrom]
     exact hget h le_rfl (by omega)
-  refine Sim.extZero.bind₀ fun acc m₂ l₂ => ?_
-  refine Sim.bind₀ (Q := fun s m => s.1.size = D ∧ ∀ i < D, IsExt c m s.1[i]! (S (i + 1)))
-    (((Sim.loop₀ (I := fun k s m => s.1.size = D ∧ (∀ i < k, IsExt c m s.1[i]! (S (i + 1))) ∧
+  refine Simulates.extZero.bind₀ fun acc m₂ l₂ => ?_
+  refine Simulates.bind₀ (Q := fun s m => s.1.size = D ∧ ∀ i < D, IsExt c m s.1[i]! (S (i + 1)))
+    (((Simulates.loop₀ (I := fun k s m => s.1.size = D ∧ (∀ i < k, IsExt c m s.1[i]! (S (i + 1))) ∧
       IsExt c m s.2.1 (S k) ∧ s.2.2 = ratio.pow k) fun k hk s m lm => ?_).post (fun h _ _ q => ?_)
       fun _ => Iff.rfl).pre fun h => ⟨h, by simp, fun i hi => absurd hi (by omega), h.2,
       Word.eq_of_toF (by rw [Word.toF_pow, pow_zero, Word.toF_one])⟩)
@@ -118,10 +118,10 @@ private theorem laneSplit_sim {tau : Array ExtVar} {gtau : Array Ext} {length : 
   · have hk' : k < tau.size := by simpa using hk
     rw [show tau.zipIdx[k] = (tau[k]!, k) by simp [getElem!_pos, hk']]
     dsimp only
-    refine (Sim.extScaleConstant s.2.2 fun h => ((ht h.1.1.1).2 k hk').mono (l₁.trans (l₂.trans lm))).bind₀
+    refine (Simulates.extScaleConstant s.2.2 fun h => ((ht h.1.1.1).2 k hk').mono (l₁.trans (l₂.trans lm))).bind₀
       fun term m₄ l₄ => ?_
-    refine (Sim.extAdd (fun h => h.1.2.2.2.1.mono l₄) fun h => h.2).bind₀ fun acc' m₅ l₅ => ?_
-    refine Sim.pure fun h => ?_
+    refine (Simulates.extAdd (fun h => h.1.2.2.2.1.mono l₄) fun h => h.2).bind₀ fun acc' m₅ l₅ => ?_
+    refine Simulates.pure fun h => ?_
     obtain ⟨⟨⟨⟨⟨hP, -⟩, -⟩, hs, hsums, -, hpow⟩, -⟩, hacc⟩ := h
     have hkD : k < D := by rw [← size hP, ← (ht hP).1]; exact hk'
     have next : S (k + 1) = S k + gtau[k]!.scale s.2.2 := by
@@ -140,21 +140,21 @@ private theorem laneSplit_sim {tau : Array ExtVar} {gtau : Array Ext} {length : 
   · refine ⟨q.1, fun i hi => q.2.1 i ?_⟩
     rw [Array.size_zipIdx, (ht h.1.1.1).1, size h.1.1.1]
     exact hi
-  refine Sim.extZero.bind₀ fun zero m₄ l₄ => ?_
+  refine Simulates.extZero.bind₀ fun zero m₄ l₄ => ?_
   set T : ℕ → Ext := fun lane =>
     if lane + length ≥ D + 1 then (S (lane + length - D)).scale (ratio.pow (D - lane)) else 0 with hT
-  refine (Sim.rangeMapM D (fun lane a m => IsExt c m a (T lane)) (fun _ _ _ _ h le => h.mono le)
-    fun i hi m le => ?_).bind₀ fun tail m₅ l₅ => Sim.pure fun h => ⟨?_, ?_⟩
+  refine (Simulates.rangeMapM D (fun lane a m => IsExt c m a (T lane)) (fun _ _ _ _ h le => h.mono le)
+    fun i hi m le => ?_).bind₀ fun tail m₅ l₅ => Simulates.pure fun h => ⟨?_, ?_⟩
   · split
     · rename_i long
-      refine (Sim.extScaleConstant (ratio.pow (D - i)) fun h => (h.1.2.2 (i + length - (D + 1)) (by omega)).mono
+      refine (Simulates.extScaleConstant (ratio.pow (D - i)) fun h => (h.1.2.2 (i + length - (D + 1)) (by omega)).mono
         (l₄.trans le)).post (fun _ _ _ q => ?_) fun _ => Iff.rfl
       rw [hT]
       dsimp only
       rw [if_pos (by omega), show i + length - D = i + length - (D + 1) + 1 by omega]
       exact q
     · rename_i short'
-      refine Sim.pure fun h => ?_
+      refine Simulates.pure fun h => ?_
       rw [hT]
       dsimp only
       rw [if_neg (by omega)]
@@ -167,10 +167,10 @@ private theorem laneSplit_sim {tau : Array ExtVar} {gtau : Array Ext} {length : 
 
 private theorem laneTables_sim {layout : Replay.Layout} {tau : Array ExtVar} {gtau : Array Ext}
     (ht : P → IsExts c n tau gtau) (size : P → gtau.size = D) (short : ∀ cl ∈ layout.classes, cl.len ≤ D) :
-    Sim c n P (laneTables layout tau) (fun r m => IsLanes c m r
+    Simulates c n P (laneTables layout tau) (fun r m => IsLanes c m r
       (layout.classes.map fun cl => Replay.laneSplit gtau cl.len cl.ratio)) True := by
   unfold laneTables
-  refine (Sim.mapM (fun (cl : Replay.RunClass) (r : Array ExtVar × Array ExtVar) m =>
+  refine (Simulates.mapM (fun (cl : Replay.RunClass) (r : Array ExtVar × Array ExtVar) m =>
       IsExts c m r.1 (Replay.laneSplit gtau cl.len cl.ratio).1 ∧
         IsExts c m r.2 (Replay.laneSplit gtau cl.len cl.ratio).2)
     (fun _ _ _ _ h le => ⟨h.1.mono le, h.2.mono le⟩)
@@ -189,10 +189,10 @@ private theorem slotStep_sim {layout : Replay.Layout} {point : Array ExtVar} {gp
     (hp : P → IsExts c n point gpoint) (hl : P → IsLanes c n lanes glanes)
     (named : ∀ s ∈ layout.segments, s.classIndex < glanes.size ∧
       s.lane < (if t = 0 then glanes[s.classIndex]!.1 else glanes[s.classIndex]!.2).size) :
-    Sim c n P (slotStep layout point lanes t) (fun r m => IsExt c m r (Replay.slotStep layout gpoint glanes t))
+    Simulates c n P (slotStep layout point lanes t) (fun r m => IsExt c m r (Replay.slotStep layout gpoint glanes t))
       True := by
   unfold slotStep Replay.slotStep
-  refine (Sim.step (gvalues := layout.segments.map fun s =>
+  refine (Simulates.step (gvalues := layout.segments.map fun s =>
       (if t = 0 then glanes[s.classIndex]!.1 else glanes[s.classIndex]!.2)[s.lane]!) layout.slots hp
     (fun h => ⟨by simp, fun i hi => ?_⟩) fun _ => by simp).post (fun _ _ _ q => ?_) fun _ => Iff.rfl
   · have hi' : i < layout.segments.size := by simpa using hi
@@ -276,29 +276,29 @@ private theorem checkLate_ensures {layout : Replay.Layout} {beta : ExtVar} {gbet
   set T := (g.leafPoint[0]!)[layout.slotVariables]!
   set slot := (g.leafPoint[0]!).extract 0 layout.slotVariables
   set L := Replay.oneMinus T * Replay.slotStep layout slot glanes 0 + T * Replay.slotStep layout slot glanes 1
-  refine Ensures.post (Sim.ensures (Q := fun res k => IsLateOut c k res ⟨gbeta, g, gpairs,
+  refine Ensures.post (Simulates.ensures (Q := fun res k => IsLateOut c k res ⟨gbeta, g, gpairs,
       Bridge.lateOpeningsOf layout gbeta g⟩) (C := g.leafValue 0 0 = U ∧ g.leafValue 0 1 = L ∧
       g.leafValue 1 1 = gbeta - Replay.identityValue g.leafPoint[1]! ∧ True) ?_)
     fun h _ _ q => ⟨checkLate_of h.2 q.2.1 q.2.2.1 q.2.2.2.1, q.1⟩
-  refine Sim.extZero.bind₀ fun ubar₀ m₂ l₂ => ?_
-  refine (((Sim.loop₀ (I := fun k u m => IsExt c m u (Replay.sumRange k fun j =>
+  refine Simulates.extZero.bind₀ fun ubar₀ m₂ l₂ => ?_
+  refine (((Simulates.loop₀ (I := fun k u m => IsExt c m u (Replay.sumRange k fun j =>
       (mix.evalA j).1 * (gpairs[j]!).1 + (mix.evalA j).2 * (gpairs[j]!).2)) fun k hk u m lm => ?_).pre
     fun h => ⟨h, h.2⟩).post (Q' := fun u m => IsExt c m u U) (fun h _ _ q => ?_) fun _ => Iff.rfl).bind₀
     fun ubar m₃ l₃ => ?_
   · have hk' : k < pairs.size ∧ k < evalA.size := by simpa using hk
     have L₀ : n ≤ m := l₁.trans (l₂.trans lm)
     rw [show (pairs.zip evalA)[k] = (pairs[k]!, evalA[k]!) by simp [getElem!_pos, hk'.1, hk'.2]]
-    refine (Sim.extMul (fun h => ((hevalA h.1.1.1).2 k hk'.2).1.mono L₀)
+    refine (Simulates.extMul (fun h => ((hevalA h.1.1.1).2 k hk'.2).1.mono L₀)
       fun h => ((hpairs h.1.1.1).2 k hk'.1).1.mono L₀).bind₀ fun a m₄ l₄ => ?_
-    refine (Sim.extMul (fun h => ((hevalA h.1.1.1.1).2 k hk'.2).2.mono (L₀.trans l₄))
+    refine (Simulates.extMul (fun h => ((hevalA h.1.1.1.1).2 k hk'.2).2.mono (L₀.trans l₄))
       fun h => ((hpairs h.1.1.1.1).2 k hk'.1).2.mono (L₀.trans l₄)).bind₀ fun b m₅ l₅ => ?_
-    refine (Sim.extAdd (fun h => h.1.2.mono l₅) fun h => h.2).bind₀ fun term m₆ l₆ => ?_
-    refine (Sim.extAdd (fun h => h.1.1.1.2.mono (l₄.trans (l₅.trans l₆))) fun h => h.2).bind₀ fun u' m₇ l₇ => ?_
-    exact Sim.pure fun h => ⟨rfl, by rw [sumRange_succ]; exact h.2⟩
+    refine (Simulates.extAdd (fun h => h.1.2.mono l₅) fun h => h.2).bind₀ fun term m₆ l₆ => ?_
+    refine (Simulates.extAdd (fun h => h.1.1.1.2.mono (l₄.trans (l₅.trans l₆))) fun h => h.2).bind₀ fun u' m₇ l₇ => ?_
+    exact Simulates.pure fun h => ⟨rfl, by rw [sumRange_succ]; exact h.2⟩
   · rw [Array.size_zip, (hpairs h.1.1).1, Nat.min_eq_left (hevalA h.1.1).1] at q
     exact q
   have L₃ : n ≤ m₃ := l₁.trans (l₂.trans l₃)
-  refine Sim.pre (P' := (P ∧ Replay.pairCheck g.roots[0]! g.roots[1]! "block scatter" = .ok ()) ∧
+  refine Simulates.pre (P' := (P ∧ Replay.pairCheck g.roots[0]! g.roots[1]! "block scatter" = .ok ()) ∧
     IsExt c m₃ ubar U) ?_ fun h => ⟨h.1.1, h.2⟩
   refine (slotStep_sim 0 (fun h => (tree 0 (by omega) h.1.1 L₃).2.2.1.slice 0 layout.slotVariables)
     (fun h => (hlanes h.1.1).mono L₃) fun s hs => ⟨(named s hs).1, by simpa using (named s hs).2.1⟩).bind₀
@@ -306,31 +306,31 @@ private theorem checkLate_ensures {layout : Replay.Layout} {beta : ExtVar} {gbet
   refine (slotStep_sim 1 (fun h => (tree 0 (by omega) h.1.1.1 (L₃.trans l₄)).2.2.1.slice 0 layout.slotVariables)
     (fun h => (hlanes h.1.1.1).mono (L₃.trans l₄)) fun s hs => ⟨(named s hs).1, by simpa using (named s hs).2.2⟩).bind₀
     fun tail m₅ l₅ => ?_
-  refine (Sim.oneMinus fun h => top h.1.1.1.1 (L₃.trans (l₄.trans l₅))).bind₀ fun low m₆ l₆ => ?_
-  refine (Sim.extMul (fun h => h.2) fun h => h.1.1.2.mono (l₅.trans l₆)).bind₀ fun a m₇ l₇ => ?_
-  refine (Sim.extMul (fun h => top h.1.1.1.1.1.1 (L₃.trans (l₄.trans (l₅.trans (l₆.trans l₇)))))
+  refine (Simulates.oneMinus fun h => top h.1.1.1.1 (L₃.trans (l₄.trans l₅))).bind₀ fun low m₆ l₆ => ?_
+  refine (Simulates.extMul (fun h => h.2) fun h => h.1.1.2.mono (l₅.trans l₆)).bind₀ fun a m₇ l₇ => ?_
+  refine (Simulates.extMul (fun h => top h.1.1.1.1.1.1 (L₃.trans (l₄.trans (l₅.trans (l₆.trans l₇)))))
     fun h => h.1.1.2.mono (l₆.trans l₇)).bind₀ fun b m₈ l₈ => ?_
-  refine (Sim.extAdd (fun h => h.1.2.mono l₈) fun h => h.2).bind₀ fun lane m₉ l₉ => ?_
+  refine (Simulates.extAdd (fun h => h.1.2.mono l₈) fun h => h.2).bind₀ fun lane m₉ l₉ => ?_
   have L₉ : m₃ ≤ m₉ := l₄.trans (l₅.trans (l₆.trans (l₇.trans (l₈.trans l₉))))
-  refine Sim.pre (P' := ((P ∧ Replay.pairCheck g.roots[0]! g.roots[1]! "block scatter" = .ok ()) ∧
+  refine Simulates.pre (P' := ((P ∧ Replay.pairCheck g.roots[0]! g.roots[1]! "block scatter" = .ok ()) ∧
     IsExt c m₉ ubar U) ∧ IsExt c m₉ lane L) ?_ fun h => ⟨⟨h.1.1.1.1.1.1.1, h.1.1.1.1.1.1.2.mono L₉⟩, h.2⟩
   have N₉ : n ≤ m₉ := L₃.trans L₉
-  refine (Sim.assertExtEqual (fun h => value 0 0 (by omega) h.1.1.1 N₉ (by have := (hsizes h.1.1.1).1; omega))
+  refine (Simulates.assertExtEqual (fun h => value 0 0 (by omega) h.1.1.1 N₉ (by have := (hsizes h.1.1.1).1; omega))
     fun h => h.1.2).bind fun _ m₁₀ l₁₀ => ?_
-  refine (Sim.assertExtEqual (fun h => value 0 1 (by omega) h.1.1.1.1 (N₉.trans l₁₀)
+  refine (Simulates.assertExtEqual (fun h => value 0 1 (by omega) h.1.1.1.1 (N₉.trans l₁₀)
     (by have := (hsizes h.1.1.1.1).1; omega)) fun h => h.1.2.mono l₁₀).bind fun _ m₁₁ l₁₁ => ?_
   have N₁₁ : n ≤ m₁₁ := N₉.trans (l₁₀.trans l₁₁)
-  refine (Sim.identity fun h => (tree 1 (by omega) h.1.1.1.1.1 N₁₁).2.2.1).bind₀ fun index m₁₂ l₁₂ => ?_
-  refine (Sim.extSub (fun h => (hbeta h.1.1.1.1.1.1).mono (N₁₁.trans l₁₂)) fun h => h.2).bind₀
+  refine (Simulates.identity fun h => (tree 1 (by omega) h.1.1.1.1.1 N₁₁).2.2.1).bind₀ fun index m₁₂ l₁₂ => ?_
+  refine (Simulates.extSub (fun h => (hbeta h.1.1.1.1.1.1).mono (N₁₁.trans l₁₂)) fun h => h.2).bind₀
     fun expected m₁₃ l₁₃ => ?_
-  refine (Sim.assertExtEqual (fun h => value 1 1 (by omega) h.1.1.1.1.1.1.1 (N₁₁.trans (l₁₂.trans l₁₃))
+  refine (Simulates.assertExtEqual (fun h => value 1 1 (by omega) h.1.1.1.1.1.1.1 (N₁₁.trans (l₁₂.trans l₁₃))
     (by have := (hsizes h.1.1.1.1.1.1.1).2.1; omega)) fun h => h.2).bind fun _ m₁₄ l₁₄ => ?_
   have N₁₄ : n ≤ m₁₄ := N₁₁.trans (l₁₂.trans (l₁₃.trans l₁₄))
-  refine (Sim.extSub (fun h => (hbeta h.1.1.1.1.1.1.1.1).mono N₁₄) fun h => value 0 2 (by omega)
+  refine (Simulates.extSub (fun h => (hbeta h.1.1.1.1.1.1.1.1).mono N₁₄) fun h => value 0 2 (by omega)
     h.1.1.1.1.1.1.1.1 N₁₄ (by have := (hsizes h.1.1.1.1.1.1.1.1).1; omega)).bind₀ fun rest m₁₅ l₁₅ => ?_
-  refine (Sim.extSub (fun h => h.2) fun h => top h.1.1.1.1.1.1.1.1.1 (N₁₄.trans l₁₅)).bind₀ fun block m₁₆ l₁₆ => ?_
+  refine (Simulates.extSub (fun h => h.2) fun h => top h.1.1.1.1.1.1.1.1.1 (N₁₄.trans l₁₅)).bind₀ fun block m₁₆ l₁₆ => ?_
   have N₁₆ : n ≤ m₁₆ := N₁₄.trans (l₁₅.trans l₁₆)
-  refine Sim.pure fun h => ?_
+  refine Simulates.pure fun h => ?_
   have hP : P := h.1.1.1.1.1.1.1.1.1.1
   exact ⟨(tree 0 (by omega) hP N₁₆).2.2.1.slice 0 layout.slotVariables, h.2, (tree 1 (by omega) hP N₁₆).2.2.1,
     value 1 0 (by omega) hP N₁₆ (by have := (hsizes hP).2.1; omega)⟩
@@ -367,7 +367,7 @@ theorem lateStage_ensures {rel : Relation} {tau : Array ExtVar} {evalA : Array (
     rw [getElem!_pos glanes _ (by simpa [glanes] using inside), Array.getElem_map]
     simp [glanes, inside, lane, Replay.laneSplit]
   unfold Circuit.lateStage
-  refine Ensures.tbind (Sim.sampleExt hp hd).ensures fun beta d₁ m₁ l₁ => ?_
+  refine Ensures.tbind (Simulates.sampleExt hp hd).ensures fun beta d₁ m₁ l₁ => ?_
   set gbeta : Ext := ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
   set t₁ : Replay.Transcript := ⟨t.duplex.sample.2.sample.2.sample.2, t.draws.push (.ext gbeta)⟩
   refine Ensures.tbind (gkrVerify_ensures (t := t₁) hp (fun h => h.2.1.2)
@@ -407,7 +407,7 @@ theorem lateStage_ensures {rel : Relation} {tau : Array ExtVar} {evalA : Array (
       obtain ⟨size, pairs⟩ := forall₂_entries (hvalues h.1.1)
       exact ⟨size, fun j hj => by rw [getElem!_pos _ j hj]; exact (pairs j hj).mono L₃⟩))
     fun openings d₄ m₄ l₄ => ?_
-  refine Ensures.tbind (Sim.observePairs (r := t₂.duplex) hp (fun h => by
+  refine Ensures.tbind (Simulates.observePairs (r := t₂.duplex) hp (fun h => by
       have e : d₄ = d₂ := h.2.2.trans h.1.2.2
       rw [e]
       exact h.1.1.2.2.2.2.mono (l₃.trans l₄))

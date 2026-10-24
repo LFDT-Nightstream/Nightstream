@@ -201,16 +201,16 @@ theorem forIn_ok {α ε : Type} {l : List α} {body : α → PUnit → Except ε
 
 end Decoded
 
-namespace Sim
+namespace Simulates
 
 variable {c : Ctx F} {n : ℕ} {P : Prop} {w : Var → Word}
 
 /-- `(0..count).map(…)`: entry `i` meets `R i`. -/
 theorem rangeMapM {α : Type} {f : ℕ → Build α} (count : ℕ) (R : ℕ → α → ℕ → Prop)
-    (mono : ∀ i a m m', R i a m → m ≤ m' → R i a m') (h : ∀ i < count, ∀ m, n ≤ m → Sim c m P (f i) (R i) True) :
-    Sim c n P ((Array.range count).mapM f) (fun as m => as.size = count ∧ ∀ i (hi : i < as.size), R i as[i] m)
+    (mono : ∀ i a m m', R i a m → m ≤ m' → R i a m') (h : ∀ i < count, ∀ m, n ≤ m → Simulates c m P (f i) (R i) True) :
+    Simulates c n P ((Array.range count).mapM f) (fun as m => as.size = count ∧ ∀ i (hi : i < as.size), R i as[i] m)
       True :=
-  (Sim.mapM R mono fun i hi m le => h i (Array.mem_range.mp hi) m le).post (fun _ as m hf => by
+  (Simulates.mapM R mono fun i hi m le => h i (Array.mem_range.mp hi) m le).post (fun _ as m hf => by
     rw [Array.toList_range, List.forall₂_iff_get] at hf
     have size : as.size = count := by simpa using hf.1.symm
     refine ⟨size, fun i hi => ?_⟩
@@ -218,48 +218,48 @@ theorem rangeMapM {α : Type} {f : ℕ → Build α} (count : ℕ) (R : ℕ → 
 
 /-- `bind₀` that passes `Decodes` on to the rest of the program. -/
 theorem bindDecodes {α β : Type} {b : Build α} {f : α → Build β} {Q : α → ℕ → Prop} {R : β → ℕ → Prop} {C : Prop}
-    (hw : P → Decodes c w) (hb : (P → Decodes c w) → Sim c n P b Q True)
-    (hf : ∀ a m, n ≤ m → (P ∧ Q a m → Decodes c w) → Sim c m (P ∧ Q a m) (f a) R C) : Sim c n P (b >>= f) R C :=
+    (hw : P → Decodes c w) (hb : (P → Decodes c w) → Simulates c n P b Q True)
+    (hf : ∀ a m, n ≤ m → (P ∧ Q a m → Decodes c w) → Simulates c m (P ∧ Q a m) (f a) R C) : Simulates c n P (b >>= f) R C :=
   (hb hw).bind₀ fun a m le => hf a m le fun h => hw h.1
 
 /-- `count` proof words, one `private` each (`algebra.rs:16`). -/
 theorem privateWords (count : ℕ) (hw : P → Decodes c w) :
-    Sim c n P ((Array.range count).mapM fun _ => Build.priv) (fun hs m => IsWords c m hs (hs.map w) ∧ hs.size = count)
+    Simulates c n P ((Array.range count).mapM fun _ => Build.priv) (fun hs m => IsWords c m hs (hs.map w) ∧ hs.size = count)
       True :=
   (rangeMapM count (fun _ h m => h < m) (fun _ _ _ _ h le => lt_of_lt_of_le h le) fun _ _ _ _ =>
-    Sim.priv.post (fun _ _ _ h => h.1) fun _ => Iff.rfl).post
+    Simulates.priv.post (fun _ _ _ h => h.1) fun _ => Iff.rfl).post
     (fun hP _ _ h => ⟨isWords_map (hw hP) h.2, h.1⟩) fun _ => Iff.rfl
 
 /-- `exts` (`verifier.rs:58-62`): `count` extension values. -/
 theorem privateExts (count : ℕ) (hw : P → Decodes c w) :
-    Sim c n P (Circuit.privateExts count)
+    Simulates c n P (Circuit.privateExts count)
       (fun xs m => IsExts c m xs (xs.map (decodeExt w)) ∧ xs.size = count) True :=
   (rangeMapM count (fun _ a m => ∀ k, a k < m) (fun _ _ _ _ h le k => lt_of_lt_of_le (h k) le) fun _ _ _ _ =>
-    Sim.privateExt.post (fun _ _ _ h k => (h k).2.1) fun _ => Iff.rfl).post
+    Simulates.privateExt.post (fun _ _ _ h k => (h k).2.1) fun _ => Iff.rfl).post
     (fun hP _ _ h => ⟨isExts_map (hw hP) h.2, h.1⟩) fun _ => Iff.rfl
 
 /-- `pairs` (`verifier.rs:63-67`): `count` pairs of extension values. -/
 theorem privatePairs (count : ℕ) (hw : P → Decodes c w) :
-    Sim c n P (Circuit.privatePairs count)
+    Simulates c n P (Circuit.privatePairs count)
       (fun xs m => List.Forall₂ (IsPair c m) xs.toList (xs.map (decodePair w)).toList ∧ xs.size = count) True :=
   (rangeMapM count (fun _ (p : ExtVar × ExtVar) m => (∀ k, p.1 k < m) ∧ ∀ k, p.2 k < m)
     (fun _ _ _ _ h le => ⟨fun k => lt_of_lt_of_le (h.1 k) le, fun k => lt_of_lt_of_le (h.2 k) le⟩)
-    fun _ _ _ _ => Sim.privateExt.bind₀ fun _ _ l₁ => Sim.privateExt.bind₀ fun _ _ _ => Sim.pure fun h =>
+    fun _ _ _ _ => Simulates.privateExt.bind₀ fun _ _ l₁ => Simulates.privateExt.bind₀ fun _ _ _ => Simulates.pure fun h =>
       ⟨fun k => lt_of_lt_of_le (h.1.2 k).2.1 (by omega), fun k => (h.2 k).2.1⟩).post
     (fun hP _ _ h => ⟨forall₂_map fun i hi =>
       ⟨isExt_decode (hw hP) (h.2 i hi).1, isExt_decode (hw hP) (h.2 i hi).2⟩, h.1⟩) fun _ => Iff.rfl
 
 /-- `root` (`verifier.rs:68-75`): a digest. -/
 theorem privateDigest (hw : P → Decodes c w) :
-    Sim c n P Circuit.privateDigest (fun d m => IsDigest c m d (decodeDigest w d)) True :=
-  (privateWords 4 hw).bind₀ fun _ _ _ => Sim.pure fun h => ⟨rfl, fun lane => by
+    Simulates c n P Circuit.privateDigest (fun d m => IsDigest c m d (decodeDigest w d)) True :=
+  (privateWords 4 hw).bind₀ fun _ _ _ => Simulates.pure fun h => ⟨rfl, fun lane => by
     refine ⟨(h.2.1.2 lane (by have := h.2.2; omega)).1, ?_⟩
     rw [hw h.1]
     fin_cases lane <;> rfl⟩
 
 /-- `rows` (`whir/mod.rs:76-113`): `draws` rows of the row length. -/
 theorem queryRows (draws width : ℕ) (base : Bool) (hw : P → Decodes c w) :
-    Sim c n P (Circuit.queryRows draws width base)
+    Simulates c n P (Circuit.queryRows draws width base)
       (fun rows m => IsRows c w m rows ∧ rows.size = draws ∧
         ∀ row ∈ rows, row.size = if base then width else 3 * width) True :=
   (rangeMapM draws (fun _ row m => IsWords c m row (row.map w) ∧ row.size = if base then width else 3 * width)
@@ -270,31 +270,31 @@ theorem queryRows (draws width : ℕ) (base : Bool) (hw : P → Decodes c w) :
 
 /-- `LeafView::read` (`setup.rs:222-236`), with the sizes that `readProof` checks. -/
 theorem LeafView.read (oracles setupVars : ℕ) (hw : P → Decodes c w) :
-    Sim c n P (Circuit.LeafView.read oracles setupVars)
+    Simulates c n P (Circuit.LeafView.read oracles setupVars)
       (fun v m => IsLeaf c m v (v.decode w) ∧ (v.decode w).values.size = oracles * 2 ^ foldVars ∧
         (v.decode w).path.size = setupVars + 1 - foldVars) True :=
   bindDecodes hw (privateWords _) fun _ _ _ hw =>
     (rangeMapM _ (fun _ d m => IsDigest c m d (decodeDigest w d)) (fun _ _ _ _ h le => h.mono le)
-      fun _ _ _ _ => privateDigest hw).bind₀ fun _ _ l₂ => Sim.pure fun h =>
+      fun _ _ _ _ => privateDigest hw).bind₀ fun _ _ l₂ => Simulates.pure fun h =>
         ⟨⟨h.1.2.1.mono l₂, forall₂_map h.2.2⟩, by simp [LeafView.decode, h.1.2.2], by simp [LeafView.decode, h.2.1]⟩
 
 /-- `GkrView::read` (`gkr.rs:608-656`): the replay's `readGkr` accepts the decoded proof. -/
 theorem GkrView.read (shapes : Array TreeShape) (hs : ∀ s ∈ shapes, s.depth ≠ 0 ∧ s.factors ≤ 2)
     (hw : P → Decodes c w) :
-    Sim c n P (Circuit.GkrView.read shapes)
+    Simulates c n P (Circuit.GkrView.read shapes)
       (fun v m => IsGkr c m v (v.decode w) ∧ Replay.readGkr (v.decode w) shapes = .ok ()) True := by
   refine bindDecodes hw (privatePairs _) fun roots m₁ l₁ hw => ?_
   refine (rangeMapM (layerCount shapes)
     (fun i l m => IsGkrLayer c m l (l.decode w) ∧ layerShapeOk shapes (i + 1) (l.decode w) = true)
-    (fun _ _ _ _ h le => ⟨h.1.mono le, h.2⟩) fun i _ m _ => ?layer).bind₀ fun layers m₂ l₂ => Sim.pure fun h => ?final
+    (fun _ _ _ _ h le => ⟨h.1.mono le, h.2⟩) fun i _ m _ => ?layer).bind₀ fun layers m₂ l₂ => Simulates.pure fun h => ?final
   case layer =>
     dsimp only
     refine bindDecodes hw (fun hw => rangeMapM _ (fun _ a m => IsExts c m a (a.map (decodeExt w)) ∧
         a.size = layerDegree (layerFactors shapes (i + 1)))
       (fun _ _ _ _ h le => ⟨h.1.mono le, h.2⟩) fun _ _ _ _ => privateExts _ hw) fun rounds m₃ l₃ hw => ?_
-    refine (Sim.mapM (fun f a m => IsExts c m a (a.map (decodeExt w)) ∧ a.size = 2 * (f + 1))
+    refine (Simulates.mapM (fun f a m => IsExts c m a (a.map (decodeExt w)) ∧ a.size = 2 * (f + 1))
       (fun _ _ _ _ h le => ⟨h.1.mono le, h.2⟩) fun _ _ _ _ => privateExts _ hw).bind₀
-      fun children m₄ l₄ => Sim.pure fun h => ?_
+      fun children m₄ l₄ => Simulates.pure fun h => ?_
     obtain ⟨⟨-, hrs, hr⟩, hc⟩ := h
     have hf : List.Forall₂ (fun t (a : Array Ext) => a.size = 2 * (partFactors shapes (i + 1) t + 1))
         (activeTrees shapes (i + 1)).toList (children.map (·.map (decodeExt w))).toList := by
@@ -333,13 +333,13 @@ theorem GkrView.read (shapes : Array TreeShape) (hs : ∀ s ∈ shapes, s.depth 
 /-- `OpeningView::read` (`whir/mod.rs:125-223`): the replay's `readOpening` accepts the decoded
 opening. -/
 theorem OpeningView.read (shape : WhirShape) (rows : OpeningRows) (hw : P → Decodes c w) :
-    Sim c n P (Circuit.OpeningView.read shape rows)
+    Simulates c n P (Circuit.OpeningView.read shape rows)
       (fun v m => IsOpening c w m v (v.decode w) ∧ Replay.readOpening shape (v.decode w) = .ok ()) True := by
   refine bindDecodes hw (privateExts _) fun initialOod m₁ l₁ hw => ?_
-  refine bindDecodes hw (fun hw => Sim.mapM (fun (b : Replay.WhirBatch) a m => IsExts c m a (a.map (decodeExt w)) ∧
+  refine bindDecodes hw (fun hw => Simulates.mapM (fun (b : Replay.WhirBatch) a m => IsExts c m a (a.map (decodeExt w)) ∧
     a.size = b.size) (fun _ _ _ _ h le => ⟨h.1.mono le, h.2⟩) fun _ _ _ _ => privateExts _ hw) fun evals m₂ l₂ hw => ?_
   refine bindDecodes hw (privatePairs _) fun initialSumcheck m₃ l₃ hw => ?_
-  refine bindDecodes hw (fun hw => Sim.mapM (fun (x : Replay.WhirRoundShape × ℕ) r m => IsRound c w m r (r.decode w) ∧
+  refine bindDecodes hw (fun hw => Simulates.mapM (fun (x : Replay.WhirRoundShape × ℕ) r m => IsRound c w m r (r.decode w) ∧
       r.ood.size = x.1.oodSamples ∧ r.sumcheck.size = x.1.sumcheck.rounds)
     (fun _ _ _ _ h le => ⟨h.1.mono le, h.2⟩) fun x _ m _ => ?round) fun rounds m₄ l₄ hw => ?_
   case round =>
@@ -348,12 +348,12 @@ theorem OpeningView.read (shape : WhirShape) (rows : OpeningRows) (hw : P → De
     refine bindDecodes hw privateDigest fun root m₅ l₅ hw => ?_
     refine bindDecodes hw (privateExts _) fun ood m₆ l₆ hw => ?_
     refine bindDecodes hw (queryRows _ _ _) fun queries m₇ l₇ hw => ?_
-    refine (privatePairs _ hw).bind₀ fun sumcheck m₈ l₈ => Sim.pure fun h => ?_
+    refine (privatePairs _ hw).bind₀ fun sumcheck m₈ l₈ => Simulates.pure fun h => ?_
     obtain ⟨⟨⟨⟨-, hroot⟩, hood⟩, hq⟩, hsum⟩ := h
     exact ⟨⟨hroot.mono (by omega), hood.1.mono (by omega), hsum.1, hq.1.mono l₈⟩, hood.2, hsum.2⟩
   refine bindDecodes hw (privateExts _) fun finalPoly m₅ l₅ hw => ?_
   refine bindDecodes hw (queryRows _ _ _) fun finalQueries m₆ l₆ hw => ?_
-  refine (privatePairs _ hw).bind₀ fun finalSumcheck m₇ l₇ => Sim.pure fun h => ?final
+  refine (privatePairs _ hw).bind₀ fun finalSumcheck m₇ l₇ => Simulates.pure fun h => ?final
   case final =>
     obtain ⟨⟨⟨⟨⟨⟨⟨-, h1⟩, h2⟩, h3⟩, h4⟩, h5⟩, h6⟩, h7⟩ := h
     refine ⟨⟨h1.1.mono (by omega),
@@ -396,7 +396,7 @@ proof. -/
 theorem ProofView.read (rel : Relation) (p1Rows p0Rows : OpeningRows)
     (hrun : rel.key.layout.runVariables ≠ 0) (hrow : rel.key.layout.rowVariables ≠ 0)
     (hslot : rel.key.layout.slotVariables + rel.matrixVars ≠ 0) (hw : P → Decodes c w) :
-    Sim c n P (Circuit.ProofView.read rel p1Rows p0Rows)
+    Simulates c n P (Circuit.ProofView.read rel p1Rows p0Rows)
       (fun v m => IsProof c w m v (v.decode w) ∧ Replay.readProof rel (v.decode w) = .ok ()) True := by
   have early : ∀ s ∈ rel.earlyShapes, s.depth ≠ 0 ∧ s.factors ≤ 2 := by
     simp [Relation.earlyShapes, Relation.cubeVars, Replay.laneVars, hrun, hrow]
@@ -408,7 +408,7 @@ theorem ProofView.read (rel : Relation) (p1Rows p0Rows : OpeningRows)
   refine bindDecodes hw (GkrView.read _ early) fun earlyGkr m₃ l₃ hw => ?_
   refine bindDecodes hw (privateExts 3) fun runs m₄ l₄ hw => ?_
   refine bindDecodes hw (privatePairs _) fun pairs m₅ l₅ hw => ?_
-  refine bindDecodes hw (fun hw => Sim.privateExt.post (Q' := fun a m => IsExt c m a (decodeExt w a))
+  refine bindDecodes hw (fun hw => Simulates.privateExt.post (Q' := fun a m => IsExt c m a (decodeExt w a))
     (fun h _ _ hr => isExt_decode (hw h) fun k => (hr k).2.1) fun _ => Iff.rfl) fun block m₆ l₆ hw => ?_
   refine bindDecodes hw (privateExts _) fun quotient m₇ l₇ hw => ?_
   refine bindDecodes hw (fun hw => rangeMapM _ (fun _ a m => IsExts c m a (a.map (decodeExt w)) ∧ a.size = 2)
@@ -425,7 +425,7 @@ theorem ProofView.read (rel : Relation) (p1Rows p0Rows : OpeningRows)
   refine bindDecodes hw (GkrView.read _ late) fun lateGkr m₁₃ l₁₃ hw => ?_
   refine bindDecodes hw (privatePairs _) fun lateValues m₁₄ l₁₄ hw => ?_
   refine bindDecodes hw (OpeningView.read _ _) fun p1Opening m₁₅ l₁₅ hw => ?_
-  refine bindDecodes hw (OpeningView.read _ _) fun p0Opening m₁₆ l₁₆ hw => Sim.pure fun h => ?_
+  refine bindDecodes hw (OpeningView.read _ _) fun p0Opening m₁₆ l₁₆ hw => Simulates.pure fun h => ?_
   have hd := hw h
   obtain ⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨⟨-, h1⟩, h2⟩, h3⟩, h4⟩, h5⟩, h6⟩, h7⟩, h8⟩, h9⟩, h10⟩, h11⟩, h12⟩, h13⟩, h14⟩, h15⟩,
     h16⟩ := h
@@ -466,6 +466,6 @@ theorem ProofView.read (rel : Relation) (p1Rows p0Rows : OpeningRows)
       h16.2]
     rfl
 
-end Sim
+end Simulates
 
 end CompressionLean.Circuit

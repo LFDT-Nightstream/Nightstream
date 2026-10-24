@@ -146,25 +146,25 @@ variable {c : Ctx NightstreamFPrime.Spec.F} {n : ℕ} {P : Prop}
 /-- `column`, simulated (`terminal/package.rs:200-217`). -/
 private theorem column_sim (statement : Array Var) (context : Array Word) (computed : Var) (src : Source)
     (hs : P → ∀ j, statement.getD j 0 < n) (hc : P → ∀ i, src = .computed i → computed + i < n) :
-    Sim c n P (column statement context computed src) (ColumnHolds c statement context src) True := by
+    Simulates c n P (column statement context computed src) (ColumnHolds c statement context src) True := by
   have chunk : NightstreamFPrime.Lifecycle.stateDomainChunk.length ≤ contextStart := by
     rw [NightstreamFPrime.Lifecycle.stateDomainChunk_length]
     decide
   cases src with
-  | one => exact (Sim.const 1).post (fun _ h m w => ⟨w.1, by rw [w.2, word_one]⟩) fun _ => Iff.rfl
+  | one => exact (Simulates.const 1).post (fun _ h m w => ⟨w.1, by rw [w.2, word_one]⟩) fun _ => Iff.rfl
   | priv i =>
       dsimp only [column]
       split_ifs with h1 h2 h3
-      · exact (Sim.const _).post (fun _ h m w => ⟨w.1, fun lo => absurd h1 (by omega)⟩) fun _ => Iff.rfl
-      · exact (Sim.const _).post (fun _ h m w => ⟨w.1, fun lo => absurd h2.2 (by omega)⟩) fun _ => Iff.rfl
-      · exact Sim.pure fun hP => ⟨hs hP _, fun _ _ => rfl⟩
-      · exact Sim.priv.post (fun _ h m w => ⟨w.1, fun lo hi => absurd ⟨lo, hi⟩ h3⟩) fun _ => Iff.rfl
+      · exact (Simulates.const _).post (fun _ h m w => ⟨w.1, fun lo => absurd h1 (by omega)⟩) fun _ => Iff.rfl
+      · exact (Simulates.const _).post (fun _ h m w => ⟨w.1, fun lo => absurd h2.2 (by omega)⟩) fun _ => Iff.rfl
+      · exact Simulates.pure fun hP => ⟨hs hP _, fun _ _ => rfl⟩
+      · exact Simulates.priv.post (fun _ h m w => ⟨w.1, fun lo hi => absurd ⟨lo, hi⟩ h3⟩) fun _ => Iff.rfl
   | pub i =>
       dsimp only [column]
       split_ifs with h1
-      · exact (Sim.const _).post (fun _ h m w => ⟨w.1, fun _ => w.2⟩) fun _ => Iff.rfl
-      · exact Sim.priv.post (fun _ h m w => ⟨w.1, fun lo => absurd lo h1⟩) fun _ => Iff.rfl
-  | computed k => exact Sim.pure fun hP => ⟨hc hP k rfl, trivial⟩
+      · exact (Simulates.const _).post (fun _ h m w => ⟨w.1, fun _ => w.2⟩) fun _ => Iff.rfl
+      · exact Simulates.priv.post (fun _ h m w => ⟨w.1, fun lo => absurd lo h1⟩) fun _ => Iff.rfl
+  | computed k => exact Simulates.pure fun hP => ⟨hc hP k rfl, trivial⟩
 
 end
 
@@ -567,13 +567,13 @@ theorem apply_ensures
       exact lt_of_lt_of_le hj le
     · exact lt_of_lt_of_le (by decide) le
   unfold apply
-  refine (Sim.emit (Q := fun h m => h + loaded.computed.size ≤ m) (C := True) (.hint loaded.computed.size)
+  refine (Simulates.emit (Q := fun h m => h + loaded.computed.size ≤ m) (C := True) (.hint loaded.computed.size)
     fun _ E hl hF => ⟨by simp [Instr.outputs], Iff.rfl⟩).ensures.bind fun computed m₁ le₁ => ?_
-  refine (Sim.mapM (ColumnHolds c statement context) (fun _ _ _ _ h le => h.mono le) fun x mem m' le' =>
+  refine (Simulates.mapM (ColumnHolds c statement context) (fun _ _ _ _ h le => h.mono le) fun x mem m' le' =>
     column_sim statement context computed x (fun h j => lt_of_lt_of_le (hs h.1 j) (le₁.trans le'))
       fun h i e => lt_of_lt_of_le (Nat.add_lt_add_left (computed_lt loads x mem i e) computed)
         (h.2.1.trans le')).ensures.bind fun columns m₂ le₂ => ?_
-  refine (Sim.r1cs (rows := loaded.system.toList) fun h => columns_lt h.2.1).ensures.bind fun _ m₃ le₃ => ?_
+  refine (Simulates.r1cs (rows := loaded.system.toList) fun h => columns_lt h.2.1).ensures.bind fun _ m₃ le₃ => ?_
   refine Ensures.pure fun h => ?_
   obtain ⟨⟨⟨hP', -, -⟩, cols, -⟩, -, rows⟩ := h
   obtain ⟨hstmt, -, reads, nz⟩ := hP hP'
@@ -627,14 +627,14 @@ theorem checkedApply_ensures
     Ensures c n P (checkedApply loaded context statement) (Handoff c authority) := by
   have zero : P → statement.getD 0 0 = 0 := fun h => by rw [(hP h).1, range_getD]; rfl
   unfold checkedApply
-  refine (Sim.emit (Q := fun h m => h < m) (C := True) (.hint 1) fun _ E hl hF =>
+  refine (Simulates.emit (Q := fun h m => h < m) (C := True) (.hint 1) fun _ E hl hF =>
     ⟨by simp [Instr.outputs], Iff.rfl⟩).ensures.bind fun inverse m₁ le₁ => ?_
-  refine (Sim.mul (ga := Word.ofF (c.val (statement.getD 0 0))) (gb := Word.ofF (c.val inverse))
+  refine (Simulates.mul (ga := Word.ofF (c.val (statement.getD 0 0))) (gb := Word.ofF (c.val inverse))
     (fun h => ⟨by rw [zero h.1]; exact lt_of_lt_of_le (lt_of_lt_of_le (by decide) (hP h.1).2.1) le₁,
       (Word.cast_ofF _).symm⟩)
     fun h => ⟨h.2.1, (Word.cast_ofF _).symm⟩).ensures.bind fun product m₂ le₂ => ?_
-  refine (Sim.const 1).ensures.bind fun one m₃ le₃ => ?_
-  refine (Sim.assertEqual (fun h => h.1.2.1.mono le₃) fun h => h.2.1).ensures.bind fun _ m₄ le₄ => ?_
+  refine (Simulates.const 1).ensures.bind fun one m₃ le₃ => ?_
+  refine (Simulates.assertEqual (fun h => h.1.2.1.mono le₃) fun h => h.2.1).ensures.bind fun _ m₄ le₄ => ?_
   refine apply_ensures loads valid hctx fun h => ?_
   obtain ⟨⟨⟨⟨hP', -⟩, -⟩, -⟩, -, one⟩ := h
   obtain ⟨hstmt, le, reads⟩ := hP hP'

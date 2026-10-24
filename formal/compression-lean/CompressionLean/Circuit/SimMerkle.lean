@@ -7,7 +7,7 @@ replay's (`Replay/Transcript.lean`), and the F′ permutation on words
 (`permutes_poseidon2`). `SimHash.lean` owns the duplex challenger.
 
 - `IsDigest`: four handles are a digest of four words.
-- `Sim.merkleRoot` takes the path words as given: the computed root is the
+- `Simulates.merkleRoot` takes the path words as given: the computed root is the
   replay's root of the words that the path handles hold. It does not say
   where those words come from.
 - `permutes_poseidon2`: on words, `Spec.Poseidon2.permute`, the permutation
@@ -70,7 +70,7 @@ private theorem bit_cases (x : ℕ) (gn gp : Array Word) :
 
 attribute [local irreducible] Replay.permute
 
-namespace Sim
+namespace Simulates
 
 variable {c : Ctx F} {n : ℕ} {P : Prop}
 
@@ -78,11 +78,11 @@ variable {c : Ctx F} {n : ℕ} {P : Prop}
 four lanes. -/
 theorem compress {l r : DigestVar} {gl gr : Array Word} (hp : Permutes c.perm) (hl : P → IsDigest c n l gl)
     (hr : P → IsDigest c n r gr) :
-    Sim c n P (Circuit.compress l r) (fun res m => IsDigest c m res (Replay.compress gl gr)) True := by
+    Simulates c n P (Circuit.compress l r) (fun res m => IsDigest c m res (Replay.compress gl gr)) True := by
   unfold Circuit.compress
-  refine (Sim.const 0).bind₀ fun z m₁ l₁ => ?_
-  refine (Sim.permute (gs := gl ++ gr ++ Array.replicate (Replay.width - 8) 0) hp fun h k => ?_).bind₀
-    fun lanes m₂ l₂ => Sim.pure fun h => ⟨by simp [Replay.compress, permute_size], fun lane => ?_⟩
+  refine (Simulates.const 0).bind₀ fun z m₁ l₁ => ?_
+  refine (Simulates.permute (gs := gl ++ gr ++ Array.replicate (Replay.width - 8) 0) hp fun h k => ?_).bind₀
+    fun lanes m₂ l₂ => Simulates.pure fun h => ⟨by simp [Replay.compress, permute_size], fun lane => ?_⟩
   · obtain ⟨⟨sl, wl⟩, ⟨sr, wr⟩⟩ := And.intro (hl h.1) (hr h.1)
     rw [Fin.getElem!_fin, getElem!_append, getElem!_append, Array.size_append, sl, sr]
     by_cases k4 : k.val < 4
@@ -107,14 +107,14 @@ theorem compress {l r : DigestVar} {gl gr : Array Word} (hp : Permutes c.perm) (
 /-- `hash_leaf` (`hash.rs:93-101`): overwrite the lanes of each chunk of
 `RATE` words and permute; the digest is the first four lanes. -/
 theorem hashLeaf {vs : Array Var} {gs : Array Word} (hp : Permutes c.perm) (hv : P → IsWords c n vs gs) :
-    Sim c n P (Circuit.hashLeaf vs) (fun r m => IsDigest c m r (Replay.hashLeaf gs)) True := by
+    Simulates c n P (Circuit.hashLeaf vs) (fun r m => IsDigest c m r (Replay.hashLeaf gs)) True := by
   unfold Circuit.hashLeaf
-  refine (Sim.const 0).bind₀ fun z m₁ l₁ => ?_
+  refine (Simulates.const 0).bind₀ fun z m₁ l₁ => ?_
   dsimp only
   rw [← Array.forIn_toList]
-  refine ((Sim.pre (Sim.loop (P := P ∧ IsWord c m₁ z 0)
+  refine ((Simulates.pre (Simulates.loop (P := P ∧ IsWord c m₁ z 0)
       (I := fun k acc m => IsWords c m acc (leafState gs k) ∧ (leafState gs k).size = 16) (D := fun _ => True)
-      fun k hk acc m hm => ?step) fun h => ⟨h, ?init⟩).bind fun st m₂ l₂ => Sim.pure fun h => ?fin).post
+      fun k hk acc m hm => ?step) fun h => ⟨h, ?init⟩).bind fun st m₂ l₂ => Simulates.pure fun h => ?fin).post
     (fun _ _ _ h => h) fun _ => by simp
   case init =>
     exact ⟨IsWords.replicate h.2 16, by simp [leafState, Replay.width]⟩
@@ -147,8 +147,8 @@ theorem hashLeaf {vs : Array Var} {gs : Array Word} (hp : Permutes c.perm) (hv :
         rw [(wc h.1.1).1]
         exact h.2.1.setRange _ (fun i => i) fun i hi => ((wc h.1.1).get hi).mono (l₁.trans hm)
     have wt : (leafState gs k).size = 16 → t.size = 16 := fun h => by simp only [t, size_setRange, h]
-    refine (Sim.permute (gs := t) hp fun h j => (ws h).get (by rw [wt h.2.2]; exact j.isLt)).bind₀
-      fun o m' l' => Sim.pure fun h => ⟨rfl, ?_⟩
+    refine (Simulates.permute (gs := t) hp fun h j => (ws h).get (by rw [wt h.2.2]; exact j.isLt)).bind₀
+      fun o m' l' => Simulates.pure fun h => ⟨rfl, ?_⟩
     rw [leafState_succ]
     exact ⟨IsWords.ofFn (permute_size _) h.2, permute_size _⟩
 
@@ -161,14 +161,14 @@ theorem merkleRoot [CharP F goldilocksModulus] {leaf : DigestVar} {bits : Array 
     (hbits : P → ∀ i < bits.size, IsWord c n bits[i]! (Word.ofNat (index / 2 ^ i % 2)))
     (hpath : P → ∀ k < path.size, IsDigest c n path[k]! gpath[k]!) (hsize : bits.size = path.size)
     (hgsize : path.size = gpath.size) :
-    Sim c n P (Circuit.merkleRoot leaf bits path)
+    Simulates c n P (Circuit.merkleRoot leaf bits path)
       (fun res m => IsDigest c m res (Replay.merkleRoot gleaf index gpath)) True := by
   unfold Circuit.merkleRoot
   dsimp only
   rw [← Array.forIn_toList]
-  refine ((Sim.pre (Sim.loop (P := P) (I := fun k node m => IsDigest c m node (merkleNode gleaf index gpath k))
+  refine ((Simulates.pre (Simulates.loop (P := P) (I := fun k node m => IsDigest c m node (merkleNode gleaf index gpath k))
       (D := fun _ => True) fun k hk node m hm => ?step) fun h => ⟨h, hleaf h⟩).bind fun res m l =>
-      Sim.pure fun h => ?fin).post (fun _ _ _ h => h) fun _ => by simp
+      Simulates.pure fun h => ?fin).post (fun _ _ _ h => h) fun _ => by simp
   case fin =>
     have e : (bits.zip path).toList.length = gpath.size := by simp [hsize, hgsize]
     rw [e] at h
@@ -188,13 +188,13 @@ theorem merkleRoot [CharP F goldilocksModulus] {leaf : DigestVar} {bits : Array 
     have swap : (if b then Replay.compress gp gn else Replay.compress gn gp) =
         Replay.compress (if b then gp else gn) (if b then gn else gp) := by cases b <;> rfl
     rw [swap]
-    refine (Sim.bind (Sim.pre (Sim.loop (P := P ∧ IsDigest c m node gn)
+    refine (Simulates.bind (Simulates.pre (Simulates.loop (P := P ∧ IsDigest c m node gn)
         (I := fun j (acc : Array Var × Array Var) m' => acc.1.size = 4 ∧ acc.2.size = 4 ∧
           ∀ i < j, IsWord c m' acc.1[i]! (if b then gp else gn)[i]! ∧
             IsWord c m' acc.2[i]! (if b then gn else gp)[i]!)
         (D := fun _ => True) fun j hj acc m' hm' => ?lane)
         fun h => ⟨h, by simp, by simp, fun i hi => absurd hi (by omega)⟩)
-      fun acc m' l' => (Sim.compress hp ?left ?right).bind₀ fun res m'' l'' => Sim.pure fun h => ⟨rfl, h.2⟩).post
+      fun acc m' l' => (Simulates.compress hp ?left ?right).bind₀ fun res m'' l'' => Simulates.pure fun h => ⟨rfl, h.2⟩).post
       (fun _ _ _ h => h) fun _ => by simp
     case left =>
       exact fun h => ⟨by cases b <;> simp [h.1.2.1, (hs h.1.1).1], fun lane => (h.2.2.2 lane (by simp)).1⟩
@@ -203,12 +203,12 @@ theorem merkleRoot [CharP F goldilocksModulus] {leaf : DigestVar} {bits : Array 
     case lane =>
       have j4 : j < 4 := by simpa using hj
       rw [show (List.finRange 4)[j] = ⟨j, j4⟩ by simp]
-      refine (Sim.select (b := b) (fun h => (hb h.1.1).mono (hm.trans hm')) (fun h => (h.1.2.2 ⟨j, j4⟩).mono hm')
+      refine (Simulates.select (b := b) (fun h => (hb h.1.1).mono (hm.trans hm')) (fun h => (h.1.2.2 ⟨j, j4⟩).mono hm')
         fun h => ((hs h.1.1).2 ⟨j, j4⟩).mono (hm.trans hm')).bind₀ fun x m₁ l₁ => ?_
-      refine (Sim.add (fun h => (h.1.1.2.2 ⟨j, j4⟩).mono (hm'.trans l₁))
+      refine (Simulates.add (fun h => (h.1.1.2.2 ⟨j, j4⟩).mono (hm'.trans l₁))
         fun h => ((hs h.1.1.1).2 ⟨j, j4⟩).mono (hm.trans (hm'.trans l₁))).bind₀ fun both m₂ l₂ => ?_
-      refine (Sim.sub (gb := if b then gp[(⟨j, j4⟩ : Fin 4)]! else gn[(⟨j, j4⟩ : Fin 4)]!) (fun h => h.2)
-        fun h => ?_).bind₀ fun y m₃ l₃ => Sim.pure fun h => ⟨rfl, ?_⟩
+      refine (Simulates.sub (gb := if b then gp[(⟨j, j4⟩ : Fin 4)]! else gn[(⟨j, j4⟩ : Fin 4)]!) (fun h => h.2)
+        fun h => ?_).bind₀ fun y m₃ l₃ => Simulates.pure fun h => ⟨rfl, ?_⟩
       · rw [Fin.getElem!_fin, getElem!_set! _ _ _ _ (by rw [h.1.1.2.1]; exact j4), if_pos rfl]
         exact h.1.2.mono l₂
       · obtain ⟨⟨⟨⟨-, s₁, s₂, prev⟩, wx⟩, -⟩, wy⟩ := h
@@ -226,7 +226,7 @@ theorem merkleRoot [CharP F goldilocksModulus] {leaf : DigestVar} {bits : Array 
           exact ⟨(prev i (by omega)).1.mono (l₁.trans (l₂.trans l₃)),
             (prev i (by omega)).2.mono (l₁.trans (l₂.trans l₃))⟩
 
-end Sim
+end Simulates
 
 /-! ## The F′ permutation -/
 

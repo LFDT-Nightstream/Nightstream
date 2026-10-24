@@ -5,8 +5,8 @@ import CompressionLean.Bridge.Run
 /-!
 Owns the simulation of the sum-check replay of `Sumcheck.lean`
 (`sumcheck.rs`) against the replay's (`Replay/Gkr.lean`): the loop that
-observes each value of an array (`Sim.observeExts`), and `Sim.sumcheckReplay`,
-which gives the replay's run. `Sim.elim` fixes the replay values that a loop
+observes each value of an array (`Simulates.observeExts`), and `Simulates.sumcheckReplay`,
+which gives the replay's run. `Simulates.elim` fixes the replay values that a loop
 step names by an existential. Each round message must be nonempty: both read
 `message[0]!`, where Rust's `message[0]` panics.
 -/
@@ -46,7 +46,7 @@ theorem extract (h : IsExts c n xs gs) (a : ℕ) : IsExts c n (xs.extract a) (gs
 
 end IsExts
 
-namespace Sim
+namespace Simulates
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
 
@@ -54,7 +54,7 @@ variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
 (`sumcheck.rs:36-38`): the replay's `observeExts`. -/
 theorem observeExts {d : Duplex} {r : Replay.Duplex} {vs : Array ExtVar} {gs : Array Ext} (hp : Permutes c.perm)
     (hd : P → IsDuplex c n d r) (hv : P → IsExts c n vs gs) :
-    Sim c n P
+    Simulates c n P
       ((forIn vs PUnit.unit fun value _ => (do Duplex.observeExt value; Pure.pure (ForInStep.yield PUnit.unit))).run d)
       (fun res m => IsDuplex c m res.2 ((gs.flatMap fun g => #[g.c0, g.c1, g.c2]).foldl Replay.Duplex.observe r))
       True := by
@@ -69,7 +69,7 @@ theorem observeExts {d : Duplex} {r : Replay.Duplex} {vs : Array ExtVar} {gs : A
     · rw [Array.getElem_toList, ← getElem!_pos vs k hk']
       exact ((hv h.1).2 k hk').mono le
     · rw [StateT.run_pure]
-      refine Sim.pure fun h => ⟨rfl, ?_⟩
+      refine Simulates.pure fun h => ⟨rfl, ?_⟩
       have hg : k < gs.size := (hv h.1.1).1 ▸ hk'
       rw [List.take_add_one, List.getElem?_eq_getElem (by simpa using hg), Option.toList_some, List.flatMap_append,
         List.foldl_append, Array.getElem_toList, ← getElem!_pos gs k hg]
@@ -86,12 +86,12 @@ theorem sumcheckReplay {rounds : Array (Array ExtVar)} {grounds : Array (Array E
     {d : Duplex} {t : Replay.Transcript} (hp : Permutes c.perm) (hd : P → IsDuplex c n d t.duplex)
     (hr : P → rounds.size = grounds.size ∧ ∀ i < rounds.size, IsExts c n rounds[i]! grounds[i]!)
     (hne : P → ∀ g ∈ grounds, 0 < g.size) (hc : P → IsExt c n claim gclaim) :
-    Sim c n P ((Circuit.sumcheckReplay rounds claim).run d)
+    Simulates c n P ((Circuit.sumcheckReplay rounds claim).run d)
       (fun res m => ∃ point final t', Runs (Replay.sumcheckReplay grounds gclaim) t (point, final) t' ∧
         IsExts c m res.1.1 point ∧ IsExt c m res.1.2 final ∧ IsDuplex c m res.2 t'.duplex) True := by
   unfold Circuit.sumcheckReplay
   dsimp only
-  refine Sim.tbind₀ (Q := fun r m => ∃ point final t',
+  refine Simulates.tbind₀ (Q := fun r m => ∃ point final t',
       Runs (Replay.sumcheckRounds grounds.toList #[] gclaim) t (point, final) t' ∧
         IsExts c m r.1.1 point ∧ IsExt c m r.1.2 final ∧ IsDuplex c m r.2 t'.duplex) ?_ fun res e m le => ?_
   · rw [← Array.forIn_toList (xs := rounds)]
@@ -108,25 +108,25 @@ theorem sumcheckReplay {rounds : Array (Array ExtVar)} {grounds : Array (Array E
       have hpos : P → 0 < rounds.toList[k].size := fun h => by
         rw [(hmsg h).1, getElem!_pos grounds k ((hr h).1 ▸ hk')]
         exact hne h _ (Array.getElem_mem _)
-      refine Sim.elim (R := fun w : Array Ext × Ext × Replay.Transcript => P ∧
+      refine Simulates.elim (R := fun w : Array Ext × Ext × Replay.Transcript => P ∧
           Runs (Replay.sumcheckRounds (grounds.toList.take k) #[] gclaim) t (w.1, w.2.1) w.2.2 ∧
           IsExts c m acc.1 w.1 ∧ IsExt c m acc.2 w.2.1 ∧ IsDuplex c m e w.2.2.duplex) (#[], 0, t)
         (fun w => ?_) fun ⟨hP, gpt, gcl, tk, h⟩ => ⟨(gpt, gcl, tk), hP, h⟩
       obtain ⟨gpt, gcl, tk⟩ := w
       dsimp only
       have h0 : P → IsExt c m rounds.toList[k][0]! (grounds[k]!)[0]! := fun h => ((hmsg h).2 0 (hpos h)).mono le
-      refine Sim.tbind₀ (Sim.lift (Sim.extSub (fun h => h.2.2.2.1) fun h => h0 h.1)) fun atOne e₁ m₁ l₁ => ?_
-      refine Sim.tbind₀ (observeExts hp (fun h => h.2.2 ▸ h.1.2.2.2.2.mono l₁)
+      refine Simulates.tbind₀ (Simulates.lift (Simulates.extSub (fun h => h.2.2.2.1) fun h => h0 h.1)) fun atOne e₁ m₁ l₁ => ?_
+      refine Simulates.tbind₀ (observeExts hp (fun h => h.2.2 ▸ h.1.2.2.2.2.mono l₁)
         fun h => (hmsg h.1.1).mono (le.trans l₁)) fun u e₂ m₂ l₂ => ?_
-      refine Sim.tbind₀ (Sim.sampleExt hp fun h => h.2) fun r e₃ m₃ l₃ => ?_
-      refine Sim.tbind₀ (Sim.lift (Sim.interpolate (gvalues := Replay.roundValues grounds[k]! gcl) (fun h => ?_)
+      refine Simulates.tbind₀ (Simulates.sampleExt hp fun h => h.2) fun r e₃ m₃ l₃ => ?_
+      refine Simulates.tbind₀ (Simulates.lift (Simulates.interpolate (gvalues := Replay.roundValues grounds[k]! gcl) (fun h => ?_)
         fun h => h.2.1)) fun cl' e₄ m₄ l₄ => ?_
       · unfold Replay.roundValues
         exact ((IsExts.empty.push ((h0 h.1.1.1.1).mono (l₁.trans (l₂.trans l₃)))).push
           (h.1.1.2.1.mono (l₂.trans l₃))).append
           (((hmsg h.1.1.1.1).mono (le.trans (l₁.trans (l₂.trans l₃)))).extract 1)
       rw [StateT.run_pure]
-      refine Sim.pure fun h => ⟨rfl, ?_⟩
+      refine Simulates.pure fun h => ⟨rfl, ?_⟩
       have hg : k < grounds.size := (hr h.1.1.1.1.1).1 ▸ hk'
       rw [List.take_add_one, List.getElem?_eq_getElem (by simpa using hg), Option.toList_some,
         Replay.sumcheckRounds_append, Array.getElem_toList, ← getElem!_pos grounds k hg]
@@ -136,8 +136,8 @@ theorem sumcheckReplay {rounds : Array (Array ExtVar)} {grounds : Array (Array E
     · rw [show rounds.toList.length = grounds.toList.length by simp [(hr h).1], List.take_length] at q
       exact q
   · rw [StateT.run_pure]
-    exact Sim.pure fun h => h.2
+    exact Simulates.pure fun h => h.2
 
-end Sim
+end Simulates
 
 end CompressionLean.Circuit

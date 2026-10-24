@@ -216,7 +216,7 @@ theorem setupCheck_ok {root : Array Word} {vars index : ℕ} {leaf : Replay.Leaf
   rw [two_groups]
   rfl
 
-namespace Sim
+namespace Simulates
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
 
@@ -227,9 +227,9 @@ omit [CharP F goldilocksModulus] in
 padded with zeros. -/
 theorem setupPoint {point : Array ExtVar} {gpoint : Array Ext} {vars : ℕ} (hp : P → IsExts c n point gpoint)
     (size : gpoint.size ≤ vars) :
-    Sim c n P (Circuit.setupPoint point vars) (fun r m => IsExts c m r (Replay.padded vars gpoint)) True := by
+    Simulates c n P (Circuit.setupPoint point vars) (fun r m => IsExts c m r (Replay.padded vars gpoint)) True := by
   unfold Circuit.setupPoint
-  refine extZero.bind₀ fun zero m l => Sim.pure fun h => ?_
+  refine extZero.bind₀ fun zero m l => Simulates.pure fun h => ?_
   have hpoint := (hp h.1).mono l
   rw [Array.extract_eq_self_of_le (by rw [hpoint.1]; exact size), hpoint.1]
   exact hpoint.append (IsExts.replicate h.2 _)
@@ -237,32 +237,32 @@ theorem setupPoint {point : Array ExtVar} {gpoint : Array Ext} {vars : ℕ} (hp 
 /-- `combine` (`verifier.rs:334-337`). -/
 theorem combinePartials {partials point : Array ExtVar} {gpartials gpoint : Array Ext}
     (hpa : P → IsExts c n partials gpartials) (hpo : P → IsExts c n point gpoint) :
-    Sim c n P (Circuit.combinePartials partials point) (fun r m => IsExt c m r (Replay.combine gpartials gpoint))
+    Simulates c n P (Circuit.combinePartials partials point) (fun r m => IsExt c m r (Replay.combine gpartials gpoint))
       True :=
-  (Sim.eqTable hpo).bind₀ fun _ _ l => Sim.dot (fun h => h.2) (fun h => (hpa h.1).mono l)
+  (Simulates.eqTable hpo).bind₀ fun _ _ l => Simulates.dot (fun h => h.2) (fun h => (hpa h.1).mono l)
 
 /-- `setup::query_point` (`setup.rs:203-213`): the power point of the leaf
 whose index has the little-endian bits `bits`. -/
 theorem queryPoint {vars index : ℕ} {bits : Array Var} (hsize : P → bits.size = vars + 1 - foldVars)
     (hb : P → ∀ i < bits.size, IsWord c n bits[i]! (Word.ofNat (index / 2 ^ i % 2))) :
-    Sim c n P (Circuit.queryPoint vars bits) (fun r m => IsExts c m r (Replay.leafQueryPoint vars index)) True := by
+    Simulates c n P (Circuit.queryPoint vars bits) (fun r m => IsExts c m r (Replay.leafQueryPoint vars index)) True := by
   unfold Circuit.queryPoint Replay.leafQueryPoint
   dsimp only
   generalize hq : Replay.powerFromBits (twoAdicGenerator (vars + 1 - foldVars)) index (vars + 1 - foldVars) *
     generator.pow (2 ^ foldVars) = q
-  refine (Sim.powerFromBits _ index hb).bind₀ fun rotation m₁ l₁ => ?_
-  refine (Sim.scale (generator.pow (2 ^ foldVars)) fun h => h.2).bind₀ fun start m₂ l₂ => ?_
+  refine (Simulates.powerFromBits _ index hb).bind₀ fun rotation m₁ l₁ => ?_
+  refine (Simulates.scale (generator.pow (2 ^ foldVars)) fun h => h.2).bind₀ fun start m₂ l₂ => ?_
   rw [Std.Legacy.Range.forIn_eq_forIn_range']
-  refine (((Sim.loop (P := (P ∧ IsWord c m₁ rotation (Replay.powerFromBits (twoAdicGenerator (vars + 1 - foldVars))
+  refine (((Simulates.loop (P := (P ∧ IsWord c m₁ rotation (Replay.powerFromBits (twoAdicGenerator (vars + 1 - foldVars))
       index bits.size)) ∧ IsWord c m₂ start (Replay.powerFromBits (twoAdicGenerator (vars + 1 - foldVars)) index
       bits.size * generator.pow (2 ^ foldVars)))
       (I := fun k (acc : Var × Array ExtVar) m => IsWord c m acc.1 (q.pow (2 ^ k)) ∧
         IsExts c m acc.2 ((Array.range k).map fun k => Ext.ofGl (q.pow (2 ^ k))))
       (D := fun _ => True) fun k hk acc m lm => ?_).pre fun h => ⟨h, ?_, IsExts.range_zero _⟩).bind
-      fun res m₃ l₃ => Sim.pure fun h => ?_).post (fun _ _ _ h => h) fun _ => by simp
-  · refine (Sim.liftWord fun h => h.2.1).bind₀ fun lifted m₄ l₄ => ?_
-    refine (Sim.mul (fun h => h.1.2.1.mono l₄) fun h => h.1.2.1.mono l₄).bind₀ fun next m₅ l₅ =>
-      Sim.pure fun h => ⟨rfl, ?_, ?_⟩
+      fun res m₃ l₃ => Simulates.pure fun h => ?_).post (fun _ _ _ h => h) fun _ => by simp
+  · refine (Simulates.liftWord fun h => h.2.1).bind₀ fun lifted m₄ l₄ => ?_
+    refine (Simulates.mul (fun h => h.1.2.1.mono l₄) fun h => h.1.2.1.mono l₄).bind₀ fun next m₅ l₅ =>
+      Simulates.pure fun h => ⟨rfl, ?_, ?_⟩
     · have e : q.pow (2 ^ k) * q.pow (2 ^ k) = q.pow (2 ^ (k + 1)) := Word.eq_of_toF (by
         rw [Word.toF_mul, Word.toF_pow, Word.toF_pow, ← pow_add, ← two_mul, ← pow_succ'])
       exact e ▸ h.2
@@ -284,22 +284,22 @@ theorem queryPoint {vars index : ℕ} {bits : Array Var} (hsize : P → bits.siz
 then the root. -/
 theorem observeRoot {d : Duplex} {r : Replay.Duplex} {seed : Array Word} {root : DigestVar} {groot : Array Word}
     (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) (hr : P → IsDigest c n root groot) :
-    Sim c n P ((Circuit.observeRoot seed root).run d)
+    Simulates c n P ((Circuit.observeRoot seed root).run d)
       (fun res m => IsDuplex c m res.2 (groot.foldl Replay.Duplex.observe (seed.foldl Replay.Duplex.observe r)))
       True := by
   unfold Circuit.observeRoot
   rw [← Array.forIn_toList]
-  refine (Sim.tbind (C' := True) ((Sim.loopT (P := P) (d := d) (I := fun k _ e m => IsDuplex c m e
+  refine (Simulates.tbind (C' := True) ((Simulates.loopT (P := P) (d := d) (I := fun k _ e m => IsDuplex c m e
       ((seed.toList.take k).foldl Replay.Duplex.observe r)) (D := fun _ => True) fun k hk _ e m lm => ?_).pre
       fun h => by exact ⟨h, hd h⟩) fun _ e m le => ?_).post (fun _ _ _ h => h) fun _ => by simp
-  · refine Sim.tbind₀ (Sim.lift (Sim.const seed.toList[k])) fun w e₁ m₁ l₁ => ?_
-    refine Sim.tbind₀ (Sim.observe hp (fun h => by rw [show e₁ = e from h.2.2]; exact h.1.2.mono l₁)
+  · refine Simulates.tbind₀ (Simulates.lift (Simulates.const seed.toList[k])) fun w e₁ m₁ l₁ => ?_
+    refine Simulates.tbind₀ (Simulates.observe hp (fun h => by rw [show e₁ = e from h.2.2]; exact h.1.2.mono l₁)
       fun h => h.2.1) fun _ e₂ m₂ l₂ => ?_
     rw [StateT.run_pure]
-    refine Sim.pure fun h => ⟨rfl, ?_⟩
+    refine Simulates.pure fun h => ⟨rfl, ?_⟩
     rw [foldl_take_succ _ _ _ hk]
     exact h.2
-  · refine Sim.observeSlice hp (fun h => ?_) fun h => IsWords.ofFn (hr h.1).1 fun lane => ((hr h.1).2 lane).mono le
+  · refine Simulates.observeSlice hp (fun h => ?_) fun h => IsWords.ofFn (hr h.1).1 fun lane => ((hr h.1).2 lane).mono le
     have e := h.2
     rw [List.take_of_length_le (by simp), Array.foldl_toList] at e
     exact e
@@ -309,7 +309,7 @@ each value of each group, in order. -/
 theorem observePartials {d : Duplex} {r : Replay.Duplex} {partials : Array (Array ExtVar)}
     {gpartials : Array (Array Ext)} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r)
     (hpa : P → partials.size = gpartials.size ∧ ∀ g < partials.size, IsExts c n partials[g]! gpartials[g]!) :
-    Sim c n P ((forIn partials PUnit.unit fun values _ => do
+    Simulates c n P ((forIn partials PUnit.unit fun values _ => do
         forIn values PUnit.unit fun value _ => do
           Duplex.observeExt value
           Pure.pure (ForInStep.yield PUnit.unit)
@@ -318,23 +318,23 @@ theorem observePartials {d : Duplex} {r : Replay.Duplex} {partials : Array (Arra
         Replay.Duplex.observe r)) True := by
   rw [foldl_coords, Array.foldl_flatten, ← Array.foldl_toList, ← Array.forIn_toList]
   let step := fun (r : Replay.Duplex) (v : Ext) => ((r.observe v.c0).observe v.c1).observe v.c2
-  refine ((Sim.loopT (P := P) (d := d) (I := fun k _ e m => IsDuplex c m e ((gpartials.toList.take k).foldl
+  refine ((Simulates.loopT (P := P) (d := d) (I := fun k _ e m => IsDuplex c m e ((gpartials.toList.take k).foldl
       (fun r vs => vs.foldl step r) r)) (D := fun _ => True) fun k hk _ e m lm => ?_).pre fun h => by
         exact ⟨h, hd h⟩).post
       (fun h _ _ q => ?_) fun _ => by simp
   · rw [show partials.toList[k] = partials[k]! by simp [getElem!_pos partials k (by simpa using hk)],
       ← Array.forIn_toList]
     have hv : P → IsExts c m partials[k]! gpartials[k]! := fun h => ((hpa h).2 k (by simpa using hk)).mono lm
-    refine (Sim.tbind (C' := True) ((Sim.loopT (P := P ∧ _) (d := e) (I := fun j _ e' m' => IsDuplex c m' e'
+    refine (Simulates.tbind (C' := True) ((Simulates.loopT (P := P ∧ _) (d := e) (I := fun j _ e' m' => IsDuplex c m' e'
         (((gpartials[k]!).toList.take j).foldl step ((gpartials.toList.take k).foldl (fun r vs => vs.foldl step r) r)))
         (D := fun _ => True) fun j hj _ e' m' lm' => ?_).pre fun h => by exact ⟨h, h.2⟩) fun _ e' m' l' => ?_).post
         (fun _ _ _ h => h) fun _ => by simp
     · rw [show (partials[k]!).toList[j] = (partials[k]!)[j]! by
         simp [getElem!_pos (partials[k]!) j (by simpa using hj)]]
-      refine Sim.tbind₀ (Sim.observeExt hp (fun h => h.2) fun h => ((hv h.1.1).2 j (by simpa using hj)).mono lm')
+      refine Simulates.tbind₀ (Simulates.observeExt hp (fun h => h.2) fun h => ((hv h.1.1).2 j (by simpa using hj)).mono lm')
         fun _ e₂ m₂ l₂ => ?_
       rw [StateT.run_pure]
-      refine Sim.pure fun h => ⟨rfl, ?_⟩
+      refine Simulates.pure fun h => ⟨rfl, ?_⟩
       have hj' : j < (gpartials[k]!).toList.length := by
         have := (hv h.1.1.1).1
         simp at hj ⊢
@@ -342,7 +342,7 @@ theorem observePartials {d : Duplex} {r : Replay.Duplex} {partials : Array (Arra
       rw [foldl_take_succ _ _ _ hj', Array.getElem_toList, ← getElem!_pos]
       exact h.2
     · rw [StateT.run_pure]
-      refine Sim.pure fun h => ⟨rfl, ?_⟩
+      refine Simulates.pure fun h => ⟨rfl, ?_⟩
       have e := h.2
       have hk' : k < gpartials.toList.length := by
         have := (hpa h.1.1).1
@@ -381,7 +381,7 @@ theorem sampleBitsList (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm)
         fun q hq => absurd hq (by simp), hd h⟩
   | x :: l, n, P, d, t, init, hd => by
       rw [List.mapM_cons]
-      refine Ensures.tbind (Sim.sampleBits bits small hp hd) fun a e m le => ?_
+      refine Ensures.tbind (Simulates.sampleBits bits small hp hd) fun a e m le => ?_
       refine Ensures.tbind (sampleBitsList bits small hp l { t with duplex := t.duplex.sample.2 }
         (init.push t.duplex.sample.1) fun h => h.2.2.2) fun as e' m' le' => ?_
       rw [StateT.run_pure]
@@ -423,18 +423,18 @@ theorem sampleBitsArray (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm
 /-- The run weights `μ^i` for the run oracles (`verifier.rs:239-243`). -/
 theorem runWeightsLoop {d : Duplex} {one mu : ExtVar} {gmu : Ext} (hone : P → IsExt c n one 1)
     (hmu : P → IsExt c n mu gmu) :
-    Sim c n P ((forIn [1:runOracles] #[one] fun _ (weights : Array ExtVar) => do
+    Simulates c n P ((forIn [1:runOracles] #[one] fun _ (weights : Array ExtVar) => do
         let next ← liftM (Build.extMul weights.back! mu)
         Pure.pure (ForInStep.yield (weights.push next)) : Transcript (Array ExtVar)).run d)
       (fun res m => IsExts c m res.1 ((Array.range runOracles).map gmu.pow) ∧ res.2 = d) True := by
   rw [Std.Legacy.Range.forIn_eq_forIn_range']
-  refine ((Sim.loopT (P := P) (d := d) (I := fun k (acc : Array ExtVar) e m =>
+  refine ((Simulates.loopT (P := P) (d := d) (I := fun k (acc : Array ExtVar) e m =>
       IsExts c m acc ((Array.range (k + 1)).map gmu.pow) ∧ e = d) (D := fun _ => True)
       fun k hk acc e m lm => ?_).pre fun h => ⟨h, ?_, rfl⟩).post (fun h _ _ q => ?_) fun _ => by simp
-  · refine Sim.tbind₀ (Sim.lift (Sim.extMul (fun h => h.2.1.back (by simp)) fun h => (hmu h.1).mono lm))
+  · refine Simulates.tbind₀ (Simulates.lift (Simulates.extMul (fun h => h.2.1.back (by simp)) fun h => (hmu h.1).mono lm))
       fun next e₁ m₁ l₁ => ?_
     rw [StateT.run_pure]
-    refine Sim.pure fun h => ⟨rfl, ?_, h.2.2.trans h.1.2.2⟩
+    refine Simulates.pure fun h => ⟨rfl, ?_, h.2.2.trans h.1.2.2⟩
     have e := h.2.1
     rw [show ((Array.range (k + 1)).map gmu.pow).back! = gmu.pow k by
       rw [Array.back!, getElem!_pos _ _ (by simp)]; simp, ← ext_pow_succ] at e
@@ -448,18 +448,18 @@ theorem runWeightsLoop {d : Duplex} {one mu : ExtVar} {gmu : Ext} (hone : P → 
 omit [CharP F goldilocksModulus] in
 /-- The key root words as constants (`verifier.rs:245`). -/
 theorem rootConsts {d : Duplex} (words : Array Word) :
-    Sim c n P ((forIn words (#[] : Array Var) fun word (root : Array Var) => do
+    Simulates c n P ((forIn words (#[] : Array Var) fun word (root : Array Var) => do
         let w ← liftM (Build.const word)
         Pure.pure (ForInStep.yield (root.push w)) : Transcript (Array Var)).run d)
       (fun res m => IsWords c m res.1 words ∧ res.2 = d) True := by
   rw [← Array.forIn_toList]
-  refine ((Sim.loopT (P := P) (d := d) (I := fun k (acc : Array Var) e m =>
+  refine ((Simulates.loopT (P := P) (d := d) (I := fun k (acc : Array Var) e m =>
       IsWords c m acc (words.toList.take k).toArray ∧ e = d) (D := fun _ => True)
       fun k hk acc e m lm => ?_).pre fun h => by exact ⟨h, IsWords.empty, rfl⟩).post (fun h _ _ q => ?_)
       fun _ => by simp
-  · refine Sim.tbind₀ (Sim.lift (Sim.const words.toList[k])) fun w e₁ m₁ l₁ => ?_
+  · refine Simulates.tbind₀ (Simulates.lift (Simulates.const words.toList[k])) fun w e₁ m₁ l₁ => ?_
     rw [StateT.run_pure]
-    refine Sim.pure fun h => ⟨rfl, ?_, h.2.2.trans h.1.2.2⟩
+    refine Simulates.pure fun h => ⟨rfl, ?_, h.2.2.trans h.1.2.2⟩
     rw [List.take_add_one, List.getElem?_eq_getElem hk, Option.toList_some, ← List.push_toArray]
     exact (h.1.2.1.mono l₁).push h.2.1
   · rw [List.take_of_length_le (by simp), Array.toArray_toList] at q
@@ -469,23 +469,23 @@ theorem rootConsts {d : Duplex} (words : Array Word) :
 tail (`verifier.rs:219-223`). -/
 theorem embedLoop {d : Duplex} {xs : Array ExtVar} {gxs : Array Ext} {init : ExtVar} {ginit : Ext}
     (hx : P → IsExts c n xs gxs) (hi : P → IsExt c n init ginit) :
-    Sim c n P ((forIn xs init fun x (embedded : ExtVar) => do
+    Simulates c n P ((forIn xs init fun x (embedded : ExtVar) => do
         let low ← liftM (Algebra.oneMinus x)
         let embedded ← liftM (Build.extMul embedded low)
         Pure.pure (ForInStep.yield embedded) : Transcript ExtVar).run d)
       (fun res m => IsExt c m res.1 (gxs.foldl (fun total x => total * Replay.oneMinus x) ginit) ∧ res.2 = d)
       True := by
   rw [← Array.forIn_toList]
-  refine ((Sim.loopT (P := P) (d := d) (I := fun k (acc : ExtVar) e m =>
+  refine ((Simulates.loopT (P := P) (d := d) (I := fun k (acc : ExtVar) e m =>
       IsExt c m acc ((gxs.toList.take k).foldl (fun total x => total * Replay.oneMinus x) ginit) ∧ e = d)
       (D := fun _ => True) fun k hk acc e m lm => ?_).pre fun h => by exact ⟨h, hi h, rfl⟩).post
       (fun h _ _ q => ?_) fun _ => by simp
   · have hk' : k < xs.size := by simpa using hk
     rw [show xs.toList[k] = xs[k]! by simp [getElem!_pos xs k hk']]
-    refine Sim.tbind₀ (Sim.lift (Sim.oneMinus fun h => ((hx h.1).2 k hk').mono lm)) fun low e₁ m₁ l₁ => ?_
-    refine Sim.tbind₀ (Sim.lift (Sim.extMul (fun h => h.1.2.1.mono l₁) fun h => h.2.1)) fun total e₂ m₂ l₂ => ?_
+    refine Simulates.tbind₀ (Simulates.lift (Simulates.oneMinus fun h => ((hx h.1).2 k hk').mono lm)) fun low e₁ m₁ l₁ => ?_
+    refine Simulates.tbind₀ (Simulates.lift (Simulates.extMul (fun h => h.1.2.1.mono l₁) fun h => h.2.1)) fun total e₂ m₂ l₂ => ?_
     rw [StateT.run_pure]
-    refine Sim.pure fun h => ⟨rfl, ?_, h.2.2.trans (h.1.2.2.trans h.1.1.2.2)⟩
+    refine Simulates.pure fun h => ⟨rfl, ?_, h.2.2.trans (h.1.2.2.trans h.1.1.2.2)⟩
     have size := (hx h.1.1.1).1
     rw [foldl_take_succ _ _ _ (by simp; omega), Array.getElem_toList, ← getElem!_pos]
     exact h.2.1
@@ -496,24 +496,24 @@ theorem embedLoop {d : Duplex} {xs : Array ExtVar} {gxs : Array Ext} {init : Ext
 theorem runValueLoop {d : Duplex} {values : Array ExtVar} {gvalues : Array Ext} {init mu : ExtVar}
     {ginit gmu : Ext} (hv : P → IsExts c n values gvalues) (hi : P → IsExt c n init ginit)
     (hmu : P → IsExt c n mu gmu) :
-    Sim c n P ((forIn values init fun value (runValue : ExtVar) => do
+    Simulates c n P ((forIn values init fun value (runValue : ExtVar) => do
         let scaled ← liftM (Build.extMul mu runValue)
         let runValue ← liftM (Build.extAdd value scaled)
         Pure.pure (ForInStep.yield runValue) : Transcript ExtVar).run d)
       (fun res m => IsExt c m res.1 (gvalues.foldl (fun total value => value + gmu * total) ginit) ∧ res.2 = d)
       True := by
   rw [← Array.forIn_toList]
-  refine ((Sim.loopT (P := P) (d := d) (I := fun k (acc : ExtVar) e m =>
+  refine ((Simulates.loopT (P := P) (d := d) (I := fun k (acc : ExtVar) e m =>
       IsExt c m acc ((gvalues.toList.take k).foldl (fun total value => value + gmu * total) ginit) ∧ e = d)
       (D := fun _ => True) fun k hk acc e m lm => ?_).pre fun h => by exact ⟨h, hi h, rfl⟩).post
       (fun h _ _ q => ?_) fun _ => by simp
   · have hk' : k < values.size := by simpa using hk
     rw [show values.toList[k] = values[k]! by simp [getElem!_pos values k hk']]
-    refine Sim.tbind₀ (Sim.lift (Sim.extMul (fun h => (hmu h.1).mono lm) fun h => h.2.1)) fun scaled e₁ m₁ l₁ => ?_
-    refine Sim.tbind₀ (Sim.lift (Sim.extAdd (fun h => ((hv h.1.1).2 k hk').mono (lm.trans l₁)) fun h => h.2.1))
+    refine Simulates.tbind₀ (Simulates.lift (Simulates.extMul (fun h => (hmu h.1).mono lm) fun h => h.2.1)) fun scaled e₁ m₁ l₁ => ?_
+    refine Simulates.tbind₀ (Simulates.lift (Simulates.extAdd (fun h => ((hv h.1.1).2 k hk').mono (lm.trans l₁)) fun h => h.2.1))
       fun total e₂ m₂ l₂ => ?_
     rw [StateT.run_pure]
-    refine Sim.pure fun h => ⟨rfl, ?_, h.2.2.trans (h.1.2.2.trans h.1.1.2.2)⟩
+    refine Simulates.pure fun h => ⟨rfl, ?_, h.2.2.trans (h.1.2.2.trans h.1.1.2.2)⟩
     have size := (hv h.1.1.1).1
     rw [foldl_take_succ _ _ _ (by simp; omega), Array.getElem_toList, ← getElem!_pos]
     exact h.2.1
@@ -528,7 +528,7 @@ theorem merkleRoot' {leaf : DigestVar} {bits : Array Var} {path : Array DigestVa
     (hbits : P → ∀ i < bits.size, IsWord c n bits[i]! (Word.ofNat (index / 2 ^ i % 2)))
     (hpath : P → ∀ k < path.size, IsDigest c n path[k]! gpath[k]!) (hsize : P → bits.size = path.size)
     (hgsize : P → path.size = gpath.size) :
-    Sim c n P (Circuit.merkleRoot leaf bits path)
+    Simulates c n P (Circuit.merkleRoot leaf bits path)
       (fun res m => IsDigest c m res (Replay.merkleRoot gleaf index gpath)) True := by
   obtain ⟨k, hk⟩ : ∃ k, k = min bits.size path.size := ⟨_, rfl⟩
   have zip : bits.zip path = (bits.extract 0 k).zip (path.extract 0 k) :=
@@ -537,7 +537,7 @@ theorem merkleRoot' {leaf : DigestVar} {bits : Array Var} {path : Array DigestVa
     unfold Circuit.merkleRoot
     rw [zip]
   rw [e]
-  refine (Sim.merkleRoot (index := index) (gpath := (Array.range k).map fun i => gpath[i]!) hp hleaf (fun h i hi => ?_)
+  refine (Simulates.merkleRoot (index := index) (gpath := (Array.range k).map fun i => gpath[i]!) hp hleaf (fun h i hi => ?_)
     (fun h i hi => ?_) (by simp [hk]) (by simp [hk])).post (fun h _ _ q => ?_) fun _ => Iff.rfl
   · have lt : i < k := by simp at hi; omega
     rw [getElem!_extract_zero bits lt]
@@ -555,27 +555,27 @@ theorem merkleRoot' {leaf : DigestVar} {bits : Array Var} {path : Array DigestVa
 /-- The monomials `α^[u]` for `u < 2^|α|`, low bit first (`setup.rs:263-267`). -/
 theorem monomials {alpha : Array ExtVar} {galpha : Array Ext} {one : ExtVar} (hone : P → IsExt c n one 1)
     (ha : P → IsExts c n alpha galpha) :
-    Sim c n P (forIn alpha #[one] fun a (monomials : Array ExtVar) => do
+    Simulates c n P (forIn alpha #[one] fun a (monomials : Array ExtVar) => do
         let scaled ← forIn monomials (#[] : Array ExtVar) fun m (scaled : Array ExtVar) => do
           let x ← Build.extMul m a
           Pure.pure (ForInStep.yield (scaled.push x))
         Pure.pure (ForInStep.yield (monomials ++ scaled)))
       (fun res m => IsExts c m res ((Array.range (2 ^ galpha.size)).map (Replay.monomial galpha.toList))) True := by
   rw [← Array.forIn_toList]
-  refine ((Sim.loop (P := P) (I := fun j (acc : Array ExtVar) m =>
+  refine ((Simulates.loop (P := P) (I := fun j (acc : Array ExtVar) m =>
       IsExts c m acc ((Array.range (2 ^ j)).map (Replay.monomial (galpha.toList.take j))))
       (D := fun _ => True) fun j hj acc m lm => ?_).pre fun h => ⟨h, ?_⟩).post (fun h _ _ q => ?_) fun _ => by simp
   · have hj' : j < alpha.size := by simpa using hj
     rw [show alpha.toList[j] = alpha[j]! by simp [getElem!_pos alpha j hj'], ← Array.forIn_toList]
-    refine (Sim.bind (C' := True) ((Sim.loop (P := P ∧ _) (I := fun i (sc : Array ExtVar) m' =>
+    refine (Simulates.bind (C' := True) ((Simulates.loop (P := P ∧ _) (I := fun i (sc : Array ExtVar) m' =>
         IsExts c m' sc ((Array.range i).map fun u => Replay.monomial (galpha.toList.take j) u * galpha[j]!))
         (D := fun _ => True) fun i hi sc m' lm' => ?_).pre fun h => by exact ⟨h, IsExts.range_zero _⟩)
-        fun sc m' l' => Sim.pure fun h => ⟨rfl, ?_⟩).post (fun _ _ _ h => h) fun _ => by simp
+        fun sc m' l' => Simulates.pure fun h => ⟨rfl, ?_⟩).post (fun _ _ _ h => h) fun _ => by simp
     · have hi' : i < acc.size := by simpa using hi
       rw [show acc.toList[i] = acc[i]! by simp [getElem!_pos acc i hi']]
-      refine (Sim.extMul (fun h => (h.1.2.get_map (by have := h.1.2.1; simp at this; omega)).mono lm')
+      refine (Simulates.extMul (fun h => (h.1.2.get_map (by have := h.1.2.1; simp at this; omega)).mono lm')
         fun h => ((ha h.1.1).get (by rw [← (ha h.1.1).1]; exact hj')).mono (lm.trans lm')).bind₀
-        fun x m₂ l₂ => Sim.pure fun h => ⟨rfl, ?_⟩
+        fun x m₂ l₂ => Simulates.pure fun h => ⟨rfl, ?_⟩
       rw [map_range_succ]
       exact (h.1.2.mono l₂).push h.2
     · have size := (ha h.1.1).1
@@ -598,22 +598,22 @@ theorem monomials {alpha : Array ExtVar} {galpha : Array Ext} {one : ExtVar} (ho
 theorem coefficients {monomials : Array ExtVar} {k : ℕ} {M : ℕ → Ext} {scale y : Var} {g0 gy : Word}
     (hm : P → IsExts c n monomials ((Array.range k).map M)) (hs : P → IsWord c n scale g0)
     (hy : P → IsWord c n y gy) :
-    Sim c n P (forIn monomials (scale, (#[] : Array ExtVar)) fun monomial (acc : Var × Array ExtVar) => do
+    Simulates c n P (forIn monomials (scale, (#[] : Array ExtVar)) fun monomial (acc : Var × Array ExtVar) => do
         let coefficient ← Build.extScale monomial acc.1
         let next ← Build.mul acc.1 y
         Pure.pure (ForInStep.yield (next, acc.2.push coefficient)))
       (fun res m => IsExts c m res.2 ((Array.range k).map fun u => (M u).scale (g0 * gy.pow u))) True := by
   rw [← Array.forIn_toList]
-  refine ((Sim.loop (P := P) (I := fun j (acc : Var × Array ExtVar) m => IsWord c m acc.1 (g0 * gy.pow j) ∧
+  refine ((Simulates.loop (P := P) (I := fun j (acc : Var × Array ExtVar) m => IsWord c m acc.1 (g0 * gy.pow j) ∧
       IsExts c m acc.2 ((Array.range j).map fun u => (M u).scale (g0 * gy.pow u)))
       (D := fun _ => True) fun j hj acc m lm => ?_).pre fun h => ⟨h, ?_, IsExts.range_zero _⟩).post
       (fun h _ _ q => ?_) fun _ => by simp
   · have hj' : j < monomials.size := by simpa using hj
     rw [show monomials.toList[j] = monomials[j]! by simp [getElem!_pos monomials j hj']]
-    refine (Sim.extScale (fun h => ((hm h.1).get_map (by have := (hm h.1).1; simp at this; omega)).mono lm)
+    refine (Simulates.extScale (fun h => ((hm h.1).get_map (by have := (hm h.1).1; simp at this; omega)).mono lm)
       fun h => h.2.1).bind₀ fun coefficient m₁ l₁ => ?_
-    refine (Sim.mul (fun h => h.1.2.1.mono l₁) fun h => (hy h.1.1).mono (lm.trans l₁)).bind₀
-      fun next m₂ l₂ => Sim.pure fun h => ⟨rfl, ?_, ?_⟩
+    refine (Simulates.mul (fun h => h.1.2.1.mono l₁) fun h => (hy h.1.1).mono (lm.trans l₁)).bind₀
+      fun next m₂ l₂ => Simulates.pure fun h => ⟨rfl, ?_, ?_⟩
     · have e : g0 * gy.pow j * gy = g0 * gy.pow (j + 1) := Word.eq_of_toF (by
         rw [Word.toF_mul, Word.toF_mul, Word.toF_mul, Word.toF_pow, Word.toF_pow, pow_succ, mul_assoc])
       rw [← e]
@@ -630,7 +630,7 @@ theorem coefficients {monomials : Array ExtVar} {k : ℕ} {M : ℕ → Ext} {sca
 /-- The leaf weights `Σ_u coefficient_u·ω^((f - u)·v mod f)` (`setup.rs:274-284`). -/
 theorem weights {coefficients : Array ExtVar} {k : ℕ} {C : ℕ → Ext} (omega : Word)
     (hc : P → IsExts c n coefficients ((Array.range k).map C)) :
-    Sim c n P (forIn [:2 ^ foldVars] (#[] : Array ExtVar) fun v (weight : Array ExtVar) => do
+    Simulates c n P (forIn [:2 ^ foldVars] (#[] : Array ExtVar) fun v (weight : Array ExtVar) => do
         let zero ← Algebra.extZero
         let total ← forIn coefficients.zipIdx zero fun x (total : ExtVar) => match x with
           | (coefficient, u) => do
@@ -641,23 +641,23 @@ theorem weights {coefficients : Array ExtVar} {k : ℕ} {C : ℕ → Ext} (omega
       (fun res m => IsExts c m res ((Array.range (2 ^ foldVars)).map fun v => Replay.sumRange k
         fun u => (C u).scale (omega.pow ((2 ^ foldVars - u) * v % 2 ^ foldVars)))) True := by
   rw [Std.Legacy.Range.forIn_eq_forIn_range']
-  refine ((Sim.loop (P := P) (I := fun j (acc : Array ExtVar) m => IsExts c m acc ((Array.range j).map fun v =>
+  refine ((Simulates.loop (P := P) (I := fun j (acc : Array ExtVar) m => IsExts c m acc ((Array.range j).map fun v =>
       Replay.sumRange k fun u => (C u).scale (omega.pow ((2 ^ foldVars - u) * v % 2 ^ foldVars))))
       (D := fun _ => True) fun j hj acc m lm => ?_).pre fun h => ⟨h, IsExts.range_zero _⟩).post
       (fun h _ _ q => ?_) fun _ => by simp
   · rw [show (List.range' [:2 ^ foldVars].start [:2 ^ foldVars].size [:2 ^ foldVars].step)[j] = j by simp]
     refine extZero.bind₀ fun zero m₁ l₁ => ?_
     rw [← Array.forIn_toList]
-    refine (Sim.bind (C' := True) ((Sim.loop (I := fun u (total : ExtVar) m' =>
+    refine (Simulates.bind (C' := True) ((Simulates.loop (I := fun u (total : ExtVar) m' =>
         IsExt c m' total (Replay.sumRange u fun u => (C u).scale (omega.pow ((2 ^ foldVars - u) * j % 2 ^ foldVars))))
         (D := fun _ => True) fun u hu total m' lm' => ?_).pre fun h => by exact ⟨h, h.2⟩)
-        fun total m' l' => Sim.pure fun h => ⟨rfl, ?_⟩).post (fun _ _ _ h => h) fun _ => by simp
+        fun total m' l' => Simulates.pure fun h => ⟨rfl, ?_⟩).post (fun _ _ _ h => h) fun _ => by simp
     · have hu' : u < coefficients.size := by simpa using hu
       rw [show coefficients.zipIdx.toList[u] = (coefficients[u]!, u) by simp [getElem!_pos coefficients u hu']]
       dsimp only
       refine (extScaleConstant _ fun h => ((hc h.1.1.1).get_map (by have := (hc h.1.1.1).1; simp at this; omega)).mono
         (lm.trans (l₁.trans lm'))).bind₀ fun term m₂ l₂ =>
-        (extAdd (fun h => h.1.2.mono l₂) fun h => h.2).bind₀ fun total' m₃ l₃ => Sim.pure fun h => ⟨rfl, ?_⟩
+        (extAdd (fun h => h.1.2.mono l₂) fun h => h.2).bind₀ fun total' m₃ l₃ => Simulates.pure fun h => ⟨rfl, ?_⟩
       rw [sumRange_succ]
       exact h.2
     · have e := h.2
@@ -674,7 +674,7 @@ theorem groupStep {values : Array Var} {gvalues : Array Word} {weight ws : Array
     {gws gfolded : Array Ext} {acc : ℕ × Array ExtVar} (hv : P → IsWords c n values gvalues)
     (hweight : P → IsExts c n weight ((Array.range (2 ^ foldVars)).map gweight)) (hws : P → IsExts c n ws gws)
     (hf : P → IsExts c n acc.2 gfolded) :
-    Sim c n P (do
+    Simulates c n P (do
         let zero ← Algebra.extZero
         let s ← forIn ws (acc.1, Array.replicate (2 ^ foldVars) zero) fun w (s : ℕ × Array ExtVar) => do
           let combined ← forIn (values.extract (2 ^ foldVars * s.1) (2 ^ foldVars * s.1 + 2 ^ foldVars)).zipIdx s.2
@@ -693,19 +693,19 @@ theorem groupStep {values : Array Var} {gvalues : Array Word} {weight ws : Array
       Replay.sumRange k fun k' => gws[k']!.scale gvalues[(acc.1 + k') * 2 ^ foldVars + v]! := ⟨_, rfl⟩
   refine extZero.bind₀ fun zero m₁ l₁ => ?_
   rw [← Array.forIn_toList]
-  refine (Sim.bind (C' := True) ((Sim.loop (I := fun k (s : ℕ × Array ExtVar) m => s.1 = acc.1 + k ∧
+  refine (Simulates.bind (C' := True) ((Simulates.loop (I := fun k (s : ℕ × Array ExtVar) m => s.1 = acc.1 + k ∧
       IsExts c m s.2 ((Array.range (2 ^ foldVars)).map (S k)))
       (D := fun _ => True) fun k hk s m lm => ?_).pre fun h => by
         exact ⟨h, rfl, IsExts.replicate_map h.2 fun v _ => by rw [hS]; simp [Replay.sumRange]⟩) fun s m₂ l₂ => ?_).post
       (fun _ _ _ h => h) fun _ => by simp
   · have hk' : k < ws.size := by simpa using hk
     rw [show ws.toList[k] = ws[k]! by simp [getElem!_pos ws k hk'], ← Array.forIn_toList]
-    refine (Sim.bind (C' := True) ((Sim.loop (I := fun j (comb : Array ExtVar) m' =>
+    refine (Simulates.bind (C' := True) ((Simulates.loop (I := fun j (comb : Array ExtVar) m' =>
         IsExts c m' comb ((Array.range (2 ^ foldVars)).map fun v =>
           if v < j then S k v + gws[k]!.scale gvalues[2 ^ foldVars * s.1 + v]! else S k v))
         (D := fun _ => True) fun j hj comb m' lm' => ?_).pre fun h => by
           exact ⟨h, h.2.2.congr_map fun v _ => by simp⟩)
-        fun comb m₃ l₃ => Sim.pure fun h => ⟨rfl, by have := h.1.2.1; simp only [ForInStep.value]; omega, ?_⟩).post
+        fun comb m₃ l₃ => Simulates.pure fun h => ⟨rfl, by have := h.1.2.1; simp only [ForInStep.value]; omega, ?_⟩).post
         (fun _ _ _ h => h) fun _ => by simp
     · have hj' : j < (values.extract (2 ^ foldVars * s.1) (2 ^ foldVars * s.1 + 2 ^ foldVars)).size := by
         simpa only [Array.length_toList, Array.size_zipIdx] using hj
@@ -715,14 +715,14 @@ theorem groupStep {values : Array Var} {gvalues : Array Word} {weight ws : Array
       dsimp only
       have small : j < 2 ^ foldVars := by simp at hj'; omega
       have inside : 2 ^ foldVars * s.1 + j < values.size := by simp at hj'; omega
-      refine (Sim.extScale (gs := gvalues[2 ^ foldVars * s.1 + j]!)
+      refine (Simulates.extScale (gs := gvalues[2 ^ foldVars * s.1 + j]!)
         (fun h => ((hws h.1.1.1).get (by rw [← (hws h.1.1.1).1]; exact hk')).mono (l₁.trans (lm.trans lm')))
         fun h => ?_).bind₀ fun term m₄ l₄ => ?_
       · rw [getElem!_pos (values.extract (2 ^ foldVars * s.1) (2 ^ foldVars * s.1 + 2 ^ foldVars)) j hj',
           Array.getElem_extract, ← getElem!_pos]
         exact ((hv h.1.1.1).get (by rw [← (hv h.1.1.1).1]; exact inside)).mono (l₁.trans (lm.trans lm'))
-      refine (Sim.extAdd (ga := S k j) (fun h => ?_) fun h => h.2).bind₀ fun sum m₅ l₅ =>
-        Sim.pure fun h => ⟨rfl, ?_⟩
+      refine (Simulates.extAdd (ga := S k j) (fun h => ?_) fun h => h.2).bind₀ fun sum m₅ l₅ =>
+        Simulates.pure fun h => ⟨rfl, ?_⟩
       · have e := h.1.2.get_map small
         rw [if_neg (lt_irrefl j)] at e
         exact e.mono l₄
@@ -750,8 +750,8 @@ theorem groupStep {values : Array Var} {gvalues : Array Word} {weight ws : Array
         have far : ¬ 2 ^ foldVars * s.1 + v < gvalues.size := by rw [← size]; omega
         rw [show (acc.1 + k) * 2 ^ foldVars + v = 2 ^ foldVars * s.1 + v by
           rw [hs, Nat.mul_comm], getElem!_neg gvalues _ far, add_scale_zero]
-  · refine (Sim.dot (fun h => (hweight h.1.1).mono (l₁.trans l₂)) fun h => h.2.2).bind₀ fun f m₃ l₃ =>
-      Sim.pure fun h => ⟨rfl, by simp only [ForInStep.value]; rw [h.1.2.1, Array.length_toList], ?_⟩
+  · refine (Simulates.dot (fun h => (hweight h.1.1).mono (l₁.trans l₂)) fun h => h.2.2).bind₀ fun f m₃ l₃ =>
+      Simulates.pure fun h => ⟨rfl, by simp only [ForInStep.value]; rw [h.1.2.1, Array.length_toList], ?_⟩
     have size := (hws h.1.1.1).1
     have e := h.1.2.1
     rw [Array.length_toList, size] at e
@@ -764,16 +764,16 @@ theorem groupStep {values : Array Var} {gvalues : Array Word} {weight ws : Array
 /-- The computed root against the key root, lane by lane (`setup.rs:255-257`). -/
 theorem rootEqual {computed root : DigestVar} {gcomputed groot : Array Word} (hc : P → IsDigest c n computed gcomputed)
     (hr : P → IsDigest c n root groot) :
-    Sim c n P (forIn (List.finRange 4) PUnit.unit fun lane _ => do
+    Simulates c n P (forIn (List.finRange 4) PUnit.unit fun lane _ => do
         Build.assertEqual (computed lane) (root lane)
         Pure.pure (ForInStep.yield PUnit.unit))
       (fun _ _ => True) (∀ k < 4, gcomputed[k]! = groot[k]!) := by
-  refine ((Sim.loop (P := P) (I := fun _ _ _ => True) (D := fun k => gcomputed[k]! = groot[k]!)
+  refine ((Simulates.loop (P := P) (I := fun _ _ _ => True) (D := fun k => gcomputed[k]! = groot[k]!)
     fun k hk _ m lm => ?_).pre fun h => ⟨h, trivial⟩).post (fun _ _ _ _ => trivial) fun _ => by simp
   have k4 : k < 4 := by simpa using hk
   rw [List.getElem_finRange]
-  refine ((Sim.assertEqual (ga := gcomputed[k]!) (gb := groot[k]!) (fun h => ?_) fun h => ?_).bind fun _ _ _ =>
-    Sim.pure fun _ => ⟨rfl, trivial⟩).post (fun _ _ _ h => h) fun _ => by simp
+  refine ((Simulates.assertEqual (ga := gcomputed[k]!) (gb := groot[k]!) (fun h => ?_) fun h => ?_).bind fun _ _ _ =>
+    Simulates.pure fun _ => ⟨rfl, trivial⟩).post (fun _ _ _ h => h) fun _ => by simp
   · have := (hc h.1).2 ⟨k, k4⟩
     rw [Fin.getElem!_fin] at this
     exact this.mono lm
@@ -787,7 +787,7 @@ theorem groups {values : Array Var} {gvalues : Array Word} {weight w₀ w₁ : A
     {gw₀ gw₁ : Array Ext} (hv : P → IsWords c n values gvalues)
     (hweight : P → IsExts c n weight ((Array.range (2 ^ foldVars)).map gweight)) (hw₀ : P → IsExts c n w₀ gw₀)
     (hw₁ : P → IsExts c n w₁ gw₁) :
-    Sim c n P (forIn #[w₀, w₁] ((0 : ℕ), (#[] : Array ExtVar)) fun ws (acc : ℕ × Array ExtVar) => do
+    Simulates c n P (forIn #[w₀, w₁] ((0 : ℕ), (#[] : Array ExtVar)) fun ws (acc : ℕ × Array ExtVar) => do
         let zero ← Algebra.extZero
         let s ← forIn ws (acc.1, Array.replicate (2 ^ foldVars) zero) fun w (s : ℕ × Array ExtVar) => do
           let combined ← forIn (values.extract (2 ^ foldVars * s.1) (2 ^ foldVars * s.1 + 2 ^ foldVars)).zipIdx s.2
@@ -808,18 +808,18 @@ theorem groups {values : Array Var} {gvalues : Array Word} {weight w₀ w₁ : A
   refine (groupStep (acc := (0, #[])) (gfolded := #[]) hv hweight hw₀ fun _ => IsExts.empty).bind₀
     fun r m₁ l₁ => ?_
   rcases r with b | b
-  · exact (Sim.pure (Q := fun _ _ => True) fun _ => trivial).post (fun h => absurd h.2.1 (by simp))
+  · exact (Simulates.pure (Q := fun _ _ => True) fun _ => trivial).post (fun h => absurd h.2.1 (by simp))
       fun h => absurd h.2.1 (by simp)
   · dsimp only
     rw [List.forIn_cons]
     refine (groupStep (acc := b) (gfolded := #[].push _) (fun h => (hv h.1).mono l₁)
       (fun h => (hweight h.1).mono l₁) (fun h => (hw₁ h.1).mono l₁) fun h => h.2.2.2).bind₀ fun r m₂ l₂ => ?_
     rcases r with b' | b'
-    · exact (Sim.pure (Q := fun _ _ => True) fun _ => trivial).post (fun h => absurd h.2.1 (by simp))
+    · exact (Simulates.pure (Q := fun _ _ => True) fun _ => trivial).post (fun h => absurd h.2.1 (by simp))
         fun h => absurd h.2.1 (by simp)
     · dsimp only
       rw [List.forIn_nil]
-      refine Sim.pure fun h => ?_
+      refine Simulates.pure fun h => ?_
       have offset : b.1 = gw₀.size := by
         have e := h.1.2.2.1
         simp only [ForInStep.value, Nat.zero_add] at e
@@ -829,7 +829,7 @@ theorem groups {values : Array Var} {gvalues : Array Word} {weight w₀ w₁ : A
       rw [offset] at e
       exact e
 
-end Sim
+end Simulates
 
 /-- `setup::check` (`setup.rs:243-300`): once the circuit's checks hold, the
 leaf's path reaches the key root and the replay's leaf check returns the
@@ -851,29 +851,29 @@ theorem setupCheck_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P 
   obtain ⟨Y, hY⟩ : ∃ Y, Y = Replay.powerFromBits (twoAdicGenerator (vars + 1)).inv index (vars + 1 - foldVars) *
       generator.inv := ⟨_, rfl⟩
   unfold Circuit.setupCheck
-  refine (Sim.hashLeaf hp hvalues).ensures.bind fun digest m₁ l₁ => ?_
-  refine (Sim.merkleRoot' (index := index) (gpath := g.path) hp (fun h => h.2.1)
+  refine (Simulates.hashLeaf hp hvalues).ensures.bind fun digest m₁ l₁ => ?_
+  refine (Simulates.merkleRoot' (index := index) (gpath := g.path) hp (fun h => h.2.1)
     (fun h i hi => ((hbits h.1).2 i hi).mono l₁) (fun h k hk => ((hpath h.1).2.2 k hk).mono l₁)
     (fun h => by rw [(hbits h.1).1, (hpath h.1).2.1]) fun h => (hpath h.1).1).ensures.bind
     fun computed m₂ l₂ => ?_
-  refine (Sim.rootEqual (fun h => h.2.1) fun h => (hroot h.1.1).mono (l₁.trans l₂)).ensures.bind
+  refine (Simulates.rootEqual (fun h => h.2.1) fun h => (hroot h.1.1).mono (l₁.trans l₂)).ensures.bind
     fun _ m₃ l₃ => ?_
   refine Ensures.pre (P' := P ∧ Replay.pathOk groot index g = true) ?_ fun h => ⟨h.1.1.1, pathOk_of h.2.2⟩
-  refine (Sim.powerFromBits (twoAdicGenerator (vars + 1)).inv index fun h i hi =>
+  refine (Simulates.powerFromBits (twoAdicGenerator (vars + 1)).inv index fun h i hi =>
     ((hbits h.1).2 i hi).mono (l₁.trans (l₂.trans l₃))).ensures.bind fun rotation m₄ l₄ => ?_
-  refine (Sim.scale generator.inv fun h => h.2.1).ensures.bind fun y m₅ l₅ => ?_
+  refine (Simulates.scale generator.inv fun h => h.2.1).ensures.bind fun y m₅ l₅ => ?_
   have L : n ≤ m₅ := l₁.trans (l₂.trans (l₃.trans (l₄.trans l₅)))
   refine Ensures.pre (P' := (P ∧ Replay.pathOk groot index g = true) ∧ IsWord c m₅ y Y) ?_ fun h =>
     ⟨h.1.1, by rw [hY, ← (hbits h.1.1.1).1]; exact h.2.1⟩
-  refine Sim.extOne.ensures.bind fun one m₆ l₆ => ?_
-  refine (Sim.monomials (fun h => h.2.1) fun h => (halpha h.1.1.1).mono (L.trans l₆)).ensures.bind
+  refine Simulates.extOne.ensures.bind fun one m₆ l₆ => ?_
+  refine (Simulates.monomials (fun h => h.2.1) fun h => (halpha h.1.1.1).mono (L.trans l₆)).ensures.bind
     fun monomials m₇ l₇ => ?_
-  refine (Sim.const (Word.ofNat (2 ^ foldVars)).inv).ensures.bind fun scale m₈ l₈ => ?_
-  refine (Sim.coefficients (fun h => h.1.2.1.mono l₈) (fun h => h.2.1)
+  refine (Simulates.const (Word.ofNat (2 ^ foldVars)).inv).ensures.bind fun scale m₈ l₈ => ?_
+  refine (Simulates.coefficients (fun h => h.1.2.1.mono l₈) (fun h => h.2.1)
     fun h => h.1.1.1.2.mono (l₆.trans (l₇.trans l₈))).ensures.bind fun coefs m₉ l₉ => ?_
-  refine (Sim.weights (twoAdicGenerator foldVars) fun h => h.2.1).ensures.bind fun weight m₁₀ l₁₀ => ?_
+  refine (Simulates.weights (twoAdicGenerator foldVars) fun h => h.2.1).ensures.bind fun weight m₁₀ l₁₀ => ?_
   have L' : n ≤ m₁₀ := L.trans (l₆.trans (l₇.trans (l₈.trans (l₉.trans l₁₀))))
-  refine (Sim.groups (gweight := Replay.leafWeight galpha Y (twoAdicGenerator foldVars))
+  refine (Simulates.groups (gweight := Replay.leafWeight galpha Y (twoAdicGenerator foldVars))
     (fun h => (hvalues h.1.1.1.1.1.1.1).mono L') (fun h => by have e := h.2.1; rw [hsize] at e; exact e)
     (fun h => (hw₀ h.1.1.1.1.1.1.1).mono L') fun h => (hw₁ h.1.1.1.1.1.1.1).mono L').ensures.bind
     fun s m₁₁ l₁₁ => Ensures.pure fun h => ⟨_, setupCheck_ok h.1.1.1.1.1.1.1.2, ?_⟩
@@ -993,13 +993,13 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
     leaves⟩ := input
   dsimp only at hlane hblock hrun hrow hslot hcoef hblockValue hrows hkey hpartials hp1 hleaves
   unfold Circuit.honestStage
-  refine Ensures.tbind (Sim.sampleExt hp hd).ensures fun mu d₁ m₁ l₁ => ?_
-  refine Ensures.tbind (Sim.observePartials hp (fun h => h.2.1.2) fun h =>
+  refine Ensures.tbind (Simulates.sampleExt hp hd).ensures fun mu d₁ m₁ l₁ => ?_
+  refine Ensures.tbind (Simulates.observePartials hp (fun h => h.2.1.2) fun h =>
     ⟨(hpartials h.1).1, fun g hg => ((hpartials h.1).2 g hg).mono l₁⟩).ensures fun _ d₂ m₂ l₂ => ?_
-  rw [Sim.mapM_sampleExt]
-  refine Ensures.tbind (Sim.sampleExt hp fun h => h.2.1).ensures fun a₀ d₃ m₃ l₃ => ?_
-  refine Ensures.tbind (Sim.sampleExt hp fun h => h.2.1.2).ensures fun a₁ d₄ m₄ l₄ => ?_
-  refine Ensures.tbind (Sim.sampleExt hp fun h => h.2.1.2).ensures fun a₂ d₅ m₅ l₅ => ?_
+  rw [Simulates.mapM_sampleExt]
+  refine Ensures.tbind (Simulates.sampleExt hp fun h => h.2.1).ensures fun a₀ d₃ m₃ l₃ => ?_
+  refine Ensures.tbind (Simulates.sampleExt hp fun h => h.2.1.2).ensures fun a₁ d₄ m₄ l₄ => ?_
+  refine Ensures.tbind (Simulates.sampleExt hp fun h => h.2.1.2).ensures fun a₂ d₅ m₅ l₅ => ?_
   set gmu : Ext := ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
   set r₂ := (proof.partials.flatten.flatMap fun v => #[v.c0, v.c1, v.c2]).foldl Replay.Duplex.observe
     t.duplex.sample.2.sample.2.sample.2
@@ -1013,14 +1013,14 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
   refine Ensures.pre (P' := P ∧ IsExt c m₅ mu gmu ∧ IsExts c m₅ #[a₀, a₁, a₂] #[ga₀, ga₁, ga₂] ∧
     IsDuplex c m₅ d₅ r₅) ?_ fun h => ⟨h.1.1.1.1.1, h.1.1.1.1.2.1.1.mono (l₂.trans (l₃.trans (l₄.trans l₅))),
       IsExts.triple (h.1.1.2.1.1.mono (l₄.trans l₅)) (h.1.2.1.1.mono l₅) h.2.1.1, h.2.1.2⟩
-  refine Ensures.tbind (Ensures.lift (Sim.setupPoint (fun h => ((hlane h.1).append (hblock h.1)).mono L₅)
+  refine Ensures.tbind (Ensures.lift (Simulates.setupPoint (fun h => ((hlane h.1).append (hblock h.1)).mono L₅)
     keySize).ensures) fun keyPoint d₆ m₆ l₆ => ?_
-  refine Ensures.tbind (Ensures.lift (Sim.setupPoint (fun h => (hrun h.1.1).mono (L₅.trans l₆))
+  refine Ensures.tbind (Ensures.lift (Simulates.setupPoint (fun h => (hrun h.1.1).mono (L₅.trans l₆))
     runSize).ensures) fun runPoint' d₇ m₇ l₇ => ?_
-  refine Ensures.tbind (Sim.embedLoop
+  refine Ensures.tbind (Simulates.embedLoop
     (fun h => ((hrun h.1.1.1).extract rel.key.layout.slotVariables).mono (L₅.trans (l₆.trans l₇)))
     fun h => (hblockValue h.1.1.1).mono (L₅.trans (l₆.trans l₇))).ensures fun embedded d₈ m₈ l₈ => ?_
-  refine Ensures.tbind (Sim.runValueLoop (fun h => IsExts.triple
+  refine Ensures.tbind (Simulates.runValueLoop (fun h => IsExts.triple
     ((hcoef h.1.1.1.1).mono (L₅.trans (l₆.trans (l₇.trans l₈))))
     ((hslot h.1.1.1.1).mono (L₅.trans (l₆.trans (l₇.trans l₈))))
     ((hrow h.1.1.1.1).mono (L₅.trans (l₆.trans (l₇.trans l₈))))) (fun h => h.2.1.1)
@@ -1045,16 +1045,16 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
   set grv := #[early.openings.coefClaim, early.openings.slotClaim, early.openings.rowClaim].foldl
     (fun total value => value + gmu * total) ((early.openings.runPoint.extract rel.key.layout.slotVariables).foldl
       (fun total x => total * Replay.oneMinus x) early.values.block)
-  refine Ensures.tbind (Ensures.lift (Sim.combinePartials (fun h => (IsExts.nested (hpartials h.1) 0).mono L₉)
+  refine Ensures.tbind (Ensures.lift (Simulates.combinePartials (fun h => (IsExts.nested (hpartials h.1) 0).mono L₉)
     fun h => h.2.2.2.1.slice 0 foldVars).ensures) fun keyPartial d₁₀ m₁₀ l₁₀ => ?_
-  refine Ensures.tbind (Ensures.lift (Sim.assertExtEqual (fun h => h.2.1.1)
+  refine Ensures.tbind (Ensures.lift (Simulates.assertExtEqual (fun h => h.2.1.1)
     fun h => (hkey h.1.1).mono (L₉.trans l₁₀)).ensures) fun _ d₁₁ m₁₁ l₁₁ => ?_
-  refine Ensures.tbind (Ensures.lift (Sim.combinePartials
+  refine Ensures.tbind (Ensures.lift (Simulates.combinePartials
     (fun h => (IsExts.nested (hpartials h.1.1.1) 1).mono (L₉.trans (l₁₀.trans l₁₁)))
     fun h => (h.1.1.2.2.2.2.1.slice 0 foldVars).mono (l₁₀.trans l₁₁)).ensures) fun runPartial d₁₂ m₁₂ l₁₂ => ?_
-  refine Ensures.tbind (Ensures.lift (Sim.assertExtEqual (fun h => h.2.1.1)
+  refine Ensures.tbind (Ensures.lift (Simulates.assertExtEqual (fun h => h.2.1.1)
     fun h => h.1.1.1.2.2.2.2.2.1.mono (l₁₀.trans (l₁₁.trans l₁₂))).ensures) fun _ d₁₃ m₁₃ l₁₃ => ?_
-  refine Ensures.tbind (Sim.observeRoot (r := r₅) hp (fun h => ?_)
+  refine Ensures.tbind (Simulates.observeRoot (r := r₅) hp (fun h => ?_)
     fun h => (hp1 h.1.1.1.1.1).mono (L₉.trans (l₁₀.trans (l₁₁.trans (l₁₂.trans l₁₃))))).ensures
     fun _ d₁₄ m₁₄ l₁₄ => ?_
   · obtain ⟨⟨⟨⟨⟨-, -, -, -, -, -, hd₉⟩, -, e₁₀⟩, -, e₁₁⟩, -, e₁₂⟩, -, e₁₃⟩ := h
@@ -1071,7 +1071,7 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
   · obtain ⟨⟨⟨⟨⟨⟨hP, hmu, halpha, hkp, hrp, -, -⟩, -, -⟩, ⟨-, keyCheck⟩, -⟩, -, -⟩, ⟨-, runCheck⟩, -⟩, hd₁₄, -⟩ := h
     have M : m₉ ≤ m₁₄ := l₁₀.trans (l₁₁.trans (l₁₂.trans (l₁₃.trans l₁₄)))
     exact ⟨hP, keyCheck, runCheck, hmu.mono M, halpha.mono M, hkp.mono M, hrp.mono M, hd₁₄⟩
-  refine Ensures.tbind (Sim.sampleBitsArray (rel.setupVars + 1 - foldVars) small hp rel.queries
+  refine Ensures.tbind (Simulates.sampleBitsArray (rel.setupVars + 1 - foldVars) small hp rel.queries
     (t := { duplex := r₇, draws := (((t.draws.push (.ext gmu)).push (.ext ga₀)).push (.ext ga₁)).push (.ext ga₂) })
     fun h => h.2.2.2.2.2.2.2) fun indexBits d₁₅ m₁₅ l₁₅ => ?_
   refine Ensures.exists_and (#[] : Array Word) fun ws => ?_
@@ -1084,10 +1084,10 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
     rw [getElem!_pos (ws.map fun word => word.toNat % 2 ^ (rel.setupVars + 1 - foldVars)) _ (by simpa using hq),
       Array.getElem_map, ← getElem!_pos ws _ hq, digit_mod _ _ _ hi]
     exact w
-  refine Ensures.tbind (Ensures.lift Sim.extOne.ensures) fun one d₁₆ m₁₆ l₁₆ => ?_
-  refine Ensures.tbind (Sim.runWeightsLoop (fun h => h.2.1.1)
+  refine Ensures.tbind (Ensures.lift Simulates.extOne.ensures) fun one d₁₆ m₁₆ l₁₆ => ?_
+  refine Ensures.tbind (Simulates.runWeightsLoop (fun h => h.2.1.1)
     fun h => h.1.1.2.2.2.1.mono (l₁₅.trans l₁₆)).ensures fun runWeights d₁₇ m₁₇ l₁₇ => ?_
-  refine Ensures.tbind (Sim.rootConsts rel.key.root).ensures fun rootV d₁₈ m₁₈ l₁₈ => ?_
+  refine Ensures.tbind (Simulates.rootConsts rel.key.root).ensures fun rootV d₁₈ m₁₈ l₁₈ => ?_
   have L₁₈ : n ≤ m₁₈ := L₁₄.trans (l₁₅.trans (l₁₆.trans (l₁₇.trans l₁₈)))
   refine Ensures.tbind (queriedLoop (groot := rel.key.root)
     (queries := ws.map fun word => word.toNat % 2 ^ (rel.setupVars + 1 - foldVars)) (gleaves := proof.leaves)

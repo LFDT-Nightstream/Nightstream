@@ -50,28 +50,28 @@ private theorem Ensures.liftBind {α β : Type} {b : Build α} {g : α → Trans
 variable [CharP F goldilocksModulus]
 
 /-- `lane_value` (`verifier.rs:340-350`): `Σ_{l<D} eq(x, l)·ζ^l`. -/
-private theorem Sim.laneValue {zeta : ExtVar} {point : Array ExtVar} {gz : Ext} {gpoint : Array Ext}
+private theorem Simulates.laneValue {zeta : ExtVar} {point : Array ExtVar} {gz : Ext} {gpoint : Array Ext}
     (size : P → D ≤ 2 ^ gpoint.size) (hz : P → IsExt c n zeta gz) (hp : P → IsExts c n point gpoint) :
-    Sim c n P (Circuit.laneValue zeta point) (fun r m => IsExt c m r (Replay.laneValue gz gpoint)) True := by
+    Simulates c n P (Circuit.laneValue zeta point) (fun r m => IsExt c m r (Replay.laneValue gz gpoint)) True := by
   unfold Circuit.laneValue
-  refine (Sim.eqTable hp).bind₀ fun eq m₁ l₁ => Sim.extZero.bind₀ fun total m₂ l₂ =>
-    Sim.extOne.bind₀ fun power m₃ l₃ => ?_
-  refine ((Sim.loop₀ (P := ((P ∧ IsExts c m₁ eq (Replay.eqTable gpoint)) ∧ IsExt c m₂ total 0) ∧
+  refine (Simulates.eqTable hp).bind₀ fun eq m₁ l₁ => Simulates.extZero.bind₀ fun total m₂ l₂ =>
+    Simulates.extOne.bind₀ fun power m₃ l₃ => ?_
+  refine ((Simulates.loop₀ (P := ((P ∧ IsExts c m₁ eq (Replay.eqTable gpoint)) ∧ IsExt c m₂ total 0) ∧
       IsExt c m₃ power 1)
     (fun k acc m => IsExt c m acc.1 (Replay.sumRange k fun l => (Replay.eqTable gpoint)[l]! * gz.pow l) ∧
       IsExt c m acc.2 (gz.pow k)) fun k hk acc m lm => ?_).pre fun h => ⟨h, h.1.2.mono l₃, ?_⟩).bind₀
-    fun res m₄ l₄ => Sim.pure fun h => ?_
+    fun res m₄ l₄ => Simulates.pure fun h => ?_
   · have hk' : k < eq.size := by simp at hk; omega
     have weight : P ∧ IsExts c m₁ eq (Replay.eqTable gpoint) → IsExt c m₁ (eq.extract 0 D)[k]
         (Replay.eqTable gpoint)[k]! := fun h => by
       have e : (eq.extract 0 D)[k] = eq[k]! := by rw [getElem!_pos eq k hk']; simp
       rw [e]
       exact h.2.2 k hk'
-    refine (Sim.extMul (fun h => (weight h.1.1.1).mono (l₂.trans (l₃.trans lm))) fun h => h.2.2).bind₀
-      fun term m₅ l₅ => (Sim.extAdd (fun h => h.1.2.1.mono l₅) fun h => h.2).bind₀ fun total' m₆ l₆ =>
-      (Sim.extMul (fun h => h.1.1.2.2.mono (l₅.trans l₆))
+    refine (Simulates.extMul (fun h => (weight h.1.1.1).mono (l₂.trans (l₃.trans lm))) fun h => h.2.2).bind₀
+      fun term m₅ l₅ => (Simulates.extAdd (fun h => h.1.2.1.mono l₅) fun h => h.2).bind₀ fun total' m₆ l₆ =>
+      (Simulates.extMul (fun h => h.1.1.2.2.mono (l₅.trans l₆))
         fun h => (hz h.1.1.1.1.1.1).mono (l₁.trans (l₂.trans (l₃.trans (lm.trans (l₅.trans l₆)))))).bind₀
-      fun power' m₇ l₇ => Sim.pure fun h => ⟨rfl, ?_, ?_⟩
+      fun power' m₇ l₇ => Simulates.pure fun h => ⟨rfl, ?_, ?_⟩
     · rw [sumRange_succ]
       exact h.1.2.mono l₇
     · rw [ext_pow_succ]
@@ -84,13 +84,13 @@ private theorem Sim.laneValue {zeta : ExtVar} {point : Array ExtVar} {gz : Ext} 
     exact e
 
 /-- `eval_k` (`mle.rs:146-204`) with the size of `r` known under `P`. -/
-private theorem Sim.evalK' {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Array (Word × Word)} {gs gt : Array Ext}
+private theorem Simulates.evalK' {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Array (Word × Word)} {gs gt : Array Ext}
     (blocks : ℕ) (rSize : P → Nat.log2 (D * 2 ^ gs.size).nextPowerOfTwo ≤ gr.size) (tauSize : D ≤ gt.size)
     (hr : P → IsKs c n r gr) (hs : P → IsExts c n sBlock gs) (ht : P → IsExts c n tau gt) :
-    Sim c n P (Mle.evalK r sBlock tau blocks) (fun res m => IsKx c m res (Replay.evalK gr gs gt blocks)) True := by
+    Simulates c n P (Mle.evalK r sBlock tau blocks) (fun res m => IsKx c m res (Replay.evalK gr gs gt blocks)) True := by
   by_cases h : Nat.log2 (D * 2 ^ gs.size).nextPowerOfTwo ≤ gr.size
-  · exact Sim.evalK blocks h tauSize hr hs ht
-  · exact (Sim.evalK (gr := Array.replicate (Nat.log2 (D * 2 ^ gs.size).nextPowerOfTwo) (0, 0)) blocks (by simp)
+  · exact Simulates.evalK blocks h tauSize hr hs ht
+  · exact (Simulates.evalK (gr := Array.replicate (Nat.log2 (D * 2 ^ gs.size).nextPowerOfTwo) (0, 0)) blocks (by simp)
       tauSize (fun hP => absurd (rSize hP) h) hs ht).post (fun hP => absurd (rSize hP) h) fun _ => Iff.rfl
 
 /-- The Eval_K terms `Σ weight·value` added to `Ω~` (`verifier.rs:192-196`). -/
@@ -98,19 +98,19 @@ private theorem pairsLoop {d : Duplex} {xs : List (ExtVar × ExtVar)} {gxs : Lis
     {ginit : Ext} (hlen : xs.length = gxs.length)
     (hx : P → ∀ k (hk : k < xs.length), IsExt c n xs[k].1 (gxs[k]!).1 ∧ IsExt c n xs[k].2 (gxs[k]!).2)
     (hi : P → IsExt c n init ginit) :
-    Sim c n P ((forIn xs init fun x (omega : ExtVar) => do
+    Simulates c n P ((forIn xs init fun x (omega : ExtVar) => do
         let term ← liftM (Build.extMul x.1 x.2)
         let omega ← liftM (Build.extAdd omega term)
         Pure.pure (ForInStep.yield omega) : Transcript ExtVar).run d)
       (fun res m => IsExt c m res.1 (gxs.foldl (fun total p => total + p.1 * p.2) ginit) ∧ res.2 = d) True := by
-  refine ((Sim.loopT (P := P) (d := d) (I := fun k (acc : ExtVar) e m =>
+  refine ((Simulates.loopT (P := P) (d := d) (I := fun k (acc : ExtVar) e m =>
       IsExt c m acc ((gxs.take k).foldl (fun total p => total + p.1 * p.2) ginit) ∧ e = d) (D := fun _ => True)
       fun k hk acc e m lm => ?_).pre fun h => by exact ⟨h, hi h, rfl⟩).post (fun h _ _ q => ?_) fun _ => by simp
-  · refine Sim.tbind₀ (Sim.lift (Sim.extMul (fun h => ((hx h.1) k hk).1.mono lm) fun h => ((hx h.1) k hk).2.mono lm))
+  · refine Simulates.tbind₀ (Simulates.lift (Simulates.extMul (fun h => ((hx h.1) k hk).1.mono lm) fun h => ((hx h.1) k hk).2.mono lm))
       fun term e₁ m₁ l₁ => ?_
-    refine Sim.tbind₀ (Sim.lift (Sim.extAdd (fun h => h.1.2.1.mono l₁) fun h => h.2.1)) fun total e₂ m₂ l₂ => ?_
+    refine Simulates.tbind₀ (Simulates.lift (Simulates.extAdd (fun h => h.1.2.1.mono l₁) fun h => h.2.1)) fun total e₂ m₂ l₂ => ?_
     rw [StateT.run_pure]
-    refine Sim.pure fun h => ⟨rfl, ?_, h.2.2.trans (h.1.2.2.trans h.1.1.2.2)⟩
+    refine Simulates.pure fun h => ⟨rfl, ?_, h.2.2.trans (h.1.2.2.trans h.1.1.2.2)⟩
     have hk' : k < gxs.length := hlen ▸ hk
     rw [List.take_add_one, List.getElem?_eq_getElem hk', Option.toList_some, List.foldl_append, List.foldl_cons,
       List.foldl_nil, ← getElem!_pos gxs k hk']
@@ -123,7 +123,7 @@ private theorem publicLoop {d : Duplex} {point : Array ExtVar} {gpoint : Array E
     {mix : Replay.Mixing} {blocks : ℕ} {init : ExtVar} {ginit : Ext} (hp : P → IsExts c n point gpoint)
     (hm : P → IsMixing c n mixing mix) (hsize : P → mix.kappa + 2 + 2 * mix.matrices + blocks ≤ mixing.powers.size)
     (hi : P → IsExt c n init ginit) :
-    Sim c n P ((forIn [:blocks] init fun block (omega : ExtVar) => do
+    Simulates c n P ((forIn [:blocks] init fun block (omega : ExtVar) => do
         let eq ← liftM (Algebra.eqAt point block)
         let term ← liftM (Build.extMul eq (mixing.public block))
         let omega ← liftM (Build.extAdd omega term)
@@ -131,19 +131,19 @@ private theorem publicLoop {d : Duplex} {point : Array ExtVar} {gpoint : Array E
       (fun res m => IsExt c m res.1 (ginit + Replay.sumRange blocks fun b => Replay.eqAt gpoint b * mix.public b) ∧
         res.2 = d) True := by
   rw [Std.Legacy.Range.forIn_eq_forIn_range']
-  refine ((Sim.loopT (P := P) (d := d) (I := fun k (acc : ExtVar) e m =>
+  refine ((Simulates.loopT (P := P) (d := d) (I := fun k (acc : ExtVar) e m =>
       IsExt c m acc (ginit + Replay.sumRange k fun b => Replay.eqAt gpoint b * mix.public b) ∧ e = d)
       (D := fun _ => True) fun k hk acc e m lm => ?_).pre fun h => ⟨h, ?_, rfl⟩).post (fun h _ _ q => ?_)
       fun _ => by simp
   · have hk' : k < blocks := by simpa [Std.Legacy.Range.size] using hk
     rw [List.getElem_range', Nat.zero_add, Nat.one_mul]
-    refine Sim.tbind₀ (Sim.lift (Sim.eqAt k fun h => (hp h.1).mono lm)) fun eq e₁ m₁ l₁ => ?_
-    refine Sim.tbind₀ (Sim.lift (Sim.extMul (fun h => h.2.1)
+    refine Simulates.tbind₀ (Simulates.lift (Simulates.eqAt k fun h => (hp h.1).mono lm)) fun eq e₁ m₁ l₁ => ?_
+    refine Simulates.tbind₀ (Simulates.lift (Simulates.extMul (fun h => h.2.1)
       fun h => ((hm h.1.1).public (by have := hsize h.1.1; omega)).mono (lm.trans l₁))) fun term e₂ m₂ l₂ => ?_
-    refine Sim.tbind₀ (Sim.lift (Sim.extAdd (fun h => h.1.1.2.1.mono (l₁.trans l₂)) fun h => h.2.1))
+    refine Simulates.tbind₀ (Simulates.lift (Simulates.extAdd (fun h => h.1.1.2.1.mono (l₁.trans l₂)) fun h => h.2.1))
       fun total e₃ m₃ l₃ => ?_
     rw [StateT.run_pure]
-    refine Sim.pure fun h => ⟨rfl, ?_, h.2.2.trans (h.1.2.2.trans (h.1.1.2.2.trans h.1.1.1.2.2))⟩
+    refine Simulates.pure fun h => ⟨rfl, ?_, h.2.2.trans (h.1.2.2.trans (h.1.1.2.2.trans h.1.1.1.2.2))⟩
     rw [sumRange_succ, ← ext_add_assoc]
     exact h.2.1
   · show IsExt c n init (ginit + 0)
@@ -174,11 +174,11 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
   have finalsAt : P → ∀ i < 3, IsExt c n finals[i]! proof.finals[i]! := fun h i hi =>
     (hf h).2 i (by rw [(hf h).1, finalsSize h]; exact hi)
   unfold Circuit.linearStage
-  refine Ensures.tbind (Sim.sampleExt hp hd).ensures fun lambda d₁ m₁ l₁ => ?_
-  refine Ensures.tbind (Ensures.lift (Sim.mixing rel fun h => h.2.1.1).ensures) fun mixing d₂ m₂ l₂ => ?_
-  refine Ensures.tbind (Sim.observeExts hp (fun h => h.2.2 ▸ h.1.2.1.2.mono l₂)
+  refine Ensures.tbind (Simulates.sampleExt hp hd).ensures fun lambda d₁ m₁ l₁ => ?_
+  refine Ensures.tbind (Ensures.lift (Simulates.mixing rel fun h => h.2.1.1).ensures) fun mixing d₂ m₂ l₂ => ?_
+  refine Ensures.tbind (Simulates.observeExts hp (fun h => h.2.2 ▸ h.1.2.1.2.mono l₂)
     fun h => (hq h.1.1).mono (l₁.trans l₂)).ensures fun _ d₃ m₃ l₃ => ?_
-  refine Ensures.tbind (Sim.sampleExt hp fun h => h.2.1).ensures fun zeta d₄ m₄ l₄ => ?_
+  refine Ensures.tbind (Simulates.sampleExt hp fun h => h.2.1).ensures fun zeta d₄ m₄ l₄ => ?_
   set glam : Ext := ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
   set r₁ := t.duplex.sample.2.sample.2.sample.2
   set r₃ := (proof.quotient.flatMap fun g => #[g.c0, g.c1, g.c2]).foldl Replay.Duplex.observe r₁
@@ -189,9 +189,9 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
   refine Ensures.pre (P' := P ∧ IsMixing c m₄ mixing mix ∧ mixing.powers.size = rel.rowCount ∧
     IsExt c m₄ zeta gz ∧ IsDuplex c m₄ d₄ r₄) ?_ fun h => ⟨h.1.1.1.1, h.1.1.2.1.1.1.mono (l₃.trans l₄),
       h.1.1.2.1.1.2, h.2.1.1, h.2.1.2⟩
-  refine Ensures.tbind (Ensures.lift (Sim.targets fits (fun h => (hst h.1).mono L₄)
+  refine Ensures.tbind (Ensures.lift (Simulates.targets fits (fun h => (hst h.1).mono L₄)
     fun h => ⟨h.2.1, h.2.2.1⟩).ensures) fun targets d₅ m₅ l₅ => ?_
-  refine Ensures.tbind (Ensures.lift (Sim.liftedTarget (fun h => h.2.1.1) (fun h => (hq h.1.1).mono (L₄.trans l₅))
+  refine Ensures.tbind (Ensures.lift (Simulates.liftedTarget (fun h => h.2.1.1) (fun h => (hq h.1.1).mono (L₄.trans l₅))
     fun h => h.1.2.2.2.1.mono l₅).ensures) fun value d₆ m₆ l₆ => ?_
   set gvalue := Replay.liftedTarget (Replay.targets st mix) proof.quotient gz
   set t₃ : Replay.Transcript := { duplex := r₄, draws := (t.draws.push (.ext glam)).push (.ext gz) }
@@ -202,7 +202,7 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
   · obtain ⟨⟨⟨hP, hm, hs, hz, hd₄⟩, -, e₅⟩, ⟨hv, -⟩, e₆⟩ := h
     dsimp only at e₅ e₆
     exact ⟨hP, hm.mono L₆, hs, hz.mono L₆, hv, by rw [e₆, e₅]; exact hd₄.mono L₆⟩
-  refine Ensures.tbind ((Sim.sumcheckReplay hp (t := t₃) (fun h => h.2.2.2.2.2)
+  refine Ensures.tbind ((Simulates.sumcheckReplay hp (t := t₃) (fun h => h.2.2.2.2.2)
     (fun h => ⟨(hl h.1).1, fun i hi => ((hl h.1).2 i hi).mono (L₄.trans L₆)⟩) (fun h => nonempty h.1)
     fun h => h.2.2.2.2.1).ensures.post (Q' := fun res m => ∃ gb gmiddle t₅ glane glast t₇,
       Runs (Replay.sumcheckReplay (proof.linear.extract 0 rel.blockVars) gvalue) t₃ (gb, gmiddle) t₅ ∧
@@ -234,7 +234,7 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
     Ensures.exists_and (0 : Ext) fun glast => Ensures.exists_and t fun t₇ => ?_
   dsimp only
   have L₇ : n ≤ m₇ := L₄.trans (L₆.trans l₇)
-  refine Ensures.tbind (Sim.observeExts hp (fun h => h.2.2.2.2.2.2.2.2) fun h => (hf h.1.1).mono L₇).ensures
+  refine Ensures.tbind (Simulates.observeExts hp (fun h => h.2.2.2.2.2.2.2.2) fun h => (hf h.1.1).mono L₇).ensures
     fun _ d₈ m₈ l₈ => ?_
   refine Ensures.liftBind (Ensures.scaledEqPoint laneVars fun h => h.1.1.2.2.2.1.mono (l₇.trans l₈))
     fun sc m₉ l₉ => ?_
@@ -256,11 +256,11 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
   · obtain ⟨⟨⟨⟨hP, hm, hs, hz, -, -⟩, run₁, run₂, bsize, lsize, hb, hlane, hlast, -⟩, hd₈, -⟩, ok, hsc, hlp⟩ := h
     exact ⟨hP, ⟨run₁, run₂, bsize, lsize, ok⟩, hm.mono (l₇.trans M₉), hs, hz.mono (l₇.trans M₉), hb.mono M₉,
       hlane.mono M₉, hlast.mono M₉, hd₈.mono l₉, hsc, hlp⟩
-  refine Ensures.liftBind (Sim.tau fun h => h.2.2.2.2.1).ensures fun tau m₁₀ l₁₀ => ?_
-  refine Ensures.liftBind (Sim.evalK' rel.key.blocks (fun h => by rw [h.1.2.1.2.2.1, pointSize]; exact long)
+  refine Ensures.liftBind (Simulates.tau fun h => h.2.2.2.2.1).ensures fun tau m₁₀ l₁₀ => ?_
+  refine Ensures.liftBind (Simulates.evalK' rel.key.blocks (fun h => by rw [h.1.2.1.2.2.1, pointSize]; exact long)
     (by simp [Replay.tau]) (fun h => (hst h.1.1).point.mono (L₇.trans (M₉.trans l₁₀)))
     (fun h => h.1.2.2.2.2.2.1.mono l₁₀) fun h => h.2.1).ensures fun ek m₁₁ l₁₁ => ?_
-  refine Ensures.liftBind (Sim.extMul (fun h => h.1.1.2.2.2.2.2.2.2.2.2.1.mono (l₁₀.trans l₁₁))
+  refine Ensures.liftBind (Simulates.extMul (fun h => h.1.1.2.2.2.2.2.2.2.2.2.1.mono (l₁₀.trans l₁₁))
     (fun h => (finalsAt h.1.1.1 0 (by decide)).mono (L₇.trans (M₉.trans (l₁₀.trans l₁₁))))).ensures
     fun o₀ m₁₂ l₁₂ => ?_
   set gek := Replay.evalK st.point gb (Replay.tau gz) rel.key.blocks
@@ -275,7 +275,7 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
     · exact ⟨hmk.1.mono (l₁₀.trans (l₁₁.trans l₁₂)), hek.1.mono l₁₂⟩
     · exact ⟨hmk.2.mono (l₁₀.trans (l₁₁.trans l₁₂)), hek.2.mono l₁₂⟩
     · simp at hk
-  refine Ensures.liftBind (Sim.extAdd (fun h => h.2.1.1) fun h => (finalsAt h.1.1.1.1.1 1 (by decide)).mono
+  refine Ensures.liftBind (Simulates.extAdd (fun h => h.2.1.1) fun h => (finalsAt h.1.1.1.1.1 1 (by decide)).mono
     (L₇.trans (M₉.trans (l₁₀.trans (l₁₁.trans (l₁₂.trans l₁₃)))))).ensures fun o₃ m₁₄ l₁₄ => ?_
   have M₁₄ : m₉ ≤ m₁₄ := l₁₀.trans (l₁₁.trans (l₁₂.trans (l₁₃.trans l₁₄)))
   refine Ensures.tbind (publicLoop (fun h => h.1.1.1.1.1.2.2.2.2.2.1.mono M₁₄) (fun h => h.1.1.1.1.1.2.2.1.mono M₁₄)
@@ -298,13 +298,13 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
     exact ⟨hP, hR, hm.mono M₁₅, hs, hz.mono M₁₅, hb.mono M₁₅, hlane.mono M₁₅, hlast.mono M₁₅,
       by rw [e₁₄, e₁₃]; exact hd₈.mono M₁₅, hlp.mono M₁₅,
       htau.mono (l₁₁.trans (l₁₂.trans (l₁₃.trans (l₁₄.trans l₁₅)))), ho⟩
-  refine Ensures.liftBind (Sim.laneValue (fun h => by rw [h.2.1.2.2.2.1]; decide) (fun h => h.2.2.2.2.1)
+  refine Ensures.liftBind (Simulates.laneValue (fun h => by rw [h.2.1.2.2.2.1]; decide) (fun h => h.2.2.2.2.1)
     fun h => h.2.2.2.2.2.2.1).ensures fun lanes m₁₆ l₁₆ => ?_
-  refine Ensures.liftBind (Sim.extMul (fun h => h.1.2.2.2.2.2.2.2.2.2.2.2.mono l₁₆) fun h => h.2.1).ensures
+  refine Ensures.liftBind (Simulates.extMul (fun h => h.1.2.2.2.2.2.2.2.2.2.2.2.mono l₁₆) fun h => h.2.1).ensures
     fun weighted m₁₇ l₁₇ => ?_
-  refine Ensures.liftBind (Sim.extMul (fun h => h.2.1) fun h => (finalsAt h.1.1.1 2 (by decide)).mono
+  refine Ensures.liftBind (Simulates.extMul (fun h => h.2.1) fun h => (finalsAt h.1.1.1 2 (by decide)).mono
     (L₇.trans (M₉.trans (M₁₅.trans (l₁₆.trans l₁₇))))).ensures fun expected m₁₈ l₁₈ => ?_
-  refine Ensures.liftBind (Sim.assertExtEqual (fun h => h.1.1.1.2.2.2.2.2.2.2.1.mono (l₁₆.trans (l₁₇.trans l₁₈)))
+  refine Ensures.liftBind (Simulates.assertExtEqual (fun h => h.1.1.1.2.2.2.2.2.2.2.1.mono (l₁₆.trans (l₁₇.trans l₁₈)))
     fun h => h.2.1).ensures fun _ m₁₉ l₁₉ => ?_
   rw [StateT.run_pure]
   refine Ensures.pure fun h => ?_

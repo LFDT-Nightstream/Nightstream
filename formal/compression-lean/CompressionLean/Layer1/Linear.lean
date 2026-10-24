@@ -96,7 +96,7 @@ theorem omegaComputed_true (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (
       mle blockPoint (omegaTrue s bar S st lam zeta) := by
   have parts : omegaTrue s bar S st lam zeta = fun b =>
       keyPart s S lam zeta b + evalKPart s bar st lam zeta b + evalAPart s bar S st lam zeta b +
-        publicPart s lam b := funext (omegaTrue_parts s bar S st fits public_le lam zeta)
+        publicPart s lam b := funext (omegaTrue_parts s bar S st fits public_le D_le lam zeta)
   have keyTrue : laneScale zeta s.laneVars * keyValue = mle blockPoint (keyPart s S lam zeta) := by
     rw [key, mle_append_split, lanePoint_length, ← mle_mul_left]
     congr 1
@@ -111,7 +111,8 @@ theorem omegaComputed_true (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (
       unfold keyGroup
       rw [Finset.sum_eq_zero, mul_zero]
       intro i _
-      rw [add_comm, fits.key_zero i b l (Or.inr (by simp at inside outside; omega)), map_zero, mul_zero]
+      rw [add_comm, fits.key_zero i b l (Finset.mem_range.mp inside) (Or.inr (by simp at inside outside; omega)),
+        map_zero, mul_zero]
   rw [parts]
   simp only [mle_add]
   unfold omegaComputed evalKPart

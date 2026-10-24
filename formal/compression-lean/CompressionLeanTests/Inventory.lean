@@ -27,7 +27,8 @@ def claims : List (Name × List Name) := [
   (`CompressionLean.Claims.key_facts_of_check, standardAxioms),
   (`CompressionLean.Claims.width_fits_of_check, standardAxioms),
   (`CompressionLean.Claims.package_templates_of_check, [``propext, ``Quot.sound]),
-  (`CompressionLean.Claims.setup_facts_of_check, standardAxioms)]
+  (`CompressionLean.Claims.setup_facts_of_check, standardAxioms),
+  (`CompressionLean.Claims.runsGive_of_check, standardAxioms)]
 
 /-- The module of the claims. -/
 def claimsModule : Name := `CompressionLean.Claims
@@ -38,21 +39,18 @@ inductive Met where
   | leanValue
   | rust
   | proved
-  | unchecked
 
 def Met.label : Met → String
   | .rustFiles => "Rust's files"
   | .leanValue => "Lean value"
   | .rust => "Rust"
   | .proved => "Lean proof"
-  | .unchecked => "Open"
 
 def Met.meaning : Met → String
   | .rustFiles => "an executable checks a fact about the files that Rust writes, and a claim turns the pass into the premise."
   | .leanValue => "compiled evaluation checks a closed proposition about Lean values. The kernel does not evaluate it: the terminal package is too large."
   | .rust => "Rust checks it when it runs. Lean does not check it."
   | .proved => "a Lean proof gives it where another claim uses this claim."
-  | .unchecked => "no Lean proof and no check."
 
 /-- A premise of a claim: its binder and how it is met. -/
 structure Premise where
@@ -69,8 +67,7 @@ def premises : List (Name × List Premise) :=
   let facts : Premise := ⟨`facts, .rustFiles,
     "`lowerCheck` and `terminalCheck` check it on the production key (`key_facts_of_check`). The production tests `production_layer1_matches_lean` and `final_program_matches_lean` require the pass."⟩
   let setupPass := "`setupCheck` checks it on the production key and on the runs that `production_runs_rebuild_the_layer1_key` writes. That test requires `Key::derive` of the runs to be the committed layer-1 key, and `production_setup_matches_lean` requires the pass."
-  let gives : Premise := ⟨`gives, .unchecked,
-    "`Checks/PoseidonRows.lean` proves the matrix entries of the rows of the Poseidon2 blocks of F′'s matrix program (`matrixSource_entry`). No check compares the runs with these rows."⟩
+  let runsPass := "`runsCheck` checks it on the runs that `production_runs_rebuild_the_layer1_key` writes, which `setupCheck` reads too. `production_runs_match_lean` requires the pass."
   let h0 : Premise := ⟨`h0, .rust,
     "`L0` is the candidate count of P0's WHIR configuration (`log2_max_candidates`, `pcs.rs`). A list holds at least one candidate."⟩
   let h1 : Premise := ⟨`h1, .rust, "As `h0`, for P1."⟩
@@ -87,27 +84,29 @@ def premises : List (Name × List Premise) :=
     "`PreparedLifecycle::check_compression_key` (`lifecycle/finish.rs`) refuses a compression key whose context words are not the digest of the circuit's verifier context. `authority` is that context."⟩
   [(`CompressionLean.Claims.production_bound, [pf,
       ⟨`shape, .proved, "`poseidon2_bound` gives it from `KeyFacts` and `WidthFits` (`parentShape_of`). Open for other applications."⟩,
-      ⟨`honest, .proved, "`poseidon2_bound` gives it from Rust's setup build and `RunsGive` (`honest_setup_of_build`). Open for other applications."⟩,
+      ⟨`honest, .proved, "`poseidon2_bound` gives it from Rust's setup build and the pass of `runsCheck` (`honest_setup_of_build`, `runsGive_of_check`). Open for other applications."⟩,
       facts,
       ⟨`fits, .rustFiles, "From the pass of `setupCheck`, for the Poseidon2 hash chain (`setup_facts_of_check`, in `poseidon2_bound`). Open for other applications."⟩,
       ⟨`describes, .rustFiles, "As `fits`."⟩,
       h0, h1, p0, p1, rust, loads, valid, hctx]),
-    (`CompressionLean.Claims.poseidon2_bound, [gives, facts,
+    (`CompressionLean.Claims.poseidon2_bound, [facts,
       ⟨`width, .rustFiles, "`lowerCheck` and `terminalCheck` print whether the production key fits the Poseidon2 hash chain (`width_fits_of_check`). The production tests require the pass."⟩,
       ⟨`pass, .rustFiles, setupPass⟩,
+      ⟨`runs, .rustFiles, s!"{runsPass} `runsGive_of_check` turns the pass into `RunsGive`."⟩,
       h0, h1, p0, p1, rust, loads, valid, hctx]),
     (`CompressionLean.Claims.honest_setup_of_build, [pf,
       ⟨`D, .proved, "`rfl` for `shapeOf` of a key (in `poseidon2_bound`)."⟩,
       ⟨`lanes, .proved, "As `D`."⟩,
       ⟨`built, .rustFiles, "From the pass of `setupCheck` (`setup_facts_of_check`, in `poseidon2_bound`)."⟩,
-      gives]),
+      ⟨`gives, .proved, "`poseidon2_bound` gives it from the pass of `runsCheck` (`runsGive_of_check`). Open for other applications."⟩]),
     (`CompressionLean.Claims.key_facts_of_check, [⟨`pass, .rustFiles,
       "`lowerCheck` and `terminalCheck` evaluate `keyFailure` on the key that Rust writes. The production tests require the pass."⟩]),
     (`CompressionLean.Claims.width_fits_of_check, [⟨`pass, .rustFiles,
       "`lowerCheck` and `terminalCheck` evaluate `poseidon2Fits` on the key that Rust writes. The production tests require the pass."⟩]),
     (`CompressionLean.Claims.package_templates_of_check, [⟨`named, .leanValue,
       "`terminalCheck` evaluates `templatesNamed` on the terminal package."⟩]),
-    (`CompressionLean.Claims.setup_facts_of_check, [⟨`pass, .rustFiles, setupPass⟩])]
+    (`CompressionLean.Claims.setup_facts_of_check, [⟨`pass, .rustFiles, setupPass⟩]),
+    (`CompressionLean.Claims.runsGive_of_check, [⟨`pass, .rustFiles, runsPass⟩])]
 
 /-- The folder of the hand ports of Rust: `CompressionLean/Ports/` and every
 module under it. -/
@@ -184,7 +183,7 @@ def statusPage (ports : Array Port) : CoreM String :=
   lines := lines ++ #["", "## Hypotheses", "",
     "Every hypothesis of each claim, by binder. A parameter is data that the claim holds for. A premise is a proposition that the claim takes; the claim says nothing where it fails. Each premise row says how the premise is met:",
     ""]
-  for met in [Met.rustFiles, .leanValue, .rust, .proved, .unchecked] do
+  for met in [Met.rustFiles, .leanValue, .rust, .proved] do
     lines := lines.push s!"- {met.label}: {met.meaning}"
   for (claim, _) in claims do
     let some info := env.find? claim | throwError "claim {claim} is not declared"

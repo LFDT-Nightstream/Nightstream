@@ -31,9 +31,9 @@ program, which is the terminal package and the layer-1 verifier written as a cir
    of the circuit computes the values of an executable replay of the layer-1 verifier
    (`Ports/Replay/`). The bridge (`Bridge/`) turns an accepted replay into a path of the layer-1
    game.
-6. The claims take the Rust artifacts as premises: facts about the key, the setup and the package.
-   The executables check these facts on the files that Rust writes, and a theorem per check proves
-   that a pass gives the premise (`Checks/`).
+6. The claims take the Rust artifacts as premises: facts about the key, the setup, the runs and the
+   package. The executables check these facts on the files that Rust writes, and a theorem per check
+   proves that a pass gives the premise (`Checks/`).
 7. Lean transcribes parts of Rust by hand (`Ports/`). `ports.json` pins each transcription to its
    Rust item, and the cross-checks compare the transcriptions with Rust on fixed inputs.
 

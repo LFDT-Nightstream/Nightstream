@@ -3,6 +3,7 @@ import CompressionLean.Final.ParentClaim
 import CompressionLean.Checks.KeyFacts
 import CompressionLean.Final.RustSetup
 import CompressionLean.Checks.SetupFacts
+import CompressionLean.Checks.Runs
 import CompressionLean.Checks.Templates
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
@@ -17,14 +18,15 @@ in the vocabulary of `Spec/` and of the model and port folders
   width `lw`. It takes `ParentShape` at `lw`.
 - `poseidon2_bound`: `production_bound` for F′'s relation of the Poseidon2
   hash-chain application, the application of the production key. It takes
-  `WidthFits` in place of `ParentShape`, and the runs, the Ajtai setup,
-  `RunsGive` and the pass of `setupCheck` in place of the setup and its facts.
+  `WidthFits` in place of `ParentShape`, and the runs, the Ajtai setup and
+  the passes of `setupCheck` and `runsCheck` in place of the setup and its
+  facts.
 - `honest_setup_of_build`: the honest setup from Rust's setup build and
   `RunsGive`.
 - `key_facts_of_check`, `width_fits_of_check`, `package_templates_of_check`,
-  `setup_facts_of_check`: a key, a terminal package or runs that pass the
-  check of `lowerCheck`, `terminalCheck` or `setupCheck` have the premises
-  that the check decides.
+  `setup_facts_of_check`, `runsGive_of_check`: a key, a terminal package or
+  runs that pass the check of `lowerCheck`, `terminalCheck`, `setupCheck` or
+  `runsCheck` have the premises that the check decides.
 
 `CompressionLeanTests/Axioms.lean` pins the axioms of exactly these theorems.
 `STATUS.md` lists every hypothesis of each claim and how each premise is met;
@@ -133,20 +135,25 @@ theorem setup_facts_of_check {key : Layer1Key} {pushes : List Push} (seed : List
       (structureOf key.relation.key.layout).Describes (shapeOf key.relation) (poseidon2Setup seed pushes) :=
   Checks.setupFailure_sound seed pass
 
+/-- **The run check** of `runsCheck`: runs for which `runsFailure` finds no
+failing row give F′'s matrices of the Poseidon2 hash chain (`RunsGive`). -/
+theorem runsGive_of_check {pushes : List Push} (pass : runsFailure pushes = none) :
+    RunsGive pushes Production.poseidon2Relation :=
+  Checks.runsFailure_sound pass
+
 /-- **The production bound for the Poseidon2 hash chain**: `production_bound`
 for F′'s relation of `Poseidon2HashChainV1Package.application`, at its
 logical width of 43,963,750 columns. The production key is of this
 application. The setup is the one that `build` returns for the seed of the
 Ajtai setup and the runs (`poseidon2Setup`). The claim takes `WidthFits` in
-place of `ParentShape`, and `RunsGive` and the pass of `setupCheck` in place
-of the facts of the setup. -/
+place of `ParentShape`, and the passes of `setupCheck` and `runsCheck` in
+place of the facts of the setup. -/
 theorem poseidon2_bound (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word)
     (authority : Lifecycle.VerifierContext.Authority) (pushes : List Push)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
       (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth Production.poseidon2Width)))
-    (gives : RunsGive pushes Production.poseidon2Relation)
     (facts : KeyFacts key) (width : WidthFits key Production.poseidon2Width)
-    (pass : setupFailure key pushes = none)
+    (pass : setupFailure key pushes = none) (runs : runsFailure pushes = none)
     (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (t Ls : ℕ)
     (p0 : (L0 : ℝ) * L1 * Layer1.rustDegrees (shapeOf key.relation) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1))
     (p1 : (L1 : ℝ) * (1 / 2) ^ ((shapeOf key.relation).queries - 1) ≤ 1 / 2 ^ (t + 1))
@@ -171,7 +178,7 @@ theorem poseidon2_bound (key : Layer1Key) (loaded : Loaded) (context : Array Rep
   exact production_bound key loaded context authority _ Production.poseidon2Relation setup.verifierKey
     (parentShape_of _ _ rfl rfl facts.constants.kappa facts.constants.matrices
       facts.constants.blocks width facts.constants.norm)
-    (honest_setup_of_build _ rfl rfl setup _ pushes built gives) facts fits describes L0 L1 h0 h1 t Ls p0 p1 rust
-    loads valid hctx calls prover
+    (honest_setup_of_build _ rfl rfl setup _ pushes built (runsGive_of_check runs)) facts fits describes L0 L1 h0 h1
+    t Ls p0 p1 rust loads valid hctx calls prover
 
 end CompressionLean.Claims

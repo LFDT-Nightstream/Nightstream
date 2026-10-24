@@ -46,7 +46,9 @@ program, so `production_bound` does not take it. These remain open:
   F′'s matrices. With the port of Rust's setup build, it gives `HonestSetup`
   (`honest_setup_of_build`).
 - The facts of the setup that Rust builds (`Setup.Fits`, `Structure.Describes`), and the sizes of the
-  key's shape that the key check does not decide (`ParentShape`, `Shape.Sizes`).
+  key's shape that the key check does not decide (`Shape.Sizes`).
+- `ParentShape` for an application other than the Poseidon2 hash chain. For that application,
+  `KeyFacts` and `WidthFits` give it (`poseidon2_bound`).
 
 ## 5. The ports
 
@@ -64,19 +66,20 @@ and key expander (`Final/RustSetup.lean`). A port equals its Rust only as far as
   Rust on fixed inputs. They run by hand, not in CI (`scripts/crosschecks.sh`).
 - The executables check the production artifacts against premises of the claims: `lowerCheck` and
   `terminalCheck` refuse a key without `KeyFacts`, and `terminalCheck` refuses a terminal package
-  that does not load or whose compact rows name a missing template. `key_facts_of_check` and
+  that does not load or whose compact rows name a missing template. Both print whether the key fits
+  the Poseidon2 hash chain (`WidthFits`); they do not refuse a key that does not, because the toy key
+  of `lowering_matches_lean` is of no application. `key_facts_of_check`, `width_fits_of_check` and
   `package_templates_of_check` prove that a pass gives the premise; that the executables ran on the
   production artifacts is the evidence of these Rust tests.
 
 ## 6. Scope
 
-The final theorems are stated for F′'s reference relation (`Data.logicalWidth`, 27,420,587 columns).
-That width is a reference shape, not an application's: every application is wider, and the production
-key's application (the Poseidon2 hash chain, 43,963,750 columns) does not meet the `ParentShape`
-premise at it. So no claim covers the production key yet. The terminal package does not depend on the
-width. They describe the
-native verifier and the circuit that Rust records; they say nothing about code paths that Lean does
-not model.
+The final theorems hold for the relation of an application of any logical width. The terminal package
+does not depend on the width: F′'s row builders take it as a parameter but do not use it, and `rfl`
+lemmas (`arithmeticRows_at`, `permutationInvocations_at`) state this. `poseidon2_bound` covers the
+production key: F′'s relation of the Poseidon2 hash-chain application, at 43,963,750 columns and
+814,144 blocks. It still takes the open premises of section 4. The claims describe the native verifier
+and the circuit that Rust records; they say nothing about code paths that Lean does not model.
 
 ## Not trusted
 

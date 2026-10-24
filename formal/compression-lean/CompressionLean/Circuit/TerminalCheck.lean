@@ -15,8 +15,9 @@ row invocation names a template (`templatesNamed`), and writes
 layer-1 key the layer-1 step returns its arguments, and the check requires
 the same instructions, one by one, and the same handles. With the key file
 of `neo-spartan`'s `lowering.rs` the step is `verifyWith`, the key must have
-`KeyFacts` (`keyFailure`), and the check requires every instruction of the
-final program. It prints `match`, the counts and the run digest of Lean's
+`KeyFacts` (`keyFailure`), the check prints whether the key fits the Poseidon2
+hash chain (`poseidon2Fits`), and it requires every instruction of the final
+program. It prints `match`, the counts and the run digest of Lean's
 program (`runDigest`), or the first difference and exits with 1.
 -/
 
@@ -122,7 +123,11 @@ def main (args : List String) : IO UInt32 := do
         | .ok key =>
             match CompressionLean.Final.keyFailure key with
             | some fact => IO.println s!"key fact fails: {fact}"; return 1
-            | none => IO.println "key facts hold"; pure (path, some key)
+            | none =>
+                IO.println "key facts hold"
+                IO.println (if CompressionLean.Final.poseidon2Fits key then "key width fits the Poseidon2 hash chain"
+                  else "key width does not fit the Poseidon2 hash chain")
+                pure (path, some key)
         | .error message => IO.eprintln s!"{keyPath}: {message}"; return 2
     | _ => IO.eprintln "usage: terminalCheck <export.txt> [<layer1.json>]"; return 2
   let circuit := CompressionLean.Terminal.circuitPackage ()

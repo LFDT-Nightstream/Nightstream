@@ -27,7 +27,8 @@ run:
   IR must match.
 - `layer1 <input.json>`: the Lean side of `Layer1::run` for the relation and
   the two `WhirKey`s in the file. The whole IR must match, and the key must
-  have `KeyFacts` (`keyFailure`).
+  have `KeyFacts` (`keyFailure`). It prints whether the key fits the
+  Poseidon2 hash chain (`poseidon2Fits`).
 - `linear <input.json>`: the Lean side of `Linear`, the linear stage
   (`linearStage`) from the state after the early stage. The whole IR must
   match.
@@ -412,6 +413,8 @@ def main (args : List String) : IO UInt32 := do
     match CompressionLean.Final.keyFailure key with
     | some fact => IO.println s!"key fact fails: {fact}"; return 1
     | none => IO.println "key facts hold"
+    IO.println (if CompressionLean.Final.poseidon2Fits key then "key width fits the Poseidon2 hash chain"
+      else "key width does not fit the Poseidon2 hash chain")
   match ((check mirror).run 0).run (← IO.FS.readBinFile path) with
   | .ok (message, _) => IO.println message; return 0
   | .error message => IO.println s!"mismatch: {message}"; return 1

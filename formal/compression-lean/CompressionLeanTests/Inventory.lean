@@ -22,8 +22,10 @@ def standardAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
 that it uses exactly. -/
 def claims : List (Name × List Name) := [
   (`CompressionLean.Claims.production_bound, standardAxioms),
+  (`CompressionLean.Claims.poseidon2_bound, standardAxioms),
   (`CompressionLean.Claims.honest_setup_of_build, standardAxioms),
   (`CompressionLean.Claims.key_facts_of_check, standardAxioms),
+  (`CompressionLean.Claims.width_fits_of_check, standardAxioms),
   (`CompressionLean.Claims.package_templates_of_check, [``propext, ``Quot.sound])]
 
 /-- The module of the claims. -/
@@ -33,6 +35,8 @@ def claimsModule : Name := `CompressionLean.Claims
 def premises : List (Name × String) := [
   (`CompressionLean.Final.KeyFacts,
     "Checked on the production key by `lowerCheck` and `terminalCheck` (`key_facts_of_check`)."),
+  (`CompressionLean.Final.WidthFits,
+    "Checked on the production key by `lowerCheck` and `terminalCheck`, which print whether the key fits the Poseidon2 hash chain (`width_fits_of_check`)."),
   (`CompressionLean.Circuit.Package.load,
     "`terminalCheck` loads the terminal package and stops when the load fails."),
   (`NightstreamFPrime.Export.Package.CircuitPackage.CompactTemplatesValid,
@@ -41,7 +45,7 @@ def premises : List (Name × String) := [
     "From Rust's setup build and `RunsGive` (`honest_setup_of_build`)."),
   (`CompressionLean.Final.RunsGive, "Open: no Lean proof and no check."),
   (`CompressionLean.Final.ParentShape,
-    "Open: it fixes F′'s reference width, which no application has; the production key does not meet it."),
+    "From `KeyFacts` and `WidthFits` for the Poseidon2 hash chain (`parentShape_of`, in `poseidon2_bound`). Open for other applications."),
   (`CompressionLean.Layer1.Shape.Sizes, "Open: sizes of the key's shape that `KeyFacts` does not check."),
   (`CompressionLean.Layer1.Setup.Fits, "Open: a fact of the setup that Rust builds."),
   (`CompressionLean.Layer1.Structure.Describes, "Open: a fact of the setup that Rust builds.")]

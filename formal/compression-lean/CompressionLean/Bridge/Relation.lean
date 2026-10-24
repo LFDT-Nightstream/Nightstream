@@ -10,7 +10,6 @@ run and slot structure (`structureOf`), the `bar` transform (`barOf`) and
 
 namespace CompressionLean.Bridge
 
-open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 

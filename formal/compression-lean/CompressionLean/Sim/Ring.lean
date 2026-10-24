@@ -24,7 +24,6 @@ closed forms of `Mle.lean` (`mle.rs`) against the replay's formulas
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
-open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Kx Relation D)
 open NightstreamFPrime.Spec (goldilocksModulus)

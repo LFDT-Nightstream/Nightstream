@@ -12,7 +12,6 @@ read.
 
 namespace CompressionLean.Checks
 
-open CompressionLean.Game
 open CompressionLean.Circuit (Layer1Input)
 open CompressionLean.Bridge (EvalKBits HonestSizes shapeOf structureOf)
 

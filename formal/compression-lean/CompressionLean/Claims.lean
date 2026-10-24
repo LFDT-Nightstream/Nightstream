@@ -44,7 +44,6 @@ open CompressionLean.Circuit (Layer1Input)
 open CompressionLean.Circuit.Package (Loaded load)
 open CompressionLean.Final
 
-
 /-- **The production bound** (`CompressionKey::verify`,
 `lifecycle/finish.rs:131-145`). Take the production final program for the
 layer-1 key `key` (`Sim.prog`), the terminal package with the context

@@ -24,8 +24,6 @@ Each state-restoration query costs at most the whole interactive error
 
 namespace CompressionLean.Shrink
 
-open CompressionLean.Lib
-
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
 
 /-- The degrees of `terms` (`mod.rs:129-140`). -/

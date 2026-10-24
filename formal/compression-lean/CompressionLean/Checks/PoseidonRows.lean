@@ -24,7 +24,6 @@ Does not own a check of Rust's runs against these rows (`RunsGive`).
 namespace CompressionLean.Checks
 
 open CompressionLean.Final
-open CompressionLean.Game
 open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Layout NightstreamFPrime.Layout.ProductionRelation NightstreamFPrime.Layout.MatrixProgram

@@ -12,7 +12,7 @@ Rust passes for the PiRLC parent. From them it proves the premises of
   its row, matrix and coefficient, and its slot gives its start, length and
   ratio. `readsBack_of_build` proves it of `build`. The Rust test
   `derived_structure_steps_read_back_the_runs` checks it of `from_rows`.
-- `honestSetup_of_build`: `HonestSetup` for the key of the seeded Ajtai setup
+- `build_honest`: `HonestSetup` for the key of the seeded Ajtai setup
   (`AjtaiSetupV1.Setup.verifierKey`), when the pushed runs give F′'s matrices
   (`RunsGive`, `Spec/Parent.lean`).
 - `parentShape_of`: `ParentShape` from Rust's constants.
@@ -199,7 +199,7 @@ theorem gl_natCast (n : ℕ) (small : n < goldilocksModulus) : ((n : ℕ) : Gl) 
 seed of an Ajtai setup, over the carrier's columns and F′'s four matrices, is
 an honest setup for that setup's key, when the pushed runs give F′'s
 matrices. -/
-theorem honestSetup_of_build (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
+theorem build_honest (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
       (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)))
     (relation : ProductionKey.LogicalRelation lw pf) (pushes : List Push) {S : Layer1.Setup Gl}

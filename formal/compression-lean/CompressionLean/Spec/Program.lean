@@ -125,7 +125,7 @@ def terminalPrefix (package : Loaded) (context : Array Word) : Build (ClaimVars 
 
 section Runs
 
-variable (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
+variable (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word)
 
 /-- `FinalProgram::run` with `verify_with` for `key` (`lifecycle/terminal/mod.rs:54-80`).
 Irreducible, so that no check evaluates the program. -/

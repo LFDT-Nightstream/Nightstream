@@ -47,7 +47,7 @@ end CompressionLeanExe.SetupCheck
 open CompressionLeanExe.SetupCheck in
 def main (args : List String) : IO UInt32 := do
   let [layer1, runs] := args | IO.eprintln "usage: setupCheck <layer1.json> <runs.bin>"; return 2
-  let key ← IO.ofExcept (← CompressionLeanExe.Parse.readJson CompressionLean.Circuit.Layer1Input layer1)
+  let key ← IO.ofExcept (← CompressionLeanExe.Parse.readJson CompressionLean.Circuit.Layer1Key layer1)
   let pushes ← IO.ofExcept (readRuns (← IO.FS.readBinFile runs))
   match CompressionLean.Spec.setupFailure key pushes with
   | none => IO.println "setup facts hold"; return 0

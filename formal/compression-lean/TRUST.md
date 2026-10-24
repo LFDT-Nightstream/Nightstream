@@ -73,7 +73,7 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
 - The error charges (`Layer1.rustDegrees`, `Shrink.rustDegrees`). If one differs from
   `outer_terms` (`lib.rs`) or from `terms` (`shrink/mod.rs`), the premises `p0`, `p1` and `rust`
   are not the checks that `Pcs::new` makes.
-- The readers of the files that the Rust tests write (`Layer1Input`, `readRuns` in
+- The readers of the files that the Rust tests write (`Layer1Key`, `readRuns` in
   `CompressionLeanExe/SetupCheck.lean`): transcriptions of their formats.
 
 **Code that a cross-check compares with Rust but that cannot make a claim false.** The rest of

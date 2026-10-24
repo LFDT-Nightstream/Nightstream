@@ -30,7 +30,7 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
 
 /-- The layer-1 game of the relation of `key` and the setup `S`, with F′'s
 modulus, as the final theorems state it. -/
-noncomputable abbrev game (key : Layer1Input) (S : Setup Gl) (L0 L1 : ℕ) :=
+noncomputable abbrev game (key : Layer1Key) (S : Setup Gl) (L0 L1 : ℕ) :=
   layer1Game (shapeOf key.relation) modulus barOf S L0 L1 (2 ^ (key.relation.setupVars - 2)) goldilocksModulus
     (queryAt (K := Cubic) key.relation)
 
@@ -39,7 +39,7 @@ noncomputable abbrev game (key : Layer1Input) (S : Setup Gl) (L0 L1 : ℕ) :=
 challenges that it computes from them (`verify` replayed up to WHIR), and
 candidate lists that agree with the WHIR openings at its points and with a
 setup that the key's Merkle root binds. -/
-def Reads (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) (S : Setup Gl) (L0 L1 : ℕ)
+def Reads (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word) (S : Setup Gl) (L0 L1 : ℕ)
     (x : StateWords) (wit : ℕ → Gl) (p : (game key S L0 L1).Pos) : Prop :=
   let w := wordsOf key loaded context x wit
   let st := statementWith loaded context w

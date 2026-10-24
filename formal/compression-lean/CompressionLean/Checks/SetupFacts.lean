@@ -25,7 +25,7 @@ open CompressionLean.Spec
 open CompressionLean.Final CompressionLean.Setup
 open CompressionLean.Lib
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-open CompressionLean.Circuit (Layer1Input)
+open CompressionLean.Circuit (Layer1Key)
 
 /-! ## Sorted sets in one pass -/
 
@@ -108,7 +108,7 @@ theorem poseidon2Columns_eq : poseidon2Columns = Phi81CarrierLayout.carrierWidth
 /-- **The setup check.** When the key and the runs fail no fact of the check,
 `build` returns `poseidon2Setup` at the carrier of the Poseidon2 hash chain,
 the setup fits the key's shape, and the key's structure describes it. -/
-theorem setupFacts_of_check {key : Layer1Input} {pushes : List Push} (seed : List ℕ)
+theorem setupFacts_of_check {key : Layer1Key} {pushes : List Push} (seed : List ℕ)
     (pass : setupFailure key pushes = none) :
     build seed poseidon2Columns Production.matrices pushes = some (poseidon2Setup seed pushes) ∧
       (poseidon2Setup seed pushes).Fits (shapeOf key.relation) ∧

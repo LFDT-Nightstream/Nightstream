@@ -5,16 +5,17 @@
 //! re-read and the new hash to record.
 //!
 //! A Rust path is `<file>::<item>`. The file is relative to the repository.
-//! The item is a top-level `fn`, `const`, `static`, `struct`, `enum` or `type`
-//! of the file, or `<Type>::<fn>` for a method of `impl Type` or
-//! `impl Trait for Type` in the file. A name that two items share is an error.
+//! The item is a top-level `fn`, `const`, `static`, `struct`, `enum`, `trait`
+//! or `type` of the file, or `<Type>::<fn>` for a method of `impl Type`,
+//! `impl Trait for Type` or `trait Type` in the file. A name that two items
+//! share is an error.
 
 use proc_macro2::{Delimiter, Group, TokenStream, TokenTree};
 use quote::ToTokens;
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::path::Path;
-use syn::{File, ImplItem, Item, Type};
+use syn::{File, ImplItem, Item, TraitItem, Type};
 
 #[derive(Deserialize)]
 struct Port {
@@ -76,14 +77,24 @@ fn tokens(file: &File, item: &str) -> Result<TokenStream, String> {
         Some((ty, method)) => file
             .items
             .iter()
-            .filter_map(|i| match i {
-                Item::Impl(block) if self_name(&block.self_ty).is_some_and(|name| name == ty) => Some(&block.items),
-                _ => None,
-            })
-            .flatten()
-            .filter_map(|i| match i {
-                ImplItem::Fn(f) if f.sig.ident == method => Some(f.to_token_stream()),
-                _ => None,
+            .flat_map(|i| match i {
+                Item::Impl(block) if self_name(&block.self_ty).is_some_and(|name| name == ty) => block
+                    .items
+                    .iter()
+                    .filter_map(|i| match i {
+                        ImplItem::Fn(f) if f.sig.ident == method => Some(f.to_token_stream()),
+                        _ => None,
+                    })
+                    .collect(),
+                Item::Trait(t) if t.ident == ty => t
+                    .items
+                    .iter()
+                    .filter_map(|i| match i {
+                        TraitItem::Fn(f) if f.sig.ident == method => Some(f.to_token_stream()),
+                        _ => None,
+                    })
+                    .collect(),
+                _ => Vec::new(),
             })
             .collect(),
     };
@@ -101,6 +112,7 @@ fn top_level_name(item: &Item) -> Option<String> {
         Item::Static(i) => &i.ident,
         Item::Struct(i) => &i.ident,
         Item::Enum(i) => &i.ident,
+        Item::Trait(i) => &i.ident,
         Item::Type(i) => &i.ident,
         _ => return None,
     };

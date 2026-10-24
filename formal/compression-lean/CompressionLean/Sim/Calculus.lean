@@ -142,6 +142,13 @@ theorem tforIn_range (r : Std.Legacy.Range) (init : γ) {body : ℕ → γ → T
   rw [Std.Legacy.Range.forIn_eq_forIn_range']
   exact tforIn_list _ _ h
 
+theorem tfoldlM_list {f : γ → δ → Transcript γ} (h : ∀ s x d, Appends ((f s x).run d)) :
+    ∀ (l : List δ) (init : γ) (d : Duplex), Appends ((l.foldlM f init).run d)
+  | [], _, _ => pure _
+  | x :: l, init, _ => by
+      rw [List.foldlM_cons]
+      exact tbind (h init x) fun s d => tfoldlM_list h l s d
+
 end Appends
 
 /-- Prove that a program appends: the instances of its instructions and
@@ -162,6 +169,7 @@ macro_rules
     | (with_reducible refine Appends.tforIn_list _ _ ?_); appends
     | (with_reducible refine Appends.tforIn_array _ _ ?_); appends
     | (with_reducible refine Appends.tforIn_range _ _ ?_); appends
+    | (with_reducible refine Appends.tfoldlM_list ?_ _ _ _); appends
     | (with_reducible refine Appends.mapM_array ?_ _); appends
     | (with_reducible refine Appends.mapM_list ?_ _); appends
     | split <;> appends)

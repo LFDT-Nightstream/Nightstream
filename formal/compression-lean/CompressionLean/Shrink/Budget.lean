@@ -1,3 +1,4 @@
+import CompressionLean.Ports.Shrink.Budget
 import CompressionLean.Shrink.Cost
 import CompressionLean.Game.Restoration
 
@@ -25,9 +26,6 @@ Each state-restoration query costs at most the whole interactive error
 namespace CompressionLean.Shrink
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
-
-/-- The degrees of `terms` (`mod.rs:129-140`). -/
-def rustDegrees (m n : ℕ) : ℕ := m + 8 * m + (8 - 1) + 2 * (n + 1)
 
 /-- The Lean count is `L` times Rust's degrees. -/
 theorem shrinkCount_eq_rust (m n L : ℕ) : shrinkCount m n L = L * rustDegrees m n := by

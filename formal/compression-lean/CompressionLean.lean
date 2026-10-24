@@ -4,6 +4,7 @@ import CompressionLean.Replay
 import CompressionLean.Game
 import CompressionLean.Terminal
 import CompressionLean.Layer1
+import CompressionLean.Ports
 import CompressionLean.Shrink
 import CompressionLean.Circuit
 import CompressionLean.Lowering

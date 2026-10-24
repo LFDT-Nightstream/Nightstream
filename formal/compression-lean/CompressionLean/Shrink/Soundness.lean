@@ -1,4 +1,6 @@
-import CompressionLean.Shrink.Game
+import CompressionLean.Ports.Shrink.Game
+import CompressionLean.Shrink.Evaluate
+import CompressionLean.Shrink.Rounds
 
 /-!
 Owns what the shrink verifier's accepting paths give (`shrinkGame_avoids`):

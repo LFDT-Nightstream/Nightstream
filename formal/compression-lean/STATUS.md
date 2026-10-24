@@ -139,6 +139,14 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 | `CompressionLean.Layer1.Budget` | 5 |
 | `CompressionLean.Lib.Cube` | 2 |
 | `CompressionLean.Lib.SumCheck` | 1 |
+| `CompressionLean.Ports.Shrink.BlockPart` | 9 |
+| `CompressionLean.Ports.Shrink.Budget` | 1 |
+| `CompressionLean.Ports.Shrink.Ccs` | 5 |
+| `CompressionLean.Ports.Shrink.Diagonal` | 8 |
+| `CompressionLean.Ports.Shrink.Evaluate` | 10 |
+| `CompressionLean.Ports.Shrink.Game` | 5 |
+| `CompressionLean.Ports.Shrink.Layout` | 26 |
+| `CompressionLean.Ports.Shrink.Rounds` | 1 |
 | `CompressionLean.Replay.Data` | 22 |
 | `CompressionLean.Replay.Field` | 9 |
 | `CompressionLean.Replay.Formulas` | 25 |
@@ -146,14 +154,6 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 | `CompressionLean.Replay.Stages` | 26 |
 | `CompressionLean.Replay.Transcript` | 10 |
 | `CompressionLean.Replay.Whir` | 4 |
-| `CompressionLean.Shrink.BlockPart` | 9 |
-| `CompressionLean.Shrink.Budget` | 1 |
-| `CompressionLean.Shrink.Ccs` | 5 |
-| `CompressionLean.Shrink.Diagonal` | 8 |
-| `CompressionLean.Shrink.Evaluate` | 10 |
-| `CompressionLean.Shrink.Game` | 5 |
-| `CompressionLean.Shrink.Layout` | 26 |
-| `CompressionLean.Shrink.Rounds` | 1 |
 
 | Rust file | Items |
 |---|---:|

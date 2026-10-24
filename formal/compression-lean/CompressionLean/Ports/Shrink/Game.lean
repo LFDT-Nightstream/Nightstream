@@ -1,5 +1,5 @@
-import CompressionLean.Shrink.Evaluate
-import CompressionLean.Shrink.Rounds
+import CompressionLean.Ports.Shrink.Evaluate
+import CompressionLean.Ports.Shrink.Rounds
 import CompressionLean.Game.SumCheck
 import CompressionLean.Lib.IdentityTest
 

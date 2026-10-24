@@ -100,7 +100,7 @@ theorem evaluate_coefficient (relation : ProductionKey.LogicalRelation lw pf)
       ∑ b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)),
         ∑ l : Fin ringDegree, ∑ e : Fin ringDegree,
           (∑ i ∈ Finset.range (2 ^ cubeVariables),
-              π (Layer1.eqAt (point.coordinates.map toQuad) i) * entryAt M i (ringDegree * b + l)) *
+              π (Lib.eqAt (point.coordinates.map toQuad) i) * entryAt M i (ringDegree * b + l)) *
             gl (a (Phi81CarrierLayout.carrierColumn b e)) * gl (phi81Kernel.weight p l e) := by
   have entry (i : ℕ) (b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)))
       (l : Fin ringDegree) :
@@ -127,7 +127,7 @@ theorem evaluate_coefficient (relation : ProductionKey.LogicalRelation lw pf)
       (paddedEntry_eq relation M v _ l)
   unfold BooleanTable.evaluate
   rw [evaluate_tabulate _ _ _ point.dimension, map_sum]
-  calc _ = ∑ x ∈ Finset.range (2 ^ cubeVariables), π (Layer1.eqAt (point.coordinates.map toQuad) x) *
+  calc _ = ∑ x ∈ Finset.range (2 ^ cubeVariables), π (Lib.eqAt (point.coordinates.map toQuad) x) *
         ∑ b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)), ∑ e : Fin ringDegree,
           (∑ l : Fin ringDegree, gl (M (vertexAt cubeVariables x) (Phi81CarrierLayout.carrierColumn b l)) *
             gl (phi81Kernel.weight p l e)) * gl (a (Phi81CarrierLayout.carrierColumn b e)) := by
@@ -467,8 +467,8 @@ theorem entryAt_pad (relation : ProductionKey.LogicalRelation lw pf) {i c : ℕ}
 /-- Pad's weight of column `c`: `Σ_i π(χ_r(i))·Pad(i, c) = π(χ_r(c))`. -/
 theorem pad_weight (relation : ProductionKey.LogicalRelation lw pf) (π : Layer1.Quad Gl →+ Gl)
     (point : List (Layer1.Quad Gl)) {c : ℕ} (hc : c < Phi81CarrierLayout.carrierWidth lw) :
-    ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Layer1.eqAt point i) * entryAt (padMatrix relation) i c =
-      π (Layer1.eqAt point c) := by
+    ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Lib.eqAt point i) * entryAt (padMatrix relation) i c =
+      π (Lib.eqAt point c) := by
   rw [Finset.sum_eq_single c]
   · rw [entryAt_pad relation (hc.trans_le relation.cubeFits) hc, if_pos rfl, mul_one]
   · intro i member different
@@ -495,7 +495,7 @@ theorem rows_eq {s : Layer1.Shape} (shape : ParentShape s lw) : s.rows = 37 := b
 
 theorem chi_part (P : PiRLC.v1_2.InputBinding.InputInstance lw pf) (part : ℕ) (π : Layer1.Quad Gl →+ Gl)
     (hπ : ∀ q, π q = sel part (q.re, q.im)) (i : ℕ) :
-    sel part ((statementOf P).chi i) = π (Layer1.eqAt (P.point.coordinates.map toQuad) i) := by
+    sel part ((statementOf P).chi i) = π (Lib.eqAt (P.point.coordinates.map toQuad) i) := by
   rw [hπ, ← statementOf_point]
   rfl
 
@@ -507,7 +507,7 @@ theorem evalA_weight {s : Layer1.Shape} {S : Layer1.Setup Gl} {relation : Produc
     (hπ : ∀ q, π q = sel part (q.re, q.im)) (j : Fin productionProfile.ccsMatrices) {c : ℕ}
     (hc : c < Phi81CarrierLayout.carrierWidth lw) :
     sel part (Layer1.evalAWeight S (statementOf P) s.D j c) =
-      ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Layer1.eqAt (P.point.coordinates.map toQuad) i) *
+      ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Lib.eqAt (P.point.coordinates.map toQuad) i) *
         entryAt ((PaperAlgebra.matrixSource relation.system).matrices j) i c := by
   rw [evalAWeight_eq S _ s.D j c cubeVariables honest.row_lt, sel_sum]
   apply Finset.sum_congr rfl
@@ -530,7 +530,7 @@ theorem pad_part {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Setup
       sel part ((statementOf P).evalK p) := by
   have row := evalRow_coeff (pf := pf) shape rows (ρ := s.evalKRow part)
     (by rw [rows_eq shape, Layer1.Shape.evalKRow, shape.kappa]; change 22 + part < 37; omega)
-    (fun b l => π (Layer1.eqAt (P.point.coordinates.map toQuad) (ringDegree * b + l)))
+    (fun b l => π (Lib.eqAt (P.point.coordinates.map toQuad) (ringDegree * b + l)))
     (fun l => sel part ((statementOf P).evalK l))
     (fun b => by
       rw [weight_evalK s bar S _ part small b, shape.D]
@@ -573,7 +573,7 @@ theorem matrix_part {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Se
       change 22 + 2 + 2 * j.val + part < 37
       change j.val < 4 at this
       omega)
-    (fun b l => ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Layer1.eqAt (P.point.coordinates.map toQuad) i) *
+    (fun b l => ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Lib.eqAt (P.point.coordinates.map toQuad) i) *
       entryAt ((PaperAlgebra.matrixSource relation.system).matrices j) i (ringDegree * b + l))
     (fun l => sel part ((statementOf P).evalA j l))
     (fun b => by

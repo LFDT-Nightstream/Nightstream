@@ -22,6 +22,7 @@ most `1/2` (`query_half`), so the charge holds under that law.
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 /-- `outer_terms`' degree of a GKR: per layer `k`, four per round and one

@@ -16,7 +16,7 @@ layer-1 order: index bit `t` is variable `t`, low bit first, as in
 - `eqAt ρ i` is the eq weight of index `i`; `eqEval ρ x` is its extension.
 -/
 
-namespace CompressionLean.Layer1
+namespace CompressionLean.Lib
 
 variable {K : Type} [CommRing K]
 
@@ -345,4 +345,4 @@ theorem mle_swap (p q : List K) (t : ℕ → ℕ → K) :
 
 end Lemmas
 
-end CompressionLean.Layer1
+end CompressionLean.Lib

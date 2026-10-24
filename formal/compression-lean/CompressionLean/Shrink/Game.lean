@@ -1,6 +1,7 @@
 import CompressionLean.Shrink.Evaluate
 import CompressionLean.Shrink.Rounds
-import CompressionLean.Layer1.HonestStage
+import CompressionLean.Game.SumCheck
+import CompressionLean.Lib.IdentityTest
 
 /-!
 Owns the shrink verifier (`verify`, `mod.rs:233-288`) as a public-coin game
@@ -39,7 +40,7 @@ candidates.
 
 namespace CompressionLean.Shrink
 
-open CompressionLean.Layer1 Polynomial
+open CompressionLean.Lib Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
 
@@ -97,15 +98,15 @@ and `matrices rx ry ρ` its value of `Σ_j ρ^j·M̃_j(rx, ry)`. -/
 noncomputable def programGame {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop)
     (matrices : List K → List K → K → K) (L : ℕ) : Game (Option (Transcript I F K)) :=
   .recv {l : List (ℕ → F) // l.length ≤ L} fun cands =>
-  Game.bind (drawPoint (tauBad C cands.1) C.rowVars []) fun tau =>
-  Game.bind (sumcheck Finset.univ 7
+  Game.bind (Game.drawPoint (tauBad C cands.1) C.rowVars []) fun tau =>
+  Game.bind (Game.sumcheck Finset.univ 7
       (fun k : Fin cands.1.length =>
         combRound C.rowVars (outerTables C.entries (C.z (cands.1.get k)) tau) outerComb)
       (fun _ => ∅) C.rowVars [] 0) fun outer =>
   .recv (Fin 8 → K) fun values =>
   if outer.2 = eqEval tau outer.1 * constraint values then
     .draw K (rhoBad C cands.1 outer.1 values) fun rho =>
-    Game.bind (sumcheck Finset.univ 1
+    Game.bind (Game.sumcheck Finset.univ 1
         (fun k : Fin cands.1.length =>
           combRound (C.cellVars + 1) (innerTables C.entries (C.z (cands.1.get k)) outer.1 rho) productComb)
         (fun _ => ∅) (C.cellVars + 1) [] (batch rho values)) fun inner =>

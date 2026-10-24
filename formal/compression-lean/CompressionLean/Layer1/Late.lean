@@ -13,6 +13,7 @@ proves the `mle.rs` lane-split formulas equal to them.
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K]

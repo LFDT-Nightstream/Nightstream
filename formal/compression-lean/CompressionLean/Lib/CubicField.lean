@@ -18,7 +18,7 @@ root `a` in `F_p`, then `a^p = a` would make `g = x^p - x` vanish at `a`. But
 The primality of `p` is an instance argument; `Fields.lean` owns the fact.
 -/
 
-namespace CompressionLean.Layer1
+namespace CompressionLean.Lib
 
 open Polynomial NightstreamFPrime.Spec
 
@@ -121,4 +121,4 @@ theorem cubic_irreducible [Fact (Nat.Prime goldilocksModulus)] :
     apply cubic_no_root a
     simpa [IsRoot] using isRoot
 
-end CompressionLean.Layer1
+end CompressionLean.Lib

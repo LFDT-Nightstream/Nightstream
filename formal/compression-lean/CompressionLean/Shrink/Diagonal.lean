@@ -1,4 +1,4 @@
-import CompressionLean.Layer1.Cube
+import CompressionLean.Lib.Cube
 import Mathlib.Data.Nat.Size
 
 /-!
@@ -16,7 +16,7 @@ it reads the state that `diagonal` returns.
 
 namespace CompressionLean.Shrink
 
-open CompressionLean.Layer1
+open CompressionLean.Lib
 
 variable {K : Type} [CommRing K]
 

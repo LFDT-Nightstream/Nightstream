@@ -17,6 +17,7 @@ lists every assumption.
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 open NightstreamFPrime.Spec (goldilocksModulus)
 

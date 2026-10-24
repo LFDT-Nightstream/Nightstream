@@ -4,9 +4,10 @@ import Mathlib.Algebra.Polynomial.Roots
 Owns the bad sets of polynomial identity tests: the challenges at which a
 nonzero polynomial vanishes, and their unions over the WHIR candidates.
 A bad set has at most degree elements, so its density is `degree / |K|`.
+A nonzero line (`linePoly`) has at most one root.
 -/
 
-namespace CompressionLean.Layer1
+namespace CompressionLean.Lib
 
 open Polynomial
 
@@ -48,4 +49,31 @@ theorem card_biUnion_le_mul {W : Type} (worlds : Finset W) (bad : W → Finset K
     _ ≤ ∑ _w ∈ worlds, d := Finset.sum_le_sum each
     _ = worlds.card * d := by simp
 
-end CompressionLean.Layer1
+section Line
+
+omit [Fintype K] [DecidableEq K]
+
+/-- `C a + X·C b`: the line `a + X·b`. A GKR pair's difference after the
+reduction at `X` and a fold's next value are lines. -/
+noncomputable def linePoly (a b : K) : K[X] := C a + X * C b
+
+theorem linePoly_eval (a b c : K) : (linePoly a b).eval c = a + c * b := by
+  simp only [linePoly, eval_add, eval_mul, eval_C, eval_X]
+
+theorem linePoly_natDegree (a b : K) : (linePoly a b).natDegree ≤ 1 := by
+  unfold linePoly
+  refine (natDegree_add_le _ _).trans (max_le (by simp) ?_)
+  exact (natDegree_mul_le).trans (by simp)
+
+theorem linePoly_ne_zero {a b : K} (nonzero : a ≠ 0 ∨ b ≠ 0) : linePoly a b ≠ 0 := by
+  intro zero
+  have zeroth := congrArg (fun p => p.coeff 0) zero
+  have first := congrArg (fun p => p.coeff 1) zero
+  simp [linePoly, coeff_C] at zeroth first
+  rcases nonzero with h | h
+  · exact h zeroth
+  · exact h first
+
+end Line
+
+end CompressionLean.Lib

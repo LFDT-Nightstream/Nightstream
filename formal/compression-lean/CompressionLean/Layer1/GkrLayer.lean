@@ -1,5 +1,5 @@
-import CompressionLean.Layer1.Combination
-import CompressionLean.Layer1.Fraction
+import CompressionLean.Lib.Combination
+import CompressionLean.Lib.Fraction
 
 /-!
 Owns the algebra of one layer of the batched fraction-sum GKR of
@@ -19,6 +19,7 @@ are the halves `y` and `y + 2^{k-1}` (the top variable is the child bit).
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 /-- `Σ_i ν^i·f(lᵢ)` by Horner's rule, the batching of `gkr::verify`. -/

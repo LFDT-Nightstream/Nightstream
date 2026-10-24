@@ -1,5 +1,5 @@
 import CompressionLean.Layer1.Model
-import CompressionLean.Layer1.IdentityTest
+import CompressionLean.Lib.IdentityTest
 
 /-!
 Owns the early stage of the layer-1 verifier (`verifier.rs` up to
@@ -14,6 +14,7 @@ equal to them.
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K]

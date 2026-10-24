@@ -1,4 +1,4 @@
-import CompressionLean.Layer1.Cube
+import CompressionLean.Lib.Cube
 import Mathlib.Algebra.Polynomial.Expand
 import Mathlib.Algebra.Polynomial.Degree.Lemmas
 
@@ -12,7 +12,7 @@ even and odd halves, `Ô_t(Y) = Ô_e(Y²) + Y·(Ô_o - Ô_e)(Y²)`. Equivalently
 - `univ_eq_zero`: only the zero table has the zero form.
 -/
 
-namespace CompressionLean.Layer1
+namespace CompressionLean.Lib
 
 open Polynomial
 
@@ -123,4 +123,4 @@ theorem univ_eq_zero (m : ℕ) (t : ℕ → K) (zero : univ m t = 0) : ∀ i, i 
       · rw [show i = 2 * (i / 2) + 1 by omega]
         exact ih _ odd (i / 2) (by rw [pow_succ] at lt; omega)
 
-end CompressionLean.Layer1
+end CompressionLean.Lib

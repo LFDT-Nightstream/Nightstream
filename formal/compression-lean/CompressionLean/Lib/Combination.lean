@@ -1,4 +1,4 @@
-import CompressionLean.Layer1.SumCheck
+import CompressionLean.Lib.SumCheck
 import Mathlib.Algebra.MvPolynomial.Degrees
 import Mathlib.Algebra.Polynomial.BigOperators
 
@@ -12,7 +12,7 @@ total degree of `comb` (`combRound_truth`). After all variables are bound, the
 partial sum is `comb` of the table extensions at the point (`combTruth_final`).
 -/
 
-namespace CompressionLean.Layer1
+namespace CompressionLean.Lib
 
 open Polynomial
 
@@ -115,4 +115,22 @@ theorem combTruth_nil (n : ℕ) (tables : σ → ℕ → K) (comb : MvPolynomial
     combTruth n tables comb [] = cubeSum n fun i => MvPolynomial.eval (fun j => tables j i) comb := by
   simp [combTruth, fold]
 
-end CompressionLean.Layer1
+/-- `X₀·X₁`. -/
+noncomputable def productComb : MvPolynomial (Fin 2) K := MvPolynomial.X 0 * MvPolynomial.X 1
+
+theorem product_truth_nil (n : ℕ) (T : Fin 2 → ℕ → K) :
+    combTruth n T productComb [] = cubeSum n fun i => T 0 i * T 1 i := by
+  rw [combTruth_nil]
+  simp [productComb]
+
+theorem product_truth_final (p : List K) (T : Fin 2 → ℕ → K) :
+    combTruth p.length T productComb p = mle p (T 0) * mle p (T 1) := by
+  rw [combTruth_final]
+  simp [productComb]
+
+theorem productComb_degree : (productComb : MvPolynomial (Fin 2) K).totalDegree ≤ 1 + 1 := by
+  unfold productComb
+  refine (MvPolynomial.totalDegree_mul _ _).trans ?_
+  rw [MvPolynomial.totalDegree_X, MvPolynomial.totalDegree_X]
+
+end CompressionLean.Lib

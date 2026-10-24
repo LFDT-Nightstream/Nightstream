@@ -22,7 +22,7 @@ for it.
 
 namespace CompressionLean.Shrink
 
-open CompressionLean.Layer1
+open CompressionLean.Lib
 
 /-- One part of a kind's slots: its start and its stride, one slot per
 block (`Part`, `layout.rs:49-54`). -/

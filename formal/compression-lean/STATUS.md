@@ -135,9 +135,10 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 | `CompressionLean.Circuit.Views` | 11 |
 | `CompressionLean.Circuit.Whir` | 14 |
 | `CompressionLean.Final.RustSetup` | 13 |
+| `CompressionLean.Game.SumCheck` | 1 |
 | `CompressionLean.Layer1.Budget` | 5 |
-| `CompressionLean.Layer1.Cube` | 2 |
-| `CompressionLean.Layer1.SumCheck` | 2 |
+| `CompressionLean.Lib.Cube` | 2 |
+| `CompressionLean.Lib.SumCheck` | 1 |
 | `CompressionLean.Replay.Data` | 22 |
 | `CompressionLean.Replay.Field` | 9 |
 | `CompressionLean.Replay.Formulas` | 25 |

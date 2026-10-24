@@ -14,6 +14,7 @@ queried values are the honest folds (`setupCheck_value`). So `Opens` holds
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 

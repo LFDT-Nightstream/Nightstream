@@ -1,4 +1,4 @@
-import CompressionLean.Layer1.Cube
+import CompressionLean.Lib.Cube
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.BigOperators.Intervals
 
@@ -9,7 +9,7 @@ numerator factors and a denominator; the level above combines nodes `y` and
 its leaves whenever the root denominator is nonzero (`root_fraction`).
 -/
 
-namespace CompressionLean.Layer1
+namespace CompressionLean.Lib
 
 variable {K : Type} [Field K]
 
@@ -100,4 +100,4 @@ theorem root_fraction (L : Level K) (depth : ℕ)
 
 end Level
 
-end CompressionLean.Layer1
+end CompressionLean.Lib

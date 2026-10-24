@@ -13,6 +13,7 @@ two product sum-checks whose claims chain (`prove_linear` runs them so).
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K]
@@ -56,9 +57,6 @@ def LinearCheck (s : Shape) (bar : ℕ → ℕ → F) (st : Statement F) (o : Li
     o.last = omegaComputed s bar st o.lam o.zeta o.blockPoint o.keyValue o.omegaValue *
       mle o.lanePart (laneTable s o.zeta) * o.zValue
 
-/-- `X₀·X₁`. -/
-noncomputable def productComb : MvPolynomial (Fin 2) K := MvPolynomial.X 0 * MvPolynomial.X 1
-
 /-- Block rounds: `Ω` and `u(b) = Σ_l Λ(l)·z(2^laneVars·b + l)`. -/
 noncomputable def blockTables (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
     (lam zeta : K) (z : ℕ → F) : Fin 2 → ℕ → K := fun i =>
@@ -70,21 +68,6 @@ noncomputable def laneTables (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F)
     (lam zeta : K) (z : ℕ → F) (blockPoint : List K) : Fin 2 → ℕ → K := fun i =>
   if i = 0 then fun l => mle blockPoint (omegaTrue s bar S st lam zeta) * laneTable s zeta l
   else fun l => mle blockPoint fun b => ι (z (l + 2 ^ s.laneVars * b))
-
-theorem product_truth_nil (n : ℕ) (T : Fin 2 → ℕ → K) :
-    combTruth n T productComb [] = cubeSum n fun i => T 0 i * T 1 i := by
-  rw [combTruth_nil]
-  simp [productComb]
-
-theorem product_truth_final (p : List K) (T : Fin 2 → ℕ → K) :
-    combTruth p.length T productComb p = mle p (T 0) * mle p (T 1) := by
-  rw [combTruth_final]
-  simp [productComb]
-
-theorem productComb_degree : (productComb : MvPolynomial (Fin 2) K).totalDegree ≤ 1 + 1 := by
-  unfold productComb
-  refine (MvPolynomial.totalDegree_mul _ _).trans ?_
-  rw [MvPolynomial.totalDegree_X, MvPolynomial.totalDegree_X]
 
 /-- The verifier's `Ω~(s_b)` is the true one when its key and `Ω^A` values are. -/
 theorem omegaComputed_true (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
@@ -179,10 +162,10 @@ noncomputable def linearGame [Fintype K] [DecidableEq K] (s : Shape) (Φ : F[X])
   .draw K (Finset.univ.biUnion fun w : Fin cands.length =>
       (relationRows s bar S st).zetaBad Φ (witnessBlock s (cands.get w).z) lam (quotientPoly s quotient))
     fun zeta =>
-  Game.bind (sumcheck Finset.univ 1
+  Game.bind (Game.sumcheck Finset.univ 1
       (fun w : Fin cands.length => combRound s.blockVars (blockTables s bar S st lam zeta (cands.get w).z) productComb)
       (fun _ => ∅) s.blockVars [] (liftedTarget s Φ bar S st lam zeta (quotientPoly s quotient))) fun first =>
-  Game.bind (sumcheck Finset.univ 1
+  Game.bind (Game.sumcheck Finset.univ 1
       (fun w : Fin cands.length =>
         combRound s.laneVars (laneTables s bar S st lam zeta (cands.get w).z first.1) productComb)
       (fun _ => ∅) s.laneVars [] first.2) fun second =>

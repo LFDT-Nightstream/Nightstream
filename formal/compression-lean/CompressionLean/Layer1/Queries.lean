@@ -19,6 +19,7 @@ order at least the leaf count.
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {K : Type} [Field K]

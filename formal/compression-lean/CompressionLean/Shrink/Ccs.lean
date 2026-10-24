@@ -1,4 +1,4 @@
-import CompressionLean.Layer1.Cube
+import CompressionLean.Lib.Cube
 import Mathlib.Algebra.Algebra.Defs
 import Mathlib.Algebra.BigOperators.Fin
 
@@ -23,7 +23,7 @@ The extension lemmas need every entry inside the cubes (`Ccs.Fits`).
 
 namespace CompressionLean.Shrink
 
-open CompressionLean.Layer1
+open CompressionLean.Lib
 
 /-- One nonzero of the eight matrices: matrix `j` (`X = 0`, `A_i = 1 + 2i`,
 `B_i = 2 + 2i`, `C = 7`), row, column of `z`, coefficient. -/

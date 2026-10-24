@@ -12,6 +12,7 @@ lists (`pointK`), arrays denote tables that are zero past their end
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Lib
 open CompressionLean.Replay CompressionLean.Layer1
 
 variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
@@ -59,22 +60,22 @@ theorem toK_eq1 (x y : Ext) : (eq1 x y).toK (K := K) = x.toK * y.toK + (1 - x.to
   ring
 
 theorem toK_eqEvalList : ∀ xs ys : List Ext,
-    (eqEvalList xs ys).toK (K := K) = Layer1.eqEval (xs.map Ext.toK) (ys.map Ext.toK)
-  | [], ys => by cases ys <;> simp [eqEvalList, Layer1.eqEval]
-  | x :: xs, [] => by simp [eqEvalList, Layer1.eqEval]
+    (eqEvalList xs ys).toK (K := K) = Lib.eqEval (xs.map Ext.toK) (ys.map Ext.toK)
+  | [], ys => by cases ys <;> simp [eqEvalList, Lib.eqEval]
+  | x :: xs, [] => by simp [eqEvalList, Lib.eqEval]
   | x :: xs, y :: ys => by
-      simp only [eqEvalList, Layer1.eqEval, List.map_cons, Ext.toK_mul, toK_eqEvalList xs ys, toK_eq1]
+      simp only [eqEvalList, Lib.eqEval, List.map_cons, Ext.toK_mul, toK_eqEvalList xs ys, toK_eq1]
 
-theorem toK_eqEval (x y : Array Ext) : (Replay.eqEval x y).toK (K := K) = Layer1.eqEval (pointK x) (pointK y) :=
+theorem toK_eqEval (x y : Array Ext) : (Replay.eqEval x y).toK (K := K) = Lib.eqEval (pointK x) (pointK y) :=
   toK_eqEvalList _ _
 
-theorem toK_eqAtList : ∀ (xs : List Ext) (i : ℕ), (eqAtList xs i).toK (K := K) = Layer1.eqAt (xs.map Ext.toK) i
-  | [], i => by simp [eqAtList, Layer1.eqAt]
+theorem toK_eqAtList : ∀ (xs : List Ext) (i : ℕ), (eqAtList xs i).toK (K := K) = Lib.eqAt (xs.map Ext.toK) i
+  | [], i => by simp [eqAtList, Lib.eqAt]
   | x :: xs, i => by
-      simp only [eqAtList, Layer1.eqAt, List.map_cons, Ext.toK_mul, toK_eqAtList xs (i / 2)]
+      simp only [eqAtList, Lib.eqAt, List.map_cons, Ext.toK_mul, toK_eqAtList xs (i / 2)]
       split_ifs <;> simp [toK_oneMinus]
 
-theorem toK_eqAt (p : Array Ext) (i : ℕ) : (Replay.eqAt p i).toK (K := K) = Layer1.eqAt (pointK p) i :=
+theorem toK_eqAt (p : Array Ext) (i : ℕ) : (Replay.eqAt p i).toK (K := K) = Lib.eqAt (pointK p) i :=
   toK_eqAtList _ _
 
 theorem eqTable_size (p : Array Ext) : (eqTable p).size = 2 ^ p.size := by simp [eqTable]

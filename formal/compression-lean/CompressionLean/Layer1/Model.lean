@@ -1,5 +1,6 @@
 import CompressionLean.Layer1.RingRows
 import CompressionLean.Layer1.Lookups
+import CompressionLean.Lib.List
 import Mathlib.Algebra.QuadraticAlgebra.Defs
 
 /-!
@@ -20,6 +21,7 @@ Owns the data of the layer-1 relation (`crates/neo-spartan/src/lib.rs`,
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 /-- The verifier's sizes. -/
@@ -106,10 +108,6 @@ structure P1Tables (K : Type) where
   foldKey : ℕ → K
   foldRun : ℕ → K
   omegaA : ℕ → K
-
-/-- A commitment is a list of at most `L` candidates (WHIR's list decoding). -/
-instance candidates_nonempty {α : Type} (L : ℕ) : Nonempty {l : List α // l.length ≤ L} :=
-  ⟨⟨[], by simp⟩⟩
 
 variable {F : Type} [Field F]
 

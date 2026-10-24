@@ -1,4 +1,4 @@
-import CompressionLean.Layer1.Roots
+import CompressionLean.Lib.Roots
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Polynomial.BigOperators
 
@@ -12,7 +12,7 @@ Both sides of a logUp identity are one sum here: the right side enters with
 negated numerators. The numerators grouped at a pole are `residue`.
 -/
 
-namespace CompressionLean.Layer1
+namespace CompressionLean.Lib
 
 open Polynomial
 
@@ -112,4 +112,4 @@ theorem fraction_sum_bad [Fintype K] (terms : Finset ι) (a b : ι → K) {v : K
   simp only [Finset.mem_filter, Finset.mem_univ, true_and]
   rw [← fraction_sum_mul terms a b β no_pole, zero, zero_mul]
 
-end CompressionLean.Layer1
+end CompressionLean.Lib

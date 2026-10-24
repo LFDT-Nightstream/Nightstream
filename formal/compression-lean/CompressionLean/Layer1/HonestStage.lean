@@ -15,6 +15,7 @@ proves the verifier's leaf formula gives it.
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K]
@@ -97,39 +98,6 @@ section Game
 
 variable [Fintype K] [DecidableEq K]
 
-/-- Draw `m` coordinates, each off the bad set of the point so far. -/
-noncomputable def drawPoint (bad : List K → Finset K) : ℕ → List K → Game (List K)
-  | 0, point => .pure point
-  | m + 1, point => .draw K (bad point) fun c => drawPoint bad m (point ++ [c])
-
-omit [DecidableEq K] in
-theorem drawPoint_avoids (bad : List K → Finset K) :
-    ∀ (m : ℕ) (point : List K), (drawPoint bad m point).Avoids fun r =>
-      ∃ cs, r = point ++ cs ∧ cs.length = m ∧ Path bad point cs := by
-  intro m
-  induction m with
-  | zero => intro point; exact ⟨[], by simp, rfl, trivial⟩
-  | succ m ih =>
-      intro point c outside
-      refine (ih (point ++ [c])).mono ?_
-      rintro r ⟨cs, rfl, length, path⟩
-      exact ⟨c :: cs, by simp, by simp [length], outside, path⟩
-
-omit [DecidableEq K] in
-theorem drawPoint_cost (bad : List K → Finset K) (E : ℕ) (card : ∀ point, (bad point).card ≤ E) :
-    ∀ (m : ℕ) (point : List K), (drawPoint bad m point).CostLe (m * ((E : ℝ) / Fintype.card K)) := by
-  intro m
-  induction m with
-  | zero => intro point; simp [drawPoint, Game.CostLe]
-  | succ m ih =>
-      intro point
-      refine ⟨m * ((E : ℝ) / Fintype.card K), ?_, fun c => ih _⟩
-      have positive : (0 : ℝ) < Fintype.card K := by exact_mod_cast Fintype.card_pos
-      have : ((bad point).card : ℝ) / Fintype.card K ≤ (E : ℝ) / Fintype.card K :=
-        div_le_div_of_nonneg_right (by exact_mod_cast card point) positive.le
-      push_cast
-      linarith
-
 open Classical in
 /-- The query tuples a wrong P1 candidate passes: every leaf agrees with the honest fold. -/
 noncomputable def foldQueryBad (m t L : ℕ) (q : ℕ → K) (honestKey honestRun : ℕ → K) (v : P1Tables K) :
@@ -202,7 +170,7 @@ noncomputable def honestGame (s : Shape) (S : Setup F) (L1 L P : ℕ) [NeZero L]
     (o : EarlyOut F K) (lin : LinearOut K) : Game (Option (HonestOut K s.queries L)) :=
   .draw K (zeros (runGroupPoly s S o)) fun mu =>
   .recv (Fin 2 → ℕ → K) fun partials =>
-  Game.bind (drawPoint (alphaBad s S o lin mu partials) 3 []) fun alpha =>
+  Game.bind (Game.drawPoint (alphaBad s S o lin mu partials) 3 []) fun alpha =>
     if mle ((keyPoint s lin).take 3) (partials 0) = lin.keyValue ∧
         mle ((padded s.setupVars o.runPoint).take 3) (partials 1) = runValue s S o mu then
       .recv {l : List (P1Tables K) // l.length ≤ L1} fun p1 =>

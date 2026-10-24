@@ -13,6 +13,7 @@ feed the P1 openings, not this path (`Openings.lean`).
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Lib
 open Polynomial
 open NightstreamFPrime.Spec (goldilocksModulus)
 open CompressionLean.Replay CompressionLean.Layer1

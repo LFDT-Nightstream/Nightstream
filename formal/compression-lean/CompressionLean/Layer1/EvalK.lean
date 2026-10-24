@@ -16,6 +16,8 @@ the eq weights of its digits and quotient digits (`path_eq`).
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
+
 variable {A : Type} [CommRing A]
 
 section Loop

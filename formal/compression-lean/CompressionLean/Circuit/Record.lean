@@ -199,7 +199,7 @@ theorem extRow_length (a b : Fin 3 → Form F) (k : Fin 3) : (extRow a b k).leng
 
 /-- The inverse in `F[x]/(x³ - x - 1)`: Cramer's rule on multiplication by
 `a`, none when its determinant is zero. Over Goldilocks the determinant is
-the norm of `a`, zero only at zero (`Layer1.cubic_irreducible`), so this is
+the norm of `a`, zero only at zero (`Lib.cubic_irreducible`), so this is
 `try_inverse`. -/
 def extInverse (a : Fin 3 → F) : Option (Fin 3 → F) :=
   let c0 := (a 0 + a 2) * (a 0 + a 2) - a 1 * (a 1 + a 2)

@@ -6,7 +6,7 @@ import CompressionLean.Lib.Array
 
 /-!
 Owns the bridge of the sum-check and GKR replays (`Replay/Gkr.lean`) to the
-model's games (`Layer1/SumCheck.lean`, `Layer1/Gkr.lean`). A replay draw
+model's games (`Game/SumCheck.lean`, `Layer1/Gkr.lean`). A replay draw
 denotes a model challenge (`drawn`). A successful sum-check replay is a
 path of the model's sum-check that draws the replay's challenges and ends
 at the replay's point and claim (`sumcheck_reaches`): the replay's
@@ -102,10 +102,10 @@ theorem roundValues_size (d : ℕ) (m : Array Ext) (size : m.size = d + 1) (clai
 
 theorem roundValues_get (d : ℕ) (m : Array Ext) (size : m.size = d + 1) (claim : Ext) (i : Fin (d + 2)) :
     ((Replay.roundValues m claim)[(i : ℕ)]!).toK (K := K) =
-      Layer1.roundValues d claim.toK (fun j => (m[(j : ℕ)]!).toK) i := by
+      Lib.roundValues d claim.toK (fun j => (m[(j : ℕ)]!).toK) i := by
   obtain ⟨i, hi⟩ := i
   rw [getElem!_pos (Replay.roundValues m claim) i (by rw [roundValues_size d m size]; exact hi)]
-  simp only [Layer1.roundValues]
+  simp only [Lib.roundValues]
   rcases (show i = 0 ∨ i = 1 ∨ 2 ≤ i by omega) with rfl | rfl | two
   · simp [Replay.roundValues]
   · simp [Replay.roundValues, Ext.toK_sub]
@@ -151,7 +151,7 @@ theorem sumcheck_reaches {W : Type} (worlds : Finset W) (d : ℕ) (round : W →
       (result : Array Ext × Ext),
       (∀ m ∈ rounds, m.size = d + 1) → Runs (sumcheckRounds rounds point claim) t result t' →
       ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧
-        Game.Reaches (sumcheck worlds d round extra rounds.length (pointK point) claim.toK)
+        Game.Reaches (Game.sumcheck worlds d round extra rounds.length (pointK point) claim.toK)
           (sumcheckMsgs (K := K) d rounds) (ds.map (drawn (K := K) q)) (pointK result.1, result.2.toK)
   | [], point, claim, t, t', result, _, run => by
       rw [sumcheckRounds] at run
@@ -164,7 +164,7 @@ theorem sumcheck_reaches {W : Type} (worlds : Finset W) (d : ℕ) (round : W →
       obtain ⟨ds, draws, reaches⟩ := sumcheck_reaches worlds d round extra q rest _ _ t2 t' result
         (fun m' member => sizes m' (List.mem_cons_of_mem m member)) run
       refine ⟨.ext r :: ds, by rw [draws, run_sampleExt h2, run_observeExts h1]; simp, ?_⟩
-      rw [List.length_cons, sumcheck, List.map_cons, drawn_ext]
+      rw [List.length_cons, Game.sumcheck, List.map_cons, drawn_ext]
       apply Game.Reaches.recv (fun j : Fin (d + 1) => (m[(j : ℕ)]!).toK (K := K))
       apply Game.Reaches.draw r.toK
       rw [← pointK_push, ← toK_round d m (sizes m (by simp)) claim r]
@@ -491,7 +491,7 @@ theorem gkrLayers_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : Sh
         · dsimp only
           rw [Ext.toK_of_beq check, Ext.toK_mul, toK_eqEval, ← claims.point,
             toK_batchExpected mu nu pairs nodup (Replay.partFactors shapes k) sizes pairs (fun _ m => m), firsts]
-          refine congrArg (fun x => Layer1.eqEval mc.point (pointK result.1) * x) (wsum_congr _ fun t member => ?_)
+          refine congrArg (fun x => Lib.eqEval mc.point (pointK result.1) * x) (wsum_congr _ fun t member => ?_)
           rw [partFactors_eq agree k t (active_lt k t (by rwa [← active_eq agree]))]
 
 /-- A successful GKR replay is a path of the model's GKR that receives the

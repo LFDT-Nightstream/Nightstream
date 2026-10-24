@@ -33,7 +33,7 @@ The claims bound a probability. They take these as part of the model, not as Lea
   report in Rust (`pcs.rs`) and enter `Final/Budget.lean` and `Shrink/Budget.lean` as given. No
   Lean proof checks them. This is the weakest numeric layer.
 - **Fiat–Shamir.** Poseidon2 acts as a random oracle, and the transcript encoding is injective on
-  prefixes (`Game/Restoration.lean`, `Layer1/FiatShamir.lean`).
+  prefixes (`Game/Restoration.lean`, `Game/Compose.lean`).
 - **The read condition.** Inside the final program, the hash acts as a random oracle and the
   openings follow the WHIR model (`Final/Soundness.lean`).
 - **Merkle binding.** A setup leaf that reaches the key root and disagrees with the setup gives a

@@ -1,5 +1,5 @@
 import CompressionLean.Ports.Layer1.Budget
-import CompressionLean.Layer1.FiatShamir
+import CompressionLean.Layer1.Cost
 import NightstreamFPrime.Spec.Algebra
 
 /-!
@@ -19,11 +19,6 @@ at most what Rust charges, so the two checks bound the whole layer.
 The query leaves are low bits of Goldilocks words. With at most 35 setup
 variables a leaf lands in a wrong fold's agreement set with probability at
 most `1/2` (`query_half`), so the charge holds under that law.
-
-Against a Fiat–Shamir prover in the state-restoration experiment
-(`layer1_restore_sound`, `Layer1/FiatShamir.lean`), a prover with `calls`
-queries breaks layer 1 at Rust's split with probability at most
-`calls / 2^t` (`layer1_restore_budget`).
 -/
 
 namespace CompressionLean.Final
@@ -148,31 +143,5 @@ theorem layer1_budget (s : Shape) (L0 L1 size t : ℕ) (h0 : 1 ≤ L0) (h1 : 1 �
   have split : (1 : ℝ) / 2 ^ (t + 1) + 1 / 2 ^ (t + 1) = 1 / 2 ^ t := by
     rw [pow_succ]; field_simp; ring
   linarith
-
-section Restore
-
-variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
-
-/-- At Rust's split (`layer1_budget`), a prover with `calls` queries breaks
-layer 1 with probability at most `calls / 2^t`. -/
-theorem layer1_restore_budget (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F) (L0 L1 : ℕ)
-    (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (big : 2 ^ 191 ≤ Fintype.card K) (index : s.setupVars ≤ 35) (t : ℕ)
-    (p0 : (L0 : ℝ) * L1 * rustDegrees s / 2 ^ 191 ≤ 1 / 2 ^ (t + 1))
-    (p1 : (L1 : ℝ) * (1 / 2) ^ (s.queries - 1) ≤ 1 / 2 ^ (t + 1))
-    (q : ℕ → K) (N : ℕ) (sizes : s.Sizes N) (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b)
-    (distinct : ∀ i j, i < 2 ^ (s.setupVars - 2) → j < 2 ^ (s.setupVars - 2) → q i = q j → i = j)
-    (fits : S.Fits s) (monic : Φ.Monic) (degree : Φ.natDegree = s.D) (two : 2 ≤ s.D) (calls : ℕ)
-    (prover : Game.Strategy (Option (Option (Transcript F K s.queries (2 ^ (s.setupVars - 2)))))) :
-    Game.prob prover (Game.restore (layer1Game s Φ bar S L0 L1 (2 ^ (s.setupVars - 2)) goldilocksModulus q) calls [])
-        (fun r => ∃ a, r = some a ∧ ¬ Extracts s Φ bar S a) ≤ calls / 2 ^ t := by
-  refine (layer1_restore_sound s Φ bar S L0 L1 _ goldilocksModulus q N sizes cast distinct fits monic degree two calls
-    prover).trans ?_
-  have budget := layer1_budget s L0 L1 (Fintype.card K) t h0 h1 big index 0 0 (by simpa using p0)
-    (by simpa using p1)
-  rw [zero_add, zero_add] at budget
-  rw [div_eq_mul_one_div]
-  exact mul_le_mul_of_nonneg_left budget (Nat.cast_nonneg _)
-
-end Restore
 
 end CompressionLean.Final

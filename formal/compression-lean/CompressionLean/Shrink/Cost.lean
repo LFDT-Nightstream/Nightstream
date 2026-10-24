@@ -1,10 +1,8 @@
 import CompressionLean.Shrink.Soundness
 
 /-!
-Owns the error of the shrink verifier game and the main theorem
-(`shrink_sound`): against every adaptive prover, the verifier accepts while
-no candidate satisfies its program's CCS with probability at most
-`shrinkError`.
+Owns the error of the shrink verifier game (`shrinkGame_cost`): the bad sets
+of `shrinkGame` have total density at most `shrinkError` along every path.
 
 The count is per candidate: `τ` (at most one bad value per coordinate,
 `foldBad`), the outer rounds (degree 8 per round), the batching (degree 7)
@@ -88,32 +86,5 @@ theorem shrinkGame_cost {I : Type} [Nonempty I] (T : Template F) (s : Counts) (p
       (shrinkError (Layout.rowVars T s) (Layout.cellVars T s) L (Fintype.card K)) :=
   fun i => programGame_cost i ((prog i).ccs T s) ((prog i).counts = s) (verifierMatrices T s (prog i)) L
     nodes7 nodes1
-
-/-- **Shrink soundness with an idealized WHIR opening.** Against every
-adaptive prover, the shrink verifier accepts while no committed candidate
-`w` satisfies the CCS of the named program, `z = (w, 1, x)` with its
-statement `x`, with probability at most `shrinkError`. -/
-theorem shrink_sound {I : Type} [Nonempty I] (T : Template F) (s : Counts) (prog : I → Run F) (L : ℕ)
-    (wf : T.WellFormed) (valid : ∀ i, (prog i).Valid T)
-    (cast : ∀ a b : ℕ, a < 9 → b < 9 → (a : K) = b → a = b)
-    (prover : Game.Strategy (Option (Transcript I F K))) :
-    Game.prob prover (shrinkGame T s prog L)
-        (fun r => ∃ tr, r = some tr ∧ ¬ ∃ w ∈ tr.cands, ((prog tr.inst).ccs T s).Relation w) ≤
-      shrinkError (Layout.rowVars T s) (Layout.cellVars T s) L (Fintype.card K) := by
-  rw [Game.prob_congr _ _ (E' := fun r =>
-    ¬ ∀ tr, r = some tr → ∃ w ∈ tr.cands, ((prog tr.inst).ccs T s).Relation w)]
-  · exact Game.prob_not_le _ _ _ _
-      (shrinkGame_avoids T s prog L wf valid (shrinkNodes cast 7 le_rfl) (shrinkNodes cast 1 (by norm_num)))
-      (shrinkGame_cost T s prog L (shrinkNodes cast 7 le_rfl) (shrinkNodes cast 1 (by norm_num)))
-  · intro r
-    constructor
-    · rintro ⟨tr, rfl, none⟩ all
-      exact none (all tr rfl)
-    · intro not
-      by_contra nothing
-      apply not
-      intro tr equal
-      by_contra no
-      exact nothing ⟨tr, equal, no⟩
 
 end CompressionLean.Shrink

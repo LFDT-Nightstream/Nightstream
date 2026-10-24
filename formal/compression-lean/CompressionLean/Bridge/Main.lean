@@ -13,11 +13,8 @@ Merkle binding (`MerkleBinds`), the relation facts that the replay does not
 check (`RelationFacts`), and a setup that fits the shape and that the key's
 structure describes.
 
-With `layer1Game_avoids`, a path that avoids every bad set ends in a
-statement that a P0 candidate satisfies (`replay_accepts_sound`). The other
-paths are the event that `layer1_sound` bounds. The bridge's game meets two
-more premises of `layer1_sound`: distinct query points (`queryAt_distinct`)
-and a monic `Φ81` of degree `D` (`phi_monic`, `phi_natDegree`).
+The bridge's game also meets the distinct-query premise of
+`layer1Game_cost` (`queryAt_distinct`).
 -/
 
 namespace CompressionLean.Bridge
@@ -28,20 +25,6 @@ open NightstreamFPrime.Spec (goldilocksModulus)
 open CompressionLean.Replay CompressionLean.Layer1
 
 /-! ## The game's parameters -/
-
-theorem phi_natDegree : phi.natDegree = 54 := by
-  unfold phi
-  compute_degree!
-
-theorem phi_monic : phi.Monic := by
-  unfold phi
-  monicity!
-
-theorem phi_ne_one : phi ≠ 1 := by
-  intro one
-  have degree := phi_natDegree
-  rw [one, natDegree_one] at degree
-  omega
 
 /-- Plonky3's generator of order `2^m` has order `2^m`. -/
 theorem twoAdic_order (m : ℕ) (high : m ≤ 32) : orderOf (twoAdic m) = 2 ^ m := by
@@ -139,32 +122,5 @@ theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Gl) (fact
     split_ifs with holds
     · exact Game.Reaches.pure _
     · exact absurd opens holds
-
-/-- **The bridge, composed with the model.** A run that the replay accepts,
-with WHIR's guarantee at the points that it returns, is a path of
-`layer1Game` that draws the replay's challenges and accepts. If the path
-avoids every bad set, a P0 candidate is a CE(B) witness for the replay's
-statement. The paths that do not avoid them are the event that
-`layer1_sound` bounds. -/
-theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Gl) (facts : RelationFacts rel)
-    (fits : S.Fits (shapeOf rel)) (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S) (N : ℕ)
-    (sizes : (shapeOf rel).Sizes N) (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (seed : Array Word)
-    (st : Replay.Statement) (proof : Replay.Proof) (merkle : MerkleBinds rel S proof.leaves) (L0 L1 : ℕ)
-    (cands : List (P0Tables Gl)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K)) (short1 : p1.length ≤ L1)
-    {t t' : Replay.Transcript} {points : OpeningPoints} (run : Runs (verify rel seed st proof) t points t')
-    (whir : WhirOpens (shapeOf rel) proof points cands p1) :
-    ∃ ds rest : List Draw, t'.draws.toList = t.draws.toList ++ ds ++ rest ∧
-      ∃ p : Game.Pos (layer1Game (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocksModulus
-          (queryAt (K := K) rel)),
-        Game.Pos.draws _ p = ds.map (drawn (K := K) rel.queries) ∧
-        (∃ tr, Game.Pos.node _ p = .pure (some tr)) ∧
-        (Game.Pos.Avoids _ p → ∃ w ∈ cands, Relation (shapeOf rel) phi barOf S (statementOf st) w.z) := by
-  obtain ⟨tr, ds, rest, draws, -, statement, candidates, p, node, pathDraws, -⟩ :=
-    replay_accepts_implies_path rel S facts fits describes seed st proof merkle L0 L1 cands short0 p1 short1 run whir
-  refine ⟨ds, rest, draws, p, pathDraws, ⟨tr, node⟩, fun clean => ?_⟩
-  have witness := Game.Pos.sound (layer1Game_avoids (shapeOf rel) phi barOf S L0 L1 (2 ^ (rel.setupVars - 2))
-    goldilocksModulus (queryAt rel) N sizes cast fits phi_monic phi_ne_one) p (some tr) clean node tr rfl
-  rw [candidates, statement] at witness
-  exact witness
 
 end CompressionLean.Bridge

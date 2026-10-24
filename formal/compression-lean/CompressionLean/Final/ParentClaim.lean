@@ -11,8 +11,8 @@ Owns the soundness of the claim of a final proof in F′'s terms
   terminal output columns is the statement of the PiRLC parent there.
 - `parentClaim_of_terminalClaim`: under the honest setup, the terminal claim
   gives the F′ claim.
-- `final_sound_parent`, `final_restore_budget_parent`: `final_sound` and
-  `final_restore_budget` for the F′ claim, over `Gl` and `Cubic`.
+- `final_restore_budget_parent`: `final_restore_budget` for the F′ claim,
+  over `Gl` and `Cubic`.
 -/
 
 namespace CompressionLean.Final
@@ -150,39 +150,6 @@ theorem parentClaim_of_terminalClaim (s1 : Layer1.Shape) (bar : ℕ → ℕ → 
 
 theorem modulus_natDegree : modulus.natDegree = ringDegree :=
   natDegree_eq_of_degree_eq_some degree_modulus
-
-/-- **End-to-end soundness for F′'s relation, in sequence.** Over the
-Goldilocks field and its cubic extension, and under the honest setup of the
-F′ key, a prover makes the final verifier accept a statement whose F′ claim
-(`ParentClaim`) is false with probability at most the sum of the layer
-errors at `p³` challenges. The premises are those of `final_sound`, with `Φ`
-the Φ81 modulus, `bar` the Φ81 bar transform and `S` the honest setup. -/
-theorem final_sound_parent (s1 : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Layer1.Setup Gl)
-    (relation : ProductionKey.LogicalRelation lw pf)
-    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
-    (shape : ParentShape s1 lw) (barEq : ∀ p l : Fin ringDegree, bar p l = gl (nativeBarEntry p l))
-    (honest : HonestSetup s1 S relation ajtai) (fits : S.Fits s1)
-    (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → Cubic) (N : ℕ) (sizes : s1.Sizes N)
-    (small : N ≤ goldilocksModulus) (distinct : ∀ i j, i < L → j < L → q i = q j → i = j)
-    (T : Shrink.Template Gl) (s : Shrink.Counts) (prog : StateWords → Shrink.Run Gl) (Ls : ℕ)
-    (wf : T.WellFormed) (valid : ∀ x, (prog x).Valid T)
-    (authority : Lifecycle.VerifierContext.Authority)
-    (Reads : StateWords → (ℕ → Gl) → (Layer1.layer1Game s1 modulus bar S L0 L1 L P q).Pos → Prop)
-    (encodes : ProgramEncodes T s prog authority (Layer1.layer1Game s1 modulus bar S L0 L1 L P q) Reads)
-    (prover : Game.Strategy (Outcome Gl Cubic s1.queries L)) :
-    Game.prob prover
-        (pair (Layer1.layer1Game s1 modulus bar S L0 L1 L P q) (Shrink.shrinkGame T s prog Ls))
-        (FinalBreak (ParentClaim relation ajtai authority) T s prog (Layer1.layer1Game s1 modulus bar S L0 L1 L P q)
-          Reads) ≤
-      Layer1.layer1Error s1 L0 L1 L P (goldilocksModulus ^ 3) +
-        Shrink.shrinkError (Shrink.Layout.rowVars T s) (Shrink.Layout.cellVars T s) Ls (goldilocksModulus ^ 3) := by
-  rw [← card_cubic]
-  exact (prob_mono prover _ (finalBreak_mono
-      (parentClaim_of_terminalClaim s1 bar S relation ajtai shape sizes.blocks_le barEq honest authority) T s prog _
-        Reads)).trans
-    (final_sound s1 modulus bar S L0 L1 L P q N sizes (cubic_natCast_injective N small) distinct fits modulus_monic
-      (by rw [modulus_natDegree, shape.D]) (by rw [shape.D]; decide) T s prog Ls wf valid
-      (cubic_natCast_injective 9 (by norm_num [goldilocksModulus])) authority Reads encodes prover)
 
 /-- **The production bound.** Under Fiat–Shamir, over the Goldilocks field
 and its cubic extension, and with the charged terms of each commitment

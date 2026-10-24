@@ -5,12 +5,8 @@ Owns the paths of a game. A path is a position (`Pos`, the output type of
 the state-restoration experiment) that ends in a result. `Pos.msgs` lists
 the messages it received and `Pos.draws` the challenges it drew, in order
 and with their types; the two lists fix the position (`Pos.eq_of_msgs_draws`).
-`Pos.Avoids` says that each draw was off its bad set. `Reaches g ms ds a`:
-some path of `g` receives `ms`, draws `ds` and ends in `a`.
-
-An avoiding path of a game whose avoiding paths end in `Q` ends in `Q`
-(`Pos.sound`). So a path breaks the claim only by a draw in a bad set: the
-event that `prob_not_le` and `restore_sound` bound.
+`Reaches g ms ds a`: some path of `g` receives `ms`, draws `ds` and ends
+in `a`.
 -/
 
 namespace CompressionLean.Game
@@ -57,14 +53,6 @@ theorem Pos.eq_of_msgs_draws {g : Game α} {p p' : Pos g} (msgs : Pos.msgs g p =
           cases eq_of_heq (Sigma.mk.inj head).2
           rw [ih m tail draws]
 
-/-- Every draw of a position is off its bad set. -/
-def Pos.Avoids : (g : Game α) → Pos g → Prop
-  | pure _, _ => True
-  | draw _ _ _, none => True
-  | draw _ bad next, some ⟨c, p⟩ => c ∉ bad ∧ Pos.Avoids (next c) p
-  | recv _ _, none => True
-  | recv _ next, some ⟨m, p⟩ => Pos.Avoids (next m) p
-
 /-- Some path of `g` receives `ms`, draws `ds` and ends in `a`. -/
 def Reaches (g : Game α) (ms ds : List (Σ C : Type, C)) (a : α) : Prop :=
   ∃ p : Pos g, Pos.node g p = .pure a ∧ Pos.draws g p = ds ∧ Pos.msgs g p = ms
@@ -107,22 +95,5 @@ theorem Reaches.bind {g : Game α} {f : α → Game β} {ms₁ ms₂ ds₁ ds₂
 
 theorem Reaches.congr {g : Game α} {ms ms' ds ds' : List (Σ C : Type, C)} {a : α} (h : Reaches g ms ds a)
     (sameMs : ms = ms') (sameDs : ds = ds') : Reaches g ms' ds' a := sameMs ▸ sameDs ▸ h
-
-/-- An avoiding path of a game that avoids `Q` ends in `Q`. -/
-theorem Pos.sound {g : Game α} {Q : α → Prop} (avoids : g.Avoids Q) :
-    ∀ (p : Pos g) (a : α), Pos.Avoids g p → Pos.node g p = .pure a → Q a := by
-  induction g with
-  | pure b =>
-      intro p a _ node
-      cases node
-      exact avoids
-  | draw C bad next ih =>
-      intro p a clean node
-      match p, clean, node with
-      | some ⟨c, p'⟩, clean, node => exact ih c (avoids c clean.1) p' a clean.2 node
-  | recv M next ih =>
-      intro p a clean node
-      match p, clean, node with
-      | some ⟨m, p'⟩, clean, node => exact ih m (avoids m) p' a clean node
 
 end CompressionLean.Game

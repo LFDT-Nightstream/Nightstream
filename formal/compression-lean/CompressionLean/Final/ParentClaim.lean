@@ -1,5 +1,6 @@
 import CompressionLean.Final.Parent
 import CompressionLean.Final.Soundness
+import CompressionLean.Lib.List
 
 /-!
 Owns the claim of a final proof in F′'s terms and its soundness over the
@@ -18,6 +19,7 @@ concrete fields.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Lib
 open Polynomial NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -26,36 +28,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
 variable {lw : ℕ} {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
 
 /-! ## Reading the output columns -/
-
-theorem getD_flatten {α : Type} (n : ℕ) (d : α) :
-    ∀ (ls : List (List α)), (∀ x ∈ ls, x.length = n) → ∀ j i, i < n →
-      ls.flatten.getD (n * j + i) d = if h : j < ls.length then ls[j].getD i d else d
-  | [], _, j, i, _ => by simp
-  | x :: rest, len, j, i, hi => by
-      have head : x.length = n := len x (by simp)
-      rw [List.flatten_cons]
-      cases j with
-      | zero =>
-          rw [Nat.mul_zero, Nat.zero_add, List.getD_append _ _ _ _ (by rw [head]; exact hi)]
-          simp
-      | succ j =>
-          rw [List.getD_append_right _ _ _ _ (by rw [head, Nat.mul_succ]; omega),
-            show n * (j + 1) + i - x.length = n * j + i by rw [head, Nat.mul_succ]; omega,
-            getD_flatten n d rest (fun y member => len y (by simp [member])) j i hi]
-          simp
-
-theorem length_flatten_uniform {α : Type} (n : ℕ) :
-    ∀ (ls : List (List α)), (∀ x ∈ ls, x.length = n) → ls.flatten.length = n * ls.length
-  | [], _ => by simp
-  | x :: rest, len => by
-      rw [List.flatten_cons, List.length_append, len x (by simp),
-        length_flatten_uniform n rest (fun y member => len y (by simp [member])), List.length_cons, Nat.mul_succ]
-      ring
-
-theorem getD_ofFn {α : Type} {n : ℕ} (f : Fin n → α) (d : α) (k : ℕ) :
-    (List.ofFn f).getD k d = if h : k < n then f ⟨k, h⟩ else d := by
-  rw [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
-  split <;> rfl
 
 /-- The word that `claimOf` reads at a position of a list of words. -/
 theorem word_eq (list : List Circuit.Expr) (env : Circuit.Env) (k : ℕ) (values : List F)

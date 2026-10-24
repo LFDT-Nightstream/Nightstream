@@ -23,6 +23,7 @@ closed forms of `Mle.lean` (`mle.rs`) against the replay's formulas
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lib
 open CompressionLean.Replay (Gl Ext Kx Relation D)
 open CompressionLean.Bridge (ChallengeField)
 open NightstreamFPrime.Spec (goldilocksModulus)
@@ -118,10 +119,6 @@ private theorem map_range_succ' {α : Type} (f : ℕ → α) (k : ℕ) :
     (Array.range (k + 1)).map f = #[f 0] ++ (Array.range k).map fun i => f (i + 1) := by
   apply Array.ext'
   simp [List.range_succ_eq_map]
-
-private theorem range_map_get {α : Type} [Inhabited α] {k i : ℕ} (f : ℕ → α) (hi : i < k) :
-    ((Array.range k).map f)[i]! = f i := by
-  rw [getElem!_pos _ i (by simpa using hi), Array.getElem_map, Array.getElem_range]
 
 /-- Entry `i` of a `mapM` result over `range k` meets `R i`. -/
 private theorem forall₂_range {α : Type} [Inhabited α] {R : ℕ → α → Prop} {k : ℕ} {xs : Array α}
@@ -227,8 +224,8 @@ private theorem map_range_iff {k : ℕ} {g : ℕ → Ext} :
   refine ⟨fun h => ⟨by simpa using h.1, fun i hi => ?_⟩, fun h => ⟨by simpa using h.1, fun i hi => ?_⟩⟩
   · have size : xs.size = k := by simpa using h.1
     have := h.2 i (size ▸ hi)
-    rwa [range_map_get _ hi] at this
-  · rw [range_map_get _ (h.1 ▸ hi)]
+    rwa [getElem!_map_range _ _ hi] at this
+  · rw [getElem!_map_range _ _ (h.1 ▸ hi)]
     exact h.2 i (h.1 ▸ hi)
 
 end IsExts
@@ -670,13 +667,13 @@ private theorem digitSum_succ (gr : Array (Gl × Gl)) (gs : Array Ext) (blocks t
 private theorem evalKStates_zero (gr : Array (Gl × Gl)) (gs : Array Ext) (blocks cb : ℕ) {rem below : ℕ} (hr : rem < D)
     (hb : below < 2) :
     ((Replay.evalKStates gr gs blocks cb 0)[rem]!)[below]! = if rem = 0 ∧ below = 0 then Kx.one else Kx.zero := by
-  rw [Replay.evalKStates, range_map_get _ hr, range_map_get _ hb]
+  rw [Replay.evalKStates, getElem!_map_range _ _ hr, getElem!_map_range _ _ hb]
 
 private theorem evalKStates_succ (gr : Array (Gl × Gl)) (gs : Array Ext) (blocks cb k : ℕ) {rem below : ℕ} (hr : rem < D)
     (hb : below < 2) :
     ((Replay.evalKStates gr gs blocks cb (k + 1))[rem]!)[below]! =
       digitSum gr gs blocks (cb - 1 - k) (Replay.evalKStates gr gs blocks cb k) (4 * D) rem below := by
-  rw [Replay.evalKStates, range_map_get _ hr, range_map_get _ hb, digitSum, sumKx_digits]
+  rw [Replay.evalKStates, getElem!_map_range _ _ hr, getElem!_map_range _ _ hb, digitSum, sumKx_digits]
   refine sumKx_congr fun r hr' => sumKx_congr fun b hb' => sumKx_congr fun t ht => ?_
   rw [show (4 * r + 2 * b + t) / 4 = r by omega, show (4 * r + 2 * b + t) / 2 % 2 = b by omega,
     show (4 * r + 2 * b + t) % 2 = t by omega]

@@ -1,4 +1,5 @@
 import CompressionLean.Shrink.BlockPart
+import CompressionLean.Lib.List
 
 /-!
 Owns the verifier's value of `Σ_j ρ^j·M̃_j(rx, ry)` (`matrices`,
@@ -19,6 +20,7 @@ run's CCS.
 
 namespace CompressionLean.Shrink
 
+open CompressionLean.Lib
 open CompressionLean.Layer1
 
 /-- `SplitEq::at` (`evaluate.rs:13-33`): the eq table of the low half of
@@ -89,14 +91,6 @@ section Lemmas
 
 variable {T : Template F} {s : Counts} {rx ry : List K} {ρ : K}
 
-omit [Field F] [Algebra F K] in
-theorem foldl_add_eq {α : Type} (f : α → K) : ∀ (l : List α) (init : K),
-    l.foldl (fun sum t => sum + f t) init = init + (l.map f).sum
-  | [], init => by simp
-  | a :: l, init => by
-      rw [List.foldl_cons, foldl_add_eq f l, List.map_cons, List.sum_cons]
-      ring
-
 theorem sideValue_append (a b : List (Wire × F)) :
     sideValue T s ry (a ++ b) = sideValue T s ry a + sideValue T s ry b := by
   simp [sideValue]
@@ -110,7 +104,7 @@ theorem sideValue_expand (columns : List (Form F)) :
       unfold expand at restEq ⊢
       rw [List.flatMap_cons, sideValue_append, restEq, sideValue_append]
       unfold r1csSideValue formValue
-      rw [List.map_cons, List.sum_cons, foldl_add_eq]
+      rw [List.map_cons, List.sum_cons, foldl_add_eq_sum]
       generalize columns.getD t.1 ⟨[], 0⟩ = form
       congr 1
       have terms : sideValue T s ry (form.terms.map fun u => (u.1, u.2 * t.2)) =

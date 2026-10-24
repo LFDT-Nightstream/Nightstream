@@ -19,9 +19,9 @@ replay's GKR run gives these sizes.
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lib
 open CompressionLean.Replay (Gl Ext Relation TreeShape D Runs runs_bind runs_pure runs_sampleExt
   runs_observeExts runs_liftExcept)
-open CompressionLean.Bridge (getElem!_map_range)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]

@@ -642,7 +642,7 @@ private theorem readOpening_evals {shape : WhirShape} {g : Replay.Opening} (h : 
 private theorem forall₂_getElem!_array {α β : Type} [Inhabited β] {R : α → β → Prop} {xs : Array α} {ys : Array β}
     (h : List.Forall₂ R xs.toList ys.toList) {k : ℕ} (hk : k < xs.size) : R xs[k] ys[k]! := by
   have := forall₂_getElem! h (k := k) (by simpa using hk)
-  rwa [Array.getElem_toList, array_toList_getElem!] at this
+  rwa [Array.getElem_toList, Array.getElem!_toList] at this
 
 omit [CharP F goldilocksModulus] in
 private theorem IsExts.getElem! {xs : Array (Array ExtVar)} {gs : Array (Array Ext)}
@@ -670,7 +670,7 @@ private theorem Tracks.whirVerify (hp : Permutes c.perm) {shape : WhirShape} {ke
     have ha : H → IsExt c n view.initialOod.toList[k] g.initialOod.toList[k]! := fun h => by
       have := (ho h).1.2 k (by simpa using hk)
       rwa [getElem!_pos view.initialOod k (by simpa using hk), ← Array.getElem_toList,
-        ← array_toList_getElem!] at this
+        ← Array.getElem!_toList] at this
     refine bind (absorb hp _) fun _ _ _ => ?_
     refine bind (sampleExt hp) fun _ _ _ => ?_
     lift_steps
@@ -690,7 +690,7 @@ private theorem Tracks.whirVerify (hp : Permutes c.perm) {shape : WhirShape} {ke
       exact pure fun _ => rfl
     · have hs : k < shape.batches.size := hbatches ▸ hk'
       have he : k < g.evals.size := (readOpening_evals (hread h)).symm ▸ hs
-      rw [array_toList_getElem!, getElem!_pos (shape.batches.zip g.evals) k (by simp [hs, he]),
+      rw [Array.getElem!_toList, getElem!_pos (shape.batches.zip g.evals) k (by simp [hs, he]),
         Array.getElem_zip, getElem!_pos shape.batches k hs, getElem!_pos g.evals k he]
   refine bind (absorb hp _) fun _ m₃ l₃ => ?_
   refine bind (absorb hp _) fun _ m₄ l₄ => ?_
@@ -726,7 +726,7 @@ private theorem Tracks.whirVerify (hp : Permutes c.perm) {shape : WhirShape} {ke
         have ha : H → IsExt c n view.rounds[k].ood.toList[j] g.rounds[k]!.ood.toList[j]! := fun h => by
           have := (hround h).2.1.2 j (by simpa using hj)
           rwa [getElem!_pos view.rounds[k].ood j (by simpa using hj), ← Array.getElem_toList,
-            ← array_toList_getElem!] at this
+            ← Array.getElem!_toList] at this
         refine bind (sampleExt hp) fun _ _ _ => ?_
         lift_steps
         exact bindLast (observeExt hp fun h => (ha h).mono (by omega)) fun _ _ _ => pure fun _ => rfl
@@ -740,7 +740,7 @@ private theorem Tracks.whirVerify (hp : Permutes c.perm) {shape : WhirShape} {ke
         have := (ho h).2.2.2.1.length_eq
         simp only [Array.length_toList] at this
         omega
-      rw [array_toList_getElem!, getElem!_pos (shape.rounds.zip g.rounds) k (by simp [hk'.1, hg]),
+      rw [Array.getElem!_toList, getElem!_pos (shape.rounds.zip g.rounds) k (by simp [hk'.1, hg]),
         Array.getElem_zip, getElem!_pos g.rounds k hg]
   refine bind (observeExts hp fun h => (ho h).2.2.2.2.1.mono (by omega)) fun _ m₉ l₉ => ?_
   refine bind (stir hp _ _ _ _ _ _ _) fun _ m₁₀ l₁₀ => ?_

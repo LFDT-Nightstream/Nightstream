@@ -119,6 +119,7 @@ end CompressionLean.Replay
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lib
 open CompressionLean.Replay (Ext Runs TreeShape)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
@@ -222,21 +223,21 @@ private theorem advance_current (inside : t < g.current.size) :
       if k < shapes[t]!.depth then ((Replay.reducedOf pairs tau t)[0]!, (Replay.reducedOf pairs tau t)[1]!)
       else g.current[t]! := by
   simp only [Replay.advance]
-  exact Bridge.getElem!_map_range _ _ inside
+  exact getElem!_map_range _ _ inside
 
 /-- A leaf tree's point (`gkr.rs:735-740`). -/
 private theorem advance_leafPoint (inside : t < g.leafPoint.size) :
     (Replay.advance shapes k g pairs next tau).leafPoint[t]! =
       if shapes[t]!.depth = k then next.push tau else g.leafPoint[t]! := by
   simp only [Replay.advance]
-  exact Bridge.getElem!_map_range _ _ inside
+  exact getElem!_map_range _ _ inside
 
 /-- A leaf tree's values (`gkr.rs:735-740`). -/
 private theorem advance_leafValues (inside : t < g.leafValues.size) :
     (Replay.advance shapes k g pairs next tau).leafValues[t]! =
       if shapes[t]!.depth = k then Replay.reducedOf pairs tau t else g.leafValues[t]! := by
   simp only [Replay.advance]
-  exact Bridge.getElem!_map_range _ _ inside
+  exact getElem!_map_range _ _ inside
 
 /-- A tree that does not end at layer `k` keeps its claim (`gkr.rs:735-743`). -/
 private theorem IsTreeClaim.advance {c : Ctx F} {m : ℕ} {v : TreeClaimView} (h : IsTreeClaim c m v g t)

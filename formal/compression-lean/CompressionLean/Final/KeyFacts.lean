@@ -15,7 +15,8 @@ namespace CompressionLean.Final
 open CompressionLean.Circuit (Layer1Input)
 open CompressionLean.Bridge (EvalKBits HonestSizes shapeOf structureOf)
 
-/-- The facts about the layer-1 key that the final theorems assume. Rust's
+/-- The facts about the layer-1 key that the final theorems assume, with the
+size conditions of the layer-1 argument at the Goldilocks modulus (`shape`). Rust's
 `Structure::check` (`neo-spartan/src/matrix.rs:142`) enforces `short` and
 `checked`. `Relation::new` (`neo-spartan/src/lib.rs:334`) enforces `high`,
 and `publicFits` through `public_blocks ≤ blocks`. `norm` is PiRLC's guard
@@ -44,6 +45,7 @@ structure KeyFacts (key : Layer1Input) : Prop where
   high : key.relation.setupVars + 1 ≤ 32
   checked : (structureOf key.relation.key.layout).Checked (shapeOf key.relation)
   norm : key.relation.normBound = 3672
+  shape : (shapeOf key.relation).Sizes NightstreamFPrime.Spec.goldilocksModulus
 
 /-- Each fact of `KeyFacts` by name, decided on `key`. -/
 def keyChecks (key : Layer1Input) : List (String × Bool) :=
@@ -79,7 +81,27 @@ def keyChecks (key : Layer1Input) : List (String × Bool) :=
       (0 < s.segments → s.segmentFirst (s.segments - 1) < s.slots) ∧
       (∀ i, i < s.segments → s.segmentClass i < s.classes) ∧
       ∀ c, c < s.classes → 1 ≤ s.classLength c)),
-    ("norm", decide (rel.normBound = 3672))]
+    ("norm", decide (rel.normBound = 3672)),
+    ("shape", decide (let sh := shapeOf rel; let N := NightstreamFPrime.Spec.goldilocksModulus
+      5 ≤ N ∧
+      2 ^ sh.cubeVars < N ∧
+      2 ^ sh.runVars < N ∧
+      2 ^ sh.rowVars ≤ N ∧
+      2 ^ (sh.slotVars + sh.matrixVars) ≤ N ∧
+      2 ^ sh.blockVars + 1 < N ∧
+      sh.slotVars ≤ sh.runVars ∧
+      sh.matrices ≤ 2 ^ sh.matrixVars ∧
+      sh.publicBlocks ≤ sh.blocks ∧
+      sh.D ≤ 2 ^ sh.laneVars ∧
+      sh.blocks ≤ 2 ^ sh.blockVars ∧
+      1 ≤ sh.cubeVars ∧
+      1 ≤ sh.runVars ∧
+      1 ≤ sh.rowVars ∧
+      1 ≤ sh.slotVars + sh.matrixVars ∧
+      1 ≤ sh.blockVars ∧
+      3 ≤ sh.setupVars ∧
+      sh.laneVars + sh.blockVars ≤ sh.setupVars ∧
+      sh.runVars ≤ sh.setupVars))]
 
 /-- The name of the first fact of `KeyFacts` that `key` fails. -/
 def keyFailure (key : Layer1Input) : Option String :=
@@ -93,11 +115,12 @@ theorem keyFacts_of_check {key : Layer1Input} (pass : keyFailure key = none) : K
     decide_eq_true_eq] at all
   obtain ⟨run, row, slot, kappa, blocks, point, matrices, root, short, k1, k0, p1, p1count, p0, rowFits,
     matricesFit, ⟨deep, long, blocks_le, fits, strict⟩, publicFits, ⟨bounds, setup⟩, high,
-    ⟨run_zero, run_mono, segment_zero, segment_mono, segment_last, class_named, length_pos⟩, norm⟩ := all
+    ⟨run_zero, run_mono, segment_zero, segment_mono, segment_last, class_named, length_pos⟩, norm,
+    ⟨big_nodes, big_cube, big_runs, big_rows, big_pairs, big_blocks, slot_le_run, matrices_le, public_le, D_le, blocks_le, deep_cube, deep_runs, deep_rows, deep_pairs, deep_blocks, fold_three, fold_key, fold_run⟩⟩ := all
   refine ⟨run, row, slot, kappa, blocks, point, matrices, root, short, k1, k0, p1, p1count, p0, rowFits,
     matricesFit, ⟨deep, long, blocks_le, fits, strict⟩, publicFits, ⟨bounds, setup⟩, high,
     ⟨run_zero, run_mono, segment_zero, fun i lt => segment_mono i (by omega), fun i last => ?_, class_named,
-      length_pos⟩, norm⟩
+      length_pos⟩, norm, ⟨big_nodes, big_cube, big_runs, big_rows, big_pairs, big_blocks, slot_le_run, matrices_le, public_le, D_le, blocks_le, deep_cube, deep_runs, deep_rows, deep_pairs, deep_blocks, fold_three, fold_key, fold_run⟩⟩
   rw [show i = (structureOf key.relation.key.layout).segments - 1 by omega]
   exact segment_last (by omega)
 

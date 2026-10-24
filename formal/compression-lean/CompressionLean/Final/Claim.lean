@@ -12,8 +12,10 @@ three layers.
 - `TerminalFor`: a terminal assignment for the statement `x`.
 - `TerminalClaim`: what a final proof for `x` claims. Some terminal
   assignment for `x` has a parent claim with a CE(B) witness.
-- `ProgramEncodes`: the open premise. A witness of the final program's CCS
-  holds a terminal assignment and accepting layer-1 transcripts for it.
+- `ProgramEncodes`: the encoding that links the layers. A witness of the
+  final program's CCS holds a terminal assignment and accepting layer-1
+  transcripts for it. `programEncodes` (`Final/Encodes.lean`) proves it for
+  the production final program.
 
 Does not own the layers' games or their errors.
 -/
@@ -79,11 +81,10 @@ def TerminalClaim (s : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : 
     (authority : Lifecycle.VerifierContext.Authority) (x : StateWords) : Prop :=
   ∃ env, TerminalFor authority x env ∧ ∃ z, Layer1.Relation s Φ bar S (claimOf env) z
 
-/-- **The encoding premise.** Open: no Lean proof of it exists yet.
-
-A witness `w` of the CCS of the final program for statement `x` holds a
-terminal assignment for `x`, and every reading of its layer-1 part is an
-accepting path of the layer-1 game `g` for that assignment's parent claim.
+/-- **The encoding.** A witness `w` of the CCS of the final program for
+statement `x` holds a terminal assignment for `x`, and every reading of its
+layer-1 part is an accepting path of the layer-1 game `g` for that
+assignment's parent claim.
 
 `Reads x w p` says that the layer-1 path `p` is what program `x` reads from
 `w`. Its statement, proof words and challenges are the words that the
@@ -92,10 +93,11 @@ holds a table that agrees with every value `w` opens there. The model's
 commitments are candidate lists and the program's are Merkle roots, so a
 reading is a relation, not a function of `w`.
 
-The premise stands for `FinalProgram::run` (`lifecycle/terminal/mod.rs:54-80`):
+It stands for `FinalProgram::run` (`lifecycle/terminal/mod.rs:54-80`):
 `Package::apply` (`terminal/package.rs:179-237`) and `verify_with`
 (`neo-spartan/src/lib.rs:692-703`, `verifier.rs:136-316`), recorded as rows
-by `circuit/record.rs` and placed by `shrink/layout.rs`. -/
+by `circuit/record.rs` and placed by `shrink/layout.rs`. `programEncodes`
+(`Final/Encodes.lean`) proves it for the production final program. -/
 def ProgramEncodes {t L : ℕ} (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
     (authority : Lifecycle.VerifierContext.Authority) (g : Layer1.Game (Option (Layer1.Transcript F K t L)))
     (Reads : StateWords → (ℕ → F) → g.Pos → Prop) : Prop :=

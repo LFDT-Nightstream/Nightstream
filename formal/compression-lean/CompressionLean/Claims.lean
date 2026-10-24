@@ -25,7 +25,7 @@ its proof is in the library.
   that the check decides.
 
 `CompressionLeanTests/Axioms.lean` pins the axioms of exactly these theorems.
-`STATUS.md` lists the named premises of each claim and how each one is met;
+`STATUS.md` lists every hypothesis of each claim and how each premise is met;
 `TRUST.md` lists what the claims trust.
 -/
 
@@ -140,12 +140,10 @@ theorem setup_facts_of_check {key : Layer1Input} {pushes : List Push} (seed : Li
 /-- **The production bound for the Poseidon2 hash chain**: `production_bound`
 for F′'s relation of `Poseidon2HashChainV1Package.application`, at its
 logical width of 43,963,750 columns. The production key is of this
-application. `KeyFacts` and `WidthFits` give `ParentShape`
-(`parentShape_of`). The setup is the one that `build` returns for the seed of
-the Ajtai setup and the runs (`poseidon2Setup`). The pass of `setupCheck` on
-the key and the runs gives that `build` returns it, `Setup.Fits` and
-`Structure.Describes` (`setup_facts_of_check`). With `RunsGive`, the build
-gives `HonestSetup` (`honest_setup_of_build`). -/
+application. The setup is the one that `build` returns for the seed of the
+Ajtai setup and the runs (`poseidon2Setup`). The claim takes `WidthFits` in
+place of `ParentShape`, and `RunsGive` and the pass of `setupCheck` in place
+of the facts of the setup. -/
 theorem poseidon2_bound (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Gl)
     (authority : Lifecycle.VerifierContext.Authority) (pushes : List Push)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth

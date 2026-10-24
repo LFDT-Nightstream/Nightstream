@@ -32,18 +32,12 @@ def claims : List (Name × List Name) := [
 /-- The module of the claims. -/
 def claimsModule : Name := `CompressionLean.Claims
 
-/-- How a premise of a claim is met. -/
+/-- How a premise of a claim is met (`Met.meaning`). -/
 inductive Met where
-  /-- An executable checks a fact about the files that Rust writes. -/
   | rustFiles
-  /-- Compiled evaluation checks a closed proposition about Lean values, which
-  the kernel cannot evaluate: the terminal package has 8.8 million rows. -/
   | leanValue
-  /-- Rust checks it when it runs. Lean does not check it. -/
   | rust
-  /-- A Lean proof gives it where another claim uses this claim. -/
   | proved
-  /-- No Lean proof and no check. -/
   | unchecked
 
 def Met.label : Met → String
@@ -55,7 +49,7 @@ def Met.label : Met → String
 
 def Met.meaning : Met → String
   | .rustFiles => "an executable checks a fact about the files that Rust writes, and a claim turns the pass into the premise."
-  | .leanValue => "compiled evaluation checks a closed proposition about Lean values. The kernel cannot evaluate it: the terminal package has 8.8 million rows."
+  | .leanValue => "compiled evaluation checks a closed proposition about Lean values. The kernel does not evaluate it: the terminal package is too large."
   | .rust => "Rust checks it when it runs. Lean does not check it."
   | .proved => "a Lean proof gives it where another claim uses this claim."
   | .unchecked => "no Lean proof and no check."

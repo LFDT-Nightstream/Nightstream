@@ -21,7 +21,7 @@ Each claim of `CompressionLean/Claims.lean` and the axioms that it uses.
 Every hypothesis of each claim, by binder. A parameter is data that the claim holds for. A premise is a proposition that the claim takes; the claim says nothing where it fails. Each premise row says how the premise is met:
 
 - Rust's files: an executable checks a fact about the files that Rust writes, and a claim turns the pass into the premise.
-- Lean value: compiled evaluation checks a closed proposition about Lean values. The kernel cannot evaluate it: the terminal package has 8.8 million rows.
+- Lean value: compiled evaluation checks a closed proposition about Lean values. The kernel does not evaluate it: the terminal package is too large.
 - Rust: Rust checks it when it runs. Lean does not check it.
 - Lean proof: a Lean proof gives it where another claim uses this claim.
 - Open: no Lean proof and no check.

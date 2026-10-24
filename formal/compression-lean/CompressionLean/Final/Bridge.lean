@@ -2,6 +2,7 @@ import CompressionLean.Final.Fields
 import CompressionLean.Layer1.Weights
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
+import CompressionLean.Lib.List
 
 /-!
 Owns the maps from F′'s executable algebra to the layer-1 model's Mathlib
@@ -20,6 +21,7 @@ algebra over `Gl`.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Lib
 open Polynomial NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
@@ -129,12 +131,6 @@ theorem evaluate_tabulate (n : ℕ) (f : BooleanVertex n → K) (point : List K)
 /-- An F′ field value as a `Gl` value. `Spec.F` and `Gl` are the same type;
 `gl` fixes the type that the arithmetic around it uses. -/
 abbrev gl (x : F) : Gl := x
-
-theorem foldl_add_eq_sum {α M : Type} [AddCommMonoid M] (g : α → M) (l : List α) (init : M) :
-    l.foldl (fun acc x => acc + g x) init = init + (l.map g).sum := by
-  induction l generalizing init with
-  | nil => simp
-  | cons x rest ih => rw [List.foldl_cons, ih, List.map_cons, List.sum_cons, add_assoc]
 
 /-- F′'s matrix-vector row is the finite sum over the columns. -/
 theorem matrixVectorAt_eq {n columns : ℕ} (M : PaperLinearAlgebra.BooleanMatrix F n columns)

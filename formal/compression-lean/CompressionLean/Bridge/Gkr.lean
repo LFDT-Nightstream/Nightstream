@@ -2,6 +2,7 @@ import CompressionLean.Bridge.Formulas
 import CompressionLean.Bridge.Path
 import CompressionLean.Bridge.Run
 import CompressionLean.Layer1.Budget
+import CompressionLean.Lib.Array
 
 /-!
 Owns the bridge of the sum-check and GKR replays (`Replay/Gkr.lean`) to the
@@ -16,6 +17,7 @@ every tree (`gkr_reaches`).
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
@@ -323,11 +325,6 @@ theorem toK_batchExpected (mu nu : Ext) (pairs : List (ℕ × Array Ext)) (nodup
       congr 2
       funext j
       rw [childrenOf_mem nodup member]
-
-theorem getElem!_map_range {α : Type} [Inhabited α] (n : ℕ) (f : ℕ → α) {t : ℕ} (inside : t < n) :
-    ((Array.range n).map f)[t]! = f t := by
-  rw [getElem!_pos _ t (by simpa using inside)]
-  simp
 
 theorem advance_agrees {gs : GkrShape} {shapes : Array TreeShape} (agree : ShapesAgree gs shapes) (k : ℕ)
     {c : Replay.GkrClaims} {mc : Layer1.GkrClaims K} (claims : ClaimsAgree shapes.size c mc)

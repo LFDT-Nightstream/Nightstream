@@ -18,6 +18,7 @@ the relation words on abstract words, so that no check evaluates those words.
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lib
 open CompressionLean.Replay (Gl Ext Relation TreeShape WhirShape D foldVars runOracles Runs run_bind run_pure
   run_liftExcept run_sampleWords)
 open NightstreamFPrime.Spec (goldilocksModulus)
@@ -130,7 +131,7 @@ private theorem readGkr_zero {shapes : Array TreeShape} (h : ∀ s ∈ shapes, s
     intro x hx
     rw [List.mem_range] at hx
     simp only [zeroGkr]
-    rw [Bridge.getElem!_map_range _ _ hx]
+    rw [getElem!_map_range _ _ hx]
     simp only [Replay.layerShapeOk, Bool.and_eq_true, beq_iff_eq]
     rw [Array.all_eq_true, Array.all_eq_true]
     simp
@@ -433,7 +434,7 @@ private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey}
       dsimp only
       refine ⟨by simp, fun i hi => ?_⟩
       simp only [Array.size_map, Array.size_range] at hi
-      rw [Bridge.getElem!_map_range _ _ hi, Bridge.getElem!_map_range _ _ hi]
+      rw [getElem!_map_range _ _ hi, getElem!_map_range _ _ hi]
       exact mix.commitment (by rw [powers, Relation.rowCount]; omega))
     (fun H => by obtain ⟨-, -, -, -, -, key, -⟩ := H.2.2.2.1; exact key)
     (fun H => by
@@ -469,7 +470,7 @@ private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey}
       have kappa : lout.mixing.kappa = rel.kappa := by rw [(linear_run read H.2.2.1.1).1]
       refine ⟨by simp, fun j hj => ?_⟩
       simp only [Array.size_map, Array.size_range] at hj
-      rw [Bridge.getElem!_map_range _ _ hj]
+      rw [getElem!_map_range _ _ hj]
       exact mix.evalA (by rw [powers, kappa, Relation.rowCount]; omega))
     (fun H => by
       obtain ⟨-, -, -, -, -, -, -, -, -, -, -, -, late, -⟩ := pf H.1

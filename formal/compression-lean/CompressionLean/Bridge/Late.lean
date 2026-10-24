@@ -13,6 +13,7 @@ model's `LateOut` of the replay's values, whose `LateChecks` hold
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 

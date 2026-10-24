@@ -294,16 +294,11 @@ private theorem chunks_size {α : Type} {n : ℕ} {xs : Array α} {chunk : Array
   rw [Array.size_extract]
   omega
 
-/-- `flatMap` over equal images (`terminal/package.rs:230-240`). -/
-private theorem flatMap_congr {α β : Type} {l : List α} {f g : α → List β} (h : ∀ x ∈ l, f x = g x) :
-    l.flatMap f = l.flatMap g := by
-  rw [List.flatMap_def, List.flatMap_def, List.map_congr_left h]
-
 /-- Pairs of an even list join to the list (`chunks_exact(2)`,
 `terminal/package.rs:233-237`). -/
 private theorem pairs_flatten {xs : Array Var} (dvd : 2 ∣ xs.size) : pairHandles (pairs xs) = xs.toList := by
   rw [pairHandles, pairs, Array.toList_map, List.flatMap_map, ← chunks_flatten dvd]
-  refine flatMap_congr fun pair mem => ?_
+  refine List.flatMap_congr fun pair mem => ?_
   have size := chunks_size (Array.mem_toList_iff.mp mem)
   obtain ⟨l⟩ := pair
   match l, size with
@@ -606,7 +601,7 @@ theorem apply_ensures
   · show HoldsValues c m₃ _ (((chunks (2 * Replay.D) (loaded.outputs.evalA.map _)).map pairs).toList.flatMap
       pairHandles) _
     rw [Array.toList_map, List.flatMap_map]
-    rw [flatMap_congr fun chunk mem => pairs_flatten (by
+    rw [List.flatMap_congr fun chunk mem => pairs_flatten (by
       rw [chunks_size (Array.mem_toList_iff.mp mem)]
       exact Nat.dvd_mul_right _ _)]
     rw [chunks_flatten (by rw [(read ha).2, la]; exact Nat.dvd_mul_left _ _), (read ha).1]

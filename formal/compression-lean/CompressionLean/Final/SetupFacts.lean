@@ -1,6 +1,8 @@
 import CompressionLean.Final.RustSetup
 import CompressionLean.Final.KeyFacts
 import Std.Data.HashSet.Lemmas
+import CompressionLean.Lib.List
+import CompressionLean.Lib.Nat
 
 /-!
 Owns the check of the layer-1 setup that Rust builds for the production key
@@ -19,6 +21,7 @@ The check reads the runs a fixed number of times. It computes `classesOf` and
 
 namespace CompressionLean.Final
 
+open CompressionLean.Lib
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open CompressionLean.Circuit (Layer1Input)
 open CompressionLean.Bridge (shapeOf structureOf)
@@ -102,20 +105,6 @@ theorem getD_mem_or_pad (l : List Push) (k : ℕ) : l.getD k Push.pad ∈ l ∨ 
   rcases Nat.lt_or_ge k l.length with inside | past
   · exact Or.inl (List.getD_eq_getElem _ _ inside ▸ List.getElem_mem inside)
   · exact Or.inr (List.getD_eq_default _ _ past)
-
-theorem getD_mem_cons (l : List ℕ) (k : ℕ) : l.getD k 0 ∈ 0 :: l := by
-  rcases Nat.lt_or_ge k l.length with inside | past
-  · exact List.mem_cons_of_mem _ (List.getD_eq_getElem _ _ inside ▸ List.getElem_mem inside)
-  · rw [List.getD_eq_default _ _ past]
-    exact List.mem_cons_self
-
-theorem nat_all_iff {n : ℕ} {f : (i : ℕ) → i < n → Bool} : Nat.all n f = true ↔ ∀ i h, f i h = true := by
-  induction n with
-  | zero => simp
-  | succ n ih =>
-      rw [Nat.all_succ, Bool.and_eq_true, ih]
-      exact ⟨fun ⟨below, top⟩ i h => (Nat.lt_succ_iff_lt_or_eq.mp h).elim (below i) fun e => e ▸ top,
-        fun all => ⟨fun i h => all i _, all n _⟩⟩
 
 /-! ## The check -/
 

@@ -11,6 +11,7 @@ proves to be the extensions of the Eval_K tables. Then `Ω~` is the model's
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
@@ -64,10 +65,6 @@ theorem toQ_contribution (step : Option (ℕ × ℕ × ℕ)) (rem' below' : ℕ)
   · simp
   · simp only
     split_ifs <;> simp [Kx.toQ_mul]
-
-theorem getElem!_map_range₂ {α : Type} [Inhabited α] (n m : ℕ) (f : ℕ → ℕ → α) {i j : ℕ} (hi : i < n) (hj : j < m) :
-    (((Array.range n).map fun i => (Array.range m).map (f i))[i]!)[j]! = f i j := by
-  rw [getElem!_map_range n _ hi, getElem!_map_range m _ hj]
 
 /-- The replay's long-division states are the model's, digit by digit. -/
 theorem toQ_evalKStates (r : Array (Gl × Gl)) (s : Array Ext) (blocks cb : ℕ) (k : ℕ) :

@@ -1,5 +1,6 @@
 import CompressionLean.Circuit.SimAlgebra
 import CompressionLean.Replay.Transcript
+import CompressionLean.Lib.Array
 
 /-!
 Owns the simulation of the duplex challenger of `Hash.lean` against the
@@ -16,17 +17,13 @@ Merkle paths.
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lib
 open CompressionLean.Replay (Gl Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
 
 /-! ## Arrays -/
-
-theorem getElem!_set! {α : Type} [Inhabited α] (xs : Array α) (j i : ℕ) (x : α) (h : i < xs.size) :
-    (xs.set! j x)[i]! = if j = i then x else xs[i]! := by
-  rw [Array.set!_eq_setIfInBounds, getElem!_pos _ _ (by simpa using h), Array.getElem_setIfInBounds h,
-    getElem!_pos xs i h]
 
 /-- `hs` and `gs` have one size, and each handle is its word. -/
 def IsWords (c : Ctx F) (n : ℕ) (hs : Array Var) (gs : Array Gl) : Prop :=
@@ -161,10 +158,6 @@ theorem forIn_pure {m : Type → Type} [Monad m] [LawfulMonad m] {α β : Type} 
     forIn l init body = pure (l.foldl (fun s x => f x s) init) := by
   rw [show body = fun x s => pure (.yield (f x s)) from funext fun x => funext fun s => h x s]
   exact List.forIn_pure_yield_eq_foldl f init
-
-theorem array_toList_getElem! {α : Type} [Inhabited α] (xs : Array α) (i : ℕ) : xs.toList[i]! = xs[i]! := by
-  rw [List.getElem!_eq_getElem?_getD, Array.getElem?_toList, getElem!_def]
-  cases xs[i]? <;> rfl
 
 /-! ## The duplex -/
 
@@ -308,7 +301,7 @@ theorem duplexing {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : 
     StateT.run_bind, StateT.run_pure, pure_bind]
   dsimp only
   rw [foldl_zipIdx_set]
-  simp only [array_toList_getElem!, Array.length_toList]
+  simp only [Array.getElem!_toList, Array.length_toList]
   generalize hs₁ : (List.range d.input.size).foldl (fun s i => s.set! i d.input[i]!) d.state = s₁
   let t₁ := (List.range d.input.size).foldl (fun s i => s.set! i r.input[i]!) r.state
   have ws₁ : P → IsWords c n s₁ t₁ := fun h => by
@@ -420,7 +413,7 @@ theorem observeSlice {d : Duplex} {r : Replay.Duplex} {vs : Array Var} {gs : Arr
   unfold Duplex.observeSlice Array.forM
   rw [← Array.foldlM_toList, ← Array.foldl_toList]
   exact observeList hp vs.toList gs.toList hd fun h => ⟨by simpa using (hv h).1, fun i hi => by
-    rw [array_toList_getElem!, array_toList_getElem!]
+    rw [Array.getElem!_toList, Array.getElem!_toList]
     exact (hv h).2 i (by simpa using hi)⟩
 
 /-- `observe_ext`: the three coordinates in order. -/

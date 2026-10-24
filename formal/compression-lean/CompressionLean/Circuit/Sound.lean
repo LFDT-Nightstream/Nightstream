@@ -1,6 +1,8 @@
 import CompressionLean.Circuit.Forms
 import Mathlib.Data.List.GetD
 import NightstreamFPrime.Spec.GoldilocksPrime
+import CompressionLean.Lib.Array
+import CompressionLean.Lib.List
 
 /-!
 Owns `lower_sound`: a witness of a lowered run's CCS gives an accepting run
@@ -23,25 +25,8 @@ Poseidon2.
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lib
 open CompressionLean.Shrink
-
-section Lists
-
-theorem array_getD_append {α : Type} (a : Array α) (l : List α) (n : ℕ) (d : α) :
-    (a ++ l.toArray).getD n d = if n < a.size then a.getD n d else l.getD (n - a.size) d := by
-  simp only [Array.getD_eq_getD_getElem?, List.getD_eq_getElem?_getD]
-  split_ifs with h
-  · rw [Array.getElem?_append_left h]
-  · rw [Array.getElem?_append_right (by omega)]
-    simp
-
-theorem list_getD_append {α : Type} (a l : List α) (n : ℕ) (d : α) :
-    (a ++ l).getD n d = if n < a.length then a.getD n d else l.getD (n - a.length) d := by
-  split_ifs with h
-  · exact List.getD_append _ _ _ _ h
-  · exact List.getD_append_right _ _ _ _ (by omega)
-
-end Lists
 
 section Simulation
 

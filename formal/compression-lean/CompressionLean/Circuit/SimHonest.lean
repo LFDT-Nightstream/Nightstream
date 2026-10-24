@@ -20,26 +20,15 @@ against `Replay.honestStage`, and of the setup query point (`queryPoint`,
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lib
 open CompressionLean.Replay (Gl Ext Relation foldVars runOracles generator twoAdicGenerator Runs runs_bind runs_pure
   runs_sampleWord runs_record runs_sampleExt runs_observeAll runs_observeExts runs_ensure runs_liftExcept)
-open CompressionLean.Bridge (getElem!_map_range two_groups)
+open CompressionLean.Bridge (two_groups)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
 
 /-! ## Arrays -/
-
-/-- An entry of an append. -/
-private theorem getElem!_append' {α : Type} [Inhabited α] (a b : Array α) (i : ℕ) :
-    (a ++ b)[i]! = if i < a.size then a[i]! else b[i - a.size]! := by
-  simp only [getElem!_def, Array.getElem?_append]
-  split_ifs <;> rfl
-
-/-- An entry of a prefix. -/
-private theorem getElem!_extract_zero {α : Type} [Inhabited α] (a : Array α) {i k : ℕ} (hi : i < k) :
-    (a.extract 0 k)[i]! = a[i]! := by
-  simp only [getElem!_def, Array.getElem?_extract]
-  split_ifs <;> simp_all
 
 /-- A fold over one more element of a prefix. -/
 private theorem foldl_take_succ {α β : Type} (f : β → α → β) (b : β) (l : List α) {k : ℕ}

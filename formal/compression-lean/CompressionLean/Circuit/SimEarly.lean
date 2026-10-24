@@ -25,6 +25,7 @@ Owns the simulation of the layer-1 verifier's early stage (`earlyStage` of
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lib
 open CompressionLean.Replay (Gl Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)
 open Polynomial
@@ -497,11 +498,11 @@ theorem gkrLayers_sizes {shapes : Array TreeShape} :
             Replay.reducedOf ((Replay.activeTrees shapes k).zip layer.children).toList tau u
           else cl.leafValues[u]! := by
         simp only [Replay.advance]
-        exact Bridge.getElem!_map_range _ _ (by omega)
+        exact getElem!_map_range _ _ (by omega)
       have advPoint : (Replay.advance shapes k cl ((Replay.activeTrees shapes k).zip layer.children).toList result.1
           tau).leafPoint[u]! = if shapes[u]!.depth = k then result.1.push tau else cl.leafPoint[u]! := by
         simp only [Replay.advance]
-        exact Bridge.getElem!_map_range _ _ (by omega)
+        exact getElem!_map_range _ _ (by omega)
       rw [adv, advPoint]
       by_cases e : shapes[u]!.depth = k
       · rw [if_neg (by omega), if_pos e, if_pos e, if_pos (by simp; omega), reducedOf_size ok₀ hu e, Array.size_push,

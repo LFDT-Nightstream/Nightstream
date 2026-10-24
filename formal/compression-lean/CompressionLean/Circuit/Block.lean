@@ -1,5 +1,6 @@
 import CompressionLean.Shrink.Layout
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation
+import CompressionLean.Lib.List
 
 /-!
 Owns the Poseidon2 permutation block of the shrink CCS
@@ -49,6 +50,7 @@ end CompressionLean.Shrink
 
 namespace CompressionLean.Circuit.Block
 
+open CompressionLean.Lib
 open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Gadgets.Poseidon2
 open CompressionLean.Shrink
 open Fin.CommRing
@@ -269,14 +271,6 @@ private def evalState (c : ℕ → F) (state : List Linear) : Layer.FState :=
 /-- S-box output cell `16 + k` holds the S-box of S-box input `k`. -/
 private def SboxRows (c : ℕ → F) (inputs : List Linear) : Prop :=
   ∀ k < inputs.length, c (16 + k) = Spec.Poseidon2.sbox ((inputs.getD k .zero).eval c)
-
-private theorem getD_range_map {α : Type} (f : ℕ → α) (d : α) {n k : ℕ} (h : k < n) :
-    ((List.range n).map f).getD k d = f k := by
-  simp [List.getD_eq_getElem?_getD, h]
-
-private theorem getD_append_length {α : Type} (l l' : List α) (d : α) (k : ℕ) :
-    (l ++ l').getD (l.length + k) d = l'.getD k d := by
-  simp [List.getD_eq_getElem?_getD, List.getElem?_append_right]
 
 private theorem foldl_add (l : List F) (a : F) : l.foldl (· + ·) a = a + l.sum := by
   induction l generalizing a with

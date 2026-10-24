@@ -17,6 +17,7 @@ replay's (`Replay/Transcript.lean`), and the F′ permutation on words
 
 namespace CompressionLean.Circuit
 
+open CompressionLean.Lib
 open CompressionLean.Replay (Gl)
 open NightstreamFPrime.Spec (goldilocksModulus)
 open NightstreamFPrime.Export.NativePoseidon2 (State64)
@@ -30,16 +31,6 @@ def IsDigest (c : Ctx F) (n : ℕ) (d : DigestVar) (g : Array Gl) : Prop :=
 theorem IsDigest.mono {c : Ctx F} {n m : ℕ} {d : DigestVar} {g : Array Gl} (h : IsDigest c n d g) (le : n ≤ m) :
     IsDigest c m d g :=
   ⟨h.1, fun lane => (h.2 lane).mono le⟩
-
-private theorem getElem!_append {α : Type} [Inhabited α] (a b : Array α) (i : ℕ) :
-    (a ++ b)[i]! = if i < a.size then a[i]! else b[i - a.size]! := by
-  simp only [getElem!_def, Array.getElem?_append]
-  split_ifs <;> rfl
-
-private theorem getElem!_extract {α : Type} [Inhabited α] (a : Array α) {i k : ℕ} (hi : i < k) :
-    (a.extract 0 k)[i]! = a[i]! := by
-  simp only [getElem!_def, Array.getElem?_extract]
-  split_ifs <;> simp_all
 
 /-- The replay's sponge state after the first `k` chunks of `gs`. -/
 private def leafState (gs : Array Gl) (k : ℕ) : Array Gl :=
@@ -135,7 +126,7 @@ theorem hashLeaf {vs : Array Var} {gs : Array Gl} (hp : Permutes c.perm) (hv : P
     rw [e] at w size
     rw [hl]
     refine ⟨by simp [size], fun lane => ?_⟩
-    rw [Fin.getElem!_fin, getElem!_extract _ lane.isLt]
+    rw [Fin.getElem!_fin, getElem!_extract_zero _ lane.isLt]
     exact w.get (by rw [size]; omega)
   case step =>
     have get : (chunks vs).toList[k] = vs.extract (Replay.rate * k) (Replay.rate * k + Replay.rate) := by
@@ -143,7 +134,7 @@ theorem hashLeaf {vs : Array Var} {gs : Array Gl} (hp : Permutes c.perm) (hv : P
       rfl
     rw [get, ← Array.forIn_toList, Array.toList_zipIdx,
       forIn_pure (fun x s => s.set! x.2 x.1) (fun x s => by cases x; rfl), pure_bind, foldl_zipIdx_set]
-    simp only [array_toList_getElem!, Array.length_toList]
+    simp only [Array.getElem!_toList, Array.length_toList]
     have wc : P → IsWords c n (vs.extract (Replay.rate * k) (Replay.rate * k + Replay.rate))
         (gs.extract (Replay.rate * k) (Replay.rate * k + Replay.rate)) := fun h => (hv h).extract _ _
     let t := (List.range (gs.extract (Replay.rate * k) (Replay.rate * k + Replay.rate)).size).foldl

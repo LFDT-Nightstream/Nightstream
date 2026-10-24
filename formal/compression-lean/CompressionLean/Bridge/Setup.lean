@@ -12,6 +12,7 @@ is the model's honest fold at the leaf's query point (`setupCheck_value`).
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Lib
 open Polynomial
 open NightstreamFPrime.Spec
 open CompressionLean.Replay CompressionLean.Layer1

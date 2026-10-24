@@ -67,6 +67,16 @@ theorem bind {b : Build α} {f : α → Build β} (hb : Appends b) (hf : ∀ a, 
 
 theorem map {b : Build α} (f : α → β) (hb : Appends b) : Appends (f <$> b) := ⟨fun p => hb.out p⟩
 
+theorem ite {c : Prop} [Decidable c] {x y : Build α} (hx : Appends x) (hy : Appends y) :
+    Appends (if c then x else y) := by
+  split <;> assumption
+
+theorem dite {c : Prop} [Decidable c] {x : c → Build α} {y : ¬c → Build α} (hx : ∀ h, Appends (x h))
+    (hy : ∀ h, Appends (y h)) : Appends (if h : c then x h else y h) := by
+  split
+  · exact hx _
+  · exact hy _
+
 theorem forIn_list (l : List δ) (init : γ) {body : δ → γ → Build (ForInStep γ)} (h : ∀ x acc, Appends (body x acc)) :
     Appends (forIn l init body) := by
   induction l generalizing init with
@@ -116,6 +126,12 @@ theorem tbind {t : Transcript α} {g : α → Transcript β} {d : Duplex} (ht : 
   rw [StateT.run_bind]
   exact bind (ht d) fun r => hg r.1 r.2
 
+theorem tite {c : Prop} [Decidable c] {x y : Transcript α} {d : Duplex} (hx : ∀ d, Appends (x.run d))
+    (hy : ∀ d, Appends (y.run d)) : Appends ((if c then x else y).run d) := by
+  split
+  · exact hx d
+  · exact hy d
+
 theorem tlift {b : Build α} {d : Duplex} (hb : Appends b) : Appends ((liftM b : Transcript α).run d) := by
   show Appends ((monadLift b : Transcript α).run d)
   rw [StateT.run_monadLift]
@@ -163,34 +179,99 @@ theorem tmapM_array {f : δ → Transcript α} (h : ∀ x d, Appends ((f x).run 
 
 end Appends
 
-/-- One step of `appends`: an instance, a binder, or one bind, loop or branch
-of the program. -/
-syntax "appends_step" : tactic
+section Tactic
 
-macro_rules
-  | `(tactic| appends_step) => `(tactic| first
-    | infer_instance
-    | intro _
-    | with_reducible refine Appends.bind ?_ ?_
-    | with_reducible refine Appends.tbind ?_ ?_
-    | with_reducible refine Appends.tlift ?_
-    | with_reducible refine Appends.map _ ?_
-    | with_reducible refine Appends.forIn_list _ _ ?_
-    | with_reducible refine Appends.forIn_array _ _ ?_
-    | with_reducible refine Appends.forIn_range _ _ ?_
-    | with_reducible refine Appends.tforIn_list _ _ ?_
-    | with_reducible refine Appends.tforIn_array _ _ ?_
-    | with_reducible refine Appends.tforIn_range _ _ ?_
-    | with_reducible refine Appends.tfoldlM_list ?_ _ _ _
-    | with_reducible refine Appends.tmapM_array ?_ _ _
-    | with_reducible refine Appends.tmapM_list ?_ _ _
-    | with_reducible refine Appends.mapM_array ?_ _
-    | with_reducible refine Appends.mapM_list ?_ _
-    | split)
+open Lean Meta Elab Tactic
 
-/-- Prove that a program appends: the instances of its instructions and
-named programs, and its binds, loops, branches and binders. -/
-macro "appends" : tactic => `(tactic| ((repeat' appends_step); done))
+/-- The structural lemma of `Appends` for the head of the program `b`: a bind,
+a map, a loop, a `mapM` or a branch of a builder program, or the same of a
+transcript program at a duplex, or a lift into a transcript. -/
+private def appendsRule (b : Expr) : MetaM (Option Name) := do
+  let forIn (ρ : Expr) (list array range : Name) : MetaM (Option Name) := do
+    return match (← whnfR ρ).getAppFn with
+      | .const ``List _ => some list
+      | .const ``Array _ => some array
+      | .const ``Std.Legacy.Range _ => some range
+      | _ => none
+  match b.getAppFn with
+  | .const ``Bind.bind _ => return some ``Appends.bind
+  | .const ``Functor.map _ => return some ``Appends.map
+  | .const ``ite _ => return some ``Appends.ite
+  | .const ``dite _ => return some ``Appends.dite
+  | .const ``ForIn.forIn _ => forIn b.getAppArgs[1]! ``Appends.forIn_list ``Appends.forIn_array ``Appends.forIn_range
+  | .const ``Array.mapM _ => return some ``Appends.mapM_array
+  | .const ``List.mapM _ => return some ``Appends.mapM_list
+  | .const ``StateT.run _ =>
+    let t := b.getAppArgs[3]!.headBeta
+    match t.getAppFn with
+    | .const ``Bind.bind _ => return some ``Appends.tbind
+    | .const ``ite _ => return some ``Appends.tite
+    | .const ``liftM _ | .const ``MonadLiftT.monadLift _ => return some ``Appends.tlift
+    | .const ``ForIn.forIn _ =>
+      forIn t.getAppArgs[1]! ``Appends.tforIn_list ``Appends.tforIn_array ``Appends.tforIn_range
+    | .const ``List.foldlM _ => return some ``Appends.tfoldlM_list
+    | .const ``Array.mapM _ => return some ``Appends.tmapM_array
+    | .const ``List.mapM _ => return some ``Appends.tmapM_list
+    | _ => return none
+  | _ => return none
+
+/-- One step of unfolding an abbreviation at the head of the program `b`, or of
+the transcript program in `b`. -/
+private def unfoldAbbrev? (b : Expr) : MetaM (Option Expr) := do
+  let unfold (e : Expr) : MetaM (Option Expr) := do
+    let .const name _ := e.getAppFn | return none
+    unless ← isReducible name do return none
+    unfoldDefinition? e
+  match b.getAppFn with
+  | .const ``StateT.run _ =>
+    let args := b.getAppArgs
+    return (← unfold args[3]!).map fun t => mkAppN b.getAppFn (args.set! 3 t)
+  | _ => unfold b
+
+/-- One step of `appends` on the goal `g`: a binder, an instance of a named
+program or instruction, a let, the structural lemma of the program's head, an
+abbreviation, or a `split` of a `match`. A let of data is any value, since the instruction shape
+does not depend on it; a join point, a function into programs, is substituted. -/
+private def appendsStep (g : MVarId) : TacticM (List MVarId) := g.withContext do
+  let ty ← instantiateMVars (← g.getType)
+  if ty.isForall then return [(← g.intro1).2]
+  let some (α, b) := ty.app2? ``Appends | throwError "appends: the goal is not `Appends`"
+  if let some inst ← synthInstance? ty then
+    g.assign inst
+    return []
+  let b := b.headBeta
+  let letOf? := match b with
+    | .letE n t v body _ => some (n, t, v, body, id)
+    | _ => match b.getAppFn, b.getAppArgs[3]? with
+      | Expr.const ``StateT.run _, some (Expr.letE n t v body _) =>
+        some (n, t, v, body, fun e => mkAppN b.getAppFn (b.getAppArgs.set! 3 e))
+      | _, _ => none
+  if let some (n, t, v, body, wrap) := letOf? then
+    if ← forallTelescope t fun _ r => return (← whnfR r).isAppOf ``StateT then
+      return [← g.replaceTargetDefEq (mkApp2 (.const ``Appends []) α (wrap (body.instantiate1 v)))]
+    let g' ← mkFreshExprSyntheticOpaqueMVar (.forallE n t (mkApp2 (.const ``Appends []) α (wrap body)) .default)
+    g.assign (mkApp g' v)
+    return [g'.mvarId!]
+  if let some rule ← appendsRule b then
+    return ← withReducible (g.apply (← mkConstWithFreshMVarLevels rule))
+  if let some b' ← unfoldAbbrev? b then
+    return [← g.replaceTargetDefEq (mkApp2 (.const ``Appends []) α b')]
+  setGoals [g]
+  try evalTactic (← `(tactic| split))
+  catch _ => throwError "appends: no rule for the program{indentExpr b}"
+  getGoals
+
+/-- **Prove that a program appends**: the instances of its instructions and
+named programs, and the structural lemmas of its binds, loops, branches, lets
+and binders, one head at a time. -/
+elab "appends" : tactic => do
+  let open_ ← Meta.repeat' appendsStep [← getMainGoal]
+  if let g :: _ := open_ then
+    discard <| appendsStep g
+    throwError "appends: open goals remain"
+  replaceMainGoal []
+
+end Tactic
 
 /-! The instructions and the builder's combinations (`Ir.lean`). -/
 
@@ -361,6 +442,19 @@ theorem loopArray {xs : Array δ} {init : γ} {body : δ → γ → Build (ForIn
   have h := loop (xs := xs.toList) I h0 (fun k hk acc m le hI => by
     simpa only [Array.getElem_toList] using step k (by simpa using hk) acc m le hI) hb
   simpa only [Array.length_toList] using h
+
+/-- **A loop over `[a:b]`.** Step `k` reads `a + k`. -/
+theorem loopRange {a b : ℕ} {init : γ} {body : ℕ → γ → Build (ForInStep γ)} (I : ℕ → γ → ℕ → Prop)
+    (h0 : I 0 init n)
+    (step : ∀ k < b - a, ∀ acc m, n ≤ m → I k acc m →
+      Ensures c m (body (a + k) acc) fun r m' => r = .yield r.value ∧ I (k + 1) r.value m')
+    (hb : ∀ x acc, Appends (body x acc) := by appends) :
+    Ensures c n (forIn [a:b] init body) fun r m => I (b - a) r m := by
+  rw [Std.Legacy.Range.forIn_eq_forIn_range']
+  have size : [a:b].size = b - a := by simp [Std.Legacy.Range.size]
+  refine (loop I h0 (fun k hk acc m le hI => ?_) hb).post fun _ _ h => by simpa [size] using h
+  rw [List.getElem_range', Nat.one_mul]
+  exact step k (by simpa [size] using hk) acc m le hI
 
 /-- `t >>= g` in a transcript. -/
 theorem tbind {t : Transcript α} {g : α → Transcript β} {d : Duplex} {Q : α × Duplex → ℕ → Prop}

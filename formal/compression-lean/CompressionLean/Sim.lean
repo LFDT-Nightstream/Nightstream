@@ -3,6 +3,7 @@ import CompressionLean.Sim.Calculus
 import CompressionLean.Sim.Claim
 import CompressionLean.Sim.Early
 import CompressionLean.Sim.Encodes
+import CompressionLean.Sim.EvalK
 import CompressionLean.Sim.Fold
 import CompressionLean.Sim.Gkr
 import CompressionLean.Sim.Hash

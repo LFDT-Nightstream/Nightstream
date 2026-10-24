@@ -1,5 +1,5 @@
 import CompressionLean.Sim.Sumcheck
-import CompressionLean.Circuit.Gkr
+import CompressionLean.Ports.Circuit.Gkr
 import CompressionLean.Bridge.Gkr
 
 /-!

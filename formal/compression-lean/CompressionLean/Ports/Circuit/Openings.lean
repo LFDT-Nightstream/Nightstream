@@ -1,5 +1,5 @@
-import CompressionLean.Circuit.Honest
-import CompressionLean.Circuit.Whir
+import CompressionLean.Ports.Circuit.Honest
+import CompressionLean.Ports.Circuit.Whir
 
 /-!
 Owns the openings of the layer-1 verifier (`crates/neo-spartan/src/verifier.rs:266-315`)

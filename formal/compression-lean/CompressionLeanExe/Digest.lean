@@ -1,5 +1,5 @@
-import CompressionLean.Circuit.Record
-import CompressionLean.Circuit.Block
+import CompressionLean.Ports.Circuit.Record
+import CompressionLean.Ports.Circuit.Block
 import CompressionLean.Ports.Replay.Transcript
 import CompressionLean.Fields
 
@@ -31,7 +31,6 @@ def runDigest (run : Run Gl) (rows : Array (GlueRow Gl)) : Array Word :=
   let words := rows.foldl (init := #[run.cells, run.blocks, run.publics.length, rows.size]) fun out row =>
     (List.finRange 7).foldl (fun out s => out ++ sideWords (row.side s)) out
   Replay.hashLeaf (words.map Word.ofNat)
-
 open CompressionLean.Circuit.Block in
 /-- The sizes, the input count, the output cells and the entry count of
 `poseidonTemplate`, then each entry's matrix, row, cell (`0` for the constant

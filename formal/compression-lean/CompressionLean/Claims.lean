@@ -86,7 +86,7 @@ theorem production_bound {lw : ℕ}
   final_restore_budget_parent (shapeOf key.relation) barOf S relation ajtai shape barOf_eq honest fits L0 L1 h0 h1
     (show key.relation.setupVars ≤ 35 by have := facts.high; omega) t Circuit.Block.poseidonTemplate _
     (prog key loaded context) Ls p0 p1 rust (queryAt key.relation) goldilocksModulus facts.shape le_rfl
-    (Bridge.queryAt_distinct key.relation facts.high) Circuit.Block.poseidonTemplate_wellFormed
+    (Bridge.queryAt_distinct key.relation facts.high) Lowering.Block.poseidonTemplate_wellFormed
     (prog_valid key loaded context) authority (Reads key loaded context S L0 L1)
     (programEncodes S facts fits describes L0 L1 loads valid hctx) calls prover
 

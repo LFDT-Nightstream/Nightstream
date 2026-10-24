@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Record
+import CompressionLean.Lowering.Record
 
 /-!
 Owns the executor reading of a program (`Exec`): the values that its

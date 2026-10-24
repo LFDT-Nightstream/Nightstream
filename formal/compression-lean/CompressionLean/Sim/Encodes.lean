@@ -1,7 +1,7 @@
 import CompressionLean.Sim.Claim
 import CompressionLean.Sim.Fold
 import CompressionLean.Sim.Verify
-import CompressionLean.Circuit.Verifier
+import CompressionLean.Ports.Circuit.Verifier
 import CompressionLean.Lowering.Sound
 import CompressionLean.Lowering.RecordCounts
 import CompressionLean.Lowering.Valid

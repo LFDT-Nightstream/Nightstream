@@ -1,6 +1,6 @@
-import CompressionLean.Circuit.Mle
-import CompressionLean.Circuit.Ring
-import CompressionLean.Circuit.Sumcheck
+import CompressionLean.Ports.Circuit.Mle
+import CompressionLean.Ports.Circuit.Ring
+import CompressionLean.Ports.Circuit.Sumcheck
 
 /-!
 Owns the linear stage of the layer-1 verifier (`crates/neo-spartan/src/verifier.rs:170-206`)

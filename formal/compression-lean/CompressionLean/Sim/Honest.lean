@@ -1,5 +1,5 @@
 import CompressionLean.Sim.Sumcheck
-import CompressionLean.Circuit.Honest
+import CompressionLean.Ports.Circuit.Honest
 import CompressionLean.Bridge.Run
 import CompressionLean.Bridge.Setup
 

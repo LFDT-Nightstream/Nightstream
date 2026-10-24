@@ -1,6 +1,6 @@
 import CompressionLean.Sim.Sumcheck
-import CompressionLean.Circuit.Ring
-import CompressionLean.Circuit.Mle
+import CompressionLean.Ports.Circuit.Ring
+import CompressionLean.Ports.Circuit.Mle
 import CompressionLean.Fields
 
 /-!

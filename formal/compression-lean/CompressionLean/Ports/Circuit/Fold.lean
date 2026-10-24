@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Hash
+import CompressionLean.Ports.Circuit.Hash
 
 /-!
 Owns the v1.2 fold transcript of `crates/neo-spartan/src/circuit/fold.rs` as

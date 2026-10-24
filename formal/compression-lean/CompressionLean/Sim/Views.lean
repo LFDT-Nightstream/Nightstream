@@ -1,5 +1,5 @@
 import CompressionLean.Sim.Merkle
-import CompressionLean.Circuit.Verifier
+import CompressionLean.Ports.Circuit.Verifier
 import CompressionLean.Ports.Replay.Stages
 
 /-!

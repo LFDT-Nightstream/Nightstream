@@ -1,5 +1,5 @@
 import CompressionLean.Sim.Hash
-import CompressionLean.Circuit.Fold
+import CompressionLean.Ports.Circuit.Fold
 
 /-!
 Owns the simulation of the fold transcript of `Fold.lean` (`fold.rs`): the

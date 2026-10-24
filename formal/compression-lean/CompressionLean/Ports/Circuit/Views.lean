@@ -1,5 +1,5 @@
 import Lean.Data.Json
-import CompressionLean.Circuit.Hash
+import CompressionLean.Ports.Circuit.Hash
 import CompressionLean.Ports.Replay.Gkr
 
 /-!

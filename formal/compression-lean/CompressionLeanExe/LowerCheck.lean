@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Record
+import CompressionLean.Ports.Circuit.Record
 import CompressionLeanExe.Parse
 import CompressionLeanExe.Digest
 import CompressionLeanExe.Fixtures

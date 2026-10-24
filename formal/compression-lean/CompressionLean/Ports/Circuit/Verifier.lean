@@ -1,9 +1,9 @@
-import CompressionLean.Circuit.Early
-import CompressionLean.Circuit.Fold
-import CompressionLean.Circuit.Honest
-import CompressionLean.Circuit.Late
-import CompressionLean.Circuit.Linear
-import CompressionLean.Circuit.Openings
+import CompressionLean.Ports.Circuit.Early
+import CompressionLean.Ports.Circuit.Fold
+import CompressionLean.Ports.Circuit.Honest
+import CompressionLean.Ports.Circuit.Late
+import CompressionLean.Ports.Circuit.Linear
+import CompressionLean.Ports.Circuit.Openings
 
 /-!
 Owns the layer-1 verifier of `crates/neo-spartan/src/verifier.rs` as a

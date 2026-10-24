@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Algebra
+import CompressionLean.Ports.Circuit.Algebra
 
 /-!
 Owns the hashes of `crates/neo-spartan/src/circuit/hash.rs` as builder

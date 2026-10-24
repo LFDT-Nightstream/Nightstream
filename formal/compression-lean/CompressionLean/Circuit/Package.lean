@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Ir
+import CompressionLean.Ports.Circuit.Ir
 import CompressionLean.Fields
 import CompressionLean.Terminal.Outputs
 import NightstreamFPrime.Export.PackageExpansion

@@ -26,6 +26,11 @@ The entries of a run's CCS are the block entries, then the glue entries.
 Their two sums are the verifier's `block_part` and its shape run's
 `total` (`mod.rs:275`). `Shrink/Layout.lean` proves that the CCS of a valid
 run fits its cubes.
+
+The recorder's form operations (`Form::constant`, `Form::wire`,
+`Form::is_constant`, `Form::row_terms`) and the glue rows of a call with
+decidable zero tests (`Call.computedRows`, `Trace::row`, `Trace::r1cs`) are
+here too: the recorder (`Ports/Circuit/Record.lean`) builds a run with them.
 -/
 
 namespace CompressionLean.Shrink
@@ -208,5 +213,49 @@ then the glue entries (`mod.rs:275`). -/
 noncomputable def Run.ccs {F : Type} [Field F] (T : Template F) (s : Counts) (run : Run F) : Ccs F :=
   ⟨Layout.rowVars T s, Layout.cellVars T s,
     Layout.blockEntries T s ++ Layout.glueEntries T s 0 run.rows, run.publics⟩
+
+/-! ## The recorder's forms and rows, computed (`circuit/record.rs`) -/
+
+deriving instance DecidableEq, Repr for Wire
+
+section Computed
+
+variable {F : Type} [Field F] [DecidableEq F]
+
+namespace Form
+
+/-- `Form::constant` (`record.rs:49-56`). -/
+def const (c : F) : Form F := ⟨[], c⟩
+
+/-- `Form::wire` (`record.rs:58-64`). -/
+def wire (w : Wire) : Form F := ⟨[(w, 1)], 0⟩
+
+/-- `Form::is_constant` (`record.rs:70-72`). -/
+def isConstant (f : Form F) : Bool := f.terms.isEmpty
+
+/-- `Form::row_terms` (`record.rs:90-97`): the constant on the one column. -/
+def rowTerms (f : Form F) : List (Wire × F) := f.terms ++ if f.constant = 0 then [] else [(.pub 0, f.constant)]
+
+end Form
+
+/-- `expand` with decidable zero tests and array column reads
+(`record.rs:118-134`). -/
+def expandArray (side : List (ℕ × F)) (columns : Array (Form F)) : List (Wire × F) :=
+  side.flatMap fun t =>
+    (columns.getD t.1 ⟨[], 0⟩).terms.map (fun u => (u.1, u.2 * t.2)) ++
+      if (columns.getD t.1 ⟨[], 0⟩).constant ≠ 0 then [(.pub 0, (columns.getD t.1 ⟨[], 0⟩).constant * t.2)]
+      else []
+
+/-- The glue rows of a call, computed (`Trace::row`, `Trace::r1cs`,
+`record.rs:491-572`). The column array is built once per call, not once per
+row: the terminal package is one call of 8,800,800 rows. -/
+def Call.computedRows : Call F → List (GlueRow F)
+  | .row products linear _ => [GlueRow.ofCall products linear]
+  | .r1cs rows columns =>
+      let columns := columns.toArray
+      rows.map fun r =>
+        GlueRow.ofCall [(expandArray r.a columns, expandArray r.b columns)] (expandArray r.c columns)
+
+end Computed
 
 end CompressionLean.Shrink

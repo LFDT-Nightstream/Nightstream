@@ -1,4 +1,4 @@
-import CompressionLean.Shrink.Layout
+import CompressionLean.Ports.Shrink.Layout
 import CompressionLean.Ports.Replay.Field
 
 /-!

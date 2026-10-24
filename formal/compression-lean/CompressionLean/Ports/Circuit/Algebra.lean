@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Ir
+import CompressionLean.Ports.Circuit.Ir
 
 /-!
 Owns the field helpers of `crates/neo-spartan/src/circuit/algebra.rs` as

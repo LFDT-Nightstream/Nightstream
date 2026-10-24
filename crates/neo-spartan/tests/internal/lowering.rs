@@ -1,8 +1,8 @@
-//! The Lean lowering (`formal/compression-lean`, `Circuit/Record.lean`)
+//! The Lean lowering (`formal/compression-lean`, `Ports/Circuit/Record.lean`)
 //! against `record.rs` on real program runs.
 //!
 //! `Log` forwards every `Backend` call to a `Recorder<Trace>` and logs it as
-//! one instruction over value handles (`Circuit/Ir.lean`). Handle `v` is the
+//! one instruction over value handles (`Ports/Circuit/Ir.lean`). Handle `v` is the
 //! `v`-th value of the run; each instruction appends its outputs in order.
 //! `add`, `sub` and `scale` log `linear`. `select`, the extension sums and
 //! scales and the default assertions log the calls that `record.rs` makes
@@ -229,7 +229,7 @@ impl Backend for Log {
 }
 
 /// The index bits and folding factor of each query set of `pcs`
-/// (`OpeningRows` in `Circuit/Views.lean`).
+/// (`OpeningRows` in `Ports/Circuit/Views.lean`).
 fn opening_rows(pcs: &Pcs) -> String {
     let config = pcs.config();
     let shape = WhirShape::new(config, pcs.protocol().num_openings());
@@ -245,7 +245,7 @@ fn opening_rows(pcs: &Pcs) -> String {
 }
 
 /// What `whir::verify` reads of `pcs` beyond the replay's `WhirShape`
-/// (`WhirKey` in `Circuit/Whir.lean`).
+/// (`WhirKey` in `Ports/Circuit/Whir.lean`).
 fn whir_key(pcs: &Pcs) -> String {
     let (config, protocol) = (pcs.config(), pcs.protocol());
     let tables = protocol.table_shapes();

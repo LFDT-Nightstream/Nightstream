@@ -111,13 +111,7 @@ def premises : List (Name × List Premise) :=
 
 /-- The modules that port Rust by hand, with their submodules. -/
 def portModules : List Name := [
-  `CompressionLean.Circuit.Record, `CompressionLean.Circuit.Algebra, `CompressionLean.Circuit.Hash,
-  `CompressionLean.Circuit.Fold, `CompressionLean.Circuit.Sumcheck, `CompressionLean.Circuit.Views,
-  `CompressionLean.Circuit.Gkr, `CompressionLean.Circuit.Early, `CompressionLean.Circuit.Ring,
-  `CompressionLean.Circuit.Mle, `CompressionLean.Circuit.Linear, `CompressionLean.Circuit.Honest,
-  `CompressionLean.Circuit.Late, `CompressionLean.Circuit.Whir, `CompressionLean.Circuit.Openings,
-  `CompressionLean.Circuit.Verifier, `CompressionLean.Circuit.Terminal, `CompressionLean.Circuit.Package,
-  `CompressionLean.Final.RustSetup,
+  `CompressionLean.Circuit.Terminal, `CompressionLean.Circuit.Package, `CompressionLean.Final.RustSetup,
   `CompressionLean.Ports]
 
 /-- The Rust tests that pin a digest that Lean computes: the file, then the test. -/

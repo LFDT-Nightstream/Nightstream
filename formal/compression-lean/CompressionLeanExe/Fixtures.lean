@@ -1,6 +1,6 @@
-import CompressionLean.Circuit.Linear
-import CompressionLean.Circuit.Verifier
-import CompressionLean.Circuit.Late
+import CompressionLean.Ports.Circuit.Linear
+import CompressionLean.Ports.Circuit.Verifier
+import CompressionLean.Ports.Circuit.Late
 
 /-!
 Owns the Lean side of the programs that `neo-spartan`'s

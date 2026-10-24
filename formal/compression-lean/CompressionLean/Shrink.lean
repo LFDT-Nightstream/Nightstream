@@ -17,5 +17,5 @@ the game and its accepting paths (`Game`, `Soundness`), and its cost and
 budget (`Cost`, `Budget`).
 
 It imports no layer-1 module. It does not own the lowering of a program to
-a run (`Circuit/Record.lean`, `Lowering/`).
+a run (`Ports/Circuit/Record.lean`, `Lowering/`).
 -/

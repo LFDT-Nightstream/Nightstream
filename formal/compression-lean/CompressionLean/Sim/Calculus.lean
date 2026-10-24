@@ -1,5 +1,5 @@
 import CompressionLean.Lowering.Exec
-import CompressionLean.Circuit.Hash
+import CompressionLean.Ports.Circuit.Hash
 import CompressionLean.Bridge.Field
 import Mathlib.Data.List.GetD
 

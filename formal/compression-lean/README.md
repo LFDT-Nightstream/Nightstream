@@ -211,7 +211,13 @@ The shrink layer assumes, and does not prove:
   `production_bound` for F′'s relation of the Poseidon2 hash-chain
   application, the production key's, at 43,963,750 columns. There,
   `KeyFacts` and the key's block count (`WidthFits`, 814,144 blocks) give
-  `ParentShape`.
+  `ParentShape`. It takes the runs that Rust pushes, the Ajtai setup,
+  `RunsGive` and the pass of `setupCheck` in place of the setup and its
+  facts. The setup is `poseidon2Setup`, the one that `build` returns for the
+  seed and the runs. The pass gives that `build` returns it, that it has
+  `Setup.Fits` and that the key's structure describes it
+  (`setup_facts_of_check`). With `RunsGive`, the build gives `HonestSetup`
+  (`honest_setup_of_build`).
   `Claims.lean` holds the library's claims; `STATUS.md` lists each claim's
   premises and how each one is met.
 

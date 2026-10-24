@@ -9,11 +9,12 @@ Each claim of `CompressionLean/Claims.lean`, the axioms that it uses and the nam
 | Claim | Axioms | Premises |
 |---|---|---|
 | `CompressionLean.Claims.production_bound` | `propext`, `Classical.choice`, `Quot.sound` | `CompressionLean.Final.KeyFacts`, `CompressionLean.Circuit.Package.load`, `NightstreamFPrime.Export.Package.CircuitPackage.CompactTemplatesValid`, `CompressionLean.Final.HonestSetup`, `CompressionLean.Final.ParentShape`, `CompressionLean.Layer1.Setup.Fits`, `CompressionLean.Layer1.Structure.Describes` |
-| `CompressionLean.Claims.poseidon2_bound` | `propext`, `Classical.choice`, `Quot.sound` | `CompressionLean.Final.KeyFacts`, `CompressionLean.Final.WidthFits`, `CompressionLean.Circuit.Package.load`, `NightstreamFPrime.Export.Package.CircuitPackage.CompactTemplatesValid`, `CompressionLean.Final.HonestSetup`, `CompressionLean.Layer1.Setup.Fits`, `CompressionLean.Layer1.Structure.Describes` |
+| `CompressionLean.Claims.poseidon2_bound` | `propext`, `Classical.choice`, `Quot.sound` | `CompressionLean.Final.KeyFacts`, `CompressionLean.Final.WidthFits`, `CompressionLean.Circuit.Package.load`, `NightstreamFPrime.Export.Package.CircuitPackage.CompactTemplatesValid`, `CompressionLean.Final.RunsGive`, `CompressionLean.Final.setupFailure` |
 | `CompressionLean.Claims.honest_setup_of_build` | `propext`, `Classical.choice`, `Quot.sound` | `CompressionLean.Final.RunsGive` |
 | `CompressionLean.Claims.key_facts_of_check` | `propext`, `Classical.choice`, `Quot.sound` |  |
 | `CompressionLean.Claims.width_fits_of_check` | `propext`, `Classical.choice`, `Quot.sound` |  |
 | `CompressionLean.Claims.package_templates_of_check` | `propext`, `Quot.sound` |  |
+| `CompressionLean.Claims.setup_facts_of_check` | `propext`, `Classical.choice`, `Quot.sound` | `CompressionLean.Final.setupFailure` |
 
 ## Premises
 
@@ -25,11 +26,12 @@ How each named premise of a claim is met.
 | `CompressionLean.Final.WidthFits` | Checked on the production key by `lowerCheck` and `terminalCheck`, which print whether the key fits the Poseidon2 hash chain (`width_fits_of_check`). |
 | `CompressionLean.Circuit.Package.load` | `terminalCheck` loads the terminal package and stops when the load fails. |
 | `NightstreamFPrime.Export.Package.CircuitPackage.CompactTemplatesValid` | Checked on the terminal package by `terminalCheck` (`package_templates_of_check`). |
-| `CompressionLean.Final.HonestSetup` | From Rust's setup build and `RunsGive` (`honest_setup_of_build`). |
+| `CompressionLean.Final.HonestSetup` | From Rust's setup build and `RunsGive` (`honest_setup_of_build`). `poseidon2_bound` gets the build from the pass of `setupCheck` (`setup_facts_of_check`). |
 | `CompressionLean.Final.RunsGive` | Open: no Lean proof and no check. |
+| `CompressionLean.Final.setupFailure` | Checked on the production key and runs by `setupCheck`, which prints the first fact that fails (`setup_facts_of_check`). |
 | `CompressionLean.Final.ParentShape` | From `KeyFacts` and `WidthFits` for the Poseidon2 hash chain (`parentShape_of`, in `poseidon2_bound`). Open for other applications. |
-| `CompressionLean.Layer1.Setup.Fits` | Open: a fact of the setup that Rust builds. |
-| `CompressionLean.Layer1.Structure.Describes` | Open: a fact of the setup that Rust builds. |
+| `CompressionLean.Layer1.Setup.Fits` | From the pass of `setupCheck` for the Poseidon2 hash chain (`setup_facts_of_check`, in `poseidon2_bound`). Open for other applications. |
+| `CompressionLean.Layer1.Structure.Describes` | From the pass of `setupCheck` for the Poseidon2 hash chain (`setup_facts_of_check`, in `poseidon2_bound`). Open for other applications. |
 
 ## Ports
 

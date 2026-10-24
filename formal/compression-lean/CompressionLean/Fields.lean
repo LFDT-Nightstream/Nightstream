@@ -4,7 +4,7 @@ import Mathlib.FieldTheory.Finiteness
 import Mathlib.RingTheory.AdjoinRoot
 
 /-!
-Owns the fields of the library and the map from replay words into them.
+Owns the fields of the library and the maps between them and replay words.
 
 - `Gl`: the Goldilocks field, with its one prime fact. `Spec.F = Fin goldilocksModulus`
   is the same type, so the terminal's words are `Gl` values without a map.
@@ -16,6 +16,8 @@ Owns the fields of the library and the map from replay words into them.
   `Cubic` is one, by a global instance.
 - `Replay.Word.toF`: the residue of a replay word in `Gl`. It keeps every
   word operation, and it is injective.
+- `Replay.Word.cast`: a word in any ring, as the circuit writes it.
+  `Replay.Word.ofF`: an F′ field value as a word; `cast_ofF` reads it back.
 -/
 
 namespace CompressionLean
@@ -200,6 +202,24 @@ theorem eq_of_toF {a b : Word} (equal : a.toF = b.toF) : a = b := by
 
 theorem eq_of_beq {a b : Word} (equal : (a == b) = true) : a = b :=
   eq_of_word (beq_iff_eq.mp equal)
+
+/-- A word in a ring `F` (`Gl::from_u64`). -/
+@[pp_nodot] def cast {F : Type} [CommRing F] (g : Word) : F := (g.toNat : F)
+
+/-- A word of F′'s field as a canonical word. -/
+def ofF (value : F) : Word := Word.ofNat value.val
+
+open Fin.CommRing in
+/-- A word of F′'s field reads back. -/
+theorem cast_ofF (x : F) : (ofF x).cast = x := by
+  have denote := ofNat64_denote x.val
+  have canonical := ofNat64_canonical x.val
+  have value : (ofNat64 x.val).toNat = x.val := by
+    have := congrArg Fin.val denote
+    simpa [UInt64.denote, Poseidon2.ofNat, Nat.mod_eq_of_lt canonical, Nat.mod_eq_of_lt x.isLt] using this
+  show ((ofNat64 x.val).toNat : F) = x
+  rw [value]
+  exact Fin.cast_val_eq_self x
 
 end Word
 

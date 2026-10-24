@@ -233,9 +233,9 @@ section Permutation
 
 open Fin.CommRing
 
-private theorem word_denote (g : Word) : (word g : NightstreamFPrime.Spec.F) = g.word.denote := by
+private theorem word_denote (g : Word) : (Word.cast g : NightstreamFPrime.Spec.F) = g.word.denote := by
   apply Fin.ext
-  simp [word, Word.toNat, UInt64.denote, NightstreamFPrime.Spec.Poseidon2.ofNat, Fin.val_natCast]
+  simp [Word.cast, Word.toNat, UInt64.denote, NightstreamFPrime.Spec.Poseidon2.ofNat, Fin.val_natCast]
 
 /-- `b.permute` in `hash.rs`: on words, F′'s Poseidon2 permutation is the
 replay's. -/
@@ -244,7 +244,7 @@ theorem permutes_poseidon2 : Permutes (F := NightstreamFPrime.Spec.F) Nightstrea
   unfold Replay.permute
   dsimp only
   generalize hst : (⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _, _⟩ : State64) = st
-  have e : (List.ofFn fun i : Fin 16 => (word s[i]! : NightstreamFPrime.Spec.F)) = st.denote := by
+  have e : (List.ofFn fun i : Fin 16 => (Word.cast s[i]! : NightstreamFPrime.Spec.F)) = st.denote := by
     subst hst
     simp [List.ofFn_succ, State64.denote, word_denote]
   rw [e, ← State64.permute64_denote]

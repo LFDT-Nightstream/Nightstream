@@ -27,18 +27,6 @@ open CompressionLean.Shrink (R1csRow)
 open CompressionLean.Replay (Word)
 open Fin.CommRing
 
-/-- A field word of F′, written as a package coefficient, reads back. -/
-theorem word_word (x : NightstreamFPrime.Spec.F) : Circuit.word (word x) = x := by
-  have denote := NightstreamFPrime.Export.NativePoseidon2.ofNat64_denote x.val
-  have canonical := NightstreamFPrime.Export.NativePoseidon2.ofNat64_canonical x.val
-  have value : (NightstreamFPrime.Export.NativePoseidon2.ofNat64 x.val).toNat = x.val := by
-    have := congrArg Fin.val denote
-    simpa [UInt64.denote, NightstreamFPrime.Spec.Poseidon2.ofNat, Nat.mod_eq_of_lt canonical,
-      Nat.mod_eq_of_lt x.isLt] using this
-  show ((NightstreamFPrime.Export.NativePoseidon2.ofNat64 x.val).toNat : NightstreamFPrime.Spec.F) = x
-  rw [value]
-  exact Fin.cast_val_eq_self x
-
 section Sides
 
 variable (env : ℕ → NightstreamFPrime.Spec.F)
@@ -74,8 +62,8 @@ theorem termsValue_collect (terms : List (ℕ × NightstreamFPrime.Spec.F)) :
 
 /-- Dropping zero sums and writing words keeps the value. -/
 theorem words_value (terms : List (ℕ × NightstreamFPrime.Spec.F)) :
-    ((terms.filterMap fun (c, x) => if x = 0 then none else some (c, word x)).map
-      fun t => env t.1 * Circuit.word t.2).sum = termsValue env terms := by
+    ((terms.filterMap fun (c, x) => if x = 0 then none else some (c, Word.ofF x)).map
+      fun t => env t.1 * Word.cast t.2).sum = termsValue env terms := by
   induction terms with
   | nil => rfl
   | cons t rest ih =>
@@ -85,13 +73,13 @@ theorem words_value (terms : List (ℕ × NightstreamFPrime.Spec.F)) :
         rw [ih]
         simp [termsValue]
       · simp only [List.filterMap_cons, zero, if_false, List.map_cons, List.sum_cons] at ih ⊢
-        rw [ih, word_word]
+        rw [ih, Word.cast_ofF]
         simp [termsValue, mul_comm]
 
 /-- A side as `finish_row` writes it has the side's value when the one column
 is one. -/
 theorem side_value (constant : ℕ) (one : env constant = 1) (combination : R1CS.LinearCombination) :
-    ((side constant combination).map fun t => env t.1 * Circuit.word t.2).sum = combination.eval env := by
+    ((side constant combination).map fun t => env t.1 * Word.cast t.2).sum = combination.eval env := by
   unfold side
   rw [words_value, termsValue_collect, termsValue, ((List.mergeSort_perm _ _).map _).sum_eq,
     ← termsValue, termsValue_filter]
@@ -515,8 +503,8 @@ def assignment (index : Array (Option ℕ)) (value rest : ℕ → NightstreamFPr
 
 theorem reindex_value (index : Array (Option ℕ)) (value rest : ℕ → NightstreamFPrime.Spec.F)
     (terms : List (ℕ × Word)) (named : ∀ t ∈ terms, index[t.1]? ≠ some none) :
-    ((reindex index terms).map fun t => value t.1 * Circuit.word t.2).sum =
-      (terms.map fun t => assignment index value rest t.1 * Circuit.word t.2).sum := by
+    ((reindex index terms).map fun t => value t.1 * Word.cast t.2).sum =
+      (terms.map fun t => assignment index value rest t.1 * Word.cast t.2).sum := by
   unfold reindex
   rw [List.map_map]
   congr 1

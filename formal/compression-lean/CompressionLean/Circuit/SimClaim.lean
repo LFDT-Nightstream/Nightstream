@@ -75,8 +75,8 @@ section Holds
 
 variable {c : Ctx NightstreamFPrime.Spec.F} {w : Var → Word} {m : ℕ} {env : Env}
 
-private theorem toF_word (g : Word) : g.toF = ((word g : NightstreamFPrime.Spec.F).val : Gl) := by
-  rw [word, Fin.val_natCast, Nat.mod_eq_of_lt (show g.toNat < _ from g.canonical)]
+private theorem toF_word (g : Word) : g.toF = ((Word.cast g : NightstreamFPrime.Spec.F).val : Gl) := by
+  rw [Word.cast, Fin.val_natCast, Nat.mod_eq_of_lt (show g.toNat < _ from g.canonical)]
   rfl
 
 private theorem word_eq (hw : Decodes c w) {hs : List Var} {list : List Expr} (holds : HoldsValues c m env hs list)

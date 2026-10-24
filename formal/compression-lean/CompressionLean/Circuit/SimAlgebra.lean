@@ -23,7 +23,7 @@ variable {F : Type} [CommRing F]
 /-! ## Coordinates -/
 
 /-- The coordinates of `e` in `F`. -/
-def coords (e : Ext) : Fin 3 → F := fun k => word (e.coord k)
+def coords (e : Ext) : Fin 3 → F := fun k => Word.cast (e.coord k)
 
 theorem IsExt.congr {c : Ctx F} {n : ℕ} {a : ExtVar} {e e' : Ext} (h : IsExt c n a e)
     (he : coords (F := F) e = coords e') : IsExt c n a e' :=
@@ -55,7 +55,7 @@ theorem coords_sub (a b : Ext) : coords (F := F) (a - b) = coords a - coords b :
   funext k
   fin_cases k <;> exact word_sub _ _
 
-theorem coords_scale (a : Ext) (g : Word) : coords (F := F) (a.scale g) = fun k => coords a k * word g := by
+theorem coords_scale (a : Ext) (g : Word) : coords (F := F) (a.scale g) = fun k => coords a k * Word.cast g := by
   funext k
   fin_cases k <;> exact word_mul _ _
 
@@ -67,7 +67,7 @@ theorem coords_scale (a : Ext) (g : Word) : coords (F := F) (a.scale g) = fun k 
   funext k
   fin_cases k <;> simp [coords]
 
-theorem coords_ofGl (g : Word) : coords (F := F) (Ext.ofGl g) = ![word g, 0, 0] := by
+theorem coords_ofGl (g : Word) : coords (F := F) (Ext.ofGl g) = ![Word.cast g, 0, 0] := by
   funext k
   fin_cases k <;> simp [coords, Ext.coord, Ext.ofGl]
 

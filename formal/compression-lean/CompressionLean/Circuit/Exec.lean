@@ -38,7 +38,7 @@ structure Bits (a : F) (count : ℕ) (b : ℕ → F) : Prop where
 /-- Row `r` of a fixed R1CS system holds on the column values `column`:
 `(Σ a)·(Σ b) = Σ c` (`R1cs::sides`, `circuit/r1cs.rs:59-65`). -/
 def R1csRow.Holds (column : ℕ → F) (r : R1csRow Word) : Prop :=
-  let side (terms : List (ℕ × Word)) := (terms.map fun t => column t.1 * word t.2).sum
+  let side (terms : List (ℕ × Word)) := (terms.map fun t => column t.1 * Word.cast t.2).sum
   side r.a * side r.b = side r.c
 
 /-- The executor's state after a prefix of the program. -/
@@ -68,10 +68,10 @@ variable (perm : List F → List F) (stmt : List F) (tape : ℕ → F)
 /-- One instruction (`Backend for Recorder`, `record.rs:285-474`). Its first
 output is handle `s.values.length`. -/
 def step (s : State F) : Instr → State F
-  | .const value => s.next [word value] True
+  | .const value => s.next [Word.cast value] True
   | .priv => s.next [tape s.values.length] True
   | .pub => ⟨s.values ++ [stmt.getD s.reads 0], s.reads + 1, s.holds⟩
-  | .linear parts => s.next [(parts.map fun p => s.value p.1 * word p.2).sum] True
+  | .linear parts => s.next [(parts.map fun p => s.value p.1 * Word.cast p.2).sum] True
   | .mul a b => s.next [s.value a * s.value b] True
   | .extMul a b => s.next (List.ofFn (extProduct (fun i => s.value (a i)) fun i => s.value (b i))) True
   | .extInv a =>

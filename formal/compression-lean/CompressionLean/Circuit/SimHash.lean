@@ -230,7 +230,7 @@ theorem binary_sum (β : ℕ → ℕ) : ∀ k, (∀ i < k, β i ≤ 1) →
 /-- **A canonical decomposition is the binary one.** If `b` passes the 64-bit
 check for the word `g`, bit `i` is digit `i` of `g`. -/
 theorem bits_digits [CharP F goldilocksModulus] {g : Word} {b : ℕ → F}
-    (h : Bits (word g : F) 64 b) : ∀ i < 64, b i = word (Word.ofNat (g.toNat / 2 ^ i % 2)) := by
+    (h : Bits (Word.cast g : F) 64 b) : ∀ i < 64, b i = Word.cast (Word.ofNat (g.toNat / 2 ^ i % 2)) := by
   classical
   have one_ne : (1 : F) ≠ 0 := by
     intro e
@@ -244,7 +244,7 @@ theorem bits_digits [CharP F goldilocksModulus] {g : Word} {b : ℕ → F}
       · simp [o]⟩
   obtain ⟨lt, digits⟩ := binary_sum β 64 fun i hi => (hβ i hi).2
   generalize hN : ((List.range 64).map fun i => 2 ^ i * β i).sum = N at lt digits
-  have cast : (word g : F) = (N : F) := by
+  have cast : (Word.cast g : F) = (N : F) := by
     rw [h.sum, ← hN, Nat.cast_list_sum, List.map_map]
     refine congrArg List.sum (List.map_congr_left fun i hi => ?_)
     simp [(hβ i (List.mem_range.mp hi)).1]
@@ -275,7 +275,7 @@ theorem bits_digits [CharP F goldilocksModulus] {g : Word} {b : ℕ → F}
       rw [← Nat.div_add_mod N (2 ^ 32), high, low, add_zero]
     norm_num [goldilocksModulus, this] at big
   have eq : N = g.toNat := by
-    rw [word, eq_comm] at cast
+    rw [Word.cast, eq_comm] at cast
     have := (CharP.natCast_eq_natCast F goldilocksModulus).mp cast
     exact Nat.ModEq.eq_of_lt_of_lt this small g.canonical
   intro i hi

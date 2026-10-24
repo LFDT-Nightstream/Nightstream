@@ -41,7 +41,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
 open CompressionLean.Bridge (shapeOf structureOf barOf queryAt)
 open CompressionLean.Circuit (Layer1Input)
-open CompressionLean.Circuit.Package (Loaded load)
+open CompressionLean.Terminal.Package (Loaded load)
 open CompressionLean.Final
 
 /-- **The production bound** (`CompressionKey::verify`,

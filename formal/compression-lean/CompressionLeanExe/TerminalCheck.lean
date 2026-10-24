@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Terminal
+import CompressionLean.Ports.Terminal.Program
 import CompressionLeanExe.Parse
 import CompressionLean.Ports.Circuit.Verifier
 import CompressionLean.Sim.Claim
@@ -11,7 +11,7 @@ The `terminalCheck` executable. It reads an export of `nightstream`'s
 `tests/lifecycle_native/terminal_ir.rs`: the context words, the IR that Rust
 logs for `FinalProgram::run`, and for a run that stops at `verify_with` the
 claim and state handles that `Package::apply` hands to layer 1. It loads the
-Lean terminal package (`Package.load`), after it checks that every compact
+Lean terminal package (`Terminal.Package.load`), after it checks that every compact
 row invocation names a template (`templatesNamed`), and writes
 `finalProgram`. Without a
 layer-1 key the layer-1 step returns its arguments, and the check requires
@@ -26,7 +26,7 @@ program (`runDigest`), or the first difference and exits with 1.
 namespace CompressionLeanExe.TerminalCheck
 
 open CompressionLean CompressionLean.Shrink CompressionLean.Circuit CompressionLeanExe.Parse
-open CompressionLean.Circuit.Package CompressionLean.Circuit.Terminal CompressionLeanExe.Digest
+open CompressionLean.Terminal.Package CompressionLean.Terminal.Program CompressionLeanExe.Digest
 open CompressionLean.Replay (Word)
 
 def coordinates {n : ℕ} (a : Fin n → Var) : List Var := List.ofFn a
@@ -90,7 +90,7 @@ def main (args : List String) : IO UInt32 := do
   unless CompressionLean.Checks.templatesNamed circuit do
     IO.println "a compact row invocation of the Lean package names no template"; return 1
   IO.println "package templates hold"
-  match CompressionLean.Circuit.Package.load circuit CompressionLean.Terminal.outputs with
+  match CompressionLean.Terminal.Package.load circuit CompressionLean.Terminal.outputs with
   | .error message => IO.println s!"the Lean package does not load: {message}"; return 1
   | .ok package =>
       match (check package key |>.run 0).run (← IO.FS.readBinFile path) with

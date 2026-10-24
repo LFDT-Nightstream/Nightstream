@@ -28,7 +28,7 @@ Every hypothesis of each claim, by binder. A parameter is data that the claim ho
 
 ### `CompressionLean.Claims.production_bound`
 
-Parameters: `{lw : ℕ}`, `key : CompressionLean.Circuit.Layer1Input`, `loaded : CompressionLean.Circuit.Package.Loaded`, `context : Array CompressionLean.Replay.Word`, `authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority`, `S : CompressionLean.Layer1.Setup CompressionLean.Gl`, `relation : NightstreamFPrime.Lifecycle.ProductionKey.LogicalRelation lw pf`, `ajtai : NightstreamFPrime.Lifecycle.PaperAlgebra.AjtaiKey`, `L0 : ℕ`, `L1 : ℕ`, `t : ℕ`, `Ls : ℕ`, `calls : ℕ`, `prover : CompressionLean.Game.Strategy (CompressionLean.Final.RestoreOutcome CompressionLean.Gl CompressionLean.Cubic (CompressionLean.Sim.game key.relation S L0 L1))`.
+Parameters: `{lw : ℕ}`, `key : CompressionLean.Circuit.Layer1Input`, `loaded : CompressionLean.Terminal.Package.Loaded`, `context : Array CompressionLean.Replay.Word`, `authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority`, `S : CompressionLean.Layer1.Setup CompressionLean.Gl`, `relation : NightstreamFPrime.Lifecycle.ProductionKey.LogicalRelation lw pf`, `ajtai : NightstreamFPrime.Lifecycle.PaperAlgebra.AjtaiKey`, `L0 : ℕ`, `L1 : ℕ`, `t : ℕ`, `Ls : ℕ`, `calls : ℕ`, `prover : CompressionLean.Game.Strategy (CompressionLean.Final.RestoreOutcome CompressionLean.Gl CompressionLean.Cubic (CompressionLean.Sim.game key.relation S L0 L1))`.
 
 | Premise | Met by | How |
 |---|---|---|
@@ -43,13 +43,13 @@ Parameters: `{lw : ℕ}`, `key : CompressionLean.Circuit.Layer1Input`, `loaded :
 | `p0 : ↑L0 * ↑L1 * ↑(CompressionLean.Layer1.rustDegrees (CompressionLean.Bridge.shapeOf key.relation)) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1)` | Rust | `Relation::new` builds P0's WHIR configuration with `Pcs::new` at `t + 1` bits. `Pcs::new` refuses it unless its WHIR terms plus these charged terms, over its candidates, are at most `2^-(t+1)` (`pcs.rs`). The candidate counts and the WHIR terms come from Plonky3's Johnson-bound report. No Lean proof checks them (`TRUST.md` §3). |
 | `p1 : ↑L1 * (1 / 2) ^ ((CompressionLean.Bridge.shapeOf key.relation).queries - 1) ≤ 1 / 2 ^ (t + 1)` | Rust | As `p0`, for P1, which is charged the setup queries. |
 | `rust : ↑Ls * ↑(CompressionLean.Shrink.rustDegrees (CompressionLean.Shrink.Layout.rowVars CompressionLean.Circuit.Block.poseidonTemplate (CompressionLean.Circuit.lower (CompressionLean.Sim.program key loaded context).program []).counts) (CompressionLean.Shrink.Layout.cellVars CompressionLean.Circuit.Block.poseidonTemplate (CompressionLean.Circuit.lower (CompressionLean.Sim.program key loaded context).program []).counts)) / 2 ^ 191 ≤ 1 / 2 ^ t` | Rust | `Shrink::new` gives these terms to `Pcs::new` at the layer bits `t`. `Pcs::new` refuses the configuration unless its WHIR terms plus these terms, over its candidates, are at most `2^-t` (`pcs.rs`). No Lean proof checks the WHIR terms or `Ls`. |
-| `loads : CompressionLean.Circuit.Package.load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = Except.ok loaded` | Lean value | `terminalCheck` evaluates `load` on the terminal package and stops when the load fails. `loaded` is its result. |
+| `loads : CompressionLean.Terminal.Package.load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = Except.ok loaded` | Lean value | `terminalCheck` evaluates `load` on the terminal package and stops when the load fails. `loaded` is its result. |
 | `valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid` | Lean value | `terminalCheck` evaluates `templatesNamed` on the terminal package (`package_templates_of_check`). |
 | `hctx : ∀ (lane : Fin 4), CompressionLean.Replay.Word.cast (context.getD (↑lane) 0) = List.getD (NightstreamFPrime.Lifecycle.VerifierContext.digest authority) (↑lane) 0` | Rust | `PreparedLifecycle::check_compression_key` (`lifecycle/finish.rs`) refuses a compression key whose context words are not the digest of the circuit's verifier context. `authority` is that context. |
 
 ### `CompressionLean.Claims.poseidon2_bound`
 
-Parameters: `key : CompressionLean.Circuit.Layer1Input`, `loaded : CompressionLean.Circuit.Package.Loaded`, `context : Array CompressionLean.Replay.Word`, `authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority`, `pushes : List CompressionLean.Final.Push`, `setup : NightstreamFPrime.Spec.AjtaiSetupV1.Setup NightstreamFPrime.Spec.productionProfile.commitmentWidth (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package.application)))`, `L0 : ℕ`, `L1 : ℕ`, `t : ℕ`, `Ls : ℕ`, `calls : ℕ`, `prover : CompressionLean.Game.Strategy (CompressionLean.Final.RestoreOutcome CompressionLean.Gl CompressionLean.Cubic (CompressionLean.Sim.game key.relation (CompressionLean.Checks.poseidon2Setup setup.seed.bytes pushes) L0 L1))`.
+Parameters: `key : CompressionLean.Circuit.Layer1Input`, `loaded : CompressionLean.Terminal.Package.Loaded`, `context : Array CompressionLean.Replay.Word`, `authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority`, `pushes : List CompressionLean.Final.Push`, `setup : NightstreamFPrime.Spec.AjtaiSetupV1.Setup NightstreamFPrime.Spec.productionProfile.commitmentWidth (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package.application)))`, `L0 : ℕ`, `L1 : ℕ`, `t : ℕ`, `Ls : ℕ`, `calls : ℕ`, `prover : CompressionLean.Game.Strategy (CompressionLean.Final.RestoreOutcome CompressionLean.Gl CompressionLean.Cubic (CompressionLean.Sim.game key.relation (CompressionLean.Checks.poseidon2Setup setup.seed.bytes pushes) L0 L1))`.
 
 | Premise | Met by | How |
 |---|---|---|
@@ -62,7 +62,7 @@ Parameters: `key : CompressionLean.Circuit.Layer1Input`, `loaded : CompressionLe
 | `p0 : ↑L0 * ↑L1 * ↑(CompressionLean.Layer1.rustDegrees (CompressionLean.Bridge.shapeOf key.relation)) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1)` | Rust | `Relation::new` builds P0's WHIR configuration with `Pcs::new` at `t + 1` bits. `Pcs::new` refuses it unless its WHIR terms plus these charged terms, over its candidates, are at most `2^-(t+1)` (`pcs.rs`). The candidate counts and the WHIR terms come from Plonky3's Johnson-bound report. No Lean proof checks them (`TRUST.md` §3). |
 | `p1 : ↑L1 * (1 / 2) ^ ((CompressionLean.Bridge.shapeOf key.relation).queries - 1) ≤ 1 / 2 ^ (t + 1)` | Rust | As `p0`, for P1, which is charged the setup queries. |
 | `rust : ↑Ls * ↑(CompressionLean.Shrink.rustDegrees (CompressionLean.Shrink.Layout.rowVars CompressionLean.Circuit.Block.poseidonTemplate (CompressionLean.Circuit.lower (CompressionLean.Sim.program key loaded context).program []).counts) (CompressionLean.Shrink.Layout.cellVars CompressionLean.Circuit.Block.poseidonTemplate (CompressionLean.Circuit.lower (CompressionLean.Sim.program key loaded context).program []).counts)) / 2 ^ 191 ≤ 1 / 2 ^ t` | Rust | `Shrink::new` gives these terms to `Pcs::new` at the layer bits `t`. `Pcs::new` refuses the configuration unless its WHIR terms plus these terms, over its candidates, are at most `2^-t` (`pcs.rs`). No Lean proof checks the WHIR terms or `Ls`. |
-| `loads : CompressionLean.Circuit.Package.load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = Except.ok loaded` | Lean value | `terminalCheck` evaluates `load` on the terminal package and stops when the load fails. `loaded` is its result. |
+| `loads : CompressionLean.Terminal.Package.load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = Except.ok loaded` | Lean value | `terminalCheck` evaluates `load` on the terminal package and stops when the load fails. `loaded` is its result. |
 | `valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid` | Lean value | `terminalCheck` evaluates `templatesNamed` on the terminal package (`package_templates_of_check`). |
 | `hctx : ∀ (lane : Fin 4), CompressionLean.Replay.Word.cast (context.getD (↑lane) 0) = List.getD (NightstreamFPrime.Lifecycle.VerifierContext.digest authority) (↑lane) 0` | Rust | `PreparedLifecycle::check_compression_key` (`lifecycle/finish.rs`) refuses a compression key whose context words are not the digest of the circuit's verifier context. `authority` is that context. |
 
@@ -116,8 +116,6 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 
 | Lean module | Declarations |
 |---|---:|
-| `CompressionLean.Circuit.Package` | 13 |
-| `CompressionLean.Circuit.Terminal` | 7 |
 | `CompressionLean.Final.RustSetup` | 13 |
 | `CompressionLean.Game.SumCheck` | 1 |
 | `CompressionLean.Lib.Cube` | 2 |
@@ -154,6 +152,8 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 | `CompressionLean.Ports.Shrink.Game` | 5 |
 | `CompressionLean.Ports.Shrink.Layout` | 32 |
 | `CompressionLean.Ports.Shrink.Rounds` | 1 |
+| `CompressionLean.Ports.Terminal.Package` | 13 |
+| `CompressionLean.Ports.Terminal.Program` | 7 |
 
 | Rust file | Items |
 |---|---:|

@@ -5,7 +5,6 @@ import CompressionLean.Terminal
 import CompressionLean.Layer1
 import CompressionLean.Ports
 import CompressionLean.Shrink
-import CompressionLean.Circuit
 import CompressionLean.Lowering
 import CompressionLean.Bridge
 import CompressionLean.Final

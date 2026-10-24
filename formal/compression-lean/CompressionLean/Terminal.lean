@@ -11,5 +11,5 @@ the package rows (`Data`, `Rows`), the PiCCS and PiRLC checks that they make
 (`PiCCS`, `PiRLC`), the output columns (`Outputs`), and the parent claim that
 holds when every row holds (`Soundness`).
 
-It does not own the program that reads the package (`Circuit/Terminal.lean`).
+It does not own the program that reads the package (`Ports/Terminal/Program.lean`).
 -/

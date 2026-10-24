@@ -452,14 +452,14 @@ up to layer 1 and whole: run `terminal_program_matches_lean` or
 
 ## Terminal program
 
-`Circuit/Terminal.lean` writes the final program up to layer 1 as a builder
+`Ports/Terminal/Program.lean` writes the final program up to layer 1 as a builder
 program: the wrapper of `FinalProgram::run`
 (`crates/nightstream/src/lifecycle/terminal/mod.rs`) and `Package::apply`
 (`terminal/package.rs`). The layer-1 verifier is a parameter of
 `finalProgram`. It receives the claim and the transcript state that the
 package's output columns hold.
 
-- Package (`Circuit/Package.lean`): `load` is a port of Rust's `load`. It
+- Package (`Ports/Terminal/Package.lean`): `load` is a port of Rust's `load`. It
   takes F′'s row instantiation (`RowSemantics.lean`) of every producer in
   Rust's schedule order, writes each side as `finish_row` does, keeps the
   columns that some row names and gives each column its source. It runs on

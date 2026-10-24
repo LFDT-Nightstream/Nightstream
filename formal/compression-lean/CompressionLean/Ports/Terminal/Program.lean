@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.Package
+import CompressionLean.Ports.Terminal.Package
 import CompressionLean.Ports.Replay.Data
 import NightstreamFPrime.Lifecycle.XOut
 
@@ -20,9 +20,9 @@ columns hold.
   proof word.
 -/
 
-namespace CompressionLean.Circuit.Terminal
+namespace CompressionLean.Terminal.Program
 
-open CompressionLean.Circuit.Package
+open CompressionLean.Circuit CompressionLean.Terminal.Package
 open CompressionLean.Replay (Word D)
 open NightstreamFPrime.Layout
 
@@ -102,4 +102,4 @@ def finalProgram {α : Type} (package : Loaded) (context : Array Word)
   let (claim, state) ← apply package statement context
   layer1 claim state
 
-end CompressionLean.Circuit.Terminal
+end CompressionLean.Terminal.Program

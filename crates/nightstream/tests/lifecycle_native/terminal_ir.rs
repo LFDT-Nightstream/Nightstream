@@ -1,5 +1,5 @@
 //! The final program up to layer 1 against the Lean builder
-//! (`formal/compression-lean`, `Circuit/Terminal.lean`).
+//! (`formal/compression-lean`, `Ports/Terminal/Program.lean`).
 //!
 //! `Log` reads `FinalProgram::run` as one instruction per `Backend` call over
 //! value handles, in the format of `neo-spartan`'s

@@ -277,11 +277,13 @@ The chain takes these premises:
   `Relation::new`: `D = 54`, six lane variables, `κ = 22`, four matrices,
   five public blocks, the carrier's `⌈lw / 54⌉` blocks and the norm bound
   `H = 17·216·(b - 1) = 3672` (`compression_bound`). `H` is below
-  `B = 2^16`, so layer 1's norm check gives F′'s. The Rust tests
-  `relation_shape_has_the_lean_constants` (`neo-spartan`) and
+  `B = 2^16`, so layer 1's norm check gives F′'s. `Production.lean` names
+  each of these constants once, from F′ where F′ has it, with its value. The
+  Rust tests `relation_shape_has_the_lean_constants` (`neo-spartan`) and
   `parent_relation_arguments_are_the_lean_constants` (`nightstream`) pin
   these numbers. `KeyFacts` states `κ`, the matrices, the public blocks and
-  `H` of a key; `WidthFits` states the blocks for one application.
+  `H` of a key (`ProductionConstants`); `WidthFits` states the blocks for one
+  application.
 - Ring: `Φ` is `Φ81 = X^54 + X^27 + 1`, and `bar` is F′'s closed-form bar
   transform (`nativeBarEntry`). Only the manual test
   `neo-math/tests/phi81_bar_lean_parity.rs` compares Rust's runtime bar
@@ -359,8 +361,9 @@ warnings as errors, and runs the axiom audit
 (`CompressionLeanTests/Axioms.lean`), the ports gate
 (`CompressionLeanTests/Ports.lean`) and the folder gate
 (`CompressionLeanTests/Layers.lean`): a module imports only its own folder
-and lower ones, in the order `Lib`, `Fields`, `Game`, `Terminal`, `Layer1`,
-`Ports`, `Shrink`, `Lowering`, `Bridge`, `Final`, `Checks`, `Sim`, `Claims`.
+and lower ones, in the order `Lib`, `Fields`, `Production`, `Game`,
+`Terminal`, `Layer1`, `Ports`, `Shrink`, `Lowering`, `Bridge`, `Final`,
+`Checks`, `Sim`, `Claims`.
 
 Ports. `Ports/` holds every hand transcription of Rust and nothing else: its
 folders follow the Rust modules (`Ports/Circuit/` for `circuit/` and the
@@ -434,12 +437,13 @@ the check with `timeout --signal=KILL 1500 lake build setupCheck`, then run
 `production_setup_matches_lean` (same crate, ignored) under the 5-minute cap.
 It runs `setupCheck` on that file and on the `production_layer1.json` of
 `production_layer1_matches_lean` (run both first) and requires
-`setup facts hold`. `setupFailure` (`Checks/SetupFacts.lean`) decides that
+`setup facts hold`. `setupFailure` (`Checks/SetupFacts.lean`) decides the
+named facts of `setupChecks`, from which `setupFacts_of_check` proves that
 `build` returns `poseidon2Setup` for the runs, that it has `Setup.Fits` and
 that the key's structure describes it. It reads the runs a fixed number of
 times: the classes and the slot keys go through a hash set and a sort of the
 distinct values (`sortedValues`), which is `sortedSet`. The test takes about
-48 s and 5.4 GB.
+48 s and 5.5 GB.
 
 Digest pins. CI runs no Lean, so Rust pins the run digest that `lowerCheck`
 computes from Lean's lowered program (`runDigest`, `digest` on each `match`

@@ -522,7 +522,7 @@ end Assignment
 
 /-- The lengths of the output lists that `ring` and `extension` read
 (`terminal/package.rs:222-241`). -/
-private theorem outputs_length :
+theorem outputs_length :
     CompressionLean.Terminal.outputs.commitment.length = 22 * Replay.D ∧
     CompressionLean.Terminal.outputs.publicInput.length = 5 * Replay.D ∧
     CompressionLean.Terminal.outputs.point.length = 2 * 28 ∧

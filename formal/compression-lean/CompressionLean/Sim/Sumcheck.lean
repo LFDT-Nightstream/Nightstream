@@ -4,7 +4,7 @@ import CompressionLean.Bridge.Run
 
 /-!
 Owns the simulation of the sum-check replay of `Sumcheck.lean`
-(`sumcheck.rs`) against the replay's (`Replay/Gkr.lean`): the loop that
+(`sumcheck.rs`) against the replay's (`Ports/Replay/Gkr.lean`): the loop that
 observes each value of an array (`Simulates.observeExts`), and `Simulates.sumcheckReplay`,
 which gives the replay's run. `Simulates.elim` fixes the replay values that a loop
 step names by an existential. Each round message must be nonempty: both read

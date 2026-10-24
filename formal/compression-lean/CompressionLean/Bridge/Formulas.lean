@@ -3,7 +3,7 @@ import CompressionLean.Layer1.EvalK
 import CompressionLean.Layer1.KeyStructure
 
 /-!
-Owns the denotation of the replay's public formulas (`Replay/Formulas.lean`):
+Owns the denotation of the replay's public formulas (`Ports/Replay/Formulas.lean`):
 each one denotes its model counterpart in `K` (or `QuadX K`). Points denote
 lists (`pointK`), arrays denote tables that are zero past their end
 (`tableK`). The model counterparts are the closed forms that `ClosedForms`,

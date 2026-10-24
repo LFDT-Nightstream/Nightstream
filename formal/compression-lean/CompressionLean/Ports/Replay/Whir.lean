@@ -1,4 +1,4 @@
-import CompressionLean.Replay.Gkr
+import CompressionLean.Ports.Replay.Gkr
 
 /-!
 Owns the WHIR openings as the model idealizes them (`Soundness.lean`,

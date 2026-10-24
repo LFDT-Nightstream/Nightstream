@@ -15,7 +15,7 @@ fold (`honestStage`), the late stage (`lateStage`), the query points and the
 openings (`openingsStage`). `verifyWith` is `verify_with` around it: the
 handoff of a fold transcript, then the proof view.
 
-The relation is the replay's (`Replay/Data.lean`): its sizes, tree shapes,
+The relation is the replay's (`Ports/Replay/Data.lean`): its sizes, tree shapes,
 WHIR shapes and transcript words. What the openings read of each `Pcs`
 beyond its `WhirShape` is a `WhirKey`. The statement is a `ClaimView`.
 -/

@@ -139,6 +139,13 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 | `CompressionLean.Lib.Cube` | 2 |
 | `CompressionLean.Lib.SumCheck` | 1 |
 | `CompressionLean.Ports.Layer1.Budget` | 5 |
+| `CompressionLean.Ports.Replay.Data` | 22 |
+| `CompressionLean.Ports.Replay.Field` | 9 |
+| `CompressionLean.Ports.Replay.Formulas` | 25 |
+| `CompressionLean.Ports.Replay.Gkr` | 8 |
+| `CompressionLean.Ports.Replay.Stages` | 26 |
+| `CompressionLean.Ports.Replay.Transcript` | 10 |
+| `CompressionLean.Ports.Replay.Whir` | 4 |
 | `CompressionLean.Ports.Shrink.BlockPart` | 9 |
 | `CompressionLean.Ports.Shrink.Budget` | 1 |
 | `CompressionLean.Ports.Shrink.Ccs` | 5 |
@@ -147,13 +154,6 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 | `CompressionLean.Ports.Shrink.Game` | 5 |
 | `CompressionLean.Ports.Shrink.Layout` | 26 |
 | `CompressionLean.Ports.Shrink.Rounds` | 1 |
-| `CompressionLean.Replay.Data` | 22 |
-| `CompressionLean.Replay.Field` | 9 |
-| `CompressionLean.Replay.Formulas` | 25 |
-| `CompressionLean.Replay.Gkr` | 8 |
-| `CompressionLean.Replay.Stages` | 26 |
-| `CompressionLean.Replay.Transcript` | 10 |
-| `CompressionLean.Replay.Whir` | 4 |
 
 | Rust file | Items |
 |---|---:|

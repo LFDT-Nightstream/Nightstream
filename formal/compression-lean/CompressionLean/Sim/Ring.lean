@@ -6,7 +6,7 @@ import CompressionLean.Fields
 /-!
 Owns the simulation of the ring rows of `Ring.lean` (`ring.rs`) and the
 closed forms of `Mle.lean` (`mle.rs`) against the replay's formulas
-(`Replay/Formulas.lean`).
+(`Ports/Replay/Formulas.lean`).
 
 - `IsK`, `IsKs`, `IsClaim`: statement handles hold the statement's words.
   `IsMixing`: the powers of `λ`, one per row, as the replay's `Mixing`

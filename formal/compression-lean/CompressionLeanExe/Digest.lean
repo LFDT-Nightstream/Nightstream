@@ -1,6 +1,6 @@
 import CompressionLean.Circuit.Record
 import CompressionLean.Circuit.Block
-import CompressionLean.Replay.Transcript
+import CompressionLean.Ports.Replay.Transcript
 import CompressionLean.Fields
 
 /-!

@@ -5,7 +5,7 @@ import CompressionLean.Layer1.Cost
 import CompressionLean.Lib.Array
 
 /-!
-Owns the bridge of the sum-check and GKR replays (`Replay/Gkr.lean`) to the
+Owns the bridge of the sum-check and GKR replays (`Ports/Replay/Gkr.lean`) to the
 model's games (`Game/SumCheck.lean`, `Layer1/Gkr.lean`). A replay draw
 denotes a model challenge (`drawn`). A successful sum-check replay is a
 path of the model's sum-check that draws the replay's challenges and ends

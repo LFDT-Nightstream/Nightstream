@@ -4,7 +4,7 @@ import CompressionLean.Sim.Whir
 
 /-!
 Owns `verify_ensures`: the circuit's `verify` (`Verifier.lean`, `verifier.rs:136-316`)
-simulated against the replay's (`Replay/Stages.lean`). The stage lemmas give each
+simulated against the replay's (`Ports/Replay/Stages.lean`). The stage lemmas give each
 stage. The replay's runs give what later stages read: the early values, the sizes
 of the run, lane and block points, `τ`'s lanes and the queried values.
 

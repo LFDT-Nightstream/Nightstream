@@ -1,6 +1,6 @@
 import CompressionLean.Sim.Merkle
 import CompressionLean.Circuit.Verifier
-import CompressionLean.Replay.Stages
+import CompressionLean.Ports.Replay.Stages
 
 /-!
 Owns the decoding of a layer-1 proof view (`ProofView`) to the replay's proof

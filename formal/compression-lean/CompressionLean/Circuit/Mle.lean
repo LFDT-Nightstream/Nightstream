@@ -1,5 +1,5 @@
 import CompressionLean.Circuit.Algebra
-import CompressionLean.Replay.Data
+import CompressionLean.Ports.Replay.Data
 
 /-!
 Owns the closed forms of `crates/neo-spartan/src/mle.rs` that the linear

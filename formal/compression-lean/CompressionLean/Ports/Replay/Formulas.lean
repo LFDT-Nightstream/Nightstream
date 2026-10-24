@@ -1,5 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
-import CompressionLean.Replay.Data
+import CompressionLean.Ports.Replay.Data
 
 /-!
 Owns the public formulas the layer-1 verifier evaluates: the eq and

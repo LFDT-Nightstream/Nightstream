@@ -1,6 +1,5 @@
 import CompressionLean.Lib
 import CompressionLean.Fields
-import CompressionLean.Replay
 import CompressionLean.Game
 import CompressionLean.Terminal
 import CompressionLean.Layer1

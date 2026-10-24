@@ -1,6 +1,6 @@
-import CompressionLean.Circuit.SimClaim
-import CompressionLean.Circuit.SimFold
-import CompressionLean.Circuit.SimVerify
+import CompressionLean.Sim.Claim
+import CompressionLean.Sim.Fold
+import CompressionLean.Sim.Verify
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Lowering.Sound
 import CompressionLean.Lowering.RecordCounts
@@ -30,8 +30,9 @@ word is in range or that a hint is honest; the circuit's checks and the
 stage lemmas carry every such fact.
 -/
 
-namespace CompressionLean.Final.Encodes
+namespace CompressionLean.Sim
 
+open CompressionLean.Final
 open CompressionLean.Checks
 open CompressionLean.Lowering CompressionLean.Lowering.Package
 open CompressionLean.Lib
@@ -105,7 +106,7 @@ statement whose claim is the decoded statement, and an accepting replay of
 the decoded seed, statement and proof. -/
 def Gives (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
     (authority : Lifecycle.VerifierContext.Authority) (c : Ctx Spec.F) (w : Var → Replay.Word) : Prop :=
-  ∃ env, TerminalFor authority (Terminal.statementOf c) env ∧
+  ∃ env, TerminalFor authority (Sim.statementOf c) env ∧
     Bridge.statementOf (statementWith loaded context w) = claimOf env ∧
     ∃ points t', Replay.Runs (Replay.verify key.relation (seedWith loaded context w) (statementWith loaded context w)
       (proofWith key loaded context w)) start points t'
@@ -256,7 +257,7 @@ def Reads (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) (S
     MerkleBinds key.relation S proof.leaves
 
 private theorem statementOf_ctxOf (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) (x : StateWords)
-    (wit : ℕ → Spec.F) : Terminal.statementOf (ctxOf key loaded context x wit) = x := by
+    (wit : ℕ → Spec.F) : Sim.statementOf (ctxOf key loaded context x wit) = x := by
   funext k
   fin_cases k <;> rfl
 
@@ -302,4 +303,4 @@ theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Re
   subst same
   exact ⟨tr, node, statement.trans claim⟩
 
-end CompressionLean.Final.Encodes
+end CompressionLean.Sim

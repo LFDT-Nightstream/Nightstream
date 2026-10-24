@@ -1,11 +1,11 @@
-import CompressionLean.Circuit.SimAlgebra
+import CompressionLean.Sim.Algebra
 import CompressionLean.Replay.Transcript
 import CompressionLean.Lib.Array
 
 /-!
 Owns the simulation of the duplex challenger of `Hash.lean` against the
 replay's (`Replay/Transcript.lean`): `observe`, `sample`, `sample_ext` and
-`sample_bits`. `SimMerkle.lean` owns the leaf sponge, node compression and
+`sample_bits`. `Merkle.lean` owns the leaf sponge, node compression and
 Merkle paths.
 
 - `IsWords`: an array of handles is an array of words, entry by entry.
@@ -15,8 +15,9 @@ Merkle paths.
   (`Ensures`).
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext)
@@ -501,4 +502,4 @@ theorem sampleBits {d : Duplex} {r : Replay.Duplex} (bits : â„•) (small : bits â
 
 end Simulates
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

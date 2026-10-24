@@ -1,5 +1,5 @@
-import CompressionLean.Circuit.SimViews
-import CompressionLean.Circuit.SimSumcheck
+import CompressionLean.Sim.Views
+import CompressionLean.Sim.Sumcheck
 
 /-!
 Owns the simulation of our WHIR verifier (`whirVerify`, `whir/mod.rs:506-661`)
@@ -22,8 +22,9 @@ transcripts and both `openingsAgree` checks.
   also compares their sizes, which Rust asserts, so the batch sizes are
   premises.
 -/
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Replay (Word Ext WhirShape SumcheckShape Runs ReplayM)
 open NightstreamFPrime.Spec (goldilocksModulus)
@@ -1103,4 +1104,4 @@ theorem openingsStage_ensures (hp : Permutes c.perm) {rel : Replay.Relation} {p1
 
 end Stage
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

@@ -1,6 +1,6 @@
 import CompressionLean.Circuit.Terminal
 import CompressionLean.Lowering.PackageRows
-import CompressionLean.Circuit.Sim
+import CompressionLean.Sim.Calculus
 import CompressionLean.Final.Claim
 
 /-!
@@ -25,8 +25,9 @@ hold the output values of that assignment.
 Does not own layer 1 or the meaning of the rows (`Terminal/Soundness.lean`).
 -/
 
-namespace CompressionLean.Circuit.Terminal
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit CompressionLean.Circuit.Terminal
 open CompressionLean.Lowering CompressionLean.Lowering.Package
 open CompressionLean.Circuit.Package
 open CompressionLean.Replay (Word)
@@ -250,7 +251,7 @@ def StateHolds (c : Ctx NightstreamFPrime.Spec.F) (m : ℕ) (state : Fin 16 → 
 
 /-- Every ring row of the claim has `D` words, and every `Eval_A` row `D` pairs
 (`chunks_exact`, `terminal/package.rs:222-239`). -/
-def ClaimVars.Shaped (claim : ClaimVars) : Prop :=
+def _root_.CompressionLean.Circuit.Terminal.ClaimVars.Shaped (claim : ClaimVars) : Prop :=
   (∀ row ∈ claim.commitment, row.size = Replay.D) ∧ (∀ row ∈ claim.publicInput, row.size = Replay.D) ∧
     ∀ row ∈ claim.evalA, row.size = Replay.D
 
@@ -280,14 +281,14 @@ private theorem chunks_take {α : Type} (n : ℕ) (xs : Array α) :
 `terminal/package.rs:222-239`). -/
 private theorem chunks_flatten {α : Type} {n : ℕ} {xs : Array α} (dvd : n ∣ xs.size) :
     (chunks n xs).toList.flatMap Array.toList = xs.toList := by
-  rw [chunks, Array.toList_map, Array.toList_range, List.flatMap_map,
+  rw [Terminal.chunks, Array.toList_map, Array.toList_range, List.flatMap_map,
     chunks_take n xs _ (Nat.mul_div_le xs.size n), Nat.mul_div_cancel' dvd]
   simp
 
 /-- Every chunk has `n` entries (`chunks_exact`, `terminal/package.rs:222-239`). -/
 private theorem chunks_size {α : Type} {n : ℕ} {xs : Array α} {chunk : Array α} (mem : chunk ∈ chunks n xs) :
     chunk.size = n := by
-  rw [chunks, Array.mem_map] at mem
+  rw [Terminal.chunks, Array.mem_map] at mem
   obtain ⟨k, hk, rfl⟩ := mem
   rw [Array.mem_range] at hk
   have le : n * (k + 1) ≤ xs.size := le_trans (Nat.mul_le_mul_left n hk) (Nat.mul_div_le xs.size n)
@@ -612,7 +613,7 @@ theorem apply_ensures
     exact read_holds loads cols hst
   · refine ⟨fun _ mem => chunks_size mem, fun _ mem => chunks_size mem, fun row mem => ?_⟩
     obtain ⟨chunk, mem', rfl⟩ := Array.mem_map.mp mem
-    simp only [pairs, chunks, Array.size_map, Array.size_range, chunks_size mem']
+    simp only [pairs, Terminal.chunks, Array.size_map, Array.size_range, chunks_size mem']
     omega
 
 /-- The iteration check, then `Package::apply`, simulated: the check gives a
@@ -705,4 +706,4 @@ theorem finalProgram_exec {α : Type} {layer1 : ClaimVars → (Fin 16 → Var) �
 
 end Program
 
-end CompressionLean.Circuit.Terminal
+end CompressionLean.Sim

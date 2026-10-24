@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.SimSumcheck
+import CompressionLean.Sim.Sumcheck
 import CompressionLean.Circuit.Honest
 import CompressionLean.Bridge.Run
 import CompressionLean.Bridge.Setup
@@ -18,8 +18,9 @@ against `Replay.honestStage`, and of the setup query point (`queryPoint`,
   `i` of its word (`sampleBitsList`).
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Relation foldVars runOracles generator twoAdicGenerator Runs runs_bind runs_pure
@@ -1128,4 +1129,4 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
   · rw [e₁₉, e₁₈, e₁₇, e₁₆]
     exact hd₁₅.mono (l₁₆.trans (l₁₇.trans (l₁₈.trans l₁₉)))
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

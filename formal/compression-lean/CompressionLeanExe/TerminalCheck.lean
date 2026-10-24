@@ -1,7 +1,7 @@
 import CompressionLean.Circuit.Terminal
 import CompressionLeanExe.Parse
 import CompressionLean.Circuit.Verifier
-import CompressionLean.Circuit.SimClaim
+import CompressionLean.Sim.Claim
 import CompressionLean.Checks.Templates
 import CompressionLeanExe.Digest
 import CompressionLeanExe.Key
@@ -25,6 +25,7 @@ program (`runDigest`), or the first difference and exits with 1.
 
 namespace CompressionLeanExe.TerminalCheck
 
+open CompressionLean.Sim
 open CompressionLean.Checks
 open CompressionLean.Lowering CompressionLean.Lowering.Package
 open CompressionLean CompressionLean.Shrink CompressionLean.Circuit CompressionLeanExe.Parse

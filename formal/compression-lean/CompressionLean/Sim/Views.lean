@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.SimMerkle
+import CompressionLean.Sim.Merkle
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Replay.Stages
 
@@ -17,8 +17,9 @@ proof, and the replay's shape check (`Replay.readProof`) accepts it.
   `ProofView.read` it follows from three facts about the relation.
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Replay (Word Ext Relation TreeShape WhirShape foldVars layerCount layerFactors layerDegree
   activeTrees partFactors layerShapeOk)
@@ -38,30 +39,30 @@ def decodeDigest (w : Var → Word) (d : DigestVar) : Array Word := #[w (d 0), w
 def decodePair (w : Var → Word) (p : ExtVar × ExtVar) : Ext × Ext := (decodeExt w p.1, decodeExt w p.2)
 
 /-- One GKR layer. -/
-def GkrLayerView.decode (w : Var → Word) (l : GkrLayerView) : Replay.GkrLayer :=
+def _root_.CompressionLean.Circuit.GkrLayerView.decode (w : Var → Word) (l : GkrLayerView) : Replay.GkrLayer :=
   { rounds := l.rounds.map (·.map (decodeExt w)), children := l.children.map (·.map (decodeExt w)) }
 
 /-- A GKR proof. -/
-def GkrView.decode (w : Var → Word) (v : GkrView) : Replay.GkrProof :=
+def _root_.CompressionLean.Circuit.GkrView.decode (w : Var → Word) (v : GkrView) : Replay.GkrProof :=
   { roots := v.roots.map (decodePair w), layers := v.layers.map (·.decode w) }
 
 /-- A queried setup leaf. -/
-def LeafView.decode (w : Var → Word) (v : LeafView) : Replay.Leaf :=
+def _root_.CompressionLean.Circuit.LeafView.decode (w : Var → Word) (v : LeafView) : Replay.Leaf :=
   { values := v.values.map w, path := v.path.map (decodeDigest w) }
 
 /-- One WHIR round, without its query rows. -/
-def RoundView.decode (w : Var → Word) (r : RoundView) : Replay.WhirRound :=
+def _root_.CompressionLean.Circuit.RoundView.decode (w : Var → Word) (r : RoundView) : Replay.WhirRound :=
   { root := decodeDigest w r.root, ood := r.ood.map (decodeExt w), sumcheck := r.sumcheck.map (decodePair w) }
 
 /-- One WHIR opening, without its query rows. -/
-def OpeningView.decode (w : Var → Word) (v : OpeningView) : Replay.Opening :=
+def _root_.CompressionLean.Circuit.OpeningView.decode (w : Var → Word) (v : OpeningView) : Replay.Opening :=
   { initialOod := v.initialOod.map (decodeExt w), evals := v.evals.map (·.map (decodeExt w)),
     initialSumcheck := v.initialSumcheck.map (decodePair w), rounds := v.rounds.map (·.decode w),
     finalPoly := v.finalPoly.map (decodeExt w), finalSumcheck := v.finalSumcheck.map (decodePair w) }
 
 /-- A layer-1 proof. The run values are `e_re`, `e_im`, `row`, the order of
 `observe_early` and of the replay's `earlyStage`. -/
-def ProofView.decode (w : Var → Word) (v : ProofView) : Replay.Proof :=
+def _root_.CompressionLean.Circuit.ProofView.decode (w : Var → Word) (v : ProofView) : Replay.Proof :=
   { p0 := decodeDigest w v.p0, histogram := v.histogram.map w, early := v.early.decode w,
     earlyValues :=
       { eRe := decodeExt w v.earlyValues.runs[0]!, eIm := decodeExt w v.earlyValues.runs[1]!,
@@ -468,4 +469,4 @@ theorem ProofView.read (rel : Relation) (p1Rows p0Rows : OpeningRows)
 
 end Simulates
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

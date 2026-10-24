@@ -202,7 +202,7 @@ The shrink layer assumes, and does not prove:
   production bound is `calls / 2^t` under Fiat–Shamir.
 - Production result (`Claims.lean`): `production_bound` is
   `final_restore_budget_parent` for the production final program
-  (`Final/Encodes.lean`), where `programEncodes` gives the encoding. Its
+  (`Sim/Encodes.lean`), where `programEncodes` gives the encoding. Its
   other premises are facts about the key (`KeyFacts`), the terminal package
   and the setup. It holds for the relation of an application of any logical
   width `lw`, with `ParentShape` at `lw`. The terminal package is the same at
@@ -223,9 +223,9 @@ The chain takes these premises:
   holds a terminal assignment for its statement, and every reading of its
   layer-1 part is an accepting layer-1 path for the parent claim of that
   assignment. It stands for `FinalProgram::run`, recorded by `record.rs`
-  and placed by `layout.rs`. `programEncodes` (`Final/Encodes.lean`) proves
+  and placed by `layout.rs`. `programEncodes` (`Sim/Encodes.lean`) proves
   it for the production final program, for a key with `KeyFacts`: the
-  `Sim*` files show that each stage of the circuit computes the replay's
+  files of `Sim/` show that each stage of the circuit computes the replay's
   values, and the bridge turns the accepting replay into a layer-1 path.
 - Readings: a reading of a witness takes its statement, proof words and
   challenges from the witness. At each commitment it takes a candidate list

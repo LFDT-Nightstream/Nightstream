@@ -1,6 +1,6 @@
-import CompressionLean.Circuit.SimRing
-import CompressionLean.Circuit.SimViews
-import CompressionLean.Circuit.SimTerminal
+import CompressionLean.Sim.Ring
+import CompressionLean.Sim.Views
+import CompressionLean.Sim.Terminal
 import CompressionLean.Bridge.Relation
 
 /-!
@@ -13,28 +13,30 @@ statement as the bridge reads it.
   read through `w`.
 - `isClaim_decode`: handles below `m` hold the decoded statement (`IsClaim`).
 - `ClaimHolds` keeps only the flat handle lists, so the last two lemmas also
-  take the row shape (`ClaimVars.Shaped`, `SimTerminal.lean`), which
+  take the row shape (`ClaimVars.Shaped`, `Terminal.lean`), which
   `Handoff` gives.
 - `fits_decode`, `statementOf_decode`: under `ClaimHolds`, the decoded
   statement has the production sizes, and `statementOf` reads it as
   `Final.claimOf env`.
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Replay (Word D)
-open CompressionLean.Circuit.Terminal (ClaimVars ClaimHolds HoldsValues pairHandles)
+open CompressionLean.Circuit.Terminal (ClaimVars)
+open CompressionLean.Sim (ClaimHolds HoldsValues pairHandles)
 open NightstreamFPrime.Circuit (Env Expr)
 open Fin.CommRing
 
 /-- The terminal claim as the verifier's statement. -/
-def Terminal.ClaimVars.view (claim : ClaimVars) : ClaimView :=
+def _root_.CompressionLean.Circuit.Terminal.ClaimVars.view (claim : ClaimVars) : ClaimView :=
   { commitment := claim.commitment, publicInput := claim.publicInput, point := claim.point,
     evalK := claim.evalK, evalA := claim.evalA }
 
 /-- The statement of a claim view: each handle reads as its word under `w`. -/
-def ClaimView.decode (w : Var → Word) (v : ClaimView) : Replay.Statement :=
+def _root_.CompressionLean.Circuit.ClaimView.decode (w : Var → Word) (v : ClaimView) : Replay.Statement :=
   { commitment := v.commitment.map (·.map w), publicInput := v.publicInput.map (·.map w),
     point := v.point.map (Prod.map w w), evalK := v.evalK.map (Prod.map w w),
     evalA := v.evalA.map (·.map (Prod.map w w)) }
@@ -145,7 +147,7 @@ private theorem claim_sizes {claim : ClaimVars} (holds : ClaimHolds c m claim en
       claim.evalA.size = 4 := by
   obtain ⟨hcom, hpub, hpt, hk, ha⟩ := holds
   obtain ⟨scom, spub, sa⟩ := shaped
-  obtain ⟨lcom, lpub, lpt, lk, la, -⟩ := Terminal.outputs_length
+  obtain ⟨lcom, lpub, lpt, lk, la, -⟩ := Sim.outputs_length
   have com := hcom.length_eq
   have pub := hpub.length_eq
   have pt := hpt.length_eq
@@ -270,4 +272,4 @@ theorem statementOf_decode (hw : Decodes c w) {claim : ClaimVars} (holds : Claim
 
 end Holds
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

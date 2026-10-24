@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.SimMerkle
+import CompressionLean.Sim.Merkle
 import CompressionLean.Circuit.Sumcheck
 import CompressionLean.Bridge.Run
 
@@ -11,8 +11,9 @@ step names by an existential. Each round message must be nonempty: both read
 `message[0]!`, where Rust's `message[0]` panics.
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Replay (Ext Runs)
 open NightstreamFPrime.Spec (goldilocksModulus)
@@ -140,4 +141,4 @@ theorem sumcheckReplay {rounds : Array (Array ExtVar)} {grounds : Array (Array E
 
 end Simulates
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

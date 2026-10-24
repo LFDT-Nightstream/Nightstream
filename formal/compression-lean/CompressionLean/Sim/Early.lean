@@ -1,5 +1,5 @@
-import CompressionLean.Circuit.SimGkr
-import CompressionLean.Circuit.SimViews
+import CompressionLean.Sim.Gkr
+import CompressionLean.Sim.Views
 import CompressionLean.Bridge.Early
 import CompressionLean.Fields
 
@@ -23,8 +23,9 @@ Owns the simulation of the layer-1 verifier's early stage (`earlyStage` of
   replay's inverse (`Ensures.extInv`).
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext)
@@ -1145,4 +1146,4 @@ theorem earlyStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay
 
 end Stage
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

@@ -1,10 +1,10 @@
-import CompressionLean.Circuit.SimHash
+import CompressionLean.Sim.Hash
 
 /-!
 Owns the simulation of the leaf sponge (`hashLeaf`), node compression
 (`compress`) and Merkle paths (`merkleRoot`) of `Hash.lean` against the
 replay's (`Replay/Transcript.lean`), and the F′ permutation on words
-(`permutes_poseidon2`). `SimHash.lean` owns the duplex challenger.
+(`permutes_poseidon2`). `Hash.lean` owns the duplex challenger.
 
 - `IsDigest`: four handles are a digest of four words.
 - `Simulates.merkleRoot` takes the path words as given: the computed root is the
@@ -15,8 +15,9 @@ replay's (`Replay/Transcript.lean`), and the F′ permutation on words
   (`State64.permute64_denote`).
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word)
@@ -254,4 +255,4 @@ theorem permutes_poseidon2 : Permutes (F := NightstreamFPrime.Spec.F) Nightstrea
 
 end Permutation
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

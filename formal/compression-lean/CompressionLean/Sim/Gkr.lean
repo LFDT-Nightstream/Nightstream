@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.SimSumcheck
+import CompressionLean.Sim.Sumcheck
 import CompressionLean.Circuit.Gkr
 import CompressionLean.Bridge.Gkr
 
@@ -11,8 +11,9 @@ weight; the replay uses Horner's rule from the last tree. The sums agree.
 The proof has the layers that `readGkr` checks.
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Ext Runs TreeShape)
@@ -743,4 +744,4 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
     have := (c6 u hu').2 (by rw [layersSize]; exact Replay.depth_le_layerCount shapes hu')
     exact ⟨this.1.1, this.1.2, this.2.1, this.2.2⟩
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

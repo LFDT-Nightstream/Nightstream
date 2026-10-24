@@ -1,5 +1,5 @@
-import CompressionLean.Circuit.SimEarly
-import CompressionLean.Circuit.SimHonest
+import CompressionLean.Sim.Early
+import CompressionLean.Sim.Honest
 import CompressionLean.Bridge.Late
 
 /-!
@@ -17,8 +17,9 @@ coordinate of the pair tree and two leaf values of the block tree; the
 replay's GKR run gives these sizes.
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Relation TreeShape D Runs runs_bind runs_pure runs_sampleExt
@@ -427,4 +428,4 @@ theorem lateStage_ensures {rel : Relation} {tau : Array ExtVar} {evalA : Array (
 
 end Stage
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

@@ -1,4 +1,4 @@
-import CompressionLean.Circuit.SimSumcheck
+import CompressionLean.Sim.Sumcheck
 import CompressionLean.Circuit.Ring
 import CompressionLean.Circuit.Mle
 import CompressionLean.Fields
@@ -21,8 +21,9 @@ closed forms of `Mle.lean` (`mle.rs`) against the replay's formulas
   `(rem, below, bit)` in the circuit's order (`digitSum`).
 -/
 
-namespace CompressionLean.Circuit
+namespace CompressionLean.Sim
 
+open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Kx Relation D)
@@ -993,4 +994,4 @@ theorem evalK {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Array (Word × 
 
 end Simulates
 
-end CompressionLean.Circuit
+end CompressionLean.Sim

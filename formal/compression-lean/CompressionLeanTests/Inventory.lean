@@ -110,9 +110,7 @@ def premises : List (Name × List Premise) :=
     (`CompressionLean.Claims.setup_facts_of_check, [⟨`pass, .rustFiles, setupPass⟩])]
 
 /-- The modules that port Rust by hand, with their submodules. -/
-def portModules : List Name := [
-  `CompressionLean.Final.RustSetup,
-  `CompressionLean.Ports]
+def portModules : List Name := [`CompressionLean.Ports]
 
 /-- The Rust tests that pin a digest that Lean computes: the file, then the test. -/
 def digestPins : List (String × String) := [

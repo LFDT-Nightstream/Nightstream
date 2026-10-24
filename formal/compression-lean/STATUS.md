@@ -49,7 +49,7 @@ Parameters: `{lw : ℕ}`, `key : CompressionLean.Circuit.Layer1Input`, `loaded :
 
 ### `CompressionLean.Claims.poseidon2_bound`
 
-Parameters: `key : CompressionLean.Circuit.Layer1Input`, `loaded : CompressionLean.Terminal.Package.Loaded`, `context : Array CompressionLean.Replay.Word`, `authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority`, `pushes : List CompressionLean.Final.Push`, `setup : NightstreamFPrime.Spec.AjtaiSetupV1.Setup NightstreamFPrime.Spec.productionProfile.commitmentWidth (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package.application)))`, `L0 : ℕ`, `L1 : ℕ`, `t : ℕ`, `Ls : ℕ`, `calls : ℕ`, `prover : CompressionLean.Game.Strategy (CompressionLean.Final.RestoreOutcome CompressionLean.Gl CompressionLean.Cubic (CompressionLean.Sim.game key.relation (CompressionLean.Checks.poseidon2Setup setup.seed.bytes pushes) L0 L1))`.
+Parameters: `key : CompressionLean.Circuit.Layer1Input`, `loaded : CompressionLean.Terminal.Package.Loaded`, `context : Array CompressionLean.Replay.Word`, `authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority`, `pushes : List CompressionLean.Setup.Push`, `setup : NightstreamFPrime.Spec.AjtaiSetupV1.Setup NightstreamFPrime.Spec.productionProfile.commitmentWidth (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package.application)))`, `L0 : ℕ`, `L1 : ℕ`, `t : ℕ`, `Ls : ℕ`, `calls : ℕ`, `prover : CompressionLean.Game.Strategy (CompressionLean.Final.RestoreOutcome CompressionLean.Gl CompressionLean.Cubic (CompressionLean.Sim.game key.relation (CompressionLean.Checks.poseidon2Setup setup.seed.bytes pushes) L0 L1))`.
 
 | Premise | Met by | How |
 |---|---|---|
@@ -68,14 +68,14 @@ Parameters: `key : CompressionLean.Circuit.Layer1Input`, `loaded : CompressionLe
 
 ### `CompressionLean.Claims.honest_setup_of_build`
 
-Parameters: `{lw : ℕ}`, `s : CompressionLean.Layer1.Shape`, `setup : NightstreamFPrime.Spec.AjtaiSetupV1.Setup NightstreamFPrime.Spec.productionProfile.commitmentWidth (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth lw))`, `relation : NightstreamFPrime.Lifecycle.ProductionKey.LogicalRelation lw pf`, `pushes : List CompressionLean.Final.Push`, `{S : CompressionLean.Layer1.Setup CompressionLean.Gl}`.
+Parameters: `{lw : ℕ}`, `s : CompressionLean.Layer1.Shape`, `setup : NightstreamFPrime.Spec.AjtaiSetupV1.Setup NightstreamFPrime.Spec.productionProfile.commitmentWidth (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth lw))`, `relation : NightstreamFPrime.Lifecycle.ProductionKey.LogicalRelation lw pf`, `pushes : List CompressionLean.Setup.Push`, `{S : CompressionLean.Layer1.Setup CompressionLean.Gl}`.
 
 | Premise | Met by | How |
 |---|---|---|
 | `{pf : NightstreamFPrime.Spec.ringDegree * NightstreamFPrime.Lifecycle.PaperAlgebra.publicRingColumns ≤ NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth lw}` | Lean proof | F′ proves it for an application (`Poseidon2HashChainV1Package.fits`, in `poseidon2_bound`). |
 | `D : s.D = NightstreamFPrime.Spec.ringDegree` | Lean proof | `rfl` for `shapeOf` of a key (in `poseidon2_bound`). |
 | `lanes : s.laneVars = 6` | Lean proof | As `D`. |
-| `built : CompressionLean.Final.build setup.seed.bytes (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth lw) NightstreamFPrime.Spec.productionProfile.ccsMatrices pushes = some S` | Rust's files | From the pass of `setupCheck` (`setup_facts_of_check`, in `poseidon2_bound`). |
+| `built : CompressionLean.Setup.build setup.seed.bytes (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth lw) NightstreamFPrime.Spec.productionProfile.ccsMatrices pushes = some S` | Rust's files | From the pass of `setupCheck` (`setup_facts_of_check`, in `poseidon2_bound`). |
 | `gives : CompressionLean.Final.RunsGive pushes relation` | Open | `Checks/PoseidonRows.lean` proves the matrix entries of the rows of the Poseidon2 blocks of F′'s matrix program (`matrixSource_entry`). No check compares the runs with these rows. |
 
 ### `CompressionLean.Claims.key_facts_of_check`
@@ -104,7 +104,7 @@ Parameters: `{package : NightstreamFPrime.Export.Package.CircuitPackage}`.
 
 ### `CompressionLean.Claims.setup_facts_of_check`
 
-Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List CompressionLean.Final.Push}`, `seed : List ℕ`.
+Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List CompressionLean.Setup.Push}`, `seed : List ℕ`.
 
 | Premise | Met by | How |
 |---|---|---|
@@ -116,7 +116,6 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 
 | Lean module | Declarations |
 |---|---:|
-| `CompressionLean.Final.RustSetup` | 13 |
 | `CompressionLean.Game.SumCheck` | 1 |
 | `CompressionLean.Lib.Cube` | 2 |
 | `CompressionLean.Lib.SumCheck` | 1 |
@@ -144,6 +143,7 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 | `CompressionLean.Ports.Replay.Stages` | 26 |
 | `CompressionLean.Ports.Replay.Transcript` | 10 |
 | `CompressionLean.Ports.Replay.Whir` | 4 |
+| `CompressionLean.Ports.Setup` | 13 |
 | `CompressionLean.Ports.Shrink.BlockPart` | 9 |
 | `CompressionLean.Ports.Shrink.Budget` | 1 |
 | `CompressionLean.Ports.Shrink.Ccs` | 5 |

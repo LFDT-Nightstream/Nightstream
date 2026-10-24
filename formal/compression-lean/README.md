@@ -355,8 +355,12 @@ timeout --signal=KILL 1500 .lake/build/bin/emitTerminal artifacts/compression-te
 `lake build` also builds the executables (`CompressionLeanExe/`: the
 checks, their readers and the Lean side of the Rust test programs) with
 warnings as errors, and runs the axiom audit
-(`CompressionLeanTests/Axioms.lean`) and the ports gate
-(`CompressionLeanTests/Ports.lean`).
+(`CompressionLeanTests/Axioms.lean`), the ports gate
+(`CompressionLeanTests/Ports.lean`) and the folder gate
+(`CompressionLeanTests/Layers.lean`): a module imports only its own folder
+and lower ones, in the order `Lib`, `Replay`, `Fields`, `Game`, `Terminal`,
+`Layer1`, `Shrink`, `Circuit`, `Lowering`, `Bridge`, `Final`, `Checks`, `Sim`,
+`Claims`.
 
 Ports. `ports.json` pairs each Lean port of Rust with the Rust item that it
 transcribes and a hash of the item's tokens. The CI test `lean_ports`

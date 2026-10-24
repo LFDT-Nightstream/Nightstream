@@ -15,7 +15,8 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsErro
 
 [[lean_lib]]
 name = "CompressionLeanTests"
-roots = ["CompressionLeanTests.Axioms", "CompressionLeanTests.BlockDigest", "CompressionLeanTests.Inventory", "CompressionLeanTests.Ports"]
+roots = ["CompressionLeanTests.Axioms", "CompressionLeanTests.BlockDigest", "CompressionLeanTests.Inventory", "CompressionLeanTests.Layers",
+  "CompressionLeanTests.Ports"]
 needs = ["ports", "statusPage"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 

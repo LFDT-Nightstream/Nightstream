@@ -538,6 +538,7 @@ mod key_prefix;
 mod matrix_workspace;
 mod parent_shape;
 mod recursive;
+mod setup_runs;
 mod state_encoding;
 
 mod staged;

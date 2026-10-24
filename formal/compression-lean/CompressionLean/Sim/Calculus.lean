@@ -12,13 +12,7 @@ on the instructions that a program writes, read as replay words.
 - Handle `h` is the word `g` among `n` values (`IsWord`) when `h < n` and
   `val h = Word.cast g`. `IsExt` and `IsWords` lift it to extension values and
   arrays.
-- `Simulates c n P b Q C`: after any builder state with `n` values, `b` appends
-  instructions, and their run from any executor state with `n` values has
-  one value per handle. If `P` holds and the run follows `val`, the result
-  of `b` meets `Q` at the new count, and the checks of the run hold iff the
-  earlier checks and `C` hold.
-- `Simulates.exec`: for a program that `Simulates` describes from the empty builder,
-  with `val` the values of its run, the executor accepts it iff `C`.
+- `Simulates c n P b Q C`: `OldEnsures` of the result `Q` and the checks `C`.
 - `OldEnsures c n P b Q`: `Simulates` in one direction, for soundness. When the run's
   checks hold, the result meets `Q`, which may use them. `OldEnsures.exec`
   reads `Q` off an accepting run.
@@ -175,17 +169,21 @@ theorem IsWord.read {c : Ctx F} {n : ℕ} {h : Var} {g : Word} (w : IsWord c n h
     (hF : c.Follows E) (hl : E.values.length = n) : E.value h = Word.cast g :=
   (hF h (hl ▸ w.1)).trans w.2
 
-/-- **A builder program, simulated.** After any builder state with `n`
-values, `b` appends instructions `new`; their run from any executor state
-with `n` values has one value per handle. If `P` holds and the run follows
-`val`, `b`'s result meets `Q` at the new count, and the run's checks hold
-iff the earlier ones and `C` hold. -/
-def Simulates {α : Type} (c : Ctx F) (n : ℕ) (P : Prop) (b : Build α) (Q : α → ℕ → Prop) (C : Prop) : Prop :=
+/-- **A builder program, simulated for soundness.** `Simulates` in one direction:
+when the run's checks hold, `b`'s result meets `Q`, and `Q` may use those
+checks. `ProgramEncodes` needs only this direction. A result that means
+something only once a check passes (a bit, a Merkle path) then feeds the
+rest of the program, and a check may name the tape cells of its own run. -/
+def OldEnsures {α : Type} (c : Ctx F) (n : ℕ) (P : Prop) (b : Build α) (Q : α → ℕ → Prop) : Prop :=
   ∀ (p : Builder) (E : Exec.State F), p.values = n → E.values.length = n →
     ∃ new : List Instr, (b.run p).2.instrs = p.instrs ++ new.toArray ∧
       (c.steps new E).values.length = (b.run p).2.values ∧
-      (P → c.Follows (c.steps new E) →
-        Q (b.run p).1 (b.run p).2.values ∧ ((c.steps new E).holds ↔ E.holds ∧ C))
+      (P → c.Follows (c.steps new E) → (c.steps new E).holds → Q (b.run p).1 (b.run p).2.values)
+
+/-- **A builder program, simulated.** `OldEnsures` of the result and of the
+checks `C`. -/
+def Simulates {α : Type} (c : Ctx F) (n : ℕ) (P : Prop) (b : Build α) (Q : α → ℕ → Prop) (C : Prop) : Prop :=
+  OldEnsures c n P b fun a m => Q a m ∧ C
 
 namespace Simulates
 
@@ -194,7 +192,7 @@ variable {c : Ctx F} {α β : Type} {n : ℕ} {P : Prop} {Q : α → ℕ → Pro
 theorem pure {a : α} (h : P → Q a n) : Simulates c n P (Pure.pure a) Q True := by
   intro p E hp hE
   refine ⟨[], by show p.instrs = p.instrs ++ #[]; simp, by show E.values.length = p.values; rw [hE, hp],
-    fun hP _ => ⟨?_, by simp [Ctx.steps]⟩⟩
+    fun hP _ _ => ⟨?_, trivial⟩⟩
   exact hp ▸ h hP
 
 theorem bind {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} {C' : Prop} (hb : Simulates c n P b Q C)
@@ -212,11 +210,11 @@ theorem bind {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} {C' 
     simp
   · rw [Ctx.steps_append]
     exact hl₂
-  · intro hP hF
-    rw [Ctx.steps_append] at hF ⊢
-    obtain ⟨hq, hh₁⟩ := hs₁ hP (Ctx.follows_of_steps hF)
-    obtain ⟨hr, hh₂⟩ := hs₂ ⟨hP, hq⟩ hF
-    exact ⟨hr, by rw [hh₂, hh₁, and_assoc]⟩
+  · intro hP hF hh
+    rw [Ctx.steps_append] at hF hh
+    obtain ⟨hq, hc⟩ := hs₁ hP (Ctx.follows_of_steps hF) (Ctx.holds_of_steps hh)
+    obtain ⟨hr, hc'⟩ := hs₂ ⟨hP, hq⟩ hF hh
+    exact ⟨hr, hc, hc'⟩
 
 /-- `bind` when `b` checks nothing. -/
 theorem bind₀ {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} {C' : Prop} (hb : Simulates c n P b Q True)
@@ -229,13 +227,13 @@ theorem post {b : Build α} {Q' : α → ℕ → Prop} {C' : Prop} (h : Simulate
     (hq : P → ∀ a m, Q a m → Q' a m) (hc : P → (C ↔ C')) : Simulates c n P b Q' C' := by
   intro p E hp hE
   obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
-  exact ⟨new, hi, hl, fun hP hF => ⟨hq hP _ _ (hs hP hF).1, (hs hP hF).2.trans (and_congr_right fun _ => hc hP)⟩⟩
+  exact ⟨new, hi, hl, fun hP hF hh => ⟨hq hP _ _ (hs hP hF hh).1, (hc hP).mp (hs hP hF hh).2⟩⟩
 
 /-- Strengthen the precondition. -/
 theorem pre {b : Build α} {P' : Prop} (h : Simulates c n P' b Q C) (hp : P → P') : Simulates c n P b Q C := by
   intro p E hp' hE
   obtain ⟨new, hi, hl, hs⟩ := h p E hp' hE
-  exact ⟨new, hi, hl, fun hP hF => hs (hp hP) hF⟩
+  exact ⟨new, hi, hl, fun hP hF hh => hs (hp hP) hF hh⟩
 
 /-- One instruction. -/
 theorem emit (i : Instr) {Q : Var → ℕ → Prop}
@@ -243,20 +241,20 @@ theorem emit (i : Instr) {Q : Var → ℕ → Prop}
       Q n (n + i.outputs) ∧ ((c.step E i).holds ↔ E.holds ∧ C)) :
     Simulates c n P (Build.emit i) Q C := by
   intro p E hp hE
-  refine ⟨[i], by show p.instrs.push i = p.instrs ++ #[i]; simp, ?_, fun hP hF => ?_⟩
+  refine ⟨[i], by show p.instrs.push i = p.instrs ++ #[i]; simp, ?_, fun hP hF hh => ?_⟩
   · obtain ⟨more, hm, hl⟩ := c.step_values E i
     show (c.step E i).values.length = p.values + i.outputs
     rw [hm, List.length_append, hl, hE, hp]
-  · show Q p.values (p.values + i.outputs) ∧ _
+  · show Q p.values (p.values + i.outputs) ∧ C
     rw [hp]
-    exact h hP E hE hF
+    exact ⟨(h hP E hE hF).1, ((h hP E hE hF).2.mp hh).2⟩
 
 /-- `f <$> b`. -/
 theorem map {b : Build α} {f : α → β} {Q' : β → ℕ → Prop} (h : Simulates c n P b Q C)
     (hq : ∀ a m, Q a m → Q' (f a) m) : Simulates c n P (f <$> b) Q' C := by
   intro p E hp hE
   obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
-  exact ⟨new, hi, hl, fun hP hF => ⟨hq _ _ (hs hP hF).1, (hs hP hF).2⟩⟩
+  exact ⟨new, hi, hl, fun hP hF hh => ⟨hq _ _ (hs hP hF hh).1, (hs hP hF hh).2⟩⟩
 
 /-- Fix the witness of an existential precondition. Any `x₀` gives the
 instructions, which do not depend on it. -/
@@ -264,30 +262,13 @@ theorem elim {ι : Type} {b : Build α} {R : ι → Prop} (x₀ : ι) (h : ∀ x
     (hp : P → ∃ x, R x) : Simulates c n P b Q C := by
   intro p E hp' hE
   obtain ⟨new, hi, hl, -⟩ := h x₀ p E hp' hE
-  refine ⟨new, hi, hl, fun hP hF => ?_⟩
+  refine ⟨new, hi, hl, fun hP hF hh => ?_⟩
   obtain ⟨x, hx⟩ := hp hP
   obtain ⟨new', hi', -, hs⟩ := h x p E hp' hE
   obtain rfl : new = new' := List.toArray_inj ((Array.append_right_inj _).mp (hi.symm.trans hi'))
-  exact hs hx hF
+  exact hs hx hF hh
 
 end Simulates
-
-/-- **The executor accepts what a simulated program writes.** If `Simulates`
-describes `b` from the empty builder under `P`, and `val` is the values of
-the executor's run of `b`'s program, then the result meets `Q` and the
-executor accepts the program iff `C`. -/
-theorem Simulates.exec {c : Ctx F} {α : Type} {P : Prop} {b : Build α} {Q : α → ℕ → Prop} {C : Prop}
-    (h : Simulates c 0 P b Q C) (hP : P) (hval : c.val = (Exec.run c.perm c.stmt c.tape b.program).value) :
-    Q (b.run {}).1 (b.run {}).2.values ∧ (Exec c.perm b.program c.stmt c.tape ↔ C) := by
-  obtain ⟨new, hi, -, hs⟩ := h {} Exec.start rfl rfl
-  have run : Exec.run c.perm c.stmt c.tape b.program = c.steps new Exec.start := by
-    rw [Exec.run, Build.program, hi]
-    simp only [Array.empty_append, List.toList_toArray]
-    rfl
-  obtain ⟨hq, hh⟩ := hs hP (fun v _ => by rw [hval, run])
-  refine ⟨hq, ?_⟩
-  rw [Exec, run, hh]
-  exact ⟨fun h => h.2, fun h => ⟨trivial, h⟩⟩
 
 /-! ## Instructions -/
 
@@ -637,30 +618,17 @@ end Simulates
 
 /-! ## Soundness only -/
 
-/-- **A builder program, simulated for soundness.** `Simulates` in one direction:
-when the run's checks hold, `b`'s result meets `Q`, and `Q` may use those
-checks. `ProgramEncodes` needs only this direction. A result that means
-something only once a check passes (a bit, a Merkle path) then feeds the
-rest of the program, and a check may name the tape cells of its own run. -/
-def OldEnsures {α : Type} (c : Ctx F) (n : ℕ) (P : Prop) (b : Build α) (Q : α → ℕ → Prop) : Prop :=
-  ∀ (p : Builder) (E : Exec.State F), p.values = n → E.values.length = n →
-    ∃ new : List Instr, (b.run p).2.instrs = p.instrs ++ new.toArray ∧
-      (c.steps new E).values.length = (b.run p).2.values ∧
-      (P → c.Follows (c.steps new E) → (c.steps new E).holds → Q (b.run p).1 (b.run p).2.values)
-
 variable {c : Ctx F} {α β γ δ : Type} {n : ℕ} {P : Prop} {Q : α → ℕ → Prop}
 
 /-- A simulated program ensures its result and its checks. -/
-theorem Simulates.ensures {b : Build α} {C : Prop} (h : Simulates c n P b Q C) : OldEnsures c n P b fun a m => Q a m ∧ C := by
-  intro p E hp hE
-  obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
-  exact ⟨new, hi, hl, fun hP hF hh => ⟨(hs hP hF).1, ((hs hP hF).2.mp hh).2⟩⟩
+theorem Simulates.ensures {b : Build α} {C : Prop} (h : Simulates c n P b Q C) : OldEnsures c n P b fun a m => Q a m ∧ C :=
+  h
 
 /-- A simulated program that checks nothing ensures its result. -/
 theorem Simulates.ensures₀ {b : Build α} (h : Simulates c n P b Q True) : OldEnsures c n P b Q := by
   intro p E hp hE
   obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
-  exact ⟨new, hi, hl, fun hP hF _ => (hs hP hF).1⟩
+  exact ⟨new, hi, hl, fun hP hF hh => (hs hP hF hh).1⟩
 
 namespace OldEnsures
 

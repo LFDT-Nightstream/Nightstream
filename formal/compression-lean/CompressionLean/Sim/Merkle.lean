@@ -220,28 +220,6 @@ theorem merkleRoot_ensures [CharP F goldilocksModulus] {leaf : DigestVar} {bits 
 
 end Hashes
 
-/-! ## The old names, for the files that still use `Simulates` -/
-
-namespace Simulates
-
-variable {c : Ctx F} {n : ℕ} {P : Prop}
-
-theorem hashLeaf {vs : Array Var} {gs : Array Word} (hp : Permutes c.perm) (hv : P → IsWords c n vs gs) :
-    Simulates c n P (Circuit.hashLeaf vs) (fun r m => IsDigest c m r (Replay.hashLeaf gs)) True :=
-  .of_ensures₀ fun h => hashLeaf_ensures hp (hv h)
-
-theorem merkleRoot [CharP F goldilocksModulus] {leaf : DigestVar} {bits : Array Var} {path : Array DigestVar}
-    {gleaf : Array Word} {index : ℕ} {gpath : Array (Array Word)} (hp : Permutes c.perm)
-    (hleaf : P → IsDigest c n leaf gleaf)
-    (hbits : P → ∀ i < bits.size, IsWord c n bits[i]! (Word.ofNat (index / 2 ^ i % 2)))
-    (hpath : P → ∀ k < path.size, IsDigest c n path[k]! gpath[k]!) (hsize : bits.size = path.size)
-    (hgsize : path.size = gpath.size) :
-    Simulates c n P (Circuit.merkleRoot leaf bits path)
-      (fun res m => IsDigest c m res (Replay.merkleRoot gleaf index gpath)) True :=
-  .of_ensures₀ fun h => merkleRoot_ensures hp (hleaf h) (hbits h) (hpath h) hsize hgsize
-
-end Simulates
-
 /-! ## The F′ permutation -/
 
 section Permutation

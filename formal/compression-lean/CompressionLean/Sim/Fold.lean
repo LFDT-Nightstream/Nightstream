@@ -169,12 +169,4 @@ theorem FoldTranscript.handoff_ensures {t : FoldTranscript} {gs : Array Word} (h
 
 end Absorb
 
-/-! ## The old names, for the files that still use `Simulates` -/
-
-theorem Simulates.handoff [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {t : FoldTranscript}
-    {gs : Array Word} (hp : Permutes c.perm) (ht : P → IsWords c n t.state gs ∧ gs.size = 16) :
-    Simulates c n P t.handoff (fun r m => ∀ lane : Fin 4, IsWord c m (r lane) (FoldTranscript.handoffWords gs)[lane]!)
-      True :=
-  .of_ensures₀ fun h => FoldTranscript.handoff_ensures hp (ht h).1 (ht h).2
-
 end CompressionLean.Sim

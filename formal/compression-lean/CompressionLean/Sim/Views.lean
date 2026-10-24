@@ -466,30 +466,4 @@ theorem ProofView.read_ensures (rel : Relation) (p1Rows p0Rows : OpeningRows)
 
 end Reads
 
-/-! ## The old names, for the files that still use `Simulates` -/
-
-namespace Simulates
-
-variable {c : Ctx F} {n : ℕ} {P : Prop} {w : Var → Word}
-
-/-- `(0..count).map(…)`: entry `i` meets `R i`. -/
-theorem rangeMapM {α : Type} {f : ℕ → Build α} (count : ℕ) (R : ℕ → α → ℕ → Prop)
-    (mono : ∀ i a m m', R i a m → m ≤ m' → R i a m') (h : ∀ i < count, ∀ m, n ≤ m → Simulates c m P (f i) (R i) True) :
-    Simulates c n P ((Array.range count).mapM f) (fun as m => as.size = count ∧ ∀ i (hi : i < as.size), R i as[i] m)
-      True :=
-  (Simulates.mapM R mono fun i hi m le => h i (Array.mem_range.mp hi) m le).post (fun _ as m hf => by
-    rw [Array.toList_range, List.forall₂_iff_get] at hf
-    have size : as.size = count := by simpa using hf.1.symm
-    refine ⟨size, fun i hi => ?_⟩
-    simpa using hf.2 i (by simp; omega) (by simpa using hi)) fun _ => Iff.rfl
-
-theorem ProofView.read (rel : Relation) (p1Rows p0Rows : OpeningRows)
-    (hrun : rel.key.layout.runVariables ≠ 0) (hrow : rel.key.layout.rowVariables ≠ 0)
-    (hslot : rel.key.layout.slotVariables + rel.matrixVars ≠ 0) (hw : P → Decodes c w) :
-    Simulates c n P (Circuit.ProofView.read rel p1Rows p0Rows)
-      (fun v m => IsProof c w m v (v.decode w) ∧ Replay.readProof rel (v.decode w) = .ok ()) True :=
-  .of_ensures₀ fun h => ProofView.read_ensures rel p1Rows p0Rows hrun hrow hslot (hw h)
-
-end Simulates
-
 end CompressionLean.Sim

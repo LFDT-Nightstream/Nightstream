@@ -550,7 +550,9 @@ end CompressionLean.Bridge
 
 /-! ## The replays alone -/
 
-namespace CompressionLean.Replay
+namespace CompressionLean.Bridge
+
+open CompressionLean.Replay
 
 /-- One replay of `rounds` is a replay of its first `k` rounds, then a replay of the rest from that
 claim (`verifier.rs:178-180`). -/
@@ -674,4 +676,4 @@ theorem layerShapeOk_facts {shapes : Array TreeShape} {k : ℕ} {layer : GkrLaye
     rw [getElem!_pos _ s hs, getElem!_pos _ s (by omega)]
     exact this
 
-end CompressionLean.Replay
+end CompressionLean.Bridge

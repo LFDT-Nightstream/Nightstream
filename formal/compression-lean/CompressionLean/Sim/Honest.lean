@@ -23,9 +23,9 @@ namespace CompressionLean.Sim
 open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Lib
-open CompressionLean.Replay (Word Ext Relation foldVars runOracles generator twoAdicGenerator Runs runs_bind runs_pure
-  runs_sampleWord runs_record runs_sampleExt runs_observeAll runs_observeExts runs_ensure runs_liftExcept)
-open CompressionLean.Bridge (two_groups)
+open CompressionLean.Replay (Word Ext Relation foldVars runOracles generator twoAdicGenerator)
+open CompressionLean.Bridge (Runs runs_bind runs_pure runs_sampleWord runs_record runs_sampleExt
+  runs_observeAll runs_observeExts runs_ensure runs_liftExcept two_groups)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]

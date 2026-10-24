@@ -101,7 +101,7 @@ private theorem step_eq (gpoint : Array Ext) (starts : Array ℕ) (gvalues : Arr
       Array.getElem?_eq_none (by omega : starts.size ≤ s), Option.getD_none, Replay.Ext.toK_mul, Replay.Ext.toK_sub,
       sub_self, mul_zero]
   apply Ext.eq_of_toK (K := Cubic)
-  rw [Replay.step, ← List.drop_zero (l := segs), next, tail _ 0 rfl (Nat.zero_le _), Replay.toK_sumRange,
+  rw [Replay.step, ← List.drop_zero (l := segs), next, tail _ 0 rfl (Nat.zero_le _), Bridge.toK_sumRange,
     ← Finset.sum_range_add_sum_Ico _ size, Finset.sum_eq_zero (fun s hs => zero s (Finset.mem_Ico.mp hs).1),
     add_zero, Finset.range_eq_Ico]
 
@@ -318,7 +318,8 @@ end Simulates
 
 /-! ## The early stage in the replay -/
 
-open CompressionLean.Replay (Relation TreeShape Runs)
+open CompressionLean.Replay (Relation TreeShape)
+open CompressionLean.Bridge (Runs)
 
 /-- Equal values pass the replay's equality test (`field.rs`). -/
 theorem ext_beq_of_eq {a b : Ext} (e : a = b) : (a == b) = true := e ▸ Ext.beq_self a
@@ -378,7 +379,7 @@ theorem depth_bounds {proof : Replay.GkrProof} {shapes : Array TreeShape}
   refine ⟨?_, ?_⟩
   · unfold Replay.readGkr at read
     split_ifs at read with bad
-    · obtain ⟨_, thrown, _⟩ := Replay.Except.bind_ok read
+    · obtain ⟨_, thrown, _⟩ := Bridge.Except.bind_ok read
       cases thrown
     · simp only [Bool.or_eq_true, bne_iff_ne, ne_eq, not_or] at bad
       have := bad.1.1
@@ -439,16 +440,16 @@ theorem gkrLayers_sizes {shapes : Array TreeShape} :
             (shapes[u]!.factors + 1, shapes[u]!.depth) else ((cl.leafValues[u]!).size, (cl.leafPoint[u]!).size)
   | [], k, cl, g, t, t', run, _, _, vsize, psize => by
       rw [Replay.gkrLayers] at run
-      obtain ⟨rfl, rfl⟩ := Replay.run_pure run
+      obtain ⟨rfl, rfl⟩ := Bridge.run_pure run
       exact ⟨rfl, vsize, psize, fun u _ => by rw [if_neg (by simp)]⟩
   | layer :: rest, k, cl, g, t, t', run, one, ok, vsize, psize => by
       rw [Replay.gkrLayers] at run
-      obtain ⟨_, t1, -, run⟩ := Replay.run_bind run
-      obtain ⟨_, t2, -, run⟩ := Replay.run_bind run
-      obtain ⟨result, t3, sum, run⟩ := Replay.run_bind run
-      obtain ⟨_, t4, -, run⟩ := Replay.run_bind run
-      obtain ⟨_, t5, -, run⟩ := Replay.run_bind run
-      obtain ⟨tau, t6, -, run⟩ := Replay.run_bind run
+      obtain ⟨_, t1, -, run⟩ := Bridge.run_bind run
+      obtain ⟨_, t2, -, run⟩ := Bridge.run_bind run
+      obtain ⟨result, t3, sum, run⟩ := Bridge.run_bind run
+      obtain ⟨_, t4, -, run⟩ := Bridge.run_bind run
+      obtain ⟨_, t5, -, run⟩ := Bridge.run_bind run
+      obtain ⟨tau, t6, -, run⟩ := Bridge.run_bind run
       have ok₀ : Replay.layerShapeOk shapes k layer = true := ok 0 (by simp)
       have rounds : result.1.size = k - 1 := by
         have := Bridge.sumcheckRounds_size _ _ _ _ _ _ sum
@@ -490,7 +491,7 @@ theorem gkrVerify_sizes {proof : Replay.GkrProof} {shapes : Array TreeShape} {t 
       (g.leafValues[u]!).size = shapes[u]!.factors + 1 ∧ (g.leafPoint[u]!).size = shapes[u]!.depth := by
   obtain ⟨-, layersSize, layersOk⟩ := Bridge.readGkr_ok read
   unfold Replay.gkrVerify at run
-  obtain ⟨_, t1, -, run⟩ := Replay.run_bind run
+  obtain ⟨_, t1, -, run⟩ := Bridge.run_bind run
   obtain ⟨roots, -, -, values⟩ := gkrLayers_sizes proof.layers.toList 1 _ g t1 t' run le_rfl (fun i h => by
     rw [Nat.add_comm]
     simpa using layersOk i (by simpa using h)) (by simp) (by simp)
@@ -1135,14 +1136,14 @@ theorem earlyStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay
       hopen.2.1.mono l₁₅, hopen.2.2.1.mono l₁₅, hopen.2.2.2.1.mono l₁₅, hopen.2.2.2.2.1.mono l₁₅,
       hopen.2.2.2.2.2.1.mono l₁₅, hopen.2.2.2.2.2.2.mono l₁₅⟩, hd₁₅⟩
   unfold Replay.earlyStage
-  exact Replay.runs_bind (Replay.runs_observeAll _ _) (Replay.runs_bind (Replay.runs_observeAll _ _)
-    (Replay.runs_bind (Replay.runs_observeAll _ _) (Replay.runs_bind (Replay.runs_sampleExt _)
-    (Replay.runs_bind (Replay.runs_samplePair _) (Replay.runs_bind (Replay.runs_samplePair _)
-    (Replay.runs_bind (Replay.runs_liftExcept tableOk _) (Replay.runs_bind run
-    (Replay.runs_bind (Replay.runs_ensure (ext_not_isZero qne) _ _)
-    (Replay.runs_bind (Replay.runs_ensure (ext_beq_of_eq rootEq) _ _)
-    (Replay.runs_bind (Replay.runs_liftExcept checkOk _) (Replay.runs_bind (Replay.runs_observeExts _ _)
-    (Replay.runs_pure _ _))))))))))))
+  exact Bridge.runs_bind (Bridge.runs_observeAll _ _) (Bridge.runs_bind (Bridge.runs_observeAll _ _)
+    (Bridge.runs_bind (Bridge.runs_observeAll _ _) (Bridge.runs_bind (Bridge.runs_sampleExt _)
+    (Bridge.runs_bind (Bridge.runs_samplePair _) (Bridge.runs_bind (Bridge.runs_samplePair _)
+    (Bridge.runs_bind (Bridge.runs_liftExcept tableOk _) (Bridge.runs_bind run
+    (Bridge.runs_bind (Bridge.runs_ensure (ext_not_isZero qne) _ _)
+    (Bridge.runs_bind (Bridge.runs_ensure (ext_beq_of_eq rootEq) _ _)
+    (Bridge.runs_bind (Bridge.runs_liftExcept checkOk _) (Bridge.runs_bind (Bridge.runs_observeExts _ _)
+    (Bridge.runs_pure _ _))))))))))))
 
 end Stage
 

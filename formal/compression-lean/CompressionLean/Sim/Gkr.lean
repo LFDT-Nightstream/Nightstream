@@ -16,7 +16,8 @@ namespace CompressionLean.Sim
 open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Lib
-open CompressionLean.Replay (Ext Runs TreeShape)
+open CompressionLean.Replay (Ext TreeShape)
+open CompressionLean.Bridge (Runs)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
@@ -617,7 +618,7 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
     refine ((Ensures.loopT (P := P) (fun j acc e m => ∃ g tj,
         Runs (Replay.gkrLayers shapes 1 (proof.layers.toList.take j) init) t₁ g tj ∧ IsDuplex c m e tj.duplex ∧
         IsLayerState c m shapes j acc.1 acc.2.1 g ∧ IsExts c m acc.2.2 g.point ∧ g.roots = proof.roots)
-      fun j hj acc e m le => ?_).pre fun h => ⟨h.1, init, t₁, Replay.runs_pure _ _, h.2, ?_, IsExts.empty, rfl⟩).post
+      fun j hj acc e m le => ?_).pre fun h => ⟨h.1, init, t₁, Bridge.runs_pure _ _, h.2, ?_, IsExts.empty, rfl⟩).post
       fun h r m q => ?_
     · have hj' : j < view.layers.size := by simpa using hj
       have N₀ : n ≤ m := l₀.trans le
@@ -634,7 +635,7 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
           ∀ s < (proof.layers[j]!).children.size, (proof.layers[j]!).children[s]!.size =
             2 * (Replay.partFactors shapes (j + 1) (Replay.activeTrees shapes (j + 1))[s]! + 1) := fun h => by
         have hjp : j < proof.layers.size := (hlayers h).1 ▸ hj'
-        have := Replay.layerShapeOk_facts (layersOk j hjp)
+        have := Bridge.layerShapeOk_facts (layersOk j hjp)
         rw [← getElem!_pos proof.layers j hjp, Nat.add_sub_cancel] at this
         exact this
       refine Ensures.elim (R := fun w : Replay.GkrClaims × Replay.Transcript => P ∧
@@ -718,15 +719,15 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
       dsimp only [ForInStep.value]
       obtain ⟨⟨⟨⟨⟨⟨⟨hP, run₀, -, -, roots, -, sum, hnext, -, -⟩, -⟩, -⟩, ⟨-, check⟩⟩, -⟩, hτ, hdτ⟩, he₁₃, state⟩ := h
       have hjp : j < proof.layers.size := (hlayers hP).1 ▸ hj'
-      refine ⟨_, _, Replay.runs_gkrLayers_succ hjp run₀ (Replay.runs_gkrLayer (Replay.runs_sampleExt tj)
-        (Replay.runs_sampleExt _) sum check (Replay.runs_observeExts _ _) (Replay.runs_sampleExt _)), ?_, state,
+      refine ⟨_, _, Bridge.runs_gkrLayers_succ hjp run₀ (Bridge.runs_gkrLayer (Bridge.runs_sampleExt tj)
+        (Bridge.runs_sampleExt _) sum check (Bridge.runs_observeExts _ _) (Bridge.runs_sampleExt _)), ?_, state,
         (hnext.mono (L₁₂.trans l₁₃)).push (hτ.mono l₁₃), roots⟩
       have he : e₁₃ = e₁₂ := he₁₃
       rw [he]
       exact hdτ.mono l₁₃
     · have sz := (hroots h.1).1
       refine ⟨by rw [sz, rootsSize], by simp, by simp [init_def, rootsSize], by simp [init_def],
-        by simp [init_def], fun u hu => ⟨?_, fun deep => absurd deep (by have := Replay.readGkr_depth read hu; omega)⟩⟩
+        by simp [init_def], fun u hu => ⟨?_, fun deep => absurd deep (by have := Bridge.readGkr_depth read hu; omega)⟩⟩
       have := (hroots h.1).2 u (by omega)
       exact ⟨this.1.mono l₀, this.2.mono l₀⟩
     · obtain ⟨g, tL, run, hdx, state, -, roots⟩ := q
@@ -738,10 +739,10 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
     refine Ensures.pure fun h => ?_
     obtain ⟨g, tL, run, hdx, state, roots⟩ := h.2
     obtain ⟨c1, c2, c3, c4, c5, c6⟩ := state
-    refine ⟨g, tL, Replay.runs_bind (Replay.runs_observeExts _ _) run, ⟨by rw [c2, roots, rootsSize], fun u hu => ?_⟩,
+    refine ⟨g, tL, Bridge.runs_bind (Bridge.runs_observeExts _ _) run, ⟨by rw [c2, roots, rootsSize], fun u hu => ?_⟩,
       hdx⟩
     have hu' : u < shapes.size := by rw [← c2]; exact hu
-    have := (c6 u hu').2 (by rw [layersSize]; exact Replay.depth_le_layerCount shapes hu')
+    have := (c6 u hu').2 (by rw [layersSize]; exact Bridge.depth_le_layerCount shapes hu')
     exact ⟨this.1.1, this.1.2, this.2.1, this.2.2⟩
 
 end CompressionLean.Sim

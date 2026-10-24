@@ -26,7 +26,8 @@ namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
 open CompressionLean.Lowering
-open CompressionLean.Replay (Word Ext WhirShape SumcheckShape Runs ReplayM)
+open CompressionLean.Replay (Word Ext WhirShape SumcheckShape ReplayM)
+open CompressionLean.Bridge (Runs)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 /-- `b` appends instructions and one value per output. -/
@@ -288,7 +289,7 @@ variable {H : Prop}
 private theorem pure {a : α} {b : β} {Q : α → ℕ → Prop} (h : H → Q a n) : Tracks c n H (Pure.pure a) (Pure.pure b) Q :=
   fun d tr => by
     rw [StateT.run_pure]
-    exact Ensures.pure fun hP => ⟨h hP.1, b, tr, Replay.runs_pure _ _, hP.2⟩
+    exact Ensures.pure fun hP => ⟨h hP.1, b, tr, Bridge.runs_pure _ _, hP.2⟩
 
 private theorem pre {t : Transcript α} {x : ReplayM β} {Q : α → ℕ → Prop} {H' : Prop} (h : Tracks c n H' t x Q)
     (hH : H → H') : Tracks c n H t x Q := fun d tr => (h d tr).pre fun hP => ⟨hH hP.1, hP.2⟩
@@ -303,7 +304,7 @@ private theorem bindQ [Inhabited β] {t : Transcript α} {g : α → Transcript 
       (H ∧ IsDuplex c n d tr.duplex) ∧ Q a m ∧ Runs x tr w.1 w.2 ∧ IsDuplex c m e w.2.duplex) (fun w => ?_) ?_
     · refine ((hg a m le e w.2).pre fun h => ⟨⟨h.1.1, h.2.1⟩, h.2.2.2⟩).post fun h _ _ q => ⟨q.1, ?_⟩
       obtain ⟨b', tr'', hrun, hd⟩ := q.2
-      exact ⟨b', tr'', Replay.runs_bind h.2.2.1 hrun, hd⟩
+      exact ⟨b', tr'', Bridge.runs_bind h.2.2.1 hrun, hd⟩
     · rintro ⟨hP, hq, b, tr', hrun, hd⟩
       exact ⟨(b, tr'), hP, hq, hrun, hd⟩
 
@@ -341,7 +342,7 @@ private theorem lift {b : Build α} {g : α → Transcript γ} {y : ReplayM δ} 
 
 /-- A program that keeps the duplex tracks the empty replay. -/
 private theorem ofQuiet {t : Transcript α} (h : Quiet t) : Tracks c n H t (Pure.pure ()) fun _ _ => True := fun d tr =>
-  (h.ensures d).post fun hP _ _ q => ⟨trivial, (), tr, Replay.runs_pure _ _, by rw [q.1]; exact hP.2.mono q.2⟩
+  (h.ensures d).post fun hP _ _ q => ⟨trivial, (), tr, Bridge.runs_pure _ _, by rw [q.1]; exact hP.2.mono q.2⟩
 
 /-- Change the replay action under `H`. -/
 private theorem replay {t : Transcript α} {x x' : ReplayM β} {Q : α → ℕ → Prop} (h : Tracks c n H t x Q)
@@ -358,7 +359,7 @@ private theorem replay_eq {t : Transcript α} {x x' : ReplayM β} {Q : α → �
 /-- A check that the replay makes and the program does not. -/
 private theorem check {t : Transcript α} {e : Except String PUnit} {y : ReplayM δ} {R : α → ℕ → Prop}
     (ok : H → e = .ok ()) (h : Tracks c n H t y R) : Tracks c n H t (liftExcept e >>= fun _ => y) R :=
-  h.replay fun hH tr _ _ run => Replay.runs_bind (Replay.runs_liftExcept (ok hH) tr) run
+  h.replay fun hH tr _ _ run => Bridge.runs_bind (Bridge.runs_liftExcept (ok hH) tr) run
 
 /-- The replay's last check. -/
 private theorem checkLast {t : Transcript α} {e : Except String PUnit} {R : α → ℕ → Prop}
@@ -374,7 +375,7 @@ private theorem loop [Inhabited ε] {xs : List δ} {ys : List ε} {init : γ} {b
     Tracks c n H (forIn xs init body) (ys.forM f) fun _ _ => True := fun d tr => by
   refine ((Ensures.loopT (P := H ∧ IsDuplex c n d tr.duplex)
     (fun k _ e m => ∃ tr', Runs ((ys.take k).forM f) tr () tr' ∧ IsDuplex c m e tr'.duplex)
-    fun k hk acc e m le => ?_).pre fun h => ⟨h, tr, Replay.runs_pure _ _, h.2⟩).post fun h r m q => ?_
+    fun k hk acc e m le => ?_).pre fun h => ⟨h, tr, Bridge.runs_pure _ _, h.2⟩).post fun h r m q => ?_
   · refine Ensures.elim tr (R := fun tr' => (H ∧ IsDuplex c n d tr.duplex) ∧
         Runs ((ys.take k).forM f) tr () tr' ∧ IsDuplex c m e tr'.duplex) (fun tr' => ?_)
       fun ⟨hP, tr', hrun, hd⟩ => ⟨tr', hP, hrun, hd⟩
@@ -386,7 +387,7 @@ private theorem loop [Inhabited ε] {xs : List δ} {ys : List ε} {init : γ} {b
     show Runs (forM (ys.take k ++ [ys[k]]) f) tr () tr''
     rw [List.forM_append, List.forM_cons, List.forM_nil]
     rw [getElem!_pos ys k hk'] at hrun
-    exact Replay.runs_bind h.2.1 (Replay.runs_bind hrun (Replay.runs_pure _ _))
+    exact Bridge.runs_bind h.2.1 (Bridge.runs_bind hrun (Bridge.runs_pure _ _))
   · obtain ⟨tr', hrun, hd⟩ := q
     rw [len h.1, List.take_length] at hrun
     exact ⟨trivial, (), tr', hrun, hd⟩
@@ -432,11 +433,11 @@ private theorem runs_observeAll_eq {vs : Array Word} {t t' : Replay.Transcript} 
 private theorem runs_observePair {a b : Ext} {rest : ReplayM β} {tr tr' : Replay.Transcript} {v : β}
     (h : Runs (Replay.observeExt a >>= fun _ => Replay.observeExt b >>= fun _ => rest) tr v tr') :
     Runs (Replay.observeExts #[a, b] >>= fun _ => rest) tr v tr' := by
-  obtain ⟨_, t1, h1, h⟩ := Replay.run_bind h
-  obtain ⟨_, t2, h2, h3⟩ := Replay.run_bind h
+  obtain ⟨_, t1, h1, h⟩ := Bridge.run_bind h
+  obtain ⟨_, t2, h2, h3⟩ := Bridge.run_bind h
   rw [runs_observeAll_eq h1] at h2
   rw [runs_observeAll_eq h2] at h3
-  refine Replay.runs_bind (Replay.runs_observeExts _ _) ?_
+  refine Bridge.runs_bind (Bridge.runs_observeExts _ _) ?_
   rw [foldl_observePair]
   exact h3
 
@@ -462,16 +463,16 @@ private theorem absorb (hp : Permutes c.perm) (words : Array Word) :
     · have e := q.1
       rwa [List.take_length, Array.foldl_toList] at e
   · rw [StateT.run_pure]
-    exact Ensures.pure fun h => ⟨trivial, (), _, Replay.runs_observeAll words tr, h.2⟩
+    exact Ensures.pure fun h => ⟨trivial, (), _, Bridge.runs_observeAll words tr, h.2⟩
 
 private theorem sampleExt (hp : Permutes c.perm) : Tracks c n H Duplex.sampleExt Replay.sampleExt fun _ _ => True :=
   fun _ tr => (Simulates.sampleExt hp fun h => h.2).ensures.post fun _ _ _ q =>
-    ⟨trivial, _, _, Replay.runs_sampleExt tr, q.1.2⟩
+    ⟨trivial, _, _, Bridge.runs_sampleExt tr, q.1.2⟩
 
 private theorem observeExt (hp : Permutes c.perm) {v : ExtVar} {g : Ext} (hv : H → IsExt c n v g) :
     Tracks c n H (Duplex.observeExt v) (Replay.observeExt g) fun _ _ => True := fun _ tr =>
   (Simulates.observeExt hp (fun h => h.2) fun h => hv h.1).ensures.post fun _ _ _ q =>
-    ⟨trivial, (), _, Replay.runs_observeExts #[g] tr, by rw [foldl_observeExts]; exact q.1⟩
+    ⟨trivial, (), _, Bridge.runs_observeExts #[g] tr, by rw [foldl_observeExts]; exact q.1⟩
 
 /-- `for value in values { observe_ext }`: the replay's `observeExts`. -/
 private theorem observeExts (hp : Permutes c.perm) {vs : Array ExtVar} {gs : Array Ext} (hv : H → IsExts c n vs gs) :
@@ -480,12 +481,12 @@ private theorem observeExts (hp : Permutes c.perm) {vs : Array ExtVar} {gs : Arr
         Pure.pure (ForInStep.yield PUnit.unit))
       (Replay.observeExts gs) fun _ _ => True := fun _ tr =>
   (Simulates.observeExts hp (fun h => h.2) fun h => hv h.1).ensures.post fun _ _ _ q =>
-    ⟨trivial, (), _, Replay.runs_observeExts gs tr, q.1⟩
+    ⟨trivial, (), _, Bridge.runs_observeExts gs tr, q.1⟩
 
 private theorem observeSlice (hp : Permutes c.perm) {vs : Array Var} {gs : Array Word} (hv : H → IsWords c n vs gs) :
     Tracks c n H (Duplex.observeSlice vs) (Replay.observeAll gs) fun _ _ => True := fun _ tr =>
   (Simulates.observeSlice hp (fun h => h.2) fun h => hv h.1).ensures.post fun _ _ _ q =>
-    ⟨trivial, (), _, Replay.runs_observeAll gs tr, q.1⟩
+    ⟨trivial, (), _, Bridge.runs_observeAll gs tr, q.1⟩
 
 end Tracks
 
@@ -533,8 +534,8 @@ private theorem queryIndex (hp : Permutes c.perm) (width : ℕ) :
   refine (Quiet.ensures (by appends) e₅).post fun h r m q =>
     ⟨trivial, (), { duplex := tr.duplex.sample.2, draws := tr.draws.push (.sample tr.duplex.sample.1) }, ?_, ?_⟩
   · have hne : tr.duplex.sample.1 + 1 ≠ 0 := fun e => h.2.1 (by rw [e]; rfl)
-    refine Replay.runs_bind (Replay.runs_sampleWord tr) (Replay.runs_bind (Replay.runs_ensure ?_ _ _)
-      (Replay.runs_record _ _))
+    refine Bridge.runs_bind (Bridge.runs_sampleWord tr) (Bridge.runs_bind (Bridge.runs_ensure ?_ _ _)
+      (Bridge.runs_record _ _))
     rw [Bool.not_eq_true', Bool.eq_false_iff]
     exact fun hb => hne (Replay.Word.eq_of_beq hb)
   · have e : r.2 = e₁ := q.1.trans (h.2.2.trans (h.1.2.2.trans (h.1.1.2.2.trans h.1.1.1.2.2)))
@@ -619,8 +620,8 @@ private theorem map_eq_of_zip {α β γ : Type} {f : α → γ} {g : β → γ} 
 private theorem readOpening_sizes {shape : WhirShape} {g : Replay.Opening} (h : Replay.readOpening shape g = .ok ()) :
     g.evals.toList.map (·.size) = shape.batches.toList.map (·.size) := by
   unfold Replay.readOpening at h
-  obtain ⟨_, h1, -⟩ := Replay.Except.bind_ok h
-  have h1 := Replay.Except.ensure_ok h1
+  obtain ⟨_, h1, -⟩ := Bridge.Except.bind_ok h
+  have h1 := Bridge.Except.ensure_ok h1
   simp only [Bool.and_eq_true, beq_iff_eq, ← Array.all_toList, List.all_eq_true, Array.toList_zip] at h1
   refine (map_eq_of_zip (by simpa using h1.1.1.2.symm) fun p hp => ?_).symm
   exact (h1.2 p hp).symm

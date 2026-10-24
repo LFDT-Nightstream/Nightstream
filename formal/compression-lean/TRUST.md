@@ -79,20 +79,27 @@ transcriptions are of two kinds.
 Rust, a claim is about a verifier, a program, a file or a check that Rust does not have.
 
 - The shrink verifier, which is the final verifier (`CompressionKey::verify`, `shrink/mod.rs`
-  `verify`). Its checks as a game (`Ports/Shrink/Game.lean`). The shrink CCS and its public value
-  (`Ports/Shrink/Ccs.lean`), with the relation over it (`Ccs.Relation`, `Shrink/Ccs.lean`), and
-  the batching (`batch`, `Ports/Shrink/Rounds.lean`). The matrix value: the shape run's total
+  `verify`). Its checks as a game (`Ports/Shrink/Game.lean`), the public value that it computes
+  (`Ccs.publicValue`, `Ccs.publicTable`, `Ports/Shrink/Ccs.lean`) and the batching (`batch`,
+  `Ports/Shrink/Rounds.lean`). The matrix value: the shape run's total
   (`Ports/Shrink/Evaluate.lean`) plus the closed form of `block_part`
-  (`Ports/Shrink/BlockPart.lean`, `Ports/Shrink/Diagonal.lean`). The layout that these read, the
-  CCS of a run and its counts (`Ports/Shrink/Layout.lean`, `Run.ccs`, `Run.counts`). The sum-check
-  rounds and the eq weights that the game takes from layer 1 (`Game.sumcheck`, `Lib.roundValues`,
-  `Lib.eqAt`, `Lib.eqEval`). These four are the only `ports.json` entries outside `Ports/`
-  (`portsOutside`): `Layer1/`, which sits below `Ports/`, reads them too.
+  (`Ports/Shrink/BlockPart.lean`, `Ports/Shrink/Diagonal.lean`). The layout that these read, and
+  the sizes, statement words and counts of a run (`Ports/Shrink/Layout.lean`, `Run.ccs`,
+  `Run.counts`). The sum-check rounds and the eq weights that the game takes from layer 1
+  (`Game.sumcheck`, `Lib.roundValues`, `Lib.eqAt`, `Lib.eqEval`). These four are the only
+  `ports.json` entries outside `Ports/` (`portsOutside`): `Layer1/`, which sits below `Ports/`,
+  reads them too. `Lib.eqAt` puts
+  coordinate `t` with bit `t` of the index, as `eq_at` and `eq_table` (`field.rs`) do; `ports.json`
+  pins it to both.
 - The circuit programs and their lowering (`Ports/Circuit/`), with the parts of `Ports/Replay/`
   that the programs read: the data types (`Ports/Replay/Data.lean`), the fields
   (`Ports/Replay/Field.lean`), the bar transform (`Replay.bar`) and the GKR shape functions
   (`layerCount`, `layerDegree`, `layerFactors`, `partFactors`, `activeTrees`).
-- The terminal loader (`Terminal.Package.load`).
+- The terminal loader (`Terminal.Package.load`). Its rows are F′'s row instantiation
+  (`Producer.rows`); Rust pushes the rows of its templates (`expand_matrix`). The final program
+  holds every package row in one `r1cs` instruction, so `final_program_matches_lean` compares each
+  row and term, in order, on the pinned artifact, by hand; in CI, `final_program_digest_is_pinned`
+  pins the run digest of Lean's program. For another package, no check compares the rows.
 - The setup build and the key expander (`Ports/Setup.lean`). The build is Rust's slot key while
   there are at most `2^24` run classes and the blocks fit 32 bits; `from_rows` refuses wider keys
   (`slot key width`). The proof reads only `ReadsBack` of the port, and the Rust test
@@ -102,10 +109,19 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   the vectors that Lean emits.
 - The Merkle hash that `MerkleBinds` reads (`Replay.pathOk`, `merkleRoot`, `compress`,
   `hashLeaf`). The Merkle binding of section 3 gives a Poseidon2 collision only if this is the
-  hash that made the key root.
+  hash that made the key root. Its permutation `Replay.permute` is F′'s `permute64`, which F′
+  proves is `Poseidon2.permute` over F′'s constants. Rust draws its constants from `SEED`. In CI,
+  `exported_round_constants_match_fprime_lean_spec` (`neo-ccs`) compares them with F′'s,
+  `exported_round_constants_rebuild_the_canonical_permutation` shows that they make the workspace
+  permutation, `poseidon2_matches_the_workspace_permutation` (`neo-spartan`) shows that layer 1's
+  permutation (`hash::permutation`) is the workspace permutation on 64 states, and the digest pins
+  compare outputs: `permutation_template_matches_lean` hashes with F′'s `Poseidon2.hash`, and the
+  run digests hash with `Replay.hashLeaf`.
 - The error charges (`Layer1.rustDegrees`, `Shrink.rustDegrees`). If one differs from
   `outer_terms` (`lib.rs`) or from `terms` (`shrink/mod.rs`), the premises `p0`, `p1` and `rust`
-  are not the checks that `Pcs::new` makes.
+  are not the checks that `Pcs::new` makes. `outer_terms` charges `ring::row_count(shape) - 1`
+  for the ring-row batching, and `Layer1.rustLinear` charges `s.rows - 1`, the same sum of
+  `kappa`, `matrices` and `publicBlocks`; `ports.json` pins `rustLinear` to `row_count` too.
 - The readers of the files that the Rust tests write (`Layer1Key`, `readRuns` in
   `CompressionLeanExe/Runs.lean`): transcriptions of their formats.
 
@@ -116,6 +132,15 @@ replay's draws. The simulation (`Sim/`) proves that the circuit's checks give a 
 the replay, and `Bridge/` proves that a run of the replay gives a path of the layer-1 game. So a
 claim holds whether or not the replay agrees with Rust's native verifier. `ports.json` lists the
 replay, so a change to the Rust items that it transcribes still shows.
+
+The entries of the shrink CCS and its relation (`Run.ccs` entries, `Ccs.z`, `Ccs.Relation`) cannot
+make a claim false either. The shrink game reads only the sizes and statement words of `Run.ccs`;
+its checks use the verifier's matrix value, and the bad sets that read the entries change no check
+and no draw. The entries and `z` enter the claims only in the read condition (`FinalRestoreBreak`).
+`verifierMatrices_eq` proves that the entries give the matrix value that the verifier computes, and
+`shrinkGame_avoids` proves that an accepted transcript has a candidate that satisfies
+`Ccs.Relation` on `z`. So the relation is the one that the verifier checks, whatever entries Rust's
+prover uses. `ports.json` lists them.
 
 These checks compare a transcription with its Rust:
 
@@ -133,7 +158,8 @@ These checks compare a transcription with its Rust:
   values, and the context words enter as constants.
 - The Rust tests `relation_shape_has_the_lean_constants` (`neo-spartan`) and
   `parent_relation_arguments_are_the_lean_constants` (`nightstream`) pin the production constants of
-  `Production.lean`.
+  `Production.lean`. The first also pins `Replay.D = 54`: `ports.json` names the alias `D` of
+  `ring.rs`, but the value is in an inline module of `neo-params` that `lean_ports` cannot name.
 - The executables (`CompressionLeanExe/`, which `lake build` builds with warnings as errors) check
   premises of two kinds. `loads` and `valid` are closed propositions about Lean values
   (`circuitPackage ()`). `terminalCheck` checks them by compiled evaluation, because the kernel does

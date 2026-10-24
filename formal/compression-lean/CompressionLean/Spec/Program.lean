@@ -9,7 +9,9 @@ Owns the production final program (`FinalProgram::run`,
 `neo-spartan/src/lib.rs:692-703`) for a layer-1 key, and what layer 1 reads
 from a witness of it.
 
-- `program`, `prog`: the program, and its shrink run for a statement.
+- `productionProgram`: the program. `shrinkRun`: its lowering at a
+  statement, the run that the shrink verifier checks. `counts`: the counts of
+  that run, the same at every statement.
 - `wordsOf`: the words of the executor's run of the program on a statement
   and a witness, by handle.
 - `statementWith`, `seedWith`, `proofWith`: the statement, the seed and the
@@ -127,16 +129,22 @@ variable (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
 
 /-- `FinalProgram::run` with `verify_with` for `key` (`lifecycle/terminal/mod.rs:54-80`).
 Irreducible, so that no check evaluates the program. -/
-@[irreducible] def program : Build Unit := finalProgram loaded context fun claim state => verifyWith key state claim.view
+@[irreducible] def productionProgram : Build Unit :=
+  finalProgram loaded context fun claim state => verifyWith key state claim.view
 
-/-- The shrink run of the final program for the statement `x`. -/
-noncomputable def prog (x : StateWords) : Shrink.Run Spec.F :=
-  lower (program key loaded context).program (List.ofFn x)
+/-- The shrink run of the final program for the statement `x`: its lowering. -/
+noncomputable def shrinkRun (x : StateWords) : Shrink.Run Spec.F :=
+  lower (productionProgram key loaded context).program (List.ofFn x)
+
+/-- The counts of the final program's shrink runs, which do not depend on
+the statement (`lower_counts`). -/
+noncomputable def counts : Shrink.Counts :=
+  (lower (productionProgram key loaded context).program ([] : List Spec.F)).counts
 
 /-- The words of the executor's run of the final program on `x` and the
 witness `w`, by handle. -/
 noncomputable def wordsOf (x : StateWords) (w : ℕ → Spec.F) : Var → Replay.Word :=
-  let L := (program key loaded context).program
+  let L := (productionProgram key loaded context).program
   let stmt := List.ofFn x
   fun h => Replay.Word.ofF
     ((Exec.run Spec.Poseidon2.permute stmt (tapeOf Block.poseidonTemplate L stmt w) L).value h)

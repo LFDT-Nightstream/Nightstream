@@ -45,4 +45,8 @@ abbrev poseidon2Width : ℕ := PerApplicationFixedPoint.logicalWidth Poseidon2Ha
 
 theorem poseidon2Width_eq : poseidon2Width = 43963750 := Poseidon2HashChainV1Package.logicalWidth
 
+/-- F′'s logical relation of the Poseidon2 hash-chain application, at `poseidon2Width`. -/
+abbrev poseidon2Relation := PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
+  Poseidon2HashChainV1Package.fits
+
 end CompressionLean.Production

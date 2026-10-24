@@ -46,13 +46,13 @@ open CompressionLean.Final CompressionLean.Setup
 
 /-- **The production bound** (`CompressionKey::verify`,
 `lifecycle/finish.rs:131-145`). Take the production final program for the
-layer-1 key `key` (`Spec.prog`), the terminal package with the context
+layer-1 key `key` (`productionProgram`), the terminal package with the context
 words of `authority`, and an honest setup `S` of an F′ relation of logical
 width `lw`. Under Fiat–Shamir, with the charged terms of each commitment
 within Rust's split, a prover with `calls` queries makes the final verifier
 accept a statement whose F′ claim (`ParentClaim`) is false, while every
 program witness among the shrink candidates has a reading that layer 1 ran
-(`Spec.Reads`), with probability at most `calls / 2^t`. -/
+(`Reads`), with probability at most `calls / 2^t`. -/
 theorem production_bound {lw : ℕ}
     {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
     (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
@@ -66,28 +66,26 @@ theorem production_bound {lw : ℕ}
     (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (t Ls : ℕ)
     (p0 : (L0 : ℝ) * L1 * Layer1.rustDegrees (shapeOf key.relation) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1))
     (p1 : (L1 : ℝ) * (1 / 2) ^ ((shapeOf key.relation).queries - 1) ≤ 1 / 2 ^ (t + 1))
-    (rust : (Ls : ℝ) * Shrink.rustDegrees (Shrink.Layout.rowVars Circuit.Block.poseidonTemplate
-        (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts)
-        (Shrink.Layout.cellVars Circuit.Block.poseidonTemplate
-        (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts) / 2 ^ 191 ≤ 1 / 2 ^ t)
+    (rust : (Ls : ℝ) * Shrink.rustDegrees
+        (Shrink.Layout.rowVars Circuit.Block.poseidonTemplate (counts key loaded context))
+        (Shrink.Layout.cellVars Circuit.Block.poseidonTemplate (counts key loaded context)) / 2 ^ 191 ≤ 1 / 2 ^ t)
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
       Replay.Word.cast (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0)
-    (calls : ℕ) (prover : Game.Strategy (RestoreOutcome Gl Cubic (game key.relation S L0 L1))) :
+    (calls : ℕ) (prover : Game.Strategy (RestoreOutcome Gl Cubic (game key S L0 L1))) :
     Game.prob prover
-        (restorePair (Shrink.shrinkGame (F := Gl) Circuit.Block.poseidonTemplate
-          (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts (prog key loaded context) Ls)
-          (game key.relation S L0 L1) calls [] [])
+        (restorePair (Shrink.shrinkGame (F := Gl) Circuit.Block.poseidonTemplate (counts key loaded context)
+          (shrinkRun key loaded context) Ls) (game key S L0 L1) calls [] [])
         (FinalRestoreBreak (F := Gl) (ParentClaim relation ajtai authority) Circuit.Block.poseidonTemplate
-          (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts (prog key loaded context)
-          (game key.relation S L0 L1) (Reads key loaded context S L0 L1)) ≤
+          (counts key loaded context) (shrinkRun key loaded context) (game key S L0 L1)
+          (Reads key loaded context S L0 L1)) ≤
       calls / 2 ^ t :=
   final_restore_budget_parent (shapeOf key.relation) barOf S relation ajtai shape barOf_eq honest fits L0 L1 h0 h1
     (show key.relation.setupVars ≤ 35 by have := facts.relation.high; omega) t Circuit.Block.poseidonTemplate _
-    (prog key loaded context) Ls p0 p1 rust (queryAt key.relation) goldilocksModulus facts.shape le_rfl
+    (shrinkRun key loaded context) Ls p0 p1 rust (queryAt key.relation) goldilocksModulus facts.shape le_rfl
     (Bridge.queryAt_distinct key.relation facts.relation.high) Lowering.Block.poseidonTemplate_wellFormed
-    (prog_valid key loaded context) authority (Reads key loaded context S L0 L1)
+    (shrinkRun_valid key loaded context) authority (Reads key loaded context S L0 L1)
     (programEncodes S facts fits describes L0 L1 loads valid hctx) calls prover
 
 /-- **The honest setup from the build** (`neo_spartan::Setup::build`). A setup
@@ -113,7 +111,7 @@ theorem key_facts_of_check {key : Layer1Input} (pass : keyFailure key = none) : 
 they print that it fits the Poseidon2 hash chain (`poseidon2Fits`) has the
 blocks of that application. -/
 theorem width_fits_of_check {key : Layer1Input} (pass : poseidon2Fits key = true) :
-    WidthFits key (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application) :=
+    WidthFits key Production.poseidon2Width :=
   of_decide_eq_true pass
 
 /-- **The package check** of `terminalCheck`: a package whose compact row
@@ -128,9 +126,8 @@ Poseidon2 hash chain and F′'s matrices, the setup fits the key's shape
 (`Setup.Fits`), and the key's structure describes it (`Structure.Describes`). -/
 theorem setup_facts_of_check {key : Layer1Input} {pushes : List Push} (seed : List ℕ)
     (pass : setupFailure key pushes = none) :
-    build seed (Phi81CarrierLayout.carrierWidth
-        (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application))
-        productionProfile.ccsMatrices pushes = some (poseidon2Setup seed pushes) ∧
+    build seed (Phi81CarrierLayout.carrierWidth Production.poseidon2Width) productionProfile.ccsMatrices pushes =
+        some (poseidon2Setup seed pushes) ∧
       (poseidon2Setup seed pushes).Fits (shapeOf key.relation) ∧
       (structureOf key.relation.key.layout).Describes (shapeOf key.relation) (poseidon2Setup seed pushes) :=
   setupFacts_of_check seed pass
@@ -145,42 +142,33 @@ of the facts of the setup. -/
 theorem poseidon2_bound (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
     (authority : Lifecycle.VerifierContext.Authority) (pushes : List Push)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
-      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth
-        (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application))))
-    (gives : RunsGive pushes
-      (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits))
-    (facts : KeyFacts key) (width : WidthFits key
-      (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application))
+      (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth Production.poseidon2Width)))
+    (gives : RunsGive pushes Production.poseidon2Relation)
+    (facts : KeyFacts key) (width : WidthFits key Production.poseidon2Width)
     (pass : setupFailure key pushes = none)
     (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (t Ls : ℕ)
     (p0 : (L0 : ℝ) * L1 * Layer1.rustDegrees (shapeOf key.relation) / 2 ^ 191 ≤ 1 / 2 ^ (t + 1))
     (p1 : (L1 : ℝ) * (1 / 2) ^ ((shapeOf key.relation).queries - 1) ≤ 1 / 2 ^ (t + 1))
-    (rust : (Ls : ℝ) * Shrink.rustDegrees (Shrink.Layout.rowVars Circuit.Block.poseidonTemplate
-        (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts)
-        (Shrink.Layout.cellVars Circuit.Block.poseidonTemplate
-        (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts) / 2 ^ 191 ≤ 1 / 2 ^ t)
+    (rust : (Ls : ℝ) * Shrink.rustDegrees
+        (Shrink.Layout.rowVars Circuit.Block.poseidonTemplate (counts key loaded context))
+        (Shrink.Layout.cellVars Circuit.Block.poseidonTemplate (counts key loaded context)) / 2 ^ 191 ≤ 1 / 2 ^ t)
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
       Replay.Word.cast (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0)
     (calls : ℕ) (prover : Game.Strategy
-      (RestoreOutcome Gl Cubic (game key.relation (poseidon2Setup setup.seed.bytes pushes) L0 L1))) :
+      (RestoreOutcome Gl Cubic (game key (poseidon2Setup setup.seed.bytes pushes) L0 L1))) :
     Game.prob prover
-        (restorePair (Shrink.shrinkGame (F := Gl) Circuit.Block.poseidonTemplate
-          (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts (prog key loaded context) Ls)
-          (game key.relation (poseidon2Setup setup.seed.bytes pushes) L0 L1) calls [] [])
-        (FinalRestoreBreak (F := Gl)
-          (ParentClaim (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
-            Poseidon2HashChainV1Package.fits) setup.verifierKey authority)
-          Circuit.Block.poseidonTemplate
-          (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts (prog key loaded context)
-          (game key.relation (poseidon2Setup setup.seed.bytes pushes) L0 L1)
+        (restorePair (Shrink.shrinkGame (F := Gl) Circuit.Block.poseidonTemplate (counts key loaded context)
+          (shrinkRun key loaded context) Ls) (game key (poseidon2Setup setup.seed.bytes pushes) L0 L1) calls [] [])
+        (FinalRestoreBreak (F := Gl) (ParentClaim Production.poseidon2Relation setup.verifierKey authority)
+          Circuit.Block.poseidonTemplate (counts key loaded context) (shrinkRun key loaded context)
+          (game key (poseidon2Setup setup.seed.bytes pushes) L0 L1)
           (Reads key loaded context (poseidon2Setup setup.seed.bytes pushes) L0 L1)) ≤
       calls / 2 ^ t := by
   obtain ⟨built, fits, describes⟩ := setup_facts_of_check setup.seed.bytes pass
-  exact production_bound key loaded context authority _
-    (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits)
-    setup.verifierKey (parentShape_of _ _ rfl rfl facts.constants.kappa facts.constants.matrices
+  exact production_bound key loaded context authority _ Production.poseidon2Relation setup.verifierKey
+    (parentShape_of _ _ rfl rfl facts.constants.kappa facts.constants.matrices
       facts.constants.blocks width facts.constants.norm)
     (honest_setup_of_build _ rfl rfl setup _ pushes built gives) facts fits describes L0 L1 h0 h1 t Ls p0 p1 rust
     loads valid hctx calls prover

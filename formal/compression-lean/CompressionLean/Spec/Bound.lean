@@ -10,7 +10,7 @@ import CompressionLean.Game.Path
 /-!
 Owns the event that the production bound bounds.
 
-- `game`: the layer-1 game of a relation and a setup, with F′'s modulus.
+- `game`: the layer-1 game of a key's relation and a setup, with F′'s modulus.
 - `Reads`: a path of that game reads, from a witness of the final program,
   the statement and the proof that the in-circuit verifier reads, the
   challenges that it computes from them, and candidate lists that WHIR's
@@ -28,10 +28,11 @@ open CompressionLean.Layer1
 open NightstreamFPrime.Spec (goldilocksModulus)
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial (modulus)
 
-/-- The layer-1 game of the relation `rel` and the setup `S`, with F′'s
+/-- The layer-1 game of the relation of `key` and the setup `S`, with F′'s
 modulus, as the final theorems state it. -/
-noncomputable abbrev game (rel : Replay.Relation) (S : Setup Gl) (L0 L1 : ℕ) :=
-  layer1Game (shapeOf rel) modulus barOf S L0 L1 (2 ^ (rel.setupVars - 2)) goldilocksModulus (queryAt (K := Cubic) rel)
+noncomputable abbrev game (key : Layer1Input) (S : Setup Gl) (L0 L1 : ℕ) :=
+  layer1Game (shapeOf key.relation) modulus barOf S L0 L1 (2 ^ (key.relation.setupVars - 2)) goldilocksModulus
+    (queryAt (K := Cubic) key.relation)
 
 /-- **The reading.** The path `p` reads, from the witness `wit` of program
 `x`, the statement and the proof that the in-circuit verifier reads, the
@@ -39,7 +40,7 @@ challenges that it computes from them (`verify` replayed up to WHIR), and
 candidate lists that agree with the WHIR openings at its points and with a
 setup that the key's Merkle root binds. -/
 def Reads (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) (S : Setup Gl) (L0 L1 : ℕ)
-    (x : StateWords) (wit : ℕ → Gl) (p : (game key.relation S L0 L1).Pos) : Prop :=
+    (x : StateWords) (wit : ℕ → Gl) (p : (game key S L0 L1).Pos) : Prop :=
   let w := wordsOf key loaded context x wit
   let st := statementWith loaded context w
   let seed := seedWith loaded context w

@@ -44,12 +44,12 @@ section Runs
 variable (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
 
 /-- Each shrink run of the program names only its own cells (`lower_valid`). -/
-theorem prog_valid (x : StateWords) : (prog key loaded context x).Valid Block.poseidonTemplate :=
+theorem shrinkRun_valid (x : StateWords) : (shrinkRun key loaded context x).Valid Block.poseidonTemplate :=
   lower_valid Block.poseidonTemplate (Nat.le_of_eq rfl) _ _
 
 /-- The executor's run of the final program on `x` and the witness `w`. -/
 noncomputable def ctxOf (x : StateWords) (w : ℕ → Spec.F) : Ctx Spec.F :=
-  let L := (program key loaded context).program
+  let L := (productionProgram key loaded context).program
   let stmt := List.ofFn x
   let tape := tapeOf Block.poseidonTemplate L stmt w
   { perm := Spec.Poseidon2.permute, stmt, tape, val := (Exec.run Spec.Poseidon2.permute stmt tape L).value }
@@ -115,17 +115,18 @@ private theorem program_gives
     (named : ∀ s ∈ key.relation.key.layout.segments,
       s.classIndex < key.relation.key.layout.classes.size ∧ s.lane < Replay.D)
     (x : StateWords) (wit : ℕ → Spec.F)
-    (holds : ((prog key loaded context x).ccs Block.poseidonTemplate (prog key loaded context x).counts).Relation wit) :
+    (holds : ((shrinkRun key loaded context x).ccs Block.poseidonTemplate
+      (shrinkRun key loaded context x).counts).Relation wit) :
     Gives key loaded context authority (ctxOf key loaded context x wit) (wordsOf key loaded context x wit) := by
   have hw : Decodes (ctxOf key loaded context x wit) (wordsOf key loaded context x wit) :=
     fun _ => (Replay.Word.cast_ofF _).symm
-  have accepts : Exec (ctxOf key loaded context x wit).perm (program key loaded context).program
+  have accepts : Exec (ctxOf key loaded context x wit).perm (productionProgram key loaded context).program
       (ctxOf key loaded context x wit).stmt (ctxOf key loaded context x wit).tape :=
-    lower_sound (program key loaded context).program (List.ofFn x) wit holds
+    lower_sound (productionProgram key loaded context).program (List.ofFn x) wit holds
   exact finalProgram_exec (layer1 := fun claim state => verifyWith key state claim.view)
     (R := fun _ _ => Gives key loaded context authority (ctxOf key loaded context x wit) (wordsOf key loaded context x wit))
-    (by rw [program]) loads valid hctx (verifyWith_at permutes_poseidon2 hw facts named) (fun _ => inferInstance) rfl
-    accepts
+    (by rw [productionProgram]) loads valid hctx (verifyWith_at permutes_poseidon2 hw facts named)
+    (fun _ => inferInstance) rfl accepts
 
 end Gives
 
@@ -157,10 +158,10 @@ theorem programEncodes {key : Layer1Input} {loaded : Loaded} {context : Array Re
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
       Replay.Word.cast (context.getD lane 0) = (Lifecycle.VerifierContext.digest authority).getD lane 0) :
-    ProgramEncodes (F := Gl) Block.poseidonTemplate (lower (program key loaded context).program ([] : List Spec.F)).counts
-      (prog key loaded context) authority (game key.relation S L0 L1) (Reads key loaded context S L0 L1) := by
+    ProgramEncodes (F := Gl) Block.poseidonTemplate (counts key loaded context) (shrinkRun key loaded context) authority
+      (game key S L0 L1) (Reads key loaded context S L0 L1) := by
   intro x wit holds
-  rw [lower_counts _ [] (List.ofFn x)] at holds
+  rw [counts, lower_counts _ [] (List.ofFn x)] at holds
   have named : ∀ s ∈ key.relation.key.layout.segments,
       s.classIndex < key.relation.key.layout.classes.size ∧ s.lane < Replay.D := fun s member => by
     obtain ⟨i, inside, rfl⟩ := Array.mem_iff_getElem.mp member

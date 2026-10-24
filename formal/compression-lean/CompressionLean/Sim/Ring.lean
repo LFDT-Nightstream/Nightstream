@@ -12,9 +12,9 @@ closed forms of `Mle.lean` (`mle.rs`) against the replay's formulas
   `IsMixing`: the powers of `λ`, one per row, as the replay's `Mixing`
   reads them.
 - An identity of `Ext` holds when it holds in the challenge field `Cubic`
-  (`Ext.eq_of_toK`). So proof words that pass the inverse check are the
-  replay's inverse (`inverse_of_check`), and `Mle.scaledEqPoint_ensures`
-  finds no pole.
+  (`Ext.eq_of_toK`). Proof words that pass the inverse check are the
+  replay's inverse (`extInv_ensures`), so `Mle.scaledEqPoint_ensures` finds
+  no pole.
 
 `EvalK.lean` owns `eval_k`.
 -/
@@ -417,39 +417,6 @@ section ScaledEqPoint
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- A check `a·t = 1` in `F` makes `a` nonzero and `t` the coordinates of its inverse. -/
-private theorem inverse_of_check {ga : Ext} {t : Fin 3 → F} (h : extProduct (coords ga) t = ![1, 0, 0]) :
-    ga ≠ 0 ∧ t = coords ga.inv := by
-  have nz : ga ≠ 0 := by
-    rintro rfl
-    haveI := CharP.nontrivial_of_char_ne_one (R := F) (v := goldilocksModulus) (by decide)
-    have := congrFun h 0
-    simp [extProduct] at this
-  refine ⟨nz, ?_⟩
-  have unit : extProduct (coords (F := F) ga) (coords ga.inv) = ![1, 0, 0] := by
-    rw [← coords_mul, Ext.mul_inv nz, coords_one]
-  calc t = extProduct t ![1, 0, 0] := (extProduct_one t).symm
-    _ = extProduct (extProduct (coords ga) t) (coords ga.inv) := by
-      rw [← unit, ← extProduct_assoc, extProduct_comm t]
-    _ = coords ga.inv := by rw [h, extProduct_comm, extProduct_one]
-
-/-- `ext_inverse` (`record.rs:379-397`): once its check holds, the value is
-nonzero and the proof words are its inverse. -/
-private theorem extInv_inverse {a : ExtVar} {ga : Ext} (ha : IsExt c n a ga) :
-    Ensures c n (Build.extInv a) fun r m => ga ≠ 0 ∧ IsExt c m r ga.inv :=
-  (Ensures.emit (Q := fun h m => ga ≠ 0 ∧ ∀ k : Fin 3, IsWord c m (h + k) (ga.inv.coord k)) _ fun E hl hF hh => by
-    have hE := Ctx.follows_of_step hF
-    have ra : (fun i => E.value (a i)) = coords ga := funext fun i => (ha i).read hE hl
-    have holds : E.holds ∧
-        extProduct (fun i => E.value (a i)) (fun k => c.tape (E.values.length + k)) = ![1, 0, 0] := hh
-    rw [ra] at holds
-    obtain ⟨nz, inv⟩ := inverse_of_check holds.2
-    refine ⟨nz, fun k => ⟨Nat.add_lt_add_left k.isLt n, ?_⟩⟩
-    rw [← hl, Ctx.val_next hF (by simp)]
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
-    rw [dif_pos k.isLt, Option.getD_some]
-    exact congrFun inv k).map fun _ _ h => ⟨h.1, fun k => h.2 k⟩
-
 /-- `scaled_eq_point` (`mle.rs:21-34`): once each inverse checks, no denominator is a pole, the replay returns
 `κ` and the point, and the handles hold them. -/
 theorem Mle.scaledEqPoint_ensures {cv : ExtVar} {gc : Ext} (bits : ℕ) (hc : IsExt c n cv gc) :
@@ -470,7 +437,7 @@ theorem Mle.scaledEqPoint_ensures {cv : ExtVar} {gc : Ext} (bits : ℕ) (hc : Is
   · obtain ⟨hkappa, hpoint, hpower, poles⟩ := hacc
     refine (extAdd_ensures hone.mono hpower).bind fun d _ _ hd => ?_
     refine (extMul_ensures hkappa.mono hd).bind fun kappa _ _ hkappa' => ?_
-    refine (extInv_inverse hd.mono).bind fun inv _ _ hinv => ?_
+    refine (extInv_ensures hd.mono).bind fun inv _ _ hinv => ?_
     refine (extMul_ensures hpower.mono hinv.2).bind fun x _ _ hx => ?_
     refine (extMul_ensures hpower.mono hpower.mono).bind fun power _ _ hpower' =>
       Ensures.pure ⟨rfl, ?_, ?_, ?_, ?_⟩

@@ -8,7 +8,8 @@ of the replay action `x` ends at the program's duplex, and `Q` relates the
 program's result, the replay's result and the new count.
 
 - `Tracks.bind` steps the program and the replay together, and the rest
-  receives both results; `Tracks.bindLast` ends the replay.
+  receives both results; `Tracks.bindLast` ends the replay. `Tracks.runs`
+  also gives the rest the replay's run, for facts that a run implies.
 - `Tracks.lift` and `Tracks.quiet` pass the program's steps that the replay
   does not take: a builder call, or a transcript step that tracks the
   replay's `pure ()`, as one that keeps the duplex does (`Tracks.ofKeeps`).
@@ -43,6 +44,11 @@ theorem pure {a : α} {b : β} {Q : α → β → ℕ → Prop} (h : Q a b n) :
 theorem post {t : Transcript α} {x : ReplayM β} {Q Q' : α → β → ℕ → Prop} (h : Tracks c n t x Q)
     (hq : ∀ a b m, Q a b m → Q' a b m) : Tracks c n t x Q' := fun d tr hd =>
   (h d tr hd).post fun _ _ ⟨b, tr', hrun, hd', hb⟩ => ⟨b, tr', hrun, hd', hq _ _ _ hb⟩
+
+/-- The result also says that the replay's action ran. -/
+theorem runs {t : Transcript α} {x : ReplayM β} {Q : α → β → ℕ → Prop} (h : Tracks c n t x Q) :
+    Tracks c n t x fun a b m => Q a b m ∧ ∃ tr tr', Runs x tr b tr' := fun d tr hd =>
+  (h d tr hd).post fun _ _ ⟨b, tr', run, hdx, hq⟩ => ⟨b, tr', run, hdx, hq, tr, tr', run⟩
 
 /-- **A step that the replay takes, then the rest**, which receives both
 results and what `Q` says of them. -/

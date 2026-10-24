@@ -293,7 +293,7 @@ private theorem Whir.queryIndex_tracks (hp : Permutes c.perm) (width : ℕ) :
   refine Ensures.liftBind (const_ensures 1) fun one _ _ hone => ?_
   refine Ensures.liftBind (add_ensures hs.mono hone) fun shifted _ _ hshifted => ?_
   refine Ensures.liftBind (const_ensures 0) fun z _ _ hz => ?_
-  refine Ensures.liftBind (extInv_ne_ensures (ga := ⟨t.duplex.sample.1 + 1, 0, 0⟩) fun k => ?_)
+  refine Ensures.liftBind (extInv_ensures (ga := ⟨t.duplex.sample.1 + 1, 0, 0⟩) fun k => ?_)
     fun _ _ _ hne => ?_
   · fin_cases k
     · exact hshifted.mono
@@ -301,7 +301,7 @@ private theorem Whir.queryIndex_tracks (hp : Permutes c.perm) (width : ℕ) :
     · exact hz
   refine Ensures.post Ensures.keeps fun r m h => ?_
   obtain ⟨le, e⟩ := h
-  have hne' : t.duplex.sample.1 + 1 ≠ 0 := fun e => hne (by rw [e]; rfl)
+  have hne' : t.duplex.sample.1 + 1 ≠ 0 := fun e => hne.1 (by rw [e]; rfl)
   refine ⟨(), { duplex := t.duplex.sample.2, draws := t.draws.push (.sample t.duplex.sample.1) },
     Bridge.runs_bind (Bridge.runs_sampleWord t) (Bridge.runs_bind (Bridge.runs_ensure ?_ _ _) (Bridge.runs_record _ _)),
     by rw [e]; exact hd₁.mono, trivial⟩

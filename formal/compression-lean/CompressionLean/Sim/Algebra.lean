@@ -77,6 +77,22 @@ theorem coords_ofGl (g : Word) : coords (F := F) (Ext.ofGl g) = ![Word.cast g, 0
 theorem coords_injective : Function.Injective (coords (F := F)) := fun _ _ h =>
   Ext.eq_of_coord (F := F) (congrFun h)
 
+/-- A check `a·t = 1` in `F` makes `a` nonzero and `t` the coordinates of its inverse. -/
+private theorem inverse_of_check {ga : Ext} {t : Fin 3 → F} (h : extProduct (coords ga) t = ![1, 0, 0]) :
+    ga ≠ 0 ∧ t = coords ga.inv := by
+  have nz : ga ≠ 0 := by
+    rintro rfl
+    haveI := CharP.nontrivial_of_char_ne_one (R := F) (v := goldilocksModulus) (by decide)
+    have := congrFun h 0
+    simp [extProduct] at this
+  refine ⟨nz, ?_⟩
+  have unit : extProduct (coords (F := F) ga) (coords ga.inv) = ![1, 0, 0] := by
+    rw [← coords_mul, Ext.mul_inv nz, coords_one]
+  calc t = extProduct t ![1, 0, 0] := (extProduct_one t).symm
+    _ = extProduct (extProduct (coords ga) t) (coords ga.inv) := by
+      rw [← unit, ← extProduct_assoc, extProduct_comm t]
+    _ = coords ga.inv := by rw [h, extProduct_comm, extProduct_one]
+
 end Char
 
 /-! ## Sums and products -/
@@ -503,21 +519,22 @@ theorem assertExtEqual_ensures {a b : ExtVar} {ga gb : Ext} (ha : IsExt c n a ga
     Ensures c n (Build.assertExtEqual a b) fun _ _ => ga = gb :=
   (extSub_ensures ha hb).bind fun _ _ _ hd => (assertExtZero_ensures hd).post fun _ _ h => ext_sub_eq_zero.mp h
 
-/-- `ext_inverse`: an inverse that passes its check has a nonzero input. -/
-theorem extInv_ne_ensures {a : ExtVar} {ga : Ext} (ha : IsExt c n a ga) :
-    Ensures c n (Build.extInv a) fun _ _ => ga ≠ 0 := by
-  have one_ne : (1 : F) ≠ 0 := by
-    intro e
-    have := (CharP.cast_eq_zero_iff F goldilocksModulus 1).mp (by simpa using e)
-    norm_num [goldilocksModulus] at this
-  refine (Ensures.emit (Q := fun _ _ => ga ≠ 0) (.extInv a) fun E hl hF hh hz => ?_).map fun _ _ h => h
-  have holds : E.holds ∧
-      extProduct (fun i => E.value (a i)) (fun k => c.tape (E.values.length + k)) = ![1, 0, 0] := hh
-  have ra : (fun i => E.value (a i)) = coords ga := funext fun i => (ha i).read (Ctx.follows_of_step hF) hl
-  rw [ra, hz, coords_zero] at holds
-  have e := congrFun holds.2 0
-  simp [extProduct] at e
-  exact one_ne e.symm
+/-- `ext_inverse` (`record.rs:379-397`): once its check holds, the value is
+nonzero and the proof words are its inverse. -/
+theorem extInv_ensures {a : ExtVar} {ga : Ext} (ha : IsExt c n a ga) :
+    Ensures c n (Build.extInv a) fun r m => ga ≠ 0 ∧ IsExt c m r ga.inv :=
+  (Ensures.emit (Q := fun h m => ga ≠ 0 ∧ ∀ k : Fin 3, IsWord c m (h + k) (ga.inv.coord k)) _ fun E hl hF hh => by
+    have hE := Ctx.follows_of_step hF
+    have ra : (fun i => E.value (a i)) = coords ga := funext fun i => (ha i).read hE hl
+    have holds : E.holds ∧
+        extProduct (fun i => E.value (a i)) (fun k => c.tape (E.values.length + k)) = ![1, 0, 0] := hh
+    rw [ra] at holds
+    obtain ⟨nz, inv⟩ := inverse_of_check holds.2
+    refine ⟨nz, fun k => ⟨Nat.add_lt_add_left k.isLt n, ?_⟩⟩
+    rw [← hl, Ctx.val_next hF (by simp)]
+    simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
+    rw [dif_pos k.isLt, Option.getD_some]
+    exact congrFun inv k).map fun _ _ h => ⟨h.1, fun k => h.2 k⟩
 
 /-- `dot`. -/
 theorem dot_ensures {x y : Array ExtVar} {gx gy : Array Ext} (hx : IsExts c n x gx) (hy : IsExts c n y gy) :

@@ -167,6 +167,12 @@ theorem tfoldlM_list {f : γ → δ → Transcript γ} (h : ∀ s x d, Appends (
       rw [List.foldlM_cons]
       exact tbind (h init x) fun s d => tfoldlM_list h l s d
 
+theorem tforM_array {f : δ → Transcript PUnit} (h : ∀ x d, Appends ((f x).run d)) (xs : Array δ) (d : Duplex) :
+    Appends ((xs.forM f).run d) := by
+  unfold Array.forM
+  rw [← Array.foldlM_toList]
+  exact tfoldlM_list (fun _ x d => h x d) _ _ _
+
 theorem tmapM_list {f : δ → Transcript α} (h : ∀ x d, Appends ((f x).run d)) :
     ∀ (l : List δ) (d : Duplex), Appends ((l.mapM f).run d)
   | [], _ => pure _
@@ -278,6 +284,7 @@ private def appendsRule (b : Expr) : MetaM (Option Name) := do
     | .const ``ForIn.forIn _ =>
       forIn t.getAppArgs[1]! ``Appends.tforIn_list ``Appends.tforIn_array ``Appends.tforIn_range
     | .const ``List.foldlM _ => return some ``Appends.tfoldlM_list
+    | .const ``Array.forM _ => return some ``Appends.tforM_array
     | .const ``Array.mapM _ => return some ``Appends.tmapM_array
     | .const ``List.mapM _ => return some ``Appends.tmapM_list
     | _ => return none

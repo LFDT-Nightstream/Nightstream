@@ -1,4 +1,4 @@
-import CompressionLean.Sim.Calculus
+import CompressionLean.Sim.Old
 
 /-!
 Owns the simulation of the field helpers of `Algebra.lean` and of `select`

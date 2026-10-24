@@ -1,5 +1,6 @@
 import CompressionLean.Ports.Setup
 import CompressionLean.Final.Parent
+import CompressionLean.Production
 
 /-!
 Owns what Rust's setup build (`Ports/Setup.lean`) gives, and the sizes that
@@ -237,23 +238,20 @@ theorem honestSetup_of_build (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : 
   · rw [D, runEntry_eq back]
     exact gives.entry j i c inside
 
-/-- **Rust's sizes.** `Relation::new` for the parent gets `D = 54`
-(`neo_math::D`), six lane variables (`LANE_VARIABLES`), `κ = 22`
-(`PRODUCTION_VERIFIER_ROWS`), four matrices, five public blocks
-(`PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS / D`), the `⌈lw / 54⌉` blocks of the
-key, and `H = 3672` (`compression_bound`). These give `ParentShape`. The Rust
-tests `relation_shape_has_the_lean_constants` (`neo-spartan`) and
-`parent_relation_arguments_are_the_lean_constants` (`nightstream`) pin the
-same numbers. -/
-theorem parentShape_of (s : Layer1.Shape) (lw : ℕ) (D : s.D = 54) (lanes : s.laneVars = 6)
-    (kappa : s.kappa = 22) (matrices : s.matrices = 4) (publicBlocks : s.publicBlocks = 5)
-    (blocks : s.blocks = (lw + 53) / 54) (norm : s.normBound = 3672) : ParentShape s lw where
+/-- **Rust's sizes.** `Relation::new` for the parent gets `D` (`neo_math::D`),
+six lane variables (`LANE_VARIABLES`), the production constants
+(`Production`), and the `⌈lw / D⌉` blocks of the key. These give
+`ParentShape`. -/
+theorem parentShape_of (s : Layer1.Shape) (lw : ℕ) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
+    (kappa : s.kappa = Production.kappa) (matrices : s.matrices = Production.matrices)
+    (publicBlocks : s.publicBlocks = Production.publicBlocks) (blocks : s.blocks = Phi81ColumnLayout.blockCount lw)
+    (norm : s.normBound = Production.normBound) : ParentShape s lw where
   D := D
   laneVars := lanes
   kappa := kappa
   matrices := matrices
   publicBlocks := publicBlocks
-  blocks := by rw [blocks, Phi81CarrierLayout.blockCount_carrierWidth]; rfl
+  blocks := by rw [blocks, Phi81CarrierLayout.blockCount_carrierWidth]
   norm := by rw [norm]; decide
 
 end CompressionLean.Final

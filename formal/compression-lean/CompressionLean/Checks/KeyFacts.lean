@@ -1,6 +1,7 @@
 import CompressionLean.Ports.Circuit.Verifier
 import CompressionLean.Bridge.EvalK
 import CompressionLean.Bridge.Honest
+import CompressionLean.Production
 
 /-!
 Owns the facts about the layer-1 key that the final theorems assume
@@ -25,10 +26,10 @@ structure KeyFacts (key : Layer1Input) : Prop where
   run : key.relation.key.layout.runVariables ≠ 0
   row : key.relation.key.layout.rowVariables ≠ 0
   slot : key.relation.key.layout.slotVariables + key.relation.matrixVars ≠ 0
-  kappa : key.relation.kappa = 22
-  blocks : key.relation.publicBlocks = 5
-  point : key.relation.pointVariables = 28
-  matrices : key.relation.matrices = 4
+  kappa : key.relation.kappa = Production.kappa
+  blocks : key.relation.publicBlocks = Production.publicBlocks
+  point : key.relation.pointVariables = Production.pointVariables
+  matrices : key.relation.matrices = Production.matrices
   root : key.relation.key.root.size = 4
   short : ∀ cl ∈ key.relation.key.layout.classes, cl.len ≤ Replay.D
   k1 : key.p1Key.batches.size = key.relation.p1Whir.batches.size
@@ -44,7 +45,7 @@ structure KeyFacts (key : Layer1Input) : Prop where
   sizes : HonestSizes key.relation
   high : key.relation.setupVars + 1 ≤ 32
   checked : (structureOf key.relation.key.layout).Checked (shapeOf key.relation)
-  norm : key.relation.normBound = 3672
+  norm : key.relation.normBound = Production.normBound
   shape : (shapeOf key.relation).Sizes NightstreamFPrime.Spec.goldilocksModulus
 
 /-- Each fact of `KeyFacts` by name, decided on `key`. -/
@@ -56,10 +57,10 @@ def keyChecks (key : Layer1Input) : List (String × Bool) :=
   [("run", decide (layout.runVariables ≠ 0)),
     ("row", decide (layout.rowVariables ≠ 0)),
     ("slot", decide (layout.slotVariables + rel.matrixVars ≠ 0)),
-    ("kappa", decide (rel.kappa = 22)),
-    ("blocks", decide (rel.publicBlocks = 5)),
-    ("point", decide (rel.pointVariables = 28)),
-    ("matrices", decide (rel.matrices = 4)),
+    ("kappa", decide (rel.kappa = Production.kappa)),
+    ("blocks", decide (rel.publicBlocks = Production.publicBlocks)),
+    ("point", decide (rel.pointVariables = Production.pointVariables)),
+    ("matrices", decide (rel.matrices = Production.matrices)),
     ("root", decide (rel.key.root.size = 4)),
     ("short", decide (∀ cl ∈ layout.classes, cl.len ≤ Replay.D)),
     ("k1", decide (key.p1Key.batches.size = rel.p1Whir.batches.size)),
@@ -81,7 +82,7 @@ def keyChecks (key : Layer1Input) : List (String × Bool) :=
       (0 < s.segments → s.segmentFirst (s.segments - 1) < s.slots) ∧
       (∀ i, i < s.segments → s.segmentClass i < s.classes) ∧
       ∀ c, c < s.classes → 1 ≤ s.classLength c)),
-    ("norm", decide (rel.normBound = 3672)),
+    ("norm", decide (rel.normBound = Production.normBound)),
     ("shape", decide (let sh := shapeOf rel; let N := NightstreamFPrime.Spec.goldilocksModulus
       5 ≤ N ∧
       2 ^ sh.cubeVars < N ∧
@@ -124,23 +125,18 @@ theorem keyFacts_of_check {key : Layer1Input} (pass : keyFailure key = none) : K
   rw [show i = (structureOf key.relation.key.layout).segments - 1 by omega]
   exact segment_last (by omega)
 
-/-- The key has the `⌈lw / 54⌉` blocks of an application of logical width
+/-- The key has the `⌈lw / D⌉` blocks of an application of logical width
 `lw` (`Key::derive`, `neo-spartan/src/lib.rs`). Unlike `KeyFacts`, this fact
 names one application, so a key of another application, such as the toy key
 of `lowering_matches_lean`, fails it. -/
 def WidthFits (key : Layer1Input) (lw : ℕ) : Prop :=
-  key.relation.key.blocks = (lw + 53) / 54
+  key.relation.key.blocks = NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout.blockCount lw
 
 instance (key : Layer1Input) (lw : ℕ) : Decidable (WidthFits key lw) :=
   inferInstanceAs (Decidable (_ = _))
 
-/-- The logical width of the Poseidon2 hash-chain application, the
-application of the production key (F′'s
-`Poseidon2HashChainV1Package.logicalWidth`). -/
-def poseidon2Width : ℕ := 43963750
-
-/-- `WidthFits` at `poseidon2Width`, decided on `key`. -/
+/-- `WidthFits` at `Production.poseidon2Width`, decided on `key`. -/
 def poseidon2Fits (key : Layer1Input) : Bool :=
-  decide (WidthFits key poseidon2Width)
+  decide (WidthFits key Production.poseidon2Width)
 
 end CompressionLean.Checks

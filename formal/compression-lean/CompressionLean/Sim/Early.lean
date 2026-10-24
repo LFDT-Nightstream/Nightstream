@@ -729,6 +729,12 @@ theorem observePairs_ensures {d : Duplex} {r : Replay.Duplex} {pairs : Array (Ex
     rw [← Array.foldl_toList, e]
     exact q
 
+/-- `observe_pairs` tracks the replay's `observeExts` of the flattened pairs. -/
+theorem observePairs_tracks {pairs : Array (ExtVar × ExtVar)} {gpairs : Array (Ext × Ext)} (hp : Permutes c.perm)
+    (hv : List.Forall₂ (IsPair c n) pairs.toList gpairs.toList) :
+    Tracks c n (Circuit.observePairs pairs) (Replay.observeExts (Replay.flatPairs gpairs)) fun _ _ _ => True :=
+  fun _ t hd => (observePairs_ensures hp hd hv).post fun _ _ q => ⟨(), _, Bridge.runs_observeExts _ t, q, trivial⟩
+
 /-- `observe_early` (`verifier.rs:318-324`): the replay's `observeExts` of the
 run values, the flattened pairs and the block. -/
 private theorem observeEarly_tracks {values : EarlyValuesView} {gv : Replay.EarlyValues} (hp : Permutes c.perm)
@@ -928,31 +934,6 @@ theorem earlyStage_tracks {rel : Relation} {statement : ClaimView} {st : Replay.
 end Stage
 
 /-! ## The old names, for the files that still use `Simulates` -/
-
-namespace Simulates
-
-variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
-
-theorem step {point : Array ExtVar} {gpoint : Array Ext} {starts : Array ℕ} {values : Array ExtVar}
-    {gvalues : Array Ext} (stop : ℕ) (hp : P → IsExts c n point gpoint) (hv : P → IsExts c n values gvalues)
-    (size : P → starts.size ≤ values.size) :
-    Simulates c n P (Mle.step point starts values stop)
-      (fun r m => IsExt c m r (Replay.step gpoint (starts.toList.zip gvalues.toList) stop)) True :=
-  .of_ensures₀ fun h => Mle.step_ensures stop (hp h) (hv h) (size h)
-
-theorem identity {point : Array ExtVar} {gpoint : Array Ext} (hp : P → IsExts c n point gpoint) :
-    Simulates c n P (Mle.identity point) (fun r m => IsExt c m r (Replay.identityValue gpoint)) True :=
-  .of_ensures₀ fun h => Mle.identity_ensures (hp h)
-
-theorem observePairs {d : Duplex} {r : Replay.Duplex} {pairs : Array (ExtVar × ExtVar)}
-    {gpairs : Array (Ext × Ext)} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r)
-    (hv : P → List.Forall₂ (IsPair c n) pairs.toList gpairs.toList) :
-    Simulates c n P ((Circuit.observePairs pairs).run d)
-      (fun res m => IsDuplex c m res.2
-        (((Replay.flatPairs gpairs).flatMap fun g => #[g.c0, g.c1, g.c2]).foldl Replay.Duplex.observe r)) True :=
-  .of_ensures₀ fun h => observePairs_ensures hp (hd h) (hv h)
-
-end Simulates
 
 theorem earlyStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {rel : Relation}
     {statement : ClaimView} {st : Replay.Statement} {proof : ProofView} {w : Var → Word} {g : Replay.Proof}

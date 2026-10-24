@@ -4,8 +4,8 @@ import CompressionLean.Bridge.Gkr
 
 /-!
 Owns the simulation of the batched GKR verifier of `Gkr.lean` (`gkr.rs`)
-against the replay's (`Ports/Replay/Gkr.lean`). `gkrVerify_ensures` gives the
-replay's run, and each tree's root and leaf claim (`IsGkrClaims`). The
+against the replay's (`Ports/Replay/Gkr.lean`). `gkrVerify_tracks` tracks the
+replay's run and gives each tree's root and leaf claim (`IsGkrClaims`). The
 circuit sums `ν^i·(p + μq)` from the first active tree with a running
 weight; the replay uses Horner's rule from the last tree. The sums agree.
 The proof has the layers that `readGkr` checks.
@@ -641,25 +641,5 @@ theorem gkrVerify_tracks {view : GkrView} {proof : Replay.GkrProof} {shapes : Ar
     exact ⟨root.1, root.2, point, values⟩
 
 end Verify
-
-/-! ## The old names, for the files that still use `Simulates` -/
-
-theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {view : GkrView}
-    {proof : Replay.GkrProof} {shapes : Array TreeShape} {d : Duplex} {t : Replay.Transcript}
-    (hp : Permutes c.perm) (hd : P → IsDuplex c n d t.duplex)
-    (hroots : P → view.roots.size = proof.roots.size ∧ ∀ i < view.roots.size,
-      IsExt c n (view.roots[i]!).1 (proof.roots[i]!).1 ∧ IsExt c n (view.roots[i]!).2 (proof.roots[i]!).2)
-    (hlayers : P → view.layers.size = proof.layers.size ∧ ∀ i (hi : i < view.layers.size),
-      (view.layers[i].rounds.size = (proof.layers[i]!).rounds.size ∧
-        ∀ r < view.layers[i].rounds.size, IsExts c n view.layers[i].rounds[r]! (proof.layers[i]!).rounds[r]!) ∧
-      (view.layers[i].children.size = (proof.layers[i]!).children.size ∧
-        ∀ s < view.layers[i].children.size,
-          IsExts c n view.layers[i].children[s]! (proof.layers[i]!).children[s]!))
-    (read : Replay.readGkr proof shapes = .ok ()) :
-    OldEnsures c n P ((Circuit.gkrVerify view shapes).run d)
-      (fun res m => ∃ g t', Runs (Replay.gkrVerify proof shapes) t g t' ∧ IsGkrClaims c m res.1 g ∧
-        IsDuplex c m res.2 t'.duplex) :=
-  .of_ensures fun h => (gkrVerify_tracks hp (hroots h).1 (hroots h).2 (hlayers h).1 (hlayers h).2 read d t
-    (hd h)).post fun _ _ ⟨g, t', run, hdx, claims⟩ => ⟨g, t', run, claims, hdx⟩
 
 end CompressionLean.Sim

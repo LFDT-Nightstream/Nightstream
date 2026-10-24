@@ -35,7 +35,7 @@ How each named premise of a claim is met.
 
 ## Ports
 
-`ports.json` has 308 entries: 293 Lean declarations transcribe 197 Rust items.
+`ports.json` has 391 entries: 367 Lean declarations transcribe 240 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -58,6 +58,9 @@ How each named premise of a claim is met.
 | `CompressionLean.Circuit.Views` | 11 |
 | `CompressionLean.Circuit.Whir` | 14 |
 | `CompressionLean.Final.RustSetup` | 13 |
+| `CompressionLean.Layer1.Budget` | 5 |
+| `CompressionLean.Layer1.Cube` | 2 |
+| `CompressionLean.Layer1.SumCheck` | 2 |
 | `CompressionLean.Replay.Data` | 22 |
 | `CompressionLean.Replay.Field` | 9 |
 | `CompressionLean.Replay.Formulas` | 25 |
@@ -65,22 +68,35 @@ How each named premise of a claim is met.
 | `CompressionLean.Replay.Stages` | 26 |
 | `CompressionLean.Replay.Transcript` | 10 |
 | `CompressionLean.Replay.Whir` | 4 |
+| `CompressionLean.Shrink.BlockPart` | 9 |
+| `CompressionLean.Shrink.Budget` | 1 |
+| `CompressionLean.Shrink.Ccs` | 5 |
+| `CompressionLean.Shrink.Diagonal` | 8 |
+| `CompressionLean.Shrink.Evaluate` | 10 |
+| `CompressionLean.Shrink.Game` | 5 |
+| `CompressionLean.Shrink.Layout` | 26 |
+| `CompressionLean.Shrink.Rounds` | 1 |
 
 | Rust file | Items |
 |---|---:|
 | `crates/neo-spartan/src/circuit/algebra.rs` | 24 |
+| `crates/neo-spartan/src/circuit/block.rs` | 4 |
 | `crates/neo-spartan/src/circuit/fold.rs` | 8 |
 | `crates/neo-spartan/src/circuit/hash.rs` | 13 |
 | `crates/neo-spartan/src/circuit/poseidon2.rs` | 2 |
-| `crates/neo-spartan/src/circuit/record.rs` | 30 |
+| `crates/neo-spartan/src/circuit/r1cs.rs` | 1 |
+| `crates/neo-spartan/src/circuit/record.rs` | 34 |
 | `crates/neo-spartan/src/gkr.rs` | 8 |
 | `crates/neo-spartan/src/hash.rs` | 1 |
-| `crates/neo-spartan/src/lib.rs` | 17 |
+| `crates/neo-spartan/src/lib.rs` | 18 |
 | `crates/neo-spartan/src/matrix.rs` | 20 |
 | `crates/neo-spartan/src/mle.rs` | 7 |
 | `crates/neo-spartan/src/norm.rs` | 1 |
 | `crates/neo-spartan/src/ring.rs` | 11 |
 | `crates/neo-spartan/src/setup.rs` | 6 |
+| `crates/neo-spartan/src/shrink/evaluate.rs` | 8 |
+| `crates/neo-spartan/src/shrink/layout.rs` | 15 |
+| `crates/neo-spartan/src/shrink/mod.rs` | 10 |
 | `crates/neo-spartan/src/sumcheck.rs` | 1 |
 | `crates/neo-spartan/src/verifier.rs` | 9 |
 | `crates/neo-spartan/src/whir/mod.rs` | 20 |

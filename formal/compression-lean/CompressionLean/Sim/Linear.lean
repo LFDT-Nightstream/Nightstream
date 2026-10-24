@@ -41,10 +41,10 @@ theorem IsLinearOut.mono {c : Ctx F} {n m : ℕ} {rel : Relation} {v : LinearVie
 variable {c : Ctx F} {n : ℕ} {P : Prop}
 
 /-- A builder call in a transcript keeps the duplex (`verifier.rs:187-206`). -/
-private theorem Ensures.liftBind {α β : Type} {b : Build α} {g : α → Transcript β} {d : Duplex}
-    {Q : α → ℕ → Prop} {R : β × Duplex → ℕ → Prop} (hb : Ensures c n P b Q)
-    (hg : ∀ a m, n ≤ m → Ensures c m (P ∧ Q a m) ((g a).run d) R) :
-    Ensures c n P ((monadLift b >>= g : Transcript β).run d) R := by
+private theorem OldEnsures.liftBind {α β : Type} {b : Build α} {g : α → Transcript β} {d : Duplex}
+    {Q : α → ℕ → Prop} {R : β × Duplex → ℕ → Prop} (hb : OldEnsures c n P b Q)
+    (hg : ∀ a m, n ≤ m → OldEnsures c m (P ∧ Q a m) ((g a).run d) R) :
+    OldEnsures c n P ((monadLift b >>= g : Transcript β).run d) R := by
   rw [StateT.run_bind, StateT.run_monadLift, bind_assoc]
   exact hb.bind fun a m le => by rw [pure_bind]; exact hg a m le
 
@@ -165,7 +165,7 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
     (hf : P → IsExts c n finals proof.finals) (linearSize : P → proof.linear.size = rel.cubeVars)
     (nonempty : P → ∀ g ∈ proof.linear, 0 < g.size) (finalsSize : P → proof.finals.size = 3)
     (long : Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo ≤ rel.pointVariables) :
-    Ensures c n P ((Circuit.linearStage rel statement quotient linear finals).run d)
+    OldEnsures c n P ((Circuit.linearStage rel statement quotient linear finals).run d)
       (fun res m => ∃ out t', Runs (Replay.linearStage rel st proof) t out t' ∧
         IsLinearOut c m rel res.1 out ∧ IsDuplex c m res.2 t'.duplex) := by
   have pointSize : st.point.size = rel.pointVariables := by
@@ -175,11 +175,11 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
   have finalsAt : P → ∀ i < 3, IsExt c n finals[i]! proof.finals[i]! := fun h i hi =>
     (hf h).2 i (by rw [(hf h).1, finalsSize h]; exact hi)
   unfold Circuit.linearStage
-  refine Ensures.tbind (Simulates.sampleExt hp hd).ensures fun lambda d₁ m₁ l₁ => ?_
-  refine Ensures.tbind (Ensures.lift (Simulates.mixing rel fun h => h.2.1.1).ensures) fun mixing d₂ m₂ l₂ => ?_
-  refine Ensures.tbind (Simulates.observeExts hp (fun h => h.2.2 ▸ h.1.2.1.2.mono l₂)
+  refine OldEnsures.tbind (Simulates.sampleExt hp hd).ensures fun lambda d₁ m₁ l₁ => ?_
+  refine OldEnsures.tbind (OldEnsures.lift (Simulates.mixing rel fun h => h.2.1.1).ensures) fun mixing d₂ m₂ l₂ => ?_
+  refine OldEnsures.tbind (Simulates.observeExts hp (fun h => h.2.2 ▸ h.1.2.1.2.mono l₂)
     fun h => (hq h.1.1).mono (l₁.trans l₂)).ensures fun _ d₃ m₃ l₃ => ?_
-  refine Ensures.tbind (Simulates.sampleExt hp fun h => h.2.1).ensures fun zeta d₄ m₄ l₄ => ?_
+  refine OldEnsures.tbind (Simulates.sampleExt hp fun h => h.2.1).ensures fun zeta d₄ m₄ l₄ => ?_
   set glam : Ext := ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
   set r₁ := t.duplex.sample.2.sample.2.sample.2
   set r₃ := (proof.quotient.flatMap fun g => #[g.c0, g.c1, g.c2]).foldl Replay.Duplex.observe r₁
@@ -187,23 +187,23 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
   set r₄ := r₃.sample.2.sample.2.sample.2
   set mix : Replay.Mixing := ⟨glam, rel.kappa, rel.matrices⟩
   have L₄ : n ≤ m₄ := l₁.trans (l₂.trans (l₃.trans l₄))
-  refine Ensures.pre (P' := P ∧ IsMixing c m₄ mixing mix ∧ mixing.powers.size = rel.rowCount ∧
+  refine OldEnsures.pre (P' := P ∧ IsMixing c m₄ mixing mix ∧ mixing.powers.size = rel.rowCount ∧
     IsExt c m₄ zeta gz ∧ IsDuplex c m₄ d₄ r₄) ?_ fun h => ⟨h.1.1.1.1, h.1.1.2.1.1.1.mono (l₃.trans l₄),
       h.1.1.2.1.1.2, h.2.1.1, h.2.1.2⟩
-  refine Ensures.tbind (Ensures.lift (Simulates.targets fits (fun h => (hst h.1).mono L₄)
+  refine OldEnsures.tbind (OldEnsures.lift (Simulates.targets fits (fun h => (hst h.1).mono L₄)
     fun h => ⟨h.2.1, h.2.2.1⟩).ensures) fun targets d₅ m₅ l₅ => ?_
-  refine Ensures.tbind (Ensures.lift (Simulates.liftedTarget (fun h => h.2.1.1) (fun h => (hq h.1.1).mono (L₄.trans l₅))
+  refine OldEnsures.tbind (OldEnsures.lift (Simulates.liftedTarget (fun h => h.2.1.1) (fun h => (hq h.1.1).mono (L₄.trans l₅))
     fun h => h.1.2.2.2.1.mono l₅).ensures) fun value d₆ m₆ l₆ => ?_
   set gvalue := Replay.liftedTarget (Replay.targets st mix) proof.quotient gz
   set t₃ : Replay.Transcript := { duplex := r₄, draws := (t.draws.push (.ext glam)).push (.ext gz) }
   have L₆ : m₄ ≤ m₆ := l₅.trans l₆
-  refine Ensures.pre (P' := P ∧ IsMixing c m₆ mixing mix ∧ mixing.powers.size = rel.rowCount ∧
+  refine OldEnsures.pre (P' := P ∧ IsMixing c m₆ mixing mix ∧ mixing.powers.size = rel.rowCount ∧
     IsExt c m₆ zeta gz ∧ IsExt c m₆ value gvalue ∧ IsDuplex c m₆ d₆ t₃.duplex) ?_ fun h => ?_
   rotate_left
   · obtain ⟨⟨⟨hP, hm, hs, hz, hd₄⟩, -, e₅⟩, ⟨hv, -⟩, e₆⟩ := h
     dsimp only at e₅ e₆
     exact ⟨hP, hm.mono L₆, hs, hz.mono L₆, hv, by rw [e₆, e₅]; exact hd₄.mono L₆⟩
-  refine Ensures.tbind ((Simulates.sumcheckReplay hp (t := t₃) (fun h => h.2.2.2.2.2)
+  refine OldEnsures.tbind ((Simulates.sumcheckReplay hp (t := t₃) (fun h => h.2.2.2.2.2)
     (fun h => ⟨(hl h.1).1, fun i hi => ((hl h.1).2 i hi).mono (L₄.trans L₆)⟩) (fun h => nonempty h.1)
     fun h => h.2.2.2.2.1).ensures.post (Q' := fun res m => ∃ gb gmiddle t₅ glane glast t₇,
       Runs (Replay.sumcheckReplay (proof.linear.extract 0 rel.blockVars) gvalue) t₃ (gb, gmiddle) t₅ ∧
@@ -230,21 +230,21 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
     rw [e₂] at b₂
     exact ⟨gb, gmiddle, t₅, glane, gfinal, t', run₁, run₂, bsize, lsize, b₁, b₂, hfin, hdup⟩
   obtain ⟨point, last⟩ := res
-  refine Ensures.exists_and (#[] : Array Ext) fun gb => Ensures.exists_and (0 : Ext) fun gmiddle =>
-    Ensures.exists_and t fun t₅ => Ensures.exists_and (#[] : Array Ext) fun glane =>
-    Ensures.exists_and (0 : Ext) fun glast => Ensures.exists_and t fun t₇ => ?_
+  refine OldEnsures.exists_and (#[] : Array Ext) fun gb => OldEnsures.exists_and (0 : Ext) fun gmiddle =>
+    OldEnsures.exists_and t fun t₅ => OldEnsures.exists_and (#[] : Array Ext) fun glane =>
+    OldEnsures.exists_and (0 : Ext) fun glast => OldEnsures.exists_and t fun t₇ => ?_
   dsimp only
   have L₇ : n ≤ m₇ := L₄.trans (L₆.trans l₇)
-  refine Ensures.tbind (Simulates.observeExts hp (fun h => h.2.2.2.2.2.2.2.2) fun h => (hf h.1.1).mono L₇).ensures
+  refine OldEnsures.tbind (Simulates.observeExts hp (fun h => h.2.2.2.2.2.2.2.2) fun h => (hf h.1.1).mono L₇).ensures
     fun _ d₈ m₈ l₈ => ?_
-  refine Ensures.liftBind (Ensures.scaledEqPoint laneVars fun h => h.1.1.2.2.2.1.mono (l₇.trans l₈))
+  refine OldEnsures.liftBind (OldEnsures.scaledEqPoint laneVars fun h => h.1.1.2.2.2.1.mono (l₇.trans l₈))
     fun sc m₉ l₉ => ?_
   obtain ⟨scale, lanePoint⟩ := sc
-  refine Ensures.exists_and (0 : Ext) fun gscale => Ensures.exists_and (#[] : Array Ext) fun glanePoint => ?_
+  refine OldEnsures.exists_and (0 : Ext) fun gscale => OldEnsures.exists_and (#[] : Array Ext) fun glanePoint => ?_
   dsimp only
   set r₈ := (proof.finals.flatMap fun g => #[g.c0, g.c1, g.c2]).foldl Replay.Duplex.observe t₇.duplex
   have M₉ : m₇ ≤ m₉ := l₈.trans l₉
-  refine Ensures.pre (P' := P ∧
+  refine OldEnsures.pre (P' := P ∧
     (Runs (Replay.sumcheckReplay (proof.linear.extract 0 rel.blockVars) gvalue) t₃ (gb, gmiddle) t₅ ∧
       Runs (Replay.sumcheckReplay (proof.linear.extract rel.blockVars) gmiddle) t₅ (glane, glast) t₇ ∧
       gb.size = rel.blockVars ∧ glane.size = laneVars ∧
@@ -257,15 +257,15 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
   · obtain ⟨⟨⟨⟨hP, hm, hs, hz, -, -⟩, run₁, run₂, bsize, lsize, hb, hlane, hlast, -⟩, hd₈, -⟩, ok, hsc, hlp⟩ := h
     exact ⟨hP, ⟨run₁, run₂, bsize, lsize, ok⟩, hm.mono (l₇.trans M₉), hs, hz.mono (l₇.trans M₉), hb.mono M₉,
       hlane.mono M₉, hlast.mono M₉, hd₈.mono l₉, hsc, hlp⟩
-  refine Ensures.liftBind (Simulates.tau fun h => h.2.2.2.2.1).ensures fun tau m₁₀ l₁₀ => ?_
-  refine Ensures.liftBind (Simulates.evalK' rel.key.blocks (fun h => by rw [h.1.2.1.2.2.1, pointSize]; exact long)
+  refine OldEnsures.liftBind (Simulates.tau fun h => h.2.2.2.2.1).ensures fun tau m₁₀ l₁₀ => ?_
+  refine OldEnsures.liftBind (Simulates.evalK' rel.key.blocks (fun h => by rw [h.1.2.1.2.2.1, pointSize]; exact long)
     (by simp [Replay.tau]) (fun h => (hst h.1.1).point.mono (L₇.trans (M₉.trans l₁₀)))
     (fun h => h.1.2.2.2.2.2.1.mono l₁₀) fun h => h.2.1).ensures fun ek m₁₁ l₁₁ => ?_
-  refine Ensures.liftBind (Simulates.extMul (fun h => h.1.1.2.2.2.2.2.2.2.2.2.1.mono (l₁₀.trans l₁₁))
+  refine OldEnsures.liftBind (Simulates.extMul (fun h => h.1.1.2.2.2.2.2.2.2.2.2.1.mono (l₁₀.trans l₁₁))
     (fun h => (finalsAt h.1.1.1 0 (by decide)).mono (L₇.trans (M₉.trans (l₁₀.trans l₁₁))))).ensures
     fun o₀ m₁₂ l₁₂ => ?_
   set gek := Replay.evalK st.point gb (Replay.tau gz) rel.key.blocks
-  refine Ensures.tbind (pairsLoop (gxs := [(mix.evalK.1, gek.re), (mix.evalK.2, gek.im)]) rfl (fun h k hk => ?_)
+  refine OldEnsures.tbind (pairsLoop (gxs := [(mix.evalK.1, gek.re), (mix.evalK.2, gek.im)]) rfl (fun h k hk => ?_)
     fun h => h.2.1).ensures fun o₂ d₁₃ m₁₃ l₁₃ => ?_
   · have hmk := (h.1.1.1.2.2.1).evalK (by
       rw [h.1.1.1.2.2.2.1]
@@ -276,14 +276,14 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
     · exact ⟨hmk.1.mono (l₁₀.trans (l₁₁.trans l₁₂)), hek.1.mono l₁₂⟩
     · exact ⟨hmk.2.mono (l₁₀.trans (l₁₁.trans l₁₂)), hek.2.mono l₁₂⟩
     · simp at hk
-  refine Ensures.liftBind (Simulates.extAdd (fun h => h.2.1.1) fun h => (finalsAt h.1.1.1.1.1 1 (by decide)).mono
+  refine OldEnsures.liftBind (Simulates.extAdd (fun h => h.2.1.1) fun h => (finalsAt h.1.1.1.1.1 1 (by decide)).mono
     (L₇.trans (M₉.trans (l₁₀.trans (l₁₁.trans (l₁₂.trans l₁₃)))))).ensures fun o₃ m₁₄ l₁₄ => ?_
   have M₁₄ : m₉ ≤ m₁₄ := l₁₀.trans (l₁₁.trans (l₁₂.trans (l₁₃.trans l₁₄)))
-  refine Ensures.tbind (publicLoop (fun h => h.1.1.1.1.1.2.2.2.2.2.1.mono M₁₄) (fun h => h.1.1.1.1.1.2.2.1.mono M₁₄)
+  refine OldEnsures.tbind (publicLoop (fun h => h.1.1.1.1.1.2.2.2.2.2.1.mono M₁₄) (fun h => h.1.1.1.1.1.2.2.1.mono M₁₄)
     (fun h => by rw [h.1.1.1.1.1.2.2.2.1]; exact le_of_eq rfl) fun h => h.2.1).ensures fun o₄ d₁₄ m₁₅ l₁₅ => ?_
   set gomega := Replay.omegaComputed rel st mix (Replay.tau gz) gb gscale proof.finals[0]! proof.finals[1]!
   have M₁₅ : m₉ ≤ m₁₅ := M₁₄.trans l₁₅
-  refine Ensures.pre (P' := P ∧
+  refine OldEnsures.pre (P' := P ∧
     (Runs (Replay.sumcheckReplay (proof.linear.extract 0 rel.blockVars) gvalue) t₃ (gb, gmiddle) t₅ ∧
       Runs (Replay.sumcheckReplay (proof.linear.extract rel.blockVars) gmiddle) t₅ (glane, glast) t₇ ∧
       gb.size = rel.blockVars ∧ glane.size = laneVars ∧
@@ -299,16 +299,16 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
     exact ⟨hP, hR, hm.mono M₁₅, hs, hz.mono M₁₅, hb.mono M₁₅, hlane.mono M₁₅, hlast.mono M₁₅,
       by rw [e₁₄, e₁₃]; exact hd₈.mono M₁₅, hlp.mono M₁₅,
       htau.mono (l₁₁.trans (l₁₂.trans (l₁₃.trans (l₁₄.trans l₁₅)))), ho⟩
-  refine Ensures.liftBind (Simulates.laneValue (fun h => by rw [h.2.1.2.2.2.1]; decide) (fun h => h.2.2.2.2.1)
+  refine OldEnsures.liftBind (Simulates.laneValue (fun h => by rw [h.2.1.2.2.2.1]; decide) (fun h => h.2.2.2.2.1)
     fun h => h.2.2.2.2.2.2.1).ensures fun lanes m₁₆ l₁₆ => ?_
-  refine Ensures.liftBind (Simulates.extMul (fun h => h.1.2.2.2.2.2.2.2.2.2.2.2.mono l₁₆) fun h => h.2.1).ensures
+  refine OldEnsures.liftBind (Simulates.extMul (fun h => h.1.2.2.2.2.2.2.2.2.2.2.2.mono l₁₆) fun h => h.2.1).ensures
     fun weighted m₁₇ l₁₇ => ?_
-  refine Ensures.liftBind (Simulates.extMul (fun h => h.2.1) fun h => (finalsAt h.1.1.1 2 (by decide)).mono
+  refine OldEnsures.liftBind (Simulates.extMul (fun h => h.2.1) fun h => (finalsAt h.1.1.1 2 (by decide)).mono
     (L₇.trans (M₉.trans (M₁₅.trans (l₁₆.trans l₁₇))))).ensures fun expected m₁₈ l₁₈ => ?_
-  refine Ensures.liftBind (Simulates.assertExtEqual (fun h => h.1.1.1.2.2.2.2.2.2.2.1.mono (l₁₆.trans (l₁₇.trans l₁₈)))
+  refine OldEnsures.liftBind (Simulates.assertExtEqual (fun h => h.1.1.1.2.2.2.2.2.2.2.1.mono (l₁₆.trans (l₁₇.trans l₁₈)))
     fun h => h.2.1).ensures fun _ m₁₉ l₁₉ => ?_
   rw [StateT.run_pure]
-  refine Ensures.pure fun h => ?_
+  refine OldEnsures.pure fun h => ?_
   obtain ⟨⟨⟨⟨⟨hP, ⟨run₁, run₂, -, -, ok⟩, hm, hs, -, hb, hlane, -, hdup, hlp, htau, -⟩, -, -⟩, -, -⟩, -, -⟩, -,
     check⟩ := h
   have N : m₁₅ ≤ m₁₉ := l₁₆.trans (l₁₇.trans (l₁₈.trans l₁₉))

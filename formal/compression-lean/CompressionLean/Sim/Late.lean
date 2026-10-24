@@ -254,7 +254,7 @@ private theorem checkLate_ensures {layout : Replay.Layout} {beta : ExtVar} {gbet
     (hsizes : P → 3 ≤ (g.leafValues[0]!).size ∧ 2 ≤ (g.leafValues[1]!).size ∧
       layout.slotVariables < (g.leafPoint[0]!).size)
     (hpairs : P → pairs.size = gpairs.size ∧ ∀ j < pairs.size, IsPair c n pairs[j]! gpairs[j]!) :
-    Ensures c n P (checkLate layout beta evalA lanes claims pairs) (fun res k =>
+    OldEnsures c n P (checkLate layout beta evalA lanes claims pairs) (fun res k =>
       Replay.checkLate layout gbeta mix glanes g gpairs = .ok (Bridge.lateOpeningsOf layout gbeta g) ∧
         IsLateOut c k res ⟨gbeta, g, gpairs, Bridge.lateOpeningsOf layout gbeta g⟩) := by
   have tree : ∀ {k} u, u < 2 → P → n ≤ k → IsExt c k claims[u]!.root.1 (g.roots[u]!).1 ∧
@@ -269,14 +269,14 @@ private theorem checkLate_ensures {layout : Replay.Layout} {beta : ExtVar} {gbet
     fun h le => (tree 0 (by omega) h le).2.2.1.get (hsizes h).2.2
   unfold checkLate
   dsimp only
-  refine Ensures.bind (checkPair_ensures (gx := g.roots[0]!) (gy := g.roots[1]!) "block scatter"
+  refine OldEnsures.bind (checkPair_ensures (gx := g.roots[0]!) (gy := g.roots[1]!) "block scatter"
     (fun h => ⟨(tree 0 (by omega) h le_rfl).1, (tree 0 (by omega) h le_rfl).2.1⟩)
     fun h => ⟨(tree 1 (by omega) h le_rfl).1, (tree 1 (by omega) h le_rfl).2.1⟩) fun _ m₁ l₁ => ?_
   set U := Replay.sumRange gpairs.size fun j => (mix.evalA j).1 * (gpairs[j]!).1 + (mix.evalA j).2 * (gpairs[j]!).2
   set T := (g.leafPoint[0]!)[layout.slotVariables]!
   set slot := (g.leafPoint[0]!).extract 0 layout.slotVariables
   set L := Replay.oneMinus T * Replay.slotStep layout slot glanes 0 + T * Replay.slotStep layout slot glanes 1
-  refine Ensures.post (Simulates.ensures (Q := fun res k => IsLateOut c k res ⟨gbeta, g, gpairs,
+  refine OldEnsures.post (Simulates.ensures (Q := fun res k => IsLateOut c k res ⟨gbeta, g, gpairs,
       Bridge.lateOpeningsOf layout gbeta g⟩) (C := g.leafValue 0 0 = U ∧ g.leafValue 0 1 = L ∧
       g.leafValue 1 1 = gbeta - Replay.identityValue g.leafPoint[1]! ∧ True) ?_)
     fun h _ _ q => ⟨checkLate_of h.2 q.2.1 q.2.2.1 q.2.2.2.1, q.1⟩
@@ -355,7 +355,7 @@ theorem lateStage_ensures {rel : Relation} {tau : Array ExtVar} {evalA : Array (
     (hvalues : P → List.Forall₂ (IsPair c n) lateValues.toList proof.lateValues.toList)
     (read : Replay.readProof rel proof = .ok ()) (short : ∀ cl ∈ rel.key.layout.classes, cl.len ≤ D)
     (named : ∀ s ∈ rel.key.layout.segments, s.classIndex < rel.key.layout.classes.size ∧ s.lane < D) :
-    Ensures c n P ((Circuit.lateStage rel tau evalA late lateValues).run d)
+    OldEnsures c n P ((Circuit.lateStage rel tau evalA late lateValues).run d)
       (fun res m => ∃ out t', Runs (Replay.lateStage rel proof lin) t out t' ∧ IsLateOut c m res.1 out ∧
         out.pairs = proof.lateValues ∧ IsDuplex c m res.2 t'.duplex) := by
   have shape := Bridge.readProof_ok read
@@ -367,26 +367,26 @@ theorem lateStage_ensures {rel : Relation} {tau : Array ExtVar} {evalA : Array (
     rw [getElem!_pos glanes _ (by simpa [glanes] using inside), Array.getElem_map]
     simp [glanes, inside, lane, Replay.laneSplit]
   unfold Circuit.lateStage
-  refine Ensures.tbind (Simulates.sampleExt hp hd).ensures fun beta d₁ m₁ l₁ => ?_
+  refine OldEnsures.tbind (Simulates.sampleExt hp hd).ensures fun beta d₁ m₁ l₁ => ?_
   set gbeta : Ext := ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
   set t₁ : Replay.Transcript := ⟨t.duplex.sample.2.sample.2.sample.2, t.draws.push (.ext gbeta)⟩
-  refine Ensures.tbind (gkrVerify_ensures (t := t₁) hp (fun h => h.2.1.2)
+  refine OldEnsures.tbind (gkrVerify_ensures (t := t₁) hp (fun h => h.2.1.2)
     (fun h => ((hlate h.1).mono l₁).entries.1) (fun h => ((hlate h.1).mono l₁).entries.2) shape.late)
     fun claims d₂ m₂ l₂ => ?_
-  refine (Ensures.exists_and (X := fun x : Replay.GkrClaims × Replay.Transcript =>
+  refine (OldEnsures.exists_and (X := fun x : Replay.GkrClaims × Replay.Transcript =>
       Runs (Replay.gkrVerify proof.late rel.lateShapes) t₁ x.1 x.2 ∧ IsGkrClaims c m₂ claims x.1 ∧
         IsDuplex c m₂ d₂ x.2.duplex) (⟨#[], #[], #[], #[], #[]⟩, t) fun x => ?_).pre
     fun h => ⟨h.1, let ⟨gc, t₂, hx⟩ := h.2; ⟨(gc, t₂), hx⟩⟩
   obtain ⟨gc, t₂⟩ := x
   dsimp only
-  refine Ensures.pre (P' := P ∧ IsExt c m₂ beta gbeta ∧ Runs (Replay.gkrVerify proof.late rel.lateShapes) t₁ gc t₂ ∧
+  refine OldEnsures.pre (P' := P ∧ IsExt c m₂ beta gbeta ∧ Runs (Replay.gkrVerify proof.late rel.lateShapes) t₁ gc t₂ ∧
     IsGkrClaims c m₂ claims gc ∧ IsDuplex c m₂ d₂ t₂.duplex) ?_
     fun h => ⟨h.1.1, h.1.2.1.1.mono l₂, h.2.1, h.2.2.1, h.2.2.2⟩
   have L₂ : n ≤ m₂ := l₁.trans l₂
-  refine Ensures.tbind (Ensures.lift (laneTables_sim (fun h => (htau h.1).mono L₂) (fun h => tauSize h.1)
+  refine OldEnsures.tbind (OldEnsures.lift (laneTables_sim (fun h => (htau h.1).mono L₂) (fun h => tauSize h.1)
     short).ensures) fun lanes d₃ m₃ l₃ => ?_
   have L₃ : n ≤ m₃ := L₂.trans l₃
-  refine Ensures.tbind (Ensures.lift (checkLate_ensures (mix := lin.mixing) (gpairs := proof.lateValues)
+  refine OldEnsures.tbind (OldEnsures.lift (checkLate_ensures (mix := lin.mixing) (gpairs := proof.lateValues)
     (fun h => h.1.2.1.mono l₃)
     (fun h => ⟨by rw [shape.lateValues, (hevalA h.1.1).1], fun j hj => ((hevalA h.1.1).2 j hj).mono L₃⟩)
     (fun h => h.2.1.1) lanesNamed
@@ -407,13 +407,13 @@ theorem lateStage_ensures {rel : Relation} {tau : Array ExtVar} {evalA : Array (
       obtain ⟨size, pairs⟩ := forall₂_entries (hvalues h.1.1)
       exact ⟨size, fun j hj => by rw [getElem!_pos _ j hj]; exact (pairs j hj).mono L₃⟩))
     fun openings d₄ m₄ l₄ => ?_
-  refine Ensures.tbind (Simulates.observePairs (r := t₂.duplex) hp (fun h => by
+  refine OldEnsures.tbind (Simulates.observePairs (r := t₂.duplex) hp (fun h => by
       have e : d₄ = d₂ := h.2.2.trans h.1.2.2
       rw [e]
       exact h.1.1.2.2.2.2.mono (l₃.trans l₄))
     fun h => (hvalues h.1.1.1).imp fun _ _ q => q.mono (L₃.trans l₄)).ensures fun _ d₅ m₅ l₅ => ?_
   rw [StateT.run_pure]
-  refine Ensures.pure fun h => ?_
+  refine OldEnsures.pure fun h => ?_
   obtain ⟨⟨⟨⟨-, -, run, -, -⟩, -⟩, ⟨checkOk, hopen⟩, -⟩, hd₅, -⟩ := h
   refine ⟨⟨gbeta, gc, proof.lateValues, Bridge.lateOpeningsOf rel.key.layout gbeta gc⟩, ?_⟩
   refine ⟨⟨((Replay.flatPairs proof.lateValues).flatMap fun v => #[v.c0, v.c1, v.c2]).foldl Replay.Duplex.observe

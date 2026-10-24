@@ -115,12 +115,12 @@ private theorem verifyWith_at (hp : Permutes c.perm) (hw : Decodes c w)
     (facts : KeyFacts key)
     (named : ∀ s ∈ key.relation.key.layout.segments,
       s.classIndex < key.relation.key.layout.classes.size ∧ s.lane < Replay.D) :
-    EnsuresAt c (prefixRun loaded context).2
+    OldEnsuresAt c (prefixRun loaded context).2
       (ReadsStatement c ∧ Handoff c authority (prefixRun loaded context).1 (prefixRun loaded context).2.values)
       (verifyWith key (prefixRun loaded context).1.2 (prefixRun loaded context).1.1.view)
       (fun _ _ => Gives key loaded context authority c w) := by
   unfold verifyWith
-  refine EnsuresAt.bind (EnsuresAt.of_ensures (Simulates.handoff
+  refine OldEnsuresAt.bind (OldEnsuresAt.of_ensures (Simulates.handoff
     (gs := Array.ofFn fun lane => w ((prefixRun loaded context).1.2 lane)) hp fun h => ?_).ensures) fun le₁ => ?_
   · obtain ⟨-, env, -, -, hstate, -⟩ := h
     have hl := List.forall₂_iff_get.mp hstate
@@ -129,10 +129,10 @@ private theorem verifyWith_at (hp : Permutes c.perm) (hw : Decodes c w)
       simpa only [List.get_eq_getElem, List.getElem_ofFn] using this
     · rw [getElem!_pos _ _ (by simp)]
       simpa using hw ((prefixRun loaded context).1.2 lane)
-  refine EnsuresAt.bind (EnsuresAt.of_ensures (Simulates.ProofView.read key.relation _ _ facts.circuit.run
+  refine OldEnsuresAt.bind (OldEnsuresAt.of_ensures (Simulates.ProofView.read key.relation _ _ facts.circuit.run
     facts.circuit.row facts.circuit.slot fun _ => hw).ensures)
     fun le₂ => ?_
-  refine (EnsuresAt.of_ensures (verify_ensures facts.circuit facts.relation named (w := w)
+  refine (OldEnsuresAt.of_ensures (verify_ensures facts.circuit facts.relation named (w := w)
     (seedWords := seedWith loaded context w) (st := statementWith loaded context w)
     (g := proofWith key loaded context w) hp fun h => ?_)).post fun h runs => ?_
   · obtain ⟨⟨⟨-, env, -, holds, -, shaped⟩, seed, -⟩, ⟨proof, read⟩, -⟩ := h
@@ -169,11 +169,11 @@ private theorem program_gives
   have accepts : Exec (ctxOf key loaded context x wit).perm (program key loaded context).program
       (ctxOf key loaded context x wit).stmt (ctxOf key loaded context x wit).tape :=
     lower_sound (program key loaded context).program (List.ofFn x) wit holds
-  have tail : EnsuresAt (ctxOf key loaded context x wit) (statementHandles.run {}).2
+  have tail : OldEnsuresAt (ctxOf key loaded context x wit) (statementHandles.run {}).2
       (ReadsStatement (ctxOf key loaded context x wit))
       (checkedApply loaded context (statementHandles.run {}).1 >>= fun r => verifyWith key r.2 r.1.view)
       (fun _ _ => Gives key loaded context authority (ctxOf key loaded context x wit) (wordsOf key loaded context x wit)) :=
-    EnsuresAt.bind (EnsuresAt.of_ensures (checkedApply_ensures loads valid hctx fun h => by
+    OldEnsuresAt.bind (OldEnsuresAt.of_ensures (checkedApply_ensures loads valid hctx fun h => by
       rw [statementHandles_run]
       exact ⟨rfl, le_rfl, h⟩)) fun _ =>
       verifyWith_at permutes_poseidon2 hw facts named
@@ -183,11 +183,11 @@ private theorem program_gives
     simp
   have reads : ReadsStatement (ctxOf key loaded context x wit) := fun k =>
     (ctxOf key loaded context x wit).run_pubs pre k.isLt
-  have full : EnsuresAt (ctxOf key loaded context x wit) {} (ReadsStatement (ctxOf key loaded context x wit))
+  have full : OldEnsuresAt (ctxOf key loaded context x wit) {} (ReadsStatement (ctxOf key loaded context x wit))
       (program key loaded context)
       (fun _ _ => Gives key loaded context authority (ctxOf key loaded context x wit) (wordsOf key loaded context x wit)) := by
     rw [program_eq]
-    exact EnsuresAt.bind (EnsuresAt.of_ensures statementHandles_ensures) fun _ => tail.pre fun h => h.1
+    exact OldEnsuresAt.bind (OldEnsuresAt.of_ensures statementHandles_ensures) fun _ => tail.pre fun h => h.1
   exact full.exec reads rfl accepts
 
 end Gives

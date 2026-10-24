@@ -597,7 +597,7 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
         ∀ s < view.layers[i].children.size,
           IsExts c n view.layers[i].children[s]! (proof.layers[i]!).children[s]!))
     (read : Replay.readGkr proof shapes = .ok ()) :
-    Ensures c n P ((Circuit.gkrVerify view shapes).run d)
+    OldEnsures c n P ((Circuit.gkrVerify view shapes).run d)
       (fun res m => ∃ g t', Runs (Replay.gkrVerify proof shapes) t g t' ∧ IsGkrClaims c m res.1 g ∧
         IsDuplex c m res.2 t'.duplex) := by
   obtain ⟨rootsSize, layersSize, layersOk⟩ := Bridge.readGkr_ok read
@@ -609,12 +609,12 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
   set t₁ : Replay.Transcript := { t with duplex :=
     ((Replay.flatPairs proof.roots).flatMap fun v => #[v.c0, v.c1, v.c2]).foldl Replay.Duplex.observe t.duplex }
     with t₁_def
-  refine Ensures.tbindSim (Simulates.observePairs hp hd fun h => hroots h) fun _ e₀ m₀ l₀ => ?_
-  refine Ensures.tbind (Q := fun r m => ∃ g tL, Runs (Replay.gkrLayers shapes 1 proof.layers.toList init) t₁ g tL ∧
+  refine OldEnsures.tbindSim (Simulates.observePairs hp hd fun h => hroots h) fun _ e₀ m₀ l₀ => ?_
+  refine OldEnsures.tbind (Q := fun r m => ∃ g tL, Runs (Replay.gkrLayers shapes 1 proof.layers.toList init) t₁ g tL ∧
       IsDuplex c m r.2 tL.duplex ∧ IsLayerState c m shapes proof.layers.size r.1.1 r.1.2.1 g ∧ g.roots = proof.roots)
     ?_ fun res e m le => ?_
   · rw [← Array.forIn_toList]
-    refine ((Ensures.loopT (P := P) (fun j acc e m => ∃ g tj,
+    refine ((OldEnsures.loopT (P := P) (fun j acc e m => ∃ g tj,
         Runs (Replay.gkrLayers shapes 1 (proof.layers.toList.take j) init) t₁ g tj ∧ IsDuplex c m e tj.duplex ∧
         IsLayerState c m shapes j acc.1 acc.2.1 g ∧ IsExts c m acc.2.2 g.point ∧ g.roots = proof.roots)
       fun j hj acc e m le => ?_).pre fun h => ⟨h.1, init, t₁, Bridge.runs_pure _ _, h.2, ?_, IsExts.empty, rfl⟩).post
@@ -637,19 +637,19 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
         have := Bridge.layerShapeOk_facts (layersOk j hjp)
         rw [← getElem!_pos proof.layers j hjp, Nat.add_sub_cancel] at this
         exact this
-      refine Ensures.elim (R := fun w : Replay.GkrClaims × Replay.Transcript => P ∧
+      refine OldEnsures.elim (R := fun w : Replay.GkrClaims × Replay.Transcript => P ∧
           Runs (Replay.gkrLayers shapes 1 (proof.layers.toList.take j) init) t₁ w.1 w.2 ∧ IsDuplex c m e w.2.duplex ∧
           IsLayerState c m shapes j acc.1 acc.2.1 w.1 ∧ IsExts c m acc.2.2 w.1.point ∧ w.1.roots = proof.roots)
         (init, t₁) (fun w => ?_) fun ⟨hP, g, tj, h⟩ => ⟨(g, tj), hP, h⟩
       obtain ⟨gc, tj⟩ := w
       dsimp only
-      refine Ensures.tbindSim (Simulates.sampleExt hp fun h => h.2.2.1) fun mu e₁ m₁ l₁ => ?_
-      refine Ensures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun nu e₂ m₂ l₂ => ?_
-      refine Ensures.tbindSim (Simulates.lift Simulates.extZero) fun z₁ e₃ m₃ l₃ => ?_
-      refine Ensures.tbindSim (Simulates.lift Simulates.extZero) fun z₂ e₄ m₄ l₄ => ?_
-      refine Ensures.tbindSim (Simulates.lift Simulates.extOne) fun o e₅ m₅ l₅ => ?_
+      refine OldEnsures.tbindSim (Simulates.sampleExt hp fun h => h.2.2.1) fun mu e₁ m₁ l₁ => ?_
+      refine OldEnsures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun nu e₂ m₂ l₂ => ?_
+      refine OldEnsures.tbindSim (Simulates.lift Simulates.extZero) fun z₁ e₃ m₃ l₃ => ?_
+      refine OldEnsures.tbindSim (Simulates.lift Simulates.extZero) fun z₂ e₄ m₄ l₄ => ?_
+      refine OldEnsures.tbindSim (Simulates.lift Simulates.extOne) fun o e₅ m₅ l₅ => ?_
       have L₅ : m ≤ m₅ := l₁.trans (l₂.trans (l₃.trans (l₄.trans l₅)))
-      refine Ensures.tbindSim (Simulates.batchLoop (active := Replay.activeTrees shapes (j + 1))
+      refine OldEnsures.tbindSim (Simulates.batchLoop (active := Replay.activeTrees shapes (j + 1))
         (gchildren := (proof.layers[j]!).children) (gcur := gc.current)
         (fun h => h.1.1.1.1.2.1.mono (l₂.trans (l₃.trans (l₄.trans l₅))))
         (fun h => h.1.1.1.2.1.mono (l₃.trans (l₄.trans l₅)))
@@ -660,7 +660,7 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
           omega⟩⟩)
         (fun h => ⟨h.1.1.2.1.mono (l₄.trans l₅), h.1.2.1.mono l₅, h.2.1⟩)) fun acc' e₆ m₆ l₆ => ?_
       have L₆ : m ≤ m₆ := L₅.trans l₆
-      refine Ensures.tbindSim (Simulates.sumcheckReplay (t := afterExt (afterExt tj)) hp
+      refine OldEnsures.tbindSim (Simulates.sumcheckReplay (t := afterExt (afterExt tj)) hp
         (fun h => by
           have he : e₆ = e₂ := h.2.2.2.trans (h.1.2.2.trans (h.1.1.2.2.trans h.1.1.1.2.2))
           rw [he]
@@ -670,7 +670,7 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
         (fun h r hr => by have := (hS h.1.1.1.1.1.1.1).2.1 r hr; omega)
         (fun h => h.2.1)) fun sc e₇ m₇ l₇ => ?_
       have L₇ : m ≤ m₇ := L₆.trans l₇
-      refine Ensures.elim (R := fun w : Array Ext × Ext × Replay.Transcript => P ∧
+      refine OldEnsures.elim (R := fun w : Array Ext × Ext × Replay.Transcript => P ∧
           Runs (Replay.gkrLayers shapes 1 (proof.layers.toList.take j) init) t₁ gc tj ∧
           IsLayerState c m₇ shapes j acc.1 acc.2.1 gc ∧ IsExts c m₇ acc.2.2 gc.point ∧ gc.roots = proof.roots ∧
           IsExt c m₇ acc'.2.1 (Replay.batchExpected (drawnExt tj) (drawnExt (afterExt tj))
@@ -686,23 +686,23 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
         exact ⟨(point, final, ts), hP, run₀, state.mono L₇, hpt.mono L₇, roots, hexp.mono l₇, sum, hnext, hlast, hdx⟩
       obtain ⟨gpoint, gfinal, ts⟩ := w
       dsimp only
-      refine Ensures.tbindSim (Simulates.lift (Simulates.eqEval (fun h => h.2.2.2.1) fun h => h.2.2.2.2.2.2.2.1))
+      refine OldEnsures.tbindSim (Simulates.lift (Simulates.eqEval (fun h => h.2.2.2.1) fun h => h.2.2.2.2.2.2.2.1))
         fun eq e₈ m₈ l₈ => ?_
-      refine Ensures.tbindSim (Simulates.lift (Simulates.extMul (fun h => h.2.1) fun h => h.1.2.2.2.2.2.1.mono l₈))
+      refine OldEnsures.tbindSim (Simulates.lift (Simulates.extMul (fun h => h.2.1) fun h => h.1.2.2.2.2.2.1.mono l₈))
         fun target e₉ m₉ l₉ => ?_
-      refine Ensures.tbind (Simulates.lift (Simulates.assertExtEqual (fun h => h.1.1.2.2.2.2.2.2.2.2.1.mono (l₈.trans l₉))
+      refine OldEnsures.tbind (Simulates.lift (Simulates.assertExtEqual (fun h => h.1.1.2.2.2.2.2.2.2.2.1.mono (l₈.trans l₉))
         fun h => h.2.1)).ensures fun _ e₁₀ m₁₀ l₁₀ => ?_
       have L₁₀ : m₇ ≤ m₁₀ := l₈.trans (l₉.trans l₁₀)
-      refine Ensures.tbindSim (Simulates.observeChildren (r := ts.duplex) hp
+      refine OldEnsures.tbindSim (Simulates.observeChildren (r := ts.duplex) hp
         (fun h => by
           have he : e₁₀ = e₇ := h.2.1.2.trans (h.1.2.2.trans h.1.1.2.2)
           rw [he]
           exact h.1.1.1.2.2.2.2.2.2.2.2.2.mono L₁₀)
         (fun h => ⟨(hL h.1.1.1.1).2.1, fun s hs =>
           ((hL h.1.1.1.1).2.2 s hs).mono (N₀.trans (L₇.trans L₁₀))⟩)) fun _ e₁₁ m₁₁ l₁₁ => ?_
-      refine Ensures.tbindSim (Simulates.sampleExt hp fun h => h.2) fun tau e₁₂ m₁₂ l₁₂ => ?_
+      refine OldEnsures.tbindSim (Simulates.sampleExt hp fun h => h.2) fun tau e₁₂ m₁₂ l₁₂ => ?_
       have L₁₂ : m₇ ≤ m₁₂ := L₁₀.trans (l₁₁.trans l₁₂)
-      refine Ensures.tbindSim (Simulates.reduceLoop (gc := gc) (gchildren := (proof.layers[j]!).children)
+      refine OldEnsures.tbindSim (Simulates.reduceLoop (gc := gc) (gchildren := (proof.layers[j]!).children)
         (gnext := gpoint)
         (fun h => h.1.1.1.1.1.2.2.1.mono L₁₂)
         (fun h u hu => by
@@ -714,7 +714,7 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
             (hS h.1.1.1.1.1.1).2.2.2 s (by rw [← (hL h.1.1.1.1.1.1).2.1]; exact hs)⟩⟩)
         (fun h => (h.1.1.1.1.1.2.2.2.2.2.2.2.1.mono L₁₂).push h.2.1) fun h => h.2.1) fun st e₁₃ m₁₃ l₁₃ => ?_
       rw [StateT.run_pure]
-      refine Ensures.pure fun h => ⟨rfl, ?_⟩
+      refine OldEnsures.pure fun h => ⟨rfl, ?_⟩
       dsimp only [ForInStep.value]
       obtain ⟨⟨⟨⟨⟨⟨⟨hP, run₀, -, -, roots, -, sum, hnext, -, -⟩, -⟩, -⟩, ⟨-, check⟩⟩, -⟩, hτ, hdτ⟩, he₁₃, state⟩ := h
       have hjp : j < proof.layers.size := (hlayers hP).1 ▸ hj'
@@ -735,7 +735,7 @@ theorem gkrVerify_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P :
       rw [len, Array.length_toList] at state
       exact ⟨g, tL, run, hdx, state, roots⟩
   · rw [StateT.run_pure]
-    refine Ensures.pure fun h => ?_
+    refine OldEnsures.pure fun h => ?_
     obtain ⟨g, tL, run, hdx, state, roots⟩ := h.2
     obtain ⟨c1, c2, c3, c4, c5, c6⟩ := state
     refine ⟨g, tL, Bridge.runs_bind (Bridge.runs_observeExts _ _) run, ⟨by rw [c2, roots, rootsSize], fun u hu => ?_⟩,

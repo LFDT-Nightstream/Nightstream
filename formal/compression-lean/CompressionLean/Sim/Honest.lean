@@ -367,7 +367,7 @@ query `q` is digit `i` of word `q`. -/
 theorem sampleBitsList (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm) :
     ∀ (l : List ℕ) {n : ℕ} {P : Prop} {d : Duplex} (t : Replay.Transcript) (init : Array Word),
       (P → IsDuplex c n d t.duplex) →
-      Ensures c n P ((l.mapM fun _ => Duplex.sampleBits bits : Transcript (List (Array Var))).run d)
+      OldEnsures c n P ((l.mapM fun _ => Duplex.sampleBits bits : Transcript (List (Array Var))).run d)
         (fun res m => ∃ ws : List Word, ∃ t' : Replay.Transcript,
           Runs (l.foldlM (fun values _ => do Pure.pure (values.push (← Replay.sampleWord))) init) t
             (init ++ ws.toArray) t' ∧
@@ -377,15 +377,15 @@ theorem sampleBitsList (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm)
           IsDuplex c m res.2 t'.duplex)
   | [], n, P, d, t, init, hd => by
       rw [List.mapM_nil, StateT.run_pure]
-      exact Ensures.pure fun h => ⟨[], t, by simpa using runs_pure init t, rfl, rfl,
+      exact OldEnsures.pure fun h => ⟨[], t, by simpa using runs_pure init t, rfl, rfl,
         fun q hq => absurd hq (by simp), hd h⟩
   | x :: l, n, P, d, t, init, hd => by
       rw [List.mapM_cons]
-      refine Ensures.tbind (Simulates.sampleBits bits small hp hd) fun a e m le => ?_
-      refine Ensures.tbind (sampleBitsList bits small hp l { t with duplex := t.duplex.sample.2 }
+      refine OldEnsures.tbind (Simulates.sampleBits bits small hp hd) fun a e m le => ?_
+      refine OldEnsures.tbind (sampleBitsList bits small hp l { t with duplex := t.duplex.sample.2 }
         (init.push t.duplex.sample.1) fun h => h.2.2.2) fun as e' m' le' => ?_
       rw [StateT.run_pure]
-      refine Ensures.pure fun h => ?_
+      refine OldEnsures.pure fun h => ?_
       obtain ⟨⟨-, size, digits, -⟩, ws, t', runs, wlen, alen, adigits, hd'⟩ := h
       refine ⟨t.duplex.sample.1 :: ws, t', ?_, by simp [wlen], by simp [alen], fun q hq => ?_, hd'⟩
       · rw [List.foldlM_cons]
@@ -403,7 +403,7 @@ theorem sampleBitsList (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm)
 replay's `sampleWords`. -/
 theorem sampleBitsArray (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm) (k : ℕ) {d : Duplex}
     {t : Replay.Transcript} (hd : P → IsDuplex c n d t.duplex) :
-    Ensures c n P (((Array.range k).mapM fun _ => Duplex.sampleBits bits : Transcript (Array (Array Var))).run d)
+    OldEnsures c n P (((Array.range k).mapM fun _ => Duplex.sampleBits bits : Transcript (Array (Array Var))).run d)
       (fun res m => ∃ ws : Array Word, ∃ t' : Replay.Transcript, Runs (Replay.sampleWords k) t ws t' ∧
         res.1.size = ws.size ∧ (∀ q < res.1.size, (res.1[q]!).size = bits ∧
           ∀ i < bits, IsWord c m (res.1[q]!)[i]! (Word.ofNat ((ws[q]!).toNat / 2 ^ i % 2))) ∧
@@ -845,7 +845,7 @@ theorem setupCheck_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P 
       ∀ k < leaf.path.size, IsDigest c n leaf.path[k]! g.path[k]!)
     (hw₀ : P → IsExts c n w₀ gw₀) (hw₁ : P → IsExts c n w₁ gw₁) (halpha : P → IsExts c n alpha galpha)
     (hsize : galpha.size = foldVars) :
-    Ensures c n P (Circuit.setupCheck root vars bits leaf #[w₀, w₁] alpha)
+    OldEnsures c n P (Circuit.setupCheck root vars bits leaf #[w₀, w₁] alpha)
       (fun res m => ∃ vals, Replay.setupCheck groot vars index g #[gw₀, gw₁] galpha = .ok vals ∧
         IsExts c m res vals) := by
   obtain ⟨Y, hY⟩ : ∃ Y, Y = Replay.powerFromBits (twoAdicGenerator (vars + 1)).inv index (vars + 1 - foldVars) *
@@ -858,12 +858,12 @@ theorem setupCheck_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P 
     fun computed m₂ l₂ => ?_
   refine (Simulates.rootEqual (fun h => h.2.1) fun h => (hroot h.1.1).mono (l₁.trans l₂)).ensures.bind
     fun _ m₃ l₃ => ?_
-  refine Ensures.pre (P' := P ∧ Replay.pathOk groot index g = true) ?_ fun h => ⟨h.1.1.1, pathOk_of h.2.2⟩
+  refine OldEnsures.pre (P' := P ∧ Replay.pathOk groot index g = true) ?_ fun h => ⟨h.1.1.1, pathOk_of h.2.2⟩
   refine (Simulates.powerFromBits (twoAdicGenerator (vars + 1)).inv index fun h i hi =>
     ((hbits h.1).2 i hi).mono (l₁.trans (l₂.trans l₃))).ensures.bind fun rotation m₄ l₄ => ?_
   refine (Simulates.scale generator.inv fun h => h.2.1).ensures.bind fun y m₅ l₅ => ?_
   have L : n ≤ m₅ := l₁.trans (l₂.trans (l₃.trans (l₄.trans l₅)))
-  refine Ensures.pre (P' := (P ∧ Replay.pathOk groot index g = true) ∧ IsWord c m₅ y Y) ?_ fun h =>
+  refine OldEnsures.pre (P' := (P ∧ Replay.pathOk groot index g = true) ∧ IsWord c m₅ y Y) ?_ fun h =>
     ⟨h.1.1, by rw [hY, ← (hbits h.1.1.1).1]; exact h.2.1⟩
   refine Simulates.extOne.ensures.bind fun one m₆ l₆ => ?_
   refine (Simulates.monomials (fun h => h.2.1) fun h => (halpha h.1.1.1).mono (L.trans l₆)).ensures.bind
@@ -876,7 +876,7 @@ theorem setupCheck_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P 
   refine (Simulates.groups (gweight := Replay.leafWeight galpha Y (twoAdicGenerator foldVars))
     (fun h => (hvalues h.1.1.1.1.1.1.1).mono L') (fun h => by have e := h.2.1; rw [hsize] at e; exact e)
     (fun h => (hw₀ h.1.1.1.1.1.1.1).mono L') fun h => (hw₁ h.1.1.1.1.1.1.1).mono L').ensures.bind
-    fun s m₁₁ l₁₁ => Ensures.pure fun h => ⟨_, setupCheck_ok h.1.1.1.1.1.1.1.2, ?_⟩
+    fun s m₁₁ l₁₁ => OldEnsures.pure fun h => ⟨_, setupCheck_ok h.1.1.1.1.1.1.1.2, ?_⟩
   rw [← hY]
   exact h.2.1
 
@@ -895,7 +895,7 @@ theorem queriedLoop [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
       ∀ k < leaves[q].path.size, IsDigest c n leaves[q].path[k]! (gleaves[q]!).path[k]!)
     (hw₀ : P → IsExts c n w₀ gw₀) (hw₁ : P → IsExts c n w₁ gw₁) (halpha : P → IsExts c n alpha galpha)
     (hsize : galpha.size = foldVars) :
-    Ensures c n P ((forIn (indexBits.zip leaves) (#[] : Array ExtVar) fun x (queried : Array ExtVar) => match x with
+    OldEnsures c n P ((forIn (indexBits.zip leaves) (#[] : Array ExtVar) fun x (queried : Array ExtVar) => match x with
         | (bits, leaf) => do
           let r ← liftM (Circuit.setupCheck (fun lane => rootV[lane]!) vars bits leaf #[w₀, w₁] alpha)
           Pure.pure (ForInStep.yield (queried ++ r)) : Transcript (Array ExtVar)).run d)
@@ -903,7 +903,7 @@ theorem queriedLoop [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
           Pure.pure (queried ++ (← Replay.setupCheck groot vars pair.1 pair.2 #[gw₀, gw₁] galpha))) #[] = .ok gq ∧
         IsExts c m res.1 gq ∧ res.2 = d) := by
   rw [← Array.forIn_toList]
-  refine ((Ensures.loopT (P := P) (d := d) (I := fun k (acc : Array ExtVar) e m =>
+  refine ((OldEnsures.loopT (P := P) (d := d) (I := fun k (acc : Array ExtVar) e m =>
       (∃ gq, ((queries.zip gleaves).toList.take k).foldlM (fun queried pair => do
         Pure.pure (queried ++ (← Replay.setupCheck groot vars pair.1 pair.2 #[gw₀, gw₁] galpha))) #[] = .ok gq ∧
         IsExts c m acc gq) ∧ e = d) fun k hk acc e m lm => ?_).pre fun h => by
@@ -912,7 +912,7 @@ theorem queriedLoop [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
     rw [show (indexBits.zip leaves).toList[k] = (indexBits[k]!, leaves[k]'hk'.2) by
       simp [getElem!_pos indexBits k hk'.1]]
     dsimp only
-    refine Ensures.tbind (Ensures.lift (setupCheck_ensures (groot := groot) (index := queries[k]!)
+    refine OldEnsures.tbind (OldEnsures.lift (setupCheck_ensures (groot := groot) (index := queries[k]!)
       (g := gleaves[k]!) (gw₀ := gw₀) (gw₁ := gw₁) (galpha := galpha) hp
       (fun h => ⟨root, fun lane => by rw [Fin.getElem!_fin]; exact ((hroot h.1).get (by omega)).mono lm⟩)
       (fun h => ⟨((hbits h.1).2 k hk'.1).1, fun i hi => (((hbits h.1).2 k hk'.1).2 i
@@ -923,7 +923,7 @@ theorem queriedLoop [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
       (fun h => (hw₀ h.1).mono lm) (fun h => (hw₁ h.1).mono lm) (fun h => (halpha h.1).mono lm) hsize))
       fun r e₁ m₁ l₁ => ?_
     rw [StateT.run_pure]
-    refine Ensures.pure fun h => ⟨rfl, ?_, h.2.2.trans h.1.2.2⟩
+    refine OldEnsures.pure fun h => ⟨rfl, ?_, h.2.2.trans h.1.2.2⟩
     obtain ⟨⟨hP, ⟨gq, run, hq⟩, -⟩, ⟨vals, check, hv⟩, -⟩ := h
     have lt : k < (queries.zip gleaves).toList.length := by
       have := (hbits hP).1
@@ -986,20 +986,20 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
     (keySize : (lin.lanePoint ++ lin.blockPoint).size ≤ rel.setupVars)
     (runSize : early.openings.runPoint.size ≤ rel.setupVars) (root : rel.key.root.size = 4)
     (small : rel.setupVars + 1 - foldVars ≤ 64) :
-    Ensures c n P ((Circuit.honestStage rel input).run d)
+    OldEnsures c n P ((Circuit.honestStage rel input).run d)
       (fun res m => ∃ out t', Runs (Replay.honestStage rel proof early lin) t out t' ∧
         IsHonestOut c m rel early lin res.1 out ∧ IsDuplex c m res.2 t'.duplex) := by
   obtain ⟨lanePoint, blockPoint, runPoint, ⟨row, slot, coefficient⟩, block, commitmentRows, keyValue, partials, p1,
     leaves⟩ := input
   dsimp only at hlane hblock hrun hrow hslot hcoef hblockValue hrows hkey hpartials hp1 hleaves
   unfold Circuit.honestStage
-  refine Ensures.tbind (Simulates.sampleExt hp hd).ensures fun mu d₁ m₁ l₁ => ?_
-  refine Ensures.tbind (Simulates.observePartials hp (fun h => h.2.1.2) fun h =>
+  refine OldEnsures.tbind (Simulates.sampleExt hp hd).ensures fun mu d₁ m₁ l₁ => ?_
+  refine OldEnsures.tbind (Simulates.observePartials hp (fun h => h.2.1.2) fun h =>
     ⟨(hpartials h.1).1, fun g hg => ((hpartials h.1).2 g hg).mono l₁⟩).ensures fun _ d₂ m₂ l₂ => ?_
   rw [Simulates.mapM_sampleExt]
-  refine Ensures.tbind (Simulates.sampleExt hp fun h => h.2.1).ensures fun a₀ d₃ m₃ l₃ => ?_
-  refine Ensures.tbind (Simulates.sampleExt hp fun h => h.2.1.2).ensures fun a₁ d₄ m₄ l₄ => ?_
-  refine Ensures.tbind (Simulates.sampleExt hp fun h => h.2.1.2).ensures fun a₂ d₅ m₅ l₅ => ?_
+  refine OldEnsures.tbind (Simulates.sampleExt hp fun h => h.2.1).ensures fun a₀ d₃ m₃ l₃ => ?_
+  refine OldEnsures.tbind (Simulates.sampleExt hp fun h => h.2.1.2).ensures fun a₁ d₄ m₄ l₄ => ?_
+  refine OldEnsures.tbind (Simulates.sampleExt hp fun h => h.2.1.2).ensures fun a₂ d₅ m₅ l₅ => ?_
   set gmu : Ext := ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
   set r₂ := (proof.partials.flatten.flatMap fun v => #[v.c0, v.c1, v.c2]).foldl Replay.Duplex.observe
     t.duplex.sample.2.sample.2.sample.2
@@ -1010,23 +1010,23 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
   set ga₂ : Ext := ⟨r₄.sample.1, r₄.sample.2.sample.1, r₄.sample.2.sample.2.sample.1⟩
   set r₅ := r₄.sample.2.sample.2.sample.2
   have L₅ : n ≤ m₅ := l₁.trans (l₂.trans (l₃.trans (l₄.trans l₅)))
-  refine Ensures.pre (P' := P ∧ IsExt c m₅ mu gmu ∧ IsExts c m₅ #[a₀, a₁, a₂] #[ga₀, ga₁, ga₂] ∧
+  refine OldEnsures.pre (P' := P ∧ IsExt c m₅ mu gmu ∧ IsExts c m₅ #[a₀, a₁, a₂] #[ga₀, ga₁, ga₂] ∧
     IsDuplex c m₅ d₅ r₅) ?_ fun h => ⟨h.1.1.1.1.1, h.1.1.1.1.2.1.1.mono (l₂.trans (l₃.trans (l₄.trans l₅))),
       IsExts.triple (h.1.1.2.1.1.mono (l₄.trans l₅)) (h.1.2.1.1.mono l₅) h.2.1.1, h.2.1.2⟩
-  refine Ensures.tbind (Ensures.lift (Simulates.setupPoint (fun h => ((hlane h.1).append (hblock h.1)).mono L₅)
+  refine OldEnsures.tbind (OldEnsures.lift (Simulates.setupPoint (fun h => ((hlane h.1).append (hblock h.1)).mono L₅)
     keySize).ensures) fun keyPoint d₆ m₆ l₆ => ?_
-  refine Ensures.tbind (Ensures.lift (Simulates.setupPoint (fun h => (hrun h.1.1).mono (L₅.trans l₆))
+  refine OldEnsures.tbind (OldEnsures.lift (Simulates.setupPoint (fun h => (hrun h.1.1).mono (L₅.trans l₆))
     runSize).ensures) fun runPoint' d₇ m₇ l₇ => ?_
-  refine Ensures.tbind (Simulates.embedLoop
+  refine OldEnsures.tbind (Simulates.embedLoop
     (fun h => ((hrun h.1.1.1).extract rel.key.layout.slotVariables).mono (L₅.trans (l₆.trans l₇)))
     fun h => (hblockValue h.1.1.1).mono (L₅.trans (l₆.trans l₇))).ensures fun embedded d₈ m₈ l₈ => ?_
-  refine Ensures.tbind (Simulates.runValueLoop (fun h => IsExts.triple
+  refine OldEnsures.tbind (Simulates.runValueLoop (fun h => IsExts.triple
     ((hcoef h.1.1.1.1).mono (L₅.trans (l₆.trans (l₇.trans l₈))))
     ((hslot h.1.1.1.1).mono (L₅.trans (l₆.trans (l₇.trans l₈))))
     ((hrow h.1.1.1.1).mono (L₅.trans (l₆.trans (l₇.trans l₈))))) (fun h => h.2.1.1)
     fun h => h.1.1.1.2.1.mono (l₆.trans (l₇.trans l₈))).ensures fun runValue d₉ m₉ l₉ => ?_
   have L₉ : n ≤ m₉ := L₅.trans (l₆.trans (l₇.trans (l₈.trans l₉)))
-  refine Ensures.pre (P' := P ∧ IsExt c m₉ mu gmu ∧ IsExts c m₉ #[a₀, a₁, a₂] #[ga₀, ga₁, ga₂] ∧
+  refine OldEnsures.pre (P' := P ∧ IsExt c m₉ mu gmu ∧ IsExts c m₉ #[a₀, a₁, a₂] #[ga₀, ga₁, ga₂] ∧
     IsExts c m₉ keyPoint (Replay.padded rel.setupVars (lin.lanePoint ++ lin.blockPoint)) ∧
     IsExts c m₉ runPoint' (Replay.padded rel.setupVars early.openings.runPoint) ∧
     IsExt c m₉ runValue (#[early.openings.coefClaim, early.openings.slotClaim, early.openings.rowClaim].foldl
@@ -1045,16 +1045,16 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
   set grv := #[early.openings.coefClaim, early.openings.slotClaim, early.openings.rowClaim].foldl
     (fun total value => value + gmu * total) ((early.openings.runPoint.extract rel.key.layout.slotVariables).foldl
       (fun total x => total * Replay.oneMinus x) early.values.block)
-  refine Ensures.tbind (Ensures.lift (Simulates.combinePartials (fun h => (IsExts.nested (hpartials h.1) 0).mono L₉)
+  refine OldEnsures.tbind (OldEnsures.lift (Simulates.combinePartials (fun h => (IsExts.nested (hpartials h.1) 0).mono L₉)
     fun h => h.2.2.2.1.slice 0 foldVars).ensures) fun keyPartial d₁₀ m₁₀ l₁₀ => ?_
-  refine Ensures.tbind (Ensures.lift (Simulates.assertExtEqual (fun h => h.2.1.1)
+  refine OldEnsures.tbind (OldEnsures.lift (Simulates.assertExtEqual (fun h => h.2.1.1)
     fun h => (hkey h.1.1).mono (L₉.trans l₁₀)).ensures) fun _ d₁₁ m₁₁ l₁₁ => ?_
-  refine Ensures.tbind (Ensures.lift (Simulates.combinePartials
+  refine OldEnsures.tbind (OldEnsures.lift (Simulates.combinePartials
     (fun h => (IsExts.nested (hpartials h.1.1.1) 1).mono (L₉.trans (l₁₀.trans l₁₁)))
     fun h => (h.1.1.2.2.2.2.1.slice 0 foldVars).mono (l₁₀.trans l₁₁)).ensures) fun runPartial d₁₂ m₁₂ l₁₂ => ?_
-  refine Ensures.tbind (Ensures.lift (Simulates.assertExtEqual (fun h => h.2.1.1)
+  refine OldEnsures.tbind (OldEnsures.lift (Simulates.assertExtEqual (fun h => h.2.1.1)
     fun h => h.1.1.1.2.2.2.2.2.1.mono (l₁₀.trans (l₁₁.trans l₁₂))).ensures) fun _ d₁₃ m₁₃ l₁₃ => ?_
-  refine Ensures.tbind (Simulates.observeRoot (r := r₅) hp (fun h => ?_)
+  refine OldEnsures.tbind (Simulates.observeRoot (r := r₅) hp (fun h => ?_)
     fun h => (hp1 h.1.1.1.1.1).mono (L₉.trans (l₁₀.trans (l₁₁.trans (l₁₂.trans l₁₃))))).ensures
     fun _ d₁₄ m₁₄ l₁₄ => ?_
   · obtain ⟨⟨⟨⟨⟨-, -, -, -, -, -, hd₉⟩, -, e₁₀⟩, -, e₁₁⟩, -, e₁₂⟩, -, e₁₃⟩ := h
@@ -1063,7 +1063,7 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
     exact hd₉.mono (l₁₀.trans (l₁₁.trans (l₁₂.trans l₁₃)))
   set r₇ := proof.p1.foldl Replay.Duplex.observe (rel.commitmentSeed.foldl Replay.Duplex.observe r₅)
   have L₁₄ : n ≤ m₁₄ := L₉.trans (l₁₀.trans (l₁₁.trans (l₁₂.trans (l₁₃.trans l₁₄))))
-  refine Ensures.pre (P' := P ∧ Replay.combine proof.partials[0]! (gkey.extract 0 foldVars) = lin.keyValue ∧
+  refine OldEnsures.pre (P' := P ∧ Replay.combine proof.partials[0]! (gkey.extract 0 foldVars) = lin.keyValue ∧
     Replay.combine proof.partials[1]! (grun.extract 0 foldVars) = grv ∧ IsExt c m₁₄ mu gmu ∧
     IsExts c m₁₄ #[a₀, a₁, a₂] #[ga₀, ga₁, ga₂] ∧ IsExts c m₁₄ keyPoint gkey ∧ IsExts c m₁₄ runPoint' grun ∧
     IsDuplex c m₁₄ d₁₄ r₇) ?_ fun h => ?_
@@ -1071,11 +1071,11 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
   · obtain ⟨⟨⟨⟨⟨⟨hP, hmu, halpha, hkp, hrp, -, -⟩, -, -⟩, ⟨-, keyCheck⟩, -⟩, -, -⟩, ⟨-, runCheck⟩, -⟩, hd₁₄, -⟩ := h
     have M : m₉ ≤ m₁₄ := l₁₀.trans (l₁₁.trans (l₁₂.trans (l₁₃.trans l₁₄)))
     exact ⟨hP, keyCheck, runCheck, hmu.mono M, halpha.mono M, hkp.mono M, hrp.mono M, hd₁₄⟩
-  refine Ensures.tbind (Simulates.sampleBitsArray (rel.setupVars + 1 - foldVars) small hp rel.queries
+  refine OldEnsures.tbind (Simulates.sampleBitsArray (rel.setupVars + 1 - foldVars) small hp rel.queries
     (t := { duplex := r₇, draws := (((t.draws.push (.ext gmu)).push (.ext ga₀)).push (.ext ga₁)).push (.ext ga₂) })
     fun h => h.2.2.2.2.2.2.2) fun indexBits d₁₅ m₁₅ l₁₅ => ?_
-  refine Ensures.exists_and (#[] : Array Word) fun ws => ?_
-  refine Ensures.exists_and t fun t₈ => ?_
+  refine OldEnsures.exists_and (#[] : Array Word) fun ws => ?_
+  refine OldEnsures.exists_and t fun t₈ => ?_
   have digits : ∀ {m : ℕ} {q : ℕ}, q < ws.size → ∀ i < rel.setupVars + 1 - foldVars,
       IsWord c m (indexBits[q]!)[i]! (Word.ofNat ((ws[q]!).toNat / 2 ^ i % 2)) →
       IsWord c m (indexBits[q]!)[i]!
@@ -1084,12 +1084,12 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
     rw [getElem!_pos (ws.map fun word => word.toNat % 2 ^ (rel.setupVars + 1 - foldVars)) _ (by simpa using hq),
       Array.getElem_map, ← getElem!_pos ws _ hq, digit_mod _ _ _ hi]
     exact w
-  refine Ensures.tbind (Ensures.lift Simulates.extOne.ensures) fun one d₁₆ m₁₆ l₁₆ => ?_
-  refine Ensures.tbind (Simulates.runWeightsLoop (fun h => h.2.1.1)
+  refine OldEnsures.tbind (OldEnsures.lift Simulates.extOne.ensures) fun one d₁₆ m₁₆ l₁₆ => ?_
+  refine OldEnsures.tbind (Simulates.runWeightsLoop (fun h => h.2.1.1)
     fun h => h.1.1.2.2.2.1.mono (l₁₅.trans l₁₆)).ensures fun runWeights d₁₇ m₁₇ l₁₇ => ?_
-  refine Ensures.tbind (Simulates.rootConsts rel.key.root).ensures fun rootV d₁₈ m₁₈ l₁₈ => ?_
+  refine OldEnsures.tbind (Simulates.rootConsts rel.key.root).ensures fun rootV d₁₈ m₁₈ l₁₈ => ?_
   have L₁₈ : n ≤ m₁₈ := L₁₄.trans (l₁₅.trans (l₁₆.trans (l₁₇.trans l₁₈)))
-  refine Ensures.tbind (queriedLoop (groot := rel.key.root)
+  refine OldEnsures.tbind (queriedLoop (groot := rel.key.root)
     (queries := ws.map fun word => word.toNat % 2 ^ (rel.setupVars + 1 - foldVars)) (gleaves := proof.leaves)
     (gw₀ := (Array.range rel.kappa).map lin.mixing.commitment) (gw₁ := (Array.range runOracles).map gmu.pow)
     (galpha := #[ga₀, ga₁, ga₂]) hp (fun h => by exact h.2.1.1) root
@@ -1104,7 +1104,7 @@ theorem honestStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P
     (fun h => by exact (hrows h.1.1.1.1.1).mono L₁₈) (fun h => by exact h.1.2.1.1.mono l₁₈)
     (fun h => by exact h.1.1.1.1.2.2.2.2.1.mono (l₁₅.trans (l₁₆.trans (l₁₇.trans l₁₈)))) rfl)
     fun queried d₁₉ m₁₉ l₁₉ => ?_
-  refine Ensures.pure fun h => ?_
+  refine OldEnsures.pure fun h => ?_
   obtain ⟨⟨⟨⟨⟨⟨hP, keyCheck, runCheck, -, halpha, hkp, hrp, -⟩, words, isize, ibits, hd₁₅⟩, -, e₁₆⟩, ⟨-, e₁₇⟩, -⟩,
     ⟨-, e₁₈⟩, -⟩, gq, qok, hq, e₁₉⟩ := h
   dsimp only at isize ibits hd₁₅ e₁₆ e₁₇ e₁₈ e₁₉ hq ⊢

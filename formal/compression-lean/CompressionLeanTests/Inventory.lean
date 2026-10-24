@@ -70,7 +70,7 @@ def premises : List (Name × List Premise) :=
     "`lowerCheck` and `terminalCheck` check it on the production key (`key_facts_of_check`). The production tests `production_layer1_matches_lean` and `final_program_matches_lean` require the pass."⟩
   let setupPass := "`setupCheck` checks it on the production key and on the runs that `production_runs_rebuild_the_layer1_key` writes. That test requires `Key::derive` of the runs to be the committed layer-1 key, and `production_setup_matches_lean` requires the pass."
   let gives : Premise := ⟨`gives, .unchecked,
-    "`PoseidonRows.lean` proves the matrix entries of the rows of the Poseidon2 blocks of F′'s matrix program (`matrixSource_entry`). No check compares the runs with these rows."⟩
+    "`Checks/PoseidonRows.lean` proves the matrix entries of the rows of the Poseidon2 blocks of F′'s matrix program (`matrixSource_entry`). No check compares the runs with these rows."⟩
   let h0 : Premise := ⟨`h0, .rust,
     "`L0` is the candidate count of P0's WHIR configuration (`log2_max_candidates`, `pcs.rs`). A list holds at least one candidate."⟩
   let h1 : Premise := ⟨`h1, .rust, "As `h0`, for P1."⟩

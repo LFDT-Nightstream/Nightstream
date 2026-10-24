@@ -254,7 +254,7 @@ The chain takes these premises:
     pushes name rows below `2^28` and give F′'s matrices. They are the rows
     of F′'s package that F′'s Rust prover and verifier also read. Rust
     visits only rows below the row count, and `Relation::new` checks that
-    count against `2^28`. `PoseidonRows.lean` evaluates the rows of the
+    count against `2^28`. `Checks/PoseidonRows.lean` evaluates the rows of the
     Poseidon2 blocks of F′'s matrix program, 84% of the rows, and proves
     that they give F′'s matrix entries (`matrixSource_entry`).
   - Port: Rust's `from_rows`, `key` and `oracle` are `build`. This is a
@@ -423,7 +423,7 @@ the check with `timeout --signal=KILL 1500 lake build setupCheck`, then run
 `production_setup_matches_lean` (same crate, ignored) under the 5-minute cap.
 It runs `setupCheck` on that file and on the `production_layer1.json` of
 `production_layer1_matches_lean` (run both first) and requires
-`setup facts hold`. `setupFailure` (`Final/SetupFacts.lean`) decides that
+`setup facts hold`. `setupFailure` (`Checks/SetupFacts.lean`) decides that
 `build` returns `poseidon2Setup` for the runs, that it has `Setup.Fits` and
 that the key's structure describes it. It reads the runs a fixed number of
 times: the classes and the slot keys go through a hash set and a sort of the

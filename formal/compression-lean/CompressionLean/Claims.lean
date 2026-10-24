@@ -1,8 +1,9 @@
 import CompressionLean.Final.Encodes
 import CompressionLean.Final.ParentClaim
-import CompressionLean.Final.KeyFacts
+import CompressionLean.Checks.KeyFacts
 import CompressionLean.Final.RustSetup
-import CompressionLean.Final.SetupFacts
+import CompressionLean.Checks.SetupFacts
+import CompressionLean.Checks.Templates
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
 /-!
@@ -31,6 +32,7 @@ its proof is in the library.
 
 namespace CompressionLean.Claims
 
+open CompressionLean.Checks
 open CompressionLean.Game
 open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Export.Package (CircuitPackage)
@@ -118,8 +120,8 @@ theorem width_fits_of_check {key : Layer1Input} (pass : poseidon2Fits key = true
 /-- **The package check** of `terminalCheck`: a package whose compact row
 invocations all name a template has `CompactTemplatesValid`. -/
 theorem package_templates_of_check {package : CircuitPackage}
-    (named : Circuit.Package.templatesNamed package = true) : package.CompactTemplatesValid :=
-  Circuit.Package.compactTemplatesValid_of_named named
+    (named : Checks.templatesNamed package = true) : package.CompactTemplatesValid :=
+  Checks.compactTemplatesValid_of_named named
 
 /-- **The setup check** of `setupCheck`: for a key and runs that fail no fact
 of `setupFailure`, `build` returns `poseidon2Setup` at the carrier of the

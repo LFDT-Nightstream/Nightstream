@@ -1,5 +1,5 @@
 import CompressionLean.Final.RustSetup
-import CompressionLean.Final.KeyFacts
+import CompressionLean.Checks.KeyFacts
 import Std.Data.HashSet.Lemmas
 import CompressionLean.Lib.List
 import CompressionLean.Lib.Nat
@@ -19,8 +19,9 @@ The check reads the runs a fixed number of times. It computes `classesOf` and
 (`sortedValues`), which is `sortedSet` (`sortedValues_toList`).
 -/
 
-namespace CompressionLean.Final
+namespace CompressionLean.Checks
 
+open CompressionLean.Final
 open CompressionLean.Game
 open CompressionLean.Lib
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -273,4 +274,4 @@ theorem setupFacts_of_check {key : Layer1Input} {pushes : List Push} (seed : Lis
       rw [hc, word]
       exact shape
 
-end CompressionLean.Final
+end CompressionLean.Checks

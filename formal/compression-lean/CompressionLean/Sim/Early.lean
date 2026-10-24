@@ -578,21 +578,9 @@ theorem observeRoot_tracks {seed : Array Word} {root : DigestVar} {groot : Array
     (hr : IsDigest c n root groot) :
     Tracks c n (Circuit.observeRoot seed root) (Replay.observeAll seed >>= fun _ => Replay.observeAll groot)
       fun _ _ _ => True := by
-  intro d t hd
   unfold Circuit.observeRoot
-  rw [← Array.forIn_toList]
-  refine Ensures.tbind (Q := fun r m => IsDuplex c m r.2 (seed.foldl Replay.Duplex.observe t.duplex)) ?_
-    fun _ e m _ he => ?_
-  · refine (Ensures.loopT (fun k _ e m => IsDuplex c m e ((seed.toList.take k).foldl Replay.Duplex.observe t.duplex))
-      hd fun k hk _ e m _ hI => ?_).post fun _ _ q => ?_
-    · refine Ensures.liftBind (const_ensures seed.toList[k]) fun w _ _ hw => ?_
-      refine Ensures.tbind (Duplex.observe_ensures hp hI.mono hw) fun _ e' _ _ hd' => ?_
-      rw [StateT.run_pure]
-      refine Ensures.pure ⟨rfl, ?_⟩
-      rwa [List.take_succ_eq_append_getElem hk, List.foldl_append, List.foldl_cons, List.foldl_nil]
-    · rwa [List.take_of_length_le (by simp), Array.foldl_toList] at q
-  · exact (Duplex.observeSlice_ensures hp he (IsWords.ofFn hr.1 fun lane => (hr.2 lane).mono)).post fun _ _ q =>
-      ⟨(), _, Bridge.runs_bind (Bridge.runs_observeAll seed t) (Bridge.runs_observeAll groot _), q, trivial⟩
+  exact Tracks.bind (Duplex.observeConsts_tracks hp seed) fun _ _ _ _ _ =>
+    Duplex.observeSlice_tracks hp (IsWords.ofFn hr.1 fun lane => (hr.2 lane).mono)
 
 end Root
 
@@ -932,19 +920,5 @@ theorem earlyStage_tracks {rel : Relation} {statement : ClaimView} {st : Replay.
     hslotClaim.mono, hcoef.mono⟩
 
 end Stage
-
-/-! ## The old names, for the files that still use `Simulates` -/
-
-theorem earlyStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {rel : Relation}
-    {statement : ClaimView} {st : Replay.Statement} {proof : ProofView} {w : Var → Word} {g : Replay.Proof}
-    {d : Duplex} {t : Replay.Transcript} (hp : Permutes c.perm) (hd : P → IsDuplex c n d t.duplex)
-    (hpoint : P → statement.point.size = st.point.size ∧ ∀ i < statement.point.size,
-      IsWord c n statement.point[i]!.1 st.point[i]!.1 ∧ IsWord c n statement.point[i]!.2 st.point[i]!.2)
-    (hproof : P → IsProof c w n proof g) (read : Replay.readProof rel g = .ok ()) :
-    OldEnsures c n P ((Circuit.earlyStage rel statement proof).run d)
-      (fun res m => ∃ out t', Runs (Replay.earlyStage rel st g) t out t' ∧ IsEarlyOut c m res.1 out ∧
-        IsDuplex c m res.2 t'.duplex) :=
-  .of_ensures fun h => (earlyStage_tracks hp (hpoint h).1 (hpoint h).2 (hproof h) read d t (hd h)).post
-    fun _ _ ⟨out, t', run, hdx, ho⟩ => ⟨out, t', run, ho, hdx⟩
 
 end CompressionLean.Sim

@@ -242,21 +242,4 @@ theorem linearStage_tracks {rel : Relation} {statement : ClaimView} {st : Replay
 
 end Stage
 
-/-! ## The old names, for the files that still use `Simulates` -/
-
-theorem linearStage_ensures [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {rel : Relation}
-    {statement : ClaimView} {st : Replay.Statement} {quotient : Array ExtVar} {linear : Array (Array ExtVar)}
-    {finals : Array ExtVar} {proof : Replay.Proof} {d : Duplex} {t : Replay.Transcript} (hp : Permutes c.perm)
-    (hd : P → IsDuplex c n d t.duplex) (fits : st.fits rel = true) (hst : P → IsClaim c n statement st)
-    (hq : P → IsExts c n quotient proof.quotient)
-    (hl : P → linear.size = proof.linear.size ∧ ∀ i < linear.size, IsExts c n linear[i]! proof.linear[i]!)
-    (hf : P → IsExts c n finals proof.finals) (linearSize : P → proof.linear.size = rel.cubeVars)
-    (nonempty : P → ∀ g ∈ proof.linear, 0 < g.size) (finalsSize : P → proof.finals.size = 3)
-    (long : Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo ≤ rel.pointVariables) :
-    OldEnsures c n P ((Circuit.linearStage rel statement quotient linear finals).run d)
-      (fun res m => ∃ out t', Bridge.Runs (Replay.linearStage rel st proof) t out t' ∧
-        IsLinearOut c m rel res.1 out ∧ IsDuplex c m res.2 t'.duplex) :=
-  .of_ensures fun h => (linearStage_tracks hp fits (hst h) (hq h) (hl h).1 (hl h).2 (hf h) (linearSize h)
-    (nonempty h) (finalsSize h) long d t (hd h)).post fun _ _ ⟨out, t', run, hdx, ho⟩ => ⟨out, t', run, ho, hdx⟩
-
 end CompressionLean.Sim

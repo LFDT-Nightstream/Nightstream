@@ -18,6 +18,7 @@ lists every assumption.
 namespace CompressionLean.Layer1
 
 open Polynomial
+open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
 
@@ -54,9 +55,9 @@ theorem layer1_restore_budget (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) 
     (distinct : ∀ i j, i < 2 ^ (s.setupVars - 2) → j < 2 ^ (s.setupVars - 2) → q i = q j → i = j)
     (fits : S.Fits s) (monic : Φ.Monic) (degree : Φ.natDegree = s.D) (two : 2 ≤ s.D) (calls : ℕ)
     (prover : Game.Strategy (Option (Option (Transcript F K s.queries (2 ^ (s.setupVars - 2)))))) :
-    Game.prob prover (Game.restore (layer1Game s Φ bar S L0 L1 (2 ^ (s.setupVars - 2)) goldilocks q) calls [])
+    Game.prob prover (Game.restore (layer1Game s Φ bar S L0 L1 (2 ^ (s.setupVars - 2)) goldilocksModulus q) calls [])
         (fun r => ∃ a, r = some a ∧ ¬ Extracts s Φ bar S a) ≤ calls / 2 ^ t := by
-  refine (layer1_restore_sound s Φ bar S L0 L1 _ goldilocks q N sizes cast distinct fits monic degree two calls
+  refine (layer1_restore_sound s Φ bar S L0 L1 _ goldilocksModulus q N sizes cast distinct fits monic degree two calls
     prover).trans ?_
   have budget := layer1_budget s L0 L1 (Fintype.card K) t h0 h1 big index 0 0 (by simpa using p0)
     (by simpa using p1)

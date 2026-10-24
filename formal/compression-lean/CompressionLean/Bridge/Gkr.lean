@@ -23,23 +23,20 @@ layer at a time (`runs_gkrLayers_succ`, `runs_gkrLayer`), and the shapes that
 namespace CompressionLean.Bridge
 
 open CompressionLean.Lib
+open NightstreamFPrime.Spec (goldilocksModulus)
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
 variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-theorem goldilocks_eq_modulus : goldilocks = NightstreamFPrime.Spec.goldilocksModulus := by decide
-
-theorem word_lt (w : Word) : w.word.toNat < goldilocks := goldilocks_eq_modulus ▸ w.canonical
-
 /-- A replay draw as the model's challenge: an `Ext` value in `K`, a pair in
-`K × K`, the setup query words as `Fin queries → Fin goldilocks`, a WHIR
-query word in `Fin goldilocks`. -/
+`K × K`, the setup query words as `Fin queries → Fin goldilocksModulus`, a WHIR
+query word in `Fin goldilocksModulus`. -/
 def drawn (queries : ℕ) : Draw → (Σ C : Type, C)
   | .ext v => ⟨K, v.toK⟩
   | .pair a b => ⟨K × K, (a.toK, b.toK)⟩
-  | .words ws => ⟨Fin queries → Fin goldilocks, fun j => ⟨(ws[j.val]!).word.toNat, word_lt _⟩⟩
-  | .sample w => ⟨Fin goldilocks, ⟨w.word.toNat, word_lt w⟩⟩
+  | .words ws => ⟨Fin queries → Fin goldilocksModulus, fun j => ⟨(ws[j.val]!).word.toNat, Word.canonical _⟩⟩
+  | .sample w => ⟨Fin goldilocksModulus, ⟨w.word.toNat, w.canonical⟩⟩
 
 /-! ## Interpolation -/
 

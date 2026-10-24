@@ -14,6 +14,7 @@ feed the P1 openings, not this path (`Openings.lean`).
 namespace CompressionLean.Bridge
 
 open Polynomial
+open NightstreamFPrime.Spec (goldilocksModulus)
 open CompressionLean.Replay CompressionLean.Layer1
 
 variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
@@ -53,8 +54,8 @@ def honestMsgs (proof : Replay.Proof) {L1 : ℕ} (p1 : {l : List (P1Tables K) //
   [⟨Fin 2 → ℕ → K, partialsOf proof⟩, ⟨{l : List (P1Tables K) // l.length ≤ L1}, p1⟩]
 
 /-- The model's query words of the replay's. -/
-def wordsOf (queries : ℕ) (ws : Array Word) : Fin queries → Fin goldilocks :=
-  fun j => ⟨(ws[(j : ℕ)]!).word.toNat, word_lt _⟩
+def wordsOf (queries : ℕ) (ws : Array Word) : Fin queries → Fin goldilocksModulus :=
+  fun j => ⟨(ws[(j : ℕ)]!).word.toNat, Word.canonical _⟩
 
 /-- The relation's sizes the honest fold reads. -/
 structure HonestSizes (rel : Replay.Relation) : Prop where
@@ -128,7 +129,7 @@ theorem honest_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : P
     (L1 : ℕ) (p1 : List (P1Tables K)) (short : p1.length ≤ L1) (q : ℕ → K)
     {t t' : Replay.Transcript} {honest : Replay.HonestOut} (run : Runs (honestStage rel proof early lin) t honest t') :
     ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧ HonestRun rel proof early lin honest ∧
-      Game.Reaches (honestGame (shapeOf rel) S L1 (2 ^ (rel.setupVars - 2)) goldilocks q
+      Game.Reaches (honestGame (shapeOf rel) S L1 (2 ^ (rel.setupVars - 2)) goldilocksModulus q
           (⟨cands, histOf proof, challengesOf early.challenges, mc, valuesOf early.values⟩ : Layer1.EarlyOut Gl K)
           (linearOutOf proof lin))
         (honestMsgs proof ⟨p1, short⟩) (ds.map (drawn (K := K) rel.queries))

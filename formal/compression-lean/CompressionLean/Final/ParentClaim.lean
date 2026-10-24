@@ -1,16 +1,14 @@
 import CompressionLean.Final.Parent
 import CompressionLean.Final.Soundness
 import CompressionLean.Lib.List
+import CompressionLean.Spec.Parent
 
 /-!
-Owns the claim of a final proof in F′'s terms and its soundness over the
-concrete fields.
+Owns the soundness of the claim of a final proof in F′'s terms
+(`ParentClaim`, `Spec/Parent.lean`) over the concrete fields.
 
 - `claimOf_parent`: the layer-1 claim that the final program reads from the
   terminal output columns is the statement of the PiRLC parent there.
-- `ParentClaim`: some terminal assignment for `x` holds a PiCCS proof that
-  F′'s verifier accepts, and the PiRLC parent that the verifier computes
-  has a witness of F′'s CE(B) relation.
 - `parentClaim_of_terminalClaim`: under the honest setup, the terminal claim
   gives the F′ claim.
 - `final_sound_parent`, `final_restore_budget_parent`: `final_sound` and
@@ -19,6 +17,7 @@ concrete fields.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Spec
 open CompressionLean.Game
 open CompressionLean.Lib
 open Polynomial NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle
@@ -130,34 +129,6 @@ theorem claimOf_parent (relation : ProductionKey.LogicalRelation lw pf)
     · rfl
 
 /-! ## The F′ claim of a final proof -/
-
-/-- The running claims of a terminal assignment, as F′'s accumulator reads
-them from the package columns. -/
-abbrev runningOf (env : Circuit.Env) :=
-  Layout.Stage1.AccumulatorInputs.running lw pf (Layout.Stage1.Spartan.pullback env)
-
-/-- The fresh claim of a terminal assignment. -/
-abbrev freshOf (env : Circuit.Env) :=
-  Layout.Stage1.AccumulatorInputs.fresh lw pf (Layout.Stage1.Spartan.pullback env)
-
-/-- The PiCCS proof of a terminal assignment. -/
-abbrev proofOf (relation : ProductionKey.LogicalRelation lw pf) (env : Circuit.Env) :=
-  Layout.Stage1.AccumulatorInputs.proof relation (Layout.Stage1.Spartan.pullback env)
-
-/-- **What a final proof for `x` claims, in F′'s terms.** Some terminal
-assignment for `x` (`TerminalFor`) holds a PiCCS proof that F′'s verifier
-accepts for the key of `relation` and `ajtai`, and the PiRLC parent that the
-verifier computes from it has a witness of F′'s CE(B) relation (SuperNeo
-v1.2 Definition 21). -/
-def ParentClaim (relation : ProductionKey.LogicalRelation lw pf)
-    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
-    (authority : Lifecycle.VerifierContext.Authority) (x : StateWords) : Prop :=
-  ∃ env, TerminalFor authority x env ∧
-    Spec.Folding.Nifs.PaperNonInteractive.piCcsCheck (ProductionKey.key relation ajtai) (runningOf env) (freshOf env)
-      (proofOf relation env) = true ∧
-    (ProductionKey.key relation ajtai).parent (runningOf env) (freshOf env) (proofOf relation env) =
-      some (Terminal.parent relation env) ∧
-    ∃ a, Spec.CE.Holds (PaperAlgebra.semantics ajtai) productionGlobalParams (Terminal.parent relation env) a
 
 /-- Under the honest setup, the terminal claim is the F′ claim: the layer-1
 witness of the parent claim is a witness of F′'s relation for the PiRLC

@@ -32,6 +32,7 @@ its proof is in the library.
 
 namespace CompressionLean.Claims
 
+open CompressionLean.Spec
 open CompressionLean.Sim
 open CompressionLean.Checks
 open CompressionLean.Game
@@ -39,20 +40,19 @@ open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle Nights
 open NightstreamFPrime.Export.Package (CircuitPackage)
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
-open CompressionLean.Bridge (shapeOf structureOf barOf queryAt)
 open CompressionLean.Circuit (Layer1Input)
 open CompressionLean.Terminal.Package (Loaded load)
 open CompressionLean.Final CompressionLean.Setup
 
 /-- **The production bound** (`CompressionKey::verify`,
 `lifecycle/finish.rs:131-145`). Take the production final program for the
-layer-1 key `key` (`Sim.prog`), the terminal package with the context
+layer-1 key `key` (`Spec.prog`), the terminal package with the context
 words of `authority`, and an honest setup `S` of an F′ relation of logical
 width `lw`. Under Fiat–Shamir, with the charged terms of each commitment
 within Rust's split, a prover with `calls` queries makes the final verifier
 accept a statement whose F′ claim (`ParentClaim`) is false, while every
 program witness among the shrink candidates has a reading that layer 1 ran
-(`Sim.Reads`), with probability at most `calls / 2^t`. -/
+(`Spec.Reads`), with probability at most `calls / 2^t`. -/
 theorem production_bound {lw : ℕ}
     {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
     (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
@@ -119,7 +119,7 @@ theorem width_fits_of_check {key : Layer1Input} (pass : poseidon2Fits key = true
 /-- **The package check** of `terminalCheck`: a package whose compact row
 invocations all name a template has `CompactTemplatesValid`. -/
 theorem package_templates_of_check {package : CircuitPackage}
-    (named : Checks.templatesNamed package = true) : package.CompactTemplatesValid :=
+    (named : Spec.templatesNamed package = true) : package.CompactTemplatesValid :=
   Checks.compactTemplatesValid_of_named named
 
 /-- **The setup check** of `setupCheck`: for a key and runs that fail no fact

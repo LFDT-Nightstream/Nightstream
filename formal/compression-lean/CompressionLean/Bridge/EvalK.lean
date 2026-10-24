@@ -1,4 +1,5 @@
 import CompressionLean.Bridge.Ring
+import CompressionLean.Spec.Checks
 
 /-!
 Owns the denotation of the replay's Eval_K long division (`Replay.evalK`)
@@ -11,6 +12,7 @@ proves to be the extensions of the Eval_K tables. Then `Ω~` is the model's
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
 open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
@@ -118,18 +120,6 @@ theorem toQ_evalK (r : Array (Word × Word)) (s : Array Ext) (tau : Array Ext) (
   intro rem inside
   rw [Kx.toQ_scale, toQ_evalKStates r s blocks _ _ rem 1 (Finset.mem_range.mp inside) (by norm_num)]
   rfl
-
-/-- The relation's Eval_K bits: they cover the block bits and the blocks
-and fit the point `r` (`eval_k`'s coordinate bits). -/
-structure EvalKBits (rel : Replay.Relation) : Prop where
-  deep : rel.blockVars ≤ Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo
-  long : Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo ≤ rel.pointVariables
-  blocks_le : rel.key.blocks ≤ 2 ^ rel.blockVars
-  fits : D * rel.key.blocks ≤ 2 ^ Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo
-  strict : rel.key.blocks < 2 ^ Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo
-
-instance (rel : Replay.Relation) : Decidable (EvalKBits rel) :=
-  decidable_of_iff (_ ∧ _ ∧ _ ∧ _ ∧ _) ⟨fun ⟨a, b, c, d, e⟩ => ⟨a, b, c, d, e⟩, fun ⟨a, b, c, d, e⟩ => ⟨a, b, c, d, e⟩⟩
 
 /-- The replay's Eval_K at the block point is the pair of the extensions of
 the model's Eval_K tables. -/

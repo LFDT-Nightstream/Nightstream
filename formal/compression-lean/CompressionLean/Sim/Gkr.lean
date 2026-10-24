@@ -13,10 +13,10 @@ The proof has the layers that `readGkr` checks.
 
 namespace CompressionLean.Sim
 
+open CompressionLean.Spec
 open CompressionLean.Circuit
 open CompressionLean.Lib
 open CompressionLean.Replay (Ext TreeShape)
-open CompressionLean.Bridge (Runs)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]

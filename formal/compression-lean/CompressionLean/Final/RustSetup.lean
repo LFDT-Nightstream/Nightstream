@@ -1,6 +1,7 @@
 import CompressionLean.Ports.Setup
 import CompressionLean.Final.Parent
 import CompressionLean.Production
+import CompressionLean.Spec.Parent
 
 /-!
 Owns what Rust's setup build (`Ports/Setup.lean`) gives, and the sizes that
@@ -13,7 +14,7 @@ Rust passes for the PiRLC parent. From them it proves the premises of
   `derived_structure_steps_read_back_the_runs` checks it of `from_rows`.
 - `honestSetup_of_build`: `HonestSetup` for the key of the seeded Ajtai setup
   (`AjtaiSetupV1.Setup.verifierKey`), when the pushed runs give F′'s matrices
-  (`RunsGive`).
+  (`RunsGive`, `Spec/Parent.lean`).
 - `parentShape_of`: `ParentShape` from Rust's constants.
 
 Does not own the source of the runs (`PackageRows` over F′'s package) or the
@@ -22,30 +23,14 @@ parity of Rust's SHAKE128 expander with `AjtaiSetupV1`.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Spec
 open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open CompressionLean.Setup
 
 /-! ## The pushed runs -/
 
-/-- The value that the run gives column `c`. -/
-def _root_.CompressionLean.Setup.Push.value (p : Push) (c : ℕ) : Gl :=
-  if p.start ≤ c ∧ c < p.start + p.len then p.initial * p.ratio ^ (c - p.start) else 0
-
-/-- Entry `(i, c)` of matrix `j` as the pushed runs give it. -/
-def pushedEntry (pushes : List Push) (j i c : ℕ) : Gl :=
-  (pushes.map fun p => if p.matrix = j ∧ p.row = i then p.value c else 0).sum
-
 variable {lw : ℕ} {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
-
-/-- **The source premise.** The pushed runs name rows of the cube, and they
-give every entry of every completed CCS matrix of `relation`, row `i` in F′'s
-little-endian order. -/
-structure RunsGive (pushes : List Push) (relation : ProductionKey.LogicalRelation lw pf) : Prop where
-  row_lt : ∀ p ∈ pushes, p.row < 2 ^ cubeVariables
-  entry : ∀ (j : Fin productionProfile.ccsMatrices) (i : ℕ) (c : Fin (Phi81CarrierLayout.carrierWidth lw)),
-    i < 2 ^ cubeVariables →
-      pushedEntry pushes j i c = gl ((PaperAlgebra.matrixSource relation.system).matrices j (vertexAt cubeVariables i) c)
 
 /-- Run `k` of the setup is `runs[k]`: its row, matrix and coefficient, and a
 slot with its start, its length and, past one column, its ratio. -/

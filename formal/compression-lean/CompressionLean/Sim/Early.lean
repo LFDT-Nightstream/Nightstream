@@ -23,6 +23,7 @@ Owns the simulation of the layer-1 verifier's early stage (`earlyStage` of
 
 namespace CompressionLean.Sim
 
+open CompressionLean.Spec
 open CompressionLean.Circuit
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext)
@@ -316,7 +317,6 @@ end Mle
 /-! ## The early stage in the replay -/
 
 open CompressionLean.Replay (Relation TreeShape)
-open CompressionLean.Bridge (Runs)
 
 /-- Equal values pass the replay's equality test (`field.rs`). -/
 theorem ext_beq_of_eq {a b : Ext} (e : a = b) : (a == b) = true := e ▸ Ext.beq_self a

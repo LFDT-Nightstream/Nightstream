@@ -1,32 +1,25 @@
 import CompressionLean.Bridge.Field
 import CompressionLean.Layer1.EvalK
 import CompressionLean.Layer1.KeyStructure
+import CompressionLean.Spec.Relation
 
 /-!
 Owns the denotation of the replay's public formulas (`Ports/Replay/Formulas.lean`):
 each one denotes its model counterpart in `K` (or `QuadX K`). Points denote
 lists (`pointK`), arrays denote tables that are zero past their end
-(`tableK`). The model counterparts are the closed forms that `ClosedForms`,
+(`tableK`), both in `Spec/Relation.lean`. The model counterparts are the closed forms that `ClosedForms`,
 `EvalK` and `Weights` prove equal to the tables' extensions.
 -/
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
 open CompressionLean.Lib
 open CompressionLean.Replay CompressionLean.Layer1
 
 variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
 local notation "ι" => algebraMap Gl K
-
-/-- A point of `Ext` coordinates in `K`. -/
-def pointK (p : Array Ext) : List K := p.toList.map Ext.toK
-
-/-- An `Ext` array as a table of `K`, zero past its end. -/
-def tableK (a : Array Ext) (i : ℕ) : K := (a[i]!).toK
-
-/-- A pair of `Ext` values in `K`. -/
-def pairK (v : Ext × Ext) : K × K := (v.1.toK, v.2.toK)
 
 @[simp] theorem pointK_length (p : Array Ext) : (pointK (K := K) p).length = p.size := by simp [pointK]
 

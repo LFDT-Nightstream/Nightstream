@@ -3,6 +3,7 @@ import CompressionLean.Final.Claim
 import CompressionLean.Layer1.FiatShamir
 import CompressionLean.Final.Budget
 import CompressionLean.Shrink.Budget
+import CompressionLean.Spec.Bound
 
 /-!
 Owns the end-to-end soundness of the final verifier (`CompressionKey::verify`,
@@ -32,6 +33,7 @@ for the openings inside it.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Spec
 open CompressionLean.Game
 open CompressionLean NightstreamFPrime Polynomial
 open NightstreamFPrime.Spec (goldilocksModulus)
@@ -104,23 +106,6 @@ theorem final_sound (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S
     rw [leaf] at node
     rw [← Game.pure.inj node]
     exact layer1)
-
-/-- The outcome under Fiat–Shamir: the shrink walk, and the walk of every
-path of the layer-1 game `g` under the layer-1 log. -/
-abbrev RestoreOutcome {t L : ℕ} (F K : Type) (g : Game (Option (Layer1.Transcript F K t L))) :=
-  Option (Option (Shrink.Transcript StateWords F K)) × (g.Pos → Option (Option (Layer1.Transcript F K t L)))
-
-/-- Under Fiat–Shamir: the final verifier accepts the statement
-`x = tr.inst`, the claim `Claim x` is false, and every program witness among
-the shrink candidates has a reading whose walk under the layer-1 log
-accepts. -/
-def FinalRestoreBreak {t L : ℕ} (Claim : StateWords → Prop)
-    (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
-    (g : Game (Option (Layer1.Transcript F K t L)))
-    (Reads : StateWords → (ℕ → F) → g.Pos → Prop) (r : RestoreOutcome F K g) : Prop :=
-  ∃ tr, r.1 = some (some tr) ∧
-    (∀ w ∈ tr.cands, ((prog tr.inst).ccs T s).Relation w → ∃ p, Reads tr.inst w p ∧ ∃ b, r.2 p = some b) ∧
-    ¬ Claim tr.inst
 
 omit [Field K] [Algebra F K] [Fintype K] [DecidableEq K] in
 /-- A weaker claim breaks less often. -/

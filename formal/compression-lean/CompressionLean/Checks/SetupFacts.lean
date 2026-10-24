@@ -2,11 +2,12 @@ import CompressionLean.Final.RustSetup
 import CompressionLean.Checks.KeyFacts
 import Std.Data.HashSet.Lemmas
 import CompressionLean.Lib.List
+import CompressionLean.Spec.Checks
 
 /-!
-Owns the check of the layer-1 setup that Rust builds for the production key
-(`setupFailure`). On the key and the runs that `PackageRows::visit_rows`
-pushes, it decides that `build` returns `poseidon2Setup` at the carrier of the
+Owns the proof of the check of the layer-1 setup that Rust builds for the
+production key (`setupFailure`, `Spec/Checks.lean`). On the key and the runs
+that `PackageRows::visit_rows` pushes, the check decides that `build` returns `poseidon2Setup` at the carrier of the
 Poseidon2 hash chain, that this setup fits the key's shape (`Setup.Fits`) and
 that the key's structure describes it (`Structure.Describes`).
 `setupFacts_of_check` proves that a pass gives the three facts. The runs are
@@ -20,11 +21,11 @@ The check reads the runs a fixed number of times. It computes `classesOf` and
 
 namespace CompressionLean.Checks
 
+open CompressionLean.Spec
 open CompressionLean.Final CompressionLean.Setup
 open CompressionLean.Lib
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open CompressionLean.Circuit (Layer1Input)
-open CompressionLean.Bridge (shapeOf structureOf)
 
 /-! ## Sorted sets in one pass -/
 
@@ -41,13 +42,6 @@ theorem sortedSet_congr {l l' : List ℕ} (mem : ∀ x, x ∈ l ↔ x ∈ l') : 
   sortedSet_eq_of (List.pairwise_insertionSort _ _)
     ((List.perm_insertionSort _ _).nodup_iff.mpr (List.nodup_dedup l')) fun x => by
       rw [mem_sortedSet, mem]
-
-/-- The distinct values of `f` on the runs in increasing order, as
-`Tables::from_rows` collects the classes (a `BTreeSet`) and the slot keys (a
-sort and a `dedup`): a hash set of the values in one pass, then a sort of the
-distinct ones. -/
-def sortedValues (f : Push → ℕ) (pushes : List Push) : Array ℕ :=
-  ((pushes.foldl (fun set p => set.insert (f p)) (∅ : Std.HashSet ℕ)).toList.mergeSort).toArray
 
 theorem mem_foldl_insert (f : Push → ℕ) (x : ℕ) : ∀ (pushes : List Push) (set : Std.HashSet ℕ),
     x ∈ pushes.foldl (fun set p => set.insert (f p)) set ↔ x ∈ set ∨ x ∈ pushes.map f
@@ -108,45 +102,8 @@ theorem getD_mem_or_pad (l : List Push) (k : ℕ) : l.getD k Push.pad ∈ l ∨ 
 
 /-! ## The check -/
 
-/-- The columns of the Poseidon2 hash chain's carrier, `carrierWidth` at its
-logical width: the `MatrixShape::columns` of the production circuit. -/
-def poseidon2Columns : ℕ := Phi81CarrierLayout.carrierWidth Production.poseidon2Width
-
 theorem poseidon2Columns_eq : poseidon2Columns = Phi81CarrierLayout.carrierWidth 43963750 := by
   rw [poseidon2Columns, Production.poseidon2Width_eq]
-
-/-- The setup that `build` returns for `seed` and the runs at the Poseidon2
-hash chain's carrier and F′'s four matrices (`Setup::build`). -/
-def poseidon2Setup (seed : List ℕ) (pushes : List Push) : Layer1.Setup Gl :=
-  setupOfRuns seed (poseidon2Columns / ringDegree) (runList Production.matrices pushes)
-
-/-- Each fact of the check by name, on the key and the runs. -/
-def setupChecks (key : Layer1Input) (pushes : List Push) : List Fact :=
-  let rel := key.relation
-  let layout := rel.key.layout
-  let st := structureOf layout
-  let m := Production.matrices
-  let classes := (sortedValues Push.classCode pushes).toList
-  let keys := sortedValues (slotKey classes) pushes
-  [⟨"runs", ∀ p ∈ pushes, p.matrix < m ∧ p.len ≤ ringDegree ∧ p.start + p.len ≤ poseidon2Columns ∧
-      p.row < 2 ^ layout.rowVariables⟩,
-    ⟨"matrices", layout.matrices = m ∧ m ≤ 2 ^ rel.matrixVars⟩,
-    ⟨"bounds", ∀ j, j < m + 1 → layout.runBounds[j]! = pushes.countP fun p => p.matrix < j⟩,
-    ⟨"run count", layout.runBounds[m]! ≤ 2 ^ layout.runVariables⟩,
-    ⟨"blocks", poseidon2Columns / ringDegree ≤ rel.key.blocks⟩,
-    ⟨"slots", keys.size = layout.slots ∧ keys.size ≤ 2 ^ layout.slotVariables⟩,
-    ⟨"cover", layout.segments.size = 0 → layout.slots = 0⟩,
-    ⟨"slot sizes", ∀ w ∈ (0 : ℕ) :: keys.toList, codeLength (keyCode classes w) ≤ ringDegree ∧
-      ringDegree * (keyStart w / ringDegree) + keyStart w % ringDegree + codeLength (keyCode classes w) ≤
-        ringDegree * rel.key.blocks⟩,
-    ⟨"slot shapes", ∀ i, i < st.segments → ∀ t, t < st.segmentStart (i + 1) - st.segmentStart i →
-      let w := keys.getD (st.segmentStart i + t) 0
-      codeLength (keyCode classes w) = st.classLength (st.segmentClass i) ∧
-        codeRatio (keyCode classes w) = st.classRatio (st.segmentClass i) ∧ keyStart w % ringDegree = st.segmentLane i⟩]
-
-/-- The name of the first fact of the check that the key and the runs fail. -/
-def setupFailure (key : Layer1Input) (pushes : List Push) : Option String :=
-  firstFailure (setupChecks key pushes)
 
 /-- **The setup check.** When the key and the runs fail no fact of the check,
 `build` returns `poseidon2Setup` at the carrier of the Poseidon2 hash chain,

@@ -23,6 +23,7 @@ Does not own a check of Rust's runs against these rows (`RunsGive`).
 
 namespace CompressionLean.Checks
 
+open CompressionLean.Spec
 open CompressionLean.Final
 open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint

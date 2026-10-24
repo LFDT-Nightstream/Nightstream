@@ -3,6 +3,7 @@ import CompressionLean.Layer1.Weights
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
 import CompressionLean.Lib.List
+import CompressionLean.Spec.Parent
 
 /-!
 Owns the maps from F′'s executable algebra to the layer-1 model's Mathlib
@@ -21,6 +22,7 @@ algebra over `Gl`.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Spec
 open CompressionLean.Lib
 open Polynomial NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -57,10 +59,6 @@ theorem toQuad_ops_sub (a b : K) :
   rw [toQuad_add, toQuad_sub, toQuad_zero, zero_sub, sub_eq_add_neg]
 
 /-! ## Boolean tables -/
-
-/-- Vertex `i mod 2^n` of the Boolean cube, in F′'s little-endian order. -/
-def vertexAt (n i : ℕ) : BooleanVertex n :=
-  NumericBooleanDomain.vertex n ⟨i % 2 ^ n, Nat.mod_lt _ (by positivity)⟩
 
 theorem index_vertexAt (n i : ℕ) : NumericBooleanDomain.index (vertexAt n i) = i % 2 ^ n :=
   NumericBooleanDomain.index_vertex n _
@@ -127,10 +125,6 @@ theorem evaluate_tabulate (n : ℕ) (f : BooleanVertex n → K) (point : List K)
       ring
 
 /-! ## Finite folds -/
-
-/-- An F′ field value as a `Gl` value. `Spec.F` and `Gl` are the same type;
-`gl` fixes the type that the arithmetic around it uses. -/
-abbrev gl (x : F) : Gl := x
 
 /-- F′'s matrix-vector row is the finite sum over the columns. -/
 theorem matrixVectorAt_eq {n columns : ℕ} (M : PaperLinearAlgebra.BooleanMatrix F n columns)

@@ -3,6 +3,7 @@ import CompressionLean.Lowering.PackageRows
 import CompressionLean.Sim.Instr
 import CompressionLean.Final.Claim
 import CompressionLean.Production
+import CompressionLean.Spec.Program
 
 /-!
 Owns the terminal part of `ProgramEncodes`: when the executor accepts the
@@ -11,8 +12,8 @@ run holds a terminal assignment for its statement, and the claim and state
 handles that `Package::apply` (`terminal/package.rs:185-243`) hands to layer 1
 hold the output values of that assignment.
 
-- `terminalPrefix`: `finalProgram` up to layer 1 (`finalProgram_eq`): the
-  nine statement words, the iteration check, `apply`.
+- `finalProgram_eq`: `finalProgram` is `terminalPrefix` (`Spec/Program.lean`,
+  the nine statement words, the iteration check, `apply`), then layer 1.
 - `terminalEnv`: the package assignment of a run. A column that a row names
   holds the value of its system column, and every other column `unnamed`.
 - `Handoff`: what layer 1 receives. The assignment is a terminal assignment
@@ -29,6 +30,7 @@ Does not own layer 1 or the meaning of the rows (`Terminal/Soundness.lean`).
 
 namespace CompressionLean.Sim
 
+open CompressionLean.Spec
 open CompressionLean.Circuit CompressionLean.Terminal.Package CompressionLean.Terminal.Program
 open CompressionLean.Lowering CompressionLean.Lowering.Package
 open CompressionLean.Replay (Word)
@@ -39,27 +41,11 @@ open NightstreamFPrime.Layout
 
 /-- The statement of a run: its first nine statement words
 (`FinalProgram::statement`, `terminal/mod.rs:46-52`). -/
-def statementOf (c : Ctx NightstreamFPrime.Spec.F) : Final.StateWords := fun k => c.stmt.getD k 0
+def statementOf (c : Ctx NightstreamFPrime.Spec.F) : Spec.StateWords := fun k => c.stmt.getD k 0
 
 /-- The first nine values of the run are the statement words
 (`terminal/mod.rs:55-59`). -/
 def ReadsStatement (c : Ctx NightstreamFPrime.Spec.F) : Prop := ∀ k : Fin 9, c.val k = statementOf c k
-
-/-- The nine `public` words of the statement (`terminal/mod.rs:55-59`). -/
-def statementHandles : Build (Array Var) := (Array.range statementWords).mapM fun _ => Build.pub
-
-/-- The iteration check, then `Package::apply` (`terminal/mod.rs:60-72`). -/
-def checkedApply (package : Loaded) (context : Array Word) (statement : Array Var) :
-    Build (ClaimVars × (Fin 16 → Var)) := do
-  let inverse ← Build.emit (.hint 1)
-  let product ← Build.mul (statement.getD 0 0) inverse
-  let one ← Build.const 1
-  Build.assertEqual product one
-  apply package statement context
-
-/-- `FinalProgram::run` up to `verify_with` (`terminal/mod.rs:54-72`). -/
-def terminalPrefix (package : Loaded) (context : Array Word) : Build (ClaimVars × (Fin 16 → Var)) :=
-  statementHandles >>= checkedApply package context
 
 /-- `FinalProgram::run` is `terminalPrefix`, then `verify_with`
 (`terminal/mod.rs:73-79`). -/
@@ -254,7 +240,7 @@ assignment for the run's statement, whose output values the claim and state
 handles hold, in rows of the claim's shape. -/
 def Handoff (c : Ctx NightstreamFPrime.Spec.F) (authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority)
     (r : ClaimVars × (Fin 16 → Var)) (m : ℕ) : Prop :=
-  ∃ env, Final.TerminalFor authority (statementOf c) env ∧ ClaimHolds c m r.1 env ∧ StateHolds c m r.2 env ∧
+  ∃ env, Spec.TerminalFor authority (statementOf c) env ∧ ClaimHolds c m r.1 env ∧ StateHolds c m r.2 env ∧
     r.1.Shaped
 
 /-! ## Chunks -/
@@ -442,11 +428,11 @@ private theorem env_prior
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (cols : List.Forall₂ (fun x a => ColumnHolds c statement context x a m) loaded.sources.toList columns.toList)
     (hstmt : statement = (List.range' 0 9).toArray) (reads : ReadsStatement c) :
-    Final.priorStatement (terminalEnv c context columns) = statementOf c := by
+    Spec.priorStatement (terminalEnv c context columns) = statementOf c := by
   obtain ⟨hpc, -, htotal, hstart, hshw, hcs⟩ := layout_facts
   funext k
   have k9 := k.isLt
-  rw [Final.priorStatement, Stage1.PiCCSInputs.priorStateWord, NightstreamFPrime.Circuit.Expr.eval_var,
+  rw [Spec.priorStatement, Stage1.PiCCSInputs.priorStateWord, NightstreamFPrime.Circuit.Expr.eval_var,
     Stage1.Spartan.pullback, priorColumn k]
   obtain ⟨x, hx⟩ := index_some (contextStart + 4 + k) (by rw [htotal]; omega)
   cases x with

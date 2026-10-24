@@ -1,22 +1,14 @@
+import CompressionLean.Spec.Checks
+
 /-!
-Owns the shape of a check that an executable runs: a list of named decidable
-facts (`Fact`), the name of the first that fails (`firstFailure`), and that
-every fact of a list without a failure holds (`all_of_firstFailure`).
+Owns the proof that every fact of a check without a failure holds
+(`all_of_firstFailure`). The shape of a check (`Fact`, `firstFailure`) is in
+`Spec/Checks.lean`.
 -/
 
 namespace CompressionLean.Checks
 
-/-- A fact of a check: its name and a decidable proposition. -/
-structure Fact where
-  name : String
-  holds : Prop
-  [decidable : Decidable holds]
-
-attribute [instance] Fact.decidable
-
-/-- The name of the first fact that fails. -/
-def firstFailure (facts : List Fact) : Option String :=
-  (facts.find? fun f => !decide f.holds).map (·.name)
+open CompressionLean.Spec
 
 /-- Every fact of the list holds, as one conjunction in list order. -/
 def Fact.All : List Fact → Prop

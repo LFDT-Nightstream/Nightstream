@@ -1,6 +1,7 @@
 import CompressionLean.Ports.Replay.Stages
 import CompressionLean.Fields
 import CompressionLean.Layer1.ClosedForms
+import CompressionLean.Spec.Relation
 
 /-!
 Owns the field correspondence of the bridge. A replay word (`Word`) denotes
@@ -128,9 +129,6 @@ local notation "ι" => algebraMap Gl K
 local notation "x₀" => ChallengeField.root (K := K)
 
 namespace Ext
-
-/-- `a₀ + a₁·x + a₂·x²`. -/
-def toK (a : Ext) : K := ι a.c0.toF + ι a.c1.toF * x₀ + ι a.c2.toF * x₀ ^ 2
 
 theorem toK_add (a b : Ext) : (a + b).toK (K := K) = a.toK + b.toK := by
   show toK ⟨a.c0 + b.c0, a.c1 + b.c1, a.c2 + b.c2⟩ = _

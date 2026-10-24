@@ -7,6 +7,7 @@ import CompressionLean.Layer1
 import CompressionLean.Ports
 import CompressionLean.Shrink
 import CompressionLean.Lowering
+import CompressionLean.Spec
 import CompressionLean.Bridge
 import CompressionLean.Final
 import CompressionLean.Checks

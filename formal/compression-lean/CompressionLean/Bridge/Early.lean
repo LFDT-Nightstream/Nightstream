@@ -1,5 +1,6 @@
 import CompressionLean.Bridge.Gkr
 import CompressionLean.Bridge.Relation
+import CompressionLean.Spec.Messages
 
 /-!
 Owns the bridge of the early stage (`Replay.earlyStage`) to the model's
@@ -12,6 +13,7 @@ checks give (`early_reaches`).
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
 open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
@@ -128,23 +130,9 @@ theorem checkEarly_ok {layout : Layout} {r : Array (Word × Word)} {ch : Replay.
 
 /-! ## The stage -/
 
-/-- The model's early values of the replay's. -/
-def valuesOf (v : Replay.EarlyValues) : Layer1.EarlyValues K :=
-  ⟨v.eRe.toK, v.eIm.toK, v.row.toK, fun j => pairK (v.pairs[j]!), v.block.toK⟩
-
-/-- The model's histogram of the proof's counts. -/
-def histOf (proof : Replay.Proof) (i : ℕ) : Gl := (proof.histogram[i]!).toF
-
 /-- The model's early challenges of the replay's. -/
 def challengesOf (ch : Replay.EarlyChallenges) : Layer1.EarlyChallenges K :=
   ⟨ch.beta.toK, pairK ch.lookup, pairK ch.scatter⟩
-
-/-- The model's messages of the replay's early stage: the P0 candidates, the
-histogram, the GKR messages and the early values. -/
-def earlyMsgs (rel : Replay.Relation) (proof : Replay.Proof) {L0 : ℕ}
-    (cands : {l : List (P0Tables Gl) // l.length ≤ L0}) : List (Σ M : Type, M) :=
-  ⟨{l : List (P0Tables Gl) // l.length ≤ L0}, cands⟩ :: ⟨ℕ → Gl, histOf proof⟩ ::
-    (gkrMsgs (K := K) rel.earlyShapes proof.early ++ [⟨Layer1.EarlyValues K, valuesOf proof.earlyValues⟩])
 
 theorem earlyShapes_size (rel : Replay.Relation) : rel.earlyShapes.size = 5 := rfl
 

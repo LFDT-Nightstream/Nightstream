@@ -16,10 +16,10 @@ against `Replay.honestStage`, and of the setup query point (`queryPoint`,
 
 namespace CompressionLean.Sim
 
+open CompressionLean.Spec
 open CompressionLean.Circuit
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Relation foldVars runOracles generator twoAdicGenerator)
-open CompressionLean.Bridge (Runs)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]

@@ -22,9 +22,9 @@ program's result, the replay's result and the new count.
 
 namespace CompressionLean.Sim
 
+open CompressionLean.Spec
 open CompressionLean.Circuit
 open CompressionLean.Replay (Word Ext ReplayM)
-open CompressionLean.Bridge (Runs)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F] {c : Ctx F} {n : ℕ} {α β γ δ ε : Type}

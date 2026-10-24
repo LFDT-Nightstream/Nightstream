@@ -13,9 +13,9 @@ and final claim. Each round message must be nonempty: both read
 
 namespace CompressionLean.Sim
 
+open CompressionLean.Spec
 open CompressionLean.Circuit
 open CompressionLean.Replay (Ext)
-open CompressionLean.Bridge (Runs)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]

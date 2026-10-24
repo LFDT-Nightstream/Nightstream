@@ -1,4 +1,7 @@
 import CompressionLean.Bridge.Openings
+import CompressionLean.Spec.Messages
+import CompressionLean.Spec.Checks
+import CompressionLean.Spec.Replay
 
 /-!
 Owns the bridge of the whole replay (`Replay.verify`) to the model's
@@ -19,6 +22,7 @@ and a monic `Φ81` of degree `D` (`phi_monic`, `phi_natDegree`).
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
 open Polynomial
 open NightstreamFPrime.Spec (goldilocksModulus)
 open CompressionLean.Replay CompressionLean.Layer1
@@ -65,40 +69,6 @@ theorem queryAt_distinct (rel : Replay.Relation) (high : rel.setupVars + 1 ≤ 3
     (show j < orderOf (twoAdic (rel.setupVars - 2)) by rw [order]; exact hj) powers
 
 variable [DecidableEq K]
-
-/-- The relation facts that the replay does not check: sizes, and the order
-part of the key's structure. -/
-structure RelationFacts (rel : Replay.Relation) : Prop where
-  rowFits : rel.key.layout.rowVariables ≤ rel.pointVariables
-  matricesFit : rel.matrices ≤ 2 ^ rel.matrixVars
-  bits : EvalKBits rel
-  publicFits : rel.publicBlocks ≤ 2 ^ rel.blockVars
-  sizes : HonestSizes rel
-  high : rel.setupVars + 1 ≤ 32
-  checked : (structureOf rel.key.layout).Checked (shapeOf rel)
-
-/-- The model's messages of the replay's layer-1 proof: the statement, then
-the early, linear, honest-fold and late messages. -/
-def layer1Msgs (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof) {L0 L1 : ℕ}
-    (cands : {l : List (P0Tables Gl) // l.length ≤ L0}) (p1 : {l : List (P1Tables K) // l.length ≤ L1}) :
-    List (Σ M : Type, M) :=
-  ⟨Layer1.Statement Gl, statementOf st⟩ :: (earlyMsgs (K := K) rel proof cands ++
-    (linearMsgs (K := K) rel proof ++ (honestMsgs proof p1 ++ lateMsgs (K := K) rel proof)))
-
-/-- The replay up to the late stage: `verify` before WHIR's transcripts and the
-opening checks. Its draws are the draws of the layer-1 game. -/
-def verifyStages (rel : Replay.Relation) (seed : Array Word) (st : Replay.Statement) (proof : Replay.Proof) :
-    ReplayM Unit := do
-  ensure (st.fits rel) "claim words"
-  liftExcept (readProof rel proof)
-  observeAll seed
-  observeAll rel.words
-  observeAll st.words
-  let early ← earlyStage rel st proof
-  let lin ← linearStage rel st proof
-  let _ ← honestStage rel proof early lin
-  let _ ← lateStage rel proof lin
-  pure ()
 
 /-- **The bridge.** Take a run that the replay accepts, with WHIR's guarantee
 at the points that it returns. Some path of `layer1Game` receives the

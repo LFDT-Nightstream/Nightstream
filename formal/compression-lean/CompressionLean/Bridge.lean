@@ -19,5 +19,6 @@ and extension values as field values (`Field`), the facts of a successful
 replay run (`Run`), and, stage by stage, that an accepted replay is a path
 of the model's game (`Main`, `replay_accepts_implies_path`).
 
-It does not own the replay (`Ports/Replay/`) or the model (`Layer1/`).
+It does not own the replay (`Ports/Replay/`), the model (`Layer1/`), or the
+model's values of the replay's that the claims name (`Spec/`).
 -/

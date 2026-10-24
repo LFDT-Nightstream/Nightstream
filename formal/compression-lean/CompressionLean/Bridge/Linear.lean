@@ -1,4 +1,5 @@
 import CompressionLean.Bridge.EvalK
+import CompressionLean.Spec.Messages
 
 /-!
 Owns the bridge of the linear stage (`Replay.linearStage`) to the model's
@@ -10,6 +11,7 @@ whose `LinearCheck` the replay's checks give (`linear_reaches`).
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
 open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
@@ -20,14 +22,6 @@ variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 def linearOutOf (proof : Replay.Proof) (lin : Replay.LinearOut) : Layer1.LinearOut K :=
   ⟨lin.lam.toK, tableK proof.quotient, lin.zeta.toK, pointK lin.blockPoint, lin.middle.toK, pointK lin.lanePart,
     lin.last.toK, lin.keyValue.toK, lin.omegaValue.toK, lin.zValue.toK⟩
-
-/-- The model's messages of the replay's linear stage: the quotient, the
-block and lane sum-check rounds, and the finals. -/
-def linearMsgs (rel : Replay.Relation) (proof : Replay.Proof) : List (Σ M : Type, M) :=
-  ⟨ℕ → K, tableK proof.quotient⟩ ::
-    (sumcheckMsgs (K := K) 1 (proof.linear.extract 0 rel.blockVars).toList ++
-      (sumcheckMsgs (K := K) 1 (proof.linear.extract rel.blockVars proof.linear.size).toList ++
-        [⟨K × K × K, (proof.finals[0]!.toK, proof.finals[1]!.toK, proof.finals[2]!.toK)⟩]))
 
 /-- What the later stages read of a successful linear replay. -/
 structure LinearRun (rel : Replay.Relation) (proof : Replay.Proof) (lin : Replay.LinearOut) : Prop where

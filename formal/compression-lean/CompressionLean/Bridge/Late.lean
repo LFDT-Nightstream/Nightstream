@@ -1,4 +1,5 @@
 import CompressionLean.Bridge.Linear
+import CompressionLean.Spec.Messages
 
 /-!
 Owns the bridge of the late stage (`Replay.lateStage`) to the model's
@@ -13,6 +14,7 @@ model's `LateOut` of the replay's values, whose `LateChecks` hold
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
 open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
@@ -178,11 +180,6 @@ theorem pointK_extract_take (p : Array Ext) (n : ℕ) : pointK (K := K) (p.extra
   simp [pointK, Array.toList_extract, List.extract_eq_take_drop, List.map_take]
 
 variable [DecidableEq K]
-
-/-- The model's messages of the replay's late stage: the GKR messages and
-the late values. -/
-def lateMsgs (rel : Replay.Relation) (proof : Replay.Proof) : List (Σ M : Type, M) :=
-  gkrMsgs (K := K) rel.lateShapes proof.late ++ [⟨ℕ → K × K, fun j => pairK (proof.lateValues[j]!)⟩]
 
 /-- A successful late replay is a path of `lateGame` that receives the
 proof's messages, draws the replay's `β` and GKR challenges and ends in the

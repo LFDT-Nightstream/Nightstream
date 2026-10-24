@@ -1,5 +1,6 @@
 import CompressionLean.Final.Bridge
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.OutputBinding
+import CompressionLean.Spec.Parent
 
 /-!
 Owns the link from layer 1's relation to F′'s. Under the honest setup of the
@@ -7,12 +8,7 @@ F′ key, a layer-1 CE(B) witness of the statement that an F′ PiRLC parent
 names is a witness of F′'s CE(B) relation for that parent (`parent_holds`,
 SuperNeo v1.2 Definition 21).
 
-- `HonestSetup`: the setup's key rows are the Ajtai key's rows, and its runs
-  give every entry of every completed CCS matrix (`runEntry`), row `i` in
-  F′'s little-endian order. Rust builds the setup in `lib.rs` (`key`,
-  `oracle`) from `Tables::from_rows` (`matrix.rs`).
-- `ParentShape`: the layer-1 sizes that `CompressionKey::relation` passes to
-  `Relation::new`, and `H < B`.
+- The premises `HonestSetup` and `ParentShape` are in `Spec/Parent.lean`.
 - `statementOf`: the layer-1 statement that an F′ instance names.
   `assignmentOf`: the F′ assignment of a layer-1 witness.
 - `evaluate_coefficient`: F′'s evaluation of a coefficient-expanded matrix
@@ -23,6 +19,7 @@ Does not own the terminal output columns (`ParentClaim.lean`) or the games.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Spec
 open Polynomial NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
@@ -225,16 +222,6 @@ section Link
 
 variable {lw : ℕ} {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
 
-/-- Entry `(i, c)` of matrix `j` as the runs of `S` give it: the sum of the
-values `m_k·ratio^(c - start)` of the runs of matrix `j` and row `i` that
-cover column `c` (`matrix.rs`, one `GeometricRowRun` per run). -/
-noncomputable def runEntry (S : Layer1.Setup Gl) (D j i c : ℕ) : Gl :=
-  ∑ k ∈ ((Finset.range S.runs).filter (fun k => S.runMatrix k = j ∧
-      D * S.slotBlock (S.runSlot k) + S.slotLane (S.runSlot k) ≤ c ∧
-      c < D * S.slotBlock (S.runSlot k) + S.slotLane (S.runSlot k) + S.slotLength (S.runSlot k))).filter
-      (fun k => S.runRow k = i),
-    S.runCoef k * S.slotRatio (S.runSlot k) ^ (c - (D * S.slotBlock (S.runSlot k) + S.slotLane (S.runSlot k)))
-
 /-- When every run names a row below `2^n`, the Eval_A weight of column `c`
 is `Σ_i M_j(i, c)·χ_r(i)` over the rows, with the entries the runs give. -/
 theorem evalAWeight_eq (S : Layer1.Setup Gl) (st : Layer1.Statement Gl) (D j c n : ℕ)
@@ -249,38 +236,6 @@ theorem evalAWeight_eq (S : Layer1.Setup Gl) (st : Layer1.Statement Gl) (D j c n
   apply Finset.sum_congr rfl
   intro k member
   rw [(Finset.mem_filter.mp member).2]
-
-/-- The layer-1 shape of the CE(B) relation of F′'s PiRLC parent at logical
-width `lw`: what `CompressionKey::relation` (`finish.rs`) passes to
-`Relation::new`. -/
-structure ParentShape (s : Layer1.Shape) (lw : ℕ) : Prop where
-  D : s.D = ringDegree
-  laneVars : s.laneVars = 6
-  kappa : s.kappa = productionProfile.commitmentWidth
-  matrices : s.matrices = productionProfile.ccsMatrices
-  publicBlocks : s.publicBlocks = PaperAlgebra.publicRingColumns
-  blocks : s.blocks = Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)
-  /-- The checked bound `H` is below `B`. -/
-  norm : s.normBound < productionGlobalParams.bigB
-
-/-- **The honest setup.** `S` is the layer-1 setup of the F′ circuit with the
-logical relation `relation` and the Ajtai key `ajtai`. Rust builds it in
-`neo_spartan::Setup::build` and `Key::derive` (`lib.rs`, `key` and `oracle`)
-from `Tables::from_rows` (`matrix.rs`) of the circuit's matrix rows. -/
-structure HonestSetup (s : Layer1.Shape) (S : Layer1.Setup Gl) (relation : ProductionKey.LogicalRelation lw pf)
-    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf)) : Prop where
-  /-- Key row `i` holds Ajtai row `i`: block `b`, lane `l` at cube index
-  `2^laneVars·b + l` (`oracle`). -/
-  key : ∀ (i : Fin productionProfile.commitmentWidth)
-    (b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw))) (l : Fin ringDegree),
-    S.key i (2 ^ s.laneVars * b + l) = gl (ajtai i b l)
-  /-- Every run names a row of the cube. -/
-  row_lt : ∀ k, k < S.runs → S.runRow k < 2 ^ cubeVariables
-  /-- The runs give every entry of every completed CCS matrix, row `i` in
-  F′'s little-endian order (`Tables::from_rows`). -/
-  entry : ∀ (j : Fin productionProfile.ccsMatrices) (i : ℕ) (c : Fin (Phi81CarrierLayout.carrierWidth lw)),
-    i < 2 ^ cubeVariables →
-      runEntry S s.D j i c = gl ((PaperAlgebra.matrixSource relation.system).matrices j (vertexAt cubeVariables i) c)
 
 /-- The single evaluation family of an F′ CE instance. -/
 def family (P : PiRLC.v1_2.InputBinding.InputInstance lw pf) : PaperAlgebra.Evaluation :=

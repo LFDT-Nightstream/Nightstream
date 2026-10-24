@@ -173,10 +173,6 @@ theorem costLe_bind {g : Game α} {f : α → Game β} {ε δ : ℝ} (h : g.Cost
     (hf : ∀ a, (f a).CostLe δ) : (bind g f).CostLe (ε + δ) :=
   costLe_bind_of h (Ends.of_forall (P := fun _ => True) (fun _ => trivial) g) fun a _ => hf a
 
-theorem prob_congr (s : Strategy α) (g : Game α) {E E' : α → Prop} (same : ∀ a, E a ↔ E' a) :
-    prob s g E = prob s g E' := by
-  rw [show E = E' from funext fun a => propext (same a)]
-
 theorem density_le {C : Type} [Fintype C] (bad : Finset C) (n : ℕ) (card : bad.card ≤ n) :
     (bad.card : ℝ) / Fintype.card C ≤ n / Fintype.card C :=
   div_le_div_of_nonneg_right (by exact_mod_cast card) (by positivity)

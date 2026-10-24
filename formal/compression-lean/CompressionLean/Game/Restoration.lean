@@ -1,8 +1,11 @@
 import CompressionLean.Game.Game
 
 /-!
-Owns the state-restoration experiment over a game (`Game.restore`) and its
-soundness (`Game.restore_sound`).
+Owns the parts of the state-restoration experiment over a game: the
+positions of a game (`Pos`), the log of answers (`Log`), one query
+(`answer`), the verifier's walk of an output path (`walk`, `walk_sound`) and
+the density bound of the bad sets (`DensityLe`). `Compose.lean` builds the
+experiment over two games from them.
 
 The experiment models a Fiat–Shamir prover. The prover names any node of the
 game, as often as it wants; a draw node answers with a fresh uniform
@@ -14,7 +17,8 @@ answer at two prefixes that reach the same node: this gives it more power,
 not less.
 
 If the game's error is at most `ε` (`CostLe`), every bad set has density at
-most `ε`, so `q` queries leave the claim with probability at most `q·ε`.
+most `ε`, so `q` queries leave the claim with probability at most `q·ε`
+(`restorePair_sound`).
 
 Does not own: the step from a hash to this experiment. When the transcript
 encoding is injective on prefixes, a random-oracle prover with `Q` calls that
@@ -64,11 +68,6 @@ noncomputable def walk (log : Log α) : (g : Game α) → Pos g → Option α
   | recv _ _, none => none
   | recv _ next, some ⟨m, p⟩ => walk log (next m) p
 
-/-- The state-restoration experiment: `q` queries, then one output path. -/
-noncomputable def restore (g : Game α) : ℕ → Log α → Game (Option α)
-  | 0, log => .recv (Pos g) fun p => .pure (walk log g p)
-  | q + 1, log => .recv (Pos g) fun p => answer (restore g q) log (Pos.node g p)
-
 /-- Every logged step keeps a node that avoids its bad sets. -/
 def Keeps (Q : α → Prop) (log : Log α) : Prop :=
   ∀ e ∈ log, e.1.Avoids Q → e.2.Avoids Q
@@ -93,25 +92,6 @@ theorem walk_sound {Q : α → Prop} {log : Log α} (keeps : Keeps Q log) (g : G
       match p with
       | none => simp [walk] at equal
       | some ⟨m, p⟩ => exact ih m p a (avoids m) equal
-
-theorem restore_avoids (g : Game α) (Q : α → Prop) (avoids : g.Avoids Q) :
-    ∀ (q : ℕ) (log : Log α), Keeps Q log → (restore g q log).Avoids fun r => ∀ a, r = some a → Q a := by
-  intro q
-  induction q with
-  | zero => intro log keeps p a equal; exact walk_sound keeps g p a avoids equal
-  | succ q ih =>
-      intro log keeps p
-      show (answer (restore g q) log (Pos.node g p)).Avoids _
-      generalize Pos.node g p = n
-      cases n with
-      | draw C bad next =>
-          intro c out
-          refine ih _ fun e member => ?_
-          rcases List.mem_cons.mp member with rfl | inside
-          · exact fun node => node c out
-          · exact keeps e inside
-      | pure b => exact ih log keeps
-      | recv M next => exact ih log keeps
 
 /-- Every bad set of `g`, at every node, has density at most `ε`. -/
 def DensityLe : Game α → ℝ → Prop
@@ -147,40 +127,5 @@ theorem DensityLe.node {g : Game α} {ε : ℝ} (h : g.DensityLe ε) (p : Pos g)
       match p with
       | none => exact h
       | some ⟨m, p⟩ => exact ih m (h m) p
-
-theorem restore_cost (g : Game α) (ε : ℝ) (density : g.DensityLe ε) (nonneg : 0 ≤ ε) :
-    ∀ (q : ℕ) (log : Log α), (restore g q log).CostLe (q * ε) := by
-  intro q
-  induction q with
-  | zero => intro log p; show (0 : ℝ) ≤ _; simp
-  | succ q ih =>
-      intro log p
-      show (answer (restore g q) log (Pos.node g p)).CostLe _
-      have node := density.node p
-      generalize Pos.node g p = n at node
-      cases n with
-      | draw C bad next =>
-          refine ⟨q * ε, ?_, fun c => ih _⟩
-          push_cast
-          linarith [node.1]
-      | pure b => exact (ih log).mono (by push_cast; linarith)
-      | recv M next => exact (ih log).mono (by push_cast; linarith)
-
-/-- **State-restoration soundness.** If every avoiding path of `g` ends in
-`Q` and `g`'s error is at most `ε`, a prover with `q` queries outputs an
-accepted path outside `Q` with probability at most `q·ε`. -/
-theorem restore_sound (s : Strategy (Option α)) (g : Game α) (Q : α → Prop) (ε : ℝ)
-    (avoids : g.Avoids Q) (cost : g.CostLe ε) (q : ℕ) :
-    prob s (restore g q []) (fun r => ∃ a, r = some a ∧ ¬ Q a) ≤ q * ε := by
-  rw [prob_congr _ _ (E' := fun r => ¬ ∀ a, r = some a → Q a)]
-  · exact prob_not_le _ _ _ _ (restore_avoids g Q avoids q [] (by simp [Keeps]))
-      (restore_cost g ε cost.densityLe cost.nonneg q [])
-  · intro r
-    constructor
-    · rintro ⟨a, rfl, outside⟩ all
-      exact outside (all a rfl)
-    · intro not
-      by_contra none
-      exact not fun a equal => by_contra fun outside => none ⟨a, equal, outside⟩
 
 end CompressionLean.Game

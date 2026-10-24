@@ -578,6 +578,40 @@ private def afterOf (r : Replay.Duplex) : Replay.Duplex := r.sample.2.sample.2.s
 
 /-! ## The early stage in the circuit -/
 
+/-! ## The root binding -/
+
+instance observeRoot_appends (seed : Array Word) (root : DigestVar) (d : Duplex) :
+    Appends ((Circuit.observeRoot seed root).run d) := by
+  unfold Circuit.observeRoot; appends
+
+section Root
+
+variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
+
+/-- `observe_root` (`whir/mod.rs:221-232`): the separator words as constants,
+then the root, as the replay's two absorptions. -/
+theorem observeRoot_tracks {seed : Array Word} {root : DigestVar} {groot : Array Word} (hp : Permutes c.perm)
+    (hr : IsDigest c n root groot) :
+    Tracks c n (Circuit.observeRoot seed root) (Replay.observeAll seed >>= fun _ => Replay.observeAll groot)
+      fun _ _ _ => True := by
+  intro d t hd
+  unfold Circuit.observeRoot
+  rw [← Array.forIn_toList]
+  refine Ensures.tbind (Q := fun r m => IsDuplex c m r.2 (seed.foldl Replay.Duplex.observe t.duplex)) ?_
+    fun _ e m _ he => ?_
+  · refine (Ensures.loopT (fun k _ e m => IsDuplex c m e ((seed.toList.take k).foldl Replay.Duplex.observe t.duplex))
+      hd fun k hk _ e m _ hI => ?_).post fun _ _ q => ?_
+    · refine Ensures.liftBind (const_ensures seed.toList[k]) fun w _ _ hw => ?_
+      refine Ensures.tbind (Duplex.observe_ensures hp hI.mono hw) fun _ e' _ _ hd' => ?_
+      rw [StateT.run_pure]
+      refine Ensures.pure ⟨rfl, ?_⟩
+      rwa [List.take_succ_eq_append_getElem hk, List.foldl_append, List.foldl_cons, List.foldl_nil]
+    · rwa [List.take_of_length_le (by simp), Array.foldl_toList] at q
+  · exact (Duplex.observeSlice_ensures hp he (IsWords.ofFn hr.1 fun lane => (hr.2 lane).mono)).post fun _ _ q =>
+      ⟨(), _, Bridge.runs_bind (Bridge.runs_observeAll seed t) (Bridge.runs_observeAll groot _), q, trivial⟩
+
+end Root
+
 section Stage
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}

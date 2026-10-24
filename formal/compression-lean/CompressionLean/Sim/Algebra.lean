@@ -1,4 +1,5 @@
 import CompressionLean.Sim.Old
+import CompressionLean.Lib.Array
 
 /-!
 Owns the simulation of the field helpers of `Algebra.lean` and of `select`
@@ -16,6 +17,7 @@ coordinates (`IsExt.congr`).
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
+open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
@@ -155,6 +157,30 @@ theorem powerFromBits_succ (k : ℕ) (g : Word) (index : ℕ) :
       rw [Replay.powerFromBits, ih, Replay.powerFromBits, gl_mul_assoc, Nat.div_div_eq_div_mul, ← pow_succ',
         Function.iterate_succ_apply]
 
+theorem ext_pow_zero (a : Ext) : a.pow 0 = 1 := by
+  rw [Ext.pow, if_pos rfl]
+
+/-- `a^(e+1) = a^e·a` for the replay's power by squaring. -/
+theorem ext_pow_succ (a : Ext) (e : ℕ) : a.pow (e + 1) = a.pow e * a := by
+  induction e using Nat.strong_induction_on generalizing a with
+  | _ e ih =>
+    rw [Ext.pow.eq_def a (e + 1), if_neg (by omega)]
+    rcases Nat.even_or_odd' e with ⟨k, rfl | rfl⟩
+    · rw [if_pos (by omega), show (2 * k + 1) / 2 = k by omega, Ext.pow.eq_def a (2 * k)]
+      rcases k with _ | k
+      · rw [if_pos rfl, Ext.pow.eq_def, if_pos rfl]
+      · rw [if_neg (by omega), if_neg (by omega), show 2 * (k + 1) / 2 = k + 1 by omega]
+    · rw [if_neg (by omega), show (2 * k + 1 + 1) / 2 = k + 1 by omega, ih k (by omega),
+        Ext.pow.eq_def a (2 * k + 1), if_neg (by omega), if_pos (by omega), show (2 * k + 1) / 2 = k by omega,
+        ext_mul_assoc]
+
+/-- Sums of functions that agree below `k`. -/
+theorem sumRange_congr {k : ℕ} {f g : ℕ → Ext} (h : ∀ t < k, f t = g t) :
+    Replay.sumRange k f = Replay.sumRange k g := by
+  induction k with
+  | zero => simp [Replay.sumRange]
+  | succ k ih => rw [sumRange_succ, sumRange_succ, ih fun t ht => h t (by omega), h k (by omega)]
+
 /-! ## Arrays and `K ⊗ Ext` values -/
 
 theorem map_range_succ {α : Type} (f : ℕ → α) (j : ℕ) :
@@ -187,11 +213,95 @@ theorem push (h : IsExts c n xs gs) {x : ExtVar} {g : Ext} (hx : IsExt c n x g) 
   · rw [dif_neg lt, dif_neg (h.1 ▸ lt)]
     exact hx
 
+theorem empty : IsExts c n #[] #[] := ⟨rfl, fun _ h => absurd h (by simp)⟩
+
+theorem append (h : IsExts c n xs gs) {ys : Array ExtVar} {gy : Array Ext} (hy : IsExts c n ys gy) :
+    IsExts c n (xs ++ ys) (gs ++ gy) := by
+  refine ⟨by simp [h.1, hy.1], fun i hi => ?_⟩
+  rw [Array.size_append] at hi
+  rw [getElem!_pos _ _ (by simp; omega), getElem!_pos _ _ (by simp [← h.1, ← hy.1]; omega), Array.getElem_append,
+    Array.getElem_append]
+  by_cases lt : i < xs.size
+  · rw [dif_pos lt, dif_pos (h.1 ▸ lt), ← getElem!_pos, ← getElem!_pos]
+    exact h.2 i lt
+  · rw [dif_neg lt, dif_neg (h.1 ▸ lt), ← getElem!_pos, ← getElem!_pos, ← h.1]
+    exact hy.2 _ (by omega)
+
+theorem extract (h : IsExts c n xs gs) (a : ℕ) : IsExts c n (xs.extract a) (gs.extract a) := by
+  refine ⟨by simp [h.1], fun i hi => ?_⟩
+  rw [Array.size_extract] at hi
+  rw [getElem!_pos _ _ (by simp; omega), getElem!_pos _ _ (by simp [← h.1]; omega), Array.getElem_extract,
+    Array.getElem_extract, ← getElem!_pos, ← getElem!_pos]
+  exact h.2 _ (by omega)
+
 theorem reverse (h : IsExts c n xs gs) : IsExts c n xs.reverse gs.reverse := by
   refine ⟨by simp [h.1], fun i hi => ?_⟩
   rw [Array.size_reverse] at hi
   rw [getElem!_pos _ _ (by simp; omega), getElem!_pos _ _ (by simp [← h.1]; omega), Array.getElem_reverse,
     Array.getElem_reverse, ← getElem!_pos, ← getElem!_pos, ← h.1]
+  exact h.2 _ (by omega)
+
+/-- `k` copies of one value. -/
+theorem replicate {z : ExtVar} {g : Ext} (hz : IsExt c n z g) (k : ℕ) :
+    IsExts c n (Array.replicate k z) (Array.replicate k g) := by
+  refine ⟨by simp, fun i hi => ?_⟩
+  rw [Array.size_replicate] at hi
+  rw [getElem!_pos _ _ (by simpa using hi), getElem!_pos _ _ (by simpa using hi), Array.getElem_replicate,
+    Array.getElem_replicate]
+  exact hz
+
+/-- The empty prefix of a table. -/
+theorem range_zero (f : ℕ → Ext) : IsExts c n #[] ((Array.range 0).map f) :=
+  ⟨by simp, fun _ h => absurd h (by simp)⟩
+
+/-- Entry `i` of a table `f`. -/
+theorem get_map {k : ℕ} {f : ℕ → Ext} (h : IsExts c n xs ((Array.range k).map f)) {i : ℕ} (hi : i < k) :
+    IsExt c n xs[i]! (f i) := by
+  have := h.get (i := i) (by simpa using hi)
+  rwa [getElem!_pos ((Array.range k).map f) i (by simpa using hi), Array.getElem_map, Array.getElem_range] at this
+
+/-- A table of equal values. -/
+theorem congr_map {k : ℕ} {f g : ℕ → Ext} (h : IsExts c n xs ((Array.range k).map f)) (e : ∀ v < k, f v = g v) :
+    IsExts c n xs ((Array.range k).map g) := by
+  rwa [show (Array.range k).map f = (Array.range k).map g from
+    Array.ext (by simp) fun i h₁ _ => by simp at h₁; simp [e i h₁]] at h
+
+/-- `k` copies of one value as a table. -/
+theorem replicate_map {z : ExtVar} {g : Ext} (hz : IsExt c n z g) {k : ℕ} {f : ℕ → Ext} (e : ∀ v < k, f v = g) :
+    IsExts c n (Array.replicate k z) ((Array.range k).map f) := by
+  refine ⟨by simp, fun i hi => ?_⟩
+  rw [Array.size_replicate] at hi
+  rw [getElem!_pos _ _ (by simpa using hi), Array.getElem_replicate, getElem!_map_range k f hi, e i hi]
+  exact hz
+
+/-- Entry `g` of nested arrays, empty past the end. -/
+theorem nested {xss : Array (Array ExtVar)} {gss : Array (Array Ext)}
+    (h : xss.size = gss.size ∧ ∀ g < xss.size, IsExts c n xss[g]! gss[g]!) (g : ℕ) : IsExts c n xss[g]! gss[g]! := by
+  by_cases lt : g < xss.size
+  · exact h.2 g lt
+  · rw [getElem!_neg xss g lt, getElem!_neg gss g (by rw [← h.1]; exact lt)]
+    exact IsExts.empty
+
+/-- The last entry. -/
+theorem back (h : IsExts c n xs gs) (ne : 0 < gs.size) : IsExt c n xs.back! gs.back! := by
+  have e := h.1
+  rw [Array.back!, Array.back!, e]
+  exact h.get (by omega)
+
+/-- Three values. -/
+theorem triple {a b d : ExtVar} {ga gb gd : Ext} (ha : IsExt c n a ga) (hb : IsExt c n b gb) (hd : IsExt c n d gd) :
+    IsExts c n #[a, b, d] #[ga, gb, gd] :=
+  ⟨rfl, fun i hi => match i, hi with
+    | 0, _ => ha
+    | 1, _ => hb
+    | 2, _ => hd⟩
+
+/-- A slice. -/
+theorem slice (h : IsExts c n xs gs) (a b : ℕ) : IsExts c n (xs.extract a b) (gs.extract a b) := by
+  refine ⟨by simp [h.1], fun i hi => ?_⟩
+  rw [Array.size_extract] at hi
+  rw [getElem!_pos _ _ (by simp; omega), getElem!_pos _ _ (by simp [← h.1]; omega), Array.getElem_extract,
+    Array.getElem_extract, ← getElem!_pos, ← getElem!_pos]
   exact h.2 _ (by omega)
 
 end IsExts

@@ -29,12 +29,6 @@ open Polynomial
 
 /-! ## Identities in the challenge field -/
 
-theorem ext_pow_zero (a : Ext) : a.pow 0 = 1 := by
-  rw [Ext.pow, if_pos rfl]
-
-theorem ext_pow_succ (a : Ext) (k : ℕ) : a.pow (k + 1) = a.pow k * a :=
-  Ext.eq_of_toK (K := Cubic) (by rw [Ext.toK_mul, Ext.toK_pow, Ext.toK_pow, pow_succ])
-
 theorem ext_add_zero (a : Ext) : a + 0 = a :=
   Ext.eq_of_toK (K := Cubic) (by rw [Ext.toK_add, Ext.toK_zero, add_zero])
 

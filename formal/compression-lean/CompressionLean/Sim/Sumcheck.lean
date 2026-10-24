@@ -20,32 +20,6 @@ open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
 
-namespace IsExts
-
-variable {c : Ctx F} {n : ℕ} {xs : Array ExtVar} {gs : Array Ext}
-
-theorem empty : IsExts c n #[] #[] := ⟨rfl, fun _ h => absurd h (by simp)⟩
-
-theorem append (h : IsExts c n xs gs) {ys : Array ExtVar} {gy : Array Ext} (hy : IsExts c n ys gy) :
-    IsExts c n (xs ++ ys) (gs ++ gy) := by
-  refine ⟨by simp [h.1, hy.1], fun i hi => ?_⟩
-  rw [Array.size_append] at hi
-  rw [getElem!_pos _ _ (by simp; omega), getElem!_pos _ _ (by simp [← h.1, ← hy.1]; omega), Array.getElem_append,
-    Array.getElem_append]
-  by_cases lt : i < xs.size
-  · rw [dif_pos lt, dif_pos (h.1 ▸ lt), ← getElem!_pos, ← getElem!_pos]
-    exact h.2 i lt
-  · rw [dif_neg lt, dif_neg (h.1 ▸ lt), ← getElem!_pos, ← getElem!_pos, ← h.1]
-    exact hy.2 _ (by omega)
-
-theorem extract (h : IsExts c n xs gs) (a : ℕ) : IsExts c n (xs.extract a) (gs.extract a) := by
-  refine ⟨by simp [h.1], fun i hi => ?_⟩
-  rw [Array.size_extract] at hi
-  rw [getElem!_pos _ _ (by simp; omega), getElem!_pos _ _ (by simp [← h.1]; omega), Array.getElem_extract,
-    Array.getElem_extract, ← getElem!_pos, ← getElem!_pos]
-  exact h.2 _ (by omega)
-
-end IsExts
 
 /-- The loop of `observe_ext` calls over an array (`sumcheck.rs:36-38`). -/
 abbrev observeAllExts (vs : Array ExtVar) : Transcript PUnit :=

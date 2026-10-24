@@ -6,6 +6,8 @@
 //! the committed production key (`tests/fixtures/compression/key.bin`).
 //! `production_setup_matches_lean` runs the Lean `setupCheck` on that file and
 //! on neo-spartan's `production_layer1.json`, and requires its pass.
+//! `production_runs_match_lean` runs the Lean `runsCheck` on that file and
+//! requires its pass: the runs give F′'s matrices of the Poseidon2 hash chain.
 //!
 //! The file is little endian: the rows, the columns, the matrices and the run
 //! count as `u64`, then each run in visit order as its row and start column
@@ -203,6 +205,28 @@ fn production_setup_matches_lean() {
     eprintln!("setupCheck: {} in {:?}", stdout.trim_end(), started.elapsed());
     assert!(
         output.status.success() && stdout.contains("setup facts hold"),
+        "{stdout}{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+#[test]
+#[ignore = "needs production_runs.bin of production_runs_rebuild_the_layer1_key, and lake build runsCheck in \
+            formal/compression-lean"]
+fn production_runs_match_lean() {
+    let runs = workspace().join("target/lean-lowering/production_runs.bin");
+    assert!(runs.exists(), "run production_runs_rebuild_the_layer1_key first");
+    let check = workspace().join("formal/compression-lean/.lake/build/bin/runsCheck");
+    assert!(
+        check.exists(),
+        "build the check with `lake build runsCheck` in formal/compression-lean"
+    );
+    let started = Instant::now();
+    let output = Command::new(&check).arg(&runs).output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprintln!("runsCheck: {} in {:?}", stdout.trim_end(), started.elapsed());
+    assert!(
+        output.status.success() && stdout.contains("runs give the matrices"),
         "{stdout}{}",
         String::from_utf8_lossy(&output.stderr)
     );

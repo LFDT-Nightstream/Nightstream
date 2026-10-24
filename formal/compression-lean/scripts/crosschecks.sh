@@ -39,6 +39,10 @@
 # production_setup_matches_lean (nightstream, setupCheck): runs setupCheck on
 #   production_runs.bin and production_layer1.json and requires
 #   `setup facts hold`.
+# production_runs_match_lean (nightstream, runsCheck): runs runsCheck on
+#   production_runs.bin and requires `runs give the matrices`: no run names a
+#   row past F′'s rows, and the runs of each row and matrix give that row of
+#   F′'s matrix program of the Poseidon2 hash chain.
 #
 # Digest pins. CI runs no Lean, so Rust pins the run digest that lowerCheck
 # and terminalCheck compute from Lean's programs (`digest` on each `match`
@@ -52,7 +56,8 @@ set -u
 lean_dir=$(cd "$(dirname "$0")/.." && pwd)
 repo=$(cd "$lean_dir/../.." && pwd)
 checks=(lean_replay lowering_matches_lean production_layer1_matches_lean terminal_program_matches_lean
-  final_program_matches_lean production_runs_rebuild_the_layer1_key production_setup_matches_lean)
+  final_program_matches_lean production_runs_rebuild_the_layer1_key production_setup_matches_lean
+  production_runs_match_lean)
 [ $# -gt 0 ] && checks=("$@")
 failed=0
 
@@ -69,7 +74,7 @@ built=""
 for check in "${checks[@]}"; do
   case $check in
     terminal_program_matches_lean | final_program_matches_lean | production_runs_rebuild_the_layer1_key | \
-      production_setup_matches_lean) crate=nightstream ;;
+      production_setup_matches_lean | production_runs_match_lean) crate=nightstream ;;
     *) crate=neo-spartan ;;
   esac
   if [[ $built != *" $crate"* ]]; then

@@ -328,7 +328,7 @@ private theorem quiet {t : Transcript α} {g : α → Transcript γ} {y : Replay
 /-- A step that keeps the duplex and that the replay does not take; the rest
 knows its result by `Q` and its checks by `C`. -/
 private theorem keep {t : Transcript α} {g : α → Transcript γ} {y : ReplayM δ} {Q : α → ℕ → Prop} {C : Prop}
-    {R : γ → ℕ → Prop} (ht : ∀ d, Sim c n H (t.run d) (fun r m => Q r.1 m ∧ r.2 = d) C)
+    {R : γ → ℕ → Prop} (ht : ∀ d, Simulates c n H (t.run d) (fun r m => Q r.1 m ∧ r.2 = d) C)
     (hg : ∀ a m, n ≤ m → Tracks c m (H ∧ Q a m ∧ C) (g a) y R) : Tracks c n H (t >>= g) y R := fun d tr =>
   Ensures.tbind ((ht d).pre fun h => h.1).ensures fun a e m le =>
     (hg a m le e tr).pre fun h => ⟨⟨h.1.1, h.2.1.1, h.2.2⟩, by rw [show e = d from h.2.1.2]; exact h.1.2.mono le⟩
@@ -449,13 +449,13 @@ private theorem absorb (hp : Permutes c.perm) (words : Array Word) :
   refine Ensures.bind (Q := fun r m => IsDuplex c m r.2 (words.foldl Replay.Duplex.observe tr.duplex)) ?_
     fun r m _ => ?_
   · rw [← Array.forIn_toList]
-    refine ((Sim.loopT (P := H ∧ IsDuplex c n d tr.duplex)
+    refine ((Simulates.loopT (P := H ∧ IsDuplex c n d tr.duplex)
       (fun k _ e m => IsDuplex c m e ((words.toList.take k).foldl Replay.Duplex.observe tr.duplex)) (fun _ => True)
       fun k hk _ e m le => ?_).pre fun h => ⟨h, h.2⟩).ensures.post fun _ r m q => ?_
-    · refine Sim.tbind₀ (Sim.lift (Sim.const (c := c) _)) fun v e₁ m₁ l₁ => ?_
-      refine Sim.tbind₀ (Sim.observe hp (fun h => h.2.2 ▸ h.1.2.mono l₁) fun h => h.2.1) fun _ e₂ m₂ l₂ => ?_
+    · refine Simulates.tbind₀ (Simulates.lift (Simulates.const (c := c) _)) fun v e₁ m₁ l₁ => ?_
+      refine Simulates.tbind₀ (Simulates.observe hp (fun h => h.2.2 ▸ h.1.2.mono l₁) fun h => h.2.1) fun _ e₂ m₂ l₂ => ?_
       rw [StateT.run_pure]
-      refine Sim.pure fun h => ⟨rfl, ?_⟩
+      refine Simulates.pure fun h => ⟨rfl, ?_⟩
       rw [List.take_add_one, List.getElem?_eq_getElem hk, Option.toList_some, List.foldl_append]
       exact h.2
     · have e := q.1
@@ -464,12 +464,12 @@ private theorem absorb (hp : Permutes c.perm) (words : Array Word) :
     exact Ensures.pure fun h => ⟨trivial, (), _, Replay.runs_observeAll words tr, h.2⟩
 
 private theorem sampleExt (hp : Permutes c.perm) : Tracks c n H Duplex.sampleExt Replay.sampleExt fun _ _ => True :=
-  fun _ tr => (Sim.sampleExt hp fun h => h.2).ensures.post fun _ _ _ q =>
+  fun _ tr => (Simulates.sampleExt hp fun h => h.2).ensures.post fun _ _ _ q =>
     ⟨trivial, _, _, Replay.runs_sampleExt tr, q.1.2⟩
 
 private theorem observeExt (hp : Permutes c.perm) {v : ExtVar} {g : Ext} (hv : H → IsExt c n v g) :
     Tracks c n H (Duplex.observeExt v) (Replay.observeExt g) fun _ _ => True := fun _ tr =>
-  (Sim.observeExt hp (fun h => h.2) fun h => hv h.1).ensures.post fun _ _ _ q =>
+  (Simulates.observeExt hp (fun h => h.2) fun h => hv h.1).ensures.post fun _ _ _ q =>
     ⟨trivial, (), _, Replay.runs_observeExts #[g] tr, by rw [foldl_observeExts]; exact q.1⟩
 
 /-- `for value in values { observe_ext }`: the replay's `observeExts`. -/
@@ -478,12 +478,12 @@ private theorem observeExts (hp : Permutes c.perm) {vs : Array ExtVar} {gs : Arr
         Duplex.observeExt value
         Pure.pure (ForInStep.yield PUnit.unit))
       (Replay.observeExts gs) fun _ _ => True := fun _ tr =>
-  (Sim.observeExts hp (fun h => h.2) fun h => hv h.1).ensures.post fun _ _ _ q =>
+  (Simulates.observeExts hp (fun h => h.2) fun h => hv h.1).ensures.post fun _ _ _ q =>
     ⟨trivial, (), _, Replay.runs_observeExts gs tr, q.1⟩
 
 private theorem observeSlice (hp : Permutes c.perm) {vs : Array Var} {gs : Array Word} (hv : H → IsWords c n vs gs) :
     Tracks c n H (Duplex.observeSlice vs) (Replay.observeAll gs) fun _ _ => True := fun _ tr =>
-  (Sim.observeSlice hp (fun h => h.2) fun h => hv h.1).ensures.post fun _ _ _ q =>
+  (Simulates.observeSlice hp (fun h => h.2) fun h => hv h.1).ensures.post fun _ _ _ q =>
     ⟨trivial, (), _, Replay.runs_observeAll gs tr, q.1⟩
 
 end Tracks
@@ -495,7 +495,7 @@ private theorem Ensures.extInv_ne {a : ExtVar} {ga : Ext} (ha : P → IsExt c n 
     intro e
     have := (CharP.cast_eq_zero_iff F goldilocksModulus 1).mp (by simpa using e)
     norm_num [goldilocksModulus] at this
-  refine ((Sim.emit (c := c) (n := n) (P := P) (Q := fun _ _ => True)
+  refine ((Simulates.emit (c := c) (n := n) (P := P) (Q := fun _ _ => True)
     (C := extProduct (coords (F := F) ga) (fun k : Fin 3 => c.tape (n + k)) = ![1, 0, 0]) (.extInv a)
     fun hP E hl hF => ⟨trivial, ?_⟩).map (f := Build.handles) (Q' := fun _ _ => True)
       fun _ _ _ => trivial).ensures.post fun _ _ _ q => ?_
@@ -518,11 +518,11 @@ private theorem queryIndex (hp : Permutes c.perm) (width : ℕ) :
         Replay.ensure (!(word + 1 == 0)) "WHIR query sample p - 1"
         Replay.record (.sample word)) fun _ _ => True := fun d tr => by
   unfold Whir.queryIndex
-  refine Ensures.tbind (Sim.sample hp fun h => h.2).ensures fun s e₁ m₁ l₁ => ?_
-  refine Ensures.tbind (Ensures.lift (Sim.const (c := c) 1).ensures) fun one e₂ m₂ l₂ => ?_
-  refine Ensures.tbind (Ensures.lift (Sim.add (fun h => h.1.2.1.1.mono l₂) fun h => h.2.1.1).ensures)
+  refine Ensures.tbind (Simulates.sample hp fun h => h.2).ensures fun s e₁ m₁ l₁ => ?_
+  refine Ensures.tbind (Ensures.lift (Simulates.const (c := c) 1).ensures) fun one e₂ m₂ l₂ => ?_
+  refine Ensures.tbind (Ensures.lift (Simulates.add (fun h => h.1.2.1.1.mono l₂) fun h => h.2.1.1).ensures)
     fun shifted e₃ m₃ l₃ => ?_
-  refine Ensures.tbind (Ensures.lift (Sim.const (c := c) 0).ensures) fun z e₄ m₄ l₄ => ?_
+  refine Ensures.tbind (Ensures.lift (Simulates.const (c := c) 0).ensures) fun z e₄ m₄ l₄ => ?_
   refine Ensures.tbind (Ensures.lift (Ensures.extInv_ne (ga := ⟨tr.duplex.sample.1 + 1, 0, 0⟩) fun h k => ?_))
     fun _ e₅ m₅ l₅ => ?_
   · fin_cases k
@@ -859,22 +859,22 @@ private theorem agree_of {opened expected : Array (Array Ext)} {what : String}
 
 variable [CharP F goldilocksModulus]
 
-namespace Sim
+namespace Simulates
 
 /-- `from_coordinates` (`verifier.rs:352-362`). -/
 private theorem fromCoordinates {values : Array ExtVar} {gvalues : Array Ext} (hv : P → IsExts c n values gvalues) :
-    Sim c n P (Circuit.fromCoordinates values) (fun r m => IsExt c m r (Replay.fromCoordinates gvalues)) True := by
+    Simulates c n P (Circuit.fromCoordinates values) (fun r m => IsExt c m r (Replay.fromCoordinates gvalues)) True := by
   unfold Circuit.fromCoordinates Replay.fromCoordinates
   refine extZero.bind₀ fun total m₁ l₁ => ?_
   refine ((loop₀ (P := P ∧ IsExt c m₁ total 0)
     (fun k acc m => IsExt c m acc (Replay.sumRange k fun i => Ext.basis i * gvalues[i]!))
-    fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun r m _ => Sim.pure fun h => ?_
+    fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun r m _ => Simulates.pure fun h => ?_
   · have hk' : k < values.size := by simpa using hk
     rw [show values.zipIdx[k] = (values[k]!, k) by simp [getElem!_pos, hk']]
     exact (extConstant (Ext.basis k)).bind₀ fun basis m₂ l₂ =>
-      (Sim.extMul (fun h => h.2) fun h => ((hv h.1.1.1).2 k hk').mono (l₁.trans (lm.trans l₂))).bind₀
+      (Simulates.extMul (fun h => h.2) fun h => ((hv h.1.1.1).2 k hk').mono (l₁.trans (lm.trans l₂))).bind₀
         fun term m₃ l₃ => (extAdd (fun h => h.1.1.2.mono (l₂.trans l₃)) fun h => h.2).bind₀
-        fun total' m₄ l₄ => Sim.pure fun h => ⟨rfl, by rw [sumRange_succ]; exact h.2⟩
+        fun total' m₄ l₄ => Simulates.pure fun h => ⟨rfl, by rw [sumRange_succ]; exact h.2⟩
   · have e := h.2
     rw [Array.size_zipIdx, (hv h.1.1).1] at e
     exact e
@@ -882,7 +882,7 @@ private theorem fromCoordinates {values : Array ExtVar} {gvalues : Array Ext} (h
 /-- `combine` (`verifier.rs:334-337`). -/
 private theorem combineValue {partials point : Array ExtVar} {gpartials gpoint : Array Ext}
     (hp : P → IsExts c n partials gpartials) (hq : P → IsExts c n point gpoint) :
-    Sim c n P (Circuit.combinePartials partials point) (fun r m => IsExt c m r (Replay.combine gpartials gpoint))
+    Simulates c n P (Circuit.combinePartials partials point) (fun r m => IsExt c m r (Replay.combine gpartials gpoint))
       True :=
   (eqTable hq).bind₀ fun _ _ l => dot (fun h => h.2) fun h => (hp h.1).mono l
 
@@ -891,23 +891,23 @@ omit [CharP F goldilocksModulus] in
 private theorem listMapM₂ {δ ε α : Type} [Inhabited ε] {f : δ → Build α} {R : δ → ε → ℕ → Prop}
     {S : α → ε → ℕ → Prop} (monoR : ∀ x y m m', R x y m → m ≤ m' → R x y m')
     (monoS : ∀ a y m m', S a y m → m ≤ m' → S a y m')
-    (h : ∀ x y m (Q : Prop), (Q → R x y m) → Sim c m Q (f x) (S · y) True) :
+    (h : ∀ x y m (Q : Prop), (Q → R x y m) → Simulates c m Q (f x) (S · y) True) :
     ∀ (xs : List δ) (ys : List ε) {n : ℕ} {P : Prop}, (P → List.Forall₂ (R · · n) xs ys) →
-      Sim c n P (xs.mapM f) (fun as m => List.Forall₂ (S · · m) as ys) True
+      Simulates c n P (xs.mapM f) (fun as m => List.Forall₂ (S · · m) as ys) True
   | [], ys, n, P, hr => by
       rw [List.mapM_nil]
-      exact Sim.pure fun hP => by cases hr hP; exact .nil
+      exact Simulates.pure fun hP => by cases hr hP; exact .nil
   | x :: xs, [], n, P, hr => by
       rw [List.mapM_cons]
       refine (h x default n P fun hP => absurd (hr hP) (by simp)).bind₀ fun a m _ => ?_
       exact (listMapM₂ monoR monoS h xs [] (P := P ∧ S a default m) fun hP => absurd (hr hP.1) (by simp)).bind₀
-        fun _ _ _ => Sim.pure fun hP => absurd (hr hP.1.1) (by simp)
+        fun _ _ _ => Simulates.pure fun hP => absurd (hr hP.1.1) (by simp)
   | x :: xs, y :: ys, n, P, hr => by
       rw [List.mapM_cons]
       refine (h x y n P fun hP => (List.forall₂_cons.mp (hr hP)).1).bind₀ fun a m le => ?_
       refine (listMapM₂ monoR monoS h xs ys (P := P ∧ S a y m) fun hP =>
         (List.forall₂_cons.mp (hr hP.1)).2.imp fun _ _ r => monoR _ _ _ _ r le).bind₀ fun as m' le' => ?_
-      exact Sim.pure fun hP => .cons (monoS _ _ _ _ hP.1.2 le') hP.2
+      exact Simulates.pure fun hP => .cons (monoS _ _ _ _ hP.1.2 le') hP.2
 
 /-- The equality checks of `verifier.rs:280-282` and `verifier.rs:312-314`:
 once they hold, each pair's values are equal. -/
@@ -915,7 +915,7 @@ private theorem assertPairs {xs : Array (ExtVar × ExtVar)} {gs : Array (Ext × 
     {body : ExtVar × ExtVar → PUnit → Transcript (ForInStep PUnit)}
     (hb : ∀ a b u, body (a, b) u = (do liftM (Build.assertExtEqual a b); Pure.pure (ForInStep.yield PUnit.unit)))
     (hl : P → List.Forall₂ (IsPair c n) xs.toList gs.toList) (d : Duplex) :
-    Sim c n P ((forIn xs PUnit.unit body).run d) (fun r _ => True ∧ r.2 = d) (∀ p ∈ gs.toList, p.1 = p.2) := by
+    Simulates c n P ((forIn xs PUnit.unit body).run d) (fun r _ => True ∧ r.2 = d) (∀ p ∈ gs.toList, p.1 = p.2) := by
   rw [← Array.forIn_toList]
   generalize xs.toList = l at hl
   generalize gs.toList = gl at hl ⊢
@@ -925,8 +925,8 @@ private theorem assertPairs {xs : Array (ExtVar × ExtVar)} {gs : Array (Ext × 
     rcases hx : l[k] with ⟨a, b⟩
     rw [hx] at hpair
     rw [hb]
-    refine ((Sim.tbind (Sim.lift (assertExtEqual (fun h => (hpair h.1).1) fun h => (hpair h.1).2)) fun _ e' m' _ =>
-      Sim.pure fun h => ⟨rfl, h.2.2.trans h.1.2⟩).post (fun _ _ _ q => q) fun _ => Iff.of_eq (and_true _))
+    refine ((Simulates.tbind (Simulates.lift (assertExtEqual (fun h => (hpair h.1).1) fun h => (hpair h.1).2)) fun _ e' m' _ =>
+      Simulates.pure fun h => ⟨rfl, h.2.2.trans h.1.2⟩).post (fun _ _ _ q => q) fun _ => Iff.of_eq (and_true _))
   · have len := (hl hP).length_eq
     constructor
     · intro hall p hp
@@ -937,7 +937,7 @@ private theorem assertPairs {xs : Array (ExtVar × ExtVar)} {gs : Array (Ext × 
       rw [getElem!_pos gl k (len ▸ hk)]
       exact hall _ (List.getElem_mem _)
 
-end Sim
+end Simulates
 
 end Openings
 
@@ -984,17 +984,17 @@ private theorem Tracks.openingsStage (hp : Permutes c.perm) {rel : Replay.Relati
   unfold Circuit.openingsStage
   dsimp only
   refine bindQ (Tracks.whirVerify hp h1 r1 k1) fun opened m₁ l₁ => ?_
-  refine keep (fun _ => Sim.lift (Sim.combineValue (fun h => (IsExts.getElem! (hpartials h.1) 0).mono l₁)
+  refine keep (fun _ => Simulates.lift (Simulates.combineValue (fun h => (IsExts.getElem! (hpartials h.1) 0).mono l₁)
     fun h => (halpha h.1).mono l₁)) fun keyGroup m₂ l₂ => ?_
-  refine keep (fun _ => Sim.lift (Sim.combineValue (fun h => (IsExts.getElem! (hpartials h.1.1) 1).mono
+  refine keep (fun _ => Simulates.lift (Simulates.combineValue (fun h => (IsExts.getElem! (hpartials h.1.1) 1).mono
     (l₁.trans l₂)) fun h => (halpha h.1.1).mono (l₁.trans l₂))) fun runGroup m₃ l₃ => ?_
   refine keep (Q := fun a m => IsExts c m a (Replay.p1Values proof.p1Opening.evals)) (C := True)
-    (fun _ => Sim.lift (Q := fun a m => IsExts c m a (Replay.p1Values proof.p1Opening.evals)) ?_)
+    (fun _ => Simulates.lift (Q := fun a m => IsExts c m a (Replay.p1Values proof.p1Opening.evals)) ?_)
     fun values m₄ l₄ => ?_
   · rw [Array.mapM_eq_mapM_toList]
-    refine (Sim.listMapM₂ (R := fun x y m => IsExts c m x y)
+    refine (Simulates.listMapM₂ (R := fun x y m => IsExts c m x y)
       (S := fun a y m => IsExt c m a (Replay.fromCoordinates y)) (fun _ _ _ _ h le => h.mono le)
-      (fun _ _ _ _ h le => h.mono le) (fun _ _ _ _ hq => Sim.fromCoordinates hq) _
+      (fun _ _ _ _ h le => h.mono le) (fun _ _ _ _ hq => Simulates.fromCoordinates hq) _
       (proof.p1Opening.evals.flatMap fun batch => (Array.range (batch.size / 3)).map fun i =>
         batch.extract (3 * i) (3 * i + 3)).toList fun h => ?_).map fun as m hf => ?_
     · exact groups_rel (h.1.1.2.imp fun _ _ x => x.mono (l₂.trans l₃)) (div h.1.1.1)
@@ -1006,7 +1006,7 @@ private theorem Tracks.openingsStage (hp : Permutes c.perm) {rel : Replay.Relati
         rfl
       rw [isExts_iff, List.toList_toArray, e, Array.toList_map, List.forall₂_map_right_iff]
       exact hf
-  refine keep (Q := fun _ _ => True) (fun e => Sim.assertPairs (gs := (Replay.p1Values proof.p1Opening.evals).zip
+  refine keep (Q := fun _ _ => True) (fun e => Simulates.assertPairs (gs := (Replay.p1Values proof.p1Opening.evals).zip
       (Replay.p1Expected proof honest lin late)) (fun _ _ _ => rfl) (fun h => ?_) e) fun _ m₅ l₅ => ?_
   · rw [Array.toList_zip, Array.toList_zip]
     refine forall₂_zip (isExts_iff.mp h.2.1) (isExts_iff.mp ?_)
@@ -1029,7 +1029,7 @@ private theorem Tracks.openingsStage (hp : Permutes c.perm) {rel : Replay.Relati
     · rw [Array.flatten_singleton, Array.flatten_singleton]
       exact h.2.2
   refine bindQ (Tracks.whirVerify hp (fun h => (h0 h).mono (by omega)) r0 k0) fun opened m₆ l₆ => ?_
-  refine keep (Q := fun _ _ => True) (fun e => Sim.assertPairs (gs := proof.p0Opening.evals.flatten.zip
+  refine keep (Q := fun _ _ => True) (fun e => Simulates.assertPairs (gs := proof.p0Opening.evals.flatten.zip
       (Replay.p0Expected early lin late).flatten) (fun _ _ _ => rfl) (fun h => ?_) e) fun _ m₇ l₇ => ?_
   · have hH := h.1
     rw [Array.toList_zip, Array.toList_zip, Array.toList_flatten, Array.toList_flatten, Array.toList_flatten,

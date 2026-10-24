@@ -72,26 +72,26 @@ private theorem IsClaim.words {c : Ctx F} {n : ℕ} {v : ClaimView} {st : Replay
   simpa [Array.toList_flatMap, Array.toList_append, List.flatMap_append] using
     pairs_forall₂ (List.rel_append (List.rel_append point evalK) evalA)
 
-private theorem Sim.observeConstants [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {d : Duplex}
+private theorem Simulates.observeConstants [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop} {d : Duplex}
     {r : Replay.Duplex} (words : Array Word) (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
-    Sim c n P (StateT.run (forIn words () fun word _ => (do
+    Simulates c n P (StateT.run (forIn words () fun word _ => (do
         let h ← liftM (Build.const word)
         Duplex.observe h
         Pure.pure (ForInStep.yield ()) : Transcript (ForInStep Unit))) d)
       (fun res m => IsDuplex c m res.2 (words.foldl Replay.Duplex.observe r)) True := by
   rw [← Array.forIn_toList]
-  refine ((Sim.loopT (xs := words.toList) (init := ()) (d := d) (P := P) (D := fun _ => True)
+  refine ((Simulates.loopT (xs := words.toList) (init := ()) (d := d) (P := P) (D := fun _ => True)
       (I := fun k _ e m => IsDuplex c m e ((words.toList.take k).foldl Replay.Duplex.observe r))
       fun k hk acc e m le => ?_).pre (fun h => ⟨h, by simpa using hd h⟩)).post
     (fun _ res m h => by
       rw [← Array.foldl_toList]
       simpa [List.take_of_length_le (le_of_eq (Array.length_toList (xs := words)))] using h) (fun _ => by simp)
   rw [StateT.run_bind]
-  refine Sim.bind₀ (Sim.lift (Sim.const words.toList[k])) fun x m₁ l₁ => ?_
+  refine Simulates.bind₀ (Simulates.lift (Simulates.const words.toList[k])) fun x m₁ l₁ => ?_
   rw [StateT.run_bind]
-  refine Sim.bind₀ (Sim.observe hp (fun h => h.2.2 ▸ h.1.2.mono l₁) fun h => h.2.1) fun res m₂ l₂ => ?_
+  refine Simulates.bind₀ (Simulates.observe hp (fun h => h.2.2 ▸ h.1.2.mono l₁) fun h => h.2.1) fun res m₂ l₂ => ?_
   rw [StateT.run_pure]
-  refine Sim.pure fun h => ⟨rfl, ?_⟩
+  refine Simulates.pure fun h => ⟨rfl, ?_⟩
   rw [List.take_add_one, List.foldl_append, List.getElem?_eq_getElem hk]
   simpa [← h.1.2.2] using h.2
 
@@ -357,13 +357,13 @@ private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey}
   have shape := Bridge.readProof_ok read
   obtain ⟨r1, r0⟩ := readProof_openings read
   unfold verify
-  refine Ensures.bind Sim.duplexNew.ensures fun duplex m₀ l₀ => ?_
+  refine Ensures.bind Simulates.duplexNew.ensures fun duplex m₀ l₀ => ?_
   refine Ensures.bind (Q := fun _ _ => ∃ points t', Runs (Replay.verify rel seedWords st g)
     ⟨Replay.Duplex.new, #[]⟩ points t') ?_ fun _ _ _ => Ensures.pure fun H => H.2
-  refine Ensures.tbind (Sim.observeSlice hp (fun H => H.2.1)
+  refine Ensures.tbind (Simulates.observeSlice hp (fun H => H.2.1)
     fun H => IsWords.ofFn (h H.1).1.1 fun lane => ((h H.1).1.2 lane).mono l₀).ensures fun _ d₁ m₁ l₁ => ?_
-  refine Ensures.tbind (Sim.observeConstants rel.words hp fun H => H.2.1).ensures fun _ d₂ m₂ l₂ => ?_
-  refine Ensures.tbind (Sim.observeSlice hp (fun H => H.2.1)
+  refine Ensures.tbind (Simulates.observeConstants rel.words hp fun H => H.2.1).ensures fun _ d₂ m₂ l₂ => ?_
+  refine Ensures.tbind (Simulates.observeSlice hp (fun H => H.2.1)
     fun H => ((h H.1.1.1).2.1.mono (l₀.trans (l₁.trans l₂))).words).ensures fun _ d₃ m₃ l₃ => ?_
   have pf : P → IsProof c w n proof g := fun H => (h H).2.2
   have L₃ : n ≤ m₃ := l₀.trans (l₁.trans (l₂.trans l₃))
@@ -472,10 +472,10 @@ private theorem verify_core {rel : Relation} {p1Key p0Key : WhirKey}
     (_ ∧ IsHonestOut c m₇ rel eout lout honest hout) ∧ _) ?_
     fun H => ⟨H.1.1, ⟨H.1.2.1.1, H.1.2.1.2.mono l₇⟩, ⟨H.1.2.2.1.1, H.1.2.2.1.2.mono l₇⟩,
       ⟨H.1.2.2.2.1, H.1.2.2.2.2.1.mono l₇⟩, H.2⟩
-  refine Ensures.tbind (Ensures.lift (Sim.mapM (R := fun _ _ _ => True) (fun _ _ _ _ _ _ => trivial)
+  refine Ensures.tbind (Ensures.lift (Simulates.mapM (R := fun _ _ _ => True) (fun _ _ _ _ _ _ => trivial)
     fun x hx m lm => by
       obtain ⟨q, hq, rfl⟩ := Array.mem_iff_getElem.mp hx
-      refine (Sim.queryPoint (index := hout.queries[q]!) (fun H => ?_) fun H => ?_).post
+      refine (Simulates.queryPoint (index := hout.queries[q]!) (fun H => ?_) fun H => ?_).post
         (fun _ _ _ _ => trivial) fun _ => Iff.rfl
       · obtain ⟨-, -, -, -, bits, -⟩ := H.2.2.2.1.2
         have size := (bits q hq).1

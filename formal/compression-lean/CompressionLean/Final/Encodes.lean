@@ -133,7 +133,7 @@ private theorem verifyWith_at (hp : Permutes c.perm) (hw : Decodes c w)
       (verifyWith key (prefixRun loaded context).1.2 (prefixRun loaded context).1.1.view)
       (fun _ _ => Gives key loaded context authority c w) := by
   unfold verifyWith
-  refine EnsuresAt.bind (EnsuresAt.of_ensures (Sim.handoff
+  refine EnsuresAt.bind (EnsuresAt.of_ensures (Simulates.handoff
     (gs := Array.ofFn fun lane => w ((prefixRun loaded context).1.2 lane)) hp fun h => ?_).ensures) fun le₁ => ?_
   · obtain ⟨-, env, -, -, hstate, -⟩ := h
     have hl := List.forall₂_iff_get.mp hstate
@@ -142,7 +142,7 @@ private theorem verifyWith_at (hp : Permutes c.perm) (hw : Decodes c w)
       simpa only [List.get_eq_getElem, List.getElem_ofFn] using this
     · rw [getElem!_pos _ _ (by simp)]
       simpa using hw ((prefixRun loaded context).1.2 lane)
-  refine EnsuresAt.bind (EnsuresAt.of_ensures (Sim.ProofView.read key.relation _ _ hrun hrow hslot fun _ => hw).ensures)
+  refine EnsuresAt.bind (EnsuresAt.of_ensures (Simulates.ProofView.read key.relation _ _ hrun hrow hslot fun _ => hw).ensures)
     fun le₂ => ?_
   refine (EnsuresAt.of_ensures (verify_ensures hrun hrow hslot long root small short named k1 k0 hp1 hp1count hp0
     (w := w) (seedWords := seedWith loaded context w) (st := statementWith loaded context w)

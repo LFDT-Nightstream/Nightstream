@@ -4,7 +4,7 @@ import CompressionLean.Bridge.Field
 import Mathlib.Data.List.GetD
 
 /-!
-Owns the simulation of builder programs (`Sim`): what the executor computes
+Owns the simulation of builder programs (`Simulates`): what the executor computes
 on the instructions that a program writes, read as replay words.
 
 - `Ctx`: what the executor runs with (the permutation, the statement words,
@@ -12,14 +12,14 @@ on the instructions that a program writes, read as replay words.
 - Handle `h` is the word `g` among `n` values (`IsWord`) when `h < n` and
   `val h = Word.cast g`. `IsExt` and `IsWords` lift it to extension values and
   arrays.
-- `Sim c n P b Q C`: after any builder state with `n` values, `b` appends
+- `Simulates c n P b Q C`: after any builder state with `n` values, `b` appends
   instructions, and their run from any executor state with `n` values has
   one value per handle. If `P` holds and the run follows `val`, the result
   of `b` meets `Q` at the new count, and the checks of the run hold iff the
   earlier checks and `C` hold.
-- `Sim.exec`: for a program that `Sim` describes from the empty builder,
+- `Simulates.exec`: for a program that `Simulates` describes from the empty builder,
   with `val` the values of its run, the executor accepts it iff `C`.
-- `Ensures c n P b Q`: `Sim` in one direction, for soundness. When the run's
+- `Ensures c n P b Q`: `Simulates` in one direction, for soundness. When the run's
   checks hold, the result meets `Q`, which may use them. `Ensures.exec`
   reads `Q` off an accepting run.
 - `EnsuresAt c p P b Q`: `Ensures` from one builder state `p`. Its `bind`
@@ -29,7 +29,7 @@ on the instructions that a program writes, read as replay words.
 `P` and `C` are propositions about `val`. Only the meaning of the run
 depends on `P`, never which instructions the program writes, so `bind` can
 pass `P` on, and one run at any precondition fixes the instructions
-(`Sim.elim`, `Ensures.under`). The field has characteristic `p`, so `Word.cast` is a ring map on
+(`Simulates.elim`, `Ensures.under`). The field has characteristic `p`, so `Word.cast` is a ring map on
 words (`word_add`, `word_mul`, `word_sub`) and is injective.
 -/
 
@@ -179,25 +179,25 @@ values, `b` appends instructions `new`; their run from any executor state
 with `n` values has one value per handle. If `P` holds and the run follows
 `val`, `b`'s result meets `Q` at the new count, and the run's checks hold
 iff the earlier ones and `C` hold. -/
-def Sim {α : Type} (c : Ctx F) (n : ℕ) (P : Prop) (b : Build α) (Q : α → ℕ → Prop) (C : Prop) : Prop :=
+def Simulates {α : Type} (c : Ctx F) (n : ℕ) (P : Prop) (b : Build α) (Q : α → ℕ → Prop) (C : Prop) : Prop :=
   ∀ (p : Builder) (E : Exec.State F), p.values = n → E.values.length = n →
     ∃ new : List Instr, (b.run p).2.instrs = p.instrs ++ new.toArray ∧
       (c.steps new E).values.length = (b.run p).2.values ∧
       (P → c.Follows (c.steps new E) →
         Q (b.run p).1 (b.run p).2.values ∧ ((c.steps new E).holds ↔ E.holds ∧ C))
 
-namespace Sim
+namespace Simulates
 
 variable {c : Ctx F} {α β : Type} {n : ℕ} {P : Prop} {Q : α → ℕ → Prop} {C : Prop}
 
-theorem pure {a : α} (h : P → Q a n) : Sim c n P (Pure.pure a) Q True := by
+theorem pure {a : α} (h : P → Q a n) : Simulates c n P (Pure.pure a) Q True := by
   intro p E hp hE
   refine ⟨[], by show p.instrs = p.instrs ++ #[]; simp, by show E.values.length = p.values; rw [hE, hp],
     fun hP _ => ⟨?_, by simp [Ctx.steps]⟩⟩
   exact hp ▸ h hP
 
-theorem bind {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} {C' : Prop} (hb : Sim c n P b Q C)
-    (hf : ∀ a m, n ≤ m → Sim c m (P ∧ Q a m) (f a) R C') : Sim c n P (b >>= f) R (C ∧ C') := by
+theorem bind {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} {C' : Prop} (hb : Simulates c n P b Q C)
+    (hf : ∀ a m, n ≤ m → Simulates c m (P ∧ Q a m) (f a) R C') : Simulates c n P (b >>= f) R (C ∧ C') := by
   intro p E hp hE
   obtain ⟨new₁, hi₁, hl₁, hs₁⟩ := hb p E hp hE
   have hle : n ≤ (b.run p).2.values := by
@@ -218,20 +218,20 @@ theorem bind {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} {C' 
     exact ⟨hr, by rw [hh₂, hh₁, and_assoc]⟩
 
 /-- `bind` when `b` checks nothing. -/
-theorem bind₀ {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} {C' : Prop} (hb : Sim c n P b Q True)
-    (hf : ∀ a m, n ≤ m → Sim c m (P ∧ Q a m) (f a) R C') : Sim c n P (b >>= f) R C' := by
+theorem bind₀ {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} {C' : Prop} (hb : Simulates c n P b Q True)
+    (hf : ∀ a m, n ≤ m → Simulates c m (P ∧ Q a m) (f a) R C') : Simulates c n P (b >>= f) R C' := by
   have h := hb.bind hf
   rwa [true_and] at h
 
 /-- Weaken the result and change the checks, both under `P`. -/
-theorem post {b : Build α} {Q' : α → ℕ → Prop} {C' : Prop} (h : Sim c n P b Q C)
-    (hq : P → ∀ a m, Q a m → Q' a m) (hc : P → (C ↔ C')) : Sim c n P b Q' C' := by
+theorem post {b : Build α} {Q' : α → ℕ → Prop} {C' : Prop} (h : Simulates c n P b Q C)
+    (hq : P → ∀ a m, Q a m → Q' a m) (hc : P → (C ↔ C')) : Simulates c n P b Q' C' := by
   intro p E hp hE
   obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
   exact ⟨new, hi, hl, fun hP hF => ⟨hq hP _ _ (hs hP hF).1, (hs hP hF).2.trans (and_congr_right fun _ => hc hP)⟩⟩
 
 /-- Strengthen the precondition. -/
-theorem pre {b : Build α} {P' : Prop} (h : Sim c n P' b Q C) (hp : P → P') : Sim c n P b Q C := by
+theorem pre {b : Build α} {P' : Prop} (h : Simulates c n P' b Q C) (hp : P → P') : Simulates c n P b Q C := by
   intro p E hp' hE
   obtain ⟨new, hi, hl, hs⟩ := h p E hp' hE
   exact ⟨new, hi, hl, fun hP hF => hs (hp hP) hF⟩
@@ -240,7 +240,7 @@ theorem pre {b : Build α} {P' : Prop} (h : Sim c n P' b Q C) (hp : P → P') : 
 theorem emit (i : Instr) {Q : Var → ℕ → Prop}
     (h : P → ∀ E : Exec.State F, E.values.length = n → c.Follows (c.step E i) →
       Q n (n + i.outputs) ∧ ((c.step E i).holds ↔ E.holds ∧ C)) :
-    Sim c n P (Build.emit i) Q C := by
+    Simulates c n P (Build.emit i) Q C := by
   intro p E hp hE
   refine ⟨[i], by show p.instrs.push i = p.instrs ++ #[i]; simp, ?_, fun hP hF => ?_⟩
   · obtain ⟨more, hm, hl⟩ := c.step_values E i
@@ -251,16 +251,16 @@ theorem emit (i : Instr) {Q : Var → ℕ → Prop}
     exact h hP E hE hF
 
 /-- `f <$> b`. -/
-theorem map {b : Build α} {f : α → β} {Q' : β → ℕ → Prop} (h : Sim c n P b Q C)
-    (hq : ∀ a m, Q a m → Q' (f a) m) : Sim c n P (f <$> b) Q' C := by
+theorem map {b : Build α} {f : α → β} {Q' : β → ℕ → Prop} (h : Simulates c n P b Q C)
+    (hq : ∀ a m, Q a m → Q' (f a) m) : Simulates c n P (f <$> b) Q' C := by
   intro p E hp hE
   obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
   exact ⟨new, hi, hl, fun hP hF => ⟨hq _ _ (hs hP hF).1, (hs hP hF).2⟩⟩
 
 /-- Fix the witness of an existential precondition. Any `x₀` gives the
 instructions, which do not depend on it. -/
-theorem elim {ι : Type} {b : Build α} {R : ι → Prop} (x₀ : ι) (h : ∀ x, Sim c n (R x) b Q C)
-    (hp : P → ∃ x, R x) : Sim c n P b Q C := by
+theorem elim {ι : Type} {b : Build α} {R : ι → Prop} (x₀ : ι) (h : ∀ x, Simulates c n (R x) b Q C)
+    (hp : P → ∃ x, R x) : Simulates c n P b Q C := by
   intro p E hp' hE
   obtain ⟨new, hi, hl, -⟩ := h x₀ p E hp' hE
   refine ⟨new, hi, hl, fun hP hF => ?_⟩
@@ -269,14 +269,14 @@ theorem elim {ι : Type} {b : Build α} {R : ι → Prop} (x₀ : ι) (h : ∀ x
   obtain rfl : new = new' := List.toArray_inj ((Array.append_right_inj _).mp (hi.symm.trans hi'))
   exact hs hx hF
 
-end Sim
+end Simulates
 
-/-- **The executor accepts what a simulated program writes.** If `Sim`
+/-- **The executor accepts what a simulated program writes.** If `Simulates`
 describes `b` from the empty builder under `P`, and `val` is the values of
 the executor's run of `b`'s program, then the result meets `Q` and the
 executor accepts the program iff `C`. -/
-theorem Sim.exec {c : Ctx F} {α : Type} {P : Prop} {b : Build α} {Q : α → ℕ → Prop} {C : Prop}
-    (h : Sim c 0 P b Q C) (hP : P) (hval : c.val = (Exec.run c.perm c.stmt c.tape b.program).value) :
+theorem Simulates.exec {c : Ctx F} {α : Type} {P : Prop} {b : Build α} {Q : α → ℕ → Prop} {C : Prop}
+    (h : Simulates c 0 P b Q C) (hP : P) (hval : c.val = (Exec.run c.perm c.stmt c.tape b.program).value) :
     Q (b.run {}).1 (b.run {}).2.values ∧ (Exec c.perm b.program c.stmt c.tape ↔ C) := by
   obtain ⟨new, hi, -, hs⟩ := h {} Exec.start rfl rfl
   have run : Exec.run c.perm c.stmt c.tape b.program = c.steps new Exec.start := by
@@ -368,24 +368,24 @@ theorem gl_sub_eq_zero {a b : Word} : a - b = 0 ↔ a = b := by
   · subst h
     exact Word.eq_of_toF (by rw [Word.toF_sub, sub_self, Word.toF_zero])
 
-namespace Sim
+namespace Simulates
 
 omit [CharP F goldilocksModulus] in
-theorem const (g : Word) : Sim c n P (Build.const g) (fun h m => IsWord c m h g) True :=
+theorem const (g : Word) : Simulates c n P (Build.const g) (fun h m => IsWord c m h g) True :=
   emit _ fun _ E hl hF => by
     refine ⟨⟨by simp [Instr.outputs], ?_⟩, Iff.rfl⟩
     rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
     rfl
 
 omit [CharP F goldilocksModulus] in
-theorem priv : Sim c n P Build.priv (fun h m => h < m ∧ c.val h = c.tape h) True :=
+theorem priv : Simulates c n P Build.priv (fun h m => h < m ∧ c.val h = c.tape h) True :=
   emit _ fun _ E hl hF => by
     refine ⟨⟨by simp [Instr.outputs], ?_⟩, Iff.rfl⟩
     rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
     rfl
 
 theorem add {a b : Var} {ga gb : Word} (ha : P → IsWord c n a ga) (hb : P → IsWord c n b gb) :
-    Sim c n P (Build.add a b) (fun h m => IsWord c m h (ga + gb)) True :=
+    Simulates c n P (Build.add a b) (fun h m => IsWord c m h (ga + gb)) True :=
   emit _ fun hP E hl hF => by
     have hE := Ctx.follows_of_step hF
     refine ⟨⟨by simp [Instr.outputs], ?_⟩, Iff.rfl⟩
@@ -393,7 +393,7 @@ theorem add {a b : Var} {ga gb : Word} (ha : P → IsWord c n a ga) (hb : P → 
     simp [(ha hP).read hE hl, (hb hP).read hE hl, word_add]
 
 theorem sub {a b : Var} {ga gb : Word} (ha : P → IsWord c n a ga) (hb : P → IsWord c n b gb) :
-    Sim c n P (Build.sub a b) (fun h m => IsWord c m h (ga - gb)) True :=
+    Simulates c n P (Build.sub a b) (fun h m => IsWord c m h (ga - gb)) True :=
   emit _ fun hP E hl hF => by
     have hE := Ctx.follows_of_step hF
     refine ⟨⟨by simp [Instr.outputs], ?_⟩, Iff.rfl⟩
@@ -402,7 +402,7 @@ theorem sub {a b : Var} {ga gb : Word} (ha : P → IsWord c n a ga) (hb : P → 
     ring
 
 theorem scale {a : Var} {ga : Word} (by_ : Word) (ha : P → IsWord c n a ga) :
-    Sim c n P (Build.scale a by_) (fun h m => IsWord c m h (ga * by_)) True :=
+    Simulates c n P (Build.scale a by_) (fun h m => IsWord c m h (ga * by_)) True :=
   emit _ fun hP E hl hF => by
     have hE := Ctx.follows_of_step hF
     refine ⟨⟨by simp [Instr.outputs], ?_⟩, Iff.rfl⟩
@@ -410,7 +410,7 @@ theorem scale {a : Var} {ga : Word} (by_ : Word) (ha : P → IsWord c n a ga) :
     simp [(ha hP).read hE hl, word_mul]
 
 theorem mul {a b : Var} {ga gb : Word} (ha : P → IsWord c n a ga) (hb : P → IsWord c n b gb) :
-    Sim c n P (Build.mul a b) (fun h m => IsWord c m h (ga * gb)) True :=
+    Simulates c n P (Build.mul a b) (fun h m => IsWord c m h (ga * gb)) True :=
   emit _ fun hP E hl hF => by
     have hE := Ctx.follows_of_step hF
     refine ⟨⟨by simp [Instr.outputs], ?_⟩, Iff.rfl⟩
@@ -418,7 +418,7 @@ theorem mul {a b : Var} {ga gb : Word} (ha : P → IsWord c n a ga) (hb : P → 
     simp [(ha hP).read hE hl, (hb hP).read hE hl, word_mul]
 
 theorem assertZero {a : Var} {ga : Word} (ha : P → IsWord c n a ga) :
-    Sim c n P (Build.assertZero a) (fun _ _ => True) (ga = 0) := by
+    Simulates c n P (Build.assertZero a) (fun _ _ => True) (ga = 0) := by
   refine ((emit (Q := fun _ _ => True) (C := ga = 0) (.assertZero a) fun hP E hl hF => ⟨trivial, ?_⟩).bind
     fun _ _ _ => pure fun _ => trivial).post (fun _ _ _ h => h) (fun _ => Iff.of_eq (and_true _))
   show E.holds ∧ E.value a = 0 ↔ E.holds ∧ ga = 0
@@ -426,7 +426,7 @@ theorem assertZero {a : Var} {ga : Word} (ha : P → IsWord c n a ga) :
   exact and_congr_right fun _ => ⟨fun h => word_injective (h.trans word_zero.symm), fun h => h ▸ word_zero⟩
 
 theorem assertEqual {a b : Var} {ga gb : Word} (ha : P → IsWord c n a ga) (hb : P → IsWord c n b gb) :
-    Sim c n P (Build.assertEqual a b) (fun _ _ => True) (ga = gb) :=
+    Simulates c n P (Build.assertEqual a b) (fun _ _ => True) (ga = gb) :=
   ((sub ha hb).bind fun _ _ _ => assertZero fun h => h.2).post (fun _ _ _ h => h)
     (fun _ => by rw [true_and, gl_sub_eq_zero])
 
@@ -434,7 +434,7 @@ omit [CharP F goldilocksModulus] in
 /-- `r1cs` (`record.rs:450-460`): the rows hold on the values of the column
 handles. -/
 theorem r1cs {rows : List (Shrink.R1csRow Word)} {columns : List Var} (hc : P → ∀ h ∈ columns, h < n) :
-    Sim c n P (Build.r1cs rows columns) (fun _ _ => True)
+    Simulates c n P (Build.r1cs rows columns) (fun _ _ => True)
       (∀ r ∈ rows, R1csRow.Holds (fun j => (columns.map c.val).getD j 0) r) := by
   refine ((emit (Q := fun _ _ => True) (C := ∀ r ∈ rows, R1csRow.Holds (fun j => (columns.map c.val).getD j 0) r)
     (.r1cs rows columns) fun hP E hl hF => ⟨trivial, ?_⟩).bind fun _ _ _ => pure fun _ => trivial).post
@@ -443,7 +443,7 @@ theorem r1cs {rows : List (Shrink.R1csRow Word)} {columns : List Var} (hc : P �
   rw [List.map_congr_left fun h mem => Ctx.follows_of_step hF h (hl ▸ hc hP h mem)]
 
 theorem extMul {a b : ExtVar} {ga gb : Ext} (ha : P → IsExt c n a ga) (hb : P → IsExt c n b gb) :
-    Sim c n P (Build.extMul a b) (fun r m => IsExt c m r (ga * gb)) True :=
+    Simulates c n P (Build.extMul a b) (fun r m => IsExt c m r (ga * gb)) True :=
   (emit (Q := fun h m => ∀ k : Fin 3, IsWord c m (h + k) ((ga * gb).coord k)) _ fun hP E hl hF => by
     have hE := Ctx.follows_of_step hF
     refine ⟨fun k => ⟨Nat.add_lt_add_left k.isLt n, ?_⟩, Iff.rfl⟩
@@ -455,7 +455,7 @@ theorem extMul {a b : ExtVar} {ga gb : Ext} (ha : P → IsExt c n a ga) (hb : P 
 
 theorem extInv {a : ExtVar} {ga gi : Ext} (ha : P → IsExt c n a ga)
     (hi : P → ∀ k : Fin 3, c.tape (n + k) = Word.cast (gi.coord k)) :
-    Sim c n P (Build.extInv a) (fun r m => IsExt c m r gi) (ga * gi = 1) :=
+    Simulates c n P (Build.extInv a) (fun r m => IsExt c m r gi) (ga * gi = 1) :=
   (emit (Q := fun h m => ∀ k : Fin 3, IsWord c m (h + k) (gi.coord k)) _ fun hP E hl hF => by
     have hE := Ctx.follows_of_step hF
     have ra : (fun i => E.value (a i)) = fun i => Word.cast (ga.coord i) := funext fun i => (ha hP i).read hE hl
@@ -477,7 +477,7 @@ theorem extInv {a : ExtVar} {ga gi : Ext} (ha : P → IsExt c n a ga)
 
 omit [CharP F goldilocksModulus] in
 theorem bits {a : Var} {ga : Word} (count : ℕ) (ha : P → IsWord c n a ga) :
-    Sim c n P (Build.bits a count) (fun bs m => ∀ i, bs i = n + i ∧ bs i < m ∧ c.val (bs i) = c.tape (bs i))
+    Simulates c n P (Build.bits a count) (fun bs m => ∀ i, bs i = n + i ∧ bs i < m ∧ c.val (bs i) = c.tape (bs i))
       (Bits (Word.cast ga) count fun i => c.tape (n + i)) :=
   (emit (Q := fun h m => h = n ∧ ∀ i : Fin count, h + i < m ∧ c.val (h + i) = c.tape (h + i)) _ fun hP E hl hF => by
     refine ⟨⟨rfl, fun i => ⟨by simp [Instr.outputs], ?_⟩⟩, ?_⟩
@@ -488,7 +488,7 @@ theorem bits {a : Var} {ga : Word} (count : ℕ) (ha : P → IsWord c n a ga) :
 
 omit [CharP F goldilocksModulus] in
 theorem hint (count : ℕ) :
-    Sim c n P (Build.hint count) (fun hs m => ∀ i, hs i = n + i ∧ hs i < m ∧ c.val (hs i) = c.tape (hs i)) True :=
+    Simulates c n P (Build.hint count) (fun hs m => ∀ i, hs i = n + i ∧ hs i < m ∧ c.val (hs i) = c.tape (hs i)) True :=
   (emit (Q := fun h m => h = n ∧ ∀ i : Fin count, h + i < m ∧ c.val (h + i) = c.tape (h + i)) _ fun _ E hl hF =>
     ⟨⟨rfl, fun i => ⟨by simp [Instr.outputs], by rw [← hl, Ctx.val_next hF (by simp)]; simp⟩⟩, Iff.rfl⟩).map
     fun _ _ h i => ⟨by rw [← h.1]; rfl, h.2 i⟩
@@ -496,7 +496,7 @@ theorem hint (count : ℕ) :
 omit [CharP F goldilocksModulus] in
 theorem permute {state : Fin 16 → Var} {gs : Array Word} (hp : Permutes c.perm)
     (hs : P → ∀ k, IsWord c n (state k) gs[k]!) :
-    Sim c n P (Build.permute state) (fun r m => ∀ k, IsWord c m (r k) (Replay.permute gs)[k]!) True :=
+    Simulates c n P (Build.permute state) (fun r m => ∀ k, IsWord c m (r k) (Replay.permute gs)[k]!) True :=
   (emit (Q := fun h m => ∀ k : Fin 16, IsWord c m (h + k) (Replay.permute gs)[k]!) _ fun hP E hl hF => by
     have hE := Ctx.follows_of_step hF
     have rs : (fun k => E.value (state k)) = fun k : Fin 16 => Word.cast gs[k]! := funext fun k => (hs hP k).read hE hl
@@ -505,38 +505,38 @@ theorem permute {state : Fin 16 → Var} {gs : Array Word} (hp : Permutes c.perm
     simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
     rw [dif_pos k.isLt, Option.getD_some, ← hp gs k, rs, List.getD_eq_getElem?_getD]).map fun _ _ h k => h k
 
-end Sim
+end Simulates
 
 end Instructions
 
 /-! ## Loops and transcripts -/
 
-namespace Sim
+namespace Simulates
 
 variable {c : Ctx F} {α β γ δ : Type} {n : ℕ} {P : Prop} {Q : α → ℕ → Prop} {C : Prop}
 
 /-- A loop from step `j` on. -/
 theorem loop_from {xs : List δ} {body : δ → γ → Build (ForInStep γ)} (I : ℕ → γ → ℕ → Prop) (D : ℕ → Prop)
-    (step : ∀ k (hk : k < xs.length) acc m, n ≤ m → Sim c m (P ∧ I k acc m) (body xs[k] acc)
+    (step : ∀ k (hk : k < xs.length) acc m, n ≤ m → Simulates c m (P ∧ I k acc m) (body xs[k] acc)
       (fun r m' => r = .yield r.value ∧ I (k + 1) r.value m') (D k)) :
     ∀ t j, xs.length - j = t → j ≤ xs.length → ∀ acc m, n ≤ m →
-      Sim c m (P ∧ I j acc m) (forIn (xs.drop j) acc body) (fun r m' => I xs.length r m')
+      Simulates c m (P ∧ I j acc m) (forIn (xs.drop j) acc body) (fun r m' => I xs.length r m')
         (∀ k, j ≤ k → k < xs.length → D k)
   | 0, j, ht, hj, acc, m, _ => by
       have e : j = xs.length := by omega
       subst e
       rw [List.drop_length, List.forIn_nil]
-      exact (Sim.pure fun h => h.2).post (fun _ _ _ h => h) fun _ => ⟨fun _ k lo hi => absurd hi (by omega),
+      exact (Simulates.pure fun h => h.2).post (fun _ _ _ h => h) fun _ => ⟨fun _ k lo hi => absurd hi (by omega),
         fun _ => trivial⟩
   | t + 1, j, ht, hj, acc, m, hm => by
       have hj' : j < xs.length := by omega
       rw [List.drop_eq_getElem_cons hj', List.forIn_cons]
-      refine (Sim.bind (C' := ∀ k, j + 1 ≤ k → k < xs.length → D k) (step j hj' acc m hm) fun r m' le => ?_).post (fun _ _ _ h => h) fun _ =>
+      refine (Simulates.bind (C' := ∀ k, j + 1 ≤ k → k < xs.length → D k) (step j hj' acc m hm) fun r m' le => ?_).post (fun _ _ _ h => h) fun _ =>
         ⟨fun h k lo hi => (Nat.eq_or_lt_of_le lo).elim (fun e => e ▸ h.1) fun lt => h.2 k lt hi,
           fun h => ⟨h j le_rfl hj', fun k lo hi => h k (by omega) hi⟩⟩
       cases r with
       | done b =>
-          exact (Sim.pure (Q := fun _ _ => True) fun _ => trivial).post (fun h => absurd h.2.1 (by simp))
+          exact (Simulates.pure (Q := fun _ _ => True) fun _ => trivial).post (fun h => absurd h.2.1 (by simp))
             fun h => absurd h.2.1 (by simp)
       | yield b =>
           exact (loop_from I D step t (j + 1) (by omega) hj' b m' (hm.trans le)).pre fun h => ⟨h.1.1, h.2.2⟩
@@ -545,57 +545,57 @@ theorem loop_from {xs : List δ} {body : δ → γ → Build (ForInStep γ)} (I 
 `acc` with `m` values. Step `k` checks `D k`. -/
 theorem loop {xs : List δ} {init : γ} {body : δ → γ → Build (ForInStep γ)} (I : ℕ → γ → ℕ → Prop)
     (D : ℕ → Prop)
-    (step : ∀ k (hk : k < xs.length) acc m, n ≤ m → Sim c m (P ∧ I k acc m) (body xs[k] acc)
+    (step : ∀ k (hk : k < xs.length) acc m, n ≤ m → Simulates c m (P ∧ I k acc m) (body xs[k] acc)
       (fun r m' => r = .yield r.value ∧ I (k + 1) r.value m') (D k)) :
-    Sim c n (P ∧ I 0 init n) (forIn xs init body) (fun r m => I xs.length r m) (∀ k < xs.length, D k) :=
+    Simulates c n (P ∧ I 0 init n) (forIn xs init body) (fun r m => I xs.length r m) (∀ k < xs.length, D k) :=
   (loop_from I D step _ 0 rfl (Nat.zero_le _) init n le_rfl).post (fun _ _ _ h => h)
     fun _ => ⟨fun h k hk => h k (Nat.zero_le _) hk, fun h k _ hk => h k hk⟩
 
 /-- `t >>= g` in a transcript. -/
 theorem tbind {t : Transcript α} {g : α → Transcript β} {d : Duplex} {R : β × Duplex → ℕ → Prop} {C' : Prop}
-    {Q : α × Duplex → ℕ → Prop} (ht : Sim c n P (t.run d) Q C)
-    (hg : ∀ a e m, n ≤ m → Sim c m (P ∧ Q (a, e) m) ((g a).run e) R C') : Sim c n P ((t >>= g).run d) R (C ∧ C') := by
+    {Q : α × Duplex → ℕ → Prop} (ht : Simulates c n P (t.run d) Q C)
+    (hg : ∀ a e m, n ≤ m → Simulates c m (P ∧ Q (a, e) m) ((g a).run e) R C') : Simulates c n P ((t >>= g).run d) R (C ∧ C') := by
   rw [StateT.run_bind]
   exact ht.bind fun r m le => hg r.1 r.2 m le
 
 /-- `tbind` when `t` checks nothing. -/
 theorem tbind₀ {t : Transcript α} {g : α → Transcript β} {d : Duplex} {R : β × Duplex → ℕ → Prop} {C' : Prop}
-    {Q : α × Duplex → ℕ → Prop} (ht : Sim c n P (t.run d) Q True)
-    (hg : ∀ a e m, n ≤ m → Sim c m (P ∧ Q (a, e) m) ((g a).run e) R C') : Sim c n P ((t >>= g).run d) R C' := by
+    {Q : α × Duplex → ℕ → Prop} (ht : Simulates c n P (t.run d) Q True)
+    (hg : ∀ a e m, n ≤ m → Simulates c m (P ∧ Q (a, e) m) ((g a).run e) R C') : Simulates c n P ((t >>= g).run d) R C' := by
   have h := ht.tbind hg
   rwa [true_and] at h
 
 /-- A builder call in a transcript. -/
-theorem lift {b : Build α} {d : Duplex} (h : Sim c n P b Q C) :
-    Sim c n P ((monadLift b : Transcript α).run d) (fun r m => Q r.1 m ∧ r.2 = d) C := by
+theorem lift {b : Build α} {d : Duplex} (h : Simulates c n P b Q C) :
+    Simulates c n P ((monadLift b : Transcript α).run d) (fun r m => Q r.1 m ∧ r.2 = d) C := by
   rw [StateT.run_monadLift]
-  exact (h.bind fun a m _ => Sim.pure fun h => ⟨h.2, rfl⟩).post (fun _ _ _ h => h) fun _ => Iff.of_eq (and_true _)
+  exact (h.bind fun a m _ => Simulates.pure fun h => ⟨h.2, rfl⟩).post (fun _ _ _ h => h) fun _ => Iff.of_eq (and_true _)
 
 /-- A loop over a list in a transcript; `I k acc e m` also names the duplex. -/
 theorem loopT_from {xs : List δ} {body : δ → γ → Transcript (ForInStep γ)} (I : ℕ → γ → Duplex → ℕ → Prop)
     (D : ℕ → Prop)
-    (step : ∀ k (hk : k < xs.length) acc e m, n ≤ m → Sim c m (P ∧ I k acc e m) ((body xs[k] acc).run e)
+    (step : ∀ k (hk : k < xs.length) acc e m, n ≤ m → Simulates c m (P ∧ I k acc e m) ((body xs[k] acc).run e)
       (fun r m' => r.1 = .yield r.1.value ∧ I (k + 1) r.1.value r.2 m') (D k)) :
     ∀ t j, xs.length - j = t → j ≤ xs.length → ∀ acc e m, n ≤ m →
-      Sim c m (P ∧ I j acc e m) ((forIn (xs.drop j) acc body).run e) (fun r m' => I xs.length r.1 r.2 m')
+      Simulates c m (P ∧ I j acc e m) ((forIn (xs.drop j) acc body).run e) (fun r m' => I xs.length r.1 r.2 m')
         (∀ k, j ≤ k → k < xs.length → D k)
   | 0, j, ht, hj, acc, e, m, _ => by
       have h : j = xs.length := by omega
       subst h
       rw [List.drop_length, List.forIn_nil, StateT.run_pure]
-      exact (Sim.pure fun h => h.2).post (fun _ _ _ h => h) fun _ => ⟨fun _ k lo hi => absurd hi (by omega),
+      exact (Simulates.pure fun h => h.2).post (fun _ _ _ h => h) fun _ => ⟨fun _ k lo hi => absurd hi (by omega),
         fun _ => trivial⟩
   | t + 1, j, ht, hj, acc, e, m, hm => by
       have hj' : j < xs.length := by omega
       rw [List.drop_eq_getElem_cons hj', List.forIn_cons, StateT.run_bind]
-      refine (Sim.bind (C' := ∀ k, j + 1 ≤ k → k < xs.length → D k) (step j hj' acc e m hm) fun r m' le => ?_).post (fun _ _ _ h => h) fun _ =>
+      refine (Simulates.bind (C' := ∀ k, j + 1 ≤ k → k < xs.length → D k) (step j hj' acc e m hm) fun r m' le => ?_).post (fun _ _ _ h => h) fun _ =>
         ⟨fun h k lo hi => (Nat.eq_or_lt_of_le lo).elim (fun e => e ▸ h.1) fun lt => h.2 k lt hi,
           fun h => ⟨h j le_rfl hj', fun k lo hi => h k (by omega) hi⟩⟩
       obtain ⟨r, e'⟩ := r
       cases r with
       | done b =>
-          show Sim c m' _ (Pure.pure (b, e') : Build (γ × Duplex)) _ _
-          exact (Sim.pure (Q := fun _ _ => True) fun _ => trivial).post (fun h => absurd h.2.1 (by simp))
+          show Simulates c m' _ (Pure.pure (b, e') : Build (γ × Duplex)) _ _
+          exact (Simulates.pure (Q := fun _ _ => True) fun _ => trivial).post (fun h => absurd h.2.1 (by simp))
             fun h => absurd h.2.1 (by simp)
       | yield b =>
           exact (loopT_from I D step t (j + 1) (by omega) hj' b e' m' (hm.trans le)).pre fun h => ⟨h.1.1, h.2.2⟩
@@ -603,9 +603,9 @@ theorem loopT_from {xs : List δ} {body : δ → γ → Transcript (ForInStep γ
 /-- **A loop over a list in a transcript.** -/
 theorem loopT {xs : List δ} {init : γ} {body : δ → γ → Transcript (ForInStep γ)} {d : Duplex}
     (I : ℕ → γ → Duplex → ℕ → Prop) (D : ℕ → Prop)
-    (step : ∀ k (hk : k < xs.length) acc e m, n ≤ m → Sim c m (P ∧ I k acc e m) ((body xs[k] acc).run e)
+    (step : ∀ k (hk : k < xs.length) acc e m, n ≤ m → Simulates c m (P ∧ I k acc e m) ((body xs[k] acc).run e)
       (fun r m' => r.1 = .yield r.1.value ∧ I (k + 1) r.1.value r.2 m') (D k)) :
-    Sim c n (P ∧ I 0 init d n) ((forIn xs init body).run d) (fun r m => I xs.length r.1 r.2 m)
+    Simulates c n (P ∧ I 0 init d n) ((forIn xs init body).run d) (fun r m => I xs.length r.1 r.2 m)
       (∀ k < xs.length, D k) :=
   (loopT_from I D step _ 0 rfl (Nat.zero_le _) init d n le_rfl).post (fun _ _ _ h => h)
     fun _ => ⟨fun h k hk => h k (Nat.zero_le _) hk, fun h k _ hk => h k hk⟩
@@ -613,30 +613,30 @@ theorem loopT {xs : List δ} {init : γ} {body : δ → γ → Transcript (ForIn
 /-- `mapM` over a list: result `i` meets `R` at entry `i`, which survives
 later values. -/
 theorem listMapM {f : δ → Build α} (R : δ → α → ℕ → Prop) (mono : ∀ x a m m', R x a m → m ≤ m' → R x a m') :
-    ∀ (xs : List δ) {n : ℕ} {P : Prop}, (∀ x ∈ xs, ∀ m, n ≤ m → Sim c m P (f x) (R x) True) →
-      Sim c n P (xs.mapM f) (fun as m => List.Forall₂ (fun x a => R x a m) xs as) True
+    ∀ (xs : List δ) {n : ℕ} {P : Prop}, (∀ x ∈ xs, ∀ m, n ≤ m → Simulates c m P (f x) (R x) True) →
+      Simulates c n P (xs.mapM f) (fun as m => List.Forall₂ (fun x a => R x a m) xs as) True
   | [], n, P, _ => by
       rw [List.mapM_nil]
-      exact Sim.pure fun _ => List.Forall₂.nil
+      exact Simulates.pure fun _ => List.Forall₂.nil
   | x :: xs, n, P, h => by
       rw [List.mapM_cons]
       refine (h x List.mem_cons_self n le_rfl).bind₀ fun a m le => ?_
       refine (listMapM R mono xs (P := P ∧ R x a m) fun y hy m' le' =>
         (h y (List.mem_cons_of_mem _ hy) m' (le.trans le')).pre fun h => h.1).bind₀ fun as m' le' => ?_
-      exact Sim.pure fun hh => List.Forall₂.cons (mono _ _ _ _ hh.1.2 le') hh.2
+      exact Simulates.pure fun hh => List.Forall₂.cons (mono _ _ _ _ hh.1.2 le') hh.2
 
 /-- `mapM` over an array. -/
 theorem mapM {n : ℕ} {P : Prop} {xs : Array δ} {f : δ → Build α} (R : δ → α → ℕ → Prop)
-    (mono : ∀ x a m m', R x a m → m ≤ m' → R x a m') (h : ∀ x ∈ xs, ∀ m, n ≤ m → Sim c m P (f x) (R x) True) :
-    Sim c n P (xs.mapM f) (fun as m => List.Forall₂ (fun x a => R x a m) xs.toList as.toList) True := by
+    (mono : ∀ x a m m', R x a m → m ≤ m' → R x a m') (h : ∀ x ∈ xs, ∀ m, n ≤ m → Simulates c m P (f x) (R x) True) :
+    Simulates c n P (xs.mapM f) (fun as m => List.Forall₂ (fun x a => R x a m) xs.toList as.toList) True := by
   rw [Array.mapM_eq_mapM_toList]
   exact (listMapM R mono xs.toList fun x hx => h x (Array.mem_toList_iff.mp hx)).map fun as m h => by simpa using h
 
-end Sim
+end Simulates
 
 /-! ## Soundness only -/
 
-/-- **A builder program, simulated for soundness.** `Sim` in one direction:
+/-- **A builder program, simulated for soundness.** `Simulates` in one direction:
 when the run's checks hold, `b`'s result meets `Q`, and `Q` may use those
 checks. `ProgramEncodes` needs only this direction. A result that means
 something only once a check passes (a bit, a Merkle path) then feeds the
@@ -650,13 +650,13 @@ def Ensures {α : Type} (c : Ctx F) (n : ℕ) (P : Prop) (b : Build α) (Q : α 
 variable {c : Ctx F} {α β γ δ : Type} {n : ℕ} {P : Prop} {Q : α → ℕ → Prop}
 
 /-- A simulated program ensures its result and its checks. -/
-theorem Sim.ensures {b : Build α} {C : Prop} (h : Sim c n P b Q C) : Ensures c n P b fun a m => Q a m ∧ C := by
+theorem Simulates.ensures {b : Build α} {C : Prop} (h : Simulates c n P b Q C) : Ensures c n P b fun a m => Q a m ∧ C := by
   intro p E hp hE
   obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
   exact ⟨new, hi, hl, fun hP hF hh => ⟨(hs hP hF).1, ((hs hP hF).2.mp hh).2⟩⟩
 
 /-- A simulated program that checks nothing ensures its result. -/
-theorem Sim.ensures₀ {b : Build α} (h : Sim c n P b Q True) : Ensures c n P b Q := by
+theorem Simulates.ensures₀ {b : Build α} (h : Simulates c n P b Q True) : Ensures c n P b Q := by
   intro p E hp hE
   obtain ⟨new, hi, hl, hs⟩ := h p E hp hE
   exact ⟨new, hi, hl, fun hP hF _ => (hs hP hF).1⟩
@@ -735,13 +735,13 @@ theorem witness {ι : Type} {b : Build α} {X A : ι → Prop} (i₀ : ι) (h₀
     (h i ha).pre fun H => ⟨H.1, hx⟩
 
 /-- `bind` after a step that checks nothing. -/
-theorem bindSim {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} (hb : Sim c n P b Q True)
+theorem bindSim {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} (hb : Simulates c n P b Q True)
     (hf : ∀ a m, n ≤ m → Ensures c m (P ∧ Q a m) (f a) R) : Ensures c n P (b >>= f) R :=
   hb.ensures₀.bind hf
 
 /-- `bind` after an assertion. -/
 theorem bindCheck {b : Build α} {f : α → Build β} {C : Prop} {R : β → ℕ → Prop}
-    (hb : Sim c n P b (fun _ _ => True) C) (hf : ∀ a m, n ≤ m → Ensures c m (P ∧ C) (f a) R) :
+    (hb : Simulates c n P b (fun _ _ => True) C) (hf : ∀ a m, n ≤ m → Ensures c m (P ∧ C) (f a) R) :
     Ensures c n P (b >>= f) R :=
   (hb.ensures.post fun _ _ _ h => h.2).bind hf
 
@@ -754,7 +754,7 @@ theorem tbind {t : Transcript α} {g : α → Transcript β} {d : Duplex} {R : �
 
 /-- `tbind` after a step that checks nothing. -/
 theorem tbindSim {t : Transcript α} {g : α → Transcript β} {d : Duplex} {R : β × Duplex → ℕ → Prop}
-    {Q : α × Duplex → ℕ → Prop} (ht : Sim c n P (t.run d) Q True)
+    {Q : α × Duplex → ℕ → Prop} (ht : Simulates c n P (t.run d) Q True)
     (hg : ∀ a e m, n ≤ m → Ensures c m (P ∧ Q (a, e) m) ((g a).run e) R) : Ensures c n P ((t >>= g).run d) R :=
   ht.ensures₀.tbind hg
 

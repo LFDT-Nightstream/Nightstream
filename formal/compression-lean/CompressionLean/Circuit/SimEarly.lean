@@ -11,8 +11,8 @@ Owns the simulation of the layer-1 verifier's early stage (`earlyStage` of
 - `earlyStage_ensures`: once the circuit's checks hold, the replay's early
   stage runs from the matching transcript, and `IsEarlyOut` gives what later
   stages read.
-- `Sim.lessThan`, `Sim.step`, `Sim.identity`, `Sim.chi`, `checkPair_ensures`,
-  `Sim.observePairs`: the parts of `mle.rs` and `matrix.rs` that the late
+- `Simulates.lessThan`, `Simulates.step`, `Simulates.identity`, `Simulates.chi`, `checkPair_ensures`,
+  `Simulates.observePairs`: the parts of `mle.rs` and `matrix.rs` that the late
   stage reads too.
 - `gkrVerify_sizes`, `IsGkr.entries` and their helpers: the sizes of the
   replay's GKR claims and the entries of a GKR view, which the late stage
@@ -129,7 +129,7 @@ private theorem toQ_foldl_mul (f : ℕ → Replay.Kx) (k : ℕ) :
 
 /-! ## `mle.rs` in the circuit -/
 
-namespace Sim
+namespace Simulates
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
 
@@ -138,14 +138,14 @@ omit [CharP F goldilocksModulus] in
 `less_than` (`mle.rs:36-55`). -/
 private theorem loopList {δ γ : Type} {xs : List δ} {init : γ} {body : δ → γ → Build (ForInStep γ)}
     (I : ℕ → γ → ℕ → Prop)
-    (step : ∀ k (hk : k < xs.length) acc m, n ≤ m → Sim c m (P ∧ I k acc m) (body xs[k] acc)
+    (step : ∀ k (hk : k < xs.length) acc m, n ≤ m → Simulates c m (P ∧ I k acc m) (body xs[k] acc)
       (fun r m' => r = .yield r.value ∧ I (k + 1) r.value m') True) :
-    Sim c n (P ∧ I 0 init n) (forIn xs init body) (fun r m => I xs.length r m) True :=
-  (Sim.loop I (fun _ => True) step).post (fun _ _ _ h => h) fun _ => ⟨fun _ => trivial, fun _ _ _ => trivial⟩
+    Simulates c n (P ∧ I 0 init n) (forIn xs init body) (fun r m => I xs.length r m) True :=
+  (Simulates.loop I (fun _ => True) step).post (fun _ _ _ h => h) fun _ => ⟨fun _ => trivial, fun _ _ _ => trivial⟩
 
 /-- `less_than`: `Σ_{x < bound} eq(point, x)`, high bit first (`mle.rs:36-55`). -/
 theorem lessThan {point : Array ExtVar} {gpoint : Array Ext} (bound : ℕ) (hp : P → IsExts c n point gpoint) :
-    Sim c n P (Mle.lessThan point bound) (fun r m => IsExt c m r (Replay.lessThan gpoint bound)) True := by
+    Simulates c n P (Mle.lessThan point bound) (fun r m => IsExt c m r (Replay.lessThan gpoint bound)) True := by
   unfold Mle.lessThan
   split
   · rename_i big
@@ -158,7 +158,7 @@ theorem lessThan {point : Array ExtVar} {gpoint : Array Ext} (bound : ℕ) (hp :
     refine extZero.bind₀ fun total m₁ l₁ => extOne.bind₀ fun head m₂ l₂ => ?_
     refine ((loopList (P := (P ∧ IsExt c m₁ total 0) ∧ IsExt c m₂ head 1)
       (fun k acc m => IsExt c m acc.1 (G k).1 ∧ IsExt c m acc.2 (G k).2) fun k hk acc m lm => ?_).pre
-      fun h => ⟨h, h.1.2.mono l₂, h.2⟩).bind₀ fun r m _ => Sim.pure fun h => ?_
+      fun h => ⟨h, h.1.2.mono l₂, h.2⟩).bind₀ fun r m _ => Simulates.pure fun h => ?_
     · have ht : xs[k] < point.size := by
         have mem : xs[k] ∈ (List.range point.size).reverse := List.getElem_mem hk
         rw [List.mem_reverse, List.mem_range] at mem
@@ -174,18 +174,18 @@ theorem lessThan {point : Array ExtVar} {gpoint : Array Ext} (bound : ℕ) (hp :
       · rename_i bit
         have cond : (bound / 2 ^ xs[k]) % 2 = 1 := by
           simpa [Nat.testBit_eq_decide_div_mod_eq] using bit
-        refine (Sim.extMul (fun h => h.1.2.2.mono l₃) fun h => h.2).bind₀ fun term m₄ l₄ => ?_
+        refine (Simulates.extMul (fun h => h.1.2.2.mono l₃) fun h => h.2).bind₀ fun term m₄ l₄ => ?_
         refine (extAdd (fun h => h.1.1.2.1.mono (l₃.trans l₄)) fun h => h.2).bind₀ fun total' m₅ l₅ => ?_
-        refine (Sim.extMul (fun h => h.1.1.1.2.2.mono (l₃.trans (l₄.trans l₅)))
+        refine (Simulates.extMul (fun h => h.1.1.1.2.2.mono (l₃.trans (l₄.trans l₅)))
           fun h => (hx h.1.1.1.1.1.1).mono (L.trans (l₃.trans (l₄.trans l₅)))).bind₀ fun head' m₆ l₆ => ?_
-        refine Sim.pure fun h => ⟨rfl, ?_, ?_⟩ <;> rw [G_succ, lessThanStep, if_pos cond]
+        refine Simulates.pure fun h => ⟨rfl, ?_, ?_⟩ <;> rw [G_succ, lessThanStep, if_pos cond]
         · exact h.1.2.mono l₆
         · exact h.2
       · rename_i bit
         have cond : ¬(bound / 2 ^ xs[k]) % 2 = 1 := by
           simpa [Nat.testBit_eq_decide_div_mod_eq] using bit
-        refine (Sim.extMul (fun h => h.1.2.2.mono l₃) fun h => h.2).bind₀ fun head' m₄ l₄ => ?_
-        refine Sim.pure fun h => ⟨rfl, ?_, ?_⟩ <;> rw [G_succ, lessThanStep, if_neg cond]
+        refine (Simulates.extMul (fun h => h.1.2.2.mono l₃) fun h => h.2).bind₀ fun head' m₄ l₄ => ?_
+        refine Simulates.pure fun h => ⟨rfl, ?_, ?_⟩ <;> rw [G_succ, lessThanStep, if_neg cond]
         · exact h.1.1.2.1.mono (l₃.trans l₄)
         · exact h.2
     · have e := h.2.1
@@ -199,7 +199,7 @@ ending at `stop` (`mle.rs:57-72`). A value past the starts adds nothing. -/
 theorem step {point : Array ExtVar} {gpoint : Array Ext} {starts : Array ℕ} {values : Array ExtVar}
     {gvalues : Array Ext} (stop : ℕ) (hp : P → IsExts c n point gpoint) (hv : P → IsExts c n values gvalues)
     (size : P → starts.size ≤ values.size) :
-    Sim c n P (Mle.step point starts values stop)
+    Simulates c n P (Mle.step point starts values stop)
       (fun r m => IsExt c m r (Replay.step gpoint (starts.toList.zip gvalues.toList) stop)) True := by
   set L : ℕ → Ext := fun s => Replay.lessThan gpoint (starts[s]?.getD stop)
   unfold Mle.step
@@ -208,18 +208,18 @@ theorem step {point : Array ExtVar} {gpoint : Array Ext} {starts : Array ℕ} {v
   refine ((loop₀ (P := (P ∧ IsExt c m₁ total 0) ∧ IsExt c m₂ below (L 0))
     (fun k acc m => IsExt c m acc.1 (Replay.sumRange k (stepTerm gpoint starts gvalues stop)) ∧
       IsExt c m acc.2 (L k)) fun k hk acc m lm => ?_).pre
-    fun h => ⟨h, h.1.2.mono l₂, h.2⟩).bind₀ fun r m _ => Sim.pure fun h => ?_
+    fun h => ⟨h, h.1.2.mono l₂, h.2⟩).bind₀ fun r m _ => Simulates.pure fun h => ?_
   · have hk' : k < values.size := by simpa using hk
     have L₀ : n ≤ m := l₁.trans (l₂.trans lm)
     rw [show values.zipIdx[k] = (values[k]!, k) by simp [getElem!_pos, hk']]
     dsimp only
     refine (lessThan _ fun h => (hp h.1.1.1).mono L₀).bind₀ fun upper m₃ l₃ => ?_
     refine (extSub (fun h => h.2) fun h => h.1.2.2.mono l₃).bind₀ fun interval m₄ l₄ => ?_
-    refine (Sim.extMul (fun h => ((hv h.1.1.1.1.1).2 k hk').mono (L₀.trans (l₃.trans l₄))) fun h => h.2).bind₀
+    refine (Simulates.extMul (fun h => ((hv h.1.1.1.1.1).2 k hk').mono (L₀.trans (l₃.trans l₄))) fun h => h.2).bind₀
       fun term m₅ l₅ => ?_
     refine (extAdd (fun h => h.1.1.1.2.1.mono (l₃.trans (l₄.trans l₅))) fun h => h.2).bind₀
       fun total' m₆ l₆ => ?_
-    exact Sim.pure fun h => ⟨rfl, by rw [sumRange_succ]; exact h.2, h.1.1.1.2.mono (l₄.trans (l₅.trans l₆))⟩
+    exact Simulates.pure fun h => ⟨rfl, by rw [sumRange_succ]; exact h.2, h.1.1.1.2.mono (l₄.trans (l₅.trans l₆))⟩
   · have e := h.2.1
     rw [Array.size_zipIdx, (hv h.1.1.1).1] at e
     rw [step_eq gpoint starts gvalues stop (by rw [← (hv h.1.1.1).1]; exact size h.1.1.1)]
@@ -227,19 +227,19 @@ theorem step {point : Array ExtVar} {gpoint : Array Ext} {starts : Array ℕ} {v
 
 /-- `identity`: `Σ_t 2^t point_t` (`mle.rs:74-82`). -/
 theorem identity {point : Array ExtVar} {gpoint : Array Ext} (hp : P → IsExts c n point gpoint) :
-    Sim c n P (Mle.identity point) (fun r m => IsExt c m r (Replay.identityValue gpoint)) True := by
+    Simulates c n P (Mle.identity point) (fun r m => IsExt c m r (Replay.identityValue gpoint)) True := by
   unfold Mle.identity
   refine extZero.bind₀ fun total m₁ l₁ => ?_
   refine ((loop₀ (P := P ∧ IsExt c m₁ total 0)
     (fun k acc m => IsExt c m acc ((gpoint.reverse.toList.take k).foldl (fun t x => t + t + x) 0))
-    fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun r m _ => Sim.pure fun h => ?_
+    fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun r m _ => Simulates.pure fun h => ?_
   · have hx : P → IsExt c n point.reverse[k] gpoint.reverse[k]! := fun h => by
       have := (hp h).reverse.2 k hk
       rwa [getElem!_pos point.reverse k hk] at this
     refine (extAdd (fun h => h.2) fun h => h.2).bind₀ fun doubled m₂ l₂ => ?_
     refine (extAdd (fun h => h.2) fun h => (hx h.1.1.1).mono (l₁.trans (lm.trans l₂))).bind₀
       fun total' m₃ l₃ => ?_
-    exact Sim.pure fun h => ⟨rfl, by
+    exact Simulates.pure fun h => ⟨rfl, by
       have hk' : k < gpoint.reverse.toList.length := by simpa [← (hp h.1.1.1.1).1] using hk
       rw [List.take_succ_eq_append_getElem hk', List.foldl_append, List.foldl_cons, List.foldl_nil,
         Array.getElem_toList, ← getElem!_pos]
@@ -254,13 +254,13 @@ theorem identity {point : Array ExtVar} {gpoint : Array Ext} (hp : P → IsExts 
 theorem chi {r : Array KVar} {gr : Array (Word × Word)} {point : Array ExtVar} {gpoint : Array Ext}
     (hr : P → r.size = gr.size ∧ ∀ i < r.size, IsWord c n r[i]!.1 gr[i]!.1 ∧ IsWord c n r[i]!.2 gr[i]!.2)
     (hp : P → IsExts c n point gpoint) :
-    Sim c n P (Mle.chi r point) (fun res m => IsKx c m res (Replay.chi gr gpoint)) True := by
+    Simulates c n P (Mle.chi r point) (fun res m => IsKx c m res (Replay.chi gr gpoint)) True := by
   set V : ℕ → Replay.Kx := fun k =>
     (List.range k).foldl (fun v t => v.mul (Replay.chiFactor gr[t]! gpoint[t]?)) Replay.Kx.one
   unfold Mle.chi
   refine KxVar.one.bind₀ fun total m₁ l₁ => ?_
   refine ((loop₀ (P := P ∧ IsKx c m₁ total Replay.Kx.one) (fun k acc m => IsKx c m acc (V k))
-    fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun res m _ => Sim.pure fun h => ?_
+    fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun res m _ => Simulates.pure fun h => ?_
   · have hk' : k < r.size := by simpa using hk
     have L₀ : n ≤ m := l₁.trans lm
     have V_succ : V (k + 1) = (V k).mul (Replay.chiFactor gr[k]! gpoint[k]?) := by
@@ -289,7 +289,7 @@ theorem chi {r : Array KVar} {gr : Array (Word × Word)} {point : Array ExtVar} 
         (hx h.1.1.1.1.1.1.1).mono (L₂.trans (l₃.trans (l₄.trans (l₅.trans l₆))))).bind₀
         fun low m₇ l₇ => ?_
       refine (extAdd (fun h => h.1.2.1.mono l₇) fun h => h.2).bind₀ fun re m₈ l₈ => ?_
-      refine (Sim.pure (Q := fun f m' => IsKx c m' f (Replay.chiFactor gr[k]! gpoint[k]?)) fun h => ?_).bind₀
+      refine (Simulates.pure (Q := fun f m' => IsKx c m' f (Replay.chiFactor gr[k]! gpoint[k]?)) fun h => ?_).bind₀
         fun factor' m₉ l₉ => ?_
       · have some : gpoint[k]? = some gpoint[k]! := by
           rw [getElem!_pos gpoint k ((hp h.1.1.1.1.1.1.1.1.1).1 ▸ inside), Array.getElem?_eq_getElem]
@@ -297,7 +297,7 @@ theorem chi {r : Array KVar} {gr : Array (Word × Word)} {point : Array ExtVar} 
         exact ⟨h.2, h.1.1.2.2.mono (l₇.trans l₈)⟩
       refine (KxVar.mul (fun h => h.1.1.1.1.1.1.1.1.2.mono (l₂.trans (l₃.trans (l₄.trans (l₅.trans
         (l₆.trans (l₇.trans (l₈.trans l₉)))))))) fun h => h.2).bind₀ fun total' m₁₀ l₁₀ => ?_
-      exact Sim.pure fun h => ⟨rfl, V_succ ▸ h.2⟩
+      exact Simulates.pure fun h => ⟨rfl, V_succ ▸ h.2⟩
     · rename_i hpt
       have none : P → gpoint[k]? = none := fun h => by
         rw [Array.getElem?_eq_none_iff, ← (hp h).1]
@@ -307,13 +307,13 @@ theorem chi {r : Array KVar} {gr : Array (Word × Word)} {point : Array ExtVar} 
         fun h => ?_).bind₀ fun total' m₄ l₄ => ?_
       · rw [none h.1.1.1.1]
         exact h.2
-      exact Sim.pure fun h => ⟨rfl, V_succ ▸ h.2⟩
+      exact Simulates.pure fun h => ⟨rfl, V_succ ▸ h.2⟩
   · refine h.2.congr ?_
     rw [Array.size_zipIdx, (hr h.1.1).1, toQ_foldl_mul, Replay.chi, toQ_chiList, Array.length_toList]
     refine Finset.prod_congr rfl fun t _ => ?_
     rw [Array.getElem!_toList, Array.getElem?_toList]
 
-end Sim
+end Simulates
 
 /-! ## The early stage in the replay -/
 
@@ -606,7 +606,7 @@ private theorem inv_hint {ga : Ext} {u : Fin 3 → F} (h : extProduct (coords ga
 the hint is its inverse. -/
 theorem Ensures.extInv {a : ExtVar} {ga : Ext} (ha : P → IsExt c n a ga) :
     Ensures c n P (Build.extInv a) (fun r m => ga ≠ 0 ∧ IsExt c m r ga.inv) := by
-  refine ((Sim.emit (Q := fun h m => h = n ∧ ∀ k : Fin 3, h + k < m ∧ c.val (h + k) = c.tape (h + k))
+  refine ((Simulates.emit (Q := fun h m => h = n ∧ ∀ k : Fin 3, h + k < m ∧ c.val (h + k) = c.tape (h + k))
     (C := extProduct (coords ga) (fun k => c.tape (n + k)) = ![1, 0, 0]) (.extInv a) fun hP E hl hF => ?_).map
     (Q' := fun r m => ∀ k : Fin 3, r k < m ∧ c.val (r k) = c.tape (n + k))
     fun h m q k => q.1 ▸ q.2 k).ensures.post fun _ r m q => ?_
@@ -633,11 +633,11 @@ theorem checkPair_ensures {x y : TreeClaimView} {gx gy : Ext × Ext} (name : Str
   dsimp only at hx hy ⊢
   refine Ensures.bind (Ensures.extInv fun h => (hx h).2) fun _ m₁ l₁ => ?_
   refine Ensures.bind (Ensures.extInv fun h => ((hy h.1).2).mono l₁) fun _ m₂ l₂ => ?_
-  refine Ensures.bind (Sim.extMul (fun h => ((hx h.1.1).1).mono (l₁.trans l₂))
+  refine Ensures.bind (Simulates.extMul (fun h => ((hx h.1.1).1).mono (l₁.trans l₂))
     fun h => ((hy h.1.1).2).mono (l₁.trans l₂)).ensures fun left m₃ l₃ => ?_
-  refine Ensures.bind (Sim.extMul (fun h => ((hy h.1.1.1).1).mono (l₁.trans (l₂.trans l₃)))
+  refine Ensures.bind (Simulates.extMul (fun h => ((hy h.1.1.1).1).mono (l₁.trans (l₂.trans l₃)))
     fun h => ((hx h.1.1.1).2).mono (l₁.trans (l₂.trans l₃))).ensures fun right m₄ l₄ => ?_
-  refine (Sim.assertExtEqual (fun h => h.1.2.1.mono l₄) fun h => h.2.1).ensures.post fun h _ _ q => ?_
+  refine (Simulates.assertExtEqual (fun h => h.1.2.1.mono l₄) fun h => h.2.1).ensures.post fun h _ _ q => ?_
   unfold Replay.pairCheck
   simp [Replay.ensure, ext_not_isZero h.1.1.1.2.1, ext_not_isZero h.1.1.2.1, ext_beq_of_eq q.2]
   rfl
@@ -650,7 +650,7 @@ private theorem tableSum_ensures {counts : Array Var} {gcounts : Array Word} {be
       Replay.tableSum bound gcounts gbeta = .ok (Replay.sumRange gcounts.size (tableTerm bound gcounts gbeta)) ∧
         IsExt c m r (Replay.sumRange gcounts.size (tableTerm bound gcounts gbeta))) := by
   unfold tableSum
-  refine Ensures.bind Sim.extZero.ensures fun total m₁ l₁ => ?_
+  refine Ensures.bind Simulates.extZero.ensures fun total m₁ l₁ => ?_
   rw [← Array.forIn_toList]
   refine Ensures.bind ((Ensures.loop (P := P ∧ (IsExt c m₁ total 0 ∧ True))
     (fun k acc m => (∀ s < k, gbeta - Ext.ofGl (Word.ofNat s - Word.ofNat bound) ≠ 0) ∧
@@ -660,14 +660,14 @@ private theorem tableSum_ensures {counts : Array Var} {gcounts : Array Word} {be
   · have hk' : k < counts.size := by simpa using hk
     rw [show counts.zipIdx.toList[k] = (counts[k]!, k) by simp [getElem!_pos, hk']]
     dsimp only
-    refine Ensures.bind (Sim.extConstant (Ext.ofGl (Word.ofNat k - Word.ofNat bound))).ensures fun value m₂ l₂ => ?_
-    refine Ensures.bind (Sim.extSub (fun h => (hb h.1.1.1).mono (l₁.trans (lm.trans l₂))) fun h => h.2.1).ensures
+    refine Ensures.bind (Simulates.extConstant (Ext.ofGl (Word.ofNat k - Word.ofNat bound))).ensures fun value m₂ l₂ => ?_
+    refine Ensures.bind (Simulates.extSub (fun h => (hb h.1.1.1).mono (l₁.trans (lm.trans l₂))) fun h => h.2.1).ensures
       fun den m₃ l₃ => ?_
     refine Ensures.bind (Ensures.extInv fun h => h.2.1) fun inv m₄ l₄ => ?_
-    refine Ensures.bind (Sim.extScale (fun h => h.2.2) fun h =>
+    refine Ensures.bind (Simulates.extScale (fun h => h.2.2) fun h =>
       ((hc h.1.1.1.1.1).get ((hc h.1.1.1.1.1).1 ▸ hk')).mono (l₁.trans (lm.trans (l₂.trans (l₃.trans l₄))))).ensures
       fun term m₅ l₅ => ?_
-    refine Ensures.bind (Sim.extAdd (fun h => h.1.1.1.1.2.2.mono (l₂.trans (l₃.trans (l₄.trans l₅))))
+    refine Ensures.bind (Simulates.extAdd (fun h => h.1.1.1.1.2.2.mono (l₂.trans (l₃.trans (l₄.trans l₅))))
       fun h => h.2.1).ensures fun total' m₆ l₆ => ?_
     refine Ensures.pure fun h => ⟨rfl, fun s hs => ?_, by rw [sumRange_succ]; exact h.2.1⟩
     rcases Nat.lt_succ_iff_lt_or_eq.mp hs with lt | rfl
@@ -684,25 +684,25 @@ absorbs the words `f g` of its replay value `g`. -/
 private theorem forMList {α β : Type} [Inhabited β] {body : α → Transcript PUnit} {R : ℕ → α → β → Prop}
     (f : β → List Word) (mono : ∀ m m' x g, R m x g → m ≤ m' → R m' x g)
     (hb : ∀ {n : ℕ} {P : Prop} {d : Duplex} {r : Replay.Duplex} x g, (P → IsDuplex c n d r) → (P → R n x g) →
-      Sim c n P ((body x).run d) (fun res m => IsDuplex c m res.2 ((f g).foldl Replay.Duplex.observe r)) True) :
+      Simulates c n P ((body x).run d) (fun res m => IsDuplex c m res.2 ((f g).foldl Replay.Duplex.observe r)) True) :
     ∀ (l : List α) (gl : List β) {n : ℕ} {P : Prop} {d : Duplex} {r : Replay.Duplex}, (P → IsDuplex c n d r) →
       (P → List.Forall₂ (R n) l gl) →
-      Sim c n P ((l.foldlM (fun _ x => body x) PUnit.unit).run d)
+      Simulates c n P ((l.foldlM (fun _ x => body x) PUnit.unit).run d)
         (fun res m => IsDuplex c m res.2 ((gl.flatMap f).foldl Replay.Duplex.observe r)) True
   | [], gl, n, P, d, r, hd, hl => by
       rw [List.foldlM_nil, StateT.run_pure]
-      exact Sim.pure fun h => by
+      exact Simulates.pure fun h => by
         rw [List.forall₂_nil_left_iff.mp (hl h)]
         exact hd h
   | x :: l, gl, n, P, d, r, hd, hl => by
       rw [List.foldlM_cons, StateT.run_bind]
       cases gl with
       | nil =>
-          exact (Sim.bind₀ (hb x default hd fun h => absurd (hl h) (by simp)) fun _ _ _ =>
+          exact (Simulates.bind₀ (hb x default hd fun h => absurd (hl h) (by simp)) fun _ _ _ =>
             forMList f mono hb l [] (fun h => h.2) fun h => absurd (hl h.1) (by simp)).post
             (fun h => absurd (hl h) (by simp)) fun h => absurd (hl h) (by simp)
       | cons g gl =>
-          refine Sim.bind₀ (hb x g hd fun h => (List.forall₂_cons.mp (hl h)).1) fun res m le => ?_
+          refine Simulates.bind₀ (hb x g hd fun h => (List.forall₂_cons.mp (hl h)).1) fun res m le => ?_
           refine (forMList f mono hb l gl (fun h => h.2) fun h =>
             ((List.forall₂_cons.mp (hl h.1)).2).imp fun _ _ hr => mono _ _ _ _ hr le).post
             (fun _ _ _ q => ?_) fun _ => Iff.rfl
@@ -711,10 +711,10 @@ private theorem forMList {α β : Type} [Inhabited β] {body : α → Transcript
 
 /-- `observe_pairs` (`verifier.rs:326-331`): the replay's `observeExts` of the
 flattened pairs. -/
-theorem Sim.observePairs {d : Duplex} {r : Replay.Duplex} {pairs : Array (ExtVar × ExtVar)}
+theorem Simulates.observePairs {d : Duplex} {r : Replay.Duplex} {pairs : Array (ExtVar × ExtVar)}
     {gpairs : Array (Ext × Ext)} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r)
     (hv : P → List.Forall₂ (IsPair c n) pairs.toList gpairs.toList) :
-    Sim c n P ((Circuit.observePairs pairs).run d)
+    Simulates c n P ((Circuit.observePairs pairs).run d)
       (fun res m => IsDuplex c m res.2
         (((Replay.flatPairs gpairs).flatMap fun g => #[g.c0, g.c1, g.c2]).foldl Replay.Duplex.observe r)) True := by
   unfold Circuit.observePairs Array.forM
@@ -726,8 +726,8 @@ theorem Sim.observePairs {d : Duplex} {r : Replay.Duplex} {pairs : Array (ExtVar
     dsimp only
     rw [StateT.run_bind]
     simp only [List.foldl_cons, List.foldl_nil]
-    exact (Sim.observeExt hp hd fun h => (hx h).1).bind₀ fun _ _ l =>
-      Sim.observeExt hp (fun h => h.2) fun h => (hx h.1).2.mono l
+    exact (Simulates.observeExt hp hd fun h => (hx h).1).bind₀ fun _ _ l =>
+      Simulates.observeExt hp (fun h => h.2) fun h => (hx h.1).2.mono l
   · have e : ((Replay.flatPairs gpairs).flatMap fun g => #[g.c0, g.c1, g.c2]).toList =
         gpairs.toList.flatMap fun g => [g.1.c0, g.1.c1, g.1.c2, g.2.c0, g.2.c1, g.2.c2] := by
       rw [Array.toList_flatMap, Replay.flatPairs, Array.toList_flatMap, List.flatMap_assoc]
@@ -752,24 +752,24 @@ private theorem observeEarly_sim {d : Duplex} {r : Replay.Duplex} {values : Earl
     (hruns : P → IsExts c n values.runs #[gv.eRe, gv.eIm, gv.row])
     (hpairs : P → List.Forall₂ (IsPair c n) values.pairs.toList gv.pairs.toList)
     (hblock : P → IsExt c n values.block gv.block) :
-    Sim c n P ((observeEarly values).run d) (fun res m => IsDuplex c m res.2
+    Simulates c n P ((observeEarly values).run d) (fun res m => IsDuplex c m res.2
       (((#[gv.eRe, gv.eIm, gv.row] ++ Replay.flatPairs gv.pairs ++ #[gv.block]).flatMap
         fun g => #[g.c0, g.c1, g.c2]).foldl Replay.Duplex.observe r)) True := by
   unfold observeEarly
   rw [StateT.run_bind]
-  refine Sim.bind₀ (P := P) (Q := fun res m => IsDuplex c m res.2
+  refine Simulates.bind₀ (P := P) (Q := fun res m => IsDuplex c m res.2
     (([gv.eRe, gv.eIm, gv.row].flatMap fun g => [g.c0, g.c1, g.c2]).foldl Replay.Duplex.observe r)) ?_
     fun _ m₁ l₁ => ?_
   · unfold Array.forM
     rw [← Array.foldlM_toList]
     exact forMList (R := fun m => IsExt c m) (fun g => [g.c0, g.c1, g.c2]) (fun _ _ _ _ h le => h.mono le)
-      (fun x g hd hx => by simp only [List.foldl_cons, List.foldl_nil]; exact Sim.observeExt hp hd hx)
+      (fun x g hd hx => by simp only [List.foldl_cons, List.foldl_nil]; exact Simulates.observeExt hp hd hx)
       values.runs.toList [gv.eRe, gv.eIm, gv.row] hd
       fun h => isExts_forall₂ (hruns h)
   rw [StateT.run_bind]
-  refine Sim.bind₀ (Sim.observePairs hp (fun h => h.2) fun h => ((hpairs h.1).imp fun _ _ q => q.mono l₁))
+  refine Simulates.bind₀ (Simulates.observePairs hp (fun h => h.2) fun h => ((hpairs h.1).imp fun _ _ q => q.mono l₁))
     fun _ m₂ l₂ => ?_
-  refine (Sim.observeExt hp (fun h => h.2) fun h => (hblock h.1.1).mono (l₁.trans l₂)).post (fun _ _ _ q => ?_)
+  refine (Simulates.observeExt hp (fun h => h.2) fun h => (hblock h.1.1).mono (l₁.trans l₂)).post (fun _ _ _ q => ?_)
     fun _ => Iff.rfl
   have e : ((#[gv.eRe, gv.eIm, gv.row] ++ Replay.flatPairs gv.pairs ++ #[gv.block]).flatMap
       fun g => #[g.c0, g.c1, g.c2]).toList = ([gv.eRe, gv.eIm, gv.row].flatMap fun g => [g.c0, g.c1, g.c2]) ++
@@ -784,19 +784,19 @@ private theorem observeEarly_sim {d : Duplex} {r : Replay.Duplex} {values : Earl
 /-- `tuple`: `i + γ·(re + γ·im)` (`matrix.rs:394-400`). -/
 private theorem tuple_sim {index gamma re im : ExtVar} {gi gg gr gm : Ext} (hi : P → IsExt c n index gi)
     (hg : P → IsExt c n gamma gg) (hr : P → IsExt c n re gr) (hm : P → IsExt c n im gm) :
-    Sim c n P (tuple index gamma re im) (fun r m => IsExt c m r (Replay.tuple gg gi gr gm)) True :=
-  (Sim.extMul hg hm).bind₀ fun _ _ l₁ => (Sim.extAdd (fun h => (hr h.1).mono l₁) fun h => h.2).bind₀
-    fun _ _ l₂ => (Sim.extMul (fun h => (hg h.1.1).mono (l₁.trans l₂)) fun h => h.2).bind₀ fun _ _ l₃ =>
-    Sim.extAdd (fun h => (hi h.1.1.1).mono (l₁.trans (l₂.trans l₃))) fun h => h.2
+    Simulates c n P (tuple index gamma re im) (fun r m => IsExt c m r (Replay.tuple gg gi gr gm)) True :=
+  (Simulates.extMul hg hm).bind₀ fun _ _ l₁ => (Simulates.extAdd (fun h => (hr h.1).mono l₁) fun h => h.2).bind₀
+    fun _ _ l₂ => (Simulates.extMul (fun h => (hg h.1.1).mono (l₁.trans l₂)) fun h => h.2).bind₀ fun _ _ l₃ =>
+    Simulates.extAdd (fun h => (hi h.1.1.1).mono (l₁.trans (l₂.trans l₃))) fun h => h.2
 
 /-- `matrix_step` (`matrix.rs:368-380`): the replay's `matrixStep`. -/
 private theorem matrixStep_sim {layout : Replay.Layout} {point : Array ExtVar} {gpoint : Array Ext}
     (hp : P → IsExts c n point gpoint) :
-    Sim c n P (matrixStep layout point) (fun r m => IsExt c m r (Replay.matrixStep layout gpoint)) True := by
+    Simulates c n P (matrixStep layout point) (fun r m => IsExt c m r (Replay.matrixStep layout gpoint)) True := by
   unfold matrixStep
-  refine (Sim.rangeMapM layout.matrices (fun j a m => IsExt c m a (Ext.ofGl (Word.ofNat j)))
-    (fun _ _ _ _ h le => h.mono le) fun j _ m _ => Sim.extConstant _).bind₀ fun values m₁ l₁ => ?_
-  refine (Sim.step (gvalues := (Array.range layout.matrices).map fun j => Ext.ofGl (Word.ofNat j)) _
+  refine (Simulates.rangeMapM layout.matrices (fun j a m => IsExt c m a (Ext.ofGl (Word.ofNat j)))
+    (fun _ _ _ _ h le => h.mono le) fun j _ m _ => Simulates.extConstant _).bind₀ fun values m₁ l₁ => ?_
+  refine (Simulates.step (gvalues := (Array.range layout.matrices).map fun j => Ext.ofGl (Word.ofNat j)) _
     (fun h => (hp h.1).mono l₁) (fun h => ⟨by simp [h.2.1], fun i hi => ?_⟩) fun h => ?_).post
     (fun _ _ _ e => ?_) fun _ => Iff.rfl
   · have hi' : i < layout.matrices := h.2.1 ▸ hi
@@ -852,22 +852,22 @@ private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr
     Replay.pairCheck g.roots[3]! g.roots[4]! "slot scatter" = .ok ()) ?_ fun h => ⟨h.1.1, h.1.2, h.2⟩
   refine Ensures.bindSim (tuple_sim (fun h => runRow h.1 L₂) (fun h => (chs h.1 L₂).2.1)
     (fun h => runRe h.1 L₂) fun h => runIm h.1 L₂) fun combined m₃ l₃ => ?_
-  refine Ensures.bindSim (Sim.extSub (fun h => (chs h.1.1 (L₂.trans l₃)).1) fun h => h.2) fun expected m₄ l₄ => ?_
-  refine Ensures.bindCheck (Sim.assertExtEqual (fun h => (tree₁ h.1.1.1 (L₂.trans (l₃.trans l₄))).value
+  refine Ensures.bindSim (Simulates.extSub (fun h => (chs h.1.1 (L₂.trans l₃)).1) fun h => h.2) fun expected m₄ l₄ => ?_
+  refine Ensures.bindCheck (Simulates.assertExtEqual (fun h => (tree₁ h.1.1.1 (L₂.trans (l₃.trans l₄))).value
     (by have := (hsizes h.1.1.1).1; omega)) fun h => h.2) fun _ m₅ l₅ => ?_
   have L₅ : n ≤ m₅ := L₂.trans (l₃.trans (l₄.trans l₅))
   refine Ensures.pre (P' := P ∧ Replay.pairCheck g.roots[1]! g.roots[2]! "row lookup" = .ok () ∧
     Replay.pairCheck g.roots[3]! g.roots[4]! "slot scatter" = .ok () ∧
     g.leafValue 1 0 = ch.lookup.1 - Replay.tuple ch.lookup.2 gv.row gv.eRe gv.eIm) ?_
     fun h => ⟨h.1.1.1.1, h.1.1.1.2.1, h.1.1.1.2.2, h.2⟩
-  refine Ensures.bindSim (Sim.chi (fun h => ⟨(hr h.1).1, fun i hi => ⟨((hr h.1).2 i hi).1.mono L₅,
+  refine Ensures.bindSim (Simulates.chi (fun h => ⟨(hr h.1).1, fun i hi => ⟨((hr h.1).2 i hi).1.mono L₅,
     ((hr h.1).2 i hi).2.mono L₅⟩⟩) fun h => (tree₂ h.1 L₅).2.2.1) fun chi m₆ l₆ => ?_
-  refine Ensures.bindSim (Sim.identity fun h => (tree₂ h.1.1 (L₅.trans l₆)).2.2.1) fun index m₇ l₇ => ?_
+  refine Ensures.bindSim (Simulates.identity fun h => (tree₂ h.1.1 (L₅.trans l₆)).2.2.1) fun index m₇ l₇ => ?_
   refine Ensures.bindSim (tuple_sim (fun h => h.2) (fun h => (chs h.1.1.1 (L₅.trans (l₆.trans l₇))).2.1)
     (fun h => h.1.2.1.mono l₇) fun h => h.1.2.2.mono l₇) fun combined' m₈ l₈ => ?_
-  refine Ensures.bindSim (Sim.extSub (fun h => (chs h.1.1.1.1 (L₅.trans (l₆.trans (l₇.trans l₈)))).1)
+  refine Ensures.bindSim (Simulates.extSub (fun h => (chs h.1.1.1.1 (L₅.trans (l₆.trans (l₇.trans l₈)))).1)
     fun h => h.2) fun expected' m₉ l₉ => ?_
-  refine Ensures.bindCheck (Sim.assertExtEqual (fun h =>
+  refine Ensures.bindCheck (Simulates.assertExtEqual (fun h =>
     (tree₂ h.1.1.1.1.1 (L₅.trans (l₆.trans (l₇.trans (l₈.trans l₉))))).value
     (by have := (hsizes h.1.1.1.1.1).2.1; omega)) fun h => h.2) fun _ m₁₀ l₁₀ => ?_
   have L₁₀ : n ≤ m₁₀ := L₅.trans (l₆.trans (l₇.trans (l₈.trans (l₉.trans l₁₀))))
@@ -877,9 +877,9 @@ private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr
     g.leafValue 2 1 = ch.lookup.1 - Replay.tuple ch.lookup.2 (Replay.identityValue g.leafPoint[2]!)
       (Replay.chi gr g.leafPoint[2]!).re (Replay.chi gr g.leafPoint[2]!).im) ?_
     fun h => ⟨h.1.1.1.1.1.1, h.1.1.1.1.1.2.1, h.1.1.1.1.1.2.2.1, h.1.1.1.1.1.2.2.2, h.2⟩
-  refine Ensures.bindSim (Sim.extMul (fun h => (chs h.1 L₁₀).2.2.2) fun h => runIm h.1 L₁₀) fun mixed m₁₁ l₁₁ => ?_
-  refine Ensures.bindSim (Sim.extAdd (fun h => runRe h.1.1 (L₁₀.trans l₁₁)) fun h => h.2) fun e m₁₂ l₁₂ => ?_
-  refine Ensures.bindCheck (Sim.assertExtEqual (fun h =>
+  refine Ensures.bindSim (Simulates.extMul (fun h => (chs h.1 L₁₀).2.2.2) fun h => runIm h.1 L₁₀) fun mixed m₁₁ l₁₁ => ?_
+  refine Ensures.bindSim (Simulates.extAdd (fun h => runRe h.1.1 (L₁₀.trans l₁₁)) fun h => h.2) fun e m₁₂ l₁₂ => ?_
+  refine Ensures.bindCheck (Simulates.assertExtEqual (fun h =>
     (tree₃ h.1.1.1 (L₁₀.trans (l₁₁.trans l₁₂))).value (by have := (hsizes h.1.1.1).2.2.1; omega))
     fun h => h.2) fun _ m₁₃ l₁₃ => ?_
   have L₁₃ : n ≤ m₁₃ := L₁₀.trans (l₁₁.trans (l₁₂.trans l₁₃))
@@ -892,12 +892,12 @@ private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr
     fun h => ⟨h.1.1.1.1, h.1.1.1.2.1, h.1.1.1.2.2.1, h.1.1.1.2.2.2.1, h.1.1.1.2.2.2.2, h.2⟩
   refine Ensures.bindSim (matrixStep_sim (layout := layout) fun h => (tree₃ h.1 L₁₃).2.2.1)
     fun matrix m₁₄ l₁₄ => ?_
-  refine Ensures.bindSim (Sim.extScaleConstant (Word.ofNat (2 ^ layout.slotVariables)) fun h => h.2)
+  refine Ensures.bindSim (Simulates.extScaleConstant (Word.ofNat (2 ^ layout.slotVariables)) fun h => h.2)
     fun tag m₁₅ l₁₅ => ?_
-  refine Ensures.bindSim (Sim.extSub (fun h => (chs h.1.1.1 (L₁₃.trans (l₁₄.trans l₁₅))).2.2.1)
+  refine Ensures.bindSim (Simulates.extSub (fun h => (chs h.1.1.1 (L₁₃.trans (l₁₄.trans l₁₅))).2.2.1)
     fun h => (tree₃ h.1.1.1 (L₁₃.trans (l₁₄.trans l₁₅))).value
       (by have := (hsizes h.1.1.1).2.2.1; omega)) fun rest m₁₆ l₁₆ => ?_
-  refine Ensures.bindSim (Sim.extSub (fun h => h.2) fun h => h.1.2.mono l₁₆) fun slot m₁₇ l₁₇ => ?_
+  refine Ensures.bindSim (Simulates.extSub (fun h => h.2) fun h => h.1.2.mono l₁₆) fun slot m₁₇ l₁₇ => ?_
   have L₁₇ : n ≤ m₁₇ := L₁₃.trans (l₁₄.trans (l₁₅.trans (l₁₆.trans l₁₇)))
   set slotClaim := ch.scatter.1 - g.leafValue 3 2 -
     (Replay.matrixStep layout g.leafPoint[3]!).scale (Word.ofNat (2 ^ layout.slotVariables))
@@ -910,10 +910,10 @@ private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr
     fun h => ⟨h.1.1.1.1.1, h.1.1.1.1.2.1, h.1.1.1.1.2.2.1, h.1.1.1.1.2.2.2.1, h.1.1.1.1.2.2.2.2.1,
       h.1.1.1.1.2.2.2.2.2, h.2⟩
   set geq := Replay.eqTable ((g.leafPoint[4]!).extract layout.slotVariables (g.leafPoint[4]!).size)
-  refine Ensures.bindSim (Sim.eqTable (gpoint := (g.leafPoint[4]!).extract layout.slotVariables)
+  refine Ensures.bindSim (Simulates.eqTable (gpoint := (g.leafPoint[4]!).extract layout.slotVariables)
     fun h => (tree₄ h.1 L₁₇).2.2.1.extract layout.slotVariables) fun eq m₁₈ l₁₈ => ?_
-  refine Ensures.bindSim Sim.extZero fun combined₀ m₁₉ l₁₉ => ?_
-  refine Ensures.bindSim (((Sim.loop₀ (P := ((_ ∧ IsExts c m₁₈ eq geq) ∧ IsExt c m₁₉ combined₀ 0))
+  refine Ensures.bindSim Simulates.extZero fun combined₀ m₁₉ l₁₉ => ?_
+  refine Ensures.bindSim (((Simulates.loop₀ (P := ((_ ∧ IsExts c m₁₈ eq geq) ∧ IsExt c m₁₉ combined₀ 0))
     (fun k acc m => IsExt c m acc (Replay.sumRange k fun j => geq[j]! * ((gv.pairs[j]!).1 + ch.scatter.2 *
       (gv.pairs[j]!).2))) fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).post
     (Q' := fun r m => IsExt c m r (Replay.sumRange (min gv.pairs.size geq.size) fun j => geq[j]! *
@@ -922,26 +922,26 @@ private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr
   · have hk' : k < values.pairs.size ∧ k < eq.size := by simpa using hk
     rw [show (values.pairs.zip eq)[k] = (values.pairs[k]!, eq[k]!) by simp [getElem!_pos, hk'.1, hk'.2]]
     have L : n ≤ m := L₁₇.trans (l₁₈.trans (l₁₉.trans lm))
-    refine (Sim.extMul (fun h => (chs h.1.1.1.1 L).2.2.2) fun h => (hpair k hk'.1 h.1.1.1.1 L).2).bind₀
+    refine (Simulates.extMul (fun h => (chs h.1.1.1.1 L).2.2.2) fun h => (hpair k hk'.1 h.1.1.1.1 L).2).bind₀
       fun mixed m₂ l₂ => ?_
-    refine (Sim.extAdd (fun h => (hpair k hk'.1 h.1.1.1.1.1 (L.trans l₂)).1) fun h => h.2).bind₀
+    refine (Simulates.extAdd (fun h => (hpair k hk'.1 h.1.1.1.1.1 (L.trans l₂)).1) fun h => h.2).bind₀
       fun value m₃ l₃ => ?_
-    refine (Sim.extMul (fun h => ((h.1.1.1.1.2).2 k hk'.2).mono (l₁₉.trans (lm.trans (l₂.trans l₃))))
+    refine (Simulates.extMul (fun h => ((h.1.1.1.1.2).2 k hk'.2).mono (l₁₉.trans (lm.trans (l₂.trans l₃))))
       fun h => h.2).bind₀ fun term m₄ l₄ => ?_
-    refine (Sim.extAdd (fun h => h.1.1.1.2.mono (l₂.trans (l₃.trans l₄))) fun h => h.2).bind₀ fun total m₅ l₅ => ?_
-    exact Sim.pure fun h => ⟨rfl, by rw [sumRange_succ]; exact h.2⟩
+    refine (Simulates.extAdd (fun h => h.1.1.1.2.mono (l₂.trans (l₃.trans l₄))) fun h => h.2).bind₀ fun total m₅ l₅ => ?_
+    exact Simulates.pure fun h => ⟨rfl, by rw [sumRange_succ]; exact h.2⟩
   · have size : (values.pairs.zip eq).size = min gv.pairs.size geq.size := by
       rw [Array.size_zip, (hpairs h.1.1.1).1, h.1.2.1]
     rw [size] at q
     exact q
-  refine Ensures.bindCheck (Sim.assertExtEqual (fun h =>
+  refine Ensures.bindCheck (Simulates.assertExtEqual (fun h =>
     (tree₄ h.1.1.1.1 (L₁₇.trans (l₁₈.trans (l₁₉.trans l₂₀)))).value
       (by have := (hsizes h.1.1.1.1).2.2.2; omega)) fun h => h.2) fun _ m₂₁ l₂₁ => ?_
   have L₂₁ : n ≤ m₂₁ := L₁₇.trans (l₁₈.trans (l₁₉.trans (l₂₀.trans l₂₁)))
-  refine Ensures.bindSim (Sim.identity fun h => (tree₄ h.1.1.1.1.1 L₂₁).2.2.1) fun index' m₂₂ l₂₂ => ?_
-  refine Ensures.bindSim (Sim.extSub (fun h => (chs h.1.1.1.1.1.1 (L₂₁.trans l₂₂)).2.2.1) fun h => h.2)
+  refine Ensures.bindSim (Simulates.identity fun h => (tree₄ h.1.1.1.1.1 L₂₁).2.2.1) fun index' m₂₂ l₂₂ => ?_
+  refine Ensures.bindSim (Simulates.extSub (fun h => (chs h.1.1.1.1.1.1 (L₂₁.trans l₂₂)).2.2.1) fun h => h.2)
     fun expected'' m₂₃ l₂₃ => ?_
-  refine Ensures.bindCheck (Sim.assertExtEqual (fun h =>
+  refine Ensures.bindCheck (Simulates.assertExtEqual (fun h =>
     (tree₄ h.1.1.1.1.1.1.1 (L₂₁.trans (l₂₂.trans l₂₃))).value
       (by have := (hsizes h.1.1.1.1.1.1.1).2.2.2; omega)) fun h => h.2) fun _ m₂₄ l₂₄ => ?_
   refine Ensures.pure fun h => ?_
@@ -958,22 +958,22 @@ private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr
 then the root. -/
 private theorem observeSeedRoot {d : Duplex} {r : Replay.Duplex} {seed : Array Word} {root : DigestVar}
     {groot : Array Word} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) (hr : P → IsDigest c n root groot) :
-    Sim c n P ((Circuit.observeRoot seed root).run d)
+    Simulates c n P ((Circuit.observeRoot seed root).run d)
       (fun res m => IsDuplex c m res.2 (groot.foldl Replay.Duplex.observe (seed.foldl Replay.Duplex.observe r)))
       True := by
   unfold Circuit.observeRoot
   rw [← Array.forIn_toList]
-  refine (Sim.tbind (C' := True) ((Sim.loopT (P := P) (d := d) (I := fun k _ e m => IsDuplex c m e
+  refine (Simulates.tbind (C' := True) ((Simulates.loopT (P := P) (d := d) (I := fun k _ e m => IsDuplex c m e
       ((seed.toList.take k).foldl Replay.Duplex.observe r)) (D := fun _ => True) fun k hk _ e m lm => ?_).pre
       fun h => by exact ⟨h, hd h⟩) fun _ e m le => ?_).post (fun _ _ _ h => h) fun _ => by simp
-  · refine Sim.tbind₀ (Sim.lift (Sim.const seed.toList[k])) fun w e₁ m₁ l₁ => ?_
-    refine Sim.tbind₀ (Sim.observe hp (fun h => by rw [show e₁ = e from h.2.2]; exact h.1.2.mono l₁)
+  · refine Simulates.tbind₀ (Simulates.lift (Simulates.const seed.toList[k])) fun w e₁ m₁ l₁ => ?_
+    refine Simulates.tbind₀ (Simulates.observe hp (fun h => by rw [show e₁ = e from h.2.2]; exact h.1.2.mono l₁)
       fun h => h.2.1) fun _ e₂ m₂ l₂ => ?_
     rw [StateT.run_pure]
-    refine Sim.pure fun h => ⟨rfl, ?_⟩
+    refine Simulates.pure fun h => ⟨rfl, ?_⟩
     rw [List.take_succ_eq_append_getElem hk, List.foldl_append, List.foldl_cons, List.foldl_nil]
     exact h.2
-  · refine Sim.observeSlice hp (fun h => ?_) fun h => IsWords.ofFn (hr h.1).1 fun lane => ((hr h.1).2 lane).mono le
+  · refine Simulates.observeSlice hp (fun h => ?_) fun h => IsWords.ofFn (hr h.1).1 fun lane => ((hr h.1).2 lane).mono le
     have e := h.2
     rw [List.take_of_length_le (by simp), Array.foldl_toList] at e
     exact e
@@ -1019,12 +1019,12 @@ theorem earlyStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay
   set T := Replay.sumRange g.histogram.size (tableTerm rel.normBound g.histogram ch.beta)
   unfold Circuit.earlyStage
   refine Ensures.tbindSim (observeSeedRoot hp hd fun h => (hproof h).1) fun _ d₁ m₁ l₁ => ?_
-  refine Ensures.tbindSim (Sim.observeSlice hp (fun h => h.2) fun h => (hproof h.1).2.1.mono l₁) fun _ d₂ m₂ l₂ => ?_
-  refine Ensures.tbindSim (Sim.sampleExt hp fun h => h.2) fun beta d₃ m₃ l₃ => ?_
-  refine Ensures.tbindSim (Sim.sampleExt hp fun h => h.2.2) fun lookupBeta d₄ m₄ l₄ => ?_
-  refine Ensures.tbindSim (Sim.sampleExt hp fun h => h.2.2) fun gamma d₅ m₅ l₅ => ?_
-  refine Ensures.tbindSim (Sim.sampleExt hp fun h => h.2.2) fun scatterBeta d₆ m₆ l₆ => ?_
-  refine Ensures.tbindSim (Sim.sampleExt hp fun h => h.2.2) fun mu d₇ m₇ l₇ => ?_
+  refine Ensures.tbindSim (Simulates.observeSlice hp (fun h => h.2) fun h => (hproof h.1).2.1.mono l₁) fun _ d₂ m₂ l₂ => ?_
+  refine Ensures.tbindSim (Simulates.sampleExt hp fun h => h.2) fun beta d₃ m₃ l₃ => ?_
+  refine Ensures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun lookupBeta d₄ m₄ l₄ => ?_
+  refine Ensures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun gamma d₅ m₅ l₅ => ?_
+  refine Ensures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun scatterBeta d₆ m₆ l₆ => ?_
+  refine Ensures.tbindSim (Simulates.sampleExt hp fun h => h.2.2) fun mu d₇ m₇ l₇ => ?_
   have L₇ : n ≤ m₇ := l₁.trans (l₂.trans (l₃.trans (l₄.trans (l₅.trans (l₆.trans l₇)))))
   refine Ensures.pre (P' := P ∧ IsExt c m₇ beta ch.beta ∧ IsExt c m₇ lookupBeta ch.lookup.1 ∧
     IsExt c m₇ gamma ch.lookup.2 ∧ IsExt c m₇ scatterBeta ch.scatter.1 ∧ IsExt c m₇ mu ch.scatter.2 ∧
@@ -1063,16 +1063,16 @@ theorem earlyStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay
   refine Ensures.tbind (Ensures.lift (Ensures.extInv (ga := (gc.roots[0]!).2) fun h => by
     obtain ⟨-, -, -, -, -, -, -, -, run, hc, -⟩ := h
     exact (tree hc (five hc run) 0 (by omega)).2.1)) fun _ d₁₀ m₁₀ l₁₀ => ?_
-  refine Ensures.tbindSim (Sim.lift (Sim.extMul (ga := (gc.roots[0]!).2) (gb := T) (fun h => by
+  refine Ensures.tbindSim (Simulates.lift (Simulates.extMul (ga := (gc.roots[0]!).2) (gb := T) (fun h => by
       obtain ⟨⟨-, -, -, -, -, -, -, -, run, hc, -⟩, -⟩ := h
       exact (tree hc (five hc run) 0 (by omega)).2.1.mono l₁₀) fun h => by
       obtain ⟨⟨-, -, -, -, -, -, -, hT, -⟩, -⟩ := h
       exact hT.mono l₁₀)) fun expected d₁₁ m₁₁ l₁₁ => ?_
-  refine Ensures.tbind (Ensures.lift (Sim.assertExtEqual (ga := (gc.roots[0]!).1) (fun h => by
+  refine Ensures.tbind (Ensures.lift (Simulates.assertExtEqual (ga := (gc.roots[0]!).1) (fun h => by
       obtain ⟨⟨⟨-, -, -, -, -, -, -, -, run, hc, -⟩, -⟩, -⟩ := h
       exact (tree hc (five hc run) 0 (by omega)).1.mono (l₁₀.trans l₁₁)) fun h => h.2.1).ensures)
     fun _ d₁₂ m₁₂ l₁₂ => ?_
-  refine Ensures.tbindSim (Sim.lift (Sim.extSub (fun h => by
+  refine Ensures.tbindSim (Simulates.lift (Simulates.extSub (fun h => by
       obtain ⟨⟨⟨⟨-, hβ, -⟩, -⟩, -⟩, -⟩ := h
       exact hβ.mono (l₁₀.trans (l₁₁.trans l₁₂))) fun h => by
       obtain ⟨⟨⟨⟨-, -, -, -, -, -, -, -, run, hc, -⟩, -⟩, -⟩, -⟩ := h

@@ -109,51 +109,39 @@ def Gives (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word)
     ∃ points t', Bridge.Runs (Replay.verify key.relation (seedWith loaded context w) (statementWith loaded context w)
       (proofWith key loaded context w)) start points t'
 
+instance verifyWith_appends (key : Layer1Input) (state : Fin 16 → Var) (claim : ClaimView) :
+    Appends (Circuit.verifyWith key state claim) := by
+  unfold Circuit.verifyWith; appends
+
 /-- `verify_with` (`neo-spartan/src/lib.rs:692-703`) from the handles that
 the terminal part hands it. -/
-private theorem verifyWith_at (hp : Permutes c.perm) (hw : Decodes c w)
-    (facts : KeyFacts key)
+private theorem verifyWith_at (hp : Permutes c.perm) (hw : Decodes c w) (facts : KeyFacts key)
     (named : ∀ s ∈ key.relation.key.layout.segments,
-      s.classIndex < key.relation.key.layout.classes.size ∧ s.lane < Replay.D) :
-    OldEnsuresAt c (prefixRun loaded context).2
-      (ReadsStatement c ∧ Handoff c authority (prefixRun loaded context).1 (prefixRun loaded context).2.values)
+      s.classIndex < key.relation.key.layout.classes.size ∧ s.lane < Replay.D)
+    (h : Handoff c authority (prefixRun loaded context).1 (prefixRun loaded context).2.values) :
+    EnsuresAt c (prefixRun loaded context).2
       (verifyWith key (prefixRun loaded context).1.2 (prefixRun loaded context).1.1.view)
       (fun _ _ => Gives key loaded context authority c w) := by
+  obtain ⟨env, terminal, holds, hstate, shaped⟩ := h
   unfold verifyWith
-  refine OldEnsuresAt.bind (OldEnsuresAt.of_ensures (Simulates.handoff
-    (gs := Array.ofFn fun lane => w ((prefixRun loaded context).1.2 lane)) hp fun h => ?_).ensures) fun le₁ => ?_
-  · obtain ⟨-, env, -, -, hstate, -⟩ := h
-    have hl := List.forall₂_iff_get.mp hstate
-    refine ⟨IsWords.ofFn (by simp) fun lane => ⟨?_, ?_⟩, by simp⟩
+  refine EnsuresAt.bind (FoldTranscript.handoff_ensures
+    (gs := Array.ofFn fun lane => w ((prefixRun loaded context).1.2 lane)) hp ?_ (by simp) _ rfl) fun le₁ seed => ?_
+  · have hl := List.forall₂_iff_get.mp hstate
+    refine IsWords.ofFn (by simp) fun lane => ⟨?_, ?_⟩
     · have := (hl.2 lane (by simp) (by rw [← hl.1]; simp)).1
       simpa only [List.get_eq_getElem, List.getElem_ofFn] using this
     · rw [getElem!_pos _ _ (by simp)]
       simpa using hw ((prefixRun loaded context).1.2 lane)
-  refine OldEnsuresAt.bind (OldEnsuresAt.of_ensures (Simulates.ProofView.read key.relation _ _ facts.circuit.run
-    facts.circuit.row facts.circuit.slot fun _ => hw).ensures)
-    fun le₂ => ?_
-  refine (OldEnsuresAt.of_ensures (OldEnsures.of_ensures (Q := fun _ _ => ∃ points t',
-    Bridge.Runs (Replay.verify key.relation (seedWith loaded context w) (statementWith loaded context w)
-      (proofWith key loaded context w)) start points t') fun h => ?_)).post fun h runs => ?_
-  · obtain ⟨⟨⟨-, env, -, holds, -, shaped⟩, seed, -⟩, ⟨proof, read⟩, -⟩ := h
-    refine verify_ensures facts.circuit facts.relation named (w := w) (seedWords := seedWith loaded context w)
-      (st := statementWith loaded context w) (g := proofWith key loaded context w) hp
-      ⟨?_, fun lane => (seed lane).mono le₂⟩ ((isClaim_decode hw (claimHolds_words_lt holds)).mono (le₁.trans le₂))
-      (fits_decode w holds shaped facts.constants.kappa facts.constants.blocks facts.constants.point
-        facts.constants.matrices) proof read
-    rw [seedWith, FoldTranscript.handoffWords, Array.size_extract, FoldTranscript.absorbWords_size _ (by simp)]
-    rfl
-  · obtain ⟨⟨⟨-, env, terminal, holds, -, shaped⟩, -⟩, -⟩ := h
-    exact ⟨env, terminal, statementOf_decode hw holds shaped, runs⟩
-
-private theorem run_bind {α β : Type} (x : Build α) (f : α → Build β) (p : Builder) :
-    (x >>= f).run p = (f (x.run p).1).run (x.run p).2 :=
+  refine EnsuresAt.bind (ProofView.read_ensures key.relation _ _ facts.circuit.run facts.circuit.row facts.circuit.slot
+    hw _ rfl) fun le₂ view => ?_
+  obtain ⟨proof, read⟩ := view
+  refine (verify_ensures facts.circuit facts.relation named (w := w) (seedWords := seedWith loaded context w)
+    (st := statementWith loaded context w) (g := proofWith key loaded context w) hp
+    ⟨?_, fun lane => (seed lane).mono⟩ (isClaim_decode hw (claimHolds_words_lt holds)).mono
+    (fits_decode w holds shaped facts.constants.kappa facts.constants.blocks facts.constants.point
+      facts.constants.matrices) proof read _ rfl).post fun runs => ⟨env, terminal, statementOf_decode hw holds shaped, runs⟩
+  rw [seedWith, FoldTranscript.handoffWords, Array.size_extract, FoldTranscript.absorbWords_size _ (by simp)]
   rfl
-
-private theorem program_eq (key : Layer1Input) (loaded : Loaded) (context : Array Replay.Word) :
-    program key loaded context =
-      statementHandles >>= fun s => checkedApply loaded context s >>= fun r => verifyWith key r.2 r.1.view := by
-  rw [program, finalProgram_eq, terminalPrefix, bind_assoc]
 
 /-- A witness of the program's CCS gives what `Gives` states. -/
 private theorem program_gives
@@ -167,30 +155,15 @@ private theorem program_gives
     (x : StateWords) (wit : ℕ → Spec.F)
     (holds : ((prog key loaded context x).ccs Block.poseidonTemplate (prog key loaded context x).counts).Relation wit) :
     Gives key loaded context authority (ctxOf key loaded context x wit) (wordsOf key loaded context x wit) := by
-  have hw : Decodes (ctxOf key loaded context x wit) (wordsOf key loaded context x wit) := fun _ => (Replay.Word.cast_ofF _).symm
+  have hw : Decodes (ctxOf key loaded context x wit) (wordsOf key loaded context x wit) :=
+    fun _ => (Replay.Word.cast_ofF _).symm
   have accepts : Exec (ctxOf key loaded context x wit).perm (program key loaded context).program
       (ctxOf key loaded context x wit).stmt (ctxOf key loaded context x wit).tape :=
     lower_sound (program key loaded context).program (List.ofFn x) wit holds
-  have tail : OldEnsuresAt (ctxOf key loaded context x wit) (statementHandles.run {}).2
-      (ReadsStatement (ctxOf key loaded context x wit))
-      (checkedApply loaded context (statementHandles.run {}).1 >>= fun r => verifyWith key r.2 r.1.view)
-      (fun _ _ => Gives key loaded context authority (ctxOf key loaded context x wit) (wordsOf key loaded context x wit)) :=
-    OldEnsuresAt.bind (OldEnsuresAt.of_ensures (checkedApply_ensures loads valid hctx fun h => by
-      rw [statementHandles_run]
-      exact ⟨rfl, le_rfl, h⟩)) fun _ =>
-      verifyWith_at permutes_poseidon2 hw facts named
-  obtain ⟨new, hi, -⟩ := tail ⟨List.replicate 9 0, 0, True⟩ (by rw [statementHandles_run]; simp)
-  have pre : (program key loaded context).program.toList = List.replicate 9 .pub ++ new := by
-    rw [Build.program, program_eq, run_bind, hi, statementHandles_run]
-    simp
-  have reads : ReadsStatement (ctxOf key loaded context x wit) := fun k =>
-    (ctxOf key loaded context x wit).run_pubs pre k.isLt
-  have full : OldEnsuresAt (ctxOf key loaded context x wit) {} (ReadsStatement (ctxOf key loaded context x wit))
-      (program key loaded context)
-      (fun _ _ => Gives key loaded context authority (ctxOf key loaded context x wit) (wordsOf key loaded context x wit)) := by
-    rw [program_eq]
-    exact OldEnsuresAt.bind (OldEnsuresAt.of_ensures statementHandles_ensures) fun _ => tail.pre fun h => h.1
-  exact full.exec reads rfl accepts
+  exact finalProgram_exec (layer1 := fun claim state => verifyWith key state claim.view)
+    (R := fun _ _ => Gives key loaded context authority (ctxOf key loaded context x wit) (wordsOf key loaded context x wit))
+    (by rw [program]) loads valid hctx (verifyWith_at permutes_poseidon2 hw facts named) (fun _ => inferInstance) rfl
+    accepts
 
 end Gives
 

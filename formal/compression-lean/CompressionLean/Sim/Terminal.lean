@@ -1,6 +1,6 @@
 import CompressionLean.Ports.Terminal.Program
 import CompressionLean.Lowering.PackageRows
-import CompressionLean.Sim.Old
+import CompressionLean.Sim.Instr
 import CompressionLean.Final.Claim
 import CompressionLean.Production
 
@@ -20,8 +20,9 @@ hold the output values of that assignment.
   state handles hold its output values (`ClaimHolds`, `StateHolds`).
 - `terminalPrefix_ensures`: when the first nine values are the statement
   words (`ReadsStatement`), an accepting run of `terminalPrefix` meets
-  `Handoff`. `finalProgram_exec` proves those values from the run of the
-  final program, for a layer 1 that has its own `OldEnsures` lemma.
+  `Handoff`. `finalProgram_exec` proves those values from the instruction
+  shape of the final program (`Appends`), for a layer 1 that has its own
+  `Ensures` lemma.
 
 Does not own layer 1 or the meaning of the rows (`Terminal/Soundness.lean`).
 -/
@@ -33,7 +34,6 @@ open CompressionLean.Lowering CompressionLean.Lowering.Package
 open CompressionLean.Replay (Word)
 open NightstreamFPrime.Circuit (Env Expr)
 open NightstreamFPrime.Layout
-open Fin.CommRing
 
 /-! ## The program -/
 
@@ -102,22 +102,14 @@ private theorem range_getD (j : ℕ) : (List.range' 0 9).toArray.getD j 0 = if j
   · rw [if_neg h, List.getElem?_eq_none (by simpa using h)]
     rfl
 
-section
-
-variable {c : Ctx NightstreamFPrime.Spec.F} {n : ℕ} {P : Prop}
+instance statementHandles_appends : Appends statementHandles := by unfold statementHandles; appends
 
 /-- The nine `public` words, simulated (`terminal/mod.rs:55-59`). -/
-theorem statementHandles_ensures :
-    OldEnsures c n P statementHandles (fun s m => s = (List.range' n 9).toArray ∧ m = n + 9) := by
-  intro p E hp hE
-  refine ⟨List.replicate 9 .pub, by rw [statementHandles_run]; rfl, ?_, fun _ _ _ => ?_⟩
-  · obtain ⟨more, hm, hl⟩ := c.steps_values (List.replicate 9 .pub) E
-    rw [hm, statementHandles_run, List.length_append, hl, hE, hp]
-    simp [Instr.outputs]
-  · rw [statementHandles_run, hp]
+theorem statementHandles_ensures {c : Ctx NightstreamFPrime.Spec.F} {n : ℕ} :
+    Ensures c n statementHandles fun s m => s = (List.range' n 9).toArray ∧ m = n + 9 :=
+  fun p hp _ _ _ _ _ _ => by
+    rw [statementHandles_run, hp]
     exact ⟨rfl, rfl⟩
-
-end
 
 /-! ## The columns -/
 
@@ -140,34 +132,36 @@ private theorem ColumnHolds.mono {c : Ctx NightstreamFPrime.Spec.F} {statement :
     ColumnHolds c statement context src h m' :=
   ⟨lt_of_lt_of_le hold.1 le, hold.2⟩
 
-section
-
-variable {c : Ctx NightstreamFPrime.Spec.F} {n : ℕ} {P : Prop}
+instance column_appends (statement : Array Var) (context : Array Word) (computed : Var) (src : Source) :
+    Appends (column statement context computed src) := by
+  cases src <;> simp only [column] <;> appends
 
 /-- `column`, simulated (`terminal/package.rs:200-217`). -/
-private theorem column_sim (statement : Array Var) (context : Array Word) (computed : Var) (src : Source)
-    (hs : P → ∀ j, statement.getD j 0 < n) (hc : P → ∀ i, src = .computed i → computed + i < n) :
-    Simulates c n P (column statement context computed src) (ColumnHolds c statement context src) True := by
+private theorem column_ensures {c : Ctx NightstreamFPrime.Spec.F} {n : ℕ} (statement : Array Var)
+    (context : Array Word) (computed : Var) (src : Source) (hs : ∀ j, statement.getD j 0 < n)
+    (hc : ∀ i, src = .computed i → computed + i < n) :
+    Ensures c n (column statement context computed src) (ColumnHolds c statement context src) := by
   have chunk : NightstreamFPrime.Lifecycle.stateDomainChunk.length ≤ contextStart := by
     rw [NightstreamFPrime.Lifecycle.stateDomainChunk_length]
     decide
+  have fresh : ∀ {h m : ℕ}, h = n ∧ m = n + 1 ∧ c.val h = c.tape h → h < m := fun ⟨e, e', _⟩ => by
+    rw [e, e']
+    exact Nat.lt_succ_self n
   cases src with
-  | one => exact (Simulates.const 1).post (fun _ h m w => ⟨w.1, by rw [w.2, word_one]⟩) fun _ => Iff.rfl
+  | one => exact (const_ensures 1).post fun _ m w => ⟨w.1, by rw [w.2, word_one]⟩
   | priv i =>
       dsimp only [column]
       split_ifs with h1 h2 h3
-      · exact (Simulates.const _).post (fun _ h m w => ⟨w.1, fun lo => absurd h1 (by omega)⟩) fun _ => Iff.rfl
-      · exact (Simulates.const _).post (fun _ h m w => ⟨w.1, fun lo => absurd h2.2 (by omega)⟩) fun _ => Iff.rfl
-      · exact Simulates.pure fun hP => ⟨hs hP _, fun _ _ => rfl⟩
-      · exact Simulates.priv.post (fun _ h m w => ⟨w.1, fun lo hi => absurd ⟨lo, hi⟩ h3⟩) fun _ => Iff.rfl
+      · exact (const_ensures _).post fun _ m w => ⟨w.1, fun lo => absurd h1 (by omega)⟩
+      · exact (const_ensures _).post fun _ m w => ⟨w.1, fun lo => absurd h2.2 (by omega)⟩
+      · exact Ensures.pure ⟨hs _, fun _ _ => rfl⟩
+      · exact priv_ensures.post fun _ m w => ⟨fresh w, fun lo hi => absurd ⟨lo, hi⟩ h3⟩
   | pub i =>
       dsimp only [column]
       split_ifs with h1
-      · exact (Simulates.const _).post (fun _ h m w => ⟨w.1, fun _ => w.2⟩) fun _ => Iff.rfl
-      · exact Simulates.priv.post (fun _ h m w => ⟨w.1, fun lo => absurd lo h1⟩) fun _ => Iff.rfl
-  | computed k => exact Simulates.pure fun hP => ⟨hc hP k rfl, trivial⟩
-
-end
+      · exact (const_ensures _).post fun _ m w => ⟨w.1, fun _ => w.2⟩
+      · exact priv_ensures.post fun _ m w => ⟨fresh w, fun lo => absurd lo h1⟩
+  | computed k => exact Ensures.pure ⟨hc k rfl, trivial⟩
 
 /-! ## The terminal layout -/
 
@@ -548,8 +542,17 @@ private theorem state_list {columns : Array Var} {ks : Array ℕ} (size : ks.siz
 
 section Program
 
-variable {c : Ctx NightstreamFPrime.Spec.F} {P : Prop} {loaded : Loaded} {context : Array Word}
+variable {c : Ctx NightstreamFPrime.Spec.F} {loaded : Loaded} {context : Array Word}
   {authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority}
+
+instance apply_appends (package : Loaded) (statement : Array Var) (context : Array Word) :
+    Appends (apply package statement context) := by
+  unfold apply; appends
+instance checkedApply_appends (package : Loaded) (context : Array Word) (statement : Array Var) :
+    Appends (checkedApply package context statement) := by
+  unfold checkedApply; appends
+instance terminalPrefix_appends (package : Loaded) (context : Array Word) : Appends (terminalPrefix package context) := by
+  unfold terminalPrefix; appends
 
 /-- `Package::apply`, simulated (`terminal/package.rs:185-243`). -/
 theorem apply_ensures
@@ -557,27 +560,23 @@ theorem apply_ensures
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
       Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
-    {statement : Array Var} {n : ℕ}
-    (hP : P → statement = (List.range' 0 9).toArray ∧ 9 ≤ n ∧ ReadsStatement c ∧ statementOf c 0 ≠ 0) :
-    OldEnsures c n P (apply loaded statement context) (Handoff c authority) := by
-  have hs : P → ∀ j, statement.getD j 0 < n := fun h j => by
-    obtain ⟨e, le, -⟩ := hP h
-    rw [e, range_getD]
+    {statement : Array Var} {n : ℕ} (hstmt : statement = (List.range' 0 9).toArray) (le : 9 ≤ n)
+    (reads : ReadsStatement c) (nz : statementOf c 0 ≠ 0) :
+    Ensures c n (apply loaded statement context) (Handoff c authority) := by
+  have hs : ∀ j, statement.getD j 0 < n := fun j => by
+    rw [hstmt, range_getD]
     split
     · rename_i hj
       exact lt_of_lt_of_le hj le
     · exact lt_of_lt_of_le (by decide) le
   unfold apply
-  refine (Simulates.emit (Q := fun h m => h + loaded.computed.size ≤ m) (C := True) (.hint loaded.computed.size)
-    fun _ E hl hF => ⟨by simp [Instr.outputs], Iff.rfl⟩).ensures.bind fun computed m₁ le₁ => ?_
-  refine (Simulates.mapM (ColumnHolds c statement context) (fun _ _ _ _ h le => h.mono le) fun x mem m' le' =>
-    column_sim statement context computed x (fun h j => lt_of_lt_of_le (hs h.1 j) (le₁.trans le'))
-      fun h i e => lt_of_lt_of_le (Nat.add_lt_add_left (computed_lt loads x mem i e) computed)
-        (h.2.1.trans le')).ensures.bind fun columns m₂ le₂ => ?_
-  refine (Simulates.r1cs (rows := loaded.system.toList) fun h => columns_lt h.2.1).ensures.bind fun _ m₃ le₃ => ?_
-  refine OldEnsures.pure fun h => ?_
-  obtain ⟨⟨⟨hP', -, -⟩, cols, -⟩, -, rows⟩ := h
-  obtain ⟨hstmt, -, reads, nz⟩ := hP hP'
+  refine (Ensures.emit (Q := fun h m => h + loaded.computed.size ≤ m) (.hint loaded.computed.size)
+    fun _ _ _ _ => by simp [Instr.outputs]).bind fun computed m₁ le₁ hcomputed => ?_
+  refine (Ensures.mapM (ColumnHolds c statement context) (fun _ _ _ _ h le => h.mono le) fun x mem m' le' =>
+    column_ensures statement context computed x (fun j => lt_of_lt_of_le (hs j) (le₁.trans le'))
+      fun i e => lt_of_lt_of_le (Nat.add_lt_add_left (computed_lt loads x mem i e) computed)
+        (hcomputed.trans le')).bind fun columns m₂ _ cols => ?_
+  refine (r1cs_ensures (rows := loaded.system.toList) (columns_lt cols)).bind fun _ m₃ le₃ rows => Ensures.pure ?_
   replace cols := cols.imp fun _ _ hold => hold.mono le₃
   obtain ⟨-, -, -, hcom, hpub, hpt, hk, ha, hst⟩ := load_ok loads
   obtain ⟨lcom, lpub, lpt, lk, la, lst⟩ := outputs_length
@@ -623,26 +622,22 @@ theorem checkedApply_ensures
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
       Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
-    {statement : Array Var} {n : ℕ}
-    (hP : P → statement = (List.range' 0 9).toArray ∧ 9 ≤ n ∧ ReadsStatement c) :
-    OldEnsures c n P (checkedApply loaded context statement) (Handoff c authority) := by
-  have zero : P → statement.getD 0 0 = 0 := fun h => by rw [(hP h).1, range_getD]; rfl
+    {statement : Array Var} {n : ℕ} (hstmt : statement = (List.range' 0 9).toArray) (le : 9 ≤ n)
+    (reads : ReadsStatement c) :
+    Ensures c n (checkedApply loaded context statement) (Handoff c authority) := by
+  have zero : statement.getD 0 0 = 0 := by rw [hstmt, range_getD]; rfl
   unfold checkedApply
-  refine (Simulates.emit (Q := fun h m => h < m) (C := True) (.hint 1) fun _ E hl hF =>
-    ⟨by simp [Instr.outputs], Iff.rfl⟩).ensures.bind fun inverse m₁ le₁ => ?_
-  refine (Simulates.mul (ga := Word.ofF (c.val (statement.getD 0 0))) (gb := Word.ofF (c.val inverse))
-    (fun h => ⟨by rw [zero h.1]; exact lt_of_lt_of_le (lt_of_lt_of_le (by decide) (hP h.1).2.1) le₁,
-      (Word.cast_ofF _).symm⟩)
-    fun h => ⟨h.2.1, (Word.cast_ofF _).symm⟩).ensures.bind fun product m₂ le₂ => ?_
-  refine (Simulates.const 1).ensures.bind fun one m₃ le₃ => ?_
-  refine (Simulates.assertEqual (fun h => h.1.2.1.mono le₃) fun h => h.2.1).ensures.bind fun _ m₄ le₄ => ?_
-  refine apply_ensures loads valid hctx fun h => ?_
-  obtain ⟨⟨⟨⟨hP', -⟩, -⟩, -⟩, -, one⟩ := h
-  obtain ⟨hstmt, le, reads⟩ := hP hP'
-  refine ⟨hstmt, by omega, reads, fun zero0 => ?_⟩
-  have := congrArg (Word.cast : Word → NightstreamFPrime.Spec.F) one
-  rw [word_mul, Word.cast_ofF, Word.cast_ofF, word_one, zero hP', show c.val 0 = statementOf c 0 from reads 0, zero0,
-    zero_mul] at this
+  refine (Ensures.emit (Q := fun h m => h < m) (.hint 1) fun _ _ _ _ => by simp [Instr.outputs]).bind
+    fun inverse m₁ le₁ hinverse => ?_
+  refine (mul_ensures (ga := Word.ofF (c.val (statement.getD 0 0))) (gb := Word.ofF (c.val inverse))
+    ⟨by rw [zero]; exact lt_of_lt_of_le (lt_of_lt_of_le (by decide) le) le₁, (Word.cast_ofF _).symm⟩
+    ⟨hinverse, (Word.cast_ofF _).symm⟩).bind fun product _ _ hproduct => ?_
+  refine (const_ensures 1).bind fun one _ _ hone => ?_
+  refine (assertEqual_ensures hproduct.mono hone).bind fun _ _ _ heq => ?_
+  refine apply_ensures loads valid hctx hstmt (by omega) reads fun zero0 => ?_
+  have cast : ∀ x : NightstreamFPrime.Spec.F, Word.cast (Word.ofF x) = x := fun x => Word.cast_ofF x
+  have := congrArg (Word.cast : Word → NightstreamFPrime.Spec.F) heq
+  rw [word_mul, cast, cast, word_one, zero, show c.val 0 = statementOf c 0 from reads 0, zero0, zero_mul] at this
   exact absurd this (by decide)
 
 /-- **The terminal part of `ProgramEncodes`.** When the run's checks hold and
@@ -655,44 +650,33 @@ theorem terminalPrefix_ensures
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
       Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
-    (reads : P → ReadsStatement c) :
-    OldEnsures c 0 P (terminalPrefix loaded context) (Handoff c authority) :=
-  statementHandles_ensures.bind fun _ _ _ =>
-    checkedApply_ensures loads valid hctx fun h => ⟨h.2.1, by rw [h.2.2], reads h.1⟩
+    (reads : ReadsStatement c) :
+    Ensures c 0 (terminalPrefix loaded context) (Handoff c authority) :=
+  statementHandles_ensures.bind fun _ _ _ h => checkedApply_ensures loads valid hctx h.1 (by omega) reads
 
-/-- `FinalProgram::run` with a layer 1 that has its own `OldEnsures` lemma
-from `Handoff` (`terminal/mod.rs:54-80`). -/
-theorem finalProgram_ensures {α : Type} {layer1 : ClaimVars → (Fin 16 → Var) → Build α}
-    {R : α → ℕ → Prop}
+/-- **An accepting run of the final program.** Its instruction shape makes
+its first nine values the statement words, so layer 1 receives `Handoff` at
+the state that the terminal part leaves, and its result meets `R`
+(`terminal/mod.rs:54-80`). The run is of `program`, which is the final
+program, so that a caller can keep `program` irreducible. -/
+theorem finalProgram_exec {α : Type} {layer1 : ClaimVars → (Fin 16 → Var) → Build α} {R : α → ℕ → Prop}
+    {program : Build α} (eq : program = finalProgram loaded context layer1)
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
       Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
-    (reads : P → ReadsStatement c)
-    (hlayer1 : ∀ r m, OldEnsures c m (P ∧ Handoff c authority r m) (layer1 r.1 r.2) R) :
-    OldEnsures c 0 P (finalProgram loaded context layer1) R := by
-  rw [finalProgram_eq]
-  exact (terminalPrefix_ensures loads valid hctx reads).bind fun r m _ => hlayer1 r m
-
-/-- **An accepting run of the final program.** Its first nine values are the
-statement words, so layer 1 receives `Handoff` and its result meets `R`
-(`terminal/mod.rs:54-80`). -/
-theorem finalProgram_exec {α : Type} {layer1 : ClaimVars → (Fin 16 → Var) → Build α}
-    {R : α → ℕ → Prop}
-    (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
-    (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
-    (hctx : ∀ lane : Fin 4,
-      Word.cast (context.getD lane 0) = (NightstreamFPrime.Lifecycle.VerifierContext.digest authority).getD lane 0)
-    (hlayer1 : ∀ r m, OldEnsures c m (P ∧ Handoff c authority r m) (layer1 r.1 r.2) R) (hP : P)
-    (hval : c.val = (Exec.run c.perm c.stmt c.tape (finalProgram loaded context layer1).program).value)
-    (accepts : Exec c.perm (finalProgram loaded context layer1).program c.stmt c.tape) :
-    R ((finalProgram loaded context layer1).run {}).1 ((finalProgram loaded context layer1).run {}).2.values := by
-  have tail : OldEnsures c 9 (P ∧ ReadsStatement c)
-      (checkedApply loaded context (List.range' 0 9).toArray >>= fun r => layer1 r.1 r.2) R :=
-    (checkedApply_ensures loads valid hctx fun h => ⟨rfl, le_rfl, h.2⟩).bind fun r m _ =>
-      (hlayer1 r m).pre fun h => ⟨h.1.1, h.2⟩
-  obtain ⟨new, hi, -⟩ := tail { instrs := #[] ++ Array.replicate 9 .pub, values := 0 + 9 }
-    ⟨List.replicate 9 0, 0, True⟩ rfl (by simp)
+    (hlayer1 : Handoff c authority ((terminalPrefix loaded context).run {}).1
+        ((terminalPrefix loaded context).run {}).2.values →
+      EnsuresAt c ((terminalPrefix loaded context).run {}).2
+        (layer1 ((terminalPrefix loaded context).run {}).1.1 ((terminalPrefix loaded context).run {}).1.2) R)
+    (shape : ∀ r : ClaimVars × (Fin 16 → Var), Appends (layer1 r.1 r.2))
+    (hval : c.val = (Exec.run c.perm c.stmt c.tape program.program).value)
+    (accepts : Exec c.perm program.program c.stmt c.tape) :
+    R (program.run {}).1 (program.run {}).2.values := by
+  subst eq
+  obtain ⟨new, hi, -⟩ := (Appends.bind (f := fun r => layer1 r.1 r.2)
+    (checkedApply_appends loaded context (List.range' 0 9).toArray) shape).out
+    { instrs := #[] ++ Array.replicate 9 .pub, values := 0 + 9 }
   have pre : (finalProgram loaded context layer1).program.toList = List.replicate 9 .pub ++ new := by
     rw [Build.program, finalProgram_eq, terminalPrefix, bind_assoc, StateT.run_bind, statementHandles_run]
     show ((checkedApply loaded context (List.range' 0 9).toArray >>= fun r => layer1 r.1 r.2).run
@@ -702,7 +686,9 @@ theorem finalProgram_exec {α : Type} {layer1 : ClaimVars → (Fin 16 → Var) �
   have reads : ReadsStatement c := fun k => by
     rw [hval]
     exact c.run_pubs pre k.isLt
-  exact (finalProgram_ensures loads valid hctx (fun _ => reads) hlayer1).exec hP hval accepts
+  rw [finalProgram_eq] at hval accepts ⊢
+  exact EnsuresAt.exec (EnsuresAt.bind (terminalPrefix_ensures loads valid hctx reads {} rfl) (fun _ h => hlayer1 h)
+    (hf' := shape)) hval accepts
 
 end Program
 

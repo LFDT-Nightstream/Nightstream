@@ -44,8 +44,11 @@ program, so `production_bound` does not take it. These remain open:
 
 - `RunsGive` (`Final/RustSetup.lean`): the runs that Rust's `PackageRows::visit_rows` pushes give
   F′'s matrices. With the port of Rust's setup build, it gives `HonestSetup`
-  (`honest_setup_of_build`).
-- The facts of the setup that Rust builds (`Setup.Fits`, `Structure.Describes`).
+  (`honest_setup_of_build`). `poseidon2_bound` takes it for the runs that `setupCheck` checks.
+- The facts of the setup that Rust builds (`Setup.Fits`, `Structure.Describes`) for an application
+  other than the Poseidon2 hash chain. For that application, the pass of `setupCheck` on the
+  production key and runs gives them for the setup that `build` returns (`setup_facts_of_check`, in
+  `poseidon2_bound`).
 - `ParentShape` for an application other than the Poseidon2 hash chain. For that application,
   `KeyFacts` and `WidthFits` give it (`poseidon2_bound`).
 
@@ -69,9 +72,13 @@ and key expander (`Final/RustSetup.lean`). A port equals its Rust only as far as
   neither production's constants nor an application's width, so it prints whether the key has
   `KeyFacts` and fits the Poseidon2 hash chain (`WidthFits`), and both executables print the width
   result. The production tests `production_layer1_matches_lean` and `final_program_matches_lean`
-  require each printed pass. `key_facts_of_check`, `width_fits_of_check` and
-  `package_templates_of_check` prove that a pass gives the premise; that the executables ran on the
-  production artifacts is the evidence of these Rust tests.
+  require each printed pass. `setupCheck` reads the production key and the runs that
+  `production_runs_rebuild_the_layer1_key` writes, and prints the first fact of `setupFailure` that
+  fails. That test requires `Key::derive` of the runs to be the committed key's layer-1 key, and
+  `production_setup_matches_lean` requires the pass. `key_facts_of_check`, `width_fits_of_check`,
+  `package_templates_of_check` and `setup_facts_of_check` prove that a pass gives the premise; that
+  the executables ran on the production artifacts is the evidence of these Rust tests. The readers of
+  the files that the Rust tests write (`Layer1Input`, `readRuns`) are transcriptions of their formats.
 
 ## 6. Scope
 

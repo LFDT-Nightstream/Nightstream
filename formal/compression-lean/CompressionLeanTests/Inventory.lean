@@ -26,7 +26,8 @@ def claims : List (Name × List Name) := [
   (`CompressionLean.Claims.honest_setup_of_build, standardAxioms),
   (`CompressionLean.Claims.key_facts_of_check, standardAxioms),
   (`CompressionLean.Claims.width_fits_of_check, standardAxioms),
-  (`CompressionLean.Claims.package_templates_of_check, [``propext, ``Quot.sound])]
+  (`CompressionLean.Claims.package_templates_of_check, [``propext, ``Quot.sound]),
+  (`CompressionLean.Claims.setup_facts_of_check, standardAxioms)]
 
 /-- The module of the claims. -/
 def claimsModule : Name := `CompressionLean.Claims
@@ -42,12 +43,16 @@ def premises : List (Name × String) := [
   (`NightstreamFPrime.Export.Package.CircuitPackage.CompactTemplatesValid,
     "Checked on the terminal package by `terminalCheck` (`package_templates_of_check`)."),
   (`CompressionLean.Final.HonestSetup,
-    "From Rust's setup build and `RunsGive` (`honest_setup_of_build`)."),
+    "From Rust's setup build and `RunsGive` (`honest_setup_of_build`). `poseidon2_bound` gets the build from the pass of `setupCheck` (`setup_facts_of_check`)."),
   (`CompressionLean.Final.RunsGive, "Open: no Lean proof and no check."),
+  (`CompressionLean.Final.setupFailure,
+    "Checked on the production key and runs by `setupCheck`, which prints the first fact that fails (`setup_facts_of_check`)."),
   (`CompressionLean.Final.ParentShape,
     "From `KeyFacts` and `WidthFits` for the Poseidon2 hash chain (`parentShape_of`, in `poseidon2_bound`). Open for other applications."),
-  (`CompressionLean.Layer1.Setup.Fits, "Open: a fact of the setup that Rust builds."),
-  (`CompressionLean.Layer1.Structure.Describes, "Open: a fact of the setup that Rust builds.")]
+  (`CompressionLean.Layer1.Setup.Fits,
+    "From the pass of `setupCheck` for the Poseidon2 hash chain (`setup_facts_of_check`, in `poseidon2_bound`). Open for other applications."),
+  (`CompressionLean.Layer1.Structure.Describes,
+    "From the pass of `setupCheck` for the Poseidon2 hash chain (`setup_facts_of_check`, in `poseidon2_bound`). Open for other applications.")]
 
 /-- The modules that port Rust by hand, with their submodules. -/
 def portModules : List Name := [

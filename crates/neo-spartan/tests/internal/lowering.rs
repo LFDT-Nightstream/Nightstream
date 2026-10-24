@@ -480,7 +480,7 @@ fn lowering_matches_lean() {
 
 /// Run `lowerCheck` on the export at `path` with `program`, and require
 /// `match`.
-fn lower_check(name: &str, path: &Path, program: &[PathBuf]) {
+fn lower_check(name: &str, path: &Path, program: &[PathBuf]) -> String {
     let check = workspace().join("formal/compression-lean/.lake/build/bin/lowerCheck");
     assert!(
         check.exists(),
@@ -498,6 +498,7 @@ fn lower_check(name: &str, path: &Path, program: &[PathBuf]) {
         "{name}: {stdout}{}",
         String::from_utf8_lossy(&output.stderr)
     );
+    stdout.into_owned()
 }
 
 /// The layer-1 key, PiRLC's bound and the layer bits of the production
@@ -569,5 +570,13 @@ fn production_layer1_matches_lean() {
     let path = export("production_layer1", &layer1);
     let input = workspace().join("target/lean-lowering/production_layer1.json");
     std::fs::write(&input, layer1_input(&relation)).unwrap();
-    lower_check("production_layer1", &path, &["layer1".into(), input]);
+    let stdout = lower_check("production_layer1", &path, &["layer1".into(), input]);
+    assert!(
+        stdout.contains("key facts hold"),
+        "the production key must have the key facts: {stdout}"
+    );
+    assert!(
+        stdout.contains("key width fits the Poseidon2 hash chain"),
+        "the production key must fit the Poseidon2 hash chain's width: {stdout}"
+    );
 }

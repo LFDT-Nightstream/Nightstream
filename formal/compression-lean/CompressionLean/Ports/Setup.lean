@@ -36,10 +36,17 @@ def pad : Push := ⟨0, 0, 0, 0, 0, 0⟩
 /-- `Class::ratio`: the canonical ratio, and one for a run of one column. -/
 def ratioWord (p : Push) : ℕ := if p.len = 1 then 1 else p.ratio.val
 
-/-- `Class` as one number. Its order is the derived order of `(len, ratio)`. -/
+/-- `Class` as one number, the length high. Its order is the derived order of
+`(len, ratio)`. -/
 def classCode (p : Push) : ℕ := p.len * 2 ^ 64 + p.ratioWord
 
 end Push
+
+/-- `Class::len` of the class with code `code`. -/
+def codeLength (code : ℕ) : ℕ := code / 2 ^ 64
+
+/-- `Class::ratio` of the class with code `code`. -/
+def codeRatio (code : ℕ) : Gl := ((code % 2 ^ 64 : ℕ) : Gl)
 
 /-! ## The port of `Tables::from_rows` and `key` -/
 
@@ -57,20 +64,19 @@ def classesOf (runs : List Push) : List ℕ := sortedSet (runs.map Push.classCod
 /-- The slot key of a run: its class, lane and block in one word, class high.
 Rust packs it in a `u64` as `class << 40 | lane << 32 | block`. The port is
 that word while the blocks are below `2^32` and the classes at most `2^24`;
-`from_rows` refuses wider keys. -/
+`from_rows` refuses wider keys. `keyStart` and `keyCode` decode it. -/
 def slotKey (classes : List ℕ) (p : Push) : ℕ :=
   classes.idxOf p.classCode * 2 ^ 40 + p.start % ringDegree * 2 ^ 32 + p.start / ringDegree
 
 /-- The slots, sorted. -/
 def keysOf (runs : List Push) : List ℕ := sortedSet (runs.map (slotKey (classesOf runs)))
 
-/-- The start column of slot `σ`: its block times `D` plus its lane. -/
-def slotStart (keys : List ℕ) (σ : ℕ) : ℕ :=
-  keys.getD σ 0 % 2 ^ 32 * ringDegree + keys.getD σ 0 / 2 ^ 32 % 2 ^ 8
+/-- The start column of the slot with key `w`: its block times `D` plus its
+lane (`start` in `from_rows`). -/
+def keyStart (w : ℕ) : ℕ := w % 2 ^ 32 * ringDegree + w / 2 ^ 32 % 2 ^ 8
 
-/-- The class of slot `σ`. -/
-def slotClass (runs : List Push) (σ : ℕ) : ℕ :=
-  (classesOf runs).getD ((keysOf runs).getD σ 0 / 2 ^ 40) 0
+/-- The class code of the slot with key `w`, in the sorted classes. -/
+def keyCode (classes : List ℕ) (w : ℕ) : ℕ := classes.getD (w / 2 ^ 40) 0
 
 /-- Key row `i` on the cube (`oracle`): coefficient `l` of the seeded Ajtai
 key element `(i, b)` at `2^6·b + l` for `l < 54` and `b < blocks`, and zero
@@ -89,10 +95,10 @@ def setupOfRuns (seed : List ℕ) (blocks : ℕ) (runs : List Push) : Layer1.Set
   runSlot k := if k < runs.length then (keysOf runs).idxOf (slotKey (classesOf runs) (runs.getD k Push.pad)) else 0
   runCoef k := (runs.getD k Push.pad).initial
   runs := runs.length
-  slotBlock σ := slotStart (keysOf runs) σ / ringDegree
-  slotLane σ := slotStart (keysOf runs) σ % ringDegree
-  slotLength σ := slotClass runs σ / 2 ^ 64
-  slotRatio σ := ((slotClass runs σ % 2 ^ 64 : ℕ) : Gl)
+  slotBlock σ := keyStart ((keysOf runs).getD σ 0) / ringDegree
+  slotLane σ := keyStart ((keysOf runs).getD σ 0) % ringDegree
+  slotLength σ := codeLength (keyCode (classesOf runs) ((keysOf runs).getD σ 0))
+  slotRatio σ := codeRatio (keyCode (classesOf runs) ((keysOf runs).getD σ 0))
   slots := (keysOf runs).length
 
 /-- The checks of `from_rows` and `key` on the columns and the runs: whole

@@ -118,10 +118,6 @@ hash chain's carrier and F′'s four matrices (`Setup::build`). -/
 def poseidon2Setup (seed : List ℕ) (pushes : List Push) : Layer1.Setup Gl :=
   setupOfRuns seed (poseidon2Columns / ringDegree) (runList productionProfile.ccsMatrices pushes)
 
-/-- The start column of the slot with key `w` (`start` in `Tables::from_rows`),
-as `slotStart` reads it. -/
-def keyStart (w : ℕ) : ℕ := w % 2 ^ 32 * ringDegree + w / 2 ^ 32 % 2 ^ 8
-
 /-- Each fact of the check by name, decided on the key and the runs. -/
 def setupChecks (key : Layer1Input) (pushes : List Push) : List (String × Bool) :=
   let rel := key.relation
@@ -141,14 +137,14 @@ def setupChecks (key : Layer1Input) (pushes : List Push) : List (String × Bool)
     ("slots", decide (keys.size = layout.slots ∧ keys.size ≤ 2 ^ layout.slotVariables)),
     ("cover", decide (layout.segments.size = 0 → layout.slots = 0)),
     ("slot sizes", (0 :: keys.toList).all fun w =>
-      decide (classes.getD (w / 2 ^ 40) 0 / 2 ^ 64 ≤ ringDegree ∧
-        ringDegree * (keyStart w / ringDegree) + keyStart w % ringDegree + classes.getD (w / 2 ^ 40) 0 / 2 ^ 64 ≤
+      decide (codeLength (keyCode classes w) ≤ ringDegree ∧
+        ringDegree * (keyStart w / ringDegree) + keyStart w % ringDegree + codeLength (keyCode classes w) ≤
           ringDegree * rel.key.blocks)),
     ("slot shapes", Nat.all st.segments fun i _ =>
       Nat.all (st.segmentStart (i + 1) - st.segmentStart i) fun t _ =>
         let w := keys.getD (st.segmentStart i + t) 0
-        decide (classes.getD (w / 2 ^ 40) 0 / 2 ^ 64 = st.classLength (st.segmentClass i) ∧
-          ((classes.getD (w / 2 ^ 40) 0 % 2 ^ 64 : ℕ) : Gl) = st.classRatio (st.segmentClass i) ∧
+        decide (codeLength (keyCode classes w) = st.classLength (st.segmentClass i) ∧
+          codeRatio (keyCode classes w) = st.classRatio (st.segmentClass i) ∧
           keyStart w % ringDegree = st.segmentLane i))]
 
 /-- The name of the first fact of the check that the key and the runs fail. -/
@@ -240,13 +236,12 @@ theorem setupFacts_of_check {key : Layer1Input} {pushes : List Push} (seed : Lis
       rw [matrices]
       exact (runs _ (runMem k inside)).1
     · exact Nat.mod_lt _ (by decide)
-    · show (classesOf (runList m pushes)).getD ((keysOf (runList m pushes)).getD σ 0 / 2 ^ 40) 0 / 2 ^ 64 ≤
-        ringDegree
+    · show codeLength (keyCode (classesOf (runList m pushes)) ((keysOf (runList m pushes)).getD σ 0)) ≤ ringDegree
       rw [hc, hk]
       exact (size σ).1
     · show ringDegree * (keyStart ((keysOf (runList m pushes)).getD σ 0) / ringDegree) +
           keyStart ((keysOf (runList m pushes)).getD σ 0) % ringDegree +
-          (classesOf (runList m pushes)).getD ((keysOf (runList m pushes)).getD σ 0 / 2 ^ 40) 0 / 2 ^ 64 ≤
+          codeLength (keyCode (classesOf (runList m pushes)) ((keysOf (runList m pushes)).getD σ 0)) ≤
         ringDegree * key.relation.key.blocks
       rw [hc, hk]
       exact (size σ).2
@@ -267,9 +262,9 @@ theorem setupFacts_of_check {key : Layer1Input} {pushes : List Push} (seed : Lis
       exact runList_matrix pushes lt lo hi
     · have shape := shapes i lt (σ - (structureOf key.relation.key.layout).segmentStart i) (by omega)
       rw [Nat.add_sub_cancel' lo] at shape
-      show (classesOf (runList m pushes)).getD ((keysOf (runList m pushes)).getD σ 0 / 2 ^ 40) 0 / 2 ^ 64 = _ ∧
-        (((classesOf (runList m pushes)).getD ((keysOf (runList m pushes)).getD σ 0 / 2 ^ 40) 0 % 2 ^ 64 : ℕ) : Gl) =
-          _ ∧ keyStart ((keysOf (runList m pushes)).getD σ 0) % ringDegree = _
+      show codeLength (keyCode (classesOf (runList m pushes)) ((keysOf (runList m pushes)).getD σ 0)) = _ ∧
+        codeRatio (keyCode (classesOf (runList m pushes)) ((keysOf (runList m pushes)).getD σ 0)) = _ ∧
+          keyStart ((keysOf (runList m pushes)).getD σ 0) % ringDegree = _
       rw [hc, word]
       exact shape
 

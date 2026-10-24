@@ -2,7 +2,6 @@ import CompressionLean.Final.RustSetup
 import CompressionLean.Checks.KeyFacts
 import Std.Data.HashSet.Lemmas
 import CompressionLean.Lib.List
-import CompressionLean.Lib.Nat
 
 /-!
 Owns the check of the layer-1 setup that Rust builds for the production key
@@ -121,38 +120,33 @@ hash chain's carrier and F′'s four matrices (`Setup::build`). -/
 def poseidon2Setup (seed : List ℕ) (pushes : List Push) : Layer1.Setup Gl :=
   setupOfRuns seed (poseidon2Columns / ringDegree) (runList Production.matrices pushes)
 
-/-- Each fact of the check by name, decided on the key and the runs. -/
-def setupChecks (key : Layer1Input) (pushes : List Push) : List (String × Bool) :=
+/-- Each fact of the check by name, on the key and the runs. -/
+def setupChecks (key : Layer1Input) (pushes : List Push) : List Fact :=
   let rel := key.relation
   let layout := rel.key.layout
   let st := structureOf layout
-  let matrices := Production.matrices
-  let rows := 2 ^ layout.rowVariables
+  let m := Production.matrices
   let classes := (sortedValues Push.classCode pushes).toList
   let keys := sortedValues (slotKey classes) pushes
-  [("runs", pushes.all fun p => decide (p.matrix < matrices ∧ p.len ≤ ringDegree ∧
-      p.start + p.len ≤ poseidon2Columns ∧ p.row < rows)),
-    ("matrices", decide (layout.matrices = matrices ∧ matrices ≤ 2 ^ rel.matrixVars)),
-    ("bounds", Nat.all (matrices + 1) fun j _ =>
-      decide (layout.runBounds[j]! = pushes.countP fun p => decide (p.matrix < j))),
-    ("run count", decide (layout.runBounds[matrices]! ≤ 2 ^ layout.runVariables)),
-    ("blocks", decide (poseidon2Columns / ringDegree ≤ rel.key.blocks)),
-    ("slots", decide (keys.size = layout.slots ∧ keys.size ≤ 2 ^ layout.slotVariables)),
-    ("cover", decide (layout.segments.size = 0 → layout.slots = 0)),
-    ("slot sizes", (0 :: keys.toList).all fun w =>
-      decide (codeLength (keyCode classes w) ≤ ringDegree ∧
-        ringDegree * (keyStart w / ringDegree) + keyStart w % ringDegree + codeLength (keyCode classes w) ≤
-          ringDegree * rel.key.blocks)),
-    ("slot shapes", Nat.all st.segments fun i _ =>
-      Nat.all (st.segmentStart (i + 1) - st.segmentStart i) fun t _ =>
-        let w := keys.getD (st.segmentStart i + t) 0
-        decide (codeLength (keyCode classes w) = st.classLength (st.segmentClass i) ∧
-          codeRatio (keyCode classes w) = st.classRatio (st.segmentClass i) ∧
-          keyStart w % ringDegree = st.segmentLane i))]
+  [⟨"runs", ∀ p ∈ pushes, p.matrix < m ∧ p.len ≤ ringDegree ∧ p.start + p.len ≤ poseidon2Columns ∧
+      p.row < 2 ^ layout.rowVariables⟩,
+    ⟨"matrices", layout.matrices = m ∧ m ≤ 2 ^ rel.matrixVars⟩,
+    ⟨"bounds", ∀ j, j < m + 1 → layout.runBounds[j]! = pushes.countP fun p => p.matrix < j⟩,
+    ⟨"run count", layout.runBounds[m]! ≤ 2 ^ layout.runVariables⟩,
+    ⟨"blocks", poseidon2Columns / ringDegree ≤ rel.key.blocks⟩,
+    ⟨"slots", keys.size = layout.slots ∧ keys.size ≤ 2 ^ layout.slotVariables⟩,
+    ⟨"cover", layout.segments.size = 0 → layout.slots = 0⟩,
+    ⟨"slot sizes", ∀ w ∈ (0 : ℕ) :: keys.toList, codeLength (keyCode classes w) ≤ ringDegree ∧
+      ringDegree * (keyStart w / ringDegree) + keyStart w % ringDegree + codeLength (keyCode classes w) ≤
+        ringDegree * rel.key.blocks⟩,
+    ⟨"slot shapes", ∀ i, i < st.segments → ∀ t, t < st.segmentStart (i + 1) - st.segmentStart i →
+      let w := keys.getD (st.segmentStart i + t) 0
+      codeLength (keyCode classes w) = st.classLength (st.segmentClass i) ∧
+        codeRatio (keyCode classes w) = st.classRatio (st.segmentClass i) ∧ keyStart w % ringDegree = st.segmentLane i⟩]
 
 /-- The name of the first fact of the check that the key and the runs fail. -/
 def setupFailure (key : Layer1Input) (pushes : List Push) : Option String :=
-  ((setupChecks key pushes).find? fun check => !check.2).map (·.1)
+  firstFailure (setupChecks key pushes)
 
 /-- **The setup check.** When the key and the runs fail no fact of the check,
 `build` returns `poseidon2Setup` at the carrier of the Poseidon2 hash chain,
@@ -162,13 +156,9 @@ theorem setupFacts_of_check {key : Layer1Input} {pushes : List Push} (seed : Lis
     build seed poseidon2Columns Production.matrices pushes = some (poseidon2Setup seed pushes) ∧
       (poseidon2Setup seed pushes).Fits (shapeOf key.relation) ∧
       (structureOf key.relation.key.layout).Describes (shapeOf key.relation) (poseidon2Setup seed pushes) := by
-  have all : ∀ check ∈ setupChecks key pushes, check.2 = true := by
-    simpa [setupFailure, List.find?_eq_none] using pass
-  simp only [setupChecks, List.forall_mem_cons, List.not_mem_nil, IsEmpty.forall_iff, implies_true, and_true] at all
-  obtain ⟨runs, matrices, bounds, count, blocks, slots, cover, sizes, shapes⟩ := all
-  simp only [List.all_eq_true, decide_eq_true_eq] at runs sizes
-  simp only [decide_eq_true_eq] at matrices count blocks slots cover
-  simp only [nat_all_iff, decide_eq_true_eq] at bounds shapes
+  obtain ⟨runs, matrices, bounds, count, blocks, slots, cover, sizes, shapes, -⟩ := all_of_firstFailure pass
+  dsimp only at runs matrices bounds count blocks slots cover sizes shapes
+  unfold poseidon2Setup
   obtain ⟨matrices, matrixVars⟩ := matrices
   obtain ⟨slots, slotBits⟩ := slots
   set m := Production.matrices
@@ -192,84 +182,57 @@ theorem setupFacts_of_check {key : Layer1Input} {pushes : List Push} (seed : Lis
     (getD_mem_or_pad _ k).imp_left perm.mem_iff.mp
   have bound (j : ℕ) (le : j ≤ m) : key.relation.key.layout.runBounds[j]! = pushes.countP fun p => p.matrix < j :=
     bounds j (by omega)
-  have keysLength : (keysOf (runList m pushes)).length = keys.size := by rw [hk, Array.length_toList]
   have keyMem (k : ℕ) (inside : k < (runList m pushes).length) :
-      slotKey (classesOf (runList m pushes)) ((runList m pushes).getD k Push.pad) ∈ keysOf (runList m pushes) :=
-    mem_sortedSet.mpr (List.mem_map_of_mem (List.getD_eq_getElem _ _ inside ▸ List.getElem_mem inside))
-  have word (σ : ℕ) : (keysOf (runList m pushes)).getD σ 0 = keys.getD σ 0 := by
-    rw [hk, List.getD_eq_getElem?_getD, Array.getElem?_toList, Array.getD_eq_getD_getElem?]
-  have size (σ : ℕ) := sizes _ (hk ▸ getD_mem_cons (keysOf (runList m pushes)) σ)
+      slotKey classes ((runList m pushes).getD k Push.pad) ∈ keys.toList := by
+    rw [← hk, ← hc]
+    exact mem_sortedSet.mpr (List.mem_map_of_mem (List.getD_eq_getElem _ _ inside ▸ List.getElem_mem inside))
+  have word (σ : ℕ) : keys.toList.getD σ 0 = keys.getD σ 0 := by
+    rw [List.getD_eq_getElem?_getD, Array.getElem?_toList, Array.getD_eq_getD_getElem?]
+  have size (σ : ℕ) := sizes _ (getD_mem_cons keys.toList σ)
   have accepts : Accepts poseidon2Columns m pushes :=
     ⟨by rw [poseidon2Columns_eq]; decide, by decide, by rw [poseidon2Columns_eq]; decide,
       by rw [poseidon2Columns_eq]; decide, fun p member =>
       ⟨(runs p member).1, (runs p member).2.1, (runs p member).2.2.1⟩⟩
-  refine ⟨by rw [build, if_pos accepts]; rfl, ?_, ?_⟩
+  refine ⟨by rw [build, if_pos accepts], ?_, ?_⟩ <;> simp only [setupOfRuns, hc, hk]
   · refine ⟨?_, fun k past => ?_, fun k => ?_, fun k => ?_, fun k => ?_, ?_, fun k inside => ?_, fun k inside => ?_,
-      fun σ => ?_, fun σ => ?_, fun σ => ?_, fun i b l lane pad => ?_⟩
-    · show (runList m pushes).length ≤ 2 ^ key.relation.key.layout.runVariables
-      rw [runList_length, ← bound m le_rfl]
+      fun σ => Nat.mod_lt _ (by decide), fun σ => (size σ).1, fun σ => (size σ).2, fun i b l lane pad => ?_⟩ <;>
+      dsimp only [shapeOf, Replay.Relation.matrices, Replay.laneVars] at *
+    · rw [runList_length, ← bound m le_rfl]
       exact count
-    · replace past : (runList m pushes).length ≤ k := past
-      show ((runList m pushes).getD k Push.pad).initial = 0 ∧ ((runList m pushes).getD k Push.pad).row = 0 ∧
-        (if k < (runList m pushes).length then _ else 0) = 0 ∧ ((runList m pushes).getD k Push.pad).matrix = 0
-      rw [List.getD_eq_default (runList m pushes) Push.pad past, if_neg (not_lt.mpr past)]
+    · rw [List.getD_eq_default (runList m pushes) Push.pad past, if_neg (not_lt.mpr past)]
       exact ⟨rfl, rfl, rfl, rfl⟩
-    · show ((runList m pushes).getD k Push.pad).row < 2 ^ key.relation.key.layout.rowVariables
-      rcases run k with member | pad
+    · rcases run k with member | pad
       · exact (runs _ member).2.2.2
       · rw [pad]
         exact Nat.two_pow_pos _
-    · show (if k < (runList m pushes).length then _ else 0) < 2 ^ key.relation.key.layout.slotVariables
-      split_ifs with inside
-      · exact lt_of_lt_of_le (List.idxOf_lt_length_of_mem (keyMem k inside)) (keysLength ▸ slotBits)
+    · split_ifs with inside
+      · exact lt_of_lt_of_le (List.idxOf_lt_length_of_mem (keyMem k inside)) (by simpa using slotBits)
       · exact Nat.two_pow_pos _
-    · show ((runList m pushes).getD k Push.pad).matrix < 2 ^ key.relation.matrixVars
-      rcases run k with member | pad
+    · rcases run k with member | pad
       · exact lt_of_lt_of_le (runs _ member).1 matrixVars
       · rw [pad]
         exact Nat.two_pow_pos _
-    · show (keysOf (runList m pushes)).length ≤ 2 ^ key.relation.key.layout.slotVariables
-      rw [keysLength]
-      exact slotBits
-    · replace inside : k < (runList m pushes).length := inside
-      show (if k < (runList m pushes).length then _ else 0) < (keysOf (runList m pushes)).length
-      rw [if_pos inside]
+    · simpa using slotBits
+    · rw [if_pos inside]
       exact List.idxOf_lt_length_of_mem (keyMem k inside)
-    · replace inside : k < (runList m pushes).length := inside
-      show ((runList m pushes).getD k Push.pad).matrix < key.relation.key.layout.matrices
-      rw [matrices]
+    · rw [matrices]
       exact (runs _ (runMem k inside)).1
-    · exact Nat.mod_lt _ (by decide)
-    · show codeLength (keyCode (classesOf (runList m pushes)) ((keysOf (runList m pushes)).getD σ 0)) ≤ ringDegree
-      rw [hc, hk]
-      exact (size σ).1
-    · show ringDegree * (keyStart ((keysOf (runList m pushes)).getD σ 0) / ringDegree) +
-          keyStart ((keysOf (runList m pushes)).getD σ 0) % ringDegree +
-          codeLength (keyCode (classesOf (runList m pushes)) ((keysOf (runList m pushes)).getD σ 0)) ≤
-        ringDegree * key.relation.key.blocks
-      rw [hc, hk]
-      exact (size σ).2
-    · replace lane : l < 64 := lane
-      replace pad : key.relation.key.blocks ≤ b ∨ ringDegree ≤ l := pad
-      show seedKey seed (poseidon2Columns / ringDegree) i (64 * b + l) = 0
-      have low : (64 * b + l) % 64 = l := by omega
+    · have low : (64 * b + l) % 64 = l := by omega
       have high : (64 * b + l) / 64 = b := by omega
-      rw [seedKey, low, high, if_neg]
+      have same : Replay.D = ringDegree := rfl
+      rw [seedKey, show (2 : ℕ) ^ 6 = 64 from rfl, low, high, if_neg]
       omega
-  · refine ⟨?_, fun j k lt lo hi => ?_, keysLength.trans slots, cover, fun i σ lt lo hi => ?_⟩
-    · show (runList m pushes).length = key.relation.key.layout.runBounds[key.relation.key.layout.matrices]!
-      rw [runList_length, matrices, bound m le_rfl]
-    · show ((runList m pushes).getD k Push.pad).matrix = j
-      have lt : j < m := by rw [← matrices]; exact lt
+  · refine ⟨?_, fun j k lt lo hi => ?_, slots, cover, fun i σ lt lo hi => ?_⟩ <;>
+      dsimp only [shapeOf, Replay.Relation.matrices] at *
+    · rw [runList_length, matrices]
+      exact (bound m le_rfl).symm
+    · have lt : j < m := by rw [← matrices]; exact lt
       replace lo : (pushes.countP fun p => p.matrix < j) ≤ k := by rw [← bound j lt.le]; exact lo
       replace hi : k < pushes.countP fun p => p.matrix < j + 1 := by rw [← bound (j + 1) lt]; exact hi
       exact runList_matrix pushes lt lo hi
     · have shape := shapes i lt (σ - (structureOf key.relation.key.layout).segmentStart i) (by omega)
       rw [Nat.add_sub_cancel' lo] at shape
-      show codeLength (keyCode (classesOf (runList m pushes)) ((keysOf (runList m pushes)).getD σ 0)) = _ ∧
-        codeRatio (keyCode (classesOf (runList m pushes)) ((keysOf (runList m pushes)).getD σ 0)) = _ ∧
-          keyStart ((keysOf (runList m pushes)).getD σ 0) % ringDegree = _
-      rw [hc, word]
+      rw [word]
       exact shape
 
 end CompressionLean.Checks

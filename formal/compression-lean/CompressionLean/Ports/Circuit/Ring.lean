@@ -15,7 +15,7 @@ namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (Relation D)
 
-/-- The powers of `λ` in row order (`Mixing`, `ring.rs:41-82`). -/
+/-- The powers of `λ` in row order (`Mixing`, `ring.rs::Mixing`). -/
 structure MixingVar where
   powers : Array ExtVar
   kappa : ℕ
@@ -23,7 +23,7 @@ structure MixingVar where
 
 namespace MixingVar
 
-/-- `1, λ, λ², …`, one power per row (`Mixing::new`, `ring.rs:48-59`). -/
+/-- `1, λ, λ², …`, one power per row (`Mixing::new`, `ring.rs::Mixing::new`). -/
 def new (lambda : ExtVar) (rel : Relation) : Build MixingVar := do
   let mut powers := #[← Algebra.extOne]
   for _ in [1:rel.rowCount] do
@@ -34,7 +34,7 @@ def commitment (m : MixingVar) (row : ℕ) : ExtVar := m.powers[row]!
 
 def evalK (m : MixingVar) : ExtVar × ExtVar := (m.powers[m.kappa]!, m.powers[m.kappa + 1]!)
 
-/-- The Eval_A weights of matrix `j` (`eval_a`, `ring.rs:70-77`). -/
+/-- The Eval_A weights of matrix `j` (`eval_a`, `ring.rs::Mixing::eval_a`). -/
 def evalA (m : MixingVar) (j : ℕ) : ExtVar × ExtVar :=
   (m.powers[m.kappa + 2 + 2 * j]!, m.powers[m.kappa + 3 + 2 * j]!)
 
@@ -44,13 +44,13 @@ end MixingVar
 
 namespace Ring
 
-/-- `weights.1·Re(value) + weights.2·Im(value)` (`project`, `ring.rs:189-193`). -/
+/-- `weights.1·Re(value) + weights.2·Im(value)` (`project`, `ring.rs::project`). -/
 def project (value : KVar) (weights : ExtVar × ExtVar) : Build ExtVar := do
   let re ← Build.extScale weights.1 value.1
   let im ← Build.extScale weights.2 value.2
   Build.extAdd re im
 
-/-- `Ȳ = Σ_rows λ^row·y_row`, lane by lane (`targets`, `ring.rs:164-184`). -/
+/-- `Ȳ = Σ_rows λ^row·y_row`, lane by lane (`targets`, `ring.rs::targets`). -/
 def targets (statement : ClaimView) (m : MixingVar) : Build (Array ExtVar) :=
   (Array.range D).mapM fun lane => do
     let mut total ← Algebra.extZero
@@ -68,7 +68,7 @@ def targets (statement : ClaimView) (m : MixingVar) : Build (Array ExtVar) :=
     pure total
 
 /-- `Ȳ(ζ) + Q(ζ)·Φ81(ζ)` with `Φ81 = X⁵⁴ + X²⁷ + 1` (`lifted_target`,
-`ring.rs:231-244`). -/
+`ring.rs::lifted_target`). -/
 def liftedTarget (target quotient : Array ExtVar) (zeta : ExtVar) : Build ExtVar := do
   let mut middle := zeta
   for _ in [1:27] do
@@ -82,7 +82,7 @@ def liftedTarget (target quotient : Array ExtVar) (zeta : ExtVar) : Build ExtVar
   let lifted ← Build.extMul quotient phi
   Build.extAdd target lifted
 
-/-- `τ_l = Σ_p bar(p, l)·ζ^p` (`tau`, `ring.rs:150-161`). -/
+/-- `τ_l = Σ_p bar(p, l)·ζ^p` (`tau`, `ring.rs::tau`). -/
 def tau (zeta : ExtVar) : Build (Array ExtVar) := do
   let mut tau := Array.replicate D (← Algebra.extZero)
   let mut power ← Algebra.extOne

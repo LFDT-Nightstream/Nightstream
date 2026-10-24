@@ -3,13 +3,13 @@ import CompressionLean.Lib.Combination
 
 /-!
 Owns the port of the tables of the shrink argument's two sum-checks and the
-batching between them (`mod.rs:233-288`).
+batching between them (`mod.rs::verify`).
 
 - Outer: the zero-check `Σ_x eq(τ, x)·P(M_0·z(x), ..., M_7·z(x)) = 0` over
   the rows. Its rounds are `combRound` of nine tables (`eq(τ, ·)` and the
   `M_j·z`) under `outerComb = X_eq·P`, of total degree 8 (`DEGREE`,
-  `mod.rs:40-41`).
-- Batching: `Σ_j ρ^j·v_j` (`mod.rs:255-256`), and `batchPoly`, the
+  `mod.rs::DEGREE`).
+- Batching: `Σ_j ρ^j·v_j` (`mod.rs::verify`), and `batchPoly`, the
   difference of two batches as a polynomial in `ρ`.
 - Inner: `Σ_y weight(y)·z(y)` over the columns, as `combRound` of two tables
   under `productComb`.
@@ -46,7 +46,7 @@ end Outer
 
 section Batch
 
-/-- `Σ_j ρ^j·v_j` (`mod.rs:255-256`). -/
+/-- `Σ_j ρ^j·v_j` (`mod.rs::verify`). -/
 def batch (ρ : K) (v : Fin 8 → K) : K := ∑ j : Fin 8, ρ ^ (j : ℕ) * v j
 
 /-- `Σ_j (v_j - t_j)·X^j`: claimed values against true values. -/

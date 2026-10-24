@@ -6,19 +6,19 @@ Owns the shrink program as data: a flat, branch-free list of instructions
 over value handles (`Instr`), and the builder that emits it (`Build`).
 
 - An instruction is one call of `Backend`
-  (`crates/neo-spartan/src/circuit/mod.rs:34-94`) that `record.rs` lowers by
+  (`crates/neo-spartan/src/circuit/mod.rs::Backend`) that `record.rs` lowers by
   itself. `add`, `sub` and `scale` are one `linear` instruction, as
-  `Recorder::linear` reads them (`record.rs:251-254`, `305-315`). The other
-  methods are combinations (`record.rs:329-347`, `375-377`, `439-443`;
-  `mod.rs:78-93`), and the builder writes them so.
+  `Recorder::linear` reads them (`record.rs::Recorder::linear`; `add`, `sub`, `scale`). The other
+  methods are combinations (`ext`, `coordinates`, `ext_constant`, `ext_add`, `ext_sub`, `ext_scale` and
+  `select` of `record.rs::Recorder`; `mod.rs::Backend`), and the builder writes them so.
 - Value `v` is the `v`-th value of the run: each instruction appends its
   `outputs` in order and reads only earlier values.
 - The program never sees a value, so no instruction depends on one.
   Constants and coefficients are canonical Goldilocks words.
 
-`select` is `whenZero + bit·(whenOne - whenZero)`, as `record.rs:439-443`
+`select` is `whenZero + bit·(whenOne - whenZero)`, as `record.rs::Recorder::select`
 computes it.
-`Native::select` branches (`mod.rs:181-187`); the two agree on a boolean
+`Native::select` branches (`mod.rs::Native::select`); the two agree on a boolean
 `bit`.
 -/
 
@@ -32,29 +32,29 @@ abbrev Var := ℕ
 
 /-- One `Backend` call that `record.rs` lowers by itself. -/
 inductive Instr where
-  /-- `constant` (`record.rs:289-291`). -/
+  /-- `constant` (`record.rs::Recorder::constant`). -/
   | const (value : Word)
-  /-- `private`: a proof word (`record.rs:293-295`). -/
+  /-- `private`: a proof word (`record.rs::Recorder::private`). -/
   | priv
-  /-- `public`: the next statement word (`record.rs:297-303`). -/
+  /-- `public`: the next statement word (`record.rs::Recorder::public`). -/
   | pub
-  /-- `Σ weight·part`: `add`, `sub` and `scale` (`record.rs:251-254`). -/
+  /-- `Σ weight·part`: `add`, `sub` and `scale` (`record.rs::Recorder::linear`). -/
   | linear (parts : List (Var × Word))
-  /-- `mul` (`record.rs:317-327`). -/
+  /-- `mul` (`record.rs::Recorder::mul`). -/
   | mul (a b : Var)
-  /-- `ext_mul` on three coordinates each (`record.rs:349-373`). -/
+  /-- `ext_mul` on three coordinates each (`record.rs::Recorder::ext_mul`). -/
   | extMul (a b : Fin 3 → Var)
-  /-- `ext_inverse` (`record.rs:379-397`). -/
+  /-- `ext_inverse` (`record.rs::Recorder::ext_inverse`). -/
   | extInv (a : Fin 3 → Var)
-  /-- `assert_zero` (`record.rs:399-407`). -/
+  /-- `assert_zero` (`record.rs::Recorder::assert_zero`). -/
   | assertZero (a : Var)
-  /-- `bits`: `count` little-endian bits (`record.rs:409-437`). -/
+  /-- `bits`: `count` little-endian bits (`record.rs::Recorder::bits`). -/
   | bits (a : Var) (count : ℕ)
-  /-- `permute`: one Poseidon2 block (`record.rs:445-448`). -/
+  /-- `permute`: one Poseidon2 block (`record.rs::Recorder::permute`). -/
   | permute (state : Fin 16 → Var)
-  /-- `hint`: `count` free proof words (`record.rs:462-473`). -/
+  /-- `hint`: `count` free proof words (`record.rs::Recorder::hint`). -/
   | hint (count : ℕ)
-  /-- `r1cs`: a fixed system over value columns (`record.rs:450-460`). -/
+  /-- `r1cs`: a fixed system over value columns (`record.rs::Recorder::r1cs`). -/
   | r1cs (rows : List (R1csRow Word)) (columns : List Var)
 
 /-- The values an instruction appends. -/
@@ -104,14 +104,14 @@ def r1cs (rows : List (R1csRow Word)) (columns : List Var) : Build Unit := do
   let _ ← emit (.r1cs rows columns)
   pure ()
 
-/-- `ext_constant`: three constants (`record.rs:337-339`). -/
+/-- `ext_constant`: three constants (`record.rs::Recorder::ext_constant`). -/
 def extConstant (value : Fin 3 → Word) : Build (Fin 3 → Var) := do
   let x ← const (value 0)
   let y ← const (value 1)
   let z ← const (value 2)
   pure ![x, y, z]
 
-/-- Three coordinate calls in order (`record.rs:341-347`, `375-377`). -/
+/-- Three coordinate calls in order (`record.rs::Recorder::ext_add`, `ext_sub`, `ext_scale`). -/
 def coordinatewise (f : Var → Var → Build Var) (a b : Fin 3 → Var) : Build (Fin 3 → Var) := do
   let x ← f (a 0) (b 0)
   let y ← f (a 1) (b 1)
@@ -122,13 +122,13 @@ def extAdd : (Fin 3 → Var) → (Fin 3 → Var) → Build (Fin 3 → Var) := co
 def extSub : (Fin 3 → Var) → (Fin 3 → Var) → Build (Fin 3 → Var) := coordinatewise sub
 def extScale (a : Fin 3 → Var) (by_ : Var) : Build (Fin 3 → Var) := coordinatewise mul a fun _ => by_
 
-/-- `whenZero + bit·(whenOne - whenZero)` (`record.rs:439-443`). -/
+/-- `whenZero + bit·(whenOne - whenZero)` (`record.rs::Recorder::select`). -/
 def select (bit whenZero whenOne : Var) : Build Var := do
   let difference ← sub whenOne whenZero
   let chosen ← mul bit difference
   add whenZero chosen
 
-/-- The default assertions (`mod.rs:78-93`). -/
+/-- The default assertions (`mod.rs::Backend`). -/
 def assertEqual (a b : Var) : Build Unit := do assertZero (← sub a b)
 
 def assertExtZero (a : Fin 3 → Var) : Build Unit := do

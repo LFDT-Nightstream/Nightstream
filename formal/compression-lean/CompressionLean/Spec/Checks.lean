@@ -83,7 +83,7 @@ structure RelationFacts (rel : Replay.Relation) : Prop where
 does not check (`verify_ensures`): nonempty run, row and slot points, a
 four-word Merkle root, classes no longer than a block, and WHIR keys with
 the batches of the relation's openings. Rust's `Structure::check`
-(`neo-spartan/src/matrix.rs:142`) enforces `short`. -/
+(`neo-spartan/src/matrix.rs::Structure::check`) enforces `short`. -/
 structure CircuitFacts (rel : Replay.Relation) (p1Key p0Key : WhirKey) : Prop where
   run : rel.key.layout.runVariables ≠ 0
   row : rel.key.layout.rowVariables ≠ 0
@@ -108,8 +108,8 @@ structure ProductionConstants (rel : Replay.Relation) : Prop where
 /-- The facts about the layer-1 key that the final theorems assume: the facts
 that the in-circuit verifier reads, the relation facts of the bridge, the
 production constants, and the size conditions of the layer-1 argument at the
-Goldilocks modulus. Rust's `Structure::check` (`neo-spartan/src/matrix.rs:142`)
-enforces `checked`. `Relation::new` (`neo-spartan/src/lib.rs:334`) enforces
+Goldilocks modulus. Rust's `Structure::check` (`neo-spartan/src/matrix.rs::Structure::check`)
+enforces `checked`. `Relation::new` (`neo-spartan/src/lib.rs::Relation::new`) enforces
 `high`, and `publicFits` through `public_blocks ≤ blocks`. -/
 structure KeyFacts (key : Layer1Key) : Prop where
   circuit : CircuitFacts key.relation key.p1Key key.p0Key

@@ -10,7 +10,7 @@ fixes the shape.
 namespace CompressionLean.Circuit
 
 /-- Replay `rounds` against `claim`; return the point and the final claim
-(`sumcheck.rs:24-44`). -/
+(`sumcheck.rs::replay`). -/
 def sumcheckReplay (rounds : Array (Array ExtVar)) (claim : ExtVar) : Transcript (Array ExtVar × ExtVar) := do
   let mut point := #[]
   let mut claim := claim

@@ -48,7 +48,7 @@ open CompressionLean.Terminal.Package (Loaded load)
 open CompressionLean.Final CompressionLean.Setup
 
 /-- **The production bound** (`CompressionKey::verify`,
-`lifecycle/finish.rs:131-145`). Take the production final program for the
+`lifecycle/finish.rs::CompressionKey::verify`). Take the production final program for the
 layer-1 key `key` (`productionProgram`), the terminal package with the context
 words of `authority`, and an honest setup `S` of an F′ relation of logical
 width `lw`. Under Fiat–Shamir, with the charged terms of each commitment

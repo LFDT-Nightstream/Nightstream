@@ -156,7 +156,7 @@ theorem Duplex.observeSlice_tracks (hp : Permutes c.perm) {vs : Array Var} {gs :
     Tracks c n (Duplex.observeSlice vs) (Replay.observeAll gs) fun _ _ _ => True := fun _ tr hd =>
   (Duplex.observeSlice_ensures hp hd hv).post fun _ _ q => ⟨(), _, Bridge.runs_observeAll gs tr, q, trivial⟩
 
-/-- Each word as a constant, observed (`verifier.rs:137-142`, `whir/mod.rs:221-232`): the replay's
+/-- Each word as a constant, observed (`verifier.rs::verify`, `whir/mod.rs::absorb`): the replay's
 `observeAll`. -/
 theorem Duplex.observeConsts_tracks (hp : Permutes c.perm) (words : Array Word) :
     Tracks c n (forIn words () fun word _ => (do

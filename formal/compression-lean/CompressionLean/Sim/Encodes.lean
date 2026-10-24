@@ -12,8 +12,8 @@ import CompressionLean.Spec.Bound
 
 /-!
 Owns `ProgramEncodes` (`Claim.lean`) for the production final program
-(`FinalProgram::run`, `lifecycle/terminal/mod.rs:54-80`, with `verify_with`,
-`neo-spartan/src/lib.rs:692-703`), for any layer-1 key. The program, what
+(`FinalProgram::run`, `lifecycle/terminal/mod.rs::FinalProgram::run`, with `verify_with`,
+`neo-spartan/src/lib.rs::verify_with`), for any layer-1 key. The program, what
 layer 1 reads from its witness (`wordsOf`, `statementWith`, `seedWith`,
 `proofWith`) and the reading (`Reads`) are in `Spec/`.
 
@@ -75,7 +75,7 @@ instance verifyWith_appends (key : Layer1Key) (state : Fin 16 → Var) (claim : 
     Appends (Circuit.verifyWith key state claim) := by
   unfold Circuit.verifyWith; appends
 
-/-- `verify_with` (`neo-spartan/src/lib.rs:692-703`) from the handles that
+/-- `verify_with` (`neo-spartan/src/lib.rs::verify_with`) from the handles that
 the terminal part hands it. -/
 private theorem verifyWith_at (hp : Permutes c.perm) (hw : Decodes c w) (facts : KeyFacts key)
     (named : ∀ s ∈ key.relation.key.layout.segments,
@@ -149,7 +149,7 @@ private theorem statementOf_ctxOf (key : Layer1Key) (loaded : Loaded) (context :
   fin_cases k <;> rfl
 
 /-- **`ProgramEncodes` for the production final program**
-(`lifecycle/terminal/mod.rs:54-80`), for a key that meets the premises. -/
+(`lifecycle/terminal/mod.rs::FinalProgram::run`), for a key that meets the premises. -/
 theorem programEncodes {key : Layer1Key} {loaded : Loaded} {context : Array Replay.Word}
     {authority : Lifecycle.VerifierContext.Authority} (S : Setup Gl) (facts : KeyFacts key)
     (fits : S.Fits (shapeOf key.relation))

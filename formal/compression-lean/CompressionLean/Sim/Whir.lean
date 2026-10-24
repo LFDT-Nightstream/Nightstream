@@ -2,8 +2,8 @@ import CompressionLean.Sim.Views
 import CompressionLean.Sim.Honest
 
 /-!
-Owns the simulation of our WHIR verifier (`whirVerify`, `whir/mod.rs:506-661`)
-and of the openings (`openingsStage`, `verifier.rs:266-315`) against the
+Owns the simulation of our WHIR verifier (`whirVerify`, `whir/mod.rs::verify`)
+and of the openings (`openingsStage`, `verifier.rs::verify`) against the
 replay. `whirVerify_tracks`: when the checks hold, the circuit's WHIR verifier
 tracks `Replay.whirTranscript`, and the opened values are the opening's.
 `openingsStage_tracks`: the openings track the tail of `Replay.verify`, both
@@ -175,7 +175,7 @@ private theorem isExts_pair {a b : ExtVar} {ga gb : Ext} (ha : IsExt c n a ga) (
   (IsExts.empty.push ha).push hb
 
 /-- The coordinate groups of opened batches whose sizes are multiples of
-three (`batch.chunks(3)`, `verifier.rs:276`). -/
+three (`batch.chunks(3)`, `verifier.rs::verify`). -/
 private theorem groups_rel {opened : Array (Array ExtVar)} {evals : Array (Array Ext)}
     (h : List.Forall₂ (IsExts c n) opened.toList evals.toList) (div : ∀ b ∈ evals.toList, b.size % 3 = 0) :
     List.Forall₂ (IsExts c n)
@@ -199,7 +199,7 @@ private theorem groups_rel {opened : Array (Array ExtVar)} {evals : Array (Array
         List.forall₂_same]
       exact fun i _ => hxy.slice _ _
 
-/-- `flat` (`verifier.rs:295`) against the replay's `flatPairs`. -/
+/-- `flat` (`verifier.rs::verify`) against the replay's `flatPairs`. -/
 private theorem flat_rel {pairs : Array (ExtVar × ExtVar)} {gpairs : Array (Ext × Ext)}
     {f : ExtVar × ExtVar → Array ExtVar} (hf : ∀ a b, f (a, b) = #[a, b])
     (h : List.Forall₂ (IsPair c n) pairs.toList gpairs.toList) :
@@ -260,13 +260,13 @@ section Verify
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `absorb` (`whir/mod.rs:221-226`): the replay's `observeAll`. -/
+/-- `absorb` (`whir/mod.rs::absorb`): the replay's `observeAll`. -/
 theorem Whir.absorb_tracks (hp : Permutes c.perm) (words : Array Word) :
     Tracks c n (Whir.absorb words) (Replay.observeAll words) fun _ _ _ => True := by
   unfold Whir.absorb
   exact Tracks.bindLast (Duplex.observeConsts_tracks hp words) fun _ _ _ _ _ => Tracks.pure trivial
 
-/-- `query_index` (`whir/mod.rs:399-416`): a sample that its inverse check
+/-- `query_index` (`whir/mod.rs::query_index`): a sample that its inverse check
 keeps from `p - 1`, as the replay draws it. -/
 private theorem Whir.queryIndex_tracks (hp : Permutes c.perm) (width : ℕ) :
     Tracks c n (Whir.queryIndex width) (do
@@ -295,7 +295,7 @@ private theorem Whir.queryIndex_tracks (hp : Permutes c.perm) (width : ℕ) :
   rw [Bool.not_eq_true', Bool.eq_false_iff]
   exact fun hb => hne' (Replay.Word.eq_of_beq hb)
 
-/-- `stir`'s draws (`whir/mod.rs:418-504`): each query index, or none when
+/-- `stir`'s draws (`whir/mod.rs::stir`): each query index, or none when
 the draw count is zero. The rest checks without the duplex. -/
 private theorem Whir.stir_tracks (hp : Permutes c.perm) (queries : Array (Array Var))
     (draws indexBits logFoldedDomain : ℕ) (root : DigestVar) (folding : Array ExtVar) (base : Bool) :
@@ -312,7 +312,7 @@ private theorem Whir.stir_tracks (hp : Permutes c.perm) (queries : Array (Array 
     refine Tracks.loop (fun _ _ _ => True) (by simp [Std.Legacy.Range.size]) trivial fun k _ acc m _ _ => ?_
     exact Tracks.bindLast (Whir.queryIndex_tracks hp _) fun _ _ _ _ _ => Tracks.pure ⟨rfl, trivial⟩
 
-/-- `sumcheck` (`whir/mod.rs:306-332`): the replay's `whirSumcheck` of the
+/-- `sumcheck` (`whir/mod.rs::sumcheck`): the replay's `whirSumcheck` of the
 round pairs. -/
 private theorem Whir.sumcheck_tracks (hp : Permutes c.perm) {shape : SumcheckShape}
     {rounds : Array (ExtVar × ExtVar)} {pairs : Array (Ext × Ext)} {claim : ExtVar}
@@ -351,7 +351,7 @@ private theorem Whir.sumcheck_tracks (hp : Permutes c.perm) {shape : SumcheckSha
     · rw [if_neg (by rw [Array.isEmpty_iff_size_eq_zero] at e ⊢; rw [← len]; exact e)]
       exact run
 
-/-- **`whir::verify`** (`whir/mod.rs:506-661`): when its checks hold, the
+/-- **`whir::verify`** (`whir/mod.rs::verify`): when its checks hold, the
 circuit tracks the replay's transcript of the opening `g`, and the opened
 values are `g`'s. The key has the shape's batches, and `g` has the shape's
 counts (`readOpening`, which `OpeningView::read` gives). -/
@@ -448,7 +448,7 @@ section Openings
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `from_coordinates` (`verifier.rs:352-362`). -/
+/-- `from_coordinates` (`verifier.rs::from_coordinates`). -/
 private theorem fromCoordinates_ensures {values : Array ExtVar} {gvalues : Array Ext}
     (hv : IsExts c n values gvalues) :
     Ensures c n (Circuit.fromCoordinates values) fun r m => IsExt c m r (Replay.fromCoordinates gvalues) := by
@@ -464,7 +464,7 @@ private theorem fromCoordinates_ensures {values : Array ExtVar} {gvalues : Array
       Ensures.pure ⟨rfl, by rw [sumRange_succ]; exact htotal⟩
   · rwa [Array.size_zipIdx, hv.1] at hr
 
-/-- The equality checks of `verifier.rs:280-282` and `verifier.rs:312-314`:
+/-- The equality checks of `verifier.rs::verify` and `verifier.rs::verify`:
 once they hold, each pair's values are equal. The replay takes no step. -/
 private theorem assertPairs_tracks {xs : Array (ExtVar × ExtVar)} {gs : Array (Ext × Ext)}
     {body : ExtVar × ExtVar → PUnit → Transcript (ForInStep PUnit)}
@@ -494,7 +494,7 @@ private theorem assertPairs_tracks {xs : Array (ExtVar × ExtVar)} {gs : Array (
     have := hall j (by rw [len]; exact hj)
     rwa [getElem!_pos gs.toList j hj] at this
 
-/-- **The openings** (`verifier.rs:266-315`): when the checks hold, the
+/-- **The openings** (`verifier.rs::verify`): when the checks hold, the
 circuit tracks the replay's two WHIR transcripts and its two opening checks
 (`openingsAgree`), the tail of `Replay.verify`.
 
@@ -502,8 +502,8 @@ The handles hold the replay's values field by field. Both openings pass
 `readOpening`, and the honest, early and late outputs have the proof's
 sizes. The keys have their shapes' batch counts. The relation's P1 batches
 are triples of coordinates, one per expected value, and its P0 batches have
-the sizes of the expected values; Rust asserts both (`verifier.rs:279`,
-`verifier.rs:308-311`). -/
+the sizes of the expected values; Rust asserts both (`verifier.rs::verify`,
+`verifier.rs::verify`). -/
 theorem openingsStage_tracks (hp : Permutes c.perm) {rel : Replay.Relation} {p1Key p0Key : WhirKey}
     {o : OpeningsInput} {proof : Replay.Proof} {early : Replay.EarlyOut} {lin : Replay.LinearOut}
     {honest : Replay.HonestOut} {late : Replay.LateOut} {w : Var → Word}

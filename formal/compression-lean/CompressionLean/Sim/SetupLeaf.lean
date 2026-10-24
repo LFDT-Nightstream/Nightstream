@@ -4,7 +4,7 @@ import CompressionLean.Bridge.Setup
 
 /-!
 Owns the simulation of the setup leaf check (`Circuit.setupCheck`,
-`setup.rs:243-300`) against the replay's `Replay.setupCheck`:
+`setup.rs::check`) against the replay's `Replay.setupCheck`:
 `setupCheck_ensures`. Once the circuit's checks hold, the leaf's path reaches
 the key root (`pathOk_of`) and the replay's leaf check returns the circuit's
 folded values.
@@ -73,7 +73,7 @@ theorem add_scale_zero (x w : Ext) : x + w.scale default = x :=
     funext k
     simp [show (default : Word) = 0 from rfl])
 
-/-- The circuit's lane checks (`setup.rs:255-257`) are the replay's `pathOk`. -/
+/-- The circuit's lane checks (`setup.rs::check`) are the replay's `pathOk`. -/
 theorem pathOk_of {root : Array Word} {index : ℕ} {leaf : Replay.Leaf}
     (h : ∀ k < 4, (Replay.merkleRoot (Replay.hashLeaf leaf.values) index leaf.path)[k]! = root[k]!) :
     Replay.pathOk root index leaf = true := by
@@ -110,7 +110,7 @@ section LeafCheck
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- The monomials `α^[u]` for `u < 2^|α|`, low bit first (`setup.rs:263-267`). -/
+/-- The monomials `α^[u]` for `u < 2^|α|`, low bit first (`setup.rs::check`). -/
 private theorem monomials_ensures {alpha : Array ExtVar} {galpha : Array Ext} {one : ExtVar} (hone : IsExt c n one 1)
     (ha : IsExts c n alpha galpha) :
     Ensures c n (forIn alpha #[one] fun a (monomials : Array ExtVar) => do
@@ -150,7 +150,7 @@ private theorem monomials_ensures {alpha : Array ExtVar} {galpha : Array Ext} {o
         ← getElem!_pos]
   · rwa [Array.length_toList, ha.1, List.take_of_length_le (by simp)] at q
 
-/-- The coefficients `α^[u]·2^-f·y^-u` (`setup.rs:268-273`). -/
+/-- The coefficients `α^[u]·2^-f·y^-u` (`setup.rs::check`). -/
 private theorem coefficients_ensures {monomials : Array ExtVar} {k : ℕ} {M : ℕ → Ext} {scale y : Var}
     {g0 gy : Word} (hm : IsExts c n monomials ((Array.range k).map M)) (hs : IsWord c n scale g0)
     (hy : IsWord c n y gy) :
@@ -182,7 +182,7 @@ private theorem coefficients_ensures {monomials : Array ExtVar} {k : ℕ} {M : �
     rw [Array.length_toList, size] at q
     exact q.2
 
-/-- The leaf weights `Σ_u coefficient_u·ω^((f - u)·v mod f)` (`setup.rs:274-284`). -/
+/-- The leaf weights `Σ_u coefficient_u·ω^((f - u)·v mod f)` (`setup.rs::check`). -/
 private theorem weights_ensures {coefficients : Array ExtVar} {k : ℕ} {C : ℕ → Ext} (omega : Word)
     (hc : IsExts c n coefficients ((Array.range k).map C)) :
     Ensures c n (forIn [:2 ^ foldVars] (#[] : Array ExtVar) fun v (weight : Array ExtVar) => do
@@ -216,7 +216,7 @@ private theorem weights_ensures {coefficients : Array ExtVar} {k : ℕ} {C : ℕ
     rw [map_range_succ]
     exact hacc.mono.push htotal
 
-/-- One group of the leaf check (`setup.rs:287-298`): each weight times its
+/-- One group of the leaf check (`setup.rs::check`): each weight times its
 oracle's coset values, summed per coset position, then the dot product with
 the leaf weights. -/
 private theorem groupStep_ensures {values : Array Var} {gvalues : Array Word} {weight ws : Array ExtVar}
@@ -304,7 +304,7 @@ private theorem groupStep_ensures {values : Array Var} {gvalues : Array Word} {w
     refine congrArg coords (sumRange_congr fun v hv => ?_)
     rw [getElem!_map_range _ _ hv, getElem!_map_range _ _ hv, show ws.toList.length = gws.size by simp [size], hS]
 
-/-- The computed root against the key root, lane by lane (`setup.rs:255-257`). -/
+/-- The computed root against the key root, lane by lane (`setup.rs::check`). -/
 private theorem rootEqual_ensures {computed root : DigestVar} {gcomputed groot : Array Word}
     (hc : IsDigest c n computed gcomputed) (hr : IsDigest c n root groot) :
     Ensures c n (forIn (List.finRange 4) PUnit.unit fun lane _ => do
@@ -324,7 +324,7 @@ private theorem rootEqual_ensures {computed root : DigestVar} {gcomputed groot :
   · exact hprev j lt
   · exact heq
 
-/-- The two groups of the leaf check (`setup.rs:285-298`): the key rows, then
+/-- The two groups of the leaf check (`setup.rs::check`): the key rows, then
 the run oracles from offset `|w₀|`. -/
 private theorem groups_ensures {values : Array Var} {gvalues : Array Word} {weight w₀ w₁ : Array ExtVar}
     {gweight : ℕ → Ext} {gw₀ gw₁ : Array Ext} (hv : IsWords c n values gvalues)
@@ -370,7 +370,7 @@ private theorem groups_ensures {values : Array Var} {gvalues : Array Word} {weig
   rw [offset] at hfolded'
   exact hfolded'
 
-/-- `setup::check` (`setup.rs:243-300`): once the circuit's checks hold, the
+/-- `setup::check` (`setup.rs::check`): once the circuit's checks hold, the
 leaf's path reaches the key root and the replay's leaf check returns the
 circuit's folded values. -/
 theorem setupCheck_ensures {root : DigestVar} {groot : Array Word} {vars index : ℕ} {bits : Array Var}

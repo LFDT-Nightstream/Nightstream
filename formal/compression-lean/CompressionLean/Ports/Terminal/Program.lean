@@ -4,9 +4,9 @@ import NightstreamFPrime.Lifecycle.XOut
 
 /-!
 Owns the final program up to layer 1 as a builder program: the wrapper of
-`FinalProgram::run` (`crates/nightstream/src/lifecycle/terminal/mod.rs:54-80`)
-and `Package::apply` (`terminal/package.rs:179-237`). The layer-1 verifier
-(`verify_with`, `crates/neo-spartan/src/lib.rs:692-703`) is a parameter: it
+`FinalProgram::run` (`crates/nightstream/src/lifecycle/terminal/mod.rs::FinalProgram::run`)
+and `Package::apply` (`terminal/package.rs::Package::apply`). The layer-1 verifier
+(`verify_with`, `crates/neo-spartan/src/lib.rs::verify_with`) is a parameter: it
 receives the claim and the transcript state that the package's output
 columns hold.
 
@@ -26,7 +26,7 @@ open CompressionLean.Circuit CompressionLean.Terminal.Package
 open CompressionLean.Replay (Word D)
 open NightstreamFPrime.Layout
 
-/-- `ClaimWords` over handles (`lib.rs:776-787`); a `K` value is
+/-- `ClaimWords` over handles (`lib.rs::ClaimWords`); a `K` value is
 `(re, im)`. -/
 structure ClaimVars where
   /-- `κ` rows of `D` lanes. -/
@@ -40,16 +40,16 @@ structure ClaimVars where
   evalA : Array (Array (Var × Var))
 
 /-- A state preimage ends with the verifier context (4 words), then the
-statement (`inputs.rs:39-43`). -/
+statement (`inputs.rs::STATE_STATEMENT_WORDS`). -/
 def statementWords : ℕ := 9
 
 def contextStart : ℕ := PilotProduction.stateHashWords - statementWords - 4
 
 /-- The public inputs: the prior public input (270 words), the output
-digest (4), the context (`PUBLIC_CONTEXT_START`, `package.rs:40`). -/
+digest (4), the context (`PUBLIC_CONTEXT_START`, `package.rs::PUBLIC_CONTEXT_START`). -/
 def publicContextStart : ℕ := 270 + 4
 
-/-- The value of a system column (`apply`, `package.rs:191-212`). Hint
+/-- The value of a system column (`apply`, `package.rs::Package::apply`). Hint
 output `k` is value `computed + k`. -/
 def column (statement : Array Var) (context : Array Word) (computed : Var) : Source → Build Var
   | .one => Build.const 1

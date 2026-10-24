@@ -526,7 +526,7 @@ open CompressionLean.Spec
 open CompressionLean.Replay
 
 /-- One replay of `rounds` is a replay of its first `k` rounds, then a replay of the rest from that
-claim (`verifier.rs:178-180`). -/
+claim (`verifier.rs::verify`). -/
 theorem runs_sumcheckReplay_split {rounds : Array (Array Ext)} {claim : Ext} (k : ℕ)
     {t t' : Transcript} {point : Array Ext} {final : Ext}
     (run : Runs (sumcheckReplay rounds claim) t (point, final) t') :
@@ -550,7 +550,7 @@ theorem runs_sumcheckReplay_split {rounds : Array (Array Ext)} {claim : Ext} (k 
   · rw [Bridge.sumcheckRounds_size _ _ _ _ _ _ h₂]
     simp
 
-/-- Layers `l₁ ++ l₂` replay `l₁`, then `l₂` from its claims (`gkr.rs:694`). -/
+/-- Layers `l₁ ++ l₂` replay `l₁`, then `l₂` from its claims (`gkr.rs::verify`). -/
 theorem gkrLayers_append (shapes : Array TreeShape) (l₁ l₂ : List GkrLayer) (k : ℕ) (claims : GkrClaims) :
     gkrLayers shapes k (l₁ ++ l₂) claims =
       gkrLayers shapes k l₁ claims >>= fun c => gkrLayers shapes (k + l₁.length) l₂ c := by
@@ -560,7 +560,7 @@ theorem gkrLayers_append (shapes : Array TreeShape) (l₁ l₂ : List GkrLayer) 
       simp only [List.cons_append, gkrLayers, ih, bind_assoc, List.length_cons]
       rw [show k + (rest.length + 1) = k + 1 + rest.length by omega]
 
-/-- The first `j + 1` layers run as the first `j`, then layer `j` (`gkr.rs:694`). -/
+/-- The first `j + 1` layers run as the first `j`, then layer `j` (`gkr.rs::verify`). -/
 theorem runs_gkrLayers_succ {shapes : Array TreeShape} {layers : Array GkrLayer} {j : ℕ}
     (hj : j < layers.size) {init c c' : GkrClaims} {t₀ t t' : Transcript}
     (pre : Runs (gkrLayers shapes 1 (layers.toList.take j) init) t₀ c t)
@@ -572,7 +572,7 @@ theorem runs_gkrLayers_succ {shapes : Array TreeShape} {layers : Array GkrLayer}
   rw [e, gkrLayers_append, List.length_take, Array.length_toList, Nat.min_eq_left hj.le, Nat.add_comm 1 j]
   exact runs_bind pre step
 
-/-- One layer of `verify` (`gkr.rs:694-746`): draw `μ` and `ν`, replay the
+/-- One layer of `verify` (`gkr.rs::verify`): draw `μ` and `ν`, replay the
 sum-check, check its last claim, bind the children and draw `τ`. -/
 theorem runs_gkrLayer {shapes : Array TreeShape} {k : ℕ} {layer : GkrLayer} {claims : GkrClaims}
     {t tmu tnu ts tobs t' : Transcript} {mu nu tau final : Ext} {point : Array Ext}
@@ -587,7 +587,7 @@ theorem runs_gkrLayer {shapes : Array TreeShape} {k : ℕ} {layer : GkrLayer} {c
   exact runs_bind hmu (runs_bind hnu (runs_bind sum (runs_bind (runs_ensure (by rw [← check]; exact Ext.beq_self _) _ _)
     (runs_bind hobs (runs_bind htau (runs_pure _ _))))))
 
-/-- Every tree ends by the last layer (`gkr.rs:749`). -/
+/-- Every tree ends by the last layer (`gkr.rs::verify`). -/
 theorem depth_le_layerCount (shapes : Array TreeShape) {t : ℕ} (inside : t < shapes.size) :
     shapes[t]!.depth ≤ layerCount shapes := by
   unfold layerCount
@@ -602,7 +602,7 @@ theorem depth_le_layerCount (shapes : Array TreeShape) {t : ℕ} (inside : t < s
       · exact le_max_right _ _
       · exact (ih inside).trans (le_max_left _ _)
 
-/-- A round message has at least three values (`GkrView::read`, `gkr.rs:608-656`). -/
+/-- A round message has at least three values (`GkrView::read`, `gkr.rs::GkrView::read`). -/
 theorem three_le_layerDegree (factors : Array ℕ) : 3 ≤ layerDegree factors := by
   unfold layerDegree
   rw [← Array.foldr_toList]
@@ -610,7 +610,7 @@ theorem three_le_layerDegree (factors : Array ℕ) : 3 ≤ layerDegree factors :
   | nil => exact le_rfl
   | cons f rest ih => exact ih.trans (le_max_left _ _)
 
-/-- Every tree has depth at least one (`GkrView::read`, `gkr.rs:608-656`). -/
+/-- Every tree has depth at least one (`GkrView::read`, `gkr.rs::GkrView::read`). -/
 theorem readGkr_depth {proof : GkrProof} {shapes : Array TreeShape} (read : readGkr proof shapes = .ok ())
     {t : ℕ} (inside : t < shapes.size) : 1 ≤ shapes[t]!.depth := by
   unfold readGkr at read
@@ -624,7 +624,7 @@ theorem readGkr_depth {proof : GkrProof} {shapes : Array TreeShape} (read : read
     have := (this t inside).1
     omega
 
-/-- What `GkrView::read` (`gkr.rs:608-656`) fixes of layer `k`: `k - 1`
+/-- What `GkrView::read` (`gkr.rs::GkrView::read`) fixes of layer `k`: `k - 1`
 rounds of at least three values, and `2·(factors + 1)` children for each
 active tree. -/
 theorem layerShapeOk_facts {shapes : Array TreeShape} {k : ℕ} {layer : GkrLayer}

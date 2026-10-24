@@ -2,13 +2,13 @@ import CompressionLean.Ports.Circuit.Honest
 import CompressionLean.Ports.Circuit.Whir
 
 /-!
-Owns the openings of the layer-1 verifier (`crates/neo-spartan/src/verifier.rs:266-315`)
+Owns the openings of the layer-1 verifier (`crates/neo-spartan/src/verifier.rs::verify`)
 as a builder program (`openingsStage`): the P1 opening and its equality
 checks, then the P0 opening and its equality checks. It calls `Build` in
 Rust's order.
 
 The stage starts from the duplex after the late stage (`observe_pairs`,
-`verifier.rs:260`), with the query points of `verifier.rs:262-265`. It reads
+`verifier.rs::verify`), with the query points of `verifier.rs::verify`. It reads
 only `OpeningsInput`: what the earlier stages compute and the proof parts
 the checks name.
 -/
@@ -18,7 +18,7 @@ namespace CompressionLean.Circuit
 open CompressionLean.Replay (Ext Relation foldVars)
 
 /-- The `Ext` value whose coordinate columns opened to `values`
-(`from_coordinates`, `verifier.rs:352-362`). -/
+(`from_coordinates`, `verifier.rs::from_coordinates`). -/
 def fromCoordinates (values : Array ExtVar) : Build ExtVar := do
   let mut total ← Algebra.extZero
   for (value, c) in values.zipIdx do
@@ -29,7 +29,7 @@ def fromCoordinates (values : Array ExtVar) : Build ExtVar := do
 
 /-- What the openings read, by their names in `verifier.rs`. -/
 structure OpeningsInput where
-  /-- Each setup query's point (`query_points`, `verifier.rs:262-265`). -/
+  /-- Each setup query's point (`query_points`, `verifier.rs::verify`). -/
   queryPoints : Array (Array ExtVar)
   /-- The honest fold's points on the setup variables (`key_point`, `run_point`). -/
   keyPoint : Array ExtVar
@@ -65,7 +65,7 @@ structure OpeningsInput where
   p1Opening : OpeningView
   p0Opening : OpeningView
 
-/-- `verifier.rs:266-315`: P1 opens the fold groups at the fold claims and at
+/-- `verifier.rs::verify`: P1 opens the fold groups at the fold claims and at
 every query point, and `Ω^A` at the two block points; each value, from its
 coordinates, equals the stage value. P0 opens at the early, linear and late
 points; each value equals the stage value or the proof value. -/

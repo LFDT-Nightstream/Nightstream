@@ -2,7 +2,7 @@ import CompressionLean.Ports.Circuit.Views
 
 /-!
 Owns our WHIR verifier of one opening (`crates/neo-spartan/src/whir/mod.rs`)
-as a builder program: `whirVerify` (`whir/mod.rs:506-661`) with its helpers
+as a builder program: `whirVerify` (`whir/mod.rs::verify`) with its helpers
 in the `Whir` namespace. Each one calls `Build` in the order of its Rust
 counterpart. Points are in Plonky3 order inside `whirVerify`; its callers
 pass low-bit-first points.
@@ -60,13 +60,13 @@ deriving FromJson, Inhabited
 
 namespace Whir
 
-/-- Each word as a constant, observed (`absorb`, `whir/mod.rs:221-226`). -/
+/-- Each word as a constant, observed (`absorb`, `whir/mod.rs::absorb`). -/
 def absorb (words : Array Word) : Transcript Unit := do
   for word in words do
     Duplex.observe (← Build.const word)
 
 /-- `(x^{2^{n-1}}, …, x², x)`; the last square is computed and unused
-(`expand`, `whir/mod.rs:234-244`). -/
+(`expand`, `whir/mod.rs::expand`). -/
 def expand (x : ExtVar) (n : ℕ) : Build (Array ExtVar) := do
   let mut point := #[]
   let mut current := x
@@ -75,7 +75,7 @@ def expand (x : ExtVar) (n : ℕ) : Build (Array ExtVar) := do
     current ← Build.extMul current current
   pure point.reverse
 
-/-- `Π (2·q·p − p − q + 1)` (`eval_eq`, `whir/mod.rs:246-260`). -/
+/-- `Π (2·q·p − p − q + 1)` (`eval_eq`, `whir/mod.rs::eval_eq`). -/
 def evalEq (p q : Array ExtVar) : Build ExtVar := do
   let one ← Algebra.extOne
   let mut total := one
@@ -89,7 +89,7 @@ def evalEq (p q : Array ExtVar) : Build ExtVar := do
   pure total
 
 /-- `Π_j (1 + r_j·(var^{2^j} − 1))` over `point` from the last coordinate
-(`eval_select`, `whir/mod.rs:262-277`). -/
+(`eval_select`, `whir/mod.rs::eval_select`). -/
 def evalSelect (var : Var) (point : Array ExtVar) : Build ExtVar := do
   let one ← Algebra.extOne
   let mut power := var
@@ -104,7 +104,7 @@ def evalSelect (var : Var) (point : Array ExtVar) : Build ExtVar := do
   pure total
 
 /-- The multilinear extension of `values` at `r`, low bit first
-(`mle`, `whir/mod.rs:279-294`). -/
+(`mle`, `whir/mod.rs::mle`). -/
 def mle (values r : Array ExtVar) : Build ExtVar := do
   let mut layer := values
   for x in r do
@@ -116,7 +116,7 @@ def mle (values r : Array ExtVar) : Build ExtVar := do
     layer := next
   pure layer[0]!
 
-/-- `Σ_i values_i·var^i` (`horner`, `whir/mod.rs:296-304`). -/
+/-- `Σ_i values_i·var^i` (`horner`, `whir/mod.rs::horner`). -/
 def horner (values : Array ExtVar) (var : Var) : Build ExtVar := do
   let mut total ← Algebra.extZero
   for value in values.reverse do
@@ -126,7 +126,7 @@ def horner (values : Array ExtVar) (var : Var) : Build ExtVar := do
 
 /-- A quadratic sum-check: the separator, then per round `(h(0), h(∞))`, a
 draw `r` and `h(r) = h(0)(1−r) + h(1)r + h(∞)r(r−1)`. No rounds, no calls
-(`sumcheck`, `whir/mod.rs:306-332`). Returns the draws and the claim. -/
+(`sumcheck`, `whir/mod.rs::sumcheck`). Returns the draws and the claim. -/
 def sumcheck (shape : SumcheckShape) (rounds : Array (ExtVar × ExtVar)) (claim : ExtVar) :
     Transcript (Array ExtVar × ExtVar) := do
   if rounds.isEmpty then return (#[], claim)
@@ -151,7 +151,7 @@ def sumcheck (shape : SumcheckShape) (rounds : Array (ExtVar × ExtVar)) (claim 
   pure (point, claim)
 
 /-- A batch of constraints: a challenge, its first power, and eq and select
-statements with their claimed values (`Constraint`, `whir/mod.rs:334-342`). -/
+statements with their claimed values (`Constraint`, `whir/mod.rs::Constraint`). -/
 structure Constraint where
   challenge : ExtVar
   initialPower : ℕ
@@ -162,7 +162,7 @@ structure Constraint where
 namespace Constraint
 
 /-- The challenge powers in statement order from `challenge^initialPower`;
-the power after the last is computed and unused (`whir/mod.rs:345-358`). -/
+the power after the last is computed and unused (`whir/mod.rs::Constraint::powers`). -/
 def powers (c : Constraint) : Build (Array ExtVar) := do
   let mut power ← Algebra.extOne
   for _ in [0:c.initialPower] do
@@ -173,7 +173,7 @@ def powers (c : Constraint) : Build (Array ExtVar) := do
     power ← Build.extMul power c.challenge
   pure powers
 
-/-- `Σ value·power` (`claimed`, `whir/mod.rs:360-372`). -/
+/-- `Σ value·power` (`claimed`, `whir/mod.rs::Constraint::claimed`). -/
 def claimed (c : Constraint) (powers : Array ExtVar) : Build ExtVar := do
   let mut total ← Algebra.extZero
   for (value, power) in (c.eq.map (·.2) ++ c.select.map (·.2)).zip powers do
@@ -182,7 +182,7 @@ def claimed (c : Constraint) (powers : Array ExtVar) : Build ExtVar := do
   pure total
 
 /-- The batched weight at the last `numVariables` folding challenges, reversed
-(`weight`, `whir/mod.rs:374-396`). -/
+(`weight`, `whir/mod.rs::Constraint::weight`). -/
 def weight (c : Constraint) (powers randomness : Array ExtVar) : Build ExtVar := do
   let tail := randomness.reverse.extract 0 c.numVariables
   let mut total ← Algebra.extZero
@@ -200,7 +200,7 @@ end Constraint
 
 /-- One query index of `width` bits: reject the sample `p − 1` by inverting
 it plus one, then the low bits of its 64 bits and their sum
-(`query_index`, `whir/mod.rs:399-416`). -/
+(`query_index`, `whir/mod.rs::query_index`). -/
 def queryIndex (width : ℕ) : Transcript (Array Var × Var) := do
   let sample ← Duplex.sample
   let one ← Build.const 1
@@ -217,7 +217,7 @@ def queryIndex (width : ℕ) : Transcript (Array Var × Var) := do
 /-- The STIR checks of one query set against `root`: the indices (every one,
 as constants, when `draws` is zero), a hint of the full paths, then per query
 its leaf, its path, the fold at `folding` and its domain point
-(`stir`, `whir/mod.rs:418-504`). The branch is on the key's draw count.
+(`stir`, `whir/mod.rs::stir`). The branch is on the key's draw count.
 Returns the select statements. -/
 def stir (queries : Array (Array Var)) (draws indexBits logFoldedDomain : ℕ) (root : DigestVar)
     (folding : Array ExtVar) (base : Bool) : Transcript (Array (Var × ExtVar)) := do
@@ -254,7 +254,7 @@ def stir (queries : Array (Array Var)) (draws indexBits logFoldedDomain : ℕ) (
 end Whir
 
 open Whir in
-/-- `whir::verify` (`whir/mod.rs:506-661`): the out-of-domain claims, the
+/-- `whir::verify` (`whir/mod.rs::verify`): the out-of-domain claims, the
 opening claims per table, the batching challenge and the initial sum-check;
 per round its root, out-of-domain claims, STIR queries against the previous
 root and sum-check; the final polynomial, its queries and sum-check; then

@@ -188,7 +188,7 @@ theorem segments_eq {K : Type} (value : ℕ → K) :
   intro i member
   rw [Structure.segmentStart, if_pos (List.mem_range.mp member)]
 
-/-- `matrix.rs::matrix_step` is the extension of the matrix column. -/
+/-- `matrix.rs::Structure::matrix_step` is the extension of the matrix column. -/
 theorem matrixStep_eq {K : Type} [Field F] [Field K] (fits : S.Fits s) (checked : key.Checked s)
     (describes : key.Describes s S)
     (p : List K) :
@@ -225,7 +225,7 @@ theorem slotStep_eq {K : Type} [CommRing K] (checked : key.Checked s) (describes
     (segmentStart_mono s key checked) (by rwa [segmentStart_end]) (by rwa [segmentStart_end]) σ
   rwa [segmentStart_end] at this
 
-/-- `matrix.rs::slot_step` at `t = 0`: each segment's value is its class's
+/-- `matrix.rs::Structure::slot_step` at `t = 0`: each segment's value is its class's
 head lane table at its lane; this is the extension of the model's head split. -/
 theorem slotStep_head {K : Type} [Field F] [Field K] [Algebra F K] (fits : S.Fits s) (checked : key.Checked s)
     (describes : key.Describes s S) (τ : ℕ → K) (p : List K) :
@@ -241,7 +241,7 @@ theorem slotStep_head {K : Type} [Field F] [Field K] [Algebra F K] (fits : S.Fit
   · intro σ past
     simp [laneSplit, describes.slots, past]
 
-/-- `matrix.rs::slot_step` at `t = 1`: the same with the tail lane tables. -/
+/-- `matrix.rs::Structure::slot_step` at `t = 1`: the same with the tail lane tables. -/
 theorem slotStep_tail {K : Type} [Field F] [Field K] [Algebra F K] (fits : S.Fits s) (checked : key.Checked s)
     (describes : key.Describes s S) (τ : ℕ → K) (p : List K) :
     stepValue p key.slots ((List.range key.segments).map fun i => (key.segmentFirst i,

@@ -28,7 +28,7 @@ open CompressionLean.Replay (Word)
 
 variable {F : Type} [CommRing F]
 
-/-- `b` is a decomposition of `a` into `count` bits (`record.rs:409-437`): each
+/-- `b` is a decomposition of `a` into `count` bits (`record.rs::Recorder::bits`): each
 bit is 0 or 1, `a = Σ 2^i·b_i`, and 64 bits are canonical, so that when the
 high 32 bits are all one, the low 32 bits are zero. -/
 structure Bits (a : F) (count : ℕ) (b : ℕ → F) : Prop where
@@ -37,7 +37,7 @@ structure Bits (a : F) (count : ℕ) (b : ℕ → F) : Prop where
   canonical : count = 64 → (∀ i, 32 ≤ i → i < 64 → b i = 1) → ∀ i < 32, b i = 0
 
 /-- Row `r` of a fixed R1CS system holds on the column values `column`:
-`(Σ a)·(Σ b) = Σ c` (`R1cs::sides`, `circuit/r1cs.rs:59-65`). -/
+`(Σ a)·(Σ b) = Σ c` (`R1cs::sides`, `circuit/r1cs.rs::R1cs::sides`). -/
 def R1csRow.Holds (column : ℕ → F) (r : R1csRow Word) : Prop :=
   let side (terms : List (ℕ × Word)) := (terms.map fun t => column t.1 * Word.cast t.2).sum
   side r.a * side r.b = side r.c
@@ -66,7 +66,7 @@ def State.next (s : State F) (outputs : List F) (check : Prop) : State F :=
 
 variable (perm : List F → List F) (stmt : List F) (tape : ℕ → F)
 
-/-- One instruction (`Backend for Recorder`, `record.rs:285-474`). Its first
+/-- One instruction (`Backend for Recorder`, `record.rs`). Its first
 output is handle `s.values.length`. -/
 def step (s : State F) : Instr → State F
   | .const value => s.next [Word.cast value] True

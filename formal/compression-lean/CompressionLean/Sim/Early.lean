@@ -43,12 +43,12 @@ private theorem IsKx.congr {c : Ctx F} {n : ℕ} {a : KxVar} {v v' : Replay.Kx} 
 
 /-! ## `mle.rs` in the replay -/
 
-/-- One step of `less_than` at coordinate `t` (`mle.rs:36-55`). -/
+/-- One step of `less_than` at coordinate `t` (`mle.rs::less_than`). -/
 private def lessThanStep (point : Array Ext) (bound t : ℕ) (acc : Ext × Ext) : Ext × Ext :=
   if (bound / 2 ^ t) % 2 = 1 then (acc.1 + acc.2 * Replay.oneMinus point[t]!, acc.2 * point[t]!)
   else (acc.1, acc.2 * Replay.oneMinus point[t]!)
 
-/-- The scan of `less_than` (`mle.rs:36-55`) is a fold from the top coordinate. -/
+/-- The scan of `less_than` (`mle.rs::less_than`) is a fold from the top coordinate. -/
 private theorem lessThanScan_eq (point : Array Ext) (bound : ℕ) : ∀ s acc,
     Replay.lessThanScan point bound s acc =
       (List.range s).reverse.foldl (fun acc t => lessThanStep point bound t acc) acc
@@ -59,11 +59,11 @@ private theorem lessThanScan_eq (point : Array Ext) (bound : ℕ) : ∀ s acc,
       unfold lessThanStep
       split_ifs <;> rfl
 
-/-- Term `s` of `step`: `values[s]` times its interval (`mle.rs:57-72`). -/
+/-- Term `s` of `step`: `values[s]` times its interval (`mle.rs::step`). -/
 private def stepTerm (gpoint : Array Ext) (starts : Array ℕ) (gvalues : Array Ext) (stop s : ℕ) : Ext :=
   gvalues[s]! * (Replay.lessThan gpoint (starts[s + 1]?.getD stop) - Replay.lessThan gpoint (starts[s]?.getD stop))
 
-/-- `step` (`mle.rs:57-72`) is the sum of its terms; a value past the starts
+/-- `step` (`mle.rs::step`) is the sum of its terms; a value past the starts
 has an empty interval. -/
 private theorem step_eq (gpoint : Array Ext) (starts : Array ℕ) (gvalues : Array Ext) (stop : ℕ)
     (size : starts.size ≤ gvalues.size) :
@@ -103,7 +103,7 @@ private theorem step_eq (gpoint : Array Ext) (starts : Array ℕ) (gvalues : Arr
     ← Finset.sum_range_add_sum_Ico _ size, Finset.sum_eq_zero (fun s hs => zero s (Finset.mem_Ico.mp hs).1),
     add_zero, Finset.range_eq_Ico]
 
-/-- `χ_r` (`mle.rs:84-107`) is the product of its factors. -/
+/-- `χ_r` (`mle.rs::chi`) is the product of its factors. -/
 private theorem toQ_chiList : ∀ (l : List (Word × Word)) (xs : List Ext),
     (Replay.chiList l xs).toQ (K := Cubic) = ∏ t ∈ Finset.range l.length, (Replay.chiFactor l[t]! xs[t]?).toQ
   | [], _ => by simp [Replay.chiList]
@@ -116,7 +116,7 @@ private theorem toQ_chiList : ∀ (l : List (Word × Word)) (xs : List Ext),
         List.getElem!_cons_zero, List.getElem!_cons_succ, List.getElem?_cons_zero, List.getElem?_cons_succ]
       rw [mul_comm]
 
-/-- A running product from one (`mle.rs:84-107`). -/
+/-- A running product from one (`mle.rs::chi`). -/
 private theorem toQ_foldl_mul (f : ℕ → Replay.Kx) (k : ℕ) :
     ((List.range k).foldl (fun v t => v.mul (f t)) Replay.Kx.one).toQ (K := Cubic) =
       ∏ t ∈ Finset.range k, (f t).toQ := by
@@ -158,7 +158,7 @@ section Mle
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `less_than`: `Σ_{x < bound} eq(point, x)`, high bit first (`mle.rs:36-55`). -/
+/-- `less_than`: `Σ_{x < bound} eq(point, x)`, high bit first (`mle.rs::less_than`). -/
 theorem Mle.lessThan_ensures {point : Array ExtVar} {gpoint : Array Ext} (bound : ℕ) (hp : IsExts c n point gpoint) :
     Ensures c n (Mle.lessThan point bound) fun r m => IsExt c m r (Replay.lessThan gpoint bound) := by
   unfold Mle.lessThan
@@ -205,7 +205,7 @@ theorem Mle.lessThan_ensures {point : Array ExtVar} {gpoint : Array Ext} (bound 
       exact e
 
 /-- `step`: `values[s]` on `[starts[s], starts[s + 1])`, the last segment
-ending at `stop` (`mle.rs:57-72`). A value past the starts adds nothing. -/
+ending at `stop` (`mle.rs::step`). A value past the starts adds nothing. -/
 theorem Mle.step_ensures {point : Array ExtVar} {gpoint : Array Ext} {starts : Array ℕ} {values : Array ExtVar}
     {gvalues : Array Ext} (stop : ℕ) (hp : IsExts c n point gpoint) (hv : IsExts c n values gvalues)
     (size : starts.size ≤ values.size) :
@@ -232,7 +232,7 @@ theorem Mle.step_ensures {point : Array ExtVar} {gpoint : Array Ext} {starts : A
     rw [step_eq gpoint starts gvalues stop (by rw [← hv.1]; exact size)]
     exact e
 
-/-- `identity`: `Σ_t 2^t point_t` (`mle.rs:74-82`). -/
+/-- `identity`: `Σ_t 2^t point_t` (`mle.rs::identity`). -/
 theorem Mle.identity_ensures {point : Array ExtVar} {gpoint : Array Ext} (hp : IsExts c n point gpoint) :
     Ensures c n (Mle.identity point) fun r m => IsExt c m r (Replay.identityValue gpoint) := by
   unfold Mle.identity
@@ -254,7 +254,7 @@ theorem Mle.identity_ensures {point : Array ExtVar} {gpoint : Array Ext} (hp : I
     exact hr
 
 /-- `chi`: `Π_{t<n} eq(r_t, point_t) · Π_{t≥n} (1 - r_t)` in `K ⊗ Ext`
-(`mle.rs:84-107`). -/
+(`mle.rs::chi`). -/
 theorem Mle.chi_ensures {r : Array KVar} {gr : Array (Word × Word)} {point : Array ExtVar} {gpoint : Array Ext}
     (hrs : r.size = gr.size) (hr : ∀ i < r.size, IsWord c n r[i]!.1 gr[i]!.1 ∧ IsWord c n r[i]!.2 gr[i]!.2)
     (hp : IsExts c n point gpoint) :
@@ -327,11 +327,11 @@ private theorem ext_not_isZero {a : Ext} (ne : a ≠ 0) : (!a.isZero) = true := 
   · rfl
   · exact absurd (Replay.Ext.eq_of_beq h) ne
 
-/-- Term `t` of `table_sum`: `m_t/(β - (t - H))` (`norm.rs:36-49`). -/
+/-- Term `t` of `table_sum`: `m_t/(β - (t - H))` (`norm.rs::table_sum`). -/
 private def tableTerm (bound : ℕ) (counts : Array Word) (beta : Ext) (slot : ℕ) : Ext :=
   (beta - Ext.ofGl (Word.ofNat slot - Word.ofNat bound)).inv.scale counts[slot]!
 
-/-- `table_sum` (`norm.rs:36-49`) accepts when no slot is a pole. -/
+/-- `table_sum` (`norm.rs::table_sum`) accepts when no slot is a pole. -/
 private theorem tableSum_ok {bound : ℕ} {counts : Array Word} {beta : Ext}
     (poles : ∀ s < counts.size, beta - Ext.ofGl (Word.ofNat s - Word.ofNat bound) ≠ 0) :
     Replay.tableSum bound counts beta = .ok (Replay.sumRange counts.size (tableTerm bound counts beta)) := by
@@ -345,7 +345,7 @@ private theorem tableSum_ok {bound : ℕ} {counts : Array Word} {beta : Ext}
       rw [List.range_succ, List.foldlM_append, ih (by omega), sumRange_succ]
       simp [Replay.tableSumStep, Replay.ensure, ext_not_isZero (poles k (by omega)), tableTerm]
 
-/-- `check_early` (`matrix.rs:261-317`) accepts when its pair checks pass and
+/-- `check_early` (`matrix.rs::Structure::check_early`) accepts when its pair checks pass and
 its leaf claims hold. -/
 private theorem checkEarly_ok {layout : Replay.Layout} {r : Array (Word × Word)} {ch : Replay.EarlyChallenges}
     {claims : Replay.GkrClaims} {v : Replay.EarlyValues}
@@ -368,7 +368,7 @@ private theorem checkEarly_ok {layout : Replay.Layout} {r : Array (Word × Word)
     ext_beq_of_eq pairLeaf, ext_beq_of_eq indexLeaf]
   rfl
 
-/-- The trees of `GkrView::read` (`gkr.rs:608-656`): none is empty, and each
+/-- The trees of `GkrView::read` (`gkr.rs::GkrView::read`): none is empty, and each
 ends by the last layer. -/
 theorem depth_bounds {proof : Replay.GkrProof} {shapes : Array TreeShape}
     (read : Replay.readGkr proof shapes = .ok ()) {u : ℕ} (inside : u < shapes.size) :
@@ -397,7 +397,7 @@ theorem depth_bounds {proof : Replay.GkrProof} {shapes : Array TreeShape}
         · exact (ih inside).trans (le_max_left _ _)
 
 /-- A tree that ends at layer `k` gets one leaf value per part
-(`gkr.rs:727-740`). -/
+(`gkr.rs::verify`). -/
 theorem reducedOf_size {shapes : Array TreeShape} {k u : ℕ} {layer : Replay.GkrLayer} {tau : Ext}
     (ok : Replay.layerShapeOk shapes k layer = true) (inside : u < shapes.size) (ends : shapes[u]!.depth = k) :
     (Replay.reducedOf ((Replay.activeTrees shapes k).zip layer.children).toList tau u).size =
@@ -425,7 +425,7 @@ theorem reducedOf_size {shapes : Array TreeShape} {k u : ℕ} {layer : Replay.Gk
     exact absurd (List.find?_eq_none.mp missing _ member) (by simp [← hsu])
 
 /-- The roots, leaf values and leaf points after the GKR layers from layer `k`
-(`gkr.rs:694-746`). -/
+(`gkr.rs::verify`). -/
 theorem gkrLayers_sizes {shapes : Array TreeShape} :
     ∀ (layers : List Replay.GkrLayer) (k : ℕ) (cl g : Replay.GkrClaims) (t t' : Replay.Transcript),
       Runs (Replay.gkrLayers shapes k layers cl) t g t' → 1 ≤ k →
@@ -479,7 +479,7 @@ theorem gkrLayers_sizes {shapes : Array TreeShape} :
         simp only [List.length_cons]
         split_ifs <;> first | rfl | omega
 
-/-- The roots of `verify` (`gkr.rs:679-751`) are the proof's, and each tree
+/-- The roots of `verify` (`gkr.rs::verify`) are the proof's, and each tree
 has one leaf value per part and a leaf point of its depth. -/
 theorem gkrVerify_sizes {proof : Replay.GkrProof} {shapes : Array TreeShape} {t t' : Replay.Transcript}
     {g : Replay.GkrClaims} (read : Replay.readGkr proof shapes = .ok ())
@@ -499,28 +499,28 @@ theorem gkrVerify_sizes {proof : Replay.GkrProof} {shapes : Array TreeShape} {t 
   exact Prod.mk.inj e
 
 
-/-- Tree `t`'s claim is the replay's (`TreeClaim`, `gkr.rs:70-78`). -/
+/-- Tree `t`'s claim is the replay's (`TreeClaim`, `gkr.rs::TreeClaim`). -/
 private def IsTree (c : Ctx F) (n : ℕ) (v : TreeClaimView) (g : Replay.GkrClaims) (t : ℕ) : Prop :=
   IsExt c n v.root.1 (g.roots[t]!).1 ∧ IsExt c n v.root.2 (g.roots[t]!).2 ∧ IsExts c n v.point g.leafPoint[t]! ∧
     IsExts c n v.values g.leafValues[t]!
 
-/-- `IsTree` survives later values (`gkr.rs:70-78`). -/
+/-- `IsTree` survives later values (`gkr.rs::TreeClaim`). -/
 private theorem IsTree.mono {c : Ctx F} {n m : ℕ} {v : TreeClaimView} {g : Replay.GkrClaims} {t : ℕ}
     (h : IsTree c n v g t) (le : n ≤ m := by omega) : IsTree c m v g t :=
   ⟨h.1.mono le, h.2.1.mono le, h.2.2.1.mono le, h.2.2.2.mono le⟩
 
-/-- Leaf value `j` of tree `t` (`gkr.rs:70-78`). -/
+/-- Leaf value `j` of tree `t` (`gkr.rs::TreeClaim`). -/
 private theorem IsTree.value {c : Ctx F} {n : ℕ} {v : TreeClaimView} {g : Replay.GkrClaims} {t j : ℕ}
     (h : IsTree c n v g t) (hj : j < (g.leafValues[t]!).size) : IsExt c n v.values[j]! (g.leafValue t j) :=
   h.2.2.2.2 j (h.2.2.2.1 ▸ hj)
 
-/-- What `check_early` leaves to openings (`matrix.rs:115-123`). -/
+/-- What `check_early` leaves to openings (`matrix.rs::EarlyOpenings`). -/
 private def IsOpenings (c : Ctx F) (m : ℕ) (v : EarlyOpeningsView) (o : Replay.EarlyOpenings) : Prop :=
   IsExts c m v.runPoint o.runPoint ∧ IsExts c m v.pairPoint o.pairPoint ∧ IsExts c m v.rowPoint o.rowPoint ∧
     IsExt c m v.mult o.mult ∧ IsExt c m v.setup.1 o.rowClaim ∧ IsExt c m v.setup.2.1 o.slotClaim ∧
     IsExt c m v.setup.2.2 o.coefClaim
 
-/-- The claims after the norm tree (`verifier.rs:166`). -/
+/-- The claims after the norm tree (`verifier.rs::verify`). -/
 private theorem extract_one {α : Type} [Inhabited α] (xs : Array α) (i : ℕ) :
     (xs.extract 1 xs.size)[i]! = xs[i + 1]! := by
   by_cases hi : i + 1 < xs.size
@@ -528,7 +528,7 @@ private theorem extract_one {α : Type} [Inhabited α] (xs : Array α) (i : ℕ)
     simp [Nat.add_comm]
   · rw [getElem!_neg _ i (by simp; omega), getElem!_neg xs (i + 1) hi]
 
-/-- The entries of two related arrays (`verifier.rs:43-122`). -/
+/-- The entries of two related arrays (`verifier.rs::ProofView::read`). -/
 theorem forall₂_entries {α β : Type} [Inhabited β] {R : α → β → Prop} {xs : Array α} {ys : Array β}
     (h : List.Forall₂ R xs.toList ys.toList) : xs.size = ys.size ∧ ∀ i (hi : i < xs.size), R xs[i] ys[i]! := by
   obtain ⟨len, get⟩ := List.forall₂_iff_get.mp h
@@ -538,7 +538,7 @@ theorem forall₂_entries {α β : Type} [Inhabited β] {R : α → β → Prop}
   rw [getElem!_pos ys i (by omega)]
   simpa using this
 
-/-- A GKR view's roots and layers, entry by entry (`gkr.rs:591-656`). -/
+/-- A GKR view's roots and layers, entry by entry (`gkr.rs::GkrView::read`). -/
 theorem IsGkr.entries {c : Ctx F} {n : ℕ} {v : GkrView} {gp : Replay.GkrProof} (h : IsGkr c n v gp) :
     (v.roots.size = gp.roots.size ∧ ∀ i < v.roots.size,
       IsExt c n (v.roots[i]!).1 (gp.roots[i]!).1 ∧ IsExt c n (v.roots[i]!).2 (gp.roots[i]!).2) ∧
@@ -572,7 +572,7 @@ section Root
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `observe_root` (`whir/mod.rs:221-232`): the separator words as constants,
+/-- `observe_root` (`whir/mod.rs::observe_root`): the separator words as constants,
 then the root, as the replay's two absorptions. -/
 theorem observeRoot_tracks {seed : Array Word} {root : DigestVar} {groot : Array Word} (hp : Permutes c.perm)
     (hr : IsDigest c n root groot) :
@@ -584,7 +584,7 @@ theorem observeRoot_tracks {seed : Array Word} {root : DigestVar} {groot : Array
 
 end Root
 
-/-- What later stages read of the early stage (`verifier.rs:153-168`): the
+/-- What later stages read of the early stage (`verifier.rs::verify`): the
 norm tree's leaf point, `z~` at it (`β - q~`), and the matrix openings, with
 the run columns `(i, σ, m)` at the run point. -/
 def IsEarlyOut (c : Ctx F) (m : ℕ) (v : EarlyOut) (o : Replay.EarlyOut) : Prop :=
@@ -594,14 +594,14 @@ def IsEarlyOut (c : Ctx F) (m : ℕ) (v : EarlyOut) (o : Replay.EarlyOut) : Prop
     IsExt c m v.openings.setup.1 o.openings.rowClaim ∧ IsExt c m v.openings.setup.2.1 o.openings.slotClaim ∧
     IsExt c m v.openings.setup.2.2 o.openings.coefClaim
 
-/-- `IsEarlyOut` survives later values (`verifier.rs:153-168`). -/
+/-- `IsEarlyOut` survives later values (`verifier.rs::verify`). -/
 theorem IsEarlyOut.mono {c : Ctx F} {m m' : ℕ} {v : EarlyOut} {o : Replay.EarlyOut} (h : IsEarlyOut c m v o)
     (le : m ≤ m' := by omega) : IsEarlyOut c m' v o := by
   obtain ⟨norm, z, run, pair, row, mult, rowClaim, slotClaim, coefClaim⟩ := h
   exact ⟨norm.mono le, z.mono le, run.mono le, pair.mono le, row.mono le, mult.mono le, rowClaim.mono le,
     slotClaim.mono le, coefClaim.mono le⟩
 
-/-- `forM` over a list in a transcript (`verifier.rs:318-331`): entry `x`
+/-- `forM` over a list in a transcript (`verifier.rs::observe_early`, `verifier.rs::observe_pairs`): entry `x`
 absorbs the words `f g` of its replay value `g`. -/
 private theorem forMList {c : Ctx F} {α β : Type} {body : α → Transcript PUnit} {R : ℕ → α → β → Prop}
     (f : β → List Word) (mono : ∀ m m' x g, R m x g → m ≤ m' → R m' x g)
@@ -626,7 +626,7 @@ private theorem forMList {c : Ctx F} {α β : Type} {body : α → Transcript PU
   | [], _ :: _, _, _, _, _, hl => nomatch hl
   | _ :: _, [], _, _, _, _, hl => nomatch hl
 
-/-- The entries of an `IsExts` (`verifier.rs:318-324`). -/
+/-- The entries of an `IsExts` (`verifier.rs::observe_early`). -/
 private theorem isExts_forall₂ {c : Ctx F} {n : ℕ} {xs : Array ExtVar} {gs : Array Ext} (h : IsExts c n xs gs) :
     List.Forall₂ (IsExt c n) xs.toList gs.toList := by
   rw [List.forall₂_iff_get]
@@ -639,7 +639,7 @@ section Stage
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `check_pair` (`matrix.rs:402-415`): once its checks hold, the replay's
+/-- `check_pair` (`matrix.rs::check_pair`): once its checks hold, the replay's
 `pairCheck` accepts. -/
 theorem checkPair_ensures {x y : TreeClaimView} {gx gy : Ext × Ext} (name : String) (hx : IsPair c n x.root gx)
     (hy : IsPair c n y.root gy) :
@@ -659,7 +659,7 @@ theorem checkPair_ensures {x y : TreeClaimView} {gx gy : Ext × Ext} (name : Str
   simp [Replay.ensure, ext_not_isZero hix.1, ext_not_isZero hiy.1, ext_beq_of_eq q]
   rfl
 
-/-- `table_sum` (`norm.rs:36-49`): once the inverse checks hold, no slot is a
+/-- `table_sum` (`norm.rs::table_sum`): once the inverse checks hold, no slot is a
 pole, and the sum is the replay's. -/
 private theorem tableSum_ensures {counts : Array Var} {gcounts : Array Word} {beta : ExtVar} {gbeta : Ext}
     (bound : ℕ) (hc : IsWords c n counts gcounts) (hb : IsExt c n beta gbeta) :
@@ -690,7 +690,7 @@ private theorem tableSum_ensures {counts : Array Var} {gcounts : Array Word} {be
     rw [Array.length_toList, Array.size_zipIdx, size] at e
     exact ⟨tableSum_ok e.1, e.2⟩
 
-/-- `observe_pairs` (`verifier.rs:326-331`): the replay's `observeExts` of the
+/-- `observe_pairs` (`verifier.rs::observe_pairs`): the replay's `observeExts` of the
 flattened pairs. -/
 theorem observePairs_ensures {d : Duplex} {r : Replay.Duplex} {pairs : Array (ExtVar × ExtVar)}
     {gpairs : Array (Ext × Ext)} (hp : Permutes c.perm) (hd : IsDuplex c n d r)
@@ -723,7 +723,7 @@ theorem observePairs_tracks {pairs : Array (ExtVar × ExtVar)} {gpairs : Array (
     Tracks c n (Circuit.observePairs pairs) (Replay.observeExts (Replay.flatPairs gpairs)) fun _ _ _ => True :=
   fun _ t hd => (observePairs_ensures hp hd hv).post fun _ _ q => ⟨(), _, Bridge.runs_observeExts _ t, q, trivial⟩
 
-/-- `observe_early` (`verifier.rs:318-324`): the replay's `observeExts` of the
+/-- `observe_early` (`verifier.rs::observe_early`): the replay's `observeExts` of the
 run values, the flattened pairs and the block. -/
 private theorem observeEarly_tracks {values : EarlyValuesView} {gv : Replay.EarlyValues} (hp : Permutes c.perm)
     (hruns : IsExts c n values.runs #[gv.eRe, gv.eIm, gv.row])
@@ -756,14 +756,14 @@ private theorem observeEarly_tracks {values : EarlyValuesView} {gv : Replay.Earl
   simp only [List.foldl_cons, List.foldl_nil]
   exact q
 
-/-- `tuple`: `i + γ·(re + γ·im)` (`matrix.rs:394-400`). -/
+/-- `tuple`: `i + γ·(re + γ·im)` (`matrix.rs::tuple`). -/
 private theorem tuple_ensures {index gamma re im : ExtVar} {gi gg gr gm : Ext} (hi : IsExt c n index gi)
     (hg : IsExt c n gamma gg) (hr : IsExt c n re gr) (hm : IsExt c n im gm) :
     Ensures c n (tuple index gamma re im) fun r m => IsExt c m r (Replay.tuple gg gi gr gm) :=
   (extMul_ensures hg hm).bind fun _ _ _ h₁ => (extAdd_ensures hr.mono h₁).bind fun _ _ _ h₂ =>
     (extMul_ensures hg.mono h₂).bind fun _ _ _ h₃ => extAdd_ensures hi.mono h₃
 
-/-- `matrix_step` (`matrix.rs:368-380`): the replay's `matrixStep`. -/
+/-- `matrix_step` (`matrix.rs::Structure::matrix_step`): the replay's `matrixStep`. -/
 private theorem matrixStep_ensures {layout : Replay.Layout} {point : Array ExtVar} {gpoint : Array Ext}
     (hp : IsExts c n point gpoint) :
     Ensures c n (matrixStep layout point) fun r m => IsExt c m r (Replay.matrixStep layout gpoint) := by
@@ -781,7 +781,7 @@ private theorem matrixStep_ensures {layout : Replay.Layout} {point : Array ExtVa
   · rw [Replay.matrixStep]
     simpa [Array.toList_map, Array.toList_range] using e
 
-/-- `Structure::check_early` (`matrix.rs:261-317`): once its checks hold, the
+/-- `Structure::check_early` (`matrix.rs::Structure::check_early`): once its checks hold, the
 replay's `checkEarly` accepts, and the openings are the replay's. -/
 private theorem checkEarly_ensures {layout : Replay.Layout} {r : Array KVar} {gr : Array (Word × Word)}
     {lb gamma sb mu : ExtVar} {ch : Replay.EarlyChallenges} {claims : Array TreeClaimView}
@@ -864,7 +864,7 @@ private theorem samplePair_tracks {γ δ : Type} (hp : Permutes c.perm) {g : Ext
     ⟨v, t', Bridge.runs_bind (Bridge.runs_samplePair t) run, hdx, hr⟩
   exact h₂.2
 
-/-- **The early stage** (`verifier.rs:153-168`). Once the circuit's checks
+/-- **The early stage** (`verifier.rs::verify`). Once the circuit's checks
 hold, the circuit's early stage tracks the replay's, and the circuit's
 outputs are the replay's. -/
 theorem earlyStage_tracks {rel : Relation} {statement : ClaimView} {st : Replay.Statement} {proof : ProofView}

@@ -8,7 +8,7 @@ Owns what the rows of each lowering step say about its forms: the value of a
 form at the wire values `v` (`Form.evaluate`), and for each part of the
 lowering, the fact that its rows give about its result (`Sound`).
 
-- `Form.evaluate` is `Form::evaluate` (`record.rs:78-88`): the terms, and the
+- `Form.evaluate` is `Form::evaluate` (`record.rs::Form::evaluate`): the terms, and the
   constant on the one column. Merging terms, dropping zero coefficients and
   moving the constant onto the one column keep the value, so a form's row
   terms have its value (`termsValue_rowTerms`, `combine_value`).
@@ -28,7 +28,7 @@ section Terms
 
 variable {F : Type} [CommRing F]
 
-/-- `Form::evaluate` (`record.rs:78-88`): the terms, and the constant on the
+/-- `Form::evaluate` (`record.rs::Form::evaluate`): the terms, and the constant on the
 one column. -/
 def _root_.CompressionLean.Shrink.Form.evaluate (v : Wire → F) (f : Form F) : F := termsValue v f.terms + f.constant * v (.pub 0)
 

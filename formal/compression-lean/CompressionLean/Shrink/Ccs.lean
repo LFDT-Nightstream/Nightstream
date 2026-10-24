@@ -7,7 +7,7 @@ import Mathlib.Algebra.BigOperators.Fin
 Owns the shrink relation over the CCS of `Ports/Shrink/Ccs.lean`
 (`Ccs.Relation`: every row's constraint is zero), the entry sum
 `matrixValue = Σ_j ρ^j·M̃_j(rx, ry)`, summed entry by entry as the verifier
-sums it (`mod.rs:275`), and the extensions of the tables (`mle_weight`,
+sums it (`mod.rs::verify`), and the extensions of the tables (`mle_weight`,
 `mle_z`, `publicValue_eq`). The extension lemmas need every entry inside the
 cubes (`Ccs.Fits`).
 -/
@@ -49,7 +49,7 @@ variable {F K : Type} [Field F] [Field K] [Algebra F K]
 
 local notation "ι" => algebraMap F K
 
-/-- `Σ_j ρ^j·M̃_j(rx, ry)`, entry by entry (`mod.rs:275`). -/
+/-- `Σ_j ρ^j·M̃_j(rx, ry)`, entry by entry (`mod.rs::verify`). -/
 def matrixValue (es : List (Entry F)) (rx ry : List K) (ρ : K) : K :=
   (es.map fun e => ρ ^ (e.matrix : ℕ) * eqAt rx e.row * eqAt ry e.col * ι e.coef).sum
 
@@ -157,7 +157,7 @@ theorem publicValue_eq (C : Ccs F) (q : List K) (fits : C.statement.length + 1 �
     rfl
   rw [zero, map_zero, mul_zero]
 
-/-- `z̃(ry) = (1 - ry_n)·w̃(ry[..n]) + ry_n·x̃(ry[..n])` (`mod.rs:283`). -/
+/-- `z̃(ry) = (1 - ry_n)·w̃(ry[..n]) + ry_n·x̃(ry[..n])` (`mod.rs::verify`). -/
 theorem mle_z (C : Ccs F) (w : ℕ → F) (ry : List K) (length : ry.length = C.cellVars + 1)
     (fits : C.statement.length + 1 ≤ 2 ^ C.cellVars) :
     mle ry (fun y => ι (C.z w y)) =

@@ -80,7 +80,7 @@ section Hashes
 
 variable {c : Ctx F} {n : ℕ}
 
-/-- `compress` (`hash.rs:104-111`): `[left, right, 0…]`, permute, the first
+/-- `compress` (`circuit/hash.rs::compress`): `[left, right, 0…]`, permute, the first
 four lanes. -/
 theorem compress_ensures {l r : DigestVar} {gl gr : Array Word} (hp : Permutes c.perm) (hl : IsDigest c n l gl)
     (hr : IsDigest c n r gr) :
@@ -110,7 +110,7 @@ theorem compress_ensures {l r : DigestVar} {gl gr : Array Word} (hp : Permutes c
     rw [e]
     exact hlanes ⟨lane, by omega⟩
 
-/-- `hash_leaf` (`hash.rs:93-101`): overwrite the lanes of each chunk of
+/-- `hash_leaf` (`circuit/hash.rs::hash_leaf`): overwrite the lanes of each chunk of
 `RATE` words and permute; the digest is the first four lanes. -/
 theorem hashLeaf_ensures {vs : Array Var} {gs : Array Word} (hp : Permutes c.perm) (hv : IsWords c n vs gs) :
     Ensures c n (Circuit.hashLeaf vs) fun r m => IsDigest c m r (Replay.hashLeaf gs) := by
@@ -152,7 +152,7 @@ theorem hashLeaf_ensures {vs : Array Var} {gs : Array Word} (hp : Permutes c.per
     rw [Fin.getElem!_fin, getElem!_extract_zero _ lane.isLt]
     exact w.get (by rw [size]; omega)
 
-/-- `merkle_root` (`hash.rs:115-129`): at each level, `select` puts the node
+/-- `merkle_root` (`circuit/hash.rs::merkle_root`): at each level, `select` puts the node
 left when the bit is zero, the other side is `node + sibling - left`, and the
 two compress. The replay branches on digit `level` of `index`. -/
 theorem merkleRoot_ensures [CharP F goldilocksModulus] {leaf : DigestVar} {bits : Array Var} {path : Array DigestVar}

@@ -8,13 +8,13 @@ Owns the facts about the Poseidon2 block template (`Ports/Circuit/Block.lean`)
 that the lowering reads.
 
 - `Template.Holds`: every row of a template holds on the cells of one block
-  (`Kind::failure`, `block.rs:80-92`).
+  (`Kind::failure`, `block.rs::Kind::failure`).
 - `poseidonTemplate_wellFormed`: every entry of the template names a row and
   a cell of the block.
 - `block_sound`: if every row holds, the output cells `166..182` are
   `Spec.Poseidon2.permute` of the input cells `0..16`. These are the cells
   that `Recorder::block` ties to its inputs and returns
-  (`record.rs:227-249`, `record.rs:445-448`).
+  (`record.rs::Recorder::block`, `record.rs::Recorder::permute`).
 
 The proof evaluates each step's forms to F′'s `Permutation.applyF`.
 `runF_eq_reference` and `runReference_schedule` give the permutation.
@@ -37,12 +37,12 @@ one. -/
 def _root_.CompressionLean.Shrink.TemplateEntry.value (c : ℕ → R) (e : TemplateEntry R) : R :=
   e.coef * (e.cell.map c).getD 1
 
-/-- `(M_j·z)(r)` on the cells `c` of one block (`block.rs:84-88`). -/
+/-- `(M_j·z)(r)` on the cells `c` of one block (`block.rs::Kind::failure`). -/
 def _root_.CompressionLean.Shrink.Template.rowValue (T : Template R) (c : ℕ → R) (j : Fin 8) (r : ℕ) : R :=
   (T.entries.map fun e => if e.matrix = j ∧ e.row = r then e.value c else 0).sum
 
 /-- Every row of `T` holds on the cells `c` of one block (`Kind::failure`,
-`block.rs:80-92`). -/
+`block.rs::Kind::failure`). -/
 def _root_.CompressionLean.Shrink.Template.Holds (T : Template R) (c : ℕ → R) : Prop :=
   ∀ r < T.rows, constraint (fun j => T.rowValue c j r) = 0
 

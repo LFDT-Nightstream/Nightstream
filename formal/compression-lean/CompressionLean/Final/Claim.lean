@@ -9,7 +9,7 @@ Owns the claim of a final proof and the encoding premise that links the
 three layers.
 
 - `claimOf`: the layer-1 claim that the final program reads from the
-  terminal output columns (`Package::apply`, `terminal/package.rs:215-236`).
+  terminal output columns (`Package::apply`, `terminal/package.rs::Package::apply`).
 - `TerminalClaim`: what a final proof for `x` claims. Some terminal
   assignment for `x` (`TerminalFor`, `Spec/Parent.lean`) has a parent claim
   with a CE(B) witness.
@@ -33,7 +33,7 @@ def word (list : List Circuit.Expr) (env : Circuit.Env) (k : ℕ) : F :=
   (((list.map fun expression : Circuit.Expr => expression.eval env).getD k 0).val : F)
 
 /-- The layer-1 claim of a terminal assignment, read from its output columns
-as `Package::apply` reads it (`terminal/package.rs:215-236`): `D`-word rows
+as `Package::apply` reads it (`terminal/package.rs::Package::apply`): `D`-word rows
 for the commitment and the public input, word pairs for the point, and `D`
 pairs for `Eval_K` and for each `Eval_A`. -/
 def claimOf (env : Circuit.Env) : Layer1.Statement F where
@@ -72,9 +72,9 @@ holds a table that agrees with every value `w` opens there. The model's
 commitments are candidate lists and the program's are Merkle roots, so a
 reading is a relation, not a function of `w`.
 
-It stands for `FinalProgram::run` (`lifecycle/terminal/mod.rs:54-80`):
-`Package::apply` (`terminal/package.rs:179-237`) and `verify_with`
-(`neo-spartan/src/lib.rs:692-703`, `verifier.rs:136-316`), recorded as rows
+It stands for `FinalProgram::run` (`lifecycle/terminal/mod.rs::FinalProgram::run`):
+`Package::apply` (`terminal/package.rs::Package::apply`) and `verify_with`
+(`neo-spartan/src/lib.rs::verify_with`, `verifier.rs::verify`), recorded as rows
 by `circuit/record.rs` and placed by `shrink/layout.rs`. `programEncodes`
 (`Sim/Encodes.lean`) proves it for the production final program. -/
 def ProgramEncodes {t L : ℕ} (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)

@@ -3,16 +3,16 @@ import CompressionLean.Sim.Honest
 import CompressionLean.Bridge.Late
 
 /-!
-Owns the simulation of the late stage of `Late.lean` (`verifier.rs:251-260`)
+Owns the simulation of the late stage of `Late.lean` (`verifier.rs::verify`)
 against `Replay.lateStage`: `lateStage_tracks` tracks the replay's run, and
 `IsLateOut` gives what the openings read.
 
-The circuit builds the lane tables (`mle.rs:109-140`, `matrix.rs:217-224`)
+The circuit builds the lane tables (`mle.rs::lane_split`, `matrix.rs::Structure::lane_tables`)
 with loops; the replay states each entry in closed form (`headFrom`,
 `prefixSum`). They agree when `τ` has `D` lanes and every class has at most
-`D` lanes. The slot steps (`matrix.rs:382-392`) need every segment to name a
-class and a lane. `Structure::check` enforces both (`matrix.rs:142-182`). The
-leaf checks (`matrix.rs:319-361`) read three leaf values and one point
+`D` lanes. The slot steps (`matrix.rs::Structure::slot_step`) need every segment to name a
+class and a lane. `Structure::check` enforces both (`matrix.rs::Structure::check`). The
+leaf checks (`matrix.rs::Structure::check_late`) read three leaf values and one point
 coordinate of the pair tree and two leaf values of the block tree; the
 replay's GKR run gives these sizes.
 -/
@@ -65,7 +65,7 @@ section Lanes
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `lane_split` (`mle.rs:109-140`): the head and tail lane tables in the
+/-- `lane_split` (`mle.rs::lane_split`): the head and tail lane tables in the
 replay's closed form. -/
 private theorem laneSplit_ensures {tau : Array ExtVar} {gtau : Array Ext} {length : ℕ} (ratio : Word)
     (ht : IsExts c n tau gtau) (size : gtau.size = D) (short : length ≤ D) :
@@ -176,7 +176,7 @@ private theorem laneSplit_ensures {tau : Array ExtVar} {gtau : Array Ext} {lengt
     rw [getElem!_pos tail i (by rw [tsize]; exact hi)]
     exact htail i (by rw [tsize]; exact hi)
 
-/-- The lane tables of every run class (`matrix.rs:217-224`). -/
+/-- The lane tables of every run class (`matrix.rs::Structure::lane_tables`). -/
 private theorem laneTables_ensures {layout : Replay.Layout} {tau : Array ExtVar} {gtau : Array Ext}
     (ht : IsExts c n tau gtau) (size : gtau.size = D) (short : ∀ cl ∈ layout.classes, cl.len ≤ D) :
     Ensures c n (laneTables layout tau) fun r m =>
@@ -195,7 +195,7 @@ private theorem laneTables_ensures {layout : Replay.Layout} {tau : Array ExtVar}
   rw [getElem!_pos r i hi, getElem!_pos _ i (by rw [Array.size_map, ← len']; exact hi), Array.getElem_map]
   exact e
 
-/-- `slot_step` (`matrix.rs:382-392`): the replay's `slotStep`. -/
+/-- `slot_step` (`matrix.rs::Structure::slot_step`): the replay's `slotStep`. -/
 private theorem slotStep_ensures {layout : Replay.Layout} {point : Array ExtVar} {gpoint : Array Ext}
     {lanes : Array (Array ExtVar × Array ExtVar)} {glanes : Array (Array Ext × Array Ext)} (t : ℕ)
     (hp : IsExts c n point gpoint) (hl : IsLanes c n lanes glanes)
@@ -222,13 +222,13 @@ end Lanes
 
 /-! ## The leaf checks -/
 
-/-- What the openings read of the late stage (`verifier.rs:251-260`): the
+/-- What the openings read of the late stage (`verifier.rs::verify`): the
 pair point, the block value, the block point and `Ω^A` at it. -/
 def IsLateOut (c : Ctx F) (m : ℕ) (v : LateOpeningsView) (out : Replay.LateOut) : Prop :=
   IsExts c m v.pairPoint out.openings.pairPoint ∧ IsExt c m v.block out.openings.block ∧
     IsExts c m v.blockPoint out.openings.blockPoint ∧ IsExt c m v.omega out.openings.omega
 
-/-- `IsLateOut` survives later values (`verifier.rs:251-260`). -/
+/-- `IsLateOut` survives later values (`verifier.rs::verify`). -/
 theorem IsLateOut.mono {c : Ctx F} {n m : ℕ} {v : LateOpeningsView} {out : Replay.LateOut}
     (h : IsLateOut c n v out) (le : n ≤ m := by omega) : IsLateOut c m v out := by
   obtain ⟨pair, block, blockPoint, omega⟩ := h
@@ -255,7 +255,7 @@ section Check
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `Structure::check_late` (`matrix.rs:319-361`): once its checks hold, the
+/-- `Structure::check_late` (`matrix.rs::Structure::check_late`): once its checks hold, the
 replay's `checkLate` accepts, and the openings are the replay's. -/
 private theorem checkLate_ensures {layout : Replay.Layout} {beta : ExtVar} {gbeta : Ext}
     {evalA : Array (ExtVar × ExtVar)} {mix : Replay.Mixing} {lanes : Array (Array ExtVar × Array ExtVar)}
@@ -323,10 +323,10 @@ section Stage
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- **The late stage** (`verifier.rs:251-260`). Once the circuit's checks
+/-- **The late stage** (`verifier.rs::verify`). Once the circuit's checks
 hold, the circuit's late stage tracks the replay's, its openings are the
 replay's, and its pairs are the proof's. `short` and `named` are
-`Structure::check` (`matrix.rs:142-182`). -/
+`Structure::check` (`matrix.rs::Structure::check`). -/
 theorem lateStage_tracks {rel : Relation} {tau : Array ExtVar} {evalA : Array (ExtVar × ExtVar)} {late : GkrView}
     {lateValues : Array (ExtVar × ExtVar)} {proof : Replay.Proof} {lin : Replay.LinearOut} (hp : Permutes c.perm)
     (htau : IsExts c n tau lin.tau) (tauSize : lin.tau.size = D) (hes : evalA.size = rel.matrices)

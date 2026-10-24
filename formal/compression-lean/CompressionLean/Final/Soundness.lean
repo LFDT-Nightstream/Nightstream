@@ -6,7 +6,7 @@ import CompressionLean.Spec.Bound
 
 /-!
 Owns the end-to-end soundness of the final verifier (`CompressionKey::verify`,
-`lifecycle/finish.rs:131-145`). The shrink layer, layer 1 and the terminal
+`lifecycle/finish.rs::CompressionKey::verify`). The shrink layer, layer 1 and the terminal
 package chain through the encoding premise (`Claim.lean`, `ProgramEncodes`):
 
 - the shrink verifier accepts `x`, so a candidate `w` satisfies the CCS of

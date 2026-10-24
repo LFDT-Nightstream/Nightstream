@@ -36,7 +36,6 @@ open CompressionLean.Circuit CompressionLean.Circuit.Terminal CompressionLean.Ci
 open NightstreamFPrime.Spec (goldilocksModulus)
 open CompressionLean.Bridge CompressionLean.Layer1
 open NightstreamFPrime
-open CompressionLean.Circuit.Goldilocks Fin.CommRing
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial (modulus)
 
 section Runs

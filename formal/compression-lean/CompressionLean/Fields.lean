@@ -8,6 +8,8 @@ Owns the fields of the library and the maps between them and replay words.
 
 - `Gl`: the Goldilocks field, with its one prime fact. `Spec.F = Fin goldilocksModulus`
   is the same type, so the terminal's words are `Gl` values without a map.
+- `specField`: `Spec.F` with the field structure of `Gl`, so the claims
+  need no instance opened at their site.
 - `Cubic = Gl[x]/(x³ - x - 1)`: the layer-1 challenge field, Plonky3's
   cubic trinomial extension (`crates/neo-spartan/src/field.rs`). It is a
   field because the trinomial is irreducible (`CubicField.lean`), and it has
@@ -102,6 +104,13 @@ noncomputable instance challengeField : ChallengeField Cubic where
     rw [map_sub, map_sub, map_pow, AdjoinRoot.mk_X, map_one] at h
     linear_combination h
   card := card_cubic
+
+/-- F′'s field `Spec.F` is `Gl`, with its field structure, as a global
+instance: every claim reads `Spec.F` arithmetic through it. -/
+instance specField : Field F := inferInstanceAs (Field Gl)
+
+/-- `Spec.F` has characteristic `p`, as `Gl` has. -/
+instance : CharP F goldilocksModulus := inferInstanceAs (CharP Gl goldilocksModulus)
 
 end CompressionLean
 

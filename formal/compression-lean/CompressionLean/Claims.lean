@@ -40,7 +40,6 @@ open CompressionLean.Circuit (Layer1Input)
 open CompressionLean.Circuit.Package (Loaded load)
 open CompressionLean.Final
 open CompressionLean.Final.Encodes
-open CompressionLean.Circuit.Goldilocks Fin.CommRing
 
 /-- **The production bound** (`CompressionKey::verify`,
 `lifecycle/finish.rs:131-145`). Take the production final program for the

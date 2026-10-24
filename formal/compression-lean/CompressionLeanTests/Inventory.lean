@@ -46,7 +46,6 @@ def premises : List (Name × String) := [
   (`CompressionLean.Final.RunsGive, "Open: no Lean proof and no check."),
   (`CompressionLean.Final.ParentShape,
     "From `KeyFacts` and `WidthFits` for the Poseidon2 hash chain (`parentShape_of`, in `poseidon2_bound`). Open for other applications."),
-  (`CompressionLean.Layer1.Shape.Sizes, "Open: sizes of the key's shape that `KeyFacts` does not check."),
   (`CompressionLean.Layer1.Setup.Fits, "Open: a fact of the setup that Rust builds."),
   (`CompressionLean.Layer1.Structure.Describes, "Open: a fact of the setup that Rust builds.")]
 

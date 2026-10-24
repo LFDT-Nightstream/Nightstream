@@ -57,7 +57,6 @@ theorem production_bound {lw : ℕ}
     (relation : ProductionKey.LogicalRelation lw pf)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
     (shape : ParentShape (shapeOf key.relation) lw)
-    (barEq : ∀ p l : Fin ringDegree, barOf p l = gl (nativeBarEntry p l))
     (honest : HonestSetup (shapeOf key.relation) S relation ajtai) (facts : KeyFacts key)
     (fits : S.Fits (shapeOf key.relation))
     (describes : (structureOf key.relation.key.layout).Describes (shapeOf key.relation) S)
@@ -68,7 +67,6 @@ theorem production_bound {lw : ℕ}
         (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts)
         (Shrink.Layout.cellVars Circuit.Block.poseidonTemplate
         (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts) / 2 ^ 191 ≤ 1 / 2 ^ t)
-    (N : ℕ) (sizes : (shapeOf key.relation).Sizes N) (small : N ≤ goldilocksModulus)
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
@@ -82,9 +80,9 @@ theorem production_bound {lw : ℕ}
           (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts (prog key loaded context)
           (game key.relation S L0 L1) (Reads key loaded context S L0 L1)) ≤
       calls / 2 ^ t :=
-  final_restore_budget_parent (shapeOf key.relation) barOf S relation ajtai shape barEq honest fits L0 L1 h0 h1
+  final_restore_budget_parent (shapeOf key.relation) barOf S relation ajtai shape barOf_eq honest fits L0 L1 h0 h1
     (show key.relation.setupVars ≤ 35 by have := facts.high; omega) t Circuit.Block.poseidonTemplate _
-    (prog key loaded context) Ls p0 p1 rust (queryAt key.relation) N sizes small
+    (prog key loaded context) Ls p0 p1 rust (queryAt key.relation) goldilocksModulus facts.shape le_rfl
     (Bridge.queryAt_distinct key.relation facts.high) Circuit.Block.poseidonTemplate_wellFormed
     (prog_valid key loaded context) authority (Reads key loaded context S L0 L1)
     (programEncodes S facts fits describes L0 L1 loads valid hctx) calls prover
@@ -99,7 +97,6 @@ theorem poseidon2_bound (key : Layer1Input) (loaded : Loaded) (context : Array R
     (ajtai : PaperAlgebra.AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
       (publicFits := PerApplicationFixedPoint.publicFits Poseidon2HashChainV1Package.application))
-    (barEq : ∀ p l : Fin ringDegree, barOf p l = gl (nativeBarEntry p l))
     (honest : HonestSetup (shapeOf key.relation) S
       (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits)
       ajtai)
@@ -114,7 +111,6 @@ theorem poseidon2_bound (key : Layer1Input) (loaded : Loaded) (context : Array R
         (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts)
         (Shrink.Layout.cellVars Circuit.Block.poseidonTemplate
         (Circuit.lower (program key loaded context).program ([] : List Spec.F)).counts) / 2 ^ 191 ≤ 1 / 2 ^ t)
-    (N : ℕ) (sizes : (shapeOf key.relation).Sizes N) (small : N ≤ goldilocksModulus)
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,
@@ -132,8 +128,8 @@ theorem poseidon2_bound (key : Layer1Input) (loaded : Loaded) (context : Array R
           (game key.relation S L0 L1) (Reads key loaded context S L0 L1)) ≤
       calls / 2 ^ t :=
   production_bound key loaded context authority S _ ajtai
-    (parentShape_of _ _ rfl rfl facts.kappa facts.matrices facts.blocks width facts.norm) barEq honest facts fits
-    describes L0 L1 h0 h1 t Ls p0 p1 rust N sizes small loads valid hctx calls prover
+    (parentShape_of _ _ rfl rfl facts.kappa facts.matrices facts.blocks width facts.norm) honest facts fits
+    describes L0 L1 h0 h1 t Ls p0 p1 rust loads valid hctx calls prover
 
 /-- **The honest setup from the build** (`neo_spartan::Setup::build`). A setup
 that `build` returns for the seed of an Ajtai setup, from runs that give F′'s

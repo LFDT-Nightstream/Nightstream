@@ -45,8 +45,7 @@ program, so `production_bound` does not take it. These remain open:
 - `RunsGive` (`Final/RustSetup.lean`): the runs that Rust's `PackageRows::visit_rows` pushes give
   F′'s matrices. With the port of Rust's setup build, it gives `HonestSetup`
   (`honest_setup_of_build`).
-- The facts of the setup that Rust builds (`Setup.Fits`, `Structure.Describes`), and the sizes of the
-  key's shape that the key check does not decide (`Shape.Sizes`).
+- The facts of the setup that Rust builds (`Setup.Fits`, `Structure.Describes`).
 - `ParentShape` for an application other than the Poseidon2 hash chain. For that application,
   `KeyFacts` and `WidthFits` give it (`poseidon2_bound`).
 

@@ -6,6 +6,7 @@ import CompressionLean.Circuit.Sound
 import CompressionLean.Circuit.RecordCounts
 import CompressionLean.Circuit.Valid
 import CompressionLean.Bridge.Main
+import CompressionLean.Final.Bridge
 import CompressionLean.Final.KeyFacts
 
 /-!
@@ -218,6 +219,13 @@ theorem phi_eq_modulus : phi = modulus := by
   unfold phi modulus
   rw [add_assoc]
   rfl
+
+/-- The bridge's bar transform is F′'s (`nativeBarEntry`). -/
+theorem barOf_eq (p l : Fin Spec.ringDegree) :
+    barOf p l = Final.gl (Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel.nativeBarEntry p l) := by
+  unfold barOf Replay.bar
+  rw [dif_pos ⟨p.isLt, l.isLt⟩, Replay.Gl.toF_ofNat]
+  exact ZMod.natCast_zmod_val (show Final.Gl from _)
 
 /-- The layer-1 game of the relation `rel` and the setup `S`, with F′'s
 modulus, as the final theorems state it. -/

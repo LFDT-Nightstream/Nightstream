@@ -1,3 +1,4 @@
+import CompressionLean.Ports.Layer1.Budget
 import CompressionLean.Ports.Shrink.BlockPart
 import CompressionLean.Ports.Shrink.Budget
 import CompressionLean.Ports.Shrink.Ccs

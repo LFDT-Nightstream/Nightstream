@@ -136,9 +136,9 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 | `CompressionLean.Circuit.Whir` | 14 |
 | `CompressionLean.Final.RustSetup` | 13 |
 | `CompressionLean.Game.SumCheck` | 1 |
-| `CompressionLean.Layer1.Budget` | 5 |
 | `CompressionLean.Lib.Cube` | 2 |
 | `CompressionLean.Lib.SumCheck` | 1 |
+| `CompressionLean.Ports.Layer1.Budget` | 5 |
 | `CompressionLean.Ports.Shrink.BlockPart` | 9 |
 | `CompressionLean.Ports.Shrink.Budget` | 1 |
 | `CompressionLean.Ports.Shrink.Ccs` | 5 |

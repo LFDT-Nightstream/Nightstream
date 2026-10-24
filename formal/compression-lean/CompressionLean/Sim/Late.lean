@@ -269,9 +269,9 @@ private theorem checkLate_ensures {layout : Replay.Layout} {beta : ExtVar} {gbet
     fun h le => (tree 0 (by omega) h le).2.2.1.get (hsizes h).2.2
   unfold checkLate
   dsimp only
-  refine OldEnsures.bind (checkPair_ensures (gx := g.roots[0]!) (gy := g.roots[1]!) "block scatter"
-    (fun h => ⟨(tree 0 (by omega) h le_rfl).1, (tree 0 (by omega) h le_rfl).2.1⟩)
-    fun h => ⟨(tree 1 (by omega) h le_rfl).1, (tree 1 (by omega) h le_rfl).2.1⟩) fun _ m₁ l₁ => ?_
+  refine OldEnsures.bind (OldEnsures.of_ensures fun h => checkPair_ensures (gx := g.roots[0]!) (gy := g.roots[1]!)
+    "block scatter" ⟨(tree 0 (by omega) h le_rfl).1, (tree 0 (by omega) h le_rfl).2.1⟩
+    ⟨(tree 1 (by omega) h le_rfl).1, (tree 1 (by omega) h le_rfl).2.1⟩) fun _ m₁ l₁ => ?_
   set U := Replay.sumRange gpairs.size fun j => (mix.evalA j).1 * (gpairs[j]!).1 + (mix.evalA j).2 * (gpairs[j]!).2
   set T := (g.leafPoint[0]!)[layout.slotVariables]!
   set slot := (g.leafPoint[0]!).extract 0 layout.slotVariables

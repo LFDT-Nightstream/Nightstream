@@ -3,8 +3,9 @@ import CompressionLean.Sim.Calculus
 /-!
 Owns what each instruction of `Ir.lean` ensures (`X_ensures` for `Build.X`):
 its outputs are the replay's values of its inputs, and an assertion's check
-is the replay's equality. `bits` and `extInv` also give their tape cells and
-their checks, which name those cells.
+is the replay's equality. `bits` also gives its tape cells and its check,
+which names those cells. `extInv_ensures` is in `Algebra.lean`, where the
+coordinates of `Ext` are.
 
 The lemmas that compute with words need a field of characteristic `p`; the
 others do not.
@@ -136,31 +137,6 @@ theorem extMul_ensures {a b : ExtVar} {ga gb : Ext} (ha : IsExt c n a ga) (hb : 
     have rb : (fun i => E.value (b i)) = fun i => Word.cast (gb.coord i) := funext fun i => (hb i).read hE hl
     simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
     simp [ra, rb, ← coord_mul]).map fun _ _ h k => h k
-
-/-- `ext_inverse`: three tape cells after the `n` values, which the check
-makes the inverse of `a`. -/
-theorem extInv_ensures {a : ExtVar} {ga gi : Ext} (ha : IsExt c n a ga)
-    (hi : ∀ k : Fin 3, c.tape (n + k) = Word.cast (gi.coord k)) :
-    Ensures c n (Build.extInv a) fun r m => IsExt c m r gi ∧ ga * gi = 1 :=
-  (Ensures.emit (Q := fun h m => (∀ k : Fin 3, IsWord c m (h + k) (gi.coord k)) ∧ ga * gi = 1) _
-    fun E hl hF hh => by
-    have hE := Ctx.follows_of_step hF
-    have ra : (fun i => E.value (a i)) = fun i => Word.cast (ga.coord i) := funext fun i => (ha i).read hE hl
-    have ri : (fun k : Fin 3 => c.tape (E.values.length + k)) = fun k => Word.cast (gi.coord k) :=
-      funext fun k => hl ▸ hi k
-    refine ⟨fun k => ⟨Nat.add_lt_add_left k.isLt n, ?_⟩, ?_⟩
-    · rw [← hl, Ctx.val_next hF (by simp)]
-      simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
-      rw [dif_pos k.isLt, Option.getD_some]
-      exact congrFun ri k
-    · have holds : E.holds ∧
-          extProduct (fun i => E.value (a i)) (fun k => c.tape (E.values.length + k)) = ![1, 0, 0] := hh
-      rw [ra, ri, ← coord_mul] at holds
-      have one : (fun k => (Word.cast ((1 : Ext).coord k) : F)) = ![1, 0, 0] := by
-        funext k
-        fin_cases k <;> simp
-      rw [← one] at holds
-      exact Ext.eq_of_coord (F := F) (congrFun holds.2)).map fun _ _ h => ⟨fun k => h.1 k, h.2⟩
 
 end Words
 

@@ -12,7 +12,7 @@ Merkle paths.
 - `IsDuplex`: the builder's duplex is the replay's, lane by lane.
 - `bits_digits`: a decomposition that passes the 64-bit check is the binary
   one. So once its check holds, `sampleBits` gives the sample's digits
-  (`OldEnsures`).
+  (`Duplex.sampleBits_ensures`).
 -/
 
 namespace CompressionLean.Sim
@@ -490,52 +490,5 @@ theorem Duplex.sampleBits_ensures {d : Duplex} {r : Replay.Duplex} (bits : ℕ) 
   exact bits_digits check i (by omega)
 
 end Duplex
-
-/-! ## The old names, for the files that still use `Simulates` -/
-
-namespace Simulates
-
-variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
-
-omit [CharP F goldilocksModulus] in
-theorem duplexNew : Simulates c n P Duplex.new (fun d m => IsDuplex c m d Replay.Duplex.new) True :=
-  .of_ensures₀ fun _ => Duplex.new_ensures
-
-theorem observe {d : Duplex} {r : Replay.Duplex} {v : Var} {g : Word} (hp : Permutes c.perm)
-    (hd : P → IsDuplex c n d r) (hv : P → IsWord c n v g) :
-    Simulates c n P ((Duplex.observe v).run d) (fun res m => IsDuplex c m res.2 (r.observe g)) True :=
-  .of_ensures₀ fun h => Duplex.observe_ensures hp (hd h) (hv h)
-
-theorem observeSlice {d : Duplex} {r : Replay.Duplex} {vs : Array Var} {gs : Array Word} (hp : Permutes c.perm)
-    (hd : P → IsDuplex c n d r) (hv : P → IsWords c n vs gs) :
-    Simulates c n P ((Duplex.observeSlice vs).run d) (fun res m => IsDuplex c m res.2 (gs.foldl Replay.Duplex.observe r))
-      True :=
-  .of_ensures₀ fun h => Duplex.observeSlice_ensures hp (hd h) (hv h)
-
-theorem observeExt {d : Duplex} {r : Replay.Duplex} {a : ExtVar} {e : Ext} (hp : Permutes c.perm)
-    (hd : P → IsDuplex c n d r) (ha : P → IsExt c n a e) :
-    Simulates c n P ((Duplex.observeExt a).run d)
-      (fun res m => IsDuplex c m res.2 (((r.observe e.c0).observe e.c1).observe e.c2)) True :=
-  .of_ensures₀ fun h => Duplex.observeExt_ensures hp (hd h) (ha h)
-
-theorem sample {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
-    Simulates c n P (Duplex.sample.run d) (fun res m => IsWord c m res.1 r.sample.1 ∧ IsDuplex c m res.2 r.sample.2)
-      True :=
-  .of_ensures₀ fun h => Duplex.sample_ensures hp (hd h)
-
-theorem sampleExt {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
-    Simulates c n P (Duplex.sampleExt.run d)
-      (fun res m => IsExt c m res.1 ⟨r.sample.1, r.sample.2.sample.1, r.sample.2.sample.2.sample.1⟩ ∧
-        IsDuplex c m res.2 r.sample.2.sample.2.sample.2) True :=
-  .of_ensures₀ fun h => Duplex.sampleExt_ensures hp (hd h)
-
-theorem sampleBits {d : Duplex} {r : Replay.Duplex} (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm)
-    (hd : P → IsDuplex c n d r) :
-    OldEnsures c n P ((Duplex.sampleBits bits).run d)
-      (fun res m => res.1.size = bits ∧ (∀ i < bits, IsWord c m res.1[i]! (Word.ofNat (r.sample.1.toNat / 2 ^ i % 2))) ∧
-        IsDuplex c m res.2 r.sample.2) :=
-  .of_ensures fun h => Duplex.sampleBits_ensures bits small hp (hd h)
-
-end Simulates
 
 end CompressionLean.Sim

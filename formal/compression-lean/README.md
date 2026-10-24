@@ -258,7 +258,10 @@ The chain takes these premises:
     pushes name rows below `2^28` and give F′'s matrices. They are the rows
     of F′'s package that F′'s Rust prover and verifier also read. Rust
     visits only rows below the row count, and `Relation::new` checks that
-    count against `2^28`.
+    count against `2^28`. `PoseidonRows.lean` evaluates the rows of the
+    Poseidon2 blocks of F′'s matrix program, 84% of the rows, and proves
+    that they give F′'s matrix entries (`matrixSource_entry`). No check yet
+    compares the runs with these rows.
   - Port: Rust's `from_rows`, `key` and `oracle` are `build`. This is a
     reading of the code. The proof uses only `ReadsBack` of the port, and
     the Rust test `derived_structure_steps_read_back_the_runs` checks the

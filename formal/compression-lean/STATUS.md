@@ -112,7 +112,7 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 
 ## Ports
 
-`ports.json` has 516 entries: 476 Lean declarations transcribe 288 Rust items.
+`ports.json` has 554 entries: 511 Lean declarations transcribe 291 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -140,10 +140,10 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 | `CompressionLean.Ports.Layer1.Budget` | 5 |
 | `CompressionLean.Ports.Replay.Data` | 37 |
 | `CompressionLean.Ports.Replay.Field` | 16 |
-| `CompressionLean.Ports.Replay.Formulas` | 26 |
-| `CompressionLean.Ports.Replay.Gkr` | 11 |
-| `CompressionLean.Ports.Replay.Stages` | 27 |
-| `CompressionLean.Ports.Replay.Transcript` | 10 |
+| `CompressionLean.Ports.Replay.Formulas` | 39 |
+| `CompressionLean.Ports.Replay.Gkr` | 18 |
+| `CompressionLean.Ports.Replay.Stages` | 33 |
+| `CompressionLean.Ports.Replay.Transcript` | 19 |
 | `CompressionLean.Ports.Replay.Whir` | 4 |
 | `CompressionLean.Ports.Setup` | 13 |
 | `CompressionLean.Ports.Shrink.BlockPart` | 9 |
@@ -160,18 +160,18 @@ Parameters: `{key : CompressionLean.Circuit.Layer1Input}`, `{pushes : List Compr
 | Rust file | Items |
 |---|---:|
 | `crates/neo-math/src/ring.rs` | 3 |
-| `crates/neo-params/src/poseidon2_goldilocks.rs` | 1 |
+| `crates/neo-params/src/poseidon2_goldilocks.rs` | 2 |
 | `crates/neo-spartan/src/circuit/algebra.rs` | 24 |
 | `crates/neo-spartan/src/circuit/block.rs` | 4 |
 | `crates/neo-spartan/src/circuit/fold.rs` | 8 |
 | `crates/neo-spartan/src/circuit/hash.rs` | 13 |
-| `crates/neo-spartan/src/circuit/mod.rs` | 6 |
+| `crates/neo-spartan/src/circuit/mod.rs` | 7 |
 | `crates/neo-spartan/src/circuit/poseidon2.rs` | 12 |
 | `crates/neo-spartan/src/circuit/r1cs.rs` | 1 |
 | `crates/neo-spartan/src/circuit/record.rs` | 40 |
 | `crates/neo-spartan/src/field.rs` | 3 |
 | `crates/neo-spartan/src/gkr.rs` | 10 |
-| `crates/neo-spartan/src/hash.rs` | 1 |
+| `crates/neo-spartan/src/hash.rs` | 2 |
 | `crates/neo-spartan/src/lib.rs` | 20 |
 | `crates/neo-spartan/src/matrix.rs` | 21 |
 | `crates/neo-spartan/src/mle.rs` | 7 |

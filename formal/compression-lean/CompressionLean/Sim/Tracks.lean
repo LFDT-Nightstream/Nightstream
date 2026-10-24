@@ -11,7 +11,7 @@ program's result, the replay's result and the new count.
   receives both results; `Tracks.bindLast` ends the replay.
 - `Tracks.lift` and `Tracks.quiet` pass the program's steps that the replay
   does not take: a builder call, or a transcript step that tracks the
-  replay's `pure ()`.
+  replay's `pure ()`, as one that keeps the duplex does (`Tracks.ofKeeps`).
 - `Tracks.check` and `Tracks.ensure` pass a check that the replay makes and
   the program does not; `Tracks.replay` changes the replay action to one
   that runs alike.
@@ -80,6 +80,11 @@ theorem quiet {t : Transcript α} {g : α → Transcript γ} {y : ReplayM δ} {Q
     Tracks c n (t >>= g) y R := by
   have h := bind ht (fun a _ m le hq => hg a m le hq) ht' hg'
   rwa [pure_bind] at h
+
+/-- A transcript step that keeps the duplex tracks the replay's `pure ()`. -/
+theorem ofKeeps {t : Transcript α} (hk : Keeps t := by keeps) (ht : ∀ d, Appends (t.run d) := by appends) :
+    Tracks c n t (Pure.pure PUnit.unit) fun _ _ _ => True := fun d tr hd =>
+  (Ensures.keeps hk (ht d)).post fun _ _ ⟨le, e⟩ => ⟨(), tr, Bridge.runs_pure _ _, by rw [e]; exact hd.mono le, trivial⟩
 
 /-- Change the replay action to one that runs alike. -/
 theorem replay {t : Transcript α} {x x' : ReplayM β} {Q : α → β → ℕ → Prop} (h : Tracks c n t x Q)

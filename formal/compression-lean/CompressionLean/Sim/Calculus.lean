@@ -9,6 +9,8 @@ of the instructions that it writes.
   the run means. Instances hold it for each instruction and named program;
   the `appends` tactic proves it for a program from its binds, loops,
   branches and binders. A transcript program has it at every duplex.
+- `Keeps t`: a transcript program that only calls the builder ends at the
+  duplex where it starts. The `keeps` tactic proves it in the same way.
 - `EnsuresAt c p b Q`: from the builder state `p`, when the instructions
   that `b` appends run from an executor state with `p.values` values, follow
   `val` and pass their checks, the result of `b` meets `Q` at the new value
@@ -179,20 +181,86 @@ theorem tmapM_array {f : δ → Transcript α} (h : ∀ x d, Appends ((f x).run 
 
 end Appends
 
+/-- **`t` keeps the duplex.** From every duplex and builder state, `t` ends at
+the duplex where it starts: it calls the builder and draws nothing. -/
+class Keeps {α : Type} (t : Transcript α) : Prop where
+  keeps : ∀ d p, ((t.run d).run p).1.2 = d
+
+namespace Keeps
+
+variable {α β γ δ : Type}
+
+instance pure (a : α) : Keeps (Pure.pure a : Transcript α) := ⟨fun _ _ => rfl⟩
+
+instance lift (b : Build α) : Keeps (liftM b : Transcript α) := ⟨fun _ _ => rfl⟩
+
+theorem bind {t : Transcript α} {f : α → Transcript β} (ht : Keeps t) (hf : ∀ a, Keeps (f a)) : Keeps (t >>= f) :=
+  ⟨fun d p => by
+    show (((f ((t.run d).run p).1.1).run ((t.run d).run p).1.2).run ((t.run d).run p).2).1.2 = d
+    rw [(hf _).keeps, ht.keeps]⟩
+
+theorem map {t : Transcript α} (f : α → β) (ht : Keeps t) : Keeps (f <$> t) := ⟨fun d p => ht.keeps d p⟩
+
+theorem ite {c : Prop} [Decidable c] {x y : Transcript α} (hx : Keeps x) (hy : Keeps y) :
+    Keeps (if c then x else y) := by
+  split <;> assumption
+
+theorem dite {c : Prop} [Decidable c] {x : c → Transcript α} {y : ¬c → Transcript α} (hx : ∀ h, Keeps (x h))
+    (hy : ∀ h, Keeps (y h)) : Keeps (if h : c then x h else y h) := by
+  split
+  · exact hx _
+  · exact hy _
+
+theorem forIn_list (l : List δ) (init : γ) {body : δ → γ → Transcript (ForInStep γ)}
+    (h : ∀ x acc, Keeps (body x acc)) : Keeps (forIn l init body) := by
+  induction l generalizing init with
+  | nil => exact pure _
+  | cons x l ih =>
+      rw [List.forIn_cons]
+      refine bind (h x init) fun r => ?_
+      cases r with
+      | done b => exact pure _
+      | yield b => exact ih b
+
+theorem forIn_array (xs : Array δ) (init : γ) {body : δ → γ → Transcript (ForInStep γ)}
+    (h : ∀ x acc, Keeps (body x acc)) : Keeps (forIn xs init body) := by
+  rw [← Array.forIn_toList]
+  exact forIn_list _ _ h
+
+theorem forIn_range (r : Std.Legacy.Range) (init : γ) {body : ℕ → γ → Transcript (ForInStep γ)}
+    (h : ∀ x acc, Keeps (body x acc)) : Keeps (forIn r init body) := by
+  rw [Std.Legacy.Range.forIn_eq_forIn_range']
+  exact forIn_list _ _ h
+
+theorem mapM_list {f : δ → Transcript α} (h : ∀ x, Keeps (f x)) : ∀ l : List δ, Keeps (l.mapM f)
+  | [] => pure _
+  | x :: l => by
+      rw [List.mapM_cons]
+      exact bind (h x) fun _ => bind (mapM_list h l) fun _ => pure _
+
+theorem mapM_array {f : δ → Transcript α} (h : ∀ x, Keeps (f x)) (xs : Array δ) : Keeps (xs.mapM f) := by
+  rw [Array.mapM_eq_mapM_toList]
+  exact map _ (mapM_list h _)
+
+end Keeps
+
 section Tactic
 
 open Lean Meta Elab Tactic
+
+/-- The loop lemma for the collection `ρ` of a `forIn`. -/
+private def forInRule (ρ : Expr) (list array range : Name) : MetaM (Option Name) := do
+  return match (← whnfR ρ).getAppFn with
+    | .const ``List _ => some list
+    | .const ``Array _ => some array
+    | .const ``Std.Legacy.Range _ => some range
+    | _ => none
 
 /-- The structural lemma of `Appends` for the head of the program `b`: a bind,
 a map, a loop, a `mapM` or a branch of a builder program, or the same of a
 transcript program at a duplex, or a lift into a transcript. -/
 private def appendsRule (b : Expr) : MetaM (Option Name) := do
-  let forIn (ρ : Expr) (list array range : Name) : MetaM (Option Name) := do
-    return match (← whnfR ρ).getAppFn with
-      | .const ``List _ => some list
-      | .const ``Array _ => some array
-      | .const ``Std.Legacy.Range _ => some range
-      | _ => none
+  let forIn := forInRule
   match b.getAppFn with
   | .const ``Bind.bind _ => return some ``Appends.bind
   | .const ``Functor.map _ => return some ``Appends.map
@@ -228,14 +296,29 @@ private def unfoldAbbrev? (b : Expr) : MetaM (Option Expr) := do
     return (← unfold args[3]!).map fun t => mkAppN b.getAppFn (args.set! 3 t)
   | _ => unfold b
 
-/-- One step of `appends` on the goal `g`: a binder, an instance of a named
-program or instruction, a let, the structural lemma of the program's head, an
-abbreviation, or a `split` of a `match`. A let of data is any value, since the instruction shape
-does not depend on it; a join point, a function into programs, is substituted. -/
-private def appendsStep (g : MVarId) : TacticM (List MVarId) := g.withContext do
+/-- The structural lemma of `Keeps` for the head of the transcript program `t`:
+a bind, a map, a loop, a `mapM` or a branch. -/
+private def keepsRule (t : Expr) : MetaM (Option Name) := do
+  match t.getAppFn with
+  | .const ``Bind.bind _ => return some ``Keeps.bind
+  | .const ``Functor.map _ => return some ``Keeps.map
+  | .const ``ite _ => return some ``Keeps.ite
+  | .const ``dite _ => return some ``Keeps.dite
+  | .const ``ForIn.forIn _ => forInRule t.getAppArgs[1]! ``Keeps.forIn_list ``Keeps.forIn_array ``Keeps.forIn_range
+  | .const ``Array.mapM _ => return some ``Keeps.mapM_array
+  | .const ``List.mapM _ => return some ``Keeps.mapM_list
+  | _ => return none
+
+/-- One step on the goal `g` of the shape class `cls` (`Appends` or `Keeps`): a
+binder, an instance of a named program or instruction, a let, the structural
+lemma `rule` of the program's head, an abbreviation, or a `split` of a
+`match`. A let of data is any value, since the shape does not depend on it; a
+join point, a function into programs, is substituted. -/
+private def shapeStep (cls : Name) (rule : Expr → MetaM (Option Name)) (g : MVarId) : TacticM (List MVarId) :=
+    g.withContext do
   let ty ← instantiateMVars (← g.getType)
   if ty.isForall then return [(← g.intro1).2]
-  let some (α, b) := ty.app2? ``Appends | throwError "appends: the goal is not `Appends`"
+  let some (α, b) := ty.app2? cls | throwError "{cls}: the goal is not `{cls}`"
   if let some inst ← synthInstance? ty then
     g.assign inst
     return []
@@ -248,28 +331,36 @@ private def appendsStep (g : MVarId) : TacticM (List MVarId) := g.withContext do
       | _, _ => none
   if let some (n, t, v, body, wrap) := letOf? then
     if ← forallTelescope t fun _ r => return (← whnfR r).isAppOf ``StateT then
-      return [← g.replaceTargetDefEq (mkApp2 (.const ``Appends []) α (wrap (body.instantiate1 v)))]
-    let g' ← mkFreshExprSyntheticOpaqueMVar (.forallE n t (mkApp2 (.const ``Appends []) α (wrap body)) .default)
+      return [← g.replaceTargetDefEq (mkApp2 (.const cls []) α (wrap (body.instantiate1 v)))]
+    let g' ← mkFreshExprSyntheticOpaqueMVar (.forallE n t (mkApp2 (.const cls []) α (wrap body)) .default)
     g.assign (mkApp g' v)
     return [g'.mvarId!]
-  if let some rule ← appendsRule b then
-    return ← withReducible (g.apply (← mkConstWithFreshMVarLevels rule))
+  if let some name ← rule b then
+    return ← withReducible (g.apply (← mkConstWithFreshMVarLevels name))
   if let some b' ← unfoldAbbrev? b then
-    return [← g.replaceTargetDefEq (mkApp2 (.const ``Appends []) α b')]
+    return [← g.replaceTargetDefEq (mkApp2 (.const cls []) α b')]
   setGoals [g]
   try evalTactic (← `(tactic| split))
-  catch _ => throwError "appends: no rule for the program{indentExpr b}"
+  catch _ => throwError "{cls}: no rule for the program{indentExpr b}"
   getGoals
+
+/-- Prove a shape goal of `cls` by `shapeStep`, one head at a time. -/
+private def shape (cls : Name) (rule : Expr → MetaM (Option Name)) : TacticM Unit := do
+  let open_ ← Meta.repeat' (shapeStep cls rule) [← getMainGoal]
+  if let g :: _ := open_ then
+    discard <| shapeStep cls rule g
+    throwError "{cls}: open goals remain"
+  replaceMainGoal []
 
 /-- **Prove that a program appends**: the instances of its instructions and
 named programs, and the structural lemmas of its binds, loops, branches, lets
 and binders, one head at a time. -/
-elab "appends" : tactic => do
-  let open_ ← Meta.repeat' appendsStep [← getMainGoal]
-  if let g :: _ := open_ then
-    discard <| appendsStep g
-    throwError "appends: open goals remain"
-  replaceMainGoal []
+elab "appends" : tactic => shape ``Appends appendsRule
+
+/-- **Prove that a transcript program keeps the duplex**: its lifts of builder
+calls, and the structural lemmas of its binds, loops, branches, lets and
+binders. -/
+elab "keeps" : tactic => shape ``Keeps keepsRule
 
 end Tactic
 
@@ -373,6 +464,12 @@ theorem bind {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} (hb 
     (hf : ∀ a m, n ≤ m → Q a m → Ensures c m (f a) R)
     (hb' : Appends b := by appends) (hf' : ∀ a, Appends (f a) := by appends) : Ensures c n (b >>= f) R :=
   fun p hp => (hb p hp).bind (fun le hq => hf _ _ (hp ▸ le) hq _ rfl) hb' hf'
+
+/-- A transcript program that keeps the duplex ends at its duplex, with no
+fewer values. -/
+theorem keeps {t : Transcript α} {d : Duplex} (hk : Keeps t := by keeps) (ht : Appends (t.run d) := by appends) :
+    Ensures c n (t.run d) fun r m => n ≤ m ∧ r.2 = d :=
+  fun p hp _ _ _ _ _ _ => ⟨hp ▸ ht.le p, hk.keeps d p⟩
 
 /-- Weaken the result. -/
 theorem post {b : Build α} {Q' : α → ℕ → Prop} (h : Ensures c n b Q) (hq : ∀ a m, Q a m → Q' a m) :

@@ -19,7 +19,7 @@ Owns the simulation of the layer-1 verifier's early stage (`earlyStage` of
   reads too.
 - The circuit and the replay may add or multiply in different orders. Their
   values agree in the challenge field `Final.Cubic`, where `Ext.toK` is
-  injective (`toK_inj`). So an inverse hint that passes its check is the
+  injective (`Ext.eq_of_toK`). So an inverse hint that passes its check is the
   replay's inverse (`Ensures.extInv`).
 -/
 
@@ -45,16 +45,11 @@ variable {F : Type} [CommRing F]
 
 attribute [local instance] cubicField
 
-/-- Values with one denotation in `Final.Cubic` are equal (`field.rs`). -/
-private theorem toK_inj {a b : Ext} (h : a.toK (K := Final.Cubic) = b.toK) : a = b := by
-  have z : (a - b).toK (K := Final.Cubic) = 0 := by rw [Replay.Ext.toK_sub, h, sub_self]
-  exact Sim.ext_sub_eq_zero.mp (Replay.Ext.eq_zero_of_toK z)
-
 /-- `K ⊗ Ext` values with one denotation are equal (`algebra.rs`). -/
 private theorem IsKx.congr {c : Ctx F} {n : ℕ} {a : KxVar} {v v' : Replay.Kx} (h : IsKx c n a v)
     (e : v.toQ (K := Final.Cubic) = v'.toQ) : IsKx c n a v' := by
-  have re : v.re = v'.re := toK_inj (by simpa using congrArg QuadraticAlgebra.re e)
-  have im : v.im = v'.im := toK_inj (by simpa using congrArg QuadraticAlgebra.im e)
+  have re : v.re = v'.re := Ext.eq_of_toK (K := Final.Cubic) (by simpa using congrArg QuadraticAlgebra.re e)
+  have im : v.im = v'.im := Ext.eq_of_toK (K := Final.Cubic) (by simpa using congrArg QuadraticAlgebra.im e)
   exact ⟨re ▸ h.1, im ▸ h.2⟩
 
 /-! ## `mle.rs` in the replay -/
@@ -114,30 +109,23 @@ private theorem step_eq (gpoint : Array Ext) (starts : Array ℕ) (gvalues : Arr
     simp only [stepTerm, Array.getElem?_eq_none (by omega : starts.size ≤ s + 1),
       Array.getElem?_eq_none (by omega : starts.size ≤ s), Option.getD_none, Replay.Ext.toK_mul, Replay.Ext.toK_sub,
       sub_self, mul_zero]
-  apply toK_inj
+  apply Ext.eq_of_toK (K := Final.Cubic)
   rw [Replay.step, ← List.drop_zero (l := segs), next, tail _ 0 rfl (Nat.zero_le _), Replay.toK_sumRange,
     ← Finset.sum_range_add_sum_Ico _ size, Finset.sum_eq_zero (fun s hs => zero s (Finset.mem_Ico.mp hs).1),
     add_zero, Finset.range_eq_Ico]
 
-/-- Factor `t` of `χ_r`: at a point coordinate `x`, or past the point (`mle.rs:84-107`). -/
-private def chiFactor (r : Gl × Gl) : Option Ext → Replay.Kx
-  | some x => let scaled := (Replay.Kx.ofK r).scale (x + x - 1); { scaled with re := scaled.re + Replay.oneMinus x }
-  | none => (Replay.Kx.ofK r).oneMinus
-
 /-- `χ_r` (`mle.rs:84-107`) is the product of its factors. -/
 private theorem toQ_chiList : ∀ (l : List (Gl × Gl)) (xs : List Ext),
-    (Replay.chiList l xs).toQ (K := Final.Cubic) = ∏ t ∈ Finset.range l.length, (chiFactor l[t]! xs[t]?).toQ
+    (Replay.chiList l xs).toQ (K := Final.Cubic) = ∏ t ∈ Finset.range l.length, (Replay.chiFactor l[t]! xs[t]?).toQ
   | [], _ => by simp [Replay.chiList]
   | r :: rs, [] => by
       simp only [Replay.chiList, Replay.Kx.toQ_mul, toQ_chiList rs [], List.length_cons, Finset.prod_range_succ',
         List.getElem!_cons_zero, List.getElem!_cons_succ, List.getElem?_nil]
       rw [mul_comm]
-      rfl
   | r :: rs, x :: xs => by
       simp only [Replay.chiList, Replay.Kx.toQ_mul, toQ_chiList rs xs, List.length_cons, Finset.prod_range_succ',
         List.getElem!_cons_zero, List.getElem!_cons_succ, List.getElem?_cons_zero, List.getElem?_cons_succ]
       rw [mul_comm]
-      rfl
 
 /-- A running product from one (`mle.rs:84-107`). -/
 private theorem toQ_foldl_mul (f : ℕ → Replay.Kx) (k : ℕ) :
@@ -278,14 +266,14 @@ theorem chi {r : Array KVar} {gr : Array (Gl × Gl)} {point : Array ExtVar} {gpo
     (hp : P → IsExts c n point gpoint) :
     Sim c n P (Mle.chi r point) (fun res m => IsKx c m res (Replay.chi gr gpoint)) True := by
   set V : ℕ → Replay.Kx := fun k =>
-    (List.range k).foldl (fun v t => v.mul (chiFactor gr[t]! gpoint[t]?)) Replay.Kx.one
+    (List.range k).foldl (fun v t => v.mul (Replay.chiFactor gr[t]! gpoint[t]?)) Replay.Kx.one
   unfold Mle.chi
   refine KxVar.one.bind₀ fun total m₁ l₁ => ?_
   refine ((loop₀ (P := P ∧ IsKx c m₁ total Replay.Kx.one) (fun k acc m => IsKx c m acc (V k))
     fun k hk acc m lm => ?_).pre fun h => ⟨h, h.2⟩).bind₀ fun res m _ => Sim.pure fun h => ?_
   · have hk' : k < r.size := by simpa using hk
     have L₀ : n ≤ m := l₁.trans lm
-    have V_succ : V (k + 1) = (V k).mul (chiFactor gr[k]! gpoint[k]?) := by
+    have V_succ : V (k + 1) = (V k).mul (Replay.chiFactor gr[k]! gpoint[k]?) := by
       simp only [V]
       rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
     rw [show r.zipIdx[k] = (r[k]!, k) by simp [getElem!_pos, hk']]
@@ -311,7 +299,7 @@ theorem chi {r : Array KVar} {gr : Array (Gl × Gl)} {point : Array ExtVar} {gpo
         (hx h.1.1.1.1.1.1.1).mono (L₂.trans (l₃.trans (l₄.trans (l₅.trans l₆))))).bind₀
         fun low m₇ l₇ => ?_
       refine (extAdd (fun h => h.1.2.1.mono l₇) fun h => h.2).bind₀ fun re m₈ l₈ => ?_
-      refine (Sim.pure (Q := fun f m' => IsKx c m' f (chiFactor gr[k]! gpoint[k]?)) fun h => ?_).bind₀
+      refine (Sim.pure (Q := fun f m' => IsKx c m' f (Replay.chiFactor gr[k]! gpoint[k]?)) fun h => ?_).bind₀
         fun factor' m₉ l₉ => ?_
       · have some : gpoint[k]? = some gpoint[k]! := by
           rw [getElem!_pos gpoint k ((hp h.1.1.1.1.1.1.1.1.1).1 ▸ inside), Array.getElem?_eq_getElem]
@@ -325,7 +313,7 @@ theorem chi {r : Array KVar} {gr : Array (Gl × Gl)} {point : Array ExtVar} {gpo
         rw [Array.getElem?_eq_none_iff, ← (hp h).1]
         exact Array.getElem?_eq_none_iff.mp hpt
       refine (KxVar.oneMinus fun h => h.2).bind₀ fun factor m₃ l₃ => ?_
-      refine (KxVar.mul (gb := chiFactor gr[k]! gpoint[k]?) (fun h => h.1.1.2.mono (l₂.trans l₃))
+      refine (KxVar.mul (gb := Replay.chiFactor gr[k]! gpoint[k]?) (fun h => h.1.1.2.mono (l₂.trans l₃))
         fun h => ?_).bind₀ fun total' m₄ l₄ => ?_
       · rw [none h.1.1.1.1]
         exact h.2
@@ -343,15 +331,12 @@ open CompressionLean.Replay (Relation TreeShape Runs)
 
 /-- A nonzero value times its inverse is one (`field.rs`). -/
 private theorem ext_mul_inv {a : Ext} (ne : a ≠ 0) : a * a.inv = 1 := by
-  apply toK_inj
+  apply Ext.eq_of_toK (K := Final.Cubic)
   rw [Replay.Ext.toK_mul, Replay.Ext.toK_inv, Replay.Ext.toK_one]
   exact mul_inv_cancel₀ fun z => ne (Replay.Ext.eq_zero_of_toK z)
 
 /-- Equal values pass the replay's equality test (`field.rs`). -/
-theorem ext_beq_of_eq {a b : Ext} (e : a = b) : (a == b) = true := by
-  subst e
-  show (a.c0.word == a.c0.word && a.c1.word == a.c1.word && a.c2.word == a.c2.word) = true
-  simp
+theorem ext_beq_of_eq {a b : Ext} (e : a = b) : (a == b) = true := e ▸ Ext.beq_self a
 
 /-- A nonzero value passes the replay's zero test (`field.rs`). -/
 private theorem ext_not_isZero {a : Ext} (ne : a ≠ 0) : (!a.isZero) = true := by
@@ -605,37 +590,6 @@ private def drawOf (r : Replay.Duplex) : Ext := ⟨r.sample.1, r.sample.2.sample
 
 /-- The duplex after `sample_ext` (`hash.rs:62-65`). -/
 private def afterOf (r : Replay.Duplex) : Replay.Duplex := r.sample.2.sample.2.sample.2
-
-/-- `bind` after a step of `check_early` that checks nothing (`matrix.rs:261-317`). -/
-private theorem Ensures.bindSim {c : Ctx F} {n : ℕ} {P : Prop} {α β : Type} {b : Build α} {f : α → Build β}
-    {Q : α → ℕ → Prop} {R : β → ℕ → Prop} (hb : Sim c n P b Q True)
-    (hf : ∀ a m, n ≤ m → Ensures c m (P ∧ Q a m) (f a) R) : Ensures c n P (b >>= f) R :=
-  Ensures.bind (hb.ensures.post fun _ _ _ h => h.1) hf
-
-/-- `bind` after an assertion of `check_early` (`matrix.rs:261-317`). -/
-private theorem Ensures.bindCheck {c : Ctx F} {n : ℕ} {P : Prop} {α β : Type} {b : Build α} {f : α → Build β}
-    {C : Prop} {R : β → ℕ → Prop} (hb : Sim c n P b (fun _ _ => True) C)
-    (hf : ∀ a m, n ≤ m → Ensures c m (P ∧ C) (f a) R) : Ensures c n P (b >>= f) R :=
-  Ensures.bind (hb.ensures.post fun _ _ _ h => h.2) hf
-
-/-- `tbind` after a step that checks nothing (`verifier.rs:153-168`). -/
-private theorem Ensures.tbindSim {c : Ctx F} {n : ℕ} {P : Prop} {α β : Type} {t : Transcript α}
-    {g : α → Transcript β} {d : Duplex} {R : β × Duplex → ℕ → Prop} {Q : α × Duplex → ℕ → Prop}
-    (ht : Sim c n P (t.run d) Q True) (hg : ∀ a e m, n ≤ m → Ensures c m (P ∧ Q (a, e) m) ((g a).run e) R) :
-    Ensures c n P ((t >>= g).run d) R :=
-  Ensures.tbind (ht.ensures.post fun _ _ _ h => h.1) hg
-
-/-- Name the witness of an existential precondition; the instructions do not
-depend on it (`gkr.rs:747-750`). -/
-private theorem Ensures.fixWitness {c : Ctx F} {n : ℕ} {P : Prop} {α ι : Type} {b : Build α}
-    {Q : α → ℕ → Prop} {X : ι → Prop} (i₀ : ι) (h : ∀ i, Ensures c n (P ∧ X i) b Q) :
-    Ensures c n (P ∧ ∃ i, X i) b Q := by
-  intro p E hp hE
-  obtain ⟨new, hi, hl, -⟩ := h i₀ p E hp hE
-  refine ⟨new, hi, hl, fun ⟨hP, i, hx⟩ hF hh => ?_⟩
-  obtain ⟨new', hi', -, hs⟩ := h i p E hp hE
-  obtain rfl : new = new' := List.toArray_inj ((Array.append_right_inj _).mp (hi.symm.trans hi'))
-  exact hs ⟨hP, hx⟩ hF hh
 
 /-! ## The early stage in the circuit -/
 
@@ -1099,7 +1053,7 @@ theorem earlyStage_ensures {rel : Relation} {statement : ClaimView} {st : Replay
       rw [e]; exact h.1.2.2.2.2.2.2.mono l₈)
     (fun h => (((hproof h.1.1).2.2.1).mono (L₇.trans l₈)).entries.1)
     (fun h => (((hproof h.1.1).2.2.1).mono (L₇.trans l₈)).entries.2) shape.early) fun claims d₉ m₉ l₉ => ?_
-  refine (Ensures.fixWitness (X := fun x : Replay.GkrClaims × Replay.Transcript =>
+  refine (Ensures.exists_and (X := fun x : Replay.GkrClaims × Replay.Transcript =>
       Runs (Replay.gkrVerify g.early rel.earlyShapes) t₇ x.1 x.2 ∧ IsGkrClaims c m₉ claims x.1 ∧
         IsDuplex c m₉ d₉ x.2.duplex) (⟨#[], #[], #[], #[], #[]⟩, t) fun x => ?_).pre
     fun h => ⟨h.1, let ⟨gc, t₉, hx⟩ := h.2; ⟨(gc, t₉), hx⟩⟩

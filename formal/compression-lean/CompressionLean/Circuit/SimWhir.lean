@@ -272,18 +272,6 @@ private theorem Quiet.ensures {t : Transcript α} (h : Quiet t) (d : Duplex) :
   obtain ⟨new, hi, hl, hs⟩ := (h d).1.ensures (c := c) (n := n) (P := P) p E hp hE
   exact ⟨new, hi, hl, fun hP hF hh => ⟨(h d).2 p, hs hP hF hh⟩⟩
 
-/-- Fix the witness of an existential precondition. Any `x₀` gives the
-instructions, which do not depend on it. -/
-private theorem Ensures.elim {ι : Type} {b : Build α} {Q : α → ℕ → Prop} {R : ι → Prop} (x₀ : ι)
-    (h : ∀ x, Ensures c n (R x) b Q) (hp : P → ∃ x, R x) : Ensures c n P b Q := by
-  intro p E hp' hE
-  obtain ⟨new, hi, hl, -⟩ := h x₀ p E hp' hE
-  refine ⟨new, hi, hl, fun hP hF hh => ?_⟩
-  obtain ⟨x, hx⟩ := hp hP
-  obtain ⟨new', hi', -, hs⟩ := h x p E hp' hE
-  obtain rfl : new = new' := List.toArray_inj ((Array.append_right_inj _).mp (hi.symm.trans hi'))
-  exact hs hx hF hh
-
 /-- **A transcript program tracks a replay action.** From a duplex that is the
 replay's, when the checks of `t` hold, its result meets `Q`, and a run of `x`
 ends at its duplex. `H` holds the facts about the inputs. -/

@@ -61,19 +61,6 @@ namespace Sim
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
 
-omit [CharP F goldilocksModulus] in
-/-- Fix the witness of an existential precondition. Any `x₀` gives the
-instructions, which do not depend on it. -/
-theorem elim {α ι : Type} {b : Build α} {Q : α → ℕ → Prop} {C : Prop} {R : ι → Prop} (x₀ : ι)
-    (h : ∀ x, Sim c n (R x) b Q C) (hp : P → ∃ x, R x) : Sim c n P b Q C := by
-  intro p E hp' hE
-  obtain ⟨new, hi, hl, -⟩ := h x₀ p E hp' hE
-  refine ⟨new, hi, hl, fun hP hF => ?_⟩
-  obtain ⟨x, hx⟩ := hp hP
-  obtain ⟨new', hi', -, hs⟩ := h x p E hp' hE
-  obtain rfl : new = new' := List.toArray_inj ((Array.append_right_inj _).mp (hi.symm.trans hi'))
-  exact hs hx hF
-
 /-- `for &value in message { duplex.observe_ext(b, value) }`
 (`sumcheck.rs:36-38`): the replay's `observeExts`. -/
 theorem observeExts {d : Duplex} {r : Replay.Duplex} {vs : Array ExtVar} {gs : Array Ext} (hp : Permutes c.perm)

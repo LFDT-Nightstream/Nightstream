@@ -356,7 +356,7 @@ theorem linearStage_ensures {rel : Relation} {statement : ClaimView} {st : Repla
     (finalsAt hP i hi).mono (L₇.trans (M₉.trans (M₁₅.trans N)))
   have checkOk : (glast == gomega * Replay.laneValue gz glane * proof.finals[2]!) = true := by
     rw [check]
-    exact ext_beq_self _
+    exact Replay.Ext.beq_self _
   refine ⟨{ lam := glam, zeta := gz, blockPoint := gb, middle := gmiddle, lanePart := glane, last := glast,
             keyValue := proof.finals[0]!, omegaValue := proof.finals[1]!, zValue := proof.finals[2]!,
             lanePoint := glanePoint, mixing := mix, tau := Replay.tau gz }, { t₇ with duplex := r₈ }, ?_,

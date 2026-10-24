@@ -124,14 +124,17 @@ def step (point : Array Ext) (segments : List (Nat × Ext)) (stop : Nat) : Ext :
 def identityValue (point : Array Ext) : Ext :=
   point.foldr (fun x total => total + total + x) 0
 
-/-- One factor per coordinate of `r`: `(1 - x) + r·(2x - 1)` at a point
-coordinate, `1 - r` past the point (the model's `chiValue`). -/
+/-- The factor of `χ_r` at coordinate `r`: `(1 - x) + r·(2x - 1)` at a point
+coordinate `x`, `1 - r` past the point. -/
+def chiFactor (r : Gl × Gl) : Option Ext → Kx
+  | some x => let scaled := (Kx.ofK r).scale (x + x - 1); { scaled with re := scaled.re + oneMinus x }
+  | none => (Kx.ofK r).oneMinus
+
+/-- One factor per coordinate of `r` (the model's `chiValue`). -/
 def chiList : List (Gl × Gl) → List Ext → Kx
   | [], _ => Kx.one
-  | r :: rs, x :: xs =>
-      let scaled := (Kx.ofK r).scale (x + x - 1)
-      Kx.mul { scaled with re := scaled.re + oneMinus x } (chiList rs xs)
-  | r :: rs, [] => Kx.mul (Kx.ofK r).oneMinus (chiList rs [])
+  | r :: rs, x :: xs => Kx.mul (chiFactor r (some x)) (chiList rs xs)
+  | r :: rs, [] => Kx.mul (chiFactor r none) (chiList rs [])
 
 /-- `χ_r` at an `Ext` point of the low bits (`chi`). -/
 def chi (r : Array (Gl × Gl)) (point : Array Ext) : Kx := chiList r.toList point.toList

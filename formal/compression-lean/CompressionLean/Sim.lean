@@ -16,6 +16,7 @@ import CompressionLean.Sim.Ring
 import CompressionLean.Sim.Run
 import CompressionLean.Sim.Sumcheck
 import CompressionLean.Sim.Terminal
+import CompressionLean.Sim.Tracks
 import CompressionLean.Sim.Verify
 import CompressionLean.Sim.Views
 import CompressionLean.Sim.Whir

@@ -50,6 +50,11 @@ root = "CompressionLean.Circuit.TerminalCheck"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]
+name = "setupCheck"
+root = "CompressionLean.Final.SetupCheck"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
 name = "status"
 root = "CompressionLeanTests.Status"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

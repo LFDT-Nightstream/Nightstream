@@ -1,5 +1,5 @@
 import CompressionLean.Shrink.Layout
-import CompressionLean.Replay.Field
+import CompressionLean.Ports.Replay.Field
 
 /-!
 Owns the shrink program as data: a flat, branch-free list of instructions

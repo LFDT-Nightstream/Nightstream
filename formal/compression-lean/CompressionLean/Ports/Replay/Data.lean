@@ -1,5 +1,5 @@
 import Lean.Data.Json
-import CompressionLean.Replay.Transcript
+import CompressionLean.Ports.Replay.Transcript
 
 /-!
 Owns the data the replay reads from the Rust export (`neo-spartan`'s

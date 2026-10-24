@@ -3,7 +3,7 @@ import CompressionLean.Sim.Hash
 /-!
 Owns the simulation of the leaf sponge (`hashLeaf`), node compression
 (`compress`) and Merkle paths (`merkleRoot`) of `Hash.lean` against the
-replay's (`Replay/Transcript.lean`), and the F′ permutation on words
+replay's (`Ports/Replay/Transcript.lean`), and the F′ permutation on words
 (`permutes_poseidon2`). `Hash.lean` owns the duplex challenger.
 
 - `IsDigest`: four handles are a digest of four words.

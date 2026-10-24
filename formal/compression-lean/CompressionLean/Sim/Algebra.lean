@@ -3,7 +3,7 @@ import CompressionLean.Sim.Calculus
 /-!
 Owns the simulation of the field helpers of `Algebra.lean` and of `select`
 (`Ir.lean`): each program's handles are the replay's value
-(`Replay/Field.lean`, `Replay/Formulas.lean`), and its assertions hold iff
+(`Ports/Replay/Field.lean`, `Ports/Replay/Formulas.lean`), and its assertions hold iff
 the replay's equality holds.
 `privateExt` leaves its proof words as raw tape cells.
 

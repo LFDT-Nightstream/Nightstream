@@ -1,4 +1,11 @@
 import CompressionLean.Ports.Layer1.Budget
+import CompressionLean.Ports.Replay.Data
+import CompressionLean.Ports.Replay.Field
+import CompressionLean.Ports.Replay.Formulas
+import CompressionLean.Ports.Replay.Gkr
+import CompressionLean.Ports.Replay.Stages
+import CompressionLean.Ports.Replay.Transcript
+import CompressionLean.Ports.Replay.Whir
 import CompressionLean.Ports.Shrink.BlockPart
 import CompressionLean.Ports.Shrink.Budget
 import CompressionLean.Ports.Shrink.Ccs

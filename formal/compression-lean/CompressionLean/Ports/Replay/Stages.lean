@@ -1,4 +1,4 @@
-import CompressionLean.Replay.Whir
+import CompressionLean.Ports.Replay.Whir
 
 /-!
 Owns the replay of the layer-1 verifier (`crates/neo-spartan/src/verifier.rs`)

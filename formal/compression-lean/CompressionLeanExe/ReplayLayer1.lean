@@ -1,4 +1,4 @@
-import CompressionLean.Replay.Stages
+import CompressionLean.Ports.Replay.Stages
 
 /-!
 The `replayLayer1` executable: replay every variant of a Rust export and

@@ -1,10 +1,10 @@
 import CompressionLean.Sim.Algebra
-import CompressionLean.Replay.Transcript
+import CompressionLean.Ports.Replay.Transcript
 import CompressionLean.Lib.Array
 
 /-!
 Owns the simulation of the duplex challenger of `Hash.lean` against the
-replay's (`Replay/Transcript.lean`): `observe`, `sample`, `sample_ext` and
+replay's (`Ports/Replay/Transcript.lean`): `observe`, `sample`, `sample_ext` and
 `sample_bits`. `Merkle.lean` owns the leaf sponge, node compression and
 Merkle paths.
 

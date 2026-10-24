@@ -111,7 +111,6 @@ def premises : List (Name × List Premise) :=
 
 /-- The modules that port Rust by hand, with their submodules. -/
 def portModules : List Name := [
-  `CompressionLean.Replay,
   `CompressionLean.Circuit.Record, `CompressionLean.Circuit.Algebra, `CompressionLean.Circuit.Hash,
   `CompressionLean.Circuit.Fold, `CompressionLean.Circuit.Sumcheck, `CompressionLean.Circuit.Views,
   `CompressionLean.Circuit.Gkr, `CompressionLean.Circuit.Early, `CompressionLean.Circuit.Ring,

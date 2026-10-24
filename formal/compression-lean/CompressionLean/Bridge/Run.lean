@@ -1,4 +1,4 @@
-import CompressionLean.Replay.Stages
+import CompressionLean.Ports.Replay.Stages
 
 /-!
 Owns what a successful replay run says: `Runs x t a t'` when the replay

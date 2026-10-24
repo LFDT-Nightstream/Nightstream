@@ -323,7 +323,7 @@ Lean lowers it to the shrink run as `record.rs` does.
   `fold.rs`, `sumcheck.rs`, the proof views, `gkr.rs`, the early and late
   stages' parts of `norm.rs`, `mle.rs` and `matrix.rs`, `ring.rs`,
   `setup.rs`, `whir/mod.rs`, `verifier.rs`). The sizes come from the replay's
-  relation (`Replay/Data.lean`); what the WHIR verifier reads of each `Pcs`
+  relation (`Ports/Replay/Data.lean`); what the WHIR verifier reads of each `Pcs`
   beyond the replay's `WhirShape` is a `WhirKey`. `verify` is all of
   `verifier.rs`: the seed, the relation words and the statement words,
   then the early stage (norm root, GKR, matrix leaf checks, early values),

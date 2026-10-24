@@ -1,6 +1,6 @@
 import Lean.Data.Json
 import CompressionLean.Circuit.Hash
-import CompressionLean.Replay.Gkr
+import CompressionLean.Ports.Replay.Gkr
 
 /-!
 Owns the views of the statement and of the parts of a layer-1 proof that
@@ -10,7 +10,7 @@ later verifier stages read, as handles: the statement (`ClaimWords`,
 `read` is the shape run of its Rust counterpart (`proof = None`): it writes
 one `private` per proof word, in Rust's order.
 
-The sizes come from the replay's relation (`Replay/Data.lean`). A WHIR
+The sizes come from the replay's relation (`Ports/Replay/Data.lean`). A WHIR
 opening also needs the index bits and the folding factor of each query set
 (`QueryRows`), which the replay does not read. A relation whose shapes Rust
 rejects is out of scope.

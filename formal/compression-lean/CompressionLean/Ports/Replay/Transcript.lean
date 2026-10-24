@@ -1,4 +1,4 @@
-import CompressionLean.Replay.Field
+import CompressionLean.Ports.Replay.Field
 
 /-!
 Owns the replay's Poseidon2 uses, as `crates/neo-spartan/src/circuit/hash.rs`

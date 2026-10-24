@@ -4,7 +4,7 @@ import CompressionLean.Bridge.Gkr
 
 /-!
 Owns the simulation of the batched GKR verifier of `Gkr.lean` (`gkr.rs`)
-against the replay's (`Replay/Gkr.lean`). `gkrVerify_ensures` gives the
+against the replay's (`Ports/Replay/Gkr.lean`). `gkrVerify_ensures` gives the
 replay's run, and each tree's root and leaf claim (`IsGkrClaims`). The
 circuit sums `ν^i·(p + μq)` from the first active tree with a running
 weight; the replay uses Horner's rule from the last tree. The sums agree.

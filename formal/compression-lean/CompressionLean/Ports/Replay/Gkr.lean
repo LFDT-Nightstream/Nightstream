@@ -1,4 +1,4 @@
-import CompressionLean.Replay.Formulas
+import CompressionLean.Ports.Replay.Formulas
 
 /-!
 Owns the sum-check replay (`sumcheck::replay`) and the batched fraction-sum

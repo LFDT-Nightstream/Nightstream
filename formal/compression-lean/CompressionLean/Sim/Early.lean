@@ -6,7 +6,7 @@ import CompressionLean.Fields
 /-!
 Owns the simulation of the layer-1 verifier's early stage (`earlyStage` of
 `Verifier.lean`, with the helpers of `Early.lean`) against the replay's
-(`Replay/Stages.lean`, `Replay/Formulas.lean`).
+(`Ports/Replay/Stages.lean`, `Ports/Replay/Formulas.lean`).
 
 - `earlyStage_ensures`: once the circuit's checks hold, the replay's early
   stage runs from the matching transcript, and `IsEarlyOut` gives what later

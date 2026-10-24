@@ -1,4 +1,4 @@
-import CompressionLean.Replay.Stages
+import CompressionLean.Ports.Replay.Stages
 import CompressionLean.Fields
 import CompressionLean.Layer1.ClosedForms
 

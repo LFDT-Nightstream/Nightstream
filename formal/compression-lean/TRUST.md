@@ -57,7 +57,7 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   and its counts (`Shrink/Layout.lean`, `Run.ccs`, `Run.counts`). The sum-check rounds and the eq
   weights that the game takes from layer 1 (`sumcheck`, `roundValues`, `eqAt`, `eqEval`).
 - The circuit programs and their lowering (`Circuit/`), with the parts of `Replay/` that the
-  programs read: the data types (`Replay/Data.lean`), the fields (`Replay/Field.lean`), the bar
+  programs read: the data types (`Ports/Replay/Data.lean`), the fields (`Ports/Replay/Field.lean`), the bar
   transform (`Replay.bar`) and the GKR shape functions (`layerCount`, `layerDegree`,
   `layerFactors`, `partFactors`, `activeTrees`).
 - The terminal loader (`Package.load`).

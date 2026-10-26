@@ -28,8 +28,9 @@ circuits without change.
   union over these candidates.
 - Idealized openings: the verifier accepts the two WHIR openings when one
   P0 candidate and one P1 candidate agree with every opened value
-  (`Soundness.lean`, `Opens`). The WHIR error of this step is a named term
-  of the budget (`Budget.lean`), not proved here.
+  (`Soundness.lean`, `Opens`). The WHIR error of this step is not proved
+  here. `layer1_budget` (`Budget.lean`) adds it as the free terms `whirP0`
+  and `whirP1`, and the Fiat–Shamir bounds set them to zero.
 - Claim: `Cost.lean`, `layer1_sound`. An accepted transcript has a P0
   candidate that is a CE(B) witness (`Model.lean`, `Relation`), except with
   probability `layer1Error`. `Budget.lean` bounds it at Rust's split:
@@ -125,8 +126,9 @@ defines.
   (the WHIR list). Every bad set is a union over these candidates.
 - Idealized opening: the verifier accepts the WHIR opening when one
   candidate agrees with the opened value (`Game.lean`, `Opens`). The WHIR
-  error of this step is a named term of the budget (`Budget.lean`), not
-  proved here.
+  error of this step is not proved here. `shrink_budget` (`Budget.lean`)
+  adds it as the free term `whir`, and the Fiat–Shamir bound sets it to
+  zero.
 - Claim: `Cost.lean`, `shrink_sound`. An accepted transcript has a
   candidate `w` such that `z = (w, 1, x)` satisfies every row of the named
   program's CCS, except with probability `shrinkError`. Per candidate, the
@@ -196,14 +198,17 @@ The shrink layer assumes, and does not prove:
   accepted false claim by `layer1Error + shrinkError`.
   `final_restore_sound` bounds it by `calls · max shrinkError layer1Error`
   for `calls` queries in total. At Rust's split, `final_budget` gives
-  `2 / 2^t` with the WHIR errors, and `final_restore_budget` gives
-  `calls / 2^t`. Rust takes the layer bits `t` one above the bits that the
-  fold leaves, so `2 / 2^t` is the error that the fold leaves.
+  `2 / 2^t` with the WHIR errors as free terms, and `final_restore_budget`
+  gives `calls / 2^t` with no WHIR term. The openings are idealized, so
+  WHIR's opening and Fiat–Shamir errors add to `calls / 2^t`. Rust takes
+  the layer bits `t` one above the bits that the fold leaves, so `2 / 2^t`
+  is the error that the fold leaves.
 - F′ result (`ParentClaim.lean`): `final_sound_parent` and
   `final_restore_budget_parent` give the same bounds for the F′ claim. Their
   base field is Goldilocks, and their challenge field is
   `Cubic = Gl[x]/(x³ - x - 1)` with `p³` elements (`Fields.lean`). The
-  production bound is `calls / 2^t` under Fiat–Shamir.
+  production bound is `calls / 2^t` under Fiat–Shamir, before the WHIR
+  errors.
 
 The chain takes these premises:
 

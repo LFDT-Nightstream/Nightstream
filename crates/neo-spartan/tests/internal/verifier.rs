@@ -1,21 +1,23 @@
 //! The layer-1 verifier read by `Recorder`: satisfied rows for a true claim,
-//! failing rows for every tampered input and every moved hint word, and rows
-//! that do not depend on the proof.
+//! a failing row at the first rejected check for every tampered input and
+//! for the first and last moved word of each hint call, and rows that do not
+//! depend on the proof. `Native` rejects every moved hint word.
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
-use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
+use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
 use super::layer1::{claim_mutations, proof_mutations, relation_of, setup_toy, transcript, whir_mutations};
+use super::shrink::Layer1;
 use crate::circuit::block::Kind;
 use crate::circuit::r1cs::R1cs;
-use crate::circuit::record::{Recorder, Trace};
+use crate::circuit::record::{Form, Recorder, Trace};
 use crate::circuit::{Backend, Native};
 use crate::device::Accelerator;
-use crate::field::Gl;
+use crate::field::{Ext, Gl};
 use crate::hash::seed;
-use crate::verifier::{verify, ProofView};
-use crate::{prove, Claim, ClaimWords, Error, Proof, Relation};
+use crate::shrink::Program;
+use crate::{prove, ClaimWords, Error};
 use neo_math::D;
 
 /// `statement` as statement words, in `ClaimWords::words` order.
@@ -51,70 +53,75 @@ pub(super) fn statement_input<B: Backend>(b: &mut B, statement: &ClaimWords<Gl>)
     }
 }
 
-/// Run the verifier on `b` with the seed and the statement as statement words.
-fn run<B: Backend>(
-    b: &mut B,
-    relation: &Relation<'_>,
-    seed: [Gl; 4],
-    claim: &Claim,
-    proof: Option<&Proof>,
-) -> Result<(), Error> {
-    let statement = ClaimWords::new(&relation.shape, claim).unwrap();
-    let seed = seed.map(|word| b.public(word.as_canonical_u64()));
-    let statement = statement_input(b, &statement);
-    let view = ProofView::read(b, relation, proof)?;
-    verify(b, relation, seed, &statement, &view).map(drop)
-}
-
-fn record(
-    relation: &Relation<'_>,
-    seed: [Gl; 4],
-    claim: &Claim,
-    proof: Option<&Proof>,
-) -> (Trace, Option<&'static str>) {
+/// Record every row of `layer1`.
+fn record(layer1: &Layer1<'_>) -> (Trace, Option<&'static str>) {
     let mut recorder = Recorder::new(Trace::default());
-    run(&mut recorder, relation, seed, claim, proof).unwrap();
+    layer1.run(&mut recorder).unwrap();
     recorder.finish()
 }
 
-/// Run the verifier on `inner` with hint word `target` moved; also return
-/// the length of each hint call.
-fn run_moved<B: Backend>(
-    inner: B,
-    target: usize,
-    relation: &Relation<'_>,
-    seed: [Gl; 4],
-    claim: &Claim,
-    proof: &Proof,
-) -> (B, Vec<usize>, Result<(), Error>) {
-    let mut b = MovedHint {
+/// Run `layer1` on `inner` with hint word `moved` moved by one.
+fn probe<B: Values>(inner: B, layer1: &Layer1<'_>, moved: Option<usize>) -> (Probe<B>, Result<(), Error>) {
+    let mut b = Probe {
         inner,
-        target,
+        moved,
         lengths: Vec::new(),
     };
-    let result = run(&mut b, relation, seed, claim, Some(proof));
-    (b.inner, b.lengths, result)
+    let result = layer1.run(&mut b);
+    (b, result)
 }
 
-/// The recorder notes a failed check, and the rows themselves reject: a
-/// recorded row or block fails on the recorded witness.
-fn assert_rejected((trace, failure): (Trace, Option<&'static str>), name: &str) {
+/// Record `layer1` with hint word `moved` moved. `Native` rejects the run,
+/// the recorder notes a failure, and a recorded row fails on the recorded
+/// witness. The run stops at the first check that `Native` rejects, so a
+/// check that notes a failure but writes no row cannot pass on a later row.
+fn assert_rejected(layer1: &Layer1<'_>, moved: Option<usize>, name: &str) {
+    let (probe, result) = probe(Recorder::new(Trace::default()), layer1, moved);
+    let (trace, failure) = probe.inner.finish();
+    assert!(result.is_err(), "Native accepts: {name}");
     assert!(failure.is_some(), "no noted failure: {name}");
     assert!(
-        (0..trace.rows.len()).any(|r| trace.row_value(r) != Gl::ZERO) || trace.failing_block().is_some(),
+        (0..trace.rows.len()).any(|r| trace.row_value(r) != Gl::ZERO),
         "every recorded row holds: {name}"
     );
 }
 
-/// `inner` with hint output word `target`, counted over all hints in call
-/// order, moved by one. A shrink prover chooses every hint word.
-struct MovedHint<B> {
+/// The value of a word, so that a run can stop where `Native` stops.
+trait Values: Backend {
+    fn value(a: Self::F) -> Gl;
+    fn ext_value(a: Self::E) -> Ext;
+}
+
+impl Values for Native {
+    fn value(a: Gl) -> Gl {
+        a
+    }
+
+    fn ext_value(a: Ext) -> Ext {
+        a
+    }
+}
+
+impl Values for Recorder<Trace> {
+    fn value(a: Form) -> Gl {
+        a.value()
+    }
+
+    fn ext_value(a: [Form; 3]) -> Ext {
+        Ext::from_basis_coefficients_fn(|i| a[i].value())
+    }
+}
+
+/// `inner` with hint output word `moved`, counted over all hints in call
+/// order, moved by one, and a stop at the first check that `Native` rejects.
+/// A shrink prover chooses every hint word.
+struct Probe<B> {
     inner: B,
-    target: usize,
+    moved: Option<usize>,
     lengths: Vec<usize>,
 }
 
-impl<B: Backend> Backend for MovedHint<B> {
+impl<B: Values> Backend for Probe<B> {
     type F = B::F;
     type E = B::E;
 
@@ -175,15 +182,18 @@ impl<B: Backend> Backend for MovedHint<B> {
     }
 
     fn ext_inverse(&mut self, a: B::E, what: &'static str) -> Result<B::E, Error> {
-        self.inner.ext_inverse(a, what)
+        let inverse = self.inner.ext_inverse(a, what)?;
+        Native.ext_inverse(B::ext_value(a), what).map(|_| inverse)
     }
 
     fn assert_zero(&mut self, a: B::F, what: &'static str) -> Result<(), Error> {
-        self.inner.assert_zero(a, what)
+        self.inner.assert_zero(a, what)?;
+        Native.assert_zero(B::value(a), what)
     }
 
     fn bits(&mut self, a: B::F, count: usize, what: &'static str) -> Result<Vec<B::F>, Error> {
-        self.inner.bits(a, count, what)
+        let bits = self.inner.bits(a, count, what)?;
+        Native.bits(B::value(a), count, what).map(|_| bits)
     }
 
     fn select(&mut self, bit: B::F, zero: B::F, one: B::F) -> B::F {
@@ -196,7 +206,10 @@ impl<B: Backend> Backend for MovedHint<B> {
 
     fn hint(&mut self, inputs: &[B::F], len: usize, compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<B::F> {
         let start: usize = self.lengths.iter().sum();
-        let moved = self.target.checked_sub(start).filter(|&k| k < len);
+        let moved = self
+            .moved
+            .and_then(|target| target.checked_sub(start))
+            .filter(|&k| k < len);
         self.lengths.push(len);
         self.inner.hint(inputs, len, &|values| {
             let mut words = compute(values);
@@ -208,7 +221,9 @@ impl<B: Backend> Backend for MovedHint<B> {
     }
 
     fn r1cs(&mut self, system: &R1cs, columns: &[B::F], what: &'static str) -> Result<(), Error> {
-        self.inner.r1cs(system, columns, what)
+        self.inner.r1cs(system, columns, what)?;
+        let values: Vec<Gl> = columns.iter().map(|&column| B::value(column)).collect();
+        Native.r1cs(system, &values, what)
     }
 }
 
@@ -227,7 +242,7 @@ fn recorded_layer1_verifier_holds_rejects_and_keeps_its_shape() {
     .unwrap();
     let honest_seed = seed(transcript(1));
 
-    let (honest, failure) = record(&relation, honest_seed, &toy.claim, Some(&proof));
+    let (honest, failure) = record(&Layer1::new(&relation, honest_seed, &toy.claim, Some(&proof)));
     assert_eq!(failure, None);
     for r in 0..honest.rows.len() {
         assert_eq!(honest.row_value(r), Gl::ZERO, "row {r}");
@@ -240,7 +255,7 @@ fn recorded_layer1_verifier_holds_rejects_and_keeps_its_shape() {
         honest.count(Kind::Permutation)
     );
 
-    let (shape, _) = record(&relation, honest_seed, &toy.claim, None);
+    let (shape, _) = record(&Layer1::new(&relation, honest_seed, &toy.claim, None));
     assert_eq!(honest.rows, shape.rows);
     assert_eq!(honest.entries, shape.entries);
     assert_eq!(honest.glue.len(), shape.glue.len());
@@ -251,23 +266,30 @@ fn recorded_layer1_verifier_holds_rejects_and_keeps_its_shape() {
     assert_eq!(honest.public.len(), shape.public.len());
 
     assert_rejected(
-        record(&relation, seed(transcript(2)), &toy.claim, Some(&proof)),
+        &Layer1::new(&relation, seed(transcript(2)), &toy.claim, Some(&proof)),
+        None,
         "fold transcript",
     );
     for (name, claim) in claim_mutations(&toy.claim) {
-        assert_rejected(record(&relation, honest_seed, &claim, Some(&proof)), name);
+        assert_rejected(&Layer1::new(&relation, honest_seed, &claim, Some(&proof)), None, name);
     }
     for (name, changed) in proof_mutations(&proof)
         .into_iter()
         .chain(whir_mutations(&proof))
     {
-        assert_rejected(record(&relation, honest_seed, &toy.claim, Some(&changed)), name);
+        assert_rejected(
+            &Layer1::new(&relation, honest_seed, &toy.claim, Some(&changed)),
+            None,
+            name,
+        );
     }
 }
 
 /// `Native` rejects each moved hint word, so the shared verifier code binds
-/// every word. `Recorder` reads a hint the same way at every word, so its
-/// rows are checked at the first and last word of each hint call.
+/// every word. The recorder's rows are checked only at the first and last
+/// word of each hint call: the one hint site, `whir::stir`, sends every word
+/// of a call through the same kind of `merkle_root` rows (select, compress,
+/// root equality).
 #[test]
 fn every_hint_word_of_the_layer1_verifier_is_bound() {
     let (toy, setup, _scratch) = setup_toy(8, 4, 6);
@@ -281,35 +303,25 @@ fn every_hint_word_of_the_layer1_verifier_is_bound() {
         &toy.witness,
     )
     .unwrap();
-    let honest_seed = seed(transcript(1));
-    let moved = |inner, target| run_moved(inner, target, &relation, honest_seed, &toy.claim, &proof);
+    let honest = Layer1::new(&relation, seed(transcript(1)), &toy.claim, Some(&proof));
 
-    let (_, lengths, honest) = moved(Native, usize::MAX);
-    assert!(honest.is_ok());
-    let words: usize = lengths.iter().sum();
+    let (native, result) = probe(Native, &honest, None);
+    assert!(result.is_ok());
+    let words: usize = native.lengths.iter().sum();
     assert!(words > 0, "the verifier reads hint words");
-    eprintln!("layer-1 verifier: {words} hint words in {} calls", lengths.len());
+    eprintln!("layer-1 verifier: {words} hint words in {} calls", native.lengths.len());
     (0..words).into_par_iter().for_each(|target| {
         assert!(
-            moved(Native, target).2.is_err(),
+            probe(Native, &honest, Some(target)).1.is_err(),
             "Native accepts moved hint word {target}"
         );
     });
 
     let mut start = 0;
-    for len in lengths {
+    for len in native.lengths {
         if len > 0 {
             for target in [start, start + len - 1] {
-                let (recorder, _, result) = run_moved(
-                    Recorder::new(Trace::default()),
-                    target,
-                    &relation,
-                    honest_seed,
-                    &toy.claim,
-                    &proof,
-                );
-                result.unwrap();
-                assert_rejected(recorder.finish(), &format!("hint word {target}"));
+                assert_rejected(&honest, Some(target), &format!("hint word {target}"));
             }
         }
         start += len;

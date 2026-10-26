@@ -35,3 +35,8 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 name = "terminalCheck"
 root = "CompressionLean.Circuit.TerminalCheck"
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "setupRootCheck"
+root = "CompressionLean.Bridge.SetupRootCheck"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

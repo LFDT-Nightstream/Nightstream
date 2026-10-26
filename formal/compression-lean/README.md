@@ -90,8 +90,9 @@ Layer 1 assumes, and does not prove:
   the honest setup tree, unless Poseidon2 collides at inputs computed from
   the leaf (`merkleBinds_of_root`), and that honest leaves meet it
   (`honest_leaves_bind`). That the shipped key's root is this root is not
-  proved. Its premises are the relation facts that the replay does not
-  check (`RelationFacts`), such as at most 31 setup variables.
+  proved. The setup root check tests it for the toy key. Its premises are
+  the relation facts that the replay does not check (`RelationFacts`), such
+  as at most 31 setup variables.
 - Charges: Plonky3 composes a commitment's error as its WHIR terms plus each
   charged term times its candidate count. `rustDegrees` (`Budget.lean`) is
   `outer_terms` written in Lean, and `Pcs::new` enforces the two composed
@@ -355,6 +356,14 @@ opened values as `Opens` does. Build it with
 tampered variants to `target/lean-replay/layer1.json`, and requires the
 replay to draw the same challenges and give the same verdict as Rust. When
 Rust rejects inside WHIR, the replay must reject later.
+
+Setup root check. Build it with
+`timeout --signal=KILL 1500 lake build setupRootCheck`, then run
+`cargo test --release -p neo-spartan --lib lean_setup_root -- --ignored`
+under the 5-minute cap. The test writes the toy key's setup oracle tables
+and its root to `target/lean-replay/setup-root.json`, and requires the root
+that Lean computes from the tables (`tableRoot`, which `tableRoot_eq`
+proves to be `honestRoot`) to be the key's root.
 
 Lowering check. Build it with
 `timeout --signal=KILL 1500 lake build lowerCheck`, then run

@@ -6,7 +6,7 @@ use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
-use super::layer1::{claim_mutations, proof_mutations, relation_of, setup_toy, transcript};
+use super::layer1::{claim_mutations, proof_mutations, relation_of, setup_toy, transcript, whir_mutations};
 use crate::circuit::block::Kind;
 use crate::circuit::r1cs::R1cs;
 use crate::circuit::record::{Recorder, Trace};
@@ -257,7 +257,10 @@ fn recorded_layer1_verifier_holds_rejects_and_keeps_its_shape() {
     for (name, claim) in claim_mutations(&toy.claim) {
         assert_rejected(record(&relation, honest_seed, &claim, Some(&proof)), name);
     }
-    for (name, changed) in proof_mutations(&proof) {
+    for (name, changed) in proof_mutations(&proof)
+        .into_iter()
+        .chain(whir_mutations(&proof))
+    {
         assert_rejected(record(&relation, honest_seed, &toy.claim, Some(&changed)), name);
     }
 }

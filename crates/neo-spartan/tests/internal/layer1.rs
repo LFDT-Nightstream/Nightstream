@@ -94,7 +94,7 @@ pub(super) fn claim_mutations(claim: &Claim) -> Vec<(&'static str, Claim)> {
     cases
 }
 
-/// One mutation of every proof part.
+/// One mutation of every proof part outside the WHIR openings' internal data.
 pub(super) fn proof_mutations(proof: &Proof) -> Vec<(&'static str, Proof)> {
     let mut cases = Vec::new();
     let mut push = |name, change: &dyn Fn(&mut Proof)| {
@@ -135,6 +135,19 @@ pub(super) fn proof_mutations(proof: &Proof) -> Vec<(&'static str, Proof)> {
     push("P0 root", &|p| p.p0 = moved_root(&p.p0));
     push("P1 root", &|p| p.p1 = moved_root(&p.p1));
     push("late GKR root", &|p| p.late.roots[0][1] += Ext::ONE);
+    cases
+}
+
+/// One mutation of every part of the WHIR openings' internal data. The Lean
+/// replay does not run WHIR's checks, so only the native and recorded
+/// verifiers get these.
+pub(super) fn whir_mutations(proof: &Proof) -> Vec<(&'static str, Proof)> {
+    let mut cases = Vec::new();
+    let mut push = |name, change: &dyn Fn(&mut Proof)| {
+        let mut changed = proof.clone();
+        change(&mut changed);
+        cases.push((name, changed));
+    };
     // A WHIR part is changed in each opening that has it, and every part is
     // in at least one opening.
     let mut whir = |names: [&'static str; 2], change: &dyn Fn(&mut crate::pcs::Opening) -> bool| {
@@ -366,7 +379,10 @@ fn true_claims_verify_and_every_tampered_part_rejects() {
     for (name, claim) in claim_mutations(&toy.claim) {
         assert!(!accepts(&claim, &proof, 1), "{name}");
     }
-    for (name, changed) in proof_mutations(&proof) {
+    for (name, changed) in proof_mutations(&proof)
+        .into_iter()
+        .chain(whir_mutations(&proof))
+    {
         assert!(!accepts(&toy.claim, &changed, 1), "{name}");
     }
     let mut bytes = proof.to_bytes();

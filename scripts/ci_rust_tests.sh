@@ -7,7 +7,7 @@ cd "$(dirname "${BASH_SOURCE[0]}")/.."
 groups=(
   '-p nightstream'
   '-p neo-spartan'
-  '-p neo-ccs --test packed_witness'
+  '-p neo-ccs --test packed_witness --test poseidon2_round_constants'
   '-p neo-math --test signed_sums'
   '-p neo-ajtai --lib key::tests'
   '-p neo-ajtai --test nightstream_fprime_setup_parity --test nightstream_fprime_signed_commitment --test nightstream_fprime_prefix_commitment --test nightstream_fprime_matrix_commitment --test nightstream_fprime_batch_commitment'

@@ -38,8 +38,20 @@ The claims bound a probability. They take these as part of the model, not as Lea
   experiment. The shrink transcript and the layer-1 transcript share no prefix, so each layer has
   its own log: the shrink sponge starts with its domain words, and the layer-1 sponge starts with
   the digest that the fold transcript hands off. The shape words fix the shrink statement length.
-- **The read condition.** Inside the final program, the hash acts as a random oracle and the
-  openings follow the WHIR model (`Final/Soundness.lean`).
+- **The read condition and Fiat–Shamir inside the program.** The bounded event
+  (`FinalRestoreBreak`) asks every valid program witness among the shrink candidates for a reading
+  whose walk under the layer-1 log accepts. A reading's challenges are the Poseidon2 outputs that
+  the program computes (`Reads`). The walk accepts a challenge only where the experiment's oracle
+  returned it at that node, and the oracle's answers are uniform and independent of Poseidon2. So
+  the condition is not the random-oracle model for the hash inside the program and does not follow
+  from it: a prover that computes the challenges with Poseidon2, as the program does, meets it only
+  where Poseidon2's outputs equal the oracle's answers. The claims bound a prover with no valid
+  program witness (the shrink layer), and a valid witness only where its challenges are the
+  oracle's answers. For a valid witness Lean proves `ProgramEncodes`: it holds an accepting run of
+  the layer-1 verifier, with the program's Poseidon2 challenges, for the parent claim of its
+  terminal assignment. That such a run implies a true claim is layer 1 under Fiat–Shamir with
+  Poseidon2 inside the program, which the claims assume and do not bound. The openings inside the
+  program follow the WHIR model (`WhirOpens`).
 - **Merkle binding.** A setup leaf that reaches the key root and disagrees with the setup gives a
   Poseidon2 collision (`MerkleBinds`).
 - **Query indices.** The model draws each query leaf as a uniform Goldilocks word modulo the leaf

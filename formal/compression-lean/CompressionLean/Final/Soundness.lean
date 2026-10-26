@@ -24,9 +24,13 @@ satisfies the program's CCS, so the read condition covers every such
 candidate.
 
 Read condition (`final_restore_sound`): each such candidate has a reading
-whose walk under the layer-1 log accepts, so each of its challenges is an
-oracle answer. This is the random-oracle model for the hash inside the
-program, and the WHIR model for the openings inside it.
+whose walk under the layer-1 log accepts. A reading's challenges are the
+Poseidon2 outputs that the program computes (`Reads`), and the walk accepts a
+challenge only where the experiment's oracle answered it, so the condition
+does not follow from Poseidon2 acting as a random oracle. The bound covers a
+valid candidate only where its Poseidon2 challenges are oracle answers;
+Fiat–Shamir inside the program is assumed (`TRUST.md` §3). The openings inside
+the program follow the WHIR model.
 -/
 
 namespace CompressionLean.Final

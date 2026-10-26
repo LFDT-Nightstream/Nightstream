@@ -274,7 +274,7 @@ theorem setupCheck_value (rel : Replay.Relation) (S : Setup Gl) {leaves : Array 
         (fold (pointK alpha) (runGroup S mu.toK))).eval (ι (queryPoint rel.setupVars index)) := by
   unfold setupCheck at ok
   obtain ⟨_, path, ok⟩ := Except.bind_ok ok
-  have codeword := merkle leaf member index (Except.ensure_ok path)
+  have codeword := merkle leaf member index inside (Except.ensure_ok path)
   have yInverse := toF_yInverse rel.setupVars index inside (by omega)
   dsimp only at ok
   rw [two_groups] at ok

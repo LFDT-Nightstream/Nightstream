@@ -16,11 +16,14 @@ open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
 /-- **Merkle binding**, an assumption on the proof's leaves: a leaf whose path
-reaches the key root at index `i` holds, for each setup oracle, its codeword
-`Ô_o` on the coset `y_i·ω_8^v` of the honest leaf `i`. A leaf that breaks it
-and still reaches the root gives a hash collision. -/
+reaches the key root at an index `i` below the leaf count `2^(n-2)` holds, for
+each setup oracle, its codeword `Ô_o` on the coset `y_i·ω_8^v` of the honest
+leaf `i`. A leaf that breaks it and still reaches the root gives a hash
+collision. The bound matters: the path reads only the low `n - 2` bits of the
+index, and index `i + 2^(n-2)` names the same coset turned by `ω_8`. -/
 def MerkleBinds (rel : Replay.Relation) (S : Setup Gl) (leaves : Array Leaf) : Prop :=
-  ∀ leaf ∈ leaves.toList, ∀ i, pathOk rel.key.root i leaf = true → ∀ o v, o < rel.kappa + runOracles →
+  ∀ leaf ∈ leaves.toList, ∀ i < 2 ^ (rel.setupVars - 2), pathOk rel.key.root i leaf = true → ∀ o v,
+    o < rel.kappa + runOracles →
     v < 2 ^ foldVars → (leaf.values[o * 2 ^ foldVars + v]!).toF =
       (univ rel.setupVars (setupOracle rel S o)).eval (leafY rel.setupVars i * twoAdic 3 ^ v)
 

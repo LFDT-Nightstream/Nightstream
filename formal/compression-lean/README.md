@@ -83,10 +83,14 @@ Layer 1 assumes, and does not prove:
   avoids every bad set, a P0 candidate is a CE(B) witness
   (`replay_accepts_sound`). The bridge assumes WHIR at the opening points
   that the replay computes as Rust does (`WhirOpens`). It assumes that
-  each leaf of the proof whose path reaches the key root holds the setup
-  codeword on its coset (`MerkleBinds`). A leaf that breaks this gives a
-  hash collision. Its premises are the relation facts that the replay does
-  not check (`RelationFacts`), such as at most 31 setup variables.
+  each leaf of the proof whose path reaches the key root at an index below
+  the leaf count holds the setup codeword on its coset (`MerkleBinds`).
+  `Merkle.lean` proves that this follows when the key root is the root of
+  the honest setup tree, unless Poseidon2 collides at inputs computed from
+  the leaf (`merkleBinds_of_root`), and that honest leaves meet it
+  (`honest_leaves_bind`). That the shipped key's root is this root is not
+  proved. Its premises are the relation facts that the replay does not
+  check (`RelationFacts`), such as at most 31 setup variables.
 - Charges: Plonky3 composes a commitment's error as its WHIR terms plus each
   charged term times its candidate count. `rustDegrees` (`Budget.lean`) is
   `outer_terms` written in Lean, and `Pcs::new` enforces the two composed

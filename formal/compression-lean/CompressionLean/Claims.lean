@@ -54,8 +54,11 @@ words of `authority`, and an honest setup `S` of an F′ relation of logical
 width `lw`. Under Fiat–Shamir, with the charged terms of each commitment
 within Rust's split, a prover with `calls` queries makes the final verifier
 accept a statement whose F′ claim (`ParentClaim`) is false, while every
-program witness among the shrink candidates has a reading that layer 1 ran
-(`Reads`), with probability at most `calls / 2^t`. -/
+program witness among the shrink candidates has a reading (`Reads`) whose walk
+under the layer-1 log accepts, with probability at most `calls / 2^t`. A
+reading's challenges are the program's Poseidon2 outputs, so the bound covers a
+valid program witness only where those are the oracle's answers; Fiat–Shamir
+inside the program is assumed (`TRUST.md` §3). -/
 theorem production_bound {lw : ℕ}
     {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
     (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word)

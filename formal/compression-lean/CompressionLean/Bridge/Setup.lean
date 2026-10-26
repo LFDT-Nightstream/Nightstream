@@ -171,12 +171,14 @@ def setupOracle (rel : Replay.Relation) (S : Setup Fp) (o x : ℕ) : Fp :=
   else if x < S.slots then (S.slotBlock x : Fp) else 0
 
 /-- **Merkle binding**, an assumption on the proof's leaves: a leaf whose path
-reaches the key root at index `i` holds, for each setup oracle, its codeword
-`Ô_o` on the coset `y_i·ω_8^v` of the honest leaf `i`. A leaf that breaks it
-and still reaches the root gives a hash collision. -/
+reaches the key root at a leaf index `i` holds, for each setup oracle, its
+codeword `Ô_o` on the coset `y_i·ω_8^v` of the honest leaf `i`. A leaf that
+breaks it and still reaches the root gives a hash collision. The index stays
+below the leaf count: the path reads only its low bits, so index
+`i + 2^(setupVars - 2)` passes the same check at the coset turned by `ω_8`. -/
 def MerkleBinds (rel : Replay.Relation) (S : Setup Fp) (leaves : Array Leaf) : Prop :=
-  ∀ leaf ∈ leaves.toList, ∀ i, pathOk rel.key.root i leaf = true → ∀ o v, o < rel.kappa + runOracles →
-    v < 2 ^ foldVars → (leaf.values[o * 2 ^ foldVars + v]!).toF =
+  ∀ leaf ∈ leaves.toList, ∀ i < 2 ^ (rel.setupVars - 2), pathOk rel.key.root i leaf = true → ∀ o v,
+    o < rel.kappa + runOracles → v < 2 ^ foldVars → (leaf.values[o * 2 ^ foldVars + v]!).toF =
       (univ rel.setupVars (setupOracle rel S o)).eval (leafY rel.setupVars i * twoAdic 3 ^ v)
 
 omit [Algebra Fp K] [Fintype K] [ChallengeField K] in
@@ -298,7 +300,7 @@ theorem setupCheck_value (rel : Replay.Relation) (S : Setup Fp) {leaves : Array 
         (fold (pointK alpha) (runGroup S mu.toK))).eval (ι (queryPoint rel.setupVars index)) := by
   unfold setupCheck at ok
   obtain ⟨_, path, ok⟩ := Except.bind_ok ok
-  have codeword := merkle leaf member index (Except.ensure_ok path)
+  have codeword := merkle leaf member index inside (Except.ensure_ok path)
   have yInverse := toF_yInverse rel.setupVars index inside (by omega)
   dsimp only at ok
   rw [two_groups] at ok

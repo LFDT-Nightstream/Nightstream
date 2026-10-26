@@ -94,7 +94,8 @@ pub(super) fn claim_mutations(claim: &Claim) -> Vec<(&'static str, Claim)> {
     cases
 }
 
-/// One mutation of every proof part outside the WHIR openings' internal data.
+/// One mutation of every proof part outside the WHIR openings' internal data,
+/// except the GKR sum-check messages, which `gkr.rs` changes.
 pub(super) fn proof_mutations(proof: &Proof) -> Vec<(&'static str, Proof)> {
     let mut cases = Vec::new();
     let mut push = |name, change: &dyn Fn(&mut Proof)| {
@@ -138,9 +139,11 @@ pub(super) fn proof_mutations(proof: &Proof) -> Vec<(&'static str, Proof)> {
     cases
 }
 
-/// One mutation of every part of the WHIR openings' internal data. The Lean
-/// replay does not run WHIR's checks, so only the native and recorded
-/// verifiers get these.
+/// One mutation of each value part of the WHIR openings: OOD answers,
+/// sum-check messages, round roots, query rows, Merkle siblings and final
+/// polynomials. The proof-of-work witnesses and cap lengths are not changed.
+/// The Lean replay does not run WHIR's checks, so only the native and
+/// recorded verifiers get these.
 pub(super) fn whir_mutations(proof: &Proof) -> Vec<(&'static str, Proof)> {
     let mut cases = Vec::new();
     let mut push = |name, change: &dyn Fn(&mut Proof)| {

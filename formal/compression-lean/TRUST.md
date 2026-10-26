@@ -6,8 +6,13 @@ axioms. `lake build` checks that every theorem of the library uses only `propext
 and `Quot.sound`. This file lists every assumption; the README does not repeat them.
 
 A claim means what the definitions that it names mean. `CompressionLeanTests/Vocabulary.lean`
-keeps those in `Spec/`, the model and port folders (`Fields`, `Production`, `Game`, `Terminal`,
-`Layer1`, `Ports`), F′, Mathlib and core, so a reader of the claims reads no proof.
+keeps the constants that a claim's type names in `Spec/`, the model and port folders (`Fields`,
+`Production`, `Game`, `Terminal`, `Layer1`, `Ports`), F′, Mathlib and core. It does not follow
+their bodies. Through them a claim also reads 26 generic definitions of `Lib/` (such as `mle` and
+`univ`), `Ccs.Relation` in `Shrink/Ccs.lean`, and 15 definitions in `Lowering/`: the executor
+(`Exec.run`, `Exec.step`), the tape of a witness (`tapeOf`) and the row semantics
+(`R1csRow.Holds`). A reader of the claims reads these too; they sit in files that also hold
+proofs.
 
 ## 1. The Lean kernel and the build cache
 
@@ -27,11 +32,15 @@ inherits F′'s own trusted layers.
 
 The claims bound a probability. They take these as part of the model, not as Lean axioms:
 
-- **WHIR.** An opening is accepted only when one listed candidate agrees with every opened value
-  (`Opens`), except with that opening's error. The error figures come from Plonky3's Johnson-bound
-  report in Rust (`pcs.rs`) and enter `Final/Budget.lean` and `Shrink/Budget.lean` as given. No
-  Lean proof checks them. This is the weakest numeric layer. The candidates are tables over the base
-  field; candidates over `Ext` are not modeled. WHIR's own Fiat–Shamir step is part of its error.
+- **WHIR.** The claims idealize the openings: an opening is accepted only when one listed
+  candidate agrees with every opened value (`Opens` in the shrink game, `WhirOpens` in a reading),
+  with no error. So `calls / 2^t` does not include WHIR's error. `Final/Budget.lean` and
+  `Shrink/Budget.lean` take a WHIR error term, and `final_restore_budget` sets it to zero. In
+  Rust, `Pcs::new` charges WHIR's terms from Plonky3's Johnson-bound report (`pcs.rs`) together
+  with the terms that the premises `p0`, `p1` and `rust` state; Lean checks only the latter. No
+  Lean proof checks the WHIR figures. This is the weakest numeric layer. The candidates are tables
+  over the base field; candidates over `Ext` are not modeled. WHIR's own Fiat–Shamir step is part
+  of its error.
 - **Fiat–Shamir.** Poseidon2 acts as a random oracle, and the transcript encoding is injective on
   prefixes (`Game/Restoration.lean`, `Game/Compose.lean`). One permutation call can give `k`
   challenges, so `Q` calls and the `R` draws of one path are at most `k·Q + R` queries of the
@@ -128,13 +137,15 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
 - The Merkle hash that `MerkleBinds` reads (`Replay.pathOk`, `merkleRoot`, `compress`,
   `hashLeaf`). The Merkle binding of section 3 gives a Poseidon2 collision only if this is the
   hash that made the key root. Its permutation `Replay.permute` is F′'s `permute64`, which F′
-  proves is `Poseidon2.permute` over F′'s constants. Rust draws its constants from `SEED`. In CI,
-  `exported_round_constants_match_fprime_lean_spec` (`neo-ccs`) compares them with F′'s,
-  `exported_round_constants_rebuild_the_canonical_permutation` shows that they make the workspace
-  permutation, `poseidon2_matches_the_workspace_permutation` (`neo-spartan`) shows that layer 1's
-  permutation (`hash::permutation`) is the workspace permutation on 64 states, and the digest pins
-  compare outputs: `permutation_template_matches_lean` hashes with F′'s `Poseidon2.hash`, and the
-  run digests hash with `Replay.hashLeaf`.
+  proves is `Poseidon2.permute` over F′'s constants. Rust draws its constants from `SEED`.
+  `exported_round_constants_match_fprime_lean_spec` (`neo-ccs`, `tests/poseidon2_round_constants.rs`)
+  compares them with F′'s, and `exported_round_constants_rebuild_the_canonical_permutation` shows
+  that they make the workspace permutation; CI runs only `neo-ccs`'s `packed_witness` test, so these
+  two run by hand. In CI,
+  `poseidon2_matches_the_workspace_permutation` (`neo-spartan`) shows that layer 1's permutation
+  (`hash::permutation`) is the workspace permutation on 64 states, and the digest pins compare
+  outputs: `permutation_template_matches_lean` hashes with F′'s `Poseidon2.hash`, and the run
+  digests hash with `Replay.hashLeaf`.
 - The error charges (`Layer1.rustDegrees`, `Shrink.rustDegrees`). If one differs from
   `outer_terms` (`lib.rs`) or from `terms` (`shrink/mod.rs`), the premises `p0`, `p1` and `rust`
   are not the checks that `Pcs::new` makes. `outer_terms` charges `ring::row_count(shape) - 1`

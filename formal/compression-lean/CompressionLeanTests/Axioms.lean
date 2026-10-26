@@ -112,6 +112,10 @@ import CompressionLean
 
 #audit_axioms CompressionLean.Bridge.replay_accepts_implies_path
 #audit_axioms CompressionLean.Bridge.replay_accepts_sound
+#audit_axioms CompressionLean.Bridge.pathOk_honest
+#audit_axioms CompressionLean.Bridge.pathOk_binds
+#audit_axioms CompressionLean.Bridge.merkleBinds_of_root
+#audit_axioms CompressionLean.Bridge.honest_leaves_bind
 #audit_axioms CompressionLean.Bridge.queryAt_distinct
 #audit_axioms CompressionLean.Bridge.phi_natDegree
 

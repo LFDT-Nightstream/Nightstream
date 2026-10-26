@@ -15,6 +15,7 @@ import CompressionLean.Bridge.Linear
 import CompressionLean.Bridge.Late
 import CompressionLean.Bridge.Honest
 import CompressionLean.Bridge.Setup
+import CompressionLean.Bridge.Merkle
 import CompressionLean.Bridge.Openings
 import CompressionLean.Bridge.Main
 import CompressionLean.Circuit.Exec

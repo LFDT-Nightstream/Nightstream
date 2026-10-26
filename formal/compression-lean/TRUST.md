@@ -106,7 +106,13 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   `derived_structure_steps_read_back_the_runs` checks the same property of `from_rows` on a
   fixture. The Rust tests `lean_setup_vectors_match_rust_and_fips202` and
   `streamed_key_blocks_match_all_lanes_of_authoritative_setup_cases` compare the key expander with
-  the vectors that Lean emits.
+  the vectors that Lean emits. The claims need more than `ReadsBack`: `MerkleBinds` compares an
+  honest leaf with `poseidon2Setup`'s oracles, so if they are not the oracles under the key's root,
+  no valid witness has a reading and the claims say nothing. On the production runs, `setupCheck`
+  compares the run oracles: `production_setup_columns` (`neo-spartan`) requires the runs to derive
+  the committed key and writes the four run oracles that its root covers after the key rows, and
+  `columnsFailure_sound` proves that a pass makes them `poseidon2Setup`'s. The key rows are
+  compared only through the expander vectors above.
 - The Merkle hash that `MerkleBinds` reads (`Replay.pathOk`, `merkleRoot`, `compress`,
   `hashLeaf`). The Merkle binding of section 3 gives a Poseidon2 collision only if this is the
   hash that made the key root. Its permutation `Replay.permute` is F′'s `permute64`, which F′

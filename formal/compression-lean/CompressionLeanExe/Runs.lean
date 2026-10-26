@@ -1,8 +1,11 @@
-import CompressionLean.Ports.Setup
+import CompressionLean.Spec.Checks
 
 /-!
-Owns the reader of the runs file that `nightstream`'s `setup_runs.rs` writes
-(`production_runs.bin`). `setupCheck` and `runsCheck` read the runs with it.
+Owns the readers of the setup files that the Rust tests write: the runs that
+`nightstream`'s `setup_runs.rs` writes (`production_runs.bin`), which
+`setupCheck` and `runsCheck` read, and the run oracles that `neo-spartan`'s
+`setup_columns.rs` writes (`production_setup_columns.bin`), which `setupCheck`
+reads.
 -/
 
 namespace CompressionLeanExe.Runs
@@ -36,5 +39,22 @@ def readRuns (bytes : ByteArray) : Except String (List Push) := do
               matrix := bytes[base + 8]!.toNat, len := bytes[base + 9]!.toNat, initial := initial,
               ratio := ratio } :: runs
   return runs
+
+/-- The run oracles of the file (`setup_columns.rs`): after the run count `n`
+and the slot count `s` (`u64`), `n` rows and `n` slots (`u32`), `n`
+coefficients (canonical `u64`) and `s` blocks (`u32`). -/
+def readColumns (bytes : ByteArray) : Except String CompressionLean.Spec.SetupColumns := do
+  let n := littleEndian bytes 0 8
+  let s := littleEndian bytes 8 8
+  unless bytes.size = 16 + 16 * n + 4 * s do throw s!"{bytes.size} bytes do not hold {n} runs and {s} slots"
+  let column (base width count : ℕ) : Except String (Array CompressionLean.Gl) := do
+    let mut out : Array CompressionLean.Gl := Array.mkEmpty count
+    for k in [0:count] do
+      let word := littleEndian bytes (base + width * k) width
+      unless word < goldilocksModulus do throw s!"word {k} at {base} is not canonical"
+      out := out.push (word : CompressionLean.Gl)
+    return out
+  return { row := ← column 16 4 n, slot := ← column (16 + 4 * n) 4 n, coef := ← column (16 + 8 * n) 8 n,
+           block := ← column (16 + 16 * n) 4 s }
 
 end CompressionLeanExe.Runs

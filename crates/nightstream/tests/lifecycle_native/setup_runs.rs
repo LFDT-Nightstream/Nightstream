@@ -4,8 +4,11 @@
 //! `target/lean-lowering/production_runs.bin`. It then reads the file back as
 //! `MatrixRows` and requires `Key::derive` of it to equal the layer-1 key of
 //! the committed production key (`tests/fixtures/compression/key.bin`).
-//! `production_setup_matches_lean` runs the Lean `setupCheck` on that file and
-//! on neo-spartan's `production_layer1.json`, and requires its pass.
+//! `production_setup_matches_lean` runs the Lean `setupCheck` on that file, on
+//! neo-spartan's `production_layer1.json` and on the run oracles that
+//! neo-spartan's `production_setup_columns` writes from it
+//! (`production_setup_columns.bin`), and requires both of its passes: the
+//! setup facts, and Lean's setup holding the run oracles that the key commits.
 //! `production_runs_match_lean` runs the Lean `runsCheck` on that file and
 //! requires its pass: the runs give F′'s matrices of the Poseidon2 hash chain.
 //!
@@ -180,16 +183,19 @@ fn production_runs_rebuild_the_layer1_key() {
 
 #[test]
 #[ignore = "needs production_runs.bin of production_runs_rebuild_the_layer1_key, the production_layer1.json of \
-            neo-spartan's production_layer1_matches_lean, and lake build setupCheck in formal/compression-lean"]
+            neo-spartan's production_layer1_matches_lean, the production_setup_columns.bin of neo-spartan's \
+            production_setup_columns, and lake build setupCheck in formal/compression-lean"]
 fn production_setup_matches_lean() {
     let dir = workspace().join("target/lean-lowering");
     let layer1 = dir.join("production_layer1.json");
     let runs = dir.join("production_runs.bin");
+    let columns = dir.join("production_setup_columns.bin");
     assert!(
         layer1.exists(),
         "run neo-spartan's production_layer1_matches_lean first"
     );
     assert!(runs.exists(), "run production_runs_rebuild_the_layer1_key first");
+    assert!(columns.exists(), "run neo-spartan's production_setup_columns first");
     let check = workspace().join("formal/compression-lean/.lake/build/bin/setupCheck");
     assert!(
         check.exists(),
@@ -199,12 +205,13 @@ fn production_setup_matches_lean() {
     let output = Command::new(&check)
         .arg(&layer1)
         .arg(&runs)
+        .arg(&columns)
         .output()
         .unwrap();
     let stdout = String::from_utf8_lossy(&output.stdout);
     eprintln!("setupCheck: {} in {:?}", stdout.trim_end(), started.elapsed());
     assert!(
-        output.status.success() && stdout.contains("setup facts hold"),
+        output.status.success() && stdout.contains("setup facts hold") && stdout.contains("setup columns match"),
         "{stdout}{}",
         String::from_utf8_lossy(&output.stderr)
     );

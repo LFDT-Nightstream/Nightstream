@@ -106,7 +106,7 @@ private theorem verifyWith_at (hp : Permutes c.perm) (hw : Decodes c w) (facts :
   rfl
 
 /-- A witness of the program's CCS gives what `Gives` states. -/
-private theorem program_gives
+theorem program_gives
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
     (hctx : ∀ lane : Fin 4,

@@ -209,6 +209,35 @@ def setupChecks (key : Layer1Key) (pushes : List Push) : List Fact :=
 def setupFailure (key : Layer1Key) (pushes : List Push) : Option String :=
   firstFailure (setupChecks key pushes)
 
+/-- The run oracles that Rust commits after the key rows (`lib.rs::oracle` for
+`k ≥ κ`, `matrix.rs::Tables::setup_column`) without their zero padding: per
+run its row, slot and coefficient, and per slot its block. -/
+structure SetupColumns where
+  row : Array Gl
+  slot : Array Gl
+  coef : Array Gl
+  block : Array Gl
+
+/-- Each fact of the column check by name: Rust's run oracles hold the rows,
+slots and coefficients of the run list and the blocks of the slot keys. A
+run's slot is checked by its key, so the check needs no search. -/
+def columnChecks (pushes : List Push) (cols : SetupColumns) : List Fact :=
+  let runs := (runList Production.matrices pushes).toArray
+  let classes := (sortedValues Push.classCode pushes).toList
+  let keys := sortedValues (slotKey classes) pushes
+  [⟨"column sizes", cols.row.size = runs.size ∧ cols.slot.size = runs.size ∧ cols.coef.size = runs.size ∧
+      cols.block.size = keys.size⟩,
+    ⟨"rows", ∀ k, k < runs.size → cols.row.getD k 0 = ((runs.getD k Push.pad).row : Gl)⟩,
+    ⟨"slots", ∀ k, k < runs.size → (cols.slot.getD k 0).val < keys.size ∧
+      keys.getD (cols.slot.getD k 0).val 0 = slotKey classes (runs.getD k Push.pad)⟩,
+    ⟨"coefficients", ∀ k, k < runs.size → cols.coef.getD k 0 = (runs.getD k Push.pad).initial⟩,
+    ⟨"blocks", ∀ σ, σ < keys.size → cols.block.getD σ 0 = ((keyStart (keys.getD σ 0) / ringDegree : ℕ) : Gl)⟩]
+
+/-- The name of the first fact of the column check that the runs and the
+columns fail. -/
+def columnsFailure (pushes : List Push) (cols : SetupColumns) : Option String :=
+  firstFailure (columnChecks pushes cols)
+
 /-! ## The terminal package -/
 
 /-- Every compact row invocation names a template (`CompactTemplatesValid`),

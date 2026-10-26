@@ -95,6 +95,28 @@ theorem runList_matrix (pushes : List Push) {m j k : ℕ} (lt : j < m)
         rw [List.getD_append_right _ _ _ _ (by omega), List.getD_eq_getElem _ _ inside]
         simpa using (List.mem_filter.mp (List.getElem_mem inside)).2
 
+/-- With every run in a matrix below `m`, the run list holds the runs. -/
+theorem runList_perm_of {pushes : List Push} {m : ℕ} (inside : ∀ p ∈ pushes, p.matrix < m) :
+    (runList m pushes).Perm pushes := by
+  have := runList_perm pushes m
+  rwa [List.filter_eq_self.mpr fun p member => by simpa using inside p member] at this
+
+/-- With every run in a matrix below `m`, the run list has the classes and the
+slot keys that the checks sort from the runs. -/
+theorem runList_sorted {pushes : List Push} {m : ℕ} (inside : ∀ p ∈ pushes, p.matrix < m) :
+    classesOf (runList m pushes) = (sortedValues Push.classCode pushes).toList ∧
+      keysOf (runList m pushes) =
+        (sortedValues (slotKey (sortedValues Push.classCode pushes).toList) pushes).toList := by
+  have perm := runList_perm_of inside
+  have members (f : Push → ℕ) (x : ℕ) : x ∈ (runList m pushes).map f ↔ x ∈ pushes.map f := by
+    simp only [List.mem_map, perm.mem_iff]
+  have hc : classesOf (runList m pushes) = (sortedValues Push.classCode pushes).toList := by
+    rw [sortedValues_toList]
+    exact sortedSet_congr (members _)
+  refine ⟨hc, ?_⟩
+  rw [sortedValues_toList, keysOf, hc]
+  exact sortedSet_congr (members _)
+
 theorem getD_mem_or_pad (l : List Push) (k : ℕ) : l.getD k Push.pad ∈ l ∨ l.getD k Push.pad = Push.pad := by
   rcases Nat.lt_or_ge k l.length with inside | past
   · exact Or.inl (List.getD_eq_getElem _ _ inside ▸ List.getElem_mem inside)
@@ -191,5 +213,55 @@ theorem setupFailure_sound {key : Layer1Key} {pushes : List Push} (seed : List �
       rw [Nat.add_sub_cancel' lo] at shape
       rw [word]
       exact shape
+
+/-- **The column check.** When the setup check and the column check pass, the
+run oracles of `poseidon2Setup` (`setupOracle` past the key rows) are the
+columns that Rust commits, padded with zeros. -/
+theorem columnsFailure_sound {key : Layer1Key} {pushes : List Push} {cols : SetupColumns} (seed : List ℕ)
+    (setup : setupFailure key pushes = none) (pass : columnsFailure pushes cols = none) (x : ℕ) :
+    ((poseidon2Setup seed pushes).runRow x : Gl) = cols.row.getD x 0 ∧
+      ((poseidon2Setup seed pushes).runSlot x : Gl) = cols.slot.getD x 0 ∧
+      (poseidon2Setup seed pushes).runCoef x = cols.coef.getD x 0 ∧
+      (if x < (poseidon2Setup seed pushes).slots then ((poseidon2Setup seed pushes).slotBlock x : Gl) else 0) =
+        cols.block.getD x 0 := by
+  obtain ⟨runs, -⟩ := all_of_firstFailure setup
+  obtain ⟨sizes, rows, slots, coefs, blocks, -⟩ := all_of_firstFailure pass
+  dsimp only at runs sizes rows slots coefs blocks
+  obtain ⟨hc, hk⟩ := runList_sorted (m := Production.matrices) fun p member => (runs p member).1
+  obtain ⟨rowSize, slotSize, coefSize, blockSize⟩ := sizes
+  simp only [List.size_toArray] at rowSize slotSize coefSize rows slots coefs
+  have get (k : ℕ) : (runList Production.matrices pushes).toArray.getD k Push.pad =
+      (runList Production.matrices pushes).getD k Push.pad := by
+    simp [List.getD_eq_getElem?_getD, Array.getD_eq_getD_getElem?]
+  have word (a : Array ℕ) (σ : ℕ) : a.toList.getD σ 0 = a.getD σ 0 := by
+    rw [List.getD_eq_getElem?_getD, Array.getElem?_toList, Array.getD_eq_getD_getElem?]
+  have beyond (a : Array Gl) (k : ℕ) (past : a.size ≤ k) : a.getD k 0 = 0 := by
+    rw [Array.getD_eq_getD_getElem?, Array.getElem?_eq_none past, Option.getD_none]
+  have nodup : (sortedValues (slotKey (sortedValues Push.classCode pushes).toList) pushes).toList.Nodup := by
+    rw [sortedValues_toList]
+    exact (List.perm_insertionSort _ _).nodup_iff.mpr (List.nodup_dedup _)
+  unfold poseidon2Setup setupOfRuns
+  dsimp only
+  rw [hc, hk]
+  rcases Nat.lt_or_ge x (runList Production.matrices pushes).length with inside | past
+  · refine ⟨by rw [rows x inside, get], ?_, by rw [coefs x inside, get], ?_⟩
+    · obtain ⟨small, same⟩ := slots x inside
+      rw [if_pos inside, get] at *
+      rw [← same, ← word, List.getD_eq_getElem _ _ (by simpa using small), nodup.idxOf_getElem,
+        ZMod.natCast_zmod_val]
+    · split_ifs with slot
+      · rw [blocks x (by simpa using slot), word]
+      · exact (beyond _ _ (by rw [blockSize]; simpa using slot)).symm
+  · have pad := List.getD_eq_default (runList Production.matrices pushes) Push.pad past
+    refine ⟨?_, ?_, ?_, ?_⟩
+    · rw [pad, beyond _ _ (by omega)]
+      rfl
+    · rw [if_neg (not_lt.mpr past), beyond _ _ (by omega)]
+      rfl
+    · rw [pad, beyond _ _ (by omega)]
+      rfl
+    · split_ifs with slot
+      · rw [blocks x (by simpa using slot), word]
+      · exact (beyond _ _ (by rw [blockSize]; simpa using slot)).symm
 
 end CompressionLean.Checks

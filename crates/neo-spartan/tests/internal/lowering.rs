@@ -506,7 +506,7 @@ fn lower_check(name: &str, path: &Path, program: &[PathBuf]) -> String {
 /// `tests/fixtures/compression/key.bin`).
 /// The file is the bincode of `CompressionKey` (`finish.rs`): these three,
 /// the context and the shrink shape.
-fn production_key() -> (Key, u32, f64) {
+pub(super) fn production_key() -> (Key, u32, f64) {
     let path = workspace().join("crates/nightstream/tests/fixtures/compression/key.bin");
     let bytes = std::fs::read(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
     let fields: (Key, [u64; 4], u32, f64, Shape) = bincode::deserialize(&bytes).unwrap();

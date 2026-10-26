@@ -36,9 +36,13 @@
 #   PackageRows::visit_rows pushes for the production circuit to
 #   production_runs.bin and requires Key::derive of the file to be the
 #   committed key's layer-1 key.
+# production_setup_columns (neo-spartan): reads production_runs.bin, requires
+#   that its runs derive the committed key, and writes the four run oracles
+#   that the key commits after the key rows to production_setup_columns.bin.
 # production_setup_matches_lean (nightstream, setupCheck): runs setupCheck on
-#   production_runs.bin and production_layer1.json and requires
-#   `setup facts hold`.
+#   production_runs.bin, production_layer1.json and production_setup_columns.bin
+#   and requires `setup facts hold` and `setup columns match`: Lean's setup
+#   holds the run oracles of the committed key.
 # production_runs_match_lean (nightstream, runsCheck): runs runsCheck on
 #   production_runs.bin and requires `runs give the matrices`: no run names a
 #   row past F′'s rows, and the runs of each row and matrix give that row of
@@ -56,8 +60,8 @@ set -u
 lean_dir=$(cd "$(dirname "$0")/.." && pwd)
 repo=$(cd "$lean_dir/../.." && pwd)
 checks=(lean_replay lowering_matches_lean production_layer1_matches_lean terminal_program_matches_lean
-  final_program_matches_lean production_runs_rebuild_the_layer1_key production_setup_matches_lean
-  production_runs_match_lean)
+  final_program_matches_lean production_runs_rebuild_the_layer1_key production_setup_columns
+  production_setup_matches_lean production_runs_match_lean)
 [ $# -gt 0 ] && checks=("$@")
 failed=0
 

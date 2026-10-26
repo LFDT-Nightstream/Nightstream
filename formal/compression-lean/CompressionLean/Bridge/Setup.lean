@@ -6,8 +6,9 @@ Owns the bridge of the setup queries (`Replay.setupCheck`) to the model's
 honest fold. Plonky3's two-adic generator of order `8` has order `8`
 (`omega_order`, a kernel computation), so the replay's leaf weights are the
 inverse DFT of `HonestFold.leaf_formula`. Under the Merkle assumption
-(`MerkleBinds`: a proof leaf whose path reaches the key root holds the
-honest setup codeword on its coset), each folded value the replay computes
+(`MerkleBinds`: a proof leaf whose path reaches the key root at an index
+below the leaf count holds the honest setup codeword on that index's coset),
+each folded value the replay computes
 is the model's honest fold at the leaf's query point (`setupCheck_value`).
 -/
 

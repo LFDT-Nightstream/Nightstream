@@ -18,6 +18,9 @@ facts (`Fact`); `firstFailure` names the first that fails.
   `poseidon2Fits`.
 - The setup that Rust builds: `setupFailure` on the key and the runs, and
   the setup that `build` returns for them (`poseidon2Setup`).
+- The run oracles that Rust commits: `columnsFailure` on the runs and the
+  columns (`SetupColumns`). No claim takes it; it shows that
+  `poseidon2Setup`'s run oracles are the ones under the key's root.
 - The terminal package: `templatesNamed`.
 
 The run check (`runsFailure`) is in `Spec/Runs.lean`. The proofs that a pass

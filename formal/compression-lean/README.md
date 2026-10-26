@@ -1,8 +1,10 @@
 # compression-lean
 
-This project proves the soundness of Nightstream's compressed proof: the final verifier
+This project proves a soundness bound for Nightstream's compressed proof: the final verifier
 (`CompressionKey::verify`, `crates/nightstream/src/lifecycle/finish.rs`) accepts a false statement
-only with a small probability. The claims are the theorems of `CompressionLean/Claims.lean`.
+only with a small probability, under the assumptions that `TRUST.md` lists. Two of them carry the
+most weight: the WHIR openings are idealized, and Fiat–Shamir inside the final program is assumed,
+not bounded (`TRUST.md` §3). The claims are the theorems of `CompressionLean/Claims.lean`.
 
 ## Strategy
 
@@ -18,13 +20,15 @@ program, which is the terminal package and the layer-1 verifier written as a cir
    ask for challenges at any node; then each query costs at most the game's error.
 2. The terminal package is F′'s rows without change, so its rows give F′'s meaning (`Terminal/`).
 3. Layer 1 and the shrink layer each prove that an accepted transcript has a witness, except on a
-   bad challenge (`Layer1/`, `Shrink/`). The WHIR openings are idealized: a named error term stands
-   for each one.
+   bad challenge (`Layer1/`, `Shrink/`). The WHIR openings are idealized; their error is not part
+   of the bound.
 4. The chain (`Final/`): the shrink verifier accepts, so a candidate satisfies the CCS of the final
    program. The encoding premise (`ProgramEncodes`) says that such a witness holds a terminal
    assignment and accepting layer-1 paths for its parent claim. Layer 1 then gives a witness of
    that claim, and under the honest setup the claim is F′'s (`ParentClaim`). Both layers run in
-   one experiment, so one bad-set argument covers both.
+   one experiment, so one bad-set argument covers both. The chain covers a valid program witness
+   only where its in-program challenges are the experiment's oracle answers (the read condition,
+   `TRUST.md` §3).
 5. The encoding premise is proved for the production final program (`Sim/Encodes.lean`). Lean
    lowers the program to the shrink run as Rust's recorder does (`Lowering/`). A witness of the
    run's CCS gives an accepting run of an executor, and the simulation (`Sim/`) shows that each part
@@ -91,6 +95,9 @@ timeout --signal=KILL 1500 .lake/build/bin/emitTerminal artifacts/compression-te
   `lake exe status` prints, and the page fails when a premise of a claim has no entry in
   `Inventory.lean`;
 - the folder gate (`Layers.lean`);
+- the reading gate (`Reading.lean`): a valid program witness has a reading given WHIR's openings
+  and `MerkleBinds`, and a leaf meets `MerkleBinds` when its path reaches the root at no other
+  index below the leaf count and it holds its own index's codeword;
 - the vocabulary gate (`Vocabulary.lean`): a claim names only constants of `Spec/`, the model and
   port folders, F′, Mathlib or core.
 

@@ -12,7 +12,8 @@ Poseidon2 hash chain, that this setup fits the key's shape (`Setup.Fits`) and
 that the key's structure describes it (`Structure.Describes`).
 `setupFailure_sound` proves that a pass gives the three facts. The runs are
 read at run time, so the `setupCheck` executable runs the check on the runs
-that it reads.
+that it reads. `columnsFailure_sound` proves that a pass of the column check
+makes `poseidon2Setup`'s run oracles the columns that Rust commits.
 
 The check reads the runs a fixed number of times. It computes `classesOf` and
 `keysOf` with a hash set of the distinct values and a sort of them

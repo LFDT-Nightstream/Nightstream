@@ -7,8 +7,9 @@ The reading gate. `lake build` runs it.
 reading (`Reads`). If no witness could have a reading, the bound would say
 nothing about a valid witness. These theorems show that the reading asks for
 no more than its two named assumptions: a valid witness has a reading when
-WHIR opens its candidates and its setup leaves bind, and an honest leaf binds
-when its path reaches the key root at one index below the leaf count.
+WHIR opens its candidates and its setup leaves bind, and a leaf binds when its
+path reaches the key root at no other index below the leaf count and it holds
+its own index's codeword.
 -/
 
 namespace CompressionLeanTests.Reading
@@ -19,8 +20,8 @@ open CompressionLean.Replay (Leaf pathOk foldVars runOracles)
 open CompressionLean.Lib (univ)
 open NightstreamFPrime
 
-/-- Leaves whose paths reach the key root at exactly one index below the leaf
-count, each holding the setup's codeword on that index's coset, meet
+/-- Leaves whose paths reach the key root at no index below the leaf count
+but `j`, each holding the setup's codeword on `j`'s coset, meet
 `MerkleBinds`. -/
 theorem merkleBinds_of_unique (rel : Replay.Relation) (S : Setup Gl) (leaves : Array Leaf)
     (honest : ∀ leaf ∈ leaves.toList, ∃ j,

@@ -8,8 +8,8 @@ and `Quot.sound`. This file lists every assumption; the README does not repeat t
 A claim means what the definitions that it names mean. `CompressionLeanTests/Vocabulary.lean`
 keeps the constants that a claim's type names in `Spec/`, the model and port folders (`Fields`,
 `Production`, `Game`, `Terminal`, `Layer1`, `Ports`), F′, Mathlib and core. It does not follow
-their bodies. Through them a claim also reads 26 generic definitions of `Lib/` (such as `mle` and
-`univ`), `Ccs.Relation` in `Shrink/Ccs.lean`, and 15 definitions in `Lowering/`: the executor
+their bodies. Through them a claim also reads generic definitions of `Lib/` (such as `mle` and
+`univ`), `Ccs.Relation` in `Shrink/Ccs.lean`, and definitions in `Lowering/`: the executor
 (`Exec.run`, `Exec.step`), the tape of a witness (`tapeOf`) and the row semantics
 (`R1csRow.Holds`). A reader of the claims reads these too; they sit in files that also hold
 proofs.
@@ -33,11 +33,12 @@ inherits F′'s own trusted layers.
 The claims bound a probability. They take these as part of the model, not as Lean axioms:
 
 - **WHIR.** The claims idealize the openings: an opening is accepted only when one listed
-  candidate agrees with every opened value (`Opens` in the shrink game, `WhirOpens` in a reading),
+  candidate agrees with every opened value (`Layer1.Opens` in the layer-1 game, `Opens` in the
+  shrink game, `WhirOpens` in a reading),
   with no error. So `calls / 2^t` does not include WHIR's error. `Final/Budget.lean` and
   `Shrink/Budget.lean` take a WHIR error term, and `final_restore_budget` sets it to zero. In
   Rust, `Pcs::new` charges WHIR's terms from Plonky3's Johnson-bound report (`pcs.rs`) together
-  with the terms that the premises `p0`, `p1` and `rust` state; Lean checks only the latter. No
+  with the terms that the premises `p0`, `p1` and `rust` state, which Rust meets. No
   Lean proof checks the WHIR figures. This is the weakest numeric layer. The candidates are tables
   over the base field; candidates over `Ext` are not modeled. WHIR's own Fiat–Shamir step is part
   of its error.
@@ -61,8 +62,13 @@ The claims bound a probability. They take these as part of the model, not as Lea
   terminal assignment. That such a run implies a true claim is layer 1 under Fiat–Shamir with
   Poseidon2 inside the program, which the claims assume and do not bound. The openings inside the
   program follow the WHIR model (`WhirOpens`).
-- **Merkle binding.** A setup leaf that reaches the key root and disagrees with the setup gives a
-  Poseidon2 collision (`MerkleBinds`).
+- **Merkle binding.** A setup leaf that reaches the key root at an index below the leaf count
+  `2^(n-2)` and disagrees with the setup gives a Poseidon2 collision (`MerkleBinds`). The bound is
+  part of the assumption: the path reads only the low `n - 2` bits of an index, so without it the
+  assumption would make every setup oracle constant on each queried coset.
+  `CompressionLeanTests/Reading.lean` shows that a leaf meets it when its path reaches the root at
+  no other index below the leaf count and it holds its own index's codeword. That an honest leaf
+  holds that codeword rests on the setup ports (section 5).
 - **Query indices.** The model draws each query leaf as a uniform Goldilocks word modulo the leaf
   count, as `sample_bits` does (`Layer1/HonestStage.lean`, `Layer1/Queries.lean`). The budget needs
   at most 35 setup variables (`query_half`), and the replay bridge at most 31. `Relation::new`
@@ -133,7 +139,9 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   compares the run oracles: `production_setup_columns` (`neo-spartan`) requires the runs to derive
   the committed key and writes the four run oracles that its root covers after the key rows, and
   `columnsFailure_sound` proves that a pass makes them `poseidon2Setup`'s. The key rows are
-  compared only through the expander vectors above.
+  compared only through the expander vectors above. No check compares the key rows' layout on the
+  cube (`seedKey` against `oracle`) or the codeword encoding (`setup.rs::encode` against `univ`,
+  `leafY` and the leaf order `o·8 + v`).
 - The Merkle hash that `MerkleBinds` reads (`Replay.pathOk`, `merkleRoot`, `compress`,
   `hashLeaf`). The Merkle binding of section 3 gives a Poseidon2 collision only if this is the
   hash that made the key root. Its permutation `Replay.permute` is F′'s `permute64`, which F′
@@ -151,8 +159,8 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   are not the checks that `Pcs::new` makes. `outer_terms` charges `ring::row_count(shape) - 1`
   for the ring-row batching, and `Layer1.rustLinear` charges `s.rows - 1`, the same sum of
   `kappa`, `matrices` and `publicBlocks`; `ports.json` pins `rustLinear` to `row_count` too.
-- The readers of the files that the Rust tests write (`Layer1Key`, `readRuns` in
-  `CompressionLeanExe/Runs.lean`): transcriptions of their formats.
+- The readers of the files that the Rust tests write (`Layer1Key`, `readRuns` and `readColumns`
+  in `CompressionLeanExe/Runs.lean`): transcriptions of their formats.
 
 **Code that a cross-check compares with Rust but that cannot make a claim false.** The rest of
 `Ports/Replay/`: the replay of the layer-1 verifier, with its transcript, stages, formulas, GKR and WHIR.

@@ -11,8 +11,7 @@ words before the first layer-1 challenge, so a prover may choose it.
 The two WHIR openings are idealized (`Opens`): the verifier accepts them when
 one P0 candidate and one P1 candidate agree with every opened value. The
 lists are the candidates the prover fixed at its commitments. The WHIR error
-that this idealization hides is a named term of the final bound, not proved
-here.
+that this idealization hides is not part of the final bound (`TRUST.md` §3).
 -/
 
 namespace CompressionLean.Layer1

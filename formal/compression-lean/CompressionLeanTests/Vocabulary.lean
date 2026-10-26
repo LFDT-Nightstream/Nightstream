@@ -9,7 +9,8 @@ folders: every constant in the type of a claim of `Inventory.claims` is
 declared in a module of a folder of `vocabularyFolders`, or outside
 `CompressionLean` (F′, Mathlib, core). A constant of a proof folder (`Lib`,
 `Shrink`, `Lowering`, `Bridge`, `Final`, `Checks`, `Sim`, `Claims`) fails the
-build, so an auditor reads the claims without the proofs.
+build. The gate checks the names in a claim's type, not their bodies;
+`TRUST.md` names the definitions of proof folders that the bodies reach.
 -/
 
 open Lean Elab Command CompressionLeanTests.Inventory

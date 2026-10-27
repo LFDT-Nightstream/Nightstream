@@ -8,12 +8,12 @@ Open Scope Z_scope.
    END pins the final shape. *)
 Example plain_rows_get_call_add : forall stale rows final,
   fieldPrime -> validCircuitRun (sourceMemory stale) rows final ->
-  runFragment (mkBoundary 2 4 4 7 0 0 0 0 0) 0 rows ->
-  boundaryPC (rowsFinalBoundary (mkBoundary 2 4 4 7 0 0 0 0 0) rows) = 5 ->
+  runFragment (mkBoundary 2 8 8 7 0 0 0 0 0 0) 0 rows ->
+  boundaryPC (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0) rows) = 5 ->
   exists c, Steps (stackConfig sourceInitialState [] getCallAdd) c /\
     programLoaded sourceProgram final /\
     CircuitConfig sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 3))) final
-      (rowsFinalBoundary (mkBoundary 2 4 4 7 0 0 0 0 0) rows) c.
+      (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0) rows) c.
 Proof.
   intros stale rows final Hprime Hrun Hfragment Hpc.
   destruct (run_refinement sourceProgram sourceStore 0 _ rows (sourceMemory stale) final _ _ Hprime

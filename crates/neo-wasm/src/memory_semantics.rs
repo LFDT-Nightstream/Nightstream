@@ -10,10 +10,9 @@ use std::collections::BTreeMap;
 /// Initial cells for the WASM application's 32-bit logical memories.
 pub type WasmMemoryPreload = MemoryPreload<WasmMemoryId>;
 
-/// The preload is program-derived only: the locals RAM starts all-zero
-/// ([`RamInitialization::Zero`]), so entry-frame inputs must arrive through the export
-/// template's `InputLocal` bootstrap; subsequent entry frames are cleared by
-/// LocalZero rows before input or call-parameter writes.
+/// The preload is program-derived only. Stack RAM starts at zero, including the
+/// first export's declared locals. Entry inputs arrive through `InputLocal`, call
+/// arguments are already in place, and later frames use LocalZero rows for the rest.
 pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmMemoryPreload {
     let tables = &artifacts.tables;
     let mut preload = WasmMemoryPreload::default();
@@ -67,6 +66,14 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
             ],
             narrow(pc_after, "pc_rom.state_after.pc"),
         );
+    }
+    for &(pc_before, control_choice, remaining, distance) in &tables.frame_slides {
+        let key = vec![
+            narrow(pc_before, "frame_slides.pc"),
+            narrow(control_choice, "frame_slides.control_choice"),
+        ];
+        preload.insert(WasmMemoryId::FrameSlideRemaining, key.clone(), remaining);
+        preload.insert(WasmMemoryId::FrameSlideDistance, key, distance);
     }
     for &(pc_before, edge_kind) in &tables.pc_edge_kinds {
         preload.insert(
@@ -364,15 +371,12 @@ fn memory_init_mode(memory: WasmMemoryId) -> Option<RamInitialization> {
         | WasmMemoryId::HostContextArgsBase
         | WasmMemoryId::HostContextParentDepth
         | WasmMemoryId::HostContextSp
-        | WasmMemoryId::HostContextLocalsEnd
-        | WasmMemoryId::Stack
         | WasmMemoryId::CallStackReturnPc
         | WasmMemoryId::CallStackCallerFbp
         | WasmMemoryId::CallStackCallerSpBase
         | WasmMemoryId::TableSize => Some(RamInitialization::Explicit),
-        WasmMemoryId::LinearMemory
-        | WasmMemoryId::LocalLo
-        | WasmMemoryId::LocalHi
+        WasmMemoryId::Stack
+        | WasmMemoryId::LinearMemory
         | WasmMemoryId::GlobalLo
         | WasmMemoryId::GlobalHi
         | WasmMemoryId::TableElement => Some(RamInitialization::Zero),

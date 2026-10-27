@@ -1,7 +1,7 @@
 use super::ccs::{
     dividend_min_zero_test, divisor_neg1_zero_test, CALL_INDIRECT_ENTRY_ZERO_TEST, CALL_INDIRECT_TYPE_ZERO_TEST,
-    DIVISOR_ZERO_TEST, HI_ZERO_TEST, HOST_EVENTS_REMAINING_ZERO_TEST, LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST,
-    LO_ZERO_TEST, PARAM_INIT_REMAINING_AFTER_ZERO_TEST, PC_EDGE_KIND_ZERO_TEST, PERM_ROUND_ZERO_TEST,
+    DIVISOR_ZERO_TEST, FRAME_MOVE_REMAINING_AFTER_ZERO_TEST, HI_ZERO_TEST, HOST_EVENTS_REMAINING_ZERO_TEST,
+    LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST, LO_ZERO_TEST, PC_EDGE_KIND_ZERO_TEST, PERM_ROUND_ZERO_TEST,
     SELECT_COND_ZERO_TEST, SELECT_HI_MUX, SELECT_LO_MUX,
 };
 use super::gadgets::unsigned_ge_witness;
@@ -13,10 +13,12 @@ use super::layout::{
     COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_ENTRY_IS_NULL, COL_CI_HOST_CALL, COL_CI_OOB,
     COL_CI_TYPE_EQ, COL_CMP_GE, COL_CMP_LOW, COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_CONTROL_CHOICE,
-    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVISOR_IS_NEG1,
-    COL_DIV_DIVISOR_IS_ZERO, COL_DIV_OVERFLOW, COL_DIV_OVERFLOW_COND, COL_DIV_TRAP, COL_ENTERED_FUNCTION_NUM_LOCALS,
-    COL_EXPECTED_TYPE_ID, COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX,
-    COL_GLOBAL_VALUE, COL_GLOBAL_VALUE_HI, COL_GROW_SUCCESS, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER,
+    COL_CURRENT_FUNCTION_REF, COL_DIV_DIVIDEND_IS_MIN, COL_DIV_DIVISOR_IS_NEG1, COL_DIV_DIVISOR_IS_ZERO,
+    COL_DIV_OVERFLOW, COL_DIV_OVERFLOW_COND, COL_DIV_TRAP, COL_ENTERED_FUNCTION_NUM_LOCALS, COL_EXPECTED_TYPE_ID,
+    COL_FRAME_MOVE_ACTIVE_AFTER, COL_FRAME_MOVE_ACTIVE_BEFORE, COL_FRAME_MOVE_DISTANCE_AFTER,
+    COL_FRAME_MOVE_DISTANCE_BEFORE, COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_MOVE_REMAINING_BEFORE, COL_FRAME_SP_DROP,
+    COL_FUNCTION_CALL_TYPE_LOOKUP_GATE, COL_FUNCTION_REF, COL_FUNCTION_TYPE_ID, COL_GLOBAL_INDEX, COL_GLOBAL_VALUE,
+    COL_GLOBAL_VALUE_HI, COL_GROW_SUCCESS, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER,
     COL_HOST_CALLEE_FREF_BEFORE, COL_IS_PROGRAM_ROW, COL_LINEAR_MEM_ACCESS_BYTE0, COL_LINEAR_MEM_ACCESS_BYTE1,
     COL_LINEAR_MEM_ACCESS_BYTE2, COL_LINEAR_MEM_ACCESS_BYTE3, COL_LINEAR_MEM_ACCESS_BYTE4, COL_LINEAR_MEM_ACCESS_BYTE5,
     COL_LINEAR_MEM_ACCESS_BYTE6, COL_LINEAR_MEM_ACCESS_BYTE7, COL_LINEAR_MEM_BYTE_OFFSET,
@@ -43,23 +45,21 @@ use super::layout::{
     COL_LINEAR_MEM_LANE_ADDR, COL_LINEAR_MEM_LANE_LOAD_ACTIVE, COL_LINEAR_MEM_LANE_STORE_ACTIVE,
     COL_LINEAR_MEM_LANE_VALUE, COL_LINEAR_MEM_LANE_VALUE_BEFORE, COL_LINEAR_MEM_OFFSET_IS_0,
     COL_LINEAR_MEM_OFFSET_IS_1, COL_LINEAR_MEM_OFFSET_IS_2, COL_LINEAR_MEM_OFFSET_IS_3, COL_LINEAR_MEM_USE_LANE0,
-    COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX,
-    COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED, COL_LOCAL_ZERO_ACTIVE_AFTER,
-    COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_AFTER, COL_LOCAL_ZERO_REMAINING_BEFORE,
-    COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE,
-    COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED,
-    COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE,
-    COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE,
-    COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_AFTER,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_ROM_ACTIVE,
+    COL_LINEAR_MEM_USE_LANE1, COL_LINEAR_MEM_USE_LANE2, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_ADDR_HI,
+    COL_LOCAL_ADDR_LO, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI, COL_LOCAL_WRITE_ENABLED,
+    COL_LOCAL_ZERO_ACTIVE_AFTER, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_AFTER,
+    COL_LOCAL_ZERO_REMAINING_BEFORE, COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_AFTER,
+    COL_MEMORY_PAGES_BEFORE, COL_MEM_LOAD_LIVE, COL_MEM_OOB, COL_MEM_STORE_LIVE, COL_ONE, COL_OPCODE_CODE,
+    COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
+    COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
+    COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_EDGE_KIND, COL_PC_ROM_ACTIVE,
     COL_PC_ROM_CALL_RETURN_CHOICE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
     COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SIGN_EXT_BIT, COL_SIGN_EXT_LOW7, COL_SP_AFTER,
     COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE,
     COL_STACK_READ_ADDR_HI, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI, COL_STACK_READ_VALUE_LO,
     COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_HI, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI,
     COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES, COL_TABLE_ID, COL_TABLE_INDEX, COL_TABLE_READ_ENABLED, COL_TABLE_SIZE,
-    COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TAIL_CALL_PENDING_AFTER, COL_TAIL_CALL_PENDING_BEFORE,
-    COL_TAIL_DISCARD_COUNT, COL_TAIL_ENTER_ACTIVE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_TABLE_SIZE_READ_ENABLED, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
     COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE, COL_WIDE_AUX0, COL_WIDE_AUX1, COL_WIDE_VALUES_ENABLED,
     PC_ROM_CALL_RETURN_CHOICE,
 };
@@ -90,23 +90,34 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_PC_AFTER] = F::from_u64(trace.state_after.pc);
     wit[COL_STACK_FRAME_BASE_BEFORE] = F::from_u64(trace.state_before.stack_frame_base);
     wit[COL_STACK_FRAME_BASE_AFTER] = F::from_u64(trace.state_after.stack_frame_base);
-    wit[COL_TAIL_CALL_PENDING_BEFORE] = if trace.state_before.tail_call_pending {
-        F::ONE
-    } else {
-        F::ZERO
-    };
-    wit[COL_TAIL_CALL_PENDING_AFTER] = if trace.state_after.tail_call_pending {
-        F::ONE
-    } else {
-        F::ZERO
-    };
-    wit[COL_TAIL_ENTER_ACTIVE] = if trace.row_kind.is_tail_enter() {
-        F::ONE
-    } else {
-        F::ZERO
-    };
-    if trace.row_kind.is_tail_enter() {
-        wit[COL_TAIL_DISCARD_COUNT] = F::from_u64(trace.state_before.sp - trace.state_after.sp);
+    let tail_call = trace.target_function_is_guest
+        && matches!(
+            trace.opcode,
+            super::isa::WasmOpcode::ReturnCall | super::isa::WasmOpcode::ReturnCallIndirect
+        );
+    let clean_return =
+        trace.state_after.activation_finished && !trace.state_before.activation_finished && !trace.state_after.trapped;
+    let slide = trace.call_stack_pop.is_some()
+        || (trace.row_kind.is_program()
+            && matches!(
+                trace.opcode,
+                super::isa::WasmOpcode::Br | super::isa::WasmOpcode::BrIf | super::isa::WasmOpcode::BrTable
+            ));
+    wit[crate::layout::COL_FRAME_SLIDE_ACTIVE] = if slide { F::ONE } else { F::ZERO };
+    if clean_return {
+        // The ROM checks that this is the return's static slide distance.
+        wit[crate::layout::COL_EXIT_SLIDE_DISTANCE] =
+            F::from_u64(trace.state_before.sp - trace.state_before.locals_fbp - u64::from(trace.output_captured));
+    }
+    if slide || tail_call || clean_return || trace.row_kind.is_turn_boundary() {
+        let reads = u64::from(trace.stack_reads_override.unwrap_or(trace.info.stack_reads));
+        let writes = u64::from(
+            trace
+                .stack_writes_override
+                .unwrap_or(trace.info.stack_writes),
+        );
+        wit[COL_FRAME_SP_DROP] = F::from_u64(trace.state_before.sp + writes)
+            - F::from_u64(reads + u64::from(trace.output_captured) + trace.state_after.sp);
     }
     if trace.opcode == super::isa::WasmOpcode::BrTable {
         use crate::layout::{COL_BR_TABLE_IN_BOUNDS, COL_BR_TABLE_LEN};
@@ -123,9 +134,9 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     write_local_zero_state(&mut wit, true, trace.state_before.local_zero);
     write_local_zero_state(&mut wit, false, trace.state_after.local_zero);
     LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST.assign(&mut wit);
-    write_param_init_state(&mut wit, true, trace.state_before.param_init);
-    write_param_init_state(&mut wit, false, trace.state_after.param_init);
-    PARAM_INIT_REMAINING_AFTER_ZERO_TEST.assign(&mut wit);
+    write_frame_move_state(&mut wit, true, trace.state_before.frame_move);
+    write_frame_move_state(&mut wit, false, trace.state_after.frame_move);
+    FRAME_MOVE_REMAINING_AFTER_ZERO_TEST.assign(&mut wit);
     wit[COL_HOST_CALLEE_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.host_callee_fref));
     wit[COL_HOST_CALLEE_FREF_AFTER] = F::from_u64(u64::from(trace.state_after.host_callee_fref));
     wit[COL_TURN_EXPORT_FREF_BEFORE] = F::from_u64(u64::from(trace.state_before.host_events.turn_export_fref));
@@ -159,7 +170,6 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     wit[COL_CALL_STACK_DEPTH_BEFORE] = F::from_u64(trace.state_before.call_stack_depth);
     wit[COL_CALL_STACK_DEPTH_AFTER] = F::from_u64(trace.state_after.call_stack_depth);
     wit[COL_CURRENT_FUNCTION_REF] = F::from_u64(u64::from(trace.current_function_ref));
-    wit[COL_CURRENT_FUNCTION_NUM_LOCALS] = F::from_u64(u64::from(trace.current_function_num_locals));
     if trace.target_function_is_guest || trace.row_kind.is_turn_boundary() {
         // This row still belongs to the outgoing frame. Reconstruct the
         // entered frame's count; its ROM read binds the claim to the callee.
@@ -716,9 +726,7 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
     if matches!(
         trace.opcode,
         super::isa::WasmOpcode::LocalGet | super::isa::WasmOpcode::LocalSet | super::isa::WasmOpcode::LocalTee
-    ) || trace.row_kind.is_call_param_init() || trace.row_kind.is_local_zero()
-        // Bootstrap gather rows write runtime inputs into the locals family.
-        || trace.row_kind.is_host_event_gather()
+    ) || trace.row_kind.is_host_event_gather()
     {
         if let Some(idx) = trace.local_index {
             wit[COL_LOCAL_INDEX] = F::from_u64(u64::from(idx));
@@ -734,6 +742,8 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
             .unwrap_or(0);
         wit[COL_LOCAL_VALUE_HI] = F::from_u64(u64::from(local_value_hi));
     }
+    wit[COL_LOCAL_ADDR_LO] = F::from_u64(2 * trace.state_before.locals_fbp) + F::from_u64(2) * wit[COL_LOCAL_INDEX];
+    wit[COL_LOCAL_ADDR_HI] = wit[COL_LOCAL_ADDR_LO] + F::ONE;
 
     if matches!(
         trace.opcode,
@@ -1088,14 +1098,23 @@ fn write_local_zero_state(wit: &mut [F], before: bool, state: super::ir::WasmCou
     wit[remaining_col] = F::from_u64(u64::from(state.remaining));
 }
 
-fn write_param_init_state(wit: &mut [F], before: bool, state: super::ir::WasmCountdownState) {
-    let (active_col, remaining_col) = if before {
-        (COL_PARAM_INIT_ACTIVE_BEFORE, COL_PARAM_INIT_REMAINING_BEFORE)
+fn write_frame_move_state(wit: &mut [F], before: bool, state: super::ir::WasmFrameMoveState) {
+    let (active_col, remaining_col, distance_col) = if before {
+        (
+            COL_FRAME_MOVE_ACTIVE_BEFORE,
+            COL_FRAME_MOVE_REMAINING_BEFORE,
+            COL_FRAME_MOVE_DISTANCE_BEFORE,
+        )
     } else {
-        (COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER)
+        (
+            COL_FRAME_MOVE_ACTIVE_AFTER,
+            COL_FRAME_MOVE_REMAINING_AFTER,
+            COL_FRAME_MOVE_DISTANCE_AFTER,
+        )
     };
     wit[active_col] = if state.active { F::ONE } else { F::ZERO };
     wit[remaining_col] = F::from_u64(u64::from(state.remaining));
+    wit[distance_col] = F::from_u64(state.distance);
 }
 
 fn write_u32_le_bytes(wit: &mut [F], columns: [usize; 4], value: u32) {

@@ -64,36 +64,38 @@ Proof.
     end.
 Qed.
 
+(* A called frame starts at its arguments; its operands start above its locals. *)
 Lemma full_call_frame_entry : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_GUEST_ENTRY_ACTIVE = 1 ->
   w COL_CALL_STACK_PUSH_PRESENT = 1 -> w COL_CALL_STACK_POP_PRESENT = 0 -> w COL_IS_PROGRAM_ROW = 1 ->
-  w COL_LOCALS_FBP_AFTER = w COL_LOCALS_FBP_BEFORE + w COL_CURRENT_FUNCTION_NUM_LOCALS /\
-  w COL_STACK_FRAME_BASE_AFTER = w COL_SP_AFTER - w COL_CALL_PARAM_COUNT /\
+  w COL_LOCALS_FBP_AFTER = w COL_SP_AFTER - w COL_CALL_PARAM_COUNT /\
+  w COL_STACK_FRAME_BASE_AFTER = w COL_LOCALS_FBP_AFTER + w COL_ENTERED_FUNCTION_NUM_LOCALS /\
   w COL_CALL_STACK_DEPTH_AFTER = w COL_CALL_STACK_DEPTH_BEFORE + 1.
 Proof.
   intros w Hprime Hfull Hguest Hpush Hpop Hprogram.
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   destruct (full_host_switch_absent w COL_IS_PROGRAM_ROW Hprime Hfull ltac:(cbn; auto 20)
     ltac:(cbn; discriminate) ltac:(cbn; discriminate) ltac:(cbn; discriminate) Hprogram) as [Hsuspend [Hresume _]].
-  circuit_range COL_LOCALS_FBP_BEFORE Hfb.
+  pose proof (full_row_kind_exclusive w COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY
+    Hprime Hfull ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram) as Hturn.
   circuit_range COL_LOCALS_FBP_AFTER Hfa.
-  circuit_range COL_CURRENT_FUNCTION_NUM_LOCALS Hlocals.
+  circuit_range COL_ENTERED_FUNCTION_NUM_LOCALS Hlocals.
   circuit_range COL_STACK_FRAME_BASE_AFTER Hbase.
   circuit_range COL_SP_AFTER Hsp.
   circuit_range COL_CALL_PARAM_COUNT Hparams.
   circuit_range COL_CALL_STACK_DEPTH_BEFORE Hdb.
   circuit_range COL_CALL_STACK_DEPTH_AFTER Hda.
-  circuit_row ([(COL_GUEST_ENTRY_ACTIVE, 1)],
-    [(COL_LOCALS_FBP_AFTER, 1); (COL_LOCALS_FBP_BEFORE, -1); (COL_CURRENT_FUNCTION_NUM_LOCALS, -1)],
-    ([] : SparseRow)) Hfbp.
   circuit_row ([(COL_CALL_STACK_PUSH_PRESENT, 1)],
-    [(COL_STACK_FRAME_BASE_AFTER, 1); (COL_SP_AFTER, -1); (COL_CALL_PARAM_COUNT, 1)],
+    [(COL_LOCALS_FBP_AFTER, 1); (COL_SP_AFTER, -1); (COL_CALL_PARAM_COUNT, 1)],
+    ([] : SparseRow)) Hfbp.
+  circuit_row ([(COL_GUEST_ENTRY_ACTIVE, 1); (COL_TURN_BOUNDARY, 1)],
+    [(COL_STACK_FRAME_BASE_AFTER, 1); (COL_LOCALS_FBP_AFTER, -1); (COL_ENTERED_FUNCTION_NUM_LOCALS, -1)],
     ([] : SparseRow)) Hstack.
   circuit_row ([(COL_CALL_STACK_DEPTH_AFTER, 1); (COL_CALL_STACK_DEPTH_BEFORE, -1);
     (COL_CALL_STACK_PUSH_PRESENT, -1); (COL_CALL_STACK_POP_PRESENT, 1);
     (COL_HOST_SUSPEND, -1); (COL_HOST_RESUME, 1)], [(COL_ONE, 1)], ([] : SparseRow)) Hdepth.
   expand_row Hfbp. expand_row Hstack. expand_row Hdepth.
-  normalize_columns. rewrite Hguest in Hfbp. rewrite Hpush in Hstack.
+  normalize_columns. rewrite Hpush in Hfbp. rewrite Hguest, Hturn in Hstack.
   rewrite Hpush, Hpop, Hone, Hsuspend, Hresume in Hdepth.
   repeat split; [field_linear Hfbp | field_linear Hstack | field_linear Hdepth].
 Qed.
@@ -123,9 +125,20 @@ Proof.
   assert (Hin : In COL_SEL_CALL selectorColumns) by (vm_compute; tauto).
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   destruct (full_opcode_aux_gates_zero w COL_SEL_CALL Hprime Hfull Hin Hchosen)
-    as [Hparam [Hzero [Hgather _]]].
+    as [Hparam [Hzero Hgather]].
   destruct (full_program_row_quiet w COL_SEL_CALL Hprime Hfull Hin Hchosen)
-    as [Hkinds Hhi Hlocal Houtput Hdiscard].
+    as [Hkinds Hhi Hlocal Houtput].
+  assert (Hdiscard : w COL_FRAME_SP_DROP = 0).
+  { destruct (full_direct_guest_call w Hprime Hfull Hchosen Htarget) as [Hguest [Hpush Hpop]].
+    pose proof (full_selected_is_program_row w COL_SEL_CALL Hprime Hfull Hin Hchosen) as Hprogram.
+    apply full_frame_sp_drop_idle; try assumption; [ | congruence | | ].
+    - apply (full_selected_no_slide w COL_SEL_CALL); try assumption; vm_compute; intuition discriminate.
+    - exact (full_row_kind_exclusive w COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY
+        Hprime Hfull ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram).
+    - selected_circuit_row COL_SEL_CALL
+        ([(COL_HOST_EVENT_EXIT_LATCH, 1)], [(COL_ONE, 1); (COL_SEL_END, -1); (COL_SEL_RETURN, -1)],
+        ([] : SparseRow)) Hrow.
+      rewrite Hone in Hrow. pose proof (value_bound w COL_HOST_EVENT_EXIT_LATCH). field_linear Hrow. }
   assert (Hcapture : w COL_OUTPUT_CAPTURED = 0).
   { selected_row COL_SEL_CALL outputCaptureSupportRow Hrow. rewrite Hone in Hrow.
     pose proof (value_bound w COL_OUTPUT_CAPTURED). field_linear Hrow. }

@@ -5,13 +5,13 @@ use neo_math::F;
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::layout::{
     COL_CALL_PARAM_COUNT, COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_RETURN_PC_VALUE,
-    COL_CURRENT_FUNCTION_NUM_LOCALS, COL_GUEST_ENTRY_ACTIVE, COL_LINEAR_MEM_USE_LANE0, COL_LOCALS_FBP_AFTER,
+    COL_FRAME_MOVE_ACTIVE_AFTER, COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_MOVE_REMAINING_AFTER_INV,
+    COL_FRAME_MOVE_REMAINING_AFTER_IS_ZERO, COL_GUEST_ENTRY_ACTIVE, COL_LINEAR_MEM_USE_LANE0, COL_LOCALS_FBP_AFTER,
     COL_LOCALS_FBP_BEFORE, COL_MEMORY_PAGES_AFTER, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
-    COL_OUTPUT_ENABLED_BEFORE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_REMAINING_AFTER,
-    COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, COL_PC_ROM_ACTIVE,
-    COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE,
-    COL_PROGRAM_TABLE_ID_ACTIVE, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE,
-    COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
+    COL_OUTPUT_ENABLED_BEFORE, COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE,
+    COL_PROGRAM_GLOBAL_INDEX_ACTIVE, COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SP_AFTER,
+    COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_WRITE0_ACTIVE, COL_STACK_WRITE0_ADDR_LO,
+    COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO, COL_STACK_WRITES,
 };
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::WasmRowKind;
@@ -1140,33 +1140,6 @@ fn call_row_rejects_tampered_locals_fbp_after() {
 }
 
 #[test]
-fn call_row_rejects_tampered_current_function_num_locals() {
-    let wasm = wat::parse_str(
-        r#"(module
-            (func $add_one (param i32) (result i32)
-                local.get 0
-                i32.const 1
-                i32.add)
-            (func (export "run") (result i32)
-                i32.const 5
-                call $add_one))
-        "#,
-    )
-    .expect("wat");
-
-    let trace = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[])
-        .and_then(|run| traces_from_wasmtime_steps(&run.steps))
-        .expect("normalize");
-    let row = trace
-        .iter()
-        .find(|row| row.opcode == WasmOpcode::Call)
-        .expect("call row");
-    let mut witness = build_witness_vector(row);
-    witness[COL_CURRENT_FUNCTION_NUM_LOCALS] += F::ONE;
-    assert_rejected(&witness, "call row with tampered current function local count");
-}
-
-#[test]
 fn static_program_row_rejects_disabled_pc_rom_active() {
     let wasm = wat::parse_str(
         r#"(module
@@ -1209,25 +1182,25 @@ fn guest_call_row_rejects_suppressed_guest_call_flag() {
     assert!(row.target_function_is_guest);
     let mut witness = build_witness_vector(row);
     witness[COL_GUEST_ENTRY_ACTIVE] = F::ZERO;
-    witness[COL_PARAM_INIT_ACTIVE_AFTER] = F::ZERO;
-    witness[COL_PARAM_INIT_REMAINING_AFTER] = F::ZERO;
-    witness[COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO] = F::ONE;
-    witness[COL_PARAM_INIT_REMAINING_AFTER_INV] = F::ZERO;
+    witness[COL_FRAME_MOVE_ACTIVE_AFTER] = F::ZERO;
+    witness[COL_FRAME_MOVE_REMAINING_AFTER] = F::ZERO;
+    witness[COL_FRAME_MOVE_REMAINING_AFTER_IS_ZERO] = F::ONE;
+    witness[COL_FRAME_MOVE_REMAINING_AFTER_INV] = F::ZERO;
     witness[COL_LOCALS_FBP_AFTER] = witness[COL_LOCALS_FBP_BEFORE];
     witness[COL_CALL_STACK_POP_PRESENT] = F::ZERO;
     assert_rejected(&witness, "guest call row with suppressed call-stack push");
 }
 
 #[test]
-fn i64_call_param_init_aux_row_is_wide_and_accepted() {
+fn i64_frame_move_aux_row_is_wide_and_accepted() {
     let wasm = wat::parse_str(
         r#"(module
-            (func $take64 (param i64)
-                local.get 0
-                drop)
+            (func $wide (param i32) (result i64)
+                i64.const 4294967296)
             (func (export "run") (result i32)
-                i64.const 4294967296
-                call $take64
+                i32.const 7
+                call $wide
+                drop
                 i32.const 1))
         "#,
     )
@@ -1236,13 +1209,53 @@ fn i64_call_param_init_aux_row_is_wide_and_accepted() {
     let trace = traces_from_wasmtime_wasm_bytes(&wasm, "run").expect("normalize");
     let aux = trace
         .iter()
-        .find(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::CallParamInit))
-        .expect("i64 param-init aux row");
-    assert!(aux.wide_values_enabled, "i64 param aux row must allow high limbs");
+        .find(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::FrameMove))
+        .expect("i64 result move row");
+    assert!(aux.wide_values_enabled, "i64 result move row must allow high limbs");
     assert_eq!(aux.stack_read0.and_then(|lane| lane.value_hi), Some(1));
-    assert_eq!(aux.local_write_value_hi, Some(1));
+    assert_eq!(aux.stack_write0.and_then(|lane| lane.value_hi), Some(1));
     let witness = build_witness_vector(aux);
-    assert_satisfied(&witness, "i64 call param init aux row");
+    assert_satisfied(&witness, "i64 result move row");
+}
+
+#[test]
+fn frame_move_row_copies_one_cell_down_unchanged() {
+    let wasm = wat::parse_str(
+        r#"(module
+            (func $add_one (param i32) (result i32)
+                (local i32)
+                local.get 0
+                i32.const 1
+                i32.add)
+            (func (export "run") (result i32)
+                i32.const 5
+                call $add_one))
+        "#,
+    )
+    .expect("wat");
+
+    let trace = traces_from_wasmtime_wasm_bytes(&wasm, "run").expect("normalize");
+    let mv = trace
+        .iter()
+        .find(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::FrameMove))
+        .expect("result move row");
+    assert_eq!(
+        mv.state_before.frame_move.distance, 2,
+        "the result skips both callee locals"
+    );
+    let witness = build_witness_vector(mv);
+    assert_satisfied(&witness, "result move row");
+
+    let mut forged = witness.clone();
+    forged[COL_STACK_WRITE0_VALUE_LO] += F::ONE;
+    assert_rejected(&forged, "move row that changes the moved value");
+    let mut forged = witness.clone();
+    forged[COL_STACK_WRITE0_ADDR_LO] += F::from_u64(2);
+    assert_rejected(&forged, "move row that writes above its destination cell");
+    let mut forged = witness;
+    forged[COL_SP_AFTER] -= F::ONE;
+    assert_rejected(&forged, "move row that drops the stack pointer");
+    // A return's move comes from the slide ROM (`wasm_frame_slide`).
 }
 
 #[test]

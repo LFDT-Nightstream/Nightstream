@@ -5,8 +5,8 @@ use neo_wasm::preprocess::preprocess_seeded_batched;
 use std::time::Instant;
 
 // Iterative fibonacci (do-while loop, valid for n >= 1) with the iteration
-// count baked in: local 0 = n (set from a constant; the locals RAM starts
-// all-zero, so plain-mode inputs cannot arrive as entry params), locals 1
+// count baked in: local 0 = n (set from a constant; locals start zeroed,
+// so plain-mode inputs cannot arrive as entry params), locals 1
 // and 2 = a and b. fib(1)=1, fib(2)=1, fib(3)=2, fib(4)=3, fib(5)=5, ...
 fn fib_wat(n: u32) -> String {
     format!(
@@ -69,12 +69,12 @@ fn wasm_fibonacci_folding_proof_covers_control_flow() {
 ///
 /// The fib(5) cases use exact divisors of its 65-row trace, so they fold
 /// without padding and the timing difference is purely fold count. The
-/// fib(7) case needs padding (its trace isn't a multiple of 9), which adds
-/// at most one extra padded fold.
+/// fib(7) case needs padding (its 87-row trace isn't a multiple of 8), which
+/// adds at most one extra padded fold.
 #[test]
 fn wasm_fibonacci_folding_proof_batched() {
     // (fib_n, batch_size, expected fold count via div_ceil).
-    let cases = [(5u32, 65usize, 1usize), (5, 13, 5), (5, 5, 13), (7, 9, 10)];
+    let cases = [(5u32, 65usize, 1usize), (5, 13, 5), (5, 5, 13), (7, 8, 11)];
 
     for &(n, batch_size, expected_folds) in &cases {
         let checked = common::checked_wasm_run(&fib_wat(n), "main");

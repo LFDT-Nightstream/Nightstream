@@ -36,7 +36,31 @@ fn return_call_replaces_the_top_level_frame() {
     assert!(tail.call_stack_push.is_none());
     assert_eq!(tail.state_before.call_stack_depth, 0);
     assert_eq!(tail.state_after.call_stack_depth, 0);
-    assert!(tail.state_after.tail_call_pending);
+    // The argument moves down to main's frame base over the unrelated operand.
+    assert_eq!(
+        tail.state_after.sp, 1,
+        "the replaced frame is dropped below the moved argument"
+    );
+    assert_eq!(tail.state_after.locals_fbp, 0, "the tail callee reuses main's frame");
+    assert_eq!(tail.state_after.stack_frame_base, 2, "operands start above both locals");
+    let moves: Vec<_> = checked
+        .trace
+        .iter()
+        .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::FrameMove))
+        .collect();
+    assert_eq!(moves.len(), 1);
+    assert_eq!(
+        moves[0]
+            .stack_read0
+            .map(|read| (read.addr_lo, read.value_lo)),
+        Some((2, 41))
+    );
+    assert_eq!(
+        moves[0]
+            .stack_write0
+            .map(|write| (write.addr_lo, write.value_lo)),
+        Some((0, 41))
+    );
     let zero_rows: Vec<_> = checked
         .trace
         .iter()
@@ -44,24 +68,10 @@ fn return_call_replaces_the_top_level_frame() {
         .collect();
     assert_eq!(zero_rows.len(), 1, "tail target only zeroes its scratch local");
     assert_eq!(
-        zero_rows
-            .iter()
-            .map(|row| row.local_index)
-            .collect::<Vec<_>>(),
-        [Some(1)]
+        zero_rows[0].stack_write0.map(|write| write.addr_lo),
+        Some(2),
+        "the scratch local is pushed after the moved argument"
     );
-
-    let enter = checked
-        .trace
-        .iter()
-        .find(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::TailEnter))
-        .expect("tail-enter row");
-    assert_eq!(
-        enter.state_before.sp, 1,
-        "the unrelated operand remains after the arg pop"
-    );
-    assert_eq!(enter.state_after.sp, 0, "tail entry discards the replaced frame");
-    assert!(!enter.state_after.tail_call_pending);
 }
 
 #[test]
@@ -149,7 +159,7 @@ fn return_call_indirect_trap_does_not_enter_a_frame() {
     let last = checked.trace.last().expect("non-empty trace");
     assert_eq!(last.opcode, WasmOpcode::ReturnCallIndirect);
     assert!(last.state_after.trapped);
-    assert!(!last.state_after.tail_call_pending);
+    assert!(!last.state_after.frame_move.active);
     assert!(last.call_stack_push.is_none());
 }
 

@@ -70,6 +70,28 @@ fn build_witnesses(trace: &[WasmVmStep]) -> Vec<Vec<neo_math::F>> {
 }
 
 #[test]
+fn first_export_locals_start_zero_without_aux_rows() {
+    let checked = common::checked_main(
+        r#"(module
+            (func (export "main") (result i64) (local i32 i64)
+                local.get 0 i64.extend_i32_u local.get 1 i64.or))"#,
+    );
+    assert_eq!(checked.run.results, ["0"]);
+    assert!(checked
+        .trace
+        .iter()
+        .all(|row| !row.row_kind.is_local_zero()));
+    let initial = checked.trace[0].state_before;
+    assert_eq!(initial.sp, 2);
+    assert_eq!(initial.stack_frame_base, 2);
+    assert_eq!(
+        neo_wasm::semantic_state_digest(initial),
+        common::verifier_initial_state_digest(&checked.artifacts),
+        "the verifier must reserve the first frame without pending zeroing"
+    );
+}
+
+#[test]
 fn call_trace_has_correct_fbp_and_call_stack_fields() {
     let wasm = add_one_wasm();
     let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
@@ -98,38 +120,34 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
         "call step must not have call_stack_pop"
     );
 
-    let aux_param_steps: Vec<_> = trace
-        .iter()
-        .filter(|r| r.row_kind == WasmRowKind::Aux(WasmAuxOpcode::CallParamInit))
-        .collect();
-    assert_eq!(aux_param_steps.len(), 1, "expected one call-param init row");
-    let aux = aux_param_steps[0];
-    assert!(
-        !call_step.state_after.local_zero.active,
-        "parameter-only frame needs no zero rows"
-    );
-    assert!(call_step.state_after.param_init.active);
-    assert_eq!(call_step.state_after.param_init.remaining, 1);
+    // The argument already sits where the callee frame starts.
+    assert!(!call_step.state_after.frame_move.active);
+    assert_eq!(call_step.state_after.locals_fbp, call_step.state_after.sp - 1);
+    assert_eq!(call_step.state_after.stack_frame_base, call_step.state_after.sp);
     assert!(!trace
         .iter()
         .any(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::LocalZero)));
-    assert!(
-        aux.state_before.param_init.active,
-        "aux row must execute inside param-init mode"
-    );
-    assert_eq!(aux.state_before.param_init.remaining, 1);
-    assert_eq!(aux.state_after.param_init.remaining, 0);
-    assert!(
-        !aux.state_after.param_init.active,
-        "last aux row must exit param-init mode"
-    );
-    assert_eq!(aux.stack_read0.expect("aux stack read").value_lo, 5);
-    assert_eq!(aux.local_index, Some(0), "callee param at local addr 0");
+    let local_get = trace
+        .iter()
+        .find(|row| row.opcode == WasmOpcode::LocalGet)
+        .expect("callee local.get");
+    assert_eq!(local_get.local_read_value, Some(5), "callee param value must be 5");
+
+    // The return moves the result down over the callee's parameter.
+    let moves: Vec<_> = trace
+        .iter()
+        .filter(|r| r.row_kind == WasmRowKind::Aux(WasmAuxOpcode::FrameMove))
+        .collect();
+    assert_eq!(moves.len(), 1, "expected one result move");
+    let mv = moves[0];
+    assert_eq!(mv.state_before.frame_move.remaining, 1);
+    assert_eq!(mv.state_before.frame_move.distance, 1);
+    assert!(!mv.state_after.frame_move.active);
+    assert_eq!(mv.stack_read0.map(|read| (read.addr_lo, read.value_lo)), Some((2, 6)));
     assert_eq!(
-        aux.state_before.locals_fbp, aux.state_after.locals_fbp,
-        "aux row must stay in the callee frame while initializing params"
+        mv.stack_write0.map(|write| (write.addr_lo, write.value_lo)),
+        Some((0, 6))
     );
-    assert_eq!(aux.local_write_value, Some(5), "callee param value must be 5");
 
     // There should be exactly one non-final return-like step (callee return), with
     // call_stack_pop populated. The final function-end return may be represented by End.
@@ -169,45 +187,36 @@ fn call_trace_has_correct_fbp_and_call_stack_fields() {
 }
 
 #[test]
-fn nested_two_param_call_trace_counts_down_param_init_rows() {
+fn nested_two_param_calls_start_frames_at_their_arguments() {
     let wasm = nested_two_param_wasm();
     let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
     assert_eq!(run.results.as_slice(), &["11".to_string()], "expected sum2(4, 7) = 11");
 
     let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
-    let aux_rows: Vec<_> = trace
+    let calls: Vec<_> = trace
         .iter()
-        .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::CallParamInit))
+        .filter(|row| row.call_stack_push.is_some())
         .collect();
-    assert_eq!(aux_rows.len(), 4, "two 2-param guest calls require four aux rows");
-
-    for chunk in aux_rows.chunks_exact(2) {
-        assert_eq!(chunk[0].state_before.param_init.remaining, 2);
-        assert_eq!(chunk[0].state_after.param_init.remaining, 1);
-        assert!(chunk[0].state_after.param_init.active);
-        assert_eq!(chunk[1].state_before.param_init.remaining, 1);
-        assert_eq!(chunk[1].state_after.param_init.remaining, 0);
-        assert!(!chunk[1].state_after.param_init.active);
-        for (pop_index, row) in chunk.iter().enumerate() {
-            // Aux rows pop the operand-stack top, so locals initialize in
-            // reverse param order.
-            assert_eq!(row.local_index, Some(1 - pop_index as u32));
-            assert_eq!(
-                row.state_before.sp,
-                row.state_after.sp + 1,
-                "each aux row pops one arg slot"
-            );
-            assert_eq!(
-                row.state_before.locals_fbp, row.state_after.locals_fbp,
-                "aux row must stay in the callee frame while initializing params"
-            );
-        }
+    assert_eq!(calls.len(), 2);
+    for call in &calls {
+        assert_eq!(call.state_after.locals_fbp, call.state_after.sp - 2);
+        assert_eq!(call.state_after.stack_frame_base, call.state_after.sp);
     }
-
-    assert!(
-        aux_rows.iter().any(|row| row.state_before.locals_fbp > 0),
-        "nested call should exercise a non-zero callee frame base"
+    assert_eq!(
+        calls[1].state_after.locals_fbp, 2,
+        "the inner frame starts at the args pushed above the outer frame's params"
     );
+
+    // Each return moves its one result down over the callee's two params.
+    let moves: Vec<_> = trace
+        .iter()
+        .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::FrameMove))
+        .collect();
+    assert_eq!(moves.len(), 2);
+    for mv in moves {
+        assert_eq!(mv.state_before.frame_move.distance, 2);
+        assert_eq!(mv.state_before.sp, mv.state_after.sp, "moves keep sp");
+    }
 }
 
 #[test]
@@ -227,15 +236,14 @@ fn call_indirect_guest_target_initializes_params() {
         .expect("call_indirect row");
     assert!(call.target_function_is_guest);
     assert!(call.call_stack_push.is_some());
-    assert_eq!(call.state_after.param_init.remaining, 1);
-
-    let aux_rows: Vec<_> = trace
+    // The table index is popped; the argument below it becomes the param.
+    assert_eq!(call.state_after.sp, 1);
+    assert_eq!(call.state_after.locals_fbp, 0);
+    let local_get = trace
         .iter()
-        .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::CallParamInit))
-        .collect();
-    assert_eq!(aux_rows.len(), 1);
-    assert_eq!(aux_rows[0].stack_read0.expect("param read").value_lo, 5);
-    assert_eq!(aux_rows[0].local_write_value, Some(5));
+        .find(|row| row.opcode == WasmOpcode::LocalGet)
+        .expect("callee local.get");
+    assert_eq!(local_get.local_read_value, Some(5));
 }
 
 #[test]
@@ -277,14 +285,16 @@ fn reused_guest_frame_zeroes_both_lanes_before_a_local_read() {
         .filter(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::LocalZero))
         .collect();
     assert_eq!(zero_rows.len(), 2);
+    // Both callees open their frame at cell 0 and push their local there.
     assert!(zero_rows.iter().all(|row| {
-        row.local_index == Some(0) && row.local_write_value == Some(0) && row.local_write_value_hi == Some(0)
+        row.stack_write0
+            .is_some_and(|write| write.addr_lo == 0 && write.value_lo == 0 && write.value_hi == Some(0))
     }));
     common::sanity_check_trace(&checked.trace, &checked.artifacts);
     common::ccs_check_trace(&checked.trace);
 
     let mut forged = neo_wasm::witness_builder::build_witness_vector(zero_rows[1]);
-    forged[neo_wasm::layout::COL_LOCAL_VALUE_HI] = neo_math::F::ONE;
+    forged[neo_wasm::layout::COL_STACK_WRITE0_VALUE_HI] = neo_math::F::ONE;
     common::assert_rejected(&forged, "local zero row cannot retain the previous high limb");
 
     let mut omitted = checked.trace.clone();
@@ -487,4 +497,22 @@ fn activation_return_output_low_is_stack_memory_bound() {
         .err()
         .expect("must reject output stack memory mismatch");
     assert!(err.contains("memory `stack`"), "unexpected error: {err}");
+}
+
+#[test]
+fn padding_right_after_a_result_move_preserves_the_move_state() {
+    let wasm = add_one_wasm();
+    let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");
+    let trace = traces_from_wasmtime_steps(&run.steps).expect("normalize");
+    let last_move = trace
+        .iter()
+        .rfind(|row| row.row_kind == WasmRowKind::Aux(WasmAuxOpcode::FrameMove))
+        .expect("result move row");
+    assert!(!last_move.state_after.frame_move.active);
+    assert_ne!(last_move.state_after.frame_move.distance, 0);
+
+    let padding = neo_wasm::batch::padding_step_after(last_move);
+    assert_eq!(padding.state_before, padding.state_after);
+    let witness = neo_wasm::witness_builder::build_witness_vector(&padding);
+    common::assert_satisfied(&witness, "padding after a completed frame move");
 }

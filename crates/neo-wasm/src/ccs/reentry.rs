@@ -160,19 +160,9 @@ pub(super) fn push_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         for (field, source) in COL_HOST_CONTEXT.into_iter().zip(sources) {
             push_gated_linear_zero(b, COL_HOST_SUSPEND, [(field, F::ONE), (source, -F::ONE)]);
         }
-        push_gated_linear_zero(
-            b,
-            COL_HOST_SUSPEND,
-            [
-                (COL_HOST_CONTEXT[8], F::ONE),
-                (COL_LOCALS_FBP_BEFORE, -F::ONE),
-                (COL_CURRENT_FUNCTION_NUM_LOCALS, -F::ONE),
-            ],
-        );
-        // Entry reuses storage above every suspended local/operand, including args.
+        // Entry starts its frame above every suspended cell, including args.
         for (target, source) in [
-            (COL_LOCALS_FBP_AFTER, COL_HOST_CONTEXT[8]),
-            (COL_STACK_FRAME_BASE_AFTER, COL_HOST_CONTEXT[7]),
+            (COL_LOCALS_FBP_AFTER, COL_HOST_CONTEXT[7]),
             (COL_SP_BEFORE, COL_HOST_CONTEXT[7]),
         ] {
             push_gated_linear_zero(b, COL_HOST_NESTED_ENTRY, [(target, F::ONE), (source, -F::ONE)]);

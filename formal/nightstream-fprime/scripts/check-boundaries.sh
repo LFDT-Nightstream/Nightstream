@@ -16,12 +16,20 @@ fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
+# A downstream package, such as ../compression-lean, gets only the
+# package-wide checks. The layer, matrix and consumer rules belong to F′.
+package="${1:-.}"
+cd "$package"
 status=0
 fail() { echo "[boundary] $1" >&2; status=1; }
 
 lean_files() {
-  find NightstreamFPrime tests -name '*.lean' -print
-  printf '%s\n' NightstreamFPrime.lean
+  if [[ "$package" == . ]]; then
+    find NightstreamFPrime tests -name '*.lean' -print
+    printf '%s\n' NightstreamFPrime.lean
+  else
+    find . -name '*.lean' -not -path './.lake/*' | sed 's#^\./##'
+  fi
 }
 
 if lean_files | xargs grep -nE '^import Nightstream\.' 2>/dev/null; then
@@ -35,7 +43,7 @@ if lean_files | xargs grep -nE '^\s*(axiom|unsafe)\b|\bsorry\b|\badmit\b' 2>/dev
   fail "sorry / admit / axiom / unsafe is prohibited"
 fi
 
-if find NightstreamFPrime -type d -iname 'Generated' | grep -q .; then
+if lean_files | grep -qiE '(^|/)Generated/'; then
   fail "Generated/ directories are prohibited inside the proof library"
 fi
 if lean_files | xargs grep -ln 'artifactSha256\|GENERATED FILE\|do not edit' 2>/dev/null; then
@@ -60,6 +68,55 @@ fi
 
 if lean_files | xargs grep -niE 'radix.?four|radix4|k_?rho.*14|kRho.*14|\bb := 4\b' 2>/dev/null; then
   fail "alternate-profile surface found"
+fi
+
+# 9. Every source module must be reachable from one declared library or
+# executable root. An unimported file is not checked by `lake build` and
+# cannot provide assurance evidence.
+declare -A module_path=()
+declare -A reachable=()
+queue=()
+while IFS= read -r file; do
+  module="${file%.lean}"
+  module="${module//\//.}"
+  module_path["$module"]="$file"
+done < <(lean_files)
+
+while IFS= read -r module; do
+  queue+=("$module")
+done < <(awk '
+  /^(root|roots)[[:space:]]*=/ {
+    line = $0
+    while (match(line, /"[A-Za-z0-9_.]+"/)) {
+      print substr(line, RSTART + 1, RLENGTH - 2)
+      line = substr(line, RSTART + RLENGTH)
+    }
+  }
+' lakefile.toml)
+
+queue_index=0
+while (( queue_index < ${#queue[@]} )); do
+  module="${queue[$queue_index]}"
+  ((queue_index += 1))
+  [[ -z "${reachable[$module]+present}" ]] || continue
+  file="${module_path[$module]:-}"
+  [[ -n "$file" ]] || continue
+  reachable["$module"]=1
+  while IFS= read -r imported; do
+    [[ -n "${module_path[$imported]:-}" ]] || continue
+    [[ -n "${reachable[$imported]+present}" ]] || queue+=("$imported")
+  done < <(sed -nE 's/^import[[:space:]]+([A-Za-z0-9_.]+).*$/\1/p' "$file")
+done
+
+for module in "${!module_path[@]}"; do
+  if [[ -z "${reachable[$module]+present}" ]]; then
+    fail "unreachable Lean module: ${module_path[$module]}"
+  fi
+done
+
+if [[ "$package" != . ]]; then
+  if (( status == 0 )); then echo "[boundary] $package: all package-wide checks passed"; fi
+  exit $status
 fi
 
 declare -A rank=([Spec]=0 [Circuit]=1 [Gadgets]=2 [Lifecycle]=3 [Layout]=4 [Export]=5)
@@ -108,50 +165,6 @@ PY
 then
   fail "row plans or default-value proofs crossed an allocation data interface"
 fi
-
-# 9. Every source module must be reachable from one declared library or
-# executable root. An unimported file is not checked by `lake build` and
-# cannot provide assurance evidence.
-declare -A module_path=()
-declare -A reachable=()
-queue=()
-while IFS= read -r file; do
-  module="${file%.lean}"
-  module="${module//\//.}"
-  module_path["$module"]="$file"
-done < <(lean_files)
-
-while IFS= read -r module; do
-  queue+=("$module")
-done < <(awk '
-  /^(root|roots)[[:space:]]*=/ {
-    line = $0
-    while (match(line, /"[A-Za-z0-9_.]+"/)) {
-      print substr(line, RSTART + 1, RLENGTH - 2)
-      line = substr(line, RSTART + RLENGTH)
-    }
-  }
-' lakefile.toml)
-
-queue_index=0
-while (( queue_index < ${#queue[@]} )); do
-  module="${queue[$queue_index]}"
-  ((queue_index += 1))
-  [[ -z "${reachable[$module]+present}" ]] || continue
-  file="${module_path[$module]:-}"
-  [[ -n "$file" ]] || continue
-  reachable["$module"]=1
-  while IFS= read -r imported; do
-    [[ -n "${module_path[$imported]:-}" ]] || continue
-    [[ -n "${reachable[$imported]+present}" ]] || queue+=("$imported")
-  done < <(sed -nE 's/^import[[:space:]]+([A-Za-z0-9_.]+).*$/\1/p' "$file")
-done
-
-for module in "${!module_path[@]}"; do
-  if [[ -z "${reachable[$module]+present}" ]]; then
-    fail "unreachable Lean module: ${module_path[$module]}"
-  fi
-done
 
 for retired in crates/neo-fold-legacy crates/neo-wasm crates/wip-spartan tools/recursive-constraint-minimizer/bridge; do
   if [[ -f "$ROOT/../../$retired/Cargo.toml" ]]; then

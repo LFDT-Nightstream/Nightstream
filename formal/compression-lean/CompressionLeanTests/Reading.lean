@@ -5,34 +5,19 @@ The reading gate. `lake build` runs it.
 
 `production_bound` bounds an event in which every valid program witness has a
 reading (`Reads`). If no witness could have a reading, the bound would say
-nothing about a valid witness. These theorems show that the reading asks for
-no more than its two named assumptions: a valid witness has a reading when
-WHIR opens its candidates and its setup leaves bind, and a leaf binds when its
-path reaches the key root at no other index below the leaf count and it holds
-its own index's codeword.
+nothing about a valid witness. `reads_of_witness` shows that the reading asks
+for no more than its two named assumptions: a valid witness has a reading when
+WHIR opens its candidates and its setup leaves bind (`MerkleBinds`). That
+honest leaves bind is `Bridge.honest_leaves_bind`: under the honest key root
+they meet `MerkleBinds` unless Poseidon2 collides at inputs computed from a
+leaf.
 -/
 
 namespace CompressionLeanTests.Reading
 
 open CompressionLean CompressionLean.Spec CompressionLean.Sim CompressionLean.Lowering CompressionLean.Checks
 open CompressionLean.Circuit CompressionLean.Terminal.Package CompressionLean.Bridge CompressionLean.Layer1
-open CompressionLean.Replay (Leaf pathOk foldVars runOracles)
-open CompressionLean.Lib (univ)
 open NightstreamFPrime
-
-/-- Leaves whose paths reach the key root at no index below the leaf count
-but `j`, each holding the setup's codeword on `j`'s coset, meet
-`MerkleBinds`. -/
-theorem merkleBinds_of_unique (rel : Replay.Relation) (S : Setup Gl) (leaves : Array Leaf)
-    (honest : ∀ leaf ∈ leaves.toList, ∃ j,
-      (∀ i < 2 ^ (rel.setupVars - 2), pathOk rel.key.root i leaf = true → i = j) ∧
-      ∀ o v, o < rel.kappa + runOracles → v < 2 ^ foldVars → (leaf.values[o * 2 ^ foldVars + v]!).toF =
-        (univ rel.setupVars (setupOracle rel S o)).eval (leafY rel.setupVars j * twoAdic 3 ^ v)) :
-    MerkleBinds rel S leaves := by
-  intro leaf member i inside ok o v ho hv
-  obtain ⟨j, unique, values⟩ := honest leaf member
-  obtain rfl := unique i inside ok
-  exact values o v ho hv
 
 /-- A witness of the production final program's CCS has a reading, given only
 WHIR's openings at the points of its replay and the binding of its setup

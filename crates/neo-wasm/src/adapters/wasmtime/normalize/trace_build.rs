@@ -14,7 +14,7 @@ mod reentry;
 mod turn;
 mod values;
 
-use self::frame_move::emit_frame_move_rows;
+use self::frame_move::{emit_frame_move_rows, frame_slide};
 use self::local_zero::emit_local_zero_rows;
 use self::turn::{plan_turn_exit, setup_turn};
 use self::values::{call_indirect_oob, call_indirect_traps, guest_callee_locals, write_lane, write_lane_hi};
@@ -242,7 +242,23 @@ pub(super) fn build_trace(
         let mut output_captured = false;
         // A trapped execution has no output: capture is for clean activation returns only
         // (the CCS enforces the same exclusion).
-        if activation_finished && !trapped && !output_enabled {
+        // A return's results are its frame above fbp less its static slide distance.
+        let has_result = match current.frame_slide {
+            Some((_, distance)) if current.pc_edge_kind == WasmPcEdgeKind::ReturnLike => {
+                let result_count = sp_before
+                    .checked_sub(fbp)
+                    .and_then(|frame_cells| frame_cells.checked_sub(u64::from(distance)))
+                    .ok_or_else(|| {
+                        WasmBuildError::Trace(format!(
+                            "return result count underflow at cycle {}: sp {sp_before}, frame base {fbp}, slide distance {distance}",
+                            current.cycle
+                        ))
+                    })?;
+                result_count != 0
+            }
+            _ => !current.operand_stack.is_empty(),
+        };
+        if activation_finished && !trapped && !output_enabled && has_result {
             if let Some(value) = current.operand_stack.last().copied() {
                 output_enabled = true;
                 output_value_lo = value;
@@ -404,22 +420,18 @@ pub(super) fn build_trace(
                 call_stack_depth = call_stack_depth.checked_sub(1).ok_or_else(|| {
                     WasmBuildError::Trace(format!("call stack depth underflow at cycle {}", current.cycle))
                 })?;
-                let results = current.operand_stack.len();
-                kept_cells = (0..results).map(cell).collect();
-                let results_end = current_fbp + results as u64;
-                if sp_after != results_end {
-                    return Err(WasmBuildError::Trace(format!(
-                        "return at cycle {} leaves {} operands, but the caller resumes at sp {sp_after}",
-                        current.cycle, results
-                    )));
-                }
-                frame_move_after = WasmFrameMoveState {
-                    active: results != 0,
-                    remaining: results as u32,
-                    distance: current_stack_base - current_fbp,
-                };
+                (kept_cells, frame_move_after) = frame_slide(current, sp_before, sp_after)?;
                 fbp = caller_fbp;
                 stack_base = caller_base;
+            }
+            WasmOpcode::Br | WasmOpcode::BrIf | WasmOpcode::BrTable => {
+                call_stack_push = None;
+                call_stack_pop = None;
+                if activation_finished {
+                    let distance = current.frame_slide.map_or(0, |(_, distance)| distance);
+                    sp_after -= u64::from(distance);
+                }
+                (kept_cells, frame_move_after) = frame_slide(current, sp_before, sp_after)?;
             }
             _ => {
                 call_stack_push = None;

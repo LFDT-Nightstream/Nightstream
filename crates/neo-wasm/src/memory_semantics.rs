@@ -68,6 +68,14 @@ pub fn preload_from_program_artifacts(artifacts: &WasmProgramArtifacts) -> WasmM
             narrow(pc_after, "pc_rom.state_after.pc"),
         );
     }
+    for &(pc_before, control_choice, remaining, distance) in &tables.frame_slides {
+        let key = vec![
+            narrow(pc_before, "frame_slides.pc"),
+            narrow(control_choice, "frame_slides.control_choice"),
+        ];
+        preload.insert(WasmMemoryId::FrameSlideRemaining, key.clone(), remaining);
+        preload.insert(WasmMemoryId::FrameSlideDistance, key, distance);
+    }
     for &(pc_before, edge_kind) in &tables.pc_edge_kinds {
         preload.insert(
             WasmMemoryId::PcEdgeKind,

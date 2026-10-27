@@ -23,6 +23,8 @@ pub(crate) struct DecodedOpcode {
     /// Dense PC immediately after this instruction. For `call`
     /// this is the return PC; for branches it is the linear successor.
     pub(crate) pc_after_instruction: u64,
+    /// `(control choice, remaining, distance)` of each slide this operator's edges take.
+    pub(crate) frame_slides: super::branch_stack::FrameSlideEdges,
 }
 
 #[derive(Clone, Copy, Debug)]

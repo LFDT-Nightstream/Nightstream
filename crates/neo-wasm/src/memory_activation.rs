@@ -163,6 +163,18 @@ pub(crate) fn activation_supports() -> BTreeMap<usize, BTreeSet<usize>> {
     );
     insert_derived_activation_support(
         &mut supports,
+        "frame slides",
+        crate::layout::COL_FRAME_SLIDE_ACTIVE,
+        opcode_selectors([
+            WasmOpcode::Br,
+            WasmOpcode::BrIf,
+            WasmOpcode::BrTable,
+            WasmOpcode::Return,
+            WasmOpcode::End,
+        ]),
+    );
+    insert_derived_activation_support(
+        &mut supports,
         "captured outputs",
         COL_OUTPUT_CAPTURED,
         opcode_selectors([WasmOpcode::Return, WasmOpcode::End]),

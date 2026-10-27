@@ -1255,18 +1255,7 @@ fn frame_move_row_copies_one_cell_down_unchanged() {
     let mut forged = witness;
     forged[COL_SP_AFTER] -= F::ONE;
     assert_rejected(&forged, "move row that drops the stack pointer");
-
-    // The return must schedule the move of its result.
-    let ret = trace
-        .iter()
-        .find(|row| row.call_stack_pop.is_some())
-        .expect("callee return row");
-    let mut forged = build_witness_vector(ret);
-    forged[COL_FRAME_MOVE_ACTIVE_AFTER] = F::ZERO;
-    forged[COL_FRAME_MOVE_REMAINING_AFTER] = F::ZERO;
-    forged[COL_FRAME_MOVE_REMAINING_AFTER_IS_ZERO] = F::ONE;
-    forged[COL_FRAME_MOVE_REMAINING_AFTER_INV] = F::ZERO;
-    assert_rejected(&forged, "return that skips its result move");
+    // A return's move comes from the slide ROM (`wasm_frame_slide`).
 }
 
 #[test]

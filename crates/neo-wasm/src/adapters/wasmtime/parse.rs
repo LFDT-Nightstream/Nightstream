@@ -8,6 +8,7 @@
 //! immutable lookup tables the parent module and `normalize` consult at trace
 //! time.
 
+use super::branch_stack::FrameSlideEdges;
 use super::decode::{
     decode_control_opcode, decode_memory_opcode, decode_opcode, ControlFrame, ControlFrameKind, DecodedOpcode,
 };
@@ -63,6 +64,9 @@ pub struct WasmProgramTables {
     /// Program rows read this table to bind the witnessed PC transition to
     /// the parsed control-flow graph.
     pub pc_rom: Vec<(u64, u64, u64)>,
+    /// Static `(pc_before, control_choice, remaining, distance)` frame slides of
+    /// branch edges, returns, and function ends, keyed like `pc_rom`.
+    pub frame_slides: Vec<(u64, u64, u32, u32)>,
     /// Static `(pc_before, edge_kind)` rows classifying how a PC chooses its
     /// successor, such as fallthrough, conditional branch, call, or return.
     pub pc_edge_kinds: Vec<(u64, u64)>,
@@ -154,8 +158,10 @@ pub(crate) struct ParsedFunctionMeta {
 }
 
 pub(super) fn parse_wasm_artifacts(wasm_bytes: &[u8]) -> Result<WasmProgramArtifacts, WasmProgramError> {
-    super::branch_stack::validate_branch_stack_support(wasm_bytes)?;
-    let mut builder = ParsedWasmArtifactsBuilder::default();
+    let mut builder = ParsedWasmArtifactsBuilder {
+        slides_by_offset: super::branch_stack::frame_slides(wasm_bytes)?,
+        ..Default::default()
+    };
     for payload in Parser::new(0).parse_all(wasm_bytes) {
         let payload =
             payload.map_err(|err| WasmProgramError::Invalid(format!("failed to parse wasm payload: {err}")))?;
@@ -213,6 +219,8 @@ pub(super) fn single_component_core_module(bytes: &[u8]) -> Result<&[u8], WasmPr
 struct ParsedWasmArtifactsBuilder {
     opcode_map: BTreeMap<(u32, u32), DecodedOpcode>,
     pc_rom: Vec<(u64, u64, u64)>,
+    slides_by_offset: BTreeMap<u32, FrameSlideEdges>,
+    frame_slides: Vec<(u64, u64, u32, u32)>,
     program_decode: Vec<WasmProgramDecodeEntry>,
     pc_edge_kinds: Vec<(u64, u64)>,
     pc_function_refs: Vec<(u64, u64)>,
@@ -244,6 +252,8 @@ impl Default for ParsedWasmArtifactsBuilder {
         Self {
             opcode_map: BTreeMap::new(),
             pc_rom: Vec::new(),
+            slides_by_offset: BTreeMap::new(),
+            frame_slides: Vec::new(),
             program_decode: Vec::new(),
             pc_edge_kinds: Vec::new(),
             pc_function_refs: Vec::new(),
@@ -352,6 +362,7 @@ impl ParsedWasmArtifactsBuilder {
                 max_memory_pages: self.max_memory_pages,
                 program_decode: self.program_decode,
                 pc_rom: self.pc_rom,
+                frame_slides: self.frame_slides,
                 pc_edge_kinds: self.pc_edge_kinds,
                 pc_function_refs: self.pc_function_refs,
                 function_entries: self.function_entries,
@@ -636,6 +647,12 @@ impl ParsedWasmArtifactsBuilder {
                         .push((pc_before, u64::from(pc_edge_kind.as_u32())));
                     self.pc_function_refs
                         .push((pc_before, u64::from(function_ref)));
+                    let frame_slides = self.slides_by_offset.remove(&offset).unwrap_or_default();
+                    self.frame_slides.extend(
+                        frame_slides
+                            .iter()
+                            .map(|&(choice, remaining, distance)| (pc_before, choice, remaining, distance)),
+                    );
                     self.opcode_map.insert(
                         (self.defined_function_index, offset),
                         DecodedOpcode {
@@ -648,6 +665,7 @@ impl ParsedWasmArtifactsBuilder {
                             call_indirect_type_index,
                             expected_type_id,
                             pc_after_instruction: pc_after,
+                            frame_slides,
                         },
                     );
 

@@ -111,6 +111,7 @@ struct NormalizedStep {
     max_memory_pages: Option<u32>,
     /// Dense PC immediately after this instruction.
     pc_after_instruction: Option<u64>,
+    frame_slide: Option<(u32, u32)>,
     /// Total number of locals (params + declared) in this frame at this step.
     num_locals: u32,
     /// Parsed local values at this step (before execution). Used to check and
@@ -281,6 +282,7 @@ fn normalize_step(row: &WasmtimeTraceStep) -> Result<Option<NormalizedStep>, Was
         memory_pages_after,
         max_memory_pages: row.memory_max_pages,
         pc_after_instruction: row.pc_after_instruction,
+        frame_slide: row.frame_slide,
         num_locals: row.num_locals,
         locals_snapshot: row.locals_words.clone(),
         linear_memory,
@@ -551,6 +553,13 @@ pub(crate) fn capture_frame<T>(
         operand_stack_words_hi,
         num_locals: num_locals as u32,
         pc_after_instruction: decoded_opcode.as_ref().map(|d| d.pc_after_instruction),
+        frame_slide: decoded_opcode.as_ref().and_then(|d| {
+            let choice = u64::from(control_choice.unwrap_or(0));
+            d.frame_slides
+                .iter()
+                .find(|&&(edge, _, _)| edge == choice)
+                .map(|&(_, remaining, distance)| (remaining, distance))
+        }),
         host_call_memory: None,
         entry_memory: None,
     })

@@ -91,6 +91,8 @@ pub struct WasmtimeTraceStep {
     /// necessarily the runtime next PC. Rows finishing an activation retain this value even
     /// when it does not name an instruction in the current function.
     pub pc_after_instruction: Option<u64>,
+    /// Static `(remaining, distance)` frame slide of the taken edge, if it has one.
+    pub frame_slide: Option<(u32, u32)>,
     /// Declared import-write bytes from memory 0, captured when the calling
     /// activation resumes, before its next instruction. Stored on the call row.
     /// Supplies witness inputs to replay writes, never memory initialization.

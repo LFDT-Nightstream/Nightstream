@@ -7,10 +7,11 @@ The reading gate. `lake build` runs it.
 reading (`Reads`). If no witness could have a reading, the bound would say
 nothing about a valid witness. `reads_of_witness` shows that the reading asks
 for no more than its two named assumptions: a valid witness has a reading when
-WHIR opens its candidates and its setup leaves bind (`MerkleBinds`). That
-honest leaves bind is `Bridge.honest_leaves_bind`: under the honest key root
-they meet `MerkleBinds` unless Poseidon2 collides at inputs computed from a
-leaf.
+WHIR opens its candidates and its setup leaves bind (`MerkleBinds`). Under
+the honest key root, `Bridge.merkleBinds_of_root` gives `MerkleBinds` for
+leaves of the replay's shape unless a leaf exposes a Poseidon2 collision, and
+`Bridge.honest_leaves_bind` shows that honest leaves pass the path check. No
+theorem here joins them with `reads_of_witness`.
 -/
 
 namespace CompressionLeanTests.Reading

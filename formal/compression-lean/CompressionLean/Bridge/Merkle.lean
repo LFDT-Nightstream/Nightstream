@@ -97,16 +97,22 @@ theorem size_treeNode : ∀ k p, (treeNode vals k p).size = 4
 def honestPath (d i : ℕ) : Array (Array Word) := (Array.range d).map fun k => treeNode vals k ((i / 2 ^ k) ^^^ 1)
 
 /-- A Poseidon2 collision at explicit inputs on the climb of `leaf` at
-`index` in the tree of depth `d`: at a level `k < d` the leaf's pair and the
-tree's pair differ and compress alike, or the leaf's values and `vals index`
-differ and hash alike. Both inputs are functions of `(vals, leaf, index, k)`.
-A bare "some collision exists" holds for every compressing hash, so it would
-not bind. -/
+`index` in the tree of depth `d`. Either, at a level `k < d` where the leaf's
+digest has four words, the leaf's pair and the tree's pair of four-word
+digests differ and compress alike: two different sixteen-word inputs of the
+permutation agree on its first four output words. Or the leaf's values, as
+many as `vals index`, differ from them and hash alike. Both inputs are
+functions of `(vals, leaf, index, k)`. The lengths matter: `compress` and
+`hashLeaf` take arrays of any length and `permute` reads sixteen words, so a
+padded digest or extra values would compress or hash alike with no
+collision. A bare "some collision exists" holds for every compressing hash,
+so it would not bind. -/
 def PathCollision (d : ℕ) (leaf : Leaf) (index : ℕ) : Prop :=
-  (∃ k < d, climbPair leaf index k ≠ treePair vals k (index / 2 ^ (k + 1)) ∧
+  (∃ k < d, (leaf.path[k]!).size = 4 ∧ climbPair leaf index k ≠ treePair vals k (index / 2 ^ (k + 1)) ∧
       Function.uncurry compress (climbPair leaf index k) =
         Function.uncurry compress (treePair vals k (index / 2 ^ (k + 1)))) ∨
-    (leaf.values ≠ vals index ∧ hashLeaf leaf.values = hashLeaf (vals index))
+    (leaf.values.size = (vals index).size ∧ leaf.values ≠ vals index ∧
+      hashLeaf leaf.values = hashLeaf (vals index))
 
 theorem half_index (index k : ℕ) : index / 2 ^ (k + 1) = index / 2 ^ k / 2 := by
   rw [pow_succ, Nat.div_div_eq_div_mul]
@@ -130,10 +136,12 @@ theorem pathOk_honest (d i : ℕ) (inside : i < 2 ^ d) :
     climb_honest vals d i d le_rfl, Nat.div_eq_of_lt inside]
   exact List.all_eq_true.mpr fun lane _ => beq_self_eq_true (treeNode vals d 0)[lane]!.word
 
-/-- **Binding by extraction**: a leaf that passes the path check at the
-tree's root holds the tree's values at its index, or gives a `PathCollision`. -/
+/-- **Binding by extraction**: a leaf of `d` four-word digests and as many
+values as the tree's leaves that passes the path check at the tree's root
+holds the tree's values at its index, or gives a `PathCollision`. -/
 theorem pathOk_binds {root : Array Word} (d index : ℕ) (leaf : Leaf) (isRoot : root = treeNode vals d 0)
-    (size : leaf.path.size = d) (inside : index < 2 ^ d) (ok : pathOk root index leaf = true) :
+    (size : leaf.path.size = d) (digests : ∀ k < d, (leaf.path[k]!).size = 4)
+    (length : leaf.values.size = (vals index).size) (inside : index < 2 ^ d) (ok : pathOk root index leaf = true) :
     leaf.values = vals index ∨ PathCollision vals d leaf index := by
   have top : climb leaf index d = treeNode vals d (index / 2 ^ d) := by
     unfold pathOk at ok
@@ -161,13 +169,13 @@ theorem pathOk_binds {root : Array Word} (d index : ℕ) (leaf : Leaf) (isRoot :
             · rw [(Prod.mk.inj pairs).2]
               congr 1
               omega
-          · exact .inr (.inl ⟨k, by omega, pairs, same⟩)
+          · exact .inr (.inl ⟨k, by omega, digests k (by omega), pairs, same⟩)
         · exact .inr broken
   rcases down d le_rfl with same | broken
   · by_cases values : leaf.values = vals index
     · exact .inl values
     · rw [Nat.sub_self] at same
-      exact .inr (.inr ⟨values, by simpa [climb, treeNode] using same⟩)
+      exact .inr (.inr ⟨length, values, by simpa [climb, treeNode] using same⟩)
   · exact .inr broken
 
 end Tree
@@ -180,6 +188,10 @@ noncomputable def honestValues (rel : Replay.Relation) (S : Setup Gl) (i : ℕ) 
   (Array.range ((rel.kappa + runOracles) * 2 ^ foldVars)).map fun t =>
     Word.ofNat ((univ rel.setupVars (setupOracle rel S (t / 2 ^ foldVars))).eval
       (leafY rel.setupVars i * twoAdic 3 ^ (t % 2 ^ foldVars))).val
+
+theorem size_honestValues (rel : Replay.Relation) (S : Setup Gl) (i : ℕ) :
+    (honestValues rel S i).size = (rel.kappa + runOracles) * 2 ^ foldVars := by
+  simp [honestValues]
 
 /-- The root of the honest setup tree. -/
 noncomputable def honestRoot (rel : Replay.Relation) (S : Setup Gl) : Array Word :=
@@ -198,10 +210,14 @@ theorem toF_honestValues (rel : Replay.Relation) (S : Setup Gl) (i o v : ℕ) (o
     show (o * 2 ^ foldVars + v) % 2 ^ foldVars = v by rw [eight]; omega]
 
 /-- **`MerkleBinds` from the root**: under the honest key root, leaves of
-the replay's path length meet `MerkleBinds`, or one of them passes the path
-check at an index with a `PathCollision`. -/
+the replay's shape (a path of `setupVars - 2` four-word digests and
+`(κ + 4)·8` values) meet `MerkleBinds`, or one of them passes the path check
+at an index with a `PathCollision`. -/
 theorem merkleBinds_of_root (rel : Replay.Relation) (S : Setup Gl) (leaves : Array Leaf)
-    (root : rel.key.root = honestRoot rel S) (sizes : ∀ leaf ∈ leaves.toList, leaf.path.size = rel.setupVars - 2) :
+    (root : rel.key.root = honestRoot rel S)
+    (shapes : ∀ leaf ∈ leaves.toList, leaf.path.size = rel.setupVars - 2 ∧
+      (∀ k < rel.setupVars - 2, (leaf.path[k]!).size = 4) ∧
+      leaf.values.size = (rel.kappa + runOracles) * 2 ^ foldVars) :
     MerkleBinds rel S leaves ∨ ∃ leaf ∈ leaves.toList, ∃ i < 2 ^ (rel.setupVars - 2),
       pathOk rel.key.root i leaf = true ∧ PathCollision (honestValues rel S) (rel.setupVars - 2) leaf i := by
   by_cases collision : ∃ leaf ∈ leaves.toList, ∃ i < 2 ^ (rel.setupVars - 2),
@@ -209,7 +225,9 @@ theorem merkleBinds_of_root (rel : Replay.Relation) (S : Setup Gl) (leaves : Arr
   · exact .inr collision
   · left
     intro leaf member i inside ok o v oracle point
-    rcases pathOk_binds _ _ i leaf root (sizes leaf member) inside ok with same | broken
+    obtain ⟨size, digests, length⟩ := shapes leaf member
+    rcases pathOk_binds _ _ i leaf root size digests (by rw [length, size_honestValues]) inside ok with
+      same | broken
     · rw [same]
       exact toF_honestValues rel S i o v oracle point
     · exact absurd ⟨leaf, member, i, inside, ok, broken⟩ collision
@@ -229,6 +247,8 @@ theorem honest_leaves_bind (rel : Replay.Relation) (S : Setup Gl) (root : rel.ke
   · rw [root]
     exact pathOk_honest _ _ q (inside q member)
   · obtain ⟨q, _, rfl⟩ : ∃ q ∈ qs, honestLeaf rel S q = leaf := by simpa using member
-    simp [honestLeaf, honestPath]
+    refine ⟨by simp [honestLeaf, honestPath], fun k lt => ?_, size_honestValues rel S q⟩
+    simp only [honestLeaf, honestPath, getElem!_map_range _ _ lt]
+    exact size_treeNode _ _ _
 
 end CompressionLean.Bridge

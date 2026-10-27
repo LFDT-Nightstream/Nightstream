@@ -96,8 +96,8 @@ timeout --signal=KILL 1500 .lake/build/bin/emitTerminal artifacts/compression-te
   `Inventory.lean`;
 - the folder gate (`Layers.lean`);
 - the reading gate (`Reading.lean`): a valid program witness has a reading given WHIR's openings
-  and `MerkleBinds`, and a leaf meets `MerkleBinds` when its path reaches the root at no other
-  index below the leaf count and it holds its own index's codeword;
+  and `MerkleBinds`. `Bridge/Merkle.lean` proves that honest leaves meet `MerkleBinds` under the
+  honest key root unless Poseidon2 collides;
 - the vocabulary gate (`Vocabulary.lean`): a claim names only constants of `Spec/`, the model and
   port folders, F′, Mathlib or core.
 

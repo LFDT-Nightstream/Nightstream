@@ -63,12 +63,13 @@ The claims bound a probability. They take these as part of the model, not as Lea
   Poseidon2 inside the program, which the claims assume and do not bound. The openings inside the
   program follow the WHIR model (`WhirOpens`).
 - **Merkle binding.** A setup leaf that reaches the key root at an index below the leaf count
-  `2^(n-2)` and disagrees with the setup gives a Poseidon2 collision (`MerkleBinds`). The bound is
-  part of the assumption: the path reads only the low `n - 2` bits of an index, so without it the
-  assumption would make every setup oracle constant on each queried coset.
-  `CompressionLeanTests/Reading.lean` shows that a leaf meets it when its path reaches the root at
-  no other index below the leaf count and it holds its own index's codeword. That an honest leaf
-  holds that codeword rests on the setup ports (section 5).
+  `2^(n-2)` holds the setup's codeword on that index's coset (`MerkleBinds`). The bound is part
+  of the assumption: the path reads only the low `n - 2` bits of an index, so without it the
+  assumption would make every setup oracle constant on each queried coset. Under the honest key
+  root (`rel.key.root = honestRoot rel S`), `merkleBinds_of_root` (`Bridge/Merkle.lean`) proves
+  it, unless a leaf passes the path check with a Poseidon2 collision at inputs computed from the
+  leaf (`PathCollision`); `honest_leaves_bind` shows that honest leaves pass at their own index.
+  That the shipped key's root is `honestRoot` of the claims' setup is not proved (section 5).
 - **Query indices.** The model draws each query leaf as a uniform Goldilocks word modulo the leaf
   count, as `sample_bits` does (`Layer1/HonestStage.lean`, `Layer1/Queries.lean`). The budget needs
   at most 35 setup variables (`query_half`), and the replay bridge at most 31. `Relation::new`

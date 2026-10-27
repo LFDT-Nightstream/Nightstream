@@ -6,7 +6,7 @@ Open Scope Z_scope.
 
 Definition publicInputCount : nat := 7%nat.
 Definition oneColumn : nat := 0%nat.
-Definition rowCount : nat := 4448%nat.
+Definition rowCount : nat := 4449%nat.
 
 Definition rows : list Row :=
   [([(19%nat, 1)], [(12%nat, 1); (63%nat, -1); (66%nat, -1); (68%nat, -1); (74%nat, -1); (78%nat, -1); (137%nat, -1); (138%nat, -1); (139%nat, -1); (140%nat, -1); (141%nat, -1); (142%nat, -1); (143%nat, -1); (144%nat, -1); (145%nat, -1); (295%nat, -1); (296%nat, -1); (297%nat, -1); (300%nat, -1); (301%nat, -1); (302%nat, -1); (84%nat, -1); (96%nat, -1); (135%nat, -1); (136%nat, -1); (111%nat, -1); (112%nat, -1); (113%nat, -1); (114%nat, -1); (124%nat, -1); (127%nat, -1); (128%nat, -1); (323%nat, -1); (324%nat, -1); (130%nat, -1); (131%nat, -1); (132%nat, -1); (133%nat, -1); (134%nat, -1); (303%nat, -1); (304%nat, -1); (305%nat, -1); (306%nat, -1); (307%nat, -1); (308%nat, -1); (309%nat, -1); (310%nat, -1); (311%nat, -1); (312%nat, -1); (313%nat, -1); (314%nat, -1); (315%nat, -1); (316%nat, -1); (317%nat, -1); (318%nat, -1); (319%nat, -1); (320%nat, -1); (321%nat, -1); (322%nat, -1)], []);
@@ -4456,7 +4456,8 @@ Definition rows : list Row :=
    ([(126%nat, 1)], [(184%nat, 1); (352%nat, -1); (0%nat, 4294967296); (343%nat, -1); (344%nat, -4294967296)], []);
    ([(126%nat, 1)], [(0%nat, 1); (344%nat, -1)], [(353%nat, 1)]);
    ([(353%nat, 1)], [(10%nat, 1); (184%nat, -1); (0%nat, -1)], []);
-   ([(126%nat, 1); (353%nat, -1)], [(10%nat, 1)], [])].
+   ([(126%nat, 1); (353%nat, -1)], [(10%nat, 1)], []);
+   ([(0%nat, 1); (125%nat, -1); (88%nat, -1); (126%nat, -1)], [(10%nat, 1)], [])].
 
 Definition satFull (w : Witness) : Prop :=
   w oneColumn = 1 /\ satAll w rows.

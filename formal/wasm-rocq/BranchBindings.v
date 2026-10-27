@@ -71,7 +71,7 @@ Definition branchImage (memory : MemoryState) (pc fallthrough target : Z) : Prop
   memory programOpcodeId [pc] = Some CODE_BR_IF /\
   memory pcEdgeKindId [pc] = Some 0 /\
   forall choice, memory pcRomId [pc; choice] =
-    if choice =? 0 then Some fallthrough else if choice =? 1 then Some target else None.
+    if choice =? 0 then Some fallthrough else if choice =? 1 then Some target else Some 0.
 
 Lemma circuit_br_if_control : forall initial final (w : Witness) pc fallthrough target,
   fieldPrime -> FullRelation.satFull w -> Replay initial (eventsForRow memories w) final ->

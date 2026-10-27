@@ -124,10 +124,12 @@ Ltac auxiliary_row index name :=
   | Hprime : fieldPrime, Hfull : FullRelation.satFull ?w |- _ =>
     let raw := eval vm_compute in (List.nth index FullRelation.rows ([], [], [])) in
     let reduced := eval vm_compute in (auxiliaryRow raw) in
-    let Hsat := fresh "Hsat" in
-    pose proof (Range.sat_row w index raw (proj2 Hfull) eq_refl) as Hsat;
+    let Hsat := fresh "Hsat" in let Hlookup := fresh "Hlookup" in let Hreduced := fresh "Hreduced" in
+    assert (Hlookup : nth_error FullRelation.rows index = Some raw) by (vm_compute; reflexivity);
+    assert (Hreduced : auxiliaryRow raw = reduced) by (vm_compute; reflexivity);
+    pose proof (Range.sat_row w index raw (proj2 Hfull) Hlookup) as Hsat;
     pose proof (auxiliary_row_sat w raw Hprime Hfull ltac:(assumption) Hsat) as name;
-    clear Hsat; change (sat w reduced) in name; expand_row name
+    rewrite Hreduced in name; clear Hsat Hlookup Hreduced; expand_row name
   end.
 
 Ltac selected_circuit_row chosen shape name :=
@@ -322,4 +324,29 @@ Proof.
     unfold modulus in Hstate. lia. }
   apply (gated_value_zero _ _ Hrow); [ | exact (value_bound w COL_FRAME_SP_DROP)].
   rewrite Hone, Hpop, Hentry, Hturn. lia.
+Qed.
+
+(* Only br_if, if and br_table choose an edge: every other row reads choice 0, so
+   no ROM entry beyond a pc's listed edges is reachable. *)
+Lemma full_choice_pinned : forall (w : Witness),
+  Range.fieldPrime -> FullRelation.satFull w ->
+  w COL_SEL_BR_IF_EQZ = 0 -> w COL_SEL_IF = 0 -> w COL_SEL_BR_TABLE = 0 -> w COL_CONTROL_CHOICE = 0.
+Proof.
+  intros w Hprime Hfull Hbr Hif Htable.
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_row ([(COL_ONE, 1); (COL_SEL_BR_IF_EQZ, -1); (COL_SEL_IF, -1); (COL_SEL_BR_TABLE, -1)],
+    [(COL_CONTROL_CHOICE, 1)], ([] : SparseRow)) Hrow.
+  expand_row Hrow. rewrite Hone, Hbr, Hif, Htable in Hrow.
+  pose proof (value_bound w COL_CONTROL_CHOICE). field_linear Hrow.
+Qed.
+
+(* A selected row other than a branch reads choice 0. *)
+Lemma full_selected_choice_pinned : forall (w : Witness) chosen,
+  Range.fieldPrime -> FullRelation.satFull w -> In chosen selectorColumns -> w chosen = 1 ->
+  ~ In chosen [COL_SEL_BR_IF_EQZ; COL_SEL_IF; COL_SEL_BR_TABLE] -> w COL_CONTROL_CHOICE = 0.
+Proof.
+  intros w chosen Hprime Hfull Hin Hchosen Hbranch.
+  apply full_choice_pinned; try assumption;
+    (eapply full_opcode_selector_exclusive; [exact Hprime | exact Hfull | exact Hchosen | exact Hin |
+      vm_compute; tauto | intro Heq; subst chosen; apply Hbranch; cbn; tauto]).
 Qed.

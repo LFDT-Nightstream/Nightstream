@@ -22,7 +22,8 @@ or trap). Padding is supported. Host rows, indirect calls, loops, `if`, `br`/`br
 to the function's own label and returning out of the base frame are excluded.
 Selected zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory
-argument is not proved. The program ROM encoder covers this guest-only fragment;
+argument is not proved. ROMs are dense: keys the encoder does not list read 0, so
+proofs never rely on a key being absent. The program ROM encoder covers this guest-only fragment;
 its correspondence with Rust preprocessing is not yet proved. The `tests/*Witness.v`
 files check by computation that exported Rust traces meet every premise of
 `run_refinement` (regenerate them with

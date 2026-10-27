@@ -538,7 +538,11 @@ Ltac selected_row chosen index name :=
   | Hprime : Range.fieldPrime, Hfull : FullRelation.satFull ?w |- _ =>
     let raw := eval vm_compute in (List.nth index FullRelation.rows ([], [], [])) in
     let reduced := eval vm_compute in (selectedRow chosen raw) in
-    pose proof (full_selected_row w chosen index raw Hprime Hfull ltac:(assumption) ltac:(assumption) eq_refl) as name;
-    change (sat w reduced) in name;
+    (* Both equalities are checked with the VM, so Qed does not recompute them lazily. *)
+    let Hlookup := fresh "Hlookup" in let Hreduced := fresh "Hreduced" in
+    assert (Hlookup : nth_error FullRelation.rows index = Some raw) by (vm_compute; reflexivity);
+    assert (Hreduced : selectedRow chosen raw = reduced) by (vm_compute; reflexivity);
+    pose proof (full_selected_row w chosen index raw Hprime Hfull ltac:(assumption) ltac:(assumption) Hlookup) as name;
+    rewrite Hreduced in name; clear Hlookup Hreduced;
     unfold sat in name; cbn [eval fold_right] in name; normalize_columns
   end.

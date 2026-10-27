@@ -10,4 +10,4 @@ Definition conditionalBlock (x : localidx) (tail : list instr) : instr :=
 
 Definition controlImage memory pc opcode next : Prop :=
   memory programOpcodeId [pc] = Some opcode /\ memory pcEdgeKindId [pc] = Some 0 /\
-  forall choice, memory pcRomId [pc; choice] = if choice =? 0 then Some next else None.
+  forall choice, memory pcRomId [pc; choice] = if choice =? 0 then Some next else Some 0.

@@ -278,11 +278,11 @@ Proof.
   rewrite (code_offset_next _ _ _ Hi). lia.
 Qed.
 
-Lemma ordinary_facts : forall localCount callees i h,
-  (exists op, encodedOpcode i = Some op) -> instrFacts localCount callees i h ->
+Lemma ordinary_facts : forall localCount resultCount callees i h,
+  (exists op, encodedOpcode i = Some op) -> instrFacts localCount resultCount callees i h ->
   wf_instr i /\ programTyped localCount h [i] /\ sourceHeight callees i h = instructionStackHeight i h.
 Proof.
-  intros localCount callees i h [op Hop] H.
+  intros localCount resultCount callees i h [op Hop] H.
   destruct (encoded_opcode_cases _ _ Hop) as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]];
     destruct H as [Hw Ht].
   all: split; [exact Hw | split; [exact Ht | reflexivity]].
@@ -409,7 +409,7 @@ Proof.
   set (code := innerCode f (codePosition index labels offset)) in *.
   rewrite (skipn_at_instruction _ _ _ Hi) in Hfacts. cbn [codeFacts] in Hfacts.
   destruct Hfacts as [Hinstr Hrest]. rewrite Nat.add_0_r in Hinstr, Hrest.
-  destruct (ordinary_facts _ _ _ _ Hop Hinstr) as [Hwi [Htyped Hsource]].
+  destruct (ordinary_facts _ _ _ _ _ Hop Hinstr) as [Hwi [Htyped Hsource]].
   pose proof (encoded_path_ordinary _ _ _ _ Hloaded Hf _ _ _ _ Hpath Hi Hop) as Himage.
   unfold pathPC in Himage. change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in Hpc.
   rewrite <- Hpc in Himage.
@@ -534,14 +534,14 @@ Proof.
   cbn [viewPosition viewValues viewSegments positionLabels positionOffset] in Hfacts, Hready, Hwfcode.
   set (code := innerCode f (codePosition index labels offset)) in *.
   rewrite (skipn_at_instruction _ _ _ Hi) in Hfacts. cbn [codeFacts] in Hfacts. destruct Hfacts as [Hblock _].
-  destruct (proj1 (block_facts _ _ _ _ _) Hblock) as [Hwb [Hzero Hbody]].
+  destruct (proj1 (block_facts _ _ _ _ _ _) Hblock) as [Hwb [Hzero Hbody]].
   assert (Hwbody : Forall wf_instr body) by (inversion Hwb; assumption).
   pose proof (encoded_path_block_entry _ _ _ _ Hloaded Hf _ _ _ _ Hpath Hi) as Himage.
   unfold pathPC in Himage.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in Hpc.
   rewrite <- Hpc in Himage.
   destruct (BlockTrace.control_row _ _ row _ CODE_BLOCK COL_SEL_BLOCK _ Hprime Hfull Hprogram Hreplay Logic.eq_refl
-    ltac:(vm_compute; reflexivity) Himage) as [Hchosen Hnext].
+    ltac:(vm_compute; reflexivity) ltac:(vm_compute; intuition discriminate) Himage) as [Hchosen Hnext].
   destruct (full_selected_no_host_switch row COL_SEL_BLOCK Hprime Hfull ltac:(vm_compute; tauto) Hchosen)
     as [Hsuspend [_ [_ [_ Hread]]]].
   destruct (full_block_selector_quiet row COL_SEL_BLOCK Hprime Hfull (or_introl Logic.eq_refl) Hchosen)
@@ -657,7 +657,7 @@ Proof.
   rewrite Hend, firstn_all in Htop. pose proof (Hzero _ Htop) as Hvalues.
   destruct values; [ | cbn in Hvalues; lia]. clear Hvalues.
   destruct (function_facts _ _ _ _ Hstore Hvalid Hf) as [Hfacts _].
-  pose proof (code_facts_wf _ _ _ _ Hfacts) as Hwfbody.
+  pose proof (code_facts_wf _ _ _ _ _ Hfacts) as Hwfbody.
   pose proof (path_code_wf _ _ _ Hwfbody Hpath') as Hwfouter.
   pose proof Hbounds as Hvb. unfold viewOperands in Hvb. cbn [viewSegments viewValues] in Hvb.
   rewrite app_nil_r, concat_app in Hvb. cbn [concat] in Hvb. rewrite app_nil_r in Hvb.
@@ -670,7 +670,7 @@ Proof.
   rewrite <- Hpc in Himage.
   pose proof (control_row_static_edge _ _ row _ _ _ Hprogram Hreplay Logic.eq_refl Himage) as Hedge.
   destruct (BlockTrace.control_row _ _ row _ CODE_END COL_SEL_END _ Hprime Hfull Hprogram Hreplay Logic.eq_refl
-    ltac:(vm_compute; reflexivity) Himage) as [Hchosen Hnext].
+    ltac:(vm_compute; reflexivity) ltac:(vm_compute; intuition discriminate) Himage) as [Hchosen Hnext].
   destruct (full_selected_no_host_switch row COL_SEL_END Hprime Hfull ltac:(vm_compute; tauto) Hchosen)
     as [Hsuspend [_ [_ [_ Hread]]]].
   destruct (full_block_end_quiet row Hprime Hfull Hchosen Hedge Hhalt) as [Hpush Hpop].
@@ -780,7 +780,7 @@ Proof.
   pose proof Hpath as Hinside. rewrite path_code_app, Hpath' in Hinside. cbn [pathCode] in Hinside.
   rewrite Hb in Hinside.
   destruct (function_facts _ _ _ _ Hstore Hvalid Hf) as [Hfacts _].
-  pose proof (code_facts_wf _ _ _ _ Hfacts) as Hwfbody.
+  pose proof (code_facts_wf _ _ _ _ _ Hfacts) as Hwfbody.
   pose proof (path_code_wf _ _ _ Hwfbody Hpath') as Hwfouter.
   assert (Hwfblock : Forall wf_instr body).
   { pose proof (proj1 (Forall_forall _ _) Hwfouter _ (nth_error_In _ _ Hb)) as H. inversion H; assumption. }
@@ -819,13 +819,17 @@ Proof.
     destruct (circuit_row_slide_fetch _ _ _ Hreplay Hslide) as [Hremaining Hdistance].
     destruct (encoded_branch_slide _ _ _ _ _ _ _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf Hpath Hi Hheights)
       as [Hkept Hrom].
-    rewrite <- Hpc, Hremaining, (full_br_if_choice row Hprime Hfull Hchosen) in Hkept.
+    rewrite <- Hpc, Hremaining in Hkept.
     rewrite <- Hpc, Hdistance, (full_br_if_choice row Hprime Hfull Hchosen) in Hrom.
     destruct (Z.eqb (row (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0); cbn in Hkept, Hrom;
       injection Hkept as ->; split; [reflexivity | | reflexivity | ]; [injection Hrom as ->; reflexivity | ].
     rewrite length_app, Nat.add_0_r in Hrom. cbn [length] in Hrom. rewrite Nat.add_1_r in Hrom.
     cbn [branchDrop] in Hrom.
-    match type of Hrom with context [if ?test then _ else _] => destruct test end; cbn in Hrom; [ | discriminate].
+    (* Validation puts the target among the enclosing labels. *)
+    match type of Hrom with context [if ?test then _ else _] => destruct test eqn:Htest end; cbn in Hrom;
+      [ | apply Nat.ltb_ge in Htest; rewrite length_rev in Htest;
+          rewrite (path_heights_length _ _ _ _ _ _ Hheights), !length_app in Htest; cbn [length] in Htest;
+          change (proj_uN_0 l) with (l :> N) in Htest; unfold depth in Hexits; lia ].
     injection Hrom as Hrom. rewrite Hrom.
     match goal with |- context [firstn ?n _] => replace n with (length segsTail) by (rewrite HtailLen; reflexivity) end.
     rewrite branch_drop_labels. reflexivity. }

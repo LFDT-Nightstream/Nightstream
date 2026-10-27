@@ -1,6 +1,5 @@
-import CompressionLean.Circuit.Terminal
+import CompressionLean.Circuit.Final
 import CompressionLean.Circuit.Parse
-import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Digest
 
 /-!
@@ -11,8 +10,8 @@ claim and state handles that `Package::apply` hands to layer 1. It loads the
 Lean terminal package (`Package.load`) and writes `finalProgram`. Without a
 layer-1 key the layer-1 step returns its arguments, and the check requires
 the same instructions, one by one, and the same handles. With the key file
-of `neo-spartan`'s `lowering.rs` the step is `verifyWith`, and the check
-requires every instruction of the final program. It prints `match`, the
+of `neo-spartan`'s `lowering.rs` the program is `finalViews`, and the check
+requires every instruction of it. It prints `match`, the
 counts and the run digest of Lean's program (`runDigest`), or the first
 difference and exits with 1.
 -/
@@ -66,11 +65,6 @@ def sameInstrs (lean rust : Array Instr) : Parser Unit := do
         if let some why := difference l r then throw s!"instruction {k}: {why} (Lean, Rust)"
     | _, _ => throw s!"instructions: Lean {lean.size}, Rust {rust.size}"
 
-/-- The terminal claim as the verifier's statement. -/
-def claimView (claim : ClaimVars) : ClaimView :=
-  { commitment := claim.commitment, publicInput := claim.publicInput, point := claim.point,
-    evalK := claim.evalK, evalA := claim.evalA }
-
 /-- The run digest of a program: its lowering's counts and rows. The rows do
 not depend on the statement values. -/
 def digest (instrs : Array Instr) : List ℕ :=
@@ -78,13 +72,13 @@ def digest (instrs : Array Instr) : List ℕ :=
   (runDigest run (run.calls.flatMap Call.computedRows).toArray).toList.map Gl.toNat
 
 /-- Compare `finalProgram` on `package` with the export: up to layer 1, or
-with `verifyWith` for `key`. -/
+whole (`finalViews`) for `key`. -/
 def check (package : Loaded) (key : Option Layer1Input) : Parser String := do
   keyword "context"
   let context := (← many (← nat) glWord).toArray
   let rust ← program
   if let some key := key then
-    let lean := (finalProgram package context fun claim state => verifyWith key state (claimView claim)).program
+    let lean := (finalViews package context key).program
     sameInstrs lean rust
     return s!"match: all {lean.size} instructions of the final program, {package.system.size} package rows; \
       digest {digest lean}"

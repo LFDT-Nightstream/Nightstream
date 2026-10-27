@@ -156,45 +156,6 @@ def outputColumns (layout : PhysicalLayout) (index : Array (Option ℕ))
         else throw "terminal output column"
     | _ => throw "terminal output expression"
 
-/-- Mark the columns of `terms`. -/
-def mark (used : Array Bool) (terms : List (ℕ × Gl)) : Array Bool :=
-  terms.foldl (fun used t => used.set! t.1 true) used
-
-/-- The package columns below `total` that some row names. -/
-def named (total : ℕ) (rows : Array (R1csRow Gl)) : Array Bool :=
-  rows.foldl (fun used r => mark (mark (mark used r.a) r.b) r.c) (Array.replicate total false)
-
-/-- The numbering so far: the system column of each package column, the source
-of each system column, and the package column of each computed value. -/
-abbrev Numbering := Array (Option ℕ) × Array Source × Array ℕ
-
-/-- Number one package column: a named column gets the next system column and
-its source. -/
-def numberColumn (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (used : Array Bool)
-    (state : Numbering) (column : ℕ) : Numbering :=
-  let (index, sources, computed) := state
-  let constant := layout.privateColumnCount
-  if used[column]! then
-    let index := index.set! column (some sources.size)
-    if column = constant then (index, sources.push .one, computed)
-    else if column > constant then (index, sources.push (.pub (column - constant - 1)), computed)
-    else match privateInput segments column with
-      | some input => (index, sources.push (.priv input), computed)
-      | none => (index, sources.push (.computed computed.size), computed.push column)
-  else state
-
-/-- The system columns: the named package columns in increasing order. -/
-def number (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (used : Array Bool) :
-    Numbering := Id.run do
-  let mut state : Numbering := (Array.replicate layout.totalColumnCount none, #[], #[])
-  for column in [0:layout.totalColumnCount] do
-    state := numberColumn layout segments used state column
-  return state
-
-/-- Terms over package columns, moved to system columns. -/
-def reindex (index : Array (Option ℕ)) (terms : List (ℕ × Gl)) : List (ℕ × Gl) :=
-  terms.map fun (c, x) => ((index[c]!).getD 0, x)
-
 /-- `load` (`package.rs:86-160`) on the Lean package and its output map. -/
 def load (package : CircuitPackage) (map : Terminal.Outputs) : Except String Loaded := do
   let layout := package.layout
@@ -204,7 +165,30 @@ def load (package : CircuitPackage) (map : Terminal.Outputs) : Except String Loa
       (offset, s.length)) == some (0, PilotProduction.stateHashWords) do
     throw "the prior state preimage is not the first caller input"
   let rows := orderedRows package
-  let (index, sources, computed) := number layout segments (named layout.totalColumnCount rows)
+  let total := layout.totalColumnCount
+  let mark := fun (used : Array Bool) (terms : List (ℕ × Gl)) =>
+    terms.foldl (fun used t => used.set! t.1 true) used
+  let used := rows.foldl (fun used r => mark (mark (mark used r.a) r.b) r.c)
+    (Array.replicate total false)
+  let constant := layout.privateColumnCount
+  let (index, sources, computed) := Id.run do
+    let mut index : Array (Option ℕ) := Array.replicate total none
+    let mut sources := #[]
+    let mut computed := #[]
+    for column in [0:total] do
+      if used[column]! then
+        index := index.set! column (some sources.size)
+        if column = constant then
+          sources := sources.push .one
+        else if column > constant then
+          sources := sources.push (.pub (column - constant - 1))
+        else match privateInput segments column with
+          | some input => sources := sources.push (.priv input)
+          | none =>
+              sources := sources.push (.computed computed.size)
+              computed := computed.push column
+    return (index, sources, computed)
+  let reindex := fun (terms : List (ℕ × Gl)) => terms.map fun (c, x) => ((index[c]!).getD 0, x)
   let outputs : OutputColumns := {
     commitment := ← outputColumns layout index map.commitment
     publicInput := ← outputColumns layout index map.publicInput
@@ -213,7 +197,7 @@ def load (package : CircuitPackage) (map : Terminal.Outputs) : Except String Loa
     evalA := ← outputColumns layout index map.eval_A
     state := ← outputColumns layout index map.state }
   pure {
-    system := rows.map fun r => ⟨reindex index r.a, reindex index r.b, reindex index r.c⟩
+    system := rows.map fun r => ⟨reindex r.a, reindex r.b, reindex r.c⟩
     sources, computed, outputs }
 
 end CompressionLean.Circuit.Package

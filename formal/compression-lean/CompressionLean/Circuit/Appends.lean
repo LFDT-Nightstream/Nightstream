@@ -3,7 +3,7 @@ import CompressionLean.Circuit.Final
 /-!
 Owns `Appends`: a builder program keeps the instructions that come before
 it and writes its own after them. Every program of the layer-1 verifier
-appends (`verifyWith_appends`), so the executor's run of the final program
+appends (`verifyWith.appends`), so the executor's run of the final program
 starts with the run of the terminal wrapper.
 
 - `Appends` for `Build` programs and `TAppends` for `Transcript` programs,

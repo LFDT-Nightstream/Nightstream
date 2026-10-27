@@ -16,8 +16,9 @@ proofs.
 
 ## 1. The Lean kernel and the build cache
 
-The toolchain in `lean-toolchain`. No proof may use `native_decide` (the axiom audit rejects
-`Lean.ofReduceBool`), so no proof trusts the compiled evaluator. The executables of section 5 do: they
+The toolchain in `lean-toolchain`. No proof may use `native_decide`: it adds an axiom, and the axiom
+audit allows only `propext`, `Classical.choice` and `Quot.sound` in the library and the gates. So no
+proof trusts the compiled evaluator. The executables of section 5 do: they
 link the claims to Rust's artifacts. The `.olean` files of Mathlib and of
 `nightstream-fprime` come from a build cache that `lake build` does not re-check. Re-checking the
 environment with `lean4checker`, or building both from source, removes this layer.

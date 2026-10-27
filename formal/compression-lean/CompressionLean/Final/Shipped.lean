@@ -183,9 +183,10 @@ def Reads (S : Layer1.Setup Gl) (L0 L1 : ℕ) (x : StateWords) (w : ℕ → Gl) 
     Layer1.Game.Pos.draws _ p = ds.map (Bridge.drawn (K := Cubic) sp.key.relation.queries) ∧
     Layer1.Game.Pos.node _ p = .pure (some tr) ∧ tr.statement = Bridge.statementOf (sp.decode x w).statement
 
-/-- **The circuit-replay agreement.** Open: the executor-simulation units
-will prove it. A witness of the final program's CCS for `x` gives an
-accepting replay run, from `start`, on what it decodes to.
+/-- **The circuit-replay agreement.** `circuitAgrees_of_verify`
+(`Agrees.lean`) proves it from `VerifyAgrees` (open) and `OutputsFit`. A
+witness of the final program's CCS for `x` gives an accepting replay run,
+from `start`, on what it decodes to.
 
 It also contains static facts that the replay checks and the circuit does
 not: the statement fits the relation (`st.fits rel`), the proof has the

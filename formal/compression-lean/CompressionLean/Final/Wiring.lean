@@ -193,6 +193,25 @@ theorem chunkPair_entry (a : Array Var) (f : Var → Replay.Gl) (m j l : ℕ) (d
           rw [size]
           omega
 
+/-- The output lists come in rows of `D` words and in pairs. -/
+theorem commitment_dvd : Spec.ringDegree ∣ Terminal.outputs.commitment.length := by
+  simp [Terminal.outputs, List.length_flatten, List.sum_ofFn]
+
+theorem publicInput_dvd : Spec.ringDegree ∣ Terminal.outputs.publicInput.length := by
+  simp [Terminal.outputs, Lifecycle.PaperAlgebra.FullShape, Lifecycle.PaperAlgebra.fullShape,
+    Spec.Phi81Relation.Shape.publicWidth]
+
+theorem point_even : 2 ∣ Terminal.outputs.point.length := by
+  simp [Terminal.outputs, Terminal.extension, List.length_flatten, List.sum_ofFn]
+
+theorem evalK_length : Terminal.outputs.eval_K.length = 2 * Spec.ringDegree := by
+  simp [Terminal.outputs, Terminal.extension, List.length_flatten, List.sum_ofFn]
+  rfl
+
+theorem evalA_dvd : 2 * Spec.ringDegree ∣ Terminal.outputs.eval_A.length := by
+  simp [Terminal.outputs, Terminal.extension, List.length_flatten, List.sum_ofFn]
+  exact Dvd.intro_left _ rfl
+
 /-! ## The columns that `TerminalFor` reads -/
 
 theorem constantColumn_lt : Stage1.Spartan.constantColumn < Stage1.Spartan.spartanColumnCount := by
@@ -253,15 +272,15 @@ def contextWords (authority : Lifecycle.VerifierContext.Authority) : Array Repla
 
 /-- **The terminal wiring of an accepting run.** If the executor accepts the
 final program on the statement `x`, then the package assignment of the
-run's system values is a terminal assignment for `x`, and the statement that
-layer 1 reads from the run is its claim. -/
+values of its last state `E` is a terminal assignment for `x`, and the
+statement that layer 1 reads from `E` is its claim. -/
 theorem wiring_of_exec (package : Loaded)
     (loads : Package.load (Terminal.circuitPackage ()) Terminal.outputs = .ok package)
     (authority : Lifecycle.VerifierContext.Authority) (key : Layer1Input) (x : StateWords)
     (perm : List Fp → List Fp) (tape : ℕ → Fp) (L : Array Instr)
     (program : (finalViews package (contextWords authority) key).program = L)
-    (accepts : Exec perm L (List.ofFn x) tape) :
-    let v := fun h => Package.word ((Exec.run perm (List.ofFn x) tape L).value h)
+    (accepts : Exec perm L (List.ofFn x) tape) (E : Exec.State Fp) (run : Exec.run perm (List.ofFn x) tape L = E) :
+    let v := fun h => Package.word (E.value h)
     let claim := ((finalViews package (contextWords authority) key).run {}).1.claim
     ∃ env, TerminalFor authority x env ∧
       Bridge.statementOf ⟨claim.commitment.map (·.map v), claim.publicInput.map (·.map v),
@@ -278,6 +297,7 @@ theorem wiring_of_exec (package : Loaded)
     exact numbered.computed j hj k e
   obtain ⟨columns, claimEq, values, rows, nonzero⟩ :=
     terminal_exec package (contextWords authority) key perm (List.ofFn x) tape computedOk L program accepts
+  subst run
   let val := (Exec.run perm (List.ofFn x) tape L).value
   let index := (numbering (Terminal.circuitPackage ())).1
   let env := assignment index (fun j => (columns.toList.map val).getD j 0) (freeValue authority x)
@@ -410,6 +430,51 @@ theorem wiring_of_exec (package : Loaded)
     | some k => exact toF_v _
   have claimIs : claim = claimView (claimVars package.outputs columns) := claimEq
   rw [claimIs]
-  sorry
+  unfold Bridge.statementOf claimOf
+  rw [Layer1.Statement.mk.injEq]
+  let read := fun (list : Array ℕ) => list.map fun k => columns.getD k 0
+  let g := fun (p : Var × Var) => (v p.1, v p.2)
+  have size : ∀ {list : List Circuit.Expr} {ks : Array ℕ},
+      outputColumns (Terminal.circuitPackage ()).layout index list = .ok ks → (read ks).size = list.length :=
+    fun h => (Array.size_map ..).trans (outputColumns_ok h).1
+  have beyond : ∀ (ks : Array ℕ) (i : ℕ), (read ks).size ≤ i →
+      (((read ks)[i]?).map fun h => (v h).toF).getD 0 = 0 := fun ks i le => by
+    rw [Array.getElem?_eq_none le]
+    rfl
+  refine ⟨?_, ?_, ?_, ?_, ?_⟩
+  · funext ρ l
+    change ((((Terminal.chunks Spec.ringDegree (read package.outputs.commitment)).map (·.map v))[ρ]!)[l]!).toF = _
+    rw [chunk_entry _ v _ ρ l (by rw [size commitment]; exact commitment_dvd), flat commitment]
+  · funext ρ l
+    change ((((Terminal.chunks Spec.ringDegree (read package.outputs.publicInput)).map (·.map v))[ρ]!)[l]!).toF = _
+    rw [chunk_entry _ v _ ρ l (by rw [size publicInput]; exact publicInput_dvd), flat publicInput]
+  · change ((pairs (read package.outputs.point)).map g).toList.map (fun w => (w.1.toF, w.2.toF)) = _
+    have even : 2 ∣ (read package.outputs.point).size := by rw [size point]; exact point_even
+    apply List.ext_getElem
+    · simp [pairs, Terminal.chunks, size point]
+    · intro k inside _
+      have hk : k < ((pairs (read package.outputs.point)).map g).size := by simpa using inside
+      obtain ⟨first, second⟩ := pair_entry (read package.outputs.point) v k even
+      rw [List.getElem_map, List.getElem_map, List.getElem_range, Array.getElem_toList, ← getElem!_pos ((pairs (read package.outputs.point)).map g) k hk,
+        first, second, flat point, flat point]
+  · funext l
+    change ((((pairs (read package.outputs.evalK)).map g)[l]!).1.toF,
+      (((pairs (read package.outputs.evalK)).map g)[l]!).2.toF) = _
+    have even : 2 ∣ (read package.outputs.evalK).size := by rw [size evalK, evalK_length]; exact Dvd.intro _ rfl
+    obtain ⟨first, second⟩ := pair_entry (read package.outputs.evalK) v l even
+    rw [first, second, ← flat evalK, ← flat evalK]
+    split_ifs with low
+    · rfl
+    · rw [beyond _ _ (by rw [size evalK, evalK_length]; omega), beyond _ _ (by rw [size evalK, evalK_length]; omega)]
+      rfl
+  · funext j l
+    change
+      (((((Terminal.chunks (2 * Spec.ringDegree) (read package.outputs.evalA)).map pairs).map (·.map g))[j]!)[l]!.1.toF,
+        ((((Terminal.chunks (2 * Spec.ringDegree) (read package.outputs.evalA)).map pairs).map
+          (·.map g))[j]!)[l]!.2.toF) = _
+    obtain ⟨first, second⟩ := chunkPair_entry (read package.outputs.evalA) v Spec.ringDegree j l
+      (by rw [size evalA]; exact evalA_dvd)
+    rw [first, second, ← flat evalA, ← flat evalA]
+    split_ifs <;> rfl
 
 end CompressionLean.Final

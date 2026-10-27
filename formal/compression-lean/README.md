@@ -289,10 +289,10 @@ that the results above take as parameters.
   executor's values on a witness. A reading (`Reads`) is the bridge's path
   of the replay's run, from a new duplex, on what the witness decodes to.
 - Premises: `CircuitAgrees` (open) says that the replay accepts what each
-  witness of the program's CCS decodes to. `TerminalWiring` (open) says
-  that each such witness holds a terminal assignment whose claim is the
-  decoded statement. `programEncodes_of_wiring` gives `ProgramEncodes`
-  from it.
+  witness of the program's CCS decodes to. `TerminalWiring` says that each
+  such witness holds a terminal assignment whose claim is the decoded
+  statement; `terminalWiring` proves it (`Wiring.lean`, below).
+  `programEncodes_of_wiring` gives `ProgramEncodes` from it.
 - Result: `shipped_restore_budget` bounds `ShippedBreak` by `calls / 2^t`.
   A witness that the replay rejects meets the read condition of
   `ShippedBreak`, so the event keeps it, and `CircuitAgrees` covers it
@@ -356,7 +356,8 @@ The lowering assumes, and does not prove:
   tests of constant folding can differ from Rust's.
 - Encoding: that an accepting run of `Exec` on the final program is an
   accepting run of the layer-1 verifier for its terminal claim
-  (`ProgramEncodes`).
+  (`ProgramEncodes`). The terminal part is proved (`terminalWiring`); the
+  replay part is `CircuitAgrees`.
 
 Build and emit (each Lean command under the 1,500 s cap). Copy the F′ build
 cache into `.lake` first (`cp -cR ../nightstream-fprime/.lake/packages .lake/`)
@@ -470,12 +471,33 @@ package's output columns hold.
   `production_layer1_matches_lean` (run it first). The final program is
   1,970,210 instructions; the test takes about 140 s and 23 GB.
 
+The terminal wiring (`terminalWiring`, `Final/Shipped.lean`): a witness
+of the final program's CCS holds a terminal assignment for its statement
+whose claim is the decoded statement.
+
+- Counts (`Circuit/Counts.lean`): `lower_counts`. The counts do not depend
+  on the statement, so the pinned counts are the witness's own and
+  `lower_sound` applies.
+- Appends (`Circuit/Appends.lean`): every program of the layer-1 verifier
+  keeps the instructions before it (`verifyWith.appends`), so the run of
+  the final program starts with the run of the wrapper. The `appends`
+  tactic proves it from the definitions.
+- Wrapper (`Circuit/TerminalExec.lean`): `terminal_exec`. On an accepting
+  run the iteration is not zero, each system column holds its source's
+  value (one, a context constant, a statement word), every row of the
+  loaded system holds, and layer 1 reads the claim of the output columns
+  (`claimVars`).
+- Rows (`Circuit/PackageRows.lean`): `system_holds_iff`. The loaded system
+  holds, with column one at one, exactly when `CircuitPackage.RowsHold`
+  holds on the package assignment of its values.
+- Assignment (`Final/Wiring.lean`): `wiring_of_exec`. A column with a system
+  column takes its value; a column that no row names takes the one, the
+  context digest or the statement word that `TerminalFor` reads. The
+  layout facts place the prior state preimage at column zero and the
+  context after the constant column.
+
 The terminal program assumes, and does not prove:
 
-- Rows: that the system's rows hold, with column one at one, exactly when
-  `CircuitPackage.RowsHold` holds. The rows are F′'s instantiation,
-  reordered and normalized, so this is a Lean proof about `load`. The check
-  shows only that Rust's rows are these rows.
 - Scope: the checks run on the pinned artifact with one context. The
   instructions do not depend on the statement values, and the context words
   enter as constants.

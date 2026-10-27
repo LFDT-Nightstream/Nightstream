@@ -346,6 +346,11 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.Shipped.shippedBreak_sub
 #audit_axioms CompressionLean.Final.Shipped.reads_exist
 #audit_axioms CompressionLean.Final.Shipped.shipped_restore_budget
+#audit_axioms CompressionLean.Final.Shipped.terminalWiring
+#audit_axioms CompressionLean.Final.wiring_of_exec
+#audit_axioms CompressionLean.Circuit.terminal_exec
+#audit_axioms CompressionLean.Circuit.verifyWith.appends
+#audit_axioms CompressionLean.Circuit.Package.system_holds_iff
 
 /-! Axiom gate for the soundness of the lowering. -/
 

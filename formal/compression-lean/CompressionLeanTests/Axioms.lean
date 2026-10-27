@@ -391,3 +391,14 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.Shipped.circuitAgrees_of_verify
 #audit_axioms CompressionLean.Circuit.Sim.absorb
 #audit_axioms CompressionLean.Circuit.Sim.observeRoot
+#audit_axioms CompressionLean.Circuit.Accepts.of_grows
+#audit_axioms CompressionLean.Circuit.verifyWith.grows
+#audit_axioms CompressionLean.Circuit.toC_inj
+#audit_axioms CompressionLean.Circuit.Mirrors.bind
+#audit_axioms CompressionLean.Circuit.Mirrors.right
+#audit_axioms CompressionLean.Circuit.Mirrors.sampleExt
+#audit_axioms CompressionLean.Circuit.Accepts.proofRead
+#audit_axioms CompressionLean.Circuit.handoff_below
+#audit_axioms CompressionLean.Final.readProof_ok
+#audit_axioms CompressionLean.Final.verifyAgrees_of_core
+#audit_axioms CompressionLean.Final.Shipped.circuitAgrees_of_core

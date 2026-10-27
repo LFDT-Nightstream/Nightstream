@@ -109,12 +109,83 @@ Definition functionRom (program : Program) (memory : nat) (reference : Z) : opti
       else None
   end.
 
+(* Each flattened slot's branch drop, laid out like flattenInstruction. A taken
+   br_if l at operand height h discards the h - 1 operands below its condition and
+   those below the l labels inside its target; `labels` holds, innermost first, the
+   operand height below each enclosing block. Blocks carry no results, so a taken
+   branch keeps nothing. *)
+Fixpoint instructionDrops (callees : CalleeEnvironment) (labels : list nat) (height : option nat) (i : instr)
+    : list (option nat) :=
+  match i with
+  | BLOCK _ body =>
+      let inner := (match height with Some h => h | None => 0 end :: labels)%nat in
+      None :: (fix bodyDrops (code : list instr) (h : option nat) : list (option nat) :=
+        match code with
+        | [] => []
+        | j :: rest => instructionDrops callees inner h j ++
+            bodyDrops rest (match h with Some h => sourceHeight callees j h | None => None end)
+        end) body (option_map (fun _ => 0%nat) height) ++ [None]
+  | BR_IF l =>
+      [match height with
+       | Some (S below) =>
+           let target := N.to_nat (l :> N) in
+           if (target <? length labels)%nat then Some (below + fold_right Nat.add 0 (firstn target labels))%nat
+           else None
+       | _ => None
+       end]
+  | _ => [None]
+  end.
+
+Definition codeDrops (callees : CalleeEnvironment) : list instr -> option nat -> list (option nat) :=
+  fix codeDrops (code : list instr) (h : option nat) : list (option nat) :=
+    match code with
+    | [] => []
+    | j :: rest => instructionDrops callees [] h j ++
+        codeDrops rest (match h with Some h => sourceHeight callees j h | None => None end)
+    end.
+
+(* The frame slide each taken edge seeds: the operands it keeps and how far down
+   they move. A function's END keeps its results and drops its locals; a slide
+   that moves nothing keeps nothing. *)
+Definition slideRom (program : Program) (memory : nat) (pc choice : Z) : option Z :=
+  if pc <? 0 then None else
+  match locatePC program (Z.to_nat pc) with
+  | None => None
+  | Some (function, offset) =>
+      match functionAt program function with
+      | None => None
+      | Some f =>
+          let frame := Z.of_nat (guestParams f + guestLocals f) in
+          let remaining := Nat.eqb memory frameSlideRemainingId in
+          match nth_error (flattenCode (guestBody f)) offset with
+          | None =>
+              if choice =? 0 then Some (if remaining then (if frame =? 0 then 0 else Z.of_nat (guestResults f)) else frame)
+              else None
+          | Some (flatInstruction (Some (BR_IF _)) _) =>
+              if remaining then (if (choice =? 0) || (choice =? 1) then Some 0 else None)
+              else if choice =? 0 then Some 0
+              else if choice =? 1 then
+                match nth_error (codeDrops (programCallees program (guestModule f)) (guestBody f) (Some 0%nat)) offset with
+                | Some (Some dropped) => Some (Z.of_nat dropped)
+                | _ => None
+                end
+              else None
+          | Some _ => None
+          end
+      end
+  end.
+
 Definition programRomIds := [programOpcodeId; programLocalIndexId; pcEdgeKindId; pcRomId;
-  callTargetId; pcFunctionRefId; functionEntryId; functionLocalCountId; functionCallMetadataId].
+  callTargetId; pcFunctionRefId; functionEntryId; functionLocalCountId; functionCallMetadataId;
+  frameSlideRemainingId; frameSlideDistanceId].
 
 Definition encodeProgram (program : Program) : MemoryState := fun memory address =>
   match address with
-  | [pc; choice] => if Nat.eqb memory pcRomId then instructionRom program memory pc choice else None
+  | [pc; choice] =>
+      if Nat.eqb memory pcRomId then instructionRom program memory pc choice
+      else if Nat.eqb memory frameSlideRemainingId || Nat.eqb memory frameSlideDistanceId then
+        slideRom program memory pc choice
+      else None
   | [key] =>
       if Nat.eqb memory pcRomId then None else
       if Nat.eqb memory pcFunctionRefId then

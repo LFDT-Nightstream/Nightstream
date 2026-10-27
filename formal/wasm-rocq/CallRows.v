@@ -306,10 +306,12 @@ Proof.
   assert (HmoveAfter : row COL_FRAME_MOVE_REMAINING_AFTER = 0).
   { destruct Hidle as [_ [Hmr [_ Hma]]]. cbn [beforeBoundary boundaryMoveRemaining boundaryMoveActive] in Hmr, Hma.
     assert (Hone : row COL_ONE = 1) by exact (proj1 Hfull).
-    circuit_row ([(COL_ONE, 1); (COL_CALL_STACK_POP_PRESENT, -1); (COL_GUEST_ENTRY_ACTIVE, -1);
+    circuit_row ([(COL_ONE, 1); (COL_FRAME_SLIDE_ACTIVE, -1); (COL_GUEST_ENTRY_ACTIVE, -1);
       (COL_CALL_STACK_PUSH_PRESENT, 1); (COL_FRAME_MOVE_ACTIVE_BEFORE, -1)],
       [(COL_FRAME_MOVE_REMAINING_AFTER, 1); (COL_FRAME_MOVE_REMAINING_BEFORE, -1)], ([] : SparseRow)) Hrow.
-    expand_row Hrow. normalize_columns. rewrite Hone, Hpop, Hguest, Hpush, Hma, Hmr in Hrow.
+    pose proof (full_selected_no_slide row COL_SEL_CALL Hprime Hfull ltac:(vm_compute; tauto) HcallSel
+      ltac:(vm_compute; intuition discriminate) Hpop) as Hslide.
+    expand_row Hrow. normalize_columns. rewrite Hone, Hslide, Hguest, Hpush, Hma, Hmr in Hrow.
     pose proof (value_bound row COL_FRAME_MOVE_REMAINING_AFTER). field_linear Hrow. }
   pose proof (context_push_records initial final row callStackReturnPcId COL_CALL_STACK_RETURN_PC_VALUE
     ltac:(cbn; auto) Hpush Hsuspend HcontextRead Hreplay) as HsavedPcMem.
@@ -467,6 +469,34 @@ Proof.
     rewrite Hpc, Hedge in Hkind. injection Hkind as Hkind. lia.
 Qed.
 
+(* A popping function END slides its results down over the frame's locals. *)
+Lemma function_end_slide : forall view f initial final row inner,
+  fieldPrime -> programLoaded program initial -> FullRelation.satFull row ->
+  Replay initial (eventsForRow memories row) final ->
+  ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
+  functionAt program (positionFunction (viewPosition view)) = Some f ->
+  positionLabels (viewPosition view) = [] -> positionOffset (viewPosition view) = length (guestBody f) ->
+  row COL_SEL_END = 1 -> row COL_CALL_STACK_POP_PRESENT = 1 ->
+  row COL_FRAME_MOVE_DISTANCE_AFTER = Z.of_nat (frameLocals f) /\
+  row COL_FRAME_MOVE_REMAINING_AFTER =
+    (if Z.of_nat (frameLocals f) =? 0 then 0 else Z.of_nat (guestResults f)).
+Proof.
+  intros view f initial final row inner Hprime Hloaded Hfull Hreplay Hstate Hf Hlabels Hend HselEnd Hpop.
+  destruct Hstate as [f' [Hframe [_ [_ [Hpc _]]]]].
+  pose proof Hframe as [Hf' _]. rewrite Hf in Hf'. injection Hf' as <-.
+  rewrite Hlabels, Hend in Hpc. cbn [pathOffset] in Hpc. rewrite code_offset_end in Hpc.
+  change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (codeSize (guestBody f))) in Hpc.
+  assert (Hslide : row COL_FRAME_SLIDE_ACTIVE = 1).
+  { rewrite (full_frame_slide_gate row Hprime Hfull), Hpop.
+    repeat rewrite (full_opcode_selector_exclusive row COL_SEL_END) by (assumption || vm_compute; tauto || discriminate).
+    reflexivity. }
+  destruct (circuit_row_slide_fetch _ _ _ Hreplay Hslide) as [Hremaining Hdistance].
+  destruct (encoded_end_slide _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf) as [Hrom Hdrom].
+  rewrite <- Hpc in Hrom, Hdrom. rewrite Hremaining in Hrom. rewrite Hdistance in Hdrom.
+  unfold frameLocals. destruct (row COL_CONTROL_CHOICE =? 0); [ | discriminate].
+  injection Hrom as ->. injection Hdrom as ->. split; reflexivity.
+Qed.
+
 (* A callee's function-ending END: SpecTec leaves the LABEL_ and FRAME_ with the
    results, and the circuit restores the caller's registers from its saved context.
    The caller resumes after its CALL, inside its labels, while its new top operands
@@ -486,6 +516,8 @@ Proof.
     Hlabels Hend Hsusp Hbase0 Hdepth.
   destruct (function_end_selected view f initial final row inner Hprime Hloaded Hfull Hprogram Hreplay Hstate Hf
     Hlabels Hend) as [HselEnd Hkind].
+  destruct (function_end_slide view f initial final row inner Hprime Hloaded Hfull Hreplay Hstate Hf Hlabels Hend
+    HselEnd (proj1 (full_end_pops_nonempty_context row Hprime Hfull HselEnd Hkind Hhalt))) as [HdistRom HremRom].
   destruct (FrameRows.program_row_active _ _ _ _ _ _ Hprime Hfull Hprogram Hstate)
     as [f' [Hframe [_ [Hsp [_ [Hidle ->]]]]]].
   pose proof Hframe as [Hf' [_ [Hheights [Hfbp0 [HbaseLayout [Hbounds [_ [_ [Hlb _]]]]]]]]].
@@ -509,8 +541,8 @@ Proof.
   destruct (full_return_context_restore row Hfull Hpop) as [HpcAfter [HfbpAfter [HbaseAfter HaddrAfter]]].
   pose proof (full_call_depth_balance row COL_SEL_END Hprime Hfull ltac:(vm_compute; tauto) HselEnd) as HdepthBalance.
   rewrite Hpush, Hpop in HdepthBalance.
-  destruct (full_end_return_stack row Hprime Hfull HselEnd Hpop)
-    as [Hlo [Hhi [HlocalWrite [HgatherLo [Hgather [HmoveAfter [HdistAfter HspEnd]]]]]]].
+  destruct (full_end_return_stack row Hprime Hfull HselEnd Hpop Hcapture)
+    as [Hlo [Hhi [HlocalWrite [HgatherLo [Hgather HspEnd]]]]].
   assert (HstackMem : forall address, final stackId address = initial stackId address)
     by (intros address; eapply replay_preserves;
         [exact Hreplay | apply stack_writes_inactive; assumption]).
@@ -587,13 +619,27 @@ Proof.
   { cbn [sourceHeight]. rewrite Hcallee.
     replace (Nat.leb (guestParams f) (length gvalues + guestParams f)) with true by (symmetry; apply Nat.leb_le; lia).
     rewrite length_app. f_equal. lia. }
-  assert (Hmoved : Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER) = length values) by lia.
+  (* The results slide down over the callee's locals; with no locals, they are
+     already in place and nothing moves. *)
+  assert (HdistAfter : row COL_FRAME_MOVE_DISTANCE_AFTER =
+      row COL_STACK_FRAME_BASE_BEFORE - row COL_LOCALS_FBP_BEFORE) by lia.
+  assert (Hmoved : (Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER) <= length values)%nat).
+  { rewrite HremRom. destruct (_ =? 0); lia. }
+  assert (Hcell : forall b n i, operandCell b n (Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER))
+      (row COL_FRAME_MOVE_DISTANCE_AFTER) i =
+    operandCell b n (length values) (row COL_STACK_FRAME_BASE_BEFORE - row COL_LOCALS_FBP_BEFORE) i).
+  { intros b n i. unfold operandCell. rewrite HremRom.
+    destruct (Z.of_nat (frameLocals f) =? 0) eqn:Hframe0.
+    - apply Z.eqb_eq in Hframe0. rewrite <- HdistAfter, HdistRom, Hframe0.
+      destruct (_ <? _)%nat, (_ <? _)%nat; lia.
+    - replace (Z.to_nat (Z.of_nat (guestResults f))) with (length values) by lia.
+      rewrite HdistAfter. reflexivity. }
   exists g, (frameConfig g resumed (stackConfig (mk_state s (activeFrame g glocals)) (gvalues ++ values)
     (skipn (S goffset) (innerCode g (codePosition gindex glabels goffset))))).
   split; [exact Hg | ]. split.
   - exists g. cbn [afterBoundary boundaryMoveRemaining boundaryStackBase boundaryLocalsBase boundaryMoveDistance
       boundarySP boundaryPC boundaryZeroRemaining].
-    rewrite Hmoved. unfold resumed.
+    unfold resumed.
     cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset].
     split.
     + split; [exact Hg | ]. split; [exact HpathC | ].
@@ -603,7 +649,7 @@ Proof.
       unfold viewOperands. cbn [viewSegments viewValues].
       split; [rewrite app_assoc; apply Forall_app; split; assumption | ].
       split.
-      { intros i value Hv. rewrite HbaseAfter, <- HbaseValue, HstackMem, HdistAfter.
+      { intros i value Hv. rewrite Hcell, HbaseAfter, <- HbaseValue, HstackMem.
         rewrite app_assoc in Hv. unfold operandCell.
         replace (length (concat gsegments ++ gvalues ++ values) - length values)%nat
           with (length (concat gsegments) + length gvalues)%nat by (rewrite !length_app; lia).
@@ -623,7 +669,7 @@ Proof.
     + split; [assert (goffset < length (innerCode g (codePosition gindex glabels goffset)))%nat
         by (apply nth_error_Some; rewrite Hcall; discriminate); unfold innerCode in *; cbn in *; lia | ].
       split.
-      { unfold viewOperands. cbn [viewSegments viewValues]. rewrite HspEnd, HbaseAfter, <- HbaseValue, HmoveAfter, Hsp, HfbpC.
+      { unfold viewOperands. cbn [viewSegments viewValues]. rewrite HspEnd, HbaseAfter, <- HbaseValue, HdistAfter, Hsp, HfbpC.
         rewrite !length_app. lia. }
       split; [rewrite HpcAfter, <- HretValue; reflexivity | ].
       split; [exact (full_initialization_flags row Hprime Hfull) | ].

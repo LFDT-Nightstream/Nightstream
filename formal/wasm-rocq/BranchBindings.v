@@ -30,11 +30,12 @@ Proof.
     destruct (Z.eqb (w readColumn) 0); field_linear Hchoice.
 Qed.
 
+(* A br_if that slides nothing pops just its condition. *)
 Theorem full_br_if_stack_shape : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR_IF_EQZ = 1 ->
-  1 <= w COL_SP_BEFORE -> UnaryStackShape w true false.
+  1 <= w COL_SP_BEFORE -> w COL_FRAME_MOVE_DISTANCE_AFTER = 0 -> UnaryStackShape w true false.
 Proof.
-  unary_stack_facts COL_SEL_BR_IF_EQZ 1 0 0.
+  unary_stack_facts COL_SEL_BR_IF_EQZ 1 0 0. intros Hdistance. rewrite Hdistance in Hdiscard.
   assert (HlocalGet : w COL_SEL_LOCAL_GET = 0).
   { refine (full_opcode_selector_exclusive w COL_SEL_BR_IF_EQZ COL_SEL_LOCAL_GET Hprime Hfull Hchosen Hin _ _);
       [vm_compute; tauto | discriminate]. }
@@ -56,8 +57,8 @@ Proof.
   intros w Hprime Hfull Hchosen.
   assert (Hin : In COL_SEL_BR_IF_EQZ selectorColumns) by (vm_compute; tauto).
   pose proof (proj1 Hfull) as Hone.
-  destruct (full_body_frame_sp_drop_idle w COL_SEL_BR_IF_EQZ Hprime Hfull Hin Hchosen
-    ltac:(vm_compute; intuition discriminate)) as [Hpop Hpush _ Hturn _].
+  destruct (full_branch_frame w COL_SEL_BR_IF_EQZ Hprime Hfull Hin Hchosen ltac:(vm_compute; tauto))
+    as [Hpop Hpush _ Hturn _].
   selected_row COL_SEL_BR_IF_EQZ localsBasePreservedRow Hrow. zero_host_switch Hrow.
   rewrite Hone, Hpush, Hpop, Hturn in Hrow.
   pose proof (value_bound w COL_LOCALS_FBP_BEFORE).

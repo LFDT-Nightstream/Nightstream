@@ -131,7 +131,8 @@ Proof.
   assert (Hdiscard : w COL_FRAME_SP_DROP = 0).
   { destruct (full_direct_guest_call w Hprime Hfull Hchosen Htarget) as [Hguest [Hpush Hpop]].
     pose proof (full_selected_is_program_row w COL_SEL_CALL Hprime Hfull Hin Hchosen) as Hprogram.
-    apply full_frame_sp_drop_idle; try assumption; [congruence | | ].
+    apply full_frame_sp_drop_idle; try assumption; [ | congruence | | ].
+    - apply (full_selected_no_slide w COL_SEL_CALL); try assumption; vm_compute; intuition discriminate.
     - exact (full_row_kind_exclusive w COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY
         Hprime Hfull ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram).
     - selected_circuit_row COL_SEL_CALL

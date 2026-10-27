@@ -279,16 +279,17 @@ Proof.
     (COL_LOCAL_ZERO_ACTIVE_BEFORE, -1)],
     [(COL_LOCAL_ZERO_REMAINING_AFTER, 1); (COL_LOCAL_ZERO_REMAINING_BEFORE, -1)],
     ([] : SparseRow)) Hzero.
-  circuit_row ([(COL_ONE, 1); (COL_CALL_STACK_POP_PRESENT, -1); (COL_GUEST_ENTRY_ACTIVE, -1);
+  circuit_row ([(COL_ONE, 1); (COL_FRAME_SLIDE_ACTIVE, -1); (COL_GUEST_ENTRY_ACTIVE, -1);
     (COL_CALL_STACK_PUSH_PRESENT, 1); (COL_FRAME_MOVE_ACTIVE_BEFORE, -1)],
     [(COL_FRAME_MOVE_REMAINING_AFTER, 1); (COL_FRAME_MOVE_REMAINING_BEFORE, -1)],
     ([] : SparseRow)) Hmove.
-  circuit_row ([(COL_ONE, 1); (COL_CALL_STACK_POP_PRESENT, -1); (COL_GUEST_ENTRY_ACTIVE, -1);
+  circuit_row ([(COL_ONE, 1); (COL_FRAME_SLIDE_ACTIVE, -1); (COL_GUEST_ENTRY_ACTIVE, -1);
     (COL_CALL_STACK_PUSH_PRESENT, 1); (COL_FRAME_MOVE_ACTIVE_BEFORE, -1); (COL_PADDING_ACTIVE, -1)],
     [(COL_FRAME_MOVE_DISTANCE_AFTER, 1)], ([] : SparseRow)) Hdistance.
   expand_row Hzero. expand_row Hmove. expand_row Hdistance.
-  normalize_columns. rewrite Hone, Hguest, Hturn in Hzero. rewrite Hone, Hguest, Hpop, Hpush in Hmove.
-  rewrite Hone, Hguest, Hpop, Hpush, Hpadding in Hdistance.
+  pose proof (full_aux_no_slide w Hprime Hfull Hprogram Hpop) as Hslide.
+  normalize_columns. rewrite Hone, Hguest, Hturn in Hzero. rewrite Hone, Hguest, Hslide, Hpush in Hmove.
+  rewrite Hone, Hguest, Hslide, Hpush, Hpadding in Hdistance.
   pose proof (value_bound w COL_LOCAL_ZERO_REMAINING_BEFORE).
   pose proof (value_bound w COL_LOCAL_ZERO_REMAINING_AFTER).
   pose proof (value_bound w COL_FRAME_MOVE_REMAINING_BEFORE).
@@ -326,11 +327,12 @@ Proof.
   field_linear Hrow.
 Qed.
 
-(* A program row that neither calls nor returns starts no frame and moves no
-   cells, so an idle countdown stays idle. *)
+(* A program row that neither calls, branches, nor returns starts no frame and
+   moves no cells, so an idle countdown stays idle. *)
 Lemma program_row_keeps_idle : forall (w : Witness) chosen,
   fieldPrime -> FullRelation.satFull w -> In chosen selectorColumns -> w chosen = 1 ->
-  ~ In chosen [COL_SEL_CALL; COL_SEL_CALL_INDIRECT; COL_SEL_RETURN_CALL; COL_SEL_RETURN_CALL_INDIRECT] ->
+  ~ In chosen [COL_SEL_CALL; COL_SEL_CALL_INDIRECT; COL_SEL_RETURN_CALL; COL_SEL_RETURN_CALL_INDIRECT;
+    COL_SEL_BR; COL_SEL_BR_IF_EQZ; COL_SEL_BR_TABLE] ->
   w COL_CALL_STACK_POP_PRESENT = 0 ->
   initializationIdle (beforeBoundary w) -> initializationIdle (afterBoundary w).
 Proof.
@@ -338,7 +340,7 @@ Proof.
   cbn [beforeBoundary boundaryZeroRemaining boundaryMoveRemaining boundaryZeroActive boundaryMoveActive] in *.
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   assert (Hcalls : forall column, In column [COL_SEL_CALL; COL_SEL_CALL_INDIRECT; COL_SEL_RETURN_CALL;
-      COL_SEL_RETURN_CALL_INDIRECT] -> w column = 0).
+      COL_SEL_RETURN_CALL_INDIRECT; COL_SEL_BR; COL_SEL_BR_IF_EQZ; COL_SEL_BR_TABLE] -> w column = 0).
   { intros column Hcolumn. eapply full_opcode_selector_exclusive; [exact Hprime | exact Hfull | exact Hchosen |
       exact Hin | vm_compute in Hcolumn |- *; tauto | intro Heq; subst column; contradiction]. }
   pose proof (full_selected_is_program_row w chosen Hprime Hfull Hin Hchosen) as Hprogram.
@@ -349,6 +351,8 @@ Proof.
   pose proof (Hcalls COL_SEL_CALL_INDIRECT ltac:(cbn; tauto)) as Hc2.
   pose proof (Hcalls COL_SEL_RETURN_CALL ltac:(cbn; tauto)) as Hc3.
   pose proof (Hcalls COL_SEL_RETURN_CALL_INDIRECT ltac:(cbn; tauto)) as Hc4.
+  pose proof (full_no_slide w Hprime Hfull Hpop (Hcalls COL_SEL_BR ltac:(cbn; tauto))
+    (Hcalls COL_SEL_BR_IF_EQZ ltac:(cbn; tauto)) (Hcalls COL_SEL_BR_TABLE ltac:(cbn; tauto))) as Hslide.
   assert (Hguest : w COL_GUEST_ENTRY_ACTIVE = 0).
   { circuit_row ([(COL_SEL_CALL, 1); (COL_SEL_CALL_INDIRECT, 1); (COL_SEL_RETURN_CALL, 1);
       (COL_SEL_RETURN_CALL_INDIRECT, 1)], [(COL_TARGET_FUNCTION_IS_GUEST, 1)],
@@ -367,10 +371,10 @@ Proof.
     expand_row Hrow. normalize_columns. rewrite Hone, Hguest, Hturn, Hza, Hz in Hrow.
     pose proof (value_bound w COL_LOCAL_ZERO_REMAINING_AFTER). field_linear Hrow. }
   assert (HpAfter : w COL_FRAME_MOVE_REMAINING_AFTER = 0).
-  { circuit_row ([(COL_ONE, 1); (COL_CALL_STACK_POP_PRESENT, -1); (COL_GUEST_ENTRY_ACTIVE, -1);
+  { circuit_row ([(COL_ONE, 1); (COL_FRAME_SLIDE_ACTIVE, -1); (COL_GUEST_ENTRY_ACTIVE, -1);
       (COL_CALL_STACK_PUSH_PRESENT, 1); (COL_FRAME_MOVE_ACTIVE_BEFORE, -1)],
       [(COL_FRAME_MOVE_REMAINING_AFTER, 1); (COL_FRAME_MOVE_REMAINING_BEFORE, -1)], ([] : SparseRow)) Hrow.
-    expand_row Hrow. normalize_columns. rewrite Hone, Hpop, Hguest, Hpush, Hpa, Hp in Hrow.
+    expand_row Hrow. normalize_columns. rewrite Hone, Hslide, Hguest, Hpush, Hpa, Hp in Hrow.
     pose proof (value_bound w COL_FRAME_MOVE_REMAINING_AFTER). field_linear Hrow. }
   destruct (full_initialization_flags w Hprime Hfull) as [HpFlag HzFlag].
   rewrite HpAfter in HpFlag. rewrite HzAfter, HpAfter in HzFlag.
@@ -390,13 +394,14 @@ Record BodyFrameQuiet (w : Witness) : Prop := {
 Lemma full_body_frame_sp_drop_idle : forall (w : Witness) chosen,
   fieldPrime -> FullRelation.satFull w -> In chosen selectorColumns -> w chosen = 1 ->
   ~ In chosen [COL_SEL_CALL; COL_SEL_CALL_INDIRECT; COL_SEL_RETURN_CALL; COL_SEL_RETURN_CALL_INDIRECT;
-    COL_SEL_RETURN; COL_SEL_END] ->
+    COL_SEL_RETURN; COL_SEL_END; COL_SEL_BR; COL_SEL_BR_IF_EQZ; COL_SEL_BR_TABLE] ->
   BodyFrameQuiet w.
 Proof.
   intros w chosen Hprime Hfull Hin Hchosen Hbody.
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   assert (Hothers : forall column, In column [COL_SEL_CALL; COL_SEL_CALL_INDIRECT; COL_SEL_RETURN_CALL;
-      COL_SEL_RETURN_CALL_INDIRECT; COL_SEL_RETURN; COL_SEL_END] -> w column = 0).
+      COL_SEL_RETURN_CALL_INDIRECT; COL_SEL_RETURN; COL_SEL_END; COL_SEL_BR; COL_SEL_BR_IF_EQZ;
+      COL_SEL_BR_TABLE] -> w column = 0).
   { intros column Hcolumn. eapply full_opcode_selector_exclusive; [exact Hprime | exact Hfull | exact Hchosen |
       exact Hin | vm_compute in Hcolumn |- *; tauto | intro Heq; subst column; contradiction]. }
   pose proof (Hothers COL_SEL_CALL ltac:(cbn; tauto)) as Hc1.
@@ -431,5 +436,90 @@ Proof.
     expand_row Hrow. rewrite Hone, Hret, Hend in Hrow.
     pose proof (value_bound w COL_HOST_EVENT_EXIT_LATCH). field_linear Hrow. }
   constructor; try assumption.
-  apply full_frame_sp_drop_idle; try assumption. congruence.
+  apply full_frame_sp_drop_idle; try assumption; [ | congruence].
+  apply full_no_slide; try assumption; apply Hothers; cbn; tauto.
 Qed.
+
+(* A branch makes no frame transition either, but drops sp by its slide distance. *)
+Record BranchFrameQuiet (w : Witness) : Prop := {
+  branch_pop : w COL_CALL_STACK_POP_PRESENT = 0;
+  branch_push : w COL_CALL_STACK_PUSH_PRESENT = 0;
+  branch_guest : w COL_GUEST_ENTRY_ACTIVE = 0;
+  branch_turn : w COL_TURN_BOUNDARY = 0;
+  branch_drop : w COL_FRAME_SP_DROP = w COL_FRAME_MOVE_DISTANCE_AFTER
+}.
+
+Lemma full_branch_frame : forall (w : Witness) chosen,
+  fieldPrime -> FullRelation.satFull w -> In chosen selectorColumns -> w chosen = 1 ->
+  In chosen [COL_SEL_BR; COL_SEL_BR_IF_EQZ; COL_SEL_BR_TABLE] ->
+  BranchFrameQuiet w.
+Proof.
+  intros w chosen Hprime Hfull Hin Hchosen Hbranch.
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  assert (Hothers : forall column, In column [COL_SEL_CALL; COL_SEL_CALL_INDIRECT; COL_SEL_RETURN_CALL;
+      COL_SEL_RETURN_CALL_INDIRECT; COL_SEL_RETURN; COL_SEL_END] -> w column = 0).
+  { intros column Hcolumn. eapply full_opcode_selector_exclusive; [exact Hprime | exact Hfull | exact Hchosen |
+      exact Hin | vm_compute in Hcolumn |- *; tauto | intro Heq; subst column; vm_compute in Hbranch, Hcolumn;
+      intuition congruence]. }
+  pose proof (Hothers COL_SEL_CALL ltac:(cbn; tauto)) as Hc1.
+  pose proof (Hothers COL_SEL_CALL_INDIRECT ltac:(cbn; tauto)) as Hc2.
+  pose proof (Hothers COL_SEL_RETURN_CALL ltac:(cbn; tauto)) as Hc3.
+  pose proof (Hothers COL_SEL_RETURN_CALL_INDIRECT ltac:(cbn; tauto)) as Hc4.
+  pose proof (Hothers COL_SEL_RETURN ltac:(cbn; tauto)) as Hret.
+  pose proof (Hothers COL_SEL_END ltac:(cbn; tauto)) as Hend.
+  pose proof (full_selected_is_program_row w chosen Hprime Hfull Hin Hchosen) as Hprogram.
+  assert (Hturn : w COL_TURN_BOUNDARY = 0).
+  { exact (full_row_kind_exclusive w COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY Hprime Hfull
+      ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram). }
+  assert (Hguest : w COL_GUEST_ENTRY_ACTIVE = 0).
+  { circuit_row ([(COL_SEL_CALL, 1); (COL_SEL_CALL_INDIRECT, 1); (COL_SEL_RETURN_CALL, 1);
+      (COL_SEL_RETURN_CALL_INDIRECT, 1)], [(COL_TARGET_FUNCTION_IS_GUEST, 1)],
+      [(COL_GUEST_ENTRY_ACTIVE, 1)]) Hrow.
+    expand_row Hrow. rewrite Hc1, Hc2, Hc3, Hc4 in Hrow.
+    pose proof (value_bound w COL_GUEST_ENTRY_ACTIVE). field_linear Hrow. }
+  assert (Hpush : w COL_CALL_STACK_PUSH_PRESENT = 0).
+  { circuit_row ([(COL_SEL_CALL, 1); (COL_SEL_CALL_INDIRECT, 1)], [(COL_TARGET_FUNCTION_IS_GUEST, 1)],
+      [(COL_CALL_STACK_PUSH_PRESENT, 1)]) Hrow.
+    expand_row Hrow. rewrite Hc1, Hc2 in Hrow.
+    pose proof (value_bound w COL_CALL_STACK_PUSH_PRESENT). field_linear Hrow. }
+  assert (Hpop : w COL_CALL_STACK_POP_PRESENT = 0).
+  { circuit_row ([(COL_CALL_STACK_POP_PRESENT, 1)], [(COL_ONE, 1); (COL_SEL_RETURN, -1); (COL_SEL_END, -1)],
+      ([] : SparseRow)) Hrow.
+    expand_row Hrow. rewrite Hone, Hret, Hend in Hrow.
+    pose proof (value_bound w COL_CALL_STACK_POP_PRESENT). field_linear Hrow. }
+  constructor; try assumption.
+  apply full_frame_slide_drop; try assumption.
+  rewrite (full_frame_slide_gate w Hprime Hfull), Hpop.
+  assert (Hpair : forall column, In column [COL_SEL_BR; COL_SEL_BR_IF_EQZ; COL_SEL_BR_TABLE] -> column <> chosen ->
+      w column = 0).
+  { intros column Hcolumn Hne. eapply full_opcode_selector_exclusive; [exact Hprime | exact Hfull | exact Hchosen |
+      exact Hin | vm_compute in Hcolumn |- *; tauto | intro Heq; subst column; contradiction]. }
+  pose proof (Hpair COL_SEL_BR) as Hbr. pose proof (Hpair COL_SEL_BR_IF_EQZ) as Hif.
+  pose proof (Hpair COL_SEL_BR_TABLE) as Htable.
+  destruct Hbranch as [<- | [<- | [<- | []]]];
+    [rewrite Hchosen, Hif, Htable | rewrite Hchosen, Hbr, Htable | rewrite Hchosen, Hbr, Hif];
+    solve [reflexivity | cbn; tauto | vm_compute; discriminate].
+Qed.
+
+(* A branch whose slide keeps nothing leaves an idle countdown idle. *)
+Lemma branch_keeps_idle : forall (w : Witness) chosen,
+  fieldPrime -> FullRelation.satFull w -> In chosen selectorColumns -> w chosen = 1 ->
+  In chosen [COL_SEL_BR; COL_SEL_BR_IF_EQZ; COL_SEL_BR_TABLE] -> w COL_FRAME_MOVE_REMAINING_AFTER = 0 ->
+  initializationIdle (beforeBoundary w) -> initializationIdle (afterBoundary w).
+Proof.
+  intros w chosen Hprime Hfull Hin Hchosen Hbranch HpAfter [Hz [Hp [Hza Hpa]]].
+  cbn [beforeBoundary boundaryZeroRemaining boundaryMoveRemaining boundaryZeroActive boundaryMoveActive] in *.
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  destruct (full_branch_frame w chosen Hprime Hfull Hin Hchosen Hbranch) as [_ _ Hguest Hturn _].
+  assert (HzAfter : w COL_LOCAL_ZERO_REMAINING_AFTER = 0).
+  { circuit_row ([(COL_ONE, 1); (COL_GUEST_ENTRY_ACTIVE, -1); (COL_TURN_BOUNDARY, -1);
+      (COL_LOCAL_ZERO_ACTIVE_BEFORE, -1)],
+      [(COL_LOCAL_ZERO_REMAINING_AFTER, 1); (COL_LOCAL_ZERO_REMAINING_BEFORE, -1)], ([] : SparseRow)) Hrow.
+    expand_row Hrow. normalize_columns. rewrite Hone, Hguest, Hturn, Hza, Hz in Hrow.
+    pose proof (value_bound w COL_LOCAL_ZERO_REMAINING_AFTER). field_linear Hrow. }
+  destruct (full_initialization_flags w Hprime Hfull) as [HpFlag HzFlag].
+  rewrite HpAfter in HpFlag. rewrite HzAfter, HpAfter in HzFlag.
+  cbn [afterBoundary boundaryZeroRemaining boundaryMoveRemaining boundaryZeroActive boundaryMoveActive].
+  repeat split; assumption.
+Qed.
+

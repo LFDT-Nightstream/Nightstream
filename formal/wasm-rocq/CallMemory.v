@@ -119,7 +119,8 @@ Proof.
     pose proof (Hselectors COL_SEL_RETURN ltac:(vm_compute; tauto)) as Hret.
     expand_row Hrow. normalize_columns. rewrite Hone, Hend, Hret in Hrow.
     pose proof (value_bound w COL_HOST_EVENT_EXIT_LATCH). field_linear Hrow. }
-  pose proof (full_frame_sp_drop_idle w Hprime Hfull Hpop ltac:(congruence) Hturn Hlatch) as Hdiscard.
+  pose proof (full_frame_sp_drop_idle w Hprime Hfull (full_aux_no_slide w Hprime Hfull Hprogram Hpop)
+    ltac:(congruence) Hturn Hlatch) as Hdiscard.
   assert (Hreads : w COL_STACK_READS = w COL_FRAME_MOVE_ACTIVE_BEFORE).
   { auxiliary_row stackReadsArityRow Hrow.
     normalize_columns. rewrite Hone, Hgather in Hrow.
@@ -308,7 +309,8 @@ Proof.
       ([] : SparseRow)) Hrow.
     expand_row Hrow. normalize_columns. rewrite Hone, Hend, Hret in Hrow.
     pose proof (value_bound w COL_HOST_EVENT_EXIT_LATCH). field_linear Hrow. }
-  pose proof (full_frame_sp_drop_idle w Hprime Hfull Hpop ltac:(congruence) Hturn Hlatch) as Hdiscard.
+  pose proof (full_frame_sp_drop_idle w Hprime Hfull (full_aux_no_slide w Hprime Hfull Hprogram Hpop)
+    ltac:(congruence) Hturn Hlatch) as Hdiscard.
   assert (Hcapture : w COL_OUTPUT_CAPTURED = 0).
   { auxiliary_row outputCaptureSupportRow Hrow. normalize_columns. rewrite Hone in Hrow.
     pose proof (value_bound w COL_OUTPUT_CAPTURED). field_linear Hrow. }

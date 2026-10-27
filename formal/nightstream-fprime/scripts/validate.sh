@@ -47,7 +47,10 @@
 #   validate.sh poseidon2-hash-chain-v1-binding-parity <id[4]> <relation[4]> <application[4]> <nifs[4]> <commitment[4]> <path>
 #   validate.sh per-application-reference <path>
 #   validate.sh per-application-streamed <path>
-#   validate.sh all               static, both libraries, executables and census
+#   validate.sh compression       boundary checks, libraries and executables of
+#                                 ../compression-lean, which imports this package
+#   validate.sh all               static, both libraries, executables, census
+#                                 and compression
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -75,6 +78,13 @@ capped() {
 lean_file() {
   capped lake env lean "-j${LEAN_NUM_THREADS}" \
     -DautoImplicit=false -DrelaxedAutoImplicit=false -DwarningAsError=true "$1"
+}
+
+compression() {
+  bash scripts/check-boundaries.sh ../compression-lean
+  (cd ../compression-lean &&
+    capped lake build --wfail CompressionLean CompressionLeanTests &&
+    capped lake build --wfail $(executables))
 }
 
 executables() {
@@ -348,11 +358,13 @@ case "$phase" in
     if (( $# != 2 )); then echo "usage: validate.sh per-application-streamed <path>" >&2; exit 2; fi
     capped lake exe emitPerApplicationStreamedFixture -- "$2"
     ;;
+  compression) compression ;;
   all)
     bash scripts/check-boundaries.sh
     capped lake build --wfail NightstreamFPrime NightstreamFPrimeTests
     capped lake build --wfail $(executables)
     lean_file tests/EndpointCensus.lean
+    compression
     ;;
   *) echo "unknown phase: $phase" >&2; exit 2 ;;
 esac

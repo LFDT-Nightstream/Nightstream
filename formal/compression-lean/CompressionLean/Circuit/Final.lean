@@ -25,14 +25,10 @@ structure FinalViews where
   seed : DigestVar
   proof : ProofView
 
-/-- The layer-1 part: `verifyWith` for `key` on the claim and the transcript
-state, and the handles that layer 1 reads. -/
-def layer1Views (key : Layer1Input) (claim : ClaimVars) (state : Fin 16 → Var) : Build FinalViews := do
-  let (seed, proof) ← verifyWith key state (claimView claim)
-  pure { claim := claimView claim, seed, proof }
-
 /-- `FinalProgram::run` with `verifyWith` for `key`. -/
 def finalViews (package : Loaded) (context : Array Gl) (key : Layer1Input) : Build FinalViews :=
-  finalProgram package context (layer1Views key)
+  finalProgram package context fun claim state => do
+    let (seed, proof) ← verifyWith key state (claimView claim)
+    pure { claim := claimView claim, seed, proof }
 
 end CompressionLean.Circuit

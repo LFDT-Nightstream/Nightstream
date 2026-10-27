@@ -3,7 +3,9 @@ import CompressionLean.Circuit.Sim
 
 /-!
 Owns `terminal_exec`: what an accepting executor run of the final program
-holds in its terminal wrapper (`finalProgram`, `apply`).
+holds in its terminal wrapper (`finalProgram`, `apply`). `finalViews_eq`
+writes the final program by phases: `readStatement`, `systemColumns`, the
+rows, then `layer1Views` on `claimVars`.
 
 - The statement words are the first nine values. The iteration has an
   inverse, so it is not zero.
@@ -15,14 +17,14 @@ holds in its terminal wrapper (`finalProgram`, `apply`).
   (`claimVars`).
 
 The checks come from the run itself: every instruction appends, so the run
-of the final program starts with the wrapper's run (`verifyWith_appends`),
+of the final program starts with the wrapper's run (`verifyWith.appends`),
 and its last check holds only if each earlier one does (`holds_of_steps`).
 -/
 
 namespace CompressionLean.Circuit
 
 open CompressionLean.Circuit.Package CompressionLean.Circuit.Terminal
-open CompressionLean.Replay (Gl)
+open CompressionLean.Replay (Gl D)
 open NightstreamFPrime.Spec (goldilocksModulus)
 open NightstreamFPrime.Layout
 
@@ -49,6 +51,51 @@ theorem Exec.run_append (A B : Array Instr) :
   rfl
 
 end Runs
+
+/-! ## The wrapper's phases
+
+`finalViews` phase by phase (`finalViews_eq`): the statement words and the
+iteration check, the values of the system columns, the rows, and layer 1 on
+the claim of the output columns. -/
+
+/-- The statement words and the iteration check (`terminal/mod.rs:56-68`). -/
+def readStatement : Build (Array Var) := do
+  let statement ← (Array.range statementWords).mapM fun _ => Build.pub
+  let inverse ← Build.emit (.hint 1)
+  let product ← Build.mul (statement.getD 0 0) inverse
+  let one ← Build.const 1
+  Build.assertEqual product one
+  pure statement
+
+/-- The values of the system columns (`package.rs:191-212`). -/
+def systemColumns (package : Loaded) (statement : Array Var) (context : Array Gl) : Build (Array Var) := do
+  let computed ← Build.emit (.hint package.computed.size)
+  package.sources.mapM (column statement context computed)
+
+/-- The claim in the output columns, as `apply` reads it. -/
+def claimVars (outputs : OutputColumns) (columns : Array Var) : ClaimVars :=
+  let read := fun (list : Array ℕ) => list.map fun k => columns.getD k 0
+  { commitment := Terminal.chunks D (read outputs.commitment)
+    publicInput := Terminal.chunks D (read outputs.publicInput)
+    point := pairs (read outputs.point)
+    evalK := pairs (read outputs.evalK)
+    evalA := (Terminal.chunks (2 * D) (read outputs.evalA)).map pairs }
+
+/-- The layer-1 part of `finalViews`. -/
+def layer1Views (key : Layer1Input) (claim : ClaimVars) (state : Fin 16 → Var) : Build FinalViews := do
+  let (seed, proof) ← verifyWith key state (claimView claim)
+  pure { claim := claimView claim, seed, proof }
+
+theorem finalViews_eq (package : Loaded) (context : Array Gl) (key : Layer1Input) :
+    finalViews package context key = (do
+      let statement ← readStatement
+      let columns ← systemColumns package statement context
+      Build.r1cs package.system.toList columns.toList
+      layer1Views key (claimVars package.outputs columns)
+        fun lane => columns.getD (package.outputs.state.getD lane 0) 0) := by
+  unfold finalViews finalProgram apply readStatement systemColumns
+  simp only [bind_assoc, pure_bind]
+  rfl
 
 /-! ## The wrapper's values -/
 
@@ -257,13 +304,9 @@ theorem terminal_exec (package : Loaded) (context : Array Gl) (key : Layer1Input
   let pC := ((systemColumns package (Array.range 9) context).run p13).2
   let pR : Builder := { instrs := pC.instrs.push (.r1cs package.system.toList columns.toList), values := pC.values }
   let state : Fin 16 → Var := fun lane => columns.getD (package.outputs.state.getD lane 0) 0
-  have applyRun : (apply package (Array.range 9) context).run p13 = ((claimVars package.outputs columns, state), pR) := by
-    unfold apply
-    rw [run_bind, run_bind]
-    rfl
   have finalRun : (finalViews package context key).run {} = (layer1Views key (claimVars package.outputs columns) state).run pR := by
-    unfold finalViews finalProgram
-    rw [run_bind, readRun, statementRun, run_bind, applyRun]
+    rw [finalViews_eq, run_bind, readRun, statementRun, run_bind, run_bind]
+    rfl
   obtain ⟨more, instrsMore⟩ := (layer1Views.appends key (claimVars package.outputs columns) state).keeps pR
   -- The executor: the same parts, in order.
   obtain ⟨newB, instrsB, lengthB, simB⟩ := Sim.iteration (c := c) (n := 9) (P := ∀ j < 9, c.val j = stmt.getD j 0)

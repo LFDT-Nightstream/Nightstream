@@ -15,6 +15,9 @@ values (`assignment`).
 - Columns: every package column below the column count that a row names has
   a system column (`Numbered.named`), with the source that `load` gives it
   (`SourceOf`). `reindex` reads that system column, as `assignment` does.
+- `load` by phases: the column marks (`named`), the numbering (`number`)
+  and the reindexing (`reindex`) that `load` computes inline. Its loop over
+  the columns is `number` (`forIn_number`).
 
 Does not own the program that reads the system (`Terminal.lean`).
 -/
@@ -26,6 +29,58 @@ open NightstreamFPrime.Layout
 open CompressionLean.Shrink (R1csRow)
 open CompressionLean.Replay (Gl)
 open Fin.CommRing
+
+/-! ## `load` by phases -/
+
+/-- Mark the columns of `terms`. -/
+def mark (used : Array Bool) (terms : List (ℕ × Gl)) : Array Bool :=
+  terms.foldl (fun used t => used.set! t.1 true) used
+
+/-- The package columns below `total` that some row names. -/
+def named (total : ℕ) (rows : Array (R1csRow Gl)) : Array Bool :=
+  rows.foldl (fun used r => mark (mark (mark used r.a) r.b) r.c) (Array.replicate total false)
+
+/-- The numbering so far: the system column of each package column, the source
+of each system column, and the package column of each computed value. -/
+abbrev Numbering := Array (Option ℕ) × Array Source × Array ℕ
+
+/-- Number one package column: a named column gets the next system column and
+its source. -/
+def numberColumn (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (used : Array Bool)
+    (state : Numbering) (column : ℕ) : Numbering :=
+  let (index, sources, computed) := state
+  let constant := layout.privateColumnCount
+  if used[column]! then
+    let index := index.set! column (some sources.size)
+    if column = constant then (index, sources.push .one, computed)
+    else if column > constant then (index, sources.push (.pub (column - constant - 1)), computed)
+    else match privateInput segments column with
+      | some input => (index, sources.push (.priv input), computed)
+      | none => (index, sources.push (.computed computed.size), computed.push column)
+  else state
+
+/-- The system columns: the named package columns in increasing order. -/
+def number (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (used : Array Bool) :
+    Numbering := Id.run do
+  let mut state : Numbering := (Array.replicate layout.totalColumnCount none, #[], #[])
+  for column in [0:layout.totalColumnCount] do
+    state := numberColumn layout segments used state column
+  return state
+
+/-- Terms over package columns, moved to system columns. -/
+def reindex (index : Array (Option ℕ)) (terms : List (ℕ × Gl)) : List (ℕ × Gl) :=
+  terms.map fun (c, x) => ((index[c]!).getD 0, x)
+
+
+/-- `load`'s loop over the package columns is `number`: each step writes
+what `numberColumn` gives. -/
+theorem forIn_number (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (used : Array Bool)
+    {body : ℕ → Numbering → Id (ForInStep Numbering)}
+    (step : ∀ j s, body j s = .yield (numberColumn layout segments used s j)) :
+    forIn [:layout.totalColumnCount] ((Array.replicate layout.totalColumnCount none, #[], #[]) : Numbering) body =
+      number layout segments used := by
+  rw [funext₂ step]
+  rfl
 
 /-- A field word of F′, written as a package coefficient, reads back. -/
 theorem word_word (x : NightstreamFPrime.Spec.F) : Circuit.word (word x) = x := by
@@ -480,6 +535,14 @@ theorem load_ok {package : CircuitPackage} {map : Terminal.Outputs} {loaded : Lo
     outputColumns package.layout (numbering package).1 map.state = .ok loaded.outputs.state := by
   unfold load at h
   simp only [bind, Except.bind] at h
+  rw [forIn_number package.layout (callerSegments package.layout)
+    (named package.layout.totalColumnCount (orderedRows package)) ?step] at h
+  case step =>
+    clear h
+    intro j s
+    obtain ⟨index, sources, computed⟩ := s
+    simp only [numberColumn, named, mark]
+    split_ifs <;> first | rfl | (split <;> simp_all <;> rfl)
   split_ifs at h
   split at h
   · cases h

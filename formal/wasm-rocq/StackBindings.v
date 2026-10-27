@@ -211,7 +211,9 @@ Record UnaryStackShape (w : Witness) (isSet local : bool) : Prop := {
     w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat) = 2 * (w COL_SP_BEFORE - 1);
   local_write_address : isSet = false -> w COL_STACK_WRITE0_ADDR_LO = 2 * w COL_SP_BEFORE;
   local_write_hi_address : isSet = false -> w COL_STACK_WRITE0_ADDR_HI = 2 * w COL_SP_BEFORE + 1;
-  local_stack_pointer_after : w COL_SP_AFTER = w COL_SP_BEFORE + (if isSet then -1 else 1);
+  (* A br_if also slides by its distance. *)
+  local_stack_pointer_after : w COL_SP_AFTER =
+    w COL_SP_BEFORE + (if isSet then -1 else 1) - (if local then 0 else w COL_FRAME_MOVE_DISTANCE_AFTER);
   local_stack_base_after : w COL_STACK_FRAME_BASE_AFTER = w COL_STACK_FRAME_BASE_BEFORE;
   local_get_gate : w COL_SEL_LOCAL_GET = (if local && negb isSet then 1 else 0);
   local_write_gate : w COL_LOCAL_WRITE_ENABLED = (if local && isSet then 1 else 0);

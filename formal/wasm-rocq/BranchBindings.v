@@ -30,12 +30,12 @@ Proof.
     destruct (Z.eqb (w readColumn) 0); field_linear Hchoice.
 Qed.
 
-(* A br_if that slides nothing pops just its condition. *)
+(* A br_if pops its condition and slides by its distance. *)
 Theorem full_br_if_stack_shape : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR_IF_EQZ = 1 ->
-  1 <= w COL_SP_BEFORE -> w COL_FRAME_MOVE_DISTANCE_AFTER = 0 -> UnaryStackShape w true false.
+  1 <= w COL_SP_BEFORE -> UnaryStackShape w true false.
 Proof.
-  unary_stack_facts COL_SEL_BR_IF_EQZ 1 0 0. intros Hdistance. rewrite Hdistance in Hdiscard.
+  unary_stack_facts COL_SEL_BR_IF_EQZ 1 0 0.
   assert (HlocalGet : w COL_SEL_LOCAL_GET = 0).
   { refine (full_opcode_selector_exclusive w COL_SEL_BR_IF_EQZ COL_SEL_LOCAL_GET Hprime Hfull Hchosen Hin _ _);
       [vm_compute; tauto | discriminate]. }
@@ -44,7 +44,9 @@ Proof.
     pose proof (value_bound w (nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)). field_linear Hrow.
   - selected_row COL_SEL_BR_IF_EQZ stackPointerBalanceRow Hrow. zero_host_switch Hrow. zero_gather_kinds Hkinds Hrow.
     rewrite Hone, Hreads, Hwrites, Hdiscard, Hlocal, Houtput, Hcapture, Hparams in Hrow.
-    pose proof (value_bound w COL_SP_AFTER). field_linear Hrow.
+    change (w COL_SP_AFTER = w COL_SP_BEFORE + -1 - w COL_FRAME_MOVE_DISTANCE_AFTER).
+    circuit_range COL_SP_AFTER Hspa. circuit_range COL_SP_BEFORE Hspb. circuit_range COL_FRAME_MOVE_DISTANCE_AFTER Hd.
+    field_linear Hrow.
   - selected_row COL_SEL_BR_IF_EQZ stackFrameBasePreservedRow Hrow. zero_host_switch Hrow. rewrite Hone, Hguest, Hturn, Hpop in Hrow.
     pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE).
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.

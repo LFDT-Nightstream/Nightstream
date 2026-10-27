@@ -4,6 +4,8 @@ import CompressionLean.Bridge.Merkle
 import CompressionLean.Circuit.Final
 import CompressionLean.Circuit.Sound
 import CompressionLean.Circuit.Valid
+import CompressionLean.Circuit.Counts
+import CompressionLean.Final.Wiring
 
 /-!
 Owns the production bound of the shipped final program. `ProgramEncodes`
@@ -17,9 +19,9 @@ parameters; this file fixes both.
   handles hold under a witness: the executor's values on the witness's tape.
 - `Reads`: a reading is the bridge's path of the replay's run, from `start`,
   on what the witness decodes to.
-- Two open premises: `CircuitAgrees` (the replay accepts what the circuit
-  accepts) and `TerminalWiring` (the decoded statement is the terminal
-  claim).
+- `TerminalWiring` (the decoded statement is the terminal claim) is proved
+  (`terminalWiring`, from `wiring_of_exec` in `Wiring.lean`). One open
+  premise: `CircuitAgrees` (the replay accepts what the circuit accepts).
 - `shipped_restore_budget`: the production bound for `ShippedBreak`. Under
   the honest key root and the relation facts, its read condition fails only
   when WHIR lists are missing, Poseidon2 collides at explicit inputs on a
@@ -194,9 +196,9 @@ hold for a consistent key, because the views have the key's shapes. -/
 def CircuitAgrees : Prop :=
   ∀ x w, ((sp.prog x).ccs template sp.counts).Relation w → ∃ points t', Replay.Runs (sp.replay x w) start points t'
 
-/-- **The terminal wiring.** Open: the planned `terminal_exec` will prove it.
-A witness of the final program's CCS for `x` holds a terminal assignment
-for `x` whose claim (`claimOf`) is the decoded statement. -/
+/-- **The terminal wiring.** Proved by `terminalWiring`. A witness of the
+final program's CCS for `x` holds a terminal assignment for `x` whose claim
+(`claimOf`) is the decoded statement. -/
 def TerminalWiring : Prop :=
   ∀ x w, ((sp.prog x).ccs template sp.counts).Relation w →
     ∃ env, TerminalFor sp.authority x env ∧ Bridge.statementOf (sp.decode x w).statement = claimOf env
@@ -217,6 +219,23 @@ def ShippedBreak (S : Layer1.Setup Gl) (L0 L1 : ℕ)
         ∃ p, sp.Reads S L0 L1 tr.inst w p ∧ ∃ b, r.2 p = some b
 
 /-! ## The links -/
+
+/-- **The terminal wiring holds.** The counts do not depend on the statement
+(`lower_counts`), so `lower_sound` gives an accepting executor run, and
+`wiring_of_exec` reads the terminal assignment from it. -/
+theorem terminalWiring : sp.TerminalWiring := by
+  intro x w holds
+  rw [Shipped.counts, ← Circuit.lower_counts (F := Gl) sp.program (List.ofFn x), Shipped.prog] at holds
+  -- A variable for the program, so that no step evaluates it.
+  generalize program : sp.program = L at holds
+  obtain ⟨env, terminal, claim⟩ := wiring_of_exec sp.package sp.load sp.authority sp.key x _ _ L program
+    (Circuit.lower_sound L (List.ofFn x) w holds) (sp.exec x w) (by subst program; rfl)
+  -- The decoded statement, one definition at a time.
+  have decoded : (sp.decode x w).statement =
+      Decode.statement (fun h => Circuit.Package.word ((sp.exec x w).value h)) sp.views.claim := rfl
+  have views : sp.views = ((Circuit.finalViews sp.package (contextWords sp.authority) sp.key).run {}).1 := rfl
+  rw [decoded, views]
+  exact ⟨env, terminal, claim⟩
 
 /-- The terminal wiring gives the encoding premise for the shipped program
 and its readings. -/
@@ -276,13 +295,12 @@ over `Gl` and `Cubic`, with the charged terms of each commitment within
 Rust's split, a prover with `calls` queries causes `ShippedBreak` with
 probability at most `calls / 2^t`.
 
-The named premises: `agrees` (`CircuitAgrees`), `wiring`
-(`TerminalWiring`), `facts` (the relation's sizes and structure) and
-`honest` (the honest setup). -/
+The named premises: `agrees` (`CircuitAgrees`), `facts` (the relation's
+sizes and structure) and `honest` (the honest setup). -/
 theorem shipped_restore_budget (S : Layer1.Setup Gl)
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
-    (L0 L1 : ℕ) (agrees : sp.CircuitAgrees) (wiring : sp.TerminalWiring)
+    (L0 L1 : ℕ) (agrees : sp.CircuitAgrees)
     (facts : Bridge.RelationFacts sp.key.relation S)
     (shape : ParentShape (Bridge.shapeOf sp.key.relation) Data.logicalWidth)
     (honest : HonestSetup (Bridge.shapeOf sp.key.relation) S relation ajtai)
@@ -312,7 +330,7 @@ theorem shipped_restore_budget (S : Layer1.Setup Gl)
     (by rw [shape.D]; decide) Circuit.Block.poseidonTemplate_wellFormed
     (fun x => Circuit.lower_valid template le_rfl sp.program (List.ofFn x))
     (natCast_injective 9 (by norm_num [goldilocksModulus])) sp.authority (sp.Reads S L0 L1)
-    (sp.programEncodes_of_wiring wiring S L0 L1) calls prover
+    (sp.programEncodes_of_wiring sp.terminalWiring S L0 L1) calls prover
 
 end Shipped
 

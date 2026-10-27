@@ -2,210 +2,178 @@ import CompressionLean.Circuit.Record
 
 /-!
 Owns `lower_counts`: the counts of a lowering do not depend on the
-statement words. The words enter only `publics` (`statementWord`), and no
-step reads `publics` except for its size.
-
-`Frame m`: the lowering step `m` neither reads nor writes `publics`. Every
-lowering of an instruction other than `pub` frames (`step_frame`).
+statement. The statement words enter only the recorder's `publics`
+(`statementWord`); every other call of the lowering keeps `publics` and
+never reads it (`Indep`). So the lowerings of one program on two statements
+differ only in the values of their statement words (`SameShape`).
 -/
 
 namespace CompressionLean.Circuit
 
 open CompressionLean.Shrink
 
+section Lowering
+
 variable {F : Type}
 
-/-- `m` neither reads nor writes `publics`. -/
-structure Frame {α : Type} (m : Lower F α) : Prop where
-  intro ::
-  run : ∀ (s : State F) (q : Array F),
-    m.run { s with publics := q } = ((m.run s).1, { (m.run s).2 with publics := q })
+/-- `m` never reads or writes the statement words: running it on another
+`publics` changes only `publics`. -/
+def Indep {α : Type} (m : Lower F α) : Prop :=
+  ∀ (s : State F) (ps : Array F), m.run { s with publics := ps } = ((m.run s).1, { (m.run s).2 with publics := ps })
 
-namespace Frame
+namespace Indep
 
-variable {α β : Type}
+theorem pure {α : Type} (a : α) : Indep (Pure.pure a : Lower F α) := fun _ _ => rfl
 
-theorem pure (a : α) : Frame (Pure.pure a : Lower F α) := ⟨fun _ _ => rfl⟩
+theorem bind {α β : Type} {m : Lower F α} {f : α → Lower F β} (hm : Indep m) (hf : ∀ a, Indep (f a)) :
+    Indep (m >>= f) := by
+  intro s ps
+  rw [StateT.run_bind, StateT.run_bind, hm s ps]
+  exact hf _ _ _
 
-theorem bind {m : Lower F α} {f : α → Lower F β} (hm : Frame m) (hf : ∀ a, Frame (f a)) : Frame (m >>= f) :=
-  ⟨fun s q => by
-    show (f (m.run { s with publics := q }).1).run (m.run { s with publics := q }).2 = _
-    rw [hm.run, (hf _).run]
-    rfl⟩
+theorem cells (k : ℕ) : Indep (cells k : Lower F ℕ) := fun _ _ => rfl
+theorem row (p l three) : Indep (row p l three : Lower F Unit) := fun _ _ => rfl
+theorem block : Indep (block : Lower F ℕ) := fun _ _ => rfl
+theorem fromFn (m : Fin 3 → Lower F (Form F)) (h : ∀ k, Indep (m k)) : Indep (fromFn m) :=
+  (h 0).bind fun _ => (h 1).bind fun _ => (h 2).bind fun _ => Indep.pure _
 
-theorem modifyGet {f : State F → α × State F}
-    (hf : ∀ s q, f { s with publics := q } = ((f s).1, { (f s).2 with publics := q })) :
-    Frame (MonadState.modifyGet f : Lower F α) := ⟨fun s q => hf s q⟩
+theorem push (forms : List (Form F)) : Indep (push forms) := fun _ _ => rfl
+theorem r1cs (rows : List (R1csRow F)) (columns : List (Form F)) : Indep (r1cs rows columns) := fun _ _ => rfl
 
-theorem modify {f : State F → State F} (hf : ∀ s q, f { s with publics := q } = { f s with publics := q }) :
-    Frame (MonadState.modifyGet fun s => ((), f s) : Lower F Unit) := ⟨fun s q => by
-  show ((), f { s with publics := q }) = _
-  rw [hf]
-  rfl⟩
+end Indep
 
-/-- A step that reads the state but not `publics`. -/
-theorem get_bind {f : State F → Lower F α} (reads : ∀ s q, f { s with publics := q } = f s)
-    (hf : ∀ s, Frame (f s)) : Frame (MonadState.get >>= f) := ⟨fun s q => by
-  show (f { s with publics := q }).run { s with publics := q } = _
-  rw [reads, (hf s).run]
-  rfl⟩
+variable [Field F] [DecidableEq F]
 
-/-- A framed step keeps `publics`. -/
-theorem keeps {m : Lower F α} (h : Frame m) (s : State F) : (m.run s).2.publics = s.publics :=
-  congrArg (fun r => r.2.publics) (h.run s s.publics)
+namespace Indep
 
-end Frame
+omit [DecidableEq F] in
+theorem cell : Indep (cell : Lower F (Form F)) := fun _ _ => rfl
 
-theorem cells_frame (count : ℕ) : Frame (cells count : Lower F ℕ) := Frame.modifyGet fun _ _ => rfl
-
-theorem row_frame (products : List (List (Wire × F) × List (Wire × F))) (linear : List (Wire × F))
-    (three : products.length ≤ 3) : Frame (row products linear three) := Frame.modify fun _ _ => rfl
-
-theorem push_frame (forms : List (Form F)) : Frame (push forms) := Frame.modify fun _ _ => rfl
-
-theorem fromFn_frame {m : Fin 3 → Lower F (Form F)} (h : ∀ k, Frame (m k)) : Frame (fromFn m) :=
-  Frame.bind (h 0) fun _ => Frame.bind (h 1) fun _ => Frame.bind (h 2) fun _ => .pure _
-
-variable [Field F]
-
-theorem cell_frame : Frame (cell : Lower F (Form F)) := Frame.modifyGet fun _ _ => rfl
-
-theorem readValue_frame (v : Var) : Frame (readValue v : Lower F (Form F)) :=
-  Frame.get_bind (fun _ _ => rfl) fun _ => .pure _
-
-theorem readValues_frame (vs : List Var) : Frame (readValues vs : Lower F (List (Form F))) :=
-  Frame.get_bind (fun _ _ => rfl) fun _ => .pure _
-
-theorem readCoordinates_frame {n : ℕ} (a : Fin n → Var) : Frame (readCoordinates a : Lower F (Fin n → Form F)) :=
-  Frame.get_bind (fun _ _ => rfl) fun _ => .pure _
-
-/-- A new cell and its row. -/
-theorem cellRow_frame (products : List (List (Wire × F) × List (Wire × F))) (linear : Form F → List (Wire × F))
-    (three : products.length ≤ 3) :
-    Frame (do let c ← cell; row products (linear c) three; pure c : Lower F (Form F)) :=
-  Frame.bind cell_frame fun _ => Frame.bind (row_frame _ _ _) fun _ => .pure _
-
-theorem booleanRows_frame : ∀ cs : List ℕ, Frame (booleanRows cs : Lower F Unit)
-  | [] => .pure _
-  | _ :: rest => Frame.bind (row_frame _ _ _) fun _ => booleanRows_frame rest
-
-variable [DecidableEq F]
-
-theorem form_frame (terms : List (Wire × F)) (constant : F) : Frame (form terms constant) := by
-  unfold form
+theorem form (terms : List (Wire × F)) (k : F) : Indep (form terms k) := by
+  unfold Circuit.form
   split
-  · exact .pure _
-  · exact cellRow_frame _ _ _
+  · exact Indep.pure _
+  · exact fun _ _ => rfl
 
-theorem linear_frame (parts : List (Form F × F)) : Frame (linear parts) := form_frame _ _
+theorem linear (parts : List (Form F × F)) : Indep (linear parts) := form _ _
 
-theorem mul_frame (a b : Form F) : Frame (mul a b) := by
-  unfold mul
+theorem mul (a b : Form F) : Indep (mul a b) := by
+  unfold Circuit.mul
   split
-  · exact linear_frame _
+  · exact linear _
   split
-  · exact linear_frame _
-  · exact cellRow_frame _ _ _
+  · exact linear _
+  · exact fun _ _ => rfl
 
-theorem extMul_frame (a b : Fin 3 → Form F) : Frame (extMul a b) := by
-  unfold extMul
+omit [DecidableEq F] in
+theorem booleanRows : ∀ l : List ℕ, Indep (booleanRows l : Lower F Unit)
+  | [] => Indep.pure _
+  | _ :: rest => (row _ _ _).bind fun _ => booleanRows rest
+
+theorem chain : ∀ (high : Form F) (l : List ℕ), Indep (chain high l)
+  | _, [] => Indep.pure _
+  | _, _ :: rest => (mul _ _).bind fun h => chain h rest
+
+theorem tieRows (b : ℕ) (inputs : Fin 16 → Form F) : ∀ l, Indep (tieRows b inputs l)
+  | [] => Indep.pure _
+  | _ :: rest => (row _ _ _).bind fun _ => tieRows b inputs rest
+
+theorem extMul (a b : Fin 3 → Form F) : Indep (extMul a b) := by
+  unfold Circuit.extMul
   split
-  · exact fromFn_frame fun _ => linear_frame _
-  · exact fromFn_frame fun _ => cellRow_frame _ _ _
+  · exact fromFn _ fun _ => linear _
+  · exact fromFn _ fun k => cell.bind fun _ => (row _ _ _).bind fun _ => Indep.pure _
 
-theorem extInv_frame (a : Fin 3 → Form F) : Frame (extInv a) := by
-  unfold extInv
+theorem extInv (a : Fin 3 → Form F) : Indep (extInv a) := by
+  unfold Circuit.extInv
   split
-  · exact .pure _
-  · exact Frame.bind (fromFn_frame fun _ => cell_frame) fun _ => Frame.bind (row_frame _ _ _) fun _ =>
-      Frame.bind (row_frame _ _ _) fun _ => Frame.bind (row_frame _ _ _) fun _ => .pure _
+  · exact Indep.pure _
+  · exact (fromFn _ fun _ => cell).bind fun _ => (row _ _ _).bind fun _ => (row _ _ _).bind fun _ =>
+      (row _ _ _).bind fun _ => Indep.pure _
 
-theorem assertZero_frame (a : Form F) : Frame (assertZero a) := by
-  unfold assertZero
+theorem bits (a : Form F) (count : ℕ) : Indep (bits a count) := by
+  unfold Circuit.bits
+  refine (cells _).bind fun first => (booleanRows _).bind fun _ => (row _ _ _).bind fun _ => ?_
   split
-  · exact .pure _
-  · exact row_frame _ _ _
+  · exact (chain _ _).bind fun _ => (row _ _ _).bind fun _ => Indep.pure _
+  · exact Indep.pure _
 
-theorem chain_frame : ∀ (high : Form F) (cs : List ℕ), Frame (chain high cs)
-  | _, [] => .pure _
-  | high, _ :: rest => Frame.bind (mul_frame high _) fun next => chain_frame next rest
-
-theorem bits_frame (a : Form F) (count : ℕ) : Frame (bits a count) := by
-  unfold bits
-  refine Frame.bind (cells_frame _) fun _ => Frame.bind (booleanRows_frame _) fun _ =>
-    Frame.bind (row_frame _ _ _) fun _ => ?_
-  dsimp only
+theorem assertZero (a : Form F) : Indep (assertZero a) := by
+  unfold Circuit.assertZero
   split
-  · exact Frame.bind (chain_frame _ _) fun _ => Frame.bind (row_frame _ _ _) fun _ => .pure _
-  · exact .pure _
+  · exact Indep.pure _
+  · exact row _ _ _
 
-theorem tieRows_frame (b : ℕ) (inputs : Fin 16 → Form F) :
-    ∀ ks : List (Fin 16), Frame (tieRows b inputs ks)
-  | [] => .pure _
-  | _ :: rest => Frame.bind (row_frame _ _ _) fun _ => tieRows_frame b inputs rest
+omit [DecidableEq F] in
+theorem readValue (v : Var) : Indep (readValue v : Lower F (Form F)) := fun _ _ => rfl
+omit [DecidableEq F] in
+theorem readValues (vs : List Var) : Indep (readValues vs : Lower F (List (Form F))) := fun _ _ => rfl
+omit [DecidableEq F] in
+theorem readCoordinates {n : ℕ} (a : Fin n → Var) : Indep (readCoordinates a : Lower F (Fin n → Form F)) :=
+  fun _ _ => rfl
 
-theorem permute_frame (inputs : Fin 16 → Form F) : Frame (permute inputs) :=
-  Frame.bind (Frame.modifyGet fun _ _ => rfl) fun _ => Frame.bind (tieRows_frame _ _ _) fun _ => .pure _
 
-/-- Every instruction but `pub` lowers without the statement words. -/
-theorem step_frame (stmt : Array F) (i : Instr) (notPub : i ≠ .pub) : Frame (step stmt i) := by
+/-- Every instruction but `pub`. -/
+theorem step (stmt : Array F) (i : Instr) (h : i ≠ .pub) : Indep (step stmt i) := by
   cases i with
-  | const _ => exact push_frame _
-  | priv => exact Frame.bind cell_frame fun _ => push_frame _
-  | pub => exact absurd rfl notPub
-  | linear _ =>
-    exact Frame.bind (readValues_frame _) fun _ => Frame.bind (linear_frame _) fun _ => push_frame _
-  | mul _ _ =>
-    exact Frame.bind (readValue_frame _) fun _ => Frame.bind (readValue_frame _) fun _ =>
-      Frame.bind (mul_frame _ _) fun _ => push_frame _
-  | extMul _ _ =>
-    exact Frame.bind (readCoordinates_frame _) fun _ => Frame.bind (readCoordinates_frame _) fun _ =>
-      Frame.bind (extMul_frame _ _) fun _ => push_frame _
-  | extInv _ =>
-    exact Frame.bind (readCoordinates_frame _) fun _ => Frame.bind (extInv_frame _) fun _ => push_frame _
-  | assertZero _ => exact Frame.bind (readValue_frame _) fun _ => assertZero_frame _
-  | bits _ _ =>
-    exact Frame.bind (readValue_frame _) fun _ => Frame.bind (bits_frame _ _) fun _ => push_frame _
-  | permute _ =>
-    exact Frame.bind (readCoordinates_frame _) fun _ => Frame.bind (permute_frame _) fun _ => push_frame _
-  | hint _ => exact Frame.bind (cells_frame _) fun _ => push_frame _
-  | r1cs _ _ => exact Frame.bind (readValues_frame _) fun _ => Frame.modify fun _ _ => rfl
+  | const => exact push _
+  | priv => exact cell.bind fun _ => push _
+  | pub => exact absurd rfl h
+  | linear => exact (readValues _).bind fun _ => (linear _).bind fun _ => push _
+  | mul => exact (readValue _).bind fun _ => (readValue _).bind fun _ => (mul _ _).bind fun _ => push _
+  | extMul =>
+      exact (readCoordinates _).bind fun _ => (readCoordinates _).bind fun _ => (extMul _ _).bind fun _ => push _
+  | extInv => exact (readCoordinates _).bind fun _ => (extInv _).bind fun _ => push _
+  | assertZero => exact (readValue _).bind fun _ => assertZero _
+  | bits => exact (readValue _).bind fun _ => (bits _ _).bind fun _ => push _
+  | permute =>
+      exact (readCoordinates _).bind fun _ =>
+        (block.bind fun _ => (tieRows _ _ _).bind fun _ => Indep.pure _).bind fun _ => push _
+  | hint => exact (cells _).bind fun _ => push _
+  | r1cs => exact (readValues _).bind fun _ => r1cs _ _
 
-/-- The step of a `pub`: the next wire, and the next word in `publics`. -/
-theorem step_pub (stmt : Array F) (s : State F) :
-    ((step stmt .pub).run s).2 =
-      { s with values := s.values.push (Form.wire (Wire.pub (s.publics.size + 1))),
-               publics := s.publics.push (stmt.getD s.publics.size 0) } := rfl
+end Indep
 
-/-- Two lowerings on different statement words differ only in the words of
-`publics`, not in its size. -/
-theorem steps_publics (stmt stmt' : Array F) :
-    ∀ (L : List Instr) (s : State F) (q : Array F), q.size = s.publics.size →
-      ∃ q' : Array F, q'.size = (steps stmt L s).publics.size ∧
-        steps stmt' L { s with publics := q } = { steps stmt L s with publics := q' }
-  | [], s, q, size => ⟨q, size, rfl⟩
-  | i :: rest, s, q, size => by
-      by_cases pub : i = .pub
-      · subst pub
-        have there : ((step stmt' .pub).run { s with publics := q }).2 =
-            { ((step stmt .pub).run s).2 with publics := q.push (stmt'.getD q.size 0) } := by
-          rw [step_pub, step_pub, size]
-        obtain ⟨q', size', same⟩ := steps_publics stmt stmt' rest ((step stmt .pub).run s).2
-          (q.push (stmt'.getD q.size 0)) (by rw [step_pub]; simp [size])
-        exact ⟨q', size', by show steps stmt' rest ((step stmt' .pub).run _).2 = _; rw [there, same]; rfl⟩
-      · have frame := step_frame stmt i pub
-        obtain ⟨q', size', same⟩ := steps_publics stmt stmt' rest ((step stmt i).run s).2 q
-          (by rw [frame.keeps, size])
-        have same_step : step stmt' i = step stmt i := by cases i <;> first | rfl | exact absurd rfl pub
-        exact ⟨q', size', by
-          show steps stmt' rest ((step stmt' i).run _).2 = _
-          rw [same_step, frame.run, same]
-          rfl⟩
+/-- `s` is `t` but for the values of its statement words. -/
+def SameShape (s t : State F) : Prop := { t with publics := s.publics } = s ∧ s.publics.size = t.publics.size
 
-/-- **The counts do not depend on the statement words.** -/
-theorem lower_counts (L : Array Instr) (stmt : List F) : (lower L stmt).counts = (lower L ([] : List F)).counts := by
-  obtain ⟨q, size, same⟩ := steps_publics (#[] : Array F) stmt.toArray L.toList {} #[] rfl
-  have same : steps stmt.toArray L.toList {} = { steps #[] L.toList {} with publics := q } := same
-  simp only [lower, Run.counts, Run.rows, same, Array.length_toList, size]
+theorem SameShape.step (stmt stmt' : Array F) (i : Instr) {s t : State F} (h : SameShape s t) :
+    SameShape ((Circuit.step stmt i).run s).2 ((Circuit.step stmt' i).run t).2 := by
+  obtain ⟨e, size⟩ := h
+  by_cases pub : i = .pub
+  · subst pub
+    rw [← e]
+    refine ⟨?_, ?_⟩
+    · simp [Circuit.step, statementWord, Circuit.push, size]
+      rfl
+    · show (s.publics.push _).size = (t.publics.push _).size
+      simp [size]
+  · have same : Circuit.step stmt i = Circuit.step stmt' i := by cases i <;> first | rfl | exact absurd rfl pub
+    rw [same, ← e, Indep.step stmt' i pub t s.publics]
+    have keep := Indep.step stmt' i pub t t.publics
+    rw [show ({ t with publics := t.publics } : State F) = t from rfl] at keep
+    refine ⟨rfl, ?_⟩
+    have : ((Circuit.step stmt' i).run t).2.publics = t.publics := by
+      have := congrArg (fun r => r.2.publics) keep
+      exact this
+    simp only [this, size]
+
+theorem SameShape.steps (stmt stmt' : Array F) :
+    ∀ (L : List Instr) {s t : State F}, SameShape s t → SameShape (steps stmt L s) (steps stmt' L t)
+  | [], _, _, h => h
+  | i :: L, _, _, h => SameShape.steps stmt stmt' L (h.step stmt stmt' i)
+
+/-- **The counts do not read the statement.** The statement words enter only
+the recorder's `publics`, so the lowering on any statement has the counts of
+the lowering on none. -/
+theorem lower_counts (L : Array Instr) (stmt : List F) : (lower L stmt).counts = (lower (F := F) L []).counts := by
+  obtain ⟨e, size⟩ := SameShape.steps stmt.toArray (([] : List F).toArray) L.toList (s := {}) (t := {})
+    ⟨rfl, rfl⟩
+  unfold lower Run.counts Run.rows
+  dsimp only
+  rw [← e]
+  simp only [Array.length_toList, size]
+
+end Lowering
 
 end CompressionLean.Circuit

@@ -33,11 +33,11 @@ section Runs
 variable {F : Type} [CommRing F] (c : Ctx F)
 
 /-- A step keeps the checks so far. -/
-theorem Ctx.holds_of_step {E : Exec.State F} {i : Instr} (h : (c.step E i).holds) : E.holds := by
+private theorem Ctx.holds_of_step {E : Exec.State F} {i : Instr} (h : (c.step E i).holds) : E.holds := by
   cases i <;> first | exact h.1 | exact h
 
 /-- Steps keep the checks so far. -/
-theorem Ctx.holds_of_steps {L : List Instr} {E : Exec.State F} (h : (c.steps L E).holds) : E.holds := by
+private theorem Ctx.holds_of_steps {L : List Instr} {E : Exec.State F} (h : (c.steps L E).holds) : E.holds := by
   induction L generalizing E with
   | nil => exact h
   | cons i L ih => exact c.holds_of_step (ih h)

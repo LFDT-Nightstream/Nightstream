@@ -173,8 +173,7 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   for the ring-row batching, and `Layer1.rustLinear` charges `s.rows - 1`, the same sum of
   `kappa`, `matrices` and `publicBlocks`; `ports.json` pins `rustLinear` to `row_count` too.
 - The readers of the files that the Rust tests write (`Layer1Key`, `readRuns` and `readColumns`
-  in `CompressionLeanExe/Runs.lean`, `RootInput` in `CompressionLeanExe/SetupRootCheck.lean`):
-  transcriptions of their formats.
+  in `CompressionLeanExe/Runs.lean`): transcriptions of their formats.
 
 **Code that a cross-check compares with Rust but that cannot make a claim false.** The rest of
 `Ports/Replay/`: the replay of the layer-1 verifier, with its transcript, stages, formulas, GKR and WHIR.
@@ -204,9 +203,9 @@ These checks compare a transcription with its Rust:
   `notPorts` (`CompressionLeanTests/Ports.lean`), when `Ports/` holds a theorem, and when an
   entry names a declaration outside `Ports/` that `portsOutside` does not list.
 - Ignored Rust tests compare the replay's draws and verdicts, the programs' instructions, and the
-  toy key's setup root with Rust on fixed inputs. They run by hand, not in CI (`scripts/crosschecks.sh`). The terminal checks
-  run on the pinned artifact with one context; the instructions do not depend on the statement
-  values, and the context words enter as constants.
+  toy key's setup root with Rust on fixed inputs. They run by hand, not in CI
+  (`scripts/crosschecks.sh`). The terminal checks run on the pinned artifact with one context; the
+  instructions do not depend on the statement values, and the context words enter as constants.
 - The Rust tests `relation_shape_has_the_lean_constants` (`neo-spartan`) and
   `parent_relation_arguments_are_the_lean_constants` (`nightstream`) pin the production constants of
   `Production.lean`. The first also pins `Replay.D = 54`: `ports.json` names the alias `D` of
@@ -225,8 +224,10 @@ These checks compare a transcription with its Rust:
   the key. `key_facts_of_check`, `width_fits_of_check`, `package_templates_of_check`,
   `setup_facts_of_check` and `runsGive_of_check` prove that a pass gives the premise. That the
   executables ran on the production artifacts is the evidence of the Rust tests. `STATUS.md` names
-  the executable and the test of each premise. `setupRootCheck` backs no premise: it shows, on the
-  toy key, that Rust's root is the `honestRoot` that `merkleBinds_of_root` reads.
+  the executable and the test of each premise. `setupRootCheck` backs no premise and cannot make a
+  claim false: it shows, on the toy key, that Rust's root is `tableRoot` of Rust's own tables
+  (read by `RootInput`), which is `honestRoot rel S` for any `(rel, S)` whose setup oracles are
+  those tables (`tableRoot_eq`). No Lean setup is compared with the toy key's tables.
 
 ## 6. Scope
 

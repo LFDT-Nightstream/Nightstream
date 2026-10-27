@@ -301,7 +301,11 @@ that the results above take as parameters.
   key's static facts that the replay checks and the circuit does not (the
   tree shapes of `readGkr`, the WHIR batch counts and sizes) are part of
   it. `OutputsFit` (static): each claim part that the terminal package
-  outputs has the relation's size, as `Statement.fits` checks. The proof
+  outputs has the relation's size, as `Statement.fits` checks.
+  `outputsFit_of_shape` (`OutputsFit.lean`) proves it for every relation
+  with the parent shape (`ParentShape`, a premise of the bound) and
+  `pointVariables = productionShape.cubeVariables` (28; the shipped
+  verifier passes `PI_CCS_V1_2_ROUND_COUNT`, `finish.rs`). The proof
   uses `lower_counts` (the counts do not read the statement),
   `lower_sound`, and `finalProgram_accepts`: the terminal part hands layer
   1 a claim and a state among its values, because each computed source

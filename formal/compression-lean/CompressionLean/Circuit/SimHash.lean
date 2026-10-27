@@ -9,7 +9,8 @@ compression and Merkle paths against the replay's `hashLeaf`, `compress` and
 Poseidon2.
 
 - `IsWords`: an array of handles is an array of words, entry by entry.
-- `IsDuplex`: the builder's duplex is the replay's, lane by lane.
+- `IsDuplex`: the builder's duplex is the replay's, lane by lane. `observe`,
+  `sample` and their slice and extension forms keep it.
 - The path words of a Merkle path are free: `merkleRoot` says that the
   handles of the computed root are the replay's root of the words that the
   path handles hold. Only the caller's root check binds those words.
@@ -187,6 +188,10 @@ theorem IsDuplex.permuted {c : Ctx F} {m : ℕ} (t : Array Gl) (outs : Fin 16 �
   dsimp only
   exact wo.extract 0 rate
 
+theorem duplexing_output_size (r : Replay.Duplex) : r.duplexing.output.size = Replay.rate := by
+  unfold Replay.Duplex.duplexing
+  simp [permute_size, Replay.rate]
+
 namespace Sim
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ} {P : Prop}
@@ -333,6 +338,67 @@ theorem observeExt {d : Duplex} {r : Replay.Duplex} {a : ExtVar} {e : Ext} (hp :
   rw [StateT.run_bind]
   refine Sim.bind₀ (observe hp (fun h => h.2) fun h => (ha h.1 1).mono l₁) fun res₂ m₂ l₂ => ?_
   exact observe hp (fun h => h.2) fun h => (ha h.1.1 2).mono (l₁.trans l₂)
+
+omit [CharP F goldilocksModulus] in
+/-- Pop the last output lane of a duplex with output. -/
+theorem pop {d : Duplex} {r : Replay.Duplex} (hd : P → IsDuplex c n d r) (ne : P → 0 < r.output.size) :
+    Sim c n P ((do
+        let d ← get
+        set { d with output := d.output.pop }
+        Pure.pure (d.output.back!) : Transcript Var).run d)
+      (fun res m => IsWord c m res.1 r.output.back! ∧ IsDuplex c m res.2 { r with output := r.output.pop }) True := by
+  rw [StateT.run_bind, StateT.run_get, pure_bind, StateT.run_bind, StateT.run_set, pure_bind, StateT.run_pure]
+  refine Sim.pure fun h => ⟨(hd h).output.back (by rw [(hd h).output.1]; exact ne h), ?_⟩
+  exact ⟨(hd h).state, (hd h).input, (hd h).output.pop, (hd h).width⟩
+
+theorem sample {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
+    Sim c n P (Duplex.sample.run d)
+      (fun res m => IsWord c m res.1 r.sample.1 ∧ IsDuplex c m res.2 r.sample.2) True := by
+  unfold Duplex.sample
+  rw [StateT.run_bind, StateT.run_get, pure_bind]
+  dsimp only
+  have same : P → ((!d.input.isEmpty || d.output.isEmpty) = (!r.input.isEmpty || r.output.isEmpty)) := fun h => by
+    unfold Array.isEmpty
+    rw [(hd h).input.1, (hd h).output.1]
+  by_cases cond : (!d.input.isEmpty || d.output.isEmpty) = true
+  · rw [if_pos cond, StateT.run_bind]
+    refine Sim.bind₀ (duplexing hp hd) fun res m le => ?_
+    refine (pop (fun h => h.2) fun _ => by rw [duplexing_output_size]; decide).post (fun h _ _ q => ?_) fun _ => Iff.rfl
+    have e : r.sample = (r.duplexing.output.back!, { r.duplexing with output := r.duplexing.output.pop }) := by
+      unfold Replay.Duplex.sample
+      rw [if_pos ((same h.1).symm.trans cond)]
+    rw [e]
+    exact q
+  · rw [if_neg cond]
+    have ne : P → 0 < r.output.size := fun h => by
+      have := (same h).symm.trans (eq_false_of_ne_true cond)
+      simp only [Bool.or_eq_false_iff, Bool.not_eq_false', Array.isEmpty] at this
+      exact Array.size_pos_iff.mpr (by simpa using this.2)
+    refine (pop hd ne).post (fun h _ _ q => ?_) fun _ => Iff.rfl
+    have e : r.sample = (r.output.back!, { r with output := r.output.pop }) := by
+      unfold Replay.Duplex.sample
+      rw [if_neg (fun x => cond ((same h).trans x))]
+    rw [e]
+    exact q
+
+/-- `sample_ext`: three samples, coordinate `i` the `i`-th. -/
+theorem sampleExt {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : P → IsDuplex c n d r) :
+    Sim c n P (Duplex.sampleExt.run d)
+      (fun res m => IsExt c m res.1 ⟨r.sample.1, r.sample.2.sample.1, r.sample.2.sample.2.sample.1⟩ ∧
+        IsDuplex c m res.2 r.sample.2.sample.2.sample.2) True := by
+  unfold Duplex.sampleExt
+  rw [StateT.run_bind]
+  refine Sim.bind₀ (sample hp hd) fun x m₁ l₁ => ?_
+  rw [StateT.run_bind]
+  refine Sim.bind₀ (sample hp fun h => h.2.2) fun y m₂ l₂ => ?_
+  rw [StateT.run_bind]
+  refine Sim.bind₀ (sample hp fun h => h.2.2) fun z m₃ l₃ => ?_
+  rw [StateT.run_pure]
+  refine Sim.pure fun h => ⟨fun k => ?_, h.2.2⟩
+  fin_cases k
+  · exact h.1.1.2.1.mono (l₂.trans l₃)
+  · exact h.1.2.1.mono l₃
+  · exact h.2.1
 
 end Sim
 

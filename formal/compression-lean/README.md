@@ -61,7 +61,7 @@ CompressionLean/
   Shrink/          the shrink verifier as a game, over Ports/Shrink/
   Lowering/        the proofs about the lowering of a program to a shrink run
   Spec/            the definitions that the claims name and no folder above owns
-  Bridge/          an accepted replay is a path of the layer-1 game
+  Bridge/          an accepted replay is a path of the layer-1 game; the honest setup tree and root
   Final/           the chain of the layers, the budget at Rust's split, F′'s parent claim
   Checks/          a pass of an executable's check gives a premise
   Sim/             the simulation of the circuit programs; the encoding premise

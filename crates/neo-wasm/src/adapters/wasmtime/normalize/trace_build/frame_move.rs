@@ -1,8 +1,51 @@
-//! Emit the rows that copy a returning or tail-called frame's kept cells
-//! (results or tail-call arguments) down to their new position.
+//! Emit the rows that copy a slide's or tail call's kept cells (branch-carried
+//! operands, results, or tail-call arguments) down to their new position.
 
 use super::super::host_event_emit::HostEventRowContext;
-use crate::ir::{StackValueAccess, WasmAuxOpcode, WasmStepState, WasmVmStep};
+use super::super::NormalizedStep;
+use crate::ir::{StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmFrameMoveState, WasmStepState, WasmVmStep};
+
+/// A branch or popping return keeps its edge's static `remaining` operands below the
+/// row's reads and drops `distance` cells under them; it must land at the traced sp.
+pub(super) fn frame_slide(
+    current: &NormalizedStep,
+    sp_before: u64,
+    sp_after: u64,
+) -> Result<(Vec<(u32, u32)>, WasmFrameMoveState), WasmBuildError> {
+    let (remaining, distance) = current.frame_slide.ok_or_else(|| {
+        WasmBuildError::Trace(format!(
+            "{} at cycle {} has no static frame slide",
+            current.info.name, current.cycle
+        ))
+    })?;
+    let reads = current
+        .stack_reads_override
+        .unwrap_or(current.info.stack_reads);
+    if sp_before.checked_sub(u64::from(reads) + u64::from(distance)) != Some(sp_after) {
+        return Err(WasmBuildError::Trace(format!(
+            "{} at cycle {} slides by {distance} from sp {sp_before}, but execution resumes at sp {sp_after}",
+            current.info.name, current.cycle
+        )));
+    }
+    let kept_end = current.operand_stack.len() - usize::from(reads);
+    let kept_start = kept_end
+        .checked_sub(remaining as usize)
+        .ok_or_else(|| WasmBuildError::Trace(format!("frame slide underflow at cycle {}", current.cycle)))?;
+    let cells = (kept_start..kept_end)
+        .map(|pos| {
+            (
+                current.operand_stack[pos],
+                current.operand_stack_hi.get(pos).copied().unwrap_or(0),
+            )
+        })
+        .collect();
+    let state = WasmFrameMoveState {
+        active: remaining != 0,
+        remaining,
+        distance: u64::from(distance),
+    };
+    Ok((cells, state))
+}
 
 /// `cells` are the kept `(lo, hi)` values, bottom-up.
 pub(super) fn emit_frame_move_rows(

@@ -45,6 +45,8 @@ define_column_region! {
         COL_ACTIVATION_FINISHED_AFTER: Boolean => "current activation has returned or trapped after this row",
         COL_IS_PROGRAM_ROW: Boolean => "decoded wasm program row",
         COL_PC_ROM_ACTIVE: Boolean => "static pc-edge ROM gate",
+        COL_FRAME_SLIDE_ACTIVE: Boolean => "branch or popping return row that seeds a static frame slide",
+        COL_EXIT_SLIDE_DISTANCE: U32 => "clean activation return's static slide distance, which binds its result count",
         COL_PC_EDGE_KIND_IS_STATIC: Boolean => "static pc-edge flag",
         COL_PC_EDGE_KIND_INV: Field => "inverse witness for pc edge-kind zero test",
         COL_LOCAL_ZERO_ACTIVE_BEFORE: Boolean => "local-zero mode before",

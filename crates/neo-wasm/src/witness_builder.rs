@@ -97,7 +97,19 @@ pub fn build_witness_vector(trace: &WasmVmStep) -> Vec<F> {
         );
     let clean_return =
         trace.state_after.activation_finished && !trace.state_before.activation_finished && !trace.state_after.trapped;
-    if trace.call_stack_pop.is_some() || tail_call || clean_return || trace.row_kind.is_turn_boundary() {
+    let slide = trace.call_stack_pop.is_some()
+        || (trace.row_kind.is_program()
+            && matches!(
+                trace.opcode,
+                super::isa::WasmOpcode::Br | super::isa::WasmOpcode::BrIf | super::isa::WasmOpcode::BrTable
+            ));
+    wit[crate::layout::COL_FRAME_SLIDE_ACTIVE] = if slide { F::ONE } else { F::ZERO };
+    if clean_return {
+        // The ROM checks that this is the return's static slide distance.
+        wit[crate::layout::COL_EXIT_SLIDE_DISTANCE] =
+            F::from_u64(trace.state_before.sp - trace.state_before.locals_fbp - u64::from(trace.output_captured));
+    }
+    if slide || tail_call || clean_return || trace.row_kind.is_turn_boundary() {
         let reads = u64::from(trace.stack_reads_override.unwrap_or(trace.info.stack_reads));
         let writes = u64::from(
             trace

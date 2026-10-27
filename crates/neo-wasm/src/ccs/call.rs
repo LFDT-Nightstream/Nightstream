@@ -10,12 +10,12 @@ use super::super::layout::{
     COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_DEPTH_AFTER,
     COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
     COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_HOST_CALL, COL_ENTERED_FUNCTION_NUM_LOCALS,
-    COL_FRAME_MOVE_ACTIVE_AFTER, COL_FRAME_MOVE_ACTIVE_BEFORE, COL_FRAME_MOVE_DISTANCE_AFTER,
+    COL_EXIT_SLIDE_DISTANCE, COL_FRAME_MOVE_ACTIVE_AFTER, COL_FRAME_MOVE_ACTIVE_BEFORE, COL_FRAME_MOVE_DISTANCE_AFTER,
     COL_FRAME_MOVE_DISTANCE_BEFORE, COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_MOVE_REMAINING_AFTER_INV,
-    COL_FRAME_MOVE_REMAINING_AFTER_IS_ZERO, COL_FRAME_MOVE_REMAINING_BEFORE, COL_FRAME_SP_DROP, COL_FUNCTION_REF,
-    COL_GATHER_ACTIVE, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE,
-    COL_HOST_EVENT_EXIT_LATCH, COL_IS_PROGRAM_ROW, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE,
-    COL_LOCAL_ZERO_ACTIVE_AFTER, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_AFTER,
+    COL_FRAME_MOVE_REMAINING_AFTER_IS_ZERO, COL_FRAME_MOVE_REMAINING_BEFORE, COL_FRAME_SLIDE_ACTIVE, COL_FRAME_SP_DROP,
+    COL_FUNCTION_REF, COL_GATHER_ACTIVE, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER,
+    COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENT_EXIT_LATCH, COL_IS_PROGRAM_ROW, COL_LOCALS_FBP_AFTER,
+    COL_LOCALS_FBP_BEFORE, COL_LOCAL_ZERO_ACTIVE_AFTER, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_AFTER,
     COL_LOCAL_ZERO_REMAINING_AFTER_INV, COL_LOCAL_ZERO_REMAINING_AFTER_IS_ZERO, COL_LOCAL_ZERO_REMAINING_BEFORE,
     COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
     COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
@@ -304,14 +304,16 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(COL_OUTPUT_ENABLED_BEFORE, F::ONE)],
             [],
         );
-        // A clean activation return leaves exactly the optional result above
-        // the current frame base, and drops its whole frame. The boundary term
-        // cancels the activation-finished latch reset between turns.
+        // A clean activation return captures exactly its function's results:
+        // the frame above fbp less the return's static slide distance. It drops
+        // its whole frame. The boundary term cancels the activation-finished
+        // latch reset between turns.
         b.push_row(
             clean_activation_return_terms(),
             [
                 (COL_SP_BEFORE, F::ONE),
-                (COL_STACK_FRAME_BASE_BEFORE, -F::ONE),
+                (COL_LOCALS_FBP_BEFORE, -F::ONE),
+                (COL_EXIT_SLIDE_DISTANCE, -F::ONE),
                 (COL_OUTPUT_CAPTURED, -F::ONE),
             ],
             [],
@@ -581,13 +583,13 @@ fn push_local_zero_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 /// `sp - remaining + distance` to `sp - remaining`. Copies run bottom-up, so
 /// overlapping regions are safe.
 fn push_frame_move_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    let pop = COL_CALL_STACK_POP_PRESENT;
+    let slide = COL_FRAME_SLIDE_ACTIVE;
     let moving = COL_FRAME_MOVE_ACTIVE_BEFORE;
     // Guest entries that save no return context are tail calls.
     let tail = [(COL_GUEST_ENTRY_ACTIVE, F::ONE), (COL_CALL_STACK_PUSH_PRESENT, -F::ONE)];
     let not_seeding = [
         (COL_ONE, F::ONE),
-        (pop, -F::ONE),
+        (slide, -F::ONE),
         (COL_GUEST_ENTRY_ACTIVE, -F::ONE),
         (COL_CALL_STACK_PUSH_PRESENT, F::ONE),
     ];
@@ -599,33 +601,19 @@ fn push_frame_move_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         (COL_ONE, -F::ONE),
     ]);
 
-    // A return keeps the callee's results and drops its locals.
+    // Branches and popping returns slide: the taken edge's static countdown and
+    // distance are ROM reads into the move registers, and sp drops by the distance.
+    b.push_linear_zero([
+        (slide, F::ONE),
+        (selector_col(WasmOpcode::Br).unwrap(), -F::ONE),
+        (selector_col(WasmOpcode::BrIf).unwrap(), -F::ONE),
+        (selector_col(WasmOpcode::BrTable).unwrap(), -F::ONE),
+        (COL_CALL_STACK_POP_PRESENT, -F::ONE),
+    ]);
     push_gated_linear_zero(
         b,
-        pop,
-        [
-            (COL_FRAME_MOVE_REMAINING_AFTER, F::ONE),
-            (COL_SP_BEFORE, -F::ONE),
-            (COL_STACK_FRAME_BASE_BEFORE, F::ONE),
-        ],
-    );
-    push_gated_linear_zero(
-        b,
-        pop,
-        [
-            (COL_FRAME_MOVE_DISTANCE_AFTER, F::ONE),
-            (COL_STACK_FRAME_BASE_BEFORE, -F::ONE),
-            (COL_LOCALS_FBP_BEFORE, F::ONE),
-        ],
-    );
-    push_gated_linear_zero(
-        b,
-        pop,
-        [
-            (COL_SP_AFTER, F::ONE),
-            (COL_LOCALS_FBP_BEFORE, -F::ONE),
-            (COL_FRAME_MOVE_REMAINING_AFTER, -F::ONE),
-        ],
+        slide,
+        [(COL_FRAME_SP_DROP, F::ONE), (COL_FRAME_MOVE_DISTANCE_AFTER, -F::ONE)],
     );
     // A tail call keeps its arguments and drops the replaced frame.
     b.push_row(

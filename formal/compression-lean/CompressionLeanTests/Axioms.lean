@@ -402,3 +402,8 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.readProof_ok
 #audit_axioms CompressionLean.Final.verifyAgrees_of_core
 #audit_axioms CompressionLean.Final.Shipped.circuitAgrees_of_core
+#audit_axioms CompressionLean.Circuit.Sim.eqEval
+#audit_axioms CompressionLean.Circuit.Sim.interpolate
+#audit_axioms CompressionLean.Circuit.Mirrors.sumcheck
+#audit_axioms CompressionLean.Circuit.Sim.gkrCombine
+#audit_axioms CompressionLean.Circuit.Mirrors.gkr

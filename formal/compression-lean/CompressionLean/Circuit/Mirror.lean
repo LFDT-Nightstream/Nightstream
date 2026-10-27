@@ -110,6 +110,17 @@ theorem left {b : Build α} {g : α → Transcript γ} {x : Replay.ReplayM δ} {
   obtain ⟨⟨hP, hd⟩, hq, rfl⟩ := h
   exact ⟨⟨hP, hq⟩, hd.mono le⟩
 
+/-- A transcript step that the replay does not make and that leaves the
+duplex alone. -/
+theorem leftT {t : Transcript α} {g : α → Transcript γ} {x : Replay.ReplayM δ} {Q : α → ℕ → Prop}
+    {S : γ → δ → ℕ → Prop} (h : ∀ d, Accepts c n P (t.run d) fun r m => Q r.1 m ∧ r.2 = d)
+    (k : ∀ a m, n ≤ m → Mirrors c m (P ∧ Q a m) (g a) x S) : Mirrors c n P (t >>= g) x S := by
+  intro d tr
+  refine ((h d).pre fun h => h.1).tbind fun a e m le => ?_
+  refine ((k a m le e tr).pre fun h => ?_)
+  obtain ⟨⟨hP, hd⟩, hq, rfl⟩ := h
+  exact ⟨⟨hP, hq⟩, hd.mono le⟩
+
 /-- A replay step that changes no duplex: under `P` it succeeds with a
 result that meets `S0`. -/
 theorem right [Nonempty β] {t : Transcript γ} {y : Replay.ReplayM β} {f : β → Replay.ReplayM δ}

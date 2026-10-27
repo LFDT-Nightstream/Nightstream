@@ -2,12 +2,12 @@
    initialization rows set the callee's locals, and a function's END returns to
    its suspended caller. Suspended callers survive every row: their contexts lift
    SpecTec steps, and their memory lies below the active frame. *)
-From Stdlib Require Import List ZArith Lia.
+From Stdlib Require Import List ZArith Bool Lia.
 Require Import Wasm2 WasmIntegers R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog
   TraceRefinement StraightLineSpec StackSimulation SpecTecCalls CallerSpec CallerRefinement CallSpec CallEntry
   CallBindings CallContext CallMemory CallReturn CallInitialization CallScope LocalBindings FrameInitialization
   Locals ProgramSpec ProgramEncoding CodeLayout BlockEncoding Fragment CodeFacts ControlDecode ControlInvariant
-  FrameFacts ControlBridge FrameRows ProgramBinding Selectors CircuitFacts.
+  FrameFacts ControlBridge FrameRows ProgramBinding Selectors CircuitFacts SlideLayout SpecTecBranches.
 Import ListNotations.
 Open Scope Z_scope.
 
@@ -268,9 +268,9 @@ Proof.
   cbn [viewPosition viewValues viewSegments positionLabels positionOffset] in Hfacts, Hsup, Hready, Hwfcode.
   set (code := innerCode f (codePosition index labels offset)) in *.
   rewrite (skipn_at_instruction _ _ _ Hi) in Hfacts, Hsup.
-  destruct Hfacts as [HwfCall Hrest]. rewrite Nat.add_0_r in Hrest. cbn [sourceHeight] in Hrest.
-  destruct (programCallees program (guestModule f) (x :> N)) as [callee | ] eqn:Hcallee; [ | contradiction].
-  destruct (Nat.leb (guestParams callee) (length values)) eqn:Hle; [ | contradiction]. apply Nat.leb_le in Hle.
+  destruct Hfacts as [[HwfCall [callee [Hcallee Hle]]] Hrest]. rewrite Nat.add_0_r in Hrest, Hle.
+  cbn [sourceHeight] in Hrest. rewrite Hcallee in Hrest.
+  replace (Nat.leb (guestParams callee) (length values)) with true in Hrest by (symmetry; apply Nat.leb_le; exact Hle).
   assert (Hcounts : (guestParams callee < 256)%nat /\ (guestResults callee < 256)%nat).
   { inversion Hsup as [ | ? ? Hhead _]; subst. inversion Hhead; subst.
     match goal with Hg : _ (x :> N) = Some ?g |- _ => assert (g = callee) as -> by congruence end.
@@ -497,68 +497,62 @@ Proof.
   injection Hrom as ->. injection Hdrom as ->. split; reflexivity.
 Qed.
 
-(* A callee's function-ending END: SpecTec leaves the LABEL_ and FRAME_ with the
-   results, and the circuit restores the caller's registers from its saved context.
-   The caller resumes after its CALL, inside its labels, while its new top operands
-   (the results) still sit at the callee's operand base, one callee frame higher. *)
-Lemma return_row : forall baseDepth top rest view f initial final row inner,
-  fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
-  row COL_ACTIVATION_FINISHED_AFTER = 0 -> Replay initial (eventsForRow memories row) final ->
-  ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
-  functionAt program (positionFunction (viewPosition view)) = Some f ->
-  positionLabels (viewPosition view) = [] -> positionOffset (viewPosition view) = length (guestBody f) ->
+(* A popping END or RETURN: SpecTec leaves the callee's FRAME_ with its results,
+   and the circuit restores the caller's registers from its saved context. The
+   callee's operands are `dropped ++ returned`; its slide drops its locals and
+   `dropped`. The caller resumes after its CALL, inside its labels, while its new
+   top operands (the results) still sit in the callee's frame, until the move rows
+   copy them down. *)
+Lemma return_to_caller : forall baseDepth top rest f index locals chosen dropped returned initial final row inner,
+  fieldPrime -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
+  Replay initial (eventsForRow memories row) final ->
+  In chosen [COL_SEL_END; COL_SEL_RETURN] -> row chosen = 1 ->
+  row COL_CALL_STACK_POP_PRESENT = 1 -> row COL_CALL_STACK_PUSH_PRESENT = 0 -> row COL_OUTPUT_CAPTURED = 0 ->
+  initializationIdle (beforeBoundary row) ->
+  functionAt program index = Some f -> Forall (fun value => 0 <= value < i32Modulus) locals ->
+  row COL_STACK_FRAME_BASE_BEFORE = row COL_LOCALS_FBP_BEFORE + Z.of_nat (frameLocals f) ->
+  Forall (fun value => 0 <= value < i32Modulus) (dropped ++ returned) ->
+  (forall i v, nth_error (dropped ++ returned) i = Some v ->
+    initial stackId [2 * (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat i)] = Some v) ->
+  row COL_SP_BEFORE = row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length (dropped ++ returned)) ->
+  length returned = guestResults f ->
+  row COL_FRAME_MOVE_DISTANCE_AFTER = Z.of_nat (frameLocals f) + Z.of_nat (length dropped) ->
+  row COL_FRAME_MOVE_REMAINING_AFTER =
+    (if Z.of_nat (frameLocals f) + Z.of_nat (length dropped) =? 0 then 0 else Z.of_nat (guestResults f)) ->
+  (forall caller, wf_state (mk_state s caller) ->
+    Steps (callContext caller (N.of_nat (guestResults f)) inner)
+      (mk_config (mk_state s caller) (List.map i32Constant returned))) ->
   SuspendedStack program initial f (row COL_LOCALS_FBP_BEFORE) (row COL_CALL_STACK_DEPTH_BEFORE) (top :: rest) ->
   0 <= baseDepth -> row COL_CALL_STACK_DEPTH_BEFORE = baseDepth + Z.of_nat (S (length rest)) ->
   exists cursor c1, Steps (plugCalls (top :: rest) inner) c1 /\
     ControlState program s baseDepth cursor final (afterBoundary row) c1.
 Proof.
-  intros baseDepth top rest view f initial final row inner Hprime Hloaded Hfull Hprogram Hhalt Hreplay Hstate Hf
-    Hlabels Hend Hsusp Hbase0 Hdepth.
-  destruct (function_end_selected view f initial final row inner Hprime Hloaded Hfull Hprogram Hreplay Hstate Hf
-    Hlabels Hend) as [HselEnd Hkind].
-  destruct (function_end_slide view f initial final row inner Hprime Hloaded Hfull Hreplay Hstate Hf Hlabels Hend
-    HselEnd (proj1 (full_end_pops_nonempty_context row Hprime Hfull HselEnd Hkind Hhalt))) as [HdistRom HremRom].
-  destruct (FrameRows.program_row_active _ _ _ _ _ _ Hprime Hfull Hprogram Hstate)
-    as [f' [Hframe [_ [Hsp [_ [Hidle ->]]]]]].
-  pose proof Hframe as [Hf' [_ [Hheights [Hfbp0 [HbaseLayout [Hbounds [_ [_ [Hlb _]]]]]]]]].
-  pose proof (FrameRows.frame_at_unmoved_cells _ _ _ _ _ _ _ _ Hframe) as Hcells.
-  rewrite Hf in Hf'. injection Hf' as <-.
-  destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [_ [_ [Hresults _]]]].
-  destruct view as [[index labels offset] segments values locals].
-  cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset viewOperands]
-    in Hf, Hlabels, Hend, Hheights, Hbounds, Hcells, Hlb, Hsp, Hresults |- *.
-  subst labels offset. specialize (Hresults Logic.eq_refl). unfold innerCode in Hresults.
-  cbn [pathCode positionLabels] in Hresults.
-  cbn [pathHeights] in Hheights. rewrite firstn_all, Hresults in Hheights. cbn [option_map] in Hheights.
-  injection Hheights as Hsegments Hlength. destruct segments; [ | discriminate].
-  rewrite Nat.add_0_r in Hlength. unfold viewOperands in Hbounds, Hcells, Hsp.
-  cbn [viewSegments viewValues concat app] in Hbounds, Hcells, Hsp.
-  cbn [beforeBoundary boundarySP boundaryStackBase] in Hsp.
-  (* The END row pops the context saved one level down and seeds the result move. *)
-  destruct (full_end_pops_nonempty_context row Hprime Hfull HselEnd Hkind Hhalt) as [Hpop [Hpush Hcapture]].
-  destruct (full_selected_no_host_switch row COL_SEL_END Hprime Hfull ltac:(vm_compute; tauto) HselEnd)
+  intros baseDepth top rest f index locals chosen dropped returned initial final row inner Hprime Hfull Hprogram
+    Hreplay Hkind Hchosen Hpop Hpush Hcapture Hidle Hf Hlb HbaseLayout Hbounds Hcells Hsp Hlength HdistRom HremRom
+    Hleave Hsusp Hbase0 Hdepth.
+  assert (Hin : In chosen selectorColumns) by (destruct Hkind as [<- | [<- | []]]; vm_compute; tauto).
+  destruct (full_selected_no_host_switch row chosen Hprime Hfull Hin Hchosen)
     as [Hsuspend [_ [_ [_ HcontextRead]]]].
   destruct (full_return_context_restore row Hfull Hpop) as [HpcAfter [HfbpAfter [HbaseAfter HaddrAfter]]].
-  pose proof (full_call_depth_balance row COL_SEL_END Hprime Hfull ltac:(vm_compute; tauto) HselEnd) as HdepthBalance.
+  pose proof (full_call_depth_balance row chosen Hprime Hfull Hin Hchosen) as HdepthBalance.
   rewrite Hpush, Hpop in HdepthBalance.
-  destruct (full_end_return_stack row Hprime Hfull HselEnd Hpop Hcapture)
+  destruct (full_return_stack row chosen Hprime Hfull Hkind Hchosen Hpop Hcapture)
     as [Hlo [Hhi [HlocalWrite [HgatherLo [Hgather HspEnd]]]]].
   assert (HstackMem : forall address, final stackId address = initial stackId address)
     by (intros address; eapply replay_preserves;
         [exact Hreplay | apply stack_writes_inactive; assumption]).
   assert (HcontextMem : forall id column address, In (id, column) contextMemories ->
       final id address = initial id address)
-    by (intros id column address Hin; eapply context_preserved_without_push; eassumption).
-  (* No zeroing is pending after the END. *)
+    by (intros id column address Hin'; eapply context_preserved_without_push; eassumption).
+  (* No zeroing is pending after the return. *)
   assert (HzeroAfter : row COL_LOCAL_ZERO_REMAINING_AFTER = 0).
   { destruct Hidle as [Hzr [_ [Hza _]]]. cbn [beforeBoundary boundaryZeroRemaining boundaryZeroActive] in Hzr, Hza.
     assert (Hone : row COL_ONE = 1) by exact (proj1 Hfull).
     pose proof (full_row_kind_exclusive row COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY
       Hprime Hfull ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram) as Hturn.
-    assert (HinEnd : In COL_SEL_END selectorColumns) by (vm_compute; tauto).
     assert (Hguest : row COL_GUEST_ENTRY_ACTIVE = 0).
-    { selected_row COL_SEL_END guestEntryFlagRow Hrow.
-      pose proof (value_bound row COL_GUEST_ENTRY_ACTIVE). field_linear Hrow. }
+    { destruct Hkind as [<- | [<- | []]]; let c := chosen_of Hchosen in selected_row c guestEntryFlagRow Hrow;
+        pose proof (value_bound row COL_GUEST_ENTRY_ACTIVE); field_linear Hrow. }
     circuit_row ([(COL_ONE, 1); (COL_GUEST_ENTRY_ACTIVE, -1); (COL_TURN_BOUNDARY, -1);
       (COL_LOCAL_ZERO_ACTIVE_BEFORE, -1)],
       [(COL_LOCAL_ZERO_REMAINING_AFTER, 1); (COL_LOCAL_ZERO_REMAINING_BEFORE, -1)], ([] : SparseRow)) Hrow.
@@ -586,55 +580,42 @@ Proof.
   rewrite Haddress, Hret in HretRead. rewrite Haddress, HsavedFbp in HfbpRead.
   rewrite Haddress, HsavedBase in HbaseRead.
   injection HretRead as HretValue. injection HfbpRead as HfbpValue. injection HbaseRead as HbaseValue.
-  (* SpecTec leaves the callee's frame. *)
-  assert (HcalleeWf : wf_frame (activeFrame f locals))
-    by (pose proof (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb) as H; inversion H; assumption).
-  pose proof (i32_function_returns s (activeFrame g glocals) (activeFrame f locals) values HstateC HcalleeWf Hbounds)
-    as Hleave.
-  assert (Hinner : callContext (activeFrame g glocals) (N.of_nat results)
-      (stackConfig (mk_state s (activeFrame f locals)) values []) =
-    mk_config (mk_state s (activeFrame g glocals)) [FRAME_ (N.of_nat (length values)) (activeFrame f locals)
-      [LABEL_ (N.of_nat (length values)) [] (List.map i32Constant values)]]).
-  { unfold callContext, stackConfig. cbn [List.map]. rewrite app_nil_r, Hres, Hlength. reflexivity. }
-  assert (Hdone : frameConfig f (frameView (codePosition index [] (length (guestBody f))) [] values locals)
-      (stackConfig (mk_state s (activeFrame f locals)) values
-        (skipn (length (guestBody f)) (innerCode f (codePosition index [] (length (guestBody f)))))) =
-    stackConfig (mk_state s (activeFrame f locals)) values []).
-  { unfold frameConfig, innerCode. cbn [viewPosition positionLabels viewSegments wrapLabels pathCode].
-    rewrite skipn_all. reflexivity. }
-  set (resumed := frameView (codePosition gindex glabels (S goffset)) gsegments (gvalues ++ values) glocals).
+  apply Forall_app in Hbounds as [Hdropped Hreturned].
+  set (resumed := frameView (codePosition gindex glabels (S goffset)) gsegments (gvalues ++ returned) glocals).
   exists (controlCursor rest (atCode resumed)),
-    (plugCalls rest (frameConfig g resumed (stackConfig (mk_state s (activeFrame g glocals)) (gvalues ++ values)
+    (plugCalls rest (frameConfig g resumed (stackConfig (mk_state s (activeFrame g glocals)) (gvalues ++ returned)
       (skipn (S goffset) (innerCode g (codePosition gindex glabels goffset)))))).
   split.
-  { rewrite Hdone. cbn [plugCalls]. unfold callerConfig.
+  { cbn [plugCalls]. unfold callerConfig.
     cbn [callView callerFunction callResults viewPosition viewValues viewLocals positionOffset].
-    rewrite Hinner. apply steps_in_plug_calls; [eapply suspended_stack_ready; exact Hrest | ].
+    apply steps_in_plug_calls; [eapply suspended_stack_ready; exact Hrest | ].
     unfold frameConfig, resumed. cbn [viewPosition positionLabels viewSegments].
     apply steps_in_labels; [exact HreadyC | ].
-    rewrite <- (stack_config_rejoin _ gvalues values). apply steps_with_stack_prefix; [exact HvaluesC | ].
-    apply steps_with_instruction_suffix; [apply forall_skipn; exact HcodeC | exact Hleave]. }
+    rewrite <- (stack_config_rejoin _ gvalues returned). apply steps_with_stack_prefix; [exact HvaluesC | ].
+    apply steps_with_instruction_suffix; [apply forall_skipn; exact HcodeC | ].
+    rewrite Hres. exact (Hleave _ HstateC). }
   assert (Hsource : sourceHeight (programCallees program (guestModule g)) (CALL x) (length gvalues + guestParams f) =
-      Some (length (gvalues ++ values) + 0)%nat).
+      Some (length (gvalues ++ returned) + 0)%nat).
   { cbn [sourceHeight]. rewrite Hcallee.
     replace (Nat.leb (guestParams f) (length gvalues + guestParams f)) with true by (symmetry; apply Nat.leb_le; lia).
     rewrite length_app. f_equal. lia. }
-  (* The results slide down over the callee's locals; with no locals, they are
-     already in place and nothing moves. *)
+  (* The results slide down over the callee's locals and the dropped operands;
+     with neither, they are already in place and nothing moves. *)
   assert (HdistAfter : row COL_FRAME_MOVE_DISTANCE_AFTER =
-      row COL_STACK_FRAME_BASE_BEFORE - row COL_LOCALS_FBP_BEFORE) by lia.
-  assert (Hmoved : (Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER) <= length values)%nat).
+      row COL_STACK_FRAME_BASE_BEFORE - row COL_LOCALS_FBP_BEFORE + Z.of_nat (length dropped)) by lia.
+  assert (Hmoved : (Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER) <= length returned)%nat).
   { rewrite HremRom. destruct (_ =? 0); lia. }
   assert (Hcell : forall b n i, operandCell b n (Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER))
       (row COL_FRAME_MOVE_DISTANCE_AFTER) i =
-    operandCell b n (length values) (row COL_STACK_FRAME_BASE_BEFORE - row COL_LOCALS_FBP_BEFORE) i).
+    operandCell b n (length returned)
+      (row COL_STACK_FRAME_BASE_BEFORE - row COL_LOCALS_FBP_BEFORE + Z.of_nat (length dropped)) i).
   { intros b n i. unfold operandCell. rewrite HremRom.
-    destruct (Z.of_nat (frameLocals f) =? 0) eqn:Hframe0.
-    - apply Z.eqb_eq in Hframe0. rewrite <- HdistAfter, HdistRom, Hframe0.
+    destruct (Z.of_nat (frameLocals f) + Z.of_nat (length dropped) =? 0) eqn:Hzero.
+    - apply Z.eqb_eq in Hzero. rewrite <- HdistAfter, HdistRom, Hzero.
       destruct (_ <? _)%nat, (_ <? _)%nat; lia.
-    - replace (Z.to_nat (Z.of_nat (guestResults f))) with (length values) by lia.
+    - replace (Z.to_nat (Z.of_nat (guestResults f))) with (length returned) by lia.
       rewrite HdistAfter. reflexivity. }
-  exists g, (frameConfig g resumed (stackConfig (mk_state s (activeFrame g glocals)) (gvalues ++ values)
+  exists g, (frameConfig g resumed (stackConfig (mk_state s (activeFrame g glocals)) (gvalues ++ returned)
     (skipn (S goffset) (innerCode g (codePosition gindex glabels goffset))))).
   split; [exact Hg | ]. split.
   - exists g. cbn [afterBoundary boundaryMoveRemaining boundaryStackBase boundaryLocalsBase boundaryMoveDistance
@@ -651,25 +632,31 @@ Proof.
       split.
       { intros i value Hv. rewrite Hcell, HbaseAfter, <- HbaseValue, HstackMem.
         rewrite app_assoc in Hv. unfold operandCell.
-        replace (length (concat gsegments ++ gvalues ++ values) - length values)%nat
+        replace (length (concat gsegments ++ gvalues ++ returned) - length returned)%nat
           with (length (concat gsegments) + length gvalues)%nat by (rewrite !length_app; lia).
-        destruct (Nat.lt_ge_cases i (length (concat gsegments ++ gvalues))) as [Hin | Hout].
-        - rewrite length_app in Hin.
+        destruct (Nat.lt_ge_cases i (length (concat gsegments ++ gvalues))) as [Hlt | Hge].
+        - rewrite length_app in Hlt.
           replace (i <? length (concat gsegments) + length gvalues)%nat with true by (symmetry; apply Nat.ltb_lt; lia).
           rewrite Z.add_0_r. apply HcellsC. rewrite nth_error_app1 in Hv by (rewrite length_app; lia). exact Hv.
-        - rewrite length_app in Hout.
+        - rewrite length_app in Hge.
           replace (i <? length (concat gsegments) + length gvalues)%nat with false by (symmetry; apply Nat.ltb_ge; lia).
           rewrite nth_error_app2 in Hv by (rewrite length_app; lia). rewrite length_app in Hv.
-          replace (2 * (callerB + Z.of_nat i + (row COL_STACK_FRAME_BASE_BEFORE - row COL_LOCALS_FBP_BEFORE))) with
-            (2 * (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (i - (length (concat gsegments) + length gvalues))))
-            by (rewrite HfbpC, length_app, Nat2Z.inj_sub by lia; lia).
-          exact (Hcells _ _ Hv). }
+          assert (Hat : nth_error (dropped ++ returned)
+              (length dropped + (i - (length (concat gsegments) + length gvalues))) = Some value)
+            by (rewrite nth_error_app2, Nat.add_comm, Nat.add_sub by lia; exact Hv).
+          replace (2 * (callerB + Z.of_nat i +
+              (row COL_STACK_FRAME_BASE_BEFORE - row COL_LOCALS_FBP_BEFORE + Z.of_nat (length dropped)))) with
+            (2 * (row COL_STACK_FRAME_BASE_BEFORE +
+              Z.of_nat (length dropped + (i - (length (concat gsegments) + length gvalues)))))
+            by (rewrite HfbpC, length_app, Nat2Z.inj_add, Nat2Z.inj_sub by lia; lia).
+          exact (Hcells _ _ Hat). }
       split; [exact HllenC | ]. split; [exact HlbC | ].
       intros i v Hv. rewrite HfbpAfter, <- HfbpValue, HstackMem. exact (HlcC _ _ Hv).
     + split; [assert (goffset < length (innerCode g (codePosition gindex glabels goffset)))%nat
         by (apply nth_error_Some; rewrite Hcall; discriminate); unfold innerCode in *; cbn in *; lia | ].
       split.
-      { unfold viewOperands. cbn [viewSegments viewValues]. rewrite HspEnd, HbaseAfter, <- HbaseValue, HdistAfter, Hsp, HfbpC.
+      { unfold viewOperands. cbn [viewSegments viewValues].
+        rewrite HspEnd, HbaseAfter, <- HbaseValue, HdistAfter, Hsp, HfbpC.
         rewrite !length_app. lia. }
       split; [rewrite HpcAfter, <- HretValue; reflexivity | ].
       split; [exact (full_initialization_flags row Hprime Hfull) | ].
@@ -681,9 +668,62 @@ Proof.
       replace (row COL_CALL_STACK_DEPTH_BEFORE + 0 - 1) with (row COL_CALL_STACK_DEPTH_BEFORE - 1) by lia.
       eapply suspended_stack_preserved; [exact Hrest | | ].
       * intros i _. apply HstackMem.
-      * intros id column address Hin _. eapply HcontextMem. exact Hin.
+      * intros id column address Hin' _. eapply HcontextMem. exact Hin'.
     + split; [exact Hbase0 | ]. split; [ | reflexivity].
       cbn [afterBoundary boundaryCallDepth suspendedCalls]. rewrite HdepthBalance, Hdepth, Nat2Z.inj_succ. lia.
+Qed.
+
+(* A callee's function-ending END: its operands are exactly its results. *)
+Lemma return_row : forall baseDepth top rest view f initial final row inner,
+  fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
+  row COL_ACTIVATION_FINISHED_AFTER = 0 -> Replay initial (eventsForRow memories row) final ->
+  ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
+  functionAt program (positionFunction (viewPosition view)) = Some f ->
+  positionLabels (viewPosition view) = [] -> positionOffset (viewPosition view) = length (guestBody f) ->
+  SuspendedStack program initial f (row COL_LOCALS_FBP_BEFORE) (row COL_CALL_STACK_DEPTH_BEFORE) (top :: rest) ->
+  0 <= baseDepth -> row COL_CALL_STACK_DEPTH_BEFORE = baseDepth + Z.of_nat (S (length rest)) ->
+  exists cursor c1, Steps (plugCalls (top :: rest) inner) c1 /\
+    ControlState program s baseDepth cursor final (afterBoundary row) c1.
+Proof.
+  intros baseDepth top rest view f initial final row inner Hprime Hloaded Hfull Hprogram Hhalt Hreplay Hstate Hf
+    Hlabels Hend Hsusp Hbase0 Hdepth.
+  destruct (function_end_selected view f initial final row inner Hprime Hloaded Hfull Hprogram Hreplay Hstate Hf
+    Hlabels Hend) as [HselEnd Hkind].
+  destruct (full_return_pops_nonempty_context row COL_SEL_END Hprime Hfull ltac:(cbn; tauto) HselEnd Hkind Hhalt)
+    as [Hpop [Hpush Hcapture]].
+  destruct (function_end_slide view f initial final row inner Hprime Hloaded Hfull Hreplay Hstate Hf Hlabels Hend
+    HselEnd Hpop) as [HdistRom HremRom].
+  destruct (FrameRows.program_row_active _ _ _ _ _ _ Hprime Hfull Hprogram Hstate)
+    as [f' [Hframe [_ [Hsp [_ [Hidle ->]]]]]].
+  pose proof Hframe as [Hf' [_ [Hheights [Hfbp0 [HbaseLayout [Hbounds [_ [_ [Hlb _]]]]]]]]].
+  pose proof (FrameRows.frame_at_unmoved_cells _ _ _ _ _ _ _ _ Hframe) as Hcells.
+  rewrite Hf in Hf'. injection Hf' as <-.
+  destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [_ [_ [Hresults _]]]].
+  destruct view as [[index labels offset] segments values locals].
+  cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset viewOperands]
+    in Hf, Hlabels, Hend, Hheights, Hbounds, Hcells, Hlb, Hsp, Hresults |- *.
+  subst labels offset. specialize (Hresults Logic.eq_refl). unfold innerCode in Hresults.
+  cbn [pathCode positionLabels] in Hresults.
+  cbn [pathHeights] in Hheights. rewrite firstn_all in Hheights.
+  destruct (sourceHeights _ (guestBody f) 0) as [height | ] eqn:Hheight; [ | discriminate].
+  rewrite (Hresults _ Hheight) in Hheights. cbn [option_map] in Hheights.
+  injection Hheights as Hsegments Hlength. destruct segments; [ | discriminate].
+  rewrite Nat.add_0_r in Hlength. unfold viewOperands in Hbounds, Hcells, Hsp.
+  cbn [viewSegments viewValues concat app] in Hbounds, Hcells, Hsp.
+  cbn [beforeBoundary boundarySP boundaryStackBase] in Hsp.
+  (* SpecTec leaves the callee's frame with its operands. *)
+  assert (HcalleeWf : wf_frame (activeFrame f locals))
+    by (pose proof (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb) as H; inversion H; assumption).
+  apply (return_to_caller baseDepth _ rest f index locals COL_SEL_END [] values initial final row);
+    try assumption; try (cbn; tauto).
+  all: try (cbn [length]; rewrite Z.add_0_r; assumption).
+  all: try (rewrite HdistRom; cbn; lia).
+  { lia. }
+  intros caller Hcaller.
+  pose proof (i32_function_returns s caller (activeFrame f locals) values Hcaller HcalleeWf Hbounds) as Hleave.
+  unfold frameConfig, innerCode. cbn [wrapLabels viewPosition positionLabels viewSegments pathCode].
+  rewrite skipn_all. unfold callContext, stackConfig in Hleave |- *. cbn [List.map] in *.
+  rewrite app_nil_r. replace (guestResults f) with (length values) by lia. exact Hleave.
 Qed.
 
 (* One move row: no SpecTec step; the lowest displaced operand of the active frame
@@ -837,6 +877,102 @@ Proof.
   rewrite Hboundary. eapply control_state_memory_congr; [ | | exact Hstate].
   - intros address. eapply replay_preserves; [exact Hreplay | exact (Hwrites address)].
   - intros id column address Hin. eapply context_preserved_without_push; eassumption.
+Qed.
+
+(* A return's row runs the RETURN opcode, with a return-like edge. *)
+Lemma return_selected : forall view f initial final row inner,
+  fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
+  Replay initial (eventsForRow memories row) final ->
+  ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
+  functionAt program (positionFunction (viewPosition view)) = Some f ->
+  nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) = Some RETURN ->
+  row COL_SEL_RETURN = 1 /\ row COL_PC_EDGE_KIND = 1.
+Proof.
+  intros view f initial final row inner Hprime Hloaded Hfull Hprogram Hreplay Hstate Hf Hi.
+  destruct Hstate as [f' [Hframe [_ [_ [Hpc _]]]]].
+  pose proof Hframe as [Hf' [Hpath _]]. rewrite Hf in Hf'. injection Hf' as <-.
+  destruct (encoded_path_return _ _ _ _ Hloaded Hf _ _ _ Hpath Hi) as [Hop Hedge].
+  cbn [beforeBoundary boundaryPC] in Hpc. unfold pathPC in Hop, Hedge. rewrite <- Hpc in Hop, Hedge.
+  pose proof (circuit_row_opcode_fetch _ _ _ Hreplay Hprogram) as Hfetch.
+  rewrite Hop in Hfetch. injection Hfetch as Hcode.
+  split.
+  - apply (full_opcode_selects row COL_SEL_RETURN CODE_RETURN Hprime Hfull Hprogram);
+      [vm_compute; reflexivity | symmetry; exact Hcode].
+  - pose proof (circuit_row_edge_kind_fetch _ _ _ Hreplay Hprogram) as Hkind.
+    rewrite Hedge in Hkind. injection Hkind as Hkind. lia.
+Qed.
+
+(* A return inside any number of blocks: SpecTec carries every operand out of the
+   blocks and the function's label, and its frame keeps the results; the circuit's
+   slide drops the frame's locals and the operands below the results. *)
+Lemma early_return_row : forall baseDepth top rest view f initial final row inner,
+  fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
+  row COL_ACTIVATION_FINISHED_AFTER = 0 -> Replay initial (eventsForRow memories row) final ->
+  ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
+  functionAt program (positionFunction (viewPosition view)) = Some f ->
+  nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) = Some RETURN ->
+  SuspendedStack program initial f (row COL_LOCALS_FBP_BEFORE) (row COL_CALL_STACK_DEPTH_BEFORE) (top :: rest) ->
+  0 <= baseDepth -> row COL_CALL_STACK_DEPTH_BEFORE = baseDepth + Z.of_nat (S (length rest)) ->
+  exists cursor c1, Steps (plugCalls (top :: rest) inner) c1 /\
+    ControlState program s baseDepth cursor final (afterBoundary row) c1.
+Proof.
+  intros baseDepth top rest view f initial final row inner Hprime Hloaded Hfull Hprogram Hhalt Hreplay Hstate Hf Hi
+    Hsusp Hbase0 Hdepth.
+  destruct (return_selected view f initial final row inner Hprime Hloaded Hfull Hprogram Hreplay Hstate Hf Hi)
+    as [Hsel Hkind].
+  destruct (full_return_pops_nonempty_context row COL_SEL_RETURN Hprime Hfull ltac:(cbn; tauto) Hsel Hkind Hhalt)
+    as [Hpop [Hpush Hcapture]].
+  destruct (FrameRows.program_row_active _ _ _ _ _ _ Hprime Hfull Hprogram Hstate)
+    as [f' [Hframe [_ [Hsp [Hpc [Hidle ->]]]]]].
+  pose proof Hframe as [Hf' [Hpath [Hheights [Hfbp0 [HbaseLayout [Hbounds [_ [Hllen [Hlb _]]]]]]]]].
+  pose proof (FrameRows.frame_at_unmoved_cells _ _ _ _ _ _ _ _ Hframe) as Hcells.
+  destruct (frame_heights _ _ _ _ _ _ _ _ _ Hframe) as [_ Htotal].
+  rewrite Hf in Hf'. injection Hf' as <-.
+  destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [_ [_ [_ [Hready Hwfcode]]]]].
+  destruct view as [[index labels offset] segments values locals].
+  cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset]
+    in Hf, Hi, Hpath, Hheights, Hbounds, Hcells, Hlb, Hsp, Hpc, Htotal, Hready, Hwfcode |- *.
+  cbn [beforeBoundary boundarySP boundaryStackBase boundaryLocalsBase boundaryPC] in Hsp, Hpc, HbaseLayout.
+  rewrite Nat.add_0_r in Htotal.
+  (* The ROM's slide: the frame holds the results, which the slide keeps. *)
+  assert (Hslide : row COL_FRAME_SLIDE_ACTIVE = 1).
+  { rewrite (full_frame_slide_gate row Hprime Hfull), Hpop.
+    repeat rewrite (full_opcode_selector_exclusive row COL_SEL_RETURN) by
+      (assumption || vm_compute; tauto || discriminate). reflexivity. }
+  destruct (circuit_row_slide_fetch _ _ _ Hreplay Hslide) as [Hremaining Hdistance].
+  destruct (encoded_return_slide _ _ _ _ _ _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf Hpath Hi Hheights)
+    as [Hkept Hrom].
+  rewrite <- Hpc, Hremaining in Hkept. rewrite <- Hpc, Hdistance in Hrom.
+  rewrite Nat.add_0_r, Htotal in Hkept, Hrom.
+  match type of Hkept with context [if ?fits then _ else _] => destruct fits eqn:Hfits end; [ | discriminate].
+  apply andb_prop in Hfits as [_ Hfits]. apply Nat.leb_le in Hfits.
+  injection Hkept as HremRom. injection Hrom as HdistRom.
+  unfold viewOperands in Hfits, HremRom, HdistRom, Hbounds, Hcells, Hsp. cbn [viewSegments viewValues] in *.
+  rewrite !Nat.add_0_r in Hfits, HremRom, HdistRom.
+  (* The operands below the results, and the results. *)
+  destruct (split_top_values (concat segments ++ values) (guestResults f) Hfits) as [dropped [returned [Hsplit Hlength]]].
+  assert (Hdropped : length dropped = (length (concat segments ++ values) - guestResults f)%nat)
+    by (rewrite Hsplit, length_app; lia).
+  assert (HcalleeWf : wf_frame (activeFrame f locals))
+    by (pose proof (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb) as H; inversion H; assumption).
+  pose proof (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb) as Hz.
+  apply (return_to_caller baseDepth top rest f index locals COL_SEL_RETURN dropped returned initial final row);
+    try assumption; try (cbn; tauto).
+  - rewrite <- Hsplit. exact Hbounds.
+  - rewrite <- Hsplit. exact Hcells.
+  - rewrite <- Hsplit. exact Hsp.
+  - rewrite HdistRom, Hdropped. unfold frameLocals. lia.
+  - rewrite HremRom, Hdropped. unfold frameLocals. reflexivity.
+  - intros caller Hcaller.
+    unfold frameConfig. cbn [viewPosition positionLabels viewSegments].
+    rewrite (skipn_at_instruction _ _ _ Hi).
+    destruct (wrap_labels_return labels (guestBody f) _ segments (mk_state s (activeFrame f locals)) values
+      (skipn (S offset) (innerCode f (codePosition index labels offset))) Hpath
+      ltac:(pose proof (path_heights_length _ _ _ _ _ _ Hheights) as H; rewrite length_map in H; exact H)
+      Hready Hz Hbounds (forall_skipn _ _ _ _ Hwfcode)) as [rest' [Hrest' Hreturn]].
+    eapply spec_steps_transitive; [exact (steps_in_call_frame caller _ _ _ ltac:(inversion Hcaller; assumption) Hreturn) | ].
+    rewrite Hsplit, <- Hlength. apply i32_function_returns_early; try assumption.
+    rewrite <- Hsplit. exact Hbounds.
 Qed.
 
 End Calls.

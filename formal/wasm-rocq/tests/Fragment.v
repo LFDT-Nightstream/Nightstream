@@ -16,7 +16,7 @@ Proof. repeat constructor. Qed.
 Example wide_call_rejected : forall callees x f, callees (x :> N) = Some f -> guestParams f = 256%nat ->
   ~ Supported callees (CALL x).
 Proof.
-  intros callees x f Hf Hparams H. inversion H as [ | | | | ? g Hg Hp _ | | ]; subst.
+  intros callees x f Hf Hparams H. inversion H as [ | | | | ? g Hg Hp _ | | | ]; subst.
   rewrite Hf in Hg. injection Hg as <-. lia.
 Qed.
 

@@ -140,17 +140,22 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   compares the run oracles: `production_setup_columns` (`neo-spartan`) requires the runs to derive
   the committed key and writes the four run oracles that its root covers after the key rows, and
   `columnsFailure_sound` proves that a pass makes them `poseidon2Setup`'s. The key rows are
-  compared only through the expander vectors above. No check compares the key rows' layout on the
-  cube (`seedKey` against `oracle`) or the codeword encoding (`setup.rs::encode` against `univ`,
-  `leafY` and the leaf order `o·8 + v`).
+  compared only through the expander vectors above. On the toy key,
+  `lean_setup_root_matches_the_rust_key` (`neo-spartan`) writes Rust's setup oracle tables and the
+  key root, and `setupRootCheck` requires Lean's `tableRoot` of those tables to be that root;
+  `tableRoot_eq` proves that `tableRoot` of tables that hold `setupOracle` is `honestRoot`. So on
+  the toy key, Rust's codeword encoding
+  (`setup.rs::encode` against `univ`, `leafY` and the leaf order `o·8 + v`), leaf hash and tree are
+  Lean's. No check compares the key rows' layout on the cube (`seedKey` against `oracle`), and at
+  production size nothing shows that the key's root is `honestRoot`.
 - The Merkle hash that `MerkleBinds` reads (`Replay.pathOk`, `merkleRoot`, `compress`,
   `hashLeaf`). The Merkle binding of section 3 gives a Poseidon2 collision only if this is the
   hash that made the key root. Its permutation `Replay.permute` is F′'s `permute64`, which F′
   proves is `Poseidon2.permute` over F′'s constants. Rust draws its constants from `SEED`.
   `exported_round_constants_match_fprime_lean_spec` (`neo-ccs`, `tests/poseidon2_round_constants.rs`)
   compares them with F′'s, and `exported_round_constants_rebuild_the_canonical_permutation` shows
-  that they make the workspace permutation; CI runs only `neo-ccs`'s `packed_witness` test, so these
-  two run by hand. In CI,
+  that they make the workspace permutation; CI runs both (the `neo-ccs` group of
+  `scripts/ci_rust_tests.sh`). Also in CI,
   `poseidon2_matches_the_workspace_permutation` (`neo-spartan`) shows that layer 1's permutation
   (`hash::permutation`) is the workspace permutation on 64 states, and the digest pins compare
   outputs: `permutation_template_matches_lean` hashes with F′'s `Poseidon2.hash`, and the run
@@ -161,7 +166,8 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   for the ring-row batching, and `Layer1.rustLinear` charges `s.rows - 1`, the same sum of
   `kappa`, `matrices` and `publicBlocks`; `ports.json` pins `rustLinear` to `row_count` too.
 - The readers of the files that the Rust tests write (`Layer1Key`, `readRuns` and `readColumns`
-  in `CompressionLeanExe/Runs.lean`): transcriptions of their formats.
+  in `CompressionLeanExe/Runs.lean`, `RootInput` in `CompressionLeanExe/SetupRootCheck.lean`):
+  transcriptions of their formats.
 
 **Code that a cross-check compares with Rust but that cannot make a claim false.** The rest of
 `Ports/Replay/`: the replay of the layer-1 verifier, with its transcript, stages, formulas, GKR and WHIR.
@@ -190,8 +196,8 @@ These checks compare a transcription with its Rust:
   `lake build` fails when a definition of `Ports/` has neither an entry nor a reason in
   `notPorts` (`CompressionLeanTests/Ports.lean`), when `Ports/` holds a theorem, and when an
   entry names a declaration outside `Ports/` that `portsOutside` does not list.
-- Ignored Rust tests compare the replay's draws and verdicts, and the programs' instructions, with
-  Rust on fixed inputs. They run by hand, not in CI (`scripts/crosschecks.sh`). The terminal checks
+- Ignored Rust tests compare the replay's draws and verdicts, the programs' instructions, and the
+  toy key's setup root with Rust on fixed inputs. They run by hand, not in CI (`scripts/crosschecks.sh`). The terminal checks
   run on the pinned artifact with one context; the instructions do not depend on the statement
   values, and the context words enter as constants.
 - The Rust tests `relation_shape_has_the_lean_constants` (`neo-spartan`) and
@@ -212,7 +218,8 @@ These checks compare a transcription with its Rust:
   the key. `key_facts_of_check`, `width_fits_of_check`, `package_templates_of_check`,
   `setup_facts_of_check` and `runsGive_of_check` prove that a pass gives the premise. That the
   executables ran on the production artifacts is the evidence of the Rust tests. `STATUS.md` names
-  the executable and the test of each premise.
+  the executable and the test of each premise. `setupRootCheck` backs no premise: it shows, on the
+  toy key, that Rust's root is the `honestRoot` that `merkleBinds_of_root` reads.
 
 ## 6. Scope
 

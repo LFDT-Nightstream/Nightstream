@@ -12,6 +12,11 @@
 #   replay (Ports/Replay/) to draw the same challenges and give the same
 #   verdict as Rust. The replay takes the WHIR opened values as `Opens` does,
 #   so when Rust rejects inside WHIR, the replay must reject later.
+# lean_setup_root (neo-spartan, setupRootCheck): writes the toy key's setup
+#   oracle tables and key root to target/lean-replay/setup-root.json, and
+#   requires Lean's tableRoot of the tables to be that root: the codeword
+#   encoding, leaf order, leaf hash and tree of Bridge/TableRoot.lean and
+#   Bridge/Merkle.lean are Rust's on that key.
 # lowering_matches_lean (neo-spartan, lowerCheck): records nine programs
 #   through record.rs (tests/internal/lowering_stages.rs and the toy layer-1
 #   verifier) and writes the statement, the IR and Rust's trace to
@@ -59,7 +64,7 @@
 set -u
 lean_dir=$(cd "$(dirname "$0")/.." && pwd)
 repo=$(cd "$lean_dir/../.." && pwd)
-checks=(lean_replay lowering_matches_lean production_layer1_matches_lean terminal_program_matches_lean
+checks=(lean_replay lean_setup_root lowering_matches_lean production_layer1_matches_lean terminal_program_matches_lean
   final_program_matches_lean production_runs_rebuild_the_layer1_key production_setup_columns
   production_setup_matches_lean production_runs_match_lean)
 [ $# -gt 0 ] && checks=("$@")

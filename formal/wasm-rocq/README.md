@@ -1,12 +1,13 @@
 # Wasm circuit proofs in Rocq
 
 `run_refinement` proves circuit traces against SpecTec's Wasm 2.0 semantics for
-`i32.add/sub`, `local.get/set`, direct guest calls, and zero-result blocks with
-`br_if` to any enclosing block. Blocks nest to any depth, calls nest to any depth,
+`i32.add/sub`, `local.get/set`, direct guest calls, `return` from any depth of
+blocks, and zero-result blocks with `br_if` to any enclosing block. Blocks nest to any depth, calls nest to any depth,
 and any supported instruction, calls included, may appear inside a block.
 Conditions may be computed, with multiple branches per block; a taken branch
 discards every operand above its target block's base, as the circuit's frame
-slide does.
+slide does; a `return` likewise keeps only its function's results. Code after a
+`return` is dead: nothing falls through to it, so it needs no stack height.
 `Fragment.v` lists the supported instructions, one constructor each with its
 restrictions, and states the branch-site rule (`codeBranches`). Parameters, results, locals and stack values are i32. The theorem
 takes plain rows, refines them one at a time, and relates circuit and SpecTec states through

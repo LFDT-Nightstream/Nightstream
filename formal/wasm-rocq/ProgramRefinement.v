@@ -9,11 +9,11 @@ Open Scope Z_scope.
 
 Lemma supported_cases : forall callees i, Supported callees i ->
   (exists op, encodedOpcode i = Some op) \/ (exists x, i = CALL x) \/
-  (exists body, i = BLOCK (_RESULT None) body) \/ (exists l, i = BR_IF l).
+  (exists body, i = BLOCK (_RESULT None) body) \/ (exists l, i = BR_IF l) \/ i = RETURN.
 Proof.
   intros callees i H. inversion H; subst;
     first [solve [left; eexists; reflexivity] | solve [right; left; eauto] | solve [right; right; left; eauto] |
-      solve [right; right; right; eauto]].
+      solve [right; right; right; left; eauto] | solve [right; right; right; right; reflexivity]].
 Qed.
 
 Section Run.
@@ -65,11 +65,18 @@ Proof.
   destruct (nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view))) as [i | ] eqn:Hi.
   - destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [[Hsup _] _]].
     rewrite (skipn_at_instruction _ _ _ Hi) in Hsup.
-    destruct (supported_cases _ _ (Forall_inv Hsup)) as [Hop | [[x ->] | [[body ->] | [l ->]]]].
+    destruct (supported_cases _ _ (Forall_inv Hsup)) as [Hop | [[x ->] | [[body ->] | [[l ->] | ->]]]].
     + apply Hkeep. eapply code_ordinary_row; eassumption.
     + eapply call_row; eassumption.
     + apply Hkeep. eapply code_block_enter_row; eassumption.
     + apply Hkeep. eapply code_branch_row; eassumption.
+    + (* A return pops back to its caller; in the base frame it would leave the run. *)
+      destruct stack as [ | top rest].
+      * exfalso. pose proof (Hbase ltac:(cbn in Hdepth; lia)) as Hpop.
+        destruct (return_selected program s view f initial final row _ Hprime Hloaded Hfull
+          Hprogram Hreplay Hactivestate Hactive Hi) as [Hsel Hedge].
+        destruct (full_return_exits row COL_SEL_RETURN Hprime Hfull ltac:(cbn; tauto) Hsel Hedge); lia.
+      * eapply early_return_row; eassumption.
   - apply nth_error_None in Hi.
     assert (Hend : positionOffset (viewPosition view) = length (innerCode f (viewPosition view))) by lia.
     destruct (positionLabels (viewPosition view)) as [ | b more] eqn:Hlabels.
@@ -80,7 +87,7 @@ Proof.
       * exfalso. pose proof (Hbase ltac:(cbn in Hdepth; lia)) as Hpop.
         destruct (function_end_selected program s view f initial final row _ Hprime Hloaded Hfull
           Hprogram Hreplay Hactivestate Hactive Hlabels Hend) as [HselEnd Hedge].
-        destruct (full_function_end_exits row Hprime Hfull HselEnd Hedge); lia.
+        destruct (full_return_exits row COL_SEL_END Hprime Hfull ltac:(cbn; tauto) HselEnd Hedge); lia.
       * eapply return_row; eassumption.
     + apply Hkeep. eapply code_block_end_row; try eassumption. rewrite Hlabels. discriminate.
 Qed.

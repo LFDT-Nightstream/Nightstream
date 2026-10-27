@@ -53,6 +53,13 @@ fn entry_bindings(wasm: &[u8], params: usize) -> HostEventBindings {
     builder.finish().expect("bindings")
 }
 
+/// A return from inside a block that drops the operand below its result.
+const EARLY_RETURN: &str = r#"(module
+  (func (export "main") (param i32) (result i32) local.get 0 call 1)
+  (func (param i32) (result i32) (local i32)
+    block local.get 1 local.get 0 return end
+    local.get 1))"#;
+
 /// The longest run of program, zero and move rows ending just before the final END,
 /// which finishes the activation, as `name`, one dense row per trace row.
 fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
@@ -110,4 +117,5 @@ fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
 fn export_witnesses() {
     export_witness(BLOCK_CALLS, &[], "blockCallRows", "BlockCallTrace.v");
     export_witness(UNWINDING_BRANCH, &[7], "unwindingRows", "UnwindingTrace.v");
+    export_witness(EARLY_RETURN, &[7], "earlyReturnRows", "EarlyReturnTrace.v");
 }

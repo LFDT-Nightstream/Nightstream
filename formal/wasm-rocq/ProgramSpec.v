@@ -73,6 +73,7 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
             else None
         | Some (flatInstruction (Some (BR_IF _)) (Some distance)) =>
             if choice =? 0 then Some (pc + 1) else if choice =? 1 then Some (pc + Z.of_nat distance) else None
+        | Some (flatInstruction (Some RETURN) _) => None
         | Some _ => if choice =? 0 then Some (pc + 1) else None
         | None => None end
       else if Nat.eqb memory programOpcodeId then
@@ -80,10 +81,11 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
         | Some (flatInstruction (Some (CALL _)) _) => Some CODE_CALL
         | Some (flatInstruction (Some (BLOCK _ _)) _) => Some CODE_BLOCK
         | Some (flatInstruction (Some (BR_IF _)) _) => Some CODE_BR_IF
+        | Some (flatInstruction (Some RETURN) _) => Some CODE_RETURN
         | Some (flatInstruction (Some i) _) => encodedOpcode i
         | _ => Some CODE_END end
       else if Nat.eqb memory pcEdgeKindId then
-        match slot with Some _ => Some 0 | None => Some 1 end
+        match slot with Some (flatInstruction (Some RETURN) _) | None => Some 1 | Some _ => Some 0 end
       else if Nat.eqb memory programLocalIndexId then
         match slot with
         | Some (flatInstruction (Some (LOCAL_GET x)) _)
@@ -113,7 +115,7 @@ Definition functionRom (program : Program) (memory : nat) (reference : Z) : opti
    br_if l at operand height h discards the h - 1 operands below its condition and
    those below the l labels inside its target; `labels` holds, innermost first, the
    operand height below each enclosing block. Blocks carry no results, so a taken
-   branch keeps nothing. *)
+   branch keeps nothing. A return's slot holds its frame's whole operand height. *)
 Fixpoint instructionDrops (callees : CalleeEnvironment) (labels : list nat) (height : option nat) (i : instr)
     : list (option nat) :=
   match i with
@@ -133,6 +135,7 @@ Fixpoint instructionDrops (callees : CalleeEnvironment) (labels : list nat) (hei
            else None
        | _ => None
        end]
+  | RETURN => [match height with Some h => Some (h + fold_right Nat.add 0 labels)%nat | None => None end]
   | _ => [None]
   end.
 
@@ -145,8 +148,39 @@ Definition codeDrops (callees : CalleeEnvironment) : list instr -> option nat ->
     end.
 
 (* The frame slide each taken edge seeds: the operands it keeps and how far down
-   they move. A function's END keeps its results and drops its locals; a slide
-   that moves nothing keeps nothing. *)
+   they move. A function's END or a return keeps its results and drops its locals
+   and every operand below the results; a slide that moves nothing keeps nothing. *)
+(* The slide ROM's entry at a slot of f's flattened code, for the slots whose
+   edges can slide: f's END, its returns, and its br_ifs. Other slots have none. *)
+Definition functionSlide (program : Program) (memory : nat) (f : GuestFunction) (offset : nat) (choice : Z)
+    : option Z :=
+  let frame := Z.of_nat (guestParams f + guestLocals f) in
+  let remaining := Nat.eqb memory frameSlideRemainingId in
+  match nth_error (flattenCode (guestBody f)) offset with
+  | None =>
+      if choice =? 0 then Some (if remaining then (if frame =? 0 then 0 else Z.of_nat (guestResults f)) else frame)
+      else None
+  | Some (flatInstruction (Some RETURN) _) =>
+      match nth_error (codeDrops (programCallees program (guestModule f)) (guestBody f) (Some 0%nat)) offset with
+      | Some (Some height) =>
+          if (choice =? 0) && Nat.leb (guestResults f) height then
+            let distance := frame + Z.of_nat (height - guestResults f) in
+            Some (if remaining then (if distance =? 0 then 0 else Z.of_nat (guestResults f)) else distance)
+          else None
+      | _ => None
+      end
+  | Some (flatInstruction (Some (BR_IF _)) _) =>
+      if remaining then (if (choice =? 0) || (choice =? 1) then Some 0 else None)
+      else if choice =? 0 then Some 0
+      else if choice =? 1 then
+        match nth_error (codeDrops (programCallees program (guestModule f)) (guestBody f) (Some 0%nat)) offset with
+        | Some (Some dropped) => Some (Z.of_nat dropped)
+        | _ => None
+        end
+      else None
+  | Some _ => None
+  end.
+
 Definition slideRom (program : Program) (memory : nat) (pc choice : Z) : option Z :=
   if pc <? 0 then None else
   match locatePC program (Z.to_nat pc) with
@@ -154,24 +188,7 @@ Definition slideRom (program : Program) (memory : nat) (pc choice : Z) : option 
   | Some (function, offset) =>
       match functionAt program function with
       | None => None
-      | Some f =>
-          let frame := Z.of_nat (guestParams f + guestLocals f) in
-          let remaining := Nat.eqb memory frameSlideRemainingId in
-          match nth_error (flattenCode (guestBody f)) offset with
-          | None =>
-              if choice =? 0 then Some (if remaining then (if frame =? 0 then 0 else Z.of_nat (guestResults f)) else frame)
-              else None
-          | Some (flatInstruction (Some (BR_IF _)) _) =>
-              if remaining then (if (choice =? 0) || (choice =? 1) then Some 0 else None)
-              else if choice =? 0 then Some 0
-              else if choice =? 1 then
-                match nth_error (codeDrops (programCallees program (guestModule f)) (guestBody f) (Some 0%nat)) offset with
-                | Some (Some dropped) => Some (Z.of_nat dropped)
-                | _ => None
-                end
-              else None
-          | Some _ => None
-          end
+      | Some f => functionSlide program memory f offset choice
       end
   end.
 

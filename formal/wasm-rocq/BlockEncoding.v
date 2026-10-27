@@ -191,4 +191,17 @@ Proof.
   - unfold pathPC. eapply encoded_frame_image; [exact Hloaded | exact Hf | exact Hbound | exact Hcount].
 Qed.
 
+(* A return's slot: the RETURN opcode, with a return-like edge. *)
+Lemma encoded_path_return : forall labels inner offset,
+  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some RETURN ->
+  memory programOpcodeId [pathPC labels offset] = Some CODE_RETURN /\
+  memory pcEdgeKindId [pathPC labels offset] = Some 1.
+Proof.
+  intros labels inner offset Hpath Hi.
+  pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.
+  split; program_cell Hloaded; unfold encodeProgram;
+    cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
+    unfold instructionRom; rewrite Hpc; reflexivity.
+Qed.
+
 End Path.

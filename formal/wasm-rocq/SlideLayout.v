@@ -85,21 +85,24 @@ Proof.
     destruct (sourceHeight callees a h); reflexivity.
 Qed.
 
-(* At a br_if on a code path, the drop of its taken edge. `labels0` holds the
-   heights below the blocks around `code`, innermost first. *)
-Lemma drops_at_path : forall callees labels code inner offset l hs top labels0,
-  pathCode code labels = Some inner -> nth_error inner offset = Some (BR_IF l) ->
+(* At an instruction other than a block on a code path, its first slot's drop at
+   the height the static heights give. `labels0` holds the heights below the
+   blocks around `code`, innermost first. *)
+Lemma drops_at_path : forall callees labels code inner offset i hs top labels0,
+  pathCode code labels = Some inner -> nth_error inner offset = Some i -> (forall bt body, i <> BLOCK bt body) ->
   pathHeights callees code labels offset = Some (hs, top) ->
   nth_error (bodyDrops callees labels0 code (Some 0%nat)) (pathOffset code labels offset) =
-    Some (branchDrop (rev hs ++ labels0) top (N.to_nat (l :> N))).
+    nth_error (instructionDrops callees (rev hs ++ labels0) (Some top) i) 0.
 Proof.
   intros callees labels. induction labels as [ | b rest IH];
-    intros code inner offset l hs top labels0 Hpath Hi Hheights.
+    intros code inner offset i hs top labels0 Hpath Hi Hflat Hheights.
   - injection Hpath as <-. cbn [pathHeights] in Hheights.
     destruct (sourceHeights callees (firstn offset code) 0) as [h | ] eqn:Hh; [ | discriminate].
     injection Hheights as <- <-. cbn [pathOffset].
-    rewrite <- (Nat.add_0_r (codeOffset code offset)), (body_drops_at _ _ _ _ _ _ 0 Hi ltac:(cbn; lia)).
-    cbn [heightsFrom]. rewrite Hh, instruction_drops_br_if. reflexivity.
+    assert (Hsize : instructionSize i = 1%nat).
+    { destruct i; try reflexivity. exfalso. eapply Hflat. reflexivity. }
+    rewrite <- (Nat.add_0_r (codeOffset code offset)), (body_drops_at _ _ _ _ _ _ 0 Hi ltac:(lia)).
+    cbn [heightsFrom]. rewrite Hh. reflexivity.
   - cbn [pathCode] in Hpath. cbn [pathHeights] in Hheights. cbn [pathOffset].
     destruct (nth_error code b) as [j | ] eqn:Hb; [ | discriminate].
     destruct j; try discriminate.
@@ -107,15 +110,28 @@ Proof.
     destruct (sourceHeights callees (firstn b code) 0) as [below | ] eqn:Hbelow; [ | discriminate].
     destruct (pathHeights callees body rest offset) as [[hs' top'] | ] eqn:Hinner; [ | discriminate].
     injection Hheights as <- <-.
-    pose proof (IH body inner offset l hs' top' (below :: labels0) Hpath Hi Hinner) as Hdrop.
+    pose proof (IH body inner offset i hs' top' (below :: labels0) Hpath Hi Hflat Hinner) as Hdrop.
+    assert (Hslot : nth_error (instructionDrops callees (rev hs' ++ below :: labels0) (Some top') i) 0 <> None).
+    { assert (Hsize : instructionSize i = 1%nat).
+      { destruct i; try reflexivity. exfalso. eapply Hflat. reflexivity. }
+      apply nth_error_Some. rewrite instruction_drops_length. lia. }
     assert (Hp : (pathOffset body rest offset < codeSize body)%nat).
     { rewrite <- (body_drops_length callees (below :: labels0) body (Some 0%nat)).
-      apply nth_error_Some. rewrite Hdrop. discriminate. }
+      apply nth_error_Some. rewrite Hdrop. exact Hslot. }
     rewrite (body_drops_at _ _ _ _ _ _ (S (pathOffset body rest offset)) Hb
       ltac:(rewrite block_instruction_size; lia)).
     cbn [heightsFrom]. rewrite Hbelow, instruction_drops_block. cbn [nth_error option_map].
     rewrite nth_error_app1 by (rewrite body_drops_length; exact Hp).
     rewrite Hdrop. cbn [rev]. rewrite <- app_assoc. reflexivity.
+Qed.
+
+Lemma sum_rev : forall hs top, (top + fold_right Nat.add 0 (rev hs))%nat = totalHeight (hs, top).
+Proof.
+  intros hs top. unfold totalHeight. cbn [fst snd].
+  assert (Hshift : forall a xs, fold_right Nat.add a xs = (a + fold_right Nat.add 0 xs)%nat).
+  { intros a xs. induction xs as [ | x xs IH]; cbn [fold_right]; lia. }
+  induction hs as [ | h hs IH]; [cbn; lia | ].
+  cbn [rev fold_right]. rewrite fold_right_app, Hshift. cbn [fold_right]. rewrite Hshift in IH. lia.
 Qed.
 
 (* The ROM's slide at a br_if: the fall-through edge drops nothing, the taken
@@ -138,12 +154,44 @@ Proof.
   { assert (pathOffset (guestBody f) labels offset < length (flattenCode (guestBody f)))%nat
       by (apply nth_error_Some; rewrite Hslot; discriminate).
     unfold codeSize. lia. }
-  pose proof (drops_at_path _ _ _ _ _ _ _ _ [] Hpath Hi Hheights) as Hdrop.
-  rewrite app_nil_r, <- code_drops_body in Hdrop.
+  pose proof (drops_at_path _ _ _ _ _ _ _ _ [] Hpath Hi ltac:(discriminate) Hheights) as Hdrop.
+  rewrite app_nil_r, <- code_drops_body, instruction_drops_br_if in Hdrop. cbn [nth_error] in Hdrop.
   split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
-    unfold pc; rewrite (slide_at_function_pc _ _ _ _ _ choice Hf Hbound), Hslot; cbn [Nat.eqb frameSlideRemainingId
+    unfold pc; rewrite (slide_at_function_pc _ _ _ _ _ choice Hf Hbound); unfold functionSlide; rewrite Hslot;
+      cbn [Nat.eqb frameSlideRemainingId
       frameSlideDistanceId].
   - reflexivity.
   - rewrite Hdrop. destruct (choice =? 0)%Z; [reflexivity | ].
     destruct (choice =? 1)%Z; [ | reflexivity]. destruct (branchDrop _ _ _); reflexivity.
+Qed.
+
+(* The ROM's slide at a return: it keeps the function's results and drops its
+   locals and every other operand of its frame, when the frame holds the results. *)
+Lemma encoded_return_slide : forall program memory index f labels inner offset hs top choice,
+  programLoaded program memory -> functionAt program index = Some f ->
+  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some RETURN ->
+  pathHeights (programCallees program (guestModule f)) (guestBody f) labels offset = Some (hs, top) ->
+  let pc := guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset) in
+  let total := totalHeight (hs, top) in
+  let distance := (Z.of_nat (guestParams f + guestLocals f) + Z.of_nat (total - guestResults f))%Z in
+  memory frameSlideRemainingId [pc; choice] =
+    (if (choice =? 0)%Z && Nat.leb (guestResults f) total then
+      Some (if (distance =? 0)%Z then 0%Z else Z.of_nat (guestResults f)) else None) /\
+  memory frameSlideDistanceId [pc; choice] =
+    (if (choice =? 0)%Z && Nat.leb (guestResults f) total then Some distance else None).
+Proof.
+  intros program memory index f labels inner offset hs top choice Hloaded Hf Hpath Hi Hheights pc total distance.
+  destruct (path_slot_head (guestBody f) labels RETURN (skipn (S offset) inner)) as [more Hhead].
+  pose proof (flatten_at_path _ _ _ _ _ 0 _ Hpath Hi ltac:(rewrite Hhead; reflexivity)) as Hslot.
+  rewrite Nat.add_0_r in Hslot.
+  assert (Hbound : (pathOffset (guestBody f) labels offset <= codeSize (guestBody f))%nat).
+  { assert (pathOffset (guestBody f) labels offset < length (flattenCode (guestBody f)))%nat
+      by (apply nth_error_Some; rewrite Hslot; discriminate).
+    unfold codeSize. lia. }
+  pose proof (drops_at_path _ _ _ _ _ _ _ _ [] Hpath Hi ltac:(discriminate) Hheights) as Hdrop.
+  rewrite app_nil_r, <- code_drops_body in Hdrop. cbn [instructionDrops nth_error] in Hdrop.
+  rewrite sum_rev in Hdrop.
+  split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
+    unfold pc; rewrite (slide_at_function_pc _ _ _ _ _ choice Hf Hbound); unfold functionSlide;
+    rewrite Hslot, Hdrop; reflexivity.
 Qed.

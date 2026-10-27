@@ -654,7 +654,7 @@ Proof.
   destruct (innermost_label _ _ _ _ _ _ _ _ _ _ _ _ _ Hframe Hne)
     as [labels' [b [segments' [segment [outer [bt [-> [-> [Hlen' [Hpath' [Hb [Hheights' Htop]]]]]]]]]]]].
   set (body := innerCode f (codePosition index (labels' ++ [b]) offset)) in *.
-  rewrite Hend, firstn_all, Hzero in Htop. injection Htop as Hvalues.
+  rewrite Hend, firstn_all in Htop. pose proof (Hzero _ Htop) as Hvalues.
   destruct values; [ | cbn in Hvalues; lia]. clear Hvalues.
   destruct (function_facts _ _ _ _ Hstore Hvalid Hf) as [Hfacts _].
   pose proof (code_facts_wf _ _ _ _ Hfacts) as Hwfbody.
@@ -748,13 +748,15 @@ Proof.
   destruct view as [[index labels offset] segments values locals].
   cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset viewOperands]
     in *.
-  destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [[_ Hbranches] [_ [_ [Hready Hwfcode]]]]].
-  cbn [viewPosition viewValues viewSegments positionLabels positionOffset] in Hbranches, Hready, Hwfcode.
+  destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe)
+    as [Hfacts [[_ Hbranches] [_ [_ [Hready Hwfcode]]]]].
+  cbn [viewPosition viewValues viewSegments positionLabels positionOffset] in Hfacts, Hbranches, Hready, Hwfcode.
   set (code := innerCode f (codePosition index labels offset)) in *.
-  rewrite (skipn_at_instruction _ _ _ Hi) in Hbranches. destruct Hbranches as [Hexits Hnext].
+  rewrite (skipn_at_instruction _ _ _ Hi) in Hfacts, Hbranches. destruct Hbranches as [Hexits _].
+  destruct Hfacts as [[_ Hone] _].
   (* The condition is the top operand; `under` are the operands below it. *)
-  assert (Hnonempty : values <> []) by (intros ->; cbn in Hnext; exact Hnext).
-  destruct (exists_last Hnonempty) as [under [condition ->]]. clear Hnonempty Hnext.
+  assert (Hnonempty : values <> []) by (intros ->; cbn in Hone; lia).
+  destruct (exists_last Hnonempty) as [under [condition ->]]. clear Hnonempty Hone.
   assert (Hwfl : wf_uN 32%N l).
   { pose proof (proj1 (Forall_forall _ _) Hwfcode _ (nth_error_In _ _ Hi)) as H. inversion H; assumption. }
   cbn [instrBranches] in Hexits.

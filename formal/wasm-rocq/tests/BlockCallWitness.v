@@ -41,3 +41,16 @@ Proof.
     witness_entry_config) as [shape [c [Hsteps [_ Hconfig]]]].
   exists shape, c. split; assumption.
 Qed.
+
+(* The run returns through a slide: the callee's END at pc 1 pops back to the
+   caller's pc 5, keeping its result and dropping its local (sp 3 to 2), and the next
+   row moves the result down one cell. *)
+Example block_call_returns_through_slide :
+  let return_row := nth 6 witnessRows (rowWitness []) in
+  let move_row := nth 7 witnessRows (rowWitness []) in
+  return_row COL_SEL_END = 1 /\ return_row COL_CALL_STACK_POP_PRESENT = 1 /\
+  return_row COL_PC_BEFORE = 1 /\ return_row COL_PC_AFTER = 5 /\
+  return_row COL_SP_BEFORE = 3 /\ return_row COL_SP_AFTER = 2 /\
+  return_row COL_FRAME_MOVE_REMAINING_AFTER = 1 /\ return_row COL_FRAME_MOVE_DISTANCE_AFTER = 1 /\
+  move_row COL_FRAME_MOVE_ACTIVE_BEFORE = 1 /\ move_row COL_FRAME_MOVE_REMAINING_AFTER = 0.
+Proof. vm_compute. repeat split; reflexivity. Qed.

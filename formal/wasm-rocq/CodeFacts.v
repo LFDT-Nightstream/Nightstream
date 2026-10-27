@@ -173,7 +173,7 @@ Qed.
 
 Lemma block_branches : forall callees bt body height exits,
   instrBranches callees (BLOCK bt body) height exits <->
-  codeBranches callees (if Nat.eqb height 0 then S exits else 1) body 0.
+  codeBranches callees (S exits) body 0.
 Proof. reflexivity. Qed.
 
 Lemma supported_skip : forall callees code k, supportedCode callees code -> supportedCode callees (skipn k code).

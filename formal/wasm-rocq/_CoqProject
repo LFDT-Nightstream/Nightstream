@@ -76,5 +76,8 @@ tests/WitnessCheck.v
 tests/BlockCallTrace.v
 tests/BlockCallRun.v
 tests/BlockCallWitness.v
+tests/UnwindingTrace.v
+tests/UnwindingRun.v
+tests/UnwindingWitness.v
 tests/DeepBranches.v
 tests/RangeSearch.v

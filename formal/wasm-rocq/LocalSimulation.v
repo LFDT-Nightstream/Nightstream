@@ -128,13 +128,14 @@ Qed.
 (* A pop, possibly into a local whose cell lies below the operand base. *)
 Lemma stack_matches_pop : forall w initial final prefix value local,
   UnaryStackShape w true local -> Replay initial (eventsForRow MemoryCatalog.memories w) final ->
+  (local = false -> w COL_FRAME_MOVE_DISTANCE_AFTER = 0) ->
   (local = true -> w COL_LOCAL_ADDR_LO < 2 * w COL_STACK_FRAME_BASE_BEFORE /\
     w COL_LOCAL_ADDR_HI < 2 * w COL_STACK_FRAME_BASE_BEFORE) ->
   stackMatches initial (beforeBoundary w) (prefix ++ [value]) ->
   w (List.nth 0%nat COL_STACK_READ_VALUE_LO 0%nat) = value /\
   stackMatches final (afterBoundary w) prefix.
 Proof.
-  intros w initial final prefix value local Hshape Hreplay Hbelow [Hbase [Hsp [Hbounds Hcells]]].
+  intros w initial final prefix value local Hshape Hreplay Hslide Hbelow [Hbase [Hsp [Hbounds Hcells]]].
   cbn [beforeBoundary boundarySP boundaryStackBase] in Hbase, Hsp, Hcells.
   rewrite length_app, Nat2Z.inj_add in Hsp. cbn [length] in Hsp.
   assert (Hread : initial MemoryCatalog.stackId [w (List.nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)] =
@@ -158,7 +159,7 @@ Proof.
   split; [congruence | ].
   unfold stackMatches. cbn [afterBoundary boundarySP boundaryStackBase].
   rewrite (local_stack_base_after w true local Hshape), (local_stack_pointer_after w true local Hshape).
-  split; [exact Hbase | ]. split; [lia | ].
+  split; [exact Hbase | ]. split; [destruct local; [ | rewrite (Hslide Logic.eq_refl)]; cbn; lia | ].
   apply Forall_app in Hbounds. split; [exact (proj1 Hbounds) | ].
   intros index v HlookupPrefix.
   assert (Hindex : (index < length prefix)%nat).

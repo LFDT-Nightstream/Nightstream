@@ -25,19 +25,16 @@ Fixpoint sourceHeights (callees : CalleeEnvironment) (code : list instr) (height
       | Some next => sourceHeights callees rest next | None => None end
   end.
 
-(* The circuit pops a branch's condition but discards no other operand: at a
-   br_if n the condition is the only operand above the target block's base. `exits`
-   counts the enclosing blocks a branch may target. A block entered at height 0
-   adds one to its body's; a block entered above other operands leaves only
-   itself, since leaving the blocks around it would discard those operands. *)
+(* A br_if leaves an enclosing block, never the function: `exits` counts the
+   enclosing blocks. A taken branch discards the operands above its target's base. *)
 Fixpoint instrBranches (callees : CalleeEnvironment) (i : instr) (height exits : nat) : Prop :=
   match i with
-  | BR_IF l => height = 1%nat /\ (N.to_nat (l :> N) < exits)%nat
+  | BR_IF l => (N.to_nat (l :> N) < exits)%nat
   | BLOCK _ body =>
       (fix bodyBranches (code : list instr) (h : nat) : Prop :=
          match code with
          | [] => True
-         | j :: rest => instrBranches callees j h (if Nat.eqb height 0 then S exits else 1%nat) /\
+         | j :: rest => instrBranches callees j h (S exits) /\
              match sourceHeight callees j h with Some next => bodyBranches rest next | None => False end
          end) body 0%nat
   | _ => True

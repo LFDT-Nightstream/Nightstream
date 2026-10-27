@@ -4,9 +4,9 @@
 `i32.add/sub`, `local.get/set`, direct guest calls, and zero-result blocks with
 `br_if` to any enclosing block. Blocks nest to any depth, calls nest to any depth,
 and any supported instruction, calls included, may appear inside a block.
-Conditions may be computed, with multiple branches per block; a branch site must
-have only the condition above its target block's operands (no unwinding), as the
-Rust front end also requires.
+Conditions may be computed, with multiple branches per block; a taken branch
+discards every operand above its target block's base, as the circuit's frame
+slide does.
 `Fragment.v` lists the supported instructions, one constructor each with its
 restrictions, and states the branch-site rule (`codeBranches`). Parameters, results, locals and stack values are i32. The theorem
 takes plain rows, refines them one at a time, and relates circuit and SpecTec states through
@@ -22,7 +22,10 @@ to the function's own label and returning out of the base frame are excluded.
 Selected zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory
 argument is not proved. The program ROM encoder covers this guest-only fragment;
-its correspondence with Rust preprocessing is not yet proved.
+its correspondence with Rust preprocessing is not yet proved. The `tests/*Witness.v`
+files check by computation that exported Rust traces meet every premise of
+`run_refinement` (regenerate them with
+`cargo test -p neo-wasm --release --test wasm_rocq_witness_export -- --ignored`).
 
 ## Build
 

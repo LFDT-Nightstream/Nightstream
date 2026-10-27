@@ -135,7 +135,7 @@ Proof.
     row COL_LOCAL_ADDR_HI < 2 * row COL_STACK_FRAME_BASE_BEFORE).
   { cbn [beforeBoundary boundaryLocalsBase boundaryStackBase] in Hlayout. rewrite HaddrHi, HaddrLo, Hindex.
     apply Nat2Z.inj_lt in HindexBound. rewrite N_nat_Z in HindexBound. lia. }
-  destruct (stack_matches_pop row initial final (prefix ++ inner) value true Hshape Hreplay
+  destruct (stack_matches_pop row initial final (prefix ++ inner) value true Hshape Hreplay (fun H => ltac:(discriminate H))
     (fun _ => Hbelow) Hstack) as [Hread Hafter].
   assert (Hchoice : straightLineSelector COL_SEL_LOCAL_SET) by (cbn; auto).
   destruct (full_straight_line_local_gates row _ Hprime Hfull Hchoice Hchosen) as [Hfbp _].

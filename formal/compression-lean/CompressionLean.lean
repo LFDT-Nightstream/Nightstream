@@ -22,5 +22,3 @@ import CompressionLean.Bridge.Openings
 import CompressionLean.Bridge.Main
 import CompressionLean.Circuit.Exec
 import CompressionLean.Circuit.Sound
-import CompressionLean.Circuit.Counts
-import CompressionLean.Circuit.SimRun

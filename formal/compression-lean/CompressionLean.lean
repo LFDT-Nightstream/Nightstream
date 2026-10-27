@@ -23,3 +23,4 @@ import CompressionLean.Bridge.Main
 import CompressionLean.Circuit.Exec
 import CompressionLean.Circuit.Sound
 import CompressionLean.Circuit.SimVerify
+import CompressionLean.Circuit.MirrorAlgebra

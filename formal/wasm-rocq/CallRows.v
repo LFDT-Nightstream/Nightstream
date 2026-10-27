@@ -493,8 +493,9 @@ Proof.
   destruct (circuit_row_slide_fetch _ _ _ Hreplay Hslide) as [Hremaining Hdistance].
   destruct (encoded_end_slide _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf) as [Hrom Hdrom].
   rewrite <- Hpc in Hrom, Hdrom. rewrite Hremaining in Hrom. rewrite Hdistance in Hdrom.
-  unfold frameLocals. destruct (row COL_CONTROL_CHOICE =? 0); [ | discriminate].
-  injection Hrom as ->. injection Hdrom as ->. split; reflexivity.
+  rewrite (full_selected_choice_pinned row COL_SEL_END Hprime Hfull ltac:(vm_compute; tauto) HselEnd
+    ltac:(vm_compute; intuition discriminate)) in Hrom, Hdrom.
+  unfold frameLocals. injection Hrom as ->. injection Hdrom as ->. split; reflexivity.
 Qed.
 
 (* A popping END or RETURN: SpecTec leaves the callee's FRAME_ with its results,
@@ -928,10 +929,13 @@ Proof.
   pose proof (FrameRows.frame_at_unmoved_cells _ _ _ _ _ _ _ _ Hframe) as Hcells.
   destruct (frame_heights _ _ _ _ _ _ _ _ _ Hframe) as [_ Htotal].
   rewrite Hf in Hf'. injection Hf' as <-.
-  destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [_ [_ [_ [_ [Hready Hwfcode]]]]].
+  destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [Hfacts [_ [_ [_ [Hready Hwfcode]]]]].
   destruct view as [[index labels offset] segments values locals].
   cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset]
-    in Hf, Hi, Hpath, Hheights, Hbounds, Hcells, Hlb, Hsp, Hpc, Htotal, Hready, Hwfcode |- *.
+    in Hf, Hi, Hpath, Hheights, Hbounds, Hcells, Hlb, Hsp, Hpc, Htotal, Hfacts, Hready, Hwfcode |- *.
+  (* Typing: the return's own block holds the results. *)
+  rewrite (skipn_at_instruction _ _ _ Hi) in Hfacts. cbn [codeFacts instrFacts] in Hfacts.
+  destruct Hfacts as [[_ Hresults] _].
   cbn [beforeBoundary boundarySP boundaryStackBase boundaryLocalsBase boundaryPC] in Hsp, Hpc, HbaseLayout.
   rewrite Nat.add_0_r in Htotal.
   (* The ROM's slide: the frame holds the results, which the slide keeps. *)
@@ -944,8 +948,12 @@ Proof.
     as [Hkept Hrom].
   rewrite <- Hpc, Hremaining in Hkept. rewrite <- Hpc, Hdistance in Hrom.
   rewrite Nat.add_0_r, Htotal in Hkept, Hrom.
-  match type of Hkept with context [if ?fits then _ else _] => destruct fits eqn:Hfits end; [ | discriminate].
-  apply andb_prop in Hfits as [_ Hfits]. apply Nat.leb_le in Hfits.
+  rewrite (full_selected_choice_pinned row COL_SEL_RETURN Hprime Hfull ltac:(vm_compute; tauto) Hsel
+    ltac:(vm_compute; intuition discriminate)) in Hkept, Hrom.
+  match type of Hkept with context [Nat.leb ?r ?t] => assert (Hfits : (r <= t)%nat) end.
+  { unfold viewOperands. cbn [viewSegments viewValues]. rewrite length_app. lia. }
+  rewrite (proj2 (Nat.leb_le _ _) Hfits) in Hkept, Hrom. change ((0 =? 0)%Z && true) with true in Hkept, Hrom.
+  cbn iota in Hkept, Hrom.
   injection Hkept as HremRom. injection Hrom as HdistRom.
   unfold viewOperands in Hfits, HremRom, HdistRom, Hbounds, Hcells, Hsp. cbn [viewSegments viewValues] in *.
   rewrite !Nat.add_0_r in Hfits, HremRom, HdistRom.

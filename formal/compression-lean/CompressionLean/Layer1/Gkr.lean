@@ -1,4 +1,5 @@
 import CompressionLean.Layer1.GkrLayer
+import CompressionLean.Game.SumCheck
 
 /-!
 Owns the batched fraction-sum GKR verifier of `crates/neo-spartan/src/gkr.rs`
@@ -19,34 +20,15 @@ world the bad sets hold at most `1` (`μ`), `A - 1` (`ν`, `A` active trees),
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {K : Type} [Field K]
-
-/-- `C a + X·C b`: a pair's difference after the reduction at `X`. -/
-noncomputable def linePoly (a b : K) : K[X] := C a + X * C b
 
 /-- `Σ_i δ(lᵢ)·X^i` by Horner's rule. -/
 noncomputable def wpoly (δ : ℕ → K) : List ℕ → K[X]
   | [] => 0
   | t :: rest => C (δ t) + X * wpoly δ rest
-
-theorem linePoly_eval (a b c : K) : (linePoly a b).eval c = a + c * b := by
-  simp only [linePoly, eval_add, eval_mul, eval_C, eval_X]
-
-theorem linePoly_natDegree (a b : K) : (linePoly a b).natDegree ≤ 1 := by
-  unfold linePoly
-  refine (natDegree_add_le _ _).trans (max_le (by simp) ?_)
-  exact (natDegree_mul_le).trans (by simp)
-
-theorem linePoly_ne_zero {a b : K} (nonzero : a ≠ 0 ∨ b ≠ 0) : linePoly a b ≠ 0 := by
-  intro zero
-  have zeroth := congrArg (fun p => p.coeff 0) zero
-  have first := congrArg (fun p => p.coeff 1) zero
-  simp [linePoly, coeff_C] at zeroth first
-  rcases nonzero with h | h
-  · exact h zeroth
-  · exact h first
 
 theorem wpoly_eval (δ : ℕ → K) (ν : K) (l : List ℕ) : (wpoly δ l).eval ν = wsum ν δ l := by
   induction l with
@@ -187,7 +169,7 @@ noncomputable def gkrLayers (s : GkrShape) (worlds : Finset W) (batch : W → Ba
       .draw K (worlds.biUnion (badMu s batch k st)) fun μ =>
       .draw K (worlds.biUnion (badNu s batch k st μ)) fun ν =>
       Game.bind
-        (sumcheck worlds (s.degree k - 1)
+        (Game.sumcheck worlds (s.degree k - 1)
           (fun w => combRound (k - 1) (layerTables s (batch w) k st.point) (layerComb s k μ ν))
           (extra k) (k - 1) [] (wsum ν (fun t => (st.current t).1 + μ * (st.current t).2) (s.active k)))
         fun result =>
@@ -389,7 +371,7 @@ theorem gkrLayers_avoids (worlds : Finset W) (batch : W → Batch K) (extra : �
         have := s.le_degree k
         have := totalDegree_layerComb s k μ ν
         omega
-      refine (sumcheck_avoids worlds (s.degree k - 1) (distinct k low inside)
+      refine (Game.sumcheck_avoids worlds (s.degree k - 1) (distinct k low inside)
         (fun w => combTruth (k - 1) (layerTables s (batch w) k st.point) (layerComb s k μ ν))
         (fun w => combRound (k - 1) (layerTables s (batch w) k st.point) (layerComb s k μ ν))
         (extra k) (k - 1)
@@ -526,11 +508,11 @@ theorem gkrLayers_cost (worlds : Finset W) (batch : W → Batch K) (extra : ℕ 
         simp only [gkrCost, gkrLayerCost, rounds, later]
         ring
       rw [total]
-      refine draw_step _ _ _ _ (density_le _ _ (card_badMu batch k st worlds)) fun μ => ?_
-      refine draw_step _ _ _ _ (density_le _ _ (card_badNu batch k st μ worlds)) fun ν => ?_
+      refine Game.draw_step _ _ _ _ (Game.density_le _ _ (card_badMu batch k st worlds)) fun μ => ?_
+      refine Game.draw_step _ _ _ _ (Game.density_le _ _ (card_badNu batch k st μ worlds)) fun ν => ?_
       rw [Nat.cast_add, add_div]
       refine Game.costLe_bind ?_ ?_
-      · have cost := sumcheck_cost worlds (s.degree k - 1) (distinct k low inside)
+      · have cost := Game.sumcheck_cost worlds (s.degree k - 1) (distinct k low inside)
           (fun w => combRound (k - 1) (layerTables s (batch w) k st.point) (layerComb s k μ ν))
           (extra k) (k - 1) (E k)
           (fun w _ point short => (combRound_truth (k - 1) (s.degree k - 1) _ _
@@ -545,7 +527,7 @@ theorem gkrLayers_cost (worlds : Finset W) (batch : W → Batch K) (extra : ℕ 
       · intro result children
         dsimp only
         split_ifs
-        · refine draw_step _ _ (n * 1 + E k) _ (density_le _ _ ?_) fun τ => ih (k + 1) _ (by omega) (by omega)
+        · refine Game.draw_step _ _ (n * 1 + E k) _ (Game.density_le _ _ ?_) fun τ => ih (k + 1) _ (by omega) (by omega)
           exact (Finset.card_union_le _ _).trans (add_le_add (card_badTau batch k _ children worlds)
             (extra_card k _))
         · exact div_nonneg (Nat.cast_nonneg _) positive.le

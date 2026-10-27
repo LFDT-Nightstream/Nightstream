@@ -200,7 +200,7 @@ fn fold_dir(root: &Path, step: u64) -> PathBuf {
 fn step_dir(root: &Path, step: u64) -> PathBuf {
     root.join(format!("step-{step}"))
 }
-fn prepare() -> PreparedLifecycle {
+pub(super) fn prepare() -> PreparedLifecycle {
     prepare_with_engine(EvaluationEngine::Optimized)
 }
 fn prepare_with_engine(engine: EvaluationEngine) -> PreparedLifecycle {

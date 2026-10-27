@@ -1,9 +1,9 @@
 import CompressionLean.Layer1.Model
-import CompressionLean.Layer1.IdentityTest
+import CompressionLean.Lib.IdentityTest
 
 /-!
 Owns the early stage of the layer-1 verifier (`verifier.rs` up to
-`observe_early`, `matrix.rs::check_early`): the P0 candidates, the histogram,
+`observe_early`, `matrix.rs::Structure::check_early`): the P0 candidates, the histogram,
 the five early challenges, the batched early GKR over the norm, lookup and
 scatter trees, the early values and the early checks.
 
@@ -14,6 +14,7 @@ equal to them.
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K]

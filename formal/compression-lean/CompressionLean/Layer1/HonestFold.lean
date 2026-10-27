@@ -1,5 +1,5 @@
-import CompressionLean.Layer1.Univariate
-import CompressionLean.Layer1.Roots
+import CompressionLean.Lib.Univariate
+import CompressionLean.Lib.Roots
 import Mathlib.Algebra.Field.GeomSum
 import Mathlib.Tactic.FieldSimp
 
@@ -16,6 +16,7 @@ Owns the honest fold of the setup oracles (`setup.rs`, M2 "Honest fold"):
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {K : Type} [Field K]

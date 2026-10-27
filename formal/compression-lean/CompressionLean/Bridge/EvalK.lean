@@ -1,4 +1,5 @@
 import CompressionLean.Bridge.Ring
+import CompressionLean.Spec.Checks
 
 /-!
 Owns the denotation of the replay's Eval_K long division (`Replay.evalK`)
@@ -11,15 +12,17 @@ proves to be the extensions of the Eval_K tables. Then `Ω~` is the model's
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
+open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-local notation "ι" => algebraMap Fp K
+local notation "ι" => algebraMap Gl K
 
 /-- The point `r` in `K ⊗ Ext`. -/
-def rQuad (r : Array (Gl × Gl)) : List (QuadX K) := (quadPoint r.toList).map fromK
+def rQuad (r : Array (Word × Word)) : List (QuadX K) := (quadPoint r.toList).map fromK
 
 /-- An `Ext` point in `K ⊗ Ext`. -/
 def sQuad (s : Array Ext) : List (QuadX K) := (pointK s).map (algebraMap K (QuadX K))
@@ -27,7 +30,7 @@ def sQuad (s : Array Ext) : List (QuadX K) := (pointK s).map (algebraMap K (Quad
 theorem divStep_eq (blocks bb t rem below bit : ℕ) :
     Replay.divStep blocks bb t rem below bit = Layer1.divStep D blocks bb t rem below bit := rfl
 
-theorem rQuad_getD (r : Array (Gl × Gl)) (t : ℕ) : (rQuad (K := K) r).getD t 0 = (Kx.ofK r[t]!).toQ := by
+theorem rQuad_getD (r : Array (Word × Word)) (t : ℕ) : (rQuad (K := K) r).getD t 0 = (Kx.ofK r[t]!).toQ := by
   rw [Kx.toQ_ofK]
   unfold rQuad quadPoint
   by_cases inside : t < r.size
@@ -36,7 +39,7 @@ theorem rQuad_getD (r : Array (Gl × Gl)) (t : ℕ) : (rQuad (K := K) r).getD t 
     rfl
   · rw [getElem!_neg r t inside, List.getD_eq_getElem?_getD, List.getElem?_map, List.getElem?_map,
       Array.getElem?_toList, Array.getElem?_eq_none (by omega)]
-    ext <;> simp [show (default : Gl × Gl) = (0, 0) from rfl]
+    ext <;> simp [show (default : Word × Word) = (0, 0) from rfl]
 
 theorem sQuad_getD (s : Array Ext) (t : ℕ) :
     (sQuad (K := K) s).getD t 0 = algebraMap K (QuadX K) (s[t]!).toK := by
@@ -44,7 +47,7 @@ theorem sQuad_getD (s : Array Ext) (t : ℕ) :
   rw [pointK_getD, List.getD_eq_getElem?_getD, List.getD_eq_getElem?_getD, List.getElem?_map]
   cases (pointK (K := K) s)[t]? <;> simp
 
-theorem toQ_divFactor (r : Array (Gl × Gl)) (s : Array Ext) (t bit q : ℕ) :
+theorem toQ_divFactor (r : Array (Word × Word)) (s : Array Ext) (t bit q : ℕ) :
     (Replay.divFactor r s t bit q).toQ (K := K) = Layer1.divFactor (rQuad r) (sQuad s) t bit q := by
   unfold Replay.divFactor Layer1.divFactor
   rw [rQuad_getD, sQuad_getD, show (sQuad (K := K) s).length = s.size by simp [sQuad]]
@@ -65,12 +68,8 @@ theorem toQ_contribution (step : Option (ℕ × ℕ × ℕ)) (rem' below' : ℕ)
   · simp only
     split_ifs <;> simp [Kx.toQ_mul]
 
-theorem getElem!_map_range₂ {α : Type} [Inhabited α] (n m : ℕ) (f : ℕ → ℕ → α) {i j : ℕ} (hi : i < n) (hj : j < m) :
-    (((Array.range n).map fun i => (Array.range m).map (f i))[i]!)[j]! = f i j := by
-  rw [getElem!_map_range n _ hi, getElem!_map_range m _ hj]
-
 /-- The replay's long-division states are the model's, digit by digit. -/
-theorem toQ_evalKStates (r : Array (Gl × Gl)) (s : Array Ext) (blocks cb : ℕ) (k : ℕ) :
+theorem toQ_evalKStates (r : Array (Word × Word)) (s : Array Ext) (blocks cb : ℕ) (k : ℕ) :
     ∀ rem below, rem < D → below < 2 →
       (((Replay.evalKStates r s blocks cb k)[rem]!)[below]!).toQ (K := K) =
         Layer1.evalKStates D blocks (rQuad r) (sQuad s) cb k rem below := by
@@ -97,7 +96,7 @@ theorem toQ_evalKStates (r : Array (Gl × Gl)) (s : Array Ext) (blocks cb : ℕ)
       funext q
       exact toQ_divFactor r s _ bit q
 
-theorem toQ_tail (l : List (Gl × Gl)) (x : Kx) :
+theorem toQ_tail (l : List (Word × Word)) (x : Kx) :
     (l.foldl (fun total value => total.mul (Kx.ofK value).oneMinus) x).toQ (K := K) =
       x.toQ * ((quadPoint l).map fromK |>.map fun v => 1 - v).prod := by
   induction l generalizing x with
@@ -108,7 +107,7 @@ theorem toQ_tail (l : List (Gl × Gl)) (x : Kx) :
       ring
 
 /-- The replay's Eval_K is the model's long division. -/
-theorem toQ_evalK (r : Array (Gl × Gl)) (s : Array Ext) (tau : Array Ext) (blocks : ℕ) :
+theorem toQ_evalK (r : Array (Word × Word)) (s : Array Ext) (tau : Array Ext) (blocks : ℕ) :
     (Replay.evalK r s tau blocks).toQ (K := K) =
       evalKValue D blocks (rQuad r) (sQuad s) (fun l => algebraMap K (QuadX K) (tableK tau l))
         (Nat.log2 (D * 2 ^ s.size).nextPowerOfTwo) := by
@@ -121,15 +120,6 @@ theorem toQ_evalK (r : Array (Gl × Gl)) (s : Array Ext) (tau : Array Ext) (bloc
   intro rem inside
   rw [Kx.toQ_scale, toQ_evalKStates r s blocks _ _ rem 1 (Finset.mem_range.mp inside) (by norm_num)]
   rfl
-
-/-- The relation's Eval_K bits: they cover the block bits and the blocks
-and fit the point `r` (`eval_k`'s coordinate bits). -/
-structure EvalKBits (rel : Replay.Relation) : Prop where
-  deep : rel.blockVars ≤ Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo
-  long : Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo ≤ rel.pointVariables
-  blocks_le : rel.key.blocks ≤ 2 ^ rel.blockVars
-  fits : D * rel.key.blocks ≤ 2 ^ Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo
-  strict : rel.key.blocks < 2 ^ Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo
 
 /-- The replay's Eval_K at the block point is the pair of the extensions of
 the model's Eval_K tables. -/
@@ -149,7 +139,7 @@ theorem evalK_parts (rel : Replay.Relation) (st : Replay.Statement) (pointSize :
   funext l
   rw [tableK_tau (shapeOf rel) rfl]
 
-omit [Algebra Fp K] [Fintype K] [ChallengeField K] in
+omit [Algebra Gl K] [Fintype K] [ChallengeField K] in
 theorem mle_publicPart (s : Layer1.Shape) (lam : K) (p : List K) (small : s.publicBlocks ≤ 2 ^ p.length) :
     mle p (publicPart s lam) = ∑ b ∈ Finset.range s.publicBlocks, eqAt p b * lam ^ s.publicRow b := by
   rw [mle_eq_cubeSum, cubeSum_eq_sum_range]

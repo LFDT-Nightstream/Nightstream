@@ -1,5 +1,6 @@
 import CompressionLean.Layer1.RingRows
 import CompressionLean.Layer1.Lookups
+import CompressionLean.Lib.List
 import Mathlib.Algebra.QuadraticAlgebra.Defs
 
 /-!
@@ -20,6 +21,7 @@ Owns the data of the layer-1 relation (`crates/neo-spartan/src/lib.rs`,
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 /-- The verifier's sizes. -/
@@ -107,10 +109,6 @@ structure P1Tables (K : Type) where
   foldRun : ℕ → K
   omegaA : ℕ → K
 
-/-- A commitment is a list of at most `L` candidates (WHIR's list decoding). -/
-instance candidates_nonempty {α : Type} (L : ℕ) : Nonempty {l : List α // l.length ≤ L} :=
-  ⟨⟨[], by simp⟩⟩
-
 variable {F : Type} [Field F]
 
 /-- `Σ_{p < D} v(p)·X^p`. -/
@@ -147,7 +145,7 @@ structure Setup.Fits (S : Setup F) (s : Shape) : Prop where
   lane_lt : ∀ σ, S.slotLane σ < s.D
   length_le : ∀ σ, S.slotLength σ ≤ s.D
   inside : ∀ σ, s.D * S.slotBlock σ + S.slotLane σ + S.slotLength σ ≤ s.D * s.blocks
-  key_zero : ∀ i b l, (s.blocks ≤ b ∨ s.D ≤ l) → S.key i (2 ^ s.laneVars * b + l) = 0
+  key_zero : ∀ i b l, l < 2 ^ s.laneVars → (s.blocks ≤ b ∨ s.D ≤ l) → S.key i (2 ^ s.laneVars * b + l) = 0
 
 /-- The witness block `b` as a ring element. -/
 noncomputable def witnessBlock (s : Shape) (z : ℕ → F) (b : ℕ) : F[X] :=

@@ -1,86 +1,58 @@
-import CompressionLean.Replay.Stages
-import CompressionLean.Layer1.CubicField
+import CompressionLean.Ports.Replay.Stages
+import CompressionLean.Fields
 import CompressionLean.Layer1.ClosedForms
+import CompressionLean.Spec.Relation
 
 /-!
-Owns the field correspondence of the bridge. A replay word (`Gl`) denotes
-its residue in the Goldilocks field `Fp`, the model's `F`. An `Ext` value
-`a₀ + a₁·X + a₂·X²` denotes `a₀ + a₁·x + a₂·x²` in a challenge field `K`:
-a field of `p³` elements with a root `x` of `X³ - X - 1`
-(`ChallengeField`). A `Kx` value denotes its pair in `K ⊗ Ext = QuadX K`.
+Owns the field correspondence of the bridge. A replay word (`Word`) denotes
+its residue `Word.toF` in the Goldilocks field `Gl` (`Fields.lean`), the
+model's `F`. An `Ext` value `a₀ + a₁·X + a₂·X²` denotes `a₀ + a₁·x + a₂·x²`
+in a challenge field `K`: a field of `p³` elements with a root `x` of
+`X³ - X - 1` (`ChallengeField`). A `Kx` value denotes its pair in `K ⊗ Ext = QuadX K`.
 
 Every replay operation denotes the field operation. The denotation of `Ext`
 is injective, because `X³ - X - 1` is the minimal polynomial of `x`, so the
 replay's zero tests and equality tests are the field's. The replay's
 inverses by Fermat are the field inverses.
+
+The `Ext` and `Kx` lemmas are in the namespaces of the replay types, so that
+dot notation finds them. The sums and products of a range are the bridge's.
 -/
-
-namespace CompressionLean.Bridge
-
-open Polynomial
-open NightstreamFPrime.Spec
-open CompressionLean.Layer1
-
-/-- The Goldilocks field, the model's `F`. -/
-abbrev Fp := ZMod goldilocksModulus
-
-instance : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
-
-theorem three_le_modulus : 3 ≤ goldilocksModulus := by decide
-
-/-- Fermat in a finite field: `a^(q-2)` is the inverse, zero at zero. -/
-theorem pow_card_sub_two {L : Type} [Field L] (q : ℕ) (three : 3 ≤ q) (a : L)
-    (fermat : a ≠ 0 → a ^ (q - 1) = 1) : a ^ (q - 2) = a⁻¹ := by
-  by_cases zero : a = 0
-  · rw [zero, zero_pow (by omega), inv_zero]
-  · have one := fermat zero
-    rw [show q - 1 = q - 2 + 1 by omega, pow_succ] at one
-    exact eq_inv_of_mul_eq_one_left one
-
-/-- The challenge field of layer 1: `p³` elements and a root of `X³ - X - 1`. -/
-class ChallengeField (K : Type) [Field K] [Algebra Fp K] [Fintype K] where
-  root : K
-  cubic : root ^ 3 = root + 1
-  card : Fintype.card K = goldilocksModulus ^ 3
-
-end CompressionLean.Bridge
 
 namespace CompressionLean.Replay
 
+open CompressionLean.Lib
 open Polynomial
 open NightstreamFPrime.Spec NightstreamFPrime.Export.NativePoseidon2
-open CompressionLean.Bridge CompressionLean.Layer1
+open CompressionLean.Layer1
 
 /-! ## Words -/
 
-namespace Gl
+namespace Word
 
-/-- The residue of a word. -/
-def toF (a : Gl) : Fp := (a.word.toNat : Fp)
-
-theorem toF_eq (a : Gl) : a.toF = ((a.word.denote).val : Fp) := by
+theorem toF_eq (a : Word) : a.toF = ((a.word.denote).val : Gl) := by
   simp [toF, UInt64.denote, Poseidon2.ofNat, Nat.mod_eq_of_lt a.canonical]
 
-theorem add_mk (a b : Gl) : a + b = ⟨add64 a.word b.word, add64_canonical _ _ a.canonical b.canonical⟩ := by
+theorem add_mk (a b : Word) : a + b = ⟨add64 a.word b.word, add64_canonical _ _ a.canonical b.canonical⟩ := by
   rfl
 
-theorem mul_mk (a b : Gl) : a * b = ⟨mul64 a.word b.word, mul64_canonical _ _⟩ := by
+theorem mul_mk (a b : Word) : a * b = ⟨mul64 a.word b.word, mul64_canonical _ _⟩ := by
   rfl
 
-theorem sub_mk (a b : Gl) : a - b = ⟨sub64 a.word b.word, sub64_canonical _ _ a.canonical b.canonical⟩ := by
+theorem sub_mk (a b : Word) : a - b = ⟨sub64 a.word b.word, sub64_canonical _ _ a.canonical b.canonical⟩ := by
   rfl
 
-theorem toF_add (a b : Gl) : (a + b).toF = a.toF + b.toF := by
+theorem toF_add (a b : Word) : (a + b).toF = a.toF + b.toF := by
   rw [add_mk, toF_eq, toF_eq a, toF_eq b]
   dsimp only
   rw [add64_denote _ _ a.canonical b.canonical, Fin.val_add, ZMod.natCast_mod, Nat.cast_add]
 
-theorem toF_mul (a b : Gl) : (a * b).toF = a.toF * b.toF := by
+theorem toF_mul (a b : Word) : (a * b).toF = a.toF * b.toF := by
   rw [mul_mk, toF_eq, toF_eq a, toF_eq b]
   dsimp only
   rw [mul64_denote _ _ a.canonical b.canonical, Fin.val_mul, ZMod.natCast_mod, Nat.cast_mul]
 
-theorem toF_sub (a b : Gl) : (a - b).toF = a.toF - b.toF := by
+theorem toF_sub (a b : Word) : (a - b).toF = a.toF - b.toF := by
   rw [sub_mk, toF_eq, toF_eq a, toF_eq b]
   dsimp only
   rw [sub64_denote _ _ a.canonical b.canonical, Fin.sub_def]
@@ -88,30 +60,30 @@ theorem toF_sub (a b : Gl) : (a - b).toF = a.toF - b.toF := by
   rw [ZMod.natCast_mod, Nat.cast_add, Nat.cast_sub (b.word.denote).isLt.le, ZMod.natCast_self]
   ring
 
-theorem toF_ofNat (n : ℕ) : (Gl.ofNat n).toF = (n : Fp) := by
+theorem toF_ofNat (n : ℕ) : (Word.ofNat n).toF = (n : Gl) := by
   rw [toF_eq]
-  show (((ofNat64 n).denote).val : Fp) = _
+  show (((ofNat64 n).denote).val : Gl) = _
   rw [ofNat64_denote]
   simp [Poseidon2.ofNat]
 
 @[simp] theorem toF_lit (n : ℕ) [n.AtLeastTwo] :
-    (no_index (OfNat.ofNat n : Gl)).toF = (OfNat.ofNat n : Fp) := by
-  rw [show (OfNat.ofNat n : Gl) = Gl.ofNat n from rfl, toF_ofNat]
+    (no_index (OfNat.ofNat n : Word)).toF = (OfNat.ofNat n : Gl) := by
+  rw [show (OfNat.ofNat n : Word) = Word.ofNat n from rfl, toF_ofNat]
   rfl
 
-@[simp] theorem toF_zero : (0 : Gl).toF = 0 := by
-  rw [show (0 : Gl) = Gl.ofNat 0 from rfl, toF_ofNat, Nat.cast_zero]
+@[simp] theorem toF_zero : (0 : Word).toF = 0 := by
+  rw [show (0 : Word) = Word.ofNat 0 from rfl, toF_ofNat, Nat.cast_zero]
 
-@[simp] theorem toF_one : (1 : Gl).toF = 1 := by
-  rw [show (1 : Gl) = Gl.ofNat 1 from rfl, toF_ofNat, Nat.cast_one]
+@[simp] theorem toF_one : (1 : Word).toF = 1 := by
+  rw [show (1 : Word) = Word.ofNat 1 from rfl, toF_ofNat, Nat.cast_one]
 
-theorem toF_neg (a : Gl) : (-a).toF = -a.toF := by
+theorem toF_neg (a : Word) : (-a).toF = -a.toF := by
   rw [show -a = 0 - a from rfl, toF_sub, toF_zero, zero_sub]
 
-theorem toF_pow (a : Gl) (e : ℕ) : (a.pow e).toF = a.toF ^ e := by
+theorem toF_pow (a : Word) (e : ℕ) : (a.pow e).toF = a.toF ^ e := by
   induction e using Nat.strong_induction_on generalizing a with
   | _ e ih =>
-    rw [Gl.pow]
+    rw [Word.pow]
     by_cases zero : e = 0
     · rw [if_pos zero, zero, toF_one, pow_zero]
     · rw [if_neg zero]
@@ -127,72 +99,69 @@ theorem toF_pow (a : Gl) (e : ℕ) : (a.pow e).toF = a.toF ^ e := by
         congr 1
         omega
 
-theorem toF_inv (a : Gl) : a.inv.toF = a.toF⁻¹ := by
-  rw [Gl.inv, toF_pow]
+theorem toF_inv (a : Word) : a.inv.toF = a.toF⁻¹ := by
+  rw [Word.inv, toF_pow]
   exact pow_card_sub_two goldilocksModulus three_le_modulus _ ZMod.pow_card_sub_one_eq_one
 
-theorem eq_of_word {a b : Gl} (words : a.word = b.word) : a = b := by
+theorem eq_of_word {a b : Word} (words : a.word = b.word) : a = b := by
   obtain ⟨wa, ca⟩ := a
   obtain ⟨wb, cb⟩ := b
   cases words
   rfl
 
-theorem eq_of_toF {a b : Gl} (equal : a.toF = b.toF) : a = b := by
+theorem eq_of_toF {a b : Word} (equal : a.toF = b.toF) : a = b := by
   have same := (ZMod.natCast_eq_natCast_iff' _ _ _).mp equal
   rw [Nat.mod_eq_of_lt a.canonical, Nat.mod_eq_of_lt b.canonical] at same
   exact eq_of_word (UInt64.toNat_inj.mp same)
 
-theorem eq_of_beq {a b : Gl} (equal : (a == b) = true) : a = b :=
+theorem eq_of_beq {a b : Word} (equal : (a == b) = true) : a = b :=
   eq_of_word (beq_iff_eq.mp equal)
 
-end Gl
+end Word
 
 /-! ## The challenge field -/
 
 section Challenge
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-local notation "ι" => algebraMap Fp K
+local notation "ι" => algebraMap Gl K
 local notation "x₀" => ChallengeField.root (K := K)
 
 namespace Ext
 
-/-- `a₀ + a₁·x + a₂·x²`. -/
-def toK (a : Ext) : K := ι a.c0.toF + ι a.c1.toF * x₀ + ι a.c2.toF * x₀ ^ 2
-
 theorem toK_add (a b : Ext) : (a + b).toK (K := K) = a.toK + b.toK := by
   show toK ⟨a.c0 + b.c0, a.c1 + b.c1, a.c2 + b.c2⟩ = _
-  simp only [toK, Gl.toF_add, map_add]
+  simp only [toK, Word.toF_add, map_add]
   ring
 
 theorem toK_sub (a b : Ext) : (a - b).toK (K := K) = a.toK - b.toK := by
   show toK ⟨a.c0 - b.c0, a.c1 - b.c1, a.c2 - b.c2⟩ = _
-  simp only [toK, Gl.toF_sub, map_sub]
+  simp only [toK, Word.toF_sub, map_sub]
   ring
 
 theorem toK_mul (a b : Ext) : (a * b).toK (K := K) = a.toK * b.toK := by
   show toK ⟨a.c0 * b.c0 + (a.c1 * b.c2 + a.c2 * b.c1),
     a.c0 * b.c1 + a.c1 * b.c0 + (a.c1 * b.c2 + a.c2 * b.c1) + a.c2 * b.c2,
     a.c0 * b.c2 + a.c1 * b.c1 + a.c2 * b.c0 + a.c2 * b.c2⟩ = _
-  simp only [toK, Gl.toF_add, Gl.toF_mul, map_add, map_mul]
+  simp only [toK, Word.toF_add, Word.toF_mul, map_add, map_mul]
   linear_combination (-(ι a.c1.toF * ι b.c2.toF + ι a.c2.toF * ι b.c1.toF + ι a.c2.toF * ι b.c2.toF * x₀)) *
     ChallengeField.cubic (K := K)
 
-theorem toK_ofGl (a : Gl) : (Ext.ofGl a).toK (K := K) = ι a.toF := by
+theorem toK_ofGl (a : Word) : (Ext.ofGl a).toK (K := K) = ι a.toF := by
   simp [toK, ofGl]
 
 @[simp] theorem toK_zero : (0 : Ext).toK (K := K) = 0 := by
-  rw [show (0 : Ext) = Ext.ofGl 0 from rfl, toK_ofGl, Gl.toF_zero, map_zero]
+  rw [show (0 : Ext) = Ext.ofGl 0 from rfl, toK_ofGl, Word.toF_zero, map_zero]
 
 @[simp] theorem toK_one : (1 : Ext).toK (K := K) = 1 := by
-  rw [show (1 : Ext) = Ext.ofGl 1 from rfl, toK_ofGl, Gl.toF_one, map_one]
+  rw [show (1 : Ext) = Ext.ofGl 1 from rfl, toK_ofGl, Word.toF_one, map_one]
 
 theorem toK_neg (a : Ext) : (-a).toK (K := K) = -a.toK := by
   rw [show -a = 0 - a from rfl, toK_sub, toK_zero, zero_sub]
 
-theorem toK_scale (a : Ext) (g : Gl) : (a.scale g).toK (K := K) = a.toK * ι g.toF := by
-  simp only [scale, toK, Gl.toF_mul, map_mul]
+theorem toK_scale (a : Ext) (g : Word) : (a.scale g).toK (K := K) = a.toK * ι g.toF := by
+  simp only [scale, toK, Word.toF_mul, map_mul]
   ring
 
 theorem toK_pow (a : Ext) (e : ℕ) : (a.pow e).toK (K := K) = a.toK ^ e := by
@@ -225,16 +194,16 @@ theorem toK_basis (c : ℕ) (small : c < 3) : (Ext.basis c).toK (K := K) = x₀ 
   rcases (show c = 0 ∨ c = 1 ∨ c = 2 by omega) with rfl | rfl | rfl <;> simp [basis, toK]
 
 /-- `X³ - X - 1` is the minimal polynomial of the root. -/
-theorem minpoly_root : (X ^ 3 - X - 1 : Fp[X]) = minpoly Fp (x₀) := by
+theorem minpoly_root : (X ^ 3 - X - 1 : Gl[X]) = minpoly Gl (x₀) := by
   apply minpoly.eq_of_irreducible_of_monic cubic_irreducible
   · simp [ChallengeField.cubic (K := K)]
-  · have : (X ^ 3 - X - 1 : Fp[X]) = X ^ 3 - (X + 1) := by ring
+  · have : (X ^ 3 - X - 1 : Gl[X]) = X ^ 3 - (X + 1) := by ring
     rw [this]
     exact monic_X_pow_sub (by compute_degree!)
 
 /-- Three coordinates that denote zero are zero. -/
-theorem coords_of_toK {a b c : Fp} (zero : ι a + ι b * x₀ + ι c * x₀ ^ 2 = 0) : a = 0 ∧ b = 0 ∧ c = 0 := by
-  set g : Fp[X] := C a + C b * X + C c * X ^ 2
+theorem coords_of_toK {a b c : Gl} (zero : ι a + ι b * x₀ + ι c * x₀ ^ 2 = 0) : a = 0 ∧ b = 0 ∧ c = 0 := by
+  set g : Gl[X] := C a + C b * X + C c * X ^ 2
   by_contra nonzero
   have g_ne : g ≠ 0 := by
     intro gz
@@ -245,9 +214,9 @@ theorem coords_of_toK {a b c : Fp} (zero : ι a + ι b * x₀ + ι c * x₀ ^ 2 
     simp [g, coeff_X, coeff_X_pow] at c0 c1 c2
     exact ⟨c0, c1, c2⟩
   have root : aeval (x₀) g = 0 := by simpa [g, Algebra.algebraMap_eq_smul_one] using zero
-  have degree := minpoly.degree_le_of_ne_zero Fp (x₀) g_ne root
+  have degree := minpoly.degree_le_of_ne_zero Gl (x₀) g_ne root
   rw [← minpoly_root] at degree
-  have three : (X ^ 3 - X - 1 : Fp[X]).natDegree = 3 := by compute_degree!
+  have three : (X ^ 3 - X - 1 : Gl[X]).natDegree = 3 := by compute_degree!
   have two : g.natDegree ≤ 2 := by simp only [g]; compute_degree
   have := natDegree_le_natDegree degree
   omega
@@ -255,18 +224,34 @@ theorem coords_of_toK {a b c : Fp} (zero : ι a + ι b * x₀ + ι c * x₀ ^ 2 
 theorem eq_zero_of_toK {a : Ext} (zero : a.toK (K := K) = 0) : a = 0 := by
   obtain ⟨h0, h1, h2⟩ := coords_of_toK zero
   obtain ⟨a0, a1, a2⟩ := a
-  have e0 : a0 = 0 := Gl.eq_of_toF (by rw [h0, Gl.toF_zero])
-  have e1 : a1 = 0 := Gl.eq_of_toF (by rw [h1, Gl.toF_zero])
-  have e2 : a2 = 0 := Gl.eq_of_toF (by rw [h2, Gl.toF_zero])
+  have e0 : a0 = 0 := Word.eq_of_toF (by rw [h0, Word.toF_zero])
+  have e1 : a1 = 0 := Word.eq_of_toF (by rw [h1, Word.toF_zero])
+  have e2 : a2 = 0 := Word.eq_of_toF (by rw [h2, Word.toF_zero])
   subst e0 e1 e2
   rfl
+
+/-- Values with one denotation are equal. -/
+theorem eq_of_toK {a b : Ext} (equal : a.toK (K := K) = b.toK) : a = b := by
+  have zero := eq_zero_of_toK (K := K) (a := a - b) (by rw [toK_sub, equal, sub_self])
+  obtain ⟨a0, a1, a2⟩ := a
+  obtain ⟨b0, b1, b2⟩ := b
+  have parts : (⟨a0 - b0, a1 - b1, a2 - b2⟩ : Ext) = ⟨0, 0, 0⟩ := zero
+  have word_eq (x y : Word) (h : x - y = 0) : x = y :=
+    Word.eq_of_toF (sub_eq_zero.mp (by rw [← Word.toF_sub, h, Word.toF_zero]))
+  simp only [Ext.mk.injEq] at parts
+  rw [word_eq _ _ parts.1, word_eq _ _ parts.2.1, word_eq _ _ parts.2.2]
 
 theorem eq_of_beq {a b : Ext} (equal : (a == b) = true) : a = b := by
   obtain ⟨a0, a1, a2⟩ := a
   obtain ⟨b0, b1, b2⟩ := b
   have parts : (a0.word = b0.word ∧ a1.word = b1.word) ∧ a2.word = b2.word := by
     simpa [BEq.beq, Bool.and_eq_true] using equal
-  rw [Gl.eq_of_word parts.1.1, Gl.eq_of_word parts.1.2, Gl.eq_of_word parts.2]
+  rw [Word.eq_of_word parts.1.1, Word.eq_of_word parts.1.2, Word.eq_of_word parts.2]
+
+/-- A value passes the replay's equality test with itself. -/
+theorem beq_self (a : Ext) : (a == a) = true := by
+  show (a.c0.word == a.c0.word && a.c1.word == a.c1.word && a.c2.word == a.c2.word) = true
+  simp
 
 theorem toK_of_beq {a b : Ext} (equal : (a == b) = true) : a.toK (K := K) = b.toK := by
   rw [eq_of_beq equal]
@@ -294,7 +279,7 @@ theorem toQ_add (a b : Kx) : (a.add b).toQ (K := K) = a.toQ + b.toQ := by
 
 theorem toQ_mul (a b : Kx) : (a.mul b).toQ (K := K) = a.toQ * b.toQ := by
   ext
-  · simp only [mul, toQ_re, Ext.toK_add, Ext.toK_mul, Ext.toK_scale, QuadraticAlgebra.re_mul, Gl.toF_lit,
+  · simp only [mul, toQ_re, Ext.toK_add, Ext.toK_mul, Ext.toK_scale, QuadraticAlgebra.re_mul, Word.toF_lit,
       map_ofNat, toQ_im]
     ring
   · simp only [mul, toQ_im, Ext.toK_add, Ext.toK_mul, QuadraticAlgebra.im_mul, toQ_re]
@@ -312,11 +297,27 @@ theorem toQ_scale (a : Kx) (e : Ext) : (a.scale e).toQ (K := K) = a.toQ * algebr
 theorem toQ_oneMinus (a : Kx) : a.oneMinus.toQ (K := K) = 1 - a.toQ := by
   ext <;> simp [toQ, oneMinus, Ext.toK_sub, QuadraticAlgebra.re_one, QuadraticAlgebra.im_one]
 
-theorem toQ_ofK (value : Gl × Gl) :
-    (Kx.ofK value).toQ (K := K) = fromK (K := K) (⟨value.1.toF, value.2.toF⟩ : Quad Fp) := by
+theorem toQ_ofK (value : Word × Word) :
+    (Kx.ofK value).toQ (K := K) = fromK (K := K) (⟨value.1.toF, value.2.toF⟩ : Quad Gl) := by
   ext <;> simp [toQ, ofK, Ext.toK_ofGl]
 
 end Kx
+
+end Challenge
+
+/-- A nonzero value times its inverse is one (`field.rs`). -/
+theorem Ext.mul_inv {a : Ext} (ne : a ≠ 0) : a * a.inv = 1 := by
+  apply Ext.eq_of_toK (K := Cubic)
+  rw [Ext.toK_mul, Ext.toK_inv, Ext.toK_one]
+  exact mul_inv_cancel₀ fun z => ne (Ext.eq_zero_of_toK z)
+
+end CompressionLean.Replay
+
+namespace CompressionLean.Bridge
+
+open CompressionLean.Replay
+
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
 /-! ## Sums and products -/
 
@@ -336,12 +337,12 @@ theorem toK_prodRange (n : ℕ) (f : ℕ → Ext) :
   | succ n ih => rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil, Ext.toK_mul, ih,
       Finset.prod_range_succ]
 
-theorem toF_prodRangeGl (n : ℕ) (f : ℕ → Gl) :
+theorem toF_prodRangeGl (n : ℕ) (f : ℕ → Word) :
     (prodRangeGl n f).toF = ∏ i ∈ Finset.range n, (f i).toF := by
   unfold prodRangeGl
   induction n with
   | zero => simp
-  | succ n ih => rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil, Gl.toF_mul, ih,
+  | succ n ih => rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil, Word.toF_mul, ih,
       Finset.prod_range_succ]
 
 theorem toQ_sumKx (n : ℕ) (f : ℕ → Kx) :
@@ -352,6 +353,4 @@ theorem toQ_sumKx (n : ℕ) (f : ℕ → Kx) :
   | succ n ih => rw [List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil, Kx.toQ_add, ih,
       Finset.sum_range_succ]
 
-end Challenge
-
-end CompressionLean.Replay
+end CompressionLean.Bridge

@@ -1,4 +1,5 @@
 import CompressionLean.Bridge.Linear
+import CompressionLean.Spec.Messages
 
 /-!
 Owns the bridge of the late stage (`Replay.lateStage`) to the model's
@@ -13,16 +14,18 @@ model's `LateOut` of the replay's values, whose `LateChecks` hold
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
+open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-local notation "ι" => algebraMap Fp K
+local notation "ι" => algebraMap Gl K
 
 /-! ## The lane split -/
 
-theorem toK_headFrom (tau : Array Ext) (length : ℕ) (ratio : Gl) (d : ℕ) :
+theorem toK_headFrom (tau : Array Ext) (length : ℕ) (ratio : Word) (d : ℕ) :
     (Replay.headFrom tau length ratio (ratio.pow length) d).toK (K := K) =
       Layer1.headFrom D length (ι ratio.toF) (tableK tau) d := by
   induction d with
@@ -30,31 +33,31 @@ theorem toK_headFrom (tau : Array Ext) (length : ℕ) (ratio : Gl) (d : ℕ) :
   | succ d ih =>
       rw [Replay.headFrom, Layer1.headFrom]
       split_ifs
-      · rw [Ext.toK_sub, Ext.toK_add, Ext.toK_scale, Ext.toK_scale, ih, Gl.toF_pow, map_pow]
+      · rw [Ext.toK_sub, Ext.toK_add, Ext.toK_scale, Ext.toK_scale, ih, Word.toF_pow, map_pow]
         simp only [tableK]
         ring
       · rw [Ext.toK_add, Ext.toK_scale, ih]
         simp only [tableK]
         ring
 
-theorem toK_head (tau : Array Ext) (length : ℕ) (ratio : Gl) {lane : ℕ} (inside : lane < D) :
+theorem toK_head (tau : Array Ext) (length : ℕ) (ratio : Word) {lane : ℕ} (inside : lane < D) :
     (((Replay.laneSplit tau length ratio).1)[lane]!).toK (K := K) =
       headValue D length (ι ratio.toF) (tableK tau) lane := by
   simp only [Replay.laneSplit]
   rw [getElem!_map_range _ _ inside, toK_headFrom]
   rfl
 
-theorem toK_tail (tau : Array Ext) (length : ℕ) (ratio : Gl) {lane : ℕ} (inside : lane < D) :
+theorem toK_tail (tau : Array Ext) (length : ℕ) (ratio : Word) {lane : ℕ} (inside : lane < D) :
     (((Replay.laneSplit tau length ratio).2)[lane]!).toK (K := K) =
       tailValue D length (ι ratio.toF) (tableK tau) lane := by
   simp only [Replay.laneSplit]
   rw [getElem!_map_range _ _ inside, tailValue]
   split_ifs with long
-  · rw [Ext.toK_scale, prefixSum, toK_sumRange, Gl.toF_pow, map_pow]
+  · rw [Ext.toK_scale, prefixSum, toK_sumRange, Word.toF_pow, map_pow]
     congr 1
     apply Finset.sum_congr rfl
     intro i _
-    rw [Ext.toK_scale, Gl.toF_pow, map_pow]
+    rw [Ext.toK_scale, Word.toF_pow, map_pow]
     rfl
   · exact toK_default
 
@@ -69,7 +72,7 @@ theorem toList_map_range {α β : Type} [Inhabited α] (a : Array α) (f : α �
 
 section Key
 
-variable (rel : Replay.Relation) (S : Setup Fp)
+variable (rel : Replay.Relation) (S : Setup Gl)
 
 /-- Each segment's lane is a lane of the ring: its first slot has it. -/
 theorem segment_lane (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
@@ -178,20 +181,22 @@ theorem pointK_extract_take (p : Array Ext) (n : ℕ) : pointK (K := K) (p.extra
 
 variable [DecidableEq K]
 
-/-- A successful late replay is a path of `lateGame` that draws the replay's
-`β` and GKR challenges and ends in the model's `LateOut` of the replay's
-values; along it every `LateChecks` condition holds. -/
-theorem late_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : ProofShape rel proof) (S : Setup Fp)
+/-- A successful late replay is a path of `lateGame` that receives the
+proof's messages, draws the replay's `β` and GKR challenges and ends in the
+model's `LateOut` of the replay's values; along it every `LateChecks`
+condition holds. -/
+theorem late_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : ProofShape rel proof) (S : Setup Gl)
     (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
     (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S) {lin : Replay.LinearOut}
-    (linRun : LinearRun (K := K) rel proof lin) (cands : List (P0Tables Fp)) (p1 : List (P1Tables K)) (q : ℕ)
+    (linRun : LinearRun (K := K) rel proof lin) (cands : List (P0Tables Gl)) (p1 : List (P1Tables K)) (q : ℕ)
     {t t' : Replay.Transcript} {late : Replay.LateOut} (run : Runs (lateStage rel proof lin) t late t') :
     ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧ ∃ mc : Layer1.GkrClaims K,
       ClaimsAgree rel.lateShapes.size late.gkr mc ∧
       (∀ u, u < rel.lateShapes.size → (late.gkr.leafPoint[u]!).size = (rel.lateShapes[u]!).depth) ∧
       late.pairs = proof.lateValues ∧ late.openings = lateOpeningsOf rel.key.layout late.beta late.gkr ∧
       Game.Reaches (lateGame (shapeOf rel) S lin.lam.toK (laneWeight (shapeOf rel) barOf lin.zeta.toK) cands p1)
-        (ds.map (drawn (K := K) q)) (some ⟨late.beta.toK, mc, fun j => pairK (proof.lateValues[j]!)⟩) := by
+        (lateMsgs (K := K) rel proof) (ds.map (drawn (K := K) q))
+        (some ⟨late.beta.toK, mc, fun j => pairK (proof.lateValues[j]!)⟩) := by
   unfold lateStage at run
   obtain ⟨beta, t1, h1, run⟩ := run_bind run
   obtain ⟨claims, t2, h2, run⟩ := run_bind run
@@ -235,10 +240,10 @@ theorem late_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : Pro
   refine ⟨.ext beta :: dsG, ?_, mc, claimsAgree, lengths, rfl, checked'.openings, ?_⟩
   · rw [run_observeExts h4, drawsG, run_sampleExt h1]
     simp
-  · unfold lateGame
+  · unfold lateGame lateMsgs
     rw [List.map_cons, drawn_ext]
     apply Game.Reaches.draw beta.toK
-    refine Game.Reaches.congr (Game.Reaches.bind reachG ?_) (List.append_nil _)
+    refine Game.Reaches.congr (Game.Reaches.bind reachG ?_) rfl (List.append_nil _)
     apply Game.Reaches.recv (fun j => pairK (proof.lateValues[j]!))
     rw [if_pos checks]
     exact Game.Reaches.pure _

@@ -1,4 +1,4 @@
-import CompressionLean.Layer1.LogUp
+import CompressionLean.Lib.LogUp
 import CompressionLean.Layer1.Gkr
 import Mathlib.Tactic.LinearCombination
 
@@ -18,6 +18,7 @@ forces off its bad set:
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {K : Type} [Field K] [DecidableEq K]

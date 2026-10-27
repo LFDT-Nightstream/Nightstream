@@ -16,12 +16,12 @@ such a collision occurs (`merkleBinds_of_root`), and honest leaves meet it
 namespace CompressionLean.Bridge
 
 open NightstreamFPrime.Spec
-open CompressionLean.Replay CompressionLean.Layer1
+open CompressionLean.Replay CompressionLean.Layer1 CompressionLean.Spec CompressionLean.Lib
 
 /-! ## Digest sizes -/
 
-theorem size_hashLeaf (values : Array Gl) : (hashLeaf values).size = 4 := by
-  have fold : ∀ (chunks : List (Array Gl)) (s : Array Gl), s.size = width →
+theorem size_hashLeaf (values : Array Word) : (hashLeaf values).size = 4 := by
+  have fold : ∀ (chunks : List (Array Word)) (s : Array Word), s.size = width →
       (chunks.foldl (fun state chunk =>
         permute ((List.range chunk.size).foldl (fun s i => s.set! i chunk[i]!) state)) s).size = width := by
     intro chunks
@@ -31,22 +31,22 @@ theorem size_hashLeaf (values : Array Gl) : (hashLeaf values).size = 4 := by
   simp only [hashLeaf, Array.size_extract, fold _ _ (Array.size_replicate ..)]
   rfl
 
-theorem size_compress (left right : Array Gl) : (compress left right).size = 4 := by
+theorem size_compress (left right : Array Word) : (compress left right).size = 4 := by
   simp only [compress, Array.size_extract]
   rfl
 
 /-- Four lanes equal under `==` make two digests equal. -/
-theorem eq_of_lanes {a b : Array Gl} (ha : a.size = 4) (hb : b.size = 4)
+theorem eq_of_lanes {a b : Array Word} (ha : a.size = 4) (hb : b.size = 4)
     (lanes : ((List.range 4).all fun lane => a[lane]! == b[lane]!) = true) : a = b := by
   apply Array.ext (ha.trans hb.symm)
   intro lane la lb
-  have same := Gl.eq_of_beq (List.all_eq_true.mp lanes lane (List.mem_range.mpr (by omega)))
+  have same := Word.eq_of_beq (List.all_eq_true.mp lanes lane (List.mem_range.mpr (by omega)))
   rwa [getElem!_pos a lane la, getElem!_pos b lane lb] at same
 
 /-! ## The climb of `merkleRoot` -/
 
 /-- The node of `merkleRoot` at `index` along `leaf.path` after `k` levels. -/
-def climb (leaf : Leaf) (index : ℕ) : ℕ → Array Gl
+def climb (leaf : Leaf) (index : ℕ) : ℕ → Array Word
   | 0 => hashLeaf leaf.values
   | k + 1 =>
       if index / 2 ^ k % 2 = 0 then compress (climb leaf index k) leaf.path[k]!
@@ -54,7 +54,7 @@ def climb (leaf : Leaf) (index : ℕ) : ℕ → Array Gl
 
 /-- The pair that `merkleRoot` compresses at level `k`: bit `k` of `index`
 puts the running node on the left or on the right. -/
-def climbPair (leaf : Leaf) (index k : ℕ) : Array Gl × Array Gl :=
+def climbPair (leaf : Leaf) (index k : ℕ) : Array Word × Array Word :=
   if index / 2 ^ k % 2 = 0 then (climb leaf index k, leaf.path[k]!) else (leaf.path[k]!, climb leaf index k)
 
 theorem climb_succ (leaf : Leaf) (index k : ℕ) :
@@ -78,23 +78,23 @@ theorem merkleRoot_eq_climb (leaf : Leaf) (index : ℕ) :
 
 section Tree
 
-variable (vals : ℕ → Array Gl)
+variable (vals : ℕ → Array Word)
 
 /-- Node `p` at level `k`: the leaf hash at level `0`, then the compression
 of nodes `2p` and `2p + 1` of the level below. -/
-def treeNode : ℕ → ℕ → Array Gl
+def treeNode : ℕ → ℕ → Array Word
   | 0, p => hashLeaf (vals p)
   | k + 1, p => compress (treeNode k (2 * p)) (treeNode k (2 * p + 1))
 
 /-- The pair that node `p` at level `k + 1` compresses. -/
-def treePair (k p : ℕ) : Array Gl × Array Gl := (treeNode vals k (2 * p), treeNode vals k (2 * p + 1))
+def treePair (k p : ℕ) : Array Word × Array Word := (treeNode vals k (2 * p), treeNode vals k (2 * p + 1))
 
 theorem size_treeNode : ∀ k p, (treeNode vals k p).size = 4
   | 0, _ => size_hashLeaf _
   | _ + 1, _ => size_compress _ _
 
 /-- The path of index `i` in a tree of depth `d`: the sibling node at each level. -/
-def honestPath (d i : ℕ) : Array (Array Gl) := (Array.range d).map fun k => treeNode vals k ((i / 2 ^ k) ^^^ 1)
+def honestPath (d i : ℕ) : Array (Array Word) := (Array.range d).map fun k => treeNode vals k ((i / 2 ^ k) ^^^ 1)
 
 /-- A Poseidon2 collision at explicit inputs on the climb of `leaf` at
 `index` in the tree of depth `d`: at a level `k < d` the leaf's pair and the
@@ -132,7 +132,7 @@ theorem pathOk_honest (d i : ℕ) (inside : i < 2 ^ d) :
 
 /-- **Binding by extraction**: a leaf that passes the path check at the
 tree's root holds the tree's values at its index, or gives a `PathCollision`. -/
-theorem pathOk_binds {root : Array Gl} (d index : ℕ) (leaf : Leaf) (isRoot : root = treeNode vals d 0)
+theorem pathOk_binds {root : Array Word} (d index : ℕ) (leaf : Leaf) (isRoot : root = treeNode vals d 0)
     (size : leaf.path.size = d) (inside : index < 2 ^ d) (ok : pathOk root index leaf = true) :
     leaf.values = vals index ∨ PathCollision vals d leaf index := by
   have top : climb leaf index d = treeNode vals d (index / 2 ^ d) := by
@@ -176,31 +176,31 @@ end Tree
 
 /-- The honest values of leaf `i`: value `o·2^foldVars + v` is setup oracle
 `o`'s codeword at point `v` of the coset `y_i·ω_8^v`. -/
-noncomputable def honestValues (rel : Replay.Relation) (S : Setup Fp) (i : ℕ) : Array Gl :=
+noncomputable def honestValues (rel : Replay.Relation) (S : Setup Gl) (i : ℕ) : Array Word :=
   (Array.range ((rel.kappa + runOracles) * 2 ^ foldVars)).map fun t =>
-    Gl.ofNat ((univ rel.setupVars (setupOracle rel S (t / 2 ^ foldVars))).eval
+    Word.ofNat ((univ rel.setupVars (setupOracle rel S (t / 2 ^ foldVars))).eval
       (leafY rel.setupVars i * twoAdic 3 ^ (t % 2 ^ foldVars))).val
 
 /-- The root of the honest setup tree. -/
-noncomputable def honestRoot (rel : Replay.Relation) (S : Setup Fp) : Array Gl :=
+noncomputable def honestRoot (rel : Replay.Relation) (S : Setup Gl) : Array Word :=
   treeNode (honestValues rel S) (rel.setupVars - 2) 0
 
 /-- The honest leaf of index `i` and its path. -/
-noncomputable def honestLeaf (rel : Replay.Relation) (S : Setup Fp) (i : ℕ) : Leaf :=
+noncomputable def honestLeaf (rel : Replay.Relation) (S : Setup Gl) (i : ℕ) : Leaf :=
   ⟨honestValues rel S i, honestPath (honestValues rel S) (rel.setupVars - 2) i⟩
 
-theorem toF_honestValues (rel : Replay.Relation) (S : Setup Fp) (i o v : ℕ) (oracle : o < rel.kappa + runOracles)
+theorem toF_honestValues (rel : Replay.Relation) (S : Setup Gl) (i o v : ℕ) (oracle : o < rel.kappa + runOracles)
     (point : v < 2 ^ foldVars) : ((honestValues rel S i)[o * 2 ^ foldVars + v]!).toF =
       (univ rel.setupVars (setupOracle rel S o)).eval (leafY rel.setupVars i * twoAdic 3 ^ v) := by
   have eight : (2 : ℕ) ^ foldVars = 8 := rfl
-  rw [honestValues, getElem!_map_range _ _ (by rw [eight] at point ⊢; nlinarith), Gl.toF_ofNat,
+  rw [honestValues, getElem!_map_range _ _ (by rw [eight] at point ⊢; nlinarith), Word.toF_ofNat,
     ZMod.natCast_zmod_val, show (o * 2 ^ foldVars + v) / 2 ^ foldVars = o by rw [eight]; omega,
     show (o * 2 ^ foldVars + v) % 2 ^ foldVars = v by rw [eight]; omega]
 
 /-- **`MerkleBinds` from the root**: under the honest key root, leaves of
 the replay's path length meet `MerkleBinds`, or one of them passes the path
 check at an index with a `PathCollision`. -/
-theorem merkleBinds_of_root (rel : Replay.Relation) (S : Setup Fp) (leaves : Array Leaf)
+theorem merkleBinds_of_root (rel : Replay.Relation) (S : Setup Gl) (leaves : Array Leaf)
     (root : rel.key.root = honestRoot rel S) (sizes : ∀ leaf ∈ leaves.toList, leaf.path.size = rel.setupVars - 2) :
     MerkleBinds rel S leaves ∨ ∃ leaf ∈ leaves.toList, ∃ i < 2 ^ (rel.setupVars - 2),
       pathOk rel.key.root i leaf = true ∧ PathCollision (honestValues rel S) (rel.setupVars - 2) leaf i := by
@@ -219,7 +219,7 @@ leaves at indices `qs` pass the path check at their own index and meet
 `MerkleBinds` unless Poseidon2 collides at explicit inputs. An unbounded
 index would break it: index `q + 2^(setupVars - 2)` passes the same check
 with no collision and asks for the coset turned by `ω_8`. -/
-theorem honest_leaves_bind (rel : Replay.Relation) (S : Setup Fp) (root : rel.key.root = honestRoot rel S)
+theorem honest_leaves_bind (rel : Replay.Relation) (S : Setup Gl) (root : rel.key.root = honestRoot rel S)
     (qs : Array ℕ) (inside : ∀ q ∈ qs.toList, q < 2 ^ (rel.setupVars - 2)) :
     (∀ q ∈ qs.toList, pathOk rel.key.root q (honestLeaf rel S q) = true) ∧
       (MerkleBinds rel S (qs.map (honestLeaf rel S)) ∨

@@ -1,22 +1,20 @@
+import CompressionLean.Ports.Setup
 import CompressionLean.Final.Parent
-import NightstreamFPrime.Spec.AjtaiSetupV1
-import Mathlib.Data.List.Sort
+import CompressionLean.Production
+import CompressionLean.Spec.Parent
 
 /-!
-Owns the Lean port of Rust's layer-1 setup of the F′ circuit and of the sizes
-that Rust passes for the PiRLC parent. From them it proves the premises of
+Owns what Rust's setup build (`Ports/Setup.lean`) gives, and the sizes that
+Rust passes for the PiRLC parent. From them it proves the premises of
 `parent_holds`.
 
-- `build`: `neo_spartan::Setup::build` (`lib.rs`, `key` and `oracle`) over
-  `Tables::from_rows` (`matrix.rs`), from the runs that
-  `MatrixRows::visit_rows` pushes (`Push`).
 - `ReadsBack`: the setup's runs are the pushed runs in some order, each with
   its row, matrix and coefficient, and its slot gives its start, length and
   ratio. `readsBack_of_build` proves it of `build`. The Rust test
   `derived_structure_steps_read_back_the_runs` checks it of `from_rows`.
-- `honestSetup_of_build`: `HonestSetup` for the key of the seeded Ajtai setup
+- `build_honest`: `HonestSetup` for the key of the seeded Ajtai setup
   (`AjtaiSetupV1.Setup.verifierKey`), when the pushed runs give F′'s matrices
-  (`RunsGive`).
+  (`RunsGive`, `Spec/Parent.lean`).
 - `parentShape_of`: `ParentShape` from Rust's constants.
 
 Does not own the source of the runs (`PackageRows` over F′'s package) or the
@@ -25,53 +23,14 @@ parity of Rust's SHAKE128 expander with `AjtaiSetupV1`.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Spec
 open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open CompressionLean.Setup
 
 /-! ## The pushed runs -/
 
-/-- One `MatrixRowSink::push_run`: the row, the matrix and the
-`GeometricRowRun`. The run gives column `start + t`, `t < len`, the value
-`initial·ratio^t`. -/
-structure Push where
-  row : ℕ
-  matrix : ℕ
-  start : ℕ
-  len : ℕ
-  initial : Gl
-  ratio : Gl
-
-namespace Push
-
-/-- The padding run of the setup columns: all zero. -/
-def pad : Push := ⟨0, 0, 0, 0, 0, 0⟩
-
-/-- The value that the run gives column `c`. -/
-def value (p : Push) (c : ℕ) : Gl :=
-  if p.start ≤ c ∧ c < p.start + p.len then p.initial * p.ratio ^ (c - p.start) else 0
-
-/-- `Class::ratio`: the canonical ratio, and one for a run of one column. -/
-def ratioWord (p : Push) : ℕ := if p.len = 1 then 1 else p.ratio.val
-
-/-- `Class` as one number. Its order is the derived order of `(len, ratio)`. -/
-def classCode (p : Push) : ℕ := p.len * 2 ^ 64 + p.ratioWord
-
-end Push
-
-/-- Entry `(i, c)` of matrix `j` as the pushed runs give it. -/
-def pushedEntry (pushes : List Push) (j i c : ℕ) : Gl :=
-  (pushes.map fun p => if p.matrix = j ∧ p.row = i then p.value c else 0).sum
-
 variable {lw : ℕ} {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
-
-/-- **The source premise.** The pushed runs name rows of the cube, and they
-give every entry of every completed CCS matrix of `relation`, row `i` in F′'s
-little-endian order. -/
-structure RunsGive (pushes : List Push) (relation : ProductionKey.LogicalRelation lw pf) : Prop where
-  row_lt : ∀ p ∈ pushes, p.row < 2 ^ cubeVariables
-  entry : ∀ (j : Fin productionProfile.ccsMatrices) (i : ℕ) (c : Fin (Phi81CarrierLayout.carrierWidth lw)),
-    i < 2 ^ cubeVariables →
-      pushedEntry pushes j i c = gl ((PaperAlgebra.matrixSource relation.system).matrices j (vertexAt cubeVariables i) c)
 
 /-- Run `k` of the setup is `runs[k]`: its row, matrix and coefficient, and a
 slot with its start, its length and, past one column, its ratio. -/
@@ -128,79 +87,10 @@ theorem runRow_mem {S : Layer1.Setup Gl} {pushes : List Push} (back : ReadsBack 
   rw [List.getD_eq_getElem _ _ inside]
   exact List.getElem_mem inside
 
-/-! ## The port of `Tables::from_rows` and `key` -/
-
-/-- Sorted distinct values: a `BTreeSet`, or a sort and a `dedup`. -/
-def sortedSet (l : List ℕ) : List ℕ := l.dedup.insertionSort (· ≤ ·)
+/-! ## The sorted sets of `Tables::from_rows` -/
 
 theorem mem_sortedSet {l : List ℕ} {x : ℕ} : x ∈ sortedSet l ↔ x ∈ l := by
   rw [sortedSet, List.mem_insertionSort, List.mem_dedup]
-
-/-- `Collect` keeps the runs of each matrix in visit order, and `from_rows`
-puts the matrices in order. -/
-def runList (matrices : ℕ) (pushes : List Push) : List Push :=
-  (List.range matrices).flatMap fun j => pushes.filter fun p => p.matrix = j
-
-/-- The run classes, sorted. -/
-def classesOf (runs : List Push) : List ℕ := sortedSet (runs.map Push.classCode)
-
-/-- The slot key of a run: its class, lane and block in one word, class high.
-Rust packs it in a `u64` as `class << 40 | lane << 32 | block`. The port is
-that word while the blocks are below `2^32` and the classes at most `2^24`;
-`from_rows` refuses wider keys. -/
-def slotKey (classes : List ℕ) (p : Push) : ℕ :=
-  classes.idxOf p.classCode * 2 ^ 40 + p.start % ringDegree * 2 ^ 32 + p.start / ringDegree
-
-/-- The slots, sorted. -/
-def keysOf (runs : List Push) : List ℕ := sortedSet (runs.map (slotKey (classesOf runs)))
-
-/-- The start column of slot `σ`: its block times `D` plus its lane. -/
-def slotStart (keys : List ℕ) (σ : ℕ) : ℕ :=
-  keys.getD σ 0 % 2 ^ 32 * ringDegree + keys.getD σ 0 / 2 ^ 32 % 2 ^ 8
-
-/-- The class of slot `σ`. -/
-def slotClass (runs : List Push) (σ : ℕ) : ℕ :=
-  (classesOf runs).getD ((keysOf runs).getD σ 0 / 2 ^ 40) 0
-
-/-- Key row `i` on the cube (`oracle`): coefficient `l` of the seeded Ajtai
-key element `(i, b)` at `2^6·b + l` for `l < 54` and `b < blocks`, and zero
-elsewhere. -/
-def seedKey (seed : List ℕ) (blocks i x : ℕ) : Gl :=
-  if x % 64 < ringDegree ∧ x / 64 < blocks then (AjtaiSetupV1.wideCoefficientNat seed i (x / 64) (x % 64) : Gl)
-  else 0
-
-/-- The setup that `Setup::build` writes for the runs in setup order: the key
-rows, the run columns (row, slot, coefficient, zero past the runs) and per
-slot its block, lane, length and ratio. -/
-def setupOfRuns (seed : List ℕ) (blocks : ℕ) (runs : List Push) : Layer1.Setup Gl where
-  key := seedKey seed blocks
-  runRow k := (runs.getD k Push.pad).row
-  runMatrix k := (runs.getD k Push.pad).matrix
-  runSlot k := if k < runs.length then (keysOf runs).idxOf (slotKey (classesOf runs) (runs.getD k Push.pad)) else 0
-  runCoef k := (runs.getD k Push.pad).initial
-  runs := runs.length
-  slotBlock σ := slotStart (keysOf runs) σ / ringDegree
-  slotLane σ := slotStart (keysOf runs) σ % ringDegree
-  slotLength σ := slotClass runs σ / 2 ^ 64
-  slotRatio σ := ((slotClass runs σ % 2 ^ 64 : ℕ) : Gl)
-  slots := (keysOf runs).length
-
-/-- The checks of `from_rows` and `key` on the columns and the runs: whole
-blocks, a matrix, one to `MAX_MESSAGE_COLUMNS` blocks, and runs of a matrix
-in range, no longer than a block, that end inside the columns. -/
-def Accepts (columns matrices : ℕ) (pushes : List Push) : Prop :=
-  columns % ringDegree = 0 ∧ 0 < matrices ∧ 0 < columns / ringDegree ∧ columns / ringDegree ≤ 4708530 ∧
-    ∀ p ∈ pushes, p.matrix < matrices ∧ p.len ≤ ringDegree ∧ p.start + p.len ≤ columns
-
-instance (columns matrices : ℕ) (pushes : List Push) : Decidable (Accepts columns matrices pushes) := by
-  unfold Accepts
-  infer_instance
-
-/-- `Setup::build` over `columns` columns and `matrices` matrices: the setup,
-or `none` where Rust stops with an error. -/
-def build (seed : List ℕ) (columns matrices : ℕ) (pushes : List Push) : Option (Layer1.Setup Gl) :=
-  if Accepts columns matrices pushes then some (setupOfRuns seed (columns / ringDegree) (runList matrices pushes))
-  else none
 
 /-! ## The port reads back the runs -/
 
@@ -219,9 +109,10 @@ theorem runList_perm (pushes : List Push) :
       · exact List.filter_congr fun p _ => by by_cases h : p.matrix < m <;> simp [h]; omega
       · exact List.filter_congr fun p _ => by by_cases h : p.matrix < m <;> simp [h] <;> omega
 
+/-- The slot key of a run decodes to the run's start and class. -/
 theorem slotKey_eq {classes : List ℕ} {p : Push} (block : p.start / ringDegree < 2 ^ 32) :
-    slotKey classes p % 2 ^ 32 * ringDegree + slotKey classes p / 2 ^ 32 % 2 ^ 8 = p.start ∧
-      slotKey classes p / 2 ^ 40 = classes.idxOf p.classCode := by
+    keyStart (slotKey classes p) = p.start ∧
+      keyCode classes (slotKey classes p) = classes.getD (classes.idxOf p.classCode) 0 := by
   have lane : p.start % ringDegree < 2 ^ 8 := (Nat.mod_lt _ (by decide)).trans (by decide)
   have shape : slotKey classes p =
       p.start / ringDegree + (classes.idxOf p.classCode * 2 ^ 8 + p.start % ringDegree) * 2 ^ 32 := by
@@ -231,12 +122,28 @@ theorem slotKey_eq {classes : List ℕ} {p : Push} (block : p.start / ringDegree
     rw [shape, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt block]
   have high : slotKey classes p / 2 ^ 32 = classes.idxOf p.classCode * 2 ^ 8 + p.start % ringDegree := by
     rw [shape, Nat.add_mul_div_right _ _ (by positivity), Nat.div_eq_of_lt block, zero_add]
-  refine ⟨?_, ?_⟩
-  · rw [low, high, Nat.mul_add_mod_of_lt lane]
-    exact Nat.div_add_mod' p.start ringDegree
-  · rw [show (2 : ℕ) ^ 40 = 2 ^ 32 * 2 ^ 8 by norm_num, ← Nat.div_div_eq_div_mul, high]
+  have index : slotKey classes p / 2 ^ 40 = classes.idxOf p.classCode := by
+    rw [show (2 : ℕ) ^ 40 = 2 ^ 32 * 2 ^ 8 by norm_num, ← Nat.div_div_eq_div_mul, high]
     simp only [Nat.reducePow] at lane ⊢
     omega
+  refine ⟨?_, by rw [keyCode, index]⟩
+  rw [keyStart, low, high, Nat.mul_add_mod_of_lt lane]
+  exact Nat.div_add_mod' p.start ringDegree
+
+/-- A class code decodes to the run's length and, past one column, its ratio. -/
+theorem classCode_decode (p : Push) :
+    codeLength p.classCode = p.len ∧ (p.len = 1 ∨ codeRatio p.classCode = p.ratio) := by
+  have word : p.ratioWord < 2 ^ 64 := by
+    unfold Push.ratioWord
+    split_ifs
+    · norm_num
+    · exact (ZMod.val_lt p.ratio).trans (by norm_num [goldilocksModulus])
+  refine ⟨by rw [codeLength, Push.classCode]; omega, ?_⟩
+  by_cases one : p.len = 1
+  · exact Or.inl one
+  · right
+    rw [codeRatio, Push.classCode, show (p.len * 2 ^ 64 + p.ratioWord) % 2 ^ 64 = p.ratioWord by omega,
+      Push.ratioWord, if_neg one, ZMod.natCast_zmod_val]
 
 theorem getD_idxOf {l : List ℕ} {x : ℕ} (member : x ∈ l) : l.getD (l.idxOf x) 0 = x := by
   rw [List.getD_eq_getElem _ _ (List.idxOf_lt_length_of_mem member), List.getElem_idxOf]
@@ -255,24 +162,13 @@ theorem lists_setupOfRuns (seed : List ℕ) (blocks : ℕ) (runs : List Push)
   have code : (classesOf runs).getD ((classesOf runs).idxOf p.classCode) 0 = p.classCode :=
     getD_idxOf (mem_sortedSet.mpr (List.mem_map.mpr ⟨p, member, rfl⟩))
   obtain ⟨start, index⟩ := slotKey_eq (classes := classesOf runs) (block p member)
-  have word : p.ratioWord < 2 ^ 64 := by
-    unfold Push.ratioWord
-    split_ifs
-    · norm_num
-    · exact (ZMod.val_lt p.ratio).trans (by norm_num [goldilocksModulus])
-  have cls : slotClass runs ((keysOf runs).idxOf (slotKey (classesOf runs) p)) = p.classCode := by
-    rw [slotClass, key, index, code]
+  obtain ⟨length, ratio⟩ := classCode_decode p
   simp only [setupOfRuns, if_pos inside]
   refine ⟨rfl, rfl, rfl, ?_, ?_, ?_⟩
-  · rw [slotStart, key, start]
+  · rw [key, start]
     exact Nat.div_add_mod p.start ringDegree
-  · rw [cls, Push.classCode]
-    omega
-  · by_cases one : p.len = 1
-    · exact Or.inl one
-    · right
-      rw [cls, Push.classCode, show (p.len * 2 ^ 64 + p.ratioWord) % 2 ^ 64 = p.ratioWord by omega,
-        Push.ratioWord, if_neg one, ZMod.natCast_zmod_val]
+  · rwa [key, index, code]
+  · rwa [key, index, code]
 
 /-- **The port reads back the runs.** A setup that `build` returns lists the
 pushed runs in setup order. -/
@@ -303,7 +199,7 @@ theorem gl_natCast (n : ℕ) (small : n < goldilocksModulus) : ((n : ℕ) : Gl) 
 seed of an Ajtai setup, over the carrier's columns and F′'s four matrices, is
 an honest setup for that setup's key, when the pushed runs give F′'s
 matrices. -/
-theorem honestSetup_of_build (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
+theorem build_honest (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
       (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)))
     (relation : ProductionKey.LogicalRelation lw pf) (pushes : List Push) {S : Layer1.Setup Gl}
@@ -327,23 +223,20 @@ theorem honestSetup_of_build (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : 
   · rw [D, runEntry_eq back]
     exact gives.entry j i c inside
 
-/-- **Rust's sizes.** `Relation::new` for the parent gets `D = 54`
-(`neo_math::D`), six lane variables (`LANE_VARIABLES`), `κ = 22`
-(`PRODUCTION_VERIFIER_ROWS`), four matrices, five public blocks
-(`PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS / D`), the `⌈lw / 54⌉` blocks of the
-key, and `H = 3672` (`compression_bound`). These give `ParentShape`. The Rust
-tests `relation_shape_has_the_lean_constants` (`neo-spartan`) and
-`parent_relation_arguments_are_the_lean_constants` (`nightstream`) pin the
-same numbers. -/
-theorem parentShape_of (s : Layer1.Shape) (lw : ℕ) (D : s.D = 54) (lanes : s.laneVars = 6)
-    (kappa : s.kappa = 22) (matrices : s.matrices = 4) (publicBlocks : s.publicBlocks = 5)
-    (blocks : s.blocks = (lw + 53) / 54) (norm : s.normBound = 3672) : ParentShape s lw where
+/-- **Rust's sizes.** `Relation::new` for the parent gets `D` (`neo_math::D`),
+six lane variables (`LANE_VARIABLES`), the production constants
+(`Production`), and the `⌈lw / D⌉` blocks of the key. These give
+`ParentShape`. -/
+theorem parentShape_of (s : Layer1.Shape) (lw : ℕ) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
+    (kappa : s.kappa = Production.kappa) (matrices : s.matrices = Production.matrices)
+    (publicBlocks : s.publicBlocks = Production.publicBlocks) (blocks : s.blocks = Phi81ColumnLayout.blockCount lw)
+    (norm : s.normBound = Production.normBound) : ParentShape s lw where
   D := D
   laneVars := lanes
   kappa := kappa
   matrices := matrices
   publicBlocks := publicBlocks
-  blocks := by rw [blocks, Phi81CarrierLayout.blockCount_carrierWidth]; rfl
+  blocks := by rw [blocks, Phi81CarrierLayout.blockCount_carrierWidth]
   norm := by rw [norm]; decide
 
 end CompressionLean.Final

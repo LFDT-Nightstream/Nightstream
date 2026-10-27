@@ -89,14 +89,18 @@ theorem column_eval (env : Env) (expression : Expr) :
 
 section
 
-variable (relation : NightstreamFPrime.Lifecycle.ProductionKey.LogicalRelation
-  Data.logicalWidth Data.publicFits) (env : Env)
+variable {lw : Nat} {pf : NightstreamFPrime.Spec.ringDegree *
+    NightstreamFPrime.Lifecycle.PaperAlgebra.publicRingColumns ≤
+  NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth lw}
+  (relation : NightstreamFPrime.Lifecycle.ProductionKey.LogicalRelation lw pf) (env : Env)
 
-/-- The PiRLC output instance on the package assignment `env`. -/
+/-- The PiRLC output instance on the package assignment `env`, for the
+relation of an application of logical width `lw`. The output map is the same
+at every width. -/
 abbrev parent :=
   Semantics.evalOutput relation
     (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
-      (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
+      (logicalWidth := lw) (publicFits := pf))
     NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
 
@@ -126,8 +130,13 @@ theorem point_eval :
     outputs.point.map (fun expression => expression.eval env) =
       ((parent relation env).point.coordinates.map fun value =>
         [value.c0, value.c1]).flatten := by
-  simp [outputs, extension, List.map_flatten, List.map_ofFn, Function.comp_def,
-    column_eval]
+  rw [show outputs.point = (List.ofFn fun coordinate => extension
+      ((Formal.outputBindingInterface
+        (Formal.atOffset
+          (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface (logicalWidth := lw) (publicFits := pf))
+          NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset)
+        NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset).point outputOffset coordinate)).flatten from rfl]
+  simp [extension, List.map_flatten, List.map_ofFn, Function.comp_def, column_eval]
   rfl
 
 theorem eval_K_eval :

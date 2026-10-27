@@ -138,10 +138,12 @@ def verify (rel : Relation) (p1Key p0Key : WhirKey) (seed : DigestVar) (statemen
 
 /-- `verify_with` (`lib.rs:692-703`): the handoff of the fold transcript
 `state`, the proof view, then `verify`. The claim's shape check writes no
-instruction. -/
-def verifyWith (key : Layer1Input) (state : Fin 16 → Var) (claim : ClaimView) : Build Unit := do
+instruction. Returns the seed and the proof that `verify` reads. -/
+def verifyWith (key : Layer1Input) (state : Fin 16 → Var) (claim : ClaimView) :
+    Build (DigestVar × ProofView) := do
   let seed ← (FoldTranscript.fromState state).handoff
   let proof ← ProofView.read key.relation key.p1Key.rows key.p0Key.rows
   verify key.relation key.p1Key key.p0Key seed claim proof
+  pure (seed, proof)
 
 end CompressionLean.Circuit

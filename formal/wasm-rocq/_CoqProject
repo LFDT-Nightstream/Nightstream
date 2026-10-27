@@ -52,6 +52,7 @@ ProgramEncoding.v
 BlockEncoding.v
 BlockTrace.v
 ControlDecode.v
+SlideLayout.v
 ControlInvariant.v
 FrameFacts.v
 ControlBridge.v
@@ -71,5 +72,9 @@ tests/Initialization.v
 tests/Fragment.v
 tests/NestedCalls.v
 tests/BlockCalls.v
+tests/WitnessCheck.v
+tests/BlockCallTrace.v
+tests/BlockCallRun.v
+tests/BlockCallWitness.v
 tests/DeepBranches.v
 tests/RangeSearch.v

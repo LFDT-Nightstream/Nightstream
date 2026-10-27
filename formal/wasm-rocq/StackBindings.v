@@ -230,8 +230,11 @@ Ltac unary_stack_facts chosen reads writes localWrite :=
     as [Hparam [Hzero Hgather]];
   destruct (full_program_row_quiet w chosen Hprime Hfull Hin Hchosen)
     as [Hkinds Hhi Hlocal Houtput];
-  destruct (full_body_frame_sp_drop_idle w chosen Hprime Hfull Hin Hchosen
-    ltac:(vm_compute; intuition discriminate)) as [HbodyPop HbodyPush Hguest Hturn Hdiscard];
+  first
+    [ destruct (full_body_frame_sp_drop_idle w chosen Hprime Hfull Hin Hchosen
+        ltac:(vm_compute; intuition discriminate)) as [HbodyPop HbodyPush Hguest Hturn Hdiscard]
+    | destruct (full_branch_frame w chosen Hprime Hfull Hin Hchosen ltac:(vm_compute; tauto))
+        as [HbodyPop HbodyPush Hguest Hturn Hdiscard] ];
   destruct (full_no_gather_local_ports w Hfull Hgather) as [HgatherLocal HgatherLocalLo];
   assert (HlocalWrite : w COL_LOCAL_WRITE_ENABLED = localWrite) by
     (selected_row chosen localWriteGateIndex Hrow; rewrite Hone in Hrow;

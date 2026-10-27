@@ -112,6 +112,40 @@ Proof.
     + unfold portEvent, active, nextPcPort. simpl. rewrite Hactive. reflexivity.
 Qed.
 
+(* A slide reads its countdown and distance from the taken edge's static slide. *)
+Definition slideRemainingPort : PortSpec :=
+  mkPort [COL_PC_BEFORE; COL_CONTROL_CHOICE] COL_FRAME_MOVE_REMAINING_AFTER Read (When COL_FRAME_SLIDE_ACTIVE).
+Definition slideDistancePort : PortSpec :=
+  mkPort [COL_PC_BEFORE; COL_CONTROL_CHOICE] COL_FRAME_MOVE_DISTANCE_AFTER Read (When COL_FRAME_SLIDE_ACTIVE).
+
+Lemma circuit_row_slide_fetch : forall initial final (w : Witness),
+  Replay initial (eventsForRow MemoryCatalog.memories w) final ->
+  w COL_FRAME_SLIDE_ACTIVE = 1 ->
+  initial MemoryCatalog.frameSlideRemainingId [w COL_PC_BEFORE; w COL_CONTROL_CHOICE] =
+    Some (w COL_FRAME_MOVE_REMAINING_AFTER) /\
+  initial MemoryCatalog.frameSlideDistanceId [w COL_PC_BEFORE; w COL_CONTROL_CHOICE] =
+    Some (w COL_FRAME_MOVE_DISTANCE_AFTER).
+Proof.
+  intros initial final w Hreplay Hactive. split;
+  (eapply replay_read_from_initial; [exact Hreplay | apply read_only_row; vm_compute; reflexivity | ]).
+  - eapply port_event_in_row with
+      (specification := nth MemoryCatalog.frameSlideRemainingId MemoryCatalog.memories (mkMemory 0%nat Rom []))
+      (port := slideRemainingPort).
+    + apply nth_In. vm_compute. lia.
+    + change (In slideRemainingPort
+        (ports (nth MemoryCatalog.frameSlideRemainingId MemoryCatalog.memories (mkMemory 0%nat Rom [])))).
+      left. reflexivity.
+    + unfold portEvent, active, slideRemainingPort. simpl. rewrite Hactive. reflexivity.
+  - eapply port_event_in_row with
+      (specification := nth MemoryCatalog.frameSlideDistanceId MemoryCatalog.memories (mkMemory 0%nat Rom []))
+      (port := slideDistancePort).
+    + apply nth_In. vm_compute. lia.
+    + change (In slideDistancePort
+        (ports (nth MemoryCatalog.frameSlideDistanceId MemoryCatalog.memories (mkMemory 0%nat Rom [])))).
+      left. reflexivity.
+    + unfold portEvent, active, slideDistancePort. simpl. rewrite Hactive. reflexivity.
+Qed.
+
 Lemma static_pc_gate_rows :
   Range.inFull (ZeroTest.inverseRow COL_PC_EDGE_KIND COL_PC_EDGE_KIND_INV COL_PC_EDGE_KIND_IS_STATIC) = true /\
   Range.inFull (ZeroTest.zeroRow COL_PC_EDGE_KIND COL_PC_EDGE_KIND_IS_STATIC) = true /\

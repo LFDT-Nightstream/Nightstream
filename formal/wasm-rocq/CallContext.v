@@ -293,17 +293,16 @@ Proof.
     pose proof (value_bound w COL_OUTPUT_CAPTURED). field_linear Hrow.
 Qed.
 
-(* A callee's END writes nothing; it lowers sp to the callee's frame base plus
-   its results and seeds the move of those results down to it. *)
+(* A callee's END writes nothing; it slides: sp drops by the slide's distance,
+   which seeds the move of the results down. *)
 Lemma full_end_return_stack : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_SEL_END = 1 -> w COL_CALL_STACK_POP_PRESENT = 1 ->
+  w COL_OUTPUT_CAPTURED = 0 ->
   w COL_STACK_WRITE0_ACTIVE = 0 /\ w COL_STACK_WRITE0_HI_ACTIVE = 0 /\ w COL_LOCAL_WRITE_ENABLED = 0 /\
   w COL_GATHER_LOCAL_WRITE_LO = 0 /\ w COL_GATHER_LOCAL_WRITE = 0 /\
-  w COL_FRAME_MOVE_REMAINING_AFTER = w COL_SP_BEFORE - w COL_STACK_FRAME_BASE_BEFORE /\
-  w COL_FRAME_MOVE_DISTANCE_AFTER = w COL_STACK_FRAME_BASE_BEFORE - w COL_LOCALS_FBP_BEFORE /\
-  w COL_SP_AFTER = w COL_LOCALS_FBP_BEFORE + w COL_FRAME_MOVE_REMAINING_AFTER.
+  w COL_SP_AFTER = w COL_SP_BEFORE - w COL_FRAME_MOVE_DISTANCE_AFTER.
 Proof.
-  intros w Hprime Hfull Hchosen Hpop.
+  intros w Hprime Hfull Hchosen Hpop Hcapture.
   assert (Hin : In COL_SEL_END selectorColumns) by (vm_compute; tauto).
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
   destruct (full_opcode_aux_gates_zero w COL_SEL_END Hprime Hfull Hin Hchosen) as [Hparam [Hzero Hgather]].
@@ -321,17 +320,27 @@ Proof.
   assert (HlocalWrite : w COL_LOCAL_WRITE_ENABLED = 0).
   { selected_row COL_SEL_END localWriteGateIndex Hrow. rewrite Hone in Hrow.
     pose proof (value_bound w COL_LOCAL_WRITE_ENABLED). field_linear Hrow. }
-  circuit_range COL_SP_BEFORE Hspb. circuit_range COL_SP_AFTER Hspa.
-  circuit_range COL_STACK_FRAME_BASE_BEFORE Hbase. circuit_range COL_LOCALS_FBP_BEFORE Hfbp.
-  circuit_range COL_FRAME_MOVE_REMAINING_AFTER Hrem. circuit_range COL_FRAME_MOVE_DISTANCE_AFTER Hdist.
-  circuit_row ([(COL_CALL_STACK_POP_PRESENT, 1)], [(COL_FRAME_MOVE_REMAINING_AFTER, 1); (COL_SP_BEFORE, -1);
-    (COL_STACK_FRAME_BASE_BEFORE, 1)], ([] : SparseRow)) Hcount.
-  circuit_row ([(COL_CALL_STACK_POP_PRESENT, 1)], [(COL_FRAME_MOVE_DISTANCE_AFTER, 1);
-    (COL_STACK_FRAME_BASE_BEFORE, -1); (COL_LOCALS_FBP_BEFORE, 1)], ([] : SparseRow)) Hdistance.
-  circuit_row ([(COL_CALL_STACK_POP_PRESENT, 1)], [(COL_SP_AFTER, 1); (COL_LOCALS_FBP_BEFORE, -1);
-    (COL_FRAME_MOVE_REMAINING_AFTER, -1)], ([] : SparseRow)) Hsp.
-  expand_row Hcount. expand_row Hdistance. expand_row Hsp. rewrite Hpop in Hcount, Hdistance, Hsp.
-  repeat split; try assumption; [field_linear Hcount | field_linear Hdistance | field_linear Hsp].
+  assert (Hhost : w COL_HOST_CALL_ACTIVE = 0).
+  { selected_row COL_SEL_END hostCallSupportRow Hrow. rewrite Hone in Hrow.
+    pose proof (value_bound w COL_HOST_CALL_ACTIVE). field_linear Hrow. }
+  assert (Hparams : w GHC_PARAMS = 0).
+  { selected_row COL_SEL_END hostCallParamsRow Hrow. pose proof (full_no_host_split w Hfull Hhost) as Hsplit.
+    normalize_columns. rewrite Hhost, Hsplit in Hrow. pose proof (value_bound w GHC_PARAMS). field_linear Hrow. }
+  assert (Hreads : w COL_STACK_READS = 0).
+  { selected_row COL_SEL_END stackReadsArityRow Hrow. rewrite Hone, Hgather, Hparam in Hrow.
+    pose proof (value_bound w COL_STACK_READS). field_linear Hrow. }
+  assert (Hslide : w COL_FRAME_SLIDE_ACTIVE = 1).
+  { rewrite (full_frame_slide_gate w Hprime Hfull), Hpop.
+    rewrite !(full_opcode_selector_exclusive w COL_SEL_END) by (assumption || vm_compute; tauto || discriminate).
+    reflexivity. }
+  pose proof (full_frame_slide_drop w Hprime Hfull Hslide) as Hdiscard.
+  assert (Hsp : w COL_SP_AFTER = w COL_SP_BEFORE - w COL_FRAME_MOVE_DISTANCE_AFTER).
+  { selected_row COL_SEL_END stackPointerBalanceRow Hrow. zero_host_switch Hrow. zero_gather_kinds Hkinds Hrow.
+    rewrite Hone, Hreads, Hwrites, Hdiscard, Hlocal, Houtput, Hcapture, Hparams in Hrow.
+    pose proof (value_bound w COL_SP_AFTER). pose proof (value_bound w COL_SP_BEFORE).
+    circuit_range COL_SP_BEFORE Hspb. circuit_range COL_SP_AFTER Hspa.
+    circuit_range COL_FRAME_MOVE_DISTANCE_AFTER Hdist. field_linear Hrow. }
+  repeat split; assumption.
 Qed.
 
 Lemma full_body_context_quiet : forall (w : Witness) chosen,

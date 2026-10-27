@@ -73,7 +73,9 @@ Proof.
          assert (w COL_TRAPPED_BEFORE = 0) by field_linear Htb;
          normalize_columns; destruct Hta, Hlb; field_linear Hrow);
       assert (Hdiscard : w COL_FRAME_SP_DROP = 0) by
-        (apply full_frame_sp_drop_idle; try assumption; congruence);
+        (apply full_frame_sp_drop_idle; try assumption;
+         [apply (full_selected_no_slide w _ Hprime Hfull Hin Hchosen); [vm_compute; intuition discriminate | exact Hpop]
+         | congruence]);
       assert (Hwrites : w COL_STACK_WRITES = 0) by
         (selected_row chosen stackWritesArityRow Hrow; rewrite Hone, Hgather, Hparam, Hzero in Hrow;
          pose proof (value_bound w COL_STACK_WRITES); field_linear Hrow);

@@ -2,7 +2,7 @@
    instruction, entering a block, a block's END, and a depth-0 branch. Each keeps
    the frame registers and touches no memory below the frame. *)
 From Stdlib Require Import List ZArith Lia.
-Require Import Wasm2 WasmIntegers Add R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog
+Require Import Wasm2 WasmIntegers Add R1CS Columns Range FullRelation MemoryTrace MemoryCatalog OpcodeCatalog SlideLayout
   TraceRefinement StraightLineSpec StackSimulation LocalSimulation SpecTecCalls SpecTecBranches CallerSpec
   CallerRefinement ProgramSpec ProgramEncoding CodeLayout BlockSpec BlockBindings BlockEncoding BlockInstructions
   BlockTrace BranchBindings StackBindings CallInitialization Selectors CallScope CallContext CallMemory LocalBindings
@@ -717,6 +717,20 @@ Proof.
     + exact HidleAfter.
 Qed.
 
+(* Labels with no operands below them add nothing to a branch's drop. *)
+Lemma branch_drop_empty_labels : forall (segsHead : list (list Z)) (segT : list Z) (segsTail : list (list Z)),
+  Forall (fun segment => segment = []) segsTail ->
+  fold_right Nat.add 0%nat (firstn (length segsTail) (rev (map (@length Z) (segsHead ++ segT :: segsTail)))) = 0%nat.
+Proof.
+  intros segsHead segT segsTail Hempty.
+  rewrite map_app, rev_app_distr. cbn [map rev]. rewrite <- app_assoc.
+  rewrite firstn_app, length_rev, length_map, Nat.sub_diag, firstn_O, app_nil_r.
+  rewrite firstn_all2 by (rewrite length_rev, length_map; lia).
+  assert (Hzero : Forall (fun n => n = 0%nat) (rev (map (@length Z) segsTail))).
+  { apply Forall_rev, Forall_map. eapply Forall_impl; [ | exact Hempty]. intros segment ->. reflexivity. }
+  induction Hzero as [ | n rest Hn _ IH]; cbn [fold_right]; lia.
+Qed.
+
 (* A br_if l: on zero it falls through; otherwise it leaves the l blocks inside
    its target and the target itself, whose operands below are all that remain,
    and resumes after the target's END. *)
@@ -796,8 +810,28 @@ Proof.
     as [Hpush Hpop].
   pose proof (frame_stack_matches _ _ (beforeBoundary row) _ _ _ _ _ Hframe Hsp) as Hstack.
   unfold viewOperands in Hstack. cbn [viewSegments viewValues] in Hstack.
+  (* Its slide drops nothing: below the condition, the target holds no operands. *)
+  assert (HslideAfter : row COL_FRAME_MOVE_REMAINING_AFTER = 0 /\ row COL_FRAME_MOVE_DISTANCE_AFTER = 0).
+  { assert (Hslide : row COL_FRAME_SLIDE_ACTIVE = 1).
+    { rewrite (full_frame_slide_gate row Hprime Hfull), Hpop, Hchosen.
+      repeat rewrite (full_opcode_selector_exclusive row COL_SEL_BR_IF_EQZ) by
+        (assumption || vm_compute; tauto || discriminate). reflexivity. }
+    destruct (circuit_row_slide_fetch _ _ _ Hreplay Hslide) as [Hremaining Hdistance].
+    destruct (encoded_branch_slide _ _ _ _ _ _ _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf Hpath Hi Hheights)
+      as [Hkept Hrom].
+    rewrite <- Hpc, Hremaining, (full_br_if_choice row Hprime Hfull Hchosen) in Hkept.
+    rewrite <- Hpc, Hdistance, (full_br_if_choice row Hprime Hfull Hchosen) in Hrom.
+    destruct (Z.eqb _ 0); cbn in Hkept, Hrom; injection Hkept as ->; split; [reflexivity | | reflexivity | ];
+      [injection Hrom as ->; reflexivity | ].
+    unfold branchDrop in Hrom.
+    match type of Hrom with context [if ?test then _ else _] => destruct test end; cbn in Hrom; [ | discriminate].
+    injection Hrom as Hrom. rewrite Hrom.
+    pose proof Hpost as Hpost'. cbn in Hpost'.
+    match goal with |- context [firstn ?n _] => replace n with (length segsTail) by lia end.
+    rewrite (branch_drop_empty_labels segsHead segT segsTail Hempty). reflexivity. }
+  destruct HslideAfter as [HkeptAfter HdistAfter].
   assert (Hshape : UnaryStackShape row true false).
-  { apply full_br_if_stack_shape; [exact Hprime | exact Hfull | exact Hchosen | ].
+  { apply full_br_if_stack_shape; [exact Hprime | exact Hfull | exact Hchosen | | exact HdistAfter].
     destruct Hstack as [Hb0 [Hsp0 _]]. cbn [beforeBoundary boundarySP boundaryStackBase] in Hb0, Hsp0.
     rewrite length_app in Hsp0. cbn [length] in Hsp0. lia. }
   destruct (stack_matches_pop row initial final _ condition false Hshape Hreplay
@@ -814,8 +848,8 @@ Proof.
   assert (Heffect : FrameEffect (row COL_LOCALS_FBP_BEFORE) initial final)
     by (eapply quiet_row_frame_effect; [exact Hreplay | exact Hwrites | exact Hpush | exact Hsuspend |
       exact HcontextRead]).
-  pose proof (program_row_keeps_idle row COL_SEL_BR_IF_EQZ Hprime Hfull ltac:(vm_compute; tauto) Hchosen
-    ltac:(not_call_selector) Hpop Hidle) as HidleAfter.
+  pose proof (branch_keeps_idle row COL_SEL_BR_IF_EQZ Hprime Hfull ltac:(vm_compute; tauto) Hchosen
+    ltac:(vm_compute; tauto) HkeptAfter Hidle) as HidleAfter.
   (* SpecTec: the same choice. *)
   set (z := mk_state s (activeFrame f locals)).
   assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).

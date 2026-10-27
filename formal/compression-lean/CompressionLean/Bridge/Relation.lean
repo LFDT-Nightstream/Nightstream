@@ -1,60 +1,22 @@
 import CompressionLean.Bridge.Formulas
 import CompressionLean.Bridge.Run
+import CompressionLean.Spec.Relation
 
 /-!
-Owns the model's parameters as the replay's relation and statement give
-them: the sizes (`shapeOf`), the CE(B) statement (`statementOf`), the key's
-run and slot structure (`structureOf`), the `bar` transform (`barOf`) and
-`Φ81 = X⁵⁴ + X²⁷ + 1` (`phi`).
+Owns `Φ81 = X⁵⁴ + X²⁷ + 1` (`phi`), the point of the replay's statement
+(`statement_point`), and what `readProof` checks (`ProofShape`,
+`readProof_ok`). The model's sizes, statement and structure of a replay
+relation are in `Spec/Relation.lean`.
 -/
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-/-- The model's sizes of a replay relation. -/
-def shapeOf (rel : Replay.Relation) : Layer1.Shape where
-  D := Replay.D
-  laneVars := Replay.laneVars
-  blockVars := rel.blockVars
-  blocks := rel.key.blocks
-  kappa := rel.kappa
-  matrices := rel.matrices
-  publicBlocks := rel.publicBlocks
-  normBound := rel.normBound
-  runVars := rel.key.layout.runVariables
-  rowVars := rel.key.layout.rowVariables
-  slotVars := rel.key.layout.slotVariables
-  matrixVars := rel.matrixVars
-  setupVars := rel.setupVars
-  queries := rel.queries
-
-/-- The CE(B) statement of the replay's words. -/
-def statementOf (st : Replay.Statement) : Layer1.Statement Fp where
-  commitment ρ l := ((st.commitment[ρ]!)[l]!).toF
-  publicInput b l := ((st.publicInput[b]!)[l]!).toF
-  r := st.point.toList.map fun v => (v.1.toF, v.2.toF)
-  evalK l := ((st.evalK[l]!).1.toF, (st.evalK[l]!).2.toF)
-  evalA j l := (((st.evalA[j]!)[l]!).1.toF, ((st.evalA[j]!)[l]!).2.toF)
-
-/-- The key's run and slot structure. -/
-def structureOf (layout : Replay.Layout) : Layer1.Structure Fp where
-  runBound j := layout.runBounds[j]!
-  classLength c := (layout.classes[c]!).len
-  classRatio c := (layout.classes[c]!).ratio.toF
-  classes := layout.classes.size
-  segmentFirst i := (layout.segments[i]!).first
-  segmentClass i := (layout.segments[i]!).classIndex
-  segmentLane i := (layout.segments[i]!).lane
-  segments := layout.segments.size
-  slots := layout.slots
-
-/-- The `bar` transform of the F′ closed form, in `Fp`. -/
-def barOf (p l : ℕ) : Fp := (Replay.bar p l).toF
-
 /-- `Φ81 = X⁵⁴ + X²⁷ + 1`. -/
-noncomputable def phi : Fp[X] := X ^ 54 + X ^ 27 + 1
+noncomputable def phi : Gl[X] := X ^ 54 + X ^ 27 + 1
 
 theorem statement_point (st : Replay.Statement) : (statementOf st).point = quadPoint st.point.toList := by
   simp [Layer1.Statement.point, statementOf, quadPoint, Function.comp_def]

@@ -1,31 +1,17 @@
+import CompressionLean.Ports.Shrink.Evaluate
 import CompressionLean.Shrink.BlockPart
+import CompressionLean.Lib.List
 
 /-!
-Owns the verifier's value of `Σ_j ρ^j·M̃_j(rx, ry)` (`matrices`,
-`crates/neo-spartan/src/shrink/mod.rs:275`): the total that the shape run's
-sink accumulates (`evaluate.rs`) plus the closed form of `block_part`, and
-its value (`verifierMatrices_eq`): the entry sum `matrixValue` over the
-run's CCS.
-
-- `splitEq` is `SplitEq::at`, the eq weight from a low and a high table
-  (`splitEq_eq`). `Evaluate::new` builds them for `rx` and `ry`
-  (`evaluate.rs:50-62`).
-- A row call adds `eq(rx, row)·(ρ^7·C + Σ_i ρ^(1+2i)·A_i + ρ^(2+2i)·B_i)`
-  over its sides (`Sink::row`). An R1CS call adds the same for each of its
-  rows, from each column form's value (`Sink::r1cs`). Both are the entry
-  sums of the glue rows that `Trace` stores (`glueTotal_eq`).
-- `rho[j]` is `ρ^j` (`powers`, `mod.rs:291-298`).
+Owns the value of the verifier's matrix value of `Ports/Shrink/Evaluate.lean`
+(`verifierMatrices_eq`): the entry sum `matrixValue` over the run's CCS.
+`splitEq` is the eq weight (`splitEq_eq`), and the calls' sums are the entry
+sums of the glue rows that `Trace` stores (`glueTotal_eq`).
 -/
 
 namespace CompressionLean.Shrink
 
-open CompressionLean.Layer1
-
-/-- `SplitEq::at` (`evaluate.rs:13-33`): the eq table of the low half of
-`point` at the low bits of `index`, times the high half's at the rest. -/
-def splitEq {K : Type} [CommRing K] (point : List K) (index : ℕ) : K :=
-  eqAt (point.take (point.length / 2)) (index % 2 ^ (point.length / 2)) *
-    eqAt (point.drop (point.length / 2)) (index / 2 ^ (point.length / 2))
+open CompressionLean.Lib
 
 theorem splitEq_eq {K : Type} [CommRing K] (point : List K) (index : ℕ) : splitEq point index = eqAt point index := by
   unfold splitEq
@@ -39,63 +25,9 @@ local notation "ι" => algebraMap F K
 
 variable (T : Template F) (s : Counts) (rx ry : List K) (ρ : K)
 
-/-- `Evaluate::side` (`evaluate.rs:64-69`): `Σ eq(ry, column)·coefficient`. -/
-def sideValue (terms : List (Wire × F)) : K :=
-  (terms.map fun t => splitEq ry (Layout.column T s t.1) * ι t.2).sum
-
-/-- The products of a row call from product `i` on (`evaluate.rs:75-77`). -/
-def productsValue : ℕ → List (List (Wire × F) × List (Wire × F)) → K
-  | _, [] => 0
-  | i, (a, b) :: rest =>
-      ρ ^ (1 + 2 * i) * sideValue T s ry a + ρ ^ (2 + 2 * i) * sideValue T s ry b + productsValue (i + 1) rest
-
-/-- `Evaluate::row`'s sum (`evaluate.rs:74-77`): `ρ^7` times the linear
-side, plus the products. -/
-def rowCallValue (products : List (List (Wire × F) × List (Wire × F))) (linear : List (Wire × F)) : K :=
-  ρ ^ 7 * sideValue T s ry linear + productsValue T s ry ρ 0 products
-
-open Classical in
-/-- `Form::evaluate` at `ry`'s eq weights (`record.rs:78-88`), as
-`Evaluate::r1cs` calls it (`evaluate.rs:96-99`). -/
-noncomputable def formValue (form : Form F) : K :=
-  form.terms.foldl (fun sum t => sum + splitEq ry (Layout.column T s t.1) * ι t.2)
-    (if form.constant = 0 then 0 else splitEq ry (Layout.column T s (.pub 0)) * ι form.constant)
-
-/-- One side of an R1CS row from the forms' values (`side`,
-`evaluate.rs:100-106`). -/
-noncomputable def r1csSideValue (columns : List (Form F)) (terms : List (ℕ × F)) : K :=
-  (terms.map fun t => formValue T s ry (columns.getD t.1 ⟨[], 0⟩) * ι t.2).sum
-
-/-- One R1CS row's sum (`evaluate.rs:111-112`): `ρ·a + ρ²·b + ρ^7·c`. -/
-noncomputable def r1csRowValue (columns : List (Form F)) (row : R1csRow F) : K :=
-  ρ ^ 1 * r1csSideValue T s ry columns row.a + ρ ^ 2 * r1csSideValue T s ry columns row.b +
-    ρ ^ 7 * r1csSideValue T s ry columns row.c
-
-/-- An R1CS call's rows from glue row `g` on (`evaluate.rs:107-116`). -/
-noncomputable def r1csValue (columns : List (Form F)) : ℕ → List (R1csRow F) → K
-  | _, [] => 0
-  | g, row :: rest =>
-      splitEq rx (Layout.glueRow T s g) * r1csRowValue T s ry ρ columns row + r1csValue columns (g + 1) rest
-
-/-- `total` after the calls from glue row `g` on (`Evaluate`'s `Sink::row`
-and `Sink::r1cs`, `evaluate.rs:72-118`). -/
-noncomputable def glueTotal : ℕ → List (Call F) → K
-  | _, [] => 0
-  | g, .row products linear _ :: rest =>
-      splitEq rx (Layout.glueRow T s g) * rowCallValue T s ry ρ products linear + glueTotal (g + 1) rest
-  | g, .r1cs rows columns :: rest => r1csValue T s rx ry ρ columns g rows + glueTotal (g + rows.length) rest
-
 section Lemmas
 
 variable {T : Template F} {s : Counts} {rx ry : List K} {ρ : K}
-
-omit [Field F] [Algebra F K] in
-theorem foldl_add_eq {α : Type} (f : α → K) : ∀ (l : List α) (init : K),
-    l.foldl (fun sum t => sum + f t) init = init + (l.map f).sum
-  | [], init => by simp
-  | a :: l, init => by
-      rw [List.foldl_cons, foldl_add_eq f l, List.map_cons, List.sum_cons]
-      ring
 
 theorem sideValue_append (a b : List (Wire × F)) :
     sideValue T s ry (a ++ b) = sideValue T s ry a + sideValue T s ry b := by
@@ -110,7 +42,7 @@ theorem sideValue_expand (columns : List (Form F)) :
       unfold expand at restEq ⊢
       rw [List.flatMap_cons, sideValue_append, restEq, sideValue_append]
       unfold r1csSideValue formValue
-      rw [List.map_cons, List.sum_cons, foldl_add_eq]
+      rw [List.map_cons, List.sum_cons, foldl_add_eq_sum]
       generalize columns.getD t.1 ⟨[], 0⟩ = form
       congr 1
       have terms : sideValue T s ry (form.terms.map fun u => (u.1, u.2 * t.2)) =
@@ -221,11 +153,6 @@ end Glue
 section Matrices
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [DecidableEq K]
-
-/-- The verifier's `Σ_j ρ^j·M̃_j(rx, ry)` (`matrices`, `mod.rs:275`): the
-shape run's total plus `block_part`. -/
-noncomputable def verifierMatrices (T : Template F) (s : Counts) (run : Run F) (rx ry : List K) (ρ : K) : K :=
-  glueTotal T s rx ry ρ 0 run.calls + blockPart T s rx ry ρ
 
 /-- **The verifier's matrix value.** At points of the layout's lengths, the
 value that the verifier computes is the entry sum over the run's CCS. -/

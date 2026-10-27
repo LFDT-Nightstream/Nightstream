@@ -1,5 +1,6 @@
 import CompressionLean.Final.Bridge
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.OutputBinding
+import CompressionLean.Spec.Parent
 
 /-!
 Owns the link from layer 1's relation to F′'s. Under the honest setup of the
@@ -7,12 +8,7 @@ F′ key, a layer-1 CE(B) witness of the statement that an F′ PiRLC parent
 names is a witness of F′'s CE(B) relation for that parent (`parent_holds`,
 SuperNeo v1.2 Definition 21).
 
-- `HonestSetup`: the setup's key rows are the Ajtai key's rows, and its runs
-  give every entry of every completed CCS matrix (`runEntry`), row `i` in
-  F′'s little-endian order. Rust builds the setup in `lib.rs` (`key`,
-  `oracle`) from `Tables::from_rows` (`matrix.rs`).
-- `ParentShape`: the layer-1 sizes that `CompressionKey::relation` passes to
-  `Relation::new`, and `H < B`.
+- The premises `HonestSetup` and `ParentShape` are in `Spec/Parent.lean`.
 - `statementOf`: the layer-1 statement that an F′ instance names.
   `assignmentOf`: the F′ assignment of a layer-1 witness.
 - `evaluate_coefficient`: F′'s evaluation of a coefficient-expanded matrix
@@ -23,6 +19,7 @@ Does not own the terminal output columns (`ParentClaim.lean`) or the games.
 
 namespace CompressionLean.Final
 
+open CompressionLean.Spec
 open Polynomial NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
@@ -99,7 +96,7 @@ theorem evaluate_coefficient (relation : ProductionKey.LogicalRelation lw pf)
       ∑ b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)),
         ∑ l : Fin ringDegree, ∑ e : Fin ringDegree,
           (∑ i ∈ Finset.range (2 ^ cubeVariables),
-              π (Layer1.eqAt (point.coordinates.map toQuad) i) * entryAt M i (ringDegree * b + l)) *
+              π (Lib.eqAt (point.coordinates.map toQuad) i) * entryAt M i (ringDegree * b + l)) *
             gl (a (Phi81CarrierLayout.carrierColumn b e)) * gl (phi81Kernel.weight p l e) := by
   have entry (i : ℕ) (b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)))
       (l : Fin ringDegree) :
@@ -126,7 +123,7 @@ theorem evaluate_coefficient (relation : ProductionKey.LogicalRelation lw pf)
       (paddedEntry_eq relation M v _ l)
   unfold BooleanTable.evaluate
   rw [evaluate_tabulate _ _ _ point.dimension, map_sum]
-  calc _ = ∑ x ∈ Finset.range (2 ^ cubeVariables), π (Layer1.eqAt (point.coordinates.map toQuad) x) *
+  calc _ = ∑ x ∈ Finset.range (2 ^ cubeVariables), π (Lib.eqAt (point.coordinates.map toQuad) x) *
         ∑ b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)), ∑ e : Fin ringDegree,
           (∑ l : Fin ringDegree, gl (M (vertexAt cubeVariables x) (Phi81CarrierLayout.carrierColumn b l)) *
             gl (phi81Kernel.weight p l e)) * gl (a (Phi81CarrierLayout.carrierColumn b e)) := by
@@ -225,16 +222,6 @@ section Link
 
 variable {lw : ℕ} {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
 
-/-- Entry `(i, c)` of matrix `j` as the runs of `S` give it: the sum of the
-values `m_k·ratio^(c - start)` of the runs of matrix `j` and row `i` that
-cover column `c` (`matrix.rs`, one `GeometricRowRun` per run). -/
-noncomputable def runEntry (S : Layer1.Setup Gl) (D j i c : ℕ) : Gl :=
-  ∑ k ∈ ((Finset.range S.runs).filter (fun k => S.runMatrix k = j ∧
-      D * S.slotBlock (S.runSlot k) + S.slotLane (S.runSlot k) ≤ c ∧
-      c < D * S.slotBlock (S.runSlot k) + S.slotLane (S.runSlot k) + S.slotLength (S.runSlot k))).filter
-      (fun k => S.runRow k = i),
-    S.runCoef k * S.slotRatio (S.runSlot k) ^ (c - (D * S.slotBlock (S.runSlot k) + S.slotLane (S.runSlot k)))
-
 /-- When every run names a row below `2^n`, the Eval_A weight of column `c`
 is `Σ_i M_j(i, c)·χ_r(i)` over the rows, with the entries the runs give. -/
 theorem evalAWeight_eq (S : Layer1.Setup Gl) (st : Layer1.Statement Gl) (D j c n : ℕ)
@@ -249,38 +236,6 @@ theorem evalAWeight_eq (S : Layer1.Setup Gl) (st : Layer1.Statement Gl) (D j c n
   apply Finset.sum_congr rfl
   intro k member
   rw [(Finset.mem_filter.mp member).2]
-
-/-- The layer-1 shape of the CE(B) relation of F′'s PiRLC parent at logical
-width `lw`: what `CompressionKey::relation` (`finish.rs`) passes to
-`Relation::new`. -/
-structure ParentShape (s : Layer1.Shape) (lw : ℕ) : Prop where
-  D : s.D = ringDegree
-  laneVars : s.laneVars = 6
-  kappa : s.kappa = productionProfile.commitmentWidth
-  matrices : s.matrices = productionProfile.ccsMatrices
-  publicBlocks : s.publicBlocks = PaperAlgebra.publicRingColumns
-  blocks : s.blocks = Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)
-  /-- The checked bound `H` is below `B`. -/
-  norm : s.normBound < productionGlobalParams.bigB
-
-/-- **The honest setup.** `S` is the layer-1 setup of the F′ circuit with the
-logical relation `relation` and the Ajtai key `ajtai`. Rust builds it in
-`neo_spartan::Setup::build` and `Key::derive` (`lib.rs`, `key` and `oracle`)
-from `Tables::from_rows` (`matrix.rs`) of the circuit's matrix rows. -/
-structure HonestSetup (s : Layer1.Shape) (S : Layer1.Setup Gl) (relation : ProductionKey.LogicalRelation lw pf)
-    (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf)) : Prop where
-  /-- Key row `i` holds Ajtai row `i`: block `b`, lane `l` at cube index
-  `2^laneVars·b + l` (`oracle`). -/
-  key : ∀ (i : Fin productionProfile.commitmentWidth)
-    (b : Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw))) (l : Fin ringDegree),
-    S.key i (2 ^ s.laneVars * b + l) = gl (ajtai i b l)
-  /-- Every run names a row of the cube. -/
-  row_lt : ∀ k, k < S.runs → S.runRow k < 2 ^ cubeVariables
-  /-- The runs give every entry of every completed CCS matrix, row `i` in
-  F′'s little-endian order (`Tables::from_rows`). -/
-  entry : ∀ (j : Fin productionProfile.ccsMatrices) (i : ℕ) (c : Fin (Phi81CarrierLayout.carrierWidth lw)),
-    i < 2 ^ cubeVariables →
-      runEntry S s.D j i c = gl ((PaperAlgebra.matrixSource relation.system).matrices j (vertexAt cubeVariables i) c)
 
 /-- The single evaluation family of an F′ CE instance. -/
 def family (P : PiRLC.v1_2.InputBinding.InputInstance lw pf) : PaperAlgebra.Evaluation :=
@@ -466,8 +421,8 @@ theorem entryAt_pad (relation : ProductionKey.LogicalRelation lw pf) {i c : ℕ}
 /-- Pad's weight of column `c`: `Σ_i π(χ_r(i))·Pad(i, c) = π(χ_r(c))`. -/
 theorem pad_weight (relation : ProductionKey.LogicalRelation lw pf) (π : Layer1.Quad Gl →+ Gl)
     (point : List (Layer1.Quad Gl)) {c : ℕ} (hc : c < Phi81CarrierLayout.carrierWidth lw) :
-    ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Layer1.eqAt point i) * entryAt (padMatrix relation) i c =
-      π (Layer1.eqAt point c) := by
+    ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Lib.eqAt point i) * entryAt (padMatrix relation) i c =
+      π (Lib.eqAt point c) := by
   rw [Finset.sum_eq_single c]
   · rw [entryAt_pad relation (hc.trans_le relation.cubeFits) hc, if_pos rfl, mul_one]
   · intro i member different
@@ -494,7 +449,7 @@ theorem rows_eq {s : Layer1.Shape} (shape : ParentShape s lw) : s.rows = 37 := b
 
 theorem chi_part (P : PiRLC.v1_2.InputBinding.InputInstance lw pf) (part : ℕ) (π : Layer1.Quad Gl →+ Gl)
     (hπ : ∀ q, π q = sel part (q.re, q.im)) (i : ℕ) :
-    sel part ((statementOf P).chi i) = π (Layer1.eqAt (P.point.coordinates.map toQuad) i) := by
+    sel part ((statementOf P).chi i) = π (Lib.eqAt (P.point.coordinates.map toQuad) i) := by
   rw [hπ, ← statementOf_point]
   rfl
 
@@ -506,7 +461,7 @@ theorem evalA_weight {s : Layer1.Shape} {S : Layer1.Setup Gl} {relation : Produc
     (hπ : ∀ q, π q = sel part (q.re, q.im)) (j : Fin productionProfile.ccsMatrices) {c : ℕ}
     (hc : c < Phi81CarrierLayout.carrierWidth lw) :
     sel part (Layer1.evalAWeight S (statementOf P) s.D j c) =
-      ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Layer1.eqAt (P.point.coordinates.map toQuad) i) *
+      ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Lib.eqAt (P.point.coordinates.map toQuad) i) *
         entryAt ((PaperAlgebra.matrixSource relation.system).matrices j) i c := by
   rw [evalAWeight_eq S _ s.D j c cubeVariables honest.row_lt, sel_sum]
   apply Finset.sum_congr rfl
@@ -529,7 +484,7 @@ theorem pad_part {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Setup
       sel part ((statementOf P).evalK p) := by
   have row := evalRow_coeff (pf := pf) shape rows (ρ := s.evalKRow part)
     (by rw [rows_eq shape, Layer1.Shape.evalKRow, shape.kappa]; change 22 + part < 37; omega)
-    (fun b l => π (Layer1.eqAt (P.point.coordinates.map toQuad) (ringDegree * b + l)))
+    (fun b l => π (Lib.eqAt (P.point.coordinates.map toQuad) (ringDegree * b + l)))
     (fun l => sel part ((statementOf P).evalK l))
     (fun b => by
       rw [weight_evalK s bar S _ part small b, shape.D]
@@ -572,7 +527,7 @@ theorem matrix_part {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Se
       change 22 + 2 + 2 * j.val + part < 37
       change j.val < 4 at this
       omega)
-    (fun b l => ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Layer1.eqAt (P.point.coordinates.map toQuad) i) *
+    (fun b l => ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Lib.eqAt (P.point.coordinates.map toQuad) i) *
       entryAt ((PaperAlgebra.matrixSource relation.system).matrices j) i (ringDegree * b + l))
     (fun l => sel part ((statementOf P).evalA j l))
     (fun b => by

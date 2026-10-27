@@ -1,8 +1,8 @@
-//! The Lean lowering (`formal/compression-lean`, `Circuit/Record.lean`)
+//! The Lean lowering (`formal/compression-lean`, `Ports/Circuit/Record.lean`)
 //! against `record.rs` on real program runs.
 //!
 //! `Log` forwards every `Backend` call to a `Recorder<Trace>` and logs it as
-//! one instruction over value handles (`Circuit/Ir.lean`). Handle `v` is the
+//! one instruction over value handles (`Ports/Circuit/Ir.lean`). Handle `v` is the
 //! `v`-th value of the run; each instruction appends its outputs in order.
 //! `add`, `sub` and `scale` log `linear`. `select`, the extension sums and
 //! scales and the default assertions log the calls that `record.rs` makes
@@ -229,7 +229,7 @@ impl Backend for Log {
 }
 
 /// The index bits and folding factor of each query set of `pcs`
-/// (`OpeningRows` in `Circuit/Views.lean`).
+/// (`OpeningRows` in `Ports/Circuit/Views.lean`).
 fn opening_rows(pcs: &Pcs) -> String {
     let config = pcs.config();
     let shape = WhirShape::new(config, pcs.protocol().num_openings());
@@ -245,7 +245,7 @@ fn opening_rows(pcs: &Pcs) -> String {
 }
 
 /// What `whir::verify` reads of `pcs` beyond the replay's `WhirShape`
-/// (`WhirKey` in `Circuit/Whir.lean`).
+/// (`WhirKey` in `Ports/Circuit/Whir.lean`).
 fn whir_key(pcs: &Pcs) -> String {
     let (config, protocol) = (pcs.config(), pcs.protocol());
     let tables = protocol.table_shapes();
@@ -290,7 +290,7 @@ fn whir_key(pcs: &Pcs) -> String {
     )
 }
 
-/// What `layer1` in `Circuit/Check.lean` reads: the replay's relation and the
+/// What `layer1` in `CompressionLeanExe/Fixtures.lean` reads: the replay's relation and the
 /// `WhirKey` of each opening.
 fn layer1_input(relation: &Relation<'_>) -> String {
     format!(
@@ -480,7 +480,7 @@ fn lowering_matches_lean() {
 
 /// Run `lowerCheck` on the export at `path` with `program`, and require
 /// `match`.
-fn lower_check(name: &str, path: &Path, program: &[PathBuf]) {
+fn lower_check(name: &str, path: &Path, program: &[PathBuf]) -> String {
     let check = workspace().join("formal/compression-lean/.lake/build/bin/lowerCheck");
     assert!(
         check.exists(),
@@ -498,6 +498,7 @@ fn lower_check(name: &str, path: &Path, program: &[PathBuf]) {
         "{name}: {stdout}{}",
         String::from_utf8_lossy(&output.stderr)
     );
+    stdout.into_owned()
 }
 
 /// The layer-1 key, PiRLC's bound and the layer bits of the production
@@ -505,7 +506,7 @@ fn lower_check(name: &str, path: &Path, program: &[PathBuf]) {
 /// `tests/fixtures/compression/key.bin`).
 /// The file is the bincode of `CompressionKey` (`finish.rs`): these three,
 /// the context and the shrink shape.
-fn production_key() -> (Key, u32, f64) {
+pub(super) fn production_key() -> (Key, u32, f64) {
     let path = workspace().join("crates/nightstream/tests/fixtures/compression/key.bin");
     let bytes = std::fs::read(&path).unwrap_or_else(|error| panic!("{}: {error}", path.display()));
     let fields: (Key, [u64; 4], u32, f64, Shape) = bincode::deserialize(&bytes).unwrap();
@@ -569,5 +570,13 @@ fn production_layer1_matches_lean() {
     let path = export("production_layer1", &layer1);
     let input = workspace().join("target/lean-lowering/production_layer1.json");
     std::fs::write(&input, layer1_input(&relation)).unwrap();
-    lower_check("production_layer1", &path, &["layer1".into(), input]);
+    let stdout = lower_check("production_layer1", &path, &["layer1".into(), input]);
+    assert!(
+        stdout.contains("key facts hold"),
+        "the production key must have the key facts: {stdout}"
+    );
+    assert!(
+        stdout.contains("key width fits the Poseidon2 hash chain"),
+        "the production key must fit the Poseidon2 hash chain's width: {stdout}"
+    );
 }

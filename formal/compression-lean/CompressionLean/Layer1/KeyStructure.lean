@@ -21,6 +21,8 @@ Rust step formulas equal to the extensions of the model's tables.
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
+
 /-- The verifier's run and slot structure (`matrix.rs::Structure`). -/
 structure Structure (F : Type) where
   /-- The first run of matrix `j`; at `j = matrices`, the run count. -/
@@ -52,6 +54,14 @@ structure Checked : Prop where
   segment_last : ∀ i, i + 1 = key.segments → key.segmentFirst i < key.slots
   class_named : ∀ i, i < key.segments → key.segmentClass i < key.classes
   length_pos : ∀ c, c < key.classes → 1 ≤ key.classLength c
+
+/-- `Checked` as bounded quantifiers. -/
+instance : Decidable (key.Checked s) :=
+  decidable_of_iff (_ ∧ _ ∧ _ ∧ (∀ i, i < key.segments - 1 → key.segmentFirst i < key.segmentFirst (i + 1)) ∧
+      (0 < key.segments → key.segmentFirst (key.segments - 1) < key.slots) ∧ _ ∧ _)
+    ⟨fun ⟨a, b, c, d, e, f, g⟩ => ⟨a, b, c, fun i lt => d i (by omega),
+      fun i last => by rw [show i = key.segments - 1 by omega]; exact e (by omega), f, g⟩,
+     fun ⟨a, b, c, d, e, f, g⟩ => ⟨a, b, c, fun i lt => d i (by omega), fun lt => e _ (by omega), f, g⟩⟩
 
 /-- What `Tables::from_rows` builds: the setup's run matrices and slot shapes
 are the key's step functions. -/
@@ -178,7 +188,7 @@ theorem segments_eq {K : Type} (value : ℕ → K) :
   intro i member
   rw [Structure.segmentStart, if_pos (List.mem_range.mp member)]
 
-/-- `matrix.rs::matrix_step` is the extension of the matrix column. -/
+/-- `matrix.rs::Structure::matrix_step` is the extension of the matrix column. -/
 theorem matrixStep_eq {K : Type} [Field F] [Field K] (fits : S.Fits s) (checked : key.Checked s)
     (describes : key.Describes s S)
     (p : List K) :
@@ -215,7 +225,7 @@ theorem slotStep_eq {K : Type} [CommRing K] (checked : key.Checked s) (describes
     (segmentStart_mono s key checked) (by rwa [segmentStart_end]) (by rwa [segmentStart_end]) σ
   rwa [segmentStart_end] at this
 
-/-- `matrix.rs::slot_step` at `t = 0`: each segment's value is its class's
+/-- `matrix.rs::Structure::slot_step` at `t = 0`: each segment's value is its class's
 head lane table at its lane; this is the extension of the model's head split. -/
 theorem slotStep_head {K : Type} [Field F] [Field K] [Algebra F K] (fits : S.Fits s) (checked : key.Checked s)
     (describes : key.Describes s S) (τ : ℕ → K) (p : List K) :
@@ -231,7 +241,7 @@ theorem slotStep_head {K : Type} [Field F] [Field K] [Algebra F K] (fits : S.Fit
   · intro σ past
     simp [laneSplit, describes.slots, past]
 
-/-- `matrix.rs::slot_step` at `t = 1`: the same with the tail lane tables. -/
+/-- `matrix.rs::Structure::slot_step` at `t = 1`: the same with the tail lane tables. -/
 theorem slotStep_tail {K : Type} [Field F] [Field K] [Algebra F K] (fits : S.Fits s) (checked : key.Checked s)
     (describes : key.Describes s S) (τ : ℕ → K) (p : List K) :
     stepValue p key.slots ((List.range key.segments).map fun i => (key.segmentFirst i,

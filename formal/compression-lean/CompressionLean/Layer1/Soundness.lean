@@ -11,12 +11,12 @@ words before the first layer-1 challenge, so a prover may choose it.
 The two WHIR openings are idealized (`Opens`): the verifier accepts them when
 one P0 candidate and one P1 candidate agree with every opened value. The
 lists are the candidates the prover fixed at its commitments. The WHIR error
-that this idealization hides is a named term of the final bound, not proved
-here.
+that this idealization hides is not part of the final bound (`TRUST.md` §3).
 -/
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
@@ -87,6 +87,13 @@ structure Shape.Sizes (s : Shape) (N : ℕ) : Prop where
   fold_three : 3 ≤ s.setupVars
   fold_key : s.laneVars + s.blockVars ≤ s.setupVars
   fold_run : s.runVars ≤ s.setupVars
+
+instance (s : Shape) (N : ℕ) : Decidable (s.Sizes N) :=
+  decidable_of_iff (_ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _ ∧ _)
+    ⟨fun ⟨a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, t⟩ =>
+      ⟨a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, t⟩,
+     fun ⟨a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, t⟩ =>
+      ⟨a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, t⟩⟩
 
 omit [Fintype K] [DecidableEq K] in
 /-- Interpolation nodes `0, ..., d + 1` are distinct when integers below `N` are. -/

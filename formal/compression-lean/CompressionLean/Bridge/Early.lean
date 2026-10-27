@@ -1,5 +1,6 @@
 import CompressionLean.Bridge.Gkr
 import CompressionLean.Bridge.Relation
+import CompressionLean.Spec.Messages
 
 /-!
 Owns the bridge of the early stage (`Replay.earlyStage`) to the model's
@@ -12,12 +13,14 @@ checks give (`early_reaches`).
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
+open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-local notation "ι" => algebraMap Fp K
+local notation "ι" => algebraMap Gl K
 
 /-! ## Checks -/
 
@@ -28,11 +31,11 @@ theorem sum_range_list {M : Type} [AddCommMonoid M] (n : ℕ) (f : ℕ → M) :
   | succ n ih => rw [Finset.sum_range_succ, ih, List.range_succ, List.map_append, List.sum_append]; simp
 
 theorem toK_slot (bound slot : ℕ) :
-    (Ext.ofGl (Gl.ofNat slot - Gl.ofNat bound)).toK (K := K) = slotValue bound slot := by
-  rw [Ext.toK_ofGl, Gl.toF_sub, Gl.toF_ofNat, Gl.toF_ofNat, map_sub, map_natCast, map_natCast]
+    (Ext.ofGl (Word.ofNat slot - Word.ofNat bound)).toK (K := K) = slotValue bound slot := by
+  rw [Ext.toK_ofGl, Word.toF_sub, Word.toF_ofNat, Word.toF_ofNat, map_sub, map_natCast, map_natCast]
   rfl
 
-theorem tableSum_ok (bound : ℕ) (counts : Array Gl) (beta : Ext) {total : Ext}
+theorem tableSum_ok (bound : ℕ) (counts : Array Word) (beta : Ext) {total : Ext}
     (ok : tableSum bound counts beta = .ok total) :
     (∀ t, t < counts.size → beta.toK (K := K) ≠ slotValue bound t) ∧
       total.toK (K := K) =
@@ -91,11 +94,11 @@ def earlyOpeningsOf (layout : Layout) (ch : Replay.EarlyChallenges) (claims : Re
   mult := claims.leafValue 2 0
   rowClaim := v.row
   slotClaim := ch.scatter.1 - claims.leafValue 3 2 -
-    (matrixStep layout claims.leafPoint[3]!).scale (Gl.ofNat (2 ^ layout.slotVariables))
+    (matrixStep layout claims.leafPoint[3]!).scale (Word.ofNat (2 ^ layout.slotVariables))
   coefClaim := claims.leafValue 3 0
 
 /-- What `checkEarly` checked and returned. -/
-structure EarlyChecked (layout : Layout) (r : Array (Gl × Gl)) (ch : Replay.EarlyChallenges)
+structure EarlyChecked (layout : Layout) (r : Array (Word × Word)) (ch : Replay.EarlyChallenges)
     (claims : Replay.GkrClaims) (v : Replay.EarlyValues) (op : EarlyOpenings) : Prop where
   rows : pairCheck claims.roots[1]! claims.roots[2]! "row lookup" = .ok ()
   slots : pairCheck claims.roots[3]! claims.roots[4]! "slot scatter" = .ok ()
@@ -110,7 +113,7 @@ structure EarlyChecked (layout : Layout) (r : Array (Gl × Gl)) (ch : Replay.Ear
   indexLeaf : claims.leafValue 4 1 = ch.scatter.1 - Replay.identityValue claims.leafPoint[4]!
   openings : op = earlyOpeningsOf layout ch claims v
 
-theorem checkEarly_ok {layout : Layout} {r : Array (Gl × Gl)} {ch : Replay.EarlyChallenges}
+theorem checkEarly_ok {layout : Layout} {r : Array (Word × Word)} {ch : Replay.EarlyChallenges}
     {claims : Replay.GkrClaims} {v : Replay.EarlyValues} {op : EarlyOpenings}
     (ok : checkEarly layout r ch claims v = .ok op) : EarlyChecked layout r ch claims v op := by
   unfold checkEarly at ok
@@ -126,13 +129,6 @@ theorem checkEarly_ok {layout : Layout} {r : Array (Gl × Gl)} {ch : Replay.Earl
     Ext.eq_of_beq (Except.ensure_ok indexLeaf), (Except.pure_eq_ok ok).symm⟩
 
 /-! ## The stage -/
-
-/-- The model's early values of the replay's. -/
-def valuesOf (v : Replay.EarlyValues) : Layer1.EarlyValues K :=
-  ⟨v.eRe.toK, v.eIm.toK, v.row.toK, fun j => pairK (v.pairs[j]!), v.block.toK⟩
-
-/-- The model's histogram of the proof's counts. -/
-def histOf (proof : Replay.Proof) (i : ℕ) : Fp := (proof.histogram[i]!).toF
 
 /-- The model's early challenges of the replay's. -/
 def challengesOf (ch : Replay.EarlyChallenges) : Layer1.EarlyChallenges K :=
@@ -172,21 +168,22 @@ section Stage
 
 variable [DecidableEq K]
 
-/-- A successful early replay is a path of `earlyGame` that draws the
-replay's challenges and ends in the model's `EarlyOut` of the replay's
-values; along it every `EarlyChecks` condition holds. -/
+/-- A successful early replay is a path of `earlyGame` that receives the
+candidates and the proof's messages, draws the replay's challenges and ends
+in the model's `EarlyOut` of the replay's values; along it every
+`EarlyChecks` condition holds. -/
 theorem early_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof)
     (shape : ProofShape rel proof) (fits : st.fits rel = true)
     (rowFits : rel.key.layout.rowVariables ≤ rel.pointVariables) (matricesFit : rel.matrices ≤ 2 ^ rel.matrixVars)
-    (S : Setup Fp) (L0 : ℕ) (cands : List (P0Tables Fp)) (short : cands.length ≤ L0) (q : ℕ)
+    (S : Setup Gl) (L0 : ℕ) (cands : List (P0Tables Gl)) (short : cands.length ≤ L0) (q : ℕ)
     {t t' : Replay.Transcript} {o : Replay.EarlyOut} (run : Runs (earlyStage rel st proof) t o t') :
     ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧ ∃ mc : Layer1.GkrClaims K,
       ClaimsAgree rel.earlyShapes.size o.gkr mc ∧
       (∀ u, u < rel.earlyShapes.size → (o.gkr.leafPoint[u]!).size = (rel.earlyShapes[u]!).depth) ∧
       o.values = proof.earlyValues ∧ o.zLeaf = o.challenges.beta - o.gkr.leafValue 0 0 ∧
       o.openings = earlyOpeningsOf rel.key.layout o.challenges o.gkr proof.earlyValues ∧
-      Game.Reaches (earlyGame (shapeOf rel) S (statementOf st) L0) (ds.map (drawn (K := K) q))
-        (some ⟨cands, histOf proof, challengesOf o.challenges, mc, valuesOf o.values⟩) := by
+      Game.Reaches (earlyGame (shapeOf rel) S (statementOf st) L0) (earlyMsgs (K := K) rel proof ⟨cands, short⟩)
+        (ds.map (drawn (K := K) q)) (some ⟨cands, histOf proof, challengesOf o.challenges, mc, valuesOf o.values⟩) := by
   unfold earlyStage at run
   obtain ⟨_, t1, h1, run⟩ := run_bind run
   obtain ⟨_, t2, h2, run⟩ := run_bind run
@@ -225,7 +222,7 @@ theorem early_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : R
   have root : ∀ u, u < 5 → mc.roots u = pairK (claims.roots[u]!) := fun u lt => claimsAgree.roots u (small u lt)
   have checks : EarlyChecks (shapeOf rel) (statementOf st)
       (⟨cands, histOf proof, ⟨beta.toK, pairK lookup, pairK scatter⟩, mc, valuesOf proof.earlyValues⟩ :
-        Layer1.EarlyOut Fp K) := by
+        Layer1.EarlyOut Gl K) := by
     refine ⟨fun u inside => poles u (by rw [shape.histogram]; exact inside), ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
     · rw [root 0 (by norm_num)]
       exact Ext.toK_ne_zero nonzero
@@ -269,14 +266,14 @@ theorem early_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : R
   · rw [run_observeExts h12, drawsG, run_samplePair h6, run_samplePair h5, run_sampleExt h4, run_observeAll h3,
       run_observeAll h2, run_observeAll h1]
     simp
-  · unfold earlyGame
-    apply Game.Reaches.recv ⟨cands, short⟩
+  · unfold earlyGame earlyMsgs
+    apply Game.Reaches.recv (⟨cands, short⟩ : {l : List (P0Tables Gl) // l.length ≤ L0})
     apply Game.Reaches.recv (histOf proof)
     simp only [List.map_cons, List.cons_append, List.nil_append, drawn_ext, drawn_pair]
     apply Game.Reaches.draw beta.toK
     apply Game.Reaches.draw (pairK lookup)
     apply Game.Reaches.draw (pairK scatter)
-    refine Game.Reaches.congr (Game.Reaches.bind reachG ?_) (List.append_nil _)
+    refine Game.Reaches.congr (Game.Reaches.bind reachG ?_) rfl (List.append_nil _)
     apply Game.Reaches.recv (valuesOf proof.earlyValues)
     rw [if_pos checks]
     exact Game.Reaches.pure _

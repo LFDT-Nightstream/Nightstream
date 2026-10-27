@@ -1,38 +1,29 @@
+import CompressionLean.Ports.Shrink.Rounds
 import CompressionLean.Shrink.Ccs
-import CompressionLean.Layer1.Linear
+import CompressionLean.Lib.Combination
 
 /-!
-Owns the tables of the shrink argument's two sum-checks and the batching
-between them (`mod.rs:233-288`), and their true sums.
+Owns the true sums of the shrink sum-checks of `Ports/Shrink/Rounds.lean`.
 
-- Outer: the zero-check `Σ_x eq(τ, x)·P(M_0·z(x), ..., M_7·z(x)) = 0` over
-  the rows. Its rounds are `combRound` of nine tables (`eq(τ, ·)` and the
-  `M_j·z`) under `outerComb = X_eq·P`, of total degree 8 (`DEGREE`,
-  `mod.rs:40-41`). Its true sum is the extension of the constraint table at
-  `τ` (`outer_truth_nil`); at the end it is `eq(τ, rx)·P(M̃_j·z(rx))`
-  (`outer_truth_final`).
-- Batching: `Σ_j ρ^j·v_j` (`mod.rs:255-256`). Claimed values that differ
-  from the true ones differ in a nonzero polynomial of degree at most 7 in
-  `ρ` (`batchPoly`).
-- Inner: `Σ_y weight(y)·z(y)` over the columns, as `combRound` of two tables
-  under `productComb`. Its true sum is the batch of the true values
-  (`inner_truth_nil`); at the end it is `Σ_j ρ^j·M̃_j(rx, ry)·z̃(ry)`
-  (`inner_truth_final`).
+- Outer: the true sum is the extension of the constraint table at `τ`
+  (`outer_truth_nil`); at the end it is `eq(τ, rx)·P(M̃_j·z(rx))`
+  (`outer_truth_final`). `outerComb` has degree 8 (`outerComb_degree`).
+- Batching: claimed values that differ from the true ones differ in a
+  nonzero polynomial of degree at most 7 in `ρ` (`batchPoly_ne_zero`,
+  `batch_ne`).
+- Inner: the true sum is the batch of the true values (`inner_truth_nil`);
+  at the end it is `Σ_j ρ^j·M̃_j(rx, ry)·z̃(ry)` (`inner_truth_final`).
 -/
 
 namespace CompressionLean.Shrink
 
-open CompressionLean.Layer1 Polynomial
+open CompressionLean.Lib Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K]
 
 local notation "ι" => algebraMap F K
 
 section Outer
-
-/-- `X_eq·P(X_0, ..., X_7)`: the outer sum-check's combination. -/
-noncomputable def outerComb : MvPolynomial (Option (Fin 8)) K :=
-  MvPolynomial.X none * constraint fun j => MvPolynomial.X (some j)
 
 omit [Field K] in
 theorem eval_outerComb [Field K] (f : Option (Fin 8) → K) :
@@ -61,17 +52,6 @@ theorem outerComb_degree [Field K] : (outerComb : MvPolynomial (Option (Fin 8)) 
   rw [x]
   omega
 
-/-- The outer sum-check's tables: `eq(τ, ·)` and the eight `M_j·z` on the
-row cube. -/
-def outerTables (es : List (Entry F)) (z : ℕ → F) (τ : List K) : Option (Fin 8) → ℕ → K
-  | none => eqAt τ
-  | some j => fun r => ι (rowValue es z j r)
-
-/-- The constraint table: `P` of the row values. It is zero on the row cube
-when the rows hold. -/
-def constraintTable (es : List (Entry F)) (z : ℕ → F) (r : ℕ) : K :=
-  ι (constraint fun j => rowValue es z j r)
-
 /-- The zero-check's true sum is the constraint table's extension at `τ`. -/
 theorem outer_truth_nil (es : List (Entry F)) (z : ℕ → F) (τ : List K) (m : ℕ) (length : τ.length = m) :
     combTruth m (outerTables es z τ) outerComb [] = mle τ (constraintTable es z) := by
@@ -92,12 +72,6 @@ theorem outer_truth_final (es : List (Entry F)) (z : ℕ → F) (τ rx : List K)
 end Outer
 
 section Batch
-
-/-- `Σ_j ρ^j·v_j` (`mod.rs:255-256`). -/
-def batch (ρ : K) (v : Fin 8 → K) : K := ∑ j : Fin 8, ρ ^ (j : ℕ) * v j
-
-/-- `Σ_j (v_j - t_j)·X^j`: claimed values against true values. -/
-noncomputable def batchPoly (v t : Fin 8 → K) : K[X] := ∑ j : Fin 8, C (v j - t j) * X ^ (j : ℕ)
 
 theorem batchPoly_eval (v t : Fin 8 → K) (ρ : K) : (batchPoly v t).eval ρ = batch ρ v - batch ρ t := by
   simp only [batchPoly, batch, eval_finsetSum, eval_mul, eval_C, eval_pow, eval_X, ← Finset.sum_sub_distrib]
@@ -133,10 +107,6 @@ theorem batch_ne [Fintype K] [DecidableEq K] {v t : Fin 8 → K} {ρ : K} (diffe
 end Batch
 
 section Inner
-
-/-- The inner sum-check's tables: the weights `Σ_j ρ^j·M_j(rx, ·)` and `z`. -/
-def innerTables (es : List (Entry F)) (z : ℕ → F) (rx : List K) (ρ : K) : Fin 2 → ℕ → K :=
-  fun i => if i = 0 then weight es rx ρ else fun y => ι (z y)
 
 /-- The inner sum-check's true sum is the batch of the true matrix values. -/
 theorem inner_truth_nil (es : List (Entry F)) (z : ℕ → F) (rx : List K) (ρ : K) (n : ℕ)

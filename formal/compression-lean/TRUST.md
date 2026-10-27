@@ -67,9 +67,15 @@ The claims bound a probability. They take these as part of the model, not as Lea
   of the assumption: the path reads only the low `n - 2` bits of an index, so without it the
   assumption would make every setup oracle constant on each queried coset. Under the honest key
   root (`rel.key.root = honestRoot rel S`), `merkleBinds_of_root` (`Bridge/Merkle.lean`) proves
-  it, unless a leaf passes the path check with a Poseidon2 collision at inputs computed from the
-  leaf (`PathCollision`); `honest_leaves_bind` shows that honest leaves pass at their own index.
-  That the shipped key's root is `honestRoot` of the claims' setup is not proved (section 5).
+  it for leaves of the replay's shape, a path of `n - 2` four-word digests and `(κ + 4)·8` values,
+  unless a leaf passes the path check with a `PathCollision`: two different sixteen-word inputs of
+  the permutation that compress alike, or two different leaves of that length that hash alike, at
+  inputs computed from the leaf. The shape matters: `compress` and `hashLeaf` take arrays of any
+  length, so a padded digest or extra values would match with no collision. A proof's leaves have
+  it: the reading decodes four-word digests (`decodeDigest`), and the replay's `readProof` fixes
+  the path length and the value count. `honest_leaves_bind` shows that honest leaves pass at their
+  own index. That the shipped key's root is `honestRoot` of the claims' setup is not proved
+  (section 5).
 - **Query indices.** The model draws each query leaf as a uniform Goldilocks word modulo the leaf
   count, as `sample_bits` does (`Layer1/HonestStage.lean`, `Layer1/Queries.lean`). The budget needs
   at most 35 setup variables (`query_half`), and the replay bridge at most 31. `Relation::new`

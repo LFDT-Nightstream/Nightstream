@@ -391,3 +391,5 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.Shipped.circuitAgrees_of_verify
 #audit_axioms CompressionLean.Circuit.Sim.absorb
 #audit_axioms CompressionLean.Circuit.Sim.observeRoot
+#audit_axioms CompressionLean.Final.load_outputs
+#audit_axioms CompressionLean.Final.outputsFit_of_shape

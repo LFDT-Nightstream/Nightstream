@@ -402,4 +402,33 @@ theorem sampleExt {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : 
 
 end Sim
 
+/-! ## Poseidon2 -/
+
+section Poseidon2
+
+open NightstreamFPrime.Export.NativePoseidon2
+
+/-- A word in Goldilocks is the F′ package's reading of its machine word. -/
+theorem word_eq_denote (g : Gl) : (word g : ZMod goldilocksModulus) = g.word.denote := by
+  apply Fin.ext
+  simp only [word, UInt64.denote, NightstreamFPrime.Spec.Poseidon2.ofNat, Gl.toNat]
+  exact ZMod.val_natCast (n := goldilocksModulus) _
+
+/-- **Poseidon2 on words.** The F′ permutation, on the words of a state, is
+the replay's permutation. -/
+theorem permutes_poseidon2 : Permutes (F := ZMod goldilocksModulus) NightstreamFPrime.Spec.Poseidon2.permute := by
+  intro s k
+  unfold Replay.permute
+  dsimp only
+  generalize hst : (State64.mk _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ : State64) = st
+  have input : (List.ofFn fun i : Fin 16 => (word s[i]! : ZMod goldilocksModulus)) = st.denote := by
+    rw [← hst]
+    simp only [List.ofFn_succ, List.ofFn_zero, State64.denote, word_eq_denote]
+    rfl
+  rw [input, ← State64.permute64_denote]
+  generalize State64.permute64 st = out
+  fin_cases k <;> simp only [State64.denote, word_eq_denote] <;> rfl
+
+end Poseidon2
+
 end CompressionLean.Circuit

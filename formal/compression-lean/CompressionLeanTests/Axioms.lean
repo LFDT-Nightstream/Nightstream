@@ -370,3 +370,22 @@ import CompressionLean
 #audit_axioms CompressionLean.Circuit.steps_agrees
 #audit_axioms CompressionLean.Circuit.lower_exec
 #audit_axioms CompressionLean.Circuit.lower_sound
+
+/-! Axiom gate for the circuit-replay agreement. -/
+
+#audit_axioms CompressionLean.Circuit.lower_counts
+#audit_axioms CompressionLean.Circuit.Sim.sample
+#audit_axioms CompressionLean.Circuit.Sim.sampleExt
+#audit_axioms CompressionLean.Circuit.Sim.observeSlice
+#audit_axioms CompressionLean.Circuit.Sim.observeExt
+#audit_axioms CompressionLean.Circuit.permutes_poseidon2
+#audit_axioms CompressionLean.Circuit.Accepts.bind
+#audit_axioms CompressionLean.Circuit.Accepts.loopT
+#audit_axioms CompressionLean.Circuit.Accepts.arrayMapM
+#audit_axioms CompressionLean.Circuit.Accepts.exec_of_eq
+#audit_axioms CompressionLean.Circuit.Package.load_computed
+#audit_axioms CompressionLean.Circuit.finalProgram_accepts
+#audit_axioms CompressionLean.Final.fits_of_claimFits
+#audit_axioms CompressionLean.Final.claimFits_of_outputsFit
+#audit_axioms CompressionLean.Final.Shipped.replay_of_exec
+#audit_axioms CompressionLean.Final.Shipped.circuitAgrees_of_verify

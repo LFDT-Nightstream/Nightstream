@@ -121,7 +121,8 @@ theorem map {b : Build α} {f : α → β} {Q' : β → ℕ → Prop} (h : Accep
 /-- `t >>= g` in a transcript. -/
 theorem tbind {t : Transcript α} {g : α → Transcript β} {d : Duplex} {R : β × Duplex → ℕ → Prop}
     {Q : α × Duplex → ℕ → Prop} (ht : Accepts c n P (t.run d) Q)
-    (hg : ∀ a e m, n ≤ m → Accepts c m (P ∧ Q (a, e) m) ((g a).run e) R) : Accepts c n P ((t >>= g).run d) R := by
+    (hg : ∀ a e m, n ≤ m → Accepts c m (P ∧ Q (a, e) m) ((g a).run e) R) :
+    Accepts c n P ((t >>= g).run d) R := by
   rw [StateT.run_bind]
   exact ht.bind fun r m le => hg r.1 r.2 m le
 
@@ -130,6 +131,108 @@ theorem lift {b : Build α} {d : Duplex} (h : Accepts c n P b Q) :
     Accepts c n P ((monadLift b : Transcript α).run d) (fun r m => Q r.1 m ∧ r.2 = d) := by
   rw [StateT.run_monadLift]
   exact h.bind fun a m _ => Accepts.pure fun h => ⟨h.2, rfl⟩
+
+/-- One instruction: its first output is the old count. -/
+theorem emit (i : Instr) : Accepts c n P (Build.emit i) fun h m => h = n ∧ m = n + i.outputs := by
+  intro p E hp hE
+  refine ⟨[i], by show p.instrs.push i = p.instrs ++ #[i]; simp, ?_, fun _ _ _ => ?_⟩
+  · obtain ⟨more, hm, hl⟩ := c.step_values E i
+    show (c.step E i).values.length = p.values + i.outputs
+    rw [hm, List.length_append, hl, hE, hp]
+  · show p.values = n ∧ p.values + i.outputs = n + i.outputs
+    rw [hp]
+    exact ⟨rfl, rfl⟩
+
+/-- A loop from step `j` on. -/
+theorem loop_from {xs : List δ} {body : δ → γ → Build (ForInStep γ)} (I : ℕ → γ → ℕ → Prop)
+    (step : ∀ k (hk : k < xs.length) acc m, n ≤ m → Accepts c m (P ∧ I k acc m) (body xs[k] acc)
+      (fun r m' => r = .yield r.value ∧ I (k + 1) r.value m')) :
+    ∀ t j, xs.length - j = t → j ≤ xs.length → ∀ acc m, n ≤ m →
+      Accepts c m (P ∧ I j acc m) (forIn (xs.drop j) acc body) (fun r m' => I xs.length r m')
+  | 0, j, ht, hj, acc, m, _ => by
+      have e : j = xs.length := by omega
+      subst e
+      rw [List.drop_length, List.forIn_nil]
+      exact Accepts.pure fun h => h.2
+  | t + 1, j, ht, hj, acc, m, hm => by
+      have hj' : j < xs.length := by omega
+      rw [List.drop_eq_getElem_cons hj', List.forIn_cons]
+      refine (step j hj' acc m hm).bind fun r m' le => ?_
+      cases r with
+      | done b => exact Accepts.pure fun h => absurd h.2.1 (by simp)
+      | yield b => exact (loop_from I step t (j + 1) (by omega) hj' b m' (hm.trans le)).pre fun h => ⟨h.1.1, h.2.2⟩
+
+/-- **A loop over a list.** `I k acc m`: after `k` steps the accumulator is
+`acc` with `m` values. -/
+theorem loop {xs : List δ} {init : γ} {body : δ → γ → Build (ForInStep γ)} (I : ℕ → γ → ℕ → Prop)
+    (step : ∀ k (hk : k < xs.length) acc m, n ≤ m → Accepts c m (P ∧ I k acc m) (body xs[k] acc)
+      (fun r m' => r = .yield r.value ∧ I (k + 1) r.value m')) :
+    Accepts c n (P ∧ I 0 init n) (forIn xs init body) (fun r m => I xs.length r m) :=
+  loop_from I step _ 0 rfl (Nat.zero_le _) init n le_rfl
+
+/-- A loop over a list in a transcript, from step `j` on; `I k acc e m` also
+names the duplex. -/
+theorem loopT_from {xs : List δ} {body : δ → γ → Transcript (ForInStep γ)}
+    (I : ℕ → γ → Duplex → ℕ → Prop)
+    (step : ∀ k (hk : k < xs.length) acc e m, n ≤ m → Accepts c m (P ∧ I k acc e m) ((body xs[k] acc).run e)
+      (fun r m' => r.1 = .yield r.1.value ∧ I (k + 1) r.1.value r.2 m')) :
+    ∀ t j, xs.length - j = t → j ≤ xs.length → ∀ acc e m, n ≤ m →
+      Accepts c m (P ∧ I j acc e m) ((forIn (xs.drop j) acc body).run e) (fun r m' => I xs.length r.1 r.2 m')
+  | 0, j, ht, hj, acc, e, m, _ => by
+      have h : j = xs.length := by omega
+      subst h
+      rw [List.drop_length, List.forIn_nil, StateT.run_pure]
+      exact Accepts.pure fun h => h.2
+  | t + 1, j, ht, hj, acc, e, m, hm => by
+      have hj' : j < xs.length := by omega
+      rw [List.drop_eq_getElem_cons hj', List.forIn_cons, StateT.run_bind]
+      refine (step j hj' acc e m hm).bind fun r m' le => ?_
+      obtain ⟨r, e'⟩ := r
+      cases r with
+      | done b =>
+          show Accepts c m' _ (Pure.pure (b, e') : Build (γ × Duplex)) _
+          exact Accepts.pure fun h => absurd h.2.1 (by simp)
+      | yield b =>
+          exact (loopT_from I step t (j + 1) (by omega) hj' b e' m' (hm.trans le)).pre fun h => ⟨h.1.1, h.2.2⟩
+
+/-- **A loop over a list in a transcript.** -/
+theorem loopT {xs : List δ} {init : γ} {body : δ → γ → Transcript (ForInStep γ)} {d : Duplex}
+    (I : ℕ → γ → Duplex → ℕ → Prop)
+    (step : ∀ k (hk : k < xs.length) acc e m, n ≤ m → Accepts c m (P ∧ I k acc e m) ((body xs[k] acc).run e)
+      (fun r m' => r.1 = .yield r.1.value ∧ I (k + 1) r.1.value r.2 m')) :
+    Accepts c n (P ∧ I 0 init d n) ((forIn xs init body).run d) (fun r m => I xs.length r.1 r.2 m) :=
+  loopT_from I step _ 0 rfl (Nat.zero_le _) init d n le_rfl
+
+/-- `mapM` over a list: each call meets `R` at its entry, and `R` holds at
+every later count. -/
+theorem listMapM {f : δ → Build γ} (R : δ → γ → ℕ → Prop)
+    (mono : ∀ x y m m', R x y m → m ≤ m' → R x y m') :
+    ∀ (xs : List δ), (∀ x ∈ xs, ∀ m, n ≤ m → Accepts c m P (f x) (R x)) → ∀ m, n ≤ m →
+      Accepts c m P (xs.mapM f) fun ys m' => ys.length = xs.length ∧ ∀ i (h : i < xs.length) (h' : i < ys.length),
+        R xs[i] ys[i] m'
+  | [], _, m, _ => Accepts.pure fun _ => ⟨rfl, fun _ h => absurd h (by simp)⟩
+  | x :: xs, each, m, hm => by
+      rw [List.mapM_cons]
+      refine (each x (by simp) m hm).bind fun y m₁ l₁ => ?_
+      refine ((listMapM R mono xs (fun x hx => each x (by simp [hx])) m₁ (hm.trans l₁)).pre fun h => h.1).bind
+        fun ys m₂ l₂ => ?_
+      refine Accepts.pure fun h => ⟨by simp [h.2.1], fun i hi hi' => ?_⟩
+      cases i with
+      | zero => exact mono _ _ _ _ h.1.2 l₂
+      | succ i => exact h.2.2 i (by simpa using hi) (by simpa using hi')
+
+/-- `mapM` over an array. -/
+theorem arrayMapM {f : δ → Build γ} (R : δ → γ → ℕ → Prop)
+    (mono : ∀ x y m m', R x y m → m ≤ m' → R x y m')
+    (xs : Array δ) (each : ∀ x ∈ xs, ∀ m, n ≤ m → Accepts c m P (f x) (R x)) :
+    Accepts c n P (xs.mapM f) fun ys m => ys.size = xs.size ∧ ∀ i (h : i < xs.size) (h' : i < ys.size),
+      R xs[i] ys[i] m := by
+  rw [Array.mapM_eq_mapM_toList]
+  refine (listMapM R mono xs.toList (fun x hx => each x (by simpa using hx)) n le_rfl).map
+    fun ys m h => ⟨by simpa using h.1, fun i hi hi' => ?_⟩
+  have := h.2 i (by simpa using hi) (by simpa using hi')
+  simp only [Array.getElem_toList, List.getElem_toArray] at this ⊢
+  exact this
 
 end Accepts
 
@@ -146,6 +249,13 @@ theorem Accepts.exec {c : Ctx F} {α : Type} {P : Prop} {b : Build α} {Q : α �
     simp only [Array.empty_append, List.toList_toArray]
     rfl
   exact hs hP (fun v _ => by rw [hval, run]) (by rw [← run]; exact accepts)
+
+/-- `Accepts.exec` for a program named `L`. -/
+theorem Accepts.exec_of_eq {c : Ctx F} {α : Type} {P : Prop} {b : Build α} {Q : α → ℕ → Prop} {L : Array Instr}
+    (h : Accepts c 0 P b Q) (program : b.program = L) (hP : P) (hval : c.val = (Exec.run c.perm c.stmt c.tape L).value)
+    (accepts : Exec c.perm L c.stmt c.tape) : Q (b.run {}).1 (b.run {}).2.values := by
+  subst program
+  exact h.exec hP hval accepts
 
 end CompressionLean.Circuit
 

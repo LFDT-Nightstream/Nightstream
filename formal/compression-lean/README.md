@@ -88,8 +88,8 @@ timeout --signal=KILL 1500 .lake/build/bin/emitTerminal artifacts/compression-te
 
 `lake build` builds the library, the executables and the gates, with warnings as errors:
 
-- the axiom audit (`Axioms.lean`): every theorem uses only `propext`, `Classical.choice` and
-  `Quot.sound`;
+- the axiom audit (`Axioms.lean`): every theorem of the library and of the gates uses only
+  `propext`, `Classical.choice` and `Quot.sound`;
 - the ports gate (`Ports.lean`): every definition of `Ports/` has a `ports.json` entry or a reason
   in `notPorts`, and `Ports/` holds no theorem. It also fails when `STATUS.md` is not what
   `lake exe status` prints, and the page fails when a premise of a claim has no entry in

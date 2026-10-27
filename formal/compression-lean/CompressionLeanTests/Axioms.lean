@@ -1,5 +1,6 @@
 import CompressionLean
 import CompressionLeanTests.Inventory
+import CompressionLeanTests.Reading
 
 /-!
 The axiom gate. `lake build` runs it.
@@ -7,6 +8,8 @@ The axiom gate. `lake build` runs it.
 - Every theorem in a `CompressionLean` module, a later one too, uses only
   `propext`, `Classical.choice` and `Quot.sound` (`#audit_library_axioms`).
   A `sorry` or a `native_decide` anywhere in the library fails the build.
+  So does one in the gates' theorems (`CompressionLeanTests`, which today
+  holds only the reading gate's `reads_of_witness`).
 - The claims are the theorems of `CompressionLean.Claims`. Each claim of
   `Inventory.claims` is declared there and uses exactly the axioms pinned
   beside it, and each theorem there has a pin (`#pin_claims`). A renamed,
@@ -45,5 +48,7 @@ elab "#pin_claims" : command => do
       unless n.isInternal || claims.any (·.1 == n) do throwError "{n} is a theorem of {claimsModule} but has no pin"
 
 #audit_library_axioms CompressionLean
+
+#audit_library_axioms CompressionLeanTests
 
 #pin_claims

@@ -10,6 +10,7 @@ use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing as _};
 use p3_sumcheck_v08::OpeningBatch;
+use p3_whir::pcs::proof::QueryOpenings;
 
 use super::{commit, word, Scratch, Toy};
 use crate::circuit::Native;
@@ -93,7 +94,8 @@ pub(super) fn claim_mutations(claim: &Claim) -> Vec<(&'static str, Claim)> {
     cases
 }
 
-/// One mutation of every proof part.
+/// One mutation of every proof part outside the WHIR openings' internal data,
+/// except the GKR sum-check messages, which `gkr.rs` changes.
 pub(super) fn proof_mutations(proof: &Proof) -> Vec<(&'static str, Proof)> {
     let mut cases = Vec::new();
     let mut push = |name, change: &dyn Fn(&mut Proof)| {
@@ -131,13 +133,154 @@ pub(super) fn proof_mutations(proof: &Proof) -> Vec<(&'static str, Proof)> {
     push("P1 opening value", &|p| bump_eval(&mut p.p1_opening, 0));
     push("P1 query value", &|p| bump_eval(&mut p.p1_opening, 5));
     push("P0 opening value", &|p| bump_eval(&mut p.p0_opening, 6));
+    push("P0 root", &|p| p.p0 = moved_root(&p.p0));
+    push("P1 root", &|p| p.p1 = moved_root(&p.p1));
+    push("late GKR root", &|p| p.late.roots[0][1] += Ext::ONE);
     cases
+}
+
+/// One mutation of each value part of the WHIR openings: OOD answers,
+/// sum-check messages, round roots, query rows, Merkle siblings and final
+/// polynomials. The proof-of-work witnesses and cap lengths are not changed.
+/// The Lean replay does not run WHIR's checks, so only the native and
+/// recorded verifiers get these.
+pub(super) fn whir_mutations(proof: &Proof) -> Vec<(&'static str, Proof)> {
+    let mut cases = Vec::new();
+    let mut push = |name, change: &dyn Fn(&mut Proof)| {
+        let mut changed = proof.clone();
+        change(&mut changed);
+        cases.push((name, changed));
+    };
+    // A WHIR part is changed in each opening that has it, and every part is
+    // in at least one opening.
+    let mut whir = |names: [&'static str; 2], change: &dyn Fn(&mut crate::pcs::Opening) -> bool| {
+        let in_p1 = change(&mut proof.p1_opening.clone());
+        let in_p0 = change(&mut proof.p0_opening.clone());
+        assert!(in_p1 || in_p0, "no opening has {}", names[0]);
+        if in_p1 {
+            push(names[0], &|p| assert!(change(&mut p.p1_opening)));
+        }
+        if in_p0 {
+            push(names[1], &|p| assert!(change(&mut p.p0_opening)));
+        }
+    };
+    whir(["P1 WHIR initial OOD", "P0 WHIR initial OOD"], &|o| {
+        bump(o.whir.initial_ood_answers.first_mut())
+    });
+    whir(["P1 WHIR initial sum-check", "P0 WHIR initial sum-check"], &|o| {
+        bump(
+            o.whir
+                .initial_sumcheck
+                .polynomial_evaluations
+                .first_mut()
+                .map(|e| &mut e[1]),
+        )
+    });
+    whir(
+        ["P1 WHIR round root", "P0 WHIR round root"],
+        &|o| match o.whir.rounds.first_mut() {
+            Some(round) => {
+                round.commitment = Some(moved_root(round.commitment.as_ref().unwrap()));
+                true
+            }
+            None => false,
+        },
+    );
+    whir(["P1 WHIR round OOD", "P0 WHIR round OOD"], &|o| {
+        bump(
+            o.whir
+                .rounds
+                .first_mut()
+                .and_then(|r| r.ood_answers.first_mut()),
+        )
+    });
+    whir(["P1 WHIR round query row", "P0 WHIR round query row"], &|o| {
+        o.whir
+            .rounds
+            .first_mut()
+            .is_some_and(|r| bump_query_row(&mut r.openings))
+    });
+    whir(["P1 WHIR round sibling", "P0 WHIR round sibling"], &|o| {
+        o.whir
+            .rounds
+            .first_mut()
+            .is_some_and(|r| bump_sibling(&mut r.openings))
+    });
+    whir(["P1 WHIR round sum-check", "P0 WHIR round sum-check"], &|o| {
+        bump(
+            o.whir
+                .rounds
+                .first_mut()
+                .and_then(|r| r.sumcheck.polynomial_evaluations.first_mut())
+                .map(|e| &mut e[0]),
+        )
+    });
+    whir(["P1 WHIR final polynomial", "P0 WHIR final polynomial"], &|o| {
+        bump(
+            o.whir
+                .final_poly
+                .as_mut()
+                .and_then(|poly| poly.as_mut_slice().first_mut()),
+        )
+    });
+    whir(["P1 WHIR final query row", "P0 WHIR final query row"], &|o| {
+        bump_query_row(&mut o.whir.final_openings)
+    });
+    whir(["P1 WHIR final sibling", "P0 WHIR final sibling"], &|o| {
+        bump_sibling(&mut o.whir.final_openings)
+    });
+    whir(["P1 WHIR final sum-check", "P0 WHIR final sum-check"], &|o| {
+        bump(
+            o.whir
+                .final_sumcheck
+                .as_mut()
+                .and_then(|data| data.polynomial_evaluations.first_mut())
+                .map(|e| &mut e[0]),
+        )
+    });
+    cases
+}
+
+/// Add one to `value`; false when the part is absent.
+fn bump(value: Option<&mut Ext>) -> bool {
+    value.map(|value| *value += Ext::ONE).is_some()
 }
 
 fn bump_eval(opening: &mut crate::pcs::Opening, batch: usize) {
     let mut current = opening.evals[batch].current().to_vec();
     current[0] += Ext::ONE;
     opening.evals[batch] = OpeningBatch::new(current, opening.evals[batch].next().to_vec());
+}
+
+fn moved_root(commitment: &crate::pcs::Commitment) -> crate::pcs::Commitment {
+    let mut root = commitment.roots()[0];
+    root[1] += Gl::ONE;
+    p3_merkle_tree_v08::MerkleCap::new(vec![root])
+}
+
+type Queries = QueryOpenings<Gl, Ext, crate::pcs::MultiProof>;
+
+fn bump_query_row(openings: &mut Queries) -> bool {
+    match openings {
+        QueryOpenings::Base(opening) => opening
+            .rows
+            .first_mut()
+            .and_then(|row| row.first_mut())
+            .map(|value| *value += Gl::ONE)
+            .is_some(),
+        QueryOpenings::Extension(opening) => bump(opening.rows.first_mut().and_then(|row| row.first_mut())),
+    }
+}
+
+fn bump_sibling(openings: &mut Queries) -> bool {
+    let siblings = match openings {
+        QueryOpenings::Base(opening) => &mut opening.proof.sibling_hashes,
+        QueryOpenings::Extension(opening) => &mut opening.proof.sibling_hashes,
+    };
+    siblings
+        .first_mut()
+        .map(|hash| hash[0] += Gl::ONE)
+        .is_some()
 }
 
 #[test]
@@ -239,7 +382,10 @@ fn true_claims_verify_and_every_tampered_part_rejects() {
     for (name, claim) in claim_mutations(&toy.claim) {
         assert!(!accepts(&claim, &proof, 1), "{name}");
     }
-    for (name, changed) in proof_mutations(&proof) {
+    for (name, changed) in proof_mutations(&proof)
+        .into_iter()
+        .chain(whir_mutations(&proof))
+    {
         assert!(!accepts(&toy.claim, &changed, 1), "{name}");
     }
     let mut bytes = proof.to_bytes();

@@ -26,6 +26,10 @@ use p3_field::PrimeField64;
 
 use super::super::inputs::{STATE_CONTEXT_START, STATE_DOMAIN_CHUNK, STATE_STATEMENT_WORDS};
 
+#[cfg(test)]
+#[path = "../../../tests/lifecycle_native/terminal_hints.rs"]
+mod hints;
+
 const ARTIFACT: &[u8] = include_bytes!("../../../artifacts/compression-terminal-v1.json");
 // Without its Git LFS object, the file is the pointer text: fail the build,
 // not every verification.

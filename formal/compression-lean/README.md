@@ -278,6 +278,30 @@ The chain takes these premises:
   `Nat.cast`. The F′ results fix `F = Gl` and `K = Cubic`.
 - Each layer's assumptions, as listed above.
 
+The shipped program. `Shipped.lean` fixes the program and the readings
+that the results above take as parameters.
+
+- Program: `Shipped.prog` lowers `finalViews`, the program that
+  `terminalCheck` compares with Rust. A `Shipped` holds the terminal package
+  that `Package.load` gives, the layer-1 key and the authority. The
+  authority's digest gives the context words.
+- Readings: `decode` reads the seed, the statement and the proof from the
+  executor's values on a witness. A reading (`Reads`) is the bridge's path
+  of the replay's run, from a new duplex, on what the witness decodes to.
+- Premises: `CircuitAgrees` (open) says that the replay accepts what each
+  witness of the program's CCS decodes to. `TerminalWiring` (open) says
+  that each such witness holds a terminal assignment whose claim is the
+  decoded statement. `programEncodes_of_wiring` gives `ProgramEncodes`
+  from it.
+- Result: `shipped_restore_budget` bounds `ShippedBreak` by `calls / 2^t`.
+  A witness that the replay rejects meets the read condition of
+  `ShippedBreak`, so the event keeps it, and `CircuitAgrees` covers it
+  (`shippedBreak_sub`).
+- Read condition: under the honest key root and the relation facts, a
+  replay run has a reading unless WHIR lists are missing or Poseidon2
+  collides at explicit inputs on a setup leaf (`reads_exist`). The rest of
+  the condition is the random-oracle walk.
+
 ## Lowering
 
 `Circuit/` is the first step toward `ProgramEncodes`. A program is Lean

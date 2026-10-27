@@ -337,6 +337,16 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.final_sound_parent
 #audit_axioms CompressionLean.Final.final_restore_budget_parent
 
+/-! Axiom gate for the production bound of the shipped program. -/
+
+#audit_axioms CompressionLean.Final.cubic_challengeField
+#audit_axioms CompressionLean.Final.phi_eq_modulus
+#audit_axioms CompressionLean.Final.barOf_eq
+#audit_axioms CompressionLean.Final.Shipped.programEncodes_of_wiring
+#audit_axioms CompressionLean.Final.Shipped.shippedBreak_sub
+#audit_axioms CompressionLean.Final.Shipped.reads_exist
+#audit_axioms CompressionLean.Final.Shipped.shipped_restore_budget
+
 /-! Axiom gate for the soundness of the lowering. -/
 
 #audit_axioms CompressionLean.Shrink.slot_inj

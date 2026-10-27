@@ -73,32 +73,44 @@ def chunks {α : Type} (n : ℕ) (list : Array α) : Array (Array α) :=
 def pairs (list : Array Var) : Array (Var × Var) :=
   (chunks 2 list).map fun pair => (pair.getD 0 0, pair.getD 1 0)
 
-/-- `Package::apply`: the rows over the statement and the context, then the
-claim and the transcript state in the output columns. -/
-def apply (package : Loaded) (statement : Array Var) (context : Array Gl) :
-    Build (ClaimVars × (Fin 16 → Var)) := do
-  let computed ← Build.emit (.hint package.computed.size)
-  let columns ← package.sources.mapM (column statement context computed)
-  Build.r1cs package.system.toList columns.toList
+/-- The claim in the output columns, read from the handles of the system
+columns. -/
+def claimVars (outputs : OutputColumns) (columns : Array Var) : ClaimVars :=
   let read := fun (list : Array ℕ) => list.map fun k => columns.getD k 0
-  let outputs := package.outputs
-  let claim : ClaimVars := {
-    commitment := chunks D (read outputs.commitment)
+  { commitment := chunks D (read outputs.commitment)
     publicInput := chunks D (read outputs.publicInput)
     point := pairs (read outputs.point)
     evalK := pairs (read outputs.evalK)
     evalA := (chunks (2 * D) (read outputs.evalA)).map pairs }
-  pure (claim, fun lane => columns.getD (outputs.state.getD lane 0) 0)
 
-/-- `FinalProgram::run`, with `layer1` for `verify_with`. -/
-def finalProgram {α : Type} (package : Loaded) (context : Array Gl)
-    (layer1 : ClaimVars → (Fin 16 → Var) → Build α) : Build α := do
+/-- The values of the system columns (`apply`, `package.rs:191-212`): one
+hint for the computed columns, then one value per column. -/
+def systemColumns (package : Loaded) (statement : Array Var) (context : Array Gl) : Build (Array Var) := do
+  let computed ← Build.emit (.hint package.computed.size)
+  package.sources.mapM (column statement context computed)
+
+/-- `Package::apply`: the rows over the statement and the context, then the
+claim and the transcript state in the output columns. -/
+def apply (package : Loaded) (statement : Array Var) (context : Array Gl) :
+    Build (ClaimVars × (Fin 16 → Var)) := do
+  let columns ← systemColumns package statement context
+  Build.r1cs package.system.toList columns.toList
+  pure (claimVars package.outputs columns, fun lane => columns.getD (package.outputs.state.getD lane 0) 0)
+
+/-- The statement words, and the check that the iteration is positive
+(`terminal/mod.rs:56-68`). -/
+def readStatement : Build (Array Var) := do
   let statement ← (Array.range statementWords).mapM fun _ => Build.pub
-  -- An active proof has a positive iteration.
   let inverse ← Build.emit (.hint 1)
   let product ← Build.mul (statement.getD 0 0) inverse
   let one ← Build.const 1
   Build.assertEqual product one
+  pure statement
+
+/-- `FinalProgram::run`, with `layer1` for `verify_with`. -/
+def finalProgram {α : Type} (package : Loaded) (context : Array Gl)
+    (layer1 : ClaimVars → (Fin 16 → Var) → Build α) : Build α := do
+  let statement ← readStatement
   let (claim, state) ← apply package statement context
   layer1 claim state
 

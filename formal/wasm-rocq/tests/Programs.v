@@ -12,9 +12,11 @@ Definition sourceProgram : Program :=
   [readZeroFunction; i32Function callModule (mk_uN 0) 0 1 1 getCallAdd].
 Definition sourceStore := MKstore sourceProgram [] [] [] [] [].
 Definition sourceInitialState := mk_state sourceStore (MKframe [i32Value 5] callModule).
+(* The caller's frame starts at cell 7 (its one local, 5); a stale value sits at
+   cell 9, where the callee's local will be. *)
 Definition sourceRam (stale : Z) : MemoryState := fun memory address =>
-  if Nat.eqb memory localLoId then
-    match address with [7; 0] => Some 5 | [8; 0] => Some stale | _ => None end
+  if Nat.eqb memory stackId then
+    match address with [14] => Some 5 | [18] => Some stale | _ => None end
   else None.
 Definition sourceMemory (stale : Z) := loadProgram sourceProgram (sourceRam stale).
 
@@ -34,7 +36,7 @@ Proof. repeat split; reflexivity. Qed.
 Example source_program_loaded : forall stale, programLoaded sourceProgram (sourceMemory stale).
 Proof. intros stale. apply load_program_loaded. Qed.
 
-Example source_program_keeps_stale_locals : forall stale, sourceMemory stale localLoId [8; 0] = Some stale.
+Example source_program_keeps_stale_locals : forall stale, sourceMemory stale stackId [18] = Some stale.
 Proof. reflexivity. Qed.
 
 Definition sourceModuleContext :=
@@ -132,7 +134,7 @@ Proof. reflexivity. Qed.
 
 Example source_initial_config : forall stale,
   CircuitConfig sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    (sourceMemory stale) (mkBoundary 2 4 4 7 0 0 0 0 0) (stackConfig sourceInitialState [] getCallAdd).
+    (sourceMemory stale) (mkBoundary 2 8 8 7 0 0 0 0 0 0) (stackConfig sourceInitialState [] getCallAdd).
 Proof.
   intros stale. split; [reflexivity | ]. split; [exact source_store_wf | ]. split; [exact source_program_validated | ].
   exists True. split; [vm_compute; reflexivity | exact I].
@@ -141,35 +143,35 @@ Qed.
 (* The decoder reads the caller's one local from memory. *)
 Example source_initial_decodes : forall stale,
   option_map fst (decodeControl sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    (sourceMemory stale) (mkBoundary 2 4 4 7 0 0 0 0 0)) = Some (stackConfig sourceInitialState [] getCallAdd).
+    (sourceMemory stale) (mkBoundary 2 8 8 7 0 0 0 0 0 0)) = Some (stackConfig sourceInitialState [] getCallAdd).
 Proof. intros stale. vm_compute. reflexivity. Qed.
 
 (* A pc off the position, a missing operand cell, or a depth without a saved
    caller does not decode. *)
 Example source_wrong_pc_rejected : forall stale,
   decodeControl sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    (sourceMemory stale) (mkBoundary 3 4 4 7 0 0 0 0 0) = None.
+    (sourceMemory stale) (mkBoundary 3 8 8 7 0 0 0 0 0 0) = None.
 Proof. intros stale. vm_compute. reflexivity. Qed.
 
 Example source_missing_operand_rejected : forall stale,
   decodeControl sourceProgram sourceStore 0 (controlShape [] (siteCode (codePosition 1 [] 0)))
-    (sourceMemory stale) (mkBoundary 2 5 4 7 0 0 0 0 0) = None.
+    (sourceMemory stale) (mkBoundary 2 9 8 7 0 0 0 0 0 0) = None.
 Proof. intros stale. vm_compute. reflexivity. Qed.
 
 Example source_unsaved_caller_rejected :
   decodeControl sourceProgram sourceStore 0 (controlShape [codePosition 1 [] 1] (siteCode (codePosition 0 [] 0)))
-    (sourceMemory 3) (mkBoundary 0 4 4 8 1 0 0 0 0) = None.
+    (sourceMemory 3) (mkBoundary 0 10 10 9 1 0 0 0 0 0) = None.
 Proof. vm_compute. reflexivity. Qed.
 
-(* The caller is suspended at its CALL with [5] below the callee's stack base.
-   Its return context is saved at depth 0: return to pc 4, frame base 7, stack base 4. *)
+(* The caller is suspended at its CALL: its local at cell 7, its operand [5] at
+   cell 8, and the callee's frame from cell 9. Its return context is saved at
+   depth 0: return to pc 4, frame base 7, operand base 8. *)
 Definition suspendedMemory (calleeLocal : option Z) := loadProgram sourceProgram (fun memory address =>
-  if Nat.eqb memory stackId then match address with [8] => Some 5 | _ => None end
-  else if Nat.eqb memory localLoId then
-    match address with [7; 0] => Some 5 | [8; 0] => calleeLocal | _ => None end
+  if Nat.eqb memory stackId then
+    match address with [14] => Some 5 | [16] => Some 5 | [18] => calleeLocal | _ => None end
   else if Nat.eqb memory callStackReturnPcId then match address with [0] => Some 4 | _ => None end
   else if Nat.eqb memory callStackCallerFbpId then match address with [0] => Some 7 | _ => None end
-  else if Nat.eqb memory callStackCallerSpBaseId then match address with [0] => Some 4 | _ => None end
+  else if Nat.eqb memory callStackCallerSpBaseId then match address with [0] => Some 8 | _ => None end
   else None).
 
 (* SpecTec's configuration inside the call: the caller's value, then the callee
@@ -185,7 +187,7 @@ Definition suspendedConfig (calleeFrame : frame) :=
 Example source_initializing_callee_decodes :
   option_map fst (decodeControl sourceProgram sourceStore 0
     (controlShape [codePosition 1 [] 1] (siteEntering 0))
-    (suspendedMemory None) (mkBoundary 0 5 5 8 1 1 0 1 0)) =
+    (suspendedMemory None) (mkBoundary 0 9 10 9 1 1 0 1 0 0)) =
   Some (suspendedConfig (MKframe [i32Value 0] callModule)).
 Proof. vm_compute. reflexivity. Qed.
 
@@ -193,7 +195,7 @@ Proof. vm_compute. reflexivity. Qed.
 Example source_suspended_call_decodes :
   option_map fst (decodeControl sourceProgram sourceStore 0
     (controlShape [codePosition 1 [] 1] (siteCode (codePosition 0 [] 0)))
-    (suspendedMemory (Some 0)) (mkBoundary 0 5 5 8 1 0 0 0 0)) =
+    (suspendedMemory (Some 0)) (mkBoundary 0 10 10 9 1 0 0 0 0 0)) =
   Some (suspendedConfig (MKframe [i32Value 0] callModule)).
 Proof. vm_compute. reflexivity. Qed.
 
@@ -224,7 +226,7 @@ Proof.
       * destruct goffset as [ | [ | goffset]]; try discriminate; destruct goffset; discriminate.
       * destruct goffset as [ | [ | [ | goffset]]]; try discriminate; [ | destruct goffset; discriminate].
         injection Hcall as <-. discriminate Hcallee.
-  - exfalso. destruct Hactive as [f' [Hf' [_ [_ [_ [_ [_ [Hpos _]]]]]]]].
+  - exfalso. destruct Hactive as [f' [Hf' [_ [_ [_ [_ [_ [_ [Hpos _]]]]]]]]].
     destruct function as [ | [ | function]]; try (destruct function; discriminate);
       injection Hf' as <-; cbn in Hpos; lia.
 Qed.
@@ -233,11 +235,11 @@ Qed.
    split may fall anywhere, including inside the call or its frame initialization. *)
 Example source_program_two_runs : forall stale firstRows lastRows final,
   fieldPrime -> validCircuitRun (sourceMemory stale) (firstRows ++ lastRows) final ->
-  runFragment (mkBoundary 2 4 4 7 0 0 0 0 0) 0 firstRows ->
-  runFragment (rowsFinalBoundary (mkBoundary 2 4 4 7 0 0 0 0 0) firstRows) 0 lastRows ->
+  runFragment (mkBoundary 2 8 8 7 0 0 0 0 0 0) 0 firstRows ->
+  runFragment (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0) firstRows) 0 lastRows ->
   exists shape c, Steps (stackConfig sourceInitialState [] getCallAdd) c /\ programLoaded sourceProgram final /\
     CircuitConfig sourceProgram sourceStore 0 shape final
-      (rowsFinalBoundary (mkBoundary 2 4 4 7 0 0 0 0 0) (firstRows ++ lastRows)) c.
+      (rowsFinalBoundary (mkBoundary 2 8 8 7 0 0 0 0 0 0) (firstRows ++ lastRows)) c.
 Proof.
   intros stale firstRows lastRows final Hprime Hrun Hfirst Hlast.
   destruct (valid_run_split _ _ _ _ Hrun) as [between [Hrun1 Hrun2]].

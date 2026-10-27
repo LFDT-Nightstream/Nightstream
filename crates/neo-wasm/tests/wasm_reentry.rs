@@ -480,20 +480,20 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
                 .iter()
                 .position(|row| row.row_kind.is_turn_boundary() && row.state_before.host_events.awaiting_host)
                 .unwrap();
-            for (field, column) in [
-                (7, neo_wasm::layout::COL_STACK_FRAME_BASE_AFTER),
-                (8, neo_wasm::layout::COL_LOCALS_FBP_AFTER),
+            // The entered frame starts at the saved sp; shifting it together
+            // with every frame register keeps the row satisfied.
+            let mut forged = witnesses.clone();
+            for column in [
+                neo_wasm::layout::COL_HOST_CONTEXT[7],
+                neo_wasm::layout::COL_SP_BEFORE,
+                neo_wasm::layout::COL_SP_AFTER,
+                neo_wasm::layout::COL_LOCALS_FBP_AFTER,
+                neo_wasm::layout::COL_STACK_FRAME_BASE_AFTER,
             ] {
-                let mut forged = witnesses.clone();
-                forged[entry][neo_wasm::layout::COL_HOST_CONTEXT[field]] -= neo_math::F::ONE;
                 forged[entry][column] -= neo_math::F::ONE;
-                if field == 7 {
-                    forged[entry][neo_wasm::layout::COL_SP_BEFORE] -= neo_math::F::ONE;
-                    forged[entry][neo_wasm::layout::COL_SP_AFTER] -= neo_math::F::ONE;
-                }
-                common::assert_satisfied(&forged[entry], "allocation needs context RAM authority");
-                assert!(neo_wasm::sanity_check_memory_rows(layout, &forged, &preload).is_err());
             }
+            common::assert_satisfied(&forged[entry], "allocation needs context RAM authority");
+            assert!(neo_wasm::sanity_check_memory_rows(layout, &forged, &preload).is_err());
 
             // Hand-built captures must not bypass the registry's atomic guard.
             let mut atomic_artifacts = captured.artifacts().clone();
@@ -532,10 +532,7 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
             .position(|row| row.host_event_return_schedule_count.is_some_and(|n| n > 0) && row.row_kind.is_program())
             .unwrap();
         // Context saving is a mandatory separate row, even with no reentry.
-        use neo_wasm::layout::{
-            COL_CURRENT_FUNCTION_NUM_LOCALS, COL_HOST_CONTEXT, COL_HOST_SUSPEND_PENDING_AFTER,
-            COL_HOST_SUSPEND_PENDING_BEFORE,
-        };
+        use neo_wasm::layout::{COL_HOST_SUSPEND_PENDING_AFTER, COL_HOST_SUSPEND_PENDING_BEFORE};
         let suspend = call + 1;
         assert!(trace[suspend].row_kind.is_host_suspend());
         assert!(trace[call].host_context.is_none());
@@ -566,14 +563,6 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
             neo_wasm::semantic_state_digest(pending),
             neo_wasm::semantic_state_digest(cleared)
         );
-        // Shrinking locals_end consistently in the save row must fail its ROM
-        // read, even though the local arithmetic remains satisfied.
-        let mut forged = witnesses.clone();
-        forged[suspend][COL_CURRENT_FUNCTION_NUM_LOCALS] -= neo_math::F::ONE;
-        forged[suspend][COL_HOST_CONTEXT[8]] -= neo_math::F::ONE;
-        common::assert_satisfied(&forged[suspend], "saved local bound needs ROM authority");
-        assert!(neo_wasm::sanity_check_memory_rows(layout, &forged, &preload).is_err());
-
         // A u32 ROM word does not by itself bound each half: borrowing from
         // the return half can leave the packed value unchanged.
         use neo_wasm::layout::{COL_HOST_IMPORT_SCHEDULE_COUNTS, COL_HOST_INITIAL_COUNT};

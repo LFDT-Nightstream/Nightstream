@@ -1,5 +1,5 @@
-(* Partial local contents during entry: completed zero writes grow upward,
-   copied parameters grow downward, and argument cells remain readable. *)
+(* A callee's frame during entry: its arguments are already its first local cells,
+   and zero rows push its declared locals upward from them. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns FullRelation Range MemoryTrace MemoryCatalog
   StraightLineSpec CallInitialization CallMemory TraceRefinement StackSimulation.
@@ -7,129 +7,62 @@ Import ListNotations.
 Open Scope Z_scope.
 
 Record InitializingFrame (memory : MemoryState) (boundary : Boundary)
-    (arguments : list Z) (declaredLocals zeroRemaining paramRemaining : Z) : Prop := {
+    (arguments : list Z) (declaredLocals zeroRemaining : Z) : Prop := {
   zero_remaining_bounds : 0 <= zeroRemaining <= declaredLocals;
-  param_remaining_bounds : 0 <= paramRemaining <= Z.of_nat (length arguments);
-  initialization_phase : zeroRemaining > 0 -> paramRemaining = Z.of_nat (length arguments);
-  initialization_sp : boundarySP boundary = boundaryStackBase boundary + paramRemaining;
+  initialization_fbp : 0 <= boundaryLocalsBase boundary;
+  initialization_base : boundaryStackBase boundary =
+    boundaryLocalsBase boundary + Z.of_nat (length arguments) + declaredLocals;
+  initialization_sp : boundarySP boundary = boundaryStackBase boundary - zeroRemaining;
   argument_cells : forall index value, nth_error arguments index = Some value ->
-    memory stackId [2 * (boundaryStackBase boundary + Z.of_nat index)] = Some value;
-  copied_parameters : forall index value, nth_error arguments index = Some value ->
-    paramRemaining <= Z.of_nat index ->
-    memory localLoId [boundaryLocalsBase boundary; Z.of_nat index] = Some value;
+    memory stackId [2 * (boundaryLocalsBase boundary + Z.of_nat index)] = Some value;
   zeroed_locals : forall index,
     Z.of_nat (length arguments) <= index < Z.of_nat (length arguments) + declaredLocals - zeroRemaining ->
-    memory localLoId [boundaryLocalsBase boundary; index] = Some 0
+    memory stackId [2 * (boundaryLocalsBase boundary + index)] = Some 0
 }.
 
 Lemma initializing_frame_start : forall memory boundary arguments declaredLocals,
-  0 <= declaredLocals ->
-  boundarySP boundary = boundaryStackBase boundary + Z.of_nat (length arguments) ->
+  0 <= declaredLocals -> 0 <= boundaryLocalsBase boundary ->
+  boundarySP boundary = boundaryLocalsBase boundary + Z.of_nat (length arguments) ->
+  boundaryStackBase boundary = boundaryLocalsBase boundary + Z.of_nat (length arguments) + declaredLocals ->
   (forall index value, nth_error arguments index = Some value ->
-    memory stackId [2 * (boundaryStackBase boundary + Z.of_nat index)] = Some value) ->
-  InitializingFrame memory boundary arguments declaredLocals declaredLocals (Z.of_nat (length arguments)).
+    memory stackId [2 * (boundaryLocalsBase boundary + Z.of_nat index)] = Some value) ->
+  InitializingFrame memory boundary arguments declaredLocals declaredLocals.
 Proof.
-  intros memory boundary arguments declaredLocals Hlocals Hsp Hargs.
+  intros memory boundary arguments declaredLocals Hlocals Hfbp Hsp Hbase Hargs.
   constructor; try assumption; try lia.
-  - intros index value Hlookup Hrange.
-    assert (Hlength : (index < length arguments)%nat).
-    { apply nth_error_Some. rewrite Hlookup. discriminate. } lia.
 Qed.
 
 Lemma zero_row_initializes_frame : forall initial final w arguments declaredLocals,
   fieldPrime -> FullRelation.satFull w -> w COL_LOCAL_ZERO_ACTIVE_BEFORE = 1 ->
   Replay initial (eventsForRow MemoryCatalog.memories w) final ->
-  w COL_CURRENT_FUNCTION_NUM_LOCALS = Z.of_nat (length arguments) + declaredLocals ->
-  InitializingFrame initial (beforeBoundary w) arguments declaredLocals
-    (w COL_LOCAL_ZERO_REMAINING_BEFORE) (w COL_PARAM_INIT_REMAINING_BEFORE) ->
-  InitializingFrame final (afterBoundary w) arguments declaredLocals
-    (w COL_LOCAL_ZERO_REMAINING_AFTER) (w COL_PARAM_INIT_REMAINING_AFTER).
+  InitializingFrame initial (beforeBoundary w) arguments declaredLocals (w COL_LOCAL_ZERO_REMAINING_BEFORE) ->
+  InitializingFrame final (afterBoundary w) arguments declaredLocals (w COL_LOCAL_ZERO_REMAINING_AFTER).
 Proof.
-  intros initial final w arguments declaredLocals Hprime Hfull Hzero Hreplay Htotal Hinv.
-  destruct Hinv as [Hzb Hpb Hphase Hsp Hargs Hparams Hzeros].
-  destruct (full_zero_initialization_row w Hprime Hfull Hzero) as [Hdec [Hindex [Hvalue _]]].
-  assert (Hparam : w COL_PARAM_INIT_ACTIVE_BEFORE = 0).
-  { exact (full_row_kind_exclusive w COL_LOCAL_ZERO_ACTIVE_BEFORE COL_PARAM_INIT_ACTIVE_BEFORE
-      Hprime Hfull ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hzero). }
-  pose proof (full_initialization_counter_carry w COL_LOCAL_ZERO_ACTIVE_BEFORE
-    Hprime Hfull ltac:(left; reflexivity) Hzero) as [_ Hcarry].
-  specialize (Hcarry Hparam).
-  destruct (full_initialization_preserves_frame w COL_LOCAL_ZERO_ACTIVE_BEFORE
-    Hprime Hfull ltac:(left; reflexivity) Hzero) as [Hfbp [Hbase _]].
+  intros initial final w arguments declaredLocals Hprime Hfull Hzero Hreplay Hinv.
+  destruct Hinv as [Hzb Hfbp Hbase Hsp Hargs Hzeros].
+  destruct (full_zero_initialization_row w Hprime Hfull Hzero) as [Hdec _].
   pose proof (full_initialization_stack w COL_LOCAL_ZERO_ACTIVE_BEFORE
-    Hprime Hfull ltac:(left; reflexivity) Hzero) as [_ [_ [_ HspAfter]]].
-  pose proof (initialization_writes_local initial final w COL_LOCAL_ZERO_ACTIVE_BEFORE
-    Hprime Hfull ltac:(left; reflexivity) Hzero Hreplay) as Hwrite.
-  pose proof (initialization_preserves_stack_memory initial final w COL_LOCAL_ZERO_ACTIVE_BEFORE
-    Hprime Hfull ltac:(left; reflexivity) Hzero Hreplay) as Hstack.
+    Hprime Hfull ltac:(left; reflexivity) Hzero) as Hshape.
+  pose proof (init_stack_pointer w _ Hshape) as HspAfter. cbn in HspAfter.
+  destruct (full_initialization_preserves_frame w COL_LOCAL_ZERO_ACTIVE_BEFORE
+    Hprime Hfull ltac:(left; reflexivity) Hzero) as [HfbpAfter [HbaseAfter _]].
+  pose proof (zero_row_stack_replay initial final w Hprime Hfull Hzero Hreplay) as Hwrite.
   pose proof (value_bound w COL_LOCAL_ZERO_REMAINING_AFTER) as Ha.
   cbn [beforeBoundary boundarySP boundaryStackBase boundaryLocalsBase] in *.
   constructor; cbn [afterBoundary boundarySP boundaryStackBase boundaryLocalsBase].
   - lia.
   - lia.
-  - intros Hpositive. specialize (Hphase ltac:(lia)). lia.
-  - rewrite Hparam in HspAfter. lia.
-  - intros index value Hlookup. rewrite Hstack, Hbase. apply Hargs. exact Hlookup.
-  - intros index value Hlookup Hrange. rewrite Hwrite, Hfbp.
-    rewrite update_other.
-    + apply Hparams; [exact Hlookup | lia].
-    + right. intro Heq. inversion Heq.
-      assert (Hlength : (index < length arguments)%nat).
-      { apply nth_error_Some. rewrite Hlookup. discriminate. }
-      lia.
-  - intros index Hrange. rewrite Hwrite, Hfbp.
-    destruct (Z.eq_dec index (w COL_LOCAL_INDEX)) as [-> | Hneq].
-    + rewrite update_same, Hvalue. reflexivity.
-    + rewrite update_other by (right; congruence).
+  - lia.
+  - lia.
+  - intros index value Hlookup. rewrite Hwrite, HfbpAfter.
+    assert (Hlength : (index < length arguments)%nat).
+    { apply nth_error_Some. rewrite Hlookup. discriminate. }
+    rewrite !update_other by cell_differs.
+    apply Hargs. exact Hlookup.
+  - intros index Hrange. rewrite Hwrite, HfbpAfter.
+    destruct (Z.eq_dec (w COL_LOCALS_FBP_BEFORE + index) (w COL_SP_BEFORE)) as [Heq | Hneq].
+    + rewrite update_other by cell_differs.
+      rewrite Heq, update_same. reflexivity.
+    + rewrite !update_other by cell_differs.
       apply Hzeros. lia.
-Qed.
-
-(* A parameter row copies one argument once the zero countdown has finished. *)
-Lemma parameter_row_after_zeroing : forall initial final w arguments declaredLocals,
-  fieldPrime -> FullRelation.satFull w -> w COL_PARAM_INIT_ACTIVE_BEFORE = 1 ->
-  w COL_LOCAL_ZERO_REMAINING_BEFORE = 0 ->
-  Replay initial (eventsForRow MemoryCatalog.memories w) final ->
-  InitializingFrame initial (beforeBoundary w) arguments declaredLocals
-    (w COL_LOCAL_ZERO_REMAINING_BEFORE) (w COL_PARAM_INIT_REMAINING_BEFORE) ->
-  InitializingFrame final (afterBoundary w) arguments declaredLocals
-    (w COL_LOCAL_ZERO_REMAINING_AFTER) (w COL_PARAM_INIT_REMAINING_AFTER).
-Proof.
-  intros initial final w arguments declaredLocals Hprime Hfull Hparam HzeroBefore Hreplay Hinv.
-  destruct Hinv as [Hzb Hpb Hphase Hsp Hargs Hparams Hzeros].
-  destruct (full_parameter_initialization_row w Hprime Hfull Hparam) as [Hdec [Hindex _]].
-  assert (Hzero : w COL_LOCAL_ZERO_ACTIVE_BEFORE = 0).
-  { exact (full_row_kind_exclusive w COL_PARAM_INIT_ACTIVE_BEFORE COL_LOCAL_ZERO_ACTIVE_BEFORE
-      Hprime Hfull ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hparam). }
-  pose proof (full_initialization_counter_carry w COL_PARAM_INIT_ACTIVE_BEFORE
-    Hprime Hfull ltac:(right; reflexivity) Hparam) as [Hcarry _].
-  specialize (Hcarry Hzero).
-  destruct (full_initialization_preserves_frame w COL_PARAM_INIT_ACTIVE_BEFORE
-    Hprime Hfull ltac:(right; reflexivity) Hparam) as [Hfbp [Hbase _]].
-  pose proof (full_initialization_stack w COL_PARAM_INIT_ACTIVE_BEFORE
-    Hprime Hfull ltac:(right; reflexivity) Hparam) as [_ [_ [_ HspAfter]]].
-  pose proof (initialization_writes_local initial final w COL_PARAM_INIT_ACTIVE_BEFORE
-    Hprime Hfull ltac:(right; reflexivity) Hparam Hreplay) as Hwrite.
-  pose proof (initialization_preserves_stack_memory initial final w COL_PARAM_INIT_ACTIVE_BEFORE
-    Hprime Hfull ltac:(right; reflexivity) Hparam Hreplay) as Hstack.
-  pose proof (parameter_reads_initial_stack initial final w Hprime Hfull Hparam Hreplay) as Hread.
-  pose proof (value_bound w COL_PARAM_INIT_REMAINING_AFTER) as Ha.
-  cbn [beforeBoundary boundarySP boundaryStackBase boundaryLocalsBase] in *.
-  constructor; cbn [afterBoundary boundarySP boundaryStackBase boundaryLocalsBase].
-  - lia.
-  - lia.
-  - lia.
-  - rewrite Hparam in HspAfter. lia.
-  - intros index value Hlookup. rewrite Hstack, Hbase. apply Hargs. exact Hlookup.
-  - intros index value Hlookup Hrange. rewrite Hwrite, Hfbp.
-    destruct (Z.eq_dec (Z.of_nat index) (w COL_LOCAL_INDEX)) as [Heq | Hneq].
-    + rewrite Heq, update_same.
-      specialize (Hargs index value Hlookup).
-      replace (2 * (w COL_SP_BEFORE - 1)) with
-        (2 * (w COL_STACK_FRAME_BASE_BEFORE + Z.of_nat index)) in Hread by lia.
-      congruence.
-    + rewrite update_other by (right; congruence).
-      apply Hparams; [exact Hlookup | lia].
-  - intros index Hrange. rewrite Hwrite, Hfbp.
-    rewrite update_other by (right; intro Heq; inversion Heq; lia).
-    apply Hzeros. lia.
 Qed.

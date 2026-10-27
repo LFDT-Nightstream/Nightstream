@@ -1,5 +1,5 @@
 (* Ordered memory events extracted from the circuit's declared ports. *)
-From Stdlib Require Import List ZArith Bool.
+From Stdlib Require Import List ZArith Bool Lia.
 Require Import R1CS.
 Import ListNotations.
 Open Scope Z_scope.
@@ -335,3 +335,7 @@ Proof.
     rewrite update_same in H;
     now injection H end.
 Qed.
+
+(* Single-cell addresses differ when their cells do; `injection` would unfold `2 * x`. *)
+Ltac cell_differs :=
+  right; let Heq := fresh "Heq" in intro Heq; apply (f_equal (@hd Z 0)) in Heq; cbn [hd] in Heq; lia.

@@ -4,19 +4,20 @@
 //! Owns the cross-row work: the running trace state machine (sp, fbp, call
 //! stack and local-init trackers), consistency checks between
 //! adjacent rows, and the synthesis of aux rows that do not exist in
-//! wasmtime's step stream — guest `LocalZero`/`CallParamInit` and host-event gather
+//! wasmtime's step stream — guest `LocalZero`/`FrameMove` and host-event gather
 //! rows. Per-row decoding lives in the parent
 //! `normalize` module; this module reads it only through `NormalizedStep`.
 
+mod frame_move;
 mod local_zero;
 mod reentry;
-mod tail_call;
 mod turn;
 mod values;
 
+use self::frame_move::{emit_frame_move_rows, frame_slide};
 use self::local_zero::emit_local_zero_rows;
 use self::turn::{plan_turn_exit, setup_turn};
-use self::values::{call_indirect_oob, call_indirect_traps, collect_callee_initial_params, write_lane, write_lane_hi};
+use self::values::{call_indirect_oob, call_indirect_traps, guest_callee_locals, write_lane, write_lane_hi};
 use super::super::import_inputs::recover_import_inputs;
 use super::super::runtime_read::{read_lane, read_lane_hi};
 use super::super::WasmtimeTraceStep;
@@ -28,10 +29,10 @@ use super::normalize_step;
 use crate::comm_chain::CommChainState;
 use crate::host_event_bindings::HostEventBindings;
 use crate::ir::{
-    StackValueAccess, WasmAuxOpcode, WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmOutputState,
+    StackValueAccess, WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmFrameMoveState, WasmOutputState,
     WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
-use crate::isa::{opcode_code, opcode_info_from_code, WasmOpcode};
+use crate::isa::WasmOpcode;
 
 pub(super) fn build_trace(
     rows: &[WasmtimeTraceStep],
@@ -75,9 +76,8 @@ pub(super) fn build_trace(
     // Frame base pointer: absolute offset in the flat locals array where current function's
     // locals start. FBP_callee = FBP_caller + num_locals_caller.
     let mut fbp: u64 = 0;
-    let mut param_init_state = WasmCountdownState::ZERO;
+    let mut frame_move_state = WasmFrameMoveState::ZERO;
     let mut local_zero_state = WasmCountdownState::ZERO;
-    let mut tail_call_pending = false;
     // Callee attribution carry: set on host-call rows, preserved everywhere
     // else (no clearing — see `WasmStepState::host_callee_fref`).
     let mut host_callee_fref: u32 = 0;
@@ -103,6 +103,12 @@ pub(super) fn build_trace(
             slot_cursor: 0,
         };
         host_callee_fref = setup.fref;
+        // The first export's locals are already zero in the initial stack RAM.
+        // Reserve the whole frame; subsequent entries still zero reused cells.
+        stack_base = u64::from(first.num_locals);
+        if first.num_locals < u32::from(setup.param_count) {
+            return Err(WasmBuildError::Trace("export has more parameters than locals".into()));
+        }
         Some(setup)
     } else {
         None
@@ -232,7 +238,23 @@ pub(super) fn build_trace(
         let mut output_captured = false;
         // A trapped execution has no output: capture is for clean activation returns only
         // (the CCS enforces the same exclusion).
-        if activation_finished && !trapped && !output_enabled {
+        // A return's results are its frame above fbp less its static slide distance.
+        let has_result = match current.frame_slide {
+            Some((_, distance)) if current.pc_edge_kind == WasmPcEdgeKind::ReturnLike => {
+                let result_count = sp_before
+                    .checked_sub(fbp)
+                    .and_then(|frame_cells| frame_cells.checked_sub(u64::from(distance)))
+                    .ok_or_else(|| {
+                        WasmBuildError::Trace(format!(
+                            "return result count underflow at cycle {}: sp {sp_before}, frame base {fbp}, slide distance {distance}",
+                            current.cycle
+                        ))
+                    })?;
+                result_count != 0
+            }
+            _ => !current.operand_stack.is_empty(),
+        };
+        if activation_finished && !trapped && !output_enabled && has_result {
             if let Some(value) = current.operand_stack.last().copied() {
                 output_enabled = true;
                 output_value_lo = value;
@@ -246,6 +268,10 @@ pub(super) fn build_trace(
         // Model the host consuming a captured result. (Mutable: a host-event
         // host call overrides this below to pop its args on the call row.)
         let mut sp_after = sp_after - u64::from(output_captured);
+        // A clean return also drops the finished activation's frame.
+        if activation_finished && !trapped {
+            sp_after = fbp;
+        }
 
         // local_read_value: the local's value before this step (local.get: pushed onto stack).
         // local_write_value: the value being stored into the local (local.set / local.tee:
@@ -271,14 +297,25 @@ pub(super) fn build_trace(
             None
         };
 
-        // FBP tracking and call/return handling.
+        // Frame tracking and call/return handling. A frame is
+        // `[params][declared locals][operands]` at fbp; `stack_base` is its
+        // operand base.
         let current_fbp = fbp;
         let current_stack_base = stack_base;
         let call_stack_depth_before = call_stack_depth;
         let call_stack_push;
         let call_stack_pop;
-        let callee_initial_params;
-        let guest_callee_fbp;
+        // Cells a return or tail call keeps, bottom-up, and the frame move
+        // that copies them down.
+        let mut kept_cells: Vec<(u32, u32)> = vec![];
+        let mut frame_move_after = WasmFrameMoveState::ZERO;
+        let mut locals_to_zero = 0;
+        let cell = |pos: usize| {
+            (
+                current.operand_stack[pos],
+                current.operand_stack_hi.get(pos).copied().unwrap_or(0),
+            )
+        };
 
         match current.opcode {
             WasmOpcode::Call | WasmOpcode::CallIndirect => {
@@ -290,8 +327,6 @@ pub(super) fn build_trace(
                     // enters the callee either, regardless of the target's guest flag.
                     call_stack_push = None;
                     call_stack_pop = None;
-                    callee_initial_params = vec![];
-                    guest_callee_fbp = None;
                 } else {
                     let param_count = current.call_param_count.ok_or_else(|| {
                         WasmBuildError::Trace(format!(
@@ -300,7 +335,7 @@ pub(super) fn build_trace(
                         ))
                     })?;
                     // Guest call rows pop only the table index (indirect) or
-                    // nothing (direct); args are popped by the aux rows.
+                    // nothing (direct); the args become the callee's params.
                     let expected_stack_reads = u8::from(matches!(current.opcode, WasmOpcode::CallIndirect));
                     if stack_reads != expected_stack_reads {
                         return Err(WasmBuildError::Trace(format!(
@@ -308,24 +343,7 @@ pub(super) fn build_trace(
                             stack_reads, expected_stack_reads, current.cycle
                         )));
                     }
-                    let callee_fbp = current_fbp
-                        .checked_add(u64::from(current.num_locals))
-                        .ok_or_else(|| {
-                            WasmBuildError::Trace(format!("callee frame base overflow at cycle {}", current.cycle))
-                        })?;
-                    call_stack_push = Some((return_pc, current_fbp, current_stack_base));
-                    call_stack_pop = None;
-                    callee_initial_params = collect_callee_initial_params(next, callee_fbp, param_count);
-                    guest_callee_fbp = Some(callee_fbp);
-                    call_stack.push((return_pc, current_fbp, current_stack_base));
-                    call_stack_depth = call_stack_depth.checked_add(1).ok_or_else(|| {
-                        WasmBuildError::Trace(format!("call stack depth overflow at cycle {}", current.cycle))
-                    })?;
-                    fbp = callee_fbp;
-                    // Callee slots start above the caller's residual operands,
-                    // i.e. at global sp after the index pop and the aux-row
-                    // arg pops.
-                    stack_base = sp_after
+                    let callee_fbp = sp_after
                         .checked_sub(u64::from(param_count))
                         .ok_or_else(|| {
                             WasmBuildError::Trace(format!(
@@ -333,6 +351,16 @@ pub(super) fn build_trace(
                                 current.cycle
                             ))
                         })?;
+                    let locals = guest_callee_locals(current, next, param_count)?;
+                    call_stack_push = Some((return_pc, current_fbp, current_stack_base));
+                    call_stack_pop = None;
+                    call_stack.push((return_pc, current_fbp, current_stack_base));
+                    call_stack_depth = call_stack_depth.checked_add(1).ok_or_else(|| {
+                        WasmBuildError::Trace(format!("call stack depth overflow at cycle {}", current.cycle))
+                    })?;
+                    fbp = callee_fbp;
+                    stack_base = callee_fbp + u64::from(locals);
+                    locals_to_zero = locals - u32::from(param_count);
                 }
             }
             WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect if !ci_trap => {
@@ -355,77 +383,65 @@ pub(super) fn build_trace(
                         stack_reads, expected_stack_reads, current.cycle
                     )));
                 }
-                let callee_fbp = current_fbp
-                    .checked_add(u64::from(current.num_locals))
+                let locals = guest_callee_locals(current, next, param_count)?;
+                // The arguments replace the current frame at its base.
+                let args_end = current.operand_stack.len() - usize::from(stack_reads);
+                let args_start = args_end
+                    .checked_sub(usize::from(param_count))
                     .ok_or_else(|| {
-                        WasmBuildError::Trace(format!("callee frame base overflow at cycle {}", current.cycle))
+                        WasmBuildError::Trace(format!(
+                            "operand stack underflow collecting tail-call args at cycle {}",
+                            current.cycle
+                        ))
                     })?;
+                kept_cells = (args_start..args_end).map(cell).collect();
+                sp_after = current_fbp + u64::from(param_count);
+                frame_move_after = WasmFrameMoveState {
+                    active: param_count != 0,
+                    remaining: u32::from(param_count),
+                    distance: sp_before - u64::from(stack_reads) - sp_after,
+                };
                 call_stack_push = None;
                 call_stack_pop = None;
-                callee_initial_params = collect_callee_initial_params(next, callee_fbp, param_count);
-                guest_callee_fbp = Some(callee_fbp);
-                fbp = callee_fbp;
+                stack_base = current_fbp + u64::from(locals);
+                locals_to_zero = locals - u32::from(param_count);
             }
             WasmOpcode::Return | WasmOpcode::End if is_return_row => {
-                // Non-final return: restore the caller's FBP and operand-stack
-                // base from the call stack.
+                // Non-final return: the results move down to the callee's
+                // frame base, and the caller's frame comes back from the
+                // call stack.
                 let (ret_pc, caller_fbp, caller_base) = call_stack.pop().unwrap();
                 call_stack_push = None;
                 call_stack_pop = Some((ret_pc, caller_fbp, caller_base));
-                callee_initial_params = vec![];
-                guest_callee_fbp = None;
                 call_stack_depth = call_stack_depth.checked_sub(1).ok_or_else(|| {
                     WasmBuildError::Trace(format!("call stack depth underflow at cycle {}", current.cycle))
                 })?;
+                (kept_cells, frame_move_after) = frame_slide(current, sp_before, sp_after)?;
                 fbp = caller_fbp;
                 stack_base = caller_base;
+            }
+            WasmOpcode::Br | WasmOpcode::BrIf | WasmOpcode::BrTable => {
+                call_stack_push = None;
+                call_stack_pop = None;
+                if activation_finished {
+                    let distance = current.frame_slide.map_or(0, |(_, distance)| distance);
+                    sp_after -= u64::from(distance);
+                }
+                (kept_cells, frame_move_after) = frame_slide(current, sp_before, sp_after)?;
             }
             _ => {
                 call_stack_push = None;
                 call_stack_pop = None;
-                callee_initial_params = vec![];
-                guest_callee_fbp = None;
             }
         }
         let mut call_stack_depth_after = call_stack_depth;
 
         let program_cycle = out.len() as u64;
-        let param_init_before = param_init_state;
-        let mut zero_after = WasmCountdownState::ZERO;
-        if guest_callee_fbp.is_some() {
-            let local_count = next
-                .ok_or_else(|| {
-                    WasmBuildError::Trace(format!("guest call at cycle {} has no callee entry row", current.cycle))
-                })?
-                .num_locals;
-            let zero_count = local_count
-                .checked_sub(callee_initial_params.len() as u32)
-                .ok_or_else(|| {
-                    WasmBuildError::Trace(format!(
-                        "guest call at cycle {} has more parameters than locals",
-                        current.cycle
-                    ))
-                })?;
-            zero_after = WasmCountdownState {
-                active: zero_count != 0,
-                remaining: zero_count,
-            };
-        }
-        let mut param_init_after = WasmCountdownState::ZERO;
-        if guest_callee_fbp.is_some() {
-            param_init_after = WasmCountdownState {
-                active: !zero_after.active && !callee_initial_params.is_empty(),
-                remaining: u32::try_from(callee_initial_params.len()).map_err(|_| {
-                    WasmBuildError::Trace(format!(
-                        "call parameter count does not fit u32 at cycle {}",
-                        current.cycle
-                    ))
-                })?,
-            };
-        }
-        let tail_call_pending_before = tail_call_pending;
-        let tail_call_pending_after =
-            matches!(current.opcode, WasmOpcode::ReturnCall | WasmOpcode::ReturnCallIndirect) && !ci_trap;
+        let frame_move_before = frame_move_state;
+        let zero_after = WasmCountdownState {
+            active: locals_to_zero != 0 && !frame_move_after.active,
+            remaining: locals_to_zero,
+        };
 
         // Host calls enter host-arg mode and may owe a result push; the aux
         // rows emitted below walk both back to zero before the next program
@@ -449,13 +465,14 @@ pub(super) fn build_trace(
                     locals_fbp: current_fbp,
                     host_callee_fref,
                     current_function_ref: current.current_function_ref.unwrap_or(0),
-                    current_function_num_locals: current.num_locals,
                     activation_finished: turn_done,
                 };
                 if local_zero_state.active {
                     let state = out
                         .last()
-                        .expect("re-entry boundary precedes zero rows")
+                        .ok_or_else(|| {
+                            WasmBuildError::Trace("local zeroing requires a preceding re-entry boundary".into())
+                        })?
                         .state_after;
                     let after = emit_local_zero_rows(&mut out, &ctx, state);
                     local_zero_state = after.local_zero;
@@ -619,9 +636,6 @@ pub(super) fn build_trace(
                     args_base,
                     parent_host_frame_depth: host_event_state.host_frame_depth,
                     retained_sp: sp_after,
-                    locals_end: current_fbp
-                        .checked_add(u64::from(current.num_locals))
-                        .ok_or_else(|| WasmBuildError::Trace("suspended locals frame overflows".into()))?,
                 };
                 host_event_state.suspend_pending = true;
                 host_context = Some(context);
@@ -699,9 +713,8 @@ pub(super) fn build_trace(
                 locals_fbp: current_fbp,
                 activation_finished: turn_done,
                 trapped: false,
-                param_init: param_init_before,
+                frame_move: frame_move_before,
                 local_zero: zero_before,
-                tail_call_pending: tail_call_pending_before,
                 host_callee_fref: host_callee_fref_before,
                 comm_chain: comm_chain_before_row,
                 event_absorb: event_absorb_before_row,
@@ -722,9 +735,8 @@ pub(super) fn build_trace(
                 locals_fbp: fbp,
                 activation_finished: turn_done || activation_finished,
                 trapped,
-                param_init: param_init_after,
+                frame_move: frame_move_after,
                 local_zero: zero_after,
-                tail_call_pending: tail_call_pending_after,
                 host_callee_fref,
                 // The chain only moves on permutation rows.
                 comm_chain,
@@ -745,7 +757,6 @@ pub(super) fn build_trace(
             stack_writes_override: current.stack_writes_override,
             output_captured,
             current_function_ref: current.current_function_ref.unwrap_or(0),
-            current_function_num_locals: current.num_locals,
             stack_read0,
             stack_read1,
             stack_read2,
@@ -812,13 +823,14 @@ pub(super) fn build_trace(
             host_event_state = after.host_events;
         }
         turn_done = turn_done || activation_finished;
-        param_init_state = param_init_after;
+        frame_move_state = frame_move_after;
         local_zero_state = zero_after;
-        if local_zero_state.active {
-            let callee = next.expect("guest callee entry checked above");
+        if frame_move_state.active || local_zero_state.active {
+            // Moved cells and fresh locals belong to the frame this row enters.
+            let entered = next.expect("frame transition has a successor");
             let state = out
                 .last()
-                .expect("guest call precedes zero rows")
+                .expect("frame transition precedes its aux rows")
                 .state_after;
             let ctx = HostEventRowContext {
                 pc: state.pc,
@@ -830,232 +842,13 @@ pub(super) fn build_trace(
                 max_memory_pages: state.max_memory_pages,
                 locals_fbp: state.locals_fbp,
                 host_callee_fref: state.host_callee_fref,
-                current_function_ref: callee.current_function_ref.unwrap_or(0),
-                current_function_num_locals: callee.num_locals,
+                current_function_ref: entered.current_function_ref.unwrap_or(0),
                 activation_finished: state.activation_finished,
             };
-            let after = emit_local_zero_rows(&mut out, &ctx, state);
-            local_zero_state = after.local_zero;
-            param_init_state = after.param_init;
-        }
-        tail_call_pending = tail_call_pending_after;
-        if is_call_row && !callee_initial_params.is_empty() {
-            let param_count = callee_initial_params.len();
-            let callee_function_ref = current.function_ref.ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "missing callee function ref for guest call at cycle {}",
-                    current.cycle
-                ))
-            })?;
-            let callee_fbp = guest_callee_fbp.ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "missing callee frame base for guest call at cycle {}",
-                    current.cycle
-                ))
-            })?;
-            // Aux rows pop stack args top-down, so locals initialize in
-            // reverse parameter order.
-            let index_pops = usize::from(matches!(
-                current.opcode,
-                WasmOpcode::CallIndirect | WasmOpcode::ReturnCallIndirect
-            ));
-            for (pop_index, &(dst_addr, value)) in callee_initial_params.iter().rev().enumerate() {
-                let param_index = param_count - 1 - pop_index;
-                let expected_dst_addr = callee_fbp.checked_add(param_index as u64).ok_or_else(|| {
-                    WasmBuildError::Trace(format!(
-                        "callee local address overflow at call cycle {} param {}",
-                        current.cycle, param_index
-                    ))
-                })?;
-                if dst_addr != expected_dst_addr {
-                    return Err(WasmBuildError::Trace(format!(
-                        "callee local address mismatch at call cycle {} param {}: expected {}, got {}",
-                        current.cycle, param_index, expected_dst_addr, dst_addr
-                    )));
-                }
-                let param_index_u32 = u32::try_from(param_index).map_err(|_| {
-                    WasmBuildError::Trace(format!("call parameter index {param_index} does not fit u32"))
-                })?;
-                // The arg sits below the already-popped indirect table index.
-                let aux_sp_before = sp_after - pop_index as u64;
-                let aux_sp_after = aux_sp_before - 1;
-                let stack_pos = current
-                    .operand_stack
-                    .len()
-                    .checked_sub(index_pops + 1 + pop_index)
-                    .ok_or_else(|| {
-                        WasmBuildError::Trace(format!(
-                            "missing call argument for param {param_index} at cycle {}",
-                            current.cycle
-                        ))
-                    })?;
-                let src_value = current.operand_stack[stack_pos];
-                let src_value_hi = current.operand_stack_hi.get(stack_pos).copied();
-                let src = StackValueAccess::new((aux_sp_before - 1).saturating_mul(2), src_value);
-                let remaining_before = param_count - pop_index;
-                let remaining_after = remaining_before - 1;
-                let remaining_after_u32 = u32::try_from(remaining_after).map_err(|_| {
-                    WasmBuildError::Trace(format!(
-                        "remaining call parameter count does not fit u32 at cycle {}",
-                        current.cycle
-                    ))
-                })?;
-                let aux_param_init_before = param_init_state;
-                let aux_param_init_after = WasmCountdownState {
-                    active: remaining_after != 0,
-                    remaining: remaining_after_u32,
-                };
-                out.push(WasmVmStep {
-                    cycle: out.len() as u64,
-                    row_kind: WasmRowKind::Aux(WasmAuxOpcode::CallParamInit),
-                    state_before: WasmStepState {
-                        pc: pc_after,
-                        sp: aux_sp_before,
-                        stack_frame_base: stack_base,
-                        output: WasmOutputState {
-                            enabled: output_enabled,
-                            value_lo: output_value_lo,
-                            value_hi: output_value_hi,
-                        },
-                        call_stack_depth: call_stack_depth_after,
-                        memory_pages: current.memory_pages_after,
-                        max_memory_pages: current.max_memory_pages,
-                        locals_fbp: callee_fbp,
-                        activation_finished: turn_done,
-                        trapped: false,
-                        param_init: aux_param_init_before,
-                        local_zero: local_zero_state,
-                        tail_call_pending,
-                        host_callee_fref,
-                        comm_chain,
-                        event_absorb,
-                        host_events: host_event_state,
-                    },
-                    state_after: WasmStepState {
-                        pc: pc_after,
-                        sp: aux_sp_after,
-                        stack_frame_base: stack_base,
-                        output: WasmOutputState {
-                            enabled: output_enabled,
-                            value_lo: output_value_lo,
-                            value_hi: output_value_hi,
-                        },
-                        call_stack_depth: call_stack_depth_after,
-                        memory_pages: current.memory_pages_after,
-                        max_memory_pages: current.max_memory_pages,
-                        locals_fbp: callee_fbp,
-                        activation_finished: turn_done,
-                        trapped: false,
-                        param_init: aux_param_init_after,
-                        local_zero: local_zero_state,
-                        tail_call_pending,
-                        host_callee_fref,
-                        comm_chain,
-                        event_absorb,
-                        host_events: host_event_state,
-                    },
-                    control_choice: 0,
-                    br_table_len: 0,
-                    pc_edge_kind: WasmPcEdgeKind::Static,
-                    wide_values_enabled: src_value_hi.is_some_and(|hi| hi != 0),
-                    opcode: WasmOpcode::Nop,
-                    info: opcode_info_from_code(opcode_code(WasmOpcode::Nop)),
-                    stack_reads_override: Some(1),
-                    stack_writes_override: Some(0),
-                    output_captured: false,
-                    current_function_ref: callee_function_ref,
-                    current_function_num_locals: current.num_locals,
-                    stack_read0: Some(
-                        src.with_optional_hi(current.wide_values_enabled.then(|| src_value_hi).flatten()),
-                    ),
-                    stack_read1: None,
-                    stack_read2: None,
-                    stack_write0: None,
-                    linear_memory: None,
-                    linear_memory_offset: 0,
-                    local_index: Some(param_index_u32),
-                    local_read_value: None,
-                    local_read_value_hi: None,
-                    local_write_value: Some(value),
-                    local_write_value_hi: src_value_hi,
-                    global_index: None,
-                    global_read_value: None,
-                    global_read_value_hi: None,
-                    global_write_value: None,
-                    global_write_value_hi: None,
-                    table_id: None,
-                    table_index: None,
-                    table_value: None,
-                    function_ref: None,
-                    target_function_is_guest: false,
-                    function_type_id: None,
-                    call_indirect_type_index: None,
-                    expected_type_id: None,
-                    table_size: None,
-                    call_param_count: current.call_param_count,
-                    call_result_count: None,
-                    call_stack_push: None,
-                    call_stack_pop: None,
-                    host_context: None,
-                    host_event_return_schedule_count: None,
-                    host_event_rom_slot: None,
-                    host_event_initial_schedule_count: None,
-                    host_event_exit_schedule_count: None,
-                });
-                debug_assert_eq!(
-                    aux_param_init_before.remaining,
-                    u32::try_from(remaining_before).expect("remaining fits u32")
-                );
-                param_init_state = aux_param_init_after;
-            }
-        }
-        if tail_call_pending {
-            let param_count = u64::from(current.call_param_count.unwrap_or(0));
-            let tail_sp_before = sp_after.checked_sub(param_count).ok_or_else(|| {
-                WasmBuildError::Trace(format!(
-                    "operand stack underflow after tail-call parameter initialization at cycle {}",
-                    current.cycle
-                ))
-            })?;
-            if tail_sp_before < stack_base {
-                return Err(WasmBuildError::Trace(format!(
-                    "tail-call frame base {} exceeds stack pointer {} at cycle {}",
-                    stack_base, tail_sp_before, current.cycle
-                )));
-            }
-            let state_before = WasmStepState {
-                pc: pc_after,
-                sp: tail_sp_before,
-                stack_frame_base: stack_base,
-                output: WasmOutputState {
-                    enabled: output_enabled,
-                    value_lo: output_value_lo,
-                    value_hi: output_value_hi,
-                },
-                call_stack_depth: call_stack_depth_after,
-                memory_pages: current.memory_pages_after,
-                max_memory_pages: current.max_memory_pages,
-                locals_fbp: fbp,
-                activation_finished: turn_done,
-                trapped: false,
-                param_init: WasmCountdownState::ZERO,
-                local_zero: local_zero_state,
-                tail_call_pending: true,
-                host_callee_fref,
-                comm_chain,
-                event_absorb,
-                host_events: host_event_state,
-            };
-            let mut state_after = state_before;
-            state_after.sp = stack_base;
-            state_after.tail_call_pending = false;
-            out.push(tail_call::tail_enter_row(
-                out.len() as u64,
-                state_before,
-                state_after,
-                current.function_ref.unwrap_or(0),
-            ));
-            tail_call_pending = false;
+            let state = emit_frame_move_rows(&mut out, &ctx, state, &kept_cells);
+            let state = emit_local_zero_rows(&mut out, &ctx, state);
+            frame_move_state = state.frame_move;
+            local_zero_state = state.local_zero;
         }
         if let Some(plan) = &host_event_plan {
             let mut ctx = HostEventRowContext {
@@ -1073,7 +866,6 @@ pub(super) fn build_trace(
                 locals_fbp: fbp,
                 host_callee_fref,
                 current_function_ref: current.current_function_ref.unwrap_or(0),
-                current_function_num_locals: current.num_locals,
                 activation_finished: turn_done,
             };
             for block_plan in &plan.blocks {
@@ -1112,7 +904,6 @@ pub(super) fn build_trace(
                 locals_fbp: fbp,
                 host_callee_fref,
                 current_function_ref: current.current_function_ref.unwrap_or(0),
-                current_function_num_locals: current.num_locals,
                 activation_finished: turn_done,
             };
             for plan in &plans {
@@ -1183,6 +974,7 @@ pub(super) fn build_trace(
             output_value_lo = state.output.value_lo;
             output_value_hi = state.output.value_hi;
             local_zero_state = state.local_zero;
+            frame_move_state = state.frame_move;
         }
     }
 

@@ -65,10 +65,11 @@ fn i64_local_get_after_set_rejects_tampered_hi() {
     let layout = build_wasm_relation_layout();
     let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
-        .expect_err("locals_hi must reject a tampered i64 local.get hi limb (cells log mismatch)");
+        .expect_err("the stack memory must reject a tampered i64 local.get hi limb");
+    // Local 0 of the export frame lives at cell 0; its high limb is address 1.
     assert!(
-        err.contains("local_hi"),
-        "expected locals_hi to fire on the hi-limb tamper, got: {err}",
+        err.contains("memory `stack` read mismatch at [1]"),
+        "expected the local's high-limb cell to reject the tamper, got: {err}",
     );
 }
 
@@ -115,10 +116,10 @@ fn i64_local_get_uninitialized_rejects_nonzero_hi() {
     let layout = build_wasm_relation_layout();
     let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
-        .expect_err("locals_hi must reject a non-zero hi on a first-read of an uninitialized local");
+        .expect_err("the stack memory must reject a non-zero hi on an initially zero local");
     assert!(
-        err.contains("local_hi") && (err.contains("read mismatch") || err.contains("zero-default")),
-        "expected the locals_hi cells log to reject the hi-limb tamper, got: {err}",
+        err.contains("memory `stack` expected zero-default read at [1]"),
+        "expected the initial local's high-limb cell to reject the tamper, got: {err}",
     );
 }
 

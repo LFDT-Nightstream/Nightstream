@@ -190,8 +190,8 @@ Proof.
   intros w selected Hprime Hfull Hin Hselected.
   pose proof (full_selected_is_program_row w selected Hprime Hfull Hin Hselected) as Hprogram.
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
-  circuit_boolean COL_PARAM_INIT_ACTIVE_BEFORE Hb1. circuit_boolean COL_LOCAL_ZERO_ACTIVE_BEFORE Hb2.
-  circuit_boolean COL_TAIL_ENTER_ACTIVE Hb3. circuit_boolean COL_PADDING_ACTIVE Hb4.
+  circuit_boolean COL_FRAME_MOVE_ACTIVE_BEFORE Hb1. circuit_boolean COL_LOCAL_ZERO_ACTIVE_BEFORE Hb2.
+  circuit_boolean COL_PADDING_ACTIVE Hb4.
   circuit_boolean COL_GATHER_ACTIVE Hb5. circuit_boolean COL_TURN_BOUNDARY Hb6.
   circuit_boolean COL_HOST_RESUME Hb7. circuit_boolean COL_HOST_SUSPEND Hb8.
   circuit_boolean COL_PERM_PENDING_BEFORE Hb9. circuit_boolean COL_PERM_ROUND_BEFORE_IS_ZERO Hb10.
@@ -232,3 +232,94 @@ Ltac zero_host_switch H :=
           try rewrite Hd in H; clear Hin Ha Hb Hc Hd
       end
   end.
+
+Lemma gated_value_zero : forall gate value,
+  (gate * (1 * value + 0) - 0) mod modulus = 0 -> gate = 1 -> 0 <= value < modulus -> value = 0.
+Proof.
+  intros gate value Hrow -> Hbound.
+  rewrite Z.add_0_r, Z.sub_0_r, !Z.mul_1_l, Z.mod_small in Hrow by exact Hbound. exact Hrow.
+Qed.
+
+(* Branches and popping returns slide. *)
+Lemma full_frame_slide_gate : forall (w : Witness),
+  Range.fieldPrime -> FullRelation.satFull w ->
+  w COL_FRAME_SLIDE_ACTIVE =
+    w COL_SEL_BR + w COL_SEL_BR_IF_EQZ + w COL_SEL_BR_TABLE + w COL_CALL_STACK_POP_PRESENT.
+Proof.
+  intros w Hprime Hfull.
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_row ([(COL_FRAME_SLIDE_ACTIVE, 1); (COL_SEL_BR, -1); (COL_SEL_BR_IF_EQZ, -1); (COL_SEL_BR_TABLE, -1);
+    (COL_CALL_STACK_POP_PRESENT, -1)], [(COL_ONE, 1)], ([] : SparseRow)) Hrow.
+  circuit_boolean COL_FRAME_SLIDE_ACTIVE Hs. circuit_boolean COL_SEL_BR Hb. circuit_boolean COL_SEL_BR_IF_EQZ Hi.
+  circuit_boolean COL_SEL_BR_TABLE Ht. circuit_boolean COL_CALL_STACK_POP_PRESENT Hp.
+  unfold sat in Hrow. cbn [eval fold_right] in Hrow. rewrite Hone in Hrow. field_linear Hrow.
+Qed.
+
+(* A slide drops sp by its distance. *)
+Lemma full_frame_slide_drop : forall (w : Witness),
+  Range.fieldPrime -> FullRelation.satFull w -> w COL_FRAME_SLIDE_ACTIVE = 1 ->
+  w COL_FRAME_SP_DROP = w COL_FRAME_MOVE_DISTANCE_AFTER.
+Proof.
+  intros w Hprime Hfull Hslide.
+  circuit_row ([(COL_FRAME_SLIDE_ACTIVE, 1)], [(COL_FRAME_SP_DROP, 1); (COL_FRAME_MOVE_DISTANCE_AFTER, -1)],
+    ([] : SparseRow)) Hrow.
+  pose proof (value_bound w COL_FRAME_SP_DROP). pose proof (value_bound w COL_FRAME_MOVE_DISTANCE_AFTER).
+  unfold sat in Hrow. cbn [eval fold_right] in Hrow. rewrite Hslide in Hrow. field_linear Hrow.
+Qed.
+
+Lemma full_no_slide : forall (w : Witness),
+  Range.fieldPrime -> FullRelation.satFull w -> w COL_CALL_STACK_POP_PRESENT = 0 ->
+  w COL_SEL_BR = 0 -> w COL_SEL_BR_IF_EQZ = 0 -> w COL_SEL_BR_TABLE = 0 -> w COL_FRAME_SLIDE_ACTIVE = 0.
+Proof.
+  intros w Hprime Hfull Hpop Hbr Hif Htable. rewrite (full_frame_slide_gate w Hprime Hfull). lia.
+Qed.
+
+Lemma full_aux_no_slide : forall (w : Witness),
+  Range.fieldPrime -> FullRelation.satFull w -> w COL_IS_PROGRAM_ROW = 0 -> w COL_CALL_STACK_POP_PRESENT = 0 ->
+  w COL_FRAME_SLIDE_ACTIVE = 0.
+Proof.
+  intros w Hprime Hfull Hprogram Hpop.
+  pose proof (full_aux_selectors_zero w Hprime Hfull Hprogram) as Hzero.
+  apply full_no_slide; try assumption; apply Hzero; vm_compute; tauto.
+Qed.
+
+Lemma full_selected_no_slide : forall (w : Witness) chosen,
+  Range.fieldPrime -> FullRelation.satFull w -> In chosen selectorColumns -> w chosen = 1 ->
+  ~ In chosen [COL_SEL_BR; COL_SEL_BR_IF_EQZ; COL_SEL_BR_TABLE] -> w COL_CALL_STACK_POP_PRESENT = 0 ->
+  w COL_FRAME_SLIDE_ACTIVE = 0.
+Proof.
+  intros w chosen Hprime Hfull Hin Hchosen Hbranch Hpop.
+  apply full_no_slide; try assumption;
+    (eapply full_opcode_selector_exclusive; [exact Hprime | exact Hfull | exact Hchosen | exact Hin |
+      vm_compute; tauto | intro Heq; subst chosen; apply Hbranch; cbn; tauto]).
+Qed.
+
+(* Only frame transitions drop stack cells outside the stack balance: slides,
+   tail calls, entries, and clean activation returns, which set the exit latch. *)
+Lemma full_frame_sp_drop_idle : forall (w : Witness),
+  Range.fieldPrime -> FullRelation.satFull w ->
+  w COL_FRAME_SLIDE_ACTIVE = 0 -> w COL_GUEST_ENTRY_ACTIVE = w COL_CALL_STACK_PUSH_PRESENT ->
+  w COL_TURN_BOUNDARY = 0 -> w COL_HOST_EVENT_EXIT_LATCH = 0 ->
+  w COL_FRAME_SP_DROP = 0.
+Proof.
+  intros w Hprime Hfull Hpop Hentry Hturn Hlatch.
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  circuit_row ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_TRAPPED_AFTER, -1);
+    (COL_TRAPPED_BEFORE, 1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1); (COL_HOST_EVENT_EXIT_LATCH, -1)],
+    [(COL_ONE, 1)], ([] : SparseRow)) Hstate.
+  circuit_row ([(COL_ONE, 1); (COL_FRAME_SLIDE_ACTIVE, -1); (COL_GUEST_ENTRY_ACTIVE, -1);
+    (COL_CALL_STACK_PUSH_PRESENT, 1); (COL_TURN_BOUNDARY, -1); (COL_ACTIVATION_FINISHED_AFTER, -1);
+    (COL_ACTIVATION_FINISHED_BEFORE, 1); (COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1);
+    (COL_HOST_CLEAR_ACTIVATION_FINISHED, -1)], [(COL_FRAME_SP_DROP, 1)], ([] : SparseRow)) Hrow.
+  unfold sat in Hstate, Hrow. cbn [eval fold_right] in Hstate, Hrow.
+  assert (Hclean : w COL_ACTIVATION_FINISHED_AFTER - w COL_ACTIVATION_FINISHED_BEFORE - w COL_TRAPPED_AFTER +
+    w COL_TRAPPED_BEFORE + w COL_HOST_CLEAR_ACTIVATION_FINISHED = 0).
+  { circuit_boolean COL_ACTIVATION_FINISHED_AFTER Hfa. circuit_boolean COL_ACTIVATION_FINISHED_BEFORE Hfb.
+    circuit_boolean COL_TRAPPED_AFTER Hta. circuit_boolean COL_TRAPPED_BEFORE Htb.
+    circuit_boolean COL_HOST_CLEAR_ACTIVATION_FINISHED Hclear.
+    rewrite Hone, Hlatch in Hstate.
+    apply Z.mod_divide in Hstate; [ | unfold modulus; lia]. destruct Hstate as [k Hstate].
+    unfold modulus in Hstate. lia. }
+  apply (gated_value_zero _ _ Hrow); [ | exact (value_bound w COL_FRAME_SP_DROP)].
+  rewrite Hone, Hpop, Hentry, Hturn. lia.
+Qed.

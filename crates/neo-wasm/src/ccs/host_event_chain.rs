@@ -717,7 +717,7 @@ fn push_host_event_gather_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(COL_STACK_READ_VALUE_HI[0], F::ONE)],
             [],
         );
-        // Local-base memory rows bind the pointer through the locals RAM.
+        // Local-base memory rows bind the pointer through the local's stack cell.
         b.push_row(
             [(GMEM_LOCAL, F::ONE)],
             [(COL_LOCAL_INDEX, F::ONE), (SLOT_ARG, -F::ONE)],

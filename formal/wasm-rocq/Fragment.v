@@ -6,10 +6,13 @@ From Stdlib Require Import List ZArith NArith Arith.
 Require Import Wasm2 StraightLineSpec CallerSpec.
 Import ListNotations.
 
-(* The operand height after an instruction, or None where it would underflow. *)
+(* The operand height at the next instruction in program order, when control falls
+   through to it. None where nothing falls through (after a return), or where the
+   operands would underflow, which validation rules out. *)
 Definition sourceHeight (callees : CalleeEnvironment) (i : instr) (height : nat) : option nat :=
   match i with
   | BLOCK _ _ => Some height
+  | RETURN => None
   | CALL x => match callees (x :> N) with
       | Some f => if Nat.leb (guestParams f) height then Some (height - guestParams f + guestResults f)%nat else None
       | None => None
@@ -25,20 +28,18 @@ Fixpoint sourceHeights (callees : CalleeEnvironment) (code : list instr) (height
       | Some next => sourceHeights callees rest next | None => None end
   end.
 
-(* The circuit pops a branch's condition but discards no other operand: at a
-   br_if n the condition is the only operand above the target block's base. `exits`
-   counts the enclosing blocks a branch may target. A block entered at height 0
-   adds one to its body's; a block entered above other operands leaves only
-   itself, since leaving the blocks around it would discard those operands. *)
+(* A br_if leaves an enclosing block, never the function: `exits` counts the
+   enclosing blocks. A taken branch discards the operands above its target's base.
+   Code nothing falls through to is dead and unconstrained. *)
 Fixpoint instrBranches (callees : CalleeEnvironment) (i : instr) (height exits : nat) : Prop :=
   match i with
-  | BR_IF l => height = 1%nat /\ (N.to_nat (l :> N) < exits)%nat
+  | BR_IF l => (N.to_nat (l :> N) < exits)%nat
   | BLOCK _ body =>
       (fix bodyBranches (code : list instr) (h : nat) : Prop :=
          match code with
          | [] => True
-         | j :: rest => instrBranches callees j h (if Nat.eqb height 0 then S exits else 1%nat) /\
-             match sourceHeight callees j h with Some next => bodyBranches rest next | None => False end
+         | j :: rest => instrBranches callees j h (S exits) /\
+             match sourceHeight callees j h with Some next => bodyBranches rest next | None => True end
          end) body 0%nat
   | _ => True
   end.
@@ -48,7 +49,7 @@ Definition codeBranches (callees : CalleeEnvironment) (exits : nat) : list instr
     match code with
     | [] => True
     | j :: rest => instrBranches callees j h exits /\
-        match sourceHeight callees j h with Some next => codeBranches rest next | None => False end
+        match sourceHeight callees j h with Some next => codeBranches rest next | None => True end
     end.
 
 Inductive Supported (callees : CalleeEnvironment) : instr -> Prop :=
@@ -63,6 +64,8 @@ Inductive Supported (callees : CalleeEnvironment) : instr -> Prop :=
 (* Zero-result blocks, nested to any depth. *)
 | supported_block : forall body, Forall (Supported callees) body -> Supported callees (BLOCK (_RESULT None) body)
 (* Branches to an enclosing block, where codeBranches allows them. *)
-| supported_br_if : forall l, Supported callees (BR_IF l).
+| supported_br_if : forall l, Supported callees (BR_IF l)
+(* Returns from any depth of blocks, discarding the operands below the results. *)
+| supported_return : Supported callees RETURN.
 
 Definition supportedCode (callees : CalleeEnvironment) (code : list instr) : Prop := Forall (Supported callees) code.

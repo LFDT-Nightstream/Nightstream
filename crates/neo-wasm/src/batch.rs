@@ -23,7 +23,7 @@
 //! Padding: when a trace isn't a multiple of `batch_size`, we extend it
 //! with synthetic `WasmAuxOpcode::Padding` rows. Each padding row has
 //! `_after == _before` for every state column the cross-step links touch
-//! (pc, sp, memory_pages, locals_fbp, param_init), enforced by the
+//! (pc, sp, memory_pages, locals_fbp, frame_move), enforced by the
 //! `padding_active` selector in the wasm CCS. So a padding row is a true
 //! fixed point: cross-step links between padding rows are trivially
 //! satisfied, and the boundary `last_real -> first_padding` requires the
@@ -263,17 +263,12 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
     let sp = prev.state_after.sp;
     let stack_frame_base = prev.state_after.stack_frame_base;
     let call_stack_depth = prev.state_after.call_stack_depth;
-    let param_init = prev.state_after.param_init;
-    let tail_call_pending = prev.state_after.tail_call_pending;
-    debug_assert!(
-        !param_init.active,
-        "padding inside a param-init aux sequence is unsupported"
-    );
+    let frame_move = prev.state_after.frame_move;
+    debug_assert!(!frame_move.active, "padding inside a frame move is unsupported");
     debug_assert!(
         !prev.state_after.local_zero.active,
         "padding inside local zeroing is unsupported"
     );
-    debug_assert!(!tail_call_pending, "padding before a tail-enter aux row is unsupported");
     let host_callee_fref = prev.state_after.host_callee_fref;
     let comm_chain = prev.state_after.comm_chain;
     let event_absorb = prev.state_after.event_absorb;
@@ -296,9 +291,8 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             locals_fbp: fbp,
             activation_finished: prev.state_after.activation_finished,
             trapped: prev.state_after.trapped,
-            param_init,
+            frame_move,
             local_zero: prev.state_after.local_zero,
-            tail_call_pending,
             host_callee_fref,
             comm_chain,
             event_absorb,
@@ -315,9 +309,8 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
             locals_fbp: fbp,
             activation_finished: prev.state_after.activation_finished,
             trapped: prev.state_after.trapped,
-            param_init,
+            frame_move,
             local_zero: prev.state_after.local_zero,
-            tail_call_pending,
             host_callee_fref,
             comm_chain,
             event_absorb,
@@ -336,7 +329,6 @@ pub fn padding_step_after(prev: &WasmVmStep) -> WasmVmStep {
         stack_writes_override: Some(0),
         output_captured: false,
         current_function_ref: prev.current_function_ref,
-        current_function_num_locals: prev.current_function_num_locals,
         stack_read0: None,
         stack_read1: None,
         stack_read2: None,

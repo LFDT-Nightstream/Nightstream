@@ -1,6 +1,6 @@
 (* br_if's condition, stack pop, unchanged locals, and selected PC-ROM edge. *)
 From Stdlib Require Import List ZArith Lia.
-Require Import R1CS Columns FullRelation Range Selectors CircuitFacts ZeroTest
+Require Import R1CS Columns FullRelation Range Selectors CircuitFacts ZeroTest CallInitialization
   StackBindings LocalBindings MemoryTrace MemoryCatalog ProgramBinding OpcodeCatalog.
 Import ListNotations.
 Open Scope Z_scope.
@@ -30,47 +30,41 @@ Proof.
     destruct (Z.eqb (w readColumn) 0); field_linear Hchoice.
 Qed.
 
+(* A br_if pops its condition and slides by its distance. *)
 Theorem full_br_if_stack_shape : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR_IF_EQZ = 1 ->
-  1 <= w COL_SP_BEFORE -> UnaryStackShape w true.
+  1 <= w COL_SP_BEFORE -> UnaryStackShape w true false.
 Proof.
-  unary_stack_facts COL_SEL_BR_IF_EQZ 1 0.
+  unary_stack_facts COL_SEL_BR_IF_EQZ 1 0 0.
+  assert (HlocalGet : w COL_SEL_LOCAL_GET = 0).
+  { refine (full_opcode_selector_exclusive w COL_SEL_BR_IF_EQZ COL_SEL_LOCAL_GET Hprime Hfull Hchosen Hin _ _);
+      [vm_compute; tauto | discriminate]. }
   constructor; try assumption; try (intro H; discriminate H).
   - intro H. selected_row COL_SEL_BR_IF_EQZ unaryReadAddressRow Hrow. rewrite Hone in Hrow.
     pose proof (value_bound w (nth 0%nat COL_STACK_READ_ADDR_LO 0%nat)). field_linear Hrow.
   - selected_row COL_SEL_BR_IF_EQZ stackPointerBalanceRow Hrow. zero_host_switch Hrow. zero_gather_kinds Hkinds Hrow.
     rewrite Hone, Hreads, Hwrites, Hdiscard, Hlocal, Houtput, Hcapture, Hparams in Hrow.
-    pose proof (value_bound w COL_SP_AFTER). field_linear Hrow.
-  - selected_row COL_SEL_BR_IF_EQZ stackFrameBasePreservedRow Hrow. zero_host_switch Hrow. rewrite Hone, Hpush, Hpop in Hrow.
+    change (w COL_SP_AFTER = w COL_SP_BEFORE + -1 - w COL_FRAME_MOVE_DISTANCE_AFTER).
+    circuit_range COL_SP_AFTER Hspa. circuit_range COL_SP_BEFORE Hspb. circuit_range COL_FRAME_MOVE_DISTANCE_AFTER Hd.
+    field_linear Hrow.
+  - selected_row COL_SEL_BR_IF_EQZ stackFrameBasePreservedRow Hrow. zero_host_switch Hrow. rewrite Hone, Hguest, Hturn, Hpop in Hrow.
     pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE).
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
 Qed.
 
-Lemma full_br_if_locals_unchanged : forall (w : Witness),
+Lemma full_br_if_frame_unchanged : forall (w : Witness),
   fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR_IF_EQZ = 1 ->
-  w COL_LOCALS_FBP_AFTER = w COL_LOCALS_FBP_BEFORE /\
-  filter isLocalWrite (eventsForRow memories w) = [].
+  w COL_LOCALS_FBP_AFTER = w COL_LOCALS_FBP_BEFORE.
 Proof.
   intros w Hprime Hfull Hchosen.
   assert (Hin : In COL_SEL_BR_IF_EQZ selectorColumns) by (vm_compute; tauto).
   pose proof (proj1 Hfull) as Hone.
-  destruct (full_opcode_aux_gates_zero w _ Hprime Hfull Hin Hchosen) as [Hparam [Hzero _]].
-  pose proof (full_no_gather_local_write w _ Hprime Hfull Hin Hchosen) as Hlo.
-  assert (Hguest : w COL_GUEST_ENTRY_ACTIVE = 0).
-  { selected_row COL_SEL_BR_IF_EQZ guestEntryFlagRow Hrow.
-    pose proof (value_bound w COL_GUEST_ENTRY_ACTIVE). field_linear Hrow. }
-  assert (Hpop : w COL_CALL_STACK_POP_PRESENT = 0).
-  { selected_row COL_SEL_BR_IF_EQZ callStackPopSupportRow Hrow. rewrite Hone in Hrow.
-    pose proof (value_bound w COL_CALL_STACK_POP_PRESENT). field_linear Hrow. }
-  split.
-  - selected_row COL_SEL_BR_IF_EQZ localsBasePreservedRow Hrow. zero_host_switch Hrow. rewrite Hone, Hguest, Hpop in Hrow.
-    pose proof (value_bound w COL_LOCALS_FBP_BEFORE).
-    pose proof (value_bound w COL_LOCALS_FBP_AFTER). field_linear Hrow.
-  - rewrite (local_writes_in_row w Hparam Hzero Hlo).
-    assert (Hwrite : w COL_LOCAL_WRITE_ENABLED = 0).
-    { selected_row COL_SEL_BR_IF_EQZ localWriteGateIndex Hrow. rewrite Hone in Hrow.
-      pose proof (value_bound w COL_LOCAL_WRITE_ENABLED). field_linear Hrow. }
-    rewrite Hwrite. reflexivity.
+  destruct (full_branch_frame w COL_SEL_BR_IF_EQZ Hprime Hfull Hin Hchosen ltac:(vm_compute; tauto))
+    as [Hpop Hpush _ Hturn _].
+  selected_row COL_SEL_BR_IF_EQZ localsBasePreservedRow Hrow. zero_host_switch Hrow.
+  rewrite Hone, Hpush, Hpop, Hturn in Hrow.
+  pose proof (value_bound w COL_LOCALS_FBP_BEFORE).
+  pose proof (value_bound w COL_LOCALS_FBP_AFTER). field_linear Hrow.
 Qed.
 
 Definition branchImage (memory : MemoryState) (pc fallthrough target : Z) : Prop :=

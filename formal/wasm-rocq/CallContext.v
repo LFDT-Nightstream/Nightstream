@@ -5,6 +5,9 @@ Require Import R1CS Columns FullRelation Range Selectors CircuitFacts MemoryTrac
 Import ListNotations.
 Open Scope Z_scope.
 
+(* The selector column of a hypothesis `w column = 1`. *)
+Ltac chosen_of H := lazymatch type of H with value _ ?column = 1 => column end.
+
 Definition contextMemories : list (nat * Column) :=
   [(callStackReturnPcId, COL_CALL_STACK_RETURN_PC_VALUE);
    (callStackCallerFbpId, COL_CALL_STACK_CALLER_FBP_VALUE);
@@ -129,19 +132,19 @@ Qed.
 
 (* A function-ending END exits even at depth zero, where it halts instead
    of popping. A block END has a different ROM edge kind. *)
-Lemma full_function_end_exits : forall (w : Witness),
-  fieldPrime -> FullRelation.satFull w -> w COL_SEL_END = 1 ->
+Lemma full_return_exits : forall (w : Witness) chosen,
+  fieldPrime -> FullRelation.satFull w -> In chosen [COL_SEL_END; COL_SEL_RETURN] -> w chosen = 1 ->
   w COL_PC_EDGE_KIND = 1 ->
   w COL_CALL_STACK_POP_PRESENT = 1 \/ w COL_ACTIVATION_FINISHED_AFTER = 1.
 Proof.
-  intros w Hprime Hfull Hchosen Hedge.
+  intros w chosen Hprime Hfull Hkind Hchosen Hedge.
   circuit_boolean COL_CALL_STACK_POP_PRESENT Hpop. circuit_boolean COL_ACTIVATION_FINISHED_AFTER Hhalt.
   destruct Hpop as [Hpop | Hpop]; [ | left; exact Hpop].
   destruct Hhalt as [Hhalt | Hhalt]; [ | right; exact Hhalt].
   exfalso.
-  assert (Hin : In COL_SEL_END selectorColumns) by (vm_compute; tauto).
+  assert (Hin : In chosen selectorColumns) by (destruct Hkind as [<- | [<- | []]]; vm_compute; tauto).
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
-  pose proof (full_selected_is_program_row w COL_SEL_END Hprime Hfull Hin Hchosen) as Hprogram.
+  pose proof (full_selected_is_program_row w chosen Hprime Hfull Hin Hchosen) as Hprogram.
   assert (Hturn : w COL_TURN_BOUNDARY = 0).
   { exact (full_row_kind_exclusive w COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY Hprime Hfull
       ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram). }
@@ -152,16 +155,17 @@ Proof.
   { circuit_row ([(COL_IS_PROGRAM_ROW, 1)], [(COL_ACTIVATION_FINISHED_BEFORE, 1)], ([] : SparseRow)) Hrow.
     expand_row Hrow. normalize_columns. rewrite Hprogram in Hrow.
     pose proof (value_bound w COL_ACTIVATION_FINISHED_BEFORE). field_linear Hrow. }
-  selected_circuit_row COL_SEL_END
+  destruct Hkind as [<- | [<- | []]].
+  all: let c := chosen_of Hchosen in selected_circuit_row c
     ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1);
       (COL_CALL_STACK_POP_PRESENT, 1); (COL_PC_EDGE_KIND, -1); (COL_SEL_CALL_INDIRECT, 2);
       (COL_SEL_RETURN_CALL_INDIRECT, 2); (COL_SEL_UNREACHABLE, 2); (COL_DIV_TRAP, -1);
       (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)],
       [(COL_ONE, 1)], ([] : SparseRow)) HedgeRow.
-  normalize_columns. rewrite Hone, Hhalt, Hbefore, Hclear, Hpop, Hedge in HedgeRow.
-  circuit_boolean COL_DIV_TRAP Hdiv. circuit_boolean COL_CALL_INDIRECT_IS_TRAP Hci.
-  circuit_boolean COL_MEM_OOB Hmem.
-  destruct Hdiv, Hci, Hmem; field_linear HedgeRow.
+  all: normalize_columns; rewrite Hone, Hhalt, Hbefore, Hclear, Hpop, Hedge in HedgeRow.
+  all: circuit_boolean COL_DIV_TRAP Hdiv; circuit_boolean COL_CALL_INDIRECT_IS_TRAP Hci;
+    circuit_boolean COL_MEM_OOB Hmem.
+  all: destruct Hdiv, Hci, Hmem; field_linear HedgeRow.
 Qed.
 
 (* BLOCK and br_if rows never touch the call stack. *)
@@ -232,16 +236,16 @@ Qed.
 
 (* A function-ending END of a callee, in a run whose activation does not finish:
    it pops its caller's context. *)
-Lemma full_end_pops_nonempty_context : forall (w : Witness),
-  fieldPrime -> FullRelation.satFull w -> w COL_SEL_END = 1 ->
+Lemma full_return_pops_nonempty_context : forall (w : Witness) chosen,
+  fieldPrime -> FullRelation.satFull w -> In chosen [COL_SEL_END; COL_SEL_RETURN] -> w chosen = 1 ->
   w COL_PC_EDGE_KIND = 1 -> w COL_ACTIVATION_FINISHED_AFTER = 0 ->
   w COL_CALL_STACK_POP_PRESENT = 1 /\ w COL_CALL_STACK_PUSH_PRESENT = 0 /\
   w COL_OUTPUT_CAPTURED = 0.
 Proof.
-  intros w Hprime Hfull Hchosen Hedge Hlive.
-  assert (Hin : In COL_SEL_END selectorColumns) by (vm_compute; tauto).
+  intros w chosen Hprime Hfull Hkind Hchosen Hedge Hlive.
+  assert (Hin : In chosen selectorColumns) by (destruct Hkind as [<- | [<- | []]]; vm_compute; tauto).
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
-  pose proof (full_selected_is_program_row w COL_SEL_END Hprime Hfull Hin Hchosen) as Hprogram.
+  pose proof (full_selected_is_program_row w chosen Hprime Hfull Hin Hchosen) as Hprogram.
   assert (Hturn : w COL_TURN_BOUNDARY = 0).
   { exact (full_row_kind_exclusive w COL_IS_PROGRAM_ROW COL_TURN_BOUNDARY Hprime Hfull
       ltac:(cbn; tauto) ltac:(cbn; tauto) ltac:(discriminate) Hprogram). }
@@ -267,68 +271,86 @@ Proof.
     expand_row Hrow. normalize_columns. rewrite Hone, Hlive, HhaltBefore, HtrapBefore, Hclear in Hrow.
     destruct Htrap as [Ht | Ht]; [exact Ht | exfalso].
     destruct Hlatch as [Hl | Hl]; normalize_columns; rewrite Ht, Hl in Hrow; field_linear Hrow. }
-  selected_circuit_row COL_SEL_END
+  destruct Hkind as [<- | [<- | []]].
+  all: let c := chosen_of Hchosen in selected_circuit_row c
     ([(COL_TRAPPED_AFTER, 1); (COL_TRAPPED_BEFORE, -1); (COL_SEL_UNREACHABLE, -1);
       (COL_DIV_TRAP, -1); (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)],
       [(COL_ONE, 1)], ([] : SparseRow)) HtrapRow.
-  selected_circuit_row COL_SEL_END
+  all: let c := chosen_of Hchosen in selected_circuit_row c
     ([(COL_ACTIVATION_FINISHED_AFTER, 1); (COL_ACTIVATION_FINISHED_BEFORE, -1); (COL_HOST_CLEAR_ACTIVATION_FINISHED, 1);
       (COL_CALL_STACK_POP_PRESENT, 1); (COL_PC_EDGE_KIND, -1); (COL_SEL_CALL_INDIRECT, 2);
       (COL_SEL_RETURN_CALL_INDIRECT, 2); (COL_SEL_UNREACHABLE, 2); (COL_DIV_TRAP, -1);
       (COL_CALL_INDIRECT_IS_TRAP, -1); (COL_MEM_OOB, -1)],
       [(COL_ONE, 1)], ([] : SparseRow)) HedgeRow.
-  normalize_columns. rewrite Hone, HtrapBefore, HtrapAfter in HtrapRow.
-  rewrite Hone, Hlive, HhaltBefore, Hclear, Hedge in HedgeRow.
-  assert (Htraps : w COL_DIV_TRAP = 0 /\ w COL_CALL_INDIRECT_IS_TRAP = 0 /\ w COL_MEM_OOB = 0).
-  { destruct Hdiv, Hci, Hmem; normalize_columns; repeat split; try assumption; exfalso; field_linear HtrapRow. }
-  destruct Htraps as [Hd [Hc Hm]].
-  assert (HpopOne : w COL_CALL_STACK_POP_PRESENT = 1).
-  { normalize_columns. rewrite Hd, Hc, Hm in HedgeRow. pose proof (value_bound w COL_CALL_STACK_POP_PRESENT).
-    field_linear HedgeRow. }
-  split; [exact HpopOne | ]. split.
-  - selected_row COL_SEL_END callStackPushRow Hrow.
-    pose proof (value_bound w COL_CALL_STACK_PUSH_PRESENT). field_linear Hrow.
-  - circuit_row ([(COL_OUTPUT_CAPTURED, 1)], [(COL_ONE, 1); (COL_ACTIVATION_FINISHED_AFTER, -1)], ([] : SparseRow)) Hrow.
-    expand_row Hrow. normalize_columns. rewrite Hone, Hlive in Hrow.
-    pose proof (value_bound w COL_OUTPUT_CAPTURED). field_linear Hrow.
+  all: normalize_columns; rewrite Hone, HtrapBefore, HtrapAfter in HtrapRow.
+  all: rewrite Hone, Hlive, HhaltBefore, Hclear, Hedge in HedgeRow.
+  all: assert (Htraps : w COL_DIV_TRAP = 0 /\ w COL_CALL_INDIRECT_IS_TRAP = 0 /\ w COL_MEM_OOB = 0) by
+    (destruct Hdiv, Hci, Hmem; normalize_columns; repeat split; try assumption; exfalso; field_linear HtrapRow).
+  all: destruct Htraps as [Hd [Hc Hm]].
+  all: assert (HpopOne : w COL_CALL_STACK_POP_PRESENT = 1) by
+    (normalize_columns; rewrite Hd, Hc, Hm in HedgeRow; pose proof (value_bound w COL_CALL_STACK_POP_PRESENT);
+     field_linear HedgeRow).
+  all: split; [exact HpopOne | split].
+  all: try (let c := chosen_of Hchosen in selected_row c callStackPushRow Hrow;
+    pose proof (value_bound w COL_CALL_STACK_PUSH_PRESENT); field_linear Hrow).
+  all: circuit_row ([(COL_OUTPUT_CAPTURED, 1)], [(COL_ONE, 1); (COL_ACTIVATION_FINISHED_AFTER, -1)],
+    ([] : SparseRow)) Hrow.
+  all: expand_row Hrow; normalize_columns; rewrite Hone, Hlive in Hrow.
+  all: pose proof (value_bound w COL_OUTPUT_CAPTURED); field_linear Hrow.
 Qed.
 
-Lemma full_end_stack : forall (w : Witness),
-  fieldPrime -> FullRelation.satFull w -> w COL_SEL_END = 1 -> w COL_OUTPUT_CAPTURED = 0 ->
-  w COL_STACK_WRITE0_ACTIVE = 0 /\ w COL_STACK_WRITE0_HI_ACTIVE = 0 /\
-  w COL_SP_AFTER = w COL_SP_BEFORE.
+(* A callee's END writes nothing; it slides: sp drops by the slide's distance,
+   which seeds the move of the results down. *)
+Lemma full_return_stack : forall (w : Witness) chosen,
+  fieldPrime -> FullRelation.satFull w -> In chosen [COL_SEL_END; COL_SEL_RETURN] -> w chosen = 1 ->
+  w COL_CALL_STACK_POP_PRESENT = 1 -> w COL_OUTPUT_CAPTURED = 0 ->
+  w COL_STACK_WRITE0_ACTIVE = 0 /\ w COL_STACK_WRITE0_HI_ACTIVE = 0 /\ w COL_LOCAL_WRITE_ENABLED = 0 /\
+  w COL_GATHER_LOCAL_WRITE_LO = 0 /\ w COL_GATHER_LOCAL_WRITE = 0 /\
+  w COL_SP_AFTER = w COL_SP_BEFORE - w COL_FRAME_MOVE_DISTANCE_AFTER.
 Proof.
-  intros w Hprime Hfull Hchosen Hcapture.
-  assert (Hin : In COL_SEL_END selectorColumns) by (vm_compute; tauto).
+  intros w chosen Hprime Hfull Hkind Hchosen Hpop Hcapture.
+  assert (Hin : In chosen selectorColumns) by (destruct Hkind as [<- | [<- | []]]; vm_compute; tauto).
   assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
-  destruct (full_opcode_aux_gates_zero w COL_SEL_END Hprime Hfull Hin Hchosen)
-    as [Hparam [Hzero [Hgather _]]].
-  destruct (full_program_row_quiet w COL_SEL_END Hprime Hfull Hin Hchosen)
-    as [Hkinds Hhi Hlocal Houtput Hdiscard].
-  assert (Hhost : w COL_HOST_CALL_ACTIVE = 0).
-  { selected_row COL_SEL_END hostCallSupportRow Hrow. rewrite Hone in Hrow.
-    pose proof (value_bound w COL_HOST_CALL_ACTIVE). field_linear Hrow. }
-  assert (Hparams : w GHC_PARAMS = 0).
-  { full_row hostCallParamsRow Hrow. pose proof (full_no_host_split w Hfull Hhost) as Hsplit. normalize_columns.
-    rewrite Hhost, Hsplit in Hrow.
-    pose proof (value_bound w GHC_PARAMS). field_linear Hrow. }
-  assert (Hreads : w COL_STACK_READS = 0).
-  { selected_row COL_SEL_END stackReadsArityRow Hrow. rewrite Hone, Hgather, Hparam in Hrow.
-    pose proof (value_bound w COL_STACK_READS). field_linear Hrow. }
-  assert (Hwrites : w COL_STACK_WRITES = 0).
-  { selected_row COL_SEL_END stackWritesArityRow Hrow. rewrite Hone, Hgather in Hrow.
-    pose proof (value_bound w COL_STACK_WRITES). field_linear Hrow. }
-  assert (Hwrite : w COL_STACK_WRITE0_ACTIVE = 0).
-  { full_row stackWritesActiveRow Hrow. rewrite Hone, Hwrites in Hrow.
-    pose proof (value_bound w COL_STACK_WRITE0_ACTIVE). field_linear Hrow. }
-  assert (HwriteHi : w COL_STACK_WRITE0_HI_ACTIVE = 0).
-  { full_row stackWriteHighActiveRow Hrow. rewrite Hone, Hwrite, Hhi in Hrow.
-    pose proof (value_bound w COL_STACK_WRITE0_HI_ACTIVE). field_linear Hrow. }
-  split; [exact Hwrite | ]. split; [exact HwriteHi | ].
-  full_row stackPointerBalanceRow Hrow. zero_host_switch Hrow. zero_gather_kinds Hkinds Hrow.
-  rewrite Hone, Hreads, Hwrites, Hlocal, Houtput, Hdiscard, Hcapture, Hparams in Hrow.
-  pose proof (value_bound w COL_SP_BEFORE). pose proof (value_bound w COL_SP_AFTER).
-  field_linear Hrow.
+  destruct (full_opcode_aux_gates_zero w chosen Hprime Hfull Hin Hchosen) as [Hparam [Hzero Hgather]].
+  destruct (full_program_row_quiet w chosen Hprime Hfull Hin Hchosen) as [Hkinds Hhi Hlocal Houtput].
+  destruct (full_no_gather_local_ports w Hfull Hgather) as [HgatherLocal HgatherLocalLo].
+  assert (Hslide : w COL_FRAME_SLIDE_ACTIVE = 1).
+  { rewrite (full_frame_slide_gate w Hprime Hfull), Hpop.
+    destruct Hkind as [<- | [<- | []]];
+      repeat rewrite (full_opcode_selector_exclusive w _ _ Hprime Hfull Hchosen Hin) by
+        (vm_compute; tauto || discriminate); reflexivity. }
+  pose proof (full_frame_slide_drop w Hprime Hfull Hslide) as Hdiscard.
+  destruct Hkind as [<- | [<- | []]].
+  all: assert (Hwrites : w COL_STACK_WRITES = 0) by
+    (let c := chosen_of Hchosen in selected_row c stackWritesArityRow Hrow; rewrite Hone, Hgather, Hparam, Hzero in Hrow;
+     pose proof (value_bound w COL_STACK_WRITES); field_linear Hrow).
+  all: assert (Hwrite : w COL_STACK_WRITE0_ACTIVE = 0) by
+    (full_row stackWritesActiveRow Hrow; rewrite Hone, Hwrites in Hrow;
+     pose proof (value_bound w COL_STACK_WRITE0_ACTIVE); field_linear Hrow).
+  all: assert (HwriteHi : w COL_STACK_WRITE0_HI_ACTIVE = 0) by
+    (full_row stackWriteHighActiveRow Hrow; rewrite Hone, Hwrite, Hhi in Hrow;
+     pose proof (value_bound w COL_STACK_WRITE0_HI_ACTIVE); field_linear Hrow).
+  all: assert (HlocalWrite : w COL_LOCAL_WRITE_ENABLED = 0) by
+    (let c := chosen_of Hchosen in selected_row c localWriteGateIndex Hrow; rewrite Hone in Hrow;
+     pose proof (value_bound w COL_LOCAL_WRITE_ENABLED); field_linear Hrow).
+  all: assert (Hhost : w COL_HOST_CALL_ACTIVE = 0) by
+    (let c := chosen_of Hchosen in selected_row c hostCallSupportRow Hrow; rewrite Hone in Hrow;
+     pose proof (value_bound w COL_HOST_CALL_ACTIVE); field_linear Hrow).
+  all: assert (Hparams : w GHC_PARAMS = 0) by
+    (let c := chosen_of Hchosen in selected_row c hostCallParamsRow Hrow;
+     pose proof (full_no_host_split w Hfull Hhost) as Hsplit;
+     normalize_columns; rewrite Hhost, Hsplit in Hrow; pose proof (value_bound w GHC_PARAMS); field_linear Hrow).
+  all: assert (Hreads : w COL_STACK_READS = 0) by
+    (let c := chosen_of Hchosen in selected_row c stackReadsArityRow Hrow; rewrite Hone, Hgather, Hparam in Hrow;
+     pose proof (value_bound w COL_STACK_READS); field_linear Hrow).
+  all: assert (Hsp : w COL_SP_AFTER = w COL_SP_BEFORE - w COL_FRAME_MOVE_DISTANCE_AFTER) by
+    (let c := chosen_of Hchosen in selected_row c stackPointerBalanceRow Hrow; zero_host_switch Hrow;
+     zero_gather_kinds Hkinds Hrow;
+     rewrite Hone, Hreads, Hwrites, Hdiscard, Hlocal, Houtput, Hcapture, Hparams in Hrow;
+     pose proof (value_bound w COL_SP_AFTER); pose proof (value_bound w COL_SP_BEFORE);
+     circuit_range COL_SP_BEFORE Hspb; circuit_range COL_SP_AFTER Hspa;
+     circuit_range COL_FRAME_MOVE_DISTANCE_AFTER Hdist; field_linear Hrow).
+  all: repeat split; assumption.
 Qed.
 
 Lemma full_body_context_quiet : forall (w : Witness) chosen,
@@ -350,10 +372,12 @@ Proof.
       assert (Hpop : w COL_CALL_STACK_POP_PRESENT = 0) by
         (selected_row chosen callStackPopSupportRow Hrow; rewrite Hone in Hrow;
          pose proof (value_bound w COL_CALL_STACK_POP_PRESENT); field_linear Hrow);
+      destruct (full_body_frame_sp_drop_idle w chosen Hprime Hfull Hin Hchosen
+        ltac:(vm_compute; intuition discriminate)) as [_ _ Hguest Hturn _];
       split; [exact Hpush | ]; split; [exact Hpop | ]; split;
       [ pose proof (full_call_depth_balance w chosen Hprime Hfull Hin Hchosen); lia
       | split; [ | exact Hfbp];
-        selected_row chosen stackFrameBasePreservedRow Hrow; zero_host_switch Hrow; rewrite Hone, Hpush, Hpop in Hrow;
+        selected_row chosen stackFrameBasePreservedRow Hrow; zero_host_switch Hrow; rewrite Hone, Hguest, Hturn, Hpop in Hrow;
         pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE);
         pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER); field_linear Hrow ]
     end.

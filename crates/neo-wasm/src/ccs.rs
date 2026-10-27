@@ -15,7 +15,7 @@ pub(crate) mod reentry;
 mod stack_io;
 mod trap;
 
-pub(crate) use call::{LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST, PARAM_INIT_REMAINING_AFTER_ZERO_TEST};
+pub(crate) use call::{FRAME_MOVE_REMAINING_AFTER_ZERO_TEST, LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST};
 pub(crate) use host_event_chain::{HOST_EVENTS_REMAINING_ZERO_TEST, PERM_ROUND_ZERO_TEST};
 pub(crate) use trap::{
     dividend_min_zero_test, divisor_neg1_zero_test, CALL_INDIRECT_ENTRY_ZERO_TEST, CALL_INDIRECT_TYPE_ZERO_TEST,
@@ -25,16 +25,17 @@ pub(crate) use trap::{
 use super::gadgets::{push_gated_linear_zero, push_u32_le_bytes_decomp};
 use super::isa::{opcode_code, opcode_info_from_code, WasmOpTable, WasmOpcode};
 use super::layout::{
-    selector_col, Column, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO, COL_WIDE_AUX0,
-    COL_WIDE_AUX1, PUBLIC_INPUTS, SELECTOR_COLS,
+    selector_col, Column, COL_LOCALS_FBP_BEFORE, COL_LOCAL_ADDR_HI, COL_LOCAL_ADDR_LO, COL_LOCAL_INDEX,
+    COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_ONE, COL_PC_EDGE_KIND, COL_SELECT_OUT_DELTA_HI, COL_SELECT_OUT_DELTA_LO,
+    COL_WIDE_AUX0, COL_WIDE_AUX1, PUBLIC_INPUTS, SELECTOR_COLS,
 };
 use super::relation_layout::{build_wasm_relation_layout, SignExtensionColumns};
 use super::tagged_r1cs_builder::{WasmConstraintScope, WasmConstraintTag, WasmR1csBuilder, WasmTaggedR1csBuilder};
 use crate::layout::{
     COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_INDIRECT_IS_TRAP,
-    COL_CALL_STACK_POP_PRESENT, COL_CMP_AND, COL_DIV_TRAP, COL_GATHER_ACTIVE, COL_GLOBAL_VALUE_HI, COL_IS_PROGRAM_ROW,
-    COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED, COL_OP_TABLE_ID, COL_OP_TABLE_VALUE,
-    COL_OUTPUT_CAPTURED, COL_PARAM_INIT_ACTIVE_BEFORE, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC,
+    COL_CALL_STACK_POP_PRESENT, COL_CMP_AND, COL_DIV_TRAP, COL_FRAME_MOVE_ACTIVE_BEFORE, COL_GATHER_ACTIVE,
+    COL_GLOBAL_VALUE_HI, COL_IS_PROGRAM_ROW, COL_LOCAL_VALUE_HI, COL_MEM_OOB, COL_OPCODE_CODE, COL_OP_TABLE_ENABLED,
+    COL_OP_TABLE_ID, COL_OP_TABLE_VALUE, COL_OUTPUT_CAPTURED, COL_PC_EDGE_KIND_INV, COL_PC_EDGE_KIND_IS_STATIC,
     COL_PC_ROM_ACTIVE, COL_PROGRAM_CALL_INDIRECT_IMMEDIATES_ACTIVE, COL_PROGRAM_GLOBAL_INDEX_ACTIVE,
     COL_PROGRAM_LOCAL_INDEX_ACTIVE, COL_PROGRAM_TABLE_ID_ACTIVE, COL_SELECT_COND_IS_ZERO, COL_SELECT_SCRATCH_INV,
     COL_SEL_SELECT, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_READS, COL_STACK_READ_ACTIVE, COL_STACK_READ_ADDR_HI,
@@ -135,8 +136,8 @@ fn opcodes_with_stack_signature(reads: u8, writes: u8) -> Vec<WasmOpcode> {
 }
 
 fn fixed_stack_reads_terms() -> Vec<(usize, F)> {
-    // Every fixed-arity aux row reads zero slots except parameter initialization.
-    let mut terms = vec![(COL_STACK_READS, F::ONE), (COL_PARAM_INIT_ACTIVE_BEFORE, -F::ONE)];
+    // Every fixed-arity aux row reads zero slots except frame moves.
+    let mut terms = vec![(COL_STACK_READS, F::ONE), (COL_FRAME_MOVE_ACTIVE_BEFORE, -F::ONE)];
     for op in WasmOpcode::supported().into_iter().filter(|op| {
         !matches!(
             op,
@@ -155,7 +156,12 @@ fn fixed_stack_reads_terms() -> Vec<(usize, F)> {
 }
 
 fn fixed_stack_writes_terms() -> Vec<(usize, F)> {
-    let mut terms = vec![(COL_STACK_WRITES, F::ONE)];
+    // Frame moves and local zeroing each write one slot.
+    let mut terms = vec![
+        (COL_STACK_WRITES, F::ONE),
+        (COL_FRAME_MOVE_ACTIVE_BEFORE, -F::ONE),
+        (COL_LOCAL_ZERO_ACTIVE_BEFORE, -F::ONE),
+    ];
     for op in WasmOpcode::supported().into_iter().filter(|op| {
         !matches!(
             op,
@@ -347,7 +353,7 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
         (COL_SP_BEFORE, -F::ONE),
         (COL_STACK_READS, F::ONE),
         (COL_STACK_WRITES, -F::ONE),
-        (super::layout::COL_TAIL_DISCARD_COUNT, F::ONE),
+        (super::layout::COL_FRAME_SP_DROP, F::ONE),
         (host_event_chain::gather_arg_read_kind_col(), -F::ONE),
         (host_event_chain::gather_memory_read_kind_col(), -F::ONE),
         (host_event_chain::gather_memory_write_kind_col(), -F::ONE),
@@ -460,6 +466,20 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
     let stack_write0_at_sp_minus1_ops = opcodes_with_stack_signature(1, 1);
     let stack_read_at_sp_minus2_ops = opcodes_with_stack_reads(2);
     let stack_write0_at_sp_minus2_ops = opcodes_with_stack_signature(2, 1);
+
+    b.with_tag(always("local addresses"), |b| {
+        // Locals live in their frame's stack cells.
+        b.push_linear_zero([
+            (COL_LOCAL_ADDR_LO, F::ONE),
+            (COL_LOCALS_FBP_BEFORE, -f_u64(2)),
+            (COL_LOCAL_INDEX, -f_u64(2)),
+        ]);
+        b.push_linear_zero([
+            (COL_LOCAL_ADDR_HI, F::ONE),
+            (COL_LOCAL_ADDR_LO, -F::ONE),
+            (COL_ONE, -F::ONE),
+        ]);
+    });
 
     b.with_tag(always("stack high limb addresses"), |b| {
         for (addr_hi, addr_lo) in [

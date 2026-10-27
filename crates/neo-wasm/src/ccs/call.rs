@@ -1,5 +1,5 @@
 //! Owns call entry, return-context RAM, frame bases, local initialization,
-//! tail-frame replacement, and host-import attribution.
+//! frame moves for returns and tail calls, and host-import attribution.
 
 use super::super::gadgets::push_gated_linear_zero;
 use super::super::ir::{FUNCTION_CALL_METADATA_GUEST_FACTOR, FUNCTION_CALL_METADATA_RESULT_FACTOR};
@@ -9,21 +9,21 @@ use super::super::layout::{
     COL_CALL_INDIRECT_IS_TRAP, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT, COL_CALL_STACK_ADDR,
     COL_CALL_STACK_CALLER_FBP_VALUE, COL_CALL_STACK_CALLER_SP_BASE_VALUE, COL_CALL_STACK_DEPTH_AFTER,
     COL_CALL_STACK_DEPTH_BEFORE, COL_CALL_STACK_POP_PRESENT, COL_CALL_STACK_PUSH_PRESENT,
-    COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_HOST_CALL, COL_CURRENT_FUNCTION_NUM_LOCALS,
-    COL_ENTERED_FUNCTION_NUM_LOCALS, COL_FUNCTION_REF, COL_GATHER_ACTIVE, COL_GUEST_ENTRY_ACTIVE,
-    COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENT_EXIT_LATCH, COL_IS_PROGRAM_ROW,
-    COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_INDEX, COL_LOCAL_VALUE, COL_LOCAL_VALUE_HI,
-    COL_LOCAL_ZERO_ACTIVE_AFTER, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_AFTER,
+    COL_CALL_STACK_RETURN_PC_VALUE, COL_CALL_TARGET_METADATA, COL_CI_HOST_CALL, COL_ENTERED_FUNCTION_NUM_LOCALS,
+    COL_EXIT_SLIDE_DISTANCE, COL_FRAME_MOVE_ACTIVE_AFTER, COL_FRAME_MOVE_ACTIVE_BEFORE, COL_FRAME_MOVE_DISTANCE_AFTER,
+    COL_FRAME_MOVE_DISTANCE_BEFORE, COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_MOVE_REMAINING_AFTER_INV,
+    COL_FRAME_MOVE_REMAINING_AFTER_IS_ZERO, COL_FRAME_MOVE_REMAINING_BEFORE, COL_FRAME_SLIDE_ACTIVE, COL_FRAME_SP_DROP,
+    COL_FUNCTION_REF, COL_GATHER_ACTIVE, COL_GUEST_ENTRY_ACTIVE, COL_HOST_CALLEE_FREF_AFTER,
+    COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENT_EXIT_LATCH, COL_IS_PROGRAM_ROW, COL_LOCALS_FBP_AFTER,
+    COL_LOCALS_FBP_BEFORE, COL_LOCAL_ZERO_ACTIVE_AFTER, COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_AFTER,
     COL_LOCAL_ZERO_REMAINING_AFTER_INV, COL_LOCAL_ZERO_REMAINING_AFTER_IS_ZERO, COL_LOCAL_ZERO_REMAINING_BEFORE,
     COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE, COL_ONE, COL_OUTPUT_CAPTURED, COL_OUTPUT_ENABLED_AFTER,
     COL_OUTPUT_ENABLED_BEFORE, COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER,
-    COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PARAM_INIT_ACTIVE_AFTER, COL_PARAM_INIT_ACTIVE_BEFORE,
-    COL_PARAM_INIT_REMAINING_AFTER, COL_PARAM_INIT_REMAINING_AFTER_INV, COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO,
-    COL_PARAM_INIT_REMAINING_BEFORE, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_ROM_CALL_RETURN_CHOICE,
+    COL_OUTPUT_VALUE_LO_BEFORE, COL_PADDING_ACTIVE, COL_PC_AFTER, COL_PC_BEFORE, COL_PC_ROM_CALL_RETURN_CHOICE,
     COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_BEFORE_IS_ZERO, COL_SP_AFTER, COL_SP_BEFORE, COL_STACK_FRAME_BASE_AFTER,
     COL_STACK_FRAME_BASE_BEFORE, COL_STACK_READS, COL_STACK_READ_ADDR_LO, COL_STACK_READ_VALUE_HI,
-    COL_STACK_READ_VALUE_LO, COL_STACK_WRITES, COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TAIL_CALL_PENDING_AFTER,
-    COL_TAIL_CALL_PENDING_BEFORE, COL_TAIL_ENTER_ACTIVE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER,
+    COL_STACK_READ_VALUE_LO, COL_STACK_WRITE0_ADDR_LO, COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO,
+    COL_STACK_WRITES, COL_TABLE_INDEX, COL_TABLE_VALUE, COL_TARGET_FUNCTION_IS_GUEST, COL_TRAPPED_AFTER,
     COL_TRAPPED_BEFORE, COL_TURN_BOUNDARY, PC_ROM_CALL_RETURN_CHOICE,
 };
 use super::super::tagged_r1cs_builder::WasmTaggedR1csBuilder;
@@ -42,17 +42,16 @@ pub(crate) const LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST: ZeroTest = ZeroTest::colu
     COL_LOCAL_ZERO_REMAINING_AFTER_IS_ZERO,
 );
 
-pub(crate) const PARAM_INIT_REMAINING_AFTER_ZERO_TEST: ZeroTest = ZeroTest::column(
-    COL_PARAM_INIT_REMAINING_AFTER,
-    COL_PARAM_INIT_REMAINING_AFTER_INV,
-    COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO,
+pub(crate) const FRAME_MOVE_REMAINING_AFTER_ZERO_TEST: ZeroTest = ZeroTest::column(
+    COL_FRAME_MOVE_REMAINING_AFTER,
+    COL_FRAME_MOVE_REMAINING_AFTER_INV,
+    COL_FRAME_MOVE_REMAINING_AFTER_IS_ZERO,
 );
 
-/// Emit every call/frame/param-init row the wasm VM needs in a single
-/// place. Ordering inside follows the natural lifecycle of a call:
-/// row-kind classification → aux-row shape → enter/exit param init →
-/// per-aux-row witness shape → return-pc restoration → frame fbp
-/// transition → dynamic call-arity lookups.
+/// Emit every call/frame row the wasm VM needs in a single place. Ordering
+/// inside follows the natural lifecycle of a call: row-kind classification →
+/// aux-row shape → local zeroing and frame moves → return-pc restoration →
+/// frame transitions → dynamic call-arity lookups.
 pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.with_tag(always("function call metadata"), |b| {
         b.push_linear_zero([
@@ -78,9 +77,8 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         // `round_after = 0` (see `ccs/poseidon.rs`).
         b.push_linear_zero([
             (COL_IS_PROGRAM_ROW, F::ONE),
-            (COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE),
+            (COL_FRAME_MOVE_ACTIVE_BEFORE, F::ONE),
             (COL_LOCAL_ZERO_ACTIVE_BEFORE, F::ONE),
-            (COL_TAIL_ENTER_ACTIVE, F::ONE),
             (COL_PADDING_ACTIVE, F::ONE),
             (COL_GATHER_ACTIVE, F::ONE),
             (COL_TURN_BOUNDARY, F::ONE),
@@ -129,24 +127,16 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             b,
             padding_gate,
             [
-                (COL_TAIL_CALL_PENDING_AFTER, F::ONE),
-                (COL_TAIL_CALL_PENDING_BEFORE, -F::ONE),
+                (COL_FRAME_MOVE_ACTIVE_AFTER, F::ONE),
+                (COL_FRAME_MOVE_ACTIVE_BEFORE, -F::ONE),
             ],
         );
         push_gated_linear_zero(
             b,
             padding_gate,
             [
-                (COL_PARAM_INIT_ACTIVE_AFTER, F::ONE),
-                (COL_PARAM_INIT_ACTIVE_BEFORE, -F::ONE),
-            ],
-        );
-        push_gated_linear_zero(
-            b,
-            padding_gate,
-            [
-                (COL_PARAM_INIT_REMAINING_AFTER, F::ONE),
-                (COL_PARAM_INIT_REMAINING_BEFORE, -F::ONE),
+                (COL_FRAME_MOVE_REMAINING_AFTER, F::ONE),
+                (COL_FRAME_MOVE_REMAINING_BEFORE, -F::ONE),
             ],
         );
     });
@@ -155,15 +145,14 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
     b.with_tag(always("non-program row shape"), |b| {
         // Aux rows keep pc fixed. Padding rows read and write nothing;
-        // param-init rows pop one arg slot each. Host-event perm rows read
+        // frame-move rows copy one cell each. Host-event perm rows read
         // and write nothing too; their rows live in `ccs/host_event_chain.rs`. The
         // pc-pin gate folds the perm-row flag `pending + 1 - round_is_zero`
         // in directly.
         let aux_row_gate_with_perm = [
             (COL_HOST_SUSPEND, F::ONE),
-            (COL_PARAM_INIT_ACTIVE_BEFORE, F::ONE),
+            (COL_FRAME_MOVE_ACTIVE_BEFORE, F::ONE),
             (COL_LOCAL_ZERO_ACTIVE_BEFORE, F::ONE),
-            (COL_TAIL_ENTER_ACTIVE, F::ONE),
             (COL_PADDING_ACTIVE, F::ONE),
             (COL_GATHER_ACTIVE, F::ONE),
             (COL_PERM_PENDING_BEFORE, F::ONE),
@@ -176,19 +165,6 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE)],
             [],
         );
-        let param_init_row_gate = COL_PARAM_INIT_ACTIVE_BEFORE;
-
-        // Param-init writes the popped stack value into the callee local.
-        push_gated_linear_zero(
-            b,
-            param_init_row_gate,
-            [(COL_STACK_READ_VALUE_LO[0], F::ONE), (COL_LOCAL_VALUE, -F::ONE)],
-        );
-        push_gated_linear_zero(
-            b,
-            param_init_row_gate,
-            [(COL_STACK_READ_VALUE_HI[0], F::ONE), (COL_LOCAL_VALUE_HI, -F::ONE)],
-        );
     });
 
     b.with_tag(always("guest call flag"), |b| {
@@ -199,24 +175,12 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         push_local_zero_constraints(b);
     });
 
-    b.with_tag(always("call param init enter mode"), |b| {
-        push_call_param_init_enter_mode_constraints(b);
-    });
-
-    b.with_tag(always("call param init exit mode"), |b| {
-        push_call_param_init_exit_mode_constraints(b);
-    });
-
-    b.with_tag(always("call param init aux row"), |b| {
-        push_call_param_init_aux_row_constraints(b);
+    b.with_tag(always("frame move"), |b| {
+        push_frame_move_constraints(b);
     });
 
     b.with_tag(always("host call attribution"), |b| {
         push_host_call_attribution_constraints(b);
-    });
-
-    b.with_tag(always("param init state preservation"), |b| {
-        push_param_init_state_preservation_constraints(b);
     });
 
     b.with_tag(always("activation completion"), |b| {
@@ -232,8 +196,9 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 
     b.with_tag(always("turn boundary row"), |b| {
-        // Root entry requires empty operand and call stacks. Other state-machine
-        // constraints require spent event schedules and an idle permutation.
+        // Root entry requires empty operand and call stacks and starts a
+        // fresh frame at the stack bottom. Other state-machine constraints
+        // require spent event schedules and an idle permutation.
         b.push_row(
             [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
             [(COL_SP_BEFORE, F::ONE)],
@@ -246,18 +211,7 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
         );
         b.push_row(
             [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
-            [(COL_STACK_FRAME_BASE_BEFORE, F::ONE)],
-            [],
-        );
-        b.push_row(
-            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
-            [(COL_STACK_FRAME_BASE_AFTER, F::ONE)],
-            [],
-        );
-        // The next turn starts a fresh entry frame at the same base.
-        b.push_row(
-            [(COL_TURN_BOUNDARY, F::ONE), (COL_HOST_NESTED_ENTRY, -F::ONE)],
-            [(COL_LOCALS_FBP_AFTER, F::ONE), (COL_LOCALS_FBP_BEFORE, -F::ONE)],
+            [(COL_LOCALS_FBP_AFTER, F::ONE)],
             [],
         );
     });
@@ -281,10 +235,6 @@ pub(super) fn push_call_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 
     b.with_tag(always("call stack transition"), |b| {
         push_call_stack_transition_constraints(b);
-    });
-
-    b.with_tag(always("tail call transition"), |b| {
-        push_tail_call_transition_constraints(b);
     });
 
     b.with_tag(always("stack frame base transition"), |b| {
@@ -354,22 +304,23 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             [(COL_OUTPUT_ENABLED_BEFORE, F::ONE)],
             [],
         );
-        // A clean activation return leaves exactly the optional result above
-        // the current frame base. The boundary term cancels the activation-finished latch
-        // reset between turns.
+        // A clean activation return captures exactly its function's results:
+        // the frame above fbp less the return's static slide distance. It drops
+        // its whole frame. The boundary term cancels the activation-finished
+        // latch reset between turns.
         b.push_row(
-            [
-                (COL_ACTIVATION_FINISHED_AFTER, F::ONE),
-                (COL_ACTIVATION_FINISHED_BEFORE, -F::ONE),
-                (COL_TRAPPED_AFTER, -F::ONE),
-                (COL_TRAPPED_BEFORE, F::ONE),
-                (COL_HOST_CLEAR_ACTIVATION_FINISHED, F::ONE),
-            ],
+            clean_activation_return_terms(),
             [
                 (COL_SP_BEFORE, F::ONE),
-                (COL_STACK_FRAME_BASE_BEFORE, -F::ONE),
+                (COL_LOCALS_FBP_BEFORE, -F::ONE),
+                (COL_EXIT_SLIDE_DISTANCE, -F::ONE),
                 (COL_OUTPUT_CAPTURED, -F::ONE),
             ],
+            [],
+        );
+        b.push_row(
+            clean_activation_return_terms(),
+            [(COL_SP_AFTER, F::ONE), (COL_LOCALS_FBP_BEFORE, -F::ONE)],
             [],
         );
         b.push_row(
@@ -400,6 +351,17 @@ fn push_simple_output_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     });
 }
 
+/// One exactly on a row that cleanly finishes the current activation.
+fn clean_activation_return_terms() -> [(usize, F); 5] {
+    [
+        (COL_ACTIVATION_FINISHED_AFTER, F::ONE),
+        (COL_ACTIVATION_FINISHED_BEFORE, -F::ONE),
+        (COL_TRAPPED_AFTER, -F::ONE),
+        (COL_TRAPPED_BEFORE, F::ONE),
+        (COL_HOST_CLEAR_ACTIVATION_FINISHED, F::ONE),
+    ]
+}
+
 fn push_dynamic_call_stack_arity_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let call_selector = selector_col(WasmOpcode::Call).unwrap();
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
@@ -407,8 +369,8 @@ fn push_dynamic_call_stack_arity_constraints(b: &mut WasmTaggedR1csBuilder<'_>) 
     let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
 
     // Call rows read nothing for direct calls, or only the table index for
-    // indirect calls (trapping ones included). Guest args are popped by
-    // param-init aux rows; host args are read by gather rows and accounted
+    // indirect calls (trapping ones included). Guest args stay in place as
+    // the callee's params; host args are read by gather rows and accounted
     // for in the global sp identity.
     b.push_row(
         [
@@ -526,40 +488,6 @@ fn push_host_call_attribution_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     );
 }
 
-fn push_param_init_state_preservation_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    // A guest call seeds the parameter count, a param-init row spends one,
-    // and a turn boundary resets the frame. Every other row preserves it.
-    b.push_row(
-        [
-            (COL_ONE, F::ONE),
-            (COL_GUEST_ENTRY_ACTIVE, -F::ONE),
-            (COL_PARAM_INIT_ACTIVE_BEFORE, -F::ONE),
-            (COL_TURN_BOUNDARY, -F::ONE),
-        ],
-        [
-            (COL_PARAM_INIT_REMAINING_AFTER, F::ONE),
-            (COL_PARAM_INIT_REMAINING_BEFORE, -F::ONE),
-        ],
-        [],
-    );
-    // The last local-zero row may activate parameter initialization without
-    // changing its count; the final param-init row deactivates it.
-    b.push_row(
-        [
-            (COL_ONE, F::ONE),
-            (COL_GUEST_ENTRY_ACTIVE, -F::ONE),
-            (COL_PARAM_INIT_ACTIVE_BEFORE, -F::ONE),
-            (COL_LOCAL_ZERO_ACTIVE_BEFORE, -F::ONE),
-            (COL_TURN_BOUNDARY, -F::ONE),
-        ],
-        [
-            (COL_PARAM_INIT_ACTIVE_AFTER, F::ONE),
-            (COL_PARAM_INIT_ACTIVE_BEFORE, -F::ONE),
-        ],
-        [],
-    );
-}
-
 fn push_guest_call_flag_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let call_selector = selector_col(WasmOpcode::Call).unwrap();
     let call_indirect = selector_col(WasmOpcode::CallIndirect).unwrap();
@@ -600,11 +528,13 @@ fn push_guest_call_flag_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
 fn push_local_zero_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     let zero = COL_LOCAL_ZERO_ACTIVE_BEFORE;
     LOCAL_ZERO_REMAINING_AFTER_ZERO_TEST.push_constraints(b);
-    b.push_linear_zero([
-        (COL_LOCAL_ZERO_ACTIVE_AFTER, F::ONE),
-        (COL_LOCAL_ZERO_REMAINING_AFTER_IS_ZERO, F::ONE),
-        (COL_ONE, -F::ONE),
-    ]);
+    // Zeroing waits for a pending frame move: tail-call arguments must land
+    // before the zero pushes can overwrite their source cells.
+    b.push_row(
+        [(COL_ONE, F::ONE), (COL_LOCAL_ZERO_REMAINING_AFTER_IS_ZERO, -F::ONE)],
+        [(COL_ONE, F::ONE), (COL_FRAME_MOVE_ACTIVE_AFTER, -F::ONE)],
+        [(COL_LOCAL_ZERO_ACTIVE_AFTER, F::ONE)],
+    );
     push_gated_linear_zero(
         b,
         zero,
@@ -614,19 +544,14 @@ fn push_local_zero_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
             (COL_ONE, -F::ONE),
         ],
     );
-    // All three columns are u32, so this difference is too small to wrap
-    // modulo the Goldilocks field: field equality is integer equality.
+    // Each row pushes the next declared local as a zero.
     push_gated_linear_zero(
         b,
         zero,
-        [
-            (COL_LOCAL_INDEX, F::ONE),
-            (COL_CURRENT_FUNCTION_NUM_LOCALS, -F::ONE),
-            (COL_LOCAL_ZERO_REMAINING_BEFORE, F::ONE),
-        ],
+        [(COL_STACK_WRITE0_ADDR_LO, F::ONE), (COL_SP_BEFORE, -F::from_u64(2))],
     );
-    push_gated_linear_zero(b, zero, [(COL_LOCAL_VALUE, F::ONE)]);
-    push_gated_linear_zero(b, zero, [(COL_LOCAL_VALUE_HI, F::ONE)]);
+    push_gated_linear_zero(b, zero, [(COL_STACK_WRITE0_VALUE_LO, F::ONE)]);
+    push_gated_linear_zero(b, zero, [(COL_STACK_WRITE0_VALUE_HI, F::ONE)]);
     // Only a guest call or turn boundary may seed the verifier-bound count.
     b.push_row(
         [
@@ -652,82 +577,155 @@ fn push_local_zero_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     );
 }
 
-fn push_call_param_init_enter_mode_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    let guest_call = COL_GUEST_ENTRY_ACTIVE;
+/// A return moves the callee's results down to its frame base, and a tail
+/// call moves its arguments down to the replaced frame's base. The seeding
+/// row lowers sp to the moved region's end; each move row then copies cell
+/// `sp - remaining + distance` to `sp - remaining`. Copies run bottom-up, so
+/// overlapping regions are safe.
+fn push_frame_move_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
+    let slide = COL_FRAME_SLIDE_ACTIVE;
+    let moving = COL_FRAME_MOVE_ACTIVE_BEFORE;
+    // Guest entries that save no return context are tail calls.
+    let tail = [(COL_GUEST_ENTRY_ACTIVE, F::ONE), (COL_CALL_STACK_PUSH_PRESENT, -F::ONE)];
+    let not_seeding = [
+        (COL_ONE, F::ONE),
+        (slide, -F::ONE),
+        (COL_GUEST_ENTRY_ACTIVE, -F::ONE),
+        (COL_CALL_STACK_PUSH_PRESENT, F::ONE),
+    ];
 
+    FRAME_MOVE_REMAINING_AFTER_ZERO_TEST.push_constraints(b);
+    b.push_linear_zero([
+        (COL_FRAME_MOVE_ACTIVE_AFTER, F::ONE),
+        (COL_FRAME_MOVE_REMAINING_AFTER_IS_ZERO, F::ONE),
+        (COL_ONE, -F::ONE),
+    ]);
+
+    // Branches and popping returns slide: the taken edge's static countdown and
+    // distance are ROM reads into the move registers, and sp drops by the distance.
+    b.push_linear_zero([
+        (slide, F::ONE),
+        (selector_col(WasmOpcode::Br).unwrap(), -F::ONE),
+        (selector_col(WasmOpcode::BrIf).unwrap(), -F::ONE),
+        (selector_col(WasmOpcode::BrTable).unwrap(), -F::ONE),
+        (COL_CALL_STACK_POP_PRESENT, -F::ONE),
+    ]);
+    push_gated_linear_zero(
+        b,
+        slide,
+        [(COL_FRAME_SP_DROP, F::ONE), (COL_FRAME_MOVE_DISTANCE_AFTER, -F::ONE)],
+    );
+    // A tail call keeps its arguments and drops the replaced frame.
     b.push_row(
-        [(COL_IS_PROGRAM_ROW, F::ONE), (COL_GUEST_ENTRY_ACTIVE, -F::ONE)],
-        // Only guest calls may enter param-init mode from a program row.
-        // Aux rows are excluded by `is_program_row = 0`, so multi-param init
-        // can continue until the global remaining-after zero test turns it off.
-        [(COL_PARAM_INIT_ACTIVE_AFTER, F::ONE)],
+        tail,
+        [
+            (COL_FRAME_MOVE_REMAINING_AFTER, F::ONE),
+            (COL_CALL_PARAM_COUNT, -F::ONE),
+        ],
+        [],
+    );
+    b.push_row(
+        tail,
+        [
+            (COL_SP_AFTER, F::ONE),
+            (COL_LOCALS_FBP_BEFORE, -F::ONE),
+            (COL_CALL_PARAM_COUNT, -F::ONE),
+        ],
+        [],
+    );
+    b.push_row(
+        tail,
+        [
+            (COL_FRAME_MOVE_DISTANCE_AFTER, F::ONE),
+            (COL_SP_BEFORE, -F::ONE),
+            (COL_STACK_READS, F::ONE),
+            (COL_SP_AFTER, F::ONE),
+        ],
+        [],
+    );
+    // Only frame transitions drop cells outside the stack balance; their
+    // rows pin sp_after directly.
+    b.push_row(
+        not_seeding
+            .into_iter()
+            .chain([(COL_TURN_BOUNDARY, -F::ONE)])
+            .chain(
+                clean_activation_return_terms()
+                    .into_iter()
+                    .map(|(column, coefficient)| (column, -coefficient)),
+            ),
+        [(COL_FRAME_SP_DROP, F::ONE)],
         [],
     );
 
-    // guest_call => param_init_remaining' == param_count
     push_gated_linear_zero(
         b,
-        guest_call,
+        moving,
         [
-            (COL_PARAM_INIT_REMAINING_AFTER, F::ONE),
-            (COL_CALL_PARAM_COUNT, -F::ONE),
-        ],
-    );
-}
-
-fn push_call_param_init_exit_mode_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    // Parameters start only after the new frame's zero writes are complete.
-    b.push_row(
-        [(COL_ONE, F::ONE), (COL_PARAM_INIT_REMAINING_AFTER_IS_ZERO, -F::ONE)],
-        [(COL_ONE, F::ONE), (COL_LOCAL_ZERO_ACTIVE_AFTER, -F::ONE)],
-        [(COL_PARAM_INIT_ACTIVE_AFTER, F::ONE)],
-    );
-
-    // if we reached the end of the local initialization sequence
-    PARAM_INIT_REMAINING_AFTER_ZERO_TEST.push_constraints(b);
-}
-
-fn push_call_param_init_aux_row_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    let selector = COL_PARAM_INIT_ACTIVE_BEFORE;
-
-    // in_param_init_mode => param_init_remaining' = param_init_remaining - 1
-    push_gated_linear_zero(
-        b,
-        selector,
-        [
-            (COL_PARAM_INIT_REMAINING_BEFORE, F::ONE),
-            (COL_PARAM_INIT_REMAINING_AFTER, -F::ONE),
+            (COL_FRAME_MOVE_REMAINING_BEFORE, F::ONE),
+            (COL_FRAME_MOVE_REMAINING_AFTER, -F::ONE),
             (COL_ONE, -F::ONE),
         ],
     );
-
-    // Param-init reads the current stack top.
     push_gated_linear_zero(
         b,
-        selector,
+        moving,
+        [
+            (COL_STACK_WRITE0_ADDR_LO, F::ONE),
+            (COL_SP_BEFORE, -F::from_u64(2)),
+            (COL_FRAME_MOVE_REMAINING_BEFORE, F::from_u64(2)),
+        ],
+    );
+    push_gated_linear_zero(
+        b,
+        moving,
         [
             (COL_STACK_READ_ADDR_LO[0], F::ONE),
-            (COL_SP_BEFORE, -F::from_u64(2)),
-            (COL_ONE, F::from_u64(2)),
+            (COL_STACK_WRITE0_ADDR_LO, -F::ONE),
+            (COL_FRAME_MOVE_DISTANCE_BEFORE, -F::from_u64(2)),
         ],
     );
-
-    // Pops run top-down, so this row initializes local `remaining_before - 1`.
     push_gated_linear_zero(
         b,
-        selector,
+        moving,
         [
-            (COL_LOCAL_INDEX, F::ONE),
-            (COL_PARAM_INIT_REMAINING_BEFORE, -F::ONE),
-            (COL_ONE, F::ONE),
+            (COL_STACK_WRITE0_VALUE_LO, F::ONE),
+            (COL_STACK_READ_VALUE_LO[0], -F::ONE),
         ],
     );
-
-    // the pc is not constrained for the aux opcode (since it's not a real
-    // opcode, it's not in the next pc table)
-    //
-    // we assert here that it doesn't change
-    push_gated_linear_zero(b, selector, [(COL_PC_AFTER, F::ONE), (COL_PC_BEFORE, -F::ONE)]);
+    push_gated_linear_zero(
+        b,
+        moving,
+        [
+            (COL_STACK_WRITE0_VALUE_HI, F::ONE),
+            (COL_STACK_READ_VALUE_HI[0], -F::ONE),
+        ],
+    );
+    // Move rows and state-preserving padding keep the distance.
+    b.push_row(
+        [(moving, F::ONE), (COL_PADDING_ACTIVE, F::ONE)],
+        [
+            (COL_FRAME_MOVE_DISTANCE_AFTER, F::ONE),
+            (COL_FRAME_MOVE_DISTANCE_BEFORE, -F::ONE),
+        ],
+        [],
+    );
+    // Every other row preserves the countdown and clears the distance.
+    b.push_row(
+        not_seeding.into_iter().chain([(moving, -F::ONE)]),
+        [
+            (COL_FRAME_MOVE_REMAINING_AFTER, F::ONE),
+            (COL_FRAME_MOVE_REMAINING_BEFORE, -F::ONE),
+        ],
+        [],
+    );
+    b.push_row(
+        not_seeding
+            .into_iter()
+            .chain([(moving, -F::ONE), (COL_PADDING_ACTIVE, -F::ONE)]),
+        [(COL_FRAME_MOVE_DISTANCE_AFTER, F::ONE)],
+        [],
+    );
 }
 
 fn push_call_stack_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
@@ -792,62 +790,19 @@ fn push_call_stack_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     );
 }
 
-fn push_tail_call_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    let return_call = selector_col(WasmOpcode::ReturnCall).unwrap();
-    let return_call_indirect = selector_col(WasmOpcode::ReturnCallIndirect).unwrap();
-
-    b.push_row(
-        [(return_call_indirect, F::ONE)],
-        [(COL_ONE, F::ONE), (COL_CALL_INDIRECT_IS_TRAP, -F::ONE)],
-        [
-            (COL_TAIL_CALL_PENDING_AFTER, F::ONE),
-            (COL_TAIL_CALL_PENDING_BEFORE, -F::ONE),
-            (return_call, -F::ONE),
-            (COL_TAIL_ENTER_ACTIVE, F::ONE),
-        ],
-    );
-    b.push_row(
-        [(COL_TAIL_CALL_PENDING_BEFORE, F::ONE)],
-        [
-            (COL_ONE, F::ONE),
-            (COL_PARAM_INIT_ACTIVE_BEFORE, -F::ONE),
-            (COL_LOCAL_ZERO_ACTIVE_BEFORE, -F::ONE),
-        ],
-        [(COL_TAIL_ENTER_ACTIVE, F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        COL_TAIL_ENTER_ACTIVE,
-        [(COL_SP_AFTER, F::ONE), (COL_STACK_FRAME_BASE_BEFORE, -F::ONE)],
-    );
-    push_gated_linear_zero(
-        b,
-        COL_TAIL_ENTER_ACTIVE,
-        [
-            (super::super::layout::COL_TAIL_DISCARD_COUNT, F::ONE),
-            (COL_SP_BEFORE, -F::ONE),
-            (COL_STACK_FRAME_BASE_BEFORE, F::ONE),
-        ],
-    );
-    b.push_row(
-        [(COL_ONE, F::ONE), (COL_TAIL_ENTER_ACTIVE, -F::ONE)],
-        [(super::super::layout::COL_TAIL_DISCARD_COUNT, F::ONE)],
-        [],
-    );
-}
-
 fn push_stack_frame_base_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    let push = COL_CALL_STACK_PUSH_PRESENT;
+    let entry = [(COL_GUEST_ENTRY_ACTIVE, F::ONE), (COL_TURN_BOUNDARY, F::ONE)];
     let pop = COL_CALL_STACK_POP_PRESENT;
 
-    push_gated_linear_zero(
-        b,
-        push,
+    // A new frame's operands start above its locals.
+    b.push_row(
+        entry,
         [
             (COL_STACK_FRAME_BASE_AFTER, F::ONE),
-            (COL_SP_AFTER, -F::ONE),
-            (COL_CALL_PARAM_COUNT, F::ONE),
+            (COL_LOCALS_FBP_AFTER, -F::ONE),
+            (COL_ENTERED_FUNCTION_NUM_LOCALS, -F::ONE),
         ],
+        [],
     );
     push_gated_linear_zero(
         b,
@@ -860,10 +815,10 @@ fn push_stack_frame_base_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_
     b.push_row(
         [
             (COL_ONE, F::ONE),
-            (push, -F::ONE),
+            (COL_GUEST_ENTRY_ACTIVE, -F::ONE),
+            (COL_TURN_BOUNDARY, -F::ONE),
             (pop, -F::ONE),
             (COL_HOST_RESUME, -F::ONE),
-            (COL_HOST_NESTED_ENTRY, -F::ONE),
         ],
         [
             (COL_STACK_FRAME_BASE_AFTER, F::ONE),
@@ -874,16 +829,27 @@ fn push_stack_frame_base_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_
 }
 
 fn push_locals_fbp_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
-    let guest_call = COL_GUEST_ENTRY_ACTIVE;
+    let push = COL_CALL_STACK_PUSH_PRESENT;
     let pop = COL_CALL_STACK_POP_PRESENT;
 
+    // A called frame starts at its arguments; a tail call reuses its frame.
     push_gated_linear_zero(
         b,
-        guest_call,
+        push,
         [
             (COL_LOCALS_FBP_AFTER, F::ONE),
-            (COL_LOCALS_FBP_BEFORE, -F::ONE),
-            (COL_CURRENT_FUNCTION_NUM_LOCALS, -F::ONE),
+            (COL_SP_AFTER, -F::ONE),
+            (COL_CALL_PARAM_COUNT, F::ONE),
+        ],
+    );
+    // An entered frame reserves its parameters for the entry inputs.
+    push_gated_linear_zero(
+        b,
+        COL_TURN_BOUNDARY,
+        [
+            (COL_SP_AFTER, F::ONE),
+            (COL_LOCALS_FBP_AFTER, -F::ONE),
+            (COL_CALL_PARAM_COUNT, -F::ONE),
         ],
     );
     push_gated_linear_zero(
@@ -897,10 +863,10 @@ fn push_locals_fbp_transition_constraints(b: &mut WasmTaggedR1csBuilder<'_>) {
     b.push_row(
         [
             (COL_ONE, F::ONE),
-            (guest_call, -F::ONE),
+            (push, -F::ONE),
             (pop, -F::ONE),
             (COL_HOST_RESUME, -F::ONE),
-            (COL_HOST_NESTED_ENTRY, -F::ONE),
+            (COL_TURN_BOUNDARY, -F::ONE),
         ],
         [(COL_LOCALS_FBP_AFTER, F::ONE), (COL_LOCALS_FBP_BEFORE, -F::ONE)],
         [],

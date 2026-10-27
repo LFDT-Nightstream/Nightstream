@@ -7,8 +7,8 @@ use neo_math::F;
 use neo_wasm::layout::{COL_STACK_WRITE0_VALUE_HI, COL_STACK_WRITE0_VALUE_LO};
 use neo_wasm::witness_builder::build_witness_vector;
 use neo_wasm::{
-    opcode_code, opcode_info_from_code, StackValueAccess, WasmCountdownState, WasmOpcode, WasmOutputState,
-    WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
+    opcode_code, opcode_info_from_code, StackValueAccess, WasmCountdownState, WasmFrameMoveState, WasmOpcode,
+    WasmOutputState, WasmPcEdgeKind, WasmRowKind, WasmStepState, WasmVmStep,
 };
 use p3_field::PrimeCharacteristicRing;
 
@@ -45,9 +45,8 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         locals_fbp: 0,
         activation_finished: false,
         trapped: false,
-        param_init: WasmCountdownState::ZERO,
+        frame_move: WasmFrameMoveState::ZERO,
         local_zero: WasmCountdownState::ZERO,
-        tail_call_pending: false,
         host_callee_fref: 0,
         comm_chain: [0; 4],
         event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
@@ -64,9 +63,8 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         locals_fbp: 0,
         activation_finished: false,
         trapped: false,
-        param_init: WasmCountdownState::ZERO,
+        frame_move: WasmFrameMoveState::ZERO,
         local_zero: WasmCountdownState::ZERO,
-        tail_call_pending: false,
         host_callee_fref: 0,
         comm_chain: [0; 4],
         event_absorb: neo_wasm::WasmEventAbsorbState::ZERO,
@@ -87,7 +85,6 @@ fn conversion_row(opcode: WasmOpcode, value: u32, width_bytes: usize, writes_i64
         stack_writes_override: None,
         output_captured: false,
         current_function_ref: 0,
-        current_function_num_locals: 0,
         stack_read0: Some(StackValueAccess::new(0, value).with_optional_hi(if writes_i64 {
             Some(0x1234_5678)
         } else {

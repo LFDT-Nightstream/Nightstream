@@ -29,10 +29,10 @@ Proof.
   assert (Hcont : Forall wf_instr branchContinuation) by repeat constructor.
   pose proof (br_if_steps branchState 7 (mk_uN 1) branchTail Hz ltac:(unfold i32Modulus; lia) Hl Htail) as Hbr.
   cbn [Z.eqb] in Hbr.
-  pose proof (spec_steps_transitive _ _ _ (steps_in_block _ _ Hbr) (br_exit_label branchState 0 branchTail Hz Hl Htail))
+  pose proof (spec_steps_transitive _ _ _ (steps_in_block _ _ Hbr) (br_exit_label_carrying branchState [] 0 branchTail Hz (Forall_nil _) Hl Htail))
     as Hinner.
   pose proof (steps_in_block _ _ (steps_with_instruction_suffix branchContinuation _ _ Hcont Hinner)) as Houter.
-  eapply spec_steps_transitive; [exact Houter | exact (br_exit_target branchState branchContinuation Hz Hcont)].
+  eapply spec_steps_transitive; [exact Houter | exact (br_exit_target_dropping branchState [] branchContinuation Hz (Forall_nil _) Hcont)].
 Qed.
 
 Example wrong_branch_choice_rejected : forall row,

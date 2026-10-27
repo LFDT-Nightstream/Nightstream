@@ -2,20 +2,22 @@ use super::super::NormalizedStep;
 use crate::ir::{StackValueAccess, WasmBuildError};
 use crate::isa::WasmOpcode;
 
-pub(super) fn collect_callee_initial_params(
+/// Parameters plus declared locals of the guest function a call enters.
+pub(super) fn guest_callee_locals(
+    call: &NormalizedStep,
     next: Option<&NormalizedStep>,
-    callee_fbp: u64,
     param_count: u8,
-) -> Vec<(u64, u32)> {
-    let Some(next) = next else {
-        return vec![];
-    };
-    next.locals_snapshot
-        .iter()
-        .take(usize::from(param_count))
-        .enumerate()
-        .map(|(i, &(lo, _))| (callee_fbp + i as u64, lo))
-        .collect()
+) -> Result<u32, WasmBuildError> {
+    let locals = next
+        .ok_or_else(|| WasmBuildError::Trace(format!("guest call at cycle {} has no callee entry row", call.cycle)))?
+        .num_locals;
+    if locals < u32::from(param_count) {
+        return Err(WasmBuildError::Trace(format!(
+            "guest call at cycle {} has more parameters than locals",
+            call.cycle
+        )));
+    }
+    Ok(locals)
 }
 
 pub(super) fn call_indirect_traps(

@@ -362,9 +362,27 @@ fn reentered_export_zeroes_an_unmapped_i64_local() {
         .iter()
         .filter(|row| row.row_kind.is_local_zero())
         .collect();
-    assert_eq!(zero_rows.len(), 2, "each turn clears only its scratch local");
-    // Both turns open the export frame at the stack bottom, so the scratch
-    // local is cell 1 each time.
+    assert_eq!(zero_rows.len(), 1, "only re-entry clears the reused scratch local");
+    let boundary_index = trace
+        .iter()
+        .position(|row| row.row_kind.is_turn_boundary())
+        .unwrap();
+    assert!(trace[..boundary_index]
+        .iter()
+        .all(|row| !row.row_kind.is_local_zero()));
+    assert_eq!(
+        neo_wasm::semantic_state_digest(trace[0].state_before),
+        neo_wasm::host_event_top_level_initial_state_digest(
+            &run.artifacts.tables,
+            trace[0].state_before.pc,
+            &bindings,
+            1,
+            Default::default(),
+        )
+        .unwrap(),
+    );
+    // Re-entry opens the export frame at the stack bottom, so the scratch
+    // local is cell 1.
     assert!(zero_rows.iter().all(|row| {
         row.stack_write0
             .is_some_and(|write| write.addr_lo == 2 && write.value_lo == 0 && write.value_hi == Some(0))

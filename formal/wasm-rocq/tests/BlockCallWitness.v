@@ -1,20 +1,20 @@
 (* A real run of tests/BlockCalls.v's program, exported from the Rust trace: the
-   caller's frame from its local zeroing to just before its final END, through the
+   caller's frame with its initially zero local to just before its final END, through the
    call, the callee's zeroing, its END and result move. Its rows meet every premise
    of run_refinement, so the theorem's conclusion holds of an actual run. *)
 From Stdlib Require Import List ZArith Lia.
 Require Import R1CS Columns Range MemoryTrace MemoryCatalog TraceRefinement Wasm2 StraightLineSpec SpecTecCalls
-  ProgramSpec ProgramEncoding ProgramRefinement ControlDecode FrameInitialization tests.WitnessCheck tests.BlockCallTrace
+  ProgramSpec ProgramEncoding ProgramRefinement ControlDecode tests.WitnessCheck tests.BlockCallTrace
   tests.BlockCalls tests.BlockCallRun.
 Import ListNotations.
 Open Scope Z_scope.
 
 Definition witnessStart := beforeBoundary (hd (rowWitness []) witnessRows).
-Definition witnessShape := controlShape [] (siteEntering 1).
+Definition witnessShape := controlShape [] (siteCode (codePosition 1 [] 0)).
 Definition witnessEntry :=
   stackConfig (mk_state blockStore (enteredFrame blockModule [] 1)) [] callerBody.
 
-Lemma witness_start : witnessStart = mkBoundary 2 0 1 0 0 1 0 1 0 0.
+Lemma witness_start : witnessStart = mkBoundary 2 1 1 0 0 0 0 0 0 0.
 Proof. vm_compute. reflexivity. Qed.
 
 Lemma witness_fragment : runFragment witnessStart 0 witnessRows.
@@ -23,11 +23,7 @@ Proof. split; [reflexivity | ]. apply callerRowb_sound. vm_compute. reflexivity.
 Lemma witness_entry_config : CircuitConfig blockProgram blockStore 0 witnessShape witnessMemory witnessStart witnessEntry.
 Proof.
   split; [reflexivity | ]. split; [repeat constructor | ]. split; [exact block_program_validated | ].
-  exists (InitializingFrame witnessMemory witnessStart [] 1 (boundaryZeroRemaining witnessStart)).
-  split; [vm_compute; reflexivity | ].
-  rewrite witness_start. constructor; cbn [boundaryLocalsBase boundaryStackBase boundarySP boundaryZeroRemaining length];
-    try lia.
-  - intros index value Hv. destruct index; discriminate.
+  exists True. split; [vm_compute; reflexivity | exact I].
 Qed.
 
 (* The refinement's conclusion for this run. *)
@@ -46,8 +42,8 @@ Qed.
    caller's pc 5, keeping its result and dropping its local (sp 3 to 2), and the next
    row moves the result down one cell. *)
 Example block_call_returns_through_slide :
-  let return_row := nth 6 witnessRows (rowWitness []) in
-  let move_row := nth 7 witnessRows (rowWitness []) in
+  let return_row := nth 5 witnessRows (rowWitness []) in
+  let move_row := nth 6 witnessRows (rowWitness []) in
   return_row COL_SEL_END = 1 /\ return_row COL_CALL_STACK_POP_PRESENT = 1 /\
   return_row COL_PC_BEFORE = 1 /\ return_row COL_PC_AFTER = 5 /\
   return_row COL_SP_BEFORE = 3 /\ return_row COL_SP_AFTER = 2 /\

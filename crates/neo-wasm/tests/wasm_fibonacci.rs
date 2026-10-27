@@ -67,14 +67,14 @@ fn wasm_fibonacci_folding_proof_covers_control_flow() {
 /// Batched-folding timing demo: prove fib traces at multiple fold counts
 /// and print per-stage timings.
 ///
-/// The fib(5) cases use exact divisors of its 68-row trace, so they fold
+/// The fib(5) cases use exact divisors of its 65-row trace, so they fold
 /// without padding and the timing difference is purely fold count. The
-/// fib(7) case needs padding (its 90-row trace isn't a multiple of 8), which
+/// fib(7) case needs padding (its 87-row trace isn't a multiple of 8), which
 /// adds at most one extra padded fold.
 #[test]
 fn wasm_fibonacci_folding_proof_batched() {
     // (fib_n, batch_size, expected fold count via div_ceil).
-    let cases = [(5u32, 68usize, 1usize), (5, 17, 4), (5, 4, 17), (7, 8, 12)];
+    let cases = [(5u32, 65usize, 1usize), (5, 13, 5), (5, 5, 13), (7, 8, 11)];
 
     for &(n, batch_size, expected_folds) in &cases {
         let checked = common::checked_wasm_run(&fib_wat(n), "main");

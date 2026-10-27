@@ -288,11 +288,24 @@ that the results above take as parameters.
 - Readings: `decode` reads the seed, the statement and the proof from the
   executor's values on a witness. A reading (`Reads`) is the bridge's path
   of the replay's run, from a new duplex, on what the witness decodes to.
-- Premises: `CircuitAgrees` (open) says that the replay accepts what each
+- Premises: `CircuitAgrees` says that the replay accepts what each
   witness of the program's CCS decodes to. `TerminalWiring` (open) says
   that each such witness holds a terminal assignment whose claim is the
   decoded statement. `programEncodes_of_wiring` gives `ProgramEncodes`
   from it.
+- `CircuitAgrees` (`Agrees.lean`, `circuitAgrees_of_verify`) follows from
+  two premises. `VerifyAgrees sp.key` (open): on a run of `verifyWith`
+  whose checks hold, the replay accepts the seed, the claim and the proof
+  that the run's handles hold. It reads only the verifier's builder
+  program, the replay and the key; the stage lemmas will prove it. The
+  key's static facts that the replay checks and the circuit does not (the
+  tree shapes of `readGkr`, the WHIR batch counts and sizes) are part of
+  it. `OutputsFit` (static): each claim part that the terminal package
+  outputs has the relation's size, as `Statement.fits` checks. The proof
+  uses `lower_counts` (the counts do not read the statement),
+  `lower_sound`, and `finalProgram_accepts`: the terminal part hands layer
+  1 a claim and a state among its values, because each computed source
+  names a hint output (`load_computed`).
 - Result: `shipped_restore_budget` bounds `ShippedBreak` by `calls / 2^t`.
   A witness that the replay rejects meets the read condition of
   `ShippedBreak`, so the event keeps it, and `CircuitAgrees` covers it
@@ -344,6 +357,19 @@ data, and Lean lowers it to the shrink run as `record.rs` does.
   stage (`verifier.rs:251-260`: late `β`, GKR, lane tables, block scatter
   leaf checks, late values), the query points (`verifier.rs:262-265`) and
   the two WHIR openings with their equality checks (`verifier.rs:266-315`).
+- Simulation (`Sim.lean`, `SimAlgebra.lean`, `SimHash.lean`,
+  `SimVerify.lean`): what the executor computes on a program, read as
+  replay words. `Sim c n P b Q C` says that `b`'s run has one value per
+  handle, its result meets `Q`, and its checks hold iff the earlier ones
+  and `C` hold. Proved: the arithmetic and assertions, `select`, the duplex
+  (`observe`, `observeSlice`, `observeExt`, `sample`, `sampleExt`),
+  constants observed as words (`absorb`), a root binding (`observeRoot`)
+  and `permutes_poseidon2` (F′'s Poseidon2 is the replay's permutation).
+- Accepting runs (`SimRun.lean`): `Accepts c n P b Q` is the one-way form:
+  on a run whose checks hold, the result meets `Q`, so a check can feed a
+  later precondition. It has loops and `mapM`, and `Accepts.exec` reads it
+  on the executor's run from the empty builder. `runs_bind` and the
+  `runs_*` lemmas build replay runs forward.
 
 The lowering assumes, and does not prove:
 
@@ -356,7 +382,8 @@ The lowering assumes, and does not prove:
   tests of constant folding can differ from Rust's.
 - Encoding: that an accepting run of `Exec` on the final program is an
   accepting run of the layer-1 verifier for its terminal claim
-  (`ProgramEncodes`).
+  (`ProgramEncodes`). The replay part is `VerifyAgrees`; the terminal part
+  is `TerminalWiring`.
 
 Build and emit (each Lean command under the 1,500 s cap). Copy the F′ build
 cache into `.lake` first (`cp -cR ../nightstream-fprime/.lake/packages .lake/`)

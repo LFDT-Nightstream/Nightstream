@@ -645,6 +645,21 @@ pub fn build_wasm_relation() -> Result<ApplicationRelation<WasmConstraintScope>,
             [],
         );
     });
+    // The control choice is part of the pc-ROM and slide-ROM keys. Only br_if, if
+    // and br_table choose an edge; every other row reads the edge at choice 0, so
+    // a dense ROM's padded entries are never reached.
+    b.with_tag(always("control choice outside branches"), |b| {
+        b.push_row(
+            [
+                (COL_ONE, F::ONE),
+                (selector_col(WasmOpcode::BrIf).unwrap(), -F::ONE),
+                (selector_col(WasmOpcode::If).unwrap(), -F::ONE),
+                (selector_col(WasmOpcode::BrTable).unwrap(), -F::ONE),
+            ],
+            [(super::layout::COL_CONTROL_CHOICE, F::ONE)],
+            [],
+        );
+    });
     let r1cs = builder.build().map_err(|error| error.to_string())?;
     ApplicationRelation::new(r1cs, crate::witness_layout::range_checked_column_registry())
         .map_err(|error| error.to_string())

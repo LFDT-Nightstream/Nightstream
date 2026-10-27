@@ -70,6 +70,28 @@ fn build_witnesses(trace: &[WasmVmStep]) -> Vec<Vec<neo_math::F>> {
 }
 
 #[test]
+fn first_export_locals_start_zero_without_aux_rows() {
+    let checked = common::checked_main(
+        r#"(module
+            (func (export "main") (result i64) (local i32 i64)
+                local.get 0 i64.extend_i32_u local.get 1 i64.or))"#,
+    );
+    assert_eq!(checked.run.results, ["0"]);
+    assert!(checked
+        .trace
+        .iter()
+        .all(|row| !row.row_kind.is_local_zero()));
+    let initial = checked.trace[0].state_before;
+    assert_eq!(initial.sp, 2);
+    assert_eq!(initial.stack_frame_base, 2);
+    assert_eq!(
+        neo_wasm::semantic_state_digest(initial),
+        common::verifier_initial_state_digest(&checked.artifacts),
+        "the verifier must reserve the first frame without pending zeroing"
+    );
+}
+
+#[test]
 fn call_trace_has_correct_fbp_and_call_stack_fields() {
     let wasm = add_one_wasm();
     let run = collect_wasmtime_steps(&wasm, &HostEventBindings::default(), "run", &[]).expect("trace");

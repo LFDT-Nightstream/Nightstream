@@ -116,10 +116,10 @@ fn i64_local_get_uninitialized_rejects_nonzero_hi() {
     let layout = build_wasm_relation_layout();
     let preload = preload_from_program_artifacts(&artifacts);
     let err = sanity_check_memory_rows(layout, &witnesses, &preload)
-        .expect_err("the stack memory must reject a non-zero hi on a freshly zeroed local");
+        .expect_err("the stack memory must reject a non-zero hi on an initially zero local");
     assert!(
-        err.contains("memory `stack` read mismatch at [1]"),
-        "expected the zeroed local's high-limb cell to reject the tamper, got: {err}",
+        err.contains("memory `stack` expected zero-default read at [1]"),
+        "expected the initial local's high-limb cell to reject the tamper, got: {err}",
     );
 }
 

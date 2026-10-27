@@ -202,12 +202,12 @@ pub fn host_event_top_level_initial_state(
             "host-event bindings have no export template for selected export fref {export_fref}"
         ))
     })?;
-    let (params, total_locals) = export_frame_shape(tables, export_fref)?;
-    // The export frame starts at the stack bottom: entry inputs fill the
-    // parameters, then LocalZero rows push the declared locals.
+    let (_, total_locals) = export_frame_shape(tables, export_fref)?;
+    // The first export's declared locals already occupy zero-initialized stack
+    // cells. Entry inputs fill its parameters; later entries must clear reused cells.
     let mut state = WasmStepState {
         pc: entry_pc,
-        sp: u64::from(params),
+        sp: u64::from(total_locals),
         stack_frame_base: u64::from(total_locals),
         output: WasmOutputState::ZERO,
         call_stack_depth: 0,
@@ -217,10 +217,7 @@ pub fn host_event_top_level_initial_state(
         activation_finished: false,
         trapped: false,
         frame_move: WasmFrameMoveState::ZERO,
-        local_zero: WasmCountdownState {
-            active: total_locals != u32::from(params),
-            remaining: total_locals - u32::from(params),
-        },
+        local_zero: WasmCountdownState::ZERO,
         host_callee_fref: 0,
         comm_chain: initial_comm_chain.canonical_u64(),
         event_absorb: WasmEventAbsorbState::ZERO,

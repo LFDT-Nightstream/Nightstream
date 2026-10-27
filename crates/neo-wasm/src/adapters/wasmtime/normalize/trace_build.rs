@@ -103,16 +103,12 @@ pub(super) fn build_trace(
             slot_cursor: 0,
         };
         host_callee_fref = setup.fref;
-        // The export frame opens at the stack bottom, as on a turn boundary.
+        // The first export's locals are already zero in the initial stack RAM.
+        // Reserve the whole frame; subsequent entries still zero reused cells.
         stack_base = u64::from(first.num_locals);
-        let remaining = first
-            .num_locals
-            .checked_sub(u32::from(setup.param_count))
-            .ok_or_else(|| WasmBuildError::Trace("export has more parameters than locals".into()))?;
-        local_zero_state = WasmCountdownState {
-            active: remaining != 0,
-            remaining,
-        };
+        if first.num_locals < u32::from(setup.param_count) {
+            return Err(WasmBuildError::Trace("export has more parameters than locals".into()));
+        }
         Some(setup)
     } else {
         None
@@ -472,14 +468,12 @@ pub(super) fn build_trace(
                     activation_finished: turn_done,
                 };
                 if local_zero_state.active {
-                    // Later turns start from their boundary row; the first
-                    // starts from the verifier's initial state.
-                    let state = out.last().map(|row| row.state_after).unwrap_or_else(|| {
-                        let mut state = ctx.state(comm_chain, event_absorb, host_event_state);
-                        state.sp -= u64::from(local_zero_state.remaining);
-                        state.local_zero = local_zero_state;
-                        state
-                    });
+                    let state = out
+                        .last()
+                        .ok_or_else(|| {
+                            WasmBuildError::Trace("local zeroing requires a preceding re-entry boundary".into())
+                        })?
+                        .state_after;
                     let after = emit_local_zero_rows(&mut out, &ctx, state);
                     local_zero_state = after.local_zero;
                 }

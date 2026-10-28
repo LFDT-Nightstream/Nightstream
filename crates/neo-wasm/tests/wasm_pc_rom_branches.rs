@@ -185,3 +185,29 @@ fn empty_br_table_always_uses_default() {
         ));
     }
 }
+
+/// Only br_if, if and br_table choose an edge. Elsewhere the control choice is pinned to
+/// zero by the row itself, so a dense ROM's padded keys are never read.
+#[test]
+fn rows_without_a_branch_cannot_choose_an_edge() {
+    let run = common::checked_main(
+        r#"(module
+          (func $one (result i32) i32.const 1)
+          (func (export "main") (result i32) (local i32)
+            local.get 0 drop
+            call $one))"#,
+    );
+    for opcode in [neo_wasm::WasmOpcode::LocalGet, neo_wasm::WasmOpcode::Call] {
+        let row = run
+            .trace
+            .iter()
+            .find(|row| row.opcode == opcode)
+            .expect("row");
+        let mut forged = row.clone();
+        forged.control_choice = 7;
+        common::assert_rejected(
+            &neo_wasm::witness_builder::build_witness_vector(&forged),
+            "a non-branch row choosing an edge",
+        );
+    }
+}

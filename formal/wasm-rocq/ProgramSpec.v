@@ -214,12 +214,17 @@ Definition encodeProgram (program : Program) : MemoryState := fun memory address
   | _ => None
   end.
 
+(* The ROMs are dense: every key holds a word, and keys the encoder does not list
+   hold 0, so a read alone never shows that a key belongs to the program. *)
+Definition romValue (entry : option Z) : Z := match entry with Some v => v | None => 0 end.
+
 (* Only the program's ROMs are fixed; RAM and unrelated tables remain independent. *)
 Definition programLoaded (program : Program) (memory : MemoryState) : Prop :=
-  forall id, In id programRomIds -> forall address, memory id address = encodeProgram program id address.
+  forall id, In id programRomIds -> forall address, memory id address = Some (romValue (encodeProgram program id address)).
 
 Definition loadProgram (program : Program) (memory : MemoryState) : MemoryState :=
-  fun id address => if existsb (Nat.eqb id) programRomIds then encodeProgram program id address else memory id address.
+  fun id address =>
+    if existsb (Nat.eqb id) programRomIds then Some (romValue (encodeProgram program id address)) else memory id address.
 
 (* Every function body is in the supported fragment, calling within its module. *)
 Definition programSupported (program : Program) : Prop :=

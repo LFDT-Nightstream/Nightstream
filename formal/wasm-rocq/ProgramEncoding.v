@@ -96,7 +96,7 @@ Qed.
 
 Ltac program_cell H :=
   match goal with |- ?memory ?id ?address = _ =>
-    rewrite (H id ltac:(unfold programRomIds; simpl; tauto))
+    rewrite (H id ltac:(unfold programRomIds; simpl; tauto)); unfold romValue
   end.
 
 (* A frame of f, with f's locals: its function's local count is in the ROM. *)
@@ -174,13 +174,13 @@ Lemma encoded_end_slide : forall program memory index f choice,
   let pc := guestEntry f + Z.of_nat (codeSize (guestBody f)) in
   let frame := Z.of_nat (guestParams f + guestLocals f) in
   memory frameSlideRemainingId [pc; choice] =
-    (if choice =? 0 then Some (if frame =? 0 then 0 else Z.of_nat (guestResults f)) else None) /\
-  memory frameSlideDistanceId [pc; choice] = (if choice =? 0 then Some frame else None).
+    Some (if choice =? 0 then (if frame =? 0 then 0 else Z.of_nat (guestResults f)) else 0) /\
+  memory frameSlideDistanceId [pc; choice] = Some (if choice =? 0 then frame else 0).
 Proof.
   intros program memory index f choice Hloaded Hf pc frame.
   assert (Hnone : nth_error (flattenCode (guestBody f)) (codeSize (guestBody f)) = None)
     by (apply nth_error_None; unfold codeSize; lia).
   split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
     unfold pc; rewrite (slide_at_function_pc _ _ _ _ (codeSize (guestBody f)) choice Hf ltac:(lia));
-    unfold functionSlide; rewrite Hnone; reflexivity.
+    unfold functionSlide; rewrite Hnone; destruct (choice =? 0); reflexivity.
 Qed.

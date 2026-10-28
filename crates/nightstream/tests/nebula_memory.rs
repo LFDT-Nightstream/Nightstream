@@ -126,6 +126,24 @@ fn d_init_matches_lean() {
     }
 }
 
+/// Spec §4.2 rule 6: the memory fingerprint error `2·m_mem/q²` is at most
+/// `2^−109.91` exactly when `m_mem ≤ 139,509` (Lean `Plan.secure_iff`).
+#[test]
+fn memory_security_bits_match_the_lean_setup_boundary() {
+    let bits = |max_tuples: usize| {
+        let mut plan = Package::V1.plan();
+        plan.n = 1;
+        plan.b_ops = max_tuples - plan.cells();
+        assert_eq!(plan.max_tuples(), max_tuples);
+        plan.memory_security_bits()
+    };
+    assert!(bits(139_509) >= 109.91);
+    assert!(109.91 > bits(139_510));
+    for package in [Package::V1, Package::N1] {
+        assert!(package.plan().memory_security_bits() > 115.0, "{package:?}");
+    }
+}
+
 fn package(name: &str) -> Vec<u8> {
     std::fs::read(
         std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))

@@ -2,6 +2,9 @@
 //! Mirrors `Spec/Nebula/Plan.lean`; `FirstPlan.lean` and `SecondPlan.lean` own the
 //! package plans.
 
+use p3_field::PrimeField64;
+use p3_goldilocks::Goldilocks as F;
+
 /// Spec §4.1 `NebulaPlan`. Images hold 32-bit words.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Plan {
@@ -65,6 +68,18 @@ impl Plan {
 
     pub fn cells(&self) -> usize {
         self.rom_size() + self.ram_size()
+    }
+
+    /// `m_mem`: the most tuples on each side of one segment's memory check.
+    pub fn max_tuples(&self) -> usize {
+        self.cells() + self.n * self.b_ops
+    }
+
+    /// `-log2` of the memory fingerprint error `2·m_mem/q²` (security note
+    /// §5). Spec §4.2 rule 6 requires at least 109.91 bits (Lean
+    /// `Plan.secure_iff`).
+    pub fn memory_security_bits(&self) -> f64 {
+        2.0 * (F::ORDER_U64 as f64).log2() - (2.0 * self.max_tuples() as f64).log2()
     }
 
     /// Bits of one operation slot (spec §6.1).

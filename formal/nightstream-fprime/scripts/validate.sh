@@ -82,8 +82,9 @@ lean_file() {
 
 compression() {
   bash scripts/check-boundaries.sh ../compression-lean
+  # No target names: Lake builds the package's own defaultTargets.
   (cd ../compression-lean &&
-    capped lake build --wfail CompressionLean CompressionLeanTests &&
+    capped lake build --wfail &&
     capped lake build --wfail $(executables))
 }
 

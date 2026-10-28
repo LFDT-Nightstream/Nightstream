@@ -43,7 +43,9 @@ if lean_files | xargs grep -nE '^\s*(axiom|unsafe)\b|\bsorry\b|\badmit\b' 2>/dev
   fail "sorry / admit / axiom / unsafe is prohibited"
 fi
 
-if lean_files | grep -qiE '(^|/)Generated/'; then
+# Read all of find's output. A `grep -q` reader can exit first; under
+# pipefail, the writer's SIGPIPE then turns a match into a pass.
+if [[ -n "$(find . -path ./.lake -prune -o -type d -iname generated -print)" ]]; then
   fail "Generated/ directories are prohibited inside the proof library"
 fi
 if lean_files | xargs grep -ln 'artifactSha256\|GENERATED FILE\|do not edit' 2>/dev/null; then

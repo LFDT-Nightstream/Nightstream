@@ -85,13 +85,15 @@ done < <(lean_files)
 while IFS= read -r module; do
   queue+=("$module")
 done < <(awk '
-  /^(root|roots)[[:space:]]*=/ {
-    line = $0
+  function names(line) {
     while (match(line, /"[A-Za-z0-9_.]+"/)) {
       print substr(line, RSTART + 1, RLENGTH - 2)
       line = substr(line, RSTART + RLENGTH)
     }
   }
+  # A `roots` array may continue on later lines until its closing bracket.
+  /^(root|roots)[[:space:]]*=/ { names($0); open = ($0 ~ /\[/ && $0 !~ /\]/); next }
+  open { names($0); if ($0 ~ /\]/) open = 0 }
 ' lakefile.toml)
 
 queue_index=0

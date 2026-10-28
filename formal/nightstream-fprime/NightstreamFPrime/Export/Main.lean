@@ -8,6 +8,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
+import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
 import NightstreamFPrime.Export.Stage1.PiCCSPackets
 import NightstreamFPrime.Export.TypedWriter
 import NightstreamFPrime.Export.MatrixProgram.Program
@@ -699,6 +700,13 @@ def emitNebulaMemoryStart (plan : Spec.Nebula.Plan) (path : System.FilePath) : I
   IO.FS.writeFile path ("{\"d_init\":[" ++ ",".intercalate words ++ "]}\n")
   IO.println s!"emitted_application_start={path}"
 
+/-- Write the spec §13 terminal-check cases of `plan` with the decided
+`TerminalChecks` fields (`NebulaMemoryTerminal.fixture`). Rust tests require
+their own terminal check to agree on each case. -/
+def emitNebulaMemoryTerminal (plan : Spec.Nebula.Plan) (path : System.FilePath) : IO Unit := do
+  IO.FS.writeFile path (Stage1.NebulaMemoryTerminal.fixture plan)
+  IO.println s!"emitted_application_terminal={path}"
+
 def run (arguments : List String) : IO UInt32 := do
   match arguments with
   | [path] | ["--", path] =>
@@ -720,6 +728,10 @@ def run (arguments : List String) : IO UInt32 := do
   | ["--", "--application-start", "nebula-memory-v1", path] =>
       emitNebulaMemoryStart Lifecycle.Nebula.FirstPlan.plan ⟨path⟩
       pure 0
+  | ["--application-terminal", "nebula-memory-v1", path]
+  | ["--", "--application-terminal", "nebula-memory-v1", path] =>
+      emitNebulaMemoryTerminal Lifecycle.Nebula.FirstPlan.plan ⟨path⟩
+      pure 0
   | ["--application", "nebula-memory-n1", path]
   | ["--", "--application", "nebula-memory-n1", path] =>
       emitPerApplication Stage1.NebulaMemoryN1Package.application
@@ -733,9 +745,13 @@ def run (arguments : List String) : IO UInt32 := do
   | ["--", "--application-start", "nebula-memory-n1", path] =>
       emitNebulaMemoryStart Lifecycle.Nebula.SecondPlan.plan ⟨path⟩
       pure 0
+  | ["--application-terminal", "nebula-memory-n1", path]
+  | ["--", "--application-terminal", "nebula-memory-n1", path] =>
+      emitNebulaMemoryTerminal Lifecycle.Nebula.SecondPlan.plan ⟨path⟩
+      pure 0
   | _ =>
       IO.eprintln
-        ("usage: lake exe emit -- [--expanded | --application[-rows | -start] " ++
+        ("usage: lake exe emit -- [--expanded | --application[-rows | -start | -terminal] " ++
           "(nebula-memory-v1 | nebula-memory-n1)] <output-path>")
       pure 2
 

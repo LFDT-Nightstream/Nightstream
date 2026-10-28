@@ -88,13 +88,23 @@ check that a faulty step fails.
 of each plan (`initRootWords`, proved equal to `(context plan).initRoot`).
 `tests/nebula_memory.rs` compares the verifier's own `D_init` with it.
 
-Regenerate both kinds with the memory packages, from `formal/nightstream-fprime`:
+`nebula-memory-v1-terminal.json` and `nebula-memory-n1-terminal.json` hold
+spec §13 terminal-check cases of each plan (`NebulaMemoryTerminal.cases`):
+the statement, the final carry words, whether every statement integer that
+becomes a field word is below `q`, each `TerminalChecks` field as Lean decides
+it (`terminalChecks_iff`), and the final state words.
+`terminal_checks_match_lean` requires the verifier's terminal check to agree
+on every case.
+
+Regenerate these fixtures with the memory packages, from `formal/nightstream-fprime`:
 
 ```sh
 bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-rows nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-rows.json
 bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-rows nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-rows.json
 bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-start.json
 bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-start.json
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-terminal nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-terminal.json
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-terminal nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-terminal.json
 ```
 
 `compression/key.bin` and `compression/final-proof.bin` are the production

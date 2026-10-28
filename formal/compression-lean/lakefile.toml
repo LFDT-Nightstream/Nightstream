@@ -24,7 +24,12 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsErro
 # Each module with a `main` is the root of one `lean_exe` below.
 [[lean_lib]]
 name = "CompressionLeanExe"
-globs = ["CompressionLeanExe.+"]
+roots = ["CompressionLeanExe.Digest", "CompressionLeanExe.EmitTerminal",
+  "CompressionLeanExe.Fixtures", "CompressionLeanExe.Key", "CompressionLeanExe.LowerCheck",
+  "CompressionLeanExe.Parse", "CompressionLeanExe.ReplayLayer1", "CompressionLeanExe.Runs",
+  "CompressionLeanExe.RunsCheck", "CompressionLeanExe.SetupCheck",
+  "CompressionLeanExe.SetupRootCheck", "CompressionLeanExe.Status",
+  "CompressionLeanExe.TerminalCheck"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 # The ports gate reads these files, so a change to them reruns it.

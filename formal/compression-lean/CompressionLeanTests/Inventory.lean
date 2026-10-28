@@ -4,8 +4,8 @@ import Lean
 Owns what the library claims and what the claims rest on, as data: the pinned
 claims, every premise of each claim with how it is met, the hand ports of Rust
 (`ports.json`) and the Rust tests that pin digests that Lean computes. It also owns `STATUS.md`
-(`statusPage`). It does not import `CompressionLean`, so `lake exe status`
-loads the library at run time.
+(`statusPage`). It does not import `CompressionLean`; `lake exe status`
+computes the page when it compiles (`CompressionLeanExe/Status.lean`).
 
 The gates are in `Axioms.lean` and `Ports.lean`. Paths are relative to
 `formal/compression-lean`.

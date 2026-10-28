@@ -1,12 +1,15 @@
+import CompressionLean
 import CompressionLeanTests.Inventory
 
-/-! The `status` executable: prints `STATUS.md`. Run it in `formal/compression-lean`. -/
+/-! The `status` executable: prints `STATUS.md`. Run it in `formal/compression-lean`.
+
+The page is computed when this file compiles, where the library's notation is
+loaded, so the executable needs no run-time import. -/
 
 open Lean CompressionLeanTests.Inventory
 
-unsafe def main : IO Unit := do
-  initSearchPath (← findSysroot)
-  enableInitializersExecution
-  let env ← importModules #[{ module := `CompressionLean }] {} (loadExts := true)
-  let page ← (statusPage (← readPorts)).toIO' { fileName := "status", fileMap := default } { env }
-  IO.print page
+elab "status_page%" : term => do
+  return mkStrLit (← statusPage (← readPorts))
+
+def main : IO Unit :=
+  IO.print status_page%

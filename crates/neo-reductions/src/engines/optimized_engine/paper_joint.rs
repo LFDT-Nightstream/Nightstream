@@ -6,7 +6,6 @@ use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{superneo_bar_block, Fq, KExtensions, Rq, D, F, K};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::{Field, PrimeCharacteristicRing};
-use std::sync::Arc;
 
 pub use super::cpu_oracle::OptimizedPaperJointOracle;
 use crate::engines::pi_ccs_joint::{
@@ -16,7 +15,7 @@ use crate::engines::pi_ccs_joint::{
 use crate::engines::pi_ccs_joint_protocol::{self, PaperJointRoundOracle, V1_2OutputOpening};
 use crate::engines::pi_ccs_protocol::{Challenges, PiCcsProof};
 use crate::error::PiCcsError;
-use crate::superneo_eval::{CachedMatrixRows, MatrixRows, MatrixWindow, SuperneoEvalCache};
+use crate::superneo_eval::{CachedMatrixRows, MatrixRows, MatrixWindow};
 
 use super::OptimizedStructureCache;
 
@@ -54,7 +53,6 @@ pub(crate) fn identity_ring_mle(assignment: &[K], weights: &[K]) -> [K; D] {
 pub(crate) fn initial_claim<Ff>(
     structure: &CcsStructure<Ff>,
     challenges: &Challenges,
-    fresh_count: usize,
     running: &[CeClaim<Cmt, Ff, K>],
 ) -> Result<K, PiCcsError>
 where
@@ -90,7 +88,6 @@ where
             }
         }
     }
-    let _ = fresh_count;
     Ok(eval_k + gamma_power(challenges.gamma, running_count * D) * eval_a)
 }
 
@@ -126,7 +123,7 @@ where
             .map(|evaluation| evaluation.first().copied())
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| PiCcsError::InvalidInput("optimized Eval_A output is empty".into()))?;
-        fresh_residual += gamma_power(challenges.gamma, source) * structure.f.eval_in_ext::<K>(&matrix_evaluations);
+        fresh_residual += gamma_power(challenges.gamma, source) * structure.f().eval_in_ext::<K>(&matrix_evaluations);
     }
     let mut norm = K::ZERO;
     for (source, output) in outputs.iter().enumerate() {
@@ -134,7 +131,7 @@ where
             .eval_k
             .first()
             .ok_or_else(|| PiCcsError::InvalidInput("optimized Eval_K output is missing".into()))?;
-        norm += gamma_power(challenges.gamma, source) * range_product::<Ff>(assignment, params.b);
+        norm += gamma_power(challenges.gamma, source) * range_product::<Ff>(assignment, params.b());
     }
     let running_count = outputs.len() - fresh_count;
     let mut eval_k = K::ZERO;
@@ -195,10 +192,6 @@ where
     Ok(terminal_components(structure, params, challenges, fresh_count, prior_point, point, outputs)?.terminal)
 }
 
-/// Canonical inputs available to an implementation of the one-joint oracle.
-///
-/// These values are prover inputs. The canonical driver remains responsible
-/// for the transcript and for all verifier-visible proof messages.
 pub struct PaperJointOracleInput<'a> {
     pub structure: &'a CcsStructure<F>,
     pub params: &'a neo_params::NeoParams,
@@ -211,25 +204,11 @@ pub struct PaperJointOracleInput<'a> {
     pub workspace_bytes: usize,
 }
 
-/// Factory for a protocol-neutral one-joint evaluator.
 pub trait PaperJointOracleBackend {
     fn create<'a>(
         &'a mut self,
         input: PaperJointOracleInput<'a>,
     ) -> Result<Box<dyn PaperJointRoundOracle + 'a>, PiCcsError>;
-
-    /// Evaluate separate v1_2 PiDEC child openings with the same static
-    /// matrix plan. The canonical PiDEC prover checks their radix
-    /// recomposition before it returns a proof.
-    fn dec_openings(
-        &mut self,
-        _cache: &OptimizedStructureCache,
-        _witnesses: &[Mat<F>],
-        _point: &[K],
-        _assignment_width: usize,
-    ) -> Result<Option<Vec<V1_2OutputOpening>>, PiCcsError> {
-        Ok(None)
-    }
 }
 
 enum OracleSource<'a> {
@@ -248,7 +227,6 @@ enum OracleSource<'a> {
     },
 }
 
-#[allow(clippy::too_many_arguments)]
 fn build_outputs(
     structure: &CcsStructure<F>,
     fresh_claims: &[CcsClaim<Cmt, F>],
@@ -304,12 +282,12 @@ fn build_outputs(
         let weights = weights
             .as_deref()
             .expect("host openings require the equality tensor");
-        let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, structure.m)?;
-        let mut eval_k = identity_ring_mle(&assignment, &weights).to_vec();
+        let assignment = crate::common::decode_superneo_coeffs_from_witness_mat(witness, structure.m())?;
+        let mut eval_k = identity_ring_mle(&assignment, weights).to_vec();
         eval_k.resize(d_pad, K::ZERO);
         let cache = cache.expect("host openings require the validated structure cache");
         let eval_a =
-            crate::superneo_eval::eval_all_mats_ring_cached(cache.superneo(), &assignment, &weights, structure.n)
+            crate::superneo_eval::eval_all_mats_ring_cached(cache.superneo(), &assignment, weights, structure.n())
                 .into_iter()
                 .map(|coefficients| {
                     let mut row = coefficients.to_vec();
@@ -325,7 +303,7 @@ fn build_outputs(
         let opening = openings(source, &witness.Z)?;
         outputs.push(CeClaim {
             c: claim.c.clone(),
-            X: crate::common::project_x_from_witness_mat(&witness.Z, structure.m, claim.m_in)?,
+            X: crate::common::project_x_from_witness_mat(&witness.Z, structure.m(), claim.m_in)?,
             r: point.to_vec(),
             eval_k: opening.eval_k,
             eval_a: opening.eval_a,
@@ -350,7 +328,6 @@ fn build_outputs(
     Ok(outputs)
 }
 
-#[allow(clippy::too_many_arguments)]
 fn prove_with_trace_inner(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -360,16 +337,7 @@ fn prove_with_trace_inner(
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
     source: OracleSource<'_>,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        super::PiCcsProvePerf,
-        ProtocolTrace,
-    ),
-    PiCcsError,
-> {
-    let started = std::time::Instant::now();
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
     let cache = match &source {
         OracleSource::Cached { cache, .. } => {
             cache.validate_structure(structure)?;
@@ -379,8 +347,8 @@ fn prove_with_trace_inner(
             let shape = rows.shape();
             if (shape.rows, shape.columns, shape.matrices)
                 != (
-                    structure.n,
-                    crate::common::superneo_carrier_width(structure.m),
+                    structure.n(),
+                    crate::common::superneo_carrier_width(structure.m()),
                     structure.t(),
                 )
             {
@@ -400,14 +368,13 @@ fn prove_with_trace_inner(
     for (index, witness) in fresh_witnesses.iter().enumerate() {
         crate::common::validate_fresh_witness_tail_zero(
             &witness.Z,
-            structure.m,
+            structure.m(),
             &format!("optimized fresh witness {index}"),
         )?;
     }
     for witness in running_witnesses {
-        crate::common::validate_superneo_witness_mat(witness, structure.m)?;
+        crate::common::validate_superneo_witness_shape(witness, structure.m())?;
     }
-    let bind_started = std::time::Instant::now();
     let mut trace = ProtocolTrace::default();
     let (dims, challenges) = pi_ccs_joint_protocol::bind_and_sample_with_trace(
         transcript,
@@ -417,10 +384,8 @@ fn prove_with_trace_inner(
         fresh_claims,
         running_claims,
     )?;
-    let bind_ms = bind_started.elapsed().as_secs_f64() * 1_000.0;
     let prior_point = crate::engines::utils::shared_me_input_r(running_claims, dims.variables)?;
-    let initial = initial_claim(structure, &challenges, fresh_claims.len(), running_claims)?;
-    let sumcheck_started = std::time::Instant::now();
+    let initial = initial_claim(structure, &challenges, running_claims)?;
     #[cfg(feature = "perf-timers")]
     let oracle_started = std::time::Instant::now();
     let cached_rows = cache
@@ -521,7 +486,7 @@ fn prove_with_trace_inner(
         pi_ccs_joint_protocol::prove_phase(transcript, &mut trace, initial, oracle)?;
     #[cfg(feature = "perf-timers")]
     eprintln!("[pi-ccs/phase] rounds={:.3}s", rounds_started.elapsed().as_secs_f64());
-    let sumcheck_ms = sumcheck_started.elapsed().as_secs_f64() * 1_000.0;
+    #[cfg(feature = "perf-timers")]
     let output_started = std::time::Instant::now();
     let precomputed_openings = oracle.output_openings(&round_challenges)?;
     drop(built_oracle);
@@ -550,25 +515,17 @@ fn prove_with_trace_inner(
             "optimized terminal value does not match the paper output message".into(),
         ));
     }
-    let digest = pi_ccs_joint_protocol::absorb_outputs(transcript, &mut trace, &outputs, fresh_claims.len(), dims)?;
+    let digest = pi_ccs_joint_protocol::absorb_outputs(transcript, &mut trace, &outputs, dims)?;
     for output in &mut outputs {
         output.fold_digest = digest;
     }
     #[cfg(feature = "perf-timers")]
     eprintln!("[pi-ccs/phase] outputs={:.3}s", output_started.elapsed().as_secs_f64());
     let proof = pi_ccs_joint_protocol::assemble_proof(rounds);
-    let output_materialize_ms = output_started.elapsed().as_secs_f64() * 1_000.0;
-    let perf = super::PiCcsProvePerf {
-        bind_ms,
-        sample_challenges_ms: 0.0,
-        sumcheck_ms,
-        output_materialize_ms,
-        total_ms: started.elapsed().as_secs_f64() * 1_000.0,
-    };
-    Ok((outputs, proof, perf, trace))
+    Ok((outputs, proof, trace))
 }
 
-pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub(crate) fn prove_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
     structure: &CcsStructure<F>,
@@ -576,17 +533,8 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    _commitment: &L,
     cache: &OptimizedStructureCache,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        super::PiCcsProvePerf,
-        ProtocolTrace,
-    ),
-    PiCcsError,
-> {
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
     prove_with_trace_inner(
         transcript,
         params,
@@ -599,66 +547,6 @@ pub(crate) fn prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
-pub fn prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
-    transcript: &mut Poseidon2Transcript,
-    params: &neo_params::NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    commitment: &L,
-    cache: &OptimizedStructureCache,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, super::PiCcsProvePerf), PiCcsError> {
-    let (outputs, proof, perf, _) = prove_with_trace(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        commitment,
-        cache,
-    )?;
-    Ok((outputs, proof, perf))
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn prove_with_backend<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
-    transcript: &mut Poseidon2Transcript,
-    params: &neo_params::NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    _commitment: &L,
-    cache: &OptimizedStructureCache,
-    backend: &mut dyn PaperJointOracleBackend,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, super::PiCcsProvePerf), PiCcsError> {
-    let (outputs, proof, perf, _) = prove_with_trace_inner(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        OracleSource::Cached {
-            cache,
-            backend: Some(backend),
-        },
-    )?;
-    Ok((outputs, proof, perf))
-}
-
-/// Run the canonical optimized prover with an already prepared evaluator.
-/// The evaluator must use these exact ordered sources and prepared challenges,
-/// and return all ring openings. The driver rebinds the statement and rejects
-/// missing openings; this route never constructs a host cache or full tensor.
-#[allow(clippy::too_many_arguments)]
 pub fn prove_with_complete_oracle(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -669,15 +557,7 @@ pub fn prove_with_complete_oracle(
     running_witnesses: &[Mat<F>],
     prepared: &Challenges,
     oracle: &mut dyn PaperJointRoundOracle,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        super::PiCcsProvePerf,
-        ProtocolTrace,
-    ),
-    PiCcsError,
-> {
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
     prove_with_trace_inner(
         transcript,
         params,
@@ -693,84 +573,6 @@ pub fn prove_with_complete_oracle(
     )
 }
 
-/// Prove with row-cache arithmetic supplied by the owning relation adapter.
-/// This cache is prover data. This function does not create or validate a
-/// verifier-artifact authority; the owner must supply its matching header.
-#[allow(clippy::too_many_arguments)]
-pub fn prove_with_row_cache(
-    transcript: &mut Poseidon2Transcript,
-    params: &neo_params::NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    cache: &SuperneoEvalCache,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        super::PiCcsProvePerf,
-        ProtocolTrace,
-    ),
-    PiCcsError,
-> {
-    let rows = CachedMatrixRows::new(cache)?;
-    let workspace_bytes = resident_row_workspace(&rows, fresh_witnesses.len())?;
-    prove_with_matrix_rows(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        &rows,
-        workspace_bytes,
-        None,
-    )
-}
-
-/// Use a device evaluator with rows prepared by the circuit owner. Transcript
-/// order and output checks are the same as the CPU row-cache path.
-#[allow(clippy::too_many_arguments)]
-pub fn prove_with_row_cache_and_backend(
-    transcript: &mut Poseidon2Transcript,
-    params: &neo_params::NeoParams,
-    structure: &CcsStructure<F>,
-    fresh_claims: &[CcsClaim<Cmt, F>],
-    fresh_witnesses: &[CcsWitness<F>],
-    running_claims: &[CeClaim<Cmt, F, K>],
-    running_witnesses: &[Mat<F>],
-    cache: &Arc<SuperneoEvalCache>,
-    backend: &mut dyn PaperJointOracleBackend,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        super::PiCcsProvePerf,
-        ProtocolTrace,
-    ),
-    PiCcsError,
-> {
-    let rows = CachedMatrixRows::new(cache)?;
-    let workspace_bytes = resident_row_workspace(&rows, fresh_witnesses.len())?;
-    prove_with_matrix_rows(
-        transcript,
-        params,
-        structure,
-        fresh_claims,
-        fresh_witnesses,
-        running_claims,
-        running_witnesses,
-        &rows,
-        workspace_bytes,
-        Some(backend),
-    )
-}
-
-// The existing resident-cache entrypoints have no workspace argument. Derive
-// their full resident requirement instead of assigning a numeric default.
 fn resident_row_workspace(rows: &dyn MatrixRows, fresh_count: usize) -> Result<usize, PiCcsError> {
     let shape = rows.shape();
     let payload = fresh_count
@@ -778,15 +580,11 @@ fn resident_row_workspace(rows: &dyn MatrixRows, fresh_count: usize) -> Result<u
         .and_then(|count| count.checked_mul(core::mem::size_of::<K>()))
         .and_then(|bytes| bytes.checked_add(core::mem::size_of::<F>() + core::mem::size_of::<K>()))
         .ok_or_else(|| PiCcsError::InvalidInput("resident row payload overflow".into()))?;
-    // Host construction and device upload can hold separate copies.
     MatrixWindow::required_workspace(rows, 0..shape.rows, payload)?
         .checked_mul(2)
         .ok_or_else(|| PiCcsError::InvalidInput("resident row workspace overflow".into()))
 }
 
-/// Prove from original rows with explicit working storage and an optional
-/// device evaluator. The caller owns row authority and total live-memory accounting.
-#[allow(clippy::too_many_arguments)]
 pub fn prove_with_matrix_rows<'a>(
     transcript: &mut Poseidon2Transcript,
     params: &neo_params::NeoParams,
@@ -798,15 +596,7 @@ pub fn prove_with_matrix_rows<'a>(
     rows: &'a dyn MatrixRows,
     workspace_bytes: usize,
     backend: Option<&'a mut dyn PaperJointOracleBackend>,
-) -> Result<
-    (
-        Vec<CeClaim<Cmt, F, K>>,
-        PiCcsProof,
-        super::PiCcsProvePerf,
-        ProtocolTrace,
-    ),
-    PiCcsError,
-> {
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
     prove_with_trace_inner(
         transcript,
         params,

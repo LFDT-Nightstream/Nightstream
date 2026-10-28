@@ -17,14 +17,9 @@ def messageWordCount : Nat := 4
 
 abbrev MessageIndex := Fin messageWordCount
 
-/-- ASCII bytes of `Nightstream/Stage1/Poseidon2HashChain/v1`, in order. -/
 def domainTagBytes : List Nat :=
-  [78, 105, 103, 104, 116, 115, 116, 114, 101, 97,
-   109, 47, 83, 116, 97, 103, 101, 49, 47, 80,
-   111, 115, 101, 105, 100, 111, 110, 50, 72, 97,
-   115, 104, 67, 104, 97, 105, 110, 47, 118, 49]
+  "Nightstream/Stage1/Poseidon2HashChain/v1".toList.map Char.toNat
 
-/-- Each approved ASCII byte is mapped directly into Goldilocks. -/
 def domainTag : List F := domainTagBytes.map Poseidon2.ofNat
 
 @[simp] theorem domainTagBytes_length : domainTagBytes.length = 40 := by
@@ -43,7 +38,6 @@ theorem preimage_length (priorState message : List F)
   simp [preimage, priorLength, messageLength, Application.stateWordCount,
     messageWordCount]
 
-/-- Exact application semantics approved by the owner. -/
 def step (priorState message : List F) : List F :=
   Poseidon2.hash (preimage priorState message)
 
@@ -192,11 +186,10 @@ theorem constraintsSupported
       simpa [circuit] using! upper)
   simpa [circuit] using! supported
 
-/-- The closed verifier-owned application program. Its circuit accepts every
-message, so its validity predicate is `True`. -/
 def program : Application.Program where
   witnessWordCount := messageWordCount
   step := step
+  step_length := fun state message _ => step_output_length state message
   valid := fun _ _ => True
   circuit := circuit
   spec_iff := fun interface offset env =>

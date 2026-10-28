@@ -3,18 +3,13 @@
 //! The expected path has its own raw package decoder, source-row custody,
 //! Goldilocks sparse arithmetic, and interpreter for every matrix-program
 //! opcode. It does not call the production interpreter for expected rows.
-//!
-//! Run the full ignored gate with:
-//!
-//! ```text
-//! RUSTC_WRAPPER="" cargo test -p nightstream-fprime --release --test per_application_logical_matrix_conformance -- --ignored --nocapture
-//! ```
 
 use std::{fs, path::PathBuf};
 
 use nightstream_fprime::{
-    load_per_application_package, load_poseidon2_hash_chain_v1_package, CcsMatrixSource, LoadedPerApplicationPackage,
-    LogicalMatrixRow, PackageError, PI_CCS_V1_2_MATRIX_COUNT, POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, CcsMatrixSource, IdentityKind,
+    LoadedPerApplicationPackage, LogicalMatrixRow, PackageError, StructuralIdentifier, PI_CCS_V1_2_MATRIX_COUNT,
+    POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER,
 };
 use rayon::prelude::*;
 use serde_json::Value;
@@ -122,7 +117,7 @@ fn assert_independent_decode_then_identity_rejection(
     label: &str,
     package: &Value,
     artifact: &Artifact,
-    expected_identity: [u64; 4],
+    expected_identity: StructuralIdentifier,
     expected_row: (usize, &RowForms),
 ) {
     let changed = MatrixProgram::decode(
@@ -142,8 +137,12 @@ fn assert_independent_decode_then_identity_rejection(
     drop(changed);
 
     match load_per_application_package(&canonical_bytes(package), expected_identity) {
-        Err(PackageError::ExpectedIdentityMismatch { expected, computed }) => {
-            assert_eq!(expected, expected_identity);
+        Err(PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
+            expected,
+            computed,
+        }) => {
+            assert_eq!(expected, expected_identity.words());
             assert_ne!(computed, expected, "{label} did not change the structural identity");
         }
         Err(error) => panic!("{label} failed for a reason other than the selected structural identity: {error}"),
@@ -196,9 +195,7 @@ fn valid_matrix_mutations_decode_but_fail_the_pinned_structural_identity() {
     check_matrix_mutations(current, sealed_bytes);
 }
 
-/// Apply the matrix mutations to a package that passed the selected identity
-/// check. Every mutation must decode and then fail that same identity check.
-pub fn check_matrix_mutations(current: LoadedPerApplicationPackage, sealed_bytes: Vec<u8>) {
+pub(crate) fn check_matrix_mutations(current: LoadedPerApplicationPackage, sealed_bytes: Vec<u8>) {
     let expected_identity = current.structural_identifier();
     drop(current);
 
@@ -284,9 +281,7 @@ fn final_four_matrices_equal_the_independent_sealed_interpretation() {
     check_logical_matrices(package, sealed_bytes);
 }
 
-/// Compare the actual final matrix rows with the independent sealed
-/// interpretation for an already identity-checked package.
-pub fn check_logical_matrices(package: LoadedPerApplicationPackage, sealed_bytes: Vec<u8>) {
+pub(crate) fn check_logical_matrices(package: LoadedPerApplicationPackage, sealed_bytes: Vec<u8>) {
     let artifact = SourcePackage::decode(&sealed_bytes).expect("independent sealed package decoder");
     drop(sealed_bytes);
 

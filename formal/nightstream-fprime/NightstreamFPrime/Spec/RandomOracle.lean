@@ -22,10 +22,9 @@ Outputs:
   most `Q * ε`, after at most `Q` expected retries; each queried point is
   charged once (`expect_queried_le`, `mem_queries_update_iff`);
 - `expected_bad_retries`: under independent retries (`retryWeight`), the
-  expected number of bad retries is the sum of the per-coordinate chances.
-
-Invariant: a bad set is `Local`. It may read the oracle anywhere except at its
-own point, so the bad set of one challenge may read the answers of the others.
+  expected number of bad retries is the sum of the per-coordinate chances;
+- `OracleComp.record`, `run_congr`: what one run shows, its output and its
+  queries; a run reads its oracle only at the points it queries.
 
 `escape_le` restates Ironwood's `escapesDuringC_measure_le'`, whose escape sets
 read the table and are blind at their own point, as `Local` sets are here;
@@ -45,36 +44,33 @@ open scoped BigOperators
 
 universe uPoint uAnswer uOutput
 
-/-- An adaptive oracle algorithm: return an output, or query one point and
-continue with its answer. -/
 inductive OracleComp (Point : Type uPoint) (Answer : Type uAnswer) (Output : Type uOutput) :
     Type (max uPoint uAnswer uOutput) where
   | done (output : Output)
   | query (point : Point) (next : Answer → OracleComp Point Answer Output)
 
+structure RunRecord (Point : Type uPoint) (Output : Type uOutput) where
+  output : Output
+  queries : List Point
+
 namespace OracleComp
 
 variable {Point : Type uPoint} {Answer : Type uAnswer} {Output : Type uOutput}
 
-/-- The output when `oracle` answers every query. -/
 def run (oracle : Point → Answer) : OracleComp Point Answer Output → Output
   | done output => output
   | query point next => (next (oracle point)).run oracle
 
-/-- The queried points, in order. -/
 def queries (oracle : Point → Answer) : OracleComp Point Answer Output → List Point
   | done _ => []
   | query point next => point :: (next (oracle point)).queries oracle
 
-/-- Every execution makes at most `bound` queries. -/
 inductive QueryBound : OracleComp Point Answer Output → Nat → Prop
   | done (output : Output) (bound : Nat) : QueryBound (done output) bound
   | query (point : Point) (next : Answer → OracleComp Point Answer Output) (bound : Nat)
       (each : ∀ answer, QueryBound (next answer) bound) :
       QueryBound (query point next) (bound + 1)
 
-/-- Run the computation, then query one point of its output, as a verifier
-does. -/
 def thenQuery (point : Output → Point) : OracleComp Point Answer Output →
     OracleComp Point Answer Output
   | done output => query (point output) fun _ => done output
@@ -97,13 +93,10 @@ theorem QueryBound.thenQuery {point : Output → Point}
   | query asked next bound _ inductionHypothesis =>
       exact .query asked _ (bound + 1) inductionHypothesis
 
-/-- Query a list of points, then return `output`. -/
 def queryAll (output : Output) : List Point → OracleComp Point Answer Output
   | [] => done output
   | point :: rest => query point fun _ => queryAll output rest
 
-/-- Run the computation, then query every listed point of its output, as a
-verifier does. -/
 def thenQueries (points : Output → List Point) : OracleComp Point Answer Output →
     OracleComp Point Answer Output
   | done output => queryAll output (points output)
@@ -120,6 +113,14 @@ private theorem queries_queryAll (oracle : Point → Answer) (output : Output) (
   induction points with
   | nil => rfl
   | cons point rest inductionHypothesis => exact congrArg (point :: ·) inductionHypothesis
+
+theorem queries_thenQueries (points : Output → List Point) (oracle : Point → Answer)
+    (computation : OracleComp Point Answer Output) :
+    (computation.thenQueries points).queries oracle =
+      computation.queries oracle ++ points (computation.run oracle) := by
+  induction computation with
+  | done output => exact queries_queryAll oracle output (points output)
+  | query asked next inductionHypothesis => exact congrArg (asked :: ·) (inductionHypothesis (oracle asked))
 
 theorem mem_queries_thenQueries (points : Output → List Point) (oracle : Point → Answer)
     (computation : OracleComp Point Answer Output) {point : Point}
@@ -164,8 +165,6 @@ theorem QueryBound.queries_length_le {computation : OracleComp Point Answer Outp
   | query asked next bound _ inductionHypothesis =>
       exact Nat.succ_le_succ (inductionHypothesis (oracle asked))
 
-/-- Whether a point is queried does not depend on its own answer: the run is
-the same until that point is first queried. -/
 theorem mem_queries_update_iff [DecidableEq Point] (oracle : Point → Answer) (point : Point)
     (answer : Answer) (computation : OracleComp Point Answer Output) :
     point ∈ computation.queries (Function.update oracle point answer) ↔
@@ -179,8 +178,6 @@ theorem mem_queries_update_iff [DecidableEq Point] (oracle : Point → Answer) (
       · simp only [queries, List.mem_cons, Function.update_of_ne same]
         rw [inductionHypothesis (oracle asked)]
 
-/-- The first `index + 1` queries depend only on the answers to the first
-`index`. -/
 theorem take_succ_queries_congr (oracle other : Point → Answer)
     (computation : OracleComp Point Answer Output) (index : Nat)
     (agree : ∀ point ∈ (computation.queries oracle).take index, oracle point = other point) :
@@ -201,6 +198,21 @@ theorem take_succ_queries_congr (oracle other : Point → Answer)
           simp only [queries, List.take_succ_cons, List.mem_cons]
           exact Or.inr inside
 
+def record (computation : OracleComp Point Answer Output) (oracle : Point → Answer) :
+    RunRecord Point Output :=
+  ⟨computation.run oracle, computation.queries oracle⟩
+
+theorem run_congr (oracle other : Point → Answer) (computation : OracleComp Point Answer Output)
+    (agree : ∀ point ∈ computation.queries oracle, oracle point = other point) :
+    computation.run other = computation.run oracle := by
+  induction computation with
+  | done => rfl
+  | query asked next inductionHypothesis =>
+      have first : oracle asked = other asked := agree asked List.mem_cons_self
+      change (next (other asked)).run other = (next (oracle asked)).run oracle
+      rw [← first]
+      exact inductionHypothesis (oracle asked) fun point inside => agree point (List.mem_cons_of_mem _ inside)
+
 end OracleComp
 
 section Probability
@@ -210,15 +222,12 @@ variable {Point : Type uPoint} {Answer : Type uAnswer} {Output : Type uOutput}
 
 attribute [local instance low] Classical.propDecidable
 
-/-- The uniform probability of a set of answers. -/
 noncomputable def mass (answers : Set Answer) : ℝ :=
   𝔼 answer, if answer ∈ answers then 1 else 0
 
-/-- A bad set reads the oracle only away from its own point. -/
 def Local (bad : Point → (Point → Answer) → Set Answer) : Prop :=
   ∀ point oracle answer, bad point (Function.update oracle point answer) = bad point oracle
 
-/-- Resampling one point of a uniform oracle leaves it uniform. -/
 private theorem expect_update (point : Point) (value : (Point → Answer) → ℝ) :
     𝔼 oracle, value oracle = 𝔼 oracle, 𝔼 answer, value (Function.update oracle point answer) := by
   let swap : (Point → Answer) × Answer ≃ (Point → Answer) × Answer :=
@@ -237,7 +246,12 @@ private theorem expect_update (point : Point) (value : (Point → Answer) → �
   have positive : (0 : ℝ) < Fintype.card Answer := by exact_mod_cast Fintype.card_pos
   field_simp
 
-/-- Answers held fixed on `fixed`; elsewhere `oracle` answers. -/
+theorem expect_eval (point : Point) (value : Answer → ℝ) :
+    𝔼 oracle : Point → Answer, value (oracle point) = 𝔼 answer, value answer := by
+  rw [expect_update point]
+  simp only [Function.update_self]
+  exact Finset.expect_const Finset.univ_nonempty _
+
 def overlay (fixed : Finset Point) (values oracle : Point → Answer) : Point → Answer :=
   fun point => if point ∈ fixed then values point else oracle point
 
@@ -268,7 +282,6 @@ private theorem overlay_empty (values oracle : Point → Answer) : overlay ∅ v
   funext point
   simp [overlay]
 
-/-- Some queried point outside `fixed` has its answer in its bad set. -/
 private def Escapes (bad : Point → (Point → Answer) → Set Answer)
     (computation : OracleComp Point Answer Output) (fixed : Finset Point)
     (oracle : Point → Answer) : Prop :=
@@ -278,8 +291,6 @@ variable (bad : Point → (Point → Answer) → Set Answer) (local_ : Local bad
   (small : ∀ point oracle, mass (bad point oracle) ≤ ε) (nonnegative : 0 ≤ ε)
 
 include local_ small nonnegative in
-/-- The escape bound with the answers on `fixed` held at `values`. A fork
-holds the answers it shares with the first run this way. -/
 private theorem escape_le_over {computation : OracleComp Point Answer Output} {bound : Nat}
     (bounded : computation.QueryBound bound) (fixed : Finset Point) (values : Point → Answer) :
     𝔼 oracle, (if Escapes bad computation fixed (overlay fixed values oracle) then (1 : ℝ) else 0) ≤
@@ -359,8 +370,6 @@ private theorem escape_le_over {computation : OracleComp Point Answer Output} {b
           _ = ((bound + 1 : Nat) : ℝ) * ε := by push_cast; ring
 
 include local_ small nonnegative in
-/-- Escape bound: some queried point has its answer in its bad set with
-probability at most `bound * ε`. -/
 theorem escape_le {computation : OracleComp Point Answer Output} {bound : Nat}
     (bounded : computation.QueryBound bound) :
     𝔼 oracle, (if ∃ point ∈ computation.queries oracle, oracle point ∈ bad point oracle
@@ -369,8 +378,6 @@ theorem escape_le {computation : OracleComp Point Answer Output} {bound : Nat}
   simpa [Escapes, overlay_empty] using escape
 
 include local_ small nonnegative in
-/-- Pinned escape: one output point has its answer in its bad set with
-probability at most `(bound + 1) * ε`. -/
 theorem pinned_le {computation : OracleComp Point Answer Output} {bound : Nat}
     (bounded : computation.QueryBound bound) (point : Output → Point) :
     𝔼 oracle, (if oracle (point (computation.run oracle)) ∈
@@ -400,7 +407,6 @@ omit [Nonempty Answer] in
 theorem mass_nonnegative (answers : Set Answer) : 0 ≤ mass answers :=
   Finset.expect_nonneg fun answer _ => by split <;> norm_num
 
-/-- A nonnegative value that is positive somewhere has a positive mean. -/
 theorem expect_pos {Item : Type*} [Fintype Item] {value : Item → ℝ}
     (nonnegative : ∀ item, 0 ≤ value item) {item : Item} (positive : 0 < value item) :
     0 < 𝔼 other, value other := by
@@ -410,15 +416,12 @@ theorem expect_pos {Item : Type*} [Fintype Item] {value : Item → ℝ}
     (Finset.mem_univ item))
 
 omit [Nonempty Answer] in
-/-- The mean over all answers of a constant on `answers` and zero elsewhere. -/
 private theorem expect_indicator (answers : Set Answer) (value : ℝ) :
     𝔼 answer, (if answer ∈ answers then value else 0) = value * mass answers := by
   unfold mass
   rw [Finset.mul_expect]
   exact Finset.expect_congr rfl fun answer _ => by split <;> simp
 
-/-- The expected number of distinct queried points is at most the query
-bound. -/
 theorem expect_queried_le {computation : OracleComp Point Answer Output} {bound : Nat}
     (bounded : computation.QueryBound bound) :
     𝔼 oracle, (∑ point, if point ∈ computation.queries oracle then (1 : ℝ) else 0) ≤ bound := by
@@ -433,18 +436,10 @@ theorem expect_queried_le {computation : OracleComp Point Answer Output} {bound 
   rw [count]
   exact_mod_cast (List.toFinset_card_le _).trans (bounded.queries_length_le oracle)
 
-/-! ## Line retries
-
-A rewinding extractor resamples the answer at one point and reruns the
-adversary until the point succeeds again. The first success is uniform on the
-point's line set. The two bounds below charge each queried point once. -/
-
 section LineRetry
 
 variable (success : Point → (Point → Answer) → Prop)
 
-/-- The answers at `point` under which `point` succeeds, the rest of the
-oracle unchanged. -/
 def lineSet (point : Point) (oracle : Point → Answer) : Set Answer :=
   {answer | success point (Function.update oracle point answer)}
 
@@ -454,18 +449,15 @@ theorem lineSet_update (point : Point) (oracle : Point → Answer) (answer : Ans
   ext candidate
   simp [lineSet]
 
-/-- Probability that the first successful retry has the base answer's key. -/
 noncomputable def repeatChance {Key : Type*} (key : Answer → Key) (point : Point)
     (oracle : Point → Answer) : ℝ :=
   mass (lineSet success point oracle ∩ {answer | key answer = key (oracle point)}) /
     mass (lineSet success point oracle)
 
-/-- Expected number of retries until the first success. -/
 noncomputable def retryCount (point : Point) (oracle : Point → Answer) : ℝ :=
   1 / mass (lineSet success point oracle)
 
 omit [Fintype Point] [Nonempty Answer] in
-/-- A line with positive mass has a success, so its point is queried. -/
 private theorem queried_of_mass {computation : OracleComp Point Answer Output}
     (queried : ∀ point oracle, success point oracle → point ∈ computation.queries oracle)
     (point : Point) (oracle : Point → Answer) (positive : mass (lineSet success point oracle) ≠ 0) :
@@ -477,8 +469,6 @@ private theorem queried_of_mass {computation : OracleComp Point Answer Output}
   exact (OracleComp.mem_queries_update_iff oracle point answer computation).mp
     (queried point _ inside)
 
-/-- Charge one point: average its answer, then bound the line term by the
-point's query indicator. -/
 private theorem line_term_le {computation : OracleComp Point Answer Output}
     (queried : ∀ point oracle, success point oracle → point ∈ computation.queries oracle)
     (point : Point) (term : Set Answer → Answer → ℝ) (bound : ℝ)
@@ -512,9 +502,6 @@ private theorem line_term_le {computation : OracleComp Point Answer Output}
       · rw [div_mul_cancel₀ _ positive, if_pos (queried_of_mass success queried point oracle positive),
           mul_one]
 
-/-- The extractor's repeated-key loss: summed over every point that succeeds,
-the chance that its first retry repeats the base key is at most
-`bound * ε`. -/
 theorem repeat_le {Key : Type*} (key : Answer → Key) (ε : ℝ)
     (small : ∀ value : Key, mass {answer | key answer = value} ≤ ε) (nonnegative : 0 ≤ ε)
     {computation : OracleComp Point Answer Output} {bound : Nat}
@@ -537,8 +524,6 @@ theorem repeat_le {Key : Type*} (key : Answer → Key) (ε : ℝ)
     _ ≤ ε * bound := mul_le_mul_of_nonneg_left (expect_queried_le bounded) nonnegative
     _ = bound * ε := mul_comm _ _
 
-/-- The extractor's expected retries: summed over every point that succeeds,
-the expected number of retries until the next success is at most `bound`. -/
 theorem retries_le {computation : OracleComp Point Answer Output} {bound : Nat}
     (bounded : computation.QueryBound bound)
     (queried : ∀ point oracle, success point oracle → point ∈ computation.queries oracle) :
@@ -582,8 +567,6 @@ private theorem sum_weight (set : Set Answer) (positive : mass set ≠ 0) (extra
   rw [joint, pull]
   field_simp
 
-/-- Independent first successes: coordinate `index` is uniform on
-`sets index`, as the retry loop returns it. -/
 noncomputable def retryWeight {Index : Type*} [Fintype Index] (sets : Index → Set Answer)
     (retries : Index → Answer) : ℝ :=
   ∏ index, (if retries index ∈ sets index then (1 : ℝ) else 0) /
@@ -596,8 +579,6 @@ theorem retryWeight_nonnegative {Index : Type*} [Fintype Index] (sets : Index �
     (mul_nonneg (Nat.cast_nonneg _) (mass_nonnegative _))
 
 omit [Fintype Point] [DecidableEq Point] [Nonempty Answer] in
-/-- Independent retries: the expected number of retries that land in their
-bad sets is the sum of the per-coordinate chances. -/
 theorem expected_bad_retries {Index : Type*} [Fintype Index] [DecidableEq Index]
     (sets : Index → Set Answer) (positive : ∀ index, mass (sets index) ≠ 0)
     (bad : Index → Set Answer) :
@@ -634,7 +615,6 @@ theorem expected_bad_retries {Index : Type*} [Fintype Index] [DecidableEq Index]
       · simp
 
 omit [Fintype Point] [DecidableEq Point] [Nonempty Answer] in
-/-- The retry law has total mass one when every line has positive mass. -/
 theorem retryWeight_sum_eq_one {Index : Type*} [Fintype Index] [DecidableEq Index]
     (sets : Index → Set Answer) (positive : ∀ index, mass (sets index) ≠ 0) :
     ∑ retries : Index → Answer, retryWeight sets retries = 1 := by
@@ -652,8 +632,6 @@ theorem retryWeight_sum_eq_one {Index : Type*} [Fintype Index] [DecidableEq Inde
     linarith
 
 omit [Fintype Point] [DecidableEq Point] [Nonempty Answer] in
-/-- The retry law has total mass at most one: one when every line has
-positive mass, zero otherwise. -/
 theorem retryWeight_sum_le_one {Index : Type*} [Fintype Index] [DecidableEq Index]
     (sets : Index → Set Answer) : ∑ retries : Index → Answer, retryWeight sets retries ≤ 1 := by
   by_cases positive : ∀ index, mass (sets index) ≠ 0
@@ -665,16 +643,9 @@ theorem retryWeight_sum_le_one {Index : Type*} [Fintype Index] [DecidableEq Inde
 
 end LineRetry
 
-/-! ## Forks at a stopping set
-
-A fork keeps the answers a run has already seen and resamples the rest. The
-points seen before a query index form a stopping set. -/
-
-/-- A set of points that the oracle's answers on that set determine. -/
 def Stopping (stop : (Point → Answer) → Finset Point) : Prop :=
   ∀ oracle other, (∀ point ∈ stop oracle, oracle point = other point) → stop other = stop oracle
 
-/-- The points a run queries before query `index`. -/
 def queriedBefore (computation : OracleComp Point Answer Output) (index : Nat)
     (oracle : Point → Answer) : Finset Point :=
   ((computation.queries oracle).take index).toFinset
@@ -696,7 +667,6 @@ theorem overlay_agree (fixed : Finset Point) (values oracle : Point → Answer) 
   intro point inside
   simp [overlay, inside]
 
-/-- Resampling every answer outside a stopping set keeps the oracle uniform. -/
 theorem expect_resample (stop : (Point → Answer) → Finset Point) (stopping : Stopping stop)
     (value : (Point → Answer) → ℝ) :
     𝔼 oracle, value oracle = 𝔼 oracle, 𝔼 fresh, value (overlay (stop oracle) oracle fresh) := by
@@ -727,7 +697,6 @@ theorem overlay_self (fixed : Finset Point) (oracle : Point → Answer) :
   by_cases inside : point ∈ fixed <;> simp [overlay, inside]
 
 omit [Fintype Point] [Fintype Answer] [Nonempty Answer] in
-/-- A fork of a fork keeps the same context. -/
 theorem overlay_overlay (stop : (Point → Answer) → Finset Point) (stopping : Stopping stop)
     (oracle fresh other : Point → Answer) :
     stop (overlay (stop oracle) oracle fresh) = stop oracle ∧
@@ -740,9 +709,6 @@ theorem overlay_overlay (stop : (Point → Answer) → Finset Point) (stopping :
   funext point
   by_cases inside : point ∈ stop oracle <;> simp [overlay, inside]
 
-/-- A run's weight over its resampled average: for a factor that only the
-context fixes, the ratio averages to that factor wherever the average is
-positive. -/
 theorem expect_div_resampled (stop : (Point → Answer) → Finset Point) (stopping : Stopping stop)
     (value factor : (Point → Answer) → ℝ)
     (determined : ∀ oracle fresh, factor (overlay (stop oracle) oracle fresh) = factor oracle) :

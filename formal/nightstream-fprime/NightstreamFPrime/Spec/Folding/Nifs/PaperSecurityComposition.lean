@@ -8,9 +8,6 @@ The verifier supplies the exact PiCCS probe and the exact PiRLC public input
 batch. A complete coordinate fork supplies only successful combined openings.
 The theorem constructs the PiCCS output witness from those extracted openings
 and concludes source validity or one named PiCCS algebraic failure.
-
-This module does not own a probabilistic forking lemma, Fiat--Shamir security,
-commitment binding, PiDEC child extraction, a concrete field, or a backend.
 -/
 
 set_option autoImplicit false
@@ -26,7 +23,6 @@ open NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 
 universe uExtension uCommitment uPublicInput uScalar uState
 
-/-- Exact PiRLC input batch produced by one PiCCS execution. -/
 def piRlcBatch
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -57,8 +53,6 @@ def piRlcBatch
     intro index
     rfl
 
-/-- Assignments extracted by the PiRLC coordinate fork, reindexed into the
-exact PiCCS `K+k` source order. -/
 def extractedOutputWitness
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -81,8 +75,6 @@ def extractedOutputWitness
     extractedAssignment laws strongSet fork
       (Fin.cast key.total_eq_sourceCount.symm source)
 
-/-- The PiRLC fork opens the literal PiCCS public outputs in the corrected
-ambient relation. No compatibility equality is supplied by the caller. -/
 theorem extractedOutputWitness_ambient
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -115,9 +107,6 @@ theorem extractedOutputWitness_ambient
       ).assignments source) rfl]
   simpa [piRlcBatch, Key.piCcsOutputs, extractedOutputWitness] using extracted
 
-/-- Accepted NIFS plus a complete PiRLC coordinate fork extracts the exact
-PiCCS source relation, or exposes the precise mixing-root or fixed-width
-SumCheck failure. -/
 theorem accepted_with_completeFork_extracts_source_or_badEvent
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -169,8 +158,6 @@ theorem accepted_with_completeFork_extracts_source_or_badEvent
     (extractedOutputWitness_ambient key running fresh proof laws strongSet fork)
     piCcsAccepted
 
-/-- The base response of an aligned PiRLC fork opens the exact parent used by
-the NIFS verifier. -/
 theorem baseOutput_eq_parentForChallenges
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -194,10 +181,6 @@ theorem baseOutput_eq_parentForChallenges
   rw [baseChallenges]
   rfl
 
-/-- Complete deterministic SuperNeo composition for one accepted NIFS
-message, one aligned PiRLC coordinate fork, and valid openings of every exact
-PiDEC child. The success branch contains the source witness, the final child
-openings, and exact parent recomposition. -/
 theorem accepted_with_fork_and_children_extracts_or_failure
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -292,8 +275,6 @@ theorem accepted_with_fork_and_children_extracts_or_failure
   · exact Or.inr (Or.inl mixingFailure)
   · exact Or.inr (Or.inr (Or.inl sumcheckFailure))
 
-/-- A complete PiRLC fork whose base response uses the exact verifier-sampled
-challenge vector. -/
 structure AlignedFork
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -313,8 +294,6 @@ structure AlignedFork
   sampled : key.piRlcChallenges running fresh proof = some challenges
   baseChallenges : fork.base.challenges = challenges
 
-/-- Valid openings for every exact child produced by one accepted PiDEC
-attempt. -/
 structure ChildOpenings
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -335,8 +314,6 @@ structure ChildOpenings
       (PiDEC.PaperVerifier.children key.piDecPublicInputSplit attempt child)
       (assignments child)
 
-/-- The probabilistic PiRLC forking step did not supply a complete aligned
-coordinate fork. Probability bounds belong outside this deterministic event. -/
 def PiRLCForkingFailure
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -352,8 +329,6 @@ def PiRLCForkingFailure
     (proof : Proof Extension Commitment shape degreeBound) : Prop :=
   Not (Nonempty (AlignedFork key running fresh proof))
 
-/-- The commitment-knowledge boundary did not supply valid openings for all
-exact PiDEC children. -/
 def PiDECChildOpeningFailure
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -370,9 +345,6 @@ def PiDECChildOpeningFailure
       (EvaluationFamily Extension shape) Commitment key.params) : Prop :=
   Not (Nonempty (ChildOpenings key attempt))
 
-/-- Exhaustive deterministic security outcome of one accepted paper NIFS
-message. Cryptographic analyses assign probability only to the failure
-constructors. -/
 inductive SecurityOutcome
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -438,8 +410,6 @@ inductive SecurityOutcome
       (attemptEq : key.piDecAttempt running fresh proof = some attempt)
       (failure : PiDECChildOpeningFailure key attempt)
 
-/-- One accepted paper NIFS message has complete extracted source/parent/child
-knowledge or one explicit security failure. -/
 theorem accepted_implies_securityOutcome
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}

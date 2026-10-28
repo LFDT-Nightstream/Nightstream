@@ -74,9 +74,7 @@ impl Affine {
         }
     }
 
-    // Preserve the saved recipe syntax for trees. Nested shared operations must use
-    // the already canonical coefficients instead of expanding a DAG as a tree.
-    pub(super) fn compact_shared(self) -> Self {
+    pub(super) fn flatten_if_nested_shared(self) -> Self {
         if !self.expression.has_nested_shared_operations() {
             return self;
         }

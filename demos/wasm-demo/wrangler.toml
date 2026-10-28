@@ -1,8 +1,0 @@
-name = "nightstream-wasm-demo"
-main = "./cloudflare_worker.js"
-compatibility_date = "2026-01-24"
-
-[assets]
-directory = "./web"
-binding = "ASSETS"
-serve_directly = false

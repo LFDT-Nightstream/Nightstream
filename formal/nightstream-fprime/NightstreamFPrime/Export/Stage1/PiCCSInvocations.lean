@@ -108,10 +108,6 @@ def outputInterface
   NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingInterface
     (sharedInterface logicalWidth publicFits)
 
-/-! The following named equalities are the transcript-to-parent wiring
-boundary. They prevent the package assembler from relying on repeated numeric
-normalization. -/
-
 theorem statementWitnessStart_matches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -280,8 +276,6 @@ theorem statementTrace_state_matches
   exact compileActions_state_eq statementPhase statementRowStart
     statementWitnessStart Hash.zeroE (statementActions logicalWidth publicFits)
 
-/-- Held compact statement invocations imply the exact statement-absorption
-leaf predicate under the proved Spartan pullback. -/
 theorem statementTrace_implies_spec
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -431,8 +425,6 @@ theorem challengeTrace_eq_semantic
       (challengeInterface logicalWidth publicFits) challengeWitnessStart)
     (challengeActions_shape_matches logicalWidth publicFits)
 
-/-- Held compact challenge invocations imply the exact pre-SumCheck
-Fiat--Shamir predicate under the proved Spartan pullback. -/
 theorem challengeTrace_implies_spec
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -512,8 +504,6 @@ theorem roundTrace_eq_semantic
       roundWitnessStart)
     (roundActions_shape_matches logicalWidth publicFits)
 
-/-- Held compact round invocations imply the exact indexed 28-round
-Fiat--Shamir predicate under the proved Spartan pullback. -/
 theorem roundTrace_implies_spec
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -624,8 +614,6 @@ theorem outputSemanticTrace_state_matches
     (OutputBinding.finalState_eq_compile
       (outputInterface logicalWidth publicFits) outputWitnessStart).symm
 
-/-- Held compact output invocations imply the exact post-PiCCS transcript
-predicate under the proved Spartan pullback. -/
 theorem outputTrace_implies_spec
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -691,14 +679,6 @@ def invocations
     (roundTrace logicalWidth publicFits).invocations ++
     (outputTrace logicalWidth publicFits).invocations
 
-/-! ## Transcript assembly
-
-This is the compact physical assembly boundary for the four transcript leaves.
-It maps the one exported invocation list back to the four child predicates and
-does not unfold a child's circuit operations.
--/
-
-/-- The four transcript conjuncts supplied to the canonical PiCCS parent. -/
 structure TranscriptSpecs
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -794,8 +774,6 @@ theorem TranscriptSpecs.outputBinding_parent
   rw [← outputWitnessStart_matches logicalWidth publicFits relation]
   exact specs.outputBinding
 
-/-- Satisfaction of the one canonical appended invocation list covers every
-transcript child exactly once. -/
 theorem invocations_imply_transcriptSpecs
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -925,10 +903,6 @@ theorem invocations_length
     statementInvocations_length, challengeInvocations_length,
     roundInvocations_length, outputInvocations_length]
 
-/-! ## Constructive invocation schedule -/
-
-/-- Final private boundary of the four compact transcript packets. It is the
-mapped start of the generic R1CS-fresh region, not a new layout owner. -/
 def invocationCeiling : Nat :=
   NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
     NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
@@ -1017,9 +991,6 @@ theorem outputEnd_eq_logicalFreshBase (logicalWidth : Nat)
   unfold NightstreamFPrime.Layout.Stage1.PiCCSStarts.logicalFreshBase
   rw [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq]
 
-/-- The exact production output-binding state is wholly below the first
-PiRLC sampler column. Downstream semantic views can therefore transport this
-state by environment agreement without exposing transcript internals. -/
 theorem outputFinalState_varsBelow_samplerStart
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -1064,8 +1035,6 @@ theorem outputFinalState_varsBelow_samplerStart
     _ = NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart := by
       rfl
 
-/-- Environment agreement below the first sampler column transports every
-lane of the fixed production PiCCS output state. -/
 theorem outputFinalState_eval_eq_of_agree_below_samplerStart
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤

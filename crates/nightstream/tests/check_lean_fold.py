@@ -24,6 +24,7 @@ import time
 ROOT = Path(__file__).resolve().parents[3]
 TESTS = Path(__file__).resolve().parent
 FORMAL = ROOT / "formal/nightstream-fprime"
+INITIAL_STATE_WORDS = slice(27811, 27815)
 sys.path[:0] = [str(TESTS), str(ROOT / "scripts"), str(FORMAL / "scripts")]
 from compare_recursive_outputs import equal, load  # noqa: E402
 from check_identity import rust_code  # noqa: E402
@@ -106,8 +107,7 @@ def mutation_rejections(manifest, log):
     return {**owners, "internal": ["unbounded_parent", "rejected_C_stops_D"]}
 
 
-# The process class, also while tests replace `subprocess.Popen`.
-POPEN = subprocess.Popen
+UNPATCHED_POPEN = subprocess.Popen
 
 
 def wait_for_exit(process, timeout):
@@ -117,7 +117,7 @@ def wait_for_exit(process, timeout):
     every command. A kqueue (macOS) or a pidfd (Linux) reports the exit. The final wait uses
     the remaining time because the exit notification can arrive before the process is reapable.
     """
-    if timeout is None or not isinstance(process, POPEN) or process.returncode is not None:
+    if timeout is None or not isinstance(process, UNPATCHED_POPEN) or process.returncode is not None:
         return process.wait(timeout=timeout)
     deadline = time.monotonic() + timeout
     try:
@@ -262,11 +262,10 @@ class Check:
                    input={"operation": "encode", "lean": str(result), "output": str(wire)})
         compare_files(wire, folder / "proof.native", "Lean/native proof wire")
         rejected = re.findall(r"^pi_dec_mutation=(\S+) rejected=", log, re.MULTILINE)
-        # Exact families in lifecycle_native/golden_dec.rs.
         expected = {f"child_{child}_commitment" for child in range(CHILDREN)} | {
             f"child_eval_A{matrix}" for matrix in range(MATRICES)
         } | {f"nonzero_eval_A{matrix}_padding" for matrix in range(MATRICES)} | {
-            "child_public", "child_point", "child_eval_K", "missing_child", "short_commitment",
+            "child_public", "child_point", "child_eval_K", "missing_child",
             "short_point", "short_eval_K", "missing_matrix", "nonzero_eval_K_padding",
             "child_fold_digest", "child_digit_range",
         }
@@ -293,8 +292,7 @@ class Check:
                                 "package.json")
         folder = self.fold_inputs(self.step)
         if self.step == 1:
-            # z0 sits at words 27,811..27,814 of the prior preimage tail `vk, i, z0, zi`.
-            request = [1, base[2][27811:27815], base[4][0], base[2][-4:]]
+            request = [1, base[2][INITIAL_STATE_WORDS], base[4][0], base[2][-4:]]
         else:
             request = request2
         compare_source(load(folder / "pi_ccs_input.json"), load(self.output / f"inputs/step-{self.step}/envelope.json"),

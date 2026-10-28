@@ -2,53 +2,52 @@ use std::sync::Arc;
 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use thiserror::Error;
 
 use crate::identity::relation_identifier;
-use crate::sparse::{eval_sparse_combination, SparseCombination, SparseRow, SparseTerm, WitnessInstruction};
-use crate::witness::{
-    execute_witness_batch, validate_witness_batch, validate_witness_batch_order, validate_witness_coverage,
-    RawWitnessBatch, WitnessBatch,
-};
+use crate::sparse::{eval_sparse_combination, SparseCombination, SparseRow, WitnessInstruction};
+use crate::witness::{execute_witness_batch, WitnessBatch};
 use crate::WitnessAssignment;
 
 mod assignment_transport;
 pub use assignment_transport::{LoadedAssignmentPlan, LogicalAssignment};
 mod compact;
-use compact::{CompactRowInvocation, CompactRowTemplate, RawCompactRowInvocation, RawCompactRowTemplate};
+pub(crate) mod json;
+use compact::{CompactRowInvocation, CompactRowTemplate};
+use json::{canonical_field, word_to_usize};
 mod matrix_program;
 pub use matrix_program::MatrixRun;
 pub(crate) mod native_application;
 use native_application::PreparedApplication;
 mod prepared;
-pub use prepared::{load_compiled_application_package, PREPARED_FIXED_SOURCE_NODE_LIMIT};
+pub use prepared::{load_prepared_package, PREPARED_FIXED_SOURCE_NODE_LIMIT};
 mod v1_2;
+mod validate;
+mod wire;
 pub use v1_2::{
     PiCcsV1_2EncodedInputs, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs,
-    PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
-    PI_CCS_V1_2_PRIOR_CHILDREN_WORDS, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT,
-    PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT, PI_CCS_V1_2_STATE_PREIMAGE_WORDS,
-    PI_CCS_V1_2_VERIFIER_CONTEXT_WORDS, PI_DEC_V1_2_CHILD_COUNT, PI_DEC_V1_2_COMMITMENT_WORDS_PER_CHILD,
-    PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD,
-    PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD,
+    DECOMPOSITION_BASE, DECOMPOSITION_K_RHO, DECOMPOSITION_NORM_BOUND, PI_CCS_V1_2_COEFFICIENT_COUNT,
+    PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_PRIOR_CHILDREN_WORDS,
+    PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT,
+    PI_CCS_V1_2_SOURCE_COUNT, PI_CCS_V1_2_STATE_PREIMAGE_WORDS, PI_CCS_V1_2_VERIFIER_CONTEXT_WORDS,
+    PI_DEC_V1_2_CHILD_COUNT, PI_DEC_V1_2_COMMITMENT_WORDS_PER_CHILD, PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD,
+    PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD, PI_DEC_V1_2_PUBLIC_INPUT_WORDS_PER_CHILD,
 };
 mod r1cs;
 pub use r1cs::{PackageR1cs, PackageSparseMatrix};
 mod relation;
 pub use relation::{CcsMatrixSource, PackageCcsRelation, PackagePolynomialTerm};
 mod sealed;
+mod terminal;
 pub use sealed::{
     load_per_application_package, load_poseidon2_hash_chain_v1_package, load_prepared_application_records,
-    load_prepared_application_value, LoadedApplicationPlan, LoadedPerApplicationPackage, LogicalMatrixEntry,
-    LogicalMatrixRow,
+    LoadedApplicationPlan, LoadedPerApplicationPackage, LogicalMatrixEntry, LogicalMatrixRow,
 };
+pub use terminal::{load_terminal_package, TerminalOutputs};
 mod pi_ccs_v1_2_transcript;
 mod source_row;
 pub use pi_ccs_v1_2_transcript::{derive_pi_ccs_v1_2_transcript, PiCcsV1_2Transcript};
 
-pub(super) const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 const MAX_JOINT_DOMAIN_VARIABLES: u32 = 28;
 const MAX_JOINT_DOMAIN: usize = 1usize << MAX_JOINT_DOMAIN_VARIABLES;
 
@@ -60,102 +59,56 @@ pub enum PackageError {
     Json(#[from] serde_json::Error),
     #[error("circuit-package bytes are not the canonical Lean encoding")]
     NonCanonicalBytes,
-    #[error("invalid circuit package: {0}")]
-    Invalid(&'static str),
+    #[error("malformed circuit package: {0}")]
+    Malformed(&'static str),
+    #[error("circuit package exceeds a size limit: {0}")]
+    TooLarge(&'static str),
+    /// A caller argument is invalid; the package is not at fault.
+    #[error("invalid input: {0}")]
+    Input(&'static str),
+    #[error("{what}: expected {expected}, got {actual}")]
+    InputLength {
+        what: &'static str,
+        expected: usize,
+        actual: usize,
+    },
     #[error("unsatisfied assertion row {row}")]
     UnsatisfiedAssertionRow { row: usize },
     #[error("noncanonical Goldilocks word in {location}: {value}")]
     NonCanonicalField { location: &'static str, value: u64 },
-    #[error(
-        "relation identifier does not match the verifier-owned identity: expected {expected:?}, computed {computed:?}"
-    )]
-    ExpectedIdentityMismatch {
-        expected: [u64; 4],
-        computed: [u64; 4],
-    },
-    #[error(
-        "final package identity does not match the verifier-owned application: expected {expected:?}, computed {computed:?}"
-    )]
-    ExpectedPackageIdentityMismatch {
-        expected: [u64; 4],
-        computed: [u64; 4],
-    },
-    #[error(
-        "verification-key binding does not match the verifier-owned application: expected {expected:?}, computed {computed:?}"
-    )]
-    ExpectedVerificationKeyBindingMismatch {
+    #[error("{kind} does not match: expected {expected:?}, computed {computed:?}")]
+    IdentityMismatch {
+        kind: IdentityKind,
         expected: [u64; 4],
         computed: [u64; 4],
     },
 }
 
-#[derive(Debug, Deserialize, Serialize)]
-struct RawPackage(
-    u64,
-    RawProfile,
-    RawPoseidonSchedule,
-    RawPhysicalLayout,
-    relation::RawCcsRelation,
-    RawPermutationTemplate,
-    Vec<RawHashChain>,
-    Vec<RawPermutationInvocation>,
-    Vec<RawCompactRowTemplate>,
-    Vec<RawCompactRowInvocation>,
-    Vec<RawWitnessBatch>,
-    Vec<RawWitnessInstruction>,
-    Vec<RawSparseRow>,
-    Vec<Value>,
-);
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum IdentityKind {
+    Relation,
+    Package,
+    VerificationKeyBinding,
+    VerifierContext,
+}
 
-#[derive(Debug, Deserialize, Serialize)]
-struct RawProfile(u64, u64, u64, u64, u64, u64, u64, u64, u64, u64);
+impl std::fmt::Display for IdentityKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Relation => "relation identifier",
+            Self::Package => "final package identity",
+            Self::VerificationKeyBinding => "verification-key binding",
+            Self::VerifierContext => "verifier-context package identity",
+        })
+    }
+}
 
-#[derive(Debug, Deserialize, Serialize)]
-struct RawPoseidonSchedule(u64, u64, u64, u64, u64, u64, u64, u64);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RawSegment(u64, u64, u64);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RawPhysicalLayout(u64, u64, u64, u64, u64, Vec<RawSegment>, Vec<RawSegment>);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RawColumnRef(u64, u64);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RawTemplateTerm(RawColumnRef, u64);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RawTemplateCombination(u64, Vec<RawTemplateTerm>);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RawTemplateRow(
-    u64,
-    RawTemplateCombination,
-    RawTemplateCombination,
-    RawTemplateCombination,
-);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RawPermutationTemplate(u64, u64, u64, Vec<RawTemplateRow>);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RawHashChain(u64, u64, u64, u64, u64, u64, u64, u64, u64, u64);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RawPermutationInvocation(u64, u64, u64, Vec<RawSparseCombination>);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RawWitnessInstruction(u64, u64, RawSparseCombination, RawSparseCombination);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RawSparseTerm(u64, u64);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RawSparseCombination(u64, Vec<RawSparseTerm>);
-
-#[derive(Debug, Deserialize, Serialize)]
-struct RawSparseRow(u64, RawSparseCombination, RawSparseCombination, RawSparseCombination);
+pub(crate) fn require_input_length(what: &'static str, expected: usize, actual: usize) -> Result<(), PackageError> {
+    if expected != actual {
+        return Err(PackageError::InputLength { what, expected, actual });
+    }
+    Ok(())
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum ColumnRef {
@@ -298,8 +251,6 @@ impl ScheduledWitness<'_> {
     }
 }
 
-/// Decoded package execution data with structural checks. Its caller supplies
-/// circuit authority; prepared-package identity words alone do not grant it.
 #[derive(Clone, Debug)]
 pub struct LoadedPackage {
     layout: Layout,
@@ -314,10 +265,8 @@ pub struct LoadedPackage {
     witness_instructions: Vec<WitnessInstruction>,
     assertion_rows: Vec<SparseRow>,
     native_application: Option<Arc<PreparedApplication>>,
-    relation_identifier: [u64; 4],
 }
 
-/// Canonical outer-terminal metadata retained from the Lean package.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct LoadedTerminalLayout {
     row_start: usize,
@@ -345,10 +294,6 @@ impl LoadedTerminalLayout {
 }
 
 impl LoadedPackage {
-    pub fn relation_identifier(&self) -> [u64; 4] {
-        self.relation_identifier
-    }
-
     pub fn row_count(&self) -> usize {
         self.layout.row_count
     }
@@ -364,6 +309,38 @@ impl LoadedPackage {
             .filter(|segment| !v1_2::is_witness_role(segment.role))
             .map(|segment| segment.length)
             .sum()
+    }
+
+    /// The position of `column` in the private inputs of `execute_witness`,
+    /// or `None` when no caller input segment holds it.
+    pub fn private_input_index(&self, column: usize) -> Option<usize> {
+        let mut offset = 0;
+        for segment in &self.layout.private_segments {
+            if v1_2::is_witness_role(segment.role) {
+                continue;
+            }
+            if segment.start <= column && column < segment.start + segment.length {
+                return Some(offset + column - segment.start);
+            }
+            offset += segment.length;
+        }
+        None
+    }
+
+    /// The private inputs of `execute_witness` that hold the prior state
+    /// preimage, or `None` when no caller input segment has that role.
+    pub fn prior_preimage_inputs(&self) -> Option<std::ops::Range<usize>> {
+        let mut offset = 0;
+        for segment in &self.layout.private_segments {
+            if v1_2::is_witness_role(segment.role) {
+                continue;
+            }
+            if segment.role == v1_2::PRIOR_PREIMAGE_ROLE {
+                return Some(offset..offset + segment.length);
+            }
+            offset += segment.length;
+        }
+        None
     }
 
     pub fn public_column_count(&self) -> usize {
@@ -382,36 +359,6 @@ impl LoadedPackage {
         self.terminal.as_ref()
     }
 
-    pub fn template_row_count(&self) -> usize {
-        self.permutation.rows.len()
-    }
-
-    pub fn assertion_row_count(&self) -> usize {
-        self.assertion_rows.len()
-            + self
-                .native_application
-                .as_ref()
-                .map_or(0, |app| app.records().row_count())
-    }
-
-    pub fn permutation_invocation_count(&self) -> usize {
-        self.permutation_invocations.len()
-    }
-
-    pub fn compact_template_count(&self) -> usize {
-        self.compact_templates.len()
-    }
-
-    pub fn compact_invocation_count(&self) -> usize {
-        self.compact_invocations.len()
-    }
-
-    pub fn witness_instruction_count(&self) -> usize {
-        self.witness_instructions.len()
-    }
-
-    /// Execute the canonical sparse-row witness program. `private_inputs`
-    /// contains every non-witness private segment in package order.
     pub fn execute_witness(
         &self,
         private_inputs: &[u64],
@@ -440,11 +387,14 @@ impl LoadedPackage {
         check: bool,
     ) -> Result<WitnessAssignment, PackageError> {
         if application_values.is_some() && self.native_application.is_none() {
-            return Err(PackageError::Invalid("precomputed values require a native application"));
+            return Err(PackageError::Input("precomputed values require a native application"));
         }
-        if private_inputs.len() != self.private_input_count() {
-            return Err(PackageError::Invalid("private input length"));
-        }
+        require_input_length("private input length", self.private_input_count(), private_inputs.len())?;
+        require_input_length(
+            "public input length",
+            self.layout.public_column_count,
+            public_values.len(),
+        )?;
         if self
             .layout
             .public_segments
@@ -452,9 +402,8 @@ impl LoadedPackage {
             .map(|segment| segment.length)
             .sum::<usize>()
             != public_values.len()
-            || public_values.len() != self.layout.public_column_count
         {
-            return Err(PackageError::Invalid("public input length"));
+            return Err(PackageError::Malformed("public input length"));
         }
         for value in private_inputs {
             canonical_field(*value, "private input")?;
@@ -538,7 +487,7 @@ impl LoadedPackage {
             assignment[output_column] = left * right;
             let output = self.eval_template_combination(&row.c, invocation, assignment);
             if assignment[output_column] != output {
-                return Err(PackageError::Invalid("unsatisfied witness row"));
+                return Err(PackageError::Malformed("unsatisfied witness row"));
             }
         }
         Ok(())
@@ -613,10 +562,10 @@ fn scheduled_invocations(package: &LoadedPackage) -> Result<Vec<ScheduledInvocat
         .iter()
         .map(|chain| chain.absorb_count + 1)
         .try_fold(0usize, |sum, count| sum.checked_add(count))
-        .ok_or(PackageError::Invalid("invocation count overflow"))?;
+        .ok_or(PackageError::Malformed("invocation count overflow"))?;
     let capacity = hash_count
         .checked_add(package.permutation_invocations.len())
-        .ok_or(PackageError::Invalid("invocation count overflow"))?;
+        .ok_or(PackageError::Malformed("invocation count overflow"))?;
     let mut scheduled = Vec::with_capacity(capacity);
     for chain in &package.hash_chains {
         for ordinal in 0..=chain.absorb_count {
@@ -645,7 +594,7 @@ fn scheduled_witnesses(package: &LoadedPackage) -> Result<Vec<ScheduledWitness<'
         .checked_add(package.compact_invocations.len())
         .and_then(|count| count.checked_add(package.witness_instructions.len()))
         .and_then(|count| count.checked_add(usize::from(package.native_application.is_some())))
-        .ok_or(PackageError::Invalid("witness schedule overflow"))?;
+        .ok_or(PackageError::Malformed("witness schedule overflow"))?;
     let mut scheduled = Vec::with_capacity(capacity);
     scheduled.extend(invocations.into_iter().map(ScheduledWitness::Permutation));
     scheduled.extend(
@@ -679,7 +628,7 @@ fn scheduled_assignments(package: &LoadedPackage) -> Result<Vec<ScheduledAssignm
         .and_then(|count| count.checked_add(package.witness_batches.len()))
         .and_then(|count| count.checked_add(package.witness_instructions.len()))
         .and_then(|count| count.checked_add(usize::from(package.native_application.is_some())))
-        .ok_or(PackageError::Invalid("assignment schedule overflow"))?;
+        .ok_or(PackageError::Malformed("assignment schedule overflow"))?;
     let mut scheduled = Vec::with_capacity(capacity);
     scheduled.extend(
         invocations
@@ -715,685 +664,8 @@ fn scheduled_assignments(package: &LoadedPackage) -> Result<Vec<ScheduledAssignm
     Ok(scheduled)
 }
 
-fn validate_package(
-    raw: RawPackage,
-    relation_identifier: [u64; 4],
-    native_application: Option<PreparedApplication>,
-) -> Result<LoadedPackage, PackageError> {
-    let RawPackage(
-        schema,
-        profile,
-        poseidon,
-        layout,
-        relation,
-        permutation,
-        chains,
-        invocations,
-        compact_templates,
-        compact_invocations,
-        batches,
-        instructions,
-        assertion_rows,
-        terminal,
-    ) = raw;
-    if schema != sealed::INNER_PACKAGE_SCHEMA {
-        return Err(PackageError::Invalid("schema version"));
-    }
-    validate_profile(profile)?;
-    validate_poseidon(poseidon)?;
-
-    let layout = validate_layout(layout)?;
-    let native_application = native_application
-        .map(|application| {
-            application.validate(&layout)?;
-            Ok::<_, PackageError>(Arc::new(application))
-        })
-        .transpose()?;
-    let relation = relation::validate(relation)?;
-    let terminal = validate_terminal(&terminal, relation.row_count())?;
-    let permutation = validate_permutation(permutation)?;
-    let hash_chains = chains
-        .into_iter()
-        .map(|chain| validate_chain(chain, &layout, &permutation))
-        .collect::<Result<Vec<_>, _>>()?;
-    validate_chain_order(&hash_chains)?;
-
-    let permutation_invocations = invocations
-        .into_iter()
-        .map(|invocation| validate_permutation_invocation(invocation, &layout, &permutation))
-        .collect::<Result<Vec<_>, _>>()?;
-    validate_permutation_invocation_order(&permutation_invocations)?;
-
-    let compact_templates = compact::validate_templates(compact_templates)?;
-
-    let witness_segments = layout
-        .private_segments
-        .iter()
-        .copied()
-        .filter(|segment| v1_2::is_witness_role(segment.role))
-        .collect::<Vec<_>>();
-    let witness_start = witness_segments
-        .first()
-        .ok_or(PackageError::Invalid("witness segment"))?
-        .start;
-    let compact_invocations =
-        compact::validate_invocations(compact_invocations, &compact_templates, &layout, witness_start)?;
-    let witness_batches = batches
-        .into_iter()
-        .map(|batch| {
-            validate_witness_batch(
-                batch,
-                witness_start,
-                layout.private_column_count,
-                layout.constant_column,
-                layout.total_column_count,
-            )
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    validate_witness_batch_order(&witness_batches)?;
-
-    let witness_instructions = instructions
-        .into_iter()
-        .map(|instruction| validate_witness_instruction(instruction, &layout))
-        .collect::<Result<Vec<_>, _>>()?;
-    validate_witness_instruction_order(&witness_instructions)?;
-
-    let assertion_rows = assertion_rows
-        .into_iter()
-        .map(|row| validate_sparse_row(row, &layout))
-        .collect::<Result<Vec<_>, _>>()?;
-    validate_assertion_order(&assertion_rows)?;
-    validate_row_coverage(
-        &layout,
-        &permutation,
-        &hash_chains,
-        &permutation_invocations,
-        &compact_templates,
-        &compact_invocations,
-        &witness_instructions,
-        &assertion_rows,
-        native_application.as_deref(),
-    )?;
-    let mut witness_intervals = hash_chains
-        .iter()
-        .map(|chain| (chain.witness_start, chain.witness_start + chain.witness_length))
-        .collect::<Vec<_>>();
-    witness_intervals.extend(permutation_invocations.iter().map(|invocation| {
-        (
-            invocation.witness_start,
-            invocation.witness_start + permutation.local_column_count,
-        )
-    }));
-    witness_intervals.extend(
-        compact_invocations
-            .iter()
-            .map(|invocation| (invocation.output_column, invocation.output_column + 1)),
-    );
-    witness_intervals.extend(compact_invocations.iter().filter_map(|invocation| {
-        let local_count = invocation.local_column_count(&compact_templates);
-        (local_count != 0).then_some((invocation.local_start, invocation.local_start + local_count))
-    }));
-    witness_intervals.extend(
-        witness_batches
-            .iter()
-            .map(|batch| (batch.start, batch.end())),
-    );
-    witness_intervals.extend(
-        witness_instructions
-            .iter()
-            .map(|instruction| (instruction.target, instruction.target + 1)),
-    );
-    if let Some(application) = native_application
-        .as_deref()
-        .filter(|app| app.records().recipe_count() != 0)
-    {
-        let range = application.plan().private_range();
-        witness_intervals.push((range.start, range.end));
-    }
-    if witness_intervals
-        .iter()
-        .any(|&(start, end)| !interval_owned_by_witness_segment(start, end, &witness_segments))
-    {
-        return Err(PackageError::Invalid("witness interval ownership"));
-    }
-    for segment in &witness_segments {
-        let end = segment.start + segment.length;
-        let owned = witness_intervals
-            .iter()
-            .copied()
-            .filter(|&(start, interval_end)| segment.start <= start && interval_end <= end)
-            .collect();
-        validate_witness_coverage(segment.start, segment.length, owned)?;
-    }
-
-    Ok(LoadedPackage {
-        layout,
-        relation,
-        terminal,
-        permutation,
-        hash_chains,
-        permutation_invocations,
-        compact_templates,
-        compact_invocations,
-        witness_batches,
-        witness_instructions,
-        assertion_rows,
-        native_application,
-        relation_identifier,
-    })
-}
-
-fn interval_owned_by_witness_segment(start: usize, end: usize, segments: &[Segment]) -> bool {
-    end > start
-        && segments
-            .iter()
-            .any(|segment| segment.start <= start && end <= segment.start + segment.length)
-}
-
-fn validate_profile(raw: RawProfile) -> Result<(), PackageError> {
-    let RawProfile(modulus, base, digits, bound, fresh, running, rlc_inputs, dec_children, matrices, cube) = raw;
-    if (
-        modulus,
-        base,
-        digits,
-        bound,
-        fresh,
-        running,
-        rlc_inputs,
-        dec_children,
-        matrices,
-        cube,
-    ) != (
-        GOLDILOCKS_MODULUS,
-        2,
-        16,
-        65_536,
-        1,
-        16,
-        17,
-        16,
-        PI_CCS_V1_2_MATRIX_COUNT as u64,
-        28,
-    ) {
-        return Err(PackageError::Invalid("fixed production profile"));
-    }
-    Ok(())
-}
-
-fn validate_poseidon(raw: RawPoseidonSchedule) -> Result<(), PackageError> {
-    let RawPoseidonSchedule(width, rate, digest, initial, partial, terminal, recipes, output_start) = raw;
-    if (width, rate, digest, initial, partial, terminal, recipes, output_start) != (16, 12, 4, 4, 22, 4, 1096, 1080) {
-        return Err(PackageError::Invalid("Poseidon2 schedule"));
-    }
-    Ok(())
-}
-
-fn validate_terminal(raw: &[Value], relation_row_count: usize) -> Result<Option<LoadedTerminalLayout>, PackageError> {
-    match raw {
-        [Value::Number(tag), Value::Array(layout)] if tag.as_u64() == Some(1) => {
-            let [row_start, row_count, running, fresh] = layout.as_slice() else {
-                return Err(PackageError::Invalid("pilot terminal option"));
-            };
-            let decoded = LoadedTerminalLayout {
-                row_start: row_start
-                    .as_u64()
-                    .and_then(|value| usize::try_from(value).ok())
-                    .ok_or(PackageError::Invalid("pilot terminal option"))?,
-                row_count: row_count
-                    .as_u64()
-                    .and_then(|value| usize::try_from(value).ok())
-                    .ok_or(PackageError::Invalid("pilot terminal option"))?,
-                running_claim_count: running
-                    .as_u64()
-                    .and_then(|value| usize::try_from(value).ok())
-                    .ok_or(PackageError::Invalid("pilot terminal option"))?,
-                fresh_claim_count: fresh
-                    .as_u64()
-                    .and_then(|value| usize::try_from(value).ok())
-                    .ok_or(PackageError::Invalid("pilot terminal option"))?,
-            };
-            if decoded
-                != (LoadedTerminalLayout {
-                    row_start: 0,
-                    row_count: relation_row_count,
-                    running_claim_count: 16,
-                    fresh_claim_count: 1,
-                })
-            {
-                return Err(PackageError::Invalid("pilot terminal option"));
-            }
-            Ok(Some(decoded))
-        }
-        _ => Err(PackageError::Invalid("pilot terminal option")),
-    }
-}
-
-fn validate_layout(raw: RawPhysicalLayout) -> Result<Layout, PackageError> {
-    let RawPhysicalLayout(rows, private, constant, public, total, private_segments, public_segments) = raw;
-    let row_count = word_to_usize(rows, "row count")?;
-    let private_column_count = word_to_usize(private, "private column count")?;
-    let constant_column = word_to_usize(constant, "constant column")?;
-    let public_column_count = word_to_usize(public, "public column count")?;
-    let total_column_count = word_to_usize(total, "total column count")?;
-
-    if private_column_count != constant_column {
-        return Err(PackageError::Invalid("constant column position"));
-    }
-    if private_column_count
-        .checked_add(1)
-        .and_then(|value| value.checked_add(public_column_count))
-        != Some(total_column_count)
-    {
-        return Err(PackageError::Invalid("total column count"));
-    }
-    if row_count.max(total_column_count.saturating_sub(1)) > MAX_JOINT_DOMAIN {
-        return Err(PackageError::Invalid("2^28 joint domain"));
-    }
-
-    let mut expected_private_roles = v1_2::private_segment_roles();
-    let prefix_segment_count = expected_private_roles.len();
-    expected_private_roles.extend([sealed::APPLICATION_WITNESS_ROLE, sealed::APPLICATION_LOCAL_ROLE]);
-    let private_segments = validate_segments(private_segments, 0, private_column_count, &expected_private_roles, 2)?;
-    v1_2::validate_private_segments(&private_segments[..prefix_segment_count])?;
-    let public_segments = validate_segments(public_segments, constant_column + 1, total_column_count, &[4, 5, 10], 0)?;
-    v1_2::validate_public_segments(&public_segments)?;
-
-    Ok(Layout {
-        row_count,
-        private_column_count,
-        constant_column,
-        public_column_count,
-        total_column_count,
-        private_segments,
-        public_segments,
-    })
-}
-
-fn validate_segments(
-    raw: Vec<RawSegment>,
-    first: usize,
-    end: usize,
-    expected_roles: &[u64],
-    zero_length_suffix: usize,
-) -> Result<Vec<Segment>, PackageError> {
-    if raw.len() != expected_roles.len() {
-        return Err(PackageError::Invalid("layout segment count"));
-    }
-    let mut cursor = first;
-    let mut segments = Vec::with_capacity(raw.len());
-    let zero_length_start = expected_roles.len() - zero_length_suffix;
-    for (ordinal, (raw, expected_role)) in raw.into_iter().zip(expected_roles).enumerate() {
-        let RawSegment(role, start, length) = raw;
-        let start = word_to_usize(start, "segment start")?;
-        let length = word_to_usize(length, "segment length")?;
-        if role != *expected_role || start != cursor || (length == 0 && ordinal < zero_length_start) {
-            return Err(PackageError::Invalid("layout segment partition"));
-        }
-        cursor = cursor
-            .checked_add(length)
-            .ok_or(PackageError::Invalid("segment end overflow"))?;
-        if cursor > end {
-            return Err(PackageError::Invalid("segment end"));
-        }
-        segments.push(Segment { role, start, length });
-    }
-    if cursor != end {
-        return Err(PackageError::Invalid("layout segment coverage"));
-    }
-    Ok(segments)
-}
-
-fn validate_permutation(raw: RawPermutationTemplate) -> Result<PermutationTemplate, PackageError> {
-    let RawPermutationTemplate(input_count, local_count, output_start, rows) = raw;
-    let input_count = word_to_usize(input_count, "template input count")?;
-    let local_column_count = word_to_usize(local_count, "template local count")?;
-    let output_local_start = word_to_usize(output_start, "template output start")?;
-    if (input_count, local_column_count, output_local_start) != (16, 1096, 1080) || rows.len() != local_column_count {
-        return Err(PackageError::Invalid("permutation template shape"));
-    }
-
-    let rows = rows
-        .into_iter()
-        .enumerate()
-        .map(|(ordinal, row)| validate_template_row(row, ordinal, input_count, local_column_count))
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(PermutationTemplate {
-        input_count,
-        local_column_count,
-        output_local_start,
-        rows,
-    })
-}
-
-fn validate_template_row(
-    raw: RawTemplateRow,
-    ordinal: usize,
-    input_count: usize,
-    local_count: usize,
-) -> Result<TemplateRow, PackageError> {
-    let RawTemplateRow(output, a, b, c) = raw;
-    let output_local = word_to_usize(output, "template output")?;
-    if output_local != ordinal {
-        return Err(PackageError::Invalid("template output order"));
-    }
-    let a = validate_template_combination(a, input_count, local_count, Some(output_local))?;
-    let b = validate_template_combination(b, input_count, local_count, Some(output_local))?;
-    let c = validate_template_combination(c, input_count, local_count, None)?;
-    if c.constant != Goldilocks::ZERO
-        || c.terms.len() != 1
-        || c.terms[0].column != ColumnRef::Local(output_local)
-        || c.terms[0].coefficient != Goldilocks::ONE
-    {
-        return Err(PackageError::Invalid("template witness output equation"));
-    }
-    Ok(TemplateRow { output_local, a, b, c })
-}
-
-fn validate_template_combination(
-    raw: RawTemplateCombination,
-    input_count: usize,
-    local_count: usize,
-    causal_before: Option<usize>,
-) -> Result<TemplateCombination, PackageError> {
-    let RawTemplateCombination(constant, terms) = raw;
-    canonical_field(constant, "template constant")?;
-    let terms = terms
-        .into_iter()
-        .map(|RawTemplateTerm(RawColumnRef(tag, index), coefficient)| {
-            canonical_field(coefficient, "template coefficient")?;
-            let index = word_to_usize(index, "template reference")?;
-            let column = match tag {
-                0 if index < input_count => ColumnRef::Input(index),
-                1 if index < local_count => {
-                    if causal_before.is_some_and(|bound| index >= bound) {
-                        return Err(PackageError::Invalid("noncausal template reference"));
-                    }
-                    ColumnRef::Local(index)
-                }
-                _ => return Err(PackageError::Invalid("template column reference")),
-            };
-            Ok(TemplateTerm {
-                column,
-                coefficient: Goldilocks::from_u64(coefficient),
-            })
-        })
-        .collect::<Result<Vec<_>, PackageError>>()?;
-    Ok(TemplateCombination {
-        constant: Goldilocks::from_u64(constant),
-        terms,
-    })
-}
-
-fn validate_chain(
-    raw: RawHashChain,
-    layout: &Layout,
-    template: &PermutationTemplate,
-) -> Result<HashChain, PackageError> {
-    let RawHashChain(
-        phase,
-        row_start,
-        row_count,
-        input_start,
-        input_length,
-        witness_start,
-        witness_length,
-        absorb_count,
-        digest_length,
-        digest_start,
-    ) = raw;
-    let chain = HashChain {
-        phase,
-        row_start: word_to_usize(row_start, "chain row start")?,
-        row_count: word_to_usize(row_count, "chain row count")?,
-        input_start: word_to_usize(input_start, "chain input start")?,
-        input_length: word_to_usize(input_length, "chain input length")?,
-        witness_start: word_to_usize(witness_start, "chain witness start")?,
-        witness_length: word_to_usize(witness_length, "chain witness length")?,
-        absorb_count: word_to_usize(absorb_count, "chain absorb count")?,
-        digest_length: word_to_usize(digest_length, "chain digest length")?,
-        digest_start: word_to_usize(digest_start, "chain digest start")?,
-    };
-
-    let rate = neo_ccs::crypto::poseidon2_goldilocks::RATE;
-    let expected_absorbs = chain
-        .input_length
-        .checked_add(rate - 1)
-        .ok_or(PackageError::Invalid("hash input length overflow"))?
-        / rate;
-    let expected_witness = chain
-        .absorb_count
-        .checked_add(1)
-        .and_then(|count| count.checked_mul(template.rows.len()))
-        .ok_or(PackageError::Invalid("hash witness length overflow"))?;
-    if chain.absorb_count != expected_absorbs
-        || chain.witness_length != expected_witness
-        || chain.digest_length > 4
-        || chain.row_count != chain.witness_length + chain.digest_length
-    {
-        return Err(PackageError::Invalid("hash chain dimensions"));
-    }
-    if checked_end(chain.row_start, chain.row_count)? > layout.row_count
-        || checked_end(chain.input_start, chain.input_length)? > layout.private_column_count
-        || checked_end(chain.witness_start, chain.witness_length)? > layout.private_column_count
-        || (chain.digest_length != 0
-            && (chain.digest_start <= layout.constant_column
-                || checked_end(chain.digest_start, chain.digest_length)? > layout.total_column_count))
-    {
-        return Err(PackageError::Invalid("hash chain range"));
-    }
-    Ok(chain)
-}
-
-fn validate_chain_order(chains: &[HashChain]) -> Result<(), PackageError> {
-    if chains.len() != 2 || chains[0].phase != 1 || chains[1].phase != 2 {
-        return Err(PackageError::Invalid("pilot phase order"));
-    }
-    Ok(())
-}
-
-fn validate_permutation_invocation(
-    raw: RawPermutationInvocation,
-    layout: &Layout,
-    template: &PermutationTemplate,
-) -> Result<PermutationInvocation, PackageError> {
-    let RawPermutationInvocation(phase, row_start, witness_start, inputs) = raw;
-    let row_start = word_to_usize(row_start, "invocation row start")?;
-    let witness_start = word_to_usize(witness_start, "invocation witness start")?;
-    if phase == 0
-        || inputs.len() != template.input_count
-        || checked_end(row_start, template.rows.len())? > layout.row_count
-        || checked_end(witness_start, template.local_column_count)? > layout.private_column_count
-    {
-        return Err(PackageError::Invalid("permutation invocation shape"));
-    }
-    let inputs = inputs
-        .into_iter()
-        .map(|input| validate_sparse_combination(input, layout))
-        .collect::<Result<Vec<_>, _>>()?;
-    if inputs
-        .iter()
-        .flat_map(|input| &input.terms)
-        .any(|term| term.column < layout.constant_column && term.column >= witness_start)
-    {
-        return Err(PackageError::Invalid("noncausal invocation input"));
-    }
-    Ok(PermutationInvocation {
-        phase,
-        row_start,
-        witness_start,
-        inputs,
-    })
-}
-
-fn validate_permutation_invocation_order(invocations: &[PermutationInvocation]) -> Result<(), PackageError> {
-    if invocations
-        .windows(2)
-        .any(|pair| pair[0].row_start >= pair[1].row_start || pair[0].phase > pair[1].phase)
-    {
-        return Err(PackageError::Invalid("permutation invocation order"));
-    }
-    Ok(())
-}
-
-fn validate_witness_instruction(
-    raw: RawWitnessInstruction,
-    layout: &Layout,
-) -> Result<WitnessInstruction, PackageError> {
-    let RawWitnessInstruction(row_index, target, a, b) = raw;
-    let row_index = word_to_usize(row_index, "witness row index")?;
-    let target = word_to_usize(target, "witness target")?;
-    let witness_start = layout
-        .private_segments
-        .iter()
-        .find(|segment| segment.role == 3)
-        .ok_or(PackageError::Invalid("witness segment"))?
-        .start;
-    if row_index >= layout.row_count || target < witness_start || target >= layout.private_column_count {
-        return Err(PackageError::Invalid("witness instruction range"));
-    }
-    let a = validate_sparse_combination(a, layout)?;
-    let b = validate_sparse_combination(b, layout)?;
-    if a.terms
-        .iter()
-        .chain(&b.terms)
-        .any(|term| term.column < layout.constant_column && term.column >= target)
-    {
-        return Err(PackageError::Invalid("noncausal witness instruction"));
-    }
-    Ok(WitnessInstruction {
-        row_index,
-        target,
-        a,
-        b,
-    })
-}
-
-fn validate_witness_instruction_order(instructions: &[WitnessInstruction]) -> Result<(), PackageError> {
-    if instructions
-        .windows(2)
-        .any(|pair| pair[0].row_index >= pair[1].row_index)
-    {
-        return Err(PackageError::Invalid("witness instruction order"));
-    }
-    Ok(())
-}
-
-fn validate_sparse_row(raw: RawSparseRow, layout: &Layout) -> Result<SparseRow, PackageError> {
-    let RawSparseRow(row_index, a, b, c) = raw;
-    let row_index = word_to_usize(row_index, "assertion row index")?;
-    if row_index >= layout.row_count {
-        return Err(PackageError::Invalid("assertion row range"));
-    }
-    Ok(SparseRow {
-        row_index,
-        a: validate_sparse_combination(a, layout)?,
-        b: validate_sparse_combination(b, layout)?,
-        c: validate_sparse_combination(c, layout)?,
-    })
-}
-
-fn validate_sparse_combination(raw: RawSparseCombination, layout: &Layout) -> Result<SparseCombination, PackageError> {
-    let RawSparseCombination(constant, terms) = raw;
-    canonical_field(constant, "assertion constant")?;
-    let terms = terms
-        .into_iter()
-        .map(|RawSparseTerm(column, coefficient)| {
-            canonical_field(coefficient, "assertion coefficient")?;
-            let column = word_to_usize(column, "assertion column")?;
-            if column >= layout.total_column_count || column == layout.constant_column {
-                return Err(PackageError::Invalid("assertion column range"));
-            }
-            Ok(SparseTerm {
-                column,
-                coefficient: Goldilocks::from_u64(coefficient),
-            })
-        })
-        .collect::<Result<Vec<_>, PackageError>>()?;
-    Ok(SparseCombination {
-        constant: Goldilocks::from_u64(constant),
-        terms,
-    })
-}
-
-fn validate_assertion_order(rows: &[SparseRow]) -> Result<(), PackageError> {
-    if rows
-        .windows(2)
-        .any(|pair| pair[0].row_index >= pair[1].row_index)
-    {
-        return Err(PackageError::Invalid("assertion row order"));
-    }
-    Ok(())
-}
-
-fn validate_row_coverage(
-    layout: &Layout,
-    template: &PermutationTemplate,
-    chains: &[HashChain],
-    invocations: &[PermutationInvocation],
-    compact_templates: &[CompactRowTemplate],
-    compact_invocations: &[CompactRowInvocation],
-    instructions: &[WitnessInstruction],
-    assertions: &[SparseRow],
-    native_application: Option<&PreparedApplication>,
-) -> Result<(), PackageError> {
-    let mut intervals = chains
-        .iter()
-        .map(|chain| (chain.row_start, chain.row_start + chain.witness_length))
-        .collect::<Vec<_>>();
-    intervals.extend(
-        invocations
-            .iter()
-            .map(|invocation| (invocation.row_start, invocation.row_start + template.rows.len())),
-    );
-    intervals.extend(compact_invocations.iter().map(|invocation| {
-        (
-            invocation.row_start,
-            invocation.row_start + invocation.row_count(compact_templates),
-        )
-    }));
-    intervals.extend(
-        instructions
-            .iter()
-            .map(|instruction| (instruction.row_index, instruction.row_index + 1)),
-    );
-    intervals.extend(
-        assertions
-            .iter()
-            .map(|row| (row.row_index, row.row_index + 1)),
-    );
-    if let Some(application) = native_application.filter(|app| app.records().row_count() != 0) {
-        let range = application.plan().row_range();
-        intervals.push((range.start, range.end));
-    }
-    intervals.sort_unstable();
-    let mut cursor = 0usize;
-    for (start, end) in intervals {
-        if start != cursor || end <= start {
-            return Err(PackageError::Invalid("physical row coverage"));
-        }
-        cursor = end;
-    }
-    if cursor != layout.row_count {
-        return Err(PackageError::Invalid("physical row count coverage"));
-    }
-    Ok(())
-}
-
-fn canonical_field(value: u64, location: &'static str) -> Result<(), PackageError> {
-    if value >= GOLDILOCKS_MODULUS {
-        Err(PackageError::NonCanonicalField { location, value })
-    } else {
-        Ok(())
-    }
-}
-
-fn word_to_usize(value: u64, location: &'static str) -> Result<usize, PackageError> {
-    usize::try_from(value).map_err(|_| PackageError::Invalid(location))
-}
-
 fn checked_end(start: usize, length: usize) -> Result<usize, PackageError> {
     start
         .checked_add(length)
-        .ok_or(PackageError::Invalid("range overflow"))
+        .ok_or(PackageError::Malformed("range overflow"))
 }

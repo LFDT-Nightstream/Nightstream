@@ -51,18 +51,13 @@ def coreInterface {degree : Nat} (interface : Interface degree)
   initial := interface.initial offset
   round := interface.round offset
 
-/-- Number of stored base-field values of the fixed production chain. -/
 def privateCount (degree : Nat) : Nat :=
   FixedChain.Owned.privateCount degree productionShape.cubeVariables
 
-/-- The stored final `p_i(r_i)` value exported to the terminal-identity
-leaf. -/
 def output {degree : Nat} (interface : Interface degree)
     (offset : Nat) : KExpr :=
   FixedChain.Owned.output (coreInterface interface offset) offset
 
-/-- The exact dimension-checked challenge vector supplied by the transcript
-leaf through the shared round interface. -/
 def evalRoundPoint {degree : Nat} (interface : Interface degree)
     (offset : Nat) (env : Env) : CubePoint K productionShape.cubeVariables where
   coordinates := (coreInterface interface offset).rounds.map
@@ -78,7 +73,6 @@ abbrev SpecHolds {degree : Nat} (interface : Interface degree)
     (offset : Nat) (env : Env) : Prop :=
   FixedChain.Owned.SpecHolds (coreInterface interface offset) offset env
 
-/-- The sole logical circuit for the fixed production chain. -/
 def circuit {degree : Nat} (interface : Interface degree) : FormalCircuit where
   main := fun offset =>
     (FixedChain.Owned.circuit (coreInterface interface offset)).main offset
@@ -111,15 +105,12 @@ theorem completeness {degree : Nat} (interface : Interface degree)
       holdsFlat completed (Circuit.ops (circuit interface).main offset) :=
   (circuit interface).completeness env offset assumptions specification
 
-/-- The leaf emits exactly the reusable chain's operations. -/
 theorem circuit_ops {degree : Nat} (interface : Interface degree)
     (offset : Nat) :
     Circuit.ops (circuit interface).main offset =
       FixedChain.Owned.opsAt (coreInterface interface offset) offset :=
   rfl
 
-/-- The specification is stable when the input wires and the stored chain
-interval are unchanged. -/
 theorem specHolds_of_agree_below {degree : Nat}
     (interface : Interface degree) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
@@ -160,7 +151,6 @@ theorem flatConstraints_length {degree : Nat} (interface : Interface degree)
     FixedChain.Owned.flatConstraints_length
       (coreInterface interface offset) offset
 
-/-- Every chain row reads only input wires or the stored chain interval. -/
 theorem flatConstraints_varsBelow {degree : Nat}
     (interface : Interface degree) (offset : Nat)
     (assumptions : Assumptions interface offset (fun _ => 0)) :
@@ -170,15 +160,12 @@ theorem flatConstraints_varsBelow {degree : Nat}
   FixedChain.Owned.flatConstraints_varsBelow
     (coreInterface interface offset) offset assumptions
 
-/-- The stored final claim lies inside the chain's interval. -/
 theorem output_varsBelow {degree : Nat} (interface : Interface degree)
     (offset : Nat) (assumptions : Assumptions interface offset (fun _ => 0)) :
     (output interface offset).VarsBelow (offset + privateCount degree) :=
   FixedChain.Owned.output_varsBelow (coreInterface interface offset) offset
     assumptions
 
-/-- Concrete parent coverage: the shared initial, round, challenge, and
-terminal wires form exactly the claimed chain checked by production PiCCS. -/
 theorem spec_implies_keyChain
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -282,7 +269,6 @@ theorem spec_implies_keyChain
   rw [initialCoreEq, roundsListEq, challengeListEq, terminalCoreEq] at specification
   exact specification
 
-/-- The canonical verifier chain, restated over this leaf's input wires. -/
 private theorem keyChain_core
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -374,9 +360,6 @@ private theorem keyChain_core
   rw [initialCoreEq, roundsListEq, challengeListEq]
   exact chain
 
-/-- Exact completeness direction: from the canonical verifier chain over the
-input wires, honest execution stores every `p_i(r_i)`, satisfies the owned
-round rows, and exports the terminal used by the final identity. -/
 theorem keyChain_build
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -447,8 +430,6 @@ theorem keyChain_build
   rw [circuit_ops]
   exact built
 
-/-- With the chain rows satisfied, the stored final claim is the terminal of
-the canonical verifier chain over the same input wires. -/
 theorem output_eval_of_keyChain
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

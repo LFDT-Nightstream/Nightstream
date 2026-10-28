@@ -66,10 +66,7 @@ fn zero_opening_allocation(blocks: usize) -> usize {
 
 #[test]
 fn zero_opening_workspace_does_not_grow_with_carrier_width() {
-    // Output dimensions are fixed. A zero input needs no carrier-sized ring
-    // scratch, even though the matrix contains a nonzero last-column entry.
     let small = zero_opening_allocation(1);
-    // Make a dense scratch plane exceed the measured fixed output allocation.
     let blocks = small.div_ceil(std::mem::size_of::<neo_math::Rq>()) + 1;
     let wider = zero_opening_allocation(blocks);
     assert_eq!(small, wider, "zero opening allocation depends on carrier width");

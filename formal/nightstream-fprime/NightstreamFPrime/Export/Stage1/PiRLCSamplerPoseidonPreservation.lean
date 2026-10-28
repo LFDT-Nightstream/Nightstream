@@ -1,8 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPlan
 
 /-!
-Owns the value-preservation bridge for the direct PiRLC sampler Poseidon2
-plan. It proves the exact cross-source chain and verifier-owned entry words.
+Owns the value-preservation bridge for the direct PiRLC sampler Poseidon2 plan.
 
 The checked reduction rows are owned by the sampler ordinary plan.
 -/
@@ -57,8 +56,6 @@ def outputValue {program : Lifecycle.Stage1.Application.Program}
   SparseLayer.evalState assignment
     ((PiRLCSamplerPoseidonPlan.interface geometry).output current)
 
-/-- Every retained sampler final-state lane reconstructs the exact canonical
-source value selected by the sampler Poseidon schedule. -/
 theorem outputValue_sourceAssignment
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)

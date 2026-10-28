@@ -23,8 +23,6 @@ private def parseVerifierKeyWord (label word : String) : Except String F := do
   else
     throw s!"invalid verifier-key word {label}: expected decimal UInt64"
 
-/-- Parse fixture context words; the package conformance check establishes
-their equality with the verifier-owned context. -/
 def parseVerifierKey (w0 w1 w2 w3 : String) : Except String Digest4 := do
   let c0 ← parseVerifierKeyWord "vk0" w0
   let c1 ← parseVerifierKeyWord "vk1" w1

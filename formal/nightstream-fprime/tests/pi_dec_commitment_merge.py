@@ -1,5 +1,3 @@
-"""Reject malformed inputs before Lean emits a complete commitment sum."""
-
 import copy
 import json
 from pathlib import Path

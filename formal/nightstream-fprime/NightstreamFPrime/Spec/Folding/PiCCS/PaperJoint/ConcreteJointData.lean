@@ -3,9 +3,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormResidualTable
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CarriedEvaluationResidual
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckInitial
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ConcreteJointData.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Independent construction of the paper-level joint `Pi_CCS` data.
 
@@ -25,29 +22,6 @@ the concrete base-to-extension homomorphism, target-convention approval,
 expected-round degree bounds, Fiat--Shamir, Rust, R1CS, or counts.
 
 Emits constraints: no.
-
-Authority boundary: callers provide mathematical matrices, assignments,
-claimed prior evaluations, and a base-to-extension function. The Pad and
-matrix families share one prior point and one running-assignment family by
-construction. Callers do not
-provide residual tables, a `JointData`, a semantic truth proposition, an
-evaluator, or a per-family equivalence. `IndependentInputs` deliberately does
-not claim that its CCS, norm, and running assignment families are the same
-paper witnesses;
-only `UnifiedSources.UnifiedInputs` may establish that connectivity and
-project into this reusable family layer. The only lift premise used for zero
-truth is explicit zero reflection; stronger homomorphism and production-layout
-claims remain separate refinement obligations.
-
-| Protocol | Phase | Constructed family | Exact theorem |
-|---|---|---|---|
-| `Pi_CCS` | CCS | lifted explicit sparse-CCS residual tables | zero iff every fresh CCS assignment satisfies the explicit structure |
-| `Pi_CCS` | norm | lifted canonical cubic tables | zero iff every typed source satisfies strict centered norm `< 2` |
-| `Pi_CCS` | Pad evaluation | verifier-owned Pad coefficient-image tables | residual zero iff every `Eval_K` claim is derived correctly |
-| `Pi_CCS` | matrix evaluation | all CCS coefficient-image tables | residual zero iff every `Eval_A` claim is derived correctly |
-| `Pi_CCS` | joint assembly | `toJointData` | no caller-selected residual table enters `Q` |
-| `Pi_CCS` | semantic closure | `jointTableTruth_iff_semanticTruth` | joint table truth iff CCS, norm, Pad, and matrix truth |
-| `Pi_CCS` | executable reduction | `checkJoint_implies_semanticTruth_or_badEvent` | accepted canonical SumCheck yields semantic truth or a named mixing/round event |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteJointData
@@ -58,7 +32,6 @@ open NightstreamFPrime.Spec.SumCheck
 
 universe uExtension
 
-/-- Lift every leaf without changing the typed Boolean-domain shape or order. -/
 def liftTable
     {Base : Type}
     {Extension : Type uExtension}
@@ -69,7 +42,6 @@ def liftTable
   | _ + 1, .branch low high =>
       .branch (liftTable lift low) (liftTable lift high)
 
-/-- Lifting preserves the sole canonical low/high leaf order. -/
 theorem liftTable_entries_eq
     {Base : Type}
     {Extension : Type uExtension}
@@ -83,8 +55,6 @@ theorem liftTable_entries_eq
       simp [liftTable, BooleanTable.entries, lowInduction, highInduction,
         List.map_append]
 
-/-- A lift may be used in semantic residual placement only when it preserves
-and reflects zero. No additive or multiplicative homomorphism is hidden here. -/
 structure ZeroReflectingLift
     (baseOps : InterpolationOps F)
     {Extension : Type uExtension}
@@ -93,7 +63,6 @@ structure ZeroReflectingLift
   zero_iff : forall value,
     lift value = extensionOps.zero <-> value = baseOps.zero
 
-/-- Zero reflection transports exact leaf truth across the carrier boundary. -/
 theorem liftTable_allEntriesZero_iff
     (baseOps : InterpolationOps F)
     {Extension : Type uExtension}
@@ -114,11 +83,6 @@ theorem liftTable_allEntriesZero_iff
     rcases List.mem_map.mp member with ⟨baseValue, baseMember, rfl⟩
     exact (liftLaw.zero_iff baseValue).mpr (baseZero baseValue baseMember)
 
-/-- Independently assembled family inputs used by the residual lemmas.
-
-This is not a paper-safe public witness model because the CCS, norm, and
-carried assignments can differ. `UnifiedSources.UnifiedInputs` is the
-authoritative source owner and derives this structure internally. -/
 structure IndependentInputs
     (Extension : Type uExtension)
     (shape : Shape)
@@ -136,8 +100,6 @@ structure IndependentInputs
   claimedPadCoefficient : PadCoordinate shape -> Extension
   claimedMatrixCoefficient : MatrixCoordinate shape -> Extension
 
-/-- Exact v1.2 Pad evaluation view. Its point and assignments come from the
-single owners in `IndependentInputs`. -/
 def IndependentInputs.padData
     {Extension : Type uExtension}
     {shape : Shape}
@@ -149,8 +111,6 @@ def IndependentInputs.padData
   coefficientMatrices := data.padCoefficientMatrices
   claimedCoefficient := data.claimedPadCoefficient
 
-/-- Exact v1.2 CCS-matrix evaluation view. It shares the same point and
-assignments as `padData` by construction. -/
 def IndependentInputs.matrixData
     {Extension : Type uExtension}
     {shape : Shape}
@@ -162,7 +122,6 @@ def IndependentInputs.matrixData
   coefficientMatrices := data.matrixCoefficientMatrices
   claimedCoefficient := data.claimedMatrixCoefficient
 
-/-- The sole joint-data constructor from independent mathematical sources. -/
 def IndependentInputs.toJointData
     {Extension : Type uExtension}
     {shape : Shape}
@@ -183,7 +142,6 @@ def IndependentInputs.toJointData
   claimedPadCoefficient := data.claimedPadCoefficient
   claimedMatrixCoefficient := data.claimedMatrixCoefficient
 
-/-- The independent, pre-compression mathematical truth owned by this bundle. -/
 def IndependentInputs.SemanticTruth
     {Extension : Type uExtension}
     {shape : Shape}
@@ -212,8 +170,6 @@ private theorem mem_canonicalMatrixCoordinates
   rcases coordinate with ⟨running, matrix, coefficient⟩
   simp [canonicalMatrixCoordinates, canonicalFinIndices]
 
-/-- Expand the proposition-list serialization back to its typed family owners.
-This theorem is generic accounting; it does not establish any leaf semantics. -/
 theorem tableObligations_allHold_iff_pointwise
     {Field : Type uExtension}
     {shape : Shape}
@@ -259,7 +215,6 @@ theorem tableObligations_allHold_iff_pointwise
       rcases List.mem_map.mp member with ⟨source, _, rfl⟩
       exact norm source
 
-/-- Exact semantic closure for the independently constructed joint tables. -/
 theorem jointTableTruth_iff_semanticTruth
     {Extension : Type uExtension}
     {shape : Shape}
@@ -351,9 +306,6 @@ theorem jointTableTruth_iff_semanticTruth
       simpa [SignedCoefficientObject.toTableResidualData, IndependentInputs.toJointData]
         using liftedZero
 
-/-- Unsampled joint coefficient truth is no longer conditional on a
-caller-assembled `JointData`: it is exactly the four independent semantic
-families for `IndependentInputs`. -/
 theorem coefficientTruth_iff_semanticTruth
     {Extension : Type uExtension}
     {shape : Shape}
@@ -375,9 +327,6 @@ theorem coefficientTruth_iff_semanticTruth
   exact jointTableTruth_iff_semanticTruth baseOps baseZero noZeroDivisors
     extensionOps extensionLaws lift liftLaw data
 
-/-- The strongest current one-joint executable consequence over independently
-constructed semantic data. Degree/root probability and production layout
-refinement remain named later boundaries. -/
 theorem checkJoint_implies_semanticTruth_or_badEvent
     {Extension : Type uExtension}
     [DecidableEq Extension]

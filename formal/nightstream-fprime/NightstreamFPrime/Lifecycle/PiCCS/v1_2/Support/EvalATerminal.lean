@@ -30,7 +30,6 @@ private theorem coefficientExprs_supported (interface : Interface)
   rcases member with ⟨coordinate, _coordinateMember, rfl⟩
   exact outputEvalSupport coordinate
 
-/-- Exact support propagation through the production Eval-A terminal. -/
 theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
     (allowed : Nat → Prop)
     (roundPointSupport : ∀ coordinate,
@@ -60,7 +59,6 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
       simpa [circuit] using upper)
   simpa [circuit] using supported
 
-/-- The 4-matrix Eval-A terminal output preserves the exact row support. -/
 theorem output_varsSatisfy (interface : Interface) (offset : Nat)
     (allowed : Nat → Prop)
     (roundPointSupport : ∀ coordinate,

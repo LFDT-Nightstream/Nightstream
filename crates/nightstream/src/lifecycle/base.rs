@@ -13,6 +13,7 @@ use nightstream_fprime::{
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
+use super::inputs::fixed;
 use super::{
     encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_prior_children, pi_ccs_v1_2_state_hash,
     serialize_pi_ccs_v1_2_state_preimage, ExtendError, PreparedLifecycle, Stage1State, Stage1StepInputs,
@@ -90,16 +91,16 @@ impl PreparedLifecycle {
         #[cfg(test)]
         let recorded_output_preimage = output_preimage.clone();
         let pi_ccs = PiCcsV1_2PackageInputs::new(
-            prior_preimage,
-            output_preimage,
-            pi_ccs_v1_2_prior_children(&running.claims)?,
-            vec![0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS],
-            rounds,
+            fixed(prior_preimage, "state preimage shape")?,
+            fixed(output_preimage, "state preimage shape")?,
+            fixed(pi_ccs_v1_2_prior_children(&running.claims)?, "prior children shape")?,
+            Box::new([0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS]),
+            Box::new([[[0; 2]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT]),
             PiCcsV1_2OutputEvaluations::new(
                 vec![vec![[0; 2]; D]; PI_CCS_V1_2_SOURCE_COUNT],
                 vec![vec![vec![[0; 2]; D]; PI_CCS_V1_2_MATRIX_COUNT]; PI_CCS_V1_2_SOURCE_COUNT],
             )?,
-            prior_public,
+            fixed(prior_public, "prior public-input shape")?,
             output_digest,
             self.binding.verifier_context().clone(),
         )?;

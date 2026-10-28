@@ -5,7 +5,7 @@ use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_ma
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_reductions::{
-    common::{decode_pi_rlc_coefficients, split_b_matrix_k_with_nonzero_flags, RotRho},
+    common::{decode_pi_rlc_coefficients, split_b_matrix_k, RotRho},
     paper_exact_engine::{
         dec_reduction_paper_exact_with_rows, paper_exact_prove_with_rows, rlc_reduction_paper_exact_with_commit_mix,
         PaperMatrixRows,
@@ -85,12 +85,12 @@ pub(crate) fn prove(
         ajtai_rlc_mixer,
     );
     drop(sources);
-    let (digits, _) = split_b_matrix_k_with_nonzero_flags(&witness, params.k_rho() as usize, params.b())
+    let digits = split_b_matrix_k(&witness, params.k_rho() as usize, params.b())
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
     let commitments = commit_production_signed_unit_prefix_matrices(&digits)
         .map_err(|error| pi_dec::Error::from(error.into_error()))?;
-    let (children, ok_y, ok_x, ok_c) = dec_reduction_paper_exact_with_rows(
+    let children = dec_reduction_paper_exact_with_rows(
         structure,
         params.inner(),
         &parent,
@@ -101,10 +101,10 @@ pub(crate) fn prove(
         rows,
     )
     .map_err(folding::kernels::Error::from)
+    .map_err(pi_dec::Error::from)?
+    .into_children()
+    .map_err(folding::kernels::Error::from)
     .map_err(pi_dec::Error::from)?;
-    if !(ok_y && ok_x && ok_c) {
-        return Err(pi_dec::Error::Engine(folding::kernels::Error::PiDecPublicCheckFailed { ok_y, ok_x, ok_c }).into());
-    }
     Ok((
         RunningInstance::new(children.clone(), digits),
         NifsProof {
@@ -115,7 +115,6 @@ pub(crate) fn prove(
     ))
 }
 
-// The reference engine uses the same production transcript schedule and decoder.
 fn sample_rhos(
     transcript: &mut neo_transcript::Poseidon2Transcript,
     params: &Params,
@@ -131,7 +130,7 @@ fn sample_rhos(
         transcript.absorb_v1_2(&[F::from_u64(4), F::from_usize(source)]);
         let digest = transcript.squeeze_digest_v1_2();
         let symbols = decode_pi_rlc_coefficients(&digest);
-        let mut column: Vec<F> = symbols.into_iter().map(|value| F::from_i8(value)).collect();
+        let mut column: Vec<F> = symbols.into_iter().map(F::from_i8).collect();
         let mut matrix = Mat::zero(D, D, F::ZERO);
         for index in 0..D {
             for row in 0..D {

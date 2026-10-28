@@ -2,9 +2,10 @@ import NightstreamFPrime.Export.Stage1.CheckedReplayStep
 import NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPointSoundness
 
-/-! Accept the exact canonical successor packet after a checked local replay.
-Input/context custody are ABI links to the actual packet. Its output and digest
-are derived from row soundness and deterministic transition uniqueness. -/
+/-!
+Accept the exact canonical successor packet after a checked local replay.
+Input/context custody are ABI links to the actual packet.
+-/
 
 set_option autoImplicit false
 
@@ -36,8 +37,6 @@ private theorem output_ext
   cases digest
   rfl
 
-/-- Determinism uses the actual NIFS verifier function. No hash injectivity,
-source extraction, or probabilistic assumption is involved. -/
 theorem output_unique
     {Key Digest State Witness Running Fresh Proof Encoded : Type} {slots : Nat}
     (configuration : Setup Key Running Fresh Proof slots)
@@ -77,8 +76,6 @@ def nextStatement (statement : HyperNovaHistory.Statement) (advice : AppWitness)
   z0 := statement.z0
   zi := application.step statement.zi advice
 
-/-- One exact successor: the sixteen returned child witnesses and the same
-canonical fresh carrier used by the commitment and public input. -/
 noncomputable def payload
     (result : Running (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
       (publicFits := PerApplicationFixedPoint.publicFits application))
@@ -95,11 +92,6 @@ noncomputable def payload
   freshWitness := raw.completeAssignment
   pc := 1
 
-/-- The checked local replay and the actual canonical row packet yield an
-accepted exact successor. Rows and norm are natural assignment premises.
-Child CE membership is supplied by the source/R/D opening kernels, never by
-public D acceptance alone. Input and context custody are explicit ABI links;
-no output equality or accepted successor is a premise. -/
 theorem accepted_of_checked_rows
     (statement : HyperNovaHistory.Statement)
     (input : PiCCSInputCheck.Input) (batch : PiRLCParent.Batch)
@@ -123,7 +115,7 @@ theorem accepted_of_checked_rows
     (rows : (PerApplicationFixedPoint.structuralPlan application fits).RowsZero raw.assignment)
     (bounded : ∀ column, centeredMagnitude (raw.completeAssignment column) < 2)
     (inputCustody : PerApplicationDecodedIO.input application fits raw =
-      HyperNovaStepData.input statement (CheckedReplayStep.prior input runningWitness freshWitness)
+      HyperNovaStepData.input application statement (CheckedReplayStep.prior input runningWitness freshWitness)
         advice (CheckedReplayNifs.proof input messages))
     (contextCustody : PerApplicationDecodedIO.contextKey raw =
       PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup)
@@ -144,13 +136,13 @@ theorem accepted_of_checked_rows
     (setup (PerApplicationFixedPoint.relation application fits) productionAjtaiKey
       (PerApplicationCanonicalPackage.verifierContextDigest fits productionSetup))
     (machineFor (PerApplicationFixedPoint.publicFits application) application) functionIndex
-    (HyperNovaStepData.input statement (CheckedReplayStep.prior input runningWitness freshWitness)
+    (HyperNovaStepData.input application statement (CheckedReplayStep.prior input runningWitness freshWitness)
       advice (CheckedReplayNifs.proof input messages))
     (PerApplicationDecodedIO.output application raw)
-    (HyperNovaStepData.output statement advice (PiCCSInputCheck.selectedRunningFromInput messages))
+    (HyperNovaStepData.output application fits productionSetup statement advice (PiCCSInputCheck.selectedRunningFromInput messages))
     rawStep selectedStep
   have digest : raw.outputDigest =
-      (HyperNovaStepData.output statement advice (PiCCSInputCheck.selectedRunningFromInput messages)).x :=
+      (HyperNovaStepData.output application fits productionSetup statement advice (PiCCSInputCheck.selectedRunningFromInput messages)).x :=
     congrArg (fun output => output.x) outputEq
   have priorValid := ((PerApplicationTerminal.holds_recursive_iff application fits productionSetup
     statement (CheckedReplayStep.prior input runningWitness freshWitness)).mp accepted).1

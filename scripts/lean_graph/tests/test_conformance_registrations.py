@@ -29,15 +29,12 @@ class ConformanceRegistrationTests(unittest.TestCase):
     def test_current_rust_sources_can_be_captured(self):
         root = Path(__file__).resolve().parents[3]
         manifest, _ = inspect(root, self.policy, {}, {"sources": ["rust"], "inputs": []})
-        # Every captured artifact link must resolve to captured bytes, not an
-        # uncaptured file in the author's checkout.
         self.assertTrue(entries(manifest))
 
     def selected(self, obligation):
         return gate_order(self.policy, self.policy["obligations"][obligation]["gates"])
 
     def test_build_commands_do_not_drop_required_targets(self):
-        # validate.sh's build branch reads only ${2}; later targets are ignored.
         for name, gate in self.gates.items():
             for command in gate["commands"]:
                 argv = command["argv"]
@@ -78,11 +75,10 @@ class ConformanceRegistrationTests(unittest.TestCase):
 
     def test_pilot_uses_regenerated_current_inputs(self):
         order = self.selected("pilot-conformance")
-        for name in ("pilot-result", "pilot-rows"):
-            self.assertLess(order.index("pilot-lean-result"), order.index(name))
-            data = self.gates[name]["commands"][0]["stdin_json"]
-            self.assertEqual(data["package"], "{input:package}")
-            self.assertEqual(data["pilot_fixture"], "{input:pilot_fixture}")
+        self.assertLess(order.index("pilot-lean-result"), order.index("pilot-result"))
+        data = self.gates["pilot-result"]["commands"][0]["stdin_json"]
+        self.assertEqual(data["package"], "{input:package}")
+        self.assertEqual(data["pilot_fixture"], "{input:pilot_fixture}")
         command = self.gates["pilot-lean-result"]["commands"][0]
         self.assertEqual(command["completion"]["equal_files"],
                          [["{output:pilot.json}", "{input:pilot_fixture}"]])
@@ -186,14 +182,9 @@ class ConformanceRegistrationTests(unittest.TestCase):
 
     def test_handoffs_and_owner_mutations_are_required(self):
         order = self.selected("piccs-conformance")
-        for name in ("child-parent-handoff", "child-recomposition", "recursive-prefix",
+        for name in ("child-parent-handoff", "child-recomposition",
                      "candidate-recursive", "candidate-recursive-mutations", "recursive-detached"):
             self.assertIn(name, order)
-        data = self.gates["recursive-prefix"]["commands"][0]["stdin_json"]
-        self.assertEqual(data["base_fixture"], "{input:recursive_fixture}")
-        self.assertEqual(data["ownership"], "{input:piccs_ownership}")
-        self.assertEqual(data["phase_input"], "{input:recursive_phase_input}")
-        self.assertLess(order.index("piccs-ownership"), order.index("recursive-prefix"))
         command = self.gates["candidate-recursive"]["commands"][0]
         self.assertEqual(command["argv"][-7:], ["{input:expanded}", "{input:recursive_fixture}",
                          "{input:base_fixture}", "{input:phase_input}", "{input:child_running}",

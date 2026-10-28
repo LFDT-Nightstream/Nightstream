@@ -16,13 +16,11 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- Logical columns are read from their exact positions in the opened carrier. -/
 def logicalAssignment {logicalWidth : Nat}
     (assignment : Assignment F (Phi81CarrierLayout.carrierWidth logicalWidth)) :
     Assignment F logicalWidth :=
   fun column => assignment (Phi81CarrierLayout.embedLogical column)
 
-/-- Zero matrix columns make the padding values irrelevant to every image. -/
 theorem matrixVectorAt_logicalAssignment {cubeSize logicalWidth : Nat}
     (matrix : BooleanMatrix F cubeSize logicalWidth)
     (assignment : Assignment F (Phi81CarrierLayout.carrierWidth logicalWidth))
@@ -44,8 +42,6 @@ theorem matrixVectorAt_logicalAssignment {cubeSize logicalWidth : Nat}
     _ = _ := Phi81CarrierLayout.matrixVectorAt_extend baseOps baseLaws matrix
       (logicalAssignment assignment) vertex
 
-/-- Restriction preserves the public input when that prefix belongs to the
-logical assignment, independently of any values in the padding. -/
 theorem projectPublicInput_logicalAssignment {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -68,8 +64,6 @@ theorem projectPublicInput_logicalAssignment {logicalWidth : Nat}
   rw [same, Phi81CarrierLayout.extendAssignment_embedLogical]
   rfl
 
-/-- Fresh CCS membership supplies both logical row acceptance and the actual
-public input for the same opened carrier and verifier-selected matrix plan. -/
 theorem freshHolds_implies_rowsAndPublic {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

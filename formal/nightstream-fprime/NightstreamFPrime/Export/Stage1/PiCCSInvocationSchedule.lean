@@ -15,9 +15,6 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Export.Stage1.Invocations
 
-/-- The one production PiCCS invocation list is the ordered composition of
-the four transcript packets. The proof uses only child schedule and footprint
-theorems; it does not inspect any child invocation. -/
 theorem invocations_scheduleWithin (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth)

@@ -35,7 +35,6 @@ abbrev localLength_eq :=
 
 end Logical
 
-/-- Both extension-field cells contain no multiplication node. -/
 structure ValueLinear (value : KExpr) : Prop where
   c0_mulCount : R1CS.mulCount value.c0 = 0
   c1_mulCount : R1CS.mulCount value.c1 = 0

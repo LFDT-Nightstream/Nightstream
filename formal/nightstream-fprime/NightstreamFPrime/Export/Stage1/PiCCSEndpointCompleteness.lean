@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.PermutationPlan
 
 /-!
 Owns the exact endpoint-column connection from the four C transcript packets
-to their canonical retained forms. Actual permutation rows provide values;
-the existing witness-start schedule provides addresses.
+to their canonical retained forms.
 -/
 
 set_option autoImplicit false
@@ -35,8 +34,6 @@ private theorem physicalInvocation_data (index : InvocationIndex) :
   simp only [physicalInvocation, List.get_eq_getElem,
     PoseidonRetainedBlock.basePackage_permutationInvocations_eq]
 
-/-- Every family endpoint is the output column of its actual last C
-permutation. This includes the post-ordinary output-absorption family. -/
 theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount) :
     (physicalInvocation (endpointInvocation family)).witnessStart + 1080 + lane.val =
       Spartan.sourceToSpartan (endpointColumn family lane) := by
@@ -83,8 +80,6 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
     _ = Spartan.sourceToSpartan (endpointColumn family lane) :=
       congrArg Spartan.sourceToSpartan (by omega)
 
-/-- A canonical C endpoint form reads the same actual source column as the
-lifecycle compiler. No endpoint-plan acceptance is assumed. -/
 theorem endpointValue_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -103,8 +98,6 @@ theorem endpointValue_of_completed
   rw [physicalEndpoint_column] at output
   exact output
 
-/-- The actual completed C phase makes all four endpoint pin families zero
-on the canonical assignment, with exact source agreement derived from rows. -/
 theorem rowsZero_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

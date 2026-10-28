@@ -5,9 +5,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the executable source resolver and direct 4-matrix plan for the
-running-instance transition. The resolver uses the established Spartan
-partial inverse and six source views. State and output alias the actual pilot
-preimages; the remaining four views own allocated blocks.
+running-instance transition.
 
 This module does not append the plan to other Stage 1 phases or construct a
 final package identity.
@@ -27,7 +25,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open RunningTransitionRetainedBlocks
 open RunningTransitionRetainedGeometry
 
-/-- One exact retained support location before the Spartan permutation. -/
 inductive Location where
   | state (index : Fin RunningTransitionSourceSupport.stateCount)
   | output (index : Fin RunningTransitionSourceSupport.outputCount)
@@ -111,8 +108,6 @@ def form {program : Lifecycle.Stage1.Application.Program}
   | .fresh index => (freshBlock program).form
       (freshStart program) (freshFits geometry) index
 
-/-- The state transition reads the counter and application-state words from
-slots 27,810 through 27,818 of the actual prior pilot preimage. -/
 def statePreimageWord (index : Fin RunningTransitionSourceSupport.stateCount) :
     Fin PilotValues.stateHashWords :=
   ⟨27810 + index.val, by
@@ -121,16 +116,12 @@ def statePreimageWord (index : Fin RunningTransitionSourceSupport.stateCount) :
     change 27810 + index.val < 27819
     omega⟩
 
-/-- The output transition uses every word of the actual output preimage in
-the same order. This changes only the typed bound of its index. -/
 def outputPreimageWord (index : Fin RunningTransitionSourceSupport.outputCount) :
     Fin PilotValues.stateHashWords :=
   ⟨index.val, by
     change index.val < 27819
     simpa only [RunningTransitionSourceSupport.outputCount_eq] using index.isLt⟩
 
-/-- The running state form is the actual prior-hash preimage form for every
-assignment. No representation premise or copy row supplies this connection. -/
 theorem state_form_eq_pilot
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -148,8 +139,6 @@ theorem state_form_eq_pilot
       PiRLCPoseidonGeometry.priorInputStart program + (27810 + index.val) * 41
     omega
 
-/-- The running output form is the actual output-hash preimage form for
-every assignment, including the full carried running state. -/
 theorem output_form_eq_pilot
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -185,9 +174,6 @@ local instance (start count column : Nat) : Decidable
   unfold RunningTransitionSourceSupport.InRange
   infer_instance
 
-/-- A proof-carrying point-coordinate result. Proofs erase in executable
-code; the decoder performs one subtraction, division, bound check, and exact
-equality check. -/
 structure PointLocation (offset column : Nat) where
   coordinate : Fin productionShape.cubeVariables
   owns : column = PiCCSStarts.roundTranscriptWitnessStart +
@@ -242,7 +228,6 @@ theorem pointCoordinate?_canonical
   rw [pointQuotient coordinate offset offsetBound]
   simp [coordinate.isLt]
 
-/-- The source classifier returns its ownership equation with the location. -/
 structure Located (column : Nat) where
   location : Location
   owns : location.sourceColumn = column
@@ -287,8 +272,6 @@ private theorem fresh_inRange {column : Nat}
     RunningTransitionInputs.phaseOffset] at inside ⊢
   omega
 
-/-- Every source that occurs in a transition row is found by the executable
-classifier. -/
 theorem classifySource_complete {column : Nat}
     (support : RunningTransitionSourceSupport.Source column) :
     (classifySource column).isSome := by
@@ -355,8 +338,6 @@ theorem classifySource_complete {column : Nat}
               (RunningTransitionSourceSupport.piDecField_inRange piDecSupport)
         · exact fresh (fresh_inRange localSupport)
 
-/-- Decoded target column. The source ownership proof is retained while the
-Spartan target equality is proved only for supported row terms. -/
 structure Decoded where
   source : Nat
   location : Location
@@ -393,12 +374,10 @@ def sourceMap {program : Lifecycle.Stage1.Application.Program}
     | none => .empty
     | some decoded => decoded.location.form geometry
 
-/-- The unmodified physical package view before transcript readout. -/
 def packageEnv (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F) : Env :=
   PerApplicationPackage.baseEnv program (SourceCompiler.sourceEnv base)
 
-/-- The transition reads each challenge from its retained Poseidon2 output. -/
 def transitionEnv (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F) : Env :=
   PiCCSTranscriptReadout.env (packageEnv program base)
@@ -427,7 +406,6 @@ theorem sourceAssignment_packageSource
     (PiRLCProductPlan.shiftedPackageColumn program
       (Spartan.sourceToSpartan source) (mapped_lt_basePackage source bound))).symm
 
-/-- Readout leaves every non-transcript source value unchanged. -/
 theorem transitionEnv_of_notTranscript
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
@@ -437,7 +415,6 @@ theorem transitionEnv_of_notTranscript
       packageEnv program base (Spartan.sourceToSpartan source) :=
   PiCCSTranscriptReadout.env_source_of_notTranscript _ source bound outside
 
-/-- A source outside the complete transcript block is unchanged by readout. -/
 theorem transitionEnv_of_outside
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → F)
@@ -456,8 +433,6 @@ theorem transitionEnv_of_outside
 
 namespace Location
 
-/-- All transition readers use the same physical source view. Point readers
-compute the actual Poseidon2 output; the other readers retain their source. -/
 theorem form_eval {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -654,7 +629,6 @@ theorem inputs_preserve
     preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.2⟩
 
-/-- Canonical direct 4-matrix rows for the running transition. -/
 def plan
     {program : Lifecycle.Stage1.Application.Program}
     {sourceLogicalWidth targetLogicalWidth : Nat}
@@ -677,7 +651,6 @@ def plan
   change (RunningTransitionDirectSource.program relation).rowCount = 27800
   exact RunningTransitionDirectSource.program_rowCount relation
 
-/-- The compiled transition plan depends on relation shape only. -/
 theorem plan_eq_of_same_shape
     {program : Lifecycle.Stage1.Application.Program}
     {sourceLogicalWidth targetLogicalWidth : Nat}
@@ -688,8 +661,6 @@ theorem plan_eq_of_same_shape
     plan left geometry = plan right geometry := by
   rfl
 
-/-- Direct matrix acceptance is exactly the existing physical running
-transition under the per-application package pullback. -/
 theorem rowsZero_iff_physical
     {program : Lifecycle.Stage1.Application.Program}
     {sourceLogicalWidth targetLogicalWidth : Nat}

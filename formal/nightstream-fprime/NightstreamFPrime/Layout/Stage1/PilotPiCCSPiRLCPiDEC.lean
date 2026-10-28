@@ -4,8 +4,7 @@ import NightstreamFPrime.Layout.Stage1.PiDECStarts
 Owns the Stage 1 prefix through the exact PiDEC v1_2 phase.
 
 The 31,968-word PiDEC input ABI follows the completed PiRLC physical endpoint.
-The PiDEC packet then adds 6,588 rows and 270 logical-plus-R1CS private
-columns. No public column, copy row, or boundary row is added.
+No public column, copy row, or boundary row is added.
 -/
 
 namespace NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC
@@ -118,7 +117,6 @@ def cumulativeJointDomains
   List.zipWith max (cumulativePhysicalRows relation)
     (cumulativePhysicalColumns relation)
 
-/-- Cumulative phase footprints follow the certified child deltas. -/
 theorem cumulativeFootprints_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     cumulativePhysicalRows relation =

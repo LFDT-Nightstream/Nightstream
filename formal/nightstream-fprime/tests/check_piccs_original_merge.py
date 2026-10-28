@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Check range assembly and rejection using synthetic values, not prover evidence."""
 
 import copy
 import json

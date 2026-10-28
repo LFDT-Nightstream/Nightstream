@@ -24,8 +24,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- The sampler suffix of the package invocation list uses the exact
-Lean-authored random-access witness-start schedule. -/
 theorem laterWitnessStart_sampler
     (current : Fin (PiRLCSamplerInvocations.sourceCount *
       PermutationPlan.samplerStepsPerSource)) :
@@ -120,8 +118,6 @@ theorem laterWitnessStart_sampler
   · rw [PiCCSInvocations.invocations_length]
     omega
 
-/-- Any exact source-classifier result lifts through the canonical Spartan
-inverse to the corresponding retained form. -/
 theorem resolvedForm_of_source
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -144,8 +140,6 @@ theorem resolvedForm_of_source
 def stateOutputOffset : Nat := 1080
 def stateStepStride : Nat := 3117
 
-/-- One of the two complete eight-lane permutation outputs owned by each
-scalar sampler: domain entry and transcript advance. -/
 structure StateLocation where
   source : Fin PiRLCSamplerPoseidonPlan.sourceCount
   step : Fin PiRLCSamplerPoseidonPlan.invocationsPerSource
@@ -224,7 +218,6 @@ private def exactStateCandidate (column : Nat) (candidate : StateLocation) :
     Option StateLocation :=
   if candidate.sourceColumn = column then some candidate else none
 
-/-- Constant-time, fail-closed classifier for all sampler state outputs. -/
 def classifyStateSource (column : Nat) : Option StateLocation :=
   exactStateCandidate column (stateCandidate column)
 
@@ -354,15 +347,12 @@ private theorem StateLocation.sourceColumn_injective
     _ = stateCandidate right.sourceColumn := congrArg stateCandidate same
     _ = right := stateCandidate_source right
 
-/-- Every canonical state output is accepted by the exact classifier. -/
 theorem classifyStateSource_source (location : StateLocation) :
     classifyStateSource location.sourceColumn = some location := by
   unfold classifyStateSource
   rw [stateCandidate_source]
   simp [exactStateCandidate]
 
-/-- Every successful state classification owns the exact requested source
-column. -/
 theorem classifyStateSource_sound {column : Nat} {location : StateLocation}
     (found : classifyStateSource column = some location) :
     location.sourceColumn = column := by
@@ -379,7 +369,6 @@ def classifyStateTarget (column : Nat) : Option StateLocation :=
   | none => none
   | some source => classifyStateSource source
 
-/-- The Spartan image of every canonical state output is accepted exactly. -/
 theorem classifyStateTarget_source (location : StateLocation) :
     classifyStateTarget (Spartan.sourceToSpartan location.sourceColumn) =
       some location := by
@@ -388,9 +377,6 @@ theorem classifyStateTarget_source (location : StateLocation) :
     location.sourceColumn_lt]
   exact classifyStateSource_source location
 
-/-- Semantic view for the complete sampler: exact retained forms own every
-sampler-ordinary source, while all other columns retain the canonical Stage 1
-transition view for the other lifecycle phases. -/
 def semanticEnv
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -459,9 +445,6 @@ private theorem stateTarget_none_of_beforeSampler {column : Nat}
       exfalso
       omega
 
-/-- A source column before the sampler interval cannot alias either exact
-sampler classifier, so the complete semantic view uses the canonical Stage 1
-transition value. -/
 theorem semanticEnv_source_eq_transitionEnv_of_beforeSampler
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -532,8 +515,6 @@ private theorem ordinaryMissing (location : StateLocation)
           rcases stepCases with zero | one <;>
             (rcases Nat.lt_trichotomy location.source.val source.val with before | same | after <;> omega)
 
-/-- Both complete permutation outputs are owned by the retained Poseidon2 forms.
-The ordinary resolver reads the first four entry lanes. -/
 theorem semanticEnv_state
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -572,8 +553,6 @@ theorem semanticEnv_state
     simp only [PiRLCSamplerOrdinaryDirectPlan.Location.form, StateLocation.form, stepZero]
     rfl
 
-/-- On the exact ordinary-row support, the complete semantic view is the
-assignment-derived retained view used by the direct matrix plan. -/
 theorem semanticEnv_eq_resolved_of_target
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -588,8 +567,6 @@ theorem semanticEnv_eq_resolved_of_target
   unfold semanticEnv
   rw [found]
 
-/-- Canonical sampler ordinary-row satisfaction transfers to the complete
-sampler semantic view without inspecting or rebuilding a row. -/
 theorem rowsHold_semanticEnv
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
@@ -619,8 +596,6 @@ theorem rowsHold_semanticEnv
   · exact holds
 
 
-/-- The product-plan and transition views agree on private source columns
-outside the PiCCS transcript-output family. Callers prove their source ranges. -/
 theorem baseEnv_eq_transitionEnv
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth program) → Spec.F)

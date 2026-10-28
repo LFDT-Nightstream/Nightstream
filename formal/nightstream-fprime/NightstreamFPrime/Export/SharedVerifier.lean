@@ -21,7 +21,6 @@ open NightstreamFPrime.Spec
 private abbrev referenceApplication := Poseidon2HashChainV1Package.application
 private abbrev Kind := PerApplicationProductionPlan.BlockKind
 
-/-- Coefficients of `constant + witness*w + local*l + rows*r` in that order. -/
 private def dimension (constant : Nat) (witness localWords rows : Nat := 0) : Lean.Json :=
   Lean.toJson [constant, witness, localWords, rows]
 
@@ -163,8 +162,6 @@ private def valueJson : Codec.Value → Lean.Json
   | .atom value => jsonNat value
   | .array values => Lean.Json.arr (values.map valueJson).toArray
 
-/-- The generic application source connector contains no application rows.
-These paths follow the existing Program/Ordinary/SourceRange codecs. -/
 private def applicationMatrixRelocations (_ : Unit) : List Lean.Json := [
   relocation [0, 1, 0, 1, 0, 1] (dimension 0 0 0 1),
   relocation [0, 1, 2, 0, 1, 1] (dimension 0 1),
@@ -176,8 +173,6 @@ private def applicationMatrixRelocations (_ : Unit) : List Lean.Json := [
   relocation [0, 1, 2, 0, 3, 2, 2]
     (dimension (sharedRetainedWidth ()) LowNormSlot.Kind.field.width)]
 
-/-- Paths select typed source-projection fields, never coefficients or tags.
-The export rejects a mapped range that straddles the private insertion. -/
 private def blockRelocations (context : SourceContext) (kind : Kind) (blockIndex : Nat)
     (block : MatrixProgram.Block) : Except String (List Lean.Json) := do
   if kind = .application then return []
@@ -235,8 +230,6 @@ private def childMetadata (context : SourceContext) : Except String (List Lean.J
 private def runJson (first count : Lean.Json) (step : Nat) : Lean.Json :=
   Lean.Json.mkObj [("first", first), ("step", jsonNat step), ("count", count)]
 
-/-- Split one monotone affine run at the declared source insertion. Derived
-product sources after the package move with the same private-column delta. -/
 private def sourceRun (context : SourceContext) (run : AffineRuns.Run) : List Lean.Json :=
   let before := if run.first ≥ context.constant then 0
     else if run.step = 0 then run.count

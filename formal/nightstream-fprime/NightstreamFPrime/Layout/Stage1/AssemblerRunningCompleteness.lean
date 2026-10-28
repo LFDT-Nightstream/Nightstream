@@ -18,7 +18,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Honest completion through the verifier-owned running-instance branch. -/
 theorem completeRunningPrefix
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

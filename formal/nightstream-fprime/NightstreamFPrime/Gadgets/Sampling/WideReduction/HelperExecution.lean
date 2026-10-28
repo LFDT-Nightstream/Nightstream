@@ -122,7 +122,6 @@ theorem certificate (interface : Interface) (base : Env) (start : Nat)
       simpa only [HintProgram.divisionStart, Nat.add_assoc] using divisions)
   simpa only [HintProgram.helpers, List.append_assoc] using full
 
-/-- Exact execution of all 1,404 helper hints, for arbitrary four input fields. -/
 theorem execute_reference (interface : Interface) (base : Env) (start : Nat)
     (inputs : Assumptions interface start) :
     HintProgram.helperEnv interface base start =

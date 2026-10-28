@@ -15,7 +15,7 @@ use super::{
     serialize_pi_ccs_v1_2_state_preimage, PiCcsV1_2PackageBridgeError, PiCcsV1_2ProofInputs, PreparedLifecycle,
 };
 use crate::folding::transcript::Transcript;
-use crate::folding::{self as nifs, ajtai_dec_mixer, ajtai_rlc_mixer, CcsClaim, RunningInstance};
+use crate::folding::{self as nifs, ajtai_dec_mixer, ajtai_rlc_mixer, BoundRunning, CcsClaim, RunningInstance};
 
 /// Caller-supplied state coordinates. Construction assigns no authority.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -58,7 +58,7 @@ pub enum StepInputError {
 /// Derived caller data for the emitted witness program. This packet is not
 /// an accepted envelope; `next_running` contains no prover witnesses.
 #[derive(Debug)]
-pub struct Stage1StepInputs {
+pub(crate) struct Stage1StepInputs {
     pub(super) pi_ccs: PiCcsV1_2PackageInputs,
     pub(super) pi_dec: PiDecV1_2PackageInputs,
     pub(super) application_witness: Vec<u64>,
@@ -72,38 +72,38 @@ pub struct Stage1StepInputs {
 }
 
 impl Stage1StepInputs {
-    pub fn pi_ccs(&self) -> &PiCcsV1_2PackageInputs {
+    pub(crate) fn pi_ccs(&self) -> &PiCcsV1_2PackageInputs {
         &self.pi_ccs
     }
 
-    pub fn pi_dec(&self) -> &PiDecV1_2PackageInputs {
+    pub(crate) fn pi_dec(&self) -> &PiDecV1_2PackageInputs {
         &self.pi_dec
     }
 
-    pub fn application_witness(&self) -> &[u64] {
+    pub(crate) fn application_witness(&self) -> &[u64] {
         &self.application_witness
     }
 
     #[cfg(test)]
-    pub fn output_preimage(&self) -> &[u64] {
+    pub(crate) fn output_preimage(&self) -> &[u64] {
         &self.output_preimage
     }
 
     #[cfg(test)]
-    pub fn output_digest(&self) -> [u64; 4] {
+    pub(crate) fn output_digest(&self) -> [u64; 4] {
         self.output_digest
     }
 
-    pub fn next_public_input(&self) -> &[u64] {
+    pub(crate) fn next_public_input(&self) -> &[u64] {
         &self.next_public_input
     }
 
-    pub fn next_state(&self) -> Stage1State {
+    pub(crate) fn next_state(&self) -> Stage1State {
         self.next_state
     }
 
     /// The verified PiDEC children: the next running claims.
-    pub fn next_running(&self) -> &RunningInstance {
+    pub(crate) fn next_running(&self) -> &RunningInstance {
         &self.next_running
     }
 
@@ -116,7 +116,7 @@ impl PreparedLifecycle {
     /// Replay the native NIFS verifier and construct the exact recursive
     /// caller packet. The package owns the context and parameters.
     /// `execute_step_witness` executes the selected relation on this data.
-    pub fn step_inputs(
+    pub(crate) fn step_inputs(
         &self,
         state: &Stage1State,
         running: &RunningInstance,
@@ -125,7 +125,7 @@ impl PreparedLifecycle {
         application_witness: &[u64],
         output: [F; 4],
     ) -> Result<Stage1StepInputs, StepInputError> {
-        let (prior_preimage, prior_digest) = self.checked_prior_state(state, running, fresh)?;
+        let (bound, prior_preimage, prior_digest) = self.checked_prior_state(state, running, fresh)?;
         let prior_children = pi_ccs_v1_2_prior_children(&running.claims)?;
         let context = self.binding.verifier_context().digest().map(F::from_u64);
         let prior_public_input = encode_pi_ccs_v1_2_public_input(prior_digest)?;
@@ -138,7 +138,7 @@ impl PreparedLifecycle {
             ajtai_rlc_mixer,
             ajtai_dec_mixer,
             fresh,
-            running,
+            bound,
             proof,
         )?;
         if next_running.claims.iter().any(|claim| claim.adv.is_some()) {
@@ -162,7 +162,7 @@ impl PreparedLifecycle {
                 .map(|child| {
                     child
                         .c
-                        .data
+                        .data()
                         .iter()
                         .map(|field| field.as_canonical_u64())
                         .collect()
@@ -231,12 +231,12 @@ impl PreparedLifecycle {
 
     /// Check semantic prior data before proving. Frame metadata does not enter
     /// the state preimage.
-    pub(super) fn checked_prior_state(
+    pub(super) fn checked_prior_state<'a>(
         &self,
         state: &Stage1State,
-        running: &RunningInstance,
+        running: &'a RunningInstance,
         fresh: &CcsClaim,
-    ) -> Result<(Vec<u64>, [u64; 4]), StepInputError> {
+    ) -> Result<(BoundRunning<'a>, Vec<u64>, [u64; 4]), StepInputError> {
         if state.iteration == 0 || state.iteration >= F::ORDER_U64 - 1 {
             return Err(StepInputError::Input(
                 "recursive counter must be positive and have a canonical successor",
@@ -268,6 +268,6 @@ impl PreparedLifecycle {
                 "fresh public input differs from the recomputed prior state hash",
             ));
         }
-        Ok((preimage, digest))
+        Ok((BoundRunning::from_checked_prior(running), preimage, digest))
     }
 }

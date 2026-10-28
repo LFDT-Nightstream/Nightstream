@@ -4,10 +4,11 @@ use p3_field::PrimeField64;
 use serde_json::json;
 use std::ops::ControlFlow;
 
-#[allow(dead_code)]
+#[allow(dead_code, clippy::duplicate_mod)]
 #[path = "../per_application_logical_matrix_conformance/reference/mod.rs"]
 mod reference;
 
+#[allow(clippy::duplicate_mod)]
 #[path = "../support/poseidon_affine_fixture.rs"]
 mod affine_fixture;
 
@@ -54,7 +55,6 @@ fn shared_poseidon_templates_match_every_reference_row() {
             equal_row(row, &expected.row(logical_width, ordinal).unwrap(), ordinal);
             assert_eq!(*row, actual.row(logical_width, ordinal).unwrap());
         }
-        // A retained field remains one operator through formula substitution.
         let output = &visited[0][2];
         assert_eq!(output.terms().len(), 1);
         assert_eq!(output.terms()[0].column_count(), 41);
@@ -77,7 +77,6 @@ fn shared_poseidon_templates_match_every_reference_row() {
 
 #[test]
 fn shared_phi81_templates_match_all_points_sources_blocks_and_components() {
-    // Ring order crosses sources, blocks, extension components, and families.
     let logical_width = 4_000;
     let encoded = json!([
         [[2, 2, 2], [1, 1, 1]],
@@ -162,7 +161,6 @@ fn phi81_quotient_rows_accept_product_and_reject_omitted_node_attack() {
     let mut values = vec![Goldilocks::ZERO; logical_width];
     values[0] = Goldilocks::ONE;
     values[1..55].fill(Goldilocks::from_u64(2));
-    // X^53 * X^53 = X^25 + Phi81 * (X^52 - X^25).
     values[1 + 53] += Goldilocks::ONE;
     values[55 + 53] = Goldilocks::ONE;
     values[109 + 25] = Goldilocks::ONE;
@@ -176,8 +174,6 @@ fn phi81_quotient_rows_accept_product_and_reject_omitted_node_attack() {
         .iter()
         .any(|value| *value != Goldilocks::ZERO));
 
-    // A false product can satisfy the first 107 nodes. Construct the
-    // vanishing polynomial independently, then divide it by Phi81.
     let mut vanishing = vec![Goldilocks::ONE];
     for root in 0..107 {
         let root = Goldilocks::from_u64(root);
@@ -327,7 +323,7 @@ fn template_scratch_matches_append_normalization_and_reuses_empty_ports() {
         vec![(0, 3), (1, 3), (2, 1), (3, 1), (4, 1), (5, 7), (6, 1)],
         vec![(2, 1)],
         vec![(5, 1)],
-        vec![(2, GOLDILOCKS_MODULUS - 1)],
+        vec![(2, Goldilocks::ORDER_U64 - 1)],
         vec![(2, 0)],
         vec![(0, 1), (1, 1)],
         vec![(0, 1), (1, 1), (2, 1)],
@@ -395,9 +391,9 @@ fn template_visitors_stop_before_invalid_later_invocations() {
         assert_eq!(visited, 1);
 
         let failure = program.visit_rows_until(logical_width, 0, count, &source, |_, _| {
-            Err(PackageError::Invalid("test visitor stop"))
+            Err(PackageError::Input("test visitor stop"))
         });
-        assert!(matches!(failure, Err(PackageError::Invalid("test visitor stop"))));
+        assert!(matches!(failure, Err(PackageError::Input("test visitor stop"))));
     }
 }
 

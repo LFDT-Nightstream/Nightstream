@@ -2,12 +2,7 @@ import NightstreamFPrime.Export.Stage1.PilotDecodedHashes
 import NightstreamFPrime.Export.Stage1.PilotDirectSemantics
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
 
-/-!
-Owns the arbitrary pilot environment. Pilot ordinary locations use their
-compiled forms. Other locations retain the PiCCS view, including the two
-actual hash preimages. Row support proves that this extension preserves every
-ordinary row; input-range exclusion proves that both hash inputs are shared.
--/
+/-! Owns the arbitrary pilot environment. -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotDecodedEnvironment
 
@@ -110,7 +105,6 @@ private theorem form_eval_of_target
     ⟨decoded, found, _⟩
   simp only [PilotOrdinaryDirectPlan.sourceMap, env, found]
 
-/-- The decoder gives each declared pilot location its actual compiled value. -/
 theorem env_location
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -129,7 +123,6 @@ theorem env_location
       location.form geometry := Option.some.inj (compiled.symm.trans selected)
   rw [← form_eval_of_target geometry assignment column support, forms]
 
-/-- The ordinary-row view preserves every actual prior-hash input. -/
 theorem priorInputForm_eval
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -143,7 +136,6 @@ theorem priorInputForm_eval
   exact PilotDecodedHashes.priorInputForm_eval
     (PilotOrdinaryDirectPlan.piCcsGeometry geometry) assignment index
 
-/-- The ordinary-row view preserves every actual output-hash input. -/
 theorem outputInputForm_eval
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -157,8 +149,6 @@ theorem outputInputForm_eval
   exact PilotDecodedHashes.outputInputForm_eval
     (PilotOrdinaryDirectPlan.piCcsGeometry geometry) assignment index
 
-/-- Accepted compiled pilot rows imply all source rows in the same arbitrary
-environment that preserves the two actual preimages. -/
 theorem rowsZero_implies_sourceRows
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -192,7 +182,6 @@ theorem rowsZero_implies_sourceRows
     assignment (env geometry assignment) index
     (PilotOrdinaryDirectSource.programRow index) preserves).mp (rows index)
 
-/-- The pilot and PiCCS logical views read the same complete prior preimage. -/
 theorem priorWord_agrees
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -218,7 +207,6 @@ theorem priorWord_agrees
   rw [mapped, ← pilot]
   exact piCcs.symm
 
-/-- The pilot and PiCCS logical views read the same complete next preimage. -/
 theorem outputWord_agrees
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -246,8 +234,6 @@ theorem outputWord_agrees
   rw [mapped, ← pilot]
   exact piCcs.symm
 
-/-- The pilot encoded hash instance is the exact fresh public input read by
-PiCCS. The equality follows from the shared owned forms, without copy rows. -/
 theorem priorPublic_agrees
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)

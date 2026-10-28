@@ -7,9 +7,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout
 
-/-- Exact column renaming for one R1CS linear combination. This small common
-definition lets the three package instantiation forms share one custody
-proof without exposing the private summation implementation. -/
 def mapCombinationColumns (column : Nat → Nat)
     (combination : R1CS.LinearCombination) : R1CS.LinearCombination :=
   ⟨combination.constant,
@@ -60,7 +57,6 @@ def mapRowColumns (column : Nat → Nat) (row : R1CS.Row) : R1CS.Row :=
   simp [mapCombinationColumns, R1CS.LinearCombination.scale, List.map_map,
     Function.comp_def]
 
-/-- Renaming columns is evaluation under the corresponding assignment pullback. -/
 theorem mapCombinationColumns_eval (column : Nat → Nat)
     (combination : R1CS.LinearCombination) (env : Env) :
     (mapCombinationColumns column combination).eval env =
@@ -69,7 +65,6 @@ theorem mapCombinationColumns_eval (column : Nat → Nat)
   simp [mapCombinationColumns, R1CS.LinearCombination.eval, List.map_map,
     Function.comp_def]
 
-/-- The renamed row holds exactly when the original row holds after pullback. -/
 theorem mapRowColumns_holds (column : Nat → Nat) (row : R1CS.Row)
     (env : Env) :
     (mapRowColumns column row).Holds env ↔

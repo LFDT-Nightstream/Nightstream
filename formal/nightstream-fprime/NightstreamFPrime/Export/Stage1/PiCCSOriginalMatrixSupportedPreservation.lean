@@ -3,9 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOriginalSupportPreservation
 import NightstreamFPrime.Export.Stage1.PiDECMatrixZeroRead
 
 /-!
-Complete source/port preservation for guarded original matrix sums. The
-arithmetic zero premise is derived from the full signed-mask check in the
-specialized endpoints. No split, magnitude, or combined witness is used.
+Complete source/port preservation for guarded original matrix sums.
 -/
 
 set_option autoImplicit false
@@ -26,9 +24,6 @@ private theorem get_ofFn {Alpha : Type} {count : Nat}
   change (Vector.ofFn values)[index.val] = _
   rw [Vector.getElem_ofFn]
 
-/-- A sound zero flag preserves the complete weighted result for this source
-and port, including both field coordinates of all 54 ring coefficients.
-Prepared column weights give the existing single-source range. -/
 theorem weighted_source_port {columns arity count : Nat}
     (zeroSource : Fin productionShape.sourceCount → Bool)
     (firstRow : Nat) (point : CubePoint K arity)
@@ -47,8 +42,6 @@ theorem weighted_source_port {columns arity count : Nat}
   · simp only [if_neg zero]
     exact PiDECMatrixWeightedRange.evaluate_prepare_toRing firstRow point (read source) forms port
 
-/-- Prepared column weights preserve every source, port and ring lane.
-The existing zero-read theorem covers selectors, constants and output pins. -/
 theorem invocations_source_port {columns arity count : Nat}
     (zeroSource : Fin productionShape.sourceCount → Bool)
     (firstRow : Nat) (point : CubePoint K arity)
@@ -72,9 +65,6 @@ theorem invocations_source_port {columns arity count : Nat}
       exact PiDECPoseidonColumnWeights.evaluate_prepare_toRing firstRow point (read source)
         interfaces port
 
-/-- Flags computed from every original mask preserve the unguarded sparse
-batch through prepared column weights, for arbitrary supplied basis tables,
-forms, offsets and source indices. -/
 theorem weighted_isZero_source_port {columns arity count : Nat}
     (tables : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
     (masks : Array (Array (Nat × Nat))) (firstRow : Nat) (point : CubePoint K arity)
@@ -87,8 +77,6 @@ theorem weighted_isZero_source_port {columns arity count : Nat}
   apply weighted_source_port
   exact PiCCSOriginalSupport.read_eq_zero tables masks source
 
-/-- Full-mask flags preserve every source of the numeric invocation batch.
-Caching these flags changes no read or source identity. -/
 theorem invocations_isZero_source_port {columns arity count : Nat}
     (tables : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
     (masks : Array (Array (Nat × Nat))) (firstRow : Nat) (point : CubePoint K arity)

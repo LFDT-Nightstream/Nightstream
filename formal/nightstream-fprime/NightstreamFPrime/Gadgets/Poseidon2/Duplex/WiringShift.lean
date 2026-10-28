@@ -2,10 +2,6 @@ import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringSupport
 
 /-!
 Proves uniform column relocation for the recipe-free Poseidon2 Duplex wiring.
-
-This module changes no compiler or transcript definition. It states only that
-moving the start column and every incoming-state variable by one fixed delta
-moves every exposed sample and final-state variable by that same delta.
 -/
 
 namespace NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.WiringShift
@@ -190,9 +186,6 @@ private theorem compileAbsorbWiring_output_shift
                 (leftBlock :: leftRest)).output := by
             rw [compileAbsorbWiring_output_cons]
 
-/-- Recipe-free Duplex wiring reads only absorb chunk counts and read
-positions. Under the same shape, a uniform start and state shift relocates
-every exposed sample and final-state variable by the same delta. -/
 theorem compileWiring_shift_of_sameShape
     (delta start : Nat) (initial : EState)
     {leftActions rightActions : List Action}
@@ -238,7 +231,6 @@ theorem compileWiring_shift_of_sameShape
           simp only [compileWiring, List.map_cons]
           exact ⟨congrArg₂ List.cons rfl tailResult.1, tailResult.2⟩
 
-/-- Recipe-free Duplex wiring commutes with one uniform column shift. -/
 theorem compileWiring_shift
     (delta start : Nat) (initial : EState) (actions : List Action) :
     (compileWiring (start + delta) (state delta initial) actions).samples =

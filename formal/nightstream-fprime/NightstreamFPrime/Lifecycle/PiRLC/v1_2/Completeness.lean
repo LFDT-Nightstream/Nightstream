@@ -530,9 +530,6 @@ theorem completePrefix
     (SamplerChain.complete (samplerInterface (atOffset interface offset))
       env (samplerOffset offset) assumptions.sampler)
 
-/-- Build the complete PiRLC phase from the input bounds. The total sampler
-constructs its own challenges and outgoing state; no sampler-success or
-prover-chosen output premise is needed. -/
 theorem completePrefix_with_phase
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -584,7 +581,6 @@ theorem completeness
     rw [← operationsEq]
     exact completed.rows
 
-/-- The sole proved logical PiRLC v1.2 circuit. -/
 def circuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

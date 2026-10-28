@@ -19,7 +19,6 @@ open NightstreamFPrime.Gadgets.Poseidon2
 abbrev Step := Permutation.Step
 abbrev EState := Permutation.EState
 
-/-- S-box inputs owned by one fixed permutation step. -/
 def sboxInputs : Step → EState → List Expr
   | .initialLayer, _ => []
   | .initialFullRound round, state =>
@@ -32,7 +31,6 @@ def sboxProgram (start : Nat) (step : Step) (state : EState) :
     Permutation.SboxProgram :=
   Permutation.compileSboxes start (sboxInputs step state)
 
-/-- Sixteen affine output recipes after the S-box stage. -/
 def outputExpressions (start : Nat) : Step → EState → EState
   | .initialLayer, state => Layer.externalE state
   | .initialFullRound round, state =>
@@ -44,7 +42,6 @@ def outputExpressions (start : Nat) : Step → EState → EState
       Layer.externalE (Permutation.fullSboxState start
         Poseidon2.terminalConstants round state)
 
-/-- First source column of the sixteen final output recipes. -/
 def outputStart (start : Nat) : Step → Nat
   | .initialLayer => start
   | .initialFullRound _ | .terminalFullRound _ => start + 64
@@ -61,7 +58,6 @@ theorem stepOutput_eq (start : Nat) (step : Step) :
       Permutation.freshState (outputStart start step) := by
   cases step <;> rfl
 
-/-- Direct selective rows emitted for one source step. -/
 def directRowCount (step : Step) : Nat :=
   match step with
   | .initialLayer => 16
@@ -84,21 +80,16 @@ def directRowCount (step : Step) : Nat :=
     directRowCount (.terminalFullRound round) = 32 := by
   rfl
 
-/-- The complete fixed production permutation rewrites to exactly 646
-selective rows, instead of the 1,096 source recipe rows. -/
 theorem schedule_directRowCount :
     (Permutation.schedule.map directRowCount).sum = 646 := by
   rfl
 
-/-- Exact trace equations retained from one source step. -/
 def Holds (env : Env) (start : Nat) (step : Step) (state : EState) : Prop :=
   (sboxProgram start step state).outputs.map (Expr.eval env) =
       (sboxInputs step state).map (fun input => Layer.sboxF (input.eval env)) ∧
     Layer.evalState env (Permutation.stepOutput start step) =
       Layer.evalState env (outputExpressions start step state)
 
-/-- Every source recipe row of one fixed step implies the exact direct trace
-selected by the production rewrite. -/
 theorem rows_imply_holds (env : Env) (start : Nat) (step : Step)
     (state : EState)
     (rows : ConstraintsHold env
@@ -184,8 +175,6 @@ private theorem partialSboxState_of_holds (env : Env) (start round : Nat)
     exact selected
   · simp [Permutation.partialSboxState, Layer.evalState, zero]
 
-/-- The retained direct trace alone implies the exact mathematical Poseidon2
-step. Removed `x²`, `x⁴`, and `x⁶` source columns are not assumptions. -/
 theorem holds_implies_step_sound (env : Env) (start : Nat) (step : Step)
     (state : EState) (holds : Holds env start step state) :
     Layer.evalState env (Permutation.stepOutput start step) =
@@ -262,19 +251,15 @@ theorem holds_implies_step_sound (env : Env) (start : Nat) (step : Step)
           rw [staged]
           congr 1
 
-/-- Canonical honest source environment for one fixed step. -/
 def honestEnv (env : Env) (start : Nat) (step : Step) (state : EState) : Env :=
   executeRecipes env start (Permutation.stepRecipes start step state)
 
-/-- Honest trace generation preserves every caller-owned input below the
-step's local range. -/
 theorem honestEnv_agrees_below (env : Env) (start : Nat) (step : Step)
     (state : EState) (index : Nat) (below : index < start) :
     honestEnv env start step state index = env index :=
   executeRecipes_agrees_below env start
     (Permutation.stepRecipes start step state) index below
 
-/-- Canonical causal execution satisfies the retained direct trace. -/
 theorem honest_holds (env : Env) (start : Nat) (step : Step) (state : EState)
     (stateBelow : ∀ lane, (state lane).VarsBelow start) :
     Holds (honestEnv env start step state) start step state := by
@@ -283,8 +268,6 @@ theorem honest_holds (env : Env) (start : Nat) (step : Step) (state : EState)
     (Permutation.stepRecipes start step state)
     (Permutation.stepRecipes_causal start step state stateBelow)
 
-/-- Honest completeness of one direct step trace, with exact input-prefix
-preservation. -/
 theorem exists_holds (env : Env) (start : Nat) (step : Step) (state : EState)
     (stateBelow : ∀ lane, (state lane).VarsBelow start) :
     ∃ completed,

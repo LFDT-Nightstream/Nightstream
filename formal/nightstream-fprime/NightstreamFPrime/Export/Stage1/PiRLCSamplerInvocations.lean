@@ -152,8 +152,6 @@ theorem entryTrace_state_matches (source : Nat) :
       source)
     (TranscriptAbsorption.actions source)
 
-/-- Held entry invocations imply the exact verifier-owned scalar-domain
-entry relation for one production source. -/
 theorem entryTrace_implies_spec (source : Nat) (env : Env)
     (holds : ∀ current ∈
       (entryTrace (logicalWidth := logicalWidth) (publicFits := publicFits)
@@ -209,7 +207,6 @@ theorem advanceState_affine (source : Nat) :
     StateAffine (advanceState (logicalWidth := logicalWidth) (publicFits := publicFits) source) :=
   NightstreamFPrime.Layout.PiRLC.v1_2.Sampler.entered_affine _ _ _
 
-/-- The held advance invocation is the permutation selected by the scalar circuit. -/
 theorem advanceInvocation_implies_spec (source : Nat) (env : Env)
     (holds : PermutationInvocationHolds (PilotData.circuitPackage ())
       (advanceInvocation (logicalWidth := logicalWidth) (publicFits := publicFits) source) env) :

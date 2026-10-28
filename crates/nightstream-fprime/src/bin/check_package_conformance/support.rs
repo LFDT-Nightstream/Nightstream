@@ -6,19 +6,14 @@ use serde_json::Value;
 
 #[allow(dead_code)]
 mod canonical_assignment;
-#[allow(dead_code)]
 mod independent_assignment;
 mod owner_mutations;
-#[allow(dead_code)]
 mod raw_assignment;
 mod reference;
 #[allow(unused_imports)]
-pub use canonical_assignment::{
-    evaluate_canonical_assignment, evaluate_canonical_rows, evaluate_pi_ccs_prefix_assignment,
-    evaluate_pilot_assignment,
-};
+pub(crate) use canonical_assignment::{evaluate_canonical_assignment, evaluate_canonical_rows};
 #[allow(unused_imports)]
-pub use independent_assignment::{
+pub(crate) use independent_assignment::{
     check_piccs_owner_mutations, compare_lean_expanded_matrices, compare_sealed_matrices,
 };
 use reference::*;
@@ -144,7 +139,7 @@ struct OwnershipInventory {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct PiCcsOwnerMutationReport {
+pub(crate) struct PiCcsOwnerMutationReport {
     pub row_families: usize,
     pub row_mutations: usize,
     pub column_families: usize,
@@ -388,8 +383,7 @@ fn events(raw: &RawPackage) -> Vec<Event<'_>> {
             "reference hash-chain witness rows",
         );
         assert!(
-            word(chain.8) == 0
-                || (word(chain.9) >= word(raw.3 .2) + 1 && word(chain.9) + word(chain.8) <= word(raw.3 .4)),
+            word(chain.8) == 0 || (word(chain.9) > word(raw.3 .2) && word(chain.9) + word(chain.8) <= word(raw.3 .4)),
             "reference hash-chain digest range",
         );
         for ordinal in 0..=word(chain.7) {
@@ -435,9 +429,7 @@ fn event_row_count(event: Event<'_>, raw: &RawPackage) -> usize {
     }
 }
 
-/// The separately emitted physical reference must be the exact inner
-/// package of the sealed candidate used for every later check.
-pub fn require_sealed_expansion(sealed_bytes: &[u8], expanded_bytes: &[u8]) {
+pub(crate) fn require_sealed_expansion(sealed_bytes: &[u8], expanded_bytes: &[u8]) {
     let sealed: Value = serde_json::from_slice(sealed_bytes).expect("sealed candidate JSON");
     let inner = sealed
         .as_array()

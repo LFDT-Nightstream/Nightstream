@@ -9,12 +9,12 @@ use neo_math::{KExtensions, D, F, K};
 use neo_reductions::optimized_engine::{PaperJointOracleInput, PaperJointRoundOracle};
 use neo_reductions::superneo_eval::{weighted_projection_basis_forms, MatrixRows, SuperneoEvalCache, SuperneoZBlocks};
 use objc2_foundation::NSString;
-use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
+use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder};
 use p3_field::PrimeCharacteristicRing;
 #[cfg(test)]
 use p3_field::PrimeField64;
 
-use super::{Buffer, MetalSession, MetalWitnessMasks};
+use super::{Arg, Buffer, Grid, MetalSession, MetalWitnessMasks};
 use crate::MetalError;
 
 mod application;
@@ -27,7 +27,10 @@ mod support;
 use crate::oracle_error;
 use application::ApplicationTables;
 use assignments::AssignmentTables;
-use support::*;
+use support::{
+    equality_round_affine, equality_suffix_chunk_words, joint_term_metadata, k_power, k_words, nonempty,
+    restrict_equality_prefix, ring_words,
+};
 
 #[cfg(test)]
 #[path = "../../tests/unit/joint_buffers.rs"]
@@ -44,6 +47,7 @@ mod application_tests;
 const EQUALITY_CHUNK_BITS: usize = 8;
 const EQUALITY_CHUNK_VALUES: usize = 1 << EQUALITY_CHUNK_BITS;
 const MAX_COEFFICIENTS: usize = 10;
+const ZERO_FAMILY_LEN: usize = 1;
 
 struct MetalCompactMatrix {
     row_offsets: Buffer,
@@ -59,7 +63,6 @@ struct MetalCompactMatrix {
     identity: bool,
 }
 
-/// Borrowed matrix authority and shape; device metadata belongs to one row window.
 pub(crate) struct MetalJointMatrixPlan<'a> {
     source: &'a dyn MatrixRows,
     matrix_count: usize,
@@ -78,7 +81,6 @@ impl MetalJointMatrixPlan<'_> {
     }
 }
 
-/// Device-resident implementation of the reduction engine's oracle seam.
 pub(crate) struct MetalPaperJointOracle<'a> {
     session: &'a MetalSession,
     plan: MetalJointMatrixPlan<'a>,
@@ -108,7 +110,7 @@ pub(crate) struct MetalPaperJointOracle<'a> {
     assignment_width: usize,
     coefficient_count: usize,
     range_base: u32,
-    zero_application_padding: bool,
+    f_vanishes_at_zero: bool,
     rounds: usize,
     round: usize,
     current_len: usize,
@@ -190,13 +192,13 @@ impl MetalSession {
         let blocks = witnesses
             .iter()
             .map(|witness| {
-                SuperneoZBlocks::from_witness_mat(witness, structure.m)
+                SuperneoZBlocks::from_witness_mat(witness, structure.m())
                     .map_err(|_| MetalError::Shape("terminal running witness shape"))
             })
             .collect::<Result<Vec<_>, _>>()?;
-        let masks = self.prepare_joint_witness_masks(&blocks, 2, structure.m)?;
+        let masks = self.prepare_joint_witness_masks(&blocks, 2, structure.m())?;
         drop(blocks);
-        self.eval_streamed_rows(plan, &masks, point, witnesses.len(), structure.m, Some(&terminal))
+        self.eval_streamed_rows(plan, &masks, point, witnesses.len(), structure.m(), Some(&terminal))
     }
 
     pub(crate) fn prepare_joint_matrix_plan<'a>(
@@ -224,24 +226,20 @@ impl MetalSession {
         masks: &MetalWitnessMasks,
         has_carried: bool,
     ) -> Result<(Buffer, usize), MetalError> {
-        // A zero carried family has a single zero value, with zero padding.
-        // Device reads and folds must use that allocated length as well.
-        let common_len = if has_carried {
-            input.structure.n.max(input.dims.assignment_width)
-        } else {
-            1
-        };
+        if !has_carried {
+            return self.zero_family_table();
+        }
+        let common_len = input.structure.n().max(input.dims.assignment_width);
         let first_words = common_len
             .checked_mul(2)
             .ok_or(MetalError::Shape("one-joint common table size overflow"))?;
         let first = self.buffer(first_words * size_of::<u64>())?;
-
-        if has_carried {
-            self.build_joint_carried_table(plan, input, masks, &first, common_len)?;
-        } else {
-            self.write_shared(&first, &[0u64; 2])?;
-        }
+        self.build_joint_carried_table(plan, input, masks, &first, common_len)?;
         Ok((first, common_len))
+    }
+
+    fn zero_family_table(&self) -> Result<(Buffer, usize), MetalError> {
+        Ok((self.buffer_from_slice(&[0u64; 2 * ZERO_FAMILY_LEN])?, ZERO_FAMILY_LEN))
     }
 
     fn encode_joint_tensor_point(
@@ -264,13 +262,16 @@ impl MetalSession {
         let destination_offset = table * (1usize << point.len()) * 2 * size_of::<u64>();
         for stage in 0..point.len() {
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&self.tensor_point_expand_k);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(&challenges), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&stages), stage * size_of::<u64>(), 1);
-                encoder.setBuffer_offset_atIndex(Some(destination), destination_offset, 2);
-            }
-            self.dispatch(&encoder, &self.tensor_point_expand_k, 1usize << stage);
+            self.launch(
+                &encoder,
+                &self.tensor_point_expand_k,
+                &[
+                    Arg::Buffer(0, &challenges),
+                    Arg::BufferAt(1, &stages, stage * size_of::<u64>()),
+                    Arg::BufferAt(2, destination, destination_offset),
+                ],
+                Grid::Threads(1usize << stage),
+            );
             encoder.endEncoding();
         }
         resources.extend([challenges, stages]);
@@ -286,7 +287,7 @@ impl MetalSession {
         table_len: usize,
     ) -> Result<(), MetalError> {
         let width = plan.blocks * D;
-        let rows = input.structure.n;
+        let rows = input.structure.n();
         if input.dims.assignment_width != width
             || rows == 0
             || table_len < width.max(rows)
@@ -330,7 +331,7 @@ impl MetalSession {
             plan.blocks as u64,
             plan.matrix_count as u64,
             plan.rows as u64,
-            input.structure.n as u64,
+            input.structure.n() as u64,
             rows as u64,
             masks.magnitudes() as u64,
             width as u64,
@@ -339,34 +340,37 @@ impl MetalSession {
         let command = self.command_buffer("nightstream.pi_ccs.joint.carried")?;
 
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.joint_zero_words);
-        unsafe { encoder.setBuffer_offset_atIndex(Some(&row_sums), 0, 0) };
-        self.dispatch(&encoder, &self.joint_zero_words, rows * 2);
+        self.launch(
+            &encoder,
+            &self.joint_zero_words,
+            &[Arg::Buffer(0, &row_sums)],
+            Grid::Threads(rows * 2),
+        );
         encoder.endEncoding();
         drop(encoder);
 
-        // The common output temporarily holds the matrix projection.
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         encoder.setLabel(Some(&NSString::from_str("nightstream.pi_ccs.joint.carried.combine")));
-        encoder.setComputePipelineState(&self.joint_carried_projection);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(
-                Some(masks.words()),
-                fresh_count * plan.blocks * 2 * masks.magnitudes() * size_of::<u64>(),
-                0,
-            );
-            encoder.setBuffer_offset_atIndex(Some(&coeffs), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&basis_re), 0, 3);
-            encoder.setBuffer_offset_atIndex(Some(&basis_im), 0, 4);
-            encoder.setBuffer_offset_atIndex(Some(&row_sums), 0, 5);
-            encoder.setBuffer_offset_atIndex(Some(output), 0, 6);
-        }
-        self.dispatch_threadgroups(
+        self.launch(
             &encoder,
             &self.joint_carried_projection,
-            plan.blocks,
-            D.next_power_of_two(),
+            &[
+                Arg::BufferAt(
+                    0,
+                    masks.words(),
+                    fresh_count * plan.blocks * 2 * masks.magnitudes() * size_of::<u64>(),
+                ),
+                Arg::Buffer(1, &coeffs),
+                Arg::Buffer(2, &shape),
+                Arg::Buffer(3, &basis_re),
+                Arg::Buffer(4, &basis_im),
+                Arg::Buffer(5, &row_sums),
+                Arg::Buffer(6, output),
+            ],
+            Grid::Groups {
+                groups: plan.blocks,
+                threads: D.next_power_of_two(),
+            },
         );
         encoder.endEncoding();
 
@@ -395,22 +399,25 @@ impl MetalSession {
                     window.rows.start as u64,
                 ])?;
                 let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-                encoder.setComputePipelineState(&self.fe_weighted_row_table);
-                unsafe {
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.row_offsets), 0, 0);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.row_blocks), 0, 1);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_offsets), 0, 2);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_locals), 0, 3);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_coefficients), 0, 4);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_row_offsets), 0, 5);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_runs), 0, 6);
-                    encoder.setBuffer_offset_atIndex(Some(output), 0, 7);
-                    encoder.setBuffer_offset_atIndex(Some(&mat_coeffs), matrix_index * 2 * size_of::<u64>(), 8);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix_shape), 0, 9);
-                    encoder.setBuffer_offset_atIndex(Some(&row_sums), 0, 10);
-                    encoder.setBuffer_offset_atIndex(Some(&matrix.dense_row_blocks), 0, 11);
-                }
-                self.dispatch(&encoder, &self.fe_weighted_row_table, local_rows);
+                self.launch(
+                    &encoder,
+                    &self.fe_weighted_row_table,
+                    &[
+                        Arg::Buffer(0, &matrix.row_offsets),
+                        Arg::Buffer(1, &matrix.row_blocks),
+                        Arg::Buffer(2, &matrix.dense_offsets),
+                        Arg::Buffer(3, &matrix.dense_locals),
+                        Arg::Buffer(4, &matrix.dense_coefficients),
+                        Arg::Buffer(5, &matrix.geometric_row_offsets),
+                        Arg::Buffer(6, &matrix.geometric_runs),
+                        Arg::Buffer(7, output),
+                        Arg::BufferAt(8, &mat_coeffs, matrix_index * 2 * size_of::<u64>()),
+                        Arg::Buffer(9, &matrix_shape),
+                        Arg::Buffer(10, &row_sums),
+                        Arg::Buffer(11, &matrix.dense_row_blocks),
+                    ],
+                    Grid::Threads(local_rows),
+                );
                 encoder.endEncoding();
                 matrix_shapes.push(matrix_shape);
             }
@@ -422,8 +429,6 @@ impl MetalSession {
         }
 
         let command = self.command_buffer("nightstream.pi_ccs.joint.carried.pad")?;
-        // All matrix reads are complete. Replace the temporary projection
-        // with the identity term and add the matrix contribution where it exists.
         let final_shape = self.buffer_from_slice(&[
             stored_running as u64,
             plan.blocks as u64,
@@ -436,25 +441,26 @@ impl MetalSession {
             rows as u64,
         ])?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.joint_carried_projection);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(
-                Some(masks.words()),
-                fresh_count * plan.blocks * 2 * masks.magnitudes() * size_of::<u64>(),
-                0,
-            );
-            encoder.setBuffer_offset_atIndex(Some(&coeffs), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&final_shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&pad_re), 0, 3);
-            encoder.setBuffer_offset_atIndex(Some(&pad_im), 0, 4);
-            encoder.setBuffer_offset_atIndex(Some(&row_sums), 0, 5);
-            encoder.setBuffer_offset_atIndex(Some(output), 0, 6);
-        }
-        self.dispatch_threadgroups(
+        self.launch(
             &encoder,
             &self.joint_carried_projection,
-            table_len.div_ceil(D),
-            D.next_power_of_two(),
+            &[
+                Arg::BufferAt(
+                    0,
+                    masks.words(),
+                    fresh_count * plan.blocks * 2 * masks.magnitudes() * size_of::<u64>(),
+                ),
+                Arg::Buffer(1, &coeffs),
+                Arg::Buffer(2, &final_shape),
+                Arg::Buffer(3, &pad_re),
+                Arg::Buffer(4, &pad_im),
+                Arg::Buffer(5, &row_sums),
+                Arg::Buffer(6, output),
+            ],
+            Grid::Groups {
+                groups: table_len.div_ceil(D),
+                threads: D.next_power_of_two(),
+            },
         );
         encoder.endEncoding();
         self.finish(&command)?;
@@ -488,9 +494,9 @@ impl<'a> MetalPaperJointOracle<'a> {
         workspace: Option<usize>,
     ) -> Result<Self, neo_reductions::PiCcsError> {
         if !plan.matches(input.rows)
-            || plan.rows != input.structure.n
+            || plan.rows != input.structure.n()
             || plan.matrix_count != input.structure.t()
-            || !matches!(input.params.b, 2 | 4)
+            || input.params.b() != 2
             || input.dims.degree + 1 > MAX_COEFFICIENTS
             || input.dims.row_count < 2
         {
@@ -500,7 +506,7 @@ impl<'a> MetalPaperJointOracle<'a> {
         }
         let fresh_count = input.fresh_witnesses.len();
         let opening_assignment_count = fresh_count + input.running_witnesses.len();
-        if input.prior_point.is_some() != !input.running_witnesses.is_empty() {
+        if input.prior_point.is_some() == input.running_witnesses.is_empty() {
             return Err(oracle_error(MetalError::Shape(
                 "one-joint prior point and running witnesses disagree",
             )));
@@ -513,10 +519,10 @@ impl<'a> MetalPaperJointOracle<'a> {
             .collect::<Vec<_>>();
         let source_blocks = witness_mats
             .iter()
-            .map(|witness| SuperneoZBlocks::from_witness_mat(witness, input.structure.m))
+            .map(|witness| SuperneoZBlocks::from_witness_mat(witness, input.structure.m()))
             .collect::<Result<Vec<_>, _>>()?;
         let masks = session
-            .prepare_joint_witness_masks(&source_blocks, input.params.b, input.structure.m)
+            .prepare_joint_witness_masks(&source_blocks, input.params.b(), input.structure.m())
             .map_err(oracle_error)?;
         let assignment_source_indices = masks
             .active_witnesses()
@@ -532,7 +538,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             .build_joint_common_tables(&plan, &input, &masks, has_carried)
             .map_err(oracle_error)?;
 
-        let application_len = input.structure.n;
+        let application_len = input.structure.n();
         let assignment_len = input.dims.assignment_width;
         let assignments = AssignmentTables::new(session, &masks, assignment_len).map_err(oracle_error)?;
 
@@ -555,7 +561,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             .buffer_from_slice(nonempty(&term_variables))
             .map_err(oracle_error)?;
         let coefficient_count = input.dims.degree + 1;
-        let active_len = input.structure.n.max(input.dims.assignment_width);
+        let active_len = input.structure.n().max(input.dims.assignment_width);
         let output = session
             .buffer(coefficient_count * 2 * size_of::<u64>())
             .map_err(oracle_error)?;
@@ -621,8 +627,8 @@ impl<'a> MetalPaperJointOracle<'a> {
             blocks: plan.blocks,
             assignment_width: input.dims.assignment_width,
             coefficient_count,
-            range_base: input.params.b,
-            zero_application_padding: input.structure.f.eval(&vec![F::ZERO; plan.matrix_count]) == F::ZERO,
+            range_base: input.params.b(),
+            f_vanishes_at_zero: input.structure.f().eval(&vec![F::ZERO; plan.matrix_count]) == F::ZERO,
             rounds: input.dims.variables,
             round: 0,
             current_len: input.dims.row_count,
@@ -675,7 +681,6 @@ impl<'a> MetalPaperJointOracle<'a> {
             }
             let remaining = self.active_len.div_ceil(2) - pairs;
             if remaining != 0 {
-                // No application coordinate is read in this assignment-only suffix.
                 let partial = self.round_window(&self.output, pairs * 2, 0, pairs, remaining)?;
                 for (sum, value) in coefficients.iter_mut().zip(partial) {
                     *sum += value;
@@ -717,7 +722,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             self.matrix_count as u64,
             self.assignment_count as u64,
             self.coefficient_count as u64,
-            (self.term_headers.length() as usize / (3 * size_of::<u64>())) as u64,
+            (self.term_headers.length() / (3 * size_of::<u64>())) as u64,
             u64::from(base_round),
             self.blocks as u64,
             self.assignment_width as u64,
@@ -737,7 +742,7 @@ impl<'a> MetalPaperJointOracle<'a> {
             prior_slope_re,
             prior_slope_im,
             self.range_base as u64,
-            u64::from(self.zero_application_padding),
+            u64::from(self.f_vanishes_at_zero),
             assignments.encoding() as u64,
             pair_offset as u64,
             pair_count as u64,
@@ -756,42 +761,43 @@ impl<'a> MetalPaperJointOracle<'a> {
             .command_buffer("nightstream.pi_ccs.joint.round")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
         let round_pipeline = &self.session.joint_round_partials;
-        encoder.setComputePipelineState(round_pipeline);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(application), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(assignments.data(&self.masks)), 0, 1);
-            encoder.setBuffer_offset_atIndex(
-                Some(
+        self.session.launch(
+            &encoder,
+            round_pipeline,
+            &[
+                Arg::Buffer(0, application),
+                Arg::Buffer(1, assignments.data(&self.masks)),
+                Arg::Buffer(
+                    2,
                     self.common
                         .as_ref()
                         .expect("one-joint common tables exist during SumCheck"),
                 ),
-                0,
-                2,
-            );
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 3);
-            encoder.setBuffer_offset_atIndex(Some(&self.weights), 0, 4);
-            encoder.setBuffer_offset_atIndex(Some(&self.term_headers), 0, 5);
-            encoder.setBuffer_offset_atIndex(Some(&self.term_variables), 0, 6);
-            encoder.setBuffer_offset_atIndex(Some(&partials), 0, 7);
-            encoder.setBuffer_offset_atIndex(Some(&self.equality_chunks), 0, 8);
-            encoder.setBuffer_offset_atIndex(Some(&self.prior_equality_chunks), 0, 9);
-            encoder.setBuffer_offset_atIndex(Some(&assignments.sources), 0, 10);
-            encoder.setBuffer_offset_atIndex(Some(assignments.values()), 0, 11);
-        }
-        self.session
-            .dispatch_threadgroups(&encoder, round_pipeline, groups, 64);
+                Arg::Buffer(3, &shape),
+                Arg::Buffer(4, &self.weights),
+                Arg::Buffer(5, &self.term_headers),
+                Arg::Buffer(6, &self.term_variables),
+                Arg::Buffer(7, &partials),
+                Arg::Buffer(8, &self.equality_chunks),
+                Arg::Buffer(9, &self.prior_equality_chunks),
+                Arg::Buffer(10, &assignments.sources),
+                Arg::Buffer(11, assignments.values()),
+            ],
+            Grid::Groups { groups, threads: 64 },
+        );
         encoder.endEncoding();
 
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.session.sumcheck_reduce_partials);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&partials), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&reduction_shape), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&self.output), 0, 2);
-        }
-        self.session
-            .dispatch(&encoder, &self.session.sumcheck_reduce_partials, self.coefficient_count);
+        self.session.launch(
+            &encoder,
+            &self.session.sumcheck_reduce_partials,
+            &[
+                Arg::Buffer(0, &partials),
+                Arg::Buffer(1, &reduction_shape),
+                Arg::Buffer(2, &self.output),
+            ],
+            Grid::Threads(self.coefficient_count),
+        );
         encoder.endEncoding();
         self.session.finish(&command)?;
         Ok(self
@@ -853,8 +859,6 @@ impl<'a> MetalPaperJointOracle<'a> {
             self.common = Some(common);
             self.common_len = self.common_len.div_ceil(2).max(1);
         }
-        // Release the completed command and old tables before allocating
-        // the next norm prefix.
         drop(command);
         self.assignments
             .as_mut()
@@ -884,17 +888,16 @@ impl<'a> MetalPaperJointOracle<'a> {
             .session
             .buffer_from_slice(&[table_len as u64, table_count as u64])?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.session.joint_fold_k_tables);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(input), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&self.challenge), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(output), 0, 3);
-        }
-        self.session.dispatch(
+        self.session.launch(
             &encoder,
             &self.session.joint_fold_k_tables,
-            table_count * table_len.div_ceil(2),
+            &[
+                Arg::Buffer(0, input),
+                Arg::Buffer(1, &self.challenge),
+                Arg::Buffer(2, &shape),
+                Arg::Buffer(3, output),
+            ],
+            Grid::Threads(table_count * table_len.div_ceil(2)),
         );
         encoder.endEncoding();
         Ok(())

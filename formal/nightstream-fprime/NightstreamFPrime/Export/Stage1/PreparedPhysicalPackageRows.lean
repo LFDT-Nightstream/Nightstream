@@ -6,8 +6,7 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
 /-!
 Compose final-state checks of the selected canonical component sources into
-physical package row satisfaction. This proof does not construct event arrays,
-justify IO origins, or make a claim about witness execution order.
+physical package row satisfaction.
 -/
 
 set_option autoImplicit false
@@ -23,8 +22,6 @@ local notation "selectedShift" =>
 local notation "sourcePackage" =>
   PerApplicationPackage.package Poseidon2HashChainV1Package.application
 
-/-- Every premise concerns the same completed environment and an existing
-canonical source. No schedule-preservation or IO provenance premise is used. -/
 theorem rowsHold (env : Env)
     (hashes : ∀ chain ∈ [Data.priorChain, Data.outputChain],
       ∀ ordinal,

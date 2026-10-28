@@ -142,8 +142,6 @@ private theorem lowerAffineCombination_varsBelow (bound : Nat) :
   | .mul (.mul _ _) (.mul _ _), _scope, _combination, result => by
       simp [lowerAffine] at result
 
-/-- Affine recognition preserves the variable scope of the source
-expression. -/
 theorem lowerAffine_varsBelow (expression : Expr) (bound : Nat)
     (scope : expression.VarsBelow bound) (lowered : AffineResult expression)
     (result : lowerAffine expression = some lowered) :
@@ -312,8 +310,6 @@ private theorem envSet_agreesOutside (env : Env) (index : Nat) (value : F) :
   apply Env.set_of_ne
   omega
 
-/-- Execute the multiplication intermediates in the same order as
-`lowerExpression`. -/
 def executeExpression : Env → Expr → Nat → Env
   | env, .var _, _ => env
   | env, .const _, _ => env
@@ -797,8 +793,6 @@ theorem lowerConstraints_rows_varsBelow (constraints : List Expr)
       · have below := tailScope row tailMember
         simpa [next, totalFreshCount, Nat.add_assoc] using below
 
-/-- Execute one optimized logical constraint. Direct rows need no fresh
-value; generic rows execute every multiplication in the expression. -/
 def executeConstraint (env : Env) (expression : Expr) (start : Nat) : Env :=
   match directConstraint expression with
   | some _ => env
@@ -854,7 +848,6 @@ theorem executeConstraint_holds_rows (env : Env) (expression : Expr)
       simpa [executeConstraint, lowerConstraint, lowerGenericConstraint,
         result, completed, lowered, assertion] using allRows
 
-/-- Execute physical intermediates for an ordered logical constraint list. -/
 def executeConstraints : Env → List Expr → Nat → Env
   | env, [], _ => env
   | env, expression :: rest, start =>

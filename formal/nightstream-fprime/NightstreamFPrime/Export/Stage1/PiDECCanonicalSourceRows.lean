@@ -4,8 +4,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 
 /-!
 Read canonical PiCCS source rows through their existing packet schedule.
-The exact source-row equality preserves package authority. Other indices
-continue through the existing canonical accessor.
 -/
 
 set_option autoImplicit false
@@ -29,8 +27,6 @@ private theorem findOrdinal_value (schedule : IndexSchedule) (source ordinal : N
       simp only [findOrdinal] at found
       cases found
 
-/-- Select the existing PiCCS packet from range headers before constructing
-its rows. The complete source index space retains the canonical result. -/
 def sourceRow (program : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 program)
     (source : Nat) : Option R1CS.Row :=
@@ -43,8 +39,6 @@ def sourceRow (program : Lifecycle.Stage1.Application.Program)
           (PerApplicationSourceProjection.basePackageRow program)
       else PerApplicationCanonicalPackage.sourceRow program fits source
 
-/-- The optimized source accessor is equal at every index to the canonical
-package accessor. No caller supplies a row or a source-agreement premise. -/
 theorem sourceRow_value (program : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 program) :
     sourceRow program fits = PerApplicationCanonicalPackage.sourceRow program fits := by

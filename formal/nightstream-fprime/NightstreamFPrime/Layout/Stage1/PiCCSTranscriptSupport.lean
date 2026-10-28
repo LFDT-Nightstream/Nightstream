@@ -273,8 +273,6 @@ private theorem roundWiring_supported
     (outputPrefix_source 183 (by
       rw [transcriptInvocationCount_eq]))
 
-/-- Exact retained support for every verifier-derived value consumed by the
-seven ordinary PiCCS children after statement binding. -/
 structure TranscriptValuesSupported
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -340,10 +338,6 @@ theorem transcriptValuesSupported
       change coordinate.val < productionShape.cubeVariables
       exact coordinate.isLt
 
-/-- At any parent-selected PiCCS allocation, the verifier-derived round point
-and final round-transcript state use only caller sources or transcript
-permutation outputs owned by that same phase interval. The permutations start
-after the statement-binding sign columns. -/
 theorem roundOutputs_outputPrefix_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -447,7 +441,6 @@ theorem roundOutputs_outputPrefix_supported
     rw [RoundTranscript.finalState_eq_finalStateFast_pointwise]
     exact roundProjected.2
 
-/-- Offset-generic support for one verifier-derived round-point coordinate. -/
 theorem roundPoint_outputPrefix_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -467,8 +460,6 @@ private theorem cubePoint_ext
   cases right
   simp_all
 
-/-- Evaluation of the verifier-derived round point is stable when two
-environments agree on its exact caller and transcript-output support. -/
 theorem evalRoundPoint_eq_of_agree_outputPrefix
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -507,7 +498,6 @@ theorem evalRoundPoint_eq_of_agree_outputPrefix
     (Expr.eval_eq_of_agree_satisfy _ _ left right support.1 agrees)
     (Expr.eval_eq_of_agree_satisfy _ _ left right support.2 agrees)
 
-/-- Offset-generic support for the state handed to output binding. -/
 theorem roundFinalState_outputPrefix_supported
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

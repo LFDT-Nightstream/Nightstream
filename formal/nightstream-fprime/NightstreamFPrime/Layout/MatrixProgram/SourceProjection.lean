@@ -17,14 +17,12 @@ open NightstreamFPrime.Layout.R1CS (mapCombinationColumns mapRowColumns)
 
 open NightstreamFPrime.Layout
 
-/-- One contiguous package-column interval and its canonical source start. -/
 structure SourceProjectionRange where
   packageStart : Nat
   sourceStart : Nat
   count : Nat
 deriving Repr, DecidableEq
 
-/-- Project one package column through one affine range. -/
 def SourceProjectionRange.column? (range : SourceProjectionRange)
     (column : Nat) : Option Nat :=
   if range.packageStart ≤ column then
@@ -57,14 +55,11 @@ theorem SourceProjectionRange.column?_eq_none_of_after
   unfold column?
   rw [if_pos (by omega), if_neg (by omega)]
 
-/-- Exact package-to-source column projection for one ordinary block. -/
 inductive SourceProjection where
   | identity
   | mapped (items : List SourceProjectionRange)
 deriving Repr, DecidableEq
 
-/-- Project one column. Range projections fail on missing or overlapping
-ownership. -/
 def SourceProjection.column? (projection : SourceProjection)
     (column : Nat) : Option Nat :=
   match projection with
@@ -120,14 +115,12 @@ private def projectTerms? (projection : SourceProjection) :
       let tail ← projectTerms? projection rest
       pure ((column, term.2) :: tail)
 
-/-- Project every variable term of one affine combination. -/
 def SourceProjection.combination? (projection : SourceProjection)
     (combination : R1CS.LinearCombination) :
     Option R1CS.LinearCombination := do
   let terms ← projectTerms? projection combination.terms
   pure ⟨combination.constant, terms⟩
 
-/-- Project all three affine combinations of one source row. -/
 def SourceProjection.row? (projection : SourceProjection)
     (row : R1CS.Row) : Option R1CS.Row := do
   let a ← projection.combination? row.a
@@ -171,8 +164,6 @@ private theorem projectTerms?_mapColumns
       simp [projectTerms?, leftInverse ⟨term.1, headBound⟩,
         inductionHypothesis tailBound]
 
-/-- A projection that is a left inverse of a column renaming recovers the
-exact original affine combination. -/
 theorem SourceProjection.combination?_mapColumns
     (projection : SourceProjection) (column : Nat → Nat)
     (sourceWidth : Nat) (combination : R1CS.LinearCombination)
@@ -185,7 +176,6 @@ theorem SourceProjection.combination?_mapColumns
   simp [SourceProjection.combination?, mapCombinationColumns,
     projectTerms?_mapColumns projection column sourceWidth _ bounded leftInverse]
 
-/-- Row projection exactly cancels a proved package-column renaming. -/
 theorem SourceProjection.row?_mapColumns
     (projection : SourceProjection) (column : Nat → Nat)
     (sourceWidth : Nat) (row : R1CS.Row) (bounded : row.VarsBelow sourceWidth)

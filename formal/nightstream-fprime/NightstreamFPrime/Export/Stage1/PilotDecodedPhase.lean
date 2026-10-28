@@ -2,9 +2,8 @@ import NightstreamFPrime.Export.Stage1.PilotDecodedEnvironment
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
 /-!
-Owns the arbitrary-assignment connection from the selected pilot rows to
-the existing two-child pilot specification. The decoder preserves the actual
-hash preimages and gives each arithmetic location its compiled value.
+Owns the arbitrary-assignment connection from the selected pilot rows to the
+existing two-child pilot specification.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotDecodedPhase
@@ -15,8 +14,6 @@ open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- The direct hash, arithmetic, and digest-binding rows imply the complete
-pilot specification for arbitrary assignments with the enforced constant. -/
 theorem rowsZero_implies_specHolds
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -53,8 +50,6 @@ theorem rowsZero_implies_specHolds
     (fun lane => (PilotDecodedEnvironment.env_location geometry assignment
       (.outputState lane)).symm)
 
-/-- The selected complete Stage 1 rows force the actual prior and output
-hash contracts. No raw packet, encoding, or representation is supplied. -/
 theorem selectedRowsZero_implies_specHolds
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

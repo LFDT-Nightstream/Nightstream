@@ -5,13 +5,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 import NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSchedule
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
-/-!
-Owns source-row custody for one Lean-authored per-application package. Typed
-row transports follow the exact pilot lift and application-private suffix
-shift used by package emission.
-
-This module does not select an application or claim final conformance.
--/
+/-! Owns source-row custody for one Lean-authored per-application package. -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceRows
 
@@ -23,8 +17,6 @@ open NightstreamFPrime.Layout.Stage1
 
 abbrev ApplicationProgram := Lifecycle.Stage1.Application.Program
 
-/-- Shape-only witness for row-count theorems on the fixed prefix. Its zero
-matrices are never used as semantic authority. -/
 def baseShapeRelation :
     Lifecycle.ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits where

@@ -18,8 +18,6 @@ open NightstreamFPrime.Lifecycle
 
 abbrev PairCount : Nat := ringDegree / 2
 
-/-- Preserve the scalar decoder's positive/negative priority and omitted
-source behavior. Code order is the existing negative, zero, positive order. -/
 def sourceCode (masks : Array (Nat × Nat)) (source : Fin productionShape.sourceCount)
     (lane : Fin ringDegree) : Fin 3 :=
   let pair := masks[source.val]?.getD (0, 0)
@@ -27,23 +25,18 @@ def sourceCode (masks : Array (Nat × Nat)) (source : Fin productionShape.source
   else if pair.2.testBit lane.val then ⟨0, by decide⟩
   else ⟨1, by decide⟩
 
-/-- The existing complete carrier assignment reconstructed by the pair runner.
-Missing blocks and missing source entries use the decoder's exact zero. -/
 def assignments (masks : Array (Array (Nat × Nat))) :
     Fin productionShape.sourceCount → Phi81Relation.Assignment PiCCSSourceImages.shape :=
   fun source column => SignedUnitSourceInput.scalar
     (masks[column.val / ringDegree]?.getD #[])
     ⟨source.val, source.isLt⟩ ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩
 
-/-- The selected full-carrier column layout. The unit argument delays its
-construction until the caller prepares the selected scan. -/
 def canonicalLayout (_ : Unit) :
     ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth :=
   Folding.PiCCS.CanonicalRowLayout.layout cubeVariables PiCCSSourceImages.shape.carrierWidth
     (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
       Poseidon2HashChainV1Package.fits).cubeFits
 
-/-- Ring degree 54 is even, so no adjacent pair crosses a complete block. -/
 def lowLane (pair : Fin PairCount) : Fin ringDegree :=
   ⟨2 * pair.val, by
     have bound := pair.isLt
@@ -58,12 +51,9 @@ def highLane (pair : Fin PairCount) : Fin ringDegree :=
     change 2 * pair.val + 1 < 54
     omega⟩
 
-/-- Numeric suffix index after removing the first Boolean coordinate. -/
 def pairIndex (block : Nat) (pair : Fin PairCount) : Nat :=
   block * PairCount + pair.val
 
-/-- The scan code is exactly the original source decoder, including omitted
-entries and its positive-before-negative branch order. -/
 theorem signedValue_sourceCode (masks : Array (Nat × Nat))
     (source : Fin productionShape.sourceCount) (lane : Fin ringDegree) :
     PiCCSNormCache.signedValue (sourceCode masks source lane) =
@@ -90,9 +80,6 @@ private theorem assignment_carrierColumn (masks : Array (Array (Nat × Nat)))
     congrArg Prod.snd decoded
   simp only [assignments, blockIndex, laneIndex]
 
-/-- Each original mask coefficient is the actual nonlinear message's source
-field at its canonical full-carrier vertex. The fresh vector is arbitrary:
-this field never depends on a matrix image or a successful matrix lookup. -/
 theorem sourceCode_sourceAssignment (masks : Array (Array (Nat × Nat)))
     (source : Fin productionShape.sourceCount) (block : Fin PiCCSSourceImages.blockCount)
     (lane : Fin ringDegree) (fresh : Vector F ProductionRelation.matrixCount) :
@@ -109,7 +96,6 @@ theorem sourceCode_sourceAssignment (masks : Array (Array (Nat × Nat)))
       ((canonicalLayout ()).toVertex (Phi81CarrierLayout.carrierColumn (logicalWidth := PiCCSSourceImages.logicalWidth) block lane)))
   rw [ColumnLayout.paddedValue_toVertex, assignment_carrierColumn]
 
-/-- Both endpoints of every adjacent pair remain inside one 54-lane block. -/
 theorem lowLane_global (block : Nat) (pair : Fin PairCount) :
     block * ringDegree + (lowLane pair).val = 2 * pairIndex block pair := by
   change block * 54 + 2 * pair.val = 2 * (block * 27 + pair.val)
@@ -120,8 +106,6 @@ theorem highLane_global (block : Nat) (pair : Fin PairCount) :
   change block * 54 + (2 * pair.val + 1) = 2 * (block * 27 + pair.val) + 1
   omega
 
-/-- The existing complete-carrier and cube bounds place each block pair in
-the selected first-round suffix domain. No new range bound is assumed. -/
 theorem pairIndex_bound (block : Fin PiCCSSourceImages.blockCount) (pair : Fin PairCount) :
     pairIndex block.val pair < 2 ^ (cubeVariables - 1) := by
   have live : block.val * ringDegree + (highLane pair).val <
@@ -134,7 +118,6 @@ theorem pairIndex_bound (block : Fin PiCCSSourceImages.blockCount) (pair : Fin P
   change pairIndex block.val pair < 2 ^ 27
   omega
 
-/-- The existing numeric Boolean vertex at this complete-block pair index. -/
 def pairSuffix (block : Fin PiCCSSourceImages.blockCount) (pair : Fin PairCount) :
     BooleanVertex (cubeVariables - 1) :=
   NumericBooleanDomain.vertex (cubeVariables - 1)
@@ -148,7 +131,6 @@ private theorem canonicalVertex_eq_of_index
   exact (Folding.PiCCS.CanonicalRowLayout.toColumn?_eq_some_iff cubeVariables
     PiCCSSourceImages.shape.carrierWidth (canonicalLayout ()).columns_le vertex column).2 same
 
-/-- The low scalar code is the source field at numeric endpoint 2*pairIndex. -/
 theorem sourceCode_low_sourceAssignment (masks : Array (Array (Nat × Nat)))
     (source : Fin productionShape.sourceCount) (block : Fin PiCCSSourceImages.blockCount)
     (pair : Fin PairCount) (fresh : Vector F ProductionRelation.matrixCount) :
@@ -171,7 +153,6 @@ theorem sourceCode_low_sourceAssignment (masks : Array (Array (Nat × Nat)))
   rw [vertexEqual] at value
   exact value
 
-/-- The high scalar code is the source field at numeric endpoint 2*pairIndex+1. -/
 theorem sourceCode_high_sourceAssignment (masks : Array (Array (Nat × Nat)))
     (source : Fin productionShape.sourceCount) (block : Fin PiCCSSourceImages.blockCount)
     (pair : Fin PairCount) (fresh : Vector F ProductionRelation.matrixCount) :
@@ -195,8 +176,6 @@ theorem sourceCode_high_sourceAssignment (masks : Array (Array (Nat × Nat)))
   rw [vertexEqual] at value
   exact value
 
-/-- Every source field is exactly zero on the Boolean-domain suffix beyond
-the complete carrier width. This does not discard any retained carrier tail. -/
 theorem sourceAssignment_padding (masks : Array (Array (Nat × Nat)))
     (source : Fin productionShape.sourceCount) (vertex : BooleanVertex cubeVariables)
     (padding : PiCCSSourceImages.shape.carrierWidth ≤ NumericBooleanDomain.index vertex)

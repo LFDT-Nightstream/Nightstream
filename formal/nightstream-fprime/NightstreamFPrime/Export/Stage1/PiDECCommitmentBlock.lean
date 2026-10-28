@@ -5,9 +5,6 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingAri
 
 /-!
 One fixed-key Ajtai block contribution for all sixteen PiDEC children.
-The key block is materialized once and shared by the sixteen stored ring
-products. These products can be materialized or added directly to native row
-accumulators. No message evaluation or IO is defined.
 -/
 
 set_option autoImplicit false
@@ -19,12 +16,10 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
   (StoredRing)
 
-/-- A zero digit contributes the exact zero ring without multiplication. -/
 def multiplyChild (key child : StoredRing) : StoredRing :=
   if ∀ lane : Fin ringDegree, child.get lane = 0 then Vector.replicate ringDegree 0
   else PiDECNativeProduct.multiply key child
 
-/-- Zero omission preserves the complete semantic key product. -/
 theorem multiplyChild_value (key child : StoredRing) :
     (multiplyChild key child).get = ringFMul key.get child.get := by
   unfold multiplyChild
@@ -58,7 +53,6 @@ private theorem reduceWide64_toNat (low high : UInt64) :
       simp only [Nat.add_mod, Nat.mul_mod, Nat.mod_mod]
     _ = _ := rfl
 
-/-- Coefficient `lane` from its four output lanes, reduced on native words. -/
 private def laneCoefficient (lanes : Array UInt64) (lane : Nat) : UInt64 :=
   let word := fun index => lanes.getD (4 * lane + index) 0
   NativePoseidon2.reduceWide64 (word 0)
@@ -72,8 +66,6 @@ private theorem laneCoefficient_toNat (lanes : List UInt64) (lane : Nat) :
   simp only [laneCoefficient, reduceWide64_toNat, read, AjtaiSetupV1.laneWord, Nat.add_zero]
   simp only [Nat.add_mod, Nat.mul_mod, Nat.mod_mod]
 
-/-- Materialize the exact lazy key at one row and block: one SHAKE128 call
-gives all 54 coefficients. -/
 def keyBlock {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns) : StoredRing :=
@@ -81,7 +73,6 @@ def keyBlock {verifierRows messageColumns : Nat}
   Vector.ofFn fun lane =>
     ⟨(laneCoefficient lanes lane.val).toNat, NativePoseidon2.reduceWide64_canonical _ _⟩
 
-/-- Stored access is the existing semantic key coordinate. -/
 theorem keyBlock_value {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns) :
@@ -97,12 +88,10 @@ theorem keyBlock_value {verifierRows messageColumns : Nat}
   simp only [AjtaiSetupV1.Setup.verifierKey, AjtaiSetupV1.Setup.coefficientNat,
     AjtaiSetupV1.wideCoefficientNat]
 
-/-- Share one materialized key across the stored block products. -/
 def products {count : Nat} (key : StoredRing) (children : Vector StoredRing count) :
     Vector StoredRing count :=
   Vector.ofFn fun child => multiplyChild key (children.get child)
 
-/-- Each stored product has the same key and child as the ring specification. -/
 theorem products_value {count : Nat} (key : StoredRing)
     (children : Vector StoredRing count)
     (child : Fin count) :
@@ -111,8 +100,6 @@ theorem products_value {count : Nat} (key : StoredRing)
     multiplyChild key (children.get selected)))[child.val]).get = _
   rw [Vector.getElem_ofFn, multiplyChild_value]
 
-/-- Compute all sixteen contributions at one exact key row and block.
-The existing typed setup fixes the key; no key coefficients are supplied. -/
 def contributions {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns)
@@ -120,8 +107,6 @@ def contributions {verifierRows messageColumns : Nat}
     Vector StoredRing productionGlobalParams.k :=
   products (keyBlock setup row block) children
 
-/-- Each returned ring is the exact semantic key-block product for that
-same child. No norm, opening, expected output, or runtime premise is used. -/
 theorem contributions_value {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns)
@@ -131,8 +116,6 @@ theorem contributions_value {verifierRows messageColumns : Nat}
       ringFMul (setup.verifierKey row block) (children.get child).get := by
   simp only [contributions, products_value, keyBlock_value]
 
-/-- Add one exact key row/block into all native child accumulators. Zero
-children keep their initial sum; no field-valued product is materialized. -/
 def accumulateContributions {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns)
@@ -165,7 +148,6 @@ theorem accumulateContributions_value {verifierRows messageColumns : Nat}
     exact (NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.baseLaws.add_zero _).symm
   · rw [PiDECNativeProduct.Accumulator.addProduct_value, keyBlock_value]
 
-/-- Reuse all child preparations for one exact key row and block. -/
 def accumulatePreparedContributions {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns)
@@ -175,8 +157,6 @@ def accumulatePreparedContributions {verifierRows messageColumns : Nat}
   let key := PiDECNativeProduct.prepareKey (keyBlock setup row block)
   Vector.ofFn fun child => (initial.get child).addPreparedProduct key (children.get child)
 
-/-- Preparing children before the row scan preserves the complete native
-result, including the unchanged initial accumulator for every zero child. -/
 theorem accumulatePreparedContributions_eq {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns)

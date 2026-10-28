@@ -2,10 +2,7 @@ import NightstreamFPrime.Export.Stage1.Rows
 
 /-!
 Owns fail-closed reconstruction of ordinary R1CS source rows from the two
-classified row fields stored in a circuit package. A row is returned only
-when its physical row index has exactly one owner.
-
-This module does not select Stage 1 phases or construct package rows.
+classified row fields stored in a circuit package.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PackageSourceRows
@@ -13,14 +10,11 @@ namespace NightstreamFPrime.Export.Stage1.PackageSourceRows
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 
-/-- Reconstruct the typed compiled rows carried by the two package fields. -/
 def decodedRows (instructions : List WitnessInstruction)
     (assertions : List SparseRow) : List Rows.CompiledRow :=
   instructions.map Rows.CompiledRow.witness ++
     assertions.map Rows.CompiledRow.assertion
 
-/-- Return one ordinary source row only when its physical row index has one
-exact owner. Missing and duplicate ownership both fail. -/
 def sourceRow? (instructions : List WitnessInstruction)
     (assertions : List SparseRow) (rowIndex : Nat) : Option R1CS.Row :=
   match (decodedRows instructions assertions).filter
@@ -28,15 +22,12 @@ def sourceRow? (instructions : List WitnessInstruction)
   | [row] => some row.toR1CS
   | _ => none
 
-/-- Source-row view of the exact classified fields carried by one package. -/
 def packageSourceRow? (package : CircuitPackage) : Nat → Option R1CS.Row :=
   sourceRow? package.witnessInstructions package.assertionRows
 
 def classifiedRows (rows : List Rows.CompiledRow) : List Rows.CompiledRow :=
   decodedRows (Rows.witnessInstructions rows) (Rows.assertionRows rows)
 
-/-- Appending two independently classified fields is the same row multiset
-as appending their two decoded row sets. -/
 theorem decodedRows_append_perm
     (leftInstructions rightInstructions : List WitnessInstruction)
     (leftAssertions rightAssertions : List SparseRow) :
@@ -53,7 +44,6 @@ theorem decodedRows_append_perm
       (rightAssertions.map Rows.CompiledRow.assertion)).append_left
         (leftInstructions.map Rows.CompiledRow.witness)
 
-/-- Stable classification preserves every compiled row exactly once. -/
 theorem classifiedRows_perm (rows : List Rows.CompiledRow) :
     List.Perm (classifiedRows rows) rows := by
   induction rows with
@@ -105,7 +95,6 @@ private theorem filter_rowIndex_eq_singleton
         simp [different,
           inductionHypothesis tailUnique targetMember]
 
-/-- Any uniquely owned decoded package row is recovered exactly. -/
 theorem sourceRow?_eq_some
     (instructions : List WitnessInstruction) (assertions : List SparseRow)
     (unique : ((decodedRows instructions assertions).map
@@ -119,8 +108,6 @@ theorem sourceRow?_eq_some
   unfold sourceRow?
   rw [selected]
 
-/-- The classified package fields recover any row from a duplicate-free
-compiled source list exactly. -/
 theorem sourceRow?_classified
     (rows : List Rows.CompiledRow)
     (unique : (rows.map Rows.CompiledRow.rowIndex).Nodup)

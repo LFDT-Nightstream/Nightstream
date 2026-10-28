@@ -3,13 +3,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationDecodedIO
 
 /-!
 Owns the verifier-side binding of the four recursive context words in one
-per-application raw assignment. The caller supplies all ordinary raw values;
-this module overwrites the context interval with the verifier-context digest
-derived from the exact package, application, and Ajtai key. The full
-verification-key digest remains a separate package binding.
-
-This module does not select a concrete production application or close final
-package conformance.
+per-application raw assignment.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationVerifierBoundAssignment
@@ -34,19 +28,15 @@ abbrev CommitmentSetup (application : Program) :=
 def relation (application : Program) (fits : FitsTwoPow28 application) :=
   PerApplicationFixedPoint.relation application fits
 
-/-- Exact four-word verifier-context digest carried by recursive state. -/
 def verifierContextDigest {application : Program}
     (fits : FitsTwoPow28 application)
     (commitmentSetup : CommitmentSetup application) :
     KeyDigest :=
   PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup
 
-/-- First final-package column of the four verifier-context words. -/
 def contextTargetStart (application : Program) : Nat :=
   PerApplicationPackage.shiftColumn application Spartan.expectedContextPublicStart
 
-/-- Overwrite only the four verifier-context columns. All other base values
-remain caller supplied. -/
 def bindContextBase (application : Program) (digest : KeyDigest)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F) :
     Fin (PiRLCProductPlan.baseSourceWidth application) → F :=
@@ -57,7 +47,6 @@ def bindContextBase (application : Program) (digest : KeyDigest)
     else
       base column
 
-/-- Canonical raw packet with verifier-owned context words. -/
 def bind {application : Program} (fits : FitsTwoPow28 application)
     (commitmentSetup : CommitmentSetup application)
     (raw : RawValues application) : RawValues application :=
@@ -152,8 +141,6 @@ theorem transitionExpectedContext
       (expectedContextTargetBound lane))).trans
     (boundBase_expectedContext fits commitmentSetup raw lane)
 
-/-- Accepted rows bind the decoded state context to the exact canonical
-per-application verifier-context digest. -/
 theorem semantics_imply_contextKey
     (application : Program) (fits : FitsTwoPow28 application)
     (commitmentSetup : CommitmentSetup application)

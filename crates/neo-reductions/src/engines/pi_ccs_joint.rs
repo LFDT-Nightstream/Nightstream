@@ -30,7 +30,7 @@ pub fn build_joint_dims(
     fresh_count: usize,
     running_count: usize,
 ) -> Result<JointDims, PiCcsError> {
-    if structure.n == 0 || structure.m == 0 {
+    if structure.n() == 0 || structure.m() == 0 {
         return Err(PiCcsError::InvalidInput(
             "PaddedRowIdentity requires nonzero CCS dimensions".into(),
         ));
@@ -41,7 +41,7 @@ pub fn build_joint_dims(
         ));
     }
     let zero = vec![F::ZERO; structure.t()];
-    if structure.f.eval(&zero) != F::ZERO {
+    if structure.f().eval(&zero) != F::ZERO {
         return Err(PiCcsError::InvalidInput(
             "the selected zero-row padding requires f(0,...,0)=0".into(),
         ));
@@ -50,7 +50,7 @@ pub fn build_joint_dims(
     build_joint_dims_for_shape(
         params,
         structure.domain_rows(),
-        structure.m,
+        structure.m(),
         structure.t(),
         structure.max_degree(),
         fresh_count,
@@ -58,10 +58,7 @@ pub fn build_joint_dims(
     )
 }
 
-/// Build the selected joint geometry from a matrix-independent relation
-/// header. The caller must separately validate the concrete matrices and the
-/// zero-padding identity `f(0,...,0)=0`.
-pub fn build_joint_dims_for_shape(
+fn build_joint_dims_for_shape(
     params: &NeoParams,
     rows: usize,
     columns: usize,
@@ -70,10 +67,10 @@ pub fn build_joint_dims_for_shape(
     fresh_count: usize,
     running_count: usize,
 ) -> Result<JointDims, PiCcsError> {
-    if params.q != F::ORDER_U64 {
+    if params.q() != F::ORDER_U64 {
         return Err(PiCcsError::InvalidInput(format!(
             "PaddedRowIdentity parameter modulus {} does not match the Goldilocks field modulus {}",
-            params.q,
+            params.q(),
             F::ORDER_U64,
         )));
     }
@@ -87,16 +84,18 @@ pub fn build_joint_dims_for_shape(
             "PaddedRowIdentity requires at least one fresh source".into(),
         ));
     }
-    if fresh_count > neo_params::goldilocks_paper_b2::MAX_FRESH_K as usize {
+    let max_fresh_count = params
+        .max_fresh_count_from_rlc_guard()
+        .map_err(|error| PiCcsError::InvalidInput(format!("PaddedRowIdentity RLC guard: {error}")))?;
+    if fresh_count > max_fresh_count as usize {
         return Err(PiCcsError::InvalidInput(format!(
-            "PaddedRowIdentity fresh source count {fresh_count} exceeds {}",
-            neo_params::goldilocks_paper_b2::MAX_FRESH_K
+            "PaddedRowIdentity fresh source count {fresh_count} exceeds {max_fresh_count}"
         )));
     }
-    if running_count > params.k_rho as usize {
+    if running_count > params.k_rho() as usize {
         return Err(PiCcsError::InvalidInput(format!(
             "PaddedRowIdentity running source count {running_count} exceeds k_rho={}",
-            params.k_rho
+            params.k_rho()
         )));
     }
 
@@ -112,7 +111,7 @@ pub fn build_joint_dims_for_shape(
         .checked_add(1)
         .ok_or_else(|| PiCcsError::InvalidInput("PaddedRowIdentity degree overflows usize".into()))?;
     let norm_degree = 2usize
-        .checked_mul(params.b as usize)
+        .checked_mul(params.b() as usize)
         .ok_or_else(|| PiCcsError::InvalidInput("PaddedRowIdentity norm degree overflows usize".into()))?;
     let degree = ccs_degree.max(norm_degree).max(2);
 
@@ -145,7 +144,6 @@ pub enum TraceEvent {
     },
 }
 
-/// Complete verifier-computed SuperNeo v1.2 terminal components.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct TerminalComponents {
     pub eval_k: K,

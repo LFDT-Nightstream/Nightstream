@@ -1,13 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 
-/-!
-Owns the cached executable form of per-application column shifting.
-
-The generic package definitions remain semantic authority. A `Context`
-computes their application-private delta once, then reuses it for every
-serialized term. Each cached structure has an equality theorem to the
-generic shift.
--/
+/-! Owns the cached executable form of per-application column shifting. -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 

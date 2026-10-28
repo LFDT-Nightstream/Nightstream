@@ -12,8 +12,6 @@ use neo_reductions::{
 };
 use neo_transcript::Poseidon2Transcript;
 
-// This fixture uses fourteen matrices. A row pair is the input to one
-// SumCheck fold; replay can hold a base pair and an extension pair together.
 const MATRIX_COUNT: usize = 14;
 const APPLICATION_WORKSPACE: usize = 2 * MATRIX_COUNT * (size_of::<F>() + size_of::<K>());
 
@@ -36,13 +34,10 @@ impl Fixture {
         for row in 0..rows {
             entries[0].extend([(row, 0, F::from_usize(row + 1)), (row, D, -F::ONE)]);
             entries[1].push((row, 0, F::ONE));
-            // An identity-pattern matrix remains rectangular, like the other
-            // matrices in the production row-cache interface.
             entries[3].push((row, row, F::ONE));
             for (matrix, terms) in entries.iter_mut().enumerate().skip(4) {
                 terms.push((row, (row + matrix) % columns, F::from_usize(row + matrix + 1)));
             }
-            // Cross the ring-block boundary and overlap the explicit D term.
             runs.push(GeometricRowRun::new(
                 row,
                 D - 2,
@@ -55,8 +50,6 @@ impl Fixture {
         for terms in entries.iter().skip(3) {
             output.extend_from_slice(terms);
         }
-        // With z[0] = z[D] = 1, every row satisfies A * B + sum(M_j) = C.
-        // Changing only z[D] then breaks exactly the final row.
         output.extend([(rows - 1, D, F::ONE), (rows - 1, 0, -F::ONE)]);
         entries[2] = output;
         let matrices = entries
@@ -101,8 +94,10 @@ impl Fixture {
                 neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
             )
             .unwrap();
-        params.lambda = params.lambda.min(security.security_bits);
-        let dims = build_joint_dims(&params, &structure, 1, params.k_rho as usize).unwrap();
+        params = params
+            .with_lambda(params.lambda().min(security.security_bits))
+            .unwrap();
+        let dims = build_joint_dims(&params, &structure, 1, params.k_rho() as usize).unwrap();
         let blocks = columns.div_ceil(D);
         let mut fresh = Mat::zero(D, blocks, F::ZERO);
         for column in 0..columns {
@@ -110,10 +105,9 @@ impl Fixture {
         }
         fresh[(0, 0)] = F::ONE;
         fresh[(0, 1)] = F::ONE;
-        let running = (0..params.k_rho as usize)
+        let running = (0..params.k_rho() as usize)
             .map(|source| {
                 let mut witness = Mat::zero(D, blocks, F::ZERO);
-                // Carried witnesses include a nonzero completion tail.
                 for column in 0..blocks * D {
                     witness[(column % D, column / D)] = digit(source + 2 * column);
                 }
@@ -131,7 +125,7 @@ impl Fixture {
             cache,
             params,
             dims,
-            fresh: [CcsWitness { w: vec![], Z: fresh }],
+            fresh: [CcsWitness { Z: fresh }],
             running,
             challenges: Challenges::new(alpha, extension(3, 5)),
             prior_point,
@@ -256,12 +250,6 @@ impl PaperJointRoundOracle for ReplayObserver<'_, '_> {
 #[test]
 fn replay_matches_cpu_and_resident_rounds_transcript_and_complete_openings() {
     let session = MetalSession::new().unwrap();
-    // Seven is the first odd row count whose base table exceeds 672 bytes.
-    // Thirteen is the first odd count whose twice-folded K table still exceeds
-    // that workspace: ceil(13 / 4) * 14 * 16 = 896 bytes.
-    // Seventeen exceeds a 16-base-word workspace per table. This selects W=8:
-    // base8 + next4 + destination4 = 16 words. Round two returns a window after
-    // two folds; round three accumulates source windows after three folds.
     for (rows, workspace, replay_prefix) in [
         (7, APPLICATION_WORKSPACE, 1),
         (13, APPLICATION_WORKSPACE, 2),
@@ -322,19 +310,22 @@ fn terminal_replay_reports_the_global_row_in_the_final_window() {
     let fixture = Fixture::new(7);
     let session = MetalSession::new().unwrap();
     let source = CachedMatrixRows::new(fixture.cache.superneo()).unwrap();
-    let metadata_workspace = matrix_workspace(&source, 0..fixture.structure.n);
+    let metadata_workspace = matrix_workspace(&source, 0..fixture.structure.n());
     let plan = session
         .prepare_joint_matrix_plan(&source, metadata_workspace)
         .unwrap();
     let mut witness = fixture.fresh[0].Z.clone();
     for expected in [None, Some(6)] {
-        let blocks = SuperneoZBlocks::from_witness_mat(&witness, fixture.structure.m).unwrap();
-        let cpu =
-            match check_ccs_relation_zero_cached_with_blocks(fixture.cache.superneo(), &fixture.structure.f, &blocks) {
-                Ok(()) => None,
-                Err(SuperneoCachedRelationError::UnsatisfiedRow { row }) => Some(row),
-                Err(error) => panic!("unexpected CPU relation error: {error}"),
-            };
+        let blocks = SuperneoZBlocks::from_witness_mat(&witness, fixture.structure.m()).unwrap();
+        let cpu = match check_ccs_relation_zero_cached_with_blocks(
+            fixture.cache.superneo(),
+            fixture.structure.f(),
+            &blocks,
+        ) {
+            Ok(()) => None,
+            Err(SuperneoCachedRelationError::UnsatisfiedRow { row }) => Some(row),
+            Err(error) => panic!("unexpected CPU relation error: {error}"),
+        };
         assert_eq!(cpu, expected);
         assert_eq!(
             session

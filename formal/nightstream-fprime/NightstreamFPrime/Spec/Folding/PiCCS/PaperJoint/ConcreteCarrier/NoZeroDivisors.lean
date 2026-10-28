@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormRange
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ConcreteCarrier/NoZeroDivisors.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Concrete quadratic-extension cancellation boundary for paper-level `Pi_CCS`.
 
@@ -16,17 +13,6 @@ is a quadratic nonresidue modulo that modulus, Fiat--Shamir probabilities,
 Rust/R1CS refinement, row emission, row removal, or constraint counts.
 
 Emits constraints: no.
-
-`Spec.GoldilocksExtension` supplies `SevenProjectiveNonresidue` from the active
-Goldilocks certificate and closes this derivation for the existing carriers.
-The generic derivation here keeps both hypotheses explicit.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `pi_ccs.carrier.extension.norm` | `N(a + bu) = a² - 7b²` | computed | `quadraticNorm` |
-| `pi_ccs.carrier.extension.conjugate` | `(a - bu)(a + bu) = N(a + bu)` | derived | `conjugate_mul_self` |
-| `pi_ccs.carrier.extension.irreducible` | `a² - 7b² = 0` only at `(0,0)` | security boundary | `SevenProjectiveNonresidue` |
-| `pi_ccs.carrier.extension.no_zero_divisors` | `xy = 0` implies `x = 0` or `y = 0` | derived | `extensionNoZeroDivisors_of_base_and_seven` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
@@ -38,23 +24,18 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 def quadraticNorm (value : K) : F :=
   value.c0 * value.c0 - 7 * value.c1 * value.c1
 
-/-- Coefficient conjugation `a + bu ↦ a - bu`. -/
 def conjugate (value : K) : K :=
   ⟨value.c0, -value.c1⟩
 
-/-- Minimal concrete irreducibility boundary for `u² - 7`: its homogeneous
-norm form has no nontrivial zero over the base carrier. -/
 def SevenProjectiveNonresidue : Prop :=
   ∀ real imaginary : F,
     real * real - 7 * imaginary * imaginary = 0 →
       real = 0 ∧ imaginary = 0
 
-/-- The concrete quadratic-extension multiplication has no zero divisors. -/
 def ExtensionNoZeroDivisors : Prop :=
   ∀ left right : K,
     K.mul left right = K.zero → left = K.zero ∨ right = K.zero
 
-/-- Multiplying by the conjugate embeds the exact quadratic norm. -/
 theorem conjugate_mul_self (value : K) :
     K.mul (conjugate value) value = K.embed (quadraticNorm value) := by
   rcases value with ⟨real, imaginary⟩
@@ -82,8 +63,6 @@ theorem conjugate_mul_self (value : K) :
         rw [commute]
       _ = 0 := ConcreteCarrier.baseLaws.add_neg _
 
-/-- Projective nonresiduosity makes a zero norm equivalent to the zero
-extension element. -/
 theorem quadraticNorm_eq_zero_iff
     (sevenNonresidue : SevenProjectiveNonresidue)
     (value : K) :
@@ -96,8 +75,6 @@ theorem quadraticNorm_eq_zero_iff
   · rintro rfl
     rfl
 
-/-- Base-field no-zero-divisors plus irreducibility of `u² - 7` derive the
-exact cancellation property needed by the concrete extension carrier. -/
 theorem extensionNoZeroDivisors_of_base_and_seven
     (baseNoZeroDivisors : NormRange.BaseFieldNoZeroDivisors)
     (sevenNonresidue : SevenProjectiveNonresidue) :

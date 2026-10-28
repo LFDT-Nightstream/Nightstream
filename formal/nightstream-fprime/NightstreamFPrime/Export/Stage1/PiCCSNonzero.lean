@@ -7,8 +7,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 /-!
 Owns a deterministic nonzero SuperNeo v1.2 verifier-result fixture.
 Its source openings and matrix evaluations are synthetic; it does not
-establish valid-input phase conformance. Lean computes every verifier coin
-from the public statement and the causal round messages.
+establish valid-input phase conformance.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNonzero
@@ -43,8 +42,6 @@ def field (value : Nat) : F := Poseidon2.ofNat (value + 1)
 def extension (low high : Nat) : K :=
   ⟨field low, field high⟩
 
-/-- Child `source` of public column `column`: the canonical signed split of
-the parent `±(column + 1)`, negative on odd columns. -/
 def runningPublicDigit (source column : Nat) : F :=
   let digit := Poseidon2.ofNat ((column + 1) / 2 ^ source % 2)
   if column % 2 = 1 then -digit else digit
@@ -157,8 +154,6 @@ def verifierInput : ProtocolPolynomial.VerifierInput K productionShape where
     (running.evaluations coordinate.running).matrix coordinate.matrix
       coordinate.coefficient
 
-/-- Linear Horner evaluation of the exact verifier-owned initial-claim
-coefficient list. -/
 def initialClaimFast (gamma : K) : K :=
   NightstreamFPrime.Spec.SumCheck.Finite.Message.evaluateCoefficients
     extensionOps.toOps gamma
@@ -176,7 +171,6 @@ private def powerLoop (value : K) : Nat → K → K
   | exponent + 1, accumulated =>
       powerLoop value exponent (extensionOps.toOps.mul value accumulated)
 
-/-- Tail-recursive execution of the exact right-nested paper power. -/
 def powerFast (value : K) (exponent : Nat) : K :=
   powerLoop value exponent extensionOps.toOps.one
 
@@ -207,7 +201,6 @@ theorem powerFast_eq_power (value : K) (exponent : Nat) :
   rw [powerLoop_power]
   simp
 
-/-- Linear evaluation of the exact paper `Eval_K` terminal. -/
 def padTerminalFast (gamma : K)
     (point : CubePoint K productionShape.cubeVariables)
     (message : ProtocolPolynomial.OutputMessage K productionShape) : K :=
@@ -229,7 +222,6 @@ theorem padTerminalFast_eq_paper (gamma : K)
       extensionOps ConcreteCarrier.extensionLaws verifierInput gamma point
         message).symm
 
-/-- Linear evaluation of the exact paper-local `Eval_A` terminal. -/
 def matrixTerminalFast (gamma : K)
     (point : CubePoint K productionShape.cubeVariables)
     (message : ProtocolPolynomial.OutputMessage K productionShape) : K :=
@@ -251,8 +243,6 @@ theorem matrixTerminalFast_eq_paper (gamma : K)
       extensionOps ConcreteCarrier.extensionLaws verifierInput gamma point
         message).symm
 
-/-- Assemble the exact paper terminal from independently computed terminal
-parts. Only the fixed gamma shifts use the tail-recursive power adapter. -/
 def assembleTerminalFast
     (alpha : CubePoint K productionShape.cubeVariables)
     (gamma : K)
@@ -456,16 +446,11 @@ def terminalForTarget (core : TranscriptCore) (target : K) : K :=
   assembleTerminalFast core.preSumcheck.alpha core.preSumcheck.gamma
     core.verifierRoundPoint padTerminal matrixTerminal ccsTerminal normTerminal
 
-/-- Executable inverse in `K = F[X]/(X² - 7)`. The base inverse is the
-existing Goldilocks witness computation. Fixture acceptance independently
-checks the result. -/
 def inverseExtension (value : K) : K :=
   let norm := value.c0 * value.c0 - 7 * value.c1 * value.c1
   let inverseNorm := NightstreamFPrime.Circuit.Hint.inverse norm
   ⟨value.c0 * inverseNorm, (0 - value.c1) * inverseNorm⟩
 
-/-- The chosen output coordinate is affine in the final SumCheck terminal.
-Solve it from terminal evaluations at zero and one. -/
 def solveTarget (core : TranscriptCore) : K :=
   let terminalZero := terminalForTarget core K.zero
   let terminalOne := terminalForTarget core K.one
@@ -485,8 +470,6 @@ structure FixtureStatement where
   freshValue_eq : freshValue = fresh stateKey
   publicState_eq : publicState = PiCCSNonzero.publicState () stateKey
 
-/-- Compute and retain the one state digest used by every fixture view. The
-proof fields bind each retained value to the unchanged semantic definition. -/
 def fixtureStatement (vk : KeyDigest) : FixtureStatement :=
   let preimageWords := statePreimageWords () vk
   let digest := Poseidon2.hash preimageWords
@@ -514,8 +497,6 @@ structure FixtureBase where
   output : FullOutputCoordinates.FullOutput K productionShape
   message : ProtocolPolynomial.OutputMessage K productionShape
 
-/-- Build the one key-dependent transcript and solved output shared by the
-pure and parallel fixture evaluators. -/
 def fixtureBase (vk : KeyDigest) : FixtureBase :=
   let statement := fixtureStatement vk
   let core := transcriptCoreFromState statement.publicState
@@ -534,7 +515,6 @@ def fixtureBase (vk : KeyDigest) : FixtureBase :=
     message := outputMessage fixtureOutput
   }
 
-/-- Lazy compatibility projection for dependent fixture modules. -/
 def output (vk : KeyDigest := stateVerifierKey ()) :
     FullOutputCoordinates.FullOutput K productionShape :=
   (fixtureBase vk).output
@@ -608,7 +588,6 @@ private def finishComputed (base : FixtureBase)
     proofMessagesNonzero := proofMessagesAreNonzero
   }
 
-/-- Evaluate the complete fixture with one shared transcript and round trace. -/
 def compute (_ : Unit)
     (vk : KeyDigest := stateVerifierKey ()) : Computed :=
   let base := fixtureBase vk
@@ -641,8 +620,6 @@ private def preparedComputedValue {Alpha : Type}
   | .ok value => pure value
   | .error error => throw error
 
-/-- Evaluate the same fixture record as `compute`, but schedule the independent
-terminal formulas and outgoing-state absorption on separate native tasks. -/
 def computeIO (vk : KeyDigest := stateVerifierKey ()) : IO Computed := do
   let base := fixtureBase vk
   let core := base.core

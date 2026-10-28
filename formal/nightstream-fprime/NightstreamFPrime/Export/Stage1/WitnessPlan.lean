@@ -3,10 +3,6 @@ import NightstreamFPrime.Export.Stage1.WitnessProgram
 /-!
 Owns the compact witness plan for the PiRLC sampler, PiDEC, and running-
 transition suffix.
-
-Each scalar carries the current reduction's canonical witness batches. The
-structural expansion proof fixes source order without materializing the
-complete witness schedule.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.WitnessPlan

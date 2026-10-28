@@ -1,13 +1,11 @@
 //! Nonzero assignment execution for the Lean-authored concrete application.
-//!
-//! The package witness IR generates the assignment. A separate raw-package
-//! interpreter then checks the completed assignment without matrix expansion.
 
 use std::{fs, path::PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use nightstream_fprime::{
-    load_per_application_package, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, PackageError,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, IdentityKind, LoadedPerApplicationPackage,
+    PackageError,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -27,7 +25,6 @@ const TOTAL_COLUMN_COUNT: usize = 11_470_359;
 const FIRST_GENERATED_COLUMN: usize = 70_830;
 const STATE_PREIMAGE_WORDS: usize = 27_819;
 const OUTPUT_DIGEST_PUBLIC_START: usize = 270;
-// The preimage tail `vk, i, z0, zi`.
 const ITERATION_WORD: usize = 27_810;
 const INITIAL_STATE_WORD_START: usize = 27_811;
 const CURRENT_WORD_START: usize = 27_815;
@@ -202,7 +199,7 @@ fn package_generates_the_complete_nonzero_hash_chain_assignment() {
         .production_verifier_binding()
         .expect("fixed production verifier binding");
     let (private_inputs, public_inputs, expected_output, expected_terminal) =
-        concrete_inputs(binding.verifier_context().digest(), binding.package_identity());
+        concrete_inputs(binding.verifier_context().digest(), binding.package_identity().words());
     let terminal = package.terminal().expect("Lean-owned terminal layout");
     assert_eq!(terminal.row_start() as u64, expected_terminal[0]);
     assert_eq!(terminal.row_count() as u64, expected_terminal[1]);
@@ -291,12 +288,10 @@ fn rust_assignment_satisfies_the_complete_lean_logical_relation() {
         .production_verifier_binding()
         .expect("fixed production verifier binding");
     let (private_inputs, public_inputs, _, _) =
-        concrete_inputs(binding.verifier_context().digest(), binding.package_identity());
+        concrete_inputs(binding.verifier_context().digest(), binding.package_identity().words());
     check_logical_assignment(package, sealed_bytes, private_inputs, public_inputs);
 }
 
-/// Run the same complete assignment and strict mutation gate before replacing
-/// production pins. The external parity inputs must match the loaded candidate.
 pub fn check_candidate_assignment(
     package: LoadedPerApplicationPackage,
     sealed_bytes: Vec<u8>,
@@ -312,7 +307,7 @@ pub fn check_candidate_assignment(
     let (application, application_result) = decode_parity(application, 2);
     let (private_inputs, public_inputs, _, _) = inputs_from_parities(
         binding.verifier_context().digest(),
-        binding.package_identity(),
+        binding.package_identity().words(),
         pi_ccs,
         pi_dec,
         pi_dec_output,
@@ -393,9 +388,6 @@ fn check_logical_assignment(
         artifact.logical_rows,
     )
     .expect("independent final matrix-program decoder");
-    // The complete vector comparison above establishes that both assignments
-    // have the same values. One independent row traversal therefore checks
-    // both vectors, including every required mutation below.
     drop(production_logical_assignment);
     let result = logical_reference::evaluation::evaluate(&program, &artifact.sources, &relation, &logical_assignment)
         .expect("Rust assignment satisfies every final Lean logical row");
@@ -419,8 +411,12 @@ fn check_logical_assignment(
         let changed_bytes = logical_reference::mutation::self_consistent_bytes(&sealed_bytes, family)
             .expect("self-consistent derived-recipe mutation");
         match load_per_application_package(&changed_bytes, expected_identity) {
-            Err(PackageError::ExpectedIdentityMismatch { expected, computed }) => {
-                assert_eq!(expected, expected_identity);
+            Err(PackageError::IdentityMismatch {
+                kind: IdentityKind::Relation,
+                expected,
+                computed,
+            }) => {
+                assert_eq!(expected, expected_identity.words());
                 assert_ne!(
                     computed, expected,
                     "recipe mutation {family:?} did not change the structural identity"

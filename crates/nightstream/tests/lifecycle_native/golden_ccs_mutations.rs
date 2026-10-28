@@ -13,7 +13,7 @@ use p3_field::PrimeCharacteristicRing;
 
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
 
-pub fn check_proof_mutations(
+pub(crate) fn check_proof_mutations(
     params: &NeoParams,
     structure: &CcsStructure<F>,
     fresh: &CcsClaim<Commitment, F>,
@@ -44,7 +44,6 @@ pub fn check_proof_mutations(
     rejects(&changed, "missing round coefficient");
     let checked = 2
         + (0..proof.sumcheck_rounds.len())
-            .into_iter()
             .map(|round| {
                 let mut checked = 0;
                 for coefficient in 0..proof.sumcheck_rounds[round].len() {
@@ -77,7 +76,7 @@ fn change_digest(digest: &mut [u8; 32], lane: usize) {
     digest[start..start + 8].copy_from_slice(&next.to_le_bytes());
 }
 
-pub fn check_claim_mutations(
+pub(crate) fn check_claim_mutations(
     params: &NeoParams,
     structure: &CcsStructure<F>,
     fresh: &CcsClaim<Commitment, F>,
@@ -88,8 +87,8 @@ pub fn check_claim_mutations(
 ) {
     assert_eq!(running.len(), 16);
     assert_eq!(outputs.len(), 17);
-    // Commitment, public input, Eval_K, and each Eval_A matrix.
-    let claim_families = 3 + structure.t();
+    const FIXED_CLAIM_FAMILIES: usize = 3;
+    let claim_families = FIXED_CLAIM_FAMILIES + structure.t();
     let checked = Cell::new(0);
     let rejects = |fresh: &CcsClaim<Commitment, F>,
                    running: &[CeClaim<Commitment, F, K>],
@@ -111,8 +110,6 @@ pub fn check_claim_mutations(
 
     match group {
         "point-mutations" => {
-            // This group is for the nonzero-running fixture. Zero openings
-            // stay valid at every common point and use the parent hash gate.
             assert!(running
                 .iter()
                 .any(|claim| claim.eval_k.iter().any(|&value| value != K::ZERO)));
@@ -136,9 +133,6 @@ pub fn check_claim_mutations(
             assert_eq!(checked.get(), 28 * 2);
         }
         "statement-mutations" => {
-            // Zero running openings remain valid at every common point.
-            // The parent pilot hashes that point; its preimage-mutation gate
-            // owns rejection of a changed point with the old public digest.
             let mut changed = running.to_vec();
             changed[1].r[0] += K::ONE;
             rejects(fresh, &changed, outputs, "one inconsistent prior-point");
@@ -152,7 +146,7 @@ pub fn check_claim_mutations(
                 for family in 0..claim_families {
                     let mut changed = running.to_vec();
                     match family {
-                        0 => changed[source].c.data[0] += F::ONE,
+                        0 => changed[source].c.data_mut()[0] += F::ONE,
                         1 => changed[source].X[(0, 0)] += F::ONE,
                         2 => changed[source].eval_k[0] += K::ONE,
                         _ => changed[source].eval_a[family - 3][0] += K::ONE,
@@ -166,7 +160,7 @@ pub fn check_claim_mutations(
                 }
             }
             let mut changed = fresh.clone();
-            changed.c.data[0] += F::ONE;
+            changed.c.data_mut()[0] += F::ONE;
             rejects(&changed, running, outputs, "fresh commitment");
             let mut changed = fresh.clone();
             changed.x[0] += F::ONE;
@@ -175,61 +169,56 @@ pub fn check_claim_mutations(
         }
         "output-mutations" => {
             let mutations_per_source = claim_families + 28 + 4;
-            (0..outputs.len() * mutations_per_source)
-                .into_iter()
-                .for_each(|mutation| {
-                    let source = mutation / mutations_per_source;
-                    let mutation = mutation % mutations_per_source;
-                    let mut changed = outputs.to_vec();
-                    let label = if mutation < claim_families {
-                        match mutation {
-                            0 => changed[source].c.data[0] += F::ONE,
-                            1 => changed[source].X[(0, 0)] += F::ONE,
-                            2 => changed[source].eval_k[0] += K::ONE,
-                            _ => changed[source].eval_a[mutation - 3][0] += K::ONE,
-                        }
-                        format!("output source {source}, family {mutation}")
-                    } else if mutation < claim_families + 28 {
-                        let coordinate = mutation - claim_families;
-                        changed[source].r[coordinate] += K::ONE;
-                        format!("output source {source}, point {coordinate}")
-                    } else {
-                        let lane = mutation - claim_families - 28;
-                        change_digest(&mut changed[source].fold_digest, lane);
-                        format!("output source {source}, digest {lane}")
-                    };
-                    rejects(fresh, running, &changed, &label);
-                });
-            for shape in 0..10 {
+            (0..outputs.len() * mutations_per_source).for_each(|mutation| {
+                let source = mutation / mutations_per_source;
+                let mutation = mutation % mutations_per_source;
+                let mut changed = outputs.to_vec();
+                let label = if mutation < claim_families {
+                    match mutation {
+                        0 => changed[source].c.data_mut()[0] += F::ONE,
+                        1 => changed[source].X[(0, 0)] += F::ONE,
+                        2 => changed[source].eval_k[0] += K::ONE,
+                        _ => changed[source].eval_a[mutation - 3][0] += K::ONE,
+                    }
+                    format!("output source {source}, family {mutation}")
+                } else if mutation < claim_families + 28 {
+                    let coordinate = mutation - claim_families;
+                    changed[source].r[coordinate] += K::ONE;
+                    format!("output source {source}, point {coordinate}")
+                } else {
+                    let lane = mutation - claim_families - 28;
+                    change_digest(&mut changed[source].fold_digest, lane);
+                    format!("output source {source}, digest {lane}")
+                };
+                rejects(fresh, running, &changed, &label);
+            });
+            for shape in 0..9 {
                 let mut changed = outputs.to_vec();
                 match shape {
                     0 => {
                         changed.pop();
                     }
                     1 => {
-                        changed[0].c.data.pop();
-                    }
-                    2 => {
                         changed[0].r.pop();
                     }
-                    3 => {
+                    2 => {
                         changed[0].eval_k.pop();
                     }
-                    4 => changed[0].eval_k[D] = K::ONE,
-                    5 => {
+                    3 => changed[0].eval_k[D] = K::ONE,
+                    4 => {
                         changed[0].eval_a.pop();
                     }
-                    6 => {
+                    5 => {
                         changed[0].eval_a[0].pop();
                     }
-                    7 => changed[0].eval_a[0][D] = K::ONE,
-                    8 => changed[0].X = neo_ccs::Mat::zero(D, 4, F::ZERO),
-                    9 => changed[0].m_in -= 1,
+                    6 => changed[0].eval_a[0][D] = K::ONE,
+                    7 => changed[0].X = neo_ccs::Mat::zero(D, 4, F::ZERO),
+                    8 => changed[0].m_in -= 1,
                     _ => unreachable!(),
                 }
                 rejects(fresh, running, &changed, &format!("malformed output shape {shape}"));
             }
-            assert_eq!(checked.get(), outputs.len() * mutations_per_source + 10);
+            assert_eq!(checked.get(), outputs.len() * mutations_per_source + 9);
         }
         _ => panic!("unknown claim mutation group"),
     }

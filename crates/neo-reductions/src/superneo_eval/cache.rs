@@ -44,10 +44,6 @@ where
     cache
 }
 
-/// Intern equal ring-coefficient patterns before compact storage is emitted.
-/// The row block still owns its column-block index; only the 54 coefficients
-/// are shared. Fingerprints select comparison buckets, but exact field-array
-/// equality decides every merge.
 fn deduplicate_dense_blocks(cache: &mut SuperneoMatrixCache) {
     let DenseBlockStore::Building(patterns) = &mut cache.dense_orig else {
         return;
@@ -125,15 +121,15 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy,
     K: From<Ff>,
 {
-    let rows = csc.nrows;
-    let cols = csc.ncols.div_ceil(D) * D;
+    let rows = csc.nrows();
+    let cols = csc.ncols().div_ceil(D) * D;
     let mut counts = vec![0u32; rows];
     let mut last_blk_by_row = vec![u32::MAX; rows];
-    for column in 0..csc.ncols {
+    for column in 0..csc.ncols() {
         let block = (column / D) as u32;
         for index in csc.column_range(column) {
             let row = csc.row_index(index);
-            if as_base_field(csc.vals[index]) != F::ZERO && last_blk_by_row[row] != block {
+            if as_base_field(csc.vals()[index]) != F::ZERO && last_blk_by_row[row] != block {
                 counts[row] = counts[row]
                     .checked_add(1)
                     .expect("SuperNeo row block count exceeds u32");
@@ -161,12 +157,12 @@ where
     let mut cursor = row_offsets[..rows].to_vec();
     last_blk_by_row.fill(u32::MAX);
 
-    for column in 0..csc.ncols {
+    for column in 0..csc.ncols() {
         let block = column / D;
         let local = column % D;
         for index in csc.column_range(column) {
             let row = csc.row_index(index);
-            let value = as_base_field(csc.vals[index]);
+            let value = as_base_field(csc.vals()[index]);
             if value == F::ZERO {
                 continue;
             }
@@ -287,11 +283,11 @@ where
     if structure.is_verifier_artifact_header() {
         return None;
     }
-    if !is_superneo_compatible_shape(structure.m) {
+    if !is_superneo_compatible_shape(structure.m()) {
         return None;
     }
     if structure
-        .matrices
+        .matrices()
         .iter()
         .any(|matrix| matrix.cols().div_ceil(D) > COMPACT_SINGLE_BLOCK_MASK as usize + 1)
     {
@@ -299,7 +295,7 @@ where
     }
     #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
     let mut mats: Vec<SuperneoMatrixCache> = structure
-        .matrices
+        .matrices()
         .par_iter()
         .map(build_matrix_cache)
         .collect();
@@ -476,8 +472,6 @@ where
 }
 
 impl SuperneoEvalCache {
-    /// Common `(rows, columns, matrix count)` checked by cache construction
-    /// and artifact decoding. An empty cache has no relation shape.
     pub fn relation_shape(&self) -> Option<(usize, usize, usize)> {
         self.mats
             .first()

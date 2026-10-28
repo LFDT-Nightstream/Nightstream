@@ -15,7 +15,6 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
   (StoredRing)
 
-/-- Add one prepared message block at the unchanged setup row and block. -/
 def accumulatePrepared {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns)
@@ -24,8 +23,6 @@ def accumulatePrepared {verifierRows messageColumns : Nat}
   let key := PiDECNativeProduct.prepareKey (PiDECCommitmentBlock.keyBlock setup row block)
   initial.addPreparedProduct key digit
 
-/-- Every finished coefficient is the exact prior sum plus the semantic
-key-block product. No signed-unit or nonzero premise is required. -/
 theorem accumulatePrepared_value {verifierRows messageColumns : Nat}
     (setup : AjtaiSetupV1.Setup verifierRows messageColumns)
     (row : Fin verifierRows) (block : Fin messageColumns)

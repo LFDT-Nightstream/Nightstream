@@ -1,9 +1,4 @@
 //! Exact row-materialization parity for every compact matrix representation.
-//!
-//! | Case | Components | Oracle |
-//! |---|---|---|
-//! | identity/CSC | direct stored terms | `CcsMatrix::add_mul_into` |
-//! | compact overlap | CSC + geometric run | field-summed row action |
 
 use neo_ccs::{CcsMatrix, CscMat, GeometricRowRun};
 use neo_math::{D, F};
@@ -48,8 +43,6 @@ fn materialized_rows_match_identity_and_csc_actions() {
 
 #[test]
 fn compact_row_sums_csc_and_geometric_overlaps() {
-    // The run has coefficients 7, 35, 175 in columns 5, 6, 7. The CSC terms
-    // change column 5 to 3 and cancel column 6.
     let csc = CscMat::from_triplets(
         vec![
             (0, 5, -F::from_u64(4)),

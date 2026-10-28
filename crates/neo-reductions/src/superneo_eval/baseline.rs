@@ -19,15 +19,15 @@ fn matrix_entry<Ff: Field + PrimeCharacteristicRing + Copy>(mat: &CcsMatrix<Ff>,
         }
         CcsMatrix::Csc(csc) => {
             let range = csc.column_range(col);
-            match csc.row_idx[range.clone()].binary_search(&(row as u32)) {
-                Ok(idx) => csc.vals[range.start + idx],
+            match csc.row_idx()[range.clone()].binary_search(&(row as u32)) {
+                Ok(idx) => csc.vals()[range.start + idx],
                 Err(_) => Ff::ZERO,
             }
         }
         CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
             let range = csc.column_range(col);
-            let mut value = match csc.row_idx[range.clone()].binary_search(&(row as u32)) {
-                Ok(idx) => csc.vals[range.start + idx],
+            let mut value = match csc.row_idx()[range.clone()].binary_search(&(row as u32)) {
+                Ok(idx) => csc.vals()[range.start + idx],
                 Err(_) => Ff::ZERO,
             };
             for run in geometric_runs {
@@ -50,7 +50,6 @@ where
     K::from(v).real()
 }
 
-/// Row dot-product via on-the-fly SuperNeo lift from an original matrix row.
 pub fn superneo_row_dot_from_original<Ff>(mat: &CcsMatrix<Ff>, row: usize, z: &[K]) -> K
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
@@ -92,7 +91,6 @@ where
     K::from_coeffs([acc_re, acc_im])
 }
 
-/// Evaluate `\tilde{(M z)}(r)` using transformed matrix rows and `ct` products.
 pub fn eval_mle_transformed_matrix(mat_bar: &CcsMatrix<F>, z: &[K], chi_r: &[K], n_eff: usize) -> K {
     let row_cap = min(min(mat_bar.rows(), n_eff), chi_r.len());
     let mut acc = K::ZERO;
@@ -105,7 +103,6 @@ pub fn eval_mle_transformed_matrix(mat_bar: &CcsMatrix<F>, z: &[K], chi_r: &[K],
     acc
 }
 
-/// Evaluate `\tilde{(M z)}(r)` by lifting original rows through the SuperNeo `bar` transform.
 pub fn eval_mle_superneo_from_original<Ff>(mat: &CcsMatrix<Ff>, z: &[K], chi_r: &[K], n_eff: usize) -> K
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
@@ -122,7 +119,6 @@ where
     acc
 }
 
-/// Evaluate `\tilde{(M z)}(r)` directly from `M`.
 pub fn eval_mle_direct_matrix<Ff>(mat: &CcsMatrix<Ff>, z: &[K], chi_r: &[K], n_eff: usize) -> K
 where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
@@ -152,13 +148,9 @@ pub fn is_superneo_compatible_shape(cols: usize) -> bool {
     cols > 0
 }
 
-pub fn should_enable_superneo_cache_default<Ff>(s: &CcsStructure<Ff>, _b: u32) -> bool {
-    is_superneo_compatible_shape(s.m) && !s.matrices.is_empty()
-}
-
 pub fn eval_all_mats_transformed(s_bar: &CcsStructure<F>, z: &[K], chi_r: &[K], n_eff: usize) -> Vec<K> {
-    let mut out = Vec::with_capacity(s_bar.matrices.len());
-    for m in &s_bar.matrices {
+    let mut out = Vec::with_capacity(s_bar.matrices().len());
+    for m in s_bar.matrices() {
         out.push(eval_mle_transformed_matrix(m, z, chi_r, n_eff));
     }
     out
@@ -169,8 +161,8 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
-    let mut out = Vec::with_capacity(s.matrices.len());
-    for m in &s.matrices {
+    let mut out = Vec::with_capacity(s.matrices().len());
+    for m in s.matrices() {
         out.push(eval_mle_direct_matrix(m, z, chi_r, n_eff));
     }
     out
@@ -181,8 +173,8 @@ where
     Ff: Field + PrimeCharacteristicRing + Copy + Send + Sync,
     K: From<Ff>,
 {
-    let mut out = Vec::with_capacity(s.matrices.len());
-    for m in &s.matrices {
+    let mut out = Vec::with_capacity(s.matrices().len());
+    for m in s.matrices() {
         out.push(eval_mle_superneo_from_original(m, z, chi_r, n_eff));
     }
     out

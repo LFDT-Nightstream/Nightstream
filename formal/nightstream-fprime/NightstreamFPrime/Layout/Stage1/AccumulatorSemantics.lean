@@ -96,8 +96,6 @@ private theorem key_piRlcAlgebra_eq
       PaperAlgebra.piRlcAlgebra ajtai := by
   rfl
 
-/-- The executable PiCCS check depends only on the two PiCCS proof fields.
-PiDEC commitments and evaluations cannot change this check. -/
 theorem piCcsCheck_eq_of_proof_fields
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -227,8 +225,6 @@ private theorem piCcsOutput_point
         (AccumulatorInputs.proof relation env)).coins.roundPoint := by
   rfl
 
-/-- The canonical 17-input family is the production key's PiCCS output family
-for any symbolic point already proved equal to the key-derived point. -/
 theorem piRlcInputsAtPoint_eq_keyOutputs
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -368,8 +364,6 @@ theorem piRlcInputsAtPoint_eq_keyOutputs
           AccumulatorInputs.piCcsInterface, injectionEq]
   · rfl
 
-/-- The production package PiRLC input family uses the exact PiCCS-derived
-point and is therefore the key's output family. -/
 theorem piRlcInputs_eq_keyOutputs
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -396,8 +390,6 @@ theorem piRlcInputs_eq_keyOutputs
   exact piRlcInputsAtPoint_eq_keyOutputs relation ajtai env _
     (directPointEq.trans pointEq)
 
-/-- For any layout, exact PiCCS-output inputs and a constrained PiRLC phase
-determine the production key's verifier-computed parent. -/
 theorem piRlcOutput_eq_keyParentForChallenges_of_inputs
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -456,8 +448,6 @@ theorem piRlcOutput_eq_keyParentForChallenges_of_inputs
     key_piRlcAlgebra_eq relation ajtai]
   rfl
 
-/-- For any layout, the exact post-PiCCS transcript-state wiring makes the
-constrained PiRLC sampler equal the production key sampler. -/
 theorem piRlcChallenges_eq_key_of_initialState
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -494,8 +484,6 @@ theorem piRlcChallenges_eq_key_of_initialState
   rw [← initialStateEq]
   exact phase.response
 
-/-- For any layout, the exact PiRLC parent and PiDEC input wiring identify
-the production key's optional PiDEC attempt. -/
 theorem keyPiDecAttempt_eq_some_of_wiring
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -546,8 +534,6 @@ theorem keyPiDecAttempt_eq_some_of_wiring
         piRlcInterface piRlcOffset env))) = some _
   rw [← parentEq, ← attemptEq]
 
-/-- A constrained PiDEC phase over the exact key attempt makes the executable
-PiDEC verifier check true. -/
 theorem piDecCheck_eq_true_of_attempt
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -582,8 +568,6 @@ theorem piDecCheck_eq_true_of_attempt
     (ProductionKey.key relation ajtai) running fresh proof).mpr
       ⟨_, attemptEq, accepted⟩
 
-/-- A constrained PiDEC phase and exact output wiring identify the key's
-computed running output. -/
 theorem keyOutput_eq_some_of_attempt
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -631,8 +615,6 @@ theorem keyOutput_eq_some_of_attempt
   rw [outputEq] at result
   exact result
 
-/-- The PiRLC sampler starts at the exact post-PiCCS transcript state and
-therefore returns the production key's challenge vector. -/
 theorem piRlcChallenges_eq_key
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -691,8 +673,6 @@ theorem piRlcChallenges_eq_key
   rw [← stateEq]
   exact piRlcPhase.response
 
-/-- The constrained PiRLC output is exactly the production key's parent for
-the constrained challenge vector. -/
 theorem piRlcOutput_eq_keyParentForChallenges
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -753,7 +733,6 @@ theorem piRlcOutput_eq_keyParentForChallenges
   rw [inputsEq, outputPointEq]
   rfl
 
-/-- The PiDEC parent view is the exact zero-copy PiRLC output instance. -/
 theorem piDecParent_eq_piRlcOutput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -769,8 +748,6 @@ theorem piDecParent_eq_piRlcOutput
         PiRLCInputs.phaseOffset env := by
   rfl
 
-/-- The constrained PiDEC input attempt is exactly the production key attempt
-for the constrained PiRLC parent and the accumulator proof message. -/
 theorem piDecAttempt_eq_keyAttemptForParent
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -829,8 +806,6 @@ theorem piDecAttempt_eq_keyAttemptForParent
         NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.outputBindingOffset,
         NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal.recompositionOffset]
 
-/-- Successful PiRLC sampling makes the key's optional PiDEC attempt exactly
-the constrained PiDEC input attempt. -/
 theorem keyPiDecAttempt_eq_some
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -874,8 +849,6 @@ theorem keyPiDecAttempt_eq_some
         PiRLCInputs.phaseOffset env))) = some _
   rw [← parentEq, ← attemptEq]
 
-/-- The constrained PiDEC phase makes the production key's executable
-PiDEC check true. -/
 theorem piDecCheck_eq_true
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -916,8 +889,6 @@ theorem piDecCheck_eq_true
     (AccumulatorInputs.proof relation env)).mpr
       ⟨_, attemptEq, accepted⟩
 
-/-- The key output constructor over the constrained PiDEC attempt is exactly
-the existing typed 16-child PiDEC running output. -/
 theorem outputForAttempt_eq_accumulatorOutput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -980,8 +951,6 @@ theorem outputForAttempt_eq_accumulatorOutput
     exact (congrFun publicEq column).symm
   · exact AccumulatorInputs.proof_piDecEvaluations relation env
 
-/-- The production key computes exactly the existing typed PiDEC running
-output. -/
 theorem keyOutput_eq_some
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -1026,8 +995,6 @@ theorem keyOutput_eq_some
     at result
   exact result
 
-/-- The five exact cross-phase equalities required to compose phase-local
-results into one deterministic SuperNeo accumulator result. -/
 structure PhaseWiring
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -1094,8 +1061,6 @@ structure PhaseWiring
             relation piDecInterface piDecOffset env).parent.publicInput) =
       computedOutput
 
-/-- Three constrained phase results and their five exact wiring equalities
-compose into the deterministic SuperNeo accumulator update for any layout. -/
 theorem phases_imply_holds_of_wiring
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -1186,8 +1151,6 @@ theorem phases_imply_holds_of_wiring
       piCcsInterface piCcsOffset env)
     proof computedOutput).mpr ⟨piCcsCheck, piDecCheck, keyOutput⟩
 
-/-- The three constrained package phase results compose into the exact
-deterministic SuperNeo accumulator update. -/
 theorem phases_imply_holds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

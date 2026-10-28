@@ -44,8 +44,6 @@ variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Affine physical-input premise for the incoming state and all prover round
-message coefficients. Challenges are excluded because the compiler owns them. -/
 structure InputsAffine
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.RoundTranscript.Interface
@@ -163,8 +161,6 @@ theorem challenge_linear
   exact layoutProgram_samples_linear interface offset initialFresh _
     (List.get_mem _ _)
 
-/-- Every verifier-derived round challenge lies below the canonical
-initial-claim child start. -/
 theorem challenge_varsBelow_initialClaim
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (parentOffset : Nat) (env : Env)
@@ -207,8 +203,6 @@ theorem challenge_varsBelow_initialClaim
   rw [challengeEq, boundEq]
   exact below
 
-/-- The outgoing transcript state lies below the immediate parent boundary
-that starts the initial-claim child. -/
 theorem finalState_varsBelow_initialClaim
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (parentOffset : Nat) (env : Env)
@@ -250,8 +244,6 @@ theorem finalState_varsBelow_initialClaim
   rw [boundEq]
   exact below lane
 
-/-- Parent wiring can carry the same outgoing transcript state to any later
-child boundary without changing the state expression. -/
 theorem finalState_varsBelow_of_initialClaim_le
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (parentOffset : Nat) (env : Env)
@@ -316,8 +308,6 @@ theorem actions_affine
     (challenge interface offset roundIndex) inputs
     (challenge_affine interface offset inputs roundIndex)
 
-/-- Exact parent-facing physical footprint for the indexed 28-round transcript
-chain. -/
 def footprint
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (inputs : ∀ offset,

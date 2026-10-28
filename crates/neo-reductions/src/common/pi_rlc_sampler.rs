@@ -4,13 +4,10 @@
 use neo_math::{D, F};
 use p3_field::PrimeField64;
 
-/// Decode X = h0 + p*h1 + p²*h2 + p³*h3 modulo 5^54.
-/// The map is total and uses no rejection or retry.
 pub fn decode_pi_rlc_coefficients(digest: &[F; 4]) -> [i8; D] {
     const MODULUS: u128 = 0xffff_ffff_0000_0001;
     let mut integer = [0u64; 4];
 
-    // Horner evaluation in base p. Every partial value is below p^4 < 2^256.
     for lane in digest.iter().rev() {
         let mut carry = u128::from(lane.as_canonical_u64());
         for word in &mut integer {

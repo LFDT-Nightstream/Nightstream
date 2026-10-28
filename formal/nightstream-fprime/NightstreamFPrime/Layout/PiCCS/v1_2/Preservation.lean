@@ -16,7 +16,7 @@ Outputs:
 - constructive completion of all logical and physical witness columns.
 
 Parent coverage:
-- the future Stage 1 assembler consumes this theorem as the PiCCS phase edge.
+- `Layout/Stage1/Preservation.lean` consumes this theorem as the PiCCS phase edge.
 -/
 
 namespace NightstreamFPrime.Layout.PiCCS.v1_2
@@ -48,8 +48,6 @@ theorem physical_implies_holdsFlat
   change ConstraintsHold env (logicalConstraints relation interface offset)
   exact R1CS.lowerConstraints_sound env _ _ physical
 
-/-- Deterministic PiCCS layout-preservation theorem. It has no cryptographic
-assumption and does not inspect any emitted row in the kernel. -/
 theorem physical_implies_phaseHolds
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -67,9 +65,6 @@ theorem physical_implies_phaseHolds
   exact holdsFlat_implies_holds env _
     (physical_implies_holdsFlat relation interface offset env physical)
 
-/-- Constructive physical completeness for the sole PiCCS layout. The final
-environment differs from the caller only inside the adjacent logical and R1CS
-fresh-column intervals. -/
 theorem physical_complete
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

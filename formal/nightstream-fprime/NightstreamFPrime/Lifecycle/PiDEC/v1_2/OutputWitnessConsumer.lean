@@ -26,8 +26,6 @@ variable {logicalWidth : Nat}
 variable (relation : LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
-/-- The generic output consumer checks the same CE statement as the concrete
-terminal relation, with no additional adapter premise. -/
 theorem runningStatement_eq
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (index : Fin productionShape.runningCount) :
@@ -63,8 +61,6 @@ variable (running : Running (logicalWidth := logicalWidth) (publicFits := public
     PaperAlgebra.Point PaperAlgebra.Evaluation PaperAlgebra.Commitment
     productionGlobalParams)
 
-/-- Terminal membership supplies all child openings for the actual accepted
-NIFS output. Acceptance includes the literal `key.output = some result` link. -/
 theorem terminalHolds_supplies_childOpenings
     (attemptEq : (key relation ajtai).piDecAttempt running fresh proof = some attempt)
     (accepted : Nifs.PaperNonInteractive.verify
@@ -83,8 +79,6 @@ theorem terminalHolds_supplies_childOpenings
     outputWitness (terminalOutputValid relation ajtai result outputWitness
       outputFresh freshWitness terminal)⟩
 
-/-- The terminal's checked witness vector opens the PiDEC parent after the
-same radix recomposition used by the production key. -/
 theorem terminalHolds_extracts_parent
     (attemptEq : (key relation ajtai).piDecAttempt running fresh proof = some attempt)
     (accepted : Nifs.PaperNonInteractive.verify
@@ -103,9 +97,6 @@ theorem terminalHolds_extracts_parent
     outputWitness (terminalOutputValid relation ajtai result outputWitness
       outputFresh freshWitness terminal)
 
-/-- The actual outer terminal payload supplies the openings. Its one running
-slot must be the exact result of the accepted NIFS call. No commitment or
-digest alone supplies this output-relation witness. -/
 theorem recursiveTerminal_supplies_childOpenings
     (vk : KeyDigest) (application : Stage1.Application.Program)
     (statement : TerminalStatement AppState)

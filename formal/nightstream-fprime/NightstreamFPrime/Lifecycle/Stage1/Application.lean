@@ -18,27 +18,21 @@ namespace NightstreamFPrime.Lifecycle.Stage1.Application
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Spec
 
-/-- Stage 1 carries exactly four application-state words in each state hash. -/
 def stateWordCount : Nat := 4
 
 abbrev StateIndex := Fin stateWordCount
 
-/-- External wires of one concrete application circuit. The witness width is
-fixed by the Lean-authored program. -/
 structure Interface (witnessWordCount : Nat) where
   input : Nat → StateIndex → Expr
   witness : Nat → Fin witnessWordCount → Expr
   output : Nat → StateIndex → Expr
 
-/-- Exact caller-owned application wires. A concrete layout proves that all
-of them precede the application's local allocation. -/
 structure InputsBelow {witnessWordCount : Nat}
     (interface : Interface witnessWordCount) (offset : Nat) : Prop where
   input : ∀ index, (interface.input offset index).VarsBelow offset
   witness : ∀ index, (interface.witness offset index).VarsBelow offset
   output : ∀ index, (interface.output offset index).VarsBelow offset
 
-/-- Exact caller-selected support for all external application expressions. -/
 structure InputsSupported {witnessWordCount : Nat}
     (interface : Interface witnessWordCount) (offset : Nat)
     (allowed : Nat → Prop) : Prop where
@@ -76,27 +70,22 @@ def outputState {witnessWordCount : Nat}
     (outputState interface offset env).length = stateWordCount := by
   simp [outputState]
 
-/-- Exact semantic obligation of one application circuit. -/
 def Holds (step : AppState → AppWitness → AppState)
     {witnessWordCount : Nat} (interface : Interface witnessWordCount)
     (offset : Nat) (env : Env) : Prop :=
   outputState interface offset env =
     step (inputState interface offset env) (witnessValue interface offset env)
 
-/-- The application's validity predicate on the circuit's input and witness
-values. An application whose circuit accepts every witness uses `True`. -/
 def Valid (valid : AppState → AppWitness → Prop)
     {witnessWordCount : Nat} (interface : Interface witnessWordCount)
     (offset : Nat) (env : Env) : Prop :=
   valid (inputState interface offset env) (witnessValue interface offset env)
 
-/-- A Lean-authored application is one proved circuit for one exact step
-function and its validity predicate: the circuit holds exactly for valid
-inputs and witnesses, with the step's output. The proof field is erased during
-execution. -/
 structure Program where
   witnessWordCount : Nat
   step : AppState → AppWitness → AppState
+  step_length : ∀ state witness, state.length = stateWordCount →
+    (step state witness).length = stateWordCount
   valid : AppState → AppWitness → Prop
   circuit : Interface witnessWordCount → FormalCircuit
   spec_iff : ∀ interface offset env,
@@ -117,15 +106,12 @@ structure Program where
 
 namespace Program
 
-/-- A layout-owned wire-range proof supplies every application-circuit
-assumption. -/
 theorem assumptions (program : Program)
     (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env)
     (inputs : InputsBelow interface offset) :
     (program.circuit interface).assumptions offset env :=
   program.assumptions_of_inputsBelow interface offset env inputs
 
-/-- The selected application preserves one caller-selected support set. -/
 theorem support (program : Program)
     (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env)
     (allowed : Nat → Prop)
@@ -142,7 +128,6 @@ theorem support (program : Program)
   program.constraintsSupported interface offset env allowed assumptions inputs
     localSupport
 
-/-- The stronger support contract implies the original causal row scope. -/
 theorem scope (program : Program)
     (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env)
     (inputs : InputsBelow interface offset)
@@ -178,8 +163,6 @@ theorem scope (program : Program)
   apply (Expr.varsSatisfy_lt_iff_varsBelow expression bound).1
   exact supported expression member
 
-/-- Arbitrary satisfying circuit witnesses implement the selected application
-transition and satisfy its validity predicate. -/
 theorem soundness_valid (program : Program)
     (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env)
     (assumptions : (program.circuit interface).assumptions offset env)
@@ -189,8 +172,6 @@ theorem soundness_valid (program : Program)
   apply (program.spec_iff interface offset env).mp
   exact (program.circuit interface).soundness env offset assumptions rows
 
-/-- Arbitrary satisfying circuit witnesses implement the selected application
-transition. -/
 theorem soundness (program : Program)
     (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env)
     (assumptions : (program.circuit interface).assumptions offset env)
@@ -198,8 +179,6 @@ theorem soundness (program : Program)
     Holds program.step interface offset env :=
   (program.soundness_valid interface offset env assumptions rows).1
 
-/-- Every valid selected application transition has a witness for the exact
-flattened rows emitted from its Lean circuit. -/
 theorem completeness (program : Program)
     (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env)
     (assumptions : (program.circuit interface).assumptions offset env)
@@ -213,8 +192,6 @@ theorem completeness (program : Program)
   apply (program.circuit interface).completeness env offset assumptions
   exact (program.spec_iff interface offset env).mpr specification
 
-/-- The application relation depends only on its declared input, witness, and
-output expressions below the child start. -/
 theorem holds_of_agree_below
     (program : Program)
     (interface : Interface program.witnessWordCount)
@@ -248,8 +225,6 @@ theorem holds_of_agree_below
   rw [outputEq, inputEq, witnessEq]
   exact holds
 
-/-- The validity predicate transports through equality of the input and
-witness values. -/
 theorem valid_of_values_eq
     (program : Program)
     (interface : Interface program.witnessWordCount)
@@ -264,8 +239,6 @@ theorem valid_of_values_eq
   rw [← inputEq, ← witnessEq]
   exact valid
 
-/-- The selected application relation transports through equality of the
-three values it reads. -/
 theorem holds_of_values_eq
     (program : Program)
     (interface : Interface program.witnessWordCount)
@@ -282,8 +255,6 @@ theorem holds_of_values_eq
   rw [← inputEq, ← witnessEq, ← outputEq]
   exact holds
 
-/-- Acceptance also proves that the selected step returns the exact four-word
-state required by the Stage 1 state-hash ABI. -/
 theorem step_output_length (program : Program)
     (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env)
     (specification : Holds program.step interface offset env) :

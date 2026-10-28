@@ -3,8 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationFromBlocks
 
 /-!
 The weighted Pad product equals the existing complete-block row range.
-Consecutive block products can be summed in Lean to recover the full Pad
-accumulator. All bounds come from the complete carrier and ring degree.
 -/
 
 set_option autoImplicit false
@@ -80,8 +78,6 @@ private theorem singleton_kernel
       (fun block => CarrierAction.kernelImage (Phi81ColumnLayout.decode column).2
         ((children block).get child).get output) selectedLt
 
-/-- Every Pad position of this complete carrier block selects the same
-supplied child block and the exact basis lane. This includes carried tails. -/
 theorem padRow_basis
     (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k)
     (block : Fin blockCount) (basis : Fin ringDegree)
@@ -105,7 +101,6 @@ theorem padRow_basis
   rw [Phi81CarrierLayout.decode_carrierColumn,
     PiDECEvaluationFromBlocks.blockAt, dif_pos block.isLt]
 
-/-- The same global point weight as the scalar row loop, at every basis lane. -/
 def weights (point : PaperAlgebra.Point) (block : Fin blockCount) : Vector K ringDegree :=
   Vector.ofFn fun basis =>
     PiDECEvaluationWeights.weight point (block.val * ringDegree + basis.val)
@@ -118,7 +113,6 @@ private theorem weights_get (point : PaperAlgebra.Point) (block : Fin blockCount
     PiDECEvaluationWeights.weight point (block.val * ringDegree + lane.val)))[basis.val] = _
   rw [Vector.getElem_ofFn]
 
-/-- One block contributes to all children through the two weighted bar keys. -/
 def products (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k)
     (point : PaperAlgebra.Point) (block : Fin blockCount) :
     Vector MaterializedRingK productionGlobalParams.k :=
@@ -137,8 +131,6 @@ private theorem numericSum_congr (count : Nat) (left right : Nat → K) :
         equal index (Nat.lt_trans live (Nat.lt_succ_self count))),
         equal count (Nat.lt_succ_self count)]
 
-/-- The fast weighted product is exactly the batch row loop over this whole
-carrier block. No point, norm, zero-lane or expected-value premise is needed. -/
 theorem products_eq_range
     (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k)
     (point : PaperAlgebra.Point) (block : Fin blockCount)
@@ -153,8 +145,6 @@ theorem products_eq_range
   rw [dif_pos live, weights_get, padRow_basis blocks block ⟨index, live⟩ child]
   rfl
 
-/-- Sum consecutive complete block contributions, with no full witness array.
-The proof below applies through the selected carrier block count. -/
 def sumPrefix (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k)
     (point : PaperAlgebra.Point) (count : Nat) :
     Vector MaterializedRingK productionGlobalParams.k :=
@@ -171,7 +161,6 @@ private theorem prefix_succ
          else PiDECEvaluationBatch.zero productionGlobalParams.k) := by
   simp only [sumPrefix, PiDECEvaluationBatch.sum, Nat.fold_succ]
 
-/-- The block sumPrefix and the corresponding complete-row sumPrefix agree exactly. -/
 theorem prefix_eq_range
     (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k)
     (point : PaperAlgebra.Point) (count : Nat) :
@@ -209,7 +198,6 @@ theorem prefix_eq_range
               point (PiDECEvaluationFromBlocks.padRow blocks) child).symm
         _ = _ := by rw [Nat.add_mul, Nat.one_mul]
 
-/-- Summing every complete block recovers the full Pad accumulator. -/
 theorem complete_eq_accumulate
     (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k)
     (point : PaperAlgebra.Point) (child : Fin productionGlobalParams.k) :

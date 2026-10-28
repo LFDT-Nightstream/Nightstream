@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
 
 /-!
 Proves row-by-row equality between the compact pilot ordinary package program
-and the canonical Lean direct-row compiler. The package row accessor is an
-explicit premise here; the final package module must prove that it loads the
-identity-checked row selected by the Lean-authored index table.
+and the canonical Lean direct-row compiler.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
@@ -45,8 +43,6 @@ theorem compile_programRow?
     (PilotOrdinaryDirectSource.programRow_bounded index)
     agreesA agreesB agreesC
 
-/-- The compact block returns the exact direct-plan row when the caller loads
-the identity-checked package row selected by the Lean-authored table. -/
 theorem block_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -72,8 +68,6 @@ theorem block_row?
     (PilotOrdinaryDirectSource.programRow_bounded index)
     agreesA agreesB agreesC
 
-/-- Every compact pilot ordinary row is the exact row of the canonical direct
-Lean plan after the encoded pilot source projection. -/
 theorem matrixProgram_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)

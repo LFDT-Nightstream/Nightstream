@@ -21,8 +21,6 @@ open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Phi81StrongSet
 open Finset
 
-/-! ### Generic sums -/
-
 theorem foldl_range (term : Nat → Nat) (count : Nat) :
     (List.range count).foldl (fun value index => value + term index) 0 =
       ∑ index ∈ Finset.range count, term index := by
@@ -56,8 +54,6 @@ theorem binary_sum_lt (bit : Nat → Nat) (count : Nat)
               Nat.mul_le_mul_left _ (bits count (by omega))
           _ = 2 ^ count := Nat.mul_one _
       omega
-
-/-! ### Values of the linear forms -/
 
 section Values
 
@@ -116,11 +112,9 @@ theorem drawTerms_value
     ((interface.source 3 offset).eval env).val * goldilocksModulus ^ 3
   ring
 
-/-- `Q = Σ 2^b q_b`. -/
 def quotientValue (env : Env) (offset : Nat) : Nat :=
   ∑ bit ∈ Finset.range quotientBitCount, 2 ^ bit * ((quotientBit offset bit).eval env).val
 
-/-- `R = Σ 5^j D_j`. -/
 def remainderValue (env : Env) (offset : Nat) : Nat :=
   ∑ digit ∈ Finset.range digitCount, 5 ^ digit * digitValue env offset digit
 
@@ -161,8 +155,6 @@ theorem checkTerms_modEq (check : Fin checkCount) :
   exact (Nat.modEq_zero_iff_dvd).mpr (Dvd.intro _ rfl)
 
 end Values
-
-/-! ### Lengths and the Chinese remainder theorem -/
 
 section Checks
 

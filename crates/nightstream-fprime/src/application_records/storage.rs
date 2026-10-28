@@ -97,7 +97,7 @@ impl Writer {
         let next = self
             .length
             .checked_add(size_of::<u64>() as u64)
-            .ok_or(PackageError::Invalid("application record offset overflow"))?;
+            .ok_or(PackageError::Malformed("application record offset overflow"))?;
         self.output.write_all(&value.to_le_bytes())?;
         self.length = next;
         Ok(())
@@ -107,7 +107,7 @@ impl Writer {
         self.output.flush()?;
         drop(self.output);
         if self.reader.metadata()?.len() != self.length {
-            return Err(PackageError::Invalid("application record length differs"));
+            return Err(PackageError::Malformed("application record length differs"));
         }
         Ok(Reader {
             #[cfg(unix)]
@@ -140,7 +140,6 @@ impl Write for Writer {
     }
 }
 
-/// Crate-owned immutable bytes; serialization never retains the source tree.
 pub(crate) struct PrivateSnapshot(Reader);
 
 impl std::fmt::Debug for PrivateSnapshot {
@@ -194,7 +193,7 @@ impl Reader {
         let bytes = self
             .length
             .checked_sub(offset)
-            .ok_or(PackageError::Invalid("application record offset exceeds file"))?;
+            .ok_or(PackageError::Malformed("application record offset exceeds file"))?;
         self.cursor(offset, bytes)
     }
 
@@ -214,8 +213,7 @@ impl Reader {
         let end = offset
             .checked_add(bytes)
             .filter(|&end| end <= self.length)
-            .ok_or(PackageError::Invalid("application record range exceeds file"))?;
-        // Use the standard library's buffer policy. No row-sized buffer is kept.
+            .ok_or(PackageError::Malformed("application record range exceeds file"))?;
         Ok(BufReader::new(Cursor {
             reader: self,
             position: offset,
@@ -230,7 +228,7 @@ impl Reader {
             end: offset
                 .checked_add(8)
                 .filter(|&end| end <= self.length)
-                .ok_or(PackageError::Invalid("application index exceeds file"))?,
+                .ok_or(PackageError::Malformed("application index exceeds file"))?,
         })
     }
 }
@@ -272,8 +270,6 @@ pub(super) fn read_word(input: &mut (impl Read + ?Sized)) -> Result<u64, Package
     Ok(u64::from_le_bytes(word))
 }
 
-/// A buffered continuation stack. Its resident block follows the standard
-/// library I/O buffer policy; only deeper frames spill to the private file.
 pub(super) struct RecipeStack {
     file: File,
     _reader: File,
@@ -307,11 +303,11 @@ impl RecipeStack {
             let offset = self
                 .spilled
                 .checked_mul(size_of::<[u64; 3]>() as u64)
-                .ok_or(PackageError::Invalid("application recipe stack overflow"))?;
+                .ok_or(PackageError::Malformed("application recipe stack overflow"))?;
             let next = self
                 .spilled
                 .checked_add(self.frames.len() as u64)
-                .ok_or(PackageError::Invalid("application recipe stack overflow"))?;
+                .ok_or(PackageError::Malformed("application recipe stack overflow"))?;
             let bytes: Vec<_> = self
                 .frames
                 .iter()
@@ -333,7 +329,7 @@ impl RecipeStack {
             let start = self.spilled - count as u64;
             let offset = start
                 .checked_mul(size_of::<[u64; 3]>() as u64)
-                .ok_or(PackageError::Invalid("application recipe stack overflow"))?;
+                .ok_or(PackageError::Malformed("application recipe stack overflow"))?;
             self.file.seek(SeekFrom::Start(offset))?;
             let mut bytes = vec![0; count * size_of::<[u64; 3]>()];
             self.file.read_exact(&mut bytes)?;

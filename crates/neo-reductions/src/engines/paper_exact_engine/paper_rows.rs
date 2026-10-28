@@ -9,14 +9,9 @@ use crate::PiCcsError;
 
 use super::{paper_joint, paper_ring::PaperRing};
 
-/// A prepared source of original, untransformed CCS coefficients.
-/// The circuit owner must validate the rows before providing this view.
-/// This is prover input, not an authority for the verifier's circuit.
 pub trait PaperMatrixRows<Ff>: Sync {
-    /// Active row count, logical column count, and matrix count.
     fn shape(&self) -> (usize, usize, usize);
 
-    /// Return every nonzero term in one original matrix row.
     fn row(&self, matrix: usize, row: usize) -> Vec<(usize, Ff)>;
 }
 
@@ -34,14 +29,14 @@ where
         structure: &'a CcsStructure<Ff>,
         rows: Option<&'a dyn PaperMatrixRows<Ff>>,
     ) -> Result<Self, PiCcsError> {
-        if rows.is_some_and(|rows| rows.shape() != (structure.n, structure.m, structure.t())) {
+        if rows.is_some_and(|rows| rows.shape() != (structure.n(), structure.m(), structure.t())) {
             return Err(PiCcsError::InvalidInput(
                 "PaperExact row source differs from the circuit dimensions".into(),
             ));
         }
         if rows.is_none()
             && structure
-                .matrices
+                .matrices()
                 .iter()
                 .any(|matrix| matches!(matrix, neo_ccs::CcsMatrix::VerifierArtifact { .. }))
         {
@@ -54,10 +49,10 @@ where
 
     pub(super) fn evaluate(&self, ring: &PaperRing, matrix: usize, assignment: &[K], point: &[K]) -> [K; D] {
         let Some(rows) = self.rows else {
-            return paper_joint::direct_ring_mle(ring, &self.structure.matrices[matrix], assignment, point);
+            return paper_joint::direct_ring_mle(ring, &self.structure.matrices()[matrix], assignment, point);
         };
         let mut output = [K::ZERO; D];
-        for row in 0..self.structure.n {
+        for row in 0..self.structure.n() {
             let entries = rows.row(matrix, row);
             let weight = paper_joint::boolean_weight(point, row);
             for block in 0..assignment.len().div_ceil(D) {

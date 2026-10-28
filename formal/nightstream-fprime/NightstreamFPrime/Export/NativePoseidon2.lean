@@ -280,7 +280,6 @@ private theorem terminalRounds64_denote (state : State64) :
     terminalRound0_denote]
   rfl
 
-/-- Fixed 4/22/4 Poseidon2 permutation over sixteen machine-word lanes. -/
 @[noinline] def permute64 (state : State64) : State64 :=
   terminalRounds64 (partialRounds64 (initialRounds64 (externalLayer64 state)))
 
@@ -292,10 +291,6 @@ theorem permute64_denote (state : State64) :
 
 end State64
 
-/-! ## Total native sponge bridge -/
-
-/-- Canonical machine representative of an arbitrary natural field value.
-The common `Nat < 2^64` path needs at most one Goldilocks subtraction. -/
 @[inline] def ofNat64 (value : Nat) : UInt64 :=
   if value < UInt64.size then
     if value < goldilocksModulus then UInt64.ofNat value
@@ -375,8 +370,6 @@ private theorem getElem?_getD_denote (words : List UInt64) (index : Nat) :
   | none => decide
   | some word => rfl
 
-/-- Add up to one rate block of canonical words to the sponge lanes and
-permute. Missing words are zero. -/
 @[inline] def absorbWords64 (state : State64) (words : List UInt64)
     (canonical : ∀ word ∈ words, word.toNat < goldilocksModulus) : State64 :=
   State64.permute64 {
@@ -439,8 +432,6 @@ permute. Missing words are zero. -/
     add64_denote _ _ state.c15 (getD_canonical words canonical 15)]
   simp [Poseidon2.width, List.range_succ, getElem?_getD_denote]
 
-/-- The four canonical machine words of one node. The common `value < 2^64`
-path splits the value into two 32-bit limbs and a zero high limb. -/
 @[inline] def nodeWords64 (node : StreamingIdentity.Node) : List UInt64 :=
   if node.value < UInt64.size then
     let word := UInt64.ofNat node.value
@@ -477,7 +468,6 @@ theorem nodeWords64_denote (node : StreamingIdentity.Node) :
       fastMid_denote _ valueBranch, fastCarry_denote _ valueBranch]
   · simp [StreamingIdentity.Node.words]
 
-/-- Native streaming sponge and its pending words. -/
 structure HashState64 where
   sponge : State64
   pending : List UInt64
@@ -487,7 +477,6 @@ def HashState64.denote (state : HashState64) : StreamingIdentity.HashState where
   sponge := state.sponge.denote
   pending := state.pending.map UInt64.denote
 
-/-- Absorb one canonical streaming node without constructing field values. -/
 @[noinline] def pushNode64 (state : HashState64)
     (node : StreamingIdentity.Node) : HashState64 :=
   let buffer := state.pending ++ nodeWords64 node
@@ -523,7 +512,6 @@ private def identityBlock0 : List UInt64 :=
 private def identityBlock1 : List UInt64 :=
   [70, 80, 114, 105, 109, 101, 47, 112, 97, 99, 107, 97]
 
-/-- Two identity-domain blocks; the last five domain words stay pending. -/
 def initialState64 : HashState64 where
   sponge := absorbWords64 (absorbWords64 State64.zero identityBlock0 (by decide))
     identityBlock1 (by decide)
@@ -562,7 +550,6 @@ private theorem pad64_denote (state : State64) :
   rw [oneDenote]
   simp [Poseidon2.width, List.range_succ]
 
-/-- Four machine words returned by the native squeeze. -/
 structure Digest64 where
   x0 : UInt64
   x1 : UInt64
@@ -585,7 +572,6 @@ private theorem finalState64_denote (state : HashState64) :
   rw [finalState64, State64.permute64_denote, pad64_denote,
     absorbWords64_denote]
 
-/-- Final pending-word absorption, pad permutation, and four-word squeeze. -/
 @[inline] def finalize64 (state : HashState64) : Digest64 :=
   let padded := finalState64 state
   ⟨padded.x0, padded.x1, padded.x2, padded.x3⟩

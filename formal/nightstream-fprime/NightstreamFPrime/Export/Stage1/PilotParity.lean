@@ -3,12 +3,7 @@ import NightstreamFPrime.Export.PilotData
 import NightstreamFPrime.Export.Stage1.PiCCSNonzero
 import NightstreamFPrime.Lifecycle.PilotZeroRunning
 
-/-!
-Owns one standalone nonzero pilot result for Lean--Rust conformance. Its
-running claims have zero openings under the canonical key. The output hash
-has a distinct next-state preimage. The result contains both hashes and the
-complete 274-field public vector in production order.
--/
+/-! Owns one standalone nonzero pilot result for Lean--Rust conformance. -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotParity
 
@@ -47,7 +42,6 @@ def priorDigest (vk : KeyDigest) : Digest :=
 def outputDigest (vk : KeyDigest) : Digest :=
   stateHash (publicFits := fixturePublicFits) (outputPreimage vk)
 
-/-- Encode the public instance from one already-computed state digest. -/
 def publicInputWordsForDigest (digest : Digest) : List F :=
   List.ofFn fun column =>
     encHash (publicFits := fixturePublicFits) digest column
@@ -69,8 +63,6 @@ def fieldWordsValue (values : List F) : Value :=
 def segmentValue (role start length : Nat) : Value :=
   .array [.atom role, .atom start, .atom length]
 
-/-- Caller-owned pilot inputs: prior preimage, prior public instance, output
-preimage, and claimed output digest. -/
 def inputValueFrom (priorPreimage priorPublicInput outputPreimage : List F)
     (claimedOutputDigest : Digest) : Value :=
   .array [fieldWordsValue priorPreimage,
@@ -78,8 +70,6 @@ def inputValueFrom (priorPreimage priorPublicInput outputPreimage : List F)
     fieldWordsValue outputPreimage,
     fieldWordsValue claimedOutputDigest]
 
-/-- Lean-computed pilot result: both digests, the complete public vector,
-relative public-segment map, and fixture assurance flags. -/
 def resultValueFrom (computedPriorDigest computedOutputDigest : Digest)
     (priorPublicInput : List F) : Value :=
   let computedPublicValues := priorPublicInput ++ computedOutputDigest
@@ -112,7 +102,6 @@ def parityValueFrom (priorPreimage priorPublicInput outputPreimage : List F)
       computedOutputDigest,
     resultValueFrom computedPriorDigest computedOutputDigest priorPublicInput]
 
-/-- Schema 1 is the first standalone complete nonzero pilot parity object. -/
 def parityValue (vk : KeyDigest) : Value :=
   parityValueFrom (priorPreimageWords vk) (priorPublicInputWords vk)
     (outputPreimageWords vk) (priorDigest vk) (outputDigest vk)

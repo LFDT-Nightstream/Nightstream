@@ -14,8 +14,9 @@ runtime, driver, and simultaneous residency also contribute.
 
 Structured exports, the independent golden circuit, the generic Rust assembler,
 and the new crate's fresh two-fold and terminal checks passed. See
-[the validation record](crates/nightstream/VALIDATION.md) and
-[the execution receipt](crates/nightstream/tests/evidence/fresh-recursive-replay.json).
+the validation record and the execution receipt. Both were deleted; they
+are `crates/nightstream/VALIDATION.md` and
+`crates/nightstream/tests/evidence/fresh-recursive-replay.json` at commit `f7e093d8f`.
 The proof and implementation limits in this document still apply; no earlier
 assurance goal is marked complete.
 
@@ -199,7 +200,7 @@ GPU profiling now identifies commitment sequences (60.78 s) and opening
 products/forms as the main device work in a 119.98 s active GPU timeline.
 Explicit encoder labels and Shader Timeline data identify the kernels; no
 algorithm change or new speedup is claimed from these labels. Instruments has
-the owner's 30-minute cap. See the profiling record in `crates/nightstream/VALIDATION.md`.
+the owner's 30-minute cap. See the profiling record in `crates/nightstream/VALIDATION.md` at commit `f7e093d8f`.
 
 The subsequent opening-kernel changes share geometric coefficients between
 extension components and skip multiplication by one. The retained three-step
@@ -207,7 +208,7 @@ Metal run verifies in **167.80 s** with **16.86 GB peak RSS**. A fresh second-fo
 check matches every CPU proof byte and all sixteen returned matrices. A slower
 commitment thread-order candidate was removed. The full CPU lifecycle timing,
 5× ratio, and general memory bound remain open. See the profile-driven opening
-record in `crates/nightstream/VALIDATION.md`.
+record in `crates/nightstream/VALIDATION.md` at commit `f7e093d8f`.
 
 The Optimized CPU terminal check now accepts the stored Metal step-3 envelope
 and rejects a wrong state. The complete CPU profile stopped during terminal
@@ -215,14 +216,14 @@ verification at the 30-minute Instruments cap. The full CPU time and 5× ratio
 remain open. A source review also found that an accepted row shape would
 request a 27.51 GB Metal application table; rejecting that request does not
 meet the bounded-storage requirement. See the CPU lifecycle and terminal
-profile in `crates/nightstream/VALIDATION.md`.
+profile in `crates/nightstream/VALIDATION.md` at commit `f7e093d8f`.
 
 The CPU key loader now replaces repeated division with exact Goldilocks
 reduction. The production fresh commitment takes **58.38 s**, down from
 **95.14 s**, and matches the saved commitment. Stored setup, CPU/device, and
 parallel cross-check tests pass. This operation-level result does not close
 the full lifecycle timing or universal storage requirements. See the CPU
-indexed-key reduction record in `crates/nightstream/VALIDATION.md`.
+indexed-key reduction record in `crates/nightstream/VALIDATION.md` at commit `f7e093d8f`.
 
 Metal application tables now use bounded row replay when resident prefixes
 do not fit. Exact CPU/Metal proof, transcript, and opening comparisons pass
@@ -230,7 +231,7 @@ under forced small workspaces. A production second fold also matches all
 945,983 CPU proof bytes and sixteen returned matrices, at 16.38 GB peak RSS.
 Other caches, matrix indexes, and witness storage still need bounds; the
 universal RSS and 5× lifecycle requirements remain open. See the bounded
-application-table record in `crates/nightstream/VALIDATION.md`.
+application-table record in `crates/nightstream/VALIDATION.md` at commit `f7e093d8f`.
 
 That build's complete Metal lifecycle passes in **164.66 s** with **16.81 GB
 peak RSS**, including preparation, base proving, two folds, and terminal
@@ -246,7 +247,7 @@ the same final state and circuit identity. Preparation is included and takes
 owner-approved 30-minute Instruments cap. The ratio is measured under profiling;
 the requested CPU run without Instruments still awaits approval for that
 specific longer invocation. See
-[the matched profiles](crates/nightstream/VALIDATION.md#matched-full-lifecycle-profiles).
+the matched profiles in `crates/nightstream/VALIDATION.md` at commit `f7e093d8f`.
 
 The general RSS requirement remains open. CPU and Metal now generate bounded
 matrix windows without a full-cache prerequisite. Production comparison matches
@@ -257,7 +258,8 @@ remain a preparation-memory gap. Their inline row storage alone can exceed
 The full Metal lifecycle also passes without Instruments in 290.80 s with
 13.85 GB peak RSS. A matching current CPU measurement is pending.
 No large circuit was generated. See
-[the matrix-window evidence](crates/nightstream/tests/evidence/matrix-row-windows-20260921).
+the matrix-window evidence in
+`crates/nightstream/tests/evidence/matrix-row-windows-20260921` at commit `f7e093d8f`.
 
 ## Lemmas
 

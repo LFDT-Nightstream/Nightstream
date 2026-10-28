@@ -10,25 +10,23 @@ use std::{mem::size_of, sync::atomic::Ordering};
 
 use neo_ccs::Mat;
 use neo_math::{D, F};
-use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
+use neo_reductions::common::SplitDigits;
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use super::MetalSession;
+use super::{host_view, Arg, Grid, MetalSession};
 use crate::MetalError;
 
-/// Children that one split thread writes; it matches the split kernel.
 const CHILDREN_PER_THREAD: usize = 14;
 
 impl MetalSession {
-    /// Mix the Π_RLC witnesses and split the parent into `digits` balanced
-    /// base-2 planes. Returns the planes and whether each one is nonzero.
     pub(crate) fn split_rlc_witnesses(
         &self,
         rhos: &[Mat<F>],
         witnesses: &[&Mat<F>],
         digits: usize,
         base: u32,
-    ) -> Result<(Vec<Mat<F>>, Vec<bool>), MetalError> {
+    ) -> Result<SplitDigits, MetalError> {
         let columns = witnesses
             .first()
             .ok_or(MetalError::Shape("device PiRLC needs witnesses"))?
@@ -36,7 +34,6 @@ impl MetalSession {
         if base != 2 || !(1..63).contains(&digits) || rhos.len() != witnesses.len() || columns == 0 {
             return Err(MetalError::Shape("device PiRLC split shape"));
         }
-        // Zero witnesses add nothing; every other witness must be signed-unit.
         let mut rho_entries = Vec::new();
         let mut sources = Vec::new();
         for (rho, witness) in rhos.iter().zip(witnesses) {
@@ -60,24 +57,22 @@ impl MetalSession {
         }
         let zero = || Mat::virtual_constant(D, columns, F::ZERO);
         if sources.is_empty() {
-            return Ok(((0..digits).map(|_| zero()).collect(), vec![false; digits]));
+            return Ok(SplitDigits::from_device_split(
+                (0..digits).map(|_| zero()).collect(),
+                vec![false; digits],
+            ));
         }
 
-        let mask_words = sources.len() * 2 * columns;
-        let masks = self.buffer(mask_words * size_of::<u64>())?;
-        // This new shared buffer has no device readers yet.
-        let destination =
-            unsafe { std::slice::from_raw_parts_mut(masks.contents().as_ptr().cast::<u64>(), mask_words) };
-        for ((positive, negative), target) in sources
-            .iter()
-            .zip(destination.chunks_exact_mut(2 * columns))
-        {
-            target[..columns].copy_from_slice(positive);
-            target[columns..].copy_from_slice(negative);
-        }
-        self.activity
-            .uploaded_bytes
-            .fetch_add((mask_words * size_of::<u64>()) as u64, Ordering::Relaxed);
+        let masks = self.filled_buffer(sources.len() * 2 * columns, |destination| {
+            for ((positive, negative), target) in sources
+                .iter()
+                .zip(destination.chunks_exact_mut(2 * columns))
+            {
+                target[..columns].copy_from_slice(positive);
+                target[columns..].copy_from_slice(negative);
+            }
+            Ok(())
+        })?;
         let rhos = self.buffer_from_slice(&rho_entries)?;
         let parent = self.buffer(D * columns * size_of::<u64>())?;
         let planes = self.buffer(digits * 2 * columns * size_of::<u64>())?;
@@ -88,28 +83,30 @@ impl MetalSession {
 
         let command = self.command_buffer("nightstream.pi_rlc.split")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.rlc_witness_mix_signed_masks);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&rhos), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&masks), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&mix_shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&parent), 0, 3);
-        }
-        self.dispatch(&encoder, &self.rlc_witness_mix_signed_masks, D * columns);
+        self.launch(
+            &encoder,
+            &self.rlc_witness_mix_signed_masks,
+            &[
+                Arg::Buffer(0, &rhos),
+                Arg::Buffer(1, &masks),
+                Arg::Buffer(2, &mix_shape),
+                Arg::Buffer(3, &parent),
+            ],
+            Grid::Threads(D * columns),
+        );
         encoder.endEncoding();
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.dec_split_base2_masks);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&parent), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&split_shape), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&planes), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&nonzero), 0, 3);
-            encoder.setBuffer_offset_atIndex(Some(&status), 0, 4);
-        }
-        self.dispatch(
+        self.launch(
             &encoder,
             &self.dec_split_base2_masks,
-            digits.div_ceil(CHILDREN_PER_THREAD) * columns,
+            &[
+                Arg::Buffer(0, &parent),
+                Arg::Buffer(1, &split_shape),
+                Arg::Buffer(2, &planes),
+                Arg::Buffer(3, &nonzero),
+                Arg::Buffer(4, &status),
+            ],
+            Grid::Threads(digits.div_ceil(CHILDREN_PER_THREAD) * columns),
         );
         encoder.endEncoding();
         self.finish(&command)?;
@@ -128,8 +125,7 @@ impl MetalSession {
         self.activity
             .downloaded_bytes
             .fetch_add((digits * 2 * columns * size_of::<u64>()) as u64, Ordering::Relaxed);
-        let words =
-            unsafe { std::slice::from_raw_parts(planes.contents().as_ptr().cast::<u64>(), digits * 2 * columns) };
+        let words = host_view::<u64>(&planes, digits * 2 * columns);
         let children = words
             .chunks_exact(2 * columns)
             .zip(&flags)
@@ -142,11 +138,10 @@ impl MetalSession {
                 }
             })
             .collect::<Result<_, _>>()?;
-        Ok((children, flags))
+        Ok(SplitDigits::from_device_split(children, flags))
     }
 }
 
-/// The signed byte of a small field element.
 fn small_signed(value: F) -> Option<i8> {
     let canonical = value.as_canonical_u64();
     if canonical <= i8::MAX as u64 {

@@ -2,8 +2,10 @@ use neo_ajtai::Commitment;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly};
 use neo_math::{superneo_bar_block, KExtensions, Rq, D, F, K};
 use neo_params::NeoParams;
-use neo_reductions::optimized_engine::{optimized_prove_with_row_cache, optimized_verify_with_trace};
-use neo_reductions::superneo_eval::{build_superneo_eval_cache, eval_all_mats_ring_cached, EqualityWeights};
+use neo_reductions::optimized_engine::{optimized_prove_with_matrix_rows, optimized_verify_with_trace};
+use neo_reductions::superneo_eval::{
+    build_superneo_eval_cache, eval_all_mats_ring_cached, CachedMatrixRows, EqualityWeights, MatrixRows, MatrixWindow,
+};
 use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 
@@ -41,24 +43,28 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
     .unwrap();
     let cache = build_superneo_eval_cache(&structure).unwrap();
     let mut params = NeoParams::nightstream_goldilocks_k16();
-    params.lambda = params.lambda.min(
-        params
-            .padded_row_security_summary_for_shape(
-                rows,
-                logical,
-                structure.t(),
-                structure.max_degree(),
-                neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
-            )
-            .unwrap()
-            .security_bits,
-    );
+    params = params
+        .with_lambda(
+            params.lambda().min(
+                params
+                    .padded_row_security_summary_for_shape(
+                        rows,
+                        logical,
+                        structure.t(),
+                        structure.max_degree(),
+                        neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
+                    )
+                    .unwrap()
+                    .security_bits,
+            ),
+        )
+        .unwrap();
     let mut fresh_values = vec![F::ZERO; width];
     fresh_values[0] = F::ONE;
     fresh_values[logical - 1] = -F::ONE;
     let mut running_values = vec![F::ZERO; width];
     running_values[logical - 1] = -F::ONE;
-    running_values[width - 1] = F::ONE; // A permitted nonzero running carrier tail.
+    running_values[width - 1] = F::ONE;
     let packed = |values: &[F]| {
         Mat::from_row_major(
             D,
@@ -69,12 +75,11 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
         )
     };
     let fresh = CcsWitness {
-        w: Vec::new(),
         Z: packed(&fresh_values),
     };
     let running_witness = packed(&running_values);
     let fresh_claim = CcsClaim {
-        c: Commitment::zeros(D, params.kappa as usize),
+        c: Commitment::zeros(params.kappa() as usize),
         x: fresh_values[..D].to_vec(),
         m_in: D,
         adv: None,
@@ -98,7 +103,7 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
         })
         .collect();
     let running_claim = CeClaim {
-        c: Commitment::zeros(D, params.kappa as usize),
+        c: Commitment::zeros(params.kappa() as usize),
         X: Mat::zero(D, 1, F::ZERO),
         r: point,
         eval_k,
@@ -107,7 +112,11 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
         fold_digest: [0; 32],
         adv: None,
     };
-    let (outputs, proof, _, prover_trace) = optimized_prove_with_row_cache(
+    let matrix_rows = CachedMatrixRows::new(&cache).unwrap();
+    let shape = matrix_rows.shape();
+    let payload = shape.matrices * size_of::<K>() + size_of::<F>() + size_of::<K>();
+    let workspace_bytes = 2 * MatrixWindow::required_workspace(&matrix_rows, 0..shape.rows, payload).unwrap();
+    let (outputs, proof, prover_trace) = optimized_prove_with_matrix_rows(
         &mut transcript(),
         &params,
         &structure,
@@ -115,7 +124,9 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
         std::slice::from_ref(&fresh),
         std::slice::from_ref(&running_claim),
         std::slice::from_ref(&running_witness),
-        &cache,
+        &matrix_rows,
+        workspace_bytes,
+        None,
     )
     .unwrap();
     let (valid, verifier_trace) = optimized_verify_with_trace(
@@ -139,7 +150,6 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
         assert_eq!(output.eval_a[1], vec![K::ZERO; D.next_power_of_two()]);
     }
     let full_pad = direct_pad(&fresh_values, &outputs[0].r);
-    // Dropping the51 zero scalar lanes would lose higher Pad coefficients.
     let weights = EqualityWeights::new(&outputs[0].r);
     let mut omitted = [K::ZERO; D];
     for row in logical..width {
@@ -156,7 +166,7 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
 
     let mut invalid_fresh = fresh.clone();
     invalid_fresh.Z[(D - 1, width / D - 1)] = F::ONE;
-    assert!(optimized_prove_with_row_cache(
+    assert!(optimized_prove_with_matrix_rows(
         &mut transcript(),
         &params,
         &structure,
@@ -164,7 +174,9 @@ fn row_prover_preserves_odd_prefixes_singletons_and_complete_pad_blocks() {
         &[invalid_fresh],
         &[running_claim],
         &[running_witness],
-        &cache
+        &matrix_rows,
+        workspace_bytes,
+        None,
     )
     .is_err());
 }

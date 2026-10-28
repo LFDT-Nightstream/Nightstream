@@ -10,7 +10,6 @@ use std::sync::Arc;
 
 #[test]
 fn device_relation_matches_cpu_for_valid_invalid_and_constant_polynomials() {
-    // Cross the session's 256-thread dispatch boundary and a partial ring block.
     let rows = 257;
     let columns = 2 * D + 1;
     let polynomial = SparsePoly::new(
@@ -77,7 +76,7 @@ fn device_relation_matches_cpu_for_valid_invalid_and_constant_polynomials() {
     }
     let compare = |structure: &CcsStructure<F>, witness: &Mat<F>| {
         let blocks = SuperneoZBlocks::from_witness_mat(witness, columns).unwrap();
-        let expected = match check_ccs_relation_zero_cached_with_blocks(&expanded, &structure.f, &blocks) {
+        let expected = match check_ccs_relation_zero_cached_with_blocks(&expanded, structure.f(), &blocks) {
             Ok(()) => None,
             Err(SuperneoCachedRelationError::UnsatisfiedRow { row }) => Some(row),
             Err(error) => panic!("unexpected CPU relation error: {error}"),
@@ -111,19 +110,23 @@ fn device_relation_matches_cpu_for_valid_invalid_and_constant_polynomials() {
     witness[(0, 1)] = -F::ONE;
     assert!(compare(&structure, &witness).is_some_and(|row| row > 0));
     witness[(0, 1)] = F::ONE;
-    // Matrix rows do not use the completion tail. The terminal caller checks
-    // fresh-tail zero separately; the row evaluator must preserve that split.
     witness[(D - 1, columns / D)] = -F::ONE;
     assert_eq!(compare(&structure, &witness), None);
-    structure.f = SparsePoly::new(4, vec![]);
+    structure = CcsStructure::new_verifier_artifact_header(rows, columns, 4, SparsePoly::new(4, vec![])).unwrap();
     assert_eq!(compare(&structure, &witness), None);
-    structure.f = SparsePoly::new(
+    structure = CcsStructure::new_verifier_artifact_header(
+        rows,
+        columns,
         4,
-        vec![Term {
-            coeff: F::ONE,
-            exps: vec![0; 4],
-        }],
-    );
+        SparsePoly::new(
+            4,
+            vec![Term {
+                coeff: F::ONE,
+                exps: vec![0; 4],
+            }],
+        ),
+    )
+    .unwrap();
     assert_eq!(compare(&structure, &witness), Some(0));
     let zero_running = [Mat::virtual_constant(D, columns.div_ceil(D), F::ZERO)];
     assert_eq!(
@@ -135,10 +138,6 @@ fn device_relation_matches_cpu_for_valid_invalid_and_constant_polynomials() {
     );
     let before = session.activity().dispatches;
     witness[(0, 0)] = F::from_u64(2);
-    assert!(session
-        .first_unsatisfied_row(&plan, &structure, &witness)
-        .is_err());
-    structure.f = SparsePoly::new(3, vec![]);
     assert!(session
         .first_unsatisfied_row(&plan, &structure, &witness)
         .is_err());

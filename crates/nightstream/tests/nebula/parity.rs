@@ -5,7 +5,9 @@
 
 use std::{fs, path::PathBuf};
 
-use nightstream_fprime::{LoadedPerApplicationPackage, LogicalMatrixRow};
+use nightstream_fprime::{
+    load_per_application_package, LoadedPerApplicationPackage, LogicalMatrixRow, StructuralIdentifier,
+};
 
 use crate::{
     assembly,
@@ -25,8 +27,11 @@ fn assert_same_relation(package: Package, lean: &str) {
     let reference = artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let application = package.application().unwrap();
     let (actual, _) = assembly::prepare(&reference, &application).unwrap();
-    let value = serde_json::from_slice(&artifact(lean)).unwrap();
-    let expected = nightstream_fprime::load_prepared_application_value(value).unwrap();
+    let expected = load_per_application_package(
+        &artifact(lean),
+        StructuralIdentifier::from_words(package.structural_identifier()),
+    )
+    .unwrap();
 
     let rows = expected.application().row_range();
     assert_eq!(actual.application().row_range(), rows, "application rows");

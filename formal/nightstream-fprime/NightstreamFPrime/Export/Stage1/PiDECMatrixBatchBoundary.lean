@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationBlockSupport
 /-!
 Two local batch links: numeric matrix rows equal the existing complete
 Phi81 sparse kernel, and an existing stored Poseidon invocation supplies
-each of its numeric block rows. No source or witness validity is assumed.
+each of its numeric block rows.
 -/
 
 set_option autoImplicit false
@@ -21,9 +21,6 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- The numeric interface and existing sparse block kernel compute the same
-coefficient for every child and every matrix port, with the same optional
-failure. The complete child block function is arbitrary. -/
 theorem row?_kernel_value (program : MatrixProgram.Program) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row)
     (children : Nat → Vector StoredRing productionGlobalParams.k)
@@ -48,9 +45,6 @@ theorem row?_kernel_value (program : MatrixProgram.Program) {columns : Nat}
       exact congrArg some
         (PiDECEvaluationBlockSupport.kernel_eq_evalSparse _ children child output).symm
 
-/-- Load one existing interface and compute all 150 port records once.
-Every stored row equals the original numeric block row at the existing
-Fin product index, including rejection of the invocation interface. -/
 theorem storedInvocation_row (block : Poseidon.Block) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → F)
     (invocation : Fin block.invocationCount) (row : Fin 150) :

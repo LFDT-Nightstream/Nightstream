@@ -47,8 +47,6 @@ fn ring(value: &Value) -> Ring {
 }
 
 fn rho_product(rho: &[i8; DEGREE], value: &Ring) -> Ring {
-    // The selected sampler alphabet is {-2,-1,0,1,2}. Use its two signed
-    // binary digits with the independent quotient-ring arithmetic.
     let digit = |bit: u32| {
         rho.map(|coefficient| {
             assert!((-2..=2).contains(&coefficient));

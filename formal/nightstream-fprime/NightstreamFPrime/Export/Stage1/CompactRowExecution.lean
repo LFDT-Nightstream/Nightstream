@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.CompactRows
 
 /-!
 The pure arithmetic core of compact-template execution. Layout validation and
-array bounds remain caller obligations. This first connection covers normalized
-generic expression rows and their final zero assertion, not arbitrary template
-causality or physical column relocation.
+array bounds remain caller obligations.
 -/
 
 set_option autoImplicit false
@@ -16,8 +14,6 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Export.Package
 
-/-- Evaluate A and B before the optional local write, then evaluate C in the
-updated environment. This is the order used by the stored compact runner. -/
 def step (inputColumn : Nat → Nat) (localStart : Nat)
     (env : Env) (row : CompactTemplateRow) : Option Env :=
   let product :=
@@ -31,7 +27,6 @@ def step (inputColumn : Nat → Nat) (localStart : Nat)
       (CompactRows.instantiateCombination inputColumn localStart row.c).eval after
   then some after else none
 
-/-- Process rows in their original order and stop at the first failed check. -/
 def run (inputColumn : Nat → Nat) (localStart : Nat) :
     Env → List CompactTemplateRow → Option Env
   | env, [] => some env
@@ -39,9 +34,6 @@ def run (inputColumn : Nat → Nat) (localStart : Nat) :
       (step inputColumn localStart env row).bind fun after =>
         run inputColumn localStart after rest
 
-/-- The output recipe reads the original input snapshot. Its output is written
-before the ordered local-row phase. Success of arbitrary templates is not
-asserted by this definition. -/
 def execute (inputColumn : Nat → Nat) (localStart : Nat)
     (template : CompactRowTemplate) (env : Env) : Option Env :=
   let output := template.outputRecipe.eval (fun input => env (inputColumn input))
@@ -61,7 +53,6 @@ private theorem run_append (inputColumn : Nat → Nat) (localStart : Nat)
       | none => simp []
       | some after => simpa [first] using inductionHypothesis after
 
-/-- Existing abstraction/instantiation is lossless in normalized coordinates. -/
 theorem instantiate_abstract_self (inputCount : Nat)
     (combination : R1CS.LinearCombination) :
     CompactRows.instantiateCombination id inputCount
@@ -77,8 +68,6 @@ theorem instantiate_abstract_self (inputCount : Nat)
   cases combination
   simp [CompactRows.renameCombination, R1CS.mapCombinationColumns]
 
-/-- Every generic multiplication row writes its own C variable. Its immediate
-check therefore succeeds even without a source-scope assumption. -/
 private theorem step_product (inputCount target : Nat) (env : Env)
     (left right : R1CS.LinearCombination) (targetBound : inputCount ≤ target) :
     step id inputCount env
@@ -105,9 +94,6 @@ private theorem step_assertion (inputCount : Nat) (env : Env)
     simp [CompactRows.outputLocal?, Rows.target?, R1CS.LinearCombination.zero]
   simp [step, CompactRows.abstractRow, noOutput, instantiate_abstract_self, valueZero]
 
-/-- Structural procedure equality for every generic compiled expression.
-The boundary only ensures that each emitted multiplication target is local.
-No claim about final row satisfaction is made without variable scope. -/
 theorem run_lowerExpression (inputCount : Nat) (env : Env)
     (expression : Expr) (start : Nat) (startBound : inputCount ≤ start) :
     run id inputCount env
@@ -134,9 +120,6 @@ theorem run_lowerExpression (inputCount : Nat) (env : Env)
         (start + R1CS.mulCount left + R1CS.mulCount right)
         _ _ _ (by omega)]; rfl
 
-/-- The final generic assertion checks zero in the completed environment.
-Both logical zero and variable scope are necessary premises. The existing
-lowering theorems supply preservation and the value correspondence. -/
 theorem run_lowerGenericConstraint (inputCount : Nat) (env : Env)
     (expression : Expr) (start : Nat) (startBound : inputCount ≤ start)
     (scope : expression.VarsBelow start) (logical : expression.eval env = 0) :

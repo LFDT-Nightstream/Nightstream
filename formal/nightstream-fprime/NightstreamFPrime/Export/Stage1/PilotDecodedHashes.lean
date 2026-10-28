@@ -3,8 +3,6 @@ import NightstreamFPrime.Export.Stage1.PilotPoseidonPreservation
 
 /-!
 Owns the arbitrary-assignment hash equations for the actual pilot preimages.
-Both chains read the same retained input forms as the PiCCS decoder. Digest
-binding and the remaining pilot ordinary rows are separate obligations.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotDecodedHashes
@@ -56,7 +54,6 @@ private theorem output_input_lift (index : Fin Data.outputChain.inputLength) :
   change 27819 + ((28089 + index.val) - 28089) = 27819 + index.val
   omega
 
-/-- Every prior-hash input is the actual PiCCS decoded preimage word. -/
 theorem priorInputForm_eval
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -72,7 +69,6 @@ theorem priorInputForm_eval
   rw [PiCCSOrdinaryDirectPlan.Location.sourceColumn, prior_input_lift] at mapped
   exact mapped.symm
 
-/-- Every output-hash input is the actual PiCCS decoded next-preimage word. -/
 theorem outputInputForm_eval
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -88,8 +84,6 @@ theorem outputInputForm_eval
   rw [PiCCSOrdinaryDirectPlan.Location.sourceColumn, output_input_lift] at mapped
   exact mapped.symm
 
-/-- Arbitrary accepted pilot Poseidon rows compute both hashes of the exact
-preimages read by PiCCS. No canonical coordinate encoding is assumed. -/
 theorem rowsZero_implies_hashFacts
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)

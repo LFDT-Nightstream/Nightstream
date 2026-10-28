@@ -4,8 +4,7 @@ import NightstreamFPrime.Lifecycle.Stage1.Interface
 /-!
 Owns the first complete opaque-child order for the Stage 1 augmented circuit.
 
-This file proves exact offsets, aggregate footprints, coverage, and soundness
-for arbitrary satisfying assignments. It also owns the sole Stage 1 logical
+It also owns the sole Stage 1 logical
 `FormalCircuit`. The physical layout supplies its proof-only root completion;
 that proof does not change the circuit operations or semantic predicate.
 
@@ -324,8 +323,6 @@ private theorem childSpec_of_rows (name : String) (child : FormalCircuit)
     child.spec childOffset env := by
   exact (rows _ member) assumptions
 
-/-- Arbitrary satisfying assignments imply every opaque Stage 1 child spec.
-No child operation list is unfolded. -/
 theorem soundness
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -356,8 +353,6 @@ theorem soundness
     nextPreimage := childSpec_of_rows "stage1.next_preimage" _ _ env _ rows
       (by simp [opsAt]) assumptions.nextPreimage }
 
-/-- The parent has exactly eight opaque children, once each, in protocol
-order. This is the mechanical coverage statement used by later layout proofs. -/
 theorem opsAt_coverage
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -366,9 +361,6 @@ theorem opsAt_coverage
     (opsAt relation ajtai program interface template offset).length = 8 := by
   rfl
 
-/-- Proof-only evidence that the exact eight-child parent can be completed at
-one verifier-owned root. Layout constructs this record from the canonical
-wire placement. It does not select or change the circuit. -/
 structure RootCompleteness
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -384,8 +376,6 @@ structure RootCompleteness
       root + localLength completed.operations =
         finalOffset relation ajtai program interface template root
 
-/-- The sole proved logical Stage 1 circuit. The root and completion proof are
-fixed by the verifier-owned Lean layout before package emission. -/
 noncomputable def circuit
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -420,8 +410,6 @@ noncomputable def circuit
     · rw [← operationsEq]
       exact completed.rows
 
-/-- The exported circuit contains each of the eight Stage 1 children exactly
-once in protocol order. -/
 theorem circuit_coverage
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))

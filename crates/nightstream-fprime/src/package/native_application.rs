@@ -1,5 +1,4 @@
 //! One sealed application snapshot with its final physical-column mapping.
-//! Raw records bind identity; row lookup aggregates only distinct local variables.
 
 use std::{collections::BTreeMap, ops::ControlFlow, sync::Arc};
 
@@ -9,7 +8,9 @@ use p3_goldilocks::Goldilocks;
 use crate::application_records::{ApplicationRecipeNode, ApplicationRecords, RecipeEvaluator};
 use crate::sparse::{eval_sparse_combination, SparseCombination, SparseRow, SparseTerm};
 
-use super::{canonical_field, sealed::LoadedApplicationPlan, Layout, LoadedPackage, PackageError};
+use super::{
+    canonical_field, require_input_length, sealed::LoadedApplicationPlan, Layout, LoadedPackage, PackageError,
+};
 
 #[derive(Clone, Debug)]
 pub(crate) struct PreparedApplication {
@@ -28,14 +29,14 @@ impl PreparedApplication {
 
     pub(crate) fn new(plan: LoadedApplicationPlan, records: Arc<ApplicationRecords>) -> Result<Self, PackageError> {
         if plan.row_range().len() != records.row_count() || plan.private_range().len() != records.recipe_count() {
-            return Err(PackageError::Invalid("native application record counts"));
+            return Err(PackageError::Malformed("native application record counts"));
         }
         let variable_count = plan
             .witness_columns()
             .len()
             .checked_add(plan.private_range().len())
             .and_then(|count| count.checked_add(plan.input_columns().len() + plan.output_columns().len()))
-            .ok_or(PackageError::Invalid("native application variable count"))?;
+            .ok_or(PackageError::Malformed("native application variable count"))?;
         Ok(Self {
             plan,
             records,
@@ -56,7 +57,7 @@ impl PreparedApplication {
 
     pub(crate) fn column(&self, local: usize) -> Result<usize, PackageError> {
         if local >= self.variable_count {
-            return Err(PackageError::Invalid("native application variable"));
+            return Err(PackageError::Malformed("native application variable"));
         }
         let inputs = self.plan.input_columns();
         if local < inputs.len() {
@@ -76,7 +77,7 @@ impl PreparedApplication {
             .private_range()
             .start
             .checked_add(local - outputs.len())
-            .ok_or(PackageError::Invalid("native application variable"))
+            .ok_or(PackageError::Malformed("native application variable"))
     }
 
     pub(super) fn validate(&self, layout: &Layout) -> Result<(), PackageError> {
@@ -84,12 +85,12 @@ impl PreparedApplication {
             .private_segments
             .iter()
             .find(|s| s.role == super::sealed::APPLICATION_WITNESS_ROLE)
-            .ok_or(PackageError::Invalid("application witness segment"))?;
+            .ok_or(PackageError::Malformed("application witness segment"))?;
         let local = layout
             .private_segments
             .iter()
             .find(|s| s.role == super::sealed::APPLICATION_LOCAL_ROLE)
-            .ok_or(PackageError::Invalid("application local segment"))?;
+            .ok_or(PackageError::Malformed("application local segment"))?;
         let private = self.plan.private_range();
         let rows = self.plan.row_range();
         let witness_end = super::checked_end(witness.start, witness.length)?;
@@ -118,7 +119,7 @@ impl PreparedApplication {
                 .chain(self.plan.output_columns().iter())
                 .any(|&c| c >= layout.total_column_count || c == layout.constant_column)
         {
-            return Err(PackageError::Invalid("native application column or row ownership"));
+            return Err(PackageError::Malformed("native application column or row ownership"));
         }
         for row in 0..self.records.row_count() {
             let header = self.records.row_header(row)?;
@@ -130,18 +131,18 @@ impl PreparedApplication {
             let flow = self.records.visit_terms(row, |term| {
                 let form = term.form.index();
                 if form < previous {
-                    return Err(PackageError::Invalid("native application term order"));
+                    return Err(PackageError::Malformed("native application term order"));
                 }
                 previous = form;
                 self.column(term.variable)?;
                 canonical_field(term.coefficient, "native application coefficient")?;
                 counts[form] = counts[form]
                     .checked_add(1)
-                    .ok_or(PackageError::Invalid("native application term count"))?;
+                    .ok_or(PackageError::Malformed("native application term count"))?;
                 Ok(ControlFlow::Continue(()))
             })?;
             if flow.is_break() || counts != header.term_counts {
-                return Err(PackageError::Invalid("native application row coverage"));
+                return Err(PackageError::Malformed("native application row coverage"));
             }
         }
         let mut previous_row = None;
@@ -150,7 +151,7 @@ impl PreparedApplication {
         for recipe in 0..self.records.recipe_count() {
             let row = self.records.recipe_row(recipe)?;
             if row >= self.records.row_count() || previous_row.is_some_and(|previous| previous >= row) {
-                return Err(PackageError::Invalid("native application recipe row order"));
+                return Err(PackageError::Malformed("native application recipe row order"));
             }
             previous_row = Some(row);
             let flow = self.records.visit_recipe_nodes(recipe, |node| {
@@ -158,7 +159,7 @@ impl PreparedApplication {
                     ApplicationRecipeNode::Variable(variable) => {
                         self.column(variable)?;
                         if variable >= generated_start + recipe || (output_start..generated_start).contains(&variable) {
-                            return Err(PackageError::Invalid("noncausal witness expression"));
+                            return Err(PackageError::Malformed("noncausal witness expression"));
                         }
                     }
                     ApplicationRecipeNode::Constant(value) => {
@@ -169,7 +170,7 @@ impl PreparedApplication {
                 Ok(ControlFlow::Continue(()))
             })?;
             if flow.is_break() {
-                return Err(PackageError::Invalid("native application recipe coverage"));
+                return Err(PackageError::Malformed("native application recipe coverage"));
             }
         }
         Ok(())
@@ -226,33 +227,29 @@ impl PreparedApplication {
         values: &[Goldilocks],
         assignment: &mut [Goldilocks],
     ) -> Result<(), PackageError> {
-        if values.len() != self.variable_count {
-            return Err(PackageError::Invalid("precomputed application value count"));
-        }
+        require_input_length("precomputed application value count", self.variable_count, values.len())?;
         let generated = self.variable_count - self.plan.private_range().len();
         for (local, &value) in values.iter().enumerate() {
             let column = self.column(local)?;
             if local < generated {
                 if value != assignment[column] {
-                    return Err(PackageError::Invalid("precomputed application input or output differs"));
+                    return Err(PackageError::Input("precomputed application input or output differs"));
                 }
             } else {
                 assignment[column] = value;
             }
         }
-        // The enclosing witness executor still checks every assertion row.
         Ok(())
     }
 
     fn check_assertions(&self, assignment: &[Goldilocks]) -> Result<(), PackageError> {
         for row in 0..self.records.row_count() {
-            let values = self
-                .records
-                .evaluate_row(
-                    row,
-                    |variable| Ok(assignment[self.column(variable)?].as_canonical_u64()),
-                )?
-                .map(Goldilocks::from_u64);
+            let values =
+                self.records
+                    .evaluate_row::<PackageError>(row, |variable| {
+                        Ok(assignment[self.column(variable)?].as_canonical_u64())
+                    })?
+                    .map(Goldilocks::from_u64);
             if values[0] * values[1] != values[2] {
                 return Err(PackageError::UnsatisfiedAssertionRow {
                     row: self.plan.row_range().start + row,

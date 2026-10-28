@@ -3,8 +3,6 @@ import NightstreamFPrime.Export.Stage1.PilotDecodedPhase
 
 /-!
 Owns the two Construction 2 hash equations on arbitrary accepted assignments.
-The next preimage uses the decoded prior counter plus one. Its serialization
-is derived from the actual hashed output words, without a non-wrap premise.
 The final typed NIFS and verifier-context connections remain separate.
 -/
 
@@ -37,8 +35,6 @@ def outputDigest (geometry : PilotOrdinaryRetainedGeometry.Geometry program logi
     lane).eval
       (PilotSpartan.pullback (PilotDecodedEnvironment.env geometry assignment))
 
-/-- The digest read by the hash slot and the final public pin rows uses the
-same four owned forms in the arbitrary assignment. -/
 theorem outputDigest_eq_forms
     (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth) :
@@ -51,8 +47,6 @@ theorem outputDigest_eq_forms
   exact PilotDecodedEnvironment.env_location
     (RecursivePublicOutputPlan.pilotOrdinaryGeometry geometry) assignment (.outputDigest word)
 
-/-- The next hash retains the prior key and initial state, increments the
-prior natural counter, and uses the actual next current/running state. -/
 def nextPreimage (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth relationLogicalWidth)
@@ -63,9 +57,6 @@ def nextPreimage (relationLogicalWidth : Nat)
     iteration := StateDecoder.iteration prior + 1
     z0 := StateDecoder.initialState prior }
 
-/-- The constrained next words serialize the exact incremented preimage.
-Only the counter's field encoding is compared; natural-number wrap is not
-assumed or needed by the hash equation. -/
 theorem rowsZero_implies_nextPreimageSerialization
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -88,8 +79,6 @@ theorem rowsZero_implies_nextPreimageSerialization
   rw [← context, ← headers.2, headers.1]
   rw [StateDecoder.iteration, StateDecoder.natWord_val]
 
-/-- The opaque pilot contract and accepted framing/next rows imply both
-typed hash slots. No representation fact is supplied by the caller. -/
 theorem specAndRows_imply_hashSlots
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -128,8 +117,6 @@ theorem specAndRows_imply_hashSlots
       (PilotOrdinaryDirectPlan.piCcsGeometry geometry) assignment one ordinaryRows nextRows]
     exact output
 
-/-- The selected complete Stage 1 rows force both hash equations on values
-decoded from that assignment. The public boundary must enforce the one cell. -/
 theorem selectedRowsZero_implies_hashSlots
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -181,9 +168,6 @@ theorem selectedRowsZero_implies_hashSlots
       application fits assignment one accepted)
     ordinaryRows applicationRows.1.2
 
-/-- Accepted selected rows and their actual CCS public projection force the
-claimed digest to equal the next-state hash. The one cell is derived from the
-public marker, rather than supplied as an additional value premise. -/
 theorem selectedRowsAndPublic_imply_outputHash
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

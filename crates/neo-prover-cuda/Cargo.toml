@@ -19,7 +19,6 @@ default = []
 cuda = [
     "dep:cuda-core",
 ]
-# Per-phase stderr timings, following the workspace perf-timers convention.
 perf-timers = []
 
 [dependencies]

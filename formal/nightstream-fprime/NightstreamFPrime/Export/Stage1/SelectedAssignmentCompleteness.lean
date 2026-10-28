@@ -11,9 +11,8 @@ import NightstreamFPrime.Export.Stage1.NextPreimageCompleteness
 import NightstreamFPrime.Export.Stage1.CanonicalPublicOutput
 
 /-!
-Owns construction of the complete selected plan from a semantic step and its
-accepted NIFS advice. All phase rows, the strict carrier norm, public digest
-and application advice refer to the same canonical completed assignment.
+Owns construction of the complete plan of any application that fits the
+`2^28` profile from a semantic step and its accepted NIFS advice.
 -/
 
 set_option autoImplicit false
@@ -32,7 +31,6 @@ open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Layout.ProductionRelation
 open PerApplicationCanonicalAssignment
 open PerApplicationAssignmentTransportExecution
-open Poseidon2HashChainV1Package (application fits)
 
 private theorem prefix_rowsZero_of_completed
     {logicalWidth : Nat}
@@ -79,10 +77,9 @@ private theorem prefix_rowsZero_of_completed
     (PerApplicationCanonicalEncodes.samplerGeometry program) raw.assignment).mpr
   exact ⟨samplerPrefix, samplerOrdinary, r, d, running⟩
 
-/-- A selected semantic step constructs one complete canonical assignment.
-Every structural row, the strict carrier norm, the public digest and the exact
-application advice follow from the existing physical and retained builders.
-No row validity, environment agreement or completeness callback is supplied. -/
+variable (application : Lifecycle.Stage1.Application.Program)
+  (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
+
 theorem complete
     (ajtai : AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
@@ -102,6 +99,7 @@ theorem complete
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (step : StepHoldsFor (PerApplicationFixedPoint.relation application fits)
       ajtai context.toList application input output)
+    (valid : application.valid input.zi input.witness)
     (priorWellFormed : StateEncoding.WellFormed
       (priorHashPreimage (setup (PerApplicationFixedPoint.relation application fits)
         ajtai context.toList) input))
@@ -115,7 +113,7 @@ theorem complete
       (ProductionKey.key (PerApplicationFixedPoint.relation application fits) ajtai)
       (input.running functionIndex) input.fresh input.nifsProof = some result)
     (recursiveResult : 0 < input.iteration → result = output.runningNext functionIndex)
-    (witnessWidth : input.witness.length = Stage1.Poseidon2HashChainV1.messageWordCount) :
+    (witnessWidth : input.witness.length = application.witnessWordCount) :
     ∃ raw : RawValues application,
       (PerApplicationFixedPoint.structuralPlan application fits).RowsZero raw.assignment ∧
       (∀ column, centeredMagnitude (raw.completeAssignment column) < 2) ∧
@@ -126,9 +124,9 @@ theorem complete
   obtain ⟨digestFixed, target, suffix, _constant, physical, nextRows,
       _nifsOutput, _sources, _priorWords, _nextWords, _applicationSourceRows,
       actualWitness, outputDigest, publicInput, applicationRows⟩ :=
-    ApplicationWitnessCompleteness.complete
+    ApplicationWitnessCompleteness.complete application fits
       (PerApplicationFixedPoint.relation application fits) ajtai context input output result
-      step priorWellFormed nextWellFormed freshPublic accepted recursiveResult witnessWidth
+      step valid priorWellFormed nextWellFormed freshPublic accepted recursiveResult witnessWidth
   let raw := canonicalRawValues application
     (PerApplicationSourceAssignment.ofCompleted application target suffix)
   have prefixRows := prefix_rowsZero_of_completed application

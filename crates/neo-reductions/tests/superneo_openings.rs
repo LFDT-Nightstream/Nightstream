@@ -103,12 +103,15 @@ fn real_witness_openings_match_direct_ring_rows() {
     let mut parent_values = vec![F::ZERO; width];
     parent_values[0] = F::from_u64(257);
     parent_values[logical - 1] = -F::from_u64(9);
-    parent_values[width - 1] = -F::from_u64(511); // Nonzero mixed-parent carrier tail.
+    parent_values[width - 1] = -F::from_u64(511);
     let parent_witness = matrix(&parent_values);
     let mut fresh_values = vec![F::ZERO; width];
     fresh_values[0] = F::ONE;
-    fresh_values[logical - 1] = -F::ONE; // Higher Pad terms need the remaining zero lanes.
-    let fresh_witness = Mat::compact_signed_unit(D, 2, matrix(&fresh_values).to_dense_vec());
+    fresh_values[logical - 1] = -F::ONE;
+    let mut fresh_signs = vec![0; width];
+    fresh_signs[0] = 1;
+    fresh_signs[logical - 1] = -1;
+    let fresh_witness = Mat::<F>::compact_signed_unit_from_column_major_prefix(D, 2, &fresh_signs).unwrap();
     let zero_witness = Mat::virtual_constant(D, 2, F::ZERO);
     let blocks = [&parent_witness, &fresh_witness, &zero_witness]
         .into_iter()
@@ -142,9 +145,6 @@ fn real_witness_openings_match_direct_ring_rows() {
     assert_eq!(dense_zero[0].eval_k, evaluated[2].eval_k);
     assert_eq!(dense_zero[0].eval_a, evaluated[2].eval_a);
 
-    // Exercise the default normal D path with no supplied openings or forms.
-    // This test owns evaluation arithmetic; fixed-key commitments have their
-    // separate selected-source test.
     let params = NeoParams::nightstream_goldilocks_k16();
     let parent_opening = direct(&matrices, &parent_values, &point);
     let pad = |mut values: Vec<K>| {
@@ -152,7 +152,7 @@ fn real_witness_openings_match_direct_ring_rows() {
         values
     };
     let parent = CeClaim {
-        c: Commitment::zeros(D, params.kappa as usize),
+        c: Commitment::zeros(params.kappa() as usize),
         X: Mat::from_row_major(D, 1, parent_values[..D].to_vec()),
         r: point.clone(),
         eval_k: pad(parent_opening.eval_k),
@@ -161,7 +161,9 @@ fn real_witness_openings_match_direct_ring_rows() {
         fold_digest: [0; 32],
         adv: None,
     };
-    let (digits, flags) = split_b_matrix_k_with_nonzero_flags(&parent_witness, params.k_rho as usize, 2).unwrap();
+    let (digits, flags) = split_b_matrix_k_with_nonzero_flags(&parent_witness, params.k_rho() as usize, 2)
+        .unwrap()
+        .into_parts();
     let (children, evaluations_ok, public_ok) = dec_reduction_optimized_with_digit_flags(
         &structure,
         &params,
@@ -171,10 +173,9 @@ fn real_witness_openings_match_direct_ring_rows() {
         D.next_power_of_two().trailing_zeros() as usize,
         Some(&cache),
         None,
-        None,
     );
     assert!(evaluations_ok && public_ok);
-    assert_eq!(children.len(), params.k_rho as usize);
+    assert_eq!(children.len(), params.k_rho() as usize);
     for (child, digit) in children.iter().zip(&digits) {
         let values = (0..width)
             .map(|column| digit[(column % D, column / D)])

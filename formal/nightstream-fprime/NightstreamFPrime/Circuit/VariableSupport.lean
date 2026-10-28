@@ -7,8 +7,6 @@ expression. It does not select a protocol support set.
 
 namespace NightstreamFPrime.Circuit.Expr
 
-/-- Every variable read by an expression satisfies one caller-selected
-predicate. -/
 def VarsSatisfy (allowed : Nat → Prop) : Expr → Prop
   | .var index => allowed index
   | .const _ => True
@@ -65,8 +63,6 @@ theorem varsSatisfy_lt_iff_varsBelow (expression : Expr) (bound : Nat) :
   | mul left right leftIH rightIH =>
       simp only [VarsSatisfy, VarsBelow, leftIH, rightIH]
 
-/-- Evaluation is unchanged when two environments agree on every variable
-selected by the expression's exact support predicate. -/
 theorem eval_eq_of_agree_satisfy (expression : Expr) (allowed : Nat → Prop)
     (left right : Env) (support : expression.VarsSatisfy allowed)
     (agrees : ∀ index, allowed index → left index = right index) :

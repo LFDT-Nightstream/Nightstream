@@ -10,8 +10,6 @@ use p3_field::{PrimeCharacteristicRing, PrimeField64};
 type SplitVector = (u64, Vec<u64>);
 
 fn check_block(vectors: &[SplitVector], digit_count: usize, base: u32) {
-    // A ring coefficient column is the natural block size for this primitive.
-    // Two columns also expose accidental row/column transposition.
     let rows = vectors.len().div_ceil(2);
     let mut values: Vec<F> = vectors
         .iter()
@@ -19,7 +17,9 @@ fn check_block(vectors: &[SplitVector], digit_count: usize, base: u32) {
         .collect();
     values.resize(rows * 2, F::ZERO);
     let input = Mat::from_row_major(rows, 2, values);
-    let (digits, nonzero) = split_b_matrix_k_with_nonzero_flags(&input, digit_count, base).expect("strict-B input");
+    let (digits, nonzero) = split_b_matrix_k_with_nonzero_flags(&input, digit_count, base)
+        .expect("strict-B input")
+        .into_parts();
     assert_eq!(digits.len(), digit_count);
     assert_eq!(nonzero.len(), digit_count);
     for index in 0..digit_count {
@@ -32,7 +32,7 @@ fn check_block(vectors: &[SplitVector], digit_count: usize, base: u32) {
             assert_eq!(actual, expected_digit, "value={value}, digit={index}");
             any_nonzero |= expected_digit != 0;
         }
-        if vectors.len() % 2 != 0 {
+        if !vectors.len().is_multiple_of(2) {
             assert_eq!(digits[index][(rows - 1, 1)], F::ZERO, "padding stays zero");
         }
         assert_eq!(nonzero[index], any_nonzero, "digit {index} nonzero flag");
@@ -46,14 +46,13 @@ fn active_lean_signed_binary_matches_runtime() {
     let mut lines = BufReader::new(std::fs::File::open(path).expect("open Lean split vectors")).lines();
     let header: Vec<u64> =
         serde_json::from_str(&lines.next().expect("header").expect("read header")).expect("decode header");
-    // The owner-approved Nightstream Goldilocks profile.
     assert_eq!(header, [F::ORDER_U64, 2, 16, 1 << 16]);
     let [_, base, digit_count, bound]: [u64; 4] = header.try_into().unwrap();
     let mut vectors = Vec::with_capacity(D * 2);
     for magnitude in 0..bound {
         for value in [magnitude, F::ORDER_U64 - magnitude] {
             if value == F::ORDER_U64 {
-                continue; // Zero has one canonical encoding.
+                continue;
             }
             let vector: SplitVector = serde_json::from_str(
                 &lines
@@ -82,7 +81,6 @@ fn active_lean_signed_binary_matches_runtime() {
             )
             .expect("decode rejection");
             assert_eq!(vector, (value, vec![]), "Lean rejects the norm boundary");
-            // Place the bad value after a valid value, to check whole-input rejection.
             let input = Mat::from_row_major(1, 2, vec![F::ONE, F::from_u64(value)]);
             assert!(
                 split_b_matrix_k_with_nonzero_flags(&input, digit_count as usize, base as u32).is_err(),
@@ -92,9 +90,10 @@ fn active_lean_signed_binary_matches_runtime() {
     }
     assert!(lines.next().is_none(), "unexpected extra split vector");
 
-    // The virtual-zero optimization must have the same result as Lean's zero.
     let zero = Mat::virtual_constant(D, 1, F::ZERO);
-    let (digits, flags) = split_b_matrix_k_with_nonzero_flags(&zero, digit_count as usize, base as u32).unwrap();
+    let (digits, flags) = split_b_matrix_k_with_nonzero_flags(&zero, digit_count as usize, base as u32)
+        .unwrap()
+        .into_parts();
     assert_eq!(digits.len(), digit_count as usize);
     assert_eq!(flags, vec![false; digit_count as usize]);
     for digit in digits {

@@ -7,8 +7,6 @@ import NightstreamFPrime.Layout.Stage1.SpartanRows
 
 /-!
 Owns the canonical C-plan consumer for the completed Spartan assignment.
-The source rows and computed transcript readout both come from the same
-actual physical C phase; retained encodings come from the canonical carrier.
 -/
 
 set_option autoImplicit false
@@ -38,9 +36,6 @@ private theorem c_rows
   have throughC := (PilotPiCCSPiRLC.physicalHolds_iff relation _).mp throughR.1
   exact ((PilotPiCCS.physicalHolds_iff relation _).mp throughC.1).2
 
-/-- Actual completed Spartan rows make the canonical direct C arithmetic
-plan zero. Source agreement, transcript readout and encodings are derived;
-the caller supplies no compact-row or retained-value assertion. -/
 private theorem ordinaryRowsZero_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -65,9 +60,6 @@ private theorem ordinaryRowsZero_of_completed
       cRows source (PiCCSOrdinarySourceSupport.source_lt_sourceColumnCount sourceSupport)
   · exact PiCCSOrdinaryPhysicalCompleteness.ordinaryRows_of_physical relation target cRows
 
-/-- The canonical assignment satisfies every direct C component: ordinary
-arithmetic, retained Poseidon permutations and all transcript endpoints.
-The sole row premise is the actual cumulative Spartan physical relation. -/
 theorem rowsZero_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

@@ -4,8 +4,6 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns exact environment custody for the direct PiRLC product schedule.
-Schedule-indexed proofs avoid dependent elimination on an arbitrary product
-descriptor. This module adds no row and does not close PiRLC status.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductSemanticCustody
@@ -392,8 +390,6 @@ private theorem stateTarget_none_of_productInterval {column : Nat}
       exfalso
       omega
 
-/-- Product recurrence outputs occupy no retained sampler source. The complete
-sampler environment therefore uses the canonical transition value. -/
 theorem semanticEnv_source_eq_transitionEnv_of_productInterval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -431,7 +427,6 @@ private theorem evalTwo_env_independent (left right : Env) :
     (2 : Expr).eval left = (2 : Expr).eval right := by
   rfl
 
-/-- The product and sampler read the same checked coefficient word. -/
 theorem semanticEnv_challengeColumn_eq_baseEnv
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -464,8 +459,6 @@ theorem semanticEnv_challengeColumn_eq_baseEnv
     (PiRLCProductSourceBlocks.challengeBlock_source program descriptor lane)).trans
     (PiRLCRetainedPreservation.sourceAssignment_challengeColumn program base groupValue descriptor lane)
 
-/-- Every product input value precedes the sampler and therefore has the same
-canonical transition value in both environments. -/
 theorem semanticEnv_valueColumn_eq_baseEnv
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -493,8 +486,6 @@ theorem semanticEnv_valueColumn_eq_baseEnv
     privateBound (Or.inl (Nat.lt_of_lt_of_le beforeTranscript
       PiCCSStarts.phaseOffset_le_statementWitnessStart))).symm
 
-/-- Every direct product output lies in the unclaimed product interval and
-therefore has the same canonical transition value in both environments. -/
 theorem semanticEnv_outputColumn_eq_baseEnv
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -521,8 +512,6 @@ theorem semanticEnv_outputColumn_eq_baseEnv
         PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
       omega)).symm
 
-/-- Every nonzero-source prior product output lies in the same unclaimed
-product interval in both environments. -/
 theorem semanticEnv_priorColumn_eq_baseEnv
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -628,8 +617,6 @@ private theorem priorExpr_eval_eq
       semanticEnv_priorColumn_eq_baseEnv geometry assignment base descriptor
         notFirst
 
-/-- The complete retained sampler environment and the direct product base
-environment evaluate every canonical product source constraint identically. -/
 theorem sourceConstraint_eval_eq
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -651,8 +638,6 @@ theorem sourceConstraint_eval_eq
     challengeExpr_evalRing_eq geometry assignment base groupValue encoding descriptor,
     valueExpr_evalRing_eq geometry assignment base descriptor]
 
-/-- Invocation-indexed direct product semantics yield the exact decoded
-source-constraint zero in the complete retained sampler environment. -/
 theorem sourceConstraint_zero_of_productSemantics
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program

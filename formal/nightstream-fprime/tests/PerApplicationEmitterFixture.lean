@@ -133,6 +133,7 @@ def program (_ : Unit) : Application.Program where
   witnessWordCount := 0
   step := step
   valid := fun _ _ => True
+  step_length := fun _ _ stateLength => stateLength
   circuit := circuit
   spec_iff := by
     intro interface offset env

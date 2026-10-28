@@ -5,7 +5,6 @@ import NightstreamFPrime.Export.RowSemantics
 /-!
 Owns the compact affine payload table for the PiCCS matrix program. Its source
 indices use the physical permutation expected by the parent substitution.
-The proofs preserve ordered entries before any field evaluation.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPayloadMatrix
@@ -46,7 +45,6 @@ private theorem mapM_ofFn_some {count : Nat}
         List.ofFn_succ]
       rfl
 
-/-- Compile the ordered payload once; an unrecognized word rejects the table. -/
 private def table? (_delay : Unit := ()) : Option Affine.Table := do
   let words ← (PiCCSActionPayloadBlock.materializedPayloadExpressions ()).mapM compileWord?
   pure ⟨words.toArray⟩
@@ -61,11 +59,9 @@ private theorem table?_eq_some :
   rw [List.toArray_ofFn]
   rfl
 
-/-- Total emission follows from recognition of every canonical payload word. -/
 def table (_delay : Unit := ()) : Affine.Table :=
   (table? ()).get (by rw [table?_eq_some]; rfl)
 
-/-- Ordered traversal changes no word, coefficient, or position. -/
 theorem table_eq_ofSemantic : table () = Affine.Table.ofSemantic combination := by
   simp only [table, table?_eq_some, Option.get_some]
 
@@ -96,7 +92,6 @@ private theorem compileMappedTerms
         inductionHypothesis tailBound tailSupport]
       rfl
 
-/-- Exact remapping and substitution preserve the selected logical form. -/
 theorem compileCombination_eq
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)

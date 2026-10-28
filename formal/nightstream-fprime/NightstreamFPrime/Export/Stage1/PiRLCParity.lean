@@ -241,6 +241,8 @@ def resultValue (computed : PiCCSNonzero.Computed) : Value :=
         (inputEvaluationFromComputed computed source).matrix matrix)).getD
         (.array [PiCCSParity.boolValue false])
 
+private def paritySchema : Nat := 3
+
 abbrev PreparedTask (Alpha : Type) := Task (Except IO.Error Alpha)
 
 def prepare {Alpha : Type} (build : Unit → Alpha) : IO Alpha := do
@@ -282,7 +284,7 @@ def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value
   match resultValueFromPartials computed.verifierRoundPoint batch inputsAreNonzero
       commitments publicInputs evalKs evalAsByMatrix with
   | some result =>
-      pure <| Value.array [Value.atom 3, input, result]
+      pure <| Value.array [Value.atom paritySchema, input, result]
   | none =>
       throw (IO.userError "incomplete PiRLC indexed partial grid")
 
@@ -290,7 +292,7 @@ def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value
 and the supplied context against its separately loaded canonical binding. -/
 def parityValue (context packageIdentity : VerifierContext.Digest4) : Value :=
   let computed := PiCCSNonzero.compute () context.toList
-  .array [.atom 3, inputValue computed packageIdentity, resultValue computed]
+  .array [.atom paritySchema, inputValue computed packageIdentity, resultValue computed]
 
 def render (context packageIdentity : VerifierContext.Digest4) : String :=
   (parityValue context packageIdentity).render

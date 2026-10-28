@@ -6,9 +6,6 @@ import NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
 Owns the three small explicit pin blocks in the canonical Stage 1 4-matrix
 program: pilot digest custody, PiCCS transcript endpoint custody, and the
 recursive public-output binding.
-
-The blocks carry final sparse forms. They do not select package order or
-claim final package integration.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PinMatrixPrograms

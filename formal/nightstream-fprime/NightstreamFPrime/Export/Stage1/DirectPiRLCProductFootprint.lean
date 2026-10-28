@@ -2,11 +2,7 @@ import NightstreamFPrime.Lifecycle.Types
 
 /-!
 Owns the fast closed-form footprint of the direct quotient-check compiler for
-every PiRLC combination invocation. The separate bridge module proves that
-the fixed invocation count equals the canonical Lean invocation list.
-
-This module does not construct the final assignment or claim the complete
-Stage 1 fit.
+every PiRLC combination invocation.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprint

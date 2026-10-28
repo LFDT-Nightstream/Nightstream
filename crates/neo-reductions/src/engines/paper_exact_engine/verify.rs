@@ -31,7 +31,7 @@ fn validate_outputs(
     for (index, output) in outputs.iter().enumerate() {
         if output.r != point
             || output.X.rows() != D
-            || output.X.cols() != neo_ccs::superneo_public_x_cols(output.m_in)
+            || neo_ccs::superneo_public_x_cols(output.m_in) != Some(output.X.cols())
             || output.eval_k.len() != D.next_power_of_two()
             || output.eval_a.len() != dims.matrix_count
         {
@@ -82,9 +82,6 @@ fn validate_outputs(
     Ok(())
 }
 
-/// Verify PiCCS with the reference engine and return its conformance trace.
-///
-/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 pub fn paper_exact_verify_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -99,7 +96,7 @@ pub fn paper_exact_verify_with_trace(
     let prior_point = paper_prior_point(running_claims, dims.variables)?;
     let mut trace = ProtocolTrace::default();
     let challenges = bind_and_sample(transcript, &mut trace, structure, fresh_claims, running_claims, dims)?;
-    let initial = initial_claim(structure, &challenges, fresh_claims.len(), running_claims)?;
+    let initial = initial_claim(structure, &challenges, running_claims)?;
     let (point, final_claim) = verify_sumcheck(transcript, &mut trace, dims, initial, &proof.sumcheck_rounds)?;
     validate_outputs(fresh_claims, running_claims, outputs, &point, dims)?;
     let terminal = terminal_components::<F>(
@@ -122,9 +119,6 @@ pub fn paper_exact_verify_with_trace(
     Ok((final_claim == expected, trace))
 }
 
-/// Verify PiCCS with the reference engine.
-///
-/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
 pub fn paper_exact_verify(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,

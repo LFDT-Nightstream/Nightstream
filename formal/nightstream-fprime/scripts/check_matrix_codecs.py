@@ -22,7 +22,6 @@ SCAFFOLD = re.compile(
 
 
 def one_type_argument(text):
-    """Accept a named type or one parenthesized type; no outer arrow/product."""
     text = text.strip()
     if re.fullmatch(NAME, text):
         return True
@@ -37,7 +36,6 @@ def one_type_argument(text):
 
 
 def check_source(text, path='<source>'):
-    """Check this owner's existing codec/where syntax, not arbitrary Lean terms."""
     lines = lean_code(text).splitlines()
     codec_indent = None
     count = index = 0
@@ -66,8 +64,6 @@ def check_source(text, path='<source>'):
             codec_indent = None
         elif codec_indent is None or indent <= codec_indent:
             raise ValueError(f'{path}:{number}: unsupported command in MatrixProgram codec owner')
-        # Indented encode/decode/decode_encode fields and their terms/proofs remain opaque.
-        # Declaration keywords are checked first, even if a new declaration is indented.
     return count
 
 

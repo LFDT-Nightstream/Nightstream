@@ -86,8 +86,6 @@ impl MatrixRows for PatternRows {
     fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
         self.visits.lock().unwrap().push(rows.clone());
         for row in rows {
-            // Intentionally put the scalar before an overlapping run whose
-            // column starts earlier. Only row/matrix order is constrained.
             sink.push_run(row, 0, GeometricRowRun::new(row, D, 1, -F::from_usize(row + 1), F::ONE))?;
             sink.push_run(
                 row,
@@ -97,7 +95,6 @@ impl MatrixRows for PatternRows {
             if sink.finish_matrix_row(row, 0)?.is_break() && !self.ignore_stop {
                 return Ok(());
             }
-            // Matrix one has an explicit empty slot in every row.
             if sink.finish_matrix_row(row, 1)?.is_break() && !self.ignore_stop {
                 return Ok(());
             }
@@ -163,9 +160,6 @@ fn compare_rows(window: &MatrixWindow, expected: &SuperneoEvalCache, columns: us
 fn original_runs_preserve_global_columns_overlap_and_empty_slots_across_windows() {
     let source = PatternRows::new(5);
     let expected = expanded_cache(&source);
-    // Later scalar coefficients use dense patterns, unlike row zero's -1.
-    // Derive the workspace from two of those complete rows. usize::MAX here
-    // removes a budget ceiling for this small, explicitly bounded request.
     let budget = MatrixWindow::load_next(&source, 2..4, usize::MAX)
         .unwrap()
         .workspace_peak_bytes();
@@ -201,8 +195,6 @@ fn scalar_runs_use_compact_entries_and_keep_geometric_runs_unexpanded() {
         mixed.geometric_row_offsets,
         SuperneoCompactRowOffsets::U32([0, 1, 2])
     ));
-    // Existing device ABI: sign bit 30; dense-reference bit 31. The first
-    // scalar is -1 at global column D, and the second has coefficient -2.
     assert_eq!(mixed.row_blocks, &[(1 << 30) | 1, 1 << 31]);
     assert_eq!(mixed.dense_row_blocks, &[[1, 0]]);
     assert_eq!(mixed.dense_offsets, &[0, 1]);
@@ -316,19 +308,12 @@ fn workspace_prefixes_charge_offset_families_when_they_first_appear() {
     let start = 2;
     let end = source.shape().rows;
     let payload = source.shape().matrices * size_of::<K>();
-    // An empty allocation isolates the fixed cache descriptors, initial dense
-    // offsets, and construction counts without using the prefix count result.
     let empty = MatrixWindow::load_next(&source, start..start + 1, usize::MAX).unwrap();
     let fixed = empty.storage_bytes();
     let construction = empty.workspace_peak_bytes() - fixed;
-    // Public compact device layout: each scalar has a u32 reference; a
-    // non-unit scalar also has [block, pattern], one offset/local/coefficient.
     let explicit_bytes = size_of::<u32>();
     let dense_bytes = size_of::<[u32; 2]>() + size_of::<u32>() + size_of::<u8>() + size_of::<F>();
     let geometric_bytes = size_of::<[u64; 3]>();
-    // Independently enumerated cumulative (explicit, dense, geometric, offset
-    // families) after each global row. Empty rows before and after first runs
-    // must get offsets once that family becomes live.
     let prefixes = [
         (0, 0, 0, 0),
         (0, 0, 0, 0),
@@ -373,8 +358,6 @@ fn workspace_prefixes_charge_offset_families_when_they_first_appear() {
         }
         previous_required = Some(required);
     }
-    // Starting directly at a populated row must report its complete row cost,
-    // including newly live offset families, rather than only the empty floor.
     for (row, explicit, dense, geometric, families) in
         [(4, 1, 1, 0, 1), (6, 0, 0, 2, 2), (7, 2, 1, 0, 2), (9, 1, 0, 0, 1)]
     {
@@ -546,7 +529,7 @@ fn malformed_order_range_and_ignored_stop_are_not_workspace_failures() {
         ));
     }
     let mut source = PatternRows::new(5);
-    for rows in [3..2, 0..6, 0..0] {
+    for rows in [Range { start: 3, end: 2 }, 0..6, 0..0] {
         assert!(matches!(
             MatrixWindow::load_next(&source, rows, usize::MAX),
             Err(PiCcsError::InvalidInput(_))
@@ -641,15 +624,11 @@ fn borrowed_cache_preserves_compact_identity_and_geometric_coefficients() {
     while start < 4 {
         let window = MatrixWindow::load_next(&source, start..4, budget).unwrap();
         compare_rows(&window, &expected, D);
-        // Also compare against the original cache evaluator, not just the
-        // adapter-expanded dense matrix.
         compare_rows(&window, &cache, D);
         start = window.rows().end;
     }
 }
 
-/// Many ternary runs across block and worker-part boundaries, with runs of
-/// other ratios, lengths and edges that the run-event sweep must preserve.
 struct RunRows;
 
 impl RunRows {
@@ -668,7 +647,6 @@ impl MatrixRows for RunRows {
     fn visit_rows(&self, rows: Range<usize>, sink: &mut dyn MatrixRowSink) -> Result<(), PiCcsError> {
         let columns = Self::BLOCKS * D;
         for row in rows {
-            // Matrix zero: ratio-3 runs at scattered starts, then ratio 7.
             for run in 0..24 {
                 let start = (row * 97 + run * 131) % (columns - 41);
                 let coefficient = F::from_usize(run + 1) - F::from_usize(3 * row);
@@ -686,9 +664,6 @@ impl MatrixRows for RunRows {
             if sink.finish_matrix_row(row, 0)?.is_break() {
                 return Ok(());
             }
-            // Matrix one: its first run fixes ratio 5 for events; ratio 3 is
-            // added directly. One run ends on a block boundary before empty
-            // blocks, one spans more than three blocks, one has ratio zero.
             sink.push_run(
                 row,
                 1,
@@ -757,7 +732,6 @@ fn run_event_openings_match_expanded_rows_across_block_and_part_boundaries() {
     assert_eq!(actual, expected);
 }
 
-/// A source whose owner keeps its complete window.
 struct KeptRows<'a>(PatternRows, &'a RetainedMatrixWindow);
 
 impl MatrixRows for KeptRows<'_> {
@@ -789,13 +763,11 @@ fn retained_complete_window_is_shared_and_other_requests_load_as_before() {
     let built = visits();
     assert_ne!(built, 0);
 
-    // A second complete load reads no row and shares the first storage.
     let second = MatrixWindow::load_next(&kept, 0..5, usize::MAX).unwrap();
     assert_eq!(visits(), built);
     assert!(std::ptr::eq(first.cache(), second.cache()));
     assert_eq!(second.workspace_peak_bytes(), expected.workspace_peak_bytes());
 
-    // The reported peak includes the caller's row payload, as for a new load.
     let payload = 3 * size_of::<F>();
     let with_payload = MatrixWindow::load_next_with_payload(&kept, 0..5, usize::MAX, payload).unwrap();
     assert_eq!(visits(), built);
@@ -806,8 +778,6 @@ fn retained_complete_window_is_shared_and_other_requests_load_as_before() {
             .workspace_peak_bytes()
     );
 
-    // A workspace below the complete window gives the same prefix as a
-    // source without a slot, and a partial request is not served from it.
     let budget = expected.workspace_peak_bytes() - 1;
     let prefix = MatrixWindow::load_next(&kept, 0..5, budget).unwrap();
     assert_eq!(
@@ -821,7 +791,6 @@ fn retained_complete_window_is_shared_and_other_requests_load_as_before() {
     assert_eq!(partial.rows(), 1..5);
     assert!(!std::ptr::eq(partial.cache(), first.cache()));
 
-    // The slot serves one source only.
     assert!(matches!(
         MatrixWindow::load_next(&KeptRows(PatternRows::new(4), &slot), 0..4, usize::MAX),
         Err(PiCcsError::InvalidInput(_))

@@ -1,5 +1,3 @@
-"""Read raw Nsight Systems SQLite exports and old gpuprof bundles."""
-
 from dataclasses import dataclass
 from pathlib import Path
 import re

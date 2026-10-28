@@ -15,7 +15,6 @@ open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Field-level support for one complete symbolic running vector. -/
 structure RunningSupported {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -37,8 +36,6 @@ structure RunningSupported {logicalWidth : Nat}
       ((running.evaluation source).eval_A matrix coefficient).c1.VarsSatisfy
         allowed
 
-/-- Support premises for the complete transition interface and its two
-logical witnesses: the inverse hint and the stored flag. -/
 structure InputsSupported {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -124,8 +121,6 @@ private theorem baseFlag_varsSatisfy {logicalWidth : Nat}
   Expr.VarsSatisfy.sub _ _ allowed trivial
     (recursiveFlag_varsSatisfy interface offset allowed support)
 
-/-- Every exact running-transition constraint uses only the selected source
-support, the logical inverse witness, and the stored flag. -/
 theorem flatConstraints_varsSatisfy {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

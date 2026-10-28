@@ -3,9 +3,7 @@ import NightstreamFPrime.Export.Stage1.ActualPiDECCarriedValues
 
 /-!
 Owns the exact PiDEC check and carried output from arbitrary accepted selected
-rows and actual public input. Both proof message families use their actual
-decoders. The recursive branch carries the complete 16-child result; the base
-branch uses the existing default-running contract.
+rows and actual public input.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualPiDECOutput
@@ -35,8 +33,6 @@ variable (application : Lifecycle.Stage1.Application.Program)
 
 include digest publicEqual rows
 
-/-- Accepted rows split each packed prior parent word into its children, so
-the PiCCS running claim is the running value of the actual prior preimage. -/
 private theorem selectedRowsAndPublic_imply_priorRunning :
     PiCCS.v1_2.Formal.evalRunning
         (PiCCSInvocations.parentInterface (PerApplicationFixedPoint.logicalWidth application)
@@ -62,8 +58,6 @@ private theorem selectedRowsAndPublic_imply_priorRunning :
     (ActualPiCCSInputs.selectedRowsZero_implies_priorSplit application fits assignment
       one rows)
 
-/-- The actual PiDEC messages pass the production check over the exact
-verifier-derived parent and actual prior running state. -/
 theorem selectedRowsAndPublic_imply_check :
     Nifs.PaperNonInteractive.piDecCheck
       (ProductionKey.key (PerApplicationFixedPoint.relation application fits) ajtai)
@@ -89,8 +83,6 @@ theorem selectedRowsAndPublic_imply_check :
       publicEqual rows)
   exact agreement.symm.trans checked
 
-/-- The production key computes all sixteen typed children from the actual
-PiDEC values. This identifies the complete value before branch selection. -/
 theorem selectedRowsAndPublic_imply_decodedOutput :
     (ProductionKey.key (PerApplicationFixedPoint.relation application fits) ajtai).output
       (StateDecoder.running (PerApplicationFixedPoint.logicalWidth application)
@@ -126,8 +118,6 @@ theorem selectedRowsAndPublic_imply_decodedOutput :
       publicEqual rows)
   exact agreement.symm.trans computed
 
-/-- On a recursive step, the key's complete output is exactly the running
-value in the actual next-state preimage. -/
 theorem selectedRowsAndPublic_imply_output
     (iterationNonzero : StateDecoder.iteration
       (ActualStep.priorState application assignment) ≠ 0) :
@@ -178,10 +168,6 @@ theorem selectedRowsAndPublic_imply_output
   exact (selectedRowsAndPublic_imply_decodedOutput application fits ajtai assignment
     digest publicEqual rows).trans (congrArg some carried.symm)
 
-/-- Every accepted selected assignment with the actual public digest gives
-the complete typed step for its decoded prior context. No proof template,
-honest-encoder, NIFS-acceptance, or child-output premise is required. The
-canonical verifier-context binding retains its separate contract. -/
 theorem selectedRowsAndPublic_imply_step (fixed : digest.length = 4) :
     StepHoldsFor (PerApplicationFixedPoint.relation application fits) ajtai
       (ActualStep.contextKey application assignment) application

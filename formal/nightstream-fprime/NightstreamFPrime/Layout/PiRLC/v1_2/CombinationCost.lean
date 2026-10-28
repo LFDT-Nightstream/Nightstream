@@ -15,9 +15,6 @@ namespace NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 
-/-- Exact production expression shapes. Sampler challenges are centered
-output variables, inputs are existing variables, and the accumulator is
-multiplication-free. -/
 structure ProductionInputs {blockCount cellCount : Nat} [NeZero cellCount]
     (interface : Logical.Interface blockCount cellCount) (offset : Nat) : Prop where
   challenge : ∀ lane, ∃ index,

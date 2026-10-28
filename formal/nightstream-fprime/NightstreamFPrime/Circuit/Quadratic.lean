@@ -29,7 +29,6 @@ def add (left right : KExpr) : KExpr :=
 def sub (left right : KExpr) : KExpr :=
   ⟨left.c0 - right.c0, left.c1 - right.c1⟩
 
-/-- Multiplication in `F[X]/(X² - 7)`. -/
 def mul (left right : KExpr) : KExpr :=
   ⟨left.c0 * right.c0 + 7 * left.c1 * right.c1,
     left.c0 * right.c1 + left.c1 * right.c0⟩

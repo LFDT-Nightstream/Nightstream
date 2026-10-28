@@ -1,5 +1,3 @@
-"""Exercise the current-profile comparison commands with retained golden data."""
-
 import copy
 import json
 from pathlib import Path
@@ -33,7 +31,6 @@ class FourMatrixChecks(unittest.TestCase):
         self.public = self.write("public.json", [self.proof[1], self.proof[2], self.proof[6]])
         self.proof_path = self.write("proof.json", self.proof)
         self.phase_path = self.write("phase.json", self.phase)
-        # This tests comparison framing, not independent round production.
         self.round_path = self.write("round-27.json", [
             1, self.phase[1], self.phase[2], self.phase[5][26], self.proof[3][27],
             self.phase[4][27], self.phase[5][27], self.phase[8][26],

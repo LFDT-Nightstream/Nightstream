@@ -7,7 +7,7 @@ use super::{
 };
 
 #[derive(Clone, Copy, Debug)]
-pub struct Coordinate {
+pub(crate) struct Coordinate {
     pub major: usize,
     pub middle: usize,
     pub minor: usize,
@@ -134,18 +134,18 @@ impl Rule {
 }
 
 #[derive(Clone, Debug)]
-pub struct AffineProgram {
+pub(crate) struct AffineProgram {
     rules: Vec<Rule>,
 }
 
 impl AffineProgram {
-    pub fn decode(value: &Value, logical_width: usize) -> Result<Self> {
+    pub(crate) fn decode(value: &Value, logical_width: usize) -> Result<Self> {
         Ok(Self {
             rules: decode_list(value, |rule| Rule::decode(rule, logical_width), "affine rules")?,
         })
     }
 
-    pub fn form(&self, logical_width: usize, one_column: usize, coordinate: Coordinate) -> Result<Form> {
+    pub(crate) fn form(&self, logical_width: usize, one_column: usize, coordinate: Coordinate) -> Result<Form> {
         let mut result = Form::default();
         for rule in &self.rules {
             if let Some(offsets) = rule.region.offsets(coordinate) {

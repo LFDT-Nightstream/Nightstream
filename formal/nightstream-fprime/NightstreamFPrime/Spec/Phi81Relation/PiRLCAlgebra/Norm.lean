@@ -1,32 +1,14 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Finite
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/PiRLCAlgebra/Norm.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Curated production norm-growth surface for the typed Phi81 `PiRLC.Algebra`.
 
 Protocol: SuperNeo v1.2 Definition 22 and `Pi_RLC`.
-Phase: valid challenge action through the complete finite batch.
-Constraint family: semantic norm only; this parent emits no rows.
 
 Owns: the dependency and audit boundary for the concrete norm-growth field.
 
 Does not own: transcript validity, other algebra fields, Rust/R1CS refinement,
 row removal, or constraint counts.
-
-Emits constraints: no.
-
-Authority boundary: the exported theorem is derived from centered Goldilocks
-arithmetic, the executable Phi81 multiplication support, and verifier-owned
-production parameters. Existing circuits and measured counts are not inputs.
-
-| Child path | Mathematical obligation | Emits constraints? | Lean owner |
-|---|---|---|---|
-| `centered` | cyclic-distance triangle and five-symbol multiplier bound | no | `Norm.Centered` |
-| `product` | exact raw/reduction support and `216` expansion bound | no | `Norm.Product` |
-| `finite` | canonical source fold and Definition-14 production bound | no | `Norm.Finite` |
-| `algebra` | exact `PiRLC.Algebra.norm_growth` field shape | no | `Norm.Finite.relation_norm_growth` |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm

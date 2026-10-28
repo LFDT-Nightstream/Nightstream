@@ -5,9 +5,7 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch
 
 /-!
 Proof-only transport from loaded sparse rows and prepared numeric invocations
-to complete original-source matrix ranges. Generic program arithmetic is proved
-before selected specialization. Successful loads and their exact offsets are
-the operational premises; no split or expected evaluation is supplied.
+to complete original-source matrix ranges.
 -/
 
 set_option autoImplicit false
@@ -37,9 +35,6 @@ private theorem get_replicate {Alpha : Type} {count : Nat}
   change (Vector.replicate count value)[index.val] = _
   rw [Vector.getElem_replicate]
 
-/-- The generic reference has an explicit zero suffix. The loaded-range
-lemmas use successful rows; selected preservation also proves every active
-lookup needed by the complete family. This reference is not a loader. -/
 private def rows {columns : Nat} (program : MatrixProgram.Program)
     (sourceRow : Nat → Option R1CS.Row) (read : Fin ringDegree → Fin columns → F)
     (index : Nat) : Vector StoredRing matrixCount :=
@@ -63,7 +58,6 @@ private theorem rows_value {columns : Nat} (program : MatrixProgram.Program)
       else 0 := by
   simp only [rows, get_ofFn]
 
-/-- Reference weighted range under one complete source read. -/
 def range {columns arity : Nat} (program : MatrixProgram.Program)
     (sourceRow : Nat → Option R1CS.Row) (read : Fin ringDegree → Fin columns → F)
     (first count : Nat) (point : CubePoint K arity) : Vector MaterializedRingK matrixCount :=
@@ -218,16 +212,12 @@ private abbrev selectedSource := PerApplicationCanonicalPackage.sourceRow
 private abbrev selectedRelation := PerApplicationFixedPoint.relation
   Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
 
-/-- One source's complete canonical reference range. This shares the exact
-original reader used by the source/port batch runtime. -/
 def originalRange (masks : Array (Array (Nat × Nat))) (point : PaperAlgebra.Point)
     (first count : Nat) (source : Fin productionShape.sourceCount) :
     Vector MaterializedRingK matrixCount :=
   range selectedProgram selectedSource
     (PiCCSOriginalReads.read (columns := PiCCSSourceImages.logicalWidth) (PiDECParentSparseRead.prepare ()) masks source) first count point
 
-/-- Successful sparse loads at the stated offsets preserve every original
-source and every matrix port. This includes all 54 lanes of fresh source 0. -/
 theorem sparse_eq_range (masks : Array (Array (Nat × Nat))) (point : PaperAlgebra.Point)
     (first count : Nat) (forms : Vector (MatrixProgram.RowForms PiCCSSourceImages.logicalWidth) count)
     (loaded : ∀ index : Fin count, selectedProgram.row? PiCCSSourceImages.logicalWidth
@@ -243,8 +233,6 @@ theorem sparse_eq_range (masks : Array (Array (Nat × Nat))) (point : PaperAlgeb
     (PiCCSOriginalReads.read (columns := PiCCSSourceImages.logicalWidth) (PiDECParentSparseRead.prepare ()) masks source)
     first point forms loaded fits port
 
-/-- Loaded contiguous numeric invocations preserve the same canonical range.
-The runtime retains prepare/stored; sparse invocation rows occur only in proofs. -/
 theorem invocations_eq_range (masks : Array (Array (Nat × Nat))) (point : PaperAlgebra.Point)
     (blockIndex : Nat) (block : MatrixProgram.Poseidon.Block)
     (selected : selectedProgram.blocks[blockIndex]? = some (.poseidon block))
@@ -293,9 +281,6 @@ private theorem evaluationFamily_matrix {logicalWidth : Nat}
     (PaperAlgebra.evaluationFamily_eq_paper
       (Lifecycle.PiRLC.v1_2.InputBinding.relationSource relation).cubeLayout relation.system assignment point)
 
-/-- The complete reference range equals the passed matrix-family reference.
-The selected row bound and all omitted zero rows are derived here. No caller
-supplies a matrix answer, tail condition, or successful split. -/
 theorem range_eq_matrix (masks : Array (Array (Nat × Nat))) (point : PaperAlgebra.Point)
     (source : Fin productionShape.sourceCount) (port : Fin matrixCount) :
     ((originalRange masks point 0 selectedProgram.rowCount source).get port).toRing =

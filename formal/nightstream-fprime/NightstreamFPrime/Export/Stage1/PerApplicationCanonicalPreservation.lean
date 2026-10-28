@@ -3,9 +3,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCompactPreservation
 /-!
 Owns the unconditional preservation theorem for the validated Stage 1 prefix
 inside every Lean-authored per-application package.
-
-All row categories are covered. This module does not select a production
-application or claim final package conformance.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPreservation
@@ -40,8 +37,6 @@ theorem canonicalShiftCompatible
   permutationRows := canonicalPermutationRows program
   compactRows := canonicalCompactRows program
 
-/-- Every row of the final per-application package implies every row of the
-already validated Stage 1 prefix under the exact column pullback. -/
 theorem packageRows_imply_validatedPrefix
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (holds : (package program).RowsHold env) :

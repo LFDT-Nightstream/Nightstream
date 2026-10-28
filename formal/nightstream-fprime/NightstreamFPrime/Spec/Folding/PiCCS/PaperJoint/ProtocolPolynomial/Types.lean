@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolVerifier/Types.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Verifier-visible carriers for canonical SuperNeo v1.2 `Pi_CCS` acceptance.
 
@@ -18,24 +15,12 @@ semantic truth, transcript derivation, degree bounds, concrete refinement,
 Poseidon2, Rust/R1CS, row removal, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: `VerifierInput` contains only the verifier-owned sparse
-constraint polynomial, the public prior point, and the separate public Pad
-and matrix coefficients. `OutputMessage` contains values but no point,
-challenge, terminal, degree, or transcript state.
-
-| Stage path | Carrier | Authority class | Excluded semantic data |
-|---|---|---|---|
-| `nifs.pi_ccs.verify.input` | `VerifierInput` | verifier-owned / public | assignments and image tables |
-| `nifs.pi_ccs.verify.degree` | `VerifierInput.sumcheckDegreeBound` | computed from explicit monomial syntax | declared degree metadata |
-| `nifs.pi_ccs.verify.output` | `OutputMessage` | checked prover payload | point, challenges, terminal, state |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
 
 universe uField
 
-/-- Exact input surface read by executable paper-joint acceptance. -/
 structure VerifierInput (Field : Type uField) (shape : Shape) where
   constraintPolynomial :
     CCSResidualTable.ConstraintPolynomial Field shape.matrixCount
@@ -45,11 +30,6 @@ structure VerifierInput (Field : Type uField) (shape : Shape) where
 
 namespace VerifierInput
 
-/-- Protocol-selected per-round degree ceiling for strict-`b = 2` paper
-`Pi_CCS`. The CCS branch is computed from the explicit monomial list; the
-equality-gated cubic norm branch contributes four. Declared degree metadata
-cannot inflate verifier acceptance. A later theorem must still prove that the
-actual nonlinear polynomial has this bound. -/
 def sumcheckDegreeBound
     {Field : Type uField}
     {shape : Shape}
@@ -58,9 +38,7 @@ def sumcheckDegreeBound
     input.constraintPolynomial.canonicalEqualityGatedDegreeBound 4
 
 /-- Corrected SuperNeo v1.2 Appendix B.2 per-round degree ceiling
-`max(D_f + 1, 2b, 2)`. The first entry is computed from the explicit sparse
-syntax. For an empty zero polynomial it is zero; the final `2` still gives the
-same paper bound. Declared degree metadata is not verifier authority. -/
+`max(D_f + 1, 2b, 2)`. -/
 def paperRoundDegreeCeiling
     {Field : Type uField}
     {shape : Shape}
@@ -69,8 +47,6 @@ def paperRoundDegreeCeiling
   Nat.max input.constraintPolynomial.canonicalEqualityGatedDegreeBound
     (Nat.max (2 * b) 2)
 
-/-- For the frozen strict-`b = 2` specialization, the verifier ceiling is no
-larger than the corrected SuperNeo v1.2 Appendix B.2 ceiling. -/
 theorem sumcheckDegreeBound_le_paperRoundDegreeCeiling_of_b_eq_two
     {Field : Type uField}
     {shape : Shape}
@@ -85,8 +61,6 @@ theorem sumcheckDegreeBound_le_paperRoundDegreeCeiling_of_b_eq_two
     Nat.le_trans (by decide : 4 <= Nat.max (2 * 2) 2)
       (Nat.le_max_right _ _)⟩
 
-/-- Two verifier inputs whose sparse monomial syntax agrees have the same
-degree ceiling even when their declared polynomial metadata differs. -/
 theorem sumcheckDegreeBound_eq_of_terms_eq
     {Field : Type uField}
     {shape : Shape}
@@ -99,8 +73,6 @@ theorem sumcheckDegreeBound_eq_of_terms_eq
     (CCSResidualTable.ConstraintPolynomial.canonicalEqualityGatedDegreeBound_eq_of_terms_eq
         left.constraintPolynomial right.constraintPolynomial terms)
 
-/-- Equality of the four authoritative fields is equality of the complete
-executable verifier input. -/
 @[ext] theorem ext
     {Field : Type uField}
     {shape : Shape}
@@ -119,8 +91,6 @@ executable verifier input. -/
 
 end VerifierInput
 
-/-- The post-SumCheck values sent by the prover at the verifier-derived point.
-There is no point, terminal, alpha, gamma, challenge, or state field. -/
 structure OutputMessage (Field : Type uField) (shape : Shape) where
   freshMatrixImage : Fin shape.freshCount -> Fin shape.matrixCount -> Field
   sourceAssignment : Fin shape.sourceCount -> Field
@@ -129,8 +99,6 @@ structure OutputMessage (Field : Type uField) (shape : Shape) where
 
 namespace OutputMessage
 
-/-- Pointwise equality of all four typed value families is equality of the
-complete output message. -/
 @[ext] theorem ext
     {Field : Type uField}
     {shape : Shape}

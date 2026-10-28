@@ -2,9 +2,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
 import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry
 
 /-!
-Owns the placement of PiCCS ordinary retained blocks. The two preimage views
-reuse the actual pilot coordinates. Only the remaining source families extend
-the running prefix. Source-support and direct-plan theorems own preservation.
+Owns the placement of PiCCS ordinary retained blocks. Source-support and
+direct-plan theorems own preservation.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry

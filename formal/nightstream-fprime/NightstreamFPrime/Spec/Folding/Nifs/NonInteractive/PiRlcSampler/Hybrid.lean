@@ -24,9 +24,6 @@ open Finset
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Phi81StrongSet
 
-/-! ### Uniform averages over finite types -/
-
-/-- Uniform average over a finite type. -/
 noncomputable def average {γ : Type*} [Fintype γ] (f : γ → ℝ) : ℝ :=
   (∑ x, f x) / Fintype.card γ
 
@@ -60,7 +57,6 @@ theorem average_le_one [Nonempty γ] (f : γ → ℝ) (atMostOne : ∀ x, f x �
   calc ∑ x, f x ≤ ∑ _x : γ, (1 : ℝ) := sum_le_sum fun x _ => atMostOne x
     _ = Fintype.card γ := by simp
 
-/-- Averaging over a tuple is averaging over its first entry, then the rest. -/
 theorem average_cons {α : Type*} [Fintype α] {n : ℕ} (f : (Fin (n + 1) → α) → ℝ) :
     average f = average (fun a : α => average (fun rest : Fin n → α => f (Fin.cons a rest))) := by
   rw [← average_comp_equiv (Fin.consEquiv (fun _ : Fin (n + 1) => α)) f]
@@ -70,10 +66,6 @@ theorem average_cons {α : Type*} [Fintype α] {n : ℕ} (f : (Fin (n + 1) → �
 
 end Average
 
-/-! ### Hybrid argument -/
-
-/-- If one sampled coordinate changes every `[0, 1]` test by at most `bound`,
-then `n` independent sampled coordinates change it by at most `n * bound`. -/
 theorem hybrid {α β : Type*} [Fintype α] [Fintype β] [Nonempty α] [Nonempty β]
     (g : α → β) (bound : ℝ)
     (single : ∀ test : β → ℝ, (∀ b, 0 ≤ test b) → (∀ b, test b ≤ 1) →
@@ -111,7 +103,6 @@ theorem hybrid {α β : Type*} [Fintype α] [Fintype β] [Nonempty α] [Nonempty
         _ ≤ n * bound + bound := add_le_add (abs_average_sub_le _ _ _ inner) outer
         _ = ((n + 1 : ℕ) : ℝ) * bound := by push_cast; ring
 
-/-- The hybrid bound for any finite index type. -/
 theorem hybrid_index {α β Index : Type*} [Fintype α] [Fintype β] [Nonempty α] [Nonempty β]
     [Fintype Index] [DecidableEq Index] (g : α → β) (bound : ℝ)
     (single : ∀ test : β → ℝ, (∀ b, 0 ≤ test b) → (∀ b, test b ≤ 1) →
@@ -138,8 +129,6 @@ theorem hybrid_index {α β Index : Type*} [Fintype α] [Fintype β] [Nonempty �
   exact hybrid g bound single (Fintype.card Index) (fun w => test (reindexUniform w))
     (fun _ => nonnegative _) (fun _ => atMostOne _)
 
-/-! ### The sampler instance -/
-
 instance : Nonempty Scalar := ⟨fun _ => ⟨0, by decide⟩⟩
 
 private theorem average_sample (test : Scalar → ℝ) :
@@ -151,8 +140,6 @@ private theorem average_scalar (test : Scalar → ℝ) : average test = uniformE
   unfold average uniformExpect
   rw [Fintype.card_congr scalarIndex, Fintype.card_fin]
 
-/-- V6, cumulative form: for `n` challenge coordinates drawn by the sampler,
-every acceptance test in `[0, 1]` changes by at most `n * distance`. -/
 theorem vector_average_difference_abs_le {Index : Type*} [Fintype Index] [DecidableEq Index]
     (test : (Index → Scalar) → ℝ) (nonnegative : ∀ c, 0 ≤ test c) (atMostOne : ∀ c, test c ≤ 1) :
     |average (fun draws : Index → Draw => test (fun index => sample (draws index))) -

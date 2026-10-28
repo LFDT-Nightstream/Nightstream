@@ -1,6 +1,7 @@
 from copy import deepcopy
 from pathlib import Path
 import re
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -69,6 +70,17 @@ class ReplayCoverageTests(unittest.TestCase):
             self.assertTrue((Path(__file__).resolve().parents[3] / root).is_file())
         patterns = self.policy['gates'][gates[0]]['commands'][0]['completion']['patterns']
         self.assertTrue(any('second_fold_reads_only_first_lean_outputs' in pattern for pattern in patterns))
+
+    def test_every_source_root_except_lake_packages_is_tracked(self):
+        repository = Path(__file__).resolve().parents[3]
+        for name, group in self.policy['sources'].items():
+            for root in group['roots']:
+                if root == 'formal/nightstream-fprime/.lake/packages':
+                    continue
+                with self.subTest(source=name, root=root):
+                    tracked = subprocess.run(['git', 'ls-files', '--', root], cwd=repository,
+                                             check=True, capture_output=True, text=True).stdout
+                    self.assertTrue(tracked, 'a clean checkout has no ' + root)
 
     def test_complete_norm_registration_uses_current_carrier(self):
         root = Path(__file__).resolve().parents[3]

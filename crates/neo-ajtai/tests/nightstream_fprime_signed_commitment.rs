@@ -1,7 +1,4 @@
 //! Exact indexed setup and signed-unit commitment conformance.
-//!
-//! The short ordinary-reference sum removes only zero message blocks. Every
-//! retained key element keeps its original production row and column index.
 
 use neo_ajtai::{
     nightstream_fprime_setup::{
@@ -29,7 +26,6 @@ proptest! {
 
 #[test]
 fn streamed_key_blocks_match_all_lanes_of_authoritative_setup_cases() {
-    // Stored setup cases plus the maximum row/column nonce words.
     for (row, block) in [
         (0, 0),
         (1, 32_768),
@@ -45,8 +41,6 @@ fn streamed_key_blocks_match_all_lanes_of_authoritative_setup_cases() {
             );
         }
     }
-    // The Lean fixture test seed. All lanes cross every SHAKE128 rate
-    // boundary of the 1,728-byte element output.
     let seed = core::array::from_fn(|index| index as u8);
     let streamed = coefficient_block(&seed, 0x0900_0000, 0x4a00_0000);
     for lane in 0..D {
@@ -61,9 +55,6 @@ fn streamed_key_blocks_match_all_lanes_of_authoritative_setup_cases() {
 fn signed_commitment_matches_the_ordinary_sum_under_the_same_key() {
     let selected = [0, 32_768, PRODUCTION_MESSAGE_COLUMNS - 1];
     let mut carrier = vec![0_i8; PRODUCTION_CARRIER_WIDTH];
-    // X^0, -X^27 and X^53 exercise both signs and reduction across 54 and 81.
-    // The final carrier coordinate participates; this is a ring test, not an
-    // application witness whose alignment coordinates must be zero.
     for ((block, lane), value) in selected.into_iter().zip([0, 27, 53]).zip([1, -1, 1]) {
         carrier[block as usize * D + lane] = value;
     }
@@ -103,12 +94,12 @@ fn signed_commitment_matches_the_ordinary_sum_under_the_same_key() {
     let expected = try_commit(&key, &message).expect("ordinary exact-key ring sum");
     let actual = commit_production_signed_units(&carrier).expect("complete production carrier commitment");
     assert_eq!(actual, expected);
-    assert_ne!(actual, Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize));
+    assert_ne!(actual, Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize));
 
     carrier.fill(0);
     assert_eq!(
         commit_production_signed_units(&carrier).expect("zero carrier"),
-        Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize)
+        Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize)
     );
 }
 

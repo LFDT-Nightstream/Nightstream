@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Coefficients
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/Sampling.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Deterministic alpha/gamma specialization of the paper's joint `Pi_CCS`
 residual polynomial.
@@ -16,16 +13,6 @@ Schwartz--Zippel bounds, SumCheck soundness, transcript derivation,
 Fiat--Shamir, concrete CCS arithmetization, Rust, or R1CS.
 
 Emits constraints: no.
-
-Authority boundary: `Sample` contains verifier challenges only. The polynomial
-being evaluated is the finite joint coefficient object from `Coefficients`;
-there is no caller-supplied evaluation oracle.
-
-| Sampling level | Finite input | Computation | Failure boundary |
-|---|---|---|---|
-| alpha | fixed monomial basis and coefficient vectors | explicit powers, products, and sums | a nonzero alpha polynomial may vanish at the chosen point |
-| gamma | constant-first specialized coefficient list | Horner evaluation | the nonzero joint residual may vanish at `(alpha, gamma)` |
-| conditional table conclusion | explicit residual coefficient object | coefficient theorem plus evaluation | `MixingRoot`, with no probability claim |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -34,9 +21,6 @@ open NightstreamFPrime.Spec.SumCheck
 
 universe uField
 
-/-- Only the zero laws needed to prove that a coefficient-zero polynomial
-evaluates to zero. General ring/field laws and root counting are intentionally
-outside this deterministic slice. -/
 structure ZeroLaws
     {Field : Type uField}
     (ops : SumCheck.Finite.Ops Field) : Prop where
@@ -44,13 +28,10 @@ structure ZeroLaws
   zero_mul : forall value, ops.mul ops.zero value = ops.zero
   mul_zero : forall value, ops.mul value ops.zero = ops.zero
 
-/-- A dimension-checked point in `K^(log m)`. Alpha and the SumCheck output
-point use this same finite representation, while remaining distinct values. -/
 structure CubePoint (Field : Type uField) (variables : Nat) where
   coordinates : List Field
   dimension : coordinates.length = variables
 
-/-- The paper's two pre-SumCheck verifier challenges. -/
 structure Sample (Field : Type uField) (shape : Shape) where
   alpha : CubePoint Field shape.cubeVariables
   gamma : Field
@@ -72,9 +53,6 @@ private def evaluatePowers
         (evaluatePowers ops values exponents)
   | _, _ => ops.zero
 
-/-- Explicit evaluation of one finite alpha monomial. The shape proofs on the
-basis and point make the mismatch branches unreachable for well-formed data;
-they merely keep the raw recursive function total. -/
 def AlphaMonomial.evaluate
     {Field : Type uField}
     {shape : Shape}
@@ -124,7 +102,6 @@ private theorem evaluateAlphaTerms_eq_zero_of_all_zero
             laws.zero_add]
           exact inductionHypothesis monomials tailZero
 
-/-- Evaluate finite coefficient data against its fixed alpha basis. -/
 def AlphaPolynomial.evaluate
     {Field : Type uField}
     {shape : Shape}
@@ -134,7 +111,6 @@ def AlphaPolynomial.evaluate
     (point : CubePoint Field shape.cubeVariables) : Field :=
   evaluateAlphaTerms ops point polynomial.coefficients basis.monomials
 
-/-- Coefficient-zero alpha polynomials evaluate to zero at every point. -/
 theorem AlphaPolynomial.evaluate_eq_zero_of_coefficientZero
     {Field : Type uField}
     {shape : Shape}
@@ -149,7 +125,6 @@ theorem AlphaPolynomial.evaluate_eq_zero_of_coefficientZero
   exact evaluateAlphaTerms_eq_zero_of_all_zero ops laws point
     polynomial.coefficients basis.monomials zero
 
-/-- Specialize one joint gamma coefficient at alpha. -/
 def JointCoefficient.specializeAlpha
     {Field : Type uField}
     {shape : Shape}
@@ -160,7 +135,6 @@ def JointCoefficient.specializeAlpha
   | .alpha polynomial => polynomial.evaluate ops alpha
   | .scalar value => value
 
-/-- A zero joint coefficient remains zero after alpha specialization. -/
 theorem JointCoefficient.specializeAlpha_eq_zero_of_zero
     {Field : Type uField}
     {shape : Shape}
@@ -179,9 +153,6 @@ theorem JointCoefficient.specializeAlpha_eq_zero_of_zero
 
 namespace Residuals
 
-/-- Finite constant-first gamma polynomial after specializing alpha. The
-degree upper bound is derived from this coefficient-list length by
-`SumCheck.Finite.Message.degreeUpperBound`; no degree metadata is carried. -/
 def specializedGammaPolynomial
     {Field : Type uField}
     {shape : Shape}
@@ -193,9 +164,6 @@ def specializedGammaPolynomial
   coefficients := residuals.jointCoefficients.map
     (JointCoefficient.specializeAlpha ops alpha)
 
-/-- The gamma degree upper bound is derived from the paper block sizes. It is
-an upper bound from finite list length, not a claim that the high coefficient
-is nonzero or that a SumCheck round used this degree. -/
 theorem specializedGammaPolynomial_degreeUpperBound
     {Field : Type uField}
     {shape : Shape}
@@ -209,11 +177,6 @@ theorem specializedGammaPolynomial_degreeUpperBound
     SumCheck.Finite.Message.degreeUpperBound,
     residuals.jointCoefficients_length]
 
-/-- Evaluate the unsigned, formula-agnostic coefficient object using Horner
-evaluation. This is not yet `T_abs(gamma) - sum_x Q(x, alpha, gamma)`:
-identifying it with that signed paper residual additionally requires concrete
-table construction, the target-shift convention, and the signed joint
-polynomial identity. -/
 def evaluateAtSample
     {Field : Type uField}
     {shape : Shape}
@@ -246,7 +209,6 @@ private theorem evaluateCoefficients_eq_zero_of_all_zero
       simp only [SumCheck.Finite.Message.evaluateCoefficients,
         inductionHypothesis tailZero, laws.mul_zero, headZero, laws.zero_add]
 
-/-- Coefficient truth forces sampled equality for every alpha and gamma. -/
 theorem evaluateAtSample_eq_zero_of_coefficientTruth
     {Field : Type uField}
     {shape : Shape}
@@ -265,11 +227,6 @@ theorem evaluateAtSample_eq_zero_of_coefficientTruth
   exact coefficient.specializeAlpha_eq_zero_of_zero ops laws sample.alpha
     (truth coefficient coefficientMember)
 
-/-- Exact deterministic bad event for this assembled coefficient object: a
-nonzero polynomial in `(A, C)` vanishes at the verifier's sampled
-`(alpha, gamma)`. Relating this event to SuperNeo v1.2 Appendix B.2 still requires concrete
-residual construction and the signed joint identity; this definition makes no
-claim about that bridge or about how likely the event is. -/
 structure MixingRoot
     {Field : Type uField}
     {shape : Shape}
@@ -280,9 +237,6 @@ structure MixingRoot
   coefficientNonzero : Not (residuals.CoefficientTruth ops)
   sampledZero : residuals.evaluateAtSample ops sample = ops.zero
 
-/-- Sampled equality is exactly either coefficient truth or the named
-mixing-root event. This is deterministic model-level assurance, not a
-Schwartz--Zippel theorem. -/
 theorem sampledZero_iff_coefficientTruth_or_mixingRoot
     {Field : Type uField}
     {shape : Shape}
@@ -305,10 +259,6 @@ theorem sampledZero_iff_coefficientTruth_or_mixingRoot
           ops laws sample truth
     | inr bad => exact bad.sampledZero
 
-/-- Given an explicit residualization boundary, sampled equality implies every
-supplied obligation except precisely when `(alpha, gamma)` is a root of the
-nonzero assembled coefficient object. This remains conditional and is not a
-concrete paper-semantics theorem. -/
 theorem sampledZero_iff_allObligations_or_mixingRoot
     {Field : Type uField}
     {shape : Shape}

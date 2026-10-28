@@ -8,13 +8,13 @@ use super::relation::Relation;
 use super::source::SourcePackage;
 use super::{empty_row, Field, Form, Result, RowForms, MATRIX_COUNT};
 
-pub const ACTIVE_ROWS: usize = 1_004_131;
-pub const PADDED_ROWS: usize = 1 << 28;
-pub const LOGICAL_WIDTH: usize = 43_963_750;
-pub const CARRIER_WIDTH: usize = 43_963_776;
+pub(crate) const ACTIVE_ROWS: usize = 1_004_131;
+pub(crate) const PADDED_ROWS: usize = 1 << 28;
+pub(crate) const LOGICAL_WIDTH: usize = 43_963_750;
+pub(crate) const CARRIER_WIDTH: usize = 43_963_776;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Evaluation {
+pub(crate) struct Evaluation {
     pub active_rows: usize,
     pub relation_terms: usize,
     pub carrier_padding_columns: usize,
@@ -24,14 +24,12 @@ pub struct Evaluation {
     pub public_digest_word_mutations: usize,
 }
 
-pub fn verify_satisfaction_with(
+pub(crate) fn verify_satisfaction_with(
     program: &MatrixProgram,
     sources: &SourcePackage,
     relation: &Relation,
     value_at: impl Fn(usize) -> Field + Sync,
 ) -> Result<()> {
-    // Use the existing runtime pool for independent immutable row ranges.
-    // Keep results in range order so rejection still names the first failure.
     let range_size = ACTIVE_ROWS.div_ceil(rayon::current_num_threads());
     let ranges = (0..ACTIVE_ROWS)
         .step_by(range_size)
@@ -75,10 +73,7 @@ pub fn verify_satisfaction_with(
     Ok(())
 }
 
-/// Evaluate one exact logical-row range through a fallible assignment view.
-/// This is the phase-local form of the full relation check: unavailable
-/// assignment values remain errors and cannot be replaced with zero.
-pub fn verify_satisfaction_range_with(
+pub(crate) fn verify_satisfaction_range_with(
     program: &MatrixProgram,
     sources: &SourcePackage,
     relation: &Relation,
@@ -108,8 +103,6 @@ pub fn verify_satisfaction_range_with(
     Ok(next - start)
 }
 
-// Each range visits the same raw rows and tests the same mutations as the
-// serial gate. Ranges share immutable inputs; coverage is joined in row order.
 struct MutationCoverage {
     assignment: [Option<usize>; super::assignment::BLOCK_COUNT],
     referenced: [bool; super::assignment::BLOCK_COUNT],
@@ -175,8 +168,6 @@ fn evaluate_range(
         for (slot, detected) in matrix_mutations.iter_mut().enumerate() {
             if detected.is_none() {
                 let mut changed = matrix_values;
-                // A unit change can remain a root of a range polynomial.
-                // Its decoded degree gives the required distinct probes.
                 for _ in 0..matrix_degrees[slot] {
                     changed[slot] += Field::ONE;
                     if relation.evaluate(&changed) != Field::ZERO {
@@ -240,7 +231,7 @@ fn evaluate_range(
     })
 }
 
-pub fn evaluate(
+pub(crate) fn evaluate(
     program: &MatrixProgram,
     sources: &SourcePackage,
     relation: &Relation,
@@ -350,7 +341,7 @@ pub fn evaluate(
     })
 }
 
-pub fn first_failure(
+pub(crate) fn first_failure(
     program: &MatrixProgram,
     sources: &SourcePackage,
     relation: &Relation,
@@ -359,8 +350,6 @@ pub fn first_failure(
     if assignment.len() != LOGICAL_WIDTH {
         return Err("mutated logical assignment has the wrong width".into());
     }
-    // Match the complete independent evaluator's immutable row partition.
-    // Each range retains scalar row order; the minimum is the first failure.
     let range_size = ACTIVE_ROWS.div_ceil(rayon::current_num_threads());
     let starts = (0..ACTIVE_ROWS).step_by(range_size).collect::<Vec<_>>();
     let failures = starts
@@ -411,7 +400,7 @@ fn evaluate_row_with(row: &RowForms, value_at: &mut impl FnMut(usize) -> Field) 
     values
 }
 
-pub fn evaluate_row_with_result(
+pub(crate) fn evaluate_row_with_result(
     row: &RowForms,
     value_at: &mut impl FnMut(usize) -> Result<Field>,
 ) -> Result<[Field; MATRIX_COUNT]> {

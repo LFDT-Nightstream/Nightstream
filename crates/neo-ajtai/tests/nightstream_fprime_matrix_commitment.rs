@@ -31,11 +31,9 @@ fn production_matrix_commitment_matches_sparse_endpoint_key_products() {
     let witness = Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &negative).unwrap();
     drop((positive, negative));
     let actual = commit_production_signed_unit_matrix(&witness).unwrap();
-    let mut expected = Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize);
+    let mut expected = Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize);
     for row in 0..PRODUCTION_VERIFIER_ROWS as usize {
         for (block, entries) in support {
-            // Use the scalar indexed setup definition and ordinary ring
-            // products, independent of the streamed convolution accumulator.
             let key = Rq(std::array::from_fn(|lane| {
                 Goldilocks::from_u64(coefficient(&PRODUCTION_SEED, row as u32, block as u64, lane as u32))
             }));
@@ -45,16 +43,16 @@ fn production_matrix_commitment_matches_sparse_endpoint_key_products() {
             }
             let product = key.mul(&Rq(value));
             for lane in 0..D {
-                expected.data[row * D + lane] += product.0[lane];
+                expected.data_mut()[row * D + lane] += product.0[lane];
             }
         }
     }
-    assert_eq!(actual.data.len(), PRODUCTION_VERIFIER_ROWS as usize * D);
+    assert_eq!(actual.data().len(), PRODUCTION_VERIFIER_ROWS as usize * D);
     assert_eq!(actual, expected);
-    assert_ne!(actual, Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize));
+    assert_ne!(actual, Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize));
     assert_eq!(
         commit_production_signed_unit_matrix(&Mat::virtual_constant(D, columns, Goldilocks::ZERO)).unwrap(),
-        Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize)
+        Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize)
     );
 }
 
@@ -68,8 +66,6 @@ fn production_matrix_commitment_rejects_shape_and_nonunit() {
             Err(AjtaiError::InvalidDimensions(_))
         ));
     }
-    // Constant storage reaches the checked fallback without allocating a
-    // dense carrier. Both signs must fail before any key expansion.
     for value in [2i128, -2] {
         let magnitude = Goldilocks::from_u64(value.unsigned_abs() as u64);
         let field = if value > 0 { magnitude } else { -magnitude };

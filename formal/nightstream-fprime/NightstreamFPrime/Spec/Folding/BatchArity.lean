@@ -1,21 +1,9 @@
 import NightstreamFPrime.Spec.Relation
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/BatchArity.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
-/-!
-Production arities for one SuperNeo multi-fold batch.
-
-The first recursive step has no running accumulator, while later recursive and
-terminal folds carry the full `k`-wide running product.  Keeping that choice in
-the type prevents the bootstrap artifact from being modeled as if it consumed
-`k` synthetic CE statements.
--/
+/-! Production arities for one SuperNeo multi-fold batch. -/
 
 namespace NightstreamFPrime.Spec.Folding
 
-/-- Whether this fold starts without a running accumulator or consumes all `k`
-running CE statements.  Production has no intermediate running cardinality. -/
 inductive RunningMode where
   | bootstrap
   | active
@@ -23,7 +11,6 @@ deriving Repr, DecidableEq
 
 namespace RunningMode
 
-/-- Number of running CE inputs selected by a production fold mode. -/
 def count (mode : RunningMode) (params : GlobalParams) : Nat :=
   match mode with
   | .bootstrap => 0
@@ -41,10 +28,8 @@ theorem count_le (mode : RunningMode) (params : GlobalParams) :
 
 end RunningMode
 
-/-- Verifier-owned shape of one production multi-fold batch. -/
 structure BatchArity (params : GlobalParams) where
   freshCount : Nat
-  /-- Rust rejects an empty fresh batch. -/
   freshPositive : 0 < freshCount
   /-- SuperNeo v1.2 Definition 22 is instantiated below the deployment maximum `K`. -/
   freshBound : freshCount ≤ params.maxFresh
@@ -52,7 +37,6 @@ structure BatchArity (params : GlobalParams) where
 
 namespace BatchArity
 
-/-- Total number of PiCCS outputs and PiRLC inputs in this batch. -/
 def total {params : GlobalParams} (arity : BatchArity params) : Nat :=
   arity.freshCount + arity.mode.count params
 
@@ -60,12 +44,10 @@ theorem totalPositive {params : GlobalParams} (arity : BatchArity params) :
     0 < arity.total := by
   exact Nat.lt_of_lt_of_le arity.freshPositive (Nat.le_add_right arity.freshCount _)
 
-/-- Every production batch is covered by Definition 22's maximum-arity bound. -/
 theorem total_le {params : GlobalParams} (arity : BatchArity params) :
     arity.total ≤ params.maxFresh + params.k := by
   exact Nat.add_le_add arity.freshBound (arity.mode.count_le params)
 
-/-- First-step arity: positive fresh inputs and no synthetic running claims. -/
 def bootstrap
     (params : GlobalParams)
     (freshCount : Nat)
@@ -76,7 +58,6 @@ def bootstrap
   freshBound := freshBound
   mode := .bootstrap
 
-/-- Steady-state/paper arity: positive fresh inputs plus the full `k` product. -/
 def active
     (params : GlobalParams)
     (freshCount : Nat)

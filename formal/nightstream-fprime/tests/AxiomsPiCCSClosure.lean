@@ -379,7 +379,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormCache.cachedLookup_prepare
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormCache.sourceNorm_eq
 
--- Complete original-mask norm scan, including all source lanes and zero padding.
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange.coefficients_ext
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange.add_coefficients
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange.scale_coefficients
@@ -427,7 +426,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormComplete.prepared_workers_eq_fullPairSum
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormScanCorrectness.blockNorm_eq_normPolynomialWithPowers
 
--- Exact fresh-polynomial fast path.
 #audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial.mul_zero_left
 #audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial.mul_zero_right
 #audit_axioms NightstreamFPrime.Spec.SumCheck.Finite.FixedPolynomial.constant_one_mul
@@ -445,7 +443,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshComplete.freshRange?_value
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFreshComplete.freshRange_eq_fullPairSum
 
--- Complete carried branch reduced to its two original-source moments.
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments.sum_carriedPair
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments.complete_carried_sum
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments.pairPolynomialWithNorm_split
@@ -551,7 +548,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocations_source_port
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported.invocations_isZero_source_port
 
--- Selected original-source carried values and complete first-round coefficients.
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedSource.matrix_sourceProtocolData
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedSource.pad_sourceProtocolData
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedSource.blockCount_eq_authority
@@ -561,7 +557,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedComplete.selected_moment
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition.coefficients_eq_firstRound
 
--- Complete original-source coefficients after retained prefix folds.
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedPrefixComplete.rangeMoment_step
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedPrefixComplete.rangeMoment_append
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSCarriedPrefixComplete.moment_eq_finSum

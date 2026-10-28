@@ -15,7 +15,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
-/-- Verifier-owned coefficient selected by every production relation. -/
 def rowConstantCoefficient : Fin productionShape.coefficientCount :=
   Phi81CoefficientKernel.constant
 
@@ -27,7 +26,6 @@ theorem constantCoefficient_eq_rowConstantCoefficient
     constantCoefficient relation = rowConstantCoefficient := by
   rfl
 
-/-- Relation-free executable projection of the fixed production CCS wires. -/
 def ccsRowInterface
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -47,7 +45,6 @@ theorem ccsInterface_eq_ccsRowInterface
     ccsInterface relation interface = ccsRowInterface interface := by
   rfl
 
-/-- Relation-free projection of the one fixed lifted selective polynomial. -/
 def ccsRowPolynomial :
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable.ConstraintPolynomial
       K productionShape.matrixCount :=
@@ -62,7 +59,6 @@ theorem ccsPolynomial_eq_ccsRowPolynomial
     CcsTerminal.polynomial relation = ccsRowPolynomial := by
   rfl
 
-/-- Relation-free child-owned CCS residual wires. -/
 def ccsRowOutput
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -73,7 +69,6 @@ def ccsRowOutput
     (CcsTerminal.sparseInterface (ccsRowInterface interface))
     (ccsStart interface)
 
-/-- Relation-free executable projection of the fixed production norm wires. -/
 def normRowInterface
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -93,7 +88,6 @@ theorem normInterface_eq_normRowInterface
     normInterface relation interface = normRowInterface interface := by
   rfl
 
-/-- Relation-free child-owned strict-base-2 norm wires. -/
 def normRowOutput
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -102,7 +96,6 @@ def normRowOutput
     (_offset : Nat) : KExpr :=
   NormTerminal.output (normRowInterface interface) (normStart interface)
 
-/-- Relation-free executable projection of the fixed v1_2 final identity. -/
 def finalIdentityRowInterface {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -127,7 +120,6 @@ theorem finalIdentityInterface_eq_finalIdentityRowInterface
       finalIdentityRowInterface interface := by
   rfl
 
-/-- Relation-free executable rows of the canonical CCS terminal child. -/
 def ccsRowMain
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -145,7 +137,6 @@ theorem ccsCircuit_main_eq_rowMain
     (ccsCircuit relation interface).main = ccsRowMain interface := by
   rfl
 
-/-- Relation-free executable rows of the canonical norm terminal child. -/
 def normRowMain
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -162,7 +153,6 @@ theorem normCircuit_main_eq_rowMain
     (normCircuit relation interface).main = normRowMain interface := by
   rfl
 
-/-- Relation-free executable rows of the canonical v1_2 terminal identity. -/
 def finalIdentityRowMain
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -180,7 +170,6 @@ theorem finalIdentityCircuit_main_eq_rowMain
       finalIdentityRowMain interface := by
   rfl
 
-/-- Relation-free executable start of the initial-claim child. -/
 def initialClaimRowOffset (degreeBound offset : Nat) : Nat :=
   offset + 135078 + 4384 +
     productionShape.cubeVariables *
@@ -200,7 +189,6 @@ theorem initialClaimOffset_eq_initialClaimRowOffset
     RoundTranscript.localLength_eq, roundTranscriptOffset_eq,
     challengeOffset_eq]
 
-/-- Relation-free executable start of the SumCheck child. -/
 def sumcheckRowOffset (degreeBound offset : Nat) : Nat :=
   initialClaimRowOffset degreeBound offset + InitialClaim.privateCount
 
@@ -217,7 +205,6 @@ theorem sumcheckOffset_eq_sumcheckRowOffset
     initialClaimOffset_eq_initialClaimRowOffset]
   rfl
 
-/-- Relation-free executable start of the `Eval_K` child. -/
 def evalKRowOffset (degreeBound offset : Nat) : Nat :=
   sumcheckRowOffset degreeBound offset + SumcheckChain.privateCount degreeBound
 
@@ -232,7 +219,6 @@ theorem evalKOffset_eq_evalKRowOffset
   rw [FormalCircuit.withConstantFootprint_main, SumcheckChain.localLength_eq,
     sumcheckOffset_eq_sumcheckRowOffset]
 
-/-- Relation-free executable start of the `Eval_A` child. -/
 def evalARowOffset (degreeBound offset : Nat) : Nat :=
   evalKRowOffset degreeBound offset + EvalKTerminal.privateCount
 
@@ -248,7 +234,6 @@ theorem evalAOffset_eq_evalARowOffset
     evalKOffset_eq_evalKRowOffset]
   rfl
 
-/-- Relation-free executable start of the CCS terminal child. -/
 def ccsRowOffset (degreeBound offset : Nat) : Nat :=
   evalARowOffset degreeBound offset + EvalATerminal.privateCount
 
@@ -264,7 +249,6 @@ theorem ccsOffset_eq_ccsRowOffset
     evalAOffset_eq_evalARowOffset]
   rfl
 
-/-- Relation-free executable start of the norm child. -/
 def normRowOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -285,7 +269,6 @@ theorem normOffset_eq_normRowOffset
   rw [FormalCircuit.withConstantFootprint_main,
     CcsTerminal.localLength_eq, ccsOffset_eq_ccsRowOffset]
 
-/-- Relation-free executable start of the final-identity child. -/
 def finalIdentityRowOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -309,7 +292,6 @@ theorem finalIdentityOffset_eq_finalIdentityRowOffset
     NormTerminal.localLength_eq]
   rfl
 
-/-- Relation-free executable start of the output-binding child. -/
 def outputBindingRowOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -333,7 +315,6 @@ theorem outputBindingOffset_eq_outputBindingRowOffset
     FormalCircuit.withConstantFootprint_main, FinalIdentity.localLength_eq]
   rfl
 
-/-- Relation-free executable endpoint of the complete PiCCS assembler. -/
 def finalRowOffset
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -354,8 +335,6 @@ theorem finalOffset_eq_finalRowOffset
   rw [outputBindingOffset_eq_outputBindingRowOffset,
     FormalCircuit.withConstantFootprint_main, OutputBinding.localLength_eq]
 
-/-- The closed-form endpoint is the phase start plus the aggregate symbolic
-footprint. This proof never inspects a child operation list. -/
 theorem finalRowOffset_eq_add
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -374,8 +353,6 @@ theorem finalRowOffset_eq_add
     EvalKTerminal.privateCount, InitialClaim.privateCount]
   omega
 
-/-- The production degree-eight PiCCS endpoint advances by exactly 1,068,869
-private variables. -/
 theorem finalRowOffset_eq_add_of_degreeBound_eq_eight
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

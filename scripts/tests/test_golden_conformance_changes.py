@@ -48,9 +48,9 @@ class GoldenConformanceChangesTests(unittest.TestCase):
             "crates/nightstream-fprime/artifacts/shared-formulas-v1.json",
             "crates/nightstream/tests/fixtures/stage1_actual_nifs/proof.native",
             "scripts/lean_graph/obligations.json",
-            "docs/reviews/nightstream-fprime-requirements/EVIDENCE_RELEASE.json",
-            "docs/reviews/nightstream-fprime-requirements/TERMINAL_REPLAY_INPUTS.json",
-            "docs/reviews/nightstream-fprime-requirements/NONZERO_EXECUTION_RELEASE.json",
+            "crates/nightstream/tests/fixtures/golden-release/EVIDENCE_RELEASE.json",
+            "crates/nightstream/tests/fixtures/golden-release/TERMINAL_REPLAY_INPUTS.json",
+            "crates/nightstream/tests/fixtures/golden-release/NONZERO_EXECUTION_RELEASE.json",
             "crates/nightstream/tests/restore_golden_inputs.py",
             "crates/nightstream/tests/fixtures/stage1_recursive_states/nonzero-running.json",
             ".github/workflows/ci.yml", "scripts/golden_conformance_changes.py",
@@ -62,8 +62,7 @@ class GoldenConformanceChangesTests(unittest.TestCase):
         for path in (
             "crates/neo-prover-metal/src/session.rs",
             "crates/neo-prover-metal/build.rs", "crates/neo-prover-metal/Cargo.toml",
-            "crates/neo-prover-metal/shaders/include/goldilocks.metal",
-            "scripts/build_metal_shaders.sh",
+            "crates/neo-prover-metal/shaders/joint.metal",
         ):
             with self.subTest(path=path):
                 self.assertEqual(checks_for_path(path), ("metal",))
@@ -83,12 +82,13 @@ class GoldenConformanceChangesTests(unittest.TestCase):
     def test_removed_legacy_paths_do_not_select_supported_checks(self):
         for path in ("crates/neo-fold-legacy/src/lib.rs",
                      "crates/neo-fold-legacy/tests/preprocessing_read_only.md",
+                     "crates/neo-reductions/tests-paper-exact/mod.rs",
                      "scripts/check_selected_replay.py", "scripts/bridge_first_second.py"):
             with self.subTest(path=path):
                 self.assertEqual(checks_for_path(path), ())
 
-    def test_mutation_archive_selects_native_regression_without_regeneration(self):
-        path = "docs/reviews/nightstream-fprime-requirements/NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip"
+    def test_mutation_manifest_selects_native_regression_without_regeneration(self):
+        path = "crates/nightstream/tests/fixtures/dec_mutation_manifest.json"
         self.assertEqual(classify([path]), {
             "native": True, "lean_reference": False, "metal": False,
             "triggers": {"native": [path], "lean_reference": [], "metal": []},

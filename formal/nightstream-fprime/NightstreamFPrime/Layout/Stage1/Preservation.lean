@@ -1400,8 +1400,6 @@ private theorem compactApplicationOutput_eq
   simp [AssemblerInputs.applicationInterface, ApplicationInputs.interface,
     CompactPullback.compactEnv_applicationOutput]
 
-/-- The selected physical application rows imply the exact application field
-of the compact eight-child logical circuit. -/
 theorem physical_implies_compactApplication
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

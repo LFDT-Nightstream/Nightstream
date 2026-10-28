@@ -40,9 +40,6 @@ abbrev ProofEnvelope := OuterTerminalProof
   (FreshWitness (logicalWidth := logicalWidth) (publicFits := publicFits))
   slotCount
 
-/-- Exact SuperNeo relation-membership checks used by the outer HyperNova
-verifier. The key digest selects no data; the full relation and Ajtai key are
-verifier-owned arguments of this closed constructor. -/
 def relations
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -60,23 +57,16 @@ def relations
     CCS.Holds (semantics ajtai) productionGlobalParams
       (freshStatement relation fresh) witness
 
-/-- Canonical counter and state widths at the selected terminal boundary. -/
 def StatementValid (statement : TerminalStatement AppState) : Prop :=
   statement.iteration < goldilocksModulus ∧
     statement.z0.length = Application.stateWordCount ∧
     statement.zi.length = Application.stateWordCount
 
-/-- The decider recomputes every running child public input as the split of
-its parent (SuperNeo Π_DEC verifier step 2). The state hash binds only the
-parent, so a recursive proof with any other split is rejected. -/
 def ProofCanonical :
     ProofEnvelope (logicalWidth := logicalWidth) (publicFits := publicFits) → Prop
   | .bottom => True
   | .recursive payload => ∀ slot, ChildrenCanonical (payload.running slot)
 
-/-- The canonical public statement checks precede the Construction-2
-relation. The counter bound matches native `validate_state_authority`; the
-state widths are the selected application's fixed public ABI. -/
 noncomputable def HoldsFor
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -101,8 +91,6 @@ theorem holdsFor_bottom_iff
   ⟨fun accepted => ⟨accepted.1, accepted.2.2⟩,
     fun accepted => ⟨accepted.1, trivial, accepted.2⟩⟩
 
-/-- Adding a field modulus to a counter cannot preserve terminal acceptance,
-even though the old and changed counters have the same field encoding. -/
 theorem rejects_counter_shift
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -136,8 +124,6 @@ theorem rejects_wrong_current_state_length
     ¬ HoldsFor relation ajtai vk application statement proof := by
   exact fun accepted => wrong accepted.1.2.2
 
-/-- The relation-membership component is exactly the existing concrete
-Nightstream terminal opening predicate. -/
 theorem relations_iff_terminalHolds
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

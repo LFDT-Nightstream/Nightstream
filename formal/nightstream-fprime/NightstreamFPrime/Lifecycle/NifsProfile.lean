@@ -22,8 +22,6 @@ variable {logicalWidth : Nat}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
 
-/-- Recovering the logical structure from the selected NIFS key returns the
-original matrices and fixed polynomial, including the logical carrier map. -/
 theorem selected_relation :
     canonicalStructure (publicFits := publicFits)
       (ProductionKey.key relation ajtai).relationSource = relation.system := by
@@ -32,8 +30,6 @@ theorem selected_relation :
       (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits)
     relation.system
 
-/-- The selected matrix entries are preserved individually, rather than
-being identified by a size or a digest. -/
 theorem selected_matrix
     (matrix : Fin productionProfile.ccsMatrices)
     (vertex : BooleanVertex cubeVariables)
@@ -46,7 +42,6 @@ theorem selected_matrix
     productionProfile.ccsMatrices logicalWidth relation.matrices
     ProductionRelation.polynomial matrix vertex column
 
-/-- Exact production dimensions and the whole-ring public/carrier widths. -/
 theorem selected_shape :
     productionShape.cubeVariables = 28 ∧
     productionShape.matrixCount = 4 ∧
@@ -61,8 +56,6 @@ theorem selected_shape :
     ProductionKey.degreeBound relation = 8 := by
   exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
 
-/-- Counts in the actual verifier key match the paper profile, including the
-PiRLC index type and the PiDEC output index type. -/
 theorem selected_arity :
     (ProductionKey.key relation ajtai).arity.freshCount = 1 ∧
     (ProductionKey.key relation ajtai).arity.mode.count
@@ -73,9 +66,6 @@ theorem selected_arity :
     Nifs.PaperProfile.arity_runningCount, Nifs.PaperProfile.arity_total,
     Nifs.PaperProfile.outputCount⟩
 
-/-- PiCCS and the two tail phases use the same commitment map and public
-projection on each complete assignment. Both tail algebras are built from
-this exact Ajtai key and this same semantic relation. -/
 theorem shared_setup
     (assignment : Assignment (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (ProductionKey.key relation ajtai).openingMaps.commit assignment =
@@ -87,8 +77,6 @@ theorem shared_setup
     (ProductionKey.key relation ajtai).piDecAlgebra = piDecAlgebra ajtai := by
   exact ⟨rfl, rfl, rfl, rfl, rfl⟩
 
-/-- Every phase keeps the selected logical relation, for arbitrary proof
-messages and a challenge batch. No source or child can select new matrices. -/
 theorem phases_preserve_relation
     (running : Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment
       (PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits))

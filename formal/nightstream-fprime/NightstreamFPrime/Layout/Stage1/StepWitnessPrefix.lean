@@ -55,8 +55,6 @@ private theorem pilot_sources_before_running : PilotProduction.witnessOffset ≤
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The exact PiDEC running result is preserved when every input source
-below the PiDEC phase offset is preserved. No child opening is asserted. -/
 theorem piDecOutput_eq_of_agree
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) (before after : Env)
     (agrees : ∀ index, index < PiDECInputs.phaseOffset → before index = after index) :
@@ -90,12 +88,6 @@ private theorem next_word_below (index : Fin PilotProduction.stateHashWords) :
   unfold PilotProduction.witnessOffset PilotProduction.externalColumnCount PilotProduction.outputDigestStart
   omega
 
-/-- A selected semantic step and its actual accepted NIFS run construct the
-pilot, C/R/D, running-transition, and next-preimage rows in one environment.
-The input conditions are semantic data conditions; no source-word agreement,
-generated phase specification, or row is assumed. WellFormed keeps both
-natural counters in range. Base dummy results remain separate from the
-semantic default running output. -/
 theorem completePrefix
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -107,7 +99,8 @@ theorem completePrefix
     (output : Output Digest AppState
       (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (step : StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
+    (program : Lifecycle.Stage1.Application.Program)
+    (step : StepHoldsFor relation ajtai context.toList program input output)
     (priorWellFormed : StateEncoding.WellFormed (priorHashPreimage (setup relation ajtai context.toList) input))
     (nextWellFormed : StateEncoding.WellFormed (nextHashPreimage (setup relation ajtai context.toList) input output))
     (freshPublic : input.fresh.publicInputs ⟨0, by decide⟩ =
@@ -180,7 +173,7 @@ theorem completePrefix
     pRows, cRows, rRows, _, _, dOutput⟩ := constructed
   have words := NifsSourceReadback.words_of_prefixes prior next (encHash (stateHash prior)) output.x
     priorWellFormed.1 nextWellFormed.1 digestFixed values context input.nifsProof _ p c r d
-  have sourceSpecs := StepSourceSpecs.specs_of_step relation ajtai context input output d.current step
+  have sourceSpecs := StepSourceSpecs.specs_of_step relation ajtai context input output d.current program step
     priorWellFormed nextWellFormed words.1 words.2 (fun positive => dOutput.trans (recursiveResult positive))
   have transitionAssumptions := RunningTransitionInputs.assumptions logicalWidth publicFits relation d.current
   obtain ⟨completed, completionAgrees, completionRows⟩ := Lifecycle.Stage1.RunningTransition.completeness
@@ -237,7 +230,7 @@ theorem completePrefix
         (serializePreimage (publicFits := publicFits) next).getD index.val 0 := by
     intro index
     exact (t.agrees _ (Or.inl (Nat.lt_of_lt_of_le (next_word_below index) pilot_sources_before_running))).trans (words.2 index)
-  have finalSpecs := StepSourceSpecs.specs_of_step relation ajtai context input output t.current step
+  have finalSpecs := StepSourceSpecs.specs_of_step relation ajtai context input output t.current program step
     priorWellFormed nextWellFormed priorWords nextWords (fun positive => finalOutput.trans (recursiveResult positive))
   obtain ⟨nextEnv, nextAgrees, nextRows⟩ := Lifecycle.Stage1.NextPreimage.completeness
     NextPreimageInputs.sourceInterface t.current RunningTransitionInputs.phaseOffset finalSpecs.2

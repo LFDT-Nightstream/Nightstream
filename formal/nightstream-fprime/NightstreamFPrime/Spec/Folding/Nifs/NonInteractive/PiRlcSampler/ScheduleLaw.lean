@@ -15,7 +15,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81StrongSet
 open OracleModel
 
-/-- Completed scalar entries and digest advances before the selected read. -/
 def historyAt (initial : List Draw) (count : Nat) : List Draw :=
   initial ++ (List.range count).flatMap (fun coordinate =>
     [(fun lane => if lane.val = 0 then Poseidon2.ofNat 4
@@ -39,8 +38,6 @@ theorem queryAt_injective (initial : List Draw) : Function.Injective (queryAt in
   rw [queryAt_length, queryAt_length] at lengths
   exact Fin.ext (by omega)
 
-/-- A finite oracle table for a batch whose scheduled queries were absent
-from the incoming cache. The raw four-lane block is the complete answer. -/
 def Fresh (initial : List Draw) (cache : Cache) : Prop :=
   ∀ coordinate, cache (queryAt initial coordinate) = none
 
@@ -75,15 +72,12 @@ theorem readScalars_eq (initial : List Draw) (cache : Cache) (fresh : Fresh init
   funext coordinate
   simp only [readScalars, table_at, Option.getD_some, sampleVector]
 
-/-- With a fresh joint-block table, this is the exact law used by V6. -/
 theorem fresh_batch_law (initial : List Draw) (cache : Cache) (fresh : Fresh initial cache)
     (test : (Fin 17 → Scalar) → ℝ) :
     average (fun blocks => test (readScalars initial cache fresh blocks)) =
       average (fun blocks : Fin 17 → Draw => test (sampleVector blocks)) := by
   simp only [readScalars_eq]
 
-/-- L folds of independent fresh batches have 17*L sampled scalars. This
-bound is restricted to that experiment, not general adaptive oracle use. -/
 theorem fresh_folds_bias_bound (folds : Nat) (test : (Fin (17 * folds) → Scalar) → ℝ)
     (nonnegative : ∀ vector, 0 ≤ test vector) (atMostOne : ∀ vector, test vector ≤ 1) :
     |average (fun blocks : Fin (17 * folds) → Draw => test (sampleVector blocks)) - average test| ≤

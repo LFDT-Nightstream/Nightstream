@@ -4,7 +4,7 @@ use std::{fs, path::PathBuf};
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use nightstream_fprime::{
-    load_per_application_package, load_poseidon2_hash_chain_v1_package, PI_CCS_V1_2_ROUND_COUNT,
+    load_per_application_package, load_poseidon2_hash_chain_v1_package, StructuralIdentifier, PI_CCS_V1_2_ROUND_COUNT,
     PI_CCS_V1_2_STATE_PREIMAGE_WORDS as STATE_PREIMAGE_WORDS,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -25,7 +25,7 @@ const RUNNING_POINT_WORDS: usize = 2 * PI_CCS_V1_2_ROUND_COUNT;
 const DOMAIN_WORDS: usize = 12;
 const PACKED_PARENT_WORDS: usize = 90;
 /// `Lifecycle.XOut.serializeTail`: `vk, i, z0, zi` close the preimage.
-const TAIL_START: usize = STATE_PREIMAGE_WORDS - 13;
+const TAIL_START: usize = STATE_PREIMAGE_WORDS - pi_ccs_parent::TAIL_WORDS;
 
 #[derive(Clone, Deserialize)]
 struct RawInput(Vec<u64>, Vec<u64>, Vec<u64>, Vec<u64>);
@@ -142,8 +142,6 @@ fn lean_result(raw: RawResult) -> PilotResult {
 
 /// `Lifecycle.XOut.stateDomainChunk`: the tag, eight little-endian bytes per
 /// word, then zero words up to one sponge rate.
-/// Lean `stateDomainChunk`: "HyperNova/NIVC/state/v2" as zero-padded
-/// little-endian words, written out here as an independent check.
 const DOMAIN_CHUNK: [u64; DOMAIN_WORDS] = [
     0x766f_4e72_6570_7948,
     0x732f_4356_494e_2f61,
@@ -239,8 +237,6 @@ fn pilot_fixture_has_valid_zero_running_openings() {
 
 fn check_zero_running_openings(input: &RawInput) {
     for words in [&input.0, &input.2] {
-        // The zero carrier has norm below b = 2. Its linear commitment,
-        // separate Pad/matrix evaluations, point and parent are zero.
         assert!(
             words[DOMAIN_WORDS..TAIL_START]
                 .iter()
@@ -379,7 +375,8 @@ struct ExternalPilot {
 fn external_current_pilot_and_positive_pi_ccs_prior() {
     let paths: ExternalPilot = serde_json::from_reader(std::io::stdin().lock()).expect("external pilot paths");
     let bytes = fs::read(paths.package).expect("external Lean package");
-    let package = load_per_application_package(&bytes, paths.structural_identity).expect("selected candidate identity");
+    let package = load_per_application_package(&bytes, StructuralIdentifier::from_words(paths.structural_identity))
+        .expect("selected candidate identity");
     let expected_context = package
         .production_verifier_binding()
         .expect("selected binding")

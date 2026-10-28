@@ -17,7 +17,7 @@ mod source_row_tests;
 impl LoadedPackage {
     pub(super) fn source_row(&self, row_index: usize) -> Result<SourceRow, PackageError> {
         if row_index >= self.layout.row_count {
-            return Err(PackageError::Invalid("matrix source row index"));
+            return Err(PackageError::Malformed("matrix source row index"));
         }
 
         let mut found = None;
@@ -70,13 +70,13 @@ impl LoadedPackage {
             merge_row(&mut found, source_compact_row(self, invocation, local_row))?;
         }
 
-        found.ok_or(PackageError::Invalid("missing matrix source row"))
+        found.ok_or(PackageError::Malformed("missing matrix source row"))
     }
 }
 
 fn merge_row(found: &mut Option<SourceRow>, candidate: SourceRow) -> Result<(), PackageError> {
     if found.replace(candidate).is_some() {
-        return Err(PackageError::Invalid("duplicate matrix source row"));
+        return Err(PackageError::Malformed("duplicate matrix source row"));
     }
     Ok(())
 }
@@ -87,7 +87,7 @@ fn locate_hash_row(
 ) -> Result<Option<(HashChain, usize, usize)>, PackageError> {
     let template_rows = package.permutation.rows.len();
     if template_rows == 0 {
-        return Err(PackageError::Invalid("matrix source permutation template"));
+        return Err(PackageError::Malformed("matrix source permutation template"));
     }
     let Some(position) = package
         .hash_chains
@@ -100,14 +100,14 @@ fn locate_hash_row(
     let invocation_count = chain
         .absorb_count
         .checked_add(1)
-        .ok_or(PackageError::Invalid("matrix source hash count"))?;
+        .ok_or(PackageError::Malformed("matrix source hash count"))?;
     let row_count = invocation_count
         .checked_mul(template_rows)
-        .ok_or(PackageError::Invalid("matrix source hash rows"))?;
+        .ok_or(PackageError::Malformed("matrix source hash rows"))?;
     let end = chain
         .row_start
         .checked_add(row_count)
-        .ok_or(PackageError::Invalid("matrix source hash rows"))?;
+        .ok_or(PackageError::Malformed("matrix source hash rows"))?;
     if row_index >= end {
         return Ok(None);
     }
@@ -115,10 +115,10 @@ fn locate_hash_row(
     Ok(Some((chain, delta / template_rows, delta % template_rows)))
 }
 
-fn locate_permutation_row<'a>(
-    package: &'a LoadedPackage,
+fn locate_permutation_row(
+    package: &LoadedPackage,
     row_index: usize,
-) -> Result<Option<(&'a PermutationInvocation, usize)>, PackageError> {
+) -> Result<Option<(&PermutationInvocation, usize)>, PackageError> {
     let template_rows = package.permutation.rows.len();
     let Some(position) = package
         .permutation_invocations
@@ -131,14 +131,14 @@ fn locate_permutation_row<'a>(
     let end = invocation
         .row_start
         .checked_add(template_rows)
-        .ok_or(PackageError::Invalid("matrix source permutation rows"))?;
+        .ok_or(PackageError::Malformed("matrix source permutation rows"))?;
     Ok((row_index < end).then_some((invocation, row_index - invocation.row_start)))
 }
 
-fn locate_compact_row<'a>(
-    package: &'a LoadedPackage,
+fn locate_compact_row(
+    package: &LoadedPackage,
     row_index: usize,
-) -> Result<Option<(&'a CompactRowInvocation, usize)>, PackageError> {
+) -> Result<Option<(&CompactRowInvocation, usize)>, PackageError> {
     let Some(position) = package
         .compact_invocations
         .partition_point(|invocation| invocation.row_start <= row_index)
@@ -151,7 +151,7 @@ fn locate_compact_row<'a>(
     let end = invocation
         .row_start
         .checked_add(row_count)
-        .ok_or(PackageError::Invalid("matrix source compact rows"))?;
+        .ok_or(PackageError::Malformed("matrix source compact rows"))?;
     Ok((row_index < end).then_some((invocation, row_index - invocation.row_start)))
 }
 
@@ -218,7 +218,7 @@ fn instantiate_template(
                 column: invocation
                     .witness_start()
                     .checked_add(index)
-                    .ok_or(PackageError::Invalid("matrix source local column"))?,
+                    .ok_or(PackageError::Malformed("matrix source local column"))?,
                 coefficient: term.coefficient,
             }),
             ColumnRef::Input(lane) => {
@@ -246,10 +246,10 @@ fn invocation_input(
             .inputs
             .get(lane)
             .map(source_sparse)
-            .ok_or(PackageError::Invalid("matrix source permutation input")),
+            .ok_or(PackageError::Malformed("matrix source permutation input")),
         ScheduledInvocation::Hash { chain, ordinal, .. } => {
             if lane >= permutation.input_count {
-                return Err(PackageError::Invalid("matrix source hash input"));
+                return Err(PackageError::Malformed("matrix source hash input"));
             }
             let mut combination = SourceCombination {
                 constant: Goldilocks::ZERO,
@@ -269,7 +269,7 @@ fn invocation_input(
                 let input_offset = ordinal
                     .checked_mul(rate)
                     .and_then(|offset| offset.checked_add(lane))
-                    .ok_or(PackageError::Invalid("matrix source hash input"))?;
+                    .ok_or(PackageError::Malformed("matrix source hash input"))?;
                 if lane < rate && input_offset < chain.input_length {
                     combination.terms.push(Entry {
                         column: chain.input_start + input_offset,

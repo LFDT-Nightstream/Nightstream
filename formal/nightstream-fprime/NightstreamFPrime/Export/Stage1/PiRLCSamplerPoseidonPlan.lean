@@ -82,8 +82,6 @@ theorem retainedFits {program : Lifecycle.Stage1.Application.Program}
   rw [PiRLCRetainedGeometry.laterPoseidonBlock_coordinateCount] at whole
   omega
 
-/-- The retained sampler block is the exact sampler slice of the shared
-later-Poseidon block, lifted through the PiCCS payload suffix. -/
 theorem retainedBlock_encodesAt
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)

@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment
 
 /-!
 Owns the proof that the compact per-application assignment canonically encodes
-every retained Stage 1 block. A structural cursor consumes one block at a time.
-No proof normalizes the complete retained-block schedule or an expanded slot list.
+every retained Stage 1 block.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationCanonicalEncodes
@@ -190,7 +189,6 @@ private def position5 {application : Program} (raw : RawValues application) :
     simp [Position.next, Cursor.next, position4, tail, RawValues.schedule,
       Canonical.ofBlock, CanonicalBlockAssignment.ofBlock]
 
-/-- The first retained prefix is encoded by structural schedule succession. -/
 theorem retainedEncodes {application : Program} (raw : RawValues application) :
     PiRLCRetainedPreservation.Encodes (retainedGeometry application)
       raw.assignment raw.base raw.groupValue where
@@ -265,8 +263,6 @@ theorem poseidonGeometry (application : Program) :
     NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Geometry application (NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint.logicalWidth application) :=
   DirectRunningPrefixPlan.prefixGeometry (runningGeometry application)
 
-/-- The prior preimage source view selects the same physical package word as
-its existing pilot block. The package shift leaves these private words fixed. -/
 private theorem priorInputSource_eq (application : Program)
     (slot : Fin Layout.PilotProduction.stateHashWords) :
     (PiRLCPoseidonGeometry.priorInputBlock application).source slot =
@@ -289,8 +285,6 @@ private theorem priorInputSource_eq (application : Program)
     rw [constant]
     omega)]
 
-/-- The output source view applies the public-column permutation before the
-same private package word is selected by the pilot block. -/
 private theorem outputInputSource_eq (application : Program)
     (slot : Fin Layout.PilotProduction.stateHashWords) :
     (PiRLCPoseidonGeometry.outputInputBlock application).source slot =
@@ -630,7 +624,6 @@ private theorem piCcsOrdinaryEncodes {application : Program}
     (PiRLCRetainedGeometry.laterPoseidonFits (retainedGeometry application))
     (retainedEncodes raw).laterPoseidon
 
-/-- The honest constructor supplies PiRLC values through the PiCCS owner forms. -/
 theorem productValuesPreserve {application : Program} (raw : RawValues application)
     (invocation : Fin PiRLCProductSchedule.invocationCount) :
     (PiRLCValueWiring.form (piCcsOrdinaryGeometry application) invocation).eval
@@ -663,7 +656,6 @@ private theorem directPrefixEncodes {application : Program}
       index raw.assignment raw.base raw.groupValue
       (piCcsOrdinaryEncodes raw) (PerApplicationCanonicalAssignment.assignment_one raw)
 
-/-- Canonical assignment evidence through the running-instance transition. -/
 theorem runningPrefixEncodes {application : Program} (raw : RawValues application) :
     DirectRunningPrefixPlan.Encodes
       (DirectPiDECPrefixPlan.piCcsPayload (piDecGeometry application))
@@ -734,7 +726,6 @@ private theorem samplerOrdinaryEncodes {application : Program}
       (samplerGeometry application))
   challenge := (retainedEncodes raw).challenge
 
-/-- Canonical assignment evidence through the complete sampler prefix. -/
 theorem samplerPrefixEncodes {application : Program} (raw : RawValues application) :
     DirectPiRLCSamplerCompletePrefixPlan.Encodes (samplerGeometry application)
       raw.assignment raw.base raw.groupValue :=
@@ -874,8 +865,6 @@ private theorem applicationRetainedEncodes {application : Program}
   localValues := (position25 raw).encodes
     (ApplicationRetainedGeometry.localFits (applicationGeometry application))
 
-/-- One raw packet constructs the complete final assignment-encoding contract.
-No caller supplies `DirectApplicationPrefixPlan.Encodes`. -/
 theorem encodes {application : Program} (raw : RawValues application) :
     DirectApplicationPrefixPlan.Encodes (applicationGeometry application)
       raw.assignment raw.base raw.groupValue :=

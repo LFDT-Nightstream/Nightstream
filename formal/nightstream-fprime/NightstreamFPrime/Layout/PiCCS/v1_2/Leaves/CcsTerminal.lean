@@ -20,9 +20,6 @@ Constraint groups:
 
 Parent coverage:
 - `Formal.opsAt`, child `piccs.v1_2.ccs_terminal`.
-
-The structural sparse cost model proves no fresh lowering column and 23
-physical rows. No proof evaluates emitted circuit data.
 -/
 
 namespace NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.CcsTerminal
@@ -48,8 +45,6 @@ structure InputsLinear
   freshMatrix : ∀ matrix,
     KExprLinear (interface.freshMatrix offset matrix)
 
-/-- The two child-owned CCS residual wires lie below the canonical norm child
-start. -/
 theorem output_varsBelow_norm
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)

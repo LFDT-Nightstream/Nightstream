@@ -1,0 +1,37 @@
+name = "compression_lean"
+version = "0.1.0"
+defaultTargets = ["CompressionLean", "CompressionLeanTests"]
+
+[[require]]
+name = "nightstream_fprime"
+path = "../nightstream-fprime"
+
+[[lean_lib]]
+name = "CompressionLean"
+roots = ["CompressionLean"]
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_lib]]
+name = "CompressionLeanTests"
+roots = ["CompressionLeanTests.Axioms", "CompressionLeanTests.BlockDigest"]
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "emitTerminal"
+root = "CompressionLean.Terminal.Emit"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "replayLayer1"
+root = "CompressionLean.Replay.Main"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "lowerCheck"
+root = "CompressionLean.Circuit.Check"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
+
+[[lean_exe]]
+name = "terminalCheck"
+root = "CompressionLean.Circuit.TerminalCheck"
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }

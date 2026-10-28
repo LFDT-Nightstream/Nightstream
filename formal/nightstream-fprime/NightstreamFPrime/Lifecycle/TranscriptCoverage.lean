@@ -29,7 +29,10 @@ Outputs:
   that read by a random oracle and changes nothing else;
 - `challengeAddress_injective`, `challengeCalls_length_eq`: distinct
   challenges of one execution have distinct addresses, and the shape fixes the
-  length of each challenge's calls.
+  length of each challenge's calls;
+- `stateHash_eq_run`, `stateHash_separated`: the state hash is a four-lane
+  read after its own calls, and no challenge's calls share a nonempty prefix
+  with them: their first inputs absorb different domain chunks.
 
 `AgreeOnAbsorbed` is the dependency specification; a change to it is a
 protocol change. `tests/TranscriptCoverageChecks.lean` pins it by `Iff.rfl`,
@@ -63,19 +66,13 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-! ## Permutation inputs -/
-
-/-- One permutation input: a zero-padded rate chunk added to the state. -/
 abbrev Call := Fin Poseidon2.rate → F
 
-/-- A squeeze adds nothing before the permutation. -/
 def squeeze : Call := fun _ => 0
 
-/-- Add one chunk to the state, then permute. -/
 def step (state : Transcript.State) (chunk : Call) : Transcript.State :=
   Poseidon2.absorbBlock state (List.ofFn chunk)
 
-/-- Apply a list of permutation inputs in order. -/
 def run (state : Transcript.State) (calls : List Call) : Transcript.State :=
   calls.foldl step state
 
@@ -88,11 +85,9 @@ private theorem run_append (state : Transcript.State) (left right : List Call) :
     run state (left ++ right) = run (run state left) right := by
   simp [run, List.foldl_append]
 
-/-- The rate chunk that the sponge adds for a short word list. -/
 def padChunk (words : List F) : Call :=
   fun lane => words.getD lane.val 0
 
-/-- Additive absorption reads missing chunk words as zero. -/
 private theorem absorbBlock_padChunk (state : Transcript.State) {words : List F}
     (short : words.length ≤ Poseidon2.rate) :
     Poseidon2.absorbBlock state words =
@@ -108,7 +103,6 @@ private theorem absorbBlock_padChunk (state : Transcript.State) {words : List F}
     rw [List.getD_eq_default _ _ (Nat.le_trans short outside),
       List.getD_eq_default _ _ (by simpa using outside)]
 
-/-- The calls of `Transcript.absorb`: one padded chunk per started rate block. -/
 def absorbCalls (words : List F) : List Call :=
   (List.range ((words.length + Poseidon2.rate - 1) / Poseidon2.rate)).map fun chunk =>
     padChunk ((words.drop (chunk * Poseidon2.rate)).take Poseidon2.rate)
@@ -134,8 +128,6 @@ private theorem absorbCalls_ne_nil {words : List F} (nonempty : words ≠ []) :
   unfold Poseidon2.rate at length
   omega
 
-/-- Equal-length word lists with equal padded chunks are equal: zero padding
-creates no ambiguity when the length is fixed. -/
 private theorem absorbCalls_injective {left right : List F}
     (lengthEqual : left.length = right.length)
     (same : absorbCalls left = absorbCalls right) : left = right := by
@@ -163,16 +155,11 @@ private theorem absorbCalls_injective {left right : List F}
   simpa [List.getElem?_eq_getElem leftBound, List.getElem?_eq_getElem rightBound]
     using lane
 
-/-! ## Slot reads and SumCheck rounds -/
-
-/-- A coin position in one sponge state: a coin at slot `s` reads lanes `2·s` and `2·s + 1`. -/
 abbrev Slot := Fin Transcript.coinsPerChunk
 
-/-- The slot of coin position `position` (`Transcript.squeezeAt`). -/
 def slotOf (position : Nat) : Slot :=
   ⟨position % Transcript.coinsPerChunk, Nat.mod_lt _ (by decide)⟩
 
-/-- The extension coin at `slot` of `state`: lanes `2·slot` and `2·slot + 1`. -/
 def readK (slot : Slot) (state : Transcript.State) : K :=
   ⟨state.getD (2 * slot.val) 0, state.getD (2 * slot.val + 1) 0⟩
 
@@ -185,8 +172,6 @@ private theorem absorbCalls_zeroChunk : absorbCalls Transcript.zeroChunk = [sque
   rw [show (Transcript.zeroChunk.length + Poseidon2.rate - 1) / Poseidon2.rate = 1 from rfl,
     List.range_one, List.map_cons, List.map_nil, chunk]
 
-/-- The calls after the read at `position`: one squeeze after the sixth coin
-of a state. -/
 def refresh (position : Nat) : List Call :=
   if position % Transcript.coinsPerChunk = Transcript.coinsPerChunk - 1 then [squeeze] else []
 
@@ -217,8 +202,6 @@ private theorem oracle_squeeze_eq (state : Transcript.State)
   · rw [Transcript.squeezeAt, if_neg last, refresh, if_neg last]
     rfl
 
-/-- Squeezing consecutive coin positions from `start` reads each coin from its
-state and adds one squeeze after each sixth coin. -/
 private theorem squeezeMany_run (state : Transcript.State) (start : Nat)
     (labels : List (FiatShamir.ChallengeLabel productionShape))
     (positions : ∀ index (inside : index < labels.length),
@@ -255,13 +238,10 @@ private theorem squeezeMany_run (state : Transcript.State) (start : Nat)
             rw [List.getD_cons_succ, rest.2 index (by simpa using inside),
               Nat.add_assoc, Nat.add_comm 1]
 
-/-- The SumCheck messages carried by one NIFS proof. -/
 def messages {degree : Nat} (proof : Proof degree) :
     Fin productionShape.cubeVariables → SumCheck.Finite.Message K :=
   fun round => (proof.piCcsRounds round).toMessage
 
-/-- The absorb of one SumCheck message. The round coin follows with no further
-call. -/
 def messageCalls (rounds : Fin productionShape.cubeVariables → SumCheck.Finite.Message K)
     (round : Fin productionShape.cubeVariables) : List Call :=
   absorbCalls (Transcript.serializeMessage (rounds round))
@@ -314,30 +294,22 @@ private theorem deriveRoundsFrom_getD
           rw [inductionHypothesis _ index (by simpa using bound)]
           simp only [run_append, List.append_assoc, oracle_absorbRound_eq]
 
-/-! ## Production schedule -/
-
 section Schedule
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Calls before the first coin: the fold domain chunk and the key's statement
-stream. The running statement is not an argument. -/
 def statementCalls
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) : List Call :=
   absorbCalls Transcript.foldDomainChunk ++
     absorbCalls (ProductionKey.publicInputBlocks fresh).flatten
 
-/-- Calls before the first SumCheck message: the statement, then the squeezes
-between the states that the `α` and `γ` coins read. -/
 def preRoundCalls
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) : List Call :=
   statementCalls fresh ++
     List.replicate ((productionShape.cubeVariables + 1) / Transcript.coinsPerChunk) squeeze
 
-/-- Prover-dependent calls before the round `round` coin: every earlier
-message and the round's own message. -/
 def roundPrefixCalls {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) (round : Fin productionShape.cubeVariables) : List Call :=
@@ -346,7 +318,6 @@ def roundPrefixCalls {degree : Nat}
       (messageCalls (messages proof)) ++
     messageCalls (messages proof) round
 
-/-- Calls before the first `Π_RLC` scalar: every message and the complete `y′`. -/
 def outputCalls {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) : List Call :=
@@ -356,17 +327,14 @@ def outputCalls {degree : Nat}
 
 end Schedule
 
-/-- A four-lane oracle block of the `Π_RLC` sampler as a permutation input. -/
 def widen (draw : Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Draw) : Call := fun lane =>
   if inside : lane.val < Spec.Folding.Nifs.NonInteractive.PiRlcSampler.drawWidth then
     draw ⟨lane.val, inside⟩
   else 0
 
-/-- The sampler's scalar index of one `Π_RLC` challenge. -/
 def rhoIndex (index : Fin (Nifs.PaperProfile.arity).total) : Fin 17 :=
   ⟨index.val, index.isLt.trans_eq (by decide)⟩
 
-/-- The `Π_RLC` challenge that the sampler reads from four state lanes. -/
 def readRho (state : Transcript.State) : RingF :=
   Phi81StrongSet.embedScalar
     (Spec.Folding.Nifs.NonInteractive.PiRlcSampler.sample
@@ -376,10 +344,8 @@ private theorem step_widen (state : Transcript.State)
     (draw : Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Draw) :
     step state (widen draw) = Poseidon2.absorbBlock state (List.ofFn draw) := by
   unfold step Poseidon2.absorbBlock
-  -- The lanes past `drawWidth` are zero in both chunks; `congr` closes this by evaluation.
   congr 1
 
-/-- The oracle model's replay is the same run of permutation inputs. -/
 private theorem run_map_widen (state : Transcript.State)
     (history : List Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Draw) :
     run state (history.map widen) =
@@ -393,9 +359,6 @@ private theorem run_map_widen (state : Transcript.State)
       rw [step_widen]
       exact inductionHypothesis _
 
-/-! ## Seals -/
-
-/-- Every verifier challenge of one production NIFS execution. -/
 inductive Challenge where
   | alpha (coordinate : Fin productionShape.cubeVariables)
   | gamma
@@ -403,31 +366,24 @@ inductive Challenge where
   | rho (index : Fin (Nifs.PaperProfile.arity).total)
   deriving DecidableEq, Fintype
 
-/-- The value type of a challenge. -/
 abbrev Challenge.Value : Challenge → Type
   | .alpha _ => K
   | .gamma => K
   | .round _ => K
   | .rho _ => RingF
 
-/-- The slot that a challenge reads. `α` and `γ` take consecutive coin
-positions; a round coin and a `Π_RLC` sampler block start at lane 0. -/
 def Challenge.slot : Challenge → Slot
   | .alpha coordinate => slotOf coordinate.val
   | .gamma => slotOf productionShape.cubeVariables
   | .round _ => slotOf 0
   | .rho _ => slotOf 0
 
-/-- How a challenge reads the sponge state. -/
 def Challenge.read : (challenge : Challenge) → Transcript.State → challenge.Value
   | .alpha coordinate => readK (slotOf coordinate.val)
   | .gamma => readK (slotOf productionShape.cubeVariables)
   | .round _ => readK (slotOf 0)
   | .rho _ => readRho
 
-/-- The calls between the prover-dependent calls and the read: the squeezes
-before an `α` or `γ` state and the `Π_RLC` domain chunks. The signature admits
-no prover data. -/
 def fixedCalls : Challenge → List Call
   | .alpha coordinate => List.replicate (coordinate.val / Transcript.coinsPerChunk) squeeze
   | .gamma => List.replicate (productionShape.cubeVariables / Transcript.coinsPerChunk) squeeze
@@ -442,7 +398,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The prover-dependent calls before a challenge. -/
 def proverCalls {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) : Challenge → List Call
@@ -451,21 +406,16 @@ def proverCalls {degree : Nat}
   | .round index => roundPrefixCalls fresh proof index
   | .rho _ => outputCalls fresh proof
 
-/-- The calls whose final state a challenge reads. -/
 def challengeCalls {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) (challenge : Challenge) : List Call :=
   proverCalls fresh proof challenge ++ fixedCalls challenge
 
-/-- Where a challenge reads: its calls and its slot. -/
 def challengeAddress {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) (challenge : Challenge) : List Call × Slot :=
   (challengeCalls fresh proof challenge, challenge.slot)
 
-/-- The PiCCS coins that one read of each challenge's address gives. The key
-reads the sponge state (`piCcsProbe_coins`); the random-oracle model reads an
-oracle answer. -/
 def coinsFrom {degree : Nat} (read : List Call × Slot → K)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) : StrongReduction.PublicCoins K productionShape where
@@ -483,7 +433,6 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
   (proof : Proof (ProductionKey.degreeBound relation))
 
-/-- The production key's value for one challenge. -/
 noncomputable def keyChallenge :
     (challenge : Challenge) → Option challenge.Value
   | .alpha coordinate =>
@@ -499,7 +448,6 @@ noncomputable def keyChallenge :
   | .rho index => ((ProductionKey.key relation ajtai).piRlcChallenges running fresh
       proof).map fun challenges => challenges index
 
-/-- The state before `α` is the run of the statement calls. -/
 theorem publicInputState_eq_run :
     (ProductionKey.key relation ajtai).publicInputState running fresh =
       run Transcript.initialState (statementCalls fresh) := by
@@ -535,7 +483,6 @@ private theorem alpha_seal
     (by simp [FiatShamir.alphaLabels_length])), ← run_append]
   simp only [Nat.zero_add, fixedCalls]
 
-/-- The state after every `α` coin. -/
 private theorem alphaState_eq_run :
     (FiatShamir.squeezeMany Transcript.piCcsOracle.transcript
         ((ProductionKey.key relation ajtai).publicInputState running fresh)
@@ -619,15 +566,9 @@ theorem rho_seal :
     Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.challengeAt,
     Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.scalarAt, readRho,
     ← Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory.answer, read]
-  -- `rfl` would compare `Fin 17` with `Fin arity.total` and evaluate the arity.
   simp only [Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory.replay,
     List.foldl_nil, rhoIndex]
 
-/-- Seal: every key challenge reads its slot of the state after its
-prover-dependent calls followed by fixed calls, and `fixedCalls` admits no
-prover data. With `proverCalls_identify` against the dependency specification
-`AgreeOnAbsorbed`, a schedule change that moves prover data after a challenge
-that depends on it breaks a proof. -/
 theorem challenge_seal (challenge : Challenge) :
     keyChallenge relation ajtai running fresh proof challenge =
       some (challenge.read (run Transcript.initialState
@@ -644,8 +585,6 @@ theorem challenge_seal (challenge : Challenge) :
       simp only [keyChallenge, rho_seal relation ajtai running fresh proof]
       rfl
 
-/-- Guard: the PiCCS coin record is exactly the reads of `challenge_seal`. A new
-coin field breaks this statement until it is covered. -/
 theorem coins_eq_reads :
     ((ProductionKey.key relation ajtai).piCcsExecution running fresh proof).coins =
       { alpha := ⟨List.ofFn fun coordinate => readK (slotOf coordinate.val)
@@ -684,7 +623,6 @@ theorem coins_eq_reads :
   subst alphaEqual pointEqual gammaSeal finalSeal
   rfl
 
-/-- The key's PiCCS probe reads the sponge state at each challenge's address. -/
 theorem piCcsProbe_coins :
     ((ProductionKey.key relation ajtai).piCcsProbe running fresh proof).coins =
       coinsFrom (fun address => readK address.2 (run Transcript.initialState address.1))
@@ -693,8 +631,6 @@ theorem piCcsProbe_coins :
   rfl
 
 end Seals
-
-/-! ## Coverage -/
 
 private theorem messageCalls_length {degree : Nat} (left right : Proof degree)
     (round other : Fin productionShape.cubeVariables) :
@@ -745,8 +681,6 @@ private theorem fullOutputWords_injective
   simp only at pad matrix
   rw [pad, matrix]
 
-/-- The statement stream: the prior digest, then each fresh commitment and
-public input. -/
 private theorem statementWords_eq
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (ProductionKey.publicInputBlocks fresh).flatten =
@@ -768,14 +702,12 @@ private theorem statementWords_length
       (fun _ _ => by simp)]
   simp [ProductionKey.priorDigest, decodeHash]
 
-/-- Every fresh statement absorbs the same number of calls. -/
 theorem statementCalls_length
     (fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (statementCalls fresh).length = (statementCalls fresh').length := by
   simp only [statementCalls, List.length_append, absorbCalls_length,
     statementWords_length fresh fresh']
 
-/-- The statement calls identify the fresh statement. -/
 theorem statementCalls_identify_fresh
     {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
     (same : statementCalls fresh = statementCalls fresh') : fresh = fresh' := by
@@ -856,8 +788,6 @@ private theorem outputCalls_identify {degree : Nat}
   subst rounds output
   rfl
 
-/-! ## Distinct challenge addresses -/
-
 private theorem cubeVariables_eq : productionShape.cubeVariables = 28 := rfl
 
 private theorem take_messages_length {degree : Nat} (proof : Proof degree)
@@ -869,16 +799,12 @@ private theorem take_messages_length {degree : Nat} (proof : Proof degree)
     fun other => messageCalls_length proof proof other ⟨0, by decide⟩]
   simp [canonicalFinIndices, cubeVariables_eq]
 
-/-- Where a challenge's read falls after the statement calls. `count` is the
-call count of one round message, `output` that of the complete `y′`. -/
 private def offset (count output : Nat) : Challenge → Nat
   | .alpha coordinate => coordinate.val / 6
   | .gamma => 4
   | .round index => 4 + index.val * count + count
   | .rho index => 4 + 28 * count + output + 2 * index.val + 1
 
-/-- The offset and the slot together tell challenges apart once a round
-message has at least one call. -/
 private theorem offset_slot_injective (count output : Nat) (positive : 0 < count)
     {challenge other : Challenge}
     (same : offset count output challenge = offset count output other)
@@ -948,8 +874,6 @@ private theorem offset_slot_injective (count output : Nat) (positive : 0 < count
       simp only [offset] at same
       exact congrArg Challenge.rho (Fin.ext (by omega))
 
-/-- The length of a challenge's calls: the statement calls, then the
-challenge's offset in the schedule. -/
 private theorem challengeCalls_length {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) (challenge : Challenge) :
@@ -988,7 +912,6 @@ private theorem challengeCalls_length {degree : Nat}
       simp only [List.length_replicate, offset, Transcript.coinsPerChunk_eq, cubeVariables_eq]
       omega
 
-/-- Lengths of challenge calls do not depend on the statement or the proof. -/
 theorem challengeCalls_length_eq {degree : Nat}
     (fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof proof' : Proof degree) (challenge : Challenge) :
@@ -1001,8 +924,6 @@ theorem challengeCalls_length_eq {degree : Nat}
   rw [challengeCalls_length, challengeCalls_length, statementCalls_length fresh fresh',
     messageCalls_length proof proof' ⟨0, by decide⟩ ⟨0, by decide⟩, outputLength]
 
-/-- Distinct challenges of one execution have distinct addresses, so a random
-oracle on addresses answers them independently. -/
 theorem challengeAddress_injective {degree : Nat}
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) {challenge other : Challenge}
@@ -1014,7 +935,83 @@ theorem challengeAddress_injective {degree : Nat}
     (List.length_pos_iff.mpr (messageCalls_ne_nil proof ⟨0, by decide⟩))
     (Nat.add_left_cancel lengths) (congrArg Prod.snd same)
 
-/-! ## Contract -/
+private theorem absorbCalls_head? {words : List F} (nonempty : words ≠ []) :
+    (absorbCalls words).head? = some (padChunk (words.take Poseidon2.rate)) := by
+  have positive : 0 < (words.length + Poseidon2.rate - 1) / Poseidon2.rate := by
+    have length : 0 < words.length := List.length_pos_iff.mpr nonempty
+    unfold Poseidon2.rate
+    omega
+  obtain ⟨count, count_eq⟩ : ∃ count, (words.length + Poseidon2.rate - 1) / Poseidon2.rate =
+      count + 1 := ⟨_, (Nat.succ_pred_eq_of_pos positive).symm⟩
+  unfold absorbCalls
+  rw [count_eq, List.range_succ_eq_map, List.map_cons, List.head?_cons, Nat.zero_mul, List.drop_zero]
+
+private theorem challengeCalls_head? {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) (challenge : Challenge) :
+    (challengeCalls fresh proof challenge).head? = some (padChunk Transcript.foldDomainChunk) := by
+  have statement : (statementCalls fresh).head? = some (padChunk Transcript.foldDomainChunk) := by
+    unfold statementCalls
+    rw [List.head?_append, absorbCalls_head? (by simp [Transcript.foldDomainChunk, Poseidon2.rate]),
+      List.take_of_length_le (by simp [Poseidon2.rate])]
+    rfl
+  cases challenge <;>
+    simp only [challengeCalls, proverCalls, roundPrefixCalls, outputCalls, preRoundCalls,
+      List.append_assoc, List.head?_append, statement, Option.some_or]
+
+variable (logicalWidth publicFits) in
+def stateHashCalls (preimage : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    List Call :=
+  absorbCalls (serializePreimage (publicFits := publicFits) preimage) ++ [padChunk [1]]
+
+theorem stateHash_eq_run
+    (preimage : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) :
+    stateHash (publicFits := publicFits) preimage =
+      (run Transcript.initialState (stateHashCalls logicalWidth publicFits preimage)).take
+        Poseidon2.digestLen := by
+  have padded (words : List F) : Poseidon2.hash words =
+      (Poseidon2.absorbBlock (Transcript.absorb Transcript.initialState words) [1]).take
+        Poseidon2.digestLen := by
+    unfold Poseidon2.hash Transcript.absorb Transcript.initialState
+    dsimp only
+    rw [Poseidon2.absorbBlock]
+    refine congrArg (fun state => (Poseidon2.permute state).take Poseidon2.digestLen) ?_
+    refine List.map_congr_left fun lane _ => ?_
+    cases lane with
+    | zero => simp
+    | succ lane => simp
+  unfold stateHash stateHashCalls
+  rw [padded, run_append, ← absorb_eq_run, run_cons, run_nil, step,
+    ← absorbBlock_padChunk _ (by simp [Poseidon2.rate])]
+
+theorem stateHash_separated {degree : Nat}
+    (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
+    (proof : Proof degree) (challenge : Challenge)
+    (preimage : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
+    {calls : List Call} (challengePrefix : calls <+: challengeCalls fresh proof challenge)
+    (hashPrefix : calls <+: stateHashCalls logicalWidth publicFits preimage) :
+    calls = [] := by
+  cases calls with
+  | nil => rfl
+  | cons call rest =>
+      exfalso
+      have hashHead : (stateHashCalls logicalWidth publicFits preimage).head? =
+          some (padChunk stateDomainChunk) := by
+        unfold stateHashCalls serializePreimage
+        have rate : stateDomainChunk.length = Poseidon2.rate := stateDomainChunk_length
+        rw [List.head?_append, absorbCalls_head? (by simp [stateDomainChunk, Poseidon2.rate]),
+          List.append_assoc, List.take_left' rate]
+        rfl
+      obtain ⟨challengeTail, challengeEq⟩ := challengePrefix
+      obtain ⟨hashTail, hashEq⟩ := hashPrefix
+      have fromChallenge := challengeCalls_head? fresh proof challenge
+      rw [← challengeEq] at fromChallenge
+      rw [← hashEq] at hashHead
+      have same : padChunk Transcript.foldDomainChunk = padChunk stateDomainChunk :=
+        Option.some_injective _ (fromChallenge.symm.trans hashHead)
+      have lane := congrFun same ⟨0, by decide⟩
+      revert lane
+      decide
 
 /-- The dependency specification: two executions agree on everything the
 transcript absorbs directly before a challenge, namely the fresh statement and
@@ -1045,8 +1042,6 @@ theorem AgreeOnAbsorbed.fresh_eq {degree : Nat}
   | round => exact agree.1
   | rho => exact agree.1
 
-/-- Equal prover-dependent calls before a challenge give agreement on
-everything the transcript absorbed directly. -/
 theorem proverCalls_identify {degree : Nat}
     {fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)}
     {proof proof' : Proof degree} (challenge : Challenge)

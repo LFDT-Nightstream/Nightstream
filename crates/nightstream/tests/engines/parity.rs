@@ -4,7 +4,7 @@ use super::{Backend, Engine, EngineError};
 use crate::folding::{
     self, ajtai_dec_mixer, ajtai_rlc_mixer,
     transcript::{Poseidon2TranscriptSnapshot, Transcript},
-    CcsClaim, CcsInstance, CcsWitness, NifsProof, Params, RunningInstance, Structure,
+    CcsClaim, CcsInstance, CcsWitness, FoldContext, NifsProof, Params, RunningInstance, Structure,
 };
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ccs::{poly::Term, Mat, SparsePoly};
@@ -60,21 +60,22 @@ struct Fixture {
 }
 
 impl Fixture {
-    fn workspace_bytes(&self, rows: &CachedMatrixRows<'_>) -> usize {
+    fn context<'a>(&'a self, rows: &'a CachedMatrixRows<'_>) -> FoldContext<'a> {
         let dims = build_joint_dims(self.params.inner(), &self.structure, 1, self.running.witnesses.len()).unwrap();
         let row_payload = self.structure.t() * size_of::<K>() + size_of::<F>() + size_of::<K>();
-        let row_window = MatrixWindow::required_workspace(rows, 0..self.structure.n, row_payload).unwrap();
+        let row_window = MatrixWindow::required_workspace(rows, 0..self.structure.n(), row_payload).unwrap();
         let witnesses = (1 + self.running.witnesses.len()) * dims.assignment_width;
         let openings = self.params.k_rho() as usize * (self.structure.t() + 1) * D;
-        // The host and device may both hold row metadata. The remaining
-        // payload comes from this fixture's witnesses, child openings, and round.
-        2 * row_window + (witnesses + openings + dims.degree + 1 + self.structure.t()) * size_of::<K>()
+        FoldContext {
+            params: &self.params,
+            structure: &self.structure,
+            rows,
+            workspace_bytes: 2 * row_window
+                + (witnesses + openings + dims.degree + 1 + self.structure.t()) * size_of::<K>(),
+        }
     }
 
     fn new(polynomial: SparsePoly<F>, matrices: Vec<Vec<Vec<(usize, F)>>>) -> Self {
-        // One public ring plus one private word gives a non-aligned logical
-        // width. The carried source also has a nonzero completion tail.
-        // The production decomposition and commitment parameters stay unchanged.
         let n = matrices[0].len();
         let rows = Rows { n, matrices };
         let structure = Structure::new_verifier_artifact_header(n, D + 1, rows.matrices.len(), polynomial).unwrap();
@@ -100,13 +101,12 @@ impl Fixture {
                 adv: None,
             },
             witness: CcsWitness {
-                w: vec![],
                 Z: Mat::compact_signed_unit_from_column_masks(D, 2, &[1, u64::from(n > 1)], &[0, 0]).unwrap(),
             },
         };
         witness[(D - 1, 1)] = -F::ONE;
         let mut running = RunningInstance::canonical_zero(&params, &structure, D).unwrap();
-        let blocks = SuperneoZBlocks::from_witness_mat(&witness, structure.m).unwrap();
+        let blocks = SuperneoZBlocks::from_witness_mat(&witness, structure.m()).unwrap();
         let opening = cache
             .eval_real_v1_2_openings(&running.claims[0].r, &[blocks])
             .unwrap()
@@ -152,6 +152,7 @@ impl Fixture {
     }
 
     fn selected_polynomial() -> Self {
+        const C_PORT: usize = 2;
         static POLYNOMIAL: OnceLock<SparsePoly<F>> = OnceLock::new();
         let polynomial = POLYNOMIAL.get_or_init(|| {
             let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -160,26 +161,22 @@ impl Fixture {
                 .unwrap()
                 .ccs_structure_header()
                 .unwrap()
-                .f
+                .f()
+                .clone()
         });
         let count = polynomial.terms()[0].exps.len();
-        // Exercise the complete exported polynomial with nonzero input ports.
-        // Its C port (slot 2) is affine; solve that coordinate so the fresh row
-        // is valid.
-        assert!(polynomial.terms().iter().all(|term| term.exps[2] <= 1));
+        assert!(polynomial.terms().iter().all(|term| term.exps[C_PORT] <= 1));
         let mut matrices = vec![Vec::new(); count];
-        // Two distinct rows exercise interpolation across rows and two witness
-        // columns. This count comes from the requested multi-row parity case.
         for (row, column) in [D, 0].into_iter().enumerate() {
             let mut values: Vec<_> = (1..=count)
                 .map(|value| F::from_usize(value + row * count))
                 .collect();
-            values[2] = F::ZERO;
+            values[C_PORT] = F::ZERO;
             let constant = polynomial.eval(&values);
-            values[2] = F::ONE;
+            values[C_PORT] = F::ONE;
             let coefficient = polynomial.eval(&values) - constant;
             assert_ne!(coefficient, F::ZERO);
-            values[2] = -constant * coefficient.inverse();
+            values[C_PORT] = -constant * coefficient.inverse();
             assert_eq!(polynomial.eval(&values), F::ZERO);
             for (matrix, value) in matrices.iter_mut().zip(values) {
                 matrix.push(if value == F::ZERO {
@@ -203,17 +200,11 @@ struct Run {
 fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Error>> {
     let mut transcript = Transcript::session();
     let matrix_rows = CachedMatrixRows::new(&fixture.cache)?;
-    let workspace_bytes = fixture.workspace_bytes(&matrix_rows);
+    let context = fixture.context(&matrix_rows);
     let (running, proof) = match Backend::new(engine)? {
-        Backend::Optimized => folding::prove_owned_with_rows(
-            &mut transcript,
-            &fixture.params,
-            &fixture.structure,
-            &matrix_rows,
-            workspace_bytes,
-            fixture.fresh.clone(),
-            fixture.running.clone(),
-        )?,
+        Backend::Optimized => {
+            folding::prove_owned_with_rows(&mut transcript, context, fixture.fresh.clone(), fixture.running.clone())?
+        }
         Backend::PaperExact => super::paper_exact::prove(
             &mut transcript,
             &fixture.params,
@@ -230,10 +221,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
             };
             let result = super::crosscheck::prove(
                 &mut transcript,
-                &fixture.params,
-                &fixture.structure,
-                &matrix_rows,
-                workspace_bytes,
+                context,
                 &rows,
                 fixture.fresh.clone(),
                 fixture.running.clone(),
@@ -250,10 +238,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
             let result = super::metal::prove(
                 &mut device,
                 &mut transcript,
-                &fixture.params,
-                &fixture.structure,
-                &matrix_rows,
-                workspace_bytes,
+                context,
                 fixture.fresh.clone(),
                 fixture.running.clone(),
             )?;
@@ -272,7 +257,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         &fixture.fresh.claim,
-        &fixture.running.claims_only(),
+        folding::BoundRunning::from_checked_prior(&fixture.running.claims_only()),
         &proof,
     )?;
     assert_eq!(checked.claims, running.claims);
@@ -286,7 +271,7 @@ fn run(engine: Engine, fixture: &Fixture) -> Result<Run, Box<dyn std::error::Err
         ajtai_rlc_mixer,
         ajtai_dec_mixer,
         &fixture.fresh.claim,
-        &fixture.running.claims_only(),
+        folding::BoundRunning::from_checked_prior(&fixture.running.claims_only()),
         &changed
     )
     .is_err());
@@ -368,23 +353,17 @@ fn crosscheck_rejects_changed_results() {
 #[test]
 fn crosscheck_rejects_different_rows_without_updating_the_transcript() {
     let mut fixture = Fixture::bit();
-    // Both x^2 - x relations accept this fresh bit, but their openings differ.
-    // Deliberately give the reference different rows from the optimized cache.
     fixture.rows.matrices[0][0].clear();
     fixture.running = RunningInstance::canonical_zero(&fixture.params, &fixture.structure, D).unwrap();
     let matrix_rows = CachedMatrixRows::new(&fixture.cache).unwrap();
-    let workspace_bytes = fixture.workspace_bytes(&matrix_rows);
     let mut transcript = Transcript::session();
     let before = transcript.snapshot();
     let result = super::crosscheck::prove(
         &mut transcript,
-        &fixture.params,
-        &fixture.structure,
-        &matrix_rows,
-        workspace_bytes,
+        fixture.context(&matrix_rows),
         &fixture.rows,
-        fixture.fresh,
-        fixture.running,
+        fixture.fresh.clone(),
+        fixture.running.clone(),
     );
     assert!(matches!(result, Err(EngineError::CrosscheckMismatch { .. })));
     assert_eq!(transcript.snapshot(), before);
@@ -393,21 +372,16 @@ fn crosscheck_rejects_different_rows_without_updating_the_transcript() {
 #[test]
 fn crosscheck_rejects_a_prover_error_without_updating_the_transcript() {
     let mut fixture = Fixture::bit();
-    // Only the reference loses its required matrix. The optimized cache is valid.
     fixture.rows.matrices.clear();
     let matrix_rows = CachedMatrixRows::new(&fixture.cache).unwrap();
-    let workspace_bytes = fixture.workspace_bytes(&matrix_rows);
     let mut transcript = Transcript::session();
     let before = transcript.snapshot();
     let result = super::crosscheck::prove(
         &mut transcript,
-        &fixture.params,
-        &fixture.structure,
-        &matrix_rows,
-        workspace_bytes,
+        fixture.context(&matrix_rows),
         &fixture.rows,
-        fixture.fresh,
-        fixture.running,
+        fixture.fresh.clone(),
+        fixture.running.clone(),
     );
     assert!(matches!(
         result,
@@ -429,18 +403,14 @@ fn crosscheck_rejects_a_worker_panic_without_updating_the_transcript() {
     }
     let fixture = Fixture::bit();
     let matrix_rows = CachedMatrixRows::new(&fixture.cache).unwrap();
-    let workspace_bytes = fixture.workspace_bytes(&matrix_rows);
     let mut transcript = Transcript::session();
     let before = transcript.snapshot();
     let result = super::crosscheck::prove(
         &mut transcript,
-        &fixture.params,
-        &fixture.structure,
-        &matrix_rows,
-        workspace_bytes,
+        fixture.context(&matrix_rows),
         &PanickingRows,
-        fixture.fresh,
-        fixture.running,
+        fixture.fresh.clone(),
+        fixture.running.clone(),
     );
     assert!(matches!(
         result,
@@ -460,6 +430,33 @@ fn optimized_matches_metal() {
         run(Engine::Optimized, &fixture).unwrap(),
         run(Engine::Metal, &fixture).unwrap(),
     );
+}
+
+/// Each child commitment must come from its own digit witness. A commitment
+/// derived from the parent passes the PiDEC recomposition check by construction.
+#[test]
+#[cfg_attr(not(feature = "metal"), allow(clippy::single_element_loop))]
+fn engines_refuse_a_fresh_commitment_that_does_not_open() {
+    let mut fixture = Fixture::bit();
+    fixture.fresh.claim.c.data_mut()[0] += F::ONE;
+    for engine in [
+        Engine::Optimized,
+        #[cfg(feature = "metal")]
+        Engine::Metal,
+    ] {
+        let error = run(engine, &fixture)
+            .err()
+            .unwrap_or_else(|| panic!("{engine:?} folded a fresh commitment that does not open"));
+        assert!(
+            matches!(
+                error.downcast_ref::<folding::Error>(),
+                Some(folding::Error::Dec(folding::pi_dec::Error::Engine(
+                    folding::kernels::Error::PiDecPublicCheckFailed { ok_c: false, .. }
+                )))
+            ),
+            "{engine:?}: {error}"
+        );
+    }
 }
 
 #[cfg(feature = "metal")]
@@ -504,3 +501,6 @@ fn metal_matches_cuda() {
         run(Engine::Cuda, &fixture).unwrap(),
     );
 }
+
+#[path = "finish.rs"]
+mod finish;

@@ -14,24 +14,13 @@ import NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
 
 /-!
-Owns the ideal-model programming step of the SHAKE128 setup argument
-(`docs/reviews/ajtai-key-expander/SECURITY_ARGUMENT.md`, section 5).
+Owns the ideal-model programming step of the SHAKE128 setup argument.
 
-Each key coefficient is one 32-byte SHAKE128 output chunk, read as an integer
-below `2 ^ 256` and reduced modulo the Goldilocks prime (`verifierKey_eq`).
-`elementInput_injective` makes the inputs distinct, and `elementLanes_length`
-makes the chunks disjoint output slices. Premise P1, SHAKE128 as a random
-oracle, makes the chunks independent and uniform, and independent of every
-other oracle value. P1 is not proved here. `Extra` holds the other oracle
-values that an attacker reads and its coins.
-
-The programmed game samples a uniform matrix, then each chunk uniformly among
-the integers with that residue. For every event of the attacker's complete
-view, the two games differ by at most `2 * coefficients * r / 2 ^ 256`, with
-`r = 2 ^ 256 % q` (`real_sub_programmed_le`). In the programmed game the key is
-the uniform matrix, so a binding collision is a short kernel vector of a
-uniform matrix, an MSIS solution (`binding_le_solver`). MSIS hardness (premise
-P2) and the running time of the simulation are not modeled.
+Premise P1, SHAKE128 as a random oracle, makes the chunks independent and
+uniform, and independent of every other oracle value. P1 is not proved here.
+`Extra` holds the other oracle values that an attacker reads and its coins.
+MSIS hardness (premise P2) and the running time of the simulation are not
+modeled.
 -/
 
 set_option autoImplicit false
@@ -45,10 +34,6 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open Finset
 
-/-! ## Independent coordinates -/
-
-/-- Coordinate weights of hybrid `s`: `ν` on the coordinates in `s`, `μ`
-elsewhere. -/
 private def hybridWeight {ι α : Type} [DecidableEq ι] (μ ν : α → ℚ) (s : Finset ι) (i : ι)
     (a : α) : ℚ :=
   if i ∈ s then ν a else μ a
@@ -61,8 +46,6 @@ private theorem sum_prod_eq_prod_sum {ι α : Type} [Fintype ι] [DecidableEq ι
     (g : ι → α → ℚ) : ∑ values : ι → α, ∏ i, g i (values i) = ∏ i, ∑ a, g i a := by
   rw [prod_univ_sum, Fintype.piFinset_univ]
 
-/-- Moving one fresh coordinate into the hybrid costs one coordinate
-difference. -/
 private theorem hybrid_step {ι α : Type} [Fintype ι] [DecidableEq ι] [Fintype α]
     (μ ν : α → ℚ) (μ_nonneg : ∀ a, 0 ≤ μ a) (ν_nonneg : ∀ a, 0 ≤ ν a)
     (μ_sum : ∑ a, μ a = 1) (ν_sum : ∑ a, ν a = 1) (s : Finset ι) (k : ι) (fresh : k ∉ s) :
@@ -119,9 +102,6 @@ private theorem hybrid_step {ι α : Type} [Fintype ι] [DecidableEq ι] [Fintyp
   rw [prod_congr rfl ones, prod_const_one, mul_one]
   simp only [if_true]
 
-/-- Changing each independent coordinate from weights `μ` to weights `ν`
-changes the joint weights, in total absolute difference, by at most the
-coordinate count times the difference of one coordinate. -/
 theorem product_difference_le {ι α : Type} [Fintype ι] [DecidableEq ι] [Fintype α]
     (μ ν : α → ℚ) (μ_nonneg : ∀ a, 0 ≤ μ a) (ν_nonneg : ∀ a, 0 ≤ ν a)
     (μ_sum : ∑ a, μ a = 1) (ν_sum : ∑ a, ν a = 1) :
@@ -151,20 +131,14 @@ theorem product_difference_le {ι α : Type} [Fintype ι] [DecidableEq ι] [Fint
   simp only [hybrid, hybridWeight, notMem_empty, if_false, mem_univ, if_true, card_univ] at ends
   exact ends
 
-/-! ## Chunks and residues -/
-
-/-- One 32-byte output chunk read as a little-endian integer. -/
 abbrev Chunk := Fin (2 ^ 256)
 
-/-- The key coefficient of one chunk. -/
 def residue (chunk : Chunk) : F :=
   ⟨chunk.val % goldilocksModulus, Nat.mod_lt _ (by decide)⟩
 
-/-- The chunks with residue `value`. -/
 def fiber (value : F) : Finset Chunk :=
   univ.filter fun chunk => residue chunk = value
 
-/-- Probability of `value` when a uniform chunk is reduced. -/
 noncomputable def reducedWeight (value : F) : ℚ :=
   ((fiber value).card : ℚ) / ((2 ^ 256 : ℕ) : ℚ)
 
@@ -177,7 +151,6 @@ private theorem residue_small (value : F) : residue (small value) = value := by
 theorem fiber_nonempty (value : F) : (fiber value).Nonempty :=
   ⟨small value, by simp [fiber, residue_small]⟩
 
-/-- A natural number below `q` whose residue lies in `values`. -/
 private def residueEvent (values : Finset F) (natural : Nat) : Prop :=
   ∃ bounded : natural < goldilocksModulus, (⟨natural, bounded⟩ : F) ∈ values
 
@@ -208,8 +181,6 @@ private theorem residue_mem_iff (values : Finset F) (chunk : Chunk) :
   · rintro ⟨_, member⟩
     exact member
 
-/-- The reduced weights of a residue set are the frequency of that event
-under reduction of a uniform 256-bit integer. -/
 private theorem sum_reducedWeight (values : Finset F) :
     ∑ value ∈ values, reducedWeight value =
       ReductionBias.frequency (2 ^ 256) goldilocksModulus (residueEvent values) := by
@@ -237,8 +208,6 @@ private theorem sum_reducedWeight (values : Finset F) :
   unfold reducedWeight ReductionBias.frequency
   rw [← sum_div, cards, counted]
 
-/-- The uniform residue weights of a residue set are its frequency among the
-residues. -/
 private theorem sum_uniformWeight (values : Finset F) :
     ∑ _value ∈ values, (1 / goldilocksModulus : ℚ) =
       ReductionBias.frequency goldilocksModulus goldilocksModulus (residueEvent values) := by
@@ -276,10 +245,6 @@ theorem reducedWeight_sum : ∑ value, reducedWeight value = 1 := by
   unfold reducedWeight
   rw [← sum_div, cards, div_self (by positivity)]
 
-/-- Reducing a uniform 256-bit integer instead of sampling a uniform residue
-changes the residue weights, in total absolute difference, by at most
-`2 * r / 2 ^ 256`. The bound for each event is
-`ReductionBias.wide_frequency_error_le`. -/
 theorem reducedWeight_difference_le :
     ∑ value, |reducedWeight value - 1 / goldilocksModulus| ≤ 2 * 4294967295 / 2 ^ 256 := by
   rw [← sum_filter_add_sum_filter_not univ
@@ -301,16 +266,12 @@ theorem reducedWeight_difference_le :
       ((abs_sub_comm _ _).le.trans (ReductionBias.wide_frequency_error_le _))
   linarith
 
-/-! ## The real and programmed games -/
-
 section Games
 
 variable {ι Extra : Type} [Fintype ι] [DecidableEq ι] [Fintype Extra] [Nonempty Extra]
 
-/-- The key coefficients that the chunks define. -/
 def residues (chunks : ι → Chunk) : ι → F := fun index => residue (chunks index)
 
-/-- The chunk vectors whose residues are `matrix`. -/
 def preimages (matrix : ι → F) : Finset (ι → Chunk) :=
   Fintype.piFinset fun index => fiber (matrix index)
 
@@ -319,20 +280,16 @@ theorem mem_preimages {matrix : ι → F} {chunks : ι → Chunk} :
   simp only [preimages, Fintype.mem_piFinset, fiber, mem_filter, mem_univ, true_and]
   exact ⟨fun each => funext each, fun same index => congrFun same index⟩
 
-/-- The attacker views of the programmed game for one matrix. -/
 def views (matrix : ι → F) : Finset ((ι → Chunk) × Extra) :=
   preimages matrix ×ˢ univ
 
-/-- Game 1: independent uniform chunks and uniform extra values. -/
 noncomputable def real (event : (ι → Chunk) × Extra → Prop) [DecidablePred event] : ℚ :=
   ((univ.filter event).card : ℚ) / Fintype.card ((ι → Chunk) × Extra)
 
-/-- Probability of `event` when the chunks are uniform preimages of `matrix`. -/
 noncomputable def programmedFor (event : (ι → Chunk) × Extra → Prop) [DecidablePred event]
     (matrix : ι → F) : ℚ :=
   (((views matrix).filter event).card : ℚ) / (views (Extra := Extra) matrix).card
 
-/-- Game 2: a uniform matrix, then uniform preimage chunks. -/
 noncomputable def programmed (event : (ι → Chunk) × Extra → Prop) [DecidablePred event] : ℚ :=
   ∑ matrix : ι → F, programmedFor event matrix / Fintype.card (ι → F)
 
@@ -363,7 +320,6 @@ private theorem programmedFor_mem (event : (ι → Chunk) × Extra → Prop) [De
     exact_mod_cast card_filter_le _ _
 
 omit [Nonempty Extra] in
-/-- The views of each matrix partition all views. -/
 private theorem card_filter_eq_sum (event : (ι → Chunk) × Extra → Prop) [DecidablePred event] :
     ((univ.filter event).card : ℚ) =
       ∑ matrix : ι → F, (((views matrix).filter event).card : ℚ) := by
@@ -405,8 +361,6 @@ private theorem programmed_eq (event : (ι → Chunk) × Extra → Prop) [Decida
   push_cast
   rw [one_div, inv_pow, div_eq_mul_inv, mul_comm]
 
-/-- Programming the chunks changes the probability of any event of the
-attacker's complete view by at most `2 * coefficients * r / 2 ^ 256`. -/
 theorem real_sub_programmed_le (event : (ι → Chunk) × Extra → Prop) [DecidablePred event] :
     |real event - programmed event| ≤ Fintype.card ι * (2 * 4294967295 / 2 ^ 256) := by
   rw [real_eq, programmed_eq, ← sum_sub_distrib]
@@ -428,13 +382,7 @@ theorem real_sub_programmed_le (event : (ι → Chunk) × Extra → Prop) [Decid
 
 end Games
 
-/-! ## Averages of functions of the chunks -/
-
 open scoped BigOperators in
-/-- The bound of `real_sub_programmed_le` for the average of any function of
-the chunks with values in `[0, 1]`: its average over uniform chunks is at most
-its average over a uniform matrix and uniform preimage chunks, plus
-`2 * coefficients * r / 2 ^ 256`. -/
 theorem expect_le_programmed {ι : Type} [Fintype ι] [DecidableEq ι] (value : (ι → Chunk) → ℝ)
     (nonnegative : ∀ chunks, 0 ≤ value chunks) (le_one : ∀ chunks, value chunks ≤ 1) :
     𝔼 chunks, value chunks ≤
@@ -456,7 +404,6 @@ theorem expect_le_programmed {ι : Type} [Fintype ι] [DecidableEq ι] (value : 
     rw [Fintype.card_piFinset]
     push_cast
     rfl
-  -- The real average splits over the residue matrix of the chunks.
   have real : 𝔼 chunks, value chunks =
       ∑ matrix : ι → F, (∏ index, (reducedWeight (matrix index) : ℝ)) * average matrix := by
     rw [Finset.expect_eq_sum_div_card, ← Finset.sum_fiberwise Finset.univ residues value,
@@ -482,7 +429,6 @@ theorem expect_le_programmed {ι : Type} [Fintype ι] [DecidableEq ι] (value : 
     rw [preimagesCard, Finset.prod_div_distrib, Finset.prod_const, Finset.card_univ,
       div_mul_div_comm, mul_comm (∏ index, ((fiber (matrix index)).card : ℝ)),
       mul_div_mul_right _ _ productPositive.ne']
-  -- The programmed average gives each matrix weight `(1 / q) ^ coefficients`.
   have programmed : 𝔼 matrix : ι → F, average matrix =
       ∑ matrix : ι → F, (∏ _index : ι, (1 / goldilocksModulus : ℝ)) * average matrix := by
     rw [Finset.expect_eq_sum_div_card, Finset.sum_div]
@@ -491,7 +437,6 @@ theorem expect_le_programmed {ι : Type} [Fintype ι] [DecidableEq ι] (value : 
     simp only [Finset.prod_const, Finset.card_univ, Fintype.card_fun, Fintype.card_fin]
     push_cast
     rw [one_div, inv_pow, div_eq_mul_inv, mul_comm]
-  -- The two weight families differ in total by at most the coordinate bound.
   have weights : ∑ matrix : ι → F, |∏ index, (reducedWeight (matrix index) : ℝ) -
       ∏ _index : ι, (1 / goldilocksModulus : ℝ)| ≤
         Fintype.card ι * (2 * 4294967295 / 2 ^ 256 : ℝ) := by
@@ -516,27 +461,20 @@ theorem expect_le_programmed {ι : Type} [Fintype ι] [DecidableEq ι] (value : 
           exact mul_le_of_le_one_right (abs_nonneg _) (average_le_one matrix))
     _ ≤ _ := weights
 
-/-! ## The setup chunks and binding -/
-
-/-- Key coordinates `(row, block, lane)`. -/
 abbrev KeyIndex (rows blocks : Nat) := Fin rows × Fin blocks × Fin ringDegree
 
-/-- The key whose coefficient at `(row, block, lane)` is `matrix (row, block, lane)`. -/
 def keyOf {rows blocks : Nat} (matrix : KeyIndex rows blocks → F) :
     Fin rows → Fin blocks → RingF :=
   fun row block lane => matrix (row, block, lane)
 
-/-- The SHAKE128 chunk of key coordinate `(row, block, lane)`. -/
 def setupChunks {rows blocks : Nat} (seed : List Nat) (index : KeyIndex rows blocks) : Chunk :=
   ⟨laneWord (elementLanes seed index.1.val index.2.1.val) index.2.2.val, laneWord_lt _ _⟩
 
-/-- The verifier key is the residue key of its SHAKE128 chunks. -/
 theorem verifierKey_eq {rows blocks : Nat} (setup : Setup rows blocks) :
     setup.verifierKey = keyOf (residues (setupChunks setup.seed.bytes)) := by
   funext row block lane
   rfl
 
-/-- Two different openings below `bound` with equal commitments. -/
 def IsCollision {shape : Phi81Relation.Shape} {rows : Nat} (bound : Nat)
     (key : Commitment.Key shape rows)
     (openings : Phi81Relation.Assignment shape × Phi81Relation.Assignment shape) : Prop :=
@@ -544,7 +482,6 @@ def IsCollision {shape : Phi81Relation.Shape} {rows : Nat} (bound : Nat)
     assignmentNormBounded bound openings.1 ∧ assignmentNormBounded bound openings.2 ∧
     openings.1 ≠ openings.2
 
-/-- A collision is a short kernel vector of the same key. -/
 def IsCollision.shortKernel {shape : Phi81Relation.Shape} {rows bound : Nat}
     {key : Commitment.Key shape rows}
     {openings : Phi81Relation.Assignment shape × Phi81Relation.Assignment shape}
@@ -565,9 +502,6 @@ open Classical
 
 variable {shape : Phi81Relation.Shape} {rows : Nat} {Extra : Type} [Fintype Extra] [Nonempty Extra]
 
-/-- Success probability of the MSIS solver built from `attack`: for a uniform
-matrix it samples uniform preimage chunks and extra values, runs `attack`,
-and converts a collision with `IsCollision.shortKernel`. -/
 noncomputable def solverSuccess (bound : Nat)
     (attack : (KeyIndex rows (Phi81ColumnLayout.blockCount shape.carrierWidth) → Chunk) × Extra →
       Phi81Relation.Assignment shape × Phi81Relation.Assignment shape) : ℚ :=
@@ -575,9 +509,6 @@ noncomputable def solverSuccess (bound : Nat)
     programmedFor (fun view => IsCollision bound (keyOf matrix) (attack view)) matrix /
       Fintype.card (KeyIndex rows (Phi81ColumnLayout.blockCount shape.carrierWidth) → F)
 
-/-- Binding in the ideal model: an attacker that sees every chunk finds a
-collision for the chunk key at most as often as the MSIS solver built from it
-succeeds on a uniform matrix, plus `2 * coefficients * r / 2 ^ 256`. -/
 theorem binding_le_solver (bound : Nat)
     (attack : (KeyIndex rows (Phi81ColumnLayout.blockCount shape.carrierWidth) → Chunk) × Extra →
       Phi81Relation.Assignment shape × Phi81Relation.Assignment shape) :

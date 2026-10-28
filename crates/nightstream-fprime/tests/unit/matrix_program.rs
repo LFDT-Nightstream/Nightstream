@@ -81,7 +81,7 @@ fn encoded_program() -> Value {
 
 fn source_row(index: usize) -> Result<SourceRow, PackageError> {
     if index != 0 {
-        return Err(PackageError::Invalid("test source row"));
+        return Err(PackageError::Input("test source row"));
     }
     Ok(SourceRow {
         a: SourceCombination {
@@ -177,7 +177,7 @@ fn every_lean_matrix_opcode_decodes_exact_rows() {
     let phi_row = poseidon_row + 150;
     assert_eq!(
         entries(&program, phi_row, 0),
-        vec![(7_000, 1), (9_999, GOLDILOCKS_MODULUS - 2)]
+        vec![(7_000, 1), (9_999, Goldilocks::ORDER_U64 - 2)]
     );
     assert_eq!(entries(&program, phi_row, 1), vec![(7_054, 1)]);
     assert_eq!(entries(&program, phi_row, 2), vec![(7_108, 1), (7_162, 1)]);
@@ -189,8 +189,6 @@ fn every_lean_matrix_opcode_decodes_exact_rows() {
     assert_eq!(phi_at_one[54], (7_162, 3));
     assert_eq!(phi_at_one[107], (7_162 + 53, 3));
 
-    // No selector gates a row, so an entry in an unused port would change
-    // its constraint under `a * b - c + s^7`.
     let unused_ports: [(usize, &[usize]); 6] = [
         (0, &[3]),
         (1, &[0, 1, 3]),
@@ -234,10 +232,10 @@ fn linear_poseidon_visitor_matches_every_random_access_row() {
 fn malformed_matrix_programs_fail_closed() {
     assert!(matches!(
         MatrixProgram::decode(&json!([[9, []]])),
-        Err(PackageError::Invalid("production matrix block tag"))
+        Err(PackageError::Malformed("production matrix block tag"))
     ));
     assert!(matches!(
-        MatrixProgram::decode(&json!([[1, [[[0, GOLDILOCKS_MODULUS]]]]])),
+        MatrixProgram::decode(&json!([[1, [[[0, Goldilocks::ORDER_U64]]]]])),
         Err(PackageError::NonCanonicalField { .. })
     ));
 
@@ -245,7 +243,7 @@ fn malformed_matrix_programs_fail_closed() {
         MatrixProgram::decode(&json!([[2, [1, 5_999, [0, 150, 100], []]]])).expect("wire-valid Poseidon block");
     assert!(matches!(
         wrong_kind.row(6_000, 0, &source_row),
-        Err(PackageError::Invalid("Poseidon2 retained kind"))
+        Err(PackageError::Malformed("Poseidon2 retained kind"))
     ));
 
     let missing_source =
@@ -269,7 +267,7 @@ fn malformed_matrix_programs_fail_closed() {
                 terms: vec![],
             },
         })),
-        Err(PackageError::Invalid("missing matrix source substitution"))
+        Err(PackageError::Malformed("missing matrix source substitution"))
     ));
 }
 
@@ -294,7 +292,9 @@ fn missing_source_projection_range_fails_closed() {
     let program = projection_program(json!([1, [[100, 0, 1]]]));
     assert!(matches!(
         program.row(6_000, 0, &|_| source_row_at(101)),
-        Err(PackageError::Invalid("missing or overlapping matrix source projection"))
+        Err(PackageError::Malformed(
+            "missing or overlapping matrix source projection"
+        ))
     ));
 }
 
@@ -303,6 +303,8 @@ fn overlapping_source_projection_ranges_fail_closed() {
     let program = projection_program(json!([1, [[100, 0, 2], [101, 1, 1]]]));
     assert!(matches!(
         program.row(6_000, 0, &|_| source_row_at(101)),
-        Err(PackageError::Invalid("missing or overlapping matrix source projection"))
+        Err(PackageError::Malformed(
+            "missing or overlapping matrix source projection"
+        ))
     ));
 }

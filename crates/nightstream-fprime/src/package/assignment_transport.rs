@@ -1,28 +1,26 @@
 //! Strict decoding and execution of the Lean-owned final-assignment transport.
-//!
-//! The decoded plan retains every compact recipe, expression, block, and
-//! affine source run. Execution reads a Rust-produced physical assignment and
-//! constructs the exact balanced logical assignment without a Lean runtime.
 
+use p3_field::PrimeField64;
+use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use crate::WitnessAssignment;
 
-use super::{Layout, PackageError, GOLDILOCKS_MODULUS};
+use super::json::{exact_array, usize_atom};
+use super::{Layout, PackageError};
 
 const TRANSPORT_SCHEMA: usize = 3;
 pub(super) const BLOCK_COUNT: usize = 26;
-const FIELD_COORDINATES: usize = 41;
+pub(super) const FIELD_COORDINATES: usize = 41;
 const OUTPUT_DIGEST_WORDS: usize = 4;
 const PHI81_INVOCATIONS: usize = 33_966;
 const PHI81_RING_DEGREE: usize = 54;
-const CENTERED_HALF_MODULUS: u64 = (GOLDILOCKS_MODULUS - 1) / 2;
+const CENTERED_HALF_MODULUS: u64 = (Goldilocks::ORDER_U64 - 1) / 2;
 
 const PRODUCT_QUOTIENT_BLOCK: usize = 3;
 const CHALLENGE_WORDS_BLOCK: usize = 4;
 const OUTPUT_DIGEST_BLOCK: usize = 19;
 
-/// Lean-authored block order for the final logical assignment.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LoadedAssignmentPlan {
     blocks: Vec<BlockPlan>,
@@ -59,7 +57,7 @@ impl LoadedAssignmentPlan {
             .map(|expression| expression.evaluate(&physical))
             .collect::<Result<Vec<_>, _>>()?
             .try_into()
-            .map_err(|_| PackageError::Invalid("output digest word count"))?;
+            .map_err(|_| PackageError::Malformed("output digest word count"))?;
         let domains = Domains { physical, quotients };
         validate_derived_block_sources(self, &domains, output_digest)?;
 
@@ -71,7 +69,7 @@ impl LoadedAssignmentPlan {
             }
         }
         if values.len() != self.logical_width {
-            return Err(PackageError::Invalid("logical assignment width"));
+            return Err(PackageError::Malformed("logical assignment width"));
         }
         Ok(LogicalAssignment { values })
     }
@@ -81,7 +79,6 @@ impl LoadedAssignmentPlan {
     }
 }
 
-/// Exact balanced logical assignment produced by the schema-6 transport.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct LogicalAssignment {
     values: Vec<i8>,
@@ -92,13 +89,17 @@ impl LogicalAssignment {
         self.values.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
     pub fn value(&self, column: usize) -> Result<u64, PackageError> {
         match self.values.get(column).copied() {
-            Some(-1) => Ok(GOLDILOCKS_MODULUS - 1),
+            Some(-1) => Ok(Goldilocks::ORDER_U64 - 1),
             Some(0) => Ok(0),
             Some(1) => Ok(1),
-            Some(_) => Err(PackageError::Invalid("logical assignment coordinate")),
-            None => Err(PackageError::Invalid("logical assignment column")),
+            Some(_) => Err(PackageError::Malformed("logical assignment coordinate")),
+            None => Err(PackageError::Malformed("logical assignment column")),
         }
     }
 
@@ -125,24 +126,24 @@ impl Expression {
     fn decode(value: &Value, physical_width: usize) -> Result<Self, PackageError> {
         let fields = value
             .as_array()
-            .ok_or(PackageError::Invalid("assignment expression"))?;
+            .ok_or(PackageError::Malformed("assignment expression"))?;
         let tag = fields
             .first()
             .and_then(Value::as_u64)
-            .ok_or(PackageError::Invalid("assignment expression tag"))?;
+            .ok_or(PackageError::Malformed("assignment expression tag"))?;
         match (tag, fields.as_slice()) {
             (0, [_, column]) => {
-                let column = word(column, "assignment expression column")?;
+                let column = usize_atom(column, "assignment expression column")?;
                 if column >= physical_width {
-                    return Err(PackageError::Invalid("assignment expression column bound"));
+                    return Err(PackageError::Malformed("assignment expression column bound"));
                 }
                 Ok(Self::Column(column))
             }
             (1, [_, constant]) => {
                 let constant = constant
                     .as_u64()
-                    .ok_or(PackageError::Invalid("assignment expression constant"))?;
-                if constant >= GOLDILOCKS_MODULUS {
+                    .ok_or(PackageError::Malformed("assignment expression constant"))?;
+                if constant >= Goldilocks::ORDER_U64 {
                     return Err(PackageError::NonCanonicalField {
                         location: "assignment expression constant",
                         value: constant,
@@ -158,7 +159,7 @@ impl Expression {
                 Box::new(Self::decode(left, physical_width)?),
                 Box::new(Self::decode(right, physical_width)?),
             )),
-            _ => Err(PackageError::Invalid("assignment expression")),
+            _ => Err(PackageError::Malformed("assignment expression")),
         }
     }
 
@@ -181,10 +182,10 @@ impl Expression {
 
 impl SourceDomain {
     fn decode(value: &Value) -> Result<Self, PackageError> {
-        match word(value, "assignment source domain")? {
+        match usize_atom(value, "assignment source domain")? {
             0 => Ok(Self::Retained),
             1 => Ok(Self::Physical),
-            _ => Err(PackageError::Invalid("assignment source domain")),
+            _ => Err(PackageError::Malformed("assignment source domain")),
         }
     }
 }
@@ -208,29 +209,29 @@ struct BlockPlan {
 fn decode_source_runs(value: &Value, expected_count: usize, domain_width: usize) -> Result<Vec<Run>, PackageError> {
     let run_values = value
         .as_array()
-        .ok_or(PackageError::Invalid("assignment source runs"))?;
+        .ok_or(PackageError::Malformed("assignment source runs"))?;
     let mut runs = Vec::with_capacity(run_values.len());
     let mut covered = 0usize;
     for value in run_values {
         let fields = exact_array(value, 3, "assignment source run")?;
-        let first = word(&fields[0], "assignment source run first")?;
-        let step = word(&fields[1], "assignment source run step")?;
-        let count = word(&fields[2], "assignment source run count")?;
+        let first = usize_atom(&fields[0], "assignment source run first")?;
+        let step = usize_atom(&fields[1], "assignment source run step")?;
+        let count = usize_atom(&fields[2], "assignment source run count")?;
         if count == 0 || (count == 1 && step != 0) {
-            return Err(PackageError::Invalid("noncanonical assignment source run"));
+            return Err(PackageError::Malformed("noncanonical assignment source run"));
         }
         let last = first
             .checked_add(
                 step.checked_mul(count - 1)
-                    .ok_or(PackageError::Invalid("assignment source run overflow"))?,
+                    .ok_or(PackageError::Malformed("assignment source run overflow"))?,
             )
-            .ok_or(PackageError::Invalid("assignment source run overflow"))?;
+            .ok_or(PackageError::Malformed("assignment source run overflow"))?;
         if last >= domain_width {
-            return Err(PackageError::Invalid("assignment source domain bound"));
+            return Err(PackageError::Malformed("assignment source domain bound"));
         }
         covered = covered
             .checked_add(count)
-            .ok_or(PackageError::Invalid("assignment source run count overflow"))?;
+            .ok_or(PackageError::Malformed("assignment source run count overflow"))?;
         runs.push(Run {
             first,
             step,
@@ -239,7 +240,7 @@ fn decode_source_runs(value: &Value, expected_count: usize, domain_width: usize)
         });
     }
     if covered != expected_count {
-        return Err(PackageError::Invalid("assignment source run coverage"));
+        return Err(PackageError::Malformed("assignment source run coverage"));
     }
     validate_canonical_run_boundaries(&runs)?;
 
@@ -251,20 +252,20 @@ fn source_run_at(runs: &[Run], slot: usize) -> Result<usize, PackageError> {
     for run in runs {
         let run_end = run_start
             .checked_add(run.count)
-            .ok_or(PackageError::Invalid("assignment source run count overflow"))?;
+            .ok_or(PackageError::Malformed("assignment source run count overflow"))?;
         if slot < run_end {
             return run
                 .first
                 .checked_add(
                     run.step
                         .checked_mul(slot - run_start)
-                        .ok_or(PackageError::Invalid("assignment source run overflow"))?,
+                        .ok_or(PackageError::Malformed("assignment source run overflow"))?,
                 )
-                .ok_or(PackageError::Invalid("assignment source run overflow"));
+                .ok_or(PackageError::Malformed("assignment source run overflow"));
         }
         run_start = run_end;
     }
-    Err(PackageError::Invalid("assignment source run coverage"))
+    Err(PackageError::Malformed("assignment source run coverage"))
 }
 
 impl BlockPlan {
@@ -275,21 +276,21 @@ impl BlockPlan {
         retained_width: usize,
     ) -> Result<Self, PackageError> {
         let fields = exact_array(value, 5, "assignment block plan")?;
-        let opcode = word(&fields[0], "assignment block opcode")?;
+        let opcode = usize_atom(&fields[0], "assignment block opcode")?;
         if opcode != expected_opcode {
-            return Err(PackageError::Invalid("assignment block order"));
+            return Err(PackageError::Malformed("assignment block order"));
         }
-        if word(&fields[1], "assignment slot kind")? != 2 {
-            return Err(PackageError::Invalid("assignment slot kind"));
+        if usize_atom(&fields[1], "assignment slot kind")? != 2 {
+            return Err(PackageError::Malformed("assignment slot kind"));
         }
-        let slot_count = word(&fields[2], "assignment block slot count")?;
+        let slot_count = usize_atom(&fields[2], "assignment block slot count")?;
         let domain = SourceDomain::decode(&fields[3])?;
         let expected_domain = match opcode {
             24..=25 => SourceDomain::Physical,
             _ => SourceDomain::Retained,
         };
         if domain != expected_domain {
-            return Err(PackageError::Invalid("assignment block source domain"));
+            return Err(PackageError::Malformed("assignment block source domain"));
         }
         let domain_width = match domain {
             SourceDomain::Retained => retained_width,
@@ -308,7 +309,7 @@ impl BlockPlan {
 
     fn source(&self, slot: usize) -> Result<usize, PackageError> {
         if slot >= self.slot_count {
-            return Err(PackageError::Invalid("assignment block source slot"));
+            return Err(PackageError::Malformed("assignment block source slot"));
         }
         source_run_at(&self.runs, slot)
     }
@@ -320,44 +321,44 @@ impl BlockPlan {
                     .checked_add(
                         run.step
                             .checked_mul(offset)
-                            .ok_or(PackageError::Invalid("assignment source run overflow"))?,
+                            .ok_or(PackageError::Malformed("assignment source run overflow"))?,
                     )
-                    .ok_or(PackageError::Invalid("assignment source run overflow"))
+                    .ok_or(PackageError::Malformed("assignment source run overflow"))
             })
         })
     }
 
     fn require_field_count(&self, count: usize) -> Result<(), PackageError> {
         if self.slot_count != count {
-            return Err(PackageError::Invalid("derived assignment block shape"));
+            return Err(PackageError::Malformed("derived assignment block shape"));
         }
         Ok(())
     }
 
     fn require_physical_sources(&self, physical_width: usize) -> Result<(), PackageError> {
         if self.domain != SourceDomain::Retained || self.runs.iter().any(|run| run.last >= physical_width) {
-            return Err(PackageError::Invalid("derived assignment physical source"));
+            return Err(PackageError::Malformed("derived assignment physical source"));
         }
         Ok(())
     }
 
     fn require_exact_range(&self, first: usize, count: usize) -> Result<(), PackageError> {
         if self.slot_count != count {
-            return Err(PackageError::Invalid("derived assignment source count"));
+            return Err(PackageError::Malformed("derived assignment source count"));
         }
         if count == 0 {
             if self.runs.is_empty() {
                 return Ok(());
             }
-            return Err(PackageError::Invalid("derived assignment source range"));
+            return Err(PackageError::Malformed("derived assignment source range"));
         }
         if self.runs.len() != 1 {
-            return Err(PackageError::Invalid("derived assignment source range"));
+            return Err(PackageError::Malformed("derived assignment source range"));
         }
         let run = self.runs[0];
         let expected_step = usize::from(count > 1);
         if run.first != first || run.step != expected_step || run.count != count {
-            return Err(PackageError::Invalid("derived assignment source range"));
+            return Err(PackageError::Malformed("derived assignment source range"));
         }
         Ok(())
     }
@@ -377,7 +378,7 @@ impl Phi81FamilyShape {
             .checked_mul(self.block_count)
             .and_then(|count| count.checked_mul(ring_degree))
             .and_then(|count| count.checked_mul(self.cell_count))
-            .ok_or(PackageError::Invalid("Phi81 invocation count overflow"))
+            .ok_or(PackageError::Malformed("Phi81 invocation count overflow"))
     }
 
     fn invocation(
@@ -389,26 +390,26 @@ impl Phi81FamilyShape {
         cell: usize,
     ) -> Result<usize, PackageError> {
         if source >= self.source_count || block >= self.block_count || lane >= ring_degree || cell >= self.cell_count {
-            return Err(PackageError::Invalid("Phi81 invocation coordinate"));
+            return Err(PackageError::Malformed("Phi81 invocation coordinate"));
         }
         let source_offset = source
             .checked_mul(self.block_count)
             .and_then(|offset| offset.checked_mul(ring_degree))
             .and_then(|offset| offset.checked_mul(self.cell_count))
-            .ok_or(PackageError::Invalid("Phi81 invocation index overflow"))?;
+            .ok_or(PackageError::Malformed("Phi81 invocation index overflow"))?;
         let block_offset = block
             .checked_mul(ring_degree)
             .and_then(|offset| offset.checked_mul(self.cell_count))
-            .ok_or(PackageError::Invalid("Phi81 invocation index overflow"))?;
+            .ok_or(PackageError::Malformed("Phi81 invocation index overflow"))?;
         let lane_offset = lane
             .checked_mul(self.cell_count)
-            .ok_or(PackageError::Invalid("Phi81 invocation index overflow"))?;
+            .ok_or(PackageError::Malformed("Phi81 invocation index overflow"))?;
         self.first_invocation
             .checked_add(source_offset)
             .and_then(|index| index.checked_add(block_offset))
             .and_then(|index| index.checked_add(lane_offset))
             .and_then(|index| index.checked_add(cell))
-            .ok_or(PackageError::Invalid("Phi81 invocation index overflow"))
+            .ok_or(PackageError::Malformed("Phi81 invocation index overflow"))
     }
 }
 
@@ -430,10 +431,10 @@ impl Phi81Recipe {
         let expected_constants = [54, 27, 81, 54];
         let constants = fields[..4]
             .iter()
-            .map(|value| word(value, "Phi81 assignment constant"))
+            .map(|value| usize_atom(value, "Phi81 assignment constant"))
             .collect::<Result<Vec<_>, _>>()?;
         if constants != expected_constants {
-            return Err(PackageError::Invalid("Phi81 assignment constants"));
+            return Err(PackageError::Malformed("Phi81 assignment constants"));
         }
 
         let expected_shapes = [
@@ -448,12 +449,12 @@ impl Phi81Recipe {
         for (value, expected) in shapes.iter().zip(expected_shapes) {
             let shape = exact_array(value, 3, "Phi81 family shape")?;
             let decoded = [
-                word(&shape[0], "Phi81 family source count")?,
-                word(&shape[1], "Phi81 family block count")?,
-                word(&shape[2], "Phi81 family cell count")?,
+                usize_atom(&shape[0], "Phi81 family source count")?,
+                usize_atom(&shape[1], "Phi81 family block count")?,
+                usize_atom(&shape[2], "Phi81 family cell count")?,
             ];
             if decoded != expected {
-                return Err(PackageError::Invalid("Phi81 family shape"));
+                return Err(PackageError::Malformed("Phi81 family shape"));
             }
             let family = Phi81FamilyShape {
                 source_count: decoded[0],
@@ -463,22 +464,22 @@ impl Phi81Recipe {
             };
             first_invocation = first_invocation
                 .checked_add(family.invocation_count(constants[0])?)
-                .ok_or(PackageError::Invalid("Phi81 invocation count overflow"))?;
+                .ok_or(PackageError::Malformed("Phi81 invocation count overflow"))?;
             family_shapes.push(family);
         }
         if first_invocation != PHI81_INVOCATIONS {
-            return Err(PackageError::Invalid("Phi81 invocation count"));
+            return Err(PackageError::Malformed("Phi81 invocation count"));
         }
 
         let selectors = [
-            word(&fields[5], "Phi81 challenge block")?,
-            word(&fields[6], "Phi81 challenge slot base")?,
-            word(&fields[7], "Phi81 challenge source stride")?,
-            word(&fields[8], "Phi81 challenge shift")?,
-            word(&fields[10], "Phi81 quotient output block")?,
+            usize_atom(&fields[5], "Phi81 challenge block")?,
+            usize_atom(&fields[6], "Phi81 challenge slot base")?,
+            usize_atom(&fields[7], "Phi81 challenge source stride")?,
+            usize_atom(&fields[8], "Phi81 challenge shift")?,
+            usize_atom(&fields[10], "Phi81 quotient output block")?,
         ];
         if selectors != [CHALLENGE_WORDS_BLOCK, 0, 54, 2, PRODUCT_QUOTIENT_BLOCK] {
-            return Err(PackageError::Invalid("Phi81 assignment selectors"));
+            return Err(PackageError::Malformed("Phi81 assignment selectors"));
         }
         Ok(Self {
             ring_degree: constants[0],
@@ -496,7 +497,7 @@ impl Phi81Recipe {
         self.family_shapes.iter().try_fold(0usize, |count, family| {
             count
                 .checked_add(family.invocation_count(self.ring_degree)?)
-                .ok_or(PackageError::Invalid("Phi81 invocation count overflow"))
+                .ok_or(PackageError::Malformed("Phi81 invocation count overflow"))
         })
     }
 
@@ -518,32 +519,31 @@ impl Phi81Recipe {
             .map(|family| family.source_count)
             .max()
             .and_then(|count| count.checked_sub(1))
-            .ok_or(PackageError::Invalid("Phi81 family source count"))?;
+            .ok_or(PackageError::Malformed("Phi81 family source count"))?;
         let final_lane = self
             .ring_degree
             .checked_sub(1)
-            .ok_or(PackageError::Invalid("Phi81 ring degree"))?;
+            .ok_or(PackageError::Malformed("Phi81 ring degree"))?;
         let final_challenge_slot = self
             .challenge_slot_base
             .checked_add(
                 final_source
                     .checked_mul(self.challenge_source_stride)
-                    .ok_or(PackageError::Invalid("Phi81 challenge slot overflow"))?,
+                    .ok_or(PackageError::Malformed("Phi81 challenge slot overflow"))?,
             )
             .and_then(|slot| slot.checked_add(final_lane))
-            .ok_or(PackageError::Invalid("Phi81 challenge slot overflow"))?;
+            .ok_or(PackageError::Malformed("Phi81 challenge slot overflow"))?;
         challenge.source(final_challenge_slot)?;
         source_run_at(
             &self.value_sources,
             invocation_count
                 .checked_sub(1)
-                .ok_or(PackageError::Invalid("Phi81 invocation count"))?,
+                .ok_or(PackageError::Malformed("Phi81 invocation count"))?,
         )?;
         Ok(())
     }
 }
 
-/// Decode and validate the exact five-field assignment transport.
 pub(super) fn decode(
     value: &Value,
     physical_width: usize,
@@ -551,18 +551,18 @@ pub(super) fn decode(
     logical_width: usize,
 ) -> Result<LoadedAssignmentPlan, PackageError> {
     let fields = exact_array(value, 5, "assignment transport plan")?;
-    if word(&fields[0], "assignment transport schema")? != TRANSPORT_SCHEMA {
-        return Err(PackageError::Invalid("assignment transport schema version"));
+    if usize_atom(&fields[0], "assignment transport schema")? != TRANSPORT_SCHEMA {
+        return Err(PackageError::Malformed("assignment transport schema version"));
     }
 
     let phi81 = Phi81Recipe::decode(&fields[2], physical_width)?;
     let quotient_value_count = phi81.invocation_count()?;
     if quotient_value_count != PHI81_INVOCATIONS {
-        return Err(PackageError::Invalid("Phi81 quotient value count"));
+        return Err(PackageError::Malformed("Phi81 quotient value count"));
     }
     let retained_width = physical_width
         .checked_add(quotient_value_count)
-        .ok_or(PackageError::Invalid("assignment retained source width overflow"))?;
+        .ok_or(PackageError::Malformed("assignment retained source width overflow"))?;
     let raw_blocks = exact_array(&fields[1], BLOCK_COUNT, "assignment block plans")?;
     let blocks = raw_blocks
         .iter()
@@ -577,18 +577,18 @@ pub(super) fn decode(
                 block
                     .slot_count
                     .checked_mul(FIELD_COORDINATES)
-                    .ok_or(PackageError::Invalid("assignment coordinate width overflow"))?,
+                    .ok_or(PackageError::Malformed("assignment coordinate width overflow"))?,
             )
-            .ok_or(PackageError::Invalid("assignment coordinate width overflow"))?;
+            .ok_or(PackageError::Malformed("assignment coordinate width overflow"))?;
     }
     if encoded_width != logical_width {
-        return Err(PackageError::Invalid("assignment coordinate width"));
+        return Err(PackageError::Malformed("assignment coordinate width"));
     }
 
     phi81.validate(&blocks, physical_width)?;
-    let output_digest_block = word(&fields[3], "output digest block selector")?;
+    let output_digest_block = usize_atom(&fields[3], "output digest block selector")?;
     if output_digest_block != OUTPUT_DIGEST_BLOCK {
-        return Err(PackageError::Invalid("output digest block selector"));
+        return Err(PackageError::Malformed("output digest block selector"));
     }
     let digest = block(&blocks, output_digest_block)?;
     digest.require_field_count(OUTPUT_DIGEST_WORDS)?;
@@ -596,7 +596,7 @@ pub(super) fn decode(
     for (slot, expression) in output_digest_expressions.iter().enumerate() {
         let source = digest.source(slot)?;
         if expression.direct_column() != Some(source) {
-            return Err(PackageError::Invalid("output digest expression source"));
+            return Err(PackageError::Malformed("output digest expression source"));
         }
     }
 
@@ -637,14 +637,14 @@ impl<'a> PhysicalAssignment<'a> {
             .constant_column
             .checked_add(1)
             .and_then(|width| width.checked_add(layout.public_column_count))
-            .ok_or(PackageError::Invalid("physical assignment width overflow"))?;
+            .ok_or(PackageError::Malformed("physical assignment width overflow"))?;
         if layout.private_column_count != layout.constant_column
             || total_columns != layout.total_column_count
             || physical_width != layout.total_column_count
             || assignment.private_values().len() != layout.private_column_count
             || assignment.public_values().len() != layout.public_column_count
         {
-            return Err(PackageError::Invalid("physical assignment dimensions"));
+            return Err(PackageError::Malformed("physical assignment dimensions"));
         }
         Ok(Self {
             private_values: assignment.private_values(),
@@ -656,22 +656,22 @@ impl<'a> PhysicalAssignment<'a> {
 
     fn value(&self, column: usize) -> Result<u64, PackageError> {
         if column >= self.total_columns {
-            return Err(PackageError::Invalid("physical assignment column"));
+            return Err(PackageError::Malformed("physical assignment column"));
         }
         let value = if column < self.constant_column {
             *self
                 .private_values
                 .get(column)
-                .ok_or(PackageError::Invalid("physical private assignment column"))?
+                .ok_or(PackageError::Malformed("physical private assignment column"))?
         } else if column == self.constant_column {
             1
         } else {
             *self
                 .public_values
                 .get(column - self.constant_column - 1)
-                .ok_or(PackageError::Invalid("physical public assignment column"))?
+                .ok_or(PackageError::Malformed("physical public assignment column"))?
         };
-        if value >= GOLDILOCKS_MODULUS {
+        if value >= Goldilocks::ORDER_U64 {
             return Err(PackageError::NonCanonicalField {
                 location: "physical assignment",
                 value,
@@ -695,7 +695,7 @@ impl Domains<'_> {
         self.quotients
             .get(index)
             .copied()
-            .ok_or(PackageError::Invalid("retained assignment source"))
+            .ok_or(PackageError::Malformed("retained assignment source"))
     }
 
     fn value(&self, domain: SourceDomain, index: usize) -> Result<u64, PackageError> {
@@ -708,16 +708,15 @@ impl Domains<'_> {
 
 fn raw_block_value(block: &BlockPlan, slot: usize, physical: &PhysicalAssignment<'_>) -> Result<u64, PackageError> {
     if block.domain != SourceDomain::Retained {
-        return Err(PackageError::Invalid("derived assignment block domain"));
+        return Err(PackageError::Malformed("derived assignment block domain"));
     }
     let source = block.source(slot)?;
     if source >= physical.total_columns {
-        return Err(PackageError::Invalid("derived assignment physical source"));
+        return Err(PackageError::Malformed("derived assignment physical source"));
     }
     physical.value(source)
 }
 
-/// Canonical quotient of the raw product by X^54 + X^27 + 1.
 fn phi81_quotient(left: &[u64; PHI81_RING_DEGREE], right: &[u64; PHI81_RING_DEGREE]) -> [u64; PHI81_RING_DEGREE] {
     let mut high_product = [0u64; 2 * PHI81_RING_DEGREE - 1];
     for (left_degree, &left_value) in left.iter().enumerate() {
@@ -745,7 +744,7 @@ fn derive_phi81_quotients(
     let output = transport.block(recipe.quotient_output_block)?;
     let expected_count = recipe.invocation_count()?;
     if output.slot_count != expected_count {
-        return Err(PackageError::Invalid("Phi81 quotient output count"));
+        return Err(PackageError::Malformed("Phi81 quotient output count"));
     }
 
     let mut quotients = vec![0; expected_count];
@@ -757,7 +756,7 @@ fn derive_phi81_quotients(
                     .checked_mul(recipe.challenge_source_stride)
                     .and_then(|offset| recipe.challenge_slot_base.checked_add(offset))
                     .and_then(|slot| slot.checked_add(lane))
-                    .ok_or(PackageError::Invalid("Phi81 challenge slot overflow"))?;
+                    .ok_or(PackageError::Malformed("Phi81 challenge slot overflow"))?;
                 *coefficient = sub_mod(
                     raw_block_value(challenge, challenge_slot, physical)?,
                     recipe.challenge_shift,
@@ -791,19 +790,19 @@ fn validate_derived_block_sources(
         let expected = *domains
             .quotients
             .get(slot)
-            .ok_or(PackageError::Invalid("Phi81 quotient output count"))?;
+            .ok_or(PackageError::Malformed("Phi81 quotient output count"))?;
         if domains.value(quotient.domain, quotient.source(slot)?)? != expected {
-            return Err(PackageError::Invalid("Phi81 quotient source map"));
+            return Err(PackageError::Malformed("Phi81 quotient source map"));
         }
     }
 
     let digest = transport.block(transport.output_digest_block)?;
     if digest.slot_count != output_digest.len() {
-        return Err(PackageError::Invalid("output digest block count"));
+        return Err(PackageError::Malformed("output digest block count"));
     }
     for (slot, expected) in output_digest.into_iter().enumerate() {
         if domains.value(digest.domain, digest.source(slot)?)? != expected {
-            return Err(PackageError::Invalid("output digest source map"));
+            return Err(PackageError::Malformed("output digest source map"));
         }
     }
     Ok(())
@@ -822,13 +821,13 @@ fn append_public(
     }
     let padding = logical_public_width
         .checked_sub(output.len())
-        .ok_or(PackageError::Invalid("logical public assignment width"))?;
+        .ok_or(PackageError::Malformed("logical public assignment width"))?;
     output.extend(std::iter::repeat_n(0, padding));
     Ok(())
 }
 
 fn encode_slot(value: u64, output: &mut Vec<i8>) -> Result<(), PackageError> {
-    if value >= GOLDILOCKS_MODULUS {
+    if value >= Goldilocks::ORDER_U64 {
         return Err(PackageError::NonCanonicalField {
             location: "logical assignment source",
             value,
@@ -837,14 +836,14 @@ fn encode_slot(value: u64, output: &mut Vec<i8>) -> Result<(), PackageError> {
     let start = output.len();
     encode_field(value, output);
     if output.len() - start != FIELD_COORDINATES {
-        return Err(PackageError::Invalid("assignment slot coordinate width"));
+        return Err(PackageError::Malformed("assignment slot coordinate width"));
     }
     Ok(())
 }
 
 fn encode_field(value: u64, output: &mut Vec<i8>) {
     let negative = value > CENTERED_HALF_MODULUS;
-    let mut magnitude = if negative { GOLDILOCKS_MODULUS - value } else { value };
+    let mut magnitude = if negative { Goldilocks::ORDER_U64 - value } else { value };
     for _ in 0..FIELD_COORDINATES {
         let remainder = magnitude % 3;
         let unsigned = match remainder {
@@ -859,18 +858,18 @@ fn encode_field(value: u64, output: &mut Vec<i8>) {
 }
 
 fn add_mod(left: u64, right: u64) -> u64 {
-    ((u128::from(left) + u128::from(right)) % u128::from(GOLDILOCKS_MODULUS)) as u64
+    ((u128::from(left) + u128::from(right)) % u128::from(Goldilocks::ORDER_U64)) as u64
 }
 
 fn mul_mod(left: u64, right: u64) -> u64 {
-    ((u128::from(left) * u128::from(right)) % u128::from(GOLDILOCKS_MODULUS)) as u64
+    ((u128::from(left) * u128::from(right)) % u128::from(Goldilocks::ORDER_U64)) as u64
 }
 
 fn neg_mod(value: u64) -> u64 {
     if value == 0 {
         0
     } else {
-        GOLDILOCKS_MODULUS - value
+        Goldilocks::ORDER_U64 - value
     }
 }
 
@@ -888,7 +887,7 @@ fn validate_canonical_run_boundaries(runs: &[Run]) -> Result<(), PackageError> {
             left_last.checked_add(right.step) == Some(right.first)
         };
         if mergeable {
-            return Err(PackageError::Invalid("noncanonical assignment source runs"));
+            return Err(PackageError::Malformed("noncanonical assignment source runs"));
         }
     }
     Ok(())
@@ -898,22 +897,7 @@ fn block(blocks: &[BlockPlan], opcode: usize) -> Result<&BlockPlan, PackageError
     blocks
         .get(opcode)
         .filter(|block| block.opcode == opcode)
-        .ok_or(PackageError::Invalid("assignment block selector"))
-}
-
-fn exact_array<'a>(value: &'a Value, expected_len: usize, location: &'static str) -> Result<&'a [Value], PackageError> {
-    let values = value.as_array().ok_or(PackageError::Invalid(location))?;
-    if values.len() != expected_len {
-        return Err(PackageError::Invalid(location));
-    }
-    Ok(values)
-}
-
-fn word(value: &Value, location: &'static str) -> Result<usize, PackageError> {
-    value
-        .as_u64()
-        .and_then(|word| usize::try_from(word).ok())
-        .ok_or(PackageError::Invalid(location))
+        .ok_or(PackageError::Malformed("assignment block selector"))
 }
 
 #[cfg(test)]

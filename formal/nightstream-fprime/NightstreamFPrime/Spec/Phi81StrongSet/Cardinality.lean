@@ -7,14 +7,11 @@ connects that count to the selected production profile. No set is enumerated. -/
 
 namespace NightstreamFPrime.Spec.Phi81StrongSet
 
-/-- The sampler has five choices at each of its 54 coefficient positions. -/
 theorem scalar_cardinality : Nat.card Scalar = productionChallengeSetCardinality := by
   change Nat.card (Fin coefficientCount → Fin alphabetSize) = _
   rw [Nat.card_fun, Nat.card_fin, Nat.card_fin]
   rfl
 
-/-- Ring membership has exactly the sampler's cardinality because the
-embedding is injective and membership is precisely its image. -/
 theorem productionMember_cardinality :
     Nat.card {value : RingF // ProductionMember value} =
       productionChallengeSetCardinality := by
@@ -32,8 +29,6 @@ theorem productionMember_cardinality :
       (Nat.card_eq_of_bijective embed bijective).symm
     _ = productionChallengeSetCardinality := scalar_cardinality
 
-/-- The profile's bit descriptor is the floor of the binary logarithm of
-the actual set size, expressed with exact integer inequalities. -/
 theorem productionMember_cardinality_bits :
     2 ^ productionProfile.challengeSetBitsFloor ≤
         Nat.card {value : RingF // ProductionMember value} ∧

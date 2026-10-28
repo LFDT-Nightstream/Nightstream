@@ -1,9 +1,7 @@
 import NightstreamFPrime.Export.Stage1.CompactRowExecution
 
 /-!
-The optimized constraint branch of the compact row executor. Direct rows
-read only input columns and perform no local write. The generic fallback
-reuses CompactRowExecution.run_lowerGenericConstraint unchanged.
+The optimized constraint branch of the compact row executor.
 -/
 
 set_option autoImplicit false
@@ -38,9 +36,6 @@ private theorem step_input_row (inputCount : Nat) (env : Env)
   have equation : row.a.eval env * row.b.eval env = row.c.eval env := holds
   simp [step, CompactRows.abstractRow, noOutput, instantiate_abstract_self, equation]
 
-/-- Keep the exact optimized/generic branch selected by directConstraint.
-Input scope excludes a local target in the direct row; logical zero supplies
-its existing completeness proof. No new direct-row recognizer is used. -/
 theorem run_lowerConstraint (inputCount : Nat) (env : Env)
     (expression : Expr) (start : Nat) (startBound : inputCount ≤ start)
     (scope : expression.VarsBelow inputCount) (logical : expression.eval env = 0) :
@@ -62,9 +57,6 @@ theorem run_lowerConstraint (inputCount : Nat) (env : Env)
         (result.complete env logical)
       simp [R1CS.lowerConstraint, R1CS.executeConstraint, found, run, passed]
 
-/-- Exact canonical template connection with its output index and recipe
-scope explicit. The environment is the state on entry to the row phase;
-establishing logical zero after the initial output write is a separate link. -/
 theorem run_compactConstraintTemplate (inputCount outputInput : Nat)
     (recipe : Expr) (env : Env) (outputBelow : outputInput < inputCount)
     (recipeScope : recipe.VarsBelow inputCount)

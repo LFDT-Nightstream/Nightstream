@@ -2,7 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiDECProductInterface
 
 /-!
 Select one quotient evaluation row without constructing the other rows.
-Retained lookup, point order, and rejection match the canonical opcode.
 -/
 
 set_option autoImplicit false
@@ -12,7 +11,6 @@ namespace NightstreamFPrime.Export.Stage1.PiDECProductRow
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- Select a fixed quotient check without constructing its sibling rows. -/
 def row? {columns : Nat} (interface : Phi81ProductPlan.Interface columns)
     (ordinal : Nat) : Option (OrdinaryRow.Forms columns) :=
   if within : ordinal < 108 then
@@ -24,8 +22,6 @@ theorem row?_value {columns : Nat} (interface : Phi81ProductPlan.Interface colum
     row? interface ordinal = (Phi81ProductPlan.rows interface)[ordinal]? := by
   simp only [row?, Phi81ProductPlan.rows, List.getElem?_ofFn]
 
-/-- Keep the existing opcode guards with the proved direct interface and
-row readers. Every loaded value and every rejection remain unchanged. -/
 def blockRow? (block : MatrixProgram.Phi81Product.Block) (columns ordinal : Nat) :
     Option (MatrixProgram.RowForms columns) :=
   if ordinal < block.rowCount then do
@@ -41,9 +37,6 @@ theorem blockRow?_value (block : MatrixProgram.Phi81Product.Block)
   simp only [blockRow?, MatrixProgram.Phi81Product.Block.row?,
     PiDECProductInterface.interface?_value, row?_value]
 
-/-- A row selected from a shared invocation interface has the exact canonical
-block meaning. Alignment connects the range-local quotient and remainder to
-those of the full block row; no interface-validity premise is required. -/
 theorem blockRow?_of_grouped_loaded (block : MatrixProgram.Phi81Product.Block)
     (columns firstRow index : Nat)
     (aligned : firstRow % 108 = 0)

@@ -71,7 +71,6 @@ private theorem equalities_supported (left right : KExpr)
   · exact ⟨leftSupport.1, ⟨trivial, rightSupport.1⟩⟩
   · exact ⟨leftSupport.2, ⟨trivial, rightSupport.2⟩⟩
 
-/-- A round's stored interval is inside the chain's stored interval. -/
 private theorem roundInterval_allowed {degree : Nat} (start : Nat)
     (rounds : Nat) (allowed : Nat → Prop)
     (stored : ∀ index, start ≤ index →
@@ -214,8 +213,6 @@ private theorem coreStored_allowed {degree : Nat}
   simpa [privateCount, FixedChain.Owned.privateCount,
     FixedChain.Owned.Interface.rounds] using upper
 
-/-- Exact support of the fixed PiCCS SumCheck-chain rows: the supported
-input wires and the chain's stored interval. -/
 theorem flatConstraints_varsSatisfy {degree : Nat}
     (interface : Interface degree) (offset : Nat) (allowed : Nat → Prop)
     (initialSupport : KSupported (interface.initial offset) allowed)
@@ -240,7 +237,6 @@ theorem flatConstraints_varsSatisfy {degree : Nat}
       (coreStored_allowed interface offset allowed storedSupport)
       expression equalityMember
 
-/-- The stored final SumCheck claim has the support of the chain rows. -/
 theorem output_varsSatisfy {degree : Nat}
     (interface : Interface degree) (offset : Nat) (allowed : Nat → Prop)
     (initialSupport : KSupported (interface.initial offset) allowed)

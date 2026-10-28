@@ -2,10 +2,10 @@
 //! later folds own only the current dense prefix. Missing coordinates are zero.
 
 use neo_math::{F, K};
-use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder};
 use p3_field::PrimeCharacteristicRing;
 
-use super::{support::k_words, Buffer, MetalError, MetalSession, MetalWitnessMasks};
+use super::{support::k_words, Arg, Buffer, Grid, MetalError, MetalSession, MetalWitnessMasks};
 
 enum Prefix {
     Masks(Buffer),
@@ -16,6 +16,34 @@ enum Prefix {
         zero: usize,
     },
     Dense(Buffer),
+}
+
+#[repr(u64)]
+#[derive(Clone, Copy)]
+pub(super) enum AssignmentEncoding {
+    Masks = 0,
+    U8Codes = 1,
+    U16Codes = 2,
+    Dense = 16,
+}
+
+impl AssignmentEncoding {
+    fn entry_bytes(self) -> usize {
+        match self {
+            Self::Masks => 0,
+            Self::U8Codes => size_of::<u8>(),
+            Self::U16Codes => size_of::<u16>(),
+            Self::Dense => size_of::<K>(),
+        }
+    }
+
+    fn for_codes(alphabet: Option<usize>) -> Self {
+        match alphabet {
+            Some(size) if size <= usize::from(u8::MAX) + 1 => Self::U8Codes,
+            Some(_) => Self::U16Codes,
+            None => Self::Dense,
+        }
+    }
 }
 
 pub(super) struct AssignmentTables {
@@ -46,13 +74,11 @@ impl AssignmentTables {
         })
     }
 
-    // Shader ABI: 0 = original masks, 1/2 = index bytes, 16 = dense K.
-    pub(super) fn encoding(&self) -> usize {
+    pub(super) fn encoding(&self) -> AssignmentEncoding {
         match &self.prefix {
-            Prefix::Masks(_) => 0,
-            Prefix::Codes { alphabet, .. } if *alphabet <= usize::from(u8::MAX) + 1 => 1,
-            Prefix::Codes { .. } => 2,
-            Prefix::Dense(_) => size_of::<K>(),
+            Prefix::Masks(_) => AssignmentEncoding::Masks,
+            Prefix::Codes { alphabet, .. } => AssignmentEncoding::for_codes(Some(*alphabet)),
+            Prefix::Dense(_) => AssignmentEncoding::Dense,
         }
     }
 
@@ -81,11 +107,7 @@ impl AssignmentTables {
         let next = alphabet
             .checked_mul(alphabet)
             .filter(|&n| n > 0 && n <= usize::from(u16::MAX) + 1);
-        let entry_bytes = match next {
-            Some(n) if n <= usize::from(u8::MAX) + 1 => 1,
-            Some(_) => 2,
-            None => size_of::<K>(),
-        };
+        let entry_bytes = AssignmentEncoding::for_codes(next).entry_bytes();
         self.count
             .checked_mul(self.len.div_ceil(2))
             .and_then(|n| n.checked_mul(entry_bytes))
@@ -112,11 +134,8 @@ impl AssignmentTables {
         let next_alphabet = alphabet
             .checked_mul(alphabet)
             .filter(|&size| size > 0 && size <= usize::from(u16::MAX) + 1);
-        let bytes = match next_alphabet {
-            Some(size) if size <= usize::from(u8::MAX) + 1 => 1,
-            Some(_) => 2,
-            None => size_of::<K>(),
-        };
+        let next_encoding = AssignmentEncoding::for_codes(next_alphabet);
+        let bytes = next_encoding.entry_bytes();
         let entries = self
             .count
             .checked_mul(next_len)
@@ -134,7 +153,7 @@ impl AssignmentTables {
             self.encoding() as u64,
             alphabet as u64,
             zero as u64,
-            bytes as u64,
+            next_encoding as u64,
         ])?;
         let next_values = next_alphabet
             .map(|size| session.buffer(size * size_of::<K>()))
@@ -142,27 +161,33 @@ impl AssignmentTables {
         let command = session.command_buffer("nightstream.pi_ccs.joint.assignment.fold")?;
         if let Some(values) = &next_values {
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&session.joint_fold_assignment_values);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(self.values()), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&challenge), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
-                encoder.setBuffer_offset_atIndex(Some(values), 0, 3);
-            }
-            session.dispatch(&encoder, &session.joint_fold_assignment_values, next_alphabet.unwrap());
+            session.launch(
+                &encoder,
+                &session.joint_fold_assignment_values,
+                &[
+                    Arg::Buffer(0, self.values()),
+                    Arg::Buffer(1, &challenge),
+                    Arg::Buffer(2, &shape),
+                    Arg::Buffer(3, values),
+                ],
+                Grid::Threads(next_alphabet.unwrap()),
+            );
             encoder.endEncoding();
         }
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&session.joint_fold_assignments);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(self.data(masks)), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&challenge), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&output), 0, 3);
-            encoder.setBuffer_offset_atIndex(Some(&self.sources), 0, 4);
-            encoder.setBuffer_offset_atIndex(Some(self.values()), 0, 5);
-        }
-        session.dispatch(&encoder, &session.joint_fold_assignments, entries);
+        session.launch(
+            &encoder,
+            &session.joint_fold_assignments,
+            &[
+                Arg::Buffer(0, self.data(masks)),
+                Arg::Buffer(1, &challenge),
+                Arg::Buffer(2, &shape),
+                Arg::Buffer(3, &output),
+                Arg::Buffer(4, &self.sources),
+                Arg::Buffer(5, self.values()),
+            ],
+            Grid::Threads(entries),
+        );
         encoder.endEncoding();
         session.finish(&command)?;
         self.prefix = match next_values {

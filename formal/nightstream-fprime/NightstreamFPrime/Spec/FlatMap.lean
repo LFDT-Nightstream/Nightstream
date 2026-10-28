@@ -1,11 +1,9 @@
 /-!
-Owns length and injectivity facts for flat maps with fixed-width pieces. The
-serializers and the transcript coverage proofs use them to split encodings.
+Owns length and injectivity facts for flat maps with fixed-width pieces.
 -/
 
 namespace NightstreamFPrime.Spec
 
-/-- Equal flat maps with equal piece lengths agree piece by piece. -/
 theorem flatMap_eq_of_lengths {α β : Type _} (indices : List α) (left right : α → List β)
     (lengths : ∀ index ∈ indices, (left index).length = (right index).length)
     (same : indices.flatMap left = indices.flatMap right) :
@@ -22,7 +20,6 @@ theorem flatMap_eq_of_lengths {α β : Type _} (indices : List α) (left right :
           (fun index member => lengths index (List.mem_cons_of_mem _ member))
           tailEqual index member
 
-/-- Flat maps with equal piece lengths have equal lengths. -/
 theorem flatMap_length_eq {α β : Type _} (indices : List α) (left right : α → List β)
     (lengths : ∀ index ∈ indices, (left index).length = (right index).length) :
     (indices.flatMap left).length = (indices.flatMap right).length := by
@@ -30,7 +27,6 @@ theorem flatMap_length_eq {α β : Type _} (indices : List α) (left right : α 
   congr 1
   exact List.map_congr_left lengths
 
-/-- A flat map of pieces of one fixed length. -/
 theorem flatMap_length_constant {α β : Type _} (indices : List α) (values : α → List β)
     (count : Nat) (each : ∀ index, (values index).length = count) :
     (indices.flatMap values).length = indices.length * count := by

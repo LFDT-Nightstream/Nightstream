@@ -36,14 +36,12 @@ private theorem reverseOnto_work {columns : Nat} (entries suffix : List (SparseE
       simp only [reverseOnto, ih, List.length_cons, Nat.mul_add, Nat.mul_one]
       omega
 
-/-- Construct the empty list, form and result. -/
 def empty {columns : Nat} (_ : Unit) : Result (SparseForm columns) := ⟨⟨[]⟩, 3⟩
 
 theorem empty_value {columns : Nat} : (empty (columns := columns) ()).value = SparseForm.empty := rfl
 
 theorem empty_work {columns : Nat} : (empty (columns := columns) ()).work = 3 := rfl
 
-/-- Construct the entry, empty tail, list cell, form and result. -/
 def singleton {columns : Nat} (column : Fin columns) (value : F) : Result (SparseForm columns) :=
   ⟨⟨[⟨column, value⟩]⟩, 5⟩
 
@@ -53,9 +51,6 @@ theorem singleton_value {columns : Nat} (column : Fin columns) (value : F) :
 theorem singleton_work {columns : Nat} (column : Fin columns) (value : F) :
     (singleton column value).work = 5 := rfl
 
-/-- Two tail-recursive passes copy the left entries and share the right
-tail. Each step charges dispatch, head/tail reads, cons and the next call.
-The wrapper charges list/result reads, calls, and constructors. -/
 def add {columns : Nat} (left right : SparseForm columns) : Result (SparseForm columns) :=
   let reversed := reverseOnto left.entries [] 0
   let result := reverseOnto reversed.value right.entries reversed.work
@@ -99,9 +94,6 @@ private theorem scaleLoop_work {columns : Nat} (scalar : F)
       simp only [scaleLoop, ih, List.length_cons, Nat.mul_add, Nat.mul_one]
       omega
 
-/-- Each mapped entry charges list dispatch/reads, both entry fields, field
-multiplication, the entry and list constructors, and the recursive call.
-The final reverse and outer form construction are included. -/
 def scale {columns : Nat} (scalar : F) (form : SparseForm columns) : Result (SparseForm columns) :=
   let result := scaleLoop scalar form.entries [] 0
   ⟨⟨result.value⟩, result.work + 6⟩
@@ -145,8 +137,6 @@ private theorem coefficientLoop_work_le {columns : Nat} (wanted : Nat)
       simp only [coefficientLoop, List.length_cons, Nat.mul_add, Nat.mul_one]
       split <;> omega
 
-/-- Read the wanted index once. Every stored entry is tested; all matches,
-including repeated columns, contribute to the coefficient in list order. -/
 def coefficient {columns : Nat} (form : SparseForm columns) (column : Fin columns) : Result F :=
   let result := coefficientLoop column.val form.entries 0 0
   ⟨result.value, result.work + 6⟩

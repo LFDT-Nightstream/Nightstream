@@ -42,17 +42,9 @@ inductive RowOwner where
   | nextPreimage
 deriving DecidableEq, Repr
 
-/-- The selected application's exact physical row count, named once so
-ownership proofs do not reduce its complete constraint list. -/
 def applicationRowCount
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
   R1CS.totalRowCount (Lowering.applicationConstraints program)
-
-theorem applicationRowCount_eq
-    (program : Lifecycle.Stage1.Application.Program) :
-    R1CS.totalRowCount (Lowering.applicationConstraints program) =
-      applicationRowCount program := by
-  rfl
 
 def rowRange (program : Lifecycle.Stage1.Application.Program) :
     RowOwner → Interval
@@ -105,7 +97,7 @@ theorem rowRanges_finish
   change 11377912 + applicationRowCount program + 5 =
     Lowering.physicalRowCount relation program
   rw [Lowering.physicalRowCount_eq]
-  rw [applicationRowCount_eq]
+  rw [← applicationRowCount]
 
 def rowOwnerAt (program : Lifecycle.Stage1.Application.Program)
     (row : Nat) : RowOwner :=
@@ -128,7 +120,7 @@ theorem selectedRow_in_range
     (program : Lifecycle.Stage1.Application.Program) (row : Nat)
     (bound : row < Lowering.physicalRowCount relation program) :
     (rowRange program (rowOwnerAt program row)).Contains row := by
-  rw [Lowering.physicalRowCount_eq, applicationRowCount_eq] at bound
+  rw [Lowering.physicalRowCount_eq, ← applicationRowCount] at bound
   by_cases h1 : row < 2543402
   · simp [rowOwnerAt, h1, rowRange, Interval.Contains, Interval.finish]
   by_cases h2 : row < 5086126

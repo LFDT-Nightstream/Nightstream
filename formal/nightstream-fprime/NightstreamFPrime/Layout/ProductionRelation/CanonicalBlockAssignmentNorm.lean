@@ -45,9 +45,6 @@ private theorem coordinateAt_norm (schedule : Schedule)
       · exact blockCoordinate_norm entry (valid entry (List.mem_cons_self)) index
       · exact induction (fun next member => valid next (List.mem_cons_of_mem _ member)) _
 
-/-- The canonical compact assignment is pointwise bounded when its public
-coordinates and every retained source slot satisfy their existing contracts.
-Coordinates outside the schedule are zero, so no coverage premise is needed. -/
 theorem assignment_norm {logicalWidth : Nat}
     (publicInput : Fin ProductionAssignment.publicWidth → F)
     (schedule : Schedule)

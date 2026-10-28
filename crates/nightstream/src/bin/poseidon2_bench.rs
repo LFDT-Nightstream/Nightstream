@@ -12,16 +12,12 @@ use std::{
 
 use nightstream::{
     application::{poseidon2_hash_chain_step, poseidon2_hash_chain_v1},
-    Circuit, Engine, State, Verifier,
+    Circuit, Engine, Goldilocks as F, PrimeCharacteristicRing, PrimeField64, State, Verifier,
 };
-use p3_field::{PrimeCharacteristicRing, PrimeField64};
-use p3_goldilocks::Goldilocks as F;
 use serde_json::{json, Value};
 
 type Result<T> = std::result::Result<T, Box<dyn Error>>;
 
-// The retained Poseidon2 base fixture supplies these inputs. Every later step
-// uses the same message, so separate engine runs have identical workloads.
 const INITIAL: [u64; 4] = [202, 203, 204, 205];
 const MESSAGE: [u64; 4] = [7, 11, 13, 17];
 
@@ -141,7 +137,7 @@ fn compile(output: &Path) -> Result<()> {
     emit(json!({
         "event":"package_compile_started", "schema":2, "benchmark":"poseidon2_hash_chain_v1",
         "output":output,
-        "profile":{"b":profile.b, "k_rho":profile.k_rho, "B":profile.B},
+        "profile":{"b":profile.b(), "k_rho":profile.k_rho(), "B":profile.B()},
     }))?;
     let total = Instant::now();
     let started = begin("compile", None)?;
@@ -170,12 +166,10 @@ fn benchmark(package: &Path, engine: Engine, steps: u64, minimum_security_bits: 
         "steps":steps, "active_extends":steps - 1,
         "minimum_security_bits":minimum_security_bits,
         "initial_state":INITIAL, "message":MESSAGE,
-        "profile":{"b":profile.b, "k_rho":profile.k_rho, "B":profile.B},
+        "profile":{"b":profile.b(), "k_rho":profile.k_rho(), "B":profile.B()},
     }))?;
     let total = Instant::now();
     let started = begin("load", None)?;
-    // The caller selects the package. Loading and both selected-engine
-    // capabilities are part of the measured lifecycle.
     let circuit = Circuit::load(package)?;
     let prover = circuit.prover(engine, minimum_security_bits)?;
     let verifier = Verifier::from_package(&circuit, engine, minimum_security_bits)?;

@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Check from-replay rejection. Run from the Nightstream repository root.
-
-Arguments: executable package[4] C-input commitments evaluations new-directory.
-The successful production run and original-source provenance are separate.
-"""
 
 import copy
 import json
@@ -68,8 +63,6 @@ def main():
             output_arguments[-1] = str(case) + "/./" + outputs[0].name
         command = ["bash", str(validator), "lean-executable", str(executable),
                    "from-replay", *package, *map(str, selected), *output_arguments]
-        # Project rejection-test cap. The caller supplies the outer graph guard;
-        # this child uses validate.sh directly and starts no nested graph guard.
         result = subprocess.run(command, cwd=formal, capture_output=True, timeout=300)
         log = result.stdout + result.stderr
         (case / "run.log").write_bytes(log)
@@ -87,7 +80,6 @@ def main():
 
     run("duplicate-outputs", "duplicate PiDEC replay output path", duplicate=True)
     run("aliased-outputs", "duplicate PiDEC replay output path", alias=True)
-    # The second output already exists; the first must remain absent.
     run("existing-last-output", "output already exists", existing=True)
     run("commitment-fields", "expected five complete commitment fields", 1,
         lambda value: value.pop())
@@ -124,15 +116,11 @@ def main():
         lambda value: value[4][15][3][53].__setitem__(1, P))
     run("wrong-derived-point", "Lean evaluation point differs from the derived parent", 2,
         lambda value: value[2][27].__setitem__(1, (value[2][27][1] + 1) % P))
-    # These keep complete canonical framing. Only the existing D recomposition
-    # check can reject the changed final commitment or matrix coefficient.
     run("changed-last-commitment", "independent PiDEC replay rejected", 1,
         lambda value: value[4][21][15].__setitem__(53, (value[4][21][15][53] + 1) % P))
     run("changed-last-matrix", "independent PiDEC replay rejected", 2,
         lambda value: value[4][15][3][53].__setitem__(1,
                                                    (value[4][15][3][53][1] + 1) % P))
-    # Changing the last round's constant term changes its endpoint sum by two,
-    # while all prior challenges and the incoming final-round claim stay fixed.
     run("changed-C-round", "PiCCS/PiRLC rejected or returned no parent", 0,
         lambda value: value[3][27][0].__setitem__(0, (value[3][27][0][0] + 1) % P))
     for path, content in zip(inputs, raw):

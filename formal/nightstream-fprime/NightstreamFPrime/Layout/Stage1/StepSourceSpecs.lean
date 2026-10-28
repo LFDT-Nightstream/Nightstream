@@ -1,7 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.StateEncodingReadback
 import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 import NightstreamFPrime.Layout.Stage1.NextPreimageInputs
-import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
+import NightstreamFPrime.Lifecycle.Stage1.Application
 import NightstreamFPrime.Lifecycle.Relation
 import NightstreamFPrime.Lifecycle.VerifierContext
 
@@ -47,10 +47,6 @@ private theorem current_word
     Lifecycle.Stage1.Application.stateWordCount index.val index.isLt).symm.trans
       (congrArg (fun words => words.getD index.val 0) current)
 
-/-- Exact bounded source words and the selected step establish both existing
-specifications. WellFormed keeps the prior and successor natural counters
-below the modulus. No generated phase specification or row is a premise.
-The NIFS result is used only in the positive branch. -/
 theorem specs_of_step
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -62,7 +58,8 @@ theorem specs_of_step
     (output : Output Digest AppState
       (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
     (env : Env)
-    (step : StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
+    (program : Lifecycle.Stage1.Application.Program)
+    (step : StepHoldsFor relation ajtai context.toList program input output)
     (priorWellFormed : StateEncoding.WellFormed (priorHashPreimage (setup relation ajtai context.toList) input))
     (nextWellFormed : StateEncoding.WellFormed (nextHashPreimage (setup relation ajtai context.toList) input output))
     (priorWords : ∀ index : Fin PilotProduction.stateHashWords,

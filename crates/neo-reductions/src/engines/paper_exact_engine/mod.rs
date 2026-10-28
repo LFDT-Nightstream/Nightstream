@@ -4,8 +4,6 @@
 //! zero-padded rectangular row domain. This module does not import optimized
 //! or cached evaluator code.
 
-#![allow(non_snake_case)]
-
 pub mod paper_joint;
 mod paper_matrix;
 mod paper_ring;
@@ -17,7 +15,7 @@ pub mod verify;
 
 pub use rlc_dec::{
     dec_reduction_paper_exact_with_commit_check, dec_reduction_paper_exact_with_rows,
-    rlc_claim_paper_exact_with_commit_mix, rlc_reduction_paper_exact_with_commit_mix, verify_dec_public_paper_exact,
+    rlc_claim_paper_exact_with_commit_mix, rlc_reduction_paper_exact_with_commit_mix,
 };
 
 pub use paper_rows::PaperMatrixRows;

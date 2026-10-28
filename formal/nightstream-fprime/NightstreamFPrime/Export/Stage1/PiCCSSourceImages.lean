@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiDECParentSparseRead
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 
 /-! Original-assignment reads for PiCCS source images. The caller shares the
-existing compact program and source accessor. No digit split is performed.
+existing compact program and source accessor.
 Preservation proofs are in PiCCSSourceImagesPreservation, outside the runner. -/
 
 set_option autoImplicit false
@@ -27,7 +27,6 @@ abbrev publicFits :=
 abbrev shape := PaperAlgebra.FullShape logicalWidth publicFits
 abbrev blockCount := Phi81ColumnLayout.blockCount shape.carrierWidth
 
-/-- Read the original complete block, including all retained tail lanes. -/
 def blockAt (assignment : Phi81Relation.Assignment shape) (block : Nat) : RingF :=
   if live : block < blockCount then
     CarrierAction.assignmentBlock assignment ⟨block, live⟩
@@ -39,8 +38,6 @@ def kernelRead {columns : Nat} (assignment : Phi81Relation.Assignment shape)
     ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩
     (blockAt assignment (column.val / ringDegree)) output
 
-/-- Reuse the exact prepared basis forms on the original source block.
-The caller prepares tables once and shares them across source/row reads. -/
 def preparedRead {columns : Nat}
     (tables : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
     (assignment : Phi81Relation.Assignment shape) (output : Fin ringDegree)
@@ -48,13 +45,10 @@ def preparedRead {columns : Nat}
   ((tables.get ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩).get output).evalSparse
     (blockAt assignment (column.val / ringDegree))
 
-/-- The original scalar assignment read for the fresh CCS matrices. -/
 def plainRead (assignment : Phi81Relation.Assignment shape)
     (column : Fin logicalWidth) : F :=
   assignment (Phi81CarrierLayout.embedLogical column)
 
-/-- Only rows beyond the complete program are zero. An active loader failure
-remains none; the selected preservation theorem discharges successful loads. -/
 def rowValues? (program : MatrixProgram.Program)
     (sourceRow : Nat → Option R1CS.Row) (read : Fin logicalWidth → F)
     (vertex : BooleanVertex Lifecycle.cubeVariables) : Option (Vector F Spec.ProductionRelation.matrixCount) :=
@@ -87,7 +81,6 @@ def assignmentValue (layout : UnifiedSources.ColumnLayout Lifecycle.cubeVariable
     (vertex : BooleanVertex Lifecycle.cubeVariables) : F :=
   layout.paddedValue 0 assignment vertex
 
-/-- The prepared basis read at the layout's Pad column, or its exact zero suffix. -/
 def preparedPadImage
     (tables : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
     (layout : ColumnLayout Lifecycle.cubeVariables shape.carrierWidth)
@@ -97,8 +90,6 @@ def preparedPadImage
   | some column => preparedRead tables assignment output column
   | none => 0
 
-/-- Assemble the four first-round image families from the original sources.
-All matrix calls use the numeric interpreter; any failed call returns none. -/
 def images? (program : MatrixProgram.Program)
     (sourceRow : Nat → Option R1CS.Row)
     (tables : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)

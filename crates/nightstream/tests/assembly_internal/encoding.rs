@@ -1,6 +1,6 @@
 use super::*;
 use crate::application::{poseidon2_hash_chain_v1, Affine, ApplicationBuilder};
-use nightstream_fprime::{ApplicationForm, ApplicationRecipeNode};
+use nightstream_fprime::{ApplicationForm, ApplicationRecipeNode, IdentityKind};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks;
 use serde_json::json;
@@ -10,8 +10,6 @@ fn manifest_bytes() -> &'static [u8] {
     include_bytes!("../../artifacts/shared-verifier-v1.json")
 }
 
-// These small conformance fixtures materialize every word for comparison. The
-// production assembler passes the sealed records directly to the native loader.
 fn materialized_plan(application: &ApplicationCircuit, manifest: &Manifest) -> wire::ApplicationPlan {
     let mut plan = application::plan(application, manifest).unwrap();
     let mut columns = plan.input_columns.clone();
@@ -108,7 +106,6 @@ fn rust_poseidon_plan_preserves_every_raw_row_recipe_and_identity_byte() {
     let expected = include_bytes!("../fixtures/poseidon2-application-reference.json");
     let mut actual = serde_json::to_vec(&plan).unwrap();
     actual.push(b'\n');
-    // Syntax, duplicate sparse terms and recipe operation order are identity inputs.
     assert_eq!(actual.len(), expected.len(), "raw application plan byte length");
     let first_difference = actual
         .iter()
@@ -129,9 +126,6 @@ fn independent_poseidon_assembly_equals_the_complete_reference_value() {
     let fixed = assemble(reference, &manifest, &application).unwrap();
     let actual = materialized_assembly(fixed, &application, &manifest);
 
-    // Compare the entire numeric-array value: physical constraints and witness
-    // recipes, every matrix block, assignment transport, layout and terminal data.
-    // No identity digest or selected row interval substitutes for this equality.
     assert!(
         actual == expected,
         "complete assembled value differs from the selected reference"
@@ -152,8 +146,6 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
         .join("artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let bytes = std::fs::read(path).unwrap();
     let manifest = Manifest::parse(manifest_bytes()).unwrap();
-    // The fixed maximum key, not the reference application's prefix, bounds
-    // application capacity. Both nonempty private segments add array nodes.
     let key_width = neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH;
     let fixed_width = manifest
         .geometry
@@ -189,7 +181,6 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
                     > key_width
             );
         }
-        // Reuse the input bytes, while retaining only one assembled Value at a time.
         let reference: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
         let fixed = assemble(reference, &manifest, &application).unwrap();
         assert_eq!(
@@ -199,7 +190,6 @@ fn assembled_fixed_source_reaches_the_compiler_node_bound() {
             usize::from(has_local)
         );
         if has_local {
-            // The prepared-package decoder must admit exactly this envelope.
             assert_eq!(nodes(&fixed), nightstream_fprime::PREPARED_FIXED_SOURCE_NODE_LIMIT);
         }
     }
@@ -213,8 +203,6 @@ fn preparation_rejects_a_changed_reference_even_when_assembly_repairs_it() {
     let expected: Value = serde_json::from_slice(&bytes).unwrap();
     let mut reference: wire::Envelope = serde_json::from_slice(&bytes).unwrap();
     drop(bytes);
-    // This part of the reference is replaced by the caller's application.
-    // A correct candidate therefore cannot authorize this altered blueprint.
     let constant = &mut reference.application.rows[0].a.constant;
     *constant = u64::from(*constant == 0);
     let mut changed = serde_json::to_vec(&reference).unwrap();
@@ -231,7 +219,10 @@ fn preparation_rejects_a_changed_reference_even_when_assembly_repairs_it() {
     drop(expected);
     assert!(matches!(
         prepare(&changed, &application),
-        Err(AssemblyError::Package(PackageError::ExpectedIdentityMismatch { .. }))
+        Err(AssemblyError::Package(PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
+            ..
+        }))
     ));
 }
 

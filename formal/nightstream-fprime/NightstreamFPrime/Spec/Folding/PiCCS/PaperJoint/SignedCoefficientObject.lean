@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedCoefficientPolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TableResiduals
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/SignedCoefficientObject.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Unsampled signed coefficient object for paper-level joint `Pi_CCS`.
 
@@ -22,20 +19,6 @@ approval, root-counting probability, SumCheck round or terminal truth,
 Fiat--Shamir, Rust, R1CS, or counts.
 
 Emits constraints: no.
-
-Authority boundary: negative alpha coefficients contain the verifier-derived
-finite canonical alpha polynomial, not a function-valued evaluator. Scalars
-are explicit Pad and matrix claimed-minus-derived residuals. Signs, block order,
-specialization, and the bad-root event are derived here; no prover-supplied
-degree, identity, or implementation artifact is accepted.
-
-| Protocol | Phase | Coefficient owner | Exact guarantee |
-|---|---|---|---|
-| `Pi_CCS` | before alpha | negative CCS / norm alpha polynomials | finite canonical coefficient vectors |
-| `Pi_CCS` | before alpha | Pad and matrix scalars | claimed minus derived prior-point evaluations |
-| `Pi_CCS` | alpha specialization | all four blocks | exact equality with the executable signed gamma coefficient list |
-| `Pi_CCS` | semantic truth | explicit residual tables | coefficient truth iff every table obligation holds |
-| `Pi_CCS` | gamma sampling | nonzero signed object | sampled zero is the named `MixingRoot` event |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedCoefficientObject
@@ -45,8 +28,6 @@ universe uField
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.SumCheck
 
-/-- One unsampled signed gamma coefficient. CCS and norm entries retain their
-finite alpha coefficient vectors; evaluation entries are alpha-free scalars. -/
 inductive Coefficient
     (Field : Type uField)
     (shape : Shape) where
@@ -56,8 +37,6 @@ inductive Coefficient
 
 namespace Coefficient
 
-/-- Coefficient-level zero before alpha sampling. The negative sign cannot
-change whether an alpha polynomial is identically zero. -/
 def Zero
     {Field : Type uField}
     {shape : Shape}
@@ -65,7 +44,6 @@ def Zero
   | .negativeAlpha polynomial => polynomial.CoefficientZero ops.toOps
   | .scalar value => value = ops.zero
 
-/-- Verifier-owned alpha specialization. -/
 def specialize
     {Field : Type uField}
     {shape : Shape}
@@ -78,7 +56,6 @@ def specialize
 
 end Coefficient
 
-/-- The exact residual tables underlying one explicit `JointData`. -/
 def toTableResidualData
     {Field : Type uField}
     {shape : Shape}
@@ -98,8 +75,6 @@ def toTableResidualData
       ((data.matrixImage coordinate).equalityWeightedSum
         ops data.priorPoint)
 
-/-- Unsigned residual carrier reused only for its finite alpha polynomials and
-table-level truth theorem. Signs are applied by `coefficients` below. -/
 def residuals
     {Field : Type uField}
     {shape : Shape}
@@ -108,7 +83,6 @@ def residuals
     Residuals Field shape (canonicalAlphaBasis shape) :=
   (toTableResidualData ops data).toResiduals ops
 
-/-- Exact constant-first unsampled signed coefficient object. -/
 def coefficients
     {Field : Type uField}
     {shape : Shape}
@@ -120,7 +94,6 @@ def coefficients
       ((residuals ops data).ccs.map Coefficient.negativeAlpha ++
         (residuals ops data).norm.map Coefficient.negativeAlpha))
 
-/-- Every unsampled coefficient is identically zero. -/
 def CoefficientTruth
     {Field : Type uField}
     {shape : Shape}
@@ -129,7 +102,6 @@ def CoefficientTruth
   forall coefficient,
     coefficient ∈ coefficients ops data -> coefficient.Zero ops
 
-/-- Alpha specialization of the complete signed object. -/
 def specializedCoefficients
     {Field : Type uField}
     {shape : Shape}
@@ -189,8 +161,6 @@ private theorem coefficientTruth_iff_families
     · exact ccsTruth polynomial polynomialMember
     · exact normTruth polynomial polynomialMember
 
-/-- Signed coefficient truth is exactly the pre-existing unsigned family
-truth because signs do not alter zero obligations. -/
 theorem coefficientTruth_iff_residualCoefficientTruth
     {Field : Type uField}
     {shape : Shape}
@@ -202,8 +172,6 @@ theorem coefficientTruth_iff_residualCoefficientTruth
   exact (Residuals.coefficientTruth_iff_residualFamilies
     ops.toOps (residuals ops data)).symm
 
-/-- The signed object is identically zero exactly when every explicit Pad,
-matrix, CCS, and norm residual table obligation holds. -/
 theorem coefficientTruth_iff_tableObligations
     {Field : Type uField}
     {shape : Shape}
@@ -292,7 +260,6 @@ private theorem specialize_matrix_eq
     SignedCoefficientPolynomial.matrixValues
   simp [List.map_map, Coefficient.specialize, Function.comp_def]
 
-/-- Exact alpha-specialization bridge into the executable signed gamma list. -/
 theorem specializedCoefficients_eq
     {Field : Type uField}
     {shape : Shape}
@@ -357,8 +324,6 @@ private theorem evaluateCoefficients_eq_zero_of_all_zero
         evaluateCoefficients_eq_zero_of_all_zero ops laws gamma values tailZero,
         laws.mul_zero, laws.zero_add]
 
-/-- Identically zero signed coefficients force sampled equality for every
-alpha and gamma. -/
 theorem evaluate_eq_zero_of_coefficientTruth
     {Field : Type uField}
     {shape : Shape}
@@ -380,8 +345,6 @@ theorem evaluate_eq_zero_of_coefficientTruth
   exact specialize_eq_zero_of_zero ops laws alpha coefficient
     (truth coefficient coefficientMember)
 
-/-- Exact signed mixing bad event: a nonzero finite alpha/gamma coefficient
-object vanishes at the verifier's sampled point. -/
 structure MixingRoot
     {Field : Type uField}
     {shape : Shape}
@@ -394,8 +357,6 @@ structure MixingRoot
     (SignedCoefficientPolynomial.polynomial ops data alpha).evaluate
       ops.toOps gamma = ops.zero
 
-/-- Sampled equality is exactly coefficient truth or the named signed mixing
-root. This is deterministic and makes no probability claim. -/
 theorem evaluate_eq_zero_iff_coefficientTruth_or_mixingRoot
     {Field : Type uField}
     {shape : Shape}

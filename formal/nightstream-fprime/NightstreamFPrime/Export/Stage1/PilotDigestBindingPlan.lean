@@ -5,9 +5,7 @@ import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
 /-!
 Owns eight explicit custody rows between the direct pilot Poseidon2 outputs
 and the legacy final-output columns consumed by the canonical pilot ordinary
-rows. Four rows bind the prior digest and four bind the output digest.
-
-This module does not retain or bind the unused capacity lanes.
+rows.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotDigestBindingPlan
@@ -194,7 +192,6 @@ def Matches {program : Lifecycle.Stage1.Application.Program}
   ∀ row, (legacyForm geometry row).eval assignment =
     (derivedForm geometry row).eval assignment
 
-/-- The eight bridge rows are exactly the eight digest-lane equalities. -/
 theorem rowsZero_iff_matches
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)

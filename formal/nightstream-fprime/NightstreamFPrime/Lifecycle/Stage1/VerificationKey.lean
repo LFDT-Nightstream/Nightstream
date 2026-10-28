@@ -19,7 +19,6 @@ namespace NightstreamFPrime.Lifecycle.Stage1.VerificationKey
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Lifecycle
 
-/-- Static values that every concrete backend verification key must bind. -/
 structure Binding where
   packageIdentity : VerifierContext.Digest4
   context : VerifierContext.Descriptor
@@ -42,8 +41,6 @@ def Binding.digest4 (binding : Binding) : VerifierContext.Digest4 :=
 def Binding.digest (binding : Binding) : KeyDigest :=
   binding.digest4.toList
 
-/-- Construct the binding only from a recomputed verifier-owned authority,
-the final verifier-pinned package identity, and the formula-library digest. -/
 def ofAuthority (packageIdentity : VerifierContext.Digest4)
     (authority : VerifierContext.Authority)
     (formulas : VerifierContext.Digest4) : Binding where
@@ -83,8 +80,6 @@ theorem Binding.serialize_length (binding : Binding) :
     binding.digest.length = 4 := by
   exact VerifierContext.Digest4.toList_length binding.digest4
 
-/-- Verification-key binding is recomputed from the complete canonical
-package, context, and formula-library preimage. -/
 theorem Binding.digest_recomputed (binding : Binding) :
     binding.digest =
       (VerifierContext.Digest4.ofList

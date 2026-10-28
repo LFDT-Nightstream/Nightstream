@@ -3,10 +3,8 @@ import Mathlib.Data.ZMod.ValMinAbs
 import Init.Data.Nat.Bitwise.Lemmas
 
 /-!
-Read signed binary digits from the existing centered integer view of one
-parent block. The cache uses Vector Int, preserves all coordinates, and
-changes neither the strict parent bound nor the prepared sparse forms.
-The loader and parent input codec are outside this module.
+Read signed binary digits from the existing centered integer view of one parent
+block. The loader and parent input codec are outside this module.
 -/
 
 set_option autoImplicit false
@@ -20,8 +18,6 @@ open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 
-/-- Nat.testBit reads the existing little-endian binary position directly.
-Only the centered integer sign selects the positive or negative unit. -/
 def cachedDigit (value : Int) (child : Radix.ChildIndex) : F :=
   if value.natAbs.testBit child.val then
     if 0 ≤ value then 1 else -1
@@ -47,8 +43,6 @@ private theorem centered_nonneg (value : F) :
     value.val ≤ goldilocksModulus / 2
   exact ZMod.valMinAbs_nonneg_iff (n := goldilocksModulus) value
 
-/-- Under the unchanged strict B bound, the cached bit and sign give the
-exact existing scalar split. No digit witness or cached-value premise is used. -/
 theorem cachedDigit_eq_splitScalar (value : F) (child : Radix.ChildIndex)
     (bounded : centeredMagnitude value < Radix.combinedBound) :
     cachedDigit (ZMod.valMinAbs (n := goldilocksModulus) value) child =
@@ -57,8 +51,6 @@ theorem cachedDigit_eq_splitScalar (value : F) (child : Radix.ChildIndex)
     centered_nonneg, Radix.splitScalar, if_pos bounded, Radix.boundedDigit,
     Radix.magnitudeDigit, Radix.natBit]
 
-/-- Use the cached bit and sign to skip, add or subtract each coefficient.
-The sparse entries and their order are unchanged. -/
 def sparseRead
     (forms : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
     (parent : Vector Int ringDegree) (basis : Fin ringDegree)
@@ -69,8 +61,6 @@ def sparseRead
       if 0 ≤ value then total + entry.coefficient else total - entry.coefficient
     else total) 0
 
-/-- The signed-bit fold is the original sparse evaluation for arbitrary
-stored coefficients and integer parent values. -/
 theorem sparseRead_eq_evalSparse
     (forms : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
     (parent : Vector Int ringDegree) (basis : Fin ringDegree)
@@ -88,9 +78,6 @@ theorem sparseRead_eq_evalSparse
   · cases bit : (parent.get entry.column).natAbs.testBit child.val <;>
       simp [cachedDigit, bit, positive, Fin.sub_eq_add_neg]
 
-/-- Mapping one parent block to its existing centered integer view preserves
-every read of the same sparse forms. The only premise is the original
-strict bound, which is checked before the parent cache is exposed. -/
 theorem sparseRead_map_valMinAbs
     (forms : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
     (parent : StoredAssignment ringDegree)

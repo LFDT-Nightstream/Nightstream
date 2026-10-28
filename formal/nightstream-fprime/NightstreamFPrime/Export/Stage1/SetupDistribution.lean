@@ -19,7 +19,6 @@ theorem setupCoefficientCount_eq : setupCoefficientCount = 967203072 := by
   rw [setupCoefficientCount, verifierRows_eq, messageColumns_eq]
   rfl
 
-/-- Sum of the single-coordinate error bounds across this exact key. -/
 def idealReductionErrorBudget : ℚ :=
   setupCoefficientCount * ((2 ^ 256 % goldilocksModulus : Nat) : ℚ) / 2 ^ 256
 
@@ -29,14 +28,11 @@ theorem idealReductionErrorBudget_eq :
     AjtaiSetupV1.ReductionBias.wide_remainder_eq]
   rfl
 
-/-- The exponent 191 is derived from this exact coefficient count and the
-checked remainder; it is not a target for cryptographic security. -/
 theorem idealReductionErrorBudget_lt : idealReductionErrorBudget < 1 / 2 ^ 191 := by
   rw [idealReductionErrorBudget_eq]
   norm_num
 
 open AjtaiSetupV1.Programming in
-/-- The programming error at the selected key is twice the reduction budget. -/
 theorem programmingError_eq :
     (Fintype.card (KeyIndex verifierRows messageColumns) : ℚ) * (2 * 4294967295 / 2 ^ 256) =
       2 * idealReductionErrorBudget := by
@@ -45,32 +41,24 @@ theorem programmingError_eq :
   norm_num [ringDegree]
 
 open AjtaiSetupV1.Programming in
-/-- The exponent 190 is derived from the exact coefficient count; it is not a
-target for cryptographic security. -/
 theorem programmingError_lt :
     (Fintype.card (KeyIndex verifierRows messageColumns) : ℚ) * (2 * 4294967295 / 2 ^ 256) <
       1 / 2 ^ 190 := by
   rw [programmingError_eq, idealReductionErrorBudget_eq]
   norm_num
 
-/-- The production commitment key reads its coefficients from the SHAKE128
-chunks of the production seed. -/
 theorem productionKey_eq_chunks :
     productionAjtaiKey =
       AjtaiSetupV1.Programming.keyOf (AjtaiSetupV1.Programming.residues
         (AjtaiSetupV1.Programming.setupChunks productionSeedBytes)) :=
   AjtaiSetupV1.Programming.verifierKey_eq productionSetup
 
-/-- The Φ₈₁ relation shape of the selected application's commitment key. -/
 abbrev commitmentShape : Phi81Relation.Shape :=
   Lifecycle.PaperAlgebra.FullShape
     (PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
     (PerApplicationFixedPoint.publicFits Poseidon2HashChainV1Package.application)
 
 open Classical AjtaiSetupV1.Programming in
-/-- Ideal-model binding at the production key: an attacker that sees every
-setup chunk finds a binding collision at most as often as the MSIS solver built
-from it succeeds on a uniform matrix, plus less than `2 ^ -190`. -/
 theorem production_binding_lt_solver {Extra : Type} [Fintype Extra] [Nonempty Extra]
     (bound : Nat)
     (attack : (KeyIndex verifierRows (Phi81ColumnLayout.blockCount commitmentShape.carrierWidth) →

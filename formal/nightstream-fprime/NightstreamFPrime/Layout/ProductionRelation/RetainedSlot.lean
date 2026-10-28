@@ -17,7 +17,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 
-/-- One identity form for each coordinate of one retained slot. -/
 def coordinateForms {sourceWidth : Nat}
     (slots : List (LowNormAssignment.Slot sourceWidth))
     (slot : Fin slots.length) :
@@ -27,7 +26,6 @@ def coordinateForms {sourceWidth : Nat}
       (ProductionAssignment.privateColumn
         (LowNormAssignment.coordinateIndex slots slot coordinate)) 1
 
-/-- Horner reconstruction for little-endian balanced coordinates. -/
 def recomposeForms {columns : Nat} : List (SparseForm columns) →
     SparseForm columns
   | [] => .empty
@@ -35,7 +33,6 @@ def recomposeForms {columns : Nat} : List (SparseForm columns) →
       SparseForm.add head
         (SparseForm.scale (fieldOfNat 3) (recomposeForms tail))
 
-/-- Sparse-form Horner evaluation is exactly balanced-ternary recomposition. -/
 theorem recomposeForms_eval {columns : Nat} (forms : List (SparseForm columns))
     (assignment : Assignment F columns) :
     (recomposeForms forms).eval assignment =
@@ -45,8 +42,6 @@ theorem recomposeForms_eval {columns : Nat} (forms : List (SparseForm columns))
   | cons head tail inductionHypothesis =>
       simp [recomposeForms, BalancedTernary.recompose, inductionHypothesis]
 
-/-- Evaluating all coordinate identity forms returns the exact canonical slot
-encoding in the same order. -/
 theorem coordinateForms_eval {sourceWidth : Nat}
     (publicInput : Fin ProductionAssignment.publicWidth → F)
     (slots : List (LowNormAssignment.Slot sourceWidth))
@@ -77,14 +72,12 @@ theorem coordinateForms_eval {sourceWidth : Nat}
       exact LowNormSlot.coordinateList_eq_encode
         (slots.get slot).kind (source (slots.get slot).source)
 
-/-- Final sparse form for one retained source value. -/
 def form {sourceWidth : Nat}
     (slots : List (LowNormAssignment.Slot sourceWidth))
     (slot : Fin slots.length) :
     SparseForm (ProductionAssignment.logicalWidth slots) :=
   recomposeForms (coordinateForms slots slot)
 
-/-- The retained-slot form reconstructs the exact selected source field. -/
 theorem form_eval {sourceWidth : Nat}
     (publicInput : Fin ProductionAssignment.publicWidth → F)
     (slots : List (LowNormAssignment.Slot sourceWidth))

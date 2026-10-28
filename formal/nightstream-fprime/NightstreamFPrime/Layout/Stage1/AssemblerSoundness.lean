@@ -56,8 +56,6 @@ def recursiveRunningValue
   PiCCS.v1_2.StatementAbsorption.evalRunning
     (interface.running.recursive offset) env
 
-/-- The typed running value stored by the output words: the decode of the
-running block they fill. -/
 def outputRunningValue
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {program : Application.Program}
@@ -68,7 +66,6 @@ def outputRunningValue
     (RunningTransition.outputWords interface.running offset env).getD
       (word - PiCCSInputs.priorRunningStart) 0
 
-/-- Output words that serialize a canonical running instance store it. -/
 theorem outputRunningValue_eq_of_serialized
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {program : Application.Program}
@@ -93,8 +90,6 @@ theorem outputRunningValue_eq_of_serialized
     rw [Nat.add_sub_cancel_left]
     exact List.getD_eq_getElem _ _ rightBound
 
-/-- The one complete NIFS proof value carried by the Stage 1 parent. PiCCS
-owns the round and output fields; PiDEC owns the child message fields. -/
 def nifsProofValue
     {relation : ProductionKey.LogicalRelation logicalWidth publicFits}
     {program : Application.Program}
@@ -539,7 +534,6 @@ private theorem compactOutputForAttempt_eq_recursive
   · funext running
     rfl
 
-/-- Typed meaning of the external wires of one fixed Stage 1 parent. -/
 structure Represents
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -603,8 +597,6 @@ structure Represents
   priorPc : input.priorPc = 1
   pcNext : output.pcNext = functionIndex
 
-/-- The compact eight-child Stage 1 specification implies the complete
-deterministic SuperNeo accumulator update. -/
 theorem spec_implies_compactAccumulator
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -775,10 +767,6 @@ private theorem application_eq
     _ = program.step input.zi input.witness := by
       rw [represents.applicationInput, represents.applicationWitness]
 
-/-- Arbitrary satisfying child assignments imply the exact fixed HyperNova
-step once their external wires are identified and the recursive SuperNeo
-verifier graph is supplied. The accumulator premise is unused on the base
-branch. -/
 theorem spec_implies_stepHoldsFor
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -916,9 +904,6 @@ theorem spec_implies_stepHoldsFor
       exact Or.inr ⟨priorPcValid, iterationPositive, priorPublicInput,
         selectedNifs, unchanged⟩
 
-/-- The canonical compact eight-child parent implies the exact fixed
-HyperNova step. Its recursive accumulator premise is derived from the three
-phase-local specifications and their Lean-owned wiring. -/
 theorem compactSpec_implies_stepHoldsFor
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Mechanical enforcement of the architecture boundaries in
 # FPRIME_LEAN_ARCHITECTURE_SPEC.md. Every check is a hard failure.
+#   check-boundaries.sh [package-dir]
+# With no argument, it checks F′. Another package, such as
+# ../compression-lean, gets only the package-wide checks. The layer,
+# matrix and consumer rules belong to F′.
 set -euo pipefail
 
 # Associative arrays require Bash 4. macOS ships Bash 3.2; use Homebrew when present.
@@ -14,22 +18,16 @@ if (( BASH_VERSINFO[0] < 4 )); then
   exit 2
 fi
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT"
-# A downstream package, such as ../compression-lean, gets only the
-# package-wide checks. The layer, matrix and consumer rules belong to F′.
-package="${1:-.}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+# Resolve the argument from the caller's directory and compare physical
+# paths, so that every spelling of the F′ path selects the F′ checks.
+package="$(cd "${1:-$ROOT}" && pwd -P)"
 cd "$package"
 status=0
 fail() { echo "[boundary] $1" >&2; status=1; }
 
 lean_files() {
-  if [[ "$package" == . ]]; then
-    find NightstreamFPrime tests -name '*.lean' -print
-    printf '%s\n' NightstreamFPrime.lean
-  else
-    find . -name '*.lean' -not -path './.lake/*' | sed 's#^\./##'
-  fi
+  find . -path ./.lake -prune -o -name '*.lean' -print | sed 's#^\./##'
 }
 
 if lean_files | xargs grep -nE '^import Nightstream\.' 2>/dev/null; then
@@ -118,7 +116,7 @@ for module in "${!module_path[@]}"; do
   fi
 done
 
-if [[ "$package" != . ]]; then
+if [[ "$package" != "$ROOT" ]]; then
   if (( status == 0 )); then echo "[boundary] $package: all package-wide checks passed"; fi
   exit $status
 fi

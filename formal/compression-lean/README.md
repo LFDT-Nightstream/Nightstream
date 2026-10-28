@@ -78,7 +78,8 @@ what it does not own.
 ## Build
 
 Run each Lean command under the 1,500 s cap. Copy the F′ build cache into `.lake` first
-(`cp -cR ../nightstream-fprime/.lake/packages .lake/`), so that Lake does not rebuild Mathlib.
+(`mkdir -p .lake && cp -cR ../nightstream-fprime/.lake/packages .lake/`), so that Lake does not
+rebuild Mathlib. Without `.lake`, the copy would land in `.lake/mathlib`.
 
 ```bash
 timeout --signal=KILL 1500 lake build

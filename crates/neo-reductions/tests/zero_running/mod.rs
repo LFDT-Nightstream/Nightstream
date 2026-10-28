@@ -7,7 +7,7 @@ use neo_params::NeoParams;
 use neo_reductions::engines::pi_ccs_joint::build_joint_dims;
 use p3_field::PrimeCharacteristicRing;
 
-pub fn zero_running(
+pub(crate) fn zero_running(
     params: &NeoParams,
     structure: &CcsStructure<F>,
     fresh_count: usize,
@@ -18,7 +18,7 @@ pub fn zero_running(
         .variables;
     let padded = D.next_power_of_two();
     let claim = CeClaim {
-        c: Commitment::zeros(D, params.kappa as usize),
+        c: Commitment::zeros(params.kappa() as usize),
         X: Mat::zero(D, neo_ccs::superneo_public_x_cols(m_in).unwrap(), F::ZERO),
         r: vec![K::ZERO; variables],
         eval_k: vec![K::ZERO; padded],
@@ -27,5 +27,5 @@ pub fn zero_running(
         fold_digest: [0; 32],
         adv: None,
     };
-    (vec![claim], vec![Mat::zero(D, structure.m.div_ceil(D), F::ZERO)])
+    (vec![claim], vec![Mat::zero(D, structure.m().div_ceil(D), F::ZERO)])
 }

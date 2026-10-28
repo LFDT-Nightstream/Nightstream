@@ -73,15 +73,15 @@ fn matrix_entry<Ff: Field + PrimeCharacteristicRing + Copy>(mat: &CcsMatrix<Ff>,
         }
         CcsMatrix::Csc(csc) => {
             let range = csc.column_range(col);
-            match csc.row_idx[range.clone()].binary_search(&(row as u32)) {
-                Ok(idx) => csc.vals[range.start + idx],
+            match csc.row_idx()[range.clone()].binary_search(&(row as u32)) {
+                Ok(idx) => csc.vals()[range.start + idx],
                 Err(_) => Ff::ZERO,
             }
         }
         CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
             let range = csc.column_range(col);
-            let mut value = match csc.row_idx[range.clone()].binary_search(&(row as u32)) {
-                Ok(idx) => csc.vals[range.start + idx],
+            let mut value = match csc.row_idx()[range.clone()].binary_search(&(row as u32)) {
+                Ok(idx) => csc.vals()[range.start + idx],
                 Err(_) => Ff::ZERO,
             };
             for run in geometric_runs {

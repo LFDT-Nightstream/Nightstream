@@ -1,5 +1,4 @@
 #![forbid(unsafe_code)]
-#![allow(missing_docs)]
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
 //! neo-math: Fq (Goldilocks), K=F_{q^2}, R_q = F_q[X]/(Phi_eta), cf/cf^{-1}, and S-action.

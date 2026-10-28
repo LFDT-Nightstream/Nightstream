@@ -7,7 +7,9 @@ use p3_goldilocks::Goldilocks;
 use serde_json::Value;
 
 use crate::package::{
-    PackageError, PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT,
+    PackageError, DECOMPOSITION_BASE, DECOMPOSITION_K_RHO, DECOMPOSITION_NORM_BOUND, PI_CCS_V1_2_COEFFICIENT_COUNT,
+    PI_CCS_V1_2_MATRIX_COUNT, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT, PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT,
+    PI_DEC_V1_2_CHILD_COUNT,
 };
 
 mod native;
@@ -24,17 +26,17 @@ const IDENTITY_DOMAIN: [u64; 29] = [
 const VERIFIER_CONTEXT_PROFILE: [u64; 14] = [
     4_294_967_295,
     1,
-    2,
-    16,
-    65_536,
+    DECOMPOSITION_BASE,
+    DECOMPOSITION_K_RHO as u64,
+    DECOMPOSITION_NORM_BOUND,
     1,
-    16,
-    17,
-    16,
+    PI_DEC_V1_2_CHILD_COUNT as u64,
+    PI_CCS_V1_2_SOURCE_COUNT as u64,
+    PI_DEC_V1_2_CHILD_COUNT as u64,
     PI_CCS_V1_2_MATRIX_COUNT as u64,
     PI_CCS_V1_2_ROUND_COUNT as u64,
     (PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT - 1) as u64,
-    54,
+    PI_CCS_V1_2_COEFFICIENT_COUNT as u64,
     22,
 ];
 const VERIFIER_CONTEXT_SCHEDULE: [u64; 10] = [
@@ -57,28 +59,63 @@ const PACKAGE_IDENTITY_DOMAIN: &[u8] = b"Nightstream/FPrime/sealed-package/v2";
 const VERIFICATION_KEY_DOMAIN: &[u8] = b"Nightstream/FPrime/verifier-key/v1";
 const FORMULA_LIBRARY_DOMAIN: &[u8] = b"Nightstream/FPrime/formulas/v1";
 
-pub const POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER: [u64; 4] = [
+/// The Poseidon2 digest of a per-application package's relation value.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct StructuralIdentifier([u64; 4]);
+
+impl StructuralIdentifier {
+    pub const fn from_words(words: [u64; 4]) -> Self {
+        Self(words)
+    }
+
+    pub const fn words(self) -> [u64; 4] {
+        self.0
+    }
+}
+
+/// The Poseidon2 digest of the structural identifier and the verifier-context
+/// descriptor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct PackageIdentity([u64; 4]);
+
+impl PackageIdentity {
+    pub const fn words(self) -> [u64; 4] {
+        self.0
+    }
+}
+
+/// The Poseidon2 digest of the verification-key words.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct VerificationKeyDigest([u64; 4]);
+
+impl VerificationKeyDigest {
+    pub const fn words(self) -> [u64; 4] {
+        self.0
+    }
+}
+
+pub const POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER: StructuralIdentifier = StructuralIdentifier([
     5_156_750_079_506_471_084,
     25_954_936_854_723_981,
     3_766_112_621_299_948_091,
     2_357_000_593_782_310_184,
-];
-pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: [u64; 4] = [
+]);
+pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: PackageIdentity = PackageIdentity([
     2_750_965_380_250_823_418,
     16_409_890_074_304_069_397,
     11_068_150_825_855_552_703,
     3_665_459_373_282_535_041,
-];
-pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: [u64; 4] = [
+]);
+pub const POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST: VerificationKeyDigest = VerificationKeyDigest([
     8_981_812_563_576_989_885,
     255_848_964_154_363_374,
     4_393_268_563_461_410_284,
     7_044_842_614_397_459_900,
-];
+]);
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PiCcsV1_2VerifierContext {
-    package_identity: [u64; 4],
+    structural_identifier: StructuralIdentifier,
     relation_words: Vec<u64>,
     application: ApplicationIdentity,
     nifs_key_words: Vec<u64>,
@@ -116,8 +153,8 @@ impl PiCcsV1_2VerifierContext {
         &self.descriptor_words
     }
 
-    pub(crate) fn structural_identifier(&self) -> [u64; 4] {
-        self.package_identity
+    pub(crate) fn structural_identifier(&self) -> StructuralIdentifier {
+        self.structural_identifier
     }
 }
 
@@ -148,19 +185,19 @@ impl ApplicationIdentity {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Stage1VerifierBinding {
-    structural_identifier: [u64; 4],
-    package_identity: [u64; 4],
+    structural_identifier: StructuralIdentifier,
+    package_identity: PackageIdentity,
     verifier_context: PiCcsV1_2VerifierContext,
     verification_key_words: Vec<u64>,
-    verification_key_digest: [u64; 4],
+    verification_key_digest: VerificationKeyDigest,
 }
 
 impl Stage1VerifierBinding {
-    pub fn structural_identifier(&self) -> [u64; 4] {
+    pub fn structural_identifier(&self) -> StructuralIdentifier {
         self.structural_identifier
     }
 
-    pub fn package_identity(&self) -> [u64; 4] {
+    pub fn package_identity(&self) -> PackageIdentity {
         self.package_identity
     }
 
@@ -172,7 +209,7 @@ impl Stage1VerifierBinding {
         &self.verification_key_words
     }
 
-    pub fn verification_key_digest(&self) -> [u64; 4] {
+    pub fn verification_key_digest(&self) -> VerificationKeyDigest {
         self.verification_key_digest
     }
 }
@@ -193,20 +230,20 @@ pub(crate) fn formula_library_digest(library: &Value) -> Result<[u64; 4], Packag
 }
 
 pub(super) fn stage1_verifier_binding(
-    structural_identifier: [u64; 4],
+    structural_identifier: StructuralIdentifier,
     logical_columns: usize,
     relation_value_words: &[u64],
     application: &ApplicationIdentity,
     formula_digest: [u64; 4],
 ) -> Result<Stage1VerifierBinding, PackageError> {
     let message_columns = u64::try_from(logical_columns.div_ceil(54))
-        .map_err(|_| PackageError::Invalid("Stage 1 carrier block count"))?;
+        .map_err(|_| PackageError::Malformed("Stage 1 carrier block count"))?;
     let commitment_key_words = authority_words(PRODUCTION_VERIFIER_ROWS, message_columns, &PRODUCTION_SEED);
     validate_context_words(relation_value_words)?;
     validate_context_words(&commitment_key_words)?;
 
     let mut relation_words = relation_value_words.to_vec();
-    relation_words.extend_from_slice(&structural_identifier);
+    relation_words.extend_from_slice(&structural_identifier.words());
     let commitment_digest = component_digest(4, &commitment_key_words)?;
 
     let mut nifs_key_words = bytes_as_words(NIFS_KEY_DOMAIN);
@@ -228,7 +265,7 @@ pub(super) fn stage1_verifier_binding(
     let digest = poseidon_words(&descriptor_words);
 
     let verifier_context = PiCcsV1_2VerifierContext {
-        package_identity: structural_identifier,
+        structural_identifier,
         relation_words,
         application: application.clone(),
         nifs_key_words,
@@ -238,15 +275,15 @@ pub(super) fn stage1_verifier_binding(
     };
 
     let mut package_identity_words = bytes_as_words(PACKAGE_IDENTITY_DOMAIN);
-    append_framed(&mut package_identity_words, &structural_identifier)?;
+    append_framed(&mut package_identity_words, &structural_identifier.words())?;
     append_framed(&mut package_identity_words, &descriptor_words)?;
-    let package_identity = poseidon_words(&package_identity_words);
+    let package_identity = PackageIdentity(poseidon_words(&package_identity_words));
 
     let mut verification_key_words = bytes_as_words(VERIFICATION_KEY_DOMAIN);
-    append_framed(&mut verification_key_words, &package_identity)?;
+    append_framed(&mut verification_key_words, &package_identity.words())?;
     append_framed(&mut verification_key_words, &descriptor_words)?;
     append_framed(&mut verification_key_words, &formula_digest)?;
-    let verification_key_digest = poseidon_words(&verification_key_words);
+    let verification_key_digest = VerificationKeyDigest(poseidon_words(&verification_key_words));
 
     Ok(Stage1VerifierBinding {
         structural_identifier,
@@ -264,7 +301,7 @@ fn component_digest(component: u64, words: &[u64]) -> Result<[u64; 4], PackageEr
 }
 
 fn component_hasher(component: u64, word_count: usize) -> Result<poseidon2::Poseidon2Hasher, PackageError> {
-    let length = u64::try_from(word_count).map_err(|_| PackageError::Invalid("verifier-context word length"))?;
+    let length = u64::try_from(word_count).map_err(|_| PackageError::Malformed("verifier-context word length"))?;
     let mut input = poseidon2::Poseidon2Hasher::default();
     for &byte in VERIFIER_CONTEXT_COMPONENT_DOMAIN {
         input.update(&[Goldilocks::from_u64(u64::from(byte))]);
@@ -274,7 +311,7 @@ fn component_hasher(component: u64, word_count: usize) -> Result<poseidon2::Pose
 }
 
 fn append_framed(target: &mut Vec<u64>, words: &[u64]) -> Result<(), PackageError> {
-    let length = u64::try_from(words.len()).map_err(|_| PackageError::Invalid("verifier-context word length"))?;
+    let length = u64::try_from(words.len()).map_err(|_| PackageError::Malformed("verifier-context word length"))?;
     target.push(length);
     target.extend_from_slice(words);
     Ok(())
@@ -286,7 +323,7 @@ fn bytes_as_words(bytes: &[u8]) -> Vec<u64> {
 
 fn validate_context_words(words: &[u64]) -> Result<(), PackageError> {
     if words.iter().any(|word| *word >= Goldilocks::ORDER_U64) {
-        return Err(PackageError::Invalid("noncanonical verifier-context authority word"));
+        return Err(PackageError::Malformed("noncanonical verifier-context authority word"));
     }
     Ok(())
 }
@@ -333,13 +370,13 @@ impl CanonicalSink<'_> {
     }
 
     fn index(&mut self, value: usize) -> Result<(), PackageError> {
-        self.number(u64::try_from(value).map_err(|_| PackageError::Invalid("package index"))?)
+        self.number(u64::try_from(value).map_err(|_| PackageError::Malformed("package index"))?)
     }
 
     fn array(&mut self, length: usize) -> Result<(), PackageError> {
         self.node(
             1,
-            u64::try_from(length).map_err(|_| PackageError::Invalid("array length"))?,
+            u64::try_from(length).map_err(|_| PackageError::Malformed("array length"))?,
         )
     }
 
@@ -348,7 +385,7 @@ impl CanonicalSink<'_> {
             Value::Number(number) => self.number(
                 number
                     .as_u64()
-                    .ok_or(PackageError::Invalid("non-natural package atom"))?,
+                    .ok_or(PackageError::Malformed("non-natural package atom"))?,
             ),
             Value::Array(values) => {
                 self.array(values.len())?;
@@ -357,7 +394,7 @@ impl CanonicalSink<'_> {
                 }
                 Ok(())
             }
-            _ => Err(PackageError::Invalid("nonnumeric package value")),
+            _ => Err(PackageError::Malformed("nonnumeric package value")),
         }
     }
 }

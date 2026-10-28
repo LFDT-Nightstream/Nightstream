@@ -6,7 +6,7 @@ use std::{
     time::Instant,
 };
 
-use nightstream_fprime::load_per_application_package;
+use nightstream_fprime::{load_per_application_package, StructuralIdentifier};
 use rayon::prelude::*;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -254,7 +254,8 @@ fn independent_actual_child_evaluation_family() {
         vec![Some(matrix)]
     };
     let bytes = fs::read(&inputs.package).expect("canonical package");
-    let package = load_per_application_package(&bytes, inputs.structural_identity).expect("selected package identity");
+    let package = load_per_application_package(&bytes, StructuralIdentifier::from_words(inputs.structural_identity))
+        .expect("selected package identity");
     let logical_width = package.logical_column_count();
     let row_count = package.row_count();
     let native_width = logical_width.div_ceil(DEGREE) * DEGREE;

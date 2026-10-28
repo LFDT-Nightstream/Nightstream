@@ -53,21 +53,24 @@ fn empty_rows_do_not_read_dummy_offsets() {
         .unwrap();
     let command = session.command_buffer("test.empty_matrix_offsets").unwrap();
     let encoder = command.computeCommandEncoder().unwrap();
-    encoder.setComputePipelineState(&session.joint_build_application_tables);
-    unsafe {
-        encoder.setBuffer_offset_atIndex(Some(&matrix.row_offsets), 0, 0);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.row_blocks), 0, 1);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_offsets), 0, 2);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_locals), 0, 3);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_coefficients), 0, 4);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_row_offsets), 0, 5);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.geometric_runs), 0, 6);
-        encoder.setBuffer_offset_atIndex(Some(masks.words()), 0, 7);
-        encoder.setBuffer_offset_atIndex(Some(&shape), 0, 8);
-        encoder.setBuffer_offset_atIndex(Some(&table), 0, 9);
-        encoder.setBuffer_offset_atIndex(Some(&matrix.dense_row_blocks), 0, 10);
-    }
-    session.dispatch(&encoder, &session.joint_build_application_tables, 1);
+    session.launch(
+        &encoder,
+        &session.joint_build_application_tables,
+        &[
+            Arg::Buffer(0, &matrix.row_offsets),
+            Arg::Buffer(1, &matrix.row_blocks),
+            Arg::Buffer(2, &matrix.dense_offsets),
+            Arg::Buffer(3, &matrix.dense_locals),
+            Arg::Buffer(4, &matrix.dense_coefficients),
+            Arg::Buffer(5, &matrix.geometric_row_offsets),
+            Arg::Buffer(6, &matrix.geometric_runs),
+            Arg::Buffer(7, masks.words()),
+            Arg::Buffer(8, &shape),
+            Arg::Buffer(9, &table),
+            Arg::Buffer(10, &matrix.dense_row_blocks),
+        ],
+        Grid::Threads(1),
+    );
     encoder.endEncoding();
     session.finish(&command).unwrap();
     assert_eq!(session.read_buffer::<u64>(&table, 1), vec![0]);
@@ -86,20 +89,22 @@ fn zero_carried_tables_fit_their_advertised_length() {
     let mut params = neo_params::NeoParams::nightstream_goldilocks_k16();
     let security = params
         .padded_row_security_summary_for_shape(
-            structure.n,
-            structure.m,
+            structure.n(),
+            structure.m(),
             structure.t(),
             structure.max_degree(),
             neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
         )
         .unwrap();
-    params.lambda = params.lambda.min(security.security_bits);
-    let dims = build_joint_dims(&params, &structure, 1, params.k_rho as usize).unwrap();
+    params = params
+        .with_lambda(params.lambda().min(security.security_bits))
+        .unwrap();
+    let dims = build_joint_dims(&params, &structure, 1, params.k_rho() as usize).unwrap();
     let point = vec![K::ZERO; dims.variables];
     let fresh = [neo_ccs::CcsWitness {
         Z: Mat::zero(D, 1, F::ZERO),
     }];
-    let running = vec![Mat::zero(D, 1, F::ZERO); params.k_rho as usize];
+    let running = vec![Mat::zero(D, 1, F::ZERO); params.k_rho() as usize];
     let input = PaperJointOracleInput {
         structure: &structure,
         params: &params,
@@ -161,13 +166,15 @@ fn application_storage_does_not_reserve_future_rounds() {
                 neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
             )
             .unwrap();
-        params.lambda = params.lambda.min(security.security_bits);
-        let dims = build_joint_dims(&params, &structure, 1, params.k_rho as usize).unwrap();
+        params = params
+            .with_lambda(params.lambda().min(security.security_bits))
+            .unwrap();
+        let dims = build_joint_dims(&params, &structure, 1, params.k_rho() as usize).unwrap();
         let point = vec![K::ZERO; dims.variables];
         let fresh = [neo_ccs::CcsWitness {
             Z: Mat::virtual_constant(D, 1, F::ZERO),
         }];
-        let running = vec![Mat::virtual_constant(D, 1, F::ZERO); params.k_rho as usize];
+        let running = vec![Mat::virtual_constant(D, 1, F::ZERO); params.k_rho() as usize];
         let input = PaperJointOracleInput {
             structure: &structure,
             params: &params,
@@ -226,7 +233,7 @@ fn application_row_scratch_does_not_expand_the_carrier() {
 #[test]
 fn zero_witness_suffix_does_not_allocate_device_masks() {
     let session = MetalSession::new().unwrap();
-    let count = neo_params::NeoParams::nightstream_goldilocks_k16().k_rho as usize + 1;
+    let count = neo_params::NeoParams::nightstream_goldilocks_k16().k_rho() as usize + 1;
     let blocks = 2;
     let mut words = vec![0u64; count * 2 * blocks];
     words[0] = 1;

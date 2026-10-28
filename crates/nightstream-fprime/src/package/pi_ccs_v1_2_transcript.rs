@@ -101,7 +101,7 @@ fn validate_shapes(
             .any(|message| message.len() != PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT)
         || output.len() != OUTPUT_WORDS
     {
-        return Err(PackageError::Invalid("PiCCS v1_2 transcript shape"));
+        return Err(PackageError::Malformed("PiCCS v1_2 transcript shape"));
     }
     Ok(())
 }

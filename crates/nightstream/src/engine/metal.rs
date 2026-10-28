@@ -4,34 +4,44 @@
 
 use crate::folding::{
     self, ajtai_dec_mixer, ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsClaim, CcsInstance,
-    CcsWitness, NifsProof, Params, RunningInstance, Structure,
+    CcsWitness, FoldContext, NifsProof, RunningInstance,
 };
-use neo_math::D;
+use crate::lifecycle::VerifyError;
+use neo_ccs::Mat;
+use neo_math::{D, F, K};
 use neo_prover_metal::MetalRowProver;
-use neo_reductions::{optimized_engine::optimized_prove_with_matrix_rows, superneo_eval::MatrixRows};
+use neo_reductions::{
+    optimized_engine::optimized_prove_with_matrix_rows, superneo_eval::TerminalEvaluations, PiCcsError,
+};
+
+use super::{Engine, EngineError};
+
+/// The device session. A panic during a device call poisons the lock and
+/// leaves the session in an unknown state, so that is an engine failure.
+pub(crate) fn lock(
+    device: &std::sync::Mutex<MetalRowProver>,
+) -> Result<std::sync::MutexGuard<'_, MetalRowProver>, EngineError> {
+    device.lock().map_err(|_| EngineError::Failure {
+        engine: Engine::Metal,
+        reason: "device session lock was poisoned".into(),
+    })
+}
 
 pub(crate) fn prove(
     device: &mut MetalRowProver,
     transcript: &mut Transcript,
-    params: &Params,
-    structure: &Structure,
-    rows: &dyn MatrixRows,
-    workspace_bytes: usize,
+    context: FoldContext<'_>,
     fresh: CcsInstance,
     running: RunningInstance,
 ) -> Result<(RunningInstance, NifsProof), folding::Error> {
-    let CcsInstance { claim, witness } = fresh;
-    let c = prove_pi_ccs(
-        device,
-        transcript,
+    let FoldContext {
         params,
         structure,
         rows,
         workspace_bytes,
-        &claim,
-        &witness,
-        &running,
-    )?;
+    } = context;
+    let CcsInstance { claim, witness } = fresh;
+    let c = prove_pi_ccs(device, transcript, context, &claim, &witness, &running)?;
     let sources: Vec<_> = std::iter::once(&witness.Z)
         .chain(running.witnesses.iter())
         .collect();
@@ -61,7 +71,7 @@ pub(crate) fn prove(
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
     let openings = device
-        .child_openings(rows, workspace_bytes, split.planes(), &parent.r, structure.m)
+        .child_openings(rows, workspace_bytes, split.planes(), &parent.r, structure.m())
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
     let children = neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
@@ -97,54 +107,73 @@ pub(crate) fn prove(
 pub(crate) fn prove_parent(
     device: &mut MetalRowProver,
     transcript: &mut Transcript,
-    params: &Params,
-    structure: &Structure,
-    rows: &dyn MatrixRows,
-    workspace_bytes: usize,
+    context: FoldContext<'_>,
     fresh: CcsInstance,
     running: RunningInstance,
 ) -> Result<(pi_ccs::Proof, pi_rlc::Output, pi_rlc::Proof), folding::Error> {
     let CcsInstance { claim, witness } = fresh;
-    let c = prove_pi_ccs(
-        device,
-        transcript,
-        params,
-        structure,
-        rows,
-        workspace_bytes,
-        &claim,
-        &witness,
-        &running,
-    )?;
+    let c = prove_pi_ccs(device, transcript, context, &claim, &witness, &running)?;
     let sources: Vec<_> = std::iter::once(&witness.Z)
         .chain(running.witnesses.iter())
         .collect();
-    let (parent, r) = pi_rlc::prove_refs(transcript, params, structure, ajtai_rlc_mixer, &c.outputs, &sources)?;
+    let (parent, r) = pi_rlc::prove_refs(
+        transcript,
+        context.params,
+        context.structure,
+        ajtai_rlc_mixer,
+        &c.outputs,
+        &sources,
+    )?;
     Ok((c, parent, r))
+}
+
+/// Terminal openings on the device. A device failure judges nothing, so it
+/// is an engine error. A shape error from the device is a rejection of the
+/// proof.
+pub(crate) fn evaluate_terminal_rows(
+    device: &std::sync::Mutex<MetalRowProver>,
+    context: FoldContext<'_>,
+    running: &[Mat<F>],
+    point: &[K],
+    fresh: &Mat<F>,
+) -> Result<TerminalEvaluations, VerifyError> {
+    lock(device)?
+        .evaluate_terminal_rows(
+            context.rows,
+            context.workspace_bytes,
+            context.structure,
+            running,
+            point,
+            fresh,
+        )
+        .map_err(|error| match error {
+            PiCcsError::BackendFailure { reason, .. } => VerifyError::Engine(EngineError::Failure {
+                engine: Engine::Metal,
+                reason,
+            }),
+            error => VerifyError::Device(error),
+        })
 }
 
 /// PiCCS with its round oracle on the device.
 fn prove_pi_ccs(
     device: &mut MetalRowProver,
     transcript: &mut Transcript,
-    params: &Params,
-    structure: &Structure,
-    rows: &dyn MatrixRows,
-    workspace_bytes: usize,
+    context: FoldContext<'_>,
     claim: &CcsClaim,
     witness: &CcsWitness,
     running: &RunningInstance,
 ) -> Result<pi_ccs::Proof, folding::Error> {
-    let (outputs, sumcheck, _, _) = optimized_prove_with_matrix_rows(
+    let (outputs, sumcheck, _) = optimized_prove_with_matrix_rows(
         transcript.inner_mut(),
-        params.inner(),
-        structure,
+        context.params.inner(),
+        context.structure,
         std::slice::from_ref(claim),
         std::slice::from_ref(witness),
         &running.claims,
         &running.witnesses,
-        rows,
-        workspace_bytes,
+        context.rows,
+        context.workspace_bytes,
         Some(device),
     )
     .map_err(folding::kernels::Error::from)

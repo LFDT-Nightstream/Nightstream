@@ -10,15 +10,15 @@ use p3_field::PrimeCharacteristicRing;
 
 fn selected_claim(structure: &CcsStructure<F>, params: &NeoParams) -> CeClaim<Commitment, F, K> {
     let variables = structure
-        .n
-        .max(structure.m.div_ceil(D) * D)
+        .n()
+        .max(structure.m().div_ceil(D) * D)
         .next_power_of_two()
         .max(2)
         .trailing_zeros() as usize;
     let padded_coefficients = D.next_power_of_two();
     CeClaim {
         adv: None,
-        c: Commitment::zeros(params.d as usize, params.kappa as usize),
+        c: Commitment::zeros(params.kappa() as usize),
         X: Mat::zero(D, 0, F::ZERO),
         r: vec![K::ZERO; variables],
         eval_k: vec![K::ZERO; padded_coefficients],

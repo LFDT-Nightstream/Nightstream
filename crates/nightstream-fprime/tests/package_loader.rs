@@ -2,8 +2,8 @@ use std::{fs, path::PathBuf};
 
 use nightstream_fprime::{
     derive_pi_ccs_v1_2_transcript, load_per_application_package, load_poseidon2_hash_chain_v1_package, CcsMatrixSource,
-    PackageError, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs,
-    PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
+    IdentityKind, PackageError, PiCcsV1_2OutputEvaluations, PiCcsV1_2PackageInputs, PiDecV1_2PackageInputs,
+    StructuralIdentifier, PI_CCS_V1_2_COEFFICIENT_COUNT, PI_CCS_V1_2_FRESH_COMMITMENT_WORDS, PI_CCS_V1_2_MATRIX_COUNT,
     PI_CCS_V1_2_PRIOR_CHILDREN_WORDS, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT,
     PI_CCS_V1_2_ROUND_COUNT, PI_CCS_V1_2_SOURCE_COUNT, PI_CCS_V1_2_STATE_PREIMAGE_WORDS, PI_DEC_V1_2_CHILD_COUNT,
     PI_DEC_V1_2_COMMITMENT_WORDS_PER_CHILD, PI_DEC_V1_2_EVAL_A_MATRICES_PER_CHILD, PI_DEC_V1_2_EVAL_K_VALUES_PER_CHILD,
@@ -77,8 +77,8 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
         PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS
     );
     assert!(header.is_verifier_artifact_header());
-    assert_eq!(header.n, relation.row_count());
-    assert_eq!(header.m, relation.column_count());
+    assert_eq!(header.n(), relation.row_count());
+    assert_eq!(header.m(), relation.column_count());
     assert!(
         relation
             .row_count()
@@ -88,8 +88,8 @@ fn sealed_package_builds_the_package_owned_logical_relation_header() {
     assert_eq!(header.domain_rows(), 1 << PI_CCS_V1_2_ROUND_COUNT);
     assert_eq!(header.t(), relation.matrix_sources().len());
     assert_eq!(header.max_degree() as usize + 1, relation.degree_bound());
-    assert_eq!(header.f.terms().len(), relation.terms().len());
-    for (actual, expected) in header.f.terms().iter().zip(relation.terms()) {
+    assert_eq!(header.f().terms().len(), relation.terms().len());
+    for (actual, expected) in header.f().terms().iter().zip(relation.terms()) {
         assert_eq!(actual.coeff.as_canonical_u64(), expected.coefficient());
         assert_eq!(
             actual
@@ -115,16 +115,16 @@ fn sealed_stage1_encoder_appends_the_exact_application_witness() {
         vec![vec![vec![[0, 0]; PI_CCS_V1_2_COEFFICIENT_COUNT]; PI_CCS_V1_2_MATRIX_COUNT]; PI_CCS_V1_2_SOURCE_COUNT],
     )
     .expect("zero output evaluations");
-    let mut prior_public_input = vec![0; PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS];
+    let mut prior_public_input = [0; PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS];
     prior_public_input[0] = 1;
     let pi_ccs = PiCcsV1_2PackageInputs::new(
-        vec![0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS],
-        vec![0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS],
-        vec![0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS],
-        vec![0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS],
-        vec![vec![[0, 0]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT],
+        Box::new([0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS]),
+        Box::new([0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS]),
+        Box::new([0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS]),
+        Box::new([0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS]),
+        Box::new([[[0, 0]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT]),
         output_evaluations,
-        prior_public_input,
+        Box::new(prior_public_input),
         [0; 4],
         binding.verifier_context().clone(),
     )
@@ -202,16 +202,16 @@ fn lean_emitted_v1_2_pi_ccs_output_keeps_eval_k_and_eval_a_separate() {
 
     let output = PiCcsV1_2OutputEvaluations::new(expected_eval_k.clone(), expected_eval_a.clone())
         .expect("separate v1_2 output families");
-    let mut prior_public_input = vec![0; PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS];
+    let mut prior_public_input = [0; PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS];
     prior_public_input[0] = 1;
     let inputs = PiCcsV1_2PackageInputs::new(
-        vec![0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS],
-        vec![0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS],
-        vec![0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS],
-        vec![0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS],
-        vec![vec![[0, 0]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT],
+        Box::new([0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS]),
+        Box::new([0; PI_CCS_V1_2_STATE_PREIMAGE_WORDS]),
+        Box::new([0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS]),
+        Box::new([0; PI_CCS_V1_2_FRESH_COMMITMENT_WORDS]),
+        Box::new([[[0, 0]; PI_CCS_V1_2_ROUND_COEFFICIENT_COUNT]; PI_CCS_V1_2_ROUND_COUNT]),
         output,
-        prior_public_input,
+        Box::new(prior_public_input),
         [0; 4],
         binding.verifier_context().clone(),
     )
@@ -281,14 +281,30 @@ fn rust_v1_2_pi_ccs_transcript_matches_lean_emitted_vector() {
     let derived_context = binding.verifier_context().clone();
     let output_evaluations = PiCcsV1_2OutputEvaluations::new(expected_eval_k.clone(), expected_eval_a.clone())
         .expect("nonzero output evaluations");
+    let rounds = rounds
+        .into_iter()
+        .map(|round| round.try_into().expect("round coefficient count"))
+        .collect::<Vec<_>>();
     let inputs = PiCcsV1_2PackageInputs::new(
-        state_preimage,
-        output_preimage,
-        vec![0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS],
-        fresh_commitment,
-        rounds,
+        state_preimage
+            .into_boxed_slice()
+            .try_into()
+            .expect("prior preimage width"),
+        output_preimage
+            .into_boxed_slice()
+            .try_into()
+            .expect("output preimage width"),
+        Box::new([0; PI_CCS_V1_2_PRIOR_CHILDREN_WORDS]),
+        fresh_commitment
+            .into_boxed_slice()
+            .try_into()
+            .expect("fresh commitment width"),
+        rounds.into_boxed_slice().try_into().expect("round count"),
         output_evaluations,
-        state_public_input,
+        state_public_input
+            .into_boxed_slice()
+            .try_into()
+            .expect("prior public input width"),
         state_digest,
         derived_context,
     )
@@ -308,14 +324,24 @@ fn v1_2_input_encoder_rejects_a_missing_eval_a_matrix() {
     let eval_k = vec![vec![[0, 0]; PI_CCS_V1_2_COEFFICIENT_COUNT]; PI_CCS_V1_2_SOURCE_COUNT];
     let eval_a =
         vec![vec![vec![[0, 0]; PI_CCS_V1_2_COEFFICIENT_COUNT]; PI_CCS_V1_2_MATRIX_COUNT - 1]; PI_CCS_V1_2_SOURCE_COUNT];
-    assert!(PiCcsV1_2OutputEvaluations::new(eval_k, eval_a).is_err());
+    assert!(matches!(
+        PiCcsV1_2OutputEvaluations::new(eval_k, eval_a),
+        Err(PackageError::InputLength {
+            what: "PiCCS v1_2 output family shape",
+            expected: PI_CCS_V1_2_MATRIX_COUNT,
+            actual,
+        }) if actual == PI_CCS_V1_2_MATRIX_COUNT - 1
+    ));
 }
 
 #[test]
 fn loader_rejects_a_different_verifier_owned_identity() {
     assert!(matches!(
-        load_per_application_package(&sealed_artifact_bytes(), [0; 4]),
-        Err(PackageError::ExpectedIdentityMismatch { .. })
+        load_per_application_package(&sealed_artifact_bytes(), StructuralIdentifier::from_words([0; 4])),
+        Err(PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
+            ..
+        })
     ));
 }
 
@@ -334,7 +360,10 @@ fn loader_binds_the_lean_owned_ccs_polynomial_to_the_relation_identity() {
 
     assert!(matches!(
         load_poseidon2_hash_chain_v1_package(&canonical_bytes(&value)),
-        Err(PackageError::ExpectedIdentityMismatch { .. })
+        Err(PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
+            ..
+        })
     ));
 }
 
@@ -365,14 +394,18 @@ fn loader_rejects_a_missing_sampler_coefficient_witness_batch() {
     assert_eq!(batches[index][1].as_array().unwrap().len(), 54);
     batches.remove(index);
     let changed = canonical_bytes(&value);
-    let identity = match load_per_application_package(&changed, [0; 4]) {
-        Err(PackageError::ExpectedIdentityMismatch { computed, .. }) => computed,
+    let identity = match load_per_application_package(&changed, StructuralIdentifier::from_words([0; 4])) {
+        Err(PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
+            computed,
+            ..
+        }) => computed,
         _ => panic!("the mutation must change the structural identity"),
     };
-    let error = load_per_application_package(&changed, identity)
+    let error = load_per_application_package(&changed, StructuralIdentifier::from_words(identity))
         .expect_err("a rehashed incomplete witness program must be rejected");
     assert!(
-        matches!(error, PackageError::Invalid("witness column coverage")),
+        matches!(error, PackageError::Malformed("witness column coverage")),
         "{error:?}"
     );
 }
@@ -384,14 +417,18 @@ fn loader_rejects_a_rehashed_matrix_slot_permutation() {
     assert_eq!(*sources, json!([0, 1, 2, 3]));
     *sources = json!([1, 0, 2, 3]);
     let changed = canonical_bytes(&value);
-    let identity = match load_per_application_package(&changed, [0; 4]) {
-        Err(PackageError::ExpectedIdentityMismatch { computed, .. }) => computed,
+    let identity = match load_per_application_package(&changed, StructuralIdentifier::from_words([0; 4])) {
+        Err(PackageError::IdentityMismatch {
+            kind: IdentityKind::Relation,
+            computed,
+            ..
+        }) => computed,
         _ => panic!("the mutation must change the structural identity"),
     };
-    let error =
-        load_per_application_package(&changed, identity).expect_err("a rehashed matrix permutation must be rejected");
+    let error = load_per_application_package(&changed, StructuralIdentifier::from_words(identity))
+        .expect_err("a rehashed matrix permutation must be rejected");
     assert!(
-        matches!(error, PackageError::Invalid("CCS relation matrix order")),
+        matches!(error, PackageError::Malformed("CCS relation matrix order")),
         "{error:?}"
     );
 }

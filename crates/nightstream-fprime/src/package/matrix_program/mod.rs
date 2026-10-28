@@ -9,7 +9,8 @@ use rayon::prelude::*;
 use serde_json::Value;
 use std::ops::ControlFlow;
 
-use super::{PackageError, GOLDILOCKS_MODULUS};
+use super::json::{array, canonical_field, exact_array, usize_atom};
+use super::PackageError;
 
 const POSEIDON_WIDTH: usize = neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 
@@ -82,7 +83,7 @@ impl RetainedKind {
             0 => Ok(Self::Bit),
             1 => Ok(Self::Centered),
             2 => Ok(Self::Field),
-            _ => Err(PackageError::Invalid("retained kind")),
+            _ => Err(PackageError::Malformed("retained kind")),
         }
     }
 
@@ -122,29 +123,29 @@ impl RetainedBlock {
     pub(super) fn coordinate_count(&self) -> Result<usize, PackageError> {
         self.slot_count
             .checked_mul(self.kind.width())
-            .ok_or(PackageError::Invalid("retained coordinate count"))
+            .ok_or(PackageError::Malformed("retained coordinate count"))
     }
 
     pub(super) fn fits(&self, logical_width: usize) -> Result<bool, PackageError> {
         Ok(self
             .start
             .checked_add(self.coordinate_count()?)
-            .ok_or(PackageError::Invalid("retained column range"))?
+            .ok_or(PackageError::Malformed("retained column range"))?
             <= logical_width)
     }
 
     pub(super) fn form(&self, logical_width: usize, slot: usize) -> Result<Form, PackageError> {
         if slot >= self.slot_count || !self.fits(logical_width)? {
-            return Err(PackageError::Invalid("retained slot"));
+            return Err(PackageError::Malformed("retained slot"));
         }
         let width = self.kind.width();
         let first = self
             .start
             .checked_add(
                 slot.checked_mul(width)
-                    .ok_or(PackageError::Invalid("retained slot offset"))?,
+                    .ok_or(PackageError::Malformed("retained slot offset"))?,
             )
-            .ok_or(PackageError::Invalid("retained slot offset"))?;
+            .ok_or(PackageError::Malformed("retained slot offset"))?;
         Ok(Form::retained(first, width))
     }
 
@@ -155,7 +156,7 @@ impl RetainedBlock {
         lane: usize,
     ) -> Result<Form, PackageError> {
         if lane >= POSEIDON_WIDTH {
-            return Err(PackageError::Invalid("retained external lane"));
+            return Err(PackageError::Malformed("retained external lane"));
         }
         let mut state = Vec::with_capacity(POSEIDON_WIDTH);
         for selected in 0..POSEIDON_WIDTH {
@@ -229,7 +230,7 @@ impl SourceGrid {
         let mode = match usize_atom(&fields[7], "matrix source grid mode")? {
             0 => SourceGridMode::Direct,
             1 => SourceGridMode::External16,
-            _ => return Err(PackageError::Invalid("matrix source grid mode")),
+            _ => return Err(PackageError::Malformed("matrix source grid mode")),
         };
         Ok(Self {
             source_start: usize_atom(&fields[0], "source grid start")?,
@@ -311,11 +312,11 @@ impl SourceSubstitution {
         {
             if let Some(form) = candidate? {
                 if selected.replace(form).is_some() {
-                    return Err(PackageError::Invalid("overlapping matrix source substitution"));
+                    return Err(PackageError::Malformed("overlapping matrix source substitution"));
                 }
             }
         }
-        selected.ok_or(PackageError::Invalid("missing matrix source substitution"))
+        selected.ok_or(PackageError::Malformed("missing matrix source substitution"))
     }
 
     fn compile_combination(
@@ -325,7 +326,7 @@ impl SourceSubstitution {
         combination: &SourceCombination,
     ) -> Result<Form, PackageError> {
         if one_column >= logical_width {
-            return Err(PackageError::Invalid("matrix affine one column"));
+            return Err(PackageError::Malformed("matrix affine one column"));
         }
         let mut form = Form::singleton(one_column, combination.constant);
         for term in &combination.terms {
@@ -367,7 +368,7 @@ impl IndexSchedule {
                 Ok(Self::Ranges(decoded))
             }
             1 => Ok(Self::Table(decode_usize_list(&fields[1], "matrix index table")?)),
-            _ => Err(PackageError::Invalid("matrix index schedule tag")),
+            _ => Err(PackageError::Malformed("matrix index schedule tag")),
         }
     }
 
@@ -375,7 +376,7 @@ impl IndexSchedule {
         match self {
             Self::Ranges(ranges) => ranges.iter().try_fold(0usize, |sum, range| {
                 sum.checked_add(range.count)
-                    .ok_or(PackageError::Invalid("matrix index count"))
+                    .ok_or(PackageError::Malformed("matrix index count"))
             }),
             Self::Table(indices) => Ok(indices.len()),
         }
@@ -388,14 +389,14 @@ impl IndexSchedule {
                 for range in ranges {
                     let end = checked_add(range.start, range.count, "matrix index range")?;
                     if range.count == 0 || range.start < minimum || end > limit {
-                        return Err(PackageError::Invalid("matrix index range"));
+                        return Err(PackageError::Malformed("matrix index range"));
                     }
                     minimum = end;
                 }
             }
             Self::Table(indices) => {
                 if indices.iter().any(|index| *index >= limit) {
-                    return Err(PackageError::Invalid("matrix index table"));
+                    return Err(PackageError::Malformed("matrix index table"));
                 }
             }
         }
@@ -494,7 +495,7 @@ impl SourceProjection {
             [tag, ranges] if usize_atom(tag, "matrix source projection tag")? == 1 => {
                 Ok(Self::Mapped(decode_list(ranges, SourceProjectionRange::decode)?))
             }
-            _ => Err(PackageError::Invalid("matrix source projection")),
+            _ => Err(PackageError::Malformed("matrix source projection")),
         }
     }
 
@@ -506,11 +507,15 @@ impl SourceProjection {
                 for range in ranges {
                     if let Some(source) = range.column(column)? {
                         if selected.replace(source).is_some() {
-                            return Err(PackageError::Invalid("missing or overlapping matrix source projection"));
+                            return Err(PackageError::Malformed(
+                                "missing or overlapping matrix source projection",
+                            ));
                         }
                     }
                 }
-                selected.ok_or(PackageError::Invalid("missing or overlapping matrix source projection"))
+                selected.ok_or(PackageError::Malformed(
+                    "missing or overlapping matrix source projection",
+                ))
             }
         }
     }
@@ -577,7 +582,7 @@ impl OrdinaryBlock {
         let source_index = self
             .rows
             .index(ordinal)
-            .ok_or(PackageError::Invalid("ordinary row ordinal"))?;
+            .ok_or(PackageError::Malformed("ordinary row ordinal"))?;
         let source = self.projection.row(&source_row(source_index)?)?;
         let mut row = empty_row();
         row[0] = self
@@ -609,7 +614,7 @@ impl PinBlock {
         let value = self
             .values
             .get(ordinal)
-            .ok_or(PackageError::Invalid("pin row ordinal"))?
+            .ok_or(PackageError::Malformed("pin row ordinal"))?
             .clone();
         validate_form(&value, logical_width)?;
         let mut row = empty_row();
@@ -646,7 +651,7 @@ impl MultiplicationShape {
     fn coordinate(&self, ordinal: usize) -> Result<Coordinate, PackageError> {
         let inner = checked_mul(self.middle_count, self.minor_count, "multiplication coordinate")?;
         if ordinal >= self.row_count()? || inner == 0 || self.minor_count == 0 {
-            return Err(PackageError::Invalid("multiplication row ordinal"));
+            return Err(PackageError::Malformed("multiplication row ordinal"));
         }
         let major = ordinal / inner;
         let remainder = ordinal % inner;
@@ -681,7 +686,7 @@ impl MultiplicationBlock {
 
     fn row(&self, logical_width: usize, ordinal: usize) -> Result<RowForms, PackageError> {
         if self.one_column >= logical_width {
-            return Err(PackageError::Invalid("multiplication one column"));
+            return Err(PackageError::Malformed("multiplication one column"));
         }
         let coordinate = self.shape.coordinate(ordinal)?;
         let mut row = empty_row();
@@ -714,7 +719,7 @@ impl Block {
             2 => Ok(Self::Poseidon(poseidon::Block::decode(&fields[1])?)),
             3 => Ok(Self::Phi81(phi81::Block::decode(&fields[1])?)),
             4 => Ok(Self::Multiplication(MultiplicationBlock::decode(&fields[1])?)),
-            _ => Err(PackageError::Invalid("production matrix block tag")),
+            _ => Err(PackageError::Malformed("production matrix block tag")),
         }
     }
 
@@ -764,7 +769,7 @@ impl Block {
             _ => {}
         }
         if start > end || end > self.row_count()? {
-            return Err(PackageError::Invalid("matrix block row range"));
+            return Err(PackageError::Malformed("matrix block row range"));
         }
         for ordinal in start..end {
             let row = self.row(logical_width, ordinal, source_row)?;
@@ -791,7 +796,7 @@ impl MatrixProgram {
     pub(super) fn row_count(&self) -> Result<usize, PackageError> {
         self.blocks.iter().try_fold(0usize, |sum, block| {
             sum.checked_add(block.row_count()?)
-                .ok_or(PackageError::Invalid("matrix program row count"))
+                .ok_or(PackageError::Malformed("matrix program row count"))
         })
     }
 
@@ -826,7 +831,7 @@ impl MatrixProgram {
     ) -> Result<ControlFlow<()>, PackageError> {
         let row_count = self.row_count()?;
         if start > end || end > row_count {
-            return Err(PackageError::Invalid("matrix program row range"));
+            return Err(PackageError::Malformed("matrix program row range"));
         }
 
         let mut block_start = 0usize;
@@ -839,30 +844,30 @@ impl MatrixProgram {
                 let expected_start = checked_add(block_start, local_start, "matrix program visit start")?;
                 let expected_end = checked_add(block_start, local_end, "matrix program visit end")?;
                 if next != expected_start {
-                    return Err(PackageError::Invalid("non-contiguous matrix program visit"));
+                    return Err(PackageError::Malformed("non-contiguous matrix program visit"));
                 }
                 let flow = block.visit_rows_until(logical_width, local_start, local_end, source_row, |forms| {
                     if next >= expected_end {
-                        return Err(PackageError::Invalid("extra matrix program row"));
+                        return Err(PackageError::Malformed("extra matrix program row"));
                     }
                     let ordinal = next;
                     let flow = visit(ordinal, forms)?;
                     next = next
                         .checked_add(1)
-                        .ok_or(PackageError::Invalid("matrix program visit ordinal"))?;
+                        .ok_or(PackageError::Malformed("matrix program visit ordinal"))?;
                     Ok(flow)
                 })?;
                 if flow.is_break() {
                     return Ok(flow);
                 }
                 if next != expected_end {
-                    return Err(PackageError::Invalid("missing matrix program row"));
+                    return Err(PackageError::Malformed("missing matrix program row"));
                 }
             }
             block_start = block_end;
         }
         if block_start != row_count || next != end {
-            return Err(PackageError::Invalid("incomplete matrix program visit"));
+            return Err(PackageError::Malformed("incomplete matrix program visit"));
         }
         Ok(ControlFlow::Continue(()))
     }
@@ -899,16 +904,16 @@ impl MatrixProgram {
                                     || entry.coefficient == Goldilocks::ZERO
                                     || previous.is_some_and(|previous| previous >= entry.column)
                                 {
-                                    return Err(PackageError::Invalid("non-canonical logical matrix row"));
+                                    return Err(PackageError::Malformed("non-canonical logical matrix row"));
                                 }
                                 previous = Some(entry.column);
                             }
                             counts[matrix] = counts[matrix]
                                 .checked_add(
                                     u64::try_from(entries.len())
-                                        .map_err(|_| PackageError::Invalid("logical matrix nonzero count"))?,
+                                        .map_err(|_| PackageError::Malformed("logical matrix nonzero count"))?,
                                 )
-                                .ok_or(PackageError::Invalid("logical matrix nonzero count"))?;
+                                .ok_or(PackageError::Malformed("logical matrix nonzero count"))?;
                         }
                         Ok(ControlFlow::Continue(()))
                     })?;
@@ -921,7 +926,7 @@ impl MatrixProgram {
                     for (left, right) in left.iter_mut().zip(right) {
                         *left = left
                             .checked_add(right)
-                            .ok_or(PackageError::Invalid("logical matrix nonzero count"))?;
+                            .ok_or(PackageError::Malformed("logical matrix nonzero count"))?;
                     }
                     Ok(left)
                 },
@@ -942,13 +947,13 @@ impl MatrixProgram {
             }
             ordinal -= count;
         }
-        Err(PackageError::Invalid("matrix program row ordinal"))
+        Err(PackageError::Malformed("matrix program row ordinal"))
     }
 }
 
 pub(super) fn external_layer(state: &[Form], logical_width: usize) -> Result<Vec<Form>, PackageError> {
     if state.len() != POSEIDON_WIDTH {
-        return Err(PackageError::Invalid("matrix Poseidon2 state"));
+        return Err(PackageError::Malformed("matrix Poseidon2 state"));
     }
     template::outputs("poseidon2-external-v1", state, logical_width)
 }
@@ -958,38 +963,12 @@ pub(super) fn validate_form(form: &Form, logical_width: usize) -> Result<(), Pac
 }
 
 pub(super) fn field(value: u64, location: &'static str) -> Result<Goldilocks, PackageError> {
-    if value >= GOLDILOCKS_MODULUS {
-        return Err(PackageError::NonCanonicalField { location, value });
-    }
+    canonical_field(value, location)?;
     Ok(Goldilocks::from_u64(value))
 }
 
-pub(super) fn array<'a>(value: &'a Value, location: &'static str) -> Result<&'a [Value], PackageError> {
-    value
-        .as_array()
-        .map(Vec::as_slice)
-        .ok_or(PackageError::Invalid(location))
-}
-
-pub(super) fn exact_array<'a>(
-    value: &'a Value,
-    length: usize,
-    location: &'static str,
-) -> Result<&'a [Value], PackageError> {
-    let values = array(value, location)?;
-    if values.len() != length {
-        return Err(PackageError::Invalid(location));
-    }
-    Ok(values)
-}
-
-pub(super) fn usize_atom(value: &Value, location: &'static str) -> Result<usize, PackageError> {
-    let value = value.as_u64().ok_or(PackageError::Invalid(location))?;
-    usize::try_from(value).map_err(|_| PackageError::Invalid(location))
-}
-
 pub(super) fn field_atom(value: &Value, location: &'static str) -> Result<Goldilocks, PackageError> {
-    field(value.as_u64().ok_or(PackageError::Invalid(location))?, location)
+    field(value.as_u64().ok_or(PackageError::Malformed(location))?, location)
 }
 
 pub(super) fn decode_list<T>(
@@ -1011,10 +990,10 @@ fn decode_usize_list(value: &Value, location: &'static str) -> Result<Vec<usize>
 
 pub(super) fn checked_add(left: usize, right: usize, location: &'static str) -> Result<usize, PackageError> {
     left.checked_add(right)
-        .ok_or(PackageError::Invalid(location))
+        .ok_or(PackageError::Malformed(location))
 }
 
 pub(super) fn checked_mul(left: usize, right: usize, location: &'static str) -> Result<usize, PackageError> {
     left.checked_mul(right)
-        .ok_or(PackageError::Invalid(location))
+        .ok_or(PackageError::Malformed(location))
 }

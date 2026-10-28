@@ -6,8 +6,8 @@ use neo_reductions::api::{rlc_public, rlc_public_matches, verify_dec_public, Rot
 use p3_field::PrimeCharacteristicRing;
 
 fn commitment(value: u64, kappa: usize) -> Commitment {
-    let mut commitment = Commitment::zeros(D, kappa);
-    commitment.data[0] = F::from_u64(value);
+    let mut commitment = Commitment::zeros(kappa);
+    commitment.data_mut()[0] = F::from_u64(value);
     commitment
 }
 
@@ -26,11 +26,11 @@ fn claim(
 ) -> CeClaim<Commitment, F, K> {
     let point_len = structure
         .domain_rows()
-        .max(neo_reductions::common::superneo_carrier_width(structure.m))
+        .max(neo_reductions::common::superneo_carrier_width(structure.m()))
         .next_power_of_two()
         .trailing_zeros() as usize;
     CeClaim {
-        c: Commitment::zeros(D, params.kappa as usize),
+        c: Commitment::zeros(params.kappa() as usize),
         X: Mat::zero(D, 1, F::ZERO),
         r: vec![K::ZERO; point_len],
         eval_k: vec![K::ZERO; D.next_power_of_two()],
@@ -45,7 +45,7 @@ fn claim(
 fn rlc_and_dec_reject_auxiliary_lane_commitments() {
     let structure = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).unwrap();
     let params = NeoParams::nightstream_goldilocks_k16();
-    let kappa = params.kappa as usize;
+    let kappa = params.kappa() as usize;
     let rho = RotRho::new_checked(&params, Mat::identity(D)).unwrap();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let mix = |_: &[Mat<F>], commitments: &[Commitment]| commitments[0].clone();
@@ -94,10 +94,11 @@ fn rlc_and_dec_reject_auxiliary_lane_commitments() {
         "PiRLC accepted a parent with auxiliary lane commitments"
     );
 
-    let children = vec![claim(&structure, &params, None); params.k_rho as usize];
-    let zero_mix = |_: &[Commitment], _: u32| Commitment::zeros(D, kappa);
-    let dec =
-        |parent: &CeClaim<Commitment, F, K>| verify_dec_public(&structure, &params, parent, &children, zero_mix, ell_d);
+    let children = vec![claim(&structure, &params, None); params.k_rho() as usize];
+    let zero_mix = |_: &[Commitment], _: u32| Commitment::zeros(kappa);
+    let dec = |parent: &CeClaim<Commitment, F, K>| {
+        verify_dec_public(&structure, &params, parent, &children, zero_mix, ell_d).is_ok()
+    };
     assert!(dec(&claim(&structure, &params, None)), "honest PiDEC recomposition");
     assert!(
         !dec(&claim(&structure, &params, Some(auxiliary(17, kappa)))),

@@ -49,9 +49,9 @@ impl PackageSparseMatrix {
         let unpadded_columns = unpadded_constant
             .checked_add(1)
             .and_then(|columns| columns.checked_add(public_columns))
-            .ok_or(PackageError::Invalid("final matrix column overflow"))?;
+            .ok_or(PackageError::Malformed("final matrix column overflow"))?;
         if self.rows > domain_size || unpadded_constant > domain_size || self.columns != unpadded_columns {
-            return Err(PackageError::Invalid("final matrix geometry"));
+            return Err(PackageError::Malformed("final matrix geometry"));
         }
 
         let shift = domain_size - unpadded_constant;
@@ -59,7 +59,7 @@ impl PackageSparseMatrix {
             if *column >= unpadded_constant {
                 *column = column
                     .checked_add(shift)
-                    .ok_or(PackageError::Invalid("final matrix column overflow"))?;
+                    .ok_or(PackageError::Malformed("final matrix column overflow"))?;
             }
         }
         self.row_offsets.resize(domain_size + 1, self.values.len());
@@ -67,7 +67,7 @@ impl PackageSparseMatrix {
         self.columns = domain_size
             .checked_add(1)
             .and_then(|columns| columns.checked_add(public_columns))
-            .ok_or(PackageError::Invalid("final matrix column overflow"))?;
+            .ok_or(PackageError::Malformed("final matrix column overflow"))?;
         Ok(self)
     }
 }
@@ -134,13 +134,13 @@ impl CsrBuilder {
         let mut indices = Vec::new();
         let mut indptr = Vec::new();
         data.try_reserve_exact(capacity)
-            .map_err(|_| PackageError::Invalid("matrix data allocation"))?;
+            .map_err(|_| PackageError::TooLarge("matrix data allocation"))?;
         indices
             .try_reserve_exact(capacity)
-            .map_err(|_| PackageError::Invalid("matrix index allocation"))?;
+            .map_err(|_| PackageError::TooLarge("matrix index allocation"))?;
         indptr
             .try_reserve_exact(rows + 1)
-            .map_err(|_| PackageError::Invalid("matrix row allocation"))?;
+            .map_err(|_| PackageError::TooLarge("matrix row allocation"))?;
         indptr.push(0);
         Ok(Self {
             rows,
@@ -250,7 +250,7 @@ impl CsrBuilder {
 
     fn finish(self) -> Result<PackageSparseMatrix, PackageError> {
         if self.indptr.len() != self.rows + 1 {
-            return Err(PackageError::Invalid("expanded matrix row count"));
+            return Err(PackageError::Malformed("expanded matrix row count"));
         }
         Ok(PackageSparseMatrix {
             rows: self.rows,
@@ -327,7 +327,7 @@ fn expand_matrix(
         }
         match placement {
             Placement::Physical if row_cursor != witness.row_start() => {
-                return Err(PackageError::Invalid("expanded witness row start"));
+                return Err(PackageError::Malformed("expanded witness row start"));
             }
             Placement::Physical => {}
             Placement::Ordered => row_cursor = witness.row_start(),
@@ -374,7 +374,7 @@ fn expand_matrix(
         row_cursor += 1;
     }
     if matches!(placement, Placement::Physical) && row_cursor != package.layout.row_count {
-        return Err(PackageError::Invalid("expanded physical row count"));
+        return Err(PackageError::Malformed("expanded physical row count"));
     }
     builder.finish()
 }
@@ -415,20 +415,20 @@ fn entry_capacity(package: &LoadedPackage, side: MatrixSide) -> Result<usize, Pa
         .iter()
         .map(|row| template_entry_bound(template_side(row, side), max_input_entries))
         .try_fold(0usize, |sum, count| sum.checked_add(count))
-        .ok_or(PackageError::Invalid("template entry bound overflow"))?;
+        .ok_or(PackageError::Malformed("template entry bound overflow"))?;
     let invocation_count = package
         .hash_chains
         .iter()
         .map(|chain| chain.absorb_count + 1)
         .try_fold(0usize, |sum, count| sum.checked_add(count))
         .and_then(|count| count.checked_add(package.permutation_invocations.len()))
-        .ok_or(PackageError::Invalid("invocation count overflow"))?;
+        .ok_or(PackageError::Malformed("invocation count overflow"))?;
     let mut assertion_entries = package
         .assertion_rows
         .iter()
         .map(|row| sparse_entry_bound(sparse_side(row, side)))
         .try_fold(0usize, |sum, count| sum.checked_add(count))
-        .ok_or(PackageError::Invalid("assertion entry bound overflow"))?;
+        .ok_or(PackageError::Malformed("assertion entry bound overflow"))?;
     if let Some(application) = &package.native_application {
         let side = match side {
             MatrixSide::A => 0,
@@ -440,7 +440,7 @@ fn entry_capacity(package: &LoadedPackage, side: MatrixSide) -> Result<usize, Pa
             assertion_entries = assertion_entries
                 .checked_add(header.term_counts[side])
                 .and_then(|count| count.checked_add(usize::from(header.constants[side] != 0)))
-                .ok_or(PackageError::Invalid("assertion entry bound overflow"))?;
+                .ok_or(PackageError::Malformed("assertion entry bound overflow"))?;
         }
     }
     let witness_entries = package
@@ -452,7 +452,7 @@ fn entry_capacity(package: &LoadedPackage, side: MatrixSide) -> Result<usize, Pa
             MatrixSide::C => 1,
         })
         .try_fold(0usize, |sum, count| sum.checked_add(count))
-        .ok_or(PackageError::Invalid("witness entry bound overflow"))?;
+        .ok_or(PackageError::Malformed("witness entry bound overflow"))?;
     let compact_template_entries = package
         .compact_templates
         .iter()
@@ -462,7 +462,7 @@ fn entry_capacity(package: &LoadedPackage, side: MatrixSide) -> Result<usize, Pa
                 .iter()
                 .map(|row| template_entry_bound(compact_side(row, side), 1))
                 .try_fold(0usize, |sum, count| sum.checked_add(count))
-                .ok_or(PackageError::Invalid("compact template entry bound overflow"))
+                .ok_or(PackageError::Malformed("compact template entry bound overflow"))
         })
         .collect::<Result<Vec<_>, _>>()?;
     let compact_entries = package
@@ -470,13 +470,13 @@ fn entry_capacity(package: &LoadedPackage, side: MatrixSide) -> Result<usize, Pa
         .iter()
         .map(|invocation| compact_template_entries[invocation.template_index])
         .try_fold(0usize, |sum, count| sum.checked_add(count))
-        .ok_or(PackageError::Invalid("compact entry capacity overflow"))?;
+        .ok_or(PackageError::Malformed("compact entry capacity overflow"))?;
     per_permutation
         .checked_mul(invocation_count)
         .and_then(|count| count.checked_add(assertion_entries))
         .and_then(|count| count.checked_add(witness_entries))
         .and_then(|count| count.checked_add(compact_entries))
-        .ok_or(PackageError::Invalid("matrix entry capacity overflow"))
+        .ok_or(PackageError::Malformed("matrix entry capacity overflow"))
 }
 
 fn compact_side(row: &super::compact::CompactTemplateRow, side: MatrixSide) -> &TemplateCombination {
@@ -523,11 +523,11 @@ impl LoadedPackage {
     /// Expand the Lean-emitted schedule and apply the exact final `2^28`
     /// row/private-domain padding proved by `Layout.Stage1.Spartan`.
     pub fn r1cs_matrices(&self) -> Result<PackageR1cs, PackageError> {
-        let shift =
-            u32::try_from(self.relation.cube_variables()).map_err(|_| PackageError::Invalid("final matrix domain"))?;
+        let shift = u32::try_from(self.relation.cube_variables())
+            .map_err(|_| PackageError::Malformed("final matrix domain"))?;
         let domain_size = 1usize
             .checked_shl(shift)
-            .ok_or(PackageError::Invalid("final matrix domain"))?;
+            .ok_or(PackageError::Malformed("final matrix domain"))?;
         expand_r1cs(self, Placement::Physical)?.into_final_layout(
             self.layout.constant_column,
             self.layout.public_column_count,

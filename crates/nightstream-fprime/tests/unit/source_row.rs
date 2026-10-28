@@ -133,7 +133,7 @@ fn hash_template_rows_use_exact_absorb_and_padding_inputs() {
             },
             2,
         ),
-        Err(PackageError::Invalid("matrix source hash input"))
+        Err(PackageError::Malformed("matrix source hash input"))
     ));
 }
 
@@ -179,6 +179,6 @@ fn assertion_and_generic_witness_rows_are_independent_of_matrix_expansion() {
     let mut selected = Some(decoded_assertion);
     assert!(matches!(
         merge_row(&mut selected, decoded_witness),
-        Err(PackageError::Invalid("duplicate matrix source row"))
+        Err(PackageError::Malformed("duplicate matrix source row"))
     ));
 }

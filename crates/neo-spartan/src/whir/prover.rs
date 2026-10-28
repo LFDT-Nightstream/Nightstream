@@ -31,7 +31,7 @@ use p3_whir::transcript::{WhirProverTranscript, WhirShape};
 use p3_whir::{WhirDomain, WhirQueryPoint};
 use rayon::prelude::*;
 
-use crate::field::{Ext, Gl};
+use crate::field::{as_base, Ext, Gl};
 use crate::hash::Challenger;
 use crate::merkle::{self, Mmcs};
 use crate::pcs::{Commitment, Config, Dft, Layout, MultiProof, Opening};
@@ -302,7 +302,7 @@ impl Run<'_> {
         let message = Message {
             width: 3 << folding,
             rows: evals.len() >> folding,
-            runs: vec![(0, base_words(evals))],
+            runs: vec![(0, as_base(evals))],
         };
         encode(self.dft, self.mmcs, &message, log_inv_rate)
     }
@@ -327,12 +327,6 @@ fn open_rows(mmcs: &Mmcs, codeword: &Codeword, queries: &[usize]) -> QueryOpenin
             proof,
         }),
     }
-}
-
-/// The base words of `values`, three per element, in place.
-fn base_words(values: &[Ext]) -> &[Gl] {
-    // SAFETY: `Ext` is `repr(transparent)` over `[Gl; 3]`.
-    unsafe { std::slice::from_raw_parts(values.as_ptr().cast::<Gl>(), 3 * values.len()) }
 }
 
 /// Commit the Reed-Solomon codeword of `message` at `log_inv_rate`, one

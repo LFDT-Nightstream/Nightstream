@@ -10,15 +10,15 @@ const DENSE: u32 = 1 << 31;
 const BLOCK_MASK: u32 = (1 << 24) - 1;
 
 pub(super) struct BlockTranspose {
-    pub offsets: Vec<u32>,
-    pub entries: Vec<[u32; 2]>,
-    pub local_masks: Vec<u64>,
-    pub active: Vec<bool>,
-    pub identity: bool,
+    pub(super) offsets: Vec<u32>,
+    pub(super) entries: Vec<[u32; 2]>,
+    pub(super) local_masks: Vec<u64>,
+    pub(super) active: Vec<bool>,
+    pub(super) identity: bool,
 }
 
 impl BlockTranspose {
-    pub fn new(
+    pub(super) fn new(
         matrix: &SuperneoMatrixCache,
         layers: &[SpanLayer],
         rows: usize,

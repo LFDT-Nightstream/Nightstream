@@ -28,12 +28,6 @@ impl Expr {
     }
 }
 
-impl From<Variable> for Expr {
-    fn from(variable: Variable) -> Self {
-        Self::Var(variable)
-    }
-}
-
 impl Add for Expr {
     type Output = Self;
     fn add(self, rhs: Self) -> Self {
@@ -204,7 +198,7 @@ fn lower_expression(builder: &mut ApplicationBuilder, expression: &Expr) -> Resu
 }
 
 /// `lowerConstraint` for the zero assertion `expression = 0`; returns its last row.
-pub(super) fn constrain(builder: &mut ApplicationBuilder, expression: &Expr) -> Result<usize, ApplicationError> {
+pub(super) fn lower_constraint(builder: &mut ApplicationBuilder, expression: &Expr) -> Result<usize, ApplicationError> {
     match direct_row(expression) {
         Some((a, b, c)) => builder.constrain(a, b, c),
         None => {

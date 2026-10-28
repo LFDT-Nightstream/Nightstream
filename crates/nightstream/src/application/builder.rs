@@ -143,6 +143,7 @@ impl ApplicationBuilder {
 
     /// The row `a · b = c` as given, with no generated variable. A circuit
     /// that mirrors a Lean lowering row by row uses it; it returns the row.
+    #[cfg(test)]
     pub(crate) fn constrain(&mut self, a: Affine, b: Affine, c: Affine) -> Result<usize, ApplicationError> {
         for form in [&a, &b, &c] {
             self.validate(form, false)?;
@@ -229,6 +230,8 @@ impl ApplicationBuilder {
 
     /// Finish when `rows` already bind the output state: row `rows[k]` is
     /// `output_k · 1 = value`, the `equality_row` shape with the value on C.
+    /// `Circuit::write` cannot save the result unless `rows` are the last four.
+    #[cfg(test)]
     pub(crate) fn finish_with_output_rows(self, rows: [usize; 4]) -> Result<ApplicationCircuit, ApplicationError> {
         self.into_circuit(rows.map(|row| OutputRow {
             row,

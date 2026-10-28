@@ -423,15 +423,14 @@ impl<'a> Sym<'a> {
         let output = |i: usize| self.word(layout.app_out(i));
         let idle = self.word(layout.idle());
         let slot = |j: usize, k: usize| self.op(j, k);
-        let mu = self.plan.mu;
-        let vr_bit = |j: usize, k: usize| slot(j, 3 + mu + k);
-        let addr = |j: usize| chunk((0..mu).map(|k| slot(j, 3 + k)).collect());
-        let vr = |j: usize| chunk((0..32).map(|k| vr_bit(j, k)).collect());
-        let vw = |j: usize| chunk((0..32).map(|k| slot(j, 3 + mu + 32 + k)).collect());
-        let is_load = vr_bit(0, 0) * (c(1) - vr_bit(0, 1));
-        let is_store = (c(1) - vr_bit(0, 0)) * vr_bit(0, 1);
-        let is_loadi = vr_bit(0, 0) * vr_bit(0, 1);
-        let argument = chunk((2..32).map(|k| vr_bit(0, k)).collect());
+        let addr = |j: usize| chunk(self.addr_bits(j));
+        let vr = |j: usize| chunk(self.vr_bits(j));
+        let vw = |j: usize| chunk(self.vw_bits(j));
+        let instruction = self.vr_bits(0);
+        let is_load = instruction[0].clone() * (c(1) - instruction[1].clone());
+        let is_store = (c(1) - instruction[0].clone()) * instruction[1].clone();
+        let is_loadi = instruction[0].clone() * instruction[1].clone();
+        let argument = chunk(instruction[2..].to_vec());
         let touches = || is_load.clone() + is_store.clone();
         vec![
             bit_row(idle.clone()),

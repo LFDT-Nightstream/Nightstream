@@ -2,16 +2,18 @@
 //! order of `Lifecycle/Nebula/MemoryCircuit.lean`: nine sponge children (the
 //! two state digests, the three record chains, the `η` transcript and its
 //! three squeezes), then the hash rows, the memory rows, and the application's
-//! rows. `tests/nebula_parity.rs` requires its rows to equal the Lean
+//! rows. `tests/nebula/parity.rs` requires its rows to equal the Lean
 //! package's, so it is the Lean-proved relation. It does not own witness values.
+//! It is test-only, because `Circuit::write` saves only circuits whose output
+//! rows are the last four, and these output rows are the `state_out` hash rows.
 
 use neo_ccs::crypto::poseidon2_goldilocks::{round_constants, Poseidon2RoundConstants, RATE, WIDTH};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
 
-use super::expr::{constrain, lower_affine, Expr};
+use super::expr::{lower_affine, lower_constraint, Expr};
 use super::rows::{pack, Sym};
-use super::transcript::{chain_tag, header, plan_digest, text, Lane};
+use super::transcript::{chain_tag, header, plan_digest, text, Lane, ETA_TAG, STATE_TAG};
 use super::words::{self, Layout};
 use super::Package;
 use crate::application::{permutation, Affine, ApplicationBuilder, ApplicationCircuit, ApplicationError, Variable};
@@ -91,7 +93,7 @@ pub(super) fn memory_circuit(package: Package) -> Result<ApplicationCircuit, App
 
     let state_blocks = |app: fn(&Layout, usize) -> usize, carry: usize| {
         vec![
-            text_words("Nightstream/Nebula/v3/state"),
+            text_words(STATE_TAG),
             run(words::APP_WIDTH, &|k| app(&layout, k)),
             run(39, &|k| carry + k),
         ]
@@ -111,7 +113,7 @@ pub(super) fn memory_circuit(package: Package) -> Result<ApplicationCircuit, App
     eta_words.extend(run(4, &|k| words::CARRY_IN + 35 + k));
     eta_words.extend(run(4, &|k| words::PROPOSAL + 4 + k));
     let eta_blocks = vec![
-        text_words("Nightstream/Nebula/v3/eta"),
+        text_words(ETA_TAG),
         digest.iter().copied().map(Expr::Const).collect(),
         vec![sym.c_in(2)],
         eta_words,
@@ -139,25 +141,28 @@ pub(super) fn memory_circuit(package: Package) -> Result<ApplicationCircuit, App
     let input = builder.input_state();
     let output = builder.output_state();
     for k in 0..4 {
-        constrain(&mut builder, &(lane(&state_in, k) - Expr::Var(input[k])))?;
+        lower_constraint(&mut builder, &(lane(&state_in, k) - Expr::Var(input[k])))?;
     }
     let mut output_rows = [0; 4];
     for (k, row) in output_rows.iter_mut().enumerate() {
-        *row = constrain(&mut builder, &(lane(&state_out, k) - Expr::Var(output[k])))?;
+        *row = lower_constraint(&mut builder, &(lane(&state_out, k) - Expr::Var(output[k])))?;
     }
     for (chain, first) in [(&chain_ops, 23), (&chain_initial, 27), (&chain_final, 31)] {
         for k in 0..4 {
-            constrain(&mut builder, &(lane(chain, k) - sym.c_out(first + k)))?;
+            lower_constraint(&mut builder, &(lane(chain, k) - sym.c_out(first + k)))?;
         }
     }
     for (k, state) in [&eta, &squeeze1, &squeeze2, &squeeze3]
         .into_iter()
         .enumerate()
     {
-        constrain(&mut builder, &(lane(state, 0) - sym.word(words::ETA_FRESH + k)))?;
+        lower_constraint(&mut builder, &(lane(state, 0) - sym.word(words::ETA_FRESH + k)))?;
     }
     for row in sym.memory_rows().iter().chain(&sym.machine_rows()) {
-        constrain(&mut builder, row)?;
+        lower_constraint(&mut builder, row)?;
     }
     builder.finish_with_output_rows(output_rows)
 }
+
+#[path = "../../tests/nebula/parity.rs"]
+mod parity;

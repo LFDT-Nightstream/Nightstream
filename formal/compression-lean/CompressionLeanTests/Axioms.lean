@@ -7,7 +7,8 @@ The axiom gate. `lake build` runs it.
 
 - Every theorem in a `CompressionLean` module, a later one too, uses only
   `propext`, `Classical.choice` and `Quot.sound` (`#audit_library_axioms`).
-  A `sorry` or a `native_decide` anywhere in the library fails the build.
+  A skipped proof or a proof by compiled evaluation anywhere in the library
+  fails the build, because each adds an axiom outside this list.
   So does one in the gates' theorems (`CompressionLeanTests`, which today
   holds only the reading gate's `reads_of_witness`).
 - The claims are the theorems of `CompressionLean.Claims`. Each claim of

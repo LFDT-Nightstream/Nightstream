@@ -10,7 +10,7 @@ use p3_field::PrimeField64;
 
 use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::assembly::{self, AssemblyError};
-use crate::engine::{Backend, Engine, EngineError};
+use crate::engine::{Backend, CommitError, Engine, EngineError};
 use crate::lifecycle::{
     CompleteStepError, CompressionError, ExtendError, FinalProof, PreparedLifecycle, ProofCodecError, ProveError,
     Stage1Envelope, Stage1State, VerifyError,
@@ -21,8 +21,10 @@ mod storage;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    /// The selected engine or its device failed. It did not judge the proof
-    /// or the input, so another attempt or another engine can succeed.
+    /// The selected engine did not judge the proof or the input. The engine
+    /// is unavailable, the engine or its device failed, or the two Crosscheck
+    /// engines disagree. A retry with the same engine can succeed only after
+    /// a `Failure`.
     #[error(transparent)]
     Engine(#[from] EngineError),
     #[error(transparent)]
@@ -51,7 +53,7 @@ impl From<ExtendError> for Error {
     fn from(error: ExtendError) -> Self {
         match error {
             ExtendError::Prove(ProveError::Engine(error))
-            | ExtendError::Complete(CompleteStepError::Commitment(error)) => Self::Engine(error),
+            | ExtendError::Complete(CompleteStepError::Commitment(CommitError::Engine(error))) => Self::Engine(error),
             error => Self::Extend(error),
         }
     }
@@ -60,7 +62,7 @@ impl From<ExtendError> for Error {
 impl From<VerifyError> for Error {
     fn from(error: VerifyError) -> Self {
         match error {
-            VerifyError::Engine(error) => Self::Engine(error),
+            VerifyError::Engine(error) | VerifyError::Commitment(CommitError::Engine(error)) => Self::Engine(error),
             error => Self::Verify(error),
         }
     }

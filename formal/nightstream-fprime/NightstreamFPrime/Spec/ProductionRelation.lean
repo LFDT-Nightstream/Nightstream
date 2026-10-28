@@ -1,17 +1,13 @@
 import NightstreamFPrime.Spec.ProductionRelation.GatePolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 
-/-!
-Owns the one production CCS polynomial for the Nightstream F-prime relation.
-SuperNeo Pad is not a CCS matrix and remains the separate `Eval_K` family.
--/
-
 namespace NightstreamFPrime.Spec.ProductionRelation
 
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
+@[implicit_reducible]
 def matrixCount : Nat := GatePolynomial.matrixCount
 
 def meaningfulPortCount : Nat := GatePolynomial.meaningfulPortCount

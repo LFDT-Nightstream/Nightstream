@@ -1,12 +1,6 @@
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakSuffix
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperCompleteness
 
-/-!
-Honest completeness and public-coin ownership of the same PiRLC/PiDEC suffix.
-The public verifier takes only the public challenge vector and child messages.
-Final witness checks belong to the extractor, not this verifier decision.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness
@@ -48,7 +42,7 @@ theorem publicAccepts_iff [DecidableEq Commitment] [DecidableEq Evaluation]
     publicAccepts rlc batch dec publicSplit evaluationArity vector messages = true ↔
       PiDEC.PaperVerifier.Accepted dec publicSplit evaluationArity
         (publicAttempt rlc batch vector messages) := by
-  letI := PiDEC.PaperVerifier.acceptedDecision dec publicSplit evaluationArity
+  let := PiDEC.PaperVerifier.acceptedDecision dec publicSplit evaluationArity
     (publicAttempt rlc batch vector messages)
   unfold publicAccepts
   exact decide_eq_true_iff

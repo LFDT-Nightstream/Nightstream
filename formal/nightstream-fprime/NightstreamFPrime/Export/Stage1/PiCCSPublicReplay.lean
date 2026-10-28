@@ -1,12 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 
-/-!
-Public statement and first-round coins for the selected PiCCS producer.
-Old running evaluations are public claims. Transcript and polynomial semantics
-stay with their existing owners; this module supplies no witness or prover
-message.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
@@ -90,7 +83,8 @@ def initialClaim (input : Input) (gamma : K) : K :=
 
 theorem degree_eq (input : Input) : (verifierInput input).sumcheckDegreeBound = 8 := by
   dsimp only [verifierInput, ProtocolPolynomial.VerifierInput.sumcheckDegreeBound]
-  rw [ConstraintPolynomialLift.liftConstraintPolynomial_canonicalEqualityGatedDegreeBound]
+  rw [ConstraintPolynomialLift.liftConstraintPolynomial_canonicalEqualityGatedDegreeBound
+    (matrixCount := productionShape.matrixCount) _ Spec.ProductionRelation.polynomial]
   change Nat.max Spec.ProductionRelation.polynomial.canonicalEqualityGatedDegreeBound 4 = 8
   rw [Spec.ProductionRelation.polynomial_canonicalEqualityGatedDegreeBound]
   rfl

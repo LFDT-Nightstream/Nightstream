@@ -1,12 +1,5 @@
 import NightstreamFPrime.Export.Stage1.WitnessProgram
 
-/-!
-Owns executable packets for the seven PiCCS arithmetic children that produce
-both witness batches and ordinary rows.
-
-The existing witness and row definitions remain the proof authority.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSPackets
 
 open NightstreamFPrime.Circuit

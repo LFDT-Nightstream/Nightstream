@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalReads
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 
-/-!
-Proof-only equality of original-mask blocks and prepared coefficient callbacks
-with the existing complete-assignment readers. Final message-family transport
-is separate.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOriginalReads
@@ -29,7 +23,7 @@ theorem blockAt_lane (masks : Array (Array (Nat × Nat)))
     blockAt masks source block.val lane =
       SignedUnitSourceInput.scalar (masks[block.val]?.getD #[])
         ⟨source.val, source.isLt⟩ lane := by
-  rw [blockAt, PiCCSSourceImages.blockAt, dif_pos block.isLt]
+  rw [blockAt, PiCCSSourceImages.blockAt, dite_eq_left block.isLt]
   change assignment masks source
     (Phi81CarrierLayout.carrierColumn (logicalWidth := PiCCSSourceImages.logicalWidth) block lane) = _
   have decoded := Phi81CarrierLayout.decode_carrierColumn
@@ -65,11 +59,11 @@ theorem read_eq_preparedRead {columns : Nat}
             (masks[column.val / ringDegree]?.getD #[]) ⟨source.val, source.isLt⟩ lane := by
       funext lane
       exact blockAt_lane masks source ⟨column.val / ringDegree, live⟩ lane
-    simp only [read, if_pos live]
+    simp only [read, ite_eq_left live]
     rw [maskEval_eq_evalSparse, PiCCSSourceImages.preparedRead, blockValues]
     rfl
-  · simp only [read, if_neg live, PiCCSSourceImages.preparedRead,
-      PiCCSSourceImages.blockAt, dif_neg live, SparseForm.evalSparse,
+  · simp only [read, ite_eq_right live, PiCCSSourceImages.preparedRead,
+      PiCCSSourceImages.blockAt, dite_eq_right live, SparseForm.evalSparse,
       ringFZero, mul_zero, add_zero, List.foldl_fixed]
 
 theorem read_eq_kernelRead {columns : Nat} (masks : Array (Array (Nat × Nat)))

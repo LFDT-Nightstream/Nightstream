@@ -2,30 +2,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FullOutputCoordinates
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialFixedWidth
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperCorrections
 
-/-!
-Operational public-coin core of the paper's strong `Pi_CCS` reduction.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 and Appendix B.2).
-Reduction class: strong, SuperNeo v1.2 Definition 18, as v1.2 Lemma 7
-states.
-Phase: one explicit public-coin probe and extraction from an ambient output
-witness.
-Constraint family: paper semantics only; this file emits no rows.
-
-Owns: a public statement without source assignments; explicit public coins;
-one prover response containing finite SumCheck messages and the complete
-paper `y'` family; verifier construction of the output CE product; the
-definitional commitment projection `phi`; an adapter from the output witness
-to `ConnectedInputs`/`UnifiedInputs`; and the deterministic extraction step
-from acceptance plus corrected-ambient output validity to source truth or a
-typed algebraic/SumCheck event.
-
-Does not own: an adversary language, an extractor loop, expected runtime,
-probability, Fiat--Shamir, Poseidon2, commitment hardness, Rust, R1CS, row
-removal, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2; Definition 18, Lemma 7. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
 
@@ -350,12 +327,6 @@ def publicOutput
       pad := probe.response.fullOutput.padCoordinate source
       matrix := probe.response.fullOutput.matrixCoordinate source
     }]
-    /- The protocol output is an instance of the honest target `CE(b)`.  The
-    strong reduction's relaxed target `CE(⌊q/2⌋+1)` is a second relation over this
-    same public instance and is stated by `CorrectedAmbientHolds`, which
-    deliberately ignores this tag.  Marking the instance itself `.ambient`
-    would make it unusable as the literal input of `Pi_RLC` and would conflate
-    `R₂` with `R₂'` in SuperNeo v1.2 Theorem 12. -/
     stage := .fresh
   }
 

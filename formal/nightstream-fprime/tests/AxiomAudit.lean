@@ -1,7 +1,5 @@
 import Lean
 
-/-! Shared fail-closed axiom audit command. -/
-
 open Lean Elab Command in
 elab "#audit_axioms " decl:ident : command => do
   let name ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo decl

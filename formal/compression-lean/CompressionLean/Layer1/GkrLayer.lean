@@ -1,27 +1,10 @@
 import CompressionLean.Layer1.Combination
 import CompressionLean.Layer1.Fraction
 
-/-!
-Owns the algebra of one layer of the batched fraction-sum GKR of
-`crates/neo-spartan/src/gkr.rs`.
-
-At layer `k`, every tree of depth at least `k` (`GkrShape.active`) has parts
-at level `k`: numerator factors and a denominator (one factor inside the
-tree, the leaf factors at its leaf layer). The layer's sum-check runs over
-`k - 1` variables on `eq(ρ, y)·Σ_i ν^i·(p₀q₁ + p₁q₀ + μ·q₀q₁)`, where `₀`/`₁`
-are the halves `y` and `y + 2^{k-1}` (the top variable is the child bit).
-
-- `layer_truth_nil`: the sum is the batched claim of the true level `k - 1`.
-- `layer_truth_final`: at the end, it is `eq` times the batched combination
-  of the true halves at the sum-check point (`trueChildren`).
-- `reduce_true`: true halves reduce to the extension at `next ++ [τ]`.
--/
-
 namespace CompressionLean.Layer1
 
 open Polynomial
 
-/-- `Σ_i ν^i·f(lᵢ)` by Horner's rule, the batching of `gkr::verify`. -/
 def wsum {R : Type} [CommSemiring R] (ν : R) (f : ℕ → R) : List ℕ → R
   | [] => 0
   | t :: rest => f t + ν * wsum ν f rest
@@ -34,7 +17,6 @@ theorem wsum_congr {R : Type} [CommSemiring R] (ν : R) {f g : ℕ → R} {l : L
       simp only [wsum]
       rw [equal t (by simp), ih fun u inside => equal u (List.mem_cons_of_mem t inside)]
 
-/-- The trees of one batch as the verifier knows them. -/
 structure GkrShape where
   trees : ℕ
   depth : ℕ → ℕ
@@ -44,16 +26,12 @@ namespace GkrShape
 
 variable (s : GkrShape)
 
-/-- The trees that reach layer `k`, in tree order. -/
 def active (k : ℕ) : List ℕ := (List.range s.trees).filter fun t => k ≤ s.depth t
 
-/-- Numerator factors of tree `t` at layer `k`: one inside, the leaf factors at its leaves. -/
 def partFactors (k t : ℕ) : ℕ := if s.depth t = k then s.factors t else 1
 
-/-- The round degree of layer `k`: 3, or `factors + 2` at a product leaf layer. -/
 def degree (k : ℕ) : ℕ := (s.active k).foldr (fun t d => max d (s.partFactors k t + 2)) 3
 
-/-- The number of layers: the largest depth. -/
 def layers : ℕ := (List.range s.trees).foldr (fun t d => max d (s.depth t)) 0
 
 theorem mem_active {k t : ℕ} : t ∈ s.active k ↔ t < s.trees ∧ k ≤ s.depth t := by
@@ -102,36 +80,28 @@ end GkrShape
 
 variable {K : Type} [Field K]
 
-/-- The leaves of every tree of one world: tree `t` ↦ its leaf level. -/
 abbrev Batch (K : Type) := ℕ → Level K
 
-/-- Each tree's leaves have the shape's factor count. -/
 def Batch.Fits (batch : Batch K) (s : GkrShape) : Prop :=
   ∀ t, t < s.trees → (batch t).factors.length = s.factors t
 
-/-- Level `k` of tree `t`. -/
 def treeLevel (s : GkrShape) (batch : Batch K) (t k : ℕ) : Level K :=
   (batch t).above (s.depth t) (s.depth t - k)
 
-/-- Part `j` of tree `t` at layer `k`: factor `j`, or the denominator for `j = partFactors`. -/
 def treePart (s : GkrShape) (batch : Batch K) (k t j : ℕ) : ℕ → K :=
   if j < s.partFactors k t then (treeLevel s batch t k).factors.getD j (fun _ => 0)
   else (treeLevel s batch t k).denominator
 
-/-- The true claim of tree `t` at layer `k`: level `k - 1` at `ρ`. -/
 def trueClaim (s : GkrShape) (batch : Batch K) (k t : ℕ) (ρ : List K) : K × K :=
   (mle ρ (treeLevel s batch t (k - 1)).numerator, mle ρ (treeLevel s batch t (k - 1)).denominator)
 
-/-- The true halves of tree `t`'s parts at the sum-check point `next`. -/
 def trueChildren (s : GkrShape) (batch : Batch K) (k t : ℕ) (next : List K) (j : ℕ) : K × K :=
   (mle next (treePart s batch k t j), mle next (fun y => treePart s batch k t j (y + 2 ^ (k - 1))))
 
-/-- `p₀q₁ + p₁q₀ + μ·q₀q₁` from part pairs: factors `0 ..< f`, denominator `f`. -/
 def combineVals (f : ℕ) (pairs : ℕ → K × K) (μ : K) : K :=
   ((List.range f).map fun j => (pairs j).1).prod * (pairs f).2 +
     ((List.range f).map fun j => (pairs j).2).prod * (pairs f).1 + μ * (pairs f).1 * (pairs f).2
 
-/-- One pair reduced at the top variable. -/
 def reduce (pair : K × K) (τ : K) : K := pair.1 + τ * (pair.2 - pair.1)
 
 section Levels
@@ -172,7 +142,7 @@ theorem numerator_parts (fits : batch.Fits s) {t k : ℕ} (tree : t < s.trees) (
   congr 1
   apply List.map_congr_left
   intro j member
-  simp only [treePart, if_pos (List.mem_range.mp member)]
+  simp only [treePart, ite_eq_left (List.mem_range.mp member)]
 
 end Levels
 
@@ -180,25 +150,20 @@ section Comb
 
 open MvPolynomial (X)
 
-/-- Variables of a layer polynomial: the eq table, or half `b` of part `j` of tree `t`. -/
 abbrev LayerVar := Option (ℕ × ℕ × Bool)
 
-/-- One tree's term `p₀q₁ + p₁q₀ + μ·q₀q₁` with `f` numerator factors. -/
 noncomputable def treeTerm (f t : ℕ) (μ : K) : MvPolynomial LayerVar K :=
   ((List.range f).map fun j => X (some (t, j, false))).prod * X (some (t, f, true)) +
     ((List.range f).map fun j => X (some (t, j, true))).prod * X (some (t, f, false)) +
     MvPolynomial.C μ * X (some (t, f, false)) * X (some (t, f, true))
 
-/-- `Σ_i ν^i·term(lᵢ)` as a polynomial. -/
 noncomputable def wsumM (ν : K) (term : ℕ → MvPolynomial LayerVar K) : List ℕ → MvPolynomial LayerVar K
   | [] => 0
   | t :: rest => term t + MvPolynomial.C ν * wsumM ν term rest
 
-/-- The polynomial of layer `k`'s sum-check. -/
 noncomputable def layerComb (s : GkrShape) (k : ℕ) (μ ν : K) : MvPolynomial LayerVar K :=
   X none * wsumM ν (fun t => treeTerm (s.partFactors k t) t μ) (s.active k)
 
-/-- The tables of layer `k` at the GKR point `ρ`. -/
 def layerTables (s : GkrShape) (batch : Batch K) (k : ℕ) (ρ : List K) : LayerVar → ℕ → K
   | none => eqAt ρ
   | some (t, j, b) => fun y => treePart s batch k t j (y + if b then 2 ^ (k - 1) else 0)
@@ -285,7 +250,6 @@ theorem cubeSum_mul_wsum (n : ℕ) (a : ℕ → K) (ν : K) (g : ℕ → ℕ →
       rw [split, cubeSum_add, cubeSum_mul_left, ih]
       rfl
 
-/-- At the start of the layer, the sum is the batched true claim. -/
 theorem layer_truth_nil (fits : batch.Fits s) (k : ℕ) (low : 1 ≤ k) (ρ : List K)
     (length : ρ.length = k - 1) (μ ν : K) :
     combTruth (k - 1) (layerTables s batch k ρ) (layerComb s k μ ν) [] =
@@ -302,7 +266,7 @@ theorem layer_truth_nil (fits : batch.Fits s) (k : ℕ) (low : 1 ≤ k) (ρ : Li
     obtain ⟨tree, reach⟩ := (s.mem_active).mp member
     rw [treeLevel_pred s batch low reach, Level.up_numerator, Level.up_denominator,
       numerator_parts s batch fits tree reach, numerator_parts s batch fits tree reach]
-    simp only [combineVals, if_false, if_true, Nat.add_zero, Bool.false_eq_true, treePart, lt_irrefl]
+    simp only [combineVals, ite_false, ite_true, Nat.add_zero, Bool.false_eq_true, treePart, lt_irrefl]
     ring
   simp_rw [summand]
   rw [cubeSum_mul_wsum]
@@ -314,8 +278,6 @@ theorem layer_truth_nil (fits : batch.Fits s) (k : ℕ) (low : 1 ≤ k) (ρ : Li
   funext y
   ring
 
-/-- At the end of the layer's sum-check, the polynomial is `eq` times the
-batched combination of the true halves. -/
 theorem layer_truth_final (k : ℕ) (ρ next : List K) (length : next.length = ρ.length) (μ ν : K) :
     MvPolynomial.eval (fun v => mle next (layerTables s batch k ρ v)) (layerComb s k μ ν) =
       eqEval ρ next *
@@ -324,7 +286,6 @@ theorem layer_truth_final (k : ℕ) (ρ next : List K) (length : next.length = �
   rw [mle_eqAt ρ next length]
   rfl
 
-/-- True halves reduce to the extension at `next ++ [τ]`. -/
 theorem reduce_trueChildren (k t j : ℕ) (next : List K) (length : next.length = k - 1) (τ : K) :
     reduce (trueChildren s batch k t next j) τ = mle (next ++ [τ]) (treePart s batch k t j) := by
   rw [mle_append_top, length]

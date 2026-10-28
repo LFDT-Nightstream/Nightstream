@@ -1,40 +1,6 @@
 import NightstreamFPrime.Lifecycle.RandomOracleReduction
 
-/-!
-Owns the laws and the work of the binding reduction of Lemma 6
-(`RandomOracleReduction.reduction`), and its loss under a strict budget.
-
-Inputs: an adaptive oracle adversary with at most `Q` queries, its claims, the
-Ajtai key, and a budget `T`.
-
-Outputs:
-- `expected_second_retries_le`: the retries of the extractions inside the
-  reruns take at most `17 (Q + 17)` expected runs;
-- `expected_runs_le`: for every budget, the algorithm makes at most
-  `35 Q + 653` expected runs: 1 base run, `17 (Q + 17)` base retries
-  (`RandomOracleExtraction.expected_retries_le`), `Q + 74` reruns
-  (`RandomOracleUniqueness.expected_reruns_le`) and the second extraction;
-- `reductionChance_le_program`: for any test of the end state,
-  `T · (reductionChance − chance T) ≤ 35 Q + 653`, where `reductionChance`
-  reads the test on the two finished runs;
-- `solverChance`, `kernelChance_le_solver`: the success of
-  `RandomOracleReduction.solve`, which loses at most `(35 Q + 653) / T` of
-  `RandomOracleBinding.kernelChance`.
-
-Each step of the algorithm makes one run and stores its record. A private law
-machine makes the same runs on the oracles alone, and reads the adversary
-where the algorithm reads a stored record. `runOf` and `forksOf` store the
-adversary's record of each run, and they map every step of the law onto a step
-of the algorithm, so both make the same runs on every tape. The law's
-potentials meet each step's law with equality: a retry loop ends uniform on
-its line (`Spec.RandomOracleBudget.lineLaw_eq_retryWeight`), and a rerun loop
-restarts until a rerun extracts at the fork index (`retryChance`). The
-certificate uses only one direction: the success potential is at most the
-next step's average, and the work potential pays one run per step.
-
-Does not own: the hardness of MSIS for the resulting solver, or machine work
-beyond counted adversary runs.
--/
+/-! SECURITY_MODEL.md Lemma 6, binding reduction laws and work. -/
 
 set_option autoImplicit false
 
@@ -214,6 +180,7 @@ variable (outcome : (Point logicalWidth publicFits (ProductionKey.degreeBound re
   (Point logicalWidth publicFits (ProductionKey.degreeBound relation) → Answer) →
   (Fin Nifs.PaperProfile.arity.total → Answer) → Prop)
 
+@[implicit_reducible]
 private def Found : LawState → Prop
   | .finished base retries other otherRetries => outcome base retries other otherRetries
   | _ => False
@@ -307,9 +274,9 @@ private theorem successOf_extracted (purpose : Purpose Oracle Retries) (run : Or
       cases purpose <;>
       · simp only [lawExtracted, lawAfter, lineLaw, successAfter]
         by_cases valid : Valid relation ajtai adversary claim run retries
-        · simp only [valid, if_true]
+        · simp only [valid, ite_true]
           rfl
-        · simp only [valid, if_false]
+        · simp only [valid, ite_false]
           rfl
   | _ :: _, _ => rfl
 
@@ -380,11 +347,11 @@ private theorem success_start_step :
   refine Finset.expect_congr rfl fun oracle _ => ?_
   simp only [step]
   by_cases succeeds : Succeeds relation ajtai adversary claim oracle
-  · rw [if_pos succeeds, successOf_start]
+  · rw [ite_eq_left succeeds, successOf_start]
     rfl
-  · rw [if_neg succeeds]
+  · rw [ite_eq_right succeeds]
     exact Finset.sum_eq_zero fun retries _ => by
-      rw [if_neg fun valid => succeeds valid.1, mul_zero]
+      rw [ite_eq_right fun valid => succeeds valid.1, mul_zero]
 
 private theorem work_start_step :
     1 + 𝔼 fresh, workOf relation ajtai adversary claim (step relation ajtai adversary claim .start fresh) =
@@ -394,14 +361,14 @@ private theorem work_start_step :
   refine Finset.expect_congr rfl fun oracle _ => ?_
   simp only [step]
   by_cases succeeds : Succeeds relation ajtai adversary claim oracle
-  · rw [if_pos succeeds, if_pos succeeds, workOf_start]
+  · rw [ite_eq_left succeeds, ite_eq_left succeeds, workOf_start]
     refine congrArg (retriesOf relation ajtai adversary claim oracle + ·) ?_
     unfold retryMass
     rw [Finset.sum_mul]
     refine Finset.sum_congr rfl fun retries _ => ?_
     simp only [workAfter]
     split <;> ring
-  · rw [if_neg succeeds, if_neg succeeds]
+  · rw [ite_eq_right succeeds, ite_eq_right succeeds]
     rfl
 
 private theorem success_extract_step {purpose : Purpose Oracle Retries} {run : Oracle} {index : Coordinate}
@@ -564,11 +531,11 @@ private theorem work_rerun_step {base : Oracle} {retries : Retries}
       simp only [workAfter]
       rw [sum_weight_ite relation ajtai adversary claim forked.2]
       simp only [tries, extra, rerun_tries relation ajtai adversary claim forked.1, extractionWork,
-        if_pos forked, ite_self, mul_zero, Finset.sum_const_zero, zero_add]
+        ite_eq_left forked, ite_self, mul_zero, Finset.sum_const_zero, zero_add]
       rfl
     · rename_i missed
       have noTries := (rerun_missed relation ajtai adversary claim missed fun _ => True).2
-      simp only [extra, tries, extractionWork, if_neg missed, noTries, sub_zero, one_mul, zero_add]
+      simp only [extra, tries, extractionWork, ite_eq_right missed, noTries, sub_zero, one_mul, zero_add]
   calc
     _ = 1 + 𝔼 fresh, (extra fresh + (1 - tries fresh) * ((1 + 𝔼 fresh, extra fresh) / 𝔼 fresh, tries fresh)) := by
       rw [Finset.expect_congr rfl fun fresh _ => pointwise fresh, total]
@@ -759,6 +726,7 @@ private noncomputable def embedPurpose : Purpose Oracle Retries → Purpose Made
   | .first => .first
   | .second base retries => .second (runOf relation adversary base) (forksOf relation adversary claim base retries)
 
+@[implicit_reducible]
 private noncomputable def embed : LawState → Progress
   | .start => .start
   | .extract purpose run index rest retries =>
@@ -879,7 +847,7 @@ theorem reductionChance_le_program {queries : Nat} (bounded : adversary.QueryBou
         if finished (embed relation adversary claim state) then 1 else 0 := by
     cases state with
     | finished => simp only [Found, embed]; split_ifs <;> norm_num
-    | _ => simp only [Found, if_false]; split <;> norm_num
+    | _ => simp only [Found, ite_false]; split <;> norm_num
   have chance : (law relation ajtai adversary claim).chance (Found relation outcome) budget .start ≤
       𝔼 tape : Fin budget → Oracle,
         (if finished (finalState relation ajtai claim adversary budget tape) then (1 : ℝ) else 0) :=

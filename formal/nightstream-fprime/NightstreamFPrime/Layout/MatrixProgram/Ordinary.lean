@@ -1,15 +1,6 @@
 import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 
-/-!
-Owns the generic executable interpreter for ordinary source R1CS rows in a
-compact sparse 4-matrix program. Source rows come from the package's existing
-canonical row stream. The interpreter only applies the package-carried sparse
-source substitution and places the result in the fixed ordinary matrix ports.
-
-This module does not select source rows, substitutions, or Stage 1 order.
--/
-
 namespace NightstreamFPrime.Layout.MatrixProgram.Ordinary
 
 open NightstreamFPrime.Layout
@@ -119,7 +110,7 @@ theorem compileRow?_eq_compileRow
     compileRow? substitution logicalWidth oneColumn.val row =
       some (SourceCompiler.compileRow sourceMap oneColumn row bounded) := by
   unfold compileRow?
-  rw [dif_pos oneColumn.isLt]
+  rw [dite_eq_left oneColumn.isLt]
   rw [compileCombination?_eq_compileCombination substitution sourceMap
     oneColumn row.a bounded.1 agreesA]
   rw [compileCombination?_eq_compileCombination substitution sourceMap

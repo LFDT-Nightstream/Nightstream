@@ -2,8 +2,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionOutputBounds
 import NightstreamFPrime.Layout.Stage1.RunningTransitionRecursiveBounds
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPointBoundsDirect
 
-/-! Assembles the proved source bounds for the running transition. -/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 
 open NightstreamFPrime.Spec

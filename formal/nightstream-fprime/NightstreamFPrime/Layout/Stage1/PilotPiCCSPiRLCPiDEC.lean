@@ -1,12 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.PiDECStarts
 
-/-!
-Owns the Stage 1 prefix through the exact PiDEC v1_2 phase.
-
-The 31,968-word PiDEC input ABI follows the completed PiRLC physical endpoint.
-No public column, copy row, or boundary row is added.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC
 
 open NightstreamFPrime.Circuit

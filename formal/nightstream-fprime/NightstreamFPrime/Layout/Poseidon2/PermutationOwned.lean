@@ -1,12 +1,6 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation.Owned
 import NightstreamFPrime.Layout.Poseidon2
 
-/-!
-Owns physical lowering for one verifier-owned Poseidon2 permutation.
-
-Every permutation recipe is affine or one rank-one product of affine values.
--/
-
 namespace NightstreamFPrime.Layout.Poseidon2.PermutationOwned
 
 open NightstreamFPrime.Circuit

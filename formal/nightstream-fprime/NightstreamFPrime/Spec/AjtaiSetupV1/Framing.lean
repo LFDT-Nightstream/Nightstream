@@ -1,9 +1,5 @@
 import NightstreamFPrime.Spec.AjtaiSetupV1
 
-/-! The actual setup descriptor uniquely determines its dimensions and seed.
-The dimension bounds are necessary because descriptor words are field values.
-This is an encoding theorem; it makes no pseudorandomness assumption. -/
-
 namespace NightstreamFPrime.Spec.AjtaiSetupV1.Setup
 
 private theorem authorityNats_canonical {rows columns : Nat}

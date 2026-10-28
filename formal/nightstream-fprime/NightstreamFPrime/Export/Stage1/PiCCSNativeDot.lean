@@ -2,8 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSWeightedBasis
 import NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder
 import NightstreamFPrime.Export.NativePoseidon2RoundCore
 
-/-! Native-word accumulation for the existing PiCCS weighted dot product. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNativeDot
@@ -95,12 +93,12 @@ private theorem accumulate_value {lanes : Nat} (count : Nat)
             (prepared.get ⟨count, bounded⟩) (source ⟨count, bounded⟩)
         else accumulate count prepared source) = _
       by_cases bounded : count < lanes
-      · simp only [dif_pos bounded, addProduct_value,
+      · simp only [dite_eq_left bounded, addProduct_value,
           NumericCompletionSum.numericSum, Nat.fold_succ]
         change extensionOps.add (value (accumulate count prepared source)) _ = _
         rw [ih]
         rfl
-      · simp only [dif_neg bounded, NumericCompletionSum.numericSum,
+      · simp only [dite_eq_right bounded, NumericCompletionSum.numericSum,
           Nat.fold_succ, extensionLaws.add_zero]
         exact ih
 
@@ -114,7 +112,7 @@ theorem dotK_eq_spec {lanes : Nat} (prepared : Vector K lanes)
   unfold PiCCSWeightedBasis.dotK
   apply FiniteSumAlgebra.sumMap_congr
   intro lane _
-  exact dif_pos lane.isLt
+  exact dite_eq_left lane.isLt
 
 @[csimp] theorem dotK_eq_native : @PiCCSWeightedBasis.dotK = @dotK := by
   funext lanes prepared source

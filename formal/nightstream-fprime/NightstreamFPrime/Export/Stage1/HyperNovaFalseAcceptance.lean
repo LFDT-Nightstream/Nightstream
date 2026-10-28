@@ -1,17 +1,6 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedSecurity
 
-/-!
-False acceptance at the selected full-opening terminal boundary means that
-the verifier accepts but no advice list of circuit-length witnesses has the
-advertised length and forward application result. It is distinct from bare
-NIFS Boolean acceptance and from extractor failure.
-
-The bound is on the IVC adversary's original mixed law; no conditioning on
-invalid inputs is used. It runs the reverse extractor of HyperNova Lemma 17
-(`HyperNovaVisitedSecurity.reverseStages`) under HyperNova errata Assumption 1
-(`HyperNovaVisitedSecurity.Assumption1`) and keeps each stage's
-hash-collision mass explicit. Honest rejection is separate.
--/
+/-! HyperNova Lemma 17 under HyperNova errata Assumption 1. -/
 
 set_option autoImplicit false
 

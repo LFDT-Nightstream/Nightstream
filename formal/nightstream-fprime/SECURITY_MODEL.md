@@ -14,7 +14,7 @@ are not checked.
 
 ## What Lean checks
 
-- The kernel of the official Lean v4.32.2 toolchain, with Mathlib v4.32.2 and
+- The kernel of the official Lean v4.35.0 toolchain, with Mathlib v4.35.0 and
   the CompPoly revision that `lakefile.toml` pins. Final validation uses the
   official toolchain. The lean4-optimized fork is used only to iterate.
 - `scripts/validate.sh` runs on the developer Mac. Its `build`, `axioms`,

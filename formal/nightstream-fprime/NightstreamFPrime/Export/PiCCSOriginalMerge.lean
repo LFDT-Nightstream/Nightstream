@@ -3,13 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSOriginalReads
 import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 import NightstreamFPrime.Export.Codec
 
-/-!
-Merge retained original-source evaluations in their complete canonical ranges.
-The caller derives the point from the original public input and all Lean rounds.
-Files are checked for shape, canonical fields, point, and complete coverage;
-their calculation provenance belongs to the source-bound replay evidence.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiCCSOriginalMerge

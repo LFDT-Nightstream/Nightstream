@@ -1,16 +1,6 @@
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
 
-/-!
-Owns the expression form of the hashed running section of the state preimage:
-commitments, `Eval_K`, `Eval_A`, the point, then the packed parent public
-input, in `XOut.serializeRunning` order. Each packed word recomposes the
-sixteen child public inputs with the shared Π_DEC radix weights.
-
-The running transition consumes this encoding. This module adds no row and
-owns no layout.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.RunningWords
 
 open NightstreamFPrime.Spec

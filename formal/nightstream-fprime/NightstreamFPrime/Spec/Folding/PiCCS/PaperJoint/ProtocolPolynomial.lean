@@ -1,29 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial.Types
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckInitial
 
-/-!
-The actual off-cube polynomial and terminal authority for paper joint `Pi_CCS`.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: one-joint SumCheck truth path and post-SumCheck output evaluation check.
-Constraint family: semantic polynomial ownership only; this file emits no rows.
-
-Owns: explicit fresh-matrix, assignment, Pad-image, and matrix-image
-multilinear tables; the nonlinear paper expressions `F`, `NC`, `Eval_K`,
-`Eval_A`, and `Q` evaluated after those multilinear images; projection to the
-minimal verifier-visible input;
-the verifier terminal derived from that input and the typed output message;
-Boolean-cube agreement with the independent signed residual object; and a
-deterministic checker theorem that exposes output-message mismatch instead of
-assuming it away.
-
-Does not own: construction of these image tables from concrete CCS matrices
-and witnesses, ring coefficient recomposition, output CE serialization,
-Fiat--Shamir, semantic degree bounds, root probabilities, Rust,
-R1CS, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
 
@@ -32,7 +10,6 @@ open NightstreamFPrime.Spec.SumCheck
 
 universe uField
 
-/-- The paper's strict-`b = 2` norm polynomial over the active carrier. -/
 def strictNormResidual
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -144,7 +121,6 @@ def targetCoefficients
   pad := input.claimedPadCoefficient
   matrix := input.claimedMatrixCoefficient
 
-/-- Verifier-owned v1.2 initial claim `T_K + gamma^(k*d) * T_A`. -/
 def initial
     {Field : Type uField}
     {shape : Shape}
@@ -203,8 +179,6 @@ def padAtMessage
         SignedJointIdentity.gammaTerm ops gamma
           coordinate.localGammaExponent (message.padImage coordinate)
 
-/-- Paper `Eval_A(r', gamma)` derived from the CCS-matrix output
-evaluations. -/
 def matrixAtMessage
     {Field : Type uField}
     {shape : Shape}
@@ -219,8 +193,7 @@ def matrixAtMessage
         SignedJointIdentity.gammaTerm ops gamma
           coordinate.localGammaExponent (message.matrixImage coordinate)
 
-/-- Step 4's paper terminal formula, using only verifier context, derived
-coins, the derived point, and the prover's output-evaluation message. -/
+/-- SuperNeo v1.2 Section 7.3, Step 4. -/
 def terminalFromMessage
     {Field : Type uField}
     {shape : Shape}
@@ -339,7 +312,7 @@ theorem polynomial_fieldCoordinates_eq_tableQ
         (BooleanVertex.fieldCoordinates ops vertex) =
       SignedJointIdentity.qAt ops (data.toJointData ops) alpha gamma vertex := by
   unfold polynomial
-  rw [dif_pos
+  rw [dite_eq_left
     (BooleanVertex.fieldCoordinates_length ops vertex)]
   exact qAtPoint_toCubePoint_eq_tableQ ops laws data alpha gamma vertex
 
@@ -408,7 +381,7 @@ theorem canonicalGhosts_honest
   simpa only [canonicalGhosts, canonicalExpected,
     SumCheck.Finite.HypercubeTruth.semanticGhosts,
     sumCompletions_polynomial_eq_summedQ ops laws data alpha gamma,
-    polynomial, roundPoint.dimension, dif_pos] using generic
+    polynomial, roundPoint.dimension, dite_eq_left] using generic
 
 def OutputMismatch
     {Field : Type uField}

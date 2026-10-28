@@ -1,16 +1,5 @@
 import NightstreamFPrime.Lifecycle.Relation
 
-/-!
-Owns the concrete Stage 1 outer terminal relation.
-
-The base proof is the unique empty constructor. A recursive proof checks the
-canonical child split of the running instance, the prior public-state link,
-all 16 running CE openings inside the one uniform-IVC slot, and the selected
-fresh CCS opening. It performs no additional NIFS fold.
-
-Physical terminal circuits and package placement belong to later layers.
--/
-
 namespace NightstreamFPrime.Lifecycle.Stage1.Terminal
 
 open NightstreamFPrime.Spec

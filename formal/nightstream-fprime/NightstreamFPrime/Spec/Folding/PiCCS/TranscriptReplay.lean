@@ -1,26 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiatShamir
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
 
-/-!
-Verifier-owned transcript replay for canonical SuperNeo v1.2 `Pi_CCS`.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: statement absorption, round-message absorption, and challenge
-derivation through the final SumCheck round. This file emits no rows.
-
-Owns: the typed PiCCS proof-message carrier, the exact projection of its round
-messages into Fiat--Shamir replay, the absorbed replay authority consisting
-of the prior transcript state and those messages, and derivation of every
-alpha/gamma/SumCheck challenge from that authority.
-
-Does not own: hidden semantic assignments or image tables, construction of
-production PiCCS inputs, executable acceptance, terminal checking,
-post-SumCheck output absorption, semantic degree bounds, a concrete Poseidon2
-encoding, random-oracle security, Pi_RLC handoff refinement, Rust, R1CS, or
-counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay
 

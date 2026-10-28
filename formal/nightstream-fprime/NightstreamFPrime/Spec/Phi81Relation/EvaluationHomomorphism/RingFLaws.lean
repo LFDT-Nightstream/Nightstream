@@ -1,18 +1,6 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction
 
-/-!
-Symbolic Phi81 multiplication laws needed by the `Pi_RLC` carrier bridge.
-
-Protocol: SuperNeo v1.2 Theorem 11, concrete assignment-side ring action.
-
-Owns: a symbolic schoolbook-convolution theorem for two monomials; the
-canonical `X^81 = 1`, `X^54 = -X^27 - 1` monomial normal form; and the
-smallest product-order law needed to commute the fixed bar action with an
-arbitrary challenge action.
-
-Does not own: coefficientwise `RingF -> RingK` embedding, Boolean MLE,
-commitments, transcripts, Rust/R1CS refinement, row removal, or counts.
--/
+/-! SuperNeo v1.2 Theorem 11. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 
@@ -41,8 +29,8 @@ private theorem ringFCoeff_monomial
       if index = degree then coefficient else 0 := by
   unfold ringFCoeff ringFMonomial
   by_cases indexLt : index < ringDegree
-  · rw [dif_pos indexLt]
-  · rw [dif_neg indexLt]
+  · rw [dite_eq_left indexLt]
+  · rw [dite_eq_right indexLt]
     have notEqual : index ≠ degree := by omega
     simp [notEqual]
 
@@ -63,7 +51,7 @@ private theorem foldl_absent_oneHot
       have absentTail : selected ∉ indices := by
         intro member
         exact absent (by simp [member])
-      rw [List.foldl_cons, if_neg indexNe, Fin.add_zero]
+      rw [List.foldl_cons, ite_eq_right indexNe, Fin.add_zero]
       exact inductionHypothesis initial absentTail
 
 private theorem foldl_oneHot
@@ -79,12 +67,12 @@ private theorem foldl_oneHot
       simp only [List.foldl_cons]
       by_cases indexEq : index = selected
       · subst index
-        rw [if_pos rfl, Fin.zero_add]
+        rw [ite_eq_left rfl, Fin.zero_add]
         exact foldl_absent_oneHot indices selected value value
           (List.nodup_cons.mp nodup).1
       · have memberTail : selected ∈ indices := by
           simpa [Ne.symm indexEq] using member
-        rw [if_neg indexEq, Fin.add_zero]
+        rw [ite_eq_right indexEq, Fin.add_zero]
         exact inductionHypothesis (List.nodup_cons.mp nodup).2 memberTail
 
 private theorem foldl_keep
@@ -131,12 +119,12 @@ theorem rawMulCoeffF_monomial
         have subtract : degree - leftDegree = rightDegree := by omega
         simp [active, ringFCoeff_monomial, leftLt, rightLt, subtract]
       · by_cases active : index <= degree ∧ degree - index < ringDegree
-        · rw [if_pos active,
+        · rw [ite_eq_left active,
             ringFCoeff_monomial leftDegree leftCoefficient leftLt index,
-            if_neg indexEq, Fin.zero_mul, Fin.add_zero, if_neg indexEq,
+            ite_eq_right indexEq, Fin.zero_mul, Fin.add_zero, ite_eq_right indexEq,
             Fin.add_zero]
-        · rw [if_neg active, if_neg indexEq, Fin.add_zero]
-    rw [stepEquality, if_pos degreeEq]
+        · rw [ite_eq_right active, ite_eq_right indexEq, Fin.add_zero]
+    rw [stepEquality, ite_eq_left degreeEq]
     exact foldl_oneHot (List.range ringDegree) leftDegree
       (leftCoefficient * rightCoefficient) List.nodup_range
       (by simpa using leftLt)
@@ -153,16 +141,16 @@ theorem rawMulCoeffF_monomial
       by_cases active : index <= degree ∧ degree - index < ringDegree
       · by_cases indexEq : index = leftDegree
         · have rightNe : degree - index ≠ rightDegree := by omega
-          rw [if_pos active,
+          rw [ite_eq_left active,
             ringFCoeff_monomial leftDegree leftCoefficient leftLt index,
             ringFCoeff_monomial rightDegree rightCoefficient rightLt
               (degree - index),
-            if_neg rightNe, Fin.mul_zero, Fin.add_zero]
-        · rw [if_pos active,
+            ite_eq_right rightNe, Fin.mul_zero, Fin.add_zero]
+        · rw [ite_eq_left active,
             ringFCoeff_monomial leftDegree leftCoefficient leftLt index,
-            if_neg indexEq, Fin.zero_mul, Fin.add_zero]
-      · rw [if_neg active]
-    rw [stepEquality, if_neg degreeEq]
+            ite_eq_right indexEq, Fin.zero_mul, Fin.add_zero]
+      · rw [ite_eq_right active]
+    rw [stepEquality, ite_eq_right degreeEq]
     exact foldl_keep (List.range ringDegree) 0
 
 private def delta (output degree : Nat) : F :=
@@ -226,9 +214,9 @@ private theorem reduction_middle
   have baseNe : output ≠ sumDegree := by omega
   have twiceNe : output + 81 ≠ sumDegree := by omega
   have baseDelta : delta output sumDegree = 0 := by
-    simp only [delta, if_neg baseNe]
+    simp only [delta, ite_eq_right baseNe]
   have twiceDelta : delta (output + 81) sumDegree = 0 := by
-    simp only [delta, if_neg twiceNe]
+    simp only [delta, ite_eq_right twiceNe]
   by_cases outputLow : output < 27
   · have secondNe : output ≠ sumDegree - 27 := by omega
     have foldedIff : output + 54 = sumDegree ↔
@@ -236,26 +224,26 @@ private theorem reduction_middle
     by_cases folded : output + 54 = sumDegree
     · have target : output = sumDegree - 54 := foldedIff.mp folded
       have foldedDelta : delta (output + 54) sumDegree = 1 := by
-        simp only [delta, if_pos folded]
+        simp only [delta, ite_eq_left folded]
       have firstDelta : delta output (sumDegree - 54) = 1 := by
-        simp only [delta, if_pos target]
+        simp only [delta, ite_eq_left target]
       have secondDelta : delta output (sumDegree - 27) = 0 := by
-        simp only [delta, if_neg secondNe]
+        simp only [delta, ite_eq_right secondNe]
       by_cases twiceEnabled : output + 81 <= 106 <;>
-        simp only [outputLow, if_pos, baseDelta, foldedDelta, twiceEnabled,
+        simp only [outputLow, ite_eq_left, baseDelta, foldedDelta, twiceEnabled,
           twiceDelta, firstDelta, secondDelta, Fin.sub_eq_add_neg,
           Fin.zero_add, Fin.add_zero, Fin.mul_one, Fin.mul_zero] <;>
         simp
     · have target : output ≠ sumDegree - 54 := by
         exact fun equal => folded (foldedIff.mpr equal)
       have foldedDelta : delta (output + 54) sumDegree = 0 := by
-        simp only [delta, if_neg folded]
+        simp only [delta, ite_eq_right folded]
       have firstDelta : delta output (sumDegree - 54) = 0 := by
-        simp only [delta, if_neg target]
+        simp only [delta, ite_eq_right target]
       have secondDelta : delta output (sumDegree - 27) = 0 := by
-        simp only [delta, if_neg secondNe]
+        simp only [delta, ite_eq_right secondNe]
       by_cases twiceEnabled : output + 81 <= 106 <;>
-        simp only [outputLow, if_pos, baseDelta, foldedDelta, twiceEnabled,
+        simp only [outputLow, ite_eq_left, baseDelta, foldedDelta, twiceEnabled,
           twiceDelta, firstDelta, secondDelta, Fin.sub_eq_add_neg,
           Fin.zero_add, Fin.add_zero, Fin.mul_zero, fin_neg_zero] <;>
         simp
@@ -267,28 +255,28 @@ private theorem reduction_middle
     by_cases folded : output + 27 = sumDegree
     · have target : output = sumDegree - 27 := foldedIff.mp folded
       have foldedDelta : delta (output + 27) sumDegree = 1 := by
-        simp only [delta, if_pos folded]
+        simp only [delta, ite_eq_left folded]
       have firstDelta : delta output (sumDegree - 54) = 0 := by
-        simp only [delta, if_neg firstNe]
+        simp only [delta, ite_eq_right firstNe]
       have secondDelta : delta output (sumDegree - 27) = 1 := by
-        simp only [delta, if_pos target]
+        simp only [delta, ite_eq_left target]
       by_cases twiceEnabled : output + 81 <= 106 <;>
-        simp only [outputLow, if_false, baseDelta, foldedDelta, twiceEnabled,
-          if_pos, twiceDelta, firstDelta, secondDelta,
+        simp only [outputLow, ite_false, baseDelta, foldedDelta, twiceEnabled,
+          ite_eq_left, twiceDelta, firstDelta, secondDelta,
           Fin.sub_eq_add_neg, Fin.zero_add, Fin.add_zero, Fin.mul_one,
           Fin.mul_zero] <;>
         simp
     · have target : output ≠ sumDegree - 27 := by
         exact fun equal => folded (foldedIff.mpr equal)
       have foldedDelta : delta (output + 27) sumDegree = 0 := by
-        simp only [delta, if_neg folded]
+        simp only [delta, ite_eq_right folded]
       have firstDelta : delta output (sumDegree - 54) = 0 := by
-        simp only [delta, if_neg firstNe]
+        simp only [delta, ite_eq_right firstNe]
       have secondDelta : delta output (sumDegree - 27) = 0 := by
-        simp only [delta, if_neg target]
+        simp only [delta, ite_eq_right target]
       by_cases twiceEnabled : output + 81 <= 106 <;>
-        simp only [outputLow, if_false, baseDelta, foldedDelta, twiceEnabled,
-          if_pos, twiceDelta, firstDelta, secondDelta,
+        simp only [outputLow, ite_false, baseDelta, foldedDelta, twiceEnabled,
+          ite_eq_left, twiceDelta, firstDelta, secondDelta,
           Fin.sub_eq_add_neg, Fin.add_zero, Fin.mul_zero,
           fin_neg_zero] <;>
         simp
@@ -307,58 +295,58 @@ private theorem reduction_high
       delta output (sumDegree - 81) := by
   have baseNe : output ≠ sumDegree := by omega
   have baseDelta : delta output sumDegree = 0 := by
-    simp only [delta, if_neg baseNe]
+    simp only [delta, ite_eq_right baseNe]
   by_cases outputLow : output < 27
   · have foldedNe : output + 54 ≠ sumDegree := by omega
     have foldedDelta : delta (output + 54) sumDegree = 0 := by
-      simp only [delta, if_neg foldedNe]
+      simp only [delta, ite_eq_right foldedNe]
     have twiceIff : output + 81 = sumDegree ↔
         output = sumDegree - 81 := by omega
     by_cases twice : output + 81 = sumDegree
     · have target : output = sumDegree - 81 := twiceIff.mp twice
       have hasTwice : output + 81 <= 106 := by omega
       have twiceDelta : delta (output + 81) sumDegree = 1 := by
-        simp only [delta, if_pos twice]
+        simp only [delta, ite_eq_left twice]
       have targetDelta : delta output (sumDegree - 81) = 1 := by
-        simp only [delta, if_pos target]
-      simp only [outputLow, if_pos, baseDelta, foldedDelta, hasTwice,
+        simp only [delta, ite_eq_left target]
+      simp only [outputLow, ite_eq_left, baseDelta, foldedDelta, hasTwice,
         twiceDelta, targetDelta, Fin.sub_eq_add_neg, fin_neg_zero,
         Fin.zero_add, Fin.add_zero]
     · have target : output ≠ sumDegree - 81 := by
         exact fun equal => twice (twiceIff.mpr equal)
       have twiceDelta : delta (output + 81) sumDegree = 0 := by
-        simp only [delta, if_neg twice]
+        simp only [delta, ite_eq_right twice]
       have targetDelta : delta output (sumDegree - 81) = 0 := by
-        simp only [delta, if_neg target]
+        simp only [delta, ite_eq_right target]
       by_cases hasTwice : output + 81 <= 106 <;>
-        simp only [outputLow, if_pos, baseDelta, foldedDelta, hasTwice,
+        simp only [outputLow, ite_eq_left, baseDelta, foldedDelta, hasTwice,
           twiceDelta, targetDelta, Fin.sub_eq_add_neg, fin_neg_zero,
           Fin.zero_add, Fin.add_zero] <;>
         simp
   · have foldedNe : output + 27 ≠ sumDegree := by omega
     have foldedDelta : delta (output + 27) sumDegree = 0 := by
-      simp only [delta, if_neg foldedNe]
+      simp only [delta, ite_eq_right foldedNe]
     have twiceIff : output + 81 = sumDegree ↔
         output = sumDegree - 81 := by omega
     by_cases twice : output + 81 = sumDegree
     · have target : output = sumDegree - 81 := twiceIff.mp twice
       have hasTwice : output + 81 <= 106 := by omega
       have twiceDelta : delta (output + 81) sumDegree = 1 := by
-        simp only [delta, if_pos twice]
+        simp only [delta, ite_eq_left twice]
       have targetDelta : delta output (sumDegree - 81) = 1 := by
-        simp only [delta, if_pos target]
-      simp only [outputLow, if_false, baseDelta, foldedDelta, hasTwice,
-        if_pos, twiceDelta, targetDelta, Fin.sub_eq_add_neg, fin_neg_zero,
+        simp only [delta, ite_eq_left target]
+      simp only [outputLow, ite_false, baseDelta, foldedDelta, hasTwice,
+        ite_eq_left, twiceDelta, targetDelta, Fin.sub_eq_add_neg, fin_neg_zero,
         Fin.zero_add, Fin.add_zero]
     · have target : output ≠ sumDegree - 81 := by
         exact fun equal => twice (twiceIff.mpr equal)
       have twiceDelta : delta (output + 81) sumDegree = 0 := by
-        simp only [delta, if_neg twice]
+        simp only [delta, ite_eq_right twice]
       have targetDelta : delta output (sumDegree - 81) = 0 := by
-        simp only [delta, if_neg target]
+        simp only [delta, ite_eq_right target]
       by_cases hasTwice : output + 81 <= 106 <;>
-        simp only [outputLow, if_false, baseDelta, foldedDelta, hasTwice,
-          if_pos, twiceDelta, targetDelta, Fin.sub_eq_add_neg,
+        simp only [outputLow, ite_false, baseDelta, foldedDelta, hasTwice,
+          ite_eq_left, twiceDelta, targetDelta, Fin.sub_eq_add_neg,
           fin_neg_zero, Fin.add_zero] <;>
         simp
 
@@ -487,7 +475,7 @@ theorem monomialReduce_recurrence
       have residueLt54 : degree - 27 < 54 := by omega
       funext output
       simp only [monomialReduce, modDegree, modPlus27, modPlus54,
-        if_pos degreeLt54, if_neg plus27Ge54, if_pos residueLt54,
+        ite_eq_left degreeLt54, ite_eq_right plus27Ge54, ite_eq_left residueLt54,
         ringFAdd, CarrierAction.ringFScale, ringDegree, ringMiddleDegree]
       have sub54 : degree + 27 - 54 = degree - 27 := by omega
       have sub27 : degree + 27 - 27 = degree := by omega
@@ -502,7 +490,7 @@ theorem monomialReduce_recurrence
       have residue54Lt54 : degree - 27 < 54 := by omega
       funext output
       simp only [monomialReduce, modDegree, modPlus27, modPlus54,
-        if_neg degreeLt54, if_pos residue27Lt54, if_pos residue54Lt54,
+        ite_eq_right degreeLt54, ite_eq_left residue27Lt54, ite_eq_left residue54Lt54,
         ringFAdd, CarrierAction.ringFScale, ringDegree, ringMiddleDegree]
       exact (reduction_cancel_right
         (basis (degree - 54) output) (basis (degree - 27) output)).symm
@@ -522,7 +510,7 @@ theorem ringFMul_basis_monomialReduce_residue
   · have residueMod : residue.val % 81 = residue.val :=
       Nat.mod_eq_of_lt residue.isLt
     have reduced : monomialReduce residue.val = basis residue.val := by
-      simp only [monomialReduce, residueMod, if_pos residueLt54]
+      simp only [monomialReduce, residueMod, ite_eq_left residueLt54]
     rw [reduced]
     exact ringFMul_basis_basis left ⟨residue.val, residueLt54⟩
   · have residueGe54 : ringDegree <= residue.val :=
@@ -542,7 +530,7 @@ theorem ringFMul_basis_monomialReduce_residue
               (basis (residue.val - ringDegree)))
             (CarrierAction.ringFScale (-1)
               (basis (residue.val - ringMiddleDegree))) := by
-      simp only [monomialReduce, residueMod, if_neg residueLt54]
+      simp only [monomialReduce, residueMod, ite_eq_right residueLt54]
     rw [reduced, CarrierAction.ringFMul_add_right,
       CarrierAction.ringFMul_scale_right,
       CarrierAction.ringFMul_scale_right,
@@ -656,13 +644,13 @@ private theorem basisExpansion_eq (value : RingF) :
       apply sumRange_congr
       intro index indexLt
       unfold basisTerm CarrierAction.ringFScale basis ringFMonomial
-      rw [dif_pos indexLt]
+      rw [dite_eq_left indexLt]
       by_cases equal : index = output.val
-      · rw [if_pos equal, if_pos equal.symm, Fin.mul_one]
+      · rw [ite_eq_left equal, ite_eq_left equal.symm, Fin.mul_one]
         apply congrArg value
         apply Fin.ext
         exact equal
-      · rw [if_neg equal, if_neg (Ne.symm equal), Fin.mul_zero]
+      · rw [ite_eq_right equal, ite_eq_right (Ne.symm equal), Fin.mul_zero]
     _ = value output := by
       simpa using!
         (sumRange_select ConcreteCarrier.baseOps ConcreteCarrier.baseLaws
@@ -716,7 +704,7 @@ theorem ringF_linear_eq_of_basis
           inductionHypothesis (by omega)]
         congr 1
         unfold basisTerm
-        rw [dif_pos countLt, leftScale, rightScale,
+        rw [dite_eq_left countLt, leftScale, rightScale,
           onBasis ⟨count, countLt⟩]
   calc
     leftMap value = leftMap (basisExpansion value) := by

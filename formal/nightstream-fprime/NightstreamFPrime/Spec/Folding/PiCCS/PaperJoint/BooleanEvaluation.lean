@@ -1,21 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanTable
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Sampling
 
-/-!
-Evaluation semantics for the canonical Boolean-table coefficient transform.
-
-Owns: an independently recursive multilinear evaluation of an explicit
-Boolean table and its equality with evaluation of `toAlphaPolynomial` against
-the verifier-owned canonical alpha basis.
-
-Does not own: Boolean-leaf lookup, alignment of this low/high order with an
-external paper or production bit serialization, CCS or norm residual
-construction, SumCheck, sampling, root counting, Fiat--Shamir, Rust, R1CS, or
-constraint counts.
-
-Emits constraints: no.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 open NightstreamFPrime.Spec.SumCheck
@@ -114,7 +99,7 @@ def evaluate
     (point : CubePoint Field variables) : Field :=
   table.evaluateCoordinates ops point.coordinates
 
-private def evaluationShape (template : Shape) (variables : Nat) : Shape :=
+@[implicit_reducible] private def evaluationShape (template : Shape) (variables : Nat) : Shape :=
   { template with cubeVariables := variables }
 
 private def prependMonomial

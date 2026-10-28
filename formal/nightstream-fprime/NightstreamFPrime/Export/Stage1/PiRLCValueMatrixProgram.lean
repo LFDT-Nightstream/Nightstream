@@ -1,12 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCValueWiring
 
-/-!
-Owns the compact invocation-key substitution for PiRLC product values. Six
-structural mappings select the existing pilot and PiCCS retained forms.
-
-This module does not allocate value copies or construct product rows.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCValueMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram

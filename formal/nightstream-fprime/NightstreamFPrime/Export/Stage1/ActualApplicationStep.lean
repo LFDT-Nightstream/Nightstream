@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.ApplicationAssignmentSoundness
 import NightstreamFPrime.Export.Stage1.ActualPreimageFraming
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
-/-!
-Owns the application equation on the typed states decoded from the actual
-pilot preimages.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualApplicationStep
 
 open NightstreamFPrime.Circuit
@@ -44,7 +39,7 @@ private theorem input_eq_forms
     norm_num [RunningTransitionInputs.currentStateWordStart,
       Lifecycle.Stage1.Application.stateWordCount] at bound ⊢
     omega
-  rw [ActualPreimageFraming.priorState, dif_pos bounded]
+  rw [ActualPreimageFraming.priorState, dite_eq_left bounded]
   rfl
 
 private theorem output_eq_forms
@@ -68,7 +63,7 @@ private theorem output_eq_forms
     norm_num [RunningTransitionInputs.currentStateWordStart,
       Lifecycle.Stage1.Application.stateWordCount] at bound ⊢
     omega
-  rw [ActualPreimageFraming.outputState, dif_pos bounded]
+  rw [ActualPreimageFraming.outputState, dite_eq_left bounded]
   rfl
 
 theorem rowsZero_implies_decodedStep

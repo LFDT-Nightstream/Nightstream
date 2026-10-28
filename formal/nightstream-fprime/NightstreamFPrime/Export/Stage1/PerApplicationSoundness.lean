@@ -3,10 +3,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPreservation
 import NightstreamFPrime.Export.Stage1.RunningTransitionPackage
 import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
 
-/-!
-Owns deterministic soundness of one generic per-application Stage 1 package.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationSoundness
 
 open NightstreamFPrime.Circuit

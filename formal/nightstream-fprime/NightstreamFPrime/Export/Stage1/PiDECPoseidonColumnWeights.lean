@@ -4,16 +4,6 @@ import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericRows
 import Mathlib.Tactic.Ring
 import Mathlib.Data.ZMod.Defs
 
-/-!
-Column weights of Poseidon S-box invocations. Every port of an S-box row is a
-linear function of the column reads: the output reads a retained S-box output,
-and the input is a state lane plus a round constant times the one column, where
-the state is the image of earlier retained outputs (or of the input state) under
-the linear layers. The weighted sum of the rows of an invocation is therefore
-`Σ_j W_j read_j`, and one reverse pass through the transposed layers gives the
-column weights `W` of the input port.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights
@@ -251,9 +241,9 @@ private theorem add_value {columns : Nat} (merged : Merged columns) (port : Fin 
   split
   · rename_i slot _
     by_cases bound : slot < merged.weights.size
-    · rw [dif_pos bound]
+    · rw [dite_eq_left bound]
       by_cases key : merged.keys[slot]? = some column
-      · rw [if_pos key]
+      · rw [ite_eq_left key]
         refine ⟨by simp [sizes], fun target => ?_⟩
         have keyBound : slot < merged.keys.size := by omega
         have keyValue : merged.keys[slot] = column := by
@@ -272,9 +262,9 @@ private theorem add_value {columns : Nat} (merged : Merged columns) (port : Fin 
         · have same : merged.weights[slot].get target =
               (merged.weights.toList.map (·.get target))[slot]'(by simpa using bound) := by simp
           rw [same, List.set_getElem_self]
-      · rw [if_neg key]
+      · rw [ite_eq_right key]
         exact push_value merged port column weight values sizes
-    · rw [dif_neg bound]
+    · rw [dite_eq_right bound]
       exact push_value merged port column weight values sizes
   · exact push_value merged port column weight values sizes
 
@@ -732,7 +722,7 @@ private theorem addInvocation_value {columns arity : Nat} (point : CubePoint K a
       by_cases same : target = 1
       · subst same
         simp [change]
-      · simp only [change, same, if_false]
+      · simp only [change, same, ite_false]
         exact (extensionLaws.add_zero _).symm)
     (List.finRange 16) reversed.2 suffix.1
   rw [result]
@@ -747,7 +737,7 @@ private theorem addInvocation_value {columns arity : Nat} (point : CubePoint K a
         (if (1 : Fin 2) = 1 then extensionOps.mul (reversed.1.get lane)
           (K.embed ((interface.input lane).evalSparse read)) else extensionOps.zero))
         extensionOps.zero = dotState reversed.1 state := by
-      simp only [if_true, PiDECMatrixWeightedRange.mul_embed, dotState, sum16, state,
+      simp only [ite_true, PiDECMatrixWeightedRange.mul_embed, dotState, sum16, state,
         PiDECPoseidonNumericStep.stateValues, vget, Vector.getElem_ofFn]
       rfl
     rw [inputs, total, show K.zero = extensionOps.zero from rfl, extensionLaws.add_zero]
@@ -755,7 +745,7 @@ private theorem addInvocation_value {columns arity : Nat} (point : CubePoint K a
         (if target = 1 then extensionOps.mul (reversed.1.get lane)
           (K.embed ((interface.input lane).evalSparse read)) else extensionOps.zero))
         extensionOps.zero = extensionOps.zero := by
-      simp only [input, if_false, extensionLaws.add_zero]
+      simp only [input, ite_false, extensionLaws.add_zero]
       simp [List.finRange]
     rw [zeros, extensionLaws.add_zero, suffix.2.1 target input]
 
@@ -899,7 +889,7 @@ private theorem invocation_value {columns arity : Nat} (start : Nat) (point : Cu
   rw [PiDECMatrixInvocation.sum_value, rowTotal_eq, PiDECPoseidonNumericRows.values_length]
   apply numericSum_congr
   intro row bound
-  rw [dif_pos bound, prepared_get read interface output row bound, get_port _ port target index,
+  rw [dite_eq_left bound, prepared_get read interface output row bound, get_port _ port target index,
     Nat.zero_add]
 
 private theorem invocation_other {columns arity : Nat} (start : Nat) (point : CubePoint K arity)
@@ -910,7 +900,7 @@ private theorem invocation_other {columns arity : Nat} (start : Nat) (point : Cu
   rw [PiDECMatrixInvocation.sum_value]
   have length := PiDECPoseidonNumericRows.values_length (read output) interface
   rw [numericSum_congr 150 _ (fun _ => extensionOps.zero) (fun row bound => ?_), numericSum_zero]
-  rw [dif_pos bound, prepared_get read interface output row bound,
+  rw [dite_eq_left bound, prepared_get read interface output row bound,
     List.getD_eq_getElem _ _ (by omega)]
   have member := List.getElem_mem (l := PiDECPoseidonNumericRows.values (read output) interface)
     (n := row) (by omega)
@@ -949,7 +939,7 @@ theorem evaluate_prepare_toRing {columns arity count : Nat} (firstRow : Nat)
   cases index : portIndex? port with
   | none =>
       rw [numericSum_congr count _ (fun _ => extensionOps.zero) (fun row live => by
-        rw [dif_pos live, invocation_other _ point read _ port index output]), numericSum_zero]
+        rw [dite_eq_left live, invocation_other _ point read _ port index output]), numericSum_zero]
       simp only [evaluate, vget, Vector.getElem_ofFn, index, MaterializedRingK.toRing_ofRing]
       rfl
   | some target =>
@@ -963,7 +953,7 @@ theorem evaluate_prepare_toRing {columns arity count : Nat} (firstRow : Nat)
         (fun index live merged fits => by
           have now := addInvocation_value point (firstRow + 150 * index)
             (interfaces.get ⟨index, live⟩) (read output) merged fits
-          exact ⟨now.1, fun target => by rw [now.2 target, dif_pos live]⟩)
+          exact ⟨now.1, fun target => by rw [now.2 target, dite_eq_left live]⟩)
         ⟨#[], #[], {}⟩ rfl
       have merged := fold.2 target
       rw [show (Merged.value (⟨#[], #[], {}⟩ : Merged columns) target
@@ -973,7 +963,7 @@ theorem evaluate_prepare_toRing {columns arity count : Nat} (firstRow : Nat)
           rowTotal (rowWeight point (firstRow + 150 * index)) target
             (PiDECPoseidonNumericRows.values (read output) (interfaces.get ⟨index, live⟩)) 0
           else extensionOps.zero) (fun row live => by
-        rw [dif_pos live, dif_pos live, invocation_value _ point read _ port target index output]),
+        rw [dite_eq_left live, dite_eq_left live, invocation_value _ point read _ port target index output]),
         ← merged]
       exact evaluate_get (mergedOf firstRow point interfaces) fold.1 read port target index output
 

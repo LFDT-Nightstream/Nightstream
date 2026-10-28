@@ -2,9 +2,6 @@ import Mathlib.SetTheory.Cardinal.Finite
 import NightstreamFPrime.Spec.Profile
 import NightstreamFPrime.Spec.Phi81StrongSet
 
-/-! Counts the actual sampler carrier and its injective Phi81 image, then
-connects that count to the selected production profile. No set is enumerated. -/
-
 namespace NightstreamFPrime.Spec.Phi81StrongSet
 
 theorem scalar_cardinality : Nat.card Scalar = productionChallengeSetCardinality := by

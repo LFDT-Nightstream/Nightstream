@@ -1,14 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support
 
-/-!
-Owns variable-support propagation for the PiCCS statement-binding leaf.
-
-The assertions read fixed prior/output state words, the four
-verifier-context words, the packed prior words, the prior child digits, and the
-leaf's own hinted sign columns. This module changes no circuit and selects no
-layout.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 
 open NightstreamFPrime.Circuit

@@ -1,11 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionLowering
 import NightstreamFPrime.Layout.R1CS.Completeness
 
-/-!
-Owns deterministic physical soundness and constructive completeness for the
-Stage 1 running transition. No cryptographic assumption occurs here.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionLayout
 
 open NightstreamFPrime.Spec

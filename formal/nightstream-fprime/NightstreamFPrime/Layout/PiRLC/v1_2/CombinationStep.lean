@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.R1CS.Completeness
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep
 
-/-!
-Owns physical R1CS lowering for one generic PiRLC combination step.
-
-The logical step keeps its exact `next = prior + rho * value` rows. Because
-the external expressions are generic, this owner exposes the exact computed
-physical footprint rather than claiming a constant production cost.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep
 
 open NightstreamFPrime.Circuit

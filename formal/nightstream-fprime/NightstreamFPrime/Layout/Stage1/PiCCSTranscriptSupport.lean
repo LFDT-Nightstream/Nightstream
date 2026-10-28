@@ -2,16 +2,6 @@ import NightstreamFPrime.Gadgets.Polynomial.HornerSupport
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringSupport
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
 
-/-!
-Owns retained-source support for the verifier-derived PiCCS transcript values.
-
-The proof uses the recipe-free Poseidon2 wiring projection. Existing shape
-theorems transfer the exact semantic-program footprints to that projection.
-The first transcript permutation starts after the 270 statement-binding sign
-columns. This module changes no transcript action, challenge order, circuit,
-or row.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport
 
 open NightstreamFPrime.Circuit
@@ -321,6 +311,7 @@ theorem transcriptValuesSupported
       exact List.mem_of_mem_take member
     · simp [ChallengeDerivation.layoutWiring_samples_length,
         productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+      exact coordinate.isLt
   · rw [Formal.challengeGamma,
       ChallengeDerivation.gamma_eq_gammaFast_pointwise]
     unfold ChallengeDerivation.gammaFast

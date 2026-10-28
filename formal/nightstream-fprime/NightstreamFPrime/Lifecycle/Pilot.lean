@@ -1,12 +1,6 @@
 import NightstreamFPrime.Lifecycle.OutputHash
 import NightstreamFPrime.Lifecycle.PriorStateHash
 
-/-!
-Owns the logical composition of the two pilot phases. The prior-state child is
-placed first and the output-hash child starts at its exact final offset.
-Physical row concatenation belongs to `Layout/`.
--/
-
 namespace NightstreamFPrime.Lifecycle.Pilot
 
 open NightstreamFPrime.Spec

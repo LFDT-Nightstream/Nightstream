@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNormBuckets
 import NightstreamFPrime.Export.Stage1.PiCCSNormSource
 
-/-! Accumulate the first-round norm from the complete original signed masks.
-Matrix images, prover messages and claimed norm results are not inputs. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNormScan

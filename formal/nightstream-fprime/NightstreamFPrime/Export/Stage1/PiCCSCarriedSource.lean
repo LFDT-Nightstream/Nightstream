@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
 import NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout
 
-/-! Proof-only source values for the two carried accumulators.
-The scalar fold ordering and worker merge belong to the complete-sum proof. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCarriedSource
@@ -134,8 +131,8 @@ private theorem endpoint_projections_generic
         (fun slot => extensionOps.mul (power (productionShape.runningCount * slot.val)) (values.get slot))) =
       some wantedMatrix := by
   by_cases active : NumericBooleanDomain.index vertex < program.rowCount
-  · simp only [PiCCSAggregatedImages.endpoint?, if_pos active, fromRows_value] at returned
-    simp only [if_pos active]
+  · simp only [PiCCSAggregatedImages.endpoint?, ite_eq_left active, fromRows_value] at returned
+    simp only [ite_eq_left active]
     exact join_projections
       (PiCCSSourceImages.freshMatrixImage? program sourceRow
         (assignments (freshSourceIndex ⟨0, by decide⟩)) vertex)
@@ -146,8 +143,8 @@ private theorem endpoint_projections_generic
       (fun values => sumMap extensionOps (canonicalFinIndices productionShape.matrixCount)
         (fun slot => extensionOps.mul (power (productionShape.runningCount * slot.val)) (values.get slot)))
       wanted wantedPad wantedMatrix returned
-  · simp only [PiCCSAggregatedImages.endpoint?, if_neg active, fromRows_value] at returned
-    simp only [if_neg active]
+  · simp only [PiCCSAggregatedImages.endpoint?, ite_eq_right active, fromRows_value] at returned
+    simp only [ite_eq_right active]
     exact join_projections
       (PiCCSSourceImages.freshMatrixImage? program sourceRow
         (assignments (freshSourceIndex ⟨0, by decide⟩)) vertex)
@@ -248,7 +245,7 @@ theorem originalMatrix_padding (input : PiCCSPublicReplay.Input)
     originalMatrix input witness gamma vertex = extensionOps.zero := by
   have original := matrix_sourceProtocolData input witness gamma vertex
   have outside : ¬ NumericBooleanDomain.index vertex < selectedProgram.rowCount := by omega
-  rw [matrixAt?, if_neg outside, Option.map_some] at original
+  rw [matrixAt?, ite_eq_right outside, Option.map_some] at original
   have zeroTotal : slotTotal gamma (Vector.replicate ProductionRelation.matrixCount K.zero) =
       extensionOps.zero := by
     exact weighted_zero_vector ProductionRelation.matrixCount

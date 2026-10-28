@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.RadixRecomposition
 
-/-!
-Owns canonical R1CS lowering for the reusable PiDEC radix-recomposition
-family. All verifier-owned radix weights are constants, so each logical
-parent-minus-weighted-children equation is one direct affine row.
-
-This module does not select a commitment or evaluation coordinate family.
--/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2.RadixRecomposition
 
 open NightstreamFPrime.Circuit

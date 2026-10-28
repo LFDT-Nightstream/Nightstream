@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.Package
 import NightstreamFPrime.Layout.PiRLC.v1_2.Preservation
 
-/-!
-Owns the constructive bridge from the semantic PiRLC phase to its exact
-physical rows in the final Stage 1 Spartan column order.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCPhysicalCompleteness
 
 open NightstreamFPrime.Circuit

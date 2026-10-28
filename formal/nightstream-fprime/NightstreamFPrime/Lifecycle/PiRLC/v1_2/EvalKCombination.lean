@@ -3,8 +3,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
 
 /-!
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, the separate
-Pad evaluation equation. This leaf preserves the v1.2 `Eval_K` family as one
-54-coefficient `RingK`; it is not matrix zero.
+Pad evaluation equation.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalKCombination

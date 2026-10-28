@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExecutio
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalNorm
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the source copy from a completed Spartan prefix and the application-owned
-private suffix to the existing canonical assignment input.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment
@@ -82,7 +77,7 @@ theorem application_ofCompleted
     rw [baseConstant_eq_private]
     exact Nat.add_lt_add_left index.isLt _
   unfold ofCompleted
-  rw [dif_neg before, dif_pos inside]
+  rw [dite_eq_right before, dite_eq_left inside]
   apply congrArg applicationPrivate
   apply Fin.ext
   change Spartan.privateColumnCount + index.val -
@@ -102,9 +97,9 @@ private theorem shifted_ofCompleted
   unfold ofCompleted PiRLCProductPlan.shiftedPackageColumn
   dsimp only
   by_cases before : column < PerApplicationPackage.basePackage.layout.constantColumn
-  · simp only [PerApplicationPackage.shiftColumn, if_pos before, dif_pos before]
-  · simp only [PerApplicationPackage.shiftColumn, if_neg before]
-    rw [dif_neg (by omega), dif_neg (by omega)]
+  · simp only [PerApplicationPackage.shiftColumn, ite_eq_left before, dite_eq_left before]
+  · simp only [PerApplicationPackage.shiftColumn, ite_eq_right before]
+    rw [dite_eq_right (by omega), dite_eq_right (by omega)]
     rw [Nat.add_sub_cancel_right]
 
 theorem packageEnv_ofCompleted

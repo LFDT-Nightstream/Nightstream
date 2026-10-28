@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgramSubstitutio
 import NightstreamFPrime.Export.Stage1.ActualPreimageFraming
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
-/-!
-Owns the running-transition contract decoded from arbitrary accepted logical
-rows. Parent preimage wiring is proved separately.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualRunningTransition
 
 open NightstreamFPrime.Circuit
@@ -18,6 +13,8 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+
+attribute [local implicit_reducible] RunningTransitionSourceSupport.outputCount
 
 variable {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
   {relationLogicalWidth : Nat}
@@ -151,7 +148,7 @@ private theorem selectedStateWord_eq_prior
     change index.val < 9 at bound
     rw [PilotProduction.stateHashWords_eq]
     omega
-  rw [ActualPreimageFraming.priorState, dif_pos bounded]
+  rw [ActualPreimageFraming.priorState, dite_eq_left bounded]
   rfl
 
 private theorem selectedOutputWord_eq_next
@@ -166,7 +163,7 @@ private theorem selectedOutputWord_eq_next
   change (Spartan.pullback (decodedEnv (selectedGeometry application) assignment))
     (RunningTransitionSourceSupport.outputStart + index.val) = _
   rw [outputWord_eq_form, RunningTransitionDirectPlan.Location.output_form_eq_pilot]
-  rw [ActualPreimageFraming.outputState, dif_pos index.isLt]
+  rw [ActualPreimageFraming.outputState, dite_eq_left index.isLt]
   rfl
 
 theorem selectedIteration_eq_prior

@@ -8,13 +8,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionBounds
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalRows
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns causal input bounds for the compact Stage 1 logical assembler.
-
-This file moves existing source-bound proofs to the compact child offsets. It
-does not define a circuit, semantic predicate, row, or physical placement.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.AssemblerBounds
 
 open NightstreamFPrime.Circuit
@@ -402,9 +395,14 @@ theorem piCcsRoundPointBelowPiRlc
     rw [PiCCS.v1_2.RoundTranscript.localLength_eq]
     rw [PiCCS.v1_2.Formal.roundTranscriptOffset_eq,
       PiCCS.v1_2.Formal.challengeOffset_eq]
-    norm_num [PiCCS.v1_2.RoundTranscript.perRoundRecipeCount,
-      productionShape, Phi81MatrixSource.phi81Shape, cubeVariables,
-      AssemblerInputs.piRlcOffset]
+    have product : productionShape.cubeVariables *
+        PiCCS.v1_2.RoundTranscript.perRoundRecipeCount 8 = 61376 := by
+      norm_num [PiCCS.v1_2.RoundTranscript.perRoundRecipeCount,
+        productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+    rw [product, AssemblerInputs.piRlcOffset,
+      show AssemblerInputs.piCcsOffset program + 135078 + 4384 + 61376 =
+        AssemblerInputs.piCcsOffset program + 200838 by ring]
+    exact Nat.add_le_add_left (by norm_num) _
   rw [AssemblerInputs.piCcsRoundPoint_eq_challenge]
   exact ⟨Expr.VarsBelow.mono _ bound.1 le,
     Expr.VarsBelow.mono _ bound.2 le⟩

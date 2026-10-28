@@ -1,24 +1,11 @@
 import CompressionLean.Bridge.Honest
 
-/-!
-Owns the bridge of the setup queries (`Replay.setupCheck`) to the model's
-honest fold. Plonky3's two-adic generator of order `8` has order `8`
-(`omega_order`, a kernel computation), so the replay's leaf weights are the
-inverse DFT of `HonestFold.leaf_formula`. Under the Merkle assumption
-(`MerkleBinds`: a proof leaf whose path reaches the key root holds the
-honest setup codeword on its coset), each folded value the replay computes
-is the model's honest fold at the leaf's query point (`setupCheck_value`).
--/
-
 namespace CompressionLean.Bridge
 
 open Polynomial
 open NightstreamFPrime.Spec
 open CompressionLean.Replay CompressionLean.Layer1
 
-/-! ## Two-adic generators -/
-
-/-- `n` squarings of `x` mod `p`. -/
 def squarings : ℕ → ℕ → ℕ
   | 0, x => x
   | n + 1, x => squarings n (x * x % goldilocksModulus)
@@ -28,7 +15,7 @@ theorem squarings_cast (n x : ℕ) : ((squarings n x : ℕ) : Fp) = (x : Fp) ^ (
   | zero => simp [squarings]
   | succ n ih => rw [squarings, ih, ZMod.natCast_mod, Nat.cast_mul, ← sq, ← pow_mul, pow_succ']
 
-/-- Plonky3's `two_adic_generator(bits)` in `Fp`, for `bits ≤ 32`. -/
+/-- Plonky3's `two_adic_generator(bits)`. -/
 def twoAdic (bits : ℕ) : Fp := (0x185629dcda58878c : Fp) ^ (2 ^ (32 - bits))
 
 theorem toF_twoAdicGenerator (bits : ℕ) : (twoAdicGenerator bits).toF = twoAdic bits := by
@@ -61,7 +48,6 @@ theorem neg_one_ne_one : (-1 : Fp) ≠ 1 := by
   have := three_le_modulus
   omega
 
-/-- The generator of the coset of a leaf has order `8`. -/
 theorem omega_order : orderOf (twoAdic 3) = 2 ^ 3 := by
   apply orderOf_eq_prime_pow (p := 2) (n := 2)
   · rw [twoAdic, ← pow_mul, show 2 ^ (32 - 3) * 2 ^ 2 = 2 ^ 31 by norm_num, generator_pow_31]
@@ -80,16 +66,13 @@ theorem generator_ne_zero : (0x185629dcda58878c : Fp) ≠ 0 := by
 
 theorem twoAdic_ne_zero (bits : ℕ) : twoAdic bits ≠ 0 := pow_ne_zero _ generator_ne_zero
 
-/-- Eight steps of order `2^(n+1)` are one step of order `2^(n-2)`. -/
 theorem twoAdic_pow_eight (n : ℕ) (low : 2 ≤ n) (high : n + 1 ≤ 32) : twoAdic (n + 1) ^ 8 = twoAdic (n - 2) := by
   rw [twoAdic, twoAdic, ← pow_mul, show (8 : ℕ) = 2 ^ 3 by norm_num, ← pow_add]
   congr 2
   omega
 
-/-- The first point of leaf `i`'s coset: `y_i = g·ω_{2^(n+1)}^i`. -/
 def leafY (n i : ℕ) : Fp := 7 * twoAdic (n + 1) ^ i
 
-/-- The query point of leaf `i`: `q_i = y_i^8 = g^8·ω_{2^(n-2)}^i` (`setup::query_point`). -/
 def queryPoint (n i : ℕ) : Fp := 7 ^ 8 * twoAdic (n - 2) ^ i
 
 theorem seven_ne_zero : (7 : Fp) ≠ 0 := by
@@ -105,8 +88,6 @@ theorem leafY_ne_zero (n i : ℕ) : leafY n i ≠ 0 :=
 theorem leafY_pow_eight (n i : ℕ) (low : 2 ≤ n) (high : n + 1 ≤ 32) : leafY n i ^ 8 = queryPoint n i := by
   rw [leafY, queryPoint, mul_pow, ← pow_mul, mul_comm i 8, pow_mul, twoAdic_pow_eight n low high]
 
-/-! ## Powers and monomials -/
-
 theorem toF_powerFromBits (bits : ℕ) : ∀ (g : Gl) (index : ℕ),
     (powerFromBits g index bits).toF = g.toF ^ (index % 2 ^ bits) := by
   induction bits with
@@ -115,8 +96,8 @@ theorem toF_powerFromBits (bits : ℕ) : ∀ (g : Gl) (index : ℕ),
       intro g index
       rw [powerFromBits, Gl.toF_mul, ih, Gl.toF_mul, ← sq, ← pow_mul, pow_succ', Nat.mod_mul, pow_add, pow_mul]
       rcases Nat.mod_two_eq_zero_or_one index with even | odd
-      · rw [if_neg (by omega), Gl.toF_one, even, pow_zero, one_mul]
-      · rw [if_pos odd, odd, pow_one]
+      · rw [ite_eq_right (by omega), Gl.toF_one, even, pow_zero, one_mul]
+      · rw [ite_eq_left odd, odd, pow_one]
 
 variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
 
@@ -144,7 +125,6 @@ theorem mle_map (p : List Fp) (t : ℕ → Fp) : ι (mle p t) = mle (p.map ι) f
   rw [map_mul, eqAt_map]
 
 omit [Fintype K] [ChallengeField K] in
-/-- A codeword value in `Fp` read in `K`. -/
 theorem univ_map (n : ℕ) (t : ℕ → Fp) (x : Fp) : ι ((univ n t).eval x) = (univ n fun i => ι (t i)).eval (ι x) := by
   rw [univ_eval, univ_eval, mle_map, powerPoint_map]
 
@@ -159,10 +139,6 @@ theorem univ_sum (n m : ℕ) (f : ℕ → ℕ → K) :
       simp only [Finset.sum_range_succ]
       rw [univ_add, ih]
 
-/-! ## The leaf check -/
-
-/-- The honest setup oracles in `Fp`, in leaf order: the key rows, then the
-run oracles row, slot, coefficient and slot block (`RUN_ORACLES`). -/
 def setupOracle (rel : Replay.Relation) (S : Setup Fp) (o x : ℕ) : Fp :=
   if o < rel.kappa then S.key o x
   else if o = rel.kappa then (S.runRow x : Fp)
@@ -170,10 +146,7 @@ def setupOracle (rel : Replay.Relation) (S : Setup Fp) (o x : ℕ) : Fp :=
   else if o = rel.kappa + 2 then S.runCoef x
   else if x < S.slots then (S.slotBlock x : Fp) else 0
 
-/-- **Merkle binding**, an assumption on the proof's leaves: a leaf whose path
-reaches the key root at index `i` holds, for each setup oracle, its codeword
-`Ô_o` on the coset `y_i·ω_8^v` of the honest leaf `i`. A leaf that breaks it
-and still reaches the root gives a hash collision. -/
+/-- Assumption: Merkle binding (hash collision resistance), not proved here. -/
 def MerkleBinds (rel : Replay.Relation) (S : Setup Fp) (leaves : Array Leaf) : Prop :=
   ∀ leaf ∈ leaves.toList, ∀ i, pathOk rel.key.root i leaf = true → ∀ o v, o < rel.kappa + runOracles →
     v < 2 ^ foldVars → (leaf.values[o * 2 ^ foldVars + v]!).toF =
@@ -184,7 +157,6 @@ theorem pow_mod_eight {w : K} (root : w ^ 8 = 1) (n : ℕ) : w ^ (n % 8) = w ^ n
   conv_rhs => rw [← Nat.div_add_mod n 8, pow_add, pow_mul, root, one_pow, one_mul]
 
 omit [Algebra Fp K] [Fintype K] [ChallengeField K] in
-/-- `ω^((8 - u)·v mod 8) = ω^-uv` for `ω^8 = 1`. -/
 theorem pow_dft {w : K} (root : w ^ 8 = 1) {u : ℕ} (small : u < 8) (v : ℕ) :
     w ^ ((8 - u) * v % 8) = w⁻¹ ^ (u * v) := by
   have nonzero : w ≠ 0 := fun zero => by rw [zero, zero_pow (by norm_num)] at root; exact zero_ne_one root
@@ -195,7 +167,6 @@ theorem pow_dft {w : K} (root : w ^ 8 = 1) {u : ℕ} (small : u < 8) (v : ℕ) :
 omit [Fintype K] [ChallengeField K] in
 theorem omega_K : (ι (twoAdic 3)) ^ 8 = 1 := by rw [← map_pow, omega_pow_eight, map_one]
 
-/-- The replay's weight of coset value `v` is `leaf_formula`'s. -/
 theorem toK_leafWeight (alpha : Array Ext) (y : Fp) (yInverse : Gl) (hy : yInverse.toF = y⁻¹) (v : ℕ) :
     (leafWeight alpha yInverse (twoAdicGenerator foldVars) v).toK (K := K) =
       ∑ u ∈ Finset.range (2 ^ foldVars), Layer1.monomial (pointK alpha) u * ((2 ^ foldVars : ℕ) : K)⁻¹ *
@@ -212,7 +183,6 @@ theorem toK_leafWeight (alpha : Array Ext) (y : Fp) (yInverse : Gl) (hy : yInver
   ring
 
 omit [Fintype K] [ChallengeField K] in
-/-- `ω_8` in `K` has order `8`. -/
 theorem omega_K_primitive : ∀ k, 0 < k → k < 2 ^ 3 → (ι (twoAdic 3)) ^ k ≠ 1 := by
   intro k positive small one
   apply pow_ne_one_of_lt_orderOf (x := twoAdic 3) (n := k) (by omega) (by rw [omega_order]; exact small)
@@ -229,8 +199,6 @@ theorem eight_ne_zero : ((2 ^ 3 : ℕ) : K) ≠ 0 := by
   have : (9 : ℕ) ≤ goldilocksModulus := by decide
   omega
 
-/-- One group's value at a leaf, `Σ_v w_v·Σ_k weight_k·Ô_{offset+k}(y·ω^v)`, is
-the honest fold of the group at the leaf's query point. -/
 theorem toK_groupValue (rel : Replay.Relation) (S : Setup Fp) (leaf : Leaf) (index : ℕ)
     (codeword : ∀ o v, o < rel.kappa + runOracles → v < 2 ^ foldVars →
       (leaf.values[o * 2 ^ foldVars + v]!).toF =
@@ -282,8 +250,6 @@ theorem two_groups (a b : Array Ext) (f : Array Ext × ℕ → Ext) :
       #[f (a, 0), f (b, a.size)] := by
   simp
 
-/-- The replay's two folded values at a queried leaf are the honest folds of
-the key group and of the run group at the leaf's query point. -/
 theorem setupCheck_value (rel : Replay.Relation) (S : Setup Fp) {leaves : Array Leaf} (merkle : MerkleBinds rel S leaves)
     {index : ℕ} (inside : index < 2 ^ (rel.setupVars - 2)) {leaf : Leaf} (member : leaf ∈ leaves.toList) (lam mu : Ext)
     {alpha : Array Ext} (alphaSize : alpha.size = foldVars) (setup : 3 ≤ rel.setupVars) (high : rel.setupVars + 1 ≤ 32)
@@ -312,7 +278,7 @@ theorem setupCheck_value (rel : Replay.Relation) (S : Setup Fp) {leaves : Array 
     apply Finset.sum_congr rfl
     intro k inside
     have lt : k < rel.kappa := Finset.mem_range.mp inside
-    rw [getElem!_map_range _ _ lt, toK_commitment, setupOracle, zero_add, if_pos lt]
+    rw [getElem!_map_range _ _ lt, toK_commitment, setupOracle, zero_add, ite_eq_left lt]
   · rw [getElem!_pos _ 1 (by simp)]
     apply toK_groupValue rel S leaf index codeword alpha alphaSize _ yInverse _ _ (by simp [runOracles]) _ _ setup high
     intro x
@@ -321,7 +287,7 @@ theorem setupCheck_value (rel : Replay.Relation) (S : Setup Fp) {leaves : Array 
       Finset.sum_range_zero, zero_add]
     rw [getElem!_map_range _ _ (by norm_num), getElem!_map_range _ _ (by norm_num),
       getElem!_map_range _ _ (by norm_num), getElem!_map_range _ _ (by norm_num)]
-    simp only [setupOracle, Ext.toK_pow, pow_zero, pow_one, lt_self_iff_false, if_false, if_true,
+    simp only [setupOracle, Ext.toK_pow, pow_zero, pow_one, lt_self_iff_false, ite_false, ite_true,
       show ¬ (rel.kappa + 1 < rel.kappa) by omega, show ¬ (rel.kappa + 2 < rel.kappa) by omega,
       show ¬ (rel.kappa + 3 < rel.kappa) by omega, show rel.kappa + 1 ≠ rel.kappa by omega,
       show rel.kappa + 2 ≠ rel.kappa by omega, show rel.kappa + 2 ≠ rel.kappa + 1 by omega,

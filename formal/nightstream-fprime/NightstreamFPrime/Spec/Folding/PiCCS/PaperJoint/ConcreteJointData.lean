@@ -3,26 +3,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormResidualTable
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CarriedEvaluationResidual
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckInitial
 
-/-!
-Independent construction of the paper-level joint `Pi_CCS` data.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: semantic residual construction before alpha/gamma compression.
-Constraint family: CCS, strict norm, Pad evaluation, and matrix evaluation.
-
-Owns: one explicit bundle of independently defined CCS matrices/assignments,
-typed strict-norm assignments, and separate Pad/matrix image data; zero-reflecting
-placement of base residual tables into the extension carrier; construction of
-the sole `SignedJointIdentity.JointData`; and exact equivalence between its
-table truth and the four independent semantic obligation families.
-
-Does not own: proof that coefficient-expanded carried matrices implement the
-same production ring matrices as the CCS structure, external row/bit order,
-the concrete base-to-extension homomorphism, target-convention approval,
-expected-round degree bounds, Fiat--Shamir, Rust, R1CS, or counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteJointData
 

@@ -2,20 +2,7 @@ import NightstreamFPrime.Spec.Profile
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLCFinite
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
 
-/-!
-Finite-batch production norm growth for the typed Phi81 `PiRLC.Algebra`.
-
-Protocol: SuperNeo v1.2 Definition 22 and `Pi_RLC`.
-
-Owns: the coordinatewise `216` action bound, centered accumulation over the
-exact head-first `PiRLCFinite.combineAssignments` fold, production arity
-arithmetic, and the theorem with the exact `PiRLC.Algebra.norm_growth` field
-shape.
-
-Does not own: transcript derivation of valid challenges, commitments,
-evaluation/public-input homomorphisms, Rust/R1CS refinement, row removal, or
-constraint counts.
--/
+/-! SuperNeo v1.2 Definition 22. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Finite
 
@@ -79,7 +66,7 @@ theorem combineAssignments_le
           have added := Nat.add_le_add headBound tailBound
           omega)
 
-/-- Definition 22 specialized to any total arity below the production cap. -/
+/-- SuperNeo v1.2 Definition 22. -/
 theorem production_total_bound {count : Nat}
     (totalBound : count <=
       productionGlobalParams.maxFresh + productionGlobalParams.k) :

@@ -1,6 +1,6 @@
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Fintype.Fin
-import Mathlib.Data.Real.Basic
+import Mathlib.Basic.Real.Basic
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
@@ -9,18 +9,6 @@ import Mathlib.SetTheory.Cardinal.Finite
 import Mathlib.Algebra.BigOperators.Field
 import NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Definition
-
-/-!
-Owns the exact law of the whole-vector sampler under uniform draws.
-
-Experiment: one draw of four independent uniform field values.
-Tests: every function from scalars to `[0, 1]`, so every event.
-Per-call bound: sampled and uniform expectations differ by at most
-`distance = r (N - r) / (N M)`, with `M = p^4`, `N = 5^54` and
-`r = M mod N`; `distance < 2^-132`.
-
-There is no sampler failure event. No law is assigned to Poseidon2.
--/
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 
@@ -63,7 +51,7 @@ theorem residue_count (residue : Fin scalarCount) :
     count_residue_within scalarCount residue.val scalarCount le_rfl,
     count_residue_within scalarCount residue.val (drawCount % scalarCount)
       (Nat.mod_lt _ scalarCount_pos).le]
-  simp only [residue.isLt, if_true, Nat.mul_one]
+  simp only [residue.isLt, ite_true, Nat.mul_one]
   rfl
 
 private def finSubtypeEquiv (length : Nat) (event : Nat → Prop) :
@@ -77,7 +65,7 @@ theorem sample_fiber_card (scalar : Scalar) :
     Nat.card {draw : Draw // sample draw = scalar} =
       quotient + if (scalarIndex scalar).val < remainder then 1 else 0 := by
   let event : Nat → Prop := fun value => value % scalarCount = (scalarIndex scalar).val
-  letI := Nat.CountSet.fintype event drawCount
+  let := Nat.CountSet.fintype event drawCount
   rw [Nat.card_congr (Equiv.subtypeEquivRight (fun draw => sample_eq_iff draw scalar)),
     Nat.card_congr (drawIndex.subtypeEquiv (q := fun value : Fin drawCount => event value.val)
       (fun _ => Iff.rfl)),

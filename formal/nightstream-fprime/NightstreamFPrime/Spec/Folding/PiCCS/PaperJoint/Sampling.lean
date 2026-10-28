@@ -1,20 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Coefficients
 
-/-!
-Deterministic alpha/gamma specialization of the paper's joint `Pi_CCS`
-residual polynomial.
-
-Owns: finite monomial evaluation, alpha specialization, constant-first gamma
-evaluation, the exact named mixing-root event, and the deterministic
-soundness dichotomy after sampling.
-
-Does not own: how alpha or gamma are sampled, probability or
-Schwartz--Zippel bounds, SumCheck soundness, transcript derivation,
-Fiat--Shamir, concrete CCS arithmetization, Rust, or R1CS.
-
-Emits constraints: no.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 open NightstreamFPrime.Spec.SumCheck

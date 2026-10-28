@@ -1,13 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Sparse
 import NightstreamFPrime.Export.Stage1.PiCCSGammaPowers
 
-/-!
-One adjacent Boolean-pair contribution to the PiCCS polynomial. Inputs are
-underlying endpoint images and two affine equality selectors.
-Owns the executable pair kernel and its equality to the existing terminal formula.
-Source-image construction and completion summation belong to their consumers.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSFirstRoundPair

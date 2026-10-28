@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.WitnessProgram
 
-/-!
-Owns the compact witness plan for the PiRLC sampler, PiDEC, and running-
-transition suffix.
--/
-
 namespace NightstreamFPrime.Export.Stage1.WitnessPlan
 
 open NightstreamFPrime.Circuit

@@ -1,11 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECMatrixProgramSubstitution
 
-/-!
-Proves row-by-row equality between the compact PiDEC matrix program and the
-canonical direct 4-matrix PiDEC plan. The package row accessor is an explicit
-identity-checked premise.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram
@@ -300,7 +294,7 @@ theorem publicProgram_row?
     exact index.isLt
   rw [show publicProgram geometry =
       MatrixProgram.Program.mk [.ordinary (publicBlock geometry)] by rfl]
-  rw [MatrixProgram.Program.singleton_row?, if_pos blockBound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left blockBound]
   change (do
     let forms ← (publicBlock geometry).row? logicalWidth sourceRow index.val
     pure forms.meaningfulForm) = _
@@ -328,7 +322,7 @@ theorem commitmentProgram_row?
     exact index.isLt
   rw [show commitmentProgram geometry =
       MatrixProgram.Program.mk [.ordinary (commitmentBlock geometry)] by rfl]
-  rw [MatrixProgram.Program.singleton_row?, if_pos blockBound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left blockBound]
   change (do
     let forms ← (commitmentBlock geometry).row? logicalWidth sourceRow index.val
     pure forms.meaningfulForm) = _
@@ -356,7 +350,7 @@ theorem evalKProgram_row?
     exact index.isLt
   rw [show evalKProgram geometry =
       MatrixProgram.Program.mk [.ordinary (evalKBlock geometry)] by rfl]
-  rw [MatrixProgram.Program.singleton_row?, if_pos blockBound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left blockBound]
   change (do
     let forms ← (evalKBlock geometry).row? logicalWidth sourceRow index.val
     pure forms.meaningfulForm) = _
@@ -384,7 +378,7 @@ theorem evalAProgram_row?
     exact index.isLt
   rw [show evalAProgram geometry =
       MatrixProgram.Program.mk [.ordinary (evalABlock geometry)] by rfl]
-  rw [MatrixProgram.Program.singleton_row?, if_pos blockBound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left blockBound]
   change (do
     let forms ← (evalABlock geometry).row? logicalWidth sourceRow index.val
     pure forms.meaningfulForm) = _

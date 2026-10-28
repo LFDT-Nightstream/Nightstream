@@ -2,9 +2,7 @@ import Mathlib.LinearAlgebra.Lagrange
 import NightstreamFPrime.Spec.GoldilocksPrime
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
 
-/-!
-Exact Phi81 product equations for SuperNeo section 7.4 over Goldilocks.
--/
+/-! SuperNeo v1.2 Section 7.4. -/
 
 set_option autoImplicit false
 
@@ -13,6 +11,8 @@ namespace NightstreamFPrime.Spec.Phi81Relation.QuotientProduct
 open NightstreamFPrime.Spec
 open Polynomial
 open EvaluationHomomorphism.RingFPolynomial
+
+attribute [local implicit_reducible] ZMod NightstreamFPrime.Spec.goldilocksModulus
 
 private abbrev Base := ZMod goldilocksModulus
 
@@ -42,17 +42,16 @@ theorem evaluate_eq_polynomial (value : RingF) (point : F) :
     evaluate value point = (toPolynomial value).eval (show Base from point) := by
   simp only [evaluate, toPolynomial, List.sum_ofFn, eval_finsetSum,
     eval_mul, eval_C, eval_pow, eval_X]
-  rfl
 
 theorem evaluate_sub (left right : RingF) (point : F) :
     evaluate (fun index => left index - right index) point =
       evaluate left point - evaluate right point := by
-  simp [evaluate, List.sum_ofFn, sub_mul, Finset.sum_sub_distrib]
+  simp [evaluate, List.sum_ofFn, sub_mul, Finset.sum_sub_distrib, -List.ofFn_succ]
 
 theorem evaluate_add (left right : RingF) (point : F) :
     evaluate (ringFAdd left right) point =
       evaluate left point + evaluate right point := by
-  simp [evaluate, ringFAdd, List.sum_ofFn, add_mul, Finset.sum_add_distrib]
+  simp [evaluate, ringFAdd, List.sum_ofFn, add_mul, Finset.sum_add_distrib, -List.ofFn_succ]
 
 theorem modulusValue_eq_polynomial (point : F) :
     modulusValue point = modulus.eval (show Base from point) := by
@@ -172,7 +171,8 @@ theorem quotient_toPolynomial (left right : RingF) :
       (toPolynomial left * toPolynomial right) /ₘ modulus := by
   ext index
   by_cases inside : index < ringDegree
-  · exact coeff_toPolynomial (quotient left right) ⟨index, inside⟩
+  · rw [coeff_toPolynomial (quotient left right) ⟨index, inside⟩]
+    rfl
   · have outside : 54 ≤ index := Nat.le_of_not_gt inside
     rw [coeff_eq_zero_of_degree_lt
       ((polynomial_degree (quotient left right)).trans_le (by exact_mod_cast outside))]
@@ -195,9 +195,9 @@ def quotientCoeff (left right : RingF) (lane : Fin ringDegree) : F :=
 private theorem polynomial_coeff (value : RingF) (index : Nat) :
     (toPolynomial value).coeff index = ringFCoeff value index := by
   by_cases inside : index < ringDegree
-  · simpa only [ringFCoeff, dif_pos inside] using
+  · simpa only [ringFCoeff, dite_eq_left inside] using
       coeff_toPolynomial value ⟨index, inside⟩
-  · rw [ringFCoeff, dif_neg inside]
+  · rw [ringFCoeff, dite_eq_right inside]
     apply coeff_eq_zero_of_degree_lt
     exact (polynomial_degree value).trans_le (by
       exact_mod_cast Nat.le_of_not_gt inside)
@@ -231,9 +231,6 @@ private theorem raw_eq_coefficient (left right : RingF) (degree : Nat) :
   by_cases below : index.val ≤ degree <;>
     by_cases supported : degree - index.val < ringDegree
   all_goals simp [below, supported, ringFCoeff, inside]
-  · rfl
-  · change 0 = (show Base from left index) * 0
-    exact (mul_zero _).symm
 
 private theorem high_coefficient (left right : RingF) (index : Nat)
     (high : 54 ≤ index) :
@@ -254,11 +251,11 @@ private theorem high_coefficient (left right : RingF) (index : Nat)
     dsimp only [product]
     omega
   have middle : 27 ≤ index := by omega
-  rw [coeff_add, remainderZero, zero_add] at identity
+  simp only [coeff_add, remainderZero, zero_add] at identity
   nth_rw 1 [modulus] at identity
   simp only [add_mul, one_mul, coeff_add, coeff_X_pow_mul',
     show ringDegree ≤ index from high, show ringMiddleDegree ≤ index from middle,
-    if_true, quotientZero, add_zero] at identity
+    ite_true, quotientZero, add_zero] at identity
   exact identity.symm
 
 theorem quotientCoeff_eq_quotient (left right : RingF) (lane : Fin ringDegree) :

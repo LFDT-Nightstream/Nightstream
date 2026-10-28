@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PilotDigestBindingPlan
 import NightstreamFPrime.Export.Stage1.PilotPoseidonPreservation
 
-/-! Owns the complete semantic bridge for the direct pilot relation. -/
-
 namespace NightstreamFPrime.Export.Stage1.PilotDirectSemantics
 
 open NightstreamFPrime.Circuit
@@ -56,8 +54,8 @@ theorem implies_spec
     have legacy := PilotOrdinaryDirectPlan.priorDigest_form_eval_chainOutput
       geometry assignment env priorDigestValues lane
     have matched := binding.prior lane
-    rw [PilotDigestBindingPlan.legacyForm_priorRow,
-      PilotDigestBindingPlan.derivedForm_priorRow] at matched
+    rw [PilotDigestBindingPlan.legacyForm_priorRow geometry lane,
+      PilotDigestBindingPlan.derivedForm_priorRow geometry lane] at matched
     calc
       NightstreamFPrime.Export.Pilot.chainOutputState PilotData.priorChain
           PilotData.priorChain.absorbCount env
@@ -86,8 +84,8 @@ theorem implies_spec
     have legacy := PilotOrdinaryDirectPlan.outputState_form_eval_chainOutput
       geometry assignment env outputStateValues lane
     have matched := binding.output lane
-    rw [PilotDigestBindingPlan.legacyForm_outputRow,
-      PilotDigestBindingPlan.derivedForm_outputRow] at matched
+    rw [PilotDigestBindingPlan.legacyForm_outputRow geometry lane,
+      PilotDigestBindingPlan.derivedForm_outputRow geometry lane] at matched
     calc
       NightstreamFPrime.Export.Pilot.chainOutputState PilotData.outputChain
           PilotData.outputChain.absorbCount env

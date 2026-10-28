@@ -2,15 +2,6 @@ import NightstreamFPrime.Export.Stage1.Invocations
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerProjection
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerRows
 
-/-!
-Owns the Poseidon2 invocation schedule for the production PiRLC sampler
-chain.
-
-Each of the 17 scalar samplers contains one domain-entry absorption and one
-advance permutation. The schedule uses the same canonical 1096-row
-template as the pilot and PiCCS transcript paths.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerInvocations
 
 open NightstreamFPrime.Circuit

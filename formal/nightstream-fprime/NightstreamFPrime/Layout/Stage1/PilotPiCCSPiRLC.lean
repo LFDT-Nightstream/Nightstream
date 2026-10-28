@@ -2,14 +2,6 @@ import NightstreamFPrime.Layout.PiRLC.v1_2.Preservation
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.PilotPiCCS
 
-/-!
-Owns the Stage 1 prefix through the exact PiRLC v1_2 phase.
-
-The PiRLC packet starts at the proved final PiCCS source-column boundary. It
-adds no public input, constant column, copy row, or parent assertion row. The
-seven PiRLC child packets remain in canonical parent order.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC
 
 open NightstreamFPrime.Spec

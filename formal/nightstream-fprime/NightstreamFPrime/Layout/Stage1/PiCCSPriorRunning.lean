@@ -1,16 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 
-/-!
-Paper authority: SuperNeo v1.2, section 7.3, PiCCS running input.
-Obligation: Show that the honest protocol environment presents the exact prior
-running instance to PiCCS.
-
-The prior block supplies the running fields in place. The child region holds
-the canonical child digits, so every prior lane is a common-sign digit vector
-of its parent and the state decoder returns the prior running instance. The
-statement-binding leaf fills its own sign columns. This module owns value
-identities only; it adds no row or column.
--/
+/-! Paper authority: SuperNeo v1.2, section 7.3, PiCCS running input. -/
 
 namespace NightstreamFPrime.Layout.Stage1.PiCCSPriorRunning
 
@@ -58,7 +48,7 @@ theorem protocolEnv_priorWord (index : Nat)
       outputPreimage digest priorFixed outputFixed digestFixed)
       (PilotProduction.priorPreimageStart + index) = _
   unfold PilotProduction.loadExternal
-  rw [dif_pos inside]
+  rw [dite_eq_left inside]
   unfold PilotProduction.protocolValues
   calc
     _ = (serializePreimage (publicFits := publicFits) prior).getD

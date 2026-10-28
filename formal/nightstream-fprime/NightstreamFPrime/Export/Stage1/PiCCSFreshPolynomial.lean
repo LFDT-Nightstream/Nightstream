@@ -1,8 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
 
-/-! The existing fresh CCS polynomial, with exact-zero terms and exponent-zero
-factors skipped. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial
@@ -74,7 +71,8 @@ theorem productPowers_value (ops : InterpolationOps Field)
         calc
           (productPowers ops exponents images (index :: rest)).coefficients =
               (productPowers ops exponents images rest).coefficients := by
-            simp only [productPowers, zeroExponent, dite_true, FixedPolynomial.widen,
+            erw [productPowers, dite_eq_left zeroExponent]
+            simp only [zeroExponent, FixedPolynomial.widen,
               List.map_cons, List.sum_cons, Nat.zero_add, Nat.sub_self,
               List.replicate_zero, List.append_nil]
           _ = (ProtocolPolynomialDegree.Sparse.productPowers ops exponents images rest).coefficients :=
@@ -83,8 +81,9 @@ theorem productPowers_value (ops : InterpolationOps Field)
                 (index :: rest)).coefficients := by
             exact (zeroExponent_product_coefficients ops laws (exponents index) zeroExponent
               (images index) (ProtocolPolynomialDegree.Sparse.productPowers ops exponents images rest)).symm
-      · simp only [productPowers, zeroExponent, dite_false,
-          ProtocolPolynomialDegree.Sparse.productPowers, ih]
+      · erw [productPowers, dite_eq_right zeroExponent]
+        simp only [ProtocolPolynomialDegree.Sparse.productPowers, ih]
+        rfl
 
 private theorem affinePower_zero (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) (exponent : Nat) (positive : 0 < exponent) :
@@ -115,7 +114,7 @@ private theorem referenceProduct_zero (ops : InterpolationOps Field)
         have zeroPolynomial : images index = FixedPolynomial.zero ops.toOps 1 := by
           apply coefficients_ext
           exact zeroImage
-        rw [ProtocolPolynomialDegree.Sparse.productPowers, zeroPolynomial,
+        erw [ProtocolPolynomialDegree.Sparse.productPowers, zeroPolynomial,
           affinePower_zero ops laws _ positive,
           FixedPolynomial.mul_zero_left ops.toOps (polynomialLaws laws)]
         rfl
@@ -193,11 +192,11 @@ private theorem gatedTerms_value [DecidableEq Field] (ops : InterpolationOps Fie
   | nil => rfl
   | cons term rest ih =>
       by_cases isZero : zeroFactor ops term.val images = true
-      · rw [gatedTerms, if_pos isZero, FixedPolynomial.sum,
+      · rw [gatedTerms, ite_eq_left isZero, FixedPolynomial.sum,
           zeroFactor_value ops laws _ _ isZero,
           FixedPolynomial.mul_zero_right ops.toOps (polynomialLaws laws), widen_zero,
           zero_add ops laws, ih]
-      · rw [gatedTerms, if_neg isZero, FixedPolynomial.sum,
+      · rw [gatedTerms, ite_eq_right isZero, FixedPolynomial.sum,
           monomial_value ops laws, ih]
 
 def ccsPolynomialWithPowers [DecidableEq Field] (ops : InterpolationOps Field) {shape : Shape}
@@ -278,7 +277,7 @@ private theorem gatedTerms_zero [DecidableEq Field] (ops : InterpolationOps Fiel
   induction terms with
   | nil => rfl
   | cons term rest ih =>
-      rw [gatedTerms, if_pos (zeroFactor_of_positive_zero_images ops term.val images
+      rw [gatedTerms, ite_eq_left (zeroFactor_of_positive_zero_images ops term.val images
         (positive term.val term.property) zeroImages), ih]
 
 theorem ccsPolynomialWithPowers_zero [DecidableEq Field] (ops : InterpolationOps Field)

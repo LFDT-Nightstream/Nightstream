@@ -1,14 +1,6 @@
 import NightstreamFPrime.Gadgets.Polynomial.Horner
 import NightstreamFPrime.Spec.SumCheck.FixedPhase
 
-/-!
-Owns the fixed-width SumCheck claimed-chain gadget over the production
-quadratic extension. Each extension value is represented by two Goldilocks
-expressions in `c0`, `c1` order. The gadget checks only the round recurrence
-and final equality; transcript replay and the PiCCS terminal expression have
-separate owners.
--/
-
 namespace NightstreamFPrime.Gadgets.SumCheck.FixedChain
 
 open NightstreamFPrime.Spec

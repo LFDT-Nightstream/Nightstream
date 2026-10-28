@@ -2,21 +2,6 @@ import Mathlib.Data.Nat.Digits.Lemmas
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiDEC
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
 
-/-!
-Canonical production radix decomposition for the typed Phi81 `PiDEC` algebra.
-
-Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 16`.
-
-Owns: a fail-closed signed-binary split inside the strict combined bound; a
-separately named total algebra helper for unconditional recomposition proofs;
-coordinate and assignment recomposition; fresh-child norm preservation; and
-the reverse norm bound for arbitrary sixteen-child recompositions.
-
-Does not own: commitment, public-input, or evaluation homomorphisms; child CE
-membership; transcript or NIFS acceptance; Rust/R1CS refinement; row removal;
-or constraint counts.
--/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 
 
@@ -88,7 +73,7 @@ private theorem neg_fieldOfNat_complement (value : F) :
       simp [fieldOfNat, Nat.mod_eq_of_lt complementLt] at valuesEqual
       omega
     apply Fin.ext
-    rw [Fin.val_neg, if_neg embeddedNonzero]
+    rw [Fin.val_neg, ite_eq_right embeddedNonzero]
     simp [fieldOfNat, Nat.mod_eq_of_lt complementLt]
     omega
 
@@ -324,8 +309,6 @@ def splitScalar (value : F) (index : ChildIndex) : F :=
   else
     fallbackDigit value index
 
-/-- Fail-closed scalar split used by executable verifier and parity paths.
-SuperNeo defines `split_b` only after the strict `B`-norm check. -/
 def splitScalarChecked (value : F) : Option (ChildIndex → F) :=
   if centeredMagnitude value < combinedBound then
     some (boundedDigit value)
@@ -694,8 +677,7 @@ theorem splitScalar_eq_signedBinary_of_recompose
         intro digit member
         rcases List.mem_ofFn.mp member with ⟨position, rfl⟩
         exact binary position)
-    simpa [magnitude, combinedBound, productionGlobalParams,
-      GlobalParams.bigB] using rawBound
+    exact lt_of_lt_of_eq rawBound (by rw [List.length_ofFn]; rfl)
   have valueBound : centeredMagnitude value < combinedBound := by
     rw [← recomposes]
     apply recomposeScalar_norm
@@ -726,7 +708,7 @@ theorem splitScalar_eq_signedBinary_of_recompose
     unfold magnitudeDigit
     rw [magnitudeExact]
     exact natBit_of_binary_ofFn digits binary index
-  rw [splitScalar, if_pos valueBound]
+  rw [splitScalar, ite_eq_left valueBound]
   cases negative with
   | false =>
       have valueExact : fieldOfNat magnitude = value := by
@@ -747,7 +729,7 @@ theorem splitScalar_eq_signedBinary_of_recompose
             simpa [magnitude] using signedRecomposition.symm.trans recomposes
           simpa [magnitudeZero] using! equation.symm
         unfold boundedDigit signedBinaryDigit
-        rw [if_pos (by simp [valueExact, isNonnegative])]
+        rw [ite_eq_left (by simp [valueExact, isNonnegative])]
         rw [digitExact, digitZero]
         rfl
       · have magnitudePositive : 0 < magnitude := Nat.pos_of_ne_zero magnitudeZero

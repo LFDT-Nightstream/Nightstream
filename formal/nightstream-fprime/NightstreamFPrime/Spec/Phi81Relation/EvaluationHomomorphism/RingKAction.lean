@@ -1,21 +1,6 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
 
-/-!
-Boolean-MLE compatibility with the concrete Phi81 `RingK` action.
-
-Protocol: SuperNeo v1.2 Theorem 11 and the evaluation branch of `Pi_RLC`.
-
-Owns: coefficientwise placement of a `RingF` challenge in `RingK`; exact
-right-linearity of the concrete `ringKMul`; zero/add/scale operations and
-lane-wise evaluation for Phi81 ring rows; and the theorem that Boolean MLE
-commutes with those linear operations and multiplication by any fixed
-`RingK` element.
-
-Does not own: the action of a `RingF` challenge on the complete assignment,
-the Phi81 coefficient-kernel action law, proof that coefficientwise embedding
-preserves quotient-ring multiplication, commitments, transcripts, Rust,
-R1CS, row removal, or counts.
--/
+/-! SuperNeo v1.2 Theorem 11. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingKAction
 

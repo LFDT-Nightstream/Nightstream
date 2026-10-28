@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationPreservation
 
-/-!
-Owns the production construction of compact-row shift compatibility for the
-PiRLC combination invocation families.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationCompactPreservation
 
 open NightstreamFPrime.Circuit
@@ -139,13 +134,13 @@ private theorem sourceToSpartan_local_lt_constant (source : Nat)
       Spartan.constantColumn) :
     Spartan.sourceToSpartan source < Spartan.constantColumn := by
   unfold Spartan.sourceToSpartan
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [Spartan.pilotSourceColumnCount, Spartan.piCcsPhaseOffset]
       at sourceLocal ⊢
-    omega), if_neg (by
+    omega), ite_eq_right (by
     norm_num [Spartan.proofInputSourceStart, Spartan.piCcsPhaseOffset]
       at sourceLocal ⊢
-    omega), if_neg (by omega)]
+    omega), ite_eq_right (by omega)]
   exact upper
 
 private theorem pilotPriorPrivateColumn_private (column : Nat)
@@ -167,10 +162,10 @@ private theorem proofInputColumn_private (column : Nat)
     (upper : column < Spartan.piCcsPhaseOffset) :
     Spartan.sourceToSpartan column < basePackage.layout.constantColumn := by
   unfold Spartan.sourceToSpartan
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [Spartan.pilotSourceColumnCount, Spartan.proofInputSourceStart]
       at lower ⊢
-    omega), if_neg (by omega), if_pos upper]
+    omega), ite_eq_right (by omega), ite_eq_left upper]
   norm_num [basePackage, Data.circuitPackage_layout, Data.physicalLayout,
     Spartan.pilotInputPrivateColumnCount, Spartan.proofInputSourceStart,
     Spartan.piCcsPhaseOffset, Spartan.constantColumn] at lower upper ⊢
@@ -181,7 +176,7 @@ private theorem pilotPriorPublicColumn_suffix (column : Nat)
     (upper : column < PilotProduction.outputPreimageStart) :
     basePackage.layout.constantColumn ≤ Spartan.sourceToSpartan column := by
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by
+  rw [ite_eq_left (by
     norm_num [Spartan.pilotSourceColumnCount,
       PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart,
       PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq,
@@ -189,17 +184,17 @@ private theorem pilotPriorPublicColumn_suffix (column : Nat)
       at upper ⊢
     omega)]
   unfold PilotSpartan.sourceToSpartan
-  rw [if_neg (by
+  rw [ite_eq_right (by
     simpa [PilotSpartan.priorPublicStart,
       PilotProduction.priorPublicInputStart] using! Nat.not_lt.mpr lower),
-    if_pos (by
+    ite_eq_left (by
       simpa [PilotSpartan.outputPreimageStart,
         PilotProduction.outputPreimageStart] using! upper)]
   unfold Spartan.liftPilotColumn
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [PilotSpartan.firstPublicStart, PilotSpartan.privateColumnCount_value,
       Spartan.pilotInputPrivateColumnCount] at lower ⊢
-    omega), if_neg (by
+    omega), ite_eq_right (by
     norm_num [PilotSpartan.firstPublicStart, PilotSpartan.privateColumnCount_value,
       Spartan.pilotPrivateColumnCount] at lower ⊢
     omega)]
@@ -398,7 +393,7 @@ private theorem commitmentValueRange_compatible
   · intro offset offsetLt
     by_cases first : source.val = 0
     · unfold PiRLCCombinationInvocations.commitmentValueSourceStart
-      rw [if_pos first]
+      rw [ite_eq_left first]
       apply proofInputColumn_private
       · norm_num [PiRLCCombinationInvocations.sourceCount,
           PiRLCCombinationTemplates.valueInputStart,
@@ -417,7 +412,7 @@ private theorem commitmentValueRange_compatible
           Spartan.piCcsPhaseOffset, ringDegree] at blockLt offsetLt ⊢
         omega
     · unfold PiRLCCombinationInvocations.commitmentValueSourceStart
-      rw [if_neg first]
+      rw [ite_eq_right first]
       apply pilotPriorPrivateColumn_private
       norm_num [NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningCommitmentStart,
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorRunningStart,
@@ -446,7 +441,7 @@ private theorem publicInputValueRange_compatible
   by_cases first : source.val = 0
   · apply shiftRange_suffix
     unfold PiRLCCombinationInvocations.publicInputValueSourceStart
-    rw [if_pos first]
+    rw [ite_eq_left first]
     apply pilotPriorPublicColumn_suffix
     · omega
     · norm_num [PilotProduction.outputPreimageStart,
@@ -461,7 +456,7 @@ private theorem publicInputValueRange_compatible
         source.val block.val cell.val offset sourceLt blockLt offsetLt
     · intro offset offsetLt
       unfold PiRLCCombinationInvocations.publicInputValueSourceStart
-      rw [if_neg first]
+      rw [ite_eq_right first]
       apply proofInputColumn_private
       · norm_num [NightstreamFPrime.Layout.Stage1.PiCCSInputs.runningPublicStart,
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorChildrenStart,

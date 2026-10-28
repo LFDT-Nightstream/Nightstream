@@ -1,13 +1,5 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance
 
-/-!
-An accepted reverse run fails only at its first marked hash collision or
-first good-active source failure. Observation includes the base visit, where
-no source call is made. Missing source entries are read as the absent result.
-The finite union bound uses the exact unconditional visited laws; later
-operational calls after a false mark add no security-failure event.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure
@@ -77,9 +69,9 @@ private theorem checks_of_no_first_failure (depth : Nat)
           by_cases base : (decodedInput application fits payload).iteration = 0
           · constructor
             · rw [SuccessfulSources.eq_def]
-              simp only [if_neg nonzero, if_pos counter, if_pos base]
+              simp only [ite_eq_right nonzero, ite_eq_left counter, ite_eq_left base]
             · rw [NoStateHashCollisions.eq_def]
-              simpa only [if_neg nonzero, if_pos counter, if_pos base, and_true] using safe
+              simpa only [ite_eq_right nonzero, ite_eq_left counter, ite_eq_left base, and_true] using safe
           · have active : ready application fits (some (statement, .recursive payload), true) :=
               ⟨nonzero, counter, base⟩
             have good : goodActive application fits setup (some (statement, .recursive payload), true) :=
@@ -92,7 +84,7 @@ private theorem checks_of_no_first_failure (depth : Nat)
                 ¬ SourceSucceeded application fits setup payload
                   (if (goodActive application fits setup) (some (statement, .recursive payload), true)
                     then results.headD none else none)
-              exact ⟨good, by simpa only [if_pos good] using failed⟩
+              exact ⟨good, by simpa only [ite_eq_left good] using failed⟩
             cases results with
             | nil => exact False.elim (source_none application fits setup payload success)
             | cons result tail =>
@@ -108,7 +100,7 @@ private theorem checks_of_no_first_failure (depth : Nat)
                         (some values) =
                         (some (predecessorStatement application fits payload,
                           .recursive (predecessorPayload application fits payload values)), true) := by
-                      simp only [advance, if_pos active, Bool.true_and]
+                      simp only [advance, ite_eq_left active, Bool.true_and]
                       exact Prod.ext rfl (decide_eq_true (And.intro safe success))
                     have previousNoFailure : ∀ j < depth,
                         ¬ FirstFailure application fits setup (readDraw application fits setup j
@@ -116,16 +108,16 @@ private theorem checks_of_no_first_failure (depth : Nat)
                             .recursive (predecessorPayload application fits payload values)), true) tail) := by
                       intro j below
                       have next := noFailure (j + 1) (Nat.succ_lt_succ below)
-                      simpa only [readDraw, if_pos active, advanced] using next
+                      simpa only [readDraw, ite_eq_left active, advanced] using next
                     have previous := induction (predecessorStatement application fits payload)
                       (.recursive (predecessorPayload application fits payload values)) tail
                       previousAccepted previousBound previousNoFailure
                     constructor
                     · rw [SuccessfulSources.eq_def]
-                      simpa only [if_neg nonzero, if_pos counter, if_neg base] using!
+                      simpa only [ite_eq_right nonzero, ite_eq_left counter, ite_eq_right base] using!
                         And.intro success previous.1
                     · rw [NoStateHashCollisions.eq_def]
-                      simpa only [if_neg nonzero, if_pos counter, if_neg base] using
+                      simpa only [ite_eq_right nonzero, ite_eq_left counter, ite_eq_right base] using
                         And.intro safe previous.2
 
 theorem accepted_failure_exists_first (depth : Nat) (sample : Sample application)
@@ -157,9 +149,9 @@ private theorem marked_hash_mass
     rw [PMF.map_bind]
     have each (visit : Visit application) : (guardedDraw application fits setup source visit).map Prod.fst = PMF.pure visit := by
       by_cases good : goodActive application fits setup visit
-      · rw [guardedDraw, if_pos good, PMF.map_comp]
+      · rw [guardedDraw, ite_eq_left good, PMF.map_comp]
         exact PMF.map_const _ _
-      · rw [guardedDraw, if_neg good, PMF.pure_map]
+      · rw [guardedDraw, ite_eq_right good, PMF.pure_map]
     simp_rw [each]
     exact PMF.bind_pure _
   calc

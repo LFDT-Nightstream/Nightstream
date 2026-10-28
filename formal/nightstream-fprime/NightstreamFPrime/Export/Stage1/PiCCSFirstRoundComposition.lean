@@ -2,8 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedComplete
 import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
 
-/-! Proof-only composition of the existing complete contribution kernels. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition
@@ -117,7 +115,7 @@ private theorem fresh_reference (input : PiCCSPublicReplay.Input)
         (TargetPolynomial.power extensionOps.toOps gamma) alpha index.val =
       freshTerm (PiCCSPublicReplay.verifierInput input) (sourceData input masks) alpha gamma index := by
   have inside : index.val < 2 ^ (cubeVariables - 1) := index.isLt
-  simp only [PiCCSFreshComplete.referencePair, dif_pos inside]
+  simp only [PiCCSFreshComplete.referencePair, dite_eq_left inside]
   rfl
 
 private theorem fresh_value (input : PiCCSPublicReplay.Input)
@@ -173,7 +171,7 @@ private theorem norm_reference (input : PiCCSPublicReplay.Input)
         (fun _ => Vector.replicate ProductionRelation.matrixCount (0 : F)) index.val =
       normTerm (PiCCSPublicReplay.verifierInput input) (sourceData input masks) alpha gamma index := by
   have inside : index.val < 2 ^ (cubeVariables - 1) := index.isLt
-  simp only [PiCCSNormComplete.numericPairNorm, dif_pos inside, normTerm]
+  simp only [PiCCSNormComplete.numericPairNorm, dite_eq_left inside, normTerm]
   apply congrArg (PiCCSNormContribution.normTerm (PiCCSPublicReplay.verifierInput input)
     (TargetPolynomial.power extensionOps.toOps gamma)
     (PiCCSFirstRound.equalitySelector extensionOps (NumericBooleanDomain.vertex 27 index) alpha))

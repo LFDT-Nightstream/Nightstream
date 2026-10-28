@@ -1,13 +1,5 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.Preservation
 
-/-!
-Owns the total row and column maps for the exact PiRLC v1_2 layout.
-
-Every lowered row names its logical child and row role. Every physical column
-is external, belongs to one logical child interval, or is an R1CS intermediate.
-The parent adds no copy row and no boundary column.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.Ownership
 
 open NightstreamFPrime.Spec

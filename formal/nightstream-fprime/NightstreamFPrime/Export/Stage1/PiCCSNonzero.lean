@@ -4,12 +4,6 @@ import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
-/-!
-Owns a deterministic nonzero SuperNeo v1.2 verifier-result fixture.
-Its source openings and matrix evaluations are synthetic; it does not
-establish valid-input phase conformance.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSNonzero
 
 open NightstreamFPrime.Layout.Stage1

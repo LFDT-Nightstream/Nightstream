@@ -1,8 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDECRunningTransition
 
-/-! Production PiDEC start values. Allocation consumers use PiDECStarts; this
-module checks the current production profile values. -/
-
 namespace NightstreamFPrime.Layout.Stage1.PiDECStarts
 
 theorem phaseStarts_eq :

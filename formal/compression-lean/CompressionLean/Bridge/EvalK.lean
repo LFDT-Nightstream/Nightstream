@@ -1,14 +1,5 @@
 import CompressionLean.Bridge.Ring
 
-/-!
-Owns the denotation of the replay's Eval_K long division (`Replay.evalK`)
-and of the linear stage's `Ω~` (`Replay.omegaComputed`). The replay's states
-are the model's `evalKStates` digit by digit (`toQ_evalKStates`), so its value
-is the model's `evalKValue` (`toQ_evalK`), whose parts `EvalK.evalK_split`
-proves to be the extensions of the Eval_K tables. Then `Ω~` is the model's
-`omegaComputed` (`toK_omegaComputed`).
--/
-
 namespace CompressionLean.Bridge
 
 open Polynomial
@@ -18,10 +9,8 @@ variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
 
 local notation "ι" => algebraMap Fp K
 
-/-- The point `r` in `K ⊗ Ext`. -/
 def rQuad (r : Array (Gl × Gl)) : List (QuadX K) := (quadPoint r.toList).map fromK
 
-/-- An `Ext` point in `K ⊗ Ext`. -/
 def sQuad (s : Array Ext) : List (QuadX K) := (pointK s).map (algebraMap K (QuadX K))
 
 theorem divStep_eq (blocks bb t rem below bit : ℕ) :
@@ -49,11 +38,11 @@ theorem toQ_divFactor (r : Array (Gl × Gl)) (s : Array Ext) (t bit q : ℕ) :
   unfold Replay.divFactor Layer1.divFactor
   rw [rQuad_getD, sQuad_getD, show (sQuad (K := K) s).length = s.size by simp [sQuad]]
   by_cases inside : t < s.size
-  · rw [if_pos inside, if_pos inside, Kx.toQ_scale]
+  · rw [ite_eq_left inside, ite_eq_left inside, Kx.toQ_scale]
     congr 1
     · split_ifs <;> simp [Kx.toQ_oneMinus]
     · split_ifs <;> simp [toK_oneMinus]
-  · rw [if_neg inside, if_neg inside, mul_one]
+  · rw [ite_eq_right inside, ite_eq_right inside, mul_one]
     split_ifs <;> simp [Kx.toQ_oneMinus]
 
 theorem toQ_contribution (step : Option (ℕ × ℕ × ℕ)) (rem' below' : ℕ) (factor : ℕ → Kx) (x : Kx) :
@@ -69,7 +58,6 @@ theorem getElem!_map_range₂ {α : Type} [Inhabited α] (n m : ℕ) (f : ℕ �
     (((Array.range n).map fun i => (Array.range m).map (f i))[i]!)[j]! = f i j := by
   rw [getElem!_map_range n _ hi, getElem!_map_range m _ hj]
 
-/-- The replay's long-division states are the model's, digit by digit. -/
 theorem toQ_evalKStates (r : Array (Gl × Gl)) (s : Array Ext) (blocks cb : ℕ) (k : ℕ) :
     ∀ rem below, rem < D → below < 2 →
       (((Replay.evalKStates r s blocks cb k)[rem]!)[below]!).toQ (K := K) =
@@ -107,7 +95,6 @@ theorem toQ_tail (l : List (Gl × Gl)) (x : Kx) :
       simp only [quadPoint, List.map_cons, List.prod_cons]
       ring
 
-/-- The replay's Eval_K is the model's long division. -/
 theorem toQ_evalK (r : Array (Gl × Gl)) (s : Array Ext) (tau : Array Ext) (blocks : ℕ) :
     (Replay.evalK r s tau blocks).toQ (K := K) =
       evalKValue D blocks (rQuad r) (sQuad s) (fun l => algebraMap K (QuadX K) (tableK tau l))
@@ -122,8 +109,6 @@ theorem toQ_evalK (r : Array (Gl × Gl)) (s : Array Ext) (tau : Array Ext) (bloc
   rw [Kx.toQ_scale, toQ_evalKStates r s blocks _ _ rem 1 (Finset.mem_range.mp inside) (by norm_num)]
   rfl
 
-/-- The relation's Eval_K bits: they cover the block bits and the blocks
-and fit the point `r` (`eval_k`'s coordinate bits). -/
 structure EvalKBits (rel : Replay.Relation) : Prop where
   deep : rel.blockVars ≤ Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo
   long : Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo ≤ rel.pointVariables
@@ -131,8 +116,6 @@ structure EvalKBits (rel : Replay.Relation) : Prop where
   fits : D * rel.key.blocks ≤ 2 ^ Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo
   strict : rel.key.blocks < 2 ^ Nat.log2 (D * 2 ^ rel.blockVars).nextPowerOfTwo
 
-/-- The replay's Eval_K at the block point is the pair of the extensions of
-the model's Eval_K tables. -/
 theorem evalK_parts (rel : Replay.Relation) (st : Replay.Statement) (pointSize : st.point.size = rel.pointVariables)
     (bits : EvalKBits rel) (zeta : Ext) (bp : Array Ext) (size : bp.size = rel.blockVars) :
     (Replay.evalK st.point bp (Replay.tau zeta) rel.key.blocks).toQ (K := K) =
@@ -160,9 +143,8 @@ theorem mle_publicPart (s : Layer1.Shape) (lam : K) (p : List K) (small : s.publ
   intro b inside
   simp only [mul_ite, mul_zero]
   rw [Finset.sum_ite_eq']
-  rw [if_pos (Finset.mem_range.mpr (by have := Finset.mem_range.mp inside; omega))]
+  rw [ite_eq_left (Finset.mem_range.mpr (by have := Finset.mem_range.mp inside; omega))]
 
-/-- The replay's `Ω~(s_b)` is the model's `omegaComputed`. -/
 theorem toK_omegaComputed (rel : Replay.Relation) (st : Replay.Statement) (pointSize : st.point.size = rel.pointVariables)
     (bits : EvalKBits rel) (publicFits : rel.publicBlocks ≤ 2 ^ rel.blockVars)
     (lam zeta scale keyValue omegaValue : Ext) (bp : Array Ext) (size : bp.size = rel.blockVars)

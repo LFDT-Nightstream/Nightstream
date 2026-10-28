@@ -7,15 +7,6 @@ import NightstreamFPrime.Layout.PiRLC.v1_2.EvalKCombination
 import NightstreamFPrime.Layout.PiRLC.v1_2.EvalACombination
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Completeness
 
-/-!
-Owns physical composition and the exact seven-child footprint ledger for the
-PiRLC v1_2 phase.
-
-The parent order is input view, 17-sampler chain, commitment, public input,
-separate `Eval_K`, separate `Eval_A`, and output view. The two views own zero
-rows. The parent adds no copy, boundary, or assertion row.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2
 
 open NightstreamFPrime.Spec

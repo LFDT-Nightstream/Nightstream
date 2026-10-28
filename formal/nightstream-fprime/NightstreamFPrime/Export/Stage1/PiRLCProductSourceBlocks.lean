@@ -1,20 +1,13 @@
 import NightstreamFPrime.Export.Stage1.PiRLCProductPlan
 import NightstreamFPrime.Layout.LowNormBlock
 
-/-!
-Owns the checked challenge words and accumulator outputs used by the direct
-PiRLC product plan. Each source has 54 challenge words. Product-group outputs
-remain owned by `ProductRetainedBlock`.
-
-This module does not construct the complete Stage 1 retained assignment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductSourceBlocks
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.Stage1
 
+@[implicit_reducible]
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCProductPlan.sourceWidth program
 
@@ -57,7 +50,7 @@ def challengeBlock (program : Lifecycle.Stage1.Application.Program) :
     (program : Lifecycle.Stage1.Application.Program) :
     (challengeBlock program).coordinateCount = 37638 := by
   change PiRLCCombinationInvocations.sourceCount * ringDegree * 41 = 37638
-  norm_num [PiRLCCombinationInvocations.sourceCount, ringDegree]
+  rfl
 
 theorem challengeBlock_source (program : Lifecycle.Stage1.Application.Program)
     (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :

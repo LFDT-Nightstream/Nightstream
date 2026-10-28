@@ -1,11 +1,6 @@
 import NightstreamFPrime.Spec.AjtaiSetupV1.Shake128
 import NightstreamFPrime.Spec.Poseidon2
 
-/-!
-Owns the exact compact Ajtai setup selected by
-`nightstream-ajtai-shake128-wide256-v1`.
--/
-
 namespace NightstreamFPrime.Spec.AjtaiSetupV1
 
 def setupIdBytes : List Nat :=

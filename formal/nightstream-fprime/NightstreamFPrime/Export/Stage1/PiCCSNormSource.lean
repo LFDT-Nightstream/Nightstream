@@ -4,9 +4,6 @@ import NightstreamFPrime.Export.SignedUnitSourceInput
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages
 import NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout
 
-/-! Original signed-mask reads and complete-block coordinates for the norm
-scan. No norm polynomial loop or protocol image table is constructed here. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNormSource

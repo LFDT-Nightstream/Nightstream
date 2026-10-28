@@ -1,8 +1,6 @@
 import tests.AxiomAudit
 import CompressionLean
 
-/-! Axiom gate for every exported terminal theorem. -/
-
 #audit_axioms CompressionLean.Terminal.circuitPackage_implies_terminal
 #audit_axioms CompressionLean.Terminal.priorSpec
 #audit_axioms CompressionLean.Terminal.piCcsPhaseHolds
@@ -21,8 +19,6 @@ import CompressionLean
 #audit_axioms CompressionLean.Terminal.eval_K_eval
 #audit_axioms CompressionLean.Terminal.eval_A_eval
 #audit_axioms CompressionLean.Terminal.state_eval
-
-/-! Axiom gate for the layer-1 soundness proof. -/
 
 #audit_axioms CompressionLean.Layer1.Game.prob_not_le
 #audit_axioms CompressionLean.Layer1.Game.avoids_bind
@@ -108,14 +104,10 @@ import CompressionLean
 #audit_axioms CompressionLean.Layer1.cubic_no_root
 #audit_axioms CompressionLean.Layer1.cubic_irreducible
 
-/-! Axiom gate for the bridge from the layer-1 replay to the model. -/
-
 #audit_axioms CompressionLean.Bridge.replay_accepts_implies_path
 #audit_axioms CompressionLean.Bridge.replay_accepts_sound
 #audit_axioms CompressionLean.Bridge.queryAt_distinct
 #audit_axioms CompressionLean.Bridge.phi_natDegree
-
-/-! Axiom gate for the shrink soundness proof. -/
 
 #audit_axioms CompressionLean.Shrink.map_constraint
 #audit_axioms CompressionLean.Shrink.mle_single
@@ -203,8 +195,6 @@ import CompressionLean
 #audit_axioms CompressionLean.Shrink.shrink_restore_sound
 #audit_axioms CompressionLean.Shrink.shrink_restore_budget
 
-/-! Axiom gate for the composition of two games and the end-to-end chain. -/
-
 #audit_axioms CompressionLean.Final.prob_mono
 #audit_axioms CompressionLean.Final.pair_sound
 #audit_axioms CompressionLean.Final.node_of_walk
@@ -217,27 +207,20 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.final_budget
 #audit_axioms CompressionLean.Final.final_restore_budget
 
-/-! Axiom gate for the Poseidon2 block template. -/
-
 #audit_axioms CompressionLean.Circuit.Block.poseidonTemplate_wellFormed
 #audit_axioms CompressionLean.Circuit.Block.block_sound
-
-/-! Axiom gate for the lowering of shrink programs. -/
 
 #audit_axioms CompressionLean.Shrink.expandArray_eq
 #audit_axioms CompressionLean.Shrink.Call.computedRows_eq
 #audit_axioms CompressionLean.Circuit.step_spec
 #audit_axioms CompressionLean.Circuit.steps_ok
 #audit_axioms CompressionLean.Circuit.lower_valid
-/-! Axiom gate for the concrete fields. -/
 
 #audit_axioms CompressionLean.Final.cubic_natDegree
 #audit_axioms CompressionLean.Final.cubic_ne_zero
 #audit_axioms CompressionLean.Final.card_cubic
 #audit_axioms CompressionLean.Final.cubic_big
 #audit_axioms CompressionLean.Final.natCast_injective
-
-/-! Axiom gate for the link from layer 1's relation to F′'s. -/
 
 #audit_axioms CompressionLean.Final.toQuad_add
 #audit_axioms CompressionLean.Final.toQuad_sub
@@ -302,8 +285,6 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.array_singleton
 #audit_axioms CompressionLean.Final.parent_holds
 
-/-! Axiom gate for the port of Rust's setup and sizes. -/
-
 #audit_axioms CompressionLean.Final.sum_range_getD
 #audit_axioms CompressionLean.Final.runEntry_eq
 #audit_axioms CompressionLean.Final.runRow_mem
@@ -317,8 +298,6 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.honestSetup_of_build
 #audit_axioms CompressionLean.Final.parentShape_of
 
-/-! Axiom gate for end-to-end soundness for F′'s relation. -/
-
 #audit_axioms CompressionLean.Final.finalBreak_mono
 #audit_axioms CompressionLean.Final.finalRestoreBreak_mono
 #audit_axioms CompressionLean.Final.getD_flatten
@@ -330,8 +309,6 @@ import CompressionLean
 #audit_axioms CompressionLean.Final.modulus_natDegree
 #audit_axioms CompressionLean.Final.final_sound_parent
 #audit_axioms CompressionLean.Final.final_restore_budget_parent
-
-/-! Axiom gate for the soundness of the lowering. -/
 
 #audit_axioms CompressionLean.Shrink.slot_inj
 #audit_axioms CompressionLean.Shrink.Run.rows_hold

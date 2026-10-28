@@ -1,19 +1,5 @@
 import NightstreamFPrime.Lifecycle.VerifierContext
 
-/-!
-Owns the canonical binding preimage required in every production Stage 1
-verification key.
-
-The binding joins the final package identity to the verifier-context
-descriptor recomputed from raw relation, application, NIFS-key, and
-commitment-key authority, and to the digest of the shared matrix-formula
-library that gives the package's formula references their rows. It is
-acyclic because the context descriptor does not contain the final package
-identity.
-
-This is not a proof-backend verification key and does not authorize one.
--/
-
 namespace NightstreamFPrime.Lifecycle.Stage1.VerificationKey
 
 open NightstreamFPrime.Spec

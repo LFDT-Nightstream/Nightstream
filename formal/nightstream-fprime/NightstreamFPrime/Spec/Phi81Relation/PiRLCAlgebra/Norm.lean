@@ -1,15 +1,6 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Finite
 
-/-!
-Curated production norm-growth surface for the typed Phi81 `PiRLC.Algebra`.
-
-Protocol: SuperNeo v1.2 Definition 22 and `Pi_RLC`.
-
-Owns: the dependency and audit boundary for the concrete norm-growth field.
-
-Does not own: transcript validity, other algebra fields, Rust/R1CS refinement,
-row removal, or constraint counts.
--/
+/-! SuperNeo v1.2 Definition 22. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm
 

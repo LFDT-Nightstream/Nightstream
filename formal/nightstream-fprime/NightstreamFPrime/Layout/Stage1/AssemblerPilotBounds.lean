@@ -2,12 +2,6 @@ import NightstreamFPrime.Circuit.VariableSupport
 import NightstreamFPrime.Layout.Stage1.AssemblerInputs
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the compact source bounds for the two pilot children in the Stage 1
-logical assembler. The proofs use the direct source-variable definitions and
-add no row, semantic predicate, or physical placement.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.AssemblerPilotBounds
 
 open NightstreamFPrime.Circuit

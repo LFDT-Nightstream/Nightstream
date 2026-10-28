@@ -1,19 +1,6 @@
 import NightstreamFPrime.Spec.SumCheck.FixedPhase
 
-/-!
-Exact-width transport for the paper SumCheck message relation.
-
-Source: SuperNeo v1.2 Definition 11, Section 7.3, and Appendix B.2.  The paper
-message is a polynomial of verifier-bounded degree; it does not require a
-canonical variable-length coefficient serialization.
-
-Owns: fail-closed decoding of raw constant-first coefficient lists at one
-verifier-owned width, the corresponding executable chain checker, and exact
-round trips between typed fixed-width certificates and raw messages.
-
-Does not own: challenge generation, transcript encoding, Fiat--Shamir,
-polynomial soundness, Rust, R1CS, artifacts, minimality, or costs.
--/
+/-! SuperNeo v1.2 Definition 11, Section 7.3, Appendix B.2. -/
 
 set_option autoImplicit false
 
@@ -160,7 +147,7 @@ def check
     (polynomial : FixedPolynomial Field degree) :
     decodeMessage degree polynomial.toMessage = some polynomial := by
   unfold decodeMessage
-  rw [dif_pos polynomial.toMessage_coefficients_length]
+  rw [dite_eq_left polynomial.toMessage_coefficients_length]
   congr
 
 @[simp] theorem decodeRounds_map_toMessage

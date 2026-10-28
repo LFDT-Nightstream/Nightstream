@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSCompletedReadout
 import NightstreamFPrime.Export.Stage1.PermutationPlan
 
-/-!
-Owns the exact endpoint-column connection from the four C transcript packets
-to their canonical retained forms.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSEndpointCompleteness
@@ -44,9 +39,9 @@ theorem physicalEndpoint_column (family : Fin familyCount) (lane : Fin laneCount
   have startEq : (physicalInvocation index).witnessStart = Spartan.sourceToSpartan sourceStart := by
     rw [physicalInvocation_data]
     by_cases beforeOutput : index.val < 183
-    · rw [show sourceStart = PiCCSStarts.statementWitnessStart + index.val * 1096 from if_pos beforeOutput]
+    · rw [show sourceStart = PiCCSStarts.statementWitnessStart + index.val * 1096 from ite_eq_left beforeOutput]
       exact PermutationPlan.canonicalInvocation_witnessStart_of_transcript _ beforeOutput
-    · rw [show sourceStart = PiCCSInvocations.outputWitnessStart + (index.val - 183) * 1096 from if_neg beforeOutput]
+    · rw [show sourceStart = PiCCSInvocations.outputWitnessStart + (index.val - 183) * 1096 from ite_eq_right beforeOutput]
       apply PermutationPlan.canonicalInvocation_witnessStart_of_output
       · change 183 ≤ index.val
         exact Nat.le_of_not_gt beforeOutput

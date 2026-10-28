@@ -2,8 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSSignedFirstFold
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets
 import NightstreamFPrime.Export.Stage1.PiCCSNormBuckets
 
-/-! Norm endpoints after the first sum-check challenge. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPrefixNorm

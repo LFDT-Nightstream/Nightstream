@@ -1,22 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanHypercubeSum
 
-/-!
-Algebraic laws for explicit finite sums used by `Pi_CCS` compression.
-
-Protocol: shared `Pi_CCS` polynomial infrastructure.
-Phase: finite-family and product-domain summation.
-Constraint family: none; this file emits no rows.
-
-Owns: one right-associated finite indexed sum and the congruence, zero,
-additive, subtractive, scalar-distribution, and Fubini laws needed to audit
-mixed residual identities.
-
-Does not own: any protocol index family, gamma exponents, Boolean selectors,
-residual formulas, SumCheck, Rust, R1CS, or constraint counts.
-
-Emits constraints: no.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
 universe uField uIndex uLeft uRight

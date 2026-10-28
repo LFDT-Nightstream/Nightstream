@@ -1,15 +1,6 @@
 import NightstreamFPrime.Layout.PiDEC.v1_2.Leaves.SignedSplitScalar
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit
 
-/-!
-Owns the exact physical footprint composition of the 270-coordinate PiDEC
-public-input split.
-
-The logical operation spine stays opaque. This module proves that its rows are
-the signed-scalar child rows in coordinate order and sums the certified child
-footprints without evaluating all child constraints in the parent proof.
--/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2.PublicInputSplit
 
 open NightstreamFPrime.Circuit

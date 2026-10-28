@@ -1,12 +1,6 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding
 
-/-!
-Owns the variable-support fact for the PiCCS output-binding transcript
-endpoint. The proof uses the recipe-free Duplex wiring projection; the full
-compiler remains the semantic and row authority.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding
 
 open NightstreamFPrime.Circuit

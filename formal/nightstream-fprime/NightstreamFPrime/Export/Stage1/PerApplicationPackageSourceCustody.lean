@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceRows
 
-/-!
-Constructs matrix source-row custody from one Lean-authored per-application
-package.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceCustody
 
 open NightstreamFPrime.Layout

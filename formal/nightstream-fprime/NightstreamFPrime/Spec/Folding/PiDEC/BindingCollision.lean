@@ -1,10 +1,6 @@
 import Mathlib.Logic.Equiv.Defs
 import NightstreamFPrime.Spec.Folding.PiDEC
 
-/-! Exact conversion of the PiDEC parent-opening event to the generic bounded
-binding event. Both openings, both equations and both norm bounds are retained.
-This conversion supplies no hardness or probability assumption. -/
-
 namespace NightstreamFPrime.Spec.Folding.PiDEC
 
 universe uS uW uX uR uY uC

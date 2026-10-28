@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPayloadWiring
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics
 
-/-!
-Owns the arbitrary-assignment PiCCS transcript link.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSDecodedTranscript
 
 open NightstreamFPrime.Circuit
@@ -37,7 +33,8 @@ private theorem payload_eval
         (PiCCSActionPayloadBlock.selectedBlock current)).getD lane.val 0 := by
   unfold PiCCSPoseidonPlan.payloadForm
   by_cases rateLane : lane.val < Spec.Poseidon2.rate
-  · rw [dif_pos rateLane, PiCCSPayloadWiring.form_eval geometry _ assignment one,
+  · rw [dite_eq_left rateLane, PiCCSPayloadWiring.form_eval geometry
+        (Fin.encodeProd (current, ⟨lane.val, rateLane⟩)) assignment one,
       PiCCSActionPayloadBlock.payloadExpression_encode]
     unfold PiCCSActionPayloadBlock.payloadExpr
     have zeroEval : (0 : Expr).eval (decoded geometry assignment) = (0 : F) := by
@@ -48,7 +45,7 @@ private theorem payload_eval
     exact (List.getD_map (n := lane.val)
       (PiCCSActionPayloadBlock.selectedBlock current) (0 : Expr)
       (Expr.eval (decoded geometry assignment))).symm
-  · rw [dif_neg rateLane, SparseForm.empty_eval]
+  · rw [dite_eq_right rateLane, SparseForm.empty_eval]
     have lengthBound : (PiCCSActionPayloadBlock.selectedBlock current).length ≤
         Spec.Poseidon2.rate := by
       have wellFormed := PiCCSActionPayloadBlock.kindAt_wellFormed current

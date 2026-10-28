@@ -2,14 +2,6 @@ import CompressionLean.Bridge.Field
 import CompressionLean.Layer1.EvalK
 import CompressionLean.Layer1.KeyStructure
 
-/-!
-Owns the denotation of the replay's public formulas (`Replay/Formulas.lean`):
-each one denotes its model counterpart in `K` (or `QuadX K`). Points denote
-lists (`pointK`), arrays denote tables that are zero past their end
-(`tableK`). The model counterparts are the closed forms that `ClosedForms`,
-`EvalK` and `Weights` prove equal to the tables' extensions.
--/
-
 namespace CompressionLean.Bridge
 
 open CompressionLean.Replay CompressionLean.Layer1
@@ -18,13 +10,10 @@ variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
 
 local notation "ι" => algebraMap Fp K
 
-/-- A point of `Ext` coordinates in `K`. -/
 def pointK (p : Array Ext) : List K := p.toList.map Ext.toK
 
-/-- An `Ext` array as a table of `K`, zero past its end. -/
 def tableK (a : Array Ext) (i : ℕ) : K := (a[i]!).toK
 
-/-- A pair of `Ext` values in `K`. -/
 def pairK (v : Ext × Ext) : K × K := (v.1.toK, v.2.toK)
 
 @[simp] theorem pointK_length (p : Array Ext) : (pointK (K := K) p).length = p.size := by simp [pointK]
@@ -48,8 +37,6 @@ theorem pointK_push (p : Array Ext) (x : Ext) : pointK (K := K) (p.push x) = poi
 
 theorem pointK_append (p q : Array Ext) : pointK (K := K) (p ++ q) = pointK p ++ pointK q := by
   simp [pointK]
-
-/-! ## `circuit/algebra.rs` -/
 
 theorem toK_oneMinus (x : Ext) : (oneMinus x).toK (K := K) = 1 - x.toK := by
   rw [oneMinus, Ext.toK_sub, Ext.toK_one]
@@ -83,7 +70,6 @@ theorem eqTable_get (p : Array Ext) {i : ℕ} (inside : i < 2 ^ p.size) : (eqTab
   rw [getElem!_pos (eqTable p) i (by rw [eqTable_size]; exact inside)]
   simp [eqTable]
 
-/-- `Σ_u eq(point, u)·partials[u]` is the extension of the partials. -/
 theorem toK_combine (partials point : Array Ext) (size : partials.size = 2 ^ point.size) :
     (combine partials point).toK (K := K) = mle (pointK point) (tableK partials) := by
   rw [combine, dot, toK_sumRange, mle_eq_cubeSum, cubeSum_eq_sum_range, eqTable_size, size, min_self,
@@ -114,8 +100,6 @@ theorem toK_horner (cs : Array Ext) (x : Ext) :
         ring
   rw [horner, ← Array.foldr_toList, list, Array.length_toList]
   simp only [getD_toList]
-
-/-! ## `mle.rs` -/
 
 theorem toK_identityValue (p : Array Ext) :
     (Replay.identityValue p).toK (K := K) = Layer1.identityValue (pointK p) := by
@@ -152,7 +136,6 @@ theorem nextStart_map (stop : ℕ) (segs : List (ℕ × Ext)) :
     Layer1.nextStart stop (segs.map fun s => (s.1, s.2.toK (K := K))) = Replay.nextStart stop segs := by
   cases segs <;> rfl
 
-/-- The model's running total is the replay's sum of the remaining segments. -/
 theorem stepLoop_toK (p : Array Ext) (stop : ℕ) : ∀ (segs : List (ℕ × Ext)) (low : Ext) (total : K),
     Layer1.stepLoop (pointK p) stop (segs.map fun s => (s.1, s.2.toK)) low.toK total =
       total + (stepSum p stop segs low).toK
@@ -166,7 +149,6 @@ theorem toK_step (p : Array Ext) (segs : List (ℕ × Ext)) (stop : ℕ) :
     (Replay.step p segs stop).toK (K := K) = stepValue (pointK p) stop (segs.map fun s => (s.1, s.2.toK)) := by
   rw [Replay.step, stepValue, nextStart_map, ← toK_lessThan, stepLoop_toK, zero_add]
 
-/-- `r` as the model's point in `K = F[u]/(u² - 7)`. -/
 def quadPoint (r : List (Gl × Gl)) : List (Quad Fp) := r.map fun v => ⟨v.1.toF, v.2.toF⟩
 
 theorem toQ_chiFactor (r : Gl × Gl) (x : Ext) :
@@ -175,13 +157,14 @@ theorem toQ_chiFactor (r : Gl × Gl) (x : Ext) :
         (2 * algebraMap K (QuadX K) x.toK - 1) := by
   ext
   · simp [Kx.toQ, Kx.scale, Kx.ofK, Ext.toK_add, Ext.toK_mul, Ext.toK_sub, Ext.toK_ofGl, toK_oneMinus,
-      QuadraticAlgebra.algebraMap_eq, QuadraticAlgebra.re_one, QuadraticAlgebra.im_one, QuadraticAlgebra.re_ofNat,
-      QuadraticAlgebra.im_ofNat]
+      QuadraticAlgebra.algebraMap_eq, -QuadraticAlgebra.C_eq_algebraMap, QuadraticAlgebra.re_one,
+      QuadraticAlgebra.im_one, QuadraticAlgebra.re_ofNat, QuadraticAlgebra.im_ofNat]
     ring
   · simp only [Kx.toQ, Kx.scale, Kx.ofK, Ext.toK_add, Ext.toK_mul, Ext.toK_sub, Ext.toK_ofGl, Ext.toK_one,
       QuadraticAlgebra.algebraMap_eq, QuadraticAlgebra.im_one, QuadraticAlgebra.re_ofNat, QuadraticAlgebra.im_ofNat,
       QuadraticAlgebra.im_add, QuadraticAlgebra.im_sub, QuadraticAlgebra.im_mul, QuadraticAlgebra.re_one,
-      QuadraticAlgebra.re_sub, QuadraticAlgebra.re_mul, fromK_re, fromK_im]
+      QuadraticAlgebra.re_sub, QuadraticAlgebra.re_mul, QuadraticAlgebra.re_C, QuadraticAlgebra.im_C,
+      fromK_re, fromK_im]
     ring
 
 theorem toQ_chiList : ∀ (r : List (Gl × Gl)) (xs : List Ext),
@@ -201,8 +184,6 @@ theorem toQ_chi (r : Array (Gl × Gl)) (p : Array Ext) :
     (Replay.chi r p).toQ (K := K) =
       chiValue ((quadPoint r.toList).map (fromK (K := K))) ((pointK p).map (algebraMap K (QuadX K))) :=
   toQ_chiList _ _
-
-/-! ## `ring.rs` -/
 
 @[simp] theorem toK_commitment (m : Mixing) (row : ℕ) : (m.commitment row).toK (K := K) = m.lam.toK ^ row :=
   Ext.toK_pow _ _

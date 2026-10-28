@@ -17,9 +17,6 @@ Constraint groups:
 - C1: one opaque `PointEquality` child;
 - C2: one opaque `Horner` child;
 - C3: two extension-component product equations.
-
-This is the sole repeated implementation used by PiCCS `Eval_K` and
-`Eval_A`. It owns no protocol coordinate order or gamma shift.
 -/
 
 namespace NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner

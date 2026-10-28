@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSAssignmentSoundness
 import NightstreamFPrime.Export.Stage1.PilotPoseidonPreservation
 
-/-!
-Owns the arbitrary-assignment hash equations for the actual pilot preimages.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PilotDecodedHashes
 
 open NightstreamFPrime.Circuit
@@ -27,12 +23,12 @@ private theorem prior_input_lift (index : Fin Data.priorChain.inputLength) :
       Spartan.liftPilotColumn (PilotData.priorChain.inputStart + index.val) := by
   have bound : index.val < 27819 := index.isLt
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by
+  rw [ite_eq_left (by
     norm_num [PilotProduction.priorPreimageStart, Spartan.pilotSourceColumnCount]
     omega)]
   apply congrArg Spartan.liftPilotColumn
   unfold PilotSpartan.sourceToSpartan
-  rw [if_pos (by
+  rw [ite_eq_left (by
     norm_num [PilotProduction.priorPreimageStart, PilotSpartan.priorPublicStart,
       PilotProduction.stateHashWords_eq]
     exact bound)]
@@ -43,14 +39,14 @@ private theorem output_input_lift (index : Fin Data.outputChain.inputLength) :
       Spartan.liftPilotColumn (PilotData.outputChain.inputStart + index.val) := by
   have bound : index.val < 27819 := index.isLt
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by
+  rw [ite_eq_left (by
     change 28089 + index.val < 5141760
     omega)]
   apply congrArg Spartan.liftPilotColumn
   unfold PilotSpartan.sourceToSpartan
-  rw [if_neg (by change ¬28089 + index.val < 27819; omega)]
-  rw [if_neg (by change ¬28089 + index.val < 28089; omega)]
-  rw [if_pos (by change 28089 + index.val < 55908; omega)]
+  rw [ite_eq_right (by change ¬28089 + index.val < 27819; omega)]
+  rw [ite_eq_right (by change ¬28089 + index.val < 28089; omega)]
+  rw [ite_eq_left (by change 28089 + index.val < 55908; omega)]
   change 27819 + ((28089 + index.val) - 28089) = 27819 + index.val
   omega
 
@@ -65,8 +61,9 @@ theorem priorInputForm_eval
       inputEnv geometry assignment (PilotData.priorChain.inputStart + index.val) := by
   have mapped := PiCCSAssignmentSoundness.decodedEnv_location geometry assignment
     (.priorInput index)
-  rw [PiCCSOrdinaryDirectPlan.Location.priorInput_form_eq_pilot] at mapped
-  rw [PiCCSOrdinaryDirectPlan.Location.sourceColumn, prior_input_lift] at mapped
+  rw [PiCCSOrdinaryDirectPlan.Location.priorInput_form_eq_pilot geometry index] at mapped
+  unfold PiCCSOrdinaryDirectPlan.Location.sourceColumn at mapped
+  rw [prior_input_lift] at mapped
   exact mapped.symm
 
 theorem outputInputForm_eval
@@ -80,8 +77,9 @@ theorem outputInputForm_eval
       inputEnv geometry assignment (PilotData.outputChain.inputStart + index.val) := by
   have mapped := PiCCSAssignmentSoundness.decodedEnv_location geometry assignment
     (.outputInput index)
-  rw [PiCCSOrdinaryDirectPlan.Location.outputInput_form_eq_pilot] at mapped
-  rw [PiCCSOrdinaryDirectPlan.Location.sourceColumn, output_input_lift] at mapped
+  rw [PiCCSOrdinaryDirectPlan.Location.outputInput_form_eq_pilot geometry index] at mapped
+  unfold PiCCSOrdinaryDirectPlan.Location.sourceColumn at mapped
+  rw [output_input_lift] at mapped
   exact mapped.symm
 
 theorem rowsZero_implies_hashFacts

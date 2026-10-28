@@ -1,8 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedPreservation
 
-/-! The direct Phi81 combination rows over the retained assignment.
-The sampler's ordinary rows and Poseidon2 rows are owned by their own plans. -/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCRetainedPlan
 
 open NightstreamFPrime.Spec

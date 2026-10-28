@@ -1,12 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonTraceRows
 import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
 
-/-!
-Owns fail-closed compilation from one pair of Poseidon trace expressions to
-one direct selective source step. Inputs and linear recipes must be bounded
-affine expressions. Retained outputs must be exact bounded source variables.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonSourceRows
 
 open NightstreamFPrime.Spec

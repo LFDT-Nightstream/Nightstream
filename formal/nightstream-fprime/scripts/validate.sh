@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Validation enforces the project cap and reports every requested target.
-#   validate.sh static            boundary checks only (no Lean)
+#   validate.sh static            boundary checks here and in ../compression-lean (no Lean)
 #   validate.sh build [target...] lake build (default: the production library)
 #   validate.sh axioms            lake build NightstreamFPrimeTests
 #   validate.sh executables       lake build of every lean_exe target
@@ -80,8 +80,18 @@ lean_file() {
     -DautoImplicit=false -DrelaxedAutoImplicit=false -DwarningAsError=true "$1"
 }
 
-compression() {
+boundaries() {
+  bash scripts/check-boundaries.sh
   bash scripts/check-boundaries.sh ../compression-lean
+}
+
+compression() {
+  # Without the copied cache, Lake clones and rebuilds Mathlib under the cap.
+  if [[ ! -d ../compression-lean/.lake/packages/mathlib ]]; then
+    echo "../compression-lean has no Mathlib cache. Copy the F′ cache first:" >&2
+    echo "  (cd ../compression-lean && mkdir -p .lake && cp -cR ../nightstream-fprime/.lake/packages .lake/)" >&2
+    return 2
+  fi
   # No target names: Lake builds the package's own defaultTargets.
   (cd ../compression-lean &&
     capped lake build --wfail &&
@@ -95,7 +105,7 @@ executables() {
 
 phase="${1:-all}"
 case "$phase" in
-  static) bash scripts/check-boundaries.sh ;;
+  static) boundaries ;;
   lean-executable)
     if (( $# < 2 )); then echo "usage: validate.sh lean-executable <built-Lean-executable> [arguments...]" >&2; exit 2; fi
     shift
@@ -359,9 +369,12 @@ case "$phase" in
     if (( $# != 2 )); then echo "usage: validate.sh per-application-streamed <path>" >&2; exit 2; fi
     capped lake exe emitPerApplicationStreamedFixture -- "$2"
     ;;
-  compression) compression ;;
+  compression)
+    bash scripts/check-boundaries.sh ../compression-lean
+    compression
+    ;;
   all)
-    bash scripts/check-boundaries.sh
+    boundaries
     capped lake build --wfail NightstreamFPrime NightstreamFPrimeTests
     capped lake build --wfail $(executables)
     lean_file tests/EndpointCensus.lean

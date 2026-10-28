@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationBlockSupport
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedRows
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationPadBlock
 
-/-!
-Stored sparse accumulation of complete PiDEC matrix and Pad rows.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECEvaluationRows
@@ -53,7 +49,7 @@ private theorem row_sumRange {shape : Phi81Relation.Shape} {columns : Nat}
   rw [row, PiDECEvaluationBlockSupport.kernel_eq_fullBlockSum form covered]
   apply sumRange_congr baseOps _
   intro block live
-  simp only [dif_pos live]
+  simp only [dite_eq_left live]
 
 theorem row_empty_value {shape : Phi81Relation.Shape} {columns : Nat}
     (assignments : Vector (Vector F shape.carrierWidth) productionGlobalParams.k)
@@ -112,7 +108,7 @@ theorem matrixRow_value
       else 0)
   apply sumRange_congr baseOps _
   intro block live
-  simp only [dif_pos live]
+  simp only [dite_eq_left live]
   exact congrArg (fun value : RingF => value output)
     (PiDECEvaluationSelectedRows.rowBlock_eq_blockRowRing
       rowIndex matrix assignments ⟨block, live⟩ child)
@@ -132,7 +128,7 @@ theorem padRow_value {shape : Phi81Relation.Shape}
     PiRLC.ExplicitMatrix.rowRing_eq_sumRange]
   apply sumRange_congr baseOps _
   intro block live
-  simp only [dif_pos live]
+  simp only [dite_eq_left live]
   have blockValue := PiDECEvaluationPadBlock.rowBlock_paddedEntry
     shape.rowVariables 0 0 shape.matrixCount shape.logicalWidth
     system.matrices system.constraintPolynomial layout vertex ⟨block, live⟩

@@ -4,10 +4,6 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation.Owned
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript
 
-/-! PiRLC scalar circuit: the scalar domain entry, one checked
-wide reduction of its four rate lanes, and one digest advance. The child
-interfaces are opaque. -/
-
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler
 
 open NightstreamFPrime.Spec NightstreamFPrime.Circuit

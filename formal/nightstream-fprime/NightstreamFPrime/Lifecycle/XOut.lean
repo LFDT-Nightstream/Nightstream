@@ -5,28 +5,7 @@ import NightstreamFPrime.Spec.Poseidon2
 import NightstreamFPrime.Spec.Folding.Nifs
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
 
-/-!
-Owns the Stage 1 public-state binding: the Construction-2 hash preimage
-`(vk, i, z0, zi, U)` as field words, the state hash
-`XOut = Poseidon2(preimage)`, the fixed public-instance encoding of a digest,
-and the paper default running instance. Every function is computable (Rust
-parity surface, spec §11).
-
-The preimage starts with one constant domain chunk. Then it lists the running
-commitments, `Eval_K`, `Eval_A` and the point, each child-major, then the Π_DEC
-parent public input once, packed three coordinates per word, then the tail
-`vk, i, z0, zi`. All widths are fixed by the production profile, so the
-preimage needs no length prefixes. It omits `pc`; Stage 1 has one function and
-fixes `pc = 1`. The children's public inputs are the verifier-computed split of
-the parent (SuperNeo Π_DEC verifier step 2), so the packed parent determines
-them on every canonical state (`StateEncoding.serializePreimage_injective`).
-The committed state columns are exactly these words.
-
-The sponge `Poseidon2.hash` does not absorb its input length, so two word
-lists that differ only by trailing zeros collide. Injectivity therefore holds
-only on preimages of the fixed production width
-(`PilotProduction.FixedPreimage`).
--/
+/-! HyperNova Construction 2 state hash. Rust parity surface: every function is computable (spec §11). -/
 
 namespace NightstreamFPrime.Lifecycle
 
@@ -498,9 +477,7 @@ def decodeHash
 def encodedHashCells (d : Digest) : Fin (ringDegree * publicRingColumns) → F :=
   fun j => (1 :: serializeDigestBits d).getD j.val 0
 
-/-- Fixed public-instance encoding of a digest: `encHash(d) = enc_inst((⊥, d))`,
-placed as `[1, bits(d₀) … bits(d₃), 0 …]` in five public ring columns. Its
-length is independent of circuit padding (HyperNova Def. 12 prop. 6). -/
+/-- HyperNova Def. 12 prop. 6. -/
 def encHash (d : Digest) :
     PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   encodedHashCells d
@@ -710,9 +687,7 @@ theorem encHash_injective_fixed {left right : Digest}
 def zeroPoint : CubePoint K cubeVariables :=
   ⟨List.replicate cubeVariables K.zero, by simp⟩
 
-/-- The paper default CE instance `u_⊥` (HyperNova H.2): the commitment of the
-zero assignment with zero randomness, the zero public input (the projection of
-the zero assignment), the zero point, and zero evaluations. -/
+/-- HyperNova H.2 default CE instance `u_⊥`. -/
 def defaultRunning : Running (logicalWidth := logicalWidth) (publicFits := publicFits) where
   point := zeroPoint
   commitments := fun _ _ => ringFZero

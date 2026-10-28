@@ -1,26 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConstraintPolynomialLift.Evaluation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormResidualTable
 
-/-!
-Concrete carrier algebra for paper joint `Pi_CCS`.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: base/extension arithmetic and algebraic carrier placement.
-Constraint family: mathematical field/ring operations only; this file emits
-no rows.
-
-Owns: canonical `InterpolationOps` for Goldilocks `F` and the quadratic
-extension `K`; their interpolation laws; derived extension subtraction;
-base-zero agreement; zero/one/add/mul preservation by `K.embed`; and the
-direct sparse-polynomial `EvaluationLaws` instance for that embedding.
-
-Does not own: protocol-level zero reflection, strict-norm compatibility,
-`ProtocolDataRefinement.ProtocolLift`, verifier composition, a proof of the
-Goldilocks modulus Euclid property, transcript hashing, SumCheck degree,
-Rust/R1CS refinement, row removal, or counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 

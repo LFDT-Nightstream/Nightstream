@@ -3,10 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgram
 import NightstreamFPrime.Layout.MatrixProgram.RetainedWork
 
-/-!
-Counted retained compilation of the selected 1188 PiDEC commitment rows.
-SuperNeo v1.2 Section 7.5 and Appendix B.4 own the commitment equation.
--/
+/-! SuperNeo v1.2, Section 7.5 and Appendix B.4. -/
 
 set_option autoImplicit false
 
@@ -178,8 +175,8 @@ private theorem unpackChoice_length_le (columns : Nat) (condition : Prop) [Decid
      let result := unpackForm opened
      (⟨result.value, result.work + 9⟩ : Result (SparseForm columns))).value.entries.length ≤ 41 := by
   by_cases chosen : condition
-  · simpa only [if_pos chosen] using leftLength
-  · simpa only [if_neg chosen] using rightLength
+  · simpa only [ite_eq_left chosen] using leftLength
+  · simpa only [ite_eq_right chosen] using rightLength
 
 private theorem sourceForm_length_le (columns : Nat) (parent proof : RetainedBlock)
     (parentKind : parent.kind = .field) (proofKind : proof.kind = .field) (column : Nat) :
@@ -200,10 +197,10 @@ private theorem sourceForm_work_le (columns : Nat) (parent proof : RetainedBlock
   have parentUnpack := unpackForm_work_le (RetainedWork.form? parent columns (column - 6320050))
   have proofUnpack := unpackForm_work_le (RetainedWork.form? proof columns (column - 11432356))
   by_cases before : column < 11432356
-  · simp only [sourceForm, if_pos before]
+  · simp only [sourceForm, ite_eq_left before]
     change (unpackForm (RetainedWork.form? parent columns (column - 6320050))).work + 9 ≤ 13819
     omega
-  · simp only [sourceForm, if_neg before]
+  · simp only [sourceForm, ite_eq_right before]
     change (unpackForm (RetainedWork.form? proof columns (column - 11432356))).work + 9 ≤ 13819
     omega
 
@@ -226,7 +223,7 @@ private theorem parentForm_correct
   have offset : 6320050 + index.val - 6320050 = index.val := by omega
   have resultValue : (sourceForm columns (blocks ()).value.1 (blocks ()).value.2
       (6320050 + index.val)).value = form := by
-    simpa only [sourceForm, if_pos before, offset] using value
+    simpa only [sourceForm, ite_eq_left before, offset] using value
   refine ⟨resultValue, ?_⟩
   rw [resultValue]
   simpa only [blocks, LowNormSlot.Kind.width, BalancedTernary.width] using length
@@ -249,7 +246,7 @@ private theorem proofForm_correct
   have offset : 11432356 + index.val - 11432356 = index.val := by omega
   have resultValue : (sourceForm columns (blocks ()).value.1 (blocks ()).value.2
       (11432356 + index.val)).value = form := by
-    simpa only [sourceForm, if_neg before, offset] using value
+    simpa only [sourceForm, ite_eq_right before, offset] using value
   refine ⟨resultValue, ?_⟩
   rw [resultValue]
   simpa only [blocks, LowNormSlot.Kind.width, BalancedTernary.width] using length

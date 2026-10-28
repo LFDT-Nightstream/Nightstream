@@ -1,36 +1,7 @@
 import NightstreamFPrime.Lifecycle.RandomOracleBinding
 import NightstreamFPrime.Spec.RandomOracleBudget
 
-/-!
-Owns the binding reduction of Lemma 6 as an algorithm (SECURITY_MODEL.md): a
-program whose points are oracles and whose answers are the records of the
-adversary's runs on them (`Spec.RandomOracleBudget.RunMachine`). The
-algorithm holds no adversary.
-
-Inputs: the claim parse function, the Ajtai key, a budget `T` and a tape of
-`T` uniform oracles. The adversary enters only through the record of each run
-the algorithm makes: its output and its queries. The algorithm applies the
-claim parse function to each record.
-
-Outputs:
-- `reduction`: one adversary run per step, on an oracle built from one fresh
-  tape entry: the base run, a retry on the base oracle with one fresh `Π_RLC`
-  answer, or a rerun on the fork context with fresh answers elsewhere. Every
-  test reads the oracle, the record of the run just made, and the records it
-  stored;
-- `solve`: the reduction with budget `T` on the adversary's records; it
-  returns `RandomOracleBinding.rerunKernelOf` of the two runs it finishes
-  with;
-- `runs_length_le`: at most `T` runs on every tape, because the program has
-  query bound `T` (`RunMachine.program_bound`);
-- `runs_take_congr`: the oracle of each run depends on the adversary only
-  through the records of the earlier runs;
-- `solve_congr`: the output depends on the adversary only through the
-  records of the runs made.
-
-Does not own: the reduction's laws and work (`RandomOracleSolver`), or the
-cost of the checks that each step makes: Lean decides them classically.
--/
+/-! SECURITY_MODEL.md Lemma 6, binding reduction as an algorithm. -/
 
 set_option autoImplicit false
 

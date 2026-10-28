@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECArithmetic
 import NightstreamFPrime.Layout.Stage1.RunningTransitionLowering
 
-/-!
-Owns the ordinary-row package plan for the Stage 1 running transition.
--/
-
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionArithmetic
 
 open NightstreamFPrime.Circuit

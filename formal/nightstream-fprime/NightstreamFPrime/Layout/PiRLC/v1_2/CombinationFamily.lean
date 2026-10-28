@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.CombinationCost
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily
 
-/-!
-Owns physical composition for one exact 17-source PiRLC combination family.
-
-The family preserves the logical `K + k` child order and sums the exact
-computed step footprints. Concrete commitment, public-input, `Eval_K`, and
-`Eval_A` owners prove fixed production totals over this generic layout.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily
 
 open NightstreamFPrime.Circuit

@@ -3,12 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiDECRetainedGeometry
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 import NightstreamFPrime.Layout.PiDEC.v1_2.Preservation
 
-/-!
-Owns the executable retained-source resolver and direct 4-matrix plan for the
-four nonempty canonical PiDEC row packets. It does not append the plan to the
-final Stage 1 package or close PiDEC conformance.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiDECDirectPlan
 
 open NightstreamFPrime.Circuit
@@ -175,40 +169,40 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
   cases location with
   | parentCommitment index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.parentCommitment]
+        encodes.parentCommitment index]
       apply congrArg source
       apply Fin.ext
       rfl
   | parentPublicInput index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.parentPublicInput]
+        encodes.parentPublicInput index]
       apply congrArg source
       apply Fin.ext
       rfl
   | parentEvalK index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.parentEvalK]
+        encodes.parentEvalK index]
       apply congrArg source
       apply Fin.ext
       rfl
   | parentEvalA index =>
       rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source
-        encodes.parentEvalA]
+        encodes.parentEvalA index]
       apply congrArg source
       apply Fin.ext
       rfl
   | proof index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source encodes.proof]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source encodes.proof index]
       apply congrArg source
       apply Fin.ext
       rfl
   | logical index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source encodes.logical]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source encodes.logical index]
       apply congrArg source
       apply Fin.ext
       rfl
   | fresh index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source encodes.fresh]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment source encodes.fresh index]
       apply congrArg source
       apply Fin.ext
       rfl
@@ -268,38 +262,38 @@ theorem classifySource_complete {column : Nat} (support : Source column) :
   by_cases commitment : InRange PiDECSourceSupport.parentCommitmentStart
       PiDECInputs.commitmentWordsPerChild column
   · unfold classifySource
-    rw [dif_pos commitment]
+    rw [dite_eq_left commitment]
     rfl
   by_cases publicInput : InRange PiDECSourceSupport.parentPublicInputStart
       PiDECInputs.publicInputWordsPerChild column
   · unfold classifySource
-    rw [dif_neg commitment, dif_pos publicInput]
+    rw [dite_eq_right commitment, dite_eq_left publicInput]
     rfl
   by_cases evalK : InRange PiDECSourceSupport.parentEvalKStart
       PiDECInputs.evalKWordsPerChild column
   · unfold classifySource
-    rw [dif_neg commitment, dif_neg publicInput, dif_pos evalK]
+    rw [dite_eq_right commitment, dite_eq_right publicInput, dite_eq_left evalK]
     rfl
   by_cases evalA : InRange PiDECSourceSupport.parentEvalAStart
       PiDECInputs.evalAWordsPerChild column
   · unfold classifySource
-    rw [dif_neg commitment, dif_neg publicInput, dif_neg evalK, dif_pos evalA]
+    rw [dite_eq_right commitment, dite_eq_right publicInput, dite_eq_right evalK, dite_eq_left evalA]
     rfl
   by_cases proof : InRange PiDECInputs.proofInputStart
       PiDECInputs.proofInputColumnCount column
   · unfold classifySource
-    rw [dif_neg commitment, dif_neg publicInput, dif_neg evalK, dif_neg evalA,
-      dif_pos proof]
+    rw [dite_eq_right commitment, dite_eq_right publicInput, dite_eq_right evalK, dite_eq_right evalA,
+      dite_eq_left proof]
     rfl
   by_cases logical : InRange PiDECStarts.phaseLogicalStart logicalCount column
   · unfold classifySource
-    rw [dif_neg commitment, dif_neg publicInput, dif_neg evalK, dif_neg evalA,
-      dif_neg proof, dif_pos logical]
+    rw [dite_eq_right commitment, dite_eq_right publicInput, dite_eq_right evalK, dite_eq_right evalA,
+      dite_eq_right proof, dite_eq_left logical]
     rfl
   by_cases fresh : InRange PiDECStarts.phaseFreshStart freshCount column
   · unfold classifySource
-    rw [dif_neg commitment, dif_neg publicInput, dif_neg evalK, dif_neg evalA,
-      dif_neg proof, dif_neg logical, dif_pos fresh]
+    rw [dite_eq_right commitment, dite_eq_right publicInput, dite_eq_right evalK, dite_eq_right evalA,
+      dite_eq_right proof, dite_eq_right logical, dite_eq_left fresh]
     rfl
   · exfalso
     rcases support with logicalSource | freshSupport

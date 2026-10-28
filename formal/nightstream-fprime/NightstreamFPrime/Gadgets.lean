@@ -18,5 +18,3 @@ import NightstreamFPrime.Gadgets.Multilinear.PointEqualitySupport
 import NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner
 import NightstreamFPrime.Gadgets.Multilinear.PointWeightedHornerSupport
 import NightstreamFPrime.Gadgets.Range.CanonicalU64
-
-/-! Gadgets layer root. Lists the modules of this layer explicitly. -/

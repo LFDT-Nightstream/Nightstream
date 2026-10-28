@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.InvocationLastOutput
 import NightstreamFPrime.Export.Stage1.PoseidonActionSchedule
 
-/-!
-Owns the structural value-semantics bridge from an indexed Poseidon2 action
-schedule to the authoritative Duplex trace.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PoseidonActionSemantics
 
 open NightstreamFPrime.Circuit
@@ -163,11 +158,11 @@ theorem previousState_tail (initial : State) {count : Nat}
       (fun index => output index.succ) current = output current.castSucc := by
     unfold previousState
     by_cases first : current.val = 0
-    · rw [dif_pos first]
+    · rw [dite_eq_left first]
       apply congrArg output
       apply Fin.ext
       simpa using first.symm
-    · rw [dif_neg first]
+    · rw [dite_eq_right first]
       apply congrArg output
       apply Fin.ext
       simp only [Fin.val_succ, Fin.val_castSucc]
@@ -175,7 +170,7 @@ theorem previousState_tail (initial : State) {count : Nat}
   have right : previousState initial output current.succ =
       output current.castSucc := by
     unfold previousState
-    rw [dif_neg (by simp)]
+    rw [dite_eq_right (by simp)]
     apply congrArg output
     apply Fin.ext
     simp
@@ -217,18 +212,18 @@ theorem previousState_slice {total : Nat} (initial : State)
       previousState initial output (sliceIndex offset count fits current) := by
   unfold previousState
   by_cases currentFirst : current.val = 0
-  · rw [dif_pos currentFirst]
+  · rw [dite_eq_left currentFirst]
     by_cases offsetFirst : offset = 0
-    · rw [sliceInitial, dif_pos offsetFirst]
-      rw [dif_pos (by simp [sliceIndex, currentFirst, offsetFirst])]
-    · rw [sliceInitial, dif_neg offsetFirst]
-      rw [dif_neg (by simp [sliceIndex, currentFirst]; omega)]
+    · rw [sliceInitial, dite_eq_left offsetFirst]
+      rw [dite_eq_left (by simp [sliceIndex, currentFirst, offsetFirst])]
+    · rw [sliceInitial, dite_eq_right offsetFirst]
+      rw [dite_eq_right (by simp [sliceIndex, currentFirst]; omega)]
       apply congrArg output
       apply Fin.ext
       simp only [sliceIndex]
       omega
-  · rw [dif_neg currentFirst]
-    rw [dif_neg (by simp [sliceIndex]; omega)]
+  · rw [dite_eq_right currentFirst]
+    rw [dite_eq_right (by simp [sliceIndex]; omega)]
     apply congrArg output
     apply Fin.ext
     simp only [sliceIndex]
@@ -272,12 +267,12 @@ theorem indexed_traceHolds (count : Nat) (env : Env) (initial : State)
         unfold previousState stateAfter
         by_cases first : index = 0
         · simp [first]
-        · rw [dif_neg first, Nat.zero_add, if_neg first,
-            dif_pos (by omega)]
+        · rw [dite_eq_right first, Nat.zero_add, ite_eq_right first,
+            dite_eq_left (by omega)]
       have outputEq : output ⟨index, indexBound⟩ =
           stateAfter initial output (0 + index + 1) := by
         unfold stateAfter
-        rw [if_neg (by omega), dif_pos (by omega)]
+        rw [ite_eq_right (by omega), dite_eq_left (by omega)]
         apply congrArg output
         apply Fin.ext
         simp

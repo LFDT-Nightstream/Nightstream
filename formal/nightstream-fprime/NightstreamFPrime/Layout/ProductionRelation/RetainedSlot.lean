@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.ProductionAssignment
 import NightstreamFPrime.Layout.ProductionRelation
 
-/-!
-Owns the sparse matrix form that reconstructs one retained low-norm source
-slot. Bit and centered slots use one coordinate. General field slots use the
-exact 41-coordinate balanced-ternary Horner form.
-
-This module does not select which source values are retained.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.RetainedSlot
 
 open NightstreamFPrime.Spec

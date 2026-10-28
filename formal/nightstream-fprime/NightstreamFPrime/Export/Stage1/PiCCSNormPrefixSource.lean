@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixRound
 
-/-! Proof-only transport from the existing signed source decoder through the
-existing retained norm folds to the original sourceAssignment message field.
-File IO and range accumulation are not proved here. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNormPrefixSource
@@ -50,7 +46,7 @@ private theorem code_outside (masks : Array (Array (Nat × Nat)))
   rw [code, PiCCSNormSource.signedValue_sourceCode,
     Array.getElem?_eq_none beyond, Option.getD_none]
   simp only [SignedUnitSourceInput.scalar, Array.getElem?_empty, Option.getD_none,
-    Nat.zero_testBit, Bool.false_eq_true, if_false]
+    Nat.zero_testBit, Bool.false_eq_true, ite_false]
 
 private theorem table_ext {arity : Nat} (left right : BooleanTable K arity)
     (equal : ∀ vertex, left.valueAt vertex = right.valueAt vertex) : left = right := by
@@ -83,14 +79,14 @@ private theorem decoded_prefix_value
   by_cases live : NumericBooleanDomain.index vertex < PiCCSSourceImages.shape.carrierWidth
   · have stored : NumericBooleanDomain.index vertex < count := Nat.lt_of_lt_of_le live covered
     simp only [Array.getD_eq_getD_getElem?, Array.getElem?_ofFn,
-      dif_pos stored, Option.getD_some]
+      dite_eq_left stored, Option.getD_some]
     change K.embed (PiCCSNormCache.signedValue (code masks source
         (NumericBooleanDomain.index vertex))) =
       K.embed ((Folding.PiCCS.CanonicalRowLayout.layout cubeVariables
         PiCCSSourceImages.shape.carrierWidth (PiCCSNormSource.canonicalLayout ()).columns_le).paddedValue
         (0 : F) (PiCCSNormSource.assignments masks source) vertex)
     simp only [ColumnLayout.paddedValue, Folding.PiCCS.CanonicalRowLayout.layout,
-      dif_pos live]
+      dite_eq_left live]
     rw [code, PiCCSNormSource.signedValue_sourceCode]
     rfl
   · have outside := Nat.le_of_not_lt live
@@ -100,10 +96,10 @@ private theorem decoded_prefix_value
     rw [ColumnLayout.paddedValue, padding]
     by_cases stored : NumericBooleanDomain.index vertex < count
     · simp only [Array.getD_eq_getD_getElem?, Array.getElem?_ofFn,
-        dif_pos stored, Option.getD_some]
+        dite_eq_left stored, Option.getD_some]
       rw [code_outside masks source loaded _ outside]
     · simp only [Array.getD_eq_getD_getElem?, Array.getElem?_ofFn,
-        dif_neg stored, Option.getD_none]
+        dite_eq_right stored, Option.getD_none]
       rfl
 
 theorem decoded_prefix_table
@@ -212,6 +208,6 @@ theorem quadCodes_endpoint
   cases bit <;> simpa only [ProtocolPolynomial.messageAt, PiCCSPrefixRound.point,
     BooleanVertex.toCubePoint_coordinates, BooleanVertex.fieldCoordinates,
     Bool.false_eq_true,
-    if_false, if_true] using! value
+    ite_false, ite_true] using! value
 
 end NightstreamFPrime.Export.Stage1.PiCCSNormPrefixSource

@@ -3,13 +3,6 @@ import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Spec.Poseidon2
 import NightstreamFPrime.Spec.ProductionRelation
 
-/-!
-Owns the canonical circuit-package schema, its lossless structured codec, and
-the Poseidon2 relation identifier. Concrete pilot data belongs to `Pilot`.
-The schema stores sparse matrix templates and their exact instantiations; Rust
-may expand them but does not choose rows or circuit structure.
--/
-
 namespace NightstreamFPrime.Export.Package
 
 open NightstreamFPrime.Spec
@@ -181,9 +174,6 @@ def CcsPolynomialTerm.format : Format CcsPolynomialTerm where
     cases value
     simp [Format.decode_encode]
 
-/-- Logical CCS relation carried by the package beside its physical row
-program. Rust decodes this record; it does not choose matrix slots or the
-constraint polynomial. -/
 structure CcsRelation where
   rowCount : Nat
   columnCount : Nat
@@ -822,9 +812,7 @@ def relationIdentifier (value : CircuitPackage) : List F :=
 def render (value : CircuitPackage) : String :=
   (CircuitPackage.format.encode value).render
 
-/-- Emitted package envelope. It carries no prover-claimed digest. The Rust
-verifier recomputes `relationIdentifier` from this package and compares it
-with its verifier-owned expected identity. -/
+/-- The Rust verifier recomputes `relationIdentifier` from this package. -/
 structure Artifact where
   package : CircuitPackage
 deriving Repr

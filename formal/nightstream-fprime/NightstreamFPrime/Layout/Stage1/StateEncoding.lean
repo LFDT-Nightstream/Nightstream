@@ -1,15 +1,6 @@
 import NightstreamFPrime.Layout.PilotProduction
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
 
-/-!
-Owns the injectivity facts for the Stage 1 state preimage and the radix-`2^17`
-parent packing.
-
-The preimage stores the Π_DEC parent public input once, so it is injective
-only on states whose children are the canonical common-sign split of that
-parent (`ChildrenCanonical`).
--/
-
 namespace NightstreamFPrime.Layout.Stage1.StateEncoding
 
 open NightstreamFPrime.Spec
@@ -438,7 +429,7 @@ theorem serializeParentPublic_injective
     have wordEqual := congrArg (fun words => words.getD word.val 0) equal
     simp only [serializeParentPublic] at wordEqual
     rw [List.getD_eq_getElem _ _ (by simp), List.getD_eq_getElem _ _ (by simp)] at wordEqual
-    simp only [List.getElem_map, List.getElem_finRange, Fin.eta] at wordEqual
+    simp only [List.getElem_map, List.getElem_finRange] at wordEqual
     rcases packWord_injective
         (leftCanonical.parentBounded _) (leftCanonical.parentBounded _)
         (leftCanonical.parentBounded _) (rightCanonical.parentBounded _)
@@ -458,7 +449,7 @@ theorem serializeParentPublic_injective
   have digitsEqual : childDigits left column = childDigits right column := by
     rw [leftSplit, rightSplit]
   have selected := congrFun digitsEqual (Fin.cast runningCount_eq_radixChildCount source)
-  simpa [childDigits] using selected
+  simpa [childDigits] using! selected
 
 theorem serializeRunning_injective
     {left right : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}

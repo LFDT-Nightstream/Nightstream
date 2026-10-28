@@ -21,9 +21,6 @@ Constraint group:
 Parent coverage:
 - `PiDEC.PaperVerifier.Accepted.commitmentEquation`;
 - `PiDEC.PaperVerifier.Accepted.evaluationEquation`.
-
-This leaf does not own public-input digit range checks, child construction,
-family-specific coordinate encodings, output binding, or physical columns.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.RadixRecomposition

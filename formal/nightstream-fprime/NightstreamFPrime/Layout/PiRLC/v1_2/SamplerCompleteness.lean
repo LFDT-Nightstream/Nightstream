@@ -1,10 +1,6 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.Sampler
 import NightstreamFPrime.Layout.R1CS.Completeness
 
-/-! Constructive physical completeness for the total scalar sampler. The
-logical constructor supplies checked rows; generic R1CS lowering supplies
-only its fresh interval. No sampler-success premise is needed. -/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.Sampler
 
 open NightstreamFPrime.Circuit NightstreamFPrime.Layout
@@ -26,9 +22,11 @@ theorem physical_complete (interface : Logical.Interface)
   obtain ⟨completed, physicalAgrees, physicalRows⟩ :=
     R1CS.lowerConstraints_complete logicalEnv (logicalConstraints interface coordinate offset)
       (offset + Logical.logicalPrivateCount) scope logicalRows
-  refine ⟨completed, ?_, physicalRows⟩
-  have combined := logicalAgreesFixed.append physicalAgrees
-  rw [totalFreshCount_eq interface coordinate offset inputs] at combined
-  exact combined
+  refine ⟨completed, ?_, ?_⟩
+  · have combined := logicalAgreesFixed.append physicalAgrees
+    rw [totalFreshCount_eq interface coordinate offset inputs] at combined
+    exact combined
+  · unfold PhysicalHolds plan R1CS.LoweringPlan.rows R1CS.LoweringPlan.lowering
+    exact physicalRows
 
 end NightstreamFPrime.Layout.PiRLC.v1_2.Sampler

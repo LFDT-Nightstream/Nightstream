@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverse
 import Mathlib.Tactic.Ring
 
-/-! Polynomial correctness of the executed normalized-GCD candidate under
-explicit coprimality. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseCorrect

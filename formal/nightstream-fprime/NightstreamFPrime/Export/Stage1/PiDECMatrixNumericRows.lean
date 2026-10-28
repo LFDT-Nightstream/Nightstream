@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock
 import NightstreamFPrime.Export.Stage1.PiDECProductRow
 import NightstreamFPrime.Layout.MatrixProgram.Program
 
-/-!
-Evaluate one existing matrix-program row under an arbitrary scalar read. This
-interface does not select phases, witnesses, or source rows.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows
@@ -111,9 +106,9 @@ private theorem select_eq {columns : Nat}
   | cons block rest inductionHypothesis =>
       by_cases selected : ordinal < block.rowCount
       · simpa only [row?.select, MatrixProgram.Program.row?.select,
-          if_pos selected] using blockRow?_eq block sourceRow read ordinal
+          ite_eq_left selected] using blockRow?_eq block sourceRow read ordinal
       · simpa only [row?.select, MatrixProgram.Program.row?.select,
-          if_neg selected] using inductionHypothesis (ordinal - block.rowCount)
+          ite_eq_right selected] using inductionHypothesis (ordinal - block.rowCount)
 
 theorem row?_eq (program : MatrixProgram.Program) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → F)

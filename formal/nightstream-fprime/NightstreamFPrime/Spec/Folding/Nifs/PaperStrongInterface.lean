@@ -1,12 +1,5 @@
 import NightstreamFPrime.Spec.Folding.Nifs.PaperSecurityComposition
 
-/-!
-The interactive PiCCS output consumed by the NIFS weak suffix. Public values
-come from the same statement and probe; source assignments enter only through
-the suffix's returned witness. The noninteractive replay is an exact separate
-specialization and does not supply the interactive challenge distribution.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface

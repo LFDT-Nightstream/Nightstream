@@ -1,16 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.OrdinaryRow
 import NightstreamFPrime.Layout.ProductionRelation.RetainedSlot
 
-/-!
-Owns the source-field substitution used by the production selective compiler.
-A substitution maps each bounded source field to one sparse form over the
-final low-norm assignment. Linear combinations and ordinary R1CS rows compile
-through that map with exact evaluation preservation.
-
-This module does not choose the production retained set or affine rewrite
-schedule.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
 
 open NightstreamFPrime.Spec
@@ -150,7 +140,7 @@ theorem compileCombination_eval {sourceWidth logicalWidth : Nat}
     (preserves : sourceMap.Preserves assignment source) :
     (compileCombination sourceMap oneColumn combination bounded).eval assignment =
       combination.eval source := by
-  rw [compileCombination, SparseForm.add_eval, SparseForm.singleton_eval,
+  erw [compileCombination, SparseForm.add_eval, SparseForm.singleton_eval,
     one, mul_one, compileTerms_eval sourceMap assignment source preserves]
   rfl
 
@@ -197,7 +187,7 @@ def sourceEnv {sourceWidth : Nat} (source : Fin sourceWidth → F) : Circuit.Env
     (source : Fin sourceWidth → F) (column : Fin sourceWidth) :
     sourceEnv source column.val = source column := by
   unfold sourceEnv
-  rw [dif_pos column.isLt]
+  rw [dite_eq_left column.isLt]
 
 structure RetainedMap {sourceWidth : Nat}
     (slots : List (LowNormAssignment.Slot sourceWidth)) where
@@ -235,7 +225,7 @@ theorem markerColumn_eq_one {sourceWidth : Nat} (digest : Lifecycle.Digest)
     ProductionAssignment.logicalAssignment
         (Lifecycle.encHash (publicFits := ProductionAssignment.publicFits slots) digest)
         slots source markerColumn = 1 := by
-  rw [markerColumn, ProductionAssignment.logicalAssignment_publicColumn]
+  erw [markerColumn, ProductionAssignment.logicalAssignment_publicColumn]
   exact Lifecycle.encHash_marker digest
 
 end NightstreamFPrime.Layout.ProductionRelation.SourceCompiler

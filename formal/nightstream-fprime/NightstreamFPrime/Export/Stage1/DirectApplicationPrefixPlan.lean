@@ -4,11 +4,6 @@ import NightstreamFPrime.Export.Stage1.NextPreimageDirectPlan
 import NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the ordered direct 4-matrix plan through one verifier-selected
-application.
--/
-
 namespace NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
 
 open NightstreamFPrime.Circuit
@@ -213,8 +208,12 @@ theorem rowsZero_iff
         (applicationPlan fits geometry).RowsZero assignment) ∧
           (nextPreimagePlan geometry).RowsZero assignment) ∧
         (publicOutputPlan geometry).RowsZero assignment := by
-  rw [plan, ProductionRelation.Plan.append_rowsZero_iff]
-  rw [throughNextPreimagePlan, ProductionRelation.Plan.append_rowsZero_iff]
+  rw [plan, ProductionRelation.Plan.append_rowsZero_iff
+    (throughNextPreimagePlan relation fits geometry) (publicOutputPlan geometry)
+    (rowCount_le relation fits geometry)]
+  rw [throughNextPreimagePlan, ProductionRelation.Plan.append_rowsZero_iff
+    (prefixApplicationPlan relation fits geometry) (nextPreimagePlan geometry)
+    (throughNextPreimageRowCount_le relation fits geometry)]
   rw [prefixApplicationPlan, ProductionRelation.Plan.append_rowsZero_iff]
 
 theorem applicationSourceWidth_le_baseSourceWidth
@@ -269,7 +268,7 @@ def applicationSource
     applicationSource application base column =
       SourceCompiler.sourceEnv base column.val := by
   unfold applicationSource SourceCompiler.sourceEnv
-  rw [dif_pos (lt_of_lt_of_le column.isLt
+  rw [dite_eq_left (lt_of_lt_of_le column.isLt
     (applicationSourceWidth_le_baseSourceWidth application))]
 
 structure Encodes

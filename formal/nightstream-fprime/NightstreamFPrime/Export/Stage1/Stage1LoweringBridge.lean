@@ -2,11 +2,6 @@ import NightstreamFPrime.Layout.Stage1.Lowering
 import NightstreamFPrime.Export.Stage1.ApplicationDirectSource
 import NightstreamFPrime.Export.Stage1.NextPreimagePackage
 
-/-!
-Connects the lower-layer Stage 1 suffix lowering to the canonical package
-compiler. These are structural equalities; no artifact-sized list is reduced.
--/
-
 namespace NightstreamFPrime.Export.Stage1.Stage1LoweringBridge
 
 open NightstreamFPrime.Circuit

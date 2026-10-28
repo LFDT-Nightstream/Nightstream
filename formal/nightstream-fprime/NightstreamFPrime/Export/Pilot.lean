@@ -3,12 +3,6 @@ import NightstreamFPrime.Export.RowSemantics
 import NightstreamFPrime.Layout.PilotSpartan
 import NightstreamFPrime.Layout.Poseidon2
 
-/-!
-Owns the proofs that connect the executable pilot package in `PilotData` to
-the production lifecycle layout. It owns no second package, row list, or
-schedule.
--/
-
 namespace NightstreamFPrime.Export.Pilot
 
 open NightstreamFPrime.Spec
@@ -160,7 +154,7 @@ theorem canonicalTemplateInvocation_sound (chain : HashChain)
     have refEq : PilotData.columnRef (1096 + lane.val) =
         .local (1080 + lane.val) := by
       unfold PilotData.columnRef
-      rw [if_neg (by omega)]
+      rw [ite_eq_right (by omega)]
       rw [canonicalOutputLocalIndex lane]
     change (PilotData.columnRef (1096 + lane.val)).eval value = _
     rw [refEq]
@@ -174,7 +168,7 @@ theorem canonicalTemplateInvocation_sound (chain : HashChain)
     funext lane
     have refEq : PilotData.columnRef lane.val = .input lane.val := by
       unfold PilotData.columnRef
-      rw [if_pos lane.isLt]
+      rw [ite_eq_left lane.isLt]
     change (PilotData.columnRef lane.val).eval value = _
     rw [refEq]
     rfl
@@ -387,7 +381,7 @@ theorem completePermutationInvocation
         simp [PilotData.columnRef, input]]
       simp only [ColumnRef.eval, instantiateInvocationColumn]
       unfold canonicalInvocationInputEnv
-      rw [if_pos input]
+      rw [ite_eq_left input]
       exact inputStable
     · have localIndex : column - 16 < 1096 := by omega
       have written := executeConstantRecipes_at
@@ -571,7 +565,7 @@ theorem canonicalPermutationInvocation_sound
     have refEq : PilotData.columnRef (1096 + lane.val) =
         .local (1080 + lane.val) := by
       unfold PilotData.columnRef
-      rw [if_neg (by omega)]
+      rw [ite_eq_right (by omega)]
       rw [canonicalOutputLocalIndex lane]
     change (PilotData.columnRef (1096 + lane.val)).eval value = _
     rw [refEq]
@@ -584,7 +578,7 @@ theorem canonicalPermutationInvocation_sound
     funext lane
     have refEq : PilotData.columnRef lane.val = .input lane.val := by
       unfold PilotData.columnRef
-      rw [if_pos lane.isLt]
+      rw [ite_eq_left lane.isLt]
     change (PilotData.columnRef lane.val).eval value = _
     rw [refEq]
     rfl
@@ -974,7 +968,7 @@ private theorem priorInputValues_eq (env : Env) :
     PilotSpartan.pullback env
       (PilotProduction.priorPreimageStart + index.val)
   unfold PilotSpartan.pullback PilotSpartan.sourceToSpartan
-  rw [if_pos (by
+  rw [ite_eq_left (by
     have indexBound : index.val < PilotProduction.stateHashWords := by
       rw [← stateHashWords_match]
       exact index.isLt
@@ -996,7 +990,7 @@ private theorem sourceToSpartan_outputPreimage
   all_goals try split
   all_goals try split
   all_goals try split
-  all_goals norm_num [PilotProduction.outputPreimageStart,
+  all_goals (simp only [PilotProduction.outputPreimageStart,
     PilotProduction.priorPublicInputStart,
     PilotProduction.priorPreimageStart, PilotProduction.stateHashWords,
     PilotProduction.digestWords, PriorStateHash.publicWidth,
@@ -1004,7 +998,7 @@ private theorem sourceToSpartan_outputPreimage
     PilotSpartan.priorPublicStart, PilotSpartan.outputPreimageStart,
     PilotSpartan.outputDigestStart, PilotSpartan.witnessStart,
     PilotSpartan.secondPrivateStart, PilotSpartan.secondPublicStart,
-    PilotSpartan.witnessPrivateStart] at * <;> omega
+    PilotSpartan.witnessPrivateStart] at *; omega)
 
 private theorem outputInputValues_eq (env : Env) :
     chainInputValues PilotData.outputChain env =
@@ -1020,7 +1014,7 @@ private theorem outputInputValues_eq (env : Env) :
   change env (PilotSpartan.secondPrivateStart + index.val) =
     env (PilotSpartan.sourceToSpartan
       (PilotProduction.outputPreimageStart + index.val))
-  rw [sourceToSpartan_outputPreimage]
+  erw [sourceToSpartan_outputPreimage]
 
 private theorem sourceToSpartan_priorPublic
     (column : Fin PriorStateHash.publicWidth) :
@@ -1035,15 +1029,14 @@ private theorem sourceToSpartan_priorPublic
   all_goals try split
   all_goals try split
   all_goals try split
-  all_goals norm_num [PilotProduction.priorPublicInputStart,
+  all_goals (simp only [PilotProduction.priorPublicInputStart,
     PilotProduction.priorPreimageStart, PilotProduction.stateHashWords,
     PilotProduction.digestWords, PriorStateHash.publicWidth,
     Spec.ringDegree, PaperAlgebra.publicRingColumns,
     PilotSpartan.priorPublicStart, PilotSpartan.outputPreimageStart,
     PilotSpartan.outputDigestStart, PilotSpartan.witnessStart,
     PilotSpartan.firstPublicStart, PilotSpartan.secondPrivateStart,
-    PilotSpartan.secondPublicStart, PilotSpartan.witnessPrivateStart] at * <;>
-    omega
+    PilotSpartan.secondPublicStart, PilotSpartan.witnessPrivateStart] at *; omega)
 
 private theorem priorPublicInput_eval (env : Env)
     (column : Fin PriorStateHash.publicWidth) :
@@ -1066,7 +1059,7 @@ private theorem sourceToSpartan_outputDigest (lane : Fin 4) :
   all_goals try split
   all_goals try split
   all_goals try split
-  all_goals norm_num [PilotProduction.outputDigestStart,
+  all_goals (simp only [PilotProduction.outputDigestStart,
     PilotProduction.outputPreimageStart,
     PilotProduction.priorPublicInputStart,
     PilotProduction.priorPreimageStart, PilotProduction.stateHashWords,
@@ -1075,8 +1068,9 @@ private theorem sourceToSpartan_outputDigest (lane : Fin 4) :
     PilotSpartan.priorPublicStart, PilotSpartan.outputPreimageStart,
     PilotSpartan.outputDigestStart, PilotSpartan.witnessStart,
     PilotSpartan.firstPublicStart, PilotSpartan.secondPrivateStart,
-    PilotSpartan.secondPublicStart, PilotSpartan.witnessPrivateStart] at * <;>
-    omega
+    PilotSpartan.secondPublicStart, PilotSpartan.witnessPrivateStart,
+    PilotValues.stateHashBaseWords, PilotValues.digestWords,
+    PilotSpartan.privateColumnCount_value] at *; omega)
 
 private theorem outputDigestValues_eq (env : Env) :
     List.ofFn (fun lane : Fin 4 =>

@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSNormPrefixSource
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixComposition
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixSelectorFactor
 
-/-! Pure norm accumulation after retained prefix folds. This file proves
-coefficient formulas for the existing bucket and direct range kernels, not file
-or worker-loop origin. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNormPrefixSum
@@ -178,10 +174,10 @@ private theorem source_pair (input : PiCCSPublicReplay.Input)
   cases bit
   · change (retained masks groups first second challenges source).getD
         (0 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex remaining index)) K.zero = _ at endpoint
-    simpa only [NumericBooleanDomain.index_vertex, Nat.zero_add, Nat.add_zero, if_false] using! endpoint
+    simpa only [NumericBooleanDomain.index_vertex, Nat.zero_add, Nat.add_zero, ite_false] using! endpoint
   · change (retained masks groups first second challenges source).getD
         (1 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex remaining index)) K.zero = _ at endpoint
-    simpa only [NumericBooleanDomain.index_vertex, Nat.add_comm 1, if_true] using endpoint
+    simpa only [NumericBooleanDomain.index_vertex, Nat.add_comm 1, ite_true] using endpoint
 
 private theorem inner_pair_value (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (groups : Nat)

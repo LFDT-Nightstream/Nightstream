@@ -2,22 +2,12 @@ import NightstreamFPrime.Export.Stage1.WitnessProgram
 import NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
 import CompressionLean.Terminal.Data
 
-/-!
-Owns the output map of the terminal package: the package expressions of the
-PiRLC parent (commitment, public input, point, `Eval_K`, `Eval_A`) and of the
-sponge state after the PiRLC sampler. Layer 1 reads its claim from them.
-
-Each list is the F′ interface expression moved to package columns, so its
-value on a package assignment is the value that the soundness theorem names.
--/
-
 namespace CompressionLean.Terminal
 
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
-/-- The PiRLC output interface of the Stage 1 layout. -/
 abbrev outputInterface :=
   Formal.outputBindingInterface
     (Formal.atOffset
@@ -29,7 +19,6 @@ abbrev outputInterface :=
 abbrev outputOffset :=
   Formal.outputBindingOffset NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
 
-/-- The sampler output state of the Stage 1 layout. -/
 abbrev samplerState : NightstreamFPrime.Gadgets.Poseidon2.Layer.EState :=
   SamplerChain.outputState
     (Formal.samplerInterface
@@ -39,21 +28,16 @@ abbrev samplerState : NightstreamFPrime.Gadgets.Poseidon2.Layer.EState :=
         NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset))
     (Formal.samplerOffset NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset)
 
-/-- An F′ logical expression on package columns. -/
 abbrev column (expression : Expr) : Expr := WitnessProgram.remapExpr expression
 
 def extension (value : NightstreamFPrime.Circuit.Quadratic.KExpr) : List Expr :=
   [column value.c0, column value.c1]
 
-/-- The output map, in the order layer 1 reads its claim. -/
 structure Outputs where
-  /-- Row-major: 22 rows of 54 lanes. -/
   commitment : List Expr
   publicInput : List Expr
-  /-- Two words per coordinate. -/
   point : List Expr
   eval_K : List Expr
-  /-- Matrix-major. -/
   eval_A : List Expr
   state : List Expr
 
@@ -70,13 +54,11 @@ def outputs : Outputs where
     extension (outputInterface.eval_A outputOffset matrix coefficient)).flatten).flatten
   state := List.ofFn fun lane => column (samplerState lane)
 
-/-- The canonical codec value of the output map. -/
 def Outputs.value (map : Outputs) : NightstreamFPrime.Export.Codec.Value :=
   .array ([map.commitment, map.publicInput, map.point, map.eval_K, map.eval_A,
     map.state].map (NightstreamFPrime.Export.Codec.list
       NightstreamFPrime.Export.Package.exprFormat).encode)
 
-/-- The terminal artifact: schema 1, the package, the output map. -/
 def envelope (_unit : Unit) : NightstreamFPrime.Export.Codec.Value :=
   .array [.atom 1,
     NightstreamFPrime.Export.Package.CircuitPackage.format.encode (circuitPackage ()),
@@ -92,7 +74,6 @@ section
 variable (relation : NightstreamFPrime.Lifecycle.ProductionKey.LogicalRelation
   Data.logicalWidth Data.publicFits) (env : Env)
 
-/-- The PiRLC output instance on the package assignment `env`. -/
 abbrev parent :=
   Semantics.evalOutput relation
     (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
@@ -113,7 +94,6 @@ theorem publicInput_eval :
   simp [outputs, List.map_ofFn, Function.comp_def, column_eval]
   rfl
 
-/-- The single evaluation family of `parent`. -/
 abbrev parentEvaluation :=
   OutputBinding.evalEvaluation outputInterface outputOffset
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)

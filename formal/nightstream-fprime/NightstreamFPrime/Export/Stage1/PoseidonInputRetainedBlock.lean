@@ -2,15 +2,12 @@ import NightstreamFPrime.Export.Stage1.PerApplicationPreservation
 import NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
 import NightstreamFPrime.Layout.LowNormBlock
 
-/-!
-Owns retained low-norm input blocks for the two pilot Poseidon2 hash chains.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PoseidonInputRetainedBlock
 
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 
+@[implicit_reducible]
 def basePackage (_delay : Unit := ()) : CircuitPackage :=
   PerApplicationPackage.basePackage ()
 

@@ -8,7 +8,6 @@ import tests.AxiomsStage1Application
 import tests.AxiomsStage1Assembler
 import tests.AxiomsAjtaiSetupV1
 import tests.AxiomsFoundations
-/-! Axiom gate. Explicit audits reject axioms outside the allowed set. -/
 #audit_axioms NightstreamFPrime.Spec.GlobalParams.rlc_bound_for
 #audit_axioms NightstreamFPrime.Spec.production_parameter_values
 #audit_axioms NightstreamFPrime.Spec.production_norm_stages

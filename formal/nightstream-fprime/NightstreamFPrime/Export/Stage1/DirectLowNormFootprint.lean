@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprint
 import NightstreamFPrime.Export.Stage1.PiRLCProductSourceBlocks
 import NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
 
-/-!
-Owns the current combined low-norm coordinate ledger for direct Poseidon2
-and direct PiRLC product plans.
--/
-
 namespace NightstreamFPrime.Export.Stage1.DirectLowNormFootprint
 
 def poseidonAndProductCoordinates : Nat :=

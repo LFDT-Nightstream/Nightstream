@@ -3,12 +3,6 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Evaluation
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Terminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 
-/-!
-Completes the opaque-child PiCCS v1_2 assembler. This file owns only the
-three-group composition and the sole parent `FormalCircuit`. It adds no
-protocol predicate or alternate path.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 
 open NightstreamFPrime.Spec
@@ -158,6 +152,7 @@ private theorem terminalPrefix_rowCount_eq
     childOp_rowCount]
   unfold ccsCircuit normCircuit finalIdentityCircuit outputBindingCircuit
   simp only [FormalCircuit.withConstantFootprint_rowCount]
+  erw [FormalCircuit.withConstantFootprint_rowCount]
   norm_num [CcsTerminal.rowCount]
 
 private theorem opsAt_eq_prefixes

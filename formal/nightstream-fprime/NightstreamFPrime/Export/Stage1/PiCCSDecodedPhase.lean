@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSDecodedEndpoints
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 
-/-!
-Owns the emitted-row soundness connection to the existing PiCCS phase
-assembler.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase
 
 open NightstreamFPrime.Circuit

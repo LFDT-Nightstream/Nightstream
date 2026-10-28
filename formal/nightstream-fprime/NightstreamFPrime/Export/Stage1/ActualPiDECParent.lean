@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.ActualPiDEC
 import NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
 import Mathlib.Algebra.BigOperators.Fin
 
-/-!
-Owns the exact PiDEC parent from arbitrary accepted selected rows and actual
-public input. Child-message decoding is a separate owner.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualPiDECParent
 
 open NightstreamFPrime.Circuit
@@ -23,6 +18,9 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open DirectPiRLCSamplerCompletePrefixPlan (piDecGeometry)
 open scoped BigOperators
+
+attribute [local implicit_reducible] PiDEC.v1_2.EvalKRecomposition.blockCount
+  PiDEC.v1_2.RingKRecomposition.cellCount
 
 variable {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
   {relationLogicalWidth : Nat}
@@ -122,7 +120,8 @@ theorem rowsZero_implies_commitment
         (fun source => (inputs relation geometry assignment source).commitment) := by
   funext row lane
   rw [parentCommitment_eq_form, ActualPiRLCValues.rowsZero_implies_parentCommitment_sum
-    _ _ one rows, contribution_sum, combineCommitments_apply]
+    _ _ one rows (CombinationStep.indexOf row lane CommitmentCombination.cell),
+    contribution_sum, combineCommitments_apply]
   apply Finset.sum_congr rfl
   intro source _
   have descriptorEq := finalDescriptor_at .commitment row lane CommitmentCombination.cell
@@ -218,7 +217,9 @@ theorem rowsZero_implies_publicInput
     (FullShape relationLogicalWidth relationPublicFits) column
   let lane := Phi81Relation.PiRLCAlgebra.PublicInput.publicLaneIndex column
   rw [parentPublicInput_eq_form, ActualPiRLCValues.rowsZero_implies_parentPublicInput_sum
-    _ _ one rows, contribution_sum, combinePublicInputs_apply]
+    _ _ one rows (CombinationStep.indexOf (blockCount := PublicInputCombination.blockCount)
+      (cellCount := PublicInputCombination.cellCount) block lane PublicInputCombination.cell),
+    contribution_sum, combinePublicInputs_apply]
   apply Finset.sum_congr rfl
   intro source _
   have descriptorEq := finalDescriptor_at .publicInput block lane PublicInputCombination.cell
@@ -417,7 +418,8 @@ theorem rowsZero_implies_evalK
   apply k_eq_of_cells
   intro cell
   rw [parentEvalK_eq_form, ActualPiRLCValues.rowsZero_implies_parentEvalK_sum
-    _ _ one rows, contribution_sum, combineEvaluation_cell_apply]
+    _ _ one rows (CombinationStep.indexOf EvalKCombination.block lane cell),
+    contribution_sum, combineEvaluation_cell_apply]
   apply Finset.sum_congr rfl
   intro source _
   have descriptorEq := finalDescriptor_at .evalK EvalKCombination.block lane cell
@@ -443,7 +445,8 @@ theorem rowsZero_implies_evalA
   apply k_eq_of_cells
   intro cell
   rw [parentEvalA_eq_form, ActualPiRLCValues.rowsZero_implies_parentEvalA_sum
-    _ _ one rows, contribution_sum, combineEvaluation_cell_apply]
+    _ _ one rows (CombinationStep.indexOf matrix lane cell),
+    contribution_sum, combineEvaluation_cell_apply]
   apply Finset.sum_congr rfl
   intro source _
   have descriptorEq := finalDescriptor_at .evalA matrix lane cell

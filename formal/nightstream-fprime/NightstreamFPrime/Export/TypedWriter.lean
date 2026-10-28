@@ -1,11 +1,5 @@
 import NightstreamFPrime.Export.Package
 
-/-!
-Writes high-volume package records directly in the canonical numeric-array
-syntax. `Package.Format` remains the schema and decode authority; this module
-only avoids constructing transient `Codec.Value` trees during emission.
--/
-
 namespace NightstreamFPrime.Export.TypedWriter
 
 open NightstreamFPrime.Circuit

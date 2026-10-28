@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
 
-/-!
-Paper authority: SuperNeo v1.2, Section 7.3, source CCS/CE relations.
-Owns the exact source-membership meaning of the existing extraction conclusion.
--/
+/-! SuperNeo v1.2 Section 7.3. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership
 

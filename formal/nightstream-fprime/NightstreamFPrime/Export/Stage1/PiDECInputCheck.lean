@@ -1,14 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCInputCheck
 import NightstreamFPrime.Export.Stage1.PiDECParity
 
-/-!
-Check actual PiDEC messages after the selected C/R execution. The parent
-comes from its typed R trace. The paper verifier owns the public split,
-point, stage and recomposition checks. The supplied running-claim encoding
-must also match every verifier-computed public input and the shared point.
-The full matrix relation and Ajtai key are the selected application values.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECInputCheck
@@ -37,8 +29,6 @@ abbrev Claim := CE.Instance (PaperAlgebra.Structure logicalWidth)
   (PerApplicationFixedPoint.relation Poseidon2HashChainV1Package.application
     Poseidon2HashChainV1Package.fits).matrices matrix
 
-/-- Keep matrix construction behind entry access; public PiDEC checks do not
-evaluate matrix entries. The relation is still exactly the selected plan. -/
 def relation : ProductionKey.LogicalRelation logicalWidth publicFits where
   matrices := selectedMatrix
   cubeFits := Poseidon2HashChainV1Package.fits.carrier
@@ -115,8 +105,11 @@ theorem accepted_implies_paper (values : ParentValues) (messages : Messages)
   unfold accepted at checked
   split at checked
   · simp only [Bool.and_eq_true] at checked
-    letI := piDecDecision Poseidon2HashChainV1Setup.productionAjtaiKey (attempt values messages)
-    exact of_decide_eq_true checked.1
+    have paper := checked.1
+    unfold paperAccepted at paper
+    exact of_decide_eq_true
+      (inst := piDecDecision Poseidon2HashChainV1Setup.productionAjtaiKey (attempt values messages))
+      paper
   · cases checked
 
 theorem accepted_implies_outputMatches (values : ParentValues) (messages : Messages)

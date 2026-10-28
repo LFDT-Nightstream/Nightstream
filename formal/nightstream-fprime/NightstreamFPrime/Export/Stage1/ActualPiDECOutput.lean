@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.ActualPiDECMessages
 import NightstreamFPrime.Export.Stage1.ActualPiDECCarriedValues
 
-/-!
-Owns the exact PiDEC check and carried output from arbitrary accepted selected
-rows and actual public input.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualPiDECOutput
 
 open NightstreamFPrime.Circuit

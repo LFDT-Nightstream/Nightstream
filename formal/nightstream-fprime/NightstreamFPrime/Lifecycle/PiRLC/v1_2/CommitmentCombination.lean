@@ -4,10 +4,6 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 /-!
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, equation
 `c = sum_i rho_i c_i`.
-
-This leaf instantiates the generic 17-source Phi81 combination for all 22
-Ajtai commitment rows. It owns no transcript, public-input, evaluation, or
-output-claim wiring.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.CommitmentCombination

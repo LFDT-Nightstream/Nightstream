@@ -1,19 +1,11 @@
 import CompressionLean.Bridge.Formulas
 import CompressionLean.Bridge.Run
 
-/-!
-Owns the model's parameters as the replay's relation and statement give
-them: the sizes (`shapeOf`), the CE(B) statement (`statementOf`), the key's
-run and slot structure (`structureOf`), the `bar` transform (`barOf`) and
-`Φ81 = X⁵⁴ + X²⁷ + 1` (`phi`).
--/
-
 namespace CompressionLean.Bridge
 
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-/-- The model's sizes of a replay relation. -/
 def shapeOf (rel : Replay.Relation) : Layer1.Shape where
   D := Replay.D
   laneVars := Replay.laneVars
@@ -30,7 +22,6 @@ def shapeOf (rel : Replay.Relation) : Layer1.Shape where
   setupVars := rel.setupVars
   queries := rel.queries
 
-/-- The CE(B) statement of the replay's words. -/
 def statementOf (st : Replay.Statement) : Layer1.Statement Fp where
   commitment ρ l := ((st.commitment[ρ]!)[l]!).toF
   publicInput b l := ((st.publicInput[b]!)[l]!).toF
@@ -38,7 +29,6 @@ def statementOf (st : Replay.Statement) : Layer1.Statement Fp where
   evalK l := ((st.evalK[l]!).1.toF, (st.evalK[l]!).2.toF)
   evalA j l := (((st.evalA[j]!)[l]!).1.toF, ((st.evalA[j]!)[l]!).2.toF)
 
-/-- The key's run and slot structure. -/
 def structureOf (layout : Replay.Layout) : Layer1.Structure Fp where
   runBound j := layout.runBounds[j]!
   classLength c := (layout.classes[c]!).len
@@ -50,10 +40,8 @@ def structureOf (layout : Replay.Layout) : Layer1.Structure Fp where
   segments := layout.segments.size
   slots := layout.slots
 
-/-- The `bar` transform of the F′ closed form, in `Fp`. -/
 def barOf (p l : ℕ) : Fp := (Replay.bar p l).toF
 
-/-- `Φ81 = X⁵⁴ + X²⁷ + 1`. -/
 noncomputable def phi : Fp[X] := X ^ 54 + X ^ 27 + 1
 
 theorem statement_point (st : Replay.Statement) : (statementOf st).point = quadPoint st.point.toList := by
@@ -62,7 +50,6 @@ theorem statement_point (st : Replay.Statement) : (statementOf st).point = quadP
 theorem statement_r_length (st : Replay.Statement) : (statementOf st).r.length = st.point.size := by
   simp [statementOf]
 
-/-- What `readProof` checked. -/
 structure ProofShape (rel : Replay.Relation) (proof : Replay.Proof) : Prop where
   histogram : proof.histogram.size = 2 * rel.normBound + 1
   pairs : proof.earlyValues.pairs.size = rel.matrices

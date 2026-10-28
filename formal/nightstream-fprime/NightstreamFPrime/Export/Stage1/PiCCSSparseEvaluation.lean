@@ -1,9 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.SparseEvaluation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
-/-! Evaluate an existing sparse form on extension-field reads through its
-real and imaginary scalar evaluations. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSSparseEvaluation

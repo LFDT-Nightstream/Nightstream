@@ -1,10 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericBooleanDomain
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 
-/-!
-Owns executable folding of a numeric table prefix and its exact MLE meaning.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
 
 universe uField
@@ -54,10 +50,10 @@ theorem foldOne_getD (ops : InterpolationOps Field)
   unfold foldOne
   rw [Array.getD_eq_getD_getElem?, Array.getElem?_ofFn]
   by_cases live : index < (values.size + 1) / 2
-  · simp only [dif_pos live, Option.getD_some]
+  · simp only [dite_eq_left live, Option.getD_some]
   · have lowOutside : values.size ≤ 2 * index := by omega
     have highOutside : values.size ≤ 2 * index + 1 := by omega
-    rw [dif_neg live, Option.getD_none,
+    rw [dite_eq_right live, Option.getD_none,
       getD_outside ops values _ lowOutside,
       getD_outside ops values _ highOutside]
     unfold interpolate InterpolationOps.sub

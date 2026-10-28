@@ -7,11 +7,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerRetainedCustody
 import NightstreamFPrime.Layout.Stage1.AccumulatorInputs
 import NightstreamFPrime.Layout.Stage1.StateDecoder
 
-/-!
-Owns the typed HyperNova input and output decoded from one canonical raw
-per-application value packet.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationDecodedIO
 
 open NightstreamFPrime.Circuit
@@ -185,7 +180,7 @@ theorem pilotEnv_eq_transitionEnv_of_lt
     pilotEnv raw source = transitionEnv raw source := by
   unfold pilotEnv transitionEnv PilotSpartan.pullback Spartan.pullback
     PilotOrdinaryDirectPlan.pilotEnv Spartan.sourceToSpartan
-  rw [if_pos bound]
+  rw [ite_eq_left bound]
 
 private theorem applicationInputEnv_eq_transition
     {application : Program} (raw : RawValues application)
@@ -206,7 +201,7 @@ private theorem applicationInputEnv_eq_transition
       Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
     omega
   unfold applicationEnv ApplicationDirectPlan.sourceEnv
-  rw [dif_pos sourceBound]
+  rw [dite_eq_left sourceBound]
   unfold DirectApplicationPrefixPlan.applicationSource
   unfold transitionEnv Spartan.pullback
   change raw.base _ = RunningTransitionDirectPlan.transitionEnv application
@@ -217,7 +212,7 @@ private theorem applicationInputEnv_eq_transition
         (ApplicationInputs.inputColumn index) := by
     apply PermutationOutput.Readout.env_of_decode_none
     unfold PermutationOutput.Readout.decode
-    rw [dif_neg (by
+    rw [dite_eq_right (by
       rw [PiCCSTranscriptReadout.transcriptStart_eq, ApplicationInputs.inputColumn_value]
       have indexBound := index.isLt
       norm_num [ApplicationInputs.currentWordStart,
@@ -246,7 +241,7 @@ private theorem applicationOutputEnv_eq_transition
     norm_num [Lifecycle.Stage1.Application.stateWordCount] at indexBound ⊢
     omega
   unfold applicationEnv ApplicationDirectPlan.sourceEnv
-  rw [dif_pos sourceBound]
+  rw [dite_eq_left sourceBound]
   unfold DirectApplicationPrefixPlan.applicationSource
   unfold transitionEnv Spartan.pullback
   change raw.base _ = RunningTransitionDirectPlan.transitionEnv application
@@ -257,7 +252,7 @@ private theorem applicationOutputEnv_eq_transition
         (ApplicationInputs.outputColumn index) := by
     apply PermutationOutput.Readout.env_of_decode_none
     unfold PermutationOutput.Readout.decode
-    rw [dif_neg (by
+    rw [dite_eq_right (by
       rw [PiCCSTranscriptReadout.transcriptStart_eq, ApplicationInputs.outputColumn_value]
       have indexBound := index.isLt
       norm_num [ApplicationInputs.currentWordStart,
@@ -468,9 +463,7 @@ theorem semantics_imply_contextKeys
   unfold contextKey StateDecoder.keyDigest
   apply StateDecoder.slice_congr
   intro lane
-  let contextLane : Fin 4 := ⟨lane.val, by
-    have bound := lane.isLt
-    simp [PilotProduction.digestWords, PilotValues.digestWords]⟩
+  let contextLane : Fin 4 := ⟨lane.val, lane.isLt⟩
   have word := preserved contextLane
   let outputWord : Fin PilotProduction.stateHashWords :=
     ⟨Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + contextLane.val, by
@@ -889,8 +882,7 @@ theorem semantics_imply_nextInitialState
   apply StateDecoder.slice_congr
   intro lane
   let stateLane : Lifecycle.Stage1.RunningTransition.StateIndex :=
-    ⟨lane.val, by simp [Lifecycle.Stage1.Application.stateWordCount,
-      Lifecycle.Stage1.RunningTransition.stateWordCount]⟩
+    ⟨lane.val, lane.isLt⟩
   let word : Fin PilotProduction.stateHashWords :=
     ⟨RunningTransitionInputs.initialStateWordStart + stateLane.val, by
       have bound := stateLane.isLt

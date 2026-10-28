@@ -1,8 +1,5 @@
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
 
-/-! The 150 nonlinear rows of a retained Poseidon trace. Final outputs are
-derived from that trace; independent caller output pins remain in SboxPlan. -/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedRows
 
 open NightstreamFPrime.Spec

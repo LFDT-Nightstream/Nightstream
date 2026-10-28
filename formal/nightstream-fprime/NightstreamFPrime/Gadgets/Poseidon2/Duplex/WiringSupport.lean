@@ -1,11 +1,6 @@
 import NightstreamFPrime.Circuit.SupportRange
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 
-/-!
-Owns variable-support propagation for the recipe-free Poseidon2 Duplex wiring
-projection. The full compiler remains the semantic and row authority.
--/
-
 namespace NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 
 open NightstreamFPrime.Circuit

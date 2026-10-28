@@ -4,11 +4,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerInvocations
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
 import NightstreamFPrime.Layout.PiRLC.v1_2.SamplerSegments
 
-/-!
-Owns the constructive bridge from the exact PiRLC sampler physical packet to the
-compact sampler package.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerCompleteness
 
 open NightstreamFPrime.Circuit

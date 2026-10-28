@@ -3,25 +3,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 
-/-!
-Concrete v1.2 matrix-evaluation residuals for `Eval_A`.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: construction of the matrix `Eval_A(X, C)` coefficient family.
-Constraint family: one prior-CE evaluation equation per typed
-`(running source, matrix, ring coefficient)` coordinate.
-
-Owns: explicit running assignments, coefficient-expanded Boolean matrices,
-derived matrix-image tables, explicit equality-weighted MLEs at the prior
-point, claimed-minus-derived residuals, and single/batch truth equivalence.
-
-Does not own: the concrete base-to-extension lift, proof that coefficient-
-expanded matrices refine cyclotomic ring multiplication, external row/bit
-serialization, target placement inside signed joint `Q`,
-SumCheck, Fiat--Shamir, Rust, R1CS, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixEvaluationResidual
 
@@ -178,8 +160,6 @@ def EvaluationClaimHolds
   data.claimedCoefficient coordinate =
     computedCoefficient baseOps extensionOps liftCoefficient data coordinate
 
-/-- Selected signed orientation from the corrected paper: target coefficient
-minus the independently computed matrix-image evaluation. -/
 def residual
     {Base : Type uBase}
     {Extension : Type uExtension}

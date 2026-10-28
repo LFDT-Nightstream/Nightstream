@@ -2,19 +2,6 @@ import NightstreamFPrime.Layout.PilotSpartan
 import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
 
-/-!
-Obligation: Permute the current source layout through the running transition
-into one Spartan order: all private columns, the constant column, the pilot's
-public columns, then the verifier-context public columns.
-
-The first source interval keeps the proved pilot permutation. The four
-verifier-context source words move to the public suffix. The appended proof
-input, PiCCS-local, and PiRLC-local intervals are private and fill the interval
-between the pilot-private columns and the relocated public columns. This
-module owns the column maps and generic padding operations. `SpartanRows`
-owns their application to the complete Stage 1 prefix.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.Spartan
 
 open NightstreamFPrime.Circuit
@@ -156,7 +143,7 @@ theorem liftPilotColumn_add_of_input (start offset : Nat)
     liftPilotColumn (start + offset) = liftPilotColumn start + offset := by
   have startBound : start < pilotInputPrivateColumnCount := by omega
   unfold liftPilotColumn
-  rw [if_pos bound, if_pos startBound]
+  rw [ite_eq_left bound, ite_eq_left startBound]
 
 theorem liftPilotColumn_add_of_private (start offset : Nat)
     (lower : pilotInputPrivateColumnCount ≤ start)
@@ -165,9 +152,9 @@ theorem liftPilotColumn_add_of_private (start offset : Nat)
   have sumLower : pilotInputPrivateColumnCount ≤ start + offset := by omega
   have startUpper : start < pilotPrivateColumnCount := by omega
   unfold liftPilotColumn
-  rw [if_neg (by omega : ¬ start + offset < pilotInputPrivateColumnCount),
-    if_pos upper, if_neg (by omega : ¬ start < pilotInputPrivateColumnCount),
-    if_pos startUpper]
+  rw [ite_eq_right (by omega : ¬ start + offset < pilotInputPrivateColumnCount),
+    ite_eq_left upper, ite_eq_right (by omega : ¬ start < pilotInputPrivateColumnCount),
+    ite_eq_left startUpper]
   omega
 
 theorem liftPilotColumn_add_of_public (start offset : Nat)
@@ -178,10 +165,10 @@ theorem liftPilotColumn_add_of_public (start offset : Nat)
       pilotInputPrivateColumnCount ≤ pilotPrivateColumnCount := by
     norm_num [pilotInputPrivateColumnCount, pilotPrivateColumnCount]
   unfold liftPilotColumn
-  rw [if_neg (by omega : ¬ start + offset < pilotInputPrivateColumnCount),
-    if_neg (by omega : ¬ start + offset < pilotPrivateColumnCount),
-    if_neg (by omega : ¬ start < pilotInputPrivateColumnCount),
-    if_neg (by omega : ¬ start < pilotPrivateColumnCount)]
+  rw [ite_eq_right (by omega : ¬ start + offset < pilotInputPrivateColumnCount),
+    ite_eq_right (by omega : ¬ start + offset < pilotPrivateColumnCount),
+    ite_eq_right (by omega : ¬ start < pilotInputPrivateColumnCount),
+    ite_eq_right (by omega : ¬ start < pilotPrivateColumnCount)]
   omega
 
 theorem liftPilotColumn_lt (column : Nat)
@@ -227,9 +214,9 @@ theorem sourceToSpartan_sourceColumnCount :
     sourceToSpartan SourceColumnCount = privateColumnCount := by
   have bound := piCcsPhaseOffset_le_sourceColumnCount
   unfold sourceToSpartan
-  rw [if_neg (by norm_num [pilotSourceColumnCount, piCcsPhaseOffset] at *; omega),
-    if_neg (by norm_num [proofInputSourceStart, piCcsPhaseOffset] at *; omega),
-    if_neg (by omega)]
+  rw [ite_eq_right (by norm_num [pilotSourceColumnCount, piCcsPhaseOffset] at *; omega),
+    ite_eq_right (by norm_num [proofInputSourceStart, piCcsPhaseOffset] at *; omega),
+    ite_eq_right (by omega)]
   rw [sourceColumnCount_decomposition]
   have appendedBound := proofInputColumnCount_le_appendedPrivateColumnCount
   norm_num [piCcsLocalStart, piCcsPhaseOffset, pilotSourceColumnCount,
@@ -244,10 +231,10 @@ theorem sourceToSpartan_expectedContext (lane : Fin 4) :
       expectedContextPublicStart + lane.val := by
   have laneBound := lane.isLt
   unfold sourceToSpartan
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [pilotSourceColumnCount,
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart])]
-  rw [if_pos (by
+  rw [ite_eq_left (by
     norm_num [proofInputSourceStart,
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.expectedContextStart]
     omega)]
@@ -269,9 +256,9 @@ theorem sourceToSpartan_add_of_pilotPriorPrivate (start offset : Nat)
   have startPrior : start < PilotSpartan.priorPublicStart := by
     simpa [PilotSpartan.priorPublicStart] using! startUpper
   unfold sourceToSpartan
-  rw [if_pos sumPilot, if_pos startPilot]
-  rw [PilotSpartan.sourceToSpartan, if_pos sumPrior,
-    PilotSpartan.sourceToSpartan, if_pos startPrior]
+  rw [ite_eq_left sumPilot, ite_eq_left startPilot]
+  rw [PilotSpartan.sourceToSpartan, ite_eq_left sumPrior,
+    PilotSpartan.sourceToSpartan, ite_eq_left startPrior]
   exact liftPilotColumn_add_of_input start offset (by
     norm_num [pilotInputPrivateColumnCount,
       PilotProduction.priorPublicInputStart,
@@ -306,18 +293,18 @@ theorem sourceToSpartan_add_of_pilotPriorPublic (start offset : Nat)
       PilotSpartan.sourceToSpartan (start + offset) =
         PilotSpartan.sourceToSpartan start + offset := by
     unfold PilotSpartan.sourceToSpartan
-    rw [if_neg sumNotPrior, if_pos sumBeforeOutput,
-      if_neg startNotPrior, if_pos startBeforeOutput]
+    rw [ite_eq_right sumNotPrior, ite_eq_left sumBeforeOutput,
+      ite_eq_right startNotPrior, ite_eq_left startBeforeOutput]
     omega
   have mappedLower : pilotPrivateColumnCount ≤
       PilotSpartan.sourceToSpartan start := by
     unfold PilotSpartan.sourceToSpartan
-    rw [if_neg startNotPrior, if_pos startBeforeOutput]
+    rw [ite_eq_right startNotPrior, ite_eq_left startBeforeOutput]
     rw [PilotSpartan.firstPublicStart_value]
     norm_num [pilotPrivateColumnCount]
     omega
   unfold sourceToSpartan
-  rw [if_pos sumPilot, if_pos startPilot, pilotAffine]
+  rw [ite_eq_left sumPilot, ite_eq_left startPilot, pilotAffine]
   exact liftPilotColumn_add_of_public _ _ mappedLower
 
 theorem sourceToSpartan_add_of_proofInput (start offset : Nat)
@@ -333,8 +320,8 @@ theorem sourceToSpartan_add_of_proofInput (start offset : Nat)
   have sumNotContext : ¬ start + offset < proofInputSourceStart := by omega
   have startNotContext : ¬ start < proofInputSourceStart := by omega
   unfold sourceToSpartan
-  rw [if_neg sumNotPilot, if_neg sumNotContext, if_pos upper,
-    if_neg startNotPilot, if_neg startNotContext, if_pos startUpper]
+  rw [ite_eq_right sumNotPilot, ite_eq_right sumNotContext, ite_eq_left upper,
+    ite_eq_right startNotPilot, ite_eq_right startNotContext, ite_eq_left startUpper]
   omega
 
 theorem sourceToSpartan_before_piCcsPhase (column : Nat)
@@ -342,7 +329,7 @@ theorem sourceToSpartan_before_piCcsPhase (column : Nat)
     sourceToSpartan column < piCcsLocalStart ∨
       privateColumnCount < sourceToSpartan column := by
   by_cases pilot : column < pilotSourceColumnCount
-  · rw [sourceToSpartan, if_pos pilot]
+  · rw [sourceToSpartan, ite_eq_left pilot]
     let mapped := PilotSpartan.sourceToSpartan column
     have sourceBound : column < PilotSpartan.SourceColumnCount := by
       rw [← pilotSourceColumnCount_matches]
@@ -355,29 +342,29 @@ theorem sourceToSpartan_before_piCcsPhase (column : Nat)
       privateColumnCount < liftPilotColumn mapped
     unfold liftPilotColumn
     by_cases input : mapped < pilotInputPrivateColumnCount
-    · rw [if_pos input]
+    · rw [ite_eq_left input]
       exact Or.inl (by
         norm_num [piCcsLocalStart, pilotInputPrivateColumnCount] at *
         omega)
-    · rw [if_neg input]
+    · rw [ite_eq_right input]
       by_cases privateBound : mapped < pilotPrivateColumnCount
-      · rw [if_pos privateBound]
+      · rw [ite_eq_left privateBound]
         exact Or.inl (by
           norm_num [piCcsLocalStart, proofInputColumnCount,
             pilotPrivateColumnCount] at *
           omega)
-      · rw [if_neg privateBound]
+      · rw [ite_eq_right privateBound]
         exact Or.inr (by
           have notBoundary : mapped ≠ pilotPrivateColumnCount := by
             rw [pilotPrivateColumnCount_matches]
             exact mappedNotConstant
           omega)
   · by_cases context : column < proofInputSourceStart
-    · rw [sourceToSpartan, if_neg pilot, if_pos context]
+    · rw [sourceToSpartan, ite_eq_right pilot, ite_eq_left context]
       exact Or.inr (by
         norm_num [expectedContextPublicStart, privateColumnCount, pilotPublicColumnCount] at *
         omega)
-    · rw [sourceToSpartan, if_neg pilot, if_neg context, if_pos before]
+    · rw [sourceToSpartan, ite_eq_right pilot, ite_eq_right context, ite_eq_left before]
       exact Or.inl (by
         norm_num [pilotInputPrivateColumnCount, proofInputSourceStart,
           piCcsPhaseOffset, piCcsLocalStart] at *
@@ -397,20 +384,20 @@ theorem sourceToSpartan_add_of_piCcsLocal (start offset : Nat)
   have startAfterPhase : ¬ start < piCcsPhaseOffset := by omega
   have sumAfterPhase : ¬ start + offset < piCcsPhaseOffset := by omega
   unfold sourceToSpartan
-  rw [if_neg sumAfterPilot, if_neg sumAfterContext, if_neg sumAfterPhase,
-    if_neg startAfterPilot, if_neg startAfterContext,
-    if_neg startAfterPhase]
+  rw [ite_eq_right sumAfterPilot, ite_eq_right sumAfterContext, ite_eq_right sumAfterPhase,
+    ite_eq_right startAfterPilot, ite_eq_right startAfterContext,
+    ite_eq_right startAfterPhase]
   omega
 
 theorem piCcsLocalStart_le_sourceToSpartan (column : Nat)
     (localBound : piCcsPhaseOffset ≤ column) :
     piCcsLocalStart ≤ sourceToSpartan column := by
   unfold sourceToSpartan
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [pilotSourceColumnCount, piCcsPhaseOffset] at *
-    omega), if_neg (by
+    omega), ite_eq_right (by
       norm_num [proofInputSourceStart, piCcsPhaseOffset] at *
-      omega), if_neg (by omega)]
+      omega), ite_eq_right (by omega)]
   omega
 
 theorem sourceToSpartan_lt_of_piCcsLocal (left right : Nat)
@@ -433,11 +420,11 @@ theorem sourceToSpartan_before_piCcsLocal (column start : Nat)
     · exact Or.inl (by
         have startMapped : piCcsLocalStart ≤ sourceToSpartan start := by
           unfold sourceToSpartan
-          rw [if_neg (by
+          rw [ite_eq_right (by
             norm_num [pilotSourceColumnCount, piCcsPhaseOffset] at *
-            omega), if_neg (by
+            omega), ite_eq_right (by
               norm_num [proofInputSourceStart, piCcsPhaseOffset] at *
-              omega), if_neg (by omega)]
+              omega), ite_eq_right (by omega)]
           omega
         omega)
     · exact Or.inr mappedPublic
@@ -502,10 +489,10 @@ theorem sourceToSpartan_ne_constant (column : Nat)
   · split
     all_goals try split
     all_goals rw [sourceColumnCount_decomposition] at bound
-    all_goals (norm_num [pilotSourceColumnCount,
+    all_goals (simp only [pilotSourceColumnCount,
       pilotInputPrivateColumnCount, proofInputSourceStart,
       piCcsPhaseOffset, piCcsLocalStart, expectedContextPublicStart, privateColumnCount,
-      constantColumn] at *; omega)
+      constantColumn, pilotPrivateColumnCount, expectedContextColumnCount] at *; omega)
 
 theorem spartanToSource_sourceToSpartan (column : Nat)
     (bound : column < SourceColumnCount) :
@@ -525,16 +512,16 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
     have mappedBound : mapped < PilotSpartan.spartanColumnCount := oldBound
     have mappedNotConstant : mapped ≠ PilotSpartan.constantColumn :=
       oldNotConstant
-    rw [sourceToSpartan, if_pos pilot]
+    rw [sourceToSpartan, ite_eq_left pilot]
     unfold liftPilotColumn
     by_cases inputPilot : mapped < pilotInputPrivateColumnCount
-    · rw [if_pos inputPilot]
+    · rw [ite_eq_left inputPilot]
       unfold spartanToSource
-      rw [if_pos inputPilot]
+      rw [ite_eq_left inputPilot]
       exact oldInverse
-    · rw [if_neg inputPilot]
+    · rw [ite_eq_right inputPilot]
       by_cases witnessPilot : mapped < pilotPrivateColumnCount
-      · rw [if_pos witnessPilot]
+      · rw [ite_eq_left witnessPilot]
         have notInput :
             ¬(mapped + proofInputColumnCount <
               pilotInputPrivateColumnCount) := by
@@ -549,14 +536,14 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
             piCcsLocalStart] at *
           omega
         unfold spartanToSource
-        rw [if_neg notInput, if_neg notProof, if_pos shiftedBound]
+        rw [ite_eq_right notInput, ite_eq_right notProof, ite_eq_left shiftedBound]
         have restored :
             mapped + proofInputColumnCount - proofInputColumnCount =
               mapped := by
           omega
         rw [restored]
         exact oldInverse
-      · rw [if_neg witnessPilot]
+      · rw [ite_eq_right witnessPilot]
         have mappedNotPrivate : mapped ≠ pilotPrivateColumnCount := by
           intro equals
           apply mappedNotConstant
@@ -611,9 +598,9 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
             pilotPrivateColumnCount]
           omega
         unfold spartanToSource
-        rw [if_neg notPilotPrivate, if_neg notProofInput,
-          if_neg notShiftedPilot, if_neg notCombinedPrivate,
-          if_neg notCombinedConstant, if_pos combinedPilotPublicBound]
+        rw [ite_eq_right notPilotPrivate, ite_eq_right notProofInput,
+          ite_eq_right notShiftedPilot, ite_eq_right notCombinedPrivate,
+          ite_eq_right notCombinedConstant, ite_eq_left combinedPilotPublicBound]
         have restored :
             pilotPrivateColumnCount +
                 (privateColumnCount +
@@ -622,9 +609,9 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
           omega
         rw [restored]
         exact oldInverse
-  · rw [sourceToSpartan, if_neg pilot]
+  · rw [sourceToSpartan, ite_eq_right pilot]
     by_cases context : column < proofInputSourceStart
-    · rw [if_pos context]
+    · rw [ite_eq_left context]
       have notPilotInput :
           ¬(expectedContextPublicStart +
               (column - pilotSourceColumnCount) <
@@ -652,7 +639,7 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
       have notCombinedConstant :
           expectedContextPublicStart +
               (column - pilotSourceColumnCount) ≠ constantColumn := by
-        norm_num [expectedContextPublicStart, constantColumn, privateColumnCount]
+        simp only [expectedContextPublicStart, constantColumn, privateColumnCount]
         omega
       have notPilotPublic :
           ¬(expectedContextPublicStart +
@@ -664,16 +651,16 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
               (column - pilotSourceColumnCount) < spartanColumnCount := by
         exact contextColumn_lt column context
       unfold spartanToSource
-      rw [if_neg notPilotInput, if_neg notProofInput,
-        if_neg notShiftedPilot, if_neg notCombinedPrivate,
-        if_neg notCombinedConstant, if_neg notPilotPublic,
-        if_pos contextBound]
+      rw [ite_eq_right notPilotInput, ite_eq_right notProofInput,
+        ite_eq_right notShiftedPilot, ite_eq_right notCombinedPrivate,
+        ite_eq_right notCombinedConstant, ite_eq_right notPilotPublic,
+        ite_eq_left contextBound]
       apply congrArg some
       norm_num [pilotSourceColumnCount, expectedContextPublicStart] at pilot ⊢
       omega
-    · rw [if_neg context]
+    · rw [ite_eq_right context]
       by_cases proofInput : column < piCcsPhaseOffset
-      · rw [if_pos proofInput]
+      · rw [ite_eq_left proofInput]
         have notPilotInput :
             ¬(pilotInputPrivateColumnCount +
                 (column - proofInputSourceStart) <
@@ -687,12 +674,12 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
             proofInputColumnCount] at *
           omega
         unfold spartanToSource
-        rw [if_neg notPilotInput, if_pos proofBound]
+        rw [ite_eq_right notPilotInput, ite_eq_left proofBound]
         apply congrArg some
         norm_num [proofInputSourceStart,
           pilotInputPrivateColumnCount] at context ⊢
         omega
-      · rw [if_neg proofInput]
+      · rw [ite_eq_right proofInput]
         have notPilotInput :
             ¬(piCcsLocalStart + (column - piCcsPhaseOffset) <
               pilotInputPrivateColumnCount) := by
@@ -716,8 +703,8 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
             privateColumnCount] at *
           omega
         unfold spartanToSource
-        rw [if_neg notPilotInput, if_neg notProofInput,
-          if_neg notShiftedPilot, if_pos localBound]
+        rw [ite_eq_right notPilotInput, ite_eq_right notProofInput,
+          ite_eq_right notShiftedPilot, ite_eq_left localBound]
         apply congrArg some
         norm_num [piCcsLocalStart, piCcsPhaseOffset] at proofInput ⊢
         omega
@@ -748,7 +735,7 @@ theorem copyMappedInterval_agreesOutside (base source : Env)
       (sourceToSpartan sourceStart) length := by
   intro target outside
   unfold copyMappedInterval
-  rw [if_neg]
+  rw [ite_eq_right]
   intro inside
   rcases outside with before | after
   · omega
@@ -773,7 +760,7 @@ theorem pullback_copyMappedInterval_eq (base source : Env)
     have copiedBase : copyMappedInterval base source sourceStart length
         (sourceToSpartan column) = base (sourceToSpartan column) := by
       unfold copyMappedInterval
-      rw [if_neg]
+      rw [ite_eq_right]
       intro inside
       rcases mappedOutside with mappedBefore | mappedAfter
       · omega
@@ -793,7 +780,7 @@ theorem pullback_copyMappedInterval_eq (base source : Env)
       have copiedBase : copyMappedInterval base source sourceStart length
           (sourceToSpartan column) = base (sourceToSpartan column) := by
         unfold copyMappedInterval
-        rw [if_neg]
+        rw [ite_eq_right]
         intro inside
         omega
       rw [pullback, copiedBase]
@@ -809,7 +796,7 @@ theorem pullback_copyMappedInterval_eq (base source : Env)
         rw [mapped]
         constructor <;> omega
       unfold pullback copyMappedInterval
-      rw [if_pos mappedInside, mapped]
+      rw [ite_eq_left mappedInside, mapped]
       congr 1
       omega
 

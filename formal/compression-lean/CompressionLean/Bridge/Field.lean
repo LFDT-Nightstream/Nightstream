@@ -2,33 +2,18 @@ import CompressionLean.Replay.Stages
 import CompressionLean.Layer1.CubicField
 import CompressionLean.Layer1.ClosedForms
 
-/-!
-Owns the field correspondence of the bridge. A replay word (`Gl`) denotes
-its residue in the Goldilocks field `Fp`, the model's `F`. An `Ext` value
-`a₀ + a₁·X + a₂·X²` denotes `a₀ + a₁·x + a₂·x²` in a challenge field `K`:
-a field of `p³` elements with a root `x` of `X³ - X - 1`
-(`ChallengeField`). A `Kx` value denotes its pair in `K ⊗ Ext = QuadX K`.
-
-Every replay operation denotes the field operation. The denotation of `Ext`
-is injective, because `X³ - X - 1` is the minimal polynomial of `x`, so the
-replay's zero tests and equality tests are the field's. The replay's
-inverses by Fermat are the field inverses.
--/
-
 namespace CompressionLean.Bridge
 
 open Polynomial
 open NightstreamFPrime.Spec
 open CompressionLean.Layer1
 
-/-- The Goldilocks field, the model's `F`. -/
 abbrev Fp := ZMod goldilocksModulus
 
 instance : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
 
 theorem three_le_modulus : 3 ≤ goldilocksModulus := by decide
 
-/-- Fermat in a finite field: `a^(q-2)` is the inverse, zero at zero. -/
 theorem pow_card_sub_two {L : Type} [Field L] (q : ℕ) (three : 3 ≤ q) (a : L)
     (fermat : a ≠ 0 → a ^ (q - 1) = 1) : a ^ (q - 2) = a⁻¹ := by
   by_cases zero : a = 0
@@ -37,7 +22,6 @@ theorem pow_card_sub_two {L : Type} [Field L] (q : ℕ) (three : 3 ≤ q) (a : L
     rw [show q - 1 = q - 2 + 1 by omega, pow_succ] at one
     exact eq_inv_of_mul_eq_one_left one
 
-/-- The challenge field of layer 1: `p³` elements and a root of `X³ - X - 1`. -/
 class ChallengeField (K : Type) [Field K] [Algebra Fp K] [Fintype K] where
   root : K
   cubic : root ^ 3 = root + 1
@@ -51,11 +35,8 @@ open Polynomial
 open NightstreamFPrime.Spec NightstreamFPrime.Export.NativePoseidon2
 open CompressionLean.Bridge CompressionLean.Layer1
 
-/-! ## Words -/
-
 namespace Gl
 
-/-- The residue of a word. -/
 def toF (a : Gl) : Fp := (a.word.toNat : Fp)
 
 theorem toF_eq (a : Gl) : a.toF = ((a.word.denote).val : Fp) := by
@@ -113,8 +94,8 @@ theorem toF_pow (a : Gl) (e : ℕ) : (a.pow e).toF = a.toF ^ e := by
   | _ e ih =>
     rw [Gl.pow]
     by_cases zero : e = 0
-    · rw [if_pos zero, zero, toF_one, pow_zero]
-    · rw [if_neg zero]
+    · rw [ite_eq_left zero, zero, toF_one, pow_zero]
+    · rw [ite_eq_right zero]
       dsimp only
       have half := ih (e / 2) (by omega) (a * a)
       rw [toF_mul] at half
@@ -147,8 +128,6 @@ theorem eq_of_beq {a b : Gl} (equal : (a == b) = true) : a = b :=
 
 end Gl
 
-/-! ## The challenge field -/
-
 section Challenge
 
 variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
@@ -158,7 +137,6 @@ local notation "x₀" => ChallengeField.root (K := K)
 
 namespace Ext
 
-/-- `a₀ + a₁·x + a₂·x²`. -/
 def toK (a : Ext) : K := ι a.c0.toF + ι a.c1.toF * x₀ + ι a.c2.toF * x₀ ^ 2
 
 theorem toK_add (a b : Ext) : (a + b).toK (K := K) = a.toK + b.toK := by
@@ -200,8 +178,8 @@ theorem toK_pow (a : Ext) (e : ℕ) : (a.pow e).toK (K := K) = a.toK ^ e := by
   | _ e ih =>
     rw [Ext.pow]
     by_cases zero : e = 0
-    · rw [if_pos zero, zero, toK_one, pow_zero]
-    · rw [if_neg zero]
+    · rw [ite_eq_left zero, zero, toK_one, pow_zero]
+    · rw [ite_eq_right zero]
       dsimp only
       have half := ih (e / 2) (by omega) (a * a)
       rw [toK_mul] at half
@@ -224,7 +202,6 @@ theorem toK_inv (a : Ext) : a.inv.toK (K := K) = (a.toK)⁻¹ := by
 theorem toK_basis (c : ℕ) (small : c < 3) : (Ext.basis c).toK (K := K) = x₀ ^ c := by
   rcases (show c = 0 ∨ c = 1 ∨ c = 2 by omega) with rfl | rfl | rfl <;> simp [basis, toK]
 
-/-- `X³ - X - 1` is the minimal polynomial of the root. -/
 theorem minpoly_root : (X ^ 3 - X - 1 : Fp[X]) = minpoly Fp (x₀) := by
   apply minpoly.eq_of_irreducible_of_monic cubic_irreducible
   · simp [ChallengeField.cubic (K := K)]
@@ -232,7 +209,6 @@ theorem minpoly_root : (X ^ 3 - X - 1 : Fp[X]) = minpoly Fp (x₀) := by
     rw [this]
     exact monic_X_pow_sub (by compute_degree!)
 
-/-- Three coordinates that denote zero are zero. -/
 theorem coords_of_toK {a b c : Fp} (zero : ι a + ι b * x₀ + ι c * x₀ ^ 2 = 0) : a = 0 ∧ b = 0 ∧ c = 0 := by
   set g : Fp[X] := C a + C b * X + C c * X ^ 2
   by_contra nonzero
@@ -271,7 +247,6 @@ theorem eq_of_beq {a b : Ext} (equal : (a == b) = true) : a = b := by
 theorem toK_of_beq {a b : Ext} (equal : (a == b) = true) : a.toK (K := K) = b.toK := by
   rw [eq_of_beq equal]
 
-/-- A value the replay finds nonzero denotes a nonzero field element. -/
 theorem toK_ne_zero {a : Ext} (nonzero : (!a.isZero) = true) : a.toK (K := K) ≠ 0 := by
   intro zero
   have := eq_zero_of_toK zero
@@ -283,7 +258,6 @@ end Ext
 
 namespace Kx
 
-/-- `re + im·u` in `K ⊗ Ext`. -/
 def toQ (a : Kx) : QuadX K := ⟨a.re.toK, a.im.toK⟩
 
 @[simp] theorem toQ_re (a : Kx) : (a.toQ (K := K)).re = a.re.toK := rfl
@@ -301,7 +275,7 @@ theorem toQ_mul (a b : Kx) : (a.mul b).toQ (K := K) = a.toQ * b.toQ := by
     ring
 
 theorem toQ_scale (a : Kx) (e : Ext) : (a.scale e).toQ (K := K) = a.toQ * algebraMap K (QuadX K) e.toK := by
-  ext <;> simp [toQ, scale, Ext.toK_mul, QuadraticAlgebra.algebraMap_eq]
+  ext <;> simp [toQ, scale, Ext.toK_mul]
 
 @[simp] theorem toQ_zero : zero.toQ (K := K) = 0 := by
   ext <;> simp [toQ, zero]
@@ -317,8 +291,6 @@ theorem toQ_ofK (value : Gl × Gl) :
   ext <;> simp [toQ, ofK, Ext.toK_ofGl]
 
 end Kx
-
-/-! ## Sums and products -/
 
 theorem toK_sumRange (n : ℕ) (f : ℕ → Ext) :
     (sumRange n f).toK (K := K) = ∑ i ∈ Finset.range n, (f i).toK := by

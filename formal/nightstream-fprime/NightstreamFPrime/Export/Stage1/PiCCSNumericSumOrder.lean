@@ -1,8 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Coefficients
 
-/-! Scalar ordering identities for the existing numeric sum. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder

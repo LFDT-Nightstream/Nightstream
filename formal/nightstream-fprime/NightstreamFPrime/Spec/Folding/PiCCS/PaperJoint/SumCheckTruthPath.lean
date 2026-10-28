@@ -2,24 +2,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedJointIdentity
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 import NightstreamFPrime.Spec.SumCheck.HypercubeTruth
 
-/-!
-Canonical SumCheck truth path for the explicit paper-level joint polynomial.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: joint-polynomial evaluation, Boolean initial sum, and SumCheck terminal.
-Constraint family: semantic truth-path owner; this file emits no constraints.
-
-Owns: the full-point equality polynomial, arbitrary-point `F`, `NC`, `Eval`,
-and `Q`, a total coordinate-list polynomial with fail-closed arity, its exact
-specialization to the existing Boolean `Q`, and the canonical finite SumCheck
-expected-round path from that one polynomial.
-
-Does not own: a degree proof for the derived round polynomials, root counting,
-challenge sampling, Fiat--Shamir, concrete table
-construction, Rust, R1CS, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckTruthPath
 
@@ -464,7 +447,7 @@ theorem jointPolynomial_fieldCoordinates_eq_qAt
         (BooleanVertex.fieldCoordinates ops vertex) =
       SignedJointIdentity.qAt ops data alpha gamma vertex := by
   unfold jointPolynomial
-  rw [dif_pos (BooleanVertex.fieldCoordinates_length ops vertex)]
+  rw [dite_eq_left (BooleanVertex.fieldCoordinates_length ops vertex)]
   exact qAtPoint_toCubePoint_eq_qAt ops laws data alpha gamma vertex
 
 private theorem finiteSum_append

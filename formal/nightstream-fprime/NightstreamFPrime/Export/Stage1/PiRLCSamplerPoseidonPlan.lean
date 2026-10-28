@@ -1,15 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan
 
-/-!
-Owns the direct Poseidon2 plan for the 17 PiRLC scalar samplers. Each source
-has one verifier-domain entry permutation followed by one advance
-permutation. The global invocation order is source-major and step-major.
-
-The entry payload is the verifier-owned constant pair `[4, source]`; it needs
-no retained payload block. This module does not own the checked wide-reduction
-rows.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPlan
 
 open NightstreamFPrime.Spec
@@ -39,6 +29,7 @@ def invocation (source : Fin sourceCount) (step : Fin invocationsPerSource) :
     descriptor (invocation source step) = (source, step) := by
   exact Fin.decodeProd_encodeProd (source, step)
 
+@[implicit_reducible]
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiCCSActionPayloadBlock.sourceWidth program
 
@@ -76,10 +67,10 @@ theorem retainedFits {program : Lifecycle.Stage1.Application.Program}
       logicalWidth := by
   have whole := PiRLCRetainedGeometry.laterPoseidonFits
     (PiCCSPoseidonPlan.prefixGeometry geometry)
-  unfold retainedStart
-  rw [LaterPoseidonRetainedBlocks.samplerStart_eq,
-    retainedBlock_coordinateCount]
-  rw [PiRLCRetainedGeometry.laterPoseidonBlock_coordinateCount] at whole
+  have startEq : retainedStart program = LaterPoseidonRetainedBlocks.samplerStart program := rfl
+  have samplerEq := LaterPoseidonRetainedBlocks.samplerStart_eq program
+  have count := retainedBlock_coordinateCount program
+  have later := PiRLCRetainedGeometry.laterPoseidonBlock_coordinateCount program
   omega
 
 theorem retainedBlock_encodesAt
@@ -100,7 +91,10 @@ theorem retainedBlock_encodesAt
       LaterPoseidonRetainedBlocks.samplerStart program +
           (LaterPoseidonRetainedBlocks.samplerBlock program).coordinateCount ≤
         logicalWidth := by
-    simpa [retainedStart, retainedBlock] using retainedFits geometry
+    have fits := retainedFits geometry
+    rw [retainedBlock_coordinateCount] at fits
+    rw [LaterPoseidonRetainedBlocks.samplerBlock_coordinateCount]
+    exact fits
   have sliced :
       (LaterPoseidonRetainedBlocks.samplerBlock program).EncodesAt
         (LaterPoseidonRetainedBlocks.samplerStart program) sliceFits assignment

@@ -1,20 +1,7 @@
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Conditional
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript
 
-/-! A classical ideal block-oracle experiment. A query names the complete
-history of rate-block additions before a read, including zero additions for
-pure permutation advances. Histories are authoritative input data, not
-carried digests. Every fresh query returns one joint uniform four-field
-block; repeated queries return the same block.
-
-The query budget counts all calls made by the experiment, including
-adversarial calls and repeats. The comparison experiment first samples a
-uniform scalar tape and then consistent raw preimages. Its advantage differs
-by at most q * distance even when the caller observes every raw lane.
-
-This module defines the ideal experiment. It does not assert that concrete
-Poseidon2 executions have its law, prove a Fiat–Shamir extraction theorem,
-or supply a quantum-query bound. Those are explicit security boundaries. -/
+/-! Ideal classical block-oracle model; Poseidon2 is assumed, not proved, to follow it. -/
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.OracleModel
 
@@ -56,7 +43,7 @@ theorem ask_preserves (cache : Cache) (query previous : Query) (fresh saved : Dr
         subst previous
         rw [current] at known
         cases known
-      simpa only [ask, current, if_neg different] using known
+      simpa only [ask, current, ite_eq_right different] using known
 
 theorem ask_repeated (cache : Cache) (query : Query) (first second : Draw) :
     (ask (ask cache query first).2 query second).1 = (ask cache query first).1 := by

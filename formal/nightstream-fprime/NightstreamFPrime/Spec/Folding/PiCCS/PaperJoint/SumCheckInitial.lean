@@ -3,28 +3,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckTruthPath
 import NightstreamFPrime.Spec.SumCheck.VerifierCertificate
 
-/-!
-Finite SumCheck initial-claim binding for paper-level joint `Pi_CCS`.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: verifier-owned initial claim before the first SumCheck round.
-Constraint family: equality between the shifted target and the explicit
-Boolean-hypercube sum of `Q`.
-
-Owns: the verifier initial value, the semantic initial value, their placement
-in the finite verifier-to-symbolic bridge, exact equivalence with the signed
-coefficient polynomial vanishing, the canonical expected-round list derived
-from the explicit joint polynomial, and deterministic false-acceptance
-dichotomies exposing coefficient/table truth, a signed mixing root, or a
-specific SumCheck round collision for logical and executable verification.
-
-Does not own: the proof that the verifier enforces the exact round count, the
-degree bound for canonical expected round polynomials, challenge sampling,
-root-counting probability, Fiat--Shamir, Rust,
-R1CS, or counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckInitial
 

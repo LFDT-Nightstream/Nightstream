@@ -1,13 +1,7 @@
 import NightstreamFPrime.Layout.Stage1.PilotPiCCS
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalRows
 
-/-!
-Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5.
-Obligation: Own the cumulative physical starts of the twelve PiCCS leaves in
-the same order as the logical parent and physical lowering.
-
-This module materializes only fixed prefix sums.
--/
+/-! Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5. -/
 
 namespace NightstreamFPrime.Layout.Stage1.PiCCSStarts
 
@@ -95,7 +89,7 @@ theorem outputBindingWitnessStart_matches
         (PiCCSInputs.interface logicalWidth publicFits)
         PiCCSInputs.phaseOffset := by
   unfold Formal.outputBindingOffset Formal.nextOffset Formal.childLength
-  rw [Formal.finalIdentityOffset_eq_finalIdentityRowOffset relation,
+  erw [Formal.finalIdentityOffset_eq_finalIdentityRowOffset relation,
     Formal.finalIdentityCircuit,
     NightstreamFPrime.Circuit.FormalCircuit.withConstantFootprint_main,
     FinalIdentity.localLength_eq]

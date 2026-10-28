@@ -2,12 +2,6 @@ import NightstreamFPrime.Export.Stage1.ActualContextSecurity
 import NightstreamFPrime.Export.Stage1.PerApplicationSecurity
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputWitnessConsumer
 
-/-!
-Connect the arbitrary terminal opening to the authenticated NIFS inputs and
-the actual PiDEC parent witness. Interior extraction and probability bounds
-remain separate obligations.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
 
 open NightstreamFPrime.Circuit

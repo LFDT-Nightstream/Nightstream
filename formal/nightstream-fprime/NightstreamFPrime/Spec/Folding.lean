@@ -10,6 +10,3 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness
 import NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness
-
-/-! Folding-path verifier semantics: batch arity, Π_RLC combination, Π_DEC
-decomposition and its paper verifier. -/

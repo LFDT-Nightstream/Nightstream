@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaGuardedSourceLaw
 
-/-!
-The analytical good-prefix mark is justified by actual terminal membership.
-No Fiat--Shamir transfer, source-validity assumption, or conditioning is added.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaVisitedAcceptance
@@ -48,9 +43,9 @@ private theorem advance_accepted (visit : Visit application) (result : SourceRes
         | recursive payload =>
             cases result with
             | none =>
-                simpa only [advance, if_pos active] using (stopped_accepted application fits setup)
+                simpa only [advance, ite_eq_left active] using (stopped_accepted application fits setup)
             | some values =>
-                simp only [advance, if_pos active, MarkedAccepted]
+                simp only [advance, ite_eq_left active, MarkedAccepted]
                 intro marked
                 have marks : mark = true ∧
                     decide (¬ Collision application fits setup statement payload ∧
@@ -62,7 +57,7 @@ private theorem advance_accepted (visit : Visit application) (result : SourceRes
                   Nat.pos_of_ne_zero active.2.2
                 exact (HyperNovaHistory.predecessor_accepted application fits setup statement payload values
                   positive (accepted marks.1) events.2 events.1).2.2
-  · simpa only [advance, if_neg active] using (stopped_accepted application fits setup)
+  · simpa only [advance, ite_eq_right active] using (stopped_accepted application fits setup)
 
 private theorem readDraw_accepted (steps : Nat) (visit : Visit application)
     (results : List (SourceResult application)) (accepted : MarkedAccepted application fits setup visit) :
@@ -73,21 +68,21 @@ private theorem readDraw_accepted (steps : Nat) (visit : Visit application)
       by_cases active : ready application fits visit
       · cases results with
         | nil =>
-            simpa only [readDraw, if_pos active] using
+            simpa only [readDraw, ite_eq_left active] using
               induction (stopped application) [] (stopped_accepted application fits setup)
         | cons result tail =>
-            simpa only [readDraw, if_pos active] using
+            simpa only [readDraw, ite_eq_left active] using
               induction (advance application fits setup visit result) tail (advance_accepted application fits setup visit result accepted)
-      · simpa only [readDraw, if_neg active] using
+      · simpa only [readDraw, ite_eq_right active] using
           induction (stopped application) results (stopped_accepted application fits setup)
 
 private theorem guardedDraw_context
     (source : Statement → Payload application → PMF (SourceResult application)) (visit : Visit application) :
     (guardedDraw application fits setup source visit).map Prod.fst = PMF.pure visit := by
   by_cases good : goodActive application fits setup visit
-  · rw [guardedDraw, if_pos good, PMF.map_comp]
+  · rw [guardedDraw, ite_eq_left good, PMF.map_comp]
     exact PMF.map_const _ _
-  · rw [guardedDraw, if_neg good, PMF.pure_map]
+  · rw [guardedDraw, ite_eq_right good, PMF.pure_map]
 
 private theorem visited_context_marginal
     (source : Statement → Payload application → PMF (SourceResult application))
@@ -170,7 +165,7 @@ theorem realSuccess_iff_goodActive
     rcases (good_terminal application fits setup) source initial steps visit supported good with
       ⟨statement, payload, current, accepted, safe, positive⟩
     have outputEq : realOutput application fits setup visit = some (HyperNovaRealInput.output application fits setup payload) := by
-      simp only [realOutput, if_pos good, current]
+      simp only [realOutput, ite_eq_left good, current]
     rw [outputEq]
     simpa only [inputs, current] using
       HyperNovaRealInput.realSuccess_of_terminal application fits setup statement payload accepted safe positive

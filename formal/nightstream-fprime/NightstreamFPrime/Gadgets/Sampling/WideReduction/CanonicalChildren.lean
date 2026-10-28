@@ -37,7 +37,7 @@ theorem correct (interface : Interface) (base : Env) (offset : Nat)
           (values interface base offset count) :=
         Expr.VarsBelow.mono _ (inputs ⟨count, inside⟩) (by unfold childOffset; omega)
       have child := CanonicalU64.completeEnv_correct _ _ _ sourceBelow
-      rw [values, dif_pos inside]
+      rw [values, dite_eq_left inside]
       refine ⟨?_, ?_⟩
       · have agreement := previous.1.append child.1
         convert agreement using 1

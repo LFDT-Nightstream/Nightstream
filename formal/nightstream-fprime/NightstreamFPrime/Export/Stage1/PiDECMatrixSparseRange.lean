@@ -3,10 +3,6 @@ import NightstreamFPrime.Layout.ProductionRelation.SparseEvaluation
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
 import NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation
 
-/-!
-Evaluate a contiguous vector of existing sparse matrix rows.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange
@@ -54,10 +50,10 @@ private theorem row_value {columns count : Nat} (firstRow : Nat)
           | none => SparseForm.empty).evalSparse (read output)
       else 0 := by
   have lower : firstRow ≤ firstRow + index := by omega
-  rw [row, if_pos lower, Nat.add_sub_cancel_left]
+  rw [row, ite_eq_left lower, Nat.add_sub_cancel_left]
   by_cases live : index < count
-  · simp only [dif_pos live, ofFn_get, PiDECNativeSparseEvaluation.nativeEvalSparse_eq_spec]
-  · rw [dif_neg live, dif_neg live]
+  · simp only [dite_eq_left live, ofFn_get, PiDECNativeSparseEvaluation.nativeEvalSparse_eq_spec]
+  · rw [dite_eq_right live, dite_eq_right live]
     change ((Vector.replicate matrixCount
       (Vector.replicate ringDegree (0 : F)))[port.val])[output.val] = 0
     rw [Vector.getElem_replicate, Vector.getElem_replicate]

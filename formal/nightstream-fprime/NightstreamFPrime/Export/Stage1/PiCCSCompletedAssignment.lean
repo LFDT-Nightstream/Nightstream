@@ -5,10 +5,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonCompleteness
 import NightstreamFPrime.Export.Stage1.PiCCSEndpointCompleteness
 import NightstreamFPrime.Layout.Stage1.SpartanRows
 
-/-!
-Owns the canonical C-plan consumer for the completed Spartan assignment.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCompletedAssignment

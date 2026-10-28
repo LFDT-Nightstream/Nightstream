@@ -2,18 +2,6 @@ import NightstreamFPrime.Layout.Stage1.StateEncoding
 import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay
 
-/-!
-Owns the committed-statement reduction for digest-only PiCCS, and the
-prior-state link that extends `Lifecycle.TranscriptCoverage` to the running
-statement.
-
-The deterministic result stops at explicit collision events. It assigns no
-probability to Poseidon2 and does not mix commitment binding, Fiat--Shamir
-security, sampling security, or the SuperNeo knowledge reduction into row
-soundness. Those assumptions belong to the complete Stage 1 security
-composition.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 
 open NightstreamFPrime.Spec
@@ -330,17 +318,7 @@ theorem committed_authority_statement_finalState_identify_or_failure
   · exact Or.inr (Or.inl componentFailure)
   · exact Or.inr (Or.inr (Or.inl contextFailure))
 
-/-- The HyperNova prior-state link: the digest that the fresh public input
-decodes to is the hash of the well-formed prior preimage, the preimage names the
-verifier context, and
-the NIFS running statement is the preimage's running vector. The context is the
-`vk_fs` slot of HyperNova Construction 2's state hash. The key itself is fixed
-by the verifier, not by the transcript: unlike Construction 3's `hs = ρ(pp, s)`,
-the context does not seed the transcript, and the terminal verifier recomputes
-the digest with its own context. The link binds the running statement and the
-context digest; it charges no probability to a state-hash collision.
-`ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision` supplies the
-link on the positive, collision-free branch of an accepted recursive terminal. -/
+/-- HyperNova Construction 2: the context is the `vk_fs` slot of the state hash. -/
 structure PriorLink
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

@@ -1,17 +1,5 @@
 import CompressionLean.Layer1.Soundness
 
-/-!
-Owns the error of the layer-1 verifier game: the bad-challenge count of each
-stage, the query term, and the main theorem (`layer1_sound`): against every
-adaptive prover, the verifier accepts while no P0 candidate is a CE(B)
-witness with probability at most `layer1Error`.
-
-The field part counts bad challenges over `|K|`: per candidate, the
-polynomial degrees of the norm, lookup, scatter, sum-check, GKR, ring-row,
-and fold identities. The query part is the chance that every query leaf of a
-wrong P1 fold agrees with the honest fold.
--/
-
 namespace CompressionLean.Layer1
 
 open Polynomial
@@ -46,12 +34,8 @@ theorem density_pair (bad : Finset (K × K)) (n : ℕ) (card : bad.card ≤ n * 
 end Counting
 section Early
 
-/-- The slot-block test rides on the draws of the run layer: one bad value
-per candidate there, none elsewhere. -/
 def earlyRide (s : Shape) (L0 k : ℕ) : ℕ := if k = s.runVars then L0 else 0
 
-/-- The early stage's bad challenges: norm `β`, lookup, scatter, GKR (with the
-slot-block test at the run layer). -/
 def earlyCount (s : Shape) (L0 : ℕ) : ℕ :=
   L0 * (2 ^ s.cubeVars + (2 * s.normBound + 1)) +
     (L0 * (2 * 2 ^ s.rowVars + (2 ^ s.runVars + 2 ^ s.rowVars)) +
@@ -125,7 +109,6 @@ theorem earlyGame_ends (s : Shape) (S : Setup F) (st : Statement F) (L0 : ℕ) :
 end Early
 section Linear
 
-/-- The linear stage's bad challenges: `λ`, `ζ`, and the two sum-checks. -/
 def linearCount (s : Shape) (L0 : ℕ) : ℕ :=
   L0 * (s.rows - 1) + (L0 * (2 * s.D - 2) + (s.blockVars * (L0 * 2) + s.laneVars * (L0 * 2)))
 
@@ -194,8 +177,6 @@ end Linear
 
 section Honest
 
-/-- The query term: a wrong P1 fold passes every query leaf, each leaf a
-word below `P` mod `L`. -/
 noncomputable def queryError (s : Shape) (L1 L P : ℕ) : ℝ :=
   L1 * ((((2 ^ (s.setupVars - 3) - 1) * (P / L + 1) : ℕ) : ℝ) / P) ^ s.queries
 
@@ -264,7 +245,6 @@ end Honest
 
 section Late
 
-/-- The late stage's bad challenges: the block `β` and the late GKR, per candidate pair. -/
 def lateCount (s : Shape) (L0 L1 : ℕ) : ℕ :=
   L0 * L1 * (2 ^ (s.slotVars + 1) + 2 ^ s.blockVars) +
     gkrCost (lateShape s) (L0 * L1) (fun _ => 0) (lateShape s).layers 1
@@ -298,12 +278,9 @@ theorem lateGame_cost (s : Shape) (S : Setup F) (lam : K) (τ : ℕ → K) (cand
 end Late
 section Main
 
-/-- The layer-1 bad-challenge count. -/
 def layer1Count (s : Shape) (L0 L1 : ℕ) : ℕ :=
   earlyCount s L0 + linearCount s L0 + 9 + lateCount s L0 L1
 
-/-- The layer-1 error over a challenge field of `size` elements, with list
-sizes `L0` (P0) and `L1` (P1), `L` query leaves and query words below `P`. -/
 noncomputable def layer1Error (s : Shape) (L0 L1 L P size : ℕ) : ℝ :=
   (layer1Count s L0 L1 : ℝ) / size + queryError s L1 L P
 
@@ -345,9 +322,6 @@ theorem layer1Game_cost (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : S
     push_cast
     ring
 
-/-- Layer-1 soundness with idealized WHIR openings: against every adaptive
-prover, the verifier accepts while no P0 candidate is a CE(B) witness with
-probability at most `layer1Error`. -/
 theorem layer1_sound (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)
     (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K) (N : ℕ) (sizes : s.Sizes N)
     (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b)

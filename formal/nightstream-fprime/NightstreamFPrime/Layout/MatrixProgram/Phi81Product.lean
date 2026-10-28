@@ -3,14 +3,6 @@ import NightstreamFPrime.Layout.MatrixProgram
 import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep
 
-/-!
-Owns the compact opcode for complete Phi81 ring products. Each product uses
-108 quotient-identity evaluations in source, block and cell order. The wire data fixes the family order and all retained
-operands. A consumer decodes that data; it does not select a Stage 1 schedule.
-
-This module does not select concrete PiRLC families or package rows.
--/
-
 namespace NightstreamFPrime.Layout.MatrixProgram.Phi81Product
 
 open NightstreamFPrime.Layout
@@ -125,7 +117,7 @@ def ringDescriptor? (families : List Family) (index : Nat) : Option Descriptor :
         source := source
         coordinate := CombinationStep.indexOf block ⟨0, by decide⟩ cell } := by
   unfold Family.ringDescriptor? Family.ringCount
-  rw [dif_pos (Fin.encodeProd (source, Fin.encodeProd (block, cell))).isLt]
+  rw [dite_eq_left (Fin.encodeProd (source, Fin.encodeProd (block, cell))).isLt]
   simp
 
 @[simp] theorem ringDescriptorFrom?_head (family : Family)
@@ -140,7 +132,7 @@ def ringDescriptor? (families : List Family) (index : Nat) : Option Descriptor :
         coordinate := CombinationStep.indexOf block ⟨0, by decide⟩ cell } := by
   have bound : (Fin.encodeProd (source, Fin.encodeProd (block, cell))).val <
       family.ringCount := (Fin.encodeProd (source, Fin.encodeProd (block, cell))).isLt
-  simp only [ringDescriptorFrom?, bound, if_pos]
+  simp only [ringDescriptorFrom?, bound, ite_eq_left]
   exact family.ringDescriptor?_encode familyOffset source block cell
 
 theorem ringDescriptorFrom?_tail (family : Family) (rest : List Family)
@@ -149,7 +141,7 @@ theorem ringDescriptorFrom?_tail (family : Family) (rest : List Family)
         (family.ringCount + index) =
       ringDescriptorFrom? rest (familyOffset + family.invocationCount) index := by
   change (if family.ringCount + index < family.ringCount then _ else _) = _
-  rw [if_neg (by omega), Nat.add_sub_cancel_left]
+  rw [ite_eq_right (by omega), Nat.add_sub_cancel_left]
 
 def Block.rowCount (block : Block) : Nat :=
   ringCount block.families * 108

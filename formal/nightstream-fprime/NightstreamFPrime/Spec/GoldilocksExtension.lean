@@ -2,16 +2,13 @@ import Mathlib.FieldTheory.Finite.Basic
 import NightstreamFPrime.Spec.GoldilocksPrime
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.NoZeroDivisors
 
-/-! Closes the quadratic-extension cancellation premise for the existing
-`F = Fin q` and `K` carriers, using the checked Goldilocks certificate. -/
-
 namespace NightstreamFPrime.Spec.GoldilocksExtension
 
 open NightstreamFPrime.Spec
 open Folding.PiCCS.PaperJoint.ConcreteCarrier
 
 private theorem seven_not_square : ¬ IsSquare (7 : ZMod goldilocksModulus) := by
-  letI : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
+  let : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
   rintro ⟨root, square⟩
   have rootNonzero : root ≠ 0 := by
     intro zero
@@ -26,7 +23,7 @@ private theorem seven_not_square : ¬ IsSquare (7 : ZMod goldilocksModulus) := b
   exact ZMod.pow_card_sub_one_eq_one rootNonzero
 
 theorem sevenProjectiveNonresidue : SevenProjectiveNonresidue := by
-  letI : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
+  let : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
   change ∀ real imaginary : ZMod goldilocksModulus,
     real * real - 7 * imaginary * imaginary = 0 → real = 0 ∧ imaginary = 0
   intro real imaginary normZero

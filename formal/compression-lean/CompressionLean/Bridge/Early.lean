@@ -1,15 +1,6 @@
 import CompressionLean.Bridge.Gkr
 import CompressionLean.Bridge.Relation
 
-/-!
-Owns the bridge of the early stage (`Replay.earlyStage`) to the model's
-`earlyGame`. A successful early replay is a path of `earlyGame`: it receives
-the P0 candidates and the histogram, draws the replay's `β`, `(β, γ)`,
-`(β, μ)` and GKR challenges, receives the early values, and ends in the
-model's `EarlyOut` of the replay's values, whose `EarlyChecks` the replay's
-checks give (`early_reaches`).
--/
-
 namespace CompressionLean.Bridge
 
 open Polynomial
@@ -18,8 +9,6 @@ open CompressionLean.Replay CompressionLean.Layer1
 variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
 
 local notation "ι" => algebraMap Fp K
-
-/-! ## Checks -/
 
 theorem sum_range_list {M : Type} [AddCommMonoid M] (n : ℕ) (f : ℕ → M) :
     ∑ i ∈ Finset.range n, f i = ((List.range n).map f).sum := by
@@ -82,7 +71,6 @@ theorem toK_tuple (g r e₁ e₂ : Ext) :
     (Replay.tuple g r e₁ e₂).toK (K := K) = Layer1.tuple g.toK r.toK e₁.toK e₂.toK := by
   simp [Replay.tuple, Layer1.tuple, Ext.toK_add, Ext.toK_mul]
 
-/-- The openings `checkEarly` returns. -/
 def earlyOpeningsOf (layout : Layout) (ch : Replay.EarlyChallenges) (claims : Replay.GkrClaims)
     (v : Replay.EarlyValues) : EarlyOpenings where
   runPoint := claims.leafPoint[3]!
@@ -94,7 +82,6 @@ def earlyOpeningsOf (layout : Layout) (ch : Replay.EarlyChallenges) (claims : Re
     (matrixStep layout claims.leafPoint[3]!).scale (Gl.ofNat (2 ^ layout.slotVariables))
   coefClaim := claims.leafValue 3 0
 
-/-- What `checkEarly` checked and returned. -/
 structure EarlyChecked (layout : Layout) (r : Array (Gl × Gl)) (ch : Replay.EarlyChallenges)
     (claims : Replay.GkrClaims) (v : Replay.EarlyValues) (op : EarlyOpenings) : Prop where
   rows : pairCheck claims.roots[1]! claims.roots[2]! "row lookup" = .ok ()
@@ -125,16 +112,11 @@ theorem checkEarly_ok {layout : Layout} {r : Array (Gl × Gl)} {ch : Replay.Earl
     Ext.eq_of_beq (Except.ensure_ok scatterLeaf), Ext.eq_of_beq (Except.ensure_ok pairLeaf),
     Ext.eq_of_beq (Except.ensure_ok indexLeaf), (Except.pure_eq_ok ok).symm⟩
 
-/-! ## The stage -/
-
-/-- The model's early values of the replay's. -/
 def valuesOf (v : Replay.EarlyValues) : Layer1.EarlyValues K :=
   ⟨v.eRe.toK, v.eIm.toK, v.row.toK, fun j => pairK (v.pairs[j]!), v.block.toK⟩
 
-/-- The model's histogram of the proof's counts. -/
 def histOf (proof : Replay.Proof) (i : ℕ) : Fp := (proof.histogram[i]!).toF
 
-/-- The model's early challenges of the replay's. -/
 def challengesOf (ch : Replay.EarlyChallenges) : Layer1.EarlyChallenges K :=
   ⟨ch.beta.toK, pairK ch.lookup, pairK ch.scatter⟩
 
@@ -172,9 +154,6 @@ section Stage
 
 variable [DecidableEq K]
 
-/-- A successful early replay is a path of `earlyGame` that draws the
-replay's challenges and ends in the model's `EarlyOut` of the replay's
-values; along it every `EarlyChecks` condition holds. -/
 theorem early_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof)
     (shape : ProofShape rel proof) (fits : st.fits rel = true)
     (rowFits : rel.key.layout.rowVariables ≤ rel.pointVariables) (matricesFit : rel.matrices ≤ 2 ^ rel.matrixVars)
@@ -278,7 +257,7 @@ theorem early_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : R
     apply Game.Reaches.draw (pairK scatter)
     refine Game.Reaches.congr (Game.Reaches.bind reachG ?_) (List.append_nil _)
     apply Game.Reaches.recv (valuesOf proof.earlyValues)
-    rw [if_pos checks]
+    rw [ite_eq_left checks]
     exact Game.Reaches.pure _
 
 end Stage

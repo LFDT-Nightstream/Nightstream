@@ -4,11 +4,6 @@ import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePhaseSemantics
 import NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 
-/-!
-Owns deterministic composition of the direct PiCCS, PiRLC, and PiDEC phase
-evidence into the one Stage 1 SuperNeo accumulator relation.
--/
-
 namespace NightstreamFPrime.Export.Stage1.DirectAccumulatorCommonSemantics
 
 open NightstreamFPrime.Layout

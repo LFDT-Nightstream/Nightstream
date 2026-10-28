@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCNonzero
 
-/-!
-Owns the exact indexed PiRLC combination trace used by executable parity.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 
 open NightstreamFPrime.Export.Stage1.PiRLCNonzero
@@ -120,7 +116,8 @@ def scan {Alpha : Type} (zero : Alpha)
 @[simp] theorem scan_length {Alpha : Type} (zero : Alpha)
     (step : Alpha → Fin SourceCount → Alpha) :
     (scan zero step).length = SourceCount := by
-  simp [scan]
+  simp only [scan, List.length_tail, List.length_scanl, List.length_finRange]
+  omega
 
 def prefixValue {Alpha : Type} (zero : Alpha)
     (step : Alpha → Fin SourceCount → Alpha) (count : Nat) : Alpha :=
@@ -136,17 +133,18 @@ theorem scan_getElem? {Alpha : Type} (zero : Alpha)
   rw [List.getElem?_tail, List.getElem?_scanl]
   simp only [List.length_finRange]
   by_cases bound : index < SourceCount
-  · rw [if_pos (by omega), if_pos bound]
-  · rw [if_neg (by omega), if_neg bound]
+  · rw [ite_eq_left (by omega), ite_eq_left bound]
+  · rw [ite_eq_right (by omega), ite_eq_right bound]
 
 theorem scan_getLast? {Alpha : Type} (zero : Alpha)
     (step : Alpha → Fin SourceCount → Alpha) :
     (scan zero step).getLast? =
       some ((List.finRange SourceCount).foldl step zero) := by
   unfold scan
-  rw [List.getLast?_tail, if_neg]
+  rw [List.getLast?_tail, ite_eq_right]
   · exact List.getLast?_scanl
-  · simp
+  · rw [List.length_scanl]
+    simp
 
 private theorem scanl_map_hom
     {Alpha Beta : Type}
@@ -162,7 +160,7 @@ private theorem scanl_map_hom
     (sources.scanl stepAlpha zeroAlpha).map project =
       sources.scanl stepBeta zeroBeta := by
   induction sources generalizing zeroAlpha zeroBeta with
-  | nil => simp [zeroEq]
+  | nil => rw [List.scanl_nil, List.scanl_nil, List.map_cons, List.map_nil, zeroEq]
   | cons source rest inductionHypothesis =>
       simp only [List.scanl_cons, List.map_cons]
       rw [zeroEq]

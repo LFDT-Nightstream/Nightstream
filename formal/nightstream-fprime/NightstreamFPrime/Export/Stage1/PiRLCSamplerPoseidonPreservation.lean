@@ -1,11 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPlan
 
-/-!
-Owns the value-preservation bridge for the direct PiRLC sampler Poseidon2 plan.
-
-The checked reduction rows are owned by the sampler ordinary plan.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPreservation
 
 open NightstreamFPrime.Spec
@@ -139,7 +133,7 @@ theorem inputState_eval
   unfold PiRLCSamplerPoseidonPlan.inputState canonicalInput
   by_cases entry :
       (PiRLCSamplerPoseidonPlan.descriptor current).2.val = 0
-  · simp only [entry, if_pos, SparseLayer.evalState, SparseForm.add_eval]
+  · simp only [entry, ite_eq_left, SparseLayer.evalState, SparseForm.add_eval]
     rw [show
         (PiRLCSamplerPoseidonPlan.previousOutput geometry current lane).eval
             assignment = previousValue geometry assignment current lane by

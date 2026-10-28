@@ -1,10 +1,5 @@
 import NightstreamFPrime.Layout.MatrixProgram
 
-/-!
-Find a source index in the existing range-list schedule without expanding its
-indices.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECSourceIndex
@@ -28,14 +23,14 @@ theorem findRange_value (ranges : List IndexRange) (source : Nat)
       cases found
   | cons range rest inductionHypothesis =>
       by_cases inside : range.start ≤ source ∧ source < range.start + range.count
-      · rw [findRange, if_pos inside] at found
+      · rw [findRange, ite_eq_left inside] at found
         have equal := Option.some.inj found
         subst ordinal
         have bounded : source - range.start < range.count := by omega
         have restored : range.start + (source - range.start) = source := by omega
         simp only [IndexSchedule.index?, IndexSchedule.index?.select,
-          if_pos bounded, restored]
-      · rw [findRange, if_neg inside] at found
+          ite_eq_left bounded, restored]
+      · rw [findRange, ite_eq_right inside] at found
         cases tail : findRange rest source with
         | none =>
             simp only [tail, Option.map_none] at found
@@ -47,7 +42,7 @@ theorem findRange_value (ranges : List IndexRange) (source : Nat)
             have offset : range.count + next - range.count = next := by omega
             change IndexSchedule.index?.select (range :: rest)
               (range.count + next) = some source
-            rw [IndexSchedule.index?.select, if_neg outside, offset]
+            rw [IndexSchedule.index?.select, ite_eq_right outside, offset]
             exact inductionHypothesis tail
 
 end NightstreamFPrime.Export.Stage1.PiDECSourceIndex

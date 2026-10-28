@@ -1,17 +1,7 @@
 import Lean.Elab.Tactic.Omega
 import NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold
 
-/-!
-Paper-owned HyperNova Construction-2 and augmented-function semantics.
-
-Source: HyperNova Section 6.3, Construction 2, and Appendix H.3.
-
-Owns: the exact base/recursive split of `F'_j`, the one-based prior program
-counter, the separation of fixed-index execution from honest outer dispatch,
-the prior hash link, one selected call to the function-valued `NIFS.V`,
-unchanged inactive slots, the next hash preimage, and the terminal verifier
-boundary.
--/
+/-! HyperNova Section 6.3, Construction 2, and Appendix H.3. -/
 
 namespace NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 
@@ -20,7 +10,6 @@ open NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold
 universe uKey uDigest uState uWitness uRunning uFresh uProof uEncoded
   uRunningWitness uFreshWitness
 
-/-- The paper's explicit `1 <= pc <= ell` check. -/
 def InRange (slotCount pc : Nat) : Prop :=
   1 <= pc /\ pc <= slotCount
 
@@ -43,8 +32,6 @@ def oneBased {slotCount : Nat} (slot : Fin slotCount) : Nat :=
   apply Fin.ext
   simp [selectedIndex, oneBased]
 
-/-- The exact typed preimage used by Construction 2 for both the prior link
-and the next public digest. -/
 structure HashPreimage
     (Key : Type uKey)
     (State : Type uState)
@@ -65,7 +52,7 @@ structure Setup
     (slotCount : Nat) where
   verifierKeys : Fin slotCount -> Key
   nifs : Verifier Key Running Fresh Proof
-  /-- HyperNova Definition 12's single universal default instance `u_perp`. -/
+  /-- HyperNova Definition 12. -/
   defaultRunning : Running
 
 structure Machine
@@ -110,7 +97,7 @@ structure Output
   pcNext : Fin slotCount
   x : Digest
 
-/-- Exact prior-link preimage from Construction 2 step 4(b). -/
+/-- HyperNova Construction 2, step 4(b). -/
 def priorHashPreimage
     {Key : Type uKey}
     {State : Type uState}
@@ -129,7 +116,7 @@ def priorHashPreimage
   running := input.running
   pc := input.priorPc
 
-/-- Exact next-output preimage from Construction 2 step 5. -/
+/-- HyperNova Construction 2, step 5. -/
 def nextHashPreimage
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -200,8 +187,6 @@ def OutputHolds
     (output : Output Digest State Running slotCount) : Prop :=
   output.x = machine.hash (nextHashPreimage setup input output)
 
-/-- Construction 2 base branch: no NIFS call, exact initial-state check, and
-installation of the explicit default vector. -/
 structure BaseHolds
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -223,7 +208,6 @@ structure BaseHolds
   defaultRunning : output.runningNext = fun _ => setup.defaultRunning
   outputHash : OutputHolds setup machine input output
 
-/-- Construction 2 recursive branch with exactly one computed `NIFS.V` call. -/
 structure RecursiveHolds
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -285,7 +269,6 @@ def Transition
       forall slot, slot ≠ selectedIndex priorPcValid ->
         output.runningNext slot = input.running slot)
 
-/-- The complete fixed-index augmented-circuit relation `F'_j`. -/
 def FixedAugmentedTransition
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -460,8 +443,6 @@ theorem holds_iff_honestOuterDispatch_and_fixedAugmented
     (transition_iff_honestOuterDispatch_and_fixedAugmented
       setup machine functionIndex input output)
 
-/-- Recursive terminal proof payload checked by Construction 2's outer NIVC
-verifier. -/
 structure TerminalProof
     (Running : Type uRunning)
     (RunningWitness : Type uRunningWitness)
@@ -474,7 +455,6 @@ structure TerminalProof
   freshWitness : FreshWitness
   pc : Nat
 
-/-- Exact outer terminal-proof syntax from Construction 2. -/
 inductive OuterTerminalProof
     (Running : Type uRunning)
     (RunningWitness : Type uRunningWitness)
@@ -538,8 +518,6 @@ def RecursiveTerminalTransition
     relations.freshHolds (selectedIndex pcValid)
       (setup.verifierKeys (selectedIndex pcValid)) proof.fresh proof.freshWitness
 
-/-- Exact Construction-2 terminal equations over the bottom-or-recursive
-proof envelope. -/
 def OuterTerminalTransition
     {Key : Type uKey}
     {Digest : Type uDigest}

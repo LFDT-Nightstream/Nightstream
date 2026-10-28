@@ -1,7 +1,5 @@
 import NightstreamFPrime.Layout.R1CS
 
-/-! Exact R1CS column renaming and its linear-combination laws. -/
-
 namespace NightstreamFPrime.Layout.R1CS
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit

@@ -1,9 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.PhaseTransport
 
-/-! Sampler-owned outputs are stable when their generated coordinates agree.
-The lemmas inspect only direct output expressions and preserve the same total
-sampler specification. -/
-
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
 open NightstreamFPrime.Circuit NightstreamFPrime.Gadgets.Poseidon2 NightstreamFPrime.Spec

@@ -4,13 +4,6 @@ import NightstreamFPrime.Export.Stage1.ActualHashSlots
 import NightstreamFPrime.Export.Stage1.ActualPiCCSInputs
 import NightstreamFPrime.Lifecycle.Relation
 
-/-!
-Owns typed step data and composition on arbitrary accepted assignments.
-The immediate context key is decoded from the actual prior preimage. Its
-connection to the canonical verifier context remains a separate obligation.
-It does not claim the recursive NIFS connection.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualStep
 
 open NightstreamFPrime.Circuit

@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiDECComputedChildren
 import NightstreamFPrime.Export.Stage1.FreshRowsCheck
 import NightstreamFPrime.Export.Stage1.CheckedReplayHandoff
 
-/-!
-Exact accepted successor and literal second-prior handoff for the supplied
-C/R/D replay, source files and checked fresh carrier.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.CheckedReplayComposition

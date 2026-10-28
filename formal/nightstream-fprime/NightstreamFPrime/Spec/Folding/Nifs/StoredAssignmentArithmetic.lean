@@ -2,12 +2,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiDEC
 import Init.Data.Vector.OfFn
 
-/-!
-Stored assignment arithmetic for B.3 subtraction and B.4 recomposition.
-The array builder charges its invoked coordinate program, loop branch and
-push, initial capacity, and final return. Field operations have fixed-size
-Goldilocks operands. Function-valued semantic assignments are only views.
--/
+/-! SuperNeo v1.2 Appendix B.3 and B.4. -/
 
 set_option autoImplicit false
 

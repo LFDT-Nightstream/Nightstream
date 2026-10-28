@@ -4,11 +4,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCCombinationCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerCompleteness
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the package-level constructive assemblers for the exact production PiCCS,
-PiRLC, PiDEC v1_2, and running-transition rows.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PackageCompleteness
 
 open NightstreamFPrime.Circuit
@@ -286,7 +281,7 @@ theorem piCcsEmittedConstraints_varsBelow
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
         env assumptions.eval_K expression (by
           simpa [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
-            Formal.evalKCircuit] using childMember)
+            Formal.evalKCircuit] using! childMember)
       rw [EvalKTerminal.localLength_eq, ← evalKStartEq] at below
       exact Expr.VarsBelow.mono expression below
         piCcsArithmeticLogicalEnds.2.2.2.1
@@ -305,7 +300,7 @@ theorem piCcsEmittedConstraints_varsBelow
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
         env assumptions.eval_A expression (by
           simpa [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
-            Formal.evalACircuit] using childMember)
+            Formal.evalACircuit] using! childMember)
       rw [EvalATerminal.localLength_eq, ← evalAStartEq] at below
       exact Expr.VarsBelow.mono expression below
         piCcsArithmeticLogicalEnds.2.2.2.2.1
@@ -372,7 +367,7 @@ theorem piCcsEmittedConstraints_varsBelow
           NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset)
         env assumptions.finalIdentity expression (by
           simpa [NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
-            Formal.finalIdentityCircuit] using childMember)
+            Formal.finalIdentityCircuit] using! childMember)
       rw [FinalIdentity.localLength_eq,
         Formal.finalIdentityOffset_eq_finalIdentityRowOffset,
         ← finalStartEq] at below
@@ -490,7 +485,8 @@ private theorem liftPilotColumn_piRlcOutside (column : Nat) :
       NightstreamFPrime.Layout.Stage1.Spartan.proofInputColumnCount,
       NightstreamFPrime.Layout.Stage1.Spartan.privateColumnCount,
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset,
-      phaseSuffixStart, phaseSuffixLength] at * <;> omega
+      phaseSuffixStart, phaseSuffixLength] at *
+  all_goals omega
 
 private theorem liftPilotCombination_eval_of_piRlcAgreesOutside
     (combination : SparseCombination) (before after : Env)

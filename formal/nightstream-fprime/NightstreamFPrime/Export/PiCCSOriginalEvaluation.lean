@@ -11,12 +11,6 @@ import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 import NightstreamFPrime.Export.Codec
 
-/-!
-Original-source final matrix evaluations at the causally replayed PiCCS point.
-The caller supplies that Lean-derived point. Every source, port and ring lane
-is retained. This module never accepts Rust results or mixed parent witnesses.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiCCSOriginalEvaluation

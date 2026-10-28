@@ -1,97 +1,57 @@
 import CompressionLean.Layer1.Cube
 import Mathlib.Data.Nat.Size
 
-/-!
-Owns the carry walk `diagonal` (`crates/neo-spartan/src/shrink/layout.rs:230-279`)
-and its value (`diagonal_eq`): `Σ_{b < count} Π_tracks eq(point, offset + b)`
-when every track's value fits its point.
-
-The walk reads the bits of the block index `b`, low bit first. A state is a
-carry mask, one bit per track, and whether the low bits of `b` are below
-those of `count`. The proof pairs the states after bit `t` with `suffix t`,
-what each state still adds over the high bits of `b` (`suffix_step`). The
-pairing is the same after every bit (`pairing_step`), and after the last bit
-it reads the state that `diagonal` returns.
--/
-
 namespace CompressionLean.Shrink
 
 open CompressionLean.Layer1
 
 variable {K : Type} [CommRing K]
 
-/-- A track of the walk: a point and an offset (`layout.rs:234`). -/
 abbrev Track (K : Type) := List K × ℕ
 
-/-- The bits the walk reads (`layout.rs:235-240`): the longest point, and
-the bit lengths of the offsets and of `count`. -/
 def walkBits (tracks : List (Track K)) (count : ℕ) : ℕ :=
   (tracks.map fun track => max track.1.length (Nat.size track.2)).foldr max (Nat.size count)
 
-/-- One track's factor at bit `t` when its value has bit `bit` there
-(`layout.rs:265-270`): `x_t` or `1 - x_t` inside the point. Past the point a
-zero bit gives `1` and a one bit gives `0`; Rust drops that branch
-(`continue 'bit`), which adds nothing. -/
 def trackFactor (point : List K) (t bit : ℕ) : K :=
   if t < point.length then (if bit = 1 then point.getD t 0 else 1 - point.getD t 0)
   else if bit = 1 then 0 else 1
 
-/-- Every track at bit `t` for the block bit `b` and the carry mask `carry`
-(`layout.rs:259-271`): the product of the track factors and the next carry
-mask. Track `i` owns bit `i` of the mask. -/
 def tracksStep (t b : ℕ) : List (Track K) → ℕ → K × ℕ
   | [], _ => (1, 0)
   | (point, offset) :: rest, carry =>
       (trackFactor point t ((offset / 2 ^ t % 2 + b + carry % 2) % 2) * (tracksStep t b rest (carry / 2)).1,
         (offset / 2 ^ t % 2 + b + carry % 2) / 2 + 2 * (tracksStep t b rest (carry / 2)).2)
 
-/-- `next_below` (`layout.rs:254-258`). -/
 def nextBelow (countBit b below : ℕ) : ℕ :=
   if b < countBit then 1 else if countBit < b then 0 else below
 
-/-- One bit of the walk (`layout.rs:246-276`): each state `(carry, below)`
-and each block bit `b` add `value·factor` to the state they lead to. Rust
-skips zero values (`layout.rs:250-252`), which add nothing. -/
 def walkStep (tracks : List (Track K)) (count t : ℕ) (states : ℕ → ℕ → K) (carry' below' : ℕ) : K :=
   ∑ carry ∈ Finset.range (2 ^ tracks.length), ∑ below ∈ Finset.range 2, ∑ b ∈ Finset.range 2,
     if (tracksStep t b tracks carry).2 = carry' ∧ nextBelow (count / 2 ^ t % 2) b below = below' then
       states carry below * (tracksStep t b tracks carry).1
     else 0
 
-/-- The states after the low `t` bits, from `states[0][0] = 1`
-(`layout.rs:243-245`). -/
 def walk (tracks : List (Track K)) (count : ℕ) : ℕ → ℕ → ℕ → K
   | 0 => fun carry below => if carry = 0 ∧ below = 0 then 1 else 0
   | t + 1 => walkStep tracks count t (walk tracks count t)
 
-/-- `diagonal` (`layout.rs:230-279`): the state with no carry and `b` below
-`count`, after every bit. -/
 def diagonal (tracks : List (Track K)) (count : ℕ) : K :=
   walk tracks count (walkBits tracks count) 0 1
 
-/-- A track's weight at `v`: `eq(point, v)`, or zero when `v` does not fit
-the point. -/
 def trackEq (point : List K) (v : ℕ) : K := if v < 2 ^ point.length then eqAt point v else 0
 
-/-- The tracks' weights from bit `t` on, at the high part `q` of the block
-index and the carry mask `carry`. -/
 def highProduct (t q : ℕ) : List (Track K) → ℕ → K
   | [], _ => 1
   | (point, offset) :: rest, carry =>
       trackEq (point.drop t) (offset / 2 ^ t + q + carry % 2) * highProduct t q rest (carry / 2)
 
-/-- What a state at bit `t` still adds: the sum over the high parts `q` of
-the block index that keep `b` below `count`. -/
 def suffix (tracks : List (Track K)) (count t carry below : ℕ) : K :=
   ∑ q ∈ Finset.range (count / 2 ^ t + below), highProduct t q tracks carry
 
-/-- The states after bit `t`, each weighted by what it still adds. -/
 def pairing (tracks : List (Track K)) (count t : ℕ) (states : ℕ → ℕ → K) : K :=
   ∑ carry ∈ Finset.range (2 ^ tracks.length), ∑ below ∈ Finset.range 2,
     states carry below * suffix tracks count t carry below
 
-/-- One bit of one track: at bit `t`, the value `offset + 2q + b + c` is the
-factor of its low bit times the value at bit `t + 1`. -/
 theorem trackEq_step (point : List K) (offset t q b c : ℕ) :
     trackEq (point.drop t) (offset / 2 ^ t + (2 * q + b) + c) =
       trackFactor point t ((offset / 2 ^ t % 2 + b + c) % 2) *
@@ -110,24 +70,22 @@ theorem trackEq_step (point : List K) (offset t q b c : ℕ) :
   unfold trackEq trackFactor
   by_cases inside : t < point.length
   · have get : point.getD t 0 = point[t] := by simp [List.getD_eq_getElem?_getD, inside]
-    rw [List.drop_eq_getElem_cons inside, if_pos inside, get]
+    rw [List.drop_eq_getElem_cons inside, ite_eq_left inside, get]
     simp only [List.length_cons, eqAt, low, half]
     by_cases fits : w < 2 ^ (point.drop (t + 1)).length
-    · rw [if_pos (by rw [pow_succ]; omega), if_pos fits]
-    · rw [if_neg (by rw [pow_succ]; omega), if_neg fits, mul_zero]
-  · rw [List.drop_eq_nil_of_le (by omega), List.drop_eq_nil_of_le (by omega), if_neg inside]
+    · rw [ite_eq_left (by rw [pow_succ]; omega), ite_eq_left fits]
+    · rw [ite_eq_right (by rw [pow_succ]; omega), ite_eq_right fits, mul_zero]
+  · rw [List.drop_eq_nil_of_le (by omega), List.drop_eq_nil_of_le (by omega), ite_eq_right inside]
     simp only [List.length_nil, pow_zero, eqAt]
     rcases (show bit = 0 ∨ bit = 1 by omega) with rfl | rfl
     · by_cases zero : w < 1
-      · rw [if_pos (by omega), if_pos zero]
+      · rw [ite_eq_left (by omega), ite_eq_left zero]
         simp
-      · rw [if_neg (by omega), if_neg zero]
+      · rw [ite_eq_right (by omega), ite_eq_right zero]
         simp
-    · rw [if_neg (by omega)]
+    · rw [ite_eq_right (by omega)]
       simp
 
-/-- All tracks at once: the high product at `2q + b` is the walk's factor
-times the high product at bit `t + 1` from the next carry mask. -/
 theorem highProduct_step (t q b : ℕ) (bit : b < 2) :
     ∀ (tracks : List (Track K)) (carry : ℕ),
       highProduct t (2 * q + b) tracks carry =
@@ -144,7 +102,6 @@ theorem highProduct_step (t q b : ℕ) (bit : b < 2) :
       simp only [low, high]
       ring
 
-/-- A sum over `range N`, split into its even and its odd indices. -/
 theorem sum_range_parity {M : Type} [AddCommMonoid M] (f : ℕ → M) :
     ∀ N, ∑ q ∈ Finset.range N, f q =
       ∑ q ∈ Finset.range ((N + 1) / 2), f (2 * q) + ∑ q ∈ Finset.range (N / 2), f (2 * q + 1)
@@ -159,8 +116,6 @@ theorem sum_range_parity {M : Type} [AddCommMonoid M] (f : ℕ → M) :
           show (2 * m + 1) / 2 = m by omega, Finset.sum_range_succ (fun q => f (2 * q + 1))]
         abel
 
-/-- What a state owes at bit `t` is what its two successors owe at bit
-`t + 1`, each times its factor. -/
 theorem suffix_step (tracks : List (Track K)) (count t carry below : ℕ) (small : below < 2) :
     suffix tracks count t carry below =
       ∑ b ∈ Finset.range 2, (tracksStep t b tracks carry).1 *
@@ -185,7 +140,6 @@ theorem suffix_step (tracks : List (Track K)) (count t carry below : ℕ) (small
     intro q _
     exact highProduct_step t q 1 (by norm_num) tracks carry
 
-/-- The next carry mask has one bit per track. -/
 theorem tracksStep_carry_lt (t b : ℕ) (bit : b < 2) :
     ∀ (tracks : List (Track K)) (carry : ℕ), (tracksStep t b tracks carry).2 < 2 ^ tracks.length
   | [], _ => by simp [tracksStep]
@@ -194,8 +148,6 @@ theorem tracksStep_carry_lt (t b : ℕ) (bit : b < 2) :
       simp only [tracksStep, List.length_cons, pow_succ]
       omega
 
-/-- Past every point and offset, the high product at `q = 0` is `1` exactly
-when no track carries. -/
 theorem highProduct_end (t : ℕ) :
     ∀ (tracks : List (Track K)) (carry : ℕ), (∀ track ∈ tracks, track.1.length ≤ t ∧ track.2 < 2 ^ t) →
       carry < 2 ^ tracks.length → highProduct t 0 tracks carry = if carry = 0 then 1 else 0
@@ -214,11 +166,9 @@ theorem highProduct_end (t : ℕ) :
       by_cases zero : carry = 0
       · simp [zero]
       · by_cases low : carry % 2 < 1
-        · rw [if_pos low, if_neg (by omega), if_neg zero, mul_zero]
-        · rw [if_neg low, zero_mul, if_neg zero]
+        · rw [ite_eq_left low, ite_eq_right (by omega), ite_eq_right zero, mul_zero]
+        · rw [ite_eq_right low, zero_mul, ite_eq_right zero]
 
-/-- After the last bit, a state owes `1` exactly when it has no carry and
-`b` is below `count`. -/
 theorem suffix_end (tracks : List (Track K)) (count t carry below : ℕ)
     (big : ∀ track ∈ tracks, track.1.length ≤ t ∧ track.2 < 2 ^ t) (countLt : count < 2 ^ t)
     (carryLt : carry < 2 ^ tracks.length) (small : below < 2) :
@@ -230,8 +180,6 @@ theorem suffix_end (tracks : List (Track K)) (count t carry below : ℕ)
   · rw [Finset.sum_range_one, highProduct_end t tracks carry big carryLt]
     simp
 
-/-- Scattering values to keys, then pairing with `g`, pairs each value with
-`g` at its key. -/
 theorem scatter_pairing {ι : Type} (A : Finset ι) (X Y : Finset ℕ) (key1 key2 : ι → ℕ) (v : ι → K)
     (g : ℕ → ℕ → K) (in1 : ∀ i ∈ A, key1 i ∈ X) (in2 : ∀ i ∈ A, key2 i ∈ Y) :
     ∑ x ∈ X, ∑ y ∈ Y, (∑ i ∈ A, if key1 i = x ∧ key2 i = y then v i else 0) * g x y =
@@ -241,19 +189,17 @@ theorem scatter_pairing {ι : Type} (A : Finset ι) (X Y : Finset ℕ) (key1 key
   apply Finset.sum_congr rfl
   intro i member
   rw [Finset.sum_eq_single_of_mem (key1 i) (in1 i member)
-      (fun x _ ne => Finset.sum_eq_zero fun y _ => by rw [if_neg (fun h => ne h.1.symm), zero_mul]),
+      (fun x _ ne => Finset.sum_eq_zero fun y _ => by rw [ite_eq_right (fun h => ne h.1.symm), zero_mul]),
     Finset.sum_eq_single_of_mem (key2 i) (in2 i member)
-      (fun y _ ne => by rw [if_neg (fun h => ne h.2.symm), zero_mul]),
-    if_pos ⟨rfl, rfl⟩]
+      (fun y _ ne => by rw [ite_eq_right (fun h => ne h.2.symm), zero_mul]),
+    ite_eq_left ⟨rfl, rfl⟩]
 
 omit [CommRing K] in
-/-- A double sum of a point mass at `(a, c)`. -/
 theorem sum_sum_point {M : Type} [AddCommMonoid M] (X Y : Finset ℕ) (a c : ℕ) (inX : a ∈ X) (inY : c ∈ Y)
     (f : ℕ → ℕ → M) : ∑ x ∈ X, ∑ y ∈ Y, (if x = a then if y = c then f x y else 0 else 0) = f a c := by
-  rw [Finset.sum_eq_single_of_mem a inX (fun x _ ne => Finset.sum_eq_zero fun y _ => if_neg ne),
-    Finset.sum_eq_single_of_mem c inY (fun y _ ne => by rw [if_pos rfl, if_neg ne]), if_pos rfl, if_pos rfl]
+  rw [Finset.sum_eq_single_of_mem a inX (fun x _ ne => Finset.sum_eq_zero fun y _ => ite_eq_right ne),
+    Finset.sum_eq_single_of_mem c inY (fun y _ ne => by rw [ite_eq_left rfl, ite_eq_right ne]), ite_eq_left rfl, ite_eq_left rfl]
 
-/-- The walk's states as one sum over `(carry, below, b)`. -/
 theorem walkStep_eq (tracks : List (Track K)) (count t : ℕ) (states : ℕ → ℕ → K) (carry' below' : ℕ) :
     walkStep tracks count t states carry' below' =
       ∑ i ∈ (Finset.range (2 ^ tracks.length) ×ˢ Finset.range 2) ×ˢ Finset.range 2,
@@ -263,7 +209,6 @@ theorem walkStep_eq (tracks : List (Track K)) (count t : ℕ) (states : ℕ → 
   rw [Finset.sum_product, Finset.sum_product]
   rfl
 
-/-- The pairing does not change across one bit of the walk. -/
 theorem pairing_step (tracks : List (Track K)) (count t : ℕ) (states : ℕ → ℕ → K) :
     pairing tracks count (t + 1) (walkStep tracks count t states) = pairing tracks count t states := by
   unfold pairing
@@ -287,7 +232,6 @@ theorem pairing_step (tracks : List (Track K)) (count t : ℕ) (states : ℕ →
   intro b _
   ring
 
-/-- The pairing after every bit is the first state's suffix. -/
 theorem pairing_walk (tracks : List (Track K)) (count : ℕ) :
     ∀ t, pairing tracks count t (walk tracks count t) = suffix tracks count 0 0 0
   | 0 => by
@@ -297,7 +241,6 @@ theorem pairing_walk (tracks : List (Track K)) (count : ℕ) :
   | t + 1 => by rw [walk, pairing_step, pairing_walk tracks count t]
 
 omit [CommRing K] in
-/-- The walk reads every point, offset and `count` bit. -/
 theorem walkBits_covers (tracks : List (Track K)) (count : ℕ) :
     (∀ track ∈ tracks, track.1.length ≤ walkBits tracks count ∧ track.2 < 2 ^ walkBits tracks count) ∧
       count < 2 ^ walkBits tracks count := by
@@ -313,8 +256,6 @@ theorem walkBits_covers (tracks : List (Track K)) (count : ℕ) :
   have le := trackLe _ (List.mem_map.mpr ⟨track, member, rfl⟩)
   exact ⟨(le_max_left _ _).trans le, Nat.size_le.mp ((le_max_right _ _).trans le)⟩
 
-/-- At bit `0` with no carry, the high product is the tracks' weights at
-`offset + q`. -/
 theorem highProduct_zero (q : ℕ) :
     ∀ tracks : List (Track K), highProduct 0 q tracks 0 = (tracks.map fun track => trackEq track.1 (track.2 + q)).prod
   | [] => rfl
@@ -322,8 +263,6 @@ theorem highProduct_zero (q : ℕ) :
       simp only [highProduct, List.drop_zero, pow_zero, Nat.div_one, Nat.zero_mod, add_zero, Nat.zero_div,
         highProduct_zero q rest, List.map_cons, List.prod_cons]
 
-/-- **The carry walk.** `diagonal` is the sum over the blocks `b < count` of
-the product of the tracks' weights at `offset + b`. -/
 theorem diagonal_eq_sum (tracks : List (Track K)) (count : ℕ) :
     diagonal tracks count =
       ∑ b ∈ Finset.range count, (tracks.map fun track => trackEq track.1 (track.2 + b)).prod := by
@@ -340,8 +279,6 @@ theorem diagonal_eq_sum (tracks : List (Track K)) (count : ℕ) :
   unfold suffix
   simp only [pow_zero, Nat.div_one, add_zero, highProduct_zero]
 
-/-- **The carry walk, fitted.** When every track's value fits its point for
-every block, `diagonal` is `Σ_{b < count} Π_tracks eq(point, offset + b)`. -/
 theorem diagonal_eq (tracks : List (Track K)) (count : ℕ)
     (fits : ∀ track ∈ tracks, ∀ b < count, track.2 + b < 2 ^ track.1.length) :
     diagonal tracks count =
@@ -352,6 +289,6 @@ theorem diagonal_eq (tracks : List (Track K)) (count : ℕ)
   congr 1
   apply List.map_congr_left
   intro track trackMember
-  rw [trackEq, if_pos (fits track trackMember b (Finset.mem_range.mp member))]
+  rw [trackEq, ite_eq_left (fits track trackMember b (Finset.mem_range.mp member))]
 
 end CompressionLean.Shrink

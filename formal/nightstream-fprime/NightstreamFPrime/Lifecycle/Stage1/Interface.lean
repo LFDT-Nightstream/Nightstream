@@ -6,15 +6,6 @@ import NightstreamFPrime.Lifecycle.Stage1.Application
 import NightstreamFPrime.Lifecycle.Stage1.RunningTransition
 import NightstreamFPrime.Lifecycle.Stage1.NextPreimage
 
-/-!
-Owns the symbolic interface of one Stage 1 augmented circuit.
-
-The verifier selects `relation`, `ajtai`, and one closed application program
-before this interface is constructed. This record carries only the symbolic
-wire views used by the existing opaque phase circuits. Physical columns and
-the outer HyperNova terminal verifier belong to `Layout/` and `Terminal`.
--/
-
 namespace NightstreamFPrime.Lifecycle.Stage1
 
 open NightstreamFPrime.Spec

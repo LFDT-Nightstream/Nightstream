@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
-/-!
-Owns theorem-only conformance evidence for the final 4-matrix
-`Poseidon2HashChainV1` logical relation.
--/
-
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 
 open NightstreamFPrime.Layout

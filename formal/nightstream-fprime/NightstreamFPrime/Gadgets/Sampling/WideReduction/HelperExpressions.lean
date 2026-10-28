@@ -57,7 +57,7 @@ theorem limb_terms (base : Env) (start : Nat) (draw : Draw) (position : Nat)
     cases position with
     | zero => rfl
     | succ position =>
-        simp only [Nat.succ_ne_zero, if_false, Nat.add_sub_cancel, HintProgram.limbBits,
+        simp only [Nat.succ_ne_zero, ite_false, Nat.add_sub_cancel, HintProgram.limbBits,
           HintProgram.accumulatorBits]
         exact HintValues.carry_word _ start position draw
           (accumulator_bit_val base start draw position · (by omega))
@@ -75,9 +75,9 @@ theorem limb_terms (base : Env) (start : Nat) (draw : Draw) (position : Nat)
   apply sum_congr rfl
   intro word _
   by_cases included : word.val ≤ position
-  · rw [if_pos included, if_pos included]
+  · rw [ite_eq_left included, ite_eq_left included]
     exact word_value base start draw lane word _
-  · rw [if_neg included, if_neg included]
+  · rw [ite_eq_right included, ite_eq_right included]
     rfl
 
 theorem integer_bit (base : Env) (start : Nat) (draw : Draw) (index : Nat)
@@ -113,9 +113,9 @@ theorem initial_limb (base : Env) (start : Nat) (draw : Draw) (position : Nat) :
       apply sum_congr rfl
       intro bit _
       by_cases included : position * 60 + bit < 256
-      · rw [if_pos included]
+      · erw [ite_eq_left included]
         exact congrArg (fun value => 2 ^ bit * value) (integer_bit base start draw _ included)
-      · rw [if_neg included]
+      · erw [ite_eq_right included]
         have valueBound : (drawIndex draw).val < 2 ^ 256 :=
           lt_trans (drawIndex draw).isLt (by decide)
         have high : (drawIndex draw).val < 2 ^ (position * 60 + bit) :=
@@ -143,12 +143,12 @@ theorem division_input (base : Env) (start : Nat) (draw : Draw) (round position 
         fieldOfNat (HintValues.divisionCarry ((drawIndex draw).val / 5 ^ round) (4 - position)) := by
     by_cases first : position = 0
     · subst position
-      rw [if_pos rfl]
+      rw [ite_eq_left rfl]
       have valueBound : (drawIndex draw).val / 5 ^ round < 2 ^ 256 :=
         lt_of_le_of_lt (Nat.div_le_self _ _) (lt_trans (drawIndex draw).isLt (by decide))
       rw [Nat.sub_zero, HintValues.division_first_carry _ valueBound]
       rfl
-    · rw [if_neg first]
+    · rw [ite_eq_right first]
       change HelperValues.environment base start draw _ = _
       rw [(HelperValues.division base start draw round (position - 1) roundBound (by omega)).2]
       apply congrArg fieldOfNat
@@ -161,9 +161,9 @@ theorem division_input (base : Env) (start : Nat) (draw : Draw) (round position 
         fieldOfNat (HintValues.limb ((drawIndex draw).val / 5 ^ round) (4 - position)) := by
     by_cases first : round = 0
     · subst round
-      rw [if_pos rfl, initial_limb]
+      rw [ite_eq_left rfl, initial_limb]
       simp only [pow_zero, Nat.div_one]
-    · rw [if_neg first]
+    · rw [ite_eq_right first]
       change HelperValues.environment base start draw _ = _
       rw [(HelperValues.division base start draw (round - 1) position (by omega) positionBound).1]
       unfold HelperValues.quotient

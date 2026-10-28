@@ -1,15 +1,8 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationSecurity
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 
-/-!
-Owns the concrete deterministic and security closure for the verifier-owned
-`Poseidon2HashChainV1` package.
-
-The final quantitative claim remains conditional on the owner-recorded
-Module-SIS, wide-reduction, Poseidon2, and Fiat--Shamir/forking analyses and
-on a SHAKE128 random-oracle analysis; this package has no adversary or
-probability model that could state those analyses as kernel theorems.
--/
+/-! Conditional on the owner-recorded Module-SIS, wide-reduction, Poseidon2,
+Fiat--Shamir/forking and SHAKE128 random-oracle analyses. -/
 
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Closure
 

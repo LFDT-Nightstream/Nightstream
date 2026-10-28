@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
 
-/-!
-Owns application soundness for arbitrary assignments to the final logical
-columns.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ApplicationAssignmentSoundness
 
 open NightstreamFPrime.Circuit

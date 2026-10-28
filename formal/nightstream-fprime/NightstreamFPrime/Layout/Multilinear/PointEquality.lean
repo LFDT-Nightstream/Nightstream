@@ -1,12 +1,6 @@
 import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Gadgets.Multilinear.PointEquality
 
-/-!
-Owns physical R1CS cost proofs for the reusable owned point-equality gadget.
-It counts one equality factor and one extension-field product, then composes
-those costs by coordinate-list induction. It does not own a protocol point.
--/
-
 namespace NightstreamFPrime.Layout.Multilinear.PointEquality
 
 open NightstreamFPrime.Circuit

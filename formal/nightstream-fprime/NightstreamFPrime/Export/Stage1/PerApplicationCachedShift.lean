@@ -1,7 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 
-/-! Owns the cached executable form of per-application column shifting. -/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 
 open NightstreamFPrime.Circuit

@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSCarriedPrefixSource
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixComposition
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixSelectorFactor
 
-/-! Pure carried-prefix accumulation and complete-sum composition.
-This module proves scalar updates, ordered joins, and selected-source
-coefficients; it does not prove file decoding, mutable IO loops, or the origin
-of retained files. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCarriedPrefixComplete

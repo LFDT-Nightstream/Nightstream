@@ -120,8 +120,23 @@ pub struct PackageCircuit {
 }
 
 impl PackageCircuit {
+    /// The prover of the package. `minimum_security_bits` bounds the folding
+    /// profile and the memory fingerprint term (`Plan::memory_security_bits`).
     pub fn prover(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<crate::Prover, crate::Error> {
+        self.check_memory_security(minimum_security_bits)?;
         self.circuit.prover(engine, minimum_security_bits)
+    }
+
+    fn check_memory_security(&self, minimum_security_bits: u32) -> Result<(), crate::Error> {
+        let available = self.package.plan().memory_security_bits();
+        if available < f64::from(minimum_security_bits) {
+            return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
+                required: minimum_security_bits,
+                available: available.floor() as u32,
+            }
+            .into());
+        }
+        Ok(())
     }
 }
 
@@ -143,11 +158,14 @@ pub struct Verifier {
 
 impl Verifier {
     /// The verifier of a loaded package. It may share the prover's circuit.
+    /// `minimum_security_bits` bounds the folding profile and the memory
+    /// fingerprint term (`Plan::memory_security_bits`).
     pub fn new(
         circuit: &PackageCircuit,
         engine: crate::Engine,
         minimum_security_bits: u32,
     ) -> Result<Self, crate::Error> {
+        circuit.check_memory_security(minimum_security_bits)?;
         Ok(Self {
             context: Context::new(circuit.package),
             stage1: crate::Verifier::from_package(&circuit.circuit, engine, minimum_security_bits)?,

@@ -255,13 +255,15 @@ impl PreparedLifecycle {
             last.transcript.into_inner(),
             &last.parent.claim,
             &last.parent.witness,
-        )?;
+        )
+        .map_err(|error| self.backend.accelerator_error(error))?;
         let package = terminal::package()?;
         let inputs = package.loaded().encode_terminal_inputs(&terminal_inputs)?;
         let terminal = TerminalProof { inputs, layer1 };
         let program = key.program(&relation, package, &last.state, Some(&terminal));
         let layer = Shrink::new(key.shape, key.layer_bits)?;
-        let shrink = shrink::prove(&layer, &program, &accelerator)?;
+        let shrink =
+            shrink::prove(&layer, &program, &accelerator).map_err(|error| self.backend.accelerator_error(error))?;
         // A device fault fails the call here, instead of a returned proof
         // that does not verify.
         shrink::verify(&layer, &key.program(&relation, package, &last.state, None), &shrink)?;

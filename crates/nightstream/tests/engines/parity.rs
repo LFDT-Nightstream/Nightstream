@@ -435,9 +435,10 @@ fn optimized_matches_metal() {
 /// Each child commitment must come from its own digit witness. A commitment
 /// derived from the parent passes the PiDEC recomposition check by construction.
 #[test]
+#[cfg_attr(not(feature = "metal"), allow(clippy::single_element_loop))]
 fn engines_refuse_a_fresh_commitment_that_does_not_open() {
     let mut fixture = Fixture::bit();
-    fixture.fresh.claim.c.data[0] += F::ONE;
+    fixture.fresh.claim.c.data_mut()[0] += F::ONE;
     for engine in [
         Engine::Optimized,
         #[cfg(feature = "metal")]

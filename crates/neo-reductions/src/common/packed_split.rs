@@ -1,21 +1,17 @@
 //! Parallel balanced base-2 split into packed signed-unit digit planes.
-//! It returns the serial split's digits for valid input; any entry outside
-//! the DEC range returns `None`, and the caller's serial split reports it.
 
 use neo_ccs::Mat;
 use neo_math::F;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
-use super::balanced_divrem_i64_base2;
+use super::signed_divrem_base2;
 
-/// Witness columns per task; each task reads its columns row by row.
 const CHUNK_COLUMNS: usize = 1 << 14;
 
 type Planes = (Vec<Mat<F>>, Vec<bool>);
 
-/// Split `z` into `k` balanced base-2 digit planes, one worker per column range.
-pub(super) fn split_base2_packed(z: &Mat<F>, k: usize) -> Option<Planes> {
+pub(super) fn split_base2_packed(z: &Mat<F>, k: usize) -> Result<Planes, usize> {
     let (rows, columns) = (z.rows(), z.cols());
     debug_assert!(rows <= u64::BITS as usize && k < i64::BITS as usize - 1);
     let data = z.as_slice();
@@ -48,12 +44,13 @@ pub(super) fn split_base2_packed(z: &Mat<F>, k: usize) -> Option<Planes> {
                     if entry == F::ZERO {
                         continue;
                     }
-                    let mut value = balanced_value(entry.as_canonical_u64(), bound)?;
+                    let index = row * columns + first + local;
+                    let mut value = balanced_value(entry.as_canonical_u64(), bound).ok_or(index)?;
                     for (plane, (positive, negative)) in masks.iter_mut().enumerate() {
                         if value == 0 {
                             break;
                         }
-                        let (digit, quotient) = balanced_divrem_i64_base2(value);
+                        let (digit, quotient) = signed_divrem_base2(value);
                         match digit {
                             1 => positive[local] |= 1 << row,
                             -1 => negative[local] |= 1 << row,
@@ -63,13 +60,20 @@ pub(super) fn split_base2_packed(z: &Mat<F>, k: usize) -> Option<Planes> {
                         value = quotient;
                     }
                     if value != 0 {
-                        return None;
+                        return Err(index);
                     }
                 }
             }
-            Some(nonzero)
+            Ok(nonzero)
         })
-        .try_reduce(|| 0, |left, right| Some(left | right))?;
+        .reduce(
+            || Ok(0),
+            |left, right| match (left, right) {
+                (Ok(left), Ok(right)) => Ok(left | right),
+                (Err(left), Err(right)) => Err(left.min(right)),
+                (Err(index), Ok(_)) | (Ok(_), Err(index)) => Err(index),
+            },
+        )?;
     let flags: Vec<bool> = (0..k).map(|plane| nonzero >> plane & 1 == 1).collect();
     let digits = planes
         .into_iter()
@@ -83,10 +87,9 @@ pub(super) fn split_base2_packed(z: &Mat<F>, k: usize) -> Option<Planes> {
             }
         })
         .collect();
-    Some((digits, flags))
+    Ok((digits, flags))
 }
 
-/// The balanced representative of a canonical field value in `(-bound, bound)`.
 fn balanced_value(canonical: u64, bound: u64) -> Option<i64> {
     let negative_magnitude = F::ORDER_U64 - canonical;
     match (canonical < bound, negative_magnitude < bound) {

@@ -1,5 +1,4 @@
 //! The prepared fixed envelope contains only arrays and unsigned field/index words.
-//! Count nodes before constructing them; the ordinary JSON recursion check stays enabled.
 
 use std::{fmt, io::Read};
 
@@ -69,12 +68,12 @@ pub(super) fn validate(value: &Value, node_limit: usize) -> Result<(), PackageEr
         };
         remaining = remaining
             .checked_sub(1)
-            .ok_or(PackageError::Invalid(EXCEEDED))?;
+            .ok_or(PackageError::TooLarge(EXCEEDED))?;
         match value {
             Value::Array(values) => stack.push(values.iter()),
             Value::Number(value) if value.as_u64().is_some() => {}
             _ => {
-                return Err(PackageError::Invalid(
+                return Err(PackageError::Malformed(
                     "prepared fixed envelope requires arrays and u64 values",
                 ))
             }

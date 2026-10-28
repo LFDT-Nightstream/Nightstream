@@ -1,9 +1,3 @@
-"""Focused projection tests. Execute separately under the existing 300-second cap.
-
-Only carrier extent and logical width are reduced. The fixture keeps all five
-public blocks and one partial final block, with the production alignment tail.
-It retains 54 lanes, 16 children, 270 public words and 4 matrices.
-"""
 import contextlib
 import copy
 import importlib.util

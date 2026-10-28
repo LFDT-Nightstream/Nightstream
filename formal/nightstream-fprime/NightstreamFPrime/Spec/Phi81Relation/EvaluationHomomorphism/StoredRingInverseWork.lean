@@ -6,9 +6,7 @@ Counted stored polynomial normalization for the executed inverse.
 The scan refines CompPoly Data/Array/Lemmas.lean and Raw/Core.lean at
 050f0bc7e9780703beb8d178ec533e52bd87d649 (Apache-2.0; copyright 2025
 CompPoly, authors Quang Dao and Gregor Mitscha-Baude). The prefix loop
-refines Lean 4.30 Init/Prelude.lean Array.extract. Counts include allocation
-and a conservative shared-buffer copy cost; unique buffers are not assumed.
-This is the input-normalization part, not a complete inverse work bound.
+refines Lean 4.30 Init/Prelude.lean Array.extract.
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseWork
@@ -70,9 +68,6 @@ private theorem lastNonzero_work_le (values : Raw) :
   change (scan values values.size _).work + 2 ≤ _
   omega
 
-/-- The budget is the requested prefix length, not an input restriction.
-Each push charges copying all previous cells and reserving the whole prefix.
-The size-dependent charge is read before creating the next array. -/
 private def copyLoop (values : Raw) (budget : Nat) : Nat → Nat → Raw → Result Raw
   | remaining, index, output =>
       if live : index < values.size then
@@ -130,7 +125,6 @@ private theorem copyPrefix_work_le (values : Raw) (count : Nat) :
   change (copyLoop values count count 0 (Array.emptyWithCapacity count)).work + count + 2 ≤ _
   omega
 
-/-- Normalize the actual input array, returning its value and work together. -/
 def trim (values : Raw) : Result Raw :=
   let found := lastNonzero values
   match found.value with
@@ -162,7 +156,6 @@ theorem trim_work_le (values : Raw) :
       dsimp only
       nlinarith
 
-/-- The canonical constructor consumes the same counted trim output. -/
 def encode (value : StoredRingInverse.StoredRing) : Result (CPolynomial Base) :=
   let normalized := trim value.toArray
   ⟨⟨normalized.value, by

@@ -1,5 +1,3 @@
-"""Check Pad merge decoding and coverage; no production evaluation is asserted."""
-
 import copy
 import json
 from pathlib import Path
@@ -31,8 +29,6 @@ def check_case(binary, directory, name, ranges, error=None):
         paths.append(str(path))
     output = directory / f"{name}.output.json"
     command = [str(binary), "merge-pad", str(output), *paths]
-    # The caller must also cap this complete Python test at 300 seconds.
-    # The requested 300-second test cap also applies to each child process.
     result = subprocess.run(command, capture_output=True, text=True, timeout=300)
     text = result.stdout + result.stderr
     with (directory / f"{name}.log").open("x") as log:
@@ -56,8 +52,6 @@ def main():
     binary = Path(sys.argv[1]).resolve(strict=True)
     directory = Path(sys.argv[2]).resolve()
     directory.mkdir()
-    # Two nonempty ranges cover the exact selected carrier. Only zero sums
-    # are supplied: this exercises decoding and merge boundaries cheaply.
     valid = [zero_range(0, 1), zero_range(1, BLOCKS)]
     check_case(binary, directory, "valid_zero_two_ranges", valid)
 

@@ -4,9 +4,6 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomi
 
 /-!
 Exact Phi81 product equations for SuperNeo section 7.4 over Goldilocks.
-The 108 fixed evaluation points determine a polynomial of degree below 108.
-A 54-coefficient quotient is private witness data; these equations preserve
-the existing ring product. No random test or security assumption is added.
 -/
 
 set_option autoImplicit false
@@ -24,7 +21,6 @@ local instance : Fact (Nat.Prime goldilocksModulus) :=
 
 local instance : Field F := inferInstanceAs (Field Base)
 
-/-- Executable evaluation of the existing coefficient carrier. -/
 def evaluate (value : RingF) (point : F) : F :=
   (List.ofFn fun index : Fin ringDegree =>
     value index * point ^ index.val).sum
@@ -36,7 +32,6 @@ def modulusValue (point : F) : F :=
   let base : Base := point
   show F from (base ^ ringDegree + (base ^ ringMiddleDegree + 1) : Base)
 
-/-- All fixed points are checked; the quotient is never treated as authority. -/
 def Equations (left right output quotient : RingF) : Prop :=
   ∀ index : Fin 108,
     evaluate left (node index) * evaluate right (node index) =
@@ -93,7 +88,6 @@ private theorem product_natDegree (left right : RingF) :
   have rightBound := polynomial_natDegree right
   omega
 
-/-- The bounded evaluation equations are an exact polynomial identity. -/
 theorem equations_iff_identity (left right output quotient : RingF) :
     Equations left right output quotient ↔
       toPolynomial left * toPolynomial right =
@@ -135,7 +129,6 @@ theorem equations_iff_identity (left right output quotient : RingF) :
     simp only [evaluate_eq_polynomial, modulusValue_eq_polynomial]
     simpa only [eval_mul, eval_add] using! evaluated
 
-/-- Every accepted quotient assignment gives the unchanged ring product. -/
 theorem sound (left right output quotient : RingF)
     (equations : Equations left right output quotient) :
     output = ringFMul left right := by
@@ -146,7 +139,6 @@ theorem sound (left right output quotient : RingF)
   apply toPolynomial_injective
   exact remainder.symm.trans (toPolynomial_ringFMul_mod left right).symm
 
-/-- The PiRLC accumulator form preserves its previous value. -/
 theorem sound_add (left right prior output quotient : RingF)
     (equations : ∀ index : Fin 108,
       evaluate left (node index) * evaluate right (node index) =
@@ -166,8 +158,6 @@ theorem sound_add (left right prior output quotient : RingF)
     output index = prior index + (output index - prior index) := by abel
     _ = prior index + ringFMul left right index := by rw [coefficient]
 
-/-- Mathematical quotient witness; executable witness generation has its
-own correspondence obligation. The final coefficient is padding. -/
 noncomputable def quotient (left right : RingF) : RingF :=
   fun index => ((toPolynomial left * toPolynomial right) /ₘ modulus).coeff index.val
 
@@ -198,7 +188,6 @@ theorem quotient_last_zero (left right : RingF) :
   have bound := quotient_natDegree left right
   omega
 
-/-- Executable quotient coefficient, including the zero padding at lane 53. -/
 def quotientCoeff (left right : RingF) (lane : Fin ringDegree) : F :=
   rawMulCoeffF left right (lane.val + 54) -
     rawMulCoeffF left right (lane.val + 81)
@@ -293,7 +282,6 @@ theorem quotientCoeff_eq_quotient (left right : RingF) (lane : Fin ringDegree) :
     ((toPolynomial left * toPolynomial right) /ₘ modulus).coeff lane.val
   exact add_sub_cancel_right _ _
 
-/-- Honest products always have a quotient satisfying every fixed check. -/
 theorem complete (left right : RingF) :
     Equations left right (ringFMul left right) (quotient left right) := by
   apply (equations_iff_identity left right _ _).mpr

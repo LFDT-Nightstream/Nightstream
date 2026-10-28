@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanTable
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/TableResiduals.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Table-level residual construction for the paper-level `Pi_CCS` model.
 
@@ -16,24 +13,6 @@ literal SuperNeo v1.2 Lemma 9, SumCheck truth, transcript semantics, relation re
 Rust, R1CS, constraint removal, or production approval.
 
 Emits constraints: no.
-
-Authority boundary: callers supply explicit finite residual tables and one
-scalar for each typed carried coordinate. They do not supply polynomial
-evaluators, degree claims, bases, list lengths, or per-leaf equivalences. The
-carried scalar is formula-agnostic here; a later concrete construction must
-use the selected orientation `T_local - sum Eval_local` and separately prove
-the signed joint identity.
-
-| Residual family | Canonical source | Serialization order | Proven obligation |
-|---|---|---|---|
-| CCS | `Fin K -> BooleanTable ell` | fresh index increasing | every table leaf is zero |
-| norm | `Fin (K+k) -> BooleanTable ell` | source index increasing | every table leaf is zero |
-| Pad evaluation | `PadCoordinate -> Field` | coefficient, running | every scalar is zero |
-| matrix evaluation | `MatrixCoordinate -> Field` | coefficient, matrix, running | every scalar is zero |
-
-For zero-based `(running, matrix, coefficient)`, the carried serialization is
-coordinated with
-`I = running + k * matrix + k * t * coefficient`.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -53,9 +32,6 @@ private theorem map_flatMap_apply
   | index :: indices => by
       simp [map_flatMap_apply mapValue values indices]
 
-/-- Explicit table data before alpha/gamma compression. Indexed functions
-make family sizes and carried-coordinate ownership verifier-shaped rather than
-caller-supplied list metadata. -/
 structure TableResidualData
     (Field : Type uField)
     (shape : Shape) where
@@ -66,14 +42,12 @@ structure TableResidualData
 
 namespace TableResidualData
 
-/-- Pad scalars serialized in exact `I_K` order. -/
 def orderedPadEvaluation
     {Field : Type uField}
     {shape : Shape}
     (data : TableResidualData Field shape) : List Field :=
   (canonicalPadCoordinates shape).map data.padEvaluation
 
-/-- Matrix scalars serialized in exact `I_A` order. -/
 def orderedMatrixEvaluation
     {Field : Type uField}
     {shape : Shape}
@@ -87,7 +61,6 @@ theorem orderedPadEvaluation_length
     data.orderedPadEvaluation.length = shape.padEvaluationCount := by
   simp [orderedPadEvaluation, canonicalPadCoordinates_length]
 
-/-- Mechanical expansion of the matrix serialization order. -/
 theorem orderedMatrixEvaluation_eq_formulaOrder
     {Field : Type uField}
     {shape : Shape}
@@ -103,7 +76,6 @@ theorem orderedMatrixEvaluation_eq_formulaOrder
   simp [orderedMatrixEvaluation, canonicalMatrixCoordinates,
     map_flatMap_apply, Function.comp_def]
 
-/-- Matrix serialization cannot omit or insert a scalar. -/
 theorem orderedMatrixEvaluation_length
     {Field : Type uField}
     {shape : Shape}
@@ -111,7 +83,6 @@ theorem orderedMatrixEvaluation_length
     data.orderedMatrixEvaluation.length = shape.matrixEvaluationCount := by
   simp [orderedMatrixEvaluation, canonicalMatrixCoordinates_length]
 
-/-- Canonical coefficient residuals derived from explicit table data. -/
 def toResiduals
     {Field : Type uField}
     {shape : Shape}
@@ -129,8 +100,6 @@ def toResiduals
     (data.norm index).toAlphaPolynomial ops
   normCount := by simp [canonicalFinIndices]
 
-/-- Independently defined table obligations. These propositions inspect only
-the input table leaves/scalars, never the derived polynomial coefficients. -/
 def toTableObligations
     {Field : Type uField}
     {shape : Shape}
@@ -164,9 +133,6 @@ private theorem aligned_map_same_source
       .cons (left index) (right index) (indices.map left) (indices.map right)
         (exact index) (aligned_map_same_source relation left right exact indices)
 
-/-- The arbitrary per-leaf iff boundary is closed at the explicit table
-layer. This proves only table residualization; it does not construct the
-tables from CCS, norm, or carried-evaluation semantics. -/
 theorem residualizationBoundary
     {Field : Type uField}
     {shape : Shape}
@@ -207,9 +173,6 @@ theorem residualizationBoundary
           ops laws (data.norm index))
       (canonicalFinIndices shape.sourceCount)
 
-/-- Joint coefficient truth is equivalent to the explicit table obligations,
-without any caller-supplied evaluator, basis, degree, or per-leaf iff. This is
-still a table-level theorem, not concrete Lemma 9. -/
 theorem coefficientTruth_iff_tableObligations
     {Field : Type uField}
     {shape : Shape}

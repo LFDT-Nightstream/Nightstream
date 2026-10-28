@@ -87,8 +87,6 @@ theorem basePackage_fits (program : Lifecycle.Stage1.Application.Program) :
   rw [constant, total]
   omega
 
-/-- Every shifted column of the complete base package stays in the package
-prefix. Derived product values start strictly after this domain. -/
 theorem shiftColumn_lt_baseSourceWidth
     (program : Lifecycle.Stage1.Application.Program) (column : Nat)
     (bound : column < basePackage.layout.totalColumnCount) :
@@ -103,7 +101,6 @@ theorem shiftColumn_lt_baseSourceWidth
   split
   all_goals omega
 
-/-- Canonical source-domain column for one complete base-package column. -/
 def shiftedPackageColumn (program : Lifecycle.Stage1.Application.Program)
     (column : Nat) (bound : column < basePackage.layout.totalColumnCount) :
     Fin (baseSourceWidth program) :=
@@ -122,8 +119,6 @@ theorem sourceToSpartan_lt_basePackage (column : Nat)
     exact NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.2.2
   simpa only [total, Spartan.spartanColumnCount_eq] using mapped
 
-/-- One logical source column mapped through the canonical Spartan layout and
-the verifier-selected per-application package shift. -/
 def mappedPackageColumn (program : Lifecycle.Stage1.Application.Program)
     (column : Nat) (bound : column < basePackage.layout.constantColumn) :
     Fin (baseSourceWidth program) :=
@@ -282,7 +277,6 @@ def groupColumn (program : Lifecycle.Stage1.Application.Program)
   ProductRetainedBlock.groupColumn (baseSourceWidth program)
     PiRLCProductSchedule.invocationCount invocation group
 
-/-- Complete shifted package columns and derived group columns are disjoint. -/
 theorem shiftedPackageColumn_lt_groupColumn
     (program : Lifecycle.Stage1.Application.Program)
     (column : Nat) (bound : column < basePackage.layout.totalColumnCount)
@@ -296,8 +290,6 @@ theorem shiftedPackageColumn_lt_groupColumn
     baseSourceWidth program + (Fin.encodeProd (invocation, group)).val
   omega
 
-/-- The sole inputs needed to construct this matrix family over a final
-logical assignment. -/
 structure Inputs (program : Lifecycle.Stage1.Application.Program)
     (logicalWidth : Nat) where
   oneColumn : Fin logicalWidth
@@ -402,7 +394,6 @@ def groupForm {program : Lifecycle.Stage1.Application.Program}
     (group : Fin 1) : SparseForm logicalWidth :=
   inputs.group invocation group
 
-/-- Exact complete-ring interface. Source slots retain their original lane order. -/
 def interface {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (inputs : Inputs program logicalWidth) :
     Phi81ProductFamilyPlan.Interface logicalWidth
@@ -473,8 +464,6 @@ def outputValue (program : Lifecycle.Stage1.Application.Program)
   rcases descriptor with ⟨family, source, block, oldLane, cell⟩
   cases family <;> rfl
 
-/-- Exact local source-form preservation needed by this plan. Unused package
-columns need no form and no preservation premise. -/
 structure Preserves {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (inputs : Inputs program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -629,8 +618,6 @@ private theorem valueExpr_evalRing
   funext lane
   rfl
 
-/-- The direct semantic recurrence is exactly the current canonical source
-constraint expression. -/
 theorem sourceConstraint_eval
     (program : Lifecycle.Stage1.Application.Program)
     (base : Fin (baseSourceWidth program) → F)
@@ -645,8 +632,6 @@ theorem sourceConstraint_eval
   rw [outputExpr_eval, priorExpr_eval, challengeExpr_evalRing,
     valueExpr_evalRing]
 
-/-- Every zero row of the direct product family forces the exact canonical
-PiRLC source constraint selected by the same invocation descriptor. -/
 theorem rowsZero_implies_sourceConstraint
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (inputs : Inputs program logicalWidth)
@@ -664,7 +649,6 @@ theorem rowsZero_implies_sourceConstraint
     rowsZero invocation]
   exact Lean.Grind.AddCommGroup.sub_self _
 
-/-- The one retained value for an old lane is its quotient coefficient. -/
 def honestGroupValue
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (inputs : Inputs program logicalWidth)
@@ -678,7 +662,6 @@ def honestGroupValue
     (Phi81ProductPlan.evalState assignment (valueState inputs representative))
     (PiRLCProductSchedule.descriptor invocation).lane
 
-/-- Canonical source equations and quotient witnesses satisfy all fixed points. -/
 theorem sourceConstraints_imply_rowsZero
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (inputs : Inputs program logicalWidth)

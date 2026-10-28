@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationHonestMessages
 import NightstreamFPrime.Export.Stage1.HyperNovaInput
 
 /-! Assemble the existing D kernel fields and identify their exact child
-openings. All statement algebra is proved with symbolic relation, key, parent,
-and fields before the selected block/evaluation kernels are substituted. -/
+openings. -/
 
 set_option autoImplicit false
 
@@ -107,7 +106,6 @@ private def commitments (children : Children) :
       (PiDECCommitmentBlock.contributions productionSetup row block
         (PiDECCommitmentFold.childBlocks (shape := shape) children block)).get child).get
 
-/-- Exact existing block commitment and selected evaluation kernels. -/
 def result (parent : PiDECInputCheck.ParentValues) (children : Children) :
     Running (logicalWidth := shape.logicalWidth) (publicFits := shape.publicFits) :=
   assemble productionAjtaiKey (PiDECInputCheck.parent parent)
@@ -177,8 +175,6 @@ private theorem child_openings_checkedRelation
   rw [witness]
   exact opening child
 
-/-- All child statements and openings use the actual computed kernel fields.
-The only opening premise is validity of the exact combined parent. -/
 theorem child_openings
     (parent : PiDECInputCheck.ParentValues)
     (parentWitness : StoredAssignment shape.carrierWidth) (children : Children)

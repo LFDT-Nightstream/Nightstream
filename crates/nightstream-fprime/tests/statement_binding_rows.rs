@@ -14,20 +14,15 @@ const PUBLIC_COLUMNS: usize = 278;
 /// Lean `PilotPiCCS.cumulativeFootprints_eq`: the pilot ends at row 5,086,126,
 /// and the leaf's 32 state-word rows come before its 4,680 child rows.
 const CHILD_ROWS: Range<usize> = 5_086_158..5_090_838;
-/// Spartan columns: the prior preimage starts at 0 (packed parent words at
-/// 27,716), role 19 at 55,638 (child-major), and the 270 hinted signs at the
-/// PiCCS local start.
 const PRIOR_PACKED_WORD: usize = 27_716;
 const PRIOR_CHILD_DIGITS: usize = 55_638;
 const SIGNS: usize = 5_156_678;
 const PUBLIC_WIDTH: usize = 270;
-/// Word 0, lane 0: the sign row, then one digit row per child. The packing
-/// row follows the three lanes.
 const SIGN_ROW: usize = CHILD_ROWS.start;
-const PACKING_ROW: usize = CHILD_ROWS.start + 3 * 17;
+const LANES: usize = 3;
+const ROWS_PER_LANE: usize = 1 + 16;
+const PACKING_ROW: usize = CHILD_ROWS.start + LANES * ROWS_PER_LANE;
 
-/// Parent coordinate 0 (packed word 0, lane 0) with children 0 and 1 set.
-/// Every other lane is zero and satisfies its rows.
 fn assignment(child_0: u64, child_1: u64, sign: u64, packed: u64) -> Vec<u64> {
     let mut private = vec![0; PRIVATE_COLUMNS];
     private[PRIOR_CHILD_DIGITS] = child_0;
@@ -50,14 +45,18 @@ fn the_statement_binding_rows_reject_a_second_split() {
         |private: &[u64]| conformance_support::evaluate_canonical_rows(&expanded, private, &public, CHILD_ROWS);
     let minus_one = MODULUS - 1;
 
-    // The canonical split of parent 1: digit 1 at child 0, sign 0.
-    assert_eq!(evaluate(&assignment(1, 0, 0, 1)), Ok(CHILD_ROWS.len()));
-    // 1 = -1 + 2 * 1 keeps the packed word but mixes the signs: one digit
-    // row fails for either sign value.
-    assert_eq!(evaluate(&assignment(minus_one, 1, 0, 1)), Err(SIGN_ROW + 1));
-    assert_eq!(evaluate(&assignment(minus_one, 1, 1, 1)), Err(SIGN_ROW + 2));
-    // The hinted sign is not free: sign 1 rejects a positive digit.
-    assert_eq!(evaluate(&assignment(1, 0, 1, 1)), Err(SIGN_ROW + 1));
-    // Valid digits that do not recompose the hashed word fail the packing row.
-    assert_eq!(evaluate(&assignment(0, 0, 0, 1)), Err(PACKING_ROW));
+    let cases = [
+        ("canonical split", 1, 0, 0, 1, Ok(CHILD_ROWS.len())),
+        ("mixed signs with sign 0", minus_one, 1, 0, 1, Err(SIGN_ROW + 1)),
+        ("mixed signs with sign 1", minus_one, 1, 1, 1, Err(SIGN_ROW + 2)),
+        ("sign 1 on a positive digit", 1, 0, 1, 1, Err(SIGN_ROW + 1)),
+        ("digits that do not recompose", 0, 0, 0, 1, Err(PACKING_ROW)),
+    ];
+    for (name, child_0, child_1, sign, packed, expected) in cases {
+        assert_eq!(
+            evaluate(&assignment(child_0, child_1, sign, packed)),
+            expected,
+            "{name}"
+        );
+    }
 }

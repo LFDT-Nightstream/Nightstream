@@ -2,10 +2,8 @@ import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericRows
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
 
 /-!
-Prepare one Poseidon invocation for all Phi81 output reads, then weight its
-150 global rows. The stored table contains the existing PortValues records;
-the sum reads that table without repeating numeric invocation evaluation.
-This computes one child's matrix contributions.
+Prepare one Poseidon invocation for all Phi81 output reads, then weight its 150
+global rows.
 -/
 
 set_option autoImplicit false
@@ -22,14 +20,11 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArith
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace (MaterializedRingK)
 
-/-- Materialize all 54 complete numeric invocations once. Each invocation
-stores its 150 retained nonlinear port records. -/
 @[specialize] def prepare {columns : Nat} (read : Fin ringDegree → Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) :
     Vector (Vector PortValues 150) ringDegree :=
   Vector.ofFn fun output => PiDECPoseidonNumericRows.stored (read output) interface
 
-/-- Every prepared cell is the corresponding original sparse evaluation. -/
 theorem prepare_value {columns : Nat} (read : Fin ringDegree → Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns) (output : Fin ringDegree)
     (rowIndex : Fin 150) (matrix : Fin matrixCount) :
@@ -68,8 +63,6 @@ private theorem row_value (prepared : Vector (Vector PortValues 150) ringDegree)
       (Vector.replicate ringDegree (0 : F)))[matrix.val])[output.val] = 0
     rw [Vector.getElem_replicate, Vector.getElem_replicate]
 
-/-- Weight the 150 global rows from the prepared table. All matrices
-share each computed point weight through the existing batch range loop. -/
 def sum {arity : Nat} (start : Nat) (point : CubePoint K arity)
     (prepared : Vector (Vector PortValues 150) ringDegree) :
     Vector MaterializedRingK matrixCount :=
@@ -89,9 +82,6 @@ theorem sum_value {arity : Nat} (start : Nat) (point : CubePoint K arity)
   funext index
   rw [row_value]
 
-/-- Every matrix/output coefficient is the original 150-row weighted sparse
-evaluation for the supplied read family and interface. No row-validity,
-constant-column, norm or expected-value premise is required. -/
 theorem sum_prepare_value {columns arity : Nat}
     (read : Fin ringDegree → Fin columns → F)
     (interface : PoseidonSboxPlan.Interface columns)

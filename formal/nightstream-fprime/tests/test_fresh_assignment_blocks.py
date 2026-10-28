@@ -1,4 +1,3 @@
-"""Empty assignment blocks are accepted only for block kinds without slots."""
 import json
 from pathlib import Path
 import subprocess
@@ -12,7 +11,6 @@ CHECK = FORMAL / "tests/check_fresh_assignment_bytes.py"
 
 
 def write_blocks(directory, empty_slots, first_block=0, finish_block=26):
-    """26 blocks of two coordinates each, except block 21, which is empty."""
     directory.mkdir()
     (directory / "public.bin").write_bytes(bytes(270))
     blocks, first = [], 270

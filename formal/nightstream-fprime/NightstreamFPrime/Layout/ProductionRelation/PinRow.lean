@@ -67,7 +67,6 @@ def Preserves {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) (value : F) : Prop :=
   forms.value.eval assignment = value
 
-/-- A preserving pin row vanishes exactly when its value is zero. -/
 theorem residual_zero_iff {logicalWidth : Nat} (forms : Forms logicalWidth)
     (assignment : Assignment F logicalWidth) (value : F)
     (preserves : forms.Preserves assignment value) :

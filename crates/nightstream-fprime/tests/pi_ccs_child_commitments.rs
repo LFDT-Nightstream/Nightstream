@@ -1,10 +1,8 @@
 //! Independent commitment openings for the sixteen actual folded digits.
-//! Each row shares indexed key expansion across the children. The full check
-//! decodes the raw parent once, without the fixture generator or its ring code.
 
 use std::{fs, path::Path, path::PathBuf, time::Instant};
 
-use nightstream_fprime::load_per_application_package;
+use nightstream_fprime::{load_per_application_package, StructuralIdentifier};
 use rayon::prelude::*;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -103,7 +101,8 @@ fn independent_actual_child_commitments() {
     let started = Instant::now();
     let inputs: ChildInputs = serde_json::from_reader(std::io::stdin().lock()).expect("child opening paths");
     let bytes = fs::read(&inputs.package).expect("selected canonical package");
-    let package = load_per_application_package(&bytes, inputs.structural_identity).expect("selected package identity");
+    let package = load_per_application_package(&bytes, StructuralIdentifier::from_words(inputs.structural_identity))
+        .expect("selected package identity");
     let binding = package
         .production_verifier_binding()
         .expect("selected binding");

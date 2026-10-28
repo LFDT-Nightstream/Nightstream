@@ -10,11 +10,8 @@ use p3_field::PrimeCharacteristicRing;
 
 use super::{is_all_zero, SuperneoZBlocks};
 
-/// Blocks per task. Each block adds one signed-unit term set per witness,
-/// far below the raw-sum limit.
 pub(super) const TASK_BLOCKS: usize = 1 << 12;
 
-/// Real and imaginary coefficient sums for each witness of a batch.
 pub(super) type PairSums = Vec<([F; D], [F; D])>;
 
 pub(super) struct TaskSums {
@@ -30,8 +27,6 @@ impl TaskSums {
         }
     }
 
-    /// Add each witness's ring product with the block's real and imaginary
-    /// forms. `forms` runs only when some witness is nonzero in the block.
     #[inline]
     pub(super) fn add_block(&mut self, witnesses: &[&SuperneoZBlocks], block: usize, forms: impl Fn() -> (Rq, Rq)) {
         let mut reduced_forms = None;

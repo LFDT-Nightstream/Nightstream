@@ -22,7 +22,6 @@ def evalState {logicalWidth : Nat} (assignment : Assignment F logicalWidth)
     (state : State logicalWidth) : RingF :=
   fun lane => (state lane).eval assignment
 
-/-- Right-nested sum of sparse forms. -/
 def sumForms {logicalWidth : Nat} :
     List (SparseForm logicalWidth) → SparseForm logicalWidth
   | [] => .empty
@@ -37,7 +36,6 @@ def sumForms {logicalWidth : Nat} :
   | form :: rest => by
       simp [sumForms, sumForms_eval assignment rest]
 
-/-- Sparse polynomial evaluation, without additional witness coordinates. -/
 def evaluateForm {logicalWidth : Nat} (state : State logicalWidth) (point : F) :
     SparseForm logicalWidth :=
   sumForms (List.ofFn fun lane : Fin ringDegree =>
@@ -52,7 +50,6 @@ theorem evaluateForm_eval {logicalWidth : Nat}
     Function.comp_def, SparseForm.scale_eval,
     Phi81Relation.QuotientProduct.evaluate, evalState, mul_comm]
 
-/-- Forms for one complete ring product and its running sum. -/
 structure Interface (logicalWidth : Nat) where
   left : State logicalWidth
   right : State logicalWidth
@@ -68,7 +65,6 @@ def outputForm {logicalWidth : Nat} (interface : Interface logicalWidth)
     (SparseForm.scale (Phi81Relation.QuotientProduct.modulusValue point)
       (evaluateForm interface.quotient point))
 
-/-- One rank-one row `left(point) * right(point) = output(point)`. -/
 def rowAt {logicalWidth : Nat} (interface : Interface logicalWidth)
     (row : Fin 108) : OrdinaryRow.Forms logicalWidth :=
   let point := Phi81Relation.QuotientProduct.node row
@@ -84,7 +80,6 @@ def rows {logicalWidth : Nat} (interface : Interface logicalWidth) :
     (interface : Interface logicalWidth) : (rows interface).length = 108 := by
   simp only [rows, List.length_ofFn]
 
-/-- The exact scalar polynomial identity at each fixed evaluation point. -/
 def Equation {logicalWidth : Nat} (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth) (row : Fin 108) : Prop :=
   let point := Phi81Relation.QuotientProduct.node row
@@ -137,7 +132,6 @@ theorem rowsZero_iff_equations {logicalWidth : Nat}
   unfold RowsZero Equations
   exact forall_congr' (fun row => row_zero_iff interface assignment row)
 
-/-- All fixed-point equations force the unchanged Phi81 multiplication. -/
 theorem rowsZero_implies_ringProduct {logicalWidth : Nat}
     (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth)

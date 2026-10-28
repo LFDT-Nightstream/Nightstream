@@ -1,8 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 
-/-! A shared gamma-power table. Construction performs one multiplication and
-one array push per step. Missing entries use the original exponentiation.
-The lookup proof needs no algebra laws: multiplication order is unchanged. -/
+/-! A shared gamma-power table. -/
 
 set_option autoImplicit false
 
@@ -50,7 +48,6 @@ private theorem build_get (ops : Ops Field) (gamma : Field) (count exponent : Na
       · rw [if_neg equal]
         exact ih exponent (by omega)
 
-/-- Store gamma^0 through gamma^(count-1). Call once and share the result. -/
 def prepare (ops : Ops Field) (gamma : Field) (count : Nat) : Array Field :=
   (build ops gamma count).1
 
@@ -62,14 +59,11 @@ theorem prepare_get (ops : Ops Field) (gamma : Field) (count exponent : Nat)
     (prepare ops gamma count)[exponent]? = some (TargetPolynomial.power ops gamma exponent) :=
   build_get ops gamma count exponent inside
 
-/-- The match delays fallback evaluation until a requested entry is absent. -/
 def lookup (ops : Ops Field) (gamma : Field) (table : Array Field) (exponent : Nat) : Field :=
   match table[exponent]? with
   | some value => value
   | none => TargetPolynomial.power ops gamma exponent
 
-/-- Any prepared extent is correct for every exponent, including fallback.
-A chosen cache extent is not an arithmetic or security premise. -/
 theorem lookup_prepare (ops : Ops Field) (gamma : Field) (count exponent : Nat) :
     lookup ops gamma (prepare ops gamma count) exponent = TargetPolynomial.power ops gamma exponent := by
   unfold lookup

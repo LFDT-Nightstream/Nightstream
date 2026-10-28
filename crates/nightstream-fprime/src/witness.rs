@@ -5,7 +5,7 @@ use p3_goldilocks::Goldilocks;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::package::{PackageError, GOLDILOCKS_MODULUS};
+use crate::package::PackageError;
 
 #[derive(Debug, Deserialize, Serialize)]
 pub(super) struct RawWitnessBatch(pub(super) u64, pub(super) Vec<Value>, pub(super) Vec<Value>);
@@ -82,7 +82,7 @@ pub(super) fn decode_template_expr(
 ) -> Result<WitnessExpr, PackageError> {
     decode_expr_with(value, &|column| {
         if column >= input_count || column == output_input {
-            Err(PackageError::Invalid("compact output recipe input"))
+            Err(PackageError::Malformed("compact output recipe input"))
         } else {
             Ok(())
         }
@@ -97,16 +97,16 @@ pub(super) fn validate_witness_batch(
     total_column_count: usize,
 ) -> Result<WitnessBatch, PackageError> {
     let RawWitnessBatch(start, recipes, hints) = raw;
-    let start = usize::try_from(start).map_err(|_| PackageError::Invalid("witness batch start"))?;
+    let start = usize::try_from(start).map_err(|_| PackageError::Malformed("witness batch start"))?;
     let output_length = recipes
         .len()
         .checked_add(hints.len())
-        .ok_or(PackageError::Invalid("witness batch range overflow"))?;
+        .ok_or(PackageError::Malformed("witness batch range overflow"))?;
     let end = start
         .checked_add(output_length)
-        .ok_or(PackageError::Invalid("witness batch range overflow"))?;
+        .ok_or(PackageError::Malformed("witness batch range overflow"))?;
     if output_length == 0 || start < witness_start || end > private_column_count {
-        return Err(PackageError::Invalid("witness batch range"));
+        return Err(PackageError::Malformed("witness batch range"));
     }
     let recipes = recipes
         .iter()
@@ -127,7 +127,7 @@ pub(super) fn validate_witness_batch_order(batches: &[WitnessBatch]) -> Result<(
         .windows(2)
         .any(|pair| pair[0].start >= pair[1].start || pair[0].end() > pair[1].start)
     {
-        return Err(PackageError::Invalid("witness batch order"));
+        return Err(PackageError::Malformed("witness batch order"));
     }
     Ok(())
 }
@@ -141,15 +141,15 @@ pub(super) fn validate_witness_coverage(
     let mut cursor = witness_start;
     for (start, end) in intervals {
         if start != cursor || end <= start {
-            return Err(PackageError::Invalid("witness column coverage"));
+            return Err(PackageError::Malformed("witness column coverage"));
         }
         cursor = end;
     }
     let witness_end = witness_start
         .checked_add(witness_length)
-        .ok_or(PackageError::Invalid("witness range overflow"))?;
+        .ok_or(PackageError::Malformed("witness range overflow"))?;
     if cursor != witness_end {
-        return Err(PackageError::Invalid("witness column count coverage"));
+        return Err(PackageError::Malformed("witness column count coverage"));
     }
     Ok(())
 }
@@ -172,17 +172,17 @@ fn decode_hint(
 ) -> Result<WitnessHint, PackageError> {
     let fields = value
         .as_array()
-        .ok_or(PackageError::Invalid("witness hint"))?;
+        .ok_or(PackageError::Malformed("witness hint"))?;
     let tag = fields
         .first()
         .and_then(Value::as_u64)
-        .ok_or(PackageError::Invalid("witness hint tag"))?;
+        .ok_or(PackageError::Malformed("witness hint tag"))?;
     match (tag, fields.as_slice()) {
         (0, [_, source, index]) => {
             let index = index
                 .as_u64()
                 .and_then(|value| usize::try_from(value).ok())
-                .ok_or(PackageError::Invalid("witness bit index"))?;
+                .ok_or(PackageError::Malformed("witness bit index"))?;
             Ok(WitnessHint::Bit(
                 decode_expr(source, target, constant_column, total_column_count)?,
                 index,
@@ -206,7 +206,7 @@ fn decode_hint(
             constant_column,
             total_column_count,
         )?)),
-        _ => Err(PackageError::Invalid("witness hint")),
+        _ => Err(PackageError::Malformed("witness hint")),
     }
 }
 
@@ -218,7 +218,7 @@ fn decode_expr(
 ) -> Result<WitnessExpr, PackageError> {
     decode_expr_with(value, &|column| {
         if column >= total_column_count || column == constant_column || (column < constant_column && column >= target) {
-            Err(PackageError::Invalid("noncausal witness expression"))
+            Err(PackageError::Malformed("noncausal witness expression"))
         } else {
             Ok(())
         }
@@ -231,25 +231,25 @@ fn decode_expr_with(
 ) -> Result<WitnessExpr, PackageError> {
     let fields = value
         .as_array()
-        .ok_or(PackageError::Invalid("witness expression"))?;
+        .ok_or(PackageError::Malformed("witness expression"))?;
     let tag = fields
         .first()
         .and_then(Value::as_u64)
-        .ok_or(PackageError::Invalid("witness expression tag"))?;
+        .ok_or(PackageError::Malformed("witness expression tag"))?;
     match (tag, fields.as_slice()) {
         (0, [_, column]) => {
             let column = column
                 .as_u64()
                 .and_then(|column| usize::try_from(column).ok())
-                .ok_or(PackageError::Invalid("witness expression column"))?;
+                .ok_or(PackageError::Malformed("witness expression column"))?;
             validate_column(column)?;
             Ok(WitnessExpr::Var(column))
         }
         (1, [_, constant]) => {
             let constant = constant
                 .as_u64()
-                .ok_or(PackageError::Invalid("witness expression constant"))?;
-            if constant >= GOLDILOCKS_MODULUS {
+                .ok_or(PackageError::Malformed("witness expression constant"))?;
+            if constant >= Goldilocks::ORDER_U64 {
                 return Err(PackageError::NonCanonicalField {
                     location: "witness expression constant",
                     value: constant,
@@ -265,6 +265,6 @@ fn decode_expr_with(
             Box::new(decode_expr_with(left, validate_column)?),
             Box::new(decode_expr_with(right, validate_column)?),
         )),
-        _ => Err(PackageError::Invalid("witness expression")),
+        _ => Err(PackageError::Malformed("witness expression")),
     }
 }

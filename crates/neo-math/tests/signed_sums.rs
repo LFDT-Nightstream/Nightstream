@@ -10,7 +10,6 @@ fn element(seed: u64) -> [Fq; D] {
         x = x
             .wrapping_mul(6364136223846793005)
             .wrapping_add(1442695040888963407);
-        // Include coefficients at and near the top of the field.
         match lane % 9 {
             0 => -Fq::ONE,
             4 => Fq::ZERO,
@@ -19,7 +18,6 @@ fn element(seed: u64) -> [Fq; D] {
     })
 }
 
-/// The ring element with +1 on positive lanes and -1 on negative lanes.
 fn signed_unit(positive: u64, negative: u64) -> Rq {
     Rq(core::array::from_fn(|lane| {
         match (positive >> lane & 1, negative >> lane & 1) {
@@ -57,7 +55,6 @@ fn signed_shift_sums_match_ring_products_after_one_reduction() {
 
 #[test]
 fn repeated_negative_terms_stay_exact() {
-    // Many subtractions of the largest coefficients drive raw sums far below zero.
     let coefficients = [-Fq::ONE; D];
     let mut sums = SignedShiftSums::zero();
     for _ in 0..10_000 {
@@ -74,19 +71,17 @@ fn wide_integer_limbs_match_division_and_signed_ring_products() {
     let mut actual = SignedShiftSums::zero();
     let mut expected = Rq::zero();
     for case in 0..128 {
-        let words: [[u32; 8]; D] = core::array::from_fn(|lane| {
-            match (case + lane) % 12 {
-                0 => [0; 8],
-                1 => [u32::MAX; 8],
-                2 => [1, u32::MAX, 0, 0, 0, 0, 0, 0], // p
-                3 => [2, u32::MAX, 0, 0, 0, 0, 0, 0], // p + 1
-                4 => [0, 0, 0, 1, 0, 0, 0, 0],        // negative low carry
-                5 => [0, 0, 0, 0, 0, 1, 0, 0],        // negative high carry
-                _ => core::array::from_fn(|_| {
-                    random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
-                    (random >> 32) as u32
-                }),
-            }
+        let words: [[u32; 8]; D] = core::array::from_fn(|lane| match (case + lane) % 12 {
+            0 => [0; 8],
+            1 => [u32::MAX; 8],
+            2 => [1, u32::MAX, 0, 0, 0, 0, 0, 0],
+            3 => [2, u32::MAX, 0, 0, 0, 0, 0, 0],
+            4 => [0, 0, 0, 1, 0, 0, 0, 0],
+            5 => [0, 0, 0, 0, 0, 1, 0, 0],
+            _ => core::array::from_fn(|_| {
+                random = random.wrapping_mul(6364136223846793005).wrapping_add(1);
+                (random >> 32) as u32
+            }),
         });
         let coefficients = words.map(|words| {
             Fq::from_u64(words.iter().rev().fold(0u128, |value, &word| {
@@ -96,8 +91,6 @@ fn wide_integer_limbs_match_division_and_signed_ring_products() {
         let positive = (random >> 10) & ((1 << D) - 1);
         let negative = !positive & ((1 << D) - 1);
         actual.add_signed_units(&SplitRing::from_wide256(words), positive, negative);
-        // Overlapping signs cancel before accumulation and do not consume
-        // two terms of the per-block integer bound.
         actual.add_signed_units(&SplitRing::from_wide256(words), positive, positive);
         expected = expected.add(&Rq(coefficients).mul(&signed_unit(positive, negative)));
     }

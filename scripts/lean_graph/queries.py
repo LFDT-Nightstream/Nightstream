@@ -1,5 +1,3 @@
-"""Query checked declaration graphs without treating graph edges as proofs."""
-
 from collections import deque
 from pathlib import Path
 

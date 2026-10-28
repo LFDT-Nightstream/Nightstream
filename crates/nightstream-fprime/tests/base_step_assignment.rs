@@ -9,7 +9,8 @@ use std::{fs, path::PathBuf, time::Instant};
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ccs::{crypto::poseidon2_goldilocks::poseidon2_hash, Mat};
 use nightstream_fprime::{
-    derive_pi_ccs_v1_2_transcript, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, WitnessAssignment,
+    derive_pi_ccs_v1_2_transcript, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage,
+    StructuralIdentifier, WitnessAssignment,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -22,21 +23,21 @@ mod conformance_support;
 #[path = "per_application_logical_matrix_conformance/reference/mod.rs"]
 mod logical_reference;
 
-// Exact current package and BaseStepFixture schema dimensions.
 const PRIVATE_INPUTS: usize = 102_802;
 const PUBLIC_INPUTS: usize = 278;
 const STATE_WORDS: usize = 27_819;
 const PI_CCS_INPUT_END: usize = 70_830;
 const CHILD_PUBLIC_START: usize = 98_478;
 const DOMAIN_WORDS: usize = 12;
-/// `vk, i, z0, zi` close the state preimage.
-const TAIL_START: usize = STATE_WORDS - 13;
+const TAIL_WORDS: usize = 4 + 1 + 4 + 4;
+const TAIL_START: usize = STATE_WORDS - TAIL_WORDS;
 const CHILD_COUNT: usize = 16;
 const PUBLIC_WORDS: usize = 270;
 const INITIAL_STATE: [u64; 4] = [202, 203, 204, 205];
 const MESSAGE: [u64; 4] = [7, 11, 13, 17];
 const APPLICATION_TAG: &[u8] = b"Nightstream/Stage1/Poseidon2HashChain/v1";
 const MODULUS: u64 = 0xffff_ffff_0000_0001;
+const GENERATED_ROLES: [u64; 4] = [3, 15, 16, 18];
 
 #[derive(Deserialize)]
 struct Expected(
@@ -161,12 +162,13 @@ fn check_caller_layout(bytes: &[u8], private: &[u64], public: &[u64], assignment
     assert_eq!(assignment.public_values(), public);
     let mut cursor = 0;
     for Segment(role, start, length) in layout.5 {
-        // Schema-8 roles 3,15,16,18 are generated witness intervals.
-        match role {
-            3 | 15 | 16 | 18 => continue,
-            1 | 2 | 6..=14 | 17 | 19 => {}
-            _ => panic!("unexpected private caller role {role}"),
+        if GENERATED_ROLES.contains(&role) {
+            continue;
         }
+        assert!(
+            matches!(role, 1 | 2 | 6..=14 | 17 | 19),
+            "unexpected private caller role {role}"
+        );
         assert_eq!(
             &assignment.private_values()[start..start + length],
             &private[cursor..cursor + length],
@@ -202,8 +204,6 @@ fn base_step_assignment_satisfies_every_canonical_row() {
     check_base_assignment(package, sealed, bytes, expanded);
 }
 
-// The caller packet supplies a nonzero row assignment. This test does not
-// treat that packet as a proof for the candidate's verifier context.
 #[test]
 #[ignore = "external nonzero assignment and shared-value mutations; run under the 300-second cap"]
 fn external_pi_rlc_value_wiring_rejects_detached_values() {
@@ -223,8 +223,11 @@ fn external_pi_rlc_value_wiring_rejects_detached_values() {
         .expect("external paths");
     let inputs: Inputs = serde_json::from_str(&input).expect("external assignment inputs");
     let sealed = fs::read(inputs.package).expect("candidate package");
-    let package = nightstream_fprime::load_per_application_package(&sealed, inputs.structural_identity)
-        .expect("selected candidate identity");
+    let package = nightstream_fprime::load_per_application_package(
+        &sealed,
+        StructuralIdentifier::from_words(inputs.structural_identity),
+    )
+    .expect("selected candidate identity");
     let Fixture(schema, context, private, public, _) =
         serde_json::from_slice(&fs::read(inputs.caller_fixture).expect("nonzero caller fixture"))
             .expect("caller fixture schema");
@@ -310,9 +313,6 @@ fn external_pi_rlc_value_wiring_rejects_detached_values() {
         started.elapsed()
     );
 
-    // A nonzero residual in the affected suffix proves rejection. The full
-    // control above checks every row; derive this suffix from the emitted
-    // Phi81 opcode to avoid repeating the preceding phase scan under the cap.
     let mut start = 0;
     let mut product_starts = Vec::new();
     for (end, opcode) in program.block_ends().zip(program.block_opcodes()) {
@@ -325,7 +325,6 @@ fn external_pi_rlc_value_wiring_rejects_detached_values() {
         panic!("one canonical PiRLC product block");
     };
 
-    // PiRLC product groups/output and the shared PiDEC/running child proof.
     for (label, selected) in [("PiRLC products", &[3usize, 9][..]), ("PiDEC children", &[15usize][..])] {
         let mut changed = original.balanced_values().to_vec();
         for &block in selected {
@@ -454,15 +453,16 @@ fn checked_base_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -> 
     Fixture(schema, context, private, public, expected)
 }
 
-/// The same complete base-assignment check used by the pinned test and the
-/// external candidate CLI. The caller selects the identity-checked package.
-pub fn check_base_assignment(package: LoadedPerApplicationPackage, sealed: Vec<u8>, bytes: Vec<u8>, expanded: Vec<u8>) {
+pub(crate) fn check_base_assignment(
+    package: LoadedPerApplicationPackage,
+    sealed: Vec<u8>,
+    bytes: Vec<u8>,
+    expanded: Vec<u8>,
+) {
     let fixture = checked_base_fixture(&package, &bytes);
     check_assignment(package, sealed, fixture, expanded);
 }
 
-/// Check the complete selected caller packet after its caller-specific
-/// preimage, proof, and handoff checks. Every canonical row is still checked.
 pub fn check_caller_assignment(
     package: LoadedPerApplicationPackage,
     sealed: Vec<u8>,
@@ -473,11 +473,6 @@ pub fn check_caller_assignment(
     check_assignment(package, sealed, fixture, expanded);
 }
 
-/// Mutate child caller columns only after a valid physical witness exists.
-/// The raw evaluator sees each changed assignment without witness execution.
-/// The prior-child digit case changes the first role-19 word. Some row must
-/// reject it; PiRLC also reads that word. `statement_binding_rows.rs` shows
-/// that the statement-binding rows alone reject a second split.
 pub fn check_caller_mutations(
     package: LoadedPerApplicationPackage,
     sealed: Vec<u8>,
@@ -509,7 +504,7 @@ pub fn check_caller_mutations(
     let mut columns = Vec::new();
     let mut cursor = 0;
     for Segment(role, start, length) in layout.5 {
-        if matches!(role, 3 | 15 | 16 | 18) {
+        if GENERATED_ROLES.contains(&role) {
             continue;
         }
         if role == 19 {
@@ -626,8 +621,6 @@ fn check_assignment(package: LoadedPerApplicationPackage, sealed: Vec<u8>, fixtu
     }
     let alignment = logical_reference::evaluation::CARRIER_WIDTH - production.len();
     assert_eq!(alignment, 26);
-    // The public transport returns logical coordinates. The paper carrier
-    // extends them with these alignment zeros; no backend allocator is used.
     for column in production.len()..logical_reference::evaluation::CARRIER_WIDTH {
         assert_eq!(
             independent
@@ -695,9 +688,7 @@ fn base_step_assignment_has_a_selected_key_commitment() {
     );
 }
 
-/// Commit the same complete bounded base carrier under the selected key.
-/// This computes an input commitment; it does not construct a PiCCS proof.
-pub fn check_base_commitment(package: LoadedPerApplicationPackage, bytes: Vec<u8>) -> Vec<u64> {
+pub(crate) fn check_base_commitment(package: LoadedPerApplicationPackage, bytes: Vec<u8>) -> Vec<u64> {
     let started = Instant::now();
     let Fixture(_, _, private, public, expected) = checked_base_fixture(&package, &bytes);
     let physical = package
@@ -736,9 +727,9 @@ pub fn check_base_commitment(package: LoadedPerApplicationPackage, bytes: Vec<u8
     );
     let commitment =
         commit_production_signed_unit_prefix_matrix(&carrier).expect("actual selected-key base commitment");
-    assert_eq!((commitment.d, commitment.kappa), (54, 22));
+    assert_eq!((commitment.d(), commitment.kappa()), (54, 22));
     let words = commitment
-        .data
+        .data()
         .iter()
         .map(|word| word.as_canonical_u64())
         .collect::<Vec<_>>();
@@ -759,9 +750,7 @@ fn base_step_rows_reject_a_detached_application_output() {
     check_detached_application(package, sealed, bytes);
 }
 
-/// Replace only the application witness/local suffix with another valid
-/// execution. The independent rows must reject the detached state binding.
-pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: Vec<u8>, bytes: Vec<u8>) {
+pub(crate) fn check_detached_application(package: LoadedPerApplicationPackage, sealed: Vec<u8>, bytes: Vec<u8>) {
     let started = Instant::now();
     let Fixture(_, _, private, public, expected) = checked_base_fixture(&package, &bytes);
     let physical = package
@@ -813,10 +802,10 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
         artifact.logical_rows,
     )
     .expect("independent canonical matrix program");
-    // The canonical program ends with the application, next-preimage, and
-    // public-output blocks. Use its decoded boundary and the application plan.
     let block_ends = program.block_ends().collect::<Vec<_>>();
-    let application_row_end = block_ends[block_ends.len() - 3];
+    let [.., application_row_end, _next_preimage_end, _public_output_end] = block_ends[..] else {
+        panic!("canonical trailing blocks");
+    };
     let application_row_start = application_row_end - application_row_count;
     let checked = logical_reference::evaluation::verify_satisfaction_range_with(
         &program,
@@ -832,9 +821,6 @@ pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: 
     .expect("the replacement application suffix satisfies its canonical rows with its own state");
     assert_eq!(checked, application_row_end - application_row_start);
 
-    // Keep every prefix/hash/public coordinate unchanged and replace only
-    // the application witness/local block family. Input/output coordinates
-    // belong to the preserved pilot preimage blocks.
     let mut detached = original.balanced_values().to_vec();
     detached[application_start..].copy_from_slice(&changed.balanced_values()[application_start..]);
     assert_eq!(

@@ -22,8 +22,6 @@ def run(command):
 
 
 def bounded(kind, command):
-    # Each single command takes the shared lock and the existing project cap.
-    # Coordinators are run separately; their children own their caps and locks.
     return [sys.executable, "-B", ROOT / "scripts/lean_graph/guard.py",
             "--kind", kind, "--cwd", ROOT, "--", *command]
 
@@ -53,7 +51,6 @@ def build(directory):
 
 
 def cpu_handoff(directory):
-    """Compare transported CPU bytes with the inputs actually checked by Lean."""
     equal(load(directory / "cpu/conformance.json")["outcome"], "passed", "native CPU result")
     for step in (1, 2):
         checked = directory / f"lean-step-{step}"

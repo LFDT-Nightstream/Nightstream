@@ -1,7 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
 
 /-! The existing fresh CCS polynomial, with exact-zero terms and exponent-zero
-factors skipped. All returned coefficients keep the original declared width. -/
+factors skipped. -/
 
 set_option autoImplicit false
 
@@ -36,8 +36,6 @@ private theorem zero_add (ops : InterpolationOps Field)
   intro index
   rw [coefficient_add, coefficient_zero, laws.zero_add]
 
-/-- Skip only exponent-zero factors. Positive powers retain the exact
-reference operation and order. -/
 def productPowers (ops : InterpolationOps Field)
     (exponents : Index → Nat) (images : Index → FixedPolynomial Field 1) :
     (indices : List Index) → FixedPolynomial Field ((indices.map exponents).sum)
@@ -62,8 +60,6 @@ private theorem zeroExponent_product_coefficients (ops : InterpolationOps Field)
   subst exponent
   exact FixedPolynomial.constant_one_mul ops.toOps (polynomialLaws laws) laws.one_mul right
 
-/-- Equality includes every declared high coefficient; no evaluation
-injectivity or nonzero-factor premise is used. -/
 theorem productPowers_value (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (exponents : Index → Nat) (images : Index → FixedPolynomial Field 1)
@@ -126,8 +122,6 @@ private theorem referenceProduct_zero (ops : InterpolationOps Field)
       · rw [ProtocolPolynomialDegree.Sparse.productPowers, ih member]
         exact FixedPolynomial.mul_zero_right ops.toOps (polynomialLaws laws) _ _
 
-/-- This test examines exact coefficients, not satisfaction of an endpoint
-constraint. A positive-power identically zero affine factor kills the term. -/
 def zeroFactor [DecidableEq Field] (ops : InterpolationOps Field) {matrixCount : Nat}
     (monomial : CCSResidualTable.Monomial Field matrixCount)
     (images : Fin matrixCount → FixedPolynomial Field 1) : Bool :=
@@ -150,7 +144,6 @@ private theorem zeroFactor_value [DecidableEq Field] (ops : InterpolationOps Fie
   rw [referenceProduct_zero ops laws _ _ _ index member positive zeroImage]
   exact scale_zero_polynomial ops laws monomial.totalDegree monomial.coefficient
 
-/-- Same monomial coefficient and degree as the sparse syntax owner. -/
 def monomial (ops : InterpolationOps Field) {matrixCount : Nat}
     (term : CCSResidualTable.Monomial Field matrixCount)
     (images : Fin matrixCount → FixedPolynomial Field 1) :
@@ -207,8 +200,6 @@ private theorem gatedTerms_value [DecidableEq Field] (ops : InterpolationOps Fie
       · rw [gatedTerms, if_neg isZero, FixedPolynomial.sum,
           monomial_value ops laws, ih]
 
-/-- Exact fresh contribution with the original syntax, degree, gamma source
-weights and selector. Affine input coefficients are prepared once per source. -/
 def ccsPolynomialWithPowers [DecidableEq Field] (ops : InterpolationOps Field) {shape : Shape}
     (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
     (selector : FixedPolynomial Field 1)
@@ -221,8 +212,6 @@ def ccsPolynomialWithPowers [DecidableEq Field] (ops : InterpolationOps Field) {
     FixedPolynomial.scale ops.toOps (powers source.val)
       (gatedTerms ops input.constraintPolynomial selector images.get input.constraintPolynomial.terms.attach)
 
-/-- Total coefficient equality to the current first-round reference kernel.
-No image correctness, row validity or zero-pattern premise is required. -/
 theorem ccsPolynomialWithPowers_value [DecidableEq Field] (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) {shape : Shape}
     (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
@@ -292,9 +281,6 @@ private theorem gatedTerms_zero [DecidableEq Field] (ops : InterpolationOps Fiel
       rw [gatedTerms, if_pos (zeroFactor_of_positive_zero_images ops term.val images
         (positive term.val term.property) zeroImages), ih]
 
-/-- A constraint polynomial with no degree-zero term contributes the exact
-fixed-width zero when both fresh endpoints are zero. The source weights and
-selector are arbitrary; no relation-satisfaction premise is used. -/
 theorem ccsPolynomialWithPowers_zero [DecidableEq Field] (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) {shape : Shape}
     (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
@@ -334,7 +320,6 @@ theorem ccsPolynomialWithPowers_zero [DecidableEq Field] (ops : InterpolationOps
   simp_rw [sourceZero, coefficient_zero]
   exact FiniteSumAlgebra.sumMap_zero ops laws _
 
-/-- The same zero-suffix fact for the unchanged reference fresh kernel. -/
 theorem reference_ccsPolynomialWithPowers_zero [DecidableEq Field] (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) {shape : Shape}
     (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)

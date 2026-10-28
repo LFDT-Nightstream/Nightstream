@@ -154,9 +154,6 @@ private theorem piDecOutput_eq
       exact Quadratic.KExpr.eval_eq_of_agree_below _ PiDECInputs.phaseOffset
         env completed.current (inputs.messageEval_A child matrix coefficient) agrees
 
-/-- Honest completion through the PiDEC parent child. The canonical PiDEC
-builder owns its six internal children, while Stage 1 retains one opaque
-PiDEC operation. -/
 theorem completePiDecPrefix
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

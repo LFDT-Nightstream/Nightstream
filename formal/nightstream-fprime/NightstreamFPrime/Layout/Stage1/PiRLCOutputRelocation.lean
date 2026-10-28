@@ -270,7 +270,6 @@ private theorem evaluation_ext (left right : PaperAlgebra.Evaluation)
   cases right
   simp_all
 
-/-- The complete combined PiRLC output relocates uniformly with the phase. -/
 theorem evalOutput_eq_of_shift_agreement
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

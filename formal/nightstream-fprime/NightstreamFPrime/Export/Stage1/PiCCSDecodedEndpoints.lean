@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 
 /-!
 Owns the connection from the existing endpoint pin rows to the four PiCCS
-transcript states in the arbitrary decoded environment. The output state
-uses its existing owned block; the other states use retained output forms.
+transcript states in the arbitrary decoded environment.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSDecodedEndpoints
@@ -112,8 +111,6 @@ private theorem decoded_output
         assignment) column.val = _
   rw [SourceCompiler.sourceEnv_at, selected]
 
-/-- Each endpoint form is read from its actual owned coordinates in the
-same decoded environment used by the arithmetic and transcript contracts. -/
 theorem sourceForm_eval
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -132,8 +129,6 @@ theorem sourceForm_eval
     simpa only [PiCCSTranscriptEndpointPlan.sourceForm, dif_neg output,
       Spartan.pullback] using mapped.symm
 
-/-- The existing 64 endpoint rows force all four direct states to equal
-the lifecycle values decoded from the same arbitrary assignment. -/
 theorem rowsZero_implies_endpointStates
     (ordinary : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (poseidon : PiCCSPoseidonPlan.Geometry program logicalWidth)
@@ -158,8 +153,6 @@ theorem rowsZero_implies_endpointStates
     simpa [sub_eq_add_neg] using rowZero
   exact formsEq.trans (sourceForm_eval ordinary assignment family lane)
 
-/-- The decoded environment reads every transcript output slot as its retained
-output form. -/
 theorem decoded_transcriptOutputs
     (ordinary : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (poseidon : PiCCSPoseidonPlan.Geometry program logicalWidth)
@@ -174,9 +167,6 @@ theorem decoded_transcriptOutputs
     PiCCSOrdinaryRetainedBlocks.proofLogicalSource_transcriptOutput] at mapped
   exact mapped
 
-/-- Accepted direct transcript and endpoint rows imply all four transcript
-leaf contracts in the arbitrary decoded environment, without an encoding
-or representation premise. -/
 theorem rowsZero_implies_transcriptSpecs
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤

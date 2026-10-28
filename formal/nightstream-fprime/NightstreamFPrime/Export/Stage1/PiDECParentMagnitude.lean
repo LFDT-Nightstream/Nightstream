@@ -6,8 +6,7 @@ import Init.Data.Nat.Bitwise.Lemmas
 
 /-!
 Compute the maximum magnitude from every coefficient of the actual stored
-integer parent. Both loops traverse existing vectors. No coefficient list,
-external maximum, fixed cutoff, or active-child count is supplied.
+integer parent.
 -/
 
 set_option autoImplicit false
@@ -19,7 +18,6 @@ open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 open NightstreamFPrime.Spec.ProductionRelation
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace (MaterializedRingK)
 
-/-- Scan every parent block and all 54 lanes, including carried tails. -/
 def maximumMagnitude {count : Nat}
     (parents : Vector (Vector Int ringDegree) count) : Nat :=
   parents.foldl (fun maximum block =>
@@ -52,7 +50,6 @@ private theorem coefficient_le_foldMaximum {Alpha : Type} {count : Nat}
         exact Nat.le_max_right maximum (magnitude values[current.val]))
   exact accumulated index index.isLt
 
-/-- Every input magnitude is bounded by this execution's computed maximum. -/
 theorem coefficient_le_maximumMagnitude {count : Nat}
     (parents : Vector (Vector Int ringDegree) count)
     (block : Fin count) (lane : Fin ringDegree) :
@@ -63,8 +60,6 @@ theorem coefficient_le_maximumMagnitude {count : Nat}
       values.foldl (fun maximum value => max maximum value.natAbs) 0) 0 block
   exact inner.trans outer
 
-/-- A child above the computed magnitude has zero digits at every actual
-parent coordinate. The threshold is the child's existing binary position. -/
 theorem cachedDigit_eq_zero {count : Nat}
     (parents : Vector (Vector Int ringDegree) count)
     (child : Radix.ChildIndex)
@@ -76,9 +71,6 @@ theorem cachedDigit_eq_zero {count : Nat}
   have bitZero := Nat.testBit_lt_two_pow small
   simp only [PiDECParentIntRead.cachedDigit, bitZero, Bool.false_eq_true, if_false]
 
-/-- The runtime computes the maximum from the complete parent once. The
-calculation is delayed until this child's bit can occur. All load guards
-run before this function; zero rings still contain every output coefficient. -/
 def ifActive (maximum : Nat) (child : Radix.ChildIndex)
     (calculate : Unit → Vector MaterializedRingK matrixCount) :
     Vector MaterializedRingK matrixCount :=

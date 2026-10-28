@@ -13,11 +13,6 @@ open PaperForkExtraction PaperForkAlgebra
 
 universe uValue uScalar uAssignment uStructure uPublicInput uPoint uEvaluation uCommitment
 
-/-- A value and its declared mathematical clock. A program adds its callees'
-clocks and its own explicit charges. Function application, allocation,
-representation conversion and field arithmetic count only where a charge
-includes them. No Lean/Rust runtime or machine-operation count follows without
-a separate execution-model refinement. -/
 structure Result (Value : Type uValue) where
   value : Value
   work : Nat

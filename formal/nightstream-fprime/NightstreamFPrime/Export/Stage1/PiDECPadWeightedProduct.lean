@@ -5,8 +5,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 
 /-!
 Combine all 54 Pad basis weights before multiplying the same complete child
-blocks. Two stored base-field bar keys encode the two K components. Each key
-is shared by the complete batch through the existing product kernel.
+blocks.
 -/
 
 set_option autoImplicit false
@@ -89,7 +88,6 @@ private theorem keyPrefix_product (weights : Vector F ringDegree) (count : Nat)
       · rw [dif_pos live, dif_pos live, addBasis_product, inductionHypothesis]
       · rw [dif_neg live, dif_neg live, Fin.add_zero, inductionHypothesis]
 
-/-- Materialize the weighted sum of the existing 54 bar bases. -/
 def weightedKey (weights : Vector F ringDegree) : StoredRing :=
   keyPrefix weights ringDegree
 
@@ -119,8 +117,6 @@ private theorem pack_value {count : Nat}
       output = _
   rw [Vector.getElem_ofFn, MaterializedRingK.toRing_ofRing]
 
-/-- Two base-field products per child replace the 54 separately weighted
-basis products. Both keys and both product vectors are computed once. -/
 def products {count : Nat} (weights : Vector K ringDegree)
     (children : Vector StoredRing count) :
     Vector MaterializedRingK count :=
@@ -148,9 +144,6 @@ private theorem numericSum_pair (count : Nat) (first second : Nat → F) :
       rw [inductionHypothesis]
       rfl
 
-/-- Every returned K coefficient is exactly the original 54-term weighted
-Pad basis sum. Arbitrary weights and complete child blocks are allowed; no
-norm, expected-output, zero-lane, point or runtime premise is needed. -/
 theorem products_value {count : Nat} (weights : Vector K ringDegree)
     (children : Vector StoredRing count)
     (child : Fin count) (output : Fin ringDegree) :

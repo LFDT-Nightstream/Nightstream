@@ -18,25 +18,14 @@ use crate::error::PiCcsError;
 
 const RATE: usize = neo_ccs::crypto::poseidon2_goldilocks::RATE;
 
-/// One SuperNeo v1.2 output opening. Pad (`Eval_K`) is separate from the
-/// genuine CCS-matrix family (`Eval_A`).
 pub type V1_2OutputOpening = neo_ccs::V1_2Evaluations<K>;
 
-/// Fallible evaluator boundary for the selected one-joint SumCheck.
-///
-/// The canonical driver below owns every transcript action and checks each
-/// returned round message. A device backend can only evaluate and fold its
-/// private multilinear tables.
 pub trait PaperJointRoundOracle {
     fn evals_at(&mut self, points: &[K]) -> Result<Vec<K>, PiCcsError>;
     fn num_rounds(&self) -> usize;
     fn degree_bound(&self) -> usize;
     fn fold(&mut self, challenge: K) -> Result<(), PiCcsError>;
 
-    /// Return canonical ring openings at the completed SumCheck point when
-    /// the evaluator can produce them without rebuilding its private state.
-    /// The outer prover still validates the terminal claim and owns every
-    /// transcript action. `None` selects the canonical host computation.
     fn output_openings(&mut self, _point: &[K]) -> Result<Option<Vec<V1_2OutputOpening>>, PiCcsError> {
         Ok(None)
     }
@@ -51,24 +40,22 @@ fn append(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, field
     trace.events.push(TraceEvent::Absorb(fields));
 }
 
-/// Read the next fold-transcript coin and record it. The label is trace
-/// metadata only. A refresh absorb is recorded like any other absorb.
 fn read_coin(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, label: u64, index: Option<usize>) -> K {
     let coin = transcript.read_coin_v1_2();
     let value = neo_math::from_complex(coin.value[0], coin.value[1]);
     trace
         .events
         .push(TraceEvent::Challenge { label, index, value });
-    if coin.refreshed {
+    if coin.absorbed_zero_chunk {
         trace.events.push(TraceEvent::Absorb(vec![F::ZERO; RATE]));
     }
     value
 }
 
 fn check_commitment(commitment: &Cmt, params: &NeoParams) -> Result<(), PiCcsError> {
-    if commitment.d != D
-        || commitment.kappa != params.kappa as usize
-        || commitment.data.len() != D * params.kappa as usize
+    if commitment.d() != D
+        || commitment.kappa() != params.kappa() as usize
+        || commitment.data().len() != D * params.kappa() as usize
     {
         return Err(PiCcsError::InvalidInput(
             "PiCCS v1_2 commitment does not have the fixed Ajtai shape".into(),
@@ -79,7 +66,7 @@ fn check_commitment(commitment: &Cmt, params: &NeoParams) -> Result<(), PiCcsErr
 
 fn commitment_fields(commitment: &Cmt, params: &NeoParams) -> Result<Vec<F>, PiCcsError> {
     check_commitment(commitment, params)?;
-    Ok(commitment.data.clone())
+    Ok(commitment.data().to_vec())
 }
 
 fn validate_selected_inputs(
@@ -89,17 +76,16 @@ fn validate_selected_inputs(
     dims: JointDims,
 ) -> Result<(), PiCcsError> {
     for (index, claim) in fresh.iter().enumerate() {
-        if claim.m_in > structure.m || claim.x.len() != claim.m_in || claim.m_in % D != 0 {
+        if claim.m_in > structure.m() || claim.x.len() != claim.m_in || claim.m_in % D != 0 {
             return Err(PiCcsError::InvalidInput(format!(
                 "optimized fresh claim {index} is not a complete whole-ring public input"
             )));
         }
     }
     for (index, claim) in running.iter().enumerate() {
-        if claim.m_in > structure.m
-            || claim.m_in % D != 0
+        if claim.m_in > structure.m()
             || claim.X.rows() != D
-            || claim.X.cols() != neo_ccs::superneo_public_x_cols(claim.m_in)
+            || neo_ccs::superneo_public_x_cols(claim.m_in) != Some(claim.X.cols())
             || claim.eval_k.len() != D.next_power_of_two()
             || claim.eval_a.len() != dims.matrix_count
         {
@@ -124,7 +110,6 @@ fn validate_selected_inputs(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn bind_and_sample_with_trace(
     transcript: &mut Poseidon2Transcript,
     trace: &mut ProtocolTrace,
@@ -135,8 +120,6 @@ pub(crate) fn bind_and_sample_with_trace(
 ) -> Result<(JointDims, Challenges), PiCcsError> {
     let dims = build_joint_dims(params, structure, fresh.len(), running.len())?;
     validate_selected_inputs(structure, fresh, running, dims)?;
-    // The fresh public input carries the prior digest that names the running
-    // claims; their commitments still need the shape fresh commitments get.
     for claim in running {
         check_commitment(&claim.c, params)?;
     }
@@ -291,10 +274,8 @@ pub fn absorb_outputs(
     transcript: &mut Poseidon2Transcript,
     trace: &mut ProtocolTrace,
     outputs: &[CeClaim<Cmt, F, K>],
-    fresh_count: usize,
     dims: JointDims,
 ) -> Result<[u8; 32], PiCcsError> {
-    let _ = fresh_count;
     let fields = output_message_fields(outputs, dims)?;
     append(transcript, trace, fields);
     trace.outgoing_state = transcript.state();
@@ -325,7 +306,7 @@ fn validate_outputs(
     for output in outputs {
         if output.r != point
             || output.X.rows() != D
-            || output.X.cols() != neo_ccs::superneo_public_x_cols(output.m_in)
+            || neo_ccs::superneo_public_x_cols(output.m_in) != Some(output.X.cols())
             || output.eval_k.len() != D.next_power_of_two()
             || output.eval_a.len() != dims.matrix_count
         {
@@ -374,7 +355,6 @@ fn validate_outputs(
     Ok(())
 }
 
-#[allow(clippy::too_many_arguments)]
 pub(crate) fn verify_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -387,8 +367,7 @@ pub(crate) fn verify_with_trace(
     let mut trace = ProtocolTrace::default();
     let (dims, challenges) = bind_and_sample_with_trace(transcript, &mut trace, params, structure, fresh, running)?;
     let prior_point = crate::engines::utils::shared_me_input_r(running, dims.variables)?;
-    let initial =
-        crate::engines::optimized_engine::paper_joint::initial_claim(structure, &challenges, fresh.len(), running)?;
+    let initial = crate::engines::optimized_engine::paper_joint::initial_claim(structure, &challenges, running)?;
     let (point, final_claim) = verify_phase(transcript, &mut trace, dims, initial, &proof.sumcheck_rounds)?;
     validate_outputs(structure, fresh, running, outputs, &point, dims)?;
     let terminal = crate::engines::optimized_engine::paper_joint::terminal_components::<F>(
@@ -402,26 +381,11 @@ pub(crate) fn verify_with_trace(
     )?;
     let expected = terminal.terminal;
     trace.terminal_components = terminal;
-    let digest = absorb_outputs(transcript, &mut trace, outputs, fresh.len(), dims)?;
+    let digest = absorb_outputs(transcript, &mut trace, outputs, dims)?;
     if outputs.iter().any(|output| output.fold_digest != digest) {
         return Err(PiCcsError::ProtocolError(
             "optimized output digest does not match transcript replay".into(),
         ));
     }
     Ok((final_claim == expected, trace))
-}
-
-/// Verify PiCCS with the digest-only transcript binding.
-///
-/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
-pub fn verify(
-    transcript: &mut Poseidon2Transcript,
-    params: &NeoParams,
-    structure: &CcsStructure<F>,
-    fresh: &[CcsClaim<Cmt, F>],
-    running: &[CeClaim<Cmt, F, K>],
-    outputs: &[CeClaim<Cmt, F, K>],
-    proof: &PiCcsProof,
-) -> Result<bool, PiCcsError> {
-    Ok(verify_with_trace(transcript, params, structure, fresh, running, outputs, proof)?.0)
 }

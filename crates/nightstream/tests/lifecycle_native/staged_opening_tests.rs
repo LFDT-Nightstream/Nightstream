@@ -33,7 +33,6 @@ pub(in crate::lifecycle::tests) fn labels(opening: Opening) -> (&'static str, &'
 }
 
 pub(in crate::lifecycle::tests) fn change_openings(children: &mut [CeClaim], opening: Opening, radix: K) {
-    // The two changes preserve sum_i b^i * eval_i.
     match opening {
         Opening::K => {
             children[0].eval_k[0] += radix;
@@ -72,8 +71,6 @@ fn prepare_balanced_opening(opening: Opening) {
     let children = (0..16)
         .map(|child| load(&directory.join(format!("digit-{child}.json"))))
         .collect();
-    // Execute the full F' witness, including the changed child evaluations,
-    // output-state hash and public input, and recompute the fresh commitment.
     let envelope = package
         .complete_step(packet, children, None)
         .expect("the balanced change must have a valid fresh witness");
@@ -101,7 +98,6 @@ fn reject_balanced_opening(opening: Opening) {
         .iter()
         .zip(proof.pi_dec.children)
     {
-        // Loading recomputes the frame from the actual changed state preimage.
         expected.fold_digest = actual.fold_digest;
         assert_eq!(actual, &expected, "exact balanced child change");
     }
@@ -117,7 +113,7 @@ fn reject_balanced_opening(opening: Opening) {
         &json!({
             "schema": 1, "iteration": step, "case": phase,
             "verifier": "nightstream::PreparedLifecycle::verify", "engine": "Optimized",
-            "package_identity": package.package_identity(), "changed_children": [0, 1],
+            "package_identity": package.package_identity().words(), "changed_children": [0, 1],
             "weighted_recomposition_preserved": true, "fresh_witness_rebuilt": true,
             "earlier_terminal_checks_passed": true, "rejected": true,
             "rejection": format!("{error:?}")

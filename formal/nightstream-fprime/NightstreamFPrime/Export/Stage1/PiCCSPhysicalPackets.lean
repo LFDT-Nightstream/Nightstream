@@ -4,8 +4,7 @@ import NightstreamFPrime.Layout.PiCCS.v1_2.Preservation
 
 /-!
 Owns the projection of actual PiCCS physical rows to the existing compact
-transcript invocation packets. The completed assignment and each source
-compiler use the same Spartan pullback and the same child coordinates.
+transcript invocation packets.
 -/
 
 set_option autoImplicit false
@@ -160,9 +159,6 @@ private theorem output_rows
     OutputBinding.noAssertions, List.append_nil] at rows
   simpa only [Formal.Owned.program, OutputBinding.duplexInterface, outputActions] using rows
 
-/-- The four existing compact PiCCS transcript packets follow from the actual
-physical C rows in the completed Spartan assignment. All source recipe rows
-and affine input conditions are derived from their existing child owners. -/
 theorem permutations_of_physical
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)

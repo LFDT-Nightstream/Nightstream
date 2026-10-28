@@ -1,5 +1,3 @@
-"""External tool runners for gpuprof: ncu, perf, compute-sanitizer, metadata."""
-
 import csv
 import io
 import os

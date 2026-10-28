@@ -39,7 +39,6 @@ private theorem fieldValue_val (value : F) : fieldValue value.val = value := by
     fieldValue (-1 : F).val = (-1 : F) :=
   fieldValue_val (-1 : F)
 
-/-- The canonical template uses its existing input/local column references. -/
 def canonicalTemplateEnv (value : ColumnRef → F) : Env :=
   fun column => (PilotData.columnRef column).eval value
 
@@ -100,8 +99,6 @@ private theorem templateRowsFrom_hold (output : Nat) (rows : List R1CS.Row)
             (fun current currentMember => holds current (by
               simp [currentMember])) template member
 
-/-- The emitted 1096-row template has exactly the compiler-produced canonical
-permutation semantics at every package invocation. -/
 theorem canonicalTemplateInvocation_iff (chain : HashChain)
     (invocation : Nat) (env : Env) :
     TemplateInvocationHolds (PilotData.circuitPackage ()) chain invocation env ↔
@@ -128,8 +125,6 @@ theorem canonicalTemplateInvocation_iff (chain : HashChain)
     simpa [PilotData.circuitPackage, PilotData.permutationTemplate,
       PilotData.templateRows] using member
 
-/-- Every satisfying emitted template invocation is the exact proved
-Poseidon2 permutation between its package-defined inputs and local outputs. -/
 theorem canonicalTemplateInvocation_sound (chain : HashChain)
     (invocation : Nat) (env : Env)
     (holds : TemplateInvocationHolds (PilotData.circuitPackage ()) chain
@@ -210,16 +205,11 @@ private theorem canonicalPermutationInvocation_iff
     simpa [PilotData.circuitPackage, PilotData.permutationTemplate,
       PilotData.templateRows] using member
 
-/-- The local environment selected by one explicit package invocation.
-Columns `0..15` are the invocation inputs. Columns `16..1111` are its 1096
-canonical Poseidon2 witness values. -/
 def canonicalInvocationEnv (invocation : PermutationInvocation)
     (env : Env) : Env :=
   canonicalTemplateEnv fun column =>
     (instantiateInvocationColumn invocation column).eval env
 
-/-- Canonical columns `0..15` evaluate the invocation's exact sparse input
-combinations. -/
 theorem canonicalInvocationEnv_input (invocation : PermutationInvocation)
     (env : Env) (lane : Fin 16) :
     canonicalInvocationEnv invocation env lane.val =
@@ -229,8 +219,6 @@ theorem canonicalInvocationEnv_input (invocation : PermutationInvocation)
     simp [PilotData.columnRef, lane.isLt]]
   rfl
 
-/-- Canonical column `16 + index` is the invocation's exact local witness
-column at the same relative index. -/
 theorem canonicalInvocationEnv_local (invocation : PermutationInvocation)
     (env : Env) (index : Nat) :
     canonicalInvocationEnv invocation env (16 + index) =
@@ -240,8 +228,6 @@ theorem canonicalInvocationEnv_local (invocation : PermutationInvocation)
     simp [PilotData.columnRef]]
   simp [ColumnRef.eval, instantiateInvocationColumn]
 
-/-- Accepted physical invocation rows imply the exact logical permutation
-constraints in the invocation's canonical input/local environment. -/
 theorem canonicalPermutationInvocation_implies_constraints
     (invocation : PermutationInvocation) (env : Env)
     (rows : PermutationInvocationHolds
@@ -254,9 +240,6 @@ theorem canonicalPermutationInvocation_implies_constraints
   exact R1CS.lowerConstraints_sound (canonicalInvocationEnv invocation env)
     (PilotData.canonicalConstraints ()) 1112 physical
 
-/-- Constructive completeness of one explicit canonical Poseidon2
-invocation. The premise is the fixed-size logical permutation constraint
-list under the invocation's exact column map. -/
 theorem canonicalPermutationInvocation_complete
     (invocation : PermutationInvocation) (env : Env)
     (logical : ConstraintsHold (canonicalInvocationEnv invocation env)
@@ -359,9 +342,6 @@ private theorem canonicalInvocationLocalCompleted_holds
   intro lane
   exact lane.isLt
 
-/-- Honest execution of one explicit invocation fills exactly its 1096 local
-Poseidon2 witness values and satisfies every emitted template row. Invocation
-inputs must come from columns outside the local witness interval. -/
 theorem completePermutationInvocation
     (invocation : PermutationInvocation) (env : Env)
     (inputsOutside : ∀ lane : Fin 16,
@@ -452,8 +432,6 @@ theorem completePermutationInvocation
   · exact canonicalPermutationInvocation_complete invocation completed
       mappedLogical
 
-/-- An invocation remains satisfied when its eight input values and its exact
-1096-cell local witness interval are unchanged. -/
 theorem permutationInvocationHolds_of_agreement
     (invocation : PermutationInvocation) (before after : Env)
     (inputsAgree : ∀ lane : Fin 16,
@@ -515,8 +493,6 @@ theorem permutationInvocationHolds_of_agreement
       beforeLogical
   exact canonicalPermutationInvocation_complete invocation after afterLogical
 
-/-- An invocation remains satisfied after a disjoint witness interval changes.
-The caller proves separation for every sparse input term and local cell. -/
 theorem permutationInvocationHolds_of_agreesOutside
     (invocation : PermutationInvocation) (before after : Env)
     (start length : Nat)
@@ -541,8 +517,6 @@ theorem permutationInvocationHolds_of_agreesOutside
       (localsOutside index below)
   · exact holds
 
-/-- A completed invocation remains satisfied after a later witness program
-changes only columns at or above `bound`. -/
 theorem permutationInvocationHolds_of_agree_below
     (invocation : PermutationInvocation) (before after : Env) (bound : Nat)
     (inputsBelow : ∀ lane : Fin 16,
@@ -564,8 +538,6 @@ theorem permutationInvocationHolds_of_agree_below
     omega
   · exact holds
 
-/-- Every satisfying explicit package invocation is the exact proved
-Poseidon2 permutation between its eight sparse inputs and local outputs. -/
 theorem canonicalPermutationInvocation_sound
     (invocation : PermutationInvocation) (env : Env)
     (holds : PermutationInvocationHolds
@@ -686,8 +658,6 @@ private theorem absorbManyF_append_single (state : Layer.FState)
       simp only [List.cons_append, Hash.absorbManyF]
       exact ih _
 
-/-- The package absorb recurrence is the standard logical sponge recurrence
-over the package-derived input chunks. -/
 theorem chainAbsorbed_eq_absorbManyF (chain : HashChain) (env : Env) :
     ∀ count, count ≤ chain.absorbCount →
       chainAbsorbed chain env count =
@@ -761,8 +731,6 @@ private theorem invocationInput_absorb (chain : HashChain)
         invocationLocalStart, beforeFinal, absorbed, zero,
         Nat.add_assoc]
 
-/-- All satisfying absorb invocations produce the exact package-defined
-sponge recurrence. The proof is structural in the invocation count. -/
 theorem canonicalChainAbsorptions_sound (chain : HashChain) (env : Env)
     (holds : HashChainHolds (PilotData.circuitPackage ()) chain env) :
     ∀ count, count ≤ chain.absorbCount →
@@ -798,7 +766,6 @@ theorem canonicalChainAbsorptions_sound (chain : HashChain) (env : Env)
           rw [ih (by omega)]
         _ = chainAbsorbed chain env (count + 1) := rfl
 
-/-- The last package invocation is exactly the sponge padding permutation. -/
 theorem canonicalChainFinal_sound (chain : HashChain) (env : Env)
     (holds : HashChainHolds (PilotData.circuitPackage ()) chain env) :
     chainOutputState chain chain.absorbCount env =
@@ -845,8 +812,6 @@ theorem canonicalChainFinal_sound (chain : HashChain) (env : Env)
         (Hash.padF (chainAbsorbed chain env chain.absorbCount)) := by
       rw [absorbed]
 
-/-- A well-sized package chain ends in the standard logical Poseidon2 sponge
-state over its exact input segment. -/
 theorem canonicalChainFinal_eq_hashF (chain : HashChain) (env : Env)
     (countEq : chain.absorbCount =
       (chain.inputLength + Poseidon2.rate - 1) / Poseidon2.rate)
@@ -876,8 +841,6 @@ theorem canonicalChainFinal_eq_hashF (chain : HashChain) (env : Env)
   rw [absorbedStandard] at finalState
   exact finalState
 
-/-- The first four final package lanes are the exact executable Poseidon2
-digest of the chain's input segment. -/
 theorem canonicalChainDigest_eq_hash (chain : HashChain) (env : Env)
     (countEq : chain.absorbCount =
       (chain.inputLength + Poseidon2.rate - 1) / Poseidon2.rate)
@@ -971,8 +934,6 @@ theorem priorExtraConstraints_hold (env : Env)
     (PilotData.priorExtraConstraints ()) PilotValues.logicalColumnCount
     sourceRows
 
-/-- The remaining explicit digest rows bind the output chain. Prior-state
-digest binding is owned by the complete canonical-word packet above. -/
 theorem canonicalAssertions_sound (env : Env)
     (holds : AssertionsHold (PilotData.circuitPackage ()) env) :
     ∀ lane : Fin 4,
@@ -1196,8 +1157,6 @@ theorem priorRawSpec_of_chainHash (env : Env)
         PilotProduction.priorInterface_preimage_apply,
         ← priorInputValues_eq]
 
-/-- The canonical package rows enforce the complete 270-cell prior-state
-relation and the four-word output hash. -/
 theorem canonicalPackage_hashes (env : Env)
     (holds : (PilotData.circuitPackage ()).RowsHold env) :
     PriorStateHash.SpecHolds PilotProduction.priorInterface
@@ -1249,8 +1208,6 @@ theorem canonicalPackage_hashes (env : Env)
     _ = Spec.Poseidon2.hash
         (chainInputValues PilotData.outputChain env) := outputHash
 
-/-- Package-enforced hash facts imply both logical pilot builder
-specifications after the proved Spartan column pullback. -/
 theorem hashFacts_imply_spec (env : Env)
     (facts :
       PriorStateHash.SpecHolds PilotProduction.priorInterface
@@ -1273,16 +1230,12 @@ theorem hashFacts_imply_spec (env : Env)
     rw [outputDigestValues_eq]
     exact facts.2
 
-/-- Satisfaction of the canonical emitted rows implies both logical pilot
-builder specifications after the proved Spartan column pullback. -/
 theorem canonicalPackage_implies_spec (env : Env)
     (holds : (PilotData.circuitPackage ()).RowsHold env) :
     Lifecycle.Pilot.SpecHolds PilotProduction.interface
       PilotProduction.witnessOffset (PilotSpartan.pullback env) := by
   exact hashFacts_imply_spec env (canonicalPackage_hashes env holds)
 
-/-- The package-enforced hash facts, together with the fixed protocol ABI
-values below the witness boundary, imply the two recursive lifecycle slots. -/
 theorem hashFacts_imply_recursive_hash_slots
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * PaperAlgebra.publicRingColumns <=
@@ -1337,8 +1290,6 @@ theorem hashFacts_imply_recursive_hash_slots
     (PilotSpartan.pullback env) relation ajtai vk F input output specification
     represented.1 represented.2.1 represented.2.2.1 represented.2.2.2
 
-/-- Canonical package rows, together with the fixed protocol ABI values below
-the witness boundary, imply the two recursive lifecycle relation slots. -/
 theorem canonicalPackage_implies_recursive_hash_slots
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * PaperAlgebra.publicRingColumns <=
@@ -1473,8 +1424,6 @@ theorem circuitPackage_row_coverage :
     ordinaryRows_length]
   rfl
 
-/-- The executable package uses the exact proved pilot row and Spartan column
-counts. No Rust-selected layout value enters this statement. -/
 theorem circuitPackage_layout_matches :
     let layout := (PilotData.circuitPackage ()).layout
     layout.rowCount =

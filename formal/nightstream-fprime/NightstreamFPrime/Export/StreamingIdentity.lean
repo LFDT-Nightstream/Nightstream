@@ -64,14 +64,10 @@ theorem canonicalWords_eq_valuePreimage (value : Value) :
     valuePreimageRev_eq_reverse_canonicalWords value []]
   simp
 
-/-- Streaming sponge: the absorbed prefix and the words that do not yet fill
-one rate block. -/
 structure HashState where
   sponge : Poseidon2.State
   pending : List F
 
-/-- Append one node's four words and absorb the first rate block when the
-pending words fill it. -/
 def pushNode (state : HashState) (node : Node) : HashState :=
   let buffer := state.pending ++ node.words
   if Poseidon2.rate ≤ buffer.length then
@@ -92,12 +88,9 @@ def processNodes (state : HashState) (stream : List Node) : HashState :=
       values.foldl (fun current child => processValueWith push child current)
         (push state ⟨1, values.length⟩)
 
-/-- Canonical value traversal specialized to the semantic Poseidon2 node
-transition. -/
 def processValue : Value → HashState → HashState :=
   processValueWith pushNode
 
-/-- Count canonical codec nodes without constructing the encoded node list. -/
 def countNode (count : Nat) (_node : Node) : Nat := count + 1
 
 theorem processValueWith_countNode (value : Value) : ∀ initial,
@@ -132,10 +125,6 @@ theorem processValueWith_countNode (value : Value) : ∀ initial,
     processValueWith pushNode value state = processValue value state := by
   rfl
 
-/-- A pointwise simulation of node transitions lifts through the complete
-canonical value traversal. This is the proof boundary for an alternative
-state representation: the alternative transition must still prove every
-node step against the semantic transition. -/
 theorem processValueWith_simulates
     {SourceState TargetState : Type}
     (denote : SourceState → TargetState)
@@ -166,12 +155,6 @@ theorem processValueWith_simulates
       simp [headInduction, tailInduction])
     value
 
-/-! ## Typed, allocation-bounded traversals -/
-
-/-- Process encoded items without an enclosing list node. The traversal
-encodes only the current item and never constructs `values.map format.encode`.
-This is the primitive used to join several item producers under one
-caller-owned array header. -/
 @[specialize push format] def processEncodedItemsWith {State Alpha : Type}
     (push : State → Node → State) (state : State)
     (format : Format Alpha) : List Alpha → State
@@ -219,7 +202,6 @@ theorem processEncodedItemsWith_simulates
         processValueWith_simulates denote sourcePush targetPush pushSimulates,
         inductionHypothesis]
 
-/-- Process one codec list with exactly one canonical array header. -/
 @[specialize push format] def processEncodedListWith {State Alpha : Type}
     (push : State → Node → State) (state : State)
     (format : Format Alpha) (values : List Alpha) : State :=
@@ -257,8 +239,6 @@ theorem processEncodedListWith_simulates
     _ = processEncodedListWith targetPush (denote state) format values := by
       rw [processEncodedListWith_eq_processValueWith]
 
-/-- Number of immediate list items across ordered segments. This recursive
-form avoids allocating `segments.map List.length`. -/
 def encodedSegmentsLength {Alpha : Type} : List (List Alpha) → Nat
   | [] => 0
   | values :: rest => values.length + encodedSegmentsLength rest
@@ -271,8 +251,6 @@ theorem encodedSegmentsLength_eq_flatten_length {Alpha : Type}
   | cons values rest inductionHypothesis =>
       simp [encodedSegmentsLength, inductionHypothesis]
 
-/-- Process all items from ordered list segments without an enclosing array
-header and without constructing their concatenation. -/
 @[specialize push format] def processEncodedSegmentsItemsWith
     {State Alpha : Type}
     (push : State → Node → State) (state : State)
@@ -314,7 +292,6 @@ theorem processEncodedSegmentsItemsWith_simulates
           pushSimulates,
         inductionHypothesis]
 
-/-- Process ordered list segments beneath one canonical array header. -/
 @[specialize push format] def processEncodedSegmentsWith {State Alpha : Type}
     (push : State → Node → State) (state : State)
     (format : Format Alpha) (segments : List (List Alpha)) : State :=
@@ -356,8 +333,6 @@ theorem processEncodedSegmentsWith_simulates
         segments := by
       rw [processEncodedSegmentsWith_eq_processValueWith]
 
-/-- Number of immediate items in one ordered block expansion. The expansion
-is evaluated one block at a time; the flattened list is not constructed. -/
 @[specialize expand] def encodedFlatMapLength {Block Alpha : Type}
     (expand : Block → List Alpha) : List Block → Nat
   | [] => 0
@@ -372,8 +347,6 @@ theorem encodedFlatMapLength_eq_flatMap_length {Block Alpha : Type}
   | cons block rest inductionHypothesis =>
       simp [encodedFlatMapLength, inductionHypothesis]
 
-/-- Process block expansions without an enclosing array header and without
-constructing `blocks.flatMap expand`. -/
 @[specialize push format expand] def processEncodedFlatMapItemsWith
     {State Block Alpha : Type}
     (push : State → Node → State) (state : State)
@@ -419,7 +392,6 @@ theorem processEncodedFlatMapItemsWith_simulates
           pushSimulates,
         inductionHypothesis]
 
-/-- Process an ordered block expansion beneath one canonical array header. -/
 @[specialize push format expand] def processEncodedFlatMapWith
     {State Block Alpha : Type}
     (push : State → Node → State) (state : State)
@@ -469,8 +441,6 @@ theorem processEncodedFlatMapWith_simulates
         blocks := by
       rw [processEncodedFlatMapWith_eq_processValueWith]
 
-/-- Semantic specializations for callers that do not supply another proved
-node transition. -/
 def processEncodedItems {Alpha : Type} (state : HashState)
     (format : Format Alpha) (values : List Alpha) : HashState :=
   processEncodedItemsWith pushNode state format values
@@ -575,9 +545,6 @@ theorem absorbBlocksFast_add (first second : Nat)
 
 private theorem rate_eq : Poseidon2.rate = 12 := rfl
 
-/-- A short odd pending tail never fills a block on its own, and four-word
-nodes keep its length odd. The streamed state therefore absorbs exactly the
-blocks of `absorbBlocksFast`, and the last block is the nonempty tail. -/
 theorem processNodes_finalAbsorb (state : HashState) (stream : List Node)
     (odd : state.pending.length % 2 = 1)
     (short : state.pending.length < Poseidon2.rate) :
@@ -648,13 +615,10 @@ theorem processNodes_finalAbsorb (state : HashState) (stream : List Node)
         · simp only [List.length_append, words, rate_eq] at full ⊢
           omega
 
-/-- The sponge after the full rate blocks of a fixed prefix, with the rest of
-the prefix pending. -/
 def prefixState (blocks : Nat) (words : List F) : HashState where
   sponge := Poseidon2.absorbBlocksFast blocks Poseidon2.zeroState words
   pending := words.drop (blocks * Poseidon2.rate)
 
-/-- Absorbing complete blocks reads only the words that they cover. -/
 theorem absorbBlocksFast_append (blocks : Nat) (state : Poseidon2.State)
     (words tail : List F) (covered : blocks * Poseidon2.rate ≤ words.length) :
     Poseidon2.absorbBlocksFast blocks state (words ++ tail) =
@@ -673,9 +637,6 @@ theorem absorbBlocksFast_append (blocks : Nat) (state : Poseidon2.State)
       rw [Nat.succ_mul] at covered
       omega
 
-/-- Hashing a fixed prefix followed by canonical node words equals the
-streamed state. The prefix leaves an odd, nonempty tail shorter than one
-block. -/
 theorem prefixStreamed_eq (blocks : Nat) (words : List F) (value : Value)
     (covered : blocks * Poseidon2.rate ≤ words.length)
     (short : words.length < blocks * Poseidon2.rate + Poseidon2.rate)
@@ -704,7 +665,6 @@ theorem prefixStreamed_eq (blocks : Nat) (words : List F) (value : Value)
     (by rw [pendingLength]; exact odd)
     (by rw [pendingLength]; omega)
 
-/-- Two domain blocks; the last five domain words stay pending. -/
 def initialState : HashState := prefixState 2 Package.identityDomain
 
 @[simp] theorem identityDomain_length : Package.identityDomain.length = 29 := by
@@ -726,7 +686,6 @@ def finalize (state : HashState) : List F :=
     if lane = 0 then absorbed.getD 0 0 + 1 else absorbed.getD lane 0)
   padded.take Poseidon2.digestLen
 
-/-- Bounded-memory executable relation identifier for one canonical value. -/
 def relationIdentifierValueFast (value : Value) : List F :=
   finalize (processValue value initialState)
 

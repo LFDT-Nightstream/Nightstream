@@ -171,8 +171,6 @@ fn budgets(source: &OriginalRows, fresh_count: usize, point_count: usize) -> (us
 
 #[test]
 fn fresh_application_replay_matches_retained_and_independent_rows() {
-    // Seventeen is the first odd row count beyond sixteen. A two-row output
-    // workspace therefore keeps replay active through three preceding folds.
     let source = OriginalRows::new(17);
     let witnesses = witnesses();
     let blocks = witnesses
@@ -302,7 +300,6 @@ fn pair_workers_match_serial_with_exact_payload_budgets() {
         .collect::<Vec<_>>();
     let weights = EqualityWeights::new(&alpha);
     let scratch = (points.len() + source.shape().matrices) * size_of::<K>();
-    // The first nonzero pair boundary also checks a replay Values window.
     for row_start in [0, 2] {
         let mut expected = reference_round(&reference, &points, gamma, &weights);
         if row_start != 0 {
@@ -324,8 +321,6 @@ fn pair_workers_match_serial_with_exact_payload_budgets() {
         }
         let rows = source.rows - row_start;
         let workers = rayon::current_num_threads().min(rows.div_ceil(2));
-        // Zero spare payload forces serial work. Two is the smallest parallel
-        // chunk count; the last case uses every worker up to the pair count.
         for extra_workers in [0, workers.min(2), workers] {
             let values = Values {
                 words: reference

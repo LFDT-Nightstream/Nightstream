@@ -17,7 +17,6 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- One retained block together with the source values it encodes. -/
 structure BlockValue where
   sourceWidth : Nat
   block : LowNormBlock.Block sourceWidth
@@ -31,7 +30,6 @@ def coordinateCount (entry : BlockValue) : Nat :=
 private theorem kindWidth_pos (kind : LowNormSlot.Kind) : 0 < kind.width := by
   cases kind <;> norm_num [LowNormSlot.Kind.width, BalancedTernary.width]
 
-/-- Constant-time coordinate lookup inside one homogeneous block. -/
 def coordinateAt (entry : BlockValue) (index : Nat) : F :=
   if _inside : index < entry.coordinateCount then
     let widthPositive := kindWidth_pos entry.block.kind
@@ -93,7 +91,6 @@ def coordinateCount : Schedule → Nat
   | [] => 0
   | entry :: rest => entry.coordinateCount + coordinateCount rest
 
-/-- Direct coordinate lookup across a small ordered block schedule. -/
 def coordinateAt : Schedule → Nat → F
   | [], _ => 0
   | entry :: rest, index =>
@@ -154,8 +151,6 @@ theorem coordinateAt_block {sourceWidth : Nat}
   exact BlockValue.coordinateAt_coordinateOffset (ofBlock block source)
     slot coordinate
 
-/-- Canonical assignment with a verifier-owned public prefix and direct
-retained-block coordinates. Coordinates after the schedule are zero. -/
 def assignment {logicalWidth : Nat}
     (publicInput : Fin ProductionAssignment.publicWidth → F)
     (schedule : Schedule) : Assignment F logicalWidth :=
@@ -182,8 +177,6 @@ def publicColumn {logicalWidth : Nat}
   unfold assignment publicColumn
   rw [dif_pos column.isLt]
 
-/-- A block at its exact schedule offset has the canonical encoding required
-by the direct relation semantics. -/
 theorem assignment_encodesAt {sourceWidth logicalWidth : Nat}
     (publicInput : Fin ProductionAssignment.publicWidth → F)
     (before after : Schedule) (block : LowNormBlock.Block sourceWidth)
@@ -253,8 +246,6 @@ theorem entryFits {logicalWidth : Nat} (schedule : Schedule)
   unfold entryStart BlockValue.coordinateCount at *
   omega
 
-/-- Every entry of a fitting canonical schedule is encoded at its exact
-computed start. -/
 theorem assignment_encodesEntry {logicalWidth : Nat}
     (publicInput : Fin ProductionAssignment.publicWidth → F)
     (schedule : Schedule)
@@ -279,8 +270,6 @@ theorem assignment_encodesEntry {logicalWidth : Nat}
   rw [← split] at encoded
   exact encoded
 
-/-- The fixed public marker is one for every canonical encoded-hash public
-input. -/
 theorem assignment_encHashMarker {logicalWidth : Nat} (digest : Digest)
     (schedule : Schedule)
     (fits : ProductionAssignment.publicWidth ≤ logicalWidth) :

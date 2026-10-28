@@ -1,15 +1,28 @@
-//! Proving and terminal row arithmetic. Circuit identity and transcript order stay fixed.
+//! Engine selection and dispatch for proving, commitments and terminal row
+//! arithmetic. Circuit identity and transcript order stay fixed.
 
 use std::borrow::Borrow;
 
 use neo_ajtai::{nightstream_fprime_setup, Commitment};
 use neo_ccs::Mat;
-use neo_math::F;
+use neo_math::{F, K};
+use neo_reductions::{
+    paper_exact_engine::PaperMatrixRows,
+    superneo_eval::{evaluate_terminal_rows, SuperneoZBlocks, TerminalEvaluations},
+};
+
+use crate::folding::{
+    self, pi_ccs, pi_rlc, transcript::Transcript, CcsInstance, FoldContext, NifsProof, RunningInstance,
+};
+use crate::lifecycle::{CompressionError, ProveError, VerifyError};
 
 pub(crate) mod crosscheck;
 #[cfg(feature = "metal")]
 pub(crate) mod metal;
 pub(crate) mod paper_exact;
+
+/// The owner's memory ceiling for the CPU engines.
+pub(crate) const CPU_MEMORY_LIMIT_BYTES: usize = 16_000_000_000;
 
 /// Arithmetic implementation used for proving and terminal row checks.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -43,7 +56,7 @@ pub enum EngineError {
 
 pub(crate) enum Backend {
     #[cfg(feature = "metal")]
-    Metal(Box<std::sync::Mutex<neo_prover_metal::MetalRowProver>>),
+    Metal(std::sync::Arc<std::sync::Mutex<neo_prover_metal::MetalRowProver>>),
     PaperExact,
     Optimized,
     Crosscheck,
@@ -57,9 +70,7 @@ impl Backend {
         };
         match self {
             #[cfg(feature = "metal")]
-            Self::Metal(device) => device
-                .lock()
-                .map_err(|_| failure("device lock was poisoned".into()))?
+            Self::Metal(device) => metal::lock(device)?
                 .commit_production_prefixes(witnesses)
                 .map_err(|error| failure(error.to_string())),
             _ => match witnesses {
@@ -72,6 +83,93 @@ impl Backend {
         }
     }
 
+    /// One fold: PiCCS, PiRLC and PiDEC. PaperExact reads the exported
+    /// `reference` rows, Crosscheck reads both, and the others read
+    /// `context.rows`.
+    pub(crate) fn prove(
+        &self,
+        transcript: &mut Transcript,
+        context: FoldContext<'_>,
+        reference: &dyn PaperMatrixRows<F>,
+        fresh: CcsInstance,
+        running: RunningInstance,
+    ) -> Result<(RunningInstance, NifsProof), ProveError> {
+        Ok(match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(device) => metal::prove(&mut *metal::lock(device)?, transcript, context, fresh, running)?,
+            Self::Optimized => folding::prove_owned_with_rows(transcript, context, fresh, running)?,
+            Self::PaperExact => {
+                paper_exact::prove(transcript, context.params, context.structure, reference, fresh, running)?
+            }
+            Self::Crosscheck => crosscheck::prove(transcript, context, reference, fresh, running)?,
+        })
+    }
+
+    /// The last fold of compression: PiCCS and PiRLC, without PiDEC.
+    pub(crate) fn prove_parent(
+        &self,
+        transcript: &mut Transcript,
+        context: FoldContext<'_>,
+        fresh: CcsInstance,
+        running: RunningInstance,
+    ) -> Result<(pi_ccs::Proof, pi_rlc::Output, pi_rlc::Proof), CompressionError> {
+        Ok(match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(device) => metal::prove_parent(
+                &mut *metal::lock(device).map_err(ProveError::from)?,
+                transcript,
+                context,
+                fresh,
+                running,
+            )?,
+            Self::Optimized => folding::prove_parent_with_rows(transcript, context, fresh, running)?,
+            Self::PaperExact | Self::Crosscheck => {
+                return Err(CompressionError::Input(
+                    "compression runs only on the Optimized and Metal engines",
+                ));
+            }
+        })
+    }
+
+    /// The complete running and fresh openings at `point` for terminal
+    /// verification, and the first CCS row that the fresh witness fails.
+    pub(crate) fn evaluate_terminal_rows(
+        &self,
+        context: FoldContext<'_>,
+        running: &[Mat<F>],
+        point: &[K],
+        fresh: &Mat<F>,
+    ) -> Result<TerminalEvaluations, VerifyError> {
+        match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(device) => metal::evaluate_terminal_rows(device, context, running, point, fresh),
+            _ => {
+                let m = context.structure.m();
+                let blocks = running
+                    .iter()
+                    .enumerate()
+                    .map(|(index, witness)| {
+                        SuperneoZBlocks::from_witness_mat(witness, m).map_err(|_| VerifyError::Running {
+                            index,
+                            reason: "complete witness block conversion",
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let fresh = SuperneoZBlocks::from_witness_mat(fresh, m)
+                    .map_err(|_| VerifyError::Fresh("complete witness block conversion"))?;
+                evaluate_terminal_rows(
+                    context.rows,
+                    point,
+                    &blocks,
+                    context.structure.f(),
+                    &fresh,
+                    context.workspace_bytes,
+                )
+                .map_err(VerifyError::RunningOpenings)
+            }
+        }
+    }
+
     pub(crate) fn new(engine: Engine) -> Result<Self, EngineError> {
         match engine {
             Engine::Optimized => Ok(Self::Optimized),
@@ -79,16 +177,10 @@ impl Backend {
             Engine::Crosscheck => Ok(Self::Crosscheck),
             #[cfg(feature = "metal")]
             Engine::Metal => neo_prover_metal::MetalRowProver::new()
-                .map(|device| Self::Metal(Box::new(std::sync::Mutex::new(device))))
-                .map_err(|error| match error {
-                    neo_prover_metal::MetalError::Unavailable => EngineError::Unavailable {
-                        engine,
-                        reason: "Metal requires an Apple device and compiled shaders",
-                    },
-                    error => EngineError::Failure {
-                        engine,
-                        reason: error.to_string(),
-                    },
+                .map(|device| Self::Metal(std::sync::Arc::new(std::sync::Mutex::new(device))))
+                .map_err(|error| EngineError::Failure {
+                    engine,
+                    reason: error.to_string(),
                 }),
             #[cfg(not(feature = "metal"))]
             Engine::Metal => Err(EngineError::Unavailable {
@@ -102,6 +194,59 @@ impl Backend {
                 #[cfg(not(feature = "cuda"))]
                 reason: "build nightstream with the cuda feature; its canonical kernel is not implemented",
             }),
+        }
+    }
+
+    /// The owner's memory ceiling for the engine's working storage: 24 GB for
+    /// Metal, so a prover can run on a current iPhone, and 16 GB otherwise.
+    pub(crate) fn memory_limit_bytes(&self) -> usize {
+        match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(_) => neo_prover_metal::BUFFER_LIMIT_BYTES,
+            _ => CPU_MEMORY_LIMIT_BYTES,
+        }
+    }
+
+    /// Device bytes that keeping the commitment key over `columns` columns
+    /// takes; `None` for engines that expand no key on a device.
+    pub(crate) fn commitment_key_bytes(&self, columns: usize) -> Option<usize> {
+        match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(_) => Some(neo_prover_metal::MetalRowProver::commitment_key_bytes(columns)),
+            _ => {
+                let _ = columns;
+                None
+            }
+        }
+    }
+
+    /// Keep the commitment key on the device after the first commitment.
+    pub(crate) fn keep_commitment_key(&mut self) -> Result<(), EngineError> {
+        #[cfg(feature = "metal")]
+        if let Self::Metal(device) = self {
+            metal::lock(device)?.keep_commitment_key();
+        }
+        Ok(())
+    }
+
+    /// Free a kept commitment key until the next commitment.
+    pub(crate) fn release_commitment_key_rows(&self) -> Result<(), EngineError> {
+        #[cfg(feature = "metal")]
+        if let Self::Metal(device) = self {
+            metal::lock(device)?.release_commitment_key_rows();
+        }
+        Ok(())
+    }
+
+    /// Where the compression prover's batch loops run. Only Metal has a
+    /// device; every other engine runs them on the CPU.
+    pub(crate) fn accelerator(&self) -> neo_spartan::Accelerator {
+        match self {
+            #[cfg(feature = "metal")]
+            Self::Metal(device) => neo_spartan::Accelerator::new(std::sync::Arc::new(metal::CompressionDevice::new(
+                std::sync::Arc::clone(device),
+            ))),
+            _ => neo_spartan::Accelerator::cpu(),
         }
     }
 

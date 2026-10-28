@@ -10,11 +10,6 @@ import NightstreamFPrime.Export.MatrixProgram.Program
 /-!
 Owns the verifier-owned canonical package for one Lean-authored application.
 
-The physical row program comes from `PerApplicationPackage`. Its `relation`
-field is replaced with the exact dimensions of the self-derived 4-matrix
-plan. The package identity and verifier context are then recomputed from this
-canonical package, the exact application plan, and the actual Ajtai key.
-
 This module does not authorize a Rust loader or proof backend. Rust must still
 implement the proved direct-plan expansion and pin or allowlist the final
 identity.
@@ -36,16 +31,12 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 abbrev FitsTwoPow28 (program : Program) :=
   PerApplicationFixedPoint.FitsTwoPow28 program
 
-/-- One verifier-owned indexed setup with dimensions derived from the exact
-recursive fixed point. The setup seed is the only stored key material. -/
 abbrev CommitmentSetup (program : Program) :=
   AjtaiSetupV1.Setup productionProfile.commitmentWidth
     (Phi81ColumnLayout.blockCount
       (Phi81CarrierLayout.carrierWidth
         (PerApplicationFixedPoint.logicalWidth program)))
 
-/-- The semantic Ajtai key and the compact authority words are projections of
-the same indexed setup. -/
 def commitmentKey {program : Program} (setup : CommitmentSetup program) :
     AjtaiKey
       (logicalWidth := PerApplicationFixedPoint.logicalWidth program)
@@ -56,7 +47,6 @@ def commitmentKeyWords {program : Program}
     (setup : CommitmentSetup program) : List F :=
   setup.authorityWords
 
-/-- Exact key-facing relation metadata for the self-derived matrix plan. -/
 def recursiveRelation (program : Program) (fits : FitsTwoPow28 program) :
     CcsRelation :=
   productionCcsRelation
@@ -99,14 +89,11 @@ private def recursiveRelationFast (program : Program)
     (_fits : FitsTwoPow28 program) : CcsRelation :=
   directRecursiveRelation program
 
-/-- Native metadata evaluation uses the proved direct counts without building
-the complete structural row plan. -/
 @[csimp] theorem recursiveRelation_eq_recursiveRelationFast :
     @recursiveRelation = @recursiveRelationFast := by
   funext program fits
   exact (directRecursiveRelation_eq_recursiveRelation program fits).symm
 
-/-- One canonical physical row program and one exact recursive relation. -/
 def replaceRelation (source : CircuitPackage) (relation : CcsRelation) :
     CircuitPackage :=
   { source with relation := relation, terminal := none }
@@ -148,8 +135,6 @@ private theorem rowsHold_replaceRelation (source : CircuitPackage)
       source.RowsHold env := by
   rfl
 
-/-- Changing only the key-facing relation metadata does not change physical
-row satisfaction. -/
 theorem rowsHold_iff_sourcePackage (program : Program)
     (fits : FitsTwoPow28 program) (env : Circuit.Env) :
     (package program fits).RowsHold env ↔
@@ -192,15 +177,12 @@ theorem rowsHold_iff_sourcePackage (program : Program)
       Lifecycle.cubeVariables := by
   rfl
 
-/-- The semantic matrices named by the package are exactly the matrices of
-the self-derived plan. -/
 theorem logicalRelation_matrices (program : Program)
     (fits : FitsTwoPow28 program) :
     (PerApplicationFixedPoint.relation program fits).matrices =
       (PerApplicationFixedPoint.structuralPlan program fits).matrix := by
   exact PerApplicationFixedPoint.relation_matrices program fits
 
-/-- The only source-row accessor for canonical matrix interpretation. -/
 def sourceRow (program : Program) (fits : FitsTwoPow28 program) :
     Nat → Option R1CS.Row :=
   PackageSourceRows.packageSourceRow? (package program fits)
@@ -222,8 +204,6 @@ theorem sourceRow_eq_packageSource (program : Program)
     PackageSourceRows.packageSourceRow?
   rw [witnesses, assertions]
 
-/-- The compact matrix interpreter selected by this application is exactly
-the key-facing structural plan. Every ordinary row comes from this package. -/
 theorem matrixProgram_exact (program : Program)
     (fits : FitsTwoPow28 program) :
     PerApplicationMatrixProgramSemantics.Exact
@@ -281,8 +261,6 @@ def logicalPublicInputCount : Nat := ProductionAssignment.publicWidth
 @[simp] theorem logicalPublicInputCount_eq : logicalPublicInputCount = 270 :=
   ProductionAssignment.publicWidth_eq
 
-/-- Schema of the canonical per-application package envelope. The inner
-`CircuitPackage` and application plan keep their own schema versions. -/
 def sealedPackageSchema : Nat := 6
 
 /-- One prefix-free authority value that carries the physical circuit package,
@@ -309,8 +287,6 @@ def structuralPackageIdentity (program : Program)
   VerifierContext.Digest4.ofList
     (Package.relationIdentifierValue (sealedPackageValue program fits))
 
-/-- Bounded-memory executable identity. The theorem below keeps
-`structuralPackageIdentity` as the semantic authority. -/
 def structuralPackageIdentityFast (program : Program)
     (fits : FitsTwoPow28 program) : VerifierContext.Digest4 :=
   VerifierContext.Digest4.ofList
@@ -340,9 +316,6 @@ theorem sealedPackageValue_exact (program : Program)
       .atom logicalPublicInputCount] := by
   rfl
 
-/-- Equality of sealed values identifies all authoritative children. The
-codec round trips discharge injectivity without making either digest an
-authority. -/
 theorem sealedPackageValue_components
     (leftProgram rightProgram : Program)
     (leftFits : FitsTwoPow28 leftProgram)
@@ -434,18 +407,11 @@ theorem directRelationShapeValue_eq (program : Program)
   unfold directRelationShapeValue relationShapeValue
   rw [directRecursiveRelation_eq_recursiveRelation]
 
-/-- Raw relation authority is the canonical relation metadata followed by a
-recomputed digest of the complete circuit-and-matrix envelope. The envelope
-remains authoritative; the digest is never accepted without verifier-side
-recomputation or pinning. -/
 def relationAuthorityWords (program : Program)
     (fits : FitsTwoPow28 program) : List F :=
   Package.valuePreimage (relationShapeValue program fits) ++
     (structuralPackageIdentity program fits).toList
 
-/-- Relation authority with an explicitly supplied structural digest. The
-caller must recompute this digest from `sealedPackageValue`; the theorem below
-shows the canonical specialization. -/
 def relationAuthorityWordsFromStructural (program : Program)
     (fits : FitsTwoPow28 program)
     (structural : VerifierContext.Digest4) : List F :=
@@ -467,9 +433,6 @@ def nifsKeyDomain : List F :=
     70, 80, 114, 105, 109, 101, 47, 110, 105, 102, 115, 45,
     107, 101, 121, 47, 118, 49, 95, 49] : List Nat).map Poseidon2.ofNat
 
-/-- Canonical constructor inputs for `ProductionKey.key`. The NIFS key is a
-fixed Lean definition, so these words bind its relation, profile, schedule,
-and actual commitment key without serializing erased proof fields. -/
 def nifsKeyWords {program : Program} (fits : FitsTwoPow28 program)
     (setup : CommitmentSetup program) : List F :=
   nifsKeyDomain ++
@@ -497,8 +460,6 @@ def nifsKeyWordsFromStructural {program : Program}
       nifsKeyWords fits setup := by
   rfl
 
-/-- Raw verifier authority computed only from the exact package, application,
-and indexed Ajtai setup. There are no caller-supplied authority words. -/
 def authority {program : Program} (fits : FitsTwoPow28 program)
     (setup : CommitmentSetup program) :
     VerifierContext.Authority where
@@ -529,9 +490,6 @@ def verifierContextDescriptor {program : Program}
     VerifierContext.Descriptor :=
   VerifierContext.descriptor (authority fits setup)
 
-/-- Canonical four-word verifier-context digest carried by recursive and
-terminal state preimages. The full verification-key digest remains the
-separate package-and-context binding defined below. -/
 def verifierContextDigest {program : Program}
     (fits : FitsTwoPow28 program)
     (setup : CommitmentSetup program) : KeyDigest :=
@@ -544,9 +502,6 @@ def verifierContextDescriptorFromStructural {program : Program}
   VerifierContext.descriptor
     (authorityFromStructural fits setup structural)
 
-/-- Construct the verifier context from a separately recomputed application
-component digest. The caller must prove that digest against the complete
-application authority stream. -/
 def verifierContextDescriptorFromStructuralAndApplicationDigest
     {program : Program} (fits : FitsTwoPow28 program)
     (setup : CommitmentSetup program)
@@ -593,9 +548,6 @@ def packageIdentityPreimage {program : Program}
     VerifierContext.framed (structuralPackageIdentity program fits).toList ++
     VerifierContext.framed (verifierContextDescriptor fits setup).serialize
 
-/-- Equality of final binding preimages identifies both acyclic digest
-components. Fixed-length framing prevents either component from consuming
-words from the other. -/
 theorem packageIdentityPreimage_components
     {leftProgram rightProgram : Program}
     (leftFits : FitsTwoPow28 leftProgram)
@@ -629,8 +581,6 @@ theorem packageIdentityPreimage_components
     simpa [VerifierContext.framed, VerifierContext.Digest4.toList,
       VerifierContext.Descriptor.serialize_length] using descriptorWords
 
-/-- Final verifier-owned identity for one exact application, recursive
-relation, physical package, and indexed commitment setup. -/
 def packageIdentity {program : Program} (fits : FitsTwoPow28 program)
     (setup : CommitmentSetup program) :
     VerifierContext.Digest4 :=
@@ -681,9 +631,6 @@ def verificationKeyBindingFromStructural {program : Program}
     formulas := SharedFormulas.libraryDigest ()
   }
 
-/-- Construct the complete binding from independently recomputed structural
-and application identities. Both remain evidence only after their raw
-authority streams are checked. -/
 def verificationKeyBindingFromStructuralAndApplicationDigest
     {program : Program} (fits : FitsTwoPow28 program)
     (setup : CommitmentSetup program)

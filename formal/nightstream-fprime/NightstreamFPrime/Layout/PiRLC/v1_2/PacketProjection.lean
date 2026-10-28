@@ -109,8 +109,6 @@ private theorem packetRowsHold_nonempty
   · simpa [evalAFreshStart, evalKFreshStart, publicInputFreshStart,
       commitmentFreshStart, samplerFreshStart] using packets.2.2.2.2.2.1
 
-/-- Held full physical rows imply every exact opaque child lowering segment.
-No production list is reduced by this theorem. -/
 theorem physicalRows_imply_packets
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)
@@ -137,8 +135,6 @@ theorem physicalRows_imply_packets
     plan_firstFresh] at segmented
   exact segmented
 
-/-- Held full physical rows imply the five nonempty packet lowerings with
-symbolic, sequential fresh starts. -/
 theorem physicalRows_imply_nonemptyPackets
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits) (offset : Nat)

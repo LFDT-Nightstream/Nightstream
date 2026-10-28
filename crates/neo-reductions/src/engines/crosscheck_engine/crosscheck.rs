@@ -10,7 +10,7 @@ use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{F, K};
 use neo_params::NeoParams;
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 
 #[cfg(not(target_arch = "wasm32"))]
 fn run_pair<Optimized, Reference, RunOptimized, RunReference>(
@@ -44,20 +44,11 @@ where
     Ok((run_optimized(), run_reference()))
 }
 
-fn checkpoint(transcript: &Poseidon2Transcript) -> [u8; 32] {
-    transcript.clone().digest32()
+fn checkpoint(transcript: &Poseidon2Transcript) -> ([F; neo_ccs::crypto::poseidon2_goldilocks::WIDTH], usize) {
+    (transcript.state(), transcript.absorbed())
 }
 
-#[derive(Clone, Debug)]
-pub struct CrossCheckEngine<I, R> {
-    pub inner: I,
-    pub ref_oracle: R,
-}
-
-#[allow(clippy::too_many_arguments)]
-pub fn crosscheck_prove<I, R, L>(
-    _inner: &I,
-    _reference: &R,
+pub fn crosscheck_prove(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,
@@ -65,11 +56,7 @@ pub fn crosscheck_prove<I, R, L>(
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    commitment: &L,
-) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError>
-where
-    L: neo_ccs::traits::SModuleHomomorphism<F, Cmt> + Sync,
-{
+) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
     let cache = OptimizedStructureCache::build(structure)?;
     let mut reference_transcript = transcript.clone();
     let (optimized, reference) = run_pair(
@@ -82,7 +69,6 @@ where
                 fresh_witnesses,
                 running_claims,
                 running_witnesses,
-                commitment,
                 &cache,
             )
         },
@@ -95,31 +81,28 @@ where
                 fresh_witnesses,
                 running_claims,
                 running_witnesses,
-                commitment,
             )
         },
     )?;
-    let (
-        (optimized_outputs, optimized_proof, _, optimized_trace),
-        (reference_outputs, reference_proof, reference_trace),
-    ) = match (optimized, reference) {
-        (Ok(optimized), Ok(reference)) => (optimized, reference),
-        (Err(optimized), Ok(_)) => {
-            return Err(PiCcsError::ProtocolError(format!(
-                "optimized prover failed while PaperExact succeeded: {optimized}"
-            )))
-        }
-        (Ok(_), Err(reference)) => {
-            return Err(PiCcsError::ProtocolError(format!(
-                "PaperExact prover failed while optimized succeeded: {reference}"
-            )))
-        }
-        (Err(optimized), Err(reference)) => {
-            return Err(PiCcsError::ProtocolError(format!(
-                "both crosscheck provers failed (optimized: {optimized}; PaperExact: {reference})"
-            )))
-        }
-    };
+    let ((optimized_outputs, optimized_proof, optimized_trace), (reference_outputs, reference_proof, reference_trace)) =
+        match (optimized, reference) {
+            (Ok(optimized), Ok(reference)) => (optimized, reference),
+            (Err(optimized), Ok(_)) => {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "optimized prover failed while PaperExact succeeded: {optimized}"
+                )))
+            }
+            (Ok(_), Err(reference)) => {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "PaperExact prover failed while optimized succeeded: {reference}"
+                )))
+            }
+            (Err(optimized), Err(reference)) => {
+                return Err(PiCcsError::ProtocolError(format!(
+                    "both crosscheck provers failed (optimized: {optimized}; PaperExact: {reference})"
+                )))
+            }
+        };
 
     if optimized_trace != reference_trace {
         return Err(PiCcsError::ProtocolError(
@@ -145,13 +128,7 @@ where
     Ok((optimized_outputs, optimized_proof))
 }
 
-/// Verify PiCCS with both engines and compare their complete execution traces.
-///
-/// The [caller contract](crate::engines::PiCcsEngine::verify) applies.
-#[allow(clippy::too_many_arguments)]
-pub fn crosscheck_verify<I, R>(
-    _inner: &I,
-    _reference: &R,
+pub fn crosscheck_verify(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,

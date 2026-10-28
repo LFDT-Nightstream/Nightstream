@@ -47,7 +47,6 @@ variable
     (logicalWidth := PerApplicationFixedPoint.logicalWidth Poseidon2HashChainV1Package.application)
     (publicFits := PerApplicationFixedPoint.publicFits Poseidon2HashChainV1Package.application))
 
-/-- The emitted commitment input is the selected NIFS batch's exact Phi. -/
 theorem commitments_eq_batch (input : Input) (probe : Probe K productionShape)
     (source : Fin SourceCount) :
     commitments input source =
@@ -71,7 +70,6 @@ theorem evaluations_eq_batch (input : Input) (probe : Probe K productionShape)
   simp only [sameOutput]
   rfl
 
-/-- Rejected PiCCS inputs do not reach the sampler. -/
 def sampled (input : Input) : Option (Transcript.PiRlcSampler.Batch SourceCount) :=
   let ccsResult := PiCCSInputCheck.execute input
   if ccsResult.accepted then
@@ -82,8 +80,6 @@ theorem sampled_on_rejection (input : Input)
     (rejected : (PiCCSInputCheck.execute input).accepted = false) : sampled input = none := by
   simp only [sampled, rejected, Bool.false_eq_true, ↓reduceIte]
 
-/-- An accepted PiCCS endpoint gives the total production key response.
-This is an execution equality, not a coin law. -/
 theorem sampled_response (input : Input) (batch : Transcript.PiRlcSampler.Batch SourceCount)
     (returned : sampled input = some batch) :
     (PiCCSInputCheck.execute input).accepted = true ∧
@@ -95,8 +91,6 @@ theorem sampled_response (input : Input) (batch : Transcript.PiRlcSampler.Batch 
     exact congrArg (fun batch => some batch.challenges) (Option.some.inj returned)
   · cases returned
 
-/-- Every successful actual C/R handoff supplies the strong extractor's
-accepted probe with the original concrete messages and full output. -/
 theorem sampled_fixedWidthAccepted (input : Input)
     (batch : Transcript.PiRlcSampler.Batch SourceCount)
     (returned : sampled input = some batch) :
@@ -129,8 +123,6 @@ def inputsNonzero (input : Input) : Bool :=
       PiRLCParity.publicInputHasNonzero (publicInputs input source) &&
       PiRLCParity.evaluationHasNonzero (evaluations input source)
 
-/-- Typed final values for the next reduction. They come from the same
-materialized traces as the complete encoded R result. -/
 structure ParentValues where
   point : PaperAlgebra.Point
   commitment : MaterializedCommitment
@@ -163,9 +155,6 @@ structure Execution where
   fields : List Value
   parent : Option ParentValues
 
-/-- The complete C prefix remains in fields 0..5. Fields 6 and 7 are the
-actual R input and result. Parallel work only materializes independent
-families; all prefix values remain in their original source order. -/
 def checkIO (input : Input) (packageIdentity : VerifierContext.Digest4) : IO Execution := do
   let ccsResult := PiCCSInputCheck.execute input
   let fields := PiCCSInputCheck.checkFields input ccsResult

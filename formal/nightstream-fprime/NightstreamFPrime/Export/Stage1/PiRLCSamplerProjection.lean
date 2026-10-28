@@ -5,9 +5,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerRows
 /-!
 Owns the recipe-free symbolic projection of PiRLC sampler transcript states.
 
-The full Duplex compiler remains the semantic authority. The exported
-equalities prove that this bounded projection returns the same expressions
-without constructing unused Poseidon2 recipes.
+The full Duplex compiler remains the semantic authority.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerProjection
@@ -46,9 +44,6 @@ theorem fastEntryOutput_eq (interface : Sampler.Interface)
   unfold fastEntryOutput TranscriptAbsorption.output
   exact fastOwnedOutput_eq _ _
 
-/-- Closed-form initial state of one chained scalar sampler. A successor
-starts from the fixed output columns of the previous source's single advance
-permutation; no prior sampler contents need to be reconstructed. -/
 def fastChainedEntryStateFrom (initialState : Layer.EState)
     (offset source : Nat) : Layer.EState :=
   match source with
@@ -79,14 +74,11 @@ theorem fastChainedEntryState_eq (interface : SamplerChain.Interface)
   exact fastChainedEntryStateFrom_eq interface
     (interface.initialState offset) offset source rfl
 
-/-- Recipe-free entry absorption from a caller-supplied direct state. -/
 def fastEntryOutputFromState (state : Layer.EState)
     (coordinate offset : Nat) : Layer.EState :=
   (Formal.compileWiringLazy offset (fun _ => state)
     (TranscriptAbsorption.actions coordinate)).output
 
-/-- One scalar-entry absorption owns exactly one permutation, so its output
-variables depend only on the compiler start. -/
 theorem fastEntryOutputFromState_eq_scheduleOutput (state : Layer.EState)
     (coordinate offset : Nat) :
     fastEntryOutputFromState state coordinate offset =
@@ -146,8 +138,6 @@ theorem fastChainedEntryOutput_eq (interface : SamplerChain.Interface)
   apply fastEntryOutputFromState_eq
   simpa [SamplerChain.childInterface] using
     fastChainedEntryState_eq interface offset source
-
-/-! ## Fixed production projection -/
 
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec

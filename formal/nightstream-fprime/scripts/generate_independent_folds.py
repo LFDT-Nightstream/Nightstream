@@ -24,6 +24,9 @@ from project_replay_sources import BLOCKS, LOGICAL, read, require
 from lean_graph.policy import CAPS
 
 ROWS, CARRIER = 1004131, BLOCKS * 54
+SECOND_FOLD_BUDGET = CAPS["lean"] / 2
+NORM_PREFIX_CHUNK = 131072
+STATE_MESSAGE_WIDTH = 27819
 TOOLCHAIN = "nightstream-lean-4.32.2-5b34cacf"
 ARTIFACT = FORMAL / "artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"
 
@@ -47,7 +50,6 @@ def file_identity(path):
 
 
 def pending_identity(path):
-    """Start hashing the files under `path`; the returned function waits for `identity(path)`."""
     path = Path(path)
     require(not path.is_symlink(), f"unexpected evidence symlink: {path}")
     if path.is_dir():
@@ -61,7 +63,6 @@ def identity(path):
 
 
 def start_identities(paths):
-    """Start hashing a mapping `{key: path}`; the returned function waits for `{key: identity(path)}`."""
     pending = {key: pending_identity(path) for key, path in paths.items()}
     return lambda: {key: value() for key, value in pending.items()}
 
@@ -71,7 +72,6 @@ def identities(paths):
 
 
 def matrix_geometry(package):
-    """Schedule only. Lean producers/mergers check their own complete row bounds."""
     require(package[0] == 6 and package[1][4][:2] == [ROWS, LOGICAL],
             "package differs from the selected replay geometry")
     result = []
@@ -105,7 +105,6 @@ def cuts(size, chunk):
 
 
 def timed_cuts(costs, overhead, target):
-    """Keep every range in order; a costly range can occupy a batch alone."""
     require(math.isfinite(overhead) and 0 <= overhead < target
             and math.isfinite(target), "invalid matrix batching budget")
     require(all(math.isfinite(cost) and cost >= 0 for cost in costs),
@@ -122,7 +121,6 @@ def timed_cuts(costs, overhead, target):
 
 
 def measured_matrix_batches(ranges, logs):
-    """First-fold timings guide scheduling only; they cannot establish values."""
     indices = {tuple(bounds): index for index, bounds in enumerate(ranges)}
     costs, overheads = {}, []
     for path in sorted(logs.glob("d-matrix-*.command.json")):
@@ -146,9 +144,8 @@ def measured_matrix_batches(ranges, logs):
     require(len(costs) == len(ranges) and overheads, "incomplete first-fold matrix timings")
     require(all(math.isfinite(value) and value >= 0 for value in overheads),
             "invalid matrix batch overhead")
-    # Half the existing hard cap leaves room for different second-fold values.
     return timed_cuts([costs[index] for index in range(len(ranges))],
-                      max(overheads), CAPS["lean"] / 2)
+                      max(overheads), SECOND_FOLD_BUDGET)
 
 
 def native_test_completed(command, log):
@@ -184,7 +181,6 @@ def source_snapshot(root):
 
 
 def command_input_paths(argv, request, outputs, cwd):
-    """Actual input files and executables; output paths are checked separately."""
     def strings(value):
         if isinstance(value, str):
             yield value
@@ -209,7 +205,6 @@ def command_input_paths(argv, request, outputs, cwd):
 
 
 def command_inputs(argv, request, outputs, cwd):
-    """Bind actual input files and executables; output paths are checked separately."""
     return identities(command_input_paths(argv, request, outputs, cwd))
 
 
@@ -227,7 +222,6 @@ class Replay:
         self.rounds.mkdir(exist_ok=True)
         self.geometry = matrix_geometry(read(ARTIFACT))
         setup = read(FORMAL / "artifacts/nightstream-fprime-stage1-base-step-fixture-v1.json")
-        # The same context/identity are checked again by the current native verifier.
         self.package = package_pin(REPO / "crates/nightstream-fprime/src/identity.rs")
         self.context = setup[1]
 
@@ -265,7 +259,6 @@ class Replay:
         write_new(input_receipt, inputs)
         self.check.phase(name, kind, argv, cwd=cwd, input=request)
         check_native_completion()
-        # The inputs are hashed again while the outputs are hashed.
         after, produced = current_inputs(), current_outputs()
         require(after() == inputs, f"inputs changed during execution: {name}")
         write_new(receipt, produced())
@@ -337,7 +330,6 @@ class Replay:
             self.lean(name, first, mode, u, *args, outputs=[args[output_index]])
         initial("q0-norm", "norm", s, component(0, "norm"), 0, BLOCKS)
         initial("q0-fresh", "fresh", s, component(0, "fresh"), 0, (ROWS + 1) // 2)
-        # Fresh polynomials combine row pairs; carried moments sum individual rows.
         matrix_ranges = cuts(ROWS, 524288)
         matrix0 = []
         for index, (lo, hi) in enumerate(matrix_ranges):
@@ -374,13 +366,12 @@ class Replay:
                       self.out(f"{kind}-after2"), *directories, outputs=[self.out(f"{kind}-after2")])
             self.python(f"{kind}-after2-bytes", "tests/check_piccs_prefix_fold.py",
                         kind, q[0], q[1], self.out(f"{kind}-after2"), *directories)
-        # 131072 is the completed original norm-prefix chunk extent.
         self.lean("norm-after2", prefix, "norm-codes", u, s, q[0], q[1],
-                  self.out("norm-after2"), 0, (CARRIER + 3) // 4, 131072, outputs=[self.out("norm-after2")])
+                  self.out("norm-after2"), 0, (CARRIER + 3) // 4, NORM_PREFIX_CHUNK, outputs=[self.out("norm-after2")])
         self.lean("norm-after2-check", prefix, "check-norm-codes", u, s, q[0], q[1],
-                  self.out("norm-after2"), 0, (CARRIER + 3) // 4, 131072)
+                  self.out("norm-after2"), 0, (CARRIER + 3) // 4, NORM_PREFIX_CHUNK)
         self.lean("q2-norm", prefix, "norm-after-two", u, q[0], q[1],
-                  self.out("norm-after2"), component(2, "norm"), 0, (CARRIER + 7) // 8, 131072,
+                  self.out("norm-after2"), component(2, "norm"), 0, (CARRIER + 7) // 8, NORM_PREFIX_CHUNK,
                   outputs=[component(2, "norm")])
         for index in range(2, 28):
             previous = q[:index]
@@ -407,7 +398,7 @@ class Replay:
                             self.out(f"{kind}-after{index}"), self.out(f"{kind}-after{index + 1}"), q[index])
             if index == 2:
                 self.lean("norm-after3", prefix, "norm-fields-after-two", u, *extended,
-                          self.out("norm-after2"), self.out("norm-after3"), 131072, outputs=[self.out("norm-after3")])
+                          self.out("norm-after2"), self.out("norm-after3"), NORM_PREFIX_CHUNK, outputs=[self.out("norm-after3")])
                 self.python("norm-after3-bytes", "tests/check_piccs_norm_field_fold.py",
                             self.out("norm-after2"), self.out("norm-after3"), *extended)
             else:
@@ -436,7 +427,6 @@ class Replay:
             output = self.out(f"c-pad-{lo}.json")
             pad_requests.extend([output, lo, hi])
             pad_outputs.append(output)
-        # Keep full 17-source evaluation in capped batches; merge checks complete coverage.
         for batch, (first, finish) in enumerate(cuts(len(pad_outputs), 16)):
             self.lean(f"c-pad-{batch}", prefix, "original-pad", u, s,
                       *pad_requests[3 * first:3 * finish], "--", *q,
@@ -539,7 +529,6 @@ class Replay:
                   self.out("children.json"), request, caller, outputs=[caller])
         native = self.native / f"fold-{self.iteration}"
         successor = self.native / f"step-{self.iteration + 1}"
-        # These comparisons cannot provide any value to the Lean producer above.
         compare_source(read(self.out("ccs-input.json")), read(self.native / f"step-{self.iteration}/envelope.json"),
                        read(self.native / f"step-{self.iteration}/fresh-claim.json"), read(request), self.package)
         counts = compare_caller(read(native / "caller-inputs.json"), read(caller),
@@ -573,9 +562,9 @@ class Replay:
                     caller, physical, self.out("physical-rejections"), outputs=[self.out("physical-rejections")])
         prior, generated = read(request), read(caller)
         private, result = generated[2], generated[4]
-        offset = 27819  # StateMessage's fixed current-schema field width, checked against both producers.
-        i, z0, zi = 27810, slice(27811, 27815), slice(27815, 27819)  # the tail `vk, i, z0, zi`
-        output_z0, output_zi = slice(offset + 27811, offset + 27815), slice(offset + 27815, offset + 27819)
+        offset = STATE_MESSAGE_WIDTH
+        i, z0, zi = offset - 9, slice(offset - 8, offset - 4), slice(offset - 4, offset)
+        output_z0, output_zi = slice(offset + z0.start, offset + z0.stop), slice(offset + zi.start, offset + zi.stop)
         require(private[i] == prior[0] and private[z0] == prior[1] and private[zi] == prior[2]
                 and private[-4:] == prior[3] and private[offset + i] == prior[0] + 1
                 and private[output_z0] == prior[1]

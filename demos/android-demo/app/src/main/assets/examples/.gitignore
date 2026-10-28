@@ -1,5 +1,0 @@
-*.json
-!toy_square.json
-!toy_square_folding_8_steps.json
-!poseidon2_ic_batch_1.json
-!.gitignore

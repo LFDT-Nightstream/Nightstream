@@ -3,9 +3,7 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness
 
 /-!
-Honest completeness of the selected interactive C/R/D sequence. The same
-source assignments feed the causal PiCCS prover and the honest weak suffix.
-Every final child opening is derived from those source assignments.
+Honest completeness of the selected interactive C/R/D sequence.
 -/
 
 set_option autoImplicit false
@@ -28,9 +26,6 @@ variable {logicalWidth : Nat}
   (fresh : Lifecycle.Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
   (witness : OutputWitness productionShape (Phi81CarrierLayout.carrierWidth logicalWidth))
 
-/-- One causal honest C prover succeeds for every C coin stream. Its exact
-public output then has an accepted honest R/D continuation for every allowed
-R vector, with all child openings derived and the same source order retained. -/
 theorem exists_honest_execution
     (valid : SourceHolds extensionOps K.embed (PaperAlgebra.openingMaps ajtai) productionGlobalParams
       ((ProductionKey.key relation ajtai).statement running fresh) witness) :

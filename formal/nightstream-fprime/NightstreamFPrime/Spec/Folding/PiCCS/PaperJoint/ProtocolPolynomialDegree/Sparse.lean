@@ -1,10 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Support
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolPolynomialDegree/Sparse.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed.
-The coefficient constructors are exposed for replay equality proofs;
-their executable definitions are unchanged. -/
-
 /-!
 Sparse-CCS substitution for the paper `Pi_CCS` one-variable degree proof.
 
@@ -12,8 +7,7 @@ Owns: explicit fixed-polynomial powers of affine matrix-image slices, sparse
 monomial substitution, and the syntax-derived equality-gated CCS ceiling.
 
 Does not own: a concrete matrix source, protocol aggregation, SumCheck,
-probability, Fiat--Shamir, Rust, R1CS, artifacts, or costs. Declared CCS degree
-metadata is never used; the ceiling comes only from explicit monomial syntax.
+probability, Fiat--Shamir, Rust, R1CS, artifacts, or costs.
 
 Emits constraints: no.
 -/
@@ -26,7 +20,6 @@ open ProtocolPolynomialDegree.Support
 
 universe uField
 
-/-- Affine power with its syntax-derived exact degree. -/
 def affinePower
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -57,7 +50,6 @@ private theorem evaluate_affinePower
         CCSResidualTable.pow]
       rw [inductionHypothesis]
 
-/-- Ordered product used by monomial substitution, including zero exponents. -/
 def productPowers
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -146,7 +138,6 @@ private theorem foldl_mul_eq_mul_foldr
       rw [List.foldl_cons, inductionHypothesis]
       exact laws.mul_assoc _ _ _
 
-/-- Explicit coefficient polynomial obtained by substituting affine matrix images. -/
 def monomialPolynomial
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -158,7 +149,6 @@ def monomialPolynomial
     (productPowers ops monomial.exponents matrixPolynomials
       (canonicalFinIndices matrixCount))
 
-/-- The explicit affine substitution evaluates to the original sparse monomial. -/
 theorem evaluate_monomialPolynomial
     {Field : Type uField}
     {ops : InterpolationOps Field}
@@ -201,8 +191,6 @@ theorem evaluate_monomialPolynomial
           (monomial.exponents matrix))
         monomial.coefficient).symm
 
-/-- Substituting affine matrix images into one explicit sparse monomial has
-exactly the monomial's syntax-derived total degree. -/
 theorem monomial_represents
     {Field : Type uField}
     {ops : InterpolationOps Field}
@@ -229,8 +217,6 @@ theorem monomial_represents
   funext matrix
   exact matrixRepresents matrix point
 
-/-- Multiplying the explicit sparse CCS polynomial by one affine equality
-selector fits the exact maximum `totalDegree + 1` computed from its terms. -/
 theorem equalityGated_represents
     {Field : Type uField}
     {ops : InterpolationOps Field}

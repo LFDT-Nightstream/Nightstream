@@ -16,7 +16,6 @@ namespace NightstreamFPrime.Gadgets.Poseidon2.Layer
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 
-/-- Lane states use the literal width so that `omega` and `decide` see it. -/
 abbrev EState := Fin 16 → Expr
 abbrev FState := Fin 16 → F
 
@@ -61,14 +60,12 @@ def mat4F (state : FState) (base lane : Nat) : F :=
   | _ => 3 * getF state base + getF state (base + 1) +
       getF state (base + 2) + 2 * getF state (base + 3)
 
-/-- `M₄` applied to the four-lane block that contains `index`. -/
 def blockE (state : EState) (index : Nat) : Expr :=
   mat4E state (4 * (index / 4)) (index % 4)
 
 def blockF (state : FState) (index : Nat) : F :=
   mat4F state (4 * (index / 4)) (index % 4)
 
-/-- Sum over all blocks of the block lanes congruent to `index` mod 4. -/
 def columnE (state : EState) (index : Nat) : Expr :=
   ((List.range 4).map fun block =>
     blockE state (4 * block + index % 4)).foldl (· + ·) 0

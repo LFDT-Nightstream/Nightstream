@@ -21,7 +21,6 @@ fn reference() -> Vec<u8> {
     .unwrap()
 }
 
-/// The native result of one application step: two links of the chain.
 fn chain(state: [F; 4], message: &[F]) -> [F; 4] {
     let first = poseidon2_hash_chain_step(state, message[..4].try_into().unwrap());
     poseidon2_hash_chain_step(first, message[4..].try_into().unwrap())
@@ -58,22 +57,18 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
     let proof = prover.prove(initial, &message).unwrap();
     assert_eq!(proof.state(), &expected);
     verifier.verify(&expected, &proof).unwrap();
-    // The strict byte form carries every value that verification reads.
     let decoded = verifier
         .decode_proof(&prover.encode_proof(&proof).unwrap())
         .unwrap();
     verifier.verify(&expected, &decoded).unwrap();
 
-    // Reassemble the same openings under a supplied statement.
     let (running, fresh) = proof.active_parts().unwrap();
     let (running, fresh) = (running.clone(), fresh.clone());
-    let reseal =
-        |state: &Stage1State, fresh: CcsInstance| Stage1Envelope::from_parts(state.clone(), running.clone(), fresh);
+    let reseal = |state: &Stage1State, fresh: CcsInstance| Stage1Envelope::from_parts(*state, running.clone(), fresh);
     verifier
         .verify(&expected, &reseal(&expected, fresh.clone()))
         .unwrap();
 
-    // The openings do not prove another endpoint, initial state or counter.
     let mut changed = output;
     changed[0] += F::ONE;
     for state in [
@@ -89,9 +84,6 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
         ));
     }
 
-    // Change one application coordinate to another signed unit. The old
-    // commitment no longer opens, and a recomputed commitment opens to a
-    // witness that violates the CCS rows.
     let application = circuit.compiled.application.as_ref().unwrap();
     let manifest: serde_json::Value =
         serde_json::from_slice(include_bytes!("../../artifacts/shared-verifier-v1.json")).unwrap();
@@ -139,9 +131,8 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
         Err(Error::Verify(VerifyError::FreshRelation(_)))
     ));
 
-    // A changed commitment no longer opens to the witness.
     let mut commitment = fresh;
-    commitment.claim.c.data[0] += F::ONE;
+    commitment.claim.c.data_mut()[0] += F::ONE;
     assert!(matches!(
         verifier.verify(&expected, &reseal(&expected, commitment)),
         Err(Error::Verify(VerifyError::Fresh(
@@ -150,8 +141,6 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
     ));
 }
 
-/// One recursive fold above the reference key prefix. PiDEC commits every
-/// child under the application's prefix, and the terminal verifier accepts it.
 #[cfg(feature = "metal")]
 #[test]
 #[ignore = "Full production Metal fold; run this test separately under the 300-second cap."]
@@ -169,12 +158,11 @@ fn two_link_hash_chain_folds_on_metal() {
     assert_eq!(proof.state(), &expected);
     verifier.verify(&expected, &proof).unwrap();
 
-    // The recursive openings do not prove another endpoint.
     let mut changed = expected.current();
     changed[0] += F::ONE;
     let state = Stage1State::new(2, initial, changed);
     let (running, fresh) = proof.active_parts().unwrap();
-    let envelope = Stage1Envelope::from_parts(state.clone(), running.clone(), fresh.clone());
+    let envelope = Stage1Envelope::from_parts(state, running.clone(), fresh.clone());
     assert!(matches!(
         verifier.verify(&state, &envelope),
         Err(Error::Verify(VerifyError::Fresh(

@@ -73,8 +73,6 @@ theorem compile_programRow?
       (publicFits := relationPublicFits) index)
     agreesA agreesB agreesC
 
-/-- The compact block returns the exact direct form when its schedule-selected
-physical row is loaded from the identity-checked package. -/
 theorem block_row?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -121,8 +119,6 @@ theorem block_row?
       (publicFits := relationPublicFits) index)
     agreesA agreesB agreesC
 
-/-- Every compact sampler ordinary row is the exact row of the canonical
-direct Lean plan. -/
 theorem matrixProgram_row?
     {program : Program} {logicalWidth : Nat}
     (relation : Lifecycle.ProductionKey.LogicalRelation relationLogicalWidth

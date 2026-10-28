@@ -23,9 +23,6 @@ use crate::PiCcsError;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 mod chunks;
 
-/// A complete global row range with local cache row indices and global columns.
-/// Storage accounting includes owned vector capacities and construction counts,
-/// but excludes the borrowed source, allocator overhead, and device copies.
 pub struct MatrixWindow {
     rows: Range<usize>,
     cache: Arc<SuperneoEvalCache>,
@@ -33,9 +30,6 @@ pub struct MatrixWindow {
     workspace_peak_bytes: usize,
 }
 
-/// The complete window of one immutable matrix source. The owner of the
-/// source holds this slot, and every loader of the complete row range shares
-/// the one copy. The first complete load fills it.
 #[derive(Default)]
 pub struct RetainedMatrixWindow(Mutex<Option<Retained>>);
 
@@ -43,13 +37,10 @@ struct Retained {
     shape: MatrixShape,
     cache: Arc<SuperneoEvalCache>,
     storage_bytes: usize,
-    /// Construction peak without the caller's row payload.
     construction_bytes: usize,
 }
 
 impl RetainedMatrixWindow {
-    /// The kept window, when one exists and its recorded construction peak
-    /// plus the caller's payload fits. It reports the same sizes as a new load.
     fn window(
         &self,
         shape: MatrixShape,
@@ -93,8 +84,6 @@ impl RetainedMatrixWindow {
 }
 
 impl MatrixWindow {
-    /// Count the full requested range without allocating cache storage. This
-    /// derives the workspace for callers that intentionally retain all rows.
     pub fn required_workspace(
         source: &dyn MatrixRows,
         requested: Range<usize>,
@@ -104,9 +93,6 @@ impl MatrixWindow {
         count.required_bytes()
     }
 
-    /// Read the largest complete prefix that fits the supplied host workspace.
-    /// The counting pass can inspect one additional row before it stops. The
-    /// filling pass reads only the returned range, and never grows its buffers.
     pub fn load_next(
         source: &dyn MatrixRows,
         requested: Range<usize>,
@@ -115,8 +101,6 @@ impl MatrixWindow {
         Self::load_next_with_payload(source, requested, workspace_bytes, 0)
     }
 
-    /// Reserve caller-owned row values alongside the matrix window. Storage
-    /// reports cache bytes only; peak includes the supplied per-row payload.
     pub fn load_next_with_payload(
         source: &dyn MatrixRows,
         requested: Range<usize>,
@@ -160,7 +144,6 @@ impl MatrixWindow {
         Self::load_prefix(source, requested, workspace_bytes, payload_bytes_per_row)
     }
 
-    /// Count rows one at a time and keep the longest prefix that fits.
     fn load_prefix(
         source: &dyn MatrixRows,
         requested: Range<usize>,
@@ -283,7 +266,7 @@ impl Coverage {
 
     fn run(&mut self, row: usize, matrix: usize, run: &GeometricRowRun<F>) -> Result<(), PiCcsError> {
         self.slot(row, matrix)?;
-        if run.len() == 0
+        if run.is_empty()
             || run.row() != row
             || !run.validate_shape(self.shape.rows, self.shape.columns)
             || u32::try_from(run.column_start()).is_err()
@@ -354,7 +337,6 @@ impl Counts {
 
 struct CountRows {
     coverage: Coverage,
-    // Accepted totals remain unchanged while current includes the next row.
     totals: Vec<Counts>,
     current: Vec<Counts>,
     run_storage_bytes: usize,
@@ -447,8 +429,6 @@ impl MatrixRowSink for CountRows {
             return Ok(ControlFlow::Continue(()));
         }
         let rows = self.coverage.row - self.coverage.requested.start;
-        // An offset family starts at its first entry, but includes every
-        // preceding empty row and the initial zero offset as well.
         let offsets = product(product(sum(rows, 1)?, self.offset_families)?, size_of::<u32>())?;
         let storage = sum(sum(self.fixed_storage_bytes, self.run_storage_bytes)?, offsets)?;
         let required = sum(

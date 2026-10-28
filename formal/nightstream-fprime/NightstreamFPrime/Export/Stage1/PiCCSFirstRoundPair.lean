@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSGammaPowers
 
 /-!
 One adjacent Boolean-pair contribution to the PiCCS polynomial. Inputs are
-underlying endpoint images and two affine equality selectors. Every image
-is interpolated before the nonlinear CCS/norm formulas are applied.
+underlying endpoint images and two affine equality selectors.
 Owns the executable pair kernel and its equality to the existing terminal formula.
 Source-image construction and completion summation belong to their consumers.
 -/
@@ -21,7 +20,6 @@ open ProtocolPolynomialDegree.Support (polynomialLaws)
 universe uField uIndex
 variable {Field : Type uField} {shape : Shape}
 
-/-- The same affine interpolation in all four existing image families. -/
 def affineMessage (ops : InterpolationOps Field)
     (low high : ProtocolPolynomial.OutputMessage Field shape)
     (point : Field) : ProtocolPolynomial.OutputMessage Field shape where
@@ -88,7 +86,6 @@ private theorem mul_left_comm (ops : InterpolationOps Field)
     ops.mul left (ops.mul middle right) = ops.mul middle (ops.mul left right) := by
   rw [← laws.mul_assoc, laws.mul_comm left middle, laws.mul_assoc]
 
-/-- Each syntax term is multiplied by the selector before its proved widening. -/
 private def gatedConstraint (ops : InterpolationOps Field) {matrixCount : Nat}
     (polynomial : CCSResidualTable.ConstraintPolynomial Field matrixCount)
     (selector : FixedPolynomial Field 1)
@@ -122,8 +119,6 @@ private theorem evaluate_gatedConstraint (ops : InterpolationOps Field)
     FiniteSumAlgebra.sumMap_mul_left ops laws,
     ← CCSResidualTable.evaluatePolynomial_eq_sumMap ops laws]
 
-/-- The fresh CCS branch, with each matrix image interpolated before the
-constraint polynomial. The common gamma shift remains with the pair caller. -/
 def ccsPolynomialWithPowers (ops : InterpolationOps Field)
     (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
     (selector : FixedPolynomial Field 1)
@@ -170,7 +165,6 @@ private theorem evaluate_ccsPolynomial (ops : InterpolationOps Field)
       exact mul_left_comm ops laws _ _ _
     _ = _ := FiniteSumAlgebra.sumMap_mul_left ops laws _ _ _
 
-/-- The b=2 norm cubic is applied after interpolation of the two source values. -/
 def normPair (ops : InterpolationOps Field) (low high : Field) :
     FixedPolynomial Field 3 :=
   let value := affine ops low high
@@ -179,7 +173,6 @@ def normPair (ops : InterpolationOps Field) (low high : Field) :
       (FixedPolynomial.add ops.toOps value (FixedPolynomial.affine ops.one ops.zero)) value)
     (FixedPolynomial.add ops.toOps value (FixedPolynomial.affine (ops.neg ops.one) ops.zero))
 
-/-- The coefficient construction is the existing norm residual after interpolation. -/
 theorem evaluate_normPair (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) (low high point : Field) :
     (normPair ops low high).evaluate ops.toOps point =
@@ -191,7 +184,6 @@ theorem evaluate_normPair (ops : InterpolationOps Field)
     evaluate_affine ops laws, laws.mul_zero, laws.add_zero]
   rfl
 
-/-- Keep one interpolated cubic for every original source, with its own gamma weight. -/
 def normPolynomialWithPowers (ops : InterpolationOps Field) (powers : Nat → Field)
     (low high : ProtocolPolynomial.OutputMessage Field shape) : FixedPolynomial Field 3 :=
   weightedSum ops (canonicalFinIndices shape.sourceCount)
@@ -226,7 +218,6 @@ private theorem fourFits (input : ProtocolPolynomial.VerifierInput Field shape) 
 private theorem twoFits (input : ProtocolPolynomial.VerifierInput Field shape) :
     2 ≤ input.sumcheckDegreeBound := Nat.le_trans (by decide) (fourFits input)
 
-/-- The same coefficient construction with an explicit power lookup. -/
 def pairPolynomialWithPowers (ops : InterpolationOps Field)
     (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
     (alphaSelector priorSelector : FixedPolynomial Field 1)
@@ -253,7 +244,6 @@ def pairPolynomialWithPowers (ops : InterpolationOps Field)
       (FixedPolynomial.scale ops.toOps (powers shape.constraintOffset)
         constraints))
 
-/-- Exact verifier width; high zero coefficients are retained in constant-first order. -/
 def pairPolynomial (ops : InterpolationOps Field)
     (input : ProtocolPolynomial.VerifierInput Field shape) (gamma : Field)
     (alphaSelector priorSelector : FixedPolynomial Field 1)
@@ -262,14 +252,9 @@ def pairPolynomial (ops : InterpolationOps Field)
   pairPolynomialWithPowers ops input (TargetPolynomial.power ops.toOps gamma)
     alphaSelector priorSelector low high
 
-/-- Cover every exponent used by the pair: local Pad/matrix ranges, source
-indices, fresh-count shift, matrix shift, and constraint shift. The offsets
-come from Shape; lookup remains correct outside this preparation extent. -/
 def powerCount (shape : Shape) : Nat :=
   max (shape.constraintOffset + 1) (max (shape.freshCount + 1) shape.sourceCount)
 
-/-- Preparing a power table preserves the entire fixed coefficient object,
-including every high zero slot. No evaluation-only comparison is used. -/
 theorem pairPolynomialWithPowers_prepared (ops : InterpolationOps Field)
     (input : ProtocolPolynomial.VerifierInput Field shape) (gamma : Field) (count : Nat)
     (alphaSelector priorSelector : FixedPolynomial Field 1)
@@ -290,8 +275,6 @@ private theorem combine_gated (ops : InterpolationOps Field)
       ops.mul selector (ops.add ccs (ops.mul gamma norm)) := by
   rw [mul_left_comm ops laws gamma selector norm, laws.left_distrib]
 
-/-- Pair evaluation is exactly the existing terminal expression. Selector
-correctness is stated at the same evaluation point, in alpha/prior order. -/
 theorem pairPolynomial_evaluate (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (input : ProtocolPolynomial.VerifierInput Field shape) (gamma : Field)
@@ -316,7 +299,6 @@ theorem pairPolynomial_evaluate (ops : InterpolationOps Field)
     combine_gated ops laws, alphaMatches, priorMatches]
   rfl
 
-/-- Direct equality of both coefficient slots, using the existing sum order. -/
 private theorem weightedSum_affine_coefficients (ops : InterpolationOps Field)
     {Index : Type uIndex} (indices : List Index) (weight low high : Index → Field) :
     weightedSum ops indices weight (fun index => affine ops (low index) (high index)) =
@@ -333,8 +315,6 @@ private theorem weightedSum_affine_coefficients (ops : InterpolationOps Field)
       rw [ih]
       rfl
 
-/-- Weighted interpolation is exactly the affine polynomial of weighted
-endpoints. This is coefficient equality, not evaluation injectivity. -/
 private theorem weightedSum_affine_totals (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops) {Index : Type uIndex}
     (indices : List Index) (weight low high : Index → Field) :
@@ -354,8 +334,6 @@ private theorem weightedSum_affine_totals (ops : InterpolationOps Field)
       exact FiniteSumAlgebra.mul_sub ops laws _ _ _
     _ = _ := FiniteSumAlgebra.sumMap_sub ops laws indices _ _
 
-/-- Reuse a computed source norm polynomial and four carried totals.
-Only fresh matrix fields are read from the endpoint messages here. -/
 def pairPolynomialWithNorm (ops : InterpolationOps Field)
     (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
     (alphaSelector priorSelector : FixedPolynomial Field 1)
@@ -377,8 +355,6 @@ def pairPolynomialWithNorm (ops : InterpolationOps Field)
         (FixedPolynomial.widen ops.toOps (twoFits input) matrix))
       (FixedPolynomial.scale ops.toOps (powers shape.constraintOffset) constraints))
 
-/-- The four totals replace only carried-field enumeration. Matrix totals
-are local: the existing matrix gamma shift is still applied exactly once. -/
 def pairPolynomialWithTotals (ops : InterpolationOps Field)
     (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
     (alphaSelector priorSelector : FixedPolynomial Field 1)
@@ -388,7 +364,6 @@ def pairPolynomialWithTotals (ops : InterpolationOps Field)
   pairPolynomialWithNorm ops input powers alphaSelector priorSelector low high
     padLow padHigh matrixLow matrixHigh (normPolynomialWithPowers ops powers low high)
 
-/-- Supplying the original source norm preserves every pair coefficient. -/
 theorem pairPolynomialWithNorm_eq (ops : InterpolationOps Field)
     (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
     (alphaSelector priorSelector : FixedPolynomial Field 1)
@@ -399,8 +374,6 @@ theorem pairPolynomialWithNorm_eq (ops : InterpolationOps Field)
       pairPolynomialWithTotals ops input powers alphaSelector priorSelector low high
         padLow padHigh matrixLow matrixHigh := rfl
 
-/-- Supplying the four original weighted endpoint sums preserves every
-coefficient and the fixed width. The power callback is arbitrary and shared. -/
 theorem pairPolynomialWithTotals_eq (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
@@ -422,8 +395,6 @@ theorem pairPolynomialWithTotals_eq (ops : InterpolationOps Field)
     weightedSum_affine_totals ops laws (canonicalMatrixCoordinates shape)
       (fun coordinate => powers coordinate.localGammaExponent) low.matrixImage high.matrixImage]
 
-/-- Carried message fields do not affect this constructor. Only the four
-nonlinear endpoint projections and the separately supplied totals are read. -/
 theorem pairPolynomialWithTotals_congr (ops : InterpolationOps Field)
     (input : ProtocolPolynomial.VerifierInput Field shape) (powers : Nat → Field)
     (alphaSelector priorSelector : FixedPolynomial Field 1)

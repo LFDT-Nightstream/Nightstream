@@ -4,10 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
 import NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation
 
 /-!
-Evaluate a contiguous vector of existing sparse matrix rows. Each row and
-port form is selected once, then all 54 output lanes are evaluated. The
-existing batch loop shares the global point weight across all 14 ports.
-No matrix rows, field values, or read functions are assumed correct here.
+Evaluate a contiguous vector of existing sparse matrix rows.
 -/
 
 set_option autoImplicit false
@@ -65,17 +62,12 @@ private theorem row_value {columns count : Nat} (firstRow : Nat)
       (Vector.replicate ringDegree (0 : F)))[port.val])[output.val] = 0
     rw [Vector.getElem_replicate, Vector.getElem_replicate]
 
-/-- Compute the loaded rows in global order for one child, including the
-explicit zero matrix port. The read family can use any parent accessor. -/
 @[specialize] def sum {columns arity count : Nat} (firstRow : Nat)
     (point : CubePoint K arity) (read : Fin ringDegree → Fin columns → F)
     (forms : Vector (MatrixProgram.RowForms columns) count) :
     Vector MaterializedRingK matrixCount :=
   PiDECEvaluationBatch.range firstRow count point (row firstRow read forms)
 
-/-- Every output is the complete weighted sparse sum of the supplied rows.
-Duplicate entries, cancellation and both field coordinates retain the
-existing evalSparse and batch semantics. No read or row premise is needed. -/
 theorem sum_value {columns arity count : Nat} (firstRow : Nat)
     (point : CubePoint K arity) (read : Fin ringDegree → Fin columns → F)
     (forms : Vector (MatrixProgram.RowForms columns) count)

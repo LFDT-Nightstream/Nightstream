@@ -5,7 +5,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout
 Owns preservation of the scalar CCS matrix image under canonical Phi81
 carrier completion. SuperNeo v1.2 Definition 20 uses the original scalar
 matrix image; packing adds zero columns and does not change that image.
-The proof splits symbolic finite sums, without evaluating a carrier.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout
@@ -70,8 +69,6 @@ private theorem foldl_ofFn_prefix
   rw [prefixEq, tailEq]
   exact foldl_zeros ops laws tailWidth _
 
-/-- Canonical zero completion preserves every original scalar matrix image.
-The finite column traversal retains its order and its initial zero. -/
 theorem matrixVectorAt_extend
     {Field : Type uField} (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)

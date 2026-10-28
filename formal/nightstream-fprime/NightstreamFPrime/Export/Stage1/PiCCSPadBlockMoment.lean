@@ -1,8 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedRead
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 
-/-! One already combined complete block supplies both carried Pad moments.
-Only an exact zero of the whole K block skips the 54 basis dot products. -/
+/-! One already combined complete block supplies both carried Pad moments. -/
 
 set_option autoImplicit false
 
@@ -64,8 +63,6 @@ private theorem dot_zero (basis : Vector K ringDegree) :
   unfold PiCCSWeightedBasis.dotK
   simp only [extensionLaws.mul_zero, sumMap_zero extensionOps extensionLaws]
 
-/-- Combine the source block before calling this kernel. The weight uses the
-absolute pair index; a 54-column block is not treated as a binary-aligned chunk. -/
 def blockMoment (basis : FixedArray (Vector K ringDegree) ringDegree)
     (weight : Nat → K) (block : Nat) (values : Vector K ringDegree) : K × K :=
   if values = Vector.replicate ringDegree K.zero then (K.zero, K.zero)
@@ -75,8 +72,6 @@ def blockMoment (basis : FixedArray (Vector K ringDegree) ringDegree)
         (PiCCSWeightedBasis.dotK (basis.get ⟨index, bounded⟩) values.get)
     else extensionOps.zero
 
-/-- Both outputs equal the complete original 54-column parity sums for any
-basis, weight and combined block. The zero branch adds no source assumption. -/
 theorem blockMoment_value (basis : FixedArray (Vector K ringDegree) ringDegree)
     (weight : Nat → K) (block : Nat) (values : Vector K ringDegree) :
     let column := fun index =>

@@ -1,7 +1,9 @@
 use super::*;
-use neo_reductions::{common::split_b_matrix_k_with_nonzero_flags, optimized_engine::rlc_mix_witnesses};
+use neo_reductions::{
+    common::{split_b_matrix_k_with_nonzero_flags, SplitDigits},
+    optimized_engine::rlc_mix_witnesses,
+};
 
-/// Deterministic signed-unit witness with disjoint positive and negative lanes.
 fn witness(seed: u64, columns: usize) -> Mat<F> {
     let mut state = seed;
     let mut next = move || {
@@ -20,7 +22,6 @@ fn witness(seed: u64, columns: usize) -> Mat<F> {
     Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &negative).unwrap()
 }
 
-/// D x D matrix with entries in `-bound..=bound`.
 fn rho(seed: u64, bound: i64) -> Mat<F> {
     let entries = (0..D * D)
         .map(|index| {
@@ -35,7 +36,7 @@ fn rho(seed: u64, bound: i64) -> Mat<F> {
     Mat::from_row_major(D, D, entries)
 }
 
-fn host_split(rhos: &[Mat<F>], witnesses: &[&Mat<F>], digits: usize) -> Result<(Vec<Mat<F>>, Vec<bool>), ()> {
+fn host_split(rhos: &[Mat<F>], witnesses: &[&Mat<F>], digits: usize) -> Result<SplitDigits, ()> {
     let parent = rlc_mix_witnesses(D * witnesses[0].cols(), rhos, witnesses);
     split_b_matrix_k_with_nonzero_flags(&parent, digits, 2).map_err(|_| ())
 }
@@ -52,13 +53,12 @@ fn device_rlc_split_matches_host_mix_and_split() {
         .collect();
 
     let expected = host_split(&rhos, &witnesses, 16).unwrap();
-    assert!(expected.1.iter().any(|&used| used) && !expected.1.iter().all(|&used| used));
+    assert!(expected.nonzero().iter().any(|&used| used) && !expected.nonzero().iter().all(|&used| used));
     let actual = session
         .split_rlc_witnesses(&rhos, &witnesses, 16, 2)
         .unwrap();
     assert_eq!(actual, expected);
-    // The planes also keep the host storage: column masks or a zero constant.
-    for (actual, expected) in actual.0.iter().zip(&expected.0) {
+    for (actual, expected) in actual.planes().iter().zip(expected.planes()) {
         assert_eq!(
             actual.packed_signed_unit_column_masks(),
             expected.packed_signed_unit_column_masks()
@@ -66,13 +66,11 @@ fn device_rlc_split_matches_host_mix_and_split() {
         assert_eq!(actual.virtual_constant_value(), expected.virtual_constant_value());
     }
 
-    // A parent outside the digit range is an error on both paths.
     assert!(host_split(&rhos, &witnesses, 3).is_err());
     assert!(session
         .split_rlc_witnesses(&rhos, &witnesses, 3, 2)
         .is_err());
 
-    // Only zero witnesses give zero digits.
     let zeros = [&zero, &zero];
     assert_eq!(
         session
@@ -80,4 +78,10 @@ fn device_rlc_split_matches_host_mix_and_split() {
             .unwrap(),
         host_split(&rhos[..2], &zeros, 16).unwrap()
     );
+}
+
+#[test]
+fn children_per_thread_matches_decomposition_shader() {
+    let shader = include_str!("../../shaders/decomposition.metal");
+    assert!(shader.contains(&format!("DEC_SPLIT_CHILDREN_PER_THREAD = {CHILDREN_PER_THREAD};")));
 }

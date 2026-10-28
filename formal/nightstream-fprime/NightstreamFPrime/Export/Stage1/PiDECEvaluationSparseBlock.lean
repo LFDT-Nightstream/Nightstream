@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationBlock
 
 /-!
 Regroup one block-filtered sparse evaluation into the canonical 54-lane
-coefficient sum. Duplicate entries are combined by SparseForm.coefficient;
-positions beyond the logical width contribute zero. No selected matrix or
-assignment representation is introduced.
+coefficient sum.
 -/
 
 set_option autoImplicit false
@@ -101,10 +99,6 @@ private theorem singleton_block_sum {columns : Nat} (selected : Fin columns)
         if_neg different, Fin.zero_mul]
     · rw [dif_neg within]
 
-/-- The sparse block filter is exactly the 54-lane coefficient contraction.
-The bounded-index guard is the public sumRange spelling of PiRLC's private
-sumFinF. The inner guard includes every final partial-block zero position.
-No distinctness, divisibility, selected-matrix or assignment premise is used. -/
 theorem evalSparse_eq_blockSum {columns : Nat} (form : SparseForm columns)
     (block : Nat) (term : Fin ringDegree → F) :
     form.evalSparse (fun column =>
@@ -146,8 +140,6 @@ theorem evalSparse_eq_blockSum {columns : Nat} (form : SparseForm columns)
       · simp only [dif_pos within, SparseForm.add_coefficient, add_mul]
       · simp only [dif_neg within, Fin.add_zero]
 
-/-- The computed child product is the canonical source-coefficient contraction
-for one complete block, including zero positions beyond the logical width. -/
 theorem rowBlock_coefficient_value {columns : Nat} (form : SparseForm columns)
     (block : Nat) (children : Vector StoredRing productionGlobalParams.k)
     (child : Fin productionGlobalParams.k) (output : Fin ringDegree) :

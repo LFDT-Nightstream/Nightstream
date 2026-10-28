@@ -16,7 +16,7 @@ import tarfile
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[3]
-REVIEW = ROOT / "docs/reviews/nightstream-fprime-requirements"
+REVIEW = Path(__file__).with_name("fixtures") / "golden-release"
 
 
 def read(name):
@@ -58,7 +58,6 @@ def restore_independent(archive, output):
 
 
 def expected_assets():
-    """Retained archive identities used for restoration."""
     release = read("EVIDENCE_RELEASE.json")
     envelope = next(item for item in release["assets"]
                     if item["source_path"].endswith("/NATIVE_ENVELOPE_EVIDENCE.zip"))
@@ -83,7 +82,6 @@ def expected_assets():
 
 
 def restore(archives, directory):
-    # Resolve and check every source before creating the new restoration.
     checked = [(asset["label"], *checked_asset(archives, asset["name"], asset["bytes"], asset["sha256"]))
                for asset in expected_assets()]
     directory.mkdir(parents=True, exist_ok=False)

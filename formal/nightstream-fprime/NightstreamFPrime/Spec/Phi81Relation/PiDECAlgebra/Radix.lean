@@ -2,16 +2,10 @@ import Mathlib.Data.Nat.Digits.Lemmas
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiDEC
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/PiDECAlgebra/Radix.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Canonical production radix decomposition for the typed Phi81 `PiDEC` algebra.
 
 Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 16`.
-Phase: complete-assignment split and recomposition.
-Constraint family: semantic digit and norm obligations only; this file emits no
-rows.
 
 Owns: a fail-closed signed-binary split inside the strict combined bound; a
 separately named total algebra helper for unconditional recomposition proofs;
@@ -21,25 +15,6 @@ the reverse norm bound for arbitrary sixteen-child recompositions.
 Does not own: commitment, public-input, or evaluation homomorphisms; child CE
 membership; transcript or NIFS acceptance; Rust/R1CS refinement; row removal;
 or constraint counts.
-
-Emits constraints: no.
-
-Authority boundary: `PiDEC.Algebra.split_recompose` is unconditional, while
-`split_norm` assumes a strictly `B`-bounded parent. The bounded branch is the
-canonical sixteen-position signed binary expansion. Outside that assumption,
-child zero retains the original coefficient and the other children are zero.
-That fallback is exact but deliberately carries no shortness claim.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `nifs.pi_dec.verify.radix.parameters` | radix two, sixteen children, `B = 65536` | verifier fixed | `production_parameters` |
-| `nifs.pi_dec.verify.radix.scalar.digits` | digit `i` is `(magnitude / 2^i) mod 2` | computed | `magnitudeDigit`, `magnitudeDigit_lt_two` |
-| `nifs.pi_dec.verify.radix.scalar.sign` | both centered signs use the same magnitude digits | computed | `boundedDigit` |
-| `nifs.pi_dec.verify.radix.scalar.checked` | unbounded values fail before digit construction | checked | `splitScalarChecked` |
-| `nifs.pi_dec.algebra.radix.scalar.total` | unbounded values retain an exact first-child fallback for the total algebra law | computed | `splitScalar` |
-| `nifs.pi_dec.verify.radix.recompose` | every field value and complete assignment recomposes exactly | derived | `splitScalar_recompose`, `split_recompose` |
-| `nifs.pi_dec.verify.radix.split_norm` | a strict-`B` parent produces strict-`2` children | derived | `split_norm` |
-| `nifs.pi_dec.verify.radix.recompose_norm` | sixteen strict-`2` children recompose below `B` | derived | `recompose_norm` |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
@@ -54,7 +29,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 abbrev ChildIndex := Fin productionGlobalParams.k
 
-/-- The production combined-witness bound `B = 2^16`. -/
 def combinedBound : Nat := productionGlobalParams.bigB
 
 theorem production_parameters :
@@ -63,9 +37,6 @@ theorem production_parameters :
       combinedBound = 65536 := by
   decide
 
-/-! ## Local natural and field arithmetic -/
-
-/-- Canonical embedding of a natural into the active Goldilocks residue type. -/
 def fieldOfNat (value : Nat) : F :=
   ⟨value % goldilocksModulus, Nat.mod_lt _ (by decide)⟩
 
@@ -121,9 +92,6 @@ private theorem neg_fieldOfNat_complement (value : F) :
     simp [fieldOfNat, Nat.mod_eq_of_lt complementLt]
     omega
 
-/-! ## Exact fixed-position binary digits -/
-
-/-- Natural binary digit at verifier-owned little-endian position `index`. -/
 def natBit (value index : Nat) : Nat :=
   (value / 2 ^ index) % 2
 
@@ -138,7 +106,6 @@ private theorem natBit_succ (value index : Nat) :
 theorem natBit_lt_two (value index : Nat) : natBit value index < 2 := by
   exact Nat.mod_lt _ (by decide)
 
-/-- One binary digit of a centered coefficient magnitude. -/
 def magnitudeDigit (value : F) (index : ChildIndex) : Nat :=
   natBit (centeredMagnitude value) index.val
 
@@ -146,7 +113,6 @@ theorem magnitudeDigit_lt_two (value : F) (index : ChildIndex) :
     magnitudeDigit value index < 2 := by
   exact natBit_lt_two _ _
 
-/-- Head-first natural sum over a fixed verifier-owned child count. -/
 private def sumNats : {count : Nat} -> (Fin count -> Nat) -> Nat
   | 0, _ => 0
   | _ + 1, values =>
@@ -163,8 +129,6 @@ private theorem sumNats_mul (factor : Nat) {count : Nat}
       rw [inductionHypothesis (fun index => values index.succ)]
       exact (Nat.mul_add factor _ _).symm
 
-/-- Core fixed-radix identity. It uses only natural division and remainder,
-not an imported digit library. -/
 private theorem sumBits_reconstruct (count value : Nat)
     (bounded : value < 2 ^ count) :
     sumNats (fun index : Fin count =>
@@ -246,8 +210,6 @@ private theorem natBit_of_binary_ofFn {count : Nat}
     · exact reconstructed.trans original.symm
   have selected := congrArg (fun values => values.getD index.val 0) listsEqual
   simpa [canonicalDigits, index.isLt] using selected
-
-/-! ## Field recomposition -/
 
 private def combineScalars : {count : Nat} ->
     (Fin count -> F) -> (Fin count -> F) -> F
@@ -338,34 +300,24 @@ private theorem combineScalars_neg {count : Nat}
       rw [mulNeg]
       exact (Lean.Grind.AddCommGroup.neg_add _ _).symm
 
-/-! ## Total signed split -/
-
-/-- The lower centered half has a nonnegative canonical representative. -/
 def isNonnegative (value : F) : Prop :=
   value.val <= Centered.halfModulus
 
 instance (value : F) : Decidable (isNonnegative value) :=
   inferInstanceAs (Decidable (value.val <= Centered.halfModulus))
 
-/-- One signed binary digit in the active Goldilocks field. -/
 def boundedDigit (value : F) (index : ChildIndex) : F :=
   if isNonnegative value then
     fieldOfNat (magnitudeDigit value index)
   else
     -(fieldOfNat (magnitudeDigit value index))
 
-/-- One digit selected by a single common sign bit. This is the exact form
-used by the recursive public-input split rows. -/
 def signedBinaryDigit (negative : Bool) (digit : Nat) : F :=
   if negative then -(fieldOfNat digit) else fieldOfNat digit
 
-/-- Total outside-bound fallback. Child zero retains the coefficient and all
-other children are zero. It is exact but deliberately not short. -/
 def fallbackDigit (value : F) (index : ChildIndex) : F :=
   if index.val = 0 then value else 0
 
-/-- Deterministic total scalar split. Only the bounded branch carries a short
-digit guarantee. -/
 def splitScalar (value : F) (index : ChildIndex) : F :=
   if centeredMagnitude value < combinedBound then
     boundedDigit value index
@@ -398,13 +350,10 @@ theorem splitScalarChecked_eq_some_iff (value : F)
   · simp [splitScalarChecked, bounded, eq_comm]
   · simp [splitScalarChecked, bounded]
 
-/-- Coordinatewise split of the complete typed assignment. -/
 def splitAssignment {shape : Shape}
     (assignment : Assignment shape) (index : ChildIndex) : Assignment shape :=
   fun column => splitScalar (assignment column) index
 
-/-- Recomposition is the production base-field operation already used by the
-exact evaluation homomorphism. -/
 abbrev recomposeAssignment {shape : Shape}
     (assignments : ChildIndex -> Assignment shape) : Assignment shape :=
   EvaluationHomomorphism.PiDEC.recomposeAssignment assignments
@@ -478,12 +427,9 @@ private theorem fallbackDigit_recompose (value : F) :
   change (1 : F) * value = value
   rw [Fin.one_mul]
 
-/-- Scalar form of the verifier-owned production assignment recomposition. -/
 def recomposeScalar (values : ChildIndex -> F) : F :=
   combineScalars EvaluationHomomorphism.PiDEC.radixWeight values
 
-/-- A common-sign binary digit vector recomposes to the signed natural value
-of its sixteen little-endian bits. -/
 theorem recomposeScalar_signedBinary
     (negative : Bool) (digits : ChildIndex -> Nat) :
     recomposeScalar (fun index => signedBinaryDigit negative (digits index)) =
@@ -505,9 +451,6 @@ theorem recomposeScalar_signedBinary
       rw [combineScalars_neg, combineScalars_fieldOfNat,
         sumNats_binary_eq_ofDigits]
 
-/-- Public list-fold presentation of scalar recomposition. Implementation
-refinement may use this representation without depending on the private
-structural recursion that defines `recomposeScalar`. -/
 def recomposeScalarList (values : ChildIndex -> F) : F :=
   ((List.ofFn values).zip
       (List.ofFn EvaluationHomomorphism.PiDEC.radixWeight)).foldr
@@ -518,9 +461,6 @@ theorem recomposeScalarList_eq (values : ChildIndex -> F) :
   exact foldr_zip_ofFn_eq_combineScalars
     EvaluationHomomorphism.PiDEC.radixWeight values
 
-/-- Assignment recomposition is coordinatewise scalar recomposition. This
-bridge exposes the exact production operation to necessity proofs without
-duplicating the private finite-fold implementation. -/
 @[simp] theorem recomposeAssignment_apply {shape : Shape}
     (assignments : ChildIndex -> Assignment shape)
     (column : Fin shape.carrierWidth) :
@@ -544,15 +484,12 @@ theorem splitScalar_recompose (value : F) :
       simp [splitScalar, bounded]]
     exact fallbackDigit_recompose value
 
-/-- Unconditional exact recomposition required by `PiDEC.Algebra`. -/
 theorem split_recompose {shape : Shape} (assignment : Assignment shape) :
     recomposeAssignment (splitAssignment assignment) = assignment := by
   funext column
   unfold recomposeAssignment EvaluationHomomorphism.PiDEC.recomposeAssignment
   rw [combineAssignments_apply]
   exact splitScalar_recompose (assignment column)
-
-/-! ## Split norm -/
 
 private theorem centeredMagnitude_fieldOfNat_lt_two {digit : Nat}
     (digitLt : digit < 2) :
@@ -576,8 +513,6 @@ theorem splitScalar_norm (value : F)
     centeredMagnitude (splitScalar value index) < productionGlobalParams.b := by
   simpa [splitScalar, bounded] using boundedDigit_norm value index
 
-/-- A strictly combined-bounded complete assignment splits into sixteen
-strictly fresh-bounded assignments. -/
 theorem split_norm {shape : Shape} (assignment : Assignment shape)
     (bounded : assignmentNormBounded productionGlobalParams.bigB assignment) :
     forall index,
@@ -586,8 +521,6 @@ theorem split_norm {shape : Shape} (assignment : Assignment shape)
   intro index column
   apply splitScalar_norm
   simpa [combinedBound] using bounded column
-
-/-! ## Recomposition norm -/
 
 private theorem sumNats_mono {count : Nat}
     {left right : Fin count -> Nat}
@@ -746,9 +679,6 @@ private theorem neg_fieldOfNat_negative_of_positive_combinedBound
     Centered.halfModulus, goldilocksModulus] at bounded ⊢
   omega
 
-/-- Common-sign Boolean digits and exact radix recomposition determine the
-verifier's public split uniquely. A caller cannot use a mixed-sign alternate
-decomposition such as `1 = -1 + 2`. -/
 theorem splitScalar_eq_signedBinary_of_recompose
     (value : F) (negative : Bool) (digits : ChildIndex -> Nat)
     (binary : forall index, digits index < 2)
@@ -829,8 +759,6 @@ theorem splitScalar_eq_signedBinary_of_recompose
             magnitudePositive magnitudeBound
         simp [boundedDigit, signedBinaryDigit, negativeValue, digitExact]
 
-/-- Any sixteen strict-`2` assignments recompose to a strict-`65536`
-assignment, independently of whether they came from `splitAssignment`. -/
 theorem recompose_norm {shape : Shape}
     (assignments : ChildIndex -> Assignment shape)
     (bounded : forall index,

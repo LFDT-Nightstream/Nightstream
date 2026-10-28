@@ -3,9 +3,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 
 /-!
 Owns executable folding of a numeric table prefix and its exact MLE meaning.
-Adjacent entries fix the least-significant remaining bit. Missing entries
-are zero, and every challenge is consumed, including after the prefix has
-length one. No matrix, assignment-validity, or protocol premise is required.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
@@ -14,19 +11,15 @@ universe uField
 
 variable {Field : Type uField}
 
-/-- The same affine interpolation used by `BooleanTable.evaluate`. -/
 def interpolate (ops : InterpolationOps Field)
     (coordinate low high : Field) : Field :=
   ops.add low (ops.mul coordinate (ops.sub high low))
 
-/-- Embed an ascending numeric prefix into the existing little-endian cube.
-The prefix bound is stated by the refinement theorem, not hidden in a read. -/
 def zeroExtend (ops : InterpolationOps Field)
     (variables : Nat) (values : Array Field) : BooleanTable Field variables :=
   BooleanTable.tabulate fun vertex =>
     values.getD (NumericBooleanDomain.index vertex) ops.zero
 
-/-- Fix the next low bit. An odd final entry is paired with implicit zero. -/
 def foldOne (ops : InterpolationOps Field)
     (values : Array Field) (challenge : Field) : Array Field :=
   Array.ofFn fun pair : Fin ((values.size + 1) / 2) =>
@@ -34,15 +27,12 @@ def foldOne (ops : InterpolationOps Field)
       (values.getD (2 * pair.val) ops.zero)
       (values.getD (2 * pair.val + 1) ops.zero)
 
-/-- Consume challenges in coordinate order. A singleton is still folded
-against zero; its value is not treated as a constant on the remaining cube. -/
 def foldPrefix (ops : InterpolationOps Field) :
     Array Field → List Field → Array Field
   | values, [] => values
   | values, challenge :: challenges =>
       foldPrefix ops (foldOne ops values challenge) challenges
 
-/-- The executable fold retains exactly the required adjacent pairs. -/
 theorem foldOne_size (ops : InterpolationOps Field)
     (values : Array Field) (challenge : Field) :
     (foldOne ops values challenge).size = (values.size + 1) / 2 := by
@@ -54,8 +44,6 @@ private theorem getD_outside (ops : InterpolationOps Field)
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_eq_none outside,
     Option.getD_none]
 
-/-- Every numeric result coordinate is the interpolation of entries `2u`
-and `2u+1`, including coordinates beyond the stored prefix. -/
 theorem foldOne_getD (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (values : Array Field) (challenge : Field) (index : Nat) :
@@ -75,7 +63,6 @@ theorem foldOne_getD (ops : InterpolationOps Field)
     unfold interpolate InterpolationOps.sub
     rw [laws.add_neg, laws.mul_zero, laws.add_zero]
 
-/-- Folding a covered prefix preserves coverage by the remaining cube. -/
 theorem foldOne_fits (ops : InterpolationOps Field)
     (values : Array Field) (challenge : Field) (variables : Nat)
     (fits : values.size ≤ 2 ^ (variables + 1)) :
@@ -84,7 +71,6 @@ theorem foldOne_fits (ops : InterpolationOps Field)
   rw [Nat.pow_succ] at fits
   omega
 
-/-- All executable prefix folds remain within the exact remaining domain. -/
 theorem foldPrefix_fits (ops : InterpolationOps Field)
     (values : Array Field) (challenges : List Field) (variables : Nat)
     (fits : values.size ≤ 2 ^ (variables + challenges.length)) :
@@ -144,8 +130,6 @@ private theorem evaluate_tabulate_interpolate (ops : InterpolationOps Field)
         FiniteSumAlgebra.sumMap_mul_left ops laws,
         FiniteSumAlgebra.sumMap_sub ops laws]
 
-/-- One adjacent numeric fold fixes precisely the head MLE coordinate.
-No assumption is made about the table values or the challenge. -/
 theorem foldOne_evaluate (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (values : Array Field) (challenge : Field)
@@ -179,9 +163,6 @@ theorem foldOne_evaluate (ops : InterpolationOps Field)
   rw [folded, original]
   exact evaluate_tabulate_interpolate ops laws challenge low high suffix
 
-/-- Exact executable prefix refinement. The original array fits the full
-cube; after all prefix challenges, its zero extension has the same MLE at
-the suffix as the original table at the concatenated point. -/
 theorem foldPrefix_evaluate (ops : InterpolationOps Field)
     (laws : InterpolationEvaluationLaws ops)
     (values : Array Field) (challenges : List Field)

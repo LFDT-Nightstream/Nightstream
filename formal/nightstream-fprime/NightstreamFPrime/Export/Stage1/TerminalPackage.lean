@@ -6,8 +6,7 @@ Owns canonical package metadata for the outer Stage 1 terminal verifier.
 
 The terminal verifier reuses the complete F′ relation. It checks 16 running
 CE claims and one fresh CCS claim against the same 4 matrices, so this edge
-adds no circuit row or column. The final package constructor must install this
-metadata after the concrete application and complete relation exist.
+adds no circuit row or column.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.TerminalPackage
@@ -16,15 +15,12 @@ open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- The terminal verifier uses every row of the final F′ relation. -/
 def layoutFor (package : CircuitPackage) : TerminalLayout where
   rowStart := 0
   rowCount := package.relation.rowCount
   runningClaims := productionShape.runningCount
   freshClaims := productionShape.freshCount
 
-/-- Install the canonical outer-terminal metadata without changing any
-executable row, witness instruction, layout dimension, or relation field. -/
 def install (package : CircuitPackage) : CircuitPackage :=
   { package with terminal := some (layoutFor package) }
 

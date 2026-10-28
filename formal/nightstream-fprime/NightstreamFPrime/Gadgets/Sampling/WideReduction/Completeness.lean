@@ -3,7 +3,7 @@ import NightstreamFPrime.Gadgets.Sampling.WideReduction.Values
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.Soundness
 
 /-!
-Owns the completeness of the whole-vector sampler constraints (V4). From any
+Owns the completeness of the whole-vector sampler constraints. From any
 environment whose four inputs lie below the offset, it completes the four
 canonical-u64 children and assigns the new bits: the binary digits of
 `Q = X div 5^54`, the base-five digits of `R = X mod 5^54` in binary, and the
@@ -23,8 +23,6 @@ open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Phi81StrongSet
 open Finset
 
-/-! ### Digit expansions -/
-
 theorem digit_sum (base value count : Nat) :
     ∑ index ∈ Finset.range count, base ^ index * (value / base ^ index % base) =
       value % base ^ count := by
@@ -33,9 +31,6 @@ theorem digit_sum (base value count : Nat) :
   | succ count inductionHypothesis =>
       rw [Finset.sum_range_succ, inductionHypothesis, pow_succ, Nat.mod_mul]
 
-/-! ### Honest assignment of the new bits -/
-
-/-- A field bit. -/
 def honestBit (value : Nat) : F := fieldOfNat (value % 2)
 
 theorem honestBit_val (value : Nat) : (honestBit value).val = value % 2 := by
@@ -43,7 +38,6 @@ theorem honestBit_val (value : Nat) : (honestBit value).val = value % 2 := by
     lt_of_lt_of_le (Nat.mod_lt _ (by decide)) (by decide)
   simp [honestBit, fieldOfNat, Nat.mod_eq_of_lt small]
 
-/-- Honest new bit number `k`: quotient bits, digit bits, then check bits. -/
 def honestNew (draw : Nat) (check : Nat → Nat) (position : Nat) : F :=
   if position < quotientBitCount then
     honestBit (draw / scalarCount / 2 ^ position)
@@ -54,7 +48,6 @@ def honestNew (draw : Nat) (check : Nat → Nat) (position : Nat) : F :=
     honestBit (check ((position - checkBias) / checkBitCount) /
       2 ^ ((position - checkBias) % checkBitCount))
 
-/-- Overwrite the new-bit region of `base` with honest values. -/
 def completedEnv (base : Env) (offset draw : Nat) (check : Nat → Nat) : Env :=
   fun index =>
     if quotientStart offset ≤ index ∧ index < quotientStart offset + newBitCount then
@@ -116,7 +109,6 @@ theorem checkBit_eval (index : Nat) (bit : Nat) (bitBelow : bit < checkBitCount)
     omega
   rw [quotientIndex, remainderBit]
 
-/-- Every new variable holds a bit. -/
 theorem newVariable_bit (position : Nat) :
     (completedEnv base offset draw check (quotientStart offset + position)) *
         ((completedEnv base offset draw check (quotientStart offset + position)) - 1) = 0 ∨
@@ -140,8 +132,6 @@ theorem newVariable_bit (position : Nat) :
 
 end Assignment
 
-/-! ### Linear-form values under the completed environment -/
-
 theorem linearValue_congr (left right : Env) (terms : List (Nat × Expr))
     (same : ∀ term ∈ terms, term.2.eval left = term.2.eval right) :
     linearValue left terms = linearValue right terms := by
@@ -159,7 +149,6 @@ private theorem digit_bits (digit : Nat) (small : digit < 5) :
     digit % 2 + 2 * (digit / 2 % 2) + 4 * (digit / 4 % 2) = digit := by
   interval_cases digit <;> rfl
 
-/-- `Y = Q N + R` for the honest bits. -/
 theorem resultTerms_honest (base : Env) (offset draw : Nat) (check : Nat → Nat)
     (drawBound : draw < drawCount) :
     linearValue (completedEnv base offset draw check) (resultTerms offset) = draw := by
@@ -202,9 +191,6 @@ theorem resultTerms_bits_honest (base : Env) (offset draw : Nat) (check : Nat �
   · rw [digitBit_eval digit bit digitBelow bitBelow]
     exact Nat.le_of_lt_succ (Nat.mod_lt _ (by decide))
 
-/-! ### Children -/
-
-/-- The operation of child `index`. -/
 def childOpAt (interface : Interface) (offset : Nat) (index : Fin fieldCount) : Op :=
   Sequence.childOp (childName index) (CanonicalU64.circuit (childInterface interface offset index))
     (childOffset offset index)
@@ -265,9 +251,6 @@ private theorem completeChildren (interface : Interface) (offset : Nat) (env : E
   rw [fourthOps, thirdOps, secondOps, firstOps]
   rfl
 
-/-! ### Completeness -/
-
-/-- Integer check quotients after the quotient and digit bits have been assigned. -/
 def checkQuotients (base : Env) (offset draw : Nat) : Nat → Nat := fun index =>
   if below : index < checkCount then
     let check : Fin checkCount := ⟨index, below⟩
@@ -278,7 +261,6 @@ def checkQuotients (base : Env) (offset draw : Nat) : Nat → Nat := fun index =
     (left - right) / modulus check
   else 0
 
-/-- The deterministic honest assignment of the 353 checked result bits. -/
 def completeNew (interface : Interface) (base : Env) (offset : Nat) : Env :=
   let draw := (drawIndex (drawOf interface base offset)).val
   completedEnv base offset draw (checkQuotients base offset draw)
@@ -289,8 +271,6 @@ theorem completeNew_agreesOutside (interface : Interface) (base : Env) (offset :
   unfold completeNew completedEnv
   rw [if_neg (by omega)]
 
-/-- Once the canonical children are complete, the explicit result assignment
-satisfies the unchanged gadget rows. -/
 theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hint) (base : Env)
     (offset : Nat)
     (children : ∀ index, CanonicalU64.SpecHolds (childInterface interface offset index)
@@ -311,7 +291,6 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
     linearValue zeroEnv (reduceTerms (modulus index) (resultTerms offset))
   let quotients := checkQuotients base offset draw
   let completed := completedEnv base offset draw quotients
-  -- Result atoms do not depend on the check quotients.
   have resultAtoms : ∀ term ∈ resultTerms offset, term.2.eval completed = term.2.eval zeroEnv := by
     intro term member
     simp only [resultTerms, quotientTerms, digitTerms, List.mem_append, List.mem_map,
@@ -329,7 +308,6 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
     simp only [reduceTerms, List.mem_map] at member
     obtain ⟨original, originalMember, rfl⟩ := member
     exact resultAtoms original originalMember
-  -- Draw atoms are child bits below the new region.
   have drawAtoms : ∀ term ∈ drawTerms offset, term.2.eval completed = term.2.eval base := by
     intro term member
     have below : ∀ index bit, index < fieldCount → bit < CanonicalU64.bitCount →
@@ -355,7 +333,6 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
     simp only [reduceTerms, List.mem_map] at member
     obtain ⟨original, originalMember, rfl⟩ := member
     exact drawAtoms original originalMember
-  -- Each check row closes with its quotient.
   have checkClosed : ∀ index : Fin checkCount,
       left index = right index + modulus index * quotients index.val ∧
         quotients index.val < 549 := by
@@ -433,8 +410,7 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
       rcases operationMember with (⟨atom, atomMember, rfl⟩ | ⟨digit, digitMember, rfl⟩) |
           ⟨index, _, rfl⟩ <;>
         (have same := List.mem_singleton.mp expressionMember; subst same)
-      · -- Booleanity of a new bit.
-        have position : ∃ position, position < newBitCount ∧
+      · have position : ∃ position, position < newBitCount ∧
             atom = Expr.var (quotientStart offset + position) := by
           simp only [newBits, List.mem_append, List.mem_map, List.mem_range, List.mem_flatMap,
             List.mem_finRange, true_and] at atomMember
@@ -461,8 +437,7 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
           (check := quotients) position with zero | outside
         · simpa [Expr.eval] using! zero
         · exact absurd below outside
-      · -- Digit range.
-        have below := List.mem_range.mp digitMember
+      · have below := List.mem_range.mp digitMember
         change (digitBit offset digit 2).eval completed *
           ((digitBit offset digit 0).eval completed + (digitBit offset digit 1).eval completed) = 0
         have b0 := digitBit_eval (base := base) (offset := offset) (draw := draw) (check := quotients) digit 0 below
@@ -484,8 +459,7 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
             have : value / 2 ^ 2 = 0 := Nat.div_eq_of_lt (by change value < 4; omega)
             rw [this]; rfl
           rw [zero2, zero_mul]
-      · -- Check row.
-        obtain ⟨closed, bound⟩ := checkClosed index
+      · obtain ⟨closed, bound⟩ := checkClosed index
         change (linearExpr (reduceTerms (modulus index) (drawTerms offset)) +
               Expr.const (fieldOfNat (modulus index * checkBias)) -
             (linearExpr (reduceTerms (modulus index) (resultTerms offset)) +
@@ -522,8 +496,6 @@ theorem completeNew_holds (interface : Interface) (hints : Nat → List Hint) (b
     holdsFlat (completeNew interface base offset) (operations interface hints offset) := by
   exact (completeNew_certificate interface hints base offset children childRows childScope).1
 
-/-- V4: from any environment whose inputs lie below the offset, an honest
-completion changes only the gadget's variables and satisfies every row. -/
 theorem completeness (interface : Interface) (hints : Nat → List Hint) (env : Env)
     (offset : Nat) (assumptions : Assumptions interface offset)
     (allocates : (hints offset).length = newBitCount) :
@@ -559,9 +531,6 @@ theorem completeness (interface : Interface) (hints : Nat → List Hint) (env : 
     have scope := done.scope expression member
     rwa [doneLength] at scope
 
-/-! ### The proved circuit -/
-
-/-- The whole-vector sampler as one opaque proved circuit. -/
 def circuit (interface : Interface) (hints : Nat → List Hint)
     (allocates : ∀ offset, (hints offset).length = newBitCount) : FormalCircuit where
   main := fun offset => ((), offset + privateCount, operations interface hints offset)

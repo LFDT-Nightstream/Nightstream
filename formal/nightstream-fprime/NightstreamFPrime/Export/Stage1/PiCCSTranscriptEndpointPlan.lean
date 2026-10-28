@@ -6,9 +6,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns 64 zero-pin rows that bind the four direct PiCCS transcript endpoint
-states to the exact lifecycle compiler variables. The first three endpoints
-read the actual retained output forms. The output endpoint uses its dedicated
-eight-field retained block.
+states to the exact lifecycle compiler variables.
 
 This module does not assemble the other PiCCS leaves.
 -/
@@ -700,8 +698,6 @@ private theorem roundEndpoint_eq_finalEval
         (PiCCSInvocations.roundInterface Data.logicalWidth Data.publicFits)
         PiCCSInvocations.roundWitnessStart) roundFinalState_endpoint
 
-/-- The retained final PiCCS Poseidon2 state is the exact semantic output
-binding state selected by the endpoint rows. -/
 theorem outputEndpoint_eq_finalEval
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
@@ -755,7 +751,6 @@ private theorem zeroState_eq_evalZero (env : Env) :
   norm_num [List.ofFn_succ]
   rfl
 
-/-- The statement action list uses the same source expressions at every relation width. -/
 theorem statementActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
@@ -808,7 +803,6 @@ private theorem statementTrace_state_endpoint_of_shape
       PiCCSInvocations.challengeWitnessStart - 16 by rfl]
   rw [startEq]
 
-/-- The existing C phase source wiring is independent of the relation width. -/
 theorem statementFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
@@ -827,7 +821,6 @@ theorem statementFinalState_endpoint_of_shape
     _ = _ := statementTrace_state_endpoint_of_shape relationLogicalWidth
       relationPublicFits lane
 
-/-- The existing C phase source wiring is independent of the relation width. -/
 theorem challengeActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
@@ -895,7 +888,6 @@ private theorem challengeTrace_state_endpoint_of_shape
       PiCCSInvocations.roundWitnessStart - 16 by rfl]
   rw [startEq]
 
-/-- The existing C phase source wiring is independent of the relation width. -/
 theorem challengeFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
@@ -914,7 +906,6 @@ theorem challengeFinalState_endpoint_of_shape
     _ = _ := challengeTrace_state_endpoint_of_shape relationLogicalWidth
       relationPublicFits lane
 
-/-- The round action list uses the same source expressions at every relation width. -/
 theorem roundActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
@@ -980,7 +971,6 @@ private theorem roundTrace_state_endpoint_of_shape
   rw [show PiCCSTranscriptDirectSemantics.roundCount = 56 by rfl]
   rw [startEq]
 
-/-- The existing C phase source wiring is independent of the relation width. -/
 theorem roundFinalState_endpoint_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
@@ -999,7 +989,6 @@ theorem roundFinalState_endpoint_of_shape
     _ = _ := roundTrace_state_endpoint_of_shape relationLogicalWidth
       relationPublicFits lane
 
-/-- The output action list uses the same source expressions at every relation width. -/
 theorem outputActions_eq_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
@@ -1087,7 +1076,6 @@ theorem outputFinalState_endpoint_of_shape
     _ = _ := outputTrace_state_endpoint_of_shape relationLogicalWidth
       relationPublicFits lane
 
-/-- The existing C phase source wiring is independent of the relation width. -/
 theorem roundInitialState_eq_challengeFinalState_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
@@ -1113,7 +1101,6 @@ theorem roundInitialState_eq_challengeFinalState_of_shape
     (PiCCSInvocations.challengeTrace_state_matches relationLogicalWidth
       relationPublicFits)
 
-/-- The existing C phase source wiring is independent of the relation width. -/
 theorem outputInitialState_eq_roundFinalState_of_shape
     (relationLogicalWidth : Nat)
     (relationPublicFits : ringDegree * publicRingColumns ≤
@@ -1146,8 +1133,6 @@ private theorem transcriptIndex_bound (index : Nat)
   norm_num [PiCCSActionPayloadBlock.invocationCount]
   omega
 
-/-- Each of the transcript permutations before the output absorb stores, in
-the environment, the value state of the indexed schedule. -/
 def TranscriptOutputs {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
@@ -1168,8 +1153,6 @@ private theorem endpoint_permutationOutput (family : Fin familyCount)
   unfold Invocations.permutationOutput Permutation.freshState endpointColumn
   rw [startEq]
 
-/-- An environment that reads every transcript output slot as its retained
-output form stores the indexed value states. -/
 theorem transcriptOutputs_of_forms
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
@@ -1236,8 +1219,6 @@ theorem transcriptOutputs_of_forms
       rw [stateEq]
       rfl
 
-/-- The ordinary source encoding stores every transcript output in the package
-environment. -/
 theorem transcriptOutputs_of_encoding
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (poseidonGeometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
@@ -1267,7 +1248,6 @@ theorem transcriptOutputs_of_encoding
     (Spartan.sourceToSpartan_lt _
       (PiCCSOrdinaryRetainedBlocks.transcriptOutputSource_lt slot))
 
-/-- Stored transcript outputs make every challenge and round read sound. -/
 theorem reads_of_outputs {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)

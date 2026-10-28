@@ -61,8 +61,6 @@ private def referencePoseidonInterface : PoseidonSboxPlan.Interface 167 :=
         rw [PoseidonRetainedSlots.rows_length]
         omega⟩ }
 
-/-- Keep the reference state in its original local coordinates. Combining
-repeated entries after each existing step prevents exponential list growth. -/
 private def referencePoseidon (_ : Unit) : List (List WireForm) × List WireForm := Id.run do
   let interface := referencePoseidonInterface
   let mut nextSbox := 0

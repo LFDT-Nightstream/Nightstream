@@ -39,7 +39,10 @@ The game:
   slot), the random-oracle model of the Fiat–Shamir reads.
 - The adversary is deterministic. It is chosen before the chunks and may read
   all of them, so it cannot contain a kernel vector of the key. An adversary
-  precomputed for the fixed deployed seed is outside the game.
+  precomputed for the fixed deployed seed is outside the game. A randomized
+  adversary is a family over uniform coins;
+  `RandomOracleSetup.randomized_knowledge_error_lt` averages the criterion
+  over the coins.
 - The extractor and the binding reduction rerun the adversary with a changed
   `H`, so the oracle is programmable.
 - The claim is linked: the verifier also checks that the prior preimage
@@ -51,7 +54,9 @@ The terms:
 
 - `hashCollisions`: the chance that a retry or a rerun of the adversary gives
   two different prior preimages with one state hash. Both preimages are the
-  adversary's own outputs.
+  adversary's own outputs. With a strict budget of `T` adversary runs, 18
+  collision finders bound it: `𝔼 hashCollisions ≤ 18 · hashAdvantage T +
+  (52 Q + 959) / T` (`RandomOracleHashSolver.hashCollisions_le_solver`).
 - `17 (Q + 17) ε_sample + (Q + 74) ε_test`: `RandomOracleKnowledge.statisticalError`.
 - `msisAdvantage`: the success of an explicit MSIS solver. For a uniform
   matrix, it draws chunks uniformly among the matrix's preimages, runs the
@@ -59,14 +64,16 @@ The terms:
   reduction `RandomOracleBinding.rerunKernel`. That output is a nonzero
   integer kernel vector of the matrix's key with every coordinate below `8TB`.
   The vector is a function of the two runs; the definition is
-  `noncomputable`.
+  `noncomputable`. With a strict budget of `T` adversary runs the same
+  solver (`RandomOracleReduction.solve`) loses at most `(35 Q + 653) / T`
+  (`RandomOracleSetup.msisAdvantage_le_solver`).
 - `2^-190`: the error of drawing a uniform matrix instead of reduced chunks
   for every application that fits
   (`RandomOracleSetup.programmingError_lt_of_fits`).
 
-Required premises: the query bound only. MSIS hardness, the collision
-resistance of the state hash, and the running time of the solver are not
-premises; a numerical bound on `msisAdvantage` or `hashCollisions` needs them.
+Required premises: the query bound only. MSIS hardness and the collision
+resistance of the state hash are not premises; a numerical bound on
+`msisAdvantage` or `hashCollisions` needs them.
 
 Dependencies, with namespace prefix `NightstreamFPrime`:
 

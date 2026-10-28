@@ -1,8 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImagesPreservation
 import NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout
 
-/-! Proof-only source values for the two carried accumulators. Matrix and Pad
-values are projections of the checked original-source endpoint constructor.
+/-! Proof-only source values for the two carried accumulators.
 The scalar fold ordering and worker merge belong to the complete-sum proof. -/
 
 set_option autoImplicit false
@@ -28,12 +27,10 @@ private abbrev blocks
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) := PiCCSAggregatedImages.combinedBlock (powers gamma) witness.assignments
 
-/-- The same slot sum used by replayCarriedMatrix, before its global shift. -/
 def slotTotal (gamma : K) (values : Vector K ProductionRelation.matrixCount) : K :=
   sumMap extensionOps (canonicalFinIndices productionShape.matrixCount) fun slot =>
     extensionOps.mul (powers gamma (productionShape.runningCount * slot.val)) (values.get slot)
 
-/-- The numeric matrix lookup has the same zero suffix as the endpoint. -/
 def matrixAt?
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (vertex : BooleanVertex cubeVariables) : Option (Vector K ProductionRelation.matrixCount) :=
@@ -63,7 +60,6 @@ private theorem padRead_none {columns : Nat} (layout : ColumnLayout cubeVariable
     padRead layout prepared blockValues vertex = K.zero := by
   rw [padRead, outside]
 
-/-- The decoded full-carrier Pad value, before its suffix weight. -/
 def padAt
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (vertex : BooleanVertex cubeVariables) : K :=
@@ -175,8 +171,6 @@ private theorem endpoint_projections (input : PiCCSPublicReplay.Input)
     { (selectedMessage input witness vertex) with padImage := fun _ => K.zero, matrixImage := fun _ => K.zero }
     (originalPad input witness gamma vertex) (originalMatrix input witness gamma vertex) original
 
-/-- Every numeric matrix slot sum is the original full local-gamma total.
-The Option equation discharges successful loads without a validity premise. -/
 theorem matrix_sourceProtocolData (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (vertex : BooleanVertex cubeVariables) :
@@ -184,15 +178,12 @@ theorem matrix_sourceProtocolData (input : PiCCSPublicReplay.Input)
       some (originalMatrix input witness gamma vertex) :=
   (endpoint_projections input witness gamma vertex).2
 
-/-- Every decoded Pad value is the original full local-gamma total. -/
 theorem pad_sourceProtocolData (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (vertex : BooleanVertex cubeVariables) :
     padAt witness gamma vertex = originalPad input witness gamma vertex :=
   (endpoint_projections input witness gamma vertex).1
 
-/-- The selected scalar Pad read at a full-carrier column is the original
-local-gamma Pad total at that column's Boolean vertex. -/
 theorem pad_column_sourceProtocolData (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (column : Fin PiCCSSourceImages.shape.carrierWidth) :
@@ -207,8 +198,6 @@ private theorem fullShape_carrierWidth (logicalWidth : Nat)
     (PaperAlgebra.FullShape logicalWidth publicFits).carrierWidth =
       Phi81CarrierLayout.carrierWidth logicalWidth := rfl
 
-/-- Transport a selected block index to the exact carrier-column owner's
-block type without evaluating the selected logical-width expression. -/
 theorem blockCount_eq_authority : PiCCSSourceImages.blockCount =
     Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth PiCCSSourceImages.logicalWidth) := by
   exact congrArg Phi81ColumnLayout.blockCount
@@ -230,8 +219,6 @@ private theorem read_carrierColumn {logicalWidth : Nat}
         Nat.mod_lt _ (by decide)⟩ : Fin ringDegree) = lane := congrArg Prod.snd decoded
   simp only [PiCCSCarriedRead.read, blockIndex, laneIndex]
 
-/-- The direct block/lane dot product in replayCarriedPad is exactly the
-original Pad total at that full-carrier column. Running tails are included. -/
 theorem pad_block_sourceProtocolData (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K)
@@ -254,7 +241,6 @@ private theorem weighted_zero_vector (count : Nat) (weight : Fin count → K) :
     rfl
   simp only [zeroGet, extensionLaws.mul_zero, FiniteSumAlgebra.sumMap_zero extensionOps extensionLaws]
 
-/-- Matrix completion past the active program is zero for every assignment. -/
 theorem originalMatrix_padding (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (vertex : BooleanVertex cubeVariables)
@@ -277,8 +263,6 @@ private theorem relationLayout_none {logicalWidth : Nat}
   exact (Folding.PiCCS.CanonicalRowLayout.toColumn?_eq_none_iff cubeVariables
     (Phi81CarrierLayout.carrierWidth logicalWidth) relation.cubeFits vertex).2 beyond
 
-/-- Pad completion begins after the complete carrier, not after the matrix
-row count. No retained tail coordinate is dropped. -/
 theorem originalPad_padding (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (vertex : BooleanVertex cubeVariables)

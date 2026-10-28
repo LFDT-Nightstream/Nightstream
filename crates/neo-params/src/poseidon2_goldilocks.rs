@@ -3,61 +3,16 @@
 //! This module defines ONLY the canonical Poseidon2 parameters used throughout Neo.
 //! The actual implementation lives in other crates but MUST import these constants.
 //!
-//! ## Configuration
-//! - WIDTH = 16 (total state size)
-//! - CAPACITY = 4 (security parameter: 4 × 64 = 256 bits)
-//! - RATE = 12 (absorption rate: WIDTH - CAPACITY)
-//! - DIGEST_LEN = 4 (output size: 4 × 64 ≈ 256 bits)
-//!
-//! ## Security Properties
-//! - Collision resistance: ~128 bits (birthday bound on 256-bit capacity)
-//! - Preimage resistance: ~256 bits (full capacity)
-//! - Second preimage resistance: ~256 bits
-//!
-//! Note: Goldilocks field elements are slightly less than 64 bits (p ≈ 2^64 - 2^32 + 1),
-//! so actual security is marginally lower than the theoretical maximum.
-//!
 //! ## References
 //! - Poseidon2 paper: Grassi et al. 2023 (https://eprint.iacr.org/2023/323)
-//! - Plonky3 implementation: p3_goldilocks
-//! - Security analysis: Based on Poseidon targeting 128-bit security
 
-/// Poseidon2 state width
-///
-/// Total number of field elements in the permutation state.
-/// Must equal CAPACITY + RATE = 4 + 12 = 16. Plonky3 checks the 128-bit
-/// round numbers (8 full, 22 partial) for this width over Goldilocks.
+/// Plonky3 checks the 128-bit round numbers (8 full, 22 partial) for this width over Goldilocks.
 pub const WIDTH: usize = 16;
 
-/// Capacity of the sponge construction (security parameter)
-///
-/// 4 field elements × 64 bits/element = 256 bits total capacity.
-/// Provides ~128 bits of collision resistance (birthday bound: 2^(256/2) = 2^128).
 pub const CAPACITY: usize = 4;
 
-/// Rate of absorption (elements absorbed per permutation)
-///
-/// Number of field elements that can be absorbed in each sponge round.
-/// Must equal WIDTH - CAPACITY = 16 - 4 = 12.
-/// Each permutation absorbs ~768 bits of input.
 pub const RATE: usize = 12;
 
-/// Length of output digest (field elements)
-///
-/// 4 field elements × 64 bits ≈ 256 bits output.
-/// (Slightly lower since Goldilocks is not quite 64 bits.)
-/// Provides ~128-bit collision resistance.
 pub const DIGEST_LEN: usize = 4;
 
-/// Fixed seed for deterministic round constant generation.
-///
-/// # Security Note
-/// This seed is public and fixed by design. It ensures that:
-/// - All provers and verifiers use identical round constants
-/// - The permutation is deterministic and reproducible
-/// - No backdoors can be introduced via seed manipulation
-///
-/// The security of Poseidon2 does NOT rely on the seed being secret.
-/// Round constants generated from any fixed seed provide equivalent security.
 pub const SEED: [u8; 32] = *b"neo_poseidon2_goldilocks_seed___";
-// Tests live in `crates/neo-params/tests/` (no in-file test modules).

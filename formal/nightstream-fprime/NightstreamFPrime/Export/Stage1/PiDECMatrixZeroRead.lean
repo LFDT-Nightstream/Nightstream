@@ -5,9 +5,8 @@ import NightstreamFPrime.Export.Stage1.PiDECParentMagnitude
 import Mathlib.Data.List.Basic
 
 /-!
-Both existing matrix range sums return zero under a zero scalar read.
-The rows, interfaces, point and offsets are arbitrary. These arithmetic
-identities do not replace any runtime row or interface load guard.
+Both existing matrix range sums return zero under a zero scalar read. These
+arithmetic identities do not replace any runtime row or interface load guard.
 -/
 
 set_option autoImplicit false
@@ -50,8 +49,6 @@ private theorem numericSum_of_zero (count : Nat) (term : Nat → K)
   rw [funext zero]
   exact numericSum_zero count
 
-/-- Every matrix port and both coordinates of all 54 K coefficients are zero.
-No source-row, parent, interface, or point correctness premise is required. -/
 theorem sparse_sum_zero {columns arity count : Nat} (firstRow : Nat)
     (point : CubePoint K arity) (forms : Vector (MatrixProgram.RowForms columns) count)
     (port : Fin matrixCount) :
@@ -81,8 +78,6 @@ private theorem invocation_zero {columns arity : Nat} (firstRow : Nat)
   · simp only [dif_pos live, evalSparse_zero, weighted_zero]
   · simp only [dif_neg live, weighted_zero]
 
-/-- Any vector of loaded invocations contributes zero under the zero read.
-The result retains every matrix port and every K coefficient explicitly. -/
 theorem invocation_sum_zero {columns arity count : Nat} (firstRow : Nat)
     (point : CubePoint K arity)
     (interfaces : Vector (PoseidonSboxPlan.Interface columns) count)
@@ -117,8 +112,6 @@ private theorem parentRead_zero {count columns : Nat}
     rw [digits, evalSparse_zero]
   · rfl
 
-/-- The input-derived guard preserves the existing complete sparse range.
-No external bound or expected matrix value is a premise. -/
 theorem ifActive_sparse_value {blocks columns arity count : Nat}
     (parents : Vector (Vector Int ringDegree) blocks) (child : Radix.ChildIndex)
     (firstRow : Nat) (point : CubePoint K arity)
@@ -134,8 +127,6 @@ theorem ifActive_sparse_value {blocks columns arity count : Nat}
       sparse_sum_zero]
   · rfl
 
-/-- The same guard preserves every loaded Poseidon invocation and matrix
-coefficient. It does not assume that selectors or retained values are valid. -/
 theorem ifActive_invocation_value {blocks columns arity count : Nat}
     (parents : Vector (Vector Int ringDegree) blocks) (child : Radix.ChildIndex)
     (firstRow : Nat) (point : CubePoint K arity)

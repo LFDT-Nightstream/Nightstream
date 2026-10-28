@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry
 /-!
 Owns zero-copy PiCCS and PiRLC sampler views of the retained later-Poseidon2
 block. PiCCS owns the first 7,604 invocations and the sampler owns the next
-34. Both views keep the original invocation-major coordinate order.
+34.
 
 This module does not construct matrix rows or duplicate retained values.
 -/
@@ -125,7 +125,6 @@ theorem sampler_end_eq_later_end
   rw [samplerStart_eq, samplerBlock_coordinateCount]
   rw [PiRLCRetainedGeometry.laterPoseidonBlock_coordinateCount]
 
-/-- A parent later-Poseidon encoding restricts to the exact PiCCS prefix. -/
 theorem piCcsBlock_encodesAt
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (assignment : Assignment F logicalWidth)
@@ -171,7 +170,6 @@ theorem samplerStart_eq_indexed
   rw [samplerStart_eq, PiRLCRetainedGeometry.laterPoseidonBlock_kind]
   simp [piCcsSlotCount, piCcsInvocationCount, PoseidonRetainedSlots.rows_length, LowNormSlot.Kind.width, BalancedTernary.width]
 
-/-- A parent later-Poseidon encoding restricts to the exact sampler suffix. -/
 theorem samplerBlock_encodesAt
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (assignment : Assignment F logicalWidth)

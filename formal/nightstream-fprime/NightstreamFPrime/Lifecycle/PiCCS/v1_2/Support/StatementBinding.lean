@@ -48,8 +48,6 @@ private theorem contextAssertions_varsSatisfy
   exact sub_varsSatisfy _ _ allowed (stateSupport lane)
     (expectedSupport lane)
 
-/-- Exact support of the frozen statement-binding child selected by the
-PiCCS parent. -/
 theorem statementBindingConstraints_varsSatisfy
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

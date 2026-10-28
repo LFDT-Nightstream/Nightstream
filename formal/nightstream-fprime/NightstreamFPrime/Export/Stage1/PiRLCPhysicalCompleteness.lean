@@ -15,8 +15,6 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- A valid production PiRLC phase determines the exact remapped physical
-rows. The completion changes only the PiRLC-local private interval. -/
 theorem completePhysicalRows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (ajtai : AjtaiKey

@@ -10,17 +10,16 @@ use serde::Deserialize;
 use serde_json::Value;
 use thiserror::Error;
 
-const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
 // The selected Nightstream profile, in the exported profile field order.
 const PROFILE: [u64; 8] = [
-    GOLDILOCKS_MODULUS,
-    2,
-    16,
-    65536,
-    54,
-    28,
+    Goldilocks::ORDER_U64,
+    crate::DECOMPOSITION_BASE,
+    crate::DECOMPOSITION_K_RHO as u64,
+    crate::DECOMPOSITION_NORM_BOUND,
+    crate::PI_CCS_V1_2_COEFFICIENT_COUNT as u64,
+    crate::PI_CCS_V1_2_ROUND_COUNT as u64,
     crate::PI_CCS_V1_2_MATRIX_COUNT as u64,
-    4,
+    MATRIX_PORTS as u64,
 ];
 const MATRIX_PORTS: usize = 4;
 
@@ -42,7 +41,7 @@ impl SparseForm {
     pub fn new(entries: impl IntoIterator<Item = (usize, u64)>) -> Result<Self, ComponentError> {
         let mut terms = Vec::new();
         for (column, coefficient) in entries {
-            if coefficient >= GOLDILOCKS_MODULUS {
+            if coefficient >= Goldilocks::ORDER_U64 {
                 return Err(ComponentError::Invalid("noncanonical field coefficient"));
             }
             terms.push((column, Goldilocks::from_u64(coefficient)));
@@ -141,12 +140,6 @@ pub struct Port {
 }
 
 impl Port {
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-    pub fn role(&self) -> PortRole {
-        self.role
-    }
     pub fn range(&self) -> std::ops::Range<usize> {
         self.start..self.start + self.count
     }
@@ -207,8 +200,6 @@ impl FormulaVariant {
             .ok_or(ComponentError::Invalid("register count overflow"))?;
         let mut registers: Vec<_> = (0..input_count).map(SparseForm::variable).collect();
         for form in raw.linear_forms {
-            // Validate before normalization: even a zero coefficient cannot hide
-            // an out-of-range or forward reference in the input format.
             if form.iter().any(|(index, _)| *index >= registers.len()) {
                 return Err(ComponentError::Invalid("forward or invalid register reference"));
             }
@@ -242,18 +233,10 @@ impl FormulaVariant {
         })
     }
 
-    pub fn row_count(&self) -> usize {
-        self.rows.len()
-    }
-    pub fn output_count(&self) -> usize {
-        self.outputs.len()
-    }
-
     pub(crate) fn input_count(&self) -> usize {
         self.input_count
     }
 
-    /// Linear maps over the original input-port ordinals, before substitution.
     pub(crate) fn row_templates(&self, range: std::ops::Range<usize>) -> Result<&[MatrixRow], ComponentError> {
         self.rows
             .get(range)
@@ -320,8 +303,6 @@ pub struct FormulaComponent {
     input_count: usize,
     ports: Vec<Port>,
     variants: Vec<FormulaVariant>,
-    definitions: Vec<String>,
-    contracts: Vec<String>,
 }
 
 impl FormulaComponent {
@@ -352,14 +333,9 @@ impl FormulaComponent {
             input_count: raw.input_count,
             ports: raw.ports,
             variants,
-            definitions: raw.definitions,
-            contracts: raw.contracts,
         })
     }
 
-    pub fn id(&self) -> &str {
-        &self.id
-    }
     pub fn input_count(&self) -> usize {
         self.input_count
     }
@@ -368,15 +344,6 @@ impl FormulaComponent {
     }
     pub fn variant(&self, index: usize) -> Option<&FormulaVariant> {
         self.variants.get(index)
-    }
-    pub fn variant_count(&self) -> usize {
-        self.variants.len()
-    }
-    pub fn definitions(&self) -> &[String] {
-        &self.definitions
-    }
-    pub fn contracts(&self) -> &[String] {
-        &self.contracts
     }
 }
 
@@ -417,10 +384,6 @@ impl FormulaLibrary {
 
     pub fn component(&self, id: &str) -> Option<&FormulaComponent> {
         self.components.iter().find(|component| component.id == id)
-    }
-
-    pub fn components(&self) -> &[FormulaComponent] {
-        &self.components
     }
 }
 

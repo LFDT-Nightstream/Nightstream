@@ -10,6 +10,9 @@ Workspace members (root `Cargo.toml`), lowest layer first:
 | `neo-transcript` | Poseidon2 Fiat-Shamir transcript | [neo-transcript](neo-transcript.md) |
 | `neo-ajtai` | Ajtai (module-SIS) commitments, decomposition, S-module | [neo-ajtai](neo-ajtai.md) |
 | `neo-reductions` | Π_CCS / Π_RLC / Π_DEC engines (optimized + paper-exact) | [neo-reductions](neo-reductions.md) |
+| `neo-spartan` | Compression layer 1: a succinct argument for one CE claim, with WHIR commitments | [source](../../crates/neo-spartan/src/lib.rs) |
+| `neo-prover-metal` | Metal device state and row evaluation for the prover | [neo-prover-metal](../../crates/neo-prover-metal/README.md) |
+| `neo-prover-cuda` | CUDA backend target; construction fails until a canonical kernel exists | [source](../../crates/neo-prover-cuda/src/lib.rs) |
 | `nightstream` | Current circuit compilation, package loading, proving, and verification | [nightstream](../../crates/nightstream/README.md) |
 | `nightstream-fprime` | Shared package format and exported verifier execution | [source](../../crates/nightstream-fprime/src/lib.rs) |
 

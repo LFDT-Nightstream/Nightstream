@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ConstraintPolynomialLift.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Structural carrier lift for an explicit sparse CCS polynomial.
 
@@ -18,16 +15,6 @@ Does not own: algebraic homomorphism laws, evaluation, norm residuals,
 protocol source data, SumCheck, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: lifting changes coefficients through one explicit
-function and cannot alter exponent vectors or add/remove/reorder terms.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `pi_ccs.ccs.syntax.lift.monomial` | lift coefficient; preserve exponent vector | computed | `liftMonomial` |
-| `pi_ccs.ccs.syntax.lift.degree` | total degree is unchanged | derived | `liftMonomial_totalDegree` |
-| `pi_ccs.ccs.syntax.lift.polynomial` | preserve ordered sparse syntax and degree proof | computed | `liftConstraintPolynomial` |
-| `pi_ccs.ccs.syntax.lift.canonical_degree` | preserve the syntax-derived equality-gated ceiling | derived | `liftConstraintPolynomial_canonicalEqualityGatedDegreeBound` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConstraintPolynomialLift
@@ -36,7 +23,6 @@ universe uBase uExtension
 
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Lift only a monomial's coefficient. -/
 def liftMonomial
     {Base : Type uBase}
     {Extension : Type uExtension}
@@ -47,7 +33,6 @@ def liftMonomial
   coefficient := lift monomial.coefficient
   exponents := monomial.exponents
 
-/-- A coefficient lift cannot change a sparse monomial's total degree. -/
 theorem liftMonomial_totalDegree
     {Base : Type uBase}
     {Extension : Type uExtension}
@@ -57,8 +42,6 @@ theorem liftMonomial_totalDegree
     (liftMonomial lift monomial).totalDegree = monomial.totalDegree := by
   rfl
 
-/-- Lift an explicit sparse CCS polynomial without changing its term order,
-exponents, declared degree metadata, or proof that terms obey that metadata. -/
 def liftConstraintPolynomial
     {Base : Type uBase}
     {Extension : Type uExtension}
@@ -91,8 +74,6 @@ private theorem maxDegreeFold_map_liftMonomial
       simp only [List.map_cons, List.foldl_cons, liftMonomial_totalDegree]
       exact inductionHypothesis _
 
-/-- Coefficient lifting preserves the canonical verifier degree because it
-cannot change the ordered exponent vectors. -/
 theorem liftConstraintPolynomial_canonicalEqualityGatedDegreeBound
     {Base : Type uBase}
     {Extension : Type uExtension}

@@ -58,10 +58,6 @@ private theorem mapCombinationColumns_sum (column : Nat → Nat)
   | cons combination rest ih =>
       simp [sumCombinations, ih]
 
-/-- The affine input to one permutation invocation. Invocation zero starts
-from zero. Later invocations use the previous permutation output. Absorb
-invocations add one rate-width input block; the final invocation adds the
-lane-zero `+1` padding marker. -/
 def invocationInput (package : CircuitPackage) (chain : HashChain)
     (invocation lane : Nat) : R1CS.LinearCombination :=
   let previous :=
@@ -134,8 +130,6 @@ def instantiateRow (package : CircuitPackage) (chain : HashChain)
     instantiateCombination package chain invocation row.b,
     instantiateCombination package chain invocation row.c⟩
 
-/-- Instantiation has exactly the template-row semantics under the package's
-chain substitution. -/
 theorem instantiateRow_holds (package : CircuitPackage) (chain : HashChain)
     (invocation : Nat) (row : TemplateRow) (env : Env) :
     (instantiateRow package chain invocation row).Holds env ↔
@@ -245,9 +239,6 @@ def PermutationInvocationHolds (package : CircuitPackage)
   ∀ row ∈ package.permutation.rows,
     (instantiateInvocationRow invocation row).Holds env
 
-/-- The final package column bound to one compact-template input. The strict
-loader proves that the ranges form a total, ordered partition of the declared
-input interval. -/
 def compactInputColumn (ranges : List CompactInputRange)
     (input : Nat) : Nat :=
   match ranges.find? fun range =>
@@ -292,8 +283,6 @@ def instantiateCompactRow (invocation : CompactRowInvocation)
     instantiateCompactCombination invocation row.b,
     instantiateCompactCombination invocation row.c⟩
 
-/-- One compact invocation is fail-closed on its selected template and then
-checks every exact instantiated `A * B = C` row. -/
 def CompactRowInvocationHolds (package : CircuitPackage)
     (invocation : CompactRowInvocation) (env : Env) : Prop :=
   match package.compactRowTemplates[invocation.templateIndex]? with
@@ -326,7 +315,6 @@ def CircuitPackage.compactRowCount (package : CircuitPackage) : Nat :=
   compactRowCountFor package.compactRowTemplates
     package.compactRowInvocations
 
-/-- The authoritative R1CS row checked for one generic witness instruction. -/
 def WitnessInstruction.toR1CS (instruction : WitnessInstruction) : R1CS.Row :=
   ⟨instruction.a.toR1CS, instruction.b.toR1CS,
     R1CS.LinearCombination.ofVar instruction.target⟩
@@ -345,7 +333,6 @@ theorem witnessInstruction_toR1CS_holds
   simp [R1CS.Row.Holds, WitnessInstruction.toR1CS,
     WitnessInstruction.Holds, combinationEval]
 
-/-- An instruction input does not read the value that it is about to write. -/
 def SparseCombination.Avoids (combination : SparseCombination)
     (target : Nat) : Prop :=
   ∀ term ∈ combination.terms, term.column ≠ target
@@ -365,7 +352,6 @@ theorem SparseCombination.eval_set_of_avoids
   unfold SparseCombination.eval
   rw [termsEqual]
 
-/-- Execute the non-authoritative hint carried by one instruction. -/
 def WitnessInstruction.execute (instruction : WitnessInstruction)
     (env : Env) : Env :=
   Env.set env instruction.target
@@ -393,7 +379,6 @@ theorem sparseRow_holds (row : SparseRow) (env : Env) :
 def AssertionsHold (package : CircuitPackage) (env : Env) : Prop :=
   ∀ row ∈ package.assertionRows, row.Holds env
 
-/-- Authoritative row semantics of a loaded circuit package. -/
 def CircuitPackage.RowsHold (package : CircuitPackage) (env : Env) : Prop :=
   (∀ chain ∈ package.hashChains, HashChainHolds package chain env) ∧
     (∀ invocation ∈ package.permutationInvocations,

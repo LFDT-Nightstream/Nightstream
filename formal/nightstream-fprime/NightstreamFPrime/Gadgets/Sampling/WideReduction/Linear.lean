@@ -16,7 +16,6 @@ namespace NightstreamFPrime.Gadgets.Sampling.WideReduction
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 
-/-- Canonical field element of a natural number. -/
 def fieldOfNat (value : Nat) : F :=
   ⟨value % goldilocksModulus, Nat.mod_lt _ (by decide)⟩
 
@@ -40,12 +39,10 @@ theorem fieldOfNat_inj {left right : Nat} (leftBound : left < goldilocksModulus)
   have values := congrArg Fin.val same
   simpa [fieldOfNat, Nat.mod_eq_of_lt leftBound, Nat.mod_eq_of_lt rightBound] using values
 
-/-- `Σ a · x` with natural coefficients. -/
 def linearExpr : List (Nat × Expr) → Expr
   | [] => Expr.const (fieldOfNat 0)
   | term :: rest => Expr.const (fieldOfNat term.1) * term.2 + linearExpr rest
 
-/-- Natural value `Σ a · val(x)` of a linear form. -/
 def linearValue (env : Env) : List (Nat × Expr) → Nat
   | [] => 0
   | term :: rest => term.1 * (term.2.eval env).val + linearValue env rest
@@ -80,7 +77,6 @@ theorem linearValue_rangeMap (env : Env) (count : Nat) (coefficient : Nat → Na
         Finset.sum_range_succ]
       simp [linearValue]
 
-/-- Coefficients reduced modulo `m`. -/
 def reduceTerms (modulus : Nat) (terms : List (Nat × Expr)) : List (Nat × Expr) :=
   terms.map fun term => (term.1 % modulus, term.2)
 
@@ -91,7 +87,6 @@ theorem linearValue_reduce_modEq (env : Env) (modulus : Nat) (terms : List (Nat 
   | cons term rest inductionHypothesis =>
       exact Nat.ModEq.add ((Nat.mod_modEq _ _).mul_right _) inductionHypothesis
 
-/-- Bits and bounded coefficients bound the value by `length * bound`. -/
 theorem linearValue_le (env : Env) (terms : List (Nat × Expr)) (bound : Nat)
     (coefficients : ∀ term ∈ terms, term.1 ≤ bound)
     (bits : ∀ term ∈ terms, (term.2.eval env).val ≤ 1) :
@@ -129,7 +124,6 @@ theorem reduceTerms_bits (env : Env) (modulus : Nat) (terms : List (Nat × Expr)
   obtain ⟨original, originalMember, rfl⟩ := member
   exact bits original originalMember
 
-/-- A Booleanity row `x (x - 1) = 0` makes `x` a bit. -/
 theorem bit_of_boolean (env : Env) (atom : Expr)
     (row : (atom * (atom - 1)).eval env = 0) : (atom.eval env).val ≤ 1 := by
   change atom.eval env * (atom - 1).eval env = 0 at row

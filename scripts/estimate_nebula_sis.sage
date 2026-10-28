@@ -4,9 +4,8 @@ Run with malb/lattice-estimator commit 3e48ef421ec256afddb3e7d2249a77eab6e9ba12:
 
     sage -python scripts/estimate_nebula_sis.sage
 
-The estimator package must be on PYTHONPATH. The quantum Core-SVP profile
-matches the policy formalized in `formal/ajtai-lean/Ajtai/EstimatorModel.lean`.
-The classical rough and default full models are printed for comparison.
+The estimator package must be on PYTHONPATH. The classical rough and default
+full models are printed for comparison.
 """
 
 from sage.all import sqrt
@@ -44,13 +43,9 @@ def estimate(label, kappa, ring_columns, infinity_bound=2):
 
 
 print(f"lattice-estimator commit: {ESTIMATOR_COMMIT}")
-# Lean proves that these are the last accepted and first rejected rank-2 widths
-# under the selected quantum policy.
 estimate("Nebula long binding, accepted boundary", 2, 50_371)
 estimate("Nebula long binding, first rejected width", 2, 50_372)
-# Adopted short digest-compression map: rough 223.1 bits, full 242.1 bits.
 estimate("Nebula short digest compression", 1, 82)
-# SuperNeo Appendix B.2 relaxed-binding comparison. Appendix B requires
-# hardness of MSIS at infinity bound 8*T*B over n_F=2^30 scalar
-# coefficients, with T=216 and B=2^14.
-estimate_coefficients("SuperNeo Appendix B.2 relaxed binding", 18, 2**30, infinity_bound=8 * 216 * 2**14)
+T = 216
+B = 2**14
+estimate_coefficients("SuperNeo v1.2 §8.2 relaxed binding (reference)", 18, 2**30, infinity_bound=8 * T * B)

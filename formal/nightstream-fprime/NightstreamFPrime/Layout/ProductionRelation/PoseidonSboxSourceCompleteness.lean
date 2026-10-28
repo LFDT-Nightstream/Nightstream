@@ -251,9 +251,6 @@ private theorem retained_outputs_eq :
     (PoseidonStepTrace.sboxProgram record.start record.step record.state).outputs)
   rw [← PoseidonTemplatePlan.plan_records_eq, List.flatMap_map]
 
-/-- Satisfying source recipe rows establish every equation retained by the
-compact S-box compiler. Input and retained-slot equalities are the adjacent
-source projection contract, not independently supplied equation assumptions. -/
 theorem equations_of_sourceRows
     {logicalWidth : Nat} (interface : Interface logicalWidth)
     (assignment : Assignment F logicalWidth) (env : Env)

@@ -2,8 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixComplete
 import NightstreamFPrime.Export.Stage1.PiCCSNormFirstPrefix
 
 /-! Complete later-round source coefficients from the existing fresh,
-carried and norm contribution kernels. Q1 uses its one-challenge norm
-range; Q2 onward uses retained source arrays. File IO and transcript replay
+carried and norm contribution kernels. File IO and transcript replay
 are separate from this pure coefficient composition. -/
 
 set_option autoImplicit false
@@ -19,10 +18,8 @@ open PiCCSPrefixSelector (headPrefix tailWeight)
 
 private abbrev power (gamma : K) := TargetPolynomial.power extensionOps.toOps gamma
 
-/-- Exact four-scalar norm group count, including the last carrier tail. -/
 def groups : Nat := (PiCCSSourceImages.shape.carrierWidth + 3) / 4
 
-/-- Exact extent used by the retained norm file consumer. -/
 def retainedRows (consumed : Nat) : Nat :=
   (PiCCSSourceImages.shape.carrierWidth + 2 ^ consumed - 1) / 2 ^ consumed
 
@@ -32,7 +29,6 @@ private theorem ceil_two (width : Nat) :
     (width + 2 ^ 2 - 1) / 2 ^ 2 = (width + 3) / 4 := by
   omega
 
-/-- Q2's bucket runner uses ceil(groups/2), the same exact retained extent. -/
 theorem activePairs_two : activePairs 2 = (groups + 1) / 2 :=
   congrArg (fun count : Nat => (count + 1) / 2) (ceil_two PiCCSSourceImages.shape.carrierWidth)
 
@@ -40,7 +36,6 @@ private theorem ceil4_geometry (width : Nat) (fits : width ≤ 2 ^ 28) :
     width ≤ 4 * ((width + 3) / 4) ∧ 4 * ((width + 3) / 4) ≤ 2 ^ 28 := by
   omega
 
-/-- Both bounds come from the existing full-carrier cube bound. -/
 theorem groups_geometry :
     PiCCSSourceImages.shape.carrierWidth ≤ 4 * groups ∧
       4 * groups ≤ 2 ^ cubeVariables := by
@@ -57,8 +52,6 @@ private theorem ceil_after_two (width depth : Nat) :
         (width + 4 * 2 ^ depth - 1) / 4 := by omega
   rw [numerator, Nat.div_div_eq_div_mul, Nat.pow_add]
 
-/-- Code decoding retains exactly one value per four original scalars.
-Later folds have the same ceil extent as the executable's foldedCount. -/
 theorem retained_size (masks : Array (Array (Nat × Nat)))
     (first second : K) (challenges : List K)
     (source : Fin productionShape.sourceCount) :
@@ -85,8 +78,6 @@ private theorem groups_fit_after_two (groupCount arity remaining : Nat)
   change 4 * groupCount ≤ 4 * 2 ^ ((remaining + 1) + challenges.length) at fits
   omega
 
-/-- Actual retained sizes supply complete pair coverage and fit the suffix
-cube. No retained-length premise is passed to the selected composition. -/
 theorem retained_geometry (masks : Array (Array (Nat × Nat)))
     (first second : K) (challenges : List K) {remaining : Nat}
     (dimension : cubeVariables = (first :: second :: challenges).length + remaining + 1) :
@@ -153,8 +144,6 @@ private def bucketNorm (input : PiCCSPublicReplay.Input)
     (PiCCSNormPrefixSum.bucketInner masks groups first second coins.gamma
       (tailWeight extensionOps [first, second] coins.alpha) (activePairs [first, second].length))
 
--- Every option/list operation is proved with symbolic data before selected
--- source data is supplied. This avoids reducing the complete source tables.
 private def join (carried fresh : Option (List K)) (norm : List K) : Option (List K) := do
   let carried ← carried
   let fresh ← fresh
@@ -259,8 +248,6 @@ private theorem bucketNorm_value (input : PiCCSPublicReplay.Input)
       (tailWeight extensionOps [first, second] (PiCCSPublicReplay.pre input).alpha)
       (activePairs [first, second].length))).trans (congrArg FixedPolynomial.coefficients original)
 
-/-- Pure complete later-round coefficient constructor. It joins existing
-contribution kernels. Q0 remains owned by PiCCSFirstRoundComposition. -/
 def coefficients? (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat)))
     (challenges : List K) (remaining : Nat) : Option (List K) :=
   match challenges with
@@ -274,9 +261,6 @@ def coefficients? (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat �
         (PiCCSFreshPrefixComplete.coefficients? input masks (first :: second :: rest) remaining)
         (laterNorm input masks first second rest)
 
-/-- Every complete coefficient of Q1 through Q27 is the original-source
-round polynomial. The only source constraint is the loader's block bound.
-Prefix dimension and nonemptiness express exactly a later, nonterminal round. -/
 theorem coefficients_eq_roundPolynomial (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (loaded : masks.size ≤ PiCCSSourceImages.blockCount)
     (challenges : List K) (nonempty : challenges ≠ []) {remaining : Nat}
@@ -305,15 +289,12 @@ theorem coefficients_eq_roundPolynomial (input : PiCCSPublicReplay.Input)
             (PiCCSFreshPrefixComplete.coefficients_eq_fullSum input masks (first :: second :: rest) dimension)
             (laterNorm_value input masks loaded first second rest dimension)
 
-/-- The Q2 bucket path uses the same complete fresh/carried kernels. -/
 def bucketCoefficients? (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat)))
     (first second : K) (remaining : Nat) : Option (List K) :=
   join (PiCCSCarriedPrefixComplete.coefficients? input masks [first, second])
     (PiCCSFreshPrefixComplete.coefficients? input masks [first, second] remaining)
     (bucketNorm input masks first second)
 
-/-- The actual two-challenge norm bucket formula composes to the same
-original-source Q2 coefficients, with no expected-artifact premise. -/
 theorem bucketCoefficients_eq_roundPolynomial (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (loaded : masks.size ≤ PiCCSSourceImages.blockCount)
     (first second : K) {remaining : Nat}

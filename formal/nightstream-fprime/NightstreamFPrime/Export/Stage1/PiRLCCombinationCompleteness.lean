@@ -5,9 +5,7 @@ import NightstreamFPrime.Layout.R1CS.Segments
 
 /-!
 Owns the constructive direction from exact PiRLC combination-family physical
-rows to the canonical compact invocations. The proof exposes only the fixed
-source, block, lane, and cell schedule; it never materializes a production
-family row list.
+rows to the canonical compact invocations.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationCompleteness
@@ -280,8 +278,6 @@ private theorem cellFreshPrefix
   rw [countsEq]
   exact sum_take_ofFn_const (laneFreshCost lane.val) cell
 
-/-- The compiler's source list has exactly the canonical block-major,
-lane-major, cell-major nesting used by the compact invocation schedule. -/
 theorem sourceConstraints_eq_blockConstraintLists
     (logicalStart blockCount cellCount valueStride source : Nat)
     (valueSourceStart : Nat → Nat → Nat → Nat) :
@@ -385,10 +381,6 @@ private theorem sourceFreshPrefix_total
   rw [countsEq]
   exact sum_take_ofFn_const (sourceFreshCount blockCount cellCount) source
 
-/-- Exact source-family rows project to the canonical compact invocation at
-one block, lane, and cell. All three fresh-column prefixes come from the
-Lean source list; the compact invocation contributes no independent index
-or allocation rule. -/
 theorem sourcePhysicalRows_imply_invocationRows
     {blockCount cellCount : Nat} [NeZero cellCount]
     (logicalStart rowStart freshStart valueStride source : Nat)
@@ -495,8 +487,6 @@ theorem sourcePhysicalRows_imply_invocationRows
       (invocationFreshSource_local _ _ _ _ _ _ _ freshStartLocal)
       (valueAffine block cell) env cellRows
 
-/-- One exact combination-family row packet constructs all of its canonical
-compact invocations in source-major order. -/
 theorem familyPhysicalRows_imply_invocationRows
     {blockCount cellCount : Nat} [NeZero cellCount]
     (logicalStart rowStart freshStart valueStride : Nat)
@@ -677,8 +667,6 @@ private theorem evalASourceFreshCount
         (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
         canonicalSource block lane cell))
 
-/-- The four exact production combination packets, expressed as their full
-canonical compact invocation families. -/
 structure ProductionFamilyInvocationRowsHold (env : Env) : Prop where
   commitment : FamilyInvocationRowsHold PiRLCStarts.commitmentLogicalStart
     PiRLCStarts.commitmentRowStart PiRLCStarts.commitmentFreshStart 22 1 1
@@ -693,8 +681,6 @@ structure ProductionFamilyInvocationRowsHold (env : Env) : Prop where
     PiRLCStarts.evalARowStart PiRLCStarts.evalAFreshStart 4 2 2
     evalAValueSourceStart env
 
-/-- The remapped child packets construct every exact production combination
-invocation. The proof reverses only the one fixed Spartan column map. -/
 theorem remappedPackets_imply_familyInvocationRows
     (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env) :
@@ -803,8 +789,6 @@ private theorem familyRows_imply_packageInvocations
   rw [← CompactRows.instantiateRows_eq_package]
   exact instantiated
 
-/-- The remapped production packets satisfy every canonical compact
-combination invocation in the package-facing form. -/
 theorem remappedPackets_imply_packageCombinationInvocations
     (env : Env)
     (packets : PiRLCPackageCompleteness.RemappedPacketRowsHold env) :

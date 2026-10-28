@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.ActualRunningTransition
 
 /-!
 Owns shared PiDEC values between the actual PiDEC decoder and the actual
-running-transition decoder. Child fields use the same retained proof block,
-and the point uses the same retained PiCCS transcript outputs.
+running-transition decoder.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualPiDECCarriedValues
@@ -22,8 +21,6 @@ open DirectPiDECPrefixPlan (runningGeometry)
 
 variable {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
 
-/-- All child commitments, public digits and both evaluation families share
-one physical proof-input block across the two actual decoders. -/
 theorem piDecField_eq
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) (column : Nat)
@@ -67,7 +64,6 @@ private theorem transcriptOutputForm
   exact (PiCCSOrdinaryDirectPlan.Location.form_transcriptOutput geometry
     (Fin.encodeProd (invocation, lane))).trans mapped
 
-/-- Every decoded transcript word is the same retained Poseidon2 form. -/
 theorem piCcsTranscriptWord_eq_form
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -97,7 +93,6 @@ theorem piCcsTranscriptWord_eq_form
   exact value.trans (congrArg (fun form => form.eval assignment)
     (transcriptOutputForm geometry invocation lane))
 
-/-- The running point uses the actual PiCCS transcript words. -/
 theorem piCcsPointWord_eq_form
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -113,7 +108,6 @@ theorem piCcsPointWord_eq_form
     assignment (PiCCSTranscriptOutputForms.pointInvocation coordinate)
     (PiCCSTranscriptOutputForms.pointLane component)
 
-/-- The running transition reads those same retained point components. -/
 theorem runningPointWord_eq_form
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -181,7 +175,6 @@ private theorem runningPoint_eq_piCcs
       (runningPointWord_eq_form geometry assignment coordinate 1).trans
         (piCcsPointWord_eq_form geometry assignment coordinate 1).symm
 
-/-- The complete shared point is equal under both actual decoders. -/
 theorem point_eq
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) :
@@ -210,8 +203,6 @@ private theorem evaluation_ext (left right : PaperAlgebra.Evaluation)
   cases right
   simp_all
 
-/-- All sixteen complete PiDEC child claims use the same actual values in
-the running transition, including the public digits and shared point. -/
 theorem runningOutput_eq
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiDECRetainedGeometry.Geometry application logicalWidth)
@@ -262,8 +253,6 @@ theorem runningOutput_eq
       · exact piDecField_eq geometry assignment _ (Or.inr (Or.inr (Or.inr
           ⟨RunningTransitionInputs.childOfRunning source, matrix, coefficient, Or.inr rfl⟩)))
 
-/-- The selected package's running transition carries the exact selected
-PiDEC output for the same arbitrary assignment. -/
 theorem selectedRunningOutput_eq
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

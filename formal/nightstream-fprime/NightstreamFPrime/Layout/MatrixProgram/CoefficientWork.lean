@@ -44,10 +44,6 @@ private theorem sum_work_le (term : Nat → Result F) (count bound : Nat)
       simp only [sum, Nat.add_mul, Nat.one_mul]
       omega
 
-/-- Live terms charge both comparisons/branches, flat-index arithmetic,
-two bounded-index constructors, two calls/value reads, multiplication and
-Result construction (14). Out-of-range terms charge their executed prefix,
-field-zero construction, and Result construction. -/
 private def term {columns : Nat} (form : SparseForm columns)
     (output assignment : Fin ringDegree) (block lane : Nat) : Result F :=
   if live : lane < ringDegree then
@@ -77,11 +73,6 @@ private theorem term_work_le {columns : Nat} (form : SparseForm columns)
   · dsimp only
     omega
 
-/-- Decode the assignment column once and sum the fixed 54 source lanes.
-The wrapper charges its column read, division/remainder, Fin construction,
-term closure, sum call, result-value read and Result construction (8).
-Each sum step charges dispatch/descent, two calls/value reads, addition and
-Result construction (8). -/
 def coefficient {logicalWidth : Nat} (form : SparseForm logicalWidth)
     (output : Fin ringDegree)
     (column : Fin (Phi81CarrierLayout.carrierWidth logicalWidth)) : Result F :=
@@ -133,8 +124,6 @@ private theorem term_value {arity logicalWidth : Nat}
         Phi81ColumnLayout.flatIndex, Phi81ColumnLayout.decode,
         Phi81CarrierLayout.extendMatrix, Phi81CarrierLayout.logicalColumn?, baseOps, zeroMul]
 
-/-- A semantic row equality is used only by the proof. The executable input
-is the stored form, whose generation clock remains with its caller. -/
 theorem coefficient_value (arity freshCount runningCount matrixCount logicalWidth : Nat)
     (matrices : Fin matrixCount → BooleanMatrix F arity logicalWidth)
     (polynomial : CCSResidualTable.ConstraintPolynomial F matrixCount)

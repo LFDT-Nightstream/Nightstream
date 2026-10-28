@@ -2,13 +2,7 @@ import NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
 
 /-!
 Owns the finite recursive relation construction for one Lean-authored
-application. The final logical width is the exact retained width. The final
-SuperNeo relation is derived from the exact ordered Stage 1 matrix plan.
-
-The zero relation below is construction scaffolding only. It can break the
-value-level cycle because Stage 1 verifier rows depend on the relation shape,
-not on caller-selected matrix entries. The fixed-point theorem must prove that
-assembling with the derived relation gives the same plan.
+application.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
@@ -34,15 +28,12 @@ theorem publicFits (application : Lifecycle.Stage1.Application.Program) :
     omega
   · exact Phi81CarrierLayout.logicalWidth_le_carrierWidth _
 
-/-- Exact finite obligations supplied by one concrete application package. -/
 structure FitsTwoPow28
     (application : Lifecycle.Stage1.Application.Program) : Prop where
   package : PerApplicationPackage.FitsTwoPow28 application
   carrier : Phi81CarrierLayout.carrierWidth (logicalWidth application) ≤
     2 ^ Lifecycle.cubeVariables
 
-/-- Construct every final domain obligation from the three small numerical
-bounds owned by one concrete application. -/
 theorem fitsTwoPow28OfApplicationBounds
     (application : Lifecycle.Stage1.Application.Program)
     (rows : (PerApplicationPackage.applicationPlan application).rowCount ≤
@@ -64,7 +55,6 @@ theorem geometry (application : Lifecycle.Stage1.Application.Program) :
       (logicalWidth application) where
   completeFits := Nat.le_refl _
 
-/-- Shape-correct seed. Its matrices are not semantic authority. -/
 def seedRelation (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     ProductionKey.LogicalRelation (logicalWidth application)
@@ -72,21 +62,18 @@ def seedRelation (application : Lifecycle.Stage1.Application.Program)
   matrices := fun _ _ _ => 0
   cubeFits := fits.carrier
 
-/-- Exact Lean-assembled plan used to derive the recursive relation. -/
 def structuralPlan (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     ProductionRelation.Plan (logicalWidth application) :=
   DirectApplicationPrefixPlan.plan (seedRelation application fits)
     fits.package (geometry application)
 
-/-- The only key-facing relation for this application plan. -/
 def relation (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     ProductionKey.LogicalRelation (logicalWidth application)
       (publicFits application) :=
   (structuralPlan application fits).logicalRelation fits.carrier
 
-/-- Reassembling Stage 1 against its derived relation is the same matrix plan. -/
 theorem plan_fixedPoint (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
     DirectApplicationPrefixPlan.plan (relation application fits)
@@ -97,8 +84,6 @@ theorem plan_fixedPoint (application : Lifecycle.Stage1.Application.Program)
     (relation application fits) (seedRelation application fits)
     fits.package (geometry application)
 
-/-- The key-facing matrices are exactly the matrices selected by the complete
-ordered application plan. -/
 @[simp] theorem relation_matrices
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
@@ -106,8 +91,6 @@ ordered application plan. -/
       (structuralPlan application fits).matrix := by
   rfl
 
-/-- Exact live-row count of the recursive plan through the selected
-application. -/
 @[simp] theorem structuralPlan_rowCount
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
@@ -125,7 +108,6 @@ theorem structuralPlan_rowCount_le
       2 ^ Lifecycle.cubeVariables :=
   (structuralPlan application fits).rowCount_le
 
-/-- The final row cube and retained carrier fit one common `2^28` domain. -/
 theorem jointDomain_le_twoPow28
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application) :
@@ -135,8 +117,6 @@ theorem jointDomain_le_twoPow28
   exact Nat.max_le.mpr
     ⟨structuralPlan_rowCount_le application fits, fits.carrier⟩
 
-/-- Any assignment accepted by the self-derived matrix plan satisfies the
-complete direct prefix and the exact verifier-owned application transition. -/
 theorem rowsZero_implies_semantics
     (application : Lifecycle.Stage1.Application.Program)
     (fits : FitsTwoPow28 application)

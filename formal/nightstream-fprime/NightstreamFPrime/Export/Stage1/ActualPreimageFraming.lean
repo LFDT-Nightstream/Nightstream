@@ -4,8 +4,6 @@ import NightstreamFPrime.Layout.Stage1.StateDecoder
 
 /-!
 Owns row-derived canonical framing for the actual pilot hash preimages.
-The decoded source environment evaluates the compiled sparse forms directly.
-No canonical coordinate encoding or caller-supplied representation is assumed.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualPreimageFraming
@@ -71,8 +69,6 @@ theorem outputWord_eq
   simpa only [Spartan.pullback, PiCCSOrdinaryDirectPlan.Location.sourceColumn,
     outputState, dif_pos word.isLt] using! mapped
 
-/-- Accepted ordinary rows enforce canonical framing on the preimages that
-the pilot hashes, for every logical assignment. -/
 theorem rowsZero_implies_actualPreimageCanonical
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -103,9 +99,6 @@ theorem rowsZero_implies_actualPreimageCanonical
     rw [← outputWord_eq geometry assignment ⟨word.index, bounded⟩]
     exact framed.outputCanonical word member
 
-/-- Accepted state-binding rows derive both typed preimage representations
-for the actual pilot hash inputs. The caller supplies no representation or
-canonical-coordinate encoding. -/
 theorem rowsZero_implies_preimageRepresentations
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PilotOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -137,8 +130,6 @@ theorem rowsZero_implies_preimageRepresentations
     intro word
     rw [PilotDecodedEnvironment.outputWord_agrees, outputWord_eq]
 
-/-- Accepted state-binding rows preserve the complete four-word context key
-between the two actual hashed preimages. -/
 theorem rowsZero_implies_contextKeys
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)

@@ -6,9 +6,6 @@ import Mathlib.Data.List.Dedup
 
 /-!
 Sum the existing row-block products only at blocks named by sparse entries.
-Only block indices are deduplicated: every original entry remains in the
-row form. The proof restores the complete block range from zero contributions
-outside this derived support. No expected values or support premises are inputs.
 -/
 
 set_option autoImplicit false
@@ -23,7 +20,6 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArith
   (StoredRing)
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- Retain one visit per block, without changing or filtering row entries. -/
 def blockIndices {columns : Nat} (form : SparseForm columns) : List Nat :=
   (form.entries.map fun entry => entry.column.val / ringDegree).dedup
 
@@ -48,7 +44,6 @@ private theorem step_value {columns : Nat} (form : SparseForm columns)
   rw [Vector.getElem_ofFn]
   exact congrFun (PiDECCommitmentFold.add_value _ _) lane
 
-/-- Share each computed block product across all child accumulators. -/
 def kernel {columns : Nat} (form : SparseForm columns)
     (children : Nat → Vector StoredRing productionGlobalParams.k) :
     Vector StoredRing productionGlobalParams.k :=
@@ -96,8 +91,6 @@ private theorem sparseFold_zero {columns : Nat}
       exact inductionHypothesis
         (fun current member => vanishes current (List.mem_cons_of_mem _ member)) initial
 
-/-- Every block absent from the entry-derived support has zero contribution,
-for all child blocks, including nonzero carried tails. -/
 theorem rowBlock_zero_of_not_mem {columns : Nat} (form : SparseForm columns)
     (block : Nat) (outside : block ∉ blockIndices form)
     (children : Vector StoredRing productionGlobalParams.k)
@@ -131,9 +124,6 @@ private theorem sumRange_eq_finset (blocks : Nat) (term : Nat → F) :
       change sumRange baseOps blocks term + term blocks = _
       rw [inductionHypothesis, Finset.sum_range_succ]
 
-/-- The stored sparse traversal equals the complete block sum coefficientwise.
-The only size premise ensures every logical column has a carrier block.
-Block support and all omitted zero contributions are derived from the form. -/
 theorem kernel_eq_fullBlockSum {columns blocks : Nat} (form : SparseForm columns)
     (fits : columns ≤ blocks * ringDegree)
     (children : Nat → Vector StoredRing productionGlobalParams.k)
@@ -188,10 +178,6 @@ private theorem sum_entries_swap {columns : Nat} (indices : Finset Nat)
   | cons entry entries inductionHypothesis =>
       simp only [List.map_cons, List.sum_cons, Finset.sum_add_distrib, inductionHypothesis]
 
-/-- The complete stored row coefficient is the original sparse form evaluated
-at its Phi81 kernel reads. Each entry selects exactly one support block;
-repeated entries and cancelling coefficients remain unchanged. No width,
-row-validity, support or expected-value premise is required. -/
 theorem kernel_eq_evalSparse {columns : Nat} (form : SparseForm columns)
     (children : Nat → Vector StoredRing productionGlobalParams.k)
     (child : Fin productionGlobalParams.k) (output : Fin ringDegree) :

@@ -1,27 +1,16 @@
 //! Shared PiCCS transcript binding, dimensions, and public-output checks.
-//!
-//! Contains only the essential functions needed by prove and verify.
-
-#![allow(non_snake_case)]
 
 use crate::error::PiCcsError;
-use neo_ajtai::Commitment as Cmt;
-use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CeClaim};
-use neo_math::{D, K};
-use neo_params::NeoParams;
+use neo_ccs::crypto::poseidon2_goldilocks::{RATE, WIDTH};
+use neo_ccs::{CcsMatrix, CcsStructure, CeClaim};
+use neo_math::K;
 use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::{Goldilocks, Poseidon2Goldilocks};
 use p3_symmetric::Permutation;
 #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
 use rayon::prelude::*;
 
-/// Validate that all ME inputs share the same evaluation point `r`.
-///
-/// Returns `None` when `me_inputs` is empty, otherwise returns a shared `r` slice.
-pub fn shared_me_input_r<'a, C, Ff>(
-    me_inputs: &'a [CeClaim<C, Ff, K>],
-    ell_n: usize,
-) -> Result<Option<&'a [K]>, PiCcsError>
+pub fn shared_me_input_r<C, Ff>(me_inputs: &[CeClaim<C, Ff, K>], ell_n: usize) -> Result<Option<&[K]>, PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
@@ -58,79 +47,12 @@ where
     Ok(Some(r0))
 }
 
-/// Validate MCS-output `X` content against public `x` under SuperNeo packed semantics.
-///
-/// CE carries projected input ring slots. Public field `x[c]` must occupy row
-/// `c % D` in ring-slot column `c / D`; other lanes in those slots are owned by
-/// `L_in(z)` and may be non-zero after ring-linear folding.
-pub fn validate_mcs_output_x_recomposition<Ff>(
-    _params: &NeoParams,
-    ccs_m: usize,
-    mcs_list: &[CcsClaim<Cmt, Ff>],
-    me_outputs: &[CeClaim<Cmt, Ff, K>],
-) -> Result<(), PiCcsError>
-where
-    Ff: Field + PrimeCharacteristicRing + Copy,
-{
-    if ccs_m == 0 {
-        return Err(PiCcsError::InvalidInput("CCS width m must be > 0".into()));
-    }
-    for (idx, inst) in mcs_list.iter().enumerate() {
-        let out = me_outputs.get(idx).ok_or_else(|| {
-            PiCcsError::ProtocolError(format!(
-                "missing me_outputs entry for mcs_list index {} (|me_outputs|={})",
-                idx,
-                me_outputs.len()
-            ))
-        })?;
-
-        if inst.m_in % D != 0 || inst.x.len() != inst.m_in {
-            return Err(PiCcsError::InvalidInput(format!(
-                "mcs_list[{idx}] must contain whole degree-{D} ring elements and x.len()={} must equal m_in={}",
-                inst.x.len(),
-                inst.m_in
-            )));
-        }
-        let expected_x_cols = neo_ccs::superneo_public_x_cols(inst.m_in);
-        if out.m_in != inst.m_in || out.X.rows() != D || out.X.cols() != expected_x_cols {
-            return Err(PiCcsError::ProtocolError(format!(
-                "me_outputs[{idx}] has m_in={} and X shape {}x{}, expected m_in={} and {D}x{}",
-                out.m_in,
-                out.X.rows(),
-                out.X.cols(),
-                inst.m_in,
-                expected_x_cols
-            )));
-        }
-
-        for c in 0..inst.m_in {
-            let lane = c % D;
-            let column = c / D;
-            let got = out.X[(lane, column)];
-            if got != inst.x[c] {
-                return Err(PiCcsError::ProtocolError(format!(
-                    "me_outputs[{idx}].X lane {lane} at ring column {column} does not match mcs_list[{idx}].x[{c}]"
-                )));
-            }
-        }
-    }
-
-    Ok(())
-}
-
-/// Compute the canonical Poseidon2 digest of the sparse CCS artifact.
-///
-/// The canonical CSC arrays and compact row descriptors uniquely determine
-/// every dense matrix entry. This function hashes that representation instead
-/// of materializing or scanning the dense matrix tables.
 pub fn digest_ccs_matrices<F: Field + PrimeField64 + Sync>(s: &CcsStructure<F>) -> Vec<Goldilocks> {
     digest_ccs_matrices_tree(s)
 }
 
 const CCS_DIGEST_SEED: u64 = 0x434353445F4D4154;
-// Keep four Goldilocks capacity elements. This gives the width-16 sponge the
-// same 256-bit capacity as the canonical width-8 Poseidon2 transcript.
-const CCS_DIGEST_RATE: usize = 12;
+const CCS_DIGEST_RATE: usize = RATE;
 const CCS_DIGEST_CHUNK_WORDS: usize = 65_536;
 const CCS_DIGEST_GEOMETRIC_RUNS_PER_CHUNK: usize = 8_192;
 
@@ -175,17 +97,17 @@ enum CcsDigestLeaf<'a, Ff> {
     },
 }
 
-fn new_ccs_digest_poseidon2() -> Poseidon2Goldilocks<16> {
+fn new_ccs_digest_poseidon2() -> Poseidon2Goldilocks<WIDTH> {
     use rand_chacha_p3::{rand_core::SeedableRng, ChaCha8Rng};
 
     let mut rng = ChaCha8Rng::seed_from_u64(CCS_DIGEST_SEED);
-    Poseidon2Goldilocks::<16>::new_from_rng_128(&mut rng)
+    Poseidon2Goldilocks::<WIDTH>::new_from_rng_128(&mut rng)
 }
 
 #[inline]
 fn absorb_digest_limb(
-    poseidon2: &Poseidon2Goldilocks<16>,
-    state: &mut [Goldilocks; 16],
+    poseidon2: &Poseidon2Goldilocks<WIDTH>,
+    state: &mut [Goldilocks; WIDTH],
     absorbed: &mut usize,
     v: Goldilocks,
 ) {
@@ -198,15 +120,20 @@ fn absorb_digest_limb(
 }
 
 #[inline]
-fn absorb_digest_u64(poseidon2: &Poseidon2Goldilocks<16>, state: &mut [Goldilocks; 16], absorbed: &mut usize, v: u64) {
+fn absorb_digest_u64(
+    poseidon2: &Poseidon2Goldilocks<WIDTH>,
+    state: &mut [Goldilocks; WIDTH],
+    absorbed: &mut usize,
+    v: u64,
+) {
     absorb_digest_limb(poseidon2, state, absorbed, Goldilocks::from_u64(v & 0xffff_ffff));
     absorb_digest_limb(poseidon2, state, absorbed, Goldilocks::from_u64(v >> 32));
 }
 
 #[inline]
 fn absorb_digest_bytes(
-    poseidon2: &Poseidon2Goldilocks<16>,
-    state: &mut [Goldilocks; 16],
+    poseidon2: &Poseidon2Goldilocks<WIDTH>,
+    state: &mut [Goldilocks; WIDTH],
     absorbed: &mut usize,
     bytes: &[u8],
 ) {
@@ -217,7 +144,7 @@ fn absorb_digest_bytes(
 
 fn digest_ccs_matrix_leaf<Ff: PrimeField64>(leaf: &CcsDigestLeaf<'_, Ff>) -> [Goldilocks; 4] {
     let poseidon2 = new_ccs_digest_poseidon2();
-    let mut state = [Goldilocks::ZERO; 16];
+    let mut state = [Goldilocks::ZERO; WIDTH];
     let mut absorbed = 0usize;
 
     absorb_digest_bytes(&poseidon2, &mut state, &mut absorbed, b"neo/ccs/matrix-leaf/v3");
@@ -338,27 +265,17 @@ fn push_field_digest_chunks<'a, Ff>(leaves: &mut Vec<CcsDigestLeaf<'a, Ff>>, mat
     }
 }
 
-/// Compute the CCS matrix digest from the authoritative sparse structure.
-///
-/// This binds a native CSC encoding under a Poseidon2 tree (`v3-tree`).
-/// Matrix/segment leaves are hashed independently so preprocessing can use CPU parallelism,
-/// then the root absorbs the ordered leaf digests. Prover/verifier soundness is preserved
-/// because both sides bind the same domain, dimensions, matrix order, and full CSC content.
 fn digest_ccs_matrices_tree<Ff: Field + PrimeField64 + Sync>(s: &CcsStructure<Ff>) -> Vec<Goldilocks> {
     let mut leaves = Vec::new();
 
-    for (j, matrix) in s.matrices.iter().enumerate() {
+    for (j, matrix) in s.matrices().iter().enumerate() {
         match matrix {
             CcsMatrix::Identity { n } => {
                 leaves.push(CcsDigestLeaf::Identity { matrix: j, n: *n });
             }
             CcsMatrix::Csc(csc_from_s) => {
-                let (nrows, ncols) = (csc_from_s.nrows, csc_from_s.ncols);
-                let (col_ptr, row_idx, vals) = (
-                    csc_from_s.col_ptr.as_slice(),
-                    csc_from_s.row_idx.as_slice(),
-                    csc_from_s.vals.as_slice(),
-                );
+                let (nrows, ncols) = (csc_from_s.nrows(), csc_from_s.ncols());
+                let (col_ptr, row_idx, vals) = (csc_from_s.col_ptr(), csc_from_s.row_idx(), csc_from_s.vals());
 
                 leaves.push(CcsDigestLeaf::Metadata {
                     matrix: j,
@@ -375,15 +292,15 @@ fn digest_ccs_matrices_tree<Ff: Field + PrimeField64 + Sync>(s: &CcsStructure<Ff
             CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
                 leaves.push(CcsDigestLeaf::Metadata {
                     matrix: j,
-                    nrows: csc.nrows,
-                    ncols: csc.ncols,
-                    col_ptr_len: csc.col_ptr.len(),
-                    row_idx_len: csc.row_idx.len(),
-                    vals_len: csc.vals.len(),
+                    nrows: csc.nrows(),
+                    ncols: csc.ncols(),
+                    col_ptr_len: csc.col_ptr().len(),
+                    row_idx_len: csc.row_idx().len(),
+                    vals_len: csc.vals().len(),
                 });
-                push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_COL_PTR, &csc.col_ptr);
-                push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, &csc.row_idx);
-                push_field_digest_chunks(&mut leaves, j, &csc.vals);
+                push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_COL_PTR, csc.col_ptr());
+                push_index_digest_chunks(&mut leaves, j, CCS_MATRIX_LEAF_ROW_IDX, csc.row_idx());
+                push_field_digest_chunks(&mut leaves, j, csc.vals());
                 for (chunk, values) in geometric_runs
                     .chunks(CCS_DIGEST_GEOMETRIC_RUNS_PER_CHUNK)
                     .enumerate()
@@ -409,11 +326,11 @@ fn digest_ccs_matrices_tree<Ff: Field + PrimeField64 + Sync>(s: &CcsStructure<Ff
     let leaf_digests: Vec<[Goldilocks; 4]> = leaves.iter().map(digest_ccs_matrix_leaf).collect();
 
     let poseidon2 = new_ccs_digest_poseidon2();
-    let mut state = [Goldilocks::ZERO; 16];
+    let mut state = [Goldilocks::ZERO; WIDTH];
     let mut absorbed = 0usize;
     absorb_digest_bytes(&poseidon2, &mut state, &mut absorbed, b"neo/ccs/matrices/v3-tree");
-    absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.n as u64);
-    absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.m as u64);
+    absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.n() as u64);
+    absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.m() as u64);
     absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, s.t() as u64);
     absorb_digest_u64(&poseidon2, &mut state, &mut absorbed, leaf_digests.len() as u64);
     poseidon2.permute_mut(&mut state);

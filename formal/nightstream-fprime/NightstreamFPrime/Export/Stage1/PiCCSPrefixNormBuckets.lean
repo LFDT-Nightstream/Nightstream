@@ -4,8 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
 /-! Scalar buckets for one source with arbitrary cached K endpoints.
-All endpoint pairs contribute, including equal endpoints. Source gamma weights
-remain outside this single-source sum. -/
+Source gamma weights remain outside this single-source sum. -/
 
 set_option autoImplicit false
 
@@ -17,26 +16,22 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
-/-- Prepare the existing cubic for every pair of supplied endpoint values. -/
 def prepare {count : Nat} (values : Vector K count) :
     Vector (Vector (FixedPolynomial K 3) count) count :=
   Vector.ofFn fun low => Vector.ofFn fun high =>
     PiCCSFirstRoundPair.normPair extensionOps (values.get low) (values.get high)
 
-/-- Initial scalar weights; this does not construct any polynomials. -/
 def empty (count : Nat) : Vector (Vector K count) count :=
   Vector.replicate count (Vector.replicate count K.zero)
 
 private def lookup {count : Nat} (buckets : Vector (Vector K count) count)
     (low high : Fin count) : K := (buckets.get low).get high
 
-/-- Add the selected weight even when both endpoint codes are equal. -/
 def add {count : Nat} (buckets : Vector (Vector K count) count)
     (low high : Fin count) (weight : K) : Vector (Vector K count) count :=
   let row := buckets.get low
   buckets.set low.val (row.set high.val (K.add (row.get high) weight) high.isLt) low.isLt
 
-/-- Finish in canonical low-code, high-code order, with no source gamma scale. -/
 def finish {count : Nat} (values : Vector K count)
     (buckets : Vector (Vector K count) count) : FixedPolynomial K 3 :=
   let table := prepare values
@@ -45,7 +40,6 @@ def finish {count : Nat} (values : Vector K count)
       FixedPolynomial.scale extensionOps.toOps (lookup buckets low high)
         ((table.get low).get high)
 
-/-- The prepared table preserves the existing norm-pair coefficients. -/
 theorem prepare_value {count : Nat} (values : Vector K count) (low high : Fin count) :
     ((prepare values).get low).get high =
       PiCCSFirstRoundPair.normPair extensionOps (values.get low) (values.get high) := by
@@ -109,7 +103,6 @@ private theorem sumFin_single {count : Nat} (selected : Fin count) (value : Fin 
     (canonicalFinIndices count) selected value
     (by simp [canonicalFinIndices]) (canonicalFinIndices_nodup count)
 
-/-- Empty buckets have exactly the four zero coefficients, for any endpoint values. -/
 theorem finish_empty {count : Nat} (values : Vector K count) :
     finish values (empty count) = FixedPolynomial.zero extensionOps.toOps 3 := by
   apply PiCCSPolynomialRange.coefficient_ext
@@ -118,8 +111,6 @@ theorem finish_empty {count : Nat} (values : Vector K count) :
     PiCCSPolynomialRange.coefficient_scale, PiCCSPolynomialRange.coefficient_zero,
     lookup_empty, zero_left, sumMap_zero extensionOps extensionLaws]
 
-/-- Each insertion adds its exact original cubic, including diagonal insertions.
-This is equality of coefficient objects, without endpoint or challenge premises. -/
 theorem finish_add {count : Nat} (values : Vector K count)
     (buckets : Vector (Vector K count) count) (low high : Fin count) (weight : K) :
     finish values (add buckets low high weight) =
@@ -141,8 +132,6 @@ theorem finish_add {count : Nat} (values : Vector K count)
     lookup_add, extensionLaws.right_distrib, sumMap_add extensionOps extensionLaws,
     delta, sumMap_guard, sumFin_single]
 
-/-- Carry one source's buckets across an ascending numeric range.
-This updates only scalar weights; the caller chooses when to finish. -/
 def accumulate {codeCount : Nat} (buckets : Vector (Vector K codeCount) codeCount)
     (low high : Nat → Fin codeCount) (weight : Nat → K) (start count : Nat) :
     Vector (Vector K codeCount) codeCount :=
@@ -150,8 +139,6 @@ def accumulate {codeCount : Nat} (buckets : Vector (Vector K codeCount) codeCoun
     add accumulated (low (start + offset)) (high (start + offset))
       (weight (start + offset))) buckets
 
-/-- Finishing after accumulation equals the original per-pair polynomial loop
-initialized with the old buckets' polynomial. No endpoint pair is omitted. -/
 theorem finish_accumulate {codeCount : Nat} (values : Vector K codeCount)
     (buckets : Vector (Vector K codeCount) codeCount)
     (low high : Nat → Fin codeCount) (weight : Nat → K) (start count : Nat) :
@@ -171,8 +158,6 @@ theorem finish_accumulate {codeCount : Nat} (values : Vector K codeCount)
             (PiCCSFirstRoundPair.normPair extensionOps
               (values.get (low (start + count))) (values.get (high (start + count)))))) ih
 
-/-- Carrying old buckets adds exactly the current original polynomial range.
-This is the same update used by the direct chunk reference. -/
 theorem finish_accumulate_eq_add_range {codeCount : Nat} (values : Vector K codeCount)
     (buckets : Vector (Vector K codeCount) codeCount)
     (low high : Nat → Fin codeCount) (weight : Nat → K) (start count : Nat) :
@@ -190,7 +175,6 @@ theorem finish_accumulate_eq_add_range {codeCount : Nat} (values : Vector K code
       rw [Nat.fold_succ, Nat.fold_succ, ih]
       exact PiCCSPolynomialRange.add_assoc extensionOps extensionLaws _ _ _
 
-/-- Splitting at an adjacent numeric boundary preserves every bucket exactly. -/
 theorem accumulate_append {codeCount : Nat}
     (buckets : Vector (Vector K codeCount) codeCount)
     (low high : Nat → Fin codeCount) (weight : Nat → K)
@@ -202,15 +186,11 @@ theorem accumulate_append {codeCount : Nat}
   rw [Nat.fold_add]
   simp only [Nat.add_assoc]
 
-/-- Accumulate one source's scalar weights over the complete ascending range,
-then prepare and scale its cached norm cubics once. -/
 def range {codeCount : Nat} (values : Vector K codeCount)
     (low high : Nat → Fin codeCount) (weight : Nat → K) (start count : Nat) :
     FixedPolynomial K 3 :=
   finish values (accumulate (empty codeCount) low high weight start count)
 
-/-- The implemented bucket loop preserves every coefficient of the original
-per-pair range, including equal endpoints and zero-length ranges. -/
 theorem range_eq_reference {codeCount : Nat} (values : Vector K codeCount)
     (low high : Nat → Fin codeCount) (weight : Nat → K) (start count : Nat) :
     range values low high weight start count =

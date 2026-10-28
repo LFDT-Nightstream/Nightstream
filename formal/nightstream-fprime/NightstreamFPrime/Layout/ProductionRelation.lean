@@ -21,13 +21,11 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- One explicit nonconstant sparse matrix entry. -/
 structure SparseEntry (columns : Nat) where
   column : Fin columns
   coefficient : F
 deriving Repr, DecidableEq
 
-/-- One sparse linear form in canonical assignment-column coordinates. -/
 structure SparseForm (columns : Nat) where
   entries : List (SparseEntry columns)
 deriving Repr, DecidableEq
@@ -49,13 +47,11 @@ def scale {columns : Nat} (scalar : F) (form : SparseForm columns) :
   ⟨form.entries.map fun entry =>
     ⟨entry.column, scalar * entry.coefficient⟩⟩
 
-/-- Matrix coefficient after combining any repeated sparse entries. -/
 def coefficient {columns : Nat}
     (form : SparseForm columns) (column : Fin columns) : F :=
   form.entries.foldl (fun total entry =>
     if entry.column = column then total + entry.coefficient else total) 0
 
-/-- Evaluate the form in the exact canonical column order used by SuperNeo. -/
 def eval {columns : Nat}
     (form : SparseForm columns) (assignment : Assignment F columns) : F :=
   (canonicalFinIndices columns).foldl (fun total column =>
@@ -210,7 +206,6 @@ private theorem foldl_scale_terms {Index : Type}
 
 end SparseForm
 
-/-- Convert one of the 4 matrix slots to its gate-port index. -/
 def meaningfulPort?
     (port : Fin Spec.ProductionRelation.matrixCount) :
     Option (Fin Spec.ProductionRelation.meaningfulPortCount) :=
@@ -219,7 +214,6 @@ def meaningfulPort?
   else
     none
 
-/-- A canonical live-row plan for all meaningful production matrix ports. -/
 structure Plan (logicalWidth : Nat) where
   rowCount : Nat
   rowCount_le : rowCount ≤ 2 ^ cubeVariables
@@ -238,8 +232,6 @@ def portForm {logicalWidth : Nat} (plan : Plan logicalWidth)
   | some meaningful => plan.forms row meaningful
   | none => .empty
 
-/-- Exact Boolean matrix derived from one stored sparse port. Padding rows are
-zero and use the canonical little-endian row layout. -/
 def matrix {logicalWidth : Nat} (plan : Plan logicalWidth)
     (port : Fin Spec.ProductionRelation.matrixCount) :
     BooleanMatrix F cubeVariables logicalWidth :=
@@ -248,7 +240,6 @@ def matrix {logicalWidth : Nat} (plan : Plan logicalWidth)
     | some row => (plan.portForm row port).coefficient column
     | none => 0
 
-/-- Expected matrix image at one canonical Boolean row. -/
 def rowImage {logicalWidth : Nat} (plan : Plan logicalWidth)
     (assignment : Assignment F logicalWidth)
     (vertex : BooleanVertex cubeVariables)
@@ -257,8 +248,6 @@ def rowImage {logicalWidth : Nat} (plan : Plan logicalWidth)
   | some row => (plan.portForm row port).eval assignment
   | none => 0
 
-/-- Every derived matrix image is exactly the stored sparse row-form
-evaluation. This is the package-plan-to-SuperNeo matrix bridge. -/
 theorem matrixVectorAt_matrix {logicalWidth : Nat} (plan : Plan logicalWidth)
     (assignment : Assignment F logicalWidth)
     (vertex : BooleanVertex cubeVariables)
@@ -276,7 +265,6 @@ theorem matrixVectorAt_matrix {logicalWidth : Nat} (plan : Plan logicalWidth)
       unfold matrixVectorAt SparseForm.eval
       simp [matrix, decoded]
 
-/-- Construct the sole key-facing logical relation from the exact plan. -/
 def logicalRelation {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

@@ -18,9 +18,6 @@ open NightstreamFPrime.Spec.Folding
 open Poseidon2HashChainV1Package (application fits)
 open Poseidon2HashChainV1Setup (productionAjtaiKey)
 
-/-- The supplied C proof, actual post-output R sample, computed public parent,
-and accepted D fields determine the exact selected NIFS return. This target
-does not assert source opening validity or an accepted successor envelope. -/
 def CheckedReplayNifsResult : Prop :=
   ∀ (input : PiCCSInputCheck.Input) (batch : PiRLCParent.Batch)
     (parent : PiRLCParent.Values) (messages : PiDECInputCheck.Messages),

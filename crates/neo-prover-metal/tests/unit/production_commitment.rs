@@ -7,8 +7,6 @@ use p3_field::PrimeField64;
 #[test]
 fn production_key_commitments_match_cpu_across_groups_blocks_and_representations() {
     let session = MetalSession::new().unwrap();
-    // Two full column ranges and one column give three group partials, the
-    // last one short. All signed sums exceed 64 bits before reduction.
     let columns = 2 * COLUMNS_PER_GROUP + 1;
     let positive = Mat::virtual_constant(D, columns, F::ONE);
     let negative = Mat::virtual_constant(D, columns, -F::ONE);
@@ -51,8 +49,6 @@ fn production_key_commitments_match_cpu_across_groups_blocks_and_representations
         packed,
         short,
     ];
-    // More active witnesses than one threadgroup serves, so a second witness
-    // block reads the same key row.
     let block = session
         .production_ajtai_accumulate
         .maxTotalThreadsPerThreadgroup()
@@ -65,6 +61,69 @@ fn production_key_commitments_match_cpu_across_groups_blocks_and_representations
     assert_eq!(actual, expected);
     assert_eq!(actual[3], actual[4]);
     assert!(session.activity().dispatches > PRODUCTION_VERIFIER_ROWS);
+}
+
+/// Witnesses whose nonzero columns are `columns`, so occupied positions and
+/// key columns differ.
+fn sparse_witnesses(width: usize, columns: &[usize]) -> Vec<Mat<F>> {
+    let lanes = (1u64 << D) - 1;
+    (0..3u64)
+        .map(|seed| {
+            let mut positive = vec![0; width];
+            let mut negative = vec![0; width];
+            for (index, &column) in columns.iter().enumerate() {
+                let bits = (0x9e37_79b9_7f4a_7c15u64.rotate_left((seed * 7 + index as u64) as u32)) & lanes;
+                positive[column] = bits & 0x5555_5555_5555_5555;
+                negative[column] = bits & !0x5555_5555_5555_5555;
+            }
+            Mat::compact_signed_unit_from_column_masks(D, width, &positive, &negative).unwrap()
+        })
+        .collect()
+}
+
+#[test]
+fn kept_production_key_matches_cpu_and_grows_for_a_wider_witness() {
+    let mut session = MetalSession::new().unwrap();
+    session.keep_production_key();
+    let wide = 2 * COLUMNS_PER_GROUP + 1;
+    let narrow = sparse_witnesses(10, &[2, 9]);
+    let calls = [
+        narrow.clone(),
+        sparse_witnesses(wide, &[0, 5, COLUMNS_PER_GROUP, wide - 1]),
+        narrow,
+    ];
+    let mut dispatches = Vec::new();
+    for witnesses in &calls {
+        let before = session.activity().dispatches;
+        let expected = commit_production_signed_unit_prefix_matrices(witnesses).unwrap();
+        assert_eq!(session.commit_production_prefixes(witnesses).unwrap(), expected);
+        dispatches.push(session.activity().dispatches - before);
+    }
+    // The first two calls expand all key rows; the last reuses them and only
+    // accumulates and sums each row.
+    let rows = PRODUCTION_VERIFIER_ROWS;
+    assert_eq!(dispatches, [3 * rows, 3 * rows, 2 * rows]);
+}
+
+#[test]
+fn a_released_production_key_expands_again_at_the_next_commitment() {
+    let mut session = MetalSession::new().unwrap();
+    session.keep_production_key();
+    let witnesses = sparse_witnesses(10, &[2, 9]);
+    let expected = commit_production_signed_unit_prefix_matrices(&witnesses).unwrap();
+    let mut dispatches = Vec::new();
+    for release in [false, true, false] {
+        if release {
+            session.release_production_key_rows();
+        }
+        let before = session.activity().dispatches;
+        assert_eq!(session.commit_production_prefixes(&witnesses).unwrap(), expected);
+        dispatches.push(session.activity().dispatches - before);
+    }
+    // Expanding all key rows costs one dispatch per row on top of the two
+    // that accumulate and sum it.
+    let rows = PRODUCTION_VERIFIER_ROWS;
+    assert_eq!(dispatches, [3 * rows, 3 * rows, 2 * rows]);
 }
 
 #[test]
@@ -85,7 +144,7 @@ fn production_key_coefficients_use_exact_first_and_last_indexed_addresses() {
                 for row in 0..PRODUCTION_VERIFIER_ROWS as usize {
                     for lane in 0..D {
                         assert_eq!(
-                            commitment.data[row * D + lane].as_canonical_u64(),
+                            commitment.data()[row * D + lane].as_canonical_u64(),
                             coefficient(&PRODUCTION_SEED, row as u32, column as u64, lane as u32),
                             "witnesses={count} row={row} column={column} lane={lane}"
                         );
@@ -105,7 +164,7 @@ fn production_commitment_checks_all_inputs_before_device_work() {
         session
             .commit_production_prefixes(std::slice::from_ref(&zero))
             .unwrap(),
-        vec![Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize)]
+        vec![Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize)]
     );
     assert!(session
         .commit_production_prefixes::<Mat<F>>(&[])
@@ -129,12 +188,12 @@ fn production_commitment_checks_all_inputs_before_device_work() {
     assert_eq!(session.activity().allocated_bytes, before.allocated_bytes);
 }
 
-/// Commit time for 1, 4 and 16 dense random witnesses at production width,
-/// for comparing commitment kernels. It only prints timings.
 #[test]
 #[ignore = "timing evidence at production width; run on its own under the 300 s cap"]
 fn production_commitment_cost_per_witness() {
-    let session = MetalSession::new().unwrap();
+    let streamed = MetalSession::new().unwrap();
+    let mut kept = MetalSession::new().unwrap();
+    kept.keep_production_key();
     let columns = PRODUCTION_MESSAGE_COLUMNS as usize;
     let mut state = 0x9e3779b97f4a7c15u64;
     let mut next = move || {
@@ -155,14 +214,16 @@ fn production_commitment_cost_per_witness() {
             Mat::compact_signed_unit_from_column_masks(D, columns, &positive, &negative).unwrap()
         })
         .collect();
-    for count in [1usize, 1, 4, 16] {
-        let started = std::time::Instant::now();
-        session
-            .commit_production_prefixes(&witnesses[..count])
-            .unwrap();
-        eprintln!(
-            "commit witnesses={count} seconds={:.3}",
-            started.elapsed().as_secs_f64()
-        );
+    for (key, session) in [("streamed", &streamed), ("kept", &kept)] {
+        for count in [1usize, 1, 4, 16] {
+            let started = std::time::Instant::now();
+            session
+                .commit_production_prefixes(&witnesses[..count])
+                .unwrap();
+            eprintln!(
+                "commit key={key} witnesses={count} seconds={:.3}",
+                started.elapsed().as_secs_f64()
+            );
+        }
     }
 }

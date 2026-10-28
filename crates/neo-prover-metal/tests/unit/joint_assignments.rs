@@ -5,7 +5,7 @@ use objc2_metal::MTLBuffer;
 #[test]
 fn encoded_device_prefix_matches_dense_cpu_through_every_fold() {
     let session = MetalSession::new().unwrap();
-    let width = 2 * D + 5; // Odd length, including a partially used ring block.
+    let width = 2 * D + 5;
     let blocks = width.div_ceil(D);
     let mut words = vec![0u64; 3 * blocks * 2];
     let mut expected = Vec::new();
@@ -19,7 +19,6 @@ fn encoded_device_prefix_matches_dense_cpu_through_every_fold() {
                 K::from(if digit < 0 { -F::ONE } else { F::from_u64(digit as u64) })
             })
             .collect::<Vec<_>>();
-        // A nonzero completion tail must not enter this logical prefix.
         words[2 * (source * blocks + blocks - 1)] |= 1 << (D - 1);
         expected.push(values);
     }
@@ -42,7 +41,7 @@ fn encoded_device_prefix_matches_dense_cpu_through_every_fold() {
                 .collect();
         }
         tables.fold(&session, &masks, challenge).unwrap();
-        assert_eq!(tables.encoding(), [1, 1, 2, 16, 16, 16, 16][round]);
+        assert_eq!(tables.encoding() as usize, [1, 1, 2, 16, 16, 16, 16][round]);
         assert_eq!(tables.len, expected[0].len());
         let read_k = |buffer: &Buffer, len| {
             session
@@ -61,7 +60,7 @@ fn encoded_device_prefix_matches_dense_cpu_through_every_fold() {
             } => {
                 let lookup = read_k(values, *alphabet);
                 assert_eq!(lookup[*zero], K::ZERO);
-                let codes = if tables.encoding() == 1 {
+                let codes = if tables.encoding() as usize == 1 {
                     session
                         .read_buffer::<u8>(data, entries)
                         .into_iter()
@@ -74,7 +73,7 @@ fn encoded_device_prefix_matches_dense_cpu_through_every_fold() {
                         .map(usize::from)
                         .collect::<Vec<_>>()
                 };
-                assert_eq!(data.length(), entries * tables.encoding());
+                assert_eq!(data.length(), entries * tables.encoding() as usize);
                 codes
                     .into_iter()
                     .map(|code| lookup[code])
@@ -107,4 +106,17 @@ fn zero_witnesses_need_no_folded_assignment_buffer() {
     assert!(matches!(tables.prefix, Prefix::Masks(_)));
     assert_eq!(session.activity().allocated_bytes, before.allocated_bytes);
     assert_eq!(session.activity().dispatches, before.dispatches);
+}
+
+#[test]
+fn encoding_tags_match_assignments_shader() {
+    let shader = include_str!("../../shaders/assignments.metal");
+    for encoding in [
+        AssignmentEncoding::Masks,
+        AssignmentEncoding::U8Codes,
+        AssignmentEncoding::U16Codes,
+        AssignmentEncoding::Dense,
+    ] {
+        assert!(shader.contains(&format!("(encoding == {})", encoding as u64)));
+    }
 }

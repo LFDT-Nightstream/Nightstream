@@ -15,8 +15,6 @@ GOLDILOCKS_MODULUS = 18446744069414584321
 ENVELOPE_FIELDS = {
     "schema", "iteration", "z0", "current", "child_witness_count", "running_claims",
 }
-# These old record fields describe file locations and the evidence scope. The
-# old `running_parent` was a cache that no check reads; it is not compared.
 REFERENCE_METADATA = {
     "child_witness_directory", "fresh_claim_file", "fresh_witness_file", "scope",
     "running_parent",
@@ -39,7 +37,6 @@ def load(path):
 
 
 def equal(actual, expected, label):
-    """Require all JSON values and types; report the first different field."""
     if type(actual) is not type(expected):
         raise ValueError(f"{label}: different JSON types")
     if isinstance(actual, dict):
@@ -67,7 +64,6 @@ def file_record(actual, reference, scope, mode):
 
 def compare_json(actual, reference, scope):
     left, right = actual.read_bytes(), reference.read_bytes()
-    # The staged writer adds a newline; several old writers did not.
     if left.rstrip(b"\r\n") == right.rstrip(b"\r\n"):
         mode = "complete bytes, excluding final CR/LF"
     else:
@@ -78,8 +74,6 @@ def compare_json(actual, reference, scope):
 
 
 def semantic_envelope(envelope):
-    """The compared envelope fields. A running claim's `fold_digest` is a frame
-    that no check reads; older provers stored other values in it."""
     fields = {key: envelope[key] for key in ENVELOPE_FIELDS}
     fields["running_claims"] = [
         {key: value for key, value in claim.items() if key != "fold_digest"}
@@ -147,7 +141,6 @@ def compare_later(run, reference, nifs, envelope):
     cpu_proof = proof.read_bytes()
     equal(cpu_proof, expected_proof.read_bytes(), "every later proof byte")
     proof_record = file_record(proof, expected_proof, "every canonical proof byte", "exact bytes")
-    # File custody only. The complete comparison above establishes equality.
     proof_record["matched_sha256"] = hashlib.sha256(cpu_proof).hexdigest()
     caller_path = reference / "nonzero-successor" / "nightstream-native-nonzero-step-1.json"
     caller = load(caller_path)

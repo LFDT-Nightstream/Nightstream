@@ -29,8 +29,6 @@ variable {logicalWidth : Nat}
     (Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (Proof (ProductionKey.degreeBound relation)) slotCount)
 
-/-- Select the existing canonical dummy advice in the existing semantic
-input record. State, iteration, and application witness are preserved. -/
 noncomputable def canonicalInput : Input KeyDigest AppState AppWitness
     (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -45,36 +43,29 @@ variable
   (output : Output Digest AppState
     (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
 
-/-- Canonical dummy advice preserves the same accepted base step, including
-its application witness and public output. No NIFS acceptance or opening is
-needed for this semantic normalization. -/
 theorem canonicalInput_preserves_base
-    (step : StepHoldsFor relation ajtai context.toList
-      Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
+    (program : Lifecycle.Stage1.Application.Program)
+    (step : StepHoldsFor relation ajtai context.toList program input output)
     (zero : input.iteration = 0) :
-    StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program
+    StepHoldsFor relation ajtai context.toList program
       (canonicalInput relation ajtai context input) output := by
   rcases step.2.2.2 with base | recursive
   · exact ⟨step.1, step.2.1, step.2.2.1, Or.inl ⟨zero, base.2.1, base.2.2⟩⟩
   · rcases recursive with ⟨_, positive, _⟩
     exact False.elim ((Nat.ne_of_gt positive) zero)
 
-/-- The canonical base advice constructs pilot, C/R/D, running-transition,
-and next-preimage rows using the total production sampler. The actual
-NIFS dummy result is preserved, while the base transition selects the semantic
-`defaultRunning`. No child opening or equality of those two values is assumed. -/
 theorem base_completePrefix
     (valid : Lifecycle.Stage1.Terminal.StatementValid
       { iteration := input.iteration, z0 := input.z0, zi := input.zi })
-    (step : StepHoldsFor relation ajtai context.toList
-      Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
+    (program : Lifecycle.Stage1.Application.Program)
+    (step : StepHoldsFor relation ajtai context.toList program input output)
     (zero : input.iteration = 0) :
     let normalized := canonicalInput relation ajtai context input
     let prior := priorHashPreimage (setup relation ajtai context.toList) normalized
     let next := nextHashPreimage (setup relation ajtai context.toList) normalized output
     let values := PiCCSProofReadback.ofProof
       (normalized.fresh.commitments ⟨0, by decide⟩) normalized.nifsProof
-    StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program
+    StepHoldsFor relation ajtai context.toList program
       normalized output ∧
     ∃ (priorWellFormed : StateEncoding.WellFormed prior)
       (nextWellFormed : StateEncoding.WellFormed next),
@@ -118,14 +109,14 @@ theorem base_completePrefix
   let normalized := canonicalInput relation ajtai context input
   let prior := priorHashPreimage (setup relation ajtai context.toList) normalized
   let next := nextHashPreimage (setup relation ajtai context.toList) normalized output
-  have normalizedStep := canonicalInput_preserves_base relation ajtai context input output step zero
+  have normalizedStep := canonicalInput_preserves_base relation ajtai context input output program step zero
   have priorFixed : PilotProduction.FixedPreimage prior :=
     ⟨context.toList_length, valid.2.1, valid.2.2⟩
   have nextWidth : output.zNext.length = PilotProduction.digestWords := by
     have applicationStep := step.2.1
-    change output.zNext = Lifecycle.Stage1.Poseidon2HashChainV1.step input.zi input.witness at applicationStep
+    change output.zNext = program.step input.zi input.witness at applicationStep
     rw [applicationStep]
-    exact Lifecycle.Stage1.Poseidon2HashChainV1.step_output_length input.zi input.witness
+    exact program.step_length input.zi input.witness valid.2.2
   have nextFixed : PilotProduction.FixedPreimage next :=
     ⟨context.toList_length, valid.2.1, nextWidth⟩
   have nextPc : next.pc = 1 := by
@@ -150,7 +141,7 @@ theorem base_completePrefix
   obtain ⟨result, accepted⟩ := Nifs.BaseCompleteness.zeroProof_verify relation ajtai prior
   refine ⟨normalizedStep, priorWellFormed, nextWellFormed, result, accepted, ?_⟩
   apply StepWitnessPrefix.completePrefix relation ajtai context normalized output result
-    normalizedStep priorWellFormed nextWellFormed rfl accepted
+    program normalizedStep priorWellFormed nextWellFormed rfl accepted
   intro positive
   change 0 < input.iteration at positive
   omega

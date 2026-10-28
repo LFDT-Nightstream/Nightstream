@@ -95,7 +95,6 @@ def merge (point : PaperAlgebra.Point) (output : System.FilePath)
   return 0
 
 
-/-- Retain a complete Pad sum for its independent family comparison. -/
 def mergePad (point : PaperAlgebra.Point) (output : System.FilePath)
     (paths : List String) : IO UInt32 := do
   unless !(← output.pathExists) do throw (IO.userError "output already exists")

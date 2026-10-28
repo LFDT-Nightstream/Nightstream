@@ -4,9 +4,8 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputWitnessConsumer
 
 /-!
 Connect the arbitrary terminal opening to the authenticated NIFS inputs and
-the actual PiDEC parent witness. The terminal supplies the child witnesses;
-decoded step and preimage matching supply their exact NIFS output link.
-Interior extraction and probability bounds remain separate obligations.
+the actual PiDEC parent witness. Interior extraction and probability bounds
+remain separate obligations.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
@@ -23,13 +22,6 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.Paper
 open NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold
 open ActualContextSecurity
 
-/-- The accepted terminal opening supplies the selected context, the complete
-prior-state public input (all words, so stronger than the decoded digest), the
-prior-state link of the transcript coverage contract (the digest absorbed by
-PiCCS, the selected verifier context, the running vector read by NIFS, and a
-well-formed prior preimage), and the exact NIFS output. The base branch
-performs no NIFS call. No input-authentication or output-match premise is added
-at this boundary. -/
 theorem terminal_implies_nifsOrBaseOrCollision
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -108,9 +100,6 @@ theorem terminal_implies_nifsOrBaseOrCollision
         checked.trans (congrArg some outputSame)⟩
   · exact Or.inr collision
 
-/-- Actual terminal acceptance either comes from the base step, supplies the
-valid recomposed PiDEC parent of the decoded recursive proof, or exhibits the
-named state-hash collision. No output-match or child-opening premise is added. -/
 theorem terminal_implies_parentOrBaseOrCollision
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -164,9 +153,6 @@ theorem terminal_implies_parentOrBaseOrCollision
         ⟨runningValid functionIndex, freshValid⟩⟩)
   · exact Or.inr (Or.inr collision)
 
-/-- The authenticated terminal boundary consumes the selected NIFS security
-result on the actual decoded input and proof. Its cryptographic failure
-events retain their existing meaning; this is a deterministic connection. -/
 theorem terminal_implies_securityOrCollision
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

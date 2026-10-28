@@ -16,8 +16,6 @@ namespace NightstreamFPrime.Layout.Stage1.Lowering
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Lifecycle
 
-/-! ## Selected application lowering -/
-
 def applicationOperations
     (program : Lifecycle.Stage1.Application.Program) : List Op :=
   Circuit.ops
@@ -47,8 +45,6 @@ def applicationPrivateCount
   localLength (applicationOperations program) +
     (applicationPlan program).freshColumnCount
 
-/-- New caller-owned application witness words plus all application logical
-and R1CS fresh columns. -/
 def addedPrivateColumnCount
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
   program.witnessWordCount + applicationPrivateCount program
@@ -72,10 +68,6 @@ theorem applicationPlan_next
     ApplicationInputs.witnessStart
   omega
 
-/-! ## Final suffix relocation -/
-
-/-- Existing private columns stay fixed. The old constant and all public
-columns move after the exact application-private suffix. -/
 def shiftColumn (program : Lifecycle.Stage1.Application.Program)
     (column : Nat) : Nat :=
   if column < Spartan.constantColumn then column
@@ -138,8 +130,6 @@ theorem shiftRows_hold
     exact (shiftRow_holds program env source).mpr
       (holds source sourceMember)
 
-/-! ## Next-preimage lowering -/
-
 def nextPreimagePrivateStart : Nat := Spartan.spartanColumnCount
 
 def nextPreimageOperations : List Op :=
@@ -161,8 +151,6 @@ theorem nextPreimageRows_length : nextPreimageRows.length = 5 := by
 
 theorem nextPreimage_noFresh : nextPreimagePlan.freshColumnCount = 0 := by
   rfl
-
-/-! ## Final column counts -/
 
 def privateColumnCount
     (program : Lifecycle.Stage1.Application.Program) : Nat :=

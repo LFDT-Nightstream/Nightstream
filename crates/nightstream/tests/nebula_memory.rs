@@ -142,7 +142,7 @@ fn package_loads_only_its_own_bytes() {
     assert!(matches!(
         Package::V1.load(&package("nightstream-fprime-stage2-nebula-memory-n1.json")),
         Err(nightstream::Error::Package(
-            nightstream_fprime::PackageError::ExpectedIdentityMismatch { .. }
+            nightstream_fprime::PackageError::IdentityMismatch { .. }
         ))
     ));
 }
@@ -352,8 +352,12 @@ fn print_memory_package_identifier() {
         "nightstream-fprime-stage2-nebula-memory-v1.json",
         "nightstream-fprime-stage2-nebula-memory-n1.json",
     ] {
-        let value: serde_json::Value = serde_json::from_slice(&package(name)).unwrap();
-        let package = nightstream_fprime::load_prepared_application_value(value).unwrap();
-        println!("{name} structural_identifier={:?}", package.structural_identifier());
+        let placeholder = nightstream_fprime::StructuralIdentifier::from_words([0; 4]);
+        let computed = match nightstream_fprime::load_per_application_package(&package(name), placeholder) {
+            Ok(loaded) => loaded.structural_identifier().words(),
+            Err(nightstream_fprime::PackageError::IdentityMismatch { computed, .. }) => computed,
+            Err(error) => panic!("{name}: {error}"),
+        };
+        println!("{name} structural_identifier={computed:?}");
     }
 }

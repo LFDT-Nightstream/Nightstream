@@ -9,7 +9,6 @@ import tests.AxiomsStage1Assembler
 import tests.AxiomsAjtaiSetupV1
 import tests.AxiomsFoundations
 /-! Axiom gate. Explicit audits reject axioms outside the allowed set. -/
-/-! ## Spec -/
 #audit_axioms NightstreamFPrime.Spec.GlobalParams.rlc_bound_for
 #audit_axioms NightstreamFPrime.Spec.production_parameter_values
 #audit_axioms NightstreamFPrime.Spec.production_norm_stages
@@ -950,7 +949,6 @@ import tests.AxiomsFoundations
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.remappedRows_hold
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.paddedRows_length
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.paddedRows_hold
-#audit_axioms NightstreamFPrime.Layout.Poseidon2.hashPhysical_complete
 #audit_axioms NightstreamFPrime.Layout.Pilot.rowOwners_length
 #audit_axioms NightstreamFPrime.Layout.Pilot.physicalColumnCount_eq
 #audit_axioms NightstreamFPrime.Layout.Pilot.physicalRowCount_eq

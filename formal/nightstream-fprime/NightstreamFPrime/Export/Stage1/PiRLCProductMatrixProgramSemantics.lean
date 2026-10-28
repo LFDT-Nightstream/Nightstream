@@ -33,8 +33,6 @@ def evalKOffset : Nat :=
 
 def evalAOffset : Nat := evalKOffset + evalKFamily.invocationCount
 
-/-- The proof-relevant wire descriptor corresponding to one authoritative
-PiRLC product descriptor. -/
 def wireDescriptor : PiRLCProductSchedule.Descriptor →
     MatrixProgram.Phi81Product.Descriptor
   | ⟨.commitment, source, block, lane, cell⟩ =>
@@ -308,7 +306,6 @@ theorem output_form_at_invocation?
           descriptor.invocation) := by
   simpa using output_form? geometry descriptor
 
-/-- The compact decoder reads every quotient coefficient in original lane order. -/
 theorem quotientState?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -367,7 +364,6 @@ theorem priorState?
     rw [← sameFamily]
     exact prior_form_at_invocation?_of_ne geometry (descriptor.withLane lane) notFirst
 
-/-- A ring descriptor selects its first coefficient only as an input representative. -/
 def wireRingDescriptor (descriptor : PiRLCProductRingSchedule.Descriptor) :
     MatrixProgram.Phi81Product.Descriptor :=
   wireDescriptor (descriptor.withLane PiRLCProductRingSchedule.zeroLane)
@@ -416,7 +412,6 @@ def semanticInterface
   Phi81ProductFamilyPlan.ringInterface
     (PiRLCProductPlan.interface (inputs geometry)) descriptor.invocation
 
-/-- The loaded interface equals the canonical interface in every sparse form. -/
 theorem block_interface?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -433,7 +428,6 @@ theorem block_interface?
   cases descriptor
   rfl
 
-/-- Every decoded evaluation row has exactly the canonical matrix forms. -/
 theorem block_row?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -473,7 +467,6 @@ theorem block_row?
       (block_interface? geometry descriptor) semanticRow rowSelected
   simpa only [ordinal, semanticRow, Phi81ProductFamilyPlan.rowForms] using! loaded
 
-/-- The singleton program selects the canonical row at every ring and point. -/
 theorem matrixProgram_invocation_row?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -498,7 +491,6 @@ theorem matrixProgram_invocation_row?
   rw [MatrixProgram.Program.singleton_row?, if_pos bound]
   exact exactRow
 
-/-- Exact sparse-form equality covers the complete compact product block. -/
 theorem matrixProgram_row?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)

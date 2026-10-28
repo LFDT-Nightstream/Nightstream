@@ -4,9 +4,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 
 /-!
 Owns deterministic PiCCS parent semantics in the complete PiRLC sampler
-environment. Ordinary rows and transcript specifications are transported by
-their exact declared supports. This module adds no row and does not close
-PiCCS conformance status.
+environment.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.DirectPiCCSCommonPhaseSemantics
@@ -19,8 +17,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- Sampler-complete direct-prefix semantics entail the complete PiCCS parent
-specification in the same environment used by PiRLC and PiDEC. -/
 theorem semantics_imply_piCcsSpecHolds
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤
@@ -86,8 +82,6 @@ theorem semantics_imply_piCcsSpecHolds
     finalIdentity := arithmetic.finalIdentity_parent
     outputBinding := transcripts.outputBinding_parent relation }
 
-/-- The same sampler-complete semantics entail deterministic PiCCS phase
-acceptance for the canonical proof template. -/
 theorem semantics_imply_piCcsPhaseHolds
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤

@@ -8,7 +8,6 @@ from pathlib import Path
 
 
 def lean_code(text):
-    """Remove nested Lean comments and strings; retain the existing scan rules."""
     clean, index, depth, quoted = [], 0, 0, False
     while index < len(text):
         pair = text[index:index + 2]

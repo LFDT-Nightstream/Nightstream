@@ -38,7 +38,6 @@ def samplerInterface :
   NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerInterface
     (sharedInterface (logicalWidth := logicalWidth) (publicFits := publicFits))
 
-/-- The exact sampler child list in the production PiRLC parent. -/
 def constraints : List Expr :=
   NightstreamFPrime.Layout.PiRLC.v1_2.childConstraints
     (NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.samplerCircuit
@@ -46,7 +45,6 @@ def constraints : List Expr :=
         (publicFits := publicFits)))
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
 
-/-- The sampler prefix lowered at the full phase's first fresh column. -/
 def rows : List Rows.CompiledRow :=
   PiCCSArithmetic.compilePacket
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerRowStart
@@ -61,7 +59,6 @@ theorem constraints_eq_samplerChain :
         NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart := by
   rfl
 
-/-- Exact final-column image of the Lean-lowered sampler prefix. -/
 theorem rows_toR1CS :
     (rows (logicalWidth := logicalWidth) (publicFits := publicFits)).map
         Rows.CompiledRow.toR1CS =
@@ -98,8 +95,6 @@ theorem freshCount_eq :
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.samplerInputs
         (logicalWidth := logicalWidth) (publicFits := publicFits))
 
-/-- Satisfaction of the exported sampler rows implies the exact production
-sampler-chain relation. -/
 theorem rows_imply_relation (env : Env)
     (assumptions :
       NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain.Assumptions

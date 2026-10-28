@@ -2,9 +2,8 @@ import NightstreamFPrime.Export.Stage1.PiRLCCombinationConformance
 import NightstreamFPrime.Export.Stage1.PiRLCProductSemanticCustody
 
 /-!
-Owns the direct semantic bridge from the retained PiRLC product plan to the
-four canonical combination-family relations. It does not use compact package
-row acceptance and does not close PiRLC status.
+Owns the direct semantic bridge from the retained PiRLC product plan to the four
+canonical combination-family relations.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductDirectSemantics
@@ -20,8 +19,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- Direct product constraints force the canonical commitment-combination
-family in the complete retained sampler environment. -/
 theorem productSemantics_imply_commitmentCanonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -68,8 +65,6 @@ theorem productSemantics_imply_commitmentCanonical
       (logicalWidth := logicalWidth) (publicFits := publicFits)
       source block lane cell
 
-/-- Direct product constraints force the canonical public-input combination
-family in the complete retained sampler environment. -/
 theorem productSemantics_imply_publicInputCanonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -116,8 +111,6 @@ theorem productSemantics_imply_publicInputCanonical
       (logicalWidth := logicalWidth) (publicFits := publicFits)
       source block lane cell
 
-/-- Direct product constraints force the canonical Eval-K combination family
-in the complete retained sampler environment. -/
 theorem productSemantics_imply_evalKCanonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -164,8 +157,6 @@ theorem productSemantics_imply_evalKCanonical
       (logicalWidth := logicalWidth) (publicFits := publicFits)
       source block lane cell
 
-/-- Direct product constraints force the canonical Eval-A combination family
-in the complete retained sampler environment. -/
 theorem productSemantics_imply_evalACanonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

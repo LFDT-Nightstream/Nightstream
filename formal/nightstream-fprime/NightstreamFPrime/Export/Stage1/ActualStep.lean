@@ -8,8 +8,7 @@ import NightstreamFPrime.Lifecycle.Relation
 Owns typed step data and composition on arbitrary accepted assignments.
 The immediate context key is decoded from the actual prior preimage. Its
 connection to the canonical verifier context remains a separate obligation.
-The base theorem permits any fresh claim and NIFS proof because that branch
-does not use them. It does not claim the recursive NIFS connection.
+It does not claim the recursive NIFS connection.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualStep
@@ -43,7 +42,6 @@ def contextKey (application : Lifecycle.Stage1.Application.Program)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
     KeyDigest := StateDecoder.keyDigest (priorState application assignment)
 
-/-- The fresh claim uses exactly the PiCCS leaf's decoded input forms. -/
 def decodedFresh (application : Lifecycle.Stage1.Application.Program)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
     Fresh (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
@@ -56,8 +54,6 @@ def decodedFresh (application : Lifecycle.Stage1.Application.Program)
       (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
         (PerApplicationFixedPoint.geometry application)) assignment))
 
-/-- Read the PiCCS-owned proof fields from their actual forms. The PiDEC
-fields remain template data until their separate decoding proof is supplied. -/
 def withDecodedPiCCS (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
@@ -72,8 +68,6 @@ def withDecodedPiCCS (application : Lifecycle.Stage1.Application.Program)
       (DirectApplicationPrefixPlan.piCcsOrdinaryGeometry
         (PerApplicationFixedPoint.geometry application)) assignment)) template
 
-/-- State and application advice are read from the actual assignment.
-Fresh and proof are protocol data supplied by the phase decoder. -/
 def input (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
@@ -113,7 +107,6 @@ def output (application : Lifecycle.Stage1.Application.Program)
   pcNext := functionIndex
   x := digest
 
-/-- The typed recursive input hashes the same prior preimage as the pilot. -/
 theorem priorHashPreimage_eq_prior
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -133,8 +126,6 @@ theorem priorHashPreimage_eq_prior
         (priorState application assignment) := by
   rfl
 
-/-- Typed next-step construction uses exactly the preimage whose hash is
-derived from the selected rows, including the prior counter plus one. -/
 theorem nextHashPreimage_eq_next
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -156,9 +147,6 @@ theorem nextHashPreimage_eq_next
         (priorState application assignment) (outputState application assignment) := by
   rfl
 
-/-- The exact decoded base step holds for every accepted assignment and
-every value of its unused fresh/proof advice. No representation, generated
-assignment, application-correctness, or NIFS-correctness premise is assumed. -/
 theorem selectedRowsAndPublic_imply_baseStep
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -212,10 +200,6 @@ theorem selectedRowsAndPublic_imply_baseStep
   · funext slot
     exact baseState.2
 
-/-- Accepted rows discharge the HyperNova application, hash and state envelope.
-The remaining recursive condition is the concrete verifier equation on these
-same decoded values. This theorem does not derive that equation from rows or
-claim that arbitrary proof advice is accepted. -/
 theorem selectedRowsAndPublic_step_iff_baseOrNifs
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -304,9 +288,6 @@ theorem selectedRowsAndPublic_step_iff_baseOrNifs
       change slot.val = 0
       omega
 
-/-- The concrete NIFS verifier's PiCCS check succeeds on the actual decoded
-step inputs and PiCCS proof fields. Later message fields are still arbitrary;
-their acceptance and the final running output remain separate obligations. -/
 theorem selectedRowsAndPublic_imply_piCcsCheck
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -339,10 +320,6 @@ theorem selectedRowsAndPublic_imply_piCcsCheck
       (withDecodedPiCCS application fits assignment template)) observations.2.1
   exact agreement.symm.trans accepted
 
-/-- With the PiCCS proof fields decoded from accepted rows, the recursive
-step's unresolved conditions are exactly the concrete PiDEC check over the
-verifier-computed PiRLC parent and equality of the computed running output.
-Neither condition is assumed or discharged by this equivalence. -/
 theorem selectedRowsAndPublic_step_iff_baseOrPiDec
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

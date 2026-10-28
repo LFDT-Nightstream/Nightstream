@@ -263,7 +263,6 @@ theorem completeness
     rw [← operationsEq]
     exact completed.rows
 
-/-- The sole proved logical PiDEC v1.2 circuit. -/
 def circuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

@@ -14,15 +14,6 @@ import NightstreamFPrime.Export.Stage1.WitnessProgram
 /-!
 Owns the executable data of the Stage 1 prefix through the running
 transition.
-
-The closed pilot is lifted into the combined Spartan column order. The PiCCS
-proof-input segment follows the two pilot preimages. All remaining private
-columns belong to the one package witness program. The PiCCS transcript uses
-compact Poseidon2 invocations. PiRLC reuses that permutation template, uses
-ordinary checked wide-reduction and coefficient-word rows, then emits the
-four compact 17-input combination families in parent order.
-PiDEC then adds one proved ordinary-row plan and its constrained input ABI.
-The running transition adds one proved ordinary-row plan and one hint batch.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.Data
@@ -56,7 +47,6 @@ def piCcsPriorChildren : Nat := 19
 
 end Role
 
-/-- Current prefix width used only to instantiate width-erased package data. -/
 def logicalWidth : Nat :=
   PhaseReference.logicalWidth
 
@@ -217,7 +207,6 @@ def outputEval_AWords : Nat :=
 def outputEvaluationWordsPerSource : Nat :=
   outputEval_KWords + outputEval_AWords
 
-/-- The prior child digits open the proof-input interval. -/
 def freshCommitmentTargetStart : Nat :=
   proofInputStart + NightstreamFPrime.Layout.Stage1.PiCCSInputs.priorChildrenWords
 
@@ -226,7 +215,6 @@ def outputEvaluationTargetStart : Nat :=
     NightstreamFPrime.Layout.Stage1.PiCCSInputs.freshCommitmentWords +
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.roundMessageWords
 
-/-- One exact v1_2 Pad-evaluation segment for one PiCCS output source. -/
 def outputEval_KSegment
     (source : Fin productionShape.sourceCount) : Segment :=
   ⟨Role.piCcsOutputEval_K,
@@ -234,7 +222,6 @@ def outputEval_KSegment
       source.val * outputEvaluationWordsPerSource,
     outputEval_KWords⟩
 
-/-- One exact v1_2 CCS-matrix-evaluation segment for one PiCCS output source. -/
 def outputEval_ASegment
     (source : Fin productionShape.sourceCount) : Segment :=
   ⟨Role.piCcsOutputEval_A,
@@ -242,8 +229,6 @@ def outputEval_ASegment
       source.val * outputEvaluationWordsPerSource + outputEval_KWords,
     outputEval_AWords⟩
 
-/-- The 17 output claims remain in source order. Within each source, the
-separate Pad family precedes the separate 4-matrix family. -/
 def piCcsOutputSegments : List Segment :=
   (List.finRange productionShape.sourceCount).flatMap fun source =>
     [outputEval_KSegment source, outputEval_ASegment source]
@@ -491,7 +476,6 @@ theorem Components.toCircuitPackage_assertionRows (components : Components) :
     components.toCircuitPackage.assertionRows = components.assertionRows := by
   rfl
 
-/-- The generic assembler classifies every arithmetic row exactly once. -/
 theorem Components.ordinaryRows_length (components : Components) :
     components.toCircuitPackage.witnessInstructions.length +
       components.toCircuitPackage.assertionRows.length =
@@ -525,8 +509,6 @@ theorem Components.ordinaryRows_length (components : Components) :
         PilotData.circuitPackageOf_witnessInstructions,
         PilotData.circuitPackageOf_assertionRows]
 
-/-- Exact total row coverage for any component lists with the production
-counts. This theorem never inspects a concrete component list. -/
 theorem Components.rowCoverage (components : Components)
     (arithmeticRows_length : components.arithmeticRows.length = 86648)
     (permutationInvocations_length :

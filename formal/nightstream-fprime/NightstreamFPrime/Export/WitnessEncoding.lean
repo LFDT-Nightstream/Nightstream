@@ -1,11 +1,8 @@
 import Mathlib.Algebra.BigOperators.Group.List.Basic
 import NightstreamFPrime.Circuit.VariableSupport
 
-/-! Preserved from PR123 commit e1a7c96a617237005859fd6a01ae3c21ba0727da.
-
-Balance witness-expression sums before encoding them as nested arrays.
-Values, variable support, batch order, and allocated columns are preserved.
-The existing expression codec and four hint constructors remain unchanged. -/
+/-! Balance witness-expression sums before encoding them as nested arrays.
+Values, variable support, batch order, and allocated columns are preserved. -/
 
 namespace NightstreamFPrime.Export.WitnessEncoding
 

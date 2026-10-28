@@ -17,7 +17,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 namespace SourceMap
 
-/-- Exact reconstruction for the source terms used by one combination. -/
 def PreservesCombination {sourceWidth logicalWidth : Nat}
     (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)
     (assignment : Assignment F logicalWidth) (source : Circuit.Env)
@@ -28,7 +27,6 @@ def PreservesCombination {sourceWidth logicalWidth : Nat}
     (sourceMap.form ⟨term.1, bounded term member⟩).eval assignment =
       source term.1
 
-/-- Exact reconstruction for all source terms used by one row. -/
 def PreservesRow {sourceWidth logicalWidth : Nat}
     (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)
     (assignment : Assignment F logicalWidth) (source : Circuit.Env)
@@ -86,7 +84,6 @@ private theorem compileCombination_eval_local
       bounded preserves]
   rfl
 
-/-- Local term preservation is sufficient for the exact ordinary-row bridge. -/
 theorem compileRow_preserves_local {sourceWidth logicalWidth : Nat}
     (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)
     (oneColumn : Fin logicalWidth) (row : R1CS.Row)
@@ -105,7 +102,6 @@ theorem compileRow_preserves_local {sourceWidth logicalWidth : Nat}
   · exact compileCombination_eval_local sourceMap oneColumn row.c bounded.2.2
       assignment source one preserves.2.2
 
-/-- Canonical indexed source rows before final sparse-form substitution. -/
 structure Program (sourceWidth : Nat) where
   rowCount : Nat
   rowCount_le : rowCount ≤ 2 ^ NightstreamFPrime.Lifecycle.cubeVariables
@@ -114,19 +110,16 @@ structure Program (sourceWidth : Nat) where
 
 namespace Program
 
-/-- Final sparse source resolver for each indexed row. -/
 structure Inputs {sourceWidth : Nat} (program : Program sourceWidth)
     (logicalWidth : Nat) where
   oneColumn : Fin logicalWidth
   sourceMap : Fin program.rowCount →
     SourceCompiler.SourceMap sourceWidth logicalWidth
 
-/-- Exact source-row satisfaction in canonical row order. -/
 def Holds {sourceWidth : Nat} (program : Program sourceWidth)
     (source : Circuit.Env) : Prop :=
   ∀ index, (program.row index).Holds source
 
-/-- Compile every indexed source row into the sole 4-matrix row relation. -/
 def compile {sourceWidth logicalWidth : Nat} (program : Program sourceWidth)
     (inputs : program.Inputs logicalWidth) : OrdinaryRow.Program logicalWidth where
   rowCount := program.rowCount
@@ -141,8 +134,6 @@ def compile {sourceWidth logicalWidth : Nat} (program : Program sourceWidth)
     (program.compile inputs).rowCount = program.rowCount := by
   rfl
 
-/-- One compiled plan row is exactly the source compiler output for that
-indexed source row. This theorem keeps concrete row programs opaque. -/
 theorem compile_toPlan_forms {sourceWidth logicalWidth : Nat}
     (program : Program sourceWidth) (inputs : program.Inputs logicalWidth)
     (index : Fin program.rowCount) :
@@ -151,8 +142,6 @@ theorem compile_toPlan_forms {sourceWidth logicalWidth : Nat}
         (program.row index) (program.bounded index)).meaningfulForm := by
   rfl
 
-/-- Row-local source preservation gives preservation for the full indexed
-ordinary program. -/
 theorem compile_preserves {sourceWidth logicalWidth : Nat}
     (program : Program sourceWidth) (inputs : program.Inputs logicalWidth)
     (assignment : Assignment F logicalWidth) (source : Circuit.Env)
@@ -166,7 +155,6 @@ theorem compile_preserves {sourceWidth logicalWidth : Nat}
     (program.row index) (program.bounded index) assignment source one
     (preserves index)
 
-/-- The final 4-matrix plan accepts exactly the indexed source R1CS rows. -/
 theorem rowsZero_iff {sourceWidth logicalWidth : Nat}
     (program : Program sourceWidth) (inputs : program.Inputs logicalWidth)
     (assignment : Assignment F logicalWidth) (source : Circuit.Env)

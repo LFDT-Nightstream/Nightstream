@@ -109,7 +109,6 @@ theorem physicalRows_length
       physicalRowCount logicalWidth publicFits := by
   rfl
 
-/-- Each running plan ends at the shared physical endpoint. -/
 theorem physicalColumnCount_eq_physicalEnd
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

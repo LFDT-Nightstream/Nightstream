@@ -16,7 +16,6 @@ variable {Structure : Type uS} {Assignment : Type uW}
     Structure Assignment PublicInput Point Evaluation Commitment)
   (params : GlobalParams) (commitment : Commitment)
 
-/-- The two event records differ only in their field names. -/
 def parentCollisionEquiv :
     ParentOpeningBindingCollision semantics params commitment ≃
       Opening.BindingCollision semantics params.bigB commitment where

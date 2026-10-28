@@ -2,8 +2,7 @@ import Batteries.Data.Fin.Coding
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixNorm
 
 /-! Owns table-index folds and direct four-scalar codes for each norm source.
-Decoding is exactly the existing PrefixFold, including odd tails and zero
-padding. Source aggregation and byte-file IO belong to the replay caller. -/
+Source aggregation and byte-file IO belong to the replay caller. -/
 
 set_option autoImplicit false
 
@@ -13,12 +12,10 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- Decode existing finite indices without changing their order. -/
 def decode {count : Nat} (values : Vector K count)
     (codes : Array (Fin count)) : Array K :=
   codes.map values.get
 
-/-- Prepare every ordered pair with the existing interpolation formula. -/
 def pairedTable {count : Nat} (values : Vector K count) (challenge : K) :
     Vector K (count * count) :=
   Vector.ofFn fun code =>
@@ -26,7 +23,6 @@ def pairedTable {count : Nat} (values : Vector K count) (challenge : K) :
     PrefixFold.interpolate extensionOps challenge
       (values.get pair.1) (values.get pair.2)
 
-/-- Pair adjacent codes. The explicit zero entry supplies a missing endpoint. -/
 def pairedCodes {count : Nat} (zeroCode : Fin count)
     (codes : Array (Fin count)) : Array (Fin (count * count)) :=
   Array.ofFn fun pair : Fin ((codes.size + 1) / 2) =>
@@ -34,7 +30,6 @@ def pairedCodes {count : Nat} (zeroCode : Fin count)
       (codes.getD (2 * pair.val) zeroCode,
        codes.getD (2 * pair.val + 1) zeroCode)
 
-/-- Every table entry is the original interpolation of its two decoded values. -/
 theorem pairedTable_pair {count : Nat} (values : Vector K count)
     (challenge : K) (low high : Fin count) :
     (pairedTable values challenge).get (Fin.encodeProd (low, high)) =
@@ -53,8 +48,6 @@ private theorem decoded_getD {count : Nat} (values : Vector K count)
   | some code =>
       simp only [Option.map_some, Option.getD_some]
 
-/-- Exact decoded-array equality. The zero entry is the only value premise;
-no signedness, code distinctness, source support, or challenge premise is used. -/
 theorem decode_pairedCodes {count : Nat} (values : Vector K count)
     (zeroCode : Fin count) (zeroValue : values.get zeroCode = K.zero)
     (codes : Array (Fin count)) (challenge : K) :
@@ -79,14 +72,12 @@ private theorem interpolate_zero (challenge : K) :
   unfold PrefixFold.interpolate InterpolationOps.sub
   rw [extensionLaws.add_neg, extensionLaws.mul_zero, extensionLaws.add_zero]
 
-/-- The paired zero entry is available for the next use of the same fold. -/
 theorem pairedTable_zero {count : Nat} (values : Vector K count)
     (zeroCode : Fin count) (zeroValue : values.get zeroCode = K.zero) (challenge : K) :
     (pairedTable values challenge).get (Fin.encodeProd (zeroCode, zeroCode)) = K.zero := by
   rw [pairedTable_pair, zeroValue]
   exact interpolate_zero challenge
 
-/-- The existing nine-entry first-fold table contains the original zero pair. -/
 theorem firstTable_zero (challenge : K) :
     (PiCCSPrefixNorm.values challenge).get
       (PiCCSPrefixNorm.pairCode ⟨1, by decide⟩ ⟨1, by decide⟩) = K.zero := by
@@ -94,8 +85,6 @@ theorem firstTable_zero (challenge : K) :
   change PrefixFold.interpolate extensionOps challenge K.zero K.zero = K.zero
   exact interpolate_zero challenge
 
-/-- The next table has nine times nine entries, derived from the existing table.
-Its decoded array is the second fold, without an additional zero-value premise. -/
 theorem decode_secondFold (firstChallenge secondChallenge : K) (codes : Array (Fin 9)) :
     decode (pairedTable (PiCCSPrefixNorm.values firstChallenge) secondChallenge)
         (pairedCodes (PiCCSPrefixNorm.pairCode ⟨1, by decide⟩ ⟨1, by decide⟩) codes) =
@@ -105,7 +94,6 @@ theorem decode_secondFold (firstChallenge secondChallenge : K) (codes : Array (F
     (PiCCSPrefixNorm.pairCode ⟨1, by decide⟩ ⟨1, by decide⟩)
     (firstTable_zero firstChallenge) codes secondChallenge
 
-/-- The zero code after two folds is the ordered pair of first-fold zero codes. -/
 theorem secondTable_zero (firstChallenge secondChallenge : K) :
     (pairedTable (PiCCSPrefixNorm.values firstChallenge) secondChallenge).get
       ⟨40, by decide⟩ = K.zero := by
@@ -113,13 +101,11 @@ theorem secondTable_zero (firstChallenge secondChallenge : K) :
     (PiCCSPrefixNorm.pairCode ⟨1, by decide⟩ ⟨1, by decide⟩)
     (firstTable_zero firstChallenge) secondChallenge
 
-/-- Four original signed codes produce one index after two prefix challenges. -/
 def quadCode (codes : Nat → Fin 3) (index : Nat) : Fin 81 :=
   Fin.encodeProd
     (PiCCSPrefixNorm.pairCode (codes (4 * index)) (codes (4 * index + 1)),
      PiCCSPrefixNorm.pairCode (codes (4 * index + 2)) (codes (4 * index + 3)))
 
-/-- The numeric code uses the same low-pair, high-pair order as the table. -/
 theorem quadCode_val (codes : Nat → Fin 3) (index : Nat) :
     (quadCode codes index).val =
       (PiCCSPrefixNorm.pairCode (codes (4 * index)) (codes (4 * index + 1))).val * 9 +
@@ -127,21 +113,17 @@ theorem quadCode_val (codes : Nat → Fin 3) (index : Nat) :
   change 9 * _ + _ = _ * 9 + _
   omega
 
-/-- The complete 81-entry code range survives the byte conversion exactly. -/
 theorem code_byte (code : Fin 81) : code.val.toUInt8.toNat = code.val := by
   change (UInt8.ofNat code.val).toNat = code.val
   exact UInt8.toNat_ofNat_of_lt' (Nat.lt_trans code.isLt (by decide))
 
-/-- Materialize one source range. Start and count are in four-scalar groups. -/
 def quadCodes (codes : Nat → Fin 3) (start count : Nat) : Array (Fin 81) :=
   Array.ofFn fun index : Fin count => quadCode codes (start + index.val)
 
-/-- Every requested group is retained, including zero groups. -/
 theorem quadCodes_size (codes : Nat → Fin 3) (start count : Nat) :
     (quadCodes codes start count).size = count := by
   simp only [quadCodes, Array.size_ofFn]
 
-/-- A direct code decodes to the two existing interpolation steps. -/
 theorem quadCode_value (firstChallenge secondChallenge : K)
     (codes : Nat → Fin 3) (index : Nat) :
     (pairedTable (PiCCSPrefixNorm.values firstChallenge) secondChallenge).get
@@ -156,9 +138,6 @@ theorem quadCode_value (firstChallenge secondChallenge : K)
   rw [quadCode, pairedTable_pair, PiCCSPrefixNorm.values_pairCode,
     PiCCSPrefixNorm.values_pairCode]
 
-/-- Complete decoding of a range equals two folds of exactly its original
-signed scalars. This holds separately for every source and every range,
-including an empty range; no gamma combination or source-support premise occurs. -/
 theorem decode_quadCodes_twoFolds (firstChallenge secondChallenge : K)
     (codes : Nat → Fin 3) (start count : Nat) :
     decode (pairedTable (PiCCSPrefixNorm.values firstChallenge) secondChallenge)

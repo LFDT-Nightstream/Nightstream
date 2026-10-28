@@ -25,16 +25,12 @@ variable (application : Lifecycle.Stage1.Application.Program)
 
 attribute [local instance] Classical.propDecidable
 
-/-- The current existing state-hash collision before any preceding marked
-failure. This event includes a recursive base visit with no source call. -/
 def MarkedHashCollision (visit : Visit application) : Prop :=
   visit.2 = true ∧
     match visit.1 with
     | some (statement, .recursive payload) => Collision application fits setup statement payload
     | _ => False
 
-/-- Failure of the exact checked source-return event on the good active
-branch. Aborts and missing entries fail this event's source check. -/
 def MarkedSourceFailure (draw : Visit application × SourceResult application) : Prop :=
   goodActive application fits setup draw.1 ∧
     ¬ CheckedWitnessExtraction.SourceReturned (PiCCSStoredWitnessCheck.commit application setup) productionGlobalParams
@@ -132,9 +128,6 @@ private theorem checks_of_no_first_failure (depth : Nat)
                       simpa only [if_neg nonzero, if_pos counter, if_neg base] using
                         And.intro safe previous.2
 
-/-- An accepted failed reverse run has a first marked hash or source failure
-at an observation below the symbolic iteration bound. The statement holds
-for every supplied source list, including missing entries and aborts. -/
 theorem accepted_failure_exists_first (depth : Nat) (sample : Sample application)
     (bounded : sample.1.iteration ≤ depth) (accepted : Accepted application fits setup sample)
     (failed : ¬ AdviceReturned application fits sample) :
@@ -188,11 +181,6 @@ private theorem observed_event_mass
     _ = _ := congrArg (fun distribution => distribution.toOuterMeasure event)
       (visitedDraw_marginal application fits setup source initial step)
 
-/-- The history law's mass where the terminal verifier accepts and no
-complete history returns is bounded by the first marked failure masses at the
-exact visited contexts. The only scope bound is the symbolic initial iteration
-bound. No independent-call, source-success, conditional-model or
-successful-trace premise is used. -/
 theorem unreturned_acceptance_le_first_failures
     (source : Statement → Payload application → PMF (SourceResult application))
     (initial : PMF (Statement × Envelope application)) (depth : Nat)

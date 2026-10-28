@@ -10,19 +10,9 @@ Inputs: a statement, a fixed witness that fails the source relation, and an
 accepted probe whose output that witness opens.
 
 Outputs:
-- `falseAcceptance_splits`: some coin lies in its bad set;
+- `falseAcceptance_splits`;
 - `alphaBad_probability_le`, `gammaBad_probability_le`,
-  `roundBad_probability_le`: a coin drawn uniformly from `samples` lies in its
-  bad set with probability at most `1`, `J - 1` or `width` over the sample
-  count. Over all of `K` and summed over the coins, these are
-  `IndependentExecution.testError`.
-
-Invariant: a bad set does not read its own coin. The `α` set replaces its
-coordinate (`alphaBad_set`); the `γ` set reads only `α`; a round set reads
-only `α`, `γ` and the earlier rounds.
-
-The `α` split follows the table recursion of `BooleanMixingProbability` along
-one fixed path of nonzero sub-tables.
+  `roundBad_probability_le`.
 
 Does not own: the coin law. `Lifecycle/RandomOracleTest.lean` draws the
 coins from a random oracle.
@@ -39,7 +29,6 @@ open _root_.NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal (Hit hit_pro
 
 attribute [local instance] Classical.propDecidable
 
-/-- One coordinate of a cube point. -/
 def coordinate {size : Nat} (point : CubePoint K size) (index : Fin size) : K :=
   point.coordinates[index.val]'(by rw [point.dimension]; exact index.isLt)
 
@@ -47,15 +36,10 @@ theorem set_coordinate {size : Nat} (point : CubePoint K size) (index : Fin size
     point.coordinates.set index.val (coordinate point index) = point.coordinates :=
   List.set_getElem_self _
 
-/-! ## `α`: one fixed path of nonzero sub-tables -/
-
-/-- The low half, unless it is all zero. -/
 noncomputable def selectedChild {size : Nat} (low high : BooleanTable K size) :
     BooleanTable K size :=
   if low.AllEntriesZero extensionOps then high else low
 
-/-- Along the selected path, the halves of the sub-table at `depth` are not both
-zero at the later coordinates, and coordinate `depth` makes the sub-table zero. -/
 noncomputable def VanishesAt : {size : Nat} → BooleanTable K size → List K → Nat → Prop
   | _ + 1, .branch low high, value :: rest, 0 =>
       ¬ (low.evaluateCoordinates extensionOps rest = K.zero ∧
@@ -68,8 +52,6 @@ noncomputable def VanishesAt : {size : Nat} → BooleanTable K size → List K �
       VanishesAt (selectedChild low high) rest depth
   | _, _, _, _ => False
 
-/-- A nonzero table that is zero at a point vanishes first at some coordinate
-of the selected path. -/
 theorem exists_vanishesAt : {size : Nat} → (table : BooleanTable K size) →
     (coordinates : List K) → coordinates.length = size →
     ¬ table.AllEntriesZero extensionOps →
@@ -107,8 +89,6 @@ theorem exists_vanishesAt : {size : Nat} → (table : BooleanTable K size) →
   | 0, .leaf _, _ :: _, length, _, _ => by simp at length
   | _ + 1, .branch _ _, [], length, _, _ => by simp at length
 
-/-- For fixed other coordinates, at most one value of coordinate `depth` makes
-the selected path vanish there. -/
 theorem vanishesAt_probability_le (samples : Finset K) : {size : Nat} →
     (table : BooleanTable K size) → (coordinates : List K) → (depth : Nat) →
     (𝔼 value ∈ samples,
@@ -161,13 +141,10 @@ theorem vanishesAt_probability_le (samples : Finset K) : {size : Nat} →
       simp only [List.set_nil, VanishesAt, if_false, Finset.expect_const_zero]
       positivity
 
-/-- The first coefficient that is not identically zero. -/
 noncomputable def selected {shape : Shape} (data : SignedJointIdentity.JointData K shape) :
     Option (Coefficient K shape) :=
   (coefficients extensionOps data).find? fun coefficient => decide ¬ coefficient.Zero extensionOps
 
-/-- The Boolean table of the selected coefficient, when that coefficient
-depends on `α`. -/
 noncomputable def selectedTable {shape : Shape} (data : SignedJointIdentity.JointData K shape) :
     Option (BooleanTable K shape.cubeVariables) :=
   match selected data with
@@ -176,14 +153,11 @@ noncomputable def selectedTable {shape : Shape} (data : SignedJointIdentity.Join
           polynomial = table.toAlphaPolynomial extensionOps then some found.choose else none
   | _ => none
 
-/-- Coordinate `index` of `α` first makes the selected table vanish. The set
-replaces that coordinate, so it does not read it. -/
 def alphaBad {shape : Shape} (data : SignedJointIdentity.JointData K shape)
     (alpha : CubePoint K shape.cubeVariables) (index : Fin shape.cubeVariables) : Set K :=
   {value | ∃ table, selectedTable data = some table ∧
     VanishesAt table (alpha.coordinates.set index.val value) index.val}
 
-/-- `γ` is a root of the nonzero specialized coefficient list. -/
 def gammaBad {shape : Shape} (data : SignedJointIdentity.JointData K shape)
     (alpha : CubePoint K shape.cubeVariables) : Set K :=
   {gamma | (∃ coefficient ∈ SignedCoefficientPolynomial.coefficients extensionOps data alpha,
@@ -191,8 +165,6 @@ def gammaBad {shape : Shape} (data : SignedJointIdentity.JointData K shape)
     (SignedCoefficientPolynomial.polynomial extensionOps data alpha).evaluate
       extensionOps.toOps gamma = K.zero}
 
-/-- A wrong round message agrees with the true round polynomial at the round
-challenge. -/
 def roundBad {shape : Shape} {width : Nat} (data : ProtocolPolynomial.Data K shape)
     (alpha : CubePoint K shape.cubeVariables) (gamma : K) (before : List K)
     (message : FixedPolynomial K width) (remaining : Nat) : Set K :=
@@ -205,9 +177,6 @@ theorem alphaBad_set {shape : Shape} (data : SignedJointIdentity.JointData K sha
       alphaBad data alpha index := by
   simp only [alphaBad, List.set_set]
 
-/-! ## Split -/
-
-/-- A signed mixing root puts some `α` coordinate or `γ` in its bad set. -/
 theorem mixingRoot_splits {shape : Shape} (data : SignedJointIdentity.JointData K shape)
     (alpha : CubePoint K shape.cubeVariables) (gamma : K)
     (root : MixingRoot extensionOps data alpha gamma) :
@@ -263,8 +232,6 @@ theorem mixingRoot_splits {shape : Shape} (data : SignedJointIdentity.JointData 
 
 universe uCommitment uPublicInput
 
-/-- A false acceptance puts some verifier coin in its bad set: an `α`
-coordinate, `γ`, or the challenge of a round whose message is wrong. -/
 theorem falseAcceptance_splits
     {Commitment : Type uCommitment} {PublicInput : Type uPublicInput}
     {shape : Shape} {columns blockCount width : Nat}
@@ -326,8 +293,6 @@ theorem falseAcceptance_splits
         omega
       rw [point, prefixEq, remaining]
       exact ⟨Function.ne_iff.mp different, equal⟩
-
-/-! ## Counts -/
 
 theorem alphaBad_probability_le (samples : Finset K) {shape : Shape}
     (data : SignedJointIdentity.JointData K shape)

@@ -22,14 +22,11 @@ open MatrixCoefficientSource UnifiedSources
 
 private abbrev freshIndex : Fin productionShape.freshCount := ⟨0, by decide⟩
 
-/-- The complete fresh carrier prefix comes only from zero completion of the
-logical assignment. No Boolean-cube suffix is allocated. -/
 def freshPrefix {logicalWidth : Nat}
     (assignment : Fin logicalWidth → F) : Array K :=
   Array.ofFn fun column : Fin (Phi81CarrierLayout.carrierWidth logicalWidth) =>
     K.embed (Phi81CarrierLayout.extendAssignment 0 assignment column)
 
-/-- Each matrix prefix contains only the live sparse-row images. -/
 def matrixPrefix {logicalWidth : Nat} (plan : Plan logicalWidth)
     (assignment : Fin logicalWidth → F)
     (matrix : Fin Spec.ProductionRelation.matrixCount) : Array K :=
@@ -38,13 +35,11 @@ def matrixPrefix {logicalWidth : Nat} (plan : Plan logicalWidth)
   | some _ => Array.ofFn fun row : Fin plan.rowCount =>
       K.embed ((plan.portForm row matrix).evalSparse assignment)
 
-/-- The fresh prefix includes every coordinate of the final carrier block. -/
 theorem freshPrefix_size {logicalWidth : Nat}
     (assignment : Fin logicalWidth → F) :
     (freshPrefix assignment).size = Phi81CarrierLayout.carrierWidth logicalWidth := by
   simp only [freshPrefix, Array.size_ofFn]
 
-/-- Live matrix rows fit the selected cube; the zero matrix has no entries. -/
 theorem matrixPrefix_fits {logicalWidth : Nat} (plan : Plan logicalWidth)
     (assignment : Fin logicalWidth → F)
     (matrix : Fin Spec.ProductionRelation.matrixCount) :
@@ -73,8 +68,6 @@ private theorem embeddedPrefix_getD {arity count : Nat}
       dif_neg live]
     exact embed_literal_zero.symm
 
-/-- Every numeric matrix-prefix read equals the authoritative sparse image,
-including the zero row suffix and the separate zero matrix slot. -/
 theorem matrixPrefix_getD {logicalWidth : Nat} (plan : Plan logicalWidth)
     (assignment : Fin logicalWidth → F)
     (matrix : Fin Spec.ProductionRelation.matrixCount)
@@ -103,8 +96,6 @@ theorem matrixPrefix_getD {logicalWidth : Nat} (plan : Plan logicalWidth)
           simp only [ColumnLayout.paddedValue, Plan.rowImage, decoded,
             SparseForm.evalSparse_eq_eval]
 
-/-- The one fresh witness is completed from the same logical assignment.
-Every running source is the literal zero assignment. -/
 def sourceWitness {logicalWidth : Nat} (assignment : Fin logicalWidth → F) :
     StrongReduction.OutputWitness productionShape
       (Phi81CarrierLayout.carrierWidth logicalWidth) where
@@ -127,8 +118,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Use the existing key statement and its sole witness-attachment function.
-There is no separately supplied matrix source, layout, or table family. -/
 noncomputable def source (plan : Plan logicalWidth)
     (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -139,7 +128,6 @@ noncomputable def source (plan : Plan logicalWidth)
   ((ProductionKey.key (plan.logicalRelation cubeFits) ajtai).statement
     defaultRunning fresh).sourceConnectedInputs (sourceWitness assignment)
 
-/-- The existing statement-derived protocol data for this exact witness. -/
 noncomputable def protocol (plan : Plan logicalWidth)
     (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -148,8 +136,6 @@ noncomputable def protocol (plan : Plan logicalWidth)
   ((ProductionKey.key (plan.logicalRelation cubeFits) ajtai).statement
     defaultRunning fresh).sourceProtocolData K.embed (sourceWitness assignment)
 
-/-- The source used by the production statement has literal zero running
-assignments, not a carried equality assumption. -/
 theorem source_running_zero (plan : Plan logicalWidth)
     (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -161,8 +147,6 @@ theorem source_running_zero (plan : Plan logicalWidth)
       (runningSourceIndex index) column = 0 := by
   exact sourceWitness_running assignment index column
 
-/-- The completed assignment array is exactly the fresh source table in the
-actual production-key protocol data at every Boolean vertex. -/
 theorem freshPrefix_table (plan : Plan logicalWidth)
     (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -182,9 +166,6 @@ theorem freshPrefix_table (plan : Plan logicalWidth)
   exact embeddedPrefix_getD cubeFits
     (Phi81CarrierLayout.extendAssignment 0 assignment) vertex
 
-/-- Sparse entry execution, original scalar matrices, and exact carrier
-completion produce the same fresh matrix-image table. The equality includes
-all 14 ports; the final port has an empty numeric prefix. -/
 theorem matrixPrefix_table (plan : Plan logicalWidth)
     (cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth ≤ 2 ^ cubeVariables)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))

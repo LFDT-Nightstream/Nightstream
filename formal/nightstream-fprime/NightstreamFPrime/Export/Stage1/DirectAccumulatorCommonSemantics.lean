@@ -6,9 +6,7 @@ import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 
 /-!
 Owns deterministic composition of the direct PiCCS, PiRLC, and PiDEC phase
-evidence into the one Stage 1 SuperNeo accumulator relation. Every phase uses
-the same retained sampler environment. This module adds no row or column and
-does not close any phase status.
+evidence into the one Stage 1 SuperNeo accumulator relation.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.DirectAccumulatorCommonSemantics
@@ -21,8 +19,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- One sampler-complete semantic packet forces the exact deterministic
-SuperNeo accumulator update. -/
 theorem semantics_imply_accumulatorHolds
     {relationLogicalWidth : Nat}
     {relationPublicFits : ringDegree * publicRingColumns ≤

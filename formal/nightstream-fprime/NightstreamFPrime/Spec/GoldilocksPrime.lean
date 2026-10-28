@@ -8,12 +8,6 @@ Owns the kernel-checked Lucas certificate that the Goldilocks modulus is prime
 and the derived `EuclidPrime` / `BaseFieldNoZeroDivisors` facts the NIFS key
 consumes. The modular exponentiation is fuel-structural so the kernel reduces
 it; every residue is stated exactly so fuel exhaustion (poison `0`) fails.
-Cost axis: 64-bit exponents, a protocol constant.
-
-Provenance: adapted from
-`formal/nightstream-lean/Nightstream/Implementation/R1CS/Canonical/GoldilocksCertificate.lean`
-and `.../GoldilocksField.lean` at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; the R1CS and inverse-witness
-dependencies are not copied.
 -/
 
 namespace NightstreamFPrime.Spec.GoldilocksPrime
@@ -29,29 +23,14 @@ def powMod (modulus : Nat) : Nat → Nat → Nat → Nat
       let half := powMod modulus fuel (base * base % modulus) (exponent / 2)
       if exponent % 2 = 1 then half * base % modulus else half
 
-/-- Fuel large enough for any exponent below `2 ^ 70`. -/
 def certificateFuel : Nat := 70
 
-/-- The proposed generator. -/
 def generator : Nat := 7
-
-/-! ## The factorisation of `q - 1`
-
-Fully known, which is what makes a Lucas certificate available at all. -/
 
 set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
 theorem order_factorisation :
     goldilocksModulus - 1 = 2 ^ 32 * 3 * 5 * 17 * 257 * 65537 := by
   decide
-
-/-! ## The certificate
-
-`7 ^ (q - 1) = 1`, and `7 ^ ((q - 1) / p)` is a specific residue other than `1`
-for each prime `p` dividing `q - 1`. Together these say the order of `7` is
-exactly `q - 1`.
-
-Each is stated as an exact residue, not as `≠ 1`, so that a poisoned fuel value
-cannot satisfy it. -/
 
 set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
 theorem fermat :
@@ -94,11 +73,6 @@ theorem order_not_sixtyfive_five_three_seventhed :
       = 8478886009461009681 := by
   decide
 
-/-! ## The six residues are not one
-
-Immediate from the exact values, and stated separately because it is the form
-Lucas's theorem consumes. -/
-
 set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
 theorem certificate_residues_ne_one :
     (18446744069414584320 : Nat) ≠ 1
@@ -111,8 +85,6 @@ theorem certificate_residues_ne_one :
 
 
 set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-/-- The certificate evaluator agrees with exponentiation in `ZMod` whenever
-the fuel strictly exceeds the exponent bit length. -/
 theorem powMod_cast
     (modulus fuel base exponent : Nat)
     (hexponent : exponent < 2 ^ fuel) :
@@ -282,7 +254,6 @@ theorem prime_divisor_order
     · exact Or.inr (Or.inr (Or.inr (Or.inr (Or.inr hq_65537))))
 
 set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-/-- Primality follows from Lucas's theorem applied to the exact certificate. -/
 theorem goldilocks_natPrime : Nat.Prime goldilocksModulus := by
   apply lucas_primality goldilocksModulus (generator : ZMod goldilocksModulus) fermat_zmod
   intro q hq hdivides
@@ -302,7 +273,6 @@ theorem goldilocks_natPrime : Nat.Prime goldilocksModulus := by
     exact order_not_sixtyfive_five_three_seventhed_zmod
 
 set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not artifact data
-/-- The project-local divisor property follows from primality. -/
 theorem goldilocks_euclidPrime : Folding.PiCCS.PaperJoint.NormRange.GoldilocksModulusEuclid := by
   intro a b hproduct
   have hdivides : goldilocksModulus ∣ a * b := Nat.dvd_of_mod_eq_zero hproduct

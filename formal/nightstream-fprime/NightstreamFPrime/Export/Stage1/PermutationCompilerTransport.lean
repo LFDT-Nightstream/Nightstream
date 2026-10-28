@@ -2,8 +2,6 @@ import NightstreamFPrime.Export.Stage1.Invocations
 
 /-!
 Owns value-level transport for the fixed Poseidon2 straight-line compiler.
-The proof is structural in the step list. It relates two relocated compiler
-runs when their input states and local witness intervals have equal values.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PermutationCompilerTransport
@@ -217,8 +215,6 @@ private theorem partialStepRecipes_eval_eq (leftEnv rightEnv : Env)
   funext lane
   simp [sboxStateEq]
 
-/-- One compiler step has equal recipe values after relocation when its input
-state values and complete local interval values agree. -/
 theorem stepRecipes_eval_eq (leftEnv rightEnv : Env)
     (leftStart rightStart : Nat) (step : Permutation.Step)
     (leftState rightState : Permutation.EState)
@@ -257,8 +253,6 @@ theorem stepRecipes_eval_eq (leftEnv rightEnv : Env)
           exact localsEq index (by
             simpa [Permutation.stepSize] using bounded))
 
-/-- Complete compiler recipe values are invariant under a relocation that
-preserves the input-state values and every local witness value. -/
 theorem compileRecipes_eval_eq (leftEnv rightEnv : Env)
     (leftStart rightStart : Nat) (leftState rightState : Permutation.EState)
     (steps : List Permutation.Step)
@@ -330,8 +324,6 @@ theorem compileRecipes_eval_eq (leftEnv rightEnv : Env)
       simp only [Permutation.compile, List.map_append]
       rw [headEq, tailEq]
 
-/-- Held recipe constraints transport across any relocation that preserves
-the input-state values and every local witness value. -/
 theorem compileConstraintsHold_of_transport (leftEnv rightEnv : Env)
     (leftStart rightStart : Nat) (leftState rightState : Permutation.EState)
     (steps : List Permutation.Step)
@@ -382,8 +374,6 @@ theorem compileConstraintsHold_of_transport (leftEnv rightEnv : Env)
     _ = ((Permutation.compile leftStart leftState steps).recipes.get
           ⟨index, leftBound⟩).eval leftEnv := selected.symm
 
-/-- Exact source-layout constraints for one affine Poseidon2 compiler run
-construct the corresponding canonical compact invocation in final columns. -/
 theorem invocation_complete_of_sourceConstraints
     (phase rowStart witnessStart : Nat) (state : Permutation.EState)
     (env : Env)

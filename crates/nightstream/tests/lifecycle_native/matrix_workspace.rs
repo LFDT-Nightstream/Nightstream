@@ -2,7 +2,7 @@
 
 use super::{artifact, fs, load_poseidon2_hash_chain_v1_package, PreparedLifecycle};
 use neo_ajtai::nightstream_fprime_setup::PRODUCTION_CARRIER_WIDTH;
-use neo_ccs::GeometricRowRun;
+use neo_ccs::{CcsStructure, GeometricRowRun};
 use neo_math::F;
 use neo_reductions::superneo_eval::{MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow};
 use neo_reductions::PiCcsError;
@@ -87,9 +87,6 @@ impl MatrixRowSink for RowCounts {
         self.slot(row, matrix);
         assert_eq!(run.row(), row);
         self.runs = self.runs.checked_add(1).expect("row run count");
-        // Only the variable part orders one-row costs. Descriptor, dense
-        // sentinel and counting bytes are constant across this source. The
-        // full cost is obtained from MatrixWindow::required_workspace below.
         let bytes = if run.len() == 1 {
             self.explicit = true;
             size_of::<u32>()
@@ -108,7 +105,6 @@ impl MatrixRowSink for RowCounts {
 
     fn finish_matrix_row(&mut self, row: usize, matrix: usize) -> Result<ControlFlow<()>, PiCcsError> {
         self.slot(row, matrix);
-        // Each nonempty family owns start/end u32 offsets for one row.
         self.payload += (usize::from(self.explicit) + usize::from(self.geometric)) * 2 * size_of::<u32>();
         self.explicit = false;
         self.geometric = false;
@@ -137,8 +133,6 @@ impl MatrixRowSink for RowCounts {
 #[ignore = "Count all stored fixed verifier rows; use the 300-second test cap. No proof or device work."]
 fn fixed_prefix_rows_fit_the_minimum_matrix_workspace() {
     let started = Instant::now();
-    // Deserialize only geometry and child ranges; the fixed matrix programs
-    // come from the same prepared-package fixture as the lifecycle tests.
     let manifest: Manifest = serde_json::from_slice(include_bytes!("../../artifacts/shared-verifier-v1.json")).unwrap();
     let bytes = fs::read(artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json")).unwrap();
     let loaded = load_poseidon2_hash_chain_v1_package(&bytes).unwrap();
@@ -147,23 +141,26 @@ fn fixed_prefix_rows_fit_the_minimum_matrix_workspace() {
     let mut package =
         PreparedLifecycle::from_package(loaded.into(), binding, crate::engine::Backend::Optimized, 114).unwrap();
     assert_eq!(
-        package.structure.n,
+        package.structure.n(),
         dimension(manifest.geometry.logical_rows, manifest.reference),
         "fixture uses the selected manifest row geometry"
     );
 
-    // These are the existing source-domain and commitment-key bounds. Only
-    // the header is changed, long enough to use the production reserve formula.
     assert_eq!(manifest.geometry.source_rows[1..], [0, 0, 1]);
     assert_eq!(manifest.geometry.logical_rows[1..], [0, 0, 1]);
     let maximum_application_rows = manifest.geometry.domain - manifest.geometry.source_rows[0];
     let maximum_rows = dimension(manifest.geometry.logical_rows, [0, 0, maximum_application_rows]);
     assert!(maximum_rows <= manifest.geometry.domain);
-    let actual_shape = (package.structure.n, package.structure.m);
-    package.structure.n = maximum_rows;
-    package.structure.m = PRODUCTION_CARRIER_WIDTH;
+    let actual = package.structure.clone();
+    package.structure = CcsStructure::new_verifier_artifact_header(
+        maximum_rows,
+        PRODUCTION_CARRIER_WIDTH,
+        actual.t(),
+        actual.f().clone(),
+    )
+    .unwrap();
     let minimum_workspace = package.matrix_workspace_bytes().unwrap();
-    (package.structure.n, package.structure.m) = actual_shape;
+    package.structure = actual;
     assert!(package.matrix_workspace_bytes().unwrap() >= minimum_workspace);
 
     let source = package.matrix_rows();
@@ -202,8 +199,6 @@ fn fixed_prefix_rows_fit_the_minimum_matrix_workspace() {
     assert_eq!(application_rows, manifest.reference[2]);
     assert_eq!(fixed_rows, manifest.geometry.logical_rows[0]);
 
-    // The caller can stop only after a complete row. A callback after Break
-    // fails in slot(), including another matrix callback for that same row.
     let application_range = application_range.expect("one application child");
     let maximum_end = if maximum.0 < application_range.start {
         application_range.start
@@ -224,9 +219,6 @@ fn fixed_prefix_rows_fit_the_minimum_matrix_workspace() {
         assert_eq!((counts.row, counts.matrix, counts.runs), (start + 1, 0, 0));
     }
 
-    // Count the maximum encoded-cost row again through the production
-    // workspace API, with no MatrixWindow/cache allocation. The maximum
-    // run-count row can differ now that scalar and geometric costs differ.
     let maximum_workspace = MatrixWindow::required_workspace(&source, maximum.0..maximum.0 + 1, 0).unwrap();
     eprintln!(
         "fixed_prefix_matrix_workspace rows={fixed_rows} max_row={} max_row_runs={} max_run_count_row={} max_runs={} encoded_workspace_bytes={maximum_workspace} minimum_workspace_bytes={minimum_workspace} elapsed={:?}",
@@ -236,6 +228,4 @@ fn fixed_prefix_rows_fit_the_minimum_matrix_workspace() {
         maximum_workspace <= minimum_workspace,
         "one fixed verifier row must fit every accepted shape's matrix allowance"
     );
-    // Variable application-row costs have a separate affine-run derivation;
-    // this test supplies evidence only for the stored verifier prefix and tail.
 }

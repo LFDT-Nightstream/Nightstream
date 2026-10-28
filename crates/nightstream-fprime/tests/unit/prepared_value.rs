@@ -1,6 +1,8 @@
-use super::super::{NATIVE_REFERENCE_NODES, PREPARED_FIXED_SOURCE_NODE_LIMIT};
+use super::super::PREPARED_FIXED_SOURCE_NODE_LIMIT;
 use super::*;
 use serde_json::json;
+
+const NATIVE_REFERENCE_NODES: usize = 12_164_493;
 
 #[test]
 fn numeric_array_decode_accepts_exact_nodes_and_rejects_one_short() {
@@ -36,7 +38,6 @@ fn assert_bound(value: &Value, exact_nodes: usize) {
 #[test]
 fn duplicate_zero_template_terms_consume_the_real_reference_headroom() {
     // RawTemplateCombination = [constant, [[column_reference, coefficient], ...]].
-    // This base has eight nodes; every duplicate zero term adds five.
     let mut combination = json!([0, [[[0, 0], 1]]]);
     let base_nodes = 8;
     assert_bound(&combination, base_nodes);
@@ -55,8 +56,6 @@ fn duplicate_zero_template_terms_consume_the_real_reference_headroom() {
 
 #[test]
 fn unused_compact_templates_consume_the_real_reference_headroom() {
-    // One unused compact template with no locals and a constant assertion.
-    // Its twenty nodes are retained even though no invocation refers to it.
     let template = json!([2, 0, 1, [0, 0], [[[0], [0, []], [1, []], [0, []]]]]);
     let mut templates = json!([template]);
     let base_nodes = 1 + 20;

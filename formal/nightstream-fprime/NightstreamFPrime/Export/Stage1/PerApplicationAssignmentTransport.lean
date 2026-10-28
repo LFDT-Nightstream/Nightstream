@@ -2,14 +2,7 @@ import NightstreamFPrime.Export.Package
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 
-/-!
-Owns the sealed executable transport for the final 4-matrix assignment.
-The 26 retained block plans supply their source values. Compact recipes
-derive the Phi81 quotient coefficients and the four constrained output-digest words.
-
-Every expression variable is renamed to its final physical package column.
-The package does not carry expanded low-norm coordinates or assignment values.
--/
+/-! Owns the sealed executable transport for the final 4-matrix assignment. -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 
@@ -25,8 +18,6 @@ open PerApplicationAssignmentPlan
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 
-/-- One compact product-family shape. Product invocations are source-major,
-then block-major, lane-major, and cell-major. -/
 structure Phi81FamilyShape where
   sourceCount : Nat
   blockCount : Nat
@@ -47,8 +38,6 @@ def Phi81FamilyShape.format : Format Phi81FamilyShape where
     cases shape
     rfl
 
-/-- Exact quotient recipe for the 33,966 retained Phi81 coefficients.
-The final coefficient of each ring quotient is zero. -/
 structure Phi81QuotientRecipe where
   ringDegree : Nat
   middleDegree : Nat
@@ -96,14 +85,12 @@ def Phi81QuotientRecipe.format : Format Phi81QuotientRecipe where
       BlockKind.format.decode_encode, AffineRuns.decode_encode]
     rfl
 
-/-- The four fixed product families in semantic order. -/
 def phi81FamilyShapes : List Phi81FamilyShape :=
   [ ⟨17, 22, 1⟩
   , ⟨17, 5, 1⟩
   , ⟨17, 1, 2⟩
   , ⟨17, 4, 2⟩ ]
 
-/-- Physical source columns used to construct the shared PiRLC operand values. -/
 def phi81ValueSources (program : Program) : List AffineRuns.Run :=
   AffineRuns.compress <| List.ofFn fun invocation :
       Fin PiRLCProductSchedule.invocationCount =>
@@ -131,8 +118,6 @@ theorem phi81ValueSources_at (program : Program)
     AffineRuns.expand_compress]
   exact Lifecycle.PriorStateHash.ofFn_getD _ invocation 0
 
-/-- The complete generic Phi81 recipe. No per-invocation expressions are
-materialized. -/
 def phi81QuotientRecipe (program : Program) : Phi81QuotientRecipe where
   ringDegree := 54
   middleDegree := 27
@@ -152,7 +137,6 @@ def physicalExpr (program : Program) (expression : Expr) : Expr :=
       NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport.transcriptInvocationCount <|
         CompactRows.renameExpr NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan expression
 
-/-- The exact four constrained Pilot output-digest expressions. -/
 def outputDigestExpression (program : Program) (lane : Fin 4) : Expr :=
   physicalExpr program <|
     PilotProduction.outputInterface.digest
@@ -166,10 +150,8 @@ def outputDigestExpressions (program : Program) : List Expr :=
     (outputDigestExpressions program).length = 4 := by
   simp [outputDigestExpressions]
 
-/-- Schema of the assignment-transport child in the sealed package. -/
 def schema : Nat := 3
 
-/-- Complete package-carried transport plan. -/
 structure Plan where
   blocks : List PerApplicationAssignmentBlocks.BlockPlan
   phi81 : Phi81QuotientRecipe

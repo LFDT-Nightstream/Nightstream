@@ -3,8 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics
 
 /-!
 Owns affine inputs and initial values for the four semantic C traces.
-The existing phase shapes supply affine actions. Each noninitial trace reads
-its predecessor's actual endpoint in the same completed assignment.
 -/
 
 set_option autoImplicit false
@@ -49,7 +47,6 @@ private theorem output_initial_column (lane : Fin 16) :
   exact (congrFun (outputInitialState_eq_roundFinalState_of_shape Data.logicalWidth Data.publicFits) lane).trans
     (roundFinalState_endpoint_of_shape Data.logicalWidth Data.publicFits lane)
 
-/-- The statement initial state and exact owned statement actions are affine. -/
 theorem statement_affine (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     Layout.Poseidon2.StateAffine Hash.zeroE ∧
       Invocations.ActionsInvocationInputsAffine PiCCSActionPayloadBlock.statementActions := by
@@ -60,8 +57,6 @@ theorem statement_affine (relation : ProductionKey.LogicalRelation logicalWidth 
       (statementInterface logicalWidth publicFits) statementWitnessStart
       ((inputShapes logicalWidth publicFits relation).statementAbsorption statementWitnessStart))
 
-/-- The challenge initial state is its predecessor endpoint; its action
-syntax is the same affine syntax owned by the actual relation's phase. -/
 theorem challenge_affine (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     Layout.Poseidon2.StateAffine
       ((challengeInterface Data.logicalWidth Data.publicFits).initialState challengeWitnessStart) ∧
@@ -76,7 +71,6 @@ theorem challenge_affine (relation : ProductionKey.LogicalRelation logicalWidth 
         (challengeInterface logicalWidth publicFits) challengeWitnessStart
         ((inputShapes logicalWidth publicFits relation).challengeDerivation challengeWitnessStart))
 
-/-- The round initial state and exact semantic round actions are affine. -/
 theorem round_affine (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     Layout.Poseidon2.StateAffine
       ((roundInterface Data.logicalWidth Data.publicFits).initialState roundWitnessStart) ∧
@@ -91,7 +85,6 @@ theorem round_affine (relation : ProductionKey.LogicalRelation logicalWidth publ
         (roundInterface logicalWidth publicFits) roundWitnessStart
         ((inputShapes logicalWidth publicFits relation).roundTranscript roundWitnessStart))
 
-/-- The output initial state and exact semantic output actions are affine. -/
 theorem output_affine (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     Layout.Poseidon2.StateAffine
       ((outputInterface Data.logicalWidth Data.publicFits).initialState outputWitnessStart) ∧
@@ -119,7 +112,6 @@ local notation "raw" => canonicalRawValues application
   (PerApplicationSourceAssignment.ofCompleted application target suffix)
 local notation "geometry" => PerApplicationCanonicalEncodes.poseidonGeometry application
 
-/-- The first C slice uses the declared zero state. -/
 theorem statement_initial :
     List.ofFn (Layer.evalState (Spartan.pullback target) Hash.zeroE) =
       PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState
@@ -128,7 +120,6 @@ theorem statement_initial :
   rfl
 
 include relation physical in
-/-- The challenge slice starts at the actual statement endpoint. -/
 theorem challenge_initial :
     List.ofFn (Layer.evalState (Spartan.pullback target)
       ((challengeInterface Data.logicalWidth Data.publicFits).initialState challengeWitnessStart)) =
@@ -145,7 +136,6 @@ theorem challenge_initial :
     statementFamily lane).symm
 
 include relation physical in
-/-- The round slice starts at the actual challenge endpoint. -/
 theorem round_initial :
     List.ofFn (Layer.evalState (Spartan.pullback target)
       ((roundInterface Data.logicalWidth Data.publicFits).initialState roundWitnessStart)) =
@@ -162,7 +152,6 @@ theorem round_initial :
     challengeFamily lane).symm
 
 include relation physical in
-/-- The output slice starts at the actual final round endpoint. -/
 theorem output_initial :
     List.ofFn (Layer.evalState (Spartan.pullback target)
       ((outputInterface Data.logicalWidth Data.publicFits).initialState outputWitnessStart)) =

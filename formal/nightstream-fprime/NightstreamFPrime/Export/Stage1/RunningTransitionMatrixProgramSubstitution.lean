@@ -3,8 +3,7 @@ import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 
 /-!
 Proves exact source custody for the compact running-transition ordinary-row
-program. Each canonical transition source resolves through its Lean-authored
-retained range or affine grid.
+program.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
@@ -227,8 +226,6 @@ private theorem freshMappedStart (program : ApplicationProgram) :
       (freshRange program).sourceStart := by
   simp only [freshRange, SourceRange.ofSemantic]
 
-/-- The compact substitution reconstructs every direct running-transition
-source location and rejects all overlapping interpretations. -/
 theorem substitution_location_form?
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -368,8 +365,6 @@ theorem substitution_location_form?
       simp [substitution, SourceSubstitution.form?, stateNone, outputNone,
         piDecNone, selected, pointNone]
 
-/-- On every source column used by a canonical running-transition row, the
-package substitution is exactly the direct Lean source map. -/
 theorem substitution_agrees_on_target
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)

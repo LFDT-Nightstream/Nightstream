@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/Phi81MatrixSource.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Phi81 single-matrix source over the complete coefficient carrier.
 
@@ -24,20 +21,6 @@ this source, the runtime bar-matrix artifact, matrix-cache loops, transcript,
 SumCheck, R1CS lowering, row removal, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: callers provide only the original-width CCS matrices and
-constraint polynomial. The completed matrix suffix and all coefficient images
-are definitions. A carried assignment may use every completed coordinate, but
-there is no separately settable coefficient-matrix view.
-
-| Protocol | Phase | Family | Mathematical obligation |
-|---|---|---|---|
-| coefficient embedding | shape | `d` | `phi81Shape.coefficientCount = 54` |
-| CCS structure | carrier completion | logical prefix | every original matrix entry is preserved |
-| CCS structure | carrier completion | completed suffix | every new matrix entry is canonical zero |
-| carried CE | coefficient expansion | output / row / assignment lane | `source.kernel = phi81Kernel` |
-| carried CE | constant coefficient | completed matrix | coefficient zero equals the sole completed CCS matrix |
-| assurance | production refinement | Rust cache / R1CS | explicitly not closed here |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81MatrixSource
@@ -46,7 +29,6 @@ open NightstreamFPrime.Spec
 open PaperLinearAlgebra
 open MatrixCoefficientSource
 
-/-- Paper dimensions specialized to the concrete Phi81 coefficient count. -/
 def phi81Shape
     (cubeVariables freshCount runningCount matrixCount : Nat) : Shape where
   cubeVariables := cubeVariables
@@ -55,8 +37,6 @@ def phi81Shape
   matrixCount := matrixCount
   coefficientCount := ringDegree
 
-/-- The sole original matrix family, completed to full 54-lane blocks and
-paired with the independently defined Phi81 coefficient kernel. -/
 def source
     (cubeVariables freshCount runningCount matrixCount logicalWidth : Nat)
     (matrices : Fin matrixCount ->
@@ -74,15 +54,12 @@ def source
   constraintPolynomial := constraintPolynomial
   kernel := Phi81CoefficientKernel.phi81Kernel
 
-/-- The concrete source has exactly 54 coefficient lanes. -/
 theorem phi81Shape_coefficientCount
     (cubeVariables freshCount runningCount matrixCount : Nat) :
     (phi81Shape cubeVariables freshCount runningCount matrixCount).coefficientCount =
       ringDegree := by
   rfl
 
-/-- The source stores the independent Phi81 kernel, not caller-provided
-coefficient matrices. -/
 theorem source_kernel_eq
     (cubeVariables freshCount runningCount matrixCount logicalWidth : Nat)
     (matrices : Fin matrixCount ->
@@ -94,7 +71,6 @@ theorem source_kernel_eq
       Phi81CoefficientKernel.phi81Kernel := by
   rfl
 
-/-- Every original-width matrix entry survives carrier completion exactly. -/
 theorem source_matrix_embedLogical
     (cubeVariables freshCount runningCount matrixCount logicalWidth : Nat)
     (matrices : Fin matrixCount ->
@@ -111,7 +87,6 @@ theorem source_matrix_embedLogical
   exact Phi81CarrierLayout.extendMatrix_embedLogical 0
     (matrices matrix) vertex column
 
-/-- Matrix entries created only by carrier completion are canonical zero. -/
 theorem source_matrix_tail_zero
     (cubeVariables freshCount runningCount matrixCount logicalWidth : Nat)
     (matrices : Fin matrixCount ->
@@ -127,8 +102,6 @@ theorem source_matrix_tail_zero
   exact Phi81CarrierLayout.extendMatrix_tail_zero 0
     (matrices matrix) vertex column tail
 
-/-- The constant coefficient matrix is exactly the completed sole matrix at
-every carrier coordinate, including the zero-derived matrix suffix. -/
 theorem coefficientMatrix_constant_apply
     (cubeVariables freshCount runningCount matrixCount logicalWidth : Nat)
     (matrices : Fin matrixCount ->
@@ -151,8 +124,6 @@ theorem coefficientMatrix_constant_apply
       matrices constraintPolynomial)
     Phi81CoefficientKernel.phi81ConstantTermLaw matrix vertex column
 
-/-- On the original prefix, the constant carried coefficient is exactly the
-original CCS matrix entry. -/
 theorem coefficientMatrix_constant_embedLogical
     (cubeVariables freshCount runningCount matrixCount logicalWidth : Nat)
     (matrices : Fin matrixCount ->
@@ -174,8 +145,6 @@ theorem coefficientMatrix_constant_embedLogical
   exact source_matrix_embedLogical cubeVariables freshCount runningCount
     matrixCount logicalWidth matrices constraintPolynomial matrix vertex column
 
-/-- On the completed matrix suffix, the constant carried coefficient is zero.
-This does not constrain the carried assignment suffix. -/
 theorem coefficientMatrix_constant_tail_zero
     (cubeVariables freshCount runningCount matrixCount logicalWidth : Nat)
     (matrices : Fin matrixCount ->

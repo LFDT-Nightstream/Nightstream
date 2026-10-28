@@ -6,6 +6,7 @@
 
 #![allow(non_snake_case)]
 
+use crate::engines::{DecOutcome, RlcMixer};
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsStructure, CeClaim, Mat};
 use neo_math::{Fq, D, ETA, K};
@@ -19,8 +20,8 @@ fn read_rho<Ff>(params: &NeoParams, matrix: &Mat<Ff>) -> [Fq; D]
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy,
 {
-    assert_eq!(params.d as usize, D, "PaperExact PiRLC ring degree mismatch");
-    assert_eq!(params.eta as usize, ETA, "PaperExact PiRLC cyclotomic mismatch");
+    assert_eq!(params.d() as usize, D, "PaperExact PiRLC ring degree mismatch");
+    assert_eq!(params.eta() as usize, ETA, "PaperExact PiRLC cyclotomic mismatch");
     assert_eq!(matrix.rows(), D, "PaperExact PiRLC rho row count");
     assert_eq!(matrix.cols(), D, "PaperExact PiRLC rho column count");
 
@@ -60,9 +61,12 @@ where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy,
 {
     assert_eq!(ell_d, D.next_power_of_two().trailing_zeros() as usize);
-    assert_eq!(claim.m_in % D, 0, "PaperExact requires whole-ring public inputs");
     assert_eq!(claim.X.rows(), D);
-    assert_eq!(claim.X.cols(), neo_ccs::superneo_public_x_cols(claim.m_in));
+    assert_eq!(
+        neo_ccs::superneo_public_x_cols(claim.m_in),
+        Some(claim.X.cols()),
+        "PaperExact requires whole-ring public inputs"
+    );
     assert_eq!(claim.eval_k.len(), D.next_power_of_two());
     assert!(claim.eval_k.iter().skip(D).all(|&value| value == K::ZERO));
     assert_eq!(claim.eval_a.len(), structure.t());
@@ -72,19 +76,17 @@ where
     }
 }
 
-/// Compute the public PaperExact PiRLC claim without a prover witness.
 #[doc(hidden)]
-pub fn rlc_claim_paper_exact_with_commit_mix<Ff, Combine>(
+pub fn rlc_claim_paper_exact_with_commit_mix<Ff>(
     structure: &CcsStructure<Ff>,
     params: &NeoParams,
     rhos: &[Mat<Ff>],
     inputs: &[CeClaim<Cmt, Ff, K>],
     ell_d: usize,
-    combine: Combine,
+    combine: RlcMixer<Ff>,
 ) -> CeClaim<Cmt, Ff, K>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    Combine: Fn(&[Mat<Ff>], &[Cmt]) -> Cmt,
 {
     assert!(!inputs.is_empty(), "PaperExact PiRLC needs at least one source");
     assert_eq!(rhos.len(), inputs.len());
@@ -98,7 +100,7 @@ where
         assert_eq!(claim.r, point);
     }
 
-    let x_cols = neo_ccs::superneo_public_x_cols(m_in);
+    let x_cols = inputs[0].X.cols();
     let mut X = Mat::zero(D, x_cols, Ff::ZERO);
     for (rho, input) in coefficients.iter().zip(inputs) {
         for column in 0..x_cols {
@@ -138,26 +140,24 @@ where
     }
 }
 
-/// Apply the complete paper PiRLC relation and its commitment action.
 #[doc(hidden)]
-pub fn rlc_reduction_paper_exact_with_commit_mix<Ff, Combine>(
+pub fn rlc_reduction_paper_exact_with_commit_mix<Ff>(
     structure: &CcsStructure<Ff>,
     params: &NeoParams,
     rhos: &[Mat<Ff>],
     inputs: &[CeClaim<Cmt, Ff, K>],
     witnesses: &[Mat<Ff>],
     ell_d: usize,
-    combine: Combine,
+    combine: RlcMixer<Ff>,
 ) -> (CeClaim<Cmt, Ff, K>, Mat<Ff>)
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
-    Combine: Fn(&[Mat<Ff>], &[Cmt]) -> Cmt,
 {
     assert_eq!(witnesses.len(), inputs.len());
     let output = rlc_claim_paper_exact_with_commit_mix(structure, params, rhos, inputs, ell_d, combine);
     let ring = PaperRing::new();
     let coefficients: Vec<[Fq; D]> = rhos.iter().map(|rho| read_rho(params, rho)).collect();
-    let witness_columns = structure.m.div_ceil(D);
+    let witness_columns = structure.m().div_ceil(D);
     let mut mixed_witness = Mat::zero(D, witness_columns, Ff::ZERO);
     for (rho, witness) in coefficients.iter().zip(witnesses) {
         assert_eq!(witness.rows(), D);
@@ -250,7 +250,6 @@ where
     true
 }
 
-/// Apply the complete paper PiDEC relation and check child commitments.
 #[doc(hidden)]
 pub fn dec_reduction_paper_exact_with_commit_check<Ff, Combine>(
     structure: &CcsStructure<Ff>,
@@ -260,7 +259,7 @@ pub fn dec_reduction_paper_exact_with_commit_check<Ff, Combine>(
     ell_d: usize,
     child_commitments: &[Cmt],
     combine: Combine,
-) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool, bool)
+) -> DecOutcome<Ff>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
@@ -279,8 +278,6 @@ where
     )
 }
 
-/// Evaluate PiDEC child openings directly from circuit-owned original rows.
-#[allow(clippy::too_many_arguments)]
 pub fn dec_reduction_paper_exact_with_rows<Ff, Combine>(
     structure: &CcsStructure<Ff>,
     params: &NeoParams,
@@ -290,7 +287,7 @@ pub fn dec_reduction_paper_exact_with_rows<Ff, Combine>(
     child_commitments: &[Cmt],
     combine: Combine,
     rows: &dyn PaperMatrixRows<Ff>,
-) -> Result<(Vec<CeClaim<Cmt, Ff, K>>, bool, bool, bool), crate::PiCcsError>
+) -> Result<DecOutcome<Ff>, crate::PiCcsError>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
@@ -309,7 +306,6 @@ where
     ))
 }
 
-#[allow(clippy::too_many_arguments)]
 fn dec_children<Ff, Combine>(
     structure: &CcsStructure<Ff>,
     params: &NeoParams,
@@ -319,24 +315,24 @@ fn dec_children<Ff, Combine>(
     child_commitments: &[Cmt],
     combine: Combine,
     matrices: &Matrices<'_, Ff>,
-) -> (Vec<CeClaim<Cmt, Ff, K>>, bool, bool, bool)
+) -> DecOutcome<Ff>
 where
     Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy + Send + Sync,
     K: From<Ff>,
     Combine: Fn(&[Cmt], u32) -> Cmt,
 {
     validate_claim(structure, parent, ell_d);
-    assert_eq!(split_witnesses.len(), params.k_rho as usize);
+    assert_eq!(split_witnesses.len(), params.k_rho() as usize);
     assert_eq!(split_witnesses.len(), child_commitments.len());
-    assert!(params.b >= 2);
-    let split_valid = canonical_split_matches(split_witnesses, params.b);
+    assert!(params.b() >= 2);
+    let split_valid = canonical_split_matches(split_witnesses, params.b());
     let ring = PaperRing::new();
     let matrix_count = structure.t();
     let mut children = Vec::with_capacity(split_witnesses.len());
 
     for (witness, commitment) in split_witnesses.iter().zip(child_commitments) {
         assert_eq!(witness.rows(), D);
-        assert_eq!(witness.cols(), structure.m.div_ceil(D));
+        assert_eq!(witness.cols(), structure.m().div_ceil(D));
         let assignment: Vec<K> = (0..witness.cols() * D)
             .map(|column| K::from(witness[(column % D, column / D)]))
             .collect();
@@ -352,7 +348,7 @@ where
         }
         children.push(CeClaim {
             c: commitment.clone(),
-            X: super::paper_joint::direct_public_input(witness, structure.m, parent.m_in)
+            X: super::paper_joint::direct_public_input(witness, structure.m(), parent.m_in)
                 .expect("validated PaperExact PiDEC public projection"),
             r: parent.r.clone(),
             eval_k,
@@ -363,7 +359,7 @@ where
         });
     }
 
-    let base_f = Ff::from_u64(params.b as u64);
+    let base_f = Ff::from_u64(params.b() as u64);
     let base_k = K::from(base_f);
     let mut y_valid = split_valid;
     for coefficient in 0..D.next_power_of_two() {
@@ -388,7 +384,7 @@ where
     }
 
     let mut x_valid = split_valid;
-    let x_cols = neo_ccs::superneo_public_x_cols(parent.m_in);
+    let x_cols = parent.X.cols();
     for row in 0..D {
         for column in 0..x_cols {
             let mut reconstructed = Ff::ZERO;
@@ -400,99 +396,11 @@ where
             x_valid &= reconstructed == parent.X[(row, column)];
         }
     }
-    let commitment_valid = split_valid && combine(child_commitments, params.b) == parent.c;
-    (children, y_valid, x_valid, commitment_valid)
-}
-
-/// Verify the public PaperExact PiDEC recomposition with direct loops.
-#[doc(hidden)]
-pub fn verify_dec_public_paper_exact<Ff, Combine>(
-    params: &NeoParams,
-    parent: &CeClaim<Cmt, Ff, K>,
-    children: &[CeClaim<Cmt, Ff, K>],
-    combine: Combine,
-) -> bool
-where
-    Ff: Field + PrimeCharacteristicRing + PrimeField64 + Copy,
-    K: From<Ff>,
-    Combine: Fn(&[Cmt], u32) -> Cmt,
-{
-    if children.len() != params.k_rho as usize || children.is_empty() {
-        return false;
+    let commitment_valid = split_valid && combine(child_commitments, params.b()) == parent.c;
+    DecOutcome {
+        children,
+        ok_y: y_valid,
+        ok_x: x_valid,
+        ok_c: commitment_valid,
     }
-    if children.iter().any(|child| {
-        child.X.rows() != parent.X.rows()
-            || child.X.cols() != parent.X.cols()
-            || child.r != parent.r
-            || child.eval_k.len() != parent.eval_k.len()
-            || child.eval_a.len() != parent.eval_a.len()
-            || child.m_in != parent.m_in
-            || child.fold_digest != parent.fold_digest
-            || child
-                .eval_a
-                .iter()
-                .zip(&parent.eval_a)
-                .any(|(child_row, parent_row)| child_row.len() != parent_row.len())
-    }) {
-        return false;
-    }
-
-    let commitments = children
-        .iter()
-        .map(|child| child.c.clone())
-        .collect::<Vec<_>>();
-    if combine(&commitments, params.b) != parent.c {
-        return false;
-    }
-    let base_f = Ff::from_u64(params.b as u64);
-    let base_k = K::from(base_f);
-
-    for row in 0..parent.X.rows() {
-        for column in 0..parent.X.cols() {
-            let Some(expected_digits) = canonical_digits(parent.X[(row, column)], children.len(), params.b) else {
-                return false;
-            };
-            if children
-                .iter()
-                .zip(expected_digits)
-                .any(|(child, expected)| child.X[(row, column)] != expected)
-            {
-                return false;
-            }
-            let mut value = Ff::ZERO;
-            let mut power = Ff::ONE;
-            for child in children {
-                value += power * child.X[(row, column)];
-                power *= base_f;
-            }
-            if value != parent.X[(row, column)] {
-                return false;
-            }
-        }
-    }
-    for coefficient in 0..parent.eval_k.len() {
-        let mut value = K::ZERO;
-        let mut power = K::ONE;
-        for child in children {
-            value += power * child.eval_k[coefficient];
-            power *= base_k;
-        }
-        if value != parent.eval_k[coefficient] {
-            return false;
-        }
-    }
-    for matrix in 0..parent.eval_a.len() {
-        for coefficient in 0..parent.eval_a[matrix].len() {
-            let mut value = K::ZERO;
-            let mut power = K::ONE;
-            for child in children {
-                value += power * child.eval_a[matrix][coefficient];
-                power *= base_k;
-            }
-            if value != parent.eval_a[matrix][coefficient] {
-                return false;
-            }
-        }
-    }
-    true
 }

@@ -5,9 +5,7 @@ import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 
 /-!
 Owns one deterministic executable parity value for the approved Stage 1
-application and its next-preimage handoff. It reuses the complete nonzero
-PiCCS, PiRLC, and PiDEC fixture and changes only the application-owned current
-state plus the NextPreimage-owned iteration word.
+application and its next-preimage handoff.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Parity

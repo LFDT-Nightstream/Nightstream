@@ -10,7 +10,6 @@ pub(super) struct RawCcsRelation(u64, u64, u64, Vec<u64>, u64, Vec<RawPolynomial
 #[derive(Debug, Deserialize, Serialize)]
 struct RawPolynomialTerm(u64, Vec<u64>);
 
-/// Physical matrix selected by one Lean-owned logical CCS slot.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CcsMatrixSource {
     A,
@@ -19,7 +18,6 @@ pub enum CcsMatrixSource {
     SboxInput,
 }
 
-/// One sparse term of the Lean-owned CCS constraint polynomial.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PackagePolynomialTerm {
     coefficient: u64,
@@ -36,7 +34,6 @@ impl PackagePolynomialTerm {
     }
 }
 
-/// Exact logical CCS relation decoded from the identity-bound package.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct PackageCcsRelation {
     row_count: usize,
@@ -84,18 +81,18 @@ pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, Packag
         .checked_add(53)
         .map(|rounded| rounded / 54)
         .and_then(|blocks| blocks.checked_mul(54))
-        .ok_or(PackageError::Invalid("CCS relation carrier width"))?;
+        .ok_or(PackageError::Malformed("CCS relation carrier width"))?;
     if row_count > MAX_JOINT_DOMAIN || carrier_width > MAX_JOINT_DOMAIN {
-        return Err(PackageError::Invalid("CCS relation 2^28 domain"));
+        return Err(PackageError::TooLarge("CCS relation 2^28 domain"));
     }
     if cube_variables != PI_CCS_V1_2_ROUND_COUNT {
-        return Err(PackageError::Invalid("CCS relation cube variables"));
+        return Err(PackageError::Malformed("CCS relation cube variables"));
     }
     if matrix_sources.len() != PI_CCS_V1_2_MATRIX_COUNT {
-        return Err(PackageError::Invalid("CCS relation matrix count"));
+        return Err(PackageError::Malformed("CCS relation matrix count"));
     }
     if degree_bound == 0 || terms.is_empty() {
-        return Err(PackageError::Invalid("CCS relation polynomial shape"));
+        return Err(PackageError::Malformed("CCS relation polynomial shape"));
     }
 
     let matrix_sources = matrix_sources
@@ -105,11 +102,9 @@ pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, Packag
             1 => Ok(CcsMatrixSource::B),
             2 => Ok(CcsMatrixSource::C),
             3 => Ok(CcsMatrixSource::SboxInput),
-            _ => Err(PackageError::Invalid("CCS relation matrix source")),
+            _ => Err(PackageError::Malformed("CCS relation matrix source")),
         })
         .collect::<Result<Vec<_>, _>>()?;
-    // The matrix program writes ports by slot index, so the tags must name
-    // exactly that slot order.
     if matrix_sources
         != [
             CcsMatrixSource::A,
@@ -118,7 +113,7 @@ pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, Packag
             CcsMatrixSource::SboxInput,
         ]
     {
-        return Err(PackageError::Invalid("CCS relation matrix order"));
+        return Err(PackageError::Malformed("CCS relation matrix order"));
     }
 
     let terms = terms
@@ -126,7 +121,7 @@ pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, Packag
         .map(|RawPolynomialTerm(coefficient, exponents)| {
             canonical_field(coefficient, "CCS polynomial coefficient")?;
             if exponents.len() != PI_CCS_V1_2_MATRIX_COUNT {
-                return Err(PackageError::Invalid("CCS polynomial exponent count"));
+                return Err(PackageError::Malformed("CCS polynomial exponent count"));
             }
             let exponents = exponents
                 .into_iter()
@@ -135,10 +130,10 @@ pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, Packag
             let total_degree = exponents.iter().try_fold(0usize, |total, exponent| {
                 total
                     .checked_add(*exponent)
-                    .ok_or(PackageError::Invalid("CCS polynomial degree overflow"))
+                    .ok_or(PackageError::Malformed("CCS polynomial degree overflow"))
             })?;
             if total_degree >= degree_bound {
-                return Err(PackageError::Invalid("CCS polynomial degree bound"));
+                return Err(PackageError::Malformed("CCS polynomial degree bound"));
             }
             Ok(PackagePolynomialTerm { coefficient, exponents })
         })
@@ -149,7 +144,7 @@ pub(super) fn validate(raw: RawCcsRelation) -> Result<PackageCcsRelation, Packag
         .max()
         .and_then(|degree| degree.checked_add(1));
     if exact_degree_bound != Some(degree_bound) {
-        return Err(PackageError::Invalid("CCS polynomial strict degree bound"));
+        return Err(PackageError::Malformed("CCS polynomial strict degree bound"));
     }
 
     Ok(PackageCcsRelation {

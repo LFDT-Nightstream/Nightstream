@@ -22,14 +22,10 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.PiCCS
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Two different canonical verifier-context encodings produce one context
-digest. This is the exact Poseidon2 context-hash collision event. -/
 def ContextDigestCollision
     (left right : VerifierContext.Descriptor) : Prop :=
   left.serialize ≠ right.serialize ∧ left.digest4 = right.digest4
 
-/-- The four verifier-owned authority components use distinct component
-domains. -/
 inductive AuthorityComponent where
   | relation
   | application
@@ -50,8 +46,6 @@ def AuthorityComponent.words (authority : VerifierContext.Authority) :
   | .nifsKey => authority.nifsKeyWords
   | .commitmentKey => authority.commitmentKeyWords
 
-/-- Two different raw authority components produce one domain-separated
-component digest. -/
 def AuthorityComponentDigestCollision
     (left right : VerifierContext.Authority) : Prop :=
   ∃ component : AuthorityComponent,
@@ -59,8 +53,6 @@ def AuthorityComponentDigestCollision
       VerifierContext.componentDigest component.tag (component.words left) =
         VerifierContext.componentDigest component.tag (component.words right)
 
-/-- Two different canonical Stage 1 statement encodings produce one state
-digest. This is the exact Poseidon2 state-hash collision event. -/
 def StateHashCollision
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -72,8 +64,6 @@ def StateHashCollision
     stateHash (publicFits := publicFits) left =
       stateHash (publicFits := publicFits) right
 
-/-- Equal context digests identify one canonical descriptor unless the
-context hash collides. -/
 theorem contextDigest_identifies_descriptor_or_collision
     (left right : VerifierContext.Descriptor)
     (digestEqual : left.digest4 = right.digest4) :
@@ -85,8 +75,6 @@ theorem contextDigest_identifies_descriptor_or_collision
     intro encodedEqual
     exact same (VerifierContext.Descriptor.serialize_injective encodedEqual)
 
-/-- Equal component descriptors identify every raw verifier-owned word list
-unless one named component digest collides. -/
 theorem descriptor_identifies_authority_or_component_collision
     (left right : VerifierContext.Authority)
     (descriptorEqual : VerifierContext.descriptor left =
@@ -133,8 +121,6 @@ theorem descriptor_identifies_authority_or_component_collision
     refine ⟨.relation, relationEqual, ?_⟩
     exact relationDigestEqual
 
-/-- Equal public context digests identify the complete raw authority unless
-a component digest or the fixed outer context hash collides. -/
 theorem contextDigest_identifies_authority_or_collision
     (left right : VerifierContext.Authority)
     (digestEqual : (VerifierContext.descriptor left).digest4 =
@@ -151,12 +137,6 @@ theorem contextDigest_identifies_authority_or_collision
     · exact Or.inr (Or.inl componentCollision)
   · exact Or.inr (Or.inr contextCollision)
 
-/-- Equal state digests identify one complete well-formed statement unless
-the state hash collides. The encoding-injectivity theorem covers the context,
-iteration, application state, point, commitments, parent public input,
-separate `Eval_K`, and every separate `Eval_A` value. Well-formedness fixes
-`pc = 1` and makes the child public inputs the canonical split of the
-parent. -/
 theorem stateHash_identifies_statement_or_collision
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -176,9 +156,6 @@ theorem stateHash_identifies_statement_or_collision
     exact same (StateEncoding.serializePreimage_injective
       leftWellFormed rightWellFormed encodedEqual)
 
-/-- A valid state encoding cannot be a nonempty trailing extension of another
-valid state encoding. This rules out the ambiguity branch before any
-cryptographic assumption is used. -/
 theorem no_valid_trailing_extension
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -193,11 +170,6 @@ theorem no_valid_trailing_extension
   StateEncoding.serializePreimage_not_trailing_extension
     leftWellFormed rightWellFormed suffixNonempty
 
-/-- Digest-only committed-statement reduction through the complete verifier
-challenge view. Equal context and state digests plus equal derived PiCCS coins
-identify the canonical context, full running statement, and exact absorbed
-prior-state-and-round-message replay authority, unless one named collision
-event occurred. -/
 theorem committed_statement_challenges_identify_or_failure
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -237,9 +209,6 @@ theorem committed_statement_challenges_identify_or_failure
     · exact Or.inr (Or.inr (Or.inl stateFailure))
   · exact Or.inr (Or.inl contextFailure)
 
-/-- The same committed-statement reduction for the causal pre-output
-transcript state. This names transcript-state collision separately from the
-complete challenge-view collision above. -/
 theorem committed_statement_finalState_identify_or_failure
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -274,9 +243,6 @@ theorem committed_statement_finalState_identify_or_failure
     · exact Or.inr (Or.inr (Or.inl stateFailure))
   · exact Or.inr (Or.inl contextFailure)
 
-/-- Raw-authority form of the complete challenge-view reduction. The success
-branch identifies all four verifier-owned word lists, not only their
-descriptor. -/
 theorem committed_authority_statement_challenges_identify_or_failure
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -323,7 +289,6 @@ theorem committed_authority_statement_challenges_identify_or_failure
   · exact Or.inr (Or.inl componentFailure)
   · exact Or.inr (Or.inr (Or.inl contextFailure))
 
-/-- Raw-authority form of the causal final-state reduction. -/
 theorem committed_authority_statement_finalState_identify_or_failure
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

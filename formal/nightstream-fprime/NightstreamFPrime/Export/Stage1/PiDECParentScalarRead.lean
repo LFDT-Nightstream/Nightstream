@@ -4,10 +4,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 
 /-!
 Read one PiDEC child Phi81 coefficient from its stored parent block.
-The fixed basis products are prepared once with the existing PiRLC basis
-operation. Each read is a signed scalar fold; it constructs neither a
-child witness block nor an output ring. The checked-parent bridge derives
-all sign premises from the existing strict-bound split.
 -/
 
 set_option autoImplicit false
@@ -23,7 +19,6 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 
-/-- The same signed action used by PiRLCWitnessAction, at one output only. -/
 private def signedTerm (coefficient value : F) : F :=
   if coefficient = 0 then 0 else if coefficient = 1 then value else -value
 
@@ -58,8 +53,6 @@ private theorem numericSum_eq_sumRange (count : Nat) (term : Nat → F) :
         baseOps.add (sumRange baseOps count term) (term count)
       rw [inductionHypothesis]
 
-/-- Read each source coefficient once and use only its signed table action.
-The loop returns one F value and allocates no coefficient or index array. -/
 def coefficient (table : FixedArray MaterializedRingF ringDegree)
     (source : RingF) (output : Fin ringDegree) : F :=
   NumericCompletionSum.numericSum baseOps ringDegree fun index =>
@@ -68,8 +61,6 @@ def coefficient (table : FixedArray MaterializedRingF ringDegree)
         ((table.get ⟨index, live⟩).toRing output)
     else 0
 
-/-- The table is computed from the fixed left operand. The signed premise
-belongs only to this generic leaf and is derived by the parent bridge. -/
 theorem coefficient_value (challenge : MaterializedRingF) (source : RingF)
     (signed : ∀ input, source input = 0 ∨ source input = 1 ∨ source input = -1)
     (output : Fin ringDegree) :
@@ -100,24 +91,18 @@ private theorem splitScalar_signed (value : F) (child : Radix.ChildIndex)
     · right; right
       simp [Radix.boundedDigit, nonnegative, one]
 
-/-- Prepare all fixed Phi81 basis actions once. These are independent of
-parent values, Rust outputs, the common point, and the application matrices. -/
 def prepare (_unit : Unit := ()) :
     FixedArray (FixedArray MaterializedRingF ringDegree) ringDegree :=
   FixedArray.ofFn fun basis =>
     PiRLCWitnessAction.prepare
       (MaterializedRingF.ofRing (Phi81CoefficientKernel.barBasis basis))
 
-/-- Select exact scalar digits directly from the parent. The loader must
-check the existing strict B bound before using the signed evaluation path. -/
 def read (tables : FixedArray (FixedArray MaterializedRingF ringDegree) ringDegree)
     (parent : StoredAssignment ringDegree) (basis : Fin ringDegree)
     (child : Radix.ChildIndex) (output : Fin ringDegree) : F :=
   coefficient (tables.get basis)
     (fun input => Radix.splitScalar (parent.get input) child) output
 
-/-- Exact scalar-split target under the same strict bound as splitChecked.
-No child block or supplied basis table equality is assumed. -/
 theorem read_eq_splitScalar (parent : StoredAssignment ringDegree)
     (bounded : ∀ input, centeredMagnitude (parent.get input) < Radix.combinedBound)
     (basis : Fin ringDegree) (child : Radix.ChildIndex) (output : Fin ringDegree) :
@@ -136,8 +121,6 @@ theorem read_eq_splitScalar (parent : StoredAssignment ringDegree)
     MaterializedRingF.toRing_ofRing]
   exact (congrFun (CarrierAction.kernelImage_eq_ringFMul basis _) output).symm
 
-/-- A successful existing split supplies the bound and exact child values.
-The executable read takes only the parent; children occur only in this theorem. -/
 theorem read_eq_checkedChild (parent : StoredAssignment ringDegree)
     (children : Vector (StoredAssignment ringDegree) productionGlobalParams.k)
     (success : StoredSplit.splitChecked parent = some children)

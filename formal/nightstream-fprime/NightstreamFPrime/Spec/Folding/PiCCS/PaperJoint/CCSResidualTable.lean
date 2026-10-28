@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/CCSResidualTable.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Concrete CCS residual tables for the paper-level joint `Pi_CCS` model.
 
@@ -21,30 +18,6 @@ evaluation constraints, the base-field-to-extension-field embedding,
 Fiat--Shamir, production row order, Rust, R1CS, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: matrices, assignments, and sparse monomials are explicit
-paper-level data. Matrix-vector multiplication is imported from the sole
-shared `PaperLinearAlgebra` owner and polynomial evaluation is derived here.
-No caller supplies a CCS truth proposition, evaluator,
-per-leaf equivalence, circuit witness, or implementation trace. Boolean-domain
-order is imported from `BooleanDomain`; external implementation numbering is
-still an explicit refinement boundary. This slice uses one algebraic carrier;
-proving that base-field CCS residuals embed into the paper's extension-field
-joint polynomial without changing zero is a separate, still-open refinement.
-
-| Code owner | Paper object | Derived mathematical value | Proven result |
-|---|---|---|---|
-| imported `BooleanVertex` / `BooleanTable.tabulate` | `x in {0,1}^log(m)` | shared recursive low/high order | no CCS-local permutation |
-| imported `PaperLinearAlgebra.matrixVectorAt` | `M_j`, `(M_j z)(x)` | shared finite dot product over assignment columns | no evaluator supplied |
-| `ConstraintPolynomial` / `evaluatePolynomial` | sparse `f` in v1.2 Definition 19 | finite sum of explicit monomials | arity is typed; declared degree metadata is proved sound |
-| `evaluatePolynomial_eq_sumMap` | sparse term traversal | left fold equals the shared finite sum | exact under explicit addition laws |
-| `ConstraintPolynomial.canonicalEqualityGatedDegreeBound` | verifier SumCheck ceiling for `eq * f` | maximum `totalDegree + 1` derived from explicit terms | independent of declared degree metadata |
-| `ConstraintPolynomial.term_totalDegree_succ_le_canonicalEqualityGatedDegreeBound` | one explicit term | its equality-gated degree fits the syntax-derived ceiling | no metadata authority |
-| `residualAt` | `f((M_1z)(x), ..., (M_tz)(x))` | one CCS zero-set residual | exact table leaf |
-| `residualTable` | one CCS alpha table | low branch then high branch | leaves equal canonical residual enumeration |
-| `residualTable_allEntriesZero_iff_constraintSatisfied` | Item 1 of Lemma 9 for one fresh source | all Boolean residuals vanish | unconditional model-level equivalence |
-| `residualPolynomial_coefficientZero_iff_constraintSatisfied` | alpha-coefficient form of the same item | canonical interpolation polynomial is zero | requires only interpolation zero laws |
-| `allResidualTablesZero_iff_allConstraintsSatisfied` | all `K` fresh CCS sources | pointwise family truth | no caller-selected iff |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
@@ -55,15 +28,12 @@ open NightstreamFPrime.Spec.SumCheck
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PaperLinearAlgebra
 
-/-- One explicit sparse monomial in the paper's `t` matrix-image variables.
-The dependent exponent function makes the variable arity intrinsic. -/
 structure Monomial (Field : Type uField) (matrixCount : Nat) where
   coefficient : Field
   exponents : Fin matrixCount -> Nat
 
 namespace Monomial
 
-/-- Total degree derived from the explicit finite exponent vector. -/
 def totalDegree
     {Field : Type uField}
     {matrixCount : Nat}
@@ -73,9 +43,7 @@ def totalDegree
 end Monomial
 
 /-- SuperNeo v1.2 Definition 19's finite sparse polynomial
-`f in F^{<u}[X_1,...,X_t]`.
-The degree condition is attached to explicit monomial data; there is no
-function-valued polynomial evaluator or caller-declared degree oracle. -/
+`f in F^{<u}[X_1,...,X_t]`. -/
 structure ConstraintPolynomial (Field : Type uField) (matrixCount : Nat) where
   degreeBound : Nat
   terms : List (Monomial Field matrixCount)
@@ -117,13 +85,6 @@ private theorem value_le_foldl_max_of_mem
             (Nat.max initial (value item)))
       · exact inductionHypothesis (Nat.max initial (value head)) member
 
-/-- Canonical per-variable SumCheck ceiling for the equality-gated CCS
-branch. A monomial of total degree `d` contributes at most degree `d` in any
-row variable after multilinear matrix images are substituted, and the
-equality selector contributes one more. Empty syntax has degree zero.
-
-This definition deliberately ignores `degreeBound`: that field records the
-paper structure's declared upper bound, but it is not verifier authority. -/
 def canonicalEqualityGatedDegreeBound
     {Field : Type uField}
     {matrixCount : Nat}
@@ -131,8 +92,6 @@ def canonicalEqualityGatedDegreeBound
   polynomial.terms.foldl
     (fun current term => Nat.max current (term.totalDegree + 1)) 0
 
-/-- Canonical verifier degree depends only on explicit monomial syntax, not
-on a caller's choice of a larger valid metadata bound. -/
 theorem canonicalEqualityGatedDegreeBound_eq_of_terms_eq
     {Field : Type uField}
     {matrixCount : Nat}
@@ -142,9 +101,6 @@ theorem canonicalEqualityGatedDegreeBound_eq_of_terms_eq
       right.canonicalEqualityGatedDegreeBound := by
   simp [canonicalEqualityGatedDegreeBound, terms]
 
-/-- Every explicit sparse term fits the canonical equality-gated degree
-ceiling. This theorem depends only on list membership and the term's exponent
-vector; declared degree metadata is not consulted. -/
 theorem term_totalDegree_succ_le_canonicalEqualityGatedDegreeBound
     {Field : Type uField}
     {matrixCount : Nat}
@@ -175,10 +131,6 @@ private theorem foldl_max_le_of_forall_le
       · intro tail tailMember
         exact valuesLe tail (by simp [tailMember])
 
-/-- The syntax-derived equality-gated ceiling never exceeds Definition 19's
-declared strict degree bound. This direction uses the declared bound only as a
-paper-side proof about explicit monomials; verifier acceptance still computes
-its ceiling from the terms themselves. -/
 theorem canonicalEqualityGatedDegreeBound_le_degreeBound
     {Field : Type uField}
     {matrixCount : Nat}
@@ -193,8 +145,7 @@ theorem canonicalEqualityGatedDegreeBound_le_degreeBound
 
 end ConstraintPolynomial
 
-/-- Paper-level Definition 19 data at the dimensions owned by `Shape`.
-The common structure is shared by every fresh source in one batch. -/
+/-- Paper-level Definition 19 data at the dimensions owned by `Shape`. -/
 structure Structure
     (Field : Type uField)
     (shape : Shape)
@@ -203,8 +154,6 @@ structure Structure
     BooleanMatrix Field shape.cubeVariables columns
   constraintPolynomial : ConstraintPolynomial Field shape.matrixCount
 
-/-- Exponentiation derived from the same multiplication and unit used by all
-other paper-level arithmetic in this slice. -/
 def pow
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -212,7 +161,6 @@ def pow
   | 0 => ops.one
   | exponent + 1 => ops.mul (pow ops value exponent) value
 
-/-- Evaluate one explicit monomial at the finite matrix-image vector. -/
 def evaluateMonomial
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -225,7 +173,6 @@ def evaluateMonomial
         (pow ops (point index) (monomial.exponents index)))
     monomial.coefficient
 
-/-- Evaluate Definition 19's explicit sparse constraint polynomial. -/
 def evaluatePolynomial
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -251,9 +198,6 @@ private theorem foldl_add_eq_add_finiteSum
       rw [List.foldl_cons, inductionHypothesis]
       exact laws.add_assoc initial value _
 
-/-- The sparse evaluator's left fold is exactly the shared explicit finite
-sum. This bridge permits degree proofs to construct each term independently
-without changing term order or algebraic meaning. -/
 theorem evaluatePolynomial_eq_sumMap
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -269,8 +213,6 @@ theorem evaluatePolynomial_eq_sumMap
   rw [foldl_add_eq_add_finiteSum ops laws]
   rw [laws.zero_add]
 
-/-- The matrix-image vector `((M_1 z)(x), ..., (M_t z)(x))` at one Boolean
-row. All arithmetic is derived from explicit structure and assignment data. -/
 def matrixImagesAt
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -296,9 +238,7 @@ def residualAt
   evaluatePolynomial ops system.constraintPolynomial
     (matrixImagesAt ops system assignment vertex)
 
-/-- Independent CCS zero-set obligation from Definition 20 / Lemma 9 Item 1.
-It is defined directly over explicit matrices, assignment, and polynomial,
-before any Boolean table or alpha interpolation is constructed. -/
+/-- Independent CCS zero-set obligation from Definition 20 / Lemma 9 Item 1. -/
 def ConstraintSatisfied
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -308,7 +248,6 @@ def ConstraintSatisfied
     (assignment : Assignment Field columns) : Prop :=
   ∀ vertex, residualAt ops system assignment vertex = ops.zero
 
-/-- Canonical residual table for one fresh CCS source. -/
 def residualTable
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -319,8 +258,6 @@ def residualTable
     BooleanTable Field shape.cubeVariables :=
   BooleanTable.tabulate (residualAt ops system assignment)
 
-/-- The table exposes the exact CCS formula at every canonical Boolean leaf.
-This theorem is the reviewable leaf-order bridge internal to the paper model. -/
 theorem residualTable_entries_eq
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -333,8 +270,6 @@ theorem residualTable_entries_eq
         (residualAt ops system assignment) := by
   exact BooleanTable.entries_tabulate _
 
-/-- The constructed CCS table is leafwise zero exactly when the independent
-paper CCS zero-set obligation holds. No equivalence is supplied by a caller. -/
 theorem residualTable_allEntriesZero_iff_constraintSatisfied
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -346,10 +281,6 @@ theorem residualTable_allEntriesZero_iff_constraintSatisfied
       ConstraintSatisfied ops system assignment := by
   exact BooleanTable.tabulate_allEntriesZero_iff ops _
 
-/-- The canonical alpha polynomial derived from the concrete CCS table is
-coefficient-zero exactly when the independent CCS obligation holds. This
-closes the CCS branch of table residualization, but not its placement in the
-paper's signed joint `Q` identity. -/
 theorem residualPolynomial_coefficientZero_iff_constraintSatisfied
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -367,8 +298,6 @@ theorem residualPolynomial_coefficientZero_iff_constraintSatisfied
     (residualTable_allEntriesZero_iff_constraintSatisfied
       ops system assignment)
 
-/-- One common paper structure plus all `K` fresh assignments. Family arity
-comes from `Shape.freshCount`; no caller-supplied list length can drift. -/
 structure FreshBatch
     (Field : Type uField)
     (shape : Shape)
@@ -378,7 +307,6 @@ structure FreshBatch
 
 namespace FreshBatch
 
-/-- The exact CCS table family expected by `TableResidualData.ccs`. -/
 def residualTables
     {Field : Type uField}
     {shape : Shape}
@@ -388,7 +316,6 @@ def residualTables
     Fin shape.freshCount -> BooleanTable Field shape.cubeVariables :=
   fun source => residualTable ops batch.system (batch.assignments source)
 
-/-- Every fresh source satisfies the independent paper CCS constraint family. -/
 def AllConstraintsSatisfied
     {Field : Type uField}
     {shape : Shape}
@@ -397,9 +324,6 @@ def AllConstraintsSatisfied
     (batch : FreshBatch Field shape columns) : Prop :=
   ∀ source, ConstraintSatisfied ops batch.system (batch.assignments source)
 
-/-- All constructed CCS tables are zero iff all `K` independently defined CCS
-obligations hold. This is the protocol -> phase -> family composition theorem
-for the CCS branch; norm and carried-evaluation branches remain separate. -/
 theorem allResidualTablesZero_iff_allConstraintsSatisfied
     {Field : Type uField}
     {shape : Shape}

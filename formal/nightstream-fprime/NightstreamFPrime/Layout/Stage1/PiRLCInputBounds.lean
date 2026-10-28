@@ -172,8 +172,6 @@ private theorem evaluation_ext (left right : PaperAlgebra.Evaluation)
   cases right
   simp_all
 
-/-- One fixed source claim evaluates equally across environments that agree
-below the PiRLC boundary, provided its verifier point evaluates equally. -/
 theorem sourceInput_eval_eq_of_point_and_agree_below
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (source : Fin productionShape.sourceCount)
@@ -210,7 +208,6 @@ theorem sourceInput_eval_eq_of_point_and_agree_below
         (sourceEvalABelow source matrix coefficient) agrees
   · rfl
 
-/-- The production PiRLC assumptions follow from the fixed zero-copy layout. -/
 theorem assumptions
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (env : Env) :

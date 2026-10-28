@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Fresh active-Lean output followed by bounded Rust primitive comparisons.
 set -euo pipefail
 parity_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$parity_root"

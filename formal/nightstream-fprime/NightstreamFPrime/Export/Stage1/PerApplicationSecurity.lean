@@ -9,13 +9,6 @@ import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
 /-!
 Owns the deterministic binding reduction for one verifier-selected canonical
 Stage 1 application package.
-
-The success branch identifies the complete circuit-and-matrix envelope, all
-four raw verifier-authority word lists, the state preimage, and the absorbed
-PiCCS replay authority. Semantic verifier input is identified separately from
-the canonical running and fresh claims. The failure branches are precise
-deterministic events; this module assigns no probability or generic Poseidon2
-bound to them and does not authorize a proof backend.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationSecurity
@@ -73,8 +66,6 @@ def verifierContextDigest {program : Program}
     (commitmentSetup : CommitmentSetup program) : KeyDigest :=
   PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup
 
-/-- Exact prior-state hash preimage selected by this package and the actual
-HyperNova input. -/
 noncomputable def replayState {program : Program}
     (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program)
@@ -87,8 +78,6 @@ noncomputable def replayState {program : Program}
       (commitmentKey commitmentSetup)
       (verifierContextDigest fits commitmentSetup)) input
 
-/-- Exact PiCCS statement and round-message replay selected by the canonical
-package key and the actual NIFS proof. No transcript field is caller-owned. -/
 noncomputable def replayInput {program : Program}
     (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program)
@@ -109,9 +98,6 @@ noncomputable def replayInput {program : Program}
     }
   }
 
-/-- The semantic verifier input in the canonical replay is derived from the
-same selected running and fresh claims. It is not inferred from transcript
-coin equality. -/
 theorem replayInput_statement_input {program : Program}
     (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program)
@@ -122,8 +108,6 @@ theorem replayInput_statement_input {program : Program}
           (canonicalKey fits commitmentSetup).lift := by
   rfl
 
-/-- The replay view derives exactly the coins used by the production NIFS
-key. -/
 theorem replayInput_derive_eq_piCcsExecution {program : Program}
     (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program)
@@ -138,8 +122,6 @@ theorem replayInput_derive_eq_piCcsExecution {program : Program}
           (selectedRunning input) input.fresh input.nifsProof).coins := by
   rfl
 
-/-- Two different complete PiCCS outputs produce one post-output transcript
-state when absorbed from the same causal pre-output state. -/
 def PiCcsOutputAbsorptionCollision {program : Program}
     (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program)
@@ -149,8 +131,6 @@ def PiCcsOutputAbsorptionCollision {program : Program}
     (canonicalKey fits commitmentSetup).absorbPiCcsOutput state left =
       (canonicalKey fits commitmentSetup).absorbPiCcsOutput state right
 
-/-- The sole deterministic extraction algebra selected by the exact Ajtai key
-and production NIFS key. -/
 noncomputable def productionExtractionAlgebra {program : Program}
     (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program) :
@@ -161,8 +141,6 @@ noncomputable def productionExtractionAlgebra {program : Program}
   Lifecycle.PaperExtractionAlgebra.extractionAlgebra
     (commitmentKey commitmentSetup)
 
-/-- The exact strong-set unit record used by the verifier-selected extraction
-algebra. -/
 noncomputable def productionStrongSet {program : Program}
     (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program) :
@@ -172,10 +150,6 @@ noncomputable def productionStrongSet {program : Program}
   exact Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet.strongSetUnits
     Spec.Phi81StrongSet.lowNormInvertibility
 
-/-- Package-derived committed-statement reduction. The left authority, state,
-statement, fresh input, and round messages are all computed from one canonical
-package and one actual HyperNova input. The right side is the alleged replay
-being compared with it. -/
 theorem packageReplay_identifies_claim_or_failure {program : Program}
     (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program)
@@ -253,9 +227,6 @@ theorem packageReplay_identifies_claim_or_failure {program : Program}
     stateWellFormed claimedStateWellFormed contextDigestEqual stateDigestEqual
     alphaEqual gammaEqual roundPointEqual
 
-/-- Package-derived committed-statement and complete-output reduction. The
-success branch identifies the actual NIFS proof's PiCCS output as well as its
-authority, state, statement, fresh input, and round messages. -/
 theorem packageReplayAndOutput_identifies_claim_or_failure {program : Program}
     (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program)
@@ -389,10 +360,6 @@ private theorem selectedIndex_eq_functionIndex
   change (selectedIndex valid).val = 0
   omega
 
-/-- Complete per-application security boundary for one exact HyperNova step.
-The base branch performs no NIFS extraction. The recursive branch uses the
-same relation, Ajtai key, proof, running input, and output already selected by
-`StepHoldsFor`. -/
 theorem stepHoldsFor_implies_base_or_securityOutcome {program : Program}
     (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program)
@@ -440,13 +407,6 @@ theorem stepHoldsFor_implies_base_or_securityOutcome {program : Program}
         (productionExtractionAlgebra fits commitmentSetup)
         (productionStrongSet fits commitmentSetup) accepted⟩
 
-/-- Rows that hold on `bind raw` reach the per-application security boundary
-without a caller-owned semantic premise. As in
-`PerApplicationFixedPointSoundness.verifierBoundRowsZero_implies_stepHoldsFor`,
-`bind` sets the verifier-context columns, so this theorem does not cover an
-arbitrary accepted witness. The base branch performs no extraction. The recursive branch uses the exact
-application, canonical verifier-context digest, relation, Ajtai key,
-raw assignment, and NIFS proof constrained by those rows. -/
 theorem verifierBoundRowsZero_implies_base_or_securityOutcome
     {program : Program} (fits : FitsTwoPow28 program)
     (commitmentSetup : CommitmentSetup program)
@@ -475,8 +435,6 @@ theorem verifierBoundRowsZero_implies_base_or_securityOutcome
   exact PerApplicationFixedPointSoundness.verifierBoundRowsZero_implies_stepHoldsFor
     program fits commitmentSetup raw accepted
 
-/-- Two different canonical circuit-and-matrix envelopes produce one
-structural package digest. -/
 def StructuralPackageCollision
     (leftProgram rightProgram : Program)
     (leftFits : FitsTwoPow28 leftProgram)
@@ -486,8 +444,6 @@ def StructuralPackageCollision
     structuralPackageIdentity leftProgram leftFits =
       structuralPackageIdentity rightProgram rightFits
 
-/-- Two different package-and-authority preimages produce one final package
-identity. -/
 def FinalPackageBindingCollision
     {leftProgram rightProgram : Program}
     (leftFits : FitsTwoPow28 leftProgram)
@@ -499,9 +455,6 @@ def FinalPackageBindingCollision
     packageIdentity leftFits leftSetup =
       packageIdentity rightFits rightSetup
 
-/-- Equal final package identities identify the exact canonical circuit,
-matrix program, and every raw verifier-authority word list unless one named
-Poseidon2 binding layer collides. -/
 theorem packageIdentity_identifies_package_authority_or_collision
     {leftProgram rightProgram : Program}
     (leftFits : FitsTwoPow28 leftProgram)
@@ -531,9 +484,6 @@ theorem packageIdentity_identifies_package_authority_or_collision
     · exact Or.inr (Or.inr (Or.inl componentCollision))
   · exact Or.inr (Or.inr (Or.inr ⟨preimageSame, identityEqual⟩))
 
-/-- Equality of verifier-key bindings has the same exact package-and-authority
-reduction. The prover cannot use binding equality to select another circuit,
-matrix program, application, or key without one named collision event. -/
 theorem verificationKeyBinding_identifies_package_authority_or_collision
     {leftProgram rightProgram : Program}
     (leftFits : FitsTwoPow28 leftProgram)
@@ -556,12 +506,6 @@ theorem verificationKeyBinding_identifies_package_authority_or_collision
   simpa only [verificationKeyBinding_packageIdentity] using
     packageIdentityEqual
 
-/-- A verifier-owned expected binding and rows that hold on `bind raw` identify
-the exact package authority and reach the complete deterministic/security
-outcome, unless one existing Poseidon2 binding event occurs. Like
-`verifierBoundRowsZero_implies_base_or_securityOutcome`, it does not cover an
-arbitrary accepted witness. This theorem remains
-generic until the owner selects one concrete production application. -/
 theorem verificationKeyBindingAndRowsZero_implies_securityOrCollision
     {expectedProgram claimedProgram : Program}
     (expectedFits : FitsTwoPow28 expectedProgram)

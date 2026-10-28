@@ -15,7 +15,6 @@ namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedBlock
 
 open NightstreamFPrime.Layout
 
-/-- Compact field-slot block for one ordered invocation schedule. -/
 def block (sourceWidth invocationCount : Nat)
     (witnessStart : Fin invocationCount → Nat)
     (witnessBound : ∀ invocation,
@@ -41,7 +40,6 @@ def block (sourceWidth invocationCount : Nat)
       invocationCount * 150 := by
   simp [block]
 
-/-- Exact direct low-norm coordinate count of an invocation block. -/
 theorem block_coordinateCount (sourceWidth invocationCount : Nat)
     (witnessStart : Fin invocationCount → Nat)
     (witnessBound : ∀ invocation,
@@ -52,8 +50,6 @@ theorem block_coordinateCount (sourceWidth invocationCount : Nat)
   simp [LowNormBlock.Block.coordinateCount, block,
     LowNormSlot.Kind.width, BalancedTernary.width]
 
-/-- The compact source function uses the exact invocation witness start and
-the exact template-local retained S-box output. -/
 theorem block_source (sourceWidth invocationCount : Nat)
     (witnessStart : Fin invocationCount → Nat)
     (witnessBound : ∀ invocation,

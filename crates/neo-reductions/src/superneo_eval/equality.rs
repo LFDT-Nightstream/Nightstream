@@ -1,7 +1,6 @@
 use neo_math::K;
 use p3_field::PrimeCharacteristicRing;
 
-/// Boolean equality weights stored as two tensor factors, in low-bit order.
 pub struct EqualityWeights {
     low: Vec<K>,
     high: Vec<K>,
@@ -23,7 +22,6 @@ impl EqualityWeights {
             }
             values
         }
-        // This split minimizes the combined size of the two stored factors.
         let low_bits = point.len() / 2;
         Self {
             low: table(&point[..low_bits]),

@@ -3,8 +3,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 
 /-!
-Index the existing canonical source rows once. Keys remain physical source
-indices and values remain R1CS.Row. No source row is read from an artifact.
+Index the existing canonical source rows once.
 -/
 
 set_option autoImplicit false
@@ -13,7 +12,6 @@ namespace NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 
 open NightstreamFPrime.Layout
 
-/-- Apply the existing shared column-shift context to a compiled row. -/
 def shiftCompiledRow (context : PerApplicationCachedShift.Context) :
     Rows.CompiledRow → Rows.CompiledRow
   | .witness instruction => .witness
@@ -45,8 +43,6 @@ private theorem applicationRows_eq (application : Lifecycle.Stage1.Application.P
     PerApplicationPackage.basePackage
   rw [Data.circuitPackage_layout]
 
-/-- Construct the canonical collection with one shared application delta.
-Application rows use the proved layout count without constructing a package. -/
 def rows (application : Lifecycle.Stage1.Application.Program) :
     List Rows.CompiledRow :=
   let context := PerApplicationCachedShift.Context.ofProgram application
@@ -68,8 +64,6 @@ theorem rows_eq_canonicalRows
   dsimp only
   rw [functionEq, applicationRows_eq]
 
-/-- A transient index of the already projected canonical package rows.
-Bind this value once outside the matrix-row loop. -/
 def stored (application : Lifecycle.Stage1.Application.Program) :
     Std.HashMap Nat R1CS.Row :=
   Std.HashMap.ofList
@@ -134,8 +128,6 @@ private theorem indexed_value (rows : List Rows.CompiledRow)
       | _ => none)
     rw [filtered]
 
-/-- The index preserves every canonical lookup, including missing indices.
-Canonical ownership proves distinct keys; map overwrite behavior is unused. -/
 theorem stored_value (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application) (source : Nat) :
     (stored application)[source]? =

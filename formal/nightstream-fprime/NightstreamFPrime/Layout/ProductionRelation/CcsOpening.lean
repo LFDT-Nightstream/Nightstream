@@ -19,8 +19,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- The exact scalar CCS residual vanishes on every Boolean row, including
-the padded suffix, for the canonical complete carrier. -/
 theorem rowsZero_implies_paperCcs
     {logicalWidth : Nat} (plan : ProductionRelation.Plan logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -54,8 +52,6 @@ theorem rowsZero_implies_paperCcs
       rw [← sameVertex]
       exact rows row
 
-/-- Literal rows and bounded coordinates establish the exact fresh CCS
-opening under the plan's key-facing matrices and actual Ajtai commitment. -/
 theorem rowsZero_implies_freshHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

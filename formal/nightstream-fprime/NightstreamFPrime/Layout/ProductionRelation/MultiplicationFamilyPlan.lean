@@ -65,8 +65,6 @@ theorem plan_residual_at {logicalWidth rowCount : Nat}
   rw [plan_rowImage_at]
   rfl
 
-/-- The family rows vanish exactly for their indexed multiplication
-equations. -/
 theorem planRowsZero_iff {logicalWidth rowCount : Nat}
     (interface : Interface logicalWidth rowCount)
     (rowCount_le : rowCount ≤ 2 ^ NightstreamFPrime.Lifecycle.cubeVariables)

@@ -66,7 +66,7 @@ fn records(variable: usize, recipe_variable: usize) -> Arc<ApplicationRecords> {
             [
                 term(ApplicationForm::A, 0, 1),
                 term(ApplicationForm::A, variable, 3),
-                term(ApplicationForm::A, 0, super::super::GOLDILOCKS_MODULUS - 1),
+                term(ApplicationForm::A, 0, Goldilocks::ORDER_U64 - 1),
                 term(ApplicationForm::C, 9, 1),
             ],
         )
@@ -108,7 +108,7 @@ fn sealed_native_rows_preserve_raw_terms_and_map_bounded_runtime_coefficients() 
         .unwrap();
     assert_eq!(flow, ControlFlow::Continue(()));
     assert_eq!(original[0], (0, 0, 1));
-    assert_eq!(original[2], (0, 0, super::super::GOLDILOCKS_MODULUS - 1));
+    assert_eq!(original[2], (0, 0, Goldilocks::ORDER_U64 - 1));
     let row = application.assertion(0).unwrap();
     assert_eq!(row.row_index, 2);
     assert_eq!(row.a.terms.len(), 1);
@@ -142,9 +142,6 @@ fn native_recipes_execute_stored_syntax_and_report_global_assertion_failure() {
         Err(PackageError::UnsatisfiedAssertionRow { row: 2 })
     ));
 
-    // A different, still-causal stored recipe must execute as written and
-    // fail its assertion; using the generated row as an unchecked hint would
-    // incorrectly replace this value with 3 * assignment[8].
     let changed = PreparedApplication::from_metadata(&metadata(), records(4, 0)).unwrap();
     changed.validate(&layout()).unwrap();
     assignment[0] = Goldilocks::from_u64(5);
@@ -269,19 +266,17 @@ fn native_records_reject_unmapped_terms_noncausal_recipes_and_dynamic_placeholde
     let invalid_column = PreparedApplication::from_metadata(&metadata(), records(10, 4)).unwrap();
     assert!(matches!(
         invalid_column.validate(&layout()),
-        Err(PackageError::Invalid("native application variable"))
+        Err(PackageError::Malformed("native application variable"))
     ));
     let future_recipe = PreparedApplication::from_metadata(&metadata(), records(4, 9)).unwrap();
     assert!(matches!(
         future_recipe.validate(&layout()),
-        Err(PackageError::Invalid("noncausal witness expression"))
+        Err(PackageError::Malformed("noncausal witness expression"))
     ));
-    // Output local five maps to physical column four, before target nine.
-    // The native DSL still forbids that dependency while generating locals.
     let output_recipe = PreparedApplication::from_metadata(&metadata(), records(4, 5)).unwrap();
     assert!(matches!(
         output_recipe.validate(&layout()),
-        Err(PackageError::Invalid("noncausal witness expression"))
+        Err(PackageError::Malformed("noncausal witness expression"))
     ));
     for field in 9..16 {
         let mut changed = metadata();
@@ -292,54 +287,50 @@ fn native_records_reject_unmapped_terms_noncausal_recipes_and_dynamic_placeholde
     changed[8] = json!(3);
     assert!(matches!(
         PreparedApplication::from_metadata(&changed, records(4, 4)),
-        Err(PackageError::Invalid("native application record counts"))
+        Err(PackageError::Malformed("native application record counts"))
     ));
 }
 
 #[test]
 fn native_row_coverage_rejects_fixed_rows_inside_the_overlay() {
     let application = PreparedApplication::from_metadata(&metadata(), records(4, 4)).unwrap();
-    let permutation = PermutationTemplate {
-        input_count: 0,
-        local_column_count: 0,
-        output_local_start: 0,
-        rows: Vec::new(),
-    };
+    let relation = super::super::relation::validate(
+        serde_json::from_value(json!([5, 1, 28, [0, 1, 2, 3], 2, [[1, [1, 0, 0, 0]]]])).unwrap(),
+    )
+    .unwrap();
     let empty = SparseCombination {
         constant: Goldilocks::ZERO,
         terms: Vec::new(),
     };
-    let mut fixed = [0, 1, 4].map(|row_index| SparseRow {
-        row_index,
-        a: empty.clone(),
-        b: empty.clone(),
-        c: empty.clone(),
-    });
-    super::super::validate_row_coverage(
-        &layout(),
-        &permutation,
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        &fixed,
-        Some(&application),
-    )
-    .unwrap();
-    fixed[2].row_index = 2;
-    assert!(super::super::validate_row_coverage(
-        &layout(),
-        &permutation,
-        &[],
-        &[],
-        &[],
-        &[],
-        &[],
-        &fixed,
-        Some(&application)
-    )
-    .is_err());
+    let mut package = LoadedPackage {
+        layout: layout(),
+        relation,
+        terminal: None,
+        permutation: PermutationTemplate {
+            input_count: 0,
+            local_column_count: 0,
+            output_local_start: 0,
+            rows: Vec::new(),
+        },
+        hash_chains: Vec::new(),
+        permutation_invocations: Vec::new(),
+        compact_templates: Vec::new(),
+        compact_invocations: Vec::new(),
+        witness_batches: Vec::new(),
+        witness_instructions: Vec::new(),
+        assertion_rows: [0, 1, 4]
+            .map(|row_index| SparseRow {
+                row_index,
+                a: empty.clone(),
+                b: empty.clone(),
+                c: empty.clone(),
+            })
+            .to_vec(),
+        native_application: Some(Arc::new(application)),
+    };
+    super::super::validate::validate_row_coverage(&package).unwrap();
+    package.assertion_rows[2].row_index = 2;
+    assert!(super::super::validate::validate_row_coverage(&package).is_err());
 }
 
 #[test]
@@ -354,12 +345,10 @@ fn native_loader_rejects_dynamic_source_payload_before_fixed_decoding() {
         } else {
             json!([[2, [], [], []]])
         };
-        // Other source fields are deliberately absent: the dynamic-slot
-        // error must occur before copying/decoding the fixed source payload.
         let fixed = json!([6, source, [], metadata(), [], [4, 1], 270]);
         assert!(matches!(
             super::super::load_prepared_application_records(fixed, records(4, 4)),
-            Err(PackageError::Invalid(
+            Err(PackageError::Malformed(
                 "native application dynamic source slots are not empty"
             ))
         ));

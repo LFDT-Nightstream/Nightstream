@@ -4,9 +4,7 @@ import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Data.Real.Basic
 
 /-!
-Root count for the actual signed gamma coefficient list over K. Nonzeroness
-is proved from a coefficient of that list, rather than assumed as a distinct
-polynomial function. This also covers degrees at or above the field size.
+Root count for the actual signed gamma coefficient list over K.
 -/
 
 set_option autoImplicit false
@@ -67,8 +65,6 @@ private theorem coefficients_zero_of_polynomial_zero (coefficients : List K)
       · simpa only [same, GoldilocksExtensionRing.zero_eq] using head
       · exact ih tail value inside
 
-/-- A nonzero actual coefficient list has at most its list-derived degree
-many roots in the chosen K challenge set. -/
 theorem coefficient_root_count_le (coefficients : List K) (samples : Finset K)
     (nonzero : ∃ coefficient ∈ coefficients, coefficient ≠ K.zero) :
     (samples.filter fun gamma =>
@@ -87,7 +83,6 @@ theorem coefficient_root_count_le (coefficients : List K) (samples : Finset K)
   rw [polynomial_eval, GoldilocksExtensionRing.zero_eq]
   exact (Finset.mem_filter.mp member).2
 
-/-- Uniform gamma is sampled after the signed list is fixed. -/
 theorem coefficient_root_probability_le (coefficients : List K) (samples : Finset K)
     (nonzero : ∃ coefficient ∈ coefficients, coefficient ≠ K.zero) :
     (𝔼 gamma ∈ samples, if
@@ -99,8 +94,6 @@ theorem coefficient_root_probability_le (coefficients : List K) (samples : Finse
   apply div_le_div_of_nonneg_right _ (Nat.cast_nonneg _)
   exact_mod_cast coefficient_root_count_le coefficients samples nonzero
 
-/-- The bound is for the protocol's own signed gamma polynomial and its
-proved four-block length. -/
 theorem signed_gamma_probability_le {shape : Shape}
     (data : SignedJointIdentity.JointData K shape)
     (alpha : CubePoint K shape.cubeVariables) (samples : Finset K)

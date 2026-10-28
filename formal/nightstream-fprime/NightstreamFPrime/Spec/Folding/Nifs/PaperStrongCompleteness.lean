@@ -60,8 +60,6 @@ private theorem honestStrategy_issued (ops : Ops K) (q : List K → K)
         exact (represents point).trans
           (congrArg (HypercubeTruth.sumCompletions ops q (fixed ++ [point])) remainingEq)
 
-/-- One fixed prefix-only strategy is honest on every public challenge
-stream of the selected length. No messages are chosen from future coins. -/
 theorem exists_causal_honest_strategy (ops : Ops K) (q : List K → K)
     (degree roundCount : Nat)
     (representable : FixedPhase.Sequential.RoundRepresentable ops q degree roundCount) :
@@ -193,10 +191,7 @@ private noncomputable def honestPiCcsProver : CausalExecution.Prover shape colum
       some (honestOutput key running fresh witness ⟨coordinates, dimension⟩, witness)
     else none
 
-/-- Lemma 10 at the exact NIFS interface: one causal honest prover succeeds
-for every public challenge stream and returns all strict CE(b) output
-openings in the existing weak-suffix semantics. The source-validity premise
-is the honest-completeness input, not an extraction assumption. -/
+/-- Lemma 10 at the exact NIFS interface. -/
 theorem exists_honest_piCcs_prover
     (valid : SourceHolds key.extensionOps key.lift key.openingMaps key.params
       (key.statement running fresh) witness) :

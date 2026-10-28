@@ -2,9 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedComplete
 import NightstreamFPrime.Export.Stage1.PiCCSNormComplete
 
-/-! Proof-only composition of the existing complete contribution kernels.
-No decoded artifact, expected value, source-validity assumption or runtime
-import of this module is needed. The final target is stated separately. -/
+/-! Proof-only composition of the existing complete contribution kernels. -/
 
 set_option autoImplicit false
 
@@ -19,7 +17,6 @@ open NightstreamFPrime.Lifecycle
 private abbrev selectedRelation := PerApplicationFixedPoint.relation
   Poseidon2HashChainV1Package.application Poseidon2HashChainV1Package.fits
 
-/-- The existing witness type, with exactly the captured complete assignments. -/
 def witness (masks : Array (Array (Nat × Nat))) :
     StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth :=
   ⟨PiCCSNormSource.assignments masks⟩
@@ -30,8 +27,6 @@ noncomputable def sourceData (input : PiCCSPublicReplay.Input)
     (PiCCSPublicReplay.running input) (PiCCSPublicReplay.fresh input)).sourceProtocolData
       K.embed (witness masks)
 
-/-- Use the actual existing optional fresh/matrix kernels and total Pad/norm
-kernels. Failed row loads remain failed computations, not caller premises. -/
 def coefficients? (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) : Option (List K) := do
   let coins := PiCCSPublicReplay.pre input
@@ -98,8 +93,6 @@ private def components (input : ProtocolPolynomial.VerifierInput K productionSha
       (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27)) (freshTerm input data alpha gamma))
       (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ 27)) (normTerm input data alpha gamma)))
 
--- Transport the verifier input while it is a symbolic variable. This avoids
--- reducing the selected key or comparing differently indexed polynomials.
 private theorem components_coefficients
     (input : ProtocolPolynomial.VerifierInput K productionShape)
     (data : ProtocolPolynomial.Data K productionShape)
@@ -212,9 +205,6 @@ private theorem norm_value (input : PiCCSPublicReplay.Input)
   funext index
   simpa only [Nat.zero_add] using norm_reference input masks alpha gamma index
 
-/-- Every coefficient of the actual complete constructor is the original
-source first-round coefficient, using the Lean-derived public pre-coins.
-No expected artifact or contribution/witness-validity hypothesis is accepted. -/
 theorem coefficients_eq_firstRound (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) :
     coefficients? input masks =

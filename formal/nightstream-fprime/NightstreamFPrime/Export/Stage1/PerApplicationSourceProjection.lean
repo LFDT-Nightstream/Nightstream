@@ -3,9 +3,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 
 /-!
 Owns the package-to-source column projections for ordinary rows in one
-per-application Stage 1 package. Prefix rows undo the application-private
-insertion. Pilot rows also undo the earlier pilot-to-combined Spartan lift.
-Application rows are already expressed in their final package coordinates.
+per-application Stage 1 package.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
@@ -73,8 +71,6 @@ theorem directBaseSuffixRange_eq_baseSuffixRange (program : Program) :
   funext program
   exact (directBaseSuffixRange_eq_baseSuffixRange program).symm
 
-/-- Raw prefix package rows project back to the established combined Spartan
-source order. -/
 def base (program : Program) : SourceProjection :=
   .mapped [basePrivateRange, baseSuffixRange program]
 
@@ -90,8 +86,6 @@ def pilotSuffixRange (program : Program) : SourceProjectionRange :=
   ⟨finalConstant program, PilotSpartan.privateColumnCount,
     PilotSpartan.spartanColumnCount - PilotSpartan.privateColumnCount⟩
 
-/-- Raw pilot rows project through both package lifts to the pilot Spartan
-source order used by the direct compiler. -/
 def pilot (program : Program) : SourceProjection :=
   .mapped [pilotInputRange, pilotPrivateRange, pilotSuffixRange program]
 

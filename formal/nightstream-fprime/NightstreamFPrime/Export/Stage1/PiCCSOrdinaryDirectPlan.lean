@@ -6,9 +6,8 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 Owns the executable source resolver and direct 4-matrix plan for the
 canonical PiCCS ordinary rows.
 
-The resolver decodes each Spartan column back to its Lean source column and
-selects one of the six retained source families. This module does not append
-the plan to the Stage 1 package or close PiCCS conformance.
+This module does not append the plan to the Stage 1 package or close PiCCS
+conformance.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan
@@ -25,7 +24,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open PiCCSOrdinaryRetainedBlocks
 open PiCCSOrdinaryRetainedGeometry
 
-/-- One exact retained PiCCS source before the Spartan permutation. -/
 inductive Location where
   | priorInput (index : Fin PilotProduction.stateHashWords)
   | freshPublicInput (index : Fin 270)
@@ -143,8 +141,6 @@ def form {program : Lifecycle.Stage1.Application.Program}
   | .fresh index => (freshBlock program).form
       (freshStart program) (freshFits geometry) index
 
-/-- PiCCS framing and input checks read the actual prior-hash preimage for
-every assignment. This equality has no encoding or representation premise. -/
 theorem priorInput_form_eq_pilot
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -161,8 +157,6 @@ theorem priorInput_form_eq_pilot
         (PiRLCPoseidonGeometry.priorInputBlock program).kind.width = 41 := by rfl
     simp only [priorInputStart, viewWidth, pilotWidth]
 
-/-- PiCCS framing and next-preimage checks read the actual output-hash
-preimage for every assignment, without a second retained copy. -/
 theorem outputInput_form_eq_pilot
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -179,7 +173,6 @@ theorem outputInput_form_eq_pilot
         (PiRLCPoseidonGeometry.outputInputBlock program).kind.width = 41 := by rfl
     simp only [outputInputStart, viewWidth, pilotWidth]
 
-/-- Proof input slots retain their original field form. -/
 theorem form_proofInput {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
     (index : Fin proofInputCount) :
@@ -188,7 +181,6 @@ theorem form_proofInput {program : Lifecycle.Stage1.Application.Program}
         (proofLogicalFits geometry) (proofInputSlot index) := by
   simp only [form, proofInputSlot, dif_pos index.isLt]
 
-/-- Every transcript output slot is the actual retained Poseidon2 output. -/
 theorem form_transcriptOutput {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
     (index : Fin transcriptOutputCount) :
@@ -204,7 +196,6 @@ theorem form_transcriptOutput {program : Lifecycle.Stage1.Application.Program}
   simp only [form, transcriptOutputSlot, dif_neg notProof, dif_pos transcript,
     Nat.add_sub_cancel_left]
 
-/-- Ordinary logical slots retain their original field form. -/
 theorem form_ordinaryLogical {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
     (index : Fin ordinaryLogicalCount) :
@@ -218,7 +209,6 @@ theorem form_ordinaryLogical {program : Lifecycle.Stage1.Application.Program}
         proofInputCount + transcriptOutputCount := by omega
   simp only [form, ordinaryLogicalSlot, dif_neg notProof, dif_neg notTranscript]
 
-/-- Every selected form reads the same computed package environment. -/
 theorem form_eval {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -654,9 +644,6 @@ theorem classifyTarget_complete {column : Nat}
       refine ⟨⟨source, located.location, located.owns⟩, ?_, rfl⟩
       simp [classifyTarget, inverse, found]
 
-/-- The final transcript state has an owned retained block but is not an
-arithmetic-row input. Decode its existing cells for the complete phase
-specification; classified arithmetic sources retain their original forms. -/
 def endpointForm {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
     (column : Fin Spartan.spartanColumnCount) : SparseForm logicalWidth :=
@@ -780,7 +767,6 @@ theorem inputs_preserve
     preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.2⟩
 
-/-- Exact row-local preservation for the explicit canonical PiCCS row. -/
 theorem programRow_preserve
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
@@ -808,7 +794,6 @@ theorem programRow_preserve
     preservesCombination geometry assignment base groupValue encodes
       _ _ scope.2.2⟩
 
-/-- Exact sparse forms for one canonical Lean-lowered PiCCS ordinary row. -/
 def rowForms
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
@@ -839,7 +824,6 @@ theorem rowForms_eq_of_same_shape
     (PiCCSOrdinaryDirectSource.programRow_bounded left index)
     (PiCCSOrdinaryDirectSource.programRow_bounded right index)
 
-/-- Canonical direct 4-matrix rows for all PiCCS ordinary constraints. -/
 def plan
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
@@ -863,8 +847,6 @@ def plan
     (plan relation geometry).rowCount = 37317 := by
   rfl
 
-/-- The compiled matrix plan depends only on the relation shape. Matrix
-entries do not participate in source-row generation or retained placement. -/
 theorem plan_eq_of_same_shape
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}
@@ -877,8 +859,6 @@ theorem plan_eq_of_same_shape
   unfold plan
   rw [rowForms_eq_of_same_shape left right]
 
-/-- Direct matrix acceptance is exactly the canonical Lean-lowered PiCCS
-ordinary row relation. -/
 theorem rowsZero_iff_rowsHold
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     {relationLogicalWidth : Nat}

@@ -5,8 +5,7 @@ import NightstreamFPrime.Layout.R1CS.Support
 
 /-!
 Owns indexed access and exact source support for the 686 non-Poseidon pilot
-rows. The source rows remain the canonical pilot witness-instruction rows
-followed by the canonical assertion rows.
+rows.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectSource
@@ -26,7 +25,6 @@ def assertionRows : List R1CS.Row :=
   (PilotData.assertionRows ()).map fun assertion =>
     Rows.CompiledRow.toR1CS (.assertion assertion)
 
-/-- Exact canonical package order for all non-Poseidon pilot rows. -/
 def sourceRows : List R1CS.Row := instructionRows ++ assertionRows
 
 theorem sourceRows_length : sourceRows.length = 686 := by
@@ -139,7 +137,6 @@ theorem outputState_targetColumn (lane : Fin 4) :
 def InRange (start count column : Nat) : Prop :=
   start ≤ column ∧ column < start + count
 
-/-- Exact logical sources read before R1CS lowering. -/
 inductive LogicalSource (column : Nat) : Prop where
   | priorDigest : InRange PilotProduction.priorDigestStart 4 column →
       LogicalSource column
@@ -154,12 +151,10 @@ inductive LogicalSource (column : Nat) : Prop where
   | outputDigest : InRange PilotProduction.outputDigestStart 4 column →
       LogicalSource column
 
-/-- Logical sources plus the exact 144 R1CS-fresh interval. -/
 def PhysicalSource : Nat → Prop :=
   R1CS.SourceOrFresh LogicalSource PilotValues.logicalColumnCount
     PilotValues.sourceColumnCount
 
-/-- Source support after the canonical pilot Spartan permutation. -/
 def Target (column : Nat) : Prop :=
   ∃ source, PhysicalSource source ∧
     PilotSpartan.sourceToSpartan source = column
@@ -275,7 +270,6 @@ theorem priorExtraConstraints_varsSatisfy :
   · exact priorWordConstraintsAll_varsSatisfy expression word
   · exact priorBindingConstraints_varsSatisfy expression binding
 
-/-- The original prior lowering uses only its declared physical source columns. -/
 theorem priorLoweredRows_varsSatisfy :
     ∀ row ∈ (R1CS.lowerConstraints (PilotData.priorExtraConstraints ())
         PilotValues.logicalColumnCount).rows,
@@ -308,7 +302,6 @@ private theorem remapRow_varsSatisfy (row : R1CS.Row)
     remapCombination_varsSatisfy row.b scope.2.1,
     remapCombination_varsSatisfy row.c scope.2.2⟩
 
-/-- The ordinary compiled prior rows are the remapped rows of the original lowering. -/
 theorem priorRows_eq :
     (PilotData.priorExtraRows ()).map Rows.CompiledRow.toR1CS =
       PilotSpartan.remapRows
@@ -500,7 +493,6 @@ def SupportedProgram.toProgram {rows : List R1CS.Row}
   row := source.row
   bounded := source.bounded
 
-/-- Stable row-boundedness interface for executable package decoders. -/
 theorem programRow_bounded (index : Fin 686) :
     SourceCompiler.RowBounded PilotSpartan.spartanColumnCount
       (programRow index) := by
@@ -531,8 +523,6 @@ private theorem predicate_iff_of_eq {Alpha : Type} (predicate : Alpha → Prop)
   cases equal
   rfl
 
-/-- Indexed canonical pilot rows hold exactly when the complete Lean-lowered
-row list holds in package order. -/
 theorem programRows_hold_iff_rowsHold (env : Env) :
     (∀ index : Fin 686, (programRow index).Holds env) ↔
       R1CS.RowsHold env sourceRows := by
@@ -549,8 +539,6 @@ theorem program_holds_iff_rowsHold (env : Env) :
     program.Holds env ↔ R1CS.RowsHold env sourceRows := by
   exact supportedHolds_iff_rowsHold supportedProgram env
 
-/-- Exact combined-row satisfaction recovers every original pilot ordinary
-instruction and assertion predicate. -/
 theorem sourceRows_hold_implies_packagePredicates (env : Env)
     (holds : R1CS.RowsHold env sourceRows) :
     (∀ instruction ∈ PilotData.witnessInstructions (),
@@ -577,8 +565,6 @@ theorem sourceRows_hold_implies_packagePredicates (env : Env)
     change assertion.toR1CS.Holds env at rowHolds
     exact (sparseRow_holds assertion env).mp rowHolds
 
-/-- Exact ordinary-row satisfaction implies the original logical post-hash
-constraints without reconstructing the complete pilot package. -/
 theorem sourceRows_hold_implies_priorConstraints (env : Env)
     (holds : R1CS.RowsHold env sourceRows) :
     ConstraintsHold (PilotSpartan.pullback env)

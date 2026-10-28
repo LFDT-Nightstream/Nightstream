@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Reject malformed depth-17 norm inputs without changing original files.
-
-Source provenance and the complete positive run are separate evidence.
-The coordinator runs this script under the 300-second native test cap.
-"""
 
 from __future__ import annotations
 
@@ -18,7 +13,6 @@ import sys
 
 
 P = 18446744069414584321
-# The requested retained fixture has 17 sources, depth 17, and 1931 values each.
 SOURCES = 17
 DEPTH = 17
 ROWS = 1931
@@ -90,8 +84,6 @@ def main():
         command = ["timeout", "--signal=KILL", "300", "bash", str(validate),
                    "lean-executable", str(binary), "norm-prefix", str(public), str(directory),
                    str(output), "0", "1", *map(str, saved_rounds)]
-        # Both deadlines use the project native cap. The command timeout also
-        # remains active if the outer test process stops.
         with subprocess.Popen(command, cwd=package, text=True, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, start_new_session=True) as child:
             try:

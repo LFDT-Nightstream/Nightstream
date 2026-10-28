@@ -1,5 +1,3 @@
-"""Reject changed norm bytes, malformed streams, and changed causal traces."""
-
 from __future__ import annotations
 
 import json
@@ -8,8 +6,6 @@ import shutil
 import subprocess
 import sys
 
-# The coordinator runs this test under guard.py's 300-second native cap.
-# Each child also uses validate.sh and a 300-second ceiling (below the Lean cap).
 tail_only = len(sys.argv) == 12 and sys.argv[-1] == "--tail-only"
 if len(sys.argv) != 11 and not tail_only:
     sys.exit("expected executable, public, sources, Q0, Q1, codes, first, end, chunk, new-results")

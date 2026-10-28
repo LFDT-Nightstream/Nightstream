@@ -74,8 +74,6 @@ theorem outputChallenge_shift
   rw [samplerOutputWord_shift]
   rfl
 
-/-- A final combination output moves uniformly with its family start. The
-family interface is absent from the output index by definition. -/
 theorem combinationOutput_shift
     {blockCount cellCount : Nat} [NeZero cellCount]
     (left right : CombinationFamily.Interface blockCount cellCount)
@@ -89,8 +87,6 @@ theorem combinationOutput_shift
   unfold CombinationFamily.stepOffset
   omega
 
-/-- A final combination output is supported by an enclosing phase interval
-whenever that interval contains the complete combination family. -/
 theorem combinationOutput_supported
     {blockCount cellCount : Nat} [NeZero cellCount]
     (interface : CombinationFamily.Interface blockCount cellCount)

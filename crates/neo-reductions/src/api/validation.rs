@@ -13,22 +13,13 @@ use crate::error::PiCcsError;
 
 #[inline]
 pub(crate) fn ensure_superneo_width(s: &CcsStructure<F>) -> Result<(), PiCcsError> {
-    if s.m == 0 {
+    if s.m() == 0 {
         return Err(PiCcsError::InvalidInput(format!(
             "SuperNeo-only mode requires CCS width m > 0 (got m={})",
-            s.m
+            s.m()
         )));
     }
     Ok(())
-}
-
-#[inline]
-pub(crate) fn ell_n_for_ccs(s: &CcsStructure<F>) -> usize {
-    s.domain_rows()
-        .max(crate::common::superneo_carrier_width(s.m))
-        .next_power_of_two()
-        .max(2)
-        .trailing_zeros() as usize
 }
 
 pub(super) fn validate_commitment_shape(
@@ -36,15 +27,15 @@ pub(super) fn validate_commitment_shape(
     commitment: &Cmt,
     expected_kappa: usize,
 ) -> Result<(), PiCcsError> {
-    if commitment.d != D
-        || commitment.kappa != expected_kappa
-        || D.checked_mul(expected_kappa) != Some(commitment.data.len())
+    if commitment.d() != D
+        || commitment.kappa() != expected_kappa
+        || D.checked_mul(expected_kappa) != Some(commitment.data().len())
     {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: commitment must have a complete {D}x{expected_kappa} payload (got {}x{} with {} entries)",
-            commitment.d,
-            commitment.kappa,
-            commitment.data.len()
+            commitment.d(),
+            commitment.kappa(),
+            commitment.data().len()
         )));
     }
     Ok(())
@@ -55,25 +46,25 @@ pub(crate) fn validate_ce_claim_shape(
     s: &CcsStructure<F>,
     ce: &CeClaim<Cmt, F, K>,
 ) -> Result<(), PiCcsError> {
-    validate_commitment_shape(label, &ce.c, ce.c.kappa)?;
+    validate_commitment_shape(label, &ce.c, ce.c.kappa())?;
     if ce.adv.is_some() {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: no reduction binds auxiliary lane commitments"
         )));
     }
-    if ce.m_in > s.m {
+    if ce.m_in > s.m() {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: m_in={} exceeds CCS width m={}",
-            ce.m_in, s.m
+            ce.m_in,
+            s.m()
         )));
     }
-    if ce.m_in % D != 0 {
+    let Some(x_cols) = neo_ccs::superneo_public_x_cols(ce.m_in) else {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: m_in={} is not a whole number of degree-{D} ring elements",
             ce.m_in
         )));
-    }
-    let x_cols = neo_ccs::superneo_public_x_cols(ce.m_in);
+    };
     if ce.X.rows() != D || ce.X.cols() != x_cols {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: X has shape {}x{}, expected {}x{}",
@@ -84,7 +75,7 @@ pub(crate) fn validate_ce_claim_shape(
         )));
     }
     crate::engines::pi_ccs_protocol::validate_canonical_x_shape(label, ce)?;
-    let ell_n = ell_n_for_ccs(s);
+    let ell_n = s.cube_variables();
     if ce.r.len() != ell_n {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: r length mismatch (expected {ell_n}, got {})",
@@ -144,13 +135,13 @@ pub(crate) fn validate_pi_ccs_outputs(
     for (index, output) in outputs.iter().enumerate() {
         let owner = format!("{label}[{index}]");
         let matrix_count = s.t();
-        if output.m_in > s.m || output.m_in % D != 0 {
+        let Some(x_cols) = neo_ccs::superneo_public_x_cols(output.m_in).filter(|_| output.m_in <= s.m()) else {
             return Err(PiCcsError::InvalidInput(format!(
                 "{owner}: m_in={} must not exceed m={} and must contain whole degree-{D} ring elements",
-                output.m_in, s.m
+                output.m_in,
+                s.m()
             )));
-        }
-        let x_cols = neo_ccs::superneo_public_x_cols(output.m_in);
+        };
         if output.X.rows() != D || output.X.cols() != x_cols {
             return Err(PiCcsError::InvalidInput(format!(
                 "{owner}: X has shape {}x{}, expected {}x{}",
@@ -161,7 +152,7 @@ pub(crate) fn validate_pi_ccs_outputs(
             )));
         }
         crate::engines::pi_ccs_protocol::validate_canonical_x_shape(&owner, output)?;
-        let point_len = ell_n_for_ccs(s);
+        let point_len = s.cube_variables();
         if output.r.len() != point_len {
             return Err(PiCcsError::InvalidInput(format!(
                 "{owner}: r length mismatch (expected {point_len}, got {})",
@@ -202,7 +193,7 @@ pub(crate) fn validate_rlc_batch_compatibility(
         return Err(PiCcsError::InvalidInput(format!("{label}: empty inputs")));
     };
     for (index, claim) in claims.iter().enumerate() {
-        validate_commitment_shape(label, &claim.c, first.c.kappa)?;
+        validate_commitment_shape(label, &claim.c, first.c.kappa())?;
         if claim.m_in != first.m_in {
             return Err(PiCcsError::InvalidInput(format!(
                 "{label}: m_in mismatch at input {index} (expected {}, got {})",
@@ -216,11 +207,11 @@ pub(crate) fn validate_rlc_batch_compatibility(
         }
     }
     let required = crate::common::min_k_rho_for_rlc_count(params, &crate::common::RotRing::goldilocks(), claims.len())?;
-    if params.k_rho < required {
+    if params.k_rho() < required {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: {} inputs require k_rho >= {required}, got {}",
             claims.len(),
-            params.k_rho
+            params.k_rho()
         )));
     }
     Ok(())
@@ -253,17 +244,17 @@ pub(crate) fn validate_dec_boundary_inputs(
             child_commitments.len()
         )));
     }
-    if z_split.len() != params.k_rho as usize {
+    if z_split.len() != params.k_rho() as usize {
         return Err(PiCcsError::InvalidInput(format!(
             "DEC requires exactly k_rho={} child witnesses, got {}",
-            params.k_rho,
+            params.k_rho(),
             z_split.len()
         )));
     }
     checked_superneo_d_pad("DEC ell_d", ell_d)?;
     for (idx, (z, commitment)) in z_split.iter().zip(child_commitments).enumerate() {
-        validate_commitment_shape("dec_child", commitment, parent.c.kappa)?;
-        crate::common::validate_packed_witness_nc_range(params, z, s.m, &format!("dec: Z_split[{idx}]"))?;
+        validate_commitment_shape("dec_child", commitment, parent.c.kappa())?;
+        crate::common::validate_packed_witness_dec_representable(params, z, s.m(), &format!("dec: Z_split[{idx}]"))?;
     }
     Ok(())
 }
@@ -285,17 +276,17 @@ pub(crate) fn validate_dec_boundary_inputs_from_trusted_split(
             child_commitments.len()
         )));
     }
-    if z_split.len() != params.k_rho as usize {
+    if z_split.len() != params.k_rho() as usize {
         return Err(PiCcsError::InvalidInput(format!(
             "DEC requires exactly k_rho={} child witnesses, got {}",
-            params.k_rho,
+            params.k_rho(),
             z_split.len()
         )));
     }
     checked_superneo_d_pad("DEC ell_d", ell_d)?;
     for (idx, (z, commitment)) in z_split.iter().zip(child_commitments).enumerate() {
-        validate_commitment_shape("dec_child", commitment, parent.c.kappa)?;
-        crate::common::validate_superneo_witness_mat(z, s.m)
+        validate_commitment_shape("dec_child", commitment, parent.c.kappa())?;
+        crate::common::validate_superneo_witness_shape(z, s.m())
             .map_err(|e| PiCcsError::InvalidInput(format!("dec trusted split: Z_split[{idx}] shape failed: {e}")))?;
     }
     Ok(())

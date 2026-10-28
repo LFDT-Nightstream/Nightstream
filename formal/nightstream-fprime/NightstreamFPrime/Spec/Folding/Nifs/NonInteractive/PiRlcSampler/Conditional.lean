@@ -33,8 +33,6 @@ theorem fiberAverage_le_one (map : α → β) (test : α → ℝ)
   · letI : IsEmpty {input // map input = value} := not_nonempty_iff.mp inhabited
     simp [fiberAverage, average]
 
-/-- Averaging a conditional expectation over the original uniform input
-recovers the original expectation. Empty fibers contribute zero. -/
 theorem average_fiberAverage (map : α → β) (test : α → ℝ) :
     average (fun input => fiberAverage map test (map input)) = average test := by
   let equivalence := Equiv.sigmaFiberEquiv map
@@ -77,7 +75,6 @@ theorem fiberAverage_comp (map : α → β) (test : β → ℝ) (value : β)
 
 end Conditional
 
-/-- A computable preimage witnesses that every scalar has a nonempty fiber. -/
 def representative (scalar : Scalar) : Draw :=
   drawIndex.symm ⟨(scalarIndex scalar).val, lt_of_lt_of_le (scalarIndex scalar).isLt (by decide)⟩
 
@@ -95,8 +92,6 @@ theorem sampleVector_surjective {Index : Type*} : Function.Surjective (sampleVec
   funext index
   exact sample_representative (vector index)
 
-/-- Uniform scalar vector, followed by a uniform raw preimage conditional
-on that vector. The raw block and its sampled scalar remain consistent. -/
 noncomputable def balancedAverage {Index : Type*} [Fintype Index] [DecidableEq Index]
     (test : (Index → Draw) → ℝ) : ℝ :=
   average (fiberAverage sampleVector test)
@@ -111,8 +106,6 @@ theorem balanced_sampleVector {Index : Type*} [Fintype Index] [DecidableEq Index
   obtain ⟨blocks, same⟩ := sampleVector_surjective vector
   exact ⟨⟨blocks, same⟩⟩
 
-/-- The same bias bound holds even when a test sees every raw four-field
-block, rather than only the resulting scalars. -/
 theorem raw_blocks_difference_abs_le {Index : Type*} [Fintype Index] [DecidableEq Index]
     (test : (Index → Draw) → ℝ) (nonnegative : ∀ blocks, 0 ≤ test blocks)
     (atMostOne : ∀ blocks, test blocks ≤ 1) :

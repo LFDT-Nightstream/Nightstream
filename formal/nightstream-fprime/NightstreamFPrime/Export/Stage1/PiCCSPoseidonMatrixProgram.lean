@@ -38,7 +38,6 @@ def poseidonBlock {program : Program} {logicalWidth : Nat}
     (PiCCSPoseidonPlan.retainedStart program)
     (PiCCSOrdinaryRetainedGeometry.oneColumn geometry) (inputProgram program)
 
-/-- The PiCCS permutation rows. -/
 def matrixProgram {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     MatrixProgram.Program where

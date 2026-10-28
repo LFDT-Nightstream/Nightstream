@@ -6,10 +6,8 @@ import NightstreamFPrime.Lifecycle.Stage1.Terminal
 
 /-!
 Bind the arbitrary-assignment step to the canonical verifier context through
-the concrete terminal public-input check. Unequal contexts give the existing
-named state-hash collision. No representation or context equality is assumed.
-The terminal's actual CCS opening supplies the rows and public input.
-Interior history extraction remains separate.
+the concrete terminal public-input check. Interior history extraction remains
+separate.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualContextSecurity
@@ -28,7 +26,6 @@ variable (application : Lifecycle.Stage1.Application.Program)
   (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
   (commitmentSetup : PerApplicationCanonicalPackage.CommitmentSetup application)
 
-/-- The exact next preimage whose hash is constrained by the selected rows. -/
 def decodedNext
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
     HashPreimage (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
@@ -38,8 +35,6 @@ def decodedNext
     (ActualStep.priorState application assignment)
     (ActualStep.outputState application assignment)
 
-/-- The checked public hash, not an assumed context equality, selects the
-canonical context of an arbitrary accepted assignment. -/
 theorem selectedRowsAndCheckedPublic_imply_contextOrCollision
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (digest : Digest) (fixed : digest.length = 4)
@@ -84,8 +79,6 @@ theorem selectedRowsAndCheckedPublic_imply_contextOrCollision
     exact same (StateEncoding.serializePreimage_eq_implies_context_eq
       actual expected keyLength encodedEqual)
 
-/-- Compose context identification with the complete arbitrary-row step.
-The relation, application and commitment key are the same selected objects. -/
 theorem selectedRowsAndCheckedPublic_imply_stepOrCollision
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (digest : Digest) (fixed : digest.length = 4)
@@ -131,7 +124,6 @@ abbrev TerminalPayload := TerminalProof
   (Stage1.Terminal.FreshWitness (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
     (publicFits := PerApplicationFixedPoint.publicFits application)) slotCount
 
-/-- The actual preimage in the selected recursive terminal public check. -/
 def terminalPreimage (statement : TerminalStatement AppState)
     (payload : TerminalPayload application) :
     HashPreimage (logicalWidth := PerApplicationFixedPoint.logicalWidth application)
@@ -143,9 +135,6 @@ def terminalPreimage (statement : TerminalStatement AppState)
   running := payload.running
   pc := payload.pc
 
-/-- The concrete terminal verifier supplies the checked hash. The assignment
-has the actual fresh public input; the caller supplies no context premise,
-canonical encoder or digest/preimage equality as an additional assumption. -/
 theorem selectedRowsAndTerminal_imply_stepOrCollision
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application))
     (statement : TerminalStatement AppState) (payload : TerminalPayload application)
@@ -181,8 +170,6 @@ theorem selectedRowsAndTerminal_imply_stepOrCollision
   exact selectedRowsAndCheckedPublic_imply_stepOrCollision application fits commitmentSetup
     assignment (stateHash expected) fixed expected (publicEqual.trans publicLink) rfl rows
 
-/-- Decode the exact terminal fresh opening into the selected logical rows
-and public input, including arbitrary values in the carrier padding. -/
 theorem terminal_implies_rowsAndPublic
     (statement : TerminalStatement AppState) (payload : TerminalPayload application)
     (terminal : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
@@ -214,8 +201,6 @@ theorem terminal_implies_rowsAndPublic
     (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
     payload.fresh payload.freshWitness publicLogicalFits freshValid
 
-/-- The accepted terminal opening checks the canonical child split of the
-decoded prior running instance. -/
 theorem terminal_implies_priorCanonical
     (statement : TerminalStatement AppState) (payload : TerminalPayload application)
     (terminal : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
@@ -248,9 +233,6 @@ theorem terminal_implies_priorCanonical
   exact ActualPiCCSInputs.selectedRowsZero_implies_priorCanonical application fits
     assignment one accepted.1
 
-/-- The terminal's fresh opening supplies the arbitrary assignment, its rows
-and its public input. No extra row, padding, encoder, representation, context
-or checked-hash premise is needed at this concrete verifier boundary. -/
 theorem terminal_implies_stepOrCollision
     (statement : TerminalStatement AppState) (payload : TerminalPayload application)
     (terminal : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
@@ -273,8 +255,6 @@ theorem terminal_implies_stepOrCollision
     (ProductionRelation.Plan.logicalAssignment payload.freshWitness) statement payload
     accepted.2 accepted.1 terminal
 
-/-- The accepted terminal opening identifies the complete next preimage,
-including its natural iteration, or gives the exact state-hash collision. -/
 theorem terminal_implies_preimageOrCollision
     (statement : TerminalStatement AppState) (payload : TerminalPayload application)
     (terminal : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)
@@ -348,8 +328,6 @@ theorem terminal_implies_preimageOrCollision
     exact StateEncoding.serializePreimage_injective actualWellFormed expectedWellFormed encodedEqual
   · exact Or.inr ⟨encodedEqual, hashes.symm⟩
 
-/-- The complete decoded step reaches the advertised terminal preimage.
-This supplies the local step and exact predecessor counter for history extraction. -/
 theorem terminal_implies_matchingStepOrCollision
     (statement : TerminalStatement AppState) (payload : TerminalPayload application)
     (terminal : Stage1.Terminal.HoldsFor (PerApplicationFixedPoint.relation application fits)

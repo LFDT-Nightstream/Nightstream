@@ -14,8 +14,6 @@ open NightstreamFPrime.Circuit.Quadratic
 open NightstreamFPrime.Gadgets.Multilinear
 open NightstreamFPrime.Gadgets.Polynomial
 
-/-- Every row in the composed point-equality and Horner children uses only
-supported external expressions or the exact parent-local interval. -/
 theorem flatConstraints_varsSatisfy {variableCount : Nat}
     (interface : Interface variableCount) (positive : 0 < variableCount)
     (offset : Nat) (allowed : Nat → Prop)
@@ -81,8 +79,6 @@ theorem flatConstraints_varsSatisfy {variableCount : Nat}
         exact upper
     · exact hornerMember
 
-/-- The composed owned output preserves the same external and parent-local
-support as the two child row families. -/
 theorem output_varsSatisfy {variableCount : Nat}
     (interface : Interface variableCount) (positive : 0 < variableCount)
     (offset : Nat) (allowed : Nat → Prop)

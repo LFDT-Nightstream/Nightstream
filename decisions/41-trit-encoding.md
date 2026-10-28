@@ -28,8 +28,8 @@ must enforce the canonical residue interval. All consumers of the same owned
 slot reuse that opening. Equal values in different authoritative slots do not
 share ownership.
 
-Forty-one is minimal because `3^40 < p < 3^41`. Lean proves the coverage and
-minimality in
-[Ajtai/Parameters.lean](../formal/ajtai-lean/Ajtai/Parameters.lean). Physical
+Forty-one is minimal because `3^40 < p < 3^41`. Lean proved the coverage and
+minimality in `formal/ajtai-lean/Ajtai/Parameters.lean` at commit `f7e093d8f`.
+That project was later deleted. Physical
 gate, row, and column counts belong to lowering conformance evidence, not this
 decision.

@@ -3,9 +3,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckTruthPath
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolPolynomialDegree/Support.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Artifact-independent one-variable polynomial support for the paper `Pi_CCS`
 degree proof.
@@ -18,10 +15,6 @@ Does not own: a protocol polynomial, a degree ceiling, SumCheck acceptance,
 probability, Fiat--Shamir, Rust, R1CS, artifacts, or costs.
 
 Emits constraints: no.
-
-Every representation contains explicit constant-first coefficients evaluated
-by the verifier-visible Horner machine. No generated artifact or executable
-emitter is consulted.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Support
@@ -34,8 +27,6 @@ universe uField uIndex
 abbrev Polynomial (Field : Type uField) :=
   SumCheck.Finite.FixedPolynomial Field
 
-/-- A scalar function has an explicit verifier-visible representation at the
-declared degree. High coefficients may be zero. -/
 def Represents
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -44,7 +35,6 @@ def Represents
   exists polynomial : Polynomial Field degree, forall point,
     polynomial.evaluate ops.toOps point = function point
 
-/-- The paper interpolation laws imply the generic fixed-polynomial laws. -/
 theorem polynomialLaws
     {Field : Type uField}
     {ops : InterpolationOps Field}
@@ -62,7 +52,6 @@ theorem polynomialLaws
 
 namespace Represents
 
-/-- Append only verifier-visible high zero coefficients. -/
 theorem widen
     {Field : Type uField}
     {ops : InterpolationOps Field}
@@ -79,7 +68,6 @@ theorem widen
   rw [SumCheck.Finite.FixedPolynomial.evaluate_widen
     ops.toOps (polynomialLaws laws), represents]
 
-/-- A constant function has a degree-zero representation. -/
 theorem constant
     {Field : Type uField}
     {ops : InterpolationOps Field}
@@ -91,7 +79,6 @@ theorem constant
   exact SumCheck.Finite.FixedPolynomial.evaluate_constant
     ops.toOps (polynomialLaws laws) value point
 
-/-- Scalar multiplication preserves the declared degree. -/
 theorem scale
     {Field : Type uField}
     {ops : InterpolationOps Field}
@@ -107,7 +94,6 @@ theorem scale
   rw [SumCheck.Finite.FixedPolynomial.evaluate_scale
     ops.toOps (polynomialLaws laws), represents]
 
-/-- Pointwise addition preserves a shared declared degree. -/
 theorem add
     {Field : Type uField}
     {ops : InterpolationOps Field}
@@ -125,7 +111,6 @@ theorem add
   rw [SumCheck.Finite.FixedPolynomial.evaluate_add
     ops.toOps (polynomialLaws laws), leftRepresents, rightRepresents]
 
-/-- Pointwise multiplication adds declared degrees. -/
 theorem mul
     {Field : Type uField}
     {ops : InterpolationOps Field}
@@ -195,7 +180,6 @@ private theorem evaluate_affineConstant
       ops.toOps (polynomialLaws laws),
     laws.mul_zero, laws.add_zero]
 
-/-- Apply the exact strict-`b = 2` cubic to an affine representation. -/
 theorem strictNormOfAffine
     {Field : Type uField}
     {ops : InterpolationOps Field}
@@ -223,7 +207,6 @@ theorem strictNormOfAffine
     evaluate_subtract laws, evaluate_affineConstant laws,
     valueRepresents]
 
-/-- Finite weighted sums preserve one shared degree. -/
 theorem weightedSum
     {Field : Type uField}
     {ops : InterpolationOps Field}
@@ -263,7 +246,6 @@ theorem weightedSum
         headRepresents, tailRepresents]
       rfl
 
-/-- Replace exactly one coordinate between a fixed prefix and suffix. -/
 def cubeSlice
     {Field : Type uField}
     {variables : Nat}
@@ -273,7 +255,6 @@ def cubeSlice
   coordinates := before ++ point :: after
   dimension := by simp; omega
 
-/-- Every coordinate slice of an explicit Boolean-table MLE is affine. -/
 theorem evaluateCoordinates_affine
     {Field : Type uField}
     {variables : Nat}
@@ -351,7 +332,6 @@ private theorem equalityFactor_eq_affine
       exact (FiniteSumAlgebra.mul_sub ops laws point beta
         (ops.sub ops.one beta)).symm
 
-/-- Every coordinate slice of an equality polynomial is affine. -/
 theorem pointEqualityCoordinates_affine
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -400,7 +380,6 @@ theorem pointEqualityCoordinates_affine
             tailRepresents]
           rfl
 
-/-- Boolean suffix summation preserves a fixed per-variable degree. -/
 theorem sumCompletions_represents
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -413,7 +392,7 @@ theorem sumCompletions_represents
       Represents ops degree fun point =>
         polynomial
           ((fixed ++ [point]) ++
-            SumCheckTruthPath.VertexEncoding.fieldCoordinates ops vertex)) :
+            BooleanVertex.fieldCoordinates ops vertex)) :
     Represents ops degree fun point =>
       SumCheck.Finite.HypercubeTruth.sumCompletions ops.toOps polynomial
         (fixed ++ [point]) remaining := by
@@ -423,7 +402,7 @@ theorem sumCompletions_represents
     (fun vertex point =>
       polynomial
         ((fixed ++ [point]) ++
-          SumCheckTruthPath.VertexEncoding.fieldCoordinates ops vertex))
+          BooleanVertex.fieldCoordinates ops vertex))
     (by
       intro vertex _
       exact represented vertex)

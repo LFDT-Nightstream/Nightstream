@@ -19,7 +19,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open MeasureTheory
 
-/-- The actual selected shape and degree give this test numerator. -/
 theorem test_error_eq : IndependentExecution.testError productionShape 8 =
     (4589 : ℝ) / (goldilocksModulus : ℝ) ^ 2 := by
   unfold IndependentExecution.testError
@@ -28,17 +27,12 @@ theorem test_error_eq : IndependentExecution.testError productionShape 8 =
     4365 / (goldilocksModulus : ℝ) ^ 2 = _
   ring
 
-/-- The exported natural-number numerator is the selected test numerator. -/
 theorem test_error_eq_selected :
     IndependentExecution.testError productionShape SelectedTestNumerator.width =
       (SelectedTestNumerator.numerator : ℝ) / (goldilocksModulus : ℝ) ^ 2 := by
   rw [SelectedTestNumerator.numerator_eq, Nat.cast_ofNat]
   exact test_error_eq
 
-/-- Union the actual events in one probability space. The hypotheses can be
-obtained from bounds conditional on the full preceding history; a claim only
-about isolated uniform inputs does not discharge them for a transcript.
-The count is supplied by the caller, not fixed by the production profile. -/
 theorem any_test_error_le
     {Trace : Type*} [MeasurableSpace Trace]
     (law : Measure Trace) [IsProbabilityMeasure law]

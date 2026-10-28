@@ -16,17 +16,14 @@ namespace NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- The exact stored ports for one live production row. -/
 abbrev RowForms (logicalWidth : Nat) :=
   Fin Spec.ProductionRelation.meaningfulPortCount → SparseForm logicalWidth
 
-/-- One explicit final-matrix entry on the package wire. -/
 structure WireEntry where
   column : Nat
   coefficient : Nat
 deriving Repr, DecidableEq
 
-/-- Decode one entry only when both its column and field word are canonical. -/
 def WireEntry.semantic? (entry : WireEntry) (logicalWidth : Nat) :
     Option (ProductionRelation.SparseEntry logicalWidth) :=
   if columnBound : entry.column < logicalWidth then
@@ -48,7 +45,6 @@ def WireEntry.ofSemantic {logicalWidth : Nat}
     (WireEntry.ofSemantic entry).semantic? logicalWidth = some entry := by
   simp [semantic?, ofSemantic, entry.column.isLt, entry.coefficient.isLt]
 
-/-- Canonical explicit wire encoding of one final sparse form. -/
 structure WireForm where
   entries : List WireEntry
 deriving Repr, DecidableEq
@@ -61,7 +57,6 @@ private def decodeWireEntries? (logicalWidth : Nat) :
       let tail ← decodeWireEntries? logicalWidth rest
       pure (head :: tail)
 
-/-- Reject a form if any encoded entry is noncanonical. -/
 def WireForm.semantic? (form : WireForm) (logicalWidth : Nat) :
     Option (ProductionRelation.SparseForm logicalWidth) := do
   pure ⟨← decodeWireEntries? logicalWidth form.entries⟩
@@ -79,7 +74,6 @@ private theorem decodeWireEntries?_ofSemantic {logicalWidth : Nat}
   | cons entry rest inductionHypothesis =>
       simp [decodeWireEntries?, inductionHypothesis]
 
-/-- Explicit wire forms round-trip to the exact semantic sparse form. -/
 @[simp] theorem WireForm.semantic?_ofSemantic {logicalWidth : Nat}
     (form : ProductionRelation.SparseForm logicalWidth) :
     (WireForm.ofSemantic form).semantic? logicalWidth = some form := by
@@ -87,14 +81,12 @@ private theorem decodeWireEntries?_ofSemantic {logicalWidth : Nat}
   | mk entries =>
       simp [semantic?, ofSemantic, decodeWireEntries?_ofSemantic]
 
-/-- Complete wire data for one homogeneous retained block. -/
 structure RetainedBlock where
   kind : LowNormSlot.Kind
   slotCount : Nat
   start : Nat
 deriving Repr, DecidableEq
 
-/-- A proof-erased semantic block with the same sparse-form geometry. -/
 def RetainedBlock.semantic (block : RetainedBlock) :
     LowNormBlock.Block block.slotCount where
   kind := block.kind
@@ -109,7 +101,6 @@ def RetainedBlock.coordinateCount (block : RetainedBlock) : Nat :=
     block.semantic.coordinateCount = block.coordinateCount := by
   rfl
 
-/-- Fail-closed reconstruction of one retained sparse form. -/
 def RetainedBlock.form? (block : RetainedBlock) (logicalWidth slot : Nat) :
     Option (SparseForm logicalWidth) :=
   if slotBound : slot < block.slotCount then
@@ -121,15 +112,12 @@ def RetainedBlock.form? (block : RetainedBlock) (logicalWidth slot : Nat) :
   else
     none
 
-/-- Erase the semantic source function while retaining exact sparse-form
-geometry. -/
 def RetainedBlock.ofSemantic {sourceWidth : Nat}
     (block : LowNormBlock.Block sourceWidth) (start : Nat) : RetainedBlock where
   kind := block.kind
   slotCount := block.slotCount
   start := start
 
-/-- Wire reconstruction is exactly the semantic retained form. -/
 theorem RetainedBlock.form?_ofSemantic {sourceWidth logicalWidth : Nat}
     (block : LowNormBlock.Block sourceWidth) (start : Nat)
     (fits : start + block.coordinateCount ≤ logicalWidth)
@@ -150,8 +138,6 @@ private def fixedState16 {Alpha : Type}
       lane8, lane9, lane10, lane11, lane12, lane13, lane14, lane15].get
       ⟨lane.val, by simp⟩
 
-/-- Reconstruct one Poseidon2 external-layer output from sixteen consecutive
-retained final-round S-box slots. -/
 def RetainedBlock.externalForm? (block : RetainedBlock)
     (logicalWidth slotBase lane : Nat) : Option (SparseForm logicalWidth) := do
   if laneBound : lane < 16 then do
@@ -177,8 +163,6 @@ def RetainedBlock.externalForm? (block : RetainedBlock)
   else
     none
 
-/-- The wire external-layer reconstruction is the exact semantic sparse
-external layer over the selected retained slots. -/
 theorem RetainedBlock.externalForm?_ofSemantic
     {sourceWidth logicalWidth : Nat}
     (block : LowNormBlock.Block sourceWidth) (retainedStart : Nat)
@@ -206,8 +190,6 @@ theorem RetainedBlock.externalForm?_ofSemantic
   funext selected
   fin_cases selected <;> rfl
 
-/-- One explicit contiguous source interval mapped to a contiguous retained
-slot interval. -/
 structure SourceRange where
   sourceStart : Nat
   sourceCount : Nat
@@ -215,7 +197,6 @@ structure SourceRange where
   slotStart : Nat
 deriving Repr, DecidableEq
 
-/-- Fail-closed source-column substitution for one contiguous range. -/
 def SourceRange.form? (range : SourceRange) (logicalWidth source : Nat) :
     Option (SparseForm logicalWidth) :=
   if range.sourceStart ≤ source then
@@ -249,8 +230,6 @@ def SourceRange.ofSemantic {sourceWidth : Nat}
   retained := RetainedBlock.ofSemantic block retainedStart
   slotStart := slotStart
 
-/-- A canonical in-range wire substitution is the exact retained semantic
-form. -/
 theorem SourceRange.form?_ofSemantic {sourceWidth logicalWidth : Nat}
     (block : LowNormBlock.Block sourceWidth)
     (retainedStart sourceStart sourceCount slotStart : Nat)
@@ -279,8 +258,6 @@ inductive SourceGridMode where
   | external16
 deriving Repr, DecidableEq
 
-/-- One exact two-level affine family of contiguous source runs. This keeps
-regular source layouts compact without accepting stride gaps. -/
 structure SourceGrid where
   sourceStart : Nat
   majorCount : Nat
@@ -295,8 +272,6 @@ structure SourceGrid where
   minorSlotStride : Nat
 deriving Repr, DecidableEq
 
-/-- Fail-closed lookup in one affine grid. Division selects a unique major
-and minor cell; explicit bounds reject every gap. -/
 def SourceGrid.form? (grid : SourceGrid) (logicalWidth source : Nat) :
     Option (SparseForm logicalWidth) :=
   if grid.sourceStart ≤ source then
@@ -446,7 +421,6 @@ theorem SourceGrid.form?_eq_none_at_minorAfter (grid : SourceGrid)
   rw [stride_mod minor offset grid.minorSourceStride offsetBound]
   rw [if_neg (by omega)]
 
-/-- A valid grid coordinate reconstructs the exact semantic retained form. -/
 theorem SourceGrid.form?_ofSemantic {sourceWidth logicalWidth : Nat}
     (block : LowNormBlock.Block sourceWidth)
     (retainedStart sourceStart majorCount majorSourceStride minorCount
@@ -491,8 +465,6 @@ theorem SourceGrid.form?_ofSemantic {sourceWidth logicalWidth : Nat}
     ⟨slotStart + major.val * majorSlotStride +
       minor.val * minorSlotStride + offset.val, slotBound⟩
 
-/-- A valid external grid coordinate reconstructs the exact Poseidon2
-external-layer sparse form over sixteen consecutive retained slots. -/
 theorem SourceGrid.form?_externalOfSemantic
     {sourceWidth logicalWidth : Nat}
     (block : LowNormBlock.Block sourceWidth)
@@ -544,14 +516,11 @@ theorem SourceGrid.form?_externalOfSemantic
     (slotStart + major.val * majorSlotStride +
       minor.val * minorSlotStride) slotBound ⟨offset.val, laneBound⟩
 
-/-- Exact source substitution table. A column must resolve through one and
-only one range. -/
 structure SourceSubstitution where
   ranges : List SourceRange
   grids : List SourceGrid := []
 deriving Repr, DecidableEq
 
-/-- Fail closed on a missing, invalid, or overlapping source mapping. -/
 def SourceSubstitution.form? (substitution : SourceSubstitution)
     (logicalWidth source : Nat) : Option (SparseForm logicalWidth) :=
   match substitution.ranges.filterMap
@@ -568,7 +537,6 @@ def SourceSubstitution.form? (substitution : SourceSubstitution)
   cases found : range.form? logicalWidth source <;>
     simp [form?, found]
 
-/-- A one-range substitution reproduces the exact semantic retained form. -/
 theorem SourceSubstitution.singleton_ofSemantic
     {sourceWidth logicalWidth : Nat}
     (block : LowNormBlock.Block sourceWidth)
@@ -585,7 +553,6 @@ theorem SourceSubstitution.singleton_ofSemantic
   exact SourceRange.form?_ofSemantic block retainedStart sourceStart
     sourceCount slotStart fits slotFits offset
 
-/-- One contiguous interval in an existing canonical package stream. -/
 structure IndexRange where
   start : Nat
   count : Nat
@@ -594,9 +561,6 @@ deriving Repr, DecidableEq
 def IndexRange.endExclusive (range : IndexRange) : Nat :=
   range.start + range.count
 
-/-- Ordered selection from an existing package stream. Large monotone
-selections use ranges. Small package reorderings use an exact random-access
-table. -/
 inductive IndexSchedule where
   | rangeList (ranges : List IndexRange)
   | indexTable (indices : Array Nat)
@@ -618,14 +582,11 @@ private def validIndexTable (limit : Nat) : List Nat → Bool
   | [] => true
   | index :: rest => index < limit && validIndexTable limit rest
 
-/-- Reject malformed ranges or an out-of-bounds table entry. Exact table
-order is package data and can represent a canonical stable partition. -/
 def IndexSchedule.valid (schedule : IndexSchedule) (limit : Nat) : Bool :=
   match schedule with
   | .rangeList ranges => validIndexRanges limit 0 ranges
   | .indexTable indices => validIndexTable limit indices.toList
 
-/-- Select one index without expanding the schedule. -/
 def IndexSchedule.index? (schedule : IndexSchedule) : Nat → Option Nat
   | ordinal =>
       match schedule with
@@ -640,7 +601,6 @@ where
         else
           select rest (ordinal - range.count)
 
-/-- Proof-oriented ordered expansion of one index range. -/
 def IndexRange.indices (range : IndexRange) : List Nat :=
   (List.range range.count).map fun offset => range.start + offset
 
@@ -648,8 +608,6 @@ theorem IndexRange.indices_eq_range' (range : IndexRange) :
     range.indices = List.range' range.start range.count := by
   exact List.range'_eq_map_range.symm
 
-/-- Proof-oriented ordered expansion of a schedule. The executable
-interpreter uses `index?` and does not construct this list. -/
 def IndexSchedule.indices (schedule : IndexSchedule) : List Nat :=
   match schedule with
   | .rangeList ranges => ranges.flatMap IndexRange.indices
@@ -690,15 +648,12 @@ private theorem validIndexRanges_indices
         · have bounds := restBounds index tailMember
           omega
 
-/-- A valid ordered range schedule selects each source row at most once. -/
 theorem IndexSchedule.rangeList_indices_nodup
     (ranges : List IndexRange) (limit : Nat)
     (valid : (IndexSchedule.rangeList ranges).valid limit = true) :
     (IndexSchedule.rangeList ranges).indices.Nodup := by
   exact (validIndexRanges_indices limit 0 ranges valid).1
 
-/-- The same structural range validation also proves exact lower and upper
-bounds for every expanded source index. -/
 theorem validIndexRanges_indices_bounds
     (ranges : List IndexRange) (minimumStart limit : Nat)
     (valid : validIndexRanges limit minimumStart ranges = true) :
@@ -722,8 +677,6 @@ theorem validIndexRanges_indices_bounds
   | indexTable indices =>
       simp [IndexSchedule.indices, IndexSchedule.count]
 
-/-- Streaming index selection is exactly lookup in the canonical ordered
-schedule expansion. -/
 theorem IndexSchedule.index?_eq_getElem? (schedule : IndexSchedule)
     (ordinal : Nat) :
     schedule.index? ordinal = schedule.indices[ordinal]? := by

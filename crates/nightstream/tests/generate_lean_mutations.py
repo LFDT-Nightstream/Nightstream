@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Create the retained C/D mutation classes from fresh numeric checker inputs.
 
-The case definitions come from NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip.
+The case definitions follow fixtures/dec_mutation_manifest.json.
 Run PiDECActualMutations through validate.sh to check these files. Generating
 them establishes no rejection result and no witness-opening validity.
 """
@@ -105,8 +105,6 @@ def generate(input_path, children_path, output):
         change(f"encoding_{name}", indices, lambda values: values[:-1], "decoder")
     change("encoding_noncanonical_field", (1, 0, 0), lambda _word: MODULUS, "decoder")
     write("encoding_extra_field", children + [0], "decoder")
-    # Preserve the retained case name. Its alternate bytes are whitespace,
-    # not a changed arithmetic value; the canonical parser must reject it.
     canonical = numeric_json(children)
     write("encoding_alternate_number", children, "decoder", canonical[:1] + " " + canonical[1:])
 

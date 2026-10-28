@@ -4,10 +4,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the compact field-source views needed by the direct running-transition
-rows. State and output reuse the actual pilot preimages. Only the PiDEC and fresh blocks allocate coordinates. Every source first follows the
-established Spartan permutation, then the
-per-application package shift, and finally the existing nested PiRLC source
-embedding.
+rows.
 
 This module does not compile rows or claim that a final assignment encodes the
 blocks.
@@ -34,7 +31,6 @@ private theorem target_lt_basePackage (source : Nat)
   rw [total]
   simpa [Spartan.spartanColumnCount] using mapped
 
-/-- Canonical nested source column for one pre-Spartan transition source. -/
 def packageSourceColumn (program : Lifecycle.Stage1.Application.Program)
     (source : Nat) (bound : source < Spartan.SourceColumnCount) :
     Fin (sourceWidth program) :=
@@ -42,7 +38,6 @@ def packageSourceColumn (program : Lifecycle.Stage1.Application.Program)
     PiRLCProductPlan.shiftedPackageColumn program
       (Spartan.sourceToSpartan source) (target_lt_basePackage source bound)
 
-/-- Generic field block over one proved finite transition-source family. -/
 def fieldBlock (program : Lifecycle.Stage1.Application.Program)
     (count : Nat) (source : Fin count → Nat)
     (bounded : ∀ index, source index < Spartan.SourceColumnCount) :

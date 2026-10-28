@@ -25,22 +25,17 @@ inductive ValueAction where
   | absorb (input : List F)
   | readK (pair : Read.Pair) (expected : K)
 
-/-- Exact symbolic recipe cost of one duplex action. Each absorb chunk runs
-one 1096-recipe Poseidon2 permutation. A read runs none. -/
 def Action.recipeCount : Action → Nat
   | .absorb input => (Hash.inputChunks input).length * 1096
   | .readK _ _ => 0
 
-/-- Exact symbolic recipe cost of a complete duplex action trace. -/
 def recipeCount (actions : List Action) : Nat :=
   (actions.map Action.recipeCount).sum
 
-/-- Exact number of non-final-state assertions contributed by one action. -/
 def Action.assertionCount : Action → Nat
   | .absorb _ => 0
   | .readK _ _ => 2
 
-/-- Exact number of non-final-state assertions in an action trace. -/
 def assertionCount (actions : List Action) : Nat :=
   (actions.map Action.assertionCount).sum
 
@@ -77,7 +72,6 @@ def Action.eval (env : Env) : Action → ValueAction
   | .absorb input => .absorb (Hash.evalList env input)
   | .readK pair expected => .readK pair (expected.eval env)
 
-/-- The operation schedule without caller-provided read expectations. -/
 inductive ActionShape where
   | absorb (input : List Expr)
   | readK (pair : Read.Pair)
@@ -92,7 +86,6 @@ def expectedSamples : List Action → List KExpr
   | .absorb _ :: actions => expectedSamples actions
   | .readK _ expected :: actions => expected :: expectedSamples actions
 
-/-- Deterministic duplex trace semantics. -/
 def TraceHolds : Spec.Poseidon2.State → List ValueAction →
     Spec.Poseidon2.State → Prop
   | state, [], final => state = final
@@ -123,7 +116,6 @@ def compile : Nat → EState → List Action → Program
         KExpr.equalities (Read.sample state pair) expected ++ tail.assertions,
         Read.sample state pair :: tail.samples, tail.output⟩
 
-/-- Recipe-free absorb projection used only to recover symbolic wiring. -/
 structure AbsorbWiring where
   next : Nat
   output : EState
@@ -156,7 +148,6 @@ theorem compileAbsorbWiring_output (start : Nat) (state : EState)
       simp only [compileAbsorbWiring, Hash.compileAbsorptions]
       rw [inductionHypothesis, Permutation.scheduleOutput_eq_compile]
 
-/-- Recipe-free projection of the Duplex compiler's wiring outputs. -/
 structure Wiring where
   next : Nat
   samples : List KExpr
@@ -189,8 +180,6 @@ theorem compileWiring_next (start : Nat) (state : EState)
           rw [inductionHypothesis]
           simp [recipeCount, Action.recipeCount]
 
-/-- Wiring projection agrees with the full compiler on every externally used
-sample and on the final symbolic state. -/
 theorem compileWiring_matches (start : Nat) (state : EState)
     (actions : List Action) :
     (compileWiring start state actions).samples =
@@ -225,8 +214,6 @@ theorem compileWiring_matches (start : Nat) (state : EState)
           exact ⟨congrArg (List.cons (Read.sample state pair)) tailMatches.1,
             tailMatches.2⟩
 
-/-- Lazy-state absorb projection. A nonempty absorb replaces the incoming
-state before it can be forced. -/
 def compileAbsorbWiringLazy : Nat → (Unit → EState) →
     List (List Expr) → AbsorbWiring
   | start, delayed, [] => ⟨start, delayed ()⟩
@@ -245,8 +232,6 @@ theorem compileAbsorbWiringLazy_eq (start : Nat)
       simp only [compileAbsorbWiringLazy, compileAbsorbWiring]
       exact inductionHypothesis _ _ _ rfl
 
-/-- Lazy-state form of `compileWiring`. It is an execution device only; the
-agreement theorem below keeps `compileWiring` as the proof meaning. -/
 def compileWiringLazy : Nat → (Unit → EState) → List Action → Wiring
   | start, delayed, [] => ⟨start, [], delayed ()⟩
   | start, delayed, .absorb input :: actions =>
@@ -285,8 +270,6 @@ theorem compileWiringLazy_eq (start : Nat) (delayed : Unit → EState)
           rw [stateEq]
           rw [inductionHypothesis start (fun _ => state) state rfl]
 
-/-- Samples are exposed in action order. Absorptions add no sample and every
-read adds exactly one. -/
 @[simp] theorem compile_samples_length (start : Nat) (state : EState)
     (actions : List Action) :
     (compile start state actions).samples.length =
@@ -302,8 +285,6 @@ read adds exactly one. -/
       | readK pair expected =>
           simp [compile, inductionHypothesis]
 
-/-- Expected read values affect only assertion expressions. They cannot
-change witness recipes, computed samples, or the final state. -/
 theorem compile_shape_eq (start : Nat) (state : EState)
     (left right : List Action)
     (same : left.map Action.shape = right.map Action.shape) :
@@ -358,8 +339,6 @@ theorem compile_shape_eq (start : Nat) (state : EState)
               (start := start) (state := state) rightActions tailSame
             simp [compile, tailResult.1, tailResult.2.1, tailResult.2.2]
 
-/-- Assertion rows bind exactly the ordered expected values to the ordered
-computed read samples. -/
 theorem compile_assertions_hold_iff (env : Env) (start : Nat)
     (state : EState) (actions : List Action) :
     ConstraintsHold env (compile start state actions).assertions ↔
@@ -387,8 +366,6 @@ theorem compile_assertions_hold_iff (env : Env) (start : Nat)
             inductionHypothesis (start := start) (state := state)]
           simp [compile, expectedSamples]
 
-/-- Compilation emits exactly two assertions per read and no assertions for
-absorbs. This proof is structural in the action list. -/
 @[simp] theorem compile_assertions_length (start : Nat) (state : EState)
     (actions : List Action) :
     (compile start state actions).assertions.length =
@@ -405,8 +382,6 @@ absorbs. This proof is structural in the action list. -/
             KExpr.equalities, inductionHypothesis]
           omega
 
-/-- Duplex compilation allocates exactly the declared structural footprint.
-The proof depends on the action list, not on emitted rows or values. -/
 @[simp] theorem compile_recipes_length (start : Nat) (state : EState)
     (actions : List Action) :
     (compile start state actions).recipes.length = recipeCount actions := by
@@ -717,7 +692,6 @@ theorem flatConstraints_opsAt (interface : Interface) (offset : Nat) :
   rw [flatten]
   simp
 
-/-- Exact number of parent-visible operations without unfolding a schedule. -/
 theorem operations_length (interface : Interface) (offset : Nat) :
     (opsAt interface offset).length =
       1 + (assertionCount (interface.actions offset) + 16) := by
@@ -725,7 +699,6 @@ theorem operations_length (interface : Interface) (offset : Nat) :
   rw [List.length_cons, List.length_map, allAssertions_length]
   omega
 
-/-- Exact flattened row count without evaluating the emitted recipes. -/
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (opsAt interface offset)).length =
       recipeCount (interface.actions offset) +
@@ -779,8 +752,6 @@ theorem action_eval_preserved (before after : Env) (bound : Nat)
         (expected.c0.eval_eq_of_agree_below bound after before below.1 agrees)
         (expected.c1.eval_eq_of_agree_below bound after before below.2 agrees)
 
-/-- The semantic trace is stable when every external input wire is
-unchanged. -/
 theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
     (agrees : ∀ index, index < offset → after index = before index)
@@ -811,9 +782,6 @@ theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
   rw [initialEval, actionsEval, finalEval]
   exact specification
 
-/-- Compilation output and non-final assertions use only the external
-prefix and the completed local recipe interval. The proof is structural in
-the action list. -/
 theorem compile_scope (start : Nat) (state : EState) (actions : List Action)
     (stateBelow : ∀ lane, (state lane).VarsBelow start)
     (actionsBelow : ActionsBelow start actions) :
@@ -872,7 +840,6 @@ theorem compile_scope (start : Nat) (state : EState) (actions : List Action)
               · exact headMember
             · simpa [compile] using tailScope.2 expression tailMember
 
-/-- Every computed read sample lies in the causal recipe interval. -/
 theorem compile_samples_scope (start : Nat) (state : EState)
     (actions : List Action)
     (stateBelow : ∀ lane, (state lane).VarsBelow start)
@@ -916,8 +883,6 @@ theorem compile_samples_scope (start : Nat) (state : EState)
                 omega)
           · simpa [compile] using tailScope sample member
 
-/-- Every flattened Duplex row is scoped to the call's completed local
-interval. -/
 theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints (Circuit.ops (main interface) offset),
@@ -1025,18 +990,7 @@ def circuit (interface : Interface) : FormalCircuit where
   soundness := soundness interface
   completeness := completeness interface
 
-/-! ## Child-owned final-state variant -/
-
 namespace Owned
-
-/-!
-Obligation: execute one Duplex action schedule and expose its compiled final
-state directly to a parent circuit.
-
-The interface has no external final-state wire. Read expectations remain
-authoritative action inputs; each read adds two equality assertions against
-its two rate lanes.
--/
 
 structure Interface where
   initial : Nat → EState
@@ -1193,8 +1147,6 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
       ⟨by simpa [compiled, program] using recipeRows,
         by simpa [allAssertions, compiled, program] using traceComplete.1⟩
 
-/-- Absorb-only schedules have no assertion rows. Honest execution therefore
-constructs the owned final state without a semantic premise. -/
 theorem build_of_no_assertions (interface : Interface) (env : Env)
     (offset : Nat) (assumptions : Assumptions interface offset env)
     (none : allAssertions interface offset = []) :
@@ -1245,9 +1197,6 @@ theorem output_varsBelow (interface : Interface) (offset : Nat)
   rw [main_ops, opsAt_localLength]
   simpa [output, program] using scope
 
-/-- The owned semantic trace is stable when the complete local interval is
-unchanged. The wider bound is necessary because the owned output contains
-compiled recipe variables. -/
 theorem specHolds_of_agree_below (interface : Interface) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
     (agrees : ∀ index,

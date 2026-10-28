@@ -3,8 +3,6 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding
 
 /-!
 Numeric row selectors for the selected matrix and full-carrier Pad prefixes.
-Their Boolean-vertex values are the existing row semantics; the remaining
-numeric suffixes are zero. No point or expected evaluation is an input.
 -/
 
 set_option autoImplicit false
@@ -69,7 +67,6 @@ private abbrev selectedRelation := PerApplicationFixedPoint.relation
 private abbrev selectedPadLayout :=
   (Lifecycle.PiRLC.v1_2.InputBinding.relationSource selectedRelation).cubeLayout
 
-/-- Compute active selected matrix rows and return zero beyond their prefix. -/
 def matrixRow
     (assignments : Vector (Vector F selectedShape.carrierWidth) productionGlobalParams.k)
     (child : Fin productionGlobalParams.k)
@@ -79,7 +76,6 @@ def matrixRow
       (selectedPlan.portForm ⟨index, live⟩ matrix) assignments child
   else PiDECCommitmentFold.zero
 
-/-- Pad uses every complete carrier column, including the carried tail. -/
 def padRow
     (assignments : Vector (Vector F selectedShape.carrierWidth) productionGlobalParams.k)
     (child : Fin productionGlobalParams.k) (index : Nat) : StoredRing :=
@@ -121,8 +117,6 @@ private theorem matrix_padding_zero
   exact zero_row_of_coefficients selectedRelation.system
     (assignments.get child).get matrix vertex logicalZero
 
-/-- Numeric matrix selection has the existing semantic value at every Boolean
-vertex. The selected padding theorem discharges the complete zero suffix. -/
 theorem matrixRow_value
     (assignments : Vector (Vector F selectedShape.carrierWidth) productionGlobalParams.k)
     (child : Fin productionGlobalParams.k)
@@ -149,8 +143,6 @@ private theorem empty_pad_row_zero
       ringFZero := by
   exact PiDECEvaluationRows.row_empty_value assignments child
 
-/-- Numeric Pad selection equals the selected complete-carrier identity row
-at every Boolean vertex, with no dropped tail coordinates. -/
 theorem padRow_value
     (assignments : Vector (Vector F selectedShape.carrierWidth) productionGlobalParams.k)
     (child : Fin productionGlobalParams.k)

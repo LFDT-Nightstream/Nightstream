@@ -18,7 +18,6 @@ pub struct TerminalEvaluations {
     pub first_unsatisfied_row: Option<usize>,
 }
 
-/// Evaluate running openings and the fresh relation from the same row windows.
 pub fn evaluate_terminal_rows(
     source: &dyn MatrixRows,
     point: &[K],
@@ -38,8 +37,6 @@ pub fn evaluate_terminal_rows(
     )
 }
 
-/// The workspace bounds matrix-window construction; witness and opening-form
-/// storage belong to the caller's separate live-allocation accounting.
 pub fn eval_real_v1_2_openings_from_rows(
     source: &dyn MatrixRows,
     point: &[K],
@@ -49,8 +46,6 @@ pub fn eval_real_v1_2_openings_from_rows(
     eval_real_v1_2_openings_from_rows_reusing(source, point, witnesses, workspace_bytes, Vec::new(), None)
 }
 
-/// `complete` may carry a window over every row of `source`, already built
-/// by the caller; it is used only when it also fits this call's workspace.
 pub(crate) fn eval_real_v1_2_openings_from_rows_reusing(
     source: &dyn MatrixRows,
     point: &[K],
@@ -85,7 +80,7 @@ fn evaluate_rows(
             .saturating_sub(1)
             .leading_zeros()) as usize;
     if shape.columns == 0
-        || shape.columns % D != 0
+        || !shape.columns.is_multiple_of(D)
         || shape.matrices == 0
         || point.len() < variables
         || witnesses
@@ -149,8 +144,6 @@ fn evaluate_rows(
             let Some(scratch) = scratch.as_mut() else {
                 break;
             };
-            // Each local cache contains original coefficients. Reuse the same
-            // global row weights across its matrices, then release both owners.
             cache.accumulate_barred_ring_form_parallel(range.len(), scratch, |row| row_weights[row]);
             #[cfg(any(not(target_arch = "wasm32"), feature = "wasm-threads"))]
             let values = {

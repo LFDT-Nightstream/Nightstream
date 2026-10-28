@@ -10,24 +10,9 @@ workspace = true
 
 [features]
 default = ["paper-exact"]
-# Test-only feature for deterministic shortcuts in small-unit tests
-testing = []
-# Paper-exact, intentionally-inefficient reference implementation for Π-CCS
 paper-exact = []
-# Forward neo-transcript debug logging so tests can enable transcript dumps on stable
-debug-logs = ["neo-transcript/debug-log"]
-# Compile-time-only perf timing prints for RowStreamState::build subphases.
-# Separate from debug-logs because the latter also triggers an O(2^ell)
-# paper-exact cross-check unsuited for production-sized structures.
+debug-logs = []
 perf-timers = []
-# Forward fs-guard so tests can compare prover vs verifier transcript events
-fs-guard = ["neo-transcript/fs-guard"]
-# Enable verbose logging for debugging (no-op in this crate; used for cfg gating)
-neo-logs = []
-# Enable constraint diagnostic system
-prove-diagnostics = ["serde_json", "flate2", "hex", "chrono"]
-# Enable CBOR format for diagnostics (smaller but less readable)
-prove-diagnostics-cbor = ["prove-diagnostics", "serde_cbor"]
 wasm-threads = ["neo-ajtai/wasm-threads", "neo-ccs/wasm-threads"]
 
 [dependencies]
@@ -36,45 +21,17 @@ neo-ajtai = { path = "../neo-ajtai" }
 neo-ccs = { path = "../neo-ccs" }
 neo-params = { path = "../neo-params" }
 neo-transcript = { path = "../neo-transcript" }
-# Plonky3 dependencies
 p3-field = { workspace = true }
-p3-matrix = { workspace = true }
-p3-challenger = { workspace = true }
-p3-poseidon2 = { workspace = true }
 p3-goldilocks = { workspace = true }
 p3-symmetric = { workspace = true }
-# Utilities
-rand = { workspace = true }
 rand_chacha_p3 = { workspace = true }
 thiserror = { workspace = true }
-bincode = { workspace = true }
-
-# Diagnostic system dependencies (feature-gated)
 serde = { workspace = true }
-serde_json = { workspace = true, optional = true }
-flate2 = { version = "1.0", optional = true }
-hex = { version = "0.4", optional = true }
-serde_cbor = { version = "0.11", optional = true }
-chrono = { workspace = true, optional = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-rayon = { workspace = true }
-
-[target.'cfg(target_arch = "wasm32")'.dependencies]
 rayon = { workspace = true }
 
 [dev-dependencies]
-criterion = { workspace = true }
-rand = { workspace = true }
 rand_chacha = { workspace = true }
-proptest = { workspace = true }
 p3-goldilocks = { workspace = true }
 p3-field = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-
-# Test configuration
-[[test]]
-name = "paper_exact"
-path = "tests-paper-exact/mod.rs"
-harness = true

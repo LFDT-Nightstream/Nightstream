@@ -137,10 +137,6 @@ private theorem protocol_readback
   exact ⟨preserved.1.trans initialRead.1, preserved.2.1.trans initialRead.2.1,
     preserved.2.2.trans initialRead.2.2⟩
 
-/-- Continue from the already constructed C prefix after completing its
-physical fresh interval. Agreement is needed only below the logical C end;
-the constructor derives C semantics, the actual sampler state, and R outputs.
-No equality on the physical fresh cells is required. -/
 theorem completePrefix_after_c
     (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (initial : Env)
@@ -243,10 +239,6 @@ theorem completePrefix_after_c
   exact ⟨r, rOperations, rowsPreserved, rPhase, challenges, parent⟩
 
 
-/-- Accepted typed protocol inputs and the total sampler
-construct the canonical local C/R witnesses. R preserves the constructed C
-rows and its output is the exact production-key parent for the same statement,
-proof, and transcript-derived challenges. No generated phase output is assumed. -/
 theorem completePrefix_from
     (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (priorContext : prior.verifierKeys functionIndex = context.toList)
@@ -293,10 +285,6 @@ theorem completePrefix_from
   exact ⟨c, r, cOperations, completed⟩
 
 
-/-- Accepted typed protocol inputs and the total sampler
-construct the canonical local C/R witnesses. R preserves the constructed C
-rows and its output is the exact production-key parent for the same statement,
-proof, and transcript-derived challenges. No generated phase output is assumed. -/
 theorem completePrefix
     (priorCanonical : Lifecycle.ChildrenCanonical (prior.running functionIndex))
     (priorContext : prior.verifierKeys functionIndex = context.toList)

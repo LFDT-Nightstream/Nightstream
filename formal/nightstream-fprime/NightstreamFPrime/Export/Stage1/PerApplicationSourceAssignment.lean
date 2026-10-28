@@ -4,9 +4,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns the source copy from a completed Spartan prefix and the application-owned
-private suffix to the existing canonical assignment input. Prefix columns use
-the existing per-application shift. Recovery is pointwise on the declared
-source domain; values outside that domain have no equality contract.
+private suffix to the existing canonical assignment input.
 -/
 
 set_option autoImplicit false
@@ -25,9 +23,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open PerApplicationAssignmentTransportExecution
 
-/-- Copy the completed base package, insert precisely the application-owned
-private interval, and shift the old constant/public suffix by its declared
-width. The output is the existing bounded physical-source function. -/
 def ofCompleted (application : Lifecycle.Stage1.Application.Program)
     (target : Env)
     (applicationPrivate : Fin (PerApplicationPackage.addedPrivateColumnCount
@@ -68,8 +63,6 @@ private theorem applicationColumn_lt
   have indexBound := index.isLt
   omega
 
-/-- Each application-private source slot contains exactly the supplied
-application witness, local, or lowering value at its existing offset. -/
 theorem application_ofCompleted
     (application : Lifecycle.Stage1.Application.Program)
     (target : Env)
@@ -114,9 +107,6 @@ private theorem shifted_ofCompleted
     rw [dif_neg (by omega), dif_neg (by omega)]
     rw [Nat.add_sub_cancel_right]
 
-/-- Copying the completed assignment preserves every original package column
-under the existing application shift. The equality is restricted to the
-package domain, including its shifted constant and public columns. -/
 theorem packageEnv_ofCompleted
     (application : Lifecycle.Stage1.Application.Program)
     (target : Env)
@@ -131,9 +121,6 @@ theorem packageEnv_ofCompleted
   rw [SourceCompiler.sourceEnv_at]
   exact shifted_ofCompleted application target applicationPrivate column bound
 
-/-- The canonical physical-source packet recovers the completed prefix on
-its full declared logical-source domain. The proof uses the existing Spartan
-map and package shift; it assumes no equality between caller environments. -/
 theorem source_ofCompleted
     (application : Lifecycle.Stage1.Application.Program)
     (target : Env)
@@ -158,8 +145,6 @@ theorem source_ofCompleted
   rw [SourceCompiler.sourceEnv_at]
   exact shifted_ofCompleted application target applicationPrivate _ mappedBound
 
-/-- Copying a completed source uses the same total field encoding as every
-canonical assignment, so all carrier coordinates satisfy the norm bound. -/
 theorem completeAssignment_norm_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (target : Env)

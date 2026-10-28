@@ -5,8 +5,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns exact environment custody for PiCCS ordinary rows in the complete PiRLC
-sampler environment. Every selected source precedes the sampler boundary, so
-the sampler view and canonical transition view agree. This module adds no row.
+sampler environment. This module adds no row.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCommonEnvironmentCustody
@@ -74,8 +73,6 @@ private theorem source_beforeSampler {source : Nat}
   · simpa [PiRLCStarts.samplerLogicalStart,
       PiRLCStarts.phaseLogicalStart, Formal.samplerOffset_eq] using fresh.2
 
-/-- Every final Spartan column used by a PiCCS ordinary row has the canonical
-transition value in the complete sampler environment. -/
 theorem semanticEnv_eq_transitionEnv_of_target
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program
@@ -92,8 +89,6 @@ theorem semanticEnv_eq_transitionEnv_of_target
   exact PiRLCSamplerRetainedCustody.semanticEnv_source_eq_transitionEnv_of_beforeSampler
     geometry assignment base (source_beforeSampler sourceSupport)
 
-/-- Before the sampler starts, the retained PiCCS transcript view and complete
-sampler view are the same canonical transition assignment. -/
 theorem transcriptEnv_eq_semanticEnv_of_beforeSampler
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program

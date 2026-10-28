@@ -27,8 +27,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns <=
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The Stage 1 NIFS verifier as HyperNova's `NIFS.V`: the key digest selects
-nothing (`slotCount = 1`); the concrete key is verifier-owned setup data. -/
 noncomputable def nifsVerifier (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     Verifier KeyDigest (Running (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -37,7 +35,6 @@ noncomputable def nifsVerifier (relation : LogicalRelation logicalWidth publicFi
   verify := fun _ running fresh proof =>
     Nifs.PaperNonInteractive.verify (key relation ajtai) running fresh proof
 
-/-- Construction-2 `Setup`: verifier keys, `NIFS.V`, and `u_⊥`. -/
 noncomputable def setup (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (vk : KeyDigest) :
@@ -48,9 +45,6 @@ noncomputable def setup (relation : LogicalRelation logicalWidth publicFits)
   nifs := nifsVerifier relation ajtai
   defaultRunning := defaultRunning
 
-/-- Construction-2 `Machine` for uniform IVC: the control function selects the
-one augmented function, the step is the application `F`, the fresh public
-input is the fresh instance's public block, and the hash is `stateHash`. -/
 def machine (publicFits : ringDegree * publicRingColumns <=
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (F : AppState → AppWitness → AppState) :
@@ -65,9 +59,6 @@ def machine (publicFits : ringDegree * publicRingColumns <=
   encodeInstance := encHash (publicFits := publicFits)
   hash := stateHash (publicFits := publicFits)
 
-/-- Verifier-selected machine for one Lean-authored application. This is the
-production-facing constructor; the prover supplies only the program's witness
-words, not the program or its step function. -/
 def machineFor (publicFits : ringDegree * publicRingColumns <=
       Phi81CarrierLayout.carrierWidth logicalWidth)
     (application : Stage1.Application.Program) :
@@ -78,9 +69,6 @@ def machineFor (publicFits : ringDegree * publicRingColumns <=
         (publicFits := publicFits)) slotCount :=
   machine publicFits application.step
 
-/-- The complete Stage 1 augmented-function relation `F′`: one step from
-`input` to `output` is valid exactly when HyperNova's fixed transition holds
-for the production setup and machine. -/
 noncomputable def StepHolds (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (vk : KeyDigest) (F : AppState → AppWitness → AppState)
@@ -93,8 +81,6 @@ noncomputable def StepHolds (relation : LogicalRelation logicalWidth publicFits)
   FixedAugmentedTransition (setup relation ajtai vk) (machine publicFits F)
     functionIndex input output
 
-/-- The production Stage 1 relation for one fixed Lean-authored application.
-The final package definition must supply a closed `application` value. -/
 noncomputable def StepHoldsFor
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -124,7 +110,6 @@ theorem stepHoldsFor_eq
       StepHolds relation ajtai vk application.step input output := by
   rfl
 
-/-- The CE statement of running slot `i` at the fresh norm stage `CE(b)`. -/
 def runningStatement (relation : LogicalRelation logicalWidth publicFits)
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (i : Fin productionShape.runningCount) :
@@ -141,7 +126,6 @@ def runningStatement (relation : LogicalRelation logicalWidth publicFits)
   evaluations := #[running.evaluations i]
   stage := .fresh
 
-/-- The CCS statement of the fresh instance at `CCS(b)`. -/
 def freshStatement (relation : LogicalRelation logicalWidth publicFits)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     CCS.Instance (PaperAlgebra.Structure logicalWidth)
@@ -155,9 +139,6 @@ def freshStatement (relation : LogicalRelation logicalWidth publicFits)
   publicInput := fresh.publicInputs ⟨0, by decide⟩
   stage := .fresh
 
-/-- Terminal decider (HyperNova `V`, step 5, and SuperNeo relation membership):
-every running CE claim and the fresh CCS claim open with a norm-bounded
-witness of the F′ structure. -/
 def TerminalHolds (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))

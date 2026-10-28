@@ -12,8 +12,6 @@ open EvaluationHomomorphism
 def difference {shape : Shape} (left right : Assignment shape) : Assignment shape :=
   fun column => left column - right column
 
-/-- A Module-SIS solution written in the same block/lane order as the key.
-The integer coordinates are reduced modulo `q` for the exact Ajtai action. -/
 structure ShortKernelVector {shape : Shape} {rows : Nat}
     (key : Commitment.Key shape rows) (bound : Nat) where
   vector : Fin shape.carrierWidth → Int
@@ -56,8 +54,6 @@ theorem equal_commitments_difference_kernel {shape : Shape} {rows : Nat}
   change Commitment.commit key (difference left right) row lane = (0 : ZMod goldilocksModulus)
   exact add_right_cancel (atLane.symm.trans (zero_add _).symm)
 
-/-- Centered lifting preserves the exact modular kernel equation and strict
-bound. It converts a residue witness into the paper's integer witness. -/
 def liftKernel {shape : Shape} {rows bound : Nat}
     (key : Commitment.Key shape rows) (assignment : Assignment shape)
     (nonzero : assignment ≠ BaseLinear.assignmentZero)
@@ -81,8 +77,6 @@ def liftKernel {shape : Shape} {rows bound : Nat}
     rw [recovered]
     exact kernel
 
-/-- A collision at strict norm `B` gives a nonzero integer kernel vector of
-strict norm `2B`, without changing or resampling the matrix. -/
 def bindingCollision_to_shortKernel {shape : Shape} {rows bound : Nat}
     (key : Commitment.Key shape rows) (commitment : Commitment.Value rows)
     (collision : Opening.BindingCollision (relationSemantics (Commitment.commit key))

@@ -117,7 +117,7 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
             crate::package::assignment_transport::decode(
                 &invalid, PHYSICAL_WIDTH, LOGICAL_PUBLIC_WIDTH, logical_width,
             ),
-            Err(PackageError::Invalid(actual)) if actual == expected
+            Err(PackageError::Malformed(actual)) if actual == expected
         ));
     }
     let mut missing_block = transport.clone();
@@ -132,7 +132,7 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
             LOGICAL_PUBLIC_WIDTH,
             logical_width,
         ),
-        Err(PackageError::Invalid("assignment block plans"))
+        Err(PackageError::Malformed("assignment block plans"))
     ));
     let mut extra_fields = transport;
     extra_fields
@@ -146,7 +146,7 @@ fn assignment_transport_accepts_only_the_lean_owned_order() {
             LOGICAL_PUBLIC_WIDTH,
             logical_width,
         ),
-        Err(PackageError::Invalid("assignment transport plan"))
+        Err(PackageError::Malformed("assignment transport plan"))
     ));
 }
 
@@ -202,7 +202,7 @@ fn application_plan_rejects_a_row_not_present_in_the_package_suffix() {
     plan[15][0] = json!([91]);
     assert!(matches!(
         decode_plan(&plan, &circuit_value()),
-        Err(PackageError::Invalid("application plan package suffix"))
+        Err(PackageError::Malformed("application plan package suffix"))
     ));
 }
 
@@ -212,7 +212,7 @@ fn application_plan_rejects_an_unowned_row_family() {
     plan[11] = json!([[1]]);
     assert!(matches!(
         decode_plan(&plan, &circuit_value()),
-        Err(PackageError::Invalid("application plan row family"))
+        Err(PackageError::Malformed("application plan row family"))
     ));
 }
 
@@ -222,7 +222,7 @@ fn application_plan_rejects_changed_witness_ownership() {
     plan[3] = json!([9, 10]);
     assert!(matches!(
         decode_plan(&plan, &circuit_value()),
-        Err(PackageError::Invalid("application plan column ownership"))
+        Err(PackageError::Malformed("application plan column ownership"))
     ));
 }
 
@@ -232,7 +232,7 @@ fn application_plan_rejects_a_wrong_row_count() {
     plan[8] = json!(4);
     assert!(matches!(
         decode_plan(&plan, &circuit_value()),
-        Err(PackageError::Invalid("application plan range"))
+        Err(PackageError::Malformed("application plan range"))
     ));
 }
 
@@ -241,7 +241,7 @@ fn next_preimage_range_rejects_changed_start_or_count() {
     for raw in [RawRowRange(11, 5), RawRowRange(13, 4)] {
         assert!(matches!(
             decode_next_preimage_range(raw, &layout()),
-            Err(PackageError::Invalid("next preimage row range"))
+            Err(PackageError::Malformed("next preimage row range"))
         ));
     }
 }
@@ -252,7 +252,7 @@ fn next_preimage_suffix_rejects_changed_row_index() {
     circuit[12][6][0] = json!(99);
     assert!(matches!(
         validate_next_preimage_assertion_suffix(&circuit, &next_preimage_rows()),
-        Err(PackageError::Invalid("next preimage package suffix"))
+        Err(PackageError::Malformed("next preimage package suffix"))
     ));
 }
 
@@ -262,14 +262,14 @@ fn application_plan_rejects_assertion_not_immediately_before_next_preimage() {
     circuit[12][1] = json!([91]);
     assert!(matches!(
         decode_plan(&application_plan(), &circuit),
-        Err(PackageError::Invalid("application plan package suffix"))
+        Err(PackageError::Malformed("application plan package suffix"))
     ));
 }
 
 #[test]
 fn terminal_layout_retains_the_exact_outer_relation_shape() {
     let raw = json!([1, [0, 17, 16, 1]]);
-    let layout = super::super::validate_terminal(raw.as_array().expect("terminal option"), 17)
+    let layout = super::super::validate::validate_terminal(raw.as_array().expect("terminal option"), 17)
         .expect("valid terminal option")
         .expect("present terminal layout");
     assert_eq!(layout.row_start(), 0);
@@ -284,8 +284,8 @@ fn terminal_layout_rejects_each_changed_authoritative_field() {
         let mut raw = json!([1, [0, 17, 16, 1]]);
         raw[1][index] = json!(raw[1][index].as_u64().expect("terminal word") + 1);
         assert!(matches!(
-            super::super::validate_terminal(raw.as_array().expect("terminal option"), 17),
-            Err(PackageError::Invalid("pilot terminal option"))
+            super::super::validate::validate_terminal(raw.as_array().expect("terminal option"), 17),
+            Err(PackageError::Malformed("pilot terminal option"))
         ));
     }
 }

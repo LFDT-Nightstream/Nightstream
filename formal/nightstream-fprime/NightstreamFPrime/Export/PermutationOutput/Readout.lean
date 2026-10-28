@@ -108,8 +108,6 @@ def env (start count : Nat) (source : Env) : Env := fun column =>
   | some (index, lane) =>
       Layer.externalF (fun selected => source (sboxColumn start index selected)) lane
 
-/-- Readout at one column depends only on that source column and the retained
-final S-boxes. This transports source agreement through the computed view. -/
 theorem env_congr_at (start count : Nat) (left right : Env) (column : Nat)
     (atColumn : left column = right column)
     (atSboxes : ∀ (index : Fin count) (lane : Fin 16),
@@ -153,8 +151,6 @@ theorem env_idempotent (start count : Nat) (source : Env) :
       funext selected
       exact env_sboxColumn start source index selected
 
-/-- The exported expression for one source column uses the same readout as
-the verifier environment. No additional variable or copy equation is added. -/
 def variableExpr (start count column : Nat) : Expr :=
   match decode start count column with
   | none => .var column
@@ -170,8 +166,6 @@ theorem variableExpr_eval (start count column : Nat) (source : Env) :
       simp only [variableExpr, env, found, Layer.eval_externalE]
       rfl
 
-/-- Substitute computed readouts structurally in an exported arithmetic
-expression. The proof follows the expression, not a materialized package. -/
 def rewriteExpr (start count : Nat) : Expr → Expr
   | .var column => variableExpr start count column
   | .const value => .const value

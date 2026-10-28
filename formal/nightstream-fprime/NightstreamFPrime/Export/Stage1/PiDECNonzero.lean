@@ -3,10 +3,10 @@ import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 
 /-!
-Owns one deterministic nonzero PiDEC v1.2 conformance fixture. It consumes
-the exact accepted PiRLC output, computes the verifier-owned signed public
-digits, and solves child zero after choosing nonzero prover messages for
-children one through fifteen. No transcript state is changed by PiDEC.
+Owns one deterministic nonzero PiDEC v1.2 conformance fixture. It consumes the
+exact accepted PiRLC output, computes the verifier-owned signed public digits,
+and solves child zero after choosing nonzero prover messages for children one
+through fifteen.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiDECNonzero
@@ -29,9 +29,6 @@ structure Fixture where
   evalA : PiRLCPartialTrace.FixedArray PiRLCPartialTrace.MaterializedRingK
     productionShape.matrixCount
 
-/-- A computable relation value used only to type the fixture claims. PiDEC
-does not inspect its matrices; final integration replaces this value with the
-package-selected logical relation. -/
 def fixtureRelation : ProductionKey.LogicalRelation
     PhaseReference.logicalWidth PhaseReference.publicFits where
   matrices := fun _ _ _ => 0
@@ -40,8 +37,6 @@ def fixtureRelation : ProductionKey.LogicalRelation
       Phi81CarrierLayout.carrierWidth, Phi81ColumnLayout.blockCount,
       cubeVariables, ringDegree]
 
-/-- A deterministic key value used only to instantiate the concrete PiDEC
-algebra. The public PiDEC equations do not inspect key entries. -/
 def fixtureAjtaiKey : AjtaiKey
     (logicalWidth := PhaseReference.logicalWidth)
     (publicFits := PhaseReference.publicFits) :=

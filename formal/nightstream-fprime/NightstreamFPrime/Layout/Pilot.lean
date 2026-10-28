@@ -137,7 +137,6 @@ inductive ColumnOwner where
   | multiplication (index : Nat)
 deriving Repr, DecidableEq
 
-/-- Every physical column has exactly one owner. -/
 def columnOwner (interface : Interface) (offset : Nat)
     (column : Fin (physicalColumnCount interface offset)) : ColumnOwner :=
   if _beforePrior : column.val < offset then
@@ -192,8 +191,6 @@ theorem physicalRowCount_eq (interface : Interface) (offset : Nat) :
 def PhysicalHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   R1CS.RowsHold env (physicalRows interface offset)
 
-/-- Physical R1CS satisfaction preserves both logical pilot phase
-specifications. -/
 theorem physical_implies_spec (interface : Interface) (offset : Nat) (env : Env)
     (assumptions : Lifecycle.Pilot.Assumptions interface offset env)
     (physical : PhysicalHolds interface offset env) :

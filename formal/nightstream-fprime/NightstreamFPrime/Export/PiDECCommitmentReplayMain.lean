@@ -86,8 +86,6 @@ private def decodeRange (text : String) : Except String (Nat × Nat × Products)
       return (← start.getNat?, ← finish.getNat?, products)
   | _ => throw "expected a commitment range header and values"
 
-/-- Combine only complete, contiguous Lean ranges. The final coefficient sums
-use the same audited `PiDECCommitmentFold.sum` as the block replay. -/
 private def merge (outputPath : System.FilePath) (paths : List String) : IO UInt32 := do
   unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
   let started ← IO.monoMsNow
@@ -109,12 +107,8 @@ private def merge (outputPath : System.FilePath) (paths : List String) : IO UInt
   IO.println s!"pidec_Lean_commitments=passed ranges={parts.size} blocks={blocks} rows={Poseidon2HashChainV1Setup.verifierRows} children={productionGlobalParams.k} coefficients={Poseidon2HashChainV1Setup.verifierRows * productionGlobalParams.k * ringDegree} read_sum_write_ms={finished - started}"
   return 0
 
-/-- Parent blocks per work item: large enough to amortize scheduling, and small
-enough that faster cores take more items. -/
 private def chunkBlocks : Nat := 128
 
-/-- Every chunk sums its contiguous blocks; the chunk sums are added in order.
-All sums are canonical field additions, so the grouping does not change them. -/
 private def replay (parentPath outputPath : System.FilePath) (start finish : Nat) :
     IO UInt32 := do
   unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")

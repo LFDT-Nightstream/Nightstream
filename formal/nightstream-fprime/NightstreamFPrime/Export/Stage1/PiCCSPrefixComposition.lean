@@ -2,7 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixRound
 
 /-! Original-source contribution composition after a challenge prefix.
-All branches use the same messageAt endpoints and complete suffix domain.
 This module owns coefficient algebra, not retained-array or file provenance. -/
 
 set_option autoImplicit false
@@ -34,7 +33,6 @@ private def matrixValue (gamma : K) (message : ProtocolPolynomial.OutputMessage 
   sumMap extensionOps (canonicalMatrixCoordinates productionShape) fun coordinate =>
     extensionOps.mul (powers gamma coordinate.localGammaExponent) (message.matrixImage coordinate)
 
-/-- Original Pad and matrix totals keep separate coordinates and one matrix shift. -/
 def carriedTerm (data : ProtocolPolynomial.Data K productionShape) (gamma : K)
     (challenges : List K) {remaining : Nat}
     (dimension : cubeVariables = challenges.length + remaining + 1)
@@ -48,7 +46,6 @@ def carriedTerm (data : ProtocolPolynomial.Data K productionShape) (gamma : K)
     (powers gamma productionShape.matrixEvaluationOffset)
     (padValue gamma low) (padValue gamma high) (matrixValue gamma low) (matrixValue gamma high)
 
-/-- The existing fresh constructor, at the exact original-source endpoints. -/
 def freshTerm (data : ProtocolPolynomial.Data K productionShape)
     (alpha : CubePoint K cubeVariables) (gamma : K) (challenges : List K) {remaining : Nat}
     (dimension : cubeVariables = challenges.length + remaining + 1)
@@ -59,8 +56,6 @@ def freshTerm (data : ProtocolPolynomial.Data K productionShape)
       (endpoint data challenges dimension extensionOps.zero suffix)
       (endpoint data challenges dimension extensionOps.one suffix))
 
-/-- normPolynomialWithPowers retains every source's cubic before its canonical
-source sum. The source assignments are not combined before the cubic. -/
 def normTerm (data : ProtocolPolynomial.Data K productionShape)
     (alpha : CubePoint K cubeVariables) (gamma : K) (challenges : List K) {remaining : Nat}
     (dimension : cubeVariables = challenges.length + remaining + 1)
@@ -71,7 +66,6 @@ def normTerm (data : ProtocolPolynomial.Data K productionShape)
       (endpoint data challenges dimension extensionOps.zero suffix)
       (endpoint data challenges dimension extensionOps.one suffix))
 
-/-- Separate full-domain contribution sums, in canonical numeric suffix order. -/
 def components (data : ProtocolPolynomial.Data K productionShape)
     (alpha : CubePoint K cubeVariables) (gamma : K) (challenges : List K) {remaining : Nat}
     (dimension : cubeVariables = challenges.length + remaining + 1) :
@@ -111,8 +105,6 @@ private theorem pair_components (data : ProtocolPolynomial.Data K productionShap
     PiCCSCarriedMoments.pairPolynomialWithNorm_split extensionOps extensionLaws, scale_add]
   rfl
 
-/-- Exact fixed-width polynomial equality for every dimension-correct prefix.
-The endpoints are original messageAt values, not caller correctness premises. -/
 theorem components_eq_roundPolynomial (data : ProtocolPolynomial.Data K productionShape)
     (alpha : CubePoint K cubeVariables) (gamma : K) (challenges : List K) {remaining : Nat}
     (dimension : cubeVariables = challenges.length + remaining + 1) :
@@ -131,7 +123,6 @@ theorem components_eq_roundPolynomial (data : ProtocolPolynomial.Data K producti
     congrArg (fun polynomial => coefficient polynomial index)
       (pair_components data alpha gamma challenges dimension (NumericBooleanDomain.vertex remaining suffix))
 
-/-- The same composed polynomial evaluates to the original completion sum. -/
 theorem components_evaluate (data : ProtocolPolynomial.Data K productionShape)
     (alpha : CubePoint K cubeVariables) (gamma : K) (challenges : List K) {remaining : Nat}
     (dimension : cubeVariables = challenges.length + remaining + 1) (value : K) :
@@ -142,8 +133,6 @@ theorem components_evaluate (data : ProtocolPolynomial.Data K productionShape)
   exact PiCCSPrefixRound.roundPolynomial_evaluate extensionOps extensionLaws
     data alpha gamma challenges dimension value
 
-/-- Selected public input and original signed masks supply one common source.
-No expected polynomial, valid-witness or contribution-correctness premise is used. -/
 theorem selected_coefficients (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (challenges : List K) {remaining : Nat}
     (dimension : cubeVariables = challenges.length + remaining + 1) :

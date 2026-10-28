@@ -23,8 +23,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-! ## Complete physical layout -/
-
 def physicalRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (program : Lifecycle.Stage1.Application.Program) : List R1CS.Row :=
@@ -55,10 +53,6 @@ theorem physicalRowCount_eq
     prefixLength, applicationRows_length,
     nextPreimageRows_length]
 
-/-! ## Sole logical circuit instantiation -/
-
-/-- The canonical layout instantiates the sole logical Stage 1 circuit at its
-verifier-owned compact root. -/
 noncomputable def logicalCircuit
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

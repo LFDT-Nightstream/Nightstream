@@ -31,7 +31,6 @@ fn active_lean_bar_matches_runtime() {
     }
     assert!(lines.next().is_none(), "unexpected extra matrix row");
 
-    // Exercise the block and vector consumers on the complete coefficient basis.
     let mut basis_blocks = Vec::with_capacity(D * D);
     let mut expected_blocks = Vec::with_capacity(D * D);
     for column in 0..D {

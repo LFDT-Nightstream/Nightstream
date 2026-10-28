@@ -553,12 +553,10 @@ import NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights
 
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiDECSourceSupport.parent_within_piRlc
 
--- Complete-prefix instances of the generic Spartan map.
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceColumnCount_matches
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceRowCount_bounds
 
--- Shared endpoint and the default-profile endpoint checks.
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceColumnCount_eq_physicalEnd
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.sourceColumnCount_ge_piDecPhaseOffset
 #audit_axioms NightstreamFPrime.Layout.Stage1.Spartan.proofInputColumnCount_le_appendedPrivateColumnCount

@@ -88,8 +88,6 @@ private def decodeRange (text : String) :
         { coordinates := point.toList, dimension := by simp }, products)
   | _ => throw "expected a Pad range header, point and values"
 
-/-- Add only complete contiguous ranges at the same independently derived
-point. The final sum is computed by the audited Lean batch accumulator. -/
 private def mergePad (outputPath : System.FilePath) (paths : List String) : IO UInt32 := do
   unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")
   let started ← IO.monoMsNow
@@ -117,15 +115,8 @@ private def mergePad (outputPath : System.FilePath) (paths : List String) : IO U
   IO.println s!"pidec_Lean_pad_complete=computed ranges={parts.size} blocks={blocks} children={productionGlobalParams.k} field_words={productionGlobalParams.k * ringDegree * 2} read_sum_write_ms={(← IO.monoMsNow) - started}"
   return 0
 
-/-- Parent blocks per work item: large enough to amortize scheduling, and small
-enough that faster cores take more items. -/
 private def chunkBlocks : Nat := 128
 
-/-- Validate the complete source stream while computing only the requested
-range. An empty sparse range still emits its complete extent and zero sum.
-Every chunk sums its contiguous blocks and the chunk sums are added in order;
-field addition does not depend on the grouping. All partial addition and field
-arithmetic remain in Lean. -/
 private def pad (ccsPath parentPath outputPath : System.FilePath)
     (start finish : Nat) : IO UInt32 := do
   unless !(← outputPath.pathExists) do throw (IO.userError "output already exists")

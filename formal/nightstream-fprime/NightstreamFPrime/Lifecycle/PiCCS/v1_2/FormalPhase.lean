@@ -27,9 +27,6 @@ private theorem cubePoint_eq_of_coordinates
   cases right
   simp_all
 
-/-- Mechanical coverage of the exact production PiCCS relation. Every
-shared equality is derived from the parent carrier; no transcript state or
-challenge is supplied as a premise. -/
 theorem spec_implies_phaseHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

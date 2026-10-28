@@ -1,6 +1,4 @@
 //! Exact private-witness comparisons for independent Lean C/R/D generation.
-//! Adapted comparison kernels from tests/nifs/stage1_{pirlc,pidec}_replay.rs
-//! at 7f51e101; no producer input is obtained from these native comparison targets.
 
 use super::super::super::{load, Mat, Path, PathBuf, D, F};
 use neo_ajtai::nightstream_fprime_setup::PRODUCTION_MESSAGE_COLUMNS;
@@ -90,8 +88,6 @@ fn compare_parent_range(witness: &Mat<F>, path: &Path) -> Result<(usize, usize),
     Ok((start, end))
 }
 
-/// Check contiguous coverage of the full carrier, then alter its last tail
-/// coefficient and require the same comparison routine to reject it.
 pub(super) fn parent(parent_witness: &Path, ranges: &[PathBuf]) {
     let started = Instant::now();
     let mut witness: Mat<F> = load(parent_witness);
@@ -151,8 +147,6 @@ fn decode_masks(entries: &[[u64; 3]]) -> Result<ChildMasks, String> {
     Ok(output)
 }
 
-/// Equality of both validated masks checks every lane, including its sign.
-/// A mismatch reports the first changed coefficient rather than a digest.
 fn compare_block(actual: &ChildMasks, expected: &ChildMasks, block: usize, range: &Range<usize>) -> Result<(), String> {
     for child in 0..CHILDREN {
         let difference = (actual[child][0] ^ expected[child][0]) | (actual[child][1] ^ expected[child][1]);
@@ -225,8 +219,6 @@ fn compare_range(children: &[Mat<F>; CHILDREN], path: &Path) -> Result<(Range<us
     Ok((range, last_masks))
 }
 
-/// Compare consecutive Lean ranges against all 16 saved child matrices, then
-/// change exactly one final target coefficient and require localized rejection.
 pub(super) fn children(child_directory: &Path, ranges: &[PathBuf]) {
     let started = Instant::now();
     assert!(!ranges.is_empty(), "at least one complete replay range");
@@ -263,7 +255,6 @@ pub(super) fn children(child_directory: &Path, ranges: &[PathBuf]) {
     let lane = D - 1;
     let mut changed_target = actual_masks(&children, last);
     let bit = 1u64 << lane;
-    // Change +1 to zero, or change zero/-1 to +1. Other coordinates stay exact.
     if changed_target[child][0] & bit != 0 {
         changed_target[child][0] &= !bit;
     } else {

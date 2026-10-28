@@ -3,7 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiDECRetainedBlocks
 
 /-! Field blocks for the checked sampler core and its R1CS lowering values.
 Poseidon2 owns the four input lanes; the product-source block owns the checked
-coefficient words. Temporary witness helpers are excluded by read support. -/
+coefficient words. -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedBlocks
 

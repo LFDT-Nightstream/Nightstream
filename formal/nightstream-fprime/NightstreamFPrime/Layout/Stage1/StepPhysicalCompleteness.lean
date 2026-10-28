@@ -342,12 +342,6 @@ private theorem spartan_copy_source (source : Env) (column : Nat) (bound : colum
   simp only [Spartan.pullback, spartan_copy, if_neg (Spartan.sourceToSpartan_ne_constant column bound),
     Spartan.spartanToSource_sourceToSpartan column bound, Option.map_some, Option.getD_some]
 
-/-- The selected semantic step and its accepted NIFS run construct one
-Spartan witness through the running transition. The theorem derives the
-physical rows, next-preimage rows, actual NIFS result, and exact protocol
-source readback. It assumes no physical rows, generated phase specification,
-or environment agreement. The application suffix is appended separately from
-its actual witness. -/
 theorem complete
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -359,7 +353,8 @@ theorem complete
     (output : Output Digest AppState
       (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
-    (step : StepHoldsFor relation ajtai context.toList Lifecycle.Stage1.Poseidon2HashChainV1.program input output)
+    (program : Lifecycle.Stage1.Application.Program)
+    (step : StepHoldsFor relation ajtai context.toList program input output)
     (priorWellFormed : StateEncoding.WellFormed (priorHashPreimage (setup relation ajtai context.toList) input))
     (nextWellFormed : StateEncoding.WellFormed (nextHashPreimage (setup relation ajtai context.toList) input output))
     (freshPublic : input.fresh.publicInputs ⟨0, by decide⟩ =
@@ -423,7 +418,7 @@ theorem complete
     exact (sourceReadback _ (Or.inl (next_word_below index))).trans
       (PiCCSProtocolCompleteness.output_word prior (encHash (stateHash prior)) next output.x
         priorWellFormed.1 nextWellFormed.1 digestFixed values context index)
-  have specs := StepSourceSpecs.specs_of_step relation ajtai context input output nifs step priorWellFormed
+  have specs := StepSourceSpecs.specs_of_step relation ajtai context input output nifs program step priorWellFormed
     nextWellFormed priorWords nextWords (fun positive => nifsOutput.trans (recursiveResult positive))
   obtain ⟨completed, runningAgrees, runningRows⟩ := RunningTransitionLayout.physical_complete relation nifs specs.1
   have prefixRows : PilotPiCCSPiRLCPiDEC.PhysicalHolds relation completed :=
@@ -457,7 +452,7 @@ theorem complete
         (serializePreimage (publicFits := publicFits) next).getD index.val 0 := by
     intro index
     exact (runningAgrees _ (Or.inl ((next_word_below index).trans_le pilot_before_running))).trans (nextWords index)
-  have finalSpecs := StepSourceSpecs.specs_of_step relation ajtai context input output completed step priorWellFormed
+  have finalSpecs := StepSourceSpecs.specs_of_step relation ajtai context input output completed program step priorWellFormed
     nextWellFormed finalPrior finalNext (fun positive => finalOutput.trans (recursiveResult positive))
   obtain ⟨nextEnv, nextAgrees, nextRows⟩ := Lifecycle.Stage1.NextPreimage.completeness
     NextPreimageInputs.sourceInterface completed RunningTransitionInputs.phaseOffset finalSpecs.2

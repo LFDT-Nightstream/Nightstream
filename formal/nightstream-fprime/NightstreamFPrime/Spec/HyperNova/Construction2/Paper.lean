@@ -1,9 +1,6 @@
 import Lean.Elab.Tactic.Omega
 import NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/HyperNova/Construction2/Paper.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Paper-owned HyperNova Construction-2 and augmented-function semantics.
 
@@ -14,16 +11,6 @@ counter, the separation of fixed-index execution from honest outer dispatch,
 the prior hash link, one selected call to the function-valued `NIFS.V`,
 unchanged inactive slots, the next hash preimage, and the terminal verifier
 boundary.
-
-Does not own: SuperNeo, a concrete hash or instance encoder, Fiat--Shamir,
-commitment security, memory optimizations, delayed projection state, Rust,
-R1CS, or costs.
-
-Emits constraints: no.
-
-The base branch performs no NIFS fold.  The recursive branch consumes exactly
-one prover message.  The terminal verifier validates the current running and
-fresh relations but performs no additional fold, matching Construction 2.
 -/
 
 namespace NightstreamFPrime.Spec.HyperNova.Construction2.Paper
@@ -37,7 +24,6 @@ universe uKey uDigest uState uWitness uRunning uFresh uProof uEncoded
 def InRange (slotCount pc : Nat) : Prop :=
   1 <= pc /\ pc <= slotCount
 
-/-- Convert a checked one-based program counter into its selected slot. -/
 def selectedIndex
     {slotCount pc : Nat}
     (valid : InRange slotCount pc) : Fin slotCount :=
@@ -45,7 +31,6 @@ def selectedIndex
     rcases valid with ⟨lower, upper⟩
     omega⟩
 
-/-- Canonical one-based representation of a selected slot. -/
 def oneBased {slotCount : Nat} (slot : Fin slotCount) : Nat :=
   slot.val + 1
 
@@ -72,7 +57,6 @@ structure HashPreimage
   running : Fin slotCount -> Running
   pc : Nat
 
-/-- Verifier-owned NIFS keys and the explicit paper default vector. -/
 structure Setup
     (Key : Type uKey)
     (Running : Type uRunning)
@@ -81,12 +65,9 @@ structure Setup
     (slotCount : Nat) where
   verifierKeys : Fin slotCount -> Key
   nifs : Verifier Key Running Fresh Proof
-  /-- HyperNova Definition 12's single universal default instance `u_perp`.
-  The base branch replicates this value into every running slot. -/
+  /-- HyperNova Definition 12's single universal default instance `u_perp`. -/
   defaultRunning : Running
 
-/-- Deterministic application, public-link encoding, and hash operations used
-by the augmented functions. -/
 structure Machine
     (Key : Type uKey)
     (Digest : Type uDigest)
@@ -102,7 +83,6 @@ structure Machine
   encodeInstance : Digest -> Encoded
   hash : HashPreimage Key State Running slotCount -> Digest
 
-/-- All nondeterministic advice to one invocation of `F'_j`. -/
 structure Input
     (Key : Type uKey)
     (State : Type uState)
@@ -120,7 +100,6 @@ structure Input
   witness : Witness
   nifsProof : Proof
 
-/-- Every public output of one augmented-function invocation is computed. -/
 structure Output
     (Digest : Type uDigest)
     (State : Type uState)
@@ -171,9 +150,6 @@ def nextHashPreimage
   running := output.runningNext
   pc := oneBased output.pcNext
 
-/-- Honest outer execution dispatches to the augmented circuit selected by the
-application control function. This relation belongs to the outer NIVC layer,
-not to the fixed circuit `F'_j`. -/
 def HonestOuterDispatch
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -189,9 +165,6 @@ def HonestOuterDispatch
     (input : Input Key State Witness Running Fresh Proof slotCount) : Prop :=
   machine.control input.zi input.witness = functionIndex
 
-/-- The fused application helper used by the executable Construction 2
-relation. `transition_iff_honestOuterDispatch_and_fixedAugmented` below proves
-that its dispatch field belongs to the outer layer. -/
 structure ApplicationHolds
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -211,7 +184,6 @@ structure ApplicationHolds
   application : output.zNext =
     machine.step functionIndex input.zi input.witness
 
-/-- The public digest is computed from the complete typed next preimage. -/
 def OutputHolds
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -280,9 +252,6 @@ structure RecursiveHolds
     output.runningNext slot = input.running slot
   outputHash : OutputHolds setup machine input output
 
-/-- Independently expanded Construction-2 transition equations for one
-augmented function.  This is the frozen semantic target; it is not defined in
-terms of the helper branch structures below. -/
 def Transition
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -316,9 +285,7 @@ def Transition
       forall slot, slot ≠ selectedIndex priorPcValid ->
         output.runningNext slot = input.running slot)
 
-/-- The complete fixed-index augmented-circuit relation `F'_j`. It contains
-the base and recursive branches but does not select which fixed circuit the
-outer NIVC execution invokes. -/
+/-- The complete fixed-index augmented-circuit relation `F'_j`. -/
 def FixedAugmentedTransition
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -351,8 +318,6 @@ def FixedAugmentedTransition
       forall slot, slot ≠ selectedIndex priorPcValid ->
         output.runningNext slot = input.running slot)
 
-/-- The fused transition is exactly honest outer dispatch followed by the
-fixed-index augmented-circuit relation. -/
 theorem transition_iff_honestOuterDispatch_and_fixedAugmented
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -373,8 +338,6 @@ theorem transition_iff_honestOuterDispatch_and_fixedAugmented
         FixedAugmentedTransition setup machine functionIndex input output := by
   rfl
 
-/-- The fused helper accepts exactly one paper branch and includes honest
-outer dispatch. `FixedAugmentedTransition` owns the isolated `F'_j` layer. -/
 inductive Holds
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -395,8 +358,6 @@ inductive Holds
   | recursive : RecursiveHolds setup machine functionIndex input output ->
       Holds setup machine functionIndex input output
 
-/-- The augmented function accepts exactly the paper's base or recursive
-branch.  In particular, there is no third terminal-fold branch. -/
 theorem holds_iff_base_or_recursive
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -424,9 +385,6 @@ theorem holds_iff_base_or_recursive
     · exact Holds.base holds
     · exact Holds.recursive holds
 
-/-- The helper inductive accepts exactly the independently expanded paper
-transition.  No acceptance proposition or caller-supplied semantic fact occurs
-on the right-hand side. -/
 theorem holds_iff_transition
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -480,8 +438,6 @@ theorem holds_iff_transition
         unchanged := unchanged
         outputHash := outputHash }
 
-/-- The helper relation also exposes the two paper layers separately: honest
-outer dispatch and the selected fixed augmented circuit `F'_j`. -/
 theorem holds_iff_honestOuterDispatch_and_fixedAugmented
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -505,8 +461,7 @@ theorem holds_iff_honestOuterDispatch_and_fixedAugmented
       setup machine functionIndex input output)
 
 /-- Recursive terminal proof payload checked by Construction 2's outer NIVC
-verifier.  This is not the complete proof syntax: the base proof is the
-separate `OuterTerminalProof.bottom` constructor below. -/
+verifier. -/
 structure TerminalProof
     (Running : Type uRunning)
     (RunningWitness : Type uRunningWitness)
@@ -519,8 +474,7 @@ structure TerminalProof
   freshWitness : FreshWitness
   pc : Nat
 
-/-- Exact outer terminal-proof syntax from Construction 2.  The base proof is
-the unique `bottom` constructor and carries no recursive relation payload. -/
+/-- Exact outer terminal-proof syntax from Construction 2. -/
 inductive OuterTerminalProof
     (Running : Type uRunning)
     (RunningWitness : Type uRunningWitness)
@@ -532,13 +486,11 @@ inductive OuterTerminalProof
       (payload : TerminalProof Running RunningWitness Fresh FreshWitness
         slotCount)
 
-/-- The terminal statement contains only the advertised trace endpoint. -/
 structure TerminalStatement (State : Type uState) where
   iteration : Nat
   z0 : State
   zi : State
 
-/-- Relation membership checks performed at the terminal boundary. -/
 structure TerminalRelations
     (Key : Type uKey)
     (Running : Type uRunning)
@@ -551,9 +503,6 @@ structure TerminalRelations
   freshHolds : (slot : Fin slotCount) ->
     Key -> Fresh -> FreshWitness -> Prop
 
-/-- The recursive terminal equations.  They check every running
-instance/witness pair and the selected fresh instance/witness pair, and never
-invoke `NIFS.V`. -/
 def RecursiveTerminalTransition
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -589,34 +538,8 @@ def RecursiveTerminalTransition
     relations.freshHolds (selectedIndex pcValid)
       (setup.verifierKeys (selectedIndex pcValid)) proof.fresh proof.freshWitness
 
-/-- Payload-compatible terminal equations.  This relation is retained for
-the recursive payload lowerings.  At iteration zero it treats the payload as
-erased.  `OuterTerminalTransition` below owns the exact paper proof syntax. -/
-def TerminalTransition
-    {Key : Type uKey}
-    {Digest : Type uDigest}
-    {State : Type uState}
-    {Witness : Type uWitness}
-    {Running : Type uRunning}
-    {RunningWitness : Type uRunningWitness}
-    {Fresh : Type uFresh}
-    {FreshWitness : Type uFreshWitness}
-    {Proof : Type uProof}
-    {Encoded : Type uEncoded}
-    {slotCount : Nat}
-    (setup : Setup Key Running Fresh Proof slotCount)
-    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
-    (relations : TerminalRelations Key Running RunningWitness Fresh FreshWitness
-      slotCount)
-    (statement : TerminalStatement State)
-    (proof : TerminalProof Running RunningWitness Fresh FreshWitness slotCount) :
-    Prop :=
-  (statement.iteration = 0 /\ statement.zi = statement.z0) \/
-    RecursiveTerminalTransition setup machine relations statement proof
-
 /-- Exact Construction-2 terminal equations over the bottom-or-recursive
-proof envelope.  Bottom carries no payload.  Recursive proof data is accepted
-only through the recursive constructor. -/
+proof envelope. -/
 def OuterTerminalTransition
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -641,90 +564,6 @@ def OuterTerminalTransition
   | .recursive payload =>
       RecursiveTerminalTransition setup machine relations statement payload
 
-/-- Payload-compatible terminal helper. The base case treats the recursive
-payload as erased and checks only the initial endpoint. A positive iteration
-checks the prior public link, counter, all running relations, and the selected
-fresh relation; it performs no NIFS fold. -/
-inductive TerminalHolds
-    {Key : Type uKey}
-    {Digest : Type uDigest}
-    {State : Type uState}
-    {Witness : Type uWitness}
-    {Running : Type uRunning}
-    {RunningWitness : Type uRunningWitness}
-    {Fresh : Type uFresh}
-    {FreshWitness : Type uFreshWitness}
-    {Proof : Type uProof}
-    {Encoded : Type uEncoded}
-    {slotCount : Nat}
-    (setup : Setup Key Running Fresh Proof slotCount)
-    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
-    (relations : TerminalRelations Key Running RunningWitness Fresh FreshWitness
-      slotCount)
-    (statement : TerminalStatement State)
-    (proof : TerminalProof Running RunningWitness Fresh FreshWitness slotCount) :
-    Prop where
-  | base : statement.iteration = 0 -> statement.zi = statement.z0 ->
-      TerminalHolds setup machine relations statement proof
-  | recursive
-      (iterationPositive : 0 < statement.iteration)
-      (pcValid : InRange slotCount proof.pc)
-      (priorPublicInput : machine.freshPublic proof.fresh =
-        machine.encodeInstance (machine.hash {
-          verifierKeys := setup.verifierKeys
-          iteration := statement.iteration
-          z0 := statement.z0
-          current := statement.zi
-          running := proof.running
-          pc := proof.pc
-        }))
-      (runningValid : forall slot,
-        relations.runningHolds slot (setup.verifierKeys slot)
-          (proof.running slot) (proof.runningWitness slot))
-      (freshValid : relations.freshHolds (selectedIndex pcValid)
-        (setup.verifierKeys (selectedIndex pcValid)) proof.fresh
-          proof.freshWitness) :
-      TerminalHolds setup machine relations statement proof
-
-/-- The payload helper accepts exactly its erased-payload base or recursive
-terminal case. The recursive case checks relation membership and performs no
-NIFS call. -/
-theorem terminalHolds_iff_transition
-    {Key : Type uKey}
-    {Digest : Type uDigest}
-    {State : Type uState}
-    {Witness : Type uWitness}
-    {Running : Type uRunning}
-    {RunningWitness : Type uRunningWitness}
-    {Fresh : Type uFresh}
-    {FreshWitness : Type uFreshWitness}
-    {Proof : Type uProof}
-    {Encoded : Type uEncoded}
-    {slotCount : Nat}
-    (setup : Setup Key Running Fresh Proof slotCount)
-    (machine : Machine Key Digest State Witness Running Fresh Encoded slotCount)
-    (relations : TerminalRelations Key Running RunningWitness Fresh FreshWitness
-      slotCount)
-    (statement : TerminalStatement State)
-    (proof : TerminalProof Running RunningWitness Fresh FreshWitness slotCount) :
-    TerminalHolds setup machine relations statement proof <->
-      TerminalTransition setup machine relations statement proof := by
-  constructor
-  · intro accepted
-    cases accepted with
-    | base iterationZero initialState =>
-        exact Or.inl ⟨iterationZero, initialState⟩
-    | recursive iterationPositive pcValid priorPublicInput runningValid freshValid =>
-        exact Or.inr ⟨pcValid, iterationPositive, priorPublicInput,
-          runningValid, freshValid⟩
-  · rintro (⟨iterationZero, initialState⟩ |
-      ⟨pcValid, iterationPositive, priorPublicInput, runningValid, freshValid⟩)
-    · exact TerminalHolds.base iterationZero initialState
-    · exact TerminalHolds.recursive iterationPositive pcValid priorPublicInput
-        runningValid freshValid
-
-/-- Exact outer terminal acceptance.  The base constructor contains no
-recursive proof payload. -/
 inductive OuterTerminalHolds
     {Key : Type uKey}
     {Digest : Type uDigest}
@@ -755,8 +594,6 @@ inductive OuterTerminalHolds
         statement payload) :
       OuterTerminalHolds setup machine relations statement (.recursive payload)
 
-/-- The exact outer helper accepts exactly the independently expanded
-bottom-or-recursive terminal transition. -/
 theorem outerTerminalHolds_iff_transition
     {Key : Type uKey}
     {Digest : Type uDigest}

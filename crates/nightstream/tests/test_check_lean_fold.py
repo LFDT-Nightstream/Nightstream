@@ -178,7 +178,7 @@ class WaitForExitTests(unittest.TestCase):
         self.assertIsNone(process.poll())
 
     def test_exit_notification_uses_remaining_time_to_reap(self):
-        process = MagicMock(spec=check.POPEN, pid=123, returncode=None)
+        process = MagicMock(spec=check.UNPATCHED_POPEN, pid=123, returncode=None)
 
         def reap(*, timeout):
             if timeout == 0:
@@ -196,7 +196,7 @@ class WaitForExitTests(unittest.TestCase):
     def test_notification_timeout_does_not_restart_deadline(self):
         for elapsed in (1, 1.25):
             with self.subTest(elapsed=elapsed):
-                process = MagicMock(spec=check.POPEN, pid=123, returncode=None)
+                process = MagicMock(spec=check.UNPATCHED_POPEN, pid=123, returncode=None)
                 process.wait.side_effect = subprocess.TimeoutExpired(["child"], 0)
                 selector = MagicMock(KQ_EV_ERROR=0x4000)
                 selector.kqueue.return_value.control.return_value = []
@@ -236,7 +236,6 @@ class WaitForExitTests(unittest.TestCase):
     @unittest.skipUnless(hasattr(os, "waitid"), "os.waitid requires Python 3.13+ on macOS")
     def test_exited_unreaped_process_is_reaped(self):
         process = self.child("pass")
-        # Wait for the exit without reaping, so that the process is a zombie.
         os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOWAIT)
         self.assertEqual(check.wait_for_exit(process, 60), 0)
         self.assertEqual(process.returncode, 0)

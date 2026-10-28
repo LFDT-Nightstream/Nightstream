@@ -105,8 +105,6 @@ theorem paddedRows_length
     List.length_replicate,
     Nat.add_sub_of_le (sourceRowCount_bounds relation)]
 
-/-- The padded direct-Spartan rows preserve and reflect the complete current
-Stage 1 prefix through the running transition. -/
 theorem paddedRows_hold
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env) :

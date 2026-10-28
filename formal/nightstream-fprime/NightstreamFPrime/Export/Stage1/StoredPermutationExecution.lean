@@ -18,8 +18,6 @@ open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Export.Package
 open StoredWitnessExecution (asEnv)
 
-/-- Snapshot the sixteen input combinations into the canonical 1112-cell local
-storage. All remaining cells begin at zero, as in the reference procedure. -/
 def localInput (invocation : PermutationInvocation) (values : Array F) : Array F :=
   Array.ofFn fun column : Fin 1112 =>
     if column.val < 16 then
@@ -45,8 +43,6 @@ private theorem localInput_env (invocation : PermutationInvocation) (values : Ar
 private theorem canonicalRecipes_length : (PilotData.canonicalRecipes ()).length = 1096 :=
   Permutation.compile_schedule_recipe_count 16 PilotData.canonicalState
 
-/-- The completed local state is an Array value. Each canonical recipe is
-executed once, with reads served from the current stored state. -/
 def localCompleted (invocation : PermutationInvocation) (values : Array F) : Array F :=
   StoredWitnessExecution.executeRecipes (localInput invocation values) 16
     (PilotData.canonicalRecipes ())
@@ -63,8 +59,6 @@ private theorem localCompleted_env (invocation : PermutationInvocation) (values 
   rw [localCompleted, StoredWitnessExecution.executeRecipes_eq
     (localInput invocation values) 16 (PilotData.canonicalRecipes ()) fits, localInput_env]
 
-/-- Copy all 1096 completed witness values with the existing stored executor.
-The let binding retains one completed array before any global write occurs. -/
 def execute (invocation : PermutationInvocation) (values : Array F) : Array F :=
   let completed := localCompleted invocation values
   let constants := List.ofFn fun index : Fin 1096 =>
@@ -76,9 +70,6 @@ theorem execute_size (invocation : PermutationInvocation) (values : Array F) :
   unfold execute
   exact StoredWitnessExecution.executeRecipes_size values invocation.witnessStart _
 
-/-- Every global environment coordinate equals the existing permutation
-completion. Both procedures read the original input snapshot; only the
-complete destination interval must fit the supplied global array. -/
 theorem execute_eq (invocation : PermutationInvocation) (values : Array F)
     (fits : invocation.witnessStart + 1096 ≤ values.size) :
     asEnv (execute invocation values) =

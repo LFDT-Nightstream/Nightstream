@@ -43,8 +43,6 @@ attribute [local instance low] Classical.propDecidable
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The oracle's value of one challenge: the decoded extension element, or the
-sampled `Π_RLC` scalar. -/
 noncomputable def oracleValue {degree : Nat} (oracle : Point logicalWidth publicFits degree → Answer)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) : (challenge : Challenge) → challenge.Value
@@ -53,7 +51,6 @@ noncomputable def oracleValue {degree : Nat} (oracle : Point logicalWidth public
   | .round index => decodeK (oracle (point fresh proof (.round index)))
   | .rho index => RandomOracleExtraction.readRho (oracle (point fresh proof (.rho index)))
 
-/-- The oracle answers every challenge of this execution as the sponge does. -/
 def Deployed {degree : Nat} (oracle : Point logicalWidth publicFits degree → Answer)
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof : Proof degree) : Prop :=
@@ -61,14 +58,9 @@ def Deployed {degree : Nat} (oracle : Point logicalWidth publicFits degree → A
     challenge.read (TranscriptCoverage.run Transcript.initialState
       (challengeCalls fresh proof challenge))
 
-/-! ## Every execution has a deployed oracle -/
-
-/-- The four lanes from lane `2·slot`. A coin at `slot` reads the first two; a
-`Π_RLC` scalar (slot 0) reads all four. -/
 private def stateAnswer (slot : Slot) (state : Transcript.State) : Answer :=
   fun word => state.getD (2 * slot.val + word.val) 0
 
-/-- The sponge's answer at every point: the lanes of the state after its calls. -/
 noncomputable def deployedOracle {degree : Nat} :
     Point logicalWidth publicFits degree → Answer := fun target =>
   stateAnswer target.2 (TranscriptCoverage.run Transcript.initialState target.1.val)
@@ -94,8 +86,6 @@ theorem deployedOracle_deployed {degree : Nat}
       rfl
   | _ => rfl
 
-/-! ## The oracle verifier at a deployed oracle -/
-
 variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
   (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -103,7 +93,6 @@ variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   {proof : Proof (ProductionKey.degreeBound relation)}
   {oracle : Point logicalWidth publicFits (ProductionKey.degreeBound relation) → Answer}
 
-/-- At a deployed oracle, the oracle's `Π_CCS` coins are the key's coins. -/
 theorem coins_eq (deployed : Deployed oracle fresh proof) :
     coins oracle fresh proof =
       ((ProductionKey.key relation ajtai).piCcsProbe running fresh proof).coins := by
@@ -131,14 +120,12 @@ theorem oracleProbe_eq (deployed : Deployed oracle fresh proof) :
   unfold oracleProbe
   rw [coins_eq relation ajtai running deployed]
 
-/-- At a deployed oracle, the key's `Π_RLC` challenges are the oracle's. -/
 theorem piRlcChallenges_eq (deployed : Deployed oracle fresh proof) :
     (ProductionKey.key relation ajtai).piRlcChallenges running fresh proof =
       some (rho oracle fresh proof) := by
   rw [rho_seal relation ajtai running fresh proof]
   exact congrArg some (funext fun index => (deployed (.rho index)).symm)
 
-/-- At a deployed oracle, the key's `Π_DEC` attempt is the oracle attempt. -/
 theorem attempt_eq (deployed : Deployed oracle fresh proof) :
     (ProductionKey.key relation ajtai).piDecAttempt running fresh proof =
       some (attempt relation ajtai oracle running fresh proof) := by
@@ -184,9 +171,6 @@ private theorem output_isSome (deployed : Deployed oracle fresh proof) :
       (ProductionKey.key relation ajtai).piDecPublicInputSplit.checked_eq_none _ bounded]
     rfl
 
-/-- Verifier fidelity: at a deployed oracle, the oracle verifier accepts
-exactly when the production NIFS verifier returns a running output and the
-witnesses open the children of its `Π_DEC` attempt. -/
 theorem accepts_iff_verify
     (children : Fin productionShape.runningCount →
       PaperAlgebra.Assignment (logicalWidth := logicalWidth) (publicFits := publicFits))

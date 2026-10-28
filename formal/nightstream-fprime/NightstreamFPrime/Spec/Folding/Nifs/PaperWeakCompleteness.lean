@@ -24,22 +24,16 @@ variable {Structure Assignment PublicInput Point Evaluation Commitment Scalar : 
   (publicSplit : PiDEC.PaperVerifier.PublicInputSplit dec)
   (evaluationArity : PiDEC.PaperVerifier.EvaluationArity semantics)
 
-/-- The verifier computes the parent from public coins, then receives only
-the PiDEC public child messages. There is no private witness argument. -/
 def publicAttempt (vector : Fin arity.total → Challenge rlc)
     (messages : Fin params.k → PiDEC.PaperVerifier.ChildMessage Evaluation Commitment) :
     PiDEC.PaperVerifier.Attempt Structure PublicInput Point Evaluation Commitment params where
   parent := PiRLC.combinedOutput rlc batch.system batch.point batch.inputs (scalarVector rlc vector)
   messages := messages
 
-/-- The suffix extractor and the public verifier use exactly the same public
-attempt; the reply's private assignments cannot change it. -/
 theorem attempt_eq_publicAttempt (vector : Fin arity.total → Challenge rlc)
     (reply : PaperWeakSuffix.Reply Assignment Evaluation Commitment params) :
     PaperWeakSuffix.attempt rlc batch vector reply = publicAttempt rlc batch vector reply.messages := rfl
 
-/-- The actual PiDEC decision procedure supplies the deterministic final check
-after the sole public random message, the PiRLC challenge vector. -/
 def publicAccepts [DecidableEq Commitment] [DecidableEq Evaluation]
     (vector : Fin arity.total → Challenge rlc)
     (messages : Fin params.k → PiDEC.PaperVerifier.ChildMessage Evaluation Commitment) : Bool :=
@@ -59,8 +53,6 @@ theorem publicAccepts_iff [DecidableEq Commitment] [DecidableEq Evaluation]
   unfold publicAccepts
   exact decide_eq_true_iff
 
-/-- The honest prover splits exactly the assignment combined under the
-verifier's public vector. Both messages and witnesses come from that split. -/
 def honestReply (vector : Fin arity.total → Challenge rlc)
     (assignments : Fin arity.total → Assignment) :
     PaperWeakSuffix.Reply Assignment Evaluation Commitment params where
@@ -69,8 +61,6 @@ def honestReply (vector : Fin arity.total → Challenge rlc)
     (PiRLC.combinedWitness rlc (scalarVector rlc vector) assignments)
   assignments := dec.splitAssignment (PiRLC.combinedWitness rlc (scalarVector rlc vector) assignments)
 
-/-- Existing PiRLC completeness supplies the parent opening; existing PiDEC
-completeness supplies all final child openings. Neither is an output premise. -/
 theorem honest_complete (vector : Fin arity.total → Challenge rlc)
     (assignments : Fin arity.total → Assignment)
     (inputFresh : ∀ index, (batch.inputs index).stage = .fresh)
@@ -100,8 +90,6 @@ theorem honest_complete (vector : Fin arity.total → Challenge rlc)
     (PiRLC.combinedOutput rlc batch.system batch.point batch.inputs (scalarVector rlc vector))
     (PiRLC.combinedWitness rlc (scalarVector rlc vector) assignments) rfl parent
 
-/-- The same public verifier accepts the honest suffix on every allowed
-public vector, with no conditioning or private verifier randomness. -/
 theorem honest_public_accepts [DecidableEq Commitment] [DecidableEq Evaluation]
     (vector : Fin arity.total → Challenge rlc) (assignments : Fin arity.total → Assignment)
     (inputFresh : ∀ index, (batch.inputs index).stage = .fresh)
@@ -111,8 +99,6 @@ theorem honest_public_accepts [DecidableEq Commitment] [DecidableEq Evaluation]
   apply (publicAccepts_iff rlc batch dec publicSplit evaluationArity vector _).mpr
   exact (honest_complete rlc batch dec publicSplit evaluationArity vector assignments inputFresh inputHolds).1
 
-/-- PiRLC's existing public-coin theorem identifies its public output with
-the exact parent consumed by the final PiDEC verifier. -/
 theorem public_parent
     (context : PiRLC.PaperCompleteness.Context Structure Assignment PublicInput Point Evaluation
       Commitment Scalar)

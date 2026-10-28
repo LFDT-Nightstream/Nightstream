@@ -3,8 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics
 
 /-!
 Owns the four indexed views of the existing physical C invocation list.
-Each slice selects the same invocation in its semantic compiler trace.
-Only list composition and the proved trace equalities are used.
 -/
 
 set_option autoImplicit false
@@ -74,7 +72,6 @@ private theorem middle_get? {Value : Type*} (before selected after : List Value)
   rw [List.getElem?_append_right (Nat.le_add_right _ _)]
   rw [Nat.add_sub_cancel_left]
 
-/-- The statement slice selects its actual statement compiler invocation. -/
 theorem statement_invocation (index : Fin statementCount) :
     physicalInvocation (PoseidonActionSemantics.sliceIndex statementOffset statementCount statementFits index) =
       (statementTrace Data.logicalWidth Data.publicFits).invocations.get
@@ -92,7 +89,6 @@ theorem statement_invocation (index : Fin statementCount) :
   simpa only [List.get_eq_getElem, PoseidonActionSemantics.sliceIndex,
     statementOffset, Nat.zero_add] using selected.trans (List.getElem?_eq_getElem bounded)
 
-/-- The challenge slice selects the semantic challenge compiler invocation. -/
 theorem challenge_invocation (index : Fin challengeCount) :
     physicalInvocation (PoseidonActionSemantics.sliceIndex challengeOffset challengeCount challengeFits index) =
       (challengeSemanticTrace Data.logicalWidth Data.publicFits).invocations.get
@@ -120,7 +116,6 @@ theorem challenge_invocation (index : Fin challengeCount) :
   simpa only [List.get_eq_getElem, PoseidonActionSemantics.sliceIndex] using
     selected.trans (List.getElem?_eq_getElem bounded)
 
-/-- The round slice selects the semantic round compiler invocation. -/
 theorem round_invocation (index : Fin roundCount) :
     physicalInvocation (PoseidonActionSemantics.sliceIndex roundOffset roundCount roundFits index) =
       (roundSemanticTrace Data.logicalWidth Data.publicFits).invocations.get
@@ -144,7 +139,6 @@ theorem round_invocation (index : Fin roundCount) :
   simpa only [List.get_eq_getElem, PoseidonActionSemantics.sliceIndex] using
     selected.trans (List.getElem?_eq_getElem bounded)
 
-/-- The output slice selects the semantic output compiler invocation. -/
 theorem output_invocation (index : Fin outputCount) :
     physicalInvocation (PoseidonActionSemantics.sliceIndex outputOffset outputCount outputFits index) =
       (outputSemanticTrace Data.logicalWidth Data.publicFits).invocations.get

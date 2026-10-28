@@ -13,7 +13,6 @@ PINS = {1: 'POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER',
 
 
 def rust_code(text):
-    """Remove nested comments and string literals before reading declarations."""
     output, index, depth = [], 0, 0
     while index < len(text):
         pair = text[index:index + 2]

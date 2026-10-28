@@ -4,11 +4,6 @@ import NightstreamFPrime.Layout.PiDEC.v1_2.Values
 
 /-!
 Owns the first direct 4-matrix prefix that includes every PiRLC sampler row.
-
-Rows remain in protocol order: the established prefix through sampler
-Poseidon2, sampler reduction and checked-word rows, PiRLC arithmetic,
-PiDEC, and the running transition. This module does not select an application
-package or close any phase status.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
@@ -332,9 +327,6 @@ private theorem priorRowsZero
   rw [ProductionRelation.Plan.append_rowsZero_iff]
   exact ⟨⟨⟨samplerPrefix, piRlc⟩, piDec⟩, transition⟩
 
-/-- Complete encoding contract for the sampler-aware prefix. The protocol prefix
-and the two sampler ordinary blocks encode one canonical nested source
-assignment. -/
 structure Encodes
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry application

@@ -29,8 +29,6 @@ variable {Extension : Type uExtension} {Commitment : Type uCommitment}
 variable (key : Key Extension Commitment PublicInput Scalar State shape
   columns blockCount degreeBound)
 
-/-- One literal CE(b) coordinate of the returned running product. Structure
-and the fresh norm stage come from the verifier key. -/
 def runningStatement
     (result : Running Extension Commitment PublicInput shape)
     (index : Fin shape.runningCount) :
@@ -66,8 +64,6 @@ private theorem attemptAccepted
   subst checkedAttempt
   exact checkedAccepted
 
-/-- The actual NIFS result and the verifier-produced child have identical
-structure, point, public input, commitment, evaluation family, and stage. -/
 theorem runningStatement_eq_child
     (attemptEq : key.piDecAttempt running fresh proof = some attempt)
     (accepted : verify key running fresh proof = some result)
@@ -98,9 +94,6 @@ theorem runningStatement_eq_child
       rw [same]
       rfl
 
-/-- Consume the output relation's witness in its actual running-index order.
-The fixed production instantiation supplies all 16 children through this
-total reindexing; it supplies no prover-selected omission or permutation. -/
 def childOpeningsOfOutput
     (attemptEq : key.piDecAttempt running fresh proof = some attempt)
     (accepted : verify key running fresh proof = some result)
@@ -116,8 +109,6 @@ def childOpeningsOfOutput
       attemptEq accepted child]
     exact outputValid (Fin.cast key.outputCount_eq child)
 
-/-- Valid witnesses for the exact returned output rule out the unexplained
-child-opening-failure branch of the bare-acceptance security statement. -/
 theorem outputWitness_excludes_childOpeningFailure
     (attemptEq : key.piDecAttempt running fresh proof = some attempt)
     (accepted : verify key running fresh proof = some result)
@@ -130,9 +121,7 @@ theorem outputWitness_excludes_childOpeningFailure
   exact failure ⟨childOpeningsOfOutput key running fresh proof result attempt
     attemptEq accepted outputWitness outputValid⟩
 
-/-- Theorem 13's deterministic extraction step: one successful output-relation
-execution yields a valid parent opening by radix recomposition. This consumes
-the actual NIFS output witness and has no child-opening failure alternative. -/
+/-- Theorem 13's deterministic extraction step. -/
 theorem accepted_outputWitness_extracts_parent
     (attemptEq : key.piDecAttempt running fresh proof = some attempt)
     (accepted : verify key running fresh proof = some result)

@@ -1,14 +1,7 @@
 import NightstreamFPrime.Spec.SumCheck.VerifierCertificate
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/SumCheck/HypercubeTruth.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespace renamed, otherwise unchanged. -/
-
 /-!
 Canonical finite SumCheck truth path for an explicit hypercube polynomial.
-
-Protocol: generic SumCheck.
-Phase: semantic expected-round and terminal construction.
-Constraint family: none; this is verifier-independent truth semantics.
 
 Owns: recursive Boolean completion sums, the exact finite expected polynomial
 at each challenge prefix, the terminal full-point evaluation, and construction
@@ -17,29 +10,12 @@ of `SemanticGhosts.Honest` from round/challenge shape equality.
 Does not own: a protocol-specific polynomial, polynomial degree bounds,
 verifier messages, challenge sampling, root counting, Fiat--Shamir, Rust,
 R1CS, or counts.
-
-Emits constraints: no.
-
-Authority boundary: the caller supplies one explicit total polynomial on
-coordinate lists. Expected rounds and the terminal are derived structurally
-from that polynomial and verifier challenges; no prover-supplied expected
-function or terminal identity enters the construction.
-
-| SumCheck phase | Derived object | Exact mathematical meaning |
-|---|---|---|
-| initial | `sumCompletions q [] n` | sum of `q` over all `n` Boolean coordinates |
-| product split | `sumCompletions_add` | split one cube into an explicit prefix cube followed by a suffix cube |
-| round | `expectedPolynomialsFrom` | fix prior challenges, expose one variable, sum remaining Boolean suffixes |
-| terminal | `q challenges` | evaluate the same explicit polynomial at the full challenge vector |
-| truth path | `semanticGhosts_honest` | every expected sum/forwarding/terminal equation holds |
 -/
 
 namespace NightstreamFPrime.Spec.SumCheck.Finite.HypercubeTruth
 
 universe uField
 
-/-- Sum an explicit polynomial over every Boolean completion of `prefix`.
-The recursion order is coordinate-first, zero branch then one branch. -/
 def sumCompletions
     {Field : Type uField}
     (ops : Ops Field)
@@ -50,9 +26,6 @@ def sumCompletions
         (sumCompletions ops polynomial (fixed ++ [ops.zero]) remaining)
         (sumCompletions ops polynomial (fixed ++ [ops.one]) remaining)
 
-/-- Split a Boolean-completion cube into an outer prefix domain followed by an
-inner suffix domain. This is structural: both sides enumerate the same branch
-tree in the same order, so no field or commutativity laws are required. -/
 theorem sumCompletions_add
     {Field : Type uField}
     (ops : Ops Field)
@@ -71,8 +44,6 @@ theorem sumCompletions_add
       simp only [Nat.succ_add, sumCompletions]
       rw [inductionHypothesis, inductionHypothesis]
 
-/-- Exact expected round polynomials after fixing the preceding verifier
-challenges. The list has one semantic polynomial per challenge. -/
 def expectedPolynomialsFrom
     {Field : Type uField}
     (ops : Ops Field)
@@ -84,7 +55,6 @@ def expectedPolynomialsFrom
         sumCompletions ops polynomial (fixed ++ [value]) challenges.length) ::
       expectedPolynomialsFrom ops polynomial (fixed ++ [challenge]) challenges
 
-/-- Expected polynomials from the empty challenge prefix. -/
 def expectedPolynomials
     {Field : Type uField}
     (ops : Ops Field)
@@ -134,8 +104,6 @@ private theorem expectedChainFrom
               inductionHypothesis (fixed := fixed ++ [challenge])
                 (messages := messages) tailLength
 
-/-- Canonical finite semantic ghosts for one explicit polynomial and challenge
-vector. -/
 def semanticGhosts
     {Field : Type uField}
     (ops : Ops Field)
@@ -144,8 +112,6 @@ def semanticGhosts
   trueInitial := sumCompletions ops polynomial [] challenges.length
   expected := expectedPolynomials ops polynomial challenges
 
-/-- The structurally derived expected rounds form the exact semantic truth
-path whenever the finite certificate has one message per challenge. -/
 theorem semanticGhosts_honest
     {Field : Type uField}
     (ops : Ops Field)

@@ -2,8 +2,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 
 /-!
 Owns the exact transcript-family views of the one direct PiCCS Poseidon2
-schedule. Statement, challenge, round, and output views are fixed slices of
-the global indexed schedule and retain the lifecycle action-list authority.
+schedule.
 
 This module does not assemble the non-transcript PiCCS leaves.
 -/
@@ -197,7 +196,6 @@ def roundLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨182, by
 def outputLast : Fin PiCCSActionPayloadBlock.invocationCount := ⟨947, by
   norm_num [PiCCSActionPayloadBlock.invocationCount]⟩
 
-/-- The value state after `index` invocations of one transcript slice. -/
 def sliceState {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
@@ -213,7 +211,6 @@ def sliceState {program : Lifecycle.Stage1.Application.Program}
       (PiCCSPoseidonPreservation.valueState geometry assignment) offset count
       fits)
 
-/-- Every challenge and round read sees the value state at its position. -/
 structure Reads {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)

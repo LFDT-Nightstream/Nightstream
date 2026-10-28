@@ -4,8 +4,7 @@ import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 
 /-!
 Owns the concrete package geometry and recursive fixed point for
-`Poseidon2HashChainV1`. It does not select the semantic Ajtai key or authorize
-a Rust loader or proof backend.
+`Poseidon2HashChainV1`.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
@@ -15,7 +14,6 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec
 
-/-- The only application program selected by this package. -/
 def application : Lifecycle.Stage1.Application.Program :=
   Lifecycle.Stage1.Poseidon2HashChainV1.program
 
@@ -129,8 +127,6 @@ theorem sourceWidth :
   simp [application, Lifecycle.Stage1.Poseidon2HashChainV1.program,
     Lifecycle.Stage1.Poseidon2HashChainV1.messageWordCount]
 
-/-- All physical-package, retained-carrier, and recursive-plan bounds for the
-approved `2^28` profile. -/
 theorem fits : PerApplicationFixedPoint.FitsTwoPow28 application :=
   PerApplicationFixedPoint.fitsTwoPow28OfApplicationBounds application
     (by rw [applicationPlan_rowCount]; norm_num)
@@ -176,9 +172,6 @@ theorem jointDomain_le_twoPow28 :
       2 ^ Lifecycle.cubeVariables :=
   PerApplicationFixedPoint.jointDomain_le_twoPow28 application fits
 
-/-- Canonical physical package with the self-derived recursive relation and
-terminal metadata installed. The explicit argument prevents artifact-sized
-construction during module initialization. -/
 def package (_unit : Unit) : Export.Package.CircuitPackage :=
   PerApplicationCanonicalPackage.package application fits
 

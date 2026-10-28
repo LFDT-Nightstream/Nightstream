@@ -25,8 +25,6 @@ variable {Structure : Type uStructure} {Assignment : Type uAssignment}
   (laws : ExtractionAlgebra semantics params algebra)
   (ops : RelaxedBindingOps Assignment Commitment Scalar)
 
-/-- Only local operation agreement and the subtraction norm bound are needed.
-No uniqueness or collision conclusion is a field of this record. -/
 structure Compatible : Prop where
   differenceValid : ∀ left right, algebra.challengeValid left → algebra.challengeValid right →
     ops.differenceChallenge (laws.ring.sub left right)
@@ -92,8 +90,6 @@ private theorem inverse_cross_eq (delta₁ delta₂ : Scalar)
     _ = _ := by
       rw [inverseActionCancellation laws.ring laws.assignmentModule laws.assignmentLaws delta₁ unit₁]
 
-/-- The collision data are precisely the two observed challenge and response
-differences at this coordinate. Unit inverses occur only in its proof. -/
 def collisionAt (samePhi : phi leftBatch.inputs = phi rightBatch.inputs)
     (coordinate : Fin arity.total)
     (different : extractedAssignment laws strongSet left coordinate ≠

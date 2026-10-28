@@ -70,8 +70,6 @@ theorem statementFinalState_localSupport
     (StatementAbsorption.actions interface offset)).2]
   exact projected.2
 
-/-- The statement transcript's symbolic final state moves by exactly the
-parent offset delta. Payload values cannot change these wire positions. -/
 theorem statementFinalState_shift
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -100,8 +98,6 @@ theorem statementFinalState_shift
         (Duplex.Formal.compileWiring_matches leftOffset Hash.zeroE
           leftActions).2
 
-/-- The fixed challenge schedule preserves the same uniform relocation from
-its incoming statement state to its final state. -/
 theorem challengeFinalState_shift
     (left right : ChallengeDerivation.Interface)
     (leftOffset delta : Nat)
@@ -228,8 +224,6 @@ theorem roundOutputs_localSupport
     rw [RoundTranscript.layoutWiring_eq_compileWiring]
     exact projected.2
 
-/-- All verifier-derived round samples and the final transcript state move by
-one uniform parent offset delta. -/
 theorem roundWiring_shift
     {degreeBound : Nat}
     (left right : RoundTranscript.Interface degreeBound)
@@ -340,8 +334,6 @@ theorem outputFinalState_localSupport
     (interface.initialState offset) (OutputBinding.actions interface offset)).2]
   exact projected.2
 
-/-- Output binding is one nonempty absorb action, so its final symbolic state
-is the output of the last permutation in the fixed 765-block schedule. -/
 theorem outputFinalState_direct
     (interface : OutputBinding.Interface) (offset : Nat) :
     OutputBinding.finalState interface offset =
@@ -383,9 +375,6 @@ theorem formalStatementFinalState_shift
       (Formal.atOffset right (leftOffset + delta)))
     (leftOffset + StateBinding.signCount) delta
 
-/-- Through statement absorption, challenge derivation, and all indexed round
-absorptions, every parent-facing PiCCS transcript output moves by the exact
-parent offset delta. -/
 theorem formalRoundOutputs_shift
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -473,8 +462,6 @@ theorem outputBindingOffset_shift
     Formal.initialClaimRowOffset
   omega
 
-/-- The complete post-PiCCS transcript state relocates lane by lane. The
-proof uses only the direct last-permutation endpoint formula. -/
 theorem formalOutputFinalState_shift
     {logicalWidth degreeBound : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤

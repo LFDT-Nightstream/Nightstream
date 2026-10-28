@@ -23,10 +23,6 @@ private abbrev Claim := CE.Instance (PaperAlgebra.Structure selectedShape.logica
   (Phi81Relation.PublicInput selectedShape) PaperAlgebra.Point
   PaperAlgebra.Evaluation PaperAlgebra.Commitment
 
-/-- For the same successful stored split, sum every computed key-block
-contribution for each child and row. The result is the existing honest
-message commitment for the production key. No expected commitment is an
-input, and no parent-opening or runtime premise is used. -/
 theorem sum_contributions_honestMessages
     (parent : Claim)
     (parentWitness : StoredAssignment selectedShape.carrierWidth)

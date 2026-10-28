@@ -391,7 +391,6 @@ def CanonicalHolds {blockCount cellCount : Nat} [NeZero cellCount]
     evalOutput interface offset env block cell =
       orderedCombination interface offset env block cell
 
-/-- The sequential child wiring is the paper's head-first `K + k` sum. -/
 theorem accumulated_eq_orderedCombination
     {blockCount cellCount : Nat}
     (interface : Interface blockCount cellCount) (offset : Nat) (env : Env)

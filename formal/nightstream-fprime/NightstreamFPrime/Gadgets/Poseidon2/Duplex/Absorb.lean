@@ -19,8 +19,6 @@ def reference (state : Spec.Poseidon2.State) (input : List F) :
     Spec.Poseidon2.State :=
   (Hash.inputChunks input).foldl Spec.Poseidon2.absorbBlock state
 
-/-- The existing absorption compiler evaluates to the existing Poseidon2
-reference fold. -/
 theorem compile_sound (env : Env) (start : Nat) (state : EState)
     (input : List Expr)
     (rows : ConstraintsHold env

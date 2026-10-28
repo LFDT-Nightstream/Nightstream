@@ -2,8 +2,7 @@ import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgramSubstitution
 
 /-!
 Proves row-by-row equality between the compact application matrix program and
-the canonical direct 4-matrix plan for the selected Lean application. The
-package row accessor remains an explicit identity-checked premise.
+the canonical direct 4-matrix plan for the selected Lean application.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
@@ -109,8 +108,6 @@ theorem ordinaryBlock_row?
     ((ApplicationDirectSource.program application fits).bounded index)
     agreesA agreesB agreesC
 
-/-- Every row of the selected application's compact program is the exact row
-of its canonical direct Lean plan. -/
 theorem matrixProgram_row?
     {application : ApplicationProgram} {logicalWidth : Nat}
     (fits : FitsTwoPow28 application)

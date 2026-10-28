@@ -34,9 +34,6 @@ variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Layout-only shape evidence for the fixed interfaces of all nonlinear or
-transcript PiCCS children. These fields do not supply protocol values or
-challenges. -/
 structure InputShapes
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits)
@@ -89,7 +86,6 @@ structure InputShapes
       (Formal.outputBindingInterface
         (Formal.atOffset interface parentOffset)) childOffset
 
-/-- Relation-owned fresh-column cost of the two final identity assertions. -/
 def terminalFreshCost
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits)
@@ -99,7 +95,6 @@ def terminalFreshCost
       (Formal.atOffset interface parentOffset))
     (Formal.finalIdentityOffset relation interface parentOffset)
 
-/-- Relation-owned physical-row cost of the two final identity assertions. -/
 def terminalRowCost
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits)
@@ -109,8 +104,6 @@ def terminalRowCost
       (Formal.atOffset interface parentOffset))
     (Formal.finalIdentityOffset relation interface parentOffset)
 
-/-- The final identity receives exactly the output shapes proved by the five
-preceding arithmetic children. No child operations are unfolded here. -/
 private theorem terminalInputShapes
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits)
@@ -187,7 +180,6 @@ private def appendAll : List (List Expr) → List Expr
   | constraints :: next :: rest =>
       constraints ++ appendAll (next :: rest)
 
-/-- The twelve opaque child constraint lists in canonical phase order. -/
 def childConstraintLists
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -224,7 +216,6 @@ def childConstraintLists
     (Formal.outputBindingCircuit (Formal.atOffset interface offset))
     (Formal.outputBindingOffset relation interface offset)]
 
-/-- Exact twelve-child constraint order of `Formal.opsAt`. -/
 def orderedConstraints
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -244,8 +235,6 @@ theorem logicalConstraints_eq_ordered
     List.flatMap_nil, Formal.childOp, Op.flatConstraints,
     FormalCircuit.asSubcircuit_constraints, List.append_nil]
 
-/-- The phase constraint list is the flattening of its twelve existing child
-lists. Physical-row consumers can project a child without evaluating its rows. -/
 theorem logicalConstraints_eq_flatten
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -256,30 +245,24 @@ theorem logicalConstraints_eq_flatten
   unfold orderedConstraints childConstraintLists
   simp only [appendAll, List.flatten_cons, List.flatten_nil, List.append_nil]
 
-/-- Fresh-column delta for each child in canonical phase order. -/
 def physicalFreshDeltas
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : List Nat :=
   (childConstraintLists relation interface offset).map R1CS.totalFreshCount
 
-/-- Physical-row delta for each child in canonical phase order. -/
 def physicalRowDeltas
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : List Nat :=
   (childConstraintLists relation interface offset).map R1CS.totalRowCount
 
-/-- Logical private-column delta of each child, read from the canonical
-parent operation list rather than restated by the layout. -/
 def logicalPrivateDeltas
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat) : List Nat :=
   (Formal.opsAt relation interface offset).map Op.localLength
 
-/-- Each physical column delta is the child's logical private interval plus
-the fresh columns introduced by lowering that child's constraints. -/
 def physicalColumnDeltas
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
@@ -288,7 +271,6 @@ def physicalColumnDeltas
     (logicalPrivateDeltas relation interface offset)
     (physicalFreshDeltas relation interface offset)
 
-/-- Running totals after each child, excluding the initial zero prefix. -/
 def cumulativeFrom : Nat → List Nat → List Nat
   | _, [] => []
   | total, delta :: rest =>
@@ -369,7 +351,6 @@ theorem totalRowCount_eq_deltas
       R1CS.totalRowCount).sum
   exact totalRowCount_appendAll _
 
-/-- Exact fresh-column delta of every child at the fixed production degree. -/
 theorem physicalFreshDeltas_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits)
@@ -419,7 +400,6 @@ theorem physicalFreshDeltas_eq
       (Formal.outputBindingOffset relation interface parentOffset)]
   rfl
 
-/-- Exact physical-row delta of every child at the fixed production degree. -/
 theorem physicalRowDeltas_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits)
@@ -470,7 +450,6 @@ theorem physicalRowDeltas_eq
       (Formal.outputBindingOffset relation interface parentOffset)]
   rfl
 
-/-- Exact logical private interval of every child at the production degree. -/
 theorem logicalPrivateDeltas_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits)
@@ -492,7 +471,6 @@ theorem logicalPrivateDeltas_eq_production
     NightstreamFPrime.Gadgets.SumCheck.FixedChain.Owned.privateCount,
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
-/-- Exact row deltas after discharging the relation-owned terminal cost. -/
 theorem physicalRowDeltas_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits)
@@ -504,7 +482,6 @@ theorem physicalRowDeltas_eq_production
   rw [physicalRowDeltas_eq relation interface parentOffset inputs,
     terminalRowCost_eq relation interface parentOffset inputs]
 
-/-- Exact physical-column deltas after each child's lowering. -/
 theorem physicalColumnDeltas_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits)
@@ -519,8 +496,6 @@ theorem physicalColumnDeltas_eq_production
     terminalFreshCost_eq relation interface parentOffset inputs]
   rfl
 
-/-- Per-leaf cumulative rows, columns, and joint domains. This is the
-canonical twelve-leaf footprint ledger required by the owner goal. -/
 theorem cumulativeFootprints_eq_production
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits)
@@ -640,7 +615,6 @@ theorem physicalColumnCount_eq_fixed
     physicalFreshColumnCount_eq_fixed relation interface parentOffset inputs]
   omega
 
-/-- Local PiCCS row/column domain when the phase owns the zero-based layout. -/
 def jointDomain
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits) : Nat :=

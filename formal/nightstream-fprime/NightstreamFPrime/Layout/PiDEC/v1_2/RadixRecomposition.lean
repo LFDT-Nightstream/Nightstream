@@ -35,7 +35,6 @@ abbrev recomposeExpr :=
 
 end Logical
 
-/-- Exact affine input shape supplied by a typed PiDEC family. -/
 structure InputsLinear {coordinateCount : Nat}
     (interface : Logical.Interface coordinateCount) (offset : Nat) : Prop where
   parent_mulCount : ∀ coordinate,

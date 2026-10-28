@@ -25,33 +25,14 @@ fn packed_witness_reconstructs_private_suffix_without_flat_copy() {
     for (column, &value) in assignment.iter().enumerate() {
         packed[(column % 3, column / 3)] = value;
     }
-    let witness = CcsWitness {
-        w: Vec::new(),
-        Z: packed,
-    };
+    let witness = CcsWitness { Z: packed };
 
     assert_eq!(witness.private_len(4, assignment.len()), Some(7));
-    assert_eq!(
-        witness.private_values(4, assignment.len()).as_deref(),
-        Some(&assignment[4..])
-    );
     assert_eq!(
         witness.private_len(4, 13),
         None,
         "packed padding is not authoritative data"
     );
-}
-
-#[test]
-fn explicit_private_witness_remains_borrowed() {
-    let private = vec![Goldilocks::ONE, Goldilocks::ZERO];
-    let witness = CcsWitness {
-        w: private.clone(),
-        Z: Mat::zero(0, 0, Goldilocks::ZERO),
-    };
-    let values = witness.private_values(2, 4).expect("explicit witness");
-    assert!(matches!(values, std::borrow::Cow::Borrowed(_)));
-    assert_eq!(values.as_ref(), private);
 }
 
 #[test]
@@ -95,9 +76,8 @@ fn signed_unit_column_masks_reject_noncanonical_shapes() {
 
 #[test]
 fn balanced_columns_pack_like_column_masks_and_reject_other_values() {
-    // Three rows, four columns; the values stop inside the third column.
     let values = [1i8, 0, -1, 0, -1, 1, 1, 1];
-    let packed = Mat::<Goldilocks>::compact_signed_unit_from_balanced_columns(3, 4, &values).unwrap();
+    let packed = Mat::<Goldilocks>::compact_signed_unit_from_column_major_prefix(3, 4, &values).unwrap();
     let expected = Mat::<Goldilocks>::compact_signed_unit_from_column_masks(
         3,
         4,
@@ -110,7 +90,7 @@ fn balanced_columns_pack_like_column_masks_and_reject_other_values() {
         expected.packed_signed_unit_column_masks()
     );
     assert_eq!(packed, expected);
-    assert!(Mat::<Goldilocks>::compact_signed_unit_from_balanced_columns(3, 4, &[0, 2]).is_err());
-    assert!(Mat::<Goldilocks>::compact_signed_unit_from_balanced_columns(3, 4, &[0, 0, -2]).is_err());
-    assert!(Mat::<Goldilocks>::compact_signed_unit_from_balanced_columns(3, 4, &[0; 13]).is_err());
+    assert!(Mat::<Goldilocks>::compact_signed_unit_from_column_major_prefix(3, 4, &[0, 2]).is_err());
+    assert!(Mat::<Goldilocks>::compact_signed_unit_from_column_major_prefix(3, 4, &[0, 0, -2]).is_err());
+    assert!(Mat::<Goldilocks>::compact_signed_unit_from_column_major_prefix(3, 4, &[0; 13]).is_err());
 }

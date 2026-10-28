@@ -10,9 +10,7 @@ SPEC = importlib.util.spec_from_file_location(
     "generate_lean_mutations", Path(__file__).with_name("generate_lean_mutations.py"))
 mutations = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(mutations)
-ROOT = Path(__file__).resolve().parents[3]
-# The retained archive records the case table of the older 14-matrix format.
-ARCHIVE = ROOT / "docs/reviews/nightstream-fprime-requirements/NIFS_DEC_AND_FINAL_OUTPUT_EVIDENCE.zip"
+RETAINED = Path(__file__).with_name("fixtures") / "dec_mutation_manifest.json"
 VECTORS = Path(__file__).with_name("fixtures") / "golden-v1.zip"
 
 
@@ -31,8 +29,7 @@ class LeanMutationGenerationTests(unittest.TestCase):
         originals = self.ccs.read_bytes(), self.children.read_bytes()
         output = self.directory / "generated"
         manifest = mutations.generate(self.ccs, self.children, output)
-        with ZipFile(ARCHIVE) as archive:
-            retained = json.loads(archive.read("fixtures/dec_mutation_manifest.json"))
+        retained = json.loads(RETAINED.read_text())
         removed = {f"public_child_eval_A{matrix}" for matrix in range(mutations.MATRICES, 14)}
         self.assertEqual(
             {case["case"]: case["expected_owner"] for case in manifest["cases"][:-1]},

@@ -79,7 +79,6 @@ private theorem rightCombination_eq_combineCommitments
             (fun source => values source.succ) row)
       rw [inductionHypothesis]
 
-/-- The leaf's canonical result is exactly the paper commitment equation. -/
 theorem parentCoverage (interface : Interface) (offset : Nat) (env : Env)
     (specification : SpecHolds interface offset env) :
     evalOutput interface offset env =

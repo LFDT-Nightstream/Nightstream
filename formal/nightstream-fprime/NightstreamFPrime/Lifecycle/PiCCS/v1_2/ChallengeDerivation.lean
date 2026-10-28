@@ -22,7 +22,7 @@ Parent coverage:
 - the pre-SumCheck prefix of `v1_2.Coverage.transcript`;
 - `Key.piCcsExecution.coins.alpha` and `.gamma`.
 
-No challenge is an unconstrained witness value. The generic Duplex child owns
+The generic Duplex child owns
 all Poseidon2 operations. This leaf owns only read order and wiring.
 -/
 
@@ -41,23 +41,19 @@ abbrev Context :=
   NightstreamFPrime.Spec.Folding.PiCCS.TranscriptReplay.Statement
     K State productionShape
 
-/-- The exact production pre-SumCheck oracle. -/
 def oracle : FiatShamir.Oracle Context K State productionShape :=
   NightstreamFPrime.Lifecycle.Transcript.piCcsOracle.transcript
 
-/-- The only external input is the state produced by statement absorption. -/
 structure Interface where
   initialState : Nat → EState
 
 def constantWords (words : List F) : List Expr := words.map Expr.const
 
-/-- The rate lane pair that holds the coin of `label`. -/
 def coinPair (label : FiatShamir.ChallengeLabel productionShape) : Read.Pair :=
   ⟨NightstreamFPrime.Lifecycle.Transcript.coinPosition label %
       NightstreamFPrime.Lifecycle.Transcript.coinsPerChunk,
     Nat.mod_lt _ (by decide)⟩
 
-/-- One zero-chunk absorb after the sixth read of a state, else nothing. -/
 def refreshActions (label : FiatShamir.ChallengeLabel productionShape) :
     List Formal.Action :=
   if NightstreamFPrime.Lifecycle.Transcript.coinPosition label %
@@ -70,7 +66,6 @@ def labelActions (label : FiatShamir.ChallengeLabel productionShape)
     (expected : KExpr) : List Formal.Action :=
   .readK (coinPair label) expected :: refreshActions label
 
-/-- Pair labels and samples without copying a fixed constraint block. -/
 def labelledActions :
     List (FiatShamir.ChallengeLabel productionShape) →
       List KExpr → List Formal.Action
@@ -78,12 +73,9 @@ def labelledActions :
       labelActions label sample ++ labelledActions labels samples
   | _, _ => []
 
-/-- Exact verifier-owned order: all 28 `α` labels, then `γ`. -/
 def challengeLabels : List (FiatShamir.ChallengeLabel productionShape) :=
   FiatShamir.alphaLabels productionShape ++ [.gamma]
 
-/-- The layout schedule fixes only sample positions. Its expected values have
-no authority and do not affect recipes, samples, or final state. -/
 def layoutActions : List Formal.Action :=
   labelledActions challengeLabels
     (List.replicate challengeLabels.length KExpr.zero)
@@ -91,8 +83,6 @@ def layoutActions : List Formal.Action :=
 def layoutProgram (interface : Interface) (offset : Nat) : Formal.Program :=
   Formal.compile offset (interface.initialState offset) layoutActions
 
-/-- Recipe-free executable projection of the fixed challenge schedule. The
-first action reads the incoming state, so the lazy wiring forces it at once. -/
 def layoutWiring (interface : Interface) (offset : Nat) : Formal.Wiring :=
   Formal.compileWiringLazy offset (fun _ => interface.initialState offset)
     layoutActions
@@ -273,7 +263,6 @@ private theorem labelledActions_append
     (offset : Nat) : (layoutWiring interface offset).samples.length = 29 := by
   rw [layoutWiring_samples_eq, layoutProgram_samples_length]
 
-/-- Derived `α` sample; no caller field exists. -/
 def alpha (interface : Interface) (offset : Nat)
     (coordinate : Fin productionShape.cubeVariables) : KExpr :=
   let values := (layoutProgram interface offset).samples.take
@@ -284,21 +273,17 @@ def alpha (interface : Interface) (offset : Nat)
     rw [valuesLength]
     simp [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]⟩
 
-/-- Derived `γ` sample follows the 28 `α` coordinates. -/
 def gamma (interface : Interface) (offset : Nat) : KExpr :=
   (layoutProgram interface offset).samples.get
     ⟨productionShape.cubeVariables, by
       simp [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]⟩
 
-/-- Executable `α` projection. Its agreement theorem preserves `alpha` as the
-semantic authority. -/
 def alphaFast (interface : Interface) (offset : Nat)
     (coordinate : Fin productionShape.cubeVariables) : KExpr :=
   let values := (layoutWiring interface offset).samples.take
     productionShape.cubeVariables
   values.getD coordinate.val KExpr.zero
 
-/-- Executable `γ` projection from the same recipe-free wiring trace. -/
 def gammaFast (interface : Interface) (offset : Nat) : KExpr :=
   (layoutWiring interface offset).samples.getD
     productionShape.cubeVariables KExpr.zero
@@ -356,14 +341,12 @@ theorem gamma_eq_gammaFast_pointwise (interface : Interface) (offset : Nat) :
   funext interface offset
   exact gamma_eq_gammaFast_pointwise interface offset
 
-/-- Canonical labelled `α` schedule, with one constrained output per label. -/
 def alphaSchedule (interface : Interface) (offset : Nat) :
     List (FiatShamir.ChallengeLabel productionShape × KExpr) :=
   (FiatShamir.alphaLabels productionShape).zip
     ((layoutProgram interface offset).samples.take
       productionShape.cubeVariables)
 
-/-- The same labelled samples without constructing Poseidon2 recipes. -/
 def alphaScheduleFast (interface : Interface) (offset : Nat) :
     List (FiatShamir.ChallengeLabel productionShape × KExpr) :=
   (FiatShamir.alphaLabels productionShape).zip
@@ -376,17 +359,14 @@ def alphaScheduleFast (interface : Interface) (offset : Nat) :
   unfold alphaSchedule alphaScheduleFast
   rw [layoutWiring_samples_eq]
 
-/-- Exact action order: every `α` coordinate, then `γ`. -/
 def actions (interface : Interface) (offset : Nat) : List Formal.Action :=
   scheduleActions (alphaSchedule interface offset) ++
     labelActions .gamma (gamma interface offset)
 
-/-- The one owned production program. -/
 def program (interface : Interface) (offset : Nat) : Formal.Program :=
   Formal.compile offset (interface.initialState offset)
     (actions interface offset)
 
-/-- Post-challenge state computed by the same owned program. -/
 def finalState (interface : Interface) (offset : Nat) : EState :=
   (program interface offset).output
 
@@ -461,7 +441,6 @@ theorem program_shape_eq_layout (interface : Interface) (offset : Nat) :
     (actions interface offset) layoutActions
       (actions_shape_eq_layout interface offset)
 
-/-- Executable final-state projection from the recipe-free challenge wiring. -/
 def finalStateFast (interface : Interface) (offset : Nat) : EState :=
   (layoutWiring interface offset).output
 
@@ -534,8 +513,6 @@ theorem layoutActions_below (offset : Nat) :
   simpa [challengeLabels_length] using
     labelledActions_zero_below challengeLabels offset
 
-/-- External inputs precede this leaf. Samples and final state are owned by
-the local recipe interval. -/
 def Assumptions (interface : Interface) (offset : Nat) (_env : Env) : Prop :=
   ∀ lane, (interface.initialState offset lane).VarsBelow offset
 
@@ -568,8 +545,6 @@ def evalAlpha (interface : Interface) (offset : Nat) (env : Env) :
 def evalGamma (interface : Interface) (offset : Nat) (env : Env) : K :=
   (gamma interface offset).eval env
 
-/-- Named circuit predicate: the symbolic outputs equal the exact production
-Fiat–Shamir pre-SumCheck replay. -/
 def SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   NightstreamFPrime.Spec.Folding.PiCCS.Transcript.PreSumcheckHolds
     oracle
@@ -684,7 +659,6 @@ private theorem cubePoint_eq_of_coordinates
   cases right
   simp_all
 
-/-- The owned action trace is exactly the named pre-SumCheck predicate. -/
 private theorem trace_iff_specHolds
     (interface : Interface) (offset : Nat) (env : Env) :
     Formal.TraceHolds
@@ -722,7 +696,6 @@ theorem trace_implies_specHolds
     SpecHolds interface offset env :=
   (trace_iff_specHolds interface offset env).mp trace
 
-/-- The child Duplex trace is exactly the named pre-SumCheck predicate. -/
 theorem duplexSpec_iff_specHolds
     (interface : Interface) (offset : Nat) (env : Env) :
     Formal.SpecHolds (duplexInterface interface) offset env ↔
@@ -730,8 +703,6 @@ theorem duplexSpec_iff_specHolds
   simpa only [Formal.SpecHolds, duplexInterface] using!
     trace_iff_specHolds interface offset env
 
-/-- The owned leaf emits only the causal recipe batch. Sample and final-state
-copy assertions are theorems, not rows. -/
 def opsAt (interface : Interface) (offset : Nat) : List Op :=
   [Op.witness (WitnessBatch.arithmetic offset
     (program interface offset).recipes)]
@@ -754,8 +725,6 @@ def main (interface : Interface) : Circuit Unit := fun offset =>
       recipeConstraints offset (program interface offset).recipes := by
   simp [opsAt, flatConstraints, Op.flatConstraints]
 
-/-- Execute the verifier-owned challenge program for any valid external
-initial state. No caller-supplied challenge or output state is required. -/
 theorem build (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     ∃ completed,
@@ -775,7 +744,6 @@ theorem build (interface : Interface) (env : Env) (offset : Nat)
     rw [flatConstraints_opsAt]
     exact recipeRows
 
-/-- The sole logical circuit for this leaf. -/
 def circuit (interface : Interface) : FormalCircuit where
   main := main interface
   assumptions := Assumptions interface
@@ -928,7 +896,6 @@ theorem alphaSchedule_length (interface : Interface) (offset : Nat) :
   norm_num [FiatShamir.alphaLabels, canonicalFinIndices_length,
     productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
-/-- The leaf reads 29 coins and permutes after reads 6, 12, 18 and 24. -/
 theorem actions_length (interface : Interface) (offset : Nat) :
     (actions interface offset).length = 33 := by
   have lengths := congrArg List.length (actions_shape_eq_layout interface offset)
@@ -936,7 +903,6 @@ theorem actions_length (interface : Interface) (offset : Nat) :
   rw [lengths]
   rfl
 
-/-- Four zero-chunk permutations; a read allocates nothing. -/
 theorem layoutActions_recipeCount :
     Formal.recipeCount layoutActions = 4384 := by
   rfl
@@ -944,8 +910,6 @@ theorem layoutActions_recipeCount :
 def recipeCount (interface : Interface) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
 
-/-- Exact private symbolic footprint: 29 reads and four zero-chunk
-permutations compile to 4,384 recipe variables. -/
 theorem recipeCount_eq (interface : Interface) (offset : Nat) :
     recipeCount interface offset = 4384 := by
   unfold recipeCount
@@ -961,26 +925,21 @@ theorem recipeCount_eq (interface : Interface) (offset : Nat) :
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq interface offset
 
-/-- Layout may allocate exactly this private interval and no boundary copy. -/
 theorem localLength_eq (interface : Interface) (offset : Nat) :
     localLength (Circuit.ops (circuit interface).main offset) = 4384 := by
   rw [circuit_ops, opsAt_localLength, program_recipes_length]
 
-/-- One owned witness operation and no sample or final-state copy operation. -/
 theorem operations_length (interface : Interface) (offset : Nat) :
     (Circuit.ops (circuit interface).main offset).length = 1 := by
   rw [circuit_ops]
   rfl
 
-/-- One row per causal recipe and no boundary-copy row. -/
 theorem flatConstraints_length (interface : Interface) (offset : Nat) :
     (flatConstraints (Circuit.ops (circuit interface).main offset)).length =
       4384 := by
   rw [circuit_ops, flatConstraints_opsAt, recipeConstraints_length,
     program_recipes_length]
 
-/-- Parent-wiring theorem: once the incoming state is the canonical statement
-state, every leaf output is the key-owned Fiat–Shamir pre-SumCheck result. -/
 theorem spec_implies_derivePreSumcheck
     (interface : Interface) (offset : Nat) (env : Env)
     (context : Context)
@@ -999,7 +958,6 @@ theorem spec_implies_derivePreSumcheck
     at alphaEq gammaEq finalEq
   exact ⟨alphaEq, gammaEq, finalEq⟩
 
-/-- The exact statement context used by the one production NIFS key. -/
 noncomputable def productionContext
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -1017,8 +975,6 @@ noncomputable def productionContext
     input := (key.statement running fresh).verifierInput key.lift
   }
 
-/-- Concrete parent coverage: satisfying this leaf binds `α` and `γ` to the
-coins of the production key's complete `piCcsExecution`. -/
 theorem spec_implies_keyExecution_challenges
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤

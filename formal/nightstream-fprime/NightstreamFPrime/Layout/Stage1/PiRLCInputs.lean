@@ -28,11 +28,8 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The exact completed pilot-plus-PiCCS source-column endpoint. -/
 def phaseOffset : Nat := 6228781
 
-/-- The completed PiCCS transcript state precedes the physical PiCCS endpoint
-that starts PiRLC. The intervening columns are the PiCCS lowering suffix. -/
 theorem piCcsLogicalFreshBase_le_phaseOffset :
     PiCCSStarts.logicalFreshBase ≤ phaseOffset := by
   unfold PiCCSStarts.logicalFreshBase phaseOffset
@@ -63,7 +60,6 @@ def piCcsOutputInterface :
     (piCcsSharedInterface (logicalWidth := logicalWidth)
       (publicFits := publicFits))
 
-/-- Exact circuit-owned post-PiCCS transcript state. -/
 def piCcsOutputState :
     NightstreamFPrime.Gadgets.Poseidon2.Layer.EState :=
   NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding.finalState
@@ -82,8 +78,6 @@ theorem piCcsOutputState_eq_parent
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.outputBindingFinalState
   rw [← PiCCSStarts.outputBindingWitnessStart_matches relation]
 
-/-- The output absorption is nonempty, so its final eight lanes are fresh
-variables and therefore affine inputs to the first PiRLC sampler. -/
 theorem piCcsOutputState_fresh :
     StateFresh
       (piCcsOutputState (logicalWidth := logicalWidth)
@@ -109,9 +103,6 @@ private def runningIndex (source : Fin productionShape.sourceCount)
     simp only [Shape.sourceCount] at sourceBound
     omega⟩
 
-/-- One exact source view. Source zero is fresh; the remaining sixteen
-sources are running. The evaluation family always comes from the PiCCS
-reduced output at the same unified source index. -/
 def sourceInput (source : Fin productionShape.sourceCount) :
     NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.InputExpr
       logicalWidth publicFits :=
@@ -133,9 +124,6 @@ def sourceInput (source : Fin productionShape.sourceCount) :
       publicInput := (parent.running PiCCSInputs.phaseOffset).publicInput running
       evaluation := evaluation }
 
-/-- The same source view written in the paper's explicit `K + k` order.
-This form is used by cross-phase proofs; the production layout continues to
-use `sourceInput`. -/
 def canonicalSourceInput (source : Fin productionShape.sourceCount) :
     NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding.InputExpr
       logicalWidth publicFits :=
@@ -160,8 +148,6 @@ def canonicalSourceInput (source : Fin productionShape.sourceCount) :
             (UnifiedSources.runningSourceIndex running) } })
     source
 
-/-- The executable source view is exactly the paper's fresh-then-running
-partition. -/
 theorem sourceInput_eq_canonical
     (source : Fin productionShape.sourceCount) :
     sourceInput (logicalWidth := logicalWidth) (publicFits := publicFits)
@@ -193,7 +179,6 @@ theorem sourceInput_eq_canonical
     rw [sourceEq]
     simp [sourceInput, canonicalSourceInput, runningIndex, sourceEq]
 
-/-- The sole production PiRLC parent interface in cumulative source order. -/
 def interface :
     NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal.Interface
       logicalWidth publicFits where

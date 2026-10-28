@@ -1,9 +1,3 @@
-"""Bind independent decomposition assessments to exact targets and source cuts.
-
-The CLI prepares requests and imports decisions. It does not make a semantic
-judgment or sign a review on behalf of the controlled checker.
-"""
-
 from __future__ import annotations
 
 import datetime
@@ -117,8 +111,6 @@ def validate_decision(record, request, identifier):
 def record_review(identifier, response, store, authority=None):
     request = read_request(store, identifier)
     if authority:
-        # Only the review process may authenticate a decision. Never sign an
-        # untrusted response merely because this importer can access the key.
         record = authority.read(response)
         envelope = read_json(response)
     else:
@@ -165,10 +157,8 @@ def decomposition_results(policy, manifest, store, authority=None):
             selected[name]["state"] = "stale" if name in old else "missing"
             continue
         latest = max(item[0] for item in values)
-        # A later rejection revokes an earlier approval for the same target
-        # and cut. Conflicting decisions at the same timestamp fail closed.
-        _, record, path = max((item for item in values if item[0] == latest),
-                              key=lambda item: item[1]["outcome"] == "fail")
+        tied = [item for item in values if item[0] == latest]
+        _, record, path = next((item for item in tied if item[1]["outcome"] == "fail"), tied[0])
         selected[name].update(state="passed" if record["outcome"] == "pass" else "failed",
             accepted=bool(authority and record["outcome"] == "pass"), record=str(path),
             request=str(request_path(store, record["request"])), reviewer=record["reviewer"],

@@ -4,8 +4,7 @@ import NightstreamFPrime.Export.Stage1.HyperNovaRealInput
 /-!
 Owns the decoded NIFS data of one visit of the history law: the exact source
 input of a recursive payload (`inputs`) and the real NIFS output on the good
-active branch (`realOutput`). `HyperNovaVisitedAcceptance` proves that the real
-success event of that output is exactly the good active mark.
+active branch (`realOutput`).
 -/
 
 set_option autoImplicit false
@@ -38,16 +37,11 @@ private def inactiveInput : PiCCSInputCheck.Input where
     evalK := Vector.replicate _ (Vector.replicate _ K.zero)
     evalA := Vector.replicate _ (Vector.replicate _ (Vector.replicate _ K.zero)) }
 
-/-- The exact decoded source input on every recursive payload. The typed
-zero value only totalizes inactive branches, which the guarded prefix aborts
-before any input check or continuation. It is not an accepted base proof. -/
 def inputs (visit : Visit application) : PiCCSInputCheck.Input :=
   match visit.1 with
   | some (_, .recursive payload) => HyperNovaHistory.sourceInput application fits payload
   | _ => inactiveInput
 
-/-- The actual local proof and current child witnesses on the good active
-branch. Every other visit remains present with an absent real output. -/
 noncomputable def realOutput (visit : Visit application) :
     Option (NifsRealSuccess.RealOutput (PerApplicationFixedPoint.relation application fits)) :=
   if (goodActive application fits setup) visit then
@@ -56,7 +50,6 @@ noncomputable def realOutput (visit : Visit application) :
     | _ => none
   else none
 
-/-- No real output is presented outside the same source-experiment guard. -/
 theorem realOutput_off (visit : Visit application) (inactive : ¬ goodActive application fits setup visit) :
     realOutput application fits setup visit = none := by
   simp only [realOutput, if_neg inactive]

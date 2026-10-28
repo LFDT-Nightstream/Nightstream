@@ -322,9 +322,6 @@ theorem stateBinding_of_agree_satisfy
             support.expectedContext lane
         · exact agrees
 
-/-- Transport one complete PiCCS phase through exact caller-input equality.
-The two child-owned transcript projections are explicit premises and cannot be
-replaced by prover-selected values. -/
 theorem phaseHolds_of_agree_satisfy
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -369,10 +366,6 @@ theorem phaseHolds_of_agree_satisfy
   · rw [← outgoingStateEq, ← runningEq, ← freshEq, ← proofEq]
     exact phase.outgoingState
 
-/-- Transport one complete PiCCS phase between two layouts after proving
-equality of every evaluated semantic value. The target state binding remains
-explicit because it names layout-owned statement cells rather than a derived
-phase value. -/
 theorem phaseHolds_of_eval_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -417,9 +410,6 @@ theorem phaseHolds_of_eval_eq
   · rw [← outgoingStateEq, ← runningEq, ← freshEq, ← proofEq]
     exact phase.outgoingState
 
-/-- Cross-layout PiCCS transport with only named component equalities in the
-public theorem type. Full dependent-record equalities are reconstructed inside
-the proof, after all layout parameters are fixed. -/
 theorem phaseHolds_of_components_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

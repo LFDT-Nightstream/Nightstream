@@ -1,9 +1,3 @@
-"""Validate exported Lean origins and compute declaration keys.
-
-Registered freshness rules can use current, complete exports. These keys do
-not replace target review or mandatory relation-identity checks.
-"""
-
 from pathlib import Path
 
 from .snapshot import EvidenceError, digest, entries, file_entry, read_json

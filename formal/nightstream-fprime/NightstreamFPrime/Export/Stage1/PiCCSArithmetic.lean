@@ -74,8 +74,6 @@ def normFreshStart : Nat :=
 def finalIdentityFreshStart : Nat :=
   NightstreamFPrime.Layout.Stage1.PiCCSStarts.finalIdentityFreshStart
 
-/-- Materialized logical child starts. Their match theorems below tie every
-value to the canonical PiCCS assembler without executing prior child circuits. -/
 def statementBindingLogicalStart : Nat :=
   NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
 
@@ -94,7 +92,6 @@ def normLogicalStart : Nat :=
 def finalIdentityLogicalStart : Nat :=
   NightstreamFPrime.Layout.Stage1.PiCCSStarts.finalIdentityLogicalStart
 
-/-- Lower and encode one ordinary child packet without changing its rows. -/
 def compilePacket (rowStart freshStart : Nat) (constraints : List Expr) :
     List Rows.CompiledRow :=
   Rows.compileRowsTR
@@ -121,8 +118,6 @@ theorem compilePacket_rowIndices (rowStart freshStart : Nat)
   rw [Rows.compileRowsTR_rowIndices]
   rw [Rows.compileRowsTR_length]
 
-/-- Satisfaction of one emitted arithmetic packet implies its exact source
-constraint list under the proved Stage 1 column pullback. -/
 theorem compilePacket_sound (rowStart freshStart : Nat)
     (constraints : List Expr) (env : Env)
     (holds : R1CS.RowsHold env
@@ -136,9 +131,6 @@ theorem compilePacket_sound (rowStart freshStart : Nat)
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) constraints
     freshStart holds
 
-/-- Constructive completeness of one emitted arithmetic packet. Only the
-mapped R1CS-fresh interval changes; logical variables and all other packets
-keep their values. -/
 theorem compilePacket_complete (rowStart freshStart : Nat)
     (constraints : List Expr) (env : Env)
     (startLocal : NightstreamFPrime.Layout.Stage1.Spartan.piCcsPhaseOffset ≤
@@ -424,7 +416,6 @@ def finalIdentityRows
   compilePacket finalIdentityRowStart finalIdentityFreshStart
     (finalIdentityConstraints logicalWidth publicFits)
 
-/-- The eight non-permutation PiCCS row packets in canonical child order. -/
 def arithmeticRows
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -439,7 +430,6 @@ def arithmeticRows
     normRows logicalWidth publicFits ++
     finalIdentityRows logicalWidth publicFits
 
-/-- Named physical ownership of the eight non-permutation child packets. -/
 structure PacketHolds
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -463,8 +453,6 @@ structure PacketHolds
   finalIdentity : R1CS.RowsHold env
     ((finalIdentityRows logicalWidth publicFits).map Rows.CompiledRow.toR1CS)
 
-/-- The one exported arithmetic list covers the eight named packets exactly
-once and in canonical PiCCS child order. -/
 theorem arithmeticRows_imply_packetHolds
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -482,8 +470,6 @@ theorem arithmeticRows_imply_packetHolds
   exact ⟨statementBinding, initialClaim, sumcheck, eval_K, eval_A, ccs, norm,
     finalIdentity⟩
 
-/-- Generic packet boundary used by each arithmetic child. The parent sees the
-child contract and never unfolds the child's operations. -/
 theorem compilePacket_implies_childSpec
     (child : FormalCircuit) (childOffset rowStart freshStart : Nat)
     (constraints : List Expr) (env : Env)
@@ -506,7 +492,6 @@ theorem compilePacket_implies_childSpec
   rw [← constraintsEq]
   exact compilePacket_sound rowStart freshStart constraints env packet
 
-/-- The eight non-permutation conjuncts supplied to the canonical parent. -/
 structure ArithmeticSpecs
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -655,8 +640,6 @@ theorem ArithmeticSpecs.finalIdentity_parent
     ← finalIdentityLogicalStart_matches logicalWidth publicFits]
   exact specs.finalIdentity
 
-/-- The eight held packets imply the eight exact child predicates
-under the canonical parent assumptions. -/
 theorem packetHolds_imply_arithmeticSpecs
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤

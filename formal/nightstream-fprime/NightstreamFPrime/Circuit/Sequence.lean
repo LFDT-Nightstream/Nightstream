@@ -2,16 +2,13 @@ import NightstreamFPrime.Circuit.StraightLine
 
 /-!
 Owns the proof-only sequencing rule for opaque `FormalCircuit` children.
-It does not define a second circuit representation. A completed prefix stores
-the environment, exact operation order, flat-row satisfaction, row scope, and
-external-variable agreement needed to append the next child safely.
+It does not define a second circuit representation.
 -/
 
 namespace NightstreamFPrime.Circuit.Sequence
 
 open NightstreamFPrime.Circuit
 
-/-- Evidence for one honestly completed prefix of adjacent child calls. -/
 structure Prefix (initial : Env) (base : Nat) where
   current : Env
   operations : List Op
@@ -20,9 +17,6 @@ structure Prefix (initial : Env) (base : Nat) where
     expression.VarsBelow (base + localLength operations)
   rows : holdsFlat current operations
 
-/-- A later prefix preserves every value allocated or supplied before the
-end of an earlier prefix. This is logical sequencing evidence, not a row
-proof. -/
 structure PreservesPrefix {initial : Env} {base : Nat}
     (before after : Prefix initial base) : Prop where
   length_le : localLength before.operations ≤ localLength after.operations
@@ -42,7 +36,6 @@ theorem PreservesPrefix.trans
       (Nat.add_le_add_left left.length_le base))]
     exact left.values index below
 
-/-- The empty prefix changes no variable and has no row. -/
 def empty (env : Env) (base : Nat) : Prefix env base where
   current := env
   operations := []
@@ -67,8 +60,6 @@ def empty (env : Env) (base : Nat) : Prefix env base where
     localLength [operation] = operation.localLength := by
   simp [localLength]
 
-/-- Splice an already-built opaque child assignment into a completed prefix.
-The caller supplies the child's row proof; this theorem owns only sequencing. -/
 theorem appendBuilt
     {initial : Env} {base : Nat}
     (completedPrefix : Prefix initial base)
@@ -146,7 +137,6 @@ theorem appendBuilt
   · intro index below
     exact childAgrees index (Or.inl below)
 
-/-- Append one opaque child at the exact end of a completed prefix. -/
 theorem append
     {initial : Env} {base : Nat}
     (completedPrefix : Prefix initial base)
@@ -181,8 +171,6 @@ theorem append
   exact appendBuilt completedPrefix child parentOp parentLength
     parentConstraints childScope after childAgrees childRows
 
-/-- The one opaque parent operation for a child at its named allocation
-offset. -/
 def childOp (name : String) (child : FormalCircuit) (offset : Nat) : Op :=
   .subcircuit (child.asSubcircuit name offset)
 
@@ -192,8 +180,6 @@ theorem childOp_localLength (name : String) (child : FormalCircuit)
       localLength (Circuit.ops child.main offset) := by
   exact FormalCircuit.asSubcircuit_localLength child name offset
 
-/-- Append one opaque child after transporting its contract from the named
-start to the definitionally equal end of the current prefix. -/
 theorem appendAt
     {initial : Env} {base : Nat}
     (before : Prefix initial base)
@@ -242,8 +228,6 @@ theorem appendAt
     rw [← Nat.add_assoc, startEq]
   · simpa only [startEq] using childRows
 
-/-- Append a child whose canonical builder already produced its satisfying
-assignment. This uses the same opaque parent operation as `appendAt`. -/
 theorem appendBuiltAt
     {initial : Env} {base : Nat}
     (before : Prefix initial base)

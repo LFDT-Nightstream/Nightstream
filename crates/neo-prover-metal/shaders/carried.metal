@@ -1,5 +1,3 @@
-// Project one combined witness ring block. The caller first uses the output
-// for matrix inputs, then replaces it with the identity projection plus row sums.
 kernel void joint_carried_projection(
     device const ulong *masks [[buffer(0)]],
     device const ulong *coefficients [[buffer(1)]],

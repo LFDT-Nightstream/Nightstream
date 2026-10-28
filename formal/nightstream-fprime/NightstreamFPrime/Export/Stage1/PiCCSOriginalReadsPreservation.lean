@@ -3,8 +3,8 @@ import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 
 /-!
 Proof-only equality of original-mask blocks and prepared coefficient callbacks
-with the existing complete-assignment readers. No split, source-support or
-witness-validity premise is used. Final message-family transport is separate.
+with the existing complete-assignment readers. Final message-family transport
+is separate.
 -/
 
 set_option autoImplicit false
@@ -19,13 +19,10 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 
-/-- The block callback is the existing complete-assignment block at every index. -/
 theorem blockAt_eq (masks : Array (Array (Nat × Nat)))
     (source : Fin productionShape.sourceCount) (block : Nat) :
     blockAt masks source block = PiCCSSourceImages.blockAt (assignment masks source) block := rfl
 
-/-- Each lane of every in-range block is the original mask scalar, including
-all lanes of the final carrier block. Missing source entries retain exact zero. -/
 theorem blockAt_lane (masks : Array (Array (Nat × Nat)))
     (source : Fin productionShape.sourceCount) (block : Fin PiCCSSourceImages.blockCount)
     (lane : Fin ringDegree) :
@@ -47,8 +44,6 @@ theorem blockAt_lane (masks : Array (Array (Nat × Nat)))
     congrArg Prod.snd decoded
   simp only [assignment, blockIndex, laneIndex]
 
-/-- Native signed accumulation equals the existing sparse evaluation for
-arbitrary masks and coefficients, including positive/negative overlap. -/
 theorem maskEval_eq_evalSparse (form : SparseForm ringDegree) (positive negative : Nat) :
     maskEval form positive negative =
       form.evalSparse (fun lane =>
@@ -56,8 +51,6 @@ theorem maskEval_eq_evalSparse (form : SparseForm ringDegree) (positive negative
         else if negative.testBit lane.val then -1 else 0) := by
   exact PiDECNativeSparseEvaluation.nativeEvalSparse_eq_spec form _
 
-/-- The mask reader is the old prepared reader for every supplied table.
-The complete-carrier guard covers arbitrary column widths and zero suffixes. -/
 theorem read_eq_preparedRead {columns : Nat}
     (tables : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
     (masks : Array (Array (Nat × Nat))) (source : Fin productionShape.sourceCount)
@@ -79,8 +72,6 @@ theorem read_eq_preparedRead {columns : Nat}
       PiCCSSourceImages.blockAt, dif_neg live, SparseForm.evalSparse,
       ringFZero, mul_zero, add_zero, List.foldl_fixed]
 
-/-- Canonical prepared forms preserve the original kernel read at every
-requested column and output coefficient of the same complete assignment. -/
 theorem read_eq_kernelRead {columns : Nat} (masks : Array (Array (Nat × Nat)))
     (source : Fin productionShape.sourceCount) (output : Fin ringDegree) :
     (read (PiDECParentSparseRead.prepare ()) masks source output : Fin columns → F) =

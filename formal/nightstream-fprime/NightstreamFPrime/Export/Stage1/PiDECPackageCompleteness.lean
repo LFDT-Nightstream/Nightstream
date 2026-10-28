@@ -4,10 +4,8 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 /-!
 Owns constructive completeness for the canonical PiDEC package-row packet.
 
-The semantic completion runs in Lean source-column order. One proved Spartan
-copy then writes exactly the full PiDEC logical and R1CS-fresh suffix into
-the final package assignment. The compiled-row equality fixes the final row
-order; no exporter or Rust code selects it.
+The compiled-row equality fixes the final row order; no exporter or Rust code
+selects it.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiDECPackageCompleteness
@@ -100,8 +98,6 @@ theorem runningTransitionTargetEnd_eq :
         Data.runningTransitionWitnessLength = Spartan.privateColumnCount := by
   exact Data.piDecPrivateSegments_contiguous.2.2.2.2.2.2
 
-/-- A valid selected running transition constructs every canonical transition
-package row and changes only its final private-column interval. -/
 theorem completeRunningTransitionRows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (env : Env)
@@ -159,8 +155,6 @@ theorem completeRunningTransitionRows
   rw [exactRows]
   exact remappedRows
 
-/-- A valid semantic PiDEC phase constructs every canonical PiDEC package row
-and changes only its declared final private-column interval. -/
 theorem completeRows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (ajtai : AjtaiKey
@@ -640,9 +634,6 @@ theorem piDecRows_of_transitionAgreesOutside
   rw [exactRows]
   exact (Spartan.remapRows_hold after _).mpr sourceAfter
 
-/-- Completing PiDEC and then the selected running transition after a valid
-Pilot/PiCCS/PiRLC prefix produces one assignment satisfying every row of the
-current canonical package. -/
 theorem completePackageRows
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (ajtai : AjtaiKey

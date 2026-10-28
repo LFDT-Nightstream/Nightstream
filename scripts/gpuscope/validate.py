@@ -1,5 +1,3 @@
-"""Differential validation against legacy gpuprof reports."""
-
 import json
 from collections import defaultdict
 from pathlib import Path

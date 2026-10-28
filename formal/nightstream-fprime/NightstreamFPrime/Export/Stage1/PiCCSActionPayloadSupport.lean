@@ -4,7 +4,7 @@ import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptSupport
 
 /-!
 Owns affine recognition and exact source support for the PiCCS action payload
-expressions. A read carries no payload.
+expressions.
 PiCCSPayloadWiring owns compilation through the parent's source map.
 -/
 
@@ -224,8 +224,6 @@ private theorem selectedBlock_supported (actions : List Formal.Action)
   | readK pair expected =>
       simp [PoseidonActionSchedule.actionKinds] at kindMember
 
-/-- All actual absorb words use the exact declared PiCCS source families. No
-intermediate unowned permutation recipe is read. -/
 theorem payloadExpression_supported (index : Fin payloadCount) :
     (payloadExpression index).VarsSatisfy PiCCSOrdinarySourceSupport.Source := by
   let decoded : Fin invocationCount × Fin Spec.Poseidon2.rate := Fin.decodeProd index
@@ -269,7 +267,6 @@ private theorem selectedBlock_affine (actions : List Formal.Action)
 private theorem kindAt_affine
     (current : Fin invocationCount) :
     ListAffine (selectedBlock current) := by
-  -- These four syntactic input-shape fields do not inspect matrix values.
   have shapes := PiCCSInvocations.inputShapes Data.logicalWidth Data.publicFits
     ⟨fun _ _ _ => 0, by decide⟩
   have member : kindAt current ∈ List.ofFn kindAt :=
@@ -301,8 +298,6 @@ private theorem kindAt_affine
         PiCCSInvocations.outputWitnessStart
         (shapes.outputBinding PiCCSInvocations.outputWitnessStart)) _ output
 
-/-- Every emitted payload expression is recognized by the existing affine
-lowerer, including zero padding. -/
 theorem payloadExpression_affine
     (index : Fin payloadCount) : R1CS.IsAffine (payloadExpression index) := by
   let decoded : Fin invocationCount × Fin Spec.Poseidon2.rate := Fin.decodeProd index

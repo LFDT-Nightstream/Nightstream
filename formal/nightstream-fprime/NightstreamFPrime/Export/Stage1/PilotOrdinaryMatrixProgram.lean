@@ -2,16 +2,7 @@ import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectPlan
 
-/-!
-Owns the compact package operands for the 686 non-Poseidon pilot rows.
-The exact table preserves the canonical package order: witness instructions
-first, then assertions. Six sparse source ranges reconstruct the existing
-proof-oriented direct source map.
-
-This module does not select pilot semantics or invent rows. Its public row
-theorem requires the caller to load the identity-checked package row selected
-by the Lean-authored table.
--/
+/-! Owns the compact package operands for the 686 non-Poseidon pilot rows. -/
 
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
 
@@ -31,8 +22,6 @@ def instructionIndices : List Nat :=
 def assertionIndices : List Nat :=
   (PilotData.assertionRows ()).map fun row => row.rowIndex
 
-/-- Exact physical package row indices in the same order as
-`PilotOrdinaryDirectSource.sourceRows`. -/
 def rowIndexReference : List Nat := instructionIndices ++ assertionIndices
 
 theorem rowIndexReference_length : rowIndexReference.length = 686 := by
@@ -43,8 +32,6 @@ theorem rowIndexReference_length : rowIndexReference.length = 686 := by
   simpa [rowIndexReference, instructionIndices, assertionIndices] using
     sourceLength
 
-/-- Random-access exact package order. A table is required because the
-canonical package performs a stable witness/assertion partition. -/
 def rowSchedule : IndexSchedule :=
   .indexTable rowIndexReference.toArray
 
@@ -292,8 +279,6 @@ theorem outputDigestRange_form?
       (outputDigestStart program) 5141757 4 0
       (outputDigestFits geometry) (by norm_num) index)
 
-/-- Complete pilot ordinary substitution in increasing post-Spartan column
-order. -/
 def substitution (program : Program) : SourceSubstitution where
   ranges := [priorDigestRange program, canonicalLocalRange program,
     outputStateRange program, canonicalFreshRange program,

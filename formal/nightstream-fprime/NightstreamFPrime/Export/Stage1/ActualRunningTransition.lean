@@ -4,8 +4,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
 /-!
 Owns the running-transition contract decoded from arbitrary accepted logical
-rows. The decoder evaluates the existing source map. No raw packet or encoding
-premise supplies its values. Parent preimage wiring is proved separately.
+rows. Parent preimage wiring is proved separately.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualRunningTransition
@@ -41,8 +40,6 @@ theorem decodedEnv_preserves
     (fun column => ((RunningTransitionDirectPlan.sourceMap geometry).form column).eval
       assignment) column).symm
 
-/-- Every accepted ordinary transition row holds in the environment decoded
-from that same assignment. The source map supplies all preservation facts. -/
 theorem rowsZero_implies_physical
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : RunningTransitionRetainedGeometry.Geometry application logicalWidth)
@@ -61,8 +58,6 @@ theorem rowsZero_implies_physical
   refine ⟨?_, ?_, ?_⟩ <;> intro term member <;>
     exact decodedEnv_preserves geometry assignment _
 
-/-- The existing opaque physical contract applies to every accepted logical
-assignment; no `Encodes`, `RawValues`, or generated witness is assumed. -/
 theorem rowsZero_implies_specHolds
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : RunningTransitionRetainedGeometry.Geometry application logicalWidth)
@@ -99,7 +94,6 @@ theorem decodedEnv_location
       assignment) column.val = _
   rw [SourceCompiler.sourceEnv_at, same]
 
-/-- The transition's state input is read from its declared owned form. -/
 theorem stateWord_eq_form
     (geometry : RunningTransitionRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -117,7 +111,6 @@ theorem stateWord_eq_form
   have bound := index.isLt
   omega
 
-/-- The transition's complete output uses its declared owned preimage forms. -/
 theorem outputWord_eq_form
     (geometry : RunningTransitionRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -176,7 +169,6 @@ private theorem selectedOutputWord_eq_next
   rw [ActualPreimageFraming.outputState, dif_pos index.isLt]
   rfl
 
-/-- The branch counter is the counter in the actual prior preimage. -/
 theorem selectedIteration_eq_prior
     (application : Lifecycle.Stage1.Application.Program)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
@@ -195,8 +187,6 @@ theorem selectedIteration_eq_prior
     RunningTransitionSourceSupport.stateStart_eq] using!
     selectedStateWord_eq_prior application assignment ⟨0, by decide⟩
 
-/-- The full typed running output is the output preimage used by the pilot.
-Every point, commitment, public input, and evaluation uses the same forms. -/
 theorem selectedOutputRunning_eq_running
     (application : Lifecycle.Stage1.Application.Program)
     (assignment : Assignment F (PerApplicationFixedPoint.logicalWidth application)) :
@@ -217,8 +207,6 @@ theorem selectedOutputRunning_eq_running
     omega
   exact selectedOutputWord_eq_next application assignment ⟨word, stateBound⟩
 
-/-- The sole complete selected row plan contains the running-transition rows.
-This projection preserves the arbitrary assignment and the existing layout. -/
 theorem selectedRowsZero_implies_specHolds
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -246,9 +234,6 @@ theorem selectedRowsZero_implies_specHolds
   exact rowsZero_implies_specHolds relation (selectedGeometry application)
     assignment one prefixRows.2.2.2.2
 
-/-- HyperNova's base branch follows from the actual public boundary and
-accepted rows: the initial/current states agree and the hashed running output
-is the complete default value. This is one branch of the full step target. -/
 theorem selectedRowsAndPublic_imply_baseState
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

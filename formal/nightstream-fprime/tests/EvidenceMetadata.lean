@@ -9,8 +9,6 @@ namespace LeanGraph
 
 open Lean Elab Command Meta
 
-/-- Preserve sharing in Lean terms. Expanding a proof DAG into a JSON tree
-can duplicate large subterms. Canonical nodes use exact JSON equality. -/
 structure ExpressionGraph where
   expressions : ExprMap Nat := {}
   canonical : Std.HashMap Json Nat := {}
@@ -49,7 +47,6 @@ partial def encodeExpression (value : Expr) : StateM ExpressionGraph Nat := do
          canonical := state.canonical.insert encoded index, nodes := nodes } : ExpressionGraph)
   return index
 
-/-- Remove source metadata and bound variable names without unfolding terms. -/
 def expression (value : Expr) : Json :=
   let (root, graph) := (encodeExpression value).run {}
   Json.mkObj [("root", toJson root), ("nodes", toJson graph.nodes)]
@@ -90,8 +87,6 @@ def declarationShape (info : ConstantInfo) : Json :=
       value.rules.map fun rule => (rule.ctor.toString, rule.nfields))
   | _ => Json.null
 
-/-- Report the actual resolved module file. External provenance is checked by
-the reader against its source manifest and pinned toolchain, never a namespace. -/
 def origin (env : Environment) (name : Name) : CoreM (Name × String × Bool) := do
   let moduleName := match env.getModuleIdxFor? name with
     | some index => env.header.moduleNames[index.toNat]!

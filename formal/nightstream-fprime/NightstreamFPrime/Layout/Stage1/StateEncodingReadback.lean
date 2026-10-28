@@ -29,10 +29,6 @@ private theorem serialized_words
     exact List.getD_eq_getElem (l := serializePreimage (publicFits := publicFits) value)
       (d := 0) rightBound
 
-/-- Exact words on the declared ABI interval decode to the same well-formed
-state. WellFormed includes the natural counter bound, pc=1 and canonical
-children, so this theorem does not identify distinct natural counters through
-modular field encoding or distinct children through the packed parent. -/
 theorem preimage_eq_of_words
     (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
     (wellFormed : StateEncoding.WellFormed value)

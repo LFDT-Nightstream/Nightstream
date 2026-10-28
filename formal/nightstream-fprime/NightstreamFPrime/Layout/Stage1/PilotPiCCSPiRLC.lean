@@ -22,13 +22,11 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The exact PiRLC source-column start is the completed PiCCS endpoint. -/
 def piRlcOffset : Nat := PiRLCInputs.phaseOffset
 
 theorem piRlcOffset_eq : piRlcOffset = 6228781 := by
   rfl
 
-/-- Exact physical row order of the Stage 1 prefix through PiRLC. -/
 def physicalRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List R1CS.Row :=
@@ -57,7 +55,6 @@ def PhysicalHolds
     (env : Env) : Prop :=
   R1CS.RowsHold env (physicalRows relation)
 
-/-- Stage 1 row endpoints after the seven PiRLC children. -/
 def cumulativePhysicalRows
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List Nat :=
@@ -66,7 +63,6 @@ def cumulativePhysicalRows
       (publicFits := publicFits)) piRlcOffset).map
       (6162451 + ·)
 
-/-- Stage 1 source-column endpoints after the seven PiRLC children. -/
 def cumulativePhysicalColumns
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     List Nat :=
@@ -133,8 +129,6 @@ theorem jointDomain_le_twoPow28
   rw [jointDomain_eq relation]
   norm_num
 
-/-- One transported ledger states every PiRLC delta and every Stage 1
-endpoint after the completed PiCCS prefix. -/
 theorem cumulativeFootprints_eq
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits) :
     NightstreamFPrime.Layout.PiRLC.v1_2.physicalRowDeltas relation

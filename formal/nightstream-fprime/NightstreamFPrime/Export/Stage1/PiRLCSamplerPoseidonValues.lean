@@ -5,8 +5,8 @@ import NightstreamFPrime.Export.PermutationOutput
 
 /-!
 Owns the exact retained sampler S-box and output readback from the existing
-physical invocation list. The sampler slice follows the PiCCS slice in the
-same retained block. Actual permutation rows establish the final linear layer.
+physical invocation list. The sampler slice follows the PiCCS slice in the same
+retained block.
 -/
 
 set_option autoImplicit false
@@ -31,7 +31,6 @@ private def laterIndex (current : Fin PiRLCSamplerPoseidonPlan.invocationCount) 
     simp only [LaterPoseidonRetainedBlocks.piCcsInvocationCount]
     omega⟩
 
-/-- Select the existing physical sampler invocation after the PiCCS prefix. -/
 def physicalInvocation (current : Fin PiRLCSamplerPoseidonPlan.invocationCount) :
     PermutationInvocation :=
   PoseidonRetainedBlock.basePackage.permutationInvocations.get
@@ -58,8 +57,6 @@ private theorem physicalInvocation_witnessStart
       PoseidonRetainedBlock.laterWitnessStart (laterIndex current) := by
   rfl
 
-/-- The retained sampler and physical invocation use the same owned witness
-start. The invocation list itself is not expanded by this consumer. -/
 theorem physicalInvocation_witnessStart_sampler
     (current : Fin PiRLCSamplerPoseidonPlan.invocationCount) :
     (physicalInvocation current).witnessStart =
@@ -130,8 +127,6 @@ private def applicationSboxColumn (application : Lifecycle.Stage1.Application.Pr
     Nat.lt_of_lt_of_le (physicalSboxColumn current row).isLt
       (PiRLCProductPlan.basePackage_fits application)⟩
 
-/-- The sampler's retained source projection reads its actual private S-box
-cell. It follows the existing slice and source lifts and requires no rows. -/
 theorem source_sbox
     (application : Lifecycle.Stage1.Application.Program)
     (base : Fin (PiRLCProductPlan.baseSourceWidth application) → F)
@@ -161,9 +156,6 @@ theorem source_sbox
     (physicalSboxColumn current row).val (physicalSboxColumn current row).isLt]
   exact (SourceCompiler.sourceEnv_at base (applicationSboxColumn application current row)).symm
 
-/-- The exact sampler packets identify each retained output with the output
-of the same actual physical invocation. Its final-layer rows supply the
-linear output relation; no output equality is assumed. -/
 theorem outputValue_of_packets
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : PiCCSPoseidonPlan.Geometry application logicalWidth)

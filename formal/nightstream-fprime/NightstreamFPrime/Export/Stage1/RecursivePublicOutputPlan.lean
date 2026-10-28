@@ -10,9 +10,8 @@ the digest produced by the augmented step. The 270 public coordinates encode
 `encHash(outputDigest)`; the prior-state public link remains retained private
 advice in the low-norm relation.
 
-This plan adds no source column or retained slot. It decodes each public digest
-word with the exact HyperNova `decodeHashWord` weights and equates it to the
-existing constrained pilot output-digest form.
+It decodes each public digest word with the exact HyperNova `decodeHashWord`
+weights and equates it to the existing constrained pilot output-digest form.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
@@ -91,8 +90,6 @@ def publicInput
       (publicFits := carrierPublicFits geometry) :=
   fun column => assignment (publicColumn geometry column)
 
-/-- The local public reader is the exact public projection of the aligned
-CCS assignment. Completion does not change any public coordinate. -/
 theorem publicInput_eq_projectPublicInput
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
@@ -111,8 +108,6 @@ theorem publicInput_eq_projectPublicInput
       ((FullShape logicalWidth (carrierPublicFits geometry)).publicColumn column)
   rw [same, Phi81CarrierLayout.extendAssignment_embedLogical]
 
-/-- Binding the actual public prefix to an encoded digest enforces the one
-coordinate used by every child plan. No witness-generation premise is used. -/
 theorem publicEqual_implies_one
     {application : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)

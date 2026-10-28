@@ -21,10 +21,6 @@ Constraint groups:
 
 Parent coverage:
 - `ProtocolPolynomial.ccsAtMessage` inside `PiCCS.v1_2.Coverage.chain`.
-
-The fixed production profile has one fresh source, so its source weight is
-`gamma^0 = 1`. The two checked output wires flow directly to the
-final-identity leaf.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.CcsTerminal
@@ -42,7 +38,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 structure Interface where
   freshMatrix : Nat → Fin productionShape.matrixCount → KExpr
 
-/-- Static verifier-key polynomial. No proof value changes circuit syntax. -/
 def polynomial
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -56,7 +51,6 @@ def sparseInterface (interface : Interface) :
     Sparse.Owned.Interface productionShape.matrixCount where
   point := interface.freshMatrix
 
-/-- Exact symbolic production residual. -/
 def output
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -74,7 +68,6 @@ abbrev Assumptions
   Sparse.Owned.Assumptions (polynomial relation) (sparseInterface interface)
     offset env
 
-/-- Named semantic predicate for the exact gate polynomial evaluation. -/
 abbrev SpecHolds
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -84,7 +77,6 @@ abbrev SpecHolds
   Sparse.Owned.SpecHolds (polynomial relation) (sparseInterface interface)
     offset env
 
-/-- Sole logical circuit for the CCS-terminal leaf. -/
 def circuit
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -138,7 +130,6 @@ theorem completeness
         (Circuit.ops (circuit relation interface).main offset) :=
   build relation interface env offset assumptions
 
-/-- The 3 production monomials store 7 extension products. -/
 theorem productCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -216,7 +207,6 @@ theorem ccsAtMessage_eq_singleFresh
     productionProfile, Phi81MatrixSource.phi81Shape, freshIndex,
     extensionLaws.one_mul, extensionLaws.add_zero]
 
-/-- The gate evaluation is exactly production `ccsAtMessage`. -/
 theorem spec_implies_keyCcsAtMessage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

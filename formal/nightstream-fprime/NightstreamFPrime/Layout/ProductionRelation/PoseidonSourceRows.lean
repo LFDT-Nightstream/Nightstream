@@ -13,12 +13,10 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- A trace expression recognized as one exact source column. -/
 structure ColumnSource (sourceWidth : Nat) (expression : Circuit.Expr) where
   column : Fin sourceWidth
   sound : ∀ env, env column.val = expression.eval env
 
-/-- Fail-closed exact-variable recognition. -/
 def sourceColumn? (sourceWidth : Nat) (expression : Circuit.Expr) :
     Option (ColumnSource sourceWidth expression) :=
   match expression with
@@ -29,7 +27,6 @@ def sourceColumn? (sourceWidth : Nat) (expression : Circuit.Expr) :
         none
   | _ => none
 
-/-- One source expression pair compiled as a direct S-box step. -/
 structure SboxSource (sourceWidth : Nat) where
   inputExpression : Circuit.Expr
   outputExpression : Circuit.Expr
@@ -56,8 +53,6 @@ def compileSbox? (sourceWidth : Nat) (input output : Circuit.Expr) :
                 input affine affineFound
               outputSound := column.sound }
 
-/-- A successfully compiled S-box expression pair has exactly the source
-expression semantics. -/
 theorem SboxSource.residual_zero_iff {sourceWidth logicalWidth : Nat}
     (source : SboxSource sourceWidth)
     (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)
@@ -72,7 +67,6 @@ theorem SboxSource.residual_zero_iff {sourceWidth logicalWidth : Nat}
     oneColumn assignment env one preserves]
   rw [source.inputSound env, source.outputSound env]
 
-/-- One source expression pair compiled as a direct linear-output step. -/
 structure OutputSource (sourceWidth : Nat) where
   outputExpression : Circuit.Expr
   linearExpression : Circuit.Expr
@@ -99,8 +93,6 @@ def compileOutput? (sourceWidth : Nat) (output linear : Circuit.Expr) :
               linearSound := SourceCompiler.lowerAffine?_sound
                 linear affine affineFound }
 
-/-- A successfully compiled linear-output expression pair has exactly the
-source expression semantics. -/
 theorem OutputSource.residual_zero_iff {sourceWidth logicalWidth : Nat}
     (source : OutputSource sourceWidth)
     (sourceMap : SourceCompiler.SourceMap sourceWidth logicalWidth)

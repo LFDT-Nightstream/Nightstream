@@ -18,8 +18,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open ConcreteCarrier
 
-/-- Fixed-width zero C messages and zero D commitment/evaluation messages.
-The verifier still derives every challenge and child public input. -/
 def zeroProof : Proof 8 where
   piCcsRounds := fun _ => SumCheck.Finite.FixedPolynomial.zero extensionOps.toOps 8
   piCcsOutput := {
@@ -30,8 +28,6 @@ def zeroProof : Proof 8 where
     pad := fun _ => K.zero
     matrix := fun _ _ => K.zero }
 
-/-- The base dummy fresh claim uses the actual prior-state hash as its public
-input. This constructor supplies a public claim, not an opening witness. -/
 def baseFresh
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -90,8 +86,6 @@ private theorem initial_zero (gamma : K) :
     (((ProductionKey.key relation ajtai).statement defaultRunning (baseFresh prior)).verifierInput
       K.embed).initial extensionOps gamma = K.zero := by
   let statement := (ProductionKey.key relation ajtai).statement defaultRunning (baseFresh prior)
-  -- The reused initial-claim lemma ignores these auxiliary assignment values;
-  -- it uses only public zero coefficients and assumes no opening validity.
   exact PiCCS.v1_2.ZeroRunningPolynomial.initial_zero
     (statement.sourceConnectedInputs ⟨fun _ _ => 0⟩)
     (fun _ => rfl) (fun _ => rfl) gamma
@@ -153,9 +147,6 @@ private theorem terminal_zero
   simp only [ProtocolPolynomial.terminalFromMessage, pad, matrix, ccs, norm,
     SignedJointIdentity.gammaTerm, extension_mul_zero, extension_zero_add]
 
-/-- The canonical base dummy passes the actual PiCCS verifier for its derived
-transcript coins. The proof is independent of the coin values and supplies no
-fresh or child opening, sampler-success, or PiDEC-acceptance premise. -/
 theorem zeroProof_piCcsCheck :
     Nifs.PaperNonInteractive.piCcsCheck (ProductionKey.key relation ajtai)
       defaultRunning (baseFresh prior) zeroProof = true := by

@@ -19,7 +19,6 @@ open NightstreamFPrime.Lifecycle
 
 def digestWords : Nat := PilotValues.digestWords
 
-/-- `27807 + |vk| + |z0| + |zi|` at the fixed four-word production ABI. -/
 def stateHashWords : Nat :=
   PilotValues.stateHashBaseWords + digestWords + digestWords + digestWords
 
@@ -37,7 +36,6 @@ def externalColumnCount : Nat := outputDigestStart + digestWords
 theorem externalColumnCount_eq : externalColumnCount = 55912 := by
   rfl
 
-/-- Fixed physical schedule values derived from the v1.2 state-hash width. -/
 def absorbCount : Nat :=
   (stateHashWords + NightstreamFPrime.Spec.Poseidon2.rate - 1) /
     NightstreamFPrime.Spec.Poseidon2.rate
@@ -167,7 +165,6 @@ def interface : Lifecycle.Pilot.Interface where
   prior := priorInterface
   output := outputInterface
 
-/-- Logical witnesses begin after every verifier/public ABI column. -/
 def witnessOffset : Nat := externalColumnCount
 
 @[simp] theorem priorHashInterface_input (offset : Nat) :
@@ -231,8 +228,6 @@ theorem outputPreimage_chunkCount (offset : Nat) :
     (Hash.inputChunks (outputPreimage offset)).length = 2319 := by
   unfold outputPreimage
   exact stateHash_chunkCount outputPreimageStart
-
-/-! ## Direct production digest wiring -/
 
 def priorDigestStart : Nat :=
   witnessOffset + absorbCount * permutationRecipeCount +
@@ -569,7 +564,6 @@ theorem outputOffset_eq :
 def lifecycleOutputOffset : Nat :=
   2598896
 
-/-- The materialized executable offset is exactly the logical pilot offset. -/
 theorem lifecycleOutputOffset_matches :
     lifecycleOutputOffset =
       Lifecycle.Pilot.outputOffset interface witnessOffset := by
@@ -609,7 +603,6 @@ theorem physicalColumnCount_eq :
 def jointDomain : Nat :=
   5141760
 
-/-- The materialized executable domain is exactly the semantic pilot domain. -/
 theorem jointDomain_matches :
     jointDomain =
       max (Pilot.physicalRowCount interface witnessOffset)
@@ -620,7 +613,6 @@ theorem jointDomain_matches :
 theorem jointDomain_eq : jointDomain = 5141760 := by
   rfl
 
-/-- The complete pilot layout fits the fixed `2^28` production domain. -/
 theorem jointDomain_le_twoPow28 : jointDomain ≤ 2 ^ 28 := by
   rw [jointDomain_eq]
   norm_num
@@ -689,15 +681,12 @@ theorem physical_complete (env : Env)
   rw [logicalConstraints_freshCount] at agrees
   exact ⟨completed, agrees, rows⟩
 
-/-- Values supplied at the fixed verifier/parent ABI boundary. -/
 structure ExternalValues where
   priorPreimage : Fin stateHashWords → F
   priorPublicInput : Fin PriorStateHash.publicWidth → F
   outputPreimage : Fin stateHashWords → F
   outputDigest : Fin digestWords → F
 
-/-- Load the four disjoint external segments. All logical witness columns are
-left at zero until the witness program executes. -/
 def loadExternal (values : ExternalValues) : Env := fun index =>
   if prior : index < priorPublicInputStart then
     values.priorPreimage ⟨index, by
@@ -1037,8 +1026,6 @@ theorem protocolEnv_represents_of_agreesBelow
                 exact outputDigest_belowWitness lane) (by omega))
             (fun index lower => (agrees index lower).symm))
 
-/-- Production deterministic bridge for the two pilot slots. The concrete ABI
-constructs every representation fact; none is supplied as a free hypothesis. -/
 theorem physical_implies_recursive_hash_slots
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))

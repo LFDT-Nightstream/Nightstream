@@ -3,9 +3,7 @@ import NightstreamFPrime.Layout.ProductionRelation.SparseEvaluation
 
 /-!
 Read child Phi81 coefficients through the nonzero entries of the existing
-prepared basis action. Each basis/output pair owns one existing SparseForm.
-Preparation preserves input order and removes only exact zero coefficients.
-No parent value, expected evaluation, or matrix is an input to preparation.
+prepared basis action.
 -/
 
 set_option autoImplicit false
@@ -32,8 +30,6 @@ private theorem filterZero_evalSparse {columns : Nat} (form : SparseForm columns
   funext initial entry
   by_cases zero : entry.coefficient = 0 <;> simp [zero]
 
-/-- Retain each exact nonzero coefficient in its original input-lane order.
-The complete coefficient table is inspected only during preparation. -/
 def coefficientForm (table : FixedArray MaterializedRingF ringDegree)
     (output : Fin ringDegree) : SparseForm ringDegree where
   entries := ((List.finRange ringDegree).map fun input =>
@@ -74,8 +70,6 @@ private theorem numericSum_eq_sumRange (count : Nat) (term : Nat → F) :
         baseOps.add (sumRange baseOps count term) (term count)
       rw [inductionHypothesis]
 
-/-- Sparse evaluation equals the same fixed ring action for every scalar
-source. This includes cancellation and both signs, with no support premise. -/
 theorem coefficientForm_value (challenge : MaterializedRingF)
     (source : RingF) (output : Fin ringDegree) :
     (coefficientForm (PiRLCWitnessAction.prepare challenge) output).evalSparse source =
@@ -87,7 +81,6 @@ theorem coefficientForm_value (challenge : MaterializedRingF)
   simp only [dif_pos live, PiRLCWitnessAction.prepare, FixedArray.get_ofFn,
     MaterializedRingF.toRing_ofRing, CarrierAction.rightCoefficient]
 
-/-- On signed sources this is also the exact previously checked scalar fold. -/
 theorem coefficientForm_eq_coefficient (challenge : MaterializedRingF)
     (source : RingF)
     (signed : ∀ input, source input = 0 ∨ source input = 1 ∨ source input = -1)
@@ -97,24 +90,18 @@ theorem coefficientForm_eq_coefficient (challenge : MaterializedRingF)
         (PiRLCWitnessAction.prepare challenge) source output := by
   rw [coefficientForm_value, PiDECParentScalarRead.coefficient_value challenge source signed]
 
-/-- Compute each basis/output sparse form once from the existing prepared
-basis products. The nested containers are the existing FixedArray type. -/
 def prepare (_unit : Unit := ()) :
     FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree :=
   let tables := PiDECParentScalarRead.prepare ()
   FixedArray.ofFn fun basis =>
     FixedArray.ofFn fun output => coefficientForm (tables.get basis) output
 
-/-- Only retained nonzero entries request a scalar digit from the parent.
-All 54 parent lanes, including carried tails, remain addressable. -/
 def read (forms : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)
     (parent : StoredAssignment ringDegree) (basis : Fin ringDegree)
     (child : Radix.ChildIndex) (output : Fin ringDegree) : F :=
   ((forms.get basis).get output).evalSparse
     (fun input => Radix.splitScalar (parent.get input) child)
 
-/-- The sparse reader has exactly the existing total scalar-split meaning.
-The caller's strict parent-bound check remains the PiDEC acceptance gate. -/
 theorem read_eq_splitScalar (parent : StoredAssignment ringDegree)
     (basis : Fin ringDegree) (child : Radix.ChildIndex) (output : Fin ringDegree) :
     read (prepare ()) parent basis child output =
@@ -125,8 +112,6 @@ theorem read_eq_splitScalar (parent : StoredAssignment ringDegree)
     coefficientForm_value, MaterializedRingF.toRing_ofRing]
   exact (congrFun (CarrierAction.kernelImage_eq_ringFMul basis _) output).symm
 
-/-- The sparse optimization preserves every value of the previous scalar
-reader on the same checked parent domain. -/
 theorem read_eq_scalarRead (parent : StoredAssignment ringDegree)
     (bounded : ∀ input, centeredMagnitude (parent.get input) < Radix.combinedBound)
     (basis : Fin ringDegree) (child : Radix.ChildIndex) (output : Fin ringDegree) :
@@ -136,8 +121,6 @@ theorem read_eq_scalarRead (parent : StoredAssignment ringDegree)
   rw [read_eq_splitScalar,
     PiDECParentScalarRead.read_eq_splitScalar parent bounded basis child output]
 
-/-- The exact checked child coefficient follows from the original split;
-children are theorem data and are not supplied to the executable reader. -/
 theorem read_eq_checkedChild (parent : StoredAssignment ringDegree)
     (children : Vector (StoredAssignment ringDegree) productionGlobalParams.k)
     (success : StoredSplit.splitChecked parent = some children)

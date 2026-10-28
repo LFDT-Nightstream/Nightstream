@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanEvaluation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81MatrixSource
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/Phi81Evaluation.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Batch-invariant Phi81 carried-evaluation leaves.
 
@@ -20,16 +17,6 @@ products, `yZcol`, public inputs, commitments, transcript derivation, Rust,
 R1CS, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: coefficient matrices are read only through
-`MatrixSource.coefficientMatrix`; callers cannot supply an independent carried
-matrix. `freshCount` and `runningCount` occur only in the source's paper shape
-and do not participate in either definition below.
-
-| Protocol | Phase | Leaf | Mathematical obligation |
-|---|---|---|---|
-| coefficient embedding | matrix image | `table` | tabulate `cf(bar(M) z)[lane]` over the Boolean row cube |
-| carried CE | row evaluation | `evaluate` | evaluate that sole derived table at the verifier-owned point |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81Evaluation
@@ -38,9 +25,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open PaperLinearAlgebra
 
-/-- Boolean row table for one coefficient image derived from the sole Phi81
-matrix source. Batch counts are phantom shape parameters and do not affect the
-formula. -/
 def table
     {cubeVariables freshCount runningCount matrixCount columns blockCount : Nat}
     (matrixSource : MatrixCoefficientSource.MatrixSource F
@@ -55,8 +39,6 @@ def table
       (matrixSource.coefficientMatrix ConcreteCarrier.baseOps matrix lane)
       assignment vertex
 
-/-- Evaluate one source-derived Phi81 coefficient image at the typed
-verifier-owned row point. -/
 def evaluate
     {cubeVariables freshCount runningCount matrixCount columns blockCount : Nat}
     (matrixSource : MatrixCoefficientSource.MatrixSource F

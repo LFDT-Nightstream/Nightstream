@@ -1,14 +1,9 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/EvaluationHomomorphism/CarrierAction.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Complete-carrier algebra behind the Phi81 `Pi_RLC` assignment action.
 
 Protocol: SuperNeo v1.2 Theorem 11, assignment-side `RingF` action.
-Phase: complete 54-lane carrier block to derived Phi81 coefficient image.
-Constraint family: semantic coefficient algebra only; this file emits no rows.
 
 Owns: reuse of the canonical complete-carrier block/lane inverse; the fixed
 blockwise `Concrete.ringFMul` action; base-field bilinearity of that multiplication;
@@ -18,24 +13,6 @@ canonical basis-defined `phi81Kernel` image to multiplication by `barBasis`.
 Does not own: associativity or commutativity of `Concrete.ringFMul`, the final
 `Pi_RLC` commutation theorem, `RingF -> RingK` placement, Boolean MLE,
 commitments, transcripts, Rust, R1CS, row removal, or counts.
-
-Emits constraints: no.
-
-Authority boundary: every action input is the typed complete assignment.
-`carrierColumn` is total because `Shape.carrierWidth` is a whole number of
-Phi81 blocks. The coefficient image is derived from the fixed
-`phi81Kernel`; no caller supplies a second matrix or evaluation view. That
-kernel is itself defined from executable multiplication on coefficient bases,
-so this file proves basis-extension consistency, not independent Rust bar/cache
-conformance or the quotient-ring law later proved in `RingFLaws`.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `nifs.pi_rlc.verify.assignment_action.carrier.decode` | reuse `Phi81CarrierLayout.carrierColumn`; flattening and decoding are exact inverses | computed | `carrierColumn`, `decode_carrierColumn` |
-| `nifs.pi_rlc.verify.assignment_action.block` | one 54-lane block uses the fixed `Concrete.ringFMul` action | computed | `assignmentBlock_act` |
-| `nifs.pi_rlc.verify.assignment_action.ringf.linearity` | executable multiplication is additive and base-`F` scalable in both inputs | derived | `ringFMul_add_left`, `ringFMul_add_right`, `ringFMul_scale_left`, `ringFMul_scale_right` |
-| `nifs.pi_rlc.verify.assignment_action.kernel_image` | the canonical basis-defined coefficient image extends exactly to `barBasis * block` | derived | `kernelImage_eq_ringFMul` |
-| `nifs.pi_rlc.verify.assignment_action.commutation` | `bar * (rho * z) = rho * (bar * z)` | derived | `RingFLaws.ringFMul_barBasis_productOrder` |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction
@@ -45,31 +22,22 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
 
 
-/-! ## Fixed complete-carrier action -/
-
-/-- Base-field scaling of every coefficient of a Phi81 ring value. -/
 def ringFScale (scalar : F) (value : RingF) : RingF :=
   fun lane => scalar * value lane
 
-/-- A complete assignment depends only on the logical width and its canonical
-Phi81 completion, not on public-input or matrix dimensions. -/
 abbrev CompleteAssignment (logicalWidth : Nat) :=
   PaperLinearAlgebra.Assignment F
     (Phi81CarrierLayout.carrierWidth logicalWidth)
 
-/-- The complete carrier column owned by one block/lane pair. This is the
-canonical layout owner shared with the independent PiCCS semantics. -/
 abbrev carrierColumn {logicalWidth : Nat} :=
   @Phi81CarrierLayout.carrierColumn logicalWidth
 
-/-- Read one complete 54-lane assignment block. -/
 def assignmentBlock {logicalWidth : Nat}
     (assignment : CompleteAssignment logicalWidth)
     (block : Fin (Phi81ColumnLayout.blockCount
       (Phi81CarrierLayout.carrierWidth logicalWidth))) : RingF :=
   fun lane => assignment (carrierColumn block lane)
 
-/-- Fixed blockwise `RingF` action on the complete assignment carrier. -/
 def act {logicalWidth : Nat}
     (challenge : RingF) (assignment : CompleteAssignment logicalWidth) :
     CompleteAssignment logicalWidth :=
@@ -77,8 +45,6 @@ def act {logicalWidth : Nat}
     let packed := Phi81ColumnLayout.decode column
     ringFMul challenge (assignmentBlock assignment packed.1) packed.2
 
-/-- Complete-carrier flattening followed by decoding recovers the exact
-block/lane pair. -/
 theorem decode_carrierColumn {logicalWidth : Nat}
     (block : Fin (Phi81ColumnLayout.blockCount
       (Phi81CarrierLayout.carrierWidth logicalWidth)))
@@ -86,9 +52,6 @@ theorem decode_carrierColumn {logicalWidth : Nat}
     Phi81ColumnLayout.decode (carrierColumn block lane) = (block, lane) := by
   exact Phi81CarrierLayout.decode_carrierColumn block lane
 
-/-- Acting on a complete assignment and reading one block is exactly one
-application of the fixed Phi81 multiplication. No padding/default case is
-possible. -/
 theorem assignmentBlock_act {logicalWidth : Nat}
     (challenge : RingF) (assignment : CompleteAssignment logicalWidth)
     (block : Fin (Phi81ColumnLayout.blockCount
@@ -99,8 +62,6 @@ theorem assignmentBlock_act {logicalWidth : Nat}
   unfold assignmentBlock act
   rw [decode_carrierColumn]
   rfl
-
-/-! ## Finite-sum support -/
 
 private def sumTerms
     {Value Index : Type}
@@ -308,8 +269,6 @@ private theorem rawMulCoeffF_scale_left
   exact sumTerms_scale 0 add scale ConcreteCarrier.baseLaws.mul_zero
     ConcreteCarrier.baseLaws.left_distrib (List.range ringDegree) scalar term
 
-/-! ## Bilinearity of the fixed executable multiplication -/
-
 private theorem add_sub_pair
     (a₁ a₂ b₁ b₂ : F) :
     (a₁ + a₂) - (b₁ + b₂) =
@@ -368,7 +327,6 @@ private theorem scale_sub_zero
   rw [Fin.add_zero, Fin.add_zero]
   exact scale_sub _ _ _
 
-/-- The fixed Phi81 multiplication is additive in its right input. -/
 theorem ringFMul_add_right (left right₁ right₂ : RingF) :
     ringFMul left (ringFAdd right₁ right₂) =
       ringFAdd (ringFMul left right₁) (ringFMul left right₂) := by
@@ -380,7 +338,6 @@ theorem ringFMul_add_right (left right₁ right₂ : RingF) :
   · exact add_sub_add_triple _ _ _ _ _ _
   · exact add_sub_pair_zero _ _ _ _
 
-/-- The fixed Phi81 multiplication is additive in its left input. -/
 theorem ringFMul_add_left (left₁ left₂ right : RingF) :
     ringFMul (ringFAdd left₁ left₂) right =
       ringFAdd (ringFMul left₁ right) (ringFMul left₂ right) := by
@@ -392,8 +349,6 @@ theorem ringFMul_add_left (left₁ left₂ right : RingF) :
   · exact add_sub_add_triple _ _ _ _ _ _
   · exact add_sub_pair_zero _ _ _ _
 
-/-- The fixed Phi81 multiplication commutes with base-field scaling in its
-right input. -/
 theorem ringFMul_scale_right (left : RingF) (scalar : F) (right : RingF) :
     ringFMul left (ringFScale scalar right) =
       ringFScale scalar (ringFMul left right) := by
@@ -405,8 +360,6 @@ theorem ringFMul_scale_right (left : RingF) (scalar : F) (right : RingF) :
   · exact scale_sub_add _ _ _ _
   · exact scale_sub_zero _ _ _
 
-/-- The fixed Phi81 multiplication commutes with base-field scaling in its
-left input. -/
 theorem ringFMul_scale_left (scalar : F) (left right : RingF) :
     ringFMul (ringFScale scalar left) right =
       ringFScale scalar (ringFMul left right) := by
@@ -418,7 +371,6 @@ theorem ringFMul_scale_left (scalar : F) (left right : RingF) :
   · exact scale_sub_add _ _ _ _
   · exact scale_sub_zero _ _ _
 
-/-- Multiplication by the additive identity is the additive identity. -/
 theorem ringFMul_zero_right (left : RingF) :
     ringFMul left ringFZero = ringFZero := by
   have zeroScale (value : RingF) : ringFScale 0 value = ringFZero := by
@@ -432,8 +384,6 @@ theorem ringFMul_zero_right (left : RingF) :
     _ = ringFScale 0 (ringFMul left ringFZero) :=
       ringFMul_scale_right left 0 ringFZero
     _ = ringFZero := zeroScale _
-
-/-! ## Finite coefficient-basis reconstruction -/
 
 private def ringFSumRange : Nat -> (Nat -> RingF) -> RingF
   | 0, _ => ringFZero
@@ -479,8 +429,6 @@ private def basisTerm (value : RingF) (index : Nat) : RingF :=
 private def basisExpansion (value : RingF) : RingF :=
   ringFSumRange ringDegree (basisTerm value)
 
-/-- Every fixed-size Phi81 value is exactly the finite sum of its 54
-coefficient monomials. -/
 theorem basisExpansion_eq (value : RingF) :
     basisExpansion value = value := by
   funext output
@@ -519,18 +467,11 @@ private theorem basisTerm_as_scaled_monomial
   · exact (ConcreteCarrier.baseLaws.mul_one _).symm
   · exact (ConcreteCarrier.baseLaws.mul_zero _).symm
 
-/-! ## Public linearization for verifier-owned constants -/
-
-/-- Coefficient of one right-input lane when a verifier-owned ring value
-multiplies a private ring value. -/
 def rightCoefficient
     (left : RingF)
     (output input : Fin ringDegree) : F :=
   ringFMul left (ringFMonomial input.val 1) output
 
-/-- Multiplication by a fixed left operand is the exact finite linear
-combination of the right operand's 54 coefficients. This is the semantic
-bridge used by the terminal Ajtai R1CS compiler. -/
 theorem ringFMul_apply_eq_rightLinear
     (left right : RingF)
     (output : Fin ringDegree) :
@@ -566,11 +507,6 @@ theorem ringFMul_apply_eq_rightLinear
       unfold rightCoefficient ringFScale
       exact ConcreteCarrier.baseLaws.mul_comm _ _
 
-/-! ## Canonical basis-kernel image -/
-
-/-- Finite coefficient image of one transformed matrix-row basis acting on
-one complete assignment block. This is the canonical `phi81Kernel`
-contraction, not a caller-supplied second product. -/
 def kernelImage (row : Fin ringDegree) (block : RingF) : RingF :=
   ringFSumRange ringDegree fun index =>
     if indexLt : index < ringDegree then
@@ -580,8 +516,6 @@ def kernelImage (row : Fin ringDegree) (block : RingF) : RingF :=
     else
       ringFZero
 
-/-- Extending the basis-defined Phi81 coefficient kernel over all 54 input
-lanes gives exactly the fixed executable product `barBasis(row) * block`. -/
 theorem kernelImage_eq_ringFMul
     (row : Fin ringDegree) (block : RingF) :
     kernelImage row block =

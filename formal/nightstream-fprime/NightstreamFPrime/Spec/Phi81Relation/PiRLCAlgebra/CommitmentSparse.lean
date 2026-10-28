@@ -2,8 +2,6 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 
 /-!
 Owns structural elimination of zero blocks from the exact Ajtai row sum.
-The assignment still has the complete carrier domain. This module changes
-neither the key nor the commitment relation and emits no circuit rows.
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.CommitmentSparse
@@ -27,8 +25,6 @@ private theorem sum_zero {count : Nat} :
   | zero => rfl
   | succ count previous => rw [ringFSum, previous, zero_add]
 
-/-- A single supported summand is recovered by structural induction, without
-evaluating an instantiated production-size finite domain. -/
 theorem ringFSum_eq_single {count : Nat} (terms : Fin count → RingF)
     (selected : Fin count)
     (unsupported : ∀ index, index ≠ selected → terms index = ringFZero) :
@@ -56,7 +52,6 @@ theorem ringFSum_eq_single {count : Nat} (terms : Fin count → RingF)
           exact different (Fin.succ_inj.mp equal)
         rw [ringFSum, head, tail, zero_add]
 
-/-- One ring block at its original full-carrier address. -/
 def singleBlock {shape : Shape}
     (selected : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth))
     (value : RingF) : Assignment shape :=
@@ -79,8 +74,6 @@ theorem assignmentBlock_singleBlock {shape : Shape}
       if packed.1 = selected then value packed.2 else (0 : F)) decoded)
   by_cases equal : block = selected <;> simp [equal, ringFZero]
 
-/-- The exact original commitment of a single supported block uses only its
-selected key element. No equality of commitments is an input premise. -/
 theorem commit_singleBlock {shape : Shape} {verifierRows : Nat}
     (key : Key shape verifierRows)
     (selected : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth))
@@ -95,8 +88,6 @@ theorem commit_singleBlock {shape : Shape} {verifierRows : Nat}
     rw [assignmentBlock_singleBlock, if_neg different]
     exact CarrierAction.ringFMul_zero_right _
 
-/-- A one-coefficient block occupies precisely the canonical flat address,
-including positions in the final complete carrier block. -/
 theorem singleBlock_monomial_coordinate {shape : Shape}
     (selected : Fin (Phi81ColumnLayout.blockCount shape.carrierWidth))
     (lane : Fin ringDegree) (scalar : F)

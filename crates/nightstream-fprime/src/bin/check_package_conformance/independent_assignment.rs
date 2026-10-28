@@ -179,24 +179,17 @@ fn compare_raw_matrices(
     ]
 }
 
-/// Compare Rust's final padded matrix objects with every raw Lean row carried
-/// inside the sealed package.
-pub fn compare_sealed_matrices(bytes: &[u8], matrices: &nightstream_fprime::PackageR1cs) -> [usize; 3] {
+pub(crate) fn compare_sealed_matrices(bytes: &[u8], matrices: &nightstream_fprime::PackageR1cs) -> [usize; 3] {
     let (raw, layout) = sealed_raw(bytes);
     compare_raw_matrices(&raw, &layout, matrices)
 }
 
-/// Compare Rust's final padded matrix objects with the separately emitted
-/// Lean final-package reference.
-pub fn compare_lean_expanded_matrices(bytes: &[u8], matrices: &nightstream_fprime::PackageR1cs) -> [usize; 3] {
+pub(crate) fn compare_lean_expanded_matrices(bytes: &[u8], matrices: &nightstream_fprime::PackageR1cs) -> [usize; 3] {
     let (raw, layout) = expanded_raw(bytes);
     compare_raw_matrices(&raw, &layout, matrices)
 }
 
-/// Require one real raw-row rejection for each named PiCCS row and column
-/// owner. Raw expansion locates each owned source column, and the separate
-/// raw-package evaluator makes every acceptance decision.
-pub fn check_piccs_owner_mutations(
+pub(crate) fn check_piccs_owner_mutations(
     bytes: &[u8],
     ownership_bytes: &[u8],
     expected_structural_identity: [u64; 4],

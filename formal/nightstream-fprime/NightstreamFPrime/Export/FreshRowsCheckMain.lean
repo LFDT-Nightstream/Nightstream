@@ -18,8 +18,6 @@ private def canonicalField (value : Lean.Json) : Except String F := do
   if bound : word < goldilocksModulus then return ⟨word, bound⟩
   else throw "noncanonical caller fresh public field"
 
-/-- The source is the generated caller's next fresh public input. The prior
-physical public input at caller[3] has a different role and a different width. -/
 private def nextPublic (callerPath : System.FilePath) : IO (Array F) := do
   let caller ← checked (Lean.Json.parse (← IO.FS.readFile callerPath))
   let fields ← checked caller.getArr?
@@ -63,8 +61,6 @@ private def run (carrierPath callerPath outputPath : System.FilePath) : IO UInt3
     ("canonical_blocks", Lean.toJson program.blocks.length),
     ("read_validate_prepare_ns", Lean.toJson (ready - started))]
   let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
-  -- Split each block over the hardware-derived worker count. A unit is one
-  -- complete Poseidon invocation or one row in the other canonical families.
   for (block, index) in program.blocks.zipIdx do
     let units := FreshRowsCheck.checkBlockUnits block
     let chunk := (units + workers - 1) / workers

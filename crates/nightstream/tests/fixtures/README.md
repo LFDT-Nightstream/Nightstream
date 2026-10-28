@@ -69,7 +69,8 @@ commitment authority.
 The linked files have one copy in Git. The archive excludes private witness
 matrices; fresh conformance separately compares complete physical witnesses.
 See [the workflow](../../../../scripts/GOLDEN_CONFORMANCE.md) and
-[the replacement report](../../../../docs/reviews/pirlc-sampler-replacement/REPORT.md).
+the replacement report, `docs/reviews/pirlc-sampler-replacement/REPORT.md` at
+commit `f7e093d8f`.
 
 The selected verifier blueprint has one package copy under `artifacts`, shared
 by assembly and lifecycle tests. These test-only saved outputs are never read
@@ -95,3 +96,13 @@ bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-rows
 bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-start.json
 bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-start.json
 ```
+
+`compression/key.bin` and `compression/final-proof.bin` are the production
+compression key and one final proof after one fold. CI verifies the proof
+(`committed_final_proof_verifies_and_rejects_changes`) and pins the
+production run digests on the key (`final_program_digest_is_pinned`, and
+`neo-spartan`'s `production_layer1_digest_is_pinned`). After a change to the
+circuit or the final program, run the ignored
+`poseidon_compression_setup_matches_the_derived_key`, then
+`poseidon_finish_with_spartan_verifies`, each under the 300-second cap, and
+copy `target/compression-setup/key.bin` and `final-proof.bin` here.

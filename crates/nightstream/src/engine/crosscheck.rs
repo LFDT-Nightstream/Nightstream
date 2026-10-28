@@ -5,17 +5,15 @@ use super::{paper_exact, Engine, EngineError};
 use crate::folding::{
     self,
     transcript::{Poseidon2TranscriptSnapshot, Transcript},
-    CcsInstance, NifsProof, Params, RunningInstance, Structure,
+    CcsInstance, FoldContext, NifsProof, RunningInstance,
 };
 use neo_math::F;
-use neo_reductions::{paper_exact_engine::PaperMatrixRows, superneo_eval::MatrixRows};
+use neo_reductions::paper_exact_engine::PaperMatrixRows;
 
+/// `context` serves the Optimized prover; PaperExact reads `rows`.
 pub(crate) fn prove(
     transcript: &mut Transcript,
-    params: &Params,
-    structure: &Structure,
-    optimized_rows: &dyn MatrixRows,
-    workspace_bytes: usize,
+    context: FoldContext<'_>,
     rows: &dyn PaperMatrixRows<F>,
     fresh: CcsInstance,
     running: RunningInstance,
@@ -28,23 +26,14 @@ pub(crate) fn prove(
         let reference = scope.spawn(|| {
             paper_exact::prove(
                 &mut reference_transcript,
-                params,
-                structure,
+                context.params,
+                context.structure,
                 rows,
                 reference_fresh,
                 reference_running,
             )
         });
-        let optimized = folding::prove_owned_with_rows(
-            &mut optimized_transcript,
-            params,
-            structure,
-            optimized_rows,
-            workspace_bytes,
-            fresh,
-            running,
-        );
-        // Always join the reference, including when the CPU prover rejects.
+        let optimized = folding::prove_owned_with_rows(&mut optimized_transcript, context, fresh, running);
         let reference = reference.join().map_err(|_| EngineError::Failure {
             engine: Engine::PaperExact,
             reason: "cross-check worker panicked".into(),
@@ -94,13 +83,11 @@ pub(super) fn require_match(
             boundary: "prover transcript",
         });
     }
-    // Equality includes the parent authority and every child witness value.
     if optimized_running != reference_running {
         return Err(EngineError::CrosscheckMismatch {
             boundary: "running accumulator",
         });
     }
-    // Compare all proof fields, not a digest of them.
     if optimized_proof != reference_proof {
         return Err(EngineError::CrosscheckMismatch {
             boundary: "proof fields",

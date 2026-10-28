@@ -18,12 +18,10 @@ open NightstreamFPrime.Lifecycle.PiDEC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 
-/-- Fresh intermediates for each certified scalar constraint group. -/
 def signFreshCount : Nat := 0
 def digitFreshCount : Nat := 0
 def recompositionFreshCount : Nat := 0
 
-/-- Each logical constraint adds its assertion row to its fresh rows. -/
 def signRowCount : Nat := signFreshCount + 1
 def digitRowCount : Nat := digitFreshCount + 1
 def recompositionRowCount : Nat := recompositionFreshCount + 1
@@ -36,9 +34,6 @@ def physicalRowCount : Nat :=
   signRowCount + productionGlobalParams.k * digitRowCount +
     recompositionRowCount
 
-/-- Stable affine input shape supplied by the PiDEC parent. The digit
-non-constant condition excludes a literal coefficient from changing the
-canonical product lowering path. -/
 structure InputsLinear
     (interface : Lifecycle.PiDEC.v1_2.SignedSplitScalar.Interface)
     (offset : Nat) : Prop where
@@ -200,7 +195,6 @@ theorem recomposition_rowCount_eq
     R1CS.constraintRowCount_eq_fresh_add_one
       (Lifecycle.PiDEC.v1_2.SignedSplitScalar.recompositionConstraint interface offset)
 
-/-- Exact fresh intermediate count from the three scalar constraint groups. -/
 theorem totalFreshCount_eq
     (interface : Lifecycle.PiDEC.v1_2.SignedSplitScalar.Interface)
     (offset : Nat) (inputs : InputsLinear interface offset) :
@@ -225,7 +219,6 @@ theorem totalFreshCount_eq
     digitConstraints_totalFreshCount interface offset inputs,
     recomposition_freshCount_eq interface offset inputs]
 
-/-- Exact physical rows from the same ordered scalar constraint groups. -/
 theorem totalRowCount_eq
     (interface : Lifecycle.PiDEC.v1_2.SignedSplitScalar.Interface)
     (offset : Nat) (inputs : InputsLinear interface offset) :
@@ -273,8 +266,6 @@ private theorem circuit_totalRowCount_eq
   rw [Lifecycle.PiDEC.v1_2.SignedSplitScalar.flatConstraints_operations]
   exact totalRowCount_eq interface offset inputs
 
-/-- Parent-facing exact footprint. Parents use this bridge without unfolding
-the scalar child operations. -/
 def footprint
     (interface : Lifecycle.PiDEC.v1_2.SignedSplitScalar.Interface)
     (inputs : ∀ offset, InputsLinear interface offset) :

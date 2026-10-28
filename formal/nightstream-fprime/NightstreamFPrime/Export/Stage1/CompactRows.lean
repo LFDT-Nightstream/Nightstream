@@ -146,8 +146,6 @@ private theorem varsBelow_mul_right {left right : Expr} {bound : Nat}
     (scope : (left * right).VarsBelow bound) : right.VarsBelow bound := by
   exact scope.2
 
-/-- Renaming inputs does not change allocation; shifting the first fresh
-column shifts the final fresh boundary by the same amount. -/
 theorem lowerExpression_next_rename (_inputCount start shift : Nat)
     (inputColumn : Nat → Nat) (expression : Expr) :
     (R1CS.lowerExpression (renameExpr inputColumn expression)
@@ -250,8 +248,6 @@ theorem lowerExpression_rows_rename (inputCount start shift : Nat)
       rw [relocate_local inputCount shift inputColumn
         (start + R1CS.mulCount left + R1CS.mulCount right) (by omega)]
 
-/-- Generic one-constraint lowering, including its final assertion row, is
-equivariant under the same renaming. -/
 theorem lowerGenericConstraint_rename (inputCount start shift : Nat)
     (inputColumn : Nat → Nat) (expression : Expr)
     (startBound : inputCount ≤ start)
@@ -330,8 +326,6 @@ def instantiateRows (inputColumn : Nat → Nat) (localStart : Nat)
     (template : CompactRowTemplate) : List R1CS.Row :=
   template.rows.map (instantiateRow inputColumn localStart)
 
-/-- The compact compiler and the generic package semantics instantiate the
-same final R1CS rows. -/
 theorem instantiateRows_eq_package (invocation : CompactRowInvocation)
     (template : CompactRowTemplate) :
     instantiateRows (inputColumnOfRanges invocation.inputRanges)
@@ -450,8 +444,6 @@ private theorem instantiate_abstractRow_congr (inputCount localStart : Nat)
     instantiate_abstractCombination_congr inputCount localStart leftInput
       rightInput agree]
 
-/-- Expanding a compact template gives exactly the renamed generic Lean
-lowering, entry for entry and in the same row order. -/
 theorem instantiate_compactTemplate (inputCount outputInput shift : Nat)
     (inputColumn : Nat → Nat) (outputRecipe : Expr) :
     instantiateRows inputColumn (inputCount + shift)
@@ -465,8 +457,6 @@ theorem instantiate_compactTemplate (inputCount outputInput shift : Nat)
   intro row member
   exact instantiate_abstractRow inputCount shift inputColumn row
 
-/-- The optimized compact constructor expands to the exact optimized Lean
-constraint lowering under the declared input and local-column maps. -/
 theorem instantiate_compactConstraintTemplate
     (inputCount outputInput shift : Nat) (inputColumn : Nat → Nat)
     (outputRecipe : Expr) :
@@ -501,8 +491,6 @@ theorem rowsHold_map_renameRow (column : Nat → Nat)
   apply (renameRow_holds column row env).mp
   exact holds (renameRow column row) (List.mem_map.mpr ⟨row, member, rfl⟩)
 
-/-- Holding every instantiated row of an optimized compact template implies
-the exact normalized constraint. -/
 theorem compactConstraintTemplate_rows_imply_eval_zero
     (inputCount outputInput localStart : Nat) (inputColumn : Nat → Nat)
     (outputRecipe : Expr) (env : Env)
@@ -549,9 +537,6 @@ private theorem copyCompactLocals_agreesOutside
   intro inside
   rcases outside with before | after <;> omega
 
-/-- Constructive completeness for one optimized compact constraint template.
-Only the declared invocation-local fresh interval changes. Exact input columns
-must lie outside that interval, as enforced by the strict package loader. -/
 theorem compactConstraintTemplate_complete
     (inputCount outputInput localStart : Nat) (inputColumn : Nat → Nat)
     (outputRecipe : Expr) (env : Env)
@@ -642,9 +627,6 @@ theorem compactConstraintTemplate_complete
       sourceMember)
     mappedAgrees (sourceRows sourceRow sourceMember)
 
-/-- Constructive completeness for one generic compact constraint template.
-This is the corresponding package-completeness primitive for combination
-rows, whose template uses the generic expression lowerer. -/
 theorem compactTemplate_complete
     (inputCount outputInput localStart : Nat) (inputColumn : Nat → Nat)
     (outputRecipe : Expr) (env : Env)
@@ -751,8 +733,6 @@ theorem compactTemplate_complete
       sourceRow sourceMember)
     mappedAgrees (sourceRows sourceRow sourceMember)
 
-/-- Compact-template expansion observes only declared input slots. Values of
-the input maps outside `inputCount` cannot affect an expanded row. -/
 theorem instantiate_compactTemplate_congr_inputs
     (inputCount outputInput localStart : Nat)
     (leftInput rightInput : Nat → Nat) (outputRecipe : Expr)
@@ -769,8 +749,6 @@ theorem instantiate_compactTemplate_congr_inputs
   exact instantiate_abstractRow_congr inputCount localStart leftInput rightInput
     agree row
 
-/-- Expanding after an affine final column map gives exactly the final-column
-image of the Lean-lowered source rows. -/
 theorem instantiate_compactTemplate_remap
     (inputCount outputInput sourceFresh finalFresh : Nat)
     (sourceInput remap : Nat → Nat) (outputRecipe : Expr)

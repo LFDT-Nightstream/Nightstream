@@ -5,8 +5,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 
 /-!
 Owns the source agreement derived from completed PiCCS permutation rows.
-The actual final layers determine the computed transcript readout and the
-canonical retained output forms, including the final state consumed by R.
 -/
 
 set_option autoImplicit false
@@ -90,8 +88,6 @@ private theorem physicalInvocation_mem (index : InvocationIndex) :
   rw [same]
   exact List.get_mem _ ⟨index.val, bounded⟩
 
-/-- Every retained C selector denotes a permutation constrained by the actual
-completed C rows. Width erasure is derived from the existing action owners. -/
 theorem invocation_holds
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (target : Env)
@@ -118,8 +114,6 @@ private theorem readout_eq_target
   rw [show PiCCSTranscriptReadout.invocation index = physicalInvocation selected from rfl]
   exact invocation_holds relation target physical selected
 
-/-- The copied completed assignment has the same transcript source values on
-the existing Spartan source domain. Final-layer rows prove the agreement. -/
 theorem transitionEnv_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -146,8 +140,6 @@ theorem transitionEnv_of_completed
   change PiCCSTranscriptReadout.env _ (Spartan.sourceToSpartan source) = _
   exact same.trans (congrFun (readout_eq_target relation target physical) (Spartan.sourceToSpartan source))
 
-/-- Canonical retained C outputs equal the stored final-state lanes of the
-same accepted permutation, including the final C state consumed by R. -/
 theorem outputValue_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

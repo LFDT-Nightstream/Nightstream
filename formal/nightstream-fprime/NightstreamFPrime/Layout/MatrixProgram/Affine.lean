@@ -43,7 +43,6 @@ private theorem readTerms_ofSemantic (terms : List (Nat × F)) :
       simp only [List.map_cons, readTerms, dif_pos term.2.isLt, inductionHypothesis]
       rfl
 
-/-- Decoding retains every source index, coefficient, and term position. -/
 theorem Form.semantic?_ofSemantic (combination : R1CS.LinearCombination) :
     (Form.ofSemantic combination).semantic? = some combination := by
   cases combination with
@@ -75,8 +74,6 @@ def Table.compile? (table : Table) (substitution : SourceSubstitution)
     Ordinary.compileCombination? substitution ⟨oneColumn, oneBound⟩ combination
   else none
 
-/-- The wire table applies the same ordered affine substitution as the
-ordinary matrix compiler. Missing columns and invalid encodings fail closed. -/
 theorem Table.compile?_ofSemantic {count logicalWidth : Nat}
     (combination : Fin count → R1CS.LinearCombination)
     (substitution : SourceSubstitution) (oneColumn : Fin logicalWidth)

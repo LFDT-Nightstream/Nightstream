@@ -18,7 +18,6 @@ structure Coordinate where
   minor : Nat
 deriving Repr, DecidableEq
 
-/-- One rectangular subregion of a three-axis row grid. -/
 structure Region where
   majorStart : Nat
   majorCount : Nat
@@ -103,16 +102,12 @@ theorem Region.offsets?_eq_none_of_outside (region : Region)
     · rw [if_neg majorCount]
   · rw [if_neg majorStart]
 
-/-- One affine summand. Retained terms carry a canonical field coefficient;
-constant terms use the block's selector column. -/
 inductive Term where
   | retained (block : RetainedBlock) (slotBase majorStride middleStride
       minorStride coefficient : Nat)
   | constant (coefficient : Nat)
 deriving Repr, DecidableEq
 
-/-- Apply a canonical coefficient without rewriting the sparse entry list
-when the coefficient is one. This preserves literal matrix-row identity. -/
 def applyCoefficient {logicalWidth : Nat} (coefficient : F)
     (form : SparseForm logicalWidth) : SparseForm logicalWidth :=
   if coefficient = 1 then form else SparseForm.scale coefficient form
@@ -186,8 +181,6 @@ structure Rule where
   term : Term
 deriving Repr, DecidableEq
 
-/-- `some none` means that this rule is outside its region. `none` means an
-applicable rule was malformed. -/
 def Rule.form? (rule : Rule) (logicalWidth oneColumn : Nat)
     (coordinate : Coordinate) : Option (Option (SparseForm logicalWidth)) :=
   match rule.region.offsets? coordinate with
@@ -274,7 +267,6 @@ def Program.form? (program : Program) (logicalWidth oneColumn : Nat)
     (coordinate : Coordinate) : Option (SparseForm logicalWidth) :=
   applyRules? oneColumn coordinate program.rules .empty
 
-/-- A singleton affine program returns its selected form exactly. -/
 theorem Program.singleton_form?_of_selected {logicalWidth : Nat}
     (rule : Rule) (oneColumn : Nat) (coordinate : Coordinate)
     (form : SparseForm logicalWidth)
@@ -345,7 +337,6 @@ private theorem applyRules?_of_results {logicalWidth : Nat}
       exact applyRules?_of_results oneColumn coordinate rules results
         (addSelected accumulated result) rest
 
-/-- Exact per-rule results determine the affine sum in package rule order. -/
 theorem Program.form?_of_results {logicalWidth : Nat}
     (program : Program) (oneColumn : Nat) (coordinate : Coordinate)
     (results : List (Option (SparseForm logicalWidth)))

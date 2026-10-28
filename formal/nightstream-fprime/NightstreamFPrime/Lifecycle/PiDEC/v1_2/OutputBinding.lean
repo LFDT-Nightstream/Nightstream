@@ -8,9 +8,7 @@ Obligation: package exactly sixteen fresh child claims. Each child reuses the
 prover message commitment and evaluation, the verifier-computed public digit,
 the parent's fixed relation, and the parent's shared point.
 
-This leaf adds no witness cell, copy row, or assertion row. The PiDEC parent
-proves that this family equals `PiDEC.PaperVerifier.children` after the public
-split child succeeds.
+This leaf adds no witness cell, copy row, or assertion row.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputBinding

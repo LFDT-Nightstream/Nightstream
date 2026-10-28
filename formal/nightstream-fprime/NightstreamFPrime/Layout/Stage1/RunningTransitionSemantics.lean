@@ -13,7 +13,6 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- The typed running value carried by the output state block. -/
 def outputRunning
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -23,7 +22,6 @@ def outputRunning
   StateDecoder.running logicalWidth publicFits
     (fun word => env (PilotProduction.outputPreimageStart + word))
 
-/-- The base branch stores the default running instance. -/
 theorem spec_typed_base
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -39,7 +37,6 @@ theorem spec_typed_base
   StateDecoder.outputRunning_eq_of_serialized env StateEncoding.defaultRunning_canonical
     (RunningTransition.spec_serialized_base specification iterationZero)
 
-/-- The recursive branch stores the canonical PiDEC running instance. -/
 theorem spec_typed_recursive
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -57,8 +54,6 @@ theorem spec_typed_recursive
   StateDecoder.outputRunning_eq_of_serialized env canonical
     (RunningTransition.spec_serialized_recursive specification iterationNonzero)
 
-/-- Accepted PiDEC public splits make the recursive running instance
-canonical. -/
 theorem recursive_canonical
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -76,8 +71,6 @@ theorem recursive_canonical
   rcases split (digitCoordinate column) with ⟨sign, accepted⟩
   exact ⟨sign, accepted.constraint⟩
 
-/-- The complete 16-slot running value selected from the exact PiDEC child
-outputs. Child order is the proved `runningCount_eq_childCount` cast. -/
 def piDecRunningOutput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -102,8 +95,6 @@ def piDecRunningOutput
       (outputs (childOfRunning source)).evaluations.getD 0
         PaperAlgebra.evaluationZero }
 
-/-- The recursive transition input is literally the complete PiDEC result,
-not a digest or a separately caller-selected running value. -/
 theorem eval_recursiveRunningExpr_eq_piDecRunningOutput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -115,8 +106,6 @@ theorem eval_recursiveRunningExpr_eq_piDecRunningOutput
       piDecRunningOutput relation env := by
   rfl
 
-/-- On a recursive step, the typed pilot output running value is the exact
-16-child PiDEC result. -/
 theorem spec_typed_recursive_eq_piDecOutput
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

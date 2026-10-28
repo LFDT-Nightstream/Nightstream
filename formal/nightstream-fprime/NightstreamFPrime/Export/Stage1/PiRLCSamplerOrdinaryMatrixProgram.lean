@@ -4,10 +4,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution
 
 /-!
 Owns the compact ordinary matrix block for the 14,943 PiRLC sampler rows.
-The Lean-authored row schedule selects the exact physical compiled row, and
-the four-grid substitution reconstructs its direct source forms.
-
-This module does not close PiRLC status or select a final package identity.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixProgram

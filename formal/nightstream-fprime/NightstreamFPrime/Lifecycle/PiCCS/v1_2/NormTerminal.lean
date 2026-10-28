@@ -55,7 +55,6 @@ def ownedInterface (interface : Interface) : Horner.Owned.Interface where
   point := interface.gamma
   coefficients := coefficientExprs interface
 
-/-- The child-owned symbolic norm term. -/
 def output (interface : Interface) (offset : Nat) : KExpr :=
   Horner.Owned.output (ownedInterface interface) offset
 
@@ -74,8 +73,6 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     SpecHolds interface offset env :=
   Horner.Owned.soundness (ownedInterface interface) env offset assumptions rows
 
-/-- Honest execution constructs the norm term without a caller-supplied
-result. -/
 theorem build (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     ∃ completed,
@@ -106,7 +103,6 @@ theorem localLength_eq (interface : Interface) (offset : Nat) :
   change 3 * ((coefficientExprs interface offset).length - 1) = 48
   rw [coefficientExprs_length]
 
-/-- Private symbolic variables owned by the fixed production leaf. -/
 def privateCount : Nat := 48
 
 theorem operations_length (interface : Interface) (offset : Nat) :
@@ -133,8 +129,6 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     offset env assumptions
   exact scope
 
-/-- Concrete parent coverage: the indexed cubic residual Horner value is
-exactly production `ProtocolPolynomial.normAtMessage`. -/
 theorem spec_implies_keyNormAtMessage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.SumCheck.Polynomial
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/SumCheck/FixedPolynomial.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespace renamed. Coefficient laws were added for the prover replay; executable definitions are unchanged. -/
-
 /-!
 Typed fixed-width polynomials for honest SumCheck round construction.
 
@@ -12,31 +9,18 @@ to build honest round polynomials.
 
 Does not own: prover messages, canonical trailing-coefficient checks, challenge
 generation, SumCheck acceptance, protocol polynomials, Rust, R1CS, or costs.
-
-Emits constraints: no.
-
-| Object | Mathematical obligation | Lean owner |
-|---|---|---|
-| fixed polynomial | exactly `degree + 1` constant-first coefficients | `FixedPolynomial` |
-| verifier projection | conversion preserves width and Horner evaluation | `toMessage_coefficients_length`, `evaluate_eq_message_evaluate` |
-| exact degree widening | append only verifier-visible high zero coefficients | `evaluate_widen` |
-| algebraic closure | constant, affine, add, scale, convolution, natural power, finite sum | `evaluate_constant`, `evaluate_affine`, `evaluate_add`, `evaluate_scale`, `evaluate_mul`, `evaluate_power`, `evaluate_sum` |
 -/
 
 namespace NightstreamFPrime.Spec.SumCheck.Finite
 
 universe uField uIndex
 
-/-- A constant-first coefficient list whose width is fixed by its degree. -/
 structure FixedPolynomial (Field : Type uField) (degree : Nat) where
   coefficients : List Field
   coefficients_length : coefficients.length = degree + 1
 
 namespace FixedPolynomial
 
-/-- Algebraic laws needed to interpret coefficient operations as polynomial
-operations. They are attached to the same verifier-visible operations used by
-`Message.evaluate`; no separate evaluator is trusted. -/
 structure Laws
     {Field : Type uField}
     (ops : Ops Field) : Prop where
@@ -58,7 +42,6 @@ structure Laws
     ops.mul (ops.add left middle) right =
       ops.add (ops.mul left right) (ops.mul middle right)
 
-/-- A fixed-width polynomial is determined by its coefficients. -/
 theorem eq_of_coefficients
     {Field : Type uField}
     {degree : Nat}
@@ -69,15 +52,12 @@ theorem eq_of_coefficients
   cases same
   rfl
 
-/-- Forget the static width while preserving constant-first order exactly. -/
 def toMessage
     {Field : Type uField}
     {degree : Nat}
     (polynomial : FixedPolynomial Field degree) : Message Field where
   coefficients := polynomial.coefficients
 
-/-- Evaluate with the same constant-first Horner machine as the finite
-verifier. -/
 def evaluate
     {Field : Type uField}
     {degree : Nat}
@@ -86,7 +66,6 @@ def evaluate
     (point : Field) : Field :=
   polynomial.toMessage.evaluate ops point
 
-/-- Conversion to a raw message preserves the statically declared width. -/
 @[simp] theorem toMessage_coefficients_length
     {Field : Type uField}
     {degree : Nat}
@@ -94,7 +73,6 @@ def evaluate
     polynomial.toMessage.coefficients.length = degree + 1 :=
   polynomial.coefficients_length
 
-/-- The raw verifier derives exactly the declared degree from that width. -/
 @[simp] theorem toMessage_degreeUpperBound
     {Field : Type uField}
     {degree : Nat}
@@ -102,8 +80,6 @@ def evaluate
     polynomial.toMessage.degreeUpperBound = degree := by
   simp [Message.degreeUpperBound]
 
-/-- Fixed-width evaluation is definitionally the verifier-visible message
-evaluation after conversion. -/
 theorem evaluate_eq_message_evaluate
     {Field : Type uField}
     {degree : Nat}
@@ -154,9 +130,6 @@ private theorem scaleCoefficients_length
   | cons coefficient coefficients inductionHypothesis =>
       simp [scaleCoefficients, inductionHypothesis]
 
-/-- Constant-first schoolbook convolution. Padding is explicit: multiplying
-two nonempty lists of lengths `m` and `n` produces exactly `m + n - 1`
-coefficients, even when the highest coefficient happens to be zero. -/
 private def convolution
     {Field : Type uField}
     (ops : Ops Field) : List Field -> List Field -> List Field
@@ -204,7 +177,6 @@ private theorem convolution_length
           simp only [List.length_cons]
           omega
 
-/-- The zero polynomial at an arbitrary declared degree. -/
 def zero
     {Field : Type uField}
     (ops : Ops Field)
@@ -212,21 +184,18 @@ def zero
   coefficients := List.replicate (degree + 1) ops.zero
   coefficients_length := by simp
 
-/-- A degree-zero constant polynomial. -/
 def constant
     {Field : Type uField}
     (value : Field) : FixedPolynomial Field 0 where
   coefficients := [value]
   coefficients_length := rfl
 
-/-- A degree-one polynomial `constant + point * linear`. -/
 def affine
     {Field : Type uField}
     (constant linear : Field) : FixedPolynomial Field 1 where
   coefficients := [constant, linear]
   coefficients_length := rfl
 
-/-- Pointwise coefficient addition at one fixed degree. -/
 def add
     {Field : Type uField}
     {degree : Nat}
@@ -239,7 +208,6 @@ def add
     · exact left.coefficients_length
     · rw [left.coefficients_length, right.coefficients_length]
 
-/-- Left scalar multiplication at one fixed degree. -/
 def scale
     {Field : Type uField}
     {degree : Nat}
@@ -251,8 +219,6 @@ def scale
   coefficients_length := by
     rw [scaleCoefficients_length, polynomial.coefficients_length]
 
-/-- Schoolbook multiplication. Declared degrees add and no high coefficient
-is trimmed. -/
 def mul
     {Field : Type uField}
     {leftDegree rightDegree : Nat}
@@ -270,9 +236,6 @@ def mul
     · rw [right.coefficients_length]
       omega
 
-/-- Exponentiation by repeated exact-width multiplication. The declared
-degree is the source degree times the exponent, including all high zero
-slots that arise for a lower actual degree. -/
 def power
     {Field : Type uField}
     {degree : Nat}
@@ -282,8 +245,6 @@ def power
   | 0 => constant ops.one
   | exponent + 1 => mul ops (power ops polynomial exponent) polynomial
 
-/-- Scalar exponentiation in the exact multiplication order used by
-`power`. -/
 def valuePower
     {Field : Type uField}
     (ops : Ops Field)
@@ -291,7 +252,6 @@ def valuePower
   | 0 => ops.one
   | exponent + 1 => ops.mul (valuePower ops value exponent) value
 
-/-- Right-associated sum over an explicit finite index list. -/
 def sum
     {Field : Type uField}
     {Index : Type uIndex}
@@ -304,9 +264,6 @@ def sum
   | [] => zero ops degree
   | index :: indices => add ops (value index) (sum ops indices value)
 
-/-- Widen a polynomial to a larger declared degree by appending only high
-zero coefficients. The proof argument is semantic authority for the target
-width; the coefficient payload remains completely verifier-visible. -/
 def widen
     {Field : Type uField}
     {degree target : Nat}
@@ -500,7 +457,6 @@ private theorem evaluateCoefficients_convolution
                 (Message.evaluateCoefficients ops point right) :=
               (laws.right_distrib _ _ _).symm
 
-/-- Every fixed-width zero polynomial evaluates to zero. -/
 @[simp] theorem evaluate_zero
     {Field : Type uField}
     (ops : Ops Field)
@@ -510,9 +466,6 @@ private theorem evaluateCoefficients_convolution
     (zero ops degree).evaluate ops point = ops.zero := by
   exact evaluateCoefficients_zero_replicate ops laws point (degree + 1)
 
-/-- Degree widening preserves the polynomial function exactly. In
-particular, an honest lower-degree polynomial may inhabit a fixed wider
-verifier message without a canonical-high-coefficient rejection rule. -/
 @[simp] theorem evaluate_widen
     {Field : Type uField}
     {degree target : Nat}
@@ -526,7 +479,6 @@ verifier message without a canonical-high-coefficient rejection rule. -/
   exact evaluateCoefficients_append_zero_replicate ops laws point
     polynomial.coefficients (target - degree)
 
-/-- Constant construction has its intended semantics. -/
 @[simp] theorem evaluate_constant
     {Field : Type uField}
     (ops : Ops Field)
@@ -536,7 +488,6 @@ verifier message without a canonical-high-coefficient rejection rule. -/
   simp [evaluate, toMessage, constant, Message.evaluate,
     Message.evaluateCoefficients, laws.mul_zero, laws.add_zero]
 
-/-- Affine construction uses constant-first order. -/
 @[simp] theorem evaluate_affine
     {Field : Type uField}
     (ops : Ops Field)
@@ -547,7 +498,6 @@ verifier message without a canonical-high-coefficient rejection rule. -/
   simp [evaluate, toMessage, affine, Message.evaluate,
     Message.evaluateCoefficients, laws.mul_zero, laws.add_zero]
 
-/-- Fixed-degree coefficient addition evaluates as field addition. -/
 @[simp] theorem evaluate_add
     {Field : Type uField}
     {degree : Nat}
@@ -560,7 +510,6 @@ verifier message without a canonical-high-coefficient rejection rule. -/
   exact evaluateCoefficients_add ops laws point
     left.coefficients right.coefficients
 
-/-- Fixed-degree scalar multiplication evaluates as scalar multiplication. -/
 @[simp] theorem evaluate_scale
     {Field : Type uField}
     {degree : Nat}
@@ -574,7 +523,6 @@ verifier message without a canonical-high-coefficient rejection rule. -/
   exact evaluateCoefficients_scale ops laws scalar point
     polynomial.coefficients
 
-/-- Exact-width convolution evaluates as multiplication. -/
 @[simp] theorem evaluate_mul
     {Field : Type uField}
     {leftDegree rightDegree : Nat}
@@ -591,8 +539,6 @@ verifier message without a canonical-high-coefficient rejection rule. -/
   · rw [right.coefficients_length]
     omega
 
-/-- Exact-width polynomial powers evaluate as repeated scalar
-multiplication. -/
 @[simp] theorem evaluate_power
     {Field : Type uField}
     {degree : Nat}
@@ -610,7 +556,6 @@ multiplication. -/
       rw [power, evaluate_mul ops laws, inductionHypothesis]
       rfl
 
-/-- Evaluation commutes with the explicit finite polynomial sum. -/
 @[simp] theorem evaluate_sum
     {Field : Type uField}
     {Index : Type uIndex}
@@ -723,7 +668,6 @@ private theorem convolution_zero_right {Field : Type uField}
           simp only [List.length_cons]
           omega
 
-/-- Every coefficient of a product with a zero left factor is zero. -/
 theorem mul_zero_left {Field : Type uField} (ops : Ops Field) (laws : Laws ops)
     (leftDegree : Nat) {rightDegree : Nat} (right : FixedPolynomial Field rightDegree) :
     mul ops (zero ops leftDegree) right = zero ops (leftDegree + rightDegree) := by
@@ -733,7 +677,6 @@ theorem mul_zero_left {Field : Type uField} (ops : Ops Field) (laws : Laws ops)
     (by rw [right.coefficients_length]; omega), right.coefficients_length]
   rfl
 
-/-- Every coefficient of a product with a zero right factor is zero. -/
 theorem mul_zero_right {Field : Type uField} (ops : Ops Field) (laws : Laws ops)
     {leftDegree : Nat} (left : FixedPolynomial Field leftDegree) (rightDegree : Nat) :
     mul ops left (zero ops rightDegree) = zero ops (leftDegree + rightDegree) := by
@@ -751,7 +694,6 @@ private theorem scaleCoefficients_one {Field : Type uField} (ops : Ops Field)
   | nil => rfl
   | cons head tail ih => simp only [scaleCoefficients, one_mul, ih]
 
-/-- Multiplication by the degree-zero unit keeps the entire coefficient list. -/
 theorem constant_one_mul {Field : Type uField} (ops : Ops Field) (laws : Laws ops)
     (one_mul : ∀ value, ops.mul ops.one value = value)
     {degree : Nat} (right : FixedPolynomial Field degree) :

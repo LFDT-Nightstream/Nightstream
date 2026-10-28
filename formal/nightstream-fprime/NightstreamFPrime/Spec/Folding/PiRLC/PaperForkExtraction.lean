@@ -2,9 +2,6 @@ import NightstreamFPrime.Spec.Folding.PiRLC
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperCorrections
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkAlgebra
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiRLC/PaperForkExtraction.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Operational coordinate-fork extraction for the paper `Pi_RLC` weak reduction.
 
@@ -16,15 +13,6 @@ Owns: a shared-system/shared-point input batch, prover responses whose public
 outputs are computed by `PiRLC.combinedOutput`, the exact special-set fork
 shape, the Appendix B.3 inverse-difference extractor, and corrected ambient
 membership of every extracted source opening.
-
-Does not own: the probabilistic forking lemma, transcript replay, relaxed
-binding uniqueness, source-relation validity, concrete Phi81 algebra, Rust,
-R1CS, row removal, or constraint counts.
-
-Authority boundary: public outputs are definitions, not prover fields.
-Successful response assignments must open those computed `CE(B)` outputs.  The only
-additional premises are explicit ring/module homomorphism laws, strong-set
-unit production, and universal coverage by the corrected strict ambient norm.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
@@ -34,9 +22,6 @@ open NightstreamFPrime.Spec
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
   uScalar uSource uTarget
 
-/-- One fixed Π_RLC input batch.  Every source statement uses the shared
-constraint system and evaluation point that the verifier passes to
-`PiRLC.combinedOutput`. -/
 structure InputBatch
     (Structure : Type uStructure)
     (PublicInput : Type uPublicInput)
@@ -56,8 +41,6 @@ structure InputBatch
   evaluationsSize : forall index,
     (inputs index).evaluations.size = evaluationCount
 
-/-- One prover response to one verifier challenge vector.  The public output
-is intentionally absent and is computed below. -/
 structure Response
     (Assignment : Type uAssignment)
     (Scalar : Type uScalar)
@@ -68,7 +51,6 @@ structure Response
 
 namespace Response
 
-/-- The verifier-owned public output for this response. -/
 def output
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -91,9 +73,6 @@ def output
   PiRLC.combinedOutput algebra batch.system batch.point batch.inputs
     response.challenges
 
-/-- Operational success: the response assignment opens the exact computed
-public output in Π_RLC's `CE(B)` target relation.  Corrected ambient membership
-is the extractor's source conclusion, not the verifier's target check. -/
 def Success
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -117,8 +96,7 @@ def Success
 end Response
 
 /-- The strong-set fact used by Appendix B.3: two distinct valid challenges
-have an invertible difference.  No separate nonzero premise is accepted by
-the extractor. -/
+have an invertible difference. -/
 structure StrongSetUnits
     {Scalar : Type uScalar}
     (ring : PaperForkAlgebra.CommutativeRingOps Scalar)
@@ -127,7 +105,6 @@ structure StrongSetUnits
     member left -> member right -> left ≠ right ->
       PaperForkAlgebra.UnitWitness ring (ring.sub left right)
 
-/-- Preservation of subtraction and scalar action by one semantic map. -/
 structure LinearMapLaws
     {Scalar : Type uScalar}
     {Source : Type uSource}
@@ -140,10 +117,6 @@ structure LinearMapLaws
   map_smul : forall scalar value,
     map (source.smul scalar value) = target.smul scalar (map value)
 
-/-- Paper algebra needed to turn two successful output openings into one
-source opening.  Every verifier combination is identified with the canonical
-finite combination from `PaperForkAlgebra`; semantic maps preserve the exact
-assignment subtraction and action used by the extractor. -/
 structure ExtractionAlgebra
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -211,8 +184,6 @@ structure ExtractionAlgebra
     semantics.normBounded (PaperCorrections.correctedAmbientBoundFor params)
       assignment
 
-/-- A base response and exactly one special-set fork per coordinate.  Each
-fork changes its named coordinate and agrees everywhere else. -/
 structure CompleteFork
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -246,8 +217,6 @@ structure CompleteFork
 
 namespace CompleteFork
 
-/-- Unit witness for one fork delta, derived only from strong-set membership
-and the fork's explicit changed-coordinate fact. -/
 def coordinateUnit
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -367,9 +336,6 @@ private theorem extracted_map_eq
           (forkCoefficients coordinate))
         unit (inputValues coordinate)
 
-/-- A complete operational coordinate fork extracts a corrected ambient CE
-opening for every source input.  No source-validity or desired-opening premise
-is accepted. -/
 theorem completeFork_implies_correctedAmbientHolds
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}

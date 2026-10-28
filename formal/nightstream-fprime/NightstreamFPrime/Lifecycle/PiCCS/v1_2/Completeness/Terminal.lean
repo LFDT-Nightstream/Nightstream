@@ -532,8 +532,6 @@ private theorem terminalEq_of_evidence
       (sumcheckOffset interface offset) startEq)
   exact wiring.trans evidence.sumcheckTerminal
 
-/-- The exact transcript, SumCheck, and separate evaluation evidence plus
-the two terminal child predicates imply the v1_2 final-identity predicate. -/
 private theorem finalIdentitySpec_of_evidence
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

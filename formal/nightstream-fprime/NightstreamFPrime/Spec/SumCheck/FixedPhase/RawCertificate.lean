@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.SumCheck.FixedPhase
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/SumCheck/FixedPhase/RawCertificate.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Exact-width transport for the paper SumCheck message relation.
 
@@ -16,8 +13,6 @@ round trips between typed fixed-width certificates and raw messages.
 
 Does not own: challenge generation, transcript encoding, Fiat--Shamir,
 polynomial soundness, Rust, R1CS, artifacts, minimality, or costs.
-
-Emits constraints: no.
 -/
 
 set_option autoImplicit false
@@ -26,8 +21,6 @@ namespace NightstreamFPrime.Spec.SumCheck.Finite.FixedPhase.RawCertificate
 
 universe uField
 
-/-- Decode one raw coefficient list only when it has exactly the
-verifier-owned width.  Redundant high zero coefficients remain valid data. -/
 def decodeMessage
     {Field : Type uField}
     (degree : Nat)
@@ -41,8 +34,6 @@ def decodeMessage
   else
     none
 
-/-- Decode every round in order and reject the whole certificate on the first
-width mismatch. -/
 def decodeRounds
     {Field : Type uField}
     (degree : Nat) :
@@ -53,7 +44,6 @@ def decodeRounds
       let polynomials <- decodeRounds degree messages
       pure (polynomial :: polynomials)
 
-/-- Decode one raw certificate at the verifier-owned common degree. -/
 def decode
     {Field : Type uField}
     (degree : Nat)
@@ -61,7 +51,6 @@ def decode
     Option (Certificate Field degree) :=
   (decodeRounds degree certificate.rounds).map fun rounds => { rounds }
 
-/-- Successful round decoding preserves the exact number of messages. -/
 theorem decodeRounds_eq_some_implies_length
     {Field : Type uField}
     (degree : Nat) :
@@ -86,8 +75,6 @@ theorem decodeRounds_eq_some_implies_length
               simp [decodeRounds_eq_some_implies_length degree messages tail
                 tailDecoded]
 
-/-- Successful round decoding is pointwise: the polynomial at every position
-is the unique decode of the raw message at that same position. -/
 theorem decodeRounds_eq_some_get
     {Field : Type uField}
     (degree : Nat) :
@@ -126,7 +113,6 @@ theorem decodeRounds_eq_some_get
                   decodeRounds_eq_some_get degree messages tail tailDecoded
                     tailIndex
 
-/-- A successful certificate decode exposes the exact decoded round list. -/
 theorem decode_eq_some_implies_rounds
     {Field : Type uField}
     (degree : Nat)
@@ -146,7 +132,6 @@ theorem decode_eq_some_implies_rounds
       subst fixed
       simp at roundsDecoded ⊢
 
-/-- Preserve the exact fixed-width coefficient lists as raw prover messages. -/
 def encode
     {Field : Type uField}
     {degree : Nat}
@@ -154,7 +139,6 @@ def encode
     NightstreamFPrime.Spec.SumCheck.Finite.Certificate Field where
   rounds := certificate.rounds.map FixedPolynomial.toMessage
 
-/-- Fail-closed raw-message checker for one fixed-width SumCheck phase. -/
 def check
     {Field : Type uField}
     [DecidableEq Field]
@@ -198,8 +182,6 @@ def check
   cases certificate
   simp [decode, encode]
 
-/-- Exact fixed/raw checker equality.  This theorem changes no message bytes:
-`encode` retains every fixed-width coefficient, including high zeros. -/
 @[simp] theorem check_encode
     {Field : Type uField}
     {degree : Nat}
@@ -214,8 +196,6 @@ def check
         terminal := by
   simp [check]
 
-/-- Executable acceptance exposes the unique decoded fixed-width certificate
-and its exact claimed-chain relation. -/
 theorem check_eq_true_iff
     {Field : Type uField}
     [DecidableEq Field]

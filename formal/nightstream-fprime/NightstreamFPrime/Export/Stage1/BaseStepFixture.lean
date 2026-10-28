@@ -48,7 +48,6 @@ private def priorPreimage (context : VerifierContext.Digest4) :
   running := fun _ => defaultRunning
   pc := 1
 
-/-- The actual output preimage of this base fixture, used as the next prior. -/
 def outputPreimage (context : VerifierContext.Digest4) :
     HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits) :=
   { priorPreimage context with
@@ -68,10 +67,6 @@ private def wordsValue (words : List F) : Value :=
 private def pointValue (point : List K) : Value :=
   .array (point.map fun value => wordsValue [value.c0, value.c1])
 
-/-- Construct one base-step caller packet from the explicit fixture context.
-An out-of-range parent fails before any file is emitted; the sampler is total.
-All 17 challenges use the fixed five-symbol alphabet and existing `T = 216`
-profile; this constructor does not select a sampler or decomposition policy. -/
 def valueIO (context : VerifierContext.Digest4) : IO Value := do
   let prior := priorPreimage context
   let priorWords := serializePreimage (publicFits := publicFits) prior

@@ -16,9 +16,6 @@ Parent coverage:
 - `ProtocolPolynomial.VerifierInput.priorPoint`;
 - `ProtocolPolynomial.VerifierInput.claimedPadCoefficient`;
 - `ProtocolPolynomial.VerifierInput.claimedMatrixCoefficient`.
-
-This module owns the canonical named statement contract for the production
-v1.2 verifier. It emits no circuit constraints.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.Statement
@@ -28,34 +25,27 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
 
 universe uExtension uCommitment uPublicInput
 
-/-- Paper `Eval_K`: one coefficient-complete Pad evaluation. -/
 abbrev Eval_K (Extension : Type uExtension) (shape : Shape) :=
   Fin shape.coefficientCount → Extension
 
-/-- Paper `Eval_A`: one coefficient-complete evaluation for every genuine
-CCS matrix. `Pad` is not in this index. -/
 abbrev Eval_A (Extension : Type uExtension) (shape : Shape) :=
   Fin shape.matrixCount → Fin shape.coefficientCount → Extension
 
-/-- The existing complete v1.2 evaluation carrier. -/
 abbrev Evaluation (Extension : Type uExtension) (shape : Shape) :=
   EvaluationFamily Extension shape
 
-/-- Read only the paper's Pad evaluation family. -/
 def eval_K
     {Extension : Type uExtension}
     {shape : Shape}
     (evaluation : Evaluation Extension shape) : Eval_K Extension shape :=
   evaluation.pad
 
-/-- Read only the paper's CCS-matrix evaluation family. -/
 def eval_A
     {Extension : Type uExtension}
     {shape : Shape}
     (evaluation : Evaluation Extension shape) : Eval_A Extension shape :=
   evaluation.matrix
 
-/-- Named statement-binding conjuncts for the canonical verifier input. -/
 structure Holds
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -70,8 +60,6 @@ structure Holds
   eval_K : input.claimedPadCoefficient = statement.claimedPadCoefficient
   eval_A : input.claimedMatrixCoefficient = statement.claimedMatrixCoefficient
 
-/-- The canonical verifier input satisfies all three statement-binding
-conjuncts by construction. -/
 theorem verifierInput_holds
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -85,7 +73,6 @@ theorem verifierInput_holds
     Holds statement (statement.verifierInput lift) := by
   exact ⟨rfl, rfl, rfl⟩
 
-/-- The Pad claim is taken from the distinct `Eval_K` statement field. -/
 theorem verifierInput_eval_K
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -101,8 +88,6 @@ theorem verifierInput_eval_K
       statement.claimedPadCoefficient coordinate := by
   rfl
 
-/-- Every genuine matrix claim is taken from the distinct `Eval_A` statement
-field. -/
 theorem verifierInput_eval_A
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}

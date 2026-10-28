@@ -6,9 +6,7 @@ import NightstreamFPrime.Export.Stage1.PiRLCRetainedPlan
 
 /-!
 Owns the adjacent conversion from completed Spartan PiRLC rows to the product
-plan on the canonical retained assignment. The physical source
-copy supplies the packet proofs; the assignment transport supplies the honest
-intermediate values. No caller supplies product equations.
+plan on the canonical retained assignment.
 -/
 
 set_option autoImplicit false
@@ -87,8 +85,6 @@ private theorem semantics_of_packets
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The completed physical prefix supplies all PiRLC child packets after the
-canonical source copy. Agreement is proved only on the actual row support. -/
 theorem packets_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -133,10 +129,6 @@ theorem packets_of_completed
   exact PiRLCPackageCompleteness.remappedPhysicalRows_imply_packets relation env
     ((Spartan.remapRows_hold env _).mpr copiedRows)
 
-/-- The completed physical prefix makes the exact canonical product plan vanish.
-The actual PiRLC phase supplies its own scope and packet constraints. The
-canonical assignment transport supplies the honest Phi81 intermediate values;
-no source equation or equality between caller environments is a premise. -/
 theorem rowsZero_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

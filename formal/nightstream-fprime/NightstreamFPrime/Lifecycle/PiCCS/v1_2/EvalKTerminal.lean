@@ -53,7 +53,6 @@ def coreInterface (interface : Interface) :
   hornerPoint := interface.gamma
   coefficients := coefficientExprs interface
 
-/-- Child-owned `E_K`. -/
 def output (interface : Interface) (offset : Nat) : KExpr :=
   PointWeightedHorner.Owned.output (coreInterface interface) offset
 
@@ -91,7 +90,6 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
   PointWeightedHorner.Owned.soundness (coreInterface interface) env offset
     assumptions rows
 
-/-- Honest execution constructs all three derived values. -/
 theorem build (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     ∃ completed,
@@ -120,7 +118,6 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
     (coreInterface interface)
     cubeVariables_positive offset env assumptions
 
-/-- The owned `Eval_K` result lies inside this leaf's declared interval. -/
 theorem output_varsBelow (interface : Interface) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     (output interface offset).VarsBelow
@@ -174,8 +171,6 @@ theorem flatConstraints_length (interface : Interface) (offset : Nat) :
   rw [coefficientExprs_length]
   norm_num [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
 
-/-- Concrete parent coverage: the generic point-weighted Horner value is
-exactly production `ProtocolPolynomial.padAtMessage`. -/
 theorem spec_implies_keyPadAtMessage
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

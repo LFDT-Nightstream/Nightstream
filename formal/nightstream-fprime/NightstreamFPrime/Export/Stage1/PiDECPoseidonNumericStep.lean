@@ -3,8 +3,7 @@ import NightstreamFPrime.Layout.ProductionRelation.SparseEvaluation
 
 /-!
 Numeric evaluation of one existing Poseidon sparse compiler step under an
-arbitrary assignment. Retained S-box outputs are read, and every state
-transition is materialized in the existing eight-field vector.
+arbitrary assignment.
 -/
 
 set_option autoImplicit false
@@ -23,7 +22,6 @@ private theorem materialize_get (state : Layer.FState) :
   change (Vector.ofFn state)[lane.val] = state lane
   rw [Vector.getElem_ofFn]
 
-/-- Materialize the eight input values without constructing new row forms. -/
 @[specialize] def stateValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (state : PoseidonSboxPlan.State logicalWidth) : Vector F 16 :=
   Vector.ofFn fun lane => (state lane).evalSparse read
@@ -41,8 +39,6 @@ theorem stateValues_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
   rw [stateValues_get, SparseForm.evalSparse_eq_eval]
   rfl
 
-/-- Read the same retained form as the symbolic compiler, including its
-existing zero result outside the retained S-box domain. -/
 @[inline] def retainedValue {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (index : Nat) : F :=
   (PoseidonSboxPlan.sboxOutputAt interface index).evalSparse read
@@ -97,8 +93,6 @@ private theorem partialState_value {logicalWidth : Nat} (read : Fin logicalWidth
       SparseLayer.evalState, zero, if_true, if_false, retainedValue,
       stateValues_get, SparseForm.evalSparse_eq_eval]
 
-/-- Apply only the existing linear state transition and retained-output
-substitution, then store all eight fields before another step can read them. -/
 def stateStep {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
     (state : Vector F 16) : Permutation.Step → Vector F 16
@@ -107,9 +101,6 @@ def stateStep {logicalWidth : Nat} (read : Fin logicalWidth → F)
   | .partialRound _ => partialState read interface nextSbox state
   | .terminalFullRound _ => fullState read interface nextSbox
 
-/-- The stored numeric state is the exact evaluation of compileStep.state.
-The read function is arbitrary: no one-column, S-box, row-satisfaction or
-parent-opening premise is required. -/
 theorem stateStep_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
     (state : PoseidonSboxPlan.State logicalWidth) (step : Permutation.Step) :
@@ -124,13 +115,10 @@ theorem stateStep_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
   | partialRound round => exact partialState_value read interface nextSbox state
   | terminalFullRound round => exact fullState_value read interface nextSbox
 
-/-- Store one existing S-box row under the same arbitrary sparse read. -/
 def rowValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (forms : SboxRow.Forms logicalWidth) : PortValues :=
   RowSemantics.sbox (forms.input.evalSparse read) (forms.output.evalSparse read)
 
-/-- Every stored port equals the evaluation of its existing sparse form,
-including the empty ports. -/
 theorem rowValues_get {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (forms : SboxRow.Forms logicalWidth) (port : Fin matrixCount) :
     (rowValues read forms).get port = (forms.portForm port).evalSparse read := by
@@ -173,8 +161,6 @@ private theorem fullRowValues_value {logicalWidth : Nat}
     PoseidonSboxPlan.fullInput, addConstant_value, PoseidonSboxPlan.fullOutput,
     retainedValue, stateValues_get]
 
-/-- Compute the existing step rows from the stored state and retained reads.
-Round constants multiply the selected one-column read; it need not equal one. -/
 def rowsStep {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
     (state : Vector F 16) : Permutation.Step → List PortValues
@@ -190,8 +176,6 @@ def rowsStep {logicalWidth : Nat} (read : Fin logicalWidth → F)
   | .terminalFullRound round =>
       fullRowValues read interface Spec.Poseidon2.terminalConstants round nextSbox state
 
-/-- Numeric row generation equals evaluation of the existing compileStep rows
-in their exact order. The assignment and retained values are arbitrary. -/
 theorem rowsStep_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
     (state : PoseidonSboxPlan.State logicalWidth) (step : Permutation.Step) :
@@ -235,8 +219,6 @@ private theorem fullStepValues_value {logicalWidth : Nat}
   · simp only [fullStepValues, fullRowValues, materialize_get]
   · rfl
 
-/-- Compute each retained output once, then share it between the existing
-row values and the stored next state. Missing retained indices still read zero. -/
 @[specialize] def stepValues {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
     (state : Vector F 16) : Permutation.Step → List PortValues × Vector F 16
@@ -256,8 +238,6 @@ row values and the stored next state. Missing retained indices still read zero. 
   | .terminalFullRound round =>
       fullStepValues read interface Spec.Poseidon2.terminalConstants round nextSbox state
 
-/-- Total equality for every numeric state, sparse read, round and retained
-index. No one-column or row-satisfaction assumption is required. -/
 theorem stepValues_value {logicalWidth : Nat} (read : Fin logicalWidth → F)
     (interface : PoseidonSboxPlan.Interface logicalWidth) (nextSbox : Nat)
     (state : Vector F 16) (step : Permutation.Step) :

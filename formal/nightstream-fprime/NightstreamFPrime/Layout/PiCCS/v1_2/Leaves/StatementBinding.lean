@@ -96,9 +96,6 @@ private theorem constraintRowCount_eq_one_of_affine (expression : Expr)
   | none => exact False.elim (notNone equal)
   | some direct => rfl
 
-/-- Every state-binding row lowers to one direct row with no fresh column:
-the state rows are affine, and each sign or digit row is one rank-one
-product of nonconstant affine factors. -/
 private theorem constraint_direct
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (offset : Nat) (inputs : InputsAffine interface offset) :

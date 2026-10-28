@@ -32,9 +32,6 @@ private theorem equalities_supported (left right : KExpr)
   · exact ⟨leftSupport.1, ⟨trivial, rightSupport.1⟩⟩
   · exact ⟨leftSupport.2, ⟨trivial, rightSupport.2⟩⟩
 
-/-- Exact support propagation through all three owned children and the final
-two extension-component equality rows. The constraint power reads the matrix
-power output. -/
 theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
     (allowed : Nat → Prop)
     (roundPointSupport : ∀ coordinate,

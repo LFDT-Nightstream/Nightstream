@@ -12,7 +12,6 @@ Eval_K[17][54][2], Eval_A[17][4][54][2], running]. The running statement is
 [point[28][2], commitments[16][1188], public[16][270],
 Eval_K[16][54][2], Eval_A[16][4][54][2]]. Words are canonical Goldilocks
 integers. The file is canonical numeric JSON with an optional final newline.
-No input data is embedded in a Lean declaration.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSInputCheck
@@ -49,7 +48,6 @@ structure Input where
   evalA : Vector (Vector (Vector K 54) 4) 17
   running : RunningInput
 
-/-- Decode exactly the declared number of canonical input items. -/
 def decodeVector {Alpha : Type} (length : Nat)
     (decodeItem : Lean.Json → Except String Alpha) (value : Lean.Json) :
     Except String (Vector Alpha length) := do
@@ -59,7 +57,6 @@ def decodeVector {Alpha : Type} (length : Nat)
   else
     throw s!"expected array length {length}, got {values.size}"
 
-/-- Decode a canonical Goldilocks input word without modular reduction. -/
 def decodeField (value : Lean.Json) : Except String F := do
   let word ← value.getNat?
   if canonical : word < goldilocksModulus then
@@ -67,8 +64,6 @@ def decodeField (value : Lean.Json) : Except String F := do
   else
     throw "noncanonical Goldilocks word"
 
-/-- The input decoder preserves the exact canonical integer. It never reduces
-an external word modulo the field modulus. -/
 theorem decodeField_eq_ok_iff (input : Lean.Json) (value : F) :
     decodeField input = .ok value ↔ input.getNat? = .ok value.val := by
   cases parsed : input.getNat? with
@@ -82,8 +77,6 @@ theorem decodeField_eq_ok_iff (input : Lean.Json) (value : F) :
           exact canonical (equal ▸ value.isLt)
         simp [decodeField, parsed, bind, Except.bind, throw, canonical, different]
 
-/-- Every out-of-range external integer fails, including `q` and `q + x`.
-Canonical field arithmetic does not make such encodings acceptable. -/
 theorem decodeField_rejects_noncanonical (input : Lean.Json) (word : Nat)
     (parsed : input.getNat? = .ok word) (unbounded : goldilocksModulus ≤ word) :
     decodeField input = .error "noncanonical Goldilocks word" := by
@@ -95,8 +88,6 @@ private def decodeExtension (value : Lean.Json) : Except String K := do
   let words ← decodeVector 2 decodeField value
   pure ⟨words.get 0, words.get 1⟩
 
-/-- The quadratic-extension decoder preserves the ordered pair `(c0,c1)`.
-The component premises are characterized by `decodeField_eq_ok_iff`. -/
 theorem decodeExtension_ordered_pair (first second : Lean.Json) (value : K)
     (firstExact : decodeField first = .ok value.c0)
     (secondExact : decodeField second = .ok value.c1) :
@@ -121,8 +112,6 @@ theorem decodeExtension_ordered_pair (first second : Lean.Json) (value : K)
     bind, Except.bind, pure, Except.pure, vectorExact]
   rfl
 
-/-- An extension encoding has exactly two coefficients; no padding or
-truncation is accepted at this boundary. -/
 theorem decodeExtension_rejects_wrong_length (values : Array Lean.Json)
     (wrongLength : values.size ≠ 2) :
     decodeExtension (.arr values) =
@@ -131,7 +120,6 @@ theorem decodeExtension_rejects_wrong_length (values : Array Lean.Json)
     bind, Except.bind, pure, Except.pure, wrongLength]
   rfl
 
-/-- Decode the five existing public running-claim fields. -/
 def decodeRunning (value : Lean.Json) : Except String RunningInput := do
   let values ← value.getArr?
   match values.toList with
@@ -193,8 +181,6 @@ def inputValue (input : Input) : Value :=
     vectorValue (vectorValue (vectorValue extensionValue)) input.evalA,
     runningInputValue input.running]
 
-/-- Reject alternate number spellings, extra fields, and noncanonical bytes
-after the typed decoder has checked every dimension and field word. -/
 def parse (text : String) : Except String Input := do
   let input ← decode (← Lean.Json.parse text)
   let canonical := (inputValue input).render
@@ -202,7 +188,6 @@ def parse (text : String) : Except String Input := do
     throw "expected canonical numeric JSON with an optional final newline"
   pure input
 
-/-- Read the same canonical running-claim encoding at a fixture handoff. -/
 def parseRunning (text : String) : Except String RunningInput := do
   let input ← decodeRunning (← Lean.Json.parse text)
   let canonical := (runningInputValue input).render
@@ -225,9 +210,6 @@ def proofValues (input : Input) : PiCCSProofInputs.ProofValues where
     ((input.evalA.get source).get matrix).get coefficient
 
 section Typed
-
-/-! The typed views read only profile-sized fields, so they exist at every
-application width. -/
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
@@ -273,9 +255,6 @@ def outputPublicInputs (input : Input) :
 
 end Typed
 
-/-! The typed views at the selected application's width, for the executable
-checkers of that application. -/
-
 abbrev selectedRunningFromInput (input : RunningInput) :=
   runningFromInput (logicalWidth := logicalWidth) (publicFits := publicFits) input
 
@@ -311,8 +290,6 @@ def outputMessage (input : Input) :
     (proofValues input).outputEval_A (runningSourceIndex coordinate.running)
       coordinate.matrix coordinate.coefficient
 
-/-- The executable input uses the same statement projection as the one
-production key. The key is used only in this proof, not by the checker. -/
 theorem verifierInput_eq_production (input : Input)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey
@@ -436,7 +413,6 @@ structure RoundTrace where
   states : List Transcript.State
   state : Transcript.State
 
-/-- Absorb each supplied polynomial before deriving its challenge. -/
 def traceFrom (input : Input) :
     Transcript.State → List (Fin productionShape.cubeVariables) → RoundTrace
   | state, [] => ⟨[], [], state⟩
@@ -491,8 +467,6 @@ private def runningValue (input : Input) : Value :=
       .array ((List.finRange productionShape.matrixCount).map fun matrix =>
         extensionsValue (List.ofFn ((running.evaluations source).matrix matrix))))]
 
-/-- Typed handoff and complete numeric result from one PiCCS execution.
-Opening validity remains a separate obligation. -/
 structure Execution where
   accepted : Bool
   point : PaperAlgebra.Point
@@ -547,8 +521,6 @@ def execute (input : Input) : Execution :=
       vectorValue (vectorValue (vectorValue extensionValue)) input.evalA,
       wordsValue outgoing] }
 
-/-- The strong-extraction probe uses the exact messages, challenges and full
-output of this execution. This view asserts no distribution for its coins. -/
 def probe (input : Input) : StrongReduction.Probe K productionShape :=
   let statementState := ProductionKey.absorbPublicInput
     Transcript.foldInitialState
@@ -564,8 +536,6 @@ def probe (input : Input) : StrongReduction.Probe K productionShape :=
         rounds := List.ofFn (PiCCSProofInputs.roundPolynomial (proofValues input)) }
       fullOutput := PiCCSProofInputs.output (proofValues input) } }
 
-/-- The executed Boolean is exactly the existing strong verifier predicate
-on these same concrete fields. Acceptance is a conclusion, not a premise. -/
 theorem execute_accepted_iff (input : Input)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey
@@ -579,12 +549,6 @@ theorem execute_accepted_iff (input : Input)
     ← outputMessage_eq_production input relation ajtai]
   simp only [execute, initialClaimFast_eq_initial, terminalFast_eq_paper]
 
-/-- Fields of an already computed execution:
-[1, inputEcho, runningEcho, publicBlocks, verifierBlocks,
-[accepted, alpha, gamma, preState, roundChallenges, roundStates, rPrime,
-initialClaim, postRoundClaims, terminal[6], commitments[17], public[17],
-Eval_K, Eval_A, outgoingState]]. The supplied execution checks the
-transcript-bound fixed-width chain; opening validity is a separate obligation. -/
 def checkFields (input : Input) (result : Execution) : List Value :=
   let publicBlocks := ProductionKey.publicInputBlocks (selectedFresh input)
   [.atom 1, inputValue input, runningValue input,
@@ -592,7 +556,6 @@ def checkFields (input : Input) (result : Execution) : List Value :=
     .array ((Transcript.verifierInputBlocks (verifierInput input)).map wordsValue),
     result.encoded]
 
-/-- Execute PiCCS once and encode the complete check. -/
 def checkValue (input : Input) : Value :=
   .array (checkFields input (execute input))
 

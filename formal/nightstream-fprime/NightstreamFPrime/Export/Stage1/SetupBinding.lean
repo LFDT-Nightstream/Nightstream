@@ -13,8 +13,6 @@ open Folding.PiCCS.PaperJoint
 open Phi81Relation
 open PiRLCAlgebra
 
-/-- Ordinary collisions yield the stronger `2B` norm; this return type widens
-that bound to the same `8TB` instance used by the selected security analysis. -/
 def productionBindingCollision_to_shortKernel
     (commitment : Commitment.Value verifierRows)
     (collision : Opening.BindingCollision
@@ -28,8 +26,6 @@ def productionBindingCollision_to_shortKernel
     bounded := fun column => (witness.bounded column).trans_le (by decide)
     kernel := witness.kernel }
 
-/-- The relaxed collision uses actual `C-C` challenges and strict `2B`
-openings, and returns a short integer kernel vector under the selected key. -/
 def productionRelaxedBindingCollision_to_shortKernel
     (commitment : Commitment.Value verifierRows)
     (collision : Folding.PiRLC.RelaxedBindingCollision
@@ -39,20 +35,14 @@ def productionRelaxedBindingCollision_to_shortKernel
   Binding.relaxedBindingCollision_to_shortKernel productionAjtaiKey commitment collision
 
 /-- Shape of the larger fixed-seed instance named in the approved
-`PUBLIC_SEED_MSIS_ASSUMPTION.md`, before unused allocation removal. -/
+`decisions/fprime-ajtai-public-seed-msis-assumption.md`. -/
 def approvedMsisShape : Phi81Relation.Shape :=
   Lifecycle.PaperAlgebra.fullShape 254260583 (by decide)
 
-/-- Keep the approved seed and original number of message blocks. This key
-is only the target of the reduction; the verifier uses `productionSetup`. -/
 def approvedMsisSetup : AjtaiSetupV1.Setup verifierRows
     (Phi81ColumnLayout.blockCount approvedMsisShape.carrierWidth) where
   seed := productionSeed
 
-/-- A selected short kernel solves the previously approved fixed instance
-by appending zero blocks after the complete selected carrier. The strict
-norm is unchanged. This does not assume hardness of a new matrix, restore
-removed interior coordinates, or evaluate a setup entry. -/
 def productionShortKernel_to_approvedMsis
     (witness : Binding.ShortKernelVector productionAjtaiKey
       productionGlobalParams.msisNormBound) :
@@ -70,8 +60,6 @@ def productionShortKernel_to_approvedMsis
   rw [carrierWidth_eq]
   decide
 
-/-- The deterministic prefix reduction reaches the exact approved vector
-length and keeps its strict `8TB` norm bound. -/
 theorem approvedMsis_carrierWidth :
     approvedMsisShape.carrierWidth = 254260620 := by
   decide

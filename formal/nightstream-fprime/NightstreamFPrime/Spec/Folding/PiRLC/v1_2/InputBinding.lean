@@ -14,7 +14,6 @@ namespace NightstreamFPrime.Spec.Folding.PiRLC.v1_2.InputBinding
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
   uScalar
 
-/-- The three input-binding fields of the exact PiRLC verifier relation. -/
 structure Holds
     {Structure : Type uStructure}
     {PublicInput : Type uPublicInput}
@@ -30,8 +29,6 @@ structure Holds
   sameStructure : ∀ i, (inputs i).constraintSystem = system
   samePoint : ∀ i, (inputs i).point = point
 
-/-- Mechanical parent coverage: this leaf supplies exactly the first three
-fields of `PiRLC.Equations`; later leaves supply the four output equations. -/
 theorem Holds.toEquations
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}

@@ -3,8 +3,7 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 
 /-!
 Owns the soundness bridge from the canonical Stage 1 package rows to the
-running-transition semantics. It adds no package row and no alternate
-transition relation.
+running-transition semantics.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionPackage

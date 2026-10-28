@@ -3,8 +3,7 @@ import Init.Data.Nat.Div.Lemmas
 import Lean.Elab.Tactic.Omega
 
 /-!
-Immutable strided Array.all checks. Worker w visits w, w + workers, and so on.
-Only worker indices are materialized. The caller owns task scheduling and the
+Immutable strided Array.all checks. The caller owns task scheduling and the
 positive runtime worker count; this module proves the pure result equality.
 -/
 
@@ -17,8 +16,6 @@ universe u
 def fuel (size workers : Nat) : Nat :=
   (size + workers - 1) / workers
 
-/-- Check one stride in tail position. Bounds are checked before each read,
-and the first failed predicate stops that worker. -/
 @[specialize] def run {Alpha : Type u} (values : Array Alpha)
     (predicate : Alpha → Bool) (stride : Nat) : Nat → Nat → Bool
   | 0, _ => true
@@ -29,7 +26,6 @@ and the first failed predicate stops that worker. -/
         else false
       else true
 
-/-- Exact bounded-offset meaning of the structural helper. -/
 theorem run_iff {Alpha : Type u} (values : Array Alpha)
     (predicate : Alpha → Bool) (stride remaining first : Nat) :
     run values predicate stride remaining first = true ↔
@@ -82,7 +78,6 @@ theorem run_iff {Alpha : Type u} (values : Array Alpha)
         · intro _checked
           trivial
 
-/-- One worker receives ceiling(size / workers) fuel. -/
 @[specialize] def worker {Alpha : Type u} (values : Array Alpha)
     (predicate : Alpha → Bool) (workers index : Nat) : Bool :=
   run values predicate workers (fuel values.size workers) index
@@ -91,8 +86,6 @@ private theorem size_le_capacity (size workers : Nat) (positive : 0 < workers) :
     size ≤ workers * fuel size workers := by
   exact (Nat.le_mul_iff_le_right positive).2 (Nat.le_refl (fuel size workers))
 
-/-- The fuel covers every live offset, even for an empty array, an excess
-worker, or a final stride shorter than the others. -/
 theorem worker_iff {Alpha : Type u} (values : Array Alpha)
     (predicate : Alpha → Bool) (workers index : Nat) (positive : 0 < workers) :
     worker values predicate workers index = true ↔
@@ -112,14 +105,10 @@ theorem worker_iff {Alpha : Type u} (values : Array Alpha)
   · intro checked offset _offsetBound live
     exact checked offset live
 
-/-- Pure conjunction of worker results; the runtime may compute those immutable
-results concurrently before taking this same conjunction. -/
 def all {Alpha : Type u} (values : Array Alpha) (predicate : Alpha → Bool)
     (workers : Nat) : Bool :=
   (Array.range workers).all fun index => worker values predicate workers index
 
-/-- Division and remainder assign every array index to a worker and offset.
-The result is exactly the original Array.all for every positive worker count. -/
 theorem all_eq {Alpha : Type u} (values : Array Alpha)
     (predicate : Alpha → Bool) (workers : Nat) (positive : 0 < workers) :
     all values predicate workers = values.all predicate := by

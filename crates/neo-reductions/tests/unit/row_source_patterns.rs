@@ -11,7 +11,6 @@ fn repeated_patterns_share_storage_but_hash_collisions_do_not() {
     builder
         .push_row(0, 1, [(D, original[0]), (D + 1, original[1])])
         .unwrap();
-    // Force the changed pattern to find a different pattern in its hash bucket.
     builder.patterns[0].insert(pattern_hash(&[0, 1], &changed), vec![0]);
     builder
         .push_row(0, 2, [(0, changed[0]), (1, changed[1])])

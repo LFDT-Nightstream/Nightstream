@@ -4,10 +4,8 @@ import NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedInputs
 
 /-!
-Owns the value-level interpreter for the compact Phi81 quotient recipe
-in the per-application assignment transport. The interpreter reads only the
-physical base assignment. It does not construct retained coordinates or the
-final 26-block assignment.
+Owns the value-level interpreter for the compact Phi81 quotient recipe in the
+per-application assignment transport.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportProducts
@@ -27,7 +25,6 @@ abbrev Program := Lifecycle.Stage1.Application.Program
 
 variable {program : Program}
 
-/-- The physical-base assignment read by every derived-product recipe. -/
 abbrev BaseValues (program : Program) :=
   Fin (PiRLCProductPlan.baseSourceWidth program) → F
 
@@ -39,8 +36,6 @@ def familyOrdinal : PiRLCProductSchedule.Family → Nat
 
 def emptyFamilyShape : Phi81FamilyShape := ⟨0, 0, 0⟩
 
-/-- Select one family shape without expanding its invocations. Invalid recipe
-indices select the empty shape and are rejected by the sealed-package parser. -/
 def familyShape (recipe : Phi81QuotientRecipe)
     (family : PiRLCProductSchedule.Family) : Phi81FamilyShape :=
   recipe.familyShapes.getD (familyOrdinal family) emptyFamilyShape
@@ -49,7 +44,6 @@ def shapeInvocationCount (recipe : Phi81QuotientRecipe)
     (shape : Phi81FamilyShape) : Nat :=
   shape.sourceCount * shape.blockCount * recipe.ringDegree * shape.cellCount
 
-/-- Prefix count of invocations in the recipe's fixed family order. -/
 def familyOffset (recipe : Phi81QuotientRecipe) :
     PiRLCProductSchedule.Family → Nat
   | .commitment => 0
@@ -63,7 +57,6 @@ def familyOffset (recipe : Phi81QuotientRecipe) :
         shapeInvocationCount recipe (familyShape recipe .publicInput) +
           shapeInvocationCount recipe (familyShape recipe .evalK)
 
-/-- Flat source-major, block-major, lane-major, cell-major recipe index. -/
 def invocationIndex (recipe : Phi81QuotientRecipe)
     (descriptor : PiRLCProductSchedule.Descriptor) : Nat :=
   let shape := familyShape recipe descriptor.family
@@ -83,7 +76,6 @@ def invocationIndex (recipe : Phi81QuotientRecipe)
       | .evalA => ⟨17, 4, 2⟩ := by
   cases family <;> rfl
 
-/-- The assignment recipe uses the authoritative flat product index. -/
 private theorem canonical_invocationIndex
     (descriptor : PiRLCProductSchedule.Descriptor) :
     invocationIndex (phi81QuotientRecipe program) descriptor = descriptor.invocation.val := by
@@ -95,9 +87,6 @@ private theorem canonical_invocationIndex
       show (phi81QuotientRecipe program).ringDegree = 54 from rfl]
   all_goals omega
 
-/-- Read one compact block source from the physical base. An invalid slot or
-a source outside the physical base evaluates to zero; the sealed decoder
-rejects both conditions before execution. -/
 def baseBlockValue (program : Program) (base : BaseValues program)
     (kind : BlockKind) (slot : Nat) : F :=
   if slotBound : slot <
@@ -126,7 +115,6 @@ private theorem baseBlockValue_eq_source (program : Program) (base : BaseValues 
   dsimp only
   rw [dif_pos sourceBound]
 
-/-- Recipe arithmetic selects the same source and coefficient word. -/
 private theorem canonical_challengeSlot
     (source : Fin PiRLCCombinationInvocations.sourceCount) (lane : Fin ringDegree) :
     (phi81QuotientRecipe program).challengeSlotBase +
@@ -166,7 +154,6 @@ private theorem canonical_challenge_read
   rw [PiRLCRetainedPreservation.sourceAssignment_challengeColumn] at encoded
   exact read.trans encoded.symm
 
-/-- Challenge ring selected by the checked coefficient-word block. -/
 def challengeRing (recipe : Phi81QuotientRecipe) (program : Program)
     (base : BaseValues program) (descriptor : PiRLCProductSchedule.Descriptor) :
     RingF :=
@@ -176,7 +163,6 @@ def challengeRing (recipe : Phi81QuotientRecipe) (program : Program)
           descriptor.source.val * recipe.challengeSourceStride + lane.val) -
       Poseidon2.ofNat recipe.challengeShift
 
-/-- Value ring selected by the recipe's family-major product-input block. -/
 def valueRing (recipe : Phi81QuotientRecipe) (program : Program)
     (base : BaseValues program) (descriptor : PiRLCProductSchedule.Descriptor) :
     RingF :=
@@ -185,8 +171,6 @@ def valueRing (recipe : Phi81QuotientRecipe) (program : Program)
       AffineRuns.sourceAt recipe.valueSources
         (invocationIndex recipe (descriptor.withLane lane))
 
-/-- Read one quotient coefficient from the complete physical base. The
-single retained slot uses the original lane index. -/
 def phi81GroupValue (recipe : Phi81QuotientRecipe) (program : Program)
     (base : BaseValues program)
     (invocation : Fin PiRLCProductSchedule.invocationCount)
@@ -199,7 +183,6 @@ def phi81GroupValue (recipe : Phi81QuotientRecipe) (program : Program)
     (valueRing recipe program base descriptor)
     (PiRLCProductSchedule.descriptor invocation).lane
 
-/-- The physical-base executor computes the quotient coefficient used by the plan. -/
 theorem canonical_phi81GroupValue_eq_honestGroupValue
     {program : Program}
     (raw : PerApplicationCanonicalAssignment.RawValues program)

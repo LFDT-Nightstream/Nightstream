@@ -7,8 +7,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanRows
 
 /-!
 Owns the pilot ordinary and digest-binding plans on the canonical completed
-assignment. Source copies and both final hash outputs come from the same
-physical prefix. No compact-row or output-coherence premise is supplied.
+assignment.
 -/
 
 set_option autoImplicit false
@@ -236,9 +235,6 @@ private theorem binding_rows
     rw [position]
     exact output_binding application relation target suffix rows raw rfl decoded.2
 
-/-- The canonical completed assignment satisfies the pilot ordinary plan
-and all eight digest-binding rows. Both results derive their source values
-from the same cumulative physical prefix. -/
 theorem rowsZero_of_completed
     (application : Lifecycle.Stage1.Application.Program)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

@@ -1,9 +1,6 @@
 import Std
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/TargetPolynomial.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Finite SuperNeo v1.2 target polynomial. The target is exactly
 `T_K + gamma^(k*d) * T_A`; Pad and matrix coefficients have separate typed
@@ -16,8 +13,6 @@ open NightstreamFPrime.Spec.SumCheck
 
 universe uField
 
-/-- Exactly the algebraic laws used by the finite target-shift proof. They are
-a strict fragment of the field laws available in the paper model. -/
 structure ShiftLaws
     {Field : Type uField}
     (ops : SumCheck.Finite.Ops Field) : Prop where
@@ -30,7 +25,6 @@ structure ShiftLaws
     ops.mul left (ops.add middle right) =
       ops.add (ops.mul left middle) (ops.mul left right)
 
-/-- Finite exponentiation using only the verifier-selected operations. -/
 def power
     {Field : Type uField}
     (ops : SumCheck.Finite.Ops Field)
@@ -38,7 +32,6 @@ def power
   | 0 => ops.one
   | exponent + 1 => ops.mul value (power ops value exponent)
 
-/-- Powers split exactly over addition under the stated minimal laws. -/
 theorem power_add
     {Field : Type uField}
     (ops : SumCheck.Finite.Ops Field)
@@ -57,14 +50,12 @@ theorem power_add
       exact (laws.mul_assoc value (power ops value left)
         (power ops value right)).symm
 
-/-- One target coefficient for every v1.2 Pad and matrix coordinate. -/
 structure TargetCoefficients
     (Field : Type uField)
     (shape : Shape) where
   pad : PadCoordinate shape -> Field
   matrix : MatrixCoordinate shape -> Field
 
-/-- One `T_K` term. -/
 def padTerm
     {Field : Type uField}
     {shape : Shape}
@@ -76,7 +67,6 @@ def padTerm
     (power ops gamma coordinate.localGammaExponent)
     (coefficients.pad coordinate)
 
-/-- One local `T_A` term before its `k*d` shift. -/
 def matrixLocalTerm
     {Field : Type uField}
     {shape : Shape}
@@ -88,7 +78,6 @@ def matrixLocalTerm
     (power ops gamma coordinate.localGammaExponent)
     (coefficients.matrix coordinate)
 
-/-- One absolute matrix target term at `k*d + I_A`. -/
 def matrixTerm
     {Field : Type uField}
     {shape : Shape}
@@ -106,7 +95,6 @@ private def sumTerms
     (values : List Field) : Field :=
   values.foldr ops.add ops.zero
 
-/-- The unshifted Pad target `T_K`. -/
 def evaluatePad
     {Field : Type uField}
     {shape : Shape}
@@ -128,7 +116,6 @@ def evaluateMatrixLocal
     (canonicalMatrixCoordinates shape).map fun coordinate =>
       matrixLocalTerm ops coefficients gamma coordinate
 
-/-- The shifted matrix target `gamma^(k*d) * T_A`. -/
 def evaluateMatrix
     {Field : Type uField}
     {shape : Shape}
@@ -230,7 +217,6 @@ private theorem matrixTerms_eq_map_shiftedLocal
   intro coordinate _
   exact matrixTerm_eq_shift_mul_local ops laws coefficients gamma coordinate
 
-/-- Exact v1.2 matrix-target shift theorem. -/
 theorem evaluateMatrix_eq_shift_mul_evaluateMatrixLocal
     {Field : Type uField}
     {shape : Shape}

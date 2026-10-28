@@ -12,7 +12,7 @@ use neo_ajtai::nightstream_fprime_setup::{
     SETUP_ID,
 };
 use neo_ccs::{crypto::poseidon2_goldilocks::poseidon2_hash, Mat};
-use nightstream_fprime::{load_per_application_package, LoadedPerApplicationPackage};
+use nightstream_fprime::{load_per_application_package, LoadedPerApplicationPackage, StructuralIdentifier};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
 use serde::{de::IgnoredAny, Deserialize};
@@ -111,8 +111,6 @@ fn component(tag: u64, authority: &[u64]) -> [u64; 4] {
     hash(&preimage)
 }
 
-// Same independent numeric-array framing as tests/production_binding.rs.
-// Source words come from the complete candidate, not from carried digests.
 fn append_value_preimage(value: &Value, output: &mut Vec<u64>) {
     match value {
         Value::Number(number) => {
@@ -145,9 +143,7 @@ fn setup_authority_words(message_columns: u64) -> Vec<u64> {
     authority
 }
 
-/// Execute the full-carrier primitive on the exact sparse input emitted by
-/// Lean. Its final coordinate is nonzero; this is not a fresh CCS padding test.
-pub fn check_sparse_commitment(path: &Path) {
+pub(crate) fn check_sparse_commitment(path: &Path) {
     let started = Instant::now();
     let LeanSparseCommitment(schema, authority, support, expected_rows) =
         serde_json::from_value(read_metadata(path)).expect("Lean sparse-commitment schema");
@@ -189,19 +185,19 @@ pub fn check_sparse_commitment(path: &Path) {
         .expect("complete candidate carrier");
     let actual =
         commit_production_signed_unit_prefix_matrix(&carrier).expect("actual full-carrier candidate-key commitment");
-    assert_eq!((actual.d, actual.kappa), (54, PRODUCTION_VERIFIER_ROWS as usize));
-    assert_eq!(actual.data.len(), expected_rows.len() * 54);
+    assert_eq!((actual.d(), actual.kappa()), (54, PRODUCTION_VERIFIER_ROWS as usize));
+    assert_eq!(actual.data().len(), expected_rows.len() * 54);
     for (row, expected) in expected_rows.iter().enumerate() {
         for (lane, expected) in expected.iter().enumerate() {
             assert_eq!(
-                actual.data[row * 54 + lane].as_canonical_u64(),
+                actual.data()[row * 54 + lane].as_canonical_u64(),
                 *expected,
                 "Lean/Rust commitment row {row}, lane {lane}"
             );
         }
     }
     println!("primitive_support_coordinates={}", support.len());
-    println!("primitive_commitment_coefficients={}", actual.data.len());
+    println!("primitive_commitment_coefficients={}", actual.data().len());
     println!("candidate_primitive_conformance=passed elapsed={:?}", started.elapsed());
 }
 
@@ -212,7 +208,8 @@ impl Candidate {
             "canonical expected identity"
         );
         let bytes = fs::read(path).expect("Lean candidate sealed package");
-        let package = load_per_application_package(&bytes, expected).expect("expected Lean candidate identity");
+        let package = load_per_application_package(&bytes, StructuralIdentifier::from_words(expected))
+            .expect("expected Lean candidate identity");
         let LeanBinding(schema, structural, package_identity, descriptor, key_preimage, key_digest, formulas) =
             serde_json::from_value(read_metadata(binding_path)).expect("Lean binding schema");
         assert_eq!(schema, 2);
@@ -285,9 +282,9 @@ impl Candidate {
         let binding = package
             .production_verifier_binding()
             .expect("candidate binding recomputation");
-        assert_eq!(binding.structural_identifier(), structural);
-        assert_eq!(binding.package_identity(), package_identity);
-        assert_eq!(binding.verification_key_digest(), key_digest);
+        assert_eq!(binding.structural_identifier().words(), structural);
+        assert_eq!(binding.package_identity().words(), package_identity);
+        assert_eq!(binding.verification_key_digest().words(), key_digest);
         require_words(
             binding.verification_key_words(),
             &key_preimage,
@@ -335,9 +332,7 @@ impl Candidate {
     }
 }
 
-/// Run exactly one independently bounded gate. Paths and expected identity
-/// are explicit arguments; no candidate value replaces a production pin.
-pub fn run(
+pub(crate) fn run(
     mode: &str,
     candidate_path: &Path,
     binding_path: &Path,

@@ -75,8 +75,6 @@ theorem KSupported.mul {left right : KExpr} {allowed : Nat → Prop}
     KSupported (KExpr.mul left right) allowed :=
   mul_supported left right allowed leftSupport rightSupport
 
-/-- The three product recipes read their operands and the first two cells of
-their own product. -/
 theorem mulRecipes_supported (start : Nat) (left right : KExpr)
     (allowed : Nat → Prop) (leftSupport : KSupported left allowed)
     (rightSupport : KSupported right allowed)
@@ -101,8 +99,6 @@ private theorem productAt_supported (allowed : Nat → Prop)
   · apply NightstreamFPrime.Circuit.SupportRange.interval <;> omega
   · apply NightstreamFPrime.Circuit.SupportRange.interval <;> omega
 
-/-- Generic straight-line rows preserve one caller-selected support
-predicate when every target and recipe already satisfies it. -/
 theorem recipeConstraints_varsSatisfy
     (start : Nat) (recipes : List Expr) (allowed : Nat → Prop)
     (recipesSupported : ∀ recipe ∈ recipes,
@@ -129,8 +125,6 @@ theorem recipeConstraints_varsSatisfy
           simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using target
         · exact member
 
-/-- Every recipe and the final Horner output use only supported external
-inputs or the exact recipe interval allocated by this compilation. -/
 theorem compile_varsSatisfy (start : Nat) (point : KExpr)
     (coefficients : List KExpr) (allowed : Nat → Prop)
     (pointSupport : KSupported point allowed)
@@ -235,7 +229,6 @@ theorem compile_varsSatisfy (start : Nat) (point : KExpr)
                 (Extend allowed start finish) coefficientAtFinish
                   productSupport
 
-/-- The canonical Horner recipe rows inherit the same exact support union. -/
 theorem compile_recipeConstraints_varsSatisfy
     (start : Nat) (point : KExpr) (coefficients : List KExpr)
     (allowed : Nat → Prop) (pointSupport : KSupported point allowed)
@@ -259,8 +252,6 @@ theorem compile_recipeConstraints_varsSatisfy
 
 namespace Owned
 
-/-- The child-owned Horner rows use only supported external expressions and
-the exact recipe interval allocated by this invocation. -/
 theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
     (allowed : Nat → Prop)
     (pointSupport : KSupported (interface.point offset) allowed)
@@ -285,8 +276,6 @@ theorem flatConstraints_varsSatisfy (interface : Interface) (offset : Nat)
   · exact localSupport index lower (by
       simpa [program] using upper)
 
-/-- The child-owned Horner output uses the same external support and exact
-recipe interval as its rows. -/
 theorem output_varsSatisfy (interface : Interface) (offset : Nat)
     (allowed : Nat → Prop)
     (pointSupport : KSupported (interface.point offset) allowed)

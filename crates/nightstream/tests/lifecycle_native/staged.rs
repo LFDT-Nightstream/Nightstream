@@ -1,6 +1,4 @@
 //! Capped recursive test phases. Checkpoints are prover data, never authority.
-//! Record shapes and replay checks are adapted from neo-fold-clean's
-//! tests/nifs/{stage1_actual,stage1_parent,stage1_assemble}.rs at 73b6e2de.
 
 use super::{artifact, field, fields, output, read};
 use crate::folding::{
@@ -222,7 +220,7 @@ fn prepare_with_engine(engine: EvaluationEngine) -> PreparedLifecycle {
 fn params(package: &PreparedLifecycle) -> Params {
     Params::for_ccs_shape(
         package.structure.domain_rows(),
-        package.structure.m,
+        package.structure.m(),
         package.structure.t(),
         package.structure.max_degree(),
         114,
@@ -273,25 +271,24 @@ struct Sources {
 fn load_claims(package: &PreparedLifecycle, directory: &Path, step: u64) -> (Stage1State, CcsClaim, RunningInstance) {
     let saved: SavedEnvelope = load(&directory.join("envelope.json"));
     assert_eq!(saved.schema, 1);
-    assert_eq!(saved.package_identity, package.package_identity());
+    assert_eq!(saved.package_identity, package.package_identity().words());
     assert_eq!(saved.child_witness_count, 16);
     assert_eq!(saved.running_claims.len(), 16);
     let state = Stage1State::new(saved.iteration, saved.z0.map(field), saved.current.map(field));
     assert_eq!(state, expected_state(step), "external source state");
     let fresh: CcsClaim = load(&directory.join("fresh-claim.json"));
     let running = RunningInstance::new(saved.running_claims, Vec::new());
-    // The production checks; frame caches are not read.
-    package
+    let (bound, _, _) = package
         .checked_prior_state(&state, &running, &fresh)
         .unwrap();
-    folding::validate_running_children(&params(package), &package.structure, &running).unwrap();
+    folding::validate_running_children(&params(package), &package.structure, bound).unwrap();
     (state, fresh, running)
 }
 fn load_sources(package: &PreparedLifecycle, directory: &Path, step: u64) -> Sources {
     let (state, claim, mut running) = load_claims(package, directory, step);
     let witness: Mat<F> = load(&directory.join("fresh-witness.json"));
-    validate_fresh_witness_tail_zero(&witness, package.structure.m, "staged fresh source").unwrap();
-    let projected = project_x_from_witness_mat(&witness, package.structure.m, claim.m_in).unwrap();
+    validate_fresh_witness_tail_zero(&witness, package.structure.m(), "staged fresh source").unwrap();
+    let projected = project_x_from_witness_mat(&witness, package.structure.m(), claim.m_in).unwrap();
     for (column, value) in claim.x.iter().enumerate() {
         assert_eq!(projected[(column % D, column / D)], *value);
     }
@@ -299,7 +296,7 @@ fn load_sources(package: &PreparedLifecycle, directory: &Path, step: u64) -> Sou
         let witness: Mat<F> = load(&directory.join(format!("digit-{child}.json")));
         let claim = &running.claims[child];
         assert_eq!(
-            project_x_from_witness_mat(&witness, package.structure.m, claim.m_in).unwrap(),
+            project_x_from_witness_mat(&witness, package.structure.m(), claim.m_in).unwrap(),
             claim.X
         );
         running.witnesses.push(witness);
@@ -308,10 +305,7 @@ fn load_sources(package: &PreparedLifecycle, directory: &Path, step: u64) -> Sou
         state,
         fresh: CcsInstance {
             claim,
-            witness: CcsWitness {
-                w: Vec::new(),
-                Z: witness,
-            },
+            witness: CcsWitness { Z: witness },
         },
         running,
     }
@@ -333,7 +327,6 @@ fn save_envelope(
     for (child, witness) in running.witnesses.iter().enumerate() {
         let name = format!("digit-{child}.json");
         if let Some(source) = digit_directory {
-            // These are exactly the checked digit objects moved into complete_step.
             // The link operation, like create_new, rejects an existing destination.
             fs::hard_link(source.join(&name), directory.join(name)).expect("new link to checked digit");
         } else {
@@ -347,7 +340,7 @@ fn save_envelope(
         &directory.join("envelope.json"),
         &SavedEnvelope {
             schema: 1,
-            package_identity: package.package_identity(),
+            package_identity: package.package_identity().words(),
             iteration: state.iteration(),
             z0: state.z0().map(|value| value.as_canonical_u64()),
             current: state.current().map(|value| value.as_canonical_u64()),
@@ -402,9 +395,7 @@ fn sources(root: &Path, step: u64, engine: EvaluationEngine) {
         );
     }
     let receipt = destination.join("sources-checked.json");
-    let checked = json!({"schema":1,"package_identity":package.package_identity(),"step":step});
-    // Reusing a directory still recomputes every opening above. Its receipt
-    // never substitutes for checking the current source values.
+    let checked = json!({"schema":1,"package_identity":package.package_identity().words(),"step":step});
     if receipt.exists() {
         assert_eq!(load::<Value>(&receipt), checked);
     } else {

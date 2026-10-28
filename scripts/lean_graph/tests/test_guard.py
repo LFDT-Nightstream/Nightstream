@@ -1,4 +1,3 @@
-"""Worktree isolation and owner-authorized deadline removal retain the guard."""
 from contextlib import nullcontext
 import importlib.util
 import os
@@ -32,9 +31,9 @@ class GuardWorktreeTests(unittest.TestCase):
     def test_same_worktree_clients_share_lock_across_stores(self):
         first = self.checkout_guard("first")
         second = self.checkout_guard("first")
-        with first.build_lock(self.root / "store-a"):
+        with first.build_lock():
             with self.assertRaisesRegex(guard.EvidenceError, "this worktree"):
-                with second.build_lock(self.root / "store-b"):
+                with second.build_lock():
                     self.fail("same-worktree clients acquired the lock together")
 
     def test_different_worktrees_have_independent_locks(self):

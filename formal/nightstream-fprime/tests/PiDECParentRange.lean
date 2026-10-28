@@ -17,7 +17,6 @@ private def check (ok : Bool) (message : String) : IO Unit :=
 private def header (first last : Nat) : String :=
   s!"[1,{Poseidon2HashChainV1Setup.messageColumns},{first},{last}]\n"
 
-/-- One record line whose coefficients are `seed`, `seed + 1`, and so on. -/
 private def record (block seed : Nat) (count : Nat := ringDegree) : String :=
   s!"[{block},{(List.range count).map (· + seed)}]\n"
 

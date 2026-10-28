@@ -50,7 +50,6 @@ abbrev hornerOffset {variableCount : Nat}
 
 end Logical
 
-/-- Stable physical wire shape for both opaque children. -/
 structure InputsLinear {variableCount : Nat}
     (interface : Logical.Interface variableCount) (offset : Nat) : Prop where
   left : ∀ coordinate,
@@ -61,8 +60,6 @@ structure InputsLinear {variableCount : Nat}
   coefficient : ∀ coefficient ∈ interface.coefficients offset,
     KExprLinear coefficient
 
-/-- Exact syntactic shape of the unmaterialized product exported by this
-two-child assembler. -/
 structure ProductOutputShape (value : KExpr) : Prop where
   c0_mulCount : R1CS.mulCount value.c0 = 3
   c1_mulCount : R1CS.mulCount value.c1 = 2
@@ -98,8 +95,6 @@ private theorem weightedSum_linear {variableCount : Nat}
     NightstreamFPrime.Gadgets.Polynomial.Horner.Owned.program
   exact compile_output_linear _ _ _ nonempty inputs.coefficient
 
-/-- The exported value is the direct quadratic-extension product of two
-materialized child outputs. -/
 theorem output_shape {variableCount : Nat}
     (interface : Logical.Interface variableCount) (offset : Nat)
     (positive : 0 < variableCount) (inputs : InputsLinear interface offset)
@@ -207,7 +202,6 @@ theorem totalRowCount {variableCount : Nat}
     point_totalRowCount interface offset positive inputs,
     horner_totalRowCount interface offset inputs]
 
-/-- Parent-facing exact footprint for the two-child assembler. -/
 def footprint {variableCount : Nat}
     (interface : Logical.Interface variableCount) (positive : 0 < variableCount)
     (inputs : ∀ offset, InputsLinear interface offset) :

@@ -2,10 +2,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConstraintPolynomialLift.Evaluation
 
-/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolDataRefinement.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
-SuperNeo v1.2 Pad and 4-matrix evaluation families. -/
-
 /-!
 Refinement from one authoritative `Pi_CCS` source family to the actual
 off-cube protocol polynomial.
@@ -29,23 +25,6 @@ structure matrices, output-message serialization, Fiat--Shamir, SumCheck
 degree bounds, Rust, R1CS, row removal, or constraint counts.
 
 Emits constraints: no.
-
-Authority boundary: callers provide the algebraic carrier operations and a
-lift satisfying explicit mathematical laws. They cannot provide image tables,
-residual tables, a `ProtocolPolynomial.Data`, a `JointData`, or an equality
-between those objects. Every such object and the equality theorem are derived
-here from `UnifiedSources.UnifiedInputs`.
-
-| Protocol | Phase | Family | Derived object / theorem |
-|---|---|---|---|
-| `Pi_CCS` | carrier placement | zero, one, add, mul, strict norm | `ProtocolLift` |
-| `Pi_CCS` | CCS syntax | sparse monomials and polynomial | imported `ConstraintPolynomialLift.liftConstraintPolynomial` |
-| `Pi_CCS` | CCS semantics | specialize the neutral lift/evaluation theorem | `evaluatePolynomial_lift` |
-| `Pi_CCS` | Boolean source images | canonical low/high table | `liftTable_tabulate` |
-| `Pi_CCS` | actual polynomial input | all source-image families | `toProtocolData` |
-| assurance | CCS branch | actual Boolean restriction = independent CCS residual | `ccsTable_eq` |
-| assurance | norm branch | actual Boolean restriction = independent cubic residual | `normTable_eq` |
-| assurance | joint closure | all five typed families agree | `toProtocolData_toJointData_eq` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolDataRefinement
@@ -57,10 +36,6 @@ open ConstraintPolynomialLift
 
 universe uExtension
 
-/-- Exact algebraic assumptions needed to place the independently defined
-base-field data in the active protocol carrier. The strict-norm law is named
-separately because the base residual uses concrete centered-representative
-semantics rather than a caller-selected arithmetic expression. -/
 structure ProtocolLift
     {Extension : Type uExtension}
     (baseOps : InterpolationOps F)
@@ -81,8 +56,6 @@ structure ProtocolLift
 
 namespace ProtocolLift
 
-/-- Zero preservation is derived from zero reflection; it is not an
-additional caller-selected law. -/
 theorem map_zero
     {Extension : Type uExtension}
     {baseOps : InterpolationOps F}
@@ -92,8 +65,6 @@ theorem map_zero
     lift baseOps.zero = extensionOps.zero :=
   (laws.zero_iff baseOps.zero).mpr rfl
 
-/-- Forget the norm and zero-reflection obligations when only sparse CCS
-evaluation is being refined. -/
 theorem toConstraintEvaluationLaws
     {Extension : Type uExtension}
     {baseOps : InterpolationOps F}
@@ -109,7 +80,6 @@ theorem toConstraintEvaluationLaws
 
 end ProtocolLift
 
-/-- Evaluation of one explicit sparse monomial commutes with the lift. -/
 theorem evaluateMonomial_lift
     {Extension : Type uExtension}
     {matrixCount : Nat}
@@ -125,9 +95,6 @@ theorem evaluateMonomial_lift
   exact ConstraintPolynomialLift.Evaluation.evaluateMonomial_lift
     baseOps extensionOps lift laws.toConstraintEvaluationLaws monomial point
 
-/-- Evaluation of the whole explicit sparse CCS polynomial commutes with the
-lift. This theorem is derived from syntax and algebraic laws, not supplied as
-a refinement callback. -/
 theorem evaluatePolynomial_lift
     {Extension : Type uExtension}
     {matrixCount : Nat}
@@ -144,7 +111,6 @@ theorem evaluatePolynomial_lift
   exact ConstraintPolynomialLift.Evaluation.evaluatePolynomial_lift
     baseOps extensionOps lift laws.toConstraintEvaluationLaws polynomial point
 
-/-- Structural lifting and canonical low/high tabulation commute exactly. -/
 theorem liftTable_tabulate
     {Extension : Type uExtension}
     (lift : F -> Extension)
@@ -160,8 +126,6 @@ theorem liftTable_tabulate
       · exact inductionHypothesis _
       · exact inductionHypothesis _
 
-/-- Construct every actual-protocol source image from the sole authoritative
-assignment family. No residual table or off-cube evaluator is an input. -/
 def toProtocolData
     {Extension : Type uExtension}
     {shape : Shape}
@@ -186,8 +150,6 @@ def toProtocolData
   claimedPadCoefficient := data.claimedPadCoefficient
   claimedMatrixCoefficient := data.claimedMatrixCoefficient
 
-/-- The CCS branch of the actual protocol's Boolean restriction is exactly
-the lifted independently constructed CCS residual table. -/
 theorem ccsTable_eq
     {Extension : Type uExtension}
     {shape : Shape}
@@ -225,8 +187,6 @@ theorem ccsTable_eq
     (CCSResidualTable.matrixImagesAt baseOps data.system
       (data.assignments (UnifiedSources.freshSourceIndex source)) vertex)
 
-/-- The norm branch of the actual protocol's Boolean restriction is exactly
-the lifted independently constructed cubic residual table. -/
 theorem normTable_eq
     {Extension : Type uExtension}
     {shape : Shape}
@@ -256,9 +216,6 @@ theorem normTable_eq
   simp only [BooleanTable.valueAt_tabulate]
   exact laws.map_strictNorm _
 
-/-- Exact closure: restricting the derived actual protocol polynomial to the
-Boolean cube produces the independently derived joint residual object for all
-seven typed fields. No equality premise is accepted from a caller. -/
 theorem toProtocolData_toJointData_eq
     {Extension : Type uExtension}
     {shape : Shape}

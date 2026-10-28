@@ -1,5 +1,3 @@
-"""Derive applicability and closure from authenticated runs and scoped reviews."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -44,7 +42,6 @@ def changes(record, manifest, gate, policy, declarations=None):
 
 
 def declaration_records(policy, manifest, runs):
-    """Only a complete export checked against current source can narrow freshness."""
     selected = {}
     for record in sorted(runs, key=lambda item: item.get("finished", "")):
         gate = policy["gates"].get(record.get("gate"))
@@ -113,7 +110,6 @@ def gate_results(policy, manifest, runs, declarations=None, store=None):
                               "details": describe(record, manifest, drift, store, precise, keys)})
             else:
                 matches.append(record)
-        # A failed attempt does not turn into a pass or erase an existing matching proof.
         passing = [record for record in matches if record.get("outcome") == "pass"]
         latest = max(passing or matches,
                      key=lambda record: record.get("finished", record.get("started", "")), default=None)
@@ -150,7 +146,6 @@ def review_results(policy, manifest, authority):
         if name not in result or name == "decomposition":
             continue
         expected = policy["reviews"][name]
-        # Reviews name the exact source manifest, not merely a Git commit.
         valid = (record.get("snapshot") == digest(manifest)
                  and record.get("scope") == expected["scope"]
                  and record.get("policy") == digest(policy)

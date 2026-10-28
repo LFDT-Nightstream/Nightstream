@@ -8,7 +8,7 @@ use serde_json::{json, Value};
 const DEGREE: usize = 54;
 const MODULUS: u128 = 18_446_744_069_414_584_321;
 const RATE: usize = 168;
-pub const SETUP_ID: &[u8] = b"nightstream-ajtai-shake128-wide256-v1";
+pub(crate) const SETUP_ID: &[u8] = b"nightstream-ajtai-shake128-wide256-v1";
 
 /// FIPS 202 example: the first 32 bytes of SHAKE128 of the empty message.
 const SHAKE128_EMPTY: [u8; 32] = [
@@ -75,7 +75,7 @@ fn keccak_f(state: &mut [u64; 25]) {
 }
 
 /// SHAKE128 (FIPS 202, Section 6.2) of `message`, `length` output bytes.
-pub fn shake128(message: &[u8], length: usize) -> Vec<u8> {
+pub(crate) fn shake128(message: &[u8], length: usize) -> Vec<u8> {
     let mut padded = message.to_vec();
     padded.push(0x1f);
     padded.resize(padded.len().div_ceil(RATE) * RATE, 0);
@@ -100,8 +100,7 @@ pub fn shake128(message: &[u8], length: usize) -> Vec<u8> {
     }
 }
 
-/// All `32 * DEGREE` output bytes of key element `(row, block)`.
-pub fn element_bytes(seed: &[u8; 32], row: u32, block: u64) -> Vec<u8> {
+pub(crate) fn element_bytes(seed: &[u8; 32], row: u32, block: u64) -> Vec<u8> {
     let mut input = SETUP_ID.to_vec();
     input.extend(seed);
     input.extend(row.to_le_bytes());
@@ -109,9 +108,7 @@ pub fn element_bytes(seed: &[u8; 32], row: u32, block: u64) -> Vec<u8> {
     shake128(&input, 32 * DEGREE)
 }
 
-/// Coefficient `lane` is bytes `32 * lane .. 32 * lane + 32`, read as one
-/// little-endian 256-bit integer and reduced modulo q.
-pub fn coefficients(seed: &[u8; 32], row: u32, block: u64) -> [u64; DEGREE] {
+pub(crate) fn coefficients(seed: &[u8; 32], row: u32, block: u64) -> [u64; DEGREE] {
     let bytes = element_bytes(seed, row, block);
     std::array::from_fn(|lane| {
         bytes[32 * lane..32 * lane + 32]
@@ -123,9 +120,7 @@ pub fn coefficients(seed: &[u8; 32], row: u32, block: u64) -> [u64; DEGREE] {
     })
 }
 
-/// Check the schema-4 Lean setup fixture for `seed`: the FIPS 202 example,
-/// the indexed coefficients, and one complete key element.
-pub fn check_lean_setup_vectors(setup: &Value, seed: &[u8; 32]) {
+pub(crate) fn check_lean_setup_vectors(setup: &Value, seed: &[u8; 32]) {
     assert_eq!(setup[0], 4, "Lean SHAKE128 setup schema");
     assert_eq!(setup[1], json!(SETUP_ID));
     assert_eq!(setup[4], json!(seed));
@@ -139,14 +134,11 @@ pub fn check_lean_setup_vectors(setup: &Value, seed: &[u8; 32]) {
             expected
         );
     }
-    // All lanes, including those that cross a 168-byte rate boundary.
     assert_eq!(setup[7], json!(element_bytes(seed, 1, 32_768)));
 }
 
-pub fn commitment_row(seed: &[u8; 32], row: u32, carrier: &[u8]) -> [u64; DEGREE] {
+pub(crate) fn commitment_row(seed: &[u8; 32], row: u32, carrier: &[u8]) -> [u64; DEGREE] {
     assert_eq!(carrier.len() % DEGREE, 0);
-    // One convolution coefficient has at most carrier.len() terms. The
-    // descending Phi81 reduction can combine at most three such sums.
     assert!((carrier.len() as u128)
         .checked_mul(MODULUS - 1)
         .and_then(|bound| bound.checked_mul(3))

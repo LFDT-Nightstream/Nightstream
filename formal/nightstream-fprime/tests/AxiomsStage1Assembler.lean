@@ -645,8 +645,6 @@ import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.leftIndex_of_splitIndex_eq
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.rightIndex_of_splitIndex_eq
 
-/-! Physical-to-compact Stage 1 preservation cone. -/
-
 #audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.WiringShift.expression_eval
 #audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.WiringShift.expression_eval_eq_of_shift_agreement
 #audit_axioms NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.WiringShift.quadratic_eval
@@ -720,7 +718,6 @@ import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
 #audit_axioms NightstreamFPrime.Layout.Stage1.CompactPullback.compactEnv_runningLocal
 #audit_axioms NightstreamFPrime.Layout.Stage1.CompactPullback.compactEnv_applicationLocal
 #audit_axioms NightstreamFPrime.Layout.Stage1.Preservation.physicalHolds_iff
-#audit_axioms NightstreamFPrime.Layout.Stage1.Ownership.applicationRowCount_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.Ownership.rowRanges_adjacent
 #audit_axioms NightstreamFPrime.Layout.Stage1.Ownership.rowRanges_finish
 #audit_axioms NightstreamFPrime.Layout.Stage1.Ownership.selectedRow_in_range

@@ -3,12 +3,11 @@ import NightstreamFPrime.Layout.PiRLC.v1_2.CombinationCost
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
 
 /-!
-Owns the normalized Lean row templates for the repeated PiRLC Phi81
-combination constraints.
+Owns the normalized Lean row templates for the repeated PiRLC Phi81 combination
+constraints.
 
 Each lane has two templates: source zero has a constant-zero prior, while all
-later sources read the prior logical output. Every concrete family invocation
-is only a column renaming of one of these 108 templates.
+later sources read the prior logical output.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationTemplates

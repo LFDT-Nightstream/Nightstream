@@ -2,9 +2,6 @@ import NightstreamFPrime.Export.Stage1.HyperNovaGuardedSourceLaw
 
 /-!
 The analytical good-prefix mark is justified by actual terminal membership.
-Every marked transition uses the checked source return and the existing
-predecessor theorem. The guarded real experiment therefore succeeds exactly
-on its good active visits, under the original unconditional visited law.
 No Fiat--Shamir transfer, source-validity assumption, or conditioning is added.
 -/
 
@@ -119,9 +116,6 @@ private theorem supported_accepted
   exact (readDraw_accepted application fits setup) steps (initialVisit application fits setup (sample.1, sample.2.1)) sample.2.2
     (initial_accepted application fits setup (sample.1, sample.2.1))
 
-/-- Every marked context in the actual visited law contains an accepted
-selected terminal opening. Initial acceptance and every predecessor's source
-membership are derived from the mark construction; none is a new premise. -/
 theorem marked_accepted
     (source : Statement → Payload application → PMF (SourceResult application))
     (initial : PMF (Statement × Envelope application)) (steps : Nat) (visit : Visit application)
@@ -135,8 +129,6 @@ theorem marked_accepted
   | some input =>
       exact ⟨input.1, input.2, rfl, by simpa only [current] using accepted⟩
 
-/-- A good active supported visit holds an accepted, collision-free, non-base
-recursive terminal. -/
 private theorem good_terminal
     (source : Statement → Payload application → PMF (SourceResult application))
     (initial : PMF (Statement × Envelope application)) (steps : Nat) (visit : Visit application)
@@ -165,9 +157,6 @@ private theorem good_terminal
         simpa only [current] using safe
       exact ⟨statement, payload, current, accepted, safe, Nat.pos_of_ne_zero active.2.2⟩
 
-/-- At every supported visited context, the guarded real verifier event is
-exactly the good active mark. This includes the original stopped and abort
-mass, with no renormalization or accepted-context law as input. -/
 theorem realSuccess_iff_goodActive
     (source : Statement → Payload application → PMF (SourceResult application))
     (initial : PMF (Statement × Envelope application)) (steps : Nat) (visit : Visit application)

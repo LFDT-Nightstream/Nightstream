@@ -67,7 +67,6 @@ private theorem childOp_flatConstraints (name : String)
       childConstraints child offset := by
   rfl
 
-/-- Exact equality between phase rows and the six opaque child lists. -/
 theorem logicalConstraints_eq_ordered
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)
@@ -81,8 +80,6 @@ theorem logicalConstraints_eq_ordered
     List.flatten_cons, List.flatten_nil, childOp_flatConstraints,
     List.append_nil]
 
-/-- The executable nonempty PiDEC child sequence. Input and output binding are
-typed zero-row views and therefore do not occur in this list. -/
 def nonBoundaryConstraints
     (interface : Formal.Interface logicalWidth publicFits)
     (offset : Nat) : List Expr :=
@@ -96,8 +93,6 @@ def nonBoundaryConstraints
     childConstraints (Formal.evalACircuit shared)
       (Formal.evalAOffset offset)
 
-/-- Removing the two typed zero-row boundary children changes no logical
-constraint and keeps the four nonempty children in exact parent order. -/
 theorem logicalConstraints_eq_nonBoundary
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)
@@ -120,7 +115,6 @@ theorem logicalConstraints_eq_nonBoundary
   rw [inputNil, outputNil]
   simp only [List.nil_append, List.append_nil, List.append_assoc]
 
-/-- Expression-shape evidence required by the fixed production footprint. -/
 structure InputShapes
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth publicFits)
@@ -142,8 +136,6 @@ structure InputShapes
       (Formal.evalAInterface (Formal.atOffset interface parentOffset))
       childOffset
 
-/-- Certified child costs in the unchanged phase order. The boundary
-children have the zero costs proved by their footprint owners. -/
 def exactFreshDeltas : List Nat :=
   [0, PublicInputSplit.freshColumnCount, CommitmentRecomposition.freshColumnCount,
     EvalKRecomposition.freshColumnCount, EvalARecomposition.freshColumnCount, 0]

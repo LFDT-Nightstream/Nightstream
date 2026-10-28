@@ -30,7 +30,6 @@ fn every_sealed_logical_matrix_row_is_canonical_and_in_range() {
         .validate_all_matrix_rows()
         .expect("every Lean-authored logical matrix row");
 
-    // Every production matrix carries a constraint; no slot is dead.
     assert!(nonzeros.iter().all(|&count| count > 0));
     eprintln!("sealed_logical_matrix_nonzeros={nonzeros:?}");
 }

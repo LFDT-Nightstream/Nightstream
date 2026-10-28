@@ -4,8 +4,7 @@ import NightstreamFPrime.Export.Stage1.ActualPiRLCValues
 
 /-!
 Owns the selected-row connection from the exact PiCCS outgoing state to all
-PiRLC challenges and the final sampler state. All values come from the actual
-assignment. Canonical witness encoding is not a premise.
+PiRLC challenges and the final sampler state.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualPiRLC
@@ -60,7 +59,6 @@ theorem initial_eq_decoded_state
   rw [PiCCSTranscriptEndpointPlan.outputFinalState_endpoint_of_shape]
   rfl
 
-/-- The complete physical prefix supplies every sampler and endpoint premise. -/
 theorem prefixRowsZero_implies_batch
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)
     (geometry : PiRLCSamplerOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -102,8 +100,6 @@ theorem productChallenge_eq
     PiRLCProductSchedule.descriptor_invocation]
   rfl
 
-/-- Actual selected rows and actual public input force the complete verifier
-batch from the actual PiCCS execution. No sampler premise is supplied by the caller. -/
 theorem selectedRowsAndPublic_imply_batch
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -152,7 +148,6 @@ theorem selectedRowsAndPublic_imply_batch
   exact (congrArg (fun state => Transcript.PiRlcSampler.piRlcChallengesWithState state
     PiRLCSamplerPoseidonPlan.sourceCount) piCcs.outgoingState).symm.trans sampler
 
-/-- The actual product challenges are precisely the production NIFS key response. -/
 theorem selectedRowsAndPublic_imply_keyChallenges
     (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)

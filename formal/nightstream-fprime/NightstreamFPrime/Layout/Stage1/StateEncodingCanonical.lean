@@ -21,8 +21,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The canonical serializer satisfies every fixed-word check used by the
-PiCCS state boundary. -/
 theorem serializePreimage_canonical
     (preimage : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     StateDecoder.Canonical
@@ -33,7 +31,6 @@ theorem serializePreimage_canonical
   simp only [serializePreimage, List.append_assoc]
   exact List.getD_append _ _ _ _ index.isLt
 
-/-- Running word `index` occurs after the 12-word domain chunk. -/
 theorem serializePreimage_running_word
     (preimage : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
     (index : Nat) (bound : index < 27794) :
@@ -47,7 +44,6 @@ theorem serializePreimage_running_word
     List.getD_append_right _ _ _ _ (by rw [stateDomainChunk_length]; omega),
     stateDomainChunk_length, Nat.add_sub_cancel_left]
 
-/-- Context payload words occur at the start of the tail. -/
 theorem serializePreimage_context_word
     (preimage : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits))
     (fixed : PilotProduction.FixedPreimage preimage) (lane : Fin 4) :

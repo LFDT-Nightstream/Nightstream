@@ -38,8 +38,6 @@ variable {logicalWidth degreeBound : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Stable physical wire shape for the point and both separate v1_2
-coefficient families. -/
 structure InputsLinear
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.InitialClaim.Interface)
@@ -66,7 +64,6 @@ theorem coefficientExprs_linear
     rcases member with ⟨coordinate, _, rfl⟩
     exact inputs.eval_A coordinate
 
-/-- The nonempty Horner child exports one materialized linear claim. -/
 theorem output_linear
     (interface :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.InitialClaim.Interface)
@@ -88,7 +85,6 @@ theorem output_linear
     simp at length
   · exact coefficientExprs_linear interface offset inputs
 
-/-- The owned initial claim lies below the canonical SumCheck child start. -/
 theorem output_varsBelow_sumcheck
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (parentOffset : Nat) (env : Env)
@@ -170,8 +166,6 @@ private theorem program_totalRowCount
     _ = 12957 := by
       rw [coefficientExprs_length]
 
-/-- Exact parent-facing physical footprint for the complete 4,320-term
-initial-claim Horner chain. -/
 def footprint
     (interface : Formal.Interface logicalWidth degreeBound publicFits)
     (inputs : ∀ offset,

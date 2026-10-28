@@ -6,9 +6,8 @@ import NightstreamFPrime.Layout.Stage1.SpartanBounds
 Owns indexed access to the exact canonical PiCCS ordinary rows for the direct
 4-matrix compiler.
 
-The row list remains the established Lean lowering. This module proves its
-size, source-column bound, indexed satisfaction, and equality to the package
-row order. It does not select retained low-norm coordinates.
+The row list remains the established Lean lowering. It does not select
+retained low-norm coordinates.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
@@ -22,7 +21,6 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Exact PiCCS source rows after the canonical Spartan column permutation. -/
 def sourceRows (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) : List R1CS.Row :=
@@ -38,7 +36,6 @@ theorem sourceRows_length
   rw [sourceRows, List.length_map,
     PiCCSArithmetic.arithmeticRows_length logicalWidth publicFits relation]
 
-/-- Every canonical source row is confined to the exact Spartan domain. -/
 theorem sourceRows_varsBelow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -97,9 +94,6 @@ def programRow
     (index : Fin 37317) : R1CS.Row :=
   (sourceRows logicalWidth publicFits).get (sourceListIndex relation index)
 
-/-- Indexed PiCCS source rows remain below the exact Spartan source width.
-This named theorem prevents executable consumers from unfolding the complete
-supported-program certificate to recover one row bound. -/
 theorem programRow_bounded
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -162,7 +156,6 @@ def supportedProgram
   exactRows := programRows_eq relation
   bounded := programRow_bounded relation
 
-/-- Proof-oriented indexed access without an artifact-sized theorem term. -/
 def program
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -179,9 +172,6 @@ def program
     (program relation).rowCount = 37317 := by
   rfl
 
-/-- Program construction depends on the relation shape, not its matrix
-entries. The relation value is used only to supply proof certificates for the
-fixed row layout. -/
 theorem program_eq_of_same_shape
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -203,8 +193,6 @@ private theorem predicate_iff_of_eq {Alpha : Type} (predicate : Alpha → Prop)
   cases equal
   rfl
 
-/-- Indexed canonical PiCCS rows hold exactly when the complete Lean-lowered
-row list holds in package order. -/
 theorem programRows_hold_iff_rowsHold
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -222,7 +210,6 @@ private theorem supportedHolds_iff_rowsHold {rows : List R1CS.Row}
   exact (holds_iff_rowsHold_ofFn source.row env).trans
     (predicate_iff_of_eq (R1CS.RowsHold env) source.exactRows)
 
-/-- The indexed program is exactly list-based satisfaction in package order. -/
 theorem program_holds_iff_rowsHold
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -233,7 +220,6 @@ theorem program_holds_iff_rowsHold
       R1CS.RowsHold env (sourceRows logicalWidth publicFits) := by
   exact supportedHolds_iff_rowsHold (supportedProgram relation) env
 
-/-- The source program uses the exact canonical compiled PiCCS row list. -/
 theorem sourceRows_eq_canonical
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤

@@ -1,10 +1,8 @@
 //! Independent full opening values for the current positive PiCCS input.
-//! Canonical Lean rows, raw signed-unit carrier, and verifier-derived point
-//! are evaluated separately from the fixture generator.
 
 use std::{fs, path::PathBuf, time::Instant};
 
-use nightstream_fprime::load_per_application_package;
+use nightstream_fprime::{load_per_application_package, StructuralIdentifier};
 use rayon::prelude::*;
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -203,7 +201,8 @@ fn check_positive_opening(sources: OpeningSources) {
             Some(matrix)
         };
     let bytes = fs::read(&paths.package).expect("Lean canonical package");
-    let package = load_per_application_package(&bytes, paths.structural_identity).expect("selected candidate identity");
+    let package = load_per_application_package(&bytes, StructuralIdentifier::from_words(paths.structural_identity))
+        .expect("selected candidate identity");
     let logical_width = package.logical_column_count();
     let row_count = package.row_count();
     let context = package
@@ -489,8 +488,6 @@ fn check_positive_opening(sources: OpeningSources) {
     );
 }
 
-// Read the Lean assignment plan directly. The production assignment encoder
-// is not used to mutate or validate this arbitrary signed-unit assignment.
 fn zero_pi_rlc_product_blocks(bytes: &[u8], carrier: &mut [u8]) {
     let package: Value = serde_json::from_slice(bytes).expect("raw Lean package");
     let mut offset = package[6].as_u64().expect("logical public width") as usize;
@@ -506,7 +503,6 @@ fn zero_pi_rlc_product_blocks(bytes: &[u8], carrier: &mut [u8]) {
         };
         let end = offset + width * block[2].as_u64().expect("slot count") as usize;
         // PerApplicationAssignmentPlan: productGroup and productOutput.
-        // Product operands are the preserved PiCCS owner coordinates.
         if matches!(index, 3 | 9) {
             assert_eq!(width, 41, "field-encoded PiRLC product block");
             let values = &mut carrier[offset..end];

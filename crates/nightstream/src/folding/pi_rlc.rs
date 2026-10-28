@@ -1,5 +1,4 @@
 //! Selected PiRLC. Public verification recomputes every parent coordinate.
-//! Legacy projection advice used a cloned transcript and is not part of this path.
 use super::{
     has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CeClaim,
     Params, RlcMixer, Structure,
@@ -33,7 +32,7 @@ pub enum Error {
     Engine(#[from] engine::Error),
 }
 #[derive(Clone, Debug, PartialEq)]
-pub struct Proof {
+pub(crate) struct Proof {
     pub combined: CeClaim,
 }
 pub(crate) struct Output {
@@ -61,8 +60,6 @@ pub(crate) fn prove_refs(
         Proof { combined },
     ))
 }
-/// PiRLC with an accelerator-owned parent witness. `mix_witnesses` returns
-/// the accelerator's form of `Σ ρ_i·Z_i`; the public claim is canonical.
 #[cfg(feature = "metal")]
 pub(crate) fn prove_refs_resident<R>(
     tr: &mut Transcript,
@@ -162,14 +159,7 @@ fn validate_r_shape(s: &crate::folding::Structure, inputs: &[CeClaim], combined:
 }
 
 fn validate_r_shape_one(owner: &'static str, s: &crate::folding::Structure, claim: &CeClaim) -> Result<(), Error> {
-    let assignment_width = neo_reductions::common::superneo_carrier_width(s.m);
-    let expected = s
-        .domain_rows()
-        .max(assignment_width)
-        .next_power_of_two()
-        .max(2)
-        .trailing_zeros() as usize;
-    if claim.r.len() != expected {
+    if claim.r.len() != s.cube_variables() {
         return Err(Error::RShape(owner));
     }
     Ok(())

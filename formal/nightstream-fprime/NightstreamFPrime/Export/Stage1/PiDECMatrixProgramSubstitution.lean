@@ -1,9 +1,7 @@
 import NightstreamFPrime.Export.Stage1.PiDECMatrixProgram
 
 /-!
-Proves exact source custody for the compact PiDEC ordinary-row program. Every
-source column used by a canonical PiDEC row resolves through exactly one
-Lean-authored retained range and equals the proof-oriented direct source map.
+Proves exact source custody for the compact PiDEC ordinary-row program.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixProgram
@@ -188,8 +186,6 @@ private theorem before_of_order {start count next index : Nat}
 private theorem after_of_order {start count next index : Nat}
     (ordered : start + count ≤ next) : start + count ≤ next + index := by omega
 
-/-- The compact substitution reconstructs every direct PiDEC source
-location and rejects all overlapping interpretations. -/
 theorem substitution_location_form?
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -449,8 +445,6 @@ theorem substitution_location_form?
         List.filterMap_nil, parentCommitmentNone, parentPublicInputNone, parentEvalKNone,
         parentEvalANone, proofNone, logicalNone, selected, List.append_nil]
 
-/-- On every source column used by a canonical PiDEC row, the package
-substitution is exactly the direct Lean source map. -/
 theorem substitution_agrees_on_target
     {program : ApplicationProgram} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)

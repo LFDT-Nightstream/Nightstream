@@ -124,8 +124,6 @@ structure SpecHolds {variableCount : Nat} (interface : Interface variableCount)
   product : (interface.expected offset).eval env =
     (productExpr interface offset).eval env
 
-/-- Reindexing an interface preserves the complete semantic contract when
-all seven externally owned fields are equal at the two offsets. -/
 theorem specHolds_at_iff_of_fields_eq {variableCount : Nat}
     (interface : Interface variableCount) (leftOffset rightOffset : Nat)
     (env : Env)
@@ -256,8 +254,6 @@ theorem soundness {variableCount : Nat} (interface : Interface variableCount)
     hornerCall_sound interface offset env rows assumptions,
     productRows_sound interface offset env rows⟩
 
-/-- The assembled specification is stable when every shared external wire is
-unchanged. -/
 theorem specHolds_of_agree_below {variableCount : Nat}
     (interface : Interface variableCount) (offset : Nat)
     (before after : Env) (assumptions : Assumptions interface offset before)
@@ -433,8 +429,6 @@ def circuit {variableCount : Nat} (interface : Interface variableCount)
   completeness := fun env offset assumptions specification =>
     completeness interface env offset positive assumptions specification
 
-/-- Every flattened row reads only external wires or this assembler's
-completed private interval. -/
 theorem flatConstraints_varsBelow {variableCount : Nat}
     (interface : Interface variableCount) (positive : 0 < variableCount)
     (offset : Nat) (env : Env)
@@ -528,18 +522,7 @@ theorem flatConstraints_length {variableCount : Nat}
     pointFlatLength, hornerFlatLength]
   simp [productAssertions, KExpr.equalities]
 
-/-! ## Child-owned intermediate and output variant -/
-
 namespace Owned
-
-/-!
-Obligation: Compute `eq(left,right) * Horner(point, coefficients)` while each
-arithmetic child owns its output.
-
-This assembler has no point-equality, Horner-result, or product input wire.
-It adds no row at either child boundary. Parents see only this specification,
-the exported `output`, and the proved footprint.
--/
 
 structure Interface (variableCount : Nat) where
   left : Nat → Fin variableCount → KExpr
@@ -759,7 +742,6 @@ private theorem pointRows_preserved {variableCount : Nat}
     exact hornerAgrees index (Or.inl below)
   · exact pointRows
 
-/-- Honest child builders compose with no semantic premise. -/
 theorem build {variableCount : Nat} (interface : Interface variableCount)
     (env : Env) (offset : Nat) (positive : 0 < variableCount)
     (assumptions : Assumptions interface offset env) :
@@ -853,8 +835,6 @@ theorem localLength_eq {variableCount : Nat}
   rw [opsAt_localLength, pointLength_eq_of_positive interface offset positive,
     hornerLength_eq]
 
-/-- The owned product result lies inside the assembler's declared symbolic
-interval. -/
 theorem output_varsBelow {variableCount : Nat}
     (interface : Interface variableCount) (positive : 0 < variableCount)
     (offset : Nat) (env : Env)

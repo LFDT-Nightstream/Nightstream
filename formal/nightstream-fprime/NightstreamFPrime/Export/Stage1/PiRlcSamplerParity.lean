@@ -1,8 +1,9 @@
 import Lean
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript
 
-/-! Native-decoder parity at reduction boundaries and across 17 chained draws.
-Adapted from tests/WideSamplerParity.lean at e1a7c96a617237005859fd6a01ae3c21ba0727da. -/
+/-!
+Native-decoder parity at reduction boundaries and across 17 chained draws.
+-/
 
 namespace NightstreamFPrime.Export.Stage1.PiRlcSamplerParity
 

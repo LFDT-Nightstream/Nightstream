@@ -334,20 +334,12 @@ struct Physical<'a> {
     public: &'a [u64],
     constant_column: usize,
     total_columns: usize,
-    unavailable_private: Option<Range<usize>>,
 }
 
 impl Physical<'_> {
     fn value(&self, column: usize) -> Result<u64> {
         if column >= self.total_columns {
             return Err(format!("physical assignment column {column} is out of range"));
-        }
-        if self
-            .unavailable_private
-            .as_ref()
-            .is_some_and(|range| range.contains(&column))
-        {
-            return Err(format!("physical private column {column} is unavailable"));
         }
         let value = if column < self.constant_column {
             self.private
@@ -395,13 +387,13 @@ impl Domains<'_> {
 }
 
 #[derive(Clone, Debug)]
-pub struct LogicalAssignment {
+pub(crate) struct LogicalAssignment {
     values: Vec<i8>,
     block_ranges: Vec<Range<usize>>,
 }
 
 impl LogicalAssignment {
-    pub fn decode(sealed_bytes: &[u8], private_values: &[u64], public_values: &[u64]) -> Result<Self> {
+    pub(crate) fn decode(sealed_bytes: &[u8], private_values: &[u64], public_values: &[u64]) -> Result<Self> {
         if sealed_bytes.last() != Some(&b'\n') {
             return Err("sealed package is not newline terminated".into());
         }
@@ -438,7 +430,6 @@ impl LogicalAssignment {
             public: public_values,
             constant_column: constant,
             total_columns: PHYSICAL_COLUMNS,
-            unavailable_private: None,
         };
         for column in 0..PHYSICAL_COLUMNS {
             physical.value(column)?;
@@ -476,11 +467,11 @@ impl LogicalAssignment {
         Ok(Self { values, block_ranges })
     }
 
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.values.len()
     }
 
-    pub fn value(&self, column: usize) -> Result<Field> {
+    pub(crate) fn value(&self, column: usize) -> Result<Field> {
         let value = *self
             .values
             .get(column)
@@ -493,7 +484,7 @@ impl LogicalAssignment {
         }
     }
 
-    pub fn carrier_value(&self, column: usize) -> Result<Field> {
+    pub(crate) fn carrier_value(&self, column: usize) -> Result<Field> {
         if column < self.values.len() {
             self.value(column)
         } else if column < CARRIER_WIDTH {
@@ -503,24 +494,24 @@ impl LogicalAssignment {
         }
     }
 
-    pub fn balanced_values(&self) -> &[i8] {
+    pub(crate) fn balanced_values(&self) -> &[i8] {
         &self.values
     }
 
-    pub fn nonempty_block_count(&self) -> usize {
+    pub(crate) fn nonempty_block_count(&self) -> usize {
         self.block_ranges
             .iter()
             .filter(|range| !range.is_empty())
             .count()
     }
 
-    pub fn block_is_nonempty(&self, block: usize) -> bool {
+    pub(crate) fn block_is_nonempty(&self, block: usize) -> bool {
         self.block_ranges
             .get(block)
             .is_some_and(|range| !range.is_empty())
     }
 
-    pub fn block_for_column(&self, column: usize) -> Option<usize> {
+    pub(crate) fn block_for_column(&self, column: usize) -> Option<usize> {
         let position = self
             .block_ranges
             .partition_point(|range| range.end <= column);
@@ -530,7 +521,7 @@ impl LogicalAssignment {
             .map(|_| position)
     }
 
-    pub fn mutation_delta(&self, column: usize) -> Result<Field> {
+    pub(crate) fn mutation_delta(&self, column: usize) -> Result<Field> {
         let current = *self
             .values
             .get(column)
@@ -546,11 +537,7 @@ impl LogicalAssignment {
     }
 }
 
-/// A fail-closed logical view over an available physical-assignment prefix.
-///
-/// Values are decoded from the raw schema-6 transport only when a logical
-/// row requests them. No value is invented for an unavailable private suffix.
-pub struct PartialLogicalAssignment<'a> {
+pub(crate) struct PartialLogicalAssignment<'a> {
     transport: Transport,
     physical: Physical<'a>,
     block_ranges: Vec<Range<usize>>,
@@ -559,7 +546,7 @@ pub struct PartialLogicalAssignment<'a> {
 }
 
 impl<'a> PartialLogicalAssignment<'a> {
-    pub fn decode(sealed_bytes: &[u8], private_prefix: &'a [u64], public_values: &'a [u64]) -> Result<Self> {
+    pub(crate) fn decode(sealed_bytes: &[u8], private_prefix: &'a [u64], public_values: &'a [u64]) -> Result<Self> {
         if sealed_bytes.last() != Some(&b'\n') {
             return Err("sealed package is not newline terminated".into());
         }
@@ -627,7 +614,6 @@ impl<'a> PartialLogicalAssignment<'a> {
                 public: public_values,
                 constant_column: constant,
                 total_columns: PHYSICAL_COLUMNS,
-                unavailable_private: None,
             },
             block_ranges,
             quotients: OnceLock::new(),
@@ -635,23 +621,11 @@ impl<'a> PartialLogicalAssignment<'a> {
         })
     }
 
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         LOGICAL_WIDTH
     }
 
-    /// Keep the sealed pilot's proof-input gap and non-pilot public context
-    /// unavailable. This uses the same independent schema-6 transport.
-    pub fn decode_pilot(sealed_bytes: &[u8], private_prefix: &'a [u64], public_values: &'a [u64]) -> Result<Self> {
-        if private_prefix.len() != 5_156_678 {
-            return Err("pilot physical-assignment prefix has the wrong length".into());
-        }
-        let mut assignment = Self::decode(sealed_bytes, private_prefix, public_values)?;
-        assignment.physical.unavailable_private = Some(55_638..70_830);
-        assignment.physical.public = &public_values[..274];
-        Ok(assignment)
-    }
-
-    pub fn value(&self, column: usize) -> Result<Field> {
+    pub(crate) fn value(&self, column: usize) -> Result<Field> {
         if column >= LOGICAL_WIDTH {
             return Err(format!("logical assignment column {column} is out of range"));
         }
@@ -796,7 +770,6 @@ fn derive_phi81_quotients(transport: &Transport, physical: &Physical<'_>) -> Res
                         let slot = family.invocation(source, block, degree, cell)?;
                         *coefficient = physical.value(source_at(&plan.value_sources, slot)?)?;
                     }
-                    // Independent monic long division, not the consumer's closed coefficient formula.
                     let mut product = [0u64; 108];
                     for (i, &a) in left.iter().enumerate() {
                         for (j, &b) in right.iter().enumerate() {

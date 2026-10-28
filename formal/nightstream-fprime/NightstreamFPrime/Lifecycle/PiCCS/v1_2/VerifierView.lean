@@ -3,7 +3,7 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 /-!
 Owns the cross-phase verifier view of one accepted PiCCS execution.
 
-The phase assembler already proves the transcript child specifications. This
+This
 module exposes the key-owned round point needed by the zero-copy PiRLC input
 bridge without unfolding any child operation or restating PiCCS acceptance.
 -/

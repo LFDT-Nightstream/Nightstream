@@ -80,8 +80,7 @@ collision.
   authenticated NIFS step of the verifier's context.
 - **Result:** acceptance gives the verifier's context, the prior-state link
   and the exact NIFS output, or the base step, or a named state-hash collision
-  (`Export.Stage1.ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision`,
-  `Export.Stage1.ActualTerminalSecurity.terminal_implies_securityOrCollision`;
+  (`Export.Stage1.ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision`;
   the selected rows come from
   `Export.Stage1.ActualContextSecurity.terminal_implies_rowsAndPublic`). A
   named collision is two preimages with different serializations and one
@@ -98,9 +97,10 @@ collision.
   the oracle `H`. It may choose the running and fresh statements after any
   query. It outputs a claim (the statements, a NIFS proof and 16 child
   witnesses) and a prior preimage. The algorithm is deterministic
-  (`Spec.RandomOracle.OracleComp` has no coins). A randomized adversary is
-  covered for each fixed value of its coins; the average over the coins is an
-  argument outside Lean. Each query is a call list no longer than a fixed
+  (`Spec.RandomOracle.OracleComp` has no coins). A randomized adversary is a
+  family over uniform coins, drawn independently of the chunks and of `H`;
+  `Export.Stage1.RandomOracleSetup.randomized_knowledge_error_lt` states the
+  result averaged over the coins. Each query is a call list no longer than a fixed
   bound and a slot (`Lifecycle.RandomOracleTest.Point`).
 - **Does not control:** the application, the setup chunks, which are uniform
   256-bit values (trust item 2), and `H`, a uniform random function of each
@@ -130,8 +130,12 @@ collision.
   - `Lifecycle.RandomOracleKnowledge.statisticalError`: the two statistical
     terms. `ε_test = 4589/p² ≈ 2^-115.84`
     (`Lifecycle.Nifs.VerifierErrorBudget.test_error_eq`) and
-    `ε_sample ≈ 2^-125.4`; at `Q = 2^64` their sum is about `2^-51.84`. These
-    two approximations are computed outside Lean.
+    `ε_sample ≈ 2^-125.4`. Each query adds at most `50 / (87 · 2^115)`, which
+    is below `2^-115.79` (computed outside Lean): the sum is at most
+    `(Q + 74) · 50 / (87 · 2^115)`
+    (`Lifecycle.RandomOracleKnowledge.statisticalError_le`), so at `Q = 2^64`
+    it is below `2^-51` (about `2^-51.80`;
+    `Lifecycle.RandomOracleKnowledge.statisticalError_two_pow_64`).
   - `Export.Stage1.RandomOracleSetup.msisAdvantage`: the success of an
     explicit MSIS solver on a uniform matrix. It runs the binding reduction
     `Lifecycle.RandomOracleBinding.rerunKernel`, which computes a nonzero
@@ -140,11 +144,31 @@ collision.
     for every application that fits
     (`Export.Stage1.RandomOracleSetup.programmingError_lt_of_fits`).
 - **Work:** the extractor takes `17 (Q + 17)` expected retries
-  (`Lifecycle.RandomOracleExtraction.expected_retries_le`), and the binding
-  reduction takes `Q + 74` expected reruns
-  (`Lifecycle.RandomOracleUniqueness.expected_reruns_le`). Lean does not bound
-  the retries of the second extraction in the binding reduction. Lean counts
-  runs, not machine work.
+  (`Lifecycle.RandomOracleExtraction.expected_retries_le`). The binding
+  reduction is an oracle program that holds no adversary
+  (`Lifecycle.RandomOracleReduction.reduction`);
+  `Lifecycle.RandomOracleReduction.solve` runs it on the adversary's records.
+  The program's queries are adversary runs: it builds the oracle of each run from
+  its state and one fresh tape entry, and the answer is the run's record (its
+  output and its queries). So the run count is a query bound of that program,
+  as in Ironwood's cost certificates. With budget `T` it makes at most `T`
+  runs on every tape and for every adversary
+  (`Lifecycle.RandomOracleReduction.runs_length_le`). The oracle of each run
+  depends on the adversary only through the records of the earlier runs
+  (`Lifecycle.RandomOracleReduction.runs_take_congr`), and the output only
+  through the records of the runs made
+  (`Lifecycle.RandomOracleReduction.solve_congr`). For every budget it makes
+  at most `35 Q + 653` expected runs
+  (`Lifecycle.RandomOracleSolver.expected_runs_le`): the base run,
+  `17 (Q + 17)` retries, `Q + 74` reruns
+  (`Lifecycle.RandomOracleUniqueness.expected_reruns_le`) and `17 (Q + 17)`
+  retries of the extractions inside the reruns
+  (`Lifecycle.RandomOracleSolver.expected_second_retries_le`). Lean counts
+  adversary runs, not machine work. Each step also applies the claim parse
+  function to the run's record and checks the claim (the oracle verifier,
+  and `PriorLink` for the prior preimage). Lean decides these checks
+  classically. The strict-time readings in trust item 3 need these checks to
+  be efficient, with their cost counted inside a run.
 - **What it covers:** the oracle verifier is the Lean NIFS verifier
   `Spec.Folding.Nifs.PaperNonInteractive.verify`, with its coins read from
   `H`, plus the child openings. At an oracle that answers the 74 challenge
@@ -223,7 +247,9 @@ fresh verifier coin by an oracle read. Each module header states its part:
    `Lifecycle.TranscriptCoverage.rho_seal` prove that the coins are one read
    of each challenge's address: its call list and its slot. The model
    replaces that read by a uniform random function of the address
-   (`Lifecycle.RandomOracleTest.coins`): each address gets an independent
+   (`Lifecycle.RandomOracleTest.coins` for the Π_CCS coins,
+   `Lifecycle.RandomOracleExtraction.rho` for the Π_RLC scalars): each
+   address gets an independent
    four-word answer, and a model query is one address. In the sponge, the
    answers at neighbouring slots of one state share two lanes, but no two
    verifier reads use the same lane. This is
@@ -232,8 +258,16 @@ fresh verifier coin by an oracle read. Each module header states its part:
    justification would be duplex-sponge Fiat–Shamir in the ideal-permutation
    model, where the rate lanes of one permutation output are independent;
    Lean does not prove it. The same sponge also computes the state hash, which the theorem
-   treats as a concrete function. The two uses absorb different first words
-   (their domain tags), but no Lean statement separates them. Each Π_RLC
+   treats as a concrete function. The state hash is a four-lane read after its
+   own call list (`Lifecycle.TranscriptCoverage.stateHash_eq_run`), and the
+   only common prefix of a challenge's call list and a state hash's call list
+   is empty, because their first inputs absorb different domain chunks
+   (`Lifecycle.TranscriptCoverage.stateHash_separated`). So no challenge
+   read uses a call list that the state hash computes. The verifier-context
+   digests (`Lifecycle.VerifierContext.componentDigest` and
+   `Lifecycle.VerifierContext.Descriptor.digest4`) also call
+   `Poseidon2.hash` from the zero state. No separation statement covers
+   them; they hash only fixed words that the verifier owns. Each Π_RLC
    scalar is the existing sampler applied to an oracle answer; its law is
    within `2^-132` of uniform on the strong set
    (`Spec.Folding.Nifs.NonInteractive.PiRlcSampler.distance_lt`).
@@ -249,18 +283,36 @@ fresh verifier coin by an oracle read. Each module header states its part:
    - If MSIS is hard for a uniform matrix of `22 × blockCount` elements of
      `F_p[X]/Φ₈₁` (degree 54) at norm `8TB`, at the solver's work, then
      `msisAdvantage` is small. `blockCount` is at most 4,971,027 for every
-     application that fits, and 814,144 for `Poseidon2HashChainV1`. The
-     solver runs the adversary an expected number of times that grows with
-     `Q`, and Lean does not bound its work. MSIS hardness is stated for
-     solvers with a strict time bound, so this step also needs a Markov
-     truncation of the expected work, whose loss Lean does not count. The
+     application that fits, and 814,144 for `Poseidon2HashChainV1`. MSIS
+     hardness is stated for solvers with a strict time bound. The solver
+     `Lifecycle.RandomOracleReduction.solve` with a strict budget of `T`
+     adversary runs loses at most `(35 Q + 653) / T`:
+     `msisAdvantage ≤ solverAdvantage T + (35 Q + 653) / T`
+     (`Export.Stage1.RandomOracleSetup.msisAdvantage_le_solver`), where
+     `solverAdvantage T` is the success of `solve`. So MSIS hardness at the
+     work of `T` runs applies to `solverAdvantage T`. The
      2026-09-08 public-seed MSIS approval covered the ChaCha20 matrix only.
      For ordinary binding collisions under the SHAKE128 matrix of the
      reference application,
      `Export.Stage1.Poseidon2HashChainV1Setup.production_binding_lt_solver` gives an
      MSIS solution for a uniform matrix, with error below `2^-190`.
    - If Poseidon2 state-hash collisions are hard to find, then
-     `hashCollisions` is small. The state hash is fixed and has no key, so an
+     `hashCollisions` is small. Collision hardness is also stated for
+     algorithms with a strict time bound. Eighteen finders with a strict
+     budget of `T` adversary runs, one for each Π_RLC coordinate and one that
+     runs the binding reduction, lose at most `(52 Q + 959) / T`:
+     `𝔼 chunks, hashCollisions ≤ 18 · hashAdvantage T + (52 Q + 959) / T`
+     (`Export.Stage1.RandomOracleHashSolver.hashCollisions_le_solver`).
+     `hashAdvantage T` is the success of one finder
+     (`Export.Stage1.RandomOracleHashSolver.hashSolve`) that draws the
+     chunks, one of the 18 targets and a tape. Each finder is a program that
+     holds no adversary: it makes at most `T` runs on every tape
+     (`Export.Stage1.RandomOracleHashSolver.hashRuns_length_le`), each run
+     depends only on the records of the earlier runs
+     (`Export.Stage1.RandomOracleHashSolver.hashRuns_take_congr`), and the
+     output only on the records of the runs made
+     (`Export.Stage1.RandomOracleHashSolver.hashSolve_congr`). The state
+     hash is fixed and has no key, so an
      efficient algorithm that contains a collision exists. A bound therefore
      needs the human-ignorance reading (Rogaway): it applies to algorithms
      that a person can write without such knowledge.
@@ -373,16 +425,23 @@ fresh verifier coin by an oracle read. Each module header states its part:
 
 - Completeness does not follow from a knowledge bound: a bound on the
   adversary is not evidence that an honest proof is accepted. The honest
-  prover has separate results:
-  `Export.Stage1.SelectedAssignmentCompleteness.complete`,
-  `Export.Stage1.HyperNovaInitial.initial_accepted`,
-  `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (proved for
-  `Poseidon2HashChainV1` only) and
-  `Lifecycle.Nifs.BaseCompleteness.zeroProof_verify`.
-- The error is not one security level. The statistical part costs about
-  `2^115.8` oracle queries (addresses) for each unit of success, linear in
-  `Q`. One Poseidon2 state answers up to six addresses, so in permutation
-  calls this is about `2^113.2` (both computed outside Lean). The other terms
+  prover has separate results, for every application that fits the `2^28`
+  profile and every commitment setup: the initial statement is accepted
+  (`Export.Stage1.HyperNovaInitial.initial_accepted`), and an accepted proof
+  with advice of the application's witness width that satisfies the
+  application's validity predicate gives an accepted next proof
+  (`Export.Stage1.HyperNovaAcceptedNext.recursive_extend`,
+  `Export.Stage1.HyperNovaAcceptedNext.base_extend`, through
+  `Export.Stage1.SelectedAssignmentCompleteness.complete` and
+  `Lifecycle.Nifs.BaseCompleteness.zeroProof_verify`). Each application
+  promises that its step keeps the state width
+  (`Lifecycle.Stage1.Application.Program.step_length`); the counter must stay
+  below `p`.
+- The error is not one security level. The statistical part costs more
+  than `87 · 2^115 / 50 ≈ 2^115.79` oracle queries (addresses) for each unit
+  of success, linear in `Q` (`Lifecycle.RandomOracleKnowledge.statisticalError_le`). One
+  Poseidon2 state answers up to six addresses, so in permutation calls this
+  is about `2^113.2` (computed outside Lean). The other terms
   depend on MSIS at the solver's work and on Poseidon2 collisions. 128-bit
   security needs a larger challenge field for `γ`.
 - Concrete attacks on Poseidon2 as a random oracle, or on the additive duplex,

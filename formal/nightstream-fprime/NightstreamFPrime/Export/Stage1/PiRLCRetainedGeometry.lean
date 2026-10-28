@@ -116,8 +116,6 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   simp [PiRLCProductSourceBlocks.challengeBlock, LowNormBlock.Block.coordinateCount,
     PiRLCCombinationInvocations.sourceCount, Spec.ringDegree, LowNormSlot.Kind.width, BalancedTernary.width]
 
-/-- The prefix owns a fixed number of coordinates. Reading its width does
-not need the selected application's source-domain size or circuit. -/
 def directPrefixLogicalWidth (_program : Lifecycle.Stage1.Application.Program) : Nat :=
   37398420
 

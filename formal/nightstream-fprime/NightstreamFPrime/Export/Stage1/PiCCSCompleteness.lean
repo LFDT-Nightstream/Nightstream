@@ -4,8 +4,7 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 
 /-!
 Owns constructive completeness of the canonical Stage 1 PiCCS package rows.
-It composes the existing compact transcript invocations and eight ordinary
-packets. It adds no relation, circuit operation, or alternate package path.
+It adds no relation, circuit operation, or alternate package path.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCompleteness
@@ -700,7 +699,6 @@ def packetConstraints
               PiCCSArithmetic.finalIdentityConstraints logicalWidth
                 publicFits)))))
 
-/-- Exact ordinary-row constraint order in the emitted package. -/
 def emittedConstraints
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤

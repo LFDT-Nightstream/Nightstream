@@ -1,9 +1,7 @@
 import NightstreamFPrime.Export.RowSemantics
 
 /-!
-Final-state checks for the existing physical package components. Call each
-check with StoredWitnessExecution.asEnv values for an array-backed witness.
-Template lists are traversed directly; no per-invocation row list is expanded.
+Final-state checks for the existing physical package components.
 These checks do not establish canonical component coverage or input origin.
 -/
 
@@ -19,15 +17,12 @@ open NightstreamFPrime.Export.Package
 private def templateRow (row : TemplateRow) (value : ColumnRef → F) : Bool :=
   decide (row.a.eval value * row.b.eval value = row.c.eval value)
 
-/-- Check every physical permutation row for one hash-chain ordinal. -/
 def hashInvocation (package : CircuitPackage) (chain : HashChain)
     (ordinal : Nat) (env : Env) : Bool :=
   package.permutation.rows.all fun row =>
     templateRow row fun column =>
       (instantiateColumn package chain ordinal column).eval env
 
-/-- Check the same physical permutation template with the explicit invocation's
-existing sparse input combinations and local columns. -/
 def permutationInvocation (package : CircuitPackage)
     (invocation : PermutationInvocation) (env : Env) : Bool :=
   package.permutation.rows.all fun row =>
@@ -37,8 +32,6 @@ def permutationInvocation (package : CircuitPackage)
 private def compactRow (row : CompactTemplateRow) (value : ColumnRef → F) : Bool :=
   decide (row.a.eval value * row.b.eval value = row.c.eval value)
 
-/-- A missing compact template rejects. A present template checks every row
-in the final environment, including all witness rows and assertion rows. -/
 def compactInvocation (package : CircuitPackage)
     (invocation : CompactRowInvocation) (env : Env) : Bool :=
   match package.compactRowTemplates[invocation.templateIndex]? with
@@ -47,7 +40,6 @@ def compactInvocation (package : CircuitPackage)
       template.rows.all fun row =>
         compactRow row fun column => env (instantiateCompactColumn invocation column)
 
-/-- Check the authoritative final equation, not the instruction's write hint. -/
 def instruction (item : WitnessInstruction) (env : Env) : Bool :=
   decide (item.a.eval env * item.b.eval env = env item.target)
 

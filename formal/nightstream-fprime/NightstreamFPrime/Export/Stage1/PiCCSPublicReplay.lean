@@ -2,9 +2,9 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 
 /-!
 Public statement and first-round coins for the selected PiCCS producer.
-Old running evaluations are public claims. Prover rounds and final output
-claims are absent from Input. Transcript and polynomial semantics stay with
-their existing owners; this module supplies no witness or prover message.
+Old running evaluations are public claims. Transcript and polynomial semantics
+stay with their existing owners; this module supplies no witness or prover
+message.
 -/
 
 set_option autoImplicit false
@@ -24,15 +24,11 @@ private abbrev logicalWidth :=
 private abbrev publicFits :=
   PerApplicationFixedPoint.publicFits Poseidon2HashChainV1Package.application
 
-/-- Only the original public statement. The prior running evaluation claims
-are inputs; no round polynomial or newly claimed evaluation is carried. -/
 structure Input where
   commitment : Vector F 1188
   publicInput : Vector F 270
   running : PiCCSInputCheck.RunningInput
 
-/-- Decode only the three original public fields. Prover rounds and final
-output evaluations are not fields of this input file. -/
 def decode (value : Lean.Json) : Except String Input := do
   let fields ← value.getArr?
   match fields.toList with
@@ -46,8 +42,6 @@ def decode (value : Lean.Json) : Except String Input := do
 def parse (text : String) : Except String Input :=
   Lean.Json.parse text >>= decode
 
-/-- Compatibility projection for the existing comparison file. This reads
-none of its rounds or its two top-level final evaluation arrays. -/
 def fromCheckInput (input : PiCCSInputCheck.Input) : Input :=
   ⟨input.commitment, input.publicInput, input.running⟩
 
@@ -77,8 +71,6 @@ def verifierInput (input : Input) :
     ((running input).evaluations coordinate.running).matrix coordinate.matrix
       coordinate.coefficient
 
-/-- Exact digest-only statement state. Running claims remain bound by the
-existing lifecycle digest; this does not add another absorption. -/
 def statementState (input : Input) : Transcript.State :=
   ProductionKey.absorbPublicInput
     Transcript.foldInitialState
@@ -88,18 +80,14 @@ def context (input : Input) :
     Folding.PiCCS.TranscriptReplay.Statement K Transcript.State productionShape :=
   ⟨statementState input, verifierInput input⟩
 
-/-- Bind once before constructing the first polynomial. -/
 def pre (input : Input) : FiatShamir.PreSumcheck K Transcript.State productionShape :=
   Folding.PiCCS.Transcript.deriveFromState Transcript.piCcsOracle.transcript
     (statementState input)
 
-/-- Initial sum-check target from prior public evaluation claims. -/
 def initialClaim (input : Input) (gamma : K) : K :=
   SumCheck.Finite.Message.evaluateCoefficients extensionOps.toOps gamma
     (Folding.PiCCS.FinalIdentity.targetCoefficientList (verifierInput input))
 
-/-- The executable constructor retains the nine coefficients required by the
-selected sparse CCS syntax. No concrete row plan is evaluated. -/
 theorem degree_eq (input : Input) : (verifierInput input).sumcheckDegreeBound = 8 := by
   dsimp only [verifierInput, ProtocolPolynomial.VerifierInput.sumcheckDegreeBound]
   rw [ConstraintPolynomialLift.liftConstraintPolynomial_canonicalEqualityGatedDegreeBound]
@@ -109,8 +97,6 @@ theorem degree_eq (input : Input) : (verifierInput input).sumcheckDegreeBound = 
 
 private def firstIndex : Fin productionShape.cubeVariables := ⟨0, by decide⟩
 
-/-- Absorb the newly constructed first polynomial, then derive its challenge.
-The caller supplies pre.state; no claimed challenge is accepted. -/
 def firstRound (state : Transcript.State)
     (polynomial : SumCheck.Finite.FixedPolynomial K 8) : K × Transcript.State :=
   let absorbed := Transcript.piCcsOracle.transcript.absorbRound
@@ -142,8 +128,6 @@ theorem verifierInput_eq_key (input : Input)
       ((ProductionKey.key relation ajtai).statement (running input) (fresh input)
         ).verifierInput K.embed := rfl
 
-/-- Both the starting state and the oracle are the production key's values.
-The entire pre-sumcheck result includes alpha, gamma and the resulting state. -/
 theorem pre_eq_oracle (input : Input)
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : PaperAlgebra.AjtaiKey
@@ -170,15 +154,12 @@ theorem initialClaim_fromCheckInput (input : PiCCSInputCheck.Input) (gamma : K) 
     initialClaim (fromCheckInput input) gamma =
       PiCCSInputCheck.initialClaimFast input gamma := rfl
 
-/-- One causal step equals the existing indexed round-replay operation. -/
 theorem firstRound_eq_derive (state : Transcript.State)
     (polynomial : SumCheck.Finite.FixedPolynomial K 8) :
     ([(firstRound state polynomial).1], (firstRound state polynomial).2) =
       FiatShamir.deriveRoundsFrom Transcript.piCcsOracle.transcript
         (fun _ => polynomial.toMessage) state [firstIndex] := rfl
 
-/-- Comparison bridge only: the checker's supplied first polynomial uses
-this same absorption and challenge. It is not part of the public Input. -/
 theorem firstRound_eq_checkTrace (input : PiCCSInputCheck.Input)
     (state : Transcript.State) :
     let polynomial := PiCCSProofInputs.roundPolynomial (PiCCSInputCheck.proofValues input) firstIndex

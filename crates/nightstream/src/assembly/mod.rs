@@ -38,20 +38,24 @@ fn word(value: &Value) -> Result<usize, AssemblyError> {
 
 /// Prepare an application against the selected verifier, profile and setup.
 /// The reference must pass the existing package and verification-key pins.
-pub fn prepare(
+pub(crate) fn prepare(
     reference_bytes: &[u8],
     application: &ApplicationCircuit,
 ) -> Result<(LoadedPerApplicationPackage, Stage1VerifierBinding), AssemblyError> {
     std::thread::scope(|scope| {
-        // Reference authorization and candidate identity have independent
-        // Poseidon2 preimages. Neither result authorizes the other.
-        let reference = scope.spawn(|| load_poseidon2_hash_chain_v1_package(reference_bytes).map(drop));
+        // Reference and candidate identity have independent Poseidon2 preimages.
+        // Neither result authorizes the other.
+        let reference = scope.spawn(|| check_reference_pins(reference_bytes));
         let candidate = prepare_application(reference_bytes, application);
         reference
             .join()
             .map_err(|_| AssemblyError::Invalid("reference validation worker failed"))??;
         candidate
     })
+}
+
+fn check_reference_pins(reference_bytes: &[u8]) -> Result<(), PackageError> {
+    load_poseidon2_hash_chain_v1_package(reference_bytes).map(drop)
 }
 
 fn prepare_application(
@@ -84,3 +88,7 @@ fn assemble(
 #[cfg(test)]
 #[path = "../../tests/assembly_internal/encoding.rs"]
 mod encoding_tests;
+
+#[cfg(test)]
+#[path = "../../tests/assembly_internal/circuits.rs"]
+mod circuit_tests;

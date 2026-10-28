@@ -4,10 +4,6 @@ import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 
 /-!
 Owns the zero-row package-to-accumulator soundness edge.
-
-The canonical package already contains every PiCCS, PiRLC, and PiDEC row.
-This module composes their existing package theorems into the exact SuperNeo
-accumulator result. It adds no package component, column, row, or digest.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.AccumulatorPackage
@@ -20,9 +16,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Satisfaction of the canonical package rows implies the exact deterministic
-SuperNeo accumulator update. PiCCS, PiRLC, and PiDEC remain status open until
-the final package identity and fixed-point gates are rerun. -/
 theorem circuitPackage_implies_accumulatorHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits)

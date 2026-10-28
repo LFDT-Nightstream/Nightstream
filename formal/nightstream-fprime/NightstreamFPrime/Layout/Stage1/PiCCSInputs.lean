@@ -31,9 +31,6 @@ open NightstreamFPrime.Lifecycle.PiCCS.v1_2
 open NightstreamFPrime.Layout.Polynomial.Horner
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-! ## Prior state block positions -/
-
-/-- Start of the running fields: after the 12-word domain chunk. -/
 def priorRunningStart : Nat := 12
 def runningCommitmentWords : Nat := 1188
 def runningEvalKWords : Nat := 108
@@ -51,16 +48,10 @@ def runningEvalAStart (source : Nat) : Nat :=
 
 def runningPointStart : Nat := priorRunningStart + 27648
 
-/-! ## Expected context, prior children, and proof inputs -/
-
-/-- End of the completed pilot source-column interval and start of the
-verifier-owned expected-context words. -/
 def expectedContextStart : Nat := 5141760
 
 def expectedContextWords : Nat := 4
 
-/-- The prior child region: the 4,320 child digits, child-major. The
-statement-binding leaf owns the sign of each parent coordinate. -/
 def priorChildrenStart : Nat := expectedContextStart + expectedContextWords
 
 def priorChildrenWords : Nat := 4320
@@ -89,14 +80,12 @@ theorem priorChildrenStart_eq : priorChildrenStart = 5141764 := by
 theorem proofInputStart_eq : proofInputStart = 5146084 := by
   rfl
 
-/-- New proof-input intervals. -/
 def freshCommitmentStart : Nat := proofInputStart
 def freshCommitmentWords : Nat := 1188
 def roundMessageStart : Nat := freshCommitmentStart + freshCommitmentWords
 def roundMessageWords : Nat := 504
 def outputEvaluationStart : Nat := roundMessageStart + roundMessageWords
 def outputEvaluationWords : Nat := 9180
-/-- One source's output `Eval_K` then `Eval_A` words. -/
 def outputEvaluationSourceWords : Nat := 540
 def proofInputColumnCount : Nat :=
   freshCommitmentWords + roundMessageWords + outputEvaluationWords
@@ -124,8 +113,6 @@ theorem proofInputColumnCount_eq : proofInputColumnCount = 10872 := by
 
 theorem phaseOffset_eq : phaseOffset = 5156956 := by
   rfl
-
-/-! ## Symbolic inputs -/
 
 def pairAt (start : Nat) : KExpr :=
   ⟨Expr.var start, Expr.var (start + 1)⟩
@@ -234,7 +221,6 @@ def outputStateWord (index : Nat) : Expr :=
 def expectedContext (lane : Fin 4) : Expr :=
   Expr.var (expectedContextStart + lane.val)
 
-/-- The one concrete symbolic PiCCS interface for this production prefix. -/
 def interface
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -315,7 +301,6 @@ private theorem freshSource_lt_1
   change source.val < 1 at bound
   exact bound
 
-/-- Every external PiCCS expression is owned before the phase allocation. -/
 theorem externalInputsBelow
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -465,8 +450,6 @@ theorem externalInputsBelow
       ringDegree]
     omega
 
-/-- Every concrete external value is affine; every extension pair is a
-nonconstant direct variable pair. -/
 theorem externalInputsLinear
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤

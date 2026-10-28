@@ -3,18 +3,10 @@ set -eo pipefail
 
 # Profile a Rust test using Apple Instruments (xctrace) and export symbolicated results
 #
-# Usage: ./scripts/profile_xctrace.sh <package> <test_file> <test_function> [--ignored] [--template <name>] [--instrument <name>] [--features <csv>]
+# Usage: ./scripts/profile_xctrace.sh <package> <test_file> <test_function> [--ignored] [--template <name>] [--instrument <name>] [--features <csv>] [--time-limit <N|Nms|Ns|Nm|Nh>]
 #
 # Templates (run `xcrun xctrace list templates` for full list):
 #   Time Profiler (default), Metal System Trace, Allocations, Leaks, etc.
-#
-# Examples:
-#   ./scripts/profile_xctrace.sh neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored
-#   ./scripts/profile_xctrace.sh neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored --template Allocations
-#   ./scripts/profile_xctrace.sh neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored --template Leaks
-#   ./scripts/profile_xctrace.sh neo-prover-metal-bench benchmark_contract sha256_lifecycle_baseline_proves_and_verifies --ignored --template "Metal System Trace" --time-limit 60s
-#   ./scripts/profile_xctrace.sh neo-prover-metal-bench benchmark_contract sha256_lifecycle_baseline_proves_and_verifies --ignored --template "Metal System Trace" --instrument "Metal GPU Counters" --time-limit 60s
-#   ./scripts/profile_xctrace.sh neo-fold test_riscv_circuit_l2_transfer_compiled_trace_prove_verify test_note_spend_1in_1out_transfer_prove_verify --ignored --features poseidon-precompile --time-limit 20
 #
 # Output:
 #   - profile-xctrace.trace     : Open with `open profile-xctrace.trace` for Instruments GUI
@@ -46,10 +38,10 @@ if [ $# -lt 3 ]; then
   echo "Run 'xcrun xctrace list templates' for full list"
   echo ""
   echo "Examples:"
-  echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored"
-  echo "  $0 neo-fold test_sha256_single_step test_sha256_preimage_128_bytes --ignored --template Allocations"
-  echo "  $0 neo-prover-metal-bench benchmark_contract sha256_lifecycle_baseline_proves_and_verifies --ignored --template \"Metal System Trace\" --instrument \"Metal GPU Counters\" --time-limit 60s"
-  echo "  $0 neo-fold test_riscv_circuit_l2_transfer_compiled_trace_prove_verify test_note_spend_1in_1out_transfer_prove_verify --ignored --features poseidon-precompile --time-limit 20"
+  echo "  $0 nightstream circuit_lifecycle poseidon_base_step_matches_lean_and_verifies --ignored"
+  echo "  $0 nightstream circuit_lifecycle poseidon_base_step_matches_lean_and_verifies --ignored --template Allocations"
+  echo "  $0 nightstream circuit_lifecycle poseidon_metal_recursive_lifecycle --ignored --features metal --template \"Metal System Trace\" --instrument \"Metal GPU Counters\" --time-limit 60s"
+  echo "  $0 nightstream application_poseidon2 every_poseidon2_application_row_matches_the_saved_lean_reference --time-limit 20"
   exit 1
 fi
 
@@ -92,7 +84,6 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Normalize --time-limit: plain numbers default to seconds for xctrace.
 if [[ "$TIME_LIMIT" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
   TIME_LIMIT="${TIME_LIMIT}s"
 elif [[ ! "$TIME_LIMIT" =~ ^[0-9]+([.][0-9]+)?(ms|s|m|h)$ ]]; then
@@ -124,19 +115,16 @@ echo "   Template: $TEMPLATE"
 [ -n "$TIME_LIMIT" ] && echo "   Time limit: $TIME_LIMIT"
 echo ""
 
-# Check for jq
 if ! command -v jq &> /dev/null; then
   echo "❌ jq not found. Install with: brew install jq"
   exit 1
 fi
 
-# Check for python3
 if ! command -v python3 &> /dev/null; then
   echo "❌ python3 not found"
   exit 1
 fi
 
-# Fail before a long Rust build when Apple's profiling toolchain is not ready.
 if ! xcodebuild -license check &> /dev/null; then
   echo "❌ The Xcode license has not been accepted."
   echo "   Run: sudo xcodebuild -license"
@@ -149,7 +137,6 @@ if ! xcrun --sdk macosx metal --version &> /dev/null; then
   exit 1
 fi
 
-# Build with profiling profile (debug symbols + optimizations)
 echo "🔨 Building test with profiling profile..."
 CARGO_FEATURES_ARGS=()
 if [ -n "$FEATURES" ]; then
@@ -158,7 +145,6 @@ fi
 
 cargo build --profile profiling -p "$PACKAGE" --test "$TEST_FILE" "${CARGO_FEATURES_ARGS[@]}" 2>&1 | tail -3
 
-# Find the test binary
 echo "🔎 Finding test binary..."
 TEST_BINARY=$(cargo build --profile profiling -p "$PACKAGE" --test "$TEST_FILE" "${CARGO_FEATURES_ARGS[@]}" \
   --message-format=json 2>/dev/null | \
@@ -173,21 +159,17 @@ fi
 
 echo "   Binary: $TEST_BINARY"
 
-# Generate dSYM for symbolication
 echo "🔧 Generating dSYM bundle..."
 DSYM_PATH="/tmp/$(basename "$TEST_BINARY").dSYM"
 dsymutil "$TEST_BINARY" -o "$DSYM_PATH" 2>/dev/null
 
-# Clean up old trace
 rm -rf "$TRACE_FILE"
 
-# Build test arguments
 TEST_ARGS="$TEST_FUNCTION --exact --nocapture"
 if [ -n "$IGNORED_FLAG" ]; then
   TEST_ARGS="$TEST_FUNCTION --exact --ignored --nocapture"
 fi
 
-# Record with xctrace, capture test output
 echo "🚀 Recording with xctrace $TEMPLATE..."
 TEST_OUTPUT_FILE="/tmp/xctrace-test-output-$$.txt"
 
@@ -218,11 +200,7 @@ if [ "$RECORD_STATUS" -ne 0 ]; then
   echo "⚠️  xctrace exited with status $RECORD_STATUS, but trace was produced; continuing."
 fi
 
-# GPU-oriented and allocation templates do not expose the Time Profiler XML
-# schema parsed below. Preserve their native trace and a small textual capture
-# summary; Instruments is the authoritative viewer for those schemas. Avoid
-# symbolication here because system-wide Metal traces can contain many unrelated
-# processes and do not need CPU call-stack symbolication.
+# Other templates do not expose the Time Profiler XML schema parsed below.
 if [ "$TEMPLATE" != "Time Profiler" ]; then
   {
     echo "XCTRACE CAPTURE SUMMARY"
@@ -245,7 +223,6 @@ if [ "$TEMPLATE" != "Time Profiler" ]; then
   exit 0
 fi
 
-# Symbolicate CPU call stacks for the Time Profiler path.
 echo "📝 Symbolicating trace..."
 SYMBOLICATED_TRACE="$PROJECT_ROOT/profile-xctrace-sym.trace"
 rm -rf "$SYMBOLICATED_TRACE"
@@ -254,7 +231,6 @@ xcrun xctrace symbolicate \
   --output "$SYMBOLICATED_TRACE" \
   --dsym "$DSYM_PATH" 2>&1 || true
 
-# Export to XML
 echo "📊 Exporting profile data..."
 TEMP_XML="/tmp/xctrace-export-$$.xml"
 xcrun xctrace export \
@@ -268,7 +244,6 @@ xcrun xctrace export \
 
 echo "🔍 Parsing and symbolicating call stacks..."
 
-# Python script to parse XML, count backtraces, symbolicate, and build call tree
 python3 << 'PYTHON_SCRIPT' - "$TEMP_XML" "$TEST_BINARY" "$OUTPUT_FILE" "$PACKAGE" "$TEST_FILE" "$TEST_FUNCTION" "$TEST_OUTPUT_FILE"
 import sys
 import re
@@ -284,7 +259,6 @@ test_file = sys.argv[5]
 test_function = sys.argv[6]
 test_output_file = sys.argv[7]
 
-# Read test output for timing info
 timing_lines = []
 try:
     with open(test_output_file, 'r') as f:
@@ -294,56 +268,46 @@ try:
 except:
     pass
 
-# Parse XML
 print("   Parsing XML...")
 with open(xml_file, 'r') as f:
     content = f.read()
 
-# Extract load address for our binary
 binary_name = test_binary.split('/')[-1]
 load_addr_match = re.search(rf'name="{re.escape(binary_name)}"[^>]*load-addr="(0x[0-9a-f]+)"', content)
 load_addr = load_addr_match.group(1) if load_addr_match else None
 print(f"   Load address: {load_addr}")
 
-# Parse all frames (id -> {name, addr, binary})
 frames = {}
 for m in re.finditer(r'<frame id="(\d+)" name="([^"]*)" addr="(0x[0-9a-f]+)"', content):
     frames[m.group(1)] = {'name': m.group(2), 'addr': m.group(3)}
 
-# Parse all backtraces (id -> list of frame ids/refs)
 backtraces = {}
-# Find backtrace definitions with their frames
 bt_pattern = re.compile(r'<backtrace id="(\d+)">(.*?)</backtrace>', re.DOTALL)
 for m in bt_pattern.finditer(content):
     bt_id = m.group(1)
     bt_content = m.group(2)
     frame_ids = []
-    # Get frame ids (either id= or ref=)
     for fm in re.finditer(r'<frame (?:id|ref)="(\d+)"', bt_content):
         frame_ids.append(fm.group(1))
     backtraces[bt_id] = frame_ids
 
-# Count backtrace occurrences (both id= and ref=)
 backtrace_counts = defaultdict(int)
 for m in re.finditer(r'<backtrace (?:id|ref)="(\d+)"', content):
     backtrace_counts[m.group(1)] += 1
 
 print(f"   Found {len(backtraces)} unique backtraces, {sum(backtrace_counts.values())} total samples")
 
-# Collect all addresses that need symbolication
 addrs_to_symbolicate = set()
 for bt_id, frame_ids in backtraces.items():
     for fid in frame_ids:
         if fid in frames:
             addr = frames[fid]['addr']
             name = frames[fid]['name']
-            # If name looks like an address, we need to symbolicate
             if name.startswith('0x'):
                 addrs_to_symbolicate.add(addr)
 
 print(f"   Symbolicating {len(addrs_to_symbolicate)} addresses with atos...")
 
-# Symbolicate using atos
 addr_to_symbol = {}
 if load_addr and addrs_to_symbolicate:
     try:
@@ -356,7 +320,6 @@ if load_addr and addrs_to_symbolicate:
     except Exception as e:
         print(f"   Warning: atos failed: {e}")
 
-# Build symbol lookup for all frames
 def get_frame_symbol(fid):
     if fid not in frames:
         return f"<unknown frame {fid}>"
@@ -367,9 +330,7 @@ def get_frame_symbol(fid):
         return addr_to_symbol[addr]
     return name
 
-# Count self-time (top of stack) per function
 self_time = defaultdict(int)
-# Count inclusive time (anywhere in stack) per function
 inclusive_time = defaultdict(int)
 
 for bt_id, count in backtrace_counts.items():
@@ -379,11 +340,9 @@ for bt_id, count in backtrace_counts.items():
     if not frame_ids:
         continue
     
-    # Top of stack (first frame) = self time
     top_symbol = get_frame_symbol(frame_ids[0])
     self_time[top_symbol] += count
     
-    # All frames = inclusive time
     seen = set()
     for fid in frame_ids:
         sym = get_frame_symbol(fid)
@@ -391,17 +350,13 @@ for bt_id, count in backtrace_counts.items():
             inclusive_time[sym] += count
             seen.add(sym)
 
-# Build call tree (aggregate by stack pattern)
-# Group by thread
 thread_trees = defaultdict(lambda: defaultdict(int))
 
-# Find thread info per sample
 thread_pattern = re.compile(r'<thread[^>]*fmt="([^"]*)"')
 threads_found = set()
 for m in thread_pattern.finditer(content):
     threads_found.add(m.group(1))
 
-# Build call tree structure
 call_tree = defaultdict(lambda: {'count': 0, 'children': defaultdict(lambda: {'count': 0, 'children': {}})})
 
 for bt_id, count in backtrace_counts.items():
@@ -411,10 +366,8 @@ for bt_id, count in backtrace_counts.items():
     if not frame_ids:
         continue
     
-    # Reverse to get root -> leaf order
     symbols = [get_frame_symbol(fid) for fid in reversed(frame_ids)]
     
-    # Build nested tree
     current = call_tree
     for sym in symbols:
         if sym not in current:
@@ -422,7 +375,6 @@ for bt_id, count in backtrace_counts.items():
         current[sym]['count'] += count
         current = current[sym]['children']
 
-# Generate output
 total_samples = sum(backtrace_counts.values())
 
 output_lines = []
@@ -447,9 +399,7 @@ output_lines.append("=== TOP HOTSPOTS BY SELF-TIME (samples at top of stack) ===
 output_lines.append("Functions where CPU was actually executing (not waiting on callees)")
 output_lines.append("")
 
-# Filter and sort by self-time
 sorted_self = sorted(self_time.items(), key=lambda x: -x[1])
-# Filter out system stuff
 filtered_self = [(s, c) for s, c in sorted_self 
                  if not any(x in s for x in ['libsystem', 'dyld', 'libdispatch', '__psynch', 'semaphore', 'thread_start', '_pthread'])]
 
@@ -478,7 +428,6 @@ def print_tree(tree, indent=0, max_depth=15, min_samples=2, prefix=""):
     if indent > max_depth:
         return
     
-    # Sort children by count
     items = sorted(tree.items(), key=lambda x: -x[1]['count'] if isinstance(x[1], dict) else 0)
     
     for i, (sym, data) in enumerate(items):
@@ -488,13 +437,11 @@ def print_tree(tree, indent=0, max_depth=15, min_samples=2, prefix=""):
         if count < min_samples:
             continue
         
-        # Skip system functions at top level
         if indent == 0 and any(x in sym for x in ['dyld', 'libSystem']):
             continue
             
         pct = 100.0 * count / total_samples if total_samples > 0 else 0
         
-        # Truncate long symbols
         display_sym = sym
         if len(display_sym) > 80:
             display_sym = display_sym[:77] + "..."
@@ -511,11 +458,9 @@ def print_tree(tree, indent=0, max_depth=15, min_samples=2, prefix=""):
 
 print_tree(call_tree, min_samples=max(1, total_samples // 100))
 
-# Write output
 with open(output_file, 'w') as f:
     f.write('\n'.join(output_lines))
 
-# Print summary to console
 print("")
 print("━" * 80)
 print("📋 XCTRACE PROFILE REPORT")
@@ -524,7 +469,6 @@ print("")
 print("🔥 TOP HOTSPOTS BY SELF-TIME:")
 for sym, count in filtered_self[:15]:
     pct = 100.0 * count / total_samples if total_samples > 0 else 0
-    # Clean up symbol for display
     clean_sym = re.sub(r'\s*\(in [^)]+\)', '', sym)
     clean_sym = re.sub(r'::h[a-f0-9]{16}', '', clean_sym)
     if len(clean_sym) > 70:
@@ -543,7 +487,6 @@ for sym, count in filtered_inclusive[:10]:
 
 PYTHON_SCRIPT
 
-# Cleanup
 rm -f "$TEMP_XML" "$TEST_OUTPUT_FILE"
 
 echo ""

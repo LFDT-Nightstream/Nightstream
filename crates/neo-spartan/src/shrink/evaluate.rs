@@ -1,0 +1,144 @@
+//! The glue part of `Σ_j ρ^j·M̃_j(rx, ry)`, accumulated while a shape run of
+//! the program emits its rows. No row is stored.
+
+use p3_field_v08::PrimeCharacteristicRing;
+use rayon::prelude::*;
+
+use super::layout::Layout;
+use crate::circuit::block::{Kind, C, KINDS, MATRICES};
+use crate::circuit::r1cs::{R1cs, Side};
+use crate::circuit::record::{Form, Sink, Term};
+use crate::field::{eq_table, Ext, Gl};
+
+/// `eq(point, i)` from a low and a high table.
+pub(crate) struct SplitEq {
+    low: Vec<Ext>,
+    high: Vec<Ext>,
+    bits: usize,
+}
+
+impl SplitEq {
+    pub(crate) fn new(point: &[Ext]) -> Self {
+        let bits = point.len() / 2;
+        Self {
+            low: eq_table(&point[..bits]),
+            high: eq_table(&point[bits..]),
+            bits,
+        }
+    }
+
+    pub(crate) fn at(&self, index: usize) -> Ext {
+        self.low[index & ((1 << self.bits) - 1)] * self.high[index >> self.bits]
+    }
+}
+
+/// A sink that sums the glue rows' matrix entries at `(rx, ry)` and keeps the
+/// counts and the statement words.
+pub(crate) struct Evaluate<'l> {
+    layout: &'l Layout,
+    rows: SplitEq,
+    columns: SplitEq,
+    rho: [Ext; MATRICES],
+    pub(crate) total: Ext,
+    pub(crate) glue_rows: usize,
+    pub(crate) glue_cells: usize,
+    pub(crate) blocks: [usize; KINDS.len()],
+    pub(crate) publics: Vec<Gl>,
+}
+
+impl<'l> Evaluate<'l> {
+    pub(crate) fn new(layout: &'l Layout, rx: &[Ext], ry: &[Ext], rho: [Ext; MATRICES]) -> Self {
+        Self {
+            layout,
+            rows: SplitEq::new(rx),
+            columns: SplitEq::new(ry),
+            rho,
+            total: Ext::ZERO,
+            glue_rows: 0,
+            glue_cells: 0,
+            blocks: [0; KINDS.len()],
+            publics: Vec::new(),
+        }
+    }
+
+    /// Whether every count so far, plus `rows` more glue rows, lies inside
+    /// the shape. Past it an index would leave the eq tables; such a run's
+    /// counts differ from the shape, so `verify` rejects it.
+    fn fits(&self, rows: usize) -> bool {
+        let shape = &self.layout.shape;
+        self.glue_rows + rows <= shape.glue_rows
+            && self.glue_cells <= shape.glue_cells
+            && self.publics.len() <= shape.publics
+            && self
+                .blocks
+                .iter()
+                .zip(&shape.blocks)
+                .all(|(count, limit)| count <= limit)
+    }
+
+    fn side(&self, terms: &[Term]) -> Ext {
+        terms
+            .iter()
+            .map(|&(wire, coefficient)| self.columns.at(self.layout.column(wire)) * coefficient)
+            .sum()
+    }
+}
+
+impl Sink for Evaluate<'_> {
+    fn row(&mut self, products: &[(Vec<Term>, Vec<Term>)], linear: &[Term]) {
+        if self.fits(1) {
+            let mut sum = self.rho[C] * self.side(linear);
+            for (i, (a, b)) in products.iter().enumerate() {
+                sum += self.rho[1 + 2 * i] * self.side(a) + self.rho[2 + 2 * i] * self.side(b);
+            }
+            self.total += self.rows.at(self.layout.glue_row(self.glue_rows)) * sum;
+        }
+        self.glue_rows += 1;
+    }
+
+    fn cell(&mut self, _: Gl) {
+        self.glue_cells += 1;
+    }
+
+    fn block(&mut self, kind: Kind, _: &[Gl]) {
+        self.blocks[kind.index()] += 1;
+    }
+
+    fn public(&mut self, value: Gl) {
+        self.publics.push(value);
+    }
+
+    /// One `eq` per column, then the rows in parallel.
+    fn r1cs(&mut self, system: &R1cs, columns: &[Form]) {
+        if !self.fits(system.rows()) {
+            self.glue_rows += system.rows();
+            return;
+        }
+        let at: Vec<Ext> = columns
+            .par_iter()
+            .map(|form| form.evaluate(|wire| self.columns.at(self.layout.column(wire))))
+            .collect();
+        let side = |(columns, coefficients): Side<'_>| -> Ext {
+            columns
+                .iter()
+                .zip(coefficients)
+                .map(|(&column, &coefficient)| at[column as usize] * coefficient)
+                .sum()
+        };
+        let start = self.glue_rows;
+        let total: Ext = (0..system.rows())
+            .into_par_iter()
+            .map(|row| {
+                let [a, b, c] = system.sides(row);
+                let sum = self.rho[1] * side(a) + self.rho[2] * side(b) + self.rho[C] * side(c);
+                self.rows.at(self.layout.glue_row(start + row)) * sum
+            })
+            .sum();
+        self.total += total;
+        self.glue_rows += system.rows();
+    }
+
+    fn values(&self) -> bool {
+        false
+    }
+}

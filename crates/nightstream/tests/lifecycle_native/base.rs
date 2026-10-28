@@ -1,4 +1,4 @@
-//! Full selected base assignment and terminal execution. Run in its own capped invocation.
+//! Full selected base assignment and terminal execution.
 use super::*;
 use crate::lifecycle::{ExtendError, Stage1Envelope};
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_units;
@@ -19,8 +19,7 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
     assert_eq!(reference[0], 1);
     let private: Vec<u64> = serde_json::from_value(reference[2].clone()).unwrap();
     let public: Vec<u64> = serde_json::from_value(reference[3].clone()).unwrap();
-    // `z0` sits in the prior preimage tail `vk, i, z0, zi`.
-    let z0 = private[27_811..27_815]
+    let z0 = private[INITIAL_STATE_WORDS]
         .try_into()
         .map(|words: [u64; 4]| words.map(F::from_u64))
         .unwrap();
@@ -53,7 +52,7 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
     assert_eq!(running.claims.len(), 16);
     assert_eq!(running.witnesses.len(), 16);
     for (claim, witness) in running.claims.iter().zip(&running.witnesses) {
-        assert!(claim.c.data.iter().all(|value| *value == F::ZERO));
+        assert!(claim.c.data().iter().all(|value| *value == F::ZERO));
         assert!((0..claim.X.cols()).all(|column| (0..D).all(|lane| claim.X[(lane, column)] == F::ZERO)));
         assert!(claim.r.iter().all(|value| *value == K::ZERO));
         assert!(claim.eval_k.iter().all(|value| *value == K::ZERO));
@@ -61,12 +60,11 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
         assert_eq!(witness.virtual_constant_value(), Some(&F::ZERO));
     }
 
-    assert!(fresh.witness.w.is_empty());
     assert_eq!(fresh.claim.x, fields(&reference[4][2]));
     let physical = loaded.execute_witness(&private, &public).unwrap();
     let logical = loaded.execute_logical_assignment(&physical).unwrap();
     drop(physical);
-    assert_eq!(logical.len(), package.structure().m);
+    assert_eq!(logical.len(), package.structure().m());
     for (column, &value) in logical.balanced_values().iter().enumerate() {
         let expected = match value {
             -1 => -F::ONE,
@@ -82,7 +80,7 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
     }
     neo_reductions::common::validate_fresh_witness_tail_zero(
         &fresh.witness.Z,
-        package.structure().m,
+        package.structure().m(),
         "public base extension",
     )
     .unwrap();

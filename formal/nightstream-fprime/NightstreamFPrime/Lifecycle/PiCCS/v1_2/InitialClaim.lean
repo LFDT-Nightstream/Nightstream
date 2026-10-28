@@ -39,8 +39,6 @@ structure Interface where
   eval_K : Nat → PadCoordinate productionShape → KExpr
   eval_A : Nat → MatrixCoordinate productionShape → KExpr
 
-/-- Exact constant-first expression order: all Pad coefficients, then all
-genuine CCS-matrix coefficients. -/
 def coefficientExprs (interface : Interface) (offset : Nat) : List KExpr :=
   (canonicalPadCoordinates productionShape).map (interface.eval_K offset) ++
     (canonicalMatrixCoordinates productionShape).map (interface.eval_A offset)
@@ -52,19 +50,15 @@ def ownedInterface (interface : Interface) : Horner.Owned.Interface where
 def program (interface : Interface) (offset : Nat) : Horner.Program :=
   Horner.Owned.program (ownedInterface interface) offset
 
-/-- The child-owned symbolic initial claim. -/
 def output (interface : Interface) (offset : Nat) : KExpr :=
   Horner.Owned.output (ownedInterface interface) offset
 
 abbrev Assumptions (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   Horner.Owned.Assumptions (ownedInterface interface) offset env
 
-/-- Named semantic predicate: the owned output is the canonical Horner
-evaluation of the separate v1.2 target families. -/
 abbrev SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
   Horner.Owned.SpecHolds (ownedInterface interface) offset env
 
-/-- The sole logical circuit for this leaf. -/
 def circuit (interface : Interface) : FormalCircuit :=
   Horner.Owned.circuit (ownedInterface interface)
 
@@ -74,7 +68,6 @@ theorem soundness (interface : Interface) (env : Env) (offset : Nat)
     SpecHolds interface offset env :=
   Horner.Owned.soundness (ownedInterface interface) env offset assumptions rows
 
-/-- Honest execution constructs this leaf without a caller-supplied result. -/
 theorem build (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     ∃ completed,
@@ -108,10 +101,8 @@ theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
     Phi81MatrixSource.phi81Shape, Shape.padEvaluationCount,
     Shape.matrixEvaluationCount, cubeVariables, ringDegree]
 
-/-- Private symbolic variables owned by the fixed production leaf. -/
 def privateCount : Nat := 12957
 
-/-- Exact private symbolic footprint of the optimized Horner child. -/
 theorem localLength_eq (interface : Interface) (offset : Nat) :
     localLength (Circuit.ops (circuit interface).main offset) = 12957 := by
   change localLength (Circuit.ops
@@ -133,8 +124,6 @@ theorem flatConstraints_length (interface : Interface) (offset : Nat) :
   change 3 * ((coefficientExprs interface offset).length - 1) = 12957
   rw [coefficientExprs_length]
 
-/-- Concrete parent coverage: shared target wires and the challenge leaf make
-this initial claim exactly the value consumed by production `piCcsCheck`. -/
 theorem spec_implies_keyInitial
     {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤

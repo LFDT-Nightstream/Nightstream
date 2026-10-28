@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Sparse
 import NightstreamFPrime.Spec.SumCheck.FixedPhase.Sequential
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/ProtocolPolynomialDegree.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Exact per-round degree bound for the paper-joint `Pi_CCS` polynomial.
 
@@ -23,11 +20,6 @@ Does not own: SumCheck completeness, an honest execution, probability,
 Fiat--Shamir, Rust, R1CS, artifacts, row removal, or costs.
 
 Emits constraints: no.
-
-Authority boundary: the CCS ceiling is computed from explicit sparse monomial
-syntax. Every Boolean-table MLE and equality selector is independently proved
-affine in the exposed coordinate. No declared degree metadata or
-implementation artifact enters the proof.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree
@@ -312,8 +304,6 @@ private theorem matrixSlice_represents
   rw [represents]
   rfl
 
-/-- Every one-coordinate slice of the actual paper polynomial has the exact
-verifier-owned syntax-derived degree ceiling. -/
 theorem polynomial_slice_represents
     {Field : Type uField}
     {shape : Shape}
@@ -446,9 +436,6 @@ theorem polynomial_slice_represents
   rw [dif_pos]
   rfl
 
-/-- At every reachable challenge prefix, the next honest round polynomial is
-representable without seeing any future challenge. This is the primary degree
-theorem used by the causal message-before-challenge honest prover. -/
 theorem sequentialRoundRepresentable
     {Field : Type uField}
     {shape : Shape}
@@ -466,10 +453,10 @@ theorem sequentialRoundRepresentable
     fixed remaining fun vertex => by
       simpa [List.append_assoc] using
         (polynomial_slice_represents ops laws data alpha gamma fixed
-          (SumCheckTruthPath.VertexEncoding.fieldCoordinates ops vertex)
+          (BooleanVertex.fieldCoordinates ops vertex)
           (by
             have vertexLength :=
-              SumCheckTruthPath.VertexEncoding.fieldCoordinates_length ops vertex
+              BooleanVertex.fieldCoordinates_length ops vertex
             rw [vertexLength]
             exact length))
 
@@ -506,10 +493,6 @@ private theorem roundRepresentable_expectedPolynomialsFrom
             simp only [List.length_cons] at totalLength
             omega) expected member
 
-/-- Every canonical expected round of the actual paper polynomial admits an
-explicit verifier-visible polynomial at exactly the verifier-owned degree
-ceiling. This closes the semantic degree premise left open by
-`ProtocolPolynomial.canonicalGhosts_honest`. -/
 theorem expectedRoundsRepresentable
     {Field : Type uField}
     {shape : Shape}

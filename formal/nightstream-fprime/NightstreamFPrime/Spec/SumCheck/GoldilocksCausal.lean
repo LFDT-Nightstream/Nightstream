@@ -5,10 +5,6 @@ import Mathlib.Data.Real.Basic
 
 /-!
 Owns the bad challenge of one SumCheck round over the actual `K` field.
-`Strategy` chooses each message from the earlier challenges only; `none` is a
-prover abort. A round `Hit`s when its message differs from the semantic round
-polynomial but agrees with it at the challenge. `hit_probability_le` bounds
-that chance by `degree / |samples|` for any finite sample set.
 -/
 
 namespace NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal
@@ -17,10 +13,8 @@ open scoped BigOperators
 open GoldilocksRoots (ops)
 attribute [local instance] Classical.propDecidable
 
-/-- Each message is chosen from past challenges only. None is prover abort. -/
 abbrev Strategy (degree : Nat) := List K → Option (FixedPolynomial K degree)
 
-/-- The semantic round is fixed by the prefix and remaining dimension. -/
 def expected (q : List K → K) (fixed : List K) (remaining : Nat) (point : K) : K :=
   HypercubeTruth.sumCompletions ops q (fixed ++ [point]) remaining
 

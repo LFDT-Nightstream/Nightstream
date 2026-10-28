@@ -5,8 +5,7 @@ import NightstreamFPrime.Layout.Stage1.Spartan
 
 /-!
 Owns projection of the actual pilot physical rows to its ordinary compiler
-rows. The original lowering supplies every auxiliary value; the existing
-source support controls the change from the complete to the pilot layout.
+rows.
 -/
 
 set_option autoImplicit false
@@ -118,9 +117,6 @@ private theorem outputDigest_value_of_physical (target : Env)
     outputState_pilotColumn, outputDigest_pilotColumn] at computed
   exact computed
 
-/-- The four package output-digest rows follow from the actual pilot physical
-rows. The hash owner supplies the stored-output assertion and existing maps
-identify both package columns. No digest or source-row premise is supplied. -/
 private theorem outputDigestRows_of_physical (target : Env)
     (rows : NightstreamFPrime.Layout.Pilot.PhysicalHolds PilotProduction.interface
       PilotProduction.witnessOffset (Spartan.pullback target)) :
@@ -139,9 +135,6 @@ private theorem outputDigestRows_of_physical (target : Env)
       (sub_eq_zero.mpr value)
 
 
-/-- Actual pilot physical rows imply all ordinary package rows under the
-existing pilot-to-Stage-1 column lift, including the original lowered witness
-values and the four output-digest assertions. -/
 theorem rows_of_physical (target : Env)
     (rows : NightstreamFPrime.Layout.Pilot.PhysicalHolds PilotProduction.interface
       PilotProduction.witnessOffset (Spartan.pullback target)) :

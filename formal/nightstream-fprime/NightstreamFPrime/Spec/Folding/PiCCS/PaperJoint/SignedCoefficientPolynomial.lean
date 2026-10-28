@@ -1,11 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedJointIdentity
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
-/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperJoint/SignedCoefficientPolynomial.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed and the
-generic canonical-position Horner theorem exported for the v1.2 initial-claim
-circuit. -/
-
 /-!
 Finite signed gamma-coefficient polynomial for paper-level joint `Pi_CCS`.
 
@@ -23,20 +18,6 @@ target audit, SumCheck initial or terminal acceptance, root-counting
 probability, Fiat--Shamir, Rust, R1CS, or counts.
 
 Emits constraints: no.
-
-Authority boundary: coefficient values come only from explicit `JointData`
-tables and claims. Block signs, offsets, lengths, and Horner positions are
-derived here. No evaluator callback, caller-supplied degree, claimed identity,
-Rust trace, or existing circuit enters the theorem.
-
-| Protocol | Phase | Coefficient family | Exact positions / meaning |
-|---|---|---|---|
-| `Pi_CCS` | gamma serialization | Pad | `0 .. kd-1`, claimed minus derived `Eval_K` |
-| `Pi_CCS` | gamma serialization | matrix | `kd .. kd(t+1)-1`, claimed minus derived `Eval_A` |
-| `Pi_CCS` | gamma serialization | CCS | starts at `kd(t+1)`, negative CCS residuals |
-| `Pi_CCS` | gamma serialization | norm | starts at `kd(t+1)+K`, negative norm residuals |
-| `Pi_CCS` | executable evaluation | all blocks | Horner evaluation equals `T_abs - sum_x Q` for every `alpha,gamma` |
-| shared | canonical indexed evaluation | canonical `Fin n` coefficients evaluate as `sum_i gamma^i c_i` | `evaluate_canonicalFinMap_eq_gammaSum` |
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedCoefficientPolynomial
@@ -46,7 +27,6 @@ universe uField uIndex
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.SumCheck
 
-/-- Unsigned CCS values before the sign forced by `T_abs - sum Q`. -/
 def ccsValues
     {Field : Type uField}
     {shape : Shape}
@@ -56,7 +36,6 @@ def ccsValues
   (canonicalFinIndices shape.freshCount).map fun source =>
     (data.ccs source).equalityWeightedSum ops alpha
 
-/-- Unsigned norm values before the sign and `K`-position shift. -/
 def normValues
     {Field : Type uField}
     {shape : Shape}
@@ -66,7 +45,6 @@ def normValues
   (canonicalFinIndices shape.sourceCount).map fun source =>
     (data.norm source).equalityWeightedSum ops alpha
 
-/-- Claimed-minus-derived Pad values in `I_K` order. -/
 def padValues
     {Field : Type uField}
     {shape : Shape}
@@ -78,7 +56,6 @@ def padValues
       ((data.padImage coordinate).equalityWeightedSum
         ops data.priorPoint)
 
-/-- Claimed-minus-derived matrix values in `I_A` order. -/
 def matrixValues
     {Field : Type uField}
     {shape : Shape}
@@ -90,7 +67,6 @@ def matrixValues
       ((data.matrixImage coordinate).equalityWeightedSum
         ops data.priorPoint)
 
-/-- Negative CCS coefficient block. -/
 def ccsCoefficients
     {Field : Type uField}
     {shape : Shape}
@@ -99,8 +75,6 @@ def ccsCoefficients
     (alpha : CubePoint Field shape.cubeVariables) : List Field :=
   (ccsValues ops data alpha).map ops.neg
 
-/-- Negative norm coefficient block. Its list position supplies the `K`
-shift when concatenated after the CCS block. -/
 def normCoefficients
     {Field : Type uField}
     {shape : Shape}
@@ -109,7 +83,6 @@ def normCoefficients
     (alpha : CubePoint Field shape.cubeVariables) : List Field :=
   (normValues ops data alpha).map ops.neg
 
-/-- Positive Pad residual block. -/
 def padCoefficients
     {Field : Type uField}
     {shape : Shape}
@@ -117,8 +90,6 @@ def padCoefficients
     (data : SignedJointIdentity.JointData Field shape) : List Field :=
   padValues ops data
 
-/-- Positive matrix residual block. Its list position supplies the `k*d`
-shift. -/
 def matrixCoefficients
     {Field : Type uField}
     {shape : Shape}
@@ -126,7 +97,6 @@ def matrixCoefficients
     (data : SignedJointIdentity.JointData Field shape) : List Field :=
   matrixValues ops data
 
-/-- Exact constant-first signed gamma coefficients. -/
 def coefficients
     {Field : Type uField}
     {shape : Shape}
@@ -138,7 +108,6 @@ def coefficients
       (ccsCoefficients ops data alpha ++
         normCoefficients ops data alpha))
 
-/-- Finite executable polynomial with degree metadata derived from its list. -/
 def polynomial
     {Field : Type uField}
     {shape : Shape}
@@ -182,8 +151,6 @@ theorem matrixCoefficients_length
     (matrixCoefficients ops data).length = shape.matrixEvaluationCount := by
   simp [matrixCoefficients, matrixValues, canonicalMatrixCoordinates_length]
 
-/-- The list contains exactly the three declared blocks and no hidden
-coefficient family. -/
 theorem coefficients_length
     {Field : Type uField}
     {shape : Shape}
@@ -198,8 +165,6 @@ theorem coefficients_length
     Shape.jointCoefficientCount, Shape.constraintOffset]
   omega
 
-/-- Degree is derived from the exact signed coefficient-list length. This is
-not a claim that the last coefficient is nonzero. -/
 theorem polynomial_degreeUpperBound
     {Field : Type uField}
     {shape : Shape}
@@ -228,7 +193,6 @@ private theorem mul_neg
   rw [laws.mul_comm left (ops.neg right), laws.neg_mul,
     laws.mul_comm right left]
 
-/-- Explicit monomial sum beginning at one absolute exponent. -/
 private def positionalSumFrom
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -309,8 +273,6 @@ private theorem positionalSumFrom_map_eq_indexed
       congr 1
       exact inductionHypothesis (offset + 1) tailPositions
 
-/-- Horner evaluation of values in any proved consecutive position order is
-the corresponding finite gamma-weighted sum. -/
 theorem evaluate_map_eq_indexed
     {Field : Type uField}
     {Index : Type uIndex}
@@ -384,9 +346,6 @@ private theorem canonicalFinPositions (count : Nat) :
   simpa [List.range_eq_range', canonicalFinIndices_length] using
     canonicalFinIndices_values count
 
-/-- A constant-first coefficient list in canonical `Fin count` order is
-exactly the explicit paper-relative gamma sum. This shared theorem makes the
-coefficient polynomial visible to split-protocol soundness proofs. -/
 theorem evaluate_canonicalFinMap_eq_gammaSum
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -595,8 +554,6 @@ private theorem matrixCoefficients_evaluate
   unfold matrixCoefficients
   exact matrixValues_evaluate ops laws data gamma
 
-/-- Executable Horner evaluation of the exact signed coefficient list equals
-the independently derived signed residual blocks. -/
 theorem evaluateCoefficients_eq_signedResidualBlocks
     {Field : Type uField}
     {shape : Shape}
@@ -667,7 +624,6 @@ theorem evaluateCoefficients_eq_signedResidualBlocks
   unfold Shape.matrixEvaluationOffset
   rfl
 
-/-- The finite message wrapper has exactly the same evaluation. -/
 theorem evaluate_eq_signedResidualBlocks
     {Field : Type uField}
     {shape : Shape}
@@ -681,13 +637,6 @@ theorem evaluate_eq_signedResidualBlocks
   exact evaluateCoefficients_eq_signedResidualBlocks
     ops laws data alpha gamma
 
-/-- End-to-end table-level coefficient identity:
-
-`T_abs(gamma) - sum_x Q(x, alpha, gamma)` is exactly executable Horner
-evaluation of the signed constant-first coefficient list.
-
-This remains model-level and does not instantiate production tables or a
-SumCheck verifier. -/
 theorem paperDifference_eq_evaluate
     {Field : Type uField}
     {shape : Shape}

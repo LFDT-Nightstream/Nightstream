@@ -1,5 +1,4 @@
 //! Bind the recursive caller packet to the checked prior proof and children.
-//! The complete independent row evaluator runs after these input checks.
 
 use neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -52,7 +51,14 @@ fn encode(digest: [u64; 4]) -> Vec<u64> {
     result
 }
 
-pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8], previous: &[u8], handoff: &[u8]) {
+pub(crate) fn check_fixture(
+    fixture: &[u8],
+    base: &[u8],
+    input: &[u8],
+    children: &[u8],
+    previous: &[u8],
+    handoff: &[u8],
+) {
     let fixture = read(fixture);
     let base = read(base);
     let input = read(input);

@@ -7,10 +7,7 @@ parent packing.
 
 The preimage stores the Π_DEC parent public input once, so it is injective
 only on states whose children are the canonical common-sign split of that
-parent (`ChildrenCanonical`). That is the Π_DEC accepted language: the default
-running instance and every accepted Π_DEC output satisfy it. `unpackWord`
-inverts the packing on every bounded parent and `packWord ∘ unpackWord` is the
-identity on every word, so the state decoder is exact.
+parent (`ChildrenCanonical`).
 -/
 
 namespace NightstreamFPrime.Layout.Stage1.StateEncoding
@@ -27,17 +24,12 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-! ## Canonical children -/
-
-/-- The paper default running instance has zero children. -/
 theorem defaultRunning_canonical :
     ChildrenCanonical (defaultRunning (logicalWidth := logicalWidth)
       (publicFits := publicFits)) := by
   intro column
   exact ⟨0, Or.inl rfl, fun _ => Or.inl rfl⟩
 
-/-- Every running instance that the production NIFS verifier outputs is
-canonical: its children are the checked split of a bounded parent. -/
 theorem output_canonical
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -58,7 +50,6 @@ theorem output_canonical
   · rw [NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier.PublicInputSplit.checked_eq_none _ _ bounded] at checkedEq
     cases checkedEq
 
-/-- Exact validity conditions for one canonical Stage 1 state. -/
 def WellFormed
     (preimage : HashPreimage
       (logicalWidth := logicalWidth) (publicFits := publicFits)) : Prop :=
@@ -67,9 +58,6 @@ def WellFormed
     preimage.pc = 1 ∧
     ChildrenCanonical (preimage.running functionIndex)
 
-/-! ## Fixed-width list lemmas -/
-
-/-- Equal concatenations of fixed-width encodings agree position by position. -/
 theorem finRange_flatMap_ext
     {count width : Nat}
     (left right : Fin count → List F)
@@ -178,8 +166,6 @@ private theorem serializePoint_injective
   cases right
   simp_all
 
-/-! ## Layout injectivity -/
-
 theorem running_ext
     {left right : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
     (point : left.point = right.point)
@@ -191,8 +177,6 @@ theorem running_ext
   cases right
   simp_all
 
-/-- Equal shared running fields identify the point, commitments, and every
-separate `Eval_K` and `Eval_A` value. -/
 theorem serializeRunningFields_injective
     {left right : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
     (equal : serializeRunningFields left = serializeRunningFields right) :
@@ -245,8 +229,6 @@ private theorem fin_slot_eq_functionIndex (index : Fin slotCount) :
   change index.val = 0
   omega
 
-/-- Equal tails with the fixed ABI identify the key, the iteration word and
-both application states. -/
 private theorem serializeTail_injective
     {left right : HashPreimage
       (logicalWidth := logicalWidth) (publicFits := publicFits)}
@@ -289,14 +271,10 @@ private theorem preimage_ext
   cases right
   simp_all
 
-/-! ## Packed parent injectivity -/
-
 private theorem ofNat_val (value : F) : Poseidon2.ofNat value.val = value := by
   apply Fin.ext
   simp [Poseidon2.ofNat, Nat.mod_eq_of_lt value.isLt]
 
-/-- A coordinate of centered magnitude below `2^16`, shifted by `2^16`, is a
-natural number below `2^17`. -/
 private theorem shifted_val_lt {value : F}
     (bounded : centeredMagnitude value < 2 ^ 16) :
     (value + packOffset).val < 131072 := by
@@ -352,8 +330,6 @@ private theorem radix_unique {a b c d e f : Nat}
     a = d ∧ b = e ∧ c = f := by
   omega
 
-/-- Radix-`2^17` packing is injective on coordinates of centered magnitude
-below `2^16`. -/
 theorem packWord_injective {leftLow leftMiddle leftHigh
       rightLow rightMiddle rightHigh : F}
     (leftLowBound : centeredMagnitude leftLow < 2 ^ 16)
@@ -390,7 +366,6 @@ private theorem packWord_ofNat (low middle high : Nat) :
   unfold packWord packRadix
   rw [ofNat_mul, ofNat_mul, ofNat_mul, ofNat_add, ofNat_add]
 
-/-- Packing the unpacked lanes returns every word. -/
 theorem packWord_unpackWord (word : F) :
     packWord (unpackWord word 0) (unpackWord word 1) (unpackWord word 2) = word := by
   have shifted :
@@ -414,7 +389,6 @@ private theorem radix_digits {a b c : Nat}
       (a + 131072 * b + 17179869184 * c) / 2 ^ 34 = c := by
   omega
 
-/-- Unpacking returns every lane of centered magnitude below `2^16`. -/
 theorem unpackWord_packWord {low middle high : F}
     (lowBound : centeredMagnitude low < 2 ^ 16)
     (middleBound : centeredMagnitude middle < 2 ^ 16)
@@ -452,8 +426,6 @@ theorem packedColumn_cover
   simp only [packedColumn]
   omega
 
-/-- Equal packed parents identify the children of two canonical running
-instances. -/
 theorem serializeParentPublic_injective
     {left right : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
     (leftCanonical : ChildrenCanonical left)
@@ -488,7 +460,6 @@ theorem serializeParentPublic_injective
   have selected := congrFun digitsEqual (Fin.cast runningCount_eq_radixChildCount source)
   simpa [childDigits] using selected
 
-/-- The running serializer is injective on canonical running instances. -/
 theorem serializeRunning_injective
     {left right : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
     (leftCanonical : ChildrenCanonical left)
@@ -505,9 +476,6 @@ theorem serializeRunning_injective
     (serializeParentPublic_injective leftCanonical rightCanonical parentEqual)
     evaluationsEqual
 
-/-! ## Preimage injectivity -/
-
-/-- Distinct well-formed Stage 1 states have distinct preimages. -/
 theorem serializePreimage_injective
     {left right : HashPreimage
       (logicalWidth := logicalWidth) (publicFits := publicFits)}
@@ -533,8 +501,6 @@ theorem serializePreimage_injective
     (serializeRunning_injective leftCanonical rightCanonical runningEqual)
     (by rw [leftPc, rightPc])
 
-/-- No canonical preimage is another canonical preimage followed by a
-nonempty suffix. This is stronger than the required trailing-zero case. -/
 theorem serializePreimage_not_trailing_extension
     {left right : HashPreimage
       (logicalWidth := logicalWidth) (publicFits := publicFits)}
@@ -551,7 +517,6 @@ theorem serializePreimage_not_trailing_extension
   have suffixLength : suffix.length = 0 := by omega
   exact suffixNonempty (List.eq_nil_of_length_eq_zero suffixLength)
 
-/-- In particular, appending one zero word cannot produce a valid encoding. -/
 theorem serializePreimage_not_trailing_zero
     {left right : HashPreimage
       (logicalWidth := logicalWidth) (publicFits := publicFits)}
@@ -573,7 +538,6 @@ private theorem serializePreimage_tail
   exact (List.append_inj (List.append_cancel_left encodedEqual)
     (by simp only [serializeRunning_length])).2
 
-/-- Equal preimages carry equal running words. -/
 theorem serializePreimage_eq_implies_running_eq
     (left right : HashPreimage
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -586,8 +550,6 @@ theorem serializePreimage_eq_implies_running_eq
   exact (List.append_inj (List.append_cancel_left encodedEqual)
     (by simp only [serializeRunning_length])).1
 
-/-- Equal preimages identify the context words without requiring
-injectivity of the later natural counter encoding. -/
 theorem serializePreimage_eq_implies_context_eq
     (left right : HashPreimage
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -601,7 +563,6 @@ theorem serializePreimage_eq_implies_context_eq
   simp only [List.append_assoc] at tailEqual
   exact (List.append_inj tailEqual lengthEqual).1
 
-/-- The iteration word follows the context words in the same fixed frame. -/
 theorem serializePreimage_eq_implies_iteration_word_eq
     (left right : HashPreimage
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -616,16 +577,12 @@ theorem serializePreimage_eq_implies_iteration_word_eq
   have afterKey := (List.append_inj tailEqual lengthEqual).2
   simpa using (List.cons.inj afterKey).1
 
-/-- Every state hash has the exact four-word public ABI, independently of
-the input length. The proof follows the round structure symbolically. -/
 theorem stateHash_length
     (preimage : HashPreimage
       (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (stateHash preimage).length = 4 :=
   Poseidon2.hash_length _
 
-/-- A decoded predecessor below the modulus cannot wrap to a positive,
-canonical terminal iteration with the same field word. -/
 theorem natWord_successor_eq_below_modulus
     (prior current : Nat)
     (priorBound : prior < goldilocksModulus)

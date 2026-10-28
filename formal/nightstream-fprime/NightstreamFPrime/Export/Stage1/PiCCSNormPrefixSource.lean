@@ -4,8 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSPrefixRound
 
 /-! Proof-only transport from the existing signed source decoder through the
 existing retained norm folds to the original sourceAssignment message field.
-The source index remains separate. File IO and range accumulation are not
-proved here. -/
+File IO and range accumulation are not proved here. -/
 
 set_option autoImplicit false
 
@@ -107,9 +106,6 @@ private theorem decoded_prefix_value
         dif_neg stored, Option.getD_none]
       rfl
 
-/-- A full decoded source prefix, with optional extra zero scalars, is the
-actual source table of the selected statement. The length premise is about
-the decoder's allocated block array, not a wanted source-value equality. -/
 theorem decoded_prefix_table
     (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat)))
     (source : Fin productionShape.sourceCount)
@@ -141,8 +137,6 @@ private theorem fold_table_evaluate {arity remaining : Nat}
   rw [PrefixFold.foldPrefix_evaluate extensionOps extensionLaws _ challenges suffix fits,
     tableEqual]
 
-/-- The existing array fold evaluates the original source table after an
-arbitrary challenge prefix. All 17 sources remain individually indexed. -/
 theorem decoded_prefix_evaluate
     (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat)))
     (source : Fin productionShape.sourceCount)
@@ -166,9 +160,6 @@ theorem decoded_prefix_evaluate
     (decoded_prefix_table input masks source loaded count covered)
     (by simpa only [Array.size_ofFn] using fits) challenges dimension suffix
 
-/-- Decode the actual 81-entry norm code table, then consume any remaining
-challenges with the existing scalar fold. Its value is the original norm
-source MLE. The two leading challenges and source order are unchanged. -/
 theorem quadCodes_evaluate
     (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat)))
     (source : Fin productionShape.sourceCount)
@@ -194,9 +185,6 @@ theorem quadCodes_evaluate
     decoded_prefix_evaluate input masks source loaded (4 * groups) covered fits
       (first :: second :: challenges) dimension suffix
 
-/-- The retained norm entry at either numeric endpoint is the exact
-sourceAssignment component of messageAt used by PiCCSPrefixRound.
-The unused suffix is Boolean; the consumed prefix remains arbitrary. -/
 theorem quadCodes_endpoint
     (input : PiCCSPublicReplay.Input) (masks : Array (Array (Nat × Nat)))
     (source : Fin productionShape.sourceCount)
@@ -223,7 +211,7 @@ theorem quadCodes_endpoint
   simp only [PrefixFold.zeroExtend, BooleanTable.valueAt_tabulate] at value
   cases bit <;> simpa only [ProtocolPolynomial.messageAt, PiCCSPrefixRound.point,
     BooleanVertex.toCubePoint_coordinates, BooleanVertex.fieldCoordinates,
-    SumCheckTruthPath.VertexEncoding.fieldCoordinates, Bool.false_eq_true,
+    Bool.false_eq_true,
     if_false, if_true] using! value
 
 end NightstreamFPrime.Export.Stage1.PiCCSNormPrefixSource

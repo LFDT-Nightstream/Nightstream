@@ -3,10 +3,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationPreservation
 /-!
 Owns the production construction of compact-row shift compatibility for the
 PiRLC combination invocation families.
-
-The generic row-renaming semantics remain in `PerApplicationPreservation`.
-This file proves only the fixed family layout facts selected by the canonical
-Lean generators.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationCompactPreservation

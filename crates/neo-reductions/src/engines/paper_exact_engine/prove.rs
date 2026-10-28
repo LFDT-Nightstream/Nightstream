@@ -17,8 +17,7 @@ use super::paper_joint::{
 use super::transcript::{absorb_outputs, assemble_proof, bind_and_sample, prove_sumcheck};
 use super::PaperMatrixRows;
 
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn paper_exact_prove_with_trace<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub(crate) fn paper_exact_prove_with_trace(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,
@@ -26,7 +25,6 @@ pub(crate) fn paper_exact_prove_with_trace<L: neo_ccs::traits::SModuleHomomorphi
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    _commitment: &L,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof, ProtocolTrace), PiCcsError> {
     prove_with_rows_inner(
         transcript,
@@ -40,8 +38,6 @@ pub(crate) fn paper_exact_prove_with_trace<L: neo_ccs::traits::SModuleHomomorphi
     )
 }
 
-/// Direct paper evaluation of a header with circuit-owned original matrix rows.
-#[allow(clippy::too_many_arguments)]
 pub fn paper_exact_prove_with_rows(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -64,7 +60,6 @@ pub fn paper_exact_prove_with_rows(
     )
 }
 
-#[allow(clippy::too_many_arguments)]
 fn prove_with_rows_inner(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
@@ -89,12 +84,12 @@ fn prove_with_rows_inner(
     validate_public_instances(structure, fresh_claims, running_claims)?;
     let dims = dimensions(params, structure, fresh_claims.len(), running_claims.len())?;
     for witness in fresh_witnesses {
-        validate_fresh_assignment(&witness.Z, structure.m, dims)?;
+        validate_fresh_assignment(&witness.Z, structure.m(), dims)?;
     }
     let prior_point = paper_prior_point(running_claims, dims.variables)?;
     let mut trace = ProtocolTrace::default();
     let challenges = bind_and_sample(transcript, &mut trace, structure, fresh_claims, running_claims, dims)?;
-    let initial = initial_claim(structure, &challenges, fresh_claims.len(), running_claims)?;
+    let initial = initial_claim(structure, &challenges, running_claims)?;
     let mut oracle = match rows {
         Some(rows) => PaperJointOracle::from_rows(
             structure,
@@ -149,7 +144,7 @@ fn prove_with_rows_inner(
     Ok((outputs, proof, trace))
 }
 
-pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
+pub fn paper_exact_prove(
     transcript: &mut Poseidon2Transcript,
     params: &NeoParams,
     structure: &CcsStructure<F>,
@@ -157,7 +152,6 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
     fresh_witnesses: &[CcsWitness<F>],
     running_claims: &[CeClaim<Cmt, F, K>],
     running_witnesses: &[Mat<F>],
-    commitment: &L,
 ) -> Result<(Vec<CeClaim<Cmt, F, K>>, PiCcsProof), PiCcsError> {
     let (outputs, proof, _) = paper_exact_prove_with_trace(
         transcript,
@@ -167,7 +161,6 @@ pub fn paper_exact_prove<L: neo_ccs::traits::SModuleHomomorphism<F, Cmt>>(
         fresh_witnesses,
         running_claims,
         running_witnesses,
-        commitment,
     )?;
     Ok((outputs, proof))
 }

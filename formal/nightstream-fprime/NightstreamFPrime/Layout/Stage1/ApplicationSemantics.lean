@@ -141,7 +141,6 @@ private theorem outputState_eq_output_slice
           (List.drop currentWordStart (List.ofFn values)) :=
       (drop_take_ofFn values fits).symm
 
-/-- The application input wires are exactly the typed prior state `z_i`. -/
 theorem inputState_eq_current
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (preimage : HashPreimage
@@ -163,8 +162,6 @@ theorem inputState_eq_current
   rw [representedDirect]
   exact serializePreimage_current_slice preimage fixed
 
-/-- The application output wires are exactly the typed next state
-`z_{i+1}`. -/
 theorem outputState_eq_current
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (preimage : HashPreimage

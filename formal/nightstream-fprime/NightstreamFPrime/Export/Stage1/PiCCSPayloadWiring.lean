@@ -4,8 +4,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSAssignmentSoundness
 /-!
 Owns compilation of the declared PiCCS action payload through the parent's
 ordinary source map. The result reads existing sparse forms and adds no
-payload variables or copy rows. The active Poseidon plan must still select
-this wiring before the independent payload allocation can be removed.
+payload variables or copy rows.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPayloadWiring
@@ -20,8 +19,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 
-/-- The action expressions use source indices before the physical column
-permutation; the parent map already owns their physical source forms. -/
 def sourceMap {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth) :
     SourceCompiler.SourceMap Spartan.SourceColumnCount logicalWidth where
@@ -37,8 +34,6 @@ theorem sourceMap_preserves {program : Program} {logicalWidth : Nat}
   exact PiCCSAssignmentSoundness.decodedEnv_preserves geometry assignment
     ⟨Spartan.sourceToSpartan column.val, Spartan.sourceToSpartan_lt _ column.isLt⟩
 
-/-- Fail-closed affine compilation of one canonical payload word. The fixed
-one-coordinate supplies constants; every other value is a parent source form. -/
 def form? {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (index : Fin PiCCSActionPayloadBlock.payloadCount) :
@@ -49,7 +44,6 @@ def form? {program : Program} {logicalWidth : Nat}
     (PiCCSOrdinaryRetainedGeometry.oneColumn geometry)
     lowered.combination lowered.bounded)
 
-/-- Every declared payload word has a bounded affine source representation. -/
 theorem lowering?_isSome (index : Fin PiCCSActionPayloadBlock.payloadCount) :
     (SourceCompiler.lowerAffine? Spartan.SourceColumnCount
       (PiCCSActionPayloadBlock.payloadExpression index)).isSome := by
@@ -119,7 +113,6 @@ theorem form?_isSome {program : Program} {logicalWidth : Nat}
   rw [lowering?_eq_some_lowering]
   rfl
 
-/-- Total selection is justified by affine compilation of the declared word. -/
 def form {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (index : Fin PiCCSActionPayloadBlock.payloadCount) : SparseForm logicalWidth :=
@@ -135,7 +128,6 @@ theorem form?_eq_some_form {program : Program} {logicalWidth : Nat}
       simp only [found, Option.isSome_none, Bool.false_eq_true] at possible
   | some value => simp [form, found]
 
-/-- Exact ordered form used by the matrix IR, including the constant entry. -/
 theorem form_eq_compileCombination {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (index : Fin PiCCSActionPayloadBlock.payloadCount) :
@@ -148,8 +140,6 @@ theorem form_eq_compileCombination {program : Program} {logicalWidth : Nat}
   rw [lowering?_eq_some_lowering] at found
   exact (Option.some.inj found).symm
 
-/-- The compiled payload evaluates to the exact declared action expression
-for every assignment. No raw packet, encoding, or coherence premise is used. -/
 theorem form?_eval {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (index : Fin PiCCSActionPayloadBlock.payloadCount)
@@ -178,8 +168,6 @@ theorem form?_eval {program : Program} {logicalWidth : Nat}
       exact SourceCompiler.lowerAffine?_sound
         (PiCCSActionPayloadBlock.payloadExpression index) lowered loweredEq _
 
-/-- Each selected parent form reads the exact action expression for every
-assignment with its required constant coordinate. -/
 theorem form_eval {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (index : Fin PiCCSActionPayloadBlock.payloadCount)
@@ -191,8 +179,6 @@ theorem form_eval {program : Program} {logicalWidth : Nat}
   form?_eval geometry index (form geometry index)
     (form?_eq_some_form geometry index) assignment one
 
-/-- Canonical construction reads the same parent values through the existing
-source-map preservation proof. The payload has no separate allocation. -/
 theorem form_eval_source {program : Program} {logicalWidth : Nat}
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (index : Fin PiCCSActionPayloadBlock.payloadCount)

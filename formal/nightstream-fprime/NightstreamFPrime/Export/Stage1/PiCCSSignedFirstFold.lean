@@ -1,9 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
 import NightstreamFPrime.Export.Stage1.PiCCSNormCache
 
-/-! First prefix fold from the original signed-unit code reader. Nine calls
-to the existing interpolation formula are prepared once; the output retains
-the existing Array K type and every pair of the explicit input prefix. -/
+/-! First prefix fold from the original signed-unit code reader. -/
 
 set_option autoImplicit false
 
@@ -13,8 +11,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-- The existing negative/zero/positive code order gives exactly nine pairs.
-The challenge and original PrefixFold interpolation are the only arithmetic. -/
 def prepare (challenge : K) : Vector (Vector K 3) 3 :=
   Vector.ofFn fun low => Vector.ofFn fun high =>
     PrefixFold.interpolate extensionOps challenge
@@ -27,7 +23,6 @@ private theorem get_ofFn {Alpha : Type} {count : Nat}
   change (Vector.ofFn values)[index.val] = values index
   rw [Vector.getElem_ofFn]
 
-/-- Every table entry is the original interpolation of the decoded codes. -/
 theorem prepare_value (challenge : K) (low high : Fin 3) :
     ((prepare challenge).get low).get high =
       PrefixFold.interpolate extensionOps challenge
@@ -35,8 +30,6 @@ theorem prepare_value (challenge : K) (low high : Fin 3) :
         (K.embed (PiCCSNormCache.signedValue high)) := by
   simp only [prepare, get_ofFn]
 
-/-- Fill the existing output array by table lookup. A missing high endpoint
-uses the existing zero code 1. No reader call is made for that absent endpoint. -/
 def foldOne (table : Vector (Vector K 3) 3) (count : Nat)
     (codes : Nat → Fin 3) : Array K :=
   Array.ofFn fun pair : Fin ((count + 1) / 2) =>
@@ -55,9 +48,6 @@ private theorem decoded_getD (count : Nat) (codes : Nat → Fin 3) (index : Nat)
   · simp only [dif_neg inside, if_neg inside, Option.getD_none]
     rfl
 
-/-- Exact equality of complete arrays, including empty input, an odd final
-pair and every supplied tail coordinate. No source-value premise is needed:
-the reference array is the direct decoding of the same original code reader. -/
 theorem foldOne_prepare (challenge : K) (count : Nat) (codes : Nat → Fin 3) :
     foldOne (prepare challenge) count codes =
       PrefixFold.foldOne extensionOps

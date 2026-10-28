@@ -4,10 +4,6 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperCompleteness
 import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 import NightstreamFPrime.Spec.SumCheck.FixedPhase
 
-/-! Provenance: adapted from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/Nifs/PaperNonInteractive/Types.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; split into the
-SuperNeo v1.2 Pad and 4-matrix evaluation families. -/
-
 /-!
 Typed public data and deterministic dataflow for the paper SuperNeo NIFS.
 
@@ -19,25 +15,6 @@ messages; the exact paper statement; verifier-owned absorption of the complete
 public NIFS input before any challenge; verifier-derived `Pi_CCS` and
 `Pi_RLC` challenges; the computed combined parent; and the computed running
 output.
-
-Does not own: soundness, completeness, extraction, concrete Poseidon2/Ajtai,
-Rust, R1CS, artifacts, minimality, or costs.
-
-Emits constraints: no.
-
-No prover field carries alpha, gamma, a SumCheck point, a `Pi_RLC` challenge,
-the combined parent, a terminal value, or an acceptance bit.
-
-| Protocol phase | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| NIFS input | separate the fresh CCS batch from the running CE batch | direct dataflow | `Fresh`, `Running` |
-| prover message | carry only joint-SumCheck messages, the complete `Pi_CCS` output, and `Pi_DEC` children | direct dataflow | `Proof` |
-| statement | reconstruct the paper source statement from verifier-owned key and public claims | computed | `Key.statement` |
-| non-interactive input | absorb the complete running/fresh public pair before any challenge | computed | `Key.publicInputState` |
-| `Pi_CCS` | replay all coins and the complete output absorption in protocol order | computed | `Key.piCcsExecution`, `Key.piCcsProbe` |
-| `Pi_RLC` | sample after `Pi_CCS` and compute the combined parent | computed | `Key.piRlcChallenges`, `Key.parent` |
-| `Pi_DEC` | form the operational parent/children attempt | computed/direct dataflow | `Key.piDecAttempt` |
-| NIFS output | derive the running result from the checked child messages | computed | `Key.output` |
 -/
 
 set_option autoImplicit false
@@ -54,8 +31,6 @@ open PaperLinearAlgebra
 
 universe uExtension uCommitment uPublicInput uScalar uState
 
-/-- Public fresh CCS claims.  The common relation structure and fresh norm
-stage are fixed by the verifier key and therefore are not repeated here. -/
 structure Fresh
     (Commitment : Type uCommitment)
     (PublicInput : Type uPublicInput)
@@ -63,9 +38,6 @@ structure Fresh
   commitments : Fin shape.freshCount -> Commitment
   publicInputs : Fin shape.freshCount -> PublicInput
 
-/-- Public running CE claims in the exact paper coefficient layout.  One
-shared point and one complete matrix/coefficient family per running claim
-replace an untyped array plus duplicated structure fields. -/
 structure Running
     (Extension : Type uExtension)
     (Commitment : Type uCommitment)
@@ -76,7 +48,6 @@ structure Running
   publicInputs : Fin shape.runningCount -> PublicInput
   evaluations : Fin shape.runningCount -> EvaluationFamily Extension shape
 
-/-- The sole prover message.  All challenge and parent data are absent. -/
 structure Proof
     (Extension : Type uExtension)
     (Commitment : Type uCommitment)
@@ -88,17 +59,6 @@ structure Proof
   piDecCommitments : Fin shape.runningCount -> Commitment
   piDecEvaluations : Fin shape.runningCount -> EvaluationFamily Extension shape
 
-/-- Static paper verifier key and permitted primitive contracts.
-
-The transcript oracle is abstract but its typed input/order is fixed by
-`TranscriptReplay`. Before that replay starts, `absorbPublicInput` receives
-the complete running/fresh public pair and the key-owned initial state.
-`piRlcResponse` starts only from the state obtained after the complete
-`Pi_CCS` output has been absorbed.  Returning a valid strong-set element is
-the paper's sampling-set contract; a bounded concrete sampler may later add
-its explicit shortfall event.  These abstract functions may still ignore or
-collide on their inputs; the random-oracle boundary names those events
-separately. -/
 structure Key
     (Extension : Type uExtension)
     (Commitment : Type uCommitment)
@@ -133,9 +93,6 @@ structure Key
       degreeBound
   constantLaw : ConstantTermLaw baseOps matrixSource.kernel
   challengeSetSize : Nat
-  /-- Canonical semantic view used by `Pi_RLC`, `Pi_DEC`, and the public NIFS
-  relation. It may normalize malformed layout fields, but it must agree with
-  the paper relation at `matrixSource`. -/
   piRlcSemantics : RelationSemantics
     (RelationSource shape columns blockCount)
     (Assignment F columns)
@@ -143,10 +100,6 @@ structure Key
     (CubePoint Extension shape.cubeVariables)
     (EvaluationFamily Extension shape)
     Commitment
-  /-- The authority-bearing opening fields of the semantic adapter must agree
-  with the paper relation at every norm bound. A concrete adapter may change
-  evaluation representation, but it cannot change commitment, public input,
-  or norm membership. -/
   openingAgreement : forall
       (normBound : Nat)
       (commitment : Commitment)
@@ -174,9 +127,6 @@ structure Key
           params statement assignment <->
         PiRLC.PaperCorrections.CorrectedAmbientHolds
           piRlcSemantics params statement assignment)
-  /-- The concrete evaluator must agree with the paper evaluator at the
-  verifier-owned matrix source. This field also prevents an adapter from
-  changing which evaluation points are valid. -/
   evaluationAgreement : forall
       (assignment : Assignment F columns)
       (point : CubePoint Extension shape.cubeVariables),
@@ -232,8 +182,6 @@ structure Key
     Running Extension Commitment PublicInput shape ->
     Fresh Commitment PublicInput shape ->
     State
-  /-- Authority-bearing post-SumCheck absorption. It receives the complete
-  paper `y'` family, not the scalar projection used by the terminal check. -/
   absorbPiCcsOutput : State ->
     FullOutputCoordinates.FullOutput Extension shape -> State
   piRlcResponse : State -> Option (Fin arity.total -> Scalar)
@@ -243,8 +191,6 @@ structure Key
 
 namespace Key
 
-/-- The one v1.2 relation source selected by the key. Canonical Pad comes
-from `cubeLayout`; all CCS matrices come from `matrixSource`. -/
 def relationSource
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -259,7 +205,6 @@ def relationSource
   cubeLayout := key.cubeLayout
   matrixSource := key.matrixSource
 
-/-- Exact equality between the joint paper source count and `K+k`. -/
 theorem total_eq_sourceCount
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -274,8 +219,6 @@ theorem total_eq_sourceCount
   simp only [BatchArity.total, Shape.sourceCount]
   rw [key.freshCount_eq, key.runningCount_eq]
 
-/-- Exact equality between the public running carrier and the `Pi_DEC`
-output arity. -/
 theorem runningCount_eq_outputCount
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -289,7 +232,6 @@ theorem runningCount_eq_outputCount
     shape.runningCount = key.params.k :=
   key.outputCount_eq.symm
 
-/-- Canonical relation semantics selected by the key. -/
 def semantics
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -302,7 +244,6 @@ def semantics
       columns blockCount degreeBound) :=
   key.piRlcSemantics
 
-/-- Public paper statement reconstructed without a witness. -/
 def statement
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -328,8 +269,6 @@ def statement
     (running.evaluations coordinate.running).matrix coordinate.matrix
       coordinate.coefficient
 
-/-- The common fixed SumCheck width is exactly the syntactic degree selected
-by this key's paper constraint polynomial. -/
 theorem statement_sumcheckDegreeBound_eq
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -346,8 +285,6 @@ theorem statement_sumcheckDegreeBound_eq
       degreeBound := by
   exact key.degreeBoundExact
 
-/-- Exact key selection supplies the older representability inequality as a
-derived fact. -/
 theorem statement_sumcheckDegreeBound_le
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -364,8 +301,6 @@ theorem statement_sumcheckDegreeBound_le
       degreeBound := by
   exact Nat.le_of_eq (key.statement_sumcheckDegreeBound_eq running fresh)
 
-/-- Transcript state after the verifier has absorbed the complete public NIFS
-input.  This operation precedes every `Pi_CCS` challenge. -/
 def publicInputState
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -380,7 +315,6 @@ def publicInputState
     (fresh : Fresh Commitment PublicInput shape) : State :=
   key.absorbPublicInput key.initialTranscriptState running fresh
 
-/-- Minimal certificate checked by the joint-polynomial verifier. -/
 def piCcsCertificate
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -435,7 +369,6 @@ def piCcsCertificate
       (proof.piCcsRounds round).toMessage := by
   rfl
 
-/-- The same prover data as a ghost-free fixed-width SumCheck certificate. -/
 def piCcsFixedCertificate
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -452,8 +385,6 @@ def piCcsFixedCertificate
     SumCheck.Finite.FixedPhase.Certificate Extension degreeBound where
   rounds := List.ofFn proof.piCcsRounds
 
-/-- Exact verifier-derived `Pi_CCS` replay followed by the key-owned complete
-`y'` absorption. -/
 structure PiCcsExecution
     (Extension : Type uExtension)
     (State : Type uState)
@@ -485,9 +416,6 @@ def piCcsExecution
     outgoingState :=
       key.absorbPiCcsOutput replay.coins.finalState proof.piCcsOutput }
 
-/-- The PiCCS execution coin record is the transcript derivation from the
-key-owned statement and the proof's round messages. This projection avoids
-unfolding the complete execution record in concrete refinements. -/
 theorem piCcsExecution_coins_eq_derive
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -511,8 +439,6 @@ theorem piCcsExecution_coins_eq_derive
           FiatShamir.Certificate Extension shape) := by
   rfl
 
-/-- The PiCCS outgoing state absorbs the complete prover output after the
-last verifier-derived round state. -/
 theorem piCcsExecution_outgoingState_eq_absorbPiCcsOutput
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -532,9 +458,6 @@ theorem piCcsExecution_outgoingState_eq_absorbPiCcsOutput
         proof.piCcsOutput := by
   rfl
 
-/-- The coefficient-complete public-coin probe represented by the one NIFS
-message.  Its coins and finite certificate are verifier-derived projections;
-only `piCcsOutput` is supplied by the prover. -/
 def piCcsProbe
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -559,8 +482,6 @@ def piCcsProbe
     fullOutput := proof.piCcsOutput
   }
 
-/-- Coefficient-complete public output of `Pi_CCS`, indexed in the exact
-`K+k` order expected by `Pi_RLC`. -/
 def piCcsOutputs
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -583,8 +504,6 @@ def piCcsOutputs
       (key.piCcsProbe running fresh proof)
       (Fin.cast key.total_eq_sourceCount source)
 
-/-- `Pi_RLC` challenges begin at the transcript state reached only after the
-complete joint output has been absorbed. -/
 def piRlcChallenges
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -602,7 +521,6 @@ def piRlcChallenges
   key.piRlcResponse
     (key.piCcsExecution running fresh proof).outgoingState
 
-/-- Verifier-computed `CE(B)` parent for one successful challenge batch. -/
 def parentForChallenges
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -622,7 +540,6 @@ def parentForChallenges
     (key.piCcsOutputs running fresh proof)
     challenges
 
-/-- The parent exists only when the verifier-owned sampler succeeds. -/
 def parent
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -657,7 +574,6 @@ def parent
       (key.piCcsExecution running fresh proof).coins.roundPoint := by
   rfl
 
-/-- Operational `Pi_DEC` message boundary over the verifier-computed parent. -/
 def piDecAttemptForParent
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -683,7 +599,6 @@ def piDecAttemptForParent
     evaluations := #[proof.piDecEvaluations (Fin.cast key.outputCount_eq child)]
   }
 
-/-- The PiDEC attempt exists only after successful PiRLC sampling. -/
 def piDecAttempt
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -700,7 +615,6 @@ def piDecAttempt
   (key.parent running fresh proof).map
     (key.piDecAttemptForParent proof)
 
-/-- Public running product from one successful checked PiDEC split. -/
 def outputForAttempt
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -728,8 +642,6 @@ def outputForAttempt
     evaluations := proof.piDecEvaluations
   }
 
-/-- The running output exists only after successful PiRLC sampling and the
-strict PiDEC parent-bound check. -/
 def output
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}

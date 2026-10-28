@@ -164,6 +164,7 @@ def circuit (i : AppInterface p app) : FormalCircuit where
 def program : Application.Program where
   witnessWordCount := Words.count p app.toAppShape
   step := step p app
+  step_length := fun _ _ _ => stateWords_length _ _
   valid := valid p app
   circuit := circuit p app
   spec_iff := fun _ _ _ => Iff.rfl

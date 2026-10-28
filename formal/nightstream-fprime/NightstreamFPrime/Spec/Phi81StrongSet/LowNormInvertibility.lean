@@ -14,21 +14,10 @@ coefficients at most `bound` and `3 * bound^2 < q` has a two-sided inverse
 for the executed `ringFMul`, and the proof `lowNormInvertibility` of the
 `LowNormInvertibility` statement.
 
-Does not own: the challenge set, its difference bound, or Fiat--Shamir.
-
 Import boundary: this module loads Mathlib field theory. The Spec core
 (`Phi81StrongSet`, `PiRLCAlgebra.Challenge`, `PiRLCAlgebra.ForkStrongSet`)
 does not import it and stays free of Mathlib; only consumers that already
 load Mathlib import this module and supply `lowNormInvertibility`.
-
-Proof. `omega = 2^32 - 1` is a primitive cube root of unity in `F_q`. Since
-`gcd(9, q - 1) = 3`, `omega` and `omega^2` are not cubes, so both factors of
-`Phi81 = (X^27 - omega) (X^27 - omega^2)` are irreducible (Kummer). Write
-`a = A + X^27 B` with `deg A, deg B < 27`. If `X^27 - c` divides `a`, then
-`A + c B = 0`, so each coefficient pair gives `A_k^2 - A_k B_k + B_k^2 = 0`
-mod `q`. Over the integers this value lies in `[0, 3 bound^2]`, below `q`, and
-it is zero only for `A_k = B_k = 0`. Therefore `a` is coprime to `Phi81`, and
-the Bezout cofactor gives the inverse. No conjecture from LS18 is used.
 -/
 
 namespace NightstreamFPrime.Spec.Phi81StrongSet
@@ -41,9 +30,6 @@ private abbrev Base := ZMod goldilocksModulus
 
 local instance : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
 
-/-! ## A cube root of unity that is not a cube -/
-
-/-- `2^64 mod q`. -/
 private def cubeRoot : Base := ((4294967295 : Nat) : Base)
 
 private theorem cubeRoot_cube : cubeRoot ^ 3 = 1 := by
@@ -109,8 +95,6 @@ private theorem modulus_eq_product :
   unfold RingFPolynomial.modulus ringDegree ringMiddleDegree
   ring
 
-/-! ## Coefficient halves `a = A + X^27 B` -/
-
 private noncomputable def coefficientPolynomial {count : Nat} (coefficient : Fin count → Base) :
     Polynomial Base :=
   ∑ index : Fin count, C (coefficient index) * X ^ index.val
@@ -158,9 +142,6 @@ private theorem toPolynomial_split (value : RingF) :
     · have high : ¬index - 27 < 27 := by change ¬index < 54 at inside; omega
       simp [low, inside, high]
 
-/-! ## Norm argument for one coefficient pair -/
-
-/-- Signed representative with absolute value `min(v, q - v)`. -/
 private def centeredLift (value : Base) : Int :=
   if value.val ≤ goldilocksModulus - value.val then value.val
   else (value.val : Int) - goldilocksModulus
@@ -181,8 +162,6 @@ private theorem centeredLift_abs_le (value : Base) {bound : Nat}
   rw [abs_le]
   split <;> constructor <;> omega
 
-/-- `A^2 - A B + B^2` is positive definite, so a multiple of `q` below `q`
-forces both integers to zero. -/
 private theorem int_pair_eq_zero {left right : Int} {bound : Nat}
     (small : 3 * bound ^ 2 < goldilocksModulus)
     (leftBound : |left| ≤ bound) (rightBound : |right| ≤ bound)
@@ -202,8 +181,6 @@ private theorem int_pair_eq_zero {left right : Int} {bound : Nat}
   subst right
   exact ⟨by nlinarith [sq_nonneg left], rfl⟩
 
-/-- A small pair cannot satisfy `a + c b = 0` for a root `c` of `X^2 + X + 1`
-unless both entries vanish. -/
 private theorem pair_eq_zero {c : Base} (root : c ^ 2 + c + 1 = 0) {bound : Nat}
     (small : 3 * bound ^ 2 < goldilocksModulus) {left right : Base}
     (leftSmall : min left.val (goldilocksModulus - left.val) ≤ bound)
@@ -221,9 +198,6 @@ private theorem pair_eq_zero {c : Base} (root : c ^ 2 + c + 1 = 0) {bound : Nat}
   · rw [← centeredLift_cast left, zero.1, Int.cast_zero]
   · rw [← centeredLift_cast right, zero.2, Int.cast_zero]
 
-/-! ## Invertibility -/
-
-/-- A small value divisible by one factor `X^27 - c` of `Phi81` is zero. -/
 private theorem eq_zero_of_factor_dvd {c : Base} (root : c ^ 2 + c + 1 = 0)
     {bound : Nat} (small : 3 * bound ^ 2 < goldilocksModulus) {value : RingF}
     (norm : ∀ position, centeredMagnitude (value position) ≤ bound)
@@ -322,7 +296,6 @@ theorem invertible_of_lowNorm (value : RingF) (bound : Nat)
     exact_mod_cast (show 0 < ringDegree by decide)
   exact ⟨inverse, by rw [RingFLaws.ringFMul_comm]; exact left, left⟩
 
-/-- The `LowNormInvertibility` statement of the Mathlib-free Spec core. -/
 theorem lowNormInvertibility : LowNormInvertibility :=
   ⟨fun value bound nonzero norm small => invertible_of_lowNorm value bound nonzero norm small⟩
 

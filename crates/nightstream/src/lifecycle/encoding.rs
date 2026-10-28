@@ -31,7 +31,7 @@ const WORD: usize = 8;
 
 #[derive(Debug, thiserror::Error)]
 #[error("selected proof bytes: {0}")]
-pub struct ProofCodecError(&'static str);
+pub struct ProofCodecError(pub(super) &'static str);
 
 /// Sizes that the prepared circuit fixes.
 struct Shape {
@@ -79,12 +79,12 @@ impl Shape {
 impl PreparedLifecycle {
     fn proof_shape(&self) -> Result<Shape, ProofCodecError> {
         let public_width = self.package.logical_public_input_count();
-        if public_width % D != 0 {
+        if !public_width.is_multiple_of(D) {
             return Err(ProofCodecError("public width is not whole ring elements"));
         }
         Ok(Shape {
             public_width,
-            witness_columns: self.structure.m.div_ceil(D),
+            witness_columns: self.structure.m().div_ceil(D),
             matrices: self.structure.t(),
         })
     }
@@ -164,7 +164,6 @@ impl PreparedLifecycle {
                 adv: None,
             },
             witness: CcsWitness {
-                w: Vec::new(),
                 Z: input.witness(&shape)?,
             },
         };
@@ -198,10 +197,10 @@ impl Writer {
     }
 
     fn commitment(&mut self, commitment: &Commitment) -> Result<(), ProofCodecError> {
-        if commitment.d != D || commitment.kappa != KAPPA || commitment.data.len() != D * KAPPA {
+        if commitment.d() != D || commitment.kappa() != KAPPA || commitment.data().len() != D * KAPPA {
             return Err(ProofCodecError("commitment shape"));
         }
-        self.fields(&commitment.data);
+        self.fields(commitment.data());
         Ok(())
     }
 
@@ -299,11 +298,7 @@ impl<'a> Reader<'a> {
     }
 
     fn commitment(&mut self) -> Result<Commitment, ProofCodecError> {
-        Ok(Commitment {
-            d: D,
-            kappa: KAPPA,
-            data: self.fields(D * KAPPA)?,
-        })
+        Ok(Commitment::new(KAPPA, self.fields(D * KAPPA)?).expect("commitment shape"))
     }
 
     fn claim(&mut self, shape: &Shape) -> Result<CeClaim, ProofCodecError> {

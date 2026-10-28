@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Compare the complete independently produced PiCCS input, phase and proof words."""
 
 import copy
 import json

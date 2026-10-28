@@ -11,6 +11,8 @@ import NightstreamFPrime.Lifecycle.RandomOracleExtraction
 import NightstreamFPrime.Lifecycle.RandomOracleUniqueness
 import NightstreamFPrime.Lifecycle.RandomOracleKnowledge
 import NightstreamFPrime.Lifecycle.RandomOracleBinding
+import NightstreamFPrime.Lifecycle.RandomOracleReduction
+import NightstreamFPrime.Lifecycle.RandomOracleSolver
 import NightstreamFPrime.Lifecycle.RandomOracleFidelity
 import NightstreamFPrime.Lifecycle.NifsProfile
 import NightstreamFPrime.Lifecycle.Nifs.InteractiveCompleteness

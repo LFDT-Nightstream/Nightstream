@@ -1,6 +1,3 @@
-// One-joint padded-row PiCCS evaluator.
-// The host owns Fiat-Shamir and checks every returned round message.
-
 inline ulong joint_mask_digit(
     device const ulong *masks,
     ulong blocks,
@@ -277,7 +274,7 @@ kernel void joint_round_partials(
     Kx prior_low_factor = Kx{gl_from_word(shape[20]), gl_from_word(shape[21])};
     Kx prior_slope_factor = Kx{gl_from_word(shape[22]), gl_from_word(shape[23])};
     uint range_base = (uint)shape[24];
-    bool zero_application_padding = shape[25] != 0;
+    bool f_vanishes_at_zero = shape[25] != 0;
     ulong pair = shape[27] + (ulong)local_pair;
     ulong pair_count = shape[28];
     ulong application_row_offset = shape[29];
@@ -297,10 +294,8 @@ kernel void joint_round_partials(
             inner[coefficient] = Kx{0, 0};
         }
 
-        // Beyond the application rows, every matrix coordinate is zero.
-        // Skip the polynomial only when the host established f(0) == 0.
         for (ulong source = 0;
-             source < fresh_count && (low_index < application_len || !zero_application_padding);
+             source < fresh_count && (low_index < application_len || !f_vanishes_at_zero);
              ++source) {
             Kx source_weight = load_k(weights, source);
             for (ulong term = 0; term < term_count; ++term) {
@@ -357,9 +352,6 @@ kernel void joint_round_partials(
                 range_base - 1,
                 assignment_len);
             Kx slope = kx_sub(high, low);
-            // Base-table values are signed digits, hence roots of the range
-            // polynomial. Equal endpoints give the zero polynomial. A pair
-            // of zero extension values stays zero in every later round too.
             if ((base_round && low.c0 == high.c0 && low.c1 == high.c1)
                 || ((low.c0 | low.c1 | high.c0 | high.c1) == 0)) {
                 continue;

@@ -14,13 +14,9 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Circuit.Quadratic
 
-/-- A symbolic expression is not a literal field constant. -/
 def Nonconstant (expression : Expr) : Prop :=
   ∀ value, expression ≠ .const value
 
-/-- The two coordinates contain no multiplication nodes and are not literal
-constants. This is the exact syntactic boundary needed for stable Horner
-lowering costs. -/
 structure KExprLinear (value : KExpr) : Prop where
   c0_mulCount : R1CS.mulCount value.c0 = 0
   c1_mulCount : R1CS.mulCount value.c1 = 0
@@ -71,8 +67,6 @@ theorem lowerAffine_mul_eq_none {left right : Expr}
   cases left <;> cases right <;>
     simp_all [Nonconstant, R1CS.lowerAffine]
 
-/-- A zero assertion `left * right` with non-constant affine factors lowers to
-one rank-one row. -/
 theorem directConstraint_mul_ne_none {left right : Expr}
     (leftAffine : R1CS.IsAffine left) (rightAffine : R1CS.IsAffine right)
     (leftNonconstant : Nonconstant left) (rightNonconstant : Nonconstant right) :
@@ -105,7 +99,6 @@ theorem constraintRowCount_mul {left right : Expr}
       rightAffine leftNonconstant rightNonconstant)
   | some _ => rfl
 
-/-- A recipe that is a sum of two non-affine parts has no one-row lowering. -/
 theorem directConstraint_sub_add_eq_none
     (output : Nat) (left right : Expr)
     (leftNone : R1CS.lowerAffine left = none)
@@ -218,8 +211,6 @@ private theorem c1_rowCount_eq (output : Nat) (left right : KExpr)
   rw [c1_directConstraint_eq_none output left right leftLinear rightLinear]
   rw [c1_constraint_mulCount_eq output left right leftLinear rightLinear]
 
-/-- Cost of the two-cell product whose recipes are the nested components of
-`KExpr.mul`. Only gadgets that still store a product in this form use it. -/
 theorem nestedMulRecipes_totalFreshCount (output : Nat) (left right : KExpr)
     (leftLinear : KExprLinear left)
     (rightLinear : KExprLinear right) :
@@ -242,8 +233,6 @@ theorem nestedMulRecipes_totalRowCount (output : Nat) (left right : KExpr)
   rw [c0_rowCount_eq output left right leftLinear rightLinear,
     c1_rowCount_eq (output + 1) left right leftLinear rightLinear]
 
-/-- Each of the three stored-product recipes is one rank-one row when both
-operands are affine. -/
 theorem mulRecipes_direct (output : Nat) (left right : KExpr)
     (leftAffine : R1CS.IsAffine left.c0 ∧ R1CS.IsAffine left.c1)
     (rightAffine : R1CS.IsAffine right.c0 ∧ R1CS.IsAffine right.c1) :
@@ -261,7 +250,6 @@ theorem mulRecipes_direct (output : Nat) (left right : KExpr)
         (R1CS.IsAffine.const_mul _ (R1CS.isAffine_var output))),
     trivial⟩
 
-/-- Both coordinates are affine expressions. -/
 def KAffine (value : KExpr) : Prop :=
   R1CS.IsAffine value.c0 ∧ R1CS.IsAffine value.c1
 
@@ -269,7 +257,6 @@ theorem KExprLinear.kAffine {value : KExpr} (linear : KExprLinear value) :
     KAffine value :=
   linear.isAffine
 
-/-- The accumulator of an affine coefficient list stays affine. -/
 theorem compile_output_kAffine (start : Nat) (point : KExpr) :
     ∀ coefficients : List KExpr,
       (∀ coefficient ∈ coefficients, KAffine coefficient) →
@@ -284,7 +271,6 @@ theorem compile_output_kAffine (start : Nat) (point : KExpr) :
         R1CS.IsAffine.add (coefficientsAffine coefficient (by simp)).2
           (R1CS.isAffine_var _)⟩
 
-/-- Every Horner recipe over affine operands is one rank-one row. -/
 theorem compile_recipesDirect (start : Nat) (point : KExpr)
     (coefficients : List KExpr) (pointAffine : KAffine point)
     (coefficientsAffine : ∀ coefficient ∈ coefficients,

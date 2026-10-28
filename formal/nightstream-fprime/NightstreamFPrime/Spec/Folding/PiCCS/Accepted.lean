@@ -27,10 +27,6 @@ Constraint groups:
 
 Parent coverage:
 - `Nifs.PaperNonInteractive.piCcsCheck`.
-
-`Accepted` is an abbreviation of the production check. `Coverage` is only a
-proof view used to audit that check. It is not a second verifier path and
-emits no circuit constraints.
 -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS
@@ -42,7 +38,6 @@ open NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive
 
 universe uExtension uCommitment uPublicInput uScalar uState
 
-/-- The exact production PiCCS acceptance predicate. -/
 abbrev Accepted
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -59,8 +54,6 @@ abbrev Accepted
     (proof : Proof Extension Commitment shape degreeBound) : Prop :=
   piCcsCheck key running fresh proof = true
 
-/-- Mechanical coverage view of the canonical production check. Every field
-is either a definitional binding theorem or the one accepted chain. -/
 structure Coverage
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}
@@ -116,8 +109,6 @@ structure Coverage
         (key.piCcsExecution running fresh proof).coins.roundPoint
         (key.piCcsCertificate running fresh proof).output)
 
-/-- The proof-only coverage view is exactly equivalent to production
-acceptance. No additional predicate can make the verifier accept. -/
 theorem accepted_iff_coverage
     {Extension : Type uExtension}
     {Commitment : Type uCommitment}

@@ -4,7 +4,7 @@ import NightstreamFPrime.Export.Stage1.NextPreimageDirectPlan
 /-!
 Owns the row-derived counter and initial-state equations on the actual pilot
 preimages. The increment is an equality in Goldilocks; this module makes no
-natural-number non-wrap claim and assumes no canonical assignment encoding.
+natural-number non-wrap claim.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualNextPreimage
@@ -19,8 +19,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 variable {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
 
-/-- The five accepted next-preimage rows increment the actual hashed counter
-in the field and preserve all four actual hashed initial-state words. -/
 theorem rowsZero_implies_actualNextPreimage
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)
@@ -91,10 +89,6 @@ theorem rowsZero_implies_actualNextPreimage
       NextPreimageInputs.priorInitialStateSource, Nat.add_assoc] using
       specification.initialState index
 
-/-- The decoded prior counter, incremented as a natural number and encoded
-back into the field, is the actual next counter word. All decoded initial
-state words are preserved. This does not assert a natural-number non-wrap
-property for the decoded output counter. -/
 theorem rowsZero_implies_decodedHeaders
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
     (assignment : Assignment F logicalWidth)

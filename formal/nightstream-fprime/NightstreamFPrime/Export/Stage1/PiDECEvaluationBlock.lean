@@ -3,9 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 
 /-!
-One sparse Phi81 row restricted to one complete carrier block. The stored
-bar transform is shared by all sixteen child products. No point weighting,
-row accumulation, expected evaluation, or IO is defined here.
+One sparse Phi81 row restricted to one complete carrier block.
 -/
 
 set_option autoImplicit false
@@ -19,7 +17,6 @@ open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArith
   (StoredRing)
 open NightstreamFPrime.Layout.ProductionRelation
 
-/-- A stored entry updates this block only. Repeated columns are retained. -/
 private def addEntry {columns : Nat} (block : Nat)
     (initial : StoredRing) (entry : SparseEntry columns) : StoredRing :=
   if entry.column.val / ringDegree = block then
@@ -63,14 +60,10 @@ private theorem foldEntries_get {columns : Nat}
       simp only [List.foldl_cons]
       rw [inductionHypothesis, addEntry_get]
 
-/-- Compute the bar transform of this sparse row's selected complete block.
-Entries outside the block leave the stored accumulator unchanged. -/
 def barBlock {columns : Nat} (form : SparseForm columns)
     (block : Nat) : StoredRing :=
   form.entries.foldl (addEntry block) (Vector.replicate ringDegree 0)
 
-/-- Every stored lane is the exact sparse bar sum. This includes duplicate
-columns, cancelling coefficients, empty forms and blocks with no entries. -/
 theorem barBlock_value {columns : Nat} (form : SparseForm columns)
     (block : Nat) (output : Fin ringDegree) :
     (barBlock form block).get output =
@@ -123,8 +116,6 @@ private theorem foldEntries_product {columns : Nat}
       simp only [List.foldl_cons]
       rw [inductionHypothesis, addEntry_product]
 
-/-- Apply the existing ring product to the computed sparse bar transform.
-Linearity is proved over the stored entry list, with no distinctness premise. -/
 private theorem barBlock_product {columns : Nat} (form : SparseForm columns)
     (block : Nat) (right : RingF) (output : Fin ringDegree) :
     ringFMul (barBlock form block).get right output =
@@ -140,16 +131,11 @@ private theorem barBlock_product {columns : Nat} (form : SparseForm columns)
   rw [barBlock, foldEntries_product, zero, RingFLaws.ringFMul_zero_left]
   rfl
 
-/-- Share this row's computed bar block across the sixteen complete child
-blocks. The product implementation owns exact zero-child omission. -/
 def rowBlock {columns : Nat} (form : SparseForm columns) (block : Nat)
     (children : Vector StoredRing productionGlobalParams.k) :
     Vector StoredRing productionGlobalParams.k :=
   PiDECCommitmentBlock.products (barBlock form block) children
 
-/-- Each returned coefficient is the existing sparse Phi81 kernel action
-on the same complete child block. No norm, expected output, opening, point,
-or row-generation premise is used. This is one block contribution only. -/
 theorem rowBlock_value {columns : Nat} (form : SparseForm columns) (block : Nat)
     (children : Vector StoredRing productionGlobalParams.k)
     (child : Fin productionGlobalParams.k) (output : Fin ringDegree) :

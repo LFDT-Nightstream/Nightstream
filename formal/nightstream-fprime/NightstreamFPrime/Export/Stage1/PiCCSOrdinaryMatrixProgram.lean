@@ -5,11 +5,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan
 
 /-!
 Owns the package-carried sparse substitution for canonical PiCCS ordinary
-rows. This module is built range by range and proves every wire range equal to
-the existing direct source resolver before the range enters a package.
-
-This module currently owns the verifier-context range. It does not yet claim
-the complete PiCCS substitution table or package integration.
+rows.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
@@ -211,15 +207,11 @@ def proofInputIndex (index : Fin proofInputRangeCount) :
     Fin proofLogicalCount :=
   proofInputSlot index
 
-/-- The caller-supplied proof inputs: the first 15,192 retained proof-input
-slots, at the start of the Spartan input interval. -/
 def callerInputRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
     (Spartan.sourceToSpartan PiCCSInputs.priorChildrenStart)
     PiCCSOrdinarySourceSupport.callerInputCount 0
 
-/-- The 270 hinted statement-binding signs: the last retained proof-input
-slots, at the start of the PiCCS-local Spartan interval. -/
 def statementSignRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (proofLogicalBlock program) (proofLogicalStart program)
     (Spartan.sourceToSpartan PiCCSInputs.phaseOffset)
@@ -231,8 +223,6 @@ private theorem phaseOffset_piCcsLocal :
     unfold Spartan.piCcsPhaseOffset
     rw [PiCCSInputs.phaseOffset_eq])
 
-/-- A sign slot's source column is a PiCCS-local column after the caller
-inputs. -/
 private theorem signSource_eq (index : Fin proofInputRangeCount)
     (sign : PiCCSOrdinarySourceSupport.callerInputCount ≤ index.val) :
     PiCCSInputs.priorChildrenStart + index.val =
@@ -376,15 +366,11 @@ theorem ordinaryLogicalRange_form?
         norm_num [ordinaryLogicalRangeCount, proofLogicalCount,
           ordinaryLogicalCount]) index)
 
-/-- The four verifier-context source columns remain one contiguous public
-range after the Spartan permutation. -/
 def expectedContextRange (program : Program) : SourceRange :=
   SourceRange.ofSemantic (expectedContextBlock program)
     (expectedContextStart program) Spartan.expectedContextPublicStart
     PiCCSInputs.expectedContextWords 0
 
-/-- The encoded verifier-context range reconstructs the exact direct
-PiCCS retained form. -/
 theorem expectedContextRange_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) (lane : Fin 4) :
@@ -632,8 +618,6 @@ private theorem expectedContextTarget_eq (lane : Fin 4) :
   rw [Spartan.sourceToSpartan_expectedContext]
   rfl
 
-/-- Complete PiCCS ordinary source substitution in increasing post-Spartan
-column order. -/
 def substitution (program : Program) : SourceSubstitution where
   ranges := [priorInputRange program, outputInputRange program,
     callerInputRange program, statementSignRange program,
@@ -641,8 +625,6 @@ def substitution (program : Program) : SourceSubstitution where
     freshPublicInputRange program, expectedContextRange program]
   grids := [transcriptOutputGrid program]
 
-/-- Exact physical packet intervals whose expanded R1CS rows form the
-PiCCS ordinary source program. -/
 def rowSchedule : IndexSchedule := .rangeList [
     ⟨PiCCSArithmetic.statementBindingRowStart, 4712⟩,
     ⟨PiCCSArithmetic.initialClaimRowStart, 12957⟩,
@@ -653,8 +635,6 @@ def rowSchedule : IndexSchedule := .rangeList [
     ⟨PiCCSArithmetic.normRowStart, 800⟩,
     ⟨PiCCSArithmetic.finalIdentityRowStart, 3593⟩]
 
-/-- Proof-oriented reference expansion of the eight row intervals. The wire
-interpreter uses `IndexSchedule.index?` and does not build this list. -/
 def rowIndexReference : List Nat :=
   List.range' PiCCSArithmetic.statementBindingRowStart 4712 ++
     List.range' PiCCSArithmetic.initialClaimRowStart 12957 ++
@@ -704,8 +684,6 @@ private theorem packetRowIndices (rowStart freshStart count : Nat)
       List.range' rowStart count := by
   rw [PiCCSArithmetic.compilePacket_rowIndices, lengthEq]
 
-/-- The wire row schedule is exactly the physical row-index stream emitted by
-the canonical PiCCS arithmetic builder. -/
 theorem arithmeticRows_rowIndices
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
@@ -755,8 +733,6 @@ theorem arithmeticRows_rowIndices
     PiCCSArithmetic.finalIdentityRows
   rw [statement, initial, sumcheck, evalK, evalA, ccs, norm, finalIdentity]
 
-/-- Streaming schedule selection returns exactly the physical index carried
-by the canonical compiled row at the same dense ordinal. -/
 theorem rowSchedule_index?_eq_arithmeticRowIndex?
     {logicalWidth : Nat}
     {publicFits : Spec.ringDegree * Lifecycle.PaperAlgebra.publicRingColumns ≤
@@ -770,7 +746,6 @@ theorem rowSchedule_index?_eq_arithmeticRowIndex?
   rw [rowSchedule_index?, ← arithmeticRows_rowIndices relation]
   simp
 
-/-- Complete package operands for the PiCCS ordinary matrix block. -/
 def block {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth) : Ordinary.Block where
   rows := rowSchedule
@@ -1198,8 +1173,6 @@ theorem substitution_expectedContext_form?
   simp [substitution, SourceSubstitution.form?, priorNone, outputNone,
     callerNone, signNone, ordinaryNone, freshNone, publicNone, selected, gridNone]
 
-/-- The complete sparse substitution reconstructs every semantic PiCCS
-location at its exact post-Spartan source column. -/
 theorem substitution_location_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -1278,8 +1251,6 @@ theorem substitution_location_form?
             indexEq] using
             (substitution_ordinaryLogical_form? geometry ordinaryIndex)
 
-/-- On every source column used by a canonical PiCCS row, the package
-substitution is exactly the proof-oriented direct source map. -/
 theorem substitution_agrees_on_target
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -1315,8 +1286,6 @@ private theorem programRow_support
     (List.get_mem _
       (PiCCSOrdinaryDirectSource.sourceListIndex relation index))
 
-/-- The package substitution agrees with the direct compiler on every term
-of every canonical indexed PiCCS ordinary row. -/
 theorem substitution_agrees_on_programRow
     {program : Program} {logicalWidth relationLogicalWidth : Nat}
     {relationPublicFits : Spec.ringDegree *
@@ -1347,8 +1316,6 @@ theorem substitution_agrees_on_programRow
     exact substitution_agrees_on_target geometry ⟨term.1, bounded⟩
       (scope.2.2 term member)
 
-/-- Compiling one indexed canonical PiCCS row through the package operands
-returns exactly the proof-oriented direct 4-matrix row. -/
 theorem compile_programRow?
     {program : Program} {logicalWidth relationLogicalWidth : Nat}
     {relationPublicFits : Spec.ringDegree *

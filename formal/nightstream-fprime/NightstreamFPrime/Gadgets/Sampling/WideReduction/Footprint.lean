@@ -2,7 +2,7 @@ import Mathlib.Tactic.Ring
 import NightstreamFPrime.Gadgets.Sampling.WideReduction
 
 /-!
-Owns the exact footprint of the whole-vector sampler constraints (V5):
+Owns the exact footprint of the whole-vector sampler constraints:
 681 logical rows, and `264 + h` private variables for a witness program with
 `h` outputs. A witness program that allocates exactly the 353 new bits gives
 617 private variables. This module does not provide that executable program
@@ -14,8 +14,6 @@ namespace NightstreamFPrime.Gadgets.Sampling.WideReduction
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Range
 
-/-- Logical rows of one scalar: 4 × 67 child rows, 353 Booleanity rows,
-54 digit range rows and 6 check rows. -/
 def rowCount : Nat := 681
 
 theorem newBits_length (offset : Nat) : (newBits offset).length = newBitCount := by
@@ -46,8 +44,6 @@ theorem localLength_eq (interface : Interface) (hints : Nat → List Hint) (offs
     List.sum_replicate, smul_eq_mul, List.length_finRange, childWidth]
   ring
 
-/-- With a witness program that allocates exactly the new bits, the gadget
-has 617 private variables. -/
 theorem localLength_eq_privateCount (interface : Interface) (hints : Nat → List Hint)
     (offset : Nat) (allocates : (hints offset).length = newBitCount) :
     localLength (operations interface hints offset) = privateCount := by

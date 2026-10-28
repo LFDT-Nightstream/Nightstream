@@ -5,17 +5,6 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionArithmetic
 
 /-!
 Owns the canonical logical witness-program IR through the running transition.
-
-The statement-binding leaf exports its 270 sign-hint batch, and the seven
-arithmetic children export `WitnessBatch` recipes, through their opaque
-`FormalCircuit` interfaces. This module gathers those batches in protocol order, remaps their symbolic variables through the proved Stage 1
-Spartan permutation, and balances expression sums without changing execution. PiCCS Poseidon2 children remain represented
-by compact permutation invocations. PiRLC batches come from the checked
-wide-reduction and coefficient-word circuits. Permutation invocations execute
-the hash steps; ordinary rows check the reduction and coefficient words.
-PiDEC contributes only the 54 sign-hint batches of its opaque public-input
-split child; R1CS intermediate recipes remain ordinary row instructions.
-The running transition contributes its one inverse-or-zero hint batch.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.WitnessProgram
@@ -227,8 +216,6 @@ private theorem witnesses_assertions (values : List Expr) :
   | cons value rest inductionHypothesis =>
       simp [witnesses, Op.witnesses]
 
-/-- Closed-form executable form of the two running-transition witness batches.
-It avoids traversing all 45,894 assertion operations during emission. -/
 def directRunningTransitionBatches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
@@ -270,7 +257,6 @@ theorem directRunningTransitionBatches_eq
   rw [witnesses_assertions]
   rfl
 
-/-- Exact logical-witness order through the running transition. -/
 def batches
     (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤

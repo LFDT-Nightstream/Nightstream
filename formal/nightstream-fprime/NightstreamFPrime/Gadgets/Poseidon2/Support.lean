@@ -299,8 +299,6 @@ private theorem step_supported (start : Nat) (step : Permutation.Step)
           simpa [Nat.add_assoc, Nat.add_comm, Nat.add_left_comm] using supported)
           (by decide)
 
-/-- Every permutation recipe and output lane uses only supported inputs or
-the exact contiguous target range allocated by the compiler. -/
 theorem permutationCompile_supported (start : Nat) (state : Layer.EState)
     (steps : List Permutation.Step) (allowed : Nat → Prop)
     (stateSupported : StateSupported state allowed)
@@ -444,8 +442,6 @@ private theorem hashProgram_output_eq {left right : Hash.Program}
   cases equality
   rfl
 
-/-- Every complete sponge recipe and output lane uses only supported inputs or
-the exact contiguous target range allocated by the hash compiler. -/
 theorem hashCompile_supported (start : Nat) (input : List Expr)
     (allowed : Nat → Prop)
     (inputSupported : ∀ expression ∈ input,
@@ -520,8 +516,6 @@ theorem hashCompile_supported (start : Nat) (input : List Expr)
       (congrArg (fun expression => expression.VarsSatisfy allowed) laneEq)
       (finalProof.2 lane)
 
-/-- The proof-carrying Poseidon2 hash circuit preserves one caller-selected
-support set for every flattened recipe and digest-assertion row. -/
 theorem formalFlatConstraints_supported
     (interface : Formal.Interface) (offset : Nat) (allowed : Nat → Prop)
     (inputSupported : ∀ expression ∈ interface.input offset,

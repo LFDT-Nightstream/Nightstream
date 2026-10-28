@@ -4,9 +4,7 @@ import NightstreamFPrime.Export.Stage1.WitnessProgram
 Owns executable packets for the seven PiCCS arithmetic children that produce
 both witness batches and ordinary rows.
 
-Each packet constructs its child's operation list once. The existing witness
-and row definitions remain the proof authority. The projection theorems below
-prove that the shared executable value is exactly those definitions.
+The existing witness and row definitions remain the proof authority.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPackets

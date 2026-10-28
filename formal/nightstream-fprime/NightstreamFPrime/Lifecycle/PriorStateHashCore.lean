@@ -446,8 +446,6 @@ private theorem spec_of_parts (interface : Interface) (offset : Nat)
           exact (Nat.mod_eq_of_lt binary).symm
     · simpa using tail lane
 
-/-- Soundness boundary for executable plans that encode the raw hash as a
-permutation chain and the remaining opaque children as ordinary rows. -/
 theorem soundness_of_hash_and_postHash
     (interface : Interface) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
@@ -812,7 +810,6 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
     · exact bindingRowsAt interface offset after3.current
         completedSpecification
 
-/-- The production logical builder for the low-norm prior-state hash. -/
 def circuit (interface : Interface) : FormalCircuit where
   main := main interface
   assumptions := Assumptions interface

@@ -12,7 +12,6 @@ namespace NightstreamFPrime.Gadgets.Poseidon2.Formal
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Circuit
 
-/-- External expressions selected by the parent at one call offset. -/
 structure Interface where
   input : Nat → List Expr
   expected : Nat → Fin 4 → Expr
@@ -212,7 +211,6 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
       simp only [Expr.eval_sub]
       exact sub_eq_zero.mpr (digestEquation lane)
 
-/-- The only proof-carrying Poseidon2 hash circuit exported to parents. -/
 def circuit (interface : Interface) : FormalCircuit where
   main := main interface
   assumptions := Assumptions interface

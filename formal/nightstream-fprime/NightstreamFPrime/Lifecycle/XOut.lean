@@ -44,7 +44,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns <=
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- Stage 1 carriers at the key's types. -/
 abbrev Running := Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment
   (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape
 abbrev Fresh := Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment
@@ -55,26 +54,18 @@ abbrev HashPreimage :=
   HyperNova.Construction2.Paper.HashPreimage KeyDigest AppState
     (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount
 
-/-- Domain-separation tag `HyperNova/NIVC/state/v2` as ASCII bytes. -/
 def stateDomainBytes : List Nat :=
-  [72, 121, 112, 101, 114, 78, 111, 118, 97, 47, 78, 73, 86, 67,
-    47, 115, 116, 97, 116, 101, 47, 118, 50]
+  "HyperNova/NIVC/state/v2".toList.map Char.toNat
 
-/-- Little-endian bytes as one word. Eight ASCII bytes stay below `p`. -/
 def packBytes (bytes : List Nat) : F :=
   Poseidon2.ofNat (bytes.foldr (fun byte rest => byte + 256 * rest) 0)
 
-/-- The first sponge chunk: the domain tag, eight bytes per word, then zero
-words up to one full rate chunk. Every word is a constant. -/
 def stateDomainChunk : List F :=
   (List.range Poseidon2.rate).map fun word =>
     packBytes ((stateDomainBytes.drop (8 * word)).take 8)
 
 def natWord (n : Nat) : F := Poseidon2.ofNat n
 
-/-- A length prefix makes one variable-length block self-delimiting. The
-proof-envelope size count frames each fresh claim part with it; the state
-layouts and the PiCCS transcript use none. -/
 def block (xs : List F) : List F := natWord xs.length :: xs
 
 @[simp] theorem block_length (xs : List F) :
@@ -91,21 +82,17 @@ def serializePublicInput
 def serializePoint (p : CubePoint K cubeVariables) : List F :=
   p.coordinates.flatMap serializeK
 
-/-- The `Eval_K` words of one evaluation family. -/
 def serializeEvalK (e : EvaluationFamily K productionShape) : List F :=
   (List.finRange productionShape.coefficientCount).flatMap fun l => serializeK (e.pad l)
 
-/-- The `Eval_A` words of one evaluation family, matrix-major. -/
 def serializeEvalA (e : EvaluationFamily K productionShape) : List F :=
   (List.finRange productionShape.matrixCount).flatMap fun j =>
     (List.finRange productionShape.coefficientCount).flatMap fun l =>
       serializeK (e.matrix j l)
 
-/-- `Eval_K` then `Eval_A` of one family: the PiCCS output proof-input order. -/
 def serializeEvaluations (e : EvaluationFamily K productionShape) : List F :=
   serializeEvalK e ++ serializeEvalA e
 
-/-- Running sections, each child-major. -/
 def serializeCommitments
     (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
   (List.finRange productionShape.runningCount).flatMap fun source =>
@@ -130,22 +117,18 @@ theorem runningCount_eq_radixChildCount :
     productionShape.runningCount = productionGlobalParams.k := by
   rfl
 
-/-- The Π_DEC parent public input `Σ_j 2^j x_j` of the sixteen children. -/
 def parentPublic
     (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) : F :=
   Spec.Phi81Relation.PiDECAlgebra.Radix.recomposeScalar fun child =>
     u.publicInputs (Fin.cast runningCount_eq_radixChildCount.symm child) column
 
-/-- The sixteen child digits of one parent coordinate. -/
 def childDigits
     (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) :
     Radix.ChildIndex → F :=
   fun child => u.publicInputs (Fin.cast runningCount_eq_radixChildCount.symm child) column
 
-/-- Every parent coordinate splits into common-sign digits: the Π_DEC
-accepted public-input language. -/
 def ChildrenCanonical
     (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : Prop :=
   ∀ column, ∃ sign, Radix.UniformSignedDigits.ConstraintPredicate sign (childDigits u column)
@@ -169,7 +152,6 @@ theorem ChildrenCanonical.parentBounded
   rw [Radix.production_parameters.2.2] at bounded
   exact bounded
 
-/-- Canonical children are the production split of their parent. -/
 theorem ChildrenCanonical.childDigits_eq
     {u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)}
     (canonical : ChildrenCanonical u)
@@ -178,9 +160,6 @@ theorem ChildrenCanonical.childDigits_eq
   rcases canonical.accepted column with ⟨_, accepted⟩
   exact accepted.digits_eq_splitScalar
 
-/-- Three parent coordinates share one word in radix `2^17`. Every accepted
-coordinate has centered magnitude below `2^16`, so the radix is injective and
-every packed word has magnitude below `2^51`. -/
 def packRadix : F := Poseidon2.ofNat (2 ^ 17)
 
 def packWord (low middle high : F) : F :=
@@ -192,7 +171,6 @@ theorem publicWidth_eq :
     (FullShape logicalWidth publicFits).publicWidth = 3 * packedParentWords := by
   rfl
 
-/-- Parent coordinate `3 · word + lane`. -/
 def packedColumn (word : Fin packedParentWords) (lane : Fin 3) :
     Fin (FullShape logicalWidth publicFits).publicWidth :=
   ⟨3 * word.val + lane.val, by
@@ -208,26 +186,19 @@ def serializeParentPublic
       (parentPublic u (packedColumn word 1))
       (parentPublic u (packedColumn word 2))
 
-/-- The running fields that both layouts share: commitments, `Eval_K`,
-`Eval_A`, then the point. -/
 def serializeRunningFields
     (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
   serializeCommitments u ++ serializeEvalKs u ++ serializeEvalAs u ++
     serializePoint u.point
 
-/-- The running instance as hashed: the shared fields, then the packed parent
-public input. -/
 def serializeRunning
     (u : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
   serializeRunningFields u ++ serializeParentPublic u
 
-/-- `vk, i, z0, zi`; `slotCount = 1`, so the key and running vectors each
-have one entry. -/
 def serializeTail
     (p : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
   p.verifierKeys functionIndex ++ [natWord p.iteration] ++ p.z0 ++ p.current
 
-/-- The preimage `domain chunk, U, vk, i, z0, zi`. -/
 def serializePreimage
     (p : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) : List F :=
   stateDomainChunk ++ serializeRunning (publicFits := publicFits) (p.running functionIndex) ++
@@ -274,8 +245,6 @@ theorem stateDomainChunk_length : stateDomainChunk.length = 12 := by
     (serializeEvaluations value).length =
       (productionShape.matrixCount + 1) * productionShape.coefficientCount * 2 := by
   simp [serializeEvaluations, Nat.add_mul, Nat.mul_assoc, Nat.add_comm]
-
-/-! The serializers are injective at their fixed widths. -/
 
 theorem block_injective : Function.Injective block :=
   fun _ _ same => (List.cons.inj same).2
@@ -399,8 +368,6 @@ theorem serializeTail_length
   simp [serializeTail]
   omega
 
-/-- Exact preimage length. Only the verifier-key and two application-state
-lengths remain parameters. -/
 theorem serializePreimage_length
     (value : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     (serializePreimage (publicFits := publicFits) value).length =
@@ -410,9 +377,6 @@ theorem serializePreimage_length
     serializeRunning_length, serializeTail_length]
   omega
 
-/-! ## Hash input from committed state words -/
-
-/-- Concatenated fixed-width encodings: the word at `position·width + inner`. -/
 theorem finRange_flatMap_getD
     {count width : Nat}
     (encode : Fin count → List F)
@@ -473,16 +437,10 @@ theorem serializeChildPublicInputs_getD
     column.val column.isLt]
   exact finRange_map_getD (fun index => u.publicInputs child index) column
 
-/-! ## Packed parent decoding -/
-
 def packOffset : F := Poseidon2.ofNat (2 ^ 16)
 
-/-- `pack(2^16, 2^16, 2^16)`: the shift that makes every bounded lane a natural
-number below `2^17`. -/
 def packShift : F := packWord packOffset packOffset packOffset
 
-/-- Radix-`2^17` digits of a shifted packed word. The high lane keeps every
-remaining bit, so `packWord ∘ unpackWord` is the identity on every word. -/
 def unpackWord (word : F) (lane : Fin 3) : F :=
   let shifted := (word + packShift).val
   match lane with
@@ -490,7 +448,6 @@ def unpackWord (word : F) (lane : Fin 3) : F :=
   | 1 => Poseidon2.ofNat (shifted / 2 ^ 17 % 2 ^ 17) - packOffset
   | 2 => Poseidon2.ofNat (shifted / 2 ^ 34) - packOffset
 
-/-- The parent coordinate stored in packed word `column / 3`. -/
 def unpackParent (packed : Fin packedParentWords → F)
     (column : Fin (FullShape logicalWidth publicFits).publicWidth) : F :=
   unpackWord (packed ⟨column.val / 3, by
@@ -499,15 +456,12 @@ def unpackParent (packed : Fin packedParentWords → F)
       omega⟩)
     ⟨column.val % 3, Nat.mod_lt _ (by decide)⟩
 
-/-- `stateHash`: the public output of one F′ step. -/
 def stateHash (p : HashPreimage (logicalWidth := logicalWidth) (publicFits := publicFits)) : Digest :=
   Poseidon2.hash (serializePreimage (publicFits := publicFits) p)
 
-/-- One canonical little-endian bit of a Goldilocks word. -/
 def digestBitWord (value : F) (bit : Nat) : F :=
   Poseidon2.ofNat ((value.val / 2 ^ bit) % 2)
 
-/-- The four digest words serialized as 256 canonical little-endian bits. -/
 def serializeDigestBits (digest : Digest) : List F :=
   (List.range 256).map fun index =>
     digestBitWord (digest.getD (index / 64) 0) (index % 64)
@@ -516,7 +470,6 @@ def serializeDigestBits (digest : Digest) : List F :=
     (serializeDigestBits digest).length = 256 := by
   simp [serializeDigestBits]
 
-/-- Public position of a bounded natural digest bit after the marker. -/
 def digestBitIndexNat (word : Fin 4) (bit : Nat) :
     Fin (ringDegree * publicRingColumns) :=
   ⟨1 + word.val * 64 + bit % 64, by
@@ -525,12 +478,10 @@ def digestBitIndexNat (word : Fin 4) (bit : Nat) :
     norm_num [ringDegree, publicRingColumns] at wordBound bitBound ⊢
     omega⟩
 
-/-- Public position of one digest bit after the leading marker. -/
 def digestBitIndex (word : Fin 4) (bit : Fin 64) :
     Fin (ringDegree * publicRingColumns) :=
   digestBitIndexNat (logicalWidth := logicalWidth) word bit.val
 
-/-- Reconstruct one canonical digest word from the public bit encoding. -/
 def decodeHashWord
     (input : PaperAlgebra.PublicInput
       (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -539,14 +490,11 @@ def decodeHashWord
     value + Poseidon2.ofNat (2 ^ bit) *
       input (digestBitIndexNat (logicalWidth := logicalWidth) word bit)) 0
 
-/-- Recover the four field words used by the transcript from `encHash`. -/
 def decodeHash
     (input : PaperAlgebra.PublicInput
       (logicalWidth := logicalWidth) (publicFits := publicFits)) : Digest :=
   List.ofFn (decodeHashWord input)
 
-/-- Pure five-ring-column cell encoding, before it is viewed at one relation
-shape. -/
 def encodedHashCells (d : Digest) : Fin (ringDegree * publicRingColumns) → F :=
   fun j => (1 :: serializeDigestBits d).getD j.val 0
 
@@ -625,8 +573,6 @@ private theorem digestBitWord_norm (value : F) (bit : Nat) :
   · simp [digestBitWord, residue, Poseidon2.ofNat, centeredMagnitude,
       goldilocksModulus]
 
-/-- Every coordinate of the fixed recursive public input satisfies the exact
-fresh-opening norm. -/
 theorem encHash_norm (digest : Digest)
     (column : Fin (ringDegree * publicRingColumns)) :
     centeredMagnitude (encHash (publicFits := publicFits) digest column) < 2 := by
@@ -753,8 +699,6 @@ theorem decodeHash_encHash (digest : Digest) (fixed : digest.length = 4) :
     rw [decodeHashWord_encHash]
     exact List.getD_eq_getElem (l := digest) (d := 0) rightBound
 
-/-- The fixed public-instance encoding is injective on canonical four-word
-digests. -/
 theorem encHash_injective_fixed {left right : Digest}
     (leftFixed : left.length = 4) (rightFixed : right.length = 4)
     (equal : encHash (publicFits := publicFits) left =
@@ -763,12 +707,12 @@ theorem encHash_injective_fixed {left right : Digest}
   rw [← decodeHash_encHash left leftFixed,
     ← decodeHash_encHash right rightFixed, equal]
 
-/-- The paper default CE instance `u_⊥` (HyperNova H.2): the commitment of the
-zero assignment with zero randomness, the zero public input (the projection of
-the zero assignment), the zero point, and zero evaluations. -/
 def zeroPoint : CubePoint K cubeVariables :=
   ⟨List.replicate cubeVariables K.zero, by simp⟩
 
+/-- The paper default CE instance `u_⊥` (HyperNova H.2): the commitment of the
+zero assignment with zero randomness, the zero public input (the projection of
+the zero assignment), the zero point, and zero evaluations. -/
 def defaultRunning : Running (logicalWidth := logicalWidth) (publicFits := publicFits) where
   point := zeroPoint
   commitments := fun _ _ => ringFZero

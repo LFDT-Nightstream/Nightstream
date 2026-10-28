@@ -1,10 +1,8 @@
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixContribution
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedPrefixComplete
 
-/-! Complete pure fresh-prefix coefficient range. The shortened range keeps
-its odd final pair. Selected positive-degree syntax proves the omitted suffix
-zero. The optional source constructor retains all load failures. This module
-does not prove file provenance, decoding, or mutable IO task execution. -/
+/-! Complete pure fresh-prefix coefficient range. This module does not prove
+file provenance, decoding, or mutable IO task execution. -/
 
 set_option autoImplicit false
 
@@ -20,8 +18,6 @@ open PiCCSAggregatedImages (selectedProgram)
 universe uField
 variable {Field : Type uField}
 
-/-- Exact coefficient surface of the existing FixedPolynomial.add fold.
-This leaf keeps failure and order; it does not parse an expected polynomial. -/
 def coefficientRange? (ops : InterpolationOps Field) (degree : Nat)
     (action : Nat → Option (List Field)) (first count : Nat) : Option (List Field) :=
   Nat.fold count (fun offset _ previous => do
@@ -39,8 +35,6 @@ private theorem coefficientRange_succ (ops : InterpolationOps Field) (degree : N
         pure (List.zipWith ops.add total next)) := by
   simp only [coefficientRange?, Nat.fold_succ]
 
-/-- Generic optional accumulation is proved before any selected source data
-is supplied. Equality covers complete fixed-width coefficient lists. -/
 theorem coefficientRange_eq_range (ops : InterpolationOps Field) {degree : Nat}
     (action : Nat → Option (List Field)) (term : Nat → FixedPolynomial Field degree)
     (first count : Nat)
@@ -66,7 +60,6 @@ theorem coefficientRange_eq_range (ops : InterpolationOps Field) {degree : Nat}
         simp only [PiCCSPolynomialRange.range, Nat.fold_succ]
       rw [step, PiCCSPolynomialRange.add_coefficients]
 
-/-- The runtime rejects a pair outside the remaining Boolean domain. -/
 def pairCoefficients? (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (challenges : List K)
     (remaining index : Nat) : Option (List K) :=
@@ -75,8 +68,6 @@ def pairCoefficients? (input : PiCCSPublicReplay.Input)
       (NumericBooleanDomain.vertex remaining ⟨index, inside⟩)
   else none
 
-/-- Same complete coefficients and numeric pair order as the pure projection
-of freshFromPrefix. Its caller supplies a numeric range, not wanted values. -/
 def rangeCoefficients? (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (challenges : List K)
     (remaining first count : Nat) : Option (List K) :=
@@ -86,7 +77,6 @@ def rangeCoefficients? (input : PiCCSPublicReplay.Input)
 def retainedRows (consumed : Nat) : Nat :=
   (selectedProgram.rowCount + 2 ^ consumed - 1) / 2 ^ consumed
 
-/-- Ceil(retained rows / 2) includes the final mixed real/zero pair. -/
 def activePairs (consumed : Nat) : Nat := (retainedRows consumed + 1) / 2
 
 def coefficients? (input : PiCCSPublicReplay.Input)
@@ -103,8 +93,6 @@ private def numericTerm (data : ProtocolPolynomial.Data K productionShape)
       (NumericBooleanDomain.vertex remaining ⟨index, inside⟩)
   else FixedPolynomial.zero extensionOps.toOps data.toVerifierInput.sumcheckDegreeBound
 
-/-- Every covered range has the original source term coefficients. The only
-range premise is the actual Boolean-domain bound; no source-value premise remains. -/
 theorem range_coefficients_eq (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (challenges : List K) {remaining : Nat}
     (dimension : cubeVariables = challenges.length + remaining + 1)
@@ -132,7 +120,6 @@ theorem range_coefficients_eq (input : PiCCSPublicReplay.Input)
     PiCCSFreshPrefixContribution.coefficients_eq_freshTerm input masks challenges dimension
       (NumericBooleanDomain.vertex remaining ⟨first + offset, inDomain⟩)
 
-/-- Vector-row folding has the same exact extent as the existing scalar fold. -/
 theorem foldRowsPrefix_size
     (rows : Array (Vector K ProductionRelation.matrixCount)) (challenges : List K) :
     (PiCCSFreshPrefixSource.foldRowsPrefix rows challenges).size =
@@ -198,8 +185,6 @@ private theorem positive_transport
   subst right
   exact positive
 
-/-- Zero endpoints imply a zero fresh polynomial only under explicit
-positive-degree syntax. No such claim is made for a generic CCS constant term. -/
 private theorem freshTerm_zero
     (data : ProtocolPolynomial.Data K productionShape)
     (alpha : CubePoint K cubeVariables) (gamma : K) (challenges : List K) {remaining : Nat}
@@ -289,10 +274,6 @@ private theorem fullRange_eq_sum
   funext index
   simp only [Nat.zero_add, numericTerm, dif_pos index.isLt]
 
-/-- The exact shortened fresh-prefix range gives the complete original
-fresh-term coefficient sum. Source success, row extent, padding and every
-pair value are derived. No source-correctness or expected-artifact premise
-is accepted. The prefix dimension is the only operational hypothesis. -/
 theorem coefficients_eq_fullSum (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (challenges : List K) {remaining : Nat}
     (dimension : cubeVariables = challenges.length + remaining + 1) :

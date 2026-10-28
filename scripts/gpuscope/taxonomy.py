@@ -1,5 +1,3 @@
-"""Versioned ownership map for CUDA NVTX stage labels."""
-
 TAXONOMY_VERSION = "gpuscope-taxonomy-v1"
 
 STAGE_ORDER = """

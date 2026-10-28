@@ -51,8 +51,6 @@ fn reference() -> Vec<u8> {
 }
 
 fn compiled_fixture() -> &'static Circuit {
-    // Share the full reference compilation across the storage tests. The
-    // ignored Metal test has its own original and changed applications.
     static CIRCUIT: OnceLock<Circuit> = OnceLock::new();
     CIRCUIT.get_or_init(|| {
         let mut builder = ApplicationBuilder::new(2).unwrap();
@@ -98,19 +96,17 @@ fn extension_errors_leave_the_supplied_proof_unchanged() {
     assert!(matches!(prover.extend(&original, &[]), Err(Error::Application(_))));
     assert!(original.active_parts().is_none());
     assert_eq!(original.state().iteration(), 0);
-    // This reaches lifecycle validation after valid application execution.
     let invalid = Stage1Envelope::from_parts(
         Stage1State::new(1, [F::ZERO; 4], [F::ZERO; 4]),
         crate::folding::RunningInstance::default(),
         crate::folding::CcsInstance {
             claim: crate::folding::CcsClaim {
-                c: neo_ajtai::Commitment::zeros(neo_math::D, 22),
+                c: neo_ajtai::Commitment::zeros(22),
                 x: Vec::new(),
                 m_in: 0,
                 adv: None,
             },
             witness: crate::folding::CcsWitness {
-                w: Vec::new(),
                 Z: neo_ccs::Mat::virtual_constant(0, 0, F::ZERO),
             },
         },
@@ -164,7 +160,6 @@ fn assert_same_data(expected: &Circuit, actual: &Circuit) {
         [2, 0, 2, 0]
     );
 
-    // Matrix visits use logical rows; application metadata uses source rows.
     let end = expected_package.row_count();
     for range in [0..1, end - 1..end] {
         let mut rows = Vec::new();
@@ -202,8 +197,6 @@ fn compiled_load_rejects_bad_root_magic_output_tags_trailing_and_truncated_data(
     compiled_fixture().write(&source).unwrap();
     assert!(Circuit::load(&source).is_ok(), "valid control package");
 
-    // The outer format is the eight-byte NSCIR version followed by four
-    // output-form tags. Only tags A=0 and C=2 are allowed for these forms.
     for (name, offset, byte) in [
         ("bad-magic", 0, b'!'),
         ("output-b", 8, 1),
@@ -249,8 +242,6 @@ fn compiled_load_rejects_identity_unbound_output_form_substitution() {
     let path = directory.path("changed-output-form.package");
     original.write(&path).unwrap();
 
-    // Lane zero is a variable output and therefore uses C=2. A=0 is also a
-    // recognized tag, but it reads the wrong side of this saved equality row.
     let mut file = OpenOptions::new().write(true).open(&path).unwrap();
     file.seek(SeekFrom::Start(8)).unwrap();
     file.write_all(&[0]).unwrap();
@@ -302,12 +293,10 @@ fn loaded_execution_and_resaving_use_private_snapshots_after_external_mutation()
     original.write(&source).unwrap();
     let loaded = Circuit::load(&source).unwrap();
 
-    // Truncate the same inode, so keeping an open external file would not pass.
     fs::write(&source, b"changed after loading").unwrap();
     assert!(Circuit::load(&source).is_err());
     assert_same_data(original, &loaded);
 
-    // This also reads the retained fixed-envelope snapshot, not just decoded rows.
     let saved = directory.path("resaved.package");
     loaded.write(&saved).unwrap();
     assert_same_data(original, &Circuit::load(&saved).unwrap());
@@ -336,8 +325,6 @@ fn private_zero_application(coefficient: F) -> ApplicationCircuit {
     let mut builder = ApplicationBuilder::new(1).unwrap();
     let input = builder.input_state();
     let private = builder.private_inputs()[0];
-    // x + 1 = 1 means x = 0. Both coefficients use the same lowering and
-    // retain one raw term; the zero coefficient removes only the constraint.
     builder
         .assert_equal(
             Affine::from(private) * coefficient + Affine::constant(F::ONE),
@@ -349,9 +336,6 @@ fn private_zero_application(coefficient: F) -> ApplicationCircuit {
 
 #[cfg(feature = "metal")]
 fn copy_cached_identity_components(original: &Path, changed: &Path) {
-    // Outer NSCIR header: 8-byte magic + 4 output tags. Inner NSFPREP1:
-    // 8-byte magic + u64 source length + 4 structural words + 4 application
-    // digest words + u64 application word count. Do not replace the source length.
     const CACHE_START: usize = 8 + 4 + 8 + 8;
     const CACHE_END: usize = CACHE_START + (4 + 4 + 1) * 8;
     let prefix = |path| {
@@ -452,26 +436,27 @@ fn metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_s
     }
 }
 
-/// A well-shaped active proof with signed-unit witnesses. It does not verify.
 fn shaped_proof(prover: &Prover) -> Stage1Envelope {
     use crate::folding::{CcsClaim, CcsInstance, CcsWitness, CeClaim, RunningInstance};
     use neo_math::{D, K};
 
     let structure = prover.lifecycle.structure();
     let public_width = prover.compiled.package.logical_public_input_count();
-    let columns = structure.m.div_ceil(D);
+    let columns = structure.m().div_ceil(D);
     let extension = |value: u64| neo_math::from_complex(F::from_u64(value), F::from_u64(value + 1));
     let evaluations = |seed: u64| {
         let mut values: Vec<K> = (0..D as u64).map(|lane| extension(seed + lane)).collect();
         values.resize(D.next_power_of_two(), K::ZERO);
         values
     };
-    let commitment = |seed: u64| neo_ajtai::Commitment {
-        d: D,
-        kappa: 22,
-        data: (0..D as u64 * 22)
-            .map(|word| F::from_u64(seed + word))
-            .collect(),
+    let commitment = |seed: u64| {
+        neo_ajtai::Commitment::new(
+            22,
+            (0..D as u64 * 22)
+                .map(|word| F::from_u64(seed + word))
+                .collect(),
+        )
+        .expect("commitment shape")
     };
     let claim = |seed: u64| CeClaim {
         c: commitment(seed),
@@ -506,23 +491,18 @@ fn shaped_proof(prover: &Prover) -> Stage1Envelope {
             m_in: public_width,
             adv: None,
         },
-        witness: CcsWitness {
-            w: Vec::new(),
-            Z: witness(17),
-        },
+        witness: CcsWitness { Z: witness(17) },
     };
     Stage1Envelope::from_parts(Stage1State::new(3, [F::ONE; 4], [F::TWO; 4]), running, fresh)
 }
 
-/// Offsets computed independently of the codec: magic and kind, the state,
-/// then one running claim and one witness column.
 fn proof_offsets(prover: &Prover) -> (usize, usize, usize) {
     let structure = prover.lifecycle.structure();
     let public_width = prover.compiled.package.logical_public_input_count();
     let d = neo_math::D;
     let header = 16 + 8 + 9 * 8;
     let claim = (d * 22 + public_width + 2 * 28 + (structure.t() + 1) * 2 * d) * 8;
-    let witness = structure.m.div_ceil(d) * 16;
+    let witness = structure.m().div_ceil(d) * 16;
     (header, claim, witness)
 }
 
@@ -543,7 +523,6 @@ fn proof_bytes_round_trip_exactly() {
     assert_eq!(decoded.state(), proof.state());
     let (decoded_running, decoded_fresh) = decoded.active_parts().unwrap();
     let (running, fresh) = proof.active_parts().unwrap();
-    // The bytes carry only what `verify` reads; the frame caches stay zero.
     let mut claims = running.claims.clone();
     claims
         .iter_mut()
@@ -555,13 +534,11 @@ fn proof_bytes_round_trip_exactly() {
     assert_eq!(decoded_fresh.witness.Z, fresh.witness.Z);
     assert_eq!(prover.encode_proof(&decoded).unwrap(), bytes);
 
-    // Values that `verify` does not read do not change the bytes.
-    let (mut running, mut fresh) = (running.clone(), fresh.clone());
+    let (mut running, fresh) = (running.clone(), fresh.clone());
     running
         .claims
         .iter_mut()
         .for_each(|claim| claim.fold_digest = [7; 32]);
-    fresh.witness.w = vec![F::ONE];
     let unread = Stage1Envelope::from_parts(*proof.state(), running, fresh);
     assert_eq!(prover.encode_proof(&unread).unwrap(), bytes, "one encoding per proof");
 
@@ -637,8 +614,6 @@ fn proof_encoder_rejects_values_outside_the_selected_shape() {
 
 #[test]
 fn verifier_requires_the_padded_evaluation_width() {
-    // `verify` checks each running claim's shape before any commitment work,
-    // so a synthetic proof with one shared point reaches the evaluation check.
     let prover = compiled_fixture().prover(Engine::Optimized, 114).unwrap();
     let verifier = Verifier::from_package(compiled_fixture(), Engine::Optimized, 114).unwrap();
     let proof = shaped_proof(&prover);
@@ -656,8 +631,6 @@ fn verifier_requires_the_padded_evaluation_width() {
         Err(Error::Verify(VerifyError::Running { index, reason })) => (index, reason),
         other => panic!("unexpected decision: {other:?}"),
     };
-    // At the padded width the evaluation check passes, and a later check
-    // rejects the synthetic witness.
     assert_eq!(
         decision(running.clone()),
         (0, "witness public projection differs from X")
@@ -671,4 +644,31 @@ fn verifier_requires_the_padded_evaluation_width() {
             "Eval_K width {width}"
         );
     }
+}
+
+#[test]
+fn engine_failures_reach_the_caller_as_engine_errors() {
+    let failure = || EngineError::Failure {
+        engine: Engine::Metal,
+        reason: "device lost".into(),
+    };
+    assert!(matches!(
+        Error::from(ExtendError::Prove(ProveError::Engine(failure()))),
+        Error::Engine(_)
+    ));
+    assert!(matches!(
+        Error::from(ExtendError::Complete(CompleteStepError::Commitment(failure()))),
+        Error::Engine(_)
+    ));
+    assert!(matches!(Error::from(VerifyError::Engine(failure())), Error::Engine(_)));
+    // `Prover::new` returns a failure to keep the commitment key directly.
+    assert!(matches!(Error::from(failure()), Error::Engine(_)));
+    assert!(matches!(
+        Error::from(CompressionError::Prove(ProveError::Engine(failure()))),
+        Error::Engine(_)
+    ));
+    assert!(
+        matches!(Error::from(VerifyError::Statement("rejected")), Error::Verify(_)),
+        "a rejection stays a verify error"
+    );
 }

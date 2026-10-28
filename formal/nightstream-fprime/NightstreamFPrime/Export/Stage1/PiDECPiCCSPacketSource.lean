@@ -2,8 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
 
 /-!
 Select one existing PiCCS ordinary packet before constructing its row list.
-The packet order, source columns, and R1CS rows remain unchanged. Only the
-selected row is decoded from the existing compiled-row representation.
 -/
 
 set_option autoImplicit false
@@ -25,9 +23,6 @@ private theorem append_getElem? {Alpha : Type} {left : List Alpha} {count : Nat}
   · rw [if_neg bounded, List.getElem?_append_right (by
       simpa only [lengthEq] using Nat.le_of_not_gt bounded), lengthEq]
 
-/-- The branch lengths are the existing packet lengths. Packet construction
-occurs inside the selected branch. The final packet's existing optional list
-lookup also rejects indices beyond the complete ordinary source domain. -/
 def row? (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) (ordinal : Nat) :
@@ -63,10 +58,6 @@ def row? (logicalWidth : Nat)
                   (PiCCSArithmetic.finalIdentityRows logicalWidth publicFits)[ordinal - 800]?
   selected.map Rows.CompiledRow.toR1CS
 
-/-- Total optional-output equality to the existing source list. The proof
-uses only its append spine and the owner's packet-length theorems; it does
-not expand any packet, constraint, matrix, or package. The relation supplies
-the same shape certificate as the existing indexed source authority. -/
 theorem row?_eq_sourceRows_getElem?
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -94,8 +85,6 @@ theorem row?_eq_sourceRows_getElem?
     append_getElem? (PiCCSArithmetic.normRows_length
       logicalWidth publicFits relation)]
 
-/-- Every valid ordinal returns the exact existing programRow, with no
-source-value, assignment-validity, or matrix-agreement premise. -/
 theorem row?_eq_programRow
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

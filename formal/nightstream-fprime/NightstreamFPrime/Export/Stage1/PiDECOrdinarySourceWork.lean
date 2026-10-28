@@ -4,15 +4,9 @@ import NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 /-!
-Counted indexed generation of the selected PiDEC commitment packet. One
-coordinate builds sixteen child terms in A, constant one in B, and its parent in C.
-The existing affine recipe lowering fixes that exact row, including order.
-No complete packet, package row list, or function-valued source is evaluated.
-Counts are named operations; they are not machine instructions or wall time.
-Dispatch, predecessor extraction, helper calls, value/index projections,
-scalar literals, arithmetic, and data constructors are counted separately.
-Calls include passing existing arguments; callee work is added separately.
-Clock fields and clock arithmetic are instrumentation and are excluded.
+Counted indexed generation of the selected PiDEC commitment packet.
+One coordinate builds sixteen child terms in A, constant one in B, and its
+parent in C.
 -/
 
 set_option autoImplicit false
@@ -196,8 +190,6 @@ private theorem late_column (start index : Nat) (late : Spartan.piCcsPhaseOffset
   have third : ¬ start + index < Spartan.piCcsPhaseOffset := by omega
   simp only [Spartan.sourceToSpartan, if_neg first, if_neg second, if_neg third]
 
-/-- The constants are the proved selected starts after Spartan's column
-permutation. One constant/index read, add, and return execute here. -/
 private def parentColumn (coordinate : Fin 1188) : Result Nat :=
   ⟨6320050 + coordinate.val, 4⟩
 
@@ -209,8 +201,6 @@ private theorem parentColumn_value (coordinate : Fin 1188) :
   change 6320050 + coordinate.val = 5156678 + (6320328 + coordinate.val - 5156956)
   omega
 
-/-- Two literals, the Fin value read, multiplication, two additions, and
-the Result constructor. The child is already a natural argument. -/
 private def childColumn (coordinate : Fin 1188) (child : Nat) : Result Nat :=
   ⟨11432356 + child * 1188 + coordinate.val, 7⟩
 
@@ -224,8 +214,6 @@ private theorem childColumn_value (coordinate : Fin 1188) (child : Fin 16) :
     5156678 + (11432634 + child.val * 1188 + coordinate.val - 5156956)
   omega
 
-/-- The base charges dispatch, its literal, and Result. A step charges
-dispatch, predecessor, recursive call, value read, literal, multiply, and Result. -/
 private def powerTwo : Nat → Result Nat
   | 0 => ⟨1, 3⟩
   | count + 1 =>
@@ -242,8 +230,6 @@ private theorem powerTwo_work (count : Nat) : (powerTwo count).work = count * 7 
   | zero => rfl
   | succ count ih => simp only [powerTwo, ih, Nat.add_mul, Nat.one_mul]
 
-/-- Six operations: power call, value read, modulus literal, reduction,
-field constructor, and Result. Selected child exponents are less than 16. -/
 private def weight (child : Nat) : Result F :=
   let power := powerTwo child
   let value : F := ⟨power.value % goldilocksModulus, Nat.mod_lt _ (by decide)⟩
@@ -255,7 +241,6 @@ private theorem weight_value (child : Fin 16) :
   change (powerTwo child.val).value % goldilocksModulus = 2 ^ child.val % goldilocksModulus
   rw [powerTwo_value]
 
-/-- Two calls, two value reads, the pair constructor, and Result. -/
 private def childTerm (coordinate : Fin 1188) (child : Nat) : Result (Nat × F) :=
   let column := childColumn coordinate child
   let coefficient := weight child
@@ -266,9 +251,6 @@ private theorem childTerm_work_le (coordinate : Fin 1188) (child : Nat) (bound :
   simp only [childTerm, childColumn, weight, powerTwo_work]
   omega
 
-/-- Each step charges dispatch/predecessor (2), two calls, the index literal
-and addition (2), two value reads, cons, and Result (10). The empty case
-charges dispatch, nil, and Result. Indices advance without accessor closures. -/
 private def childTerms (coordinate : Fin 1188) : Nat → Nat → Result (List (Nat × F))
   | 0, _ => ⟨[], 3⟩
   | remaining + 1, next =>
@@ -310,9 +292,6 @@ private theorem allChildTerms_value (coordinate : Fin 1188) :
 
 attribute [irreducible] childTerms
 
-/-- Final overhead: two Nat literals, two calls, two value reads, four F
-literals, two nils, pair/cons, three affine records, Row, and Result (19).
-The affine records are constructed here, with no uncharged helper call. -/
 def commitmentRow (coordinate : Fin 1188) : Result R1CS.Row :=
   let children := childTerms coordinate 16 0
   let parent := parentColumn coordinate
@@ -333,7 +312,6 @@ theorem commitmentRow_value (coordinate : Fin 1188) :
     (source_row (logicalWidth := PiDECInputCheck.logicalWidth) (publicFits := PiDECInputCheck.publicFits)
       PiDECInputCheck.relation coordinate).symm
 
-/-- The complete ordered source data consumed by the retained matrix compiler. -/
 theorem commitmentRow_data (coordinate : Fin 1188) :
     (commitmentRow coordinate).value =
       ⟨⟨0, List.ofFn fun child : Fin 16 =>
@@ -353,8 +331,6 @@ theorem commitmentRow_lengths (coordinate : Fin 1188) :
   simp only [commitmentRow, childTerms_value, List.length_ofFn,
     List.length_nil, List.length_cons, and_self]
 
-/-- Sixteen calls bounded by their actual power, column, and constructor
-loops; list initialization, the parent column, and final construction. -/
 def commitmentRowWork : Nat := 16 * 137 + 3 + 4 + 19
 
 theorem commitmentRow_work_le (coordinate : Fin 1188) :

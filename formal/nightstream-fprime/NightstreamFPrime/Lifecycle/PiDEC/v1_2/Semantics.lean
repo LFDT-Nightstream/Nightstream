@@ -90,8 +90,6 @@ def output
     (Formal.outputBindingInterface (Formal.atOffset interface offset))
     (Formal.outputBindingOffset offset) env
 
-/-- The computed PiDEC child family is unchanged when its shared point,
-message values, and verifier-computed public digits are unchanged. -/
 theorem output_eq_of_components
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -128,8 +126,6 @@ theorem output_eq_of_components
   · exact congrArg (fun value => #[value]) (evaluationEq child)
   · rfl
 
-/-- Cross-interface form of `output_eq_of_components`. Layout relocation is
-supplied only through exact evaluated component equalities. -/
 theorem output_eq_of_cross_components
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -183,8 +179,6 @@ abbrev PhaseHolds
     (inputAttempt relation interface offset env).parent
     (output relation interface offset env)
 
-/-- PiDEC acceptance transports only through equality of the exact parent and
-computed child-output family used by the paper verifier. -/
 theorem phaseHolds_of_parent_output_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -209,8 +203,6 @@ theorem phaseHolds_of_parent_output_eq
   rw [← parentEq, ← outputEq]
   exact phase
 
-/-- Cross-interface PiDEC acceptance transport through the exact parent and
-computed child-output family. -/
 theorem phaseHolds_of_cross_parent_output_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

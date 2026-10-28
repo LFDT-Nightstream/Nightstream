@@ -1,11 +1,11 @@
-//! Selected PiCCS validation and shared native proving. Copied from neo-fold-clean.
+//! Selected PiCCS validation and shared native proving.
 use super::{
     has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape, transcript::Transcript, CcsClaim,
-    CcsWitness, CeClaim, Params, RunningInstance, Structure,
+    CcsWitness, CeClaim, FoldContext, Params, RunningInstance, Structure,
 };
 use neo_math::D;
-pub use neo_reductions::api::PiCcsProof as SumcheckProof;
-use neo_reductions::{optimized_engine::optimized_prove_with_matrix_rows, superneo_eval::MatrixRows};
+pub(crate) use neo_reductions::api::PiCcsProof as SumcheckProof;
+use neo_reductions::optimized_engine::optimized_prove_with_matrix_rows;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("PiCCS shape: {0}")]
@@ -14,7 +14,7 @@ pub enum Error {
     Engine(#[from] engine::Error),
 }
 #[derive(Clone, Debug, PartialEq)]
-pub struct Proof {
+pub(crate) struct Proof {
     pub sumcheck: SumcheckProof,
     pub outputs: Vec<CeClaim>,
 }
@@ -26,17 +26,20 @@ fn reject_auxiliary(fresh: &CcsClaim, running: &[CeClaim]) -> Result<(), Error> 
 }
 pub(crate) fn prove_from_parts_with_rows(
     tr: &mut Transcript,
-    pp: &Params,
-    s: &Structure,
-    rows: &dyn MatrixRows,
-    workspace_bytes: usize,
+    context: FoldContext<'_>,
     fresh_claim: &CcsClaim,
     fresh_witness: &CcsWitness,
     running: &RunningInstance,
 ) -> Result<Proof, Error> {
+    let FoldContext {
+        params: pp,
+        structure: s,
+        rows,
+        workspace_bytes,
+    } = context;
     reject_auxiliary(fresh_claim, &running.claims)?;
     validate_input_shape(pp, s, fresh_claim, fresh_witness, running)?;
-    let (outputs, sumcheck, _, _) = optimized_prove_with_matrix_rows(
+    let (outputs, sumcheck, _) = optimized_prove_with_matrix_rows(
         tr.inner_mut(),
         pp.inner(),
         s,
@@ -53,7 +56,7 @@ pub(crate) fn prove_from_parts_with_rows(
     Ok(Proof { sumcheck, outputs })
 }
 
-pub fn verify(
+pub(crate) fn verify(
     tr: &mut Transcript,
     pp: &Params,
     s: &Structure,
@@ -103,16 +106,16 @@ fn validate_input_shape(
     if !running.is_empty() && running.claims.len() as u32 != pp.k_rho() {
         return Err(Error::Shape("running length does not match params.k_rho()"));
     }
-    if fresh_claim.m_in > s.m {
+    if fresh_claim.m_in > s.m() {
         return Err(Error::Shape("fresh m_in exceeds structure.m"));
     }
-    if fresh_claim.m_in % D != 0 {
+    if !fresh_claim.m_in.is_multiple_of(D) {
         return Err(Error::Shape("fresh m_in must contain whole degree-D ring elements"));
     }
     if fresh_claim.x.len() != fresh_claim.m_in {
         return Err(Error::Shape("fresh x length does not match m_in"));
     }
-    if fresh_witness.private_len(fresh_claim.m_in, s.m).is_none() {
+    if fresh_witness.private_len(fresh_claim.m_in, s.m()).is_none() {
         return Err(Error::Shape("fresh m_in + witness length must equal structure.m"));
     }
     validate_canonical_x_shape(
@@ -154,15 +157,7 @@ fn validate_v1_2_claims(s: &Structure, claims: &[CeClaim]) -> Result<(), Error> 
 }
 
 fn validate_v1_2_claim(s: &Structure, claim: &CeClaim) -> Result<(), Error> {
-    let assignment_width = neo_reductions::common::superneo_carrier_width(s.m);
-    let ell_n = s
-        .domain_rows()
-        .max(assignment_width)
-        .next_power_of_two()
-        .max(2)
-        .trailing_zeros() as usize;
-
-    if claim.r.len() != ell_n {
+    if claim.r.len() != s.cube_variables() {
         return Err(Error::Shape("CE r length must match the joint row point"));
     }
     if !has_canonical_evaluations(claim, s.t()) {

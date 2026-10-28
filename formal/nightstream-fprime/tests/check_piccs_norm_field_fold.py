@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""Check complete norm-code conversion with independent Python field arithmetic.
-
-Existing Python helpers own format and byte checks. This file owns the signed
-code interpretation and three interpolation steps. Causal trace derivation
-and original source provenance remain separate evidence. The coordinator runs
-this test under the project's 300-second native cap.
-"""
 
 from __future__ import annotations
 
@@ -21,7 +14,6 @@ from check_piccs_binary_fold import (
 from check_piccs_prefix_fold import read_round
 
 
-# Exact complete input profile required by this replay milestone.
 SOURCES = 17
 CARRIER = 43963776
 INPUT_CODES = (CARRIER + 3) // 4
@@ -42,7 +34,6 @@ def pair_table(challenges):
     r0, r1, r2 = map(tuple, challenges)
     values = []
     for code in range(TABLE_SIZE):
-        # code = 27*a + 9*b + 3*c + d, with signed digit value digit - 1.
         digits = [((code // divisor) % 3 - 1, 0) for divisor in (27, 9, 3, 1)]
         low = interpolate(digits[0], digits[1], r0)
         high = interpolate(digits[2], digits[3], r0)

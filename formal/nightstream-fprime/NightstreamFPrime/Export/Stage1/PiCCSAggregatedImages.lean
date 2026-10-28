@@ -3,9 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSLinearRows
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImages
 
 /-! Compute original-source PiCCS endpoints with the linear carried terms
-aggregated before matrix evaluation. The endpoint message carries the fresh
-matrix images and all original norm inputs. Its unused carried fields are
-zero; the two returned scalars contain the complete carried sums. -/
+aggregated before matrix evaluation. -/
 
 set_option autoImplicit false
 
@@ -20,7 +18,6 @@ open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 
-/-- Combine every original running source at the selected complete block. -/
 def combinedBlock (powers : Nat → K)
     (assignments : Fin productionShape.sourceCount →
       Phi81Relation.Assignment PiCCSSourceImages.shape)
@@ -30,8 +27,6 @@ def combinedBlock (powers : Nat → K)
     (fun source => PiCCSSourceImages.blockAt
       (assignments (runningSourceIndex source)) block)
 
-/-- Prepare the two exact output-weight families; the matrix slot weight
-is applied after row evaluation and the global shift remains in the pair. -/
 def prepare
     (forms : FixedArray (FixedArray (ProductionRelation.SparseForm ringDegree) ringDegree) ringDegree)
     (powers : Nat → K) :
@@ -42,8 +37,6 @@ def prepare
       (fun output => powers
         (productionShape.runningCount * productionShape.matrixCount * output.val)))
 
-/-- Preserve the fresh and norm fields without evaluating the carried
-families. The pair kernel receives the carried totals separately. -/
 def nonlinearMessage
     (layout : ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth)
     (assignments : Fin productionShape.sourceCount →
@@ -57,8 +50,6 @@ def nonlinearMessage
   padImage := fun _ => K.zero
   matrixImage := fun _ => K.zero
 
-/-- Assemble an endpoint from its computed rows. A caller may reuse the
-stored numeric invocation that supplies these same row values. -/
 def fromRows
     (layout : ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth)
     (assignments : Fin productionShape.sourceCount →
@@ -77,8 +68,6 @@ def fromRows
       (matrices.get slot))
   (nonlinearMessage layout assignments vertex fresh, pad, matrix)
 
-/-- Compute one endpoint from original assignments. Active row failures
-remain failures. The exact padded suffix contributes zero matrix values. -/
 def endpoint? (program : MatrixProgram.Program)
     (sourceRow : Nat → Option R1CS.Row)
     (layout : ColumnLayout cubeVariables PiCCSSourceImages.shape.carrierWidth)

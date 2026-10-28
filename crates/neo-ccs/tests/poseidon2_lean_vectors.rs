@@ -1,7 +1,5 @@
 //! Primitive conformance: the Rust Poseidon2 permutation and sponge hash must
 //! equal the Lean reference `NightstreamFPrime.Spec.Poseidon2` on fixed vectors.
-//! Expected values are the `#eval` output of the Lean definitions
-//! (`formal/nightstream-fprime/NightstreamFPrime/Spec/Poseidon2.lean`).
 
 use neo_ccs::crypto::poseidon2_goldilocks as p2;
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
@@ -66,7 +64,6 @@ fn sponge_hash_matches_lean_reference() {
             4874705429328367957,
         ]
     );
-    // Three rate-12 blocks, the last one partial.
     let input: Vec<Goldilocks> = (0..25).map(Goldilocks::from_u64).collect();
     assert_eq!(
         u64s(&p2::poseidon2_hash(&input)),

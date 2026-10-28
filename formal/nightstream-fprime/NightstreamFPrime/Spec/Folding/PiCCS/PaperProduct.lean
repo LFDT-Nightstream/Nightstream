@@ -1,8 +1,5 @@
 import NightstreamFPrime.Spec.Folding.BatchArity
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Folding/PiCCS/PaperProduct.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Paper-level source and output products for one SuperNeo fold.
 
@@ -11,8 +8,6 @@ verifier-selected output point, and honest CE output completeness.
 
 Does not own: a SumCheck instance, transcript events, Fiat--Shamir, PiRLC,
 PiDEC, Rust, R1CS, or constraint counts.
-
-Assurance tier: model-level.
 -/
 
 set_option autoImplicit false
@@ -21,8 +16,6 @@ namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperProduct
 
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
 
-/-- One source in paper order: fresh CCS sources first, then running CE
-sources. -/
 inductive Source
     (Structure : Type uStructure)
     (PublicInput : Type uPublicInput)
@@ -92,7 +85,6 @@ def Holds
 
 end Source
 
-/-- Exact fresh/running source product selected by one batch arity. -/
 structure InputProduct
     (Structure : Type uStructure)
     (PublicInput : Type uPublicInput)
@@ -107,7 +99,6 @@ structure InputProduct
 
 namespace InputProduct
 
-/-- Canonical source order used by the paper polynomial and PiRLC. -/
 def source
     {Structure : Type uStructure}
     {PublicInput : Type uPublicInput}
@@ -124,7 +115,6 @@ def source
 
 end InputProduct
 
-/-- Canonical output for one source at the verifier-selected point. -/
 def honestOutput
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -145,7 +135,6 @@ def honestOutput
   evaluations := semantics.evaluations source.constraintSystem assignment point
   stage := .fresh
 
-/-- Canonical output product at one shared evaluation point. -/
 def honestOutputs
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -165,7 +154,6 @@ def honestOutputs
   fun index => honestOutput semantics (input.source index)
     (assignments index) point
 
-/-- Honest source membership is preserved at the new evaluation point. -/
 theorem honestOutput_holds
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -200,7 +188,6 @@ theorem honestOutput_holds
         simpa [honestOutput, statementFresh] using opening.2.2⟩,
         pointValid, rfl⟩
 
-/-- Honest completeness for the complete source product. -/
 theorem product_complete
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}

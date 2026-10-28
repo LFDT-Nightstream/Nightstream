@@ -29,18 +29,11 @@ open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Phi81StrongSet
 open Finset
 
-/-! ### V2: uniform draws give a uniform integer below `p^4` -/
-
-/-- The base-`p` reading is a bijection, so each integer below `p^4` has
-exactly one draw. -/
 theorem drawIndex_fiber_card (value : Fin drawCount) :
     Nat.card {draw : Draw // drawIndex draw = value} = 1 := by
   rw [Nat.card_congr (drawIndex.subtypeEquiv (q := (· = value)) (fun _ => Iff.rfl)),
     Nat.card_unique]
 
-/-! ### V1: exact fiber counts -/
-
-/-- Residues in an initial segment that fits inside one block. -/
 private theorem count_residue_within (modulus residue length : Nat)
     (within : length ≤ modulus) :
     Nat.count (fun value => value % modulus = residue) length =
@@ -62,8 +55,6 @@ private theorem count_residue_within (modulus residue length : Nat)
     rw [Nat.mod_eq_of_lt (lt_of_lt_of_le member within)] at same
     exact below (same ▸ member)
 
-/-- Each residue below `N` has `q` preimages below `M`, plus one if it lies
-in the incomplete final block. -/
 theorem residue_count (residue : Fin scalarCount) :
     Nat.count (fun value => value % scalarCount = residue.val) drawCount =
       quotient + if residue.val < remainder then 1 else 0 := by
@@ -82,7 +73,6 @@ private def finSubtypeEquiv (length : Nat) (event : Nat → Prop) :
   left_inv _ := rfl
   right_inv _ := rfl
 
-/-- Exact number of draws that give one scalar. -/
 theorem sample_fiber_card (scalar : Scalar) :
     Nat.card {draw : Draw // sample draw = scalar} =
       quotient + if (scalarIndex scalar).val < remainder then 1 else 0 := by
@@ -95,9 +85,6 @@ theorem sample_fiber_card (scalar : Scalar) :
     ← Nat.count_eq_card_fintype]
   exact residue_count (scalarIndex scalar)
 
-/-! ### Generic finite facts; no concrete parameter is unfolded -/
-
-/-- Grouping a sum by the value of `g`. -/
 private theorem sum_comp_eq_sum_card {α β : Type*} [Fintype α] [Fintype β] [DecidableEq β]
     (g : α → β) (f : β → ℝ) :
     ∑ a, f (g a) = ∑ b, (Fintype.card {a // g a = b} : ℝ) * f b := by
@@ -109,8 +96,6 @@ private theorem sum_comp_eq_sum_card {α β : Type*} [Fintype α] [Fintype β] [
     rw [(mem_filter.mp member).2]
   rw [sum_congr rfl constant, sum_const, nsmul_eq_mul, Fintype.card_subtype]
 
-/-- Weighted comparison over `Fin N`: weight `q + 1` below `r`, `q` above,
-against the uniform weight, for any test in `[0, 1]`. -/
 private theorem weighted_bound (modulus samples blocks rest : Nat)
     (modulusPositive : 0 < modulus) (samplesPositive : 0 < samples)
     (total : samples = blocks * modulus + rest) (restLe : rest ≤ modulus)
@@ -203,17 +188,12 @@ private theorem weighted_bound (modulus samples blocks rest : Nat)
   rw [difference, target]
   exact abs_le.mpr ⟨lower, upper⟩
 
-/-! ### V1: comparison with uniform scalars -/
-
-/-- Expectation of a test under the sampler with uniform draws. -/
 noncomputable def sampledExpect (test : Scalar → ℝ) : ℝ :=
   (∑ draw : Draw, test (sample draw)) / drawCount
 
-/-- Expectation of a test under uniform scalars. -/
 noncomputable def uniformExpect (test : Scalar → ℝ) : ℝ :=
   (∑ scalar : Scalar, test scalar) / scalarCount
 
-/-- Per-call statistical distance `r (N - r) / (N M)`. -/
 noncomputable def distance : ℝ :=
   ((remainder * (scalarCount - remainder) : Nat) : ℝ) / ((scalarCount * drawCount : Nat) : ℝ)
 
@@ -229,8 +209,6 @@ theorem distance_nonnegative : 0 ≤ distance := by
   unfold distance
   positivity
 
-/-- V1 main bound: for every test with values in `[0, 1]`, the sampled and
-uniform expectations differ by at most `distance`. -/
 theorem expect_difference_abs_le (test : Scalar → ℝ)
     (nonnegative : ∀ scalar, 0 ≤ test scalar) (atMostOne : ∀ scalar, test scalar ≤ 1) :
     |sampledExpect test - uniformExpect test| ≤ distance := by

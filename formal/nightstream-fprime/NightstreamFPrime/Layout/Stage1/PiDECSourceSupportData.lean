@@ -47,7 +47,6 @@ def External (column : Nat) : Prop :=
   Parent column ∨
     InRange PiDECInputs.proofInputStart PiDECInputs.proofInputColumnCount column
 
-/-- Logical cells allocated by the PiDEC phase. -/
 def logicalCount : Nat := PiDEC.v1_2.Formal.logicalPrivateCount
 
 def Logical (column : Nat) : Prop :=
@@ -125,8 +124,6 @@ theorem source_target (column : Nat) (support : Source column) :
     Target (Spartan.sourceToSpartan column) :=
   ⟨column, support, rfl⟩
 
-/-- The seven PiDEC source intervals are ordered within the affine Spartan
-region. The proof inputs, logical split cells and fresh cells are contiguous. -/
 theorem source_ranges_ordered :
     Spartan.piCcsPhaseOffset ≤ parentCommitmentStart ∧
     parentCommitmentStart + PiDECInputs.commitmentWordsPerChild ≤
@@ -161,7 +158,6 @@ private theorem fresh_end_eq_runningOffset :
     PiDECStarts.commitmentFreshStart, PiDECStarts.publicInputFreshStart,
     PiDECStarts.inputFreshStart, Nat.add_zero, Nat.zero_add]
 
-/-- The logical interval fits in the declared Stage 1 source capacity. -/
 theorem logical_end_le_sourceColumnCount :
     PiDECStarts.phaseLogicalStart + logicalCount ≤ Spartan.SourceColumnCount := by
   calc
@@ -171,7 +167,6 @@ theorem logical_end_le_sourceColumnCount :
     _ = RunningTransitionInputs.phaseOffset := fresh_end_eq_runningOffset
     _ ≤ Spartan.SourceColumnCount := runningOffset_le_sourceColumnCount
 
-/-- The fresh interval fits in the declared Stage 1 source capacity. -/
 theorem fresh_end_le_sourceColumnCount :
     PiDECStarts.phaseFreshStart + freshCount ≤ Spartan.SourceColumnCount := by
   rw [fresh_end_eq_runningOffset]
@@ -194,7 +189,6 @@ theorem source_lt_sourceColumnCount {column : Nat} (support : Source column) :
   · exact Nat.lt_of_lt_of_le logical.2 logical_end_le_sourceColumnCount
   · exact Nat.lt_of_lt_of_le fresh.2 fresh_end_le_sourceColumnCount
 
-/-- The four protocol input families remain adjacent after Spartan mapping. -/
 theorem mapped_input_ranges_contiguous :
     Spartan.sourceToSpartan PiDECInputs.commitmentInputStart +
         PiDECInputs.childCount * PiDECInputs.commitmentWordsPerChild =
@@ -221,7 +215,6 @@ theorem mapped_input_ranges_contiguous :
       PiDECInputs.phaseOffset, PiDECInputs.proofInputColumnCount,
       Nat.mul_add, Nat.add_assoc]
 
-/-- The mapped logical interval ends no later than the next phase begins. -/
 theorem mapped_logical_start_le_output :
     Spartan.sourceToSpartan PiDECInputs.phaseOffset ≤
       Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset := by
@@ -231,7 +224,6 @@ theorem mapped_logical_start_le_output :
   · exact Nat.le_of_lt (Spartan.sourceToSpartan_lt_of_piCcsLocal _ _
       (by decide) before)
 
-/-- The next phase starts inside the declared private source capacity. -/
 theorem mapped_output_le_private :
     Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset ≤
       Spartan.privateColumnCount := by
@@ -243,7 +235,6 @@ theorem mapped_output_le_private :
         RunningTransitionInputs.piDecPhaseOffset_le
     exact Nat.le_of_lt (Spartan.sourceToSpartan_lt_of_piCcsLocal _ _ lower before)
 
-/-- Every retained source is at or after the first parent interval. -/
 theorem parentStart_le_source {column : Nat} (support : Source column) :
     parentCommitmentStart ≤ column := by
   rcases source_ranges_ordered with
@@ -273,7 +264,6 @@ theorem parentStart_le_source {column : Nat} (support : Source column) :
   · exact Nat.le_trans logicalBound logical.1
   · exact Nat.le_trans freshBound fresh.1
 
-/-- Parent input ranges lie within the PiRLC combination allocation. -/
 theorem parent_within_piRlc {column : Nat} (support : Parent column) :
     PiRLCStarts.commitmentLogicalStart ≤ column ∧
       column < PiRLCStarts.phaseFreshStart := by

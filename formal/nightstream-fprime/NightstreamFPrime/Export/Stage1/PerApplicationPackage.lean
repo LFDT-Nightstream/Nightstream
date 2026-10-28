@@ -9,12 +9,6 @@ import NightstreamFPrime.Lifecycle.Stage1.VerificationKey
 
 /-!
 Owns the generic final-package constructor for one Lean-authored application.
-
-The current validated package is an unchanged prefix. For a selected
-application, this module appends its Lean-compiled rows in a new private
-suffix, shifts the prior constant/public suffix, installs outer-terminal
-metadata, and recomputes all binding inputs. A concrete production application
-must still supply the final `Program` and prove the `2^28` fit.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPackage
@@ -25,7 +19,6 @@ open NightstreamFPrime.Layout
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec
 
-/- Schema roles owned by the per-application extension. -/
 namespace Role
 
 def applicationWitness : Nat := 17
@@ -35,13 +28,10 @@ end Role
 
 def basePackage (_delay : Unit := ()) : CircuitPackage := Data.circuitPackage ()
 
-/-- Exact application plan whose rows start after the validated prefix. -/
 def applicationPlan (program : Lifecycle.Stage1.Application.Program) :
     ApplicationPackage.Plan :=
   ApplicationPackage.productionPlan program basePackage.layout.rowCount
 
-/-- Closed-form executable plan. The reference definition above remains the
-package authority. -/
 def directApplicationPlan (program : Lifecycle.Stage1.Application.Program) :
     ApplicationPackage.Plan :=
   ApplicationPackage.productionPlan program 11377912
@@ -58,9 +48,6 @@ theorem directApplicationPlan_eq_applicationPlan
   funext program
   exact (directApplicationPlan_eq_applicationPlan program).symm
 
-/-- Count only the physical application rows. This avoids constructing,
-lowering, and classifying the complete row list when geometry needs only its
-length. -/
 def directApplicationRowCount
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
   R1CS.totalRowCount
@@ -78,8 +65,6 @@ theorem directApplicationRowCount_eq_plan
   rw [Rows.compileRowsTR_length, Rows.lowerConstraintsTR_eq,
     R1CS.lowerConstraints_rows_length]
 
-/-- Count only application-owned private columns. Geometry does not need the
-compiled rows, witness instructions, or assertion partition. -/
 def directApplicationPrivateCount
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
   let operations := ApplicationPackage.operations program
@@ -117,8 +102,6 @@ theorem directNextPreimageRowStart_eq_nextPreimageRowStart
   funext program
   exact (directNextPreimageRowStart_eq_nextPreimageRowStart program).symm
 
-/-- New caller-owned witness words plus every application-generated private
-column. -/
 def addedPrivateColumnCount
     (program : Lifecycle.Stage1.Application.Program) : Nat :=
   program.witnessWordCount + (applicationPlan program).privateCount
@@ -139,8 +122,6 @@ theorem directAddedPrivateColumnCount_eq_addedPrivateColumnCount
   funext program
   exact (directAddedPrivateColumnCount_eq_addedPrivateColumnCount program).symm
 
-/-- Existing private columns stay fixed. The former constant and every public
-column move after the application-private suffix. -/
 def shiftColumn (program : Lifecycle.Stage1.Application.Program)
     (column : Nat) : Nat :=
   if column < basePackage.layout.constantColumn then column
@@ -370,9 +351,6 @@ theorem directFinalLayout_eq_finalLayout
     directApplicationLocalSegment_eq_applicationLocalSegment,
     shiftSegments, basePackage, Data.circuitPackage_layout]
 
-/-- One complete package for one selected application. Application rows are
-ordinary rows because `Program.circuit` is the semantic authority; Rust does
-not select an application-specific template. -/
 def package (program : Lifecycle.Stage1.Application.Program) : CircuitPackage :=
   let plan := applicationPlan program
   TerminalPackage.install {
@@ -409,8 +387,6 @@ def applicationAuthorityWords
     (program : Lifecycle.Stage1.Application.Program) : List F :=
   ApplicationPackage.authorityWords (applicationPlan program)
 
-/-- Raw verifier authority for one exact application package. The caller
-supplies full static key words, not their digests. -/
 def authority (program : Lifecycle.Stage1.Application.Program)
     (nifsKeyWords commitmentKeyWords : List F) : VerifierContext.Authority where
   relationWords := (structuralPackageIdentity program).toList
@@ -433,9 +409,6 @@ def packageIdentityDomain : List F :=
     45, 112, 97, 99, 107, 97, 103, 101, 47, 118, 49] : List Nat).map
       Poseidon2.ofNat
 
-/-- Canonical preimage that joins the exact package to the verifier-owned
-static authority. The structural identity is recomputed from the package, and
-the descriptor is recomputed from the full application and key words. -/
 def packageIdentityPreimage (program : Lifecycle.Stage1.Application.Program)
     (nifsKeyWords commitmentKeyWords : List F) : List F :=
   packageIdentityDomain ++
@@ -444,9 +417,6 @@ def packageIdentityPreimage (program : Lifecycle.Stage1.Application.Program)
       (verifierContextDescriptor program nifsKeyWords
         commitmentKeyWords).serialize
 
-/-- Final verifier-owned identity for one exact application package and one
-exact static authority. It is acyclic because the context contains only the
-structural package identity, not this final identity. -/
 def packageIdentity (program : Lifecycle.Stage1.Application.Program)
     (nifsKeyWords commitmentKeyWords : List F) : VerifierContext.Digest4 :=
   VerifierContext.Digest4.ofList
@@ -488,9 +458,6 @@ theorem packageIdentityPreimage_length
     VerifierContext.Descriptor.serialize_length,
     VerifierContext.Digest4.toList_length]
 
-/-- Equality of final binding preimages identifies both acyclic components.
-The fixed-length framing prevents one component from consuming words from the
-other component. -/
 theorem packageIdentityPreimage_components
     (leftProgram rightProgram : Lifecycle.Stage1.Application.Program)
     (leftNifs leftCommitment rightNifs rightCommitment : List F)
@@ -649,9 +616,6 @@ theorem package_assertionRows
             (nextPreimageRowStart program) := by
   rfl
 
-/-- Any satisfying final-package assignment obeys the exact selected
-application transition. This theorem uses only the application-owned suffix;
-base-package preservation is a separate Stage 1 theorem. -/
 theorem packageRows_imply_applicationHolds
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (holds : (package program).RowsHold env) :
@@ -685,8 +649,6 @@ theorem packageRows_imply_applicationHolds
     (by simpa [applicationPlan, ApplicationPackage.productionPlan] using
       assertions)
 
-/-- Shifted ordinary prefix rows have exactly the original meaning under the
-column pullback. -/
 theorem packageRows_imply_baseOrdinaryRows
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (holds : (package program).RowsHold env) :
@@ -711,8 +673,6 @@ theorem packageRows_imply_baseOrdinaryRows
         exact List.mem_map_of_mem member)
     exact (shiftSparseRow_holds program assertion env).mp shifted
 
-/-- The five per-application parent-wiring rows force the exact next-preimage
-counter and initial-state equations. -/
 theorem packageRows_imply_nextPreimageSpec
     (program : Lifecycle.Stage1.Application.Program) (env : Env)
     (holds : (package program).RowsHold env) :
@@ -809,7 +769,6 @@ theorem verificationKeyBinding_context
   rw [basePackage, Data.circuitPackage_layout]
   rfl
 
-/-- Exact application-only physical row budget in the `2^28` package. -/
 theorem package_rowCount_le_twoPow28_iff
     (program : Lifecycle.Stage1.Application.Program) :
     (package program).layout.rowCount ≤ 2 ^ Lifecycle.cubeVariables ↔
@@ -818,7 +777,6 @@ theorem package_rowCount_le_twoPow28_iff
   norm_num [Lifecycle.cubeVariables]
   omega
 
-/-- Exact application-only private-column budget in the `2^28` package. -/
 theorem package_totalColumnCount_le_twoPow28_iff
     (program : Lifecycle.Stage1.Application.Program) :
     (package program).layout.totalColumnCount ≤ 2 ^ Lifecycle.cubeVariables ↔
@@ -827,14 +785,11 @@ theorem package_totalColumnCount_le_twoPow28_iff
   norm_num [Lifecycle.cubeVariables]
   omega
 
-/-- Exact finite bounds that one concrete application must discharge. -/
 structure FitsTwoPow28 (program : Lifecycle.Stage1.Application.Program) : Prop where
   rows : (package program).layout.rowCount ≤ 2 ^ Lifecycle.cubeVariables
   columns : (package program).layout.totalColumnCount ≤
     2 ^ Lifecycle.cubeVariables
 
-/-- Construct the physical package fit from application-only row and private
-column bounds. -/
 theorem fitsTwoPow28OfApplicationBounds
     (program : Lifecycle.Stage1.Application.Program)
     (rows : (applicationPlan program).rowCount ≤ 257057539)
@@ -853,8 +808,6 @@ theorem jointDomain_le_twoPow28
     jointDomain program ≤ 2 ^ Lifecycle.cubeVariables := by
   exact max_le fits.rows fits.columns
 
-/-- The recursive public width is fixed before the application is selected;
-only private columns and rows depend on its proved plan. -/
 theorem recursivePublicWidth_fixed
     (program : Lifecycle.Stage1.Application.Program) :
     (package program).layout.publicColumnCount = 278 := by

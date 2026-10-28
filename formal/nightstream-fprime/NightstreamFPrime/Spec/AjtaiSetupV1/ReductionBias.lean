@@ -24,7 +24,6 @@ private theorem count_blocks (modulus blocks : Nat) (event : Nat → Prop)
       simp [Nat.add_mod]
     simp only [shift, Nat.succ_mul]
 
-/-- Exact number of successful samples: complete residue blocks and a tail. -/
 theorem event_count (samples modulus : Nat) (event : Nat → Prop)
     [DecidablePred event] :
     Nat.count (fun value => event (value % modulus)) samples =
@@ -37,13 +36,9 @@ theorem event_count (samples modulus : Nat) (event : Nat → Prop)
   funext value
   simp [Nat.add_mod]
 
-/-- Probability of an event when a uniform integer in `[0,samples)` is
-reduced modulo `modulus`. Positive sample counts are required by the theorem. -/
 def frequency (samples modulus : Nat) (event : Nat → Prop) [DecidablePred event] : ℚ :=
   (Nat.count (fun value => event (value % modulus)) samples : ℚ) / samples
 
-/-- Uniform modular reduction changes any event probability by at most the
-fraction of inputs in the incomplete final residue block. -/
 theorem frequency_error_le (samples modulus : Nat)
     (samplesPositive : 0 < samples) (modulusPositive : 0 < modulus)
     (event : Nat → Prop) [DecidablePred event] :

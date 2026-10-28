@@ -1,6 +1,7 @@
 use super::*;
 use crate::lifecycle::tests::{claim, commitment, fields as input_fields, proof as fixture_proof};
 
+#[allow(clippy::duplicate_mod)]
 #[path = "golden_ccs_mutations.rs"]
 mod mutations;
 
@@ -14,8 +15,6 @@ fn fixture() -> (Value, CcsClaim, Vec<CeClaim>, NifsProof) {
         m_in: 270,
         adv: None,
     };
-    // PiCCS decodes the prior digest from the fresh public input; no check
-    // reads the running frames, so they stay zero.
     let running = (0..16)
         .map(|source| {
             claim(
@@ -47,7 +46,7 @@ fn export_matches_retained_lean_input_and_every_native_c_trace_field() {
     let structure = loaded.ccs_structure_header().unwrap();
     let params = Params::for_ccs_shape(
         structure.domain_rows(),
-        structure.m,
+        structure.m(),
         structure.t(),
         structure.max_degree(),
         114,
@@ -92,7 +91,7 @@ fn retained_pi_ccs_mutations_cover_the_current_matrix_families() {
         .inner()
         .padded_row_security_summary_for_shape(
             structure.domain_rows(),
-            structure.m,
+            structure.m(),
             structure.t(),
             structure.max_degree(),
             neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
@@ -101,7 +100,7 @@ fn retained_pi_ccs_mutations_cover_the_current_matrix_families() {
         .security_bits;
     let params = Params::for_ccs_shape(
         structure.domain_rows(),
-        structure.m,
+        structure.m(),
         structure.t(),
         structure.max_degree(),
         level,

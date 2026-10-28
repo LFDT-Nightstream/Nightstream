@@ -44,13 +44,11 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive
 
-/-- Symbolic form of one complete v1.2 CE evaluation family. -/
 structure EvaluationExpr where
   eval_K : Fin productionShape.coefficientCount → KExpr
   eval_A : Fin productionShape.matrixCount →
     Fin productionShape.coefficientCount → KExpr
 
-/-- Symbolic running public claims. -/
 structure RunningExpr (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) where
@@ -61,7 +59,6 @@ structure RunningExpr (logicalWidth : Nat)
     Fin (FullShape logicalWidth publicFits).publicWidth → Expr
   evaluation : Fin productionShape.runningCount → EvaluationExpr
 
-/-- Symbolic fresh public claims. -/
 structure FreshExpr (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) where
@@ -70,8 +67,6 @@ structure FreshExpr (logicalWidth : Nat)
   publicInput : Fin productionShape.freshCount →
     Fin (FullShape logicalWidth publicFits).publicWidth → Expr
 
-/-- External symbolic inputs of the statement-absorption leaf. The final
-state is compiler output and is not supplied by the caller. -/
 structure Interface (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth) where
@@ -140,12 +135,10 @@ def serializePublicInputExpr {logicalWidth : Nat}
     List Expr :=
   (List.finRange (FullShape logicalWidth publicFits).publicWidth).map input
 
-/-- The `Eval_K` words of one evaluation family. -/
 def serializeEvalKExpr (evaluation : EvaluationExpr) : List Expr :=
   (List.finRange productionShape.coefficientCount).flatMap fun coefficient =>
     serializeKExpr (evaluation.eval_K coefficient)
 
-/-- The `Eval_A` words of one evaluation family, matrix-major. -/
 def serializeEvalAExpr (evaluation : EvaluationExpr) : List Expr :=
   (List.finRange productionShape.matrixCount).flatMap fun matrix =>
     (List.finRange productionShape.coefficientCount).flatMap
@@ -191,7 +184,6 @@ private theorem constantWords_length (words : List F) :
     (constantWords words).length = words.length := by
   simp [constantWords]
 
-/-- Reconstruct one digest word from its 64 canonical public bits. -/
 def decodeHashWordExpr {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -202,8 +194,6 @@ def decodeHashWordExpr {logicalWidth : Nat}
       input (NightstreamFPrime.Lifecycle.digestBitIndexNat
         (logicalWidth := logicalWidth) word bit)) 0
 
-/-- The four prior-digest words are reconstructed from the pilot-bound fresh
-public bit encoding. -/
 def priorDigestExpr {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -213,7 +203,6 @@ def priorDigestExpr {logicalWidth : Nat}
     decodeHashWordExpr
       ((interface.fresh offset).publicInput ⟨0, by decide⟩) lane
 
-/-- Symbolic form of the digest-only `ProductionKey.publicInputBlocks`. -/
 def publicInputBlocks {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -225,8 +214,6 @@ def publicInputBlocks {logicalWidth : Nat}
     [serializeCommitmentExpr (fresh.commitment index),
       serializePublicInputExpr (fresh.publicInput index)]
 
-/-- Key-owned public NIFS input prefix: the constant fold-domain chunk, then
-the statement blocks in order with no length prefixes. -/
 def publicInputActions {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -235,7 +222,6 @@ def publicInputActions {logicalWidth : Nat}
   [.absorb (constantWords NightstreamFPrime.Lifecycle.Transcript.foldDomainChunk),
     .absorb (publicInputBlocks interface offset).flatten]
 
-/-- Verifier-owned claim words in exact v1.2 `Eval_K`, then `Eval_A`, order. -/
 def verifierClaimWords {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -250,7 +236,6 @@ def verifierClaimWords {logicalWidth : Nat}
       serializeKExpr ((running.evaluation coordinate.running).eval_A
         coordinate.matrix coordinate.coefficient)
 
-/-- The two verifier-owned blocks: prior point, then `Eval_K ++ Eval_A`. -/
 def verifierInputBlocks {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -389,8 +374,6 @@ private theorem priorDigestExpr_eval {logicalWidth : Nat}
         exact inductionHypothesis _
   exact foldEval bits 0
 
-/-- The symbolic public block list evaluates exactly to the production key's
-canonical semantic block list. -/
 theorem publicInputBlocks_eval {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -438,8 +421,6 @@ private theorem verifierClaimWords_eval {logicalWidth : Nat}
       (((interface.running offset).evaluation coordinate.running).eval_A
         coordinate.matrix coordinate.coefficient)
 
-/-- The symbolic verifier blocks evaluate exactly to the production key's
-canonical v1.2 verifier input blocks. -/
 theorem verifierInputBlocks_eval
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -543,7 +524,6 @@ theorem assertionCount_eq {logicalWidth : Nat}
     Formal.assertionCount (actions interface offset) = 0 := by
   rfl
 
-/-- The one causal program that owns the complete statement transcript. -/
 def program {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -551,8 +531,6 @@ def program {logicalWidth : Nat}
     Formal.Program :=
   Formal.compile offset Hash.zeroE (actions interface offset)
 
-/-- The statement transcript state is the program output. It is never a
-caller-supplied witness value. -/
 def finalState {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -560,8 +538,6 @@ def finalState {logicalWidth : Nat}
     Layer.EState :=
   (program interface offset).output
 
-/-- Executable final state: the output lanes of the last of the 123
-statement permutations. It does not compile the statement words. -/
 def finalStateFast {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -606,8 +582,6 @@ def duplexInterface {logicalWidth : Nat}
   actions := actions interface
   final := finalState interface
 
-/-- Only external absorb inputs must precede the call. The derived final
-state lives in this leaf's own recipe interval. -/
 def Assumptions {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -615,8 +589,6 @@ def Assumptions {logicalWidth : Nat}
     (offset : Nat) (_env : Env) : Prop :=
   Formal.ActionsBelow offset (actions interface offset)
 
-/-- Named semantic predicate: the exact Poseidon2 trace of both
-statement-absorption actions reaches the declared output state. -/
 def SpecHolds {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -627,8 +599,6 @@ def SpecHolds {logicalWidth : Nat}
     ((actions interface offset).map (Formal.Action.eval env))
     (List.ofFn (Layer.evalState env (finalState interface offset)))
 
-/-- The leaf emits only its causal witness batch. Since every action is an
-absorption, the compiler has no non-recipe assertion. -/
 def opsAt {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -677,8 +647,6 @@ private theorem program_assertions_eq_nil {logicalWidth : Nat}
     (actions interface offset)).assertions.length = 0
   rw [Formal.compile_assertions_length, assertionCount_eq]
 
-/-- Honest execution constructs the complete absorb-only statement trace.
-No semantic premise is necessary because this schedule has no assertions. -/
 theorem build {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -709,7 +677,6 @@ theorem build {logicalWidth : Nat}
     rw [flatConstraints_opsAt]
     exact recipeRows
 
-/-- The sole logical circuit for this leaf. -/
 def circuit {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -821,7 +788,6 @@ theorem flatConstraints_varsBelow {logicalWidth : Nat}
   rw [circuit_ops, flatConstraints_opsAt, opsAt_localLength]
   exact scope
 
-/-- The domain chunk and the digest-only statement are two absorb actions. -/
 theorem actions_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -829,15 +795,12 @@ theorem actions_length {logicalWidth : Nat}
     (actions interface offset).length = 2 := by
   rfl
 
-/-- The exact symbolic private-variable footprint of this leaf. -/
 def recipeCount {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (interface : Interface logicalWidth publicFits) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
 
-/-- The fixed profile compiles the digest-only statement prefix to exactly
-134,808 private recipe variables. -/
 theorem recipeCount_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -855,7 +818,6 @@ theorem recipeCount_eq {logicalWidth : Nat}
   rw [Formal.compile_recipes_length]
   exact recipeCount_eq interface offset
 
-/-- Layout may allocate exactly this private interval and no boundary copy. -/
 theorem localLength_eq {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -864,8 +826,6 @@ theorem localLength_eq {logicalWidth : Nat}
   rw [circuit_ops, opsAt_localLength]
   exact program_recipes_length interface offset
 
-/-- The owned statement leaf emits one witness operation and no copy
-assertion. -/
 theorem operations_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -873,7 +833,6 @@ theorem operations_length {logicalWidth : Nat}
     (Circuit.ops (circuit interface).main offset).length = 1 := by
   rfl
 
-/-- One row per causal recipe; the compiled final state is reused directly. -/
 theorem flatConstraints_length {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -883,8 +842,6 @@ theorem flatConstraints_length {logicalWidth : Nat}
   rw [circuit_ops, flatConstraints_opsAt, recipeConstraints_length]
   exact program_recipes_length interface offset
 
-/-- The verifier claim block is visibly `Eval_K ++ Eval_A`; no matrix
-coordinate can inhabit the Pad prefix. -/
 theorem verifierClaimWords_eq_eval_K_append_eval_A
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -914,9 +871,6 @@ private theorem eval_zeroE_eq_initialState (env : Env) :
   norm_num [List.ofFn_succ]
   rfl
 
-/-- Exact parent coverage for the statement transcript boundary. The
-symbolic public values are evaluated into the production `Running` and
-`Fresh` types; no caller supplies the resulting state equality. -/
 theorem spec_implies_keyInitialState
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

@@ -515,8 +515,6 @@ import NightstreamFPrime.Export.Stage1.ActualNextPreimage
 #audit_axioms NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprint.retainedFieldCount_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprint.retainedCoordinateCount_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprintBridge.invocationCount_eq_canonical
-#audit_axioms NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprintBridge.genericRowCount_eq
-#audit_axioms NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprintBridge.removedRowCount_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.DirectLowNormFootprint.poseidonAndProductCoordinates_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.DirectLowNormFootprint.poseidonAndProductCoordinates_le_cube
 #audit_axioms NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.mulExpr_eval
@@ -834,7 +832,6 @@ import NightstreamFPrime.Export.Stage1.ActualNextPreimage
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.Affine.Table.compile?_ofSemantic
 #audit_axioms NightstreamFPrime.Layout.MatrixProgram.PoseidonInput.Term.affine_form?_ofSemantic
 
--- Shared-value repair obligations; a failed build leaves this audit open.
 #audit_axioms NightstreamFPrime.Export.AffineRuns.sourceAt_eq_expand_getD
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCValueWiring.valueSource_support
 #audit_axioms NightstreamFPrime.Export.Stage1.PiRLCValueWiring.valueSource_beforePhase
@@ -864,7 +861,6 @@ import NightstreamFPrime.Export.Stage1.ActualNextPreimage
 #audit_axioms NightstreamFPrime.Export.Stage1.ActualPiRLCValues.rowsZero_implies_parentEvalA_sum
 #audit_axioms NightstreamFPrime.Export.Stage1.ActualPiRLCValues.selectedRowsAndPublic_imply_sums
 
-/- Exact quotient-product circuit and ring-index authority. -/
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.QuotientProduct.evaluate_eq_polynomial
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.QuotientProduct.evaluate_sub
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.QuotientProduct.evaluate_add

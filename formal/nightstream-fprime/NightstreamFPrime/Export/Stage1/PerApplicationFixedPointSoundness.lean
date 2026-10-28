@@ -8,12 +8,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 /-!
 Owns the deterministic semantic edge from one self-derived per-application
 matrix plan to the exact verifier-selected HyperNova augmented step.
-
-The public theorem decodes all typed ABI values from one canonical raw packet.
-The relation, application, context key, and Ajtai key are fixed before the
-statement is formed. Final package closure must prove that the decoded context
-key is the verifier-owned canonical verifier-context digest. This module does not
-close package conformance, terminal verification, or security.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationFixedPointSoundness
@@ -79,9 +73,6 @@ private theorem slot_eq_functionIndex (slot : Fin slotCount) :
   change slot.val = 0
   omega
 
-/-- Typed meaning of the final direct plan's external values. Every field is
-an ABI equality. No field assumes application correctness, hash correctness,
-NIFS acceptance, or a terminal relation. -/
 private structure Represents
     (application : Program) (fits : FitsTwoPow28 application)
     (ajtai : AjtaiKey
@@ -172,8 +163,6 @@ private structure Represents
   priorPc : input.priorPc = 1
   pcNext : output.pcNext = functionIndex
 
-/-- Internal typed-ABI proof. The public theorem below derives every input to
-this lemma from one canonical raw packet and accepted rows. -/
 private theorem representedSemantics_imply_stepHoldsFor
     (application : Program) (fits : FitsTwoPow28 application)
     (ajtai : AjtaiKey
@@ -388,12 +377,6 @@ private theorem representedSemantics_imply_stepHoldsFor
       exact Or.inr ⟨priorPcValid, iterationPositive, (by
         simpa [machineFor] using hashSlots.1), selectedNifs, unchanged⟩
 
-/-- One canonical raw assignment and acceptance of the exact self-derived
-matrix plan force the verifier-selected HyperNova step. No caller supplies a
-typed input, typed output, representation record, constant-column fact, or
-retained-block encoding proof. The immediate key is the context key decoded
-from the constrained prior state; final package closure must identify it with
-the verifier-owned canonical verifier-context digest. -/
 theorem rowsZero_implies_stepHoldsFor
     (application : Program) (fits : FitsTwoPow28 application)
     (ajtai : AjtaiKey
@@ -475,8 +458,6 @@ theorem rowsZero_implies_stepHoldsFor
     (PerApplicationDecodedIO.input application fits raw)
     (PerApplicationDecodedIO.output application raw) represents semantics
 
-/-- Accepted final rows force both the augmented step and the exact recursive
-public output exposed by the complete Phi81 assignment. -/
 theorem rowsZero_implies_stepHoldsFor_and_publicOutput
     (application : Program) (fits : FitsTwoPow28 application)
     (ajtai : AjtaiKey
@@ -498,14 +479,6 @@ theorem rowsZero_implies_stepHoldsFor_and_publicOutput
       PerApplicationDecodedIO.outputDigest] using
       PerApplicationCanonicalAssignment.projectPublicInput_completeAssignment raw
 
-/-- Rows that hold on `bind raw` force the augmented step under the canonical
-verifier-context digest. `bind` overwrites the four verifier-context columns
-of one canonical raw packet. These columns are not part of the SuperNeo
-public input `x`, and no NIFS or terminal check sets them. For an arbitrary
-accepted witness, use
-`ActualContextSecurity.selectedRowsAndCheckedPublic_imply_stepOrCollision`:
-with the terminal public-input check, it gives the step under the canonical
-verifier context or a named state-hash collision. -/
 theorem verifierBoundRowsZero_implies_stepHoldsFor
     (application : Program) (fits : FitsTwoPow28 application)
     (commitmentSetup : CommitmentSetup application)

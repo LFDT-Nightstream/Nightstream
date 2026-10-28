@@ -1,14 +1,9 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
 
-/-! Provenance: copied from `formal/nightstream-lean/Nightstream/SuperNeo/Concrete/Phi81Relation/PiRLCAlgebra/Norm/Centered.lean`
-at commit `fb7a8a99aefbb8ebb5474681ecf80f1b95a1b7a2`; namespaces renamed, otherwise unchanged. -/
-
 /-!
 Centered Goldilocks inequalities used by concrete Phi81 norm growth.
 
 Protocol: SuperNeo `Pi_RLC`.
-Phase: one field coefficient before quotient-ring support accounting.
-Constraint family: semantic norm only; this file emits no rows.
 
 Owns: the exact cyclic distance induced by the active `Fin q` carrier,
 centered triangle inequalities, and the two-times bound for multiplication by
@@ -16,18 +11,6 @@ one production five-symbol coefficient.
 
 Does not own: quotient-ring support, assignment folding, arity arithmetic,
 Rust/R1CS refinement, or row removal.
-
-Emits constraints: no.
-
-Authority boundary: every inequality is derived from the executable
-Goldilocks carrier and the independently defined five-symbol embedding. There
-is no caller-supplied norm law.
-
-| Stage path | Mathematical obligation | Authority class | Lean owner |
-|---|---|---|---|
-| `nifs.pi_rlc.verify.norm_growth.centered.distance` | `min(x,q-x)` is the cyclic distance of the canonical residue | derived | `centeredMagnitude_eq_distance` |
-| `nifs.pi_rlc.verify.norm_growth.centered.triangle` | centered addition/subtraction obey the triangle inequality | derived | `centeredMagnitude_add_le`, `centeredMagnitude_sub_le` |
-| `nifs.pi_rlc.verify.norm_growth.centered.symbol` | one embedded symbol in `{-2,-1,0,1,2}` expands magnitude by at most two | derived | `embedCoefficient_mul_le_two` |
 -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
@@ -35,10 +18,8 @@ namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81StrongSet
 
-/-- Floor of half the odd Goldilocks modulus. -/
 def halfModulus : Nat := goldilocksModulus / 2
 
-/-- Executable cyclic distance of one canonical natural residue. -/
 def distance (value : Nat) : Nat :=
   if value <= halfModulus then value else goldilocksModulus - value
 
@@ -46,7 +27,6 @@ theorem modulus_eq_two_half_add_one :
     goldilocksModulus = 2 * halfModulus + 1 := by
   decide
 
-/-- The active `min` definition is the same executable centered branch. -/
 theorem centeredMagnitude_eq_distance (value : F) :
     centeredMagnitude value = distance value.val := by
   unfold centeredMagnitude distance
@@ -89,9 +69,6 @@ private theorem distance_le_complement {value : Nat}
     simp [low, selfLe]
   · simp [low]
 
-/- The four centered-sign cases below prove the cyclic subtraction triangle
-directly on canonical natural representatives. This is the only substantial
-field-metric argument used by norm growth. -/
 private theorem distance_sub_triangle
     (left right : Nat)
     (leftLt : left < goldilocksModulus)
@@ -210,7 +187,6 @@ private theorem distance_sub_triangle
         _ = distance left + distance right := by
           simp [distance, leftLow, rightLow]
 
-/-- Canonical representative of subtraction in the active `Fin q` carrier. -/
 private theorem val_sub (left right : F) :
     (left - right).val =
       (left.val + goldilocksModulus - right.val) % goldilocksModulus := by
@@ -228,7 +204,6 @@ private theorem val_sub (left right : F) :
           goldilocksModulus := by
       simp [Nat.add_comm]
 
-/-- Centered modular subtraction obeys the triangle inequality. -/
 theorem centeredMagnitude_sub_le (left right : F) :
     centeredMagnitude (left - right) <=
       centeredMagnitude left + centeredMagnitude right := by
@@ -257,7 +232,6 @@ private theorem neg_neg_eq (value : F) : -(-value) = value := by
         _ = value := neg_neg_eq value
     simpa [restore, centeredMagnitude_zero] using triangle
 
-/-- Centered modular addition is subtraction of an equal-magnitude negative. -/
 theorem centeredMagnitude_add_le (left right : F) :
     centeredMagnitude (left + right) <=
       centeredMagnitude left + centeredMagnitude right := by
@@ -296,8 +270,6 @@ private theorem two_mul (value : F) :
     _ = value + value := by
       congr 1 <;> exact Lean.Grind.Fin.mul_one value
 
-/-- Exact five-case proof: multiplication by one sampled coefficient expands
-centered magnitude by at most two. -/
 theorem embedCoefficient_mul_le_two
     (coefficient : Coefficient) (value : F) :
     centeredMagnitude (embedCoefficient coefficient * value) <=

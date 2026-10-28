@@ -1,19 +1,7 @@
 #!/usr/bin/env python3
-"""Check the Lean-emitted artifact digests and the paths that reuse them.
-
-Owns two fail-closed checks over the checked-out tree:
-1. In each artifact directory below, `SHA256SUMS` lists every regular
-   (not symbolically linked) `*.json` file exactly once, and every listed
-   SHA-256 digest matches its file.
-2. Outside its own directory, every tracked file that has the name or the
-   bytes of one of these artifacts is a symbolic link to that artifact. A
-   regular copy can drift, so it is rejected. Bytes are compared with the
-   checked-out content, so Git LFS artifacts are covered too.
-
-It does not regenerate an artifact or decide whether a digest change is
-valid. After a regeneration, run it with `--write` and commit the changed
-`SHA256SUMS` files with the artifacts.
-"""
+"""Check that each artifact directory's SHA256SUMS matches its JSON files, and that
+every tracked copy of an artifact elsewhere is a symbolic link to it. It does not
+regenerate an artifact or decide whether a digest change is valid."""
 
 import hashlib
 import os
@@ -59,7 +47,6 @@ def read_manifest(path):
 
 
 def check_directory(directory, errors):
-    """Return the SHA-256 digest of each regular artifact in `directory`."""
     label = directory.relative_to(ROOT)
     expected = read_manifest(directory / 'SHA256SUMS')
     actual = {name: digest(directory / name) for name in regular_artifacts(directory)}
@@ -81,11 +68,6 @@ def tracked_paths():
 
 
 def check_reuses(artifacts, errors):
-    """Return the number of links that resolve to their artifact.
-
-    A name or a content belongs to the first directory in
-    `ARTIFACT_DIRECTORIES` that holds it, so a same-name file in a later
-    artifact directory is a reuse too."""
     by_name, by_content = {}, {}
     for path, value in artifacts.items():
         by_name.setdefault(path.name, path)

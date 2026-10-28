@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""Compare independently produced Lean values with the corresponding saved Rust round.
-
-This command reads comparison targets only. It does not construct prover data.
-"""
 
 import json
 import sys

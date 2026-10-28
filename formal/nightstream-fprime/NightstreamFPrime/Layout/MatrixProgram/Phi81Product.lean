@@ -20,8 +20,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
-/-- One encoded source-major product family. Lane count is the fixed Phi81
-ring degree; only source, block, and cell counts vary. -/
 structure Family where
   sourceCount : Nat
   blockCount : Nat
@@ -34,7 +32,6 @@ def Family.privateCount (family : Family) : Nat :=
 def Family.invocationCount (family : Family) : Nat :=
   family.sourceCount * family.privateCount
 
-/-- Decoded coordinates retain the exact family-local bounds. -/
 structure Descriptor where
   family : Family
   familyOffset : Nat
@@ -63,7 +60,6 @@ def Descriptor.localInvocation (descriptor : Descriptor) : Nat :=
 def Descriptor.invocation (descriptor : Descriptor) : Nat :=
   descriptor.familyOffset + descriptor.localInvocation
 
-/-- Global invocation slot with only the product lane replaced. -/
 def Descriptor.invocationAtLane (descriptor : Descriptor)
     (lane : Fin ringDegree) : Nat :=
   descriptor.familyOffset +
@@ -73,7 +69,6 @@ def Descriptor.invocationAtLane (descriptor : Descriptor)
 def invocationCount (families : List Family) : Nat :=
   (families.map Family.invocationCount).sum
 
-/-- Wire operands for one Phi81 quotient-product family block. -/
 structure Block where
   families : List Family
   oneColumn : Nat
@@ -94,7 +89,6 @@ def Family.ringCount (family : Family) : Nat :=
 def ringCount (families : List Family) : Nat :=
   (families.map Family.ringCount).sum
 
-/-- Decode a full ring while retaining the original lane/cell source order. -/
 def Family.ringDescriptor? (family : Family) (familyOffset index : Nat) :
     Option Descriptor :=
   if bound : index < family.ringCount then
@@ -160,8 +154,6 @@ theorem ringDescriptorFrom?_tail (family : Family) (rest : List Family)
 def Block.rowCount (block : Block) : Nat :=
   ringCount block.families * 108
 
-/-- Load a fixed finite function. Any missing element rejects the complete
-function. -/
 def loadFin? {Alpha : Type} :
     (count : Nat) → (Fin count → Option Alpha) →
       Option (Fin count → Alpha)
@@ -233,7 +225,6 @@ def Block.priorState? (block : Block) (logicalWidth : Nat)
     block.output.form? logicalWidth
       (descriptor.invocationAtLane lane - descriptor.family.privateCount)
 
-/-- Reconstruct one complete ring equation from its canonical retained data. -/
 def Block.interface? (block : Block) (logicalWidth : Nat)
     (descriptor : Descriptor) :
     Option (Phi81ProductPlan.Interface logicalWidth) := do
@@ -247,7 +238,6 @@ def Block.interface? (block : Block) (logicalWidth : Nat)
     SparseForm.add (challenge lane) (SparseForm.singleton oneColumn (-2))
   pure { left, right := input, quotient, prior, output }
 
-/-- Ring-major order, then every fixed evaluation point in increasing order. -/
 def Block.row? (block : Block) (logicalWidth ordinal : Nat) :
     Option (RowForms logicalWidth) :=
   if ordinal < block.rowCount then do

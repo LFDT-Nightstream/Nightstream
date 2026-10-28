@@ -27,8 +27,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
-/-- The sole shape contract for caller-owned PiCCS values. Derived transcript
-states, challenges, and arithmetic outputs are intentionally absent. -/
 structure ExternalInputsLinear
     (interface : Formal.Interface logicalWidth 8 publicFits)
     (parentOffset : Nat) : Prop where
@@ -72,8 +70,6 @@ structure ExternalInputsLinear
       ((interface.output parentOffset).matrixCoordinate source matrix
         coefficient)
 
-/-- Every child shape follows from the external production wires and the
-opaque output-shape theorem of the child immediately before it. -/
 theorem inputShapes
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
     (interface : Formal.Interface logicalWidth 8 publicFits)

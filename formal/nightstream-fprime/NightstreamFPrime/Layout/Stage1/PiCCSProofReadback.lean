@@ -2,7 +2,7 @@ import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 
 /-!
 Owns the inverse from an actual selected NIFS proof to the existing PiCCS
-source values. The production degree remains nine. Round coefficients and
+source values. Round coefficients and
 both output families are read from that proof; D messages stay in its template.
 -/
 
@@ -13,8 +13,6 @@ open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Existing source values read directly from the actual fresh commitment
-and the actual degree-eight NIFS proof. -/
 def ofProof (commitment : PaperAlgebra.Commitment) (actual : Proof 8) :
     PiCCSProofInputs.ProofValues where
   freshCommitment := commitment
@@ -38,9 +36,6 @@ variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
   (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
 
-/-- Source reconstruction returns the exact selected proof. The degree
-conversion uses the existing production degree-eight definition and
-`ProductionKey.degreeBound_eq`; it adds no restriction on proof values. -/
 theorem relationProof_ofProof (commitment : PaperAlgebra.Commitment)
     (actual : Proof (ProductionKey.degreeBound relation)) :
     PiCCSProofInputs.relationProof relation (ofProof commitment actual) actual = actual := by
@@ -63,8 +58,6 @@ theorem relationProof_ofProof (commitment : PaperAlgebra.Commitment)
     piDecCommitments := actual.piDecCommitments
     piDecEvaluations := actual.piDecEvaluations } : Proof 8)) rounds
 
-/-- The unique fresh source is reconstructed with its exact commitment and
-public input, without a new fresh-instance representation. -/
 theorem protocolFresh_ofProof
     (fresh : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (actual : Proof (ProductionKey.degreeBound relation)) :

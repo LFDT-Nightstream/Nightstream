@@ -3,13 +3,7 @@ import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
 /-!
 Owns the compact Lean instruction program for one per-application 4-matrix
-relation. Each opcode denotes one proved direct-plan constructor. The ordered
-program is the transport authority; consumers may interpret it but may not
-select block order, row counts, geometry, or application rows.
-
-This module defines the in-Lean interpreter and proves that the canonical
-program expands to the self-derived structural plan. Package encoding and the
-Rust interpreter are separate consumers of this result.
+relation.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationProductionPlan
@@ -27,8 +21,6 @@ abbrev ProgramApplication := Lifecycle.Stage1.Application.Program
 abbrev FitsTwoPow28 (application : ProgramApplication) :=
   PerApplicationFixedPoint.FitsTwoPow28 application
 
-/-- Fixed production-plan instruction vocabulary. The order is supplied by
-`canonical`; enum order has no semantic effect. -/
 inductive BlockKind where
   | pilotPoseidon
   | piCcsPoseidon
@@ -82,7 +74,6 @@ def BlockKind.format : Format BlockKind where
     intro kind
     cases kind <;> rfl
 
-/-- Small tree language for ordered plan concatenation. -/
 inductive Program where
   | leaf (kind : BlockKind)
   | append (left right : Program)
@@ -105,7 +96,6 @@ def relation (application : ProgramApplication)
     (fits : FitsTwoPow28 application) :=
   PerApplicationFixedPoint.seedRelation application fits
 
-/-- Exact direct plan selected by one opcode. -/
 def BlockKind.plan (application : ProgramApplication)
     (fits : FitsTwoPow28 application) : BlockKind →
     ProductionRelation.Plan (PerApplicationFixedPoint.logicalWidth application)
@@ -140,7 +130,6 @@ def BlockKind.plan (application : ProgramApplication)
   | .recursivePublicOutput => DirectApplicationPrefixPlan.publicOutputPlan
       (applicationGeometry application)
 
-/-- Direct wire-facing live-row count for one production block. -/
 def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
   | .pilotPoseidon => 696000
   | .piCcsPoseidon => 142200
@@ -157,8 +146,6 @@ def BlockKind.rowCount (application : ProgramApplication) : BlockKind → Nat
   | .nextPreimage => 5
   | .recursivePublicOutput => 4
 
-/-- The direct block count is exactly the count of the selected semantic
-plan. -/
 theorem BlockKind.plan_rowCount (application : ProgramApplication)
     (fits : FitsTwoPow28 application) (kind : BlockKind) :
     (kind.plan application fits).rowCount = kind.rowCount application := by
@@ -174,8 +161,6 @@ theorem BlockKind.plan_rowCount (application : ProgramApplication)
       DirectApplicationPrefixPlan.nextPreimagePlan,
       DirectApplicationPrefixPlan.publicOutputPlan, Layout.PiDEC.v1_2.exactRowCount_value]
 
-/-- Interpreter for the compact tree. Every concatenation checks the final
-row bound before it constructs a plan. -/
 def Program.compile (application : ProgramApplication)
     (fits : FitsTwoPow28 application) : Program →
     Option (ProductionRelation.Plan
@@ -233,7 +218,6 @@ def Program.kinds : Program → List BlockKind
   | .leaf kind => [kind]
   | .append left right => left.kinds ++ right.kinds
 
-/-- Exact flat transport order of the canonical tree. -/
 def canonicalKinds : List BlockKind :=
   [.pilotPoseidon, .piCcsPoseidon, .piCcsOrdinary, .pilotOrdinary,
     .pilotDigestBinding, .piCcsEndpoint, .samplerPoseidon,
@@ -243,8 +227,6 @@ def canonicalKinds : List BlockKind :=
 @[simp] theorem canonical_kinds : canonical.kinds = canonicalKinds := by
   rfl
 
-/-- The flat wire schedule has the exact live-row count of the semantic
-structural plan. -/
 theorem canonicalKinds_rowCount (application : ProgramApplication)
     (fits : FitsTwoPow28 application) :
     (canonicalKinds.map fun kind => kind.rowCount application).sum =
@@ -253,7 +235,6 @@ theorem canonicalKinds_rowCount (application : ProgramApplication)
   norm_num [canonicalKinds, BlockKind.rowCount]
   omega
 
-/-- One identity-bound ordered production block header. -/
 structure BlockHeader where
   kind : BlockKind
   rowStart : Nat
@@ -283,7 +264,6 @@ def headersFrom (application : ProgramApplication) :
         rowCount := kind.rowCount application } ::
       headersFrom application (rowStart + kind.rowCount application) rest
 
-/-- Exact identity-bound header stream for the canonical production tree. -/
 def canonicalHeaders (application : ProgramApplication) : List BlockHeader :=
   headersFrom application 0 canonicalKinds
 
@@ -664,8 +644,6 @@ private theorem compile_throughNextPreimageProgram
       unfold DirectApplicationPrefixPlan.throughNextPreimagePlan
       rfl
 
-/-- The compact instruction program expands to the exact self-derived
-4-matrix plan. -/
 theorem compile_canonical (application : ProgramApplication)
     (fits : FitsTwoPow28 application) :
     canonical.compile application fits =

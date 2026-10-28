@@ -2,8 +2,7 @@ import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
 
 /-!
 Owns application soundness for arbitrary assignments to the final logical
-columns. Decoding evaluates the existing source map. Accepted application
-rows bind the actual pilot input and output preimages to the selected step.
+columns.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.ApplicationAssignmentSoundness
@@ -18,8 +17,6 @@ open ApplicationDirectPlan
 
 abbrev Program := Lifecycle.Stage1.Application.Program
 
-/-- The source environment is determined by the logical assignment and the
-existing application resolver. No source-value agreement is assumed. -/
 def decodedEnv {application : Program} {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) : Env :=
@@ -89,8 +86,6 @@ private theorem decodedEnv_location {application : Program} {logicalWidth : Nat}
       have same : located.location = location := locationSource_injective located.owns
       simp only [ApplicationDirectPlan.sourceMap, found, same]
 
-/-- The application plan is exactly its physical source rows evaluated in
-the environment decoded from this arbitrary logical assignment. -/
 theorem rowsZero_iff_rowsHold {application : Program} {logicalWidth : Nat}
     (fits : PerApplicationPackage.FitsTwoPow28 application)
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
@@ -127,7 +122,6 @@ theorem rowsZero_iff_rowsHold {application : Program} {logicalWidth : Nat}
   exact bridge.trans (ApplicationDirectSource.program_holds_iff_rowsHold
     application fits (decodedEnv geometry assignment))
 
-/-- The decoded application input is the pilot input preimage. -/
 private theorem inputEq {application : Program} {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) :
@@ -147,7 +141,6 @@ private theorem inputEq {application : Program} {logicalWidth : Nat}
     (Location.input (application := application) index).sourceColumn = _
   rw [decodedEnv_location, Location.input_form_eq_pilot]
 
-/-- The decoded application output is the pilot output preimage. -/
 private theorem outputEq {application : Program} {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) :
@@ -167,7 +160,6 @@ private theorem outputEq {application : Program} {logicalWidth : Nat}
     (Location.output (application := application) index).sourceColumn = _
   rw [decodedEnv_location, Location.output_form_eq_pilot]
 
-/-- The decoded application witness is the witness forms. -/
 private theorem witnessEq {application : Program} {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
     (assignment : Assignment F logicalWidth) :
@@ -183,8 +175,6 @@ private theorem witnessEq {application : Program} {logicalWidth : Nat}
     Location.sourceColumn] using
     decodedEnv_location geometry assignment (.witness index)
 
-/-- Accepted rows give the selected application's transition and validity
-on the decoded source environment. -/
 private theorem rowsZero_implies_spec {application : Program} {logicalWidth : Nat}
     (fits : PerApplicationPackage.FitsTwoPow28 application)
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
@@ -203,9 +193,6 @@ private theorem rowsZero_implies_spec {application : Program} {logicalWidth : Na
     application (decodedEnv geometry assignment)
     ((rowsZero_iff_rowsHold fits geometry assignment one).mp rows)
 
-/-- Every accepted logical assignment makes the actual pilot output current
-state equal to the selected application step on its actual pilot input current
-state and its decoded witness. No canonical encoding premise is required. -/
 theorem rowsZero_implies_step {application : Program} {logicalWidth : Nat}
     (fits : PerApplicationPackage.FitsTwoPow28 application)
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)

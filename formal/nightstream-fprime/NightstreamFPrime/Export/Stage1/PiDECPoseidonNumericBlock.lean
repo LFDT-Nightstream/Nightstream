@@ -3,9 +3,7 @@ import NightstreamFPrime.Layout.MatrixProgram.Poseidon
 
 /-!
 Load the existing Poseidon invocation interface from a package block, then
-evaluate its rows numerically. Geometry guards, input decoding and product
-indexing remain those of the existing block interpreter. The optional value
-theorem includes malformed inputs and all matrix ports.
+evaluate its rows numerically.
 -/
 
 set_option autoImplicit false
@@ -24,8 +22,6 @@ private theorem vector_get_ofFn {Alpha : Type} {count : Nat}
   change (Vector.ofFn values)[index.val] = values index
   rw [Vector.getElem_ofFn]
 
-/-- Store the existing sparse forms once per loaded interface. The cache is
-independent of the child and output lane used to evaluate those forms. -/
 private def cachedInterface {columns : Nat}
     (interface : PoseidonSboxPlan.Interface columns) :
     PoseidonSboxPlan.Interface columns :=
@@ -43,8 +39,6 @@ private theorem cachedInterface_eq {columns : Nat}
   cases interface
   simp only [cachedInterface, vector_get_ofFn]
 
-/-- Reuse one checked interface for all rows of an invocation. The runner
-can call NumericRows.stored once after this succeeds. -/
 def loadInvocation? (block : Poseidon.Block) (columns : Nat)
     (invocation : Fin block.invocationCount) :
     Option (PoseidonSboxPlan.Interface columns) :=
@@ -60,8 +54,6 @@ def loadInvocation? (block : Poseidon.Block) (columns : Nat)
     else none
   else none
 
-/-- Decode the package ordinal with the existing Fin product convention.
-The result contains only the existing interface and existing local row index. -/
 def loadRow? (block : Poseidon.Block) (columns ordinal : Nat) :
     Option (PoseidonSboxPlan.Interface columns × Fin 150) :=
   if rowBound : ordinal < block.rowCount then
@@ -70,8 +62,6 @@ def loadRow? (block : Poseidon.Block) (columns ordinal : Nat) :
     (loadInvocation? block columns decoded.1).map fun interface => (interface, decoded.2)
   else none
 
-/-- Every encoded local row uses the same checked invocation interface.
-No division formula or independent ordering convention is introduced. -/
 theorem loadRow?_encodeProd (block : Poseidon.Block) (columns : Nat)
     (invocation : Fin block.invocationCount) (row : Fin 150) :
     loadRow? block columns (Fin.encodeProd (invocation, row)).val =
@@ -89,8 +79,6 @@ private def referenceForms {columns : Nat}
   ((PoseidonRetainedRows.rows loaded.1).get
     ⟨loaded.2.val, by rw [PoseidonRetainedRows.rows_length]; exact loaded.2.isLt⟩).meaningfulForm
 
-/-- Decoding the interface and then viewing its sparse row is exactly the
-existing block interpreter, including each failed guard and missing input. -/
 private theorem loadRow?_forms (block : Poseidon.Block) (columns ordinal : Nat) :
     (loadRow? block columns ordinal).map referenceForms = block.row? columns ordinal := by
   by_cases rowBound : ordinal < block.rowCount
@@ -104,16 +92,11 @@ private theorem loadRow?_forms (block : Poseidon.Block) (columns ordinal : Nat) 
   · simp only [loadRow?, Poseidon.Block.row?, Poseidon.Block.rowWithInput?,
       dif_neg rowBound, Option.map_none]
 
-/-- Evaluate the selected row from a stored complete invocation. A runner
-processing all rows can use loadInvocation? and retain that stored vector. -/
 def row? (block : Poseidon.Block) {columns : Nat} (read : Fin columns → F)
     (ordinal : Nat) : Option PortValues :=
   (loadRow? block columns ordinal).map fun loaded =>
     (PiDECPoseidonNumericRows.stored read loaded.1).get loaded.2
 
-/-- All numeric ports equal the corresponding sparse evaluations.
-The zero port is the existing empty form. Equality of optional values also
-retains rejection of malformed geometry or unavailable package input states. -/
 theorem row?_value (block : Poseidon.Block) {columns : Nat} (read : Fin columns → F)
     (ordinal : Nat) (port : Fin matrixCount) :
     (row? block read ordinal).map (fun values => values.get port) =
@@ -128,7 +111,6 @@ theorem row?_value (block : Poseidon.Block) {columns : Nat} (read : Fin columns 
       exact congrArg some
         (PiDECPoseidonNumericRows.stored_value read loaded.1 loaded.2 port)
 
-/-- The numeric path rejects exactly the same rows as Block.row?. -/
 theorem row?_eq_none_iff (block : Poseidon.Block) {columns : Nat}
     (read : Fin columns → F) (ordinal : Nat) :
     row? block read ordinal = none ↔ block.row? columns ordinal = none := by

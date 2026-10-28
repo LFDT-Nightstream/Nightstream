@@ -4,7 +4,7 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_2.EvalKRecomposition
 Paper authority: SuperNeo v1.2, Section 7.5, the separate matrix-evaluation
 equations `y_A,j = sum_i b^i y_A,j,i`.
 
-Obligation: enforce fixed-radix recomposition for every one of the 14
+Obligation: enforce fixed-radix recomposition for every one of the 4
 production matrix evaluations. `Eval_A` remains separate from Pad `Eval_K`.
 
 Inputs:

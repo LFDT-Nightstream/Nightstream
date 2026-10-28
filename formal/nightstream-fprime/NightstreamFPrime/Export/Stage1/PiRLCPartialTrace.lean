@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCNonzero
 
 /-!
 Owns the exact indexed PiRLC combination trace used by executable parity.
-
-Each step materializes its result in a proof-sized array before the next
-source reads it. This preserves the left-to-right circuit recurrence and
-prevents native evaluation from rebuilding every earlier prefix. The final
-trace entries are proved equal to the canonical head-first paper folds.
 -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
@@ -18,7 +13,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 
-/-- An array whose exact size is part of its value. -/
 structure FixedArray (Alpha : Type) (count : Nat) where
   values : Array Alpha
   size_eq : values.size = count
@@ -132,7 +126,6 @@ def prefixValue {Alpha : Type} (zero : Alpha)
     (step : Alpha → Fin SourceCount → Alpha) (count : Nat) : Alpha :=
   ((List.finRange SourceCount).take count).foldl step zero
 
-/-- Every emitted index is the exact left-to-right fold through that source. -/
 theorem scan_getElem? {Alpha : Type} (zero : Alpha)
     (step : Alpha → Fin SourceCount → Alpha) (index : Nat) :
     (scan zero step)[index]? =
@@ -146,7 +139,6 @@ theorem scan_getElem? {Alpha : Type} (zero : Alpha)
   · rw [if_pos (by omega), if_pos bound]
   · rw [if_neg (by omega), if_neg bound]
 
-/-- The last emitted value is the exact full left-to-right fold. -/
 theorem scan_getLast? {Alpha : Type} (zero : Alpha)
     (step : Alpha → Fin SourceCount → Alpha) :
     (scan zero step).getLast? =

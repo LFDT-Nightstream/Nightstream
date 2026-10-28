@@ -26,8 +26,9 @@ fn result_value(
         children: children.to_vec(),
     };
     let accepted = pi_dec::verify(params, structure, ajtai_dec_mixer, parent, &proof).is_ok();
-    let (digits, _) =
-        split_b_matrix_k_with_nonzero_flags(&parent.X, CHILDREN, 2).expect("bounded actual public parent");
+    let (digits, _) = split_b_matrix_k_with_nonzero_flags(&parent.X, CHILDREN, 2)
+        .expect("bounded actual public parent")
+        .into_parts();
     let public_digits = digits.iter().map(public_words).collect::<Vec<_>>();
     let parent_bounds = public_words(&parent.X)
         .into_iter()
@@ -65,7 +66,6 @@ fn result_value(
             }
         }
     }
-    // Public outputs belong to the verifier's canonical split and shared point.
     let computed_children = children
         .iter()
         .zip(digits)
@@ -86,7 +86,7 @@ fn result_value(
         public_digits,
         parent_bounds,
         ranges,
-        fields(&recomposed_c.data),
+        fields(recomposed_c.data()),
         u64::from(recomposed_c == parent.c),
         fields(&recomposed_x),
         u64::from(fields(&recomposed_x) == public_words(&parent.X)),
@@ -120,12 +120,16 @@ pub(super) fn check_saved(package_path: &Path, actual: &Value, reference: &Value
     let package_bytes = fs::read(package_path).expect("selected package");
     let package = nightstream_fprime::load_poseidon2_hash_chain_v1_package(&package_bytes)
         .expect("verifier-owned selected package");
-    assert_eq!(json!(package.structural_identifier()), actual["structural_identifier"]);
+    assert_eq!(
+        json!(package.structural_identifier().words()),
+        actual["structural_identifier"]
+    );
     assert_eq!(
         json!(package
             .production_verifier_binding()
             .unwrap()
-            .package_identity()),
+            .package_identity()
+            .words()),
         actual["package_identity"]
     );
     let structure = package.ccs_structure_header().unwrap();
@@ -170,7 +174,7 @@ fn rejected(name: &str, params: &Params, structure: &CcsStructure<F>, parent: &C
 fn mutations(params: &Params, structure: &CcsStructure<F>, parent: &CeClaim, children: &[CeClaim]) {
     for child in 0..children.len() {
         let mut changed = children.to_vec();
-        changed[child].c.data[0] += F::ONE;
+        changed[child].c.data_mut()[0] += F::ONE;
         rejected(
             &format!("child_{child}_commitment"),
             params,
@@ -204,9 +208,6 @@ fn mutations(params: &Params, structure: &CcsStructure<F>, parent: &CeClaim, chi
     let mut changed = children.to_vec();
     changed.pop();
     rejected("missing_child", params, structure, parent, &changed);
-    let mut changed = children.to_vec();
-    changed[0].c.data.pop();
-    rejected("short_commitment", params, structure, parent, &changed);
     let mut changed = children.to_vec();
     changed[0].r.pop();
     rejected("short_point", params, structure, parent, &changed);

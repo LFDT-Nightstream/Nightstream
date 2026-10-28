@@ -27,10 +27,6 @@ open NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive
 open NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Lifecycle.PaperAlgebra
 
-/-- The F′ logical relation as the key consumes it: 4 verifier-key matrices
-and proof that the completed carrier fits the selected cube. The constraint
-polynomial is not a field of this record. SuperNeo v1.2 Pad comes from the
-verifier-owned `cubeLayout`; it is not a CCS matrix. -/
 structure LogicalRelation (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns <=
       Phi81CarrierLayout.carrierWidth logicalWidth) where
@@ -38,8 +34,6 @@ structure LogicalRelation (logicalWidth : Nat)
     PaperLinearAlgebra.BooleanMatrix F cubeVariables logicalWidth
   cubeFits : Phi81CarrierLayout.carrierWidth logicalWidth <= 2 ^ cubeVariables
 
-/-- Construct the sole production structure. Matrix data can vary with the
-verifier key; the gate constraint polynomial cannot. -/
 def LogicalRelation.system
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns <=
@@ -64,9 +58,6 @@ variable {logicalWidth : Nat}
     Phi81CarrierLayout.carrierWidth logicalWidth}
 
 
-/-- The one production SumCheck degree. The verifier-key law below proves
-that this fixed profile value equals `max(D_f + 1, 4)` for the relation-owned
-gate polynomial. -/
 def degreeBound (_relation : LogicalRelation logicalWidth publicFits) : Nat := 8
 
 theorem degreeBound_eq
@@ -74,8 +65,6 @@ theorem degreeBound_eq
     degreeBound relation = 8 := by
   rfl
 
-/-- The fixed exposed degree is exactly the degree computed from the lifted
-relation polynomial. -/
 theorem derivedDegreeBound_eq
     (relation : LogicalRelation logicalWidth publicFits) :
     Nat.max
@@ -96,8 +85,6 @@ abbrev KeyType (relation : LogicalRelation logicalWidth publicFits) :=
     (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth logicalWidth))
     (degreeBound relation)
 
-/-- The pilot-recomputed prior-state digest carried by the fresh public
-instance. The pilot separately enforces marker 1 and the zero tail. -/
 def priorDigest
     (fresh : Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment
       (PaperAlgebra.PublicInput
@@ -105,10 +92,6 @@ def priorDigest
       productionShape) : List F :=
   decodeHash (fresh.publicInputs ⟨0, by decide⟩)
 
-/-- Digest-only PiCCS public statement in canonical block order: the
-pilot-recomputed prior digest, then the one fresh commitment and public
-input. The complete running statement is bound through the constrained state
-digest and is not absorbed again, so it is not an argument. -/
 def publicInputBlocks
     (fresh : Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape) :
     List (List F) :=
@@ -117,27 +100,20 @@ def publicInputBlocks
       [serializeCommitment (fresh.commitments index),
         serializePublicInput (fresh.publicInputs index)])
 
-/-- Absorb the digest-only PiCCS statement: its blocks in order, with no
-length prefixes. -/
 def absorbPublicInput (state : Transcript.State)
     (_running : Nifs.PaperNonInteractive.Running K PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape)
     (fresh : Nifs.PaperNonInteractive.Fresh PaperAlgebra.Commitment (PaperAlgebra.PublicInput (logicalWidth := logicalWidth) (publicFits := publicFits)) productionShape) :
     Transcript.State :=
   Transcript.absorb state (publicInputBlocks fresh).flatten
 
-/-- The complete paper `y′` family: one evaluation family per source, in the
-same encoding as the running statement. -/
 def fullOutputWords (out : FullOutputCoordinates.FullOutput K productionShape) : List F :=
   (List.finRange productionShape.sourceCount).flatMap fun source =>
     serializeEvaluations ⟨out.padCoordinate source, out.matrixCoordinate source⟩
 
-/-- Absorb the complete paper `y′` family after the sum-check. -/
 def absorbFullOutput (s : Transcript.State)
     (out : FullOutputCoordinates.FullOutput K productionShape) : Transcript.State :=
   Transcript.absorb s (fullOutputWords out)
 
-/-- The exact 17-value `ρ` batch; the production sampler is total. The
-optional result is the generic NIFS key interface, not a sampler failure mode. -/
 def piRlcResponse (state : Transcript.State) :
     Option (Fin (Nifs.PaperProfile.arity).total → RingF) :=
   some (Transcript.PiRlcSampler.piRlcChallenges state (Nifs.PaperProfile.arity).total)
@@ -156,8 +132,6 @@ theorem piRlcResponse_ne_none (state : Transcript.State) :
     piRlcResponse state ≠ none := by
   simp [piRlcResponse]
 
-/-- The Stage 1 production NIFS key for one logical relation and one
-verifier-owned Ajtai key. -/
 noncomputable def key (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     KeyType relation where
@@ -210,8 +184,6 @@ noncomputable def key (relation : LogicalRelation logicalWidth publicFits)
   piRlcResponse := piRlcResponse
   piRlcResponseValid := piRlcResponse_valid
 
-/-- The key's selected challenge count is exactly the cardinality of the
-production PiRLC membership predicate. -/
 theorem key_challengeSetSize_cardinality
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -221,7 +193,6 @@ theorem key_challengeSetSize_cardinality
   change productionChallengeSetCardinality = _
   exact Phi81StrongSet.productionMember_cardinality.symm
 
-/-- The production key's own combined norm bound meets the paper condition. -/
 theorem key_bigB_below_half_modulus
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -229,9 +200,6 @@ theorem key_bigB_below_half_modulus
     2 * (key relation ajtai).params.bigB < (key relation ajtai).params.q :=
   production_bigB_below_half_modulus
 
-/-- The production key uses the canonical complete `y′` absorber. This
-projection theorem lets circuit coverage proofs keep the rest of the key
-opaque. -/
 theorem key_absorbPiCcsOutput
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -242,8 +210,6 @@ theorem key_absorbPiCcsOutput
       absorbFullOutput state output := by
   rfl
 
-/-- The key-owned public-input state is the fold-domain chunk followed by the
-prior digest and fresh claim. -/
 theorem key_publicInputState_eq
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -261,9 +227,6 @@ theorem key_publicInputState_eq
         (publicInputBlocks fresh).flatten := by
   rfl
 
-/-- The verifier input is bound through the pilot digest and the
-definitionally shared statement view. The PiCCS oracle therefore starts from
-the complete digest-only public-input state without reabsorbing it. -/
 theorem key_oracle_initialState_eq
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey
@@ -274,7 +237,6 @@ theorem key_oracle_initialState_eq
       context.priorState := by
   rfl
 
-/-- The production key uses the one additive Poseidon2 PiCCS oracle. -/
 theorem key_oracle_eq
     (relation : LogicalRelation logicalWidth publicFits)
     (ajtai : AjtaiKey

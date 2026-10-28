@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-"""Compare one complete binary prefix fold with indexed Python interpolation.
-
-The coordinator runs this command under the 300-second native test cap.
-Causal trace and source provenance are supplied by separate evidence.
-"""
 
 from __future__ import annotations
 
@@ -148,7 +143,6 @@ def check_chunk(job):
     words = decode_words(data, str(chunk.path))
     del data
     require(tuple(words[:2 * width]) == chunk.first_words, f"{chunk.path}: first row changed")
-    # Direct global row indices own the pairs. No pending-row state machine is used.
     if chunk.finish < count:
         require(next_words is not None, f"{chunk.path}: missing next first row")
         words.extend(next_words)
@@ -189,7 +183,6 @@ def main():
     source, output, round_path = map(Path, sys.argv[1:])
     manifest, chunks = read_prefix(source)
     _, depth, kind, width, count, coins, _ = manifest
-    # A final-word mutation needs an actual final output word.
     require(count > 0, "final-word mutation requires a nonempty input prefix")
     challenge = round_challenge(round_path)
     expected_ranges = [[(chunk.first + 1) // 2, (chunk.finish + 1) // 2] for chunk in chunks
@@ -207,7 +200,6 @@ def main():
         if count * width * FIELD.size < POOL_INPUT_BYTES:
             results = map(check_chunk, jobs)
         else:
-            # Imported here: most checks are small, and the import costs a third of their run.
             from concurrent.futures import ProcessPoolExecutor
             executor = stack.enter_context(ProcessPoolExecutor(max_workers=os.cpu_count()))
             results = executor.map(check_chunk, jobs)

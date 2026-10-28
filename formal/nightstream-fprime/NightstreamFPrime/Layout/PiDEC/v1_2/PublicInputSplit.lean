@@ -49,16 +49,12 @@ abbrev exactPrivateCount :=
 
 end Logical
 
-/-- Coordinate multiplicity and scalar physical cost are separate from the
-number of logical private cells used by each scalar child. -/
 def freshColumnCount : Nat :=
   Logical.exactCoordinateCount * Leaves.SignedSplitScalar.freshColumnCount
 
 def physicalRowCount : Nat :=
   Logical.exactCoordinateCount * Leaves.SignedSplitScalar.physicalRowCount
 
-/-- Exact affine/nonconstant shape of the parent and child public-input
-wires supplied by the PiDEC phase. -/
 structure InputsLinear
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -72,7 +68,6 @@ structure InputsLinear
   digit_nonconstant : ∀ child coordinate,
     Nonconstant (interface.digit offset child coordinate)
 
-/-- Every coordinate child receives the same parent-owned affine wires. -/
 theorem childInputs
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -144,7 +139,6 @@ private theorem flatConstraints_childOps
         (Logical.childOp interface offset source).flatConstraints ++ tail)
         inductionHypothesis
 
-/-- Exact equality between parent rows and the 270 opaque scalar row lists. -/
 theorem logicalConstraints_eq_ordered
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -259,7 +253,6 @@ private theorem totalRowCount_sources
         inductionHypothesis restBounded, List.length_cons]
       simp only [Nat.succ_mul, Nat.add_comm]
 
-/-- Exact fresh count from the ordered coordinate children. -/
 theorem totalFreshCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -279,7 +272,6 @@ theorem totalFreshCount_eq
   · intro source member
     exact List.mem_range.mp member
 
-/-- Exact physical rows from the same ordered coordinate children. -/
 theorem totalRowCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -299,7 +291,6 @@ theorem totalRowCount_eq
   · intro source member
     exact List.mem_range.mp member
 
-/-- Logical cells and R1CS intermediates have distinct owner counts. -/
 theorem physicalPrivateColumnCount_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

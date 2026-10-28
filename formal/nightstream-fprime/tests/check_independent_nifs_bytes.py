@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Compare complete independent C/R/D and recursive caller bytes."""
 
 import copy
 import json

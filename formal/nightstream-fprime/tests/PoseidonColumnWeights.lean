@@ -35,7 +35,6 @@ private def read (lane : Fin ringDegree) (index : Fin 32) : F :=
   Poseidon2.ofNat (goldilocksModulus - 1 - (lane.val * 37 + index.val * 13))
 
 private def values : IO Unit := do
-  -- Empty and repeated columns, cancelling coefficients, and nonzero row offsets.
   for (count, firstRow) in [(0, 0), (1, 0), (1, 211), (3, 211)] do
     let interfaces := Vector.ofFn fun invocation : Fin count => interface (invocation.val * 7)
     let actual := PiDECPoseidonColumnWeights.evaluate

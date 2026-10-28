@@ -79,10 +79,6 @@ generation, and verifier control flow use the shared host code. Fixed-key
 commitments, terminal row arithmetic, and nonzero running openings use Metal.
 The GPU dependencies use the maintained folding and commitment interfaces.
 
-The performance and saved-production comparisons below describe the earlier
-package. They are historical measurements, not validation of the current sampler
-replacement. Current source-bound results belong in the conformance record.
-
 Parity checks follow `PaperExact ↔ Optimized`, then
 `Optimized ↔ Metal ↔ Cuda`. They compare complete C/R/D proof bytes, transcript
 state, returned claims, and witness matrices. The small fixtures include
@@ -90,102 +86,12 @@ nonzero carried data and completion tails. The selected production polynomial
 has a check with two distinct rows across PaperExact, Optimized, and Metal.
 Its nonzero input ports use two witness columns. These are
 small-input conformance checks. They pass with compact norm storage and the
-carried projection. The first production PiCCS proof also matches every CPU
-proof byte, including output openings. Both complete production C/R/D folds
-match all 945,983 CPU proof bytes. The second fold also matches all sixteen
-returned child matrices and feeds a successful Metal successor and terminal
-check. These separate phases do not establish the 5× full lifecycle target.
-See [the production comparison](VALIDATION.md#nonzero-carried-production-fold).
-The CUDA comparisons are explicitly ignored until its kernel exists.
+carried projection. The CUDA comparisons are explicitly ignored until its kernel
+exists.
 
 Metal rejects a buffer request that would put its tracked device allocation
-above 16 GB. This does not establish the total CPU-plus-GPU memory bound for
+above 24 GB. This does not establish the total CPU-plus-GPU memory bound for
 every circuit; that requires the complete lifecycle measurements.
-
-Cache construction keeps coefficient runs compact and takes about 5 s on the
-saved production input, down from about 55 s. Device commitments generate the
-fixed key in threadgroup tiles and match CPU results: 3.08 s versus 97.42 s for
-the full fresh witness. See [the commitment checks](VALIDATION.md#device-fixed-key-commitments).
-
-Before the matrix-row window change, matching Time Profiler runs measured the
-full three-step lifecycle at **1,256.02 s
-on Optimized and 164.74 s on Metal: 7.62×**. Both use the same saved executable,
-inputs, profile, and circuit identity, and verify the same final state. This
-includes preparation, the base step, two active folds, and terminal verification.
-The ratio is measured under profiling; a full CPU run without Instruments is
-still pending. The separate Metal run without Instruments takes 164.66 s with
-16.81 GB peak RSS. A fresh second-fold check matches every CPU proof byte and
-all returned child matrices.
-See [the matched lifecycle profiles](VALIDATION.md#matched-full-lifecycle-profiles).
-GPU traces identify commitments and opening products/forms as the main device
-costs. See [the profile](tests/evidence/metal-gpu-profile-20260921).
-
-The earlier CPU storage path also passed the second production PiCCS proof
-comparison: 182.43 s and 17.10 GB RSS (15.93 GiB), below the working 16 GiB guard.
-Openings reuse the completed SumCheck buffer.
-See [the CPU storage record](VALIDATION.md#cpu-opening-buffer-reuse).
-
-A separate Optimized CPU check accepts the stored Metal terminal state and
-rejects a wrong final state. An earlier full CPU profile stopped during terminal
-verification at the 30-minute cap; the saved build above completed within that cap.
-The source review identified an accepted row shape that required a 27.51 GB
-Metal application table. The new application owner uses bounded replay when
-a resident prefix does not fit. CPU and Metal now also generate bounded matrix
-windows directly from original rows. Application rows, recipe syntax and their
-indexes now stay in sealed files; identity hashing replays their original order.
-This removes the eager application-row storage gap. Total process RSS across
-every supported circuit still needs separate evidence.
-See [the CPU profile and memory gap](VALIDATION.md#cpu-lifecycle-and-terminal-profile).
-
-Forced replay matches complete CPU proof bytes, transcript state, and openings.
-A production second fold on that earlier build matched all saved CPU proof bytes
-and all sixteen child matrices, with 16.38 GB peak RSS.
-See [bounded application tables](VALIDATION.md#bounded-metal-application-tables).
-
-The bounded matrix-window build measured **4.5597×** under matching Time
-Profiler runs: CPU 1,330.70 s, Metal 291.84 s. This is below the 5× target.
-The newer sealed-record and reusable-row-buffer build matches all 945,983 saved
-CPU proof bytes and all sixteen complete child matrices. Its production second
-fold takes 83.36 s with 13.19 GB peak RSS. Its complete Metal lifecycle takes
-**264.52 s with 12.75 GB peak RSS** without Instruments. Matching Time Profiler
-runs on that saved build give **4.7249×**: CPU 1,308.78 s and Metal 277.00 s.
-Both verify; observed RSS peaks are 15.79 GB and 12.63 GB. That saved build
-remained below the 5× target. Final post-exit RSS peaks are unavailable for the profiled runs.
-See [matrix row windows](VALIDATION.md#bounded-matrix-row-windows) and
-[sealed application records](VALIDATION.md#sealed-application-records-and-reusable-row-buffers).
-
-Incremental row-storage counting and single-input template substitution reduce
-the full Metal lifecycle to **250.28 s with 12.68 GB final peak RSS** without
-Instruments. The production second fold takes 77.44 s and matches all saved CPU
-proof bytes and complete outputs. No matched ratio was measured for that image.
-See [the incremental row-count evidence](tests/evidence/incremental-row-count-20260922).
-
-Recipe-stack reuse further reduces raw Metal to **244.83 s with 12.72 GB peak
-RSS**. Matched Time Profiler runs on the same saved image measure **5.2782×**:
-CPU 1,300.84 s and Metal 246.45 s. Both verify and remain below the accepted RSS
-guard. These results include compilation. Before the fixed-metadata node guard,
-matched prepared-package runs measured **5.9191×**, including loading, proving
-and terminal verification but excluding compilation. The final image with the
-guard measures **5.9332×**: CPU 1,262.10 s and Metal 212.72 s, with observed RSS
-peaks of 14.45 GB and 11.47 GB. Both verify. Raw Metal takes **212.47 s with
-11.37 GB final peak RSS**. See
-[recipe-stack reuse](VALIDATION.md#recipe-stack-batch-reuse) and
-[the final prepared-package comparison](VALIDATION.md#final-prepared-package-cpumetal-comparison).
-
-The CPU key loader now avoids 128-bit division for streamed coefficients.
-The production fresh commitment falls from 95.14 s to 58.38 s, with exact
-saved-commitment equality. All supported engine comparisons pass. This is one
-operation; the full lifecycle comparison above uses this change.
-See [the key reduction result](VALIDATION.md#cpu-indexed-key-reduction).
-
-Row evaluation reads signed masks directly, application storage shrinks with
-each round, and zero openings avoid matrix scratch. Decomposition releases the
-parent witness after producing its signed digits. Witness masks are written
-directly into shared Metal storage, with no full host mask vector. Opening forms
-and CPU evaluation now use bounded matrix windows. This removes the earlier
-full matrix-run allocation. The general 16 GB RSS bound remains open; the
-working-storage budget does not include all allocator and driver residency.
-See [the storage measurements](VALIDATION.md#application-and-parent-storage).
 
 Select `Engine::Crosscheck` in `circuit.prover` to check each
 active fold. The engines receive separate copies of the same inputs and
@@ -238,8 +144,9 @@ Run engines separately with the same step count, then compare their logs
 manually. The owner's Metal target is at least 5× faster over the full lifecycle,
 including package loading, proving, and terminal verification. One-time circuit
 compilation is excluded from that total and measured separately. The current
-memory target is at most 16 GB for either engine on every supported circuit; 8 GB is
-the future mobile target. The owner has accepted approximately 16 GB for this
+memory target on every supported circuit is at most 24 GB for Metal, so a prover can
+run on a current iPhone, and at most 16 GB for the CPU engine; 8 GB is the future
+mobile target. The owner has accepted approximately 16 GB for this
 pass, using RSS, and deferred further memory tuning. Storage is bounded across
 supported native circuit shapes; a universal process-RSS guarantee remains
 unproven because runtime and driver residency also contribute. An earlier image
@@ -320,7 +227,44 @@ The exported row and domain checks also apply. See the
 
 The selected profile remains `b = 2`, `k_rho = 16`, `B = 2^16`, with one fresh
 claim and sixteen carried claims. Terminal verification checks all remaining
-openings. A production compression backend is outside this crate goal.
+openings.
+
+`Prover::finish_with_spartan` compresses an active proof on the Optimized or
+Metal engine. It runs PiCCS and PiRLC once more and stops before PiDEC
+(SuperNeo Lemma 1). The `neo-spartan`
+crate then proves the folded CE(B) claim with sum-checks and WHIR (layer 1).
+Last, a shrink layer proves that the final verifier accepts both, with
+SuperSpartan and one WHIR commitment. The final verifier's PiCCS, PiRLC and
+prior-state hash are the F′ rows themselves: `formal/compression-lean` takes
+them from the F′ Stage 1 package without change and proves what they imply.
+The crate embeds that artifact and pins its identifier. The rest of the final
+verifier (statement, layer 1) is written once over `neo_spartan::Backend`.
+The final proof carries no witness. Compression needs a one-time setup per
+circuit: `Prover::compression_setup` writes the setup files (about 29 GB for
+the production package) and returns the setup, whose `CompressionKey` is
+1,988 bytes. `Verifier::verify_final` checks a final proof with that key and
+the embedded terminal package: no files, no commitment key, no matrix rows.
+It first refuses a key of another circuit or below the verifier's security
+minimum. The first verification in a process loads the package (about 6 s).
+Take the key from `Verifier::compression_key` (about 60 s, no files) or from
+a copy you pinned; never from a prover. In the
+production test, one fold gives a final proof of about 129-130 KB
+(`FinalProof::to_bytes`; the shrink's proof-of-work changes the size a
+little), against 221,738,816 bytes for the accumulator proof. Verification
+takes about 305 ms. Finishing takes about 48 s on CPU and 30 s on Metal. The
+peak memory footprint of the finish is about 9.3 GB on CPU. On Metal the last
+fold still holds the 8 GB commitment key, so the peak is about 11.7 GB, and
+layer 1 itself stays near 10 GB. These are medians of five runs, with
+`MallocLargeCache=0`, on a loaded machine (2026-10-20). Before it returns,
+the finish verifies its own final proof (about 0.4 s more), so a device fault
+fails the call instead of returning a proof that does not verify. Layer 1
+keeps its Merkle rows and digest layers and its GKR levels in an unlinked
+scratch file,
+so it also needs temporary disk space. On Metal the device hashes the WHIR
+Merkle leaves, runs the WHIR DFTs and the GKR rounds, computes the key
+weights one key row at a time and runs the last fold's PiCCS; the proof bytes
+do not depend on the engine before the shrink's proof-of-work. The shrink commitment uses WHIR at rate 1/8: a smaller
+proof (rate 1/64: 97.6 KB) costs about 30 s more to finish.
 
 The independent Rust Poseidon2 application supplies the first comparison with
 the existing Lean package. Exact comparisons are implementation evidence, not
@@ -330,13 +274,7 @@ contract is `NIGHTSTREAM_CRATE_GOAL.md` in the repository root. See the
 and the separate maintainer workflow.
 
 The Cargo package includes the saved test inputs. Tests use package-local data
-and do not run Lean. Historical timing measurements in the validation records
-apply only to their recorded source and package.
+and do not run Lean.
 
-See [VALIDATION.md](VALIDATION.md) for the completed fresh two-fold replay,
-full reference comparisons, terminal checks, measured costs, and scope limits.
-The original migration checks passed. The earlier prepared-package comparison
-met the 5× speed target. The current source measures 2.52×, because the CPU
-engine is now much faster; see [the benchmark](#poseidon2-benchmark). Both
-current RSS peaks stay below the accepted 16 GiB guard. A universal RSS guarantee
-and a universal Rust refinement proof remain unproven.
+[The benchmark](#poseidon2-benchmark) records the current CPU and Metal costs.
+A universal RSS guarantee and a universal Rust refinement proof remain unproven.

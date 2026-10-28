@@ -66,7 +66,6 @@ use p3_field_v08::PrimeCharacteristicRing;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::circuit::Native;
 use crate::field::{from_word, gl, re_im, Ext, Gl};
 use crate::gkr::GkrProof;
 use crate::matrix::{EarlyValues, Structure, Tables};
@@ -76,7 +75,7 @@ use crate::verifier::ProofView;
 
 pub use crate::circuit::fold::FoldTranscript;
 pub use crate::circuit::r1cs::R1cs;
-pub use crate::circuit::Backend;
+pub use crate::circuit::{Backend, Native};
 pub use crate::device::{Accelerator, Device, GkrLayer};
 pub use crate::prover::prove;
 pub use crate::relation::Relation;

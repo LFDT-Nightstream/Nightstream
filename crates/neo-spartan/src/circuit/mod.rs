@@ -95,7 +95,7 @@ pub trait Backend {
 
 /// The plain verifier: values only, `Err` on the first failed check. Its
 /// words are layer-1 field values; no caller reads them.
-pub(crate) struct Native;
+pub struct Native;
 
 impl Backend for Native {
     type F = Gl;

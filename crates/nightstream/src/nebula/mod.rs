@@ -2,15 +2,19 @@
 //! the machine, the record chains and challenge transcript, the carry, the
 //! segment runner that writes each invocation's witness words, the spec §13
 //! terminal checks, and the memory verifier of the two Lean-emitted packages.
-//! The circuit and its proofs are Lean-owned (`Lifecycle/Nebula/`); this module
-//! only computes values for them.
+//! The prover and the verifier load the Lean-owned circuit (`Lifecycle/Nebula/`).
+//! The test-only `circuit` module builds the same relation in Rust, and
+//! `tests/nebula/parity.rs` requires its rows to equal the Lean package's.
 
 mod carry;
+#[cfg(test)]
 mod circuit;
+#[cfg(test)]
 mod expr;
 mod machine;
 mod plan;
 mod records;
+#[cfg(test)]
 mod rows;
 mod segment;
 mod transcript;
@@ -55,8 +59,11 @@ impl Package {
     }
 
     /// The package's relation built in Rust, row for row as Lean builds it
-    /// (`tests/nebula_parity.rs`).
-    pub fn application(self) -> Result<crate::application::ApplicationCircuit, crate::application::ApplicationError> {
+    /// (`tests/nebula/parity.rs`).
+    #[cfg(test)]
+    pub(crate) fn application(
+        self,
+    ) -> Result<crate::application::ApplicationCircuit, crate::application::ApplicationError> {
         circuit::memory_circuit(self)
     }
 

@@ -5,7 +5,12 @@
 
 use std::{fs, path::PathBuf};
 
-use nightstream::{assembly, nebula::Package};
+use nightstream_fprime::{LoadedPerApplicationPackage, LogicalMatrixRow};
+
+use crate::{
+    assembly,
+    nebula::{Context, MachineState, Package, Run, Step},
+};
 
 fn artifact(name: &str) -> Vec<u8> {
     fs::read(
@@ -38,25 +43,27 @@ fn assert_same_relation(package: Package, lean: &str) {
     );
 
     // Every logical row: the shared verifier rows relocated around the
-    // application, the application rows, and the boundary rows.
-    let compared = 0..expected.row_count();
-    let mut lean_rows = Vec::with_capacity(compared.len());
-    expected
-        .visit_matrix_rows(compared.clone(), |index, row| {
-            lean_rows.push((index, row));
+    // application, the application rows, and the boundary rows. The test
+    // compares one row at a time, because holding every expanded row at once
+    // took about 34 GB.
+    for index in 0..expected.row_count() {
+        assert_eq!(
+            logical_row(&actual, index),
+            logical_row(&expected, index),
+            "logical row {index}"
+        );
+    }
+}
+
+fn logical_row(package: &LoadedPerApplicationPackage, index: usize) -> LogicalMatrixRow {
+    let mut found = None;
+    package
+        .visit_matrix_rows(index..index + 1, |_, row| {
+            found = Some(row);
             Ok(())
         })
         .unwrap();
-    let mut position = 0;
-    actual
-        .visit_matrix_rows(compared, |index, row| {
-            let (lean_index, lean_row) = &lean_rows[position];
-            assert_eq!((index, &row), (*lean_index, lean_row), "logical row {index}");
-            position += 1;
-            Ok(())
-        })
-        .unwrap();
-    assert_eq!(position, lean_rows.len());
+    found.unwrap()
 }
 
 #[test]
@@ -71,17 +78,28 @@ fn second_package_relation_matches_lean() {
 
 /// The Rust circuit's witness program completes every honest invocation of a
 /// native run, and its output is the next Stage 1 state.
-#[test]
-fn rust_circuit_executes_honest_invocations() {
-    use nightstream::nebula::{Context, MachineState, Run, Step};
-    let application = Package::V1.application().unwrap();
-    let mut run = Run::new(Context::new(Package::V1), MachineState::default());
+fn assert_honest_invocations_execute(package: Package, segments: &[&[Step]]) {
+    let application = package.application().unwrap();
+    let mut run = Run::new(Context::new(package), MachineState::default());
     let mut state = run.initial_state();
-    for steps in [[Step::Execute; 2], [Step::Execute; 2], [Step::Idle; 2], [Step::Idle; 2]] {
-        for invocation in run.segment(&steps).unwrap() {
+    for steps in segments {
+        for invocation in run.segment(steps).unwrap() {
             let witness = application.execute(state, &invocation.words).unwrap();
             assert_eq!(witness.output_state(), invocation.output);
             state = invocation.output;
         }
     }
+}
+
+#[test]
+fn first_package_executes_honest_invocations() {
+    let (execute, idle) = ([Step::Execute; 2], [Step::Idle; 2]);
+    assert_honest_invocations_execute(Package::V1, &[&execute, &execute, &idle, &idle]);
+}
+
+/// `N = 1`: every invocation opens and closes a segment, and the O6 rows exist.
+#[test]
+fn second_package_executes_honest_invocations() {
+    let segments = vec![&[Step::Execute][..]; Package::N1.plan().s_max];
+    assert_honest_invocations_execute(Package::N1, &segments);
 }

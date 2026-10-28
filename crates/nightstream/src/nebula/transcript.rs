@@ -68,6 +68,9 @@ fn header_tag(lane: Lane) -> &'static str {
     }
 }
 
+pub(super) const STATE_TAG: &str = "Nightstream/Nebula/v3/state";
+pub(super) const ETA_TAG: &str = "Nightstream/Nebula/v3/eta";
+
 pub(super) fn chain_tag(lane: Lane) -> &'static str {
     match lane {
         Lane::Ops => "Nightstream/Nebula/v3/chain-ops",
@@ -125,7 +128,7 @@ pub fn eta_challenges(
     roots.extend_from_slice(ops_root);
     roots.extend_from_slice(mem_root);
     roots.extend_from_slice(final_root);
-    let state = absorbed(&[&text("Nightstream/Nebula/v3/eta"), plan_digest, &[ts], &roots]);
+    let state = absorbed(&[&text(ETA_TAG), plan_digest, &[ts], &roots]);
     let (eta1, state) = squeeze_k(state);
     let (eta2, _) = squeeze_k(state);
     (eta1, eta2)
@@ -134,5 +137,5 @@ pub fn eta_challenges(
 /// The four Stage 1 application-state words: the spec §11.1 state digest of
 /// the application words and the carry words.
 pub fn state_words(app: &[F], carry: &[F]) -> Digest {
-    digest(&absorbed(&[&text("Nightstream/Nebula/v3/state"), app, carry]))
+    digest(&absorbed(&[&text(STATE_TAG), app, carry]))
 }

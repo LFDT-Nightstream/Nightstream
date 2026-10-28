@@ -2,8 +2,11 @@
 //! terminal checks, and (ignored, production profile) spec §14 conformance
 //! proofs over the Lean-emitted package.
 
-use nightstream::nebula::{state_words, Context, MachineState, Package, Run, Step, TerminalError};
-use p3_field::PrimeField64;
+use neo_math::K;
+use nightstream::nebula::{
+    state_words, Carry, Context, MachineState, Package, Products, Run, Statement, Step, TerminalError,
+};
+use p3_field::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
 
 /// The Stage 1 input state that an invocation's own words open to. The carry
@@ -123,6 +126,127 @@ fn d_init_matches_lean() {
         let lean: Vec<u64> = serde_json::from_value(lean["d_init"].clone()).unwrap();
         let d_init = Context::new(package).d_init();
         assert_eq!(d_init.map(|word| word.as_canonical_u64()).to_vec(), lean);
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct TerminalFixture {
+    cases: Vec<TerminalCase>,
+}
+
+#[derive(serde::Deserialize)]
+struct TerminalCase {
+    name: String,
+    statement: FixtureStatement,
+    carry: Vec<u64>,
+    canonical: bool,
+    checks: TerminalChecks,
+    final_state: Vec<u64>,
+}
+
+#[derive(serde::Deserialize)]
+struct FixtureStatement {
+    steps: u64,
+    initial: [u64; 2],
+    #[serde(rename = "final")]
+    final_: [u64; 2],
+    segments: u64,
+    final_ts: u64,
+    final_root: [u64; 4],
+}
+
+/// The fields of Lean's `TerminalChecks` after `state`, as Lean decides them.
+#[derive(serde::Deserialize)]
+struct TerminalChecks {
+    closed: bool,
+    segments_range: bool,
+    step_count: bool,
+    seg_idx: bool,
+    ts: bool,
+    root: bool,
+}
+
+/// The carry of 39 words in spec §11.1 order (Lean `decodeCarry`).
+fn decode_carry(words: &[u64]) -> Carry {
+    let f = |i: usize| F::from_u64(words[i]);
+    let k = |i: usize| K::from_basis_coefficients_slice(&[f(i), f(i + 1)]).unwrap();
+    let digest = |i: usize| [f(i), f(i + 1), f(i + 2), f(i + 3)];
+    Carry {
+        seg_idx: words[0],
+        idx: words[1],
+        ts: words[2],
+        eta: (k(3), k(5)),
+        products: Products {
+            read: k(7),
+            write: k(9),
+            initial: k(11),
+            final_: k(13),
+        },
+        proposed: (digest(15), digest(19)),
+        seen: [digest(23), digest(27), digest(31)],
+        mem_root: digest(35),
+    }
+}
+
+fn canonical_words(words: &[F]) -> Vec<u64> {
+    words.iter().map(|word| word.as_canonical_u64()).collect()
+}
+
+/// The spec §13 terminal check agrees with Lean's `TerminalChecks` on every
+/// case of `emit --application-terminal`. It accepts exactly when every
+/// statement integer is below `q` and every check holds, with Lean's final
+/// state words. Otherwise it fails at the first false check in its own order:
+/// Ob1, closed carry, segment range, step count, then the carry fields.
+#[test]
+fn terminal_checks_match_lean() {
+    for (package, fixture) in [
+        (Package::V1, include_str!("fixtures/nebula-memory-v1-terminal.json")),
+        (Package::N1, include_str!("fixtures/nebula-memory-n1-terminal.json")),
+    ] {
+        let context = Context::new(package);
+        let fixture: TerminalFixture = serde_json::from_str(fixture).unwrap();
+        for case in fixture.cases {
+            let carry = decode_carry(&case.carry);
+            assert_eq!(
+                canonical_words(&carry.words()),
+                case.carry,
+                "{package:?} {}: carry words",
+                case.name
+            );
+            let fields = case.statement;
+            let statement = Statement {
+                steps: fields.steps,
+                initial: MachineState {
+                    pc: fields.initial[0],
+                    acc: fields.initial[1],
+                },
+                final_: MachineState {
+                    pc: fields.final_[0],
+                    acc: fields.final_[1],
+                },
+                segments: fields.segments,
+                final_ts: fields.final_ts,
+                final_root: fields.final_root.map(F::from_u64),
+            };
+            let checks = case.checks;
+            let expected = if !case.canonical {
+                Err(TerminalError::NonCanonical)
+            } else if !checks.closed {
+                Err(TerminalError::OpenCarry)
+            } else if !checks.segments_range {
+                Err(TerminalError::SegmentRange)
+            } else if !checks.step_count {
+                Err(TerminalError::StepCount)
+            } else if !(checks.seg_idx && checks.ts && checks.root) {
+                Err(TerminalError::Field)
+            } else {
+                Ok(case.final_state)
+            };
+            let actual = context
+                .terminal_states(&statement, &carry)
+                .map(|(_, last)| canonical_words(&last));
+            assert_eq!(actual, expected, "{package:?} {}", case.name);
+        }
     }
 }
 

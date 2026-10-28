@@ -9,6 +9,7 @@ import NightstreamFPrime.Lifecycle.Nebula.HonestRun
 import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemorySecurity
+import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
 
 /-! Axiom audits for the Nebula memory-phase model (`Spec/Nebula`) and its
 memory application layer (`Lifecycle/Nebula`): framing, carry, step rows,
@@ -624,6 +625,7 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Machine.State.words_ofWords
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.fits
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package.fits
+#audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal.terminalChecks_iff
 
 /-! End-to-end bound over the HyperNova reverse extractor (`NebulaMemorySecurity`). -/
 

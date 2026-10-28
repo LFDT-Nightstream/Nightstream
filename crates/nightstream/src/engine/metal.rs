@@ -7,14 +7,12 @@ use crate::folding::{
     CcsWitness, FoldContext, NifsProof, RunningInstance,
 };
 use crate::lifecycle::VerifyError;
-use neo_ajtai::{scale_commitment_add_inplace, Commitment};
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use neo_prover_metal::MetalRowProver;
 use neo_reductions::{
     optimized_engine::optimized_prove_with_matrix_rows, superneo_eval::TerminalEvaluations, PiCcsError,
 };
-use p3_field::PrimeCharacteristicRing;
 
 use super::{Engine, EngineError};
 
@@ -65,13 +63,13 @@ pub(crate) fn prove(
     let split = split
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
-    // The device commits children 1..; child 0 follows from the parent by
-    // linearity. The terminal verifier still commits every child itself.
-    let mut commitments = device
-        .commit_production_prefixes(&split.planes()[1..])
+    // Commit every child. A child derived from the parent would satisfy the
+    // PiDEC recomposition by construction, so extend would return a proof
+    // that verify rejects when an input commitment does not open.
+    let commitments = device
+        .commit_production_prefixes(split.planes())
         .map_err(folding::kernels::Error::from)
         .map_err(pi_dec::Error::from)?;
-    commitments.insert(0, lowest_child_commitment(&parent.c, &commitments, params.b()));
     let openings = device
         .child_openings(rows, workspace_bytes, split.planes(), &parent.r, structure.m())
         .map_err(folding::kernels::Error::from)
@@ -182,25 +180,6 @@ fn prove_pi_ccs(
     .map_err(pi_ccs::Error::from)?;
     Ok(pi_ccs::Proof { outputs, sumcheck })
 }
-
-/// Child 0's commitment from the parent's and children 1.. . The split gives
-/// `Z_parent = Σ b^i Z_i` and the commitment is linear, so
-/// `C_0 = C_parent - Σ_{i≥1} b^i C_i` exactly; `ajtai_dec_mixer` then
-/// recomposes the parent.
-fn lowest_child_commitment(parent: &Commitment, higher: &[Commitment], b: u32) -> Commitment {
-    let mut child = parent.clone();
-    let base = F::from_u64(b as u64);
-    let mut pow = base;
-    for c in higher {
-        scale_commitment_add_inplace(&mut child, -pow, c);
-        pow *= base;
-    }
-    child
-}
-
-#[cfg(test)]
-#[path = "../../tests/engine_internal/dec_children.rs"]
-mod dec_children_tests;
 
 /// The Metal device of the compression prover: the backend's own device.
 pub(crate) struct CompressionDevice(std::sync::Arc<std::sync::Mutex<MetalRowProver>>);

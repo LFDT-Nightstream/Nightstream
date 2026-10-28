@@ -432,6 +432,32 @@ fn optimized_matches_metal() {
     );
 }
 
+/// Each child commitment must come from its own digit witness. A commitment
+/// derived from the parent passes the PiDEC recomposition check by construction.
+#[test]
+fn engines_refuse_a_fresh_commitment_that_does_not_open() {
+    let mut fixture = Fixture::bit();
+    fixture.fresh.claim.c.data[0] += F::ONE;
+    for engine in [
+        Engine::Optimized,
+        #[cfg(feature = "metal")]
+        Engine::Metal,
+    ] {
+        let error = run(engine, &fixture)
+            .err()
+            .unwrap_or_else(|| panic!("{engine:?} folded a fresh commitment that does not open"));
+        assert!(
+            matches!(
+                error.downcast_ref::<folding::Error>(),
+                Some(folding::Error::Dec(folding::pi_dec::Error::Engine(
+                    folding::kernels::Error::PiDecPublicCheckFailed { ok_c: false, .. }
+                )))
+            ),
+            "{engine:?}: {error}"
+        );
+    }
+}
+
 #[cfg(feature = "metal")]
 #[test]
 fn zero_running_matches_metal() {

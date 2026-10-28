@@ -49,7 +49,7 @@ fn relation<'k>(
     parent: &CeClaim,
 ) -> Result<neo_spartan::Relation<'k>, neo_spartan::Error> {
     let params = &fixture.params;
-    let bound = 17 * params.inner().T * (params.b() - 1);
+    let bound = 17 * params.inner().T() * (params.b() - 1);
     // `CompressionKey` gives layer 1 one bit more than the compression share.
     let bits = params.compression_security_bits().unwrap() + 1.0;
     neo_spartan::Relation::new(key, parent.m_in / D, parent.r.len(), bound, bits)
@@ -67,10 +67,7 @@ fn finish(
     let mut transcript = Transcript::session();
     let (pi_ccs, parent, pi_rlc) = folding::prove_parent_with_rows(
         &mut transcript,
-        &fixture.params,
-        &fixture.structure,
-        &rows,
-        fixture.workspace_bytes(&rows),
+        fixture.context(&rows),
         fixture.fresh.clone(),
         fixture.running.clone(),
     )
@@ -205,19 +202,10 @@ fn metal_layer1_proof_equals_cpu() {
 fn metal_parent_equals_cpu() {
     let fixture = Fixture::selected_polynomial();
     let rows = CachedMatrixRows::new(&fixture.cache).unwrap();
-    let workspace = fixture.workspace_bytes(&rows);
+    let context = fixture.context(&rows);
     let fresh = || fixture.fresh.clone();
     let mut cpu_transcript = Transcript::session();
-    let cpu = folding::prove_parent_with_rows(
-        &mut cpu_transcript,
-        &fixture.params,
-        &fixture.structure,
-        &rows,
-        workspace,
-        fresh(),
-        fixture.running.clone(),
-    )
-    .unwrap();
+    let cpu = folding::prove_parent_with_rows(&mut cpu_transcript, context, fresh(), fixture.running.clone()).unwrap();
     let backend = crate::engine::Backend::new(crate::Engine::Metal).unwrap();
     let crate::engine::Backend::Metal(device) = &backend else {
         unreachable!("the Metal engine has a Metal backend")
@@ -228,10 +216,7 @@ fn metal_parent_equals_cpu() {
     let metal = crate::engine::metal::prove_parent(
         &mut device,
         &mut metal_transcript,
-        &fixture.params,
-        &fixture.structure,
-        &rows,
-        workspace,
+        context,
         fresh(),
         fixture.running.clone(),
     )

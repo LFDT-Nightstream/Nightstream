@@ -5,21 +5,21 @@ use neo_ccs::{CcsClaim, CcsStructure, CeClaim, Mat, SparsePoly};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::PiCcsProof;
-use neo_transcript::{Poseidon2Transcript, Transcript};
+use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeCharacteristicRing;
 
 #[test]
 fn raw_pi_ccs_verifier_rejects_malformed_ce_shape_without_panicking() {
     let s = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).expect("valid identity CCS");
     let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(D, D).expect("params");
-    let commitment = Commitment::zeros(D, params.kappa as usize);
+    let commitment = Commitment::zeros(params.kappa() as usize);
     let mcs = CcsClaim {
         c: commitment.clone(),
         x: vec![F::ZERO],
         m_in: 1,
         adv: None,
     };
-    let ell_n = s.n.next_power_of_two().max(2).trailing_zeros() as usize;
+    let ell_n = s.n().next_power_of_two().max(2).trailing_zeros() as usize;
     let malformed = CeClaim {
         c: commitment,
         X: Mat::zero(D, 1, F::ZERO),
@@ -33,7 +33,7 @@ fn raw_pi_ccs_verifier_rejects_malformed_ce_shape_without_panicking() {
     let proof = PiCcsProof::new(Vec::new());
 
     let result = catch_unwind(AssertUnwindSafe(|| {
-        let mut tr = Poseidon2Transcript::new(b"redteam/raw_pi_ccs_shape");
+        let mut tr = Poseidon2Transcript::new_v1_2();
         neo_reductions::pi_ccs_verify(
             &mut tr,
             &params,
@@ -54,14 +54,14 @@ fn public_pi_ccs_verifier_handles_documented_unpadded_v1_2_evaluations() {
     let structure =
         CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).expect("valid identity CCS");
     let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(D, D).expect("params");
-    let commitment = Commitment::zeros(D, params.kappa as usize);
+    let commitment = Commitment::zeros(params.kappa() as usize);
     let mcs = CcsClaim {
         c: commitment.clone(),
         x: vec![F::ZERO],
         m_in: 1,
         adv: None,
     };
-    let ell_n = structure.n.next_power_of_two().max(2).trailing_zeros() as usize;
+    let ell_n = structure.n().next_power_of_two().max(2).trailing_zeros() as usize;
     let claim = CeClaim {
         c: commitment,
         X: Mat::zero(D, 1, F::ZERO),
@@ -75,7 +75,7 @@ fn public_pi_ccs_verifier_handles_documented_unpadded_v1_2_evaluations() {
     let output = claim.clone();
     let proof = PiCcsProof::new(Vec::new());
     let result = catch_unwind(AssertUnwindSafe(|| {
-        let mut transcript = Poseidon2Transcript::new(b"redteam/unpadded-v1_2-evaluations");
+        let mut transcript = Poseidon2Transcript::new_v1_2();
         neo_reductions::pi_ccs_verify(
             &mut transcript,
             &params,

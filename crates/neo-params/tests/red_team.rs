@@ -70,7 +70,7 @@ fn params_reject_when_combined_bound_reaches_half_the_field() {
 fn extension_policy_rejects_when_s_min_gt_2() {
     let p = NeoParams::goldilocks_paper_b2();
     let mut p2 = p;
-    p2.lambda = 320;
+    p2 = p2.with_lambda(320).unwrap();
     let (ell, d_sc) = (64u32, 16u32);
     let e = p2.extension_check(ell, d_sc).unwrap_err();
     match e {
@@ -141,7 +141,7 @@ fn parameter_boundary_conditions() {
     ));
     assert!(matches!(
         NeoParams::new(q, eta, d, kappa, m, 1, k, t, s, lambda).unwrap_err(),
-        ParamsError::Invalid("b must be >= 2")
+        ParamsError::Invalid("Nightstream fixes the decomposition base b = 2")
     ));
     assert!(matches!(
         NeoParams::new(q, eta, d, kappa, m, b, 0, t, s, lambda).unwrap_err(),
@@ -167,17 +167,17 @@ fn parameter_boundary_conditions() {
 fn goldilocks_preset_security_invariants() {
     let p = NeoParams::goldilocks_paper_b2();
 
-    let lhs = (p.k_rho as u128 + 1) * (p.T as u128) * ((p.b as u128) - 1);
-    let rhs = p.B as u128;
+    let lhs = (p.k_rho() as u128 + 1) * (p.T() as u128) * ((p.b() as u128) - 1);
+    let rhs = p.B() as u128;
     assert!(lhs < rhs, "Guard inequality must hold: {lhs} < {rhs}");
 
     let margin = rhs - lhs;
     let margin_ratio = (margin as f64) / (rhs as f64);
 
     assert!(p.is_goldilocks_paper_b2());
-    assert_eq!(p.q, goldilocks_paper_b2::Q);
-    assert_eq!(p.s, goldilocks_paper_b2::EXTENSION_DEGREE);
-    assert_eq!(p.lambda, goldilocks_paper_b2::LAMBDA);
+    assert_eq!(p.q(), goldilocks_paper_b2::Q);
+    assert_eq!(p.s(), goldilocks_paper_b2::EXTENSION_DEGREE);
+    assert_eq!(p.lambda(), goldilocks_paper_b2::LAMBDA);
 
     println!("✅ RED TEAM: Goldilocks preset satisfies all security invariants");
     println!(
@@ -192,19 +192,9 @@ fn goldilocks_preset_security_invariants() {
 fn parameter_overflow_boundary_test() {
     use neo_params::{NeoParams, ParamsError};
 
-    let high_lambda_params = NeoParams {
-        q: goldilocks_paper_b2::Q,
-        eta: goldilocks_paper_b2::ETA as u32,
-        d: goldilocks_paper_b2::D as u32,
-        kappa: 3,
-        m: 4,
-        lambda: 128,
-        s: 2,
-        k_rho: 1,
-        T: 256,
-        b: 2,
-        B: 1024,
-    };
+    let high_lambda_params = NeoParams::goldilocks_paper_b2()
+        .with_lambda(128)
+        .expect("lambda");
 
     let result = high_lambda_params.extension_check(1, 1);
     match result {
@@ -216,19 +206,9 @@ fn parameter_overflow_boundary_test() {
         Err(e) => panic!("Unexpected error type: {e:?}"),
     }
 
-    let boundary_params = NeoParams {
-        q: goldilocks_paper_b2::Q,
-        eta: goldilocks_paper_b2::ETA as u32,
-        d: goldilocks_paper_b2::D as u32,
-        kappa: 3,
-        m: 4,
-        lambda: 127,
-        s: 2,
-        k_rho: 1,
-        T: 256,
-        b: 2,
-        B: 1024,
-    };
+    let boundary_params = NeoParams::goldilocks_paper_b2()
+        .with_lambda(127)
+        .expect("lambda");
 
     let result_s1 = boundary_params.extension_check(1000, 256);
     assert!(result_s1.is_err(), "s=1 should fail for challenging parameters");

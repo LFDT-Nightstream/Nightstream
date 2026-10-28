@@ -8,17 +8,41 @@ use crate::{
 };
 use neo_math::D;
 
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+/// A validated CCS structure. The fields are private, so a structure keeps
+/// the shape that `new`, `new_sparse` or `new_verifier_artifact_header`
+/// checked.
+#[derive(Clone, Debug)]
 pub struct CcsStructure<F> {
-    pub matrices: Vec<CcsMatrix<F>>,
-    pub f: SparsePoly<F>,
-    pub n: usize,
-    pub m: usize,
-    #[serde(default)]
-    pub domain_variables: Option<usize>,
+    matrices: Vec<CcsMatrix<F>>,
+    f: SparsePoly<F>,
+    n: usize,
+    m: usize,
+    domain_variables: Option<usize>,
 }
 
 impl<F: Field> CcsStructure<F> {
+    pub fn matrices(&self) -> &[CcsMatrix<F>] {
+        &self.matrices
+    }
+
+    pub fn f(&self) -> &SparsePoly<F> {
+        &self.f
+    }
+
+    /// The constraint rows.
+    pub fn n(&self) -> usize {
+        self.n
+    }
+
+    /// The witness columns.
+    pub fn m(&self) -> usize {
+        self.m
+    }
+
+    pub fn domain_variables(&self) -> Option<usize> {
+        self.domain_variables
+    }
+
     pub fn new(matrices: Vec<Mat<F>>, f: SparsePoly<F>) -> Result<Self, RelationError>
     where
         F: p3_field::PrimeCharacteristicRing + Copy + Eq + Send + Sync,
@@ -289,14 +313,14 @@ fn transform_ccs_matrix_superneo(
             }
         }
         CcsMatrix::Csc(m) => {
-            triplets.reserve(m.vals.len() * D);
-            for c in 0..m.ncols {
+            triplets.reserve(m.vals().len() * D);
+            for c in 0..m.ncols() {
                 let block = c / D;
                 let local = c % D;
                 let base = block * D;
                 for k in m.column_range(c) {
                     let r = m.row_index(k);
-                    let v = m.vals[k];
+                    let v = m.vals()[k];
                     for i in 0..D {
                         let coeff = v * bar[i][local];
                         if coeff != Fq::ZERO {
@@ -307,14 +331,14 @@ fn transform_ccs_matrix_superneo(
             }
         }
         CcsMatrix::CscWithGeometricRuns { csc, geometric_runs } => {
-            triplets.reserve(csc.vals.len() * D);
-            for c in 0..csc.ncols {
+            triplets.reserve(csc.vals().len() * D);
+            for c in 0..csc.ncols() {
                 let block = c / D;
                 let local = c % D;
                 let base = block * D;
                 for k in csc.column_range(c) {
                     let r = csc.row_index(k);
-                    let v = csc.vals[k];
+                    let v = csc.vals()[k];
                     for i in 0..D {
                         let coeff = v * bar[i][local];
                         if coeff != Fq::ZERO {
@@ -384,7 +408,6 @@ impl<F: Copy> CcsWitness<F> {
     }
 }
 
-#[allow(non_camel_case_types)]
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq, Eq)]
 pub struct V1_2Evaluations<K> {
     pub eval_k: Vec<K>,

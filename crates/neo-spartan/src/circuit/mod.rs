@@ -2,9 +2,9 @@
 //!
 //! Owns: the `Backend` contract that compression verifiers are written in,
 //! and `Native`, the reading on plain values. `Recorder` (record.rs) reads
-//! the same code as a constraint system. `Backend` and `Native` are public so
-//! that a caller can write its own verifier (nightstream's final program);
-//! every value enters as a `u64`, so no Plonky3 0.8 type crosses.
+//! the same code as a constraint system. `Backend` is public so that a
+//! caller can write its own verifier (nightstream's final program); every
+//! value enters as a `u64`, so no Plonky3 0.8 type crosses.
 //!
 //! Rules for code written over `Backend`:
 //! - It never branches on a value. Every loop bound and length comes from a

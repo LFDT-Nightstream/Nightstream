@@ -64,8 +64,7 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
 
     let (running, fresh) = proof.active_parts().unwrap();
     let (running, fresh) = (running.clone(), fresh.clone());
-    let reseal =
-        |state: &Stage1State, fresh: CcsInstance| Stage1Envelope::from_parts(state.clone(), running.clone(), fresh);
+    let reseal = |state: &Stage1State, fresh: CcsInstance| Stage1Envelope::from_parts(*state, running.clone(), fresh);
     verifier
         .verify(&expected, &reseal(&expected, fresh.clone()))
         .unwrap();
@@ -133,7 +132,7 @@ fn two_link_hash_chain_base_step_verifies_and_rejects_changes() {
     ));
 
     let mut commitment = fresh;
-    commitment.claim.c.data[0] += F::ONE;
+    commitment.claim.c.data_mut()[0] += F::ONE;
     assert!(matches!(
         verifier.verify(&expected, &reseal(&expected, commitment)),
         Err(Error::Verify(VerifyError::Fresh(
@@ -163,7 +162,7 @@ fn two_link_hash_chain_folds_on_metal() {
     changed[0] += F::ONE;
     let state = Stage1State::new(2, initial, changed);
     let (running, fresh) = proof.active_parts().unwrap();
-    let envelope = Stage1Envelope::from_parts(state.clone(), running.clone(), fresh.clone());
+    let envelope = Stage1Envelope::from_parts(state, running.clone(), fresh.clone());
     assert!(matches!(
         verifier.verify(&state, &envelope),
         Err(Error::Verify(VerifyError::Fresh(

@@ -2,7 +2,7 @@ use serde_json::{json, Value};
 
 const P: u64 = 0xffff_ffff_0000_0001;
 
-pub fn program() -> Value {
+pub(super) fn program() -> Value {
     json!([[
         [0, 2, 0, 2],
         [
@@ -19,7 +19,7 @@ pub fn program() -> Value {
     ]])
 }
 
-pub fn malformed() -> Vec<(&'static str, Value)> {
+pub(super) fn malformed() -> Vec<(&'static str, Value)> {
     let mut constant = program();
     constant[0][1][1][0][0] = json!(P);
     let mut coefficient = program();

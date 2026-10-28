@@ -49,7 +49,7 @@ where
     let mut value = Ff::ZERO;
     for entry in matrix.column_range(column) {
         if matrix.row_index(entry) == row {
-            value += matrix.vals[entry];
+            value += matrix.vals()[entry];
         }
     }
     value

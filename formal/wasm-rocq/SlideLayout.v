@@ -141,10 +141,10 @@ Lemma encoded_branch_slide : forall program memory index f labels inner offset l
   pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (BR_IF l) ->
   pathHeights (programCallees program (guestModule f)) (guestBody f) labels offset = Some (hs, top) ->
   let pc := guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset) in
-  memory frameSlideRemainingId [pc; choice] = (if (choice =? 0)%Z || (choice =? 1)%Z then Some 0%Z else None) /\
+  memory frameSlideRemainingId [pc; choice] = Some 0%Z /\
   memory frameSlideDistanceId [pc; choice] =
-    (if (choice =? 0)%Z then Some 0%Z
-     else if (choice =? 1)%Z then option_map Z.of_nat (branchDrop (rev hs) top (N.to_nat (l :> N))) else None).
+    Some (if (choice =? 1)%Z then
+      match branchDrop (rev hs) top (N.to_nat (l :> N)) with Some d => Z.of_nat d | None => 0%Z end else 0%Z).
 Proof.
   intros program memory index f labels inner offset l hs top choice Hloaded Hf Hpath Hi Hheights pc.
   destruct (path_slot_head (guestBody f) labels (BR_IF l) (skipn (S offset) inner)) as [more Hhead].
@@ -160,9 +160,10 @@ Proof.
     unfold pc; rewrite (slide_at_function_pc _ _ _ _ _ choice Hf Hbound); unfold functionSlide; rewrite Hslot;
       cbn [Nat.eqb frameSlideRemainingId
       frameSlideDistanceId].
-  - reflexivity.
-  - rewrite Hdrop. destruct (choice =? 0)%Z; [reflexivity | ].
-    destruct (choice =? 1)%Z; [ | reflexivity]. destruct (branchDrop _ _ _); reflexivity.
+  - destruct ((choice =? 0)%Z || (choice =? 1)%Z); reflexivity.
+  - rewrite Hdrop. destruct (choice =? 0)%Z eqn:H0.
+    + apply Z.eqb_eq in H0. subst choice. reflexivity.
+    + destruct (choice =? 1)%Z; [ | reflexivity]. destruct (branchDrop _ _ _); reflexivity.
 Qed.
 
 (* The ROM's slide at a return: it keeps the function's results and drops its
@@ -175,10 +176,10 @@ Lemma encoded_return_slide : forall program memory index f labels inner offset h
   let total := totalHeight (hs, top) in
   let distance := (Z.of_nat (guestParams f + guestLocals f) + Z.of_nat (total - guestResults f))%Z in
   memory frameSlideRemainingId [pc; choice] =
-    (if (choice =? 0)%Z && Nat.leb (guestResults f) total then
-      Some (if (distance =? 0)%Z then 0%Z else Z.of_nat (guestResults f)) else None) /\
+    Some (if (choice =? 0)%Z && Nat.leb (guestResults f) total then
+      (if (distance =? 0)%Z then 0%Z else Z.of_nat (guestResults f)) else 0%Z) /\
   memory frameSlideDistanceId [pc; choice] =
-    (if (choice =? 0)%Z && Nat.leb (guestResults f) total then Some distance else None).
+    Some (if (choice =? 0)%Z && Nat.leb (guestResults f) total then distance else 0%Z).
 Proof.
   intros program memory index f labels inner offset hs top choice Hloaded Hf Hpath Hi Hheights pc total distance.
   destruct (path_slot_head (guestBody f) labels RETURN (skipn (S offset) inner)) as [more Hhead].
@@ -193,5 +194,5 @@ Proof.
   rewrite sum_rev in Hdrop.
   split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
     unfold pc; rewrite (slide_at_function_pc _ _ _ _ _ choice Hf Hbound); unfold functionSlide;
-    rewrite Hslot, Hdrop; reflexivity.
+    rewrite Hslot, Hdrop; destruct (_ && _); reflexivity.
 Qed.

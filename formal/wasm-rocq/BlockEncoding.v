@@ -90,7 +90,7 @@ Proof.
     unfold instructionImage; repeat split; try intros choice;
     try (program_cell Hloaded; unfold encodeProgram;
       cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
-      unfold instructionRom; rewrite Hpc; reflexivity).
+      unfold instructionRom; rewrite Hpc; try reflexivity; destruct (choice =? 0); reflexivity).
 Qed.
 
 Lemma encoded_path_block_entry : forall labels inner offset body,
@@ -102,7 +102,7 @@ Proof.
   destruct labels; cbv iota in Hpc;
   unfold controlImage; repeat split; try intro choice; program_cell Hloaded; unfold encodeProgram;
     cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
-    unfold instructionRom; rewrite Hpc; reflexivity.
+    unfold instructionRom; rewrite Hpc; try reflexivity; destruct (choice =? 0); reflexivity.
 Qed.
 
 (* The END of the innermost enclosing block. *)
@@ -181,8 +181,9 @@ Proof.
         -- split.
            ++ program_cell Hloaded. unfold encodeProgram. cbn.
               unfold instructionRom. rewrite Hpc. cbn [Nat.eqb pcRomId programOpcodeId pcEdgeKindId programLocalIndexId callTargetId].
-              change (option_map (fun address => Z.of_N address + 1)
-                (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) = Some (Z.of_N (guestAddress callee) + 1)).
+              change (Some (match option_map (fun address => Z.of_N address + 1)
+                (nth_error (FUNCS (guestModule f)) (N.to_nat (x :> N))) with Some v => v | None => 0 end) =
+                Some (Z.of_N (guestAddress callee) + 1)).
               rewrite Haddress, HcalleeAddress. reflexivity.
            ++ split.
               ** program_cell Hloaded. unfold encodeProgram. cbn.

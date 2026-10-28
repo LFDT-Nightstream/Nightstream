@@ -303,7 +303,7 @@ Qed.
 Lemma function_facts : forall program s index f,
   store_FUNCS s = program -> programValidated program s -> functionAt program index = Some f ->
   let callees := programCallees program (guestModule f) in
-  codeFacts (frameLocals f) callees 0 (guestBody f) /\
+  codeFacts (frameLocals f) (guestResults f) callees 0 (guestBody f) /\
   endsAt callees (guestBody f) 0 (guestResults f) /\
   supportedCode callees (guestBody f) /\ codeBranches callees 0 (guestBody f) 0.
 Proof.
@@ -315,39 +315,40 @@ Proof.
   cbn [i32StackType] in H.
   destruct (Hsupported index f Hf) as [Hsupport Hbranches].
   assert (Hfits : contextFits (functionContext C (i32Function (guestModule f) (guestTypeIndex f)
-      (guestParams f) (guestResults f) (guestLocals f) (guestBody f))) (frameLocals f) callees).
+      (guestParams f) (guestResults f) (guestLocals f) (guestBody f))) (frameLocals f) (guestResults f) callees).
   { split; [rewrite function_context_locals by (eapply module_context_locals; exact HC); reflexivity | ].
-    intros x g Hg. exact (program_callee_types _ _ _ _ Hstore HC x g Hg). }
-  destruct (H (frameLocals f) _ Hfits Hsupport) as [Hfacts [Hheights _]].
+    split; [ | intros x g Hg; exact (program_callee_types _ _ _ _ Hstore HC x g Hg)].
+    inversion HC; subst. reflexivity. }
+  destruct (H (frameLocals f) (guestResults f) _ Hfits Hsupport) as [Hfacts [Hheights _]].
   rewrite !repeat_length in Hfacts, Hheights.
   split; [pose proof (Hfacts 0%nat [] I) as Hf0; rewrite app_nil_r in Hf0; exact Hf0 | ].
   split; [exact (Hheights 0%nat) | split; assumption].
 Qed.
 
 (* Facts of the code at a path, from the enclosing code's. *)
-Lemma path_facts : forall localCount callees labels code exits inner offset heights top,
-  codeFacts localCount callees 0 code -> supportedCode callees code -> codeBranches callees exits code 0 ->
+Lemma path_facts : forall localCount resultCount callees labels code exits inner offset heights top,
+  codeFacts localCount resultCount callees 0 code -> supportedCode callees code -> codeBranches callees exits code 0 ->
   pathCode code labels = Some inner -> pathHeights callees code labels offset = Some (heights, top) ->
-  codeFacts localCount callees top (skipn offset inner) /\ supportedCode callees (skipn offset inner) /\
+  codeFacts localCount resultCount callees top (skipn offset inner) /\ supportedCode callees (skipn offset inner) /\
   codeBranches callees (exits + length heights) (skipn offset inner) top /\
   (labels <> [] -> endsAt callees inner 0 0).
 Proof.
-  intros localCount callees. induction labels as [ | b rest IH];
+  intros localCount resultCount callees. induction labels as [ | b rest IH];
     intros code exits inner offset heights top Hfacts Hsupport Hbranches Hpath Hheights;
     cbn [pathCode pathHeights] in *.
   - injection Hpath as <-.
     destruct (sourceHeights callees (firstn offset code) 0) as [h | ] eqn:Hh; cbn in Hheights; [ | discriminate].
     injection Hheights as <- <-.
-    split; [exact (code_facts_skip _ _ _ _ _ _ Hfacts Hh) | ]. split; [apply supported_skip; exact Hsupport | ].
+    split; [exact (code_facts_skip _ _ _ _ _ _ _ Hfacts Hh) | ]. split; [apply supported_skip; exact Hsupport | ].
     split; [rewrite Nat.add_0_r; exact (code_branches_skip _ _ _ _ _ _ Hbranches Hh) | ]. intros Hne; contradiction.
   - destruct (nth_error code b) as [i | ] eqn:Hb; [ | discriminate]. destruct i; try discriminate.
     destruct (sourceHeights callees (firstn b code) 0) as [below | ] eqn:Hbelow; [ | discriminate].
     match goal with Hp : pathCode ?nested rest = Some inner |- _ => rename nested into body end.
     destruct (pathHeights callees body rest offset) as [[hs t] | ] eqn:Hin; cbn in Hheights; [ | discriminate].
     injection Hheights as <- <-.
-    pose proof (code_facts_skip _ _ _ _ _ _ Hfacts Hbelow) as Hat.
+    pose proof (code_facts_skip _ _ _ _ _ _ _ Hfacts Hbelow) as Hat.
     rewrite (skipn_at_instruction _ _ _ Hb) in Hat. cbn [codeFacts] in Hat. destruct Hat as [Hblock _].
-    destruct (proj1 (block_facts _ _ _ _ _) Hblock) as [_ [Hzero Hbody]].
+    destruct (proj1 (block_facts _ _ _ _ _ _) Hblock) as [_ [Hzero Hbody]].
     pose proof (code_branches_skip _ _ _ _ _ _ Hbranches Hbelow) as Hbr.
     rewrite (skipn_at_instruction _ _ _ Hb) in Hbr. destruct Hbr as [Hbr _].
     apply (proj1 (block_branches _ _ _ _ _)) in Hbr.
@@ -367,7 +368,7 @@ Lemma view_facts : forall program s memory base fbp pending moved distance f vie
   let position := viewPosition view in
   let callees := programCallees program (guestModule f) in
   let rest := skipn (positionOffset position) (innerCode f position) in
-  codeFacts (frameLocals f) callees (length (viewValues view) + pending) rest /\
+  codeFacts (frameLocals f) (guestResults f) callees (length (viewValues view) + pending) rest /\
   (supportedCode callees rest /\
     codeBranches callees (length (viewSegments view)) rest (length (viewValues view) + pending)) /\
   (positionLabels position <> [] -> endsAt callees (innerCode f position) 0 0) /\
@@ -378,8 +379,8 @@ Proof.
   intros program s memory base fbp pending moved distance f view Hstore Hvalid
     [Hf [Hpath [Hheights [_ [_ [Hoperands _]]]]]] position callees rest.
   destruct (function_facts _ _ _ _ Hstore Hvalid Hf) as [Hfacts [Hresults [Hsupport Hbranches]]].
-  destruct (path_facts _ _ _ _ _ _ _ _ _ Hfacts Hsupport Hbranches Hpath Hheights) as [Hrest [Hsup [Hbr Hblock]]].
-  pose proof (code_facts_wf _ _ _ _ Hfacts) as Hwf.
+  destruct (path_facts _ _ _ _ _ _ _ _ _ _ Hfacts Hsupport Hbranches Hpath Hheights) as [Hrest [Hsup [Hbr Hblock]]].
+  pose proof (code_facts_wf _ _ _ _ _ Hfacts) as Hwf.
   split; [exact Hrest | ]. split; [split; [exact Hsup | rewrite length_map in Hbr; exact Hbr] | ].
   split; [exact Hblock | ].
   split.

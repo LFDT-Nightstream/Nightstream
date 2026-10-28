@@ -30,7 +30,7 @@ Definition directCallImage (memory : MemoryState) (pc returnPC : Z) (caller : st
 Definition instructionImage (memory : MemoryState) (pc : Z) (instruction : instr) : Prop :=
   memory programOpcodeId [pc] = encodedOpcode instruction /\
   memory pcEdgeKindId [pc] = Some 0 /\
-  (forall choice, memory pcRomId [pc; choice] = if choice =? 0 then Some (pc + 1) else None) /\
+  (forall choice, memory pcRomId [pc; choice] = if choice =? 0 then Some (pc + 1) else Some 0) /\
   match instruction with
   | LOCAL_GET x | LOCAL_SET x => memory programLocalIndexId [pc] = Some (Z.of_N (x :> N))
   | _ => True

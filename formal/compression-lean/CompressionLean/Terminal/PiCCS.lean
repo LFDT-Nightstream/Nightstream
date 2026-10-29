@@ -2,15 +2,6 @@ import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 import NightstreamFPrime.Lifecycle.VerifierContext
 import CompressionLean.Terminal.Rows
 
-/-!
-Owns the PiCCS edge of the terminal package: its rows imply the exact
-SuperNeo v1_2 PiCCS phase and bind both state preimages to the selected
-verifier context.
-
-The proofs are F′'s `Export/Stage1/Package` proofs with the terminal package
-in place of the Stage 1 package. Only the membership steps differ.
--/
-
 namespace CompressionLean.Terminal
 
 open NightstreamFPrime.Export
@@ -33,7 +24,6 @@ theorem piCcsTranscriptSpecs
   rw [Data.permutationInvocations_eq]
   exact List.mem_append_left _ member
 
-/-- The terminal rows cover all twelve children of the F′ PiCCS circuit. -/
 theorem piCcsSpecHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (env : Env) (holds : (circuitPackage ()).RowsHold env) :
@@ -67,7 +57,6 @@ theorem piCcsSpecHolds
     finalIdentity := arithmetic.finalIdentity_parent
     outputBinding := transcripts.outputBinding_parent relation }
 
-/-- The terminal rows imply the exact SuperNeo v1_2 PiCCS phase. -/
 theorem piCcsPhaseHolds
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (ajtai : AjtaiKey
@@ -82,8 +71,6 @@ theorem piCcsPhaseHolds
     relation ajtai
   exact piCcsSpecHolds relation env holds
 
-/-- Both state preimages carry the context digest that the verifier selects
-for its public context columns. -/
 theorem selectedVerifierContext
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (authority : VerifierContext.Authority)

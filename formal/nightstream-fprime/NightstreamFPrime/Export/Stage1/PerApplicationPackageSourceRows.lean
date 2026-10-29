@@ -5,7 +5,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 import NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSchedule
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
-/-! Owns source-row custody for one Lean-authored per-application package. -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPackageSourceRows
 

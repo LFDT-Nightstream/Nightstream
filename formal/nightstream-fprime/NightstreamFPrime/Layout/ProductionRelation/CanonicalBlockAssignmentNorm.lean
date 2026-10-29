@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignment
 
-/-!
-Owns the coordinate norm of the existing compact block assignment. Valid
-slot sources and bounded public cells suffice. The proof follows coordinate
-lookup through the block schedule; it creates no expanded slot or value list.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignment

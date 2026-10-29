@@ -2,23 +2,13 @@ import Mathlib.Algebra.BigOperators.Fin
 import NightstreamFPrime.Spec.Algebra
 import NightstreamFPrime.Spec.Phi81StrongSet
 
-/-!
-Owns the whole-vector PiRLC scalar sampler map. Four transcript field values
-are read as one base-`p` integer `X < p^4`. The scalar is the 54-digit
-base-five expansion of `X mod 5^54`; each coefficient is its digit minus two.
-The map is total: it has no rejection, retry or failure event.
-
-This module fixes the deterministic map only. `Law` owns its comparison with
-uniform scalars. No law is assigned to Poseidon2.
--/
-
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 open NightstreamFPrime.Spec.Phi81StrongSet
 
-def drawWidth : Nat := 4
+@[implicit_reducible] def drawWidth : Nat := 4
 
 abbrev Draw := Fin drawWidth → F
 

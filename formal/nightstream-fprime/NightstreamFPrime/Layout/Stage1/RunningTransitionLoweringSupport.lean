@@ -3,8 +3,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionInputsSupport
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
 
-/-! Owns compact support preservation through lowering and Spartan remapping. -/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 
 open NightstreamFPrime.Layout

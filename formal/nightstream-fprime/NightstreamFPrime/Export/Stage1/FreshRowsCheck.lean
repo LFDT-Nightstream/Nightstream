@@ -3,10 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImages
 
-/-!
-Check the scalar production polynomial on every active canonical row.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.FreshRowsCheck
@@ -129,25 +125,25 @@ theorem checkBlock_of_units (block : MatrixProgram.Block) {columns : Nat}
       intro unit _ upper
       have bounded : unit < (MatrixProgram.Block.ordinary block).rowCount := by
         simpa only [Nat.zero_add] using upper
-      simpa only [checkBlockUnit, if_pos bounded] using checked unit bounded
+      simpa only [checkBlockUnit, ite_eq_left bounded] using checked unit bounded
   | multiplicationGrid block =>
       apply allFrom_complete
       intro unit _ upper
       have bounded : unit < (MatrixProgram.Block.multiplicationGrid block).rowCount := by
         simpa only [Nat.zero_add] using upper
-      simpa only [checkBlockUnit, if_pos bounded] using checked unit bounded
+      simpa only [checkBlockUnit, ite_eq_left bounded] using checked unit bounded
   | phi81Product block =>
       apply allFrom_complete
       intro unit _ upper
       have bounded : unit < (MatrixProgram.Block.phi81Product block).rowCount := by
         simpa only [Nat.zero_add] using upper
-      simpa only [checkBlockUnit, if_pos bounded] using checked unit bounded
+      simpa only [checkBlockUnit, ite_eq_left bounded] using checked unit bounded
   | pin block =>
       apply allFrom_complete
       intro unit _ upper
       have bounded : unit < (MatrixProgram.Block.pin block).rowCount := by
         simpa only [Nat.zero_add] using upper
-      simpa only [checkBlockUnit, if_pos bounded] using checked unit bounded
+      simpa only [checkBlockUnit, ite_eq_left bounded] using checked unit bounded
 
 theorem checkBlock_of_ranges (block : MatrixProgram.Block) {columns parts : Nat}
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → F)
@@ -236,7 +232,7 @@ private theorem checkInvocation_sound (block : Poseidon.Block) {columns : Nat}
         simp)
       simpa only [PiDECPoseidonNumericBlock.row?,
         PiDECPoseidonNumericBlock.loadRow?_encodeProd, loaded,
-        Option.map_some, checkRow, ofFn_get, dif_pos row.isLt] using rowChecked
+        Option.map_some, checkRow, ofFn_get, dite_eq_left row.isLt] using rowChecked
 
 theorem checkBlock_sound (block : MatrixProgram.Block) {columns : Nat}
     (sourceRow : Nat → Option R1CS.Row) (read : Fin columns → F)
@@ -258,7 +254,7 @@ theorem checkBlock_sound (block : MatrixProgram.Block) {columns : Nat}
       have invocationChecked := allFrom_sound _ 0 block.invocationCount checked
         pair.1.val (by omega) (by simp)
       have selected : checkInvocation block read pair.1 = true := by
-        simpa only [dif_pos pair.1.isLt] using invocationChecked
+        simpa only [dite_eq_left pair.1.isLt] using invocationChecked
       have rowChecked := checkInvocation_sound block read pair.1 selected pair.2
       have encoded : (Fin.encodeProd pair).val = row := by
         exact congrArg Fin.val (Fin.encodeProd_decodeProd index)
@@ -274,13 +270,13 @@ private theorem select_checked {columns : Nat}
   | nil => simp at bounded
   | cons block rest inductionHypothesis =>
       by_cases selected : row < block.rowCount
-      · simpa only [PiDECMatrixNumericRows.row?.select, if_pos selected] using
+      · simpa only [PiDECMatrixNumericRows.row?.select, ite_eq_left selected] using
           checkBlock_sound block sourceRow read (checked block (by simp)) row selected
       · simp only [List.map_cons, List.sum_cons] at bounded
         have restChecked : ∀ next ∈ rest, checkBlock next sourceRow read = true := by
           intro next member
           exact checked next (List.mem_cons_of_mem block member)
-        simpa only [PiDECMatrixNumericRows.row?.select, if_neg selected] using
+        simpa only [PiDECMatrixNumericRows.row?.select, ite_eq_right selected] using
           inductionHypothesis restChecked (row - block.rowCount) (by omega)
 
 theorem rowsZero_of_blockChecks {columns : Nat}
@@ -376,7 +372,7 @@ private theorem completeAssignment_embed
     raw.completeAssignment (Phi81CarrierLayout.embedLogical column) = raw.assignment column := by
   dsimp only [PerApplicationCanonicalAssignment.RawValues.completeAssignment,
     Phi81CarrierLayout.embedLogical]
-  exact dif_pos column.isLt
+  exact dite_eq_left column.isLt
 
 theorem checked_raw (bytes : ByteArray)
     (raw : PerApplicationCanonicalAssignment.RawValues Poseidon2HashChainV1Package.application)

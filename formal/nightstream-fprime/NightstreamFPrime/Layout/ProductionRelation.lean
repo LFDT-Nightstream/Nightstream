@@ -1,16 +1,5 @@
 import NightstreamFPrime.Lifecycle.ProductionKey
 
-/-!
-Owns the exact matrix authority for the production gate relation. A plan
-stores the 4 sparse matrix-row forms in canonical numeric row order. The
-derived matrices are the only values accepted by
-`ProductionKey.LogicalRelation`.
-
-This module does not compile field-valued circuit wires to low-norm
-coordinates. That compiler must construct one `Plan` and prove its source
-semantics before the plan can enter the production package.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation
 
 open NightstreamFPrime.Lifecycle
@@ -82,12 +71,12 @@ private theorem foldl_coefficient_from {columns : Nat}
   | cons entry rest inductionHypothesis =>
       simp only [List.foldl_cons]
       by_cases equal : entry.column = column
-      · rw [if_pos equal, if_pos equal,
+      · rw [ite_eq_left equal, ite_eq_left equal,
           inductionHypothesis (initial + entry.coefficient)]
         simp only [zero_add]
         rw [inductionHypothesis entry.coefficient]
         abel
-      · rw [if_neg equal, if_neg equal, inductionHypothesis initial]
+      · rw [ite_eq_right equal, ite_eq_right equal, inductionHypothesis initial]
 
 @[simp] theorem add_coefficient {columns : Nat}
     (left right : SparseForm columns) (column : Fin columns) :
@@ -112,13 +101,13 @@ private theorem foldl_scaled_entries {columns : Nat}
   | cons entry rest inductionHypothesis =>
       simp only [List.map_cons, List.foldl_cons]
       by_cases equal : entry.column = column
-      · rw [if_pos equal, if_pos equal,
+      · rw [ite_eq_left equal, ite_eq_left equal,
           inductionHypothesis (initial + scalar * entry.coefficient)]
         simp only [zero_add]
         rw [foldl_coefficient_from (initial := entry.coefficient)]
         rw [mul_add]
         exact baseLaws.add_assoc _ _ _
-      · rw [if_neg equal, if_neg equal, inductionHypothesis initial]
+      · rw [ite_eq_right equal, ite_eq_right equal, inductionHypothesis initial]
 
 @[simp] theorem scale_coefficient {columns : Nat}
     (scalar : F) (form : SparseForm columns) (column : Fin columns) :

@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.CommitmentCombination
 
-/-!
-Owns the physical PiRLC commitment-combination family.
-
-This owner selects the exact 18-row logical family. It adds no transcript,
-public-input, evaluation, copy, or boundary rows.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.CommitmentCombination
 
 open NightstreamFPrime.Circuit

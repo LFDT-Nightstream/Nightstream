@@ -4,18 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperCompleteness
 import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 import NightstreamFPrime.Spec.SumCheck.FixedPhase
 
-/-!
-Typed public data and deterministic dataflow for the paper SuperNeo NIFS.
-
-Source: SuperNeo Sections 7.3--7.5 and HyperNova Definition 12.
-
-Owns: the separated fresh/running public carriers; one prover message with a
-joint-`Pi_CCS` certificate, coefficient-complete output, and `Pi_DEC` child
-messages; the exact paper statement; verifier-owned absorption of the complete
-public NIFS input before any challenge; verifier-derived `Pi_CCS` and
-`Pi_RLC` challenges; the computed combined parent; and the computed running
-output.
--/
+/-! SuperNeo Sections 7.3–7.5; HyperNova Definition 12. -/
 
 set_option autoImplicit false
 

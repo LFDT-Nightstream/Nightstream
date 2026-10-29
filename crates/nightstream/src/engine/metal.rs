@@ -6,7 +6,7 @@ use crate::folding::{
     self, ajtai_dec_mixer, ajtai_rlc_mixer, pi_ccs, pi_dec, pi_rlc, transcript::Transcript, CcsClaim, CcsInstance,
     CcsWitness, FoldContext, NifsProof, RunningInstance,
 };
-use crate::lifecycle::VerifyError;
+use crate::lifecycle::{ProveError, VerifyError};
 use neo_ccs::Mat;
 use neo_math::{D, F, K};
 use neo_prover_metal::MetalRowProver;
@@ -27,13 +27,35 @@ pub(crate) fn lock(
     })
 }
 
+/// Route an error of a device call. `oracle_error` in `neo-prover-metal`
+/// classified it: a backend failure judged nothing, so it is an engine
+/// failure; any other error judged the input, and `rejection` keeps it.
+pub(crate) fn device_error<E: From<EngineError>>(error: PiCcsError, rejection: fn(PiCcsError) -> E) -> E {
+    match error {
+        PiCcsError::BackendFailure { reason, .. } => EngineError::Failure {
+            engine: Engine::Metal,
+            reason,
+        }
+        .into(),
+        error => rejection(error),
+    }
+}
+
+fn ccs_rejection(error: PiCcsError) -> ProveError {
+    folding::Error::from(pi_ccs::Error::from(folding::kernels::Error::from(error))).into()
+}
+
+fn dec_rejection(error: PiCcsError) -> ProveError {
+    folding::Error::from(pi_dec::Error::from(folding::kernels::Error::from(error))).into()
+}
+
 pub(crate) fn prove(
     device: &mut MetalRowProver,
     transcript: &mut Transcript,
     context: FoldContext<'_>,
     fresh: CcsInstance,
     running: RunningInstance,
-) -> Result<(RunningInstance, NifsProof), folding::Error> {
+) -> Result<(RunningInstance, NifsProof), ProveError> {
     let FoldContext {
         params,
         structure,
@@ -55,25 +77,22 @@ pub(crate) fn prove(
             &c.outputs,
             &sources,
             |rhos, witnesses| device.split_rlc_witnesses(rhos, witnesses, params.k_rho() as usize, params.b()),
-        )?
+        )
+        .map_err(folding::Error::from)?
     };
     drop(sources);
     drop(witness);
     drop(running);
-    let split = split
-        .map_err(folding::kernels::Error::from)
-        .map_err(pi_dec::Error::from)?;
+    let split = split.map_err(|error| device_error(error, dec_rejection))?;
     // Commit every child. A child derived from the parent would satisfy the
     // PiDEC recomposition by construction, so extend would return a proof
     // that verify rejects when an input commitment does not open.
     let commitments = device
         .commit_production_prefixes(split.planes())
-        .map_err(folding::kernels::Error::from)
-        .map_err(pi_dec::Error::from)?;
+        .map_err(|error| device_error(error, dec_rejection))?;
     let openings = device
         .child_openings(rows, workspace_bytes, split.planes(), &parent.r, structure.m())
-        .map_err(folding::kernels::Error::from)
-        .map_err(pi_dec::Error::from)?;
+        .map_err(|error| device_error(error, dec_rejection))?;
     let children = neo_reductions::api::dec_children_with_commit_superneo_cached_from_trusted_split_digits(
         neo_reductions::api::FoldingMode::Optimized,
         structure,
@@ -88,9 +107,10 @@ pub(crate) fn prove(
     )
     .into_children()
     .map_err(folding::kernels::Error::from)
-    .map_err(pi_dec::Error::from)?;
+    .map_err(pi_dec::Error::from)
+    .map_err(folding::Error::from)?;
     let d = pi_dec::Proof { children };
-    let children = pi_dec::verify(params, structure, ajtai_dec_mixer, &parent, &d)?;
+    let children = pi_dec::verify(params, structure, ajtai_dec_mixer, &parent, &d).map_err(folding::Error::from)?;
     Ok((
         RunningInstance::new(children, split.into_planes()),
         NifsProof {
@@ -110,7 +130,7 @@ pub(crate) fn prove_parent(
     context: FoldContext<'_>,
     fresh: CcsInstance,
     running: RunningInstance,
-) -> Result<(pi_ccs::Proof, pi_rlc::Output, pi_rlc::Proof), folding::Error> {
+) -> Result<(pi_ccs::Proof, pi_rlc::Output, pi_rlc::Proof), ProveError> {
     let CcsInstance { claim, witness } = fresh;
     let c = prove_pi_ccs(device, transcript, context, &claim, &witness, &running)?;
     let sources: Vec<_> = std::iter::once(&witness.Z)
@@ -123,13 +143,13 @@ pub(crate) fn prove_parent(
         ajtai_rlc_mixer,
         &c.outputs,
         &sources,
-    )?;
+    )
+    .map_err(folding::Error::from)?;
     Ok((c, parent, r))
 }
 
-/// Terminal openings on the device. A device failure judges nothing, so it
-/// is an engine error. A shape error from the device is a rejection of the
-/// proof.
+/// Terminal openings on the device. A shape error from the device is a
+/// rejection of the proof.
 pub(crate) fn evaluate_terminal_rows(
     device: &std::sync::Mutex<MetalRowProver>,
     context: FoldContext<'_>,
@@ -146,13 +166,7 @@ pub(crate) fn evaluate_terminal_rows(
             point,
             fresh,
         )
-        .map_err(|error| match error {
-            PiCcsError::BackendFailure { reason, .. } => VerifyError::Engine(EngineError::Failure {
-                engine: Engine::Metal,
-                reason,
-            }),
-            error => VerifyError::Device(error),
-        })
+        .map_err(|error| device_error(error, VerifyError::Device))
 }
 
 /// PiCCS with its round oracle on the device.
@@ -163,7 +177,7 @@ fn prove_pi_ccs(
     claim: &CcsClaim,
     witness: &CcsWitness,
     running: &RunningInstance,
-) -> Result<pi_ccs::Proof, folding::Error> {
+) -> Result<pi_ccs::Proof, ProveError> {
     let (outputs, sumcheck, _) = optimized_prove_with_matrix_rows(
         transcript.inner_mut(),
         context.params.inner(),
@@ -176,8 +190,7 @@ fn prove_pi_ccs(
         context.workspace_bytes,
         Some(device),
     )
-    .map_err(folding::kernels::Error::from)
-    .map_err(pi_ccs::Error::from)?;
+    .map_err(|error| device_error(error, ccs_rejection))?;
     Ok(pi_ccs::Proof { outputs, sumcheck })
 }
 

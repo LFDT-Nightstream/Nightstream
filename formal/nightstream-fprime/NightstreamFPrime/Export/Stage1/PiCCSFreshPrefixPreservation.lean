@@ -2,9 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
 
-/-! Proof-only fresh-array and prefix-MLE transport.
-It does not prove an IO cache loop or file decoder. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix
@@ -142,9 +139,9 @@ private theorem reference_port {arity ports : Nat} (tables : Fin ports → Boole
   simp only [PrefixFold.zeroExtend, BooleanTable.valueAt_tabulate, reference,
     Array.map_ofFn, Array.getD_eq_getD_getElem?, Array.getElem?_ofFn]
   by_cases inside : NumericBooleanDomain.index vertex < count
-  · simp only [dif_pos inside, Option.getD_some, Function.comp_apply, get_ofFn,
+  · simp only [dite_eq_left inside, Option.getD_some, Function.comp_apply, get_ofFn,
       NumericBooleanDomain.vertex_index]
-  · simp only [dif_neg inside, Option.getD_none]
+  · simp only [dite_eq_right inside, Option.getD_none]
     exact (padding vertex (Nat.le_of_not_lt inside)).symm
 
 private theorem freshOutside (program : MatrixProgram.Program)
@@ -155,7 +152,7 @@ private theorem freshOutside (program : MatrixProgram.Program)
     PiCCSSourceImages.freshMatrixImage? program sourceRow assignment vertex =
       some (Vector.replicate Spec.ProductionRelation.matrixCount (0 : F)) := by
   unfold PiCCSSourceImages.freshMatrixImage? PiCCSSourceImages.rowValues?
-  rw [if_neg (Nat.not_lt.mpr outside)]
+  rw [ite_eq_right (Nat.not_lt.mpr outside)]
 
 private theorem embeddedZero {count : Nat} (port : Fin count) :
     K.embed ((Vector.replicate count (0 : F)).get port) = K.zero := by

@@ -1,13 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry
 
-/-!
-Owns zero-copy PiCCS and PiRLC sampler views of the retained later-Poseidon2
-block. PiCCS owns the first 7,604 invocations and the sampler owns the next
-34.
-
-This module does not construct matrix rows or duplicate retained values.
--/
-
 namespace NightstreamFPrime.Export.Stage1.LaterPoseidonRetainedBlocks
 
 open NightstreamFPrime.Spec
@@ -16,6 +8,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
+@[implicit_reducible]
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 
@@ -123,7 +116,8 @@ theorem sampler_end_eq_later_end
       PiRLCRetainedGeometry.laterPoseidonStart program +
         (PiRLCRetainedGeometry.laterPoseidonBlock program).coordinateCount := by
   rw [samplerStart_eq, samplerBlock_coordinateCount]
-  rw [PiRLCRetainedGeometry.laterPoseidonBlock_coordinateCount]
+  have later := PiRLCRetainedGeometry.laterPoseidonBlock_coordinateCount program
+  omega
 
 theorem piCcsBlock_encodesAt
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}

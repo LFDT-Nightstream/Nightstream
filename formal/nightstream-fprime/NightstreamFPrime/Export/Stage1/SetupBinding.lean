@@ -2,10 +2,6 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.RelaxedBinding
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Spec.AjtaiSetupV1.Prefix
 
-/-! The two binding reductions instantiated at the verifier's exact public
-seed, matrix dimensions and `8TB` MSIS norm. This is a deterministic link;
-hardness of the resulting public-seed instance is an explicit premise. -/
-
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 
 open NightstreamFPrime.Spec
@@ -34,8 +30,7 @@ def productionRelaxedBindingCollision_to_shortKernel
     Binding.ShortKernelVector productionAjtaiKey productionGlobalParams.msisNormBound :=
   Binding.relaxedBindingCollision_to_shortKernel productionAjtaiKey commitment collision
 
-/-- Shape of the larger fixed-seed instance named in the approved
-`decisions/fprime-ajtai-public-seed-msis-assumption.md`. -/
+/-- Named in `decisions/fprime-ajtai-public-seed-msis-assumption.md`. -/
 def approvedMsisShape : Phi81Relation.Shape :=
   Lifecycle.PaperAlgebra.fullShape 254260583 (by decide)
 

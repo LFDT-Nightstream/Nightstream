@@ -1,14 +1,7 @@
 import Mathlib.Algebra.BigOperators.Group.Finset.Defs
-import Mathlib.Data.Real.Basic
+import Mathlib.Basic.Real.Basic
 
-/-!
-Owns the knowledge-soundness contract: one field per question that an auditor
-asks of a knowledge-soundness theorem, after Ironwood's `KnowledgeContract`
-(zcash/ironwood `86e3c7026db8`, `book/src/formal-verification/knowledge-contract.md`).
-
-It does not imply completeness: an acceptance predicate that holds nowhere
-satisfies every field.
--/
+/-! After Ironwood's `KnowledgeContract` (zcash/ironwood `86e3c7026db8`, `book/src/formal-verification/knowledge-contract.md`). -/
 
 set_option autoImplicit false
 

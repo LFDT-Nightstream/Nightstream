@@ -4,11 +4,6 @@ import Init.Data.Array.Lemmas
 import Init.Data.Vector.Lemmas
 import Init.Data.Nat.Bitwise.Lemmas
 
-/-!
-Compute the maximum magnitude from every coefficient of the actual stored
-integer parent.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECParentMagnitude
@@ -69,7 +64,7 @@ theorem cachedDigit_eq_zero {count : Nat}
   have small : ((parents.get block).get lane).natAbs < 2 ^ child.val :=
     (coefficient_le_maximumMagnitude parents block lane).trans_lt below
   have bitZero := Nat.testBit_lt_two_pow small
-  simp only [PiDECParentIntRead.cachedDigit, bitZero, Bool.false_eq_true, if_false]
+  simp only [PiDECParentIntRead.cachedDigit, bitZero, Bool.false_eq_true, ite_false]
 
 def ifActive (maximum : Nat) (child : Radix.ChildIndex)
     (calculate : Unit → Vector MaterializedRingK matrixCount) :

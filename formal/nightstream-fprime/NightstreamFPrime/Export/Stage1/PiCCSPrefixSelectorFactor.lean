@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixSelector
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
 
-/-! Factor the existing prefix selector into its consumed/head polynomial
-and the numeric suffix weight used by both retained contribution runners. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPrefixSelector

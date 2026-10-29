@@ -3,10 +3,7 @@ import NightstreamFPrime.Export.Stage1.NextPreimageDirectPlan
 import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 
-/-!
-Owns the compact ordinary-row program for the five Construction 2
-next-preimage equations.
--/
+/-! HyperNova Construction 2. -/
 
 namespace NightstreamFPrime.Export.Stage1.NextPreimageMatrixProgram
 
@@ -156,7 +153,7 @@ theorem matrixProgram_row?
     omega
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.ordinary (ordinaryBlock geometry)] by rfl]
-  rw [MatrixProgram.Program.singleton_row?, if_pos blockBound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left blockBound]
   change (do
     let forms ←
       (ordinaryBlock geometry).row? logicalWidth sourceRow global.val

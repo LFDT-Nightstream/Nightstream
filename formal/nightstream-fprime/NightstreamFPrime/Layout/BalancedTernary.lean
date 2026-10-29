@@ -1,12 +1,5 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 
-/-!
-Owns the fixed 41-trit low-norm encoding of one Goldilocks field element.
-The definition follows the centered base-three recurrence used by the
-production selective compiler. It emits no constraints and chooses no
-matrix layout.
--/
-
 namespace NightstreamFPrime.Layout.BalancedTernary
 
 open NightstreamFPrime.Spec
@@ -22,7 +15,7 @@ def radius : Nat → Nat
 theorem halfModulus_le_radius : Centered.halfModulus ≤ radius width := by
   decide
 
-def isNegative (value : F) : Prop :=
+@[implicit_reducible] def isNegative (value : F) : Prop :=
   Centered.halfModulus < value.val
 
 instance (value : F) : Decidable (isNegative value) :=
@@ -201,7 +194,7 @@ private theorem neg_fieldOfNat_complement (value : F) :
       simp [fieldOfNat, Nat.mod_eq_of_lt complementLt] at valuesEqual
       omega
     apply Fin.ext
-    rw [Fin.val_neg, if_neg embeddedNonzero]
+    rw [Fin.val_neg, ite_eq_right embeddedNonzero]
     simp [fieldOfNat, Nat.mod_eq_of_lt complementLt]
     omega
 

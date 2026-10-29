@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.OrdinaryRowPlan
 import NightstreamFPrime.Export.Stage1.PermutationPlan
 import NightstreamFPrime.Export.Stage1.PiCCSPackets
 
-/-!
-This module owns data provenance, not final-plan coverage or row-checker
-correctness.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PreparedPhysicalSources

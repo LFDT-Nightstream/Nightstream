@@ -1,10 +1,6 @@
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.Program
 import NightstreamFPrime.Circuit.StraightLineSupport
 
-/-! Materialize each checked digit once for the existing R1CS ring recipes.
-The word equality is checked before a coefficient enters the combination
-recipes. Each scalar has exactly 54 output words. -/
-
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerWords
 
 open NightstreamFPrime.Spec NightstreamFPrime.Circuit

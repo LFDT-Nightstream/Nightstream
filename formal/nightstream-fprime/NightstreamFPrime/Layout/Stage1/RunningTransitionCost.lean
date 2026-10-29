@@ -1,11 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 import NightstreamFPrime.Layout.Polynomial.Horner
 
-/-!
-Owns the exact R1CS footprint and endpoints of the Stage 1 running transition.
-The proof is structural and does not normalize the complete running vector.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionLayout
 
 open NightstreamFPrime.Spec

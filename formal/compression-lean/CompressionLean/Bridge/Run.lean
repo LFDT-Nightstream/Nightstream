@@ -1,17 +1,7 @@
 import CompressionLean.Replay.Stages
 
-/-!
-Owns what a successful replay run says: `Runs x t a t'` when the replay
-action `x`, started from the transcript `t`, returns `a` and ends in `t'`.
-A run decomposes along `>>=` (`run_bind`); observing leaves the draws, a
-sample appends exactly its draw, and a check that passed held. `Grows`
-says that an action only appends draws; the WHIR transcript does
-(`whirTranscript_grows`), so its draws follow the model's.
--/
-
 namespace CompressionLean.Replay
 
-/-- The result and the final transcript of `x` run from `t`. -/
 def eval {α : Type} (x : ReplayM α) (t : Transcript) : Except String α × Transcript := (x.run.run t).run
 
 theorem eval_bind {α β : Type} (x : ReplayM α) (f : α → ReplayM β) (t : Transcript) :
@@ -32,7 +22,6 @@ theorem eval_map {α β : Type} (f : α → β) (x : ReplayM α) (t : Transcript
   rcases (ExceptT.run x).run t with ⟨e, s⟩
   cases e <;> rfl
 
-/-- `x` run from `t` returns `a` and ends in `t'`. -/
 def Runs {α : Type} (x : ReplayM α) (t : Transcript) (a : α) (t' : Transcript) : Prop :=
   eval x t = (.ok a, t')
 
@@ -147,8 +136,6 @@ theorem run_sampleWords {n : ℕ} {t t' : Transcript} {ws : Array Gl} (h : Runs 
   obtain ⟨draws, size⟩ := run_wordsLoop _ _ _ _ _ h1
   refine ⟨by rw [run_record h2, Array.toList_push, draws], by simpa using size⟩
 
-/-! ## Pure checks -/
-
 theorem Except.bind_ok {ε α β : Type} {x : Except ε α} {f : α → Except ε β} {b : β} (h : (x >>= f) = .ok b) :
     ∃ a, x = .ok a ∧ f a = .ok b := by
   cases x with
@@ -165,9 +152,6 @@ theorem Except.ensure_ok {ok : Bool} {what : String} {u : Unit} (h : (ensure ok 
   · cases h
   · rfl
 
-/-! ## Draws only grow -/
-
-/-- A successful run of `x` only appends draws. -/
 def Grows {α : Type} (x : ReplayM α) : Prop :=
   ∀ t a t', Runs x t a t' → ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds
 
@@ -224,7 +208,6 @@ theorem grows_ite {α : Type} (c : Prop) [Decidable c] {x y : ReplayM α} (hx : 
   · exact hx
   · exact hy
 
-/-- Unfold `Grows` goals along the WHIR transcript's combinators. -/
 macro "grows" : tactic =>
   `(tactic| repeat (first
     | with_reducible exact grows_observeAll _ | with_reducible exact grows_observeExts _
@@ -249,7 +232,6 @@ theorem whirTranscript_grows (shape : WhirShape) (o : Opening) : Grows (whirTran
     | with_reducible exact whirSumcheck_grows _ _ | with_reducible exact whirQueries_grows _
     | with_reducible exact grows_observeAll _ | with_reducible exact grows_observeExts _
     | with_reducible exact grows_observeExt _ | with_reducible exact grows_sampleExt
-    | with_reducible exact grows_pure _
     | with_reducible apply grows_bind | with_reducible apply grows_forM | with_reducible intro)
 
 end CompressionLean.Replay

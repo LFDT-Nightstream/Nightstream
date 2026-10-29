@@ -1,15 +1,6 @@
 import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Gadgets.Polynomial.Sparse
 
-/-!
-Owns the physical footprint of the owned sparse quadratic-extension polynomial
-evaluator. Every stored product cell and both result cells are one rank-one
-row, so the evaluator needs no lowering cell.
-
-The proof follows the symbolic recipe constructors. It does not inspect a
-physical column number or evaluate an emitted circuit package.
--/
-
 namespace NightstreamFPrime.Layout.Polynomial.Sparse
 
 open NightstreamFPrime.Spec

@@ -1,18 +1,6 @@
 import NightstreamFPrime.Spec.Algebra
 
-/-!
-Goldilocks/Phi81 instantiation of the production `Pi_RLC` strong sampling set.
-
-Owns: the semantic coefficient-to-Goldilocks map; the production challenge
-set as the image of all 54-coordinate five-symbol vectors; pointwise
-difference bounds; the `LowNormInvertibility` statement (the `z = 3` case of
-SuperNeo Theorem 4); and the derivation of pairwise invertibility from it.
-
-Does not own: the proof of `LowNormInvertibility`
-(`Phi81StrongSet/LowNormInvertibility.lean`, which needs Mathlib and is kept
-out of this Mathlib-free module); quotient-ring multiplication refinement to
-Rust; Fiat-Shamir sampling; R1CS rows; row removal; or cost totals.
--/
+/-! SuperNeo Theorem 4, `z = 3`. -/
 
 namespace NightstreamFPrime.Spec.Phi81StrongSet
 
@@ -122,12 +110,11 @@ theorem embeddedDifference_nonzero
   apply embedScalar_injective
   exact (ringFSub_eq_zero_iff _ _).mp differenceZero
 
-/-- Exact integer form of `4 < b_inv = sqrt(q / 3)` (SuperNeo Theorem 4, `z = 3`). -/
+/-- SuperNeo Theorem 4, `z = 3`. -/
 theorem differenceBound_below_goldilocks : 3 * 4 ^ 2 < goldilocksModulus := by
   decide
 
-/-- SuperNeo Theorem 4 for `z = 3`: nonzero values with centered coefficients
-at most `bound`, where `3 * bound^2 < q`, are invertible. -/
+/-- SuperNeo Theorem 4, `z = 3`. -/
 structure LowNormInvertibility : Prop where
   invertible_of_bound :
     forall (value : RingF) (bound : Nat),
@@ -159,8 +146,7 @@ theorem outsideChallenge_not_member :
     (scalar (scalarPosition position)) (by
       simpa [outsideChallenge, embedScalar] using atPosition.symm)
 
-/-- Pairwise Definition-6 consequence needed by extraction: distinct valid
-challenges have an invertible difference. -/
+/-- SuperNeo v1.2 Definition 6. -/
 def StrongSamplingSet : Prop :=
   forall {left right : RingF},
     ProductionMember left ->

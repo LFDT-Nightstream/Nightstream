@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.R1CS.Completeness
 
-/-!
-Owns structural lowering over an outer list of opaque constraint segments.
-The interface exposes satisfaction per segment without materializing or
-comparing one flattened production row list.
--/
-
 namespace NightstreamFPrime.Layout.R1CS
 
 open NightstreamFPrime.Circuit

@@ -1,16 +1,6 @@
 import NightstreamFPrime.Circuit.StraightLine
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation
 
-/-!
-Owns one verifier-driven Poseidon2 permutation with no caller-supplied expected
-output.
-
-The caller supplies only an input state below the call offset. The child
-allocates the canonical 1096-recipe permutation program and exposes its final
-eight expressions. Its specification identifies those expressions with the
-executable Poseidon2 permutation of the input state.
--/
-
 namespace NightstreamFPrime.Gadgets.Poseidon2.Permutation.Owned
 
 open NightstreamFPrime.Spec

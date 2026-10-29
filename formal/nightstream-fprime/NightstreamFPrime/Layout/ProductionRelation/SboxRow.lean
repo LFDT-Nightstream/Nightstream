@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation
 import NightstreamFPrime.Spec.ProductionRelation.RowSemantics
 
-/-!
-Owns the S-box row used by the fixed Poseidon2 trace compiler. One row places
-only the seventh-power input and output forms.
-
-This module does not select Poseidon2 trace positions or source columns.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.SboxRow
 
 open NightstreamFPrime.Spec

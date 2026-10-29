@@ -1,11 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation
 import NightstreamFPrime.Spec.ProductionRelation.RowSemantics
 
-/-!
-Owns the zero-pin row used for direct linear-output rewrites. The row places
-one value form in the `C` port.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.PinRow
 
 open NightstreamFPrime.Spec

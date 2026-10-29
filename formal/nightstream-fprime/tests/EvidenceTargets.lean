@@ -31,10 +31,6 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationHonestMessages
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationFromBlocks
 import tests.EvidenceMetadata
 
-/-! Exact assignment targets for pilot/PiCCS and terminal opening extraction.
-Terminal matching does not close full history or production conformance.
--/
-
 namespace LeanGraph.Targets
 
 open NightstreamFPrime
@@ -231,10 +227,7 @@ open scoped BigOperators ENNReal
 open HyperNovaVisitedSecurity (NifsAdversary NifsExtractor Assumption1 Closed IvcAdversary Stage
   reverseStages)
 
-/-- HyperNova errata Assumption 1, Definition 7, Definition 11 (ii), and
-Lemma 17. The random-oracle theorem `RandomOracleSetup.production_knowledge_error_lt`
-motivates the value of `error`; it does not prove Assumption 1 for Poseidon2,
-and no Lean statement derives `error` from it. -/
+/-- HyperNova errata Assumption 1, Definition 7, Definition 11 (ii), and Lemma 17. -/
 def HyperNovaLinearSecurity : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
     (fits : Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28 application)
@@ -305,8 +298,7 @@ open Export.Stage1.RandomOracleSetup (SetupIndex setupKey extraction hashCollisi
 
 attribute [local instance low] Classical.propDecidable
 
-/-- SHAKE128 and the Fiat–Shamir hash are random oracles in this statement;
-MSIS and state-hash hardness are not assumed. -/
+/-- Random-oracle model for SHAKE128 and the Fiat–Shamir hash; no MSIS or state-hash hardness. -/
 def RomKnowledgeSoundness : Prop :=
   ∀ (application : Lifecycle.Stage1.Application.Program)
     (fits : Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28 application) {Output : Type}

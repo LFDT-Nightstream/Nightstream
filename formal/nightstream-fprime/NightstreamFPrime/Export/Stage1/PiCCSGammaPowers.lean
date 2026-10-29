@@ -1,7 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 
-/-! A shared gamma-power table. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSGammaPowers
@@ -44,8 +42,8 @@ private theorem build_get (ops : Ops Field) (gamma : Field) (count exponent : Na
       simp only [Array.getElem?_push, build_size]
       by_cases equal : exponent = count
       · subst exponent
-        rw [if_pos rfl, build_power]
-      · rw [if_neg equal]
+        rw [ite_eq_left rfl, build_power]
+      · rw [ite_eq_right equal]
         exact ih exponent (by omega)
 
 def prepare (ops : Ops Field) (gamma : Field) (count : Nat) : Array Field :=

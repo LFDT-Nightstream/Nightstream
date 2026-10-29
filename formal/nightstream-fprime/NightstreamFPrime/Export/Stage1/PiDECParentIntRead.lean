@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiDECParentSparseRead
 import Mathlib.Data.ZMod.ValMinAbs
 import Init.Data.Nat.Bitwise.Lemmas
 
-/-!
-Read signed binary digits from the existing centered integer view of one parent
-block. The loader and parent input codec are outside this module.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECParentIntRead
@@ -17,6 +12,8 @@ open NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic (StoredAssig
 open NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
+
+attribute [local implicit_reducible] ZMod NightstreamFPrime.Spec.goldilocksModulus
 
 def cachedDigit (value : Int) (child : Radix.ChildIndex) : F :=
   if value.natAbs.testBit child.val then
@@ -48,7 +45,7 @@ theorem cachedDigit_eq_splitScalar (value : F) (child : Radix.ChildIndex)
     cachedDigit (ZMod.valMinAbs (n := goldilocksModulus) value) child =
       Radix.splitScalar value child := by
   simp only [cachedDigit_as_field, Nat.toNat_testBit, centered_natAbs,
-    centered_nonneg, Radix.splitScalar, if_pos bounded, Radix.boundedDigit,
+    centered_nonneg, Radix.splitScalar, ite_eq_left bounded, Radix.boundedDigit,
     Radix.magnitudeDigit, Radix.natBit]
 
 def sparseRead

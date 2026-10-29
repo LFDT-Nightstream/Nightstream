@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCPhysicalCompleteness
 import NightstreamFPrime.Layout.PiRLC.v1_2.PacketProjection
 
-/-!
-Owns the production specialization of the generic PiRLC packet projection.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCPackageCompleteness
 
 open NightstreamFPrime.Circuit

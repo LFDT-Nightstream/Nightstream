@@ -1,6 +1,7 @@
 name = "compression_lean"
 version = "0.1.0"
 defaultTargets = ["CompressionLean", "CompressionLeanTests"]
+allowNonModules = true
 
 [[require]]
 name = "nightstream_fprime"

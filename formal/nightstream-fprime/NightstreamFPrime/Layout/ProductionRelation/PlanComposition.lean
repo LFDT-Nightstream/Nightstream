@@ -1,12 +1,6 @@
 import Batteries.Data.Fin.Coding
 import NightstreamFPrime.Layout.ProductionRelation
 
-/-!
-Owns ordered composition for production 4-matrix plans. `append` places one
-plan after another. `indexed` places fixed-size blocks in block-major order.
-Both constructors select only sparse forms and do not materialize matrices.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation
 
 open NightstreamFPrime.Spec
@@ -159,7 +153,7 @@ theorem append_residual_left {logicalWidth : Nat}
             (leftIndex left.rowCount right.rowCount row))) =
       evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
         (left.rowImage assignment (left.rowLayout.toVertex row)) := by
-  rw [rowImage_toVertex, rowImage_toVertex]
+  erw [rowImage_toVertex, rowImage_toVertex]
   apply congrArg (evaluatePolynomial baseOps Spec.ProductionRelation.polynomial)
   funext port
   rw [append_portForm_left]
@@ -175,7 +169,7 @@ theorem append_residual_right {logicalWidth : Nat}
             (rightIndex left.rowCount right.rowCount row))) =
       evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
         (right.rowImage assignment (right.rowLayout.toVertex row)) := by
-  rw [rowImage_toVertex, rowImage_toVertex]
+  erw [rowImage_toVertex, rowImage_toVertex]
   apply congrArg (evaluatePolynomial baseOps Spec.ProductionRelation.polynomial)
   funext port
   rw [append_portForm_right]

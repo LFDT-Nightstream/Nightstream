@@ -1,24 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout
 
-/-!
-Two-width Phi81 carrier layout for the SuperNeo coefficient embedding.
-
-Protocol: SuperNeo coefficient embedding (v1.2 Section 5, Definitions 13 and 14).
-Phase: original CCS width to exact `n_F = 54 * n_R` carrier completion.
-Constraint family: logical column / complete ring block / carried tail lane.
-
-Owns: the distinction between the original CCS column width and the complete
-Phi81 coefficient-carrier width; the sole typed block/lane-to-carrier map;
-zero extension of fresh assignments and matrices; exact preservation of every
-original column; and recognition that all completed carrier columns are real
-coordinates, even when they began as a fresh zero-extension suffix.
-
-Does not own: the bar transform, matrix-vector multiplication, proof that Rust
-uses this completion, mixed-accumulator construction, R1CS lowering, row
-removal, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 5, Definitions 13 and 14. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout
 
@@ -29,8 +11,6 @@ open Phi81ColumnLayout
 
 universe uValue
 
-/-- Complete field-carrier width required by the paper equality
-`n_F = d * n_R`. -/
 def carrierWidth (logicalWidth : Nat) : Nat :=
   blockCount logicalWidth * ringDegree
 
@@ -148,8 +128,7 @@ theorem flatIndex_lt_carrierWidth
     calc
       block.val < blockCount (carrierWidth logicalWidth) := block.isLt
       _ = blockCount logicalWidth := blockCount_carrierWidth logicalWidth
-  have coefficientBound : coefficient.val < 54 := by
-    simp [ringDegree]
+  have coefficientBound : coefficient.val < 54 := coefficient.isLt
   change block.val * 54 + coefficient.val < blockCount logicalWidth * 54
   omega
 
@@ -169,7 +148,7 @@ theorem layout_encode?_isSome
         flatIndex_lt_carrierWidth block coefficient⟩ := by
   change Phi81ColumnLayout.encode? block coefficient = _
   unfold Phi81ColumnLayout.encode?
-  rw [dif_pos (flatIndex_lt_carrierWidth block coefficient)]
+  rw [dite_eq_left (flatIndex_lt_carrierWidth block coefficient)]
 
 theorem decode_carrierColumn
     {logicalWidth : Nat}

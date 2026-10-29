@@ -5,9 +5,6 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLCFinite
 /-!
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1, evaluation
 equations `y_j = sum_i rho_i y_(i,j)`.
-
-`Eval_K` and `Eval_A`
-instantiate only the block count; they do not duplicate this arithmetic.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.RingKCombination

@@ -62,6 +62,10 @@ tests      axiom gate (explicit imports, `#audit_axioms` per theorem)
   change them.
 - `formal/nightstream-lean` was deleted. Do not restore or import it;
   provenance comments that name it record history only.
+- Comments and docstrings are never authority; Lean statements and proofs
+  are. When a comment disagrees with the code, correct or delete the
+  comment; never change code to match it. Keep a comment only for a reason
+  the code cannot show, such as a paper citation or a leaf audit packet.
 - No generated modules, no embedded artifact data, no `native_decide`, no
   `sorry`/`admit`/`axiom`/`unsafe`, no file at or above 1,500 lines, no glob
   in `lakefile.toml`, one profile (`b = 2`, `k_rho = 16`).

@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.ProductionRelation.CcsOpening
 
-/-!
-Decode an arbitrary accepted CCS carrier into the production plan's logical
-assignment. Matrix padding contributes zero for every carrier value; no
-canonical padding, witness encoder or representation premise is required.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.Plan
 
 open NightstreamFPrime.Lifecycle
@@ -35,7 +29,7 @@ theorem matrixVectorAt_logicalAssignment {cubeSize logicalWidth : Nat}
       funext total column
       by_cases inside : column.val < logicalWidth
       · simp only [Phi81CarrierLayout.extendAssignment, Phi81CarrierLayout.logicalColumn?,
-          dif_pos inside, logicalAssignment, Phi81CarrierLayout.embedLogical]
+          dite_eq_left inside, logicalAssignment, Phi81CarrierLayout.embedLogical]
       · rw [Phi81CarrierLayout.extendMatrix_tail_zero 0 matrix vertex column
           (Nat.le_of_not_gt inside)]
         simp [baseOps]

@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
-/-!
-Counted sparse-form construction and duplicate-aware coefficient lookup.
-The loops retain stored entries and charge their actual traversals. Bounds
-use entry-list length, not the number of distinct columns. These are named
-operation clocks; source generation and machine-runtime costs are separate.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Layout.MatrixProgram.SparseWork

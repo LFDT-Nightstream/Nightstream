@@ -2,13 +2,6 @@ import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
 import NightstreamFPrime.Lifecycle.Relation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLinearAlgebra
 
-/-!
-Owns the connection from literal production-plan rows to a fresh SuperNeo
-v1.2 CCS opening. Inputs are row acceptance, a coordinate bound, and the exact
-public projection. The commitment is computed from the same completed
-assignment and verifier-owned key. No semantic representation is assumed.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.Plan
 
 open NightstreamFPrime.Lifecycle
@@ -78,10 +71,10 @@ theorem rowsZero_implies_freshHolds
       (Phi81CarrierLayout.extendAssignment 0 assignment column) < 2
     by_cases inside : column.val < logicalWidth
     · simpa only [Phi81CarrierLayout.extendAssignment,
-        Phi81CarrierLayout.logicalColumn?, dif_pos inside] using
+        Phi81CarrierLayout.logicalColumn?, dite_eq_left inside] using
         bounded ⟨column.val, inside⟩
     · simp only [Phi81CarrierLayout.extendAssignment,
-        Phi81CarrierLayout.logicalColumn?, dif_neg inside]
+        Phi81CarrierLayout.logicalColumn?, dite_eq_right inside]
       simp
   · change ∀ vertex, evaluatePolynomial baseOps Spec.ProductionRelation.polynomial
       (fun matrix => matrixVectorAt baseOps

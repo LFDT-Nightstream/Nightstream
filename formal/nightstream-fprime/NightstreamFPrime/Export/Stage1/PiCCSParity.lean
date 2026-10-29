@@ -1,12 +1,7 @@
 import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.Stage1.PiCCSNonzero
 
-/-!
-Paper authority: SuperNeo v1.2, Section 7.3, steps 1--5.
-Obligation: Emit the complete synthetic PiCCS input, proof, and verifier
-result for Lean--Rust result comparison. This fixture does not establish
-valid bounded openings.
--/
+/-! Paper authority: SuperNeo v1.2, Section 7.3, steps 1--5. -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSParity
 

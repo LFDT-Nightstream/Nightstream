@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability
 
-/-!
-Owns the adaptive law of the source returns consumed by the selected reverse
-history.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw
@@ -55,18 +50,18 @@ theorem results_eq (statement : Statement) (proof : Envelope application) :
           else PMF.pure [] := by
   cases count : statement.iteration with
   | zero =>
-      cases proof <;> simp only [results, count, resultsAt, if_true]
+      cases proof <;> simp only [results, count, resultsAt, ite_true]
   | succ remaining =>
       cases proof with
       | bottom => simp only [results, count, resultsAt]
       | recursive payload =>
-          simp only [results, count, resultsAt, Nat.succ_ne_zero, if_false]
+          simp only [results, count, resultsAt, Nat.succ_ne_zero, ite_false]
           by_cases counter : (decodedInput application fits payload).iteration + 1 = remaining + 1
           · have previousCount : (predecessorStatement application fits payload).iteration = remaining := by
               dsimp only [predecessorStatement]
               omega
-            simp only [if_pos counter, previousCount]
-          · simp only [if_neg counter]
+            simp only [ite_eq_left counter, previousCount]
+          · simp only [ite_eq_right counter]
 
 noncomputable def law (initial : PMF (Statement × Envelope application)) :
     PMF (HyperNovaHistoryProbability.Sample application) :=

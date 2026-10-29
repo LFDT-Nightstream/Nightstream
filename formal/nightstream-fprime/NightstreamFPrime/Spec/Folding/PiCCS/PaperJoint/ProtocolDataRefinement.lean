@@ -2,30 +2,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConstraintPolynomialLift.Evaluation
 
-/-!
-Refinement from one authoritative `Pi_CCS` source family to the actual
-off-cube protocol polynomial.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: source-image construction before Fiat--Shamir and SumCheck.
-Constraint family: semantic construction and carrier placement only; this
-file emits no rows.
-
-Owns: the norm-aware extension of the shared sparse-polynomial lift contract;
-specialization of the neutral evaluation theorem; proof that Boolean-table
-construction commutes with the shared structural lift;
-construction of `ProtocolPolynomial.Data` from the
-single authoritative source owner; and exact equality of the resulting
-Boolean restriction with the independently derived joint residual object.
-
-Does not own: the generic sparse-polynomial evaluation proof; an instantiation
-of the lift for the production extension/ring,
-proof that coefficient-expanded Pad/matrix data derives from verifier-owned
-structure matrices, output-message serialization, Fiat--Shamir, SumCheck
-degree bounds, Rust, R1CS, row removal, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolDataRefinement
 

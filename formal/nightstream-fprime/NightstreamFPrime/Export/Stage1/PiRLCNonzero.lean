@@ -1,13 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNonzero
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 
-/-!
-Owns one deterministic nonzero PiRLC value fixture that starts at the exact
-PiCCS fixture output state.
-
-Neither a temporary relation nor a temporary key becomes fixture authority.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCNonzero
 
 open NightstreamFPrime.Export.Stage1.PiCCSNonzero

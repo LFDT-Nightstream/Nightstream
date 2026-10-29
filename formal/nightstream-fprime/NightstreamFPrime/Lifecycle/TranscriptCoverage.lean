@@ -2,62 +2,6 @@ import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.PiCCS.Transcript
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory
 
-/-!
-Owns the Fiat–Shamir coverage contract of the production NIFS transcript.
-
-Every verifier challenge (`α`, `γ`, the SumCheck points, and the `Π_RLC`
-scalars) reads the Poseidon2 state after an explicit list of permutation
-inputs, at a slot: a coin reads the lane pair of its slot, and a `Π_RLC`
-scalar reads four lanes from lane 0. One input is one zero-padded rate chunk,
-and a squeeze is the zero chunk, so a list of inputs is exactly what the
-permutation sees. `Transcript.squeezeAt` reads up to six coins from one
-state, so a challenge's address is its call list and its slot (`Slot`).
-
-Inputs: the production key, the fresh statement, and the NIFS proof.
-
-Outputs:
-- `challenge_seal`: each key challenge reads slot `c.slot` of the state
-  after `proverCalls c ++ fixedCalls c`, and `fixedCalls` takes no
-  prover data;
-- `coins_eq_reads`: the PiCCS coin record is exactly these reads, so a new
-  coin field breaks the statement;
-- `proverCalls_identify`: equal prover-dependent calls give equal fresh
-  statements and equal earlier prover messages; before `Π_RLC` they give equal
-  proofs up to the `Π_DEC` child messages, so a new proof field breaks it;
-- `coinsFrom`, `piCcsProbe_coins`: the key's PiCCS probe coins are one read of
-  each challenge's address (`challengeAddress`). `RandomOracleTest` replaces
-  that read by a random oracle and changes nothing else;
-- `challengeAddress_injective`, `challengeCalls_length_eq`: distinct
-  challenges of one execution have distinct addresses, and the shape fixes the
-  length of each challenge's calls;
-- `stateHash_eq_run`, `stateHash_separated`: the state hash is a four-lane
-  read after its own calls, and no challenge's calls share a nonempty prefix
-  with them: their first inputs absorb different domain chunks.
-
-`AgreeOnAbsorbed` is the dependency specification; a change to it is a
-protocol change. `tests/TranscriptCoverageChecks.lean` pins it by `Iff.rfl`,
-pins the fold domain chunk, the coin positions and the round absorb by `rfl`,
-and refutes the identify property for two schedules that drop an absorption.
-
-The `Π_RLC` read keys are `ScheduleLaw.queryAt []`; only the replay of these
-fixed suffix calls (`TranscriptHistory.queryAt_answer`) is reused. The sampler's
-ideal-oracle law does not cover the prover-dependent prefix.
-
-Invariant: for the prover data that `AgreeOnAbsorbed` names (the fresh
-statement and the earlier prover messages), removing its absorption, moving it
-after a challenge that depends on it, or making its encoding ambiguous breaks
-`challenge_seal` or a coverage proof. The profile fixes every absorbed length,
-so the stream has one parse without framing. A matching edit of the key and of
-this schedule can still change the domain chunk or a coin position and keep
-every statement true; the `rfl` pins in `tests/TranscriptCoverageChecks.lean`
-fix these values, so such an edit must also change that file.
-
-Does not own: Poseidon2 security, the random-oracle model of the reads
-(`RandomOracleTest`), or the circuit refinement of this schedule. The running
-statement enters only through the prior digest. The `Π_DEC` child messages
-follow the last challenge; the next state hash binds them.
--/
-
 namespace NightstreamFPrime.Lifecycle.TranscriptCoverage
 
 open NightstreamFPrime.Spec
@@ -150,7 +94,7 @@ private theorem absorbCalls_injective {left right : List F}
     rw [Nat.mul_comm]
     exact Nat.div_add_mod position Poseidon2.rate
   simp only [padChunk, List.getD_eq_getElem?_getD, List.getElem?_take,
-    Nat.mod_lt _ (show 0 < Poseidon2.rate by decide), if_true,
+    Nat.mod_lt _ (show 0 < Poseidon2.rate by decide), ite_true,
     List.getElem?_drop, split] at lane
   simpa [List.getElem?_eq_getElem leftBound, List.getElem?_eq_getElem rightBound]
     using lane
@@ -196,10 +140,10 @@ private theorem oracle_squeeze_eq (state : Transcript.State)
   show Transcript.squeezeAt state (Transcript.coinPosition label) = _
   by_cases last : Transcript.coinPosition label % Transcript.coinsPerChunk =
       Transcript.coinsPerChunk - 1
-  · rw [Transcript.squeezeAt, if_pos last, refresh, if_pos last, absorb_eq_run,
+  · rw [Transcript.squeezeAt, ite_eq_left last, refresh, ite_eq_left last, absorb_eq_run,
       absorbCalls_zeroChunk]
     rfl
-  · rw [Transcript.squeezeAt, if_neg last, refresh, if_neg last]
+  · rw [Transcript.squeezeAt, ite_eq_right last, refresh, ite_eq_right last]
     rfl
 
 private theorem squeezeMany_run (state : Transcript.State) (start : Nat)
@@ -798,6 +742,7 @@ private theorem take_messages_length {degree : Nat} (proof : Proof degree)
   rw [flatMap_length_constant _ _ ((messageCalls (messages proof) ⟨0, by decide⟩).length)
     fun other => messageCalls_length proof proof other ⟨0, by decide⟩]
   simp [canonicalFinIndices, cubeVariables_eq]
+  exact Or.inl (Nat.le_of_lt round.isLt)
 
 private def offset (count output : Nat) : Challenge → Nat
   | .alpha coordinate => coordinate.val / 6
@@ -1013,13 +958,8 @@ theorem stateHash_separated {degree : Nat}
       revert lane
       decide
 
-/-- The dependency specification: two executions agree on everything the
-transcript absorbs directly before a challenge, namely the fresh statement and
-the earlier prover messages in the SuperNeo §7.3–7.4 order. Before `Π_RLC` the
-proofs are equal except for the `Π_DEC` child messages, which follow the last
-challenge. This definition is normative: a change to it is a protocol change.
-The running statement enters only through the prior digest; see
-`PiCCSSecurity.PriorLink`. -/
+/-- Normative: a change to this definition is a protocol change, pinned by
+`tests/TranscriptCoverageChecks.lean`. SuperNeo v1.2 Sections 7.3–7.4 order. -/
 def AgreeOnAbsorbed {degree : Nat}
     (fresh fresh' : Fresh (logicalWidth := logicalWidth) (publicFits := publicFits))
     (proof proof' : Proof degree) : Challenge → Prop

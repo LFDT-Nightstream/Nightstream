@@ -1,11 +1,5 @@
 import NightstreamFPrime.Spec.Poseidon2
 
-/-!
-Lightweight owner of the fixed production-pilot physical values. This module
-contains no row list, circuit, lifecycle key, or emitter. Layout proofs and
-the package serializer both read these definitions.
--/
-
 namespace NightstreamFPrime.Layout.PilotValues
 
 abbrev digestWords : Nat := 4

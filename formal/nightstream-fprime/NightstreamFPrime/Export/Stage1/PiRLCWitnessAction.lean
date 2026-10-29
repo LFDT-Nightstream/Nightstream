@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 import Mathlib.Tactic.SplitIfs
 
-/-!
-Stored Phi81 basis actions for the actual PiRLC challenges.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCWitnessAction
@@ -31,11 +27,11 @@ private theorem signedTerm_eq_mul (coefficient value : F)
     simp only [signedTerm]
     exact (ConcreteCarrier.baseLaws.mul_zero value).symm
   · subst coefficient
-    simp only [signedTerm, if_neg (show (1 : F) ≠ 0 by decide)]
+    simp only [signedTerm, ite_eq_right (show (1 : F) ≠ 0 by decide)]
     exact (ConcreteCarrier.baseLaws.mul_one value).symm
   · subst coefficient
-    simp only [signedTerm, if_neg (show (-1 : F) ≠ 0 by decide),
-      if_neg (show (-1 : F) ≠ 1 by decide)]
+    simp only [signedTerm, ite_eq_right (show (-1 : F) ≠ 0 by decide),
+      ite_eq_right (show (-1 : F) ≠ 1 by decide)]
     calc
       -value = -(1 * value) :=
         congrArg (fun entry : F => -entry) (ConcreteCarrier.baseLaws.one_mul value).symm
@@ -79,7 +75,7 @@ private theorem applySigned_toRing (challenge source : MaterializedRingF)
   rw [foldl_eq_sumRange, CarrierAction.ringFMul_apply_eq_rightLinear]
   apply sumRange_congr
   intro input live
-  simp only [dif_pos live, prepare, FixedArray.get_ofFn,
+  simp only [dite_eq_left live, prepare, FixedArray.get_ofFn,
     MaterializedRingF.toRing_ofRing, CarrierAction.rightCoefficient]
   exact signedTerm_eq_mul _ _ (signed ⟨input, live⟩)
 

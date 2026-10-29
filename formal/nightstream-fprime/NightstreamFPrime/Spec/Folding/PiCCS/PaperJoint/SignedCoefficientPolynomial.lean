@@ -1,24 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedJointIdentity
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
-/-!
-Finite signed gamma-coefficient polynomial for paper-level joint `Pi_CCS`.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: pre-SumCheck alpha specialization and gamma mixing.
-Constraint family: exact constant-first serialization of Pad, matrix, CCS,
-and norm residual blocks.
-
-Owns: the four explicit coefficient lists, their exact block lengths, the
-constant-first finite polynomial, and the theorem that executable Horner
-evaluation equals the independently derived signed joint identity.
-
-Does not own: construction of concrete CCS/norm/ring tables, the paper-source
-target audit, SumCheck initial or terminal acceptance, root-counting
-probability, Fiat--Shamir, Rust, R1CS, or counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedCoefficientPolynomial
 

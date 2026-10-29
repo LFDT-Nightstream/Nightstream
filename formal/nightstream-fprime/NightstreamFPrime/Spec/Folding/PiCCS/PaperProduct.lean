@@ -1,15 +1,5 @@
 import NightstreamFPrime.Spec.Folding.BatchArity
 
-/-!
-Paper-level source and output products for one SuperNeo fold.
-
-Owns: the ordered fresh/running source product, source membership, the common
-verifier-selected output point, and honest CE output completeness.
-
-Does not own: a SumCheck instance, transcript events, Fiat--Shamir, PiRLC,
-PiDEC, Rust, R1CS, or constraint counts.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperProduct

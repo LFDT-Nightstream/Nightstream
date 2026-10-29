@@ -1,10 +1,7 @@
 import NightstreamFPrime.Export.Stage1.ActualNextPreimage
 import NightstreamFPrime.Export.Stage1.PilotDecodedPhase
 
-/-!
-Owns the two Construction 2 hash equations on arbitrary accepted assignments.
-The final typed NIFS and verifier-context connections remain separate.
--/
+/-! HyperNova Construction 2. -/
 
 namespace NightstreamFPrime.Export.Stage1.ActualHashSlots
 

@@ -6,10 +6,6 @@ import NightstreamFPrime.Lifecycle.Types
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1.
 Obligation: compose the generic Phi81 accumulation child for all 17 PiRLC
 sources in exact `K + k` order for one public value family.
-
-The parent owns only source ordering, offsets, and accumulator wiring. It adds
-no row between children. Family-specific wrappers select the block and cell
-counts for commitment, public input, `Eval_K`, and `Eval_A`.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationFamily
@@ -193,7 +189,7 @@ private theorem childAssumptions
   · intro lane
     change (challengeAt interface offset source lane).VarsBelow
       (stepOffset offset source blockCount cellCount)
-    rw [challengeAt, dif_pos sourceLt]
+    rw [challengeAt, dite_eq_left sourceLt]
     apply Expr.VarsBelow.mono _
       (assumptions.challengeBelow ⟨source, sourceLt⟩ lane)
     simp [stepOffset]
@@ -201,7 +197,7 @@ private theorem childAssumptions
     unfold stepInterface priorAt
     by_cases first : source = 0
     · simp [first, Expr.VarsBelow]
-    · simp only [if_neg first, CombinationStep.output, Expr.VarsBelow]
+    · simp only [ite_eq_right first, CombinationStep.output, Expr.VarsBelow]
       have indexLt := (CombinationStep.indexOf block lane cell).isLt
       change
         stepOffset offset (source - 1) blockCount cellCount +
@@ -230,7 +226,7 @@ private theorem childAssumptions
   · intro block lane cell
     change (inputAt interface offset source block lane cell).VarsBelow
       (stepOffset offset source blockCount cellCount)
-    rw [inputAt, dif_pos sourceLt]
+    rw [inputAt, dite_eq_left sourceLt]
     apply Expr.VarsBelow.mono _
       (assumptions.inputBelow ⟨source, sourceLt⟩ block lane cell)
     simp [stepOffset]

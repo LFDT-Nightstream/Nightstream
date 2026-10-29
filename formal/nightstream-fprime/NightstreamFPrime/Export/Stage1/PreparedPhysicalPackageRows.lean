@@ -4,11 +4,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 import NightstreamFPrime.Export.Stage1.PermutationPlan
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
-/-!
-Compose final-state checks of the selected canonical component sources into
-physical package row satisfaction.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PreparedPhysicalPackageRows

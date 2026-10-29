@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.DirectPiDECPrefixPlan
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlanSemantics
 import NightstreamFPrime.Layout.PiDEC.v1_2.Values
 
-/-!
-Owns the first direct 4-matrix prefix that includes every PiRLC sampler row.
--/
-
 namespace NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
 
 open NightstreamFPrime.Layout

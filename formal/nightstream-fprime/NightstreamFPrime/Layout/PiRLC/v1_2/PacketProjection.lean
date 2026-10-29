@@ -2,12 +2,6 @@ import NightstreamFPrime.Layout.PiRLC.v1_2.Lowering
 import NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries
 import NightstreamFPrime.Layout.R1CS.Segments
 
-/-!
-Owns the generic physical-row projection for the seven-child PiRLC phase.
-It keeps the relation, interface, and offset symbolic and returns one held
-lowering segment per opaque child.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.PacketProjection
 
 open NightstreamFPrime.Circuit

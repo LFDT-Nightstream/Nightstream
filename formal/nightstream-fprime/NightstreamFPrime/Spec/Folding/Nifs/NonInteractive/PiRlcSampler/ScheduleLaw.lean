@@ -1,14 +1,5 @@
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.OracleModel
 
-/-! The 17-read schedule under the ideal block-oracle assumption. A domain
-entry adds [4,i,0,0]; the digest advance adds a zero block. Thus every read
-has a distinct normalized history. For an initial cache with no scheduled
-query, the answers are exactly 17 joint uniform four-field blocks.
-
-This fresh-batch law is not a claim that an adversarially chosen transcript
-has fresh queries. Such executions use OracleModel.run_bias_bound with all
-oracle calls counted. -/
-
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw
 
 open NightstreamFPrime.Spec
@@ -49,7 +40,7 @@ noncomputable def table (initial : List Draw) (cache : Cache) (_fresh : Fresh in
 theorem table_at (initial : List Draw) (cache : Cache) (fresh : Fresh initial cache) (blocks : Fin 17 → Draw)
     (coordinate : Fin 17) : table initial cache fresh blocks (queryAt initial coordinate) = some (blocks coordinate) := by
   unfold table
-  rw [dif_pos ⟨coordinate, rfl⟩]
+  rw [dite_eq_left ⟨coordinate, rfl⟩]
   congr 2
   exact queryAt_injective initial (Exists.choose_spec (show ∃ index, queryAt initial index =
     queryAt initial coordinate from ⟨coordinate, rfl⟩))
@@ -62,7 +53,7 @@ theorem table_preserves (initial : List Draw) (cache : Cache) (blocks : Fin 17 �
     rintro ⟨coordinate, rfl⟩
     rw [fresh coordinate] at known
     cases known
-  simpa only [table, dif_neg absent] using known
+  simpa only [table, dite_eq_right absent] using known
 
 noncomputable def readScalars (initial : List Draw) (cache : Cache) (fresh : Fresh initial cache) (blocks : Fin 17 → Draw) : Fin 17 → Scalar :=
   fun coordinate => sample ((table initial cache fresh blocks (queryAt initial coordinate)).getD (fun _ => 0))

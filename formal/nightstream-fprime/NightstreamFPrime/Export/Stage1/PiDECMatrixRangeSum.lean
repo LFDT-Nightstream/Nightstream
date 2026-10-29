@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
 import NightstreamFPrime.Spec.ProductionRelation
 
-/-!
-Add matrix range results in their existing child/matrix/ring order. This module
-owns no file format, point selection, or source-row correctness premise.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixRangeSum

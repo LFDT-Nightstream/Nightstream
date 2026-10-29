@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.PilotProduction
 
-/-!
-Owns the production pilot's public/private column partition and its exact
-permutation into the direct Spartan order: private columns, the constant
-column, then public columns. It does not own constraints or witness values.
--/
-
 namespace NightstreamFPrime.Layout.PilotSpartan
 
 open NightstreamFPrime.Circuit
@@ -132,16 +126,16 @@ theorem sourceToSpartan_witness (index : Nat) :
     sourceToSpartan (witnessStart + index) =
       witnessPrivateStart + index := by
   unfold sourceToSpartan
-  rw [if_neg (by
+  rw [ite_eq_right (by
     rw [witnessStart_value, priorPublicStart_value]
     omega)]
-  rw [if_neg (by
+  rw [ite_eq_right (by
     rw [witnessStart_value, outputPreimageStart_value]
     omega)]
-  rw [if_neg (by
+  rw [ite_eq_right (by
     rw [witnessStart_value, outputDigestStart_value]
     omega)]
-  rw [if_neg (by omega)]
+  rw [ite_eq_right (by omega)]
   omega
 
 theorem sourceToSpartan_pilotWitness (index : Nat) :
@@ -200,7 +194,8 @@ theorem spartanToSource_sourceToSpartan (column : Nat)
     priorPublicStart_value, outputPreimageStart_value,
     outputDigestStart_value, witnessStart_value,
     secondPrivateStart_value, witnessPrivateStart_value,
-    firstPublicStart_value, secondPublicStart_value] at * <;> omega
+    firstPublicStart_value, secondPublicStart_value] at *
+  all_goals omega
 
 theorem sourceToSpartan_ne_constant (column : Nat)
     (bound : column < SourceColumnCount) :

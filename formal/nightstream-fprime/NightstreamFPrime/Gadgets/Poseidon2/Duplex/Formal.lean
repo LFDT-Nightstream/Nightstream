@@ -1,12 +1,6 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Absorb
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Read
 
-/-!
-Owns the proof-carrying Poseidon2 duplex trace. A trace contains only absorb
-blocks and quadratic-extension reads of one rate lane pair. Protocol labels and serialization
-remain lifecycle-owned data supplied as absorb expressions.
--/
-
 namespace NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 
 open NightstreamFPrime.Spec

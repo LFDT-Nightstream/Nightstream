@@ -2,8 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSNormContribution
 import NightstreamFPrime.Export.Stage1.PiCCSNormRangeMerge
 import NightstreamFPrime.Export.Stage1.PiCCSGammaPowers
 
-/-! Proof-only closure of the original-mask norm scan. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNormComplete
@@ -46,7 +44,7 @@ private theorem numericPairNorm_block
         (PiCCSFirstRoundPair.normPolynomialWithPowers extensionOps powers
           (message masks (pairSuffix block pair) false (freshLow (pairIndex block.val pair)))
           (message masks (pairSuffix block pair) true (freshHigh (pairIndex block.val pair)))) := by
-  simp only [numericPairNorm, dif_pos (pairIndex_bound block pair), pairSuffix]
+  simp only [numericPairNorm, dite_eq_left (pairIndex_bound block pair), pairSuffix]
 
 private theorem blockTerm_eq_range
     (input : ProtocolPolynomial.VerifierInput K productionShape)
@@ -106,7 +104,7 @@ private theorem numericPairNorm_padding
     exact Nat.mul_le_mul_left 2 beyond
   let suffix : BooleanVertex (cubeVariables - 1) :=
     NumericBooleanDomain.vertex (cubeVariables - 1) ⟨index, inside⟩
-  rw [numericPairNorm, dif_pos inside]
+  rw [numericPairNorm, dite_eq_left inside]
   change normTerm input powers (PiCCSFirstRound.equalitySelector extensionOps suffix alpha)
       (PiCCSFirstRoundPair.normPolynomialWithPowers extensionOps powers
         (message masks suffix false (freshLow index))

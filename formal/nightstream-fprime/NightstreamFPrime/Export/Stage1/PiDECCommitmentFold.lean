@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock
 import NightstreamFPrime.Export.NativePoseidon2RoundCore
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 
-/-!
-Stored addition and finite accumulation of the existing PiDEC block products.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECCommitmentFold

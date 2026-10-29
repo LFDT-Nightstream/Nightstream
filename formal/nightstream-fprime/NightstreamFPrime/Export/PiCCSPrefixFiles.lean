@@ -1,13 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix
 
-/-!
-Read saved fresh and carried prefixes, and retain their next ordered fold.
-Legacy JSONL framing and binary range coverage are checked here. The caller
-owns challenge derivation and source provenance. Binary readers check the
-first row; consumers must decode every remaining byte with decodeFields.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiCCSPrefixFiles

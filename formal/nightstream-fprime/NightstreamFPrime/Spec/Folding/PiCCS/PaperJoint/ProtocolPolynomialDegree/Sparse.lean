@@ -1,17 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Support
 
-/-!
-Sparse-CCS substitution for the paper `Pi_CCS` one-variable degree proof.
-
-Owns: explicit fixed-polynomial powers of affine matrix-image slices, sparse
-monomial substitution, and the syntax-derived equality-gated CCS ceiling.
-
-Does not own: a concrete matrix source, protocol aggregation, SumCheck,
-probability, Fiat--Shamir, Rust, R1CS, artifacts, or costs.
-
-Emits constraints: no.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Sparse
 
 open NightstreamFPrime.Spec.SumCheck

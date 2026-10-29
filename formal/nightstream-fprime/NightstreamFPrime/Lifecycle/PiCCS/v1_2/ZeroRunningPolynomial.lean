@@ -3,11 +3,7 @@ import NightstreamFPrime.Spec.ProductionRelation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FullOutputCoordinates
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 
-/-!
-Owns the SuperNeo v1.2 Section 7.3 polynomial reduction for the production
-shape with literal zero running assignments. No CCS
-validity premise is used.
--/
+/-! SuperNeo v1.2 Section 7.3. -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.ZeroRunningPolynomial
 

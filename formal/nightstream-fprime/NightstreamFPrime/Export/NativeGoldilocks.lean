@@ -1,12 +1,5 @@
 import NightstreamFPrime.Export.StreamingIdentity
 
-/-!
-Owns canonical Goldilocks arithmetic on machine words: addition,
-subtraction, limb splitting, wide reduction, and multiplication. Each
-operation keeps canonical inputs canonical and denotes the field operation.
-Poseidon2 lanes and rounds belong to `NativePoseidon2RoundCore`.
--/
-
 namespace NightstreamFPrime.Export.NativePoseidon2
 
 open NightstreamFPrime.Spec

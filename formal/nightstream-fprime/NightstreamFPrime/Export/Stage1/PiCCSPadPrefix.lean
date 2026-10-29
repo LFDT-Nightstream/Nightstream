@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedRead
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
 
-/-! Retain all carried Pad values of one complete block and apply its first
-adjacent prefix fold. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPadPrefix
@@ -37,10 +34,10 @@ theorem blockValues_value (basis : FixedArray (Vector K ringDegree) ringDegree)
       PiCCSWeightedBasis.dotK (basis.get lane) values.get := by
   by_cases empty : values = Vector.replicate ringDegree K.zero
   · subst values
-    rw [blockValues, if_pos rfl, dot_zero]
+    rw [blockValues, ite_eq_left rfl, dot_zero]
     change (Vector.replicate ringDegree K.zero)[lane.val] = K.zero
     exact Vector.getElem_replicate lane.isLt
-  · rw [blockValues, if_neg empty]
+  · rw [blockValues, ite_eq_right empty]
     change (Vector.ofFn _)[lane.val] = _
     rw [Vector.getElem_ofFn]
 
@@ -55,12 +52,12 @@ theorem blockValues_getD (basis : FixedArray (Vector K ringDegree) ringDegree)
   · have live : index < (blockValues basis values).toArray.size := by
       rw [Vector.size_toArray]
       exact bounded
-    rw [Array.getElem?_eq_getElem live, Option.getD_some, dif_pos bounded]
+    rw [Array.getElem?_eq_getElem live, Option.getD_some, dite_eq_left bounded]
     exact blockValues_value basis values ⟨index, bounded⟩
   · have outside : (blockValues basis values).toArray.size ≤ index := by
       rw [Vector.size_toArray]
       exact Nat.le_of_not_gt bounded
-    rw [Array.getElem?_eq_none outside, Option.getD_none, dif_neg bounded]
+    rw [Array.getElem?_eq_none outside, Option.getD_none, dite_eq_right bounded]
 
 def foldedBlock (basis : FixedArray (Vector K ringDegree) ringDegree)
     (values : Vector K ringDegree) (challenge : K) : Array K :=

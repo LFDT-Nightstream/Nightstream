@@ -1,11 +1,5 @@
 import CompressionLean.Terminal.Outputs
 
-/-!
-Owns the terminal artifact writer. It streams the canonical encoding of
-`envelope`: the package field by field, then the output map, so a reader
-decodes the package with the F′ package decoder.
--/
-
 namespace CompressionLean.Terminal.Emit
 
 open NightstreamFPrime.Export
@@ -20,7 +14,6 @@ def field (handle : IO.FS.Handle) (value : Value) : IO Unit := do
   let _ ← value.writeCanonical handle
   writeByte handle 44
 
-/-- The field order of `CircuitPackage.format`. -/
 def writePackage (handle : IO.FS.Handle) (package : CircuitPackage) : IO Unit := do
   writeByte handle 91
   field handle (.atom package.schemaVersion)
@@ -56,7 +49,6 @@ def writePackage (handle : IO.FS.Handle) (package : CircuitPackage) : IO Unit :=
     handle
   writeByte handle 93
 
-/-- The field order of `envelope`. -/
 def write (handle : IO.FS.Handle) : IO Unit := do
   writeByte handle 91
   field handle (.atom 1)

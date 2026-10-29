@@ -1,14 +1,6 @@
 import Mathlib.Data.List.GetD
 import NightstreamFPrime.Layout.BalancedTernary
 
-/-!
-Owns the three assignment-slot encodings used by the production low-norm
-compiler. Public bits and already-centered units remain one coordinate.
-General Goldilocks values use the exact 41-trit balanced encoding.
-
-This module does not select retained source fields or assign final columns.
--/
-
 namespace NightstreamFPrime.Layout.LowNormSlot
 
 open NightstreamFPrime.Spec

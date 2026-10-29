@@ -2,12 +2,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.R1CS.Support
 
-/-!
-Owns indexed access to the exact Lean-lowered rows of one verifier-selected
-Stage 1 application. It does not select an application or retained low-norm
-coordinates.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ApplicationDirectSource
 
 open NightstreamFPrime.Circuit

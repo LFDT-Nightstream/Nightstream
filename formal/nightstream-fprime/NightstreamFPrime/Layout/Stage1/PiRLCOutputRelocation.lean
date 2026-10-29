@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.PiRLCGeneratedRelocation
 
-/-!
-Owns uniform relocation of the complete PiRLC combined output. The shared
-point is supplied as an exact evaluated equality. Every commitment, public,
-and evaluation coordinate is a direct final combination variable.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiRLCOutputRelocation
 
 open NightstreamFPrime.Circuit
@@ -141,7 +135,8 @@ theorem commitmentOutput_supported
   · rw [CommitmentCombination.logicalPrivateCount_eq]
     unfold Formal.commitmentOffset Formal.samplerOffset
     rw [SamplerChain.counts.1]
-    norm_num [Formal.logicalPrivateCount]
+    have privateCount := Formal.logicalPrivateCount_eq
+    omega
 
 theorem publicInputOutput_supported
     {logicalWidth : Nat}
@@ -163,7 +158,8 @@ theorem publicInputOutput_supported
     unfold Formal.publicInputOffset Formal.commitmentOffset
       Formal.samplerOffset
     rw [SamplerChain.counts.1]
-    norm_num [Formal.logicalPrivateCount]
+    have privateCount := Formal.logicalPrivateCount_eq
+    omega
 
 theorem evalKOutput_supported
     {logicalWidth : Nat}
@@ -192,7 +188,8 @@ theorem evalKOutput_supported
     unfold Formal.evalKOffset Formal.publicInputOffset
       Formal.commitmentOffset Formal.samplerOffset
     rw [SamplerChain.counts.1]
-    norm_num [Formal.logicalPrivateCount]
+    have privateCount := Formal.logicalPrivateCount_eq
+    omega
   unfold KSupported EvalKCombination.output RingKCombination.output
   exact ⟨
     PiRLCGeneratedRelocation.combinationOutput_supported family offset
@@ -234,7 +231,8 @@ theorem evalAOutput_supported
     unfold Formal.evalAOffset Formal.evalKOffset Formal.publicInputOffset
       Formal.commitmentOffset Formal.samplerOffset
     rw [SamplerChain.counts.1]
-    norm_num [Formal.logicalPrivateCount]
+    have privateCount := Formal.logicalPrivateCount_eq
+    omega
   unfold KSupported EvalACombination.output RingKCombination.output
   exact ⟨
     PiRLCGeneratedRelocation.combinationOutput_supported family offset
@@ -296,7 +294,7 @@ theorem evalOutput_eq_of_shift_agreement
         (Formal.commitmentInterface
           (Formal.atOffset right (leftOffset + delta)))
         (Formal.commitmentOffset (leftOffset + delta)) row lane).eval rightEnv
-    rw [commitmentOutput_shift]
+    erw [commitmentOutput_shift]
     exact (expression_eval_eq_of_shift_agreement delta _ _ leftEnv rightEnv
       (commitmentOutput_supported left leftOffset row lane) agrees).symm
   · funext column

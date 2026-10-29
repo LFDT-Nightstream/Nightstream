@@ -1,24 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanEvaluation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81MatrixSource
 
-/-!
-Batch-invariant Phi81 carried-evaluation leaves.
-
-Protocol: SuperNeo coefficient embedding and `Pi_CCS` output CE claims.
-Phase: derived coefficient-matrix image at one verifier-owned row point.
-Constraint family: semantic evaluation only; this file emits no rows.
-
-Owns: the single mathematical formula that turns a canonical Phi81 matrix
-source, one complete-carrier assignment, one matrix, and one coefficient lane
-into a Boolean row table and its multilinear evaluation.
-
-Does not own: source-batch ordering, fresh/running arity, claimed output
-products, `yZcol`, public inputs, commitments, transcript derivation, Rust,
-R1CS, or constraint counts.
-
-Emits constraints: no.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81Evaluation
 
 open NightstreamFPrime.Spec

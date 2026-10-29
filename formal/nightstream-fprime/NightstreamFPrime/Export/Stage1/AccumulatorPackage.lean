@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.Package
 import NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 
-/-!
-Owns the zero-row package-to-accumulator soundness edge.
--/
-
 namespace NightstreamFPrime.Export.Stage1.AccumulatorPackage
 
 open NightstreamFPrime.Circuit

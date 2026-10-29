@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 
-/-!
-Owns structural projections from the canonical PiRLC combination schedule.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationProjection
 
 open NightstreamFPrime.Lifecycle.PaperAlgebra

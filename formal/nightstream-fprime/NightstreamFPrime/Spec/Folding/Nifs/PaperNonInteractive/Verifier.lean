@@ -1,13 +1,5 @@
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Types
 
-/-!
-Compact executable verifier for the paper SuperNeo NIFS message.
-
-Owns: the two executable checks (`Pi_CCS` joint polynomial and operational
-`Pi_DEC` recomposition), the deterministic `Option` result, and exact Boolean
-and graph correspondences.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive

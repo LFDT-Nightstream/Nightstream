@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.MatrixProgram
 
-/-!
-Owns a compact package language for affine sparse forms over a three-axis
-row grid. Regions, retained-slot strides, coefficients, and rule order are
-package data. The interpreter does not select phase dimensions or formulas.
--/
-
 namespace NightstreamFPrime.Layout.MatrixProgram.AffineGrid
 
 open NightstreamFPrime.Layout
@@ -56,16 +50,16 @@ theorem Region.offsets?_of_offsets (region : Region)
       some { major := major.val, middle := middle.val, minor := minor.val } := by
   unfold offsets?
   simp only
-  rw [if_pos (by omega)]
+  rw [ite_eq_left (by omega)]
   rw [show region.majorStart + major.val - region.majorStart = major.val by
     omega]
-  rw [if_pos major.isLt, if_pos (by omega)]
+  rw [ite_eq_left major.isLt, ite_eq_left (by omega)]
   rw [show region.middleStart + middle.val - region.middleStart = middle.val by
     omega]
-  rw [if_pos middle.isLt, if_pos (by omega)]
+  rw [ite_eq_left middle.isLt, ite_eq_left (by omega)]
   rw [show region.minorStart + minor.val - region.minorStart = minor.val by
     omega]
-  rw [if_pos minor.isLt]
+  rw [ite_eq_left minor.isLt]
 
 theorem Region.offsets?_eq_none_of_outside (region : Region)
     (coordinate : Coordinate)
@@ -79,28 +73,28 @@ theorem Region.offsets?_eq_none_of_outside (region : Region)
     region.offsets? coordinate = none := by
   unfold offsets?
   by_cases majorStart : region.majorStart ≤ coordinate.major
-  · rw [if_pos majorStart]
+  · rw [ite_eq_left majorStart]
     by_cases majorCount :
         coordinate.major - region.majorStart < region.majorCount
-    · rw [if_pos majorCount]
+    · rw [ite_eq_left majorCount]
       by_cases middleStart : region.middleStart ≤ coordinate.middle
-      · rw [if_pos middleStart]
+      · rw [ite_eq_left middleStart]
         by_cases middleCount :
             coordinate.middle - region.middleStart < region.middleCount
-        · rw [if_pos middleCount]
+        · rw [ite_eq_left middleCount]
           by_cases minorStart : region.minorStart ≤ coordinate.minor
-          · rw [if_pos minorStart]
+          · rw [ite_eq_left minorStart]
             by_cases minorCount :
                 coordinate.minor - region.minorStart < region.minorCount
             · exfalso
               apply outside
               omega
-            · rw [if_neg minorCount]
-          · rw [if_neg minorStart]
-        · rw [if_neg middleCount]
-      · rw [if_neg middleStart]
-    · rw [if_neg majorCount]
-  · rw [if_neg majorStart]
+            · rw [ite_eq_right minorCount]
+          · rw [ite_eq_right minorStart]
+        · rw [ite_eq_right middleCount]
+      · rw [ite_eq_right middleStart]
+    · rw [ite_eq_right majorCount]
+  · rw [ite_eq_right majorStart]
 
 inductive Term where
   | retained (block : RetainedBlock) (slotBase majorStride middleStride
@@ -161,7 +155,7 @@ theorem Term.retained_form?_ofSemantic
       some (applyCoefficient scalar
         (block.form retainedStart fits ⟨_, slotBound⟩))
     else none) = _
-  rw [dif_pos coefficient.isLt]
+  rw [dite_eq_left coefficient.isLt]
 
 theorem Term.constant_form? {logicalWidth : Nat}
     (oneColumn : Fin logicalWidth) (coefficient : F)
@@ -174,7 +168,7 @@ theorem Term.constant_form? {logicalWidth : Nat}
           ⟨coefficient.val, coefficientBound⟩)
       else none
     else none) = _
-  rw [dif_pos oneColumn.isLt, dif_pos coefficient.isLt]
+  rw [dite_eq_left oneColumn.isLt, dite_eq_left coefficient.isLt]
 
 structure Rule where
   region : Region

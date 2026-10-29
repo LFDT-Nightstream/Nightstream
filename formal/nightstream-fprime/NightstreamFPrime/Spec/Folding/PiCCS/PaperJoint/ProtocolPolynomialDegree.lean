@@ -1,26 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Sparse
 import NightstreamFPrime.Spec.SumCheck.FixedPhase.Sequential
 
-/-!
-Exact per-round degree bound for the paper-joint `Pi_CCS` polynomial.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: the single joint SumCheck.
-Constraint family: semantic degree and honest-message representability only;
-this file emits no rows.
-
-Owns: a fixed-polynomial representation of every one-coordinate slice of the
-actual nonlinear `ProtocolPolynomial.polynomial`; the syntax-derived CCS
-ceiling, strict-`b = 2` quartic ceiling, and separate Pad/matrix evaluation
-quadratics; and
-representability of every canonical expected SumCheck round at the exact
-verifier-owned bound.
-
-Does not own: SumCheck completeness, an honest execution, probability,
-Fiat--Shamir, Rust, R1CS, artifacts, row removal, or costs.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree
 
@@ -433,7 +414,7 @@ theorem polynomial_slice_represents
       ProtocolPolynomial.polynomial ops data alpha gamma
         (before ++ point :: after)
   unfold ProtocolPolynomial.polynomial
-  rw [dif_pos]
+  rw [dite_eq_left]
   rfl
 
 theorem sequentialRoundRepresentable

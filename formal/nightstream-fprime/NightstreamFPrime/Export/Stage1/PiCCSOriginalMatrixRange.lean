@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSOriginalReadsPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch
 
-/-!
-Proof-only transport from loaded sparse rows and prepared numeric invocations
-to complete original-source matrix ranges.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange
@@ -93,8 +88,8 @@ private theorem sparse_range {columns arity count : Nat} (program : MatrixProgra
   apply numericSum_congr count
   intro index live
   have globalBound : first + index < program.rowCount := by omega
-  rw [rows_value, if_pos globalBound, loaded ⟨index, live⟩, Option.map_some,
-    Option.getD_some, dif_pos live]
+  rw [rows_value, ite_eq_left globalBound, loaded ⟨index, live⟩, Option.map_some,
+    Option.getD_some, dite_eq_left live]
   rfl
 
 private theorem invocation_range {columns arity : Nat} (program : MatrixProgram.Program)
@@ -129,7 +124,7 @@ private theorem invocation_range {columns arity : Nat} (program : MatrixProgram.
   have sparse := PiDECMatrixSelectedBatch.invocation_sparse_value program sourceRow
     (read output) blockIndex block selected invocation interface loaded ⟨index, live⟩ port
   rw [encoded] at sparse
-  rw [dif_pos live, rows_value, if_pos globalBound]
+  rw [dite_eq_left live, rows_value, ite_eq_left globalBound]
   have value := congrArg (fun result : Option F => result.getD 0) sparse
   exact congrArg (fun result : F =>
     extensionOps.mul (PiDECEvaluationWeights.weight point (first + index)) (K.embed result)) value
@@ -155,7 +150,7 @@ private theorem invocation_ranges {columns arity count : Nat} (program : MatrixP
   unfold PiDECMatrixInvocationRange.sum range
   apply PiDECMatrixSelectedBatch.sumInvocationParts_eq_range first count point _ _ port port
   intro index live
-  rw [dif_pos live]
+  rw [dite_eq_left live]
   let invocation : Fin block.invocationCount := ⟨firstInvocation + index, by omega⟩
   have loadedIndex : PiDECPoseidonNumericBlock.loadInvocation? block columns invocation =
       some (interfaces.get ⟨index, live⟩) := loaded ⟨index, live⟩
@@ -189,7 +184,7 @@ private theorem range_evaluate {columns arity : Nat} (program : MatrixProgram.Pr
     (fun index => (rows program sourceRow read index).get port) fits
   intro index outside _
   funext lane
-  rw [rows_value, if_neg (Nat.not_lt.mpr outside)]
+  rw [rows_value, ite_eq_right (Nat.not_lt.mpr outside)]
   rfl
 
 private theorem rows_image (program : MatrixProgram.Program)
@@ -201,9 +196,9 @@ private theorem rows_image (program : MatrixProgram.Program)
         (fun values => values.get port)).getD 0 := by
   rw [rows_value, PiCCSSourceImages.rowValues?]
   by_cases live : NumericBooleanDomain.index vertex < program.rowCount
-  · rw [if_pos live, if_pos live, PiDECMatrixNumericRows.row?_value]
+  · rw [ite_eq_left live, ite_eq_left live, PiDECMatrixNumericRows.row?_value]
     rfl
-  · rw [if_neg live, if_neg live, Option.map_some, get_replicate, Option.getD_some]
+  · rw [ite_eq_right live, ite_eq_right live, Option.map_some, get_replicate, Option.getD_some]
 
 private abbrev selectedProgram := PerApplicationMatrixProgram.matrixProgram
   Poseidon2HashChainV1Package.application

@@ -4,9 +4,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import Mathlib.Data.Vector.Basic
 import Mathlib.Tactic.Ring
 
-/-!
-SuperNeo B.2's source-witness projection on the actual Phi81 public prefix.
--/
+/-! SuperNeo v1.2 Appendix B.2. -/
 
 set_option autoImplicit false
 

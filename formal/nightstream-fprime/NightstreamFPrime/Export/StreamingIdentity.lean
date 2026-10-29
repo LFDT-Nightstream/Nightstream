@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Package
 
-/-!
-Owns the bounded-memory executable form of the canonical package identity.
-The semantic authority remains `Package.relationIdentifierValue`.
--/
-
 namespace NightstreamFPrime.Export.StreamingIdentity
 
 open NightstreamFPrime.Export.Codec

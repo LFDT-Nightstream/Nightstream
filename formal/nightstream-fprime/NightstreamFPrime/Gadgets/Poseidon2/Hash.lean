@@ -1,12 +1,5 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation
 
-/-!
-Owns the logical Poseidon2 sponge compiler. It uses the proved permutation for
-every absorb block and for the final `+1` padding permutation. The output is
-the first four lanes. Physical rows, columns, and lifecycle serialization are
-owned by later layers.
--/
-
 namespace NightstreamFPrime.Gadgets.Poseidon2.Hash
 
 open NightstreamFPrime.Spec

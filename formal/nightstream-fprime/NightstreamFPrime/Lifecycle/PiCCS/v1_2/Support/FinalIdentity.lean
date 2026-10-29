@@ -2,11 +2,6 @@ import NightstreamFPrime.Gadgets.Multilinear.PointEqualitySupport
 import NightstreamFPrime.Gadgets.Polynomial.PowerSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity
 
-/-!
-Owns variable-support propagation for the complete production PiCCS final
-identity. It changes no exponent, child order, circuit, or row.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.FinalIdentity
 
 open NightstreamFPrime.Spec

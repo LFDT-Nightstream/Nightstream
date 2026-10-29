@@ -28,7 +28,7 @@ lock. Do not increase the limits to convert a failed check into a pass.
 From `formal/nightstream-fprime`, build the retained executables:
 
 ```sh
-elan run nightstream-lean-4.32.2-5b34cacf bash scripts/validate.sh build \
+bash scripts/validate.sh build \
   replayPiCCSFirstRound replayPiCCSPrefix replayPiRLCWitness \
   replayPiDECWitness replayPiDECCommitment replayPiDECEvaluation \
   replayPiDECMatrix mergePiDECMatrix checkPiDECInput \
@@ -36,20 +36,11 @@ elan run nightstream-lean-4.32.2-5b34cacf bash scripts/validate.sh build \
   checkFreshRows replayFreshCommitment
 ```
 
-The requested optimized compiler is `nicarq/lean4-optimized` at
-`5b34cacf5be147b191f6577a2dc67550970a62f3` (branch `lean4.32.2-optimized`),
-based on Lean 4.32.2. Build it with `make -C build/release` and link it with
-`elan toolchain link nightstream-lean-4.32.2-5b34cacf build/release/stage1`.
-Against the previously requested `3019a32c`, it runs the eight most expensive
-step-2 commands 2.43 times faster (204.7 instead of 497.7 seconds on an Apple M5
-Pro, every output byte identical); these timings do not estimate the whole
-workflow. The current replay also shares proved tensor-weight tables in the
-Pad generators and uses the existing native-word arithmetic for original masks
-and weighted updates. On the same first fold inputs, the first Pad range's arithmetic fell from 38.78 to 7.17 seconds,
-and the first matrix range fell from 191.57 to 137.82 seconds. Every output byte
-matched. These timings exclude shared input loading and do not estimate the
-whole workflow. The preservation proofs and audits pass on both the requested
-compiler and stock Lean 4.32.2.
+The compiler is the one `lean-toolchain` selects, Lean 4.35.0. The
+`nicarq/lean4-optimized` fork has only a Lean 4.32.2 branch and cannot build
+this package. Each source snapshot records the `lean --version` compiler, and
+the coordinator stops if a built replay executable's root `.olean` names a
+different compiler commit.
 
 From the repository root, build the native test executable under the native cap:
 
@@ -77,7 +68,7 @@ success receipt does not supply those checks.
 From the repository root, run one step with a separate output directory:
 
 ```sh
-elan run nightstream-lean-4.32.2-5b34cacf python3.12 -B \
+python3.12 -B \
   formal/nightstream-fprime/scripts/generate_independent_folds.py \
   --directory RUN --native RUN/native --binary BINARY --step 2 --phase all
 ```

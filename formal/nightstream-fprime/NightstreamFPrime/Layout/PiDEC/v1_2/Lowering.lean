@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.PiDEC.v1_2.Composition
 
-/-!
-Owns the one canonical R1CS lowering plan for the exact PiDEC v1_2 phase.
-All R1CS intermediates start after the phase's derived logical private cells. The
-plan lowers the unchanged six-child row order proved by `Composition`.
--/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2
 
 open NightstreamFPrime.Circuit
@@ -75,6 +69,7 @@ theorem physicalRows_eq_lowerConstraints
     physicalRows relation interface offset =
       (R1CS.lowerConstraints (logicalConstraints relation interface offset)
         (logicalColumnCount relation interface offset)).rows := by
+  unfold physicalRows plan R1CS.LoweringPlan.rows R1CS.LoweringPlan.lowering
   rfl
 
 @[simp] theorem plan_constraints

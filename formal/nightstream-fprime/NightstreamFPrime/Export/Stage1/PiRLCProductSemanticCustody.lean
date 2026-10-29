@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCProductSourceBlocks
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerRetainedCustody
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns exact environment custody for the direct PiRLC product schedule.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductSemanticCustody
 
 open NightstreamFPrime.Circuit
@@ -454,7 +450,8 @@ theorem semanticEnv_challengeColumn_eq_baseEnv
     (PiRLCRetainedGeometry.challengeStart program)
     (PiRLCRetainedGeometry.challengeFits (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry))
     (PiRLCProductSourceBlocks.challengeIndex descriptor.source lane)).eval assignment = _
-  rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encoding.challenge]
+  rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encoding.challenge
+    (PiRLCProductSourceBlocks.challengeIndex descriptor.source lane)]
   exact (congrArg (PiRLCRetainedPreservation.sourceAssignment program base groupValue)
     (PiRLCProductSourceBlocks.challengeBlock_source program descriptor lane)).trans
     (PiRLCRetainedPreservation.sourceAssignment_challengeColumn program base groupValue descriptor lane)

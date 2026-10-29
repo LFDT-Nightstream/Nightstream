@@ -2,8 +2,6 @@ import NightstreamFPrime.Layout.MatrixProgram.Affine
 import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.MatrixProgram
 
-/-! Canonical codecs for the shared Layout MatrixProgram types. -/
-
 namespace NightstreamFPrime.Layout.MatrixProgram.Affine
 
 open NightstreamFPrime.Export.Codec

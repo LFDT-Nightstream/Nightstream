@@ -1,10 +1,5 @@
 import NightstreamFPrime.Circuit.VariableSupport
 
-/-!
-Owns the exact predicate used to extend caller-selected variable support by
-one newly allocated half-open interval.
--/
-
 namespace NightstreamFPrime.Circuit.SupportRange
 
 def Extend (allowed : Nat → Prop) (start finish index : Nat) : Prop :=

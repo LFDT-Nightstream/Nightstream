@@ -3,9 +3,6 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 import NightstreamFPrime.Spec.Profile
 
-/-! The selected `(2B,C)` relaxed-binding collision yields a nonzero integer
-kernel vector below `8TB`. -/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
 
 open EvaluationHomomorphism

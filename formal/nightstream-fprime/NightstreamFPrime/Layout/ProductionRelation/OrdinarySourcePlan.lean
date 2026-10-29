@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
 import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
 
-/-!
-Owns the indexed source-to-matrix bridge for ordinary R1CS rows. Each row can
-use its own sparse source resolver. Preservation is required only for source
-columns that occur in that row.
-
-This module does not select production rows or retained assignment columns.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 
 open NightstreamFPrime.Spec

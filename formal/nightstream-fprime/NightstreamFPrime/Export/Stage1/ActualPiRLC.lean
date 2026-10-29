@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.ActualPiRLCSampling
 import NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase
 import NightstreamFPrime.Export.Stage1.ActualPiRLCValues
 
-/-!
-Owns the selected-row connection from the exact PiCCS outgoing state to all
-PiRLC challenges and the final sampler state.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualPiRLC
 
 open NightstreamFPrime.Circuit

@@ -21,9 +21,6 @@ Constraint groups:
 
 Parent coverage:
 - `ProtocolPolynomial.matrixAtMessage` in the production PiCCS terminal.
-
-This file owns only the v1.2 CCS-matrix coordinate order and production-key
-wiring. The global `gamma^(k*d)` shift belongs to the final identity.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal
@@ -128,7 +125,8 @@ theorem output_varsBelow (interface : Interface) (offset : Nat)
 
 theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
     (coefficientExprs interface offset).length = 3456 := by
-  simp [coefficientExprs, canonicalMatrixCoordinates_length, productionShape,
+  simp only [coefficientExprs, List.length_map]
+  simp [canonicalMatrixCoordinates_length, productionShape,
     productionProfile, Phi81MatrixSource.phi81Shape,
     Shape.matrixEvaluationCount, ringDegree]
 

@@ -1,12 +1,4 @@
-/-!
-Owns SHAKE128 (FIPS 202, Sections 3, 5.1 and 6.2) as used by
-`nightstream-ajtai-shake128-wide256-v1`.
-
-The Keccak-f[1600] state is one structure of 25 unboxed 64-bit lanes; field
-`aXY` is lane `A[X, Y]`. Message and output bytes use the FIPS 202 lane order
-`5Y + X`, each lane little-endian. This file defines exact semantics. It makes
-no claim that SHAKE128 behaves as a random oracle.
--/
+/-! SHAKE128: FIPS 202, Sections 3, 5.1 and 6.2. -/
 
 namespace NightstreamFPrime.Spec.AjtaiSetupV1.Shake128
 
@@ -40,12 +32,10 @@ structure State where
 def State.zero : State :=
   ⟨0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0⟩
 
-/-- Rotation to the left by `amount < 64` bits. Shift amounts are taken
-modulo 64, so amount zero returns the lane unchanged. -/
 @[inline] def rotl (value amount : UInt64) : UInt64 :=
   (value <<< amount) ||| (value >>> (64 - amount))
 
-/-- Round constants `RC[i]` of step ι (FIPS 202, Section 3.2.5). -/
+/-- FIPS 202, Section 3.2.5. -/
 def roundConstants : List UInt64 :=
   [0x0000000000000001, 0x0000000000008082, 0x800000000000808a, 0x8000000080008000,
     0x000000000000808b, 0x0000000080000001, 0x8000000080008081, 0x8000000000008009,
@@ -54,10 +44,8 @@ def roundConstants : List UInt64 :=
     0x8000000000008002, 0x8000000000000080, 0x000000000000800a, 0x800000008000000a,
     0x8000000080008081, 0x8000000000008080, 0x0000000080000001, 0x8000000080008008]
 
-/-- One round `ι ∘ χ ∘ π ∘ ρ ∘ θ` (FIPS 202, Section 3.3). The rotation
-offsets are those of FIPS 202 Table 2. -/
+/-- FIPS 202, Section 3.3 and Table 2. -/
 def round (s : State) (roundConstant : UInt64) : State :=
-  -- θ: C[x] = ⊕ A[x, y]; D[x] = C[x - 1] ⊕ rot(C[x + 1], 1).
   let c0 := s.a00 ^^^ s.a01 ^^^ s.a02 ^^^ s.a03 ^^^ s.a04
   let c1 := s.a10 ^^^ s.a11 ^^^ s.a12 ^^^ s.a13 ^^^ s.a14
   let c2 := s.a20 ^^^ s.a21 ^^^ s.a22 ^^^ s.a23 ^^^ s.a24
@@ -68,7 +56,6 @@ def round (s : State) (roundConstant : UInt64) : State :=
   let d2 := c1 ^^^ rotl c3 1
   let d3 := c2 ^^^ rotl c4 1
   let d4 := c3 ^^^ rotl c0 1
-  -- ρ and π: B[x, y] = rot(A[(x + 3y) mod 5, x] ⊕ D[(x + 3y) mod 5], r[(x + 3y) mod 5, x]).
   let b00 := rotl (s.a00 ^^^ d0) 0
   let b10 := rotl (s.a11 ^^^ d1) 44
   let b20 := rotl (s.a22 ^^^ d2) 43
@@ -94,7 +81,6 @@ def round (s : State) (roundConstant : UInt64) : State :=
   let b24 := rotl (s.a42 ^^^ d4) 39
   let b34 := rotl (s.a03 ^^^ d0) 41
   let b44 := rotl (s.a14 ^^^ d1) 2
-  -- χ: A[x, y] = B[x, y] ⊕ (¬B[x + 1, y] ∧ B[x + 2, y]); ι on A[0, 0].
   { a00 := b00 ^^^ (~~~b10 &&& b20) ^^^ roundConstant,
     a10 := b10 ^^^ (~~~b20 &&& b30),
     a20 := b20 ^^^ (~~~b30 &&& b40),
@@ -126,9 +112,7 @@ def permute (s : State) : State :=
 
 def rateBytes : Nat := 168
 
-/-- SHAKE padding after `used` bytes of the last rate block (FIPS 202,
-Section 6.2 and Algorithm 9): the suffix bits `1111`, then pad10*1. For
-`used < rateBytes` it fills that block with `rateBytes - used` bytes. -/
+/-- FIPS 202, Section 6.2 and Algorithm 9. -/
 def padding (used : Nat) : List Nat :=
   if used + 1 = rateBytes then [0x9F]
   else 0x1F :: (List.replicate (rateBytes - used - 2) 0 ++ [0x80])
@@ -145,8 +129,7 @@ def lanesOfBytes : List Nat → List UInt64
       laneOf b0 b1 b2 b3 b4 b5 b6 b7 :: lanesOfBytes rest
   | _ => []
 
-/-- Absorb whole rate blocks: XOR 21 lanes into the rate lanes `5y + x`,
-then permute (FIPS 202, Algorithm 8, step 6). -/
+/-- FIPS 202, Algorithm 8, step 6. -/
 def absorbLanes (s : State) : List UInt64 → State
   | l0 :: l1 :: l2 :: l3 :: l4 :: l5 :: l6 :: l7 :: l8 :: l9 :: l10 :: l11 :: l12 :: l13 ::
       l14 :: l15 :: l16 :: l17 :: l18 :: l19 :: l20 :: rest =>

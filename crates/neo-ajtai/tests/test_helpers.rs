@@ -6,7 +6,7 @@ use p3_goldilocks::Goldilocks as Fq;
 
 #[inline]
 #[allow(dead_code)]
-pub fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
+pub(crate) fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
     let last = cur[D - 1];
     next[0] = Fq::ZERO;
     next[1..D].copy_from_slice(&cur[..(D - 1)]);
@@ -15,7 +15,7 @@ pub fn rot_step(cur: &[Fq; D], next: &mut [Fq; D]) {
 }
 
 #[allow(dead_code)]
-pub fn rows_for_coords(pp: &PP<RqEl>, z_len: usize, num_coords: usize) -> AjtaiResult<Vec<Vec<Fq>>> {
+pub(crate) fn rows_for_coords(pp: &PP<RqEl>, z_len: usize, num_coords: usize) -> AjtaiResult<Vec<Vec<Fq>>> {
     use rayon::prelude::*;
 
     let d = pp.d();
@@ -94,7 +94,7 @@ pub fn rows_for_coords(pp: &PP<RqEl>, z_len: usize, num_coords: usize) -> AjtaiR
 }
 
 #[allow(dead_code)]
-pub fn compute_single_ajtai_row(
+pub(crate) fn compute_single_ajtai_row(
     pp: &PP<RqEl>,
     coord_idx: usize,
     z_len: usize,
@@ -160,10 +160,10 @@ fn precompute_rot_columns(a: RqEl, cols: &mut [[Fq; D]]) {
 
 #[allow(non_snake_case)]
 #[allow(dead_code)]
-pub fn commit_spec(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
+pub(crate) fn commit_spec(pp: &PP<RqEl>, Z: &[Fq]) -> Commitment {
     let d = pp.d();
     let m = pp.m();
-    let mut c = Commitment::zeros(d, pp.kappa());
+    let mut c = Commitment::zeros(pp.kappa());
 
     for i in 0..pp.kappa() {
         let acc_i = c.col_mut(i);

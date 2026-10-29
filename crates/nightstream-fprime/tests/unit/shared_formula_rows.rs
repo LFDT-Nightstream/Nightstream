@@ -323,7 +323,7 @@ fn template_scratch_matches_append_normalization_and_reuses_empty_ports() {
         vec![(0, 3), (1, 3), (2, 1), (3, 1), (4, 1), (5, 7), (6, 1)],
         vec![(2, 1)],
         vec![(5, 1)],
-        vec![(2, GOLDILOCKS_MODULUS - 1)],
+        vec![(2, Goldilocks::ORDER_U64 - 1)],
         vec![(2, 0)],
         vec![(0, 1), (1, 1)],
         vec![(0, 1), (1, 1), (2, 1)],
@@ -391,9 +391,9 @@ fn template_visitors_stop_before_invalid_later_invocations() {
         assert_eq!(visited, 1);
 
         let failure = program.visit_rows_until(logical_width, 0, count, &source, |_, _| {
-            Err(PackageError::Invalid("test visitor stop"))
+            Err(PackageError::Input("test visitor stop"))
         });
-        assert!(matches!(failure, Err(PackageError::Invalid("test visitor stop"))));
+        assert!(matches!(failure, Err(PackageError::Input("test visitor stop"))));
     }
 }
 

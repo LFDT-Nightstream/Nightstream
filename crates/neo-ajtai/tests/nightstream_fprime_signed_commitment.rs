@@ -94,12 +94,12 @@ fn signed_commitment_matches_the_ordinary_sum_under_the_same_key() {
     let expected = try_commit(&key, &message).expect("ordinary exact-key ring sum");
     let actual = commit_production_signed_units(&carrier).expect("complete production carrier commitment");
     assert_eq!(actual, expected);
-    assert_ne!(actual, Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize));
+    assert_ne!(actual, Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize));
 
     carrier.fill(0);
     assert_eq!(
         commit_production_signed_units(&carrier).expect("zero carrier"),
-        Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize)
+        Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize)
     );
 }
 

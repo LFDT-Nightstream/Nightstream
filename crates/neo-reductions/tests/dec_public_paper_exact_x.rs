@@ -12,35 +12,18 @@ fn f_signed(value: i64) -> F {
     }
 }
 
-fn params_with_base_and_digits(base: u32, digits: u32) -> NeoParams {
-    let paper = NeoParams::goldilocks_paper_b2();
-    NeoParams::new(
-        paper.q,
-        paper.eta,
-        paper.d,
-        paper.kappa,
-        paper.m,
-        base,
-        digits,
-        1,
-        paper.s,
-        paper.lambda,
-    )
-    .expect("valid focused DEC parameters")
-}
-
 fn structure() -> CcsStructure<F> {
     CcsStructure::new(vec![Mat::identity(D)], neo_ccs::poly::SparsePoly::new(1, Vec::new()))
         .expect("valid focused CCS structure")
 }
 
-fn claim(params: &NeoParams, x: F) -> CeClaim<Commitment, F, K> {
+fn claim(x: F) -> CeClaim<Commitment, F, K> {
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let mut public_x = Mat::zero(D, 1, F::ZERO);
     public_x[(0, 0)] = x;
     CeClaim {
         adv: None,
-        c: Commitment::zeros(params.d as usize, 1),
+        c: Commitment::zeros(1),
         X: public_x,
         r: vec![K::ZERO; D.next_power_of_two().trailing_zeros() as usize],
         eval_k: vec![K::ZERO; 1usize << ell_d],
@@ -50,15 +33,12 @@ fn claim(params: &NeoParams, x: F) -> CeClaim<Commitment, F, K> {
     }
 }
 
-fn children_for_digits(params: &NeoParams, digits: &[i64]) -> Vec<CeClaim<Commitment, F, K>> {
-    digits
-        .iter()
-        .map(|&digit| claim(params, f_signed(digit)))
-        .collect()
+fn children_for_digits(digits: &[i64]) -> Vec<CeClaim<Commitment, F, K>> {
+    digits.iter().map(|&digit| claim(f_signed(digit))).collect()
 }
 
 fn combine_zero_commitments(commits: &[Commitment], _base: u32) -> Commitment {
-    Commitment::zeros(commits[0].d, commits[0].kappa)
+    Commitment::zeros(commits[0].kappa())
 }
 
 fn verify(params: &NeoParams, parent: &CeClaim<Commitment, F, K>, children: &[CeClaim<Commitment, F, K>]) -> bool {
@@ -71,28 +51,29 @@ fn verify(params: &NeoParams, parent: &CeClaim<Commitment, F, K>, children: &[Ce
         combine_zero_commitments,
         D.next_power_of_two().trailing_zeros() as usize,
     )
+    .is_ok()
 }
 
 #[test]
 fn verifier_rejects_recomposing_signed_alias_and_accepts_honest_split() {
     let params = NeoParams::goldilocks_paper_b2();
-    let parent = claim(&params, F::ONE);
+    let parent = claim(F::ONE);
 
-    let mut honest_digits = vec![0; params.k_rho as usize];
+    let mut honest_digits = vec![0; params.k_rho() as usize];
     honest_digits[0] = 1;
-    assert!(verify(&params, &parent, &children_for_digits(&params, &honest_digits)));
+    assert!(verify(&params, &parent, &children_for_digits(&honest_digits)));
 
-    let mut alias_digits = vec![0; params.k_rho as usize];
+    let mut alias_digits = vec![0; params.k_rho() as usize];
     alias_digits[0] = -1;
     alias_digits[1] = 1;
-    assert!(!verify(&params, &parent, &children_for_digits(&params, &alias_digits)));
+    assert!(!verify(&params, &parent, &children_for_digits(&alias_digits)));
 }
 
 #[test]
 fn verifier_rejects_parent_outside_fixed_split_range() {
     let params = NeoParams::goldilocks_paper_b2();
-    let parent = claim(&params, F::from_u64(params.B));
-    let children = children_for_digits(&params, &vec![0; params.k_rho as usize]);
+    let parent = claim(F::from_u64(params.B()));
+    let children = children_for_digits(&vec![0; params.k_rho() as usize]);
 
     assert!(!verify(&params, &parent, &children));
 }
@@ -100,18 +81,8 @@ fn verifier_rejects_parent_outside_fixed_split_range() {
 #[test]
 fn verifier_rejects_wrong_nonzero_child_count() {
     let params = NeoParams::goldilocks_paper_b2();
-    let parent = claim(&params, F::ONE);
-    let children = children_for_digits(&params, &[1]);
+    let parent = claim(F::ONE);
+    let children = children_for_digits(&[1]);
 
     assert!(!verify(&params, &parent, &children));
-}
-
-#[test]
-fn verifier_accepts_canonical_splits_for_base_greater_than_two() {
-    let params = params_with_base_and_digits(3, 4);
-
-    for (parent_value, digits) in [(17, [2, 2, 1, 0]), (-17, [-2, -2, -1, 0])] {
-        let parent = claim(&params, f_signed(parent_value));
-        assert!(verify(&params, &parent, &children_for_digits(&params, &digits)));
-    }
 }

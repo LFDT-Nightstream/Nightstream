@@ -118,7 +118,7 @@ where
         }
 
         let witness = &Z_split[index];
-        let X = crate::common::project_x_from_witness_mat(witness, s.m, m_in)
+        let X = crate::common::project_x_from_witness_mat(witness, s.m(), m_in)
             .unwrap_or_else(|error| panic!("PiDEC X projection failed: {error}"));
         let mut eval_k = extension_block(&openings[index].eval_k).to_vec();
         eval_k.resize(d_pad, K::ZERO);
@@ -151,7 +151,7 @@ where
     #[cfg(all(target_arch = "wasm32", not(feature = "wasm-threads")))]
     let children: Vec<_> = (0..Z_split.len()).map(build_child).collect();
 
-    let base_f = Ff::from_u64(params.b as u64);
+    let base_f = Ff::from_u64(params.b() as u64);
     let base_k = K::from(base_f);
     let eval_k_ok = {
         let mut sum = vec![K::ZERO; d_pad];
@@ -211,7 +211,7 @@ where
     };
     assert_eq!(
         cache.relation_shape(),
-        Some((s.n, crate::common::superneo_carrier_width(s.m), s.t())),
+        Some((s.n(), crate::common::superneo_carrier_width(s.m()), s.t())),
         "PiDEC opening cache shape mismatch"
     );
     let active: Vec<_> = (0..Z_split.len())
@@ -221,7 +221,7 @@ where
     let blocks: Vec<_> = active
         .par_iter()
         .map(|&index| {
-            crate::superneo_eval::SuperneoZBlocks::from_witness_mat(&Z_split[index], s.m)
+            crate::superneo_eval::SuperneoZBlocks::from_witness_mat(&Z_split[index], s.m())
                 .unwrap_or_else(|error| panic!("PiDEC child block view failed: {error}"))
         })
         .collect();

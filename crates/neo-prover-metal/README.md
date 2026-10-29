@@ -1,19 +1,18 @@
 # neo-prover-metal
 
-Native Metal NIFS acceleration for Apple GPUs. Rust owns transcript order,
-proof assembly, and verification. `MetalSession` owns the device, production
-shader library, and reusable proof plans.
+Metal prover backend for Apple GPUs. `nightstream` uses it through
+`MetalRowProver` when you build `nightstream` with its `metal` feature. See
+[ARCHITECTURE.md](ARCHITECTURE.md) for what the crate owns.
 
-Build the production shader library for an Apple SDK:
+`build.rs` compiles the shaders with `xcrun metal`. This needs Xcode; the
+Command Line Tools do not include the Metal compiler.
 
-```bash
-./scripts/build_metal_shaders.sh --sdk macosx --out dist/metal/macos/nightstream.metallib
-./scripts/build_metal_shaders.sh --sdk iphoneos --out dist/metal/ios/nightstream.metallib
-```
-
-Run the production arithmetic and NIFS parity gates on Apple Silicon macOS:
+Run the tests on Apple Silicon macOS:
 
 ```bash
-timeout 300s cargo test -p neo-prover-metal --release --features metal --test metal_arithmetic -- --nocapture
-timeout 300s cargo test -p neo-prover-metal --release --features metal --test nifs_adapter -- --nocapture
+timeout 300s cargo test -p neo-prover-metal --release --features metal
 ```
+
+`tests/metal_arithmetic.rs` checks the Merkle, DFT, GKR, and key-weight
+kernels against CPU references. The unit tests in `tests/unit/` check the
+joint oracle, the openings, and the commitments.

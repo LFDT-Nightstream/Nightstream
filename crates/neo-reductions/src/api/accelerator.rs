@@ -20,7 +20,6 @@ where
     let total_started = std::time::Instant::now();
     validate_rlc_refs(
         "rlc_with_commit_refs_and_witness_mix",
-        &mode,
         s,
         params,
         rhos,
@@ -62,7 +61,7 @@ where
                 commitment_elapsed.as_secs_f64() * 1_000.0,
                 total_started.elapsed().as_secs_f64() * 1_000.0,
                 witnesses.len(),
-                s.m,
+                s.m(),
             );
             Ok((out, resident))
         }

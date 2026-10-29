@@ -51,7 +51,14 @@ fn encode(digest: [u64; 4]) -> Vec<u64> {
     result
 }
 
-pub fn check_fixture(fixture: &[u8], base: &[u8], input: &[u8], children: &[u8], previous: &[u8], handoff: &[u8]) {
+pub(crate) fn check_fixture(
+    fixture: &[u8],
+    base: &[u8],
+    input: &[u8],
+    children: &[u8],
+    previous: &[u8],
+    handoff: &[u8],
+) {
     let fixture = read(fixture);
     let base = read(base);
     let input = read(input);

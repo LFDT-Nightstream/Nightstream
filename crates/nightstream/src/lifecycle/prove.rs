@@ -1,6 +1,6 @@
 //! Selected native proof construction from the prepared relation.
 use super::PreparedLifecycle;
-use crate::engine::{paper_exact, Backend};
+use crate::engine::paper_exact;
 use crate::folding::{self as nifs, transcript::Transcript, CcsInstance, RunningInstance};
 use neo_math::D;
 use nightstream_fprime::{PackageError, PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS, PI_DEC_V1_2_CHILD_COUNT};
@@ -16,62 +16,18 @@ pub enum ProveError {
     Nifs(#[from] nifs::Error),
 }
 impl PreparedLifecycle {
-    pub fn prove(
+    pub(crate) fn prove(
         &self,
         fresh: CcsInstance,
         running: RunningInstance,
     ) -> Result<(RunningInstance, nifs::NifsProof), ProveError> {
         self.validate_prover_sources(&fresh, &running)?;
-        let params = &self.params;
         let mut transcript = Transcript::session();
         let rows = self.matrix_rows();
-        let workspace_bytes = self.matrix_workspace_bytes()?;
-        Ok(match &self.backend {
-            #[cfg(feature = "metal")]
-            Backend::Metal(device) => {
-                let mut device = device.lock().map_err(|_| crate::EngineError::Failure {
-                    engine: crate::Engine::Metal,
-                    reason: "device session lock was poisoned".into(),
-                })?;
-                crate::engine::metal::prove(
-                    &mut device,
-                    &mut transcript,
-                    params,
-                    &self.structure,
-                    &rows,
-                    workspace_bytes,
-                    fresh,
-                    running,
-                )?
-            }
-            Backend::Optimized => nifs::prove_owned_with_rows(
-                &mut transcript,
-                params,
-                &self.structure,
-                &rows,
-                workspace_bytes,
-                fresh,
-                running,
-            )?,
-            Backend::PaperExact => paper_exact::prove(
-                &mut transcript,
-                params,
-                &self.structure,
-                &paper_exact::PackageRows(&self.package),
-                fresh,
-                running,
-            )?,
-            Backend::Crosscheck => crate::engine::crosscheck::prove(
-                &mut transcript,
-                params,
-                &self.structure,
-                &rows,
-                workspace_bytes,
-                &paper_exact::PackageRows(&self.package),
-                fresh,
-                running,
-            )?,
-        })
+        let context = self.fold_context(&rows)?;
+        let reference = paper_exact::PackageRows(&self.package);
+        self.backend
+            .prove(&mut transcript, context, &reference, fresh, running)
     }
 
     pub(super) fn validate_prover_sources(
@@ -82,7 +38,7 @@ impl PreparedLifecycle {
         if running.claims.len() != PI_DEC_V1_2_CHILD_COUNT || !running.prover_shape_is_valid() {
             return Err(ProveError::Input("source counts do not match the selected profile"));
         }
-        let blocks = self.structure.m.div_ceil(D);
+        let blocks = self.structure.m().div_ceil(D);
         let public = PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS;
         if fresh.claim.m_in != public
             || fresh.claim.x.len() != public

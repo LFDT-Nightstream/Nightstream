@@ -21,6 +21,9 @@
 //! with `neo_spartan::shrink::run_digest` and require the digests that
 //! `terminalCheck` prints, so a change to the wrapper, `load` or `apply` that
 //! changes a row fails without Lean.
+//!
+//! `the_iteration_inverse_is_bound` moves the wrapper's one hint word, which
+//! the shrink prover chooses: `Native` must then fail "positive iteration".
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -30,7 +33,7 @@ use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_math::{D, F};
 use neo_reductions::superneo_eval::{CachedMatrixRows, SuperneoEvalCacheBuilder};
 use neo_spartan::shrink::{run_digest, Program};
-use neo_spartan::{Backend, Error, Key, R1cs, Relation};
+use neo_spartan::{Backend, Error, Key, Native, R1cs, Relation};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::super::finish::CompressionKey;
@@ -372,4 +375,129 @@ fn final_program_matches_lean() {
         "run neo-spartan's production_layer1_matches_lean first"
     );
     terminal_check("final.txt", &out, &[layer1]);
+}
+
+/// The check that rejects `result`, or `None` when it holds.
+fn rejection(result: Result<(), Error>) -> Option<&'static str> {
+    match result {
+        Ok(()) => None,
+        Err(Error::Rejected(what)) => Some(what),
+        Err(error) => panic!("not a rejection: {error:?}"),
+    }
+}
+
+/// `Native` with word 0 of the first hint call moved by one.
+#[derive(Default)]
+struct Moved {
+    done: bool,
+}
+
+impl Backend for Moved {
+    type F = <Native as Backend>::F;
+    type E = <Native as Backend>::E;
+
+    fn constant(&mut self, value: u64) -> Self::F {
+        Native.constant(value)
+    }
+
+    fn private(&mut self, value: u64) -> Self::F {
+        Native.private(value)
+    }
+
+    fn public(&mut self, value: u64) -> Self::F {
+        Native.public(value)
+    }
+
+    fn add(&mut self, a: Self::F, b: Self::F) -> Self::F {
+        Native.add(a, b)
+    }
+
+    fn sub(&mut self, a: Self::F, b: Self::F) -> Self::F {
+        Native.sub(a, b)
+    }
+
+    fn scale(&mut self, a: Self::F, by: u64) -> Self::F {
+        Native.scale(a, by)
+    }
+
+    fn mul(&mut self, a: Self::F, b: Self::F) -> Self::F {
+        Native.mul(a, b)
+    }
+
+    fn ext(&mut self, coordinates: [Self::F; 3]) -> Self::E {
+        Native.ext(coordinates)
+    }
+
+    fn coordinates(&mut self, a: Self::E) -> [Self::F; 3] {
+        Native.coordinates(a)
+    }
+
+    fn ext_constant(&mut self, value: [u64; 3]) -> Self::E {
+        Native.ext_constant(value)
+    }
+
+    fn ext_add(&mut self, a: Self::E, b: Self::E) -> Self::E {
+        Native.ext_add(a, b)
+    }
+
+    fn ext_sub(&mut self, a: Self::E, b: Self::E) -> Self::E {
+        Native.ext_sub(a, b)
+    }
+
+    fn ext_mul(&mut self, a: Self::E, b: Self::E) -> Self::E {
+        Native.ext_mul(a, b)
+    }
+
+    fn ext_scale(&mut self, a: Self::E, by: Self::F) -> Self::E {
+        Native.ext_scale(a, by)
+    }
+
+    fn ext_inverse(&mut self, a: Self::E, what: &'static str) -> Result<Self::E, Error> {
+        Native.ext_inverse(a, what)
+    }
+
+    fn assert_zero(&mut self, a: Self::F, what: &'static str) -> Result<(), Error> {
+        Native.assert_zero(a, what)
+    }
+
+    fn bits(&mut self, a: Self::F, count: usize, what: &'static str) -> Result<Vec<Self::F>, Error> {
+        Native.bits(a, count, what)
+    }
+
+    fn select(&mut self, bit: Self::F, zero: Self::F, one: Self::F) -> Self::F {
+        Native.select(bit, zero, one)
+    }
+
+    fn permute(&mut self, state: [Self::F; WIDTH]) -> [Self::F; WIDTH] {
+        Native.permute(state)
+    }
+
+    fn hint(&mut self, inputs: &[Self::F], len: usize, compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<Self::F> {
+        let mut words = Native.hint(inputs, len, compute);
+        if !self.done {
+            self.done = true;
+            words[0] = Native.add(words[0], Native.constant(1));
+        }
+        words
+    }
+
+    fn r1cs(&mut self, system: &R1cs, columns: &[Self::F], what: &'static str) -> Result<(), Error> {
+        Native.r1cs(system, columns, what)
+    }
+}
+
+/// The iteration's inverse, the one word of the wrapper's first hint call,
+/// is bound by "positive iteration": the honest run gets past that check,
+/// and a moved inverse fails it.
+#[test]
+fn the_iteration_inverse_is_bound() {
+    let key = production_key();
+    let relation = key.relation().unwrap();
+    let state = state();
+    let program = key.program(&relation, package().unwrap(), &state, None);
+    assert_ne!(rejection(program.run(&mut Native)), Some("positive iteration"));
+    assert_eq!(
+        rejection(program.run(&mut Moved::default())),
+        Some("positive iteration")
+    );
 }

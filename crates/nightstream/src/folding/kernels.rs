@@ -27,7 +27,7 @@ fn ell_d() -> usize {
     neo_math::D.next_power_of_two().trailing_zeros() as usize
 }
 
-pub fn verify_pi_ccs(
+pub(crate) fn verify_pi_ccs(
     tr: &mut neo_transcript::Poseidon2Transcript,
     pp: &Params,
     s: &Structure,
@@ -48,7 +48,7 @@ pub fn verify_pi_ccs(
     Ok(ok)
 }
 
-pub fn sample_rho_n(
+pub(crate) fn sample_rho_n(
     tr: &mut neo_transcript::Poseidon2Transcript,
     pp: &Params,
     count: usize,
@@ -56,7 +56,7 @@ pub fn sample_rho_n(
     sample_rot_rhos_n_typed(tr, pp.inner(), &pp.ring(), count).map_err(Into::into)
 }
 
-pub fn prove_pi_rlc_refs(
+pub(crate) fn prove_pi_rlc_refs(
     pp: &Params,
     s: &Structure,
     rhos: &[RotRho],
@@ -78,7 +78,7 @@ pub fn prove_pi_rlc_refs(
 }
 
 #[cfg(feature = "metal")]
-pub fn prove_pi_rlc_refs_resident<MW, R>(
+pub(crate) fn prove_pi_rlc_refs_resident<MW, R>(
     pp: &Params,
     s: &Structure,
     rhos: &[RotRho],
@@ -104,7 +104,7 @@ where
     .map_err(Into::into)
 }
 
-pub fn verify_pi_rlc(
+pub(crate) fn verify_pi_rlc(
     pp: &Params,
     s: &Structure,
     rhos: &[RotRho],
@@ -115,7 +115,13 @@ pub fn verify_pi_rlc(
     nr::rlc_public_matches(s, pp.inner(), rhos, me_inputs, expected, mix_rhos_commits, ell_d()).map_err(Into::into)
 }
 
-pub fn verify_pi_dec<MB>(pp: &Params, s: &Structure, parent: &CeClaim, children: &[CeClaim], combine_b_pows: MB) -> bool
+pub(crate) fn verify_pi_dec<MB>(
+    pp: &Params,
+    s: &Structure,
+    parent: &CeClaim,
+    children: &[CeClaim],
+    combine_b_pows: MB,
+) -> Result<(), neo_reductions::PiCcsError>
 where
     MB: Fn(&[Commitment], u32) -> Commitment,
 {

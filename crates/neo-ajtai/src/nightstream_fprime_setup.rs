@@ -31,7 +31,8 @@ const GOLDILOCKS_MODULUS: u128 = 18_446_744_069_414_584_321;
 
 pub const SETUP_ID: &[u8] = b"nightstream-ajtai-shake128-wide256-v1";
 pub const ELEMENT_INPUT_BYTES: usize = SETUP_ID.len() + 32 + 4 + 8;
-pub const PRODUCTION_VERIFIER_ROWS: u64 = 22;
+/// The commitment rows κ of the selected parameter profile.
+pub const PRODUCTION_VERIFIER_ROWS: u64 = neo_params::nightstream_goldilocks_k16::KAPPA as u64;
 // Lean authority: Poseidon2HashChainV1Setup.messageColumns_eq.
 pub const PRODUCTION_MESSAGE_COLUMNS: u64 = 814_144;
 pub const PRODUCTION_CARRIER_WIDTH: usize = PRODUCTION_MESSAGE_COLUMNS as usize * D;
@@ -291,7 +292,7 @@ pub fn commit_production_signed_unit_prefix_matrices<W: Borrow<Mat<Goldilocks>>>
         })
         .collect::<Result<Vec<_>, _>>()?;
     let mut commitments: Vec<_> = (0..witnesses.len())
-        .map(|_| Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize))
+        .map(|_| Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize))
         .collect();
     if blocks.iter().all(Vec::is_empty) {
         return Ok(commitments);
@@ -346,14 +347,14 @@ fn batch_sums(row: u32, columns: &[u64], blocks: &[&[SignedBlock]]) -> Vec<Signe
 }
 
 fn commit_signed_blocks(blocks: &[SignedBlock]) -> Commitment {
-    let mut commitment = Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize);
+    let mut commitment = Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize);
     let Some(last) = blocks.last() else {
         return commitment;
     };
     let totals = row_totals(last.index + 1, |row, columns| {
         vec![signed_sums(row, column_slice(blocks, &columns))]
     });
-    for (output, totals) in commitment.data.chunks_mut(D).zip(totals) {
+    for (output, totals) in commitment.data_mut().chunks_mut(D).zip(totals) {
         output.copy_from_slice(&totals[0].reduce());
     }
     commitment

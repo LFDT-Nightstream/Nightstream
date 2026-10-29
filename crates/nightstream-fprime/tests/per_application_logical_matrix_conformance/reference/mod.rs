@@ -6,35 +6,35 @@ use std::sync::OnceLock;
 
 use serde_json::Value;
 
-pub mod affine;
+pub(super) mod affine;
 #[allow(dead_code)]
-pub mod assignment;
+pub(super) mod assignment;
 #[allow(dead_code)]
-pub mod evaluation;
-pub mod matrix;
+pub(super) mod evaluation;
+pub(super) mod matrix;
 #[allow(dead_code)]
-pub mod mutation;
-pub mod phi81;
-pub mod poseidon;
-pub mod poseidon_input;
+pub(super) mod mutation;
+pub(super) mod phi81;
+pub(super) mod poseidon;
+pub(super) mod poseidon_input;
 #[allow(dead_code)]
-pub mod relation;
-pub mod source;
+pub(super) mod relation;
+pub(super) mod source;
 
-pub const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
-pub const MATRIX_COUNT: usize = 4;
+pub(super) const GOLDILOCKS_MODULUS: u64 = 0xffff_ffff_0000_0001;
+pub(super) const MATRIX_COUNT: usize = 4;
 
-pub type Result<T> = std::result::Result<T, String>;
-pub type RowForms = [Form; MATRIX_COUNT];
+pub(super) type Result<T> = std::result::Result<T, String>;
+pub(super) type RowForms = [Form; MATRIX_COUNT];
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Field(u64);
+pub(super) struct Field(u64);
 
 impl Field {
-    pub const ZERO: Self = Self(0);
-    pub const ONE: Self = Self(1);
+    pub(super) const ZERO: Self = Self(0);
+    pub(super) const ONE: Self = Self(1);
 
-    pub fn checked(value: u64, label: &str) -> Result<Self> {
+    pub(super) fn checked(value: u64, label: &str) -> Result<Self> {
         if value < GOLDILOCKS_MODULUS {
             Ok(Self(value))
         } else {
@@ -42,7 +42,7 @@ impl Field {
         }
     }
 
-    pub fn canonical(self) -> u64 {
+    pub(super) fn canonical(self) -> u64 {
         self.0
     }
 }
@@ -88,13 +88,13 @@ impl std::ops::Neg for Field {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Entry {
+pub(super) struct Entry {
     pub column: usize,
     pub coefficient: Field,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub enum Form {
+pub(super) enum Form {
     #[default]
     Empty,
     One(Entry),
@@ -110,7 +110,7 @@ impl Form {
         }
     }
 
-    pub fn from_entries(mut entries: Vec<Entry>) -> Self {
+    pub(super) fn from_entries(mut entries: Vec<Entry>) -> Self {
         entries.sort_unstable_by_key(|entry| entry.column);
         let mut canonical: Vec<Entry> = Vec::with_capacity(entries.len());
         for entry in entries {
@@ -130,7 +130,7 @@ impl Form {
         Self::from_canonical_entries(canonical)
     }
 
-    pub fn singleton(column: usize, coefficient: Field) -> Self {
+    pub(super) fn singleton(column: usize, coefficient: Field) -> Self {
         if coefficient == Field::ZERO {
             Self::default()
         } else {
@@ -138,7 +138,7 @@ impl Form {
         }
     }
 
-    pub fn entries(&self) -> &[Entry] {
+    pub(super) fn entries(&self) -> &[Entry] {
         match self {
             Self::Empty => &[],
             Self::One(entry) => std::slice::from_ref(entry),
@@ -146,7 +146,7 @@ impl Form {
         }
     }
 
-    pub fn append(self, other: Self) -> Self {
+    pub(super) fn append(self, other: Self) -> Self {
         let (left, right) = match (self, other) {
             (Self::Empty, other) => return other,
             (form, Self::Empty) => return form,
@@ -208,7 +208,7 @@ impl Form {
         Self::from_canonical_entries(entries)
     }
 
-    pub fn scaled(mut self, scalar: Field) -> Self {
+    pub(super) fn scaled(mut self, scalar: Field) -> Self {
         if scalar == Field::ZERO {
             return Self::default();
         }
@@ -232,7 +232,7 @@ impl Form {
         self
     }
 
-    pub fn validate(&self, logical_width: usize) -> Result<()> {
+    pub(super) fn validate(&self, logical_width: usize) -> Result<()> {
         let mut previous = None;
         for entry in self.entries() {
             if entry.column >= logical_width
@@ -255,18 +255,18 @@ impl Form {
     }
 }
 
-pub fn empty_row() -> RowForms {
+pub(super) fn empty_row() -> RowForms {
     std::array::from_fn(|_| Form::default())
 }
 
-pub fn array<'a>(value: &'a Value, label: &str) -> Result<&'a [Value]> {
+pub(super) fn array<'a>(value: &'a Value, label: &str) -> Result<&'a [Value]> {
     value
         .as_array()
         .map(Vec::as_slice)
         .ok_or_else(|| format!("{label} is not an array"))
 }
 
-pub fn exact_array<'a>(value: &'a Value, length: usize, label: &str) -> Result<&'a [Value]> {
+pub(super) fn exact_array<'a>(value: &'a Value, length: usize, label: &str) -> Result<&'a [Value]> {
     let fields = array(value, label)?;
     if fields.len() != length {
         return Err(format!("{label} has length {}, expected {length}", fields.len()));
@@ -274,14 +274,14 @@ pub fn exact_array<'a>(value: &'a Value, length: usize, label: &str) -> Result<&
     Ok(fields)
 }
 
-pub fn word(value: &Value, label: &str) -> Result<usize> {
+pub(super) fn word(value: &Value, label: &str) -> Result<usize> {
     let raw = value
         .as_u64()
         .ok_or_else(|| format!("{label} is not a u64"))?;
     usize::try_from(raw).map_err(|_| format!("{label} exceeds usize"))
 }
 
-pub fn field(value: &Value, label: &str) -> Result<Field> {
+pub(super) fn field(value: &Value, label: &str) -> Result<Field> {
     Field::checked(
         value
             .as_u64()
@@ -290,21 +290,25 @@ pub fn field(value: &Value, label: &str) -> Result<Field> {
     )
 }
 
-pub fn decode_list<T>(value: &Value, mut decode: impl FnMut(&Value) -> Result<T>, label: &str) -> Result<Vec<T>> {
+pub(super) fn decode_list<T>(
+    value: &Value,
+    mut decode: impl FnMut(&Value) -> Result<T>,
+    label: &str,
+) -> Result<Vec<T>> {
     array(value, label)?.iter().map(&mut decode).collect()
 }
 
-pub fn checked_add(left: usize, right: usize, label: &str) -> Result<usize> {
+pub(super) fn checked_add(left: usize, right: usize, label: &str) -> Result<usize> {
     left.checked_add(right)
         .ok_or_else(|| format!("{label} overflow"))
 }
 
-pub fn checked_mul(left: usize, right: usize, label: &str) -> Result<usize> {
+pub(super) fn checked_mul(left: usize, right: usize, label: &str) -> Result<usize> {
     left.checked_mul(right)
         .ok_or_else(|| format!("{label} overflow"))
 }
 
-pub fn decode_form(value: &Value, logical_width: usize) -> Result<Form> {
+pub(super) fn decode_form(value: &Value, logical_width: usize) -> Result<Form> {
     let entries = array(value, "matrix sparse form")?
         .iter()
         .map(|entry| {
@@ -323,7 +327,7 @@ pub fn decode_form(value: &Value, logical_width: usize) -> Result<Form> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RetainedKind {
+pub(super) enum RetainedKind {
     Bit,
     Centered,
     Field,
@@ -339,14 +343,14 @@ impl RetainedKind {
 }
 
 #[derive(Clone, Debug)]
-pub struct RetainedBlock {
+pub(super) struct RetainedBlock {
     pub kind: RetainedKind,
     pub slot_count: usize,
     start: usize,
 }
 
 impl RetainedBlock {
-    pub fn decode(value: &Value) -> Result<Self> {
+    pub(super) fn decode(value: &Value) -> Result<Self> {
         let fields = exact_array(value, 3, "retained block")?;
         let kind = match word(&fields[0], "retained kind")? {
             0 => RetainedKind::Bit,
@@ -361,7 +365,7 @@ impl RetainedBlock {
         })
     }
 
-    pub fn fits(&self, logical_width: usize) -> Result<bool> {
+    pub(super) fn fits(&self, logical_width: usize) -> Result<bool> {
         Ok(checked_add(
             self.start,
             checked_mul(self.slot_count, self.kind.width(), "retained coordinate count")?,
@@ -369,14 +373,14 @@ impl RetainedBlock {
         )? <= logical_width)
     }
 
-    pub fn validate(&self, logical_width: usize) -> Result<()> {
+    pub(super) fn validate(&self, logical_width: usize) -> Result<()> {
         if !self.fits(logical_width)? {
             return Err("retained block exceeds the logical column range".into());
         }
         Ok(())
     }
 
-    pub fn form(&self, logical_width: usize, slot: usize) -> Result<Form> {
+    pub(super) fn form(&self, logical_width: usize, slot: usize) -> Result<Form> {
         if slot >= self.slot_count || !self.fits(logical_width)? {
             return Err("retained slot is out of range".into());
         }
@@ -396,7 +400,7 @@ impl RetainedBlock {
         Ok(Form::from_canonical_entries(entries))
     }
 
-    pub fn external_form(&self, logical_width: usize, slot_base: usize, lane: usize) -> Result<Form> {
+    pub(super) fn external_form(&self, logical_width: usize, slot_base: usize, lane: usize) -> Result<Form> {
         if lane >= 16 {
             return Err("retained external lane is out of range".into());
         }
@@ -420,7 +424,7 @@ fn radix_weights() -> &'static [Field; 41] {
     })
 }
 
-pub fn external_layer(state: &[Form]) -> Result<Vec<Form>> {
+pub(super) fn external_layer(state: &[Form]) -> Result<Vec<Form>> {
     if state.len() != 16 {
         return Err("external layer requires sixteen forms".into());
     }

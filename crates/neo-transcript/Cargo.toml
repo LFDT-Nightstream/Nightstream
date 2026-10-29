@@ -1,17 +1,11 @@
 [package]
 name = "neo-transcript"
-version = "0.1.0"
-edition = "2021"
-license = "Apache-2.0"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
 
 [lints]
 workspace = true
-
-[features]
-default = ["std"]
-std = []
-debug-log = []
-fs-guard = ["debug-log"]
 
 [dependencies]
 p3-field = { workspace = true }
@@ -19,9 +13,3 @@ p3-goldilocks = { workspace = true }
 p3-symmetric = { workspace = true }
 neo-math = { path = "../neo-math" }
 neo-ccs = { path = "../neo-ccs" }
-rand = { workspace = true }
-rand_chacha = { workspace = true }
-serde = { workspace = true, optional = true, features = ["derive"] }
-
-[dev-dependencies]
-rand_chacha = { workspace = true }

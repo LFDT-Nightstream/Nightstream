@@ -14,9 +14,6 @@ pub enum PiCcsError {
     #[error("Extension policy failed: {0}")]
     ExtensionPolicyFailed(String),
 
-    #[error("Transcript error: {0}")]
-    TranscriptError(String),
-
     #[error("prover backend `{backend}` failed: {reason}")]
     BackendFailure {
         backend: &'static str,

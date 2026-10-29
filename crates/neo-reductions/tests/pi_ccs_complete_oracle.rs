@@ -2,18 +2,15 @@
 
 #![cfg(feature = "paper-exact")]
 
-use std::sync::Arc;
-
-use neo_ajtai::{setup, AjtaiSModule, Commitment};
-use neo_ccs::{traits::SModuleHomomorphism, CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term};
+use neo_ajtai::{commit_row_major, setup, Commitment};
+use neo_ccs::{CcsClaim, CcsStructure, CcsWitness, CeClaim, Mat, SparsePoly, Term};
 use neo_math::{D, F, K};
 use neo_params::NeoParams;
 use neo_reductions::{
     engines::{pi_ccs_joint::build_joint_dims, pi_ccs_joint_protocol::V1_2OutputOpening},
     optimized_engine::{
-        canonical_audit::OptimizedPaperJointOracle, optimized_prove_with_cache_and_perf,
-        optimized_prove_with_complete_oracle, optimized_verify_with_trace, Challenges, OptimizedStructureCache,
-        PaperJointRoundOracle,
+        canonical_audit::OptimizedPaperJointOracle, optimized_prove_with_cache, optimized_prove_with_complete_oracle,
+        optimized_verify_with_trace, Challenges, OptimizedStructureCache, PaperJointRoundOracle,
     },
     superneo_eval::{CachedMatrixRows, MatrixRows, MatrixWindow},
     PiCcsError,
@@ -64,9 +61,7 @@ impl Case {
         .unwrap();
         let params = NeoParams::goldilocks_auto_rectangular_r1cs_ccs(columns, columns).unwrap();
         let mut rng = ChaCha8Rng::seed_from_u64(0x636f6d706c657465);
-        let commitment = AjtaiSModule::new(Arc::new(
-            setup(&mut rng, D, params.kappa as usize, columns.div_ceil(D)).unwrap(),
-        ));
+        let commitment = setup(&mut rng, D, params.kappa() as usize, columns.div_ceil(D)).unwrap();
         let mut assignment = Mat::zero(D, columns.div_ceil(D), F::ZERO);
         for column in 0..columns {
             assignment[(column % D, column / D)] = match column % 3 {
@@ -76,7 +71,7 @@ impl Case {
             };
         }
         let fresh = vec![CcsClaim {
-            c: commitment.commit(&assignment),
+            c: commit_row_major(&commitment, &assignment),
             x: (0..D).map(|column| assignment[(column, 0)]).collect(),
             m_in: D,
             adv: None,
@@ -84,7 +79,7 @@ impl Case {
         let witnesses = vec![CcsWitness { Z: assignment }];
         let dims = build_joint_dims(&params, &structure, 1, 1).unwrap();
         let running = vec![Output {
-            c: Commitment::zeros(D, params.kappa as usize),
+            c: Commitment::zeros(params.kappa() as usize),
             X: Mat::zero(D, 1, F::ZERO),
             r: vec![K::ZERO; dims.variables],
             eval_k: vec![K::ZERO; D.next_power_of_two()],
@@ -113,7 +108,7 @@ impl Case {
         neo_reductions::PiCcsProof,
         neo_reductions::engines::pi_ccs_joint::ProtocolTrace,
     ) {
-        let (outputs, proof, _) = optimized_prove_with_cache_and_perf(
+        let (outputs, proof) = optimized_prove_with_cache(
             &mut transcript(),
             &self.params,
             &self.structure,
@@ -147,7 +142,7 @@ impl Case {
     ) -> Complete<'a> {
         let dims = build_joint_dims(&self.params, &self.structure, 1, 1).unwrap();
         let payload = self.witnesses.len() * self.structure.t() * size_of::<K>() + size_of::<F>() + size_of::<K>();
-        let workspace_bytes = MatrixWindow::required_workspace(source, 0..self.structure.n, payload).unwrap()
+        let workspace_bytes = MatrixWindow::required_workspace(source, 0..self.structure.n(), payload).unwrap()
             + (dims.degree + 1 + self.structure.t()) * size_of::<K>();
         Complete {
             inner: OptimizedPaperJointOracle::new(
@@ -215,7 +210,7 @@ fn complete_oracle_matches_cached_optimized_prover() {
     let (expected, expected_proof, expected_trace) = case.reference();
     let challenges = Challenges::new(expected_trace.alpha.clone(), expected_trace.gamma);
     let mut oracle = case.oracle(&source, &challenges, expected_trace.round_challenges.clone(), &expected);
-    let (outputs, proof, _, trace) = optimized_prove_with_complete_oracle(
+    let (outputs, proof, trace) = optimized_prove_with_complete_oracle(
         &mut transcript(),
         &case.params,
         &case.structure,
@@ -308,8 +303,8 @@ fn complete_oracle_rejects_missing_or_incomplete_openings() {
 #[test]
 fn cached_optimized_prover_keeps_its_matrix_binding_check() {
     let case = Case::new();
-    let changed = CcsStructure::new(vec![Mat::zero(D / 2, D + 1, F::ONE); 2], case.structure.f.clone()).unwrap();
-    let error = optimized_prove_with_cache_and_perf(
+    let changed = CcsStructure::new(vec![Mat::zero(D / 2, D + 1, F::ONE); 2], case.structure.f().clone()).unwrap();
+    let error = optimized_prove_with_cache(
         &mut transcript(),
         &case.params,
         &changed,

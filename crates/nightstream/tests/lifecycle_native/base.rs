@@ -52,7 +52,7 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
     assert_eq!(running.claims.len(), 16);
     assert_eq!(running.witnesses.len(), 16);
     for (claim, witness) in running.claims.iter().zip(&running.witnesses) {
-        assert!(claim.c.data.iter().all(|value| *value == F::ZERO));
+        assert!(claim.c.data().iter().all(|value| *value == F::ZERO));
         assert!((0..claim.X.cols()).all(|column| (0..D).all(|lane| claim.X[(lane, column)] == F::ZERO)));
         assert!(claim.r.iter().all(|value| *value == K::ZERO));
         assert!(claim.eval_k.iter().all(|value| *value == K::ZERO));
@@ -64,7 +64,7 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
     let physical = loaded.execute_witness(&private, &public).unwrap();
     let logical = loaded.execute_logical_assignment(&physical).unwrap();
     drop(physical);
-    assert_eq!(logical.len(), package.structure().m);
+    assert_eq!(logical.len(), package.structure().m());
     for (column, &value) in logical.balanced_values().iter().enumerate() {
         let expected = match value {
             -1 => -F::ONE,
@@ -80,7 +80,7 @@ fn base_extension_matches_full_lean_assignment_and_terminal() {
     }
     neo_reductions::common::validate_fresh_witness_tail_zero(
         &fresh.witness.Z,
-        package.structure().m,
+        package.structure().m(),
         "public base extension",
     )
     .unwrap();

@@ -171,18 +171,18 @@ impl Rule {
 }
 
 #[derive(Clone, Debug)]
-pub struct Program {
+pub(crate) struct Program {
     rules: Vec<Rule>,
 }
 
 impl Program {
-    pub fn decode(value: &Value, logical_width: usize) -> Result<Self> {
+    pub(crate) fn decode(value: &Value, logical_width: usize) -> Result<Self> {
         Ok(Self {
             rules: decode_list(value, |rule| Rule::decode(rule, logical_width), "Poseidon2 input rules")?,
         })
     }
 
-    pub fn state(&self, logical_width: usize, one_column: usize, invocation: usize) -> Result<[Form; 16]> {
+    pub(crate) fn state(&self, logical_width: usize, one_column: usize, invocation: usize) -> Result<[Form; 16]> {
         let mut state: [Form; 16] = std::array::from_fn(|_| Form::default());
         for lane in 0..16 {
             let mut form = Form::default();

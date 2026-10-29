@@ -35,7 +35,7 @@ fn test_goldilocks_ring_expansion_factor() {
 
     let params = NeoParams::goldilocks_paper_b2();
     assert_eq!(
-        params.T,
+        params.T(),
         goldilocks_paper_b2::T,
         "Goldilocks preset T should match Section 8.2"
     );
@@ -47,11 +47,11 @@ fn test_sample_rot_rhos_succeeds_with_valid_params() {
     let ring = RotRing::goldilocks();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
-    let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1);
+    let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho() as usize) + 1);
 
     assert!(result.is_ok(), "Sampling should succeed with valid params");
     let rhos = result.unwrap();
-    let expected_count = (params.k_rho as usize) + 1;
+    let expected_count = (params.k_rho() as usize) + 1;
     assert_eq!(
         rhos.len(),
         expected_count,
@@ -101,7 +101,7 @@ fn test_rot_rhos_are_different() {
     let ring = RotRing::goldilocks();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
-    let rhos = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1).unwrap();
+    let rhos = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho() as usize) + 1).unwrap();
     let count = rhos.len();
 
     for i in 0..count {
@@ -118,10 +118,10 @@ fn test_rot_rhos_deterministic() {
     let ring = RotRing::goldilocks();
 
     let mut tr1 = Poseidon2Transcript::new_v1_2();
-    let rhos1 = sample_rot_rhos_n(&mut tr1, &params, &ring, (params.k_rho as usize) + 1).unwrap();
+    let rhos1 = sample_rot_rhos_n(&mut tr1, &params, &ring, (params.k_rho() as usize) + 1).unwrap();
 
     let mut tr2 = Poseidon2Transcript::new_v1_2();
-    let rhos2 = sample_rot_rhos_n(&mut tr2, &params, &ring, (params.k_rho as usize) + 1).unwrap();
+    let rhos2 = sample_rot_rhos_n(&mut tr2, &params, &ring, (params.k_rho() as usize) + 1).unwrap();
 
     let count = rhos1.len();
     for i in 0..count {
@@ -146,7 +146,7 @@ fn test_rlc_bound_violation_detected() {
     let ring = RotRing::goldilocks();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
-    let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1);
+    let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho() as usize) + 1);
     assert!(
         result.is_ok(),
         "Section 8.2 Goldilocks params should satisfy the ΠRLC bound"
@@ -172,7 +172,7 @@ fn test_strong_sampling_set_check() {
     let ring = TestRing::bad_alphabet();
     let mut tr = Poseidon2Transcript::new_v1_2();
 
-    let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho as usize) + 1);
+    let result = sample_rot_rhos_n(&mut tr, &params, &ring, (params.k_rho() as usize) + 1);
     assert!(result.is_err(), "Should reject alphabet with Δ_A >= b_inv");
 
     if let Err(PiCcsError::InvalidInput(msg)) = result {
@@ -200,7 +200,8 @@ fn test_parameter_t_consistency() {
     let T_computed = 2 * (D as u64) * c_max;
 
     assert_eq!(
-        params.T as u64, T_computed,
+        params.T() as u64,
+        T_computed,
         "NeoParams.T should match computed expansion factor"
     );
 }

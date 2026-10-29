@@ -9,7 +9,6 @@ pub mod poly;
 pub mod r1cs;
 pub mod relations;
 pub mod sparse;
-pub mod traits;
 pub mod utils;
 
 pub use error::{CcsError, DimMismatch, RelationError};
@@ -23,5 +22,4 @@ pub use relations::{
     check_ccs_rowwise_relaxed, check_ccs_rowwise_zero, superneo_public_x_cols, CcsClaim, CcsStructure, CcsWitness,
     CeClaim, CeWitness, LaneCommitments, V1_2Evaluations,
 };
-pub use traits::SModuleHomomorphism;
 pub use utils::{mat_vec_mul_ff, mat_vec_mul_fk, tensor_point, validate_power_of_two};

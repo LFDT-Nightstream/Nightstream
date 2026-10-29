@@ -2,8 +2,10 @@
 //! trace row is one Nebula step: its private words are the row's witness `z`,
 //! its state is the continuity words (one per link, `_AFTER` of a row equal to
 //! `_BEFORE` of the next), and `nightstream::nebula::CatalogBinding` checks
-//! every memory of the catalog. The regions and the slot plan come from what
-//! the two test programs need, so one circuit serves both programs.
+//! every memory of the catalog. The regions come from what the two test
+//! programs need, so one circuit serves both programs. The slot plan is
+//! `plan_ordered_wasm_memory_slots`, which keeps catalog order on every row
+//! that the relation accepts.
 
 mod common;
 
@@ -15,8 +17,8 @@ use neo_wasm::batch::{build_batched_wasm_ccs, build_batched_witness};
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::memory_semantics::preload_host_event_tables;
 use neo_wasm::{
-    build_wasm_relation_layout, continuity_words, plan_wasm_memory_slots, preload_from_program_artifacts,
-    top_level_initial_state, WasmMemoryId, WasmMemoryPreload,
+    build_wasm_relation_layout, continuity_words, plan_ordered_wasm_memory_slots, plan_wasm_memory_slots,
+    preload_from_program_artifacts, top_level_initial_state, WasmMemoryId, WasmMemoryPreload,
 };
 use nightstream::nebula::{
     Application, CatalogBinding, CatalogRowError, Context, Expr, Geometry, Memory, MemoryCatalog, MemoryKind,
@@ -215,29 +217,6 @@ fn traced(wat: &str) -> Traced {
     }
 }
 
-/// The fewest slots that keep every row of `rows` complete (spec §10.1 I1,
-/// I2): each port goes to the slot after the last slot of an earlier port
-/// that is active with it in some row. Then two active ports never share a
-/// slot, and the active slots keep catalog order.
-fn row_plan(activations: &[MemoryPortActivation], rows: &[Vec<F>]) -> Vec<Vec<usize>> {
-    let mut slot_of = vec![0; activations.len()];
-    for port in 0..activations.len() {
-        slot_of[port] = (0..port)
-            .filter(|earlier| {
-                rows.iter()
-                    .any(|z| active(z, activations[*earlier]) && active(z, activations[port]))
-            })
-            .map(|earlier| slot_of[earlier] + 1)
-            .max()
-            .unwrap_or(0);
-    }
-    let mut slots = vec![Vec::new(); slot_of.iter().max().map_or(0, |last| last + 1)];
-    for (port, slot) in slot_of.into_iter().enumerate() {
-        slots[slot].push(port);
-    }
-    slots
-}
-
 /// One region per memory. Each part's width holds the largest part of that
 /// memory in the preloads and in the active ports of the rows. In each
 /// namespace the regions go from the largest to the smallest, so each base is
@@ -319,7 +298,10 @@ fn setup() -> Setup {
     let (regions, log2) = regions(
         catalog,
         &[&programs[0].preload, &programs[1].preload],
-        &all_rows(&programs),
+        &programs
+            .iter()
+            .flat_map(|traced| traced.rows.clone())
+            .collect::<Vec<_>>(),
     );
     Setup {
         activations: catalog
@@ -331,13 +313,6 @@ fn setup() -> Setup {
         log2,
         programs,
     }
-}
-
-fn all_rows(programs: &[Traced]) -> Vec<Vec<F>> {
-    programs
-        .iter()
-        .flat_map(|traced| traced.rows.clone())
-        .collect()
 }
 
 impl Setup {
@@ -363,9 +338,9 @@ impl Setup {
         (app, geometry)
     }
 
-    /// The application of the cheapest plan that is complete for both programs.
+    /// The application of the static plan that keeps catalog order.
     fn complete(&self) -> (Wasm, Geometry) {
-        self.app(&row_plan(&self.activations, &all_rows(&self.programs)))
+        self.app(&plan_ordered_wasm_memory_slots(build_wasm_relation_layout().auxiliary.memory.entries()).slots)
     }
 
     fn run(&self, app: &Wasm, traced: &Traced) -> (Program, Run<Wasm>) {

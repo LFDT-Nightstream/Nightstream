@@ -17,6 +17,6 @@
 | Matrix / Eval_A | Evaluation of a matrix applied to the witness | Separate check for each of 14 slots |
 | Terminal verification | Check the fresh relation and running openings against the expected final state | `nightstream/src/lifecycle/verify.rs` |
 
-The [protocol pages](protocol/index.md) explain the paper construction. The
+[SPEC.md](../SPEC.md) describes the protocol that Nightstream runs. The
 [security model](../formal/nightstream-fprime/SECURITY_MODEL.md) states
 what the implementation proofs establish.

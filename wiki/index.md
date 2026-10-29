@@ -19,10 +19,9 @@ Fiat–Shamir security argument are separate from component conformance.
 |---|---|
 | [Getting started](getting-started.md) | Build and code orientation |
 | [Glossary](glossary.md) | Paper symbols and code names |
-| [Protocol](protocol/index.md) | SuperNeo, HyperNova, parameters, transcripts |
+| [Specification](../SPEC.md) | The protocol: parameters, encodings, transcript, algorithms |
 | [Architecture](architecture/index.md) | Crate and module ownership |
 | [Frontends](architecture/frontends.md) | Application programs and package binding |
-| [Decider](architecture/decider.md) | Fresh relation and running openings |
 | [Crates](crates/index.md) | Per-crate reference |
 | [Testing](development/testing.md) | Test rules and active checks |
 | [Formal](formal/index.md) | Lean projects and evidence boundaries |

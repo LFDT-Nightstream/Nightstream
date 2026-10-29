@@ -258,7 +258,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
     /// The binding rows over `view` and the expression of each catalog
     /// column (`columns[c]` for column `c`). Each row is zero on an honest
     /// step and is one rank-one constraint, and the rows add no witness word.
-    /// For each operation slot, when the step's rows hold:
+    /// When the step's rows hold (spec §10.1 rules I1 to I4):
     ///
     /// - I1: the slot is active exactly when one of its ports is active, and
     ///   then it shows that port: its namespace, mode, address, and values;

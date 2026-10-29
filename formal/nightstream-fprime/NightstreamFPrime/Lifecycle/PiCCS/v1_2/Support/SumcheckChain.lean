@@ -1,11 +1,6 @@
 import NightstreamFPrime.Gadgets.Polynomial.HornerSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain
 
-/-!
-Owns variable-support propagation for the fixed PiCCS SumCheck chain.
-Its rows read the supported input wires and the chain's own stored interval.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain
 
 open NightstreamFPrime.Circuit

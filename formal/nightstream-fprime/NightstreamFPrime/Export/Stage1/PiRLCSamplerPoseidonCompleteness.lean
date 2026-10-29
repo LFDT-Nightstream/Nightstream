@@ -3,12 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerDirectSemantics
 import NightstreamFPrime.Export.Stage1.PiCCSEndpointCompleteness
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompleteness
 
-/-!
-Owns the direct sampler permutation plan from actual cumulative physical rows.
-Entry inputs use the preceding physical sampler output, with the first entry
-using the actual C endpoint. Each advance uses its scalar entry output.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonCompleteness
@@ -123,13 +117,13 @@ private theorem output_state
      else PiRLCStarts.advanceLogicalStart source.val)
     (1080 + lane.val) (sourceStart_local source.val step.val)
   by_cases first : step.val = 0
-  · simp only [PermutationPlan.samplerSourceWitnessStartAt, first, if_pos,
+  · simp only [PermutationPlan.samplerSourceWitnessStartAt, first, ite_eq_left,
       PiRLCSamplerInvocations.sourceLogicalStart] at mapped ⊢
     change _ = RunningTransitionDirectPlan.packageEnv application base
       (Spartan.sourceToSpartan (PiRLCStarts.samplerSourceLogicalStart source.val + 1080 + lane.val))
     apply congrArg (RunningTransitionDirectPlan.packageEnv application base)
     simpa only [Nat.add_assoc] using mapped.symm
-  · simp only [PermutationPlan.samplerSourceWitnessStartAt, first, if_false] at mapped ⊢
+  · simp only [PermutationPlan.samplerSourceWitnessStartAt, first, ite_false] at mapped ⊢
     change _ = RunningTransitionDirectPlan.packageEnv application base
       (Spartan.sourceToSpartan
         (PiRLCStarts.advanceLogicalStart source.val + 1080 + lane.val))
@@ -225,7 +219,7 @@ private theorem previous_entry (source : Fin PiRLCSamplerPoseidonPlan.sourceCoun
         ⟨previous, by omega⟩ ⟨1, by decide⟩
       simpa only [PiRLCSamplerProjection.fastChainedEntryStateFrom,
         PiRLCStarts.advanceLogicalStart, PiRLCStarts.samplerSourceLogicalStart,
-        Nat.one_ne_zero, if_false] using! output
+        Nat.one_ne_zero, ite_false] using! output
 
 omit geometry assignment groupValue encoding initial in
 private theorem entry_rows (source : Fin PiRLCSamplerPoseidonPlan.sourceCount) :
@@ -251,7 +245,7 @@ private theorem entry_inputValue (source : Fin PiRLCSamplerPoseidonPlan.sourceCo
       fun lane => PiRLCSamplerPoseidonPreservation.previousValue geometry assignment current lane +
         PiRLCSamplerPoseidonPlan.entryWord source lane := by
     simp only [current, PiRLCSamplerPoseidonPreservation.canonicalInput,
-      PiRLCSamplerPoseidonPlan.descriptor_invocation, if_pos]
+      PiRLCSamplerPoseidonPlan.descriptor_invocation, ite_eq_left]
   have added := congrArg
     (fun value : Layer.FState => fun lane => value lane + PiRLCSamplerPoseidonPlan.entryWord source lane)
     previous
@@ -308,7 +302,7 @@ private theorem entry_sboxes
           (PiRLCSamplerCompleteness.entryPermutationState source.val)
       _ = PermutationPlan.samplerSourceWitnessStartAt source.val ⟨0, by decide⟩ := by
         simp only [PermutationPlan.samplerSourceWitnessStartAt, PiRLCSamplerInvocations.sourceLogicalStart,
-          if_pos]
+          ite_eq_left]
       _ = (PiRLCSamplerPoseidonValues.physicalInvocation
           (PiRLCSamplerPoseidonPlan.invocation source ⟨0, by decide⟩)).witnessStart :=
         (sourceWitnessStart source ⟨0, by decide⟩).symm
@@ -350,7 +344,7 @@ private theorem advance_sboxes
   apply sboxes_of_invocation geometry assignment base groupValue encoding
     one (PiRLCSamplerPoseidonPlan.invocation source ⟨1, by decide⟩) actual _ _ rows
   · rw [sourceWitnessStart]
-    simp only [PermutationPlan.samplerSourceWitnessStartAt, Nat.one_ne_zero, if_false,
+    simp only [PermutationPlan.samplerSourceWitnessStartAt, Nat.one_ne_zero, ite_false,
       actual, Invocations.invocation_witnessStart]
   · rw [invocation_input _ _ _ _ (PiRLCSamplerInvocations.advanceState_affine source.val) env]
     change SparseLayer.evalState assignment
@@ -359,7 +353,7 @@ private theorem advance_sboxes
     rw [PiRLCSamplerPoseidonPreservation.inputState_eval geometry assignment one]
     unfold PiRLCSamplerPoseidonPreservation.canonicalInput
     rw [PiRLCSamplerPoseidonPlan.descriptor_invocation]
-    simp only [Nat.one_ne_zero, if_false]
+    simp only [Nat.one_ne_zero, ite_false]
     exact previous_advance geometry assignment base groupValue encoding packets source
 
 end Inputs

@@ -1,11 +1,7 @@
 import NightstreamFPrime.Spec.SumCheck.GoldilocksRoots
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedCoefficientPolynomial
 import Mathlib.Algebra.Order.BigOperators.Expect
-import Mathlib.Data.Real.Basic
-
-/-!
-Root count for the actual signed gamma coefficient list over K.
--/
+import Mathlib.Basic.Real.Basic
 
 set_option autoImplicit false
 

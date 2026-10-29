@@ -3,23 +3,7 @@ import CompressionLean.Final.Parent
 import CompressionLean.Production
 import CompressionLean.Spec.Parent
 
-/-!
-Owns what Rust's setup build (`Ports/Setup.lean`) gives, and the sizes that
-Rust passes for the PiRLC parent. From them it proves the premises of
-`parent_holds`.
-
-- `ReadsBack`: the setup's runs are the pushed runs in some order, each with
-  its row, matrix and coefficient, and its slot gives its start, length and
-  ratio. `readsBack_of_build` proves it of `build`. The Rust test
-  `derived_structure_steps_read_back_the_runs` checks it of `from_rows`.
-- `build_honest`: `HonestSetup` for the key of the seeded Ajtai setup
-  (`AjtaiSetupV1.Setup.verifierKey`), when the pushed runs give F′'s matrices
-  (`RunsGive`, `Spec/Parent.lean`).
-- `parentShape_of`: `ParentShape` from Rust's constants.
-
-Does not own the source of the runs (`PackageRows` over F′'s package) or the
-parity of Rust's SHAKE128 expander with `AjtaiSetupV1`.
--/
+/-! Rust test `derived_structure_steps_read_back_the_runs` checks `ReadsBack` of `from_rows`. -/
 
 namespace CompressionLean.Final
 
@@ -28,12 +12,8 @@ open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open CompressionLean.Setup
 
-/-! ## The pushed runs -/
-
 variable {lw : ℕ} {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
 
-/-- Run `k` of the setup is `runs[k]`: its row, matrix and coefficient, and a
-slot with its start, its length and, past one column, its ratio. -/
 structure Lists (S : Layer1.Setup Gl) (runs : List Push) : Prop where
   count : S.runs = runs.length
   run : ∀ k, k < runs.length →
@@ -43,11 +23,8 @@ structure Lists (S : Layer1.Setup Gl) (runs : List Push) : Prop where
       S.slotLength (S.runSlot k) = (runs.getD k Push.pad).len ∧
       ((runs.getD k Push.pad).len = 1 ∨ S.slotRatio (S.runSlot k) = (runs.getD k Push.pad).ratio)
 
-/-- The setup's runs are the pushed runs in some order. -/
 def ReadsBack (S : Layer1.Setup Gl) (pushes : List Push) : Prop :=
   ∃ runs, runs.Perm pushes ∧ Lists S runs
-
-/-! ## Entries from the runs -/
 
 theorem sum_range_getD {M : Type} [AddCommMonoid M] (g : Push → M) :
     ∀ l : List Push, ∑ k ∈ Finset.range l.length, g (l.getD k Push.pad) = (l.map g).sum
@@ -56,7 +33,6 @@ theorem sum_range_getD {M : Type} [AddCommMonoid M] (g : Push → M) :
       rw [List.length_cons, Finset.sum_range_succ', List.map_cons, List.sum_cons, add_comm]
       simp only [List.getD_cons_succ, List.getD_cons_zero, sum_range_getD g l]
 
-/-- A setup that reads back the pushed runs gives the entries that they give. -/
 theorem runEntry_eq {S : Layer1.Setup Gl} {pushes : List Push} (back : ReadsBack S pushes) (j i c : ℕ) :
     runEntry S ringDegree j i c = pushedEntry pushes j i c := by
   obtain ⟨runs, perm, lists⟩ := back
@@ -78,7 +54,6 @@ theorem runEntry_eq {S : Layer1.Setup Gl} {pushes : List Push} (back : ReadsBack
     by_cases hm : p.matrix = j <;> by_cases hr : p.row = i <;> simp [hm, hr, hin, power]
   · by_cases hm : p.matrix = j <;> by_cases hr : p.row = i <;> simp [hm, hr, hin]
 
-/-- The rows of a setup that reads back the pushed runs are theirs. -/
 theorem runRow_mem {S : Layer1.Setup Gl} {pushes : List Push} (back : ReadsBack S pushes) {k : ℕ}
     (inside : k < S.runs) : ∃ p ∈ pushes, S.runRow k = p.row := by
   obtain ⟨runs, perm, lists⟩ := back
@@ -87,12 +62,8 @@ theorem runRow_mem {S : Layer1.Setup Gl} {pushes : List Push} (back : ReadsBack 
   rw [List.getD_eq_getElem _ _ inside]
   exact List.getElem_mem inside
 
-/-! ## The sorted sets of `Tables::from_rows` -/
-
 theorem mem_sortedSet {l : List ℕ} {x : ℕ} : x ∈ sortedSet l ↔ x ∈ l := by
   rw [sortedSet, List.mem_insertionSort, List.mem_dedup]
-
-/-! ## The port reads back the runs -/
 
 theorem runList_perm (pushes : List Push) :
     ∀ m, (runList m pushes).Perm (pushes.filter fun p => p.matrix < m)
@@ -143,13 +114,11 @@ theorem classCode_decode (p : Push) :
   · exact Or.inl one
   · right
     rw [codeRatio, Push.classCode, show (p.len * 2 ^ 64 + p.ratioWord) % 2 ^ 64 = p.ratioWord by omega,
-      Push.ratioWord, if_neg one, ZMod.natCast_zmod_val]
+      Push.ratioWord, ite_eq_right one, ZMod.natCast_zmod_val]
 
 theorem getD_idxOf {l : List ℕ} {x : ℕ} (member : x ∈ l) : l.getD (l.idxOf x) 0 = x := by
   rw [List.getD_eq_getElem _ _ (List.idxOf_lt_length_of_mem member), List.getElem_idxOf]
 
-/-- The port of `from_rows` lists its runs, when every run starts in a block
-below `2^32`, so that the slot key keeps its block. -/
 theorem lists_setupOfRuns (seed : List ℕ) (blocks : ℕ) (runs : List Push)
     (block : ∀ p ∈ runs, p.start / ringDegree < 2 ^ 32) : Lists (setupOfRuns seed blocks runs) runs := by
   refine ⟨rfl, fun k inside => ?_⟩
@@ -163,15 +132,13 @@ theorem lists_setupOfRuns (seed : List ℕ) (blocks : ℕ) (runs : List Push)
     getD_idxOf (mem_sortedSet.mpr (List.mem_map.mpr ⟨p, member, rfl⟩))
   obtain ⟨start, index⟩ := slotKey_eq (classes := classesOf runs) (block p member)
   obtain ⟨length, ratio⟩ := classCode_decode p
-  simp only [setupOfRuns, if_pos inside]
+  simp only [setupOfRuns, ite_eq_left inside]
   refine ⟨rfl, rfl, rfl, ?_, ?_, ?_⟩
   · rw [key, start]
     exact Nat.div_add_mod p.start ringDegree
   · rwa [key, index, code]
   · rwa [key, index, code]
 
-/-- **The port reads back the runs.** A setup that `build` returns lists the
-pushed runs in setup order. -/
 theorem readsBack_of_build {seed : List ℕ} {columns matrices : ℕ} {pushes : List Push} {S : Layer1.Setup Gl}
     (built : build seed columns matrices pushes = some S) :
     ReadsBack S pushes ∧ S.key = seedKey seed (columns / ringDegree) := by
@@ -188,17 +155,11 @@ theorem readsBack_of_build {seed : List ℕ} {columns matrices : ℕ} {pushes : 
   simp only [Nat.reducePow]
   omega
 
-/-! ## The honest setup and the shape -/
-
 theorem gl_natCast (n : ℕ) (small : n < goldilocksModulus) : ((n : ℕ) : Gl) = gl ⟨n, small⟩ := by
   apply ZMod.val_injective
   rw [ZMod.val_natCast, Nat.mod_eq_of_lt small]
   rfl
 
-/-- **The honest setup from the port.** A setup that `build` returns for the
-seed of an Ajtai setup, over the carrier's columns and F′'s four matrices, is
-an honest setup for that setup's key, when the pushed runs give F′'s
-matrices. -/
 theorem build_honest (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
       (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)))
@@ -215,7 +176,7 @@ theorem build_honest (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVa
     have lane := l.isLt
     have low : (64 * b.val + l.val) % 64 = l.val := by simp only [ringDegree] at lane; omega
     have high : (64 * b.val + l.val) / 64 = b.val := by simp only [ringDegree] at lane; omega
-    rw [key, lanes, seedKey, show (2 : ℕ) ^ 6 = 64 from rfl, low, high, blocks, if_pos ⟨lane, b.isLt⟩]
+    rw [key, lanes, seedKey, show (2 : ℕ) ^ 6 = 64 from rfl, low, high, blocks, ite_eq_left ⟨lane, b.isLt⟩]
     exact gl_natCast _ _
   · obtain ⟨p, member, row⟩ := runRow_mem back inside
     rw [row]
@@ -223,10 +184,7 @@ theorem build_honest (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVa
   · rw [D, runEntry_eq back]
     exact gives.entry j i c inside
 
-/-- **Rust's sizes.** `Relation::new` for the parent gets `D` (`neo_math::D`),
-six lane variables (`LANE_VARIABLES`), the production constants
-(`Production`), and the `⌈lw / D⌉` blocks of the key. These give
-`ParentShape`. -/
+/-- Rust tests `relation_shape_has_the_lean_constants` and `parent_relation_arguments_are_the_lean_constants` pin these numbers. -/
 theorem parentShape_of (s : Layer1.Shape) (lw : ℕ) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
     (kappa : s.kappa = Production.kappa) (matrices : s.matrices = Production.matrices)
     (publicBlocks : s.publicBlocks = Production.publicBlocks) (blocks : s.blocks = Phi81ColumnLayout.blockCount lw)

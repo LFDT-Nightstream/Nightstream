@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.RingKCombination
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalKCombination
 
-/-!
-Owns the physical PiRLC Pad evaluation combination.
-
-This is the separate one-block `Eval_K` owner. It is not a matrix-zero view
-of `Eval_A` and adds no cross-family row.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.EvalKCombination
 
 open NightstreamFPrime.Circuit

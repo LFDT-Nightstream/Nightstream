@@ -1,9 +1,5 @@
 import NightstreamFPrime.Layout.MatrixProgram.Phi81Product
 
-/-!
-Load the existing Phi81 product interface with direct finite-index selection.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECProductInterface

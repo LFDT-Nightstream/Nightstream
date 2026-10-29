@@ -3,13 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit
 
-/-!
-Measure the first two stored blocks of a Lean parent range to separate
-initialization from repeated work. Compute all fixed-key row contributions
-for their sixteen digits. This neither accumulates a complete commitment
-nor consumes expected outputs.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiDECCommitmentBlockMeasurement

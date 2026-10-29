@@ -2,14 +2,6 @@ import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
 
-/-!
-Owns the causal source bounds for the zero-copy PiCCS-to-PiRLC bridge.
-
-The PiCCS output transcript state and all 17 source values precede the PiRLC
-allocation. Sampler challenges precede every combination child. Therefore the
-canonical layout, not a caller, supplies every PiRLC circuit assumption.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
 
 open NightstreamFPrime.Circuit

@@ -2,6 +2,7 @@ name = "compression_lean"
 version = "0.1.0"
 defaultTargets = ["CompressionLean", "CompressionLeanTests", "CompressionLeanExe", "emitTerminal", "replayLayer1",
   "lowerCheck", "terminalCheck", "setupCheck", "setupRootCheck", "runsCheck", "status"]
+allowNonModules = true
 
 [[require]]
 name = "nightstream_fprime"

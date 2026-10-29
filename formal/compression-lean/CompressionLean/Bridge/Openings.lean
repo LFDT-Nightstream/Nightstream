@@ -1,26 +1,12 @@
 import CompressionLean.Bridge.Setup
 import CompressionLean.Spec.Openings
 
-/-!
-Owns the bridge of the two openings to the model's `Opens`. WHIR's guarantee
-is an assumption, as in the model. `WhirOpens` says that one listed P0
-candidate and one listed P1 candidate have the opened values at the points
-that the replay returns (`OpeningPoints`, computed as Rust computes them),
-in Rust's batch order (`p0Opened`, `p1Opened`, `Spec/Openings.lean`). Those points are the model
-transcript's points (`p0Opened_eq`, `p1Opened_eq`). The replay checks that
-the opened values are the values it expects (`openingsAgree_ok`), and its
-queried values are the honest folds (`setupCheck_value`). So `Opens` holds
-(`opens_of_replay`).
--/
-
 namespace CompressionLean.Bridge
 
 open CompressionLean.Spec
 open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
-
-/-! ## Lists -/
 
 theorem eq_of_flatten {α : Type} : ∀ (xs ys : List (List α)), xs.map List.length = ys.map List.length →
     xs.flatten = ys.flatten → xs = ys
@@ -42,7 +28,6 @@ theorem eq_of_zip_all : ∀ (xs ys : List Ext), xs.length = ys.length →
       simp only [List.zip_cons_cons, List.all_cons, Bool.and_eq_true] at all
       rw [Ext.eq_of_beq all.1, eq_of_zip_all xs ys (by simpa using length) all.2]
 
-/-- What `openingsAgree` checked: the opened batches are the expected ones. -/
 theorem openingsAgree_ok {opened expected : Array (Array Ext)} {what : String}
     (ok : openingsAgree opened expected what = .ok ()) :
     opened.toList.map Array.toList = expected.toList.map Array.toList := by
@@ -69,7 +54,6 @@ theorem toList_flatPairs (pairs : Array (Ext × Ext)) :
     (flatPairs pairs).toList = (List.range pairs.size).flatMap fun j => [(pairs[j]!).1, (pairs[j]!).2] := by
   rw [flatPairs, Array.toList_flatMap, toList_eq_map_range pairs, List.flatMap_map]
 
-/-- Two lists of pairs agree pointwise. -/
 theorem flatMap_pairs {β γ : Type} {a b c d : β → γ} : ∀ (l : List β),
     l.flatMap (fun j => [a j, b j]) = l.flatMap (fun j => [c j, d j]) → ∀ j ∈ l, a j = c j ∧ b j = d j
   | [], _ => by simp
@@ -84,9 +68,6 @@ variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
 local notation "ι" => algebraMap Gl K
 
-/-! ## The setup queries -/
-
-/-- The values a fold of leaf checks appends, read in `K`. -/
 theorem queried_toK (check : ℕ → Leaf → Except String (Array Ext)) (A B : ℕ → K) :
     ∀ (l : List (ℕ × Leaf)) (init out : Array Ext),
       (∀ pair ∈ l, ∀ vals, check pair.1 pair.2 = .ok vals → vals.toList.map (Ext.toK (K := K)) = [A pair.1, B pair.1]) →
@@ -107,7 +88,6 @@ theorem queried_toK (check : ℕ → Leaf → Except String (Array Ext)) (A B : 
       rw [ih _ _ (fun p member => value p (List.mem_cons_of_mem _ member)) h, Array.toList_append, List.map_append,
         value pair List.mem_cons_self _ checked, List.map_cons, List.flatMap_cons, List.append_assoc]
 
-/-- The two folded values of a successful leaf check. -/
 theorem setupCheck_toList (rel : Replay.Relation) (S : Setup Gl) {leaves : Array Leaf}
     (merkle : MerkleBinds rel S leaves) {index : ℕ} (inside : index < 2 ^ (rel.setupVars - 2)) {leaf : Leaf}
     (member : leaf ∈ leaves.toList) (lam mu : Ext) {alpha : Array Ext}
@@ -122,8 +102,6 @@ theorem setupCheck_toList (rel : Replay.Relation) (S : Setup Gl) {leaves : Array
   rw [toList_eq_map_range vals, size, queryAt, ← key, ← run]
   rfl
 
-/-! ## The WHIR assumption -/
-
 omit [Algebra Gl K] [Fintype K] [ChallengeField K] in
 theorem powerPoint_eq_map (x : K) (m : ℕ) : powerPoint x m = (List.range m).map fun k => x ^ 2 ^ k := by
   induction m generalizing x with
@@ -135,7 +113,6 @@ theorem powerPoint_eq_map (x : K) (m : ℕ) : powerPoint x m = (List.range m).ma
       intro k _
       rw [Function.comp_apply, ← pow_mul, ← pow_succ']
 
-/-- The replay's query point of leaf `index` is the model's power point. -/
 theorem pointK_leafQueryPoint (n index : ℕ) (inside : index < 2 ^ (n - 2)) (low : 2 ≤ n) :
     pointK (K := K) (leafQueryPoint n index) = powerPoint (ι (queryPoint n index)) (n - 3) := by
   have bits : n + 1 - foldVars = n - 2 := by simp only [foldVars]; omega
@@ -150,9 +127,6 @@ theorem pointK_leafQueryPoint (n index : ℕ) (inside : index < 2 ^ (n - 2)) (lo
     value, map_pow]
   rfl
 
-/-! ## The model's transcript -/
-
-/-- The model's transcript of a replay run. -/
 def transcriptOf (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof) (cands : List (P0Tables Gl))
     (p1 : List (P1Tables K)) (early : Replay.EarlyOut) (mc : Layer1.GkrClaims K) (lin : Replay.LinearOut)
     (honest : Replay.HonestOut) (late : Replay.LateOut) (mcL : Layer1.GkrClaims K) :
@@ -167,7 +141,6 @@ section At
 
 variable {L : ℕ}
 
-/-- `p0Opened` at the points of a model transcript. -/
 noncomputable def p0At (s : Shape) (tr : Transcript Gl K s.queries L) (w : P0Tables Gl) : List (List K) :=
   [[mle tr.early.normPoint fun x => ι (w.z x)],
     [mle (tr.linear.lanePart ++ tr.linear.blockPoint) fun x => ι (w.z x)],
@@ -179,7 +152,6 @@ noncomputable def p0At (s : Shape) (tr : Transcript Gl K s.queries L) (w : P0Tab
       mle (tr.late.slotPoint s) fun σ => ι (w.U j σ).2]) ++ [mle (tr.late.slotPoint s) fun σ => ι (w.blockCopy σ)],
     [mle tr.early.rowPoint fun i => ι (w.mult i)]]
 
-/-- `p1Opened` at the points of a model transcript. -/
 noncomputable def p1At (s : Shape) (q : ℕ → K) (tr : Transcript Gl K s.queries L) (v : P1Tables K) : List K :=
   [mle ((keyPoint s tr.linear).drop 3) v.foldKey, mle ((Layer1.padded s.setupVars tr.early.runPoint).drop 3) v.foldRun] ++
     (List.finRange s.queries).flatMap (fun j => [mle (powerPoint (q (tr.honest.queries j)) (s.setupVars - 3)) v.foldKey,
@@ -188,9 +160,6 @@ noncomputable def p1At (s : Shape) (q : ℕ → K) (tr : Transcript Gl K s.queri
 
 end At
 
-/-! ## Opens -/
-
-/-- The replay's query indices are the model's. -/
 theorem queries_toList {rel : Replay.Relation} {proof : Replay.Proof} {early : Replay.EarlyOut}
     {lin : Replay.LinearOut} {honest : Replay.HonestOut} (run : HonestRun rel proof early lin honest)
     (setup : 3 ≤ rel.setupVars) :
@@ -208,8 +177,6 @@ theorem queries_toList {rel : Replay.Relation} {proof : Replay.Proof} {early : R
     simp only [bits]
     rfl
 
-/-- The P0 values at the verifier's points are the values at the model
-transcript's points. -/
 theorem p0Opened_eq (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof)
     (cands : List (P0Tables Gl)) (p1 : List (P1Tables K)) {early : Replay.EarlyOut} {mc : Layer1.GkrClaims K}
     (agree : ClaimsAgree rel.earlyShapes.size early.gkr mc)
@@ -253,8 +220,6 @@ theorem p0Opened_eq (rel : Replay.Relation) (st : Replay.Statement) (proof : Rep
     exact (agree.leafPoint 2 (small 2 (by norm_num))).symm
   simp only [p0Opened, p0At, norm, linear, run, pairs, slots, latePairs, rows]
 
-/-- The P1 values at the verifier's points are the values at the model
-transcript's points. -/
 theorem p1Opened_eq (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof) (setup : 3 ≤ rel.setupVars)
     (cands : List (P0Tables Gl)) (p1 : List (P1Tables K)) {early : Replay.EarlyOut} {mc : Layer1.GkrClaims K}
     (agree : ClaimsAgree rel.earlyShapes.size early.gkr mc)
@@ -297,8 +262,6 @@ theorem p1Opened_eq (rel : Replay.Relation) (st : Replay.Statement) (proof : Rep
     exact (agreeL.leafPoint 1 (smallL 1 (by norm_num))).symm
   simp only [p1Opened, p1At, keyTail, runTail, queries, block, lateBlock]
 
-/-- The replay's opening checks, under WHIR at the points that the replay
-returns, give the model's `Opens` at the model's transcript of the run. -/
 theorem opens_of_replay (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof)
     (shape : ProofShape rel proof) (S : Setup Gl) (merkle : MerkleBinds rel S proof.leaves) (setup : 3 ≤ rel.setupVars)
     (high : rel.setupVars + 1 ≤ 32) (cands : List (P0Tables Gl)) (p1 : List (P1Tables K))
@@ -321,7 +284,6 @@ theorem opens_of_replay (rel : Replay.Relation) (st : Replay.Statement) (proof :
   rw [p1Opened_eq rel st proof setup cands p1 agree openings linRun honestRun agreeL lateOpenings] at whir1
   have small : ∀ u, u < 5 → u < rel.earlyShapes.size := fun u lt => by rw [earlyShapes_size]; exact lt
   have smallL : ∀ u, u < 2 → u < rel.lateShapes.size := fun u lt => by rw [lateShapes_size]; exact lt
-  -- The P0 batches.
   have p0 : ((p0Expected early lin late).toList.map Array.toList).map (List.map (Ext.toK (K := K))) =
       p0At (shapeOf rel) (transcriptOf rel st proof cands p1 early mc lin honest late mcL) w := by
     rw [← openingsAgree_ok p0ok, List.map_map]
@@ -333,7 +295,6 @@ theorem opens_of_replay (rel : Replay.Relation) (st : Replay.Statement) (proof :
   rw [pairSize] at earlyPairs
   rw [latePairs, shape.lateValues] at latePart
   obtain ⟨latePairsEq, lateBlock⟩ := List.append_inj' latePart (by simp)
-  -- The P1 values.
   have agree1 := openingsAgree_ok p1ok
   simp only [List.map_cons, List.map_nil, List.cons.injEq, and_true] at agree1
   have p1v : (p1Expected proof honest lin late).toList.map (Ext.toK (K := K)) =
@@ -346,7 +307,6 @@ theorem opens_of_replay (rel : Replay.Relation) (st : Replay.Statement) (proof :
   simp only [List.cons.injEq, and_true] at ends folds
   obtain ⟨omegaLinear, omegaLate⟩ := ends
   obtain ⟨keyFold, runFold⟩ := folds
-  -- The queried values are the honest folds.
   have alphaSize : honest.alpha.size = foldVars := by rw [honestRun.alpha]; rfl
   have queriedRun := honestRun.queried
   rw [linRun.mixing] at queriedRun

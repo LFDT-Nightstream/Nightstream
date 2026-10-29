@@ -10,11 +10,6 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionCompletedAssignment
 import NightstreamFPrime.Export.Stage1.NextPreimageCompleteness
 import NightstreamFPrime.Export.Stage1.CanonicalPublicOutput
 
-/-!
-Owns construction of the complete plan of any application that fits the
-`2^28` profile from a semantic step and its accepted NIFS advice.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.SelectedAssignmentCompleteness

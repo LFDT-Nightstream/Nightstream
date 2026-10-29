@@ -1,43 +1,6 @@
 import NightstreamFPrime.Lifecycle.RandomOracleExtraction
 
-/-!
-Owns the uniqueness step of the production NIFS extraction in the
-random-oracle model (Lemma 6 of SECURITY_MODEL.md).
-
-Inputs: an adaptive oracle adversary and its claims, and the `Π_RLC`
-extraction of `RandomOracleExtraction`.
-
-Outputs:
-- `forkIndex`: the first checked query that extends the claim's statement
-  calls; every challenge of that statement comes at or after it.
-  `forkIndexOf` and `contextOf` compute the fork index and the fork context
-  from a run's claim and queries (`forkIndex_eq`, `context_eq`);
-- `ValidOf`, `Valid`: a run and its retries form a complete fork;
-- `reductionChance`: the binding reduction's chance of any test of its two
-  runs; `collisionChance` and `runningChance` are two such tests;
-- `source_error_le`: the extracted witness fails the source relation with
-  probability at most `(Q + 74) * testError`, plus the chance that the
-  binding reduction finds a different witness for the same running statement
-  (`collisionChance`; `RandomOracleBinding.collisionChance_le_kernelChance`
-  bounds it by the chance that the binding reduction returns a short kernel
-  vector of the Ajtai key) or a different running statement
-  (`runningChance`; `Export.Stage1.RandomOracleLink.runningChance_le` bounds
-  it by a state-hash collision when the claim carries `PriorLink`);
-- `expected_reruns_le`: the binding reduction takes at most `Q + 74`
-  expected reruns.
-
-The binding reduction runs the extractor, then reruns the adversary from the
-fork context (the answers queried before the fork index) until a rerun
-succeeds at that index, and compares the two extractions. A rerun that keeps
-the running statement and the witness is a false acceptance of the first
-run's witness. That witness is replaced by the worst witness of the context
-(`worst`), which the context alone determines, so each bad set stays local and
-`RandomOracle.escape_le` charges every query once. Averaging over the base
-run removes the division by the rerun success (`expect_div_resampled`).
-
-Does not own: the numerical hardness of MSIS or of the state hash, or the
-binding reduction as an algorithm (`RandomOracleReduction`).
--/
+/-! Random-oracle model, SECURITY_MODEL.md Lemma 6. -/
 
 set_option autoImplicit false
 
@@ -63,6 +26,7 @@ def challenges : List Challenge :=
 
 theorem mem_challenges (challenge : Challenge) : challenge ∈ challenges := by
   cases challenge <;> simp [challenges]
+  exact List.mem_ofFn.2 ⟨_, rfl⟩
 
 theorem challenges_length : challenges.length = 74 := by
   simp [challenges]
@@ -306,7 +270,7 @@ theorem retryMass_le_one (oracle : Oracle) (event : Retries → Prop) :
 theorem retryMass_const_le (oracle : Oracle) (event : Prop) [Decidable event] :
     retryMass relation ajtai adversary claim oracle (fun _ => event) ≤ if event then 1 else 0 := by
   by_cases happens : event
-  · rw [if_pos happens]
+  · rw [ite_eq_left happens]
     exact retryMass_le_one relation ajtai adversary claim oracle _
   · simp [retryMass, happens]
 
@@ -325,15 +289,15 @@ theorem retryMass_le_three (oracle : Oracle) {event first second third : Retries
   have two : (0 : ℝ) ≤ if second retries then 1 else 0 := by split <;> norm_num
   have three : (0 : ℝ) ≤ if third retries then 1 else 0 := by split <;> norm_num
   by_cases happens : event retries
-  · rw [if_pos happens]
+  · rw [ite_eq_left happens]
     rcases covered retries happens with holds | holds | holds
-    · have : (1 : ℝ) ≤ if first retries then 1 else 0 := by rw [if_pos holds]
+    · have : (1 : ℝ) ≤ if first retries then 1 else 0 := by rw [ite_eq_left holds]
       linarith
-    · have : (1 : ℝ) ≤ if second retries then 1 else 0 := by rw [if_pos holds]
+    · have : (1 : ℝ) ≤ if second retries then 1 else 0 := by rw [ite_eq_left holds]
       linarith
-    · have : (1 : ℝ) ≤ if third retries then 1 else 0 := by rw [if_pos holds]
+    · have : (1 : ℝ) ≤ if third retries then 1 else 0 := by rw [ite_eq_left holds]
       linarith
-  · rw [if_neg happens]
+  · rw [ite_eq_right happens]
     linarith
 
 theorem weight_le_retryMass (oracle : Oracle) {event : Retries → Prop} {retries : Retries}
@@ -344,7 +308,7 @@ theorem weight_le_retryMass (oracle : Oracle) {event : Retries → Prop} {retrie
   calc
     weight relation ajtai adversary claim oracle retries =
         weight relation ajtai adversary claim oracle retries * (if event retries then 1 else 0) := by
-      rw [if_pos happens, mul_one]
+      rw [ite_eq_left happens, mul_one]
     _ ≤ _ := Finset.single_le_sum
       (f := fun retries => weight relation ajtai adversary claim oracle retries *
         (if event retries then (1 : ℝ) else 0))
@@ -359,7 +323,7 @@ theorem weight_pos {oracle : Oracle} {retries : Retries}
   intro index _
   have inside : retries index ∈ retrySets relation ajtai adversary claim oracle index :=
     (valid.2 index).1
-  rw [if_pos inside]
+  rw [ite_eq_left inside]
   have card : (0 : ℝ) < Fintype.card Answer := by exact_mod_cast Fintype.card_pos
   have positive := lt_of_le_of_ne (mass_nonnegative _) (mass_ne_zero inside).symm
   exact div_pos one_pos (mul_pos card positive)
@@ -371,7 +335,7 @@ theorem success_eq (index : Nat) (oracle : Oracle) :
           Valid relation ajtai adversary claim oracle retries := by
   unfold success
   by_cases forked : forkIndex relation adversary claim oracle = index
-  · rw [if_pos forked]
+  · rw [ite_eq_left forked]
     simp only [forked, true_and]
   · simp [forked, retryMass]
 
@@ -395,8 +359,8 @@ theorem retryMass_mono (oracle : Oracle) {event event' : Retries → Prop}
       retryMass relation ajtai adversary claim oracle event' :=
   Finset.sum_le_sum fun retries _ => mul_le_mul_of_nonneg_left
     (by by_cases happens : event retries
-        · rw [if_pos happens, if_pos (implies retries happens)]
-        · rw [if_neg happens]
+        · rw [ite_eq_left happens, ite_eq_left (implies retries happens)]
+        · rw [ite_eq_right happens]
           split <;> norm_num)
     (weight_nonnegative relation ajtai adversary claim oracle retries)
 
@@ -543,7 +507,7 @@ theorem pairBad_local (pair : Oracle × Retries) (challenge : Challenge) :
     Local (pairBad relation ajtai adversary claim pair challenge) := by
   intro target oracle answer
   ext candidate
-  simp only [pairBad, Set.mem_setOf_eq, bad_local relation ajtai _ _ challenge target oracle answer]
+  simp only [pairBad, Set.mem_ofPred_eq, bad_local relation ajtai _ _ challenge target oracle answer]
 
 theorem pairBad_mass_le (pair : Oracle × Retries) (challenge : Challenge)
     (target : Point logicalWidth publicFits Degree) (oracle : Oracle) :
@@ -557,11 +521,11 @@ theorem pairBad_mass_le (pair : Oracle × Retries) (challenge : Challenge)
     exact member
   · have empty : pairBad relation ajtai adversary claim pair challenge target oracle = ∅ := by
       ext answer
-      simp only [pairBad, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+      simp only [pairBad, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
       rintro ⟨other, _⟩
       exact valid other
     rw [empty]
-    simp only [mass, Set.mem_empty_iff_false, if_false, Finset.expect_const_zero]
+    simp only [mass, Set.mem_empty_iff_false, ite_false, Finset.expect_const_zero]
     exact error_nonnegative challenge
 
 def worstBad (challenge : Challenge) (target : Point logicalWidth publicFits Degree)
@@ -575,7 +539,7 @@ theorem worstBad_local (challenge : Challenge) :
     Local (worstBad relation ajtai adversary claim challenge) := by
   intro target oracle answer
   ext candidate
-  simp only [worstBad, Set.mem_setOf_eq]
+  simp only [worstBad, Set.mem_ofPred_eq]
   refine exists_congr fun fresh => and_congr_right fun extends_ => ?_
   have outside := not_mem_context relation adversary claim fresh oracle extends_
   rw [firstIndex_update relation adversary claim fresh oracle extends_ answer,
@@ -630,9 +594,9 @@ theorem worst_error_le {queries : Nat} (bounded : adversary.QueryBound queries) 
     · have queried : ∃ asked ∈ (checked relation adversary claim).queries oracle,
           oracle asked ∈ worstBad relation ajtai adversary claim challenge asked oracle :=
         ⟨_, mem_checked relation adversary claim oracle challenge, isBad⟩
-      simp only [if_pos isBad, if_pos queried]
+      simp only [ite_eq_left isBad, ite_eq_left queried]
       norm_num
-    · simp only [if_neg isBad]
+    · simp only [ite_eq_right isBad]
       split <;> norm_num
 
 def SourceFails (oracle : Oracle) (retries : Retries) : Prop :=
@@ -656,7 +620,7 @@ theorem falseFor_of_agree {oracle other : Oracle} {retries otherRetries : Retrie
   have witnessEq : extractedWitness relation ajtai adversary claim other otherRetries valid.1 valid.2 =
       extractedWitness relation ajtai adversary claim oracle retries baseValid.1 baseValid.2 := by
     unfold witnessOf at sameWitness
-    rw [dif_pos valid, dif_pos baseValid] at sameWitness
+    rw [dite_eq_left valid, dite_eq_left baseValid] at sameWitness
     exact Option.some.inj sameWitness
   refine ⟨baseValid, ?_, ?_, ?_⟩
   · have accepted := (show Succeeds relation ajtai adversary claim other from valid.1).1.1
@@ -778,9 +742,9 @@ theorem sum_success {queries : Nat} (bounded : adversary.QueryBound queries)
         factor index oracle * success relation ajtai adversary claim index oracle /
           resampledSuccess relation ajtai adversary claim index oracle := by
   rw [Finset.sum_eq_single (forkIndex relation adversary claim oracle)]
-  · rw [success, if_pos rfl, mul_comm (factor _ _)]
+  · rw [success, ite_eq_left rfl, mul_comm (factor _ _)]
   · intro index _ different
-    rw [success, if_neg (Ne.symm different), mul_zero, zero_div]
+    rw [success, ite_eq_right (Ne.symm different), mul_zero, zero_div]
   · intro outside
     exact absurd (Finset.mem_range.mpr (forkIndex_lt_bound relation adversary claim bounded oracle))
       outside
@@ -831,19 +795,19 @@ theorem source_error_le {queries : Nat} (bounded : adversary.QueryBound queries)
       (forkIndex relation adversary claim oracle) oracle (Moves relation adversary claim oracle)
     have agree := agreeChance_nonnegative relation ajtai adversary claim oracle
     by_cases fails : SourceFails relation ajtai adversary claim oracle retries
-    · simp only [if_pos fails, if_pos fails.1, mul_one]
+    · simp only [ite_eq_left fails, ite_eq_left fails.1, mul_one]
       have key := mul_le_mul_of_nonneg_left (one_le_outcomes relation ajtai adversary claim fails)
         nonnegative
       rw [mul_one, mul_add, mul_add] at key
       exact key
-    · rw [if_neg fails, mul_zero]
+    · rw [ite_eq_right fails, mul_zero]
       by_cases valid : Valid relation ajtai adversary claim oracle retries
-      · simp only [if_pos valid, mul_one]
+      · simp only [ite_eq_left valid, mul_one]
         have first := mul_nonneg nonnegative collide
         have second := mul_nonneg nonnegative move
         have third := mul_nonneg nonnegative agree
         linarith
-      · simp only [if_neg valid, mul_zero, zero_mul, add_zero, le_refl]
+      · simp only [ite_eq_right valid, mul_zero, zero_mul, add_zero, le_refl]
   have summed :
       𝔼 oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
           (if SourceFails relation ajtai adversary claim oracle retries then 1 else 0) ≤
@@ -868,7 +832,7 @@ theorem source_error_le {queries : Nat} (bounded : adversary.QueryBound queries)
           (worst relation ajtai adversary claim (forkIndex relation adversary claim oracle) oracle)
           oracle <;> simp [happens]
     · intro index _ different
-      exact if_neg fun ⟨same, _⟩ => different same.symm
+      exact ite_eq_right fun ⟨same, _⟩ => different same.symm
     · intro outside
       exact absurd (Finset.mem_range.mpr
         (forkIndex_lt_bound relation adversary claim bounded oracle)) outside

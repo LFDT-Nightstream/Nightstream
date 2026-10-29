@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericStep
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedRows
 
-/-!
-Evaluate the existing Poseidon invocation rows as stored field values. The
-schedule and retained coordinates remain owned by PoseidonSboxPlan.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericRows

@@ -3,14 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiDECCommitmentMatrixWork
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 import NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
 
-/-!
-Counted coefficient entries for the selected PiDEC commitment row packet.
-SuperNeo v1.2 Section 7.3 and Appendix B.2 own the coefficient-matrix check;
-Section 7.5 and Appendix B.4 own these commitment recomposition rows.
-
-The caller supplies a typed local row. Global row dispatch and Boolean-vertex
-conversion are caller work.
--/
+/-! SuperNeo v1.2, Sections 7.3 and 7.5, Appendices B.2 and B.4. -/
 
 set_option autoImplicit false
 
@@ -74,6 +67,7 @@ private def fullRow (row : Fin 1188) :
     (DirectApplicationPrefixPlan.throughNextPreimagePlan relation fits geometry).rowCount
     (DirectApplicationPrefixPlan.publicOutputPlan geometry).rowCount next
 
+set_option backward.isDefEq.respectTransparency false in
 private theorem fullRow_val (row : Fin 1188) :
     (fullRow relation fits geometry row).val = 969110 + row.val := by
   simp only [fullRow, ProductionRelation.Plan.leftIndex_val, ProductionRelation.Plan.rightIndex_val,
@@ -82,6 +76,7 @@ private theorem fullRow_val (row : Fin 1188) :
     Layout.PiDEC.v1_2.PublicInputSplit.physicalRowCount_value]
   omega
 
+set_option backward.isDefEq.respectTransparency false in
 private theorem fullRow_port (row : Fin 1188) (matrix : Fin Spec.ProductionRelation.matrixCount) :
     (DirectApplicationPrefixPlan.plan relation fits geometry).portForm
         (fullRow relation fits geometry row) matrix =

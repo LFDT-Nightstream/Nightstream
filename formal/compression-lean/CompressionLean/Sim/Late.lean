@@ -113,13 +113,13 @@ private theorem laneSplit_ensures {tau : Array ExtVar} {gtau : Array Ext} {lengt
       refine (extSub_ensures hvalue.mono hdropped).bind fun value' _ _ hvalue' => Ensures.pure (next (by omega) ?_)
       have e : H (k + 1) = gtau[D - 2 - k]! + (H (D - 1 - (D - 2 - k + 1))).scale ratio -
           gtau[D - 2 - k + length]!.scale (ratio.pow length) := by
-        rw [top, hH, Replay.headFrom, if_pos inside]
+        rw [top, hH, Replay.headFrom, ite_eq_left inside]
       rw [e]
       exact hvalue'
     · rename_i outside
       refine Ensures.pure (next (by omega) ?_)
       have e : H (k + 1) = gtau[D - 2 - k]! + (H (D - 1 - (D - 2 - k + 1))).scale ratio := by
-        rw [top, hH, Replay.headFrom, if_neg outside]
+        rw [top, hH, Replay.headFrom, ite_eq_right outside]
       rw [e]
       exact hvalue
   obtain ⟨headSize, hhead⟩ := hhead
@@ -162,13 +162,13 @@ private theorem laneSplit_ensures {tau : Array ExtVar} {gtau : Array Ext} {lengt
         fun _ _ q => ?_
       rw [hT]
       dsimp only
-      rw [if_pos (by omega), show i + length - D = i + length - (D + 1) + 1 by omega]
+      rw [ite_eq_left (by omega), show i + length - D = i + length - (D + 1) + 1 by omega]
       exact q
     · rename_i short'
       refine Ensures.pure ?_
       rw [hT]
       dsimp only
-      rw [if_neg (by omega)]
+      rw [ite_eq_right (by omega)]
       exact hzero'.mono
   · exact isExts_table headSize fun l hl => (hhead l hl).mono
   · obtain ⟨tsize, htail⟩ := htail

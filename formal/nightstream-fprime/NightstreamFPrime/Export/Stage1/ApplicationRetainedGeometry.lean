@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.ApplicationRetainedBlocks
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry
 
-/-!
-Owns the canonical low-norm placement of one verifier-selected application.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
 
 open NightstreamFPrime.Layout

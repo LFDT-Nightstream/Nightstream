@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Retained
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedPreservation
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns transport from retained PiCCS S-box coordinates to physical output
-values. This contract is shared by the parent readers and phase preservation.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 
 open NightstreamFPrime.Spec
@@ -64,7 +59,7 @@ theorem retainedPrefix_baseEnv
       ProductRetainedBlock.sourceWidth
     omega
   unfold PerApplicationPackage.baseEnv SourceCompiler.sourceEnv
-  rw [dif_pos shiftedRetained, dif_pos shiftedBase]
+  rw [dite_eq_left shiftedRetained, dite_eq_left shiftedBase]
   have sourceEq :
       (⟨PerApplicationPackage.shiftColumn program column, shiftedRetained⟩ :
         Fin (PiRLCRetainedGeometry.sourceWidth program)) =

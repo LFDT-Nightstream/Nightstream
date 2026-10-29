@@ -1,23 +1,6 @@
 import CompressionLean.Lib.SumCheck
 import CompressionLean.Game.Game
 
-/-!
-Owns the two generic games of the layers: a point of `m` draws, each off the
-bad set of the point so far (`drawPoint`), and the sum-check rounds of
-`crates/neo-spartan` (`sumcheck::replay`) with their soundness against several
-candidate worlds at once (`sumcheck_avoids`, `sumcheck_cost`).
-
-A round message is `h(0), h(2), ..., h(d + 1)`; the verifier sets
-`h(1) = claim - h(0)`, interpolates through the nodes `0, ..., d + 1`, draws
-`c`, and continues with `h(c)`. In world `w` the true round polynomial is
-`round w point`. While a world's claim is false, its claimed and true round
-polynomials differ, so the claim stays false unless `c` is a common root: a
-bad set of at most `d + 1` values per world.
-
-`extra` adds bad sets that ride on the same draws (identity tests of other
-tables at the sum-check point); `Path` records that the point avoided them.
--/
-
 namespace CompressionLean.Game
 
 open CompressionLean.Lib Polynomial
@@ -59,7 +42,6 @@ theorem drawPoint_cost (bad : List K → Finset K) (E : ℕ) (card : ∀ point, 
 
 variable {W : Type}
 
-/-- `rounds` sum-check rounds of degree `d + 1`, continuing `point` and `claim`. -/
 noncomputable def sumcheck (worlds : Finset W) (d : ℕ) (round : W → List K → K[X])
     (extra : List K → Finset K) : ℕ → List K → K → Game (List K × K)
   | 0, point, claim => .pure (point, claim)
@@ -69,9 +51,6 @@ noncomputable def sumcheck (worlds : Finset W) (d : ℕ) (round : W → List K �
             extra point) fun c =>
           sumcheck worlds d round extra rounds (point ++ [c]) ((roundPoly d claim message).eval c)
 
-/-- Soundness of the rounds: in every world whose claim is false, the final
-claim is false at the final point, unless a challenge hit a bad set; the
-point extends the start by `rounds` challenges that avoided `extra`. -/
 theorem sumcheck_avoids (worlds : Finset W) (d : ℕ) (distinct : NodesDistinct K d)
     (truth : W → List K → K) (round : W → List K → K[X]) (extra : List K → Finset K) (bound : ℕ)
     (true_rounds : ∀ w ∈ worlds, RoundTruth d bound (truth w) (round w)) :
@@ -104,7 +83,6 @@ theorem sumcheck_avoids (worlds : Finset W) (d : ℕ) (distinct : NodesDistinct 
         exact eval_ne_of_not_mem_zeros differ
           (fun hit => outside (Finset.mem_union_left _ (Finset.mem_biUnion.mpr ⟨w, member, hit⟩)))
 
-/-- The cost of the rounds: per round, `d + 1` roots per world and the riding sets. -/
 theorem sumcheck_cost (worlds : Finset W) (d : ℕ) (distinct : NodesDistinct K d)
     (round : W → List K → K[X]) (extra : List K → Finset K) (bound extraBound : ℕ)
     (degrees : ∀ w ∈ worlds, ∀ point : List K, point.length < bound → (round w point).natDegree ≤ d + 1)

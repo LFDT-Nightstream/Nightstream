@@ -7,13 +7,8 @@ import NightstreamFPrime.Lifecycle.Stage1.VerificationKey
 import NightstreamFPrime.Spec.AjtaiSetupV1
 import NightstreamFPrime.Export.MatrixProgram.Program
 
-/-!
-Owns the verifier-owned canonical package for one Lean-authored application.
-
-This module does not authorize a Rust loader or proof backend. Rust must still
-implement the proved direct-plan expansion and pin or allowlist the final
-identity.
--/
+/-! Rust must still implement the proved direct-plan expansion and pin or
+allowlist the final identity. -/
 
 namespace NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 
@@ -231,9 +226,6 @@ theorem matrixProgram_row? (program : Program)
       some ((PerApplicationFixedPoint.structuralPlan program fits).forms row) :=
   (matrixProgram_exact program fits).row? row
 
-/-- Exact physical owner of the five NextPreimage rows after the selected
-application. The range is carried in the sealed authority value so Rust does
-not infer this boundary. -/
 def nextPreimageRange (program : Program) : MatrixProgram.IndexRange :=
   ⟨PerApplicationPackage.nextPreimageRowStart program, 5⟩
 
@@ -253,9 +245,6 @@ theorem nextPreimageRange_endsAtPackageEnd (program : Program)
       (package program fits).layout.rowCount := by
   rfl
 
-/-- Exact recursive public prefix of the production low-norm relation. This
-value is carried in the sealed envelope so Rust does not infer it from the
-physical package's different 278-column public layout. -/
 def logicalPublicInputCount : Nat := ProductionAssignment.publicWidth
 
 @[simp] theorem logicalPublicInputCount_eq : logicalPublicInputCount = 270 :=
@@ -263,11 +252,8 @@ def logicalPublicInputCount : Nat := ProductionAssignment.publicWidth
 
 def sealedPackageSchema : Nat := 6
 
-/-- One prefix-free authority value that carries the physical circuit package,
-the exact compact 4-matrix program, the exact Lean-authored application plan,
-the retained-assignment transport plan, the exact NextPreimage row owner, and
-the recursive public prefix length. Rust must decode these children; it must
-not reconstruct relation, assignment, or application layout. -/
+/-- Rust must decode these children; it must not reconstruct relation,
+assignment, or application layout. -/
 def sealedPackageValue (program : Program)
     (fits : FitsTwoPow28 program) : Value :=
   .array [

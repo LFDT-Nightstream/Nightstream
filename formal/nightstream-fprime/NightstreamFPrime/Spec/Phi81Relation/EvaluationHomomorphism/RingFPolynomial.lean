@@ -3,12 +3,12 @@ import Mathlib.Tactic.Ring
 import Mathlib.RingTheory.AdjoinRoot
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 
-/-! Polynomial views of the existing 54-coefficient RingF carrier. -/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
 
 open NightstreamFPrime.Spec
 open Polynomial
+
+attribute [local implicit_reducible] ZMod NightstreamFPrime.Spec.goldilocksModulus
 
 local instance : Fact (1 < goldilocksModulus) := ⟨by decide⟩
 
@@ -30,7 +30,7 @@ theorem coeff_toPolynomial (value : RingF) (index : Fin ringDegree) :
   rw [Finset.sum_eq_single index]
   · simp
   · intro other _ different
-    exact if_neg (fun equal => different (Fin.ext equal))
+    exact ite_eq_right (fun equal => different (Fin.ext equal))
   · simp
 
 private theorem coeff_toPolynomial_of_ge (value : RingF) (index : Nat)
@@ -40,7 +40,7 @@ private theorem coeff_toPolynomial_of_ge (value : RingF) (index : Nat)
     coeff_monomial]
   apply Finset.sum_eq_zero
   intro other _
-  exact if_neg (by have := other.isLt; omega)
+  exact ite_eq_right (by have := other.isLt; omega)
 
 theorem toPolynomial_injective : Function.Injective toPolynomial := by
   intro left right equal
@@ -52,8 +52,9 @@ theorem toPolynomial_zero : toPolynomial ringFZero = 0 := by
   ext index
   rw [coeff_zero]
   by_cases inside : index < ringDegree
-  · exact coeff_toPolynomial ringFZero ⟨index, inside⟩
-  · exact coeff_toPolynomial_of_ge ringFZero index (Nat.le_of_not_gt inside)
+  · rw [coeff_toPolynomial ringFZero ⟨index, inside⟩]
+    rfl
+  · rw [coeff_toPolynomial_of_ge ringFZero index (Nat.le_of_not_gt inside)]
 
 private theorem toPolynomial_basis (degree : Nat) (inside : degree < ringDegree) :
     toPolynomial (RingFLaws.basis degree) = X ^ degree := by
@@ -63,10 +64,8 @@ private theorem toPolynomial_basis (degree : Nat) (inside : degree < ringDegree)
     by_cases same : index = degree
     · subst index
       simp only [RingFLaws.basis, ringFMonomial, coeff_X_pow, ↓reduceIte]
-      rfl
     · simp only [RingFLaws.basis, ringFMonomial, coeff_X_pow, same,
         ↓reduceIte]
-      rfl
   · rw [coeff_toPolynomial_of_ge _ index (Nat.le_of_not_gt indexInside)]
     symm
     apply coeff_eq_zero_of_degree_lt
@@ -222,7 +221,7 @@ private theorem linear_image_eq
     rw [Finset.sum_eq_single column]
     · simp
     · intro other _ different
-      rw [if_neg (fun equal => different (Fin.ext equal.symm)), mul_zero]
+      rw [ite_eq_right (fun equal => different (Fin.ext equal.symm)), mul_zero]
     · simp
   let leftHom : RingF →+ QuotientRing :=
     { toFun := leftMap, map_zero' := leftZero, map_add' := leftAdd }

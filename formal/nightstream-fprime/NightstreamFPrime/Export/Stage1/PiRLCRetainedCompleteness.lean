@@ -4,11 +4,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedPlan
 
-/-!
-Owns the adjacent conversion from completed Spartan PiRLC rows to the product
-plan on the canonical retained assignment.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCRetainedCompleteness

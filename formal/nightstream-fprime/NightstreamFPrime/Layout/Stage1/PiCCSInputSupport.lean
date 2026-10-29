@@ -1,13 +1,6 @@
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
 
-/-!
-Owns exact source support for every caller-owned production PiCCS expression.
-
-Each typed interface family maps to one named source range. This module does
-not propagate support through child-local witnesses or R1CS lowering.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport
 
 open NightstreamFPrime.Circuit

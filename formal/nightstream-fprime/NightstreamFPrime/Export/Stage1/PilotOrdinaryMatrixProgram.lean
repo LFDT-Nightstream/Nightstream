@@ -2,8 +2,6 @@ import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectPlan
 
-/-! Owns the compact package operands for the 686 non-Poseidon pilot rows. -/
-
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram
@@ -66,9 +64,9 @@ private theorem priorPublicTarget (index : Fin 270) :
   have bound := index.isLt
   change PilotSpartan.sourceToSpartan (27819 + index.val) = _
   unfold PilotSpartan.sourceToSpartan
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢)]
-  rw [if_pos (by
+  rw [ite_eq_left (by
     norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢; omega)]
   norm_num [PilotSpartan.firstPublicStart_value,
     PilotSpartan.priorPublicStart_value]
@@ -83,13 +81,13 @@ private theorem canonicalLocalTarget (index : Fin 264) :
   rw [PilotProduction.priorHashLogicalLength_eq,
     PilotProduction.witnessOffset_eq]
   unfold PilotSpartan.sourceToSpartan
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢; omega)]
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢; omega)]
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [PilotSpartan.outputDigestStart_value] at bound ⊢; omega)]
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [PilotSpartan.witnessStart_value] at bound ⊢; omega)]
   norm_num [PilotSpartan.witnessPrivateStart_value,
     PilotSpartan.witnessStart_value]; omega
@@ -101,13 +99,13 @@ private theorem canonicalFreshTarget (index : Fin 144) :
   have bound := index.isLt
   change PilotSpartan.sourceToSpartan (5141616 + index.val) = _
   unfold PilotSpartan.sourceToSpartan
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢; omega)]
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢; omega)]
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [PilotSpartan.outputDigestStart_value] at bound ⊢; omega)]
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [PilotSpartan.witnessStart_value] at bound ⊢; omega)]
   norm_num [PilotSpartan.witnessPrivateStart_value,
     PilotSpartan.witnessStart_value]; omega
@@ -119,13 +117,13 @@ private theorem outputDigestTarget (index : Fin 4) :
   have bound := index.isLt
   change PilotSpartan.sourceToSpartan (55908 + index.val) = _
   unfold PilotSpartan.sourceToSpartan
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [PilotSpartan.priorPublicStart_value] at bound ⊢; omega)]
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [PilotSpartan.outputPreimageStart_value] at bound ⊢; omega)]
-  rw [if_neg (by
+  rw [ite_eq_right (by
     norm_num [PilotSpartan.outputDigestStart_value] at bound ⊢)]
-  rw [if_pos (by
+  rw [ite_eq_left (by
     norm_num [PilotSpartan.witnessStart_value] at bound ⊢; omega)]
   norm_num [PilotSpartan.secondPublicStart_value,
     PilotSpartan.outputDigestStart_value]
@@ -204,7 +202,7 @@ theorem canonicalLocalRange_form?
       some ((PilotOrdinaryDirectPlan.Location.canonicalLocal index).form
         geometry) := by
   rw [canonicalLocalTarget]
-  simpa [canonicalLocalRange, PilotOrdinaryDirectPlan.Location.form] using
+  simpa [canonicalLocalRange, PilotOrdinaryDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (canonicalLocalBlock program)
       (canonicalLocalStart program) 2598358 264 0
       (canonicalLocalFits geometry) (by norm_num) index)
@@ -240,7 +238,7 @@ theorem canonicalFreshRange_form?
       some ((PilotOrdinaryDirectPlan.Location.canonicalFresh index).form
         geometry) := by
   rw [canonicalFreshTarget]
-  simpa [canonicalFreshRange, PilotOrdinaryDirectPlan.Location.form] using
+  simpa [canonicalFreshRange, PilotOrdinaryDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (canonicalFreshBlock program)
       (canonicalFreshStart program) 5141342 144 0
       (canonicalFreshFits geometry) (by norm_num) index)
@@ -254,7 +252,7 @@ theorem priorPublicRange_form?
       some ((PilotOrdinaryDirectPlan.Location.priorPublic index).form
         geometry) := by
   rw [priorPublicTarget]
-  simpa [priorPublicRange, PilotOrdinaryDirectPlan.Location.form] using
+  simpa [priorPublicRange, PilotOrdinaryDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic
       (PiCCSOrdinaryRetainedBlocks.freshPublicInputBlock program)
       (PiCCSOrdinaryRetainedGeometry.freshPublicInputStart program)
@@ -274,7 +272,7 @@ theorem outputDigestRange_form?
       some ((PilotOrdinaryDirectPlan.Location.outputDigest index).form
         geometry) := by
   rw [outputDigestTarget]
-  simpa [outputDigestRange, PilotOrdinaryDirectPlan.Location.form] using
+  simpa [outputDigestRange, PilotOrdinaryDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (outputDigestBlock program)
       (outputDigestStart program) 5141757 4 0
       (outputDigestFits geometry) (by norm_num) index)

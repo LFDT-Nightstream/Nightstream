@@ -1,26 +1,13 @@
 import CompressionLean.Shrink.Soundness
 
-/-!
-Owns the error of the shrink verifier game (`shrinkGame_cost`): the bad sets
-of `shrinkGame` have total density at most `shrinkError` along every path.
-
-The count is per candidate: `τ` (at most one bad value per coordinate,
-`foldBad`), the outer rounds (degree 8 per round), the batching (degree 7)
-and the inner rounds (degree 2 per round).
--/
-
 namespace CompressionLean.Shrink
 
 open CompressionLean.Lib Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
 
-/-- The shrink bad-challenge count over `L` candidates, `m` row variables
-and `n` cell variables: `τ`, the outer rounds, the batching, the inner
-rounds. -/
 def shrinkCount (m n L : ℕ) : ℕ := m * L + m * (L * 8) + L * 7 + (n + 1) * (L * 2)
 
-/-- The shrink error over a challenge field of `size` elements. -/
 noncomputable def shrinkError (m n L size : ℕ) : ℝ := (shrinkCount m n L : ℝ) / size
 
 theorem programGame_cost {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matrices : List K → List K → K → K)

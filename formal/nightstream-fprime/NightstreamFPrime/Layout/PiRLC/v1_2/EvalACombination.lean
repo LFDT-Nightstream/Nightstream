@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.RingKCombination
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.EvalACombination
 
-/-!
-Owns the physical PiRLC matrix evaluation combinations.
-
-This is the separate 14-block `Eval_A` owner. It shares only the two-cell
-`RingK` adapter with `Eval_K` and adds no cross-family row.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.EvalACombination
 
 open NightstreamFPrime.Circuit

@@ -4,24 +4,6 @@ import CompressionLean.Terminal.Outputs
 import NightstreamFPrime.Export.PackageExpansion
 import NightstreamFPrime.Layout.PilotProduction
 
-/-!
-Owns the terminal package as `Package::apply` reads it
-(`crates/nightstream/src/lifecycle/terminal/package.rs::load`): the package
-rows as one system, the source of each system column, and the output map in
-system columns. Each definition is a port of the Rust that builds the same
-value; the `terminalCheck` executable compares the two on the artifact.
-
-- Rows (`ordered_r1cs`, `nightstream-fprime/src/package/r1cs.rs::expand_matrix`):
-  every producer of `scheduled_witnesses` (`package.rs::scheduled_witnesses`) by row
-  start, each after the assertion rows that start before it. A producer's
-  rows are F′'s instantiation (`RowSemantics.lean`), so they are the rows of
-  `CircuitPackage.expandedRows`.
-- Sides (`finish_row`, `r1cs.rs::CsrBuilder::finish_row`): the constant on the constant
-  column, the terms by column, equal columns summed, zero sums dropped.
-- Columns: the package columns that some row names, in increasing order.
-  System column `k` is the `k`-th of them.
--/
-
 namespace CompressionLean.Terminal.Package
 
 open CompressionLean.Circuit
@@ -31,14 +13,12 @@ open NightstreamFPrime.Layout
 open CompressionLean.Shrink (R1csRow)
 open CompressionLean.Replay (Word)
 
-/-- Sum the coefficients of adjacent equal columns. -/
 def collect : List (ℕ × NightstreamFPrime.Spec.F) → List (ℕ × NightstreamFPrime.Spec.F)
   | (c, x) :: (d, y) :: rest =>
       if c = d then collect ((c, x + y) :: rest) else (c, x) :: collect ((d, y) :: rest)
   | terms => terms
 termination_by terms => terms.length
 
-/-- One side as `finish_row` writes it. -/
 def side (constantColumn : ℕ) (combination : R1CS.LinearCombination) : List (ℕ × Word) :=
   let terms := ((constantColumn, combination.constant) :: combination.terms).filter (·.2 ≠ 0)
   (collect (terms.mergeSort fun x y => x.1 ≤ y.1)).filterMap fun (c, x) =>
@@ -47,11 +27,7 @@ def side (constantColumn : ℕ) (combination : R1CS.LinearCombination) : List (�
 def row (constantColumn : ℕ) (r : R1CS.Row) : R1csRow Word :=
   ⟨side constantColumn r.a, side constantColumn r.b, side constantColumn r.c⟩
 
-/-- One producer of rows (`ScheduledWitness`,
-`nightstream-fprime/src/package.rs::ScheduledWitness`). The terminal package has no
-application rows. -/
 inductive Producer where
-  /-- Invocation `ordinal` of a hash chain. -/
   | hash (chain : HashChain) (ordinal : ℕ)
   | explicit (invocation : PermutationInvocation)
   | compact (invocation : CompactRowInvocation)
@@ -69,7 +45,6 @@ def Producer.rows (package : CircuitPackage) : Producer → List R1CS.Row
   | .compact invocation => compactInvocationRows package invocation
   | .generic instruction => [instruction.toR1CS]
 
-/-- Every producer by row start (`scheduled_witnesses`). -/
 def schedule (package : CircuitPackage) : List Producer :=
   let hashes := package.hashChains.flatMap fun chain =>
     (List.range (chain.absorbCount + 1)).map (Producer.hash chain)
@@ -78,8 +53,6 @@ def schedule (package : CircuitPackage) : List Producer :=
       package.witnessInstructions.map Producer.generic).mergeSort
     fun p q => p.rowStart package ≤ q.rowStart package
 
-/-- The package rows in schedule order, over package columns
-(`expand_matrix` with `Placement::Ordered`). -/
 def orderedRows (package : CircuitPackage) : Array (R1csRow Word) := Id.run do
   let constant := package.layout.constantColumn
   let mut out := #[]
@@ -95,36 +68,25 @@ def orderedRows (package : CircuitPackage) : Array (R1csRow Word) := Id.run do
     out := out.push (row constant assertion.toR1CS)
   return out
 
-/-- A private segment whose columns the witness program writes
-(`is_witness_role`, `nightstream-fprime/src/package/v1_2.rs::is_witness_role`). -/
 def witnessRole (role : ℕ) : Bool :=
   role == Data.Role.witness || role == Data.Role.piDecWitness ||
     role == Data.Role.runningTransitionWitness ||
     role == PerApplicationPackage.Role.applicationLocal
 
-/-- The caller segments with the private input index of their first column. -/
 def callerSegments (layout : PhysicalLayout) : List (Segment × ℕ) :=
   ((layout.privateSegments.filter fun s => !witnessRole s.role).foldl
     (fun (out, offset) s => (out.push (s, offset), offset + s.length)) (#[], 0)).1.toList
 
-/-- The private input that holds `column` (`private_input_index`,
-`nightstream-fprime/src/package.rs::LoadedPackage::private_input_index`). -/
 def privateInput (segments : List (Segment × ℕ)) (column : ℕ) : Option ℕ :=
   (segments.find? fun (s, _) => s.start ≤ column ∧ column < s.start + s.length).map
     fun (s, offset) => offset + column - s.start
 
-/-- Where the value of one system column comes from (`Source`,
-`package.rs::Source`). -/
 inductive Source where
   | one
-  /-- Private input `index` of `execute_witness`. -/
   | priv (index : ℕ)
-  /-- Public input `index`. -/
   | pub (index : ℕ)
-  /-- Hint output `index`. -/
   | computed (index : ℕ)
 
-/-- The output map in system columns (`TerminalOutputs`). -/
 structure OutputColumns where
   commitment : Array ℕ
   publicInput : Array ℕ
@@ -133,17 +95,12 @@ structure OutputColumns where
   evalA : Array ℕ
   state : Array ℕ
 
-/-- The package as `apply` reads it (`Package`, `package.rs::Package`). -/
 structure Loaded where
-  /-- The rows over system columns. -/
   system : Array (R1csRow Word)
   sources : Array Source
-  /-- The package column of each computed value, in hint order. -/
   computed : Array ℕ
   outputs : OutputColumns
 
-/-- The system columns of an output list: each entry is one package column
-that some row names (`decode_outputs`, `terminal.rs`; `map`, `package.rs`). -/
 def outputColumns (layout : PhysicalLayout) (index : Array (Option ℕ))
     (list : List NightstreamFPrime.Circuit.Expr) : Except String (Array ℕ) :=
   list.toArray.mapM fun
@@ -194,11 +151,9 @@ def number (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (used : 
 def reindex (index : Array (Option ℕ)) (terms : List (ℕ × Word)) : List (ℕ × Word) :=
   terms.map fun (c, x) => ((index[c]!).getD 0, x)
 
-/-- `load` (`package.rs::load`) on the Lean package and its output map. -/
 def load (package : CircuitPackage) (map : Terminal.Outputs) : Except String Loaded := do
   let layout := package.layout
   let segments := callerSegments layout
-  -- `apply` reads the first caller inputs as the prior state preimage.
   unless ((segments.find? (·.1.role == Data.Role.priorPreimage)).map fun (s, offset) =>
       (offset, s.length)) == some (0, PilotProduction.stateHashWords) do
     throw "the prior state preimage is not the first caller input"

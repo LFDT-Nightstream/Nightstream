@@ -2,13 +2,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiatShamir
 import NightstreamFPrime.Spec.SumCheck.FixedPhase.Sequential
 
-/-!
-Generates a causal PiCCS message list with the verifier's actual transcript.
-Each strategy call precedes its message absorption and challenge squeeze.
-The returned list uses the existing fixed polynomials and finite certificate
-view. This is deterministic replay, with no sampling or cryptographic law.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay

@@ -4,12 +4,6 @@ import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Layout.ProductionRelation.AcceptedOpening
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 
-/-!
-Bind the arbitrary-assignment step to the canonical verifier context through
-the concrete terminal public-input check. Interior history extraction remains
-separate.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualContextSecurity
 
 open NightstreamFPrime.Circuit

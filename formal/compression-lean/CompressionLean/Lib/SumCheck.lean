@@ -48,9 +48,9 @@ theorem roundPoly_sum (distinct : NodesDistinct K d) (claim : K) (message : Fin 
     (roundPoly d claim message).eval 0 + (roundPoly d claim message).eval 1 = claim := by
   have zero := roundPoly_eval_node distinct claim message 0
   have one := roundPoly_eval_node distinct claim message 1
-  simp only [node, Fin.val_zero, Nat.cast_zero, roundValues, dif_pos] at zero
+  simp only [node, Fin.val_zero, Nat.cast_zero, roundValues, ↓reduceDIte] at zero
   simp only [node, Fin.val_one, Nat.cast_one, roundValues, show ((1 : ℕ) = 0) = False by simp,
-    dif_neg, if_pos, not_false_eq_true] at one
+    dite_eq_right, ite_eq_left, not_false_eq_true] at one
   rw [zero, one]
   ring
 

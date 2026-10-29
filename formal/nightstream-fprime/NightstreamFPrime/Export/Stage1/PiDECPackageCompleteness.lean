@@ -1,13 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PackageCompleteness
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 
-/-!
-Owns constructive completeness for the canonical PiDEC package-row packet.
-
-The compiled-row equality fixes the final row order; no exporter or Rust code
-selects it.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiDECPackageCompleteness
 
 open NightstreamFPrime.Circuit

@@ -21,8 +21,6 @@ Constraint groups:
 
 Parent coverage:
 - `ProtocolPolynomial.padAtMessage` in the production PiCCS terminal.
-
-This file owns only the v1.2 Pad coordinate order and production-key wiring.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal
@@ -127,7 +125,8 @@ theorem output_varsBelow (interface : Interface) (offset : Nat)
 
 theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
     (coefficientExprs interface offset).length = 864 := by
-  simp [coefficientExprs, canonicalPadCoordinates_length, productionShape,
+  simp only [coefficientExprs, List.length_map]
+  simp [canonicalPadCoordinates_length, productionShape,
     productionProfile, Phi81MatrixSource.phi81Shape,
     Shape.padEvaluationCount, ringDegree]
 

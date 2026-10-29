@@ -1,21 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 
-/-!
-Verifier-visible carriers for canonical SuperNeo v1.2 `Pi_CCS` acceptance.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: public verifier input and raw post-SumCheck output message.
-Constraint family: typed authority boundaries only; this file emits no rows.
-
-Owns: the minimal data available to executable acceptance and the complete
-typed output-evaluation payload supplied by the prover.
-
-Does not own: hidden assignments, matrix-image tables, carried-image tables,
-semantic truth, transcript derivation, degree bounds, concrete refinement,
-Poseidon2, Rust/R1CS, row removal, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
 
@@ -30,6 +15,7 @@ structure VerifierInput (Field : Type uField) (shape : Shape) where
 
 namespace VerifierInput
 
+@[implicit_reducible]
 def sumcheckDegreeBound
     {Field : Type uField}
     {shape : Shape}
@@ -37,8 +23,7 @@ def sumcheckDegreeBound
   Nat.max
     input.constraintPolynomial.canonicalEqualityGatedDegreeBound 4
 
-/-- Corrected SuperNeo v1.2 Appendix B.2 per-round degree ceiling
-`max(D_f + 1, 2b, 2)`. -/
+/-- Corrected SuperNeo v1.2 Appendix B.2 per-round degree bound. -/
 def paperRoundDegreeCeiling
     {Field : Type uField}
     {shape : Shape}

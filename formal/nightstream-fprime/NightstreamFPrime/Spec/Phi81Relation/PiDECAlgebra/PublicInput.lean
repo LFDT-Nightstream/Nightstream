@@ -1,30 +1,13 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput
 
-/-!
-Typed public-input split and recomposition for the concrete Phi81 `Pi_DEC`
-verifier.
-
-Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 16`.
-
-Owns: the coordinatewise public radix split; its projection-commuting and
-recomposition laws; base-field scaling of one exact ring-aligned public
-carrier; the canonical head-first finite base-scalar fold; specialization to
-the verifier-fixed `2^i` radix weights; and the exact theorem required by
-`Folding.PiDEC.Algebra.publicInput_hom`.
-
-Does not own: assignment splitting, commitments, evaluation recomposition,
-public-input authority before projection, transcript binding, Rust/R1CS
-refinement, row removal, or constraint counts.
--/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Phi81Relation
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism
 
-/-- The Section-7.5 pre-split check over the public parent. -/
+/-- SuperNeo v1.2 Section 7.5. -/
 def parentBounded {shape : Shape}
     (input : Phi81Relation.PublicInput shape) : Prop :=
   ∀ column, centeredMagnitude (input column) < Radix.combinedBound
@@ -42,7 +25,7 @@ theorem parentBounded_project {shape : Shape}
   simpa [parentBounded, Radix.combinedBound] using!
     bounded (shape.publicColumn column)
 
-/-- Coordinatewise public split computed by the Section-7.5 verifier. -/
+/-- SuperNeo v1.2 Section 7.5. -/
 def splitPublicInput {shape : Shape}
     (input : Phi81Relation.PublicInput shape)
     (child : Radix.ChildIndex) : Phi81Relation.PublicInput shape :=

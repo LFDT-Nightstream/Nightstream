@@ -83,9 +83,9 @@ theorem statementHandles_run (p : Builder) : statementHandles.run p =
 private theorem range_getD (j : ℕ) : (List.range' 0 9).toArray.getD j 0 = if j < 9 then j else 0 := by
   rw [Array.getD_eq_getD_getElem?, List.getElem?_toArray]
   by_cases h : j < 9
-  · rw [if_pos h, List.getElem?_range' h]
+  · rw [ite_eq_left h, List.getElem?_range' h]
     simp
-  · rw [if_neg h, List.getElem?_eq_none (by simpa using h)]
+  · rw [ite_eq_right h, List.getElem?_eq_none (by simpa using h)]
     rfl
 
 instance statementHandles_appends : Appends statementHandles := by unfold statementHandles; appends
@@ -362,7 +362,7 @@ private theorem env_named
     rfl
   rw [getD]
   refine ⟨lt, src, hold, ?_⟩
-  rw [terminalEnv, assignment, if_neg (by rw [hk]; simp), bang, Option.getD_some]
+  rw [terminalEnv, assignment, ite_eq_right (by rw [hk]; simp), bang, Option.getD_some]
   simp [List.getD_eq_getElem?_getD, klt]
 
 /-- The one column holds one (`Source::One`, `terminal/package.rs::Package::apply`). -/
@@ -374,7 +374,7 @@ private theorem env_one
   rw [hcc]
   obtain ⟨x, hx⟩ := index_some Stage1.Spartan.privateColumnCount (by rw [htotal]; omega)
   cases x with
-  | none => rw [terminalEnv, assignment, if_pos hx, unnamed, if_pos rfl]
+  | none => rw [terminalEnv, assignment, ite_eq_left hx, unnamed, ite_eq_left rfl]
   | some k =>
       obtain ⟨lt, src, hold, env⟩ := env_named loads cols hx
       rw [env]
@@ -400,7 +400,7 @@ private theorem env_context
   obtain ⟨x, hx⟩ := index_some (Stage1.Spartan.expectedContextPublicStart + lane) (by rw [htotal, hstart]; omega)
   cases x with
   | none =>
-      rw [terminalEnv, assignment, if_pos hx, unnamed, if_neg (by rw [hstart]; omega), if_pos (Nat.le_add_right _ _),
+      rw [terminalEnv, assignment, ite_eq_left hx, unnamed, ite_eq_right (by rw [hstart]; omega), ite_eq_left (Nat.le_add_right _ _),
         Nat.add_sub_cancel_left]
       exact hctx lane
   | some k =>
@@ -437,8 +437,8 @@ private theorem env_prior
   obtain ⟨x, hx⟩ := index_some (contextStart + 4 + k) (by rw [htotal]; omega)
   cases x with
   | none =>
-      rw [terminalEnv, assignment, if_pos hx, unnamed, if_neg (by omega), if_neg (by rw [hstart]; omega),
-        if_pos ⟨by omega, by omega⟩, Nat.add_sub_cancel_left]
+      rw [terminalEnv, assignment, ite_eq_left hx, unnamed, ite_eq_right (by omega), ite_eq_right (by rw [hstart]; omega),
+        ite_eq_left ⟨by omega, by omega⟩, Nat.add_sub_cancel_left]
       rfl
   | some j =>
       obtain ⟨lt, src, hold, env⟩ := env_named loads cols hx
@@ -450,7 +450,7 @@ private theorem env_prior
           rw [privateInput_prior (by omega)] at e
           cases e
           rw [hold.2 (by omega) (by omega), hstmt, show contextStart + 4 + k - contextStart - 4 = k by omega,
-            range_getD, if_pos k9]
+            range_getD, ite_eq_left k9]
           exact reads k
       | one =>
           simp only [SourceOf] at src

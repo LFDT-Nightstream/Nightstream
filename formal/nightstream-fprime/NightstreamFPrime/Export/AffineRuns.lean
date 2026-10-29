@@ -4,10 +4,6 @@ import Mathlib.Data.List.OfFn
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.Ring
 
-/-!
-Owns a small canonical affine-run codec for verifier-owned index streams.
--/
-
 namespace NightstreamFPrime.Export.AffineRuns
 
 open NightstreamFPrime.Export.Codec
@@ -155,20 +151,20 @@ theorem expand_compress (indices : List Nat) :
             rw [compressedEq] at inductionHypothesis
             simpa [expand] using inductionHypothesis
           by_cases one : run.count = 1
-          · rw [if_pos one]
+          · rw [ite_eq_left one]
             by_cases ordered : value ≤ run.first
-            · rw [if_pos ordered]
+            · rw [ite_eq_left ordered]
               simp only [expand, List.flatMap_cons]
               rw [expand_pair value run one ordered, List.cons_append, tail]
-            · rw [if_neg ordered]
+            · rw [ite_eq_right ordered]
               simp only [expand, List.flatMap_cons, Run.expand_single,
                 List.cons_append, List.nil_append, tail]
-          · rw [if_neg one]
+          · rw [ite_eq_right one]
             by_cases next : value + run.step = run.first
-            · rw [if_pos next]
+            · rw [ite_eq_left next]
               simp only [expand, List.flatMap_cons]
               rw [expand_prepend value run next, List.cons_append, tail]
-            · rw [if_neg next]
+            · rw [ite_eq_right next]
               simp only [expand, List.flatMap_cons, Run.expand_single,
                 List.cons_append, List.nil_append, tail]
 
@@ -223,13 +219,13 @@ theorem sourceAt_eq_expand_getD
           else sourceAt rest (slot - run.count)) =
         (run.expand ++ AffineRuns.expand rest).getD slot 0
       by_cases inside : slot < run.count
-      · rw [if_pos inside, List.getD_append]
+      · rw [ite_eq_left inside, List.getD_append]
         · simpa [AffineRuns.Run.expand] using
             (affineValues_getD_of_lt run.first run.step run.count slot inside).symm
         · simpa using inside
       · have after : run.expand.length ≤ slot := by
           simpa using Nat.le_of_not_gt inside
-        rw [if_neg inside,
+        rw [ite_eq_right inside,
           List.getD_append_right _ _ _ _ after]
         simpa using inductionHypothesis (slot := slot - run.count)
 

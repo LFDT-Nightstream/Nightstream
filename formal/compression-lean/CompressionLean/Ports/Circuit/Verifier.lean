@@ -5,34 +5,16 @@ import CompressionLean.Ports.Circuit.Late
 import CompressionLean.Ports.Circuit.Linear
 import CompressionLean.Ports.Circuit.Openings
 
-/-!
-Owns the layer-1 verifier of `crates/neo-spartan/src/verifier.rs` as a
-builder program: the view of a proof as handles (`ProofView`, its shape run
-`ProofView.read`) and `verify`, the whole of `verifier.rs::verify`: the
-seed, the relation words and the statement words in the duplex, then the
-early stage (`earlyStage`), the linear stage (`linearStage`), the honest
-fold (`honestStage`), the late stage (`lateStage`), the query points and the
-openings (`openingsStage`). `verifyWith` is `verify_with` around it: the
-handoff of a fold transcript, then the proof view.
-
-The relation is the replay's (`Ports/Replay/Data.lean`): its sizes, tree shapes,
-WHIR shapes and transcript words. What the openings read of each `Pcs`
-beyond its `WhirShape` is a `WhirKey`. The statement is a `ClaimView`.
--/
-
 namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (Relation D runOracles foldVars)
 
-/-- What the verifier reads of its key (`layer1.json`, written by
-`lowering.rs`): the replay's relation and the `WhirKey` of each opening. -/
 structure Layer1Key where
   relation : Relation
   p1Key : WhirKey
   p0Key : WhirKey
 deriving Lean.FromJson
 
-/-- A layer-1 proof as handles (`verifier.rs::ProofView`). -/
 structure ProofView where
   p0 : DigestVar
   histogram : Array Var
@@ -49,9 +31,6 @@ structure ProofView where
   p1Opening : OpeningView
   p0Opening : OpeningView
 
-/-- `ProofView::read` with `proof = None` (`verifier.rs::ProofView::read`): every proof
-word in Rust's order. `p1Rows` and `p0Rows` are the query sets of the two
-openings. -/
 def ProofView.read (rel : Relation) (p1Rows p0Rows : OpeningRows) : Build ProofView := do
   let p0 ← privateDigest
   let histogram ← (Array.range (2 * rel.normBound + 1)).mapM fun _ => Build.priv
@@ -72,17 +51,11 @@ def ProofView.read (rel : Relation) (p1Rows p0Rows : OpeningRows) : Build ProofV
   pure { p0, histogram, early, earlyValues := { runs, pairs, block }, quotient, linear, finals, partials,
          p1, leaves, late, lateValues, p1Opening, p0Opening }
 
-/-- What the early stage leaves to later stages: the norm tree's leaf point,
-`z~` at it (`β - q~`) and the matrix openings. -/
 structure EarlyOut where
   normPoint : Array ExtVar
   zLeaf : ExtVar
   openings : EarlyOpeningsView
 
-/-- The early stage (`verifier.rs::verify`): bind P0's root and the
-histogram, draw `β` and the lookup and scatter challenges, check the norm
-root against the histogram's fraction sum, then the matrix leaf claims, and
-bind the early values. -/
 def earlyStage (rel : Relation) (statement : ClaimView) (proof : ProofView) : Transcript EarlyOut := do
   observeRoot rel.commitmentSeed proof.p0
   Duplex.observeSlice proof.histogram
@@ -104,10 +77,6 @@ def earlyStage (rel : Relation) (statement : ClaimView) (proof : ProofView) : Tr
   observeEarly proof.earlyValues
   pure { normPoint := claims[0]!.point, zLeaf, openings }
 
-/-- `verify` (`verifier.rs::verify`): a new duplex binds the seed, the
-relation words as constants and the statement words; then the early stage,
-the linear stage, the honest fold, the late stage, each query's point
-(`verifier.rs::verify`) and the two openings. -/
 def verify (rel : Relation) (p1Key p0Key : WhirKey) (seed : DigestVar) (statement : ClaimView)
     (proof : ProofView) : Build Unit := do
   let duplex ← Duplex.new
@@ -136,9 +105,6 @@ def verify (rel : Relation) (p1Key p0Key : WhirKey) (seed : DigestVar) (statemen
         lateValues := proof.lateValues, p1Opening := proof.p1Opening, p0Opening := proof.p0Opening }
   let _ ← run.run duplex
 
-/-- `verify_with` (`lib.rs::verify_with`): the handoff of the fold transcript
-`state`, the proof view, then `verify`. The claim's shape check writes no
-instruction. -/
 def verifyWith (key : Layer1Key) (state : Fin 16 → Var) (claim : ClaimView) : Build Unit := do
   let seed ← (FoldTranscript.fromState state).handoff
   let proof ← ProofView.read key.relation key.p1Key.rows key.p0Key.rows

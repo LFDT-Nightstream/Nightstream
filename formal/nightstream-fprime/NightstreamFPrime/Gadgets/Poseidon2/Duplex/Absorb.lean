@@ -1,11 +1,5 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Hash
 
-/-!
-Owns the absorb-only primitive used by the Poseidon2 duplex gadget. It reuses
-the hash compiler and proves equality to the existing Poseidon2 block fold.
-It does not define a transcript schedule.
--/
-
 namespace NightstreamFPrime.Gadgets.Poseidon2.Duplex.Absorb
 
 open NightstreamFPrime.Spec

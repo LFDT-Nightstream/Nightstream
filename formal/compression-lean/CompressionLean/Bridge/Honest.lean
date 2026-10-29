@@ -2,17 +2,6 @@ import CompressionLean.Bridge.Late
 import CompressionLean.Spec.Messages
 import CompressionLean.Spec.Checks
 
-/-!
-Owns the bridge of the honest-fold stage (`Replay.honestStage`) to the
-model's `honestGame`. The replay's matrix step is the extension of the
-setup's matrix column (`toK_matrixStep`), so its run value is the model's.
-A successful honest-fold replay is a path of `honestGame` that draws the
-replay's `μ`, `α` and query words, receives the partials and the P1
-candidates, and ends in the model's `HonestOut` of the replay's values,
-with both partial checks (`honest_reaches`). The setup queries' leaf checks
-feed the P1 openings, not this path (`Openings.lean`).
--/
-
 namespace CompressionLean.Bridge
 
 open CompressionLean.Spec
@@ -48,11 +37,9 @@ theorem toK_matrixStep (rel : Replay.Relation) (S : Setup Gl) (fits : S.Fits (sh
 theorem pointK_padded (n : ℕ) (p : Array Ext) : pointK (K := K) (Replay.padded n p) = Layer1.padded n (pointK p) := by
   simp [Replay.padded, Layer1.padded, pointK]
 
-/-- The model's query words of the replay's. -/
 def wordsOf (queries : ℕ) (ws : Array Word) : Fin queries → Fin goldilocksModulus :=
   fun j => ⟨(ws[(j : ℕ)]!).word.toNat, Word.canonical _⟩
 
-/-- What the openings read of a successful honest-fold replay. -/
 structure HonestRun (rel : Replay.Relation) (proof : Replay.Proof) (early : Replay.EarlyOut) (lin : Replay.LinearOut)
     (honest : Replay.HonestOut) : Prop where
   alpha : honest.alpha = #[honest.alpha[0]!, honest.alpha[1]!, honest.alpha[2]!]
@@ -75,7 +62,6 @@ theorem toK_embedded (p : Array Ext) (n : ℕ) (block : Ext) :
       simp only [List.map_cons, List.prod_cons]
       ring
 
-/-- The replay's run value is the model's, at the model's early output. -/
 theorem toK_runValue (rel : Replay.Relation) (proof : Replay.Proof) (S : Setup Gl) (fits : S.Fits (shapeOf rel))
     (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
     (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S) (sizes : HonestSizes rel)
@@ -103,10 +89,6 @@ theorem toK_runValue (rel : Replay.Relation) (proof : Replay.Proof) (S : Setup G
 
 variable [DecidableEq K]
 
-/-- A successful honest-fold replay is a path of `honestGame` that receives
-the partials and the P1 candidates, draws the replay's `μ`, `α` and query
-words and ends in the model's `HonestOut` of the replay's values; along it
-both partial checks hold. -/
 theorem honest_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : ProofShape rel proof) (S : Setup Gl)
     (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
     (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S) (sizes : HonestSizes rel)
@@ -200,7 +182,7 @@ theorem honest_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : P
       apply Game.Reaches.draw a1.toK
       apply Game.Reaches.draw a2.toK
       exact Game.Reaches.pure _
-    · rw [if_pos checks]
+    · rw [ite_eq_left checks]
       apply Game.Reaches.recv (⟨p1, short⟩ : {l : List (P1Tables K) // l.length ≤ L1})
       exact Game.Reaches.draw (wordsOf rel.queries words) (Game.Reaches.pure _)
 

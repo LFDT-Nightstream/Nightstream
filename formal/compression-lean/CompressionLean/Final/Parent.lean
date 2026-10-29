@@ -2,21 +2,6 @@ import CompressionLean.Final.Bridge
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.OutputBinding
 import CompressionLean.Spec.Parent
 
-/-!
-Owns the link from layer 1's relation to F′'s. Under the honest setup of the
-F′ key, a layer-1 CE(B) witness of the statement that an F′ PiRLC parent
-names is a witness of F′'s CE(B) relation for that parent (`parent_holds`,
-SuperNeo v1.2 Definition 21).
-
-- The premises `HonestSetup` and `ParentShape` are in `Spec/Parent.lean`.
-- `statementOf`: the layer-1 statement that an F′ instance names.
-  `assignmentOf`: the F′ assignment of a layer-1 witness.
-- `evaluate_coefficient`: F′'s evaluation of a coefficient-expanded matrix
-  is the Φ81-kernel sum of `Mᵀχ_r` (SuperNeo v1.2 Theorem 10).
-
-Does not own the terminal output columns (`ParentClaim.lean`) or the games.
--/
-
 namespace CompressionLean.Final
 
 open CompressionLean.Spec
@@ -29,7 +14,6 @@ section Evaluation
 
 variable {lw : ℕ}
 
-/-- A carrier column as its block and lane. -/
 def columnEquiv :
     Fin (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)) × Fin ringDegree ≃
       Fin (Phi81CarrierLayout.carrierWidth lw) where
@@ -44,19 +28,15 @@ theorem sum_columns {M : Type} [AddCommMonoid M] (g : Fin (Phi81CarrierLayout.ca
   rw [← Fintype.sum_prod_type' (fun b e => g (Phi81CarrierLayout.carrierColumn b e))]
   exact (Fintype.sum_equiv columnEquiv _ _ (fun _ => rfl)).symm
 
-/-- Entry `(i, c)` of an F′ matrix on numbers: row `i` in F′'s little-endian
-order, zero past the carrier. -/
 def entryAt (M : PaperLinearAlgebra.BooleanMatrix F cubeVariables (Phi81CarrierLayout.carrierWidth lw))
     (i c : ℕ) : Gl :=
   if h : c < Phi81CarrierLayout.carrierWidth lw then gl (M (vertexAt cubeVariables i) ⟨c, h⟩) else 0
 
-/-- The real part of a layer-1 `K` value. -/
 def reHom : Layer1.Quad Gl →+ Gl where
   toFun q := q.re
   map_zero' := rfl
   map_add' _ _ := rfl
 
-/-- The imaginary part of a layer-1 `K` value. -/
 def imHom : Layer1.Quad Gl →+ Gl where
   toFun q := q.im
   map_zero' := rfl
@@ -81,10 +61,7 @@ theorem paddedEntry_eq (relation : ProductionKey.LogicalRelation lw pf)
   unfold MatrixCoefficientSource.MatrixSource.paddedEntry
   rw [encoded]
 
-/-- One coefficient of F′'s evaluation of a coefficient-expanded matrix
-(`PaperAlgebra.evaluationFamily`), under a part `π` of `K`: the sum over
-blocks `b`, lanes `l, e` of `π(w_b(l))·z(b, e)·W[p][l][e]`, where
-`w = Mᵀχ_r` (SuperNeo v1.2 Definition 21, Theorem 10). -/
+/-- SuperNeo v1.2 Definition 21, Theorem 10. -/
 theorem evaluate_coefficient (relation : ProductionKey.LogicalRelation lw pf)
     (M : PaperLinearAlgebra.BooleanMatrix F cubeVariables (Phi81CarrierLayout.carrierWidth lw))
     (a : Fin (Phi81CarrierLayout.carrierWidth lw) → F)
@@ -107,7 +84,7 @@ theorem evaluate_coefficient (relation : ProductionKey.LogicalRelation lw pf)
     have lt := (Phi81CarrierLayout.carrierColumn b l).isLt
     rw [val] at lt
     unfold entryAt
-    rw [dif_pos lt]
+    rw [dite_eq_left lt]
     congr 2
     exact Fin.ext val.symm
   have coefficient (v : BooleanVertex cubeVariables) (c : Fin (Phi81CarrierLayout.carrierWidth lw)) :
@@ -118,7 +95,7 @@ theorem evaluate_coefficient (relation : ProductionKey.LogicalRelation lw pf)
     rw [sumRange_eq, ← Fin.sum_univ_eq_sum_range]
     apply Finset.sum_congr rfl
     intro l _
-    rw [dif_pos l.isLt]
+    rw [dite_eq_left l.isLt]
     exact congrArg (fun x => gl x * gl (phi81Kernel.weight p l (Phi81ColumnLayout.decode c).2))
       (paddedEntry_eq relation M v _ l)
   unfold BooleanTable.evaluate
@@ -175,14 +152,14 @@ theorem weight_evalK (part : ℕ) (small : part < 2) (b : ℕ) :
       Layer1.barPoly s.D bar fun l =>
         if part = 0 then (st.chi (s.D * b + l)).1 else (st.chi (s.D * b + l)).2 := by
   simp only [Layer1.relationRows, Layer1.Shape.evalKRow]
-  rw [if_neg (by omega), if_pos (by omega)]
+  rw [ite_eq_right (by omega), ite_eq_left (by omega)]
   simp
 
 theorem target_evalK (part : ℕ) (small : part < 2) :
     (Layer1.relationRows s bar S st).target (s.evalKRow part) =
       Layer1.coeffPoly s.D fun l => if part = 0 then (st.evalK l).1 else (st.evalK l).2 := by
   simp only [Layer1.relationRows, Layer1.Shape.evalKRow]
-  rw [if_neg (by omega), if_pos (by omega)]
+  rw [ite_eq_right (by omega), ite_eq_left (by omega)]
   simp
 
 theorem weight_evalA (j part : ℕ) (inside : j < s.matrices) (small : part < 2) (b : ℕ) :
@@ -190,7 +167,7 @@ theorem weight_evalA (j part : ℕ) (inside : j < s.matrices) (small : part < 2)
       Layer1.barPoly s.D bar fun l => if part = 0 then (Layer1.evalAWeight S st s.D j (s.D * b + l)).1
         else (Layer1.evalAWeight S st s.D j (s.D * b + l)).2 := by
   simp only [Layer1.relationRows, Layer1.Shape.evalARow]
-  rw [if_neg (by omega), if_neg (by omega), if_pos (by omega),
+  rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_left (by omega),
     show s.kappa + 2 + 2 * j + part - s.kappa - 2 = 2 * j + part by omega,
     show (2 * j + part) / 2 = j by omega]
   rcases (show part = 0 ∨ part = 1 by omega) with rfl | rfl <;> simp
@@ -199,7 +176,7 @@ theorem target_evalA (j part : ℕ) (inside : j < s.matrices) (small : part < 2)
     (Layer1.relationRows s bar S st).target (s.evalARow j part) =
       Layer1.coeffPoly s.D fun l => if part = 0 then (st.evalA j l).1 else (st.evalA j l).2 := by
   simp only [Layer1.relationRows, Layer1.Shape.evalARow]
-  rw [if_neg (by omega), if_neg (by omega), if_pos (by omega),
+  rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_left (by omega),
     show s.kappa + 2 + 2 * j + part - s.kappa - 2 = 2 * j + part by omega,
     show (2 * j + part) / 2 = j by omega]
   rcases (show part = 0 ∨ part = 1 by omega) with rfl | rfl <;> simp
@@ -207,13 +184,13 @@ theorem target_evalA (j part : ℕ) (inside : j < s.matrices) (small : part < 2)
 theorem weight_public (j : ℕ) (b : ℕ) :
     (Layer1.relationRows s bar S st).weight (s.publicRow j) b = if b = j then 1 else 0 := by
   simp only [Layer1.relationRows, Layer1.Shape.publicRow]
-  rw [if_neg (by omega), if_neg (by omega), if_neg (by omega),
+  rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega),
     show s.kappa + 2 + 2 * s.matrices + j - (s.kappa + 2 + 2 * s.matrices) = j by omega]
 
 theorem target_public (j : ℕ) :
     (Layer1.relationRows s bar S st).target (s.publicRow j) = Layer1.coeffPoly s.D (st.publicInput j) := by
   simp only [Layer1.relationRows, Layer1.Shape.publicRow]
-  rw [if_neg (by omega), if_neg (by omega), if_neg (by omega),
+  rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega),
     show s.kappa + 2 + 2 * s.matrices + j - (s.kappa + 2 + 2 * s.matrices) = j by omega]
 
 end Rows
@@ -222,8 +199,6 @@ section Link
 
 variable {lw : ℕ} {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
 
-/-- When every run names a row below `2^n`, the Eval_A weight of column `c`
-is `Σ_i M_j(i, c)·χ_r(i)` over the rows, with the entries the runs give. -/
 theorem evalAWeight_eq (S : Layer1.Setup Gl) (st : Layer1.Statement Gl) (D j c n : ℕ)
     (row_lt : ∀ k, k < S.runs → S.runRow k < 2 ^ n) :
     Layer1.evalAWeight S st D j c = ∑ i ∈ Finset.range (2 ^ n), runEntry S D j i c • st.chi i := by
@@ -237,12 +212,9 @@ theorem evalAWeight_eq (S : Layer1.Setup Gl) (st : Layer1.Statement Gl) (D j c n
   intro k member
   rw [(Finset.mem_filter.mp member).2]
 
-/-- The single evaluation family of an F′ CE instance. -/
 def family (P : PiRLC.v1_2.InputBinding.InputInstance lw pf) : PaperAlgebra.Evaluation :=
   P.evaluations.getD 0 PaperAlgebra.evaluationZero
 
-/-- The layer-1 statement that an F′ CE instance names: its words, as
-`Package::apply` reads them (`terminal/package.rs`). -/
 def statementOf (P : PiRLC.v1_2.InputBinding.InputInstance lw pf) : Layer1.Statement Gl where
   commitment ρ l :=
     if h : ρ < productionProfile.commitmentWidth ∧ l < ringDegree then gl (P.commitment ⟨ρ, h.1⟩ ⟨l, h.2⟩) else 0
@@ -259,8 +231,6 @@ theorem statementOf_point (P : PiRLC.v1_2.InputBinding.InputInstance lw pf) :
   simp only [Layer1.Statement.point, statementOf, List.map_map]
   rfl
 
-/-- The F′ assignment of a layer-1 witness: carrier column `54·b + l` is the
-cell `2^laneVars·b + l` of the witness cube. -/
 def assignmentOf (s : Layer1.Shape) (z : ℕ → Gl) : PaperAlgebra.Assignment (logicalWidth := lw) (publicFits := pf) :=
   fun c => z (2 ^ s.laneVars * (c.val / ringDegree) + c.val % ringDegree)
 
@@ -295,6 +265,7 @@ theorem assignmentBlock_apply (s : Layer1.Shape) (z : ℕ → Gl)
     simp only [ringDegree] at this ⊢
     omega
   simp only [Phi81Relation.EvaluationHomomorphism.CarrierAction.assignmentBlock, assignmentOf,
+    Phi81Relation.EvaluationHomomorphism.CarrierAction.carrierColumn,
     Phi81CarrierLayout.carrierColumn, Phi81ColumnLayout.flatIndex, div, mod]
 
 theorem witnessBlock_eq (s : Layer1.Shape) (z : ℕ → Gl) (shape : ParentShape s lw)
@@ -305,8 +276,6 @@ theorem witnessBlock_eq (s : Layer1.Shape) (z : ℕ → Gl) (shape : ParentShape
   rw [shape.D]
   exact coeffPoly_eq _ _ fun l => (assignmentBlock_apply s z b l).symm
 
-/-- A layer-1 ring row in F′'s terms: weights `W_b`, the witness blocks of
-the assignment, and the target `y`. -/
 theorem row_dvd {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Setup Gl} {st : Layer1.Statement Gl}
     {z : ℕ → Gl} (shape : ParentShape s lw)
     (rows : (Layer1.relationRows s bar S st).Holds modulus (Layer1.witnessBlock s z))
@@ -330,8 +299,6 @@ theorem row_dvd {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Setup 
     Finset.sum_congr rfl fun b _ => by rw [weight b, witnessBlock_eq s z shape b]
   rwa [same] at holds
 
-/-- An Eval row of layer 1 in F′'s terms: the target's coefficient `p` is the
-Φ81-kernel sum of the weights `u_b` and the assignment blocks. -/
 theorem evalRow_coeff {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Setup Gl} {st : Layer1.Statement Gl}
     {z : ℕ → Gl} (shape : ParentShape s lw)
     (rows : (Layer1.relationRows s bar S st).Holds modulus (Layer1.witnessBlock s z))
@@ -345,7 +312,6 @@ theorem evalRow_coeff {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.
   rw [← ringSum_eq_of_dvd _ _ _ (row_dvd (pf := pf) shape rows inside _ _ weight target), ringFSum_apply]
   exact Finset.sum_congr rfl fun b _ => ringFMul_barRing _ _ p
 
-/-- One part of a pair: the first for part `0`, the second otherwise. -/
 def sel (part : ℕ) (x : Gl × Gl) : Gl := if part = 0 then x.1 else x.2
 
 theorem sel_sum {ι : Type} (part : ℕ) (t : Finset ι) (f : ι → Gl × Gl) :
@@ -372,7 +338,7 @@ theorem centeredMagnitude_slotValue (H t : ℕ) (small : t < 2 * H + 1) (half : 
       rw [ZMod.val_natCast_of_lt (by omega), ZMod.val_zero] at this
       omega
     rw [show (t : Gl) - (H : Gl) = -((H - t : ℕ) : Gl) by rw [Nat.cast_sub lt.le]; ring, ZMod.neg_val,
-      if_neg nonzero, ZMod.val_natCast_of_lt (by omega)]
+      ite_eq_right nonzero, ZMod.val_natCast_of_lt (by omega)]
     exact (min_le_right _ _).trans (by omega)
 
 theorem family_ext {x y : PaperAlgebra.Evaluation} (pad : ∀ p, x.pad p = y.pad p)
@@ -388,8 +354,6 @@ theorem K_ext {x y : K} (c0 : gl x.c0 = gl y.c0) (c1 : gl x.c1 = gl y.c1) : x = 
   cases y
   congr
 
-/-- The padded identity `Pad = [I; 0]` of F′'s canonical row layout, as a
-matrix. -/
 def padMatrix (relation : ProductionKey.LogicalRelation lw pf) :
     PaperLinearAlgebra.BooleanMatrix F cubeVariables (Phi81CarrierLayout.carrierWidth lw) :=
   fun row column => (Spec.Folding.PiCCS.CanonicalRowLayout.layout cubeVariables
@@ -400,33 +364,32 @@ theorem entryAt_pad (relation : ProductionKey.LogicalRelation lw pf) {i c : ℕ}
     (hc : c < Phi81CarrierLayout.carrierWidth lw) :
     entryAt (padMatrix relation) i c = if i = c then 1 else 0 := by
   unfold entryAt padMatrix
-  rw [dif_pos hc]
+  rw [dite_eq_left hc]
   simp only [UnifiedSources.ColumnLayout.paddedIdentityEntry, Spec.Folding.PiCCS.CanonicalRowLayout.layout,
     index_vertexAt, Nat.mod_eq_of_lt hi]
   by_cases same : i = c
   · subst same
-    rw [dif_pos hc, if_pos rfl]
+    rw [dite_eq_left hc, ite_eq_left rfl]
     dsimp only
-    rw [if_pos rfl]
+    rw [ite_eq_left rfl]
     rfl
-  · rw [if_neg same]
+  · rw [ite_eq_right same]
     by_cases live : i < Phi81CarrierLayout.carrierWidth lw
-    · rw [dif_pos live]
+    · rw [dite_eq_left live]
       dsimp only
-      rw [if_neg (fun equal => same (congrArg Fin.val equal).symm)]
+      rw [ite_eq_right (fun equal => same (congrArg Fin.val equal).symm)]
       rfl
-    · rw [dif_neg live]
+    · rw [dite_eq_right live]
       rfl
 
-/-- Pad's weight of column `c`: `Σ_i π(χ_r(i))·Pad(i, c) = π(χ_r(c))`. -/
 theorem pad_weight (relation : ProductionKey.LogicalRelation lw pf) (π : Layer1.Quad Gl →+ Gl)
     (point : List (Layer1.Quad Gl)) {c : ℕ} (hc : c < Phi81CarrierLayout.carrierWidth lw) :
     ∑ i ∈ Finset.range (2 ^ cubeVariables), π (Lib.eqAt point i) * entryAt (padMatrix relation) i c =
       π (Lib.eqAt point c) := by
   rw [Finset.sum_eq_single c]
-  · rw [entryAt_pad relation (hc.trans_le relation.cubeFits) hc, if_pos rfl, mul_one]
+  · rw [entryAt_pad relation (hc.trans_le relation.cubeFits) hc, ite_eq_left rfl, mul_one]
   · intro i member different
-    rw [entryAt_pad relation (Finset.mem_range.mp member) hc, if_neg different, mul_zero]
+    rw [entryAt_pad relation (Finset.mem_range.mp member) hc, ite_eq_right different, mul_zero]
   · intro outside
     exact absurd (Finset.mem_range.mpr (hc.trans_le relation.cubeFits)) outside
 
@@ -453,8 +416,6 @@ theorem chi_part (P : PiRLC.v1_2.InputBinding.InputInstance lw pf) (part : ℕ) 
   rw [hπ, ← statementOf_point]
   rfl
 
-/-- The Eval_A weight of column `c` under a part `π`: the column of
-`π(M_jᵀχ_r)` with the honest setup's entries. -/
 theorem evalA_weight {s : Layer1.Shape} {S : Layer1.Setup Gl} {relation : ProductionKey.LogicalRelation lw pf}
     {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf)} (honest : HonestSetup s S relation ajtai)
     (P : PiRLC.v1_2.InputBinding.InputInstance lw pf) (part : ℕ) (π : Layer1.Quad Gl →+ Gl)
@@ -468,9 +429,8 @@ theorem evalA_weight {s : Layer1.Shape} {S : Layer1.Setup Gl} {relation : Produc
   intro i member
   rw [sel_smul, honest.entry j i ⟨c, hc⟩ (Finset.mem_range.mp member), chi_part P part π hπ, mul_comm]
   unfold entryAt
-  rw [dif_pos hc]
+  rw [dite_eq_left hc]
 
-/-- One part of one Pad coefficient: F′'s evaluation is layer 1's `Eval_K`. -/
 theorem pad_part {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Setup Gl}
     (relation : ProductionKey.LogicalRelation lw pf) (P : PiRLC.v1_2.InputBinding.InputInstance lw pf)
     (shape : ParentShape s lw) (barEq : ∀ p l : Fin ringDegree, bar p l = gl (nativeBarEntry p l))
@@ -504,8 +464,6 @@ theorem pad_part {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Setup
   rw [pad_weight relation π _ (column_lt b l)]
   rfl
 
-/-- One part of one Eval_A coefficient: F′'s evaluation of matrix `j` is
-layer 1's `Eval_A_j`. -/
 theorem matrix_part {s : Layer1.Shape} {bar : ℕ → ℕ → Gl} {S : Layer1.Setup Gl}
     {relation : ProductionKey.LogicalRelation lw pf}
     {ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf)} (P : PiRLC.v1_2.InputBinding.InputInstance lw pf)
@@ -556,11 +514,7 @@ theorem array_singleton (values : Array PaperAlgebra.Evaluation) (single : value
     subst zero
     simp [Array.getD, single]
 
-/-- **The F′ link.** Under the honest setup of the F′ circuit's key, a
-layer-1 CE(B) witness `z` of the statement that an F′ PiRLC parent `P`
-names gives a witness of F′'s CE(B) relation for `P` (SuperNeo v1.2
-Definition 21): the Ajtai commitment, the public projection, the norm below
-`B`, and the Pad and matrix evaluations at `P`'s point. -/
+/-- SuperNeo v1.2 Definition 21. -/
 theorem parent_holds (s : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Layer1.Setup Gl)
     (relation : ProductionKey.LogicalRelation lw pf)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
@@ -610,15 +564,15 @@ theorem parent_holds (s : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Layer1.S
       (fun b => by
         rw [weight_public]
         by_cases same : b = block
-        · rw [if_pos (congrArg Fin.val same), if_pos same, toPolynomial_one]
-        · rw [if_neg (fun equal => same (Fin.ext equal)), if_neg same, toPolynomial_zero])
+        · rw [ite_eq_left (congrArg Fin.val same), ite_eq_left same, toPolynomial_one]
+        · rw [ite_eq_right (fun equal => same (Fin.ext equal)), ite_eq_right same, toPolynomial_zero])
       (by
         rw [target_public, shape.D]
         exact coeffPoly_eq _ _ fun l => by
           simp only [statementOf]
-          rw [dif_pos ⟨l.isLt, public_lt jPublic l.isLt⟩])
-    rw [Finset.sum_eq_single block (fun b _ other => by rw [if_neg other, toPolynomial_zero, zero_mul])
-      (fun outside => absurd (Finset.mem_univ block) outside), if_pos rfl, toPolynomial_one, one_mul] at dvd
+          rw [dite_eq_left ⟨l.isLt, public_lt jPublic l.isLt⟩])
+    rw [Finset.sum_eq_single block (fun b _ other => by rw [ite_eq_right other, toPolynomial_zero, zero_mul])
+      (fun outside => absurd (Finset.mem_univ block) outside), ite_eq_left rfl, toPolynomial_one, one_mul] at dvd
     have atLane := congrFun (eq_of_dvd dvd) ⟨column.val % ringDegree, lane⟩
     calc _ = Phi81Relation.EvaluationHomomorphism.CarrierAction.assignmentBlock (assignmentOf s z) block
           ⟨column.val % ringDegree, lane⟩ :=
@@ -654,22 +608,22 @@ theorem parent_holds (s : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Layer1.S
       have evalK (part : ℕ) (part_lt : part < 2) : sel part ((statementOf P).evalK p) =
           if part = 0 then gl ((family P).pad p).c0 else gl ((family P).pad p).c1 := by
         simp only [sel, statementOf]
-        rw [dif_pos (show p.val < ringDegree from p.isLt)]
+        rw [dite_eq_left (show p.val < ringDegree from p.isLt)]
       apply K_ext
       · exact (pad_part relation P shape barEq rows 0 (by decide) reHom (fun _ => rfl) reHom_scale p).trans
-          ((evalK 0 (by decide)).trans (if_pos rfl))
+          ((evalK 0 (by decide)).trans (ite_eq_left rfl))
       · exact (pad_part relation P shape barEq rows 1 (by decide) imHom (fun _ => rfl) imHom_scale p).trans
-          ((evalK 1 (by decide)).trans (if_neg (by decide)))
+          ((evalK 1 (by decide)).trans (ite_eq_right (by decide)))
     · intro j p
       have evalA (part : ℕ) (part_lt : part < 2) : sel part ((statementOf P).evalA j p) =
           if part = 0 then gl ((family P).matrix j p).c0 else gl ((family P).matrix j p).c1 := by
         simp only [sel, statementOf]
-        rw [dif_pos (show j.val < productionProfile.ccsMatrices ∧ p.val < ringDegree from ⟨j.isLt, p.isLt⟩)]
+        rw [dite_eq_left (show j.val < productionProfile.ccsMatrices ∧ p.val < ringDegree from ⟨j.isLt, p.isLt⟩)]
       apply K_ext
       · exact (matrix_part P shape barEq honest rows 0 (by decide) reHom (fun _ => rfl) reHom_scale j p).trans
-          ((evalA 0 (by decide)).trans (if_pos rfl))
+          ((evalA 0 (by decide)).trans (ite_eq_left rfl))
       · exact (matrix_part P shape barEq honest rows 1 (by decide) imHom (fun _ => rfl) imHom_scale j p).trans
-          ((evalA 1 (by decide)).trans (if_neg (by decide)))
+          ((evalA 1 (by decide)).trans (ite_eq_right (by decide)))
 
 end Link
 

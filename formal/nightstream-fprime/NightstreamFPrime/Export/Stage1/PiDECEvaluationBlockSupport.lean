@@ -4,10 +4,6 @@ import Mathlib.Algebra.Group.Fin.Basic
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 import Mathlib.Data.List.Dedup
 
-/-!
-Sum the existing row-block products only at blocks named by sparse entries.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECEvaluationBlockSupport
@@ -105,7 +101,7 @@ theorem rowBlock_zero_of_not_mem {columns : Nat} (form : SparseForm columns)
     apply outside
     apply List.mem_dedup.mpr
     exact List.mem_map.mpr ⟨entry, member, equal⟩
-  simp only [if_neg different, Fin.mul_zero]
+  simp only [ite_eq_right different, Fin.mul_zero]
 
 private theorem blockIndices_lt {columns blocks : Nat} (form : SparseForm columns)
     (fits : columns ≤ blocks * ringDegree) (block : Nat)
@@ -224,13 +220,13 @@ theorem kernel_eq_evalSparse {columns : Nat} (form : SparseForm columns)
           block ≠ entry.column.val / ringDegree → term block entry = 0 := by
         intro block _ different
         dsimp only [term]
-        rw [if_neg (Ne.symm different), Fin.mul_zero]
+        rw [ite_eq_right (Ne.symm different), Fin.mul_zero]
       calc
         _ = term (entry.column.val / ringDegree) entry :=
           Finset.sum_eq_single_of_mem (entry.column.val / ringDegree) selected others
         _ = entry.coefficient * read entry.column := by
           dsimp only [term, read]
-          rw [if_pos rfl]
+          rw [ite_eq_left rfl]
     _ = _ := (evalSparse_eq_entries_sum form read).symm
 
 end NightstreamFPrime.Export.Stage1.PiDECEvaluationBlockSupport

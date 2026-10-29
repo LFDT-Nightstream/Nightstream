@@ -1,25 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanDomain
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanEvaluation
 
-/-!
-Equality-weighted hypercube expansion of the canonical Boolean-table MLE.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: Boolean-table evaluation before alpha/gamma compression.
-Constraint family: semantic equality-weight expansion; this file emits no
-constraints.
-
-Owns: the paper equality weight `eq(x, r)`, the explicit finite sum over the
-sole canonical `BooleanVertex.all` enumeration, and its equality with the
-independently recursive `BooleanTable.evaluate` MLE.
-
-Does not own: construction of CCS, norm, or carried-evaluation tables; mapping
-the semantic vertex order to an external paper integer, matrix-row, bitstring,
-or Rust serialization; alpha/gamma mixing; SumCheck; Fiat--Shamir; R1CS; or
-constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -80,8 +62,6 @@ def finiteSum
   | [] => ops.zero
   | value :: values => ops.add value (finiteSum ops values)
 
-/-- The paper-shaped hypercube sum
-`sum_x eq(x,r) * table[x]`, traversing exactly `BooleanVertex.all`. -/
 def equalityWeightedSum
     {Field : Type uField}
     (ops : InterpolationOps Field)

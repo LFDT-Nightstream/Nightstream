@@ -131,9 +131,9 @@ private theorem IsTreeClaim.advance {c : Ctx F} {m : ℕ} {v : TreeClaimView} (h
     (ne : shapes[t]!.depth ≠ k) (hp : t < g.leafPoint.size) (hv : t < g.leafValues.size) :
     IsTreeClaim c m v (Replay.advance shapes k g pairs next tau) t := by
   refine ⟨h.1, ?_, ?_⟩
-  · rw [advance_leafPoint hp, if_neg ne]
+  · rw [advance_leafPoint hp, ite_eq_right ne]
     exact h.2.1
-  · rw [advance_leafValues hv, if_neg ne]
+  · rw [advance_leafValues hv, ite_eq_right ne]
     exact h.2.2
 
 end Advance
@@ -469,15 +469,15 @@ private theorem reduceLoop_ensures {shapes : Array TreeShape} {j : ℕ} {roots :
     refine (reduceValues_ensures hv.1.mono htau.mono).tbind fun reduced e₁ m₁ _ hred => ?_
     obtain ⟨hr, he₁⟩ := hred
     by_cases hk : shapes[act[s]]!.depth = j + 1
-    · rw [if_pos hk, StateT.run_pure]
+    · rw [ite_eq_left hk, StateT.run_pure]
       refine Ensures.pure ⟨rfl, ?_⟩
       dsimp only [ForInStep.value]
       refine ⟨he₁.trans he, sz1, by rw [Array.size_set!]; exact sz2, fun t ht => ⟨?_, fun hd => ?_⟩⟩
       · by_cases ts : t = act[s]
         · subst ts
-          rw [if_pos ((split _).mpr (Or.inr rfl)), advance_current (by omega), if_neg (by omega)]
+          rw [ite_eq_left ((split _).mpr (Or.inr rfl)), advance_current (by omega), ite_eq_right (by omega)]
           have := (inv _ ht).1
-          rw [if_neg fresh] at this
+          rw [ite_eq_right fresh] at this
           exact this.mono
         · have := (inv t ht).1
           simp only [(split t).trans (or_iff_left ts)]
@@ -485,16 +485,16 @@ private theorem reduceLoop_ensures {shapes : Array TreeShape} {j : ℕ} {roots :
       · rw [getElem!_set! _ _ _ _ (by omega)]
         by_cases ts : act[s] = t
         · subst ts
-          rw [if_pos rfl]
+          rw [ite_eq_left rfl]
           refine ⟨(hroots _ ht).mono, ?_, ?_⟩
-          · rw [advance_leafPoint (by omega), if_pos hk]
+          · rw [advance_leafPoint (by omega), ite_eq_left hk]
             exact hnext.mono
-          · rw [advance_leafValues (by omega), if_pos hk, hro]
+          · rw [advance_leafValues (by omega), ite_eq_left hk, hro]
             exact hr
-        · rw [if_neg ts]
+        · rw [ite_eq_right ts]
           exact ((inv t ht).2 (hd.imp_right fun hd' =>
             ⟨((split t).mp hd'.1).resolve_right (Ne.symm ts), hd'.2⟩)).mono
-    · rw [if_neg hk, StateT.run_pure]
+    · rw [ite_eq_right hk, StateT.run_pure]
       refine Ensures.pure ⟨rfl, ?_⟩
       dsimp only [ForInStep.value]
       have inner : j + 1 < shapes[act[s]]!.depth := by omega
@@ -502,11 +502,11 @@ private theorem reduceLoop_ensures {shapes : Array TreeShape} {j : ℕ} {roots :
       · rw [getElem!_set! _ _ _ _ (by omega)]
         by_cases ts : act[s] = t
         · subst ts
-          rw [if_pos rfl, if_pos ((split _).mpr (Or.inr rfl)), advance_current (by omega), if_pos inner, hro]
+          rw [ite_eq_left rfl, ite_eq_left ((split _).mpr (Or.inr rfl)), advance_current (by omega), ite_eq_left inner, hro]
           have size : gchildren[s]!.size / 2 = 2 := by
-            rw [hv.2, Replay.partFactors, if_neg hk]
+            rw [hv.2, Replay.partFactors, ite_eq_right hk]
           exact ⟨hr.2 0 (by rw [hr.1]; simp [size]), hr.2 1 (by rw [hr.1]; simp [size])⟩
-        · rw [if_neg ts]
+        · rw [ite_eq_right ts]
           have := (inv t ht).1
           simp only [(split t).trans (or_iff_left (Ne.symm ts))]
           exact this.mono
@@ -525,7 +525,7 @@ private theorem reduceLoop_ensures {shapes : Array TreeShape} {j : ℕ} {roots :
     · have := (inv t ht).1
       split_ifs at this with member
       · exact this
-      · rw [advance_current (by omega), if_neg ?_]
+      · rw [advance_current (by omega), ite_eq_right ?_]
         · exact this
         · intro deep
           exact member (mem_activeTrees.mpr ⟨ht, by omega⟩)

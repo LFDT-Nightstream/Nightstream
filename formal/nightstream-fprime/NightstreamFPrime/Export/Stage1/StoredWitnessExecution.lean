@@ -1,11 +1,5 @@
 import NightstreamFPrime.Circuit.StraightLine
 
-/-!
-Array storage for the existing sequential recipe and hint interpreters.
-The refinement theorems establish execution equality, not constraint
-satisfaction or hint authority.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.StoredWitnessExecution
@@ -32,7 +26,7 @@ theorem asEnv_write (values : Array F) (target : Nat) (value : F)
     simp only [asEnv, write, Env.set,
       Array.getElem?_setIfInBounds_self_of_lt bounded, Option.getD_some]
     rfl
-  · simp only [asEnv, write, Env.set, if_neg same,
+  · simp only [asEnv, write, Env.set, ite_eq_right same,
       Array.getElem?_setIfInBounds_ne (Ne.symm same)]
 
 def executeRecipes : Array F → Nat → List Expr → Array F

@@ -321,11 +321,11 @@ private theorem Whir.sumcheck_tracks (hp : Permutes c.perm) {shape : SumcheckSha
   have len : rounds.size = pairs.size := by simpa using hr.length_eq
   unfold Whir.sumcheck Replay.whirSumcheck
   by_cases e : rounds.isEmpty = true
-  · rw [if_pos e]
+  · rw [ite_eq_left e]
     refine (Tracks.pure (b := ()) trivial).replay fun _ _ _ run => ?_
-    rw [if_pos (by rw [Array.isEmpty_iff_size_eq_zero] at e ⊢; rw [← len]; exact e)]
+    rw [ite_eq_left (by rw [Array.isEmpty_iff_size_eq_zero] at e ⊢; rw [← len]; exact e)]
     exact run
-  · rw [if_neg e]
+  · rw [ite_eq_right e]
     refine Tracks.replay (x := Replay.observeAll shape.seed >>= fun _ => pairs.toList.forM fun pair => do
         Replay.observeExts #[pair.1, pair.2]
         let _ ← Replay.sampleExt
@@ -348,7 +348,7 @@ private theorem Whir.sumcheck_tracks (hp : Permutes c.perm) {shape : SumcheckSha
       refine Tracks.bind (Duplex.sampleExt_tracks hp) fun r _ _ _ _ => ?_
       quiet_steps
       exact Tracks.pure ⟨rfl, trivial⟩
-    · rw [if_neg (by rw [Array.isEmpty_iff_size_eq_zero] at e ⊢; rw [← len]; exact e)]
+    · rw [ite_eq_right (by rw [Array.isEmpty_iff_size_eq_zero] at e ⊢; rw [← len]; exact e)]
       exact run
 
 /-- **`whir::verify`** (`whir/mod.rs::verify`): when its checks hold, the

@@ -2,9 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiDECCommitmentHonestMessages
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationHonestMessages
 import NightstreamFPrime.Export.Stage1.HyperNovaInput
 
-/-! Assemble the existing D kernel fields and identify their exact child
-openings. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECComputedChildren

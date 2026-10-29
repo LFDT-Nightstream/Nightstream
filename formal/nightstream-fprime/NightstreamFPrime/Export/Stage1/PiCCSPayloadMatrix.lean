@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPayloadWiring
 import NightstreamFPrime.Export.MatrixProgram.Affine
 import NightstreamFPrime.Export.RowSemantics
 
-/-!
-Owns the compact affine payload table for the PiCCS matrix program. Its source
-indices use the physical permutation expected by the parent substitution.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSPayloadMatrix
 
 open NightstreamFPrime.Layout.MatrixProgram

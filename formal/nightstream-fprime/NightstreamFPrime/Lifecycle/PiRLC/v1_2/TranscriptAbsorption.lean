@@ -1,18 +1,6 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 import NightstreamFPrime.Lifecycle.Transcript
 
-/-!
-Owns the Π_RLC scalar-domain entry action.
-
-For coordinate `i`, the verifier absorbs exactly `[4, i]` from the incoming
-post-Π_CCS transcript state. The generic owned Duplex circuit owns the one
-Poseidon2 permutation. This leaf owns only the domain words, order, named
-semantics, and direct outgoing-state wiring.
-
-The coordinate is a compile-time verifier index. It is not a witness or a
-public input. The leaf adds no boundary-copy or assertion row.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption
 
 open NightstreamFPrime.Spec

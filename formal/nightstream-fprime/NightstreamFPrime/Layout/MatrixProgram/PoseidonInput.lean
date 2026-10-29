@@ -3,14 +3,6 @@ import NightstreamFPrime.Layout.MatrixProgram
 import NightstreamFPrime.Layout.MatrixProgram.Affine
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
 
-/-!
-Owns the package wire language for Poseidon2 input states. Rules add either a
-retained low-norm form or a canonical constant on one rectangular invocation
-and lane region. Ordered rules preserve sparse-entry order.
-
-This module does not select transcript phases or challenge schedules.
--/
-
 namespace NightstreamFPrime.Layout.MatrixProgram.PoseidonInput
 
 open NightstreamFPrime.Layout
@@ -47,13 +39,13 @@ theorem Region.offsets?_of_offsets (region : Region)
         (region.laneStart + laneOffset.val) =
       some (invocationOffset.val, laneOffset.val) := by
   unfold Region.offsets?
-  rw [if_pos (by omega)]
+  rw [ite_eq_left (by omega)]
   rw [show region.invocationStart + invocationOffset.val -
       region.invocationStart = invocationOffset.val by omega]
-  rw [if_pos invocationOffset.isLt, if_pos (by omega)]
+  rw [ite_eq_left invocationOffset.isLt, ite_eq_left (by omega)]
   rw [show region.laneStart + laneOffset.val - region.laneStart =
       laneOffset.val by omega]
-  rw [if_pos laneOffset.isLt]
+  rw [ite_eq_left laneOffset.isLt]
 
 structure OptionalConstantTable where
   values : Array (Option Nat)
@@ -148,7 +140,7 @@ theorem Term.constant_form? {logicalWidth : Nat}
           ⟨coefficient.val, coefficientBound⟩)
       else none
     else none) = _
-  rw [dif_pos oneColumn.isLt, dif_pos coefficient.isLt]
+  rw [dite_eq_left oneColumn.isLt, dite_eq_left coefficient.isLt]
 
 theorem Term.affine_form?_ofSemantic
     {logicalWidth invocationCount laneCount : Nat}

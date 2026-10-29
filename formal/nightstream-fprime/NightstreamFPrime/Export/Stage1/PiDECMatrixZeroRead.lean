@@ -4,11 +4,6 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch
 import NightstreamFPrime.Export.Stage1.PiDECParentMagnitude
 import Mathlib.Data.List.Basic
 
-/-!
-Both existing matrix range sums return zero under a zero scalar read. These
-arithmetic identities do not replace any runtime row or interface load guard.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixZeroRead
@@ -60,8 +55,8 @@ theorem sparse_sum_zero {columns arity count : Nat} (firstRow : Nat)
   apply numericSum_of_zero
   intro index
   by_cases live : index < count
-  · simp only [dif_pos live, evalSparse_zero, weighted_zero]
-  · simp only [dif_neg live, weighted_zero]
+  · simp only [dite_eq_left live, evalSparse_zero, weighted_zero]
+  · simp only [dite_eq_right live, weighted_zero]
 
 private theorem invocation_zero {columns arity : Nat} (firstRow : Nat)
     (point : CubePoint K arity) (interface : PoseidonSboxPlan.Interface columns)
@@ -75,8 +70,8 @@ private theorem invocation_zero {columns arity : Nat} (firstRow : Nat)
   apply numericSum_of_zero
   intro index
   by_cases live : index < 150
-  · simp only [dif_pos live, evalSparse_zero, weighted_zero]
-  · simp only [dif_neg live, weighted_zero]
+  · simp only [dite_eq_left live, evalSparse_zero, weighted_zero]
+  · simp only [dite_eq_right live, weighted_zero]
 
 theorem invocation_sum_zero {columns arity count : Nat} (firstRow : Nat)
     (point : CubePoint K arity)
@@ -90,9 +85,9 @@ theorem invocation_sum_zero {columns arity count : Nat} (firstRow : Nat)
   apply numericSum_of_zero
   intro index
   by_cases live : index < count
-  · rw [dif_pos live, invocation_zero]
+  · rw [dite_eq_left live, invocation_zero]
     rfl
-  · rw [dif_neg live, PiDECEvaluationBatch.zero_value]
+  · rw [dite_eq_right live, PiDECEvaluationBatch.zero_value]
     rfl
 
 private theorem parentRead_zero {count columns : Nat}

@@ -3,15 +3,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationStreamingIdentity
 import NightstreamFPrime.Layout.PiCCS.v1_2.Ownership
 import NightstreamFPrime.Layout.Stage1.PiCCSStarts
 
-/-!
-Owns the compact row- and column-ownership sidecar for the physical PiCCS
-packet in the selected Stage 1 package. The exported spans use global physical
-indices.
-
-This module does not define package data, matrix data, or a second ownership
-classifier.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit
 
 open NightstreamFPrime.Circuit
@@ -524,6 +515,7 @@ private theorem logicalColumnCount_literal_eq :
   simpa only [NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset_eq] using
     logicalColumnCount_eq
 
+set_option backward.isDefEq.respectTransparency false in
 private theorem columnSpanFamily_eq_exportedColumnFamily (column : Nat) :
     columnSpanFamily column = exportedColumnFamily column := by
   unfold exportedColumnFamily

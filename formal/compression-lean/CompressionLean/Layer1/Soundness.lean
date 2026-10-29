@@ -1,19 +1,5 @@
 import CompressionLean.Layer1.Stages
 
-/-!
-Owns the whole layer-1 verifier game and what its accepting paths give
-(`layer1Game_avoids`): along every path that avoids the bad sets, an accepted
-transcript has a P0 candidate that is a CE(B) witness.
-
-The prover names the CE(B) statement first: Rust absorbs the statement
-words before the first layer-1 challenge, so a prover may choose it.
-
-The two WHIR openings are idealized (`Opens`): the verifier accepts them when
-one P0 candidate and one P1 candidate agree with every opened value. The
-lists are the candidates the prover fixed at its commitments. The WHIR error
-that this idealization hides is not part of the final bound (`TRUST.md` §3).
--/
-
 namespace CompressionLean.Layer1
 
 open CompressionLean.Lib
@@ -23,7 +9,6 @@ variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq
 
 local notation "ι" => algebraMap F K
 
-/-- One layer-1 transcript. -/
 structure Transcript (F K : Type) (t L : ℕ) where
   statement : Statement F
   early : EarlyOut F K
@@ -31,8 +16,7 @@ structure Transcript (F K : Type) (t L : ℕ) where
   honest : HonestOut K t L
   late : LateOut K
 
-/-- The idealized WHIR openings: one P0 candidate agrees with every P0
-opening and one P1 candidate agrees with every P1 opening. -/
+/-- Assumption: idealized WHIR openings; the WHIR error is a named term of the final bound, not proved here. -/
 def Opens (s : Shape) (S : Setup F) (q : ℕ → K) {L : ℕ} (tr : Transcript F K s.queries L) : Prop :=
   ∃ w ∈ tr.early.candidates, ∃ v ∈ tr.honest.p1,
     EarlyConsistent s tr.early w ∧ LateConsistent s tr.late w v ∧
@@ -42,7 +26,6 @@ def Opens (s : Shape) (S : Setup F) (q : ℕ → K) {L : ℕ} (tr : Transcript F
 
 instance : Nonempty (Statement F) := ⟨⟨fun _ _ => 0, fun _ _ => 0, [], fun _ => 0, fun _ _ => 0⟩⟩
 
-/-- The layer-1 verifier: the statement, early, linear, honest fold, late, then the openings. -/
 noncomputable def layer1Game (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)
     (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K) : Game (Option (Transcript F K s.queries L)) :=
   .recv (Statement F) fun st =>
@@ -65,8 +48,6 @@ noncomputable def layer1Game (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (
     have := Classical.propDecidable
     if Opens s S q ⟨st, o, lin, h, e⟩ then .pure (some ⟨st, o, lin, h, e⟩) else .pure none
 
-/-- The size conditions of the layer-1 argument. Integers below `N` stay
-distinct in `K`. -/
 structure Shape.Sizes (s : Shape) (N : ℕ) : Prop where
   big_nodes : 5 ≤ N
   big_cube : 2 ^ s.cubeVars < N
@@ -96,14 +77,12 @@ instance (s : Shape) (N : ℕ) : Decidable (s.Sizes N) :=
       ⟨a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, t⟩⟩
 
 omit [Fintype K] [DecidableEq K] in
-/-- Interpolation nodes `0, ..., d + 1` are distinct when integers below `N` are. -/
 theorem nodes_of_cast (N : ℕ) (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (big : 5 ≤ N) :
     ∀ d, d ≤ 3 → NodesDistinct K d := by
   intro d small i j equal
   exact Fin.ext (cast i j (by omega) (by omega) equal)
 
 omit [Fintype K] [DecidableEq K] in
-/-- The early facts make a candidate's slot sums the true ones under `Ū`. -/
 theorem ubar_of_facts (s : Shape) (S : Setup F) (st : Statement F) (w : P0Tables F)
     (facts : EarlyFacts (K := K) s S st w) (lam : K) (σ : ℕ) (σ_lt : σ < 2 ^ s.slotVars) :
     ubar s lam w.U σ = ubar s lam (trueU s S st) σ := by
@@ -126,7 +105,6 @@ theorem ubar_of_facts (s : Shape) (S : Setup F) (st : Statement F) (w : P0Tables
   rfl
 
 omit [Fintype K] [DecidableEq K] in
-/-- The early facts make the late slot weights the true ones. -/
 theorem slotWeights_of_facts (s : Shape) (S : Setup F) (st : Statement F) (w : P0Tables F)
     (facts : EarlyFacts (K := K) s S st w) (lam : K) (τ : ℕ → K) (b : ℕ) :
     slotWeights s S lam τ w.U b = slotWeights s S lam τ (trueU s S st) b := by
@@ -136,15 +114,12 @@ theorem slotWeights_of_facts (s : Shape) (S : Setup F) (st : Statement F) (w : P
   rw [ubar_of_facts s S st w facts lam _ (Nat.mod_lt _ (by positivity))]
 
 omit [Fintype K] [DecidableEq K] in
-/-- A cell that is a slot value in `K` is the slot value in `F`. -/
 theorem slotValue_of_map (H t : ℕ) (x : F) (equal : ι x = slotValue (K := K) H t) :
     x = slotValue (K := F) H t := by
   apply (algebraMap F K).injective
   rw [equal]
   simp [slotValue]
 
-/-- Along every path that avoids the bad sets, an accepted transcript has a
-P0 candidate that is a CE(B) witness. -/
 theorem layer1Game_avoids (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)
     (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K) (N : ℕ) (sizes : s.Sizes N)
     (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (fits : S.Fits s) (monic : Φ.Monic)
@@ -186,7 +161,6 @@ theorem layer1Game_avoids (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S :
   obtain ⟨hLam, hζ, first, second⟩ := linearBad w wm
   obtain ⟨lateβ, lateRoot⟩ := lateBad w wm v vm
   obtain ⟨d0, d1, d2, d3, d4⟩ := early_depths s
-  -- The honest fold makes the key value and the run-point setup claims true.
   have keyLength : (keyPoint s lin).length = s.setupVars := by
     have := sizes.fold_key
     simp [keyPoint, padded, lanePoint_length, blockLength]; omega
@@ -197,12 +171,10 @@ theorem layer1Game_avoids (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S :
   obtain ⟨key, setup⟩ := honest_world s S q o lin h v (by rw [keyLength]; exact sizes.fold_three)
     (by rw [runLength]; exact sizes.fold_three) (by simp [keyLength]) (by simp [runLength])
     alphaLength hμ alphaPath (queryBad v vm) partialCheck honestOpen
-  -- The early stage makes the candidate's norm, run, slot and block tables true.
   have facts := early_world s S st o w N cast sizes.big_cube sizes.big_runs sizes.big_rows sizes.big_pairs
     fits sizes.slot_le_run sizes.matrices_le earlyChecks setup earlyOpen hβ hL hS earlyRoot shared
     (by rw [← d4]; exact earlyLengths 4 (by norm_num)) (by rw [← d3]; exact earlyLengths 3 (by norm_num))
     blockPath
-  -- The late stage makes the P1 block weights the Eval_A part of `Ω`.
   have weights := late_world s S st lin.lam (laneWeight s bar lin.zeta) e w v N cast
     (by have := sizes.big_blocks; omega) lateChecks lateOpen facts lateβ lateRoot pairLength
   have omega : lin.omegaValue = mle lin.blockPoint (evalAPart s bar S st lin.lam lin.zeta) := by
@@ -224,7 +196,6 @@ theorem layer1Game_avoids (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S :
       have := sizes.blocks_le
       have := sizes.big_blocks
       omega
-  -- The linear stage then forces every ring row.
   refine ⟨w, wm, fun x lt => ?_, linear_world s Φ bar S st fits sizes.public_le sizes.D_le sizes.blocks_le
     monic proper lin w linearCheck hLam hζ blockLength laneLength first second key omega zOpen⟩
   obtain ⟨t, t_lt, equal⟩ := facts.1 x lt

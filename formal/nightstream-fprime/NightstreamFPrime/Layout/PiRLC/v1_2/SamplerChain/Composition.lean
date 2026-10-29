@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.Sampler
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain
 
-/-!
-Owns the exact physical footprint composition of the 17-sampler PiRLC chain.
-
-The logical operation spine stays opaque. This module proves that its rows are
-the scalar child rows in `K + k` order and sums the certified scalar physical
-footprints without expanding the full chain.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain
 
 open NightstreamFPrime.Circuit

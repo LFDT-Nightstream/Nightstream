@@ -4,11 +4,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerRetainedCustody
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the semantic composition from the direct retained PiRLC sampler plans to
-the existing lifecycle sampler relation.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerDirectSemantics
 
 open NightstreamFPrime.Circuit
@@ -240,7 +235,7 @@ theorem previousValue_entrySucc
         (PiRLCSamplerPoseidonPlan.invocation
           ⟨previous, by omega⟩ ⟨1, by decide⟩) := by
   unfold PiRLCSamplerPoseidonPreservation.previousValue
-  rw [dif_neg]
+  rw [dite_eq_right]
   · apply congrArg
       (PiRLCSamplerPoseidonPreservation.outputValue geometry assignment)
     apply Fin.ext
@@ -345,7 +340,7 @@ theorem canonicalInput_entry
     encoding endpointRows source
   unfold PiRLCSamplerPoseidonPreservation.canonicalInput
   rw [PiRLCSamplerPoseidonPlan.descriptor_invocation]
-  simp only [if_pos]
+  simp only [ite_eq_left]
   rw [previous]
 
 theorem enterScalar_ofFn
@@ -464,7 +459,7 @@ theorem previousValue_advance
       PiRLCSamplerPoseidonPreservation.outputValue geometry assignment
         (PiRLCSamplerPoseidonPlan.invocation source ⟨0, by decide⟩) := by
   unfold PiRLCSamplerPoseidonPreservation.previousValue
-  rw [dif_neg]
+  rw [dite_eq_right]
   · apply congrArg (PiRLCSamplerPoseidonPreservation.outputValue geometry assignment)
     apply Fin.ext
     simp [PiRLCSamplerPoseidonPlan.invocation, Fin.encodeProd]
@@ -490,7 +485,7 @@ theorem canonicalSemantics_imply_advance
   have checked := semantics.invocation (PiRLCSamplerPoseidonPlan.invocation source ⟨1, by decide⟩)
   unfold PiRLCSamplerPoseidonPreservation.canonicalInput at checked
   rw [PiRLCSamplerPoseidonPlan.descriptor_invocation] at checked
-  simp only [Nat.one_ne_zero, if_false] at checked
+  simp only [Nat.one_ne_zero, ite_false] at checked
   rw [previousValue_advance,
     outputValue_eq_retainedStateEval geometry assignment base source ⟨1, by decide⟩,
     outputValue_eq_retainedStateEval geometry assignment base source ⟨0, by decide⟩,

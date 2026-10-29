@@ -2,19 +2,7 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.Embedding
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 
-/-!
-Orchestration of the typed Phi81 `Pi_RLC` evaluation map.
-
-Protocol: SuperNeo v1.2 Theorem 11, evaluation-homomorphism branch of `Pi_RLC`.
-
-Owns: the exact local product-order predicate and its discharge by executable
-Phi81 multiplication; exact assembly of the existing carrier, embedding, and
-extension-evaluation leaves; and one-source matrix homomorphism theorems.
-
-Does not own: commitments, public input projection, finite-source RingF
-combination, norm preservation, transcript challenges, `Pi_RLC` acceptance,
-Rust, R1CS, row removal, or counts.
--/
+/-! SuperNeo v1.2 Theorem 11. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLC
 
@@ -218,7 +206,7 @@ private theorem sumFinF_congr
   unfold sumFinF
   apply sumRange_congr
   intro index indexLt
-  rw [dif_pos indexLt, dif_pos indexLt]
+  rw [dite_eq_left indexLt, dite_eq_left indexLt]
   exact equal ⟨index, indexLt⟩
 
 private theorem sumFinF_zero {count : Nat} :
@@ -226,7 +214,7 @@ private theorem sumFinF_zero {count : Nat} :
   unfold sumFinF
   apply sumRange_eq_zero ConcreteCarrier.baseOps ConcreteCarrier.baseLaws
   intro index indexLt
-  rw [dif_pos indexLt]
+  rw [dite_eq_left indexLt]
   rfl
 
 private theorem sumFinF_select
@@ -247,15 +235,15 @@ private theorem sumFinF_select
         if index = selected.val then term selected else 0) := by
       apply sumRange_congr
       intro index indexLt
-      rw [dif_pos indexLt]
+      rw [dite_eq_left indexLt]
       by_cases equal : index = selected.val
       · have finEqual : (⟨index, indexLt⟩ : Fin count) = selected :=
           Fin.ext equal
-        rw [if_pos equal, if_pos finEqual, finEqual]
+        rw [ite_eq_left equal, ite_eq_left finEqual, finEqual]
       · have finDifferent : (⟨index, indexLt⟩ : Fin count) ≠ selected := by
           intro finEqual
           exact equal (congrArg Fin.val finEqual)
-        rw [if_neg equal, if_neg finDifferent]
+        rw [ite_eq_right equal, ite_eq_right finDifferent]
     _ = term selected := by
       exact MatrixCoefficientSource.sumRange_select ConcreteCarrier.baseOps
         ConcreteCarrier.baseLaws count selected.val (fun _ => term selected)
@@ -268,7 +256,7 @@ private theorem sumFinF_mul_left
   rw [sumRange_mul_left]
   apply sumRange_congr
   intro index indexLt
-  rw [dif_pos indexLt, dif_pos indexLt]
+  rw [dite_eq_left indexLt, dite_eq_left indexLt]
 
 private theorem sumFinF_mul_right
     {count : Nat} (term : Fin count -> F) (factor : F) :
@@ -277,7 +265,7 @@ private theorem sumFinF_mul_right
   rw [sumRange_mul_right]
   apply sumRange_congr
   intro index indexLt
-  rw [dif_pos indexLt, dif_pos indexLt]
+  rw [dite_eq_left indexLt, dite_eq_left indexLt]
 
 private theorem sumFinF_swap
     {outerCount innerCount : Nat}
@@ -299,11 +287,11 @@ private theorem sumFinF_swap
       unfold sumFinF
       apply sumRange_congr
       intro outer outerLt
-      rw [dif_pos outerLt]
+      rw [dite_eq_left outerLt]
       apply sumRange_congr
       intro inner innerLt
       unfold guarded
-      simp only [dif_pos outerLt, dif_pos innerLt]
+      simp only [dite_eq_left outerLt, dite_eq_left innerLt]
     _ = sumRange ConcreteCarrier.baseOps innerCount (fun inner =>
           sumRange ConcreteCarrier.baseOps outerCount (fun outer =>
             guarded outer inner)) := sumRange_swap _ _ guarded
@@ -311,11 +299,11 @@ private theorem sumFinF_swap
       unfold sumFinF
       apply sumRange_congr
       intro inner innerLt
-      rw [dif_pos innerLt]
+      rw [dite_eq_left innerLt]
       apply sumRange_congr
       intro outer outerLt
       unfold guarded
-      simp only [dif_pos outerLt, dif_pos innerLt]
+      simp only [dite_eq_left outerLt, dite_eq_left innerLt]
 
 private def ringFSumRange : Nat -> (Nat -> RingF) -> RingF
   | 0, _ => ringFZero
@@ -354,7 +342,7 @@ private theorem sumRingF_apply
   rw [ringFSumRange_apply]
   apply sumRange_congr
   intro index indexLt
-  rw [dif_pos indexLt, dif_pos indexLt]
+  rw [dite_eq_left indexLt, dite_eq_left indexLt]
 
 private theorem sumRingF_congr
     {count : Nat} (left right : Fin count -> RingF)
@@ -375,8 +363,8 @@ private theorem ringFMul_sumRingF_right
   apply congrArg (ringFSumRange count)
   funext index
   by_cases indexLt : index < count
-  · rw [dif_pos indexLt, dif_pos indexLt]
-  · rw [dif_neg indexLt, dif_neg indexLt]
+  · rw [dite_eq_left indexLt, dite_eq_left indexLt]
+  · rw [dite_eq_right indexLt, dite_eq_right indexLt]
     exact CarrierAction.ringFMul_zero_right left
 
 private theorem listSum_canonical_eq_sumFinF
@@ -388,7 +376,7 @@ private theorem listSum_canonical_eq_sumFinF
       (fun index : Fin count => natTerm index.val) = term := by
     funext index
     unfold natTerm
-    rw [dif_pos index.isLt]
+    rw [dite_eq_left index.isLt]
   calc
     listSum (canonicalFinIndices count) term =
         listSum (canonicalFinIndices count)
@@ -470,17 +458,17 @@ private theorem sumFinF_carrier_blocks
     _ = _ := by
       apply sumRange_congr
       intro blockIndex blockLt
-      rw [dif_pos blockLt]
+      rw [dite_eq_left blockLt]
       apply sumRange_congr
       intro laneIndex laneLt
-      rw [dif_pos laneLt]
+      rw [dite_eq_left laneLt]
       have flatLt :
           blockIndex * ringDegree + laneIndex < shape.carrierWidth := by
         rw [widthEquality]
         simp only [ringDegree] at laneLt ⊢
         omega
       unfold natTerm
-      rw [dif_pos flatLt]
+      rw [dite_eq_left flatLt]
       apply congrArg term
       apply Fin.ext
       rfl
@@ -689,12 +677,12 @@ theorem rowRing_eq_kernelImage_of_unit_padded_row
       apply sumFinF_congr
       intro block
       by_cases blockEqual : block = selectedBlock
-      · rw [if_pos blockEqual]
+      · rw [ite_eq_left blockEqual]
         apply sumFinF_congr
         intro row
-        rw [unitRow block row, if_pos blockEqual]
+        rw [unitRow block row, ite_eq_left blockEqual]
         split <;> simp only [Fin.one_mul, Fin.zero_mul]
-      · rw [if_neg blockEqual]
+      · rw [ite_eq_right blockEqual]
         calc
           sumFinF (fun row =>
               system.matrixSource.paddedMatrixEntry ConcreteCarrier.baseOps
@@ -704,7 +692,7 @@ theorem rowRing_eq_kernelImage_of_unit_padded_row
             sumFinF (fun _ : Fin ringDegree => (0 : F)) := by
               apply sumFinF_congr
               intro row
-              rw [unitRow block row, if_neg blockEqual, Fin.zero_mul]
+              rw [unitRow block row, ite_eq_right blockEqual, Fin.zero_mul]
           _ = 0 := sumFinF_zero
     _ = CarrierAction.kernelImage selectedLane
           (CarrierAction.assignmentBlock assignment selectedBlock) output := by

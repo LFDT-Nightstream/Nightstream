@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerDirectSemantics
 
-/-!
-Owns the exact deterministic sampler-state sequence read from retained
-Poseidon values.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualPiRLCStates
 
 open NightstreamFPrime.Spec
@@ -58,7 +53,7 @@ theorem advance_eq (geometry : PiCCSPoseidonPlan.Geometry program logicalWidth)
       Poseidon2.permute (state geometry assignment source ⟨0, by decide⟩) := by
   have equation := semantics.invocation (invocation source ⟨1, by decide⟩)
   simp only [canonicalInput, descriptor_invocation] at equation
-  rw [if_neg (by decide),
+  rw [ite_eq_right (by decide),
     PiRLCSamplerDirectSemantics.previousValue_advance geometry assignment source] at equation
   exact equation
 

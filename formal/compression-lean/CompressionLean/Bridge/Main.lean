@@ -3,20 +3,6 @@ import CompressionLean.Spec.Messages
 import CompressionLean.Spec.Checks
 import CompressionLean.Spec.Replay
 
-/-!
-Owns the bridge of the whole replay (`Replay.verify`) to the model's
-`layer1Game`. A run that the replay accepts is a path of `layer1Game`: the
-replay's draws before WHIR's are the path's challenges, and the path ends in
-the model's transcript of the replay's values (`replay_accepts_implies_path`).
-This holds under WHIR at the points that the replay returns (`WhirOpens`),
-Merkle binding (`MerkleBinds`), the relation facts that the replay does not
-check (`RelationFacts`), and a setup that fits the shape and that the key's
-structure describes.
-
-The bridge's game also meets the distinct-query premise of
-`layer1Game_cost` (`queryAt_distinct`).
--/
-
 namespace CompressionLean.Bridge
 
 open CompressionLean.Spec
@@ -24,9 +10,6 @@ open Polynomial
 open NightstreamFPrime.Spec (goldilocksModulus)
 open CompressionLean.Replay CompressionLean.Layer1
 
-/-! ## The game's parameters -/
-
-/-- Plonky3's generator of order `2^m` has order `2^m`. -/
 theorem twoAdic_order (m : ℕ) (high : m ≤ 32) : orderOf (twoAdic m) = 2 ^ m := by
   cases m with
   | zero => rw [twoAdic, Nat.sub_zero, generator_pow_32, orderOf_one, pow_zero]
@@ -39,7 +22,6 @@ theorem twoAdic_order (m : ℕ) (high : m ≤ 32) : orderOf (twoAdic m) = 2 ^ m 
 variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
 omit [Fintype K] [ChallengeField K] in
-/-- Distinct leaves have distinct query points. -/
 theorem queryAt_distinct (rel : Replay.Relation) (high : rel.setupVars + 1 ≤ 32) :
     ∀ i j, i < 2 ^ (rel.setupVars - 2) → j < 2 ^ (rel.setupVars - 2) →
       queryAt (K := K) rel i = queryAt rel j → i = j := by
@@ -53,11 +35,6 @@ theorem queryAt_distinct (rel : Replay.Relation) (high : rel.setupVars + 1 ≤ 3
 
 variable [DecidableEq K]
 
-/-- **The bridge.** Take a run that the replay accepts, with WHIR's guarantee
-at the points that it returns. Some path of `layer1Game` receives the
-replay's statement, proof and candidate lists, draws the replay's
-challenges before WHIR's own and ends in a model transcript of the replay's
-statement and the prover's P0 candidates. -/
 theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Gl) (facts : RelationFacts rel)
     (fits : S.Fits (shapeOf rel)) (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S)
     (seed : Array Word) (st : Replay.Statement) (proof : Replay.Proof) (merkle : MerkleBinds rel S proof.leaves)

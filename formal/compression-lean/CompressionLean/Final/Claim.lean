@@ -4,23 +4,6 @@ import CompressionLean.Game.Restoration
 import CompressionLean.Shrink.Layout
 import CompressionLean.Spec.Parent
 
-/-!
-Owns the claim of a final proof and the encoding premise that links the
-three layers.
-
-- `claimOf`: the layer-1 claim that the final program reads from the
-  terminal output columns (`Package::apply`, `terminal/package.rs::Package::apply`).
-- `TerminalClaim`: what a final proof for `x` claims. Some terminal
-  assignment for `x` (`TerminalFor`, `Spec/Parent.lean`) has a parent claim
-  with a CE(B) witness.
-- `ProgramEncodes`: the encoding that links the layers. A witness of the
-  final program's CCS holds a terminal assignment and accepting layer-1
-  transcripts for it. `programEncodes` (`Sim/Encodes.lean`) proves it for
-  the production final program.
-
-Does not own the layers' games or their errors.
--/
-
 namespace CompressionLean.Final
 
 open CompressionLean.Spec
@@ -28,14 +11,9 @@ open CompressionLean NightstreamFPrime Polynomial
 
 variable {F K : Type} [Field F]
 
-/-- Word `k` of an output list on `env`, read into `F`; zero past the end. -/
 def word (list : List Circuit.Expr) (env : Circuit.Env) (k : ℕ) : F :=
   (((list.map fun expression : Circuit.Expr => expression.eval env).getD k 0).val : F)
 
-/-- The layer-1 claim of a terminal assignment, read from its output columns
-as `Package::apply` reads it (`terminal/package.rs::Package::apply`): `D`-word rows
-for the commitment and the public input, word pairs for the point, and `D`
-pairs for `Eval_K` and for each `Eval_A`. -/
 def claimOf (env : Circuit.Env) : Layer1.Statement F where
   commitment ρ l :=
     if l < Spec.ringDegree then word Terminal.outputs.commitment env (Spec.ringDegree * ρ + l) else 0
@@ -53,38 +31,16 @@ def claimOf (env : Circuit.Env) : Layer1.Statement F where
         word Terminal.outputs.eval_A env (2 * Spec.ringDegree * j + 2 * l + 1))
     else 0
 
-/-- What a final proof for statement `x` claims: some terminal assignment
-for `x` has a parent claim with a CE(B) witness. `circuitPackage_implies_terminal`
-gives the assignment's F′ meaning. -/
 def TerminalClaim (s : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F)
     (authority : Lifecycle.VerifierContext.Authority) (x : StateWords) : Prop :=
   ∃ env, TerminalFor authority x env ∧ ∃ z, Layer1.Relation s Φ bar S (claimOf env) z
 
-/-- **The encoding.** A witness `w` of the CCS of the final program for
-statement `x` holds a terminal assignment for `x`, and every reading of its
-layer-1 part is an accepting path of the layer-1 game `g` for that
-assignment's parent claim.
-
-`Reads x w p` says that the layer-1 path `p` is what program `x` reads from
-`w`. Its statement, proof words and challenges are the words that the
-in-circuit verifier computes from `w`. At each commitment, its candidate list
-holds a table that agrees with every value `w` opens there. The model's
-commitments are candidate lists and the program's are Merkle roots, so a
-reading is a relation, not a function of `w`.
-
-It stands for `FinalProgram::run` (`lifecycle/terminal/mod.rs::FinalProgram::run`):
-`Package::apply` (`terminal/package.rs::Package::apply`) and `verify_with`
-(`neo-spartan/src/lib.rs::verify_with`, `verifier.rs::verify`), recorded as rows
-by `circuit/record.rs` and placed by `shrink/layout.rs`. `programEncodes`
-(`Sim/Encodes.lean`) proves it for the production final program. -/
 def ProgramEncodes {t L : ℕ} (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
     (authority : Lifecycle.VerifierContext.Authority) (g : Game (Option (Layer1.Transcript F K t L)))
     (Reads : StateWords → (ℕ → F) → g.Pos → Prop) : Prop :=
   ∀ x w, ((prog x).ccs T s).Relation w → ∃ env, TerminalFor authority x env ∧
     ∀ p, Reads x w p → ∃ tr, Game.Pos.node g p = .pure (some tr) ∧ tr.statement = claimOf env
 
-/-- One link of the chain. A witness of program `x`'s CCS and a reading of it
-whose leaf extracts a CE(B) witness give the terminal claim for `x`. -/
 theorem terminalClaim_of {t L : ℕ} {T : Shrink.Template F} {s : Shrink.Counts}
     {prog : StateWords → Shrink.Run F} {authority : Lifecycle.VerifierContext.Authority}
     {g : Game (Option (Layer1.Transcript F K t L))} {Reads : StateWords → (ℕ → F) → g.Pos → Prop}

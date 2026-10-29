@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixSource
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPolynomial
 
-/-! The prepared fresh contribution uses the original source endpoints. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixContribution

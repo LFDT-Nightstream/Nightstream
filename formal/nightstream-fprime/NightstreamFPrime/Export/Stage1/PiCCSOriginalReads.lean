@@ -2,13 +2,6 @@ import NightstreamFPrime.Export.SignedUnitSourceInput
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImages
 import NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation
 
-/-!
-Original signed-mask assignment, complete blocks and prepared coefficient reads.
-The caller loads and validates masks and shares prepared basis tables. No digit
-split, source support shortcut or preservation/reference-plan import belongs
-here.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOriginalReads

@@ -2,15 +2,6 @@ import NightstreamFPrime.Layout.Stage1.ApplicationInputs
 import NightstreamFPrime.Layout.Stage1.NextPreimageInputs
 import NightstreamFPrime.Layout.R1CS.ColumnMap
 
-/-!
-Owns the application and NextPreimage lowering, final column counts, and
-assignment maps for a verifier-selected application.
-
-Application-private columns occupy the old constant/public boundary, so the
-old constant and public suffix moves by one exact displacement. `LoweringRows`
-owns the complete physical rows and logical Stage 1 circuit instantiation.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.Lowering
 
 open NightstreamFPrime.Circuit

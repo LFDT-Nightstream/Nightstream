@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.DirectPiDECPrefixPlan
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-! Resolves the four source families read by the sampler ordinary rows.
-Each successful decode must reproduce the exact source column. The matrix
-plan reads checked field blocks and the existing Poseidon2 output forms. -/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlan
 
 open NightstreamFPrime.Circuit
@@ -149,8 +145,8 @@ theorem classifySource_poseidonEntry (source : Fin sourceCount) (lane : Fin 4) :
   have index := scalarIndex source.val (1080 + lane.val) bound
   rw [poseidonColumn]
   unfold classifySource
-  rw [if_neg (Nat.not_le_of_lt (scalarBeforeFresh source _ bound)), offset,
-    if_pos (by omega)]
+  rw [ite_eq_right (Nat.not_le_of_lt (scalarBeforeFresh source _ bound)), offset,
+    ite_eq_left (by omega)]
   have candidate : poseidonCandidate (PiRLCStarts.samplerLogicalStart + source.val * 4267 + (1080 + lane.val)) =
       .poseidon source lane := by
     unfold poseidonCandidate
@@ -163,7 +159,7 @@ theorem classifySource_poseidonEntry (source : Fin sourceCount) (lane : Fin 4) :
       rw [offset, Nat.add_sub_cancel_left, Nat.mod_eq_of_lt lane.isLt]
   rw [candidate]
   unfold exactCandidate
-  rw [if_pos (poseidonColumn source lane)]
+  rw [ite_eq_left (poseidonColumn source lane)]
 
 theorem classifySource_logical (source : Fin sourceCount) (position : Fin logicalCountPerSource) :
     classifySource (logicalSource source position) = some (.logical source position) := by
@@ -174,8 +170,8 @@ theorem classifySource_logical (source : Fin sourceCount) (position : Fin logica
   change classifySource (Location.logical source position).sourceColumn = _
   rw [logicalColumn]
   unfold classifySource
-  rw [if_neg (Nat.not_le_of_lt (scalarBeforeFresh source _ bound)), offset,
-    if_neg (by omega), if_pos (by omega)]
+  rw [ite_eq_right (Nat.not_le_of_lt (scalarBeforeFresh source _ bound)), offset,
+    ite_eq_right (by omega), ite_eq_left (by omega)]
   have candidate : logicalCandidate (PiRLCStarts.samplerLogicalStart + source.val * 4267 + (2500 + position.val)) =
       .logical source position := by
     unfold logicalCandidate
@@ -188,7 +184,7 @@ theorem classifySource_logical (source : Fin sourceCount) (position : Fin logica
       rw [offset, Nat.add_sub_cancel_left, Nat.mod_eq_of_lt position.isLt]
   rw [candidate]
   unfold exactCandidate
-  rw [if_pos (logicalColumn source position)]
+  rw [ite_eq_left (logicalColumn source position)]
 
 theorem classifySource_word (source : Fin sourceCount) (position : Fin ringDegree) :
     classifySource (PiRLCStarts.challengeWordStart source.val + position.val) = some (.word source position) := by
@@ -199,8 +195,8 @@ theorem classifySource_word (source : Fin sourceCount) (position : Fin ringDegre
   change classifySource (Location.word source position).sourceColumn = _
   rw [wordColumn]
   unfold classifySource
-  rw [if_neg (Nat.not_le_of_lt (scalarBeforeFresh source _ bound)), offset,
-    if_neg (by omega), if_neg (by omega)]
+  rw [ite_eq_right (Nat.not_le_of_lt (scalarBeforeFresh source _ bound)), offset,
+    ite_eq_right (by omega), ite_eq_right (by omega)]
   have candidate : wordCandidate (PiRLCStarts.samplerLogicalStart + source.val * 4267 + (4213 + position.val)) =
       .word source position := by
     unfold wordCandidate
@@ -213,7 +209,7 @@ theorem classifySource_word (source : Fin sourceCount) (position : Fin ringDegre
       rw [offset, Nat.add_sub_cancel_left, Nat.mod_eq_of_lt position.isLt]
   rw [candidate]
   unfold exactCandidate
-  rw [if_pos (wordColumn source position)]
+  rw [ite_eq_left (wordColumn source position)]
 
 theorem classifySource_fresh (source : Fin sourceCount) (position : Fin freshCountPerSource) :
     classifySource (freshSource source position) = some (.fresh source position) := by
@@ -235,7 +231,7 @@ theorem classifySource_fresh (source : Fin sourceCount) (position : Fin freshCou
       change (freshSource source position - PiRLCStarts.samplerFreshStart) % 144 = position.val
       rw [delta, Nat.mul_add_mod_of_lt bound]
   unfold classifySource
-  rw [if_pos (by rw [column]; omega), candidate]
+  rw [ite_eq_left (by rw [column]; omega), candidate]
   simp [exactCandidate, Location.sourceColumn]
 
 theorem classifySource_complete {column : Nat}

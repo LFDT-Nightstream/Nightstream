@@ -1,19 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanTable
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 
-/-!
-Table-level residual construction for the paper-level `Pi_CCS` model.
-
-Owns: canonically indexed Pad, matrix, CCS, and norm residuals, their v1.2
-serialization, independent leafwise obligations, and the resulting boundary.
-
-Does not own: concrete CCS formulas, the norm range polynomial or field
-no-wrap proof, carried target/evaluation formulas, the signed joint identity,
-literal SuperNeo v1.2 Lemma 9, SumCheck truth, transcript semantics, relation refinement,
-Rust, R1CS, constraint removal, or production approval.
-
-Emits constraints: no.
--/
+/-! Literal SuperNeo v1.2 Lemma 9 is not proved here. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 

@@ -2,8 +2,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionOutputBounds
 import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupportData
 import NightstreamFPrime.Lifecycle.Stage1.RunningTransitionSupport
 
-/-! Owns compact source support for the output running words. -/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 
 open NightstreamFPrime.Circuit

@@ -2,17 +2,6 @@ import NightstreamFPrime.Layout.PilotProduction
 import NightstreamFPrime.Layout.PiCCS.v1_2.Preservation
 import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 
-/-!
-Obligation: Assemble the closed pilot, the concrete parent-owned PiCCS proof
-inputs, and the PiCCS physical row packet into the current Stage 1 prefix.
-
-The running instance and fresh public input reuse pilot columns. Four public
-verifier-context words precede the new 10,872-column proof-input interval,
-which owns the fresh commitment, 28 SumCheck messages, and separate output
-`Eval_K`/`Eval_A` families. PiCCS local columns start immediately after that
-interval. No boundary-copy row is present.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PilotPiCCS
 
 open NightstreamFPrime.Spec

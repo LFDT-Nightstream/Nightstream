@@ -4,13 +4,6 @@ import NightstreamFPrime.Export.MatrixProgram
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPointBoundsDirect
 
-/-!
-Owns the shared forms for PiCCS transcript output lanes and the running
-evaluation point.
-
-This module adds no allocation, copy row, or assumption about an assignment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSTranscriptOutputForms
 
 open NightstreamFPrime.Layout.MatrixProgram
@@ -116,7 +109,7 @@ theorem pointSource_c1 (coordinate : Fin Lifecycle.productionShape.cubeVariables
         coordinate.val * RunningTransitionInputs.roundStride +
         RunningTransitionInputs.roundSampleC1Offset := by
   unfold pointSource pointSourceStart
-  norm_num [RunningTransitionInputs.roundSampleC0Offset,
+  simp only [Fin.val_one, RunningTransitionInputs.roundSampleC0Offset,
     RunningTransitionInputs.roundSampleC1Offset]
   omega
 

@@ -1,8 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNormPrefixSum
 
-/-! The Q1 norm contribution uses the existing one-challenge range kernel.
-File and worker IO are separate. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNormFirstPrefix
@@ -42,7 +39,7 @@ private theorem firstValues_getD (challenge : K) (codes : Nat → Fin 3) (groups
   change (PrefixFold.foldOne extensionOps _ challenge).getD index extensionOps.zero = _
   rw [PrefixFold.foldOne_getD extensionOps extensionLaws]
   simp only [Array.getD_eq_getD_getElem?, Array.getElem?_ofFn,
-    dif_pos low, dif_pos high, Option.getD_some]
+    dite_eq_left low, dite_eq_left high, Option.getD_some]
 
 theorem range_eq_sourceRange (challenge : K) (codes : Nat → Fin 3)
     (weight : Nat → K) (groups : Nat) :
@@ -87,7 +84,7 @@ private theorem oneChallenge_endpoint (input : PiCCSPublicReplay.Input)
   cases bit <;> simpa only [ProtocolPolynomial.messageAt, PiCCSPrefixRound.point,
     BooleanVertex.toCubePoint_coordinates, BooleanVertex.fieldCoordinates,
     Bool.false_eq_true,
-    if_false, if_true] using! value
+    ite_false, ite_true] using! value
 
 private theorem inner_pair_of_endpoints
     (values : Fin productionShape.sourceCount → Array K) (gamma weight : K)
@@ -134,7 +131,7 @@ private theorem sum_of_endpoints
   funext index
   have low (source : Fin productionShape.sourceCount) := endpoints index source false
   have high (source : Fin productionShape.sourceCount) := endpoints index source true
-  simp only [Bool.false_eq_true, if_false, if_true, Nat.add_zero] at low high
+  simp only [Bool.false_eq_true, ite_false, ite_true, Nat.add_zero] at low high
   rw [inner_pair_of_endpoints values gamma _ _ _ index.val low high,
     ← PiCCSNormPrefixSum.normTerm_scaled_selector]
   unfold PiCCSPrefixComposition.normTerm
@@ -197,10 +194,10 @@ theorem selected_eq_normTerm_sum
       cases bit
       · change (firstValues challenge (code masks source) groups).getD
           (0 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex remaining index)) K.zero = _ at endpoint
-        simpa only [NumericBooleanDomain.index_vertex, Nat.zero_add, Nat.add_zero, if_false] using! endpoint
+        simpa only [NumericBooleanDomain.index_vertex, Nat.zero_add, Nat.add_zero, ite_false] using! endpoint
       · change (firstValues challenge (code masks source) groups).getD
           (1 + 2 * NumericBooleanDomain.index (NumericBooleanDomain.vertex remaining index)) K.zero = _ at endpoint
-        simpa only [NumericBooleanDomain.index_vertex, Nat.add_comm 1, if_true] using endpoint)
+        simpa only [NumericBooleanDomain.index_vertex, Nat.add_comm 1, ite_true] using endpoint)
   exact (congrArg
     (PiCCSNormContribution.normTerm
       (PiCCSFirstRoundComposition.sourceData input masks).toVerifierInput (power gamma)

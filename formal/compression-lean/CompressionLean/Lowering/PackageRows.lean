@@ -69,11 +69,11 @@ theorem termsValue_collect (terms : List (ℕ × NightstreamFPrime.Spec.F)) :
     termsValue env (collect terms) = termsValue env terms := by
   induction terms using collect.induct with
   | case1 x d y rest ih =>
-      rw [collect.eq_1, if_pos rfl, ih]
+      rw [collect.eq_1, ite_eq_left rfl, ih]
       simp only [termsValue, List.map_cons, List.sum_cons]
       ring
   | case2 c x d y rest unequal ih =>
-      rw [collect.eq_1, if_neg unequal]
+      rw [collect.eq_1, ite_eq_right unequal]
       simp only [termsValue, List.map_cons, List.sum_cons] at ih ⊢
       rw [ih]
   | case3 terms short =>
@@ -88,10 +88,10 @@ theorem words_value (terms : List (ℕ × NightstreamFPrime.Spec.F)) :
   | cons t rest ih =>
       obtain ⟨c, x⟩ := t
       by_cases zero : x = 0
-      · simp only [List.filterMap_cons, zero, if_true] at ih ⊢
+      · simp only [List.filterMap_cons, zero, ite_true] at ih ⊢
         rw [ih]
         simp [termsValue]
-      · simp only [List.filterMap_cons, zero, if_false, List.map_cons, List.sum_cons] at ih ⊢
+      · simp only [List.filterMap_cons, zero, ite_false, List.map_cons, List.sum_cons] at ih ⊢
         rw [ih, Word.cast_ofF]
         simp [termsValue, mul_comm]
 
@@ -304,7 +304,7 @@ theorem numbered_push {layout : PhysicalLayout} {segments : List (Segment × ℕ
       subst h
       refine ⟨by simp, ?_⟩
       simpa using source
-    · rw [if_neg same] at h
+    · rw [ite_eq_right same] at h
       obtain ⟨klt, sk⟩ := numbered.source c k h
       refine ⟨by simp only [Array.size_push]; exact Nat.lt_succ_of_lt klt, ?_⟩
       dsimp only at klt sk ⊢
@@ -315,7 +315,7 @@ theorem numbered_push {layout : PhysicalLayout} {segments : List (Segment × ℕ
     · subst same
       exact ⟨sources.size, by simp [Array.set!, jlt]⟩
     · obtain ⟨k, hk⟩ := numbered.named c (by omega) usedc
-      exact ⟨k, by simp only [Array.set!, Array.getElem?_setIfInBounds]; rw [if_neg (Ne.symm same)]; exact hk⟩
+      exact ⟨k, by simp only [Array.set!, Array.getElem?_setIfInBounds]; rw [ite_eq_right (Ne.symm same)]; exact hk⟩
   · intro k klt i hi
     simp only [Array.size_push] at klt
     by_cases old : k < sources.size
@@ -334,15 +334,15 @@ theorem numberColumn_numbered {layout : PhysicalLayout} {segments : List (Segmen
   unfold numberColumn
   dsimp only
   by_cases usedj : used[j]! = true
-  · rw [if_pos usedj]
+  · rw [ite_eq_left usedj]
     by_cases one : j = layout.privateColumnCount
-    · rw [if_pos one]
+    · rw [ite_eq_left one]
       exact numbered_push numbered lt one le_rfl (by simp)
-    · rw [if_neg one]
+    · rw [ite_eq_right one]
       by_cases pub : j > layout.privateColumnCount
-      · rw [if_pos pub]
+      · rw [ite_eq_left pub]
         exact numbered_push numbered lt ⟨pub, rfl⟩ le_rfl (by simp)
-      · rw [if_neg pub]
+      · rw [ite_eq_right pub]
         have below : j < layout.privateColumnCount := by omega
         cases input : privateInput segments j with
         | some i => exact numbered_push numbered lt ⟨below, input⟩ le_rfl (by simp)
@@ -351,7 +351,7 @@ theorem numberColumn_numbered {layout : PhysicalLayout} {segments : List (Segmen
               intro i hi
               cases hi
               simp)
-  · rw [if_neg usedj]
+  · rw [ite_eq_right usedj]
     refine ⟨numbered.size, numbered.source, ?_, numbered.computed⟩
     intro c clt usedc
     by_cases same : c = j
@@ -529,7 +529,7 @@ theorem reindex_value (index : Array (Option ℕ)) (value rest : ℕ → Nightst
   congr 1
   apply List.map_congr_left
   intro t member
-  simp only [Function.comp_apply, assignment, if_neg (named t member)]
+  simp only [Function.comp_apply, assignment, ite_eq_right (named t member)]
 
 /-- A row on system columns holds on the system values exactly when the row
 holds on the package assignment, when every column it names has a system

@@ -1,11 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock
 
-/-!
-One fresh-assignment block contribution to a native commitment accumulator.
-The supplied setup owns the exact key; the existing product kernel owns
-arithmetic and zero-digit handling. Range coverage and IO belong to callers.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.FreshCommitmentBlock

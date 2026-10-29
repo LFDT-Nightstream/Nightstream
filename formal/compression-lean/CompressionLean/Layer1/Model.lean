@@ -3,34 +3,15 @@ import CompressionLean.Layer1.Lookups
 import CompressionLean.Lib.List
 import Mathlib.Algebra.QuadraticAlgebra.Defs
 
-/-!
-Owns the data of the layer-1 relation (`crates/neo-spartan/src/lib.rs`,
-`relation.rs`, `ring.rs`, `matrix.rs`) and the relation itself.
-
-- `Shape`: the verifier's sizes. The witness cube has the lane variables low
-  (`laneVars`, `D ≤ 2^laneVars` used lanes) and the block variables high.
-- `Setup`: the honest setup: key rows, runs (row, matrix, slot, coefficient)
-  and slots (block, lane, class). The verifier holds its root; under Merkle
-  binding the opened values are these.
-- `Statement`: the CE(B) claim: commitment rows, public blocks, the point `r`,
-  Eval_K, Eval_A, as `F` coordinates (`re`, `im` for `K = F[u]/(u² - 7)`).
-  `Statement.chi` is `χ_r = eq(r, ·)` in `K`, derived from `r`.
-- `Relation`: every cell in `[-H, H]` and the `κ + 2 + 2·matrices + public`
-  ring rows over `F[X]/Φ`, with the weights of `ring.rs`.
--/
-
 namespace CompressionLean.Layer1
 
 open CompressionLean.Lib
 open Polynomial
 
-/-- The verifier's sizes. -/
 structure Shape where
-  /-- Ring degree `D` (54) and the lane variables (6, so `D ≤ 64`). -/
   D : ℕ
   laneVars : ℕ
   blockVars : ℕ
-  /-- Used blocks: the witness has `D·blocks` coordinates. -/
   blocks : ℕ
   kappa : ℕ
   matrices : ℕ
@@ -49,7 +30,6 @@ variable (s : Shape)
 
 def cubeVars : ℕ := s.laneVars + s.blockVars
 
-/-- Rows: commitment, Eval_K (re, im), Eval_A (re, im per matrix), public blocks. -/
 def rows : ℕ := s.kappa + 2 + 2 * s.matrices + s.publicBlocks
 
 def evalKRow (part : ℕ) : ℕ := s.kappa + part
@@ -58,15 +38,12 @@ def publicRow (j : ℕ) : ℕ := s.kappa + 2 + 2 * s.matrices + j
 
 end Shape
 
-/-- The honest setup of one circuit: key rows on the cube and the matrix runs. -/
 structure Setup (F : Type) where
-  /-- Key row `i` at cube index `2^laneVars·b + l`; zero off the used lanes and blocks. -/
   key : ℕ → ℕ → F
   runRow : ℕ → ℕ
   runMatrix : ℕ → ℕ
   runSlot : ℕ → ℕ
   runCoef : ℕ → F
-  /-- Runs `k < runs`; padding runs after them. -/
   runs : ℕ
   slotBlock : ℕ → ℕ
   slotLane : ℕ → ℕ
@@ -74,36 +51,27 @@ structure Setup (F : Type) where
   slotRatio : ℕ → F
   slots : ℕ
 
-/-- `K = F[u]/(u² - 7)`, the ring of the CE(B) point (`circuit/algebra.rs`, `K`). -/
 abbrev Quad (F : Type) [Field F] := QuadraticAlgebra F 7 0
 
-/-- The CE(B) claim. A `K` value is its `(re, im)` pair. -/
 structure Statement (F : Type) where
   commitment : ℕ → ℕ → F
   publicInput : ℕ → ℕ → F
-  /-- The point `r`, low bit first. -/
   r : List (F × F)
   evalK : ℕ → F × F
   evalA : ℕ → ℕ → F × F
 
-/-- The point `r` in `K`. -/
 def Statement.point {F : Type} [Field F] (st : Statement F) : List (Quad F) := st.r.map fun c => ⟨c.1, c.2⟩
 
-/-- `χ_r(i) = eq(r, i)` in `K`, as `(re, im)`: the weight of row or coordinate
-`i` (`matrix.rs::chi_rows`). -/
 def Statement.chi {F : Type} [Field F] (st : Statement F) (i : ℕ) : F × F :=
   ((eqAt st.point i).re, (eqAt st.point i).im)
 
-/-- One P0 candidate: the witness cube and the early matrix columns. -/
 structure P0Tables (F : Type) where
   z : ℕ → F
   e : ℕ → F × F
-  /-- `U_j(σ)`: matrix `j`, slot `σ`. -/
   U : ℕ → ℕ → F × F
   blockCopy : ℕ → F
   mult : ℕ → F
 
-/-- One P1 candidate: the two folded setup groups and the block weights `Ω^A`. -/
 structure P1Tables (K : Type) where
   foldKey : ℕ → K
   foldRun : ℕ → K
@@ -111,15 +79,12 @@ structure P1Tables (K : Type) where
 
 variable {F : Type} [Field F]
 
-/-- `Σ_{p < D} v(p)·X^p`. -/
 noncomputable def coeffPoly (D : ℕ) (v : ℕ → F) : F[X] :=
   ∑ p ∈ Finset.range D, C (v p) * X ^ p
 
-/-- `bar(w)` as a ring element: coefficient `p` is `Σ_l bar(p, l)·w(l)`. -/
 noncomputable def barPoly (D : ℕ) (bar : ℕ → ℕ → F) (w : ℕ → F) : F[X] :=
   coeffPoly D fun p => ∑ l ∈ Finset.range D, bar p l * w l
 
-/-- The Eval_A weight `(M_jᵀ χ_r)_c` from the runs: `Σ_k coef·ratio^{c - start}·χ_r(row)`. -/
 noncomputable def evalAWeight (S : Setup F) (st : Statement F) (D j c : ℕ) : F × F :=
   ∑ k ∈ (Finset.range S.runs).filter (fun k => S.runMatrix k = j ∧
       D * S.slotBlock (S.runSlot k) + S.slotLane (S.runSlot k) ≤ c ∧
@@ -127,12 +92,10 @@ noncomputable def evalAWeight (S : Setup F) (st : Statement F) (D j c : ℕ) : F
     (S.runCoef k * S.slotRatio (S.runSlot k) ^
         (c - (D * S.slotBlock (S.runSlot k) + S.slotLane (S.runSlot k)))) • st.chi (S.runRow k)
 
-/-- The true slot sums `U_j(σ) = Σ_{k : matrix j, slot σ} coef_k·χ_r(row_k)` over `2^runVars` runs. -/
 noncomputable def trueU (s : Shape) (S : Setup F) (st : Statement F) (j σ : ℕ) : F × F :=
   ∑ k ∈ (Finset.range (2 ^ s.runVars)).filter (fun k => S.runMatrix k = j ∧ S.runSlot k = σ),
     S.runCoef k • st.chi (S.runRow k)
 
-/-- The setup is well formed: padding runs are zero, runs fit their slots and blocks. -/
 structure Setup.Fits (S : Setup F) (s : Shape) : Prop where
   runs_le : S.runs ≤ 2 ^ s.runVars
   padding : ∀ k, S.runs ≤ k → S.runCoef k = 0 ∧ S.runRow k = 0 ∧ S.runSlot k = 0 ∧ S.runMatrix k = 0
@@ -147,11 +110,9 @@ structure Setup.Fits (S : Setup F) (s : Shape) : Prop where
   inside : ∀ σ, s.D * S.slotBlock σ + S.slotLane σ + S.slotLength σ ≤ s.D * s.blocks
   key_zero : ∀ i b l, l < 2 ^ s.laneVars → (s.blocks ≤ b ∨ s.D ≤ l) → S.key i (2 ^ s.laneVars * b + l) = 0
 
-/-- The witness block `b` as a ring element. -/
 noncomputable def witnessBlock (s : Shape) (z : ℕ → F) (b : ℕ) : F[X] :=
   coeffPoly s.D fun l => z (2 ^ s.laneVars * b + l)
 
-/-- The ring rows of the relation, in `ring.rs` order. -/
 noncomputable def relationRows (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F) :
     RingRows F where
   rows := s.rows
@@ -176,7 +137,6 @@ noncomputable def relationRows (s : Shape) (bar : ℕ → ℕ → F) (S : Setup 
         else (st.evalA ((ρ - s.kappa - 2) / 2) l).2
     else coeffPoly s.D (st.publicInput (ρ - (s.kappa + 2 + 2 * s.matrices)))
 
-/-- CE(B) in ring-row form: the norm conjunct and every linear conjunct. -/
 def Relation (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F) (z : ℕ → F) :
     Prop :=
   (∀ x, x < 2 ^ s.cubeVars → ∃ t, t < 2 * s.normBound + 1 ∧ z x = slotValue s.normBound t) ∧

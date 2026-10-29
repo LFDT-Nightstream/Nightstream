@@ -1,8 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit
 
-/-! Production allocation values for the public-input split. Core composition
-uses the symbolic counts and does not import this module. -/
-
 namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit
 
 open NightstreamFPrime.Spec

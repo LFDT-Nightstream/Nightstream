@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
 
-/-!
-Proves exact source custody for the compact per-application matrix program.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram
@@ -50,7 +46,7 @@ theorem witnessRange_form?
         (ApplicationInputs.witnessColumn index) =
       some ((ApplicationDirectPlan.Location.witness index).form geometry) := by
   simpa [witnessRange, ApplicationInputs.witnessColumn,
-    ApplicationDirectPlan.Location.form] using
+    ApplicationDirectPlan.Location.form] using!
       (SourceRange.form?_ofSemantic (witnessBlock application)
         (witnessStart application) ApplicationInputs.witnessStart
         application.witnessWordCount 0 (witnessFits geometry) (by simp) index)
@@ -84,7 +80,7 @@ theorem localRange_form?
         (ApplicationInputs.localStart application + index.val) =
       some ((ApplicationDirectPlan.Location.localValues index).form
         geometry) := by
-  simpa [localRange, ApplicationDirectPlan.Location.form] using
+  simpa [localRange, ApplicationDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (localBlock application)
       (localStart application) (ApplicationInputs.localStart application)
       (localCount application) 0 (localFits geometry) (by simp) index)

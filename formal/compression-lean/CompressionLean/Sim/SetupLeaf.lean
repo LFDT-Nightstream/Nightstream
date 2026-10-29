@@ -59,11 +59,11 @@ theorem monomials_succ (l : List Ext) (x : Ext) :
   rw [Array.getElem_map, Array.getElem_range, monomial_append]
   by_cases lt : i < 2 ^ l.length
   · rw [Array.getElem_append_left (by simpa using lt), Array.getElem_map, Array.getElem_range,
-      Nat.div_eq_of_lt lt, if_neg (by omega), ext_mul_one]
+      Nat.div_eq_of_lt lt, ite_eq_right (by omega), ext_mul_one]
   · have hi : i < 2 ^ l.length + 2 ^ l.length := by simpa using h₁
     rw [Array.getElem_append_right (by simpa using lt), Array.getElem_map, Array.getElem_range]
     simp only [Array.size_map, Array.size_range]
-    rw [show i / 2 ^ l.length = 1 from Nat.div_eq_of_lt_le (by omega) (by omega), if_pos rfl]
+    rw [show i / 2 ^ l.length = 1 from Nat.div_eq_of_lt_le (by omega) (by omega), ite_eq_left rfl]
     conv_rhs => rw [show i = i - 2 ^ l.length + 2 ^ l.length * 1 by omega, monomial_add]
 
 /-- `x + w·0 = x`: an absent leaf value adds nothing. -/
@@ -270,7 +270,7 @@ private theorem groupStep_ensures {values : Array Var} {gvalues : Array Word} {w
         (hws.get (by rw [← hws.1]; exact hk')).mono hvalue.mono).bind fun term _ _ hterm => ?_
       have hold : IsExt c m' comb[j]! (S k j) := by
         have e := hcomb.get_map small
-        rwa [if_neg (lt_irrefl j)] at e
+        rwa [ite_eq_right (lt_irrefl j)] at e
       refine (extAdd_ensures (ga := S k j) hold.mono hterm).bind fun sum m₅ _ hsum => Ensures.pure ⟨rfl, ?_⟩
       have size : comb.size = 2 ^ foldVars := by simpa using hcomb.1
       simp only [ForInStep.value]
@@ -279,13 +279,13 @@ private theorem groupStep_ensures {values : Array Var} {gvalues : Array Word} {w
       rw [getElem!_set! _ _ _ _ (by rw [size]; exact hv'), getElem!_map_range _ _ hv']
       by_cases e : j = v
       · subst e
-        rw [if_pos rfl, if_pos (Nat.lt_succ_self j)]
+        rw [ite_eq_left rfl, ite_eq_left (Nat.lt_succ_self j)]
         exact hsum
-      · rw [if_neg e]
+      · rw [ite_eq_right e]
         have old := (hcomb.get_map hv').mono (m := m₅)
         by_cases lt : v < j
-        · rwa [if_pos lt, if_pos (by omega)] at *
-        · rwa [if_neg lt, if_neg (by omega)] at *
+        · rw [ite_eq_left lt, ite_eq_left (by omega)] at *; assumption
+        · rw [ite_eq_right lt, ite_eq_right (by omega)] at *; assumption
     · refine hcomb.congr_map fun v _ => ?_
       simp only [hS, sumRange_succ]
       split_ifs with lt

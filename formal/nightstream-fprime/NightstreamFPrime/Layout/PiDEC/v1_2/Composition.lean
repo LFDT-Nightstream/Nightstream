@@ -6,15 +6,6 @@ import NightstreamFPrime.Layout.PiDEC.v1_2.EvalKRecomposition
 import NightstreamFPrime.Layout.PiDEC.v1_2.EvalARecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Completeness
 
-/-!
-Owns physical composition and the exact six-child footprint ledger for the
-PiDEC v1_2 phase.
-
-The parent order is operational input binding, public split, commitment,
-separate Pad `Eval_K`, separate 4-matrix `Eval_A`, and output binding. The
-parent and both boundary views add no row.
--/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2
 
 open NightstreamFPrime.Circuit

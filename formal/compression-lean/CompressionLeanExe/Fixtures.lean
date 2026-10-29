@@ -2,18 +2,11 @@ import CompressionLean.Ports.Circuit.Linear
 import CompressionLean.Ports.Circuit.Verifier
 import CompressionLean.Ports.Circuit.Late
 
-/-!
-Owns the Lean side of the programs that `neo-spartan`'s
-`tests/internal/lowering_stages.rs` records, each written with the Lean
-builder in Rust's call order. `lowerCheck` compares each with Rust's IR.
--/
-
 namespace CompressionLeanExe.Fixtures
 
 open CompressionLean CompressionLean.Circuit NightstreamFPrime.Spec
 open CompressionLean.Replay (Word)
 
-/-- `Shared::run` (`lowering.rs`): every shared helper, in Rust's order. -/
 def shared : Build Unit := do
   let words ← (Array.range 14).mapM fun _ => Build.priv
   let x ← privateExts 4
@@ -62,8 +55,6 @@ def shared : Build Unit := do
       Build.assertEqual (digest lane) (fold.statePrefix lane)
   let _ ← rest.run (← Duplex.new)
 
-/-- `Early::run` (`lowering.rs`): the early stage's helpers on a small
-structure, in Rust's order. -/
 def early : Build Unit := do
   let layout : Replay.Layout := { matrices := 3, rowVariables := 1, runVariables := 3, slotVariables := 1,
                                   runBounds := #[0, 2, 2, 8], classes := #[], segments := #[], slots := 2 }
@@ -95,8 +86,6 @@ def early : Build Unit := do
     Build.assertExtEqual early.mult claims[0]!.point[1]!
   let _ ← rest.run (← Duplex.new)
 
-/-- `statement_input` (`tests/internal/verifier.rs`): every statement word,
-in `ClaimWords::words` order. -/
 def statementInput (rel : Replay.Relation) : Build ClaimView := do
   let ring := (Array.range Replay.D).mapM fun _ => Build.pub
   let pair : Build KVar := do
@@ -109,26 +98,18 @@ def statementInput (rel : Replay.Relation) : Build ClaimView := do
   let evalA ← (Array.range rel.matrices).mapM fun _ => (Array.range Replay.D).mapM fun _ => pair
   pure { commitment, publicInput, point, evalK, evalA }
 
-/-- `Layer1::run` (`tests/internal/shrink.rs`): the seed and the statement as
-statement words, the proof view, then the verifier. -/
 def layer1 (input : Layer1Key) : Build Unit := do
   let seed ← (Array.range 4).mapM fun _ => Build.pub
   let statement ← statementInput input.relation
   let proof ← ProofView.read input.relation input.p1Key.rows input.p0Key.rows
   verify input.relation input.p1Key input.p0Key (fun lane => seed[lane]!) statement proof
 
-/-- What `linear`, `honest` and `late` read (`lowering.rs`, `linear.json`,
-`honest.json` and `late.json`): the replay's relation, and the duplex inputs
-pending and the output lanes unread at the stage's start. -/
 structure StageInput where
   relation : Replay.Relation
   pending : ℕ
   output : ℕ
 deriving Lean.FromJson
 
-/-- `Linear::run` (`lowering.rs`): the statement as statement words; the
-duplex state, its pending inputs and the linear stage's proof values as proof
-words; then the linear stage. The unread output is the state's first lanes. -/
 def linear (input : StageInput) : Build Unit := do
   let rel := input.relation
   let statement ← statementInput rel
@@ -139,9 +120,6 @@ def linear (input : StageInput) : Build Unit := do
   let finals ← privateExts 3
   let _ ← (linearStage rel statement quotient rounds finals).run ⟨state, pending, state.extract 0 input.output⟩
 
-/-- `Honest::run` (`lowering.rs`): the duplex and every value of
-`HonestInput` as proof words, in its order; then the honest fold and each
-query's point. The unread output is the state's first lanes. -/
 def honest (input : StageInput) : Build Unit := do
   let rel := input.relation
   let state ← (Array.range 16).mapM fun _ => Build.priv
@@ -166,9 +144,6 @@ def honest (input : StageInput) : Build Unit := do
       let _ ← queryPoint rel.setupVars bits
   let _ ← run.run ⟨state, pending, state.extract 0 input.output⟩
 
-/-- `Late::run` (`lowering.rs`): the duplex, `τ`, the Eval_A weights, the
-late GKR proof and the late values as proof words, then `lateStage`, then
-the late openings into the duplex. -/
 def late (input : StageInput) : Build Unit := do
   let rel := input.relation
   let state ← (Array.range 16).mapM fun _ => Build.priv
@@ -182,9 +157,6 @@ def late (input : StageInput) : Build Unit := do
     (late.pairPoint ++ #[late.block] ++ late.blockPoint ++ #[late.omega]).forM Duplex.observeExt
   let _ ← rest.run { state, input := pending, output := state.extract 0 input.output }
 
-/-- `LaneSplit::run` (`lowering.rs`): the lane tables of a run of `D` lanes
-with ratio 3 and of a run of 30 lanes with ratio `p - 2`, then every value
-into a duplex. -/
 def laneSplit : Build Unit := do
   let tau ← privateExts Replay.D
   let classes := #[⟨Replay.D, 3⟩, ⟨30, Word.ofNat (goldilocksModulus - 2)⟩]
@@ -197,9 +169,6 @@ def laneSplit : Build Unit := do
     let _ ← Duplex.sample
   let _ ← rest.run (← Duplex.new)
 
-/-- What `openings` reads (`lowering.rs`, `openings.json`): the `layer1`
-input, and the duplex inputs pending and the output lanes unread after the
-query points. -/
 structure OpeningsJson where
   relation : Replay.Relation
   p1Key : WhirKey
@@ -208,9 +177,6 @@ structure OpeningsJson where
   output : ℕ
 deriving Lean.FromJson
 
-/-- `Openings::run` (`lowering.rs`): the duplex state, its pending inputs,
-the stage values and the proof parts as proof words, in `OpeningsInput`
-order; then both openings. The unread output is the state's first lanes. -/
 def openings (input : OpeningsJson) : Build Unit := do
   let rel := input.relation
   let layout := rel.key.layout

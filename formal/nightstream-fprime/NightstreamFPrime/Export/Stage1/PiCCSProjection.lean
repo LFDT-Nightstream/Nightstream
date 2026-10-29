@@ -1,13 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSInvocations
 
-/-!
-Owns recipe-free symbolic projections of the PiCCS transcript states used by
-the compact permutation plan.
-
-The full Duplex compiler and the existing compact traces remain the proof
-meaning.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSProjection
 
 open NightstreamFPrime.Spec

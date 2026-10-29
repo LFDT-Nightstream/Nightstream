@@ -3,30 +3,12 @@ import CompressionLean.Fields
 import CompressionLean.Layer1.ClosedForms
 import CompressionLean.Spec.Relation
 
-/-!
-Owns the field correspondence of the bridge. A replay word (`Word`) denotes
-its residue `Word.toF` in the Goldilocks field `Gl` (`Fields.lean`), the
-model's `F`. An `Ext` value `a₀ + a₁·X + a₂·X²` denotes `a₀ + a₁·x + a₂·x²`
-in a challenge field `K`: a field of `p³` elements with a root `x` of
-`X³ - X - 1` (`ChallengeField`). A `Kx` value denotes its pair in `K ⊗ Ext = QuadX K`.
-
-Every replay operation denotes the field operation. The denotation of `Ext`
-is injective, because `X³ - X - 1` is the minimal polynomial of `x`, so the
-replay's zero tests and equality tests are the field's. The replay's
-inverses by Fermat are the field inverses.
-
-The `Ext` and `Kx` lemmas are in the namespaces of the replay types, so that
-dot notation finds them. The sums and products of a range are the bridge's.
--/
-
 namespace CompressionLean.Replay
 
 open CompressionLean.Lib
 open Polynomial
 open NightstreamFPrime.Spec NightstreamFPrime.Export.NativePoseidon2
 open CompressionLean.Layer1
-
-/-! ## Words -/
 
 namespace Word
 
@@ -85,8 +67,8 @@ theorem toF_pow (a : Word) (e : ℕ) : (a.pow e).toF = a.toF ^ e := by
   | _ e ih =>
     rw [Word.pow]
     by_cases zero : e = 0
-    · rw [if_pos zero, zero, toF_one, pow_zero]
-    · rw [if_neg zero]
+    · rw [ite_eq_left zero, zero, toF_one, pow_zero]
+    · rw [ite_eq_right zero]
       dsimp only
       have half := ih (e / 2) (by omega) (a * a)
       rw [toF_mul] at half
@@ -118,8 +100,6 @@ theorem eq_of_beq {a b : Word} (equal : (a == b) = true) : a = b :=
   eq_of_word (beq_iff_eq.mp equal)
 
 end Word
-
-/-! ## The challenge field -/
 
 section Challenge
 
@@ -169,8 +149,8 @@ theorem toK_pow (a : Ext) (e : ℕ) : (a.pow e).toK (K := K) = a.toK ^ e := by
   | _ e ih =>
     rw [Ext.pow]
     by_cases zero : e = 0
-    · rw [if_pos zero, zero, toK_one, pow_zero]
-    · rw [if_neg zero]
+    · rw [ite_eq_left zero, zero, toK_one, pow_zero]
+    · rw [ite_eq_right zero]
       dsimp only
       have half := ih (e / 2) (by omega) (a * a)
       rw [toK_mul] at half
@@ -193,7 +173,6 @@ theorem toK_inv (a : Ext) : a.inv.toK (K := K) = (a.toK)⁻¹ := by
 theorem toK_basis (c : ℕ) (small : c < 3) : (Ext.basis c).toK (K := K) = x₀ ^ c := by
   rcases (show c = 0 ∨ c = 1 ∨ c = 2 by omega) with rfl | rfl | rfl <;> simp [basis, toK]
 
-/-- `X³ - X - 1` is the minimal polynomial of the root. -/
 theorem minpoly_root : (X ^ 3 - X - 1 : Gl[X]) = minpoly Gl (x₀) := by
   apply minpoly.eq_of_irreducible_of_monic cubic_irreducible
   · simp [ChallengeField.cubic (K := K)]
@@ -201,7 +180,6 @@ theorem minpoly_root : (X ^ 3 - X - 1 : Gl[X]) = minpoly Gl (x₀) := by
     rw [this]
     exact monic_X_pow_sub (by compute_degree!)
 
-/-- Three coordinates that denote zero are zero. -/
 theorem coords_of_toK {a b c : Gl} (zero : ι a + ι b * x₀ + ι c * x₀ ^ 2 = 0) : a = 0 ∧ b = 0 ∧ c = 0 := by
   set g : Gl[X] := C a + C b * X + C c * X ^ 2
   by_contra nonzero
@@ -256,7 +234,6 @@ theorem beq_self (a : Ext) : (a == a) = true := by
 theorem toK_of_beq {a b : Ext} (equal : (a == b) = true) : a.toK (K := K) = b.toK := by
   rw [eq_of_beq equal]
 
-/-- A value the replay finds nonzero denotes a nonzero field element. -/
 theorem toK_ne_zero {a : Ext} (nonzero : (!a.isZero) = true) : a.toK (K := K) ≠ 0 := by
   intro zero
   have := eq_zero_of_toK zero
@@ -268,7 +245,6 @@ end Ext
 
 namespace Kx
 
-/-- `re + im·u` in `K ⊗ Ext`. -/
 def toQ (a : Kx) : QuadX K := ⟨a.re.toK, a.im.toK⟩
 
 @[simp] theorem toQ_re (a : Kx) : (a.toQ (K := K)).re = a.re.toK := rfl
@@ -286,7 +262,7 @@ theorem toQ_mul (a b : Kx) : (a.mul b).toQ (K := K) = a.toQ * b.toQ := by
     ring
 
 theorem toQ_scale (a : Kx) (e : Ext) : (a.scale e).toQ (K := K) = a.toQ * algebraMap K (QuadX K) e.toK := by
-  ext <;> simp [toQ, scale, Ext.toK_mul, QuadraticAlgebra.algebraMap_eq]
+  ext <;> simp [toQ, scale, Ext.toK_mul]
 
 @[simp] theorem toQ_zero : zero.toQ (K := K) = 0 := by
   ext <;> simp [toQ, zero]
@@ -318,8 +294,6 @@ namespace CompressionLean.Bridge
 open CompressionLean.Replay
 
 variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
-
-/-! ## Sums and products -/
 
 theorem toK_sumRange (n : ℕ) (f : ℕ → Ext) :
     (sumRange n f).toK (K := K) = ∑ i ∈ Finset.range n, (f i).toK := by

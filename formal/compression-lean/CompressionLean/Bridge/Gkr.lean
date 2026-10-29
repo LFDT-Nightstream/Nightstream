@@ -6,22 +6,6 @@ import CompressionLean.Lib.Array
 import CompressionLean.Spec.Messages
 import CompressionLean.Spec.Replay
 
-/-!
-Owns the bridge of the sum-check and GKR replays (`Ports/Replay/Gkr.lean`) to the
-model's games (`Game/SumCheck.lean`, `Layer1/Gkr.lean`). A replay draw
-denotes a model challenge (`drawn`). A successful sum-check replay is a
-path of the model's sum-check that draws the replay's challenges and ends
-at the replay's point and claim (`sumcheck_reaches`): the replay's
-interpolation is the model's round polynomial. A successful GKR replay is a
-path of the model's GKR that ends in claims agreeing with the replay's on
-every tree (`gkr_reaches`).
-
-It also owns facts about the replays alone that the simulation reads: a
-sum-check run split at a round (`runs_sumcheckReplay_split`), a GKR run one
-layer at a time (`runs_gkrLayers_succ`, `runs_gkrLayer`), and the shapes that
-`readGkr` checks (`readGkr_depth`, `layerShapeOk_facts`).
--/
-
 namespace CompressionLean.Bridge
 
 open CompressionLean.Spec
@@ -32,8 +16,6 @@ open CompressionLean.Replay CompressionLean.Layer1
 
 variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-/-! ## Interpolation -/
-
 section Lagrange
 
 variable {L : Type} [Field L]
@@ -41,12 +23,11 @@ variable {L : Type} [Field L]
 theorem prod_erase_range (n : ℕ) (i : Fin n) (f : ℕ → L) :
     ∏ j ∈ (Finset.univ : Finset (Fin n)).erase i, f j = ∏ j ∈ Finset.range n, if (i : ℕ) = j then 1 else f j := by
   rw [← Fin.prod_univ_eq_prod_range (fun j => if (i : ℕ) = j then 1 else f j) n,
-    ← Finset.prod_erase_mul _ _ (Finset.mem_univ i), if_pos rfl, mul_one]
+    ← Finset.prod_erase_mul _ _ (Finset.mem_univ i), ite_eq_left rfl, mul_one]
   apply Finset.prod_congr rfl
   intro j member
-  rw [if_neg fun same => (Finset.mem_erase.mp member).1 (Fin.ext same.symm)]
+  rw [ite_eq_right fun same => (Finset.mem_erase.mp member).1 (Fin.ext same.symm)]
 
-/-- Lagrange interpolation through `0, …, n - 1`, as the replay computes it. -/
 theorem interpolate_eval_range (n : ℕ) (r : Fin n → L) (c : L) :
     (Lagrange.interpolate Finset.univ (fun i : Fin n => ((i : ℕ) : L)) r).eval c =
       ∑ i : Fin n, r i * ((∏ j ∈ Finset.range n, if (i : ℕ) = j then 1 else c - j) *
@@ -103,7 +84,7 @@ theorem roundValues_get (d : ℕ) (m : Array Ext) (size : m.size = d + 1) (claim
   rcases (show i = 0 ∨ i = 1 ∨ 2 ≤ i by omega) with rfl | rfl | two
   · simp [Replay.roundValues]
   · simp [Replay.roundValues, Ext.toK_sub]
-  · rw [dif_neg (by omega), if_neg (by omega)]
+  · rw [dite_eq_right (by omega), ite_eq_right (by omega)]
     simp only [Replay.roundValues]
     rw [Array.getElem_append_right (by simp; omega)]
     simp only [List.size_toArray, List.length_cons, List.length_nil, Nat.reduceAdd, Array.getElem_extract]
@@ -111,7 +92,6 @@ theorem roundValues_get (d : ℕ) (m : Array Ext) (size : m.size = d + 1) (claim
     congr 2
     omega
 
-/-- The replay's next claim is the model's round polynomial at the challenge. -/
 theorem toK_round (d : ℕ) (m : Array Ext) (size : m.size = d + 1) (claim r : Ext) :
     (interpolate (Replay.roundValues m claim) r).toK (K := K) =
       (roundPoly d claim.toK (fun j => (m[(j : ℕ)]!).toK)).eval r.toK := by
@@ -123,8 +103,6 @@ theorem toK_round (d : ℕ) (m : Array Ext) (size : m.size = d + 1) (claim r : E
   apply Finset.sum_congr rfl
   intro i _
   rw [roundValues_get d m size claim i]
-
-/-! ## Sum-check -/
 
 theorem drawn_ext (q : ℕ) (v : Ext) : drawn (K := K) q (.ext v) = ⟨K, v.toK⟩ := rfl
 
@@ -176,15 +154,11 @@ theorem sumcheckRounds_size :
       rw [sumcheckRounds_size rest _ _ t2 t' result run, Array.size_push, List.length_cons]
       omega
 
-/-! ## GKR -/
-
-/-- The model's tree shapes are the replay's. -/
 structure ShapesAgree (gs : GkrShape) (shapes : Array TreeShape) : Prop where
   trees : gs.trees = shapes.size
   depth : ∀ t, t < shapes.size → gs.depth t = (shapes[t]!).depth
   factors : ∀ t, t < shapes.size → gs.factors t = (shapes[t]!).factors
 
-/-- The model's GKR claims are the replay's on every tree. -/
 structure ClaimsAgree (n : ℕ) (c : Replay.GkrClaims) (mc : Layer1.GkrClaims K) : Prop where
   point : mc.point = pointK c.point
   roots : ∀ t, t < n → mc.roots t = pairK (c.roots[t]!)
@@ -237,8 +211,6 @@ theorem layers_eq (agree : ShapesAgree gs shapes) : gs.layers = layerCount shape
     fun t member => agree.depth t (List.mem_range.mp member)
 
 end Shapes
-
-/-! ### Claims -/
 
 theorem find_of_mem {pairs : List (ℕ × Array Ext)} (nodup : (pairs.map Prod.fst).Nodup) {t : ℕ} {v : Array Ext}
     (member : (t, v) ∈ pairs) : pairs.find? (·.1 == t) = some (t, v) := by
@@ -339,8 +311,6 @@ theorem advance_agrees {gs : GkrShape} {shapes : Array TreeShape} (agree : Shape
   current_size := by simp [Replay.advance, claims.current_size]
   leafPoint_size := by simp [Replay.advance, claims.leafPoint_size]
   leafValues_size := by simp [Replay.advance, claims.leafValues_size]
-
-/-! ### The game -/
 
 section Games
 
@@ -455,7 +425,7 @@ theorem gkrLayers_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : Sh
         rw [gkrLayersMsgs, ← degree_eq agree k]
         refine Game.Reaches.bind reachS ?_
         apply Game.Reaches.recv (childrenOf pairs)
-        rw [if_pos]
+        rw [ite_eq_left]
         · apply Game.Reaches.draw tau.toK
           exact reachR
         · dsimp only
@@ -464,9 +434,6 @@ theorem gkrLayers_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : Sh
           refine congrArg (fun x => Lib.eqEval mc.point (pointK result.1) * x) (wsum_congr _ fun t member => ?_)
           rw [partFactors_eq agree k t (active_lt k t (by rwa [← active_eq agree]))]
 
-/-- A successful GKR replay is a path of the model's GKR that receives the
-proof's messages and ends in claims that agree with the replay's on every
-tree. -/
 theorem gkr_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : ShapesAgree gs shapes)
     {W : Type} (worlds : Finset W) (batch : W → Batch K) (extra : ℕ → List K → Finset K) (q : ℕ)
     {proof : GkrProof} (read : readGkr proof shapes = .ok ()) {t t' : Replay.Transcript} {c : Replay.GkrClaims}

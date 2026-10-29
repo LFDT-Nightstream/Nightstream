@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCWitnessBlock
 import NightstreamFPrime.Export.ParallelLines
 
-/-!
-Owns the existing original-witness capture format shared by PiRLC and PiCCS
-replay. Records contain signed-unit masks, not prover outputs. Omitted source
-entries and blocks are zero. The loader checks ordered complete file framing.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.SignedUnitSourceInput

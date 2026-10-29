@@ -1,14 +1,5 @@
 import NightstreamFPrime.Lifecycle.Types
 
-/-!
-Owns the exact Stage 1 paper-NIFS algebra over the single Ajtai commitment:
-the Φ₈₁ relation shape at the F′ row domain, the canonical paper matrix source
-derived from one logical structure, the opening maps, the packed evaluation
-adapter and its agreement with the independent paper relation, and the
-complete Π_RLC and Π_DEC algebras the NIFS key consumes. The logical width is
-the one open circuit parameter (closed by the recursive fixed point).
--/
-
 namespace NightstreamFPrime.Lifecycle.PaperAlgebra
 
 open NightstreamFPrime.Spec
@@ -25,6 +16,7 @@ open NightstreamFPrime.Lifecycle
 
 def publicRingColumns : Nat := 5
 
+@[implicit_reducible]
 def fullShape (logicalWidth : Nat)
     (publicFits : ringDegree * publicRingColumns <=
       Phi81CarrierLayout.carrierWidth logicalWidth) :

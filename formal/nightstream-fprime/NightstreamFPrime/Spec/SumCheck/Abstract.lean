@@ -1,8 +1,3 @@
-
-/-!
-Semantic SumCheck assurance used by the SuperNeo folding reductions.
--/
-
 namespace NightstreamFPrime.Spec.SumCheck
 
 universe uChallenge uValue

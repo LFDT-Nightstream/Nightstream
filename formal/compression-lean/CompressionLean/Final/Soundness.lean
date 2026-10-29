@@ -43,7 +43,6 @@ open NightstreamFPrime.Spec (goldilocksModulus)
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
 
 omit [Field K] [Algebra F K] [Fintype K] [DecidableEq K] in
-/-- A weaker claim breaks less often. -/
 theorem finalRestoreBreak_mono {t L : ℕ} {Claim Claim' : StateWords → Prop} (imp : ∀ x, Claim x → Claim' x)
     (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
     (g : Game (Option (Layer1.Transcript F K t L))) (Reads : StateWords → (ℕ → F) → g.Pos → Prop)
@@ -52,10 +51,6 @@ theorem finalRestoreBreak_mono {t L : ℕ} {Claim Claim' : StateWords → Prop} 
   obtain ⟨tr, accepted, reads, notClaim⟩ := break_
   exact ⟨tr, accepted, reads, fun claim => notClaim (imp _ claim)⟩
 
-/-- **End-to-end soundness under Fiat–Shamir.** In the state-restoration
-experiment over both layers, a prover with `calls` queries in total makes
-the final verifier accept a statement whose terminal claim is false with
-probability at most `calls` times the larger layer error. -/
 theorem final_restore_sound (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F)
     (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K) (N : ℕ) (sizes : s1.Sizes N)
     (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b)
@@ -97,10 +92,6 @@ theorem final_restore_sound (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ �
     rw [← Game.pure.inj node]
     exact extracts)
 
-/-- **End-to-end budget at Rust's split under Fiat–Shamir.** With the
-charged terms of each commitment within its share, as in
-`layer1_budget` and `shrink_budget`, a prover with `calls`
-queries breaks the final verifier with probability at most `calls / 2^t`. -/
 theorem final_restore_budget (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F)
     (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (big : 2 ^ 191 ≤ Fintype.card K)
     (index : s1.setupVars ≤ 35) (t : ℕ)

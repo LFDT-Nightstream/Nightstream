@@ -1,9 +1,6 @@
 import Batteries.Data.Fin.Coding
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixNorm
 
-/-! Owns table-index folds and direct four-scalar codes for each norm source.
-Source aggregation and byte-file IO belong to the replay caller. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold
@@ -164,8 +161,8 @@ theorem decode_quadCodes_twoFolds (firstChallenge secondChallenge : K)
       PrefixFold.foldOne_getD extensionOps extensionLaws,
       PrefixFold.foldOne_getD extensionOps extensionLaws]
     simp only [decode, quadCodes, Array.getD_eq_getD_getElem?, Array.getElem?_map,
-      Array.getElem?_ofFn, dif_pos inside, dif_pos lowLow, dif_pos lowHigh,
-      dif_pos highLow, dif_pos highHigh, Option.map_some, Option.getD_some]
+      Array.getElem?_ofFn, dite_eq_left inside, dite_eq_left lowLow, dite_eq_left lowHigh,
+      dite_eq_left highLow, dite_eq_left highHigh, Option.map_some, Option.getD_some]
     rw [quadCode_value]
     congr 5 <;> omega
 

@@ -1,25 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolDataRefinement
 
-/-!
-The paper's complete `y'` family and its exact projection to the executable
-`Pi_CCS` output message.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: honest output construction at the verifier-derived point.
-Constraint family: semantic output coordinates only; this file emits no rows.
-
-Owns: separate coefficient-complete Pad and 4-matrix value families for
-every source; projection onto all four fields of
-`ProtocolPolynomial.OutputMessage`; and proof that honest evaluation projects
-to `ProtocolPolynomial.messageAt` at the same point.
-
-Does not own: SumCheck acceptance, an operational game, probability,
-Fiat--Shamir, a concrete Phi81 instantiation of the coefficient kernel,
-production column decoding, Rust, R1CS, row removal, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FullOutputCoordinates
 

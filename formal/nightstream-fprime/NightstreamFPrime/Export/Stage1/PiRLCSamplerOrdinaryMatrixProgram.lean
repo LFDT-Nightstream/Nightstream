@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution
 
-/-!
-Owns the compact ordinary matrix block for the 14,943 PiRLC sampler rows.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixProgram
 
 open NightstreamFPrime.Layout

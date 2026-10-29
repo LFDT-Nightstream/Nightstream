@@ -5,12 +5,6 @@ import Mathlib.Logic.Equiv.Fin.Basic
 Paper authority: SuperNeo v1.2, Section 7.4, verifier Step 1.
 Obligation: one indexed source updates an accumulated family by the exact
 Phi81 ring-module equation `next = prior + rho * value`.
-
-The same child is instantiated for commitment, public-input, `Eval_K`, and
-`Eval_A` families. `cellCount = 1` represents `RingF`; `cellCount = 2`
-represents the two base-field cells of `RingK`. The child owns one fresh
-output cell and one arithmetic row per block, ring lane, and coefficient cell.
-It does not own transcript sampling, family ordering, or output binding.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep
@@ -201,15 +195,15 @@ theorem mulExpr_eval (env : Env)
   simp only [show ringDegree + ringMiddleDegree = 81 from rfl, show 2 * (ringDegree - 1) = 106 from rfl]
   by_cases foldedLow : lane.val < ringMiddleDegree
   · by_cases hasTwice : lane.val + 81 ≤ 106
-    · simp only [if_pos foldedLow, if_pos hasTwice, Expr.eval_hadd,
+    · simp only [ite_eq_left foldedLow, ite_eq_left hasTwice, Expr.eval_hadd,
         Expr.eval_sub, rawExpr_eval]
-    · simp only [if_pos foldedLow, if_neg hasTwice, Expr.eval_hadd,
+    · simp only [ite_eq_left foldedLow, ite_eq_right hasTwice, Expr.eval_hadd,
         Expr.eval_sub, rawExpr_eval]
       rfl
   · by_cases hasTwice : lane.val + 81 ≤ 106
-    · simp only [if_neg foldedLow, if_pos hasTwice, Expr.eval_hadd,
+    · simp only [ite_eq_right foldedLow, ite_eq_left hasTwice, Expr.eval_hadd,
         Expr.eval_sub, rawExpr_eval]
-    · simp only [if_neg foldedLow, if_neg hasTwice, Expr.eval_hadd,
+    · simp only [ite_eq_right foldedLow, ite_eq_right hasTwice, Expr.eval_hadd,
         Expr.eval_sub, rawExpr_eval]
       rfl
 

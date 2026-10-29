@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedFamily
 
-/-! Owns the direct Poseidon2 plan for the two pilot hash chains. -/
-
 namespace NightstreamFPrime.Export.Stage1.PilotPoseidonPlan
 
 open NightstreamFPrime.Spec
@@ -39,9 +37,7 @@ def outputSchedule (program : Lifecycle.Stage1.Application.Program) :
     simp [PiRLCRetainedGeometry.outputPoseidonBlock,
       PoseidonRetainedBlock.outputBlock,
       Layout.ProductionRelation.PoseidonRetainedBlock.block_slotCount,
-      invocationCount, PoseidonRetainedBlock.priorInvocationCount,
-      PoseidonRetainedBlock.outputInvocationCount]
-    rfl
+      invocationCount_eq, PoseidonRetainedBlock.outputInvocationCount_eq]
 
 def previousOutput {sourceWidth invocationCount logicalWidth : Nat}
     (schedule : PoseidonRetainedFamily.Schedule sourceWidth invocationCount)

@@ -1,14 +1,6 @@
 import NightstreamFPrime.Export.Stage1.DirectPrefixPlan
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 
-/-!
-Owns the one ordered direct 4-matrix plan through the running-instance
-transition.
-
-This is a phase-local plan. It does not include accumulator,
-application, output-hash, terminal, or final package-identity work.
--/
-
 namespace NightstreamFPrime.Export.Stage1.DirectRunningPrefixPlan
 
 open NightstreamFPrime.Layout

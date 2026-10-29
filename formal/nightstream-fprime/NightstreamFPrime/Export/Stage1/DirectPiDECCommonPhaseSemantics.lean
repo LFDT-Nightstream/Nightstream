@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
 import NightstreamFPrime.Export.Stage1.PiDECEnvironmentCustody
 
-/-!
-Owns the deterministic PiDEC phase theorem in the complete PiRLC sampler
-environment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.DirectPiDECCommonPhaseSemantics
 
 open NightstreamFPrime.Layout

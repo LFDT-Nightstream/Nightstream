@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 
-/-!
-Owns structural row-count proofs for the compact PiRLC combination schedule.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 
 open NightstreamFPrime.Spec

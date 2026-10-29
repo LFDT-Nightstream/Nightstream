@@ -6,15 +6,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 import NightstreamFPrime.Layout.Stage1.NextPreimageInputs
 import NightstreamFPrime.Lifecycle.Stage1.Formal
 
-/-!
-Owns the compact logical wiring for the Stage 1 opaque-child assembler.
-
-This constructor places the eight logical children in one adjacent suffix and
-wires each later phase to the earlier child's generated expressions.
-
-This file does not emit rows, select an application, or alter package identity.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.AssemblerInputs
 
 open NightstreamFPrime.Circuit

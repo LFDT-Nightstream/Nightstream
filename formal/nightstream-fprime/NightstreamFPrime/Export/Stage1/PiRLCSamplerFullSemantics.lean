@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerDirectSemantics
 
-/-!
-Owns composition of the retained Poseidon2 and checked wide-reduction rows into
-the complete sampler and sampler-chain lifecycle relations.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerFullSemantics
 
 open NightstreamFPrime.Circuit

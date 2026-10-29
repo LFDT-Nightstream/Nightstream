@@ -4,12 +4,6 @@ import NightstreamFPrime.Layout.ProductionRelation.CcsOpening
 import NightstreamFPrime.Layout.Stage1.PiDECBaseCompleteness
 import NightstreamFPrime.Lifecycle.PilotZeroRunning
 
-/-!
-Owns accepted-next completeness from actual old openings, for every
-application that fits the `2^28` profile and every commitment setup.
-No security or work law is claimed.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext
@@ -32,9 +26,9 @@ private theorem completeAssignment_eq_extend {program : Program} (raw : RawValue
   funext column
   by_cases below : column.val < PerApplicationFixedPoint.logicalWidth program
   · simp only [RawValues.completeAssignment, Phi81CarrierLayout.extendAssignment,
-      Phi81CarrierLayout.logicalColumn?, dif_pos below]
+      Phi81CarrierLayout.logicalColumn?, dite_eq_left below]
   · simp only [RawValues.completeAssignment, Phi81CarrierLayout.extendAssignment,
-      Phi81CarrierLayout.logicalColumn?, dif_neg below]
+      Phi81CarrierLayout.logicalColumn?, dite_eq_right below]
 
 theorem freshHolds_of_rows
     (program : Program) (fit : PerApplicationFixedPoint.FitsTwoPow28 program)

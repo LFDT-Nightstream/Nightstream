@@ -1,15 +1,3 @@
-
-/-!
-Finite verifier-visible SumCheck polynomials.
-
-Owns: one coefficient-list message format, a degree upper bound derived from
-that list, canonical-shape validation, and executable Horner evaluation.
-
-Does not own: verifier challenges, claimed initial or terminal values,
-semantic expected polynomials, root counting, transcript encoding, PiCCS, or
-any implementation refinement.
--/
-
 namespace NightstreamFPrime.Spec.SumCheck.Finite
 
 universe uField

@@ -1,19 +1,6 @@
 import CompressionLean.Layer1.ClosedForms
 import CompressionLean.Layer1.Weights
 
-/-!
-Owns `mle.rs::eval_k`: `Σ_{b < blocks} eq(s, b) Σ_{l < D} τ_l χ_r(D·b + l)` by
-binary long division of the coordinate by `D`, most significant bit first
-(`evalKValue_eq`). In `K ⊗ Ext` its two parts are the extensions of the
-model's Eval_K tables (`evalK_split`).
-
-The state is the remainder and a flag (`1` when the quotient prefix is
-already below the prefix of `blocks`). `evalKStates` is the Rust loop with
-zero for an absent state. The proof reads the loop as a sum over digit paths
-(`states_eq_paths`), then each path's state as its remainder, its flag and
-the eq weights of its digits and quotient digits (`path_eq`).
--/
-
 namespace CompressionLean.Layer1
 
 open CompressionLean.Lib
@@ -24,9 +11,6 @@ section Loop
 
 variable (D blocks : ℕ)
 
-/-- One digit at coordinate `t` with `bb` block bits: from remainder `rem` and
-flag `below`, digit `bit` gives `(rem', below', quotient bit)`, or `none`
-when the quotient leaves the block bits or rises above `blocks`. -/
 def divStep (bb t rem below bit : ℕ) : Option (ℕ × ℕ × ℕ) :=
   if bb ≤ t ∧ (if D ≤ 2 * rem + bit then 1 else 0) = 1 then none
   else if below = 1 ∨ (if D ≤ 2 * rem + bit then 1 else 0) < blocks / 2 ^ t % 2 then
@@ -35,19 +19,15 @@ def divStep (bb t rem below bit : ℕ) : Option (ℕ × ℕ × ℕ) :=
     some (2 * rem + bit - D * (if D ≤ 2 * rem + bit then 1 else 0), 0, if D ≤ 2 * rem + bit then 1 else 0)
   else none
 
-/-- The factor of a digit: `r_t` or `1 - r_t`, and below the block bits `s_t`
-or `1 - s_t` by the quotient bit. -/
 def divFactor (r s : List A) (t bit q : ℕ) : A :=
   (if bit = 1 then r.getD t 0 else 1 - r.getD t 0) *
     (if t < s.length then (if q = 1 then s.getD t 0 else 1 - s.getD t 0) else 1)
 
-/-- The contribution of one source state through one step. -/
 def contribution (step : Option (ℕ × ℕ × ℕ)) (rem' below' : ℕ) (factor : ℕ → A) (x : A) : A :=
   match step with
   | some (r', b', q) => if r' = rem' ∧ b' = below' then x * factor q else 0
   | none => 0
 
-/-- The states of `mle.rs::eval_k` after the top `k` digits of `cb`. -/
 def evalKStates (r s : List A) (cb : ℕ) : ℕ → ℕ → ℕ → A
   | 0 => fun rem below => if rem = 0 ∧ below = 0 then 1 else 0
   | k + 1 => fun rem' below' =>
@@ -55,7 +35,6 @@ def evalKStates (r s : List A) (cb : ℕ) : ℕ → ℕ → ℕ → A
         contribution (divStep D blocks s.length (cb - 1 - k) rem below bit) rem' below'
           (divFactor r s (cb - 1 - k) bit) (evalKStates r s cb k rem below)
 
-/-- `mle.rs::eval_k`: the flagged states against `τ`, then `1 - r_t` past `cb`. -/
 def evalKValue (r s : List A) (τ : ℕ → A) (cb : ℕ) : A :=
   (∑ rem ∈ Finset.range D, evalKStates D blocks r s cb cb rem 1 * τ rem) *
     ((r.drop cb).map fun x => 1 - x).prod
@@ -66,7 +45,6 @@ section Paths
 
 variable (D blocks : ℕ) (r s : List A) (cb : ℕ)
 
-/-- The state and weight after the `k` digits of `P`, top digit first. -/
 def path : ℕ → ℕ → Option (ℕ × ℕ × A)
   | 0, _ => some (0, 0, 1)
   | k + 1, P =>
@@ -77,7 +55,6 @@ def path : ℕ → ℕ → Option (ℕ × ℕ × A)
           | none => none
           | some (rem', below', q) => some (rem', below', w * divFactor r s (cb - 1 - k) (P % 2) q)
 
-/-- The weight path `P` puts on state `(rem, below)`. -/
 def pathValue (k P rem below : ℕ) : A :=
   match path D blocks r s cb k P with
   | some (r', b', w) => if r' = rem ∧ b' = below then w else 0
@@ -130,7 +107,6 @@ theorem contribution_zero (step : Option (ℕ × ℕ × ℕ)) (rem' below' : ℕ
   · dsimp only
     split_ifs <;> simp
 
-/-- The sources of one step collapse to the path's own state. -/
 theorem collapse (positive : 0 < D) (k P bit rem' below' : ℕ) (digit : bit < 2) :
     ∑ rem ∈ Finset.range D, ∑ below ∈ Finset.range 2,
       contribution (divStep D blocks s.length (cb - 1 - k) rem below bit) rem' below'
@@ -151,11 +127,11 @@ theorem collapse (positive : 0 < D) (k P bit rem' below' : ℕ) (digit : bit < 2
       simp [pathValue, equal]
     simp only [value]
     rw [Finset.sum_eq_single rem0 (fun rem _ ne => Finset.sum_eq_zero fun below _ => by
-        rw [if_neg (fun h => ne h.1.symm), contribution_zero])
+        rw [ite_eq_right (fun h => ne h.1.symm), contribution_zero])
       (fun out => absurd (Finset.mem_range.mpr remLt) out),
       Finset.sum_eq_single below0 (fun below _ ne => by
-        rw [if_neg (fun h => ne h.2.symm), contribution_zero])
-      (fun out => absurd (Finset.mem_range.mpr belowLt) out), if_pos ⟨rfl, rfl⟩]
+        rw [ite_eq_right (fun h => ne h.2.symm), contribution_zero])
+      (fun out => absurd (Finset.mem_range.mpr belowLt) out), ite_eq_left ⟨rfl, rfl⟩]
     simp only [pathValue, path, half, low, equal]
     unfold contribution
     rcases divStep D blocks s.length (cb - 1 - k) rem0 below0 bit with _ | ⟨r', b', q⟩ <;> rfl
@@ -171,7 +147,6 @@ theorem sum_swap4 {ι κ μ ν : Type} (S : Finset ι) (T : Finset κ) (U : Fins
     _ = ∑ l ∈ V, ∑ k ∈ U, ∑ i ∈ S, ∑ j ∈ T, f i j k l :=
         Finset.sum_congr rfl fun _ _ => (Finset.sum_congr rfl fun _ _ => Finset.sum_comm).trans Finset.sum_comm
 
-/-- The loop's states are sums over digit paths. -/
 theorem states_eq_paths (positive : 0 < D) :
     ∀ k rem below, evalKStates D blocks r s cb k rem below =
       ∑ P ∈ Finset.range (2 ^ k), pathValue D blocks r s cb k P rem below := by
@@ -194,7 +169,6 @@ section Meaning
 
 variable {D blocks : ℕ} (r s : List A) (cb : ℕ)
 
-/-- One digit of binary long division. -/
 theorem long_division (positive : 0 < D) (P bit : ℕ) (digit : bit < 2) :
     (2 * P + bit) / D = 2 * (P / D) + (if D ≤ 2 * (P % D) + bit then 1 else 0) ∧
       (2 * P + bit) % D = 2 * (P % D) + bit - D * (if D ≤ 2 * (P % D) + bit then 1 else 0) := by
@@ -202,14 +176,13 @@ theorem long_division (positive : 0 < D) (P bit : ℕ) (digit : bit < 2) :
   have small := Nat.mod_lt P positive
   rw [Nat.div_mod_unique positive]
   by_cases carry : D ≤ 2 * (P % D) + bit
-  · rw [if_pos carry]
+  · rw [ite_eq_left carry]
     have expand : D * (2 * (P / D) + 1) = 2 * (D * (P / D)) + D := by ring
     constructor <;> omega
-  · rw [if_neg carry]
+  · rw [ite_eq_right carry]
     have expand : D * (2 * (P / D) + 0) = 2 * (D * (P / D)) := by ring
     constructor <;> omega
 
-/-- The weight of one more digit. -/
 theorem weight_step (k t P Q bit q : ℕ) (inside : t + 1 ≤ r.length) (digit : bit < 2) (carry : q < 2) :
     eqAt ((r.drop (t + 1)).take k) P * eqAt (s.drop (t + 1)) Q * divFactor r s t bit q =
       eqAt ((r.drop t).take (k + 1)) (2 * P + bit) * eqAt (s.drop t) (2 * Q + q) := by
@@ -229,22 +202,19 @@ theorem weight_step (k t P Q bit q : ℕ) (inside : t + 1 ≤ r.length) (digit :
       rw [List.getD_eq_getElem?_getD, List.getElem?_eq_getElem blockBit]; rfl
     have sStep : eqAt (s.drop t) (2 * Q + q) = (if q = 1 then s[t] else 1 - s[t]) * eqAt (s.drop (t + 1)) Q := by
       rw [List.drop_eq_getElem_cons blockBit, eqAt, qHalf, qLow]
-    rw [sStep, if_pos blockBit, sGet]
+    rw [sStep, ite_eq_left blockBit, sGet]
     ring
   · have sNil : s.drop t = [] := List.drop_eq_nil_of_le (by omega)
     have sNil' : s.drop (t + 1) = [] := List.drop_eq_nil_of_le (by omega)
-    rw [sNil, sNil', if_neg blockBit]
+    rw [sNil, sNil', ite_eq_right blockBit]
     simp only [eqAt]
     ring
 
-/-- `blocks / 2^t` is two halves of `blocks / 2^(t + 1)` and a bit. -/
 theorem blocks_digit (t : ℕ) : blocks / 2 ^ t = 2 * (blocks / 2 ^ (t + 1)) + blocks / 2 ^ t % 2 := by
   have := Nat.div_add_mod (blocks / 2 ^ t) 2
   rw [pow_succ, ← Nat.div_div_eq_div_mul]
   omega
 
-/-- One digit from a valid prefix: the step keeps the remainder, the flag and
-the quotient digit of the longer prefix, and cuts exactly the invalid ones. -/
 theorem divStep_eq (bb t R bit Q : ℕ)
     (prefixLe : Q ≤ blocks / 2 ^ (t + 1)) (prefixLt : Q < 2 ^ (bb - (t + 1))) :
     divStep D blocks bb t R (if Q < blocks / 2 ^ (t + 1) then 1 else 0) bit =
@@ -277,11 +247,8 @@ theorem divStep_eq (bb t R bit Q : ℕ)
   generalize 2 ^ (bb - t) = X' at exponent ⊢
   rcases exponent with ⟨inside, double⟩ | ⟨outside, Xone, X'one⟩ <;>
     split_ifs <;> (try simp only [false_or, true_or, not_true_eq_false, not_and_or, not_lt, not_le] at *) <;>
-      first | rfl | (exfalso; omega)
+      (exfalso; omega)
 
-/-- Each path's state: its remainder, its flag and the eq weights of its digits
-and quotient digits; `none` when the quotient leaves the block bits or rises
-above `blocks`. -/
 theorem path_eq (positive : 0 < D) (deep : s.length ≤ cb) (long : cb ≤ r.length) (strict : blocks < 2 ^ cb) :
     ∀ k, k ≤ cb → ∀ P, P < 2 ^ k →
       path D blocks r s cb k P =
@@ -298,7 +265,6 @@ theorem path_eq (positive : 0 < D) (deep : s.length ≤ cb) (long : cb ≤ r.len
       simp [path, none_above, List.drop_eq_nil_of_le deep, eqAt]
   | succ k ih =>
       intro fits P lt
-      -- `P` is its top digits `P / 2` and its last digit.
       obtain ⟨P0, bit, digit, rfl⟩ : ∃ P0 bit, bit < 2 ∧ P = 2 * P0 + bit :=
         ⟨P / 2, P % 2, Nat.mod_lt _ (by norm_num), by omega⟩
       have half : (2 * P0 + bit) / 2 = P0 := by omega
@@ -325,20 +291,20 @@ theorem path_eq (positive : 0 < D) (deep : s.length ≤ cb) (long : cb ≤ r.len
           · rw [show s.length - t = 0 by omega, pow_zero]
       have qSmall : (if D ≤ 2 * (P0 % D) + bit then 1 else 0) < 2 := by split_ifs <;> norm_num
       by_cases before : P0 / D ≤ blocks / 2 ^ (t + 1) ∧ P0 / D < 2 ^ (s.length - (t + 1))
-      · rw [if_pos before]
+      · rw [ite_eq_left before]
         dsimp only
         rw [divStep_eq s.length t (P0 % D) bit (P0 / D) before.1 before.2]
         have weight := weight_step r s k t P0 (P0 / D) bit (if D ≤ 2 * (P0 % D) + bit then 1 else 0)
           (by omega) digit qSmall
         generalize (if D ≤ 2 * (P0 % D) + bit then 1 else 0) = q at weight ⊢
         by_cases cond : 2 * (P0 / D) + q ≤ blocks / 2 ^ t ∧ 2 * (P0 / D) + q < 2 ^ (s.length - t)
-        · rw [if_pos cond, if_pos cond]
+        · rw [ite_eq_left cond, ite_eq_left cond]
           dsimp only
           rw [weight]
-        · rw [if_neg cond, if_neg cond]
-      · rw [if_neg before]
+        · rw [ite_eq_right cond, ite_eq_right cond]
+      · rw [ite_eq_right before]
         dsimp only
-        rw [if_neg]
+        rw [ite_eq_right]
         rintro ⟨le, lt'⟩
         apply before
         generalize (if D ≤ 2 * (P0 % D) + bit then 1 else 0) = q at qSmall le lt'
@@ -349,7 +315,6 @@ section Value
 
 variable {D blocks : ℕ}
 
-/-- The eq weight of a split list: the low part, then the high part at the high bits. -/
 theorem eqAt_append (l m : List A) (c : ℕ) : eqAt (l ++ m) c = eqAt l c * eqAt m (c / 2 ^ l.length) := by
   induction l generalizing c with
   | nil => simp [eqAt]
@@ -363,13 +328,12 @@ theorem eqAt_zero (m : List A) : eqAt m 0 = (m.map fun x => 1 - x).prod := by
   | nil => rfl
   | cons x rest ih => simp [eqAt, ih]
 
-/-- `Σ_{c < 2^cb, c / D < blocks} g c` is the sum over blocks and lanes. -/
 theorem sum_blocks_lanes (g : ℕ → A) (positive : 0 < D) (cb : ℕ) (fits : D * blocks ≤ 2 ^ cb) :
     ∑ c ∈ Finset.range (2 ^ cb), (if c / D < blocks then g c else 0) =
       ∑ b ∈ Finset.range blocks, ∑ l ∈ Finset.range D, g (D * b + l) := by
   obtain ⟨extra, hextra⟩ : ∃ extra, 2 ^ cb = D * blocks + extra := ⟨2 ^ cb - D * blocks, by omega⟩
   rw [hextra, Finset.sum_range_add, Finset.sum_eq_zero (s := Finset.range extra) (fun c _ => by
-    rw [if_neg]
+    rw [ite_eq_right]
     rw [not_lt, Nat.le_div_iff_mul_le positive]
     nlinarith), add_zero]
   clear hextra fits
@@ -380,15 +344,14 @@ theorem sum_blocks_lanes (g : ℕ → A) (positive : 0 < D) (cb : ℕ) (fits : D
       have before : ∀ c ∈ Finset.range (D * n), (if c / D < n + 1 then g c else 0) = if c / D < n then g c else 0 := by
         intro c member
         have : c / D < n := (Nat.div_lt_iff_lt_mul positive).mpr (by simp at member; linarith)
-        rw [if_pos (by omega), if_pos this]
+        rw [ite_eq_left (by omega), ite_eq_left this]
       rw [Finset.sum_congr rfl before, ih]
       congr 1
       apply Finset.sum_congr rfl
       intro l member
       have lane : l < D := Finset.mem_range.mp member
-      rw [if_pos (by rw [Nat.mul_add_div positive, Nat.div_eq_of_lt lane]; omega)]
+      rw [ite_eq_left (by rw [Nat.mul_add_div positive, Nat.div_eq_of_lt lane]; omega)]
 
-/-- `mle.rs::eval_k` is the Eval_K weight at the block point. -/
 theorem evalKValue_eq (r s : List A) (τ : ℕ → A) (cb : ℕ) (positive : 0 < D) (deep : s.length ≤ cb)
     (long : cb ≤ r.length) (blocks_le : blocks ≤ 2 ^ s.length) (fits : D * blocks ≤ 2 ^ cb)
     (strict : blocks < 2 ^ cb) :
@@ -406,30 +369,30 @@ theorem evalKValue_eq (r s : List A) (τ : ℕ → A) (cb : ℕ) (positive : 0 <
     rw [path_eq r s cb positive deep long strict cb le_rfl c (Finset.mem_range.mp member)]
     simp only [Nat.sub_self, pow_zero, Nat.div_one, List.drop_zero, Nat.sub_zero]
     by_cases inBlocks : c / D < blocks
-    · rw [if_pos ⟨inBlocks.le, lt_of_lt_of_le inBlocks blocks_le⟩]
+    · rw [ite_eq_left ⟨inBlocks.le, lt_of_lt_of_le inBlocks blocks_le⟩]
       dsimp only
-      rw [if_pos inBlocks]
+      rw [ite_eq_left inBlocks]
       by_cases same : c % D = rem
-      · rw [if_pos ⟨same, rfl⟩, if_pos ⟨inBlocks, same⟩]
-      · rw [if_neg (fun h => same h.1), if_neg (fun h => same h.2)]
+      · rw [ite_eq_left ⟨same, rfl⟩, ite_eq_left ⟨inBlocks, same⟩]
+      · rw [ite_eq_right (fun h => same h.1), ite_eq_right (fun h => same h.2)]
     · by_cases valid : c / D ≤ blocks ∧ c / D < 2 ^ s.length
-      · rw [if_pos valid]
+      · rw [ite_eq_left valid]
         dsimp only
-        rw [if_neg inBlocks, if_neg (fun h : c / D < blocks ∧ c % D = rem => inBlocks h.1)]
+        rw [ite_eq_right inBlocks, ite_eq_right (fun h : c / D < blocks ∧ c % D = rem => inBlocks h.1)]
         simp
-      · rw [if_neg valid, if_neg (fun h : c / D < blocks ∧ c % D = rem => inBlocks h.1)]
+      · rw [ite_eq_right valid, ite_eq_right (fun h : c / D < blocks ∧ c % D = rem => inBlocks h.1)]
   have collapse : ∀ c ∈ Finset.range (2 ^ cb),
       ∑ rem ∈ Finset.range D,
         (if c / D < blocks ∧ c % D = rem then eqAt (r.take cb) c * eqAt s (c / D) else 0) * τ rem =
       if c / D < blocks then τ (c % D) * (eqAt (r.take cb) c * eqAt s (c / D)) else 0 := by
     intro c _
     by_cases inBlocks : c / D < blocks
-    · rw [if_pos inBlocks, Finset.sum_eq_single (c % D) (fun rem _ ne => by
-          rw [if_neg (fun h => ne h.2.symm), zero_mul])
-        (fun out => absurd (Finset.mem_range.mpr (Nat.mod_lt c positive)) out), if_pos ⟨inBlocks, rfl⟩]
+    · rw [ite_eq_left inBlocks, Finset.sum_eq_single (c % D) (fun rem _ ne => by
+          rw [ite_eq_right (fun h => ne h.2.symm), zero_mul])
+        (fun out => absurd (Finset.mem_range.mpr (Nat.mod_lt c positive)) out), ite_eq_left ⟨inBlocks, rfl⟩]
       ring
-    · rw [if_neg inBlocks]
-      exact Finset.sum_eq_zero fun rem _ => by rw [if_neg (fun h => inBlocks h.1), zero_mul]
+    · rw [ite_eq_right inBlocks]
+      exact Finset.sum_eq_zero fun rem _ => by rw [ite_eq_right (fun h => inBlocks h.1), zero_mul]
   have inner : ∑ rem ∈ Finset.range D, evalKStates D blocks r s cb cb rem 1 * τ rem =
       ∑ c ∈ Finset.range (2 ^ cb),
         (if c / D < blocks then τ (c % D) * (eqAt (r.take cb) c * eqAt s (c / D)) else 0) := by
@@ -456,7 +419,6 @@ theorem evalKValue_eq (r s : List A) (τ : ℕ → A) (cb : ℕ) (positive : 0 <
   rw [hdiv, hmod, hr]
   ring
 
-/-- The extension of the Eval_K block table at the block point is `eval_k`. -/
 theorem mle_evalK (r s : List A) (τ : ℕ → A) (cb : ℕ) (positive : 0 < D) (deep : s.length ≤ cb)
     (long : cb ≤ r.length) (blocks_le : blocks ≤ 2 ^ s.length) (fits : D * blocks ≤ 2 ^ cb)
     (strict : blocks < 2 ^ cb) :
@@ -465,8 +427,8 @@ theorem mle_evalK (r s : List A) (τ : ℕ → A) (cb : ℕ) (positive : 0 < D) 
   rw [evalKValue_eq r s τ cb positive deep long blocks_le fits strict, mle_eq_cubeSum, cubeSum_eq_sum_range]
   obtain ⟨extra, hextra⟩ : ∃ extra, 2 ^ s.length = blocks + extra := ⟨2 ^ s.length - blocks, by omega⟩
   rw [hextra, Finset.sum_range_add, Finset.sum_eq_zero (s := Finset.range extra) (fun b _ => by
-    rw [if_neg (by omega), mul_zero]), add_zero]
-  exact Finset.sum_congr rfl fun b member => by rw [if_pos (Finset.mem_range.mp member)]
+    rw [ite_eq_right (by omega), mul_zero]), add_zero]
+  exact Finset.sum_congr rfl fun b member => by rw [ite_eq_left (Finset.mem_range.mp member)]
 
 end Value
 
@@ -474,8 +436,6 @@ section Split
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K]
 
-/-- `mle.rs::eval_k` in `K ⊗ Ext`, at `r`, the block point and the lane
-weights at `ζ`, is the pair of the extensions of the model's Eval_K tables. -/
 theorem evalK_split (s : Shape) (bar : ℕ → ℕ → F) (st : Statement F) (zeta : K) (sb : List K) (cb : ℕ)
     (positive : 0 < s.D) (deep : sb.length ≤ cb) (long : cb ≤ st.r.length)
     (blocks_le : s.blocks ≤ 2 ^ sb.length) (fits : s.D * s.blocks ≤ 2 ^ cb) (strict : s.blocks < 2 ^ cb) :
@@ -486,7 +446,7 @@ theorem evalK_split (s : Shape) (bar : ℕ → ℕ → F) (st : Statement F) (ze
       (by simpa [Statement.point] using long) (by simpa using blocks_le) fits strict, mle_split]
   congr 1 <;> apply mle_congr <;> intro b _ <;>
     simp only [evalKTable, ↓reduceIte, Nat.one_ne_zero] <;> split_ifs <;>
-    simp [quadX_re_sum, quadX_im_sum, eqAt_map, QuadraticAlgebra.algebraMap_eq, Statement.chi]
+    simp [quadX_re_sum, quadX_im_sum, eqAt_map, Statement.chi]
 
 end Split
 

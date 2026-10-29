@@ -1,11 +1,6 @@
 import NightstreamFPrime.Layout.R1CS
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputBinding
 
-/-!
-Owns the zero-row physical view of the exact sixteen-child PiDEC output
-binding. The output reuses the proved message and digit wires definitionally.
--/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2.Leaves.OutputBinding
 
 open NightstreamFPrime.Circuit

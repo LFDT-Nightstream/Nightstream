@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.LowNormBlock
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxFamilyPlan
 
-/-!
-Owns the retained-block adapter for one indexed Poseidon2 family. A schedule
-maps invocation-major S-box rows to one low-norm block and derives each final
-output state directly from rows 134 through 149.
-
-This module does not select a concrete Stage 1 schedule or source columns.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedFamily
 
 open NightstreamFPrime.Spec
@@ -145,7 +137,7 @@ theorem trace_state_eq_outputState
     invocationInterface
   have bounded : 134 + lane.val < PoseidonRetainedSlots.rows.length :=
     (PoseidonRetainedSlots.finalRow lane).isLt
-  rw [dif_pos bounded]
+  rw [dite_eq_left bounded]
   apply congrArg (form schedule start fits invocation)
   apply Fin.ext
   rfl

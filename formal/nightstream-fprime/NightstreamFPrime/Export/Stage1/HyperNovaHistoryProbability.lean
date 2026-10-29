@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaHistory
 import Mathlib.Probability.ProbabilityMassFunction.Constructions
 
-/-!
-Owns the sample and the events of the actual reverse-history result of one
-application.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaHistoryProbability

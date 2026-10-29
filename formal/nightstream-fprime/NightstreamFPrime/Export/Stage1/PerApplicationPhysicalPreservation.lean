@@ -3,12 +3,6 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionPackage
 import NightstreamFPrime.Export.Stage1.Stage1LoweringBridge
 import NightstreamFPrime.Layout.Stage1.Preservation
 
-/-!
-Owns the reverse row-level bridge for the final package slices whose canonical
-R1CS source lists are already explicit: PiDEC, running transition,
-application, and NextPreimage.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPhysicalPreservation
 
 open NightstreamFPrime.Circuit

@@ -82,7 +82,7 @@ private theorem inverse_of_check {ga : Ext} {t : Fin 3 → F} (h : extProduct (c
     ga ≠ 0 ∧ t = coords ga.inv := by
   have nz : ga ≠ 0 := by
     rintro rfl
-    haveI := CharP.nontrivial_of_char_ne_one (R := F) (v := goldilocksModulus) (by decide)
+    have := CharP.nontrivial_of_char_ne_one (R := F) (v := goldilocksModulus) (by decide)
     have := congrFun h 0
     simp [extProduct] at this
   refine ⟨nz, ?_⟩
@@ -174,20 +174,20 @@ theorem powerFromBits_succ (k : ℕ) (g : Word) (index : ℕ) :
         Function.iterate_succ_apply]
 
 theorem ext_pow_zero (a : Ext) : a.pow 0 = 1 := by
-  rw [Ext.pow, if_pos rfl]
+  rw [Ext.pow, ite_eq_left rfl]
 
 /-- `a^(e+1) = a^e·a` for the replay's power by squaring. -/
 theorem ext_pow_succ (a : Ext) (e : ℕ) : a.pow (e + 1) = a.pow e * a := by
   induction e using Nat.strong_induction_on generalizing a with
   | _ e ih =>
-    rw [Ext.pow.eq_def a (e + 1), if_neg (by omega)]
+    rw [Ext.pow.eq_def a (e + 1), ite_eq_right (by omega)]
     rcases Nat.even_or_odd' e with ⟨k, rfl | rfl⟩
-    · rw [if_pos (by omega), show (2 * k + 1) / 2 = k by omega, Ext.pow.eq_def a (2 * k)]
+    · rw [ite_eq_left (by omega), show (2 * k + 1) / 2 = k by omega, Ext.pow.eq_def a (2 * k)]
       rcases k with _ | k
-      · rw [if_pos rfl, Ext.pow.eq_def, if_pos rfl]
-      · rw [if_neg (by omega), if_neg (by omega), show 2 * (k + 1) / 2 = k + 1 by omega]
-    · rw [if_neg (by omega), show (2 * k + 1 + 1) / 2 = k + 1 by omega, ih k (by omega),
-        Ext.pow.eq_def a (2 * k + 1), if_neg (by omega), if_pos (by omega), show (2 * k + 1) / 2 = k by omega,
+      · rw [ite_eq_left rfl, Ext.pow.eq_def, ite_eq_left rfl]
+      · rw [ite_eq_right (by omega), ite_eq_right (by omega), show 2 * (k + 1) / 2 = k + 1 by omega]
+    · rw [ite_eq_right (by omega), show (2 * k + 1 + 1) / 2 = k + 1 by omega, ih k (by omega),
+        Ext.pow.eq_def a (2 * k + 1), ite_eq_right (by omega), ite_eq_left (by omega), show (2 * k + 1) / 2 = k by omega,
         ext_mul_assoc]
 
 /-- Sums of functions that agree below `k`. -/
@@ -224,9 +224,9 @@ theorem push (h : IsExts c n xs gs) {x : ExtVar} {g : Ext} (hx : IsExt c n x g) 
   rw [getElem!_pos _ _ (by simp; omega), getElem!_pos _ _ (by simp [← h.1]; omega), Array.getElem_push,
     Array.getElem_push]
   by_cases lt : i < xs.size
-  · rw [dif_pos lt, dif_pos (h.1 ▸ lt), ← getElem!_pos, ← getElem!_pos]
+  · rw [dite_eq_left lt, dite_eq_left (h.1 ▸ lt), ← getElem!_pos, ← getElem!_pos]
     exact h.2 i lt
-  · rw [dif_neg lt, dif_neg (h.1 ▸ lt)]
+  · rw [dite_eq_right lt, dite_eq_right (h.1 ▸ lt)]
     exact hx
 
 theorem empty : IsExts c n #[] #[] := ⟨rfl, fun _ h => absurd h (by simp)⟩
@@ -238,9 +238,9 @@ theorem append (h : IsExts c n xs gs) {ys : Array ExtVar} {gy : Array Ext} (hy :
   rw [getElem!_pos _ _ (by simp; omega), getElem!_pos _ _ (by simp [← h.1, ← hy.1]; omega), Array.getElem_append,
     Array.getElem_append]
   by_cases lt : i < xs.size
-  · rw [dif_pos lt, dif_pos (h.1 ▸ lt), ← getElem!_pos, ← getElem!_pos]
+  · rw [dite_eq_left lt, dite_eq_left (h.1 ▸ lt), ← getElem!_pos, ← getElem!_pos]
     exact h.2 i lt
-  · rw [dif_neg lt, dif_neg (h.1 ▸ lt), ← getElem!_pos, ← getElem!_pos, ← h.1]
+  · rw [dite_eq_right lt, dite_eq_right (h.1 ▸ lt), ← getElem!_pos, ← getElem!_pos, ← h.1]
     exact hy.2 _ (by omega)
 
 theorem extract (h : IsExts c n xs gs) (a : ℕ) : IsExts c n (xs.extract a) (gs.extract a) := by
@@ -533,7 +533,7 @@ theorem extInv_ensures {a : ExtVar} {ga : Ext} (ha : IsExt c n a ga) :
     refine ⟨nz, fun k => ⟨Nat.add_lt_add_left k.isLt n, ?_⟩⟩
     rw [← hl, Ctx.val_next hF (by simp)]
     simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
-    rw [dif_pos k.isLt, Option.getD_some]
+    rw [dite_eq_left k.isLt, Option.getD_some]
     exact congrFun inv k).map fun _ _ h => ⟨h.1, fun k => h.2 k⟩
 
 /-- `dot`. -/
@@ -584,11 +584,11 @@ theorem eqAt_ensures {point : Array ExtVar} {gpoint : Array Ext} (index : ℕ) (
     · rename_i hb
       rw [pure_bind]
       exact (extMul_ensures hacc (hp.2 k hk').mono).bind fun total' _ _ htotal =>
-        Ensures.pure ⟨rfl, by rw [prodRange_succ, if_pos hb]; exact htotal⟩
+        Ensures.pure ⟨rfl, by rw [prodRange_succ, ite_eq_left hb]; exact htotal⟩
     · rename_i hb
       exact (oneMinus_ensures (hp.2 k hk').mono).bind fun factor _ _ hfactor =>
         (extMul_ensures hacc.mono hfactor).bind fun total' _ _ htotal =>
-        Ensures.pure ⟨rfl, by rw [prodRange_succ, if_neg hb]; exact htotal⟩
+        Ensures.pure ⟨rfl, by rw [prodRange_succ, ite_eq_right hb]; exact htotal⟩
   · rw [Array.size_zipIdx, hp.1] at hr
     rw [eqAt_eq]
     exact hr
@@ -673,13 +673,13 @@ theorem interpolate_ensures {values : Array ExtVar} {x : ExtVar} {gvalues : Arra
         refine (extConstant_ensures _).bind fun node _ _ hnode => ?_
         refine (extSub_ensures hx.mono hnode).bind fun factor _ _ hfactor => ?_
         refine (extMul_ensures hnum.mono hfactor).bind fun num _ _ hnum' => Ensures.pure ⟨rfl, ?_, ?_⟩
-        · rw [prodRange_succ, if_neg hkj]
+        · rw [prodRange_succ, ite_eq_right hkj]
           exact hnum'
-        · rw [prodRangeGl_succ, if_neg hkj, ← hden]
+        · rw [prodRangeGl_succ, ite_eq_right hkj, ← hden]
           rfl
       · rename_i hkj
-        exact Ensures.pure ⟨rfl, by rw [prodRange_succ, if_pos (not_not.mp hkj), ext_mul_one]; exact hnum,
-          by rw [prodRangeGl_succ, if_pos (not_not.mp hkj), gl_mul_one]; exact hden⟩
+        exact Ensures.pure ⟨rfl, by rw [prodRange_succ, ite_eq_left (not_not.mp hkj), ext_mul_one]; exact hnum,
+          by rw [prodRangeGl_succ, ite_eq_left (not_not.mp hkj), gl_mul_one]; exact hden⟩
     · obtain ⟨hnum, hden⟩ := hr'
       have hlen : (List.range' 0 [0:values.size].size 1).toArray.size = gvalues.size := by simp [hv.1]
       refine (extScaleConstant_ensures r'.2.inv hnum).bind fun weight _ _ hweight => ?_
@@ -727,7 +727,7 @@ theorem eqTable_ensures {point : Array ExtVar} {gpoint : Array Ext} (hp : IsExts
       refine hnext.mono.push ?_
       rw [hH]
       dsimp only
-      rw [if_pos (hsize ▸ hj)]
+      rw [ite_eq_left (hsize ▸ hj)]
       exact hv
     · refine (Ensures.loopArray (fun j next m' => IsExts c m' next ((Array.range (acc.size + j)).map H)) hnext₁
         fun j hj next m' _ hnext => ?_).bind fun next₂ _ _ hnext₂ => Ensures.pure ⟨rfl, ?_⟩
@@ -736,7 +736,7 @@ theorem eqTable_ensures {point : Array ExtVar} {gpoint : Array Ext} (hp : IsExts
         refine hnext.mono.push ?_
         rw [hH]
         dsimp only
-        rw [if_neg (by rw [hsize]; omega), hsize, Nat.add_sub_cancel_left]
+        rw [ite_eq_right (by rw [hsize]; omega), hsize, Nat.add_sub_cancel_left]
         exact hv
       · rw [hsize, show 2 ^ k + 2 ^ k = 2 ^ (k + 1) by rw [Nat.pow_succ]; omega] at hnext₂
         have key : (Array.range (2 ^ (k + 1))).map H = (Array.range (2 ^ (k + 1))).map (E (k + 1)) :=
@@ -746,11 +746,11 @@ theorem eqTable_ensures {point : Array ExtVar} {gpoint : Array Ext} (hp : IsExts
             dsimp only
             rw [prodRange_succ]
             by_cases lt : i < 2 ^ k
-            · rw [if_pos lt, Nat.testBit_lt_two_pow lt, if_neg Bool.false_ne_true]
+            · rw [ite_eq_left lt, Nat.testBit_lt_two_pow lt, ite_eq_right Bool.false_ne_true]
             · obtain ⟨j, rfl⟩ : ∃ j, i = 2 ^ k + j := ⟨i - 2 ^ k, by omega⟩
               have hj : j < 2 ^ k := by rw [Nat.pow_succ] at hi; omega
-              rw [if_neg lt, Nat.add_sub_cancel_left, Nat.testBit_two_pow_add_eq, Nat.testBit_lt_two_pow hj,
-                Bool.not_false, if_pos rfl]
+              rw [ite_eq_right lt, Nat.add_sub_cancel_left, Nat.testBit_two_pow_add_eq, Nat.testBit_lt_two_pow hj,
+                Bool.not_false, ite_eq_left rfl]
               exact congrArg (· * gpoint[k]!) (prodRange_congr fun t ht => by rw [Nat.testBit_two_pow_add_gt ht])
         rw [key] at hnext₂
         exact hnext₂

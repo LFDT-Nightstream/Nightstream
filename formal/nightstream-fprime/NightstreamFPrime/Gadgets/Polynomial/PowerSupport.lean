@@ -1,11 +1,6 @@
 import NightstreamFPrime.Gadgets.Polynomial.HornerSupport
 import NightstreamFPrime.Gadgets.Polynomial.Power
 
-/-!
-Owns variable-support propagation for the fixed-exponent power circuit.
-The coefficient list and Horner evaluation remain unchanged.
--/
-
 namespace NightstreamFPrime.Gadgets.Polynomial.Power
 
 open NightstreamFPrime.Circuit

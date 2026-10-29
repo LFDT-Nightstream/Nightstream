@@ -2,14 +2,6 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Export.Stage1.PiDECParentIntRead
 import NightstreamFPrime.Export.ParallelLines
 
-/-!
-Read the independently replayed PiRLC parent for indexed PiDEC evaluation.
-The input format is the existing sparse parent range stream. Range coverage,
-canonical field words, coefficient bounds and record order are checked before
-the centered integer parent is returned. Missing records denote the existing
-zero block.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiDECParentInput

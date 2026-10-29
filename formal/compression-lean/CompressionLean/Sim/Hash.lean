@@ -59,9 +59,9 @@ theorem push (h : IsWords c n hs gs) {x : Var} {g : Word} (hx : IsWord c n x g) 
   rw [getElem!_pos _ _ (by simp; omega), getElem!_pos _ _ (by simp [← h.1]; omega), Array.getElem_push,
     Array.getElem_push]
   by_cases lt : i < hs.size
-  · rw [dif_pos lt, dif_pos (h.1 ▸ lt), ← getElem!_pos, ← getElem!_pos]
+  · rw [dite_eq_left lt, dite_eq_left (h.1 ▸ lt), ← getElem!_pos, ← getElem!_pos]
     exact h.2 i lt
-  · rw [dif_neg lt, dif_neg (h.1 ▸ lt)]
+  · rw [dite_eq_right lt, dite_eq_right (h.1 ▸ lt)]
     exact hx
 
 theorem pop (h : IsWords c n hs gs) : IsWords c n hs.pop gs.pop := by
@@ -242,7 +242,7 @@ theorem bits_digits [CharP F goldilocksModulus] {g : Word} {b : ℕ → F}
     ⟨fun i => if b i = 1 then 1 else 0, fun i hi => by
       rcases h.boolean i hi with z | o
       · have : b i ≠ 1 := z ▸ one_ne.symm
-        exact ⟨by dsimp only; rw [if_neg this, Nat.cast_zero, z], by dsimp only; rw [if_neg this]; omega⟩
+        exact ⟨by dsimp only; rw [ite_eq_right this, Nat.cast_zero, z], by dsimp only; rw [ite_eq_right this]; omega⟩
       · simp [o]⟩
   obtain ⟨lt, digits⟩ := binary_sum β 64 fun i hi => (hβ i hi).2
   generalize hN : ((List.range 64).map fun i => 2 ^ i * β i).sum = N at lt digits
@@ -327,7 +327,7 @@ theorem Duplex.duplexing_ensures {d : Duplex} {r : Replay.Duplex} (hp : Permutes
     exact hd.state.setRange _ (fun i => i) fun i hi => hd.input.get (by rw [← hd.input.1]; exact hi)
   have wt₁ : t₁.size = 16 := by simp only [t₁, size_setRange, hd.width]
   by_cases hpos : d.input.size > 0
-  · rw [if_pos hpos]
+  · rw [ite_eq_left hpos]
     refine Ensures.liftBind (const_ensures 0) fun z m₁ _ hz => ?_
     rw [Std.Legacy.Range.forIn_eq_forIn_range', List.forIn_pure_yield_eq_foldl, StateT.run_bind, StateT.run_pure,
       pure_bind]
@@ -348,18 +348,18 @@ theorem Duplex.duplexing_ensures {d : Duplex} {r : Replay.Duplex} (hp : Permutes
     refine Ensures.pure ?_
     have hr : r.duplexing = ⟨Replay.permute t₃, #[], (Replay.permute t₃).extract 0 Replay.rate⟩ := by
       unfold Replay.Duplex.duplexing
-      simp only [← hd.input.1, if_pos hpos]
+      simp only [← hd.input.1, ite_eq_left hpos]
       rfl
     rw [hr]
     exact IsDuplex.permuted t₃ outs houts
-  · rw [if_neg hpos]
+  · rw [ite_eq_right hpos]
     refine Ensures.liftBind (permute_ensures (gs := t₁) (state := fun lane => s₁[lane]!) hp
       fun k => ws₁.get (by rw [wt₁]; exact k.isLt)) fun outs _ _ houts => ?_
     rw [StateT.run_set]
     refine Ensures.pure ?_
     have hr : r.duplexing = ⟨Replay.permute t₁, #[], (Replay.permute t₁).extract 0 Replay.rate⟩ := by
       unfold Replay.Duplex.duplexing
-      simp only [← hd.input.1, if_neg hpos]
+      simp only [← hd.input.1, ite_eq_right hpos]
       rfl
     rw [hr]
     exact IsDuplex.permuted t₁ outs houts
@@ -374,18 +374,18 @@ theorem Duplex.observe_ensures {d : Duplex} {r : Replay.Duplex} {v : Var} {g : W
   have hd' : IsDuplex c n ⟨d.state, d.input.push v, #[]⟩ ⟨r.state, r.input.push g, #[]⟩ :=
     ⟨hd.state, hd.input.push hv, IsWords.empty, hd.width⟩
   by_cases full : (d.input.push v).size = rate
-  · rw [if_pos full]
+  · rw [ite_eq_left full]
     refine (Duplex.duplexing_ensures hp hd').post fun _ _ q => ?_
     have e : (r.input.push g).size = Replay.rate := by rw [← hd'.input.1]; exact full
     have hr : r.observe g = Replay.Duplex.duplexing ⟨r.state, r.input.push g, #[]⟩ := by
-      simp only [Replay.Duplex.observe, e, beq_self_eq_true, if_true]
+      simp only [Replay.Duplex.observe, e, beq_self_eq_true, ite_true]
     rw [hr]
     exact q
-  · rw [if_neg full, StateT.run_pure]
+  · rw [ite_eq_right full, StateT.run_pure]
     refine Ensures.pure ?_
     have e : ¬(r.input.push g).size = Replay.rate := by rw [← hd'.input.1]; exact full
     have hr : r.observe g = ⟨r.state, r.input.push g, #[]⟩ := by
-      simp only [Replay.Duplex.observe, beq_iff_eq, e, if_false]
+      simp only [Replay.Duplex.observe, beq_iff_eq, e, ite_false]
     rw [hr]
     exact hd'
 
@@ -440,7 +440,7 @@ theorem Duplex.sample_ensures {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.
     rw [StateT.run_bind, StateT.run_get, pure_bind, StateT.run_bind, StateT.run_set, pure_bind, StateT.run_pure]
     refine Ensures.pure ?_
     have e : (!r.input.isEmpty || r.output.isEmpty) = true := hd.cond ▸ cond
-    simp only [Replay.Duplex.sample, e, if_true]
+    simp only [Replay.Duplex.sample, e, ite_true]
     exact hres.pop (by rw [duplexing_output_size]; decide)
   · rename_i cond
     rw [StateT.run_bind, StateT.run_get, pure_bind, StateT.run_bind, StateT.run_set, pure_bind, StateT.run_pure]

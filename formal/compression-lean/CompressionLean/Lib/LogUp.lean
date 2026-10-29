@@ -2,15 +2,7 @@ import CompressionLean.Lib.Roots
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.Polynomial.BigOperators
 
-/-!
-Owns the pole argument of logUp (Haböck, ePrint 2022/1530): a fraction sum
-`Σ_k a_k / (X - b_k)` that is zero at a challenge `β` off its poles, while
-the numerators at some pole do not cancel, makes `β` a root of a nonzero
-polynomial of degree below the number of terms (`fraction_sum_bad`).
-
-Both sides of a logUp identity are one sum here: the right side enters with
-negated numerators. The numerators grouped at a pole are `residue`.
--/
+/-! Haböck, ePrint 2022/1530. -/
 
 namespace CompressionLean.Lib
 
@@ -18,14 +10,11 @@ open Polynomial
 
 variable {K : Type} [Field K] {ι : Type} [DecidableEq K]
 
-/-- The numerators of the terms whose pole is `v`. -/
 def residue (terms : Finset ι) (a b : ι → K) (v : K) : K :=
   ∑ k ∈ terms.filter (fun k => b k = v), a k
 
-/-- The distinct poles of the terms. -/
 def poles (terms : Finset ι) (b : ι → K) : Finset K := terms.image b
 
-/-- `Σ_v residue(v)·Π_{v' ≠ v} (X - v')` over the distinct poles. -/
 noncomputable def residuePoly (terms : Finset ι) (a b : ι → K) : K[X] :=
   ∑ v ∈ poles terms b, C (residue terms a b v) * ∏ w ∈ (poles terms b).erase v, (X - C w)
 
@@ -45,7 +34,6 @@ theorem residuePoly_natDegree (terms : Finset ι) (a b : ι → K) :
     _ ≤ (poles terms b).card := Finset.card_erase_le
     _ ≤ terms.card := Finset.card_image_le
 
-/-- At a pole, only that pole's term survives. -/
 theorem residuePoly_eval_pole (terms : Finset ι) (a b : ι → K) {v : K} (member : v ∈ poles terms b) :
     (residuePoly terms a b).eval v =
       residue terms a b v * ∏ w ∈ (poles terms b).erase v, (v - w) := by
@@ -58,7 +46,6 @@ theorem residuePoly_eval_pole (terms : Finset ι) (a b : ι → K) {v : K} (memb
     exact Finset.prod_eq_zero (Finset.mem_erase.mpr ⟨fun h => different h.symm, member⟩) (by simp)
   · exact fun outside => absurd member outside
 
-/-- A pole whose numerators do not cancel makes the polynomial nonzero. -/
 theorem residuePoly_ne_zero (terms : Finset ι) (a b : ι → K) {v : K}
     (live : residue terms a b v ≠ 0) : residuePoly terms a b ≠ 0 := by
   have member : v ∈ poles terms b := by
@@ -76,7 +63,6 @@ theorem residuePoly_ne_zero (terms : Finset ι) (a b : ι → K) {v : K}
   exact Finset.prod_ne_zero_iff.mpr fun w inside =>
     sub_ne_zero.mpr fun equal => (Finset.mem_erase.mp inside).1 equal.symm
 
-/-- Off the poles, the fraction sum times the pole product is the polynomial. -/
 theorem fraction_sum_mul (terms : Finset ι) (a b : ι → K) (β : K)
     (no_pole : ∀ k ∈ terms, β ≠ b k) :
     (∑ k ∈ terms, a k / (β - b k)) * ∏ w ∈ poles terms b, (β - w) =
@@ -102,13 +88,11 @@ theorem fraction_sum_mul (terms : Finset ι) (a b : ι → K) (β : K)
   simp only [eval_sub, eval_X, eval_C]
   rw [div_mul_eq_mul_div, mul_div_assoc, mul_comm (β - v), mul_div_assoc, div_self nonzero, mul_one]
 
-/-- The pole argument: a zero fraction sum at `β` off its poles, with a live
-pole, puts `β` among at most `terms.card` bad challenges. -/
 theorem fraction_sum_bad [Fintype K] (terms : Finset ι) (a b : ι → K) {v : K}
     (live : residue terms a b v ≠ 0) (β : K) (no_pole : ∀ k ∈ terms, β ≠ b k)
     (zero : ∑ k ∈ terms, a k / (β - b k) = 0) : β ∈ zeros (residuePoly terms a b) := by
   unfold zeros
-  rw [if_neg (residuePoly_ne_zero terms a b live)]
+  rw [ite_eq_right (residuePoly_ne_zero terms a b live)]
   simp only [Finset.mem_filter, Finset.mem_univ, true_and]
   rw [← fraction_sum_mul terms a b β no_pole, zero, zero_mul]
 

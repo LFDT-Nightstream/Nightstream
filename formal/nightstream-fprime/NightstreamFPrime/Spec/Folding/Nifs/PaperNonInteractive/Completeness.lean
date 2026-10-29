@@ -2,13 +2,6 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperCausalReplay
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness
 
-/-!
-Honest completeness for the existing one-message NIFS verifier. The causal
-PiCCS prover generates its messages on the verifier's own transcript. After
-actual PiRLC sampler success, the honest weak suffix supplies the PiDEC
-messages and witnesses. No probability or executable work bound is asserted.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness

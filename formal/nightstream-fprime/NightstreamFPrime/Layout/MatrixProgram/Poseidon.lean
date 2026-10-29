@@ -3,14 +3,6 @@ import NightstreamFPrime.Layout.MatrixProgram
 import NightstreamFPrime.Layout.MatrixProgram.PoseidonInput
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedFamily
 
-/-!
-Owns the generic executable interpreter for an invocation-major family of
-150-row Poseidon2 matrix plans. The package supplies retained field geometry;
-the caller supplies one decoded eight-lane input state per invocation.
-
-This module does not select transcript actions, payloads, or Stage 1 order.
--/
-
 namespace NightstreamFPrime.Layout.MatrixProgram.Poseidon
 
 open NightstreamFPrime.Layout
@@ -125,8 +117,8 @@ theorem Block.rowWithInput?_of_valid (block : Block) (logicalWidth : Nat)
             rw [PoseidonRetainedRows.rows_length]
             exact decoded.2.isLt⟩).meaningfulForm port := by
   unfold Block.rowWithInput?
-  rw [dif_pos rowBound, dif_pos oneBound, dif_pos fieldKind,
-    dif_pos slotCountEq, dif_pos retainedFits]
+  rw [dite_eq_left rowBound, dite_eq_left oneBound, dite_eq_left fieldKind,
+    dite_eq_left slotCountEq, dite_eq_left retainedFits]
   dsimp only
   rw [loaded]
   rfl

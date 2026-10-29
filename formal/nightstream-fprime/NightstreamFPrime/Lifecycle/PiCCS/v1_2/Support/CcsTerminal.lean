@@ -1,11 +1,6 @@
 import NightstreamFPrime.Gadgets.Polynomial.SparseSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.CcsTerminal
 
-/-!
-Owns variable-support propagation for the production PiCCS CCS terminal.
-It changes no polynomial, circuit, or row.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.CcsTerminal
 
 open NightstreamFPrime.Spec

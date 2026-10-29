@@ -72,7 +72,7 @@ noncomputable instance : DecidableEq Cubic := Classical.decEq _
 
 /-- The challenge field has `p³` elements. -/
 theorem card_cubic : Fintype.card Cubic = goldilocksModulus ^ 3 := by
-  rw [Module.card_eq_pow_finrank (K := Gl), ZMod.card,
+  rw [Fintype.card_eq_nat_card, Module.natCard_eq_pow_finrank (K := Gl), Nat.card_zmod,
     (AdjoinRoot.powerBasis cubic_ne_zero).finrank, AdjoinRoot.powerBasis_dim, cubic_natDegree]
 
 /-- The challenge field is larger than `2^191`, as Rust's charges assume

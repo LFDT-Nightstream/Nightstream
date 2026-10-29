@@ -1,7 +1,6 @@
 import CompressionLean
 import CompressionLeanTests.Inventory
 import CompressionLeanTests.Reading
-
 /-!
 The axiom gate. `lake build` runs it.
 
@@ -16,7 +15,6 @@ The axiom gate. `lake build` runs it.
   beside it, and each theorem there has a pin (`#pin_claims`). A renamed,
   deleted or new claim fails the build until `Inventory.claims` matches.
 -/
-
 open Lean Elab Command CompressionLeanTests.Inventory
 
 /-- The axioms that every theorem of the library may use. -/
@@ -34,7 +32,6 @@ elab "#audit_library_axioms " root:ident : command => do
     unless bad.isEmpty do
       throwError m!"{name} depends on disallowed axioms: {bad}"
   logInfo m!"{count} theorems in {root.getId} use only {allowedAxioms}"
-
 elab "#pin_claims" : command => do
   let env ← getEnv
   for (claim, pinned) in claims do
@@ -47,7 +44,6 @@ elab "#pin_claims" : command => do
   for n in env.header.moduleData[idx.toNat]!.constNames do
     if let some (.thmInfo _) := env.find? n then
       unless n.isInternal || claims.any (·.1 == n) do throwError "{n} is a theorem of {claimsModule} but has no pin"
-
 #audit_library_axioms CompressionLean
 
 #audit_library_axioms CompressionLeanTests

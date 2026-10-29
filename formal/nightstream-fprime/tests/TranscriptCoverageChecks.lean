@@ -1,8 +1,6 @@
 import NightstreamFPrime.Lifecycle.TranscriptCoverage
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 
-/-! Checks for the transcript coverage contract. -/
-
 namespace NightstreamFPrime.Tests.TranscriptCoverageChecks
 
 open NightstreamFPrime.Spec

@@ -1,16 +1,7 @@
 import NightstreamFPrime.Spec.Profile
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
 
-/-!
-Selected ambient norm boundary and historical obstruction for SuperNeo v1.2
-Appendix B.3.
-
-Owns: the selected `B_amb = floor(q / 2) + 1` bound, the concrete obstruction
-to the older strict `q / 2` bound, and the smallest strict natural bound that
-contains every centered Goldilocks residue.
-
-The corrected Appendix B.3 selects `B_amb = floor(q / 2) + 1`.
--/
+/-! Corrected SuperNeo v1.2 Appendix B.3. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiRLC.PaperCorrections
 
@@ -80,9 +71,9 @@ theorem all_centeredMagnitude_lt_correctedAmbientBound (value : F) :
   change Centered.distance value.val < Centered.halfModulus + 1
   unfold Centered.distance
   by_cases low : value.val ≤ Centered.halfModulus
-  · rw [if_pos low]
+  · rw [ite_eq_left low]
     omega
-  · rw [if_neg low]
+  · rw [ite_eq_right low]
     have modulusIdentity := Centered.modulus_eq_two_half_add_one
     have valueBound := value.isLt
     omega

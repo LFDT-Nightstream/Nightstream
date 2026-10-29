@@ -6,22 +6,6 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.OutputBinding
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain
 
-/-!
-Owns the exact logical PiRLC v1.2 parent assembler.
-
-Child order:
-1. zero-row input binding;
-2. 17 transcript-chained strong-set samplers;
-3. commitment combination;
-4. public-input combination;
-5. separate `Eval_K` combination;
-6. separate 4-matrix `Eval_A` combination;
-7. zero-row computed-output binding.
-
-The parent owns only shared-value wiring, offsets, operation order, and child
-coverage. It adds no witness, copy, transcript, or assertion row.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal
 
 open NightstreamFPrime.Spec

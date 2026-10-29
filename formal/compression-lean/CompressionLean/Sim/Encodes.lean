@@ -140,7 +140,7 @@ theorem phi_eq_modulus : phi = modulus := by
 theorem barOf_eq (p l : Fin Spec.ringDegree) :
     barOf p l = Spec.gl (Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel.nativeBarEntry p l) := by
   unfold barOf Replay.bar
-  rw [dif_pos ⟨p.isLt, l.isLt⟩, Replay.Word.toF_ofNat]
+  rw [dite_eq_left ⟨p.isLt, l.isLt⟩, Replay.Word.toF_ofNat]
   exact ZMod.natCast_zmod_val (show Gl from _)
 
 private theorem statementOf_ctxOf (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word) (x : StateWords)
@@ -171,7 +171,7 @@ theorem programEncodes {key : Layer1Key} {loaded : Loaded} {context : Array Repl
     rw [getElem!_pos key.relation.key.layout.segments i inside] at lane named
     exact ⟨named, lane⟩
   obtain ⟨env, terminal, claim, points, t', run⟩ := program_gives loads valid hctx facts named x wit holds
-  rw [statementOf_ctxOf] at terminal
+  rw [statementOf_ctxOf key loaded context x wit] at terminal
   refine ⟨env, terminal, fun p reads => ?_⟩
   obtain ⟨cands, short0, p1, short1, msgs, draws, whir, merkle⟩ := reads
   obtain ⟨tr, ds, rest, -, ⟨t₄, run₄, draws₄⟩, statement, -, reach⟩ :=

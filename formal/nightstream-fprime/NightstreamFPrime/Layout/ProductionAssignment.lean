@@ -1,16 +1,6 @@
 import NightstreamFPrime.Layout.LowNormAssignment
 import NightstreamFPrime.Lifecycle.XOut
 
-/-!
-Owns the final assignment order for the production SuperNeo relation:
-
-1. the exact 270-coordinate recursive public input;
-2. retained private low-norm slots in compiler order;
-3. canonical zero padding to a complete Phi81 carrier.
-
-This module does not select retained source fields or construct matrix rows.
--/
-
 namespace NightstreamFPrime.Layout.ProductionAssignment
 
 open NightstreamFPrime.Spec
@@ -80,7 +70,7 @@ def privateColumn {sourceWidth : Nat}
     logicalAssignment publicInput slots source (publicColumn column) =
       publicInput column := by
   unfold logicalAssignment publicColumn
-  rw [dif_pos column.isLt]
+  rw [dite_eq_left column.isLt]
 
 @[simp] theorem logicalAssignment_privateColumn {sourceWidth : Nat}
     (publicInput : Fin publicWidth → F)
@@ -90,7 +80,7 @@ def privateColumn {sourceWidth : Nat}
     logicalAssignment publicInput slots source (privateColumn column) =
       privateCoordinate slots source column := by
   unfold logicalAssignment privateColumn
-  rw [dif_neg (by
+  rw [dite_eq_right (by
     change ¬(publicWidth + column.val < publicWidth)
     omega)]
   apply congrArg (privateCoordinate slots source)
@@ -138,7 +128,7 @@ theorem projectPublicInput_completeAssignment {sourceWidth : Nat}
       exact rawBound
     simp only [logicalWidth]
     omega
-  rw [dif_pos logicalRegion]
+  rw [dite_eq_left logicalRegion]
   exact logicalAssignment_publicColumn publicInput slots source column
 
 theorem logicalAssignment_norm {sourceWidth : Nat}

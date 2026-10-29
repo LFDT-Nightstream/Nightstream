@@ -503,6 +503,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "neo-application"
+version = "0.1.0"
+dependencies = [
+ "neo-ccs",
+ "neo-math",
+ "p3-field 0.5.3",
+ "p3-goldilocks 0.5.3",
+ "p3-poseidon2 0.5.3",
+ "p3-symmetric 0.5.3",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "neo-ccs"
 version = "0.1.0"
 dependencies = [

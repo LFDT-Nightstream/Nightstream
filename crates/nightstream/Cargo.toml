@@ -29,6 +29,7 @@ nightstream-fprime = { path = "../nightstream-fprime" }
 neo-math = { path = "../neo-math" }
 neo-params = { path = "../neo-params" }
 neo-ccs = { path = "../neo-ccs" }
+neo-application = { path = "../neo-application" }
 neo-ajtai = { path = "../neo-ajtai" }
 neo-transcript = { path = "../neo-transcript" }
 neo-reductions = { path = "../neo-reductions" }

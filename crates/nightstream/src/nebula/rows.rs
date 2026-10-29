@@ -476,9 +476,18 @@ impl<'a> View<'a> {
         self.slot(j, 2)
     }
 
+    pub(super) fn geometry(&self) -> &Geometry {
+        self.sym.geometry
+    }
+
+    /// The `μ` address bits of slot `j`, least significant first.
+    pub(super) fn addr_bits(&self, j: usize) -> Vec<Expr> {
+        self.slot_bits(j, Layout::op_addr, self.sym.geometry.mu)
+    }
+
     /// The address of slot `j` from its `μ` bits.
     pub fn addr(&self, j: usize) -> Expr {
-        chunk(self.slot_bits(j, Layout::op_addr, self.sym.geometry.mu))
+        chunk(self.addr_bits(j))
     }
 
     /// The 32 bits of the value that slot `j` reads, least significant first.

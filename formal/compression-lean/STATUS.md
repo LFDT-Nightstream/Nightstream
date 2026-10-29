@@ -180,10 +180,11 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-spartan/src/field.rs` | 4 |
 | `crates/neo-spartan/src/gkr.rs` | 10 |
 | `crates/neo-spartan/src/hash.rs` | 2 |
-| `crates/neo-spartan/src/lib.rs` | 20 |
+| `crates/neo-spartan/src/lib.rs` | 13 |
 | `crates/neo-spartan/src/matrix.rs` | 21 |
 | `crates/neo-spartan/src/mle.rs` | 7 |
 | `crates/neo-spartan/src/norm.rs` | 1 |
+| `crates/neo-spartan/src/relation.rs` | 7 |
 | `crates/neo-spartan/src/ring.rs` | 12 |
 | `crates/neo-spartan/src/setup.rs` | 6 |
 | `crates/neo-spartan/src/shrink/evaluate.rs` | 8 |

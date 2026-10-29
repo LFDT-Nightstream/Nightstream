@@ -1,8 +1,9 @@
 //! The polynomial rows of a memory invocation as Lean expression trees over
 //! witness wires: the memory rows of `Lifecycle/Nebula/RowList.lean`
-//! (`RowExprs.lean` for the symbols) and the machine's rows of
-//! `MachineApp.lean`. The trees match Lean node for node, because the lowering
-//! of a generic row depends on its shape. It does not own the hash rows.
+//! (`RowExprs.lean` for the symbols), and the `View` that an application's
+//! rows read (`AppView.env` of `PortApp.lean`). The trees match Lean node for
+//! node, because the lowering of a generic row depends on its shape. It does
+//! not own the hash rows or any application's rows.
 
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
@@ -29,7 +30,7 @@ fn power_of_two(exponent: usize) -> Expr {
 }
 
 /// `x · (x − 1)`.
-fn bit_row(x: Expr) -> Expr {
+pub(super) fn bit_row(x: Expr) -> Expr {
     x.clone() * (x - c(1))
 }
 
@@ -66,10 +67,10 @@ fn gated(pad: Expr, f: KExpr) -> KExpr {
 }
 
 impl<'a> Sym<'a> {
-    pub(super) fn new(geometry: &'a Geometry, wires: &'a [Variable], headers: [F; 12]) -> Self {
+    pub(super) fn new(geometry: &'a Geometry, layout: Layout, wires: &'a [Variable], headers: [F; 12]) -> Self {
         Self {
             geometry,
-            layout: Layout::new(geometry),
+            layout,
             wires,
             headers,
         }
@@ -418,38 +419,80 @@ impl<'a> Sym<'a> {
         }));
         rows
     }
+}
 
-    /// The machine's rows (`Machine.rows`) with each local variable at its
-    /// witness word (`Words.appVar`).
-    pub(super) fn machine_rows(&self) -> Vec<Expr> {
-        let layout = &self.layout;
-        let input = |i: usize| self.word(layout.app_in(i));
-        let output = |i: usize| self.word(layout.app_out(i));
-        let idle = self.word(layout.idle());
-        let slot = |j: usize, k: usize| self.op(j, k);
-        let addr = |j: usize| chunk(self.addr_bits(j));
-        let vr = |j: usize| chunk(self.vr_bits(j));
-        let vw = |j: usize| chunk(self.vw_bits(j));
-        let instruction = self.vr_bits(0);
-        let is_load = instruction[0].clone() * (c(1) - instruction[1].clone());
-        let is_store = (c(1) - instruction[0].clone()) * instruction[1].clone();
-        let is_loadi = instruction[0].clone() * instruction[1].clone();
-        let argument = chunk(instruction[2..].to_vec());
-        let touches = || is_load.clone() + is_store.clone();
-        vec![
-            bit_row(idle.clone()),
-            slot(0, 0) - idle.clone(),
-            slot(0, 1),
-            slot(0, 2),
-            addr(0) - (c(1) - idle) * input(0),
-            slot(1, 0) - (c(1) - touches()),
-            slot(1, 1) - is_store.clone(),
-            slot(1, 2) - touches(),
-            addr(1) - touches() * argument.clone(),
-            vw(1) - (is_store.clone() * input(1) + is_load.clone() * vr(1)),
-            output(0) - (input(0) + is_load.clone() + is_store + is_loadi.clone()),
-            output(1)
-                - (is_load.clone() * vr(1) + is_loadi.clone() * argument + (c(1) - is_load - is_loadi) * input(1)),
-        ]
+/// The values that an application's rows read (Lean `AppView.env`): its input
+/// and output state words, its private words, and each operation slot. Local
+/// variable `k` is witness word `Layout::app_var(k)`, so a slot past `B_ops`
+/// reads zero, as in Lean.
+pub struct View<'a> {
+    sym: &'a Sym<'a>,
+}
+
+impl<'a> View<'a> {
+    pub(super) fn new(sym: &'a Sym<'a>) -> Self {
+        Self { sym }
+    }
+
+    fn local(&self, k: usize) -> Expr {
+        self.sym.word(self.sym.layout.app_var(k))
+    }
+
+    fn slot(&self, j: usize, k: usize) -> Expr {
+        self.local(self.sym.layout.slot_local(j, k))
+    }
+
+    fn slot_bits(&self, j: usize, offset: fn(&Layout, usize) -> usize, count: usize) -> Vec<Expr> {
+        (0..count)
+            .map(|k| self.slot(j, offset(&self.sym.layout, k)))
+            .collect()
+    }
+
+    /// Input state word `i`.
+    pub fn input(&self, i: usize) -> Expr {
+        self.local(i)
+    }
+
+    /// Output state word `i`.
+    pub fn output(&self, i: usize) -> Expr {
+        self.local(self.sym.layout.width() + i)
+    }
+
+    /// Private word `i`.
+    pub fn aux(&self, i: usize) -> Expr {
+        self.local(2 * self.sym.layout.width() + i)
+    }
+
+    /// The pad bit of operation slot `j`: one for an inactive slot.
+    pub fn pad(&self, j: usize) -> Expr {
+        self.slot(j, 0)
+    }
+
+    pub fn is_write(&self, j: usize) -> Expr {
+        self.slot(j, 1)
+    }
+
+    pub fn is_ram(&self, j: usize) -> Expr {
+        self.slot(j, 2)
+    }
+
+    /// The address of slot `j` from its `μ` bits.
+    pub fn addr(&self, j: usize) -> Expr {
+        chunk(self.slot_bits(j, Layout::op_addr, self.sym.geometry.mu))
+    }
+
+    /// The 32 bits of the value that slot `j` reads, least significant first.
+    pub fn vr_bits(&self, j: usize) -> Vec<Expr> {
+        self.slot_bits(j, Layout::op_vr, 32)
+    }
+
+    /// The value that slot `j` reads.
+    pub fn vr(&self, j: usize) -> Expr {
+        chunk(self.vr_bits(j))
+    }
+
+    /// The value that slot `j` writes.
+    pub fn vw(&self, j: usize) -> Expr {
+        chunk(self.slot_bits(j, Layout::op_vw, 32))
     }
 }

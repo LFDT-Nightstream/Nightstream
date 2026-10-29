@@ -10,7 +10,7 @@ use std::ops::Range;
 
 use super::*;
 use crate::lifecycle::{VerifyError, FAILED_ASSERTION_ROW, UNCHECKED_WITNESS};
-use crate::nebula::Package;
+use crate::nebula::{Machine, MachineState, Package, Step};
 use crate::{Engine, Error, Proof, Prover, Verifier};
 
 /// `loadi 5; store 0`, then `load 0; halt`.
@@ -36,7 +36,7 @@ const N1: Fixture = Fixture {
 };
 
 struct Harness {
-    context: Context,
+    context: Context<Machine>,
     prover: Prover,
     verifier: Verifier,
     checks: Vec<(String, Range<usize>)>,
@@ -59,7 +59,7 @@ impl Harness {
             "names cover the rows"
         );
         Self {
-            context: Context::new(&fixture.package.program()),
+            context: Context::new(Machine, &fixture.package.program()),
             prover: loaded.prover(engine, 114).unwrap(),
             verifier: Verifier::from_package(&loaded.circuit, engine, 114).unwrap(),
             checks: named
@@ -74,7 +74,7 @@ impl Harness {
             None => {
                 let z0 = self
                     .context
-                    .state(MachineState::default(), &self.context.start_carry());
+                    .state(&MachineState::default(), &self.context.start_carry());
                 self.prover
                     .prove_with_output(z0, &invocation.words, invocation.output)
             }
@@ -126,8 +126,10 @@ impl Harness {
         };
         fault(&mut segment);
         let steps = vec![Step::Execute; geometry.n];
-        let (executed, final_memory, _) =
-            execute_steps(&geometry, MachineState::default(), &segment.execution, 0, &steps).unwrap();
+        let (executed, final_memory, _) = self
+            .context
+            .execute_steps(&MachineState::default(), &segment.execution, 0, &steps)
+            .unwrap();
         segment.executed = executed;
         segment.final_ = final_memory;
         fault(&mut segment);
@@ -165,12 +167,12 @@ fn conformance(engine: Engine) {
     let memory = initial_memory(&program.rom, &program.ram);
     let honest = h
         .context
-        .run_segment(h.context.start_carry(), MachineState::default(), &memory, &EXECUTE)
+        .run_segment(h.context.start_carry(), &MachineState::default(), &memory, &EXECUTE)
         .unwrap();
     let base = h.step(None, &honest.invocations[0]).unwrap();
 
     // An input carry or application words that do not open the input state.
-    for word in [words::CARRY_IN + 2, Layout::new(&geometry).app_in(1)] {
+    for word in [words::CARRY_IN + 2, h.context.layout.app_in(1)] {
         let mut changed = honest.invocations[0].clone();
         changed.words[word] += F::ONE;
         h.reject(None, &changed, "state_in");
@@ -270,8 +272,10 @@ fn conformance(engine: Engine) {
     // Fresh memory at a segment boundary.
     let opened = h.step(Some(&base), &honest.invocations[1]).unwrap();
     let fresh = initial_memory(&program.rom, &program.ram);
-    let (executed, final_memory, _) =
-        execute_steps(&geometry, honest.state, &fresh, honest.carry.ts, &EXECUTE).unwrap();
+    let (executed, final_memory, _) = h
+        .context
+        .execute_steps(&honest.state, &fresh, honest.carry.ts, &EXECUTE)
+        .unwrap();
     let invocations = h.context.invocations(
         honest.carry,
         h.context.proposal(&executed, &final_memory),

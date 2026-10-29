@@ -1,18 +1,19 @@
-//! The memory circuit of a package, built with `ApplicationBuilder` in the
-//! order of `Lifecycle/Nebula/MemoryCircuit.lean`: nine sponge children (the
-//! two state digests, the three record chains, the `η` transcript and its
-//! three squeezes), then the hash rows, the memory rows, and the application's
-//! rows. `tests/nebula/parity.rs` requires its rows to equal the Lean
-//! package's, so it is the Lean-proved relation. It does not own witness values.
-//! It is test-only, because `Circuit::write` saves only circuits whose output
-//! rows are the last four, and these output rows are the `state_out` hash rows.
+//! The memory circuit of a geometry and an application, built with
+//! `ApplicationBuilder` in the order of `Lifecycle/Nebula/MemoryCircuit.lean`:
+//! nine sponge children (the two state digests, the three record chains, the
+//! `η` transcript and its three squeezes), then the hash rows, the memory
+//! rows, and the application's rows. `tests/nebula/parity.rs` requires the
+//! machine's circuit to equal each Lean package's, row for row. It does not
+//! own witness values. Its output rows are the `state_out` hash rows, which
+//! are not the last rows.
 
 use neo_ccs::crypto::poseidon2_goldilocks::{round_constants, Poseidon2RoundConstants, RATE, WIDTH};
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
 
+use super::app::Application;
 use super::expr::{lower_affine, lower_constraint, Expr};
-use super::rows::{pack, Sym};
+use super::rows::{pack, Sym, View};
 use super::transcript::{chain_tag, header, plan_digest, text, Lane, ETA_TAG, STATE_TAG};
 use super::words::{self, Layout};
 use super::Geometry;
@@ -78,23 +79,26 @@ fn text_words(tag: &str) -> Vec<Expr> {
     text(tag).into_iter().map(Expr::Const).collect()
 }
 
-/// The Rust-built application circuit of a memory geometry. It reads the
-/// geometry only, so every program of a package has the same circuit.
-pub(super) fn memory_circuit(geometry: &Geometry) -> Result<ApplicationCircuit, ApplicationError> {
-    let layout = Layout::new(geometry);
+/// The Rust-built circuit of a memory geometry and an application. It reads no
+/// program, so every program of the geometry has the same circuit.
+pub(super) fn memory_circuit<A: Application>(
+    geometry: &Geometry,
+    app: &A,
+) -> Result<ApplicationCircuit, ApplicationError> {
+    let layout = Layout::new(geometry, app.width(), app.aux());
     let mut builder = ApplicationBuilder::new(layout.count())?;
     let wires: Vec<Variable> = builder.private_inputs().to_vec();
     let digest = plan_digest(geometry);
     let (ops_header, mem_header) = (header(Lane::Ops, &digest), header(Lane::Mem, &digest));
     let headers = std::array::from_fn(|i| if i < 4 { ops_header[i] } else { mem_header[i % 4] });
-    let sym = Sym::new(geometry, &wires, headers);
+    let sym = Sym::new(geometry, layout, &wires, headers);
     let constants = round_constants();
     let run = |count: usize, index: &dyn Fn(usize) -> usize| (0..count).map(|k| sym.word(index(k))).collect::<Vec<_>>();
 
-    let state_blocks = |app: fn(&Layout, usize) -> usize, carry: usize| {
+    let state_blocks = |word: fn(&Layout, usize) -> usize, carry: usize| {
         vec![
             text_words(STATE_TAG),
-            run(words::APP_WIDTH, &|k| app(&layout, k)),
+            run(layout.width(), &|k| word(&layout, k)),
             run(39, &|k| carry + k),
         ]
     };
@@ -158,11 +162,12 @@ pub(super) fn memory_circuit(geometry: &Geometry) -> Result<ApplicationCircuit, 
     {
         lower_constraint(&mut builder, &(lane(state, 0) - sym.word(words::ETA_FRESH + k)))?;
     }
-    for row in sym.memory_rows().iter().chain(&sym.machine_rows()) {
+    for row in sym.memory_rows().iter().chain(&app.rows(&View::new(&sym))) {
         lower_constraint(&mut builder, row)?;
     }
     builder.finish_with_output_rows(output_rows)
 }
 
+#[cfg(test)]
 #[path = "../../tests/nebula/parity.rs"]
 mod parity;

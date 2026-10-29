@@ -1,5 +1,5 @@
-//! The memory geometry of spec §4 and its derived widths. Mirrors
-//! `Geometry` in `Spec/Nebula/Plan.lean`; `FirstPlan.lean` and
+//! The memory geometry of spec §4, its validity, and its derived widths.
+//! Mirrors `Geometry` in `Spec/Nebula/Plan.lean`; `FirstPlan.lean` and
 //! `SecondPlan.lean` own the package geometries. A geometry has no image, so
 //! the relation, the plan digest, and the witness layout read no program.
 
@@ -48,6 +48,30 @@ impl Geometry {
             n: 1,
             s_max: 4,
         }
+    }
+
+    /// Lean `Geometry.Valid`: spec §4.2 rules 1–5 and positive counts. The
+    /// memory theorems hold only for a valid geometry. `μ ≥ 64` breaks
+    /// `R + M < q`, so the shifts below cannot overflow.
+    pub fn is_valid(&self) -> bool {
+        if self.mu >= 64 || self.r > self.mu || self.w_ts > 62 {
+            return false;
+        }
+        let q = u128::from(F::ORDER_U64);
+        let cells = (1u128 << self.r) + (1u128 << self.mu);
+        let product = |values: &[usize]| {
+            values
+                .iter()
+                .try_fold(1u128, |product, value| product.checked_mul(*value as u128))
+        };
+        product(&[self.n, self.b_scan]) == Some(cells)
+            && product(&[self.s_max, self.n, self.b_ops]).is_some_and(|count| count < 1u128 << self.w_ts)
+            && product(&[self.b_ops, self.op_width()]).is_some_and(|bits| bits < q)
+            && product(&[self.b_scan, self.scan_width()]).is_some_and(|bits| bits < q)
+            && cells < q
+            && [self.b_ops, self.b_scan, self.n, self.s_max]
+                .iter()
+                .all(|count| *count > 0)
     }
 
     pub fn rom_size(&self) -> usize {

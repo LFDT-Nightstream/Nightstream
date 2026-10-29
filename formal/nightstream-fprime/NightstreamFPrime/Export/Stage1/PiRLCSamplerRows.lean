@@ -3,15 +3,6 @@ import NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
 
-/-!
-Owns the canonical ordinary-row packet for the production PiRLC sampler
-chain.
-
-The logical constraint list is the sampler child selected by the sole PiRLC
-phase assembler. Its R1CS-fresh columns start after every logical PiRLC child,
-as required by the full-phase lowering plan.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerRows
 
 open NightstreamFPrime.Circuit

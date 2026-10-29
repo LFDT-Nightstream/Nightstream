@@ -1,7 +1,3 @@
-/-!
-Owns length and injectivity facts for flat maps with fixed-width pieces.
--/
-
 namespace NightstreamFPrime.Spec
 
 theorem flatMap_eq_of_lengths {α β : Type _} (indices : List α) (left right : α → List β)

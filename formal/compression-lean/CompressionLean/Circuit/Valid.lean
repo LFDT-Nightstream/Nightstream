@@ -1,18 +1,5 @@
 import CompressionLean.Circuit.Record
 
-/-!
-Owns `lower_valid`: the run of every program names only its own cells
-(`Run.Valid`, `Shrink/Layout.lean`). A glue wire is one of its glue cells, a
-block wire is a cell of one of its blocks, and a statement wire is the
-constant one or one of its statement words.
-
-The proof is an invariant of the lowering state (`State.Ok`): every call and
-every value names only wires of the run so far. The counts only grow
-(`State.Le`), so a wire of the run stays one. `Spec P m Q` says that `m`
-keeps the invariant and grows the run from every state with `P`, and that
-its result satisfies `Q`.
--/
-
 namespace CompressionLean.Circuit
 
 open CompressionLean.Shrink
@@ -21,7 +8,6 @@ section Names
 
 variable {F : Type}
 
-/-- The result and the state after `m` from `s`. -/
 def go {α : Type} (m : Lower F α) (s : State F) : α × State F := (m.run s).run
 
 theorem go_bind {α β : Type} (m : Lower F α) (k : α → Lower F β) (s : State F) :
@@ -29,17 +15,13 @@ theorem go_bind {α β : Type} (m : Lower F α) (k : α → Lower F β) (s : Sta
 
 namespace State
 
-/-- A wire of the run so far: a glue cell made, a cell of a block made, the
-constant one or a statement word read. -/
 def WireIn (s : State F) : Wire → Prop
   | .glue c => c < s.cells
   | .block b k => b < s.blocks ∧ k < blockCells
   | .pub i => i ≤ s.publics.size
 
-/-- Terms on wires of the run so far. -/
 def TermsIn (s : State F) (terms : List (Wire × F)) : Prop := ∀ t ∈ terms, s.WireIn t.1
 
-/-- `t` has at least the cells, blocks and statement words of `s`. -/
 structure Le (s t : State F) : Prop where
   cells : s.cells ≤ t.cells
   blocks : s.blocks ≤ t.blocks
@@ -84,7 +66,6 @@ theorem TermsIn.glue {s : State F} {c : ℕ} (h : c < s.cells) (coef : F) : s.Te
 
 end State
 
-/-- A fact about the state that later states keep. -/
 def Stable (P : State F → Prop) : Prop := ∀ s t, s.Le t → P s → P t
 
 namespace Stable
@@ -109,7 +90,6 @@ theorem below (cs : List ℕ) : Stable fun s : State F => ∀ c ∈ cs, c < s.ce
 
 end Stable
 
-/-- Both sides of an extension call name wires of the run. -/
 def ExtIn (a b : Fin 3 → Form F) (s : State F) : Prop :=
   (∀ i, s.TermsIn (a i).terms) ∧ ∀ i, s.TermsIn (b i).terms
 
@@ -122,8 +102,6 @@ theorem vector_terms {s : State F} {x y z : Form F} (hx : s.TermsIn x.terms) (hy
   fin_cases i
   exacts [hx, hy, hz]
 
-/-- The terms of a stored row come from its products and its linear side
-(`GlueRow.ofCall`). -/
 theorem ofCall_terms {s : State F} {products : List (List (Wire × F) × List (Wire × F))}
     {linear : List (Wire × F)} (hp : ∀ p ∈ products, s.TermsIn p.1 ∧ s.TermsIn p.2) (hl : s.TermsIn linear)
     (side : Fin 7) : s.TermsIn ((GlueRow.ofCall products linear).side side) := by
@@ -147,25 +125,19 @@ variable {F : Type} [Field F]
 
 namespace State
 
-/-- Every row of call `c` names wires of the run so far. -/
 def CallIn (s : State F) (c : Call F) : Prop := ∀ row ∈ c.rows, ∀ side, s.TermsIn (row.side side)
 
-/-- **The invariant.** Every call and every value names only wires of the run
-so far. -/
 def Ok (s : State F) : Prop := (∀ c ∈ s.calls, s.CallIn c) ∧ ∀ f ∈ s.values, s.TermsIn f.terms
 
 theorem CallIn.mono {s t : State F} (h : s.Le t) {c : Call F} (hc : s.CallIn c) : t.CallIn c :=
   fun row hrow side => (hc row hrow side).mono h
 
-/-- The invariant after the counts grow, with the same calls and values. -/
 theorem Ok.grow {s t : State F} (ok : s.Ok) (h : s.Le t) (calls : t.calls = s.calls) (values : t.values = s.values) :
     t.Ok := by
   refine ⟨fun c hc => (ok.1 c (calls ▸ hc)).mono h, fun f hf => (ok.2 f (values ▸ hf)).mono h⟩
 
 end State
 
-/-- `m` keeps the invariant and grows the run from every state with `P`, and
-its result satisfies `Q`. -/
 def Spec {α : Type} (P : State F → Prop) (m : Lower F α) (Q : α → State F → Prop) : Prop :=
   ∀ s, s.Ok → P s → (go m s).2.Ok ∧ s.Le (go m s).2 ∧ Q (go m s).1 (go m s).2
 
@@ -189,7 +161,6 @@ theorem weaken {α : Type} {m : Lower F α} {P P' : State F → Prop} {Q Q' : α
   obtain ⟨ok', le, q⟩ := h s ok (hp s p)
   exact ⟨ok', le, hq _ _ q⟩
 
-/-- `bind`, keeping a stable fact of the start. -/
 theorem keep {α β : Type} {m : Lower F α} {k : α → Lower F β} {P : State F → Prop} {Q : α → State F → Prop}
     {R : β → State F → Prop} (stable : Stable P) (hm : Spec P m Q) (hk : ∀ a, Spec (fun t => P t ∧ Q a t) (k a) R) :
     Spec P (m >>= k) R := by
@@ -199,7 +170,6 @@ theorem keep {α β : Type} {m : Lower F α} {k : α → Lower F β} {P : State 
   rw [go_bind]
   exact ⟨ok₂, le₁.trans le₂, r⟩
 
-/-- A unit step with no result fact, then the rest, under a stable fact. -/
 theorem seq {β : Type} {m : Lower F Unit} {k : Unit → Lower F β} {P : State F → Prop}
     {R : β → State F → Prop} (stable : Stable P) (hm : Spec P m fun _ _ => True) (hk : ∀ u, Spec P (k u) R) :
     Spec P (m >>= k) R :=
@@ -214,7 +184,6 @@ theorem getD_terms {s : State F} {columns : List (Form F)} (hc : ∀ f ∈ colum
   | none => exact State.TermsIn.nil s
   | some f => exact hc f (List.mem_of_getElem? h)
 
-/-- `expand` names the columns' wires and the constant one. -/
 theorem expand_terms {s : State F} {columns : List (Form F)} (hc : ∀ f ∈ columns, s.TermsIn f.terms)
     (side : List (ℕ × F)) : s.TermsIn (expand side columns) := by
   intro x hx
@@ -369,7 +338,6 @@ section Folding
 
 variable [DecidableEq F]
 
-/-- `combine` names only the wires of its parts. -/
 theorem combine_terms {s : State F} {parts : List (Form F × F)} (hp : ∀ p ∈ parts, s.TermsIn p.1.terms) :
     s.TermsIn (combine parts).1 :=
   fun x hx => mergeTerms_terms parts [] hp (State.TermsIn.nil s) x (List.mem_filter.mp hx).1
@@ -404,9 +372,9 @@ theorem form_spec (terms : List (Wire × F)) (constant : F) :
     Spec (fun s => s.TermsIn terms) (form terms constant) (fun f t => t.TermsIn f.terms) := by
   unfold form
   by_cases short : terms.length ≤ 4
-  · rw [if_pos short]
+  · rw [ite_eq_left short]
     exact Spec.pure fun _ h => h
-  · rw [if_neg short]
+  · rw [ite_eq_right short]
     refine Spec.keep (Stable.terms _) (cell_spec.weaken (fun _ _ => trivial) fun _ _ h => h) fun c => ?_
     refine Spec.keep ((Stable.terms _).and (Stable.terms _)) ((row_spec _ _ _).weaken ?_ fun _ _ h => h)
       fun _ => Spec.pure fun _ h => h.1.2
@@ -420,7 +388,6 @@ theorem linear_spec (parts : List (Form F × F)) :
     Spec (fun s => ∀ p ∈ parts, s.TermsIn p.1.terms) (linear parts) (fun f t => t.TermsIn f.terms) :=
   (form_spec (combine parts).1 (combine parts).2).weaken (fun _ h => combine_terms h) fun _ _ h => h
 
-/-- `linear` on three weighted forms. -/
 theorem linear3_spec (o : Fin 3 → Form F) (w0 w1 w2 : F) :
     Spec (fun s => ∀ i, s.TermsIn (o i).terms) (linear [(o 0, w0), (o 1, w1), (o 2, w2)])
       (fun f t => t.TermsIn f.terms) :=
@@ -432,19 +399,19 @@ theorem mul_spec (a b : Form F) :
     Spec (fun s => s.TermsIn a.terms ∧ s.TermsIn b.terms) (mul a b) (fun f t => t.TermsIn f.terms) := by
   unfold mul
   by_cases ca : a.isConstant = true
-  · rw [if_pos ca]
+  · rw [ite_eq_left ca]
     refine (linear_spec _).weaken (fun _ h p hp => ?_) fun _ _ h => h
     simp only [List.mem_singleton] at hp
     subst hp
     exact h.2
-  rw [if_neg ca]
+  rw [ite_eq_right ca]
   by_cases cb : b.isConstant = true
-  · rw [if_pos cb]
+  · rw [ite_eq_left cb]
     refine (linear_spec _).weaken (fun _ h p hp => ?_) fun _ _ h => h
     simp only [List.mem_singleton] at hp
     subst hp
     exact h.1
-  rw [if_neg cb]
+  rw [ite_eq_right cb]
   refine Spec.keep ((Stable.terms _).and (Stable.terms _)) (cell_spec.weaken (fun _ _ => trivial) fun _ _ h => h)
     fun p => ?_
   refine Spec.keep (((Stable.terms _).and (Stable.terms _)).and (Stable.terms _))
@@ -479,18 +446,18 @@ theorem extMul_spec (a b : Fin 3 → Form F) :
     Spec (ExtIn a b) (extMul a b) (fun f t => ∀ i, t.TermsIn (f i).terms) := by
   unfold extMul
   by_cases hc : (constants a || constants b) = true
-  · rw [if_pos hc]
+  · rw [ite_eq_left hc]
     have other : ∀ s, ExtIn a b s → ∀ i, s.TermsIn ((if constants a = true then b else a) i).terms := by
       intro s h i
       by_cases ca : constants a = true
-      · rw [if_pos ca]
+      · rw [ite_eq_left ca]
         exact h.2 i
-      · rw [if_neg ca]
+      · rw [ite_eq_right ca]
         exact h.1 i
     dsimp only
     refine fromFn_spec (stable_extIn a b) fun k => ?_
     exact (linear3_spec _ _ _ _).weaken (fun s h => other s h) fun _ _ h => h
-  · rw [if_neg hc]
+  · rw [ite_eq_right hc]
     exact fromFn_spec (stable_extIn a b) (extCell_spec a b)
 
 theorem extInv_spec (a : Fin 3 → Form F) :
@@ -566,7 +533,7 @@ theorem bits_spec (a : Form F) (count : ℕ) :
     exact State.TermsIn.glue (cell t c h hc.1 hc.2) 1
   dsimp only
   by_cases h64 : count = 64
-  · rw [if_pos h64]
+  · rw [ite_eq_left h64]
     refine Spec.keep stable ((chain_spec _ _).weaken
       (fun t h => ⟨State.TermsIn.glue (cell t _ h (by omega) (by omega)) 1, fun c hc => ?_⟩) fun _ _ h => h)
       fun high => ?_
@@ -581,7 +548,7 @@ theorem bits_spec (a : Form F) (count : ℕ) :
       rw [List.mem_range'_1] at hc
       exact cell t c h.1 hc.1 (by omega)
     exact Spec.pure fun t h => outputs t h.1.1
-  · rw [if_neg h64]
+  · rw [ite_eq_right h64]
     exact Spec.pure fun t h => outputs t h
 
 theorem tieRows_spec (b : ℕ) (inputs : Fin 16 → Form F) : ∀ ks : List (Fin 16),
@@ -609,7 +576,6 @@ theorem permute_spec (inputs : Fin 16 → Form F) :
   exact ⟨h.2, by have := k.isLt; unfold outputCell blockCells; omega⟩
 
 omit [DecidableEq F] in
-/-- A single result that names wires of the run, then `push [result]`. -/
 theorem push_one {P : State F → Prop} {f : Form F} :
     Spec (fun s => P s ∧ s.TermsIn f.terms) (push [f]) fun _ _ => True :=
   (push_spec _).weaken (fun _ h g hg => by
@@ -675,10 +641,6 @@ end Folding
 theorem empty_ok : (({} : State F)).Ok :=
   ⟨fun c hc => by simp at hc, fun f hf => by simp at hf⟩
 
-/-- **The lowering names only its own cells.** Every term of every glue row of
-`lower L stmt` names a glue cell of the run, a cell of one of its blocks
-(the template of `T` has at least the 182 cells of a permutation), or the
-constant one or a statement word of the run. -/
 theorem lower_valid [DecidableEq F] (T : Template F) (cells : blockCells ≤ T.cells) (L : Array Instr)
     (stmt : List F) : (lower L stmt).Valid T := by
   have ok := steps_ok stmt.toArray L.toList {} empty_ok

@@ -1,12 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 
-/-!
-Owns the exact transcript-family views of the one direct PiCCS Poseidon2
-schedule.
-
-This module does not assemble the non-transcript PiCCS leaves.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics
 
 open NightstreamFPrime.Export.Stage1
@@ -94,7 +87,7 @@ theorem statementKindAt_eq (current : Fin statementCount) :
     apply Fin.ext
     change 0 + current.val = current.val
     omega]
-  simp [statementCount]
+  exact Fin.append_left _ _ current
 
 theorem challengeKindAt_eq (current : Fin challengeCount) :
     challengeKindAt current = PiCCSActionPayloadBlock.challengeKindAt current := by
@@ -109,7 +102,7 @@ theorem challengeKindAt_eq (current : Fin challengeCount) :
     apply Fin.ext
     change 123 + current.val = 123 + current.val
     rfl]
-  simp [challengeCount]
+  exact (Fin.append_right _ _ _).trans (Fin.append_left _ _ current)
 
 theorem roundKindAt_eq (current : Fin roundCount) :
     roundKindAt current = PiCCSActionPayloadBlock.roundKindAt current := by
@@ -124,7 +117,7 @@ theorem roundKindAt_eq (current : Fin roundCount) :
     apply Fin.ext
     change 127 + current.val = 123 + (4 + current.val)
     omega]
-  simp [roundCount]
+  exact (Fin.append_right _ _ _).trans <| (Fin.append_right _ _ _).trans (Fin.append_left _ _ current)
 
 theorem outputKindAt_eq (current : Fin outputCount) :
     outputKindAt current = PiCCSActionPayloadBlock.outputKindAt current := by
@@ -138,7 +131,7 @@ theorem outputKindAt_eq (current : Fin outputCount) :
     apply Fin.ext
     change 183 + current.val = 123 + (4 + (56 + current.val))
     omega]
-  simp [outputCount]
+  exact (Fin.append_right _ _ _).trans <| (Fin.append_right _ _ _).trans (Fin.append_right _ _ current)
 
 theorem statementKindAt_materializes :
     List.ofFn statementKindAt =

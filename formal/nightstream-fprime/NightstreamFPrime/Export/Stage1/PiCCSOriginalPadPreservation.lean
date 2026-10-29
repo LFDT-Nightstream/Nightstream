@@ -2,9 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSOriginalPad
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalReadsPreservation
 import NightstreamFPrime.Export.Stage1.PiDECPadBlockRange
 
-/-! Proof-only transport from original-source block products to the complete
-Pad evaluation. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOriginalPad
@@ -53,7 +50,7 @@ private theorem blockAt_empty (masks : Array (Array (Nat × Nat))) (block : Nat)
     change PiCCSOriginalReads.blockAt masks source block lane = 0
     rw [PiCCSOriginalReads.blockAt_lane masks source ⟨block, live⟩ lane]
     simp [SignedUnitSourceInput.scalar, absent]
-  · rw [PiCCSOriginalReads.blockAt, PiCCSSourceImages.blockAt, dif_neg live]
+  · rw [PiCCSOriginalReads.blockAt, PiCCSSourceImages.blockAt, dite_eq_right live]
 
 private theorem materializedRingK_ext (left right : MaterializedRingK)
     (equal : left.toRing = right.toRing) : left = right := by
@@ -190,7 +187,7 @@ private theorem referenceBlock_value (masks : Array (Array (Nat × Nat)))
     ((referenceBlocks masks source block).get child).get =
       PiCCSOriginalReads.blockAt masks source block.val := by
   rw [referenceBlocks, PiDECCommitmentFold.childBlocks_value, referenceAssignments_get,
-    PiCCSOriginalReads.blockAt, PiCCSSourceImages.blockAt, dif_pos block.isLt]
+    PiCCSOriginalReads.blockAt, PiCCSSourceImages.blockAt, dite_eq_left block.isLt]
   rfl
 
 private def referenceSlot : Fin productionGlobalParams.k := ⟨0, by decide⟩
@@ -262,15 +259,15 @@ private theorem referenceRow_value (masks : Array (Array (Nat × Nat)))
           output (⟨index, live⟩ : Fin PiCCSSourceImages.shape.carrierWidth)
       else 0 := by
   by_cases live : index < PiCCSSourceImages.shape.carrierWidth
-  · rw [PiDECEvaluationFromBlocks.padRow, dif_pos live, dif_pos live,
+  · rw [PiDECEvaluationFromBlocks.padRow, dite_eq_left live, dite_eq_left live,
       PiDECEvaluationBlockSupport.kernel_eq_evalSparse]
     simp only [SparseForm.evalSparse, SparseForm.singleton,
       List.foldl_cons, List.foldl_nil, Fin.zero_add, Fin.one_mul]
     have blockLive : index / ringDegree < PiCCSSourceImages.blockCount :=
       (Phi81ColumnLayout.decode (⟨index, live⟩ : Fin PiCCSSourceImages.shape.carrierWidth)).1.isLt
-    rw [PiDECEvaluationFromBlocks.blockAt, dif_pos blockLive, referenceBlock_value]
+    rw [PiDECEvaluationFromBlocks.blockAt, dite_eq_left blockLive, referenceBlock_value]
     rfl
-  · rw [PiDECEvaluationFromBlocks.padRow, dif_neg live, dif_neg live]
+  · rw [PiDECEvaluationFromBlocks.padRow, dite_eq_right live, dite_eq_right live]
     change ((Vector.replicate productionGlobalParams.k PiDECCommitmentFold.zero)[referenceSlot.val]).get
       output = 0
     rw [Vector.getElem_replicate, PiDECCommitmentFold.zero_value]

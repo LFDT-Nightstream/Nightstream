@@ -4,8 +4,6 @@ import NightstreamFPrime.Spec.GoldilocksExtensionRing
 import NightstreamFPrime.Spec.FieldTower
 import NightstreamFPrime.Spec.SumCheck.FixedPhase
 
-/-! Root counts for the verifier's actual coefficient lists over `K`. -/
-
 namespace NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksRoots
 
 open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing

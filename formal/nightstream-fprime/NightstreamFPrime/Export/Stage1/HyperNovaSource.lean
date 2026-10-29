@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck
 import NightstreamFPrime.Lifecycle.Relation
 
-/-!
-For every application, the NIFS source return supplies the exact source CCS
-and CE openings. This is a value and relation bridge, with no probability or
-work assumption.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaSource
@@ -74,7 +68,6 @@ private theorem ceAgreement
   rw [PaperAlgebra.openingAgreement]
   change (_ ∧ True ∧ _ = _) ↔ (_ ∧ True ∧ _ = _)
   rw [source, PaperAlgebra.evaluations_eq_paper key layout system]
-  rfl
 
 private theorem runningAgreement
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

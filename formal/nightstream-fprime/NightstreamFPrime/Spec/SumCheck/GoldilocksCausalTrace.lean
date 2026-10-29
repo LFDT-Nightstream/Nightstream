@@ -1,10 +1,5 @@
 import NightstreamFPrime.Spec.SumCheck.GoldilocksCausal
 
-/-!
-Owns the prefix-only issue order of sum-check prover messages: each message
-reads only the challenges before it.
--/
-
 namespace NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausalTrace
 
 open GoldilocksCausal

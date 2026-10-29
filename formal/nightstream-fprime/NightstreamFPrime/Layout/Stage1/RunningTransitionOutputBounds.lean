@@ -1,7 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionData
 
-/-! Owns bounds for the pilot output-preimage running words. -/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 
 open NightstreamFPrime.Spec

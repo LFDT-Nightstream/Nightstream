@@ -1,25 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 
-/-!
-Owns the real success event of one production NIFS fold: the adversary
-outputs a prior preimage whose prior-state link (`PiCCSSecurity.PriorLink`)
-holds for the running statement and the verifier context digest, the actual
-`ProductionKey` verifier accepts, and the adversary's witnesses open the exact
-sixteen returned children. Bare public acceptance is not this event.
-
-The prior link is required. No challenge depends
-on the running statement, so without the link a prover could choose it after
-γ and keep the claimed sum. The preimage must be an output, not merely exist:
-its initial state, current state and iteration are free, so some well-formed
-preimage with any running vector hashes to almost every digest.
-
-Outputs: `RealOutput`, `RealSuccess` and `realSuccess_implies_exact_children`.
-`HyperNovaVisitedAcceptance` reads the event at each history visit.
-
-Does not own: any extractor, Fiat–Shamir assumption or probability bound.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.NifsRealSuccess

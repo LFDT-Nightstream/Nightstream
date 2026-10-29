@@ -1,53 +1,30 @@
 import CompressionLean.Circuit.Views
 
-/-!
-Owns our WHIR verifier of one opening (`crates/neo-spartan/src/whir/mod.rs`)
-as a builder program: `whirVerify` (`whir/mod.rs:506-661`) with its helpers
-in the `Whir` namespace. Each one calls `Build` in the order of its Rust
-counterpart. Points are in Plonky3 order inside `whirVerify`; its callers
-pass low-bit-first points.
-
-The transcript constants (every separator of `whir/seeds.rs` and every draw
-count) are the replay's `WhirShape`. What the verifier reads of the `Pcs`
-beyond them is `WhirKey`: the stacked layout, the opening batches, each
-round's parameters and the query sets. The Merkle paths are a hint
-(`whir/paths.rs`), so the program reads only the hint's length.
--/
-
 namespace CompressionLean.Circuit
 
 open Lean (FromJson)
 open CompressionLean.Replay (Gl Ext WhirShape SumcheckShape twoAdicGenerator)
 
-/-- One column's slot in the stacked polynomial: `numVariables` selector bits
-with value `index`, high bit first (`Selector`). -/
 structure WhirSelector where
   numVariables : ℕ
   index : ℕ
 deriving FromJson, Inhabited
 
-/-- Table `table`'s selector for each of its columns (`TablePlacement`). -/
 structure WhirPlacement where
   table : ℕ
   selectors : Array WhirSelector
 deriving FromJson, Inhabited
 
-/-- One opening batch: its table and its columns (`iter_openings`). -/
 structure WhirBatchKey where
   table : ℕ
   columns : Array ℕ
 deriving FromJson, Inhabited
 
-/-- One round's `num_variables` and `log_folded_domain_size`
-(`round_parameters`). -/
 structure WhirRoundKey where
   numVariables : ℕ
   logFoldedDomain : ℕ
 deriving FromJson, Inhabited
 
-/-- What `whir::verify` reads of a `Pcs` beyond `WhirShape`: the stacked
-variable count `k` and the placements of `plan_stacked_layout`, each table's
-arity, the batches, the rounds, the final folded domain and the query sets. -/
 structure WhirKey where
   numVariables : ℕ
   arities : Array ℕ
@@ -60,13 +37,10 @@ deriving FromJson, Inhabited
 
 namespace Whir
 
-/-- Each word as a constant, observed (`absorb`, `whir/mod.rs:221-226`). -/
 def absorb (words : Array Gl) : Transcript Unit := do
   for word in words do
     Duplex.observe (← Build.const word)
 
-/-- `(x^{2^{n-1}}, …, x², x)`; the last square is computed and unused
-(`expand`, `whir/mod.rs:234-244`). -/
 def expand (x : ExtVar) (n : ℕ) : Build (Array ExtVar) := do
   let mut point := #[]
   let mut current := x
@@ -75,7 +49,6 @@ def expand (x : ExtVar) (n : ℕ) : Build (Array ExtVar) := do
     current ← Build.extMul current current
   pure point.reverse
 
-/-- `Π (2·q·p − p − q + 1)` (`eval_eq`, `whir/mod.rs:246-260`). -/
 def evalEq (p q : Array ExtVar) : Build ExtVar := do
   let one ← Algebra.extOne
   let mut total := one
@@ -88,8 +61,6 @@ def evalEq (p q : Array ExtVar) : Build ExtVar := do
     total ← Build.extMul total term
   pure total
 
-/-- `Π_j (1 + r_j·(var^{2^j} − 1))` over `point` from the last coordinate
-(`eval_select`, `whir/mod.rs:262-277`). -/
 def evalSelect (var : Var) (point : Array ExtVar) : Build ExtVar := do
   let one ← Algebra.extOne
   let mut power := var
@@ -103,8 +74,6 @@ def evalSelect (var : Var) (point : Array ExtVar) : Build ExtVar := do
     power ← Build.mul power power
   pure total
 
-/-- The multilinear extension of `values` at `r`, low bit first
-(`mle`, `whir/mod.rs:279-294`). -/
 def mle (values r : Array ExtVar) : Build ExtVar := do
   let mut layer := values
   for x in r do
@@ -116,7 +85,6 @@ def mle (values r : Array ExtVar) : Build ExtVar := do
     layer := next
   pure layer[0]!
 
-/-- `Σ_i values_i·var^i` (`horner`, `whir/mod.rs:296-304`). -/
 def horner (values : Array ExtVar) (var : Var) : Build ExtVar := do
   let mut total ← Algebra.extZero
   for value in values.reverse do
@@ -124,9 +92,6 @@ def horner (values : Array ExtVar) (var : Var) : Build ExtVar := do
     total ← Build.extAdd scaled value
   pure total
 
-/-- A quadratic sum-check: the separator, then per round `(h(0), h(∞))`, a
-draw `r` and `h(r) = h(0)(1−r) + h(1)r + h(∞)r(r−1)`. No rounds, no calls
-(`sumcheck`, `whir/mod.rs:306-332`). Returns the draws and the claim. -/
 def sumcheck (shape : SumcheckShape) (rounds : Array (ExtVar × ExtVar)) (claim : ExtVar) :
     Transcript (Array ExtVar × ExtVar) := do
   if rounds.isEmpty then return (#[], claim)
@@ -150,8 +115,6 @@ def sumcheck (shape : SumcheckShape) (rounds : Array (ExtVar × ExtVar)) (claim 
     point := point.push r
   pure (point, claim)
 
-/-- A batch of constraints: a challenge, its first power, and eq and select
-statements with their claimed values (`Constraint`, `whir/mod.rs:334-342`). -/
 structure Constraint where
   challenge : ExtVar
   initialPower : ℕ
@@ -161,8 +124,6 @@ structure Constraint where
 
 namespace Constraint
 
-/-- The challenge powers in statement order from `challenge^initialPower`;
-the power after the last is computed and unused (`whir/mod.rs:345-358`). -/
 def powers (c : Constraint) : Build (Array ExtVar) := do
   let mut power ← Algebra.extOne
   for _ in [0:c.initialPower] do
@@ -173,7 +134,6 @@ def powers (c : Constraint) : Build (Array ExtVar) := do
     power ← Build.extMul power c.challenge
   pure powers
 
-/-- `Σ value·power` (`claimed`, `whir/mod.rs:360-372`). -/
 def claimed (c : Constraint) (powers : Array ExtVar) : Build ExtVar := do
   let mut total ← Algebra.extZero
   for (value, power) in (c.eq.map (·.2) ++ c.select.map (·.2)).zip powers do
@@ -181,8 +141,6 @@ def claimed (c : Constraint) (powers : Array ExtVar) : Build ExtVar := do
     total ← Build.extAdd total term
   pure total
 
-/-- The batched weight at the last `numVariables` folding challenges, reversed
-(`weight`, `whir/mod.rs:374-396`). -/
 def weight (c : Constraint) (powers randomness : Array ExtVar) : Build ExtVar := do
   let tail := randomness.reverse.extract 0 c.numVariables
   let mut total ← Algebra.extZero
@@ -198,9 +156,6 @@ def weight (c : Constraint) (powers randomness : Array ExtVar) : Build ExtVar :=
 
 end Constraint
 
-/-- One query index of `width` bits: reject the sample `p − 1` by inverting
-it plus one, then the low bits of its 64 bits and their sum
-(`query_index`, `whir/mod.rs:399-416`). -/
 def queryIndex (width : ℕ) : Transcript (Array Var × Var) := do
   let sample ← Duplex.sample
   let one ← Build.const 1
@@ -214,11 +169,6 @@ def queryIndex (width : ℕ) : Transcript (Array Var × Var) := do
     index ← Build.add index weighted
   pure (bits, index)
 
-/-- The STIR checks of one query set against `root`: the indices (every one,
-as constants, when `draws` is zero), a hint of the full paths, then per query
-its leaf, its path, the fold at `folding` and its domain point
-(`stir`, `whir/mod.rs:418-504`). The branch is on the key's draw count.
-Returns the select statements. -/
 def stir (queries : Array (Array Var)) (draws indexBits logFoldedDomain : ℕ) (root : DigestVar)
     (folding : Array ExtVar) (base : Bool) : Transcript (Array (Var × ExtVar)) := do
   let mut indices : Array (Array Var × Var) := #[]
@@ -254,12 +204,6 @@ def stir (queries : Array (Array Var)) (draws indexBits logFoldedDomain : ℕ) (
 end Whir
 
 open Whir in
-/-- `whir::verify` (`whir/mod.rs:506-661`): the out-of-domain claims, the
-opening claims per table, the batching challenge and the initial sum-check;
-per round its root, out-of-domain claims, STIR queries against the previous
-root and sum-check; the final polynomial, its queries and sum-check; then
-the final claim. `points` are one per batch, low bit first. Returns the
-opened batch values. -/
 def whirVerify (shape : WhirShape) (key : WhirKey) (root : DigestVar) (view : OpeningView)
     (points : Array (Array ExtVar)) : Transcript (Array (Array ExtVar)) := do
   let mut virtualClaims := #[]

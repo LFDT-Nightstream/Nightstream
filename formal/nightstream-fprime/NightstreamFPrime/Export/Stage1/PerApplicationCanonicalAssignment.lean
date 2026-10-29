@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 import NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignment
 
-/-!
-Owns the canonical low-norm assignment constructor for one Lean-authored
-application.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment
 
 open NightstreamFPrime.Circuit
@@ -240,7 +235,7 @@ theorem projectPublicInput_completeAssignment {application : Program}
     have bound := column.isLt
     change column.val < ProductionAssignment.publicWidth at bound
     exact Nat.lt_of_lt_of_le bound (publicFits (application := application))
-  rw [dif_pos logicalRegion]
+  rw [dite_eq_left logicalRegion]
   change raw.assignment
       (CanonicalBlockAssignment.publicColumn
         (publicFits (application := application)) column) =

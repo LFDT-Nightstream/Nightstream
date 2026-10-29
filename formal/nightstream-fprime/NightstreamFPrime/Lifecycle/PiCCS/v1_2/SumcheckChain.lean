@@ -24,9 +24,6 @@ Constraint groups:
 
 Parent coverage:
 - `PiCCS.v1_2.Coverage.chain`.
-
-This file owns only the fixed production round count and key wiring. It does
-not absorb messages, derive challenges, or compute `T` or `Q(r')`.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.SumcheckChain

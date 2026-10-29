@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.CompactRows
 
-/-!
-The pure arithmetic core of compact-template execution. Layout validation and
-array bounds remain caller obligations.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.CompactRowExecution

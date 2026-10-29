@@ -2,11 +2,6 @@ import NightstreamFPrime.Gadgets.Multilinear.PointEqualitySupport
 import NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner
 import NightstreamFPrime.Gadgets.Polynomial.HornerSupport
 
-/-!
-Owns variable-support composition for the child-owned point-weighted Horner
-circuit. It changes no child boundary, row, or allocation.
--/
-
 namespace NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner.Owned
 
 open NightstreamFPrime.Circuit

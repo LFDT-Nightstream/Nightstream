@@ -1,12 +1,6 @@
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 
-/-!
-Honest causal completeness for the PiCCS prefix of the NIFS. Each selected
-round polynomial depends only on the fixed semantic polynomial and prior
-challenges. Future challenges are absent from that choice.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness
@@ -47,7 +41,7 @@ private theorem honestStrategy_issued (ops : Ops K) (q : List K → K)
         omega
       obtain ⟨tail, later, honestTail⟩ := ih (fixed ++ [challenge]) tailLength
       refine ⟨message :: tail, ?_, ?_⟩
-      · simp only [issued, honestStrategy, dif_pos remaining]
+      · simp only [issued, honestStrategy, dite_eq_left remaining]
         rw [later]
         rfl
       · change FixedPhase.Represents ops message
@@ -191,7 +185,7 @@ private noncomputable def honestPiCcsProver : CausalExecution.Prover shape colum
       some (honestOutput key running fresh witness ⟨coordinates, dimension⟩, witness)
     else none
 
-/-- Lemma 10 at the exact NIFS interface. -/
+/-- SuperNeo v1.2 Lemma 10. -/
 theorem exists_honest_piCcs_prover
     (valid : SourceHolds key.extensionOps key.lift key.openingMaps key.params
       (key.statement running fresh) witness) :
@@ -221,7 +215,7 @@ theorem exists_honest_piCcs_prover
         some certificate.rounds := execution
     unfold CausalExecution.run
     rw [issuedRounds]
-    simp only [honestPiCcsProver, dif_pos point.dimension, Option.map_some]
+    simp only [honestPiCcsProver, dite_eq_left point.dimension, Option.map_some]
     rfl
   · change ProtocolPolynomial.FixedWidth.check key.extensionOps width
       ((key.statement running fresh).verifierInput key.lift) alpha gamma point
@@ -241,7 +235,7 @@ theorem exists_honest_piCcs_prover
       change ProtocolPolynomial.qAtPoint key.extensionOps data alpha gamma point =
         ProtocolPolynomial.polynomial key.extensionOps data alpha gamma point.coordinates
       unfold ProtocolPolynomial.polynomial
-      rw [dif_pos point.dimension]
+      rw [dite_eq_left point.dimension]
     rw [terminalEqual]
     apply FixedPhase.complete key.extensionOps.toOps q _ point.coordinates certificate _ honest
     simpa only [point.dimension] using source_initial_true key running fresh witness valid alpha gamma

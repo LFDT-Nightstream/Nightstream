@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PermutationCompilerTransport
 
-/-!
-Owns the source-row projection from the existing Duplex action compiler to its
-compact permutation invocations.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PermutationCompilerTransport

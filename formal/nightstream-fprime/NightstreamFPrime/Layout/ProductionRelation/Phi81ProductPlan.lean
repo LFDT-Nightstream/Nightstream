@@ -1,15 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.OrdinaryRow
 import NightstreamFPrime.Spec.Phi81Relation.QuotientProduct
 
-/-!
-Owns the direct quotient constraints for one Phi81 ring product. The 108
-distinct evaluation points enforce the degree-at-most-107 polynomial identity
-`left * right = output - prior + Phi81 * quotient`. Only the 54 quotient
-coefficients are additional retained field values; evaluation is linear.
-
-This module does not select Stage 1 source or assignment columns.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan
 
 open NightstreamFPrime.Spec

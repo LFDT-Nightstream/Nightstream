@@ -1,13 +1,5 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain.Composition
 
-/-!
-Owns the one physical R1CS lowering plan for the exact 17-sampler chain.
-
-The plan consumes the certified logical constraint list from `Composition`.
-Its projection theorems form the opaque boundary used by preservation and by
-the later PiRLC phase assembler.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain
 
 open NightstreamFPrime.Circuit

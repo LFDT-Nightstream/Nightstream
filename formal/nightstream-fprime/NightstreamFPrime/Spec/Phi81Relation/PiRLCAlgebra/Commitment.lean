@@ -1,19 +1,6 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLCFinite
 
-/-!
-Typed Ajtai commitment homomorphism for the concrete Phi81 `Pi_RLC` action.
-
-Protocol: SuperNeo v1.2 Theorem 11, commitment branch of `Pi_RLC`.
-
-Owns: an exact finite key over a generic verifier-owned row count and every
-complete 54-lane carrier block; the canonical finite Ajtai row equation; the
-public commitment-only challenge fold; and the one-action and finite-batch
-commitment homomorphisms required by `PiRLC.Algebra.commit_hom`.
-
-Does not own: key generation, key serialization, Ajtai binding or MSIS
-security, norm growth, challenge validity, transcript derivation, Rust/R1CS
-refinement, row removal, or constraint counts.
--/
+/-! SuperNeo v1.2 Theorem 11. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 

@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericRows
 import NightstreamFPrime.Layout.MatrixProgram.Poseidon
 
-/-!
-Load the existing Poseidon invocation interface from a package block, then
-evaluate its rows numerically.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock
@@ -72,7 +67,7 @@ theorem loadRow?_encodeProd (block : Poseidon.Block) (columns : Nat)
       (⟨(Fin.encodeProd (invocation, row)).val, bounded⟩ :
         Fin (block.invocationCount * 150)) = Fin.encodeProd (invocation, row) :=
     Fin.ext rfl
-  simp only [loadRow?, dif_pos bounded, encoded, Fin.decodeProd_encodeProd]
+  simp only [loadRow?, dite_eq_left bounded, encoded, Fin.decodeProd_encodeProd]
 
 private def referenceForms {columns : Nat}
     (loaded : PoseidonSboxPlan.Interface columns × Fin 150) : RowForms columns :=
@@ -82,7 +77,7 @@ private def referenceForms {columns : Nat}
 private theorem loadRow?_forms (block : Poseidon.Block) (columns ordinal : Nat) :
     (loadRow? block columns ordinal).map referenceForms = block.row? columns ordinal := by
   by_cases rowBound : ordinal < block.rowCount
-  · simp only [loadRow?, Poseidon.Block.row?, Poseidon.Block.rowWithInput?, dif_pos rowBound]
+  · simp only [loadRow?, Poseidon.Block.row?, Poseidon.Block.rowWithInput?, dite_eq_left rowBound]
     unfold loadInvocation?
     simp only [cachedInterface_eq]
     split_ifs <;> simp_all only [Option.map_none, Option.map_map]
@@ -90,7 +85,7 @@ private theorem loadRow?_forms (block : Poseidon.Block) (columns ordinal : Nat) 
       cases block.input.state? columns block.oneColumn
         (Fin.decodeProd (⟨ordinal, rowBound⟩ : Fin (block.invocationCount * 150))).1.val <;> rfl
   · simp only [loadRow?, Poseidon.Block.row?, Poseidon.Block.rowWithInput?,
-      dif_neg rowBound, Option.map_none]
+      dite_eq_right rowBound, Option.map_none]
 
 def row? (block : Poseidon.Block) {columns : Nat} (read : Fin columns → F)
     (ordinal : Nat) : Option PortValues :=

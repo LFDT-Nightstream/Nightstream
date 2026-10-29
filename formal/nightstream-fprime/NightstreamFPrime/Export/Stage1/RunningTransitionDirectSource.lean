@@ -3,13 +3,6 @@ import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
 
-/-!
-Owns the indexed source-row program for the Stage 1 running transition.
-
-This module does not select final retained coordinates or compile sparse
-forms over the final low-norm assignment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionDirectSource
 
 open NightstreamFPrime.Circuit

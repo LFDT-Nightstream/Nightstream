@@ -1,16 +1,6 @@
 import NightstreamFPrime.Spec
 
-/-!
-Owns the concrete Stage 1 instantiation of HyperNova Construction 2 over the
-SuperNeo NIFS for the fixed Nightstream Goldilocks profile. Every type
-parameter of `Spec.HyperNova.Construction2.Paper` is fixed here; no `Prop`
-field is left for a caller to supply.
-
-Stage 1 is uniform IVC: one augmented function, so `slotCount = 1` and the
-program counter is the constant `1`. The running product is the `CE(b)^k`
-vector with `k = 16`; the fresh batch is one CCS instance; NIFS.V is
-Π_CCS → Π_RLC → Π_DEC in one message.
--/
+/-! HyperNova Construction 2. -/
 
 namespace NightstreamFPrime.Lifecycle
 
@@ -24,6 +14,7 @@ def functionIndex : Fin slotCount := ⟨0, by decide⟩
 
 def cubeVariables : Nat := 28
 
+@[implicit_reducible]
 def productionShape : Shape :=
   Phi81MatrixSource.phi81Shape cubeVariables
     productionProfile.freshSources productionProfile.runningSources

@@ -2,13 +2,6 @@ import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 
-/-!
-Owns the compact matrix program for the running-instance transition.
-
-This module defines executable package data. Exact row equality to the
-canonical direct plan is proved separately.
--/
-
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram

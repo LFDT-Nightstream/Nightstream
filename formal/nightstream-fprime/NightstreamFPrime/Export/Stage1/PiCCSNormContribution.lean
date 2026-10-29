@@ -3,9 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSNormScanCorrectness
 import NightstreamFPrime.Export.Stage1.PiCCSNormBuckets
 import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
 
-/-! Coefficient-level connection of the scanned norm cubic to the existing
-pair kernel. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNormContribution

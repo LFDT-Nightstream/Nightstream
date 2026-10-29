@@ -2,23 +2,7 @@ import Mathlib.Data.List.GetD
 import NightstreamFPrime.Layout.PilotProduction
 import NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs
 
-/-!
-Paper authority: SuperNeo v1.2, section 7.3, PiCCS input and output messages.
-Obligation: Own the concrete parent columns read by the production PiCCS
-circuit.
-
-The running commitments, `Eval_K`, `Eval_A`, and point are zero-copy reads of
-the prior state block. The block stores only the packed parent public input,
-so the sixteen child public inputs (4,320 digits) occupy one prover-supplied
-region after the expected context. The statement-binding leaf computes one
-sign per lane as a hinted column, and its rows check the digits against the
-packed prior words. The fresh public input
-reuses the pilot public-input columns. The fresh commitment, 28 degree-eight
-SumCheck messages, and separate output `Eval_K`/`Eval_A` families follow.
-
-No equality row is added at this boundary. The following PiCCS allocation
-starts after this complete input interval.
--/
+/-! Paper authority: SuperNeo v1.2, section 7.3, PiCCS input and output messages. -/
 
 namespace NightstreamFPrime.Layout.Stage1.PiCCSInputs
 

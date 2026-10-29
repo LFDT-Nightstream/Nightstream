@@ -1,10 +1,7 @@
 import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Lifecycle.Nifs.SelectedTestNumerator
 
-/-!
-Exports the selected PiCCS shape with its Lean test-error numerator over `q²`.
-Rust recomputes the numerator from the same counts and must match it.
--/
+/-! Rust recomputes the numerator from the same counts and must match it. -/
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSTestErrorParity
 

@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.AssemblerRunningCompleteness
 
-/-!
-Owns honest completion of the application and next-preimage Stage 1 children.
-The selected application is fixed by the Lean `Program`; neither the prover nor this
-assembler selects a circuit at runtime.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.AssemblerApplicationCompleteness
 
 open NightstreamFPrime.Circuit

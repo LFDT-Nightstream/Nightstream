@@ -2,11 +2,7 @@ import CompressionLean.Circuit.Record
 import CompressionLean.Replay.Transcript
 import NightstreamFPrime.Spec.GoldilocksPrime
 
-/-!
-Owns the run digest that `lowerCheck` and `terminalCheck` print and that Rust
-pins (`run_digest`, `crates/neo-spartan/src/shrink/mod.rs`; `Trace::digest`,
-`circuit/record.rs`).
--/
+/-! Rust pins this digest (`run_digest`, `Trace::digest`). -/
 
 namespace CompressionLean.Circuit.Digest
 
@@ -15,14 +11,8 @@ open CompressionLean.Replay (Gl)
 
 instance : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
 
-/-- Goldilocks: there the lowering's zero tests are Rust's. -/
 abbrev G := ZMod goldilocksModulus
 
-/-- The run digest (`Trace::digest`): Poseidon2's leaf sponge
-(`Replay.hashLeaf`) of the glue cell, block, statement word and row counts,
-then every row's seven sides, each as its term count and, per term, the wire
-(`0 cell`, `1 block cell` or `2 index`) and the coefficient. The statement
-and cell values are not part of it. -/
 def runDigest (run : Run G) (rows : Array (GlueRow G)) : Array Gl :=
   let wireWords : Wire → Array ℕ
     | .glue cell => #[0, cell]

@@ -1,7 +1,5 @@
 import NightstreamFPrime.Spec.Relation
 
-/-! Production arities for one SuperNeo multi-fold batch. -/
-
 namespace NightstreamFPrime.Spec.Folding
 
 inductive RunningMode where
@@ -31,7 +29,7 @@ end RunningMode
 structure BatchArity (params : GlobalParams) where
   freshCount : Nat
   freshPositive : 0 < freshCount
-  /-- SuperNeo v1.2 Definition 22 is instantiated below the deployment maximum `K`. -/
+  /-- SuperNeo v1.2 Definition 22. -/
   freshBound : freshCount ≤ params.maxFresh
   mode : RunningMode
 

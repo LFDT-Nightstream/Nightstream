@@ -2,12 +2,6 @@ import NightstreamFPrime.Layout.Poseidon2
 import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 
-/-!
-Owns the physical recipe boundary for the reusable Poseidon2 Duplex compiler.
-It proves direct R1CS lowering from affine symbolic action inputs. Protocol
-labels, action schedules, and public bindings remain lifecycle-owned.
--/
-
 namespace NightstreamFPrime.Layout.Poseidon2.Duplex
 
 open NightstreamFPrime.Circuit

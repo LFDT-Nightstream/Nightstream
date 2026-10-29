@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.RowSemantics
 import NightstreamFPrime.Export.Stage1.PreparedPhysicalSources
 
-/-!
-Assemble the canonical ordinary-row payloads from already prepared sources.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PreparedPhysicalOrdinary

@@ -2,8 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSFirstRoundPair
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 import NightstreamFPrime.Lifecycle.Types
 
-/-! Cache the existing per-source norm cubics for signed-unit endpoints. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNormCache

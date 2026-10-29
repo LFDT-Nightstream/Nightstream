@@ -3,20 +3,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SumCheckTruthPath
 
-/-!
-Artifact-independent one-variable polynomial support for the paper `Pi_CCS`
-degree proof.
-
-Owns: fixed-width representations over an arbitrary paper field, closure under
-widening/scaling/addition/multiplication, affine Boolean-MLE and equality
-slices, the strict-`b = 2` cubic, finite sums, and Boolean suffix sums.
-
-Does not own: a protocol polynomial, a degree ceiling, SumCheck acceptance,
-probability, Fiat--Shamir, Rust, R1CS, artifacts, or costs.
-
-Emits constraints: no.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Support
 
 open NightstreamFPrime.Spec.SumCheck

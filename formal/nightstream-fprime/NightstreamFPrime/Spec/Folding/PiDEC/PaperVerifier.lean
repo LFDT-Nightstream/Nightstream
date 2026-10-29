@@ -1,17 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiDEC
 
-/-!
-Paper-exact public verifier for SuperNeo `Pi_DEC`.
-
-Protocol: SuperNeo Section 7.5.
-Phase: one combined `CE(B)` parent to exactly `k` fresh `CE(b)` children.
-Constraint family: semantic verifier equations only; this file emits no rows.
-
-Owns: verifier-computed child public inputs, copied structure and point,
-fixed evaluation-message arity, prover-supplied child commitment/evaluation
-messages, the fixed-arity tuple boundary and two paper equations, projection
-to the recomposition verifier, reduction of knowledge, and honest completeness.
--/
+/-! SuperNeo Section 7.5. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 
@@ -46,8 +35,7 @@ structure PublicInputSplit
 
 namespace PublicInputSplit
 
-/-- Operational `split_b` boundary. SuperNeo runs the strict parent bound
-check before it constructs any child public input. -/
+/-- SuperNeo Section 7.5. -/
 def checked
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}
@@ -119,7 +107,7 @@ structure EvaluationArity
   evaluations_size : ∀ system assignment point,
     (semantics.evaluations system assignment point).size = count system
 
-/-- The exact prover message in Section 7.5. -/
+/-- SuperNeo Section 7.5. -/
 structure ChildMessage
     (Evaluation : Type uEvaluation)
     (Commitment : Type uCommitment) where
@@ -180,8 +168,7 @@ def children
       publicSplit.split attempt.parent.publicInput child := by
   rfl
 
-/-- The Section-7.5 fixed-tuple shape, its two arithmetic equations, and the
-required combined input stage. -/
+/-- SuperNeo Section 7.5. -/
 structure Accepted
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}

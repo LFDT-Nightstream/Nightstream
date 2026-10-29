@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonMatrixProgram
 
-/-!
-Proves that the compact PiRLC sampler Poseidon2 matrix program reconstructs
-the exact cross-family previous state and verifier-owned entry words.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram
@@ -246,7 +241,7 @@ theorem inputProgram_form?
       apply congrArg some
       apply congrArg some
       unfold PiRLCSamplerPoseidonPlan.previousOutput
-      rw [dif_neg first]
+      rw [dite_eq_right first]
     by_cases entry :
         (PiRLCSamplerPoseidonPlan.descriptor current).2.val = 0
     · have entryResult := entryRule_entry geometry current lane entry
@@ -329,7 +324,7 @@ theorem matrixProgram_row?
     exact global.isLt
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.poseidon (block geometry)] by rfl]
-  rw [MatrixProgram.Program.singleton_row?, if_pos bound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left bound]
   exact block_row? geometry global
 
 end NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonMatrixProgram

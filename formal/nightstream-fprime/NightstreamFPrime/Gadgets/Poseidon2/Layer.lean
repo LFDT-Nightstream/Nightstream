@@ -5,12 +5,6 @@ import Mathlib.Tactic.IntervalCases
 import NightstreamFPrime.Circuit.StraightLine
 import NightstreamFPrime.Spec.Poseidon2
 
-/-!
-Owns the fixed-width symbolic Poseidon2 layer formulas. It connects expression
-evaluation to the executable field reference one lane at a time. No circuit
-schedule or physical row layout is owned here.
--/
-
 namespace NightstreamFPrime.Gadgets.Poseidon2.Layer
 
 open NightstreamFPrime.Spec

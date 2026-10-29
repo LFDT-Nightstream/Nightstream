@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 
-/-! Executable foundation vectors from the active semantics. Each JSON line
-contains one matrix row or one checked scalar split; no complete output is
-retained in memory. These are test inputs, not circuit-package authority. -/
-
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Export.Codec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel

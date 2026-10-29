@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonStepTrace
 
-/-!
-Owns the compact fixed-schedule ledger for one production Poseidon2 template.
-
-This module is constant-size. Package invocation count is not evaluated here.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonScheduleTrace
 
 open NightstreamFPrime.Circuit

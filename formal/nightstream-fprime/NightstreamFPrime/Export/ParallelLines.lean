@@ -1,13 +1,5 @@
 import NightstreamFPrime.Export.ParallelChunks
 
-/-!
-Decode the lines of a text file on several threads. A line is the text between
-line terminators, without its terminator; the text after the last terminator is
-a line only when it is not empty, as with repeated `Handle.getLine`. Every line
-must be valid UTF-8. Results keep file order, with each line's byte offset.
-Callers keep their own framing, order and terminator checks.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.ParallelLines

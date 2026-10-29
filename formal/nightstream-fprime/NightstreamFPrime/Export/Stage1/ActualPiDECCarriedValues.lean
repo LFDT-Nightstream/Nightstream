@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.ActualPiDEC
 import NightstreamFPrime.Export.Stage1.ActualRunningTransition
 
-/-!
-Owns shared PiDEC values between the actual PiDEC decoder and the actual
-running-transition decoder.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualPiDECCarriedValues
 
 open NightstreamFPrime.Circuit
@@ -81,7 +76,8 @@ theorem piCcsTranscriptWord_eq_form
     change PiCCSOrdinaryRetainedBlocks.proofLogicalSource
       (PiCCSOrdinaryRetainedBlocks.transcriptOutputSlot
         (Fin.encodeProd (invocation, lane))) = _
-    rw [PiCCSOrdinaryRetainedBlocks.proofLogicalSource_transcriptOutput,
+    rw [PiCCSOrdinaryRetainedBlocks.proofLogicalSource_transcriptOutput
+        (index := Fin.encodeProd (invocation, lane)),
       PiCCSOrdinaryRetainedBlocks.transcriptOutputSource_encodeProd]
     unfold PiCCSTranscriptOutputForms.transcriptSource
       PiCCSTranscriptOutputForms.transcriptSourceStart

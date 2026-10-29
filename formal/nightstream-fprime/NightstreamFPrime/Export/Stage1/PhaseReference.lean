@@ -1,7 +1,5 @@
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 
-/-! Reference shape for constructing phase circuits. -/
-
 namespace NightstreamFPrime.Export.Stage1.PhaseReference
 
 open NightstreamFPrime.Spec

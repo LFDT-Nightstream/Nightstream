@@ -1,22 +1,5 @@
 import NightstreamFPrime.Export.Stage1.RandomOracleSetup
 
-/-!
-Owns the state-hash collision finders: algorithms with a strict budget of
-adversary runs whose success bounds `RandomOracleSetup.hashCollisions`.
-
-Inputs: an adversary for each value of the setup chunks, its claim and prior
-preimage, the verifier-owned context digest, and a budget `T`.
-
-Outputs: `HashCollision`, `lineFinder`, `hashSolve`, `hashAdvantage` and
-`hashCollisions_le_solver`.
-
-`hashCollisions` is a sum over the 18 targets, so each target needs its own
-finder; one finder that stops at the first collision would bound only the
-largest term.
-
-Does not own: the hardness of the state hash.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.RandomOracleHashSolver
@@ -71,8 +54,7 @@ local notation "Coordinate" => Fin Nifs.PaperProfile.arity.total
 local notation "Made" => Run Oracle Record
 local notation "Retried" => Forks Coordinate Answer Record
 
-/-- Tapes of oracles are finite (named here: instance search exceeds its size
-limit on this type). -/
+/-- Named: instance search exceeds its size limit on this type. -/
 noncomputable local instance (budget : ℕ) : Fintype (Fin budget → Oracle) := Pi.instFintype
 
 noncomputable def collisionOf (base other : Made) :
@@ -186,12 +168,12 @@ private theorem lineAverage_collision (index : Coordinate) (base : Oracle) :
           (prior (adversary.run (Function.update base (rhoPoint relation adversary Linked index base) answer)))}) :=
     Finset.expect_congr rfl fun answer _ => by
       by_cases inside : answer ∈ retrySets relation ajtai adversary Linked base index
-      · rw [if_pos inside]
+      · rw [ite_eq_left inside]
         by_cases collides : StateHashCollision (prior (adversary.run base))
             (prior (adversary.run (Function.update base (rhoPoint relation adversary Linked index base) answer)))
-        · rw [if_pos collides, if_pos ⟨inside, collides⟩]
-        · rw [if_neg collides, if_neg fun both => collides both.2]
-      · rw [if_neg inside, if_neg fun both => inside both.1]
+        · rw [ite_eq_left collides, ite_eq_left ⟨inside, collides⟩]
+        · rw [ite_eq_right collides, ite_eq_right fun both => collides both.2]
+      · rw [ite_eq_right inside, ite_eq_right fun both => inside both.1]
   exact congrArg (· / mass (retrySets relation ajtai adversary Linked base index)) numerator
 
 private noncomputable def lineSuccess (index : Coordinate) : LineState Made → ℝ
@@ -389,6 +371,7 @@ private theorem collisions_le_targets {queries : Nat} (bounded : adversary.Query
     funext base retries other otherRetries
     by_cases collides : StateHashCollision (prior (adversary.run base)) (prior (adversary.run other)) <;>
       simp [rerunOutput, collisionOf, runOf, OracleComp.record, collides]
+    rfl
   rw [outcome] at rerun
   change budget * (hashRunningChance relation ajtai adversary claim prior contextDigest -
     targetChance relation ajtai claim prior contextDigest adversary none budget) ≤ _ at rerun

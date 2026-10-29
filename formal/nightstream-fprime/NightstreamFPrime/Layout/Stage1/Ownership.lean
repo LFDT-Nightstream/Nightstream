@@ -1,15 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.LoweringRows
 
-/-!
-Owns the complete top-level row and column partition of the Stage 1 layout.
-
-Each logical child has one adjacent row interval. The five NextPreimage rows
-have a separate layout owner. Final columns are partitioned into the validated
-private prefix, application witness words, application-local columns, the
-constant column, and the public suffix. Nested phase modules retain the finer
-ownership inside the validated prefix.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.Ownership
 
 open NightstreamFPrime.Lifecycle
@@ -225,28 +215,28 @@ theorem selectedColumn_in_range
     exact (applicationLocal_finish_eq_constant program).symm
   rw [Lowering.totalColumnCount_eq] at bound
   by_cases h1 : column < Spartan.privateColumnCount
-  · rw [columnOwnerAt, if_pos h1]
+  · rw [columnOwnerAt, ite_eq_left h1]
     change 0 ≤ column ∧ column < 0 + Spartan.privateColumnCount
     exact ⟨Nat.zero_le _, by omega⟩
   by_cases h2 : column < ApplicationInputs.localStart program
-  · rw [columnOwnerAt, if_neg h1, if_pos h2]
+  · rw [columnOwnerAt, ite_eq_right h1, ite_eq_left h2]
     change Spartan.privateColumnCount ≤ column ∧
       column < Spartan.privateColumnCount + program.witnessWordCount
     rw [localStartEq] at h2
     omega
   by_cases h3 : column < Lowering.constantColumn program
-  · rw [columnOwnerAt, if_neg h1, if_neg h2, if_pos h3]
+  · rw [columnOwnerAt, ite_eq_right h1, ite_eq_right h2, ite_eq_left h3]
     change ApplicationInputs.localStart program ≤ column ∧
       column < ApplicationInputs.localStart program +
         Lowering.applicationPrivateCount program
     rw [constantEq] at h3
     omega
   by_cases h4 : column = Lowering.constantColumn program
-  · rw [columnOwnerAt, if_neg h1, if_neg h2, if_neg h3, if_pos h4]
+  · rw [columnOwnerAt, ite_eq_right h1, ite_eq_right h2, ite_eq_right h3, ite_eq_left h4]
     change Lowering.constantColumn program ≤ column ∧
       column < Lowering.constantColumn program + 1
     omega
-  · rw [columnOwnerAt, if_neg h1, if_neg h2, if_neg h3, if_neg h4]
+  · rw [columnOwnerAt, ite_eq_right h1, ite_eq_right h2, ite_eq_right h3, ite_eq_right h4]
     change Lowering.constantColumn program + 1 ≤ column ∧
       column < Lowering.constantColumn program + 1 +
         Lowering.publicColumnCount

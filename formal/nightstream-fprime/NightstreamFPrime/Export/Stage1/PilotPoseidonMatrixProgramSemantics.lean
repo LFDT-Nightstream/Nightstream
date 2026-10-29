@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgram
 
-/-!
-Proves that the compact pilot Poseidon2 input programs reconstruct the exact
-semantic prior-state and output-state hash inputs.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram
@@ -102,13 +97,13 @@ private theorem previousRule_result
         some (PilotPoseidonPlan.previousOutput schedule retainedStart fits
           invocation lane)) := by
   by_cases first : invocation.val = 0
-  · rw [dif_pos first]
+  · rw [dite_eq_left first]
     have invocationEq : invocation = ⟨0, by omega⟩ := by
       apply Fin.ext
       exact first
     rw [invocationEq]
     exact previousRule_zero schedule retainedStart oneColumn lane
-  · rw [dif_neg first]
+  · rw [dite_eq_right first]
     let invocationOffset : Fin 2319 :=
       ⟨invocation.val - 1, by omega⟩
     have invocationEq : invocation.val = 1 + invocationOffset.val := by
@@ -121,7 +116,7 @@ private theorem previousRule_result
     apply congrArg some
     apply congrArg some
     unfold PilotPoseidonPlan.previousOutput
-    rw [dif_neg first]
+    rw [dite_eq_right first]
 
 private theorem fullInputRule_result
     {sourceWidth logicalWidth : Nat}
@@ -140,9 +135,9 @@ private theorem fullInputRule_result
         else none
       else none) := by
   by_cases invocationBound : invocation.val < 2318
-  · rw [dif_pos invocationBound]
+  · rw [dite_eq_left invocationBound]
     by_cases laneBound : lane.val < 12
-    · rw [dif_pos laneBound]
+    · rw [dite_eq_left laneBound]
       have selected := PoseidonInput.Rule.retained_form?_ofSemantic
         (region := PoseidonInput.Region.mk 0 2318 0 12)
         ⟨invocation.val, invocationBound⟩ ⟨lane.val, laneBound⟩
@@ -152,11 +147,11 @@ private theorem fullInputRule_result
           rw [slotCount]
           omega)
       simpa [fullInputRule] using selected
-    · rw [dif_neg laneBound]
+    · rw [dite_eq_right laneBound]
       apply PoseidonInput.Rule.form?_eq_some_none
       simp [fullInputRule, PoseidonInput.Region.offsets?, invocationBound,
         laneBound]
-  · rw [dif_neg invocationBound]
+  · rw [dite_eq_right invocationBound]
     apply PoseidonInput.Rule.form?_eq_some_none
     simp [fullInputRule, PoseidonInput.Region.offsets?, invocationBound]
 
@@ -174,7 +169,7 @@ private theorem tailInputRule_result
           omega⟩)
       else none) := by
   by_cases selected : invocation.val = 2318 ∧ lane.val < 3
-  · rw [dif_pos selected]
+  · rw [dite_eq_left selected]
     have ruleSelected := PoseidonInput.Rule.retained_form?_ofSemantic
       (region := PoseidonInput.Region.mk 2318 1 0 3)
       (0 : Fin 1) ⟨lane.val, selected.2⟩ inputBlock inputStart fits oneColumn
@@ -183,10 +178,12 @@ private theorem tailInputRule_result
         rw [slotCount]
         omega)
     simpa [tailInputRule, selected.1] using ruleSelected
-  · rw [dif_neg selected]
+  · rw [dite_eq_right selected]
     apply PoseidonInput.Rule.form?_eq_some_none
-    simp [tailInputRule, PoseidonInput.Region.offsets?]
-    omega
+    show PoseidonInput.Region.offsets? ⟨2318, 1, 0, 3⟩ invocation.val lane.val = none
+    unfold PoseidonInput.Region.offsets?
+    dsimp only
+    split_ifs <;> first | rfl | omega
 
 private theorem paddingRule_result {logicalWidth : Nat}
     (oneColumn : Fin logicalWidth) (invocation : Fin 2320) (lane : Fin 16) :
@@ -195,15 +192,17 @@ private theorem paddingRule_result {logicalWidth : Nat}
         some (SparseForm.singleton oneColumn 1)
       else none) := by
   by_cases selected : invocation.val = 2319 ∧ lane.val = 0
-  · rw [dif_pos selected]
+  · rw [dite_eq_left selected]
     have ruleSelected := PoseidonInput.Rule.constant_form?
       (region := PoseidonInput.Region.mk 2319 1 0 1)
       (0 : Fin 1) (0 : Fin 1) oneColumn (1 : F)
     simpa [paddingRule, selected.1, selected.2] using! ruleSelected
-  · rw [dif_neg selected]
+  · rw [dite_eq_right selected]
     apply PoseidonInput.Rule.form?_eq_some_none
-    simp [paddingRule, PoseidonInput.Region.offsets?]
-    omega
+    show PoseidonInput.Region.offsets? ⟨2319, 1, 0, 1⟩ invocation.val lane.val = none
+    unfold PoseidonInput.Region.offsets?
+    dsimp only
+    split_ifs <;> first | rfl | omega
 
 private theorem chainInputProgram_form?
     {poseidonSourceWidth inputSourceWidth logicalWidth : Nat}
@@ -469,7 +468,7 @@ theorem priorProgram_row?
     rw [priorBlock_rowCount]
     simpa [PilotPoseidonPlan.priorPlan,
       PilotPoseidonPlan.invocationCount_eq] using global.isLt
-  rw [MatrixProgram.Program.singleton_row?, if_pos bound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left bound]
   exact priorBlock_plan_row? geometry sourceRow global
 
 theorem outputProgram_row?
@@ -487,7 +486,7 @@ theorem outputProgram_row?
     rw [outputBlock_rowCount]
     simpa [PilotPoseidonPlan.outputPlan,
       PilotPoseidonPlan.invocationCount_eq] using global.isLt
-  rw [MatrixProgram.Program.singleton_row?, if_pos bound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left bound]
   exact outputBlock_plan_row? geometry sourceRow global
 
 end NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgram

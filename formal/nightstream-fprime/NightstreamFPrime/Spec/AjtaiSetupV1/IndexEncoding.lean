@@ -1,9 +1,5 @@
 import NightstreamFPrime.Spec.AjtaiSetupV1
 
-/-! The SHAKE128 input of a key element determines its seed, row and block,
-and each element has one output lane for each coefficient word. The range
-premises are essential. No statement about SHAKE128 output is made. -/
-
 namespace NightstreamFPrime.Spec.AjtaiSetupV1
 
 theorem littleEndianBytes_mod (count left right : Nat)

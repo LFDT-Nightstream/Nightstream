@@ -4,20 +4,6 @@ import NightstreamFPrime.Lifecycle.RandomOracleFidelity
 import NightstreamFPrime.Export.Stage1.NifsRealSuccess
 import NightstreamFPrime.Layout.Stage1.PiCCSSecurity
 
-/-!
-Owns the random-oracle knowledge theorem with the prior-state link: the
-verifier accepts a claim only when the adversary's prior preimage links the
-running statement to the absorbed digest.
-
-Inputs: an oracle adversary whose output gives a claim and a prior preimage,
-and the verifier-owned context digest.
-
-Outputs: `linkedClaim`, `succeeds_iff_realSuccess`, `link_collision`,
-`mismatch_collision`, `moves_collision` and `knowledge_error_le_linked`.
-
-Does not own: the hardness of the state hash or of MSIS.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.RandomOracleLink
@@ -193,10 +179,10 @@ theorem knowledge_error_le_linked {queries : Nat} (bounded : adversary.QueryBoun
     refine add_le_add le_rfl (add_le_add (add_le_add (Finset.expect_le_expect fun oracle _ => ?_) le_rfl)
       (runningChance_le relation ajtai adversary claim prior contextDigest))
     by_cases succeeds : Succeeds relation ajtai adversary Linked oracle
-    · simp only [if_pos succeeds]
+    · simp only [ite_eq_left succeeds]
       exact Finset.sum_le_sum fun index _ =>
         mismatchChance_le relation ajtai adversary claim prior contextDigest succeeds index
-    · simp only [if_neg succeeds, le_refl]
+    · simp only [ite_eq_right succeeds, le_refl]
   exact (knowledge_error_le relation ajtai adversary Linked bounded).trans (add_le_add le_rfl bound)
 
 end NightstreamFPrime.Export.Stage1.RandomOracleLink

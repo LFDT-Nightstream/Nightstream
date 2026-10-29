@@ -3,8 +3,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPointBoundsDirect
 import NightstreamFPrime.Layout.Stage1.Spartan
 
-/-! Owns the compact source-support descriptors for the running transition. -/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 
 open NightstreamFPrime.Layout

@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Main
 import tests.PerApplicationEmitterFixture
 
-/-! Native test entrypoint for the generic streamed package writer. -/
-
 namespace NightstreamFPrime.Tests.PerApplicationStreamedMain
 
 open NightstreamFPrime.Export

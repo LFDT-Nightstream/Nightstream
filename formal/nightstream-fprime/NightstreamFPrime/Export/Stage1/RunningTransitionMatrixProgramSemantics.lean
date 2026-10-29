@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgramSubstitution
 
-/-!
-Proves row-by-row equality between the compact running-transition matrix
-program and the canonical direct 4-matrix plan.
--/
-
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram
@@ -149,7 +144,7 @@ theorem matrixProgram_row?
     omega
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.ordinary (ordinaryBlock geometry)] by rfl]
-  rw [MatrixProgram.Program.singleton_row?, if_pos blockBound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left blockBound]
   change (do
     let forms ← (ordinaryBlock geometry).row? logicalWidth sourceRow global.val
     pure forms.meaningfulForm) = _

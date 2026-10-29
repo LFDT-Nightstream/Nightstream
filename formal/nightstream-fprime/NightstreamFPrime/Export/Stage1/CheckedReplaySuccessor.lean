@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.CheckedReplayStep
 import NightstreamFPrime.Export.Stage1.HyperNovaAcceptedNext
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPointSoundness
 
-/-!
-Accept the exact canonical successor packet after a checked local replay.
-Input/context custody are ABI links to the actual packet.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.CheckedReplaySuccessor

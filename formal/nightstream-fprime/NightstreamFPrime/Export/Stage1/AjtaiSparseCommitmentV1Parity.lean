@@ -2,12 +2,6 @@ import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.CommitmentSparse
 
-/-!
-Owns executable commitment conformance for one sparse full-carrier assignment.
-Its three block addresses include the selected package's last carrier block.
-The last coefficient is a carried coordinate, not a fresh CCS padding claim.
--/
-
 namespace NightstreamFPrime.Export.Stage1.AjtaiSparseCommitmentV1Parity
 
 open NightstreamFPrime.Spec
@@ -76,6 +70,7 @@ def sparseCommitment : Commitment.Value Poseidon2HashChainV1Setup.verifierRows :
       (ringFAdd (ringFMul middle (ringFMonomial 27 (-1)))
         (ringFMul last (ringFMonomial 53 1)))
 
+set_option backward.isDefEq.respectTransparency false in
 theorem sparseCommitment_eq_commit :
     sparseCommitment =
       Commitment.commit (shape := shape) Poseidon2HashChainV1Setup.productionAjtaiKey assignment := by

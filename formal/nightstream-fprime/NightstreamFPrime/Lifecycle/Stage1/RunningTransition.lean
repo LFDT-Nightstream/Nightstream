@@ -2,19 +2,6 @@ import NightstreamFPrime.Circuit.StraightLine
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.RunningWords
 import NightstreamFPrime.Spec.GoldilocksPrime
 
-/-!
-Owns the Stage 1 running-instance branch.
-
-The base branch selects the canonical HyperNova `defaultRunning` value. The
-recursive branch selects the complete PiDEC running output. One
-non-authoritative inverse-or-zero hint and one stored product derive the
-branch flag. An explicit binding row and one rank-one mux row per canonical
-running word make the hint non-authoritative.
-
-This leaf does not own PiDEC validity, application execution, state hashing,
-physical column placement, or terminal acceptance.
--/
-
 namespace NightstreamFPrime.Lifecycle.Stage1.RunningTransition
 
 open NightstreamFPrime.Spec
@@ -117,9 +104,7 @@ def muxConstraints {logicalWidth : Nat}
     List Expr :=
   List.ofFn (muxConstraint interface offset)
 
-/-- HyperNova Construction 2's base branch requires `z0 = zi`. The existing
-base flag gates the four fixed application-state words without another branch
-selector. -/
+/-- HyperNova Construction 2, base branch: `z0 = zi`. -/
 def baseStateConstraint {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth}

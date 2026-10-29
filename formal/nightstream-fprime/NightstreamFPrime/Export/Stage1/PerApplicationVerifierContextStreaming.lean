@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationStreamingIdentity
 
-/-!
-Owns the allocation-bounded application component of the verifier context.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationVerifierContextStreaming
 
 open NightstreamFPrime.Export

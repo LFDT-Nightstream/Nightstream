@@ -1,13 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 import Mathlib.Data.List.Forall2
 
-/-!
-Connect the exact materialized R trace to the paper's combined claim and
-weak-suffix success predicate. PiDEC supplies the reconstructed opening;
-its validity is not an extra premise on the R parent. This connection states
-no Fiat–Shamir probability law and adds no extraction-work assumption.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCParent
@@ -248,7 +241,7 @@ private theorem computedParent_returns (input : Input) (batch : Batch) :
     evalA := ⟨a.toArray, by simpa using size⟩
     outgoing := batch.finalState }, ?_⟩
   simp only [computedParent, PiRLCInputCheck.finalParent, Option.bind_eq_bind,
-    hc, hx, hk, ha, Option.bind_some, dif_pos size, Option.pure_apply]
+    hc, hx, hk, ha, Option.bind_some, dite_eq_left size, Option.pure_apply]
 
 theorem computedParent_correct (input : Input) (batch : Batch) :
     ∃ values, computedParent input batch = some values ∧

@@ -2,22 +2,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingRoots
 
-/-!
-Owns the round-by-round split of a false PiCCS acceptance: one bad set for
-each verifier coin (every `α` coordinate, `γ`, and every SumCheck round).
-
-Inputs: a statement, a fixed witness that fails the source relation, and an
-accepted probe whose output that witness opens.
-
-Outputs:
-- `falseAcceptance_splits`;
-- `alphaBad_probability_le`, `gammaBad_probability_le`,
-  `roundBad_probability_le`.
-
-Does not own: the coin law. `Lifecycle/RandomOracleTest.lean` draws the
-coins from a random oracle.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound
@@ -98,7 +82,7 @@ theorem vanishesAt_probability_le (samples : Finset K) : {size : Nat} →
       simp only [List.set_cons_zero, VanishesAt]
       by_cases both : low.evaluateCoordinates extensionOps rest = K.zero ∧
           high.evaluateCoordinates extensionOps rest = K.zero
-      · simp only [both.1, both.2, and_self, not_true_eq_false, false_and, if_false,
+      · simp only [both.1, both.2, and_self, not_true_eq_false, false_and, ite_false,
           Finset.expect_const_zero]
         positivity
       · simp only [both, not_false_eq_true, true_and]
@@ -135,10 +119,10 @@ theorem vanishesAt_probability_le (samples : Finset K) : {size : Nat} →
       simp only [List.set_cons_succ, VanishesAt]
       exact vanishesAt_probability_le samples (selectedChild low high) rest depth
   | 0, .leaf _, coordinates, depth => by
-      simp only [VanishesAt, if_false, Finset.expect_const_zero]
+      simp only [VanishesAt, ite_false, Finset.expect_const_zero]
       positivity
   | _ + 1, .branch _ _, [], depth => by
-      simp only [List.set_nil, VanishesAt, if_false, Finset.expect_const_zero]
+      simp only [List.set_nil, VanishesAt, ite_false, Finset.expect_const_zero]
       positivity
 
 noncomputable def selected {shape : Shape} (data : SignedJointIdentity.JointData K shape) :
@@ -205,7 +189,7 @@ theorem mixingRoot_splits {shape : Shape} (data : SignedJointIdentity.JointData 
         let table := found.choose
         have represents : polynomial = table.toAlphaPolynomial extensionOps := found.choose_spec
         have tableEq : selectedTable data = some table := by
-          simp only [selectedTable, chosenEq, dif_pos found]
+          simp only [selectedTable, chosenEq, dite_eq_left found]
           rfl
         have tableNonzero : ¬ table.AllEntriesZero extensionOps := by
           intro allZero
@@ -301,11 +285,11 @@ theorem alphaBad_probability_le (samples : Finset K) {shape : Shape}
       1 / (samples.card : ℝ) := by
   cases chosen : selectedTable data with
   | none =>
-      simp only [alphaBad, chosen, reduceCtorEq, false_and, exists_false, Set.setOf_false,
-        Set.mem_empty_iff_false, if_false, Finset.expect_const_zero]
+      simp only [alphaBad, chosen, reduceCtorEq, false_and, exists_false, Set.ofPred_false,
+        Set.mem_empty_iff_false, ite_false, Finset.expect_const_zero]
       positivity
   | some table =>
-      simp only [alphaBad, chosen, Option.some.injEq, exists_eq_left', Set.mem_setOf_eq]
+      simp only [alphaBad, chosen, Option.some.injEq, exists_eq_left', Set.mem_ofPred_eq]
       exact vanishesAt_probability_le samples table alpha.coordinates index.val
 
 theorem gammaBad_probability_le (samples : Finset K) {shape : Shape}
@@ -317,10 +301,10 @@ theorem gammaBad_probability_le (samples : Finset K) {shape : Shape}
   · refine le_trans (Finset.expect_le_expect fun gamma _ => ?_)
       (SignedMixingRoots.signed_gamma_probability_le data alpha samples nonzero)
     by_cases inside : gamma ∈ gammaBad data alpha
-    · simp [if_pos inside, if_pos inside.2]
-    · rw [if_neg inside]
+    · simp [ite_eq_left inside, ite_eq_left inside.2]
+    · rw [ite_eq_right inside]
       split <;> norm_num
-  · simp only [gammaBad, nonzero, false_and, Set.setOf_false, Set.mem_empty_iff_false, if_false,
+  · simp only [gammaBad, nonzero, false_and, Set.ofPred_false, Set.mem_empty_iff_false, ite_false,
       Finset.expect_const_zero]
     positivity
 

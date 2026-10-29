@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment
 import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
 import NightstreamFPrime.Layout.Stage1.SpartanRows
 
-/-!
-Owns the PiDEC part of the completed canonical assignment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiDECCompletedAssignment
 
 open NightstreamFPrime.Circuit

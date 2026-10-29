@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.PiDECStepCompleteness
 import NightstreamFPrime.Lifecycle.Nifs.BaseVerifierCompleteness
 
-/-!
-Owns canonical base advice and its pilot/C/R/D/transition witness construction. The
-HyperNova base branch permits dummy advice; this constructor selects the
-existing zero proof and fresh claim, and preserves the same semantic output.
-The verifier's dummy D output is separate from the base transition's default
-running output. The production sampler is total.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiDECBaseCompleteness
 
 open NightstreamFPrime.Spec

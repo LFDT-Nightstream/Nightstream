@@ -1,13 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Retained
 
-/-!
-Owns the direct Poseidon2 plan for all four PiCCS transcript action families.
-Each invocation uses retained S-box outputs, the previous invocation's
-closed-form output, and the exact Lean action payload.
-
-This module does not close PiCCS status or bind the final package identity.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan
 
 open NightstreamFPrime.Spec

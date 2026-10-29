@@ -1,7 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNormScan
 
-/-! Exact coefficient sums for the checked original-mask norm scan. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNormScanCorrectness
@@ -145,7 +143,7 @@ theorem block_finish (powers weight : Nat → K) (index : Nat) (masks : Array (N
   by_cases omitted : masks.isEmpty
   · have empty : masks = #[] := Array.empty_of_isEmpty omitted
     subst masks
-    simp only [PiCCSNormScan.block, Array.isEmpty_empty, if_true, blockNorm_empty]
+    simp only [PiCCSNormScan.block, Array.isEmpty_empty, ite_true, blockNorm_empty]
     exact (PiCCSPolynomialRange.add_zero extensionOps extensionLaws _).symm
   · let pairStep : PiCCSNormBuckets.Buckets → Fin PairCount → PiCCSNormBuckets.Buckets :=
       fun accumulated pair =>
@@ -165,7 +163,7 @@ theorem block_finish (powers weight : Nat → K) (index : Nat) (masks : Array (N
         finish_source_fold powers (weight (pairIndex index pair)) masks pair accumulated
     have folded := finish_fin_fold powers (count := PairCount)
       pairStep pairTerm pairEffect initial
-    rw [PiCCSNormScan.block, if_neg omitted]
+    rw [PiCCSNormScan.block, ite_eq_right omitted]
     change PiCCSNormBuckets.finish powers
         (Nat.fold PairCount (fun pair inside accumulated => pairStep accumulated ⟨pair, inside⟩) initial) =
       FixedPolynomial.add extensionOps.toOps (PiCCSNormBuckets.finish powers initial)

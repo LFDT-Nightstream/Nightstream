@@ -1,26 +1,11 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormRange
 
-/-!
-Concrete quadratic-extension cancellation boundary for paper-level `Pi_CCS`.
-
-Owns: the quadratic norm and conjugate of the concrete carrier
-`K = F[u]/(u² - 7)`, the exact irreducibility premise, and the derivation of extension-field
-no-zero-divisors from that premise plus base-field no-zero-divisors.
-
-Does not own: a proof that the Goldilocks modulus is prime, a proof that seven
-is a quadratic nonresidue modulo that modulus, Fiat--Shamir probabilities,
-Rust/R1CS refinement, row emission, row removal, or constraint counts.
-
-Emits constraints: no.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- Norm of `a + bu` for the concrete relation `u² = 7`. -/
 def quadraticNorm (value : K) : F :=
   value.c0 * value.c0 - 7 * value.c1 * value.c1
 

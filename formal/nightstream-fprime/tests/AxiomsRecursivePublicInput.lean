@@ -1,8 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Lifecycle.XOut
 
-/-! Axiom audits for the canonical recursive public-input encoding. -/
-
 #audit_axioms NightstreamFPrime.Lifecycle.encHash_marker
 #audit_axioms NightstreamFPrime.Lifecycle.encHash_digestBitNat
 #audit_axioms NightstreamFPrime.Lifecycle.encHash_digestBit

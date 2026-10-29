@@ -5,13 +5,6 @@ import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Layout.MatrixProgram.Phi81Product
 import NightstreamFPrime.Layout.MatrixProgram.Poseidon
 
-/-!
-Exports the existing fixed Poseidon2 and Phi81 row formulas with local ports.
-Linear-form registers retain sharing across Poseidon2 steps. Registers are
-export temporaries; they allocate no circuit variables or constraint rows.
-The existing matrix blocks still own invocation order and physical geometry.
--/
-
 namespace NightstreamFPrime.Export.SharedFormulas
 
 open NightstreamFPrime.Layout
@@ -259,11 +252,7 @@ def write (path : System.FilePath) : IO Unit := do
   writeComponent handle (phi81Component ())
   handle.putStr "]}\n"
 
-/-! ## Library identity
-
-The verification key binds this digest. Its value lists every field of the
-written library in file order. A string is the array of its UTF-8 bytes.
-Rust computes the same value from the file it loads. -/
+/-! The verification key binds this digest; Rust recomputes it from the loaded file. -/
 
 open NightstreamFPrime.Export.Codec
 

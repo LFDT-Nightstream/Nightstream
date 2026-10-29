@@ -2,11 +2,6 @@ import Init.Data.Array.Lemmas
 import Init.Data.Nat.Div.Lemmas
 import Lean.Elab.Tactic.Omega
 
-/-!
-Immutable strided Array.all checks. The caller owns task scheduling and the
-positive runtime worker count; this module proves the pure result equality.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.StridedArrayAll
@@ -41,7 +36,7 @@ theorem run_iff {Alpha : Type u} (values : Array Alpha)
           run values predicate stride (remaining + 1) first = true ↔
             predicate values[first] = true ∧
               run values predicate stride remaining (first + stride) = true := by
-          simp only [run, dif_pos live]
+          simp only [run, dite_eq_left live]
           cases checked : predicate values[first] <;> simp
         rw [step, inductionHypothesis]
         constructor
@@ -71,7 +66,7 @@ theorem run_iff {Alpha : Type u} (values : Array Alpha)
               rw [shift]
               exact tailLive
             simpa only [shift] using checked (offset + 1) (by omega) indexLive
-      · simp only [run, dif_neg live]
+      · simp only [run, dite_eq_right live]
         constructor
         · intro _checked offset _offsetBound indexLive
           omega

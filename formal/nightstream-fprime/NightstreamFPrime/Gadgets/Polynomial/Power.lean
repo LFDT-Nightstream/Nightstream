@@ -1,14 +1,6 @@
 import NightstreamFPrime.Gadgets.Polynomial.Horner
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 
-/-!
-Owns one fixed-exponent power circuit over the production quadratic extension.
-
-The circuit reuses the causal owned Horner child with the constant-first
-coefficient list `[0, ..., 0, 1]`. It allocates `3 * exponent` base-field
-variables and does not use exponent-sized kernel evaluation.
--/
-
 namespace NightstreamFPrime.Gadgets.Polynomial.Power
 
 open NightstreamFPrime.Spec

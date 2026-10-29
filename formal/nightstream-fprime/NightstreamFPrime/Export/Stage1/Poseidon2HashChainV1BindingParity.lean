@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Export.Stage1.PerApplicationVerifierContextStreaming
 
-/-!
-Owns canonical-source and component-replay fixtures for the
-`Poseidon2HashChainV1` verification-key binding.
--/
-
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1BindingParity
 
 open NightstreamFPrime.Export.Codec

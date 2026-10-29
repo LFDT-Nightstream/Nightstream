@@ -663,18 +663,147 @@ fn engine_failures_reach_the_caller_as_engine_errors() {
         Error::Engine(_)
     ));
     assert!(matches!(
-        Error::from(ExtendError::Complete(CompleteStepError::Commitment(failure()))),
+        Error::from(ExtendError::Complete(CompleteStepError::Commitment(
+            CommitError::Engine(failure())
+        ))),
         Error::Engine(_)
     ));
     assert!(matches!(Error::from(VerifyError::Engine(failure())), Error::Engine(_)));
+    assert!(matches!(
+        Error::from(VerifyError::Commitment(CommitError::Engine(failure()))),
+        Error::Engine(_)
+    ));
     // `Prover::new` returns a failure to keep the commitment key directly.
     assert!(matches!(Error::from(failure()), Error::Engine(_)));
     assert!(matches!(
         Error::from(CompressionError::Prove(ProveError::Engine(failure()))),
         Error::Engine(_)
     ));
+    let accelerator = |error| Error::from(Backend::Optimized.accelerator_error(error));
+    assert!(matches!(
+        accelerator(neo_spartan::Error::Device("device lost".into())),
+        Error::Engine(_)
+    ));
+    assert!(matches!(
+        accelerator(neo_spartan::Error::Rejected("rejected")),
+        Error::Compression(_)
+    ));
+    #[cfg(feature = "metal")]
+    {
+        use neo_reductions::PiCcsError;
+        let device = |error| Error::from(crate::engine::metal::device_error(error, VerifyError::Device));
+        let failure = PiCcsError::BackendFailure {
+            backend: "metal",
+            reason: "device lost".into(),
+        };
+        assert!(matches!(device(failure), Error::Engine(_)));
+        assert!(matches!(
+            device(PiCcsError::InvalidInput("shape".into())),
+            Error::Verify(_)
+        ));
+    }
     assert!(
         matches!(Error::from(VerifyError::Statement("rejected")), Error::Verify(_)),
         "a rejection stays a verify error"
     );
+}
+
+/// A witness value outside the signed units rejects the proof; it is not an
+/// engine failure. The proof codec cannot carry such a value, so the proof
+/// is built in memory: zero running children and the fresh public input
+/// that their state hash fixes.
+#[test]
+#[cfg_attr(not(feature = "metal"), allow(clippy::single_element_loop))]
+fn verifier_rejects_a_witness_outside_the_signed_units() {
+    use crate::folding::{CcsClaim, CcsInstance, CcsWitness, CeClaim, RunningInstance};
+    use crate::lifecycle::{
+        encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_state_hash, serialize_pi_ccs_v1_2_state_preimage,
+    };
+    use neo_ccs::Mat;
+    use neo_math::{D, K};
+
+    let circuit = compiled_fixture();
+    let public_width = circuit.compiled.package.logical_public_input_count();
+    let state = Stage1State::new(1, [F::ONE; 4], [F::TWO; 4]);
+    for engine in [
+        Engine::Optimized,
+        #[cfg(feature = "metal")]
+        Engine::Metal,
+    ] {
+        let verifier = Verifier::from_package(circuit, engine, 114).unwrap();
+        let structure = verifier.lifecycle.structure();
+        let columns = structure.m().div_ceil(D);
+        let evaluations = vec![K::ZERO; D.next_power_of_two()];
+        let claims = vec![
+            CeClaim {
+                c: neo_ajtai::Commitment::zeros(22),
+                X: Mat::zero(D, public_width / D, F::ZERO),
+                r: vec![K::ZERO; nightstream_fprime::PI_CCS_V1_2_ROUND_COUNT],
+                eval_k: evaluations.clone(),
+                eval_a: vec![evaluations; structure.t()],
+                m_in: public_width,
+                fold_digest: [0; 32],
+                adv: None,
+            };
+            16
+        ];
+        let preimage = serialize_pi_ccs_v1_2_state_preimage(
+            circuit
+                .compiled
+                .binding
+                .verifier_context()
+                .digest()
+                .map(F::from_u64),
+            state.iteration(),
+            state.z0(),
+            state.current(),
+            &claims,
+        )
+        .unwrap();
+        let x: Vec<F> = encode_pi_ccs_v1_2_public_input(pi_ccs_v1_2_state_hash(&preimage).unwrap())
+            .unwrap()
+            .into_iter()
+            .map(F::from_u64)
+            .collect();
+        let mut z = Mat::zero(D, columns, F::ZERO);
+        for (column, value) in x.iter().enumerate() {
+            z[(column % D, column / D)] = *value;
+        }
+        let fresh = CcsInstance {
+            claim: CcsClaim {
+                c: neo_ajtai::Commitment::zeros(22),
+                x,
+                m_in: public_width,
+                adv: None,
+            },
+            witness: CcsWitness { Z: z },
+        };
+        let verify = |first: Mat<F>| {
+            let mut witnesses = vec![Mat::virtual_constant(D, columns, F::ZERO); 16];
+            witnesses[0] = first;
+            let running = RunningInstance::new(claims.clone(), witnesses);
+            verifier.verify(&state, &Stage1Envelope::from_parts(state, running, fresh.clone()))
+        };
+
+        // Every check before the commitments passes.
+        assert!(
+            matches!(
+                verify(Mat::virtual_constant(D, columns, F::ZERO)),
+                Err(Error::Verify(VerifyError::Fresh(
+                    "fixed-key commitment differs from the witness"
+                )))
+            ),
+            "{engine:?}"
+        );
+        let mut outside = Mat::zero(D, columns, F::ZERO);
+        outside[(0, columns - 1)] = F::TWO;
+        let result = verify(outside);
+        assert!(
+            matches!(
+                result,
+                Err(Error::Verify(VerifyError::Commitment(CommitError::Input(_))))
+            ),
+            "{engine:?}: {result:?}"
+        );
+    }
 }

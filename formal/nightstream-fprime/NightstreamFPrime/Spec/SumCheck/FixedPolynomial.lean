@@ -1,16 +1,5 @@
 import NightstreamFPrime.Spec.SumCheck.Polynomial
 
-/-!
-Typed fixed-width polynomials for honest SumCheck round construction.
-
-Owns: a degree-indexed constant-first coefficient carrier, its exact conversion
-to the verifier-visible finite message, and the algebraic closure facts needed
-to build honest round polynomials.
-
-Does not own: prover messages, canonical trailing-coefficient checks, challenge
-generation, SumCheck acceptance, protocol polynomials, Rust, R1CS, or costs.
--/
-
 namespace NightstreamFPrime.Spec.SumCheck.Finite
 
 universe uField uIndex

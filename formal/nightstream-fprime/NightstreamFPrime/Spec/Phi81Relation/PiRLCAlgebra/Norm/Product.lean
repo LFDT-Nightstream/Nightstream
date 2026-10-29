@@ -1,19 +1,6 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
 
-/-!
-Exact quotient-ring support bound for one production Phi81 challenge action.
-
-Protocol: SuperNeo `Pi_RLC`.
-
-Owns: support of the executable `rawMulCoeffF` convolution, centered bounds
-for its finite field sum, the exact three-branch support census of
-`ringFMul`, and the production expansion bound `216` for every output lane.
-
-Does not own: finite source folding, arity arithmetic, commitments,
-transcripts, Rust/R1CS refinement, row removal, or counts.
--/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Product
 
 open NightstreamFPrime.Spec

@@ -2,22 +2,6 @@ import NightstreamFPrime.Circuit.StraightLine
 import NightstreamFPrime.Spec.GoldilocksPrime
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
 
-/-!
-Owns the exact signed-binary split of one PiDEC public scalar.
-
-The caller supplies one parent expression and sixteen child-digit expressions.
-One non-authoritative bit hint selects the centered sign. Eighteen rows prove
-that this bit is Boolean, every digit is zero or the selected common sign, and
-the exact production radix recomposition equals the parent.
-
-The sign hint, the sign row, the digit rows and the recomposition are shared:
-the PiCCS re-split of each packed prior parent coordinate
-(`PiCCS.v1_2.StateBinding`) uses them without the parent row.
-
-This module does not own assignment-coordinate enumeration, commitment or
-evaluation recomposition, child CE checks, package layout, or Rust execution.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.SignedSplitScalar
 
 open NightstreamFPrime.Circuit
@@ -400,7 +384,7 @@ theorem bitHint_eq_branchBit (source : Expr) (env : Env)
   · have magnitude : centeredMagnitude parent = parent.val := by
       rw [NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered.centeredMagnitude_eq_distance]
       unfold NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered.distance
-      rw [if_pos (by simpa [Radix.isNonnegative] using nonnegative)]
+      rw [ite_eq_left (by simpa [Radix.isNonnegative] using nonnegative)]
     have parentLt : parent.val < 2 ^ signBitIndex := by
       rw [magnitude] at bounded
       norm_num [Radix.combinedBound, productionGlobalParams,
@@ -416,7 +400,7 @@ theorem bitHint_eq_branchBit (source : Expr) (env : Env)
         centeredMagnitude parent = goldilocksModulus - parent.val := by
       rw [NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered.centeredMagnitude_eq_distance]
       unfold NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered.distance
-      rw [if_neg (by simpa [Radix.isNonnegative] using nonnegative)]
+      rw [ite_eq_right (by simpa [Radix.isNonnegative] using nonnegative)]
     have parentLower : 2 ^ signBitIndex ≤ parent.val := by
       rw [magnitude] at bounded
       have parentLtModulus := parent.isLt
@@ -671,6 +655,6 @@ theorem spec_uses_bounded_branch
       Radix.boundedDigit (parentValue interface offset env) := by
   funext index
   simp only [Radix.splitScalar,
-    if_pos (spec_parentBounded specification)]
+    ite_eq_left (spec_parentBounded specification)]
 
 end NightstreamFPrime.Lifecycle.PiDEC.v1_2.SignedSplitScalar

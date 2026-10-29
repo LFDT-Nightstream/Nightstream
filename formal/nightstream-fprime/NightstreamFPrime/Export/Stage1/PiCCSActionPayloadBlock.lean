@@ -4,12 +4,6 @@ import NightstreamFPrime.Export.Stage1.PoseidonActionSchedule
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout
 import NightstreamFPrime.Layout.ProductionRelation.FieldSuffixBlock
 
-/-!
-Owns the payload source view for every PiCCS Poseidon2 invocation.
-The exact action lists remain the transcript authority. This module only
-selects their absorb chunks in invocation-major order.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock
 
 open NightstreamFPrime.Circuit
@@ -244,6 +238,7 @@ theorem materializedPayloadExpressions_eq :
     (ofFn_decodeProd_eq_nested invocationCount Spec.Poseidon2.rate
       (fun invocation lane => payloadExprForKind (kindAt invocation) lane))
 
+@[implicit_reducible]
 def prefixSourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 

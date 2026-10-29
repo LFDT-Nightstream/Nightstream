@@ -4,12 +4,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 import NightstreamFPrime.Spec.ProductionRelation
 import NightstreamFPrime.Lifecycle.Types
 
-/-!
-One fresh CCS contribution from two retained extension-field rows.
-Prepared selector/power equality is proved here; origin of the retained rows
-is not.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPolynomial
@@ -68,6 +62,5 @@ theorem contribution_prepared (input : ProtocolPolynomial.VerifierInput K produc
     PiCCSPrefixSelector.cachedSelector_prepare extensionOps extensionLaws
       challenges suffix alpha dimension,
     PiCCSFreshPolynomial.ccsPolynomialWithPowers_value extensionOps extensionLaws]
-  rfl
 
 end NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPolynomial

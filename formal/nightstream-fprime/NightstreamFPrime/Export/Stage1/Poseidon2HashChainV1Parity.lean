@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiDECParity
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 
-/-!
-Owns one deterministic executable parity value for the approved Stage 1
-application and its next-preimage handoff.
--/
-
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Parity
 
 open NightstreamFPrime.Export.Codec

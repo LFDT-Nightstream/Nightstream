@@ -10,12 +10,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 import NightstreamFPrime.Export.Stage1.PreparedPhysicalInputs
 import NightstreamFPrime.Export.RowSemantics
 
-/-!
-Canonical physical preparation with final-state row coverage. This proves
-row satisfaction from completed checks, not witness execution order, caller
-parsing, or source IO provenance.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.StoredPhysicalPlan

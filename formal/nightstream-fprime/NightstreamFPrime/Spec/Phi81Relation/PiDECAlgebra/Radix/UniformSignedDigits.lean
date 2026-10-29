@@ -1,20 +1,5 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 
-/-!
-Model-level uniqueness of the production signed-binary `PiDEC` split.
-
-Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 16`.
-
-Owns: a row-encoding-independent predicate saying that one sign is in
-`{-1, 0, 1}`, every digit is either zero or that common sign, and the digits
-recompose to the parent; honest completeness for `Radix.splitScalar`; and
-uniqueness of the accepted digits for every strictly `B`-bounded parent.
-
-Does not own: a polynomial or R1CS encoding of the predicate; canonical field
-representative checks at an implementation boundary; Rust refinement; row
-counts; generated artifacts; or authorization to remove any constraint.
--/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
 
 open NightstreamFPrime.Spec
@@ -207,19 +192,19 @@ private theorem positiveDigit_eq_fieldBit {digit : F}
     digit = fieldOfNat (selectorBit digit) := by
   rcases allowed with zero | one
   · subst digit
-    rw [selectorBit, if_pos rfl, fieldOfNat_zero]
+    rw [selectorBit, ite_eq_left rfl, fieldOfNat_zero]
   · subst digit
-    rw [selectorBit, if_neg (by decide : (1 : F) ≠ 0), fieldOfNat_one]
+    rw [selectorBit, ite_eq_right (by decide : (1 : F) ≠ 0), fieldOfNat_one]
 
 private theorem negativeDigit_eq_negFieldBit {digit : F}
     (allowed : digit = 0 ∨ digit = -1) :
     digit = -(fieldOfNat (selectorBit digit)) := by
   rcases allowed with zero | negative
   · subst digit
-    rw [selectorBit, if_pos rfl, fieldOfNat_zero]
+    rw [selectorBit, ite_eq_left rfl, fieldOfNat_zero]
     exact Lean.Grind.AddCommGroup.neg_zero.symm
   · subst digit
-    rw [selectorBit, if_neg (by decide : (-1 : F) ≠ 0), fieldOfNat_one]
+    rw [selectorBit, ite_eq_right (by decide : (-1 : F) ≠ 0), fieldOfNat_one]
 
 private theorem magnitudeFieldDigit_cases (parent : F) (index : ChildIndex) :
     fieldOfNat (magnitudeDigit parent index) = 0 ∨
@@ -242,7 +227,7 @@ theorem honest_complete (parent : F)
       · exact Or.inr (Or.inl (by simp [honestSign, nonnegative]))
       · exact Or.inr (Or.inr (by simp [honestSign, nonnegative]))
     · intro index
-      rw [splitScalar, if_pos bounded]
+      rw [splitScalar, ite_eq_left bounded]
       by_cases nonnegative : isNonnegative parent
       · rw [show honestSign parent = 1 by simp [honestSign, nonnegative]]
         rw [show boundedDigit parent index =
@@ -330,11 +315,11 @@ private theorem sound_positive {parent : F} {digits : ChildIndex → F}
   have magnitudeExact : centeredMagnitude parent = magnitude := by
     rw [PiRLCAlgebra.Norm.Centered.centeredMagnitude_eq_distance]
     unfold PiRLCAlgebra.Norm.Centered.distance
-    rw [if_pos (by simpa [isNonnegative] using parentNonnegative)]
+    rw [ite_eq_left (by simpa [isNonnegative] using parentNonnegative)]
     exact magnitudeEqVal.symm
   have bitsExact := bits_eq_natBit_binaryValue bits bitsBinary
   funext index
-  rw [splitScalar, if_pos bounded, boundedDigit, if_pos parentNonnegative,
+  rw [splitScalar, ite_eq_left bounded, boundedDigit, ite_eq_left parentNonnegative,
     magnitudeDigit, magnitudeExact, ← congrFun bitsExact index]
   exact positiveDigit_eq_fieldBit (allowed index)
 
@@ -388,7 +373,7 @@ private theorem sound_negative {parent : F} {digits : ChildIndex → F}
       exact magnitudeZero values
     have negatedValue : (-(fieldOfNat magnitude)).val =
         goldilocksModulus - magnitude := by
-      rw [Fin.val_neg, if_neg embeddedNonzero]
+      rw [Fin.val_neg, ite_eq_right embeddedNonzero]
       simp [fieldOfNat, Nat.mod_eq_of_lt magnitudeLtModulus]
     have parentValue : parent.val = goldilocksModulus - magnitude := by
       have values := congrArg Fin.val encoded
@@ -403,10 +388,10 @@ private theorem sound_negative {parent : F} {digits : ChildIndex → F}
     have magnitudeExact : centeredMagnitude parent = magnitude := by
       rw [PiRLCAlgebra.Norm.Centered.centeredMagnitude_eq_distance]
       unfold PiRLCAlgebra.Norm.Centered.distance
-      rw [if_neg (by simpa [isNonnegative] using parentNegative), parentValue]
+      rw [ite_eq_right (by simpa [isNonnegative] using parentNegative), parentValue]
       omega
     funext index
-    rw [splitScalar, if_pos bounded, boundedDigit, if_neg parentNegative,
+    rw [splitScalar, ite_eq_left bounded, boundedDigit, ite_eq_right parentNegative,
       magnitudeDigit, magnitudeExact, ← congrFun bitsExact index]
     exact negativeDigit_eq_negFieldBit (allowed index)
 

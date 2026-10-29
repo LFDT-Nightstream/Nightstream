@@ -1,22 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 
-/-!
-Structural carrier lift for an explicit sparse CCS polynomial.
-
-Protocol: shared CCS syntax infrastructure.
-Phase: carrier placement before polynomial evaluation.
-Constraint family: none; this file emits no rows.
-
-Owns: coefficient-only lifting of sparse monomials and complete constraint
-polynomials, with exact preservation of exponents, term order, declared
-metadata, and syntax-derived degree.
-
-Does not own: algebraic homomorphism laws, evaluation, norm residuals,
-protocol source data, SumCheck, Rust, R1CS, or constraint counts.
-
-Emits constraints: no.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConstraintPolynomialLift
 
 universe uBase uExtension

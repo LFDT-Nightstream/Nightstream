@@ -3,10 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiDECNativeProduct
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
 
-/-!
-One fixed-key Ajtai block contribution for all sixteen PiDEC children.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock

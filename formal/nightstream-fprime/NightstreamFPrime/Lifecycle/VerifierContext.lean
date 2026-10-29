@@ -1,16 +1,6 @@
 import NightstreamFPrime.Lifecycle.Types
 import NightstreamFPrime.Spec.Poseidon2
 
-/-!
-Owns the verifier-context digest carried in every Stage 1 state preimage.
-The production verifier recomputes it from authoritative static words. The
-sealed package identity is a separate object and is not an input here.
-
-The fixed descriptor commits to the Nightstream Goldilocks profile and the
-digest-only PiCCS schedule. Four domain-separated component digests commit to
-the logical relation, application, NIFS key material, and commitment key.
--/
-
 namespace NightstreamFPrime.Lifecycle.VerifierContext
 
 open NightstreamFPrime.Spec

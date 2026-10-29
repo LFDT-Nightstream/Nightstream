@@ -3,25 +3,7 @@ import NightstreamFPrime.Lifecycle.RandomOracleSolver
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 import NightstreamFPrime.Spec.KnowledgeContract
 
-/-!
-Owns the one-fold knowledge theorem with the Ajtai key drawn inside the game:
-the key's coefficients are the reductions of uniform 256-bit setup chunks
-(`AjtaiSetupV1.Programming`, premise P1: SHAKE128 as a random oracle), and the
-adversary is chosen before the chunks, so it may read the whole key but cannot
-contain a kernel vector of it.
-
-Inputs: an adversary for each value of the setup chunks, its claim and prior
-preimage, and the verifier-owned context digest. The digest is computed from
-the public setup authority (seed and dimensions), so it does not depend on the
-chunks.
-
-Outputs: `setupKey`, `msisAdvantage`, `knowledge_error_le_setup`,
-`solverAdvantage`, `msisAdvantage_le_solver`, `production_knowledge_error_lt`,
-`randomized_knowledge_error_lt` and `contract`.
-
-Does not own: MSIS hardness, the hardness of the state hash, machine work
-beyond counted adversary runs, or SHAKE128 itself.
--/
+/-! Premise P1: SHAKE128 as a random oracle (`AjtaiSetupV1.Programming`). -/
 
 set_option autoImplicit false
 

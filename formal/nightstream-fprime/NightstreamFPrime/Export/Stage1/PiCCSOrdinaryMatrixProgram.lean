@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan
 
-/-!
-Owns the package-carried sparse substitution for canonical PiCCS ordinary
-rows.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram
@@ -74,7 +69,7 @@ theorem freshPublicInputRange_form?
   rw [Spartan.sourceToSpartan_add_of_pilotPriorPublic
     PilotProduction.priorPublicInputStart index.val (Nat.le_refl _) upper]
   simpa [freshPublicInputRange,
-    PiCCSOrdinaryDirectPlan.Location.form] using
+    PiCCSOrdinaryDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (freshPublicInputBlock program)
       (freshPublicInputStart program)
       (Spartan.sourceToSpartan PilotProduction.priorPublicInputStart)
@@ -129,11 +124,11 @@ private theorem sourceToSpartan_outputInput_add
         PilotSpartan.sourceToSpartan PilotSpartan.outputPreimageStart +
           offset.val := by
     unfold PilotSpartan.sourceToSpartan
-    rw [if_neg sumNotPrior, if_neg sumNotOutput, if_pos sumBeforeDigest,
-      if_neg startNotPrior, if_neg startNotOutput, if_pos startBeforeDigest]
+    rw [ite_eq_right sumNotPrior, ite_eq_right sumNotOutput, ite_eq_left sumBeforeDigest,
+      ite_eq_right startNotPrior, ite_eq_right startNotOutput, ite_eq_left startBeforeDigest]
     omega
   unfold Spartan.sourceToSpartan
-  rw [if_pos sumPilot, if_pos startPilot, pilotAffine]
+  rw [ite_eq_left sumPilot, ite_eq_left startPilot, pilotAffine]
   exact Spartan.liftPilotColumn_add_of_input
     (PilotSpartan.sourceToSpartan PilotSpartan.outputPreimageStart)
     offset.val (by
@@ -141,8 +136,8 @@ private theorem sourceToSpartan_outputInput_add
           PilotSpartan.sourceToSpartan PilotSpartan.outputPreimageStart =
             PilotSpartan.secondPrivateStart := by
         unfold PilotSpartan.sourceToSpartan
-        rw [if_neg startNotPrior, if_neg startNotOutput,
-          if_pos startBeforeDigest]
+        rw [ite_eq_right startNotPrior, ite_eq_right startNotOutput,
+          ite_eq_left startBeforeDigest]
         omega
       rw [mappedStart, PilotSpartan.secondPrivateStart_value]
       norm_num [Spartan.pilotInputPrivateColumnCount,
@@ -196,7 +191,7 @@ theorem freshRange_form?
     norm_num [Spartan.piCcsPhaseOffset]
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal
     PiCCSArithmetic.initialClaimFreshStart index.val phaseBound]
-  simpa [freshRange, PiCCSOrdinaryDirectPlan.Location.form] using
+  simpa [freshRange, PiCCSOrdinaryDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (freshBlock program) (freshStart program)
       (Spartan.sourceToSpartan PiCCSArithmetic.initialClaimFreshStart)
       freshCount 0 (freshFits geometry) (by rfl) index)
@@ -252,7 +247,7 @@ theorem callerInputRange_form?
     omega
   rw [Spartan.sourceToSpartan_add_of_proofInput
     PiCCSInputs.priorChildrenStart index.val lower upper]
-  rw [proofInputIndex, PiCCSOrdinaryDirectPlan.Location.form_proofInput]
+  rw [proofInputIndex, PiCCSOrdinaryDirectPlan.Location.form_proofInput _ index]
   simpa only [callerInputRange, proofInputSlot, Nat.zero_add] using!
     (SourceRange.form?_ofSemantic (proofLogicalBlock program)
       (proofLogicalStart program)
@@ -282,7 +277,7 @@ theorem statementSignRange_form?
     omega
   rw [signSource_eq index sign, Spartan.sourceToSpartan_add_of_piCcsLocal
     PiCCSInputs.phaseOffset (index.val - 15192) phaseOffset_piCcsLocal]
-  rw [proofInputIndex, PiCCSOrdinaryDirectPlan.Location.form_proofInput]
+  rw [proofInputIndex, PiCCSOrdinaryDirectPlan.Location.form_proofInput _ index]
   have selected := SourceRange.form?_ofSemantic (proofLogicalBlock program)
     (proofLogicalStart program)
     (Spartan.sourceToSpartan PiCCSInputs.phaseOffset) Lifecycle.PiCCS.v1_2.StateBinding.signCount
@@ -354,7 +349,7 @@ theorem ordinaryLogicalRange_form?
       unfold PiCCSStarts.initialClaimLogicalStart
       rw [PiCCSStarts.roundTranscriptWitnessStart_eq]
       norm_num [Spartan.piCcsPhaseOffset])]
-  rw [ordinaryLogicalIndex, PiCCSOrdinaryDirectPlan.Location.form_ordinaryLogical]
+  rw [ordinaryLogicalIndex, PiCCSOrdinaryDirectPlan.Location.form_ordinaryLogical _ index]
   simpa only [ordinaryLogicalRange, ordinaryLogicalSlot] using!
     (SourceRange.form?_ofSemantic (proofLogicalBlock program)
       (proofLogicalStart program)
@@ -381,7 +376,7 @@ theorem expectedContextRange_form?
         geometry) := by
   rw [Spartan.sourceToSpartan_expectedContext]
   simpa [expectedContextRange, PiCCSOrdinaryDirectPlan.Location.form,
-    PiCCSInputs.expectedContextWords] using
+    PiCCSInputs.expectedContextWords] using!
     (SourceRange.form?_ofSemantic (expectedContextBlock program)
       (expectedContextStart program) Spartan.expectedContextPublicStart
       PiCCSInputs.expectedContextWords 0 (expectedContextFits geometry)
@@ -843,6 +838,23 @@ theorem substitution_outputInput_form?
   simp [substitution, SourceSubstitution.form?, priorNone, selected,
     callerNone, signNone, ordinaryNone, freshNone, publicNone, contextNone, gridNone]
 
+private theorem substitution_form?_of_statementSign
+    {program : Program} {logicalWidth source : Nat}
+    {form : ProductionRelation.SparseForm logicalWidth}
+    (priorNone : (priorInputRange program).form? logicalWidth source = none)
+    (outputNone : (outputInputRange program).form? logicalWidth source = none)
+    (callerNone : (callerInputRange program).form? logicalWidth source = none)
+    (selected : (statementSignRange program).form? logicalWidth source = some form)
+    (ordinaryNone : (ordinaryLogicalRange program).form? logicalWidth source = none)
+    (freshNone : (freshRange program).form? logicalWidth source = none)
+    (publicNone : (freshPublicInputRange program).form? logicalWidth source = none)
+    (contextNone : (expectedContextRange program).form? logicalWidth source = none)
+    (gridNone : (transcriptOutputGrid program).form? logicalWidth source = none) :
+    (substitution program).form? logicalWidth source = some form := by
+  simp [substitution, SourceSubstitution.form?, priorNone, outputNone,
+    callerNone, selected, ordinaryNone, freshNone, publicNone, contextNone,
+    gridNone]
+
 theorem substitution_proofInput_form?
     {program : Program} {logicalWidth : Nat}
     (geometry : Geometry program logicalWidth)
@@ -918,9 +930,8 @@ theorem substitution_proofInput_form?
         rw [gridStart]
         omega)
     rw [target]
-    simp [substitution, SourceSubstitution.form?, priorNone, outputNone,
-      callerNone, selected, ordinaryNone, freshNone, publicNone, contextNone,
-      gridNone]
+    exact substitution_form?_of_statementSign priorNone outputNone callerNone selected
+      ordinaryNone freshNone publicNone contextNone gridNone
 
 theorem substitution_transcriptOutput_form?
     {program : Program} {logicalWidth : Nat}
@@ -1201,7 +1212,7 @@ theorem substitution_location_form?
             PiCCSInputs.priorChildrenStart + inputIndex.val := by
           rw [← indexEq]
           change proofLogicalSource (proofInputSlot inputIndex) = _
-          rw [proofLogicalSource_proofInput]
+          rw [proofLogicalSource_proofInput inputIndex]
         simpa [PiCCSOrdinaryDirectPlan.Location.sourceColumn, sourceEq,
           indexEq] using
           (substitution_proofInput_form? geometry inputIndex)

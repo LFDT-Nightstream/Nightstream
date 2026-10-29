@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.Package
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns constructive completeness of the canonical Stage 1 PiCCS package rows.
-It adds no relation, circuit operation, or alternate package path.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSCompleteness
 
 open NightstreamFPrime.Circuit

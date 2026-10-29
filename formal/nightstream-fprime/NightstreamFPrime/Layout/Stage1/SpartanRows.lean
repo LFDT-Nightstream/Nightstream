@@ -3,11 +3,6 @@ import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDECRunningTransition
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 import NightstreamFPrime.Layout.R1CS.ColumnMap
 
-/-!
-Owns the complete Stage 1 prefix rows in Spartan order, their fixed-domain
-padding, and the preservation theorems for those rows.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.Spartan
 
 open NightstreamFPrime.Circuit

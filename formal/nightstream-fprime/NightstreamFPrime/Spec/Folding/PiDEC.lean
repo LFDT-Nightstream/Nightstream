@@ -1,18 +1,5 @@
 import NightstreamFPrime.Spec.Relation
 
-/-!
-Model-level Π_DEC recomposition reduction and standard parent-opening binding
-boundary.
-
-Owns: exact base-`b` recomposition semantics, completeness, knowledge reduction,
-and the model-level collision exposed when a separately valid parent opening
-differs from the opening reconstructed from valid children.
-
-This module's `Accepted` is intentionally the reusable recomposition core. It
-is weaker than the Section-7.5 operational verifier, which computes child
-public inputs from the parent; that verifier is owned by `PiDEC.PaperVerifier`.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiDEC
 
 universe uStructure uAssignment uPublicInput uPoint uEvaluation uCommitment
@@ -63,10 +50,6 @@ structure Attempt
   children : Fin params.k →
     CE.Instance Structure PublicInput Point Evaluation Commitment
 
-/-- Public recomposition equations used by the Π_DEC knowledge reduction.
-
-This is not the exact Section-7.5 operational verifier: it accepts any child
-public-input family that recomposes to the parent. -/
 structure Accepted
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}

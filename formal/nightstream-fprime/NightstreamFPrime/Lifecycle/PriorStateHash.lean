@@ -1,12 +1,6 @@
 import NightstreamFPrime.Lifecycle.PriorStateHashCore
 import NightstreamFPrime.Lifecycle.Relation
 
-/-!
-Connects the proved low-norm prior-state hash circuit to the exact recursive
-relation slot. Circuit construction and layout are owned by
-`PriorStateHashCore`.
--/
-
 namespace NightstreamFPrime.Lifecycle.PriorStateHash
 
 open NightstreamFPrime.Spec

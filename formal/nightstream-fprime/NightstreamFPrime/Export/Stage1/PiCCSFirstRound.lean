@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRoundPair
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 
-/-!
-Complete first-round coefficient construction from the existing protocol data.
-This file owns no source loading, selected matrix executor, or transcript
-operation.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSFirstRound
@@ -144,7 +138,7 @@ theorem vertexPolynomial_evaluate (ops : InterpolationOps Field)
       have length :
           (value :: BooleanVertex.fieldCoordinates ops suffix).length =
             shape.cubeVariables := (pairPoint ops dimension value suffix).dimension
-      simp only [ProtocolPolynomial.polynomial, dif_pos length]
+      simp only [ProtocolPolynomial.polynomial, dite_eq_left length]
       rfl
 
 private def polynomialSum (ops : InterpolationOps Field) {degree : Nat}
@@ -179,7 +173,7 @@ private theorem numericPair_index (ops : InterpolationOps Field)
     (dimension : shape.cubeVariables = remaining + 1) (suffix : BooleanVertex remaining) :
     numericPair ops data alpha gamma dimension (NumericBooleanDomain.index suffix) =
       vertexPolynomial ops data alpha gamma dimension suffix := by
-  simp only [numericPair, dif_pos (NumericBooleanDomain.index_lt_twoPow suffix),
+  simp only [numericPair, dite_eq_left (NumericBooleanDomain.index_lt_twoPow suffix),
     NumericBooleanDomain.vertex_index]
 
 def firstRound (ops : InterpolationOps Field)

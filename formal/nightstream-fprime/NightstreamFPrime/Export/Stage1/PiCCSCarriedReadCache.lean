@@ -2,9 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSCarriedRead
 import NightstreamFPrime.Export.Stage1.PiCCSLinearRows
 import Std.Data.HashMap.Lemmas
 
-/-! Cache complete carried blocks and their K-valued column reads for one
-invocation. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
@@ -50,8 +47,8 @@ private theorem fold_read {Value : Type} (keys : List Nat) (blocks : Nat → Val
       simp only [List.foldl_cons]
       apply inductionHypothesis
       by_cases present : cache.contains inserted
-      · simpa only [if_pos present] using valid
-      · simpa only [if_neg present] using insert_read cache blocks valid inserted
+      · simpa only [ite_eq_left present] using valid
+      · simpa only [ite_eq_right present] using insert_read cache blocks valid inserted
 
 theorem cachedRead_prepareCache {Value : Type} (keys : List Nat)
     (blocks : Nat → Value) (key : Nat) :
@@ -81,7 +78,7 @@ private theorem cached_columns_eq {columns : Nat}
       cachedRead (prepareCache keys (columnValue read)) (columnValue read) column.val) = read := by
   funext column
   rw [cachedRead_prepareCache]
-  simp only [columnValue, dif_pos column.isLt]
+  simp only [columnValue, dite_eq_left column.isLt]
 
 def invocation {columns : Nat}
     (basis : FixedArray (Vector K ringDegree) ringDegree)

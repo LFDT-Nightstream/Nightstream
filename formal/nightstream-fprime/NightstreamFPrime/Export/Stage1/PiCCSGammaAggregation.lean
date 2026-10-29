@@ -1,10 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
-/-! Factor the existing canonical carried-coordinate gamma sums.
-The matrix total is local; the enclosing pair kernel owns its
-matrixEvaluationOffset shift. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSGammaAggregation

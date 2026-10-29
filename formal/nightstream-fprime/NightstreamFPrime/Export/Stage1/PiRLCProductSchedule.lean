@@ -2,13 +2,6 @@ import Batteries.Data.Fin.Coding
 import Mathlib.Data.List.OfFn
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 
-/-!
-Owns the constant-time production selector for the four PiRLC product families.
-
-This module does not construct matrix rows or select retained assignment
-columns.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductSchedule
 
 open NightstreamFPrime.Spec
@@ -501,6 +494,7 @@ def Descriptor.invocation (descriptor : Descriptor) : Fin invocationCount :=
         rw [familyIndex_familyDescriptor]
         rfl
 
+attribute [local implicit_reducible] Family.invocationCount Family.privateCount in
 theorem Descriptor.invocation_val (descriptor : PiRLCProductSchedule.Descriptor) :
     descriptor.invocation.val =
       (match descriptor.family with

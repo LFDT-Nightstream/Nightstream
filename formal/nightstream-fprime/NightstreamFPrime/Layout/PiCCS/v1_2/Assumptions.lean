@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs
 
-/-!
-Paper authority: SuperNeo v1.2, section 7.3, PiCCS transcript order.
-Obligation: Discharge the syntactic range assumptions of the production
-PiCCS parent from its one layout-owned external-input range.
-
-This module owns only causal scope. It supplies no protocol value, challenge,
-predicate, row, or alternate circuit.
--/
+/-! Paper authority: SuperNeo v1.2, section 7.3, PiCCS transcript order. -/
 
 namespace NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 

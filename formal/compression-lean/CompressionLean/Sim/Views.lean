@@ -3,21 +3,6 @@ import CompressionLean.Ports.Circuit.Verifier
 import CompressionLean.Ports.Replay.Stages
 import CompressionLean.Spec.Program
 
-/-!
-Owns, for the decoding of a layer-1 proof view to the replay's proof
-(`ProofView.decode`, `Spec/Program.lean`), the simulation of the proof reads of `Views.lean` and
-`Verifier.lean` (`ProofView.read`): the handles hold the words of the decoded
-proof, and the replay's shape check (`Replay.readProof`) accepts it.
-
-- `Decodes c w`: the value of each handle is the word that `w` gives it.
-- `IsGkr`, `IsLeaf`, `IsOpening`, `IsProof`: the handles of a view are the
-  words of a replay value, field by field. `Replay.Opening` has no WHIR query
-  rows, so `IsOpening` gives each row the words of `w` (`IsRows`).
-- The shapes come from the reads. The only premise is that each GKR tree has
-  a depth and at most two factors, which `readGkr` checks. For
-  `ProofView.read` it follows from three facts about the relation.
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Spec
@@ -27,10 +12,8 @@ open CompressionLean.Replay (Word Ext Relation TreeShape WhirShape foldVars laye
 
 variable {F : Type} [CommRing F]
 
-/-- The value of each handle is the word that `w` gives it. -/
 def Decodes (c : Ctx F) (w : Var → Word) : Prop := ∀ h, c.val h = Word.cast (w h)
 
-/-- The round messages and the children of one GKR layer. -/
 def IsGkrLayer (c : Ctx F) (n : ℕ) (v : GkrLayerView) (g : Replay.GkrLayer) : Prop :=
   List.Forall₂ (IsExts c n) v.rounds.toList g.rounds.toList ∧
     List.Forall₂ (IsExts c n) v.children.toList g.children.toList
@@ -39,7 +22,6 @@ theorem IsGkrLayer.mono {c : Ctx F} {n m : ℕ} {v : GkrLayerView} {g : Replay.G
     (le : n ≤ m := by omega) : IsGkrLayer c m v g :=
   ⟨h.1.imp fun _ _ h => h.mono le, h.2.imp fun _ _ h => h.mono le⟩
 
-/-- The roots and the layers of a GKR proof. -/
 def IsGkr (c : Ctx F) (n : ℕ) (v : GkrView) (g : Replay.GkrProof) : Prop :=
   List.Forall₂ (IsPair c n) v.roots.toList g.roots.toList ∧
     List.Forall₂ (IsGkrLayer c n) v.layers.toList g.layers.toList
@@ -48,7 +30,6 @@ theorem IsGkr.mono {c : Ctx F} {n m : ℕ} {v : GkrView} {g : Replay.GkrProof} (
     (le : n ≤ m := by omega) : IsGkr c m v g :=
   ⟨h.1.imp fun _ _ h => h.mono le, h.2.imp fun _ _ h => h.mono le⟩
 
-/-- The values and the path of a setup leaf. -/
 def IsLeaf (c : Ctx F) (n : ℕ) (v : LeafView) (g : Replay.Leaf) : Prop :=
   IsWords c n v.values g.values ∧ List.Forall₂ (IsDigest c n) v.path.toList g.path.toList
 
@@ -56,7 +37,6 @@ theorem IsLeaf.mono {c : Ctx F} {n m : ℕ} {v : LeafView} {g : Replay.Leaf} (h 
     (le : n ≤ m := by omega) : IsLeaf c m v g :=
   ⟨h.1.mono le, h.2.imp fun _ _ h => h.mono le⟩
 
-/-- Each query row holds the words that `w` gives it. -/
 def IsRows (c : Ctx F) (w : Var → Word) (n : ℕ) (rows : Array (Array Var)) : Prop :=
   ∀ row ∈ rows, IsWords c n row (row.map w)
 
@@ -64,7 +44,6 @@ theorem IsRows.mono {c : Ctx F} {w : Var → Word} {n m : ℕ} {rows : Array (Ar
     (le : n ≤ m := by omega) : IsRows c w m rows :=
   fun row hr => (h row hr).mono le
 
-/-- The root, the answers, the sum-check and the query rows of one WHIR round. -/
 def IsRound (c : Ctx F) (w : Var → Word) (n : ℕ) (v : RoundView) (g : Replay.WhirRound) : Prop :=
   IsDigest c n v.root g.root ∧ IsExts c n v.ood g.ood ∧
     List.Forall₂ (IsPair c n) v.sumcheck.toList g.sumcheck.toList ∧ IsRows c w n v.queries
@@ -74,7 +53,6 @@ theorem IsRound.mono {c : Ctx F} {w : Var → Word} {n m : ℕ} {v : RoundView} 
   let ⟨root, ood, sumcheck, queries⟩ := h
   ⟨root.mono le, ood.mono le, sumcheck.imp fun _ _ h => h.mono le, queries.mono le⟩
 
-/-- Each field of one WHIR opening, and its query rows. -/
 def IsOpening (c : Ctx F) (w : Var → Word) (n : ℕ) (v : OpeningView) (g : Replay.Opening) : Prop :=
   IsExts c n v.initialOod g.initialOod ∧ List.Forall₂ (IsExts c n) v.evals.toList g.evals.toList ∧
     List.Forall₂ (IsPair c n) v.initialSumcheck.toList g.initialSumcheck.toList ∧
@@ -88,7 +66,6 @@ theorem IsOpening.mono {c : Ctx F} {w : Var → Word} {n m : ℕ} {v : OpeningVi
     rounds.imp fun _ _ h => h.mono le, finalPoly.mono le, finalQueries.mono le,
     finalSumcheck.imp fun _ _ h => h.mono le⟩
 
-/-- Each field of a layer-1 proof. -/
 def IsProof (c : Ctx F) (w : Var → Word) (n : ℕ) (v : ProofView) (g : Replay.Proof) : Prop :=
   IsDigest c n v.p0 g.p0 ∧ IsWords c n v.histogram g.histogram ∧ IsGkr c n v.early g.early ∧
     IsExts c n v.earlyValues.runs #[g.earlyValues.eRe, g.earlyValues.eIm, g.earlyValues.row] ∧
@@ -111,28 +88,24 @@ section Decoded
 
 variable {c : Ctx F} {w : Var → Word} {m : ℕ}
 
-/-- Three handles below `m` are their decoded value. -/
 theorem isExt_decode (hw : Decodes c w) {e : ExtVar} (h : ∀ k, e k < m) : IsExt c m e (decodeExt w e) := by
   intro k
   refine ⟨h k, ?_⟩
   rw [hw]
   fin_cases k <;> rfl
 
-/-- Handles below `m` are their decoded words. -/
 theorem isWords_map (hw : Decodes c w) {hs : Array Var} (h : ∀ i (hi : i < hs.size), hs[i] < m) :
     IsWords c m hs (hs.map w) := by
   refine ⟨(Array.size_map ..).symm, fun i hi => ?_⟩
   rw [getElem!_pos hs i hi, getElem!_pos _ i (by simpa using hi), Array.getElem_map]
   exact ⟨h i hi, hw _⟩
 
-/-- Extension handles below `m` are their decoded values. -/
 theorem isExts_map (hw : Decodes c w) {xs : Array ExtVar} (h : ∀ i (hi : i < xs.size), ∀ k, xs[i] k < m) :
     IsExts c m xs (xs.map (decodeExt w)) := by
   refine ⟨(Array.size_map ..).symm, fun i hi => ?_⟩
   rw [getElem!_pos xs i hi, getElem!_pos _ i (by simpa using hi), Array.getElem_map]
   exact isExt_decode hw (h i hi)
 
-/-- An array and its image under `f` meet `Forall₂ R` when each entry and its image meet `R`. -/
 theorem forall₂_map {α β : Type} {R : α → β → Prop} {f : α → β} {xs : Array α}
     (h : ∀ i (hi : i < xs.size), R xs[i] (f xs[i])) : List.Forall₂ R xs.toList (xs.map f).toList := by
   rw [Array.toList_map, List.forall₂_map_right_iff, List.forall₂_same]
@@ -140,7 +113,6 @@ theorem forall₂_map {α β : Type} {R : α → β → Prop} {f : α → β} {x
   obtain ⟨i, hi, rfl⟩ := List.mem_iff_getElem.mp hx
   simpa using h i (by simpa using hi)
 
-/-- When `R` relates `l` to `xs` and gives `S`, each entry of `xs` meets `S`. -/
 theorem forall₂_right {α β : Type} {R : α → β → Prop} {S : β → Prop} {l : List α} {xs : Array β}
     (h : List.Forall₂ R l xs.toList) (hs : ∀ a b, R a b → S b) : ∀ i (hi : i < xs.size), S xs[i] := by
   intro i hi
@@ -149,7 +121,6 @@ theorem forall₂_right {α β : Type} {R : α → β → Prop} {S : β → Prop
   have := hs _ _ (h.get (i := i) (by omega) (by simpa using hi))
   rwa [List.get_eq_getElem, Array.getElem_toList] at this
 
-/-- A loop of checks passes when each step passes. -/
 theorem forIn_ok {α ε : Type} {l : List α} {body : α → PUnit → Except ε (ForInStep PUnit)}
     (h : ∀ x ∈ l, body x ⟨⟩ = .ok (.yield ⟨⟩)) : forIn l ⟨⟩ body = .ok ⟨⟩ := by
   induction l with
@@ -159,8 +130,6 @@ theorem forIn_ok {α ε : Type} {l : List α} {body : α → PUnit → Except ε
       exact ih fun y hy => h y (List.mem_cons_of_mem _ hy)
 
 end Decoded
-
-/-! ## Programs -/
 
 instance privateExts_appends (count : ℕ) : Appends (Circuit.privateExts count) := by
   unfold Circuit.privateExts; appends
@@ -184,7 +153,6 @@ section Reads
 
 variable {c : Ctx F} {n : ℕ} {w : Var → Word}
 
-/-- `(0..count).map(…)`: entry `i` meets `R i`. -/
 theorem Ensures.rangeMapM {α : Type} {f : ℕ → Build α} (count : ℕ) (R : ℕ → α → ℕ → Prop)
     (mono : ∀ i a m m', R i a m → m ≤ m' → R i a m') (h : ∀ i < count, ∀ m, n ≤ m → Ensures c m (f i) (R i))
     (hf : ∀ i, Appends (f i) := by appends) :
@@ -195,7 +163,6 @@ theorem Ensures.rangeMapM {α : Type} {f : ℕ → Build α} (count : ℕ) (R : 
     refine ⟨size, fun i hi => ?_⟩
     simpa using hf.2 i (by simp; omega) (by simpa using hi)
 
-/-- `count` proof words, one `private` each (`algebra.rs::private`). -/
 theorem privateWords_ensures (count : ℕ) (hw : Decodes c w) :
     Ensures c n ((Array.range count).mapM fun _ => Build.priv)
       fun hs m => IsWords c m hs (hs.map w) ∧ hs.size = count :=
@@ -203,13 +170,11 @@ theorem privateWords_ensures (count : ℕ) (hw : Decodes c w) :
     priv_ensures.post fun _ _ ⟨e₁, e₂, _⟩ => by rw [e₁, e₂]; exact Nat.lt_succ_self _).post fun _ _ h =>
       ⟨isWords_map hw h.2, h.1⟩
 
-/-- `exts` (`verifier.rs::ProofView::read`): `count` extension values. -/
 theorem privateExts_ensures (count : ℕ) (hw : Decodes c w) :
     Ensures c n (Circuit.privateExts count) fun xs m => IsExts c m xs (xs.map (decodeExt w)) ∧ xs.size = count :=
   (Ensures.rangeMapM count (fun _ a m => ∀ k, a k < m) (fun _ _ _ _ h le k => lt_of_lt_of_le (h k) le) fun _ _ _ _ =>
     privateExt_ensures.post fun _ _ h k => (h k).2.1).post fun _ _ h => ⟨isExts_map hw h.2, h.1⟩
 
-/-- `pairs` (`verifier.rs::ProofView::read`): `count` pairs of extension values. -/
 theorem privatePairs_ensures (count : ℕ) (hw : Decodes c w) :
     Ensures c n (Circuit.privatePairs count)
       fun xs m => List.Forall₂ (IsPair c m) xs.toList (xs.map (decodePair w)).toList ∧ xs.size = count :=
@@ -219,7 +184,6 @@ theorem privatePairs_ensures (count : ℕ) (hw : Decodes c w) :
       Ensures.pure ⟨fun k => lt_of_lt_of_le (ha k).2.1 (by omega), fun k => (hb k).2.1⟩).post
     fun _ _ h => ⟨forall₂_map fun i hi => ⟨isExt_decode hw (h.2 i hi).1, isExt_decode hw (h.2 i hi).2⟩, h.1⟩
 
-/-- `root` (`verifier.rs::ProofView::read`): a digest. -/
 theorem privateDigest_ensures (hw : Decodes c w) :
     Ensures c n Circuit.privateDigest fun d m => IsDigest c m d (decodeDigest w d) :=
   (privateWords_ensures 4 hw).bind fun _ _ _ ⟨words, size⟩ => Ensures.pure ⟨rfl, fun lane => by
@@ -227,7 +191,6 @@ theorem privateDigest_ensures (hw : Decodes c w) :
     rw [hw]
     fin_cases lane <;> rfl⟩
 
-/-- `rows` (`whir/mod.rs::rows`): `draws` rows of the row length. -/
 theorem queryRows_ensures (draws width : ℕ) (base : Bool) (hw : Decodes c w) :
     Ensures c n (Circuit.queryRows draws width base) fun rows m => IsRows c w m rows ∧ rows.size = draws ∧
       ∀ row ∈ rows, row.size = if base then width else 3 * width :=
@@ -236,7 +199,6 @@ theorem queryRows_ensures (draws width : ℕ) (base : Bool) (hw : Decodes c w) :
       refine ⟨fun row hr => ?_, h.1, fun row hr => ?_⟩ <;> obtain ⟨i, hi, rfl⟩ := Array.mem_iff_getElem.mp hr
       exacts [(h.2 i hi).1, (h.2 i hi).2]
 
-/-- `LeafView::read` (`setup.rs::LeafView::read`), with the sizes that `readProof` checks. -/
 theorem LeafView.read_ensures (oracles setupVars : ℕ) (hw : Decodes c w) :
     Ensures c n (Circuit.LeafView.read oracles setupVars) fun v m => IsLeaf c m v (v.decode w) ∧
       (v.decode w).values.size = oracles * 2 ^ foldVars ∧ (v.decode w).path.size = setupVars + 1 - foldVars :=
@@ -245,7 +207,6 @@ theorem LeafView.read_ensures (oracles setupVars : ℕ) (hw : Decodes c w) :
       fun _ _ _ _ => privateDigest_ensures hw).bind fun _ _ _ ⟨length, path⟩ =>
         Ensures.pure ⟨⟨values.mono, forall₂_map path⟩, by simp [LeafView.decode, size], by simp [LeafView.decode, length]⟩
 
-/-- `GkrView::read` (`gkr.rs::GkrView::read`): the replay's `readGkr` accepts the decoded proof. -/
 theorem GkrView.read_ensures (shapes : Array TreeShape) (hs : ∀ s ∈ shapes, s.depth ≠ 0 ∧ s.factors ≤ 2)
     (hw : Decodes c w) :
     Ensures c n (Circuit.GkrView.read shapes)
@@ -297,8 +258,6 @@ theorem GkrView.read_ensures (shapes : Array TreeShape) (hs : ∀ s ∈ shapes, 
     simp [Replay.ensure, hall]
     rfl
 
-/-- `OpeningView::read` (`whir/mod.rs::OpeningView::read`): the replay's `readOpening` accepts the decoded
-opening. -/
 theorem OpeningView.read_ensures (shape : WhirShape) (rows : OpeningRows) (hw : Decodes c w) :
     Ensures c n (Circuit.OpeningView.read shape rows)
       fun v m => IsOpening c w m v (v.decode w) ∧ Replay.readOpening shape (v.decode w) = .ok () := by
@@ -352,8 +311,6 @@ theorem OpeningView.read_ensures (shape : WhirShape) (rows : OpeningRows) (hw : 
     simp [Replay.ensure, this.1, this.2]
     rfl
 
-/-- `ProofView::read` (`verifier.rs::ProofView::read`): the replay's `readProof` accepts the decoded
-proof. -/
 theorem ProofView.read_ensures (rel : Relation) (p1Rows p0Rows : OpeningRows)
     (hrun : rel.key.layout.runVariables ≠ 0) (hrow : rel.key.layout.rowVariables ≠ 0)
     (hslot : rel.key.layout.slotVariables + rel.matrixVars ≠ 0) (hw : Decodes c w) :

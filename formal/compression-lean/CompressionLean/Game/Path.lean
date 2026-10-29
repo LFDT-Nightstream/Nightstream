@@ -1,19 +1,9 @@
 import CompressionLean.Game.Restoration
 
-/-!
-Owns the paths of a game. A path is a position (`Pos`, the output type of
-the state-restoration experiment) that ends in a result. `Pos.msgs` lists
-the messages it received and `Pos.draws` the challenges it drew, in order
-and with their types; the two lists fix the position (`Pos.eq_of_msgs_draws`).
-`Reaches g ms ds a`: some path of `g` receives `ms`, draws `ds` and ends
-in `a`.
--/
-
 namespace CompressionLean.Game
 
 variable {α β : Type}
 
-/-- The challenges a position drew, in order, each with its type. -/
 def Pos.draws : (g : Game α) → Pos g → List (Σ C : Type, C)
   | pure _, _ => []
   | draw _ _ _, none => []
@@ -21,7 +11,6 @@ def Pos.draws : (g : Game α) → Pos g → List (Σ C : Type, C)
   | recv _ _, none => []
   | recv _ next, some ⟨m, p⟩ => Pos.draws (next m) p
 
-/-- The messages a position received, in order, each with its type. -/
 def Pos.msgs : (g : Game α) → Pos g → List (Σ M : Type, M)
   | pure _, _ => []
   | draw _ _ _, none => []
@@ -29,7 +18,6 @@ def Pos.msgs : (g : Game α) → Pos g → List (Σ M : Type, M)
   | recv _ _, none => []
   | recv M next, some ⟨m, p⟩ => ⟨M, m⟩ :: Pos.msgs (next m) p
 
-/-- A position is fixed by its messages and its draws. -/
 theorem Pos.eq_of_msgs_draws {g : Game α} {p p' : Pos g} (msgs : Pos.msgs g p = Pos.msgs g p')
     (draws : Pos.draws g p = Pos.draws g p') : p = p' := by
   induction g with
@@ -53,7 +41,6 @@ theorem Pos.eq_of_msgs_draws {g : Game α} {p p' : Pos g} (msgs : Pos.msgs g p =
           cases eq_of_heq (Sigma.mk.inj head).2
           rw [ih m tail draws]
 
-/-- Some path of `g` receives `ms`, draws `ds` and ends in `a`. -/
 def Reaches (g : Game α) (ms ds : List (Σ C : Type, C)) (a : α) : Prop :=
   ∃ p : Pos g, Pos.node g p = .pure a ∧ Pos.draws g p = ds ∧ Pos.msgs g p = ms
 

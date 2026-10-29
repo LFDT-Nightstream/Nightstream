@@ -99,7 +99,6 @@ theorem combTruth_nil (n : ℕ) (tables : σ → ℕ → K) (comb : MvPolynomial
     combTruth n tables comb [] = cubeSum n fun i => MvPolynomial.eval (fun j => tables j i) comb := by
   simp [combTruth, fold]
 
-/-- `X₀·X₁`. -/
 noncomputable def productComb : MvPolynomial (Fin 2) K := MvPolynomial.X 0 * MvPolynomial.X 1
 
 theorem product_truth_nil (n : ℕ) (T : Fin 2 → ℕ → K) :

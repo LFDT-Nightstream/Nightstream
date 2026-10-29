@@ -1,16 +1,4 @@
-//! The runs of the production layer-1 key. `production_runs_rebuild_the_layer1_key`
-//! writes every run that `PackageRows::visit_rows` pushes for the production
-//! circuit, the source of `Key::derive` in `compression_key`, to
-//! `target/lean-lowering/production_runs.bin`. It then reads the file back as
-//! `MatrixRows` and requires `Key::derive` of it to equal the layer-1 key of
-//! the committed production key (`tests/fixtures/compression/key.bin`).
-//! `production_setup_matches_lean` runs the Lean `setupCheck` on that file, on
-//! neo-spartan's `production_layer1.json` and on the run oracles that
-//! neo-spartan's `production_setup_columns` writes from it
-//! (`production_setup_columns.bin`), and requires both of its passes: the
-//! setup facts, and Lean's setup holding the run oracles that the key commits.
-//! `production_runs_match_lean` runs the Lean `runsCheck` on that file and
-//! requires its pass: the runs give F′'s matrices of the Poseidon2 hash chain.
+//! Writes the runs of the production layer-1 key for the Lean `setupCheck` and `runsCheck`.
 //!
 //! The file is little endian: the rows, the columns, the matrices and the run
 //! count as `u64`, then each run in visit order as its row and start column

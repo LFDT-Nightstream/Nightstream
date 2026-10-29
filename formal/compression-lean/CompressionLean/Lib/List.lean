@@ -2,12 +2,6 @@ import Mathlib.Algebra.BigOperators.Group.List.Basic
 import Mathlib.Data.List.GetD
 import Mathlib.Tactic.Ring
 
-/-!
-Owns generic facts about lists: entries read with `getD` after `++`, `map`
-over `List.range`, `flatten` and `ofFn`, a fold that adds, and the lists of
-at most `L` entries (a WHIR commitment's candidates) as a nonempty type.
--/
-
 namespace CompressionLean.Lib
 
 theorem list_getD_append {α : Type} (a l : List α) (n : ℕ) (d : α) :
@@ -66,7 +60,6 @@ theorem foldl_add_eq_sum {α M : Type} [AddCommMonoid M] (g : α → M) (l : Lis
   | nil => simp
   | cons x rest ih => rw [List.foldl_cons, ih, List.map_cons, List.sum_cons, add_assoc]
 
-/-- A commitment is a list of at most `L` candidates (WHIR's list decoding). -/
 instance candidates_nonempty {α : Type} (L : ℕ) : Nonempty {l : List α // l.length ≤ L} :=
   ⟨⟨[], by simp⟩⟩
 

@@ -109,5 +109,4 @@ The `nightstream` crate embeds `artifacts/compression-terminal-v1.json` and pins
 ## Cross-checks
 
 `scripts/crosschecks.sh` builds the executables and runs the ignored Rust tests that compare Rust
-with Lean, one after another, each under its cap. Its comments say what each check compares, which
-files it writes and reads, and how to update a digest pin.
+with Lean, one after another, each under its cap. Its header says how to update a digest pin.

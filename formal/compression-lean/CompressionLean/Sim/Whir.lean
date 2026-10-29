@@ -1,24 +1,6 @@
 import CompressionLean.Sim.Views
 import CompressionLean.Sim.Honest
 
-/-!
-Owns the simulation of our WHIR verifier (`whirVerify`, `whir/mod.rs::verify`)
-and of the openings (`openingsStage`, `verifier.rs::verify`) against the
-replay. `whirVerify_tracks`: when the checks hold, the circuit's WHIR verifier
-tracks `Replay.whirTranscript`, and the opened values are the opening's.
-`openingsStage_tracks`: the openings track the tail of `Replay.verify`, both
-WHIR transcripts and both `openingsAgree` checks.
-
-- The arithmetic, the Merkle paths and the STIR checks are steps that the
-  replay does not take. They keep the duplex (`Keeps`), so they track the
-  replay's `pure ()` (`Tracks.ofKeeps`).
-- A query index's inverse check keeps the sample from `p - 1`, as the replay's
-  `whirQueries` checks.
-- The circuit compares opened and expected values pair by pair. The replay
-  also compares their sizes, which Rust asserts, so the batch sizes are
-  premises.
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Spec
@@ -27,8 +9,6 @@ open CompressionLean.Replay (Word Ext WhirShape SumcheckShape ReplayM)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
-
-/-! ## Instruction shape -/
 
 instance Whir.absorb_appends (words : Array Word) (d : Duplex) : Appends ((Whir.absorb words).run d) := by
   unfold Whir.absorb; appends
@@ -65,11 +45,8 @@ instance openingsStage_appends (rel : Replay.Relation) (p1Key p0Key : WhirKey) (
     Appends ((Circuit.openingsStage rel p1Key p0Key o).run d) := by
   unfold Circuit.openingsStage; appends
 
-/-- Pass the steps that the replay does not take. -/
 local macro "quiet_steps" : tactic =>
   `(tactic| repeat (with_reducible refine Tracks.quiet Tracks.ofKeeps fun _ _ _ _ => ?_))
-
-/-! ## Lists and replay facts -/
 
 section Facts
 
@@ -107,7 +84,6 @@ private theorem map_eq_of_zip {α β γ : Type} {f : α → γ} {g : β → γ} 
       rw [List.map_cons, List.map_cons, h (a, b) (by simp),
         map_eq_of_zip (by simpa using len) fun p hp => h p (by simp [hp])]
 
-/-- `readOpening`'s batch sizes are the shape's. -/
 private theorem readOpening_sizes {shape : WhirShape} {g : Replay.Opening} (h : Replay.readOpening shape g = .ok ()) :
     g.evals.toList.map (·.size) = shape.batches.toList.map (·.size) := by
   unfold Replay.readOpening at h
@@ -134,7 +110,6 @@ private theorem runs_observeAll_eq {vs : Array Word} {t t' : Replay.Transcript} 
   cases h
   rfl
 
-/-- Two `observe_ext` calls are the replay's `observeExts` of the pair. -/
 private theorem runs_observePair {a b : Ext} {rest : ReplayM β} {tr tr' : Replay.Transcript} {v : β}
     (h : Runs (Replay.observeExt a >>= fun _ => Replay.observeExt b >>= fun _ => rest) tr v tr') :
     Runs (Replay.observeExts #[a, b] >>= fun _ => rest) tr v tr' := by
@@ -174,8 +149,6 @@ private theorem isExts_pair {a b : ExtVar} {ga gb : Ext} (ha : IsExt c n a ga) (
     IsExts c n #[a, b] #[ga, gb] :=
   (IsExts.empty.push ha).push hb
 
-/-- The coordinate groups of opened batches whose sizes are multiples of
-three (`batch.chunks(3)`, `verifier.rs::verify`). -/
 private theorem groups_rel {opened : Array (Array ExtVar)} {evals : Array (Array Ext)}
     (h : List.Forall₂ (IsExts c n) opened.toList evals.toList) (div : ∀ b ∈ evals.toList, b.size % 3 = 0) :
     List.Forall₂ (IsExts c n)
@@ -199,7 +172,6 @@ private theorem groups_rel {opened : Array (Array ExtVar)} {evals : Array (Array
         List.forall₂_same]
       exact fun i _ => hxy.slice _ _
 
-/-- `flat` (`verifier.rs::verify`) against the replay's `flatPairs`. -/
 private theorem flat_rel {pairs : Array (ExtVar × ExtVar)} {gpairs : Array (Ext × Ext)}
     {f : ExtVar × ExtVar → Array ExtVar} (hf : ∀ a b, f (a, b) = #[a, b])
     (h : List.Forall₂ (IsPair c n) pairs.toList gpairs.toList) :
@@ -218,7 +190,6 @@ private theorem flatPairs_size (pairs : Array (Ext × Ext)) : (Replay.flatPairs 
   rw [Replay.flatPairs, Array.size_flatMap, ← Array.sum_toList, Array.toList_map]
   simp [List.sum_replicate, Nat.mul_comm]
 
-/-- `openingsAgree` passes on batches of the expected sizes and equal values. -/
 private theorem agree_of {opened expected : Array (Array Ext)} {what : String}
     (sizes : opened.map (·.size) = expected.map (·.size))
     (same : ∀ p ∈ (opened.flatten.zip expected.flatten).toList, p.1 = p.2) :
@@ -232,7 +203,6 @@ private theorem agree_of {opened expected : Array (Array Ext)} {what : String}
   rw [show (opened.map (·.size) == expected.map (·.size)) = true from beq_iff_eq.mpr sizes, all]
   rfl
 
-/-- `mapM` over a list that `R` relates to `ys`: result `i` meets `S` at `ys[i]`. -/
 private theorem mapM₂_ensures {δ ε α : Type} {f : δ → Build α} {R : δ → ε → ℕ → Prop} {S : α → ε → ℕ → Prop}
     (monoR : ∀ x y m m', R x y m → m ≤ m' → R x y m') (monoS : ∀ a y m m', S a y m → m ≤ m' → S a y m')
     (h : ∀ x y m, R x y m → Ensures c m (f x) (S · y)) (hf : ∀ x, Appends (f x)) :
@@ -254,20 +224,15 @@ private theorem mapM₂_ensures {δ ε α : Type} {f : δ → Build α} {R : δ 
 
 end Facts
 
-/-! ## The WHIR verifier -/
-
 section Verify
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `absorb` (`whir/mod.rs::absorb`): the replay's `observeAll`. -/
 theorem Whir.absorb_tracks (hp : Permutes c.perm) (words : Array Word) :
     Tracks c n (Whir.absorb words) (Replay.observeAll words) fun _ _ _ => True := by
   unfold Whir.absorb
   exact Tracks.bindLast (Duplex.observeConsts_tracks hp words) fun _ _ _ _ _ => Tracks.pure trivial
 
-/-- `query_index` (`whir/mod.rs::query_index`): a sample that its inverse check
-keeps from `p - 1`, as the replay draws it. -/
 private theorem Whir.queryIndex_tracks (hp : Permutes c.perm) (width : ℕ) :
     Tracks c n (Whir.queryIndex width) (do
         let word ← Replay.sampleWord
@@ -295,8 +260,6 @@ private theorem Whir.queryIndex_tracks (hp : Permutes c.perm) (width : ℕ) :
   rw [Bool.not_eq_true', Bool.eq_false_iff]
   exact fun hb => hne' (Replay.Word.eq_of_beq hb)
 
-/-- `stir`'s draws (`whir/mod.rs::stir`): each query index, or none when
-the draw count is zero. The rest checks without the duplex. -/
 private theorem Whir.stir_tracks (hp : Permutes c.perm) (queries : Array (Array Var))
     (draws indexBits logFoldedDomain : ℕ) (root : DigestVar) (folding : Array ExtVar) (base : Bool) :
     Tracks c n (Whir.stir queries draws indexBits logFoldedDomain root folding base) (Replay.whirQueries draws)
@@ -312,8 +275,6 @@ private theorem Whir.stir_tracks (hp : Permutes c.perm) (queries : Array (Array 
     refine Tracks.loop (fun _ _ _ => True) (by simp [Std.Legacy.Range.size]) trivial fun k _ acc m _ _ => ?_
     exact Tracks.bindLast (Whir.queryIndex_tracks hp _) fun _ _ _ _ _ => Tracks.pure ⟨rfl, trivial⟩
 
-/-- `sumcheck` (`whir/mod.rs::sumcheck`): the replay's `whirSumcheck` of the
-round pairs. -/
 private theorem Whir.sumcheck_tracks (hp : Permutes c.perm) {shape : SumcheckShape}
     {rounds : Array (ExtVar × ExtVar)} {pairs : Array (Ext × Ext)} {claim : ExtVar}
     (hr : List.Forall₂ (IsPair c n) rounds.toList pairs.toList) :
@@ -351,10 +312,6 @@ private theorem Whir.sumcheck_tracks (hp : Permutes c.perm) {shape : SumcheckSha
     · rw [ite_eq_right (by rw [Array.isEmpty_iff_size_eq_zero] at e ⊢; rw [← len]; exact e)]
       exact run
 
-/-- **`whir::verify`** (`whir/mod.rs::verify`): when its checks hold, the
-circuit tracks the replay's transcript of the opening `g`, and the opened
-values are `g`'s. The key has the shape's batches, and `g` has the shape's
-counts (`readOpening`, which `OpeningView::read` gives). -/
 theorem whirVerify_tracks (hp : Permutes c.perm) {shape : WhirShape} {key : WhirKey} {root : DigestVar}
     {view : OpeningView} {points : Array (Array ExtVar)} {g : Replay.Opening} {w : Var → Word}
     (ho : IsOpening c w n view g) (hread : Replay.readOpening shape g = .ok ())
@@ -442,13 +399,10 @@ theorem whirVerify_tracks (hp : Permutes c.perm) {shape : WhirShape} {key : Whir
 
 end Verify
 
-/-! ## The openings -/
-
 section Openings
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `from_coordinates` (`verifier.rs::from_coordinates`). -/
 private theorem fromCoordinates_ensures {values : Array ExtVar} {gvalues : Array Ext}
     (hv : IsExts c n values gvalues) :
     Ensures c n (Circuit.fromCoordinates values) fun r m => IsExt c m r (Replay.fromCoordinates gvalues) := by
@@ -464,8 +418,6 @@ private theorem fromCoordinates_ensures {values : Array ExtVar} {gvalues : Array
       Ensures.pure ⟨rfl, by rw [sumRange_succ]; exact htotal⟩
   · rwa [Array.size_zipIdx, hv.1] at hr
 
-/-- The equality checks of `verifier.rs::verify` and `verifier.rs::verify`:
-once they hold, each pair's values are equal. The replay takes no step. -/
 private theorem assertPairs_tracks {xs : Array (ExtVar × ExtVar)} {gs : Array (Ext × Ext)}
     {body : ExtVar × ExtVar → PUnit → Transcript (ForInStep PUnit)}
     (hbody : ∀ a b u, body (a, b) u = (do liftM (Build.assertExtEqual a b); Pure.pure (ForInStep.yield PUnit.unit)))
@@ -494,16 +446,7 @@ private theorem assertPairs_tracks {xs : Array (ExtVar × ExtVar)} {gs : Array (
     have := hall j (by rw [len]; exact hj)
     rwa [getElem!_pos gs.toList j hj] at this
 
-/-- **The openings** (`verifier.rs::verify`): when the checks hold, the
-circuit tracks the replay's two WHIR transcripts and its two opening checks
-(`openingsAgree`), the tail of `Replay.verify`.
-
-The handles hold the replay's values field by field. Both openings pass
-`readOpening`, and the honest, early and late outputs have the proof's
-sizes. The keys have their shapes' batch counts. The relation's P1 batches
-are triples of coordinates, one per expected value, and its P0 batches have
-the sizes of the expected values; Rust asserts both (`verifier.rs::verify`,
-`verifier.rs::verify`). -/
+/-- Rust asserts the batch shapes that this takes (`verifier.rs::verify`): P1 batches are coordinate triples, P0 batches have the expected sizes. -/
 theorem openingsStage_tracks (hp : Permutes c.perm) {rel : Replay.Relation} {p1Key p0Key : WhirKey}
     {o : OpeningsInput} {proof : Replay.Proof} {early : Replay.EarlyOut} {lin : Replay.LinearOut}
     {honest : Replay.HonestOut} {late : Replay.LateOut} {w : Var → Word}

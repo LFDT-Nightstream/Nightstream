@@ -1,25 +1,11 @@
 import CompressionLean.Sim.Ring
 
-/-!
-Owns the simulation of `eval_k` (`Mle.evalK`, `mle.rs::eval_k`) against the
-replay's `Replay.evalK`: the long division over the coordinate bits.
-
-- The circuit keeps `Option` states and skips absent ones; the replay sums
-  every transition. An absent state is a zero state (`IsState`), and one
-  replay step is a sum over the `4·D` digits `(rem, below, bit)` in the
-  circuit's order (`digitSum`).
-- An identity of `Kx` holds when it holds in the challenge field `Cubic`
-  (`kx_eq_of_toQ`).
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
 open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Kx D)
 open NightstreamFPrime.Spec (goldilocksModulus)
-
-/-! ## Identities in the challenge field -/
 
 private theorem kx_eq_of_toQ {a b : Kx} (h : a.toQ (K := Cubic) = b.toQ) : a = b := by
   obtain ⟨ar, ai⟩ := a
@@ -41,8 +27,6 @@ private theorem kx_zero_mul (a : Kx) : Kx.zero.mul a = Kx.zero :=
 private theorem kx_zero_scale (e : Ext) : Kx.zero.scale e = Kx.zero :=
   kx_eq_of_toQ (by rw [Kx.toQ_scale, Kx.toQ_zero, zero_mul])
 
-/-! ## Sums of `Kx` values -/
-
 private theorem sumKx_succ (k : ℕ) (f : ℕ → Kx) : Replay.sumKx (k + 1) f = (Replay.sumKx k f).add (f k) := by
   simp only [Replay.sumKx, List.range_succ, List.foldl_append, List.foldl_cons, List.foldl_nil]
 
@@ -52,7 +36,6 @@ private theorem sumKx_congr {k : ℕ} {f g : ℕ → Kx} (h : ∀ i < k, f i = g
   | zero => simp only [Replay.sumKx, List.range_zero, List.foldl_nil]
   | succ k ih => rw [sumKx_succ, sumKx_succ, ih fun i hi => h i (by omega), h k (by omega)]
 
-/-- A sum over `4·k` digits is the sum over `(rem, below, bit)`, digit `4·rem + 2·below + bit`. -/
 private theorem sumKx_digits (k : ℕ) (f : ℕ → Kx) :
     Replay.sumKx (4 * k) f = Replay.sumKx k fun rem => Replay.sumKx 2 fun below => Replay.sumKx 2 fun bit =>
       f (4 * rem + 2 * below + bit) := by
@@ -65,11 +48,8 @@ private theorem sumKx_digits (k : ℕ) (f : ℕ → Kx) :
       simp only [Finset.sum_range_succ, Finset.sum_range_zero]
       ring_nf
 
-/-! ## The long division -/
-
 variable {F : Type} [CommRing F]
 
-/-- A long-division state of the circuit holds the replay's state; an absent state is zero. -/
 private def IsState (c : Ctx F) (n : ℕ) : Option KxVar → Kx → Prop
   | none, g => g = Kx.zero
   | some a, g => IsKx c n a g
@@ -80,13 +60,10 @@ private theorem IsState.mono {c : Ctx F} {n m : ℕ} {o : Option KxVar} {g : Kx}
   | none => exact h
   | some a => exact IsKx.mono h le
 
-/-- The circuit's long-division states hold the replay's states `g rem below`. -/
 private def IsStates (c : Ctx F) (n : ℕ) (states : Mle.DivisionStates) (g : ℕ → ℕ → Kx) : Prop :=
   states.size = D ∧
     ∀ rem < D, (states[rem]!).size = 2 ∧ ∀ below < 2, IsState c n (states[rem]!)[below]! (g rem below)
 
-/-- The replay's next states after the first `i` digits of one step of the long division, digit
-`4·rem + 2·below + bit` (`evalKStates`). -/
 private def digitSum (gr : Array (Word × Word)) (gs : Array Ext) (blocks t : ℕ) (prev : Array (Array Kx))
     (i rem' below' : ℕ) : Kx :=
   Replay.sumKx i fun j => Replay.contribution (Replay.divStep blocks gs.size t (j / 4) (j / 2 % 2) (j % 2)) rem'
@@ -122,7 +99,6 @@ private theorem contribution_absent (step : Option (ℕ × ℕ × ℕ)) (rem bel
     · exact kx_zero_mul _
     · rfl
 
-/-- `divFactor` as the circuit computes it: `1 - r_t` or `r_t`, then the weight of `s_t`. -/
 private theorem divFactor_ifs (gr : Array (Word × Word)) (gs : Array Ext) (t bit q : ℕ) (hbit : bit < 2) :
     Replay.divFactor gr gs t bit q =
       if t < gs.size then
@@ -132,7 +108,6 @@ private theorem divFactor_ifs (gr : Array (Word × Word)) (gs : Array Ext) (t bi
   unfold Replay.divFactor
   rcases (show bit = 0 ∨ bit = 1 by omega) with rfl | rfl <;> simp
 
-/-- `divStep` as the circuit tests it: the quotient bit, then the flag. -/
 private theorem divStep_ifs (blocks bb t rem below bit : ℕ) :
     Replay.divStep blocks bb t rem below bit =
       if t ≥ bb ∧ (if 2 * rem + bit ≥ D then 1 else 0) = 1 then none
@@ -189,14 +164,12 @@ private theorem set (h : IsStates c n next g) (slot nb : ℕ) {a : KxVar} {v : K
       rw [ite_eq_right fun h' : rem = slot ∧ below = nb => e h'.1.symm]
       exact (h.2 rem hr).2 below hb'⟩
 
-/-- A digit that moves no state. -/
 private theorem skip (h : IsStates c n next (digitSum gr gs blocks t prev i))
     (zero : ∀ rem below, Replay.contribution (Replay.divStep blocks gs.size t (i / 4) (i / 2 % 2) (i % 2)) rem below
       (Replay.divFactor gr gs t (i % 2)) ((prev[i / 4]!)[i / 2 % 2]!) = Kx.zero) :
     IsStates c n next (digitSum gr gs blocks t prev (i + 1)) :=
   h.congr fun rem _ below _ => by rw [digitSum_succ, zero, kx_add_zero]
 
-/-- A digit `(R, B, Bt)` that adds `x·factor` to state `(slot, nb)`. -/
 private theorem move {R B Bt : ℕ} (h : IsStates c n next (digitSum gr gs blocks t prev (4 * R + 2 * B + Bt)))
     (hB : B < 2) (hBt : Bt < 2) {slot nb q : ℕ} (step : Replay.divStep blocks gs.size t R B Bt = some (slot, nb, q))
     {a : KxVar} (ha : IsKx c n a ((digitSum gr gs blocks t prev (4 * R + 2 * B + Bt) slot nb).add
@@ -224,8 +197,6 @@ section EvalK
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `eval_k` (`mle.rs::eval_k`): the long division's value. An absent state
-of the circuit is a zero state of the replay. -/
 theorem Mle.evalK_ensures {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Array (Word × Word)}
     {gs gt : Array Ext} (blocks : ℕ) (rSize : Nat.log2 (D * 2 ^ gs.size).nextPowerOfTwo ≤ gr.size)
     (tauSize : D ≤ gt.size) (hr : IsKs c n r gr) (hs : IsExts c n sBlock gs) (ht : IsExts c n tau gt) :

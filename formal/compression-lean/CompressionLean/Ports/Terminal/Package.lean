@@ -112,20 +112,14 @@ def outputColumns (layout : PhysicalLayout) (index : Array (Option ℕ))
         else throw "terminal output column"
     | _ => throw "terminal output expression"
 
-/-- Mark the columns of `terms`. -/
 def mark (used : Array Bool) (terms : List (ℕ × Word)) : Array Bool :=
   terms.foldl (fun used t => used.set! t.1 true) used
 
-/-- The package columns below `total` that some row names. -/
 def named (total : ℕ) (rows : Array (R1csRow Word)) : Array Bool :=
   rows.foldl (fun used r => mark (mark (mark used r.a) r.b) r.c) (Array.replicate total false)
 
-/-- The numbering so far: the system column of each package column, the source
-of each system column, and the package column of each computed value. -/
 abbrev Numbering := Array (Option ℕ) × Array Source × Array ℕ
 
-/-- Number one package column: a named column gets the next system column and
-its source. -/
 def numberColumn (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (used : Array Bool)
     (state : Numbering) (column : ℕ) : Numbering :=
   let (index, sources, computed) := state
@@ -139,7 +133,6 @@ def numberColumn (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (u
       | none => (index, sources.push (.computed computed.size), computed.push column)
   else state
 
-/-- The system columns: the named package columns in increasing order. -/
 def number (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (used : Array Bool) :
     Numbering := Id.run do
   let mut state : Numbering := (Array.replicate layout.totalColumnCount none, #[], #[])
@@ -147,7 +140,6 @@ def number (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (used : 
     state := numberColumn layout segments used state column
   return state
 
-/-- Terms over package columns, moved to system columns. -/
 def reindex (index : Array (Option ℕ)) (terms : List (ℕ × Word)) : List (ℕ × Word) :=
   terms.map fun (c, x) => ((index[c]!).getD 0, x)
 

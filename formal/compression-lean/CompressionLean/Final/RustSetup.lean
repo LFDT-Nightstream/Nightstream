@@ -80,7 +80,6 @@ theorem runList_perm (pushes : List Push) :
       · exact List.filter_congr fun p _ => by by_cases h : p.matrix < m <;> simp [h]; omega
       · exact List.filter_congr fun p _ => by by_cases h : p.matrix < m <;> simp [h] <;> omega
 
-/-- The slot key of a run decodes to the run's start and class. -/
 theorem slotKey_eq {classes : List ℕ} {p : Push} (block : p.start / ringDegree < 2 ^ 32) :
     keyStart (slotKey classes p) = p.start ∧
       keyCode classes (slotKey classes p) = classes.getD (classes.idxOf p.classCode) 0 := by
@@ -101,7 +100,6 @@ theorem slotKey_eq {classes : List ℕ} {p : Push} (block : p.start / ringDegree
   rw [keyStart, low, high, Nat.mul_add_mod_of_lt lane]
   exact Nat.div_add_mod' p.start ringDegree
 
-/-- A class code decodes to the run's length and, past one column, its ratio. -/
 theorem classCode_decode (p : Push) :
     codeLength p.classCode = p.len ∧ (p.len = 1 ∨ codeRatio p.classCode = p.ratio) := by
   have word : p.ratioWord < 2 ^ 64 := by

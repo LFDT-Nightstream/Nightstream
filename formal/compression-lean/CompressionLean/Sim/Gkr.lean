@@ -2,15 +2,6 @@ import CompressionLean.Sim.Sumcheck
 import CompressionLean.Ports.Circuit.Gkr
 import CompressionLean.Bridge.Gkr
 
-/-!
-Owns the simulation of the batched GKR verifier of `Gkr.lean` (`gkr.rs`)
-against the replay's (`Ports/Replay/Gkr.lean`). `gkrVerify_tracks` tracks the
-replay's run and gives each tree's root and leaf claim (`IsGkrClaims`). The
-circuit sums `ν^i·(p + μq)` from the first active tree with a running
-weight; the replay uses Horner's rule from the last tree. The sums agree.
-The proof has the layers that `readGkr` checks.
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Spec
@@ -21,47 +12,38 @@ open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
 
-/-- The circuit's tree claims are the replay's GKR claims: each tree's root
-pair, leaf point and leaf values (`TreeClaim`, `gkr.rs::TreeClaim`). -/
 def IsGkrClaims (c : Ctx F) (m : ℕ) (claims : Array TreeClaimView) (g : Replay.GkrClaims) : Prop :=
   claims.size = g.roots.size ∧ ∀ t < claims.size,
     IsExt c m claims[t]!.root.1 (g.roots[t]!).1 ∧ IsExt c m claims[t]!.root.2 (g.roots[t]!).2 ∧
       IsExts c m claims[t]!.point g.leafPoint[t]! ∧ IsExts c m claims[t]!.values g.leafValues[t]!
 
-/-- The claims of `verify` (`gkr.rs::verify`) at a larger count. -/
 theorem IsGkrClaims.mono {c : Ctx F} {m m' : ℕ} {claims : Array TreeClaimView} {g : Replay.GkrClaims}
     (h : IsGkrClaims c m claims g) (le : m ≤ m' := by omega) : IsGkrClaims c m' claims g :=
   ⟨h.1, fun t ht => let ⟨p, q, point, values⟩ := h.2 t ht; ⟨p.mono le, q.mono le, point.mono le, values.mono le⟩⟩
 
-/-- One step of the batched sum (`gkr.rs::verify`): the running weight
-against Horner's rule. -/
 private theorem horner_step (A W a nu R : Ext) : A + W * (a + nu * R) = A + W * a + W * nu * R :=
   coords_injective (F := Gl) (by
     simp only [coords_add, coords_mul]
     funext k
     fin_cases k <;> simp [extProduct, Matrix.vecHead, Matrix.vecTail] <;> ring)
 
-/-- The batched sum after the last tree (`gkr.rs::verify`). -/
 private theorem add_mul_zero (A W : Ext) : A + W * 0 = A :=
   coords_injective (F := Gl) (by
     simp only [coords_add, coords_mul, coords_zero]
     funext k
     fin_cases k <;> simp [extProduct])
 
-/-- The batched sum before the first tree (`gkr.rs::verify`). -/
 private theorem zero_add_one_mul (R : Ext) : R = 0 + 1 * R :=
   coords_injective (F := Gl) (by
     simp only [coords_add, coords_mul, coords_zero, coords_one]
     funext k
     fin_cases k <;> simp [extProduct])
 
-/-- Binding each child in order (`gkr.rs::verify`) binds the flattened values. -/
 private theorem flatMap_flatten {α β : Type} (f : α → List β) :
     ∀ L : List (List α), L.flatten.flatMap f = L.flatMap fun l => l.flatMap f
   | [] => rfl
   | l :: L => by rw [List.flatten_cons, List.flatMap_append, flatMap_flatten f L, List.flatMap_cons]
 
-/-- The reduced values of one tree (`gkr.rs::verify`), entry by entry. -/
 private theorem isExts_of_forall₂ {c : Ctx F} {n N : ℕ} {g : ℕ → Ext} {as : List ExtVar}
     (h : List.Forall₂ (fun j a => IsExt c n a (g j)) (List.range N) as) :
     IsExts c n as.toArray ((Array.range N).map g) := by
@@ -73,26 +55,20 @@ private theorem isExts_of_forall₂ {c : Ctx F} {n N : ℕ} {g : ℕ → Ext} {a
   rw [getElem!_pos _ i (by simpa using hi), getElem!_pos _ i (by simpa using hi')]
   simpa using this
 
-/-- Tree `t`'s claim (`TreeClaim`, `gkr.rs::TreeClaim`) is the replay's root,
-leaf point and leaf values. -/
 private def IsTreeClaim (c : Ctx F) (m : ℕ) (v : TreeClaimView) (g : Replay.GkrClaims) (t : ℕ) : Prop :=
   IsPair c m v.root g.roots[t]! ∧ IsExts c m v.point g.leafPoint[t]! ∧ IsExts c m v.values g.leafValues[t]!
 
-/-- A tree's claim (`gkr.rs::verify`) at a larger count. -/
 private theorem IsTreeClaim.mono {c : Ctx F} {m m' : ℕ} {v : TreeClaimView} {g : Replay.GkrClaims} {t : ℕ}
     (h : IsTreeClaim c m v g t) (le : m ≤ m' := by omega) : IsTreeClaim c m' v g t :=
   let ⟨root, point, values⟩ := h
   ⟨root.mono le, point.mono le, values.mono le⟩
 
-/-- The state of `verify` after `j` layers (`gkr.rs::verify`): every tree's
-current pair, and the claim of every tree of depth at most `j`. -/
 private def IsLayerState (c : Ctx F) (m : ℕ) (shapes : Array TreeShape) (j : ℕ) (cur : Array (ExtVar × ExtVar))
     (cl : Array TreeClaimView) (g : Replay.GkrClaims) : Prop :=
   cur.size = shapes.size ∧ cl.size = shapes.size ∧ g.current.size = shapes.size ∧
     g.leafPoint.size = shapes.size ∧ g.leafValues.size = shapes.size ∧
     ∀ t < shapes.size, IsPair c m cur[t]! g.current[t]! ∧ (shapes[t]!.depth ≤ j → IsTreeClaim c m cl[t]! g t)
 
-/-- The state of `verify` (`gkr.rs::verify`) at a larger count. -/
 private theorem IsLayerState.mono {c : Ctx F} {m m' : ℕ} {shapes : Array TreeShape} {j : ℕ}
     {cur : Array (ExtVar × ExtVar)} {cl : Array TreeClaimView} {g : Replay.GkrClaims}
     (h : IsLayerState c m shapes j cur cl g) (le : m ≤ m' := by omega) : IsLayerState c m' shapes j cur cl g :=
@@ -104,7 +80,6 @@ section Advance
 variable {shapes : Array TreeShape} {k t : ℕ} {g : Replay.GkrClaims} {pairs : List (ℕ × Array Ext)}
   {next : Array Ext} {tau : Ext}
 
-/-- An inner tree's next pair (`gkr.rs::verify`). -/
 private theorem advance_current (inside : t < g.current.size) :
     (Replay.advance shapes k g pairs next tau).current[t]! =
       if k < shapes[t]!.depth then ((Replay.reducedOf pairs tau t)[0]!, (Replay.reducedOf pairs tau t)[1]!)
@@ -112,21 +87,18 @@ private theorem advance_current (inside : t < g.current.size) :
   simp only [Replay.advance]
   exact getElem!_map_range _ _ inside
 
-/-- A leaf tree's point (`gkr.rs::verify`). -/
 private theorem advance_leafPoint (inside : t < g.leafPoint.size) :
     (Replay.advance shapes k g pairs next tau).leafPoint[t]! =
       if shapes[t]!.depth = k then next.push tau else g.leafPoint[t]! := by
   simp only [Replay.advance]
   exact getElem!_map_range _ _ inside
 
-/-- A leaf tree's values (`gkr.rs::verify`). -/
 private theorem advance_leafValues (inside : t < g.leafValues.size) :
     (Replay.advance shapes k g pairs next tau).leafValues[t]! =
       if shapes[t]!.depth = k then Replay.reducedOf pairs tau t else g.leafValues[t]! := by
   simp only [Replay.advance]
   exact getElem!_map_range _ _ inside
 
-/-- A tree that does not end at layer `k` keeps its claim (`gkr.rs::verify`). -/
 private theorem IsTreeClaim.advance {c : Ctx F} {m : ℕ} {v : TreeClaimView} (h : IsTreeClaim c m v g t)
     (ne : shapes[t]!.depth ≠ k) (hp : t < g.leafPoint.size) (hv : t < g.leafValues.size) :
     IsTreeClaim c m v (Replay.advance shapes k g pairs next tau) t := by
@@ -138,20 +110,17 @@ private theorem IsTreeClaim.advance {c : Ctx F} {m : ℕ} {v : TreeClaimView} (h
 
 end Advance
 
-/-- The active trees of layer `k` (`gkr.rs::verify`). -/
 private theorem mem_activeTrees {shapes : Array TreeShape} {k t : ℕ} :
     t ∈ (Replay.activeTrees shapes k).toList ↔ t < shapes.size ∧ k ≤ shapes[t]!.depth := by
   unfold Replay.activeTrees
   simp
 
-/-- No tree is active twice (`gkr.rs::verify`). -/
 private theorem activeTrees_nodup (shapes : Array TreeShape) (k : ℕ) :
     (Replay.activeTrees shapes k).toList.Nodup := by
   unfold Replay.activeTrees
   rw [Array.toList_filter, Array.toList_range]
   exact List.nodup_range.filter _
 
-/-- The trees that step `s` of the reduction (`gkr.rs::verify`) adds. -/
 private theorem mem_take_succ {l : List ℕ} (nodup : l.Nodup) {s : ℕ} (hs : s < l.length) :
     (∀ t, t ∈ l.take (s + 1) ↔ t ∈ l.take s ∨ t = l[s]) ∧ l[s] ∉ l.take s := by
   have e : l.take (s + 1) = l.take s ++ [l[s]] := by
@@ -161,7 +130,6 @@ private theorem mem_take_succ {l : List ℕ} (nodup : l.Nodup) {s : ℕ} (hs : s
   rw [e, List.nodup_append] at this
   exact this.2.2 _ member _ (List.mem_singleton_self _) rfl
 
-/-- The replay reduces an active tree's children (`gkr.rs::verify`). -/
 private theorem reducedOf_active {shapes : Array TreeShape} {k s : ℕ} {gchildren : Array (Array Ext)} {tau : Ext}
     (size : gchildren.size = (Replay.activeTrees shapes k).size) (hs : s < (Replay.activeTrees shapes k).size) :
     Replay.reducedOf ((Replay.activeTrees shapes k).zip gchildren).toList tau (Replay.activeTrees shapes k)[s] =
@@ -176,15 +144,11 @@ private theorem reducedOf_active {shapes : Array TreeShape} {k s : ℕ} {gchildr
   unfold Replay.reducedOf
   rw [Bridge.find_of_mem nodup member]
 
-/-- The value of `sample_ext` (`gkr.rs::verify`). -/
 private def drawnExt (t : Replay.Transcript) : Ext :=
   ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
 
-/-- The transcript after `sample_ext` (`gkr.rs::verify`). -/
 private def afterExt (t : Replay.Transcript) : Replay.Transcript :=
   { duplex := t.duplex.sample.2.sample.2.sample.2, draws := t.draws.push (.ext (drawnExt t)) }
-
-/-! ## Programs -/
 
 instance gkrCombine_appends (children : Array ExtVar) (mu : ExtVar) : Appends (Circuit.gkrCombine children mu) := by
   unfold Circuit.gkrCombine; appends
@@ -192,8 +156,6 @@ instance gkrVerify_appends (view : GkrView) (shapes : Array TreeShape) (d : Dupl
     Appends ((Circuit.gkrVerify view shapes).run d) := by
   unfold Circuit.gkrVerify; appends
 
-/-- `mapM` in a transcript whose steps keep the duplex (the reduction of
-`gkr.rs::verify`). -/
 private theorem listMapMT {c : Ctx F} {δ α : Type} {f : δ → Transcript α} (R : δ → α → ℕ → Prop)
     (mono : ∀ x a m m', R x a m → m ≤ m' → R x a m') (hf : ∀ x d, Appends ((f x).run d)) :
     ∀ (xs : List δ) {n : ℕ} {d : Duplex},
@@ -218,8 +180,6 @@ section Verify
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `combine` (`gkr.rs::combine`): the replay's `combineVals`. A tree has at
-least two child values. -/
 private theorem gkrCombine_ensures {children : Array ExtVar} {gchildren : Array Ext} {mu : ExtVar} {gmu : Ext}
     (hc : IsExts c n children gchildren) (two : 2 ≤ gchildren.size) (hmu : IsExt c n mu gmu) :
     Ensures c n (Circuit.gkrCombine children mu) fun r m => IsExt c m r (Replay.combineVals gchildren gmu) := by
@@ -260,7 +220,6 @@ private theorem gkrCombine_ensures {children : Array ExtVar} {gchildren : Array 
   simp only [Replay.combineVals, ext_mul_assoc]
   exact e
 
-/-- The reduced pairs of one tree (`gkr.rs::verify`): the replay's `reduce`. -/
 private theorem reduceValues_ensures {values : Array ExtVar} {gvalues : Array Ext} {tau : ExtVar} {gtau : Ext}
     {d : Duplex} (hv : IsExts c n values gvalues) (ht : IsExt c n tau gtau) :
     Ensures c n (((Array.range (values.size / 2)).mapM (m := Transcript) fun j => do
@@ -285,8 +244,6 @@ private theorem reduceValues_ensures {values : Array ExtVar} {gvalues : Array Ex
   · rw [hv.1] at q
     exact ⟨isExts_of_forall₂ q.1, q.2⟩
 
-/-- `for root in &view.roots` (`gkr.rs::verify`): the replay's
-`observeExts (flatPairs roots)`. -/
 private theorem observePairs_ensures {d : Duplex} {r : Replay.Duplex} {vs : Array (ExtVar × ExtVar)}
     {gs : Array (Ext × Ext)} (hp : Permutes c.perm) (hd : IsDuplex c n d r) (hsize : vs.size = gs.size)
     (hv : ∀ i < vs.size, IsExt c n (vs[i]!).1 (gs[i]!).1 ∧ IsExt c n (vs[i]!).2 (gs[i]!).2) :
@@ -319,8 +276,6 @@ private theorem observePairs_ensures {d : Duplex} {r : Replay.Duplex} {vs : Arra
     rw [← Array.foldl_toList, Array.toList_flatMap, Replay.flatPairs, Array.toList_flatMap, List.flatMap_assoc]
     simpa using q
 
-/-- `for values in children` (`gkr.rs::verify`): the replay's `observeExts`
-of the flattened children. -/
 private theorem observeChildren_ensures {d : Duplex} {r : Replay.Duplex} {vs : Array (Array ExtVar)}
     {gs : Array (Array Ext)} (hp : Permutes c.perm) (hd : IsDuplex c n d r) (hsize : vs.size = gs.size)
     (hv : ∀ i < vs.size, IsExts c n vs[i]! gs[i]!) :
@@ -352,8 +307,6 @@ private theorem observeChildren_ensures {d : Duplex} {r : Replay.Duplex} {vs : A
     rw [← Array.foldl_toList, Array.toList_flatMap, Array.toList_flatten, flatMap_flatten, List.flatMap_map]
     exact q
 
-/-- The batched claim and its expected value at one layer
-(`gkr.rs::verify`): the replay's `batchClaim` and `batchExpected`. -/
 private theorem batchLoop_ensures {active : Array ℕ} {children : Array (Array ExtVar)}
     {gchildren : Array (Array Ext)} {cur : Array (ExtVar × ExtVar)} {gcur : Array (Ext × Ext)} {mu nu : ExtVar}
     {gmu gnu : Ext} {init : ExtVar × ExtVar × ExtVar} {d : Duplex} (hmu : IsExt c n mu gmu) (hnu : IsExt c n nu gnu)
@@ -411,8 +364,6 @@ private theorem batchLoop_ensures {active : Array ℕ} {children : Array (Array 
     rw [len, List.drop_length, Replay.batchExpected, add_mul_zero] at eE
     exact ⟨eA ▸ hA, eE ▸ hE, e⟩
 
-/-- The reduction of the active trees at `τ` (`gkr.rs::verify`): the
-replay's `advance`. -/
 private theorem reduceLoop_ensures {shapes : Array TreeShape} {j : ℕ} {roots : Array (ExtVar × ExtVar)}
     {next : Array ExtVar} {tau : ExtVar} {children : Array (Array ExtVar)} {gc : Replay.GkrClaims}
     {gchildren : Array (Array Ext)} {gnext : Array Ext} {gtau : Ext} {cur : Array (ExtVar × ExtVar)}
@@ -534,9 +485,6 @@ private theorem reduceLoop_ensures {shapes : Array TreeShape} {j : ℕ} {roots :
       · exact Or.inl deep
       · exact Or.inr ⟨mem_activeTrees.mpr ⟨ht, by omega⟩, by omega⟩
 
-/-- `gkr::verify` (`gkr.rs::verify`) tracks the replay's `gkrVerify`, and
-every tree's claim is the replay's. The proof has the shapes' layers
-(`readGkr`). -/
 theorem gkrVerify_tracks {view : GkrView} {proof : Replay.GkrProof} {shapes : Array TreeShape}
     (hp : Permutes c.perm) (hrs : view.roots.size = proof.roots.size)
     (hroots : ∀ i < view.roots.size, IsPair c n view.roots[i]! proof.roots[i]!)

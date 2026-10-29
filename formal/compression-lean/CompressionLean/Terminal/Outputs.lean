@@ -76,9 +76,6 @@ variable {lw : Nat} {pf : NightstreamFPrime.Spec.ringDegree *
   NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout.carrierWidth lw}
   (relation : NightstreamFPrime.Lifecycle.ProductionKey.LogicalRelation lw pf) (env : Env)
 
-/-- The PiRLC output instance on the package assignment `env`, for the
-relation of an application of logical width `lw`. The output map is the same
-at every width. -/
 abbrev parent :=
   Semantics.evalOutput relation
     (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface

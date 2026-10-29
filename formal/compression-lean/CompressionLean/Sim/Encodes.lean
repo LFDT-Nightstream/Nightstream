@@ -10,23 +10,6 @@ import CompressionLean.Final.Bridge
 import CompressionLean.Checks.KeyFacts
 import CompressionLean.Spec.Bound
 
-/-!
-Owns `ProgramEncodes` (`Claim.lean`) for the production final program
-(`FinalProgram::run`, `lifecycle/terminal/mod.rs::FinalProgram::run`, with `verify_with`,
-`neo-spartan/src/lib.rs::verify_with`), for any layer-1 key. The program, what
-layer 1 reads from its witness (`wordsOf`, `statementWith`, `seedWith`,
-`proofWith`) and the reading (`Reads`) are in `Spec/`.
-
-- `ctxOf`: the executor's run on a witness, whose words are `wordsOf`.
-- `programEncodes`: `ProgramEncodes` from the `verify` composition
-  (`verify_ensures`) and premises on the key. The game uses F′'s modulus,
-  which is the bridge's `phi` (`phi_eq_modulus`).
-
-Adversary: the prover picks the whole witness. Nothing here assumes that a
-word is in range or that a hint is honest; the circuit's checks and the
-stage lemmas carry every such fact.
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Spec
@@ -43,11 +26,9 @@ section Runs
 
 variable (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word)
 
-/-- Each shrink run of the program names only its own cells (`lower_valid`). -/
 theorem shrinkRun_valid (x : StateWords) : (shrinkRun key loaded context x).Valid Block.poseidonTemplate :=
   lower_valid Block.poseidonTemplate (Nat.le_of_eq rfl) _ _
 
-/-- The executor's run of the final program on `x` and the witness `w`. -/
 noncomputable def ctxOf (x : StateWords) (w : ℕ → Spec.F) : Ctx Spec.F :=
   let L := (productionProgram key loaded context).program
   let stmt := List.ofFn x
@@ -61,9 +42,6 @@ section Gives
 variable {key : Layer1Key} {loaded : Loaded} {context : Array Replay.Word}
   {authority : Lifecycle.VerifierContext.Authority} {c : Ctx Spec.F} {w : Var → Replay.Word}
 
-/-- What an accepting run gives: a terminal assignment for the run's
-statement whose claim is the decoded statement, and an accepting replay of
-the decoded seed, statement and proof. -/
 def Gives (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word)
     (authority : Lifecycle.VerifierContext.Authority) (c : Ctx Spec.F) (w : Var → Replay.Word) : Prop :=
   ∃ env, TerminalFor authority (Sim.statementOf c) env ∧
@@ -75,8 +53,6 @@ instance verifyWith_appends (key : Layer1Key) (state : Fin 16 → Var) (claim : 
     Appends (Circuit.verifyWith key state claim) := by
   unfold Circuit.verifyWith; appends
 
-/-- `verify_with` (`neo-spartan/src/lib.rs::verify_with`) from the handles that
-the terminal part hands it. -/
 private theorem verifyWith_at (hp : Permutes c.perm) (hw : Decodes c w) (facts : KeyFacts key)
     (named : ∀ s ∈ key.relation.key.layout.segments,
       s.classIndex < key.relation.key.layout.classes.size ∧ s.lane < Replay.D)
@@ -105,7 +81,6 @@ private theorem verifyWith_at (hp : Permutes c.perm) (hw : Decodes c w) (facts :
   rw [seedWith, FoldTranscript.handoffWords, Array.size_extract, FoldTranscript.absorbWords_size _ (by simp)]
   rfl
 
-/-- A witness of the program's CCS gives what `Gives` states. -/
 theorem program_gives
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
@@ -130,13 +105,11 @@ theorem program_gives
 
 end Gives
 
-/-- The bridge's `Φ81` is F′'s modulus. -/
 theorem phi_eq_modulus : phi = modulus := by
   unfold phi modulus
   rw [add_assoc]
   rfl
 
-/-- The bridge's bar transform is F′'s (`nativeBarEntry`). -/
 theorem barOf_eq (p l : Fin Spec.ringDegree) :
     barOf p l = Spec.gl (Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel.nativeBarEntry p l) := by
   unfold barOf Replay.bar
@@ -148,8 +121,6 @@ private theorem statementOf_ctxOf (key : Layer1Key) (loaded : Loaded) (context :
   funext k
   fin_cases k <;> rfl
 
-/-- **`ProgramEncodes` for the production final program**
-(`lifecycle/terminal/mod.rs::FinalProgram::run`), for a key that meets the premises. -/
 theorem programEncodes {key : Layer1Key} {loaded : Loaded} {context : Array Replay.Word}
     {authority : Lifecycle.VerifierContext.Authority} (S : Setup Gl) (facts : KeyFacts key)
     (fits : S.Fits (shapeOf key.relation))

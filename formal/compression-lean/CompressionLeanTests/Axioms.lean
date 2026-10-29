@@ -1,23 +1,8 @@
 import CompressionLean
 import CompressionLeanTests.Inventory
 import CompressionLeanTests.Reading
-/-!
-The axiom gate. `lake build` runs it.
-
-- Every theorem in a `CompressionLean` module, a later one too, uses only
-  `propext`, `Classical.choice` and `Quot.sound` (`#audit_library_axioms`).
-  A skipped proof or a proof by compiled evaluation anywhere in the library
-  fails the build, because each adds an axiom outside this list.
-  So does one in the gates' theorems (`CompressionLeanTests`, which today
-  holds only the reading gate's `reads_of_witness`).
-- The claims are the theorems of `CompressionLean.Claims`. Each claim of
-  `Inventory.claims` is declared there and uses exactly the axioms pinned
-  beside it, and each theorem there has a pin (`#pin_claims`). A renamed,
-  deleted or new claim fails the build until `Inventory.claims` matches.
--/
 open Lean Elab Command CompressionLeanTests.Inventory
 
-/-- The axioms that every theorem of the library may use. -/
 def allowedAxioms : Array Name := #[``propext, ``Classical.choice, ``Quot.sound]
 
 elab "#audit_library_axioms " root:ident : command => do

@@ -1,18 +1,6 @@
 import CompressionLean
 
-/-!
-The reading gate. `lake build` runs it.
-
-`production_bound` bounds an event in which every valid program witness has a
-reading (`Reads`). If no witness could have a reading, the bound would say
-nothing about a valid witness. `reads_of_witness` shows that the reading asks
-for no more than its two named assumptions: a valid witness has a reading when
-WHIR opens its candidates and its setup leaves bind (`MerkleBinds`). Under
-the honest key root, `Bridge.merkleBinds_of_root` gives `MerkleBinds` for
-leaves of the replay's shape unless a leaf exposes a Poseidon2 collision, and
-`Bridge.honest_leaves_bind` shows that honest leaves pass the path check. No
-theorem here joins them with `reads_of_witness`.
--/
+/-! Non-vacuity gate for `Reads` (`reads_of_witness`). No theorem here joins it with `Bridge.merkleBinds_of_root`. -/
 
 namespace CompressionLeanTests.Reading
 
@@ -20,9 +8,6 @@ open CompressionLean CompressionLean.Spec CompressionLean.Sim CompressionLean.Lo
 open CompressionLean.Circuit CompressionLean.Terminal.Package CompressionLean.Bridge CompressionLean.Layer1
 open NightstreamFPrime
 
-/-- A witness of the production final program's CCS has a reading, given only
-WHIR's openings at the points of its replay and the binding of its setup
-leaves. -/
 theorem reads_of_witness {key : Layer1Key} {loaded : Loaded} {context : Array Replay.Word}
     {authority : Lifecycle.VerifierContext.Authority} (S : Setup Gl) (facts : KeyFacts key)
     (fits : S.Fits (shapeOf key.relation))

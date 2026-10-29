@@ -4,34 +4,7 @@ import CompressionLean.Final.Budget
 import CompressionLean.Shrink.Budget
 import CompressionLean.Spec.Bound
 
-/-!
-Owns the end-to-end soundness of the final verifier (`CompressionKey::verify`,
-`lifecycle/finish.rs::CompressionKey::verify`). The shrink layer, layer 1 and the terminal
-package chain through the encoding premise (`Claim.lean`, `ProgramEncodes`):
-
-- the shrink verifier accepts `x`, so a candidate `w` satisfies the CCS of
-  program `x`, unless a shrink challenge is bad (`Shrink/Soundness.lean`);
-- `w` holds a terminal assignment for `x` and accepting layer-1 paths for
-  its parent claim (`ProgramEncodes`);
-- the leaf of such a path has a P0 candidate that is a CE(B) witness of the
-  parent claim, unless a layer-1 challenge is bad (`Layer1/Soundness.lean`);
-- so the terminal claim for `x` holds (`TerminalClaim`).
-
-Both layers' games run in one state-restoration experiment (`Compose.lean`),
-so one bad-set argument covers both, and layer 1's prover is not built from
-the shrink prover. The shrink extraction may return any candidate that
-satisfies the program's CCS, so the read condition covers every such
-candidate.
-
-Read condition (`final_restore_sound`): each such candidate has a reading
-whose walk under the layer-1 log accepts. A reading's challenges are the
-Poseidon2 outputs that the program computes (`Reads`), and the walk accepts a
-challenge only where the experiment's oracle answered it, so the condition
-does not follow from Poseidon2 acting as a random oracle. The bound covers a
-valid candidate only where its Poseidon2 challenges are oracle answers;
-Fiat–Shamir inside the program is assumed (`TRUST.md` §3). The openings inside
-the program follow the WHIR model.
--/
+/-! Model: random oracle for the in-program hash; idealized WHIR openings. The read condition does not follow from this model: Fiat–Shamir inside the program is assumed (`TRUST.md` §3). -/
 
 namespace CompressionLean.Final
 

@@ -12,16 +12,12 @@ open NightstreamFPrime.Spec (ringDegree)
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Lifecycle.PaperAlgebra (publicRingColumns)
 
-/-- The ordinary rows are F′'s `PiCCSArithmetic.arithmeticRows` and
-`PiRLCSamplerOrdinaryRows.rows` at any logical width. -/
 theorem arithmeticRows_at (lw : Nat)
     (pf : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw) :
     arithmeticRows () = PiCCSArithmetic.arithmeticRows lw pf ++
       PiRLCSamplerOrdinaryRows.rows (logicalWidth := lw) (publicFits := pf) := by
   rfl
 
-/-- The permutation invocations are F′'s `PiCCSInvocations.invocations` and
-`PiRLCSamplerInvocations.invocations` at any logical width. -/
 theorem permutationInvocations_at (lw : Nat)
     (pf : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw) :
     Data.permutationInvocations () = PiCCSInvocations.invocations lw pf ++

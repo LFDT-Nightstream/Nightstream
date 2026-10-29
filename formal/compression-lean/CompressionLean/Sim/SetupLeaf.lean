@@ -2,20 +2,6 @@ import CompressionLean.Sim.Merkle
 import CompressionLean.Ports.Circuit.Honest
 import CompressionLean.Bridge.Setup
 
-/-!
-Owns the simulation of the setup leaf check (`Circuit.setupCheck`,
-`setup.rs::check`) against the replay's `Replay.setupCheck`:
-`setupCheck_ensures`. Once the circuit's checks hold, the leaf's path reaches
-the key root (`pathOk_of`) and the replay's leaf check returns the circuit's
-folded values.
-
-- The leaf weights are the replay's `leafWeight`: the monomials `α^[u]`
-  (`monomials_succ`), their coefficients `α^[u]·2^-f·y^-u`, and their sums over
-  the coset.
-- Each group of oracles is folded with the weights: the key rows, then the
-  run oracles from offset `|w₀|`.
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
@@ -26,9 +12,6 @@ open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
 
-/-! ## Replay facts -/
-
-/-- `α^[u]` only reads the low `|α|` bits of `u`. -/
 theorem monomial_add (l : List Ext) (u k : ℕ) : Replay.monomial l (u + 2 ^ l.length * k) = Replay.monomial l u := by
   induction l generalizing u with
   | nil => rfl
@@ -38,7 +21,6 @@ theorem monomial_add (l : List Ext) (u k : ℕ) : Replay.monomial l (u + 2 ^ l.l
       rw [show (u + 2 * (2 ^ l.length * k)) / 2 = u / 2 + 2 ^ l.length * k by omega, ih,
         show (u + 2 * (2 ^ l.length * k)) % 2 = u % 2 by omega]
 
-/-- One more variable of `α` multiplies by its bit. -/
 theorem monomial_append (l : List Ext) (x : Ext) (u : ℕ) :
     Replay.monomial (l ++ [x]) u = Replay.monomial l u * (if u / 2 ^ l.length % 2 = 1 then x else 1) := by
   induction l generalizing u with
@@ -50,7 +32,6 @@ theorem monomial_append (l : List Ext) (x : Ext) (u : ℕ) :
       simp only [List.cons_append, Replay.monomial, List.length_cons, ih, e]
       rw [ext_mul_assoc]
 
-/-- The monomials of `α` and one more variable. -/
 theorem monomials_succ (l : List Ext) (x : Ext) :
     (Array.range (2 ^ l.length)).map (Replay.monomial l) ++
         (Array.range (2 ^ l.length)).map (fun u => Replay.monomial l u * x) =
@@ -66,14 +47,12 @@ theorem monomials_succ (l : List Ext) (x : Ext) :
     rw [show i / 2 ^ l.length = 1 from Nat.div_eq_of_lt_le (by omega) (by omega), ite_eq_left rfl]
     conv_rhs => rw [show i = i - 2 ^ l.length + 2 ^ l.length * 1 by omega, monomial_add]
 
-/-- `x + w·0 = x`: an absent leaf value adds nothing. -/
 theorem add_scale_zero (x w : Ext) : x + w.scale default = x :=
   coords_injective (F := Gl) (by
     rw [coords_add, coords_scale]
     funext k
     simp [show (default : Word) = 0 from rfl])
 
-/-- The circuit's lane checks (`setup.rs::check`) are the replay's `pathOk`. -/
 theorem pathOk_of {root : Array Word} {index : ℕ} {leaf : Replay.Leaf}
     (h : ∀ k < 4, (Replay.merkleRoot (Replay.hashLeaf leaf.values) index leaf.path)[k]! = root[k]!) :
     Replay.pathOk root index leaf = true := by
@@ -83,7 +62,6 @@ theorem pathOk_of {root : Array Word} {index : ℕ} {leaf : Replay.Leaf}
   rw [h lane (List.mem_range.mp hl)]
   exact beq_self_eq_true (root[lane]!).word
 
-/-- `setup::check` on a leaf whose path holds: one folded value per group. -/
 theorem setupCheck_ok {root : Array Word} {vars index : ℕ} {leaf : Replay.Leaf} {a b alpha : Array Ext}
     (path : Replay.pathOk root index leaf = true) :
     Replay.setupCheck root vars index leaf #[a, b] alpha = .ok
@@ -110,7 +88,6 @@ section LeafCheck
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- The monomials `α^[u]` for `u < 2^|α|`, low bit first (`setup.rs::check`). -/
 private theorem monomials_ensures {alpha : Array ExtVar} {galpha : Array Ext} {one : ExtVar} (hone : IsExt c n one 1)
     (ha : IsExts c n alpha galpha) :
     Ensures c n (forIn alpha #[one] fun a (monomials : Array ExtVar) => do
@@ -150,7 +127,6 @@ private theorem monomials_ensures {alpha : Array ExtVar} {galpha : Array Ext} {o
         ← getElem!_pos]
   · rwa [Array.length_toList, ha.1, List.take_of_length_le (by simp)] at q
 
-/-- The coefficients `α^[u]·2^-f·y^-u` (`setup.rs::check`). -/
 private theorem coefficients_ensures {monomials : Array ExtVar} {k : ℕ} {M : ℕ → Ext} {scale y : Var}
     {g0 gy : Word} (hm : IsExts c n monomials ((Array.range k).map M)) (hs : IsWord c n scale g0)
     (hy : IsWord c n y gy) :
@@ -182,7 +158,6 @@ private theorem coefficients_ensures {monomials : Array ExtVar} {k : ℕ} {M : �
     rw [Array.length_toList, size] at q
     exact q.2
 
-/-- The leaf weights `Σ_u coefficient_u·ω^((f - u)·v mod f)` (`setup.rs::check`). -/
 private theorem weights_ensures {coefficients : Array ExtVar} {k : ℕ} {C : ℕ → Ext} (omega : Word)
     (hc : IsExts c n coefficients ((Array.range k).map C)) :
     Ensures c n (forIn [:2 ^ foldVars] (#[] : Array ExtVar) fun v (weight : Array ExtVar) => do
@@ -216,9 +191,6 @@ private theorem weights_ensures {coefficients : Array ExtVar} {k : ℕ} {C : ℕ
     rw [map_range_succ]
     exact hacc.mono.push htotal
 
-/-- One group of the leaf check (`setup.rs::check`): each weight times its
-oracle's coset values, summed per coset position, then the dot product with
-the leaf weights. -/
 private theorem groupStep_ensures {values : Array Var} {gvalues : Array Word} {weight ws : Array ExtVar}
     {gweight : ℕ → Ext} {gws gfolded : Array Ext} {acc : ℕ × Array ExtVar} (hv : IsWords c n values gvalues)
     (hweight : IsExts c n weight ((Array.range (2 ^ foldVars)).map gweight)) (hws : IsExts c n ws gws)
@@ -304,7 +276,6 @@ private theorem groupStep_ensures {values : Array Var} {gvalues : Array Word} {w
     refine congrArg coords (sumRange_congr fun v hv => ?_)
     rw [getElem!_map_range _ _ hv, getElem!_map_range _ _ hv, show ws.toList.length = gws.size by simp [size], hS]
 
-/-- The computed root against the key root, lane by lane (`setup.rs::check`). -/
 private theorem rootEqual_ensures {computed root : DigestVar} {gcomputed groot : Array Word}
     (hc : IsDigest c n computed gcomputed) (hr : IsDigest c n root groot) :
     Ensures c n (forIn (List.finRange 4) PUnit.unit fun lane _ => do
@@ -324,8 +295,6 @@ private theorem rootEqual_ensures {computed root : DigestVar} {gcomputed groot :
   · exact hprev j lt
   · exact heq
 
-/-- The two groups of the leaf check (`setup.rs::check`): the key rows, then
-the run oracles from offset `|w₀|`. -/
 private theorem groups_ensures {values : Array Var} {gvalues : Array Word} {weight w₀ w₁ : Array ExtVar}
     {gweight : ℕ → Ext} {gw₀ gw₁ : Array Ext} (hv : IsWords c n values gvalues)
     (hweight : IsExts c n weight ((Array.range (2 ^ foldVars)).map gweight)) (hw₀ : IsExts c n w₀ gw₀)
@@ -370,9 +339,6 @@ private theorem groups_ensures {values : Array Var} {gvalues : Array Word} {weig
   rw [offset] at hfolded'
   exact hfolded'
 
-/-- `setup::check` (`setup.rs::check`): once the circuit's checks hold, the
-leaf's path reaches the key root and the replay's leaf check returns the
-circuit's folded values. -/
 theorem setupCheck_ensures {root : DigestVar} {groot : Array Word} {vars index : ℕ} {bits : Array Var}
     {leaf : LeafView} {g : Replay.Leaf} {w₀ w₁ alpha : Array ExtVar} {gw₀ gw₁ galpha : Array Ext}
     (hp : Permutes c.perm) (hroot : IsDigest c n root groot) (hbsize : bits.size = vars + 1 - foldVars)

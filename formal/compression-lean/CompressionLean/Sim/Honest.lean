@@ -1,19 +1,6 @@
 import CompressionLean.Sim.SetupLeaf
 import CompressionLean.Sim.Early
 
-/-!
-Owns the simulation of the honest fold of `Honest.lean` (`verifier.rs::verify`)
-against `Replay.honestStage`, and of the setup query point (`queryPoint`,
-`setup.rs::query_point`) against `Replay.leafQueryPoint`.
-
-- `honestStage_tracks`: once the circuit's checks hold, the circuit's honest
-  stage tracks the replay's, and `IsHonestOut` gives the outputs that the
-  openings read. Each leaf check is `setupCheck_ensures` (`SetupLeaf.lean`).
-- The circuit draws the query bits with `sampleBits`, the replay draws words
-  (`sampleWords`); once each 64-bit check holds, bit `i` of a query is digit
-  `i` of its word (`sampleBits_tracks`).
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Spec
@@ -24,35 +11,27 @@ open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
 
-/-! ## Replay facts -/
-
-/-- A fold over one more element of a prefix. -/
 private theorem foldl_take_succ {α β : Type} (f : β → α → β) (b : β) (l : List α) {k : ℕ}
     (hk : k < l.length) : (l.take (k + 1)).foldl f b = f ((l.take k).foldl f b) l[k] := by
   rw [List.take_add_one, List.getElem?_eq_getElem hk, Option.toList_some, List.foldl_append, List.foldl_cons,
     List.foldl_nil]
 
-/-- The replay's `observeExts` absorbs each value's coordinates in order. -/
 theorem foldl_coords (vs : Array Ext) (r : Replay.Duplex) :
     (vs.flatMap fun v => #[v.c0, v.c1, v.c2]).foldl Replay.Duplex.observe r =
       vs.foldl (fun r v => ((r.observe v.c0).observe v.c1).observe v.c2) r := by
   rw [← Array.foldl_toList, Array.toList_flatMap, List.foldl_flatMap, ← Array.foldl_toList]
   rfl
 
-/-- Digit `i < b` of `x mod 2^b` is digit `i` of `x`. -/
 theorem digit_mod (x b i : ℕ) (hi : i < b) : x % 2 ^ b / 2 ^ i % 2 = x / 2 ^ i % 2 := by
   have e := Nat.testBit_mod_two_pow x b i
   rw [decide_eq_true hi, Bool.true_and, Nat.testBit_eq_decide_div_mod_eq, Nat.testBit_eq_decide_div_mod_eq,
     decide_eq_decide] at e
   omega
 
-/-- `α`: three extension samples (`verifier.rs::verify`). -/
 private theorem mapM_sampleExt {β : Type} (g : Array ExtVar → Transcript β) :
     ((Array.range foldVars).mapM (fun _ => Duplex.sampleExt) >>= g) =
       (Duplex.sampleExt >>= fun a => Duplex.sampleExt >>= fun b => Duplex.sampleExt >>= fun e => g #[a, b, e]) := by
   simp [Array.mapM_eq_mapM_toList, foldVars, List.range_succ]
-
-/-! ## Instruction shape -/
 
 instance setupPoint_appends (point : Array ExtVar) (vars : ℕ) : Appends (Circuit.setupPoint point vars) := by
   unfold Circuit.setupPoint; appends
@@ -65,14 +44,10 @@ instance honestStage_appends (rel : Relation) (input : HonestInput) (d : Duplex)
     Appends ((Circuit.honestStage rel input).run d) := by
   unfold Circuit.honestStage; appends
 
-/-! ## Handles -/
-
 section Handles
 
 variable {c : Ctx F} {n : ℕ}
 
-/-- `setup_point` (`relation.rs::setup_point`): a point of at most `vars` coordinates,
-padded with zeros. -/
 theorem setupPoint_ensures {point : Array ExtVar} {gpoint : Array Ext} {vars : ℕ} (hp : IsExts c n point gpoint)
     (size : gpoint.size ≤ vars) :
     Ensures c n (Circuit.setupPoint point vars) fun r m => IsExts c m r (Replay.padded vars gpoint) := by
@@ -81,8 +56,6 @@ theorem setupPoint_ensures {point : Array ExtVar} {gpoint : Array Ext} {vars : �
   rw [Array.extract_eq_self_of_le (by rw [hp.1]; exact size), hp.1]
   exact hp.mono.append (IsExts.replicate hzero _)
 
-/-- The key root words as constants (`verifier.rs::verify`), which the replay
-reads without a transcript step. -/
 private theorem rootConsts_tracks (words : Array Word) :
     Tracks c n (forIn words (#[] : Array Var) fun word (root : Array Var) => do
         let w ← liftM (Build.const word)
@@ -102,8 +75,6 @@ private theorem rootConsts_tracks (words : Array Word) :
     rw [List.take_of_length_le (by simp), Array.toArray_toList] at hres
     exact ⟨(), t, Bridge.runs_pure _ _, he, hres⟩
 
-/-- What the openings read of the honest fold (`verifier.rs::verify`): `α`, the key and run points padded to the setup variables, the
-digits of each query in its index bits, and the queried folded values. -/
 def IsHonestOut (c : Ctx F) (m : ℕ) (rel : Relation) (early : Replay.EarlyOut) (lin : Replay.LinearOut)
     (v : HonestOut) (out : Replay.HonestOut) : Prop :=
   IsExts c m v.alpha out.alpha ∧
@@ -114,7 +85,6 @@ def IsHonestOut (c : Ctx F) (m : ℕ) (rel : Relation) (early : Replay.EarlyOut)
       ∀ i < rel.setupVars + 1 - foldVars, IsWord c m (v.indexBits[q]!)[i]! (Word.ofNat (out.queries[q]! / 2 ^ i % 2))) ∧
     IsExts c m v.queried out.queried
 
-/-- `IsHonestOut` survives later values. -/
 theorem IsHonestOut.mono {m m' : ℕ} {rel : Relation} {early : Replay.EarlyOut} {lin : Replay.LinearOut}
     {v : HonestOut} {out : Replay.HonestOut} (h : IsHonestOut c m rel early lin v out) (le : m ≤ m' := by omega) :
     IsHonestOut c m' rel early lin v out := by
@@ -124,21 +94,16 @@ theorem IsHonestOut.mono {m m' : ℕ} {rel : Relation} {early : Replay.EarlyOut}
 
 end Handles
 
-/-! ## The honest stage -/
-
 section Stage
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `combine` (`verifier.rs::combine`). -/
 theorem combinePartials_ensures {partials point : Array ExtVar} {gpartials gpoint : Array Ext}
     (hpa : IsExts c n partials gpartials) (hpo : IsExts c n point gpoint) :
     Ensures c n (Circuit.combinePartials partials point)
       fun r m => IsExt c m r (Replay.combine gpartials gpoint) :=
   (eqTable_ensures hpo).bind fun _ _ _ ht => dot_ensures ht hpa.mono
 
-/-- `setup::query_point` (`setup.rs::query_point`): the power point of the leaf
-whose index has the little-endian bits `bits`. -/
 theorem queryPoint_ensures {vars index : ℕ} {bits : Array Var} (hsize : bits.size = vars + 1 - foldVars)
     (hb : ∀ i < bits.size, IsWord c n bits[i]! (Word.ofNat (index / 2 ^ i % 2))) :
     Ensures c n (Circuit.queryPoint vars bits) fun r m => IsExts c m r (Replay.leafQueryPoint vars index) := by
@@ -168,8 +133,6 @@ theorem queryPoint_ensures {vars index : ℕ} {bits : Array Var} (hsize : bits.s
       (Array.range (vars - foldVars)).map fun k => Ext.ofGl (q.pow (2 ^ k)) from Array.ext' (by simp)]
     exact e
 
-/-- The binding of the partials (`verifier.rs::verify`): the coordinates of
-each value of each group, in order. -/
 private theorem observePartials_tracks {partials : Array (Array ExtVar)} {gpartials : Array (Array Ext)}
     (hp : Permutes c.perm) (hsize : partials.size = gpartials.size)
     (hpa : ∀ g < partials.size, IsExts c n partials[g]! gpartials[g]!) :
@@ -195,9 +158,6 @@ private theorem observePartials_tracks {partials : Array (Array ExtVar)} {gparti
     dsimp only
     rwa [foldl_coords, Array.foldl_flatten, ← Array.foldl_toList]
 
-/-- `sample_bits` for each query (`verifier.rs::verify`) and the replay's word
-draws from the same duplex. Once each decomposition's check holds, bit `i` of
-query `q` is digit `i` of word `q`. -/
 private theorem sampleBitsList_ensures (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm) :
     ∀ (l : List ℕ) {n : ℕ} {d : Duplex} (t : Replay.Transcript) (init : Array Word), IsDuplex c n d t.duplex →
       Ensures c n ((l.mapM fun _ => Duplex.sampleBits bits : Transcript (List (Array Var))).run d)
@@ -232,9 +192,6 @@ private theorem sampleBitsList_ensures (bits : ℕ) (small : bits ≤ 64) (hp : 
             simp only [List.getElem!_cons_succ]
             exact adigits q (by simpa using hq)
 
-/-- `sample_bits` for every setup query (`verifier.rs::verify`) against the
-replay's `sampleWords`: bit `i` of query `q` is digit `i` of word `q` modulo
-`2^bits`. -/
 private theorem sampleBits_tracks (bits : ℕ) (small : bits ≤ 64) (hp : Permutes c.perm) (k : ℕ) :
     Tracks c n ((Array.range k).mapM fun _ => Duplex.sampleBits bits) (Replay.sampleWords k)
       fun res ws m => res.size = ws.size ∧ ∀ q < res.size, (res[q]!).size = bits ∧
@@ -258,8 +215,6 @@ private theorem sampleBits_tracks (bits : ℕ) (small : bits ≤ 64) (hp : Permu
       ← getElem!_pos ws.toArray _ hq', digit_mod _ _ _ hi]
     exact bitsOk i hi
 
-/-- The run weights `μ^i` for the run oracles (`verifier.rs::verify`), which
-the replay computes without a transcript step. -/
 private theorem runWeights_tracks {one mu : ExtVar} {gmu : Ext} (hone : IsExt c n one 1) (hmu : IsExt c n mu gmu) :
     Tracks c n (forIn [1:runOracles] #[one] fun _ (weights : Array ExtVar) => do
         let next ← liftM (Build.extMul weights.back! mu)
@@ -282,9 +237,6 @@ private theorem runWeights_tracks {one mu : ExtVar} {gmu : Ext} (hone : IsExt c 
   · obtain ⟨hres, he⟩ := q
     exact ⟨(), t, Bridge.runs_pure _ _, he, by simpa [runOracles, Std.Legacy.Range.size] using hres⟩
 
-/-- The slot-block embedding `block·Π (1 - x)` over the run point's slot
-tail (`verifier.rs::verify`), which the replay computes without a transcript
-step. -/
 private theorem embed_tracks {xs : Array ExtVar} {gxs : Array Ext} {init : ExtVar} {ginit : Ext}
     (hx : IsExts c n xs gxs) (hi : IsExt c n init ginit) :
     Tracks c n (forIn xs init fun x (embedded : ExtVar) => do
@@ -311,8 +263,6 @@ private theorem embed_tracks {xs : Array ExtVar} {gxs : Array Ext} {init : ExtVa
     rw [List.take_of_length_le (by simp [size]), Array.foldl_toList] at hres
     exact ⟨(), t, Bridge.runs_pure _ _, he, hres⟩
 
-/-- The run value `c + μ·(σ + μ·(i + μ·embedded))` (`verifier.rs::verify`),
-which the replay computes without a transcript step. -/
 private theorem runValue_tracks {values : Array ExtVar} {gvalues : Array Ext} {init mu : ExtVar} {ginit gmu : Ext}
     (hv : IsExts c n values gvalues) (hi : IsExt c n init ginit) (hmu : IsExt c n mu gmu) :
     Tracks c n (forIn values init fun value (runValue : ExtVar) => do
@@ -340,8 +290,6 @@ private theorem runValue_tracks {values : Array ExtVar} {gvalues : Array Ext} {i
     rw [List.take_of_length_le (by simp [size]), Array.foldl_toList] at hres
     exact ⟨(), t, Bridge.runs_pure _ _, he, hres⟩
 
-/-- The setup queries (`verifier.rs::verify`): once each leaf's checks hold,
-the replay's fold over the queries returns the circuit's folded values. -/
 private theorem queried_tracks {rootV : Array Var} {groot : Array Word} {vars : ℕ}
     {indexBits : Array (Array Var)} {queries : Array ℕ} {leaves : Array LeafView} {gleaves : Array Replay.Leaf}
     {w₀ w₁ alpha : Array ExtVar} {gw₀ gw₁ galpha : Array Ext} (hp : Permutes c.perm)
@@ -392,9 +340,6 @@ private theorem queried_tracks {rootV : Array Var} {groot : Array Word} {vars : 
     rw [List.take_of_length_le (by simp; omega)] at hres
     exact ⟨(), t, Bridge.runs_pure _ _, he, hres⟩
 
-/-- **The honest fold** (`verifier.rs::verify`). Once the circuit's checks
-hold, the circuit's honest stage tracks the replay's, and the circuit's
-outputs are the replay's. -/
 theorem honestStage_tracks {rel : Relation} {input : HonestInput} {proof : Replay.Proof} {early : Replay.EarlyOut}
     {lin : Replay.LinearOut} (hp : Permutes c.perm)
     (hlane : IsExts c n input.lanePoint lin.lanePoint) (hblock : IsExts c n input.blockPoint lin.blockPoint)

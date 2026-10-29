@@ -1,29 +1,16 @@
 import CompressionLean.Bridge.Merkle
 
-/-!
-Owns the computable honest setup root. `tableLeaf n tables i` is leaf `i` of
-the honest setup tree of the oracle tables on the `n`-cube: the coset points
-in `Word`, the extension in `Gl`. When the tables hold the setup oracles of
-`(rel, S)` on the cube, these leaves are `honestValues rel S`
-(`tableLeaf_eq`), so `tableRoot` is `honestRoot rel S` (`tableRoot_eq`). The
-`setupRootCheck` executable compares `tableRoot` with the root of
-`setup::build`.
--/
-
 namespace CompressionLean.Bridge
 
 open NightstreamFPrime.Spec
 open CompressionLean.Replay CompressionLean.Layer1 CompressionLean.Spec CompressionLean.Lib
 
-/-- Leaf `i` of the setup tree of `tables`: value `o·2^foldVars + v` is the
-extension of table `o` at the power point of `7·ω_{2^(n+1)}^i·ω_8^v`. -/
 def tableLeaf (n : ℕ) (tables : Array (Array Word)) (i : ℕ) : Array Word :=
   let y := generator * (twoAdicGenerator (n + 1)).pow i
   (Array.range (tables.size * 2 ^ foldVars)).map fun t =>
     let point := y * (twoAdicGenerator 3).pow (t % 2 ^ foldVars)
     Word.ofNat (mle (powerPoint point.toF n) fun x => ((tables[t / 2 ^ foldVars]!)[x]!).toF).val
 
-/-- The root of the setup tree of `tables` on the `n`-cube. -/
 def tableRoot (n : ℕ) (tables : Array (Array Word)) : Array Word :=
   treeNode (tableLeaf n tables) (n - 2) 0
 
@@ -32,7 +19,6 @@ theorem length_powerPoint {K : Type} [Field K] (q : K) (n : ℕ) : (powerPoint q
   | zero => rfl
   | succ n ih => simp [powerPoint, ih]
 
-/-- Tables that hold the setup oracles on the cube give the honest leaves. -/
 theorem tableLeaf_eq (rel : Replay.Relation) (S : Setup Gl) (tables : Array (Array Word))
     (size : tables.size = rel.kappa + runOracles)
     (agree : ∀ o < rel.kappa + runOracles, ∀ x < 2 ^ rel.setupVars, setupOracle rel S o x = ((tables[o]!)[x]!).toF) :
@@ -52,8 +38,6 @@ theorem tableLeaf_eq (rel : Replay.Relation) (S : Setup Gl) (tables : Array (Arr
       show generator.toF = 7 from Word.toF_lit 7, leafY]
   rw [point, mle_congr _ fun x inside => (agree _ oracle x (by rwa [length_powerPoint] at inside)).symm]
 
-/-- **The computable root is the honest root**: the root of tables that hold
-the setup oracles of `(rel, S)` on the cube is `honestRoot rel S`. -/
 theorem tableRoot_eq (rel : Replay.Relation) (S : Setup Gl) (tables : Array (Array Word))
     (size : tables.size = rel.kappa + runOracles)
     (agree : ∀ o < rel.kappa + runOracles, ∀ x < 2 ^ rel.setupVars, setupOracle rel S o x = ((tables[o]!)[x]!).toF) :

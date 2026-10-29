@@ -208,7 +208,6 @@ theorem eq_zero_of_toK {a : Ext} (zero : a.toK (K := K) = 0) : a = 0 := by
   subst e0 e1 e2
   rfl
 
-/-- Values with one denotation are equal. -/
 theorem eq_of_toK {a b : Ext} (equal : a.toK (K := K) = b.toK) : a = b := by
   have zero := eq_zero_of_toK (K := K) (a := a - b) (by rw [toK_sub, equal, sub_self])
   obtain ⟨a0, a1, a2⟩ := a
@@ -226,7 +225,6 @@ theorem eq_of_beq {a b : Ext} (equal : (a == b) = true) : a = b := by
     simpa [BEq.beq, Bool.and_eq_true] using equal
   rw [Word.eq_of_word parts.1.1, Word.eq_of_word parts.1.2, Word.eq_of_word parts.2]
 
-/-- A value passes the replay's equality test with itself. -/
 theorem beq_self (a : Ext) : (a == a) = true := by
   show (a.c0.word == a.c0.word && a.c1.word == a.c1.word && a.c2.word == a.c2.word) = true
   simp
@@ -281,7 +279,6 @@ end Kx
 
 end Challenge
 
-/-- A nonzero value times its inverse is one (`field.rs`). -/
 theorem Ext.mul_inv {a : Ext} (ne : a ≠ 0) : a * a.inv = 1 := by
   apply Ext.eq_of_toK (K := Cubic)
   rw [Ext.toK_mul, Ext.toK_inv, Ext.toK_one]

@@ -1,10 +1,4 @@
-//! The run oracles of the production layer-1 key, for the Lean `setupCheck`.
-//! `production_setup_columns` reads the runs that `nightstream`'s
-//! `production_runs_rebuild_the_layer1_key` writes
-//! (`target/lean-lowering/production_runs.bin`), requires that they derive the
-//! committed production key, and writes the four run oracles that `key`
-//! commits after the key rows (`oracle` for `k ≥ κ`) to
-//! `target/lean-lowering/production_setup_columns.bin`.
+//! Writes the run oracles of the production layer-1 key for the Lean `setupCheck`.
 //!
 //! The file is little endian: the run count and the slot count (`u64`), then
 //! per run its row, per run its slot (`u32`), per run its coefficient

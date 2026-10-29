@@ -36,13 +36,10 @@ decreasing_by omega
 
 def inv (a : Word) : Word := a.pow (goldilocksModulus - 2)
 
-/-- The residue of a word. -/
 def toF (a : Word) : Gl := (a.word.toNat : Gl)
 
-/-- A word in a ring `F` (`Gl::from_u64`). -/
 @[pp_nodot] def cast {F : Type} [CommRing F] (g : Word) : F := (g.toNat : F)
 
-/-- A word of F′'s field as a canonical word. -/
 def ofF (value : F) : Word := Word.ofNat value.val
 
 end Word

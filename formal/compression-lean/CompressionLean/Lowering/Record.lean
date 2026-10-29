@@ -1,13 +1,5 @@
 import CompressionLean.Ports.Circuit.Record
 
-/-!
-Owns the facts about the recorder's rows (`Ports/Circuit/Record.lean`) that
-the lowering proofs read: `Call.computedRows` is the model's `Call.rows`
-with decidable zero tests (`computedRows_eq`), an extension product row has
-at most three products (`extRow_length`), and the counts of a lowered run do
-not depend on the statement (`lower_counts`).
--/
-
 namespace CompressionLean.Lowering
 
 open CompressionLean.Shrink CompressionLean.Circuit
@@ -31,8 +23,6 @@ theorem _root_.CompressionLean.Shrink.Call.computedRows_eq (c : Call F) : c.comp
 theorem extRow_length (a b : Fin 3 → Form F) (k : Fin 3) : (extRow a b k).length ≤ 3 := by
   fin_cases k <;> simp [extRow]
 
-/-- The lowering reads no statement value, so the counts do not depend on
-the statement. -/
 theorem lower_counts (L : Array Instr) (stmt stmt' : List F) : (lower L stmt).counts = (lower L stmt').counts := by
   simp [lower, Run.counts, Run.rows]
 

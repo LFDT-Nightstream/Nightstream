@@ -136,7 +136,6 @@ def chain (high : Form F) : List ℕ → Lower F (Form F)
   | [] => pure high
   | c :: rest => do chain (← mul high (.wire (.glue c))) rest
 
-/-- `record.rs::Recorder::bits`; the weights are Rust's up to 64 bits, the widest split `record.rs` takes. -/
 def bits (a : Form F) (count : ℕ) : Lower F (List (Form F)) := do
   let first ← cells count
   booleanRows (List.range' first count)

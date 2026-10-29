@@ -104,7 +104,6 @@ def handlesText {n : ℕ} (a : Fin n → Var) : String :=
 def termsText (terms : List (ℕ × Word)) : String :=
   s!" {terms.length}" ++ String.join (terms.map fun t => s!" {t.1} {t.2.toNat}")
 
-/-- The line that `Log` writes for an instruction (`lowering.rs`). -/
 def line : Instr → String
   | .const value => s!"c {value.toNat}"
   | .priv => "p"
@@ -121,19 +120,16 @@ def line : Instr → String
       s!"r {rows.length} {columns.length}" ++ String.join (columns.map (s!" {·}")) ++
         String.join (rows.map fun row => termsText row.a ++ termsText row.b ++ termsText row.c)
 
-/-- Handles compare as their lists. -/
 instance {n : ℕ} : BEq (Fin n → Var) := ⟨fun a b => List.ofFn a == List.ofFn b⟩
 
 deriving instance BEq for R1csRow, Instr
 
-/-- Lean's instructions against Rust's, one by one. -/
 def samePrograms (lean rust : Array Instr) : Parser Unit := do
   for k in [0:max lean.size rust.size] do
     match lean[k]?, rust[k]? with
     | some l, some r => unless l == r do throw s!"instruction {k}: Lean `{line l}`, Rust `{line r}`"
     | _, _ => throw s!"Lean writes {lean.size} instructions, Rust {rust.size}"
 
-/-- The JSON file at `path` as an `α`. -/
 def readJson (α : Type) [Lean.FromJson α] (path : String) : IO (Except String α) := do
   pure (Lean.Json.parse (← IO.FS.readFile path) >>= Lean.fromJson?)
 

@@ -2,15 +2,6 @@ import CompressionLean.Sim.Merkle
 import CompressionLean.Sim.Tracks
 import CompressionLean.Ports.Circuit.Sumcheck
 
-/-!
-Owns the simulation of the sum-check replay of `Sumcheck.lean`
-(`sumcheck.rs`) against the replay's (`Ports/Replay/Gkr.lean`): the loop that
-observes each value of an array (`observeExts_ensures`, `observeExts_tracks`),
-and `sumcheckReplay_tracks`, which tracks the replay's run and gives its point
-and final claim. Each round message must be nonempty: both read
-`message[0]!`, where Rust's `message[0]` panics.
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Spec
@@ -21,7 +12,6 @@ open NightstreamFPrime.Spec (goldilocksModulus)
 variable {F : Type} [CommRing F]
 
 
-/-- The loop of `observe_ext` calls over an array (`sumcheck.rs::replay`). -/
 abbrev observeAllExts (vs : Array ExtVar) : Transcript PUnit :=
   forIn vs PUnit.unit fun value _ => do
     Duplex.observeExt value
@@ -35,8 +25,6 @@ section Rounds
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `for &value in message { duplex.observe_ext(b, value) }`
-(`sumcheck.rs::replay`): the replay's `observeExts`. -/
 theorem observeExts_ensures {d : Duplex} {r : Replay.Duplex} {vs : Array ExtVar} {gs : Array Ext}
     (hp : Permutes c.perm) (hd : IsDuplex c n d r) (hv : IsExts c n vs gs) :
     Ensures c n ((observeAllExts vs).run d)
@@ -61,13 +49,10 @@ theorem observeExts_ensures {d : Duplex} {r : Replay.Duplex} {vs : Array ExtVar}
     rw [← Array.foldl_toList, Array.toList_flatMap]
     exact q
 
-/-- The loop tracks the replay's `observeExts`. -/
 theorem observeExts_tracks {vs : Array ExtVar} {gs : Array Ext} (hp : Permutes c.perm) (hv : IsExts c n vs gs) :
     Tracks c n (observeAllExts vs) (Replay.observeExts gs) fun _ _ _ => True := fun _ tr hd =>
   (observeExts_ensures hp hd hv).post fun _ _ q => ⟨(), _, Bridge.runs_observeExts gs tr, q, trivial⟩
 
-/-- `replay` (`sumcheck.rs::replay`): the point and the final claim are the
-replay's run. Each round message is nonempty. -/
 theorem sumcheckReplay_tracks {rounds : Array (Array ExtVar)} {grounds : Array (Array Ext)} {claim : ExtVar}
     {gclaim : Ext} (hp : Permutes c.perm) (hr : rounds.size = grounds.size)
     (hm : ∀ i < rounds.size, IsExts c n rounds[i]! grounds[i]!) (hne : ∀ g ∈ grounds, 0 < g.size)

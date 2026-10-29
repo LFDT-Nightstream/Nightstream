@@ -1,20 +1,5 @@
 import CompressionLean.Sim.Hash
 
-/-!
-Owns the simulation of the leaf sponge (`hashLeaf`), node compression
-(`compress`) and Merkle paths (`merkleRoot`) of `Hash.lean` against the
-replay's (`Ports/Replay/Transcript.lean`), and the F′ permutation on words
-(`permutes_poseidon2`). `Hash.lean` owns the duplex challenger.
-
-- `IsDigest`: four handles are a digest of four words.
-- `merkleRoot_ensures` takes the path words as given: the computed root is the
-  replay's root of the words that the path handles hold. It does not say
-  where those words come from.
-- `permutes_poseidon2`: on words, `Spec.Poseidon2.permute`, the permutation
-  of the executor of `lower_sound`, is the replay's
-  (`State64.permute64_denote`).
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
@@ -25,7 +10,6 @@ open NightstreamFPrime.Export.NativePoseidon2 (State64)
 
 variable {F : Type} [CommRing F]
 
-/-- The four handles of `d` are the four words of `g`. -/
 def IsDigest (c : Ctx F) (n : ℕ) (d : DigestVar) (g : Array Word) : Prop :=
   g.size = 4 ∧ ∀ lane : Fin 4, IsWord c n (d lane) g[lane]!
 
@@ -33,7 +17,6 @@ theorem IsDigest.mono {c : Ctx F} {n m : ℕ} {d : DigestVar} {g : Array Word} (
     (le : n ≤ m := by omega) : IsDigest c m d g :=
   ⟨h.1, fun lane => (h.2 lane).mono le⟩
 
-/-- The replay's sponge state after the first `k` chunks of `gs`. -/
 private def leafState (gs : Array Word) (k : ℕ) : Array Word :=
   ((List.range k).map fun j => gs.extract (Replay.rate * j) (Replay.rate * j + Replay.rate)).foldl
     (fun state chunk => Replay.permute ((List.range chunk.size).foldl (fun s i => s.set! i chunk[i]!) state))
@@ -46,7 +29,6 @@ private theorem leafState_succ (gs : Array Word) (k : ℕ) :
   rw [leafState, List.range_succ, List.map_append, List.foldl_append]
   rfl
 
-/-- The replay's node after the first `k` levels of `gpath`. -/
 private def merkleNode (gleaf : Array Word) (index : ℕ) (gpath : Array (Array Word)) (k : ℕ) : Array Word :=
   (List.range k).foldl
     (fun node level =>
@@ -80,8 +62,6 @@ section Hashes
 
 variable {c : Ctx F} {n : ℕ}
 
-/-- `compress` (`circuit/hash.rs::compress`): `[left, right, 0…]`, permute, the first
-four lanes. -/
 theorem compress_ensures {l r : DigestVar} {gl gr : Array Word} (hp : Permutes c.perm) (hl : IsDigest c n l gl)
     (hr : IsDigest c n r gr) :
     Ensures c n (Circuit.compress l r) fun res m => IsDigest c m res (Replay.compress gl gr) := by
@@ -110,8 +90,6 @@ theorem compress_ensures {l r : DigestVar} {gl gr : Array Word} (hp : Permutes c
     rw [e]
     exact hlanes ⟨lane, by omega⟩
 
-/-- `hash_leaf` (`circuit/hash.rs::hash_leaf`): overwrite the lanes of each chunk of
-`RATE` words and permute; the digest is the first four lanes. -/
 theorem hashLeaf_ensures {vs : Array Var} {gs : Array Word} (hp : Permutes c.perm) (hv : IsWords c n vs gs) :
     Ensures c n (Circuit.hashLeaf vs) fun r m => IsDigest c m r (Replay.hashLeaf gs) := by
   unfold Circuit.hashLeaf
@@ -152,9 +130,6 @@ theorem hashLeaf_ensures {vs : Array Var} {gs : Array Word} (hp : Permutes c.per
     rw [Fin.getElem!_fin, getElem!_extract_zero _ lane.isLt]
     exact w.get (by rw [size]; omega)
 
-/-- `merkle_root` (`circuit/hash.rs::merkle_root`): at each level, `select` puts the node
-left when the bit is zero, the other side is `node + sibling - left`, and the
-two compress. The replay branches on digit `level` of `index`. -/
 theorem merkleRoot_ensures [CharP F goldilocksModulus] {leaf : DigestVar} {bits : Array Var} {path : Array DigestVar}
     {gleaf : Array Word} {index : ℕ} {gpath : Array (Array Word)} (hp : Permutes c.perm)
     (hleaf : IsDigest c n leaf gleaf)
@@ -220,8 +195,6 @@ theorem merkleRoot_ensures [CharP F goldilocksModulus] {leaf : DigestVar} {bits 
 
 end Hashes
 
-/-! ## The F′ permutation -/
-
 section Permutation
 
 open Fin.CommRing
@@ -230,8 +203,6 @@ private theorem word_denote (g : Word) : (Word.cast g : NightstreamFPrime.Spec.F
   apply Fin.ext
   simp [Word.cast, Word.toNat, UInt64.denote, NightstreamFPrime.Spec.Poseidon2.ofNat, Fin.val_natCast]
 
-/-- `b.permute` in `hash.rs`: on words, F′'s Poseidon2 permutation is the
-replay's. -/
 theorem permutes_poseidon2 : Permutes (F := NightstreamFPrime.Spec.F) NightstreamFPrime.Spec.Poseidon2.permute := by
   intro s k
   unfold Replay.permute

@@ -17,9 +17,7 @@ instance : FromJson Ext where
     if h : words.size = 3 then pure ⟨words[0], words[1], words[2]⟩
     else throw "an extension value has three words"
 
-/-- The ring degree (`neo_math::D`). `ports.json` names the alias in
-`ring.rs`; the value is in an inline module of `neo-params`, so the Rust test
-`relation_shape_has_the_lean_constants` (`neo-spartan`) pins it at 54. -/
+/-- `neo_math::D`. Its value is in an inline module of `neo-params`, so the Rust test `relation_shape_has_the_lean_constants` pins it. -/
 def D : Nat := 54
 def laneVars : Nat := 6
 def foldVars : Nat := 3

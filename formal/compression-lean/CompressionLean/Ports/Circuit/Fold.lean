@@ -31,7 +31,6 @@ def absorb (t : FoldTranscript) (words : Array Var) : Build FoldTranscript := do
     state := Array.ofFn (← Build.permute fun lane => state[lane]!)
   pure ⟨state⟩
 
-/-- `fold.rs::FoldTranscript::absorb_constants`. -/
 def absorbConstants (t : FoldTranscript) (words : Array Word) : Build FoldTranscript := do
   let words ← words.mapM Build.const
   t.absorb words

@@ -4,45 +4,6 @@ import CompressionLeanExe.Digest
 import CompressionLeanExe.Fixtures
 import CompressionLeanExe.Key
 
-/-!
-The `lowerCheck` executable. It reads one export of `neo-spartan`'s
-`tests/internal/lowering.rs` (the statement, the IR, then Rust's trace),
-lowers the IR in Goldilocks and compares the run with the trace: the glue
-cells, the blocks, the statement words and every glue row, side by side and
-term by term (`Call.computedRows`, which is `Call.rows`). It prints `match`,
-the counts and the run digest (`runDigest`), or the first difference and
-exits with 1.
-
-With a program name it also writes that program with the Lean builder
-(`Fixtures.lean`) and compares it with the IR, instruction by instruction
-(`samePrograms`). It then lowers Lean's program, so the digest is that of
-Lean's run:
-
-- `shared`: the Lean side of `Shared`, every helper of `Algebra.lean`,
-  `Hash.lean`, `Fold.lean` and `Sumcheck.lean`. The whole IR must match.
-- `early`: the Lean side of `Early`, the helpers of `Gkr.lean` and
-  `Early.lean` on a structure that the toy relation does not have. The whole
-  IR must match.
-- `layer1 <input.json>`: the Lean side of `Layer1::run` for the relation and
-  the two `WhirKey`s in the file. The whole IR must match. It prints whether
-  the key has `KeyFacts` (`keyFailure`) and whether it fits the Poseidon2
-  hash chain (`poseidon2Fits`); the toy key has neither.
-- `linear <input.json>`: the Lean side of `Linear`, the linear stage
-  (`linearStage`) from the state after the early stage. The whole IR must
-  match.
-- `honest <input.json>`: the Lean side of `Honest`, the honest fold
-  (`honestStage`) and the query points from the state before `μ`. The whole
-  IR must match.
-- `late <input.json>`: the Lean side of `Late`, `lateStage` from the toy
-  proof's state after the setup queries, for the relation and duplex sizes
-  in the file. The whole IR must match.
-- `lane_split`: the Lean side of `LaneSplit`, `laneTables` on classes that
-  the toy relation does not have. The whole IR must match.
-- `openings <input.json>`: the Lean side of `Openings`, both openings
-  (`openingsStage`) from the state after the query points. The whole IR must
-  match.
--/
-
 namespace CompressionLeanExe.LowerCheck
 
 open CompressionLean CompressionLean.Shrink CompressionLean.Circuit CompressionLeanExe.Parse NightstreamFPrime.Spec
@@ -63,8 +24,6 @@ def traceSide : Parser (List (Wire × ℕ)) := do
     let w ← wire
     pure (w, ← nat)
 
-/-- Compare Lean's program `mirror` with the IR, then the lowered run with
-the trace that follows the program. -/
 def check (mirror : Option (Array Instr)) : Parser String := do
   keyword "statement"
   let stmt ← many (← nat) glWord
@@ -93,7 +52,6 @@ def check (mirror : Option (Array Instr)) : Parser String := do
   pure s!"match: {instrs.size} instructions, {rows.size} rows, {run.cells} glue cells, {run.blocks} blocks, \
     {run.publics.length} statement words{mirrored}; digest {(runDigest run rows).toList.map Word.toNat}"
 
-/-- The export's path, Lean's program for it and the layer-1 key, from the arguments. -/
 def arguments : List String → IO (Except String (String × Option (Array Instr) × Option Layer1Key))
   | [path] => pure (.ok (path, none, none))
   | [path, "shared"] => pure (.ok (path, some shared.program, none))

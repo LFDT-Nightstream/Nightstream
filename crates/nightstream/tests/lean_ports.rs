@@ -1,14 +1,7 @@
-//! The hand ports of `formal/compression-lean` against the Rust they
-//! transcribe. `ports.json` pairs each Lean declaration with a Rust item and a
-//! hash of the item's tokens. Comments, doc comments and formatting do not
-//! count. When an item changes, this test names the Lean declaration to
-//! re-read and the new hash to record.
-//!
-//! A Rust path is `<file>::<item>`. The file is relative to the repository.
-//! The item is a top-level `fn`, `const`, `static`, `struct`, `enum`, `trait`
-//! or `type` of the file, or `<Type>::<fn>` for a method of `impl Type`,
-//! `impl Trait for Type` or `trait Type` in the file. A name that two items
-//! share is an error.
+//! Checks `formal/compression-lean/ports.json`: each Lean port names a Rust
+//! item and the hash of its tokens, without comments or formatting. A path is
+//! `<file>::<item>` or `<file>::<Type>::<fn>` (a method of `impl Type`,
+//! `impl Trait for Type` or `trait Type`); a name that two items share is an error.
 
 use proc_macro2::{Delimiter, Group, TokenStream, TokenTree};
 use quote::ToTokens;

@@ -2,16 +2,6 @@ import CompressionLean.Checks.SetupFacts
 import CompressionLeanExe.Parse
 import CompressionLeanExe.Runs
 
-/-!
-The `setupCheck` executable. It reads the layer-1 key that `neo-spartan`'s
-`lowering.rs` writes (`production_layer1.json`), the runs that
-`nightstream`'s `setup_runs.rs` writes (`production_runs.bin`) and the run
-oracles that `neo-spartan`'s `setup_columns.rs` writes
-(`production_setup_columns.bin`). It runs the setup check (`setupFailure`),
-then the column check (`columnsFailure`). It prints `setup facts hold` and
-`setup columns match`, or the first fact that fails and exits with 1.
--/
-
 open CompressionLeanExe.Runs in
 def main (args : List String) : IO UInt32 := do
   let [layer1, runs, columns] := args

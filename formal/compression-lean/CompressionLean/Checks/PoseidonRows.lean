@@ -1,17 +1,6 @@
 import CompressionLean.Final.Bridge
 import CompressionLean.Spec.PoseidonRows
 
-/-!
-Owns the proof that the fast evaluator of the rows of a Poseidon2 block
-(`Spec/PoseidonRows.lean`) gives F′'s coefficients.
-
-- `invocationRows?_spec`: the rows of `invocationRows?` have the coefficients
-  of F′'s `Poseidon.Block.row?`.
-
-Does not own the run check that reads these rows (`Spec/Runs.lean`) or its
-proof (`Checks/Runs.lean`).
--/
-
 namespace CompressionLean.Checks
 
 open CompressionLean.Spec CompressionLean.Spec.PoseidonRows
@@ -21,8 +10,6 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Layout NightstreamFPrime.Layout.ProductionRelation NightstreamFPrime.Layout.MatrixProgram
 open NightstreamFPrime.Gadgets.Poseidon2
 open Fin.CommRing
-
-/-! ## Coefficients of entry lists -/
 
 theorem coefficient_cons {n : Nat} (e : SparseEntry n) (es : Entries n) (c : Fin n) :
     (⟨e :: es⟩ : SparseForm n).coefficient c =
@@ -111,8 +98,6 @@ theorem scaled_coefficient {n : Nat} (k : F) (xs : Entries n) (c : Fin n) :
     (⟨scaled k xs⟩ : SparseForm n).coefficient c = k * (⟨xs⟩ : SparseForm n).coefficient c :=
   SparseForm.scale_coefficient k ⟨xs⟩ c
 
-/-! ## The value of a combination -/
-
 theorem Sym.coef_add (s t : Sym) (a : Nat) : Sym.coef (Sym.add s t) a = Sym.coef s a + Sym.coef t a := by
   unfold Sym.coef Sym.add
   split <;> simp_all
@@ -129,7 +114,6 @@ theorem Sym.coef_atom (a b : Nat) : Sym.coef (Sym.atom a) b = if b < 167 ∧ b =
   unfold Sym.coef Sym.atom
   split <;> simp_all
 
-/-- Coefficient `c` of the combination `v` of the forms `atom`. -/
 def eval {n : Nat} (atom : Nat → SparseForm n) (v : Sym) (c : Fin n) : F :=
   ∑ a ∈ Finset.range 167, Sym.coef v a * (atom a).coefficient c
 
@@ -191,8 +175,6 @@ theorem sum_range_atoms (f : Nat → F) :
     ∑ a ∈ Finset.range 167, f a = ∑ a ∈ Finset.range 16, f a + (∑ k ∈ Finset.range 150, f (16 + k) + f 166) := by
   rw [show (167 : Nat) = 16 + (150 + 1) from rfl, Finset.sum_range_add, Finset.sum_range_succ _ 150]
 
-/-- **The expansion.** The form of `atoms.expand v` is the combination `v` of
-the atom forms. -/
 theorem expand_coefficient {n : Nat} (atoms : Atoms n) (v : Sym) (c : Fin n) :
     (⟨atoms.expand v⟩ : SparseForm n).coefficient c = eval atoms.form v c := by
   have inputs := foldl_merge_coefficient (Sym.coef v) (fun l => atoms.inputs[l]?.getD []) c (List.range 16) []
@@ -226,30 +208,22 @@ theorem expand_coefficient {n : Nat} (atoms : Atoms n) (v : Sym) (c : Fin n) :
   rw [eval, sum_range_atoms, Finset.sum_congr rfl parts, Finset.sum_congr rfl lanes]
   simp [SparseForm.coefficient]
 
-/-! ## The trace over the atoms gives F′'s trace -/
-
 section trace
 
 variable {n : Nat} (I : PoseidonSboxPlan.Interface n)
 
-/-- The atom forms of an interface: its input lanes, its S-box outputs and its
-one column. -/
 def atomOf (a : Nat) : SparseForm n :=
   if h : a < 16 then I.input ⟨a, h⟩
   else if a < 166 then PoseidonSboxPlan.sboxOutputAt I (a - 16)
   else SparseForm.singleton I.oneColumn 1
 
-/-- `f` has the coefficients of the combination `s` of the atoms of `I`. -/
 def Rep (f : SparseForm n) (s : Sym) : Prop := ∀ c, f.coefficient c = eval (atomOf I) s c
 
-/-- Each lane of `S` has the coefficients of that lane of `S'`. -/
 def StateRep (S : PoseidonSboxPlan.State n) (S' : State) : Prop := ∀ lane : Fin 16, Rep I (S lane) S'[lane]
 
-/-- An S-box row of F′ and a row over the atoms that gives it. -/
 def RowRep (row : SboxRow.Forms n) (r : Row) : Prop :=
   Rep I row.input r.input ∧ row.output = PoseidonSboxPlan.sboxOutputAt I r.output
 
-/-- A step of F′'s trace and the same step over the atoms. -/
 structure StepRep (ref : PoseidonSboxPlan.StepResult n) (sym : StepResult) : Prop where
   nextSbox : ref.nextSbox = sym.nextSbox
   state : StateRep I ref.state sym.state
@@ -399,14 +373,10 @@ theorem rep_input : StateRep I I.input (Vector.ofFn fun lane => Sym.atom lane.va
   intro lane c
   rw [Fin.getElem_fin, Vector.getElem_ofFn, eval_atom _ _ (by omega), atomOf, dite_eq_left lane.isLt]
 
-/-- **The trace over the atoms.** Row `r` of F′'s trace has the input of row
-`r` of `atomRows` over the atoms of the interface, and the S-box output it names. -/
 theorem rep_trace : List.Forall₂ (RowRep I) (PoseidonSboxPlan.trace I).rows atomRows.toList :=
   (rep_compile Permutation.schedule 0 rep_input).rows
 
 end trace
-
-/-! ## The atoms of an invocation of a block -/
 
 theorem recompose_coefficient {n : Nat} (c : Fin n) : ∀ {m : Nat} (col : Fin m → Fin n),
     (RetainedSlot.recomposeForms (List.ofFn fun t => SparseForm.singleton (col t) 1)).coefficient c =
@@ -448,8 +418,6 @@ theorem sboxOutput_eq (k : Nat) (small : k < PoseidonRetainedSlots.rows.length) 
   congr 1
 
 set_option backward.isDefEq.respectTransparency false in
-/-- The atom forms of `atomsOf` have the coefficients of the atom forms of the
-interface that `Poseidon.Block.row?` builds. -/
 theorem atomsOf_form (a : Nat) (inside : a < 167) (c : Fin n) :
     ((atomsOf block n oneBound slotCountEq fits input inv).form a).coefficient c =
       (atomOf (block.invocationInterface n oneBound slotCountEq fits input inv) a).coefficient c := by
@@ -470,8 +438,6 @@ theorem atomsOf_form (a : Nat) (inside : a < 167) (c : Fin n) :
 
 end invocation
 
-/-! ## The rows of an invocation -/
-
 theorem meaningfulForm_coefficient {n : Nat} {f g : SboxRow.Forms n}
     (input : ∀ c, f.input.coefficient c = g.input.coefficient c)
     (output : ∀ c, f.output.coefficient c = g.output.coefficient c)
@@ -483,9 +449,6 @@ theorem meaningfulForm_coefficient {n : Nat} {f g : SboxRow.Forms n}
   · exact input c
   · rfl
 
-/-- **The rows of an invocation.** When `invocationRows?` returns the rows of
-invocation `inv` of `block`, there are 150, and each port of row `r` has the
-coefficients of that port of row `150 * inv + r` of F′'s `block.row?`. -/
 theorem invocationRows?_spec {block : Poseidon.Block} {n inv : Nat} {rows : Array (SboxRow.Forms n)}
     (computed : invocationRows? block n inv = some rows) :
     rows.size = 150 ∧ ∀ (r : Nat) (inside : r < rows.size), ∃ forms, block.row? n (150 * inv + r) = some forms ∧

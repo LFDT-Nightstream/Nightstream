@@ -2,19 +2,6 @@ import CompressionLean.Sim.Algebra
 import CompressionLean.Ports.Replay.Transcript
 import CompressionLean.Lib.Array
 
-/-!
-Owns the simulation of the duplex challenger of `Hash.lean` against the
-replay's (`Ports/Replay/Transcript.lean`): `observe`, `sample`, `sample_ext` and
-`sample_bits`. `Merkle.lean` owns the leaf sponge, node compression and
-Merkle paths.
-
-- `IsWords`: an array of handles is an array of words, entry by entry.
-- `IsDuplex`: the builder's duplex is the replay's, lane by lane.
-- `bits_digits`: a decomposition that passes the 64-bit check is the binary
-  one. So once its check holds, `sampleBits` gives the sample's digits
-  (`Duplex.sampleBits_ensures`).
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
@@ -25,9 +12,6 @@ open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
 
-/-! ## Arrays -/
-
-/-- `hs` and `gs` have one size, and each handle is its word. -/
 def IsWords (c : Ctx F) (n : ℕ) (hs : Array Var) (gs : Array Word) : Prop :=
   hs.size = gs.size ∧ ∀ i < hs.size, IsWord c n hs[i]! gs[i]!
 
@@ -98,7 +82,6 @@ theorem ofFn {k : ℕ} {f : Fin k → Var} {gs : Array Word} (size : gs.size = k
   rw [getElem!_pos _ _ (by simpa using hi), Array.getElem_ofFn]
   exact hf ⟨i, hi⟩
 
-/-- Overwrite lanes `lane i` for `i < k` with `f i` and `g i`. -/
 theorem setRange (h : IsWords c n hs gs) (k : ℕ) (lane : ℕ → ℕ) {f : ℕ → Var} {g : ℕ → Word}
     (hf : ∀ i < k, IsWord c n (f i) (g i)) :
     IsWords c n ((List.range k).foldl (fun s i => s.set! (lane i) (f i)) hs)
@@ -109,7 +92,6 @@ theorem setRange (h : IsWords c n hs gs) (k : ℕ) (lane : ℕ → ℕ) {f : ℕ
       rw [List.range_succ, List.foldl_append, List.foldl_append]
       exact (ih fun i hi => hf i (by omega)).set (hf k (by omega)) _
 
-/-- Entry-wise words, as `mapM` lemmas state them. -/
 theorem of_forall₂ (h : List.Forall₂ (fun g v => IsWord c n v g) gs.toList hs.toList) : IsWords c n hs gs := by
   have size := h.length_eq
   simp only [Array.length_toList] at size
@@ -120,7 +102,6 @@ theorem of_forall₂ (h : List.Forall₂ (fun g v => IsWord c n v g) gs.toList h
 
 end IsWords
 
-/-- The `i`-th pair of `l.zipIdx` is `(l[i], i)`. -/
 theorem foldl_zipIdx {α β : Type} [Inhabited α] (l : List α) (f : β → α → ℕ → β) (s : β) :
     l.zipIdx.foldl (fun s x => f s x.1 x.2) s = (List.range l.length).foldl (fun s i => f s l[i]! i) s := by
   induction l using List.reverseRecOn generalizing s with
@@ -154,17 +135,12 @@ theorem range_foldl {α : Type} (a b : ℕ) (f : ℕ → α → α) (s : α) :
   congr 2
   simp [Std.Legacy.Range.size]
 
-/-- A loop whose body is pure is a fold. -/
 theorem forIn_pure {m : Type → Type} [Monad m] [LawfulMonad m] {α β : Type} {l : List α} {init : β}
     {body : α → β → m (ForInStep β)} (f : α → β → β) (h : ∀ x s, body x s = pure (.yield (f x s))) :
     forIn l init body = pure (l.foldl (fun s x => f x s) init) := by
   rw [show body = fun x s => pure (.yield (f x s)) from funext fun x => funext fun s => h x s]
   exact List.forIn_pure_yield_eq_foldl f init
 
-/-! ## The duplex -/
-
-/-- The builder's duplex is the replay's, lane by lane; its state has 16
-lanes. -/
 structure IsDuplex (c : Ctx F) (n : ℕ) (d : Duplex) (r : Replay.Duplex) : Prop where
   state : IsWords c n d.state r.state
   input : IsWords c n d.input r.input
@@ -180,7 +156,6 @@ theorem permute_size (s : Array Word) : (Replay.permute s).size = 16 := rfl
 /- Unifying two terms that contain the permutation must never evaluate it. -/
 attribute [local irreducible] Replay.permute
 
-/-- The duplex after a permutation, from the replay's last state `t`. -/
 theorem IsDuplex.permuted {c : Ctx F} {m : ℕ} (t : Array Word) (outs : Fin 16 → Var)
     (h : ∀ k : Fin 16, IsWord c m (outs k) (Replay.permute t)[k]!) :
     IsDuplex c m ({ state := Array.ofFn outs, input := #[], output := (Array.ofFn outs).extract 0 rate } : Duplex)
@@ -194,21 +169,17 @@ theorem duplexing_output_size (r : Replay.Duplex) : r.duplexing.output.size = Re
   unfold Replay.Duplex.duplexing
   simp [permute_size, Replay.rate]
 
-/-- Pop the last output lane of matching duplexes. -/
 theorem IsDuplex.pop {c : Ctx F} {m : ℕ} {d : Duplex} {r : Replay.Duplex} (h : IsDuplex c m d r)
     (ne : 0 < r.output.size) :
     IsWord c m d.output.back! r.output.back! ∧
       IsDuplex c m { d with output := d.output.pop } { r with output := r.output.pop } :=
   ⟨h.output.back (h.output.1 ▸ ne), ⟨h.state, h.input, h.output.pop, h.width⟩⟩
 
-/-- Matching duplexes take the same branch before a sample. -/
 theorem IsDuplex.cond {c : Ctx F} {m : ℕ} {d : Duplex} {r : Replay.Duplex} (h : IsDuplex c m d r) :
     (!d.input.isEmpty || d.output.isEmpty) = (!r.input.isEmpty || r.output.isEmpty) := by
   unfold Array.isEmpty
   rw [h.input.1, h.output.1]
 
-/-- The sum of `2^i·β i` below `k`, for bits `β`, is below `2^k` and has
-digit `j` equal to `β j`. -/
 theorem binary_sum (β : ℕ → ℕ) : ∀ k, (∀ i < k, β i ≤ 1) →
     ((List.range k).map fun i => 2 ^ i * β i).sum < 2 ^ k ∧
       ∀ j < k, ((List.range k).map fun i => 2 ^ i * β i).sum / 2 ^ j % 2 = β j
@@ -229,8 +200,6 @@ theorem binary_sum (β : ℕ → ℕ) : ∀ k, (∀ i < k, β i ≤ 1) →
       · rw [Nat.add_mul_div_left _ _ (by positivity), Nat.div_eq_of_lt lt, zero_add]
         omega
 
-/-- **A canonical decomposition is the binary one.** If `b` passes the 64-bit
-check for the word `g`, bit `i` is digit `i` of `g`. -/
 theorem bits_digits [CharP F goldilocksModulus] {g : Word} {b : ℕ → F}
     (h : Bits (Word.cast g : F) 64 b) : ∀ i < 64, b i = Word.cast (Word.ofNat (g.toNat / 2 ^ i % 2)) := by
   classical
@@ -283,8 +252,6 @@ theorem bits_digits [CharP F goldilocksModulus] {g : Word} {b : ℕ → F}
   intro i hi
   rw [(hβ i hi).1, word_ofNat, ← eq, digits i hi]
 
-/-! ## Programs -/
-
 instance Duplex.new_appends : Appends Duplex.new := by unfold Duplex.new; appends
 instance Duplex.duplexing_appends (d : Duplex) : Appends (Duplex.duplexing.run d) := by
   unfold Duplex.duplexing; appends
@@ -308,8 +275,6 @@ section Duplex
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `duplexing`: overwrite the absorbed lanes; after input, zero the rest of
-the rate and add the length tag; permute; refill the output. -/
 theorem Duplex.duplexing_ensures {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : IsDuplex c n d r) :
     Ensures c n (Duplex.duplexing.run d) fun res m => IsDuplex c m res.2 r.duplexing := by
   unfold Duplex.duplexing
@@ -364,7 +329,6 @@ theorem Duplex.duplexing_ensures {d : Duplex} {r : Replay.Duplex} (hp : Permutes
     rw [hr]
     exact IsDuplex.permuted t₁ outs houts
 
-/-- `observe`: push the word, clear the output, and duplex at a full rate. -/
 theorem Duplex.observe_ensures {d : Duplex} {r : Replay.Duplex} {v : Var} {g : Word} (hp : Permutes c.perm)
     (hd : IsDuplex c n d r) (hv : IsWord c n v g) :
     Ensures c n ((Duplex.observe v).run d) fun res m => IsDuplex c m res.2 (r.observe g) := by
@@ -389,7 +353,6 @@ theorem Duplex.observe_ensures {d : Duplex} {r : Replay.Duplex} {v : Var} {g : W
     rw [hr]
     exact hd'
 
-/-- `observe` of each word of a list, in order. -/
 private theorem observeList_ensures (hp : Permutes c.perm) :
     ∀ (l : List Var) (gl : List Word) {n : ℕ} {d : Duplex} {r : Replay.Duplex}, IsDuplex c n d r →
       l.length = gl.length → (∀ i < l.length, IsWord c n l[i]! gl[i]!) →
@@ -405,7 +368,6 @@ private theorem observeList_ensures (hp : Permutes c.perm) :
       exact observeList_ensures hp l gl hres (by simpa using hlen) fun i hi => by
         simpa using (hl (i + 1) (by simp; omega)).mono
 
-/-- `observe_slice`: the replay's `foldl observe`. -/
 theorem Duplex.observeSlice_ensures {d : Duplex} {r : Replay.Duplex} {vs : Array Var} {gs : Array Word}
     (hp : Permutes c.perm) (hd : IsDuplex c n d r) (hv : IsWords c n vs gs) :
     Ensures c n ((Duplex.observeSlice vs).run d)
@@ -416,7 +378,6 @@ theorem Duplex.observeSlice_ensures {d : Duplex} {r : Replay.Duplex} {vs : Array
     rw [Array.getElem!_toList, Array.getElem!_toList]
     exact hv.2 i (by simpa using hi)
 
-/-- `observe_ext`: the three coordinates in order. -/
 theorem Duplex.observeExt_ensures {d : Duplex} {r : Replay.Duplex} {a : ExtVar} {e : Ext} (hp : Permutes c.perm)
     (hd : IsDuplex c n d r) (ha : IsExt c n a e) :
     Ensures c n ((Duplex.observeExt a).run d)
@@ -426,8 +387,6 @@ theorem Duplex.observeExt_ensures {d : Duplex} {r : Replay.Duplex} {a : ExtVar} 
   refine (Duplex.observe_ensures hp h₁ (ha 1).mono).tbind fun _ _ _ _ h₂ => ?_
   exact Duplex.observe_ensures hp h₂ (ha 2).mono
 
-/-- `sample`: duplex when there is input or no output, then pop the last
-output lane. -/
 theorem Duplex.sample_ensures {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : IsDuplex c n d r) :
     Ensures c n (Duplex.sample.run d) fun res m => IsWord c m res.1 r.sample.1 ∧ IsDuplex c m res.2 r.sample.2 := by
   unfold Duplex.sample
@@ -451,7 +410,6 @@ theorem Duplex.sample_ensures {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.
     simp only [Bool.or_eq_true, Bool.not_eq_true', Array.isEmpty_iff_size_eq_zero, not_or] at e
     omega
 
-/-- `sample_ext`: coordinate `i` is the `i`-th sample. -/
 theorem Duplex.sampleExt_ensures {d : Duplex} {r : Replay.Duplex} (hp : Permutes c.perm) (hd : IsDuplex c n d r) :
     Ensures c n (Duplex.sampleExt.run d)
       fun res m => IsExt c m res.1 ⟨r.sample.1, r.sample.2.sample.1, r.sample.2.sample.2.sample.1⟩ ∧
@@ -467,8 +425,6 @@ theorem Duplex.sampleExt_ensures {d : Duplex} {r : Replay.Duplex} (hp : Permutes
   · exact hy.1.mono
   · exact hz.1
 
-/-- `sample_bits`: the low `bits` bits of the canonical sample. Once the
-decomposition's check holds, bit `i` is digit `i` of the sample. -/
 theorem Duplex.sampleBits_ensures {d : Duplex} {r : Replay.Duplex} (bits : ℕ) (small : bits ≤ 64)
     (hp : Permutes c.perm) (hd : IsDuplex c n d r) :
     Ensures c n ((Duplex.sampleBits bits).run d)

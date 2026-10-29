@@ -2,14 +2,6 @@ import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedInputs
 import NightstreamFPrime.Export.Stage1.PiRLCValueMatrixProgram
 
-/-!
-Owns the compact matrix-program block for the four canonical PiRLC Phi81
-product families. Family order and every retained-block operand are Lean
-data. A consumer does not select family bounds, row order, or columns.
-
-This module does not assemble later PiRLC or Stage 1 blocks.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram
 
 open NightstreamFPrime.Export

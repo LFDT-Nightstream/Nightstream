@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.BaseStepFixture
 import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 
-/-!
-Owns the next caller packet from an explicit prior state, application message,
-actual PiCCS proof and sixteen child claims. Opening validity and the complete
-exported witness assignment must be checked separately.
--/
-
 namespace NightstreamFPrime.Export.Stage1.RecursiveStepFixture
 
 open NightstreamFPrime.Export.Codec
@@ -32,9 +26,7 @@ private def extensionWords (value : K) : List F := [value.c0, value.c1]
 private def pointValue (point : List K) : Value :=
   .array (point.map fun value => wordsValue (extensionWords value))
 
-/-- The child public inputs are the checked Π_DEC split of their own parent.
-This is the Rust `canonical_parent` rule and Lean `ChildrenCanonical`: the
-parent is in the split range and every child is its production digit. -/
+/-- Matches the Rust `canonical_parent` rule. -/
 private def childrenCanonical
     (running : Running (logicalWidth := logicalWidth) (publicFits := publicFits)) :
     Bool :=

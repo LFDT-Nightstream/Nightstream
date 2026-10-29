@@ -2,8 +2,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionRecursiveBounds
 import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupportData
 import NightstreamFPrime.Lifecycle.Stage1.RunningTransitionSupport
 
-/-! Owns compact source support for the recursive running vector. -/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 
 open NightstreamFPrime.Circuit

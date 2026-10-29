@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.RingKCombination
 
-/-!
-Owns the physical two-cell `RingK` combination adapter.
-
-This owner selects both extension-field cells for each block from the exact
-generic family. `Eval_K` and `Eval_A` remain separate public owners above it.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.RingKCombination
 
 open NightstreamFPrime.Circuit

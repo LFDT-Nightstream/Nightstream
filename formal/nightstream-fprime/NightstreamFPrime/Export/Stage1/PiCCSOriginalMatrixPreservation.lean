@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalReads
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationHonestMessages
 
-/-!
-Proof-only complete matrix-family reference for every original source.
-The existing arbitrary-assignment row accumulation owns the prefix bounds
-and zero suffix. Sparse and prepared runtime range transport is separate.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixPreservation

@@ -20,12 +20,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPadPrefix
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 
-/-!
-Compute a first-round pair range from original witnesses and public claims.
-Rust round messages and output evaluations are not inputs. A partial range
-is a measurement/accumulation result, not a complete first round.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiCCSFirstRoundReplay
@@ -248,11 +242,6 @@ private def replayNorm (publicPath sourcePath outputPath : System.FilePath)
     ("elapsed_ns", Lean.toJson ((← IO.monoNanosNow) - started))]
   return 0
 
-/-- Fresh pairs per chunk. Measured on the M5: a Poseidon pair takes about 0.15 ms
-and a Phi81 product pair about 2.5 ms, so one chunk takes at most about 2.6 s
-against about 19 s of ideal work per worker for the full pair range. With one
-equal part per worker, 14 of 18 parts took 8 s and the part with the product
-rows took 138 s. -/
 private def freshChunkPairs : Nat := 1024
 
 private def freshRows (program : MatrixProgram.Program)
@@ -419,19 +408,12 @@ private def carriedRows (program : MatrixProgram.Program)
 private def rangeCount (extent workers rangeSize : Nat) : Nat :=
   min extent (max workers ((extent + rangeSize - 1) / rangeSize))
 
-/-- One full low-weight cycle was measured across the runtime workers
-(`docs/reviews/nightstream-fprime-requirements/PICCS_CARRIED_PREFIX_REPLAY.json` at commit
-`f7e093d8f`, `matrix_preflight`). -/
 private def carriedMatrixRangeSize (weightCount workers : Nat) : Nat :=
   max 1 ((2 * weightCount) / workers)
 
-/-- The measured 8192-block preflight is the existing low-weight table size; batches retain the
-measured extent (`PICCS_CARRIED_PREFIX_REPLAY.json` at commit `f7e093d8f`, `pad`). -/
 private def carriedPadRangeSize (weightCount : Nat) : Nat :=
   max 1 weightCount
 
-/-- Reuses the measured Pad block and matrix row extents of the original carried scans
-(`PICCS_CARRIED_PREFIX_REPLAY.json` at commit `f7e093d8f`, `pad` and `matrix`). -/
 private def carriedPrefixRangeSize (pad : Bool) (weightCount workers : Nat) : Nat :=
   if pad then carriedPadRangeSize weightCount else max 1 (weightCount / workers)
 
@@ -536,7 +518,6 @@ private def replayCarriedPad (publicPath sourcePath outputPath : System.FilePath
   let basis ← IO.wait (Task.spawn fun _ => (PiCCSAggregatedImages.prepare tables power).1)
   let blocks := PiCCSAggregatedImages.combinedBlock power assignments
   let workers := max 1 (((← IO.getEnv "LEAN_NUM_THREADS").bind String.toNat?).getD 1)
-  -- The default runtime pool ran this workload on one CPU in the preflight.
   let extent := finish - first
   let parts := rangeCount extent workers (carriedPadRangeSize weights.1.size)
   let computeStarted ← IO.monoNanosNow

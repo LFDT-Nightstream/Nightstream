@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSEndpointCompleteness
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics
 
-/-!
-Owns affine inputs and initial values for the four semantic C traces.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPhaseInputs
@@ -125,7 +121,7 @@ theorem challenge_initial :
       ((challengeInterface Data.logicalWidth Data.publicFits).initialState challengeWitnessStart)) =
       PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState
         (valueState geometry (raw).assignment) challengeOffset challengeOffsetBound := by
-  rw [PoseidonActionSemantics.sliceInitial, dif_neg (by decide : challengeOffset ≠ 0)]
+  rw [PoseidonActionSemantics.sliceInitial, dite_eq_right (by decide : challengeOffset ≠ 0)]
   change List.ofFn _ = valueState geometry (raw).assignment (endpointInvocation statementFamily)
   apply congrArg List.ofFn
   funext lane
@@ -141,7 +137,7 @@ theorem round_initial :
       ((roundInterface Data.logicalWidth Data.publicFits).initialState roundWitnessStart)) =
       PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState
         (valueState geometry (raw).assignment) roundOffset roundOffsetBound := by
-  rw [PoseidonActionSemantics.sliceInitial, dif_neg (by decide : roundOffset ≠ 0)]
+  rw [PoseidonActionSemantics.sliceInitial, dite_eq_right (by decide : roundOffset ≠ 0)]
   change List.ofFn _ = valueState geometry (raw).assignment (endpointInvocation challengeFamily)
   apply congrArg List.ofFn
   funext lane
@@ -157,7 +153,7 @@ theorem output_initial :
       ((outputInterface Data.logicalWidth Data.publicFits).initialState outputWitnessStart)) =
       PoseidonActionSemantics.sliceInitial Spec.Poseidon2.zeroState
         (valueState geometry (raw).assignment) outputOffset outputOffsetBound := by
-  rw [PoseidonActionSemantics.sliceInitial, dif_neg (by decide : outputOffset ≠ 0)]
+  rw [PoseidonActionSemantics.sliceInitial, dite_eq_right (by decide : outputOffset ≠ 0)]
   change List.ofFn _ = valueState geometry (raw).assignment (endpointInvocation roundFamily)
   apply congrArg List.ofFn
   funext lane

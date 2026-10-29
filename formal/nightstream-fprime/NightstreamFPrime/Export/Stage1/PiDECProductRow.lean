@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECProductInterface
 
-/-!
-Select one quotient evaluation row without constructing the other rows.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECProductRow

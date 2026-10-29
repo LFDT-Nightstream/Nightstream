@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSActionPayloadSupport
 import NightstreamFPrime.Export.Stage1.PiCCSAssignmentSoundness
 
-/-!
-Owns compilation of the declared PiCCS action payload through the parent's
-ordinary source map. The result reads existing sparse forms and adds no
-payload variables or copy rows.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSPayloadWiring
 
 open NightstreamFPrime.Circuit

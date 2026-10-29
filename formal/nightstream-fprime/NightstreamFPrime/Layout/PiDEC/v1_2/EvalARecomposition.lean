@@ -1,12 +1,6 @@
 import NightstreamFPrime.Layout.PiDEC.v1_2.RingKRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.EvalARecomposition
 
-/-!
-Owns the physical footprint for all 14 separate PiDEC `Eval_A` matrix
-families. Matrix order, coefficient order, and `c0, c1` cell order are the
-logical circuit's order; this module adds no compression or copy row.
--/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2.EvalARecomposition
 
 open NightstreamFPrime.Circuit

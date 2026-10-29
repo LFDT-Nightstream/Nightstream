@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerFullSemantics
 import NightstreamFPrime.Export.Stage1.PiRLCProductDirectSemantics
 import NightstreamFPrime.Export.Stage1.Package
 
-/-!
-Owns the phase-local join from the retained PiRLC sampler semantics and exact
-compact combination rows to the canonical seven-child PiRLC parent.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCDirectPhaseSemantics
 
 open NightstreamFPrime.Circuit

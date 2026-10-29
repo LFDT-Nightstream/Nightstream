@@ -1,11 +1,6 @@
 import NightstreamFPrime.Layout.PiDEC.v1_2.Lowering
 import NightstreamFPrime.Layout.R1CS.Completeness
 
-/-!
-Owns deterministic physical soundness and constructive completeness for the
-sole PiDEC v1_2 phase layout. No cryptographic assumption occurs here.
--/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2
 
 open NightstreamFPrime.Circuit

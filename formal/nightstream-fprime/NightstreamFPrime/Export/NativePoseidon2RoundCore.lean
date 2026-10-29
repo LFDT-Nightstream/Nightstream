@@ -1,11 +1,5 @@
 import NightstreamFPrime.Export.NativeGoldilocks
 
-/-!
-Owns the sixteen-lane native Poseidon2 state and its round operations.
-Machine-word arithmetic belongs to `NativeGoldilocks`. The exact 4/22/4
-schedule, constants, and streaming sponge belong to `NativePoseidon2`.
--/
-
 namespace NightstreamFPrime.Export.NativePoseidon2
 
 open NightstreamFPrime.Spec

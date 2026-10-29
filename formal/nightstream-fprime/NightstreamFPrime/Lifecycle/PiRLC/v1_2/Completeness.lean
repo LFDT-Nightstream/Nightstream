@@ -1,11 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 
-/-!
-Completes the seven-child PiRLC v1.2 logical assembler. This file owns only
-ordered child-witness composition and the sole parent `FormalCircuit`. It
-adds no protocol predicate, transcript action, or verifier row.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal
 
 open NightstreamFPrime.Spec

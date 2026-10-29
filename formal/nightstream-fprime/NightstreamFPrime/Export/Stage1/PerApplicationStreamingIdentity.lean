@@ -6,10 +6,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPackets
 import NightstreamFPrime.Export.NativePoseidon2
 import NightstreamFPrime.Export.MatrixProgram.Program
 
-/-!
-Owns the direct bounded-memory traversal of the final Stage 1 sealed package.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationStreamingIdentity
 
 open NightstreamFPrime.Circuit

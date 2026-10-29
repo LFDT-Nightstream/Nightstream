@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationSparseBlock
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81MatrixSource
 
-/-!
-Derive a sparse Pad row from its authoritative column layout.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECEvaluationPadBlock
@@ -58,11 +54,11 @@ theorem rowBlock_paddedEntry
   rw [PiDECEvaluationSparseBlock.rowBlock_coefficient_value]
   apply sumRange_congr baseOps ringDegree
   intro index live
-  simp only [dif_pos live]
+  simp only [dite_eq_left live]
   have within : block.val * ringDegree + index <
       Phi81CarrierLayout.carrierWidth logicalWidth :=
     Phi81CarrierLayout.flatIndex_lt_carrierWidth block ⟨index, live⟩
-  rw [dif_pos within, form_coefficient]
+  rw [dite_eq_left within, form_coefficient]
   simp only [MatrixSource.paddedEntry, Phi81MatrixSource.source,
     Phi81CarrierLayout.layout_encode?_isSome, Phi81ColumnLayout.flatIndex]
 

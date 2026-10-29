@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 
-/-!
-Owns loading the canonical PiDEC source fields from the actual proof messages
-and the verifier's public-input split. The four ranges and their typed coordinate
-maps come from the existing PiDEC owners. This loader adds no circuit rows.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiDECProofInputs
 
 open NightstreamFPrime.Spec
@@ -31,7 +25,7 @@ private theorem writeFamily_read {count width : Nat} (env : Env) (start : Nat)
   have inside : start ≤ start + (finProdFinEquiv (child, coordinate)).val ∧
       start + (finProdFinEquiv (child, coordinate)).val < start + count * width :=
     ⟨Nat.le_add_right _ _, Nat.add_lt_add_left (finProdFinEquiv (child, coordinate)).isLt start⟩
-  rw [writeFamily, dif_pos inside]
+  rw [writeFamily, dite_eq_left inside]
   have packedEq :
       (⟨start + (finProdFinEquiv (child, coordinate)).val - start, by omega⟩ : Fin (count * width)) =
       finProdFinEquiv (child, coordinate) := by
@@ -44,7 +38,7 @@ private theorem writeFamily_agreesOutside {count width : Nat} (env : Env) (start
     AgreesOutside env (writeFamily env start values) start (count * width) := by
   intro index outside
   have notInside : ¬ (start ≤ index ∧ index < start + count * width) := by omega
-  rw [writeFamily, dif_neg notInside]
+  rw [writeFamily, dite_eq_right notInside]
 
 private theorem writeFamily_before {count width : Nat} (env : Env) (start : Nat)
     (values : Fin count → Fin width → F) (index : Nat) (below : index < start) :
@@ -172,7 +166,8 @@ theorem eval_childCommitment {degree : Nat} (env : Env) (proof : Proof degree)
     (row : Fin productionProfile.commitmentWidth) (lane : Fin ringDegree) :
     (childCommitment child row lane).eval (load env proof parent) = proof.piDecCommitments child row lane := by
   have word := load_commitmentWord env proof parent child (CommitmentRecomposition.indexOf row lane)
-  simp only [commitmentWord, CommitmentRecomposition.coordinates_indexOf] at word
+  simp only [commitmentWord] at word
+  erw [CommitmentRecomposition.coordinates_indexOf] at word
   convert word using 1; simp only [childCommitment, childCommitmentStart, Expr.eval,
     CommitmentRecomposition.indexOf, finProdFinEquiv, Equiv.coe_fn_mk, Nat.add_assoc, Nat.add_comm, Nat.add_left_comm, Nat.mul_comm]
 

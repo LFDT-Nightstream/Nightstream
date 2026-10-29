@@ -1,14 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 
-/-!
-Consume the existing concrete terminal relation's 16 CE(b) witnesses at the
-exact NIFS output. The verifier-selected relation and Ajtai key are shared by
-terminal membership, NIFS acceptance, and PiDEC parent extraction.
-
-This is the caller link for SuperNeo Theorem 13. Bare public acceptance does
-not establish terminal membership, private openings, or a probability bound.
--/
+/-! Caller link for SuperNeo Theorem 13. -/
 
 namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputWitnessConsumer
 

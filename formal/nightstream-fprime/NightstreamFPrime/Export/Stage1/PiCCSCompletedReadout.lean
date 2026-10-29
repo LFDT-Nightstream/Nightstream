@@ -3,10 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSInvocationSchedule
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 
-/-!
-Owns the source agreement derived from completed PiCCS permutation rows.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCompletedReadout

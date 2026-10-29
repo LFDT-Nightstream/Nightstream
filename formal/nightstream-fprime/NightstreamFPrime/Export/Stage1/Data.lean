@@ -11,11 +11,6 @@ import NightstreamFPrime.Export.Stage1.PiDECArithmetic
 import NightstreamFPrime.Export.Stage1.RunningTransitionArithmetic
 import NightstreamFPrime.Export.Stage1.WitnessProgram
 
-/-!
-Owns the executable data of the Stage 1 prefix through the running
-transition.
--/
-
 namespace NightstreamFPrime.Export.Stage1.Data
 
 open NightstreamFPrime.Export.Package

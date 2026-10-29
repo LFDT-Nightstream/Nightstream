@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.StoredPhysicalRowCheck
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
-/-!
-Transport final physical row checks from the runtime pilot header to the exact
-selected source package.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.StoredPhysicalRowContext

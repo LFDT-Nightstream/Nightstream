@@ -1,17 +1,6 @@
 import NightstreamFPrime.Spec.Phi81Relation.Types
 
-/-!
-Paper Phi81 CE evaluation packing over the batch-invariant relation carrier.
-
-Protocol: SuperNeo v1.2 Definition 21.
-
-Owns: the relation-level `RingK` value for one matrix, canonical array order,
-and exact array size/index theorems.
-
-Does not own: relation membership, commitments, public-input authority,
-`yZcol`, transcript derivation, PiRLC/PiDEC homomorphism, Rust, R1CS, or
-constraint counts.
--/
+/-! SuperNeo v1.2 Definition 21. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation
 

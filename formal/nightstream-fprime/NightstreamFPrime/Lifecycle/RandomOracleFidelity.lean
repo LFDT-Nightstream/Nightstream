@@ -1,29 +1,5 @@
 import NightstreamFPrime.Lifecycle.RandomOracleExtraction
 
-/-!
-Owns the fidelity of the oracle verifier: at an oracle that answers every
-challenge of one execution as the Poseidon2 sponge does, the oracle verifier
-`RandomOracleExtraction.Accepts` is the production NIFS verifier
-`PaperNonInteractive.verify` plus the openings of the returned children.
-
-Inputs: the production key, one execution (running and fresh statements and a
-proof) and an oracle.
-
-Outputs:
-- `Deployed`: the oracle's value at each challenge point is the sponge read
-  at that challenge's address, as `TranscriptCoverage.challenge_seal` states
-  for the key;
-- `deployedOracle_deployed`: the oracle that answers every point with the
-  lanes of the sponge state after its calls is such an oracle for every
-  execution;
-- `attempt_eq`: the key's `Π_DEC` attempt is the oracle attempt;
-- `accepts_iff_verify`: `Accepts` holds iff `verify` returns a running output
-  and the witnesses open the attempt's children.
-
-Does not own: the probability model, or the oracle's answers at points that
-are not challenges of the execution.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Lifecycle.RandomOracleFidelity

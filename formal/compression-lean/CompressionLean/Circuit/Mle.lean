@@ -1,22 +1,12 @@
 import CompressionLean.Circuit.Algebra
 import CompressionLean.Replay.Data
 
-/-!
-Owns the closed forms of `crates/neo-spartan/src/mle.rs` that the linear
-stage evaluates, as builder programs: the scaled-eq point of a power weight
-(`scaledEqPoint`) and the Eval_K (Pad) weight by long division (`evalK`).
-Each one calls `Build` in the order of its Rust counterpart. Points are low
-bit first.
--/
-
 namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (D)
 
 namespace Mle
 
-/-- `κ = Π_t (1 + c^{2^t})` and `x_t = c^{2^t}/(1 + c^{2^t})`
-(`scaled_eq_point`, `mle.rs:21-34`). The inverse rejects a pole. -/
 def scaledEqPoint (c : ExtVar) (bits : ℕ) : Build (ExtVar × Array ExtVar) := do
   let one ← Algebra.extOne
   let mut kappa := one
@@ -30,12 +20,8 @@ def scaledEqPoint (c : ExtVar) (bits : ℕ) : Build (ExtVar × Array ExtVar) := 
     power ← Build.extMul power power
   pure (kappa, point)
 
-/-- The long division's states: `states[remainder][below]`, `none` where the
-state is not reachable. -/
 abbrev DivisionStates := Array (Array (Option KxVar))
 
-/-- `Σ_{b<blocks} eq(s_block, b)·Σ_{l<D} τ_l·χ_r(D·b + l)` by long division of
-the coordinate by `D`, high bit first (`eval_k`, `mle.rs:146-204`). -/
 def evalK (r : Array KVar) (sBlock tau : Array ExtVar) (blocks : ℕ) : Build KxVar := do
   let blockBits := sBlock.size
   let coordinateBits := Nat.log2 (D * 2 ^ blockBits).nextPowerOfTwo

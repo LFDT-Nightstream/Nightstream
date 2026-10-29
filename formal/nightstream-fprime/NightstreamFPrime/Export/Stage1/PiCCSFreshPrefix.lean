@@ -2,11 +2,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImages
 
-/-!
-Fold retained matrix-image rows with the existing prefix interpolation.
-IO, cached scans and transcript steps stay with their existing owners.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSFreshPrefix

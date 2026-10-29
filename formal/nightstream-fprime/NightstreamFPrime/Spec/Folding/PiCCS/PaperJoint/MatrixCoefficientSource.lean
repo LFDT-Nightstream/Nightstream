@@ -1,28 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
-/-!
-One authoritative source for the canonical Pad and every CCS ring-matrix
-coefficient family.
-
-Protocol: SuperNeo v1.2 coefficient embedding (Section 5) and `Pi_CCS`
-(Section 7.3 / Appendix B.2).
-Phase: structure ownership before CCS, Pad, and matrix-evaluation residuals.
-Constraint family: field-matrix to coefficient-expanded matrix images.
-
-Owns: an exact injection of logical field columns into padded
-block/coefficient positions; explicit zero semantics for padding positions; a
-finite bilinear coefficient kernel; derivation of every Pad/matrix coefficient
-matrix from its verifier-owned field matrix; connected joint inputs that
-contain no separately settable coefficient-matrix field; and the constant-term
-connection to the original CCS matrix under the paper
-inner-product-transform law.
-
-Does not own: the concrete Phi81 inner-product transform, proof that the Rust
-matrix cache instantiates this kernel, production padding/order, transcript,
-SumCheck, R1CS, row removal, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 5; Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
 
@@ -94,11 +72,11 @@ theorem sumRange_select
               ops.zero := by
           apply sumRange_eq_zero ops laws
           intro index indexLt
-          rw [if_neg (Nat.ne_of_lt indexLt)]
-        rw [prefixZero, if_pos rfl]
+          rw [ite_eq_right (Nat.ne_of_lt indexLt)]
+        rw [prefixZero, ite_eq_left rfl]
         exact laws.zero_add _
       · have selectedEarlier : selected < count := by omega
-        rw [inductionHypothesis selectedEarlier, if_neg]
+        rw [inductionHypothesis selectedEarlier, ite_eq_right]
         · exact laws.add_zero _
         · exact Ne.symm last
 
@@ -117,8 +95,7 @@ structure CoefficientKernel (Base : Type uBase) (coefficientCount : Nat) where
   weight : Fin coefficientCount -> Fin coefficientCount ->
     Fin coefficientCount -> Base
 
-/-- SuperNeo v1.2 Theorem 8 / Theorem 9 obligation: the constant coefficient of the
-transformed ring product is the ordinary field inner product. -/
+/-- SuperNeo v1.2 Theorems 8 and 9. -/
 structure ConstantTermLaw
     {Base : Type uBase}
     (ops : InterpolationOps Base)
@@ -261,7 +238,7 @@ theorem coefficientMatrixOf_constant_apply
             ops.zero) := by
       apply sumRange_congr
       intro rowIndex rowLt
-      rw [dif_pos rowLt]
+      rw [dite_eq_left rowLt]
       let row : Fin shape.coefficientCount := ⟨rowIndex, rowLt⟩
       change
         ops.mul
@@ -275,7 +252,7 @@ theorem coefficientMatrixOf_constant_apply
       by_cases equal : row = selected
       · have valueEqual : rowIndex = selected.val :=
           congrArg Fin.val equal
-        rw [if_pos equal, if_pos valueEqual, laws.mul_one]
+        rw [ite_eq_left equal, ite_eq_left valueEqual, laws.mul_one]
         exact congrArg
           (fun coefficient =>
             source.paddedEntry ops matrix vertex block coefficient)
@@ -284,7 +261,7 @@ theorem coefficientMatrixOf_constant_apply
           intro valueEqual
           apply equal
           exact Fin.eq_of_val_eq valueEqual
-        rw [if_neg equal, if_neg valueDifferent, laws.mul_zero]
+        rw [ite_eq_right equal, ite_eq_right valueDifferent, laws.mul_zero]
     _ = source.paddedEntry ops matrix vertex block selected := by
       exact sumRange_select ops laws shape.coefficientCount selected.val
         (fun _ => source.paddedEntry ops matrix vertex block selected)
@@ -353,8 +330,6 @@ structure ConnectedInputs
 
 namespace ConnectedInputs
 
-/-- The paper's canonical `Pad = [I; 0]`, derived from the exact cube layout
-rather than stored as CCS matrix zero. -/
 def padMatrix
     {Extension : Type uExtension}
     {shape : Shape}

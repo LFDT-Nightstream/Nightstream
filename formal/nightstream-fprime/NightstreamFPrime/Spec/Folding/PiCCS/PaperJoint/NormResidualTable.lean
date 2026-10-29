@@ -1,25 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanDomain
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormRange
 
-/-!
-Concrete strict-norm residual tables for the paper-level joint `Pi_CCS` model.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: construction of the uncompressed norm block `NC(X, C)`.
-Constraint family: one strict `b = 2` norm obligation per source and Boolean
-assignment coordinate.
-
-Owns: typed Boolean-domain assignments, canonical base-field cubic residual
-tables, their pointwise equivalence with centered strict norm, and batch
-composition for all `K + k` sources.
-
-Does not own: a kernel proof of Goldilocks primality/no-zero-divisors,
-external numeric row or bit order, embedding the base residual into the
-extension-field joint polynomial, CCS, carried evaluation, SumCheck,
-Fiat--Shamir, Rust, R1CS, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormResidualTable
 

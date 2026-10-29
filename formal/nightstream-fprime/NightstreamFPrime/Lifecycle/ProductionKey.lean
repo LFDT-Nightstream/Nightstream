@@ -7,16 +7,6 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperProfile
 import NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout
 import NightstreamFPrime.Spec.Folding.Nifs
 
-/-!
-Owns the one concrete Stage 1 SuperNeo NIFS verifier key. Every algebraic law
-field is discharged by a concrete theorem (Goldilocks primality, the Φ₈₁
-carrier laws, the Ajtai commitment algebra); the transcript fields are the
-Poseidon2 sponge of `Lifecycle.Transcript`. The only inputs are the F′ logical
-matrix family, its cube capacity, and the verifier-owned Ajtai key. The CCS
-polynomial is the fixed production low-norm gate. Nothing is a
-caller-supplied verifier predicate or polynomial.
--/
-
 namespace NightstreamFPrime.Lifecycle.ProductionKey
 
 open NightstreamFPrime.Spec

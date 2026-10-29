@@ -4,13 +4,6 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation
 import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocationRange
 import NightstreamFPrime.Lifecycle.Types
 
-/-!
-Owns shared matrix-row batches for all original sources, indexed source then
-port. Sparse forms and prepared numeric invocations keep their existing
-arithmetic owners. Original-source reads, loaded-row provenance, and the
-complete evaluation-family link remain caller obligations.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch
@@ -70,10 +63,10 @@ private theorem sparseRow_value {columns count : Nat} (firstRow : Nat)
           | none => SparseForm.empty).evalSparse (read source output)
       else 0 := by
   have lower : firstRow ≤ firstRow + index := by omega
-  rw [sparseRow, if_pos lower, Nat.add_sub_cancel_left]
+  rw [sparseRow, ite_eq_left lower, Nat.add_sub_cancel_left]
   by_cases live : index < count
-  · simp only [dif_pos live, ofFn_get, Fin.decodeProd_encodeProd]
-  · rw [dif_neg live, dif_neg live]
+  · simp only [dite_eq_left live, ofFn_get, Fin.decodeProd_encodeProd]
+  · rw [dite_eq_right live, dite_eq_right live]
     change ((Vector.replicate (productionShape.sourceCount * matrixCount)
       (Vector.replicate ringDegree (0 : F)))[(Fin.encodeProd (source, port)).val])[output.val] = 0
     rw [Vector.getElem_replicate, Vector.getElem_replicate]
@@ -130,10 +123,10 @@ private theorem invocationRow_value (prepared : PreparedInvocation) (start index
         (((prepared.get source).get output).get ⟨index, bounded⟩).get port
       else 0 := by
   have lower : start ≤ start + index := by omega
-  rw [invocationRow, if_pos lower, Nat.add_sub_cancel_left]
+  rw [invocationRow, ite_eq_left lower, Nat.add_sub_cancel_left]
   by_cases bounded : index < 150
-  · simp only [dif_pos bounded, ofFn_get, Fin.decodeProd_encodeProd]
-  · rw [dif_neg bounded, dif_neg bounded]
+  · simp only [dite_eq_left bounded, ofFn_get, Fin.decodeProd_encodeProd]
+  · rw [dite_eq_right bounded, dite_eq_right bounded]
     change ((Vector.replicate (productionShape.sourceCount * matrixCount)
       (Vector.replicate ringDegree (0 : F)))[(Fin.encodeProd (source, port)).val])[output.val] = 0
     rw [Vector.getElem_replicate, Vector.getElem_replicate]
@@ -176,9 +169,9 @@ theorem sumInvocations_source_port {columns arity count : Nat} (firstRow : Nat)
   apply congrArg (NumericCompletionSum.numericSum extensionOps count)
   funext index
   by_cases live : index < count
-  · simpa only [dif_pos live, prepareInvocation_source] using
+  · simpa only [dite_eq_left live, prepareInvocation_source] using
       congrFun (sumInvocation_source_port (firstRow + 150 * index) point
         (prepareInvocation read (interfaces.get ⟨index, live⟩)) source port) output
-  · simp only [dif_neg live, PiDECEvaluationBatch.zero_value]
+  · simp only [dite_eq_right live, PiDECEvaluationBatch.zero_value]
 
 end NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch

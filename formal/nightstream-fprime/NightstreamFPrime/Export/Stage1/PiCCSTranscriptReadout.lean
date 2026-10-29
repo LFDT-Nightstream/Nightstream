@@ -3,10 +3,6 @@ import NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the fixed PiCCS transcript readout used by ordinary arithmetic sources.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSTranscriptReadout
 
 open NightstreamFPrime.Circuit

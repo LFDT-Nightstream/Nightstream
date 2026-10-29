@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECRetainedGeometry
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedBlocks
 
-/-!
-Owns the no-gap placement of the two PiRLC sampler ordinary retained blocks
-after the complete PiDEC retained prefix. Earlier retained coordinates do not
-move.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRetainedGeometry
 
 open NightstreamFPrime.Layout

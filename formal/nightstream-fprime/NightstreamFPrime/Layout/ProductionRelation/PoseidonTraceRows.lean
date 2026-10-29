@@ -2,14 +2,6 @@ import NightstreamFPrime.Layout.ProductionRelation.PinRow
 import NightstreamFPrime.Layout.ProductionRelation.SboxRow
 import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
 
-/-!
-Owns the two direct row constructors used by the production Poseidon2 trace
-rewrite: one seventh-power S-box equation and one retained linear-output
-equation. Both consume the same proved source substitution.
-
-This module does not select the fixed Poseidon2 schedule or invocation order.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonTraceRows
 
 open NightstreamFPrime.Spec

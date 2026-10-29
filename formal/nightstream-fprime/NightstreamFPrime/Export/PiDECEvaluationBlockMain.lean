@@ -8,14 +8,6 @@ import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit
 
-/-!
-Measure actual Lean parent block 0. The two-argument mode compares Pad rows
-1 and 2 with the basis kernel. The three-argument mode derives the common
-point from accepted C execution and accumulates all 54 Pad rows of this block.
-Both modes emit computed values only; neither claims complete-carrier replay.
-No Rust expected output is an input.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiDECEvaluationBlockMeasurement

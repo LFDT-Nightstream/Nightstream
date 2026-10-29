@@ -1,11 +1,7 @@
 import NightstreamFPrime.Spec.SumCheck.GoldilocksRoots
 import NightstreamFPrime.Spec.SumCheck.FixedPhase.Sequential
 import Mathlib.Algebra.Order.BigOperators.Expect
-import Mathlib.Data.Real.Basic
-
-/-!
-Owns the bad challenge of one SumCheck round over the actual `K` field.
--/
+import Mathlib.Basic.Real.Basic
 
 namespace NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksCausal
 

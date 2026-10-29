@@ -1,12 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.OrdinaryRow
 import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
 
-/-!
-Owns an indexed family of ordinary multiplication rows. Each row enforces
-one exact `left * right = output` equation through the fixed production
-polynomial.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan
 
 open NightstreamFPrime.Spec
@@ -42,7 +36,7 @@ theorem plan_rowImage_at {logicalWidth rowCount : Nat}
     (plan interface rowCount_le).rowImage assignment
         ((plan interface rowCount_le).rowLayout.toVertex row) =
       (forms interface row).portImages assignment := by
-  rw [ProductionRelation.Plan.rowImage_toVertex]
+  erw [ProductionRelation.Plan.rowImage_toVertex]
   funext port
   unfold OrdinaryRow.Forms.portImages
   cases found : ProductionRelation.meaningfulPort? port with
@@ -81,7 +75,7 @@ theorem planRowsZero_iff {logicalWidth rowCount : Nat}
     simp [forms] at zero
     exact Lean.Grind.AddCommGroup.sub_eq_zero_iff.mp zero
   · intro equations row
-    rw [plan_residual_at, OrdinaryRow.Forms.residual_eq]
+    erw [plan_residual_at, OrdinaryRow.Forms.residual_eq]
     simp [forms, equations row]
 
 end NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan

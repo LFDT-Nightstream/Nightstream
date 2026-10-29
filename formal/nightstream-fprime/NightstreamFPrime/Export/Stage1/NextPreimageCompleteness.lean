@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment
 import NightstreamFPrime.Export.Stage1.NextPreimageDirectPlan
 import NightstreamFPrime.Layout.R1CS.Completeness
 
-/-!
-Owns the five next-preimage rows of the completed canonical assignment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.NextPreimageCompleteness
 
 open NightstreamFPrime.Circuit

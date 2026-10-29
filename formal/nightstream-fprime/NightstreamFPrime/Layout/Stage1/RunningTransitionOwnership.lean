@@ -1,12 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 
-/-!
-Owns every physical row and column of the Stage 1 running transition.
-The transition is parent wiring: one stored-flag recipe row, one
-flag-binding row, one indexed mux family, and four base-state equality rows.
-No file boundary or copy family exists.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionLayout.Ownership
 
 open NightstreamFPrime.Spec
@@ -178,7 +171,7 @@ theorem columnOwner_external
     (below : column.val < phaseOffset) :
     columnOwner logicalWidth publicFits column = .external column.val := by
   unfold columnOwner
-  rw [if_pos below]
+  rw [ite_eq_left below]
 
 theorem columnOwner_inverseHint
     (logicalWidth : Nat)
@@ -188,7 +181,7 @@ theorem columnOwner_inverseHint
     (atPhase : column.val = phaseOffset) :
     columnOwner logicalWidth publicFits column = .inverseHint := by
   unfold columnOwner
-  rw [if_neg (by omega), if_pos atPhase]
+  rw [ite_eq_right (by omega), ite_eq_left atPhase]
 
 theorem columnOwner_storedFlag
     (logicalWidth : Nat)
@@ -199,7 +192,7 @@ theorem columnOwner_storedFlag
     (below : column.val < logicalColumnCount) :
     columnOwner logicalWidth publicFits column = .storedFlag := by
   unfold columnOwner
-  rw [if_neg (by omega), if_neg (by omega), if_pos below]
+  rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_left below]
 
 theorem columnOwner_r1csIntermediate
     (logicalWidth : Nat)
@@ -220,8 +213,8 @@ theorem columnOwner_r1csIntermediate
       omega
     exact Nat.lt_of_lt_of_le logicalAbove atOrAbove
   unfold columnOwner
-  rw [if_neg (Nat.not_lt.mpr phaseAbove), if_neg (by omega),
-    if_neg (Nat.not_lt.mpr atOrAbove)]
+  rw [ite_eq_right (Nat.not_lt.mpr phaseAbove), ite_eq_right (by omega),
+    ite_eq_right (Nat.not_lt.mpr atOrAbove)]
 
 theorem columnOwner_unique
     (logicalWidth : Nat)

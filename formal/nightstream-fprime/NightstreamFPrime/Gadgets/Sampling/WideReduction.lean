@@ -6,7 +6,7 @@ import NightstreamFPrime.Gadgets.Sampling.WideReduction.Linear
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Definition
 
 /-!
-Owns the constraint system that decodes one whole-vector PiRLC scalar.
+Obligation: decode one whole-vector PiRLC scalar.
 
 Inputs: four caller-owned field expressions below the gadget offset.
 Private layout: four canonical-u64 children, then 131 quotient bits `Q`,
@@ -17,9 +17,8 @@ modulus `m_r` one check row
 `Σ (c mod m) x + m B = Σ (e mod m) y + m K_r`,
 where `Σ c x = Σ p^i h_i` and `Σ e y = Q N + Σ 5^j D_j`.
 
-Soundness: every accepted assignment has `D = sample (h₀, h₁, h₂, h₃)`. The
-witness program of the new bits is a parameter; soundness holds for every
-witness value. This module does not own the witness program or completeness.
+Soundness: every accepted assignment has `D = sample (h₀, h₁, h₂, h₃)`, for
+every witness value.
 -/
 
 namespace NightstreamFPrime.Gadgets.Sampling.WideReduction

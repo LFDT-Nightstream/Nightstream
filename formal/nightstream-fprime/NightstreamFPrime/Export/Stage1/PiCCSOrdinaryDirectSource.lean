@@ -2,14 +2,6 @@ import NightstreamFPrime.Export.Stage1.PackageCompleteness
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
 
-/-!
-Owns indexed access to the exact canonical PiCCS ordinary rows for the direct
-4-matrix compiler.
-
-The row list remains the established Lean lowering. It does not select
-retained low-norm coordinates.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
 
 open NightstreamFPrime.Circuit

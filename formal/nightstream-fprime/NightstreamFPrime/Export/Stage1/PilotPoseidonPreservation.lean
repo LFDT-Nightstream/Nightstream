@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectPlan
 import NightstreamFPrime.Export.Stage1.PilotPoseidonPlan
 
-/-!
-Owns the value-preservation bridge for the two direct pilot Poseidon2 chains.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PilotPoseidonPreservation
 
 open NightstreamFPrime.Gadgets.Poseidon2
@@ -78,7 +74,7 @@ private theorem sourceAssignment_privatePhysical
       RunningTransitionDirectPlan.packageEnv program base column := by
     apply PermutationOutput.Readout.env_of_decode_none
     unfold PermutationOutput.Readout.decode
-    rw [dif_neg (Nat.not_le.mpr beforeTranscript)]
+    rw [dite_eq_right (Nat.not_le.mpr beforeTranscript)]
   rw [viewEq]
   exact (SourceCompiler.sourceEnv_at base shifted).symm
 
@@ -137,7 +133,7 @@ theorem priorInputForm_eval
       (PiRLCPoseidonGeometry.priorInputFits geometry) index).eval assignment =
       PilotOrdinaryDirectPlan.pilotEnv program base
         (PilotData.priorChain.inputStart + index.val) := by
-  rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encoding.priorInput]
+  rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encoding.priorInput index]
   rw [sourceAssignment_privatePhysical program base groupValue
     _ (Data.priorChain.inputStart + index.val) (by rfl)
     (priorInputPrivate index) (by
@@ -161,7 +157,7 @@ theorem outputInputForm_eval
       (PiRLCPoseidonGeometry.outputInputFits geometry) index).eval assignment =
       PilotOrdinaryDirectPlan.pilotEnv program base
         (PilotData.outputChain.inputStart + index.val) := by
-  rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encoding.outputInput]
+  rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encoding.outputInput index]
   rw [sourceAssignment_privatePhysical program base groupValue
     _ (Data.outputChain.inputStart + index.val) (by rfl)
     (outputInputPrivate index) (by
@@ -274,18 +270,18 @@ theorem priorInputState_eval
       (priorOutputValue geometry assignment) invocation lane
   unfold PilotPoseidonPlan.priorInputState canonicalInput
   by_cases absorbing : invocation.val < Data.priorChain.absorbCount
-  · rw [if_pos absorbing]
+  · rw [ite_eq_left absorbing]
     have pilotAbsorbing : invocation.val < PilotData.priorChain.absorbCount := by
       simpa [Data.priorChain, Data.liftPilotChain] using absorbing
-    rw [if_pos pilotAbsorbing]
+    rw [ite_eq_left pilotAbsorbing]
     by_cases rateLane : lane.val < Spec.Poseidon2.rate
-    · rw [dif_pos rateLane, dif_pos rateLane]
+    · rw [dite_eq_left rateLane, dite_eq_left rateLane]
       let offset := invocation.val * Spec.Poseidon2.rate + lane.val
       by_cases present : offset < Data.priorChain.inputLength
-      · rw [dif_pos present]
+      · rw [dite_eq_left present]
         have pilotPresent : offset < PilotData.priorChain.inputLength := by
           simpa [Data.priorChain, Data.liftPilotChain] using present
-        rw [if_pos pilotPresent]
+        rw [ite_eq_left pilotPresent]
         simp only [SparseForm.add_eval]
         rw [show
             (PilotPoseidonPlan.previousOutput
@@ -303,21 +299,21 @@ theorem priorInputState_eval
             invocation lane + value)
         simpa only [offset] using!
           inputValues ⟨offset, present⟩
-      · rw [dif_neg present]
+      · rw [dite_eq_right present]
         have pilotAbsent : ¬offset < PilotData.priorChain.inputLength := by
           simpa [Data.priorChain, Data.liftPilotChain] using present
-        rw [if_neg pilotAbsent]
+        rw [ite_eq_right pilotAbsent]
         exact congrFun (priorPreviousOutput_eval geometry assignment invocation)
           lane
-    · rw [dif_neg rateLane, dif_neg rateLane]
+    · rw [dite_eq_right rateLane, dite_eq_right rateLane]
       exact congrFun (priorPreviousOutput_eval geometry assignment invocation)
         lane
-  · rw [if_neg absorbing]
+  · rw [ite_eq_right absorbing]
     have pilotFinal : ¬invocation.val < PilotData.priorChain.absorbCount := by
       simpa [Data.priorChain, Data.liftPilotChain] using absorbing
-    rw [if_neg pilotFinal]
+    rw [ite_eq_right pilotFinal]
     by_cases zeroLane : lane.val = 0
-    · rw [if_pos zeroLane, if_pos zeroLane]
+    · rw [ite_eq_left zeroLane, ite_eq_left zeroLane]
       simp only [SparseForm.add_eval,
         SparseForm.singleton_eval, one, mul_one]
       rw [show
@@ -331,7 +327,7 @@ theorem priorInputState_eval
               invocation lane by
         exact congrFun (priorPreviousOutput_eval geometry assignment invocation)
           lane]
-    · rw [if_neg zeroLane, if_neg zeroLane]
+    · rw [ite_eq_right zeroLane, ite_eq_right zeroLane]
       exact congrFun (priorPreviousOutput_eval geometry assignment invocation)
         lane
 
@@ -360,18 +356,18 @@ theorem outputInputState_eval
       (outputOutputValue geometry assignment) invocation lane
   unfold PilotPoseidonPlan.outputInputState canonicalInput
   by_cases absorbing : invocation.val < Data.outputChain.absorbCount
-  · rw [if_pos absorbing]
+  · rw [ite_eq_left absorbing]
     have pilotAbsorbing : invocation.val < PilotData.outputChain.absorbCount := by
       simpa [Data.outputChain, Data.liftPilotChain] using absorbing
-    rw [if_pos pilotAbsorbing]
+    rw [ite_eq_left pilotAbsorbing]
     by_cases rateLane : lane.val < Spec.Poseidon2.rate
-    · rw [dif_pos rateLane, dif_pos rateLane]
+    · rw [dite_eq_left rateLane, dite_eq_left rateLane]
       let offset := invocation.val * Spec.Poseidon2.rate + lane.val
       by_cases present : offset < Data.outputChain.inputLength
-      · rw [dif_pos present]
+      · rw [dite_eq_left present]
         have pilotPresent : offset < PilotData.outputChain.inputLength := by
           simpa [Data.outputChain, Data.liftPilotChain] using present
-        rw [if_pos pilotPresent]
+        rw [ite_eq_left pilotPresent]
         simp only [SparseForm.add_eval]
         rw [show
             (PilotPoseidonPlan.previousOutput
@@ -389,21 +385,21 @@ theorem outputInputState_eval
             invocation lane + value)
         simpa only [offset] using!
           inputValues ⟨offset, present⟩
-      · rw [dif_neg present]
+      · rw [dite_eq_right present]
         have pilotAbsent : ¬offset < PilotData.outputChain.inputLength := by
           simpa [Data.outputChain, Data.liftPilotChain] using present
-        rw [if_neg pilotAbsent]
+        rw [ite_eq_right pilotAbsent]
         exact congrFun (outputPreviousOutput_eval geometry assignment invocation)
           lane
-    · rw [dif_neg rateLane, dif_neg rateLane]
+    · rw [dite_eq_right rateLane, dite_eq_right rateLane]
       exact congrFun (outputPreviousOutput_eval geometry assignment invocation)
         lane
-  · rw [if_neg absorbing]
+  · rw [ite_eq_right absorbing]
     have pilotFinal : ¬invocation.val < PilotData.outputChain.absorbCount := by
       simpa [Data.outputChain, Data.liftPilotChain] using absorbing
-    rw [if_neg pilotFinal]
+    rw [ite_eq_right pilotFinal]
     by_cases zeroLane : lane.val = 0
-    · rw [if_pos zeroLane, if_pos zeroLane]
+    · rw [ite_eq_left zeroLane, ite_eq_left zeroLane]
       simp only [SparseForm.add_eval,
         SparseForm.singleton_eval, one, mul_one]
       rw [show
@@ -417,7 +413,7 @@ theorem outputInputState_eval
               invocation lane by
         exact congrFun (outputPreviousOutput_eval geometry assignment invocation)
           lane]
-    · rw [if_neg zeroLane, if_neg zeroLane]
+    · rw [ite_eq_right zeroLane, ite_eq_right zeroLane]
       exact congrFun (outputPreviousOutput_eval geometry assignment invocation)
         lane
 
@@ -497,18 +493,18 @@ theorem canonicalInput_absorb (chain : HashChain) (env : Circuit.Env)
           chain current.val env lane := by
   funext lane
   unfold canonicalInput NightstreamFPrime.Export.Pilot.chainBlockState
-  rw [if_pos absorbing]
+  rw [ite_eq_left absorbing]
   by_cases rateLane : lane.val < Spec.Poseidon2.rate
-  · rw [dif_pos rateLane]
+  · rw [dite_eq_left rateLane]
     let offset := current.val * Spec.Poseidon2.rate + lane.val
     by_cases present : offset < chain.inputLength
-    · rw [if_pos present]
+    · rw [ite_eq_left present]
       simp [PilotData.circuitPackage, PilotData.poseidonSchedule, rateLane,
         present, offset]
-    · rw [if_neg present]
+    · rw [ite_eq_right present]
       simp [PilotData.circuitPackage, PilotData.poseidonSchedule, rateLane,
         present, offset]
-  · rw [dif_neg rateLane]
+  · rw [dite_eq_right rateLane]
     simp [PilotData.circuitPackage, PilotData.poseidonSchedule, rateLane]
 
 theorem canonicalInput_final (chain : HashChain) (env : Circuit.Env)
@@ -519,7 +515,7 @@ theorem canonicalInput_final (chain : HashChain) (env : Circuit.Env)
       Hash.padF (previousValue output current) := by
   funext lane
   unfold canonicalInput Hash.padF
-  rw [if_neg final]
+  rw [ite_eq_right final]
 
 def invocationAt (chain : HashChain)
     (countEq : chain.absorbCount + 1 = PilotPoseidonPlan.invocationCount)
@@ -588,7 +584,7 @@ theorem previousValue_eq_chainAbsorbed
             (invocationAt chain countEq (count + 1) bound) =
             output current := by
           unfold previousValue
-          rw [dif_neg (by simp [invocationAt])]
+          rw [dite_eq_right (by simp [invocationAt])]
           apply congrArg output
           apply Fin.ext
           simp [current, invocationAt]

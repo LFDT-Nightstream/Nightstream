@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.Package
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 
-/-!
-Owns the soundness bridge from the canonical Stage 1 package rows to the
-running-transition semantics.
--/
-
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionPackage
 
 open NightstreamFPrime.Circuit

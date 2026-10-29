@@ -2,10 +2,6 @@ import NightstreamFPrime.Layout.ProductionRelation.SparseEvaluation
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentBlock
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 
-/-!
-One sparse Phi81 row restricted to one complete carrier block.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECEvaluationBlock
@@ -37,13 +33,13 @@ private theorem addEntry_get {columns : Nat} (block : Nat)
             ⟨entry.column.val % ringDegree, Nat.mod_lt _ (by decide)⟩
         else 0) := by
   by_cases same : entry.column.val / ringDegree = block
-  · simp only [addEntry, if_pos same]
+  · simp only [addEntry, ite_eq_left same]
     change (Vector.ofFn (fun lane : Fin ringDegree =>
       initial.get lane + entry.coefficient *
         Phi81CoefficientKernel.nativeBarEntry lane
           ⟨entry.column.val % ringDegree, Nat.mod_lt _ (by decide)⟩))[output.val] = _
     rw [Vector.getElem_ofFn]
-  · simp only [addEntry, if_neg same, Fin.mul_zero, Fin.add_zero]
+  · simp only [addEntry, ite_eq_right same, Fin.mul_zero, Fin.add_zero]
 
 private theorem foldEntries_get {columns : Nat}
     (entries : List (SparseEntry columns)) (block : Nat)
@@ -93,13 +89,13 @@ private theorem addEntry_product {columns : Nat} (block : Nat)
           (Phi81CoefficientKernel.barBasis
             ⟨entry.column.val % ringDegree, Nat.mod_lt _ (by decide)⟩)) := by
       funext lane
-      rw [addEntry_get, if_pos same]
+      rw [addEntry_get, ite_eq_left same]
       rfl
     rw [transformed, CarrierAction.ringFMul_add_left,
       CarrierAction.ringFMul_scale_left,
-      ← CarrierAction.kernelImage_eq_ringFMul, if_pos same]
+      ← CarrierAction.kernelImage_eq_ringFMul, ite_eq_left same]
     rfl
-  · simp only [addEntry, if_neg same, Fin.mul_zero, Fin.add_zero]
+  · simp only [addEntry, ite_eq_right same, Fin.mul_zero, Fin.add_zero]
 
 private theorem foldEntries_product {columns : Nat}
     (entries : List (SparseEntry columns)) (block : Nat)

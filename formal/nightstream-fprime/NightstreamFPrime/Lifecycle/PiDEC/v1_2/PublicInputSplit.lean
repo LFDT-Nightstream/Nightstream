@@ -182,7 +182,7 @@ def main
     (sourceLt : source < coordinateCount logicalWidth publicFits) :
     (childOp interface offset source).localLength =
       SignedSplitScalar.exactPrivateCount := by
-  rw [childOp, dif_pos sourceLt, Sequence.childOp_localLength]
+  rw [childOp, dite_eq_left sourceLt, Sequence.childOp_localLength]
   exact SignedSplitScalar.localLength_eq
     (childInterface interface offset source sourceLt)
     (sourceOffset offset source)
@@ -196,7 +196,7 @@ def main
     (sourceLt : source < coordinateCount logicalWidth publicFits) :
     (childOp interface offset source).rowCount =
       SignedSplitScalar.exactRowCount := by
-  rw [childOp, dif_pos sourceLt]
+  rw [childOp, dite_eq_left sourceLt]
   rfl
 
 @[simp] private theorem opsPrefix_localLength
@@ -215,7 +215,7 @@ def main
         (List.range count)).sum =
         (List.map (Op.localLength ∘ childOp interface offset)
           (List.range count)).length • SignedSplitScalar.exactPrivateCount := by
-      apply List.sum_eq_card_nsmul
+      apply List.sum_eq_length_nsmul
       intro operation member
       rcases List.mem_map.mp member with ⟨source, sourceMember, rfl⟩
       rw [Function.comp_apply, childOp_localLength]
@@ -249,7 +249,7 @@ theorem flatConstraints_length
         (List.map (Op.rowCount ∘ childOp interface offset)
           (List.range (coordinateCount logicalWidth publicFits))).length •
             SignedSplitScalar.exactRowCount := by
-      apply List.sum_eq_card_nsmul
+      apply List.sum_eq_length_nsmul
       intro operation member
       rcases List.mem_map.mp member with ⟨source, sourceMember, rfl⟩
       rw [Function.comp_apply, childOp_rowCount]
@@ -369,7 +369,7 @@ private theorem childHolds_of_rows
     apply List.mem_map.mpr
     exact ⟨coordinate.val, List.mem_range.mpr coordinate.isLt, rfl⟩
   have call := rows _ member
-  rw [childOp, dif_pos coordinate.isLt] at call
+  rw [childOp, dite_eq_left coordinate.isLt] at call
   change SignedSplitScalar.Assumptions
       (childInterface interface offset coordinate.val coordinate.isLt)
       (sourceOffset offset coordinate.val) env →
@@ -428,7 +428,7 @@ theorem flatConstraints_varsBelow
   have sourceLt := List.mem_range.mp sourceMember
   apply Expr.VarsBelow.mono expression
     (childScope interface offset source sourceLt env assumptions expression (by
-      simpa [childOp, dif_pos sourceLt, Sequence.childOp] using! expressionMember))
+      simpa [childOp, dite_eq_left sourceLt, Sequence.childOp] using! expressionMember))
   have scaled := Nat.mul_le_mul_right SignedSplitScalar.exactPrivateCount
     (Nat.succ_le_iff.mpr sourceLt)
   simpa [sourceOffset, logicalPrivateCount, Nat.succ_mul, Nat.add_assoc] using
@@ -532,7 +532,7 @@ private theorem completePrefix
         ⟨completed, completedOperations, _, _, _⟩
       refine ⟨completed, ?_⟩
       rw [completedOperations, beforeOperations]
-      simp [opsPrefix, List.range_succ, childOp, dif_pos countLt]
+      simp [opsPrefix, List.range_succ, childOp, dite_eq_left countLt]
 
 theorem completeness
     {logicalWidth : Nat}

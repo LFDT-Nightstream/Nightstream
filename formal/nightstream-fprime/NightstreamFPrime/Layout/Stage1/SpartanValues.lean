@@ -1,8 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.Spartan
 
-/-! Default-profile values for the derived Spartan column boundaries. Core
-map proofs use count relationships and do not import this module. -/
-
 namespace NightstreamFPrime.Layout.Stage1.Spartan
 
 theorem appendedPrivateColumnCount_eq :

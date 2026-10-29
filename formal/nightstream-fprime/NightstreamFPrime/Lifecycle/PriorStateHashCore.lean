@@ -3,12 +3,6 @@ import NightstreamFPrime.Gadgets.Poseidon2.RawFormal
 import NightstreamFPrime.Gadgets.Range.CanonicalPublicU64
 import NightstreamFPrime.Lifecycle.XOut
 
-/-!
-Owns the low-norm prior-state hash circuit: one raw Poseidon2 hash, four
-canonical word-to-public-bit children, one marker row, and thirteen zero-tail
-rows. The public cells are caller-owned; all digest words are internal wires.
--/
-
 namespace NightstreamFPrime.Lifecycle.PriorStateHash
 
 open NightstreamFPrime.Spec

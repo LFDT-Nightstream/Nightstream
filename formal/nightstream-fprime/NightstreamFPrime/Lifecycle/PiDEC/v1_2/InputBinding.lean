@@ -30,8 +30,6 @@ Parent coverage:
 - `Accepted.parentEvaluationSize`;
 - `Accepted.messageEvaluationSize`;
 - verifier-computed fields of `PiDEC.PaperVerifier.children`.
-
-The Stage 1 assembler owns the PiRLC-output-to-parent wiring.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.InputBinding

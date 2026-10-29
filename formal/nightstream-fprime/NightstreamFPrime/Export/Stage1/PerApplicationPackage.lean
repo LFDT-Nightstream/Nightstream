@@ -7,10 +7,6 @@ import NightstreamFPrime.Export.Stage1.NextPreimagePackage
 import NightstreamFPrime.Export.Stage1.TerminalPackage
 import NightstreamFPrime.Lifecycle.Stage1.VerificationKey
 
-/-!
-Owns the generic final-package constructor for one Lean-authored application.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPackage
 
 open NightstreamFPrime.Circuit

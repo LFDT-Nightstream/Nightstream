@@ -4,13 +4,6 @@ import NightstreamFPrime.Layout.MatrixProgram.Phi81Product
 import NightstreamFPrime.Layout.MatrixProgram.Pin
 import NightstreamFPrime.Layout.MatrixProgram.Poseidon
 
-/-!
-Owns the generic ordered interpreter for a compact sparse 4-matrix program.
-Each decoded row returns the 4 sparse ports.
-
-The interpreter does not select Stage 1 phases, row order, or source rows.
--/
-
 namespace NightstreamFPrime.Layout.MatrixProgram
 
 open NightstreamFPrime.Layout
@@ -107,7 +100,7 @@ private theorem Program.select_append_right (blocks tail : List Block)
           ¬ (block.rowCount + (rest.map Block.rowCount).sum + ordinal <
             block.rowCount) := by
         omega
-      rw [if_neg skip]
+      rw [ite_eq_right skip]
       have shifted :
           block.rowCount + (rest.map Block.rowCount).sum + ordinal -
               block.rowCount =

@@ -2,11 +2,6 @@ import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
 import NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 
-/-!
-Owns the compact matrix program for one verifier-selected Stage 1
-application.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ApplicationMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram

@@ -2,13 +2,6 @@ import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan
 import NightstreamFPrime.Export.Stage1.PiCCSPayloadMatrix
 
-/-!
-Owns the compact matrix program for the complete PiCCS Poseidon2 block. Lean
-supplies the parent affine payload words and the retained S-boxes.
-
-This module does not select PiCCS actions or close package conformance.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram

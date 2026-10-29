@@ -2,14 +2,6 @@ import NightstreamFPrime.Layout.Stage1.PiDECInputs
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPointBoundsDirect
 import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupportData
 
-/-!
-Owns the causal source bound for the zero-copy PiRLC-to-PiDEC bridge.
-
-Every reused PiRLC output and every prover-supplied PiDEC message word lies
-strictly before the PiDEC logical allocation. This module adds no row or
-column and does not prove PiDEC acceptance.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiDECInputs
 
 open NightstreamFPrime.Circuit

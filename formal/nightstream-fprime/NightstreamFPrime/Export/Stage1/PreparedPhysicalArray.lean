@@ -1,7 +1,5 @@
 import Init.Data.Array.Lemmas
 
-/-! Append mapped events or assertions directly to their existing array. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PreparedPhysicalArray

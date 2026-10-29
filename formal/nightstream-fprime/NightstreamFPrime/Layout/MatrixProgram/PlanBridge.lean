@@ -1,12 +1,6 @@
 import NightstreamFPrime.Layout.MatrixProgram.Program
 import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
 
-/-!
-Owns the generic exact-row bridge for ordered compact-program composition.
-If two child programs return the exact rows of two child plans, their ordered
-append returns the exact rows of the canonical appended plan.
--/
-
 namespace NightstreamFPrime.Layout.MatrixProgram
 
 open NightstreamFPrime.Layout

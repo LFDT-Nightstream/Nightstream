@@ -3,12 +3,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionData
 import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
 import NightstreamFPrime.Layout.Stage1.Spartan
 
-/-!
-Owns the exact pre-Spartan source families used by the nonempty PiDEC rows.
-The four parent ranges are the final PiRLC combination steps. The remaining
-ranges are the PiDEC proof inputs, logical split cells, and R1CS fresh cells.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiDECSourceSupport
 
 open NightstreamFPrime.Lifecycle

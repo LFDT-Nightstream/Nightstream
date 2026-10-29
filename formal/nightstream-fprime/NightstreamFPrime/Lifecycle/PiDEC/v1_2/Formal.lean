@@ -6,21 +6,6 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_2.InputBinding
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputBinding
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit
 
-/-!
-Owns the exact logical PiDEC v1.2 parent assembler.
-
-Child order:
-1. zero-row operational input binding;
-2. strict parent bound and canonical 16-child public split;
-3. commitment recomposition;
-4. separate Pad `Eval_K` recomposition;
-5. separate 4-matrix `Eval_A` recomposition;
-6. zero-row computed-output binding.
-
-The parent owns only shared-value wiring, offsets, operation order, and child
-coverage. It adds no witness, copy, or assertion row.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal
 
 open NightstreamFPrime.Circuit

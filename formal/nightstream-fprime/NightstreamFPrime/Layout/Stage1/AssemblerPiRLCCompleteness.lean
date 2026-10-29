@@ -4,12 +4,6 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.GeneratedSupport
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.PhaseDeterminism
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the exact PiCCS-to-PiRLC semantic transport and the next opaque-child
-append for the compact Stage 1 assembler. It adds no row, challenge, or
-alternate verifier predicate.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.AssemblerPiRLCCompleteness
 
 open NightstreamFPrime.Circuit
@@ -180,8 +174,7 @@ private theorem piRlcPhase_of_piCcs
           (PiCCS.v1_2.Formal.evalRunning piCcsInterface piCcsOffset left)
           (PiCCS.v1_2.Formal.evalFresh piCcsInterface piCcsOffset left)
           leftProof).coins.roundPoint := by
-        simpa [piCcsInterface, piCcsOffset, stageInterface, leftProof, key,
-          AssemblerSoundness.nifsProofValue] using! piCcsLeft.roundPoint
+        exact piCcsLeft.roundPoint
       _ = (key.piCcsExecution
           (PiCCS.v1_2.Formal.evalRunning piCcsInterface piCcsOffset right)
           (PiCCS.v1_2.Formal.evalFresh piCcsInterface piCcsOffset right)
@@ -189,8 +182,7 @@ private theorem piRlcPhase_of_piCcs
             (fun execution => execution.coins.roundPoint) executionEq
       _ = _ := by
         symm
-        simpa [piCcsInterface, piCcsOffset, stageInterface, rightProof, key,
-          AssemblerSoundness.nifsProofValue] using! piCcsRight.roundPoint
+        exact piCcsRight.roundPoint
   have pointEq : PiCCS.v1_2.StatementAbsorption.evalPoint
       (AssemblerInputs.piCcsRoundPoint
         (logicalWidth := logicalWidth) (publicFits := publicFits) program) left =

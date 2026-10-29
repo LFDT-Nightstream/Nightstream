@@ -2,11 +2,7 @@ import NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias
 import NightstreamFPrime.Spec.AjtaiSetupV1.Programming
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 
-/-! The ideal modular-reduction error budget at the exact selected key size,
-and the ideal-model binding bound of `AjtaiSetupV1.Programming` at the
-production key. Both require independent uniform 256-bit chunks, which is
-premise P1 (SHAKE128 as a random oracle). This file makes no claim about
-SHAKE128 itself. -/
+/-! Premise P1: SHAKE128 as a random oracle (independent uniform 256-bit chunks). -/
 
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 

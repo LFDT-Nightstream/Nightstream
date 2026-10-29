@@ -3,13 +3,6 @@ import NightstreamFPrime.Lifecycle.Types
 import NightstreamFPrime.Lifecycle.Nifs.SelectedTestNumerator
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 
-/-!
-The selected PiCCS test-error budget over a supplied number
-of calls. The per-call probability hypotheses must hold in the same trace
-experiment. Independence is not required. These events do not include the
-Fiat--Shamir transfer, commitment/hash attacks, or a history extractor's loss.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget

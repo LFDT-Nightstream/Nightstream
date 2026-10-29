@@ -1,19 +1,18 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverse
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
-/-!
-Counted stored polynomial normalization for the executed inverse.
-The scan refines CompPoly Data/Array/Lemmas.lean and Raw/Core.lean at
+/-! Refines CompPoly Data/Array/Lemmas.lean and Raw/Core.lean at
 050f0bc7e9780703beb8d178ec533e52bd87d649 (Apache-2.0; copyright 2025
-CompPoly, authors Quang Dao and Gregor Mitscha-Baude). The prefix loop
-refines Lean 4.30 Init/Prelude.lean Array.extract.
--/
+CompPoly, authors Quang Dao and Gregor Mitscha-Baude), and Lean 4.30
+Init/Prelude.lean Array.extract. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseWork
 
 open NightstreamFPrime.Spec
 open CompPoly (CPolynomial)
 open _root_.NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork (Result)
+
+attribute [local implicit_reducible] ZMod NightstreamFPrime.Spec.goldilocksModulus
 
 private abbrev Base := ZMod goldilocksModulus
 abbrev Raw := CPolynomial.Raw Base
@@ -85,13 +84,13 @@ private theorem copyLoop_value (values : Raw) (budget remaining index : Nat) (ou
   induction remaining generalizing index output with
   | zero =>
       by_cases live : index < values.size
-      · rw [copyLoop, Array.extract.loop, dif_pos live, dif_pos live]
-      · rw [copyLoop, Array.extract.loop, dif_neg live, dif_neg live]
+      · rw [copyLoop, Array.extract.loop, dite_eq_left live, dite_eq_left live]
+      · rw [copyLoop, Array.extract.loop, dite_eq_right live, dite_eq_right live]
   | succ remaining ih =>
       by_cases live : index < values.size
-      · rw [copyLoop, Array.extract.loop, dif_pos live, dif_pos live]
+      · rw [copyLoop, Array.extract.loop, dite_eq_left live, dite_eq_left live]
         exact ih (index + 1) (output.push values[index])
-      · rw [copyLoop, Array.extract.loop, dif_neg live, dif_neg live]
+      · rw [copyLoop, Array.extract.loop, dite_eq_right live, dite_eq_right live]
 
 private theorem copyLoop_work_le (values : Raw) (budget remaining index : Nat) (output : Raw)
     (fits : output.size + remaining ≤ budget) :

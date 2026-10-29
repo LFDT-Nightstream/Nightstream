@@ -1,10 +1,6 @@
 import NightstreamFPrime.Spec.Folding.Nifs.StoredAssignmentArithmetic
 import Mathlib.Tactic.SplitIfs
 
-/-!
-Materialized Phi81 arithmetic for extraction and dense commitment checks.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic

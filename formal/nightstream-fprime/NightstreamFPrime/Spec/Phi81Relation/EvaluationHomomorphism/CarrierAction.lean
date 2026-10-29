@@ -1,19 +1,6 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
 
-/-!
-Complete-carrier algebra behind the Phi81 `Pi_RLC` assignment action.
-
-Protocol: SuperNeo v1.2 Theorem 11, assignment-side `RingF` action.
-
-Owns: reuse of the canonical complete-carrier block/lane inverse; the fixed
-blockwise `Concrete.ringFMul` action; base-field bilinearity of that multiplication;
-finite monomial reconstruction of every `RingF` value; and extension of the
-canonical basis-defined `phi81Kernel` image to multiplication by `barBasis`.
-
-Does not own: associativity or commutativity of `Concrete.ringFMul`, the final
-`Pi_RLC` commutation theorem, `RingF -> RingK` placement, Boolean MLE,
-commitments, transcripts, Rust, R1CS, row removal, or counts.
--/
+/-! SuperNeo v1.2 Theorem 11. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.CarrierAction
 
@@ -173,10 +160,10 @@ private theorem rawMulCoeffF_add_right
         fun index => add (leftTerm index) (rightTerm index) := by
     funext index
     by_cases active : index ≤ degree ∧ degree - index < ringDegree
-    · simp only [rawTerm, if_pos active, leftTerm, rightTerm, add,
-        ringFCoeff, dif_pos active.2, ringFAdd]
+    · simp only [rawTerm, ite_eq_left active, leftTerm, rightTerm, add,
+        ringFCoeff, dite_eq_left active.2, ringFAdd]
       exact ConcreteCarrier.baseLaws.left_distrib _ _ _
-    · simp only [rawTerm, if_neg active, leftTerm, rightTerm, add]
+    · simp only [rawTerm, ite_eq_right active, leftTerm, rightTerm, add]
       exact (ConcreteCarrier.baseLaws.zero_add 0).symm
   rw [termAdd]
   exact sumTerms_add 0 add ConcreteCarrier.baseLaws.add_assoc
@@ -198,13 +185,13 @@ private theorem rawMulCoeffF_add_left
     funext index
     by_cases active : index ≤ degree ∧ degree - index < ringDegree
     · by_cases indexLt : index < ringDegree
-      · simp only [rawTerm, if_pos active, leftTerm, rightTerm, add,
-          ringFCoeff, dif_pos indexLt, ringFAdd]
+      · simp only [rawTerm, ite_eq_left active, leftTerm, rightTerm, add,
+          ringFCoeff, dite_eq_left indexLt, ringFAdd]
         exact ConcreteCarrier.baseLaws.right_distrib _ _ _
-      · simp only [rawTerm, if_pos active, leftTerm, rightTerm, add,
-          ringFCoeff, dif_neg indexLt]
+      · simp only [rawTerm, ite_eq_left active, leftTerm, rightTerm, add,
+          ringFCoeff, dite_eq_right indexLt]
         simp only [Fin.zero_mul, Fin.zero_add]
-    · simp only [rawTerm, if_neg active, leftTerm, rightTerm, add]
+    · simp only [rawTerm, ite_eq_right active, leftTerm, rightTerm, add]
       exact (ConcreteCarrier.baseLaws.zero_add 0).symm
   rw [termAdd]
   exact sumTerms_add 0 add ConcreteCarrier.baseLaws.add_assoc
@@ -224,8 +211,8 @@ private theorem rawMulCoeffF_scale_right
         fun index => scale scalar (term index) := by
     funext index
     by_cases active : index ≤ degree ∧ degree - index < ringDegree
-    · simp only [rawTerm, if_pos active, term, scale,
-        ringFCoeff, dif_pos active.2, ringFScale]
+    · simp only [rawTerm, ite_eq_left active, term, scale,
+        ringFCoeff, dite_eq_left active.2, ringFScale]
       calc
         ringFCoeff left index * (scalar * right ⟨degree - index, active.2⟩) =
             (ringFCoeff left index * scalar) *
@@ -237,7 +224,7 @@ private theorem rawMulCoeffF_scale_right
         _ = scalar * (ringFCoeff left index *
               right ⟨degree - index, active.2⟩) :=
           ConcreteCarrier.baseLaws.mul_assoc _ _ _
-    · simp only [rawTerm, if_neg active, term, scale]
+    · simp only [rawTerm, ite_eq_right active, term, scale]
       exact (ConcreteCarrier.baseLaws.mul_zero scalar).symm
   rw [termScale]
   exact sumTerms_scale 0 add scale ConcreteCarrier.baseLaws.mul_zero
@@ -257,13 +244,13 @@ private theorem rawMulCoeffF_scale_left
     funext index
     by_cases active : index ≤ degree ∧ degree - index < ringDegree
     · by_cases indexLt : index < ringDegree
-      · simp only [rawTerm, if_pos active, term, scale,
-          ringFCoeff, dif_pos indexLt, dif_pos active.2, ringFScale]
+      · simp only [rawTerm, ite_eq_left active, term, scale,
+          ringFCoeff, dite_eq_left indexLt, dite_eq_left active.2, ringFScale]
         exact ConcreteCarrier.baseLaws.mul_assoc _ _ _
-      · simp only [rawTerm, if_pos active, term, scale,
-          ringFCoeff, dif_neg indexLt]
+      · simp only [rawTerm, ite_eq_left active, term, scale,
+          ringFCoeff, dite_eq_right indexLt]
         simp only [Fin.zero_mul, Fin.mul_zero]
-    · simp only [rawTerm, if_neg active, term, scale]
+    · simp only [rawTerm, ite_eq_right active, term, scale]
       exact (ConcreteCarrier.baseLaws.mul_zero scalar).symm
   rw [termScale]
   exact sumTerms_scale 0 add scale ConcreteCarrier.baseLaws.mul_zero
@@ -442,14 +429,14 @@ theorem basisExpansion_eq (value : RingF) :
       apply sumRange_congr
       intro index indexLt
       unfold basisTerm
-      rw [dif_pos indexLt]
+      rw [dite_eq_left indexLt]
       unfold ringFMonomial
       by_cases equal : index = output.val
-      · rw [if_pos equal, if_pos equal.symm]
+      · rw [ite_eq_left equal, ite_eq_left equal.symm]
         apply congrArg value
         apply Fin.ext
         exact equal
-      · rw [if_neg equal, if_neg]
+      · rw [ite_eq_right equal, ite_eq_right]
         exact Ne.symm equal
     _ = value output := by
       simpa using!
@@ -462,7 +449,7 @@ private theorem basisTerm_as_scaled_monomial
       ringFScale (value ⟨index, indexLt⟩) (ringFMonomial index 1) := by
   funext output
   unfold basisTerm ringFScale ringFMonomial
-  rw [dif_pos indexLt]
+  rw [dite_eq_left indexLt]
   split
   · exact (ConcreteCarrier.baseLaws.mul_one _).symm
   · exact (ConcreteCarrier.baseLaws.mul_zero _).symm
@@ -503,7 +490,7 @@ theorem ringFMul_apply_eq_rightLinear
       apply sumRange_congr
       intro index indexLt
       rw [basisTerm_as_scaled_monomial right index indexLt,
-        ringFMul_scale_right, dif_pos indexLt]
+        ringFMul_scale_right, dite_eq_left indexLt]
       unfold rightCoefficient ringFScale
       exact ConcreteCarrier.baseLaws.mul_comm _ _
 
@@ -528,7 +515,7 @@ theorem kernelImage_eq_ringFMul
               (basisTerm block index)) := by
       apply ringFSumRange_congr
       intro index indexLt
-      rw [dif_pos indexLt,
+      rw [dite_eq_left indexLt,
         basisTerm_as_scaled_monomial block index indexLt,
         ringFMul_scale_right]
       funext output

@@ -1,21 +1,6 @@
 import CompressionLean.Layer1.HonestFold
 import Mathlib.Data.Fintype.Pi
-import Mathlib.Data.Real.Basic
-
-/-!
-Owns the setup queries of the honest fold (`Relation::query_indices`,
-`setup::check`): a P1 table that differs from the honest fold agrees with it
-at fewer than half of the leaves' query points (`agreement_card`).
-
-The verifier draws each leaf as a uniform word below `P` taken mod `L`
-(`sample_bits`: the low bits of a canonical Goldilocks word). A residue has
-at most `P / L + 1` words, so `t` leaves all agree with probability at most
-`(A·(P / L + 1) / P)^t` for `A` agreeing leaves (`lowBitsBad_density`).
-
-A leaf `j` has the query point `q_j = (g·ω^j)^8`. The points of distinct
-leaves must be distinct (the premise `distinct`); this holds when `ω^8` has
-order at least the leaf count.
--/
+import Mathlib.Basic.Real.Basic
 
 namespace CompressionLean.Layer1
 
@@ -23,7 +8,6 @@ open Polynomial
 
 variable {K : Type} [Field K]
 
-/-- Distinct tables have forms that agree at fewer than `2^m` distinct points. -/
 theorem agreement_card [DecidableEq K] (m : ℕ) (g h : ℕ → K) (different : ∃ i, i < 2 ^ m ∧ g i ≠ h i)
     (q : ℕ → K) (leaves : ℕ) (distinct : ∀ i j, i < leaves → j < leaves → q i = q j → i = j) :
     ((Finset.range leaves).filter fun j => (univ m g).eval (q j) = (univ m h).eval (q j)).card ≤
@@ -39,7 +23,7 @@ theorem agreement_card [DecidableEq K] (m : ℕ) (g h : ℕ → K) (different : 
   set S := (Finset.range leaves).filter fun j => (univ m g).eval (q j) = (univ m h).eval (q j)
   have injective : Set.InjOn q S := by
     intro i hi j hj equal
-    simp only [S, Finset.coe_filter, Finset.mem_range, Set.mem_setOf_eq] at hi hj
+    simp only [S, Finset.coe_filter, Finset.mem_range, Set.mem_ofPred_eq] at hi hj
     exact distinct i j hi.1 hj.1 equal
   rw [← Finset.card_image_of_injOn injective]
   refine (Polynomial.card_le_degree_of_subset_roots ?_).trans degree
@@ -49,19 +33,14 @@ theorem agreement_card [DecidableEq K] (m : ℕ) (g h : ℕ → K) (different : 
   rw [Polynomial.mem_roots nonzero, IsRoot, univ_sub, eval_sub, inside.2, sub_self]
 
 open Classical in
-/-- The query tuples whose every leaf lies in the agreement set. -/
 noncomputable def queryBad {L : ℕ} (t : ℕ) (agree : Fin L → Prop) : Finset (Fin t → Fin L) :=
   Fintype.piFinset fun _ => Finset.univ.filter agree
 
-/-- The query index of one sampled word: the word mod `L` (`sample_bits`, the
-low bits of a canonical word, when `L` is a power of two). -/
 def lowBit {P : ℕ} (L : ℕ) [NeZero L] (w : Fin P) : Fin L :=
   ⟨(w : ℕ) % L, Nat.mod_lt _ (Nat.pos_of_neZero L)⟩
 
-/-- The query indices of sampled words. -/
 def lowBits {t P : ℕ} (L : ℕ) [NeZero L] (x : Fin t → Fin P) : Fin t → Fin L := fun j => lowBit L (x j)
 
-/-- At most `P / L + 1` words below `P` have a given residue mod `L`. -/
 theorem residue_card (P L j : ℕ) :
     ((Finset.univ : Finset (Fin P)).filter fun w : Fin P => (w : ℕ) % L = j).card ≤ P / L + 1 := by
   calc _ ≤ (Finset.range (P / L + 1)).card := by
@@ -70,14 +49,13 @@ theorem residue_card (P L j : ℕ) :
           simp only [Finset.coe_range, Set.mem_Iio]
           exact Nat.lt_succ_of_le (Nat.div_le_div_right w.isLt.le)
         · intro w hw w' hw' same
-          simp only [Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_setOf_eq] at hw hw'
+          simp only [Finset.coe_filter, Finset.mem_univ, true_and, Set.mem_ofPred_eq] at hw hw'
           apply Fin.ext
           rw [← Nat.div_add_mod (w : ℕ) L, ← Nat.div_add_mod (w' : ℕ) L, hw, hw']
           simp only at same
           rw [same]
     _ = P / L + 1 := Finset.card_range _
 
-/-- The words whose index lies in a set of `A` indices: at most `A·(P / L + 1)`. -/
 theorem lowBits_fiber_card {L : ℕ} [NeZero L] (P A : ℕ) (agree : Fin L → Prop) [DecidablePred agree]
     (small : (Finset.univ.filter agree).card ≤ A) :
     ((Finset.univ : Finset (Fin P)).filter fun w => agree (lowBit L w)).card ≤ A * (P / L + 1) := by
@@ -96,8 +74,6 @@ theorem lowBits_fiber_card {L : ℕ} [NeZero L] (P A : ℕ) (agree : Fin L → P
         exact Nat.mul_le_mul_right _ small
 
 open Classical in
-/-- Words whose every index lies in the agreement set, under uniform words:
-density at most `(A·(P / L + 1) / P)^t`. -/
 theorem lowBitsBad_density {L : ℕ} [NeZero L] (t P A : ℕ) (agree : Fin L → Prop)
     (small : (Finset.univ.filter agree).card ≤ A) :
     (((Finset.univ.filter fun x : Fin t → Fin P => lowBits L x ∈ queryBad t agree).card : ℝ) /

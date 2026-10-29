@@ -2,8 +2,6 @@ import NightstreamFPrime.Export.Package
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 
-/-! Owns the sealed executable transport for the final 4-matrix assignment. -/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 
 open NightstreamFPrime.Circuit

@@ -1,10 +1,6 @@
 import NightstreamFPrime.Lifecycle.Relation
 
-/-!
-Owns the zero-opening proof for the existing pilot running state. SuperNeo
-v1.2 Definition 21 permits this bounded CE input for every verifier-owned
-matrix family and Ajtai key. No circuit, relation, or key is defined here.
--/
+/-! SuperNeo v1.2 Definition 21. -/
 
 namespace NightstreamFPrime.Lifecycle.PilotZeroRunning
 

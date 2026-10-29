@@ -3,9 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-! Scalar buckets for one source with arbitrary cached K endpoints.
-Source gamma weights remain outside this single-source sum. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPrefixNormBuckets
@@ -61,7 +58,7 @@ private theorem get_set {Alpha : Type} {count : Nat} (values : Vector Alpha coun
       intro same
       exact equal (Fin.ext same.symm)
     change (values.set selected.val value selected.isLt)[index.val] = _
-    rw [if_neg equal]
+    rw [ite_eq_right equal]
     exact Vector.getElem_set_ne selected.isLt index.isLt distinct
 
 private theorem lookup_empty {count : Nat} (low high : Fin count) :
@@ -93,8 +90,8 @@ private theorem sumMap_guard {Index : Type} (indices : List Index)
     sumMap extensionOps indices (fun index => if condition then value index else extensionOps.zero) =
       if condition then sumMap extensionOps indices value else extensionOps.zero := by
   by_cases holds : condition
-  · simp only [if_pos holds]
-  · simp only [if_neg holds, sumMap_zero extensionOps extensionLaws]
+  · simp only [ite_eq_left holds]
+  · simp only [ite_eq_right holds, sumMap_zero extensionOps extensionLaws]
 
 private theorem sumFin_single {count : Nat} (selected : Fin count) (value : Fin count → K) :
     sumMap extensionOps (canonicalFinIndices count)
@@ -126,7 +123,7 @@ theorem finish_add {count : Nat} (values : Vector K count)
         if a = low then if b = high then extensionOps.mul weight value
           else extensionOps.zero else extensionOps.zero := by
     by_cases lowEqual : a = low <;> by_cases highEqual : b = high <;>
-      simp only [lowEqual, highEqual, if_true, if_false, zero_left]
+      simp only [lowEqual, highEqual, ite_true, ite_false, zero_left]
   simp only [finish, PiCCSPolynomialRange.coefficient_sum,
     PiCCSPolynomialRange.coefficient_add, PiCCSPolynomialRange.coefficient_scale,
     lookup_add, extensionLaws.right_distrib, sumMap_add extensionOps extensionLaws,

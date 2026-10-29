@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.ActualHashSlots
 import NightstreamFPrime.Export.Stage1.PiCCSDecodedPhase
 
-/-!
-Owns agreement between the typed PiCCS inputs and the actual prior hash.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualPiCCSInputs
 
 open NightstreamFPrime.Circuit

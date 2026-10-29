@@ -9,8 +9,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPackets
 import NightstreamFPrime.Export.TypedWriter
 import NightstreamFPrime.Export.MatrixProgram.Program
 
-/-! Executable entry point for the canonical Stage 1 circuit-package emitter. -/
-
 namespace NightstreamFPrime.Export.Main
 
 open NightstreamFPrime.Layout
@@ -650,9 +648,6 @@ def emitPerApplication
   handle.flush
   IO.println s!"emitted_per_application={path}"
 
-/-- Emit the final physical package without its sealed metadata envelope.
-This is the Lean-owned row-expansion reference for exact Rust A/B/C
-comparison. -/
 def emitPerApplicationExpanded
     (program : Lifecycle.Stage1.Application.Program)
     (_fits : Stage1.PerApplicationFixedPoint.FitsTwoPow28 program)

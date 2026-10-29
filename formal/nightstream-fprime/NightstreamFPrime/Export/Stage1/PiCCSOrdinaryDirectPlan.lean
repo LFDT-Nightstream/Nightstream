@@ -2,14 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSupport
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 
-/-!
-Owns the executable source resolver and direct 4-matrix plan for the
-canonical PiCCS ordinary rows.
-
-This module does not append the plan to the Stage 1 package or close PiCCS
-conformance.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan
 
 open NightstreamFPrime.Circuit
@@ -179,7 +171,8 @@ theorem form_proofInput {program : Lifecycle.Stage1.Application.Program}
     (Location.proofLogical (proofInputSlot index)).form geometry =
       (proofLogicalBlock program).form (proofLogicalStart program)
         (proofLogicalFits geometry) (proofInputSlot index) := by
-  simp only [form, proofInputSlot, dif_pos index.isLt]
+  rw [form]
+  exact dite_eq_left index.isLt
 
 theorem form_transcriptOutput {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
@@ -193,7 +186,7 @@ theorem form_transcriptOutput {program : Lifecycle.Stage1.Application.Program}
   have transcript : proofInputCount + index.val < proofInputCount + transcriptOutputCount := by
     have bound := index.isLt
     omega
-  simp only [form, transcriptOutputSlot, dif_neg notProof, dif_pos transcript,
+  simp only [form, transcriptOutputSlot, dite_eq_right notProof, dite_eq_left transcript,
     Nat.add_sub_cancel_left]
 
 theorem form_ordinaryLogical {program : Lifecycle.Stage1.Application.Program}
@@ -207,7 +200,8 @@ theorem form_ordinaryLogical {program : Lifecycle.Stage1.Application.Program}
   have notTranscript :
       ¬proofInputCount + transcriptOutputCount + index.val <
         proofInputCount + transcriptOutputCount := by omega
-  simp only [form, ordinaryLogicalSlot, dif_neg notProof, dif_neg notTranscript]
+  rw [form]
+  exact (dite_eq_right notProof).trans (dite_eq_right notTranscript)
 
 theorem form_eval {program : Lifecycle.Stage1.Application.Program}
     {logicalWidth : Nat} (geometry : Geometry program logicalWidth)
@@ -222,7 +216,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         (Spartan.sourceToSpartan location.sourceColumn) := by
   cases location with
   | priorInput index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.priorInput]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.priorInput index]
       have sourceEq : (priorInputBlock program).source index =
           RunningTransitionRetainedBlocks.packageSourceColumn program
             (Location.priorInput index).sourceColumn (Location.priorInput index).sourceColumn_lt := by
@@ -236,7 +230,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       norm_num [sourceColumn, PilotProduction.priorPreimageStart, PiCCSStarts.statementWitnessStart_eq]
       omega
   | freshPublicInput index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.freshPublicInput]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.freshPublicInput index]
       have sourceEq : (freshPublicInputBlock program).source index =
           RunningTransitionRetainedBlocks.packageSourceColumn program
             (Location.freshPublicInput index).sourceColumn (Location.freshPublicInput index).sourceColumn_lt := by
@@ -250,7 +244,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       norm_num [sourceColumn, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, PiCCSStarts.statementWitnessStart_eq]
       omega
   | outputInput index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.outputInput]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.outputInput index]
       have sourceEq : (outputInputBlock program).source index =
           RunningTransitionRetainedBlocks.packageSourceColumn program
             (Location.outputInput index).sourceColumn (Location.outputInput index).sourceColumn_lt := by
@@ -264,7 +258,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       norm_num [sourceColumn, PilotProduction.outputPreimageStart, PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart, PilotProduction.stateHashWords_eq, Lifecycle.PriorStateHash.publicWidth, Lifecycle.PaperAlgebra.publicRingColumns, Spec.ringDegree, PiCCSStarts.statementWitnessStart_eq]
       omega
   | expectedContext index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.expectedContext]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.expectedContext index]
       have sourceEq : (expectedContextBlock program).source index =
           RunningTransitionRetainedBlocks.packageSourceColumn program
             (Location.expectedContext index).sourceColumn (Location.expectedContext index).sourceColumn_lt := by
@@ -279,7 +273,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         PiCCSInputs.expectedContextWords, PiCCSStarts.statementWitnessStart_eq] at indexBound ⊢
       omega
   | fresh index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.fresh]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.fresh index]
       have sourceEq : (freshBlock program).source index =
           RunningTransitionRetainedBlocks.packageSourceColumn program
             (Location.fresh index).sourceColumn (Location.fresh index).sourceColumn_lt := by
@@ -298,8 +292,8 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       omega
   | proofLogical index =>
       by_cases proof : index.val < proofInputCount
-      · rw [form, dif_pos proof,
-          LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.proofLogical]
+      · rw [form, dite_eq_left proof,
+          LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.proofLogical index]
         change PiRLCRetainedPreservation.sourceAssignment program base groupValue
             (RunningTransitionRetainedBlocks.packageSourceColumn program
               (proofLogicalSource index) (proofLogicalSource_lt index)) = _
@@ -309,7 +303,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
         left
         have indexBound : index.val < 15462 := by
           simpa only [proofInputCount_eq] using proof
-        rw [proofLogicalSource, dif_pos proof]
+        rw [proofLogicalSource, dite_eq_left proof]
         rw [PiCCSInputs.priorChildrenStart_eq, PiCCSStarts.statementWitnessStart_eq]
         omega
       · by_cases transcript : index.val < proofInputCount + transcriptOutputCount
@@ -331,8 +325,8 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           rw [sourceEq]
           exact PiCCSTranscriptOutputForms.transcriptForm_eval (poseidonGeometry geometry)
             assignment base groupValue encodes.sboxes decoded.1 decoded.2
-        · rw [form, dif_neg proof, dif_neg transcript,
-            LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.proofLogical]
+        · rw [form, dite_eq_right proof, dite_eq_right transcript,
+            LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.proofLogical index]
           change PiRLCRetainedPreservation.sourceAssignment program base groupValue
               (RunningTransitionRetainedBlocks.packageSourceColumn program
                 (proofLogicalSource index) (proofLogicalSource_lt index)) = _
@@ -340,7 +334,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           apply Eq.symm
           apply RunningTransitionDirectPlan.transitionEnv_of_outside program base _ (proofLogicalSource_lt index)
           right
-          rw [proofLogicalSource, dif_neg proof, dif_neg transcript,
+          rw [proofLogicalSource, dite_eq_right proof, dite_eq_right transcript,
             PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
           unfold PiCCSStarts.initialClaimLogicalStart
           rw [PiCCSStarts.statementWitnessStart_eq, PiCCSStarts.roundTranscriptWitnessStart_eq]
@@ -464,7 +458,7 @@ theorem decodeTranscript_complete {column : Nat}
     rw [remainderEq]
     exact laneBound
   unfold decodeTranscript
-  rw [dif_pos lower, dif_pos decodedInvocationBound, dif_pos decodedLaneBound]
+  rw [dite_eq_left lower, dite_eq_left decodedInvocationBound, dite_eq_left decodedLaneBound]
   rfl
 
 def ordinaryLogicalLocated {column : Nat}
@@ -558,48 +552,48 @@ theorem classifySource_complete {column : Nat}
   by_cases prior : PiCCSOrdinarySourceSupport.InRange
       PilotProduction.priorPreimageStart PilotProduction.stateHashWords column
   · unfold classifySource
-    rw [dif_pos prior]
+    rw [dite_eq_left prior]
     rfl
   by_cases freshPublic : PiCCSOrdinarySourceSupport.InRange
       PilotProduction.priorPublicInputStart 270 column
   · unfold classifySource
-    rw [dif_neg prior, dif_pos freshPublic]
+    rw [dite_eq_right prior, dite_eq_left freshPublic]
     rfl
   by_cases output : PiCCSOrdinarySourceSupport.InRange
       PilotProduction.outputPreimageStart PilotProduction.stateHashWords column
   · unfold classifySource
-    rw [dif_neg prior, dif_neg freshPublic, dif_pos output]
+    rw [dite_eq_right prior, dite_eq_right freshPublic, dite_eq_left output]
     rfl
   by_cases context : PiCCSOrdinarySourceSupport.InRange
       PiCCSInputs.expectedContextStart PiCCSInputs.expectedContextWords column
   · unfold classifySource
-    rw [dif_neg prior, dif_neg freshPublic, dif_neg output, dif_pos context]
+    rw [dite_eq_right prior, dite_eq_right freshPublic, dite_eq_right output, dite_eq_left context]
     rfl
   by_cases proofInput : PiCCSOrdinarySourceSupport.InRange
       PiCCSInputs.priorChildrenStart proofInputCount column
   · unfold classifySource
-    rw [dif_neg prior, dif_neg freshPublic, dif_neg output, dif_neg context,
-      dif_pos proofInput]
+    rw [dite_eq_right prior, dite_eq_right freshPublic, dite_eq_right output, dite_eq_right context,
+      dite_eq_left proofInput]
     rfl
   cases decodedEq : decodeTranscript column with
   | some decoded =>
       unfold classifySource
-      rw [dif_neg prior, dif_neg freshPublic, dif_neg output, dif_neg context,
-        dif_neg proofInput, decodedEq]
+      rw [dite_eq_right prior, dite_eq_right freshPublic, dite_eq_right output, dite_eq_right context,
+        dite_eq_right proofInput, decodedEq]
       rfl
   | none =>
     by_cases ordinary : PiCCSOrdinarySourceSupport.InRange
         PiCCSStarts.initialClaimLogicalStart ordinaryLogicalCount column
     · unfold classifySource
-      rw [dif_neg prior, dif_neg freshPublic, dif_neg output, dif_neg context,
-        dif_neg proofInput, decodedEq, dif_pos ordinary]
+      rw [dite_eq_right prior, dite_eq_right freshPublic, dite_eq_right output, dite_eq_right context,
+        dite_eq_right proofInput, decodedEq, dite_eq_left ordinary]
       rfl
     by_cases fresh : PiCCSOrdinarySourceSupport.InRange
         PiCCSArithmetic.initialClaimFreshStart
           PiCCSOrdinaryRetainedBlocks.freshCount column
     · unfold classifySource
-      rw [dif_neg prior, dif_neg freshPublic, dif_neg output, dif_neg context,
-        dif_neg proofInput, decodedEq, dif_neg ordinary, dif_pos fresh]
+      rw [dite_eq_right prior, dite_eq_right freshPublic, dite_eq_right output, dite_eq_right context,
+        dite_eq_right proofInput, decodedEq, dite_eq_right ordinary, dite_eq_left fresh]
       rfl
     · exfalso
       rcases support with (external | transcriptOrOrdinary) | freshSupport

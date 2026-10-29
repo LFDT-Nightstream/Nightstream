@@ -1,28 +1,13 @@
 import CompressionLean.Shrink.Soundness
 
-/-!
-Owns the error of the shrink verifier game and the main theorem
-(`shrink_sound`): against every adaptive prover, the verifier accepts while
-no candidate satisfies its program's CCS with probability at most
-`shrinkError`.
-
-The count is per candidate: `τ` (at most one bad value per coordinate,
-`foldBad`), the outer rounds (degree 8 per round), the batching (degree 7)
-and the inner rounds (degree 2 per round).
--/
-
 namespace CompressionLean.Shrink
 
 open CompressionLean.Layer1 Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
 
-/-- The shrink bad-challenge count over `L` candidates, `m` row variables
-and `n` cell variables: `τ`, the outer rounds, the batching, the inner
-rounds. -/
 def shrinkCount (m n L : ℕ) : ℕ := m * L + m * (L * 8) + L * 7 + (n + 1) * (L * 2)
 
-/-- The shrink error over a challenge field of `size` elements. -/
 noncomputable def shrinkError (m n L size : ℕ) : ℝ := (shrinkCount m n L : ℝ) / size
 
 theorem programGame_cost {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matrices : List K → List K → K → K)
@@ -89,10 +74,6 @@ theorem shrinkGame_cost {I : Type} [Nonempty I] (T : Template F) (s : Counts) (p
   fun i => programGame_cost i ((prog i).ccs T s) ((prog i).counts = s) (verifierMatrices T s (prog i)) L
     nodes7 nodes1
 
-/-- **Shrink soundness with an idealized WHIR opening.** Against every
-adaptive prover, the shrink verifier accepts while no committed candidate
-`w` satisfies the CCS of the named program, `z = (w, 1, x)` with its
-statement `x`, with probability at most `shrinkError`. -/
 theorem shrink_sound {I : Type} [Nonempty I] (T : Template F) (s : Counts) (prog : I → Run F) (L : ℕ)
     (wf : T.WellFormed) (valid : ∀ i, (prog i).Valid T)
     (cast : ∀ a b : ℕ, a < 9 → b < 9 → (a : K) = b → a = b)

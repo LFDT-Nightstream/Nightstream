@@ -6,10 +6,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPhaseInputs
 import NightstreamFPrime.Export.Stage1.PiCCSActionPayloadSupport
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompleteness
 
-/-!
-Owns the direct C permutation-plan proof from the actual completed C rows.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonCompleteness
@@ -135,7 +131,8 @@ private theorem payload_absorb_source
     payloadLaneValue application (raw).retainedSource index lane =
       (block.getD lane.val (0 : Expr)).eval (Spartan.pullback target) := by
   by_cases rateLane : lane.val < Spec.Poseidon2.rate
-  · rw [payloadLaneValue, dif_pos rateLane]
+  · unfold payloadLaneValue
+    rw [dite_eq_left rateLane]
     have copied := payload_value application relation target suffix physical
       (Fin.encodeProd (index, ⟨lane.val, rateLane⟩))
     rw [PiCCSActionPayloadBlock.payloadExpression_encode] at copied
@@ -144,7 +141,8 @@ private theorem payload_absorb_source
   · have short := PiCCSActionPayloadBlock.kindAt_wellFormed index
     rw [found] at short
     change block.length ≤ Spec.Poseidon2.rate at short
-    rw [payloadLaneValue, dif_neg rateLane,
+    unfold payloadLaneValue
+    rw [dite_eq_right rateLane,
       List.getD_eq_default block (0 : Expr) (short.trans (Nat.le_of_not_gt rateLane))]
     rfl
 

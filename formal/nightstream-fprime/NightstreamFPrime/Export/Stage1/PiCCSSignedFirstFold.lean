@@ -1,8 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
 import NightstreamFPrime.Export.Stage1.PiCCSNormCache
 
-/-! First prefix fold from the original signed-unit code reader. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSSignedFirstFold
@@ -44,8 +42,8 @@ private theorem decoded_getD (count : Nat) (codes : Nat → Fin 3) (index : Nat)
         (if index < count then codes index else ⟨1, by decide⟩)) := by
   rw [Array.getD_eq_getD_getElem?, Array.getElem?_ofFn]
   by_cases inside : index < count
-  · simp only [dif_pos inside, if_pos inside, Option.getD_some]
-  · simp only [dif_neg inside, if_neg inside, Option.getD_none]
+  · simp only [dite_eq_left inside, ite_eq_left inside, Option.getD_some]
+  · simp only [dite_eq_right inside, ite_eq_right inside, Option.getD_none]
     rfl
 
 theorem foldOne_prepare (challenge : K) (count : Nat) (codes : Nat → Fin 3) :
@@ -61,6 +59,6 @@ theorem foldOne_prepare (challenge : K) (count : Nat) (codes : Nat → Fin 3) :
     simp only [Array.getElem_ofFn]
     rw [prepare_value, decoded_getD, decoded_getD]
     have lowInside : 2 * index < count := by omega
-    rw [if_pos lowInside]
+    rw [ite_eq_left lowInside]
 
 end NightstreamFPrime.Export.Stage1.PiCCSSignedFirstFold

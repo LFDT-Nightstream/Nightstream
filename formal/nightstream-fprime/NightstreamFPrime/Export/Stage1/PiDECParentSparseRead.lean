@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECParentScalarRead
 import NightstreamFPrime.Layout.ProductionRelation.SparseEvaluation
 
-/-!
-Read child Phi81 coefficients through the nonzero entries of the existing
-prepared basis action.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECParentSparseRead
@@ -55,7 +50,7 @@ private theorem coefficientForm_eval (table : FixedArray MaterializedRingF ringD
     (List.finRange ringDegree).foldl step 0)
   funext initial input
   rcases input with ⟨input, bounded⟩
-  rw [dif_pos bounded]
+  rw [dite_eq_left bounded]
   rfl
 
 private theorem numericSum_eq_sumRange (count : Nat) (term : Nat → F) :
@@ -78,7 +73,7 @@ theorem coefficientForm_value (challenge : MaterializedRingF)
     CarrierAction.ringFMul_apply_eq_rightLinear]
   apply sumRange_congr
   intro index live
-  simp only [dif_pos live, PiRLCWitnessAction.prepare, FixedArray.get_ofFn,
+  simp only [dite_eq_left live, PiRLCWitnessAction.prepare, FixedArray.get_ofFn,
     MaterializedRingF.toRing_ofRing, CarrierAction.rightCoefficient]
 
 theorem coefficientForm_eq_coefficient (challenge : MaterializedRingF)

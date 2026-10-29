@@ -1,13 +1,5 @@
 import CompressionLean.Bridge.Early
 
-/-!
-Owns the denotation of the linear stage's formulas: the scaled eq point
-(`scaledEqPoint_ok`: the model's `laneScale`, `lanePoint`, `NoLanePole`),
-the lane weights `τ` (`tableK_tau`: the model's `laneWeight`), the lane
-value (`toK_laneValue`: the extension of `laneTable`) and the lifted target
-(`toK_liftedTarget`: the model's `liftedTarget` at `Φ81`).
--/
-
 namespace CompressionLean.Bridge
 
 open Polynomial
@@ -50,7 +42,6 @@ theorem bar_outside (p l : ℕ) (outside : D ≤ l) : barOf p l = 0 := by
     absurd h.2 (by rw [show NightstreamFPrime.Spec.ringDegree = D from rfl]; omega)
   simp [barOf, Replay.bar, this]
 
-/-- The replay's `τ` is the model's lane weights. -/
 theorem tableK_tau (s : Layer1.Shape) (hD : s.D = D) (zeta : Ext) (l : ℕ) :
     tableK (K := K) (Replay.tau zeta) l = laneWeight s barOf zeta.toK l := by
   unfold tableK laneWeight
@@ -69,23 +60,19 @@ theorem tableK_tau (s : Layer1.Shape) (hD : s.D = D) (zeta : Ext) (l : ℕ) :
     intro p _
     rw [bar_outside p l (by omega), map_zero, zero_mul]
 
-/-- `Σ_{l<D} ζ^l·eq(x, l)` is the extension of the lane weights `ζ^l`. -/
 theorem toK_laneValue (s : Layer1.Shape) (hD : s.D = D) (zeta : Ext) (point : Array Ext)
     (size : point.size = laneVars) :
     (laneValue zeta point).toK (K := K) = mle (pointK point) (laneTable s zeta.toK) := by
   rw [laneValue, toK_sumRange, mle_eq_cubeSum, cubeSum_eq_sum_range, pointK_length, size]
   have split : 2 ^ laneVars = D + 10 := rfl
   rw [split, Finset.sum_range_add, Finset.sum_eq_zero (s := Finset.range 10) (fun i _ => by
-    rw [laneTable, if_neg (by rw [hD]; omega), mul_zero]), add_zero]
+    rw [laneTable, ite_eq_right (by rw [hD]; omega), mul_zero]), add_zero]
   apply Finset.sum_congr rfl
   intro l inside
   have lt := Finset.mem_range.mp inside
   rw [Ext.toK_mul, eqTable_get point (by rw [size, split]; omega), toK_eqAt, Ext.toK_pow, laneTable,
-    if_pos (by rw [hD]; exact lt)]
+    ite_eq_left (by rw [hD]; exact lt)]
 
-/-! ## The lifted target -/
-
-/-- Coefficient `l` of the target of row `ρ` (`relationRows`). -/
 def targetCoeff (s : Layer1.Shape) (st : Layer1.Statement Fp) (ρ l : ℕ) : Fp :=
   if ρ < s.kappa then st.commitment ρ l
   else if ρ < s.kappa + 2 then (if ρ = s.evalKRow 0 then (st.evalK l).1 else (st.evalK l).2)
@@ -98,27 +85,26 @@ theorem target_eq (s : Layer1.Shape) (bar : ℕ → ℕ → Fp) (S : Setup Fp) (
     (relationRows s bar S st).target ρ = coeffPoly s.D (targetCoeff s st ρ) := by
   simp only [relationRows]
   by_cases h1 : ρ < s.kappa
-  · rw [if_pos h1]
+  · rw [ite_eq_left h1]
     congr 1
     funext l
     simp [targetCoeff, h1]
   by_cases h2 : ρ < s.kappa + 2
-  · rw [if_neg h1, if_pos h2]
+  · rw [ite_eq_right h1, ite_eq_left h2]
     congr 1
     funext l
     simp [targetCoeff, h1, h2]
   by_cases h3 : ρ < s.kappa + 2 + 2 * s.matrices
-  · rw [if_neg h1, if_neg h2, if_pos h3]
+  · rw [ite_eq_right h1, ite_eq_right h2, ite_eq_left h3]
     congr 1
     funext l
     simp [targetCoeff, h1, h2, h3]
-  · rw [if_neg h1, if_neg h2, if_neg h3]
+  · rw [ite_eq_right h1, ite_eq_right h2, ite_eq_right h3]
     congr 1
     funext l
     simp [targetCoeff, h1, h2, h3]
 
 omit [Fintype K] [ChallengeField K] in
-/-- The batched target coefficient `Σ_ρ λ^ρ·y_ρ(l)`, row by row. -/
 theorem rows_split (s : Layer1.Shape) (st : Layer1.Statement Fp) (lam : K) (l : ℕ) :
     ∑ ρ ∈ Finset.range s.rows, lam ^ ρ * ι (targetCoeff s st ρ l) =
       ∑ row ∈ Finset.range s.kappa, lam ^ row * ι (st.commitment row l) +
@@ -131,12 +117,12 @@ theorem rows_split (s : Layer1.Shape) (st : Layer1.Statement Fp) (lam : K) (l : 
     Finset.sum_range_add, Finset.sum_range_add, Finset.sum_range_add, sum_range_pairs]
   have commitment : ∑ ρ ∈ Finset.range s.kappa, lam ^ ρ * ι (targetCoeff s st ρ l) =
       ∑ row ∈ Finset.range s.kappa, lam ^ row * ι (st.commitment row l) :=
-    Finset.sum_congr rfl fun ρ inside => by rw [targetCoeff, if_pos (Finset.mem_range.mp inside)]
+    Finset.sum_congr rfl fun ρ inside => by rw [targetCoeff, ite_eq_left (Finset.mem_range.mp inside)]
   have evalK : ∑ r ∈ Finset.range 2, lam ^ (s.kappa + r) * ι (targetCoeff s st (s.kappa + r) l) =
       lam ^ s.kappa * ι (st.evalK l).1 + lam ^ (s.kappa + 1) * ι (st.evalK l).2 := by
     rw [Finset.sum_range_succ, Finset.sum_range_succ, Finset.sum_range_zero, zero_add, targetCoeff, targetCoeff,
-      if_neg (by omega), if_pos (by omega), if_pos (by simp [Layer1.Shape.evalKRow]), if_neg (by omega),
-      if_pos (by omega), if_neg (by simp [Layer1.Shape.evalKRow]), add_zero]
+      ite_eq_right (by omega), ite_eq_left (by omega), ite_eq_left (by simp [Layer1.Shape.evalKRow]), ite_eq_right (by omega),
+      ite_eq_left (by omega), ite_eq_right (by simp [Layer1.Shape.evalKRow]), add_zero]
   have evalA : ∑ j ∈ Finset.range s.matrices,
       (lam ^ (s.kappa + (2 + 2 * j)) * ι (targetCoeff s st (s.kappa + (2 + 2 * j)) l) +
         lam ^ (s.kappa + (2 + (2 * j + 1))) * ι (targetCoeff s st (s.kappa + (2 + (2 * j + 1))) l)) =
@@ -145,8 +131,8 @@ theorem rows_split (s : Layer1.Shape) (st : Layer1.Statement Fp) (lam : K) (l : 
     apply Finset.sum_congr rfl
     intro j inside
     have hj := Finset.mem_range.mp inside
-    rw [targetCoeff, targetCoeff, if_neg (by omega), if_neg (by omega), if_pos (by omega), if_pos (by omega),
-      if_neg (by omega), if_neg (by omega), if_pos (by omega), if_neg (by omega),
+    rw [targetCoeff, targetCoeff, ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_left (by omega), ite_eq_left (by omega),
+      ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_left (by omega), ite_eq_right (by omega),
       show (s.kappa + (2 + 2 * j) - s.kappa - 2) / 2 = j by omega,
       show (s.kappa + (2 + (2 * j + 1)) - s.kappa - 2) / 2 = j by omega,
       show s.kappa + (2 + 2 * j) = s.kappa + 2 + 2 * j by ring,
@@ -156,13 +142,12 @@ theorem rows_split (s : Layer1.Shape) (st : Layer1.Statement Fp) (lam : K) (l : 
       ∑ b ∈ Finset.range s.publicBlocks, lam ^ (s.kappa + 2 + 2 * s.matrices + b) * ι (st.publicInput b l) := by
     apply Finset.sum_congr rfl
     intro b _
-    rw [targetCoeff, if_neg (by omega), if_neg (by omega), if_neg (by omega),
+    rw [targetCoeff, ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega),
       show s.kappa + (2 + (2 * s.matrices + b)) - (s.kappa + 2 + 2 * s.matrices) = b by omega,
       show s.kappa + (2 + (2 * s.matrices + b)) = s.kappa + 2 + 2 * s.matrices + b by ring]
   rw [commitment, evalK, evalA, pub]
   ring
 
-/-- Lane `l` of the replay's `Ȳ` is the batched target coefficient. -/
 theorem toK_targets (rel : Replay.Relation) (st : Replay.Statement) (fits : st.fits rel = true) (lam : Ext)
     {lane : ℕ} (inside : lane < D) :
     ((targets st ⟨lam, rel.kappa, rel.matrices⟩)[lane]!).toK (K := K) =
@@ -195,7 +180,6 @@ omit [Fintype K] [ChallengeField K] in
 theorem phi_eval (zeta : K) : (phi.map ι).eval zeta = zeta ^ 54 + zeta ^ 27 + 1 := by
   simp [phi]
 
-/-- The replay's lifted target is the model's at `Φ81`, with the quotient of the proof. -/
 theorem toK_liftedTarget (rel : Replay.Relation) (st : Replay.Statement) (fits : st.fits rel = true)
     (lam zeta : Ext) (quotient : Array Ext) (size : quotient.size = D - 1) (S : Setup Fp) :
     (Replay.liftedTarget (targets st ⟨lam, rel.kappa, rel.matrices⟩) quotient zeta).toK (K := K) =

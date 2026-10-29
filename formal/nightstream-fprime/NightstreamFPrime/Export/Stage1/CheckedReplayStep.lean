@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.CheckedReplayNifs
 
-/-!
-Bind the checked local replay to its exact augmented-function state.
-Successor opening construction and terminal acceptance remain separate.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.CheckedReplayStep

@@ -3,19 +3,6 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 import NightstreamFPrime.Lifecycle.PilotZeroRunning
 
-/-!
-Owns compact caller inputs for one base step of the canonical application.
-The inner zero PiCCS transcript is a base-only placeholder, not valid PiCCS
-conformance. The resulting base witness must pass every physical and logical
-row before its bounded carrier can be used as a fresh CCS opening.
-
-Schema: [1, context, privateInputs, publicInputs, [applicationOutput,
-outputDigest, nextFreshPublicInput, roundPoint, piCcsState, piRlcState,
-piRlcParentPublicInput]]. All fields are canonical Goldilocks words; each
-round-point element is a two-word extension value. No rows or full assignment
-are emitted. The Rust consumer checks the context against its loaded package.
--/
-
 namespace NightstreamFPrime.Export.Stage1.BaseStepFixture
 
 open NightstreamFPrime.Export.Codec

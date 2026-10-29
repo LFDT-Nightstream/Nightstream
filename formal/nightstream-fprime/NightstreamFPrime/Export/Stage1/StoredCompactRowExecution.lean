@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.CompactRowExecution
 import NightstreamFPrime.Export.Stage1.StoredWitnessExecution
 
-/-!
-Array storage for the existing compact-row arithmetic core. No template
-success is asserted.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.StoredCompactRowExecution
@@ -80,7 +75,7 @@ theorem step_eq (inputColumn : Nat → Nat) (localStart localCount : Nat)
   | some localIndex =>
       have inside : localIndex < localCount := localBound localIndex selected
       have targetBound : localStart + localIndex < values.size := by omega
-      simp only [step, CompactRowExecution.step, selected, if_pos inside,
+      simp only [step, CompactRowExecution.step, selected, ite_eq_left inside,
         asEnv_write values (localStart + localIndex) _ targetBound]
       split_ifs <;>
         simp only [Option.map_some, Option.map_none,
@@ -139,7 +134,7 @@ theorem execute_eq (inputColumn : Nat → Nat) (localStart : Nat)
   change (if inputColumn template.outputInput < values.size ∧
       localStart + template.localColumnCount ≤ values.size then
       run inputColumn localStart template.localColumnCount seeded template.rows else none).map asEnv = _
-  rw [if_pos ⟨outputFits, localFits⟩,
+  rw [ite_eq_left ⟨outputFits, localFits⟩,
     run_eq inputColumn localStart template.localColumnCount seeded template.rows seededFits localBounds,
     seededEnv]
   rfl

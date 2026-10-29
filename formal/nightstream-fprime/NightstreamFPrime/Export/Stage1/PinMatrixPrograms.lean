@@ -2,12 +2,6 @@ import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.DirectPiDECPrefixPlan
 import NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
 
-/-!
-Owns the three small explicit pin blocks in the canonical Stage 1 4-matrix
-program: pilot digest custody, PiCCS transcript endpoint custody, and the
-recursive public-output binding.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PinMatrixPrograms
 
 open NightstreamFPrime.Layout
@@ -28,8 +22,8 @@ def pilotDigestBinding
     {program : Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth) :
     (pilotDigestBinding geometry).rowCount = 8 := by
-  simp [pilotDigestBinding, PilotDigestBindingPlan.rowCount,
-    PilotDigestBindingPlan.chainCount, PilotDigestBindingPlan.laneCount]
+  rw [pilotDigestBinding, Pin.Block.ofSemantic_rowCount]
+  rfl
 
 theorem pilotDigestBinding_row?
     {program : Program} {logicalWidth : Nat}
@@ -74,7 +68,7 @@ theorem pilotDigestBindingProgram_row?
     simpa [PilotDigestBindingPlan.rowCount_eq] using row.isLt
   rw [show pilotDigestBindingProgram geometry = MatrixProgram.Program.mk
       [.pin (pilotDigestBinding geometry)] by rfl]
-  rw [MatrixProgram.Program.singleton_row?, if_pos bound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left bound]
   change (do
     let forms ← (pilotDigestBinding geometry).row? logicalWidth row.val
     pure forms.meaningfulForm) = _
@@ -93,9 +87,8 @@ def piCcsEndpoint
     {program : Program} {logicalWidth : Nat}
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth) :
     (piCcsEndpoint geometry).rowCount = 64 := by
-  simp [piCcsEndpoint, PiCCSTranscriptEndpointPlan.rowCount,
-    PiCCSTranscriptEndpointPlan.familyCount,
-    PiCCSTranscriptEndpointPlan.laneCount, Spec.Poseidon2.width]
+  rw [piCcsEndpoint, Pin.Block.ofSemantic_rowCount]
+  rfl
 
 theorem piCcsEndpoint_row?
     {program : Program} {logicalWidth : Nat}
@@ -142,7 +135,7 @@ theorem piCcsEndpointProgram_row?
     simpa [PiCCSTranscriptEndpointPlan.rowCount_eq] using row.isLt
   rw [show piCcsEndpointProgram geometry = MatrixProgram.Program.mk
       [.pin (piCcsEndpoint geometry)] by rfl]
-  rw [MatrixProgram.Program.singleton_row?, if_pos bound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left bound]
   change (do
     let forms ← (piCcsEndpoint geometry).row? logicalWidth row.val
     pure forms.meaningfulForm) = _
@@ -184,7 +177,8 @@ def recursivePublicOutput
     {program : Program} {logicalWidth : Nat}
     (geometry : ApplicationRetainedGeometry.Geometry program logicalWidth) :
     (recursivePublicOutput geometry).rowCount = 4 := by
-  simp [recursivePublicOutput, RecursivePublicOutputPlan.rowCount]
+  rw [recursivePublicOutput, Pin.Block.ofSemantic_rowCount]
+  rfl
 
 theorem recursivePublicOutput_row?
     {program : Program} {logicalWidth : Nat}
@@ -226,7 +220,7 @@ theorem recursivePublicOutputProgram_row?
     simpa [RecursivePublicOutputPlan.rowCount_eq] using row.isLt
   rw [show recursivePublicOutputProgram geometry = MatrixProgram.Program.mk
       [.pin (recursivePublicOutput geometry)] by rfl]
-  rw [MatrixProgram.Program.singleton_row?, if_pos bound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left bound]
   change (do
     let forms ← (recursivePublicOutput geometry).row? logicalWidth row.val
     pure forms.meaningfulForm) = _

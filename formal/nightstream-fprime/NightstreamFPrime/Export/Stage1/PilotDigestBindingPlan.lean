@@ -2,12 +2,6 @@ import NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedGeometry
 import NightstreamFPrime.Export.Stage1.PilotPoseidonPlan
 import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
 
-/-!
-Owns eight explicit custody rows between the direct pilot Poseidon2 outputs
-and the legacy final-output columns consumed by the canonical pilot ordinary
-rows.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PilotDigestBindingPlan
 
 open NightstreamFPrime.Layout

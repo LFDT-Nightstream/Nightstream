@@ -1,23 +1,10 @@
-/-!
-Generic fork algebra for the paper `Pi_RLC` extractor (SuperNeo v1.2 Appendix B.3).
-
-Protocol: SuperNeo `Pi_RLC` weak reduction.
-Phase: algebra of a complete coordinate-wise fork.
-Constraint family: none; this file emits no rows.
-
-Owns: an artifact-independent commutative-ring/module vocabulary, the
-canonical head-first finite linear combination, isolation of the one
-coordinate changed by a fork, and cancellation of an invertible scalar
-action.
--/
+/-! SuperNeo v1.2 Appendix B.3. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiRLC.PaperForkAlgebra
 
 universe uScalar uValue
 
-/-- Operations of the commutative scalar ring used by v1.2 Definition 4.  An
-inverse is deliberately not a total operation: Appendix B.3 receives a unit
-witness only for a forked challenge difference. -/
+/-- SuperNeo v1.2 Definition 4. -/
 structure CommutativeRingOps (Scalar : Type uScalar) where
   zero : Scalar
   one : Scalar
@@ -300,7 +287,7 @@ theorem coordinateIsolation
           (fun index => values index.succ)
           tail tailsAgree
 
-/-- The algebraic final step in Appendix B.3's coordinate extractor. -/
+/-- SuperNeo v1.2 Appendix B.3. -/
 theorem inverseActionCancellation
     {Scalar : Type uScalar}
     {Value : Type uValue}

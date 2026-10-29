@@ -1,10 +1,5 @@
 import NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness
 
-/-!
-Owns acceptance of the canonical base dummy by the complete production NIFS
-verifier using its total transcript sampler. Acceptance does not assert a fresh opening or valid openings for the dummy D children.
--/
-
 namespace NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness
 
 open NightstreamFPrime.Spec
@@ -229,7 +224,8 @@ private theorem verify_some_of_checks
     (key.piDecPublicInputSplit.split attempt.parent.publicInput), ?_⟩
   apply (Nifs.PaperNonInteractive.verify_eq_some_iff key running fresh proof _).mpr
   refine ⟨cCheck, dCheck, ?_⟩
-  rw [Nifs.PaperNonInteractive.Key.output, attemptEq, Option.bind_some,
+  unfold Nifs.PaperNonInteractive.Key.output
+  rw [attemptEq, Option.bind_some,
     PiDEC.PaperVerifier.PublicInputSplit.checked_eq_some _ _ accepted.parentBounded]
   rfl
 

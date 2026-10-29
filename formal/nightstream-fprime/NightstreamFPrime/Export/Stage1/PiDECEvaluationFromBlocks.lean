@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationHonestMessages
 
-/-!
-Execute child evaluations from complete stored block batches.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECEvaluationFromBlocks
@@ -177,13 +173,13 @@ theorem matrixRow_child
     (matrixRow blocks matrix index).get child =
       PiDECEvaluationSelectedPrefix.matrixRow (reference blocks) child matrix index := by
   by_cases live : index < selectedPlan.rowCount
-  · simpa only [matrixRow, PiDECEvaluationSelectedPrefix.matrixRow, dif_pos live,
+  · simpa only [matrixRow, PiDECEvaluationSelectedPrefix.matrixRow, dite_eq_left live,
       programForm_value, PiDECEvaluationRows.row] using!
       congrArg (fun source : Nat → Vector StoredRing productionGlobalParams.k =>
         (PiDECEvaluationBlockSupport.kernel
           (selectedPlan.portForm ⟨index, live⟩ matrix) source).get child)
         (blockAt_reference blocks)
-  · simp only [matrixRow, PiDECEvaluationSelectedPrefix.matrixRow, dif_neg live]
+  · simp only [matrixRow, PiDECEvaluationSelectedPrefix.matrixRow, dite_eq_right live]
     change (Vector.replicate productionGlobalParams.k PiDECCommitmentFold.zero)[child.val] = _
     rw [Vector.getElem_replicate]
 
@@ -193,13 +189,13 @@ theorem padRow_child
     (padRow blocks index).get child =
       PiDECEvaluationSelectedPrefix.padRow (reference blocks) child index := by
   by_cases live : index < selectedShape.carrierWidth
-  · simpa only [padRow, PiDECEvaluationSelectedPrefix.padRow, dif_pos live,
+  · simpa only [padRow, PiDECEvaluationSelectedPrefix.padRow, dite_eq_left live,
       PiDECEvaluationRows.row] using
       congrArg (fun source : Nat → Vector StoredRing productionGlobalParams.k =>
         (PiDECEvaluationBlockSupport.kernel
           (SparseForm.singleton (⟨index, live⟩ : Fin selectedShape.carrierWidth) 1)
           source).get child) (blockAt_reference blocks)
-  · simp only [padRow, PiDECEvaluationSelectedPrefix.padRow, dif_neg live]
+  · simp only [padRow, PiDECEvaluationSelectedPrefix.padRow, dite_eq_right live]
     change (Vector.replicate productionGlobalParams.k PiDECCommitmentFold.zero)[child.val] = _
     rw [Vector.getElem_replicate]
 

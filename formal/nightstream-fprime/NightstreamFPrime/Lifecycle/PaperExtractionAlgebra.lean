@@ -3,15 +3,6 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.Embedding
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
 
-/-!
-Owns the deterministic extraction algebra for the exact production
-`PaperAlgebra` relation. It uses the same assignment, commitment,
-public-input, and evaluation actions as `PaperAlgebra.piRlcAlgebra`.
-
-This module does not own the strong-set invertibility theorem, a forking
-probability, commitment binding, or any emitted rows.
--/
-
 namespace NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 
 open NightstreamFPrime.Spec
@@ -132,14 +123,14 @@ private theorem foldEmbedLeftComponent0
   | cons index indices inductionHypothesis =>
       simp only [List.foldl_cons]
       by_cases active : index <= degree ∧ degree - index < ringDegree
-      · simp only [if_pos active]
+      · simp only [ite_eq_left active]
         rw [inductionHypothesis]
         congr 1
         unfold RingKAction.embedChallenge ringKComponent0
         simp only [ringKCoeff, ringFCoeff, K.add, K.mul, K.embed]
         split <;> split <;>
           simp [K.zero]
-      · simp only [if_neg active]
+      · simp only [ite_eq_right active]
         exact inductionHypothesis initial
 
 private theorem foldEmbedLeftComponent1
@@ -167,14 +158,14 @@ private theorem foldEmbedLeftComponent1
   | cons index indices inductionHypothesis =>
       simp only [List.foldl_cons]
       by_cases active : index <= degree ∧ degree - index < ringDegree
-      · simp only [if_pos active]
+      · simp only [ite_eq_left active]
         rw [inductionHypothesis]
         congr 1
         unfold RingKAction.embedChallenge ringKComponent1
         simp only [ringKCoeff, ringFCoeff, K.add, K.mul, K.embed]
         split <;> split <;>
           simp [K.zero]
-      · simp only [if_neg active]
+      · simp only [ite_eq_right active]
         exact inductionHypothesis initial
 
 private theorem rawMulCoeffK_embedLeft_component0

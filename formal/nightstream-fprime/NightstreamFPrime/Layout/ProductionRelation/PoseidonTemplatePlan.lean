@@ -1,15 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonScheduleTrace
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSourceRows
 
-/-!
-Owns the fully compiled, constant-size direct-row plan for one canonical
-Poseidon2 permutation template. Every source expression is checked by the
-fail-closed bounded affine or exact-variable recognizer.
-
-The plan is shared by every package invocation. This module does not expand
-the invocation list.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonTemplatePlan
 
 open NightstreamFPrime.Circuit

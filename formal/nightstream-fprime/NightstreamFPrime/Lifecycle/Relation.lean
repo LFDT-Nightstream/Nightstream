@@ -2,14 +2,7 @@ import NightstreamFPrime.Lifecycle.XOut
 import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Lifecycle.Stage1.Application
 
-/-!
-Owns the concrete Stage 1 F′ relation: HyperNova Construction 2 instantiated
-with the SuperNeo production NIFS verifier, Poseidon2 state hashing, the
-`encHash` instance encoding, and the paper default running vector. Its inputs
-are protocol data, never predicates: the F′ logical relation and its Ajtai key
-(verifier-owned), the verifier-key digest (verifier-owned), and the
-application step function `F` (the program being proved).
--/
+/-! HyperNova Construction 2. -/
 
 namespace NightstreamFPrime.Lifecycle
 

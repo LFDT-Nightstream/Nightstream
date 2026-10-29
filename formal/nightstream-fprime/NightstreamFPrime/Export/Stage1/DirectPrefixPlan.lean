@@ -3,13 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCRetainedPlan
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPreservation
 import NightstreamFPrime.Export.Stage1.PilotPoseidonPlan
 
-/-!
-Owns the canonical direct-plan prefix through PiRLC.
-
-This is a phase-local compiler plan. It does not include ordinary rows,
-PiDEC, accumulator, application, terminal work, or a final package identity.
--/
-
 namespace NightstreamFPrime.Export.Stage1.DirectPrefixPlan
 
 open NightstreamFPrime.Spec

@@ -1,16 +1,5 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaHistoryLaw
 
-/-!
-Owns the joint law of a visited reverse-history context and its source
-result. The mark records initial terminal acceptance and the exact preceding
-source-success and no-collision events. These marks are analytical; this
-module claims no efficient sampler or adversary translation.
-
-Operationally active states draw their actual source kernel even when the
-mark is false. Only the reported guarded draw is masked. A stopped state is
-reported once and then becomes the absorbing `none` state.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw
@@ -106,7 +95,7 @@ private theorem stopped_not_ready : ¬ ready application fits (stopped applicati
 
 private theorem transition_inactive (visit : Visit application) (inactive : ¬ ready application fits visit) :
     transition application fits setup source visit = PMF.pure (stopped application) := by
-  simp only [transition, draw, PMF.pure_map, advance, if_neg inactive]
+  simp only [transition, draw, PMF.pure_map, advance, ite_eq_right inactive]
 
 private theorem after_stopped (steps : Nat) : after application fits setup source steps (stopped application) = PMF.pure (stopped application) := by
   induction steps with
@@ -118,9 +107,9 @@ private theorem readDraw_stopped (steps : Nat) (results : List (SourceResult app
     readDraw application fits setup steps (stopped application) results = (stopped application, none) := by
   induction steps with
   | zero =>
-      simp only [readDraw, if_neg (not_good_of_not_ready application fits setup (stopped application) (stopped_not_ready application fits))]
+      simp only [readDraw, ite_eq_right (not_good_of_not_ready application fits setup (stopped application) (stopped_not_ready application fits))]
   | succ steps induction =>
-      simp only [readDraw, if_neg (stopped_not_ready application fits), induction]
+      simp only [readDraw, ite_eq_right (stopped_not_ready application fits), induction]
 
 private theorem resultLaw_inactive (visit : Visit application) (inactive : ¬ ready application fits visit) :
     resultLaw application fits source visit = PMF.pure [] := by
@@ -136,12 +125,12 @@ private theorem resultLaw_inactive (visit : Visit application) (inactive : ¬ re
           change (HyperNovaHistoryLaw.results application fits) source statement (.recursive payload) = PMF.pure []
           rw [HyperNovaHistoryLaw.results_eq]
           by_cases zero : statement.iteration = 0
-          · simp only [if_pos zero]
+          · simp only [ite_eq_left zero]
           · by_cases counter : (decodedInput application fits payload).iteration + 1 = statement.iteration
             · by_cases base : (decodedInput application fits payload).iteration = 0
-              · simp only [if_neg zero, if_pos counter, if_pos base]
+              · simp only [ite_eq_right zero, ite_eq_left counter, ite_eq_left base]
               · exact False.elim (inactive ⟨zero, counter, base⟩)
-            · simp only [if_neg zero, if_neg counter]
+            · simp only [ite_eq_right zero, ite_eq_right counter]
 
 private theorem resultLaw_active (visit : Visit application) (active : ready application fits visit) :
     resultLaw application fits source visit =
@@ -159,12 +148,12 @@ private theorem resultLaw_active (visit : Visit application) (active : ready app
           rcases conditions with ⟨nonzero, counter, positive⟩
           change (HyperNovaHistoryLaw.results application fits) source statement (.recursive payload) = _
           rw [HyperNovaHistoryLaw.results_eq]
-          simp only [if_neg nonzero, if_pos counter, if_neg positive, draw, if_pos active]
+          simp only [ite_eq_right nonzero, ite_eq_left counter, ite_eq_right positive, draw, ite_eq_left active]
           apply congrArg (PMF.bind (source statement payload))
           funext result
           cases result with
-          | none => simp only [advance, if_pos active, resultLaw, stopped, PMF.pure_map]
-          | some values => simp only [advance, if_pos active, resultLaw]
+          | none => simp only [advance, ite_eq_left active, resultLaw, stopped, PMF.pure_map]
+          | some values => simp only [advance, ite_eq_left active, resultLaw]
 
 private theorem readDraw_marginal (steps : Nat) (visit : Visit application) :
     (resultLaw application fits source visit).map (readDraw application fits setup steps visit) =
@@ -183,11 +172,11 @@ private theorem readDraw_marginal (steps : Nat) (visit : Visit application) :
               (visit, if (goodActive application fits setup) visit then result else none))
         simp only [head]
         by_cases good : goodActive application fits setup visit
-        · simp only [guardedDraw, if_pos good]
+        · simp only [guardedDraw, ite_eq_left good]
           rfl
-        · simp only [guardedDraw, if_neg good, PMF.bind_const]
+        · simp only [guardedDraw, ite_eq_right good, PMF.bind_const]
       · rw [resultLaw_inactive application fits source visit active, PMF.pure_map]
-        simp only [readDraw, guardedDraw, if_neg (not_good_of_not_ready application fits setup visit active)]
+        simp only [readDraw, guardedDraw, ite_eq_right (not_good_of_not_ready application fits setup visit active)]
   | succ steps induction =>
       by_cases active : ready application fits visit
       · rw [resultLaw_active application fits setup source visit active, PMF.map_bind]
@@ -198,14 +187,14 @@ private theorem readDraw_marginal (steps : Nat) (visit : Visit application) :
         have reader : readDraw application fits setup (steps + 1) visit ∘ (result :: ·) =
             readDraw application fits setup steps (advance application fits setup visit result) := by
           funext tail
-          simp only [Function.comp_def, readDraw, if_pos active]
+          simp only [Function.comp_def, readDraw, ite_eq_left active]
         rw [reader]
         exact induction (advance application fits setup visit result)
       · rw [resultLaw_inactive application fits source visit active, PMF.pure_map]
         rw [after, transition_inactive application fits setup source visit active, PMF.pure_bind,
           after_stopped application fits setup source steps, PMF.pure_bind]
-        simp only [readDraw, if_neg active, readDraw_stopped, guardedDraw,
-          if_neg (not_good_of_not_ready application fits setup (stopped application) (stopped_not_ready application fits))]
+        simp only [readDraw, ite_eq_right active, readDraw_stopped, guardedDraw,
+          ite_eq_right (not_good_of_not_ready application fits setup (stopped application) (stopped_not_ready application fits))]
 
 theorem visitedDraw_marginal (initial : PMF (Statement × Envelope application)) (steps : Nat) :
     (HyperNovaHistoryLaw.law application fits source initial).map (observedDraw application fits setup steps) =
@@ -282,15 +271,15 @@ private theorem pathVisit_iteration (input : Statement × Envelope application) 
           previousCurrent
         cases result : results.getD steps none with
         | none =>
-            simp only [advance, if_pos active, previousCurrent, result, stopped] at current
+            simp only [advance, ite_eq_left active, previousCurrent, result, stopped] at current
             cases current
         | some values =>
-            simp only [advance, if_pos active, previousCurrent, result, Option.some.injEq,
+            simp only [advance, ite_eq_left active, previousCurrent, result, Option.some.injEq,
               Prod.mk.injEq] at current
             rw [← current.1]
             simp only [predecessorStatement]
             omega
-      · simp only [advance, if_neg active, stopped] at current
+      · simp only [advance, ite_eq_right active, stopped] at current
         cases current
 
 private theorem draw_listSource (input : Statement × Envelope application) (results : List (SourceResult application))
@@ -303,7 +292,7 @@ private theorem draw_listSource (input : Statement × Envelope application) (res
   have conditions := active
   simp only [ready, current] at conditions
   have index : input.1.iteration - statement.iteration = steps := by omega
-  simp only [draw, if_pos active, current, listSource, index]
+  simp only [draw, ite_eq_left active, current, listSource, index]
 
 private theorem transition_listSource (input : Statement × Envelope application) (results : List (SourceResult application))
     (steps : Nat) (within : steps < results.length) :
@@ -313,7 +302,7 @@ private theorem transition_listSource (input : Statement × Envelope application
   by_cases active : ready application fits (pathVisit application fits setup input results steps)
   · rw [transition, draw_listSource application fits setup input results steps within active, PMF.pure_map]
   · rw [transition_inactive application fits setup _ _ active]
-    simp only [advance, if_neg active]
+    simp only [advance, ite_eq_right active]
 
 theorem visitedLaw_listSource (input : Statement × Envelope application) (results : List (SourceResult application))
     (steps : Nat) (within : steps ≤ results.length) :
@@ -331,8 +320,8 @@ theorem guardedDraw_listSource (input : Statement × Envelope application) (resu
       PMF.pure (pathVisit application fits setup input results steps,
         if (goodActive application fits setup) (pathVisit application fits setup input results steps) then results.getD steps none else none) := by
   by_cases good : goodActive application fits setup (pathVisit application fits setup input results steps)
-  · rw [guardedDraw, if_pos good, draw_listSource application fits setup input results steps within good.2.1, PMF.pure_map,
-      if_pos good]
-  · rw [guardedDraw, if_neg good, if_neg good]
+  · rw [guardedDraw, ite_eq_left good, draw_listSource application fits setup input results steps within good.2.1, PMF.pure_map,
+      ite_eq_left good]
+  · rw [guardedDraw, ite_eq_right good, ite_eq_right good]
 
 end NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw

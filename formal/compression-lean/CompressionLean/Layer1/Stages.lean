@@ -1,12 +1,5 @@
 import CompressionLean.Layer1.HonestStage
 
-/-!
-Owns what each stage game gives along a path that avoided its bad sets:
-the stage's checks, the challenges off every candidate's bad sets, and the
-sub-games' transfers (`earlyGame_avoids`, `linearGame_avoids`,
-`honestGame_avoids`, `lateGame_avoids`). It also owns the late stage game.
--/
-
 namespace CompressionLean.Layer1
 
 open Polynomial
@@ -19,7 +12,6 @@ theorem mem_get {α : Type} {l : List α} {a : α} (member : a ∈ l) : ∃ i : 
   List.mem_iff_get.mp member
 
 omit [Fintype K] [DecidableEq K] in
-/-- Every tree of at most two leaf factors has round degree at most four. -/
 theorem nodes_of_small (s : GkrShape) (small : ∀ t, s.factors t ≤ 2) (nodes : ∀ d, d ≤ 3 → NodesDistinct K d) :
     ∀ k, 1 ≤ k → k ≤ s.layers → NodesDistinct K (s.degree k - 1) := by
   intro k _ _
@@ -33,7 +25,6 @@ theorem nodes_of_small (s : GkrShape) (small : ∀ t, s.factors t ≤ 2) (nodes 
 
 section Early
 
-/-- What an accepting early path gives. -/
 def EarlyGood (s : Shape) (S : Setup F) (st : Statement F) (o : EarlyOut F K) : Prop :=
   EarlyChecks s st o ∧
     (∀ w ∈ o.candidates,
@@ -90,7 +81,7 @@ theorem earlyGame_avoids (s : Shape) (S : Setup F) (st : Statement F) (L0 : ℕ)
       rw [depth3] at path
       refine Path.mono (fun q => ?_) _ _ path
       unfold earlyExtra
-      rw [if_pos rfl]
+      rw [ite_eq_left rfl]
       exact Finset.subset_biUnion_of_mem (fun w : Fin cands.1.length => blockTest s S (cands.1.get w) q)
         (Finset.mem_univ i)
     · intro o none; cases none
@@ -99,7 +90,6 @@ end Early
 
 section Linear
 
-/-- What an accepting linear path gives. -/
 def LinearGood (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
     (cands : List (P0Tables F)) (lin : LinearOut K) : Prop :=
   LinearCheck s bar st lin ∧ lin.blockPoint.length = s.blockVars ∧ lin.lanePart.length = s.laneVars ∧
@@ -148,7 +138,6 @@ end Linear
 
 section Honest
 
-/-- What an accepting honest-fold path gives. -/
 def HonestGood (s : Shape) (S : Setup F) (q : ℕ → K) (o : EarlyOut F K) (lin : LinearOut K) {L : ℕ}
     (h : HonestOut K s.queries L) : Prop :=
   h.mu ∉ zeros (runGroupPoly s S o) ∧ h.alpha.length = 3 ∧
@@ -179,7 +168,6 @@ end Honest
 
 section Late
 
-/-- The late stage: `β`, the late GKR over every candidate pair, the late values and the late checks. -/
 noncomputable def lateGame (s : Shape) (S : Setup F) (lam : K) (τ : ℕ → K)
     (cands : List (P0Tables F)) (p1 : List (P1Tables K)) : Game (Option (LateOut K)) :=
   .draw K (Finset.univ.biUnion fun w : Fin cands.length × Fin p1.length =>
@@ -196,7 +184,6 @@ noncomputable def lateGame (s : Shape) (S : Setup F) (lam : K) (τ : ℕ → K)
             if LateChecks s S lam τ ⟨beta, claims, pairs⟩ then .pure (some ⟨beta, claims, pairs⟩)
             else .pure none
 
-/-- What an accepting late path gives. -/
 def LateGood (s : Shape) (S : Setup F) (lam : K) (τ : ℕ → K) (cands : List (P0Tables F))
     (p1 : List (P1Tables K)) (o : LateOut K) : Prop :=
   LateChecks s S lam τ o ∧ (o.gkr.leafPoint 0).length = s.slotVars + 1 ∧

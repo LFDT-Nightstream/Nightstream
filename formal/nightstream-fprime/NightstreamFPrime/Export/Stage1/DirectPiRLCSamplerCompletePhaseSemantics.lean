@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePrefixPlan
 import NightstreamFPrime.Export.Stage1.PiRLCDirectPhaseSemantics
 
-/-!
-Owns the phase-local PiRLC lifecycle theorem for the sampler-complete direct
-prefix.
--/
-
 namespace NightstreamFPrime.Export.Stage1.DirectPiRLCSamplerCompletePhaseSemantics
 
 open NightstreamFPrime.Layout

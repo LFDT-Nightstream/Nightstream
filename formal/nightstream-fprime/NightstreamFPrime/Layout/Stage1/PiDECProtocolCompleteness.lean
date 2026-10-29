@@ -2,12 +2,6 @@ import NightstreamFPrime.Layout.Stage1.PiDECProofInputs
 import NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness
 import NightstreamFPrime.Layout.Stage1.PiRLCOutputRelocation
 
-/-!
-Owns the canonical local C/R/D completeness consumer. Actual NIFS acceptance
-supplies the sampler executions and D checks; canonical D source loading
-uses the real proof messages and verifier-computed public digits.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness
 
 open NightstreamFPrime.Spec

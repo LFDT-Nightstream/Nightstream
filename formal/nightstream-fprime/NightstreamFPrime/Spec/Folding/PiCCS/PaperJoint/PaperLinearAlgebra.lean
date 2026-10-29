@@ -1,23 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanDomain
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanEvaluation
 
-/-!
-Shared finite linear algebra for paper-level joint `Pi_CCS` residual families.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: explicit matrix-image construction before residual-family formulas.
-Constraint family: shared arithmetic used by CCS and carried-evaluation leaves.
-
-Owns: typed assignment columns, Boolean-row matrices, the canonical finite
-dot product `(M z)(x)`, and exact reduction of a one-coordinate assignment to
-its selected matrix contribution.
-
-Does not own: a constraint polynomial, norm residual, carried target,
-base-to-extension embedding, external row/bit serialization, SumCheck,
-Fiat--Shamir, Rust, R1CS, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
@@ -114,7 +98,7 @@ private theorem foldl_absent_oneHot
       have absentTail : selected ∉ tail := by
         intro member
         exact absent (by simp [member])
-      simp only [List.foldl_cons, if_neg headNe]
+      simp only [List.foldl_cons, ite_eq_right headNe]
       rw [laws.add_zero]
       exact inductionHypothesis absentTail initial
 
@@ -139,13 +123,13 @@ private theorem foldl_oneHot
       simp only [List.foldl_cons]
       by_cases headEq : head = selected
       · subst head
-        rw [if_pos rfl, laws.zero_add]
+        rw [ite_eq_left rfl, laws.zero_add]
         exact foldl_absent_oneHot ops laws tail selected term
           (List.nodup_cons.mp nodup).1
           (term selected)
       · have memberTail : selected ∈ tail := by
           simpa [Ne.symm headEq] using member
-        rw [if_neg headEq, laws.add_zero]
+        rw [ite_eq_right headEq, laws.add_zero]
         exact inductionHypothesis (List.nodup_cons.mp nodup).2 memberTail
 
 theorem matrixVectorAt_oneHot
@@ -205,8 +189,8 @@ theorem matrixVectorAt_identityRow
     funext accumulated column
     rw [identityRow column]
     by_cases equal : column = selected
-    · rw [if_pos equal, if_pos equal, laws.one_mul]
-    · rw [if_neg equal, if_neg equal,
+    · rw [ite_eq_left equal, ite_eq_left equal, laws.one_mul]
+    · rw [ite_eq_right equal, ite_eq_right equal,
         laws.mul_comm ops.zero (assignment column), laws.mul_zero]
   rw [contributionFunction]
   exact foldl_oneHot ops laws (canonicalFinIndices columns) selected assignment

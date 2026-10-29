@@ -6,12 +6,6 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBindingSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.PhaseTransport
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns ordered witness composition for the compact eight-child Stage 1 logical
-assembler. It uses only opaque child completeness and exact interface wiring.
-It adds no row, verifier predicate, or physical placement.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.AssemblerCompleteness
 
 open NightstreamFPrime.Circuit

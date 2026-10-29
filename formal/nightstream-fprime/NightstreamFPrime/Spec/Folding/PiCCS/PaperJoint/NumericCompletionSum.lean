@@ -2,10 +2,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericBooleanDomain
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import Mathlib.Data.List.FinRange
 
-/-!
-Owns a numeric sum loop and its equality with the canonical Boolean sum.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 
 universe uField uIndex

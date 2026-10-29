@@ -2,12 +2,6 @@ import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.Stage1.PiRLCParity
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit
 
-/-!
-PiDEC private witness replay from a complete Lean parent range. The stored
-split computes all sixteen digits before lossless signed-mask encoding.
-Rust children are comparison targets and are not inputs to this executable.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiDECWitnessReplay

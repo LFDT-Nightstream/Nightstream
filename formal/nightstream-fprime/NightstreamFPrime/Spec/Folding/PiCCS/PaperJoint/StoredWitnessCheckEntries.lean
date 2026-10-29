@@ -3,11 +3,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81MatrixSource
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import Mathlib.Tactic.SplitIfs
 
-/-!
-Counted Phi81 basis weights and canonical Pad coefficient entries. Counts measure
-named index, branch, field, constructor, and return operations, not wall time.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
@@ -247,7 +242,7 @@ theorem padEntry_value (arity freshCount runningCount matrixCount logicalWidth :
     Phi81ColumnLayout.layout, MatrixSource.paddedEntry]
   apply sumRange_congr baseOps ringDegree
   intro lane live
-  simp only [dif_pos live]
+  simp only [dite_eq_left live]
   have term := padTerm_value covered output vertex column lane live
   cases encoded : Phi81ColumnLayout.encode? (Phi81ColumnLayout.decode column).1 ⟨lane, live⟩ <;>
     simp only [encoded] at term ⊢ <;>

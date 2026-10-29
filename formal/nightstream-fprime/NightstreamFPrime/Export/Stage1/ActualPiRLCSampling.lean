@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.ActualPiRLCStates
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlanSemantics
 
-/-! Accepted ordinary rows determine the wide reduction of the actual retained
-transcript draw. The checked words feed the product plan directly. This proof
-applies to arbitrary assignments; canonical witness encoding is not a premise. -/
-
 namespace NightstreamFPrime.Export.Stage1.ActualPiRLCSampling
 
 open NightstreamFPrime.Circuit NightstreamFPrime.Layout
@@ -87,9 +83,10 @@ private theorem draw_eq_verifier
   rw [decoded_location]
   have stateEq := congrArg (fun state : Poseidon2.State => state.getD lane.val 0)
     (ActualPiRLCStates.entry_eq_verifier (poseidonGeometry geometry) assignment semantics source)
-  rw [ActualPiRLCStates.state, List.getD_eq_get _ _
+  unfold ActualPiRLCStates.state at stateEq
+  rw [List.getD_eq_get _ _
     ⟨lane.val, by have bounded : lane.val < 4 := lane.isLt; simp only [List.length_ofFn]; omega⟩] at stateEq
-  simpa only [List.get_ofFn, Fin.cast_mk, Sampler.rateLane, Location.form, Location.poseidonInvocation,
+  simpa only [List.get_ofFn, Fin.cast, Sampler.rateLane, Location.form, Location.poseidonInvocation,
     PiRLCSamplerPoseidonPreservation.outputValue, SparseLayer.evalState,
     Transcript.PiRlcSampler.enterScalar,
     Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript.drawAt,

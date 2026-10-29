@@ -2,8 +2,6 @@ import NightstreamFPrime.Export.Stage1.PilotDecodedHashes
 import NightstreamFPrime.Export.Stage1.PilotDirectSemantics
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgram
 
-/-! Owns the arbitrary pilot environment. -/
-
 namespace NightstreamFPrime.Export.Stage1.PilotDecodedEnvironment
 
 open NightstreamFPrime.Circuit
@@ -68,7 +66,7 @@ private theorem prior_classify_none (index : Fin Data.priorChain.inputLength) :
   have mapped : PilotSpartan.sourceToSpartan index.val =
       PilotData.priorChain.inputStart + index.val := by
     unfold PilotSpartan.sourceToSpartan
-    rw [if_pos (by change index.val < 27819; exact bound)]
+    rw [ite_eq_left (by change index.val < 27819; exact bound)]
     change index.val = 0 + index.val
     omega
   rw [← mapped, PilotOrdinaryDirectPlan.classifyTarget,
@@ -84,9 +82,9 @@ private theorem output_classify_none (index : Fin Data.outputChain.inputLength) 
   have mapped : PilotSpartan.sourceToSpartan (28089 + index.val) =
       PilotData.outputChain.inputStart + index.val := by
     unfold PilotSpartan.sourceToSpartan
-    rw [if_neg (by change ¬28089 + index.val < 27819; omega)]
-    rw [if_neg (by change ¬28089 + index.val < 28089; omega)]
-    rw [if_pos (by change 28089 + index.val < 55908; omega)]
+    rw [ite_eq_right (by change ¬28089 + index.val < 27819; omega)]
+    rw [ite_eq_right (by change ¬28089 + index.val < 28089; omega)]
+    rw [ite_eq_left (by change 28089 + index.val < 55908; omega)]
     change 27819 + ((28089 + index.val) - 28089) = 27819 + index.val
     omega
   rw [← mapped, PilotOrdinaryDirectPlan.classifyTarget,
@@ -199,7 +197,7 @@ theorem priorWord_agrees
       (PilotProduction.priorPreimageStart + word.val) =
         PilotData.priorChain.inputStart + word.val := by
     unfold PilotSpartan.sourceToSpartan
-    rw [if_pos (by
+    rw [ite_eq_left (by
       simpa only [PilotProduction.priorPreimageStart, Nat.zero_add,
         PilotSpartan.priorPublicStart] using word.isLt)]
     rfl
@@ -225,9 +223,9 @@ theorem outputWord_agrees
       (PilotProduction.outputPreimageStart + word.val) =
         PilotData.outputChain.inputStart + word.val := by
     unfold PilotSpartan.sourceToSpartan
-    rw [if_neg (by change ¬28089 + word.val < 27819; omega)]
-    rw [if_neg (by change ¬28089 + word.val < 28089; omega)]
-    rw [if_pos (by change 28089 + word.val < 55908; omega)]
+    rw [ite_eq_right (by change ¬28089 + word.val < 27819; omega)]
+    rw [ite_eq_right (by change ¬28089 + word.val < 28089; omega)]
+    rw [ite_eq_left (by change 28089 + word.val < 55908; omega)]
     change 27819 + ((28089 + word.val) - 28089) = 27819 + word.val
     omega
   unfold PilotSpartan.pullback Spartan.pullback

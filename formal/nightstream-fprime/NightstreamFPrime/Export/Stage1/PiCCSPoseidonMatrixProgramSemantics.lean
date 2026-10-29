@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonMatrixProgram
 
-/-!
-Proves that the compact PiCCS Poseidon2 matrix program reconstructs the exact
-action-driven input states.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram
@@ -88,13 +83,13 @@ private theorem previousRule_result
         some (PiCCSPoseidonPlan.previousOutput
           (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry) invocation lane)) := by
   by_cases first : invocation.val = 0
-  · rw [if_pos first]
+  · rw [ite_eq_left first]
     have invocationEq : invocation = ⟨0, by omega⟩ := by
       apply Fin.ext
       exact first
     rw [invocationEq]
     exact previousRule_zero geometry lane
-  · rw [if_neg first]
+  · rw [ite_eq_right first]
     let invocationOffset : Fin 947 :=
       ⟨invocation.val - 1, by
         have bound : invocation.val < 948 := by
@@ -110,7 +105,7 @@ private theorem previousRule_result
     apply congrArg some
     apply congrArg some
     unfold PiCCSPoseidonPlan.previousOutput
-    rw [dif_neg first]
+    rw [dite_eq_right first]
 
 private theorem payloadRule_lane
     {program : Program} {logicalWidth : Nat}
@@ -174,7 +169,7 @@ theorem inputProgram_form?
                 lane.val =
               some (some (PiCCSPoseidonPlan.payloadForm (PiCCSPayloadWiring.form geometry) invocation
                 lane)) := by
-          simpa [selectedLane] using
+          simpa [selectedLane] using!
             payloadRule_lane geometry invocation selectedLane
         have folded := PoseidonInput.Program.two_form?_of_results
           (previousRule program) (payloadRule program)
@@ -253,7 +248,7 @@ theorem matrixProgram_poseidon_row?
           (PiCCSOrdinaryRetainedGeometry.poseidonGeometry geometry)) decoded.1 decoded.2) := by
   rw [show matrixProgram geometry = MatrixProgram.Program.mk
       [.poseidon (poseidonBlock geometry)] by rfl]
-  rw [MatrixProgram.Program.singleton_row?, if_pos (by
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left (by
     change global.val < (poseidonBlock geometry).rowCount
     rw [poseidonBlock, Poseidon.Block.ofSemantic_rowCount]
     exact global.isLt)]

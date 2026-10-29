@@ -2,6 +2,7 @@
 //! relation: the same dimensions and the same matrix rows, row for row. The
 //! witness programs differ in encoding (Lean: recipe batches and witness
 //! instructions; Rust: one recipe per variable), so the identifiers differ.
+//! The Rust-built circuit also saves and loads.
 
 use std::{fs, path::PathBuf};
 
@@ -10,8 +11,9 @@ use nightstream_fprime::{
 };
 
 use crate::{
+    application::ApplicationCircuit,
     assembly,
-    nebula::{Context, Machine, MachineState, Package, Program, Run, Step},
+    nebula::{Circuit, Context, Machine, MachineState, Package, Program, Run, Step},
 };
 
 fn artifact(name: &str) -> Vec<u8> {
@@ -85,6 +87,10 @@ fn second_package_relation_matches_lean() {
 /// native run of `program`, and its output is the next Stage 1 state.
 fn assert_honest_invocations_execute(program: &Program, segments: &[&[Step]]) {
     let application = super::memory_circuit(&program.geometry, &Machine).unwrap();
+    assert_application_executes(&application, program, segments);
+}
+
+fn assert_application_executes(application: &ApplicationCircuit, program: &Program, segments: &[&[Step]]) {
     let mut run = Run::new(Context::new(Machine, program), MachineState::default());
     let mut state = run.initial_state();
     for steps in segments {
@@ -118,4 +124,27 @@ fn first_package_executes_a_second_program() {
 fn second_package_executes_honest_invocations() {
     let segments = vec![&[Step::Execute][..]; Package::N1.geometry().s_max];
     assert_honest_invocations_execute(&Package::N1.program(), &segments);
+}
+
+/// `Circuit::write` keeps each output row's position, so the machine's
+/// circuit, whose output rows are the `state_out` hash rows and not the last
+/// rows, saves and loads. The loaded circuit has the same identity and
+/// completes the honest invocations with the same output states.
+#[test]
+fn rust_built_circuit_writes_and_loads() {
+    let reference = artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+    let circuit = Circuit::compile(&reference, Package::V1.geometry(), Machine).unwrap();
+    let path = std::env::temp_dir().join(format!("nightstream-nebula-circuit-{}.package", std::process::id()));
+    let _ = fs::remove_file(&path);
+    circuit.write(&path).unwrap();
+    let loaded = crate::Circuit::load(&path);
+    fs::remove_file(&path).unwrap();
+    let loaded = loaded.unwrap();
+    assert_eq!(loaded.identity(), circuit.circuit.identity());
+    let (execute, idle) = ([Step::Execute; 2], [Step::Idle; 2]);
+    assert_application_executes(
+        loaded.application().unwrap(),
+        &Package::V1.program(),
+        &[&execute, &execute, &idle, &idle],
+    );
 }

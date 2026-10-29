@@ -761,14 +761,12 @@ fn invalid_geometries_make_no_program_and_no_circuit() {
     }
 }
 
-/// One segment of `program` proved by `circuit`, with the native outputs as
-/// the Rust application's outputs.
+/// One segment of the first package's default program proved by `prover`,
+/// with the native outputs as the Rust application's outputs.
 fn prove_segment<A: Application<Input = Step, State = MachineState>>(
-    circuit: &nightstream::nebula::Circuit<A>,
+    prover: &nightstream::Prover,
     app: A,
-    engine: nightstream::Engine,
 ) -> (Statement<MachineState>, Carry, nightstream::Proof) {
-    let prover = circuit.prover(engine, 114).unwrap();
     let mut run = Run::new(Context::new(app, &Package::V1.program()), MachineState::default());
     let z0 = run.initial_state();
     let invocations = run.segment(&[Step::Execute, Step::Execute]).unwrap();
@@ -779,25 +777,35 @@ fn prove_segment<A: Application<Input = Step, State = MachineState>>(
     (run.statement(), *run.carry(), proof)
 }
 
-/// The Rust-built path: the verifier compiles the machine's relation of the
-/// first geometry itself. It accepts an honest proof of one segment and
-/// rejects a proof from the circuit with one changed application row.
+/// The Rust-built path: the setup compiles the machine's relation of the
+/// first geometry and saves it, and the prover loads the file. The verifier
+/// compiles the relation itself. It accepts the loaded prover's proof of one
+/// segment and rejects a proof from the circuit with one changed application
+/// row.
 fn rust_built(engine: nightstream::Engine) {
     use nightstream::nebula::{Circuit, Verifier, VerifyError};
     let started = std::time::Instant::now();
     let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
     let geometry = Package::V1.geometry();
-    let circuit = Circuit::compile(&reference, geometry, Machine).unwrap();
+    let path = std::env::temp_dir().join(format!("nightstream-nebula-setup-{}.package", std::process::id()));
+    let _ = std::fs::remove_file(&path);
+    Circuit::compile(&reference, geometry, Machine)
+        .unwrap()
+        .write(&path)
+        .unwrap();
+    let prover = nightstream::Prover::load(&path, engine, 114);
+    std::fs::remove_file(&path).unwrap();
+    let prover = prover.unwrap();
+    let verifier = Verifier::new(&Circuit::compile(&reference, geometry, Machine).unwrap(), engine, 114).unwrap();
     let changed = Circuit::compile(&reference, geometry, Changed::Row).unwrap();
-    let verifier = Verifier::new(&circuit, engine, 114).unwrap();
-    eprintln!("rust-built compile elapsed={:?}", started.elapsed());
+    eprintln!("rust-built setup elapsed={:?}", started.elapsed());
     let program = Package::V1.program();
 
-    let (statement, carry, proof) = prove_segment(&circuit, Machine, engine);
+    let (statement, carry, proof) = prove_segment(&prover, Machine);
     verifier
         .verify(&program, &statement, &carry, &proof)
         .unwrap();
-    let (statement, carry, proof) = prove_segment(&changed, Changed::Row, engine);
+    let (statement, carry, proof) = prove_segment(&changed.prover(engine, 114).unwrap(), Changed::Row);
     assert!(matches!(
         verifier.verify(&program, &statement, &carry, &proof),
         Err(VerifyError::Proof(_))
@@ -807,6 +815,6 @@ fn rust_built(engine: nightstream::Engine) {
 
 #[test]
 #[ignore = "Full production-profile memory proofs; run separately under the 300-second cap."]
-fn rust_built_verifier_accepts_honest_and_rejects_a_changed_row_on_cpu() {
+fn rust_built_verifier_accepts_a_saved_prover_and_rejects_a_changed_row_on_cpu() {
     rust_built(nightstream::Engine::Optimized);
 }

@@ -56,7 +56,7 @@ fn read_coin(transcript: &mut Poseidon2Transcript, trace: &mut ProtocolTrace, la
 
 fn check_commitment(commitment: &Cmt) -> Result<(), PiCcsError> {
     let kappa = neo_params::nightstream_goldilocks_k16::KAPPA as usize;
-    if commitment.d != D || commitment.kappa != kappa || commitment.data.len() != D * kappa {
+    if commitment.d() != D || commitment.kappa() != kappa || commitment.data().len() != D * kappa {
         return Err(PiCcsError::InvalidInput(
             "PaperExact v1_2 commitment does not have the fixed Ajtai shape".into(),
         ));
@@ -66,7 +66,7 @@ fn check_commitment(commitment: &Cmt) -> Result<(), PiCcsError> {
 
 fn commitment_fields(commitment: &Cmt) -> Result<Vec<F>, PiCcsError> {
     check_commitment(commitment)?;
-    Ok(commitment.data.clone())
+    Ok(commitment.data().to_vec())
 }
 
 fn paper_poly_eval(coefficients: &[K], point: K) -> K {

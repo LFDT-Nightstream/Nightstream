@@ -323,16 +323,22 @@ fn production_binding_matches_independent_lean_framing() {
         .expect("fixed production binding");
     assert_eq!(
         independent.structural_identifier,
-        POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER
+        POSEIDON2_HASH_CHAIN_V1_STRUCTURAL_IDENTIFIER.words()
     );
-    assert_eq!(independent.package_identity, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY);
-    assert_eq!(independent.package_identity, binding.package_identity());
+    assert_eq!(
+        independent.package_identity,
+        POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY.words()
+    );
+    assert_eq!(independent.package_identity, binding.package_identity().words());
     assert_eq!(independent.context_digest, binding.verifier_context().digest());
     assert_eq!(
         independent.verification_key_digest,
-        POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST
+        POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST.words()
     );
-    assert_eq!(independent.verification_key_digest, binding.verification_key_digest());
+    assert_eq!(
+        independent.verification_key_digest,
+        binding.verification_key_digest().words()
+    );
     let context = binding.verifier_context();
     assert_eq!(independent.components[0].as_slice(), context.relation_words());
     let mut application_offset = 0;
@@ -378,10 +384,13 @@ fn self_consistent_application_component_mutation_does_not_match_production() {
     assert_ne!(changed.binding_words, independent.binding_words);
     assert_ne!(changed.verification_key_digest, independent.verification_key_digest);
     assert_ne!(changed.descriptor_words, lean.descriptor_words);
-    assert_ne!(changed.package_identity, POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY);
+    assert_ne!(
+        changed.package_identity,
+        POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY.words()
+    );
     assert_ne!(
         changed.verification_key_digest,
-        POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST
+        POSEIDON2_HASH_CHAIN_V1_VERIFICATION_KEY_DIGEST.words()
     );
 }
 

@@ -113,7 +113,7 @@ fn reject_balanced_opening(opening: Opening) {
         &json!({
             "schema": 1, "iteration": step, "case": phase,
             "verifier": "nightstream::PreparedLifecycle::verify", "engine": "Optimized",
-            "package_identity": package.package_identity(), "changed_children": [0, 1],
+            "package_identity": package.package_identity().words(), "changed_children": [0, 1],
             "weighted_recomposition_preserved": true, "fresh_witness_rebuilt": true,
             "earlier_terminal_checks_passed": true, "rejected": true,
             "rejection": format!("{error:?}")

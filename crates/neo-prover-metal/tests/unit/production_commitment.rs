@@ -144,7 +144,7 @@ fn production_key_coefficients_use_exact_first_and_last_indexed_addresses() {
                 for row in 0..PRODUCTION_VERIFIER_ROWS as usize {
                     for lane in 0..D {
                         assert_eq!(
-                            commitment.data[row * D + lane].as_canonical_u64(),
+                            commitment.data()[row * D + lane].as_canonical_u64(),
                             coefficient(&PRODUCTION_SEED, row as u32, column as u64, lane as u32),
                             "witnesses={count} row={row} column={column} lane={lane}"
                         );
@@ -164,7 +164,7 @@ fn production_commitment_checks_all_inputs_before_device_work() {
         session
             .commit_production_prefixes(std::slice::from_ref(&zero))
             .unwrap(),
-        vec![Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize)]
+        vec![Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize)]
     );
     assert!(session
         .commit_production_prefixes::<Mat<F>>(&[])

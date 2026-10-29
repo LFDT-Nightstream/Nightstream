@@ -37,7 +37,7 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::circuit::{algebra, Backend};
-use crate::field::{eq_table, gl, re_im, Ext, Gl};
+use crate::field::{eq_table, from_word, gl, re_im, Ext, Gl};
 use crate::gkr::{part, Leaves, Tree, TreeClaim, TreeShape};
 use crate::mle::{chi, identity, lane_split, step};
 use crate::Error;
@@ -218,7 +218,7 @@ impl Structure {
     pub(crate) fn lane_tables<B: Backend>(&self, b: &mut B, tau: &[B::E; D]) -> Vec<[[B::E; D]; 2]> {
         self.classes
             .iter()
-            .map(|class| lane_split(b, tau, class.len as usize, Gl::new(class.ratio)))
+            .map(|class| lane_split(b, tau, class.len as usize, from_word(class.ratio)))
             .collect()
     }
 
@@ -734,7 +734,7 @@ impl Tables {
         let mut weights = vec![[Ext::ZERO; D]; blocks];
         for (range, segment) in self.slot_ranges() {
             let class = self.structure.classes[segment.class as usize];
-            let ratio = Gl::new(class.ratio);
+            let ratio = from_word(class.ratio);
             for slot in range {
                 let mut weight = ubar[slot];
                 for column in self.start[slot]..self.start[slot] + class.len {

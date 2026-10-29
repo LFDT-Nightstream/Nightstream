@@ -4,80 +4,30 @@
 //! assembly, and verification. This crate owns Metal device state and the
 //! row evaluator.
 
+#![warn(clippy::undocumented_unsafe_blocks)]
+
 pub mod poseidon2;
 
 #[cfg(all(feature = "metal", not(target_vendor = "apple")))]
 compile_error!("the `metal` feature requires an Apple target");
 
-use std::time::Duration;
-
 use thiserror::Error;
 
+#[cfg(feature = "metal")]
 mod rows;
-pub use rows::MetalRowProver;
-
-#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
+#[cfg(feature = "metal")]
 mod session;
-#[cfg(all(target_vendor = "apple", neo_metal_shaders))]
-pub use session::{MetalAjtaiLowNormPlan, MetalGkrLayer, MetalKxChainPlan, MetalPoseidonUniformPlan, MetalSession};
-
-#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
-mod unsupported;
-#[cfg(not(all(target_vendor = "apple", neo_metal_shaders)))]
-pub use unsupported::{MetalAjtaiLowNormPlan, MetalGkrLayer, MetalKxChainPlan, MetalPoseidonUniformPlan, MetalSession};
+#[cfg(feature = "metal")]
+pub use rows::MetalRowProver;
+#[cfg(feature = "metal")]
+pub use session::{MetalGkrLayer, MetalSession};
 
 /// Owner's Metal memory ceiling, chosen so a prover can run on a current
 /// iPhone. Device buffer requests stay below it; CPU memory is measured
 /// separately.
 pub const BUFFER_LIMIT_BYTES: usize = 24_000_000_000;
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct GoldilocksOps {
-    pub add: u64,
-    pub sub: u64,
-    pub mul: u64,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct KWords {
-    pub c0: u64,
-    pub c1: u64,
-}
-
-pub type PoseidonState = [u64; poseidon2::WIDTH];
 pub type PoseidonDigest = [u64; 4];
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum GoldilocksMulVariant {
-    Limb32,
-    Native64,
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum PoseidonHashVariant {
-    Scalar,
-    SimdGroup,
-}
-
-impl KWords {
-    pub const fn new(c0: u64, c1: u64) -> Self {
-        Self { c0, c1 }
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct MetalRunStats {
-    pub elements: usize,
-    pub dispatches: usize,
-    pub elapsed: Duration,
-}
-
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct MetalDeviceInfo {
-    pub name: String,
-    pub unified_memory: bool,
-    pub recommended_working_set_bytes: u64,
-}
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct MetalActivity {
@@ -91,8 +41,6 @@ pub struct MetalActivity {
 
 #[derive(Debug, Error)]
 pub enum MetalError {
-    #[error("Metal is unavailable on this target or its precompiled shader library was not built")]
-    Unavailable,
     #[error("Metal device creation failed")]
     Device,
     #[error("Metal command queue creation failed")]
@@ -125,6 +73,7 @@ pub enum MetalError {
     Commitment(#[from] neo_ajtai::AjtaiError),
 }
 
+#[cfg(feature = "metal")]
 pub(crate) fn oracle_error(error: MetalError) -> neo_reductions::PiCcsError {
     match error {
         MetalError::Shape(reason) => neo_reductions::PiCcsError::InvalidInput(reason.into()),
@@ -136,6 +85,6 @@ pub(crate) fn oracle_error(error: MetalError) -> neo_reductions::PiCcsError {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "metal"))]
 #[path = "../tests/unit/oracle_errors.rs"]
 mod oracle_errors;

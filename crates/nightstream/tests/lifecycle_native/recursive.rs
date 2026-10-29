@@ -62,7 +62,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     let expected_nifs = read(artifact("nightstream-fprime-stage1-base-nifs-result-v1.json"));
     let params = Params::for_ccs_shape(
         package.structure.domain_rows(),
-        package.structure.m,
+        package.structure.m(),
         package.structure.t(),
         package.structure.max_degree(),
         114,
@@ -145,7 +145,7 @@ fn fresh_recursive_producer_matches_golden_and_folds_successor() {
     eprintln!(
         "new recursive result={}",
         json!({
-            "package_identity": package.package_identity(),
+            "package_identity": package.package_identity().words(),
             "iteration": expected_state.iteration(),
             "initial": initial.map(|value| value.as_canonical_u64()),
             "current": final_output.map(|value| value.as_canonical_u64()),

@@ -2,8 +2,6 @@
 //! backends, the cross-checking wrapper, and the shared protocol and receipt
 //! modules.
 
-#![allow(non_snake_case)]
-
 pub mod utils;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -47,7 +45,6 @@ pub struct DecRejected {
 pub type RlcMixer<Ff = neo_math::F> = fn(&[neo_ccs::Mat<Ff>], &[neo_ajtai::Commitment]) -> neo_ajtai::Commitment;
 
 pub mod optimized_engine;
-pub mod pi_ccs;
 pub mod pi_ccs_joint;
 pub mod pi_ccs_joint_protocol;
 pub mod pi_ccs_protocol;
@@ -59,10 +56,4 @@ pub mod paper_exact_engine;
 #[cfg(feature = "paper-exact")]
 pub mod crosscheck_engine;
 
-pub use pi_ccs::{OptimizedEngine, PiCcsEngine, PiCcsProof};
-
-#[cfg(feature = "paper-exact")]
-pub use pi_ccs::PaperExactEngine;
-
-#[cfg(feature = "paper-exact")]
-pub use crosscheck_engine::CrossCheckEngine;
+pub use optimized_engine::PiCcsProof;

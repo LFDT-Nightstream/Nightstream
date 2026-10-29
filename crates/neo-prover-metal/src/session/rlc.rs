@@ -11,10 +11,10 @@ use std::{mem::size_of, sync::atomic::Ordering};
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_reductions::common::SplitDigits;
-use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
-use super::MetalSession;
+use super::{host_view, Arg, Grid, MetalSession};
 use crate::MetalError;
 
 const CHILDREN_PER_THREAD: usize = 14;
@@ -83,28 +83,30 @@ impl MetalSession {
 
         let command = self.command_buffer("nightstream.pi_rlc.split")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.rlc_witness_mix_signed_masks);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&rhos), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&masks), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&mix_shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&parent), 0, 3);
-        }
-        self.dispatch(&encoder, &self.rlc_witness_mix_signed_masks, D * columns);
+        self.launch(
+            &encoder,
+            &self.rlc_witness_mix_signed_masks,
+            &[
+                Arg::Buffer(0, &rhos),
+                Arg::Buffer(1, &masks),
+                Arg::Buffer(2, &mix_shape),
+                Arg::Buffer(3, &parent),
+            ],
+            Grid::Threads(D * columns),
+        );
         encoder.endEncoding();
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.dec_split_base2_masks);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(&parent), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&split_shape), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&planes), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&nonzero), 0, 3);
-            encoder.setBuffer_offset_atIndex(Some(&status), 0, 4);
-        }
-        self.dispatch(
+        self.launch(
             &encoder,
             &self.dec_split_base2_masks,
-            digits.div_ceil(CHILDREN_PER_THREAD) * columns,
+            &[
+                Arg::Buffer(0, &parent),
+                Arg::Buffer(1, &split_shape),
+                Arg::Buffer(2, &planes),
+                Arg::Buffer(3, &nonzero),
+                Arg::Buffer(4, &status),
+            ],
+            Grid::Threads(digits.div_ceil(CHILDREN_PER_THREAD) * columns),
         );
         encoder.endEncoding();
         self.finish(&command)?;
@@ -123,8 +125,7 @@ impl MetalSession {
         self.activity
             .downloaded_bytes
             .fetch_add((digits * 2 * columns * size_of::<u64>()) as u64, Ordering::Relaxed);
-        let words =
-            unsafe { std::slice::from_raw_parts(planes.contents().as_ptr().cast::<u64>(), digits * 2 * columns) };
+        let words = host_view::<u64>(&planes, digits * 2 * columns);
         let children = words
             .chunks_exact(2 * columns)
             .zip(&flags)

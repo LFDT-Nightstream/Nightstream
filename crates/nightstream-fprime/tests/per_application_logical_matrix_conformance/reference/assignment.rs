@@ -387,13 +387,13 @@ impl Domains<'_> {
 }
 
 #[derive(Clone, Debug)]
-pub struct LogicalAssignment {
+pub(crate) struct LogicalAssignment {
     values: Vec<i8>,
     block_ranges: Vec<Range<usize>>,
 }
 
 impl LogicalAssignment {
-    pub fn decode(sealed_bytes: &[u8], private_values: &[u64], public_values: &[u64]) -> Result<Self> {
+    pub(crate) fn decode(sealed_bytes: &[u8], private_values: &[u64], public_values: &[u64]) -> Result<Self> {
         if sealed_bytes.last() != Some(&b'\n') {
             return Err("sealed package is not newline terminated".into());
         }
@@ -467,11 +467,11 @@ impl LogicalAssignment {
         Ok(Self { values, block_ranges })
     }
 
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.values.len()
     }
 
-    pub fn value(&self, column: usize) -> Result<Field> {
+    pub(crate) fn value(&self, column: usize) -> Result<Field> {
         let value = *self
             .values
             .get(column)
@@ -484,7 +484,7 @@ impl LogicalAssignment {
         }
     }
 
-    pub fn carrier_value(&self, column: usize) -> Result<Field> {
+    pub(crate) fn carrier_value(&self, column: usize) -> Result<Field> {
         if column < self.values.len() {
             self.value(column)
         } else if column < CARRIER_WIDTH {
@@ -494,24 +494,24 @@ impl LogicalAssignment {
         }
     }
 
-    pub fn balanced_values(&self) -> &[i8] {
+    pub(crate) fn balanced_values(&self) -> &[i8] {
         &self.values
     }
 
-    pub fn nonempty_block_count(&self) -> usize {
+    pub(crate) fn nonempty_block_count(&self) -> usize {
         self.block_ranges
             .iter()
             .filter(|range| !range.is_empty())
             .count()
     }
 
-    pub fn block_is_nonempty(&self, block: usize) -> bool {
+    pub(crate) fn block_is_nonempty(&self, block: usize) -> bool {
         self.block_ranges
             .get(block)
             .is_some_and(|range| !range.is_empty())
     }
 
-    pub fn block_for_column(&self, column: usize) -> Option<usize> {
+    pub(crate) fn block_for_column(&self, column: usize) -> Option<usize> {
         let position = self
             .block_ranges
             .partition_point(|range| range.end <= column);
@@ -521,7 +521,7 @@ impl LogicalAssignment {
             .map(|_| position)
     }
 
-    pub fn mutation_delta(&self, column: usize) -> Result<Field> {
+    pub(crate) fn mutation_delta(&self, column: usize) -> Result<Field> {
         let current = *self
             .values
             .get(column)
@@ -537,7 +537,7 @@ impl LogicalAssignment {
     }
 }
 
-pub struct PartialLogicalAssignment<'a> {
+pub(crate) struct PartialLogicalAssignment<'a> {
     transport: Transport,
     physical: Physical<'a>,
     block_ranges: Vec<Range<usize>>,
@@ -546,7 +546,7 @@ pub struct PartialLogicalAssignment<'a> {
 }
 
 impl<'a> PartialLogicalAssignment<'a> {
-    pub fn decode(sealed_bytes: &[u8], private_prefix: &'a [u64], public_values: &'a [u64]) -> Result<Self> {
+    pub(crate) fn decode(sealed_bytes: &[u8], private_prefix: &'a [u64], public_values: &'a [u64]) -> Result<Self> {
         if sealed_bytes.last() != Some(&b'\n') {
             return Err("sealed package is not newline terminated".into());
         }
@@ -621,11 +621,11 @@ impl<'a> PartialLogicalAssignment<'a> {
         })
     }
 
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         LOGICAL_WIDTH
     }
 
-    pub fn value(&self, column: usize) -> Result<Field> {
+    pub(crate) fn value(&self, column: usize) -> Result<Field> {
         if column >= LOGICAL_WIDTH {
             return Err(format!("logical assignment column {column} is out of range"));
         }

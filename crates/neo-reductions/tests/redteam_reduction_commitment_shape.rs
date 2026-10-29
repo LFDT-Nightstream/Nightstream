@@ -11,7 +11,7 @@ use p3_field::PrimeCharacteristicRing;
 
 fn zero_claim(params: &NeoParams) -> CeClaim<Commitment, F, K> {
     CeClaim {
-        c: Commitment::zeros(D, params.kappa as usize),
+        c: Commitment::zeros(params.kappa() as usize),
         X: Mat::zero(D, 1, F::ZERO),
         r: vec![K::ZERO; D.next_power_of_two().trailing_zeros() as usize],
         eval_k: vec![K::ZERO; D.next_power_of_two()],
@@ -23,7 +23,7 @@ fn zero_claim(params: &NeoParams) -> CeClaim<Commitment, F, K> {
 }
 
 fn rlc_mix(rhos: &[Mat<F>], commitments: &[Commitment]) -> Commitment {
-    let mut result = Commitment::zeros(commitments[0].d, commitments[0].kappa);
+    let mut result = Commitment::zeros(commitments[0].kappa());
     for (rho, commitment) in rhos.iter().zip(commitments) {
         let first_column = std::array::from_fn(|row| rho[(row, 0)]);
         s_mul_add_from_rot_col(&mut result, &first_column, commitment);
@@ -32,7 +32,7 @@ fn rlc_mix(rhos: &[Mat<F>], commitments: &[Commitment]) -> Commitment {
 }
 
 fn dec_mix(commitments: &[Commitment], base: u32) -> Commitment {
-    let mut result = Commitment::zeros(commitments[0].d, commitments[0].kappa);
+    let mut result = Commitment::zeros(commitments[0].kappa());
     let mut power = F::ONE;
     for commitment in commitments {
         scale_commitment_add_inplace(&mut result, power, commitment);
@@ -64,11 +64,11 @@ fn rlc_rejects_mixed_commitment_widths() {
     assert_eq!(prover_parent, parent, "honest RLC prover and public control");
     assert!(rlc_public_matches(&structure, &params, &rhos, &inputs, &parent, rlc_mix, ell_d).unwrap());
 
-    for width in [params.kappa as usize - 1, params.kappa as usize + 1] {
+    for width in [params.kappa() as usize - 1, params.kappa() as usize + 1] {
         let mut mixed = inputs.clone();
-        mixed[1].c = Commitment::zeros(D, width);
-        if width > params.kappa as usize {
-            mixed[1].c.data[D * params.kappa as usize] = F::ONE;
+        mixed[1].c = Commitment::zeros(width);
+        if width > params.kappa() as usize {
+            mixed[1].c.data_mut()[D * params.kappa() as usize] = F::ONE;
         }
         assert!(
             rlc_public(&structure, &params, &rhos, &mixed, rlc_mix, ell_d).is_err(),
@@ -101,20 +101,18 @@ fn dec_verifier_rejects_mixed_commitment_widths() {
     let structure = CcsStructure::new(vec![Mat::identity(D)], SparsePoly::new(1, Vec::new())).unwrap();
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let parent = zero_claim(&params);
-    let children = vec![parent.clone(); params.k_rho as usize];
-    assert!(verify_dec_public(
-        &structure, &params, &parent, &children, dec_mix, ell_d
-    ));
+    let children = vec![parent.clone(); params.k_rho() as usize];
+    assert!(verify_dec_public(&structure, &params, &parent, &children, dec_mix, ell_d).is_ok());
 
-    for width in [params.kappa as usize - 1, params.kappa as usize + 1] {
+    for width in [params.kappa() as usize - 1, params.kappa() as usize + 1] {
         let mut mixed = children.clone();
         let later = mixed.last_mut().unwrap();
-        later.c = Commitment::zeros(D, width);
-        if width > params.kappa as usize {
-            later.c.data[D * params.kappa as usize] = F::ONE;
+        later.c = Commitment::zeros(width);
+        if width > params.kappa() as usize {
+            later.c.data_mut()[D * params.kappa() as usize] = F::ONE;
         }
         assert!(
-            !verify_dec_public(&structure, &params, &parent, &mixed, dec_mix, ell_d),
+            verify_dec_public(&structure, &params, &parent, &mixed, dec_mix, ell_d).is_err(),
             "DEC verifier accepted a child with a different commitment width"
         );
     }
@@ -127,7 +125,7 @@ fn dec_constructors_reject_malformed_child_commitments() {
     let ell_d = D.next_power_of_two().trailing_zeros() as usize;
     let parent = zero_claim(&params);
     let split =
-        split_b_matrix_k_with_nonzero_flags(&Mat::zero(D, 1, F::ZERO), params.k_rho as usize, params.b).unwrap();
+        split_b_matrix_k_with_nonzero_flags(&Mat::zero(D, 1, F::ZERO), params.k_rho() as usize, params.b()).unwrap();
     let digits = split.planes();
     let commitments = vec![parent.c.clone(); digits.len()];
     let construct = |commitments: &[Commitment]| {
@@ -167,21 +165,12 @@ fn dec_constructors_reject_malformed_child_commitments() {
             outcome.ok_y && outcome.ok_x && outcome.ok_c,
             "{path}: honest DEC constructor"
         );
-        assert!(verify_dec_public(
-            &structure,
-            &params,
-            &parent,
-            &outcome.children,
-            dec_mix,
-            ell_d
-        ));
+        assert!(verify_dec_public(&structure, &params, &parent, &outcome.children, dec_mix, ell_d).is_ok());
     }
 
-    let mut truncated = parent.c.clone();
-    truncated.data.clear();
-    let mut wider = Commitment::zeros(D, params.kappa as usize + 1);
-    wider.data[D * params.kappa as usize] = F::ONE;
-    for bad_commitment in [truncated, wider] {
+    let mut wider = Commitment::zeros(params.kappa() as usize + 1);
+    wider.data_mut()[D * params.kappa() as usize] = F::ONE;
+    for bad_commitment in [wider] {
         let mut malformed = commitments.clone();
         *malformed.last_mut().unwrap() = bad_commitment;
         for (path, outcome) in construct(&malformed) {

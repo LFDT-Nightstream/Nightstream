@@ -220,7 +220,7 @@ fn prepare_with_engine(engine: EvaluationEngine) -> PreparedLifecycle {
 fn params(package: &PreparedLifecycle) -> Params {
     Params::for_ccs_shape(
         package.structure.domain_rows(),
-        package.structure.m,
+        package.structure.m(),
         package.structure.t(),
         package.structure.max_degree(),
         114,
@@ -271,7 +271,7 @@ struct Sources {
 fn load_claims(package: &PreparedLifecycle, directory: &Path, step: u64) -> (Stage1State, CcsClaim, RunningInstance) {
     let saved: SavedEnvelope = load(&directory.join("envelope.json"));
     assert_eq!(saved.schema, 1);
-    assert_eq!(saved.package_identity, package.package_identity());
+    assert_eq!(saved.package_identity, package.package_identity().words());
     assert_eq!(saved.child_witness_count, 16);
     assert_eq!(saved.running_claims.len(), 16);
     let state = Stage1State::new(saved.iteration, saved.z0.map(field), saved.current.map(field));
@@ -287,8 +287,8 @@ fn load_claims(package: &PreparedLifecycle, directory: &Path, step: u64) -> (Sta
 fn load_sources(package: &PreparedLifecycle, directory: &Path, step: u64) -> Sources {
     let (state, claim, mut running) = load_claims(package, directory, step);
     let witness: Mat<F> = load(&directory.join("fresh-witness.json"));
-    validate_fresh_witness_tail_zero(&witness, package.structure.m, "staged fresh source").unwrap();
-    let projected = project_x_from_witness_mat(&witness, package.structure.m, claim.m_in).unwrap();
+    validate_fresh_witness_tail_zero(&witness, package.structure.m(), "staged fresh source").unwrap();
+    let projected = project_x_from_witness_mat(&witness, package.structure.m(), claim.m_in).unwrap();
     for (column, value) in claim.x.iter().enumerate() {
         assert_eq!(projected[(column % D, column / D)], *value);
     }
@@ -296,7 +296,7 @@ fn load_sources(package: &PreparedLifecycle, directory: &Path, step: u64) -> Sou
         let witness: Mat<F> = load(&directory.join(format!("digit-{child}.json")));
         let claim = &running.claims[child];
         assert_eq!(
-            project_x_from_witness_mat(&witness, package.structure.m, claim.m_in).unwrap(),
+            project_x_from_witness_mat(&witness, package.structure.m(), claim.m_in).unwrap(),
             claim.X
         );
         running.witnesses.push(witness);
@@ -340,7 +340,7 @@ fn save_envelope(
         &directory.join("envelope.json"),
         &SavedEnvelope {
             schema: 1,
-            package_identity: package.package_identity(),
+            package_identity: package.package_identity().words(),
             iteration: state.iteration(),
             z0: state.z0().map(|value| value.as_canonical_u64()),
             current: state.current().map(|value| value.as_canonical_u64()),
@@ -395,7 +395,7 @@ fn sources(root: &Path, step: u64, engine: EvaluationEngine) {
         );
     }
     let receipt = destination.join("sources-checked.json");
-    let checked = json!({"schema":1,"package_identity":package.package_identity(),"step":step});
+    let checked = json!({"schema":1,"package_identity":package.package_identity().words(),"step":step});
     if receipt.exists() {
         assert_eq!(load::<Value>(&receipt), checked);
     } else {

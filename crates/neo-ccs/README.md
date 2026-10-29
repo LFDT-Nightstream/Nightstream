@@ -1,16 +1,9 @@
 # neo-ccs
 
-CCS frontend and relation objects used by reductions.
+CCS structures and claims that the reductions use.
 
-## Surface
-- Types: `CcsStructure`, `CcsClaim/Witness`, `CeClaim/Witness`.
-- Loader for {M_j} and CCS polynomial f; public inputs `x ⊂ z`.
-- Consistency checks: `c = L(Z)`, `y_j = Z M_j^T r^b`, `X = L_x(Z)`.
-- Relaxed CCS knobs: slack `u` and factor `e` (defaults `u=0, e=1`).
-
-## Note
-- The **batched polynomial Q** and the **single sum‑check** live in `neo-fold`; this crate only shapes the claims.
-
-## Tests
-- Toy CCS instances (satisfiable/unsatisfiable).
-- Public‑input projection edge cases.
+- `CcsStructure`: the matrices `M_j` and the polynomial `f`.
+- `Mat` (dense, with compact signed-unit and constant storage), and `CscMat` and `CcsMatrix` (sparse).
+- `CcsClaim`, `CcsWitness` and `CeClaim`: the fresh and evaluation claims that PiCCS, PiRLC and PiDEC use.
+- `crypto::poseidon2_goldilocks`: the Poseidon2 permutation and sponge of the protocol.
+- SuperNeo matrix transforms, and conversion from R1CS to CCS.

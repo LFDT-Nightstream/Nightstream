@@ -1,4 +1,4 @@
-//! RLC/DEC engine trait and implementations.
+//! Optimized PiRLC and PiDEC reductions behind the public `api` entry points.
 
 #![allow(non_snake_case)]
 
@@ -45,30 +45,6 @@ fn digit_flags_match(split: &[Mat<F>], digit_nonzero: &[bool]) -> bool {
         })
 }
 
-pub trait RlcDecOps {
-    fn rlc_with_commit(
-        s: &CcsStructure<F>,
-        params: &NeoParams,
-        rhos: &[Mat<F>],
-        me_inputs: &[CeClaim<Cmt, F, K>],
-        Zs: &[Mat<F>],
-        ell_d: usize,
-        mix_commits: RlcMixer,
-    ) -> (CeClaim<Cmt, F, K>, Mat<F>);
-
-    fn dec_children_with_commit<Comb>(
-        s: &CcsStructure<F>,
-        params: &NeoParams,
-        parent: &CeClaim<Cmt, F, K>,
-        Z_split: &[Mat<F>],
-        ell_d: usize,
-        child_commitments: &[Cmt],
-        combine_b_pows: Comb,
-    ) -> DecOutcome
-    where
-        Comb: Fn(&[Cmt], u32) -> Cmt;
-}
-
 #[derive(Clone, Debug, Default, Copy)]
 pub struct OptimizedRlcDec;
 
@@ -88,10 +64,10 @@ impl OptimizedRlcDec {
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,
     {
-        if Z_split.len() != params.k_rho as usize || child_commitments.len() != Z_split.len() {
+        if Z_split.len() != params.k_rho() as usize || child_commitments.len() != Z_split.len() {
             return DecOutcome::rejected();
         }
-        let split_valid = canonical_dec_split(Z_split, params.b) && digit_flags_match(Z_split, digit_nonzero);
+        let split_valid = canonical_dec_split(Z_split, params.b()) && digit_flags_match(Z_split, digit_nonzero);
         let (mut children, ok_y, ok_X) = super::optimized_engine::dec_reduction_optimized_with_digit_flags::<F>(
             s,
             params,
@@ -106,7 +82,7 @@ impl OptimizedRlcDec {
         for (ch, c) in children.iter_mut().zip(child_commitments.iter()) {
             ch.c = c.clone();
         }
-        let ok_c = split_valid && combine_b_pows(child_commitments, params.b) == parent.c;
+        let ok_c = split_valid && combine_b_pows(child_commitments, params.b()) == parent.c;
         DecOutcome {
             children,
             ok_y: split_valid && ok_y,
@@ -130,7 +106,7 @@ impl OptimizedRlcDec {
         Comb: Fn(&[Cmt], u32) -> Cmt,
     {
         let z_split = split.planes();
-        if z_split.len() != params.k_rho as usize || child_commitments.len() != z_split.len() {
+        if z_split.len() != params.k_rho() as usize || child_commitments.len() != z_split.len() {
             return DecOutcome::rejected();
         }
         let (mut children, ok_y, ok_x) = super::optimized_engine::dec_reduction_optimized_with_digit_flags::<F>(
@@ -146,7 +122,7 @@ impl OptimizedRlcDec {
         for (child, commitment) in children.iter_mut().zip(child_commitments) {
             child.c = commitment.clone();
         }
-        let ok_c = combine_b_pows(child_commitments, params.b) == parent.c;
+        let ok_c = combine_b_pows(child_commitments, params.b()) == parent.c;
         DecOutcome {
             children,
             ok_y,
@@ -156,8 +132,8 @@ impl OptimizedRlcDec {
     }
 }
 
-impl RlcDecOps for OptimizedRlcDec {
-    fn rlc_with_commit(
+impl OptimizedRlcDec {
+    pub fn rlc_with_commit(
         s: &CcsStructure<F>,
         params: &NeoParams,
         rhos: &[Mat<F>],
@@ -178,7 +154,7 @@ impl RlcDecOps for OptimizedRlcDec {
         )
     }
 
-    fn dec_children_with_commit<Comb>(
+    pub fn dec_children_with_commit<Comb>(
         s: &CcsStructure<F>,
         params: &NeoParams,
         parent: &CeClaim<Cmt, F, K>,
@@ -190,16 +166,16 @@ impl RlcDecOps for OptimizedRlcDec {
     where
         Comb: Fn(&[Cmt], u32) -> Cmt,
     {
-        if Z_split.len() != params.k_rho as usize || child_commitments.len() != Z_split.len() {
+        if Z_split.len() != params.k_rho() as usize || child_commitments.len() != Z_split.len() {
             return DecOutcome::rejected();
         }
-        let split_valid = canonical_dec_split(Z_split, params.b);
+        let split_valid = canonical_dec_split(Z_split, params.b());
         let (mut children, ok_y, ok_X) =
             super::optimized_engine::dec_reduction_optimized(s, params, parent, Z_split, ell_d);
         for (ch, c) in children.iter_mut().zip(child_commitments.iter()) {
             ch.c = c.clone();
         }
-        let ok_c = split_valid && combine_b_pows(child_commitments, params.b) == parent.c;
+        let ok_c = split_valid && combine_b_pows(child_commitments, params.b()) == parent.c;
         DecOutcome {
             children,
             ok_y: split_valid && ok_y,

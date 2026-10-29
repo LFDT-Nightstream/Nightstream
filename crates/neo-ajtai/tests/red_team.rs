@@ -9,15 +9,15 @@ use std::panic::catch_unwind;
 
 #[test]
 fn ajtai_s_lincomb_rejects_cross_codomain_commitments() {
-    let narrow = Commitment::zeros(D, 1);
-    let mut wide_a = Commitment::zeros(D, 2);
-    let mut wide_b = Commitment::zeros(D, 2);
-    wide_a.data[D] = Fq::ONE;
-    wide_b.data[D] = Fq::from_u64(2);
+    let narrow = Commitment::zeros(1);
+    let mut wide_a = Commitment::zeros(2);
+    let mut wide_b = Commitment::zeros(2);
+    wide_a.data_mut()[D] = Fq::ONE;
+    wide_b.data_mut()[D] = Fq::from_u64(2);
 
-    assert_eq!(narrow.data.len(), narrow.d * narrow.kappa);
-    assert_eq!(wide_a.data.len(), wide_a.d * wide_a.kappa);
-    assert_eq!(wide_b.data.len(), wide_b.d * wide_b.kappa);
+    assert_eq!(narrow.data().len(), narrow.d() * narrow.kappa());
+    assert_eq!(wide_a.data().len(), wide_a.d() * wide_a.kappa());
+    assert_eq!(wide_b.data().len(), wide_b.d() * wide_b.kappa());
 
     let zero = RqEl::from_field_scalar(Fq::ZERO);
     let one = RqEl::from_field_scalar(Fq::ONE);

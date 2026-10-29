@@ -59,7 +59,7 @@ fn metal_terminal_accepts_cpu_proof_and_matches_cpu_rejection() {
     );
 
     let (running, fresh) = proof.active_parts().unwrap();
-    let blocks = package.structure.m.div_ceil(D);
+    let blocks = package.structure.m().div_ceil(D);
     let mut positive = vec![0u64; blocks];
     let negative = vec![0u64; blocks];
     for (column, &value) in fresh.claim.x.iter().enumerate() {
@@ -73,7 +73,7 @@ fn metal_terminal_accepts_cpu_proof_and_matches_cpu_rejection() {
     let mut claim = fresh.claim.clone();
     claim.c = commit_production_signed_unit_prefix_matrix(&witness).unwrap();
     let bad = Stage1Envelope::from_parts(
-        expected.clone(),
+        expected,
         running.clone(),
         CcsInstance {
             claim,

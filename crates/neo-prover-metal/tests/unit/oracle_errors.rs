@@ -4,7 +4,7 @@ use neo_reductions::PiCcsError;
 #[test]
 fn device_failure_keeps_its_backend_type() {
     for error in [
-        MetalError::Unavailable,
+        MetalError::Device,
         MetalError::Buffer { bytes: 64 },
         MetalError::Execution("device lost".into()),
     ] {

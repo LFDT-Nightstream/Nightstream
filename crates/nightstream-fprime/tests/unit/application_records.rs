@@ -9,7 +9,7 @@ fn header() -> ApplicationRowHeader {
 }
 
 fn terms() -> [ApplicationTerm; 3] {
-    [3, crate::package::GOLDILOCKS_MODULUS - 3, 0].map(|coefficient| ApplicationTerm {
+    [3, Goldilocks::ORDER_U64 - 3, 0].map(|coefficient| ApplicationTerm {
         form: ApplicationForm::A,
         variable: 1,
         coefficient,
@@ -63,7 +63,7 @@ fn ordered_terms_recipes_and_framing_counts_survive_sealing() {
     assert_eq!(actual, nodes());
     assert_eq!(
         records
-            .evaluate_form(0, ApplicationForm::A, |_| Ok(7))
+            .evaluate_form::<PackageError>(0, ApplicationForm::A, |_| Ok(7))
             .unwrap(),
         5
     );
@@ -74,7 +74,7 @@ fn ordered_terms_recipes_and_framing_counts_survive_sealing() {
         let read = scope.spawn(|| records.evaluate_recipe(0, |_| Ok(11)).unwrap());
         assert_eq!(
             clone
-                .evaluate_form(0, ApplicationForm::A, |_| Ok(9))
+                .evaluate_form::<PackageError>(0, ApplicationForm::A, |_| Ok(9))
                 .unwrap(),
             5
         );
@@ -154,12 +154,12 @@ fn reused_recipe_evaluator_clears_pending_frames_after_lookup_error() {
         evaluator.evaluate(0, |variable| {
             looked_up.push(variable);
             if variable == 1 {
-                Err(PackageError::Invalid("injected recipe lookup failure"))
+                Err(PackageError::Input("injected recipe lookup failure"))
             } else {
                 Ok(values[variable])
             }
         }),
-        Err(PackageError::Invalid("injected recipe lookup failure"))
+        Err(PackageError::Input("injected recipe lookup failure"))
     ));
     assert_eq!(looked_up, [0, 1]);
     assert_eq!(
@@ -208,7 +208,7 @@ fn writer_buffers_do_not_grow_with_distinct_rows_or_terms() {
     for row in [0, rows / 2, rows - 1] {
         assert_eq!(
             records
-                .evaluate_form(row, ApplicationForm::A, |variable| Ok(variable as u64))
+                .evaluate_form::<PackageError>(row, ApplicationForm::A, |variable| Ok(variable as u64))
                 .unwrap(),
             2 * row as u64
         );
@@ -315,7 +315,7 @@ fn streamed_records_preserve_exact_words_and_rebuild_sealed_indices() {
     let (original, bytes) = serialized_records();
     let row_and_recipe_counts = [1, 1];
     let interleaved_constants_and_term_counts = [5, 3, 1, 0, 5, 0];
-    let ordered_terms = [1, 3, 1, crate::package::GOLDILOCKS_MODULUS - 3, 1, 0];
+    let ordered_terms = [1, 3, 1, Goldilocks::ORDER_U64 - 3, 1, 0];
     let linked_row_and_node_count = [0, 5];
     let add_constant_times_variable = [2, 0, 1, 5, 3, 0, 1, 0, 0, 1];
     let words = [
@@ -345,7 +345,7 @@ fn streamed_records_preserve_exact_words_and_rebuild_sealed_indices() {
     );
     assert_eq!(
         restored
-            .evaluate_form(0, ApplicationForm::A, |_| Ok(9))
+            .evaluate_form::<PackageError>(0, ApplicationForm::A, |_| Ok(9))
             .unwrap(),
         5
     );
@@ -398,7 +398,7 @@ fn streamed_records_rebuild_indices_after_interleaved_appends() {
         assert_eq!(restored.recipe_row(row).unwrap(), row);
         assert_eq!(
             restored
-                .evaluate_form(row, ApplicationForm::A, |variable| Ok(3 + variable as u64))
+                .evaluate_form::<PackageError>(row, ApplicationForm::A, |variable| Ok(3 + variable as u64))
                 .unwrap(),
             6 + 3 * row as u64,
         );
@@ -419,7 +419,7 @@ fn streamed_records_rebuild_indices_after_interleaved_appends() {
 #[test]
 fn streamed_records_reject_bad_fields_counts_grammar_and_every_truncation() {
     let (_, bytes) = serialized_records();
-    let modulus = crate::package::GOLDILOCKS_MODULUS;
+    let modulus = Goldilocks::ORDER_U64;
     for (case, word, value) in [
         ("row count differs from outer metadata", 0, 2),
         ("recipe count differs from outer metadata", 1, 2),

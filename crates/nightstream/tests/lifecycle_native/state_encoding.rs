@@ -12,7 +12,7 @@ const PARENT_COORDINATES: usize = 270;
 
 fn zero_running() -> Vec<CeClaim> {
     let claim = CeClaim {
-        c: Commitment::zeros(D, 22),
+        c: Commitment::zeros(22),
         X: Mat::zero(D, PARENT_COORDINATES / D, F::ZERO),
         r: vec![K::ZERO; 28],
         eval_k: vec![K::ZERO; EVALUATION_WIDTH],
@@ -67,13 +67,13 @@ fn verify_rejects_a_second_split_of_the_running_parent() {
     let structure = package.structure();
     let params = Params::for_ccs_shape(
         structure.domain_rows(),
-        structure.m,
+        structure.m(),
         structure.t(),
         structure.max_degree(),
         114,
     )
     .unwrap();
-    let blocks = structure.m.div_ceil(D);
+    let blocks = structure.m().div_ceil(D);
     let state = Stage1State::new(1, [F::ZERO; 4], [F::ONE; 4]);
     let envelope = |digits: &[(usize, F)]| {
         let mut running = RunningInstance::canonical_zero(&params, structure, PARENT_COORDINATES).unwrap();
@@ -93,7 +93,7 @@ fn verify_rejects_a_second_split_of_the_running_parent() {
         }
         let fresh = CcsInstance {
             claim: CcsClaim {
-                c: Commitment::zeros(D, params.kappa() as usize),
+                c: Commitment::zeros(params.kappa() as usize),
                 x: vec![F::ZERO; PARENT_COORDINATES],
                 m_in: PARENT_COORDINATES,
                 adv: None,
@@ -102,7 +102,7 @@ fn verify_rejects_a_second_split_of_the_running_parent() {
                 Z: Mat::virtual_constant(D, blocks, F::ZERO),
             },
         };
-        Stage1Envelope::from_parts(state.clone(), running, fresh)
+        Stage1Envelope::from_parts(state, running, fresh)
     };
 
     let canonical = package.verify(&state, &envelope(&[(0, F::ONE)]));

@@ -131,7 +131,7 @@ fn whir_opens_two_tables_through_the_seeded_challenger() {
 /// A key of `2^block_variables` blocks and one run.
 fn wide_key(block_variables: usize) -> Key {
     Key {
-        root: [0; 4],
+        root: [Gl::ZERO; 4],
         blocks: 1 << block_variables,
         rows: 1,
         structure: Structure {
@@ -152,7 +152,12 @@ fn wide_key(block_variables: usize) -> Key {
 /// domain above `2^32`, so no relation has more.
 #[test]
 fn relations_refuse_setups_past_31_variables() {
-    let p1 = |key: &Key| Pcs::new(crate::pcs::LAYER1, crate::p1_plans(key, 0), 101.0, &|_| Vec::new()).is_ok();
+    let p1 = |key: &Key| {
+        Pcs::new(crate::pcs::LAYER1, crate::relation::p1_plans(key, 0), 101.0, &|_| {
+            Vec::new()
+        })
+        .is_ok()
+    };
     let fits = wide_key(29);
     assert_eq!(fits.setup_variables(), 35);
     assert!(p1(&fits));
@@ -178,7 +183,7 @@ fn production_shape_reaches_the_required_security() {
     // the design's estimate of the layer-1 share of a 114-bit total; the
     // real target is derived at run time.
     let key = Key {
-        root: [0; 4],
+        root: [Gl::ZERO; 4],
         blocks: 814_144,
         rows: 1_004_131,
         structure: Structure {

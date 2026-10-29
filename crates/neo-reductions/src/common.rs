@@ -294,20 +294,21 @@ fn rot_from_coeffs(a_coeffs: &[F], phi_low_coeffs: &[i32; D]) -> Mat<F> {
 }
 
 pub fn phi_low_coeffs_from_params(params: &NeoParams) -> Result<&'static [i32; D], PiCcsError> {
-    if params.d as usize != D {
+    if params.d() as usize != D {
         return Err(PiCcsError::InvalidInput(format!(
             "Π_RLC: params.d={} must equal D={}",
-            params.d, D
+            params.d(),
+            D
         )));
     }
-    match params.eta {
+    match params.eta() {
         eta if eta as usize == goldilocks_paper_b2::ETA => Ok(&goldilocks_paper_b2::PHI_COEFFS),
         128 => Err(PiCcsError::InvalidInput(
             "Π_RLC: eta=128 (Almost-Goldilocks) is disabled while D=54; enable only with a full D=64 migration".into(),
         )),
         _ => Err(PiCcsError::InvalidInput(format!(
             "Π_RLC: unsupported cyclotomic eta={} for strict rotation-matrix validation",
-            params.eta
+            params.eta()
         ))),
     }
 }
@@ -450,10 +451,10 @@ fn validate_sampling_alphabet(alphabet: &[i8]) -> Result<(), PiCcsError> {
 fn validate_rho_is_in_selected_strong_set(params: &NeoParams, rho: &Mat<F>, label: &str) -> Result<(), PiCcsError> {
     let alphabet = &goldilocks_paper_b2::CHALLENGE_ALPHABET;
     let required_expansion = expansion_factor_T(alphabet);
-    if (params.T as u128) < required_expansion {
+    if (params.T() as u128) < required_expansion {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: params.T={} is smaller than the selected strong-set expansion bound {required_expansion}",
-            params.T
+            params.T()
         )));
     }
     for coefficient in 0..D {
@@ -504,14 +505,14 @@ fn sample_rot_rhos_n(
     }
 
     let T = expansion_factor_T(ring.alphabet);
-    let b = params.b as u128;
+    let b = params.b() as u128;
     let lhs = (count as u128) * T * (b.saturating_sub(1));
     let k_required = min_k_rho_for_rlc_count(params, ring, count)?;
-    let b_pow_k = (b as u128)
-        .checked_pow(params.k_rho)
-        .ok_or_else(|| PiCcsError::InvalidInput(format!("b^k_rho overflow: b={}, k_rho={}", b, params.k_rho)))?;
+    let b_pow_k = b
+        .checked_pow(params.k_rho())
+        .ok_or_else(|| PiCcsError::InvalidInput(format!("b^k_rho overflow: b={}, k_rho={}", b, params.k_rho())))?;
 
-    if params.k_rho < k_required {
+    if params.k_rho() < k_required {
         return Err(PiCcsError::InvalidInput(format!(
             "ΠRLC norm bound violated: count·T·(b-1) = {}·{}·{} = {} must be < b^{{k_rho}} = {} (Section 4.3)\n\
              count={} is the number of ME claims being RLC'd\n\
@@ -529,7 +530,7 @@ fn sample_rot_rhos_n(
             lhs,
             b_pow_k,
             count,
-            params.k_rho,
+            params.k_rho(),
             b_pow_k,
             k_required,
             T
@@ -570,9 +571,9 @@ pub fn min_k_rho_for_rlc_count(params: &NeoParams, ring: &RotRing, count: usize)
     if count == 0 {
         return Err(PiCcsError::InvalidInput("count must be > 0".into()));
     }
-    let b = params.b as u128;
+    let b = params.b() as u128;
     if b < 2 {
-        return Err(PiCcsError::InvalidInput(format!("invalid base b={}", params.b)));
+        return Err(PiCcsError::InvalidInput(format!("invalid base b={}", params.b())));
     }
     let lhs = (count as u128) * expansion_factor_T(ring.alphabet) * (b.saturating_sub(1));
 
@@ -750,33 +751,35 @@ where
     K: From<Ff>,
 {
     validate_superneo_witness_shape(Z, expected_m)?;
-    if params.b < 2 {
+    if params.b() < 2 {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: invalid b={} (must be >= 2)",
-            params.b
+            params.b()
         )));
     }
     if Z.is_packed_signed_unit() {
         return Ok(());
     }
     if let Some(&value) = Z.virtual_constant_value() {
-        if is_representable_balanced_fixed_d_digits(value, params.b)? {
+        if is_representable_balanced_fixed_d_digits(value, params.b())? {
             return Ok(());
         }
         let x = to_balanced_i128(value);
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: constant witness is not representable in D={} balanced base-{} digits (centered value {})",
-            D, params.b, x,
+            D,
+            params.b(),
+            x,
         )));
     }
     for col in 0..superneo_carrier_width(expected_m) {
         let off = col % D;
         let v = Z[(off, col / D)];
-        if !is_representable_balanced_fixed_d_digits(v, params.b)? {
+        if !is_representable_balanced_fixed_d_digits(v, params.b())? {
             let x = to_balanced_i128(v);
             return Err(PiCcsError::InvalidInput(format!(
                 "{label}: witness carrier_col={col} is not representable in D={} balanced base-{} digits (centered value {})",
-                D, params.b, x,
+                D, params.b(), x,
             )));
         }
     }
@@ -793,20 +796,21 @@ where
     Ff: PrimeField64 + PrimeCharacteristicRing + Copy,
 {
     validate_superneo_witness_shape(Z, expected_m)?;
-    if params.b < 2 {
+    if params.b() < 2 {
         return Err(PiCcsError::InvalidInput(format!(
             "{label}: invalid b={} (must be >= 2)",
-            params.b
+            params.b()
         )));
     }
     for col in 0..superneo_carrier_width(expected_m) {
         let off = col % D;
         let v = Z[(off, col / D)];
-        if !within_nc_bound(v, params.b) {
+        if !within_nc_bound(v, params.b()) {
             let x = to_balanced_i128(v);
             return Err(PiCcsError::InvalidInput(format!(
                 "{label}: witness carrier_col={col} violates NC alphabet |x| < b={} (centered value {})",
-                params.b, x,
+                params.b(),
+                x,
             )));
         }
     }
@@ -847,14 +851,14 @@ where
             .expect("v1_2 evaluation cache must build for valid CCS width");
         &local_cache
     };
-    let z_vec = decode_superneo_coeffs_from_witness_mat(Z, s.m)
+    let z_vec = decode_superneo_coeffs_from_witness_mat(Z, s.m())
         .unwrap_or_else(|e| panic!("v1_2 evaluation failed to decode packed witness coefficients: {e}"));
     let z_blocks = crate::superneo_eval::SuperneoZBlocks::from_z(&z_vec);
     let d_pad = 1usize << ell_d;
     let mut eval_k = identity_ring_mle(&z_vec, rb).to_vec();
     eval_k.resize(d_pad, K::ZERO);
 
-    let n_eff = core::cmp::min(s.n, rb.len());
+    let n_eff = core::cmp::min(s.n(), rb.len());
     let application_images = crate::superneo_eval::eval_all_mats_ring_cached_with_blocks(cache, &z_blocks, rb, n_eff);
     let eval_a = application_images
         .into_iter()

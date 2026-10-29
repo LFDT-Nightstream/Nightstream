@@ -769,8 +769,11 @@ generated relation MUST supply the exact census.
      catalog bind a Rust copy of `eventsForRow` in order, and that each of
      twelve broken rows that keep the memory rows true fails the binding rows.
      A manual mutation check removed each of the ten kinds of binding row in
-     turn, and each time one of the broken rows passed. The match between the
-     Lean copy and `MemoryTrace.v` is checked by reading only;
+     turn, and each time one of the broken rows passed. The image builder
+     (`CatalogBinding::program`, spec §10.1) is Rust only too: a test checks
+     that it puts each preloaded cell at `base + packParts` and rejects a cell
+     outside its region. The match between the Lean copy and `MemoryTrace.v`
+     is checked by reading only;
    - adaptive program choice: §5 bounds an adversary against a program fixed
      before it runs (§1). For a program that the adversary chooses after it
      sees the setup, the claim and the `Experiment` must carry the program,

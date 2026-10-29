@@ -218,11 +218,16 @@ private theorem chunks_injective {xs ys : List F} (length : xs.length = ys.lengt
   rwa [List.getD_eq_getElem _ _ hx, List.getD_eq_getElem _ _ hy] at word
 
 private theorem chunks_block_ne_nil (b : List F) : chunks (block b) ≠ [] := by
-  simp [chunks, block, Poseidon2.rate]
+  have rate : Poseidon2.rate = 12 := by unfold Poseidon2.rate; rfl
+  rw [chunks, Ne, List.map_eq_nil_iff, List.range_eq_nil, block, List.length_cons, rate]
+  omega
 
 private theorem chunks_block_head (b : List F) (h : chunks (block b) ≠ []) :
     (chunks (block b)).head h ⟨0, by decide⟩ = natWord b.length := by
-  simp [chunks, block, pad, List.head_map, List.getD_eq_getElem?_getD, Poseidon2.rate]
+  have positive : 0 < Poseidon2.rate := by unfold Poseidon2.rate; decide
+  unfold chunks at h ⊢
+  rw [List.head_map, List.head_range, zero_mul, List.drop_zero, block, List.take_cons positive]
+  exact List.getD_cons_zero
 
 /-- Blocks whose lengths are canonical have different padded chunk
 sequences when they differ. -/

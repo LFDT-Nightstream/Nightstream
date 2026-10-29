@@ -18,7 +18,7 @@ variable (p : Plan) (a : AppShape) (v : ℕ → F)
 
 local notation "W" => StepWitness.ofWords p a v
 
-open Sym (word cIn cOut eta1 eta2 eta1Sq isOpen openInverse isClose closeInverse idxEff
+open _root_.NightstreamFPrime.Lifecycle.Nebula.Sym (word cIn cOut eta1 eta2 eta1Sq isOpen openInverse isClose closeInverse idxEff
   isWrite isRam addrBit vrBit vwBit rtBit diffBit addr vr vw rt diff opLane scanValue scanStamp
   scanLane tsWord segWord cntBefore wt globalIndex scanIndex opsProductAfter scanProductAfter)
 

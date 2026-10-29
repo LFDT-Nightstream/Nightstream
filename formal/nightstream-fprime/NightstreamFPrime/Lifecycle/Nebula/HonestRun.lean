@@ -36,7 +36,7 @@ theorem MemoryApp.reach_invoke (valid : p.Valid) {c c' : MemoryCarry} {σ : Type
   · rw [seg]
     split <;> omega
   · omega
-  · rw [seg, if_neg (by rw [← Honest.finished_idx, idx]; omega)]
+  · rw [seg, ite_eq_right (by rw [← Honest.finished_idx, idx]; omega)]
     rw [Honest.finished_idx] at open_
     omega
   · rw [Honest.finished_ts, Honest.stepped_ts]

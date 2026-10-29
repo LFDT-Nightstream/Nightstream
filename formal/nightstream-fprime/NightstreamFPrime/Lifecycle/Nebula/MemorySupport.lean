@@ -49,7 +49,7 @@ theorem pack_supported {l : List Circuit.Expr} (each : ∀ x ∈ l, x.VarsSatisf
   induction l using Expr.pack.induct with
   | case1 => simp [Expr.pack]
   | case2 l nonempty ih =>
-    rw [Expr.pack, dif_neg nonempty]
+    rw [Expr.pack, dite_eq_right nonempty]
     intro e member
     rcases List.mem_cons.mp member with rfl | member
     · exact chunk_supported fun x hx => each x (List.mem_of_mem_take hx)

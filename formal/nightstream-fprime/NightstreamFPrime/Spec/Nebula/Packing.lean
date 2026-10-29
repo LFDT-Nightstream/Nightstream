@@ -24,11 +24,11 @@ decreasing_by
   omega
 
 theorem pack_nil : pack [] = [] := by
-  rw [pack.eq_1, dif_pos rfl]
+  rw [pack.eq_1, dite_eq_left rfl]
 
 theorem pack_of_ne_nil {bits : List Bool} (nonempty : bits ≠ []) :
     pack bits = chunkValue (bits.take 63) :: pack (bits.drop 63) := by
-  rw [pack.eq_1, dif_neg nonempty]
+  rw [pack.eq_1, dite_eq_right nonempty]
 
 theorem chunkValue_lt (bs : List Bool) : chunkValue bs < 2 ^ bs.length := by
   induction bs with

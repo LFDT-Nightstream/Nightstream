@@ -105,10 +105,11 @@ private theorem root_injective [CharP E goldilocksModulus] {τ σ : Tuple} (τSm
   have cast {a b : ℕ} (aSmall : a < goldilocksModulus) (bSmall : b < goldilocksModulus)
       (equal : (a : E) = b) : a = b :=
     CharP.natCast_injOn_Iio E goldilocksModulus aSmall bSmall equal
-  have constant := congrArg (coeff 0) same
-  have linear := congrArg (coeff (Finsupp.single 0 1)) same
-  have quadratic := congrArg (coeff (Finsupp.single 0 2)) same
-  simp only [root, coeff_add, coeff_C, coeff_C_mul, coeff_X, coeff_X_pow]
+  have constant := congrArg (·.coeff 0) same
+  have linear := congrArg (·.coeff (Finsupp.single 0 1)) same
+  have quadratic := congrArg (·.coeff (Finsupp.single 0 2)) same
+  simp only [root, AddMonoidAlgebra.coeff_add, Finsupp.add_apply, coeff_C, coeff_C_mul, coeff_X,
+    coeff_X_pow]
     at constant linear quadratic
   simp [@eq_comm (Fin 1 →₀ ℕ) 0] at constant linear quadratic
   exact Prod.ext (cast τSmall.1 σSmall.1 quadratic)
@@ -168,7 +169,7 @@ theorem badChallenges_card {A B : Multiset Tuple} {m : ℕ} (different : A ≠ B
     refine Finset.card_le_card_of_injOn (fun η => ![η.2, η.1]) ?_ ?_
     · intro η member
       simp only [BadChallenges, Finset.coe_filter, Finset.mem_univ, true_and,
-        Set.mem_setOf_eq] at member ⊢
+        Set.mem_ofPred_eq] at member ⊢
       rw [evalG, member, sub_self]
     · intro η _ σ _ same
       have first := congrFun same 0

@@ -1,11 +1,6 @@
 import NightstreamFPrime.Gadgets.Range.CanonicalPublicU64
 import NightstreamFPrime.Layout.Range.CanonicalU64
 
-/-!
-Owns physical lowering for one canonical word bound to 64 caller-owned public
-bits.
--/
-
 namespace NightstreamFPrime.Layout.Range.CanonicalPublicU64
 
 open NightstreamFPrime.Circuit

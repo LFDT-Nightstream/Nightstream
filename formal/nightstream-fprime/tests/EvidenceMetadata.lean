@@ -1,10 +1,6 @@
 import Lean
 import tests.AxiomAudit
 
-/-! Owns declaration metadata and exact closure checks for the evidence CLI.
-Metadata is inspection data. It is not a proof of semantic correspondence.
--/
-
 namespace LeanGraph
 
 open Lean Elab Command Meta

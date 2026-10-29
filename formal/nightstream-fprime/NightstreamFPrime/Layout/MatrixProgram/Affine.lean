@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.MatrixProgram.Ordinary
 
-/-!
-Owns canonical affine source words and their indexed substitution into final
-sparse forms. Source columns are resolved by the existing substitution; field
-coefficients are checked before evaluation. Table proofs are structural.
--/
-
 namespace NightstreamFPrime.Layout.MatrixProgram.Affine
 
 open NightstreamFPrime.Layout
@@ -40,7 +34,7 @@ private theorem readTerms_ofSemantic (terms : List (Nat × F)) :
   induction terms with
   | nil => rfl
   | cons term rest inductionHypothesis =>
-      simp only [List.map_cons, readTerms, dif_pos term.2.isLt, inductionHypothesis]
+      simp only [List.map_cons, readTerms, dite_eq_left term.2.isLt, inductionHypothesis]
       rfl
 
 theorem Form.semantic?_ofSemantic (combination : R1CS.LinearCombination) :
@@ -80,7 +74,7 @@ theorem Table.compile?_ofSemantic {count logicalWidth : Nat}
     (index : Fin count) :
     (Table.ofSemantic combination).compile? substitution logicalWidth oneColumn.val index.val =
       Ordinary.compileCombination? substitution oneColumn (combination index) := by
-  simp only [Table.compile?, dif_pos oneColumn.isLt, Table.combination?_ofSemantic]
+  simp only [Table.compile?, dite_eq_left oneColumn.isLt, Table.combination?_ofSemantic]
   rfl
 
 end NightstreamFPrime.Layout.MatrixProgram.Affine

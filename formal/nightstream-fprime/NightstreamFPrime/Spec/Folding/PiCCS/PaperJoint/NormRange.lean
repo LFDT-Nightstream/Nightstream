@@ -1,19 +1,5 @@
 import NightstreamFPrime.Spec.Algebra
 
-/-!
-Paper-level `b = 2` norm range semantics for the joint `Pi_CCS` polynomial.
-
-Owns: the exact base-field residual `(z + 1) * z * (z - 1)`, its zero set,
-and its equivalence with the authoritative strict centered norm
-`Concrete.centeredMagnitude z < 2`.
-
-Does not own: the paper's inconsistent displayed product bounds, extension-
-field `Q`, Boolean-table placement, SumCheck, Fiat--Shamir, Rust, R1CS rows,
-or permission to remove constraints.
-
-Emits constraints: no.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormRange
 
 open NightstreamFPrime.Spec
@@ -49,8 +35,6 @@ theorem baseFieldNoZeroDivisors_of_modulusEuclid
     apply Fin.eq_of_val_eq
     simpa [Nat.mod_eq_of_lt right.isLt] using rightZero
 
-/-- Exact base-field factor selected by the semantic strict centered range
-`|z| < 2`; no displayed paper product bound is consulted. -/
 def cubicResidual (value : F) : F :=
   (value + 1) * value * (value - 1)
 

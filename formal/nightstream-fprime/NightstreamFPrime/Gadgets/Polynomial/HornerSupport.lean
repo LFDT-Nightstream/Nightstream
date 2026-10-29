@@ -1,11 +1,6 @@
 import NightstreamFPrime.Circuit.SupportRange
 import NightstreamFPrime.Gadgets.Polynomial.Horner
 
-/-!
-Owns variable-support propagation for the generic quadratic-extension Horner
-compiler. The structural compiler remains the semantic authority.
--/
-
 namespace NightstreamFPrime.Gadgets.Polynomial.Horner
 
 open NightstreamFPrime.Circuit

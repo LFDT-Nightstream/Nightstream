@@ -3,11 +3,6 @@ import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.R1CS.Support
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
 
-/-!
-Owns indexed access to the four nonempty canonical PiDEC row packets for the
-direct 4-matrix compiler.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
 
 open NightstreamFPrime.Circuit

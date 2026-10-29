@@ -1,21 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConstraintPolynomialLift
 
-/-!
-Evaluation refinement for structurally lifted sparse CCS polynomials.
-
-Protocol: shared CCS syntax infrastructure.
-Phase: carrier placement followed by polynomial evaluation.
-Constraint family: none; this file emits no rows.
-
-Owns: the minimal zero/one/add/mul preservation contract and proofs that
-monomial and polynomial evaluation commute with coefficient lifting.
-
-Does not own: a concrete carrier embedding, zero reflection, norm semantics,
-protocol source data, SumCheck, Rust, R1CS, or constraint counts.
-
-Emits constraints: no.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConstraintPolynomialLift.Evaluation
 
 universe uBase uExtension

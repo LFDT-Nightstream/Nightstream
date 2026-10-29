@@ -1,20 +1,6 @@
 import NightstreamFPrime.Spec.Algebra
 
-/-!
-Owns the reference Poseidon2 permutation and sponge hash of the protocol:
-width 16, rate 12, capacity 4, S-box `x⁷`, 4 initial + 22 partial + 4 terminal
-rounds over Goldilocks, with the plonky3 external layer (`M₄` on each block,
-then the circulant sum) and the internal layer `diag(v) + J`. The round-constant
-table is protocol authority; Rust is checked against it by test vectors.
-
-Plonky3 `poseidon2_round_numbers_128` checks 8 full and 22 partial rounds for
-width 16 with `x⁷` over Goldilocks.
-
-Provenance: constants are `neo_ccs::crypto::poseidon2_goldilocks::round_constants()`
-(plonky3 `new_from_rng_128` draw order from the fixed ChaCha8 seed); the
-permutation itself is written fresh from the plonky3 `p3-poseidon2 0.5.3` /
-`p3-goldilocks 0.5.3` definitions.
--/
+/-! Round constants: `neo_ccs::crypto::poseidon2_goldilocks::round_constants()` (plonky3 `new_from_rng_128`, fixed ChaCha8 seed); permutation per plonky3 `p3-poseidon2 0.5.3` and `p3-goldilocks 0.5.3`. -/
 
 namespace NightstreamFPrime.Spec.Poseidon2
 
@@ -74,9 +60,7 @@ def terminalConstants : List (List Nat) :=
     16054199595598201491, 729673474029476808, 1545919217216143455, 15484244716222357662,
     9149791094276206087, 3342519128264714984, 14246551315881547762, 6145097356981870399]]
 
-/-- Diagonal `v` of the internal layer `diag(v) + J`
-(`MATRIX_DIAG_16_GOLDILOCKS`: −2, 1, 2, 1/2, 3, 4, −1/2, −3, −4, 1/2³, 1/2⁴,
-1/2⁵, −1/2³, −1/2⁴, −1/2⁵, 1/2³²). -/
+/-- plonky3 `MATRIX_DIAG_16_GOLDILOCKS`. -/
 def internalDiagonal : List Nat :=
   [18446744069414584319, 1, 2,
    9223372034707292161, 3, 4,
@@ -206,9 +190,7 @@ theorem absorbBlocksFast_eq_indexed (count : Nat) (state : State)
       congr 1
       simp [Nat.succ_mul, Nat.add_comm]
 
-/-- Sponge hash: absorb `rate`-sized chunks, add 1 to lane 0, permute, squeeze
-the first `digestLen` lanes. Matches
-`neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash`. -/
+/-- Matches `neo_ccs::crypto::poseidon2_goldilocks::poseidon2_hash`. -/
 def hash (input : List F) : List F :=
   let chunks := (List.range ((input.length + rate - 1) / rate)).map
     (fun c => (input.drop (c * rate)).take rate)

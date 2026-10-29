@@ -1,16 +1,6 @@
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Formal
 import NightstreamFPrime.Spec.Folding.Nifs.PaperProfile
 
-/-!
-Owns the semantic result of the exact PiRLC v1.2 logical assembler.
-
-The public attempt uses the production `K + k = 17` arity. Its inputs are
-the input-binding values, its challenges are replayed sampler outputs, and
-its output is the verifier-computed commitment, public input, separate Pad
-evaluation, and separate 4-matrix evaluation family. This file emits no
-rows and defines no second PiRLC relation.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 
 open NightstreamFPrime.Spec

@@ -1,15 +1,6 @@
 import NightstreamFPrime.Layout.LowNormBlock
 import NightstreamFPrime.Layout.ProductionAssignment
 
-/-!
-Owns a compact canonical assignment over an ordered list of retained blocks.
-It evaluates one coordinate by selecting one block and one slot directly. It
-does not materialize an expanded slot list or a complete assignment vector.
-
-The public prefix is verifier-owned. Every retained block begins at the sum of
-the preceding block widths and is encoded from its declared source function.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignment
 
 open NightstreamFPrime.Layout
@@ -52,7 +43,7 @@ theorem coordinateAt_coordinateOffset (entry : BlockValue)
       LowNormSlot.coordinate entry.block.kind
         (entry.source (entry.block.source slot)) coordinate := by
   unfold coordinateAt
-  rw [dif_pos (by
+  rw [dite_eq_left (by
     change (entry.block.coordinateOffset slot coordinate).val <
       entry.block.coordinateCount
     exact (entry.block.coordinateOffset slot coordinate).isLt)]
@@ -116,7 +107,7 @@ theorem coordinateAt_append_offset (left right : Schedule) (index : Nat) :
   | cons entry rest inductionHypothesis =>
       simp only [List.cons_append, coordinateCount]
       rw [coordinateAt]
-      rw [dif_neg (by omega)]
+      rw [dite_eq_right (by omega)]
       have subtract :
           entry.coordinateCount + coordinateCount rest + index -
               entry.coordinateCount =
@@ -144,7 +135,7 @@ theorem coordinateAt_block {sourceWidth : Nat}
         coordinate := by
   rw [coordinateAt_append_offset]
   unfold coordinateAt
-  rw [dif_pos (by
+  rw [dite_eq_left (by
     change (block.coordinateOffset slot coordinate).val <
       block.coordinateCount
     exact (block.coordinateOffset slot coordinate).isLt)]
@@ -175,7 +166,7 @@ def publicColumn {logicalWidth : Nat}
         (publicColumn fits column) =
       publicInput column := by
   unfold assignment publicColumn
-  rw [dif_pos column.isLt]
+  rw [dite_eq_left column.isLt]
 
 theorem assignment_encodesAt {sourceWidth logicalWidth : Nat}
     (publicInput : Fin ProductionAssignment.publicWidth → F)
@@ -196,7 +187,7 @@ theorem assignment_encodesAt {sourceWidth logicalWidth : Nat}
     change ¬start + (block.coordinateOffset slot coordinate).val <
       ProductionAssignment.publicWidth
     omega
-  rw [dif_neg notPublic]
+  rw [dite_eq_right notPublic]
   have indexEq :
       (block.column start fits slot coordinate).val -
           ProductionAssignment.publicWidth =
@@ -277,7 +268,7 @@ theorem assignment_encHashMarker {logicalWidth : Nat} (digest : Digest)
         (encodedHashCells digest)
         schedule
         (publicColumn fits encHashMarkerIndex) = 1 := by
-  rw [assignment_publicColumn]
+  erw [assignment_publicColumn]
   exact encodedHashCells_marker digest
 
 end NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignment

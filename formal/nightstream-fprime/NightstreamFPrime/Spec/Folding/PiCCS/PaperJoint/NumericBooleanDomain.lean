@@ -1,22 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanHypercubeSum
 
-/-!
-Canonical little-endian bridge between numeric indices and Boolean cubes.
-
-Protocol: shared infrastructure for `Pi_CCS` row, lane, and column domains.
-Phase: numeric-domain decoding before semantic polynomial evaluation.
-Constraint family: none; this file emits no rows.
-
-Owns: one little-endian numeric index for typed Boolean vertices, its typed
-inverse on a `2^variables` domain, and the numeric tensor-weight formula with
-its exact equality to the independent Boolean equality weight.
-
-Does not own: a particular row, lane, or column domain; matrix contents;
-residual formulas; transcript byte order; Rust; R1CS; or constraint counts.
-
-Emits constraints: no.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericBooleanDomain
 
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
@@ -164,7 +147,7 @@ private theorem tensorWeightCoordinates_eq_equalityWeightCoordinates
             simpa using dimension
           simp only [tensorWeightCoordinates, vertex]
           cases parity : parityBit value.val <;>
-            simp only [Bool.false_eq_true, if_false, if_true,
+            simp only [Bool.false_eq_true, ite_false, ite_true,
               BooleanVertex.equalityWeightCoordinates]
           · congr 1
             exact inductionHypothesis

@@ -1,13 +1,6 @@
 import NightstreamFPrime.Spec.Algebra
 import NightstreamFPrime.Spec.Relation
 
-/-!
-Owns the one Nightstream Goldilocks production profile: `b = 2`,
-`k_rho = 16`, `B = 2^16`, `η = 81`, `d = 54`, `κ = 22`, quadratic
-extension. Every other module reads the profile from here; no module restates
-these values.
--/
-
 namespace NightstreamFPrime.Spec
 
 def productionGlobalParams : GlobalParams where
@@ -79,7 +72,7 @@ theorem production_msis_norm_bound :
     productionGlobalParams.msisNormBound = 113246208 := by
   decide
 
-/-- SuperNeo v1.2 Definition 22 at the production arity `K + k = 17`. -/
+/-- SuperNeo v1.2 Definition 22. -/
 theorem production_rlc_bound_one_fresh :
     (1 + 16) * 216 * (2 - 1) < 65536 := by decide
 

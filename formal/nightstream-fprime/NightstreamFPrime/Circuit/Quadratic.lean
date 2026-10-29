@@ -1,10 +1,6 @@
 import NightstreamFPrime.Circuit.StraightLine
 
-/-!
-Owns the symbolic two-cell representation of the production quadratic
-extension `K = F[X]/(X² - 7)`. The cell order is exactly the protocol
-serializer order `c0, c1`.
--/
+/-! Cell order `c0, c1` matches the protocol serializer order. -/
 
 namespace NightstreamFPrime.Circuit.Quadratic
 

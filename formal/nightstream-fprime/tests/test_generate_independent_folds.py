@@ -4,7 +4,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1] / "scripts"))
 import generate_independent_folds as runner
@@ -225,6 +225,23 @@ class Checkpoints(unittest.TestCase):
             self.assertTrue(runner.native_test_completed(command, log))
             self.assertFalse(runner.native_test_completed(command, log.replace('selected::test', 'other::test')))
         self.assertFalse(runner.native_test_completed(['checker', 'selected::test'], log))
+
+    def test_snapshot_compiler_is_the_one_that_built_the_executables(self):
+        formal = self.root / "formal"
+        (formal / ".lake/build/bin").mkdir(parents=True)
+        (formal / ".lake/build/lib/lean/Pkg").mkdir(parents=True)
+        (formal / "lakefile.toml").write_text('[[lean_exe]]\nname = "replay"\nroot = "Pkg.Main"\n')
+        (formal / ".lake/build/bin/replay").write_bytes(b"")
+        built = "a" * 40
+        (formal / ".lake/build/lib/lean/Pkg/Main.olean").write_bytes(
+            b"olean\x02\x01" + b"4.35.0".ljust(33, b"\0") + built.encode() + b"\0" * 8)
+        version = "Lean (version 4.35.0, arm64-apple-darwin24.6.0, commit {}, Release)\n"
+        with patch.object(runner, "FORMAL", formal), patch.object(runner.subprocess, "check_output") as lean:
+            lean.return_value = version.format(built)
+            self.assertEqual(runner.lean_compiler(), ("4.35.0", built))
+            lean.return_value = version.format("b" * 40)
+            with self.assertRaisesRegex(ValueError, "built by Lean commit"):
+                runner.lean_compiler()
 
 
 if __name__ == "__main__":

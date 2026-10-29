@@ -3,20 +3,12 @@ import NightstreamFPrime.Export.Stage1.PiRLCProductSourceBlocks
 import NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
 import NightstreamFPrime.Layout.ProductionRelation.ProductRetainedBlock
 
-/-!
-Owns the canonical retained-block order and column starts for the current
-direct Stage 1 prefix through PiRLC. All blocks are lifted into the one final
-PiRLC source domain. Later phases may extend the logical width without moving
-these prefix columns.
-
-This module does not construct matrix rows or claim the complete Stage 1 fit.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry
 
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
+@[implicit_reducible]
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCProductPlan.sourceWidth program
 
@@ -113,8 +105,9 @@ def prefixLogicalWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   rw [Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount]
   rw [Layout.ProductionRelation.PoseidonRetainedBlock.block_coordinateCount]
   rw [ProductRetainedBlock.block_coordinateCount]
-  simp [PiRLCProductSourceBlocks.challengeBlock, LowNormBlock.Block.coordinateCount,
-    PiRLCCombinationInvocations.sourceCount, Spec.ringDegree, LowNormSlot.Kind.width, BalancedTernary.width]
+  simp only [PiRLCProductSourceBlocks.challengeBlock_coordinateCount,
+    PiRLCProductSourceBlocks.outputBlock_coordinateCount, PiRLCProductSchedule.invocationCount_eq]
+  rfl
 
 def directPrefixLogicalWidth (_program : Lifecycle.Stage1.Application.Program) : Nat :=
   37398420

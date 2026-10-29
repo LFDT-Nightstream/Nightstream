@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECMatrixProgram
 
-/-!
-Proves exact source custody for the compact PiDEC ordinary-row program.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram
@@ -76,7 +72,7 @@ theorem parentCommitmentRange_form?
       some ((PiDECDirectPlan.Location.parentCommitment index).form geometry) := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
     sourceStarts_local.1]
-  simpa [parentCommitmentRange, PiDECDirectPlan.Location.form] using
+  simpa [parentCommitmentRange, PiDECDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (parentCommitmentBlock program)
       (PiDECRetainedGeometry.parentCommitmentStart program)
       (Spartan.sourceToSpartan PiDECSourceSupport.parentCommitmentStart)
@@ -93,7 +89,7 @@ theorem parentPublicInputRange_form?
       some ((PiDECDirectPlan.Location.parentPublicInput index).form geometry) := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
     sourceStarts_local.2.1]
-  simpa [parentPublicInputRange, PiDECDirectPlan.Location.form] using
+  simpa [parentPublicInputRange, PiDECDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (parentPublicInputBlock program)
       (PiDECRetainedGeometry.parentPublicInputStart program)
       (Spartan.sourceToSpartan PiDECSourceSupport.parentPublicInputStart)
@@ -110,7 +106,7 @@ theorem parentEvalKRange_form?
       some ((PiDECDirectPlan.Location.parentEvalK index).form geometry) := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
     sourceStarts_local.2.2.1]
-  simpa [parentEvalKRange, PiDECDirectPlan.Location.form] using
+  simpa [parentEvalKRange, PiDECDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (parentEvalKBlock program)
       (PiDECRetainedGeometry.parentEvalKStart program)
       (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalKStart)
@@ -127,7 +123,7 @@ theorem parentEvalARange_form?
       some ((PiDECDirectPlan.Location.parentEvalA index).form geometry) := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
     sourceStarts_local.2.2.2.1]
-  simpa [parentEvalARange, PiDECDirectPlan.Location.form] using
+  simpa [parentEvalARange, PiDECDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (parentEvalABlock program)
       (PiDECRetainedGeometry.parentEvalAStart program)
       (Spartan.sourceToSpartan PiDECSourceSupport.parentEvalAStart)
@@ -143,7 +139,7 @@ theorem proofRange_form?
       some ((PiDECDirectPlan.Location.proof index).form geometry) := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
     sourceStarts_local.2.2.2.2.1]
-  simpa [proofRange, PiDECDirectPlan.Location.form] using
+  simpa [proofRange, PiDECDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (proofBlock program) (proofStart program)
       (Spartan.sourceToSpartan PiDECInputs.proofInputStart)
       PiDECInputs.proofInputColumnCount 0 (proofFits geometry) (by rfl) index)
@@ -157,7 +153,7 @@ theorem logicalRange_form?
       some ((PiDECDirectPlan.Location.logical index).form geometry) := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
     sourceStarts_local.2.2.2.2.2.1]
-  simpa [logicalRange, PiDECDirectPlan.Location.form] using
+  simpa [logicalRange, PiDECDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (logicalBlock program) (logicalStart program)
       (Spartan.sourceToSpartan PiDECStarts.phaseLogicalStart) logicalCount 0
       (logicalFits geometry) (by rfl) index)
@@ -170,7 +166,7 @@ theorem freshRange_form?
       some ((PiDECDirectPlan.Location.fresh index).form geometry) := by
   rw [Spartan.sourceToSpartan_add_of_piCcsLocal _ _
     sourceStarts_local.2.2.2.2.2.2]
-  simpa [freshRange, PiDECDirectPlan.Location.form] using
+  simpa [freshRange, PiDECDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (freshBlock program) (freshStart program)
       (Spartan.sourceToSpartan PiDECStarts.phaseFreshStart) freshCount 0
       (freshFits geometry) (by rfl) index)

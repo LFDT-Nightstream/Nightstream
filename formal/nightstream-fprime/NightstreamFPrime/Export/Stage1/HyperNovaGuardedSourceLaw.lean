@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaVisitedLaw
 import NightstreamFPrime.Export.Stage1.HyperNovaRealInput
 
-/-!
-Owns the decoded NIFS data of one visit of the history law: the exact source
-input of a recursive payload (`inputs`) and the real NIFS output on the good
-active branch (`realOutput`).
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaGuardedSourceLaw
@@ -52,6 +46,6 @@ noncomputable def realOutput (visit : Visit application) :
 
 theorem realOutput_off (visit : Visit application) (inactive : ¬ goodActive application fits setup visit) :
     realOutput application fits setup visit = none := by
-  simp only [realOutput, if_neg inactive]
+  simp only [realOutput, ite_eq_right inactive]
 
 end NightstreamFPrime.Export.Stage1.HyperNovaGuardedSourceLaw

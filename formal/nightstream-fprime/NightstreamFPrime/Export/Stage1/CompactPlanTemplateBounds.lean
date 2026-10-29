@@ -1,11 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PackagePlan
 
-/-!
-Every compact block expansion selects a template in the canonical template
-table. The proof uses constructor membership and existing exact template
-lookups; it does not enumerate or evaluate the emitted invocation schedule.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.CompactPlanTemplateBounds

@@ -16,8 +16,6 @@ import NightstreamFPrime.Lifecycle.Stage1.Terminal
 import NightstreamFPrime.Layout.Stage1.ApplicationSemantics
 import NightstreamFPrime.Layout.R1CS.ColumnMap
 
-/-! Axiom audits for the verifier-owned Stage 1 application contract. -/
-
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.inputState_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.witnessValue_length
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Application.outputState_length

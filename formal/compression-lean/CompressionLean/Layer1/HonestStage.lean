@@ -1,18 +1,6 @@
 import CompressionLean.Layer1.Linear
 import CompressionLean.Layer1.Queries
 
-/-!
-Owns the honest-fold stage of the layer-1 verifier (`verifier.rs` from `μ`
-to the setup queries, `setup.rs`): the run group `μ`, the partials, `α`, the
-P1 candidates and the query leaves, and what they force (`honest_world`):
-the key value and the four setup claims at the run point are the setup's.
-
-The setup oracles are the honest ones (the key's root holds them; under
-Merkle binding the opened leaves are theirs), and the verifier's expected
-value at query leaf `j` is the honest fold's form at `q_j`; `HonestFold`
-proves the verifier's leaf formula gives it.
--/
-
 namespace CompressionLean.Layer1
 
 open Polynomial
@@ -21,32 +9,25 @@ variable {F K : Type} [Field F] [Field K] [Algebra F K]
 
 local notation "ι" => algebraMap F K
 
-/-- The run group `row + μ·slot + μ²·coefficient + μ³·block` on the setup cube. -/
 noncomputable def runGroup (S : Setup F) (mu : K) (x : ℕ) : K :=
   rowColumn S x + mu * slotColumn S x + mu ^ 2 * coefColumn S x + mu ^ 3 * blockColumn S x
 
-/-- The verifier's run value: `row + μ·(slot + μ·(coefficient + μ·embedded))`. -/
 noncomputable def runValue (s : Shape) (S : Setup F) (o : EarlyOut F K) (mu : K) : K :=
   o.rowClaim + mu * (o.slotClaim s S + mu * (o.coefClaim + mu * o.embeddedBlock s))
 
-/-- The claims' differences from the setup columns at the run point, as a cubic in `μ`. -/
 noncomputable def runGroupPoly (s : Shape) (S : Setup F) (o : EarlyOut F K) : K[X] :=
   C (o.rowClaim - mle o.runPoint (rowColumn S)) +
     C (o.slotClaim s S - mle o.runPoint (slotColumn S)) * X +
     C (o.coefClaim - mle o.runPoint (coefColumn S)) * X ^ 2 +
     C (o.embeddedBlock s - mle o.runPoint (blockColumn S)) * X ^ 3
 
-/-- A point padded with zeros to the setup variables. -/
 def padded (n : ℕ) (point : List K) : List K := point ++ List.replicate (n - point.length) 0
 
-/-- The true partials `T~(u, rest)` of a group at `point`. -/
 noncomputable def truePartials (G : ℕ → K) (point : List K) (u : ℕ) : K :=
   mle (point.drop 3) fun y => G (u + 2 ^ 3 * y)
 
-/-- The honest-fold stage's transcript. -/
 structure HonestOut (K : Type) (t L : ℕ) where
   mu : K
-  /-- Group `0` (key) and group `1` (run) partials, `u < 8`. -/
   partials : Fin 2 → ℕ → K
   alpha : List K
   p1 : List (P1Tables K)
@@ -69,7 +50,6 @@ theorem runGroupPoly_natDegree (s : Shape) (S : Setup F) (o : EarlyOut F K) :
     · exact (natDegree_C_mul_le _ _).trans (by simp)
   · exact (natDegree_C_mul_le _ _).trans (by simp)
 
-/-- A zero run-group cubic makes every claim the setup's value. -/
 theorem setupTrue_of_poly (s : Shape) (S : Setup F) (o : EarlyOut F K) (zero : runGroupPoly s S o = 0) :
     SetupTrue s S o := by
   have c0 := congrArg (fun p => p.coeff 0) zero
@@ -80,12 +60,10 @@ theorem setupTrue_of_poly (s : Shape) (S : Setup F) (o : EarlyOut F K) (zero : r
   norm_num at c0 c1 c2 c3
   exact ⟨sub_eq_zero.mp c0, sub_eq_zero.mp c1, sub_eq_zero.mp c2, sub_eq_zero.mp c3⟩
 
-/-- The extension at `p ++ q` through the partials of `p`'s cube. -/
 theorem mle_partials (p q : List K) (G : ℕ → K) :
     mle (p ++ q) G = mle p fun u => mle q fun y => G (u + 2 ^ p.length * y) := by
   rw [mle_append_split, mle_swap]
 
-/-- The fold at `α` read at `q` is `α`'s extension of the partials at `q`. -/
 theorem mle_fold_partials (α q : List K) (G : ℕ → K) :
     mle q (fold α G) = mle α fun u => mle q fun y => G (u + 2 ^ α.length * y) := by
   have : fold α G = fun y => mle α fun u => G (u + 2 ^ α.length * y) := by
@@ -97,7 +75,6 @@ section Game
 
 variable [Fintype K] [DecidableEq K]
 
-/-- Draw `m` coordinates, each off the bad set of the point so far. -/
 noncomputable def drawPoint (bad : List K → Finset K) : ℕ → List K → Game (List K)
   | 0, point => .pure point
   | m + 1, point => .draw K (bad point) fun c => drawPoint bad m (point ++ [c])
@@ -131,7 +108,6 @@ theorem drawPoint_cost (bad : List K → Finset K) (E : ℕ) (card : ∀ point, 
       linarith
 
 open Classical in
-/-- The query tuples a wrong P1 candidate passes: every leaf agrees with the honest fold. -/
 noncomputable def foldQueryBad (m t L : ℕ) (q : ℕ → K) (honestKey honestRun : ℕ → K) (v : P1Tables K) :
     Finset (Fin t → Fin L) :=
   if ∀ i, i < 2 ^ m → v.foldKey i = honestKey i ∧ v.foldRun i = honestRun i then ∅
@@ -139,8 +115,6 @@ noncomputable def foldQueryBad (m t L : ℕ) (q : ℕ → K) (honestKey honestRu
       (univ m v.foldRun).eval (q j) = (univ m honestRun).eval (q j)
 
 omit [Fintype K] in
-/-- Words whose every leaf a wrong P1 candidate passes: density at most
-`((2^m - 1)·(P / L + 1) / P)^t`. -/
 theorem foldQueryBad_card (m t L P : ℕ) [NeZero L] (q : ℕ → K) (honestKey honestRun : ℕ → K)
     (v : P1Tables K) (distinct : ∀ i j, i < L → j < L → q i = q j → i = j) :
     ((Finset.univ.filter fun x : Fin t → Fin P => lowBits L x ∈ foldQueryBad m t L q honestKey honestRun v).card :
@@ -175,9 +149,7 @@ theorem foldQueryBad_card (m t L P : ℕ) [NeZero L] (q : ℕ → K) (honestKey 
         simp [agree]
     by_cases key : v.foldKey i = honestKey i
     · convert image.2.trans (bound _ _ (differs key))
-      all_goals rfl
     · convert image.1.trans (bound _ _ key)
-      all_goals rfl
 
 end Game
 
@@ -185,19 +157,15 @@ section Stage
 
 variable [Fintype K] [DecidableEq K]
 
-/-- The key point padded to the setup variables: the lane point, then the linear block point. -/
 noncomputable def keyPoint (s : Shape) (lin : LinearOut K) : List K :=
   padded s.setupVars (lanePoint lin.zeta s.laneVars ++ lin.blockPoint)
 
-/-- The `α` bad sets of both groups' partials. -/
 noncomputable def alphaBad (s : Shape) (S : Setup F) (o : EarlyOut F K) (lin : LinearOut K) (mu : K)
     (partials : Fin 2 → ℕ → K) (point : List K) : Finset K :=
   foldBad (fun u => partials 0 u - truePartials (keyGroup s S lin.lam) (keyPoint s lin) u) 3 point ∪
     foldBad (fun u => partials 1 u - truePartials (runGroup S mu) (padded s.setupVars o.runPoint) u) 3 point
 
 open Classical in
-/-- The honest-fold stage: `μ`, the partials, `α`, the partial checks, the P1
-candidates and the query leaves, drawn as uniform words below `P` mod `L`. -/
 noncomputable def honestGame (s : Shape) (S : Setup F) (L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K)
     (o : EarlyOut F K) (lin : LinearOut K) : Game (Option (HonestOut K s.queries L)) :=
   .draw K (zeros (runGroupPoly s S o)) fun mu =>
@@ -213,7 +181,6 @@ noncomputable def honestGame (s : Shape) (S : Setup F) (L1 L P : ℕ) [NeZero L]
         fun words => .pure (some ⟨mu, partials, alpha, p1.1, lowBits L words⟩)
     else .pure none
 
-/-- The P1 openings of the honest-fold stage agree with candidate `v`. -/
 def HonestConsistent (s : Shape) (S : Setup F) (q : ℕ → K) (o : EarlyOut F K) (lin : LinearOut K)
     {L : ℕ} (h : HonestOut K s.queries L) (v : P1Tables K) : Prop :=
   mle ((keyPoint s lin).drop 3) v.foldKey = mle h.alpha (h.partials 0) ∧
@@ -223,7 +190,6 @@ def HonestConsistent (s : Shape) (S : Setup F) (q : ℕ → K) (o : EarlyOut F K
       mle (powerPoint (q (h.queries j)) (s.setupVars - 3)) v.foldRun =
         (univ (s.setupVars - 3) (fold h.alpha (runGroup S h.mu))).eval (q (h.queries j))
 
-/-- Partials whose `α`-combination is the honest fold's value are the true partials. -/
 theorem partials_true (G : ℕ → K) (point : List K) (alpha : List K) (w : ℕ → K)
     (alphaLength : alpha.length = 3)
     (path : Path (foldBad (fun u => w u - truePartials G point u) 3) [] alpha)
@@ -240,15 +206,12 @@ theorem partials_true (G : ℕ → K) (point : List K) (alpha : List K) (w : ℕ
   exact sub_self _
 
 omit [Fintype K] [DecidableEq K] in
-/-- The value of a group at a padded point, through its true partials. -/
 theorem value_of_partials (G : ℕ → K) (point : List K) (long : 3 ≤ point.length) :
     mle (point.take 3) (truePartials G point) = mle point G := by
   conv_rhs => rw [← List.take_append_drop 3 point]
   rw [mle_partials, List.length_take, min_eq_left long]
   rfl
 
-/-- The honest-fold stage makes the key value and the run-point setup claims
-the setup's, off the bad sets. -/
 theorem honest_world (s : Shape) (S : Setup F) (q : ℕ → K)
     (o : EarlyOut F K) (lin : LinearOut K) {L : ℕ} (h : HonestOut K s.queries L) (v : P1Tables K)
     (keyLong : 3 ≤ (keyPoint s lin).length) (runLong : 3 ≤ (padded s.setupVars o.runPoint).length)
@@ -266,20 +229,18 @@ theorem honest_world (s : Shape) (S : Setup F) (q : ℕ → K)
       SetupTrue s S o := by
   classical
   obtain ⟨keyFold, runFold, queried⟩ := consistent
-  -- The P1 folds are the honest folds on their cube.
   have honest : ∀ i, i < 2 ^ (s.setupVars - 3) →
       v.foldKey i = fold h.alpha (keyGroup s S lin.lam) i ∧ v.foldRun i = fold h.alpha (runGroup S h.mu) i := by
     by_contra wrong
     apply hq
     unfold foldQueryBad
-    rw [if_neg wrong]
+    rw [ite_eq_right wrong]
     unfold queryBad
     rw [Fintype.mem_piFinset]
     intro j
     simp only [Finset.mem_filter, Finset.mem_univ, true_and]
     rw [univ_eval (s.setupVars - 3) v.foldKey, univ_eval (s.setupVars - 3) v.foldRun]
     exact queried j
-  -- The partials are the true partials.
   have keyPartials := partials_true (keyGroup s S lin.lam) (keyPoint s lin) h.alpha (h.partials 0)
     alphaLength (Path.mono_short 3 (fun q _ => Finset.subset_union_left) _ _ (by simp [alphaLength]) path)
     (by rw [← keyFold]; exact mle_congr _ fun i lt => (honest i (by rw [← keyDrop]; exact lt)).1)
@@ -297,7 +258,7 @@ theorem honest_world (s : Shape) (S : Setup F) (q : ℕ → K)
   by_contra nonzero
   apply hμ
   unfold zeros
-  rw [if_neg nonzero]
+  rw [ite_eq_right nonzero]
   simp only [Finset.mem_filter, Finset.mem_univ, true_and]
   rw [runGroupPoly_eval, runTrue, padded, mle_append_zeros, sub_self]
 

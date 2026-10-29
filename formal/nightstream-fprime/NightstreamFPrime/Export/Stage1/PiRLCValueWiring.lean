@@ -1,14 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSAssignmentSoundness
 import NightstreamFPrime.Export.Stage1.PiRLCProductSchedule
 
-/-!
-Owns the PiCCS forms consumed by the direct PiRLC product. Each scheduled
-value resolves through the existing PiCCS source classifier, so pilot and
-PiCCS coordinates remain authoritative.
-
-This module does not allocate retained coordinates or construct matrix rows.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCValueWiring
 
 open NightstreamFPrime.Circuit
@@ -35,7 +27,7 @@ theorem valueSource_support
         unfold PiCCSOrdinarySourceSupport.InRange
         simp only [PiRLCProductSchedule.Descriptor.valueColumn,
           PiRLCCombinationInvocations.commitmentValueSourceStart, first,
-          if_pos]
+          ite_eq_left]
         have blockBound := block.isLt
         have laneBound := lane.isLt
         norm_num [PiCCSInputs.freshCommitmentStart,
@@ -71,7 +63,7 @@ theorem valueSource_support
         unfold PiCCSOrdinarySourceSupport.InRange
         simp only [PiRLCProductSchedule.Descriptor.valueColumn,
           PiRLCCombinationInvocations.publicInputValueSourceStart, first,
-          if_pos]
+          ite_eq_left]
         have blockBound := block.isLt
         have laneBound := lane.isLt
         norm_num [PilotProduction.priorPublicInputStart,

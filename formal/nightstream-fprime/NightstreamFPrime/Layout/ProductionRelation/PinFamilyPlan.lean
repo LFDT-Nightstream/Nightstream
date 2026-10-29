@@ -1,11 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.PinRow
 import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
 
-/-!
-Owns an indexed family of zero-pin rows. Each row enforces one exact affine
-form equal to zero through the fixed production polynomial.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
 
 open NightstreamFPrime.Spec
@@ -37,7 +32,7 @@ theorem plan_rowImage_at {logicalWidth rowCount : Nat}
     (plan interface rowCount_le).rowImage assignment
         ((plan interface rowCount_le).rowLayout.toVertex row) =
       (forms interface row).portImages assignment := by
-  rw [ProductionRelation.Plan.rowImage_toVertex]
+  erw [ProductionRelation.Plan.rowImage_toVertex]
   funext port
   unfold PinRow.Forms.portImages
   cases found : ProductionRelation.meaningfulPort? port with
@@ -71,7 +66,7 @@ theorem planRowsZero_iff {logicalWidth rowCount : Nat}
     have negated := congrArg Neg.neg zero
     simpa [forms] using negated
   · intro equations row
-    rw [plan_residual_at, PinRow.Forms.residual_eq]
+    erw [plan_residual_at, PinRow.Forms.residual_eq]
     simp [forms, equations row]
 
 end NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan

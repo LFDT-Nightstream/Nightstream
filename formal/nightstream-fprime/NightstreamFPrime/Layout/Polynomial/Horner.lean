@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.R1CS
 import NightstreamFPrime.Gadgets.Polynomial.Horner
 
-/-!
-Owns physical lowering for the reusable quadratic-extension Horner compiler.
-Each stored product is three rank-one rows and no lowering cell. The cost is
-proved structurally from the coefficient-list length.
-It does not own any protocol coefficient order or exponent schedule.
--/
-
 namespace NightstreamFPrime.Layout.Polynomial.Horner
 
 open NightstreamFPrime.Spec

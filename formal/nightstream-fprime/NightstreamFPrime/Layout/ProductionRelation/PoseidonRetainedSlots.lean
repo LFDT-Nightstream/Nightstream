@@ -1,16 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonTemplatePlan
 import NightstreamFPrime.Layout.ProductionRelation.RetainedSlot
 
-/-!
-Owns the exact retained low-norm slots for one canonical Poseidon2 template.
-The compiler keeps one general-field slot for each of the 150 S-box outputs,
-in the same order as the direct template rows. Linear trace values are not
-retained by this module.
-
-This is a fixed-size template object. It does not expand package invocations
-or select the remaining Stage 1 source slots.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedSlots
 
 open NightstreamFPrime.Spec

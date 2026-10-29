@@ -2,10 +2,7 @@ import NightstreamFPrime.Export.RowSemantics
 import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Layout.Stage1.NextPreimageInputs
 
-/-!
-Owns the five ordinary package rows for HyperNova Construction 2's next
-state-hash preimage.
--/
+/-! HyperNova Construction 2. -/
 
 namespace NightstreamFPrime.Export.Stage1.NextPreimagePackage
 

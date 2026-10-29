@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.ProductionRelation
 
-/-!
-Owns evaluation over the entries stored in a production sparse form. Its
-equality with the canonical column sum includes repeated columns and
-cancelling coefficients, without a distinctness premise.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.SparseForm
 
 open NightstreamFPrime.Spec

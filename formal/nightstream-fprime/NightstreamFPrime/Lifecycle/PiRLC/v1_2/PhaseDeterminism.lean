@@ -1,11 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 
-/-!
-Owns deterministic equality for two accepted PiRLC phases. It derives the
-same challenges from the same sampler seed and then the same combined output
-from the accepted PiRLC equations. It adds no transcript or circuit rule.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics.PhaseHolds
 
 open NightstreamFPrime.Circuit

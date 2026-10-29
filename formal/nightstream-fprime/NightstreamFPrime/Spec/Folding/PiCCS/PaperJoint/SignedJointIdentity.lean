@@ -3,12 +3,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 
-/-!
-Exact finite SuperNeo v1.2 joint identity from Section 7.3 and Appendix B.2.
-`Pad` and the 4 CCS matrices are separate evaluation families. This file
-owns the pointwise four-term `Q`, its claimed target, the four residual
-families, and their signed identity. It emits no constraints.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedJointIdentity
 

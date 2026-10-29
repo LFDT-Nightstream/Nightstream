@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.PilotNifsCompleteness
 import NightstreamFPrime.Lifecycle.VerifierContext
 
-/-!
-Owns source-word preservation through the constructed pilot and C/R/D
-prefixes. Every prefix uses its existing allocation interval; D source
-loading uses its existing bounded write interval. No global environment
-equality or new source representation is assumed.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.NifsSourceReadback
 
 open NightstreamFPrime.Spec

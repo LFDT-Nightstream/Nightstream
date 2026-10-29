@@ -1,11 +1,5 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Hash
 
-/-!
-Owns a proof-carrying Poseidon2 hash whose four digest expressions are
-allocated by the hash program itself. Parents can pass those expressions to
-later opaque children without adding caller-owned digest cells.
--/
-
 namespace NightstreamFPrime.Gadgets.Poseidon2.RawFormal
 
 open NightstreamFPrime.Spec

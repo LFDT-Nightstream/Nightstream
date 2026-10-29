@@ -1,19 +1,5 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingKAction
 
-/-!
-Coefficientwise `RingF -> RingK` compatibility with executable Phi81
-quotient multiplication.
-
-Owns: preservation of the raw schoolbook convolution and of the exact
-`X^54 + X^27 + 1` reduction implemented by `Concrete.ringFMul` and
-`Concrete.ringKMul`.
-
-Does not own: associativity or commutativity of either quotient
-multiplication, the complete-carrier action, Boolean MLE, the full `Pi_RLC`
-evaluation-homomorphism theorem, Rust/R1CS refinement, row removal, or cost
-counts.
--/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.Embedding
 
 open NightstreamFPrime.Spec
@@ -61,7 +47,7 @@ private theorem foldl_raw_embedChallenge
   | cons index indices inductionHypothesis =>
       simp only [List.foldl_cons]
       by_cases active : index <= degree ∧ degree - index < ringDegree
-      · simp only [if_pos active, ringKCoeff_embedChallenge]
+      · simp only [ite_eq_left active, ringKCoeff_embedChallenge]
         have initialStep :
             K.add (K.embed initial)
                 (K.mul
@@ -77,7 +63,7 @@ private theorem foldl_raw_embedChallenge
           inductionHypothesis
             (initial +
               ringFCoeff left index * ringFCoeff right (degree - index))
-      · simp only [if_neg active]
+      · simp only [ite_eq_right active]
         exact inductionHypothesis initial
 
 theorem rawMulCoeffK_embedChallenge
@@ -108,21 +94,21 @@ theorem embedChallenge_ringFMul (left right : RingF) :
   · by_cases hasTwice :
       output.val + (ringDegree + ringMiddleDegree) <= 2 * (ringDegree - 1)
     · simp only [RingKAction.embedChallenge, ringFMul, ringKMul,
-        if_pos foldedLow, if_pos hasTwice,
+        ite_eq_left foldedLow, ite_eq_left hasTwice,
         rawMulCoeffK_embedChallenge]
       exact embed_reduction _ _ _
     · simp only [RingKAction.embedChallenge, ringFMul, ringKMul,
-        if_pos foldedLow, if_neg hasTwice,
+        ite_eq_left foldedLow, ite_eq_right hasTwice,
         rawMulCoeffK_embedChallenge]
       exact embed_reduction _ _ _
   · by_cases hasTwice :
       output.val + (ringDegree + ringMiddleDegree) <= 2 * (ringDegree - 1)
     · simp only [RingKAction.embedChallenge, ringFMul, ringKMul,
-        if_neg foldedLow, if_pos hasTwice,
+        ite_eq_right foldedLow, ite_eq_left hasTwice,
         rawMulCoeffK_embedChallenge]
       exact embed_reduction _ _ _
     · simp only [RingKAction.embedChallenge, ringFMul, ringKMul,
-        if_neg foldedLow, if_neg hasTwice,
+        ite_eq_right foldedLow, ite_eq_right hasTwice,
         rawMulCoeffK_embedChallenge]
       exact embed_reduction _ _ _
 

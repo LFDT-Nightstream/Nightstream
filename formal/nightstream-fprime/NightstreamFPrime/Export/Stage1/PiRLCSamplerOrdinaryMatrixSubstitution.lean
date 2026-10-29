@@ -2,9 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSchedule
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlan
 import NightstreamFPrime.Export.MatrixProgram.Ordinary
 
-/-! Four compact source grids for the sampler ordinary matrix block.
-Each grid names current canonical source columns and their retained forms. -/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSubstitution
 
 open NightstreamFPrime.Layout.MatrixProgram NightstreamFPrime.Layout
@@ -105,7 +102,7 @@ theorem logicalGrid_form? {program : Program} {logicalWidth : Nat}
   have slot : (⟨source.val * 617 + position.val, by rw [logicalBlock_slotCount]; omega⟩ :
       Fin (logicalBlock program).slotCount) = logicalSlot source position := by
     apply Fin.ext
-    simp [logicalSlot, Fin.encodeProd, logicalCountPerSource, Nat.mul_comm]
+    simp [logicalSlot, Fin.encodeProd, Fin.mkDivMod, logicalCountPerSource, Nat.mul_comm]
   rw [slot] at direct
   exact direct
 
@@ -124,7 +121,7 @@ theorem freshGrid_form? {program : Program} {logicalWidth : Nat}
   have slot : (⟨source.val * 144 + position.val, by rw [freshBlock_slotCount]; omega⟩ :
       Fin (freshBlock program).slotCount) = freshSlot source position := by
     apply Fin.ext
-    simp [freshSlot, Fin.encodeProd, freshCountPerSource, Nat.mul_comm]
+    simp [freshSlot, Fin.encodeProd, Fin.mkDivMod, freshCountPerSource, Nat.mul_comm]
   rw [slot] at direct
   exact direct
 
@@ -147,7 +144,8 @@ theorem wordGrid_form? {program : Program} {logicalWidth : Nat}
       Fin (PiRLCRetainedGeometry.challengeBlock program).slotCount) =
       PiRLCProductSourceBlocks.challengeIndex source position := by
     apply Fin.ext
-    simp [PiRLCProductSourceBlocks.challengeIndex, Fin.encodeProd, ringDegree, Nat.mul_comm]
+    simp [PiRLCProductSourceBlocks.challengeIndex, Fin.encodeProd, Fin.mkDivMod, ringDegree,
+      Nat.mul_comm]
   rw [slot] at direct
   exact direct
 
@@ -181,9 +179,9 @@ theorem poseidonGrid_form? {program : Program} {logicalWidth : Nat}
       (PiRLCSamplerPoseidonPlan.retainedStart program)
       (PiRLCSamplerPoseidonPlan.retainedFits (PiRLCSamplerOrdinaryDirectPlan.poseidonGeometry geometry)))
     apply Fin.ext
-    simp only [PoseidonRetainedFamily.slot_val, PoseidonRetainedSlots.rows_length,
+    simp only [PoseidonRetainedFamily.slot, Fin.cast, PoseidonRetainedSlots.rows_length,
       PoseidonRetainedSlots.finalRow_val, Location.poseidonInvocation,
-      PiRLCSamplerPoseidonPlan.invocation, Fin.coe_mkDivMod, Fin.encodeProd,
+      PiRLCSamplerPoseidonPlan.invocation, Fin.mkDivMod, Fin.encodeProd,
       PiRLCSamplerPoseidonPlan.invocationsPerSource]
     omega
   rw [outputEq] at direct

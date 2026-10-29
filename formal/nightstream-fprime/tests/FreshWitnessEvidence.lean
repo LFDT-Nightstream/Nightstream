@@ -7,11 +7,6 @@ import tests.AxiomsCachedAssignmentProducts
 import tests.AxiomsFreshCommitmentBlock
 import tests.EvidenceMetadata
 
-/-! Exact procedure and value refinements for the fresh-witness executable.
-Compact completion retains explicit physical geometry and output-scope premises.
-Final checks of the concrete prepared plan imply all selected physical rows.
-Caller parsing and the separate PiCCS source-polynomial bridge remain outside this target. -/
-
 namespace LeanGraph.Targets
 
 open NightstreamFPrime

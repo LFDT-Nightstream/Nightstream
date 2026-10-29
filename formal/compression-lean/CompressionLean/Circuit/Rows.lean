@@ -1,34 +1,15 @@
 import CompressionLean.Circuit.Block
 
-/-!
-Owns what a witness of a run's CCS says about the run: every glue row holds
-(`Run.rows_hold`) and the cells of every block satisfy the template
-(`Run.blocks_hold`), at the wire values `Run.wireValue`.
-
-- The rows do not overlap (`layout.rs:116-151`). The block parts end where
-  the glue rows begin, and distinct template rows of distinct blocks have
-  distinct slots (`slot_inj`). So each CCS row is one glue row or one
-  template row of one block.
-- A glue row has no `X` entry, so its constraint is
-  `Σ_i (A_i·z)·(B_i·z) - C·z` (`GlueRow.Holds`).
-- The value of a wire is `z` at its column (`Layout.column`): the constant
-  one is 1, and statement word `i + 1` is word `i` of the run.
--/
-
 namespace CompressionLean.Shrink
 
-/-- `Σ coefficient·v(wire)` over a term list. -/
 def termsValue {F : Type} [CommRing F] (v : Wire → F) (terms : List (Wire × F)) : F :=
   (terms.map fun t => t.2 * v t.1).sum
 
-/-- A glue row holds at the wire values `v`: `Σ_i (A_i·v)·(B_i·v) = C·v`
-(`Trace::row_value`, `record.rs:586-596`). -/
 def GlueRow.Holds {F : Type} [CommRing F] (v : Wire → F) (row : GlueRow F) : Prop :=
   termsValue v (row.side 0) * termsValue v (row.side 1) + termsValue v (row.side 2) * termsValue v (row.side 3) +
       termsValue v (row.side 4) * termsValue v (row.side 5) =
     termsValue v (row.side 6)
 
-/-- Two products and sums with remainders below `w` are equal only termwise. -/
 private theorem mul_add_inj {w b b' k k' : ℕ} (hk : k < w) (hk' : k' < w) (h : w * b + k = w * b' + k') :
     b = b' ∧ k = k' := by
   rcases lt_trichotomy b b' with lt | rfl | gt
@@ -40,7 +21,6 @@ private theorem mul_add_inj {w b b' k k' : ℕ} (hk : k < w) (hk' : k' < w) (h :
     rw [Nat.mul_succ] at step
     omega
 
-/-- Distinct indices of distinct blocks sit in distinct slots. -/
 theorem slot_inj {size count b b' k k' : ℕ} (hb : b < count) (hb' : b' < count) (hk : k < size) (hk' : k' < size)
     (h : slot size count b k = slot size count b' k') : b = b' ∧ k = k' := by
   have rest := rest_le_narrow size
@@ -79,7 +59,6 @@ theorem rowValue_flatMap {α : Type} (l : List α) (f : α → List (Entry F)) (
   | nil => simp [rowValue]
   | cons a l ih => rw [List.flatMap_cons, rowValue_append, ih, List.map_cons, List.sum_cons]
 
-/-- A sum over `0, …, n - 1` with one nonzero term. -/
 private theorem sum_range_single {n b : ℕ} (g : ℕ → F) (hb : b < n) (zero : ∀ i < n, i ≠ b → g i = 0) :
     ((List.range n).map g).sum = g b := by
   rw [← List.sum_toFinset g List.nodup_range, List.toFinset_range]
@@ -89,14 +68,12 @@ private theorem sum_range_single {n b : ℕ} (g : ℕ → F) (hb : b < n) (zero 
 variable (T : Template F) (s : Counts)
 
 omit [Field F] in
-/-- Every entry of glue row `g` sits on CCS row `glueRow g`. -/
 theorem row_of_mem_rowEntries {g : ℕ} {row : GlueRow F} {e : Entry F} (he : e ∈ Layout.rowEntries T s g row) :
     e.row = Layout.glueRow T s g := by
   simp only [Layout.rowEntries, List.mem_flatMap, List.mem_map] at he
   obtain ⟨_, -, _, -, rfl⟩ := he
   rfl
 
-/-- Side `k` of glue row `g` is matrix `k + 1` on its row. -/
 theorem rowValue_rowEntries (z : ℕ → F) (g : ℕ) (row : GlueRow F) (k : Fin 7) :
     rowValue (Layout.rowEntries T s g row) z k.succ (Layout.glueRow T s g) =
       termsValue (fun x => z (Layout.column T s x)) (row.side k) := by
@@ -110,12 +87,12 @@ theorem rowValue_rowEntries (z : ℕ → F) (g : ℕ) (row : GlueRow F) (k : Fin
     rw [List.map_map]
     by_cases same : side = k
     · subst same
-      rw [if_pos rfl]
+      rw [ite_eq_left rfl]
       congr 1
       apply List.map_congr_left
       intro t _
       simp
-    · rw [if_neg same]
+    · rw [ite_eq_right same]
       apply List.sum_eq_zero
       intro x hx
       obtain ⟨t, -, rfl⟩ := List.mem_map.mp hx
@@ -125,7 +102,6 @@ theorem rowValue_rowEntries (z : ℕ → F) (g : ℕ) (row : GlueRow F) (k : Fin
   rw [← List.ofFn_eq_map, List.sum_ofFn]
   simp
 
-/-- Glue rows have no `X` entry. -/
 theorem rowValue_rowEntries_zero (z : ℕ → F) (g : ℕ) (row : GlueRow F) (r : ℕ) :
     rowValue (Layout.rowEntries T s g row) z 0 r = 0 := by
   unfold rowValue
@@ -135,8 +111,6 @@ theorem rowValue_rowEntries_zero (z : ℕ → F) (g : ℕ) (row : GlueRow F) (r 
   obtain ⟨e, ⟨side, -, t, -, rfl⟩, rfl⟩ := hx
   simp [(Fin.succ_ne_zero side)]
 
-/-- On CCS row `glueRow (g + k)`, the glue entries from row number `g` on are
-those of the `k`-th row. -/
 theorem rowValue_glueEntries (z : ℕ → F) (j : Fin 8) :
     ∀ (g k : ℕ) (rows : List (GlueRow F)) (row : GlueRow F), rows[k]? = some row →
       rowValue (Layout.glueEntries T s g rows) z j (Layout.glueRow T s (g + k)) =
@@ -166,8 +140,6 @@ theorem rowValue_glueEntries (z : ℕ → F) (j : Fin 8) :
       rw [here, zero_add, show g + (k + 1) = g + 1 + k by omega]
       exact rowValue_glueEntries z j (g + 1) k rest row h
 
-/-- On the CCS row of template row `k` of block `b`, the block entries are the
-template's entries on the cells of block `b`. -/
 theorem rowValue_blockEntries (wf : T.WellFormed) (z : ℕ → F) (one : z (Layout.one T s) = 1) (j : Fin 8)
     {b k : ℕ} (hb : b < s.blocks) (hk : k < T.rows) :
     rowValue (Layout.blockEntries T s) z j (Layout.blockRow T s b k) =
@@ -200,20 +172,16 @@ section Witness
 
 variable {F : Type} [Field F] (T : Template F) (s : Counts) (run : Run F) (w : ℕ → F)
 
-/-- The value of each wire under the witness `w`: `z` at the wire's column. -/
 noncomputable def Run.wireValue (x : Wire) : F := (run.ccs T s).z w (Layout.column T s x)
 
-/-- The constant one is 1. -/
 theorem Run.wireValue_one : run.wireValue T s w (.pub 0) = 1 := by
   simp [Run.wireValue, Ccs.z, Run.ccs, Layout.column, Layout.one, Ccs.publicTable]
 
-/-- Statement wire `i + 1` is word `i` of the run. -/
 theorem Run.wireValue_pub (i : ℕ) : run.wireValue T s w (.pub (i + 1)) = run.publics.getD i 0 := by
   simp [Run.wireValue, Ccs.z, Run.ccs, Layout.column, Layout.one, Ccs.publicTable]
 
 variable {T s run w}
 
-/-- **Every glue row holds** under a witness of the run's CCS. -/
 theorem Run.rows_hold (wf : T.WellFormed) (counts : run.counts = s) (holds : (run.ccs T s).Relation w) :
     ∀ row ∈ run.rows, row.Holds (run.wireValue T s w) := by
   intro row member
@@ -254,8 +222,6 @@ theorem Run.rows_hold (wf : T.WellFormed) (counts : run.counts = s) (holds : (ru
   rw [zero_pow (by norm_num), zero_add] at row
   exact sub_eq_zero.mp row
 
-/-- **The cells of every block satisfy the template** under a witness of the
-run's CCS. -/
 theorem Run.blocks_hold (wf : T.WellFormed) (counts : run.counts = s) (holds : (run.ccs T s).Relation w) :
     ∀ b < run.blocks, T.Holds fun c => run.wireValue T s w (.block b c) := by
   intro b hb k hk

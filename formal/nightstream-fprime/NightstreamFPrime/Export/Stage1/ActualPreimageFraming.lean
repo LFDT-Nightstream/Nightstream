@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSAssignmentSoundness
 import NightstreamFPrime.Export.Stage1.PilotDecodedEnvironment
 import NightstreamFPrime.Layout.Stage1.StateDecoder
 
-/-!
-Owns row-derived canonical framing for the actual pilot hash preimages.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualPreimageFraming
 
 open NightstreamFPrime.Circuit
@@ -54,7 +50,7 @@ theorem priorWord_eq
     (PiCCSOrdinaryDirectPlan.Location.priorInput word)
   rw [PiCCSOrdinaryDirectPlan.Location.priorInput_form_eq_pilot] at mapped
   simpa only [Spartan.pullback, PiCCSOrdinaryDirectPlan.Location.sourceColumn,
-    priorState, dif_pos word.isLt] using! mapped
+    priorState, dite_eq_left word.isLt] using! mapped
 
 theorem outputWord_eq
     (geometry : PiCCSOrdinaryRetainedGeometry.Geometry program logicalWidth)
@@ -67,7 +63,7 @@ theorem outputWord_eq
     (PiCCSOrdinaryDirectPlan.Location.outputInput word)
   rw [PiCCSOrdinaryDirectPlan.Location.outputInput_form_eq_pilot] at mapped
   simpa only [Spartan.pullback, PiCCSOrdinaryDirectPlan.Location.sourceColumn,
-    outputState, dif_pos word.isLt] using! mapped
+    outputState, dite_eq_left word.isLt] using! mapped
 
 theorem rowsZero_implies_actualPreimageCanonical
     (relation : ProductionKey.LogicalRelation relationLogicalWidth relationPublicFits)

@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.MatrixProgram
 import NightstreamFPrime.Layout.MatrixProgram.SparseWork
 
-/-!
-Counted construction of one retained slot's sparse reconstruction form.
-The generator visits only that slot's coordinates. Its value is the existing
-block form, including entry order. Work counts named operations and list
-traversals; it does not measure machine execution or generate a whole block.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Layout.MatrixProgram.RetainedWork

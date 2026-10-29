@@ -2,9 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSCarriedRead
 import NightstreamFPrime.Export.Stage1.PiCCSLinearRows
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImages
 
-/-! Compute original-source PiCCS endpoints with the linear carried terms
-aggregated before matrix evaluation. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages

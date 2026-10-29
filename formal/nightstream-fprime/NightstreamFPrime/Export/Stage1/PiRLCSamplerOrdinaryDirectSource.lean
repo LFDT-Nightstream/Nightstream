@@ -3,8 +3,6 @@ import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.Stage1.SpartanBounds
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-! Indexed access and exact read support for the sampler's ordinary rows. -/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectSource
 
 open NightstreamFPrime.Circuit NightstreamFPrime.Layout

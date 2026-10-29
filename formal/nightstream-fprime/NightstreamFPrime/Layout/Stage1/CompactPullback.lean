@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.Lowering
 import NightstreamFPrime.Layout.Stage1.AssemblerInputs
 
-/-!
-Owns the explicit pullback from the compact eight-child logical assembler to
-the canonical physical Stage 1 layout. Each compact child-local interval maps
-to the already validated phase-local interval. Existing source columns use the
-proved Spartan permutation and final suffix shift. Application witness and
-local columns map to their final zero-copy intervals.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.CompactPullback
 
 open NightstreamFPrime.Circuit
@@ -153,7 +145,7 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
       Spartan.SourceColumnCount := by
     change ¬ Spartan.SourceColumnCount + index.val < Spartan.SourceColumnCount
     omega
-  rw [compactEnv, if_pos belowRoot, if_neg notSource]
+  rw [compactEnv, ite_eq_left belowRoot, ite_eq_right notSource]
   simp [AssemblerInputs.applicationWitnessColumn,
     AssemblerInputs.applicationWitnessStart, ApplicationInputs.witnessColumn]
 
@@ -171,7 +163,7 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
     unfold AssemblerInputs.outputHashOffset
     omega
   unfold compactEnv
-  rw [if_neg notRoot, if_pos beforeOutput]
+  rw [ite_eq_right notRoot, ite_eq_left beforeOutput]
   apply congrArg (sourceEnv program env)
   omega
 
@@ -193,7 +185,7 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
     unfold AssemblerInputs.piCcsOffset
     omega
   unfold compactEnv
-  rw [if_neg notRoot, if_neg notOutput, if_pos beforePiCcs]
+  rw [ite_eq_right notRoot, ite_eq_right notOutput, ite_eq_left beforePiCcs]
   apply congrArg (sourceEnv program env)
   omega
 
@@ -218,8 +210,8 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
     unfold AssemblerInputs.piRlcOffset
     omega
   unfold compactEnv
-  rw [if_neg notRoot, if_neg notOutput, if_neg notPiCcs,
-    if_pos beforePiRlc]
+  rw [ite_eq_right notRoot, ite_eq_right notOutput, ite_eq_right notPiCcs,
+    ite_eq_left beforePiRlc]
   apply congrArg (sourceEnv program env)
   omega
 
@@ -248,8 +240,8 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
     unfold AssemblerInputs.piDecOffset
     omega
   unfold compactEnv
-  rw [if_neg notRoot, if_neg notOutput, if_neg notPiCcs,
-    if_neg notPiRlc, if_pos beforePiDec]
+  rw [ite_eq_right notRoot, ite_eq_right notOutput, ite_eq_right notPiCcs,
+    ite_eq_right notPiRlc, ite_eq_left beforePiDec]
   apply congrArg (sourceEnv program env)
   omega
 
@@ -284,8 +276,8 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
     unfold AssemblerInputs.runningOffset
     omega
   unfold compactEnv
-  rw [if_neg notRoot, if_neg notOutput, if_neg notPiCcs,
-    if_neg notPiRlc, if_neg notPiDec, if_pos beforeRunning]
+  rw [ite_eq_right notRoot, ite_eq_right notOutput, ite_eq_right notPiCcs,
+    ite_eq_right notPiRlc, ite_eq_right notPiDec, ite_eq_left beforeRunning]
   apply congrArg (sourceEnv program env)
   omega
 
@@ -325,9 +317,9 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
     unfold AssemblerInputs.applicationOffset
     omega
   unfold compactEnv
-  rw [if_neg notRoot, if_neg notOutput, if_neg notPiCcs,
-    if_neg notPiRlc, if_neg notPiDec, if_neg notRunning,
-    if_pos beforeApplication]
+  rw [ite_eq_right notRoot, ite_eq_right notOutput, ite_eq_right notPiCcs,
+    ite_eq_right notPiRlc, ite_eq_right notPiDec, ite_eq_right notRunning,
+    ite_eq_left beforeApplication]
   apply congrArg (sourceEnv program env)
   omega
 
@@ -370,9 +362,9 @@ def compactEnv (program : Lifecycle.Stage1.Application.Program)
   have notApplication : ¬ AssemblerInputs.applicationOffset program + index <
       AssemblerInputs.applicationOffset program := by omega
   unfold compactEnv
-  rw [if_neg notRoot, if_neg notOutput, if_neg notPiCcs,
-    if_neg notPiRlc, if_neg notPiDec, if_neg notRunning,
-    if_neg notApplication]
+  rw [ite_eq_right notRoot, ite_eq_right notOutput, ite_eq_right notPiCcs,
+    ite_eq_right notPiRlc, ite_eq_right notPiDec, ite_eq_right notRunning,
+    ite_eq_right notApplication]
   apply congrArg env
   omega
 

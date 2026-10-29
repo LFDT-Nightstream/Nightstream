@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSource
 
-/-!
-Select one existing PiCCS ordinary packet before constructing its row list.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECPiCCSPacketSource
@@ -19,8 +15,8 @@ private theorem append_getElem? {Alpha : Type} {left : List Alpha} {count : Nat}
     (left ++ right)[index]? =
       if index < count then left[index]? else right[index - count]? := by
   by_cases bounded : index < count
-  · rw [if_pos bounded, List.getElem?_append_left (by simpa only [lengthEq] using bounded)]
-  · rw [if_neg bounded, List.getElem?_append_right (by
+  · rw [ite_eq_left bounded, List.getElem?_append_left (by simpa only [lengthEq] using bounded)]
+  · rw [ite_eq_right bounded, List.getElem?_append_right (by
       simpa only [lengthEq] using Nat.le_of_not_gt bounded), lengthEq]
 
 def row? (logicalWidth : Nat)

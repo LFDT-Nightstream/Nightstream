@@ -84,8 +84,6 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.GeneratedSupport
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerGeneratedSupport
 import NightstreamFPrime.Layout.MatrixProgram.SourceProjection
 
-/-! Axiom audits for the phase-local Stage 1 opaque-child assembler. -/
-
 #audit_axioms NightstreamFPrime.Export.Package.hashRows_hold_iff
 #audit_axioms NightstreamFPrime.Export.Package.permutationRows_hold_iff
 #audit_axioms NightstreamFPrime.Export.Package.compactRows_hold_iff

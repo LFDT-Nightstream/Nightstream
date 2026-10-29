@@ -2,15 +2,6 @@ import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 import NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 import NightstreamFPrime.Lifecycle.Stage1.Accumulator
 
-/-!
-Owns the zero-copy Stage 1 accumulator view.
-
-The complete NIFS proof reuses the existing PiCCS round and output wires and
-the existing PiDEC child commitment and evaluation wires. The accumulator
-output is the existing typed PiDEC running vector. This module allocates no
-column or row and defines no second verifier relation.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.AccumulatorInputs
 
 open NightstreamFPrime.Circuit

@@ -56,8 +56,6 @@ import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 
-/-! Axiom audits for deterministic Stage 1 binding and replay security. -/
-
 #audit_axioms NightstreamFPrime.Layout.Stage1.StateEncoding.serializePreimage_eq_implies_context_eq
 #audit_axioms NightstreamFPrime.Layout.Stage1.StateEncoding.stateHash_length
 #audit_axioms NightstreamFPrime.Layout.Stage1.StateEncoding.serializePreimage_eq_implies_iteration_word_eq

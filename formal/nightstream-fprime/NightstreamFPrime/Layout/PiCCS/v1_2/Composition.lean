@@ -12,14 +12,7 @@ import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.NormTerminal
 import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.FinalIdentity
 import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding
 
-/-!
-Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5.
-Obligation: Assemble the twelve physical leaf owners in the exact order of
-the sole logical PiCCS circuit.
-
-This module owns only the parent constraint and footprint decomposition. It
-does not unfold a child operation or replace the canonical `Formal` circuit.
--/
+/-! Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5. -/
 
 namespace NightstreamFPrime.Layout.PiCCS.v1_2
 

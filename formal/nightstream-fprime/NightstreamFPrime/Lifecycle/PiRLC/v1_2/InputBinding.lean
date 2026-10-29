@@ -24,8 +24,6 @@ Parent coverage:
 - `PiRLC.Equations.inputFresh`;
 - `PiRLC.Equations.sameStructure`;
 - `PiRLC.Equations.samePoint`.
-
-The Stage 1 assembler owns the later PiCCS-output-to-this-interface wiring.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding

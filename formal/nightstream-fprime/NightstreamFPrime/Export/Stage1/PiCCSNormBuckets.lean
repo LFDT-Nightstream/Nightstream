@@ -2,8 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSNormCache
 import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 
-/-! Accumulate scalar weights for the existing signed-unit norm cubics. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNormBuckets
@@ -73,7 +71,7 @@ private theorem get_set {Alpha : Type} {count : Nat} (values : Vector Alpha coun
       intro same
       exact equal (Fin.ext same.symm)
     change (values.set selected.val value selected.isLt)[index.val] = _
-    rw [if_neg equal]
+    rw [ite_eq_right equal]
     exact Vector.getElem_set_ne selected.isLt index.isLt distinct
 
 private theorem lookup_empty (source : Fin productionShape.sourceCount) (low high : Fin 3) :
@@ -123,8 +121,8 @@ private theorem sumMap_guard {Index : Type} (indices : List Index)
     sumMap extensionOps indices (fun index => if condition then value index else extensionOps.zero) =
       if condition then sumMap extensionOps indices value else extensionOps.zero := by
   by_cases holds : condition
-  · simp only [if_pos holds]
-  · simp only [if_neg holds, sumMap_zero extensionOps extensionLaws]
+  · simp only [ite_eq_left holds]
+  · simp only [ite_eq_right holds, sumMap_zero extensionOps extensionLaws]
 
 private theorem sumFin_single {count : Nat} (selected : Fin count) (value : Fin count → K) :
     sumMap extensionOps (canonicalFinIndices count)

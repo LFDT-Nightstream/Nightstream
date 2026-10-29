@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Layout.Poseidon2
 import NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 
-/-!
-Owns the concrete package geometry and recursive fixed point for
-`Poseidon2HashChainV1`.
--/
-
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
 open NightstreamFPrime.Circuit
@@ -74,7 +69,8 @@ theorem constraints_rowCount :
       (Layout.Stage1.ApplicationInputs.interface application)
       (Layout.Stage1.ApplicationInputs.localStart application))).length *
         1096 + 1100 = 5484
-  rw [Lifecycle.Stage1.Poseidon2HashChainV1.inputChunks_length]
+  rw [Lifecycle.Stage1.Poseidon2HashChainV1.inputChunks_length
+    (Layout.Stage1.ApplicationInputs.interface application)]
 
 @[simp] theorem applicationPlan_rowCount :
     (PerApplicationPackage.applicationPlan application).rowCount = 5484 := by

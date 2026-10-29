@@ -1,26 +1,11 @@
 import CompressionLean.Circuit.Early
 
-/-!
-Owns the late stage of the layer-1 verifier (`verifier.rs:251-260`) as a
-builder program (`lateStage`): the late `β`, the late GKR (`gkrVerify` at
-`Structure::late_shapes`), the lane tables (`lane_split`, `mle.rs:109-140`),
-the late leaf checks (`Structure::check_late`, `matrix.rs:319-361`, with
-`slot_step`) and the binding of the late pairs. Each part calls `Build` in
-the order of its Rust counterpart.
-
-The stage starts from the duplex after the setup queries
-(`verifier.rs:244-249`). From earlier stages it reads only the lane weights
-`τ` and the Eval_A weights of the mixing (`mixing.eval_a()`).
--/
-
 namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (Gl Layout Relation D)
 
 namespace Mle
 
-/-- `lane_split`: the head and tail lane tables of a run class
-`(length ≤ D, ratio)` for the lane weights `tau` (`mle.rs:109-140`). -/
 def laneSplit (tau : Array ExtVar) (length : ℕ) (ratio : Gl) : Build (Array ExtVar × Array ExtVar) := do
   let ratioPower := ratio.pow length
   let mut head := Array.replicate D tau[D - 1]!
@@ -47,29 +32,21 @@ def laneSplit (tau : Array ExtVar) (length : ℕ) (ratio : Gl) : Build (Array Ex
 
 end Mle
 
-/-- `Structure::lane_tables`: `[H0, H1]` of every class (`matrix.rs:217-224`). -/
 def laneTables (layout : Layout) (tau : Array ExtVar) : Build (Array (Array ExtVar × Array ExtVar)) :=
   layout.classes.mapM fun c => Mle.laneSplit tau c.len c.ratio
 
-/-- `slot_step`: `Ĥ_t~` over slots, the class's lane table `t` at the slot's
-lane (`matrix.rs:382-392`). -/
 def slotStep (layout : Layout) (point : Array ExtVar) (lanes : Array (Array ExtVar × Array ExtVar)) (t : ℕ) :
     Build ExtVar :=
   Mle.step point (layout.segments.map (·.first))
     (layout.segments.map fun s => let pair := lanes[s.classIndex]!; (if t = 0 then pair.1 else pair.2)[s.lane]!)
     layout.slots
 
-/-- What the late leaf checks leave to openings (`matrix::LateOpenings`,
-`matrix.rs:125-131`). -/
 structure LateOpeningsView where
   pairPoint : Array ExtVar
   block : ExtVar
   blockPoint : Array ExtVar
   omega : ExtVar
 
-/-- `Structure::check_late` (`matrix.rs:319-361`): the claims are the block
-pairs and the blocks, in that order; `pairs` are the `U_j` values sent at the
-slot part of the pair point. -/
 def checkLate (layout : Layout) (beta : ExtVar) (evalA : Array (ExtVar × ExtVar))
     (lanes : Array (Array ExtVar × Array ExtVar)) (claims : Array TreeClaimView) (pairs : Array (ExtVar × ExtVar)) :
     Build LateOpeningsView := do
@@ -98,9 +75,6 @@ def checkLate (layout : Layout) (beta : ExtVar) (evalA : Array (ExtVar × ExtVar
   let block ← Build.extSub rest t
   pure { pairPoint := slotPart, block, blockPoint := blocks.point, omega := blocks.values[0]! }
 
-/-- The late stage (`verifier.rs:251-260`): draw `β`, verify the late GKR,
-build the lane tables from `tau`, check the late leaf claims against
-`lateValues` and bind them. -/
 def lateStage (rel : Relation) (tau : Array ExtVar) (evalA : Array (ExtVar × ExtVar)) (late : GkrView)
     (lateValues : Array (ExtVar × ExtVar)) : Transcript LateOpeningsView := do
   let beta ← Duplex.sampleExt

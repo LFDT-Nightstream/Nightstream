@@ -1,37 +1,17 @@
 import CompressionLean.Circuit.Early
 
-/-!
-Owns the honest-fold stage of the layer-1 verifier (`verifier.rs:208-249`)
-and the setup query point (`setup::query_point`, `verifier.rs:262-265`) as
-builder programs, with the parts they call: `setup_point` (`lib.rs:726-730`),
-`combine` (`verifier.rs:334-337`) and the leaf check `setup::check`
-(`setup.rs:243-300`). Each one calls `Build` in the order of its Rust
-counterpart.
-
-`honestStage` reads the earlier stages' outputs and its proof parts as an
-`HonestInput`. `verify` calls it after the linear stage, and calls
-`queryPoint` after the late stage.
--/
-
 namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (Gl Relation foldVars runOracles generator twoAdicGenerator)
 
-/-- `setup_point`: `point` cut or padded to `vars` coordinates with one
-zero, which is written even when no coordinate needs it (`lib.rs:726-730`). -/
 def setupPoint (point : Array ExtVar) (vars : ℕ) : Build (Array ExtVar) := do
   let zero ← Algebra.extZero
   pure (point.extract 0 vars ++ Array.replicate (vars - point.size) zero)
 
-/-- `combine`: `Σ_u eq(point, u)·partials[u]` (`verifier.rs:334-337`). -/
 def combinePartials (partials point : Array ExtVar) : Build ExtVar := do
   let eq ← Algebra.eqTable point
   Algebra.dot eq partials
 
-/-- `setup::check` (`setup.rs:243-300`): the path of `leaf` at the index with
-little-endian `bits` to `root`, then for each group of per-oracle weights the
-folded value `Σ_u α^[u]·Ô_u(q)` of its combined oracle. The groups cover the
-leaf's oracles in order. The last `scale` product is written and not read. -/
 def setupCheck (root : DigestVar) (vars : ℕ) (bits : Array Var) (leaf : LeafView)
     (groups : Array (Array ExtVar)) (alpha : Array ExtVar) : Build (Array ExtVar) := do
   let leafSize := 2 ^ foldVars
@@ -74,9 +54,6 @@ def setupCheck (root : DigestVar) (vars : ℕ) (bits : Array Var) (leaf : LeafVi
     folded := folded.push (← Algebra.dot weight combined)
   pure folded
 
-/-- `setup::query_point` (`setup.rs:203-213`): the power point
-`(q, q², q⁴, …)` of the folded oracle for the leaf with little-endian index
-`bits`, `q = g^8·ω^index`. The last square is written and not read. -/
 def queryPoint (vars : ℕ) (bits : Array Var) : Build (Array ExtVar) := do
   let rotation ← Algebra.powerFromBits (twoAdicGenerator (vars + 1 - foldVars)) bits
   let mut q ← Build.scale rotation (generator.pow (2 ^ foldVars))
@@ -86,27 +63,18 @@ def queryPoint (vars : ℕ) (bits : Array Var) : Build (Array ExtVar) := do
     q ← Build.mul q q
   pure point
 
-/-- What the honest fold reads of the earlier stages and of the proof. -/
 structure HonestInput where
-  /-- The lane part of the key point (`mle::scaled_eq_point`, `verifier.rs:188`). -/
   lanePoint : Array ExtVar
-  /-- The block part of the linear point (`verifier.rs:180`). -/
   blockPoint : Array ExtVar
-  /-- The early run point (`early.run_point`). -/
   runPoint : Array ExtVar
-  /-- The run columns `i`, `σ`, `m` at the run point (`early.setup`). -/
   setup : ExtVar × ExtVar × ExtVar
-  /-- The slot blocks' early value (`proof.early_values.block`). -/
   block : ExtVar
-  /-- `mixing.commitment(row)` for each of the `κ` rows (`verifier.rs:238`). -/
   commitmentRows : Array ExtVar
-  /-- The key group's claimed value (`proof.finals[0]`). -/
   keyValue : ExtVar
   partials : Array (Array ExtVar)
   p1 : DigestVar
   leaves : Array LeafView
 
-/-- What the later stages read of the honest fold. -/
 structure HonestOut where
   alpha : Array ExtVar
   keyPoint : Array ExtVar
@@ -114,9 +82,6 @@ structure HonestOut where
   indexBits : Array (Array Var)
   queried : Array ExtVar
 
-/-- The honest fold (`verifier.rs:208-249`): draw `μ`, bind the partials and
-draw `α`; check each group's partials against its value at the fold point;
-bind P1's root, draw each query's index bits and check its leaf. -/
 def honestStage (rel : Relation) (input : HonestInput) : Transcript HonestOut := do
   let mu ← Duplex.sampleExt
   for values in input.partials do

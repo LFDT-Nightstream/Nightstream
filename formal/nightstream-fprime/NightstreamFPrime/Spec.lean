@@ -15,5 +15,3 @@ import NightstreamFPrime.Spec.AjtaiSetupV1.Programming
 import NightstreamFPrime.Spec.AjtaiSetupV1.Prefix
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.RelaxedBinding
 import NightstreamFPrime.Spec.Phi81StrongSet.Cardinality
-
-/-! Spec layer root. Lists the modules of this layer explicitly. -/

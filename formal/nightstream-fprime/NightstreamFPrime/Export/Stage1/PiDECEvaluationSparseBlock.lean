@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationBlock
 
-/-!
-Regroup one block-filtered sparse evaluation into the canonical 54-lane
-coefficient sum.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECEvaluationSparseBlock
@@ -53,27 +48,27 @@ private theorem singleton_block_sum {columns : Nat} (selected : Fin columns)
   let selectedLane : Fin ringDegree :=
     ⟨selected.val % ringDegree, Nat.mod_lt _ (by decide)⟩
   by_cases same : selected.val / ringDegree = block
-  · rw [if_pos same]
+  · rw [ite_eq_left same]
     calc
       _ = sumRange baseOps ringDegree (fun index =>
           if index = selectedLane.val then value * term selectedLane else 0) := by
         apply sumRange_congr baseOps ringDegree
         intro index indexLt
-        rw [dif_pos indexLt]
+        rw [dite_eq_left indexLt]
         by_cases within : block * ringDegree + index < columns
-        · rw [dif_pos within, SparseForm.singleton_coefficient]
+        · rw [dite_eq_left within, SparseForm.singleton_coefficient]
           by_cases equal : index = selectedLane.val
           · have flat : selected = ⟨block * ringDegree + index, within⟩ :=
               Fin.ext ((selected_flat_iff selected block index indexLt).mpr
                 ⟨same, equal⟩)
             have laneEqual : (⟨index, indexLt⟩ : Fin ringDegree) = selectedLane :=
               Fin.ext equal
-            rw [if_pos flat, if_pos equal, laneEqual]
+            rw [ite_eq_left flat, ite_eq_left equal, laneEqual]
           · have different : selected ≠ ⟨block * ringDegree + index, within⟩ := by
               intro flat
               exact equal ((selected_flat_iff selected block index indexLt).mp
                 (congrArg Fin.val flat)).2
-            rw [if_neg different, if_neg equal, Fin.zero_mul]
+            rw [ite_eq_right different, ite_eq_right equal, Fin.zero_mul]
         · have different : index ≠ selectedLane.val := by
             intro equal
             have flat := (selected_flat_iff selected block index indexLt).mpr
@@ -81,23 +76,23 @@ private theorem singleton_block_sum {columns : Nat} (selected : Fin columns)
             apply within
             rw [← flat]
             exact selected.isLt
-          rw [dif_neg within, if_neg different]
+          rw [dite_eq_right within, ite_eq_right different]
       _ = value * term selectedLane :=
         sumRange_select baseOps baseLaws ringDegree selectedLane.val
           (fun _ => value * term selectedLane) selectedLane.isLt
-  · rw [if_neg same, Fin.mul_zero]
+  · rw [ite_eq_right same, Fin.mul_zero]
     apply sumRange_eq_zero baseOps baseLaws ringDegree
     intro index indexLt
     change _ = (0 : F)
-    rw [dif_pos indexLt]
+    rw [dite_eq_left indexLt]
     by_cases within : block * ringDegree + index < columns
     · have different : selected ≠ ⟨block * ringDegree + index, within⟩ := by
         intro flat
         exact same ((selected_flat_iff selected block index indexLt).mp
           (congrArg Fin.val flat)).1
-      rw [dif_pos within, SparseForm.singleton_coefficient,
-        if_neg different, Fin.zero_mul]
-    · rw [dif_neg within]
+      rw [dite_eq_left within, SparseForm.singleton_coefficient,
+        ite_eq_right different, Fin.zero_mul]
+    · rw [dite_eq_right within]
 
 theorem evalSparse_eq_blockSum {columns : Nat} (form : SparseForm columns)
     (block : Nat) (term : Fin ringDegree → F) :
@@ -122,10 +117,10 @@ theorem evalSparse_eq_blockSum {columns : Nat} (form : SparseForm columns)
       apply sumRange_eq_zero baseOps baseLaws ringDegree
       intro index indexLt
       change _ = (0 : F)
-      rw [dif_pos indexLt]
+      rw [dite_eq_left indexLt]
       by_cases within : block * ringDegree + index < columns
-      · rw [dif_pos within, SparseForm.empty_coefficient, Fin.zero_mul]
-      · rw [dif_neg within]
+      · rw [dite_eq_left within, SparseForm.empty_coefficient, Fin.zero_mul]
+      · rw [dite_eq_right within]
   | cons entry entries inductionHypothesis =>
       have asAdd : (⟨entry :: entries⟩ : SparseForm columns) =
           SparseForm.add (SparseForm.singleton entry.column entry.coefficient)
@@ -135,10 +130,10 @@ theorem evalSparse_eq_blockSum {columns : Nat} (form : SparseForm columns)
         ← sumRange_add]
       apply sumRange_congr baseOps ringDegree
       intro index indexLt
-      simp only [dif_pos indexLt]
+      simp only [dite_eq_left indexLt]
       by_cases within : block * ringDegree + index < columns
-      · simp only [dif_pos within, SparseForm.add_coefficient, add_mul]
-      · simp only [dif_neg within, Fin.add_zero]
+      · simp only [dite_eq_left within, SparseForm.add_coefficient, add_mul]
+      · simp only [dite_eq_right within, Fin.add_zero]
 
 theorem rowBlock_coefficient_value {columns : Nat} (form : SparseForm columns)
     (block : Nat) (children : Vector StoredRing productionGlobalParams.k)

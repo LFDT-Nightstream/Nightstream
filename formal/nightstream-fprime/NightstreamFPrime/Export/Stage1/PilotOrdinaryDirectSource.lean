@@ -3,11 +3,6 @@ import NightstreamFPrime.Gadgets.Range.CanonicalPublicU64
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.R1CS.Support
 
-/-!
-Owns indexed access and exact source support for the 686 non-Poseidon pilot
-rows.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectSource
 
 open NightstreamFPrime.Circuit
@@ -99,7 +94,7 @@ theorem priorDigest_targetColumn (lane : Fin 4) :
       PilotProduction.witnessOffset +
         (PilotProduction.absorbCount * 1096 + 1080 + lane.val) := by
     unfold PilotProduction.priorDigestStart
-    norm_num [PilotProduction.permutationRecipeCount,
+    simp only [PilotProduction.permutationRecipeCount,
       PilotValues.permutationRecipeCount,
       PilotValues.permutationOutputLocalStart]
     omega
@@ -337,10 +332,10 @@ private theorem outputDigestRows_varsSatisfy :
           PilotData.outputChain.absorbCount * 1096 + 1080 + lane.val := by
     rw [outputStateSource_eq lane, outputStateTarget_eq lane]
     unfold PilotSpartan.sourceToSpartan
-    rw [if_neg (by rw [PilotSpartan.priorPublicStart_value]; omega)]
-    rw [if_neg (by rw [PilotSpartan.outputPreimageStart_value]; omega)]
-    rw [if_neg (by rw [PilotSpartan.outputDigestStart_value]; omega)]
-    rw [if_neg (by rw [PilotSpartan.witnessStart_value]; omega)]
+    rw [ite_eq_right (by rw [PilotSpartan.priorPublicStart_value]; omega)]
+    rw [ite_eq_right (by rw [PilotSpartan.outputPreimageStart_value]; omega)]
+    rw [ite_eq_right (by rw [PilotSpartan.outputDigestStart_value]; omega)]
+    rw [ite_eq_right (by rw [PilotSpartan.witnessStart_value]; omega)]
     rw [PilotSpartan.witnessStart_value,
       PilotSpartan.witnessPrivateStart_value]
     omega
@@ -351,10 +346,10 @@ private theorem outputDigestRows_varsSatisfy :
     rw [outputDigestStart_eq, outputChainDigestStart_eq]
     have laneBound := lane.isLt
     unfold PilotSpartan.sourceToSpartan
-    rw [if_neg (by rw [PilotSpartan.priorPublicStart_value]; omega)]
-    rw [if_neg (by rw [PilotSpartan.outputPreimageStart_value]; omega)]
-    rw [if_neg (by rw [PilotSpartan.outputDigestStart_value]; omega)]
-    rw [if_pos (by rw [PilotSpartan.witnessStart_value]; omega)]
+    rw [ite_eq_right (by rw [PilotSpartan.priorPublicStart_value]; omega)]
+    rw [ite_eq_right (by rw [PilotSpartan.outputPreimageStart_value]; omega)]
+    rw [ite_eq_right (by rw [PilotSpartan.outputDigestStart_value]; omega)]
+    rw [ite_eq_left (by rw [PilotSpartan.witnessStart_value]; omega)]
     rw [PilotSpartan.outputDigestStart_value,
       PilotSpartan.secondPublicStart_value]
     omega

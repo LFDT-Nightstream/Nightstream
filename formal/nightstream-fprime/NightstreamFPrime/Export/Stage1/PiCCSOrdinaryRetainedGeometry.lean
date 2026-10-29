@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
 import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry
 
-/-!
-Owns the placement of PiCCS ordinary retained blocks. Source-support and
-direct-plan theorems own preservation.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry
 
 open NightstreamFPrime.Layout

@@ -1,17 +1,5 @@
 import NightstreamFPrime.Export.RowSemantics
 
-/-!
-Owns one generic R1CS expansion semantics for a circuit package. The package
-may group rows as hash chains, explicit permutation invocations, compact
-template invocations, witness instructions, and assertions. This module
-places those exact rows in one list and proves that list satisfaction is
-equivalent to the grouped package predicate.
-
-The expansion is generic in the package value. No production artifact is
-evaluated in the kernel, and row order inside a protocol phase remains a
-separate layout-refinement obligation.
--/
-
 namespace NightstreamFPrime.Export.Package
 
 open NightstreamFPrime.Circuit

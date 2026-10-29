@@ -1,11 +1,6 @@
 import NightstreamFPrime.Gadgets.Polynomial.HornerSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal
 
-/-!
-Owns variable-support propagation for the production PiCCS norm terminal.
-It changes no source order, cubic residual, circuit, or row.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.NormTerminal
 
 open NightstreamFPrime.Circuit

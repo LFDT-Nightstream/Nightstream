@@ -3,8 +3,6 @@ import NightstreamFPrime.Export.PilotData
 import NightstreamFPrime.Export.Stage1.PiCCSNonzero
 import NightstreamFPrime.Lifecycle.PilotZeroRunning
 
-/-! Owns one standalone nonzero pilot result for Lean--Rust conformance. -/
-
 namespace NightstreamFPrime.Export.Stage1.PilotParity
 
 open NightstreamFPrime.Export.Codec
@@ -116,9 +114,7 @@ private def prepared {Alpha : Type} (task : PreparedTask Alpha) : IO Alpha :=
   | .ok value => pure value
   | .error error => throw error
 
-/-- Compute independent preimages and hashes on native tasks, then serialize
-the canonical schema once from the shared digest values. The explicit fixture
-context is checked against the canonical package by the Rust parity gate. -/
+/-- The Rust parity gate checks the fixture context against the canonical package. -/
 def parityValueIO (vk : KeyDigest) : IO Value := do
   let priorPreimageTask ← IO.asTask (prio := Task.Priority.dedicated)
     (prepare fun _ => priorPreimageWords vk)

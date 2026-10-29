@@ -1,15 +1,6 @@
 import Mathlib.Data.List.GetD
 import NightstreamFPrime.Layout.LowNormSlot
 
-/-!
-Owns the proof-oriented reference encoding of a retained-source assignment.
-Slots stay in canonical compiler order. Their widths determine the exact
-logical width, and their encodings determine the exact low-norm coordinates.
-
-Production export must use proved compact blocks equal to this reference; it
-must not materialize an artifact-sized slot or coordinate list.
--/
-
 namespace NightstreamFPrime.Layout.LowNormAssignment
 
 open NightstreamFPrime.Spec
@@ -96,7 +87,9 @@ theorem prefixWidth_add_lt {sourceWidth : Nat}
   | nil => exact Fin.elim0 slot
   | cons head tail inductionHypothesis =>
       rcases slot with ⟨_ | index, bound⟩
-      · simp [prefixWidth, logicalWidth]
+      · have below := coordinate.isLt
+        simp at below
+        simp [prefixWidth, logicalWidth]
         omega
       · let tailSlot : Fin tail.length := ⟨index, by simpa using bound⟩
         have inside := inductionHypothesis tailSlot coordinate

@@ -2,15 +2,6 @@ import NightstreamFPrime.Layout.Stage1.Lowering
 import NightstreamFPrime.Layout.Stage1.SpartanRows
 import NightstreamFPrime.Layout.Stage1.AssemblerApplicationCompleteness
 
-/-!
-Owns the one physical Stage 1 row order for a verifier-selected application.
-
-The validated prefix is first mapped to Spartan order. Application-private
-columns then occupy the old constant/public boundary, so the old constant and
-public suffix moves by one exact displacement. The selected Lean application
-rows and the five NextPreimage rows follow. No file boundary adds a row.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.Lowering
 
 open NightstreamFPrime.Circuit

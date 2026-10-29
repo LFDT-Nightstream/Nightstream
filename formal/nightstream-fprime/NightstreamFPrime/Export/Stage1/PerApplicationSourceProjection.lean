@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.MatrixProgram.SourceProjection
 import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 
-/-!
-Owns the package-to-source column projections for ordinary rows in one
-per-application Stage 1 package.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 
 open NightstreamFPrime.Layout.R1CS (mapCombinationColumns mapRowColumns mapCombinationColumns_zero mapCombinationColumns_const mapCombinationColumns_one mapCombinationColumns_ofVar mapCombinationColumns_add mapCombinationColumns_scale)
@@ -195,7 +190,7 @@ private theorem pilot_column_private (program : Program) (column : Nat)
   have notInput : ¬ column < Spartan.pilotInputPrivateColumnCount := by omega
   have lifted : Spartan.liftPilotColumn column =
       column + Spartan.proofInputColumnCount := by
-    simp only [Spartan.liftPilotColumn, if_neg notInput, if_pos privateColumn]
+    simp only [Spartan.liftPilotColumn, ite_eq_right notInput, ite_eq_left privateColumn]
   have belowBase :
       column + Spartan.proofInputColumnCount <
         PerApplicationPackage.basePackage.layout.constantColumn := by
@@ -265,7 +260,7 @@ private theorem pilot_column_suffix (program : Program) (column : Nat)
       PerApplicationPackage.basePackage.layout.constantColumn +
         (column - Spartan.pilotPrivateColumnCount) := by
     unfold Spartan.liftPilotColumn
-    rw [if_neg notInput, if_neg notPrivate]
+    rw [ite_eq_right notInput, ite_eq_right notPrivate]
     rfl
   let offset := column - Spartan.pilotPrivateColumnCount
   have offsetBound : offset < 275 := by

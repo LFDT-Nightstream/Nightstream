@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedGeometry
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedBlocks
 
-/-!
-Owns the no-gap placement of the three pilot ordinary retained blocks after
-the existing PiCCS ordinary retained prefix.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedGeometry
 
 open NightstreamFPrime.Layout

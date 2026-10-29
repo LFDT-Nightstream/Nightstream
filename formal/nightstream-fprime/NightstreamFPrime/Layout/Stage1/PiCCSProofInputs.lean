@@ -81,8 +81,8 @@ theorem serializeRounds_length (values : ProofValues) :
 
 theorem serializeOutput_length (values : ProofValues) :
     (serializeOutput values).length = outputEvaluationWords := by
-  simp [serializeOutput, outputEvaluation, outputEvaluationWords,
-    productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
+  simp only [serializeOutput, List.length_flatMap, serializeEvaluations_length]
+  simp [outputEvaluationWords, productionShape, productionProfile, Phi81MatrixSource.phi81Shape,
     Shape.sourceCount, ringDegree]
 
 theorem serializeProofInputs_length (values : ProofValues) :
@@ -226,8 +226,8 @@ theorem loadExpectedContext_agreesOutside (env : Env)
   have fourth : index ≠ expectedContextStart + 3 := by
     simp only [expectedContextWords] at outside
     omega
-  simp only [loadExpectedContext, Env.set, if_neg first, if_neg second,
-    if_neg third, if_neg fourth]
+  simp only [loadExpectedContext, Env.set, ite_eq_right first, ite_eq_right second,
+    ite_eq_right third, ite_eq_right fourth]
 
 theorem eval_pilotPrefix (values : ExternalValues) (index : Nat)
     (bound : index < priorChildrenStart) :
@@ -336,7 +336,7 @@ theorem eval_freshPublicInput
   · have loaded := congrFun
       (PilotProduction.eval_priorPublicInput values.pilot) column
     simpa [PilotProduction.priorInterface_publicInput_apply,
-      PilotProduction.priorPublicInput] using loaded
+      PilotProduction.priorPublicInput] using! loaded
   · have columnBound := column.isLt
     norm_num [priorChildrenStart, expectedContextStart, expectedContextWords,
       PilotProduction.priorPublicInputStart,

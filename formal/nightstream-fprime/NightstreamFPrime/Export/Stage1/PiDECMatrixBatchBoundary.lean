@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationBlockSupport
 
-/-!
-Two local batch links: numeric matrix rows equal the existing complete
-Phi81 sparse kernel, and an existing stored Poseidon invocation supplies
-each of its numeric block rows.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixBatchBoundary

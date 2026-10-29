@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.R1CS
 import NightstreamFPrime.Circuit.StraightLine
 
-/-!
-Owns constructive physical witnesses for the generic expression lowerer.
-The executor writes only the fresh multiplication interval and proves every
-generated rank-one row. It does not own logical witness recipes or any
-protocol relation.
--/
-
 namespace NightstreamFPrime.Layout.R1CS
 
 open NightstreamFPrime.Spec
@@ -606,7 +599,7 @@ private theorem rankOneConstraint_row_varsBelow (expression : Expr)
   | .add constant (.mul (.const coefficient) (.mul left right)), scope, result,
       found =>
       by_cases coefficientEquals : coefficient = -1
-      · rw [rankOneConstraint, dif_pos coefficientEquals] at found
+      · rw [rankOneConstraint, dite_eq_left coefficientEquals] at found
         cases constantEq : lowerAffine constant with
         | none => simp [constantEq] at found
         | some loweredConstant =>
@@ -625,7 +618,7 @@ private theorem rankOneConstraint_row_varsBelow (expression : Expr)
                         loweredRight rightEq,
                       lowerAffine_varsBelow constant start scope.1
                         loweredConstant constantEq⟩
-      · rw [rankOneConstraint, dif_neg coefficientEquals] at found
+      · rw [rankOneConstraint, dite_eq_right coefficientEquals] at found
         cases found
   | .mul left right, scope, result, found =>
       cases leftEq : lowerAffine left with
@@ -694,7 +687,7 @@ private theorem directConstraint_row_varsBelow (expression : Expr)
               cases coefficientExpr with
               | const coefficient =>
                   by_cases coefficientEquals : coefficient = -1
-                  · rw [directConstraint, dif_pos coefficientEquals] at found
+                  · rw [directConstraint, dite_eq_left coefficientEquals] at found
                     cases recipeEq : directRecipeRow output recipe with
                     | none =>
                         rw [recipeEq] at found
@@ -708,7 +701,7 @@ private theorem directConstraint_row_varsBelow (expression : Expr)
                         subst result
                         exact directRecipeRow_row_varsBelow output start recipe
                           scope.1 scope.2.2 recipeResult recipeEq
-                  · rw [directConstraint, dif_neg coefficientEquals] at found
+                  · rw [directConstraint, dite_eq_right coefficientEquals] at found
                     exact affineConstraint_row_varsBelow
                       (.add (.var output) (.mul (.const coefficient) recipe))
                       start scope result found

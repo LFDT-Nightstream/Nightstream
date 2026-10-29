@@ -1,14 +1,6 @@
 import NightstreamFPrime.Circuit.Sequence
 import NightstreamFPrime.Gadgets.Range.CanonicalU64
 
-/-!
-Owns the binding between one canonical Goldilocks word and 64 caller-owned
-little-endian public bits.
-
-The canonical-u64 child owns all decomposition witnesses and range rows. This
-wrapper adds only equality rows from those child bits to the caller bits.
--/
-
 namespace NightstreamFPrime.Gadgets.Range.CanonicalPublicU64
 
 open NightstreamFPrime.Circuit

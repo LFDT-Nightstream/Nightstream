@@ -8,13 +8,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold
 import NightstreamFPrime.Export.Stage1.PiCCSNormSource
 
-/-!
-Replay PiCCS contributions from retained ordered fresh, norm and carried
-prefixes. The initial norm bytes index the proved 81-entry table; later
-canonical field files use the existing PrefixFold operations.
-Rust messages and evaluations are not accepted by this executable.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiCCSPrefixReplay

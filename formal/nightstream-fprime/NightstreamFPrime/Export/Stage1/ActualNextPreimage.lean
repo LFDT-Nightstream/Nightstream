@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.ActualPreimageFraming
 import NightstreamFPrime.Export.Stage1.NextPreimageDirectPlan
 
-/-!
-Owns the row-derived counter and initial-state equations on the actual pilot
-preimages. The increment is an equality in Goldilocks; this module makes no
-natural-number non-wrap claim.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualNextPreimage
 
 open NightstreamFPrime.Circuit

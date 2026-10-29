@@ -3,9 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
 import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 
-/-! Proof-only closure of the fresh numeric pair sum.
-This does not verify the executable's IO task or invocation-cache loop. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSFreshComplete
@@ -167,7 +164,7 @@ theorem numericPairFresh?_value (input : PiCCSPublicReplay.Input)
     obtain ⟨high, highLoaded⟩ := fresh_loaded input witness highVertex
     have lowFields := fresh_fields input witness layout lowVertex low lowLoaded
     have highFields := fresh_fields input witness layout highVertex high highLoaded
-    simp only [numericPairFresh?, referencePair, dif_pos inside]
+    simp only [numericPairFresh?, referencePair, dite_eq_left inside]
     change (do
       let low ← PiCCSSourceImages.freshMatrixImage? selectedProgram selectedSource
         (witness.assignments (freshSourceIndex ⟨0, by decide⟩)) lowVertex
@@ -187,7 +184,7 @@ theorem numericPairFresh?_value (input : PiCCSPublicReplay.Input)
     rw [PiCCSFreshPolynomial.ccsPolynomialWithPowers_value extensionOps extensionLaws,
       PiCCSCachedSelector.equalitySelector_prepare extensionOps extensionLaws (by decide)]
     exact reference_fresh_congr _ powers _ _ _ _ _ lowFields highFields
-  · simp only [numericPairFresh?, referencePair, dif_neg inside]
+  · simp only [numericPairFresh?, referencePair, dite_eq_right inside]
 
 def freshRange? (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
@@ -290,7 +287,7 @@ private theorem referencePair_padding (input : PiCCSPublicReplay.Input)
     (PiCCSFreshPolynomial.selected_terms_positive input)
     (fun source matrix => reference_fresh_zero input witness suffix beyond false source matrix)
     (fun source matrix => reference_fresh_zero input witness suffix beyond true source matrix)
-  simp only [referencePair, dif_pos upper]
+  simp only [referencePair, dite_eq_left upper]
   exact (congrArg (outerFresh (PiCCSPublicReplay.verifierInput input) powers) zero).trans
     (outerFresh_zero _ powers)
 

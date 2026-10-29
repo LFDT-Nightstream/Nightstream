@@ -3,13 +3,6 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.RadixRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.RingKRecomposition
 
-/-!
-Owns generic variable-support preservation for the two PiDEC circuit shapes:
-the signed public-input split and fixed-radix recomposition.
-
-This module selects no Stage 1 column and changes no circuit definition.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2
 
 open NightstreamFPrime.Circuit
@@ -171,7 +164,7 @@ theorem flatConstraints_varsSatisfy
       (SignedSplitScalar.operations
         (childInterface interface offset source sourceLt)
         (sourceOffset offset source)) := by
-    simpa [childOp, dif_pos sourceLt, Sequence.childOp] using! expressionMember
+    simpa [childOp, dite_eq_left sourceLt, Sequence.childOp] using! expressionMember
   apply SignedSplitScalar.flatConstraints_varsSatisfy allowed
     (childInterface interface offset source sourceLt)
     (sourceOffset offset source)

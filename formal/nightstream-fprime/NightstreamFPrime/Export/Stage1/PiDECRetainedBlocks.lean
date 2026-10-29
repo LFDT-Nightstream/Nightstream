@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks
 
-/-!
-Owns the seven exact source intervals retained by the nonempty PiDEC rows:
-four parent outputs, the proof input, the logical split cells, and the R1CS
-fresh interval. The proof view reuses the running-transition allocation;
-the four parent views reuse PiRLC outputs. Only logical and fresh views
-allocate coordinates.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiDECRetainedBlocks
 
 open NightstreamFPrime.Layout
@@ -17,6 +9,7 @@ open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Layout.Stage1.PiDECSourceSupport
 open NightstreamFPrime.Lifecycle
 
+@[implicit_reducible]
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 

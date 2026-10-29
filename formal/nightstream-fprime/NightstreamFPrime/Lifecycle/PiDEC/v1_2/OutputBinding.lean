@@ -7,8 +7,6 @@ Paper authority: SuperNeo v1.2, Section 7.5, PiDEC output.
 Obligation: package exactly sixteen fresh child claims. Each child reuses the
 prover message commitment and evaluation, the verifier-computed public digit,
 the parent's fixed relation, and the parent's shared point.
-
-This leaf adds no witness cell, copy row, or assertion row.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputBinding

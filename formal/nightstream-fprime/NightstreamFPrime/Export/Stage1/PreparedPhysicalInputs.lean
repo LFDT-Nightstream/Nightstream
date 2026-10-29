@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PreparedPhysicalSourceTasks
 import NightstreamFPrime.Export.Stage1.PreparedPhysicalOrdinary
 
-/-! Collect the canonical physical sources without discarding their source proofs. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PreparedPhysicalInputs

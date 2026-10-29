@@ -286,8 +286,6 @@ import NightstreamFPrime.Export.Stage1.ActualNextPreimage
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan.plan_eq_of_same_shape
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan.rowsZero_iff_rowsHold
 
-/-! Axiom audits for the exact production matrix-plan authority. -/
-
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.matrixVectorAt_matrix
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.logicalRelation_matrices
 #audit_axioms NightstreamFPrime.Layout.ProductionRelation.Plan.logicalRelation_system_matrices

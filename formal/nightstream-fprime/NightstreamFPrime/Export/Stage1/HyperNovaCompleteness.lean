@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.HyperNovaHistory
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.OutputWitnessConsumer
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Completeness
 
-/-!
-Owns the honest selected NIFS call from an accepted recursive terminal
-payload. No security or work law is assumed.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaCompleteness

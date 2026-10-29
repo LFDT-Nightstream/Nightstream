@@ -1,19 +1,10 @@
 import CompressionLean.Replay.Stages
 
-/-!
-The `replayLayer1` executable: replay every variant of a Rust export and
-print, per variant, its name, every draw in order (`e c0 c1 c2` for an
-extension draw, `s w` for a word split into bits) and the verdict (`accept`,
-or `reject` and the first failed check). It does not read Rust's draws or
-verdicts; the comparison is the Rust test's.
--/
-
 open Lean CompressionLean.Replay
 
 def extLine (value : Ext) : String := s!"e {value.c0.toNat} {value.c1.toNat} {value.c2.toNat}"
 
-/-- One line per sample, as Rust logs them: a pair is two extension draws and
-the setup query words are one sample each. -/
+/-- Rust's draw-log format. -/
 def drawLines : Draw → List String
   | .ext value => [extLine value]
   | .pair first second => [extLine first, extLine second]

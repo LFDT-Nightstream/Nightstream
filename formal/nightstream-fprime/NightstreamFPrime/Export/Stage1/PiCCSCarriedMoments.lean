@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
 import NightstreamFPrime.Export.Stage1.PiCCSCachedSelector
 
-/-! Mathematical factoring of the complete first-round carried contribution
-into two weighted endpoint moments. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
@@ -380,7 +377,7 @@ theorem full_components_eq_firstRound (ops : InterpolationOps Field)
     ← FiniteSumAlgebra.sumMap_add ops laws]
   apply FiniteSumAlgebra.sumMap_congr
   intro index _
-  simp only [Nat.zero_add, PiCCSFirstRound.numericPair, dif_pos index.isLt,
+  simp only [Nat.zero_add, PiCCSFirstRound.numericPair, dite_eq_left index.isLt,
     PiCCSFirstRound.vertexPolynomial, PiCCSFirstRoundPair.pairPolynomial]
   have scale_add {degree : Nat} (scalar : Field)
       (left right : FixedPolynomial Field degree) :
@@ -395,6 +392,5 @@ theorem full_components_eq_firstRound (ops : InterpolationOps Field)
     PiCCSFirstRoundPair.pairPolynomialWithTotals,
     pairPolynomialWithNorm_split ops laws, scale_add]
   simp only [PiCCSPolynomialRange.coefficient_add, padValue, matrixValue]
-  rfl
 
 end NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments

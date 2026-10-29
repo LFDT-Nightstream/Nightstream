@@ -1,13 +1,5 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Layer
 
-/-!
-Owns the logical Poseidon2 permutation schedule. The builder emits one
-straight-line recipe for each of the sixteen lanes at every layer. Its proofs connect
-the recipe rows to the executable reference permutation and show that the
-canonical witness program is causal. Physical rows and columns belong to
-`Layout/`.
--/
-
 namespace NightstreamFPrime.Gadgets.Poseidon2.Permutation
 
 open NightstreamFPrime.Spec
@@ -147,7 +139,8 @@ theorem varsBelow_partialE (round : Nat) (state : EState) {bound : Nat}
   apply varsBelow_internalE
   intro index
   by_cases hzero : index.val = 0
-  · simp [hzero, Expr.VarsBelow, hstate, varsBelow_sboxE]
+  · simp only [hzero, ↓reduceIte]
+    exact varsBelow_sboxE (by simp [Expr.VarsBelow, hstate])
   · simp [hzero, hstate]
 
 theorem applyE_varsBelow (step : Step) (state : EState) {bound : Nat}
@@ -532,7 +525,7 @@ theorem stepRecipes_causal (start : Nat) (step : Step) (state : EState)
         · simp [partialSboxState, hzero]
           apply compileSboxes_outputs_below start [partialInput round state]
           simp [compileSboxes]
-        · simp only [partialSboxState, hzero, if_false]
+        · simp only [partialSboxState, hzero, ite_false]
           exact Expr.VarsBelow.mono (state current) (hstate current) (by omega)
 
 theorem compile_causal (start : Nat) (state : EState) (steps : List Step)

@@ -5,26 +5,15 @@ import NightstreamFPrime.Spec.GoldilocksPrime
 import NightstreamFPrime.Spec.Phi81StrongSet
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
 
-/-!
-Low-norm invertibility in the Goldilocks `Phi81` ring (SuperNeo Theorem 4 with
-`z = 3`, so `b_inv = sqrt(q / 3)`).
-
-Owns: the proof that every nonzero `a` in `F_q[X] / Phi81` with centered
-coefficients at most `bound` and `3 * bound^2 < q` has a two-sided inverse
-for the executed `ringFMul`, and the proof `lowNormInvertibility` of the
-`LowNormInvertibility` statement.
-
-Import boundary: this module loads Mathlib field theory. The Spec core
-(`Phi81StrongSet`, `PiRLCAlgebra.Challenge`, `PiRLCAlgebra.ForkStrongSet`)
-does not import it and stays free of Mathlib; only consumers that already
-load Mathlib import this module and supply `lowNormInvertibility`.
--/
+/-! SuperNeo Theorem 4, `z = 3`. -/
 
 namespace NightstreamFPrime.Spec.Phi81StrongSet
 
 open NightstreamFPrime.Spec
 open Polynomial
 open Phi81Relation.EvaluationHomomorphism
+
+attribute [local implicit_reducible] ZMod NightstreamFPrime.Spec.goldilocksModulus
 
 private abbrev Base := ZMod goldilocksModulus
 
@@ -80,7 +69,7 @@ private theorem not_cube_cubeRoot_sq (value : Base) : value ^ 3 ≠ cubeRoot ^ 2
 private theorem factor_irreducible {c : Base} (notCube : ∀ value : Base, value ^ 3 ≠ c) :
     Irreducible (X ^ 27 - C c : Polynomial Base) := by
   have irreducible :=
-    X_pow_sub_C_irreducible_of_prime_pow Nat.prime_three (by decide) 3 notCube
+    X_pow_sub_C_irreducible_of_prime_pow_of_ne_two Nat.prime_three (by decide) 3 notCube
   rwa [show (3 : Nat) ^ 3 = 27 by norm_num] at irreducible
 
 private theorem modulus_eq_product :
@@ -109,11 +98,11 @@ private theorem coeff_coefficientPolynomial {count : Nat} (coefficient : Fin cou
   · rw [Finset.sum_eq_single ⟨index, inside⟩]
     · simp
     · intro other _ different
-      exact if_neg (fun equal => different (Fin.ext equal))
+      exact ite_eq_right (fun equal => different (Fin.ext equal))
     · simp
   · apply Finset.sum_eq_zero
     intro other _
-    exact if_neg (by have := other.isLt; omega)
+    exact ite_eq_right (by have := other.isLt; omega)
 
 private noncomputable def lowPart (value : RingF) : Polynomial Base :=
   coefficientPolynomial fun index : Fin 27 =>
@@ -127,7 +116,8 @@ private theorem toPolynomial_split (value : RingF) :
     RingFPolynomial.toPolynomial value = lowPart value + X ^ 27 * highPart value := by
   ext index
   have whole : (RingFPolynomial.toPolynomial value).coeff index =
-      (coefficientPolynomial (count := ringDegree) value).coeff index := rfl
+      (coefficientPolynomial (count := ringDegree) value).coeff index := by
+    simp only [RingFPolynomial.toPolynomial, coefficientPolynomial]
   rw [whole, coeff_add, coeff_X_pow_mul', lowPart, highPart,
     coeff_coefficientPolynomial, coeff_coefficientPolynomial, coeff_coefficientPolynomial]
   by_cases low : index < 27
@@ -135,7 +125,7 @@ private theorem toPolynomial_split (value : RingF) :
     simp [low, inside, show ¬27 ≤ index by omega]
   · by_cases inside : index < ringDegree
     · have high : index - 27 < 27 := by change index < 54 at inside; omega
-      simp only [low, inside, high, show 27 ≤ index by omega, dif_pos, dif_neg, if_true,
+      simp only [low, inside, high, show 27 ≤ index by omega, dite_eq_left, dite_eq_right, ite_true,
         not_false_eq_true, zero_add]
       congr 2
       omega
@@ -229,9 +219,9 @@ private theorem eq_zero_of_factor_dvd {c : Base} (root : c ^ 2 + c + 1 = 0)
     have relation := congrArg (fun polynomial => polynomial.coeff index.val) remainderZero
     simp only [coeff_add, coeff_C_mul, coeff_zero] at relation
     apply pair_eq_zero root small _ _ relation
-    · rw [lowPart, coeff_coefficientPolynomial, dif_pos index.isLt]
+    · rw [lowPart, coeff_coefficientPolynomial, dite_eq_left index.isLt]
       exact norm _
-    · rw [highPart, coeff_coefficientPolynomial, dif_pos index.isLt]
+    · rw [highPart, coeff_coefficientPolynomial, dite_eq_left index.isLt]
       exact norm _
   have halfZero : ∀ half : Polynomial Base, half.degree < ((27 : Nat) : WithBot Nat) →
       (∀ index : Fin 27, half.coeff index.val = 0) → half = 0 := by
@@ -246,9 +236,7 @@ private theorem eq_zero_of_factor_dvd {c : Base} (root : c ^ 2 + c + 1 = 0)
     halfZero _ highDegree (fun index => (pair index).2), RingFPolynomial.toPolynomial_zero]
   ring
 
-/-- SuperNeo Theorem 4 for Goldilocks and `Phi81` (`z = 3`): a nonzero ring
-element whose centered coefficients are at most `bound`, with
-`3 * bound^2 < q`, is invertible for the executed ring product. -/
+/-- SuperNeo Theorem 4, `z = 3`. -/
 theorem invertible_of_lowNorm (value : RingF) (bound : Nat)
     (nonzero : value ≠ ringFZero)
     (norm : ∀ position, centeredMagnitude (value position) ≤ bound)
@@ -269,7 +257,7 @@ theorem invertible_of_lowNorm (value : RingF) (bound : Nat)
   have view : RingFPolynomial.toPolynomial inverse = cofactor %ₘ RingFPolynomial.modulus := by
     ext index
     by_cases inside : index < ringDegree
-    · exact RingFPolynomial.coeff_toPolynomial inverse ⟨index, inside⟩
+    · rw [RingFPolynomial.coeff_toPolynomial inverse ⟨index, inside⟩]
     · have outside : (ringDegree : WithBot Nat) ≤ index := by
         exact_mod_cast Nat.le_of_not_gt inside
       have inverseDegree :

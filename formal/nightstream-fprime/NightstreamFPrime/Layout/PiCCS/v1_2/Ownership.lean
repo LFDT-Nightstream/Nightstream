@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs
 
-/-!
-Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5.
-Obligation: Give every row family and physical column in the sole PiCCS
-layout one explicit owner.
-
-The parent adds no boundary rows or logical copy columns. Shared values remain
-the same symbolic expressions used by `Formal.opsAt`. R1CS multiplication
-intermediates occupy the one interval after all logical child intervals.
--/
+/-! Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5. -/
 
 namespace NightstreamFPrime.Layout.PiCCS.v1_2.Ownership
 

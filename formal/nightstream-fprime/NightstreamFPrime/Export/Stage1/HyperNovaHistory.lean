@@ -3,15 +3,7 @@ import NightstreamFPrime.Export.Stage1.HyperNovaInput
 import NightstreamFPrime.Export.Stage1.HyperNovaSource
 import NightstreamFPrime.Export.Stage1.PerApplicationTerminal
 
-/-!
-Owns the selected deterministic reverse history from HyperNova Appendix H.3.
-The caller supplies the actual NIFS source results in reverse chronological
-order.
-
-Correctness requires the existing source-success event and absence of the
-existing state-hash collision at the steps actually visited. This is neither
-a probabilistic extractor construction nor a runtime bound.
--/
+/-! HyperNova Appendix H.3. -/
 
 set_option autoImplicit false
 
@@ -215,6 +207,7 @@ def NoStateHashCollisions (statement : Statement) (proof : Envelope application)
 termination_by results.length
 decreasing_by simp_wf
 
+set_option backward.isDefEq.respectTransparency false in
 private theorem source_memberships (payload : Payload application) (values : SourceValues application)
     (success : SourceSucceeded application fits setup payload (some values)) :
     Lifecycle.TerminalHolds (PerApplicationFixedPoint.relation application fits)
@@ -226,7 +219,7 @@ private theorem source_memberships (payload : Payload application) (values : Sou
   have equal : returned = values := (Option.some.inj same).symm
   subst returned
   simpa only [sourceInput,
-    HyperNovaInput.running_ofClaims, HyperNovaInput.fresh_ofClaims] using! memberships
+    HyperNovaInput.running_ofClaims, HyperNovaInput.fresh_ofClaims] using memberships
 
 private theorem source_none (payload : Payload application) : ¬ SourceSucceeded application fits setup payload none := by
   rintro ⟨values, impossible, _⟩
@@ -263,7 +256,7 @@ theorem predecessor_accepted (statement : Statement) (payload : Payload applicat
       (fun _ => memberships) with ⟨_counter, initial, transition, previous⟩ | collision
   · refine ⟨initial, transition, ?_⟩
     dsimp only [decodedInput] at positive
-    simp only [if_neg (Nat.ne_of_gt positive)] at previous
+    simp only [ite_eq_right (Nat.ne_of_gt positive)] at previous
     dsimp only [Accepted, PerApplicationTerminal.Holds, predecessorStatement,
       predecessorPayload, decodedInput]
     exact previous
@@ -291,7 +284,7 @@ private theorem walk_correct (statement : Statement) (proof : Envelope applicati
         accepted with ⟨_valid, zero, initial⟩
       refine ⟨[], results, ?_, ?_, ?_, trivial⟩
       · rw [walk]
-        simp only [if_pos zero, if_pos initial, List.nil_append]
+        simp only [ite_eq_left zero, ite_eq_left initial, List.nil_append]
       · exact zero.symm
       · exact initial.symm
   | recursive payload =>
@@ -302,7 +295,7 @@ private theorem walk_correct (statement : Statement) (proof : Envelope applicati
       have currentSafe : ¬ Collision application fits setup statement payload := by
         have unfolded := safe
         rw [NoStateHashCollisions.eq_def] at unfolded
-        simp only [if_neg notZero] at unfolded
+        simp only [ite_eq_right notZero] at unfolded
         exact unfolded.1
       have counter := counter_matches application fits setup statement payload accepted currentSafe
       by_cases zero : (decodedInput application fits payload).iteration = 0
@@ -312,7 +305,7 @@ private theorem walk_correct (statement : Statement) (proof : Envelope applicati
           ⟨_bottom, prior, transition⟩ | collision
         · refine ⟨[(decodedInput application fits payload).witness], results, ?_, ?_, ?_, ?_⟩
           · rw [walk]
-            simp only [if_neg notZero, if_pos counter, if_pos zero,
+            simp only [ite_eq_right notZero, ite_eq_left counter, ite_eq_left zero,
               List.singleton_append]
           · simpa only [List.length_singleton] using first.symm
           · exact transition.symm
@@ -326,7 +319,7 @@ private theorem walk_correct (statement : Statement) (proof : Envelope applicati
         | nil =>
             rw [SuccessfulSources.eq_def] at sources
             have impossible : False := by
-              simp only [if_neg notZero, if_pos counter, if_neg zero, resultsEq] at sources
+              simp only [ite_eq_right notZero, ite_eq_left counter, ite_eq_right zero, resultsEq] at sources
             exact False.elim impossible
         | cons result tail =>
             have sourceAndTail : SourceSucceeded application fits setup payload result ∧
@@ -336,7 +329,7 @@ private theorem walk_correct (statement : Statement) (proof : Envelope applicati
                     (.recursive (predecessorPayload application fits payload values)) tail) := by
               rw [SuccessfulSources.eq_def] at sources
               cases result <;>
-                simpa only [if_neg notZero, if_pos counter, if_neg zero, resultsEq] using sources
+                simpa only [ite_eq_right notZero, ite_eq_left counter, ite_eq_right zero, resultsEq] using sources
             cases result with
             | none => exact False.elim (source_none application fits setup payload sourceAndTail.1)
             | some values =>
@@ -346,7 +339,7 @@ private theorem walk_correct (statement : Statement) (proof : Envelope applicati
                       NoStateHashCollisions application fits setup (predecessorStatement application fits payload)
                         (.recursive (predecessorPayload application fits payload values)) tail := by
                     rw [NoStateHashCollisions.eq_def] at safe
-                    simpa only [if_neg notZero, if_pos counter, if_neg zero, resultsEq] using safe
+                    simpa only [ite_eq_right notZero, ite_eq_left counter, ite_eq_right zero, resultsEq] using safe
                   exact conjunction.2
                 rcases predecessor_accepted application fits setup statement payload values previousPositive
                     accepted sourceAndTail.1 currentSafe with ⟨initial, transition, previous⟩
@@ -358,7 +351,7 @@ private theorem walk_correct (statement : Statement) (proof : Envelope applicati
                 refine ⟨earlier ++ [(decodedInput application fits payload).witness], unused,
                   ?_, ?_, ?_, ?_⟩
                 · rw [walk]
-                  simpa only [if_neg notZero, if_pos counter, if_neg zero,
+                  simpa only [ite_eq_right notZero, ite_eq_left counter, ite_eq_right zero,
                     resultsEq, List.append_assoc, List.singleton_append] using executed
                 · rw [List.length_append, List.length_singleton]
                   dsimp only [predecessorStatement] at length

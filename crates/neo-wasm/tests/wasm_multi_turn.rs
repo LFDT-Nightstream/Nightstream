@@ -3,13 +3,12 @@
 
 mod common;
 
-use common::audit::{prove_batched, verify_with_transcript, AuditProveError};
 use neo_wasm::comm_chain::COMM_CHAIN_EVENT_ARGS;
 use neo_wasm::host_event_bindings::{
     absorbed_blocks, EventBlock, ExportTemplate, HostEventBindings, Limb, SlotBinding,
 };
 use neo_wasm::witness_builder::build_witness_vector;
-use neo_wasm::{host_event_top_level_initial_state_digest, preprocess_seeded_batched, WasmVmStep};
+use neo_wasm::{host_event_top_level_initial_state, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 use wasmtime::component::{Component, Instance, Linker, Val as ComponentVal};
 use wasmtime::{Config, Engine, Store};
@@ -371,8 +370,8 @@ fn reentered_export_zeroes_an_unmapped_i64_local() {
         .iter()
         .all(|row| !row.row_kind.is_local_zero()));
     assert_eq!(
-        neo_wasm::semantic_state_digest(trace[0].state_before),
-        neo_wasm::host_event_top_level_initial_state_digest(
+        trace[0].state_before,
+        neo_wasm::host_event_top_level_initial_state(
             &run.artifacts.tables,
             trace[0].state_before.pc,
             &bindings,
@@ -549,7 +548,7 @@ fn multi_turn_proof_binds_both_turns_inputs() {
     let artifacts =
         neo_wasm::extract_first_component_core_program_artifacts(&setup.component_bytes).expect("artifacts");
     let entry_pc = common::entry_pc_for_function_ref(&artifacts, u64::from(setup.add_fref));
-    let digest = host_event_top_level_initial_state_digest(
+    let anchor = host_event_top_level_initial_state(
         &artifacts.tables,
         entry_pc,
         &setup.bindings,
@@ -558,29 +557,28 @@ fn multi_turn_proof_binds_both_turns_inputs() {
     )
     .expect("bindings anchor");
     assert_eq!(
-        digest,
-        neo_wasm::semantic_state_digest(setup.trace[0].state_before),
+        anchor, setup.trace[0].state_before,
         "verifier initial state must match the trace's first before-state"
     );
 
-    let batch_size = 8;
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &setup.trace, batch_size).expect("prove");
     let final_state = common::final_state(&setup.trace);
     assert_eq!((final_state.output.value_lo, final_state.output.value_hi), (42, 0));
 
+    let fold =
+        |transcript: &[_]| neo_wasm::comm_chain::fold_event_blocks(Default::default(), transcript).canonical_u64();
     let transcript = expected_transcript(&setup.bindings, setup.add_fref, &turn_inputs(), &[7, 42]);
-    verify_with_transcript(&prep, &proof, final_state, Default::default(), &transcript)
-        .expect("verify with the two-turn transcript");
+    assert_eq!(
+        final_state.comm_chain,
+        fold(&transcript),
+        "the two-turn transcript must match"
+    );
 
     let mut wrong_turns = turn_inputs();
     wrong_turns[1][0] = 34;
     let wrong = expected_transcript(&setup.bindings, setup.add_fref, &wrong_turns, &[7, 42]);
-    assert!(
-        matches!(
-            verify_with_transcript(&prep, &proof, final_state, Default::default(), &wrong),
-            Err(AuditProveError::TranscriptMismatch)
-        ),
+    assert_ne!(
+        final_state.comm_chain,
+        fold(&wrong),
         "a transcript claiming a different turn-2 input must be rejected"
     );
 }

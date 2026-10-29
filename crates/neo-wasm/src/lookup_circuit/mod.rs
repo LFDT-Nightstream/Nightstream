@@ -5,12 +5,12 @@ mod builder;
 mod compact;
 
 use neo_ccs::{CcsMatrix, CscMat};
-use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 use thiserror::Error;
 
 use crate::layout::COL_ONE;
+use crate::sparse_r1cs::SparseR1cs;
 use builder::LookupR1csRow;
 
 pub(crate) struct CompactLookupShape {
@@ -144,14 +144,15 @@ fn matrix_triplets(matrix: &CcsMatrix<F>) -> Vec<(usize, usize, F)> {
     match matrix {
         CcsMatrix::Identity { n } => (0..*n).map(|index| (index, index, F::ONE)).collect(),
         CcsMatrix::Csc(csc) => {
-            let mut out = Vec::with_capacity(csc.vals.len());
-            for column in 0..csc.ncols {
-                for index in csc.col_ptr[column]..csc.col_ptr[column + 1] {
-                    out.push((csc.row_idx[index], column, csc.vals[index]));
+            let mut out = Vec::with_capacity(csc.vals().len());
+            for column in 0..csc.ncols() {
+                for index in csc.column_range(column) {
+                    out.push((csc.row_index(index), column, csc.vals()[index]));
                 }
             }
             out
         }
+        _ => unreachable!("the WASM relation builds plain CSC matrices"),
     }
 }
 
@@ -160,7 +161,7 @@ pub enum LookupCircuitError {
     #[error("lookup relation has {actual} width declarations for {expected} base columns")]
     WidthCount { actual: usize, expected: usize },
     #[error(transparent)]
-    Frontend(#[from] neo_fold_clean::frontends::direct_ccs::FrontendError),
+    Frontend(#[from] crate::sparse_r1cs::FrontendError),
     #[error("lookup relation synthesis failed: {0}")]
     Synthesis(String),
     #[error("lookup relation row {row} is unsatisfied")]

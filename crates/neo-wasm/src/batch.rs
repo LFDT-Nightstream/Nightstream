@@ -31,14 +31,9 @@
 //! [`padding_step_after`] handles by construction.
 //!
 //! Scope: this module emits only the equality rows *within* one batch.
-//! Cross-batch continuity is carried by preprocessing built with
-//! [`crate::preprocess::preprocess_seeded_batched`],
-//! which uses spec-derived state columns and a verifier-owned initial
-//! semantic-state digest.
+//! Cross-batch continuity belongs to the prover that folds the batches.
 
 use neo_ccs::{CcsMatrix, CscMat};
-use neo_fold_clean::frontends::direct_ccs::FrontendError;
-use neo_fold_clean::frontends::r1cs_f_prime::SparseR1cs;
 use neo_math::F;
 use p3_field::PrimeCharacteristicRing;
 
@@ -48,6 +43,7 @@ use crate::isa::{opcode_info_from_code, WasmOpcode};
 use crate::layout::COL_ONE;
 use crate::lookup_circuit::{self, LookupCircuitError};
 use crate::relation_layout::build_wasm_relation_layout;
+use crate::sparse_r1cs::{FrontendError, SparseR1cs};
 use crate::witness_builder::build_witness_vector;
 
 /// Block-diagonal R1CS shape for a batch of `batch_size` consecutive wasm steps.
@@ -81,11 +77,11 @@ pub fn build_batched_wasm_ccs(batch_size: usize) -> Result<BatchedWasmCcs, Batch
     assert_eq!(m_single, crate::RANGE_CHECKED_WITNESS_WIDTH);
     let structure = core.structure();
     let single = SparseR1cs::new(
-        structure.matrices[0].clone(),
-        structure.matrices[1].clone(),
-        structure.matrices[2].clone(),
-        structure.n,
-        structure.m,
+        structure.matrices()[0].clone(),
+        structure.matrices()[1].clone(),
+        structure.matrices()[2].clone(),
+        structure.n(),
+        structure.m(),
         core.public_input_count(),
     )?;
     let widths = crate::witness_layout::range_checked_variable_widths(relation.columns());
@@ -370,13 +366,14 @@ fn matrix_triplets(m: &CcsMatrix<F>) -> Vec<(usize, usize, F)> {
     match m {
         CcsMatrix::Identity { n } => (0..*n).map(|i| (i, i, F::ONE)).collect(),
         CcsMatrix::Csc(csc) => {
-            let mut out = Vec::with_capacity(csc.vals.len());
-            for c in 0..csc.ncols {
-                for k in csc.col_ptr[c]..csc.col_ptr[c + 1] {
-                    out.push((csc.row_idx[k], c, csc.vals[k]));
+            let mut out = Vec::with_capacity(csc.vals().len());
+            for c in 0..csc.ncols() {
+                for k in csc.column_range(c) {
+                    out.push((csc.row_index(k), c, csc.vals()[k]));
                 }
             }
             out
         }
+        _ => unreachable!("the WASM relation builds plain CSC matrices"),
     }
 }

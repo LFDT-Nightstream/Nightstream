@@ -628,7 +628,7 @@ fn opaque_state_is_bound_across_batches_and_in_the_initial_anchor() {
     let setup = checked();
     let first = setup.trace[0].state_before;
     let export = first.host_events.turn_export_fref;
-    let anchor = neo_wasm::host_event_top_level_initial_state_digest(
+    let anchor = neo_wasm::host_event_top_level_initial_state(
         &setup.artifacts.tables,
         first.pc,
         &setup.bindings,
@@ -636,16 +636,7 @@ fn opaque_state_is_bound_across_batches_and_in_the_initial_anchor() {
         Default::default(),
     )
     .unwrap();
-    assert_eq!(anchor, neo_wasm::semantic_state_digest(first));
-    for mutation in 0..9 {
-        let mut forged = first;
-        match mutation {
-            0..=3 => forged.event_absorb.outer_chain[mutation] = 1,
-            4..=7 => forged.event_absorb.outer_prefix[mutation - 4] = 1,
-            _ => forged.event_absorb.object_active = true,
-        }
-        assert_ne!(anchor, neo_wasm::semantic_state_digest(forged));
-    }
+    assert_eq!(anchor, first);
     let batch_size = 8;
     assert!((batch_size..setup.trace.len())
         .step_by(batch_size)

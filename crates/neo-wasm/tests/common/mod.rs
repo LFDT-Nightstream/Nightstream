@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-pub mod audit;
 pub mod host_event_fixture;
 
 use neo_ccs::check_ccs_rowwise_zero;
@@ -8,7 +7,7 @@ use neo_math::F;
 use neo_wasm::host_event_bindings::HostEventBindings;
 use neo_wasm::{
     build_wasm_relation, build_wasm_relation_layout, collect_wasmtime_steps, opcode_info_from_code,
-    preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, top_level_initial_state_digest,
+    preload_from_program_artifacts, sanity_check_lookup_row, sanity_check_memory_rows, top_level_initial_state,
     traces_from_wasmtime_steps, witness_builder::build_witness_vector, LinearMemoryAccess, StackValueAccess,
     WasmCountdownState, WasmFrameMoveState, WasmOpcode, WasmOutputState, WasmPcEdgeKind, WasmProgramArtifacts,
     WasmRowKind, WasmStepState, WasmVmStep, WasmtimeTraceRun,
@@ -323,9 +322,9 @@ pub fn ccs_check_trace(trace: &[WasmVmStep]) {
     }
 }
 
-pub fn verifier_initial_state_digest(artifacts: &WasmProgramArtifacts) -> [u8; 32] {
+pub fn verifier_initial_state(artifacts: &WasmProgramArtifacts) -> WasmStepState {
     let entry_pc = single_function_entry_pc(artifacts);
-    top_level_initial_state_digest(&artifacts.tables, entry_pc)
+    top_level_initial_state(&artifacts.tables, entry_pc)
 }
 
 /// Prover-disclosed final VM state for `neo_wasm::verify`.

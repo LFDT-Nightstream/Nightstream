@@ -443,18 +443,6 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
             .max()
             .unwrap();
         println!("callbacks={callbacks} indirect={indirect} recursive={recursive}: peak active ports={peak}");
-        let suspended = trace
-            .iter()
-            .find(|row| row.state_after.host_events.awaiting_host)
-            .unwrap()
-            .state_after;
-        let mut omitted = suspended;
-        omitted.host_events.host_frame_depth = 0;
-        omitted.host_events.awaiting_host = false;
-        assert_ne!(
-            neo_wasm::semantic_state_digest(suspended),
-            neo_wasm::semantic_state_digest(omitted)
-        );
         let resume = trace
             .iter()
             .position(|row| row.row_kind.is_host_resume())
@@ -556,13 +544,6 @@ fn split_import_preserves_caller_arguments_across_callbacks() {
         let mut skipped = witnesses.clone();
         skipped.remove(suspend);
         assert!(neo_application::check_continuity_rows(&layout.auxiliary.continuity, &skipped).is_err());
-        let pending = trace[call].state_after;
-        let mut cleared = pending;
-        cleared.host_events.suspend_pending = false;
-        assert_ne!(
-            neo_wasm::semantic_state_digest(pending),
-            neo_wasm::semantic_state_digest(cleared)
-        );
         // A u32 ROM word does not by itself bound each half: borrowing from
         // the return half can leave the packed value unchanged.
         use neo_wasm::layout::{COL_HOST_IMPORT_SCHEDULE_COUNTS, COL_HOST_INITIAL_COUNT};

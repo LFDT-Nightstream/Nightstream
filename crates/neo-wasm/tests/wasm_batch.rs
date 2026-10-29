@@ -1,15 +1,11 @@
 //! Batching tests: verify the batched wasm R1CS satisfies for valid
-//! witnesses, rejects inconsistent cross-step states, and round-trips
-//! through prove/verify at various batch sizes.
+//! witnesses and rejects inconsistent cross-step states.
 
 mod common;
 
-use common::audit::{prove_batched, verify};
-use neo_fold_clean::frontends::r1cs_f_prime::{R1csChainBuilder, R1csCompilerError};
 use neo_math::F;
 use neo_wasm::batch::{batch_count, build_batched_wasm_ccs, build_batched_witness};
 use neo_wasm::layout::{COL_LOCALS_FBP_AFTER, COL_PC_BEFORE, COL_SP_BEFORE};
-use neo_wasm::preprocess::preprocess_seeded_batched;
 use neo_wasm::{build_wasm_relation, WasmVmStep};
 use p3_field::PrimeCharacteristicRing;
 
@@ -40,14 +36,14 @@ fn batched_at_one_includes_lookup_constraints() {
         .r1cs()
         .clone();
     assert!(
-        single.sparse_r1cs.m > core.structure().m,
+        single.sparse_r1cs.m > core.structure().m(),
         "lookup advice must be included"
     );
     assert!(
-        single.sparse_r1cs.n > core.structure().n,
+        single.sparse_r1cs.n > core.structure().n(),
         "lookup constraints must be included"
     );
-    assert!(single.widths[core.structure().m..]
+    assert!(single.widths[core.structure().m()..]
         .iter()
         .all(|&width| width == 1));
     assert_eq!(single.sparse_r1cs.m_in, core.public_input_count());
@@ -132,19 +128,6 @@ fn batched_witness_satisfies_batched_ccs_with_padding() {
 }
 
 #[test]
-fn initial_state_digest_covers_all_cross_step_inputs() {
-    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main");
-    let entry_pc = common::single_function_entry_pc(&checked.artifacts);
-    let initial_state = neo_wasm::top_level_initial_state(&checked.artifacts.tables, entry_pc);
-
-    let digest = neo_wasm::semantic_state_digest(initial_state);
-    assert_eq!(
-        digest,
-        neo_wasm::top_level_initial_state_digest(&checked.artifacts.tables, entry_pc)
-    );
-}
-
-#[test]
 fn cross_step_link_rejects_inconsistent_pc() {
     let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main");
     let batch_size = 2;
@@ -218,91 +201,4 @@ fn block_local_constant_is_an_unreferenced_dont_care() {
         .sparse_r1cs
         .is_satisfied_by(&witness)
         .expect("block-local constant slots after block 0 must be unreferenced");
-}
-
-#[test]
-fn semantic_state_rejects_rewound_cross_batch_boundary() {
-    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main");
-    let batch_size = 2;
-    assert!(
-        batch_count(checked.trace.len(), batch_size) >= 2,
-        "test needs at least two batches"
-    );
-    let digest = common::verifier_initial_state_digest(&checked.artifacts);
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let mut chain = R1csChainBuilder::new(&prep).expect("chain");
-
-    chain
-        .append_assignment(build_batched_witness(&checked.trace, batch_size, 0))
-        .expect("first batch");
-    let err = chain
-        .append_assignment(build_batched_witness(&checked.trace, batch_size, 0))
-        .expect_err("rewound second batch must not match the carried output state");
-
-    match err {
-        neo_fold_clean::frontends::r1cs_f_prime::Error::Compiler(R1csCompilerError::SemanticStateInputMismatch {
-            ..
-        }) => {}
-        other => panic!("expected SemanticStateInputMismatch, got {other:?}"),
-    }
-}
-
-#[test]
-fn semantic_state_rejects_wrong_initial_state_digest() {
-    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main");
-    let batch_size = 2;
-    let mut digest = common::verifier_initial_state_digest(&checked.artifacts);
-    digest[0] ^= 0xA5;
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let mut chain = R1csChainBuilder::new(&prep).expect("chain");
-    let witness = build_batched_witness(&checked.trace, batch_size, 0);
-
-    // The base-step path panics (rather than returning Err) when the
-    // trace-derived `_before` digest disagrees with the verifier-baked
-    // anchor; match on the encoder's structure-violation message so an
-    // unrelated panic upstream of the digest check can't masquerade as
-    // a successful rejection.
-    let panic_payload = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| chain.append_assignment(witness)))
-        .expect_err("wrong verifier-owned initial state digest must reject the first batch");
-    let panic_msg = panic_payload
-        .downcast_ref::<String>()
-        .map(String::as_str)
-        .or_else(|| panic_payload.downcast_ref::<&'static str>().copied())
-        .unwrap_or("<non-string panic>");
-    assert!(
-        panic_msg.contains("encoded R1CS F' step must satisfy its structure"),
-        "expected encoder structure-violation panic, got: {panic_msg}"
-    );
-}
-
-#[test]
-#[ignore = "folding proof; gated by the 5-min test cap"]
-fn batched_prove_verify_simple_add() {
-    let checked = common::checked_wasm_run(SIMPLE_ADD_WAT, "main");
-    // Cover both dividing (2, 4) and padding-required (3) sizes.
-    for batch_size in [2usize, 3, 4] {
-        let digest = common::verifier_initial_state_digest(&checked.artifacts);
-        let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-        let proof = prove_batched(&prep, &checked.trace, batch_size).expect("prove");
-        verify(&prep, &proof, common::final_state(&checked.trace)).expect("verify");
-    }
-}
-
-#[test]
-fn lookup_step_prove_verify() {
-    let checked = common::checked_main(
-        r#"(module (func (export "main") (result i32)
-            i32.const 6 i32.const 3 i32.xor))"#,
-    );
-    let row = checked
-        .trace
-        .iter()
-        .find(|row| row.opcode == neo_wasm::WasmOpcode::I32Xor)
-        .expect("XOR step");
-    // A single-step audit checks the lookup-bearing preprocessing and verifier
-    // without paying for recursive folding of the surrounding trace.
-    let digest = neo_wasm::semantic_state_digest(row.state_before);
-    let prep = preprocess_seeded_batched(1, digest).expect("lookup preprocessing");
-    let proof = prove_batched(&prep, std::slice::from_ref(row), 1).expect("prove XOR step");
-    verify(&prep, &proof, row.state_after).expect("verify XOR step");
 }

@@ -1,15 +1,11 @@
-//! End-to-end folding proof of an event-bound trace: preprocess with the
-//! bindings initial digest, fold a trace containing export entry events,
+//! Event-bound trace across batches: a trace containing export entry events,
 //! import events (multi-block, mid-args groups), and export exit events,
-//! and verify against the final-state claim. This is the capstone showing
-//! the bindings machinery composes with the lifecycle pipeline; per-row
-//! CCS and native-checker coverage lives in the other bindings test files.
+//! checked against the verifier's initial state and the claimed transcript;
+//! per-row CCS and native-checker coverage lives in the other bindings test files.
 
 mod common;
 
-use common::audit::{prove_batched, verify_with_transcript, AuditProveError};
 use common::host_event_fixture::{expected_transcript, host_event_lifecycle_setup, HostEventLifecycleSetup};
-use neo_wasm::{host_event_top_level_initial_state_digest, preprocess_seeded_batched};
 use p3_field::PrimeCharacteristicRing;
 
 /// Every batch (including the padded tail) of the bindings trace satisfies
@@ -20,7 +16,7 @@ fn host_event_trace_satisfies_batched_ccs() {
     let batch_size = 8;
     let batched = neo_wasm::batch::build_batched_wasm_ccs(batch_size).expect("batched CCS");
     let relation = neo_wasm::build_wasm_relation().expect("valid WASM relation");
-    let n_single = relation.r1cs().structure().n;
+    let n_single = relation.r1cs().structure().n();
     let catalog = relation.r1cs().catalog();
     let n_batches = neo_wasm::batch::batch_count(setup.trace.len(), batch_size);
     for batch_idx in 0..n_batches {
@@ -94,14 +90,18 @@ fn host_event_folding_proof_covers_import_and_export_events() {
     // The anchor is per-program (mode, entry pc, entry schedule) — claim
     // inputs are NOT anchored; they are bound by the final-chain transcript
     // check below.
-    let digest =
-        host_event_top_level_initial_state_digest(&artifacts.tables, entry_pc, &bindings, run_fref, Default::default())
-            .expect("bindings anchor");
+    let anchor = neo_wasm::host_event_top_level_initial_state(
+        &artifacts.tables,
+        entry_pc,
+        &bindings,
+        run_fref,
+        Default::default(),
+    )
+    .expect("bindings anchor");
     // The verifier's constructed initial state must be exactly the trace's
     // opening boundary.
     assert_eq!(
-        digest,
-        neo_wasm::semantic_state_digest(trace[0].state_before),
+        anchor, trace[0].state_before,
         "verifier initial state must match the trace's first before-state"
     );
     let f = p3_goldilocks::Goldilocks::from_u64;
@@ -114,15 +114,10 @@ fn host_event_folding_proof_covers_import_and_export_events() {
         initial_comm_chain,
     )
     .expect("bindings anchor");
-    let initial_digest =
-        host_event_top_level_initial_state_digest(&artifacts.tables, entry_pc, &bindings, run_fref, initial_comm_chain)
-            .expect("bindings anchor");
     assert_eq!(initial_state.comm_chain, initial_comm_chain.canonical_u64());
-    assert_eq!(initial_digest, neo_wasm::semantic_state_digest(initial_state));
-    assert_ne!(initial_digest, digest);
 
     // batch_size 8 forces perm groups, gather runs, and the entry/exit
-    // boundaries across batch edges, so the semantic digest must carry the
+    // boundaries across batch edges, so the carried state must hold the
     // whole event state (chain, absorb, and schedule) correctly.
     // Check the claim rather than trusting the trace shape: some batch
     // boundary must fall mid-permutation and some must carry live schedule
@@ -145,22 +140,23 @@ fn host_event_folding_proof_covers_import_and_export_events() {
         "no batch boundary carries live gather/schedule state"
     );
 
-    let prep = preprocess_seeded_batched(batch_size, digest).expect("prep");
-    let proof = prove_batched(&prep, &trace, batch_size).expect("prove");
     let final_state = common::final_state(&trace);
 
-    // Transcript binding: verification succeeds only with the claimed
+    // Transcript binding: the final chain equals the fold of the claimed
     // transcript — export entry, the two import calls, and the export exit.
+    let fold =
+        |transcript: &[_]| neo_wasm::comm_chain::fold_event_blocks(Default::default(), transcript).canonical_u64();
     let expected = expected_transcript(&bindings, run_fref);
-    verify_with_transcript(&prep, &proof, final_state, Default::default(), &expected)
-        .expect("verify with the claimed transcript");
+    assert_eq!(
+        final_state.comm_chain,
+        fold(&expected),
+        "the claimed transcript must match"
+    );
     let mut wrong = expected;
     wrong[0][1] += p3_goldilocks::Goldilocks::ONE;
-    assert!(
-        matches!(
-            verify_with_transcript(&prep, &proof, final_state, Default::default(), &wrong),
-            Err(AuditProveError::TranscriptMismatch)
-        ),
+    assert_ne!(
+        final_state.comm_chain,
+        fold(&wrong),
         "a different transcript must be rejected"
     );
 }

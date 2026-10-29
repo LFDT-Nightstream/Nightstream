@@ -7,7 +7,6 @@ use super::relation_layout::{
 };
 use crate::witness_layout::declared_witness_column_families;
 use neo_math::F;
-use neo_transcript::Poseidon2Transcript;
 use p3_field::PrimeField64;
 use std::collections::BTreeMap;
 
@@ -88,10 +87,6 @@ pub fn semantics_for_lookup_family(family: &WasmLookupFamilySpec) -> LookupSeman
     match family.kind {
         WasmLookupFamilyKind::OpTable(op) => op_table_semantics(op),
     }
-}
-
-pub fn append_lookup_semantics_digest(tr: &mut Poseidon2Transcript, semantics: &LookupSemantics) {
-    append_predicate_digest(tr, &semantics.predicate);
 }
 
 pub fn sanity_check_lookup_row(auxiliary: &WasmAuxiliaryRelations, witness: &[F]) -> Result<(), String> {
@@ -566,98 +561,6 @@ impl LookupBuiltin {
             LookupBuiltin::I64Clz => "i64_clz",
             LookupBuiltin::I64Ctz => "i64_ctz",
             LookupBuiltin::I64Popcnt => "i64_popcnt",
-        }
-    }
-
-    fn digest_id(self) -> u64 {
-        match self {
-            LookupBuiltin::ComposeU64 => 2,
-            LookupBuiltin::Low32 => 3,
-            LookupBuiltin::High32 => 4,
-            LookupBuiltin::I32Clz => 5,
-            LookupBuiltin::I32Ctz => 6,
-            LookupBuiltin::I32LtS => 11,
-            LookupBuiltin::I32LtU => 12,
-            LookupBuiltin::I32GtS => 13,
-            LookupBuiltin::I32GtU => 14,
-            LookupBuiltin::I32LeS => 15,
-            LookupBuiltin::I32LeU => 16,
-            LookupBuiltin::I32GeS => 17,
-            LookupBuiltin::I32GeU => 18,
-            LookupBuiltin::I32And => 19,
-            LookupBuiltin::I32Or => 20,
-            LookupBuiltin::I32Xor => 21,
-            LookupBuiltin::I32Mul => 22,
-            LookupBuiltin::I64And => 23,
-            LookupBuiltin::I64Or => 24,
-            LookupBuiltin::I64Xor => 25,
-            LookupBuiltin::I64Mul => 26,
-            LookupBuiltin::I32Shl => 27,
-            LookupBuiltin::I32ShrU => 28,
-            LookupBuiltin::I32ShrS => 29,
-            LookupBuiltin::I32Rotl => 30,
-            LookupBuiltin::I32Rotr => 31,
-            LookupBuiltin::I32DivU => 32,
-            LookupBuiltin::I32DivS => 33,
-            LookupBuiltin::I32RemU => 34,
-            LookupBuiltin::I32RemS => 35,
-            LookupBuiltin::I32Popcnt => 36,
-            LookupBuiltin::I64LtS => 37,
-            LookupBuiltin::I64LtU => 38,
-            LookupBuiltin::I64GtS => 39,
-            LookupBuiltin::I64GtU => 40,
-            LookupBuiltin::I64LeS => 41,
-            LookupBuiltin::I64LeU => 42,
-            LookupBuiltin::I64GeS => 43,
-            LookupBuiltin::I64GeU => 44,
-            LookupBuiltin::I64Shl => 45,
-            LookupBuiltin::I64ShrS => 46,
-            LookupBuiltin::I64ShrU => 47,
-            LookupBuiltin::I64Rotl => 48,
-            LookupBuiltin::I64Rotr => 49,
-            LookupBuiltin::I64DivS => 50,
-            LookupBuiltin::I64DivU => 51,
-            LookupBuiltin::I64RemS => 52,
-            LookupBuiltin::I64RemU => 53,
-            LookupBuiltin::I64Clz => 54,
-            LookupBuiltin::I64Ctz => 55,
-            LookupBuiltin::I64Popcnt => 56,
-        }
-    }
-}
-
-fn append_predicate_digest(tr: &mut Poseidon2Transcript, predicate: &LookupPredicate) {
-    match predicate {
-        LookupPredicate::Eq(lhs, rhs) => {
-            tr.append_u64s(b"wasm/lookup_semantics/predicate/tag", &[0]);
-            append_expr_digest(tr, lhs);
-            append_expr_digest(tr, rhs);
-        }
-        LookupPredicate::And(predicates) => {
-            tr.append_u64s(b"wasm/lookup_semantics/predicate/tag", &[1, predicates.len() as u64]);
-            for predicate in predicates {
-                append_predicate_digest(tr, predicate);
-            }
-        }
-    }
-}
-
-fn append_expr_digest(tr: &mut Poseidon2Transcript, expr: &LookupExpr) {
-    match expr {
-        LookupExpr::Const(value) => {
-            tr.append_u64s(b"wasm/lookup_semantics/expr/tag", &[0, *value]);
-        }
-        LookupExpr::Slot(index) => {
-            tr.append_u64s(b"wasm/lookup_semantics/expr/tag", &[1, *index as u64]);
-        }
-        LookupExpr::Apply(builtin, args) => {
-            tr.append_u64s(
-                b"wasm/lookup_semantics/expr/tag",
-                &[2, builtin.digest_id(), args.len() as u64],
-            );
-            for arg in args {
-                append_expr_digest(tr, arg);
-            }
         }
     }
 }

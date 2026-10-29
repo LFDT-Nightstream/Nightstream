@@ -118,7 +118,7 @@ fn wasm_geometry_words_per_step() {
         r: 8,
         mu: 8,
         w_ts: 8,
-        b_ops: 28,
+        b_ops: 21,
         b_scan: 64,
         n: 8,
         s_max: 1,

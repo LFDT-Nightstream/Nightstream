@@ -1,7 +1,8 @@
-//! Native side of the first Nebula memory application (spec §4–§13): the plan,
-//! the machine, the record chains and challenge transcript, the carry, the
-//! segment runner that writes each invocation's witness words, the spec §13
-//! terminal checks, and the memory verifier of the two Lean-emitted packages.
+//! Native side of the first Nebula memory application (spec §4–§13): the
+//! geometry and the program, the machine, the record chains and challenge
+//! transcript, the carry, the segment runner that writes each invocation's
+//! witness words, the spec §13 terminal checks, and the memory verifier of the
+//! two Lean-emitted packages.
 //! The prover and the verifier load the Lean-owned circuit (`Lifecycle/Nebula/`).
 //! The test-only `circuit` module builds the same relation in Rust, and
 //! `tests/nebula/parity.rs` requires its rows to equal the Lean package's.
@@ -11,8 +12,8 @@ mod carry;
 mod circuit;
 #[cfg(test)]
 mod expr;
+mod geometry;
 mod machine;
-mod plan;
 mod records;
 #[cfg(test)]
 mod rows;
@@ -24,8 +25,8 @@ use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks as F;
 
 pub use carry::{Carry, Products};
+pub use geometry::Geometry;
 pub use machine::MachineState;
-pub use plan::Plan;
 use segment::Cell;
 pub use segment::{Context, Invocation, SegmentError, Step};
 pub use transcript::{state_words, Digest};
@@ -43,20 +44,22 @@ pub enum Package {
 }
 
 impl Package {
-    /// The package's geometry with the images of its default program.
-    pub fn plan(self) -> Plan {
+    /// The memory geometry that the package proves.
+    pub fn geometry(self) -> Geometry {
         match self {
-            Package::V1 => Plan::first(),
-            Package::N1 => Plan::second(),
+            Package::V1 => Geometry::first(),
+            Package::N1 => Geometry::second(),
         }
     }
 
-    /// The program of the Lean plan that the package was emitted from.
+    /// The default program of the Lean plan that the package was emitted
+    /// from (`FirstPlan.plan`, `SecondPlan.plan`).
     pub fn program(self) -> Program {
-        Program {
-            package: self,
-            plan: self.plan(),
-        }
+        let (rom, ram) = match self {
+            Package::V1 => (vec![23, 2, 1, 0], vec![0; 4]),
+            Package::N1 => (vec![1, 6, 5, 2], vec![7, 0, 0, 0, 0, 0, 0, 0]),
+        };
+        Program::new(self, rom, ram).expect("a default program fits its geometry")
     }
 
     /// Load the package's circuit from its bytes. `Circuit::load_package`
@@ -74,7 +77,7 @@ impl Package {
     pub(crate) fn application(
         self,
     ) -> Result<crate::application::ApplicationCircuit, crate::application::ApplicationError> {
-        circuit::memory_circuit(&self.plan())
+        circuit::memory_circuit(&self.geometry())
     }
 
     fn structural_identifier(self) -> [u64; 4] {
@@ -95,14 +98,16 @@ impl Package {
     }
 }
 
-/// A program of a package's geometry: its ROM and RAM images (spec §4.1).
-/// The program enters a proof only through `D_init`, its key, which the
-/// verifier computes from the images (spec §9.2). One package serves every
-/// program of its geometry.
+/// A program of a package's geometry: its ROM and RAM images of 32-bit words
+/// (spec §4.1). The program enters a proof only through `D_init`, its key,
+/// which `Program::new` computes once from the images (spec §9.2). One package
+/// serves every program of its geometry.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Program {
     package: Package,
-    plan: Plan,
+    rom: Vec<u32>,
+    ram: Vec<u32>,
+    d_init: Digest,
 }
 
 /// Why images are not a program of a package's geometry.
@@ -110,32 +115,29 @@ pub struct Program {
 pub enum ProgramError {
     #[error("the ROM image needs 2^r words and the RAM image 2^μ words")]
     Size,
-    #[error("an image word is not below 2^32")]
-    Word,
 }
 
 impl Program {
-    /// Check the images against the geometry of `package`, as Lean
-    /// `Plan.Valid` does: `2^r` ROM words and `2^μ` RAM words, each below
-    /// `2^32`.
-    pub fn new(package: Package, rom: Vec<u64>, ram: Vec<u64>) -> Result<Self, ProgramError> {
-        let plan = Plan {
-            rom,
-            ram,
-            ..package.plan()
-        };
-        if plan.rom.len() != plan.rom_size() || plan.ram.len() != plan.ram_size() {
+    /// Check the image sizes against the geometry of `package`, as Lean
+    /// `Plan.Valid` does (`2^r` ROM words and `2^μ` RAM words), then compute
+    /// `D_init`.
+    pub fn new(package: Package, rom: Vec<u32>, ram: Vec<u32>) -> Result<Self, ProgramError> {
+        let geometry = package.geometry();
+        if rom.len() != geometry.rom_size() || ram.len() != geometry.ram_size() {
             return Err(ProgramError::Size);
         }
-        if plan
-            .rom
-            .iter()
-            .chain(&plan.ram)
-            .any(|word| *word >> 32 != 0)
-        {
-            return Err(ProgramError::Word);
-        }
-        Ok(Self { package, plan })
+        let d_init = segment::initial_root(&geometry, &rom, &ram);
+        Ok(Self {
+            package,
+            rom,
+            ram,
+            d_init,
+        })
+    }
+
+    /// `D_init`: the IS root of the images (spec §9.2), the program's key.
+    pub fn d_init(&self) -> Digest {
+        self.d_init
     }
 }
 
@@ -175,14 +177,14 @@ pub struct PackageCircuit {
 
 impl PackageCircuit {
     /// The prover of the package. `minimum_security_bits` bounds the folding
-    /// profile and the memory fingerprint term (`Plan::memory_security_bits`).
+    /// profile and the memory fingerprint term (`Geometry::memory_security_bits`).
     pub fn prover(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<crate::Prover, crate::Error> {
         self.check_memory_security(minimum_security_bits)?;
         self.circuit.prover(engine, minimum_security_bits)
     }
 
     fn check_memory_security(&self, minimum_security_bits: u32) -> Result<(), crate::Error> {
-        let available = self.package.plan().memory_security_bits();
+        let available = self.package.geometry().memory_security_bits();
         if available < f64::from(minimum_security_bits) {
             return Err(neo_params::ParamsError::InsufficientStatisticalSecurity {
                 required: minimum_security_bits,
@@ -216,7 +218,7 @@ pub struct Verifier {
 impl Verifier {
     /// The verifier of a loaded package. It may share the prover's circuit.
     /// `minimum_security_bits` bounds the folding profile and the memory
-    /// fingerprint term (`Plan::memory_security_bits`).
+    /// fingerprint term (`Geometry::memory_security_bits`).
     pub fn new(
         circuit: &PackageCircuit,
         engine: crate::Engine,
@@ -238,7 +240,7 @@ impl Verifier {
     /// the final carry, then the Stage 1 verification of `proof` with the
     /// initial and final states that the statement and the carry open. The
     /// initial state opens the start carry, which holds the program's
-    /// `D_init`.
+    /// `D_init` (`Program::d_init`).
     pub fn verify(
         &self,
         program: &Program,
@@ -291,14 +293,14 @@ impl Context {
         {
             return Err(TerminalError::NonCanonical);
         }
-        let plan = self.plan();
-        if final_carry.idx != plan.n as u64 {
+        let geometry = self.geometry();
+        if final_carry.idx != geometry.n as u64 {
             return Err(TerminalError::OpenCarry);
         }
-        if statement.segments == 0 || statement.segments > plan.s_max as u64 {
+        if statement.segments == 0 || statement.segments > geometry.s_max as u64 {
             return Err(TerminalError::SegmentRange);
         }
-        if statement.steps != statement.segments * plan.n as u64 {
+        if statement.steps != statement.segments * geometry.n as u64 {
             return Err(TerminalError::StepCount);
         }
         if final_carry.seg_idx != statement.segments
@@ -327,7 +329,7 @@ pub struct Run {
 
 impl Run {
     pub fn new(context: Context, initial: MachineState) -> Self {
-        let memory = segment::initial_memory(context.plan());
+        let memory = segment::initial_memory(&context.program().rom, &context.program().ram);
         Self {
             carry: context.start_carry(),
             context,

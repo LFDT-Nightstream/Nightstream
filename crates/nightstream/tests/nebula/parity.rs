@@ -3,14 +3,12 @@
 //! witness programs differ in encoding (Lean: recipe batches and witness
 //! instructions; Rust: one recipe per variable), so the identifiers differ.
 
-use std::{fs, ops::ControlFlow, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 use nightstream_fprime::{
-    load_per_application_package, ApplicationRecords, ApplicationRowHeader, ApplicationTerm,
-    LoadedPerApplicationPackage, LogicalMatrixRow, StructuralIdentifier,
+    load_per_application_package, LoadedPerApplicationPackage, LogicalMatrixRow, StructuralIdentifier,
 };
 
-use super::memory_circuit;
 use crate::{
     assembly,
     nebula::{Context, MachineState, Package, Program, Run, Step},
@@ -83,46 +81,11 @@ fn second_package_relation_matches_lean() {
     assert_same_relation(Package::N1, "nightstream-fprime-stage2-nebula-memory-n1.json");
 }
 
-/// One setup per geometry: a program with other images has the same
-/// application rows and the same package identity as the package's default
-/// program.
-#[test]
-fn programs_of_one_geometry_share_the_circuit() {
-    let other = Program::new(Package::V1, vec![31, 6, 5, 0], vec![0, 0, 0, 9]).unwrap();
-    assert_ne!(other, Package::V1.program());
-    let [default, other] = [Package::V1.program(), other].map(|program| memory_circuit(&program.plan).unwrap());
-    let (rows, other_rows) = (default.records(), other.records());
-    assert_eq!(rows.row_count(), other_rows.row_count());
-    for row in 0..rows.row_count() {
-        assert_eq!(row_terms(rows, row), row_terms(other_rows, row), "row {row}");
-    }
-    let reference = artifact("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
-    let identifier = |application| {
-        assembly::prepare(&reference, application)
-            .unwrap()
-            .0
-            .structural_identifier()
-    };
-    assert_eq!(identifier(&default), identifier(&other));
-}
-
-fn row_terms(records: &ApplicationRecords, row: usize) -> (ApplicationRowHeader, Vec<ApplicationTerm>) {
-    let mut terms = Vec::new();
-    assert!(records
-        .visit_terms(row, |term| {
-            terms.push(term);
-            Ok(ControlFlow::Continue(()))
-        })
-        .unwrap()
-        .is_continue());
-    (records.row_header(row).unwrap(), terms)
-}
-
 /// The Rust circuit's witness program completes every honest invocation of a
-/// native run, and its output is the next Stage 1 state.
-fn assert_honest_invocations_execute(package: Package, segments: &[&[Step]]) {
-    let application = package.application().unwrap();
-    let mut run = Run::new(Context::new(&package.program()), MachineState::default());
+/// native run of `program`, and its output is the next Stage 1 state.
+fn assert_honest_invocations_execute(program: &Program, segments: &[&[Step]]) {
+    let application = program.package.application().unwrap();
+    let mut run = Run::new(Context::new(program), MachineState::default());
     let mut state = run.initial_state();
     for steps in segments {
         for invocation in run.segment(steps).unwrap() {
@@ -136,12 +99,23 @@ fn assert_honest_invocations_execute(package: Package, segments: &[&[Step]]) {
 #[test]
 fn first_package_executes_honest_invocations() {
     let (execute, idle) = ([Step::Execute; 2], [Step::Idle; 2]);
-    assert_honest_invocations_execute(Package::V1, &[&execute, &execute, &idle, &idle]);
+    assert_honest_invocations_execute(&Package::V1.program(), &[&execute, &execute, &idle, &idle]);
+}
+
+/// One setup per geometry: the package circuit completes the honest
+/// invocations of a second program, `loadi 7; store 1; load 1; halt` with RAM
+/// `[0, 0, 0, 9]`.
+#[test]
+fn first_package_executes_a_second_program() {
+    let program = Program::new(Package::V1, vec![31, 6, 5, 0], vec![0, 0, 0, 9]).unwrap();
+    assert_ne!(program, Package::V1.program());
+    let (execute, idle) = ([Step::Execute; 2], [Step::Idle; 2]);
+    assert_honest_invocations_execute(&program, &[&execute, &execute, &idle, &idle]);
 }
 
 /// `N = 1`: every invocation opens and closes a segment, and the O6 rows exist.
 #[test]
 fn second_package_executes_honest_invocations() {
-    let segments = vec![&[Step::Execute][..]; Package::N1.plan().s_max];
-    assert_honest_invocations_execute(Package::N1, &segments);
+    let segments = vec![&[Step::Execute][..]; Package::N1.geometry().s_max];
+    assert_honest_invocations_execute(&Package::N1.program(), &segments);
 }

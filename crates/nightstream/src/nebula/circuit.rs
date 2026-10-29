@@ -15,7 +15,7 @@ use super::expr::{lower_affine, lower_constraint, Expr};
 use super::rows::{pack, Sym};
 use super::transcript::{chain_tag, header, plan_digest, text, Lane, ETA_TAG, STATE_TAG};
 use super::words::{self, Layout};
-use super::Plan;
+use super::Geometry;
 use crate::application::{permutation, Affine, ApplicationBuilder, ApplicationCircuit, ApplicationError, Variable};
 
 type State = [Affine; WIDTH];
@@ -78,16 +78,16 @@ fn text_words(tag: &str) -> Vec<Expr> {
     text(tag).into_iter().map(Expr::Const).collect()
 }
 
-/// The Rust-built application circuit of a memory plan. It reads the
+/// The Rust-built application circuit of a memory geometry. It reads the
 /// geometry only, so every program of a package has the same circuit.
-pub(super) fn memory_circuit(plan: &Plan) -> Result<ApplicationCircuit, ApplicationError> {
-    let layout = Layout::new(plan);
+pub(super) fn memory_circuit(geometry: &Geometry) -> Result<ApplicationCircuit, ApplicationError> {
+    let layout = Layout::new(geometry);
     let mut builder = ApplicationBuilder::new(layout.count())?;
     let wires: Vec<Variable> = builder.private_inputs().to_vec();
-    let digest = plan_digest(plan);
+    let digest = plan_digest(geometry);
     let (ops_header, mem_header) = (header(Lane::Ops, &digest), header(Lane::Mem, &digest));
     let headers = std::array::from_fn(|i| if i < 4 { ops_header[i] } else { mem_header[i % 4] });
-    let sym = Sym::new(plan, &wires, headers);
+    let sym = Sym::new(geometry, &wires, headers);
     let constants = round_constants();
     let run = |count: usize, index: &dyn Fn(usize) -> usize| (0..count).map(|k| sym.word(index(k))).collect::<Vec<_>>();
 
@@ -103,9 +103,9 @@ pub(super) fn memory_circuit(plan: &Plan) -> Result<ApplicationCircuit, Applicat
         seen.extend(run(4, &|k| words::SEEN_PREV + previous + k));
         vec![text_words(chain_tag(lane)), seen, pack(lanes)]
     };
-    let ops_lanes = (0..plan.b_ops).flat_map(|j| sym.op_lane(j)).collect();
+    let ops_lanes = (0..geometry.b_ops).flat_map(|j| sym.op_lane(j)).collect();
     let scan_lanes = |start: &dyn Fn(usize) -> usize| {
-        (0..plan.b_scan)
+        (0..geometry.b_scan)
             .flat_map(|j| sym.scan_lane(start(j)))
             .collect::<Vec<_>>()
     };

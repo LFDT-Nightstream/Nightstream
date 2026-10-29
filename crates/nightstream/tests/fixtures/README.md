@@ -85,8 +85,11 @@ The spec §14 rejection tests (`tests/nebula/conformance.rs`) use it to name the
 check that a faulty step fails.
 
 `nebula-memory-v1-start.json` and `nebula-memory-n1-start.json` hold `D_init`
-of each plan (`initRootWords`, proved equal to `(context plan).initRoot`).
-`tests/nebula_memory.rs` compares the verifier's own `D_init` with it.
+of each package's default program (`initRootWords`, proved equal to
+`(context plan).initRoot`). `nebula-memory-v1-other-start.json` holds `D_init`
+of `FirstPlan.otherPlan`, a second program of the V1 geometry with a distinct
+nonzero word in every ROM and RAM cell. `tests/nebula_memory.rs` compares the
+verifier's own `D_init` with each.
 
 `nebula-memory-v1-terminal.json` and `nebula-memory-n1-terminal.json` hold
 spec §13 terminal-check cases of each plan (`NebulaMemoryTerminal.cases`):
@@ -103,6 +106,7 @@ bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-rows
 bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-rows nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-rows.json
 bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-start.json
 bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-start.json
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-v1-other ../../crates/nightstream/tests/fixtures/nebula-memory-v1-other-start.json
 bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-terminal nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-terminal.json
 bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-terminal nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-terminal.json
 ```

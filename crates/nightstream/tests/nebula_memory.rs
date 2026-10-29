@@ -121,7 +121,8 @@ fn terminal_rejects_statement_integers_at_or_above_q() {
 }
 
 /// A program's images must fit its package's geometry, as in Lean
-/// `Plan.Valid`: `2^r` ROM words and `2^μ` RAM words, each below `2^32`.
+/// `Plan.Valid`: `2^r` ROM words and `2^μ` RAM words. A word is a `u32`, so
+/// every word is below `2^32`.
 #[test]
 fn program_rejects_images_outside_the_geometry() {
     let (rom, ram) = (vec![0; 4], vec![0; 4]);
@@ -138,18 +139,16 @@ fn program_rejects_images_outside_the_geometry() {
         Program::new(Package::N1, rom.clone(), ram.clone()),
         Err(ProgramError::Size)
     );
-    let mut wide = ram.clone();
-    wide[3] = 1 << 32;
-    assert_eq!(Program::new(Package::V1, rom.clone(), wide), Err(ProgramError::Word));
     let mut widest = rom;
-    widest[0] = u64::from(u32::MAX);
+    widest[0] = u32::MAX;
     assert!(Program::new(Package::V1, widest, ram).is_ok());
 }
 
 /// One package, two programs: each run passes the terminal checks of its own
 /// program. The programs have different `D_init`, so one statement opens a
 /// different initial state under each program, and the Stage 1 state link
-/// rejects a proof of one program for the other (`wrong_program_rejected_on_cpu`).
+/// rejects a proof of one program for the other
+/// (`each_program_verifies_only_its_own_proof_on_cpu`).
 #[test]
 fn programs_of_one_package_have_their_own_initial_state() {
     let contexts = [Context::new(&Package::V1.program()), Context::new(&other_program())];
@@ -167,7 +166,7 @@ fn programs_of_one_package_have_their_own_initial_state() {
     });
     assert_eq!(runs[0].statement().final_.acc, 5);
     assert_eq!(runs[1].statement().final_.acc, 7, "the second program loads 7");
-    assert_ne!(contexts[0].d_init(), contexts[1].d_init());
+    assert_ne!(contexts[0].program().d_init(), contexts[1].program().d_init());
     for run in &runs {
         let (initial, _) = run
             .context()
@@ -184,16 +183,36 @@ fn programs_of_one_package_have_their_own_initial_state() {
 /// The verifier's `D_init` (spec §9.2), from which it computes the start
 /// carry and `z0`, equals the value that Lean computes for the same plan
 /// (`emit --application-start`). It binds the plan digest and the images.
+/// `FirstPlan.otherPlan` has a distinct nonzero word in every cell, so a
+/// misplaced or truncated word changes `D_init`.
 #[test]
 fn d_init_matches_lean() {
-    for (package, fixture) in [
-        (Package::V1, include_str!("fixtures/nebula-memory-v1-start.json")),
-        (Package::N1, include_str!("fixtures/nebula-memory-n1-start.json")),
+    let other = Program::new(
+        Package::V1,
+        vec![4294967295, 2147483649, 305419896, 1],
+        vec![2, 3735928559, 2147483647, 3405691582],
+    )
+    .unwrap();
+    for (program, fixture) in [
+        (
+            Package::V1.program(),
+            include_str!("fixtures/nebula-memory-v1-start.json"),
+        ),
+        (
+            Package::N1.program(),
+            include_str!("fixtures/nebula-memory-n1-start.json"),
+        ),
+        (other, include_str!("fixtures/nebula-memory-v1-other-start.json")),
     ] {
         let lean: serde_json::Value = serde_json::from_str(fixture).unwrap();
         let lean: Vec<u64> = serde_json::from_value(lean["d_init"].clone()).unwrap();
-        let d_init = Context::new(&package.program()).d_init();
-        assert_eq!(d_init.map(|word| word.as_canonical_u64()).to_vec(), lean);
+        assert_eq!(
+            program
+                .d_init()
+                .map(|word| word.as_canonical_u64())
+                .to_vec(),
+            lean
+        );
     }
 }
 
@@ -319,20 +338,20 @@ fn terminal_checks_match_lean() {
 }
 
 /// Spec §4.2 rule 6: the memory fingerprint error `2·m_mem/q²` is at most
-/// `2^−109.91` exactly when `m_mem ≤ 139,509` (Lean `Plan.secure_iff`).
+/// `2^−109.91` exactly when `m_mem ≤ 139,509` (Lean `Geometry.secure_iff`).
 #[test]
 fn memory_security_bits_match_the_lean_setup_boundary() {
     let bits = |max_tuples: usize| {
-        let mut plan = Package::V1.plan();
-        plan.n = 1;
-        plan.b_ops = max_tuples - plan.cells();
-        assert_eq!(plan.max_tuples(), max_tuples);
-        plan.memory_security_bits()
+        let mut geometry = Package::V1.geometry();
+        geometry.n = 1;
+        geometry.b_ops = max_tuples - geometry.cells();
+        assert_eq!(geometry.max_tuples(), max_tuples);
+        geometry.memory_security_bits()
     };
     assert!(bits(139_509) >= 109.91);
     assert!(109.91 > bits(139_510));
     for package in [Package::V1, Package::N1] {
-        assert!(package.plan().memory_security_bits() > 115.0, "{package:?}");
+        assert!(package.geometry().memory_security_bits() > 115.0, "{package:?}");
     }
 }
 
@@ -371,14 +390,17 @@ fn n1_run() -> Run {
 #[test]
 fn n1_native_run_reaches_every_counter_maximum() {
     let mut run = n1_run();
-    let plan = run.context().plan().clone();
-    for _ in 0..plan.s_max {
+    let geometry = run.context().geometry();
+    for _ in 0..geometry.s_max {
         assert_eq!(run.segment(&[Step::Execute]).unwrap().len(), 1);
         assert_eq!(run.carry().idx, 1, "every invocation closes its segment");
     }
     let statement = run.statement();
-    assert_eq!(statement.segments, plan.s_max as u64);
-    assert_eq!(statement.final_ts, (plan.s_max * plan.n * plan.b_ops) as u64);
+    assert_eq!(statement.segments, geometry.s_max as u64);
+    assert_eq!(
+        statement.final_ts,
+        (geometry.s_max * geometry.n * geometry.b_ops) as u64
+    );
     assert_eq!(statement.final_, MachineState { pc: 4, acc: 7 });
     let (initial, _) = run
         .context()
@@ -398,7 +420,7 @@ fn n1_accept(engine: nightstream::Engine) {
     let mut run = n1_run();
     let z0 = run.initial_state();
     let mut proof: Option<nightstream::Proof> = None;
-    for _ in 0..run.context().plan().s_max {
+    for _ in 0..run.context().geometry().s_max {
         let invocation = run.segment(&[Step::Execute]).unwrap().remove(0);
         proof = Some(match &proof {
             None => prover
@@ -481,7 +503,7 @@ fn memory_conformance(engine: nightstream::Engine) {
 
     let context = run.context();
     let statement = run.statement();
-    assert_eq!(statement.segments, context.plan().s_max as u64, "S = S_max");
+    assert_eq!(statement.segments, context.geometry().s_max as u64, "S = S_max");
     assert_eq!(
         statement.final_.acc, 5,
         "the second segment reads the first segment's write"
@@ -563,12 +585,14 @@ fn memory_conformance_on_metal() {
     memory_conformance(nightstream::Engine::Metal);
 }
 
-/// A verifier given another program rejects an honest proof of the default
-/// program: the other `D_init` opens another initial state, so the Stage 1
-/// state link fails. A program of another package fails before any check.
+/// One package serves two programs (spec §14): the loaded V1 package proves a
+/// segment of the default program and of a second program, and each proof
+/// verifies with its own program. A verifier given the other program rejects
+/// it: the other `D_init` opens another initial state, so the Stage 1 state
+/// link fails. A program of another package fails before any check.
 #[test]
 #[ignore = "Full production-profile memory proofs; run separately under the 300-second cap."]
-fn wrong_program_rejected_on_cpu() {
+fn each_program_verifies_only_its_own_proof_on_cpu() {
     use nightstream::nebula::{self, VerifyError};
     let engine = nightstream::Engine::Optimized;
     let started = std::time::Instant::now();
@@ -577,28 +601,40 @@ fn wrong_program_rejected_on_cpu() {
         .expect("pinned memory package");
     let prover = circuit.prover(engine, 114).unwrap();
     let verifier = nebula::Verifier::new(&circuit, engine, 114).unwrap();
-    let mut run = program_run();
-    let z0 = run.initial_state();
-    let invocations = run.segment(&[Step::Execute, Step::Execute]).unwrap();
-    let first = prover
-        .prove_with_output(z0, &invocations[0].words, invocations[0].output)
-        .unwrap();
-    let proof = prover
-        .extend_with_output(&first, &invocations[1].words, invocations[1].output)
-        .unwrap();
-    let statement = run.statement();
+    let prove = |program: &Program| {
+        let mut run = Run::new(Context::new(program), MachineState::default());
+        let z0 = run.initial_state();
+        let invocations = run.segment(&[Step::Execute, Step::Execute]).unwrap();
+        let first = prover
+            .prove_with_output(z0, &invocations[0].words, invocations[0].output)
+            .unwrap();
+        let proof = prover
+            .extend_with_output(&first, &invocations[1].words, invocations[1].output)
+            .unwrap();
+        (run.statement(), *run.carry(), proof)
+    };
+    let (default, other) = (Package::V1.program(), other_program());
+    let (statement, carry, proof) = prove(&default);
+    let (other_statement, other_carry, other_proof) = prove(&other);
     verifier
-        .verify(&Package::V1.program(), &statement, run.carry(), &proof)
+        .verify(&default, &statement, &carry, &proof)
+        .unwrap();
+    verifier
+        .verify(&other, &other_statement, &other_carry, &other_proof)
         .unwrap();
     assert!(matches!(
-        verifier.verify(&other_program(), &statement, run.carry(), &proof),
+        verifier.verify(&other, &statement, &carry, &proof),
         Err(VerifyError::Proof(_))
     ));
     assert!(matches!(
-        verifier.verify(&Package::N1.program(), &statement, run.carry(), &proof),
+        verifier.verify(&default, &other_statement, &other_carry, &other_proof),
+        Err(VerifyError::Proof(_))
+    ));
+    assert!(matches!(
+        verifier.verify(&Package::N1.program(), &statement, &carry, &proof),
         Err(VerifyError::Package)
     ));
-    eprintln!("wrong program elapsed={:?}", started.elapsed());
+    eprintln!("two programs elapsed={:?}", started.elapsed());
 }
 
 #[test]

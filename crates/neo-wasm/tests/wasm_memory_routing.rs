@@ -2,8 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use neo_application::{MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec};
 use neo_wasm::{
-    build_wasm_relation, build_wasm_relation_layout, layout::*, named_column_family, plan_ordered_wasm_memory_slots,
-    plan_wasm_memory_slots, WasmMemoryId, WasmOpcode,
+    build_wasm_relation, build_wasm_relation_layout, layout::*, plan_ordered_wasm_memory_slots, plan_wasm_memory_slots,
+    WasmMemoryId, WasmOpcode,
 };
 
 #[test]
@@ -90,11 +90,13 @@ fn enforced_supports() -> BTreeMap<usize, BTreeSet<usize>> {
 }
 
 /// Spec §10.1 I1 and I2 accept a row whose active ports sit in distinct
-/// slots in catalog order. So two ports that the relation lets be active
-/// together must sit in increasing slots. A chain of such ports needs one
-/// slot per port, so a plan as long as the longest chain is the shortest.
+/// slots, with each pair of one memory and a write in catalog order. So two
+/// ports that the relation lets be active together must sit in distinct
+/// slots, and in increasing slots when they are such a pair. The ports whose
+/// supports share an atom may all be active together, so a plan from these
+/// supports needs at least the largest support load of slots.
 #[test]
-fn ordered_slot_plan_keeps_catalog_order_wherever_the_relation_allows() {
+fn ordered_slot_plan_keeps_dependent_pairs_in_catalog_order_wherever_the_relation_allows() {
     use MemoryPortActivation::When;
     let layout = build_wasm_relation_layout();
     let memories = layout.auxiliary.memory.entries();
@@ -112,6 +114,8 @@ fn ordered_slot_plan_keeps_catalog_order_wherever_the_relation_allows() {
         (Some(a), Some(b)) => !a.is_disjoint(b),
         _ => true,
     };
+    let writes = |port: usize| matches!(ports[port].1.kind, MemoryPortKind::Write { .. });
+    let dependent = |p: usize, q: usize| ports[p].0 == ports[q].0 && (writes(p) || writes(q));
 
     let mut slot_of = vec![None; ports.len()];
     for (slot, candidates) in plan.slots.iter().enumerate() {
@@ -123,37 +127,32 @@ fn ordered_slot_plan_keeps_catalog_order_wherever_the_relation_allows() {
         .into_iter()
         .map(|slot| slot.expect("every port has a slot"))
         .collect();
-    let mut chain_to: Vec<Vec<usize>> = Vec::with_capacity(ports.len());
+    let mut reordered = 0;
     for q in 0..ports.len() {
-        let mut chain = Vec::new();
         for p in (0..q).filter(|p| together(*p, q)) {
-            assert!(slot_of[p] < slot_of[q], "ports {p} and {q} may be active together");
-            if chain_to[p].len() > chain.len() {
-                chain = chain_to[p].clone();
+            assert_ne!(slot_of[p], slot_of[q], "ports {p} and {q} may be active together");
+            if dependent(p, q) {
+                assert!(slot_of[p] < slot_of[q], "ports {p} and {q} keep catalog order");
+            } else if slot_of[p] > slot_of[q] {
+                reordered += 1;
             }
         }
-        chain.push(q);
-        chain_to.push(chain);
     }
-    let longest = chain_to.into_iter().max_by_key(Vec::len).unwrap();
+    let mut loads: BTreeMap<usize, usize> = BTreeMap::new();
+    for atom in (0..ports.len()).filter_map(support).flatten() {
+        *loads.entry(*atom).or_insert(0) += 1;
+    }
+    let largest = loads.values().copied().max().unwrap();
     assert_eq!(
         plan.slots.len(),
-        longest.len(),
-        "the plan is as long as the longest chain"
+        largest,
+        "the plan has the fewest slots its supports allow"
     );
     assert_eq!(plan.logical_ports, ports.len());
 
     eprintln!(
-        "ordered slots={} (plan_wasm_memory_slots: {}), longest chain:",
+        "ordered slots={} (plan_wasm_memory_slots: {}), {reordered} pairs that may be active together swap",
         plan.slots.len(),
         plan_wasm_memory_slots(memories).slots.len()
     );
-    for port in longest {
-        let (id, spec) = ports[port];
-        let gate = match spec.activation {
-            When(gate) => named_column_family(gate).map_or("unknown", |family| family.name),
-            _ => "none",
-        };
-        eprintln!("  port {port}: {id} {:?} when {gate}", spec.kind);
-    }
 }

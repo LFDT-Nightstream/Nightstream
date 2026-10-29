@@ -4,8 +4,8 @@
 //! `_BEFORE` of the next), and `nightstream::nebula::CatalogBinding` checks
 //! every memory of the catalog. The regions come from what the two test
 //! programs need, so one circuit serves both programs. The slot plan is
-//! `plan_ordered_wasm_memory_slots`, which keeps catalog order on every row
-//! that the relation accepts.
+//! `plan_ordered_wasm_memory_slots`, which keeps each pair of one memory with
+//! a write in catalog order on every row that the relation accepts.
 
 mod common;
 
@@ -338,7 +338,8 @@ impl Setup {
         (app, geometry)
     }
 
-    /// The application of the static plan that keeps catalog order.
+    /// The application of the static plan that keeps each dependent pair in
+    /// catalog order.
     fn complete(&self) -> (Wasm, Geometry) {
         self.app(&plan_ordered_wasm_memory_slots(build_wasm_relation_layout().auxiliary.memory.entries()).slots)
     }
@@ -405,21 +406,24 @@ fn honest_padded_traces_run_through_nebula() {
     }
 }
 
-/// `plan_wasm_memory_slots` puts the `i32.const` value read (port 51, ROM
-/// `program_i32_const_value`) in slot 0 and the stack write (port 8) in slot
-/// 6. Row 0 of the linear-memory trace (`i32.const 0`) activates both, so its
-/// active slots leave catalog order (spec §10.1 I2) and the honest row fails.
-/// The inputs after row 0 repeat it, so a later row would fail on the state
-/// instead.
+/// `plan_wasm_memory_slots` puts the stack reads (ports 10 and 14) in slots 0
+/// and 1 and the stack writes (ports 8 and 9) in slots 6 and 7. Row 2 of the
+/// call trace (`local.get 0`) activates all four, so a stack read shows before
+/// a stack write that comes first in catalog order (spec §10.1 I2) and the
+/// honest trace fails. The linear-memory trace runs: the pairs that its rows
+/// show out of catalog order are on distinct memories.
 #[test]
-fn enzo_slot_plan_breaks_catalog_order_on_an_honest_row() {
+fn enzo_slot_plan_breaks_a_dependent_pair_on_an_honest_row() {
     let setup = setup();
     let plan = plan_wasm_memory_slots(build_wasm_relation_layout().auxiliary.memory.entries());
     let (app, _) = setup.app(&plan.slots);
-    let traced = &setup.programs[0];
-    let (_, mut run) = setup.run(&app, traced);
-    let Err(SegmentError::Application(error)) = run.segment(&vec![traced.rows[0].clone(); N]) else {
-        panic!("the honest row 0 fails");
+    let [linear, call] = &setup.programs;
+    let (_, mut run) = setup.run(&app, linear);
+    run.segment(&linear.rows)
+        .expect("the linear-memory trace runs");
+    let (_, mut run) = setup.run(&app, call);
+    let Err(SegmentError::Application(error)) = run.segment(&call.rows) else {
+        panic!("the honest call trace fails");
     };
     assert!(matches!(
         error.downcast_ref::<WasmStepError>(),

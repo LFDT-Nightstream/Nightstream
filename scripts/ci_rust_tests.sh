@@ -3,8 +3,13 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
+# xargs starts the groups in this order, so the four slowest come first. The
+# nightstream tests are split by name; the last of them runs the rest.
 groups=(
-  '-p nightstream'
+  '-p nightstream lifecycle::'
+  '-p nightstream engine::'
+  '-p nightstream -- --skip lifecycle:: --skip engine::'
+  '-p nightstream-fprime --test component_forms --test package_loader --test per_application_logical_matrix_conformance --test pi_ccs_opening_arithmetic --test pi_ccs_opening_values --test pilot_lean_nonzero_parity --test production_binding --test statement_binding_rows'
   '-p neo-spartan'
   '-p neo-ccs --test packed_witness --test red_team'
   '-p neo-params --test red_team'
@@ -19,7 +24,6 @@ groups=(
   '-p nightstream-fprime --lib package::matrix_program'
   '-p nightstream-fprime --lib package::assignment_transport::quotient_tests'
   '-p nightstream-fprime --lib package::sealed::sealed_tests'
-  '-p nightstream-fprime --test component_forms --test package_loader --test per_application_logical_matrix_conformance --test pi_ccs_opening_arithmetic --test pi_ccs_opening_values --test pilot_lean_nonzero_parity --test production_binding --test statement_binding_rows'
 )
 
 common=(
@@ -43,8 +47,9 @@ case "${1:-}" in
   run)
     read -r -a selected <<< "${2:?missing test group}"
     printf 'Running selected tests: %s\n' "$2"
-    # One libtest process per binary keeps its shared fixtures alive.
-    exec cargo test "${common[@]}" --no-fail-fast "${selected[@]}" -- --test-threads=1
+    # One libtest process per binary keeps its shared fixtures alive. The
+    # thread count is set by environment so a group can pass its own `--`.
+    RUST_TEST_THREADS=1 exec cargo test "${common[@]}" --no-fail-fast "${selected[@]}"
     ;;
   *)
     printf 'Usage: %s {build|test}\n' "$0" >&2

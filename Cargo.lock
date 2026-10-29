@@ -1055,6 +1055,7 @@ dependencies = [
  "neo-application",
  "neo-ccs",
  "neo-math",
+ "nightstream",
  "p3-field 0.5.3",
  "p3-goldilocks 0.5.3",
  "serde_json",

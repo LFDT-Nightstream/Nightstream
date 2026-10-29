@@ -57,5 +57,6 @@ wasmtime = { version = "50", default-features = false, features = [
 ] }
 
 [dev-dependencies]
+nightstream = { path = "../nightstream" }
 serde_json = { workspace = true }
 wat = "1"

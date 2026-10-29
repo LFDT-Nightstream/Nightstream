@@ -107,7 +107,7 @@ theorem eval_pack (env : Env) (l : List Circuit.Expr) :
   | case1 => simp [pack, packWords]
   | case2 l nonempty ih =>
     have mapped : l.map (Circuit.Expr.eval env) ≠ [] := by simpa using nonempty
-    rw [pack, dif_neg nonempty, packWords, dif_neg mapped, List.map_cons, ih, eval_chunk,
+    rw [pack, dite_eq_right nonempty, packWords, dite_eq_right mapped, List.map_cons, ih, eval_chunk,
       List.map_take, List.map_drop]
 
 end Expr

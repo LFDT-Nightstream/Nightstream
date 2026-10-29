@@ -205,7 +205,7 @@ theorem badAt_error [Fintype E] {k : Fin ctx.plan.sMax} {c : Coins} {e : Fin ctx
     x ∈ errors (g.play ctx app k c e) (g.Unbalanced ctx k c e) := by
   obtain ⟨accepted, consistent, hk, unbalanced, -⟩ := bad
   simp only [errors, Finset.mem_filter, Finset.mem_univ, true_and]
-  refine ⟨_, if_pos ⟨accepted, consistent, hk⟩, ?_⟩
+  refine ⟨_, ite_eq_left ⟨accepted, consistent, hk⟩, ?_⟩
   rw [Unbalanced, view_eq ctx g consistent]
   exact unbalanced
 

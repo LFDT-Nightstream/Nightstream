@@ -365,12 +365,12 @@ private theorem stepSegment_of_rows {ctx : Context E Digest} {c : Carry E Digest
     {z : StepRecords} (rows : StepRows ctx.plan c.ts z) :
     stepSegment ctx c z = some (advance ctx c z) := by
   unfold stepSegment
-  rw [if_pos rows]
+  rw [ite_eq_left rows]
 
 private theorem stepSegment_of_not_rows {ctx : Context E Digest} {c : Carry E Digest}
     {z : StepRecords} (rows : ¬ StepRows ctx.plan c.ts z) : stepSegment ctx c z = none := by
   unfold stepSegment
-  rw [if_neg rows]
+  rw [ite_eq_right rows]
 
 private theorem closeSegment_eq_some {ctx : Context E Digest} {r c' : Carry E Digest} :
     closeSegment ctx r = some c' ↔
@@ -388,7 +388,7 @@ private theorem continueRun_cons_open {ctx : Context E Digest} {d : Carry E Dige
     continueRun ctx d (inv :: rest) =
       ((stepSegment ctx d inv.records).bind (finishStep ctx)).bind
         fun d' => continueRun ctx d' rest := by
-  simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, if_neg isOpen.ne,
+  simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, ite_eq_right isOpen.ne,
     Option.bind_some]
 
 private theorem continueRun_reopen {ctx : Context E Digest} {c c' : Carry E Digest}
@@ -401,10 +401,10 @@ private theorem continueRun_reopen {ctx : Context E Digest} {c c' : Carry E Dige
   have opens : openSegment ctx c inv.proposal =
       if c.segIdx < ctx.plan.sMax then some (openedCarry ctx c inv.proposal) else none := rfl
   by_cases fits : c.segIdx < ctx.plan.sMax
-  · simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, if_pos reopen, opens,
-      fits, if_true, Option.bind_some, true_and]
-  · simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, if_pos reopen, opens,
-      fits, if_false, Option.bind_none, false_and, reduceCtorEq]
+  · simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, ite_eq_left reopen, opens,
+      fits, ite_true, Option.bind_some, true_and]
+  · simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, ite_eq_left reopen, opens,
+      fits, ite_false, Option.bind_none, false_and, reduceCtorEq]
 
 /-- An opened segment with `rest.length + 1` steps left runs its steps and
 closes at the last one. -/
@@ -425,7 +425,7 @@ private theorem steps_eq_some (ctx : Context E Digest) (c' : Carry E Digest)
       have fin : finishStep ctx (advance ctx c inv.records) =
           closeSegment ctx (advance ctx c inv.records) := by
         unfold finishStep
-        rw [if_pos closes]
+        rw [ite_eq_left closes]
       have done : ∀ o : Option (Carry E Digest),
           (o.bind fun d => continueRun ctx d ([] : List (Invocation σ Digest))) = o := by
         intro o
@@ -443,7 +443,7 @@ private theorem steps_eq_some (ctx : Context E Digest) (c' : Carry E Digest)
         omega
       have fin : finishStep ctx (advance ctx c inv.records) = some (advance ctx c inv.records) := by
         unfold finishStep
-        rw [if_neg isOpen.ne]
+        rw [ite_eq_right isOpen.ne]
       have next := ih (advance ctx c inv.records) inv' (by show c.idx + 1 + _ + 1 = _; omega)
       rw [← continueRun_cons_open isOpen] at next
       rw [stepSegment_of_rows rows, Option.bind_some, fin]

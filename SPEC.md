@@ -8,11 +8,11 @@ Rust in `crates/` implements the protocol and is not proved. Lean emits the circ
 
 Lean proves these results. `formal/nightstream-fprime/SECURITY_MODEL.md` gives the adversary of each result and what you must trust.
 
-- If the rows of the step circuit hold and the public input matches, the typed step holds (`Export.Stage1.ActualPiDECOutput.selectedRowsAndPublic_imply_step` (`41b26ef3f1e7fbce`)). No hardness premise is used.
-- If the terminal predicate accepts, the opened step is the authenticated NIFS step, or the base step, or a named Poseidon2 state-hash collision occurred (`Export.Stage1.ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision` (`eed8a88a0e76d55e`)).
-- One fold is knowledge sound in the random-oracle model (`Export.Stage1.RandomOracleSetup.production_knowledge_error_lt` (`abdff8d1eaac1418`)).
-- A false history is accepted with probability at most the sum of the per-stage errors, under HyperNova errata Assumption 1 (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound` (`0377b718e351f9e5`), `Export.Stage1.HyperNovaVisitedSecurity.history_failure_le` (`49b01830e9ea27ea`)). With the errors that the random-oracle result motivates, this bound is useful for one or two folds only (`SECURITY_MODEL.md`, trust item 4).
-- The honest prover's first proof is accepted, and an accepted proof gives an accepted next proof (`Export.Stage1.HyperNovaInitial.initial_accepted` (`23fd2b67c1e86771`), `Export.Stage1.HyperNovaAcceptedNext.base_extend` (`0f6ba727ad56dfa5`), `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (`d3c525d265639609`)).
+- If the rows of the step circuit hold and the public input matches, the typed step holds (`Export.Stage1.ActualPiDECOutput.selectedRowsAndPublic_imply_step` (`3aad9b2575f40242`)). No hardness premise is used.
+- If the terminal predicate accepts, the opened step is the authenticated NIFS step, or the base step, or a named Poseidon2 state-hash collision occurred (`Export.Stage1.ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision` (`455f5269f7b739ba`)).
+- One fold is knowledge sound in the random-oracle model (`Export.Stage1.RandomOracleSetup.production_knowledge_error_lt` (`709bb7698524ce34`)).
+- A false history is accepted with probability at most the sum of the per-stage errors, under HyperNova errata Assumption 1 (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound` (`4106ba4f56189715`), `Export.Stage1.HyperNovaVisitedSecurity.history_failure_le` (`ea7ead2ec7b3627d`)). With the errors that the random-oracle result motivates, this bound is useful for one or two folds only (`SECURITY_MODEL.md`, trust item 4).
+- The honest prover's first proof is accepted, and an accepted proof gives an accepted next proof, for a witness that the application accepts (`Export.Stage1.HyperNovaInitial.initial_accepted` (`cc4df317635879dd`), `Export.Stage1.HyperNovaAcceptedNext.base_extend` (`d7d06d7ddc3a8971`), `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (`b237776203d41507`)).
 - If the final verifier accepts, the F′ claim of the last fold is true, except with probability `layer1Error + shrinkError` (`CompressionLean.Final.final_sound_parent` (`bc972925ba8e29a0`)). WHIR and Poseidon2 as a random oracle are premises (`formal/compression-lean/README.md`).
 
 Every audited theorem uses only the axioms `propext`, `Classical.choice` and `Quot.sound`. The repository claims no single security level for the system (`SECURITY_MODEL.md`, Out of scope).
@@ -282,14 +282,14 @@ Each step proves one instance of HyperNova Construction 2's augmented step (`Lif
 
 **Steps.**
 
-1. Set `z_{i+1} = F(zi, w)`, where `F` is the application's step (`Lifecycle.Stage1.Application.Program`).
+1. Require that the application accepts the witness `w` at `zi`, and set `z_{i+1} = F(zi, w)`. `F` is the application's step, and the acceptance check is its `valid` predicate (`Lifecycle.Stage1.Application.Program`).
 2. If `i = 0`: require `z0 = zi`, and set `U_{i+1}` to 16 copies of `u_⊥`.
 3. If `i > 0`: require that the public input of `u_i` is `encHash(stateHash(vk, i, z0, zi, U_i))`. Then require that Algorithm 4 accepts `(U_i, u_i, proof)`, and set `U_{i+1}` to its output.
 4. Set `x = stateHash(vk, i + 1, z0, z_{i+1}, U_{i+1})`.
 
 **Rejects.** The relation does not hold.
 
-**Source.** The step circuit checks these steps in eight children, in this order: the prior state hash, the output state hash, Π_CCS, Π_RLC, Π_DEC, the running transition, the application and the next preimage (`Lifecycle.Stage1.Formal`, `formal/nightstream-fprime/README.md`). Its rows imply the typed step (`Export.Stage1.ActualPiDECOutput.selectedRowsAndPublic_imply_step` (`41b26ef3f1e7fbce`)). For the reference application, `F(z, w) = Poseidon2.hash(tag ++ z ++ w)`, where `tag` is the 40 bytes of `Nightstream/Stage1/Poseidon2HashChain/v1`, one word each (`decisions/fprime-stage1-poseidon2-hash-chain-v1.md`). HyperNova Construction 2, steps 4 and 5.
+**Source.** The step circuit checks these steps in eight children, in this order: the prior state hash, the output state hash, Π_CCS, Π_RLC, Π_DEC, the running transition, the application and the next preimage (`Lifecycle.Stage1.Formal`, `formal/nightstream-fprime/README.md`). Its rows imply the typed step (`Export.Stage1.ActualPiDECOutput.selectedRowsAndPublic_imply_step` (`3aad9b2575f40242`)). For the reference application, `F(z, w) = Poseidon2.hash(tag ++ z ++ w)`, where `tag` is the 40 bytes of `Nightstream/Stage1/Poseidon2HashChain/v1`, one word each (`decisions/fprime-stage1-poseidon2-hash-chain-v1.md`). HyperNova Construction 2, steps 4 and 5.
 
 ### Algorithm 4. NIFS verifier
 
@@ -337,7 +337,7 @@ Each step proves one instance of HyperNova Construction 2's augmented step (`Lif
 
 **Rejects.** None. A prover that fails returns an error and leaves the supplied proof unchanged.
 
-**Source.** `crates/nightstream/src/lifecycle/` (not checked against Lean). Lean proves that the honest step is accepted (`Export.Stage1.HyperNovaInitial.initial_accepted` (`23fd2b67c1e86771`), `Export.Stage1.HyperNovaAcceptedNext.base_extend` (`0f6ba727ad56dfa5`), `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (`d3c525d265639609`)).
+**Source.** `crates/nightstream/src/lifecycle/` (not checked against Lean). Lean proves that the honest step is accepted when the application accepts its witness (`Export.Stage1.HyperNovaInitial.initial_accepted` (`cc4df317635879dd`), `Export.Stage1.HyperNovaAcceptedNext.base_extend` (`d7d06d7ddc3a8971`), `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (`b237776203d41507`)).
 
 ### Algorithm 6. Terminal verifier
 
@@ -355,7 +355,7 @@ Each step proves one instance of HyperNova Construction 2's augmented step (`Lif
 
 **Rejects.** Each step's failure. Rust checks them in this order: the state, the counter, the claim shapes, the public projections, the state hash, the commitments, then the openings and the fresh relation (`crates/nightstream/src/lifecycle/verify.rs`; not checked against Lean).
 
-**Source.** `Lifecycle.Stage1.Terminal.HoldsFor`, the terminal check of HyperNova Construction 2 (`Spec.HyperNova.Construction2.Paper.OuterTerminalTransition`). The initial proof is accepted exactly at `i = 0` and `zi = z0` (`Lifecycle.Stage1.Terminal.holdsFor_bottom_iff` (`37245296a41fbfc8`)). Acceptance implies the authenticated NIFS step, the base step or a state-hash collision (`Export.Stage1.ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision` (`eed8a88a0e76d55e`)).
+**Source.** `Lifecycle.Stage1.Terminal.HoldsFor`, the terminal check of HyperNova Construction 2 (`Spec.HyperNova.Construction2.Paper.OuterTerminalTransition`). The initial proof is accepted exactly at `i = 0` and `zi = z0` (`Lifecycle.Stage1.Terminal.holdsFor_bottom_iff` (`8838d0b9d5350a57`)). Acceptance implies the authenticated NIFS step, the base step or a state-hash collision (`Export.Stage1.ActualTerminalSecurity.terminal_implies_nifsOrBaseOrCollision` (`455f5269f7b739ba`)).
 
 ### Algorithm 7. Finish
 

@@ -634,6 +634,7 @@ free application (`FreeApp`). -/
 
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.packParts_lt
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.packParts_injective
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.replay_of_reorders
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.memoryConsistent_of_accessAll
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.executes_accessAll
 #audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.memoryConsistent_of_executes

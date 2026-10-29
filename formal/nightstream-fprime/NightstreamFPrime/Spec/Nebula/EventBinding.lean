@@ -7,8 +7,9 @@ gives each bound memory a region in its namespace: RAM for a memory that the
 catalog declares RAM, ROM otherwise. An access binds an event when it names
 the event's packed address, a read reads the event value, and a write writes
 the event value and reads the prior value when the event has one. An inactive
-port has no event, so it has no access: a pad slot. The bound accesses keep the
-order of the events. It does not own the slot layout of a step or the Rust
+port has no event, so it has no access: a pad slot. The bound accesses list the
+events in an order that keeps each pair of one memory with a write
+(`Reorders`). It does not own the slot layout of a step or the Rust
 rows. -/
 
 namespace NightstreamFPrime.Spec.Nebula.MemoryTrace
@@ -281,19 +282,139 @@ private theorem replay_of_agrees (disjoint : b.Disjoint catalog) {events : List 
       ih agree' (fun e' member => range e' (List.mem_cons_of_mem e member)) replays
     exact ⟨final', .cons step replay⟩
 
+/-! ### Reorder
+
+A write changes one cell of one memory, and a read changes nothing. So two
+events of distinct memories swap, and two reads swap, with the same replay. -/
+
+/-- A write event. -/
+def Event.isWrite : Event → Bool
+  | .read .. => false
+  | .write .. => true
+
+/-- Two events that may not swap: one memory, and one of them writes. -/
+def Event.Dependent (e f : Event) : Prop :=
+  e.memory = f.memory ∧ (e.isWrite ∨ f.isWrite)
+
+/-- `order` lists the events of `events` once each, and each dependent pair in
+the order of `events`: each event carries its index in `events`. -/
+def Reorders (events order : List Event) : Prop :=
+  ∃ tagged : List (Event × ℕ), tagged.Perm events.zipIdx ∧
+    tagged.Pairwise (fun a c => a.1.Dependent c.1 → a.2 < c.2) ∧ tagged.map Prod.fst = order
+
+private theorem priorMatches_update {state : MemoryState} {memory memory' : ℕ}
+    {address address' : Address} {value : ℤ} {prior : Option ℤ} (differ : memory' ≠ memory) :
+    priorMatches (update state memory address value) memory' address' prior ↔
+      priorMatches state memory' address' prior := by
+  cases prior <;> simp [priorMatches, update, differ]
+
+private theorem eventStep_swap {e f : Event} (independent : ¬ e.Dependent f)
+    {s m t : MemoryState} (first : EventStep s e m) (second : EventStep m f t) :
+    ∃ m', EventStep s f m' ∧ EventStep m' e t := by
+  cases first with
+  | read hold =>
+    cases second with
+    | read hold' => exact ⟨_, .read hold', .read hold⟩
+    | write held' =>
+      simp [Event.Dependent, Event.memory, Event.isWrite] at independent
+      exact ⟨_, .write held', .read (by simp [update, independent, hold])⟩
+  | write held =>
+    cases second with
+    | read hold' =>
+      simp [Event.Dependent, Event.memory, Event.isWrite] at independent
+      exact ⟨_, .read (by simpa [update, Ne.symm independent] using hold'), .write held⟩
+    | write held' =>
+      rename_i m₁ a₁ v₁ p₁ m₂ a₂ v₂ p₂
+      simp [Event.Dependent, Event.memory, Event.isWrite] at independent
+      refine ⟨_, .write ((priorMatches_update (Ne.symm independent)).mp held'), ?_⟩
+      have step := EventStep.write (value := v₁)
+        ((priorMatches_update (state := s) (address := a₂) (value := v₂) independent).mpr held)
+      convert step using 1
+      funext n x
+      simp only [update]
+      split_ifs <;> simp_all
+
+/-- An event that may swap with each event of `pre` replays after them alike. -/
+private theorem replay_move {x : Event} {pre post : List Event}
+    (independent : ∀ y ∈ pre, ¬ x.Dependent y) :
+    ∀ {s t : MemoryState}, Replay s (x :: (pre ++ post)) t → Replay s (pre ++ x :: post) t := by
+  induction pre with
+  | nil => exact id
+  | cons y pre ih =>
+    intro s t replay
+    obtain _ | ⟨first, rest⟩ := replay
+    obtain _ | ⟨second, rest⟩ := rest
+    obtain ⟨_, stepY, stepX⟩ := eventStep_swap (independent y List.mem_cons_self) first second
+    exact .cons stepY (ih (fun z member => independent z (List.mem_cons_of_mem y member))
+      (.cons stepX rest))
+
+private theorem replay_of_tagged {tagged : List (Event × ℕ)} :
+    ∀ {es : List (Event × ℕ)}, tagged.Perm es → es.Pairwise (fun a c => a.2 < c.2) →
+      tagged.Pairwise (fun a c => a.1.Dependent c.1 → a.2 < c.2) →
+      ∀ {s t : MemoryState}, Replay s (tagged.map Prod.fst) t → Replay s (es.map Prod.fst) t := by
+  induction tagged with
+  | nil =>
+    intro es perm _ _ s t replay
+    rw [List.nil_perm.mp perm]
+    exact replay
+  | cons x rest ih =>
+    intro es perm sorted keeps s t replay
+    obtain ⟨pre, post, rfl⟩ := List.append_of_mem (perm.subset List.mem_cons_self)
+    have restPerm : rest.Perm (pre ++ post) := (perm.trans List.perm_middle).cons_inv
+    rw [List.pairwise_cons] at keeps
+    obtain _ | ⟨first, replay⟩ := replay
+    have moved := replay_move (x := x.1) (pre := pre.map Prod.fst) (post := post.map Prod.fst)
+      ?_ (.cons first (by
+        simpa using ih restPerm (sorted.sublist ((List.sublist_cons_self x post).append_left pre))
+          keeps.2 replay))
+    · simpa using moved
+    · intro y member dependent
+      obtain ⟨a, inPre, rfl⟩ := List.mem_map.mp member
+      have before : a.2 < x.2 :=
+        (List.pairwise_append.mp sorted).2.2 a inPre x List.mem_cons_self
+      have after : x.2 < a.2 :=
+        keeps.1 a (restPerm.symm.subset (List.mem_append_left post inPre)) dependent
+      omega
+
+private theorem zipIdx_sorted (events : List Event) (n : ℕ) :
+    (events.zipIdx n).Pairwise (fun a c => a.2 < c.2) := by
+  induction events generalizing n with
+  | nil => simp
+  | cons e events ih =>
+    rw [List.zipIdx_cons, List.pairwise_cons]
+    refine ⟨fun ⟨_, i⟩ member => ?_, ih (n + 1)⟩
+    have := (List.mem_zipIdx member).1
+    simp only
+    omega
+
+/-- A reorder that keeps each dependent pair replays as the events do. -/
+theorem replay_of_reorders {events order : List Event} (reorders : Reorders events order)
+    {s t : MemoryState} (replays : Replay s order t) : Replay s events t := by
+  obtain ⟨tagged, perm, keeps, rfl⟩ := reorders
+  simpa [List.zipIdx_map_fst] using replay_of_tagged perm (zipIdx_sorted events 0) keeps replays
+
+private theorem Reorders.mem {events order : List Event} (reorders : Reorders events order) {e : Event}
+    (member : e ∈ order) : e ∈ events := by
+  obtain ⟨tagged, perm, -, rfl⟩ := reorders
+  obtain ⟨a, inTagged, rfl⟩ := List.mem_map.mp member
+  exact List.fst_mem_of_mem_zipIdx (perm.subset inTagged)
+
 /-! ### The bridge -/
 
 /-- If every event of the trace is in range, the initial state holds the plan
-images on the in-range set, and accesses that bind the events in order replay
-from the plan images, then the trace is `MemoryConsistent`. -/
+images on the in-range set, and accesses that bind a reorder of the events
+replay from the plan images, then the trace is `MemoryConsistent`. -/
 theorem memoryConsistent_of_accessAll {p : Plan} {initial : MemoryState} {rows : List Witness}
-    {accesses : List PortAccess} {final : Machine} (disjoint : b.Disjoint catalog)
+    {order : List Event} {accesses : List PortAccess} {final : Machine}
+    (disjoint : b.Disjoint catalog)
     (inRange : ∀ e ∈ eventsForTrace catalog rows, b.InRange e.memory e.address)
-    (start : b.Initial catalog p initial)
-    (bound : List.Forall₂ (b.Binds catalog) (eventsForTrace catalog rows) accesses)
+    (start : b.Initial catalog p initial) (reorders : Reorders (eventsForTrace catalog rows) order)
+    (bound : List.Forall₂ (b.Binds catalog) order accesses)
     (replays : accessAll p.toGeometry (initialMachine p) accesses = some final) :
-    MemoryConsistent catalog initial rows :=
-  replay_of_agrees disjoint bound (agrees_initial start) inRange replays
+    MemoryConsistent catalog initial rows := by
+  obtain ⟨final', replay⟩ := replay_of_agrees disjoint bound (agrees_initial start)
+    (fun e member => inRange e (reorders.mem member)) replays
+  exact ⟨final', replay_of_reorders reorders replay⟩
 
 /-- An execution replays its active ports, step after step. -/
 theorem executes_accessAll {σ : Type} {app : Application p σ} {s s' : σ} {m m' : Machine}
@@ -306,17 +427,18 @@ theorem executes_accessAll {σ : Type} {app : Application p σ} {s s' : σ} {m m
     exact ih
 
 /-- Nebula's memory guarantee for a bound catalog: an execution from the plan
-images whose active ports, step after step, bind the events of the trace in
-order gives `MemoryConsistent`. -/
+images whose active ports, step after step, bind a reorder of the events of
+the trace gives `MemoryConsistent`. -/
 theorem memoryConsistent_of_executes {p : Plan} {σ : Type} {app : Application p.toGeometry σ}
     {s s' : σ} {final : Machine} {steps : List (List (Option PortAccess))} {initial : MemoryState}
-    {rows : List Witness} (exec : Executes p.toGeometry app s (initialMachine p) steps s' final)
+    {rows : List Witness} {order : List Event}
+    (exec : Executes p.toGeometry app s (initialMachine p) steps s' final)
     (disjoint : b.Disjoint catalog)
     (inRange : ∀ e ∈ eventsForTrace catalog rows, b.InRange e.memory e.address)
-    (start : b.Initial catalog p initial)
-    (bound : List.Forall₂ (b.Binds catalog) (eventsForTrace catalog rows)
+    (start : b.Initial catalog p initial) (reorders : Reorders (eventsForTrace catalog rows) order)
+    (bound : List.Forall₂ (b.Binds catalog) order
       (steps.flatMap fun ports => ports.filterMap id)) :
     MemoryConsistent catalog initial rows :=
-  memoryConsistent_of_accessAll disjoint inRange start bound (executes_accessAll exec)
+  memoryConsistent_of_accessAll disjoint inRange start reorders bound (executes_accessAll exec)
 
 end NightstreamFPrime.Spec.Nebula.MemoryTrace

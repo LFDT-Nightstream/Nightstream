@@ -1,0 +1,183 @@
+mod common;
+
+use neo_application::{decomposition_bit_count, range_checked_variable_widths};
+use neo_ccs::check_ccs_rowwise_zero;
+use neo_math::F;
+use neo_wasm::ccs::host_event_chain::{AUX_COLUMN_FAMILIES, AUX_WIDTH};
+use neo_wasm::layout::{
+    column_families, named_column_family, ColumnWidth, COL_CALL_PARAM_COUNT, COL_CALL_RESULT_COUNT,
+    COL_CALL_STACK_RETURN_PC_VALUE, NAMED_COLUMN_COUNT,
+};
+use neo_wasm::range_check::range_checked_bit_columns;
+use neo_wasm::{
+    build_wasm_relation, write_range_check_bits, WasmOpcode, RANGE_BITS_REGION, RANGE_CHECKED_WITNESS_WIDTH,
+};
+use p3_field::PrimeCharacteristicRing;
+
+fn expected_aux_bits() -> usize {
+    column_families()
+        .chain(AUX_COLUMN_FAMILIES.iter())
+        .map(|family| decomposition_bit_count(family.width) * family.len)
+        .sum()
+}
+
+#[test]
+fn range_checked_width_bookkeeping() {
+    assert_eq!(
+        RANGE_CHECKED_WITNESS_WIDTH,
+        NAMED_COLUMN_COUNT + AUX_WIDTH + expected_aux_bits()
+    );
+
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    assert_eq!(relation.r1cs().column_count(), RANGE_CHECKED_WITNESS_WIDTH);
+    assert_eq!(relation.r1cs().structure().m, RANGE_CHECKED_WITNESS_WIDTH);
+    assert_eq!(relation.r1cs().catalog().len(), relation.r1cs().structure().n);
+    assert!(relation
+        .r1cs()
+        .structure()
+        .matrices
+        .iter()
+        .all(|matrix| matrix.as_csc().is_some()));
+    assert_eq!(relation.columns().column_count(), RANGE_CHECKED_WITNESS_WIDTH);
+
+    let range_bits = relation
+        .columns()
+        .family_for_column(NAMED_COLUMN_COUNT + AUX_WIDTH)
+        .expect("range-bit suffix must have registry metadata");
+    assert_eq!(range_bits.region, RANGE_BITS_REGION);
+    assert_eq!(range_bits.start, NAMED_COLUMN_COUNT + AUX_WIDTH);
+    assert_eq!(range_bits.end(), RANGE_CHECKED_WITNESS_WIDTH);
+    assert_eq!(range_bits.width, ColumnWidth::Boolean);
+}
+
+#[test]
+fn host_event_auxiliary_registry_preserves_the_existing_layout() {
+    let mut next = NAMED_COLUMN_COUNT;
+    for family in AUX_COLUMN_FAMILIES {
+        assert_eq!(family.region, "host_event_chain_aux");
+        assert_eq!(family.start, next, "{}", family.name);
+        next = family.end();
+    }
+    assert_eq!(next, NAMED_COLUMN_COUNT + AUX_WIDTH);
+}
+
+#[test]
+fn range_bit_lookup_exactly_partitions_the_auxiliary_suffix() {
+    let mut next = NAMED_COLUMN_COUNT + AUX_WIDTH;
+
+    for family in column_families().chain(AUX_COLUMN_FAMILIES.iter()) {
+        let bit_count = decomposition_bit_count(family.width);
+
+        for column in family.start..family.end() {
+            if bit_count == 0 {
+                assert_eq!(range_checked_bit_columns(column), None, "{}", family.name);
+            } else {
+                assert_eq!(
+                    range_checked_bit_columns(column),
+                    Some(next..next + bit_count),
+                    "{}",
+                    family.name
+                );
+                next += bit_count;
+            }
+        }
+    }
+
+    assert_eq!(next, RANGE_CHECKED_WITNESS_WIDTH);
+    assert_eq!(range_checked_bit_columns(NAMED_COLUMN_COUNT + AUX_WIDTH), None);
+}
+
+#[test]
+fn packed_function_metadata_counts_are_byte_ranged() {
+    // The packed ROM word is unpacked linearly. These byte bounds make that
+    // decomposition unique: without them, `param += 256; result -= 1` would
+    // preserve the authoritative packed value while changing call semantics.
+    assert_eq!(
+        named_column_family(COL_CALL_PARAM_COUNT).unwrap().width,
+        ColumnWidth::Byte
+    );
+    assert_eq!(
+        named_column_family(COL_CALL_RESULT_COUNT).unwrap().width,
+        ColumnWidth::Byte
+    );
+}
+
+/// An out-of-range value in a column no semantic row pins (the call-stack
+/// return-pc cell on a row that neither pushes nor pops) must be rejected,
+/// and the failing row must be one of that column's own range-check rows,
+/// proving nothing else constrains the value.
+#[test]
+fn out_of_range_u32_is_rejected_by_the_column_range_row() {
+    // The invariant under attack: the column is declared as a 32-bit value.
+    assert_eq!(
+        named_column_family(COL_CALL_STACK_RETURN_PC_VALUE)
+            .unwrap()
+            .width,
+        ColumnWidth::U32
+    );
+
+    let checked =
+        common::checked_main(r#"(module (func (export "main") (result i32) i32.const 20 i32.const 22 i32.add))"#);
+    let add_idx = checked
+        .trace
+        .iter()
+        .position(|row| matches!(row.opcode, WasmOpcode::I32Add))
+        .expect("i32.add row");
+    let mut wit = checked.witnesses[add_idx].clone();
+
+    wit[COL_CALL_STACK_RETURN_PC_VALUE] = F::from_u64(1u64 << 32);
+    write_range_check_bits(&mut wit);
+
+    let relation = build_wasm_relation().expect("valid WASM relation");
+    let m_in = relation.r1cs().public_input_count();
+    let err = check_ccs_rowwise_zero(relation.r1cs().structure(), &wit[..m_in], &wit[m_in..])
+        .expect_err("the range-checked CCS must reject an out-of-range call-stack return pc value");
+
+    let detail = err.to_string();
+    let row_idx = detail
+        .split_once("row ")
+        .and_then(|(_, rest)| rest.split_once(':'))
+        .and_then(|(row, _)| row.parse::<usize>().ok())
+        .unwrap_or_else(|| panic!("could not parse failing row from: {detail}"));
+    let tag = relation.r1cs().catalog().rows()[row_idx].tag();
+    assert_eq!(
+        tag.label(),
+        "COL_CALL_STACK_RETURN_PC_VALUE",
+        "rejection must come from the column's own range-check row, failed row {row_idx} is tagged {tag:?}"
+    );
+}
+
+/// The canonical plan must declare the typed widths. This is the only test
+/// pinning that: empty widths are legal and self-consistent (they mean
+/// "commit every variable as a full 64-bit lane"), so a regression to an
+/// undeclared plan would pass every prove/verify test while silently
+/// tripling the committed limbs and making the unconditional F' width
+/// audit vacuous. Declaring the widths is what makes preprocessing
+/// re-derive each one from the range rows and hard-error on any it cannot
+/// prove, so this passing also certifies the pass covers every column.
+#[test]
+fn canonical_preprocessing_audits_declared_widths() {
+    let digest = [0u8; 32];
+    let batch_size = 2;
+    let relation = build_wasm_relation().expect("base relation");
+    let base_widths = range_checked_variable_widths(relation.columns());
+    let single_width = neo_wasm::batch::build_batched_wasm_ccs(1)
+        .expect("relation with lookup constraints")
+        .sparse_r1cs
+        .m;
+    assert!(single_width > base_widths.len(), "lookup advice must be included");
+    let prep = neo_wasm::preprocess::preprocess_seeded_batched(batch_size, digest).expect("canonical preprocessing");
+    let widths = &prep.plan().app_private_var_widths;
+    assert_eq!(
+        widths.len(),
+        batch_size * single_width,
+        "the canonical plan must declare (and thus have audited) the typed widths"
+    );
+    for block in widths.chunks_exact(single_width) {
+        assert_eq!(&block[..base_widths.len()], base_widths.as_slice());
+        assert!(
+            block[base_widths.len()..].iter().all(|&width| width == 1),
+            "lookup advice must have audited Boolean widths"
+        );
+    }
+}

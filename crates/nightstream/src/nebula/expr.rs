@@ -1,7 +1,8 @@
 //! Lean's `Circuit.Expr` and its constraint lowering (`Layout/R1CS.lean`),
 //! case for case, so a Rust circuit has the rows of the Lean-proved one. The
 //! tree shape matters: a generic constraint allocates one fresh variable per
-//! `mul` node, constant factors included. It does not own any row list.
+//! `mul` node, constant factors included. An application writes its rows as
+//! `Expr` trees over a `View`. It does not own any row list.
 
 use std::{
     ops::{Add, Mul, Neg, Sub},
@@ -15,7 +16,7 @@ use crate::application::{Affine, ApplicationBuilder, ApplicationError, Variable}
 
 /// `Circuit.Expr`: `sub` and `neg` are sugar, as in Lean.
 #[derive(Clone, Debug)]
-pub(super) enum Expr {
+pub enum Expr {
     Var(Variable),
     Const(F),
     Add(Rc<Expr>, Rc<Expr>),
@@ -23,7 +24,7 @@ pub(super) enum Expr {
 }
 
 impl Expr {
-    pub(super) fn constant(value: u64) -> Self {
+    pub fn constant(value: u64) -> Self {
         Self::Const(F::from_u64(value))
     }
 }

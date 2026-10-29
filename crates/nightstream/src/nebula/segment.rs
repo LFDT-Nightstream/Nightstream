@@ -1,16 +1,16 @@
-//! Native execution of one memory segment and the witness words of its
-//! invocations (spec §8–§12, segment-level prover input of decision D3).
-//! The segment runs first, so the opening invocation knows the proposed ops
-//! and FS roots. Each step's words satisfy `RowsHold` and `MachineRows` of
-//! `Lifecycle/Nebula/StepRows.lean`.
+//! Native execution of one memory segment of an application and the witness
+//! words of its invocations (spec §8–§12, segment-level prover input of
+//! decision D3). The segment runs first, so the opening invocation knows the
+//! proposed ops and FS roots. Each step's words satisfy `RowsHold` of
+//! `Lifecycle/Nebula/StepRows.lean` and the application's rows.
 
 use neo_math::K;
 use p3_field::{Field, PrimeCharacteristicRing};
 use p3_goldilocks::Goldilocks as F;
 
+use super::app::{Application, Memory};
 use super::carry::{k_words, Carry, Products};
 use super::geometry::Geometry;
-use super::machine::{data_port, exec, fetch, MachineState};
 use super::records::{ops_lane, pack, scan_lane, OpSlot, PortAccess, ScanSlot};
 use super::transcript::{chain_link, chain_root, eta_challenges, header, plan_digest, state_words, Digest, Lane};
 use super::words::{self, Layout};
@@ -22,10 +22,12 @@ pub enum SegmentError {
     StepCount,
     #[error("a segment must start from a closed carry below S_max")]
     Carry,
-    #[error("the program counter leaves the ROM")]
-    ProgramCounter,
-    #[error("a data address leaves the RAM")]
-    DataAddress,
+    #[error("the application has no step: {0}")]
+    Application(Box<dyn std::error::Error + Send + Sync>),
+    #[error("an application step needs B_ops ports, `width` state words, and `aux` private words")]
+    Shape,
+    #[error("a port access is not valid or reads another value than its cell holds")]
+    Access,
     #[error("a timestamp reaches 2^W_ts")]
     Timestamp,
     #[error("the segment's IS chain differs from the carried memory root")]
@@ -41,16 +43,11 @@ pub(crate) struct Cell {
     pub stamp: u64,
 }
 
-/// One step of the machine: no port, or the instruction at `pc`.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Step {
-    Idle,
-    Execute,
-}
-
-/// The constants of a program that every invocation reads.
+/// The application and the constants of a program that every invocation
+/// reads.
 #[derive(Clone, Debug)]
-pub struct Context {
+pub struct Context<A> {
+    pub(super) app: A,
     program: Program,
     plan_digest: Digest,
     header_ops: Digest,
@@ -58,15 +55,16 @@ pub struct Context {
     layout: Layout,
 }
 
-impl Context {
-    pub fn new(program: &Program) -> Self {
-        let geometry = program.package.geometry();
+impl<A: Application> Context<A> {
+    pub fn new(app: A, program: &Program) -> Self {
+        let geometry = program.geometry;
         let plan_digest = plan_digest(&geometry);
         Self {
+            layout: Layout::new(&geometry, app.width(), app.aux()),
+            app,
             program: program.clone(),
             header_ops: header(Lane::Ops, &plan_digest),
             header_mem: header(Lane::Mem, &plan_digest),
-            layout: Layout::new(&geometry),
             plan_digest,
         }
     }
@@ -76,7 +74,7 @@ impl Context {
     }
 
     pub fn geometry(&self) -> Geometry {
-        self.program.package.geometry()
+        self.program.geometry
     }
 
     pub fn witness_word_count(&self) -> usize {
@@ -87,10 +85,19 @@ impl Context {
         Carry::start(self.geometry().n, self.program.d_init)
     }
 
-    /// The Stage 1 state words of application words and a carry.
-    pub fn state(&self, app: MachineState, carry: &Carry) -> Digest {
-        state_words(&app_words(app), &carry.words())
+    /// The Stage 1 state words of an application state and a carry.
+    pub fn state(&self, state: &A::State, carry: &Carry) -> Digest {
+        state_digest(&self.app.words(state), carry)
     }
+}
+
+/// The spec §11.1 state digest of application state words and a carry.
+pub(super) fn state_digest(words: &[u64], carry: &Carry) -> Digest {
+    state_words(&field_words(words), &carry.words())
+}
+
+fn field_words(words: &[u64]) -> Vec<F> {
+    words.iter().map(|word| F::from_u64(*word)).collect()
 }
 
 /// The images with every stamp zero (spec §5): ROM cells, then RAM cells.
@@ -128,21 +135,18 @@ fn memory_lanes(geometry: &Geometry, memory: &[Cell]) -> Vec<Vec<F>> {
         .collect()
 }
 
-pub fn app_words(state: MachineState) -> [F; 2] {
-    [F::from_u64(state.pc), F::from_u64(state.acc)]
-}
-
 /// The spec §8.2 fingerprint `g + η1·v + η1²·t − η2`.
 fn fingerprint(eta: (K, K), t: u64, g: u64, v: u64) -> K {
     K::from(F::from_u64(g)) + eta.0 * K::from(F::from_u64(v)) + eta.0.square() * K::from(F::from_u64(t)) - eta.1
 }
 
-/// The native result of one step: its records and its states.
+/// The native result of one step: its records, its state words, and its
+/// private words.
 #[derive(Clone)]
 struct Executed {
-    idle: bool,
-    state_in: MachineState,
-    state_out: MachineState,
+    words_in: Vec<F>,
+    words_out: Vec<F>,
+    aux: Vec<F>,
     ops: Vec<OpSlot>,
     write_stamps: Vec<u64>,
     active: u64,
@@ -158,103 +162,101 @@ pub struct Invocation {
 
 /// A proved-ready segment: its invocations and the values after it.
 #[derive(Clone, Debug)]
-pub(crate) struct Segment {
+pub(crate) struct Segment<S> {
     pub invocations: Vec<Invocation>,
     pub carry: Carry,
-    pub state: MachineState,
+    pub state: S,
     pub memory: Vec<Cell>,
 }
 
-fn execute(
-    geometry: &Geometry,
-    state: MachineState,
-    memory: &mut [Cell],
-    ts: u64,
-    step: Step,
-) -> Result<Executed, SegmentError> {
-    let ports: [Option<PortAccess>; 2];
-    let state_out;
-    match step {
-        Step::Idle => {
-            ports = [None, None];
-            state_out = state;
+impl<A: Application> Context<A> {
+    /// One step: the application's transition, then its active ports in slot
+    /// order, each applied to memory as Lean `access` applies it.
+    fn execute(
+        &self,
+        state: &A::State,
+        memory: &mut [Cell],
+        ts: u64,
+        input: &A::Input,
+    ) -> Result<(Executed, A::State), SegmentError> {
+        let geometry = &self.geometry();
+        let transition = self
+            .app
+            .step(state, input, &Memory::new(geometry, memory))
+            .map_err(|error| SegmentError::Application(Box::new(error)))?;
+        let (words_in, words_out) = (self.app.words(state), self.app.words(&transition.next));
+        let width = self.layout.width();
+        if transition.ports.len() != geometry.b_ops
+            || words_in.len() != width
+            || words_out.len() != width
+            || transition.aux.len() != self.app.aux()
+        {
+            return Err(SegmentError::Shape);
         }
-        Step::Execute => {
-            let pc = usize::try_from(state.pc).map_err(|_| SegmentError::ProgramCounter)?;
-            if pc >= geometry.rom_size() {
-                return Err(SegmentError::ProgramCounter);
-            }
-            let word = memory[pc].value;
-            let data = match word % 4 {
-                1 | 2 => {
-                    let address = usize::try_from(word / 4).map_err(|_| SegmentError::DataAddress)?;
-                    if address >= geometry.ram_size() {
-                        return Err(SegmentError::DataAddress);
+        let mut ops = Vec::with_capacity(geometry.b_ops);
+        let mut write_stamps = Vec::with_capacity(geometry.b_ops);
+        let mut active = 0;
+        for port in &transition.ports {
+            match port {
+                None => {
+                    ops.push(OpSlot::inactive());
+                    write_stamps.push(0);
+                }
+                Some(access) => {
+                    if !access.valid(geometry) {
+                        return Err(SegmentError::Access);
                     }
-                    memory[geometry.rom_size() + address].value
+                    let g = access.global_index(geometry);
+                    if memory[g].value != access.vr {
+                        return Err(SegmentError::Access);
+                    }
+                    active += 1;
+                    let rt = memory[g].stamp;
+                    let wt = ts + active;
+                    if wt >= 1 << geometry.w_ts {
+                        return Err(SegmentError::Timestamp);
+                    }
+                    ops.push(OpSlot::active(*access, rt));
+                    write_stamps.push(wt);
+                    memory[g] = Cell {
+                        value: access.vw,
+                        stamp: wt,
+                    };
                 }
-                _ => 0,
-            };
-            ports = [Some(fetch(state, word)), data_port(state, word, data)];
-            state_out = exec(state, word, data);
-        }
-    }
-    let mut ops = Vec::with_capacity(2);
-    let mut write_stamps = Vec::with_capacity(2);
-    let mut active = 0;
-    for port in ports {
-        match port {
-            None => {
-                ops.push(OpSlot::inactive());
-                write_stamps.push(0);
-            }
-            Some(access) => {
-                active += 1;
-                let g = access.global_index(geometry);
-                let rt = memory[g].stamp;
-                let wt = ts + active;
-                if wt >= 1 << geometry.w_ts {
-                    return Err(SegmentError::Timestamp);
-                }
-                ops.push(OpSlot::active(access, rt));
-                write_stamps.push(wt);
-                memory[g] = Cell {
-                    value: access.vw,
-                    stamp: wt,
-                };
             }
         }
+        let executed = Executed {
+            words_in: field_words(&words_in),
+            words_out: field_words(&words_out),
+            aux: transition.aux,
+            ops,
+            write_stamps,
+            active,
+        };
+        Ok((executed, transition.next))
     }
-    Ok(Executed {
-        idle: step == Step::Idle,
-        state_in: state,
-        state_out,
-        ops,
-        write_stamps,
-        active,
-    })
-}
 
-/// Execute the steps of one segment from `memory`; return the step records,
-/// the memory after the segment, and the machine state after it.
-fn execute_steps(
-    geometry: &Geometry,
-    state: MachineState,
-    memory: &[Cell],
-    ts: u64,
-    steps: &[Step],
-) -> Result<(Vec<Executed>, Vec<Cell>, MachineState), SegmentError> {
-    let mut memory = memory.to_vec();
-    let mut executed = Vec::with_capacity(steps.len());
-    let mut machine = state;
-    let mut ts = ts;
-    for step in steps {
-        let result = execute(geometry, machine, &mut memory, ts, *step)?;
-        machine = result.state_out;
-        ts += result.active;
-        executed.push(result);
+    /// Execute the steps of one segment from `memory`; return the step
+    /// records, the memory after the segment, and the state after it.
+    fn execute_steps(
+        &self,
+        state: &A::State,
+        memory: &[Cell],
+        ts: u64,
+        inputs: &[A::Input],
+    ) -> Result<(Vec<Executed>, Vec<Cell>, A::State), SegmentError> {
+        let mut memory = memory.to_vec();
+        let mut executed = Vec::with_capacity(inputs.len());
+        let mut state = state.clone();
+        let mut ts = ts;
+        for input in inputs {
+            let (step, next) = self.execute(&state, &mut memory, ts, input)?;
+            ts += step.active;
+            executed.push(step);
+            state = next;
+        }
+        Ok((executed, memory, state))
     }
-    Ok((executed, memory, machine))
 }
 
 fn set_bits(words: &mut [F], index: impl Fn(usize) -> usize, value: u64, width: usize) {
@@ -269,18 +271,18 @@ fn set_k(words: &mut [F], start: usize, value: K) {
     words[start + 1] = c1;
 }
 
-impl Context {
+impl<A: Application> Context<A> {
     /// Run one segment from a closed carry: execute the `N` steps, compute the
     /// proposed ops and FS roots, then the witness words of each invocation.
     pub(crate) fn run_segment(
         &self,
         carry: Carry,
-        state: MachineState,
+        state: &A::State,
         memory: &[Cell],
-        steps: &[Step],
-    ) -> Result<Segment, SegmentError> {
+        inputs: &[A::Input],
+    ) -> Result<Segment<A::State>, SegmentError> {
         let geometry = &self.geometry();
-        if steps.len() != geometry.n {
+        if inputs.len() != geometry.n {
             return Err(SegmentError::StepCount);
         }
         if carry.idx != geometry.n as u64 || carry.seg_idx >= geometry.s_max as u64 {
@@ -289,7 +291,7 @@ impl Context {
         if chain_root(Lane::Mem, &self.plan_digest, &memory_lanes(geometry, memory)) != carry.mem_root {
             return Err(SegmentError::MemoryRoot);
         }
-        let (executed, final_memory, machine) = execute_steps(geometry, state, memory, carry.ts, steps)?;
+        let (executed, final_memory, state) = self.execute_steps(state, memory, carry.ts, inputs)?;
         let proposal = self.proposal(&executed, &final_memory);
         let invocations = self.invocations(carry, proposal, &executed, memory, &final_memory);
         let last = invocations.last().ok_or(SegmentError::StepCount)?.carry;
@@ -299,7 +301,7 @@ impl Context {
         Ok(Segment {
             invocations,
             carry: last,
-            state: machine,
+            state,
             memory: final_memory,
         })
     }
@@ -352,7 +354,7 @@ impl Context {
                 current = next;
                 Invocation {
                     words,
-                    output: state_words(&app_words(step.state_out), &next.words()),
+                    output: state_words(&step.words_out, &next.words()),
                     carry: next,
                 }
             })
@@ -482,9 +484,15 @@ impl Context {
         w[words::CARRY_OUT..words::CARRY_OUT + 39].copy_from_slice(&output.words());
         w[words::PROPOSAL..words::PROPOSAL + 4].copy_from_slice(&proposal.0);
         w[words::PROPOSAL + 4..words::PROPOSAL + 8].copy_from_slice(&proposal.1);
-        w[layout.app_in(0)..layout.app_in(2)].copy_from_slice(&app_words(step.state_in));
-        w[layout.app_out(0)..layout.app_out(2)].copy_from_slice(&app_words(step.state_out));
-        w[layout.idle()] = F::from_bool(step.idle);
+        for (k, word) in step.words_in.iter().enumerate() {
+            w[layout.app_in(k)] = *word;
+        }
+        for (k, word) in step.words_out.iter().enumerate() {
+            w[layout.app_out(k)] = *word;
+        }
+        for (k, word) in step.aux.iter().enumerate() {
+            w[layout.aux(k)] = *word;
+        }
         w[words::IS_OPEN] = F::from_bool(opens);
         if !opens {
             w[words::OPEN_INVERSE] = (F::from_u64(input.idx) - F::from_u64(n)).inverse();

@@ -1,7 +1,7 @@
 //! The witness word layout of one memory-application step. Mirrors
 //! `Lifecycle/Nebula/WitnessWords.lean` index by index: the memory words
-//! first, then the machine's words (`Lifecycle/Nebula/MachineApp.lean`): two
-//! input state words, two output state words, and the idle flag.
+//! first, then the application's input state words, its output state words,
+//! and its private words. `app_var` mirrors `Words.appVar` of `PortApp.lean`.
 
 use super::geometry::Geometry;
 
@@ -18,12 +18,10 @@ pub const SEEN_PREV: usize = 96;
 pub const IDX_EFF: usize = 108;
 const OPS_START: usize = 109;
 
-/// The machine's state words `(pc, acc)`.
-pub(super) const APP_WIDTH: usize = 2;
-
-/// Offsets that depend on the geometry.
+/// Offsets that depend on the geometry and on the application's word counts.
 #[derive(Clone, Copy, Debug)]
 pub struct Layout {
+    b_ops: usize,
     op_words: usize,
     op_width: usize,
     mu: usize,
@@ -35,10 +33,14 @@ pub struct Layout {
     ops_products: usize,
     scan_products: usize,
     memory_count: usize,
+    width: usize,
+    aux: usize,
 }
 
 impl Layout {
-    pub fn new(geometry: &Geometry) -> Self {
+    /// The layout of an application with `width` state words and `aux`
+    /// private words.
+    pub fn new(geometry: &Geometry, width: usize, aux: usize) -> Self {
         let op_width = geometry.op_width();
         let op_words = op_width + geometry.w_ts;
         let scan_width = geometry.scan_width();
@@ -50,6 +52,7 @@ impl Layout {
         let scan_products = ops_products + 4 * geometry.b_ops;
         let memory_count = scan_products + 4 * geometry.b_scan;
         Self {
+            b_ops: geometry.b_ops,
             op_words,
             op_width,
             mu: geometry.mu,
@@ -61,26 +64,55 @@ impl Layout {
             ops_products,
             scan_products,
             memory_count,
+            width,
+            aux,
         }
     }
 
     pub fn count(&self) -> usize {
-        self.memory_count + 2 * APP_WIDTH + 1
+        self.memory_count + 2 * self.width + self.aux
     }
 
-    /// Input state word `k` of the machine.
+    /// The number of application state words.
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    /// Input state word `k` of the application.
     pub fn app_in(&self, k: usize) -> usize {
         self.memory_count + k
     }
 
-    /// Output state word `k` of the machine.
+    /// Output state word `k` of the application.
     pub fn app_out(&self, k: usize) -> usize {
-        self.memory_count + APP_WIDTH + k
+        self.memory_count + self.width + k
     }
 
-    /// The machine's idle flag, its one private word.
-    pub fn idle(&self) -> usize {
-        self.memory_count + 2 * APP_WIDTH
+    /// Private word `k` of the application.
+    pub fn aux(&self, k: usize) -> usize {
+        self.memory_count + 2 * self.width + k
+    }
+
+    /// The application's local variable of word `k` of operation slot `j`
+    /// (Lean `AppView.slotStart + j · opWords + k`).
+    pub fn slot_local(&self, j: usize, k: usize) -> usize {
+        2 * self.width + self.aux + j * self.op_words + k
+    }
+
+    /// The witness word of the application's local variable `k`
+    /// (`Words.appVar`): the application words in order, then the slot
+    /// words. Past them it is a word past the witness, which reads zero.
+    pub fn app_var(&self, k: usize) -> usize {
+        let slot_start = self.slot_local(0, 0);
+        if k < slot_start {
+            return self.memory_count + k;
+        }
+        let (j, i) = ((k - slot_start) / self.op_words, (k - slot_start) % self.op_words);
+        if j < self.b_ops {
+            self.op(j, i)
+        } else {
+            self.count() + k
+        }
     }
 
     /// Word `k` of operation slot `j`: pad, is_write, is_ram, addr, v_r, v_w, rt, diff.

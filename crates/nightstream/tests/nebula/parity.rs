@@ -11,7 +11,7 @@ use nightstream_fprime::{
 
 use crate::{
     assembly,
-    nebula::{Context, MachineState, Package, Program, Run, Step},
+    nebula::{Context, Machine, MachineState, Package, Program, Run, Step},
 };
 
 fn artifact(name: &str) -> Vec<u8> {
@@ -84,8 +84,8 @@ fn second_package_relation_matches_lean() {
 /// The Rust circuit's witness program completes every honest invocation of a
 /// native run of `program`, and its output is the next Stage 1 state.
 fn assert_honest_invocations_execute(program: &Program, segments: &[&[Step]]) {
-    let application = program.package.application().unwrap();
-    let mut run = Run::new(Context::new(program), MachineState::default());
+    let application = super::memory_circuit(&program.geometry, &Machine).unwrap();
+    let mut run = Run::new(Context::new(Machine, program), MachineState::default());
     let mut state = run.initial_state();
     for steps in segments {
         for invocation in run.segment(steps).unwrap() {
@@ -107,7 +107,7 @@ fn first_package_executes_honest_invocations() {
 /// `[0, 0, 0, 9]`.
 #[test]
 fn first_package_executes_a_second_program() {
-    let program = Program::new(Package::V1, vec![31, 6, 5, 0], vec![0, 0, 0, 9]).unwrap();
+    let program = Program::new(Package::V1.geometry(), vec![31, 6, 5, 0], vec![0, 0, 0, 9]).unwrap();
     assert_ne!(program, Package::V1.program());
     let (execute, idle) = ([Step::Execute; 2], [Step::Idle; 2]);
     assert_honest_invocations_execute(&program, &[&execute, &execute, &idle, &idle]);

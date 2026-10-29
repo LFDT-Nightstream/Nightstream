@@ -17,6 +17,21 @@ pub struct PortAccess {
 }
 
 impl PortAccess {
+    /// Lean `PortAccess.Valid`: the address is inside its memory, both values
+    /// fit 32 bits, a read keeps its value, and only RAM is written.
+    pub(super) fn valid(&self, geometry: &Geometry) -> bool {
+        let size = if self.is_ram {
+            geometry.ram_size()
+        } else {
+            geometry.rom_size()
+        };
+        self.addr < size as u64
+            && self.vr < 1 << 32
+            && self.vw < 1 << 32
+            && (self.is_write || self.vw == self.vr)
+            && (!self.is_write || self.is_ram)
+    }
+
     /// `g = addr + is_ram · R` (spec §6.1).
     pub fn global_index(&self, geometry: &Geometry) -> usize {
         let addr = self.addr as usize;

@@ -171,3 +171,7 @@ pub(super) fn memory_circuit<A: Application>(
 #[cfg(test)]
 #[path = "../../tests/nebula/parity.rs"]
 mod parity;
+
+#[cfg(test)]
+#[path = "../../tests/nebula/cost.rs"]
+mod cost;

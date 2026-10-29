@@ -49,7 +49,7 @@ are in the folders above it. The folders follow the Rust modules
   `fold.rs`), and the layer-1 verifier as builder programs (`Sumcheck`, `Gkr`,
   `Mle`, `Ring`, `Whir`: `sumcheck.rs`, `gkr.rs`, `mle.rs`, `ring.rs`,
   `whir/mod.rs`; `Views`, `Early`, `Linear`, `Honest`, `Late`, `Openings`,
-  `Verifier`: the stages of `verifier.rs`, with `matrix.rs` and `lib.rs`).
+  `Verifier`: the stages of `verifier.rs`, with `matrix.rs`, `relation.rs` and `lib.rs`).
 - `Shrink/`: the shrink verifier (`shrink/mod.rs`, `layout.rs`, `evaluate.rs`).
 - `Replay/`: the replay of the layer-1 verifier on words (`verifier.rs` and
   the modules that it calls).
@@ -57,5 +57,5 @@ are in the folders above it. The folders follow the Rust modules
   `crates/nightstream/src/lifecycle/terminal/package.rs`) and the final
   program (`Program`: `terminal/mod.rs`).
 - `Setup.lean`: Rust's layer-1 setup build (`lib.rs`, `matrix.rs`).
-- `Layer1/Budget.lean`: the degrees of `outer_terms` (`lib.rs`).
+- `Layer1/Budget.lean`: the degrees of `outer_terms` (`relation.rs`).
 -/

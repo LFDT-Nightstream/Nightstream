@@ -9,7 +9,7 @@ commitments gets `2^-(t+1)` (`Relation::new` targets `t + 1` bits).
 
 Plonky3 composes each commitment's error as its WHIR terms plus every term
 the caller charges, times the commitment's candidate count. P0 is charged
-the draws of `outer_terms` (`crates/neo-spartan/src/lib.rs`), each
+the draws of `outer_terms` (`crates/neo-spartan/src/relation.rs`), each
 `degree · L1 / 2^191` (`rustDegrees`, `Ports/Layer1/Budget.lean`); P1 is
 charged the setup queries, `L1 · 2^(1-t_q)`. `Pcs::new` accepts a
 configuration only when each composed error is at most `2^-(t+1)`, which is

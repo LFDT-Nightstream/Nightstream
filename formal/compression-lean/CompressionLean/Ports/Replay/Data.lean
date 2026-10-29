@@ -9,9 +9,10 @@ proof per variant. Words are parsed as canonical Goldilocks values, which is
 the only validation at this boundary; `Stages.readProof` checks the proof's
 shape as `ProofView::read` does.
 
-Also owns what the verifier derives from the relation: the sizes of `lib.rs`
-(`Shape`, `Key`), the GKR tree shapes (`matrix.rs`) and the transcript words
-of the relation and of the statement (`Relation::words`, `ClaimWords::words`).
+Also owns what the verifier derives from the relation: the sizes of
+`relation.rs` and `lib.rs` (`Shape`, `Key`), the GKR tree shapes (`matrix.rs`)
+and the transcript words of the relation and of the statement
+(`Relation::words`, `ClaimWords::words`).
 -/
 
 namespace CompressionLean.Replay
@@ -109,7 +110,7 @@ structure WhirShape where
   finalSumcheck : SumcheckShape
 deriving FromJson, Inhabited
 
-/-- One fixed relation (`lib.rs::Relation`). -/
+/-- One fixed relation (`relation.rs::Relation`). -/
 structure Relation where
   key : Key
   publicBlocks : Nat

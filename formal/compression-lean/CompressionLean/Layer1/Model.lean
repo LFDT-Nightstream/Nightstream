@@ -5,7 +5,7 @@ import Mathlib.Algebra.QuadraticAlgebra.Defs
 
 /-!
 Owns the data of the layer-1 relation (`crates/neo-spartan/src/lib.rs`,
-`ring.rs`, `matrix.rs`) and the relation itself.
+`relation.rs`, `ring.rs`, `matrix.rs`) and the relation itself.
 
 - `Shape`: the verifier's sizes. The witness cube has the lane variables low
   (`laneVars`, `D ≤ 2^laneVars` used lanes) and the block variables high.

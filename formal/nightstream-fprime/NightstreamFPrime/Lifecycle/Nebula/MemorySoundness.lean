@@ -13,7 +13,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Lifecycle.Stage1
 
-variable (p : Plan) (app : PortApp p) (i : AppInterface p app) (offset : ℕ) (env : Env)
+variable (p : Geometry) (app : PortApp p) (i : AppInterface p app) (offset : ℕ) (env : Env)
 
 local notation "W" => StepWitness.ofWords p app.toAppShape (values p app i offset env)
 

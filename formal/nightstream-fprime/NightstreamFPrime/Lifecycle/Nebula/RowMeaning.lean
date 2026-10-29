@@ -14,7 +14,7 @@ open NightstreamFPrime.Circuit.Quadratic
 
 namespace Rows
 
-variable (p : Plan) (a : AppShape) (v : ℕ → F)
+variable (p : Geometry) (a : AppShape) (v : ℕ → F)
 
 local notation "W" => StepWitness.ofWords p a v
 

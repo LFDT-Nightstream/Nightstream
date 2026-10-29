@@ -1,12 +1,12 @@
 import NightstreamFPrime.Spec.Nebula.SetupCheck
 import NightstreamFPrime.Lifecycle.Nebula.MachineApp
 
-/-! Owns the plan of the first memory-application package (spec §4): ROM and
-RAM of four words each, two ports, segments of two steps with four scan slots
-each, at most four segments, and 5-bit timestamps. The ROM holds the machine
-program `loadi 5; store 0; load 0; halt`, and the RAM starts at zero. This is
-a test geometry for the first end-to-end run; a production plan selects its
-own. -/
+/-! Owns the geometry of the first memory-application package (spec §4) and
+its default program: ROM and RAM of four words each, two ports, segments of two
+steps with four scan slots each, at most four segments, and 5-bit timestamps.
+The default ROM holds the machine program `loadi 5; store 0; load 0; halt`,
+and the RAM starts at zero. This is a test geometry for the first end-to-end
+run; a production plan selects its own. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula.FirstPlan
 
@@ -16,7 +16,8 @@ open NightstreamFPrime.Spec.Nebula
 `halt`. -/
 def romImage : List ℕ := [23, 2, 1, 0]
 
-def plan : Plan where
+/-- The geometry of the first package. -/
+def geometry : Geometry where
   r := 2
   μ := 2
   wTs := 5
@@ -24,12 +25,20 @@ def plan : Plan where
   bScan := 4
   n := 2
   sMax := 4
-  rom := fun a => romImage.getD a 0
-  ram := fun _ => 0
 
-theorem two : plan.bOps = 2 := rfl
+/-- The default program of the first package. -/
+def plan : Plan := { geometry with rom := fun a => romImage.getD a 0, ram := fun _ => 0 }
 
-theorem valid : plan.Valid where
+/-- A second program of the geometry with distinct nonzero words in every
+cell, for the Rust `D_init` check (`--application-start nebula-memory-v1-other`). -/
+def otherPlan : Plan :=
+  { geometry with
+    rom := fun a => [4294967295, 2147483649, 305419896, 1].getD a 0
+    ram := fun a => [2, 3735928559, 2147483647, 3405691582].getD a 0 }
+
+theorem two : geometry.bOps = 2 := rfl
+
+theorem valid : geometry.Valid where
   exactCover := by decide
   timestampRange := by decide
   fieldEncoding := by decide
@@ -37,17 +46,12 @@ theorem valid : plan.Valid where
   addressWidth := le_rfl
   belowModulus := by decide
   positive := by decide
-  romWords := by
-    intro a below
-    change a < 4 at below
-    interval_cases a <;> decide
-  ramWords := fun _ _ => by simp [plan]
 
-theorem secure : plan.Secure := by
-  unfold Plan.Secure
+theorem secure : geometry.Secure := by
+  unfold Geometry.Secure
   decide
 
-/-- The machine as the plan's application. -/
-def app : PortApp plan := Machine.portApp plan two
+/-- The machine as the geometry's application. -/
+def app : PortApp geometry := Machine.portApp geometry two
 
 end NightstreamFPrime.Lifecycle.Nebula.FirstPlan

@@ -728,6 +728,10 @@ def run (arguments : List String) : IO UInt32 := do
   | ["--", "--application-start", "nebula-memory-v1", path] =>
       emitNebulaMemoryStart Lifecycle.Nebula.FirstPlan.plan ⟨path⟩
       pure 0
+  | ["--application-start", "nebula-memory-v1-other", path]
+  | ["--", "--application-start", "nebula-memory-v1-other", path] =>
+      emitNebulaMemoryStart Lifecycle.Nebula.FirstPlan.otherPlan ⟨path⟩
+      pure 0
   | ["--application-terminal", "nebula-memory-v1", path]
   | ["--", "--application-terminal", "nebula-memory-v1", path] =>
       emitNebulaMemoryTerminal Lifecycle.Nebula.FirstPlan.plan ⟨path⟩
@@ -752,7 +756,8 @@ def run (arguments : List String) : IO UInt32 := do
   | _ =>
       IO.eprintln
         ("usage: lake exe emit -- [--expanded | --application[-rows | -start | -terminal] " ++
-          "(nebula-memory-v1 | nebula-memory-n1)] <output-path>")
+          "(nebula-memory-v1 | nebula-memory-n1) | --application-start nebula-memory-v1-other] " ++
+          "<output-path>")
       pure 2
 
 end NightstreamFPrime.Export.Main

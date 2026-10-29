@@ -12,7 +12,7 @@ open NightstreamFPrime.Spec.Nebula
 open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 open Fin.CommRing
 
-variable {p : Plan} {c : MemoryCarry} {σ : Type} {inv : Invocation σ Digest}
+variable {p : Geometry} {c : MemoryCarry} {σ : Type} {inv : Invocation σ Digest}
 
 /-! ### Carries -/
 
@@ -78,9 +78,9 @@ theorem finished_memRoot : (finished p c inv).memRoot =
 
 /-- Every reachable carry is canonical. -/
 theorem canonical (valid : p.Valid) (reach : Reach p c) : c.Canonical := by
-  have := Plan.sMax_small valid
-  have := Plan.n_lt valid
-  have := Plan.wTs_small valid
+  have := Geometry.sMax_small valid
+  have := Geometry.n_lt valid
+  have := Geometry.wTs_small valid
   have := reach.seg
   have := reach.idx
   have := reach.ts
@@ -117,7 +117,7 @@ theorem openTest (valid : p.Valid) (reach : Reach p c) :
     1 - bitWord (decide (c.idx = p.n))
   by_cases h : c.idx = p.n
   · simp [h, bitWord]
-  · rw [mul_fieldInverse (natWord_sub_ne (canonical valid reach).2.1 (Plan.n_lt valid) h)]
+  · rw [mul_fieldInverse (natWord_sub_ne (canonical valid reach).2.1 (Geometry.n_lt valid) h)]
     simp [h, bitWord]
 
 theorem segRange (accepted : Accepted p c inv) :
@@ -315,7 +315,7 @@ theorem romRange_row (accepted : Accepted p c inv) (j : Fin p.bOps) (k : Fin p.�
     simp [natBits, Nat.testBit_lt_two_pow below, bitWord]
   · simp [bitWord]
 
-theorem padSlot_tail (p : Plan) : ∀ b ∈ (OpSlot.padSlot.bits p).tail, b = false := by
+theorem padSlot_tail (p : Geometry) : ∀ b ∈ (OpSlot.padSlot.bits p).tail, b = false := by
   intro b member
   simp only [OpSlot.padSlot, OpSlot.bits, bitsLE, Nat.zero_testBit, List.cons_append,
     List.tail_cons, List.mem_cons, List.mem_append, List.mem_map, List.mem_range] at member
@@ -454,7 +454,7 @@ theorem globalIndex_val (valid : p.Valid) (accepted : Accepted p c inv) (j : Fin
   rw [bitsWord_natBits fits.1]
   have cells := valid.belowModulus
   have addr := fits.1
-  unfold Plan.cells Plan.ramSize at cells
+  unfold Geometry.cells Geometry.ramSize at cells
   cases (opSlot inv j).isRam
   · simp only [bitWord, Bool.false_eq_true, if_false, zero_mul, add_zero, PortAccess.globalIndex]
     exact natWord_val (by omega)
@@ -665,10 +665,10 @@ theorem closeTest_row (valid : p.Valid) (reach : Reach p c) :
   · simp [h, bitWord]
   · have small : (stepped p c inv).idx < goldilocksModulus := by
       have := start_idx_lt (inv := inv) valid reach
-      have := Plan.n_lt valid
+      have := Geometry.n_lt valid
       show (start p c inv).idx + 1 < _
       omega
-    rw [mul_fieldInverse (natWord_sub_ne small (Plan.n_lt valid) h)]
+    rw [mul_fieldInverse (natWord_sub_ne small (Geometry.n_lt valid) h)]
     simp [h, bitWord]
 
 theorem closeOps_row (accepted : Accepted p c inv) (i : Fin 4) :

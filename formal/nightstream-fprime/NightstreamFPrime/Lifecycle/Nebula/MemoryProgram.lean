@@ -1,8 +1,9 @@
 import NightstreamFPrime.Lifecycle.Nebula.MemoryCompleteness
 
 /-! Owns a memory application as a closed Stage 1 `Application.Program`: the
-circuit, its exact step and validity predicate, and the support contract. It
-does not select a plan, an application, or a package. -/
+circuit, its exact step and validity predicate, and the support contract, for a
+geometry. It reads no image, so one program serves every plan of a geometry. It
+does not select a geometry, an application, or a package. -/
 
 namespace NightstreamFPrime.Lifecycle.Nebula.MemoryApp
 
@@ -12,7 +13,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Lifecycle.Stage1
 
-variable (p : Plan) (app : PortApp p) (i : AppInterface p app) (offset : ℕ)
+variable (p : Geometry) (app : PortApp p) (i : AppInterface p app) (offset : ℕ)
 
 theorem assertions_localLength (l : List Circuit.Expr) : localLength (l.map Op.assertZero) = 0 := by
   induction l with
@@ -171,5 +172,13 @@ def program : Application.Program where
   assumptions_of_inputsBelow := fun _ _ _ inputs => inputs
   constraintsSupported := fun i offset _ allowed _ inputs localSupport =>
     supported p app i offset allowed inputs localSupport
+
+/-- One setup per geometry (spec §4.3): the memory program takes a geometry and
+no image, so two plans with one geometry have the same memory program. -/
+theorem program_eq_of_geometry (appOf : (g : Geometry) → PortApp g) {plan plan' : Plan}
+    (same : plan.toGeometry = plan'.toGeometry) :
+    program plan.toGeometry (appOf plan.toGeometry) =
+      program plan'.toGeometry (appOf plan'.toGeometry) := by
+  rw [same]
 
 end NightstreamFPrime.Lifecycle.Nebula.MemoryApp

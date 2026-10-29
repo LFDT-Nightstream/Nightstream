@@ -19,7 +19,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Lifecycle.Stage1
 
-variable (p : Plan) (app : PortApp p)
+variable (p : Geometry) (app : PortApp p)
 
 abbrev AppInterface := Application.Interface (Words.count p app.toAppShape)
 

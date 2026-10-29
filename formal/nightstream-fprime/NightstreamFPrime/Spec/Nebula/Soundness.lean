@@ -16,24 +16,24 @@ variable {E Digest σ : Type} [CommRing E]
 /-- What an accepted run attests (security note Lemma 6): one execution from
 the initial state and the plan images, over the run's ports, that ends in the
 statement's final state, timestamp, and memory root. -/
-structure Attests (ctx : Context E Digest) (app : Application ctx.plan σ)
+structure Attests (ctx : Context E Digest) (app : Application ctx.plan.toGeometry σ)
     (stmt : Statement σ Digest) (run : List (Invocation σ Digest)) : Prop where
   executes : ∃ final : Machine,
-    Executes ctx.plan app stmt.initial (initialMachine ctx.plan) (run.map Invocation.ports)
+    Executes ctx.plan.toGeometry app stmt.initial (initialMachine ctx.plan) (run.map Invocation.ports)
       stmt.final final ∧
     final.ts = stmt.finalTs ∧
-    memoryRoot ctx.hash ctx.plan ctx.planDigest final.memory = stmt.finalRoot
+    memoryRoot ctx.hash ctx.plan.toGeometry ctx.planDigest final.memory = stmt.finalRoot
 
 /-- The segment's challenges pass the product test, but its multisets are not
 balanced. -/
 def BadChallenge (ctx : Context E Digest) (v : SegmentView Digest) : Prop :=
-  ¬ (v.multisets ctx.plan).Balanced ∧ (v.multisets ctx.plan).ProductEq (v.eta ctx)
+  ¬ (v.multisets ctx.plan.toGeometry).Balanced ∧ (v.multisets ctx.plan.toGeometry).ProductEq (v.eta ctx)
 
 /-- Every hash input that the verifier and the first `S` segments of the run
 compute: the `D_init` chain and the three chains of each segment. -/
 def runInputs (ctx : Context E Digest) (run : List (Invocation σ Digest)) (S : ℕ) :
     List (HashInput Digest) :=
-  chainInputs ctx.hash .mem ctx.planDigest (memoryLanes ctx.plan (initialMemory ctx.plan)) ++
+  chainInputs ctx.hash .mem ctx.planDigest (memoryLanes ctx.plan.toGeometry (initialMemory ctx.plan)) ++
     (List.range S).flatMap fun k => (segmentView ctx run k).chainInputs ctx
 
 /-- A collision among the run's own hash inputs. -/
@@ -46,7 +46,7 @@ def SegmentView.accesses (v : SegmentView Digest) : List PortAccess :=
 
 /-! ### One segment -/
 
-private theorem port_valid {p : Plan} {s : OpSlot} {a : PortAccess} (rows : s.Rows p)
+private theorem port_valid {p : Geometry} {s : OpSlot} {a : PortAccess} (rows : s.Rows p)
     (fits : s.Fits p) (port : s.port = some a) : a.Valid p := by
   unfold OpSlot.port at port
   split_ifs at port
@@ -56,10 +56,10 @@ private theorem port_valid {p : Plan} {s : OpSlot} {a : PortAccess} (rows : s.Ro
   refine ⟨?_, vr, vw, rows.readKeeps, rows.noRomWrite⟩
   cases ram : s.isRam
   · simpa [ram] using rows.romRange ram
-  · simpa [ram, Plan.ramSize] using addr
+  · simpa [ram, Geometry.ramSize] using addr
 
 /-- The active operations of rows that hold are fresh and valid. -/
-private theorem segmentOps_rows {p : Plan} {ts : ℕ} {rs : List StepRecords}
+private theorem segmentOps_rows {p : Geometry} {ts : ℕ} {rs : List StepRecords}
     (rows : SegmentRows p ts rs) : ∀ o ∈ segmentOps ts rs, o.rt < o.wt ∧ o.access.Valid p := by
   induction rs generalizing ts with
   | nil => simp [segmentOps]
@@ -73,7 +73,7 @@ private theorem segmentOps_rows {p : Plan} {ts : ℕ} {rs : List StepRecords}
         port_valid (step.slots s slot) (step.shaped.opsFit s slot) port⟩
     · exact ih rows o member
 
-private theorem snapshot_scanMemory {p : Plan} (valid : p.Valid) {scans : List (List ScanSlot)}
+private theorem snapshot_scanMemory {p : Geometry} (valid : p.Valid) {scans : List (List ScanSlot)}
     (length : scans.length = p.n) (shaped : ScansShaped p scans) :
     snapshot p (scanMemory p scans) = chunkTuples p 0 scans := by
   rw [← chunkTuples_scansOf valid, scansOf_scanMemory valid length shaped fun _ _ => rfl]
@@ -82,11 +82,11 @@ private theorem snapshot_scanMemory {p : Plan} (valid : p.Valid) {scans : List (
 snapshot, the segment's accesses replay and end at the FS snapshot. -/
 theorem segment_replays {ctx : Context E Digest} {η : E × E} {v : SegmentView Digest}
     (valid : ctx.plan.Valid) (closes : v.ClosesAt ctx η)
-    (balanced : (v.multisets ctx.plan).Balanced) {m : Machine}
-    (start : Set.EqOn m.memory (scanMemory ctx.plan v.initialScans) (Set.Iio ctx.plan.cells))
+    (balanced : (v.multisets ctx.plan.toGeometry).Balanced) {m : Machine}
+    (start : Set.EqOn m.memory (scanMemory ctx.plan.toGeometry v.initialScans) (Set.Iio ctx.plan.cells))
     (ts : m.ts = v.openTs) :
-    ∃ m', accessAll ctx.plan m v.accesses = some m' ∧
-      Set.EqOn m'.memory (scanMemory ctx.plan v.finalScans) (Set.Iio ctx.plan.cells) ∧
+    ∃ m', accessAll ctx.plan.toGeometry m v.accesses = some m' ∧
+      Set.EqOn m'.memory (scanMemory ctx.plan.toGeometry v.finalScans) (Set.Iio ctx.plan.cells) ∧
       m'.ts = v.openTs + (v.records.map activeCount).sum := by
   have lengthIS : v.initialScans.length = ctx.plan.n := by
     simp [SegmentView.initialScans, closes.length]
@@ -96,25 +96,25 @@ theorem segment_replays {ctx : Context E Digest} {η : E × E} {v : SegmentView 
   unfold Multisets.Balanced SegmentView.multisets at tuples
   rw [segmentMultisets_initial, segmentMultisets_write, segmentMultisets_read,
     segmentMultisets_final] at tuples
-  have snapshots : snapshot ctx.plan (scanMemory ctx.plan v.initialScans) +
-      (((segmentOps v.openTs v.records).map (MemOp.write ctx.plan) : List Tuple) :
+  have snapshots : snapshot ctx.plan.toGeometry (scanMemory ctx.plan.toGeometry v.initialScans) +
+      (((segmentOps v.openTs v.records).map (MemOp.write ctx.plan.toGeometry) : List Tuple) :
         Multiset Tuple) =
-      (((segmentOps v.openTs v.records).map (MemOp.read ctx.plan) : List Tuple) :
-        Multiset Tuple) + snapshot ctx.plan (scanMemory ctx.plan v.finalScans) := by
-    rw [snapshot_scanMemory valid lengthIS closes.initialShaped,
-      snapshot_scanMemory valid lengthFS closes.finalShaped]
+      (((segmentOps v.openTs v.records).map (MemOp.read ctx.plan.toGeometry) : List Tuple) :
+        Multiset Tuple) + snapshot ctx.plan.toGeometry (scanMemory ctx.plan.toGeometry v.finalScans) := by
+    rw [snapshot_scanMemory valid.toValid lengthIS closes.initialShaped,
+      snapshot_scanMemory valid.toValid lengthFS closes.finalShaped]
     exact tuples
-  obtain ⟨mem, replay, agree⟩ := segment_sequential ctx.plan
-    (start := ⟨scanMemory ctx.plan v.initialScans, v.openTs⟩)
-    (final := scanMemory ctx.plan v.finalScans) (ops := segmentOps v.openTs v.records)
+  obtain ⟨mem, replay, agree⟩ := segment_sequential ctx.plan.toGeometry
+    (start := ⟨scanMemory ctx.plan.toGeometry v.initialScans, v.openTs⟩)
+    (final := scanMemory ctx.plan.toGeometry v.finalScans) (ops := segmentOps v.openTs v.records)
     (segmentOps_wt v.openTs v.records) (fun o member => (segmentOps_rows closes.rows o member).1)
     (fun o member => (segmentOps_rows closes.rows o member).2) snapshots
   have accesses : (segmentOps v.openTs v.records).map MemOp.access = v.accesses :=
     segmentOps_access _ _
   rw [accesses] at replay
-  obtain ⟨sameTs, sameMem⟩ := accessAll_congr (p := ctx.plan) (m₁ := m)
-    (m₂ := ⟨scanMemory ctx.plan v.initialScans, v.openTs⟩) ts start v.accesses
-  have tsEq : (accessAll ctx.plan m v.accesses).map Machine.ts =
+  obtain ⟨sameTs, sameMem⟩ := accessAll_congr (p := ctx.plan.toGeometry) (m₁ := m)
+    (m₂ := ⟨scanMemory ctx.plan.toGeometry v.initialScans, v.openTs⟩) ts start v.accesses
+  have tsEq : (accessAll ctx.plan.toGeometry m v.accesses).map Machine.ts =
       some (v.openTs + (segmentOps v.openTs v.records).length) := by
     rw [sameTs, replay]
     rfl
@@ -124,7 +124,7 @@ theorem segment_replays {ctx : Context E Digest} {η : E × E} {v : SegmentView 
 
 /-- A replay of a run's accesses along its application thread is an
 execution. -/
-theorem executes_of_replay {p : Plan} {app : Application p σ} {s s' : σ} {m m' : Machine}
+theorem executes_of_replay {p : Geometry} {app : Application p σ} {s s' : σ} {m m' : Machine}
     {run : List (Invocation σ Digest)} (thread : AppThread app s run s')
     (replay : accessAll p m (run.flatMap fun inv => inv.ports.filterMap id) = some m') :
     Executes p app s m (run.map Invocation.ports) s' m' := by
@@ -160,7 +160,7 @@ private theorem tsBefore_succ (ctx : Context E Digest) (run : List (Invocation �
     (k : ℕ) : tsBefore run ((k + 1) * ctx.plan.n) =
       (segmentView ctx run k).openTs + ((segmentView ctx run k).records.map activeCount).sum := by
   show tsBefore run ((k + 1) * ctx.plan.n) = tsBefore run (k * ctx.plan.n) +
-    (((segmentRun ctx.plan run k).map Invocation.records).map activeCount).sum
+    (((segmentRun ctx.plan.toGeometry run k).map Invocation.records).map activeCount).sum
   unfold tsBefore segmentRun
   rw [take_succ_mul, List.map_append, List.sum_append, List.map_map]
   rfl
@@ -172,7 +172,7 @@ private theorem segment_inputs_subset {ctx : Context E Digest} {run : List (Invo
   exact List.mem_append_right _ (List.mem_flatMap.2 ⟨k, List.mem_range.2 hk, member⟩)
 
 /-- Every hash input of an accepted run is canonical (Ob3 input range). -/
-theorem runInputs_canonical {ctx : Context E Digest} {app : Application ctx.plan σ}
+theorem runInputs_canonical {ctx : Context E Digest} {app : Application ctx.plan.toGeometry σ}
     {stmt : Statement σ Digest} {run : List (Invocation σ Digest)}
     (valid : ctx.plan.Valid) (accepted : Accepts ctx app stmt run) :
     ∀ x ∈ runInputs ctx run stmt.segments, x.Canonical ctx.plan.laneLength ctx.plan.n := by
@@ -189,12 +189,12 @@ theorem runInputs_canonical {ctx : Context E Digest} {app : Application ctx.plan
 segment is the segment's FS proposal. -/
 private theorem memoryRoot_finalScans {ctx : Context E Digest} {η : E × E}
     {v : SegmentView Digest} (valid : ctx.plan.Valid) (closes : v.ClosesAt ctx η) {mem : Memory}
-    (agree : Set.EqOn mem (scanMemory ctx.plan v.finalScans) (Set.Iio ctx.plan.cells)) :
-    memoryRoot ctx.hash ctx.plan ctx.planDigest mem = v.proposal.2 := by
+    (agree : Set.EqOn mem (scanMemory ctx.plan.toGeometry v.finalScans) (Set.Iio ctx.plan.cells)) :
+    memoryRoot ctx.hash ctx.plan.toGeometry ctx.planDigest mem = v.proposal.2 := by
   have length : v.finalScans.length = ctx.plan.n := by
     simp [SegmentView.finalScans, closes.length]
-  rw [memoryRoot_congr ctx.hash valid ctx.planDigest agree, memoryRoot, memoryLanes_eq,
-    scansOf_scanMemory valid length closes.finalShaped fun _ _ => rfl, ← closes.finalRoot,
+  rw [memoryRoot_congr ctx.hash valid.toValid ctx.planDigest agree, memoryRoot, memoryLanes_eq,
+    scansOf_scanMemory valid.toValid length closes.finalShaped fun _ _ => rfl, ← closes.finalRoot,
     SegmentView.finalScans, List.map_map]
   rfl
 
@@ -202,17 +202,17 @@ private theorem memoryRoot_finalScans {ctx : Context E Digest} {η : E × E}
 private theorem replay_segment {ctx : Context E Digest} {run : List (Invocation σ Digest)}
     {k : ℕ} {η : E × E} (valid : ctx.plan.Valid)
     (closes : (segmentView ctx run k).ClosesAt ctx η)
-    (balanced : ((segmentView ctx run k).multisets ctx.plan).Balanced) {m : Machine}
-    (replay : accessAll ctx.plan (initialMachine ctx.plan)
+    (balanced : ((segmentView ctx run k).multisets ctx.plan.toGeometry).Balanced) {m : Machine}
+    (replay : accessAll ctx.plan.toGeometry (initialMachine ctx.plan)
       ((run.take (k * ctx.plan.n)).flatMap fun inv => inv.ports.filterMap id) = some m)
     (ts : m.ts = tsBefore run (k * ctx.plan.n))
-    (start : Set.EqOn m.memory (scanMemory ctx.plan (segmentView ctx run k).initialScans)
+    (start : Set.EqOn m.memory (scanMemory ctx.plan.toGeometry (segmentView ctx run k).initialScans)
       (Set.Iio ctx.plan.cells)) :
-    ∃ m', accessAll ctx.plan (initialMachine ctx.plan)
+    ∃ m', accessAll ctx.plan.toGeometry (initialMachine ctx.plan)
         ((run.take ((k + 1) * ctx.plan.n)).flatMap fun inv => inv.ports.filterMap id) =
           some m' ∧
       m'.ts = tsBefore run ((k + 1) * ctx.plan.n) ∧
-      Set.EqOn m'.memory (scanMemory ctx.plan (segmentView ctx run k).finalScans)
+      Set.EqOn m'.memory (scanMemory ctx.plan.toGeometry (segmentView ctx run k).finalScans)
         (Set.Iio ctx.plan.cells) := by
   obtain ⟨m', replay', agree, ts'⟩ := segment_replays valid closes balanced start ts
   refine ⟨m', ?_, ?_, agree⟩
@@ -226,17 +226,17 @@ snapshot of segment `k`. -/
 private theorem replay_prefix {ctx : Context E Digest} {run : List (Invocation σ Digest)}
     {S : ℕ} (valid : ctx.plan.Valid)
     (closes : ∀ k < S, (segmentView ctx run k).ClosesAt ctx ((segmentView ctx run k).eta ctx))
-    (balanced : ∀ k < S, ((segmentView ctx run k).multisets ctx.plan).Balanced)
-    (init : (segmentView ctx run 0).initialScans = scansOf ctx.plan (initialMemory ctx.plan))
+    (balanced : ∀ k < S, ((segmentView ctx run k).multisets ctx.plan.toGeometry).Balanced)
+    (init : (segmentView ctx run 0).initialScans = scansOf ctx.plan.toGeometry (initialMemory ctx.plan))
     (join : ∀ k, k + 1 < S →
       (segmentView ctx run (k + 1)).initialScans = (segmentView ctx run k).finalScans) :
-    ∀ k < S, ∃ m, accessAll ctx.plan (initialMachine ctx.plan)
+    ∀ k < S, ∃ m, accessAll ctx.plan.toGeometry (initialMachine ctx.plan)
         ((run.take (k * ctx.plan.n)).flatMap fun inv => inv.ports.filterMap id) = some m ∧
       m.ts = tsBefore run (k * ctx.plan.n) ∧
-      Set.EqOn m.memory (scanMemory ctx.plan (segmentView ctx run k).initialScans)
+      Set.EqOn m.memory (scanMemory ctx.plan.toGeometry (segmentView ctx run k).initialScans)
         (Set.Iio ctx.plan.cells)
   | 0, _ => ⟨initialMachine ctx.plan, by simp [accessAll_nil], by simp [tsBefore, initialMachine],
-      by rw [init]; exact (scanMemory_scansOf valid _).symm⟩
+      by rw [init]; exact (scanMemory_scansOf valid.toValid _).symm⟩
   | k + 1, hk => by
     obtain ⟨m, replay, ts, start⟩ := replay_prefix valid closes balanced init join k (by omega)
     obtain ⟨m', replay', ts', agree⟩ :=
@@ -244,7 +244,7 @@ private theorem replay_prefix {ctx : Context E Digest} {run : List (Invocation �
     exact ⟨m', replay', ts', by rw [join k hk]; exact agree⟩
 
 /-- Security note Lemma 6, deterministic form. -/
-theorem soundness {ctx : Context E Digest} {app : Application ctx.plan σ}
+theorem soundness {ctx : Context E Digest} {app : Application ctx.plan.toGeometry σ}
     {stmt : Statement σ Digest} {run : List (Invocation σ Digest)}
     (valid : ctx.plan.Valid) (accepted : Accepts ctx app stmt run) :
     Attests ctx app stmt run ∨ RunCollision ctx run stmt.segments ∨
@@ -255,13 +255,13 @@ theorem soundness {ctx : Context E Digest} {app : Application ctx.plan σ}
   obtain ⟨c, final, -, -, finalTs, finalRoot⟩ := accepted.terminal
   have closes := ((finalCarry_isSome_iff valid count).1 ⟨c, final⟩).2
   obtain ⟨-, -, carryTs, carryRoot⟩ := finalCarry_fields valid count pos final
-  by_cases bad : ∃ k < stmt.segments, ¬ ((segmentView ctx run k).multisets ctx.plan).Balanced
+  by_cases bad : ∃ k < stmt.segments, ¬ ((segmentView ctx run k).multisets ctx.plan.toGeometry).Balanced
   · obtain ⟨k, hk, unbalanced⟩ := bad
     exact Or.inr (Or.inr ⟨k, hk, unbalanced, (closes k hk).products⟩)
   push Not at bad
   by_cases collision : RunCollision ctx run stmt.segments
   · exact Or.inr (Or.inl collision)
-  have init : (segmentView ctx run 0).initialScans = scansOf ctx.plan (initialMemory ctx.plan) := by
+  have init : (segmentView ctx run 0).initialScans = scansOf ctx.plan.toGeometry (initialMemory ctx.plan) := by
     refine (initial_scans_or_collision valid (closes 0 (by omega))).resolve_right
       fun hit => collision ?_
     refine CollisionIn.mono (segment_inputs_subset (by omega)) ?_ hit

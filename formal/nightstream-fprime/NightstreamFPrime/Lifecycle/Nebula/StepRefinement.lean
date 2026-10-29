@@ -15,13 +15,13 @@ open Fin.CommRing
 
 /-- The invariant of every carry between invocations: counters in range, and
 an open segment below `S_max`. -/
-structure Reach (p : Plan) (c : MemoryCarry) : Prop where
+structure Reach (p : Geometry) (c : MemoryCarry) : Prop where
   seg : c.segIdx ≤ p.sMax
   idx : c.idx ≤ p.n
   openSeg : c.idx ≠ p.n → c.segIdx < p.sMax
   ts : c.ts < 2 ^ p.wTs
 
-theorem reach_startCarry {p : Plan} : Reach p (startCarry (context p)) where
+theorem reach_startCarry {p : Plan} : Reach p.toGeometry (startCarry (context p)) where
   seg := Nat.zero_le _
   idx := le_rfl
   openSeg := fun h => absurd rfl h
@@ -32,7 +32,7 @@ theorem reach_startCarry {p : Plan} : Reach p (startCarry (context p)) where
 theorem two_pow_lt_modulus {k : ℕ} (small : k ≤ 63) : 2 ^ k < goldilocksModulus :=
   lt_of_le_of_lt (Nat.pow_le_pow_right (by norm_num) small) (by decide)
 
-theorem Plan.n_lt {p : Plan} (valid : p.Valid) : p.n < goldilocksModulus := by
+theorem Geometry.n_lt {p : Geometry} (valid : p.Valid) : p.n < goldilocksModulus := by
   have cover := valid.exactCover
   have positive := valid.positive.2.1
   have below := valid.belowModulus
@@ -40,10 +40,10 @@ theorem Plan.n_lt {p : Plan} (valid : p.Valid) : p.n < goldilocksModulus := by
     _ = p.cells := cover
     _ < goldilocksModulus := below
 
-theorem Plan.wTs_small {p : Plan} (valid : p.Valid) : 2 ^ p.wTs ≤ 2 ^ 62 :=
+theorem Geometry.wTs_small {p : Geometry} (valid : p.Valid) : 2 ^ p.wTs ≤ 2 ^ 62 :=
   Nat.pow_le_pow_right (by norm_num) valid.fieldEncoding
 
-theorem Plan.sMax_small {p : Plan} (valid : p.Valid) : p.sMax < 2 ^ 62 := by
+theorem Geometry.sMax_small {p : Geometry} (valid : p.Valid) : p.sMax < 2 ^ 62 := by
   have range := valid.timestampRange
   have positive := valid.positive
   have : p.sMax ≤ p.sMax * p.n * p.bOps := by
@@ -52,18 +52,18 @@ theorem Plan.sMax_small {p : Plan} (valid : p.Valid) : p.sMax < 2 ^ 62 := by
         gcongr
         · exact positive.2.2.1
         · exact positive.1
-  exact lt_of_le_of_lt this (lt_of_lt_of_le range (Plan.wTs_small valid))
+  exact lt_of_le_of_lt this (lt_of_lt_of_le range (Geometry.wTs_small valid))
 
-theorem Plan.bOps_small {p : Plan} (valid : p.Valid) : p.bOps < 2 ^ 62 := by
+theorem Geometry.bOps_small {p : Geometry} (valid : p.Valid) : p.bOps < 2 ^ 62 := by
   have range := valid.timestampRange
   have positive := valid.positive
   have : p.bOps ≤ p.sMax * p.n * p.bOps := Nat.le_mul_of_pos_left _
     (Nat.mul_pos positive.2.2.2 positive.2.2.1)
-  exact lt_of_le_of_lt this (lt_of_lt_of_le range (Plan.wTs_small valid))
+  exact lt_of_le_of_lt this (lt_of_lt_of_le range (Geometry.wTs_small valid))
 
 namespace StepWitness
 
-variable {p : Plan} {a : AppShape} (w : StepWitness p a)
+variable {p : Geometry} {a : AppShape} (w : StepWitness p a)
 
 /-- The decoded input carry. -/
 def inCarry : MemoryCarry := decodeCarry w.carryIn
@@ -92,13 +92,13 @@ theorem RowsHold.arm (valid : p.Valid) (rows : w.RowsHold zIn) :
     rw [zero, sub_zero] at test
     have equal : w.cIn 1 = natWord p.n := by
       apply Fin.ext
-      rw [← word, closed, natWord_val (Plan.n_lt valid)]
+      rw [← word, closed, natWord_val (Geometry.n_lt valid)]
     rw [equal, sub_self, zero_mul] at test
     exact absurd test (by decide)
   · refine Or.inl ⟨one, ?_⟩
     have zero := rows.openZero
     rw [one, mul_one, sub_eq_zero] at zero
-    rw [word, zero, natWord_val (Plan.n_lt valid)]
+    rw [word, zero, natWord_val (Geometry.n_lt valid)]
 
 /-! ### Bits -/
 
@@ -296,8 +296,8 @@ theorem RowsHold.activeFresh (valid : p.Valid) (rows : w.RowsHold zIn)
     conv_rhs => rw [natWord_add, natWord_of_val]
   rw [wtWord, StepWitness.rt, StepWitness.diff, bitsWord_eq rtBits, bitsWord_eq diffBits,
     show (1 : F) = natWord 1 from rfl, ← natWord_add, ← natWord_add] at row
-  have small62 := Plan.wTs_small valid
-  have opsSmall := Plan.bOps_small valid
+  have small62 := Geometry.wTs_small valid
+  have opsSmall := Geometry.bOps_small valid
   have prefixSmall : activeLength (w.records.ops.take k) ≤ p.bOps := by
     have := activeLength_le (w.records.ops.take k)
     simp only [List.length_take] at this
@@ -325,8 +325,8 @@ theorem RowsHold.boundary (valid : p.Valid) (rows : w.RowsHold zIn)
   refine ⟨?_, out⟩
   have range := rows.tsRange
   rw [out, bitsWord_eq rows.tsBits] at range
-  have small62 := Plan.wTs_small valid
-  have opsSmall := Plan.bOps_small valid
+  have small62 := Geometry.wTs_small valid
+  have opsSmall := Geometry.bOps_small valid
   have active : activeCount w.records ≤ p.bOps := by
     rw [activeCount_records, ← length]
     exact activeLength_le _
@@ -395,11 +395,11 @@ theorem RowsHold.segBelow (valid : p.Valid) (rows : w.RowsHold zIn)
     have segBits := bitsWord_eq rows.segBits
     rw [segBits, show w.cIn 0 = natWord w.inCarry.segIdx by
       rw [cIn_eq w (by decide)]; exact (natWord_of_val _).symm, ← natWord_add] at row
-    have sMaxSmall := Plan.sMax_small valid
+    have sMaxSmall := Geometry.sMax_small valid
     have positive : 0 < p.sMax := valid.positive.2.2.2
     have widthSmall : p.segWidth ≤ 62 := by
       have := (Nat.log2_lt positive.ne').mpr sMaxSmall
-      unfold Plan.segWidth
+      unfold Geometry.segWidth
       omega
     have bitsSmall := lt_of_lt_of_le (bitsNat_lt w.segBits)
       (Nat.pow_le_pow_right (by norm_num) widthSmall)
@@ -412,13 +412,13 @@ theorem RowsHold.segBelow (valid : p.Valid) (rows : w.RowsHold zIn)
 /-- The arm's open (spec §11.2) gives the step-start carry. -/
 theorem RowsHold.opened (valid : p.Valid) (rows : w.RowsHold zIn)
     (reach : Reach p w.inCarry) :
-    (if w.inCarry.idx = p.n then Spec.Nebula.openSegment (context p) w.inCarry w.proposals
+    (if w.inCarry.idx = p.n then Spec.Nebula.openSegment (setup p) w.inCarry w.proposals
       else some w.inCarry) = some w.stepStart := by
   rcases rows.arm valid with ⟨opens, closed⟩ | ⟨continues, notClosed⟩
   · rw [if_pos closed]
     have segBelow := rows.segBelow w valid reach
     rw [Spec.Nebula.openSegment,
-      if_pos (show w.inCarry.segIdx < (context p).plan.sMax from segBelow)]
+      if_pos (show w.inCarry.segIdx < (setup p).geometry.sMax from segBelow)]
     congr 1
     have proposedOut : ∀ i : Fin 8, carryWord w.carryOut (15 + i) = w.proposal i := fun i => by
       simpa [opens, cOut] using rows.proposed i
@@ -533,7 +533,7 @@ theorem gatedK_bit {pad : F} (bit : IsBit pad) (f : K) :
 
 namespace StepWitness
 
-variable {p : Plan} {a : AppShape} (w : StepWitness p a) {zIn : List F}
+variable {p : Geometry} {a : AppShape} (w : StepWitness p a) {zIn : List F}
 
 /-! ### Field values of a slot -/
 
@@ -571,7 +571,7 @@ theorem RowsHold.globalIndex_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : 
   have addr : w.addr j = natWord (bitsNat (w.ops j).addr) := bitsWord_eq addrBits
   have addrSmall := bitsNat_lt (w.ops j).addr
   have cells := valid.belowModulus
-  unfold Plan.cells Plan.ramSize at cells
+  unfold Geometry.cells Geometry.ramSize at cells
   rcases ramBit with zero | one
   · have decodeRam : (w.ops j).decode.isRam = false := by
       simp [OpSlotBits.decode, zero, toBool, modulus_ne_one]
@@ -604,8 +604,8 @@ theorem RowsHold.wt_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : Fin p.bOp
     have := activeLength_le (w.records.ops.take j.val)
     simp only [List.length_take] at this
     omega
-  have small62 := Plan.wTs_small valid
-  have opsSmall := Plan.bOps_small valid
+  have small62 := Geometry.wTs_small valid
+  have opsSmall := Geometry.bOps_small valid
   have sumSmall : (w.cIn 2).val + activeLength (w.records.ops.take j.val) + 1 <
       goldilocksModulus := by
     have tsSmall := lt_of_lt_of_le tsRange small62

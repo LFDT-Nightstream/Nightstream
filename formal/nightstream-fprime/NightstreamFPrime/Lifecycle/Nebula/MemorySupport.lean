@@ -13,7 +13,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Lifecycle.Stage1
 
-variable (p : Plan) (app : PortApp p) (i : AppInterface p app) (offset : ℕ) (allowed : ℕ → Prop)
+variable (p : Geometry) (app : PortApp p) (i : AppInterface p app) (offset : ℕ) (allowed : ℕ → Prop)
 
 /-- Every witness wire reads only allowed variables. -/
 def WiresSupported : Prop := ∀ index, (i.witness offset index).VarsSatisfy allowed

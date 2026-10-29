@@ -60,30 +60,30 @@ theorem mul_fieldInverse {x : F} (nonzero : x ≠ 0) : x * fieldInverse x = 1 :=
   exact key x nonzero
 
 /-- The bits of a typed operation slot, with O4 difference bits `diff`. -/
-def encodeOp (p : Plan) (s : OpSlot) (diff : ℕ) : OpSlotBits p :=
+def encodeOp (p : Geometry) (s : OpSlot) (diff : ℕ) : OpSlotBits p :=
   ⟨bitWord s.pad, bitWord s.isWrite, bitWord s.isRam, natBits p.μ s.addr, natBits 32 s.vr,
     natBits 32 s.vw, natBits p.wTs s.rt, natBits p.wTs diff⟩
 
 /-- The bits of a typed scan slot. -/
-def encodeScan (p : Plan) (c : ScanSlot) : ScanSlotBits p :=
+def encodeScan (p : Geometry) (c : ScanSlot) : ScanSlotBits p :=
   ⟨natBits 32 c.value, natBits p.wTs c.stamp⟩
 
-theorem lane_encodeOp (p : Plan) (s : OpSlot) (diff : ℕ) :
+theorem lane_encodeOp (p : Geometry) (s : OpSlot) (diff : ℕ) :
     (encodeOp p s diff).lane = (s.bits p).map bitWord := by
   simp only [OpSlotBits.lane, encodeOp, OpSlot.bits, ofFn_natBits, List.map_append,
     List.map_cons, List.cons_append, List.nil_append]
 
-theorem lane_encodeScan (p : Plan) (c : ScanSlot) :
+theorem lane_encodeScan (p : Geometry) (c : ScanSlot) :
     (encodeScan p c).lane = (c.bits p).map bitWord := by
   simp only [ScanSlotBits.lane, encodeScan, ScanSlot.bits, ofFn_natBits, List.map_append]
 
-theorem decode_encodeOp {p : Plan} {s : OpSlot} (fits : s.Fits p) (diff : ℕ) :
+theorem decode_encodeOp {p : Geometry} {s : OpSlot} (fits : s.Fits p) (diff : ℕ) :
     (encodeOp p s diff).decode = s := by
   obtain ⟨addr, vr, vw, rt⟩ := fits
   simp only [OpSlotBits.decode, encodeOp, toBool_bitWord, bitsNat_natBits addr,
     bitsNat_natBits vr, bitsNat_natBits vw, bitsNat_natBits rt]
 
-theorem decode_encodeScan {p : Plan} {c : ScanSlot} (fits : c.Fits p) :
+theorem decode_encodeScan {p : Geometry} {c : ScanSlot} (fits : c.Fits p) :
     (encodeScan p c).decode = c := by
   obtain ⟨value, stamp⟩ := fits
   simp only [ScanSlotBits.decode, encodeScan, bitsNat_natBits value, bitsNat_natBits stamp]
@@ -92,13 +92,13 @@ theorem decode_encodeScan {p : Plan} {c : ScanSlot} (fits : c.Fits p) :
 
 namespace Honest
 
-variable (p : Plan) (c : MemoryCarry) {σ : Type} (inv : Invocation σ Digest)
+variable (p : Geometry) (c : MemoryCarry) {σ : Type} (inv : Invocation σ Digest)
 
 /-- The carry that `step` starts from: the arm's open on a closed carry. -/
-def start : MemoryCarry := if c.idx = p.n then openedCarry (context p) c inv.proposal else c
+def start : MemoryCarry := if c.idx = p.n then openedCarry (setup p) c inv.proposal else c
 
 /-- The carry after `advance`. -/
-def stepped : MemoryCarry := advance (context p) (start p c inv) inv.records
+def stepped : MemoryCarry := advance (setup p) (start p c inv) inv.records
 
 /-- The carry after the step: closed when `advance` sets `idx = N`. -/
 def finished : MemoryCarry :=
@@ -122,23 +122,23 @@ theorem start_ts : (start p c inv).ts = c.ts := by
   split <;> rfl
 
 /-- `invoke` succeeds exactly through its checks, and returns `finished`. -/
-theorem accepted {c' : MemoryCarry} (accepts : invoke (context p) c inv = some c') :
+theorem accepted {c' : MemoryCarry} (accepts : invoke (setup p) c inv = some c') :
     Accepted p c inv ∧ c' = finished p c inv := by
   simp only [invoke] at accepts
-  rw [show (context p).plan.n = p.n from rfl] at accepts
+  rw [show (setup p).geometry.n = p.n from rfl] at accepts
   have segBelow : c.idx = p.n → c.segIdx < p.sMax := by
     intro opens
     by_contra no
     rw [if_pos opens, Spec.Nebula.openSegment,
-      if_neg (show ¬ c.segIdx < (context p).plan.sMax from no)] at accepts
+      if_neg (show ¬ c.segIdx < (setup p).geometry.sMax from no)] at accepts
     simp at accepts
-  have opened : (if c.idx = p.n then Spec.Nebula.openSegment (context p) c inv.proposal
+  have opened : (if c.idx = p.n then Spec.Nebula.openSegment (setup p) c inv.proposal
       else some c) =
       some (start p c inv) := by
     unfold start
     by_cases opens : c.idx = p.n
     · rw [if_pos opens, if_pos opens, Spec.Nebula.openSegment,
-        if_pos (show c.segIdx < (context p).plan.sMax from segBelow opens)]
+        if_pos (show c.segIdx < (setup p).geometry.sMax from segBelow opens)]
     · rw [if_neg opens, if_neg opens]
   rw [opened, Option.bind_some] at accepts
   have rows : StepRows p c.ts inv.records := by
@@ -146,10 +146,10 @@ theorem accepted {c' : MemoryCarry} (accepts : invoke (context p) c inv = some c
     rw [stepSegment, if_neg (by rw [start_ts]; exact no)] at accepts
     simp at accepts
   rw [stepSegment, if_pos (by rw [start_ts]; exact rows), Option.bind_some] at accepts
-  change finishStep (context p) (stepped p c inv) = some c' at accepts
+  change finishStep (setup p) (stepped p c inv) = some c' at accepts
   unfold finishStep at accepts
   by_cases closes : (stepped p c inv).idx = p.n
-  · rw [if_pos (show (stepped p c inv).idx = (context p).plan.n from closes), closeSegment]
+  · rw [if_pos (show (stepped p c inv).idx = (setup p).geometry.n from closes), closeSegment]
       at accepts
     by_cases checks : CloseChecks (stepped p c inv)
     · rw [if_pos (by unfold CloseChecks at checks; exact checks)] at accepts
@@ -159,7 +159,7 @@ theorem accepted {c' : MemoryCarry} (accepts : invoke (context p) c inv = some c
       exact (Option.some.inj accepts).symm
     · rw [if_neg (by unfold CloseChecks at checks; exact checks)] at accepts
       simp at accepts
-  · rw [if_neg (show ¬ (stepped p c inv).idx = (context p).plan.n from closes)] at accepts
+  · rw [if_neg (show ¬ (stepped p c inv).idx = (setup p).geometry.n from closes)] at accepts
     refine ⟨⟨segBelow, rows, fun h => absurd h closes⟩, ?_⟩
     unfold finished
     rw [if_neg closes]

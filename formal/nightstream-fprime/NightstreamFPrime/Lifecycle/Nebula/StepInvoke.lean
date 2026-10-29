@@ -22,7 +22,7 @@ theorem chainLink_eq (lane : Lane) (index : F) (previous : Digest) {bits : List 
 
 namespace StepWitness
 
-variable {p : Plan} {a : AppShape} (w : StepWitness p a)
+variable {p : Geometry} {a : AppShape} (w : StepWitness p a)
 
 /-- The carry after the step's `advance`, read from the output words, with
 the input carry's segment and memory root. -/
@@ -86,7 +86,7 @@ theorem RowsHold.idxOut_val (valid : p.Valid) (rows : w.RowsHold zIn)
     (reach : Reach p w.inCarry) : (w.cOut 1).val = w.idxEff.val + 1 := by
   have small : w.idxEff.val + 1 < goldilocksModulus := by
     have := rows.idxEff_lt w valid reach
-    have := Plan.n_lt valid
+    have := Geometry.n_lt valid
     omega
   rw [rows.idxOut, ← natWord_of_val w.idxEff, ← natWord_one, ← natWord_add, natWord_val small,
     natWord_of_val]
@@ -99,13 +99,13 @@ theorem RowsHold.tsOut_val (valid : p.Valid) (rows : w.RowsHold zIn)
   have boundary := rows.boundary w valid (inTs_lt reach)
   refine ⟨?_, boundary.1⟩
   rw [boundary.2, natWord_val (lt_of_lt_of_le boundary.1
-    (le_trans (Plan.wTs_small valid) (two_pow_lt_modulus (by norm_num)).le))]
+    (le_trans (Geometry.wTs_small valid) (two_pow_lt_modulus (by norm_num)).le))]
 
 /-- The rows of spec §8 hold, so `step` runs. -/
 theorem RowsHold.stepped (valid : p.Valid) (rows : w.RowsHold zIn) (reach : Reach p w.inCarry) :
-    stepSegment (context p) w.stepStart w.records =
-      some (advance (context p) w.stepStart w.records) := by
-  have holds : StepRows (context p).plan w.stepStart.ts w.records := by
+    stepSegment (setup p) w.stepStart w.records =
+      some (advance (setup p) w.stepStart w.records) := by
+  have holds : StepRows (setup p).geometry w.stepStart.ts w.records := by
     show StepRows p w.inCarry.ts w.records
     rw [inTs]
     exact rows.stepRows w valid (inTs_lt reach)
@@ -115,7 +115,7 @@ theorem RowsHold.stepped (valid : p.Valid) (rows : w.RowsHold zIn) (reach : Reac
 give the model's `advance` on the step-start carry. -/
 theorem RowsHold.advanced (valid : p.Valid) (rows : w.RowsHold zIn)
     (reach : Reach p w.inCarry) :
-    advance (context p) w.stepStart w.records = w.stepEnd := by
+    advance (setup p) w.stepStart w.records = w.stepEnd := by
   have tsRange := inTs_lt reach
   have opsLength : w.records.ops.length = p.bOps := by simp [records]
   have initialLength : w.records.initialScan.length = p.bScan := by simp [records]
@@ -160,15 +160,15 @@ theorem RowsHold.advanced (valid : p.Valid) (rows : w.RowsHold zIn)
 /-- Spec §11.2 `close`, exactly when the step sets `idx = N`: the close rows
 give `finishStep`. -/
 theorem RowsHold.finished (valid : p.Valid) (rows : w.RowsHold zIn)
-    (reach : Reach p w.inCarry) : finishStep (context p) w.stepEnd = some w.outCarry := by
+    (reach : Reach p w.inCarry) : finishStep (setup p) w.stepEnd = some w.outCarry := by
   have segSmall : w.inCarry.segIdx + 1 < goldilocksModulus := by
     have := rows.segBelow w valid reach
-    have := Plan.sMax_small valid
+    have := Geometry.sMax_small valid
     unfold goldilocksModulus
     omega
   rw [finishStep, outCarry_eq]
   rcases rows.closeBit with notClose | close
-  · have stays : w.stepEnd.idx ≠ (context p).plan.n := by
+  · have stays : w.stepEnd.idx ≠ (setup p).geometry.n := by
       intro closed
       have closed' : (w.cOut 1).val = p.n := closed
       have test := rows.closeTest
@@ -186,11 +186,11 @@ theorem RowsHold.finished (valid : p.Valid) (rows : w.RowsHold zIn)
       have row := rows.memOut i
       rw [notClose, zero_mul, zero_add, sub_zero, one_mul] at row
       exact row.symm
-  · have closed : w.stepEnd.idx = (context p).plan.n := by
+  · have closed : w.stepEnd.idx = (setup p).geometry.n := by
       have zero := rows.closeZero
       rw [close, mul_one, sub_eq_zero] at zero
       show (w.cOut 1).val = p.n
-      rw [zero, natWord_val (Plan.n_lt valid)]
+      rw [zero, natWord_val (Geometry.n_lt valid)]
     have checks : w.stepEnd.seen.ops = w.stepEnd.proposed.1 ∧
         w.stepEnd.seen.initial = w.stepEnd.memRoot ∧
         w.stepEnd.seen.final = w.stepEnd.proposed.2 ∧
@@ -233,7 +233,7 @@ theorem RowsHold.reachOut (valid : p.Valid) (rows : w.RowsHold zIn)
     (reach : Reach p w.inCarry) : Reach p w.outCarry := by
   have segBelow := rows.segBelow w valid reach
   have segSmall : w.inCarry.segIdx + 1 < goldilocksModulus := by
-    have := Plan.sMax_small valid
+    have := Geometry.sMax_small valid
     unfold goldilocksModulus
     omega
   have idxOut := rows.idxOut_val valid reach
@@ -250,7 +250,7 @@ theorem RowsHold.reachOut (valid : p.Valid) (rows : w.RowsHold zIn)
       rw [rows.segOut, close, inSeg, ← natWord_one, ← natWord_add, natWord_val segSmall]
     have zero := rows.closeZero
     rw [close, mul_one, sub_eq_zero] at zero
-    have closed : (w.cOut 1).val = p.n := by rw [zero, natWord_val (Plan.n_lt valid)]
+    have closed : (w.cOut 1).val = p.n := by rw [zero, natWord_val (Geometry.n_lt valid)]
     exact ⟨by omega, by omega, fun open_ => absurd (outIdx.trans closed) open_, by omega⟩
 
 /-- Ob4 for one invocation: when the rows hold on a reachable input carry, the
@@ -258,12 +258,12 @@ model's `invoke` on the decoded records maps the decoded input carry to the
 decoded output carry, which is reachable. -/
 theorem RowsHold.invoke {σ : Type} (valid : p.Valid) (rows : w.RowsHold zIn)
     (reach : Reach p w.inCarry) (next : σ) :
-    Spec.Nebula.invoke (context p) w.inCarry ⟨w.proposals, w.records, next⟩ = some w.outCarry ∧
+    Spec.Nebula.invoke (setup p) w.inCarry ⟨w.proposals, w.records, next⟩ = some w.outCarry ∧
       Reach p w.outCarry := by
   refine ⟨?_, rows.reachOut valid reach⟩
-  show ((if w.inCarry.idx = p.n then Spec.Nebula.openSegment (context p) w.inCarry w.proposals
-      else some w.inCarry).bind fun c => stepSegment (context p) c w.records).bind
-      (finishStep (context p)) = some w.outCarry
+  show ((if w.inCarry.idx = p.n then Spec.Nebula.openSegment (setup p) w.inCarry w.proposals
+      else some w.inCarry).bind fun c => stepSegment (setup p) c w.records).bind
+      (finishStep (setup p)) = some w.outCarry
   rw [rows.opened w valid reach, Option.bind_some, rows.stepped valid reach, Option.bind_some,
     rows.advanced valid reach, rows.finished valid reach]
 

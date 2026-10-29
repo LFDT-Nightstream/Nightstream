@@ -92,7 +92,7 @@ theorem hold_bits (env : Env) (l : List Circuit.Expr) :
 
 namespace Rows
 
-variable (p : Plan)
+variable (p : Geometry)
 
 open Sym (word cIn cOut eta1 eta2 eta1Sq isOpen openInverse isClose closeInverse idxEff
   isWrite isRam addrBit vrBit vwBit rtBit diffBit addr vr vw rt diff opLane scanValue scanStamp

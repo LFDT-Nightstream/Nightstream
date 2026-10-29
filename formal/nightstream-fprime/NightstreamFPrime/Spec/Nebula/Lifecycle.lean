@@ -6,7 +6,8 @@ public statement and terminal checks of §13, over an extracted run: one
 invocation per step, each with its proposal, its records, and its next
 application state. The input carry selects the arm; no invocation field does.
 The run starts from the closed start carry, so the first invocation reopens.
-It also owns the segment views that the security proofs read, and the
+The carry transitions read a geometry's `Setup`; only `D_init` and the start
+carry read the program images. It also owns the segment views that the security proofs read, and the
 lifecycle theorem (Ob8): the trace closes every segment exactly when each
 segment view passes the close checks with its own challenges.
 
@@ -34,16 +35,30 @@ structure Carry (E Digest : Type) where
   seen : Roots Digest
   memRoot : Digest
 
-/-- The verifier context: the plan, the abstract hash, the challenges of each
-segment, and the package constant `plan_digest`. `eta k inp` is the challenge
-pair of segment `k` with transcript input `inp`: the Fiat–Shamir context reads
-only `inp` (§9.3); the game that motivates A6 samples one pair per segment.
-`D_init` is derived from the plan (`Context.initRoot`), never supplied. -/
+/-- The verifier setup of a geometry: the geometry, the abstract hash, the
+challenges of each segment, and the package constant `plan_digest`. `eta k inp`
+is the challenge pair of segment `k` with transcript input `inp`: the
+Fiat–Shamir context reads only `inp` (§9.3); the game that motivates A6 samples
+one pair per segment. The carry transitions read only a setup, so they read no
+image. -/
+structure Setup (E Digest : Type) where
+  geometry : Geometry
+  hash : HashInput Digest → Digest
+  eta : ℕ → EtaInput Digest → E × E
+  planDigest : Digest
+
+/-- The verifier context of a program: its plan, and the setup fields of its
+geometry. `D_init` is derived from the plan images (`Context.initRoot`), never
+supplied. -/
 structure Context (E Digest : Type) where
   plan : Plan
   hash : HashInput Digest → Digest
   eta : ℕ → EtaInput Digest → E × E
   planDigest : Digest
+
+/-- The setup of a context's geometry. -/
+abbrev Context.setup {E Digest : Type} (ctx : Context E Digest) : Setup E Digest :=
+  ⟨ctx.plan.toGeometry, ctx.hash, ctx.eta, ctx.planDigest⟩
 
 /-- One invocation of an extracted run: the proposals that an opening arm
 reads, the records of the step, and the application state after the step. -/
@@ -66,27 +81,23 @@ def Invocation.ports {σ Digest : Type} (inv : Invocation σ Digest) : List (Opt
   inv.records.ops.map OpSlot.port
 
 /-- The packed ops lane of a step. -/
-def opsPacked (p : Plan) (z : StepRecords) : List ℕ := pack (opsLane p z.ops)
+def opsPacked (p : Geometry) (z : StepRecords) : List ℕ := pack (opsLane p z.ops)
 
 /-- The packed IS lane of a step. -/
-def initialPacked (p : Plan) (z : StepRecords) : List ℕ := pack (scanLane p z.initialScan)
+def initialPacked (p : Geometry) (z : StepRecords) : List ℕ := pack (scanLane p z.initialScan)
 
 /-- The packed FS lane of a step. -/
-def finalPacked (p : Plan) (z : StepRecords) : List ℕ := pack (scanLane p z.finalScan)
+def finalPacked (p : Geometry) (z : StepRecords) : List ℕ := pack (scanLane p z.finalScan)
 
 variable {E Digest σ : Type} [CommRing E]
 
-namespace Context
-
 /-- `D_init`: the IS root over the initial snapshot (spec §9.2). -/
-def initRoot (ctx : Context E Digest) : Digest :=
-  memoryRoot ctx.hash ctx.plan ctx.planDigest (initialMemory ctx.plan)
+def Context.initRoot (ctx : Context E Digest) : Digest :=
+  memoryRoot ctx.hash ctx.plan.toGeometry ctx.planDigest (initialMemory ctx.plan)
 
 /-- `header_l` of spec §9.2. -/
-def header (ctx : Context E Digest) (lane : Lane) : Digest :=
-  ctx.hash (.header lane ctx.planDigest)
-
-end Context
+def Setup.header (s : Setup E Digest) (lane : Lane) : Digest :=
+  s.hash (.header lane s.planDigest)
 
 /-- The start carry of spec §11.1: `seg_idx = 0`, `ts = 0`, `D_mem = D_init`,
 and closed (`idx = N`), so the first invocation reopens it. -/
@@ -95,41 +106,41 @@ def startCarry (ctx : Context E Digest) : Carry E Digest :=
     ⟨ctx.initRoot, ctx.initRoot, ctx.initRoot⟩, ctx.initRoot⟩
 
 /-- The carry that spec §11.2 `open` writes. -/
-def openedCarry (ctx : Context E Digest) (c : Carry E Digest) (proposal : Digest × Digest) :
+def openedCarry (s : Setup E Digest) (c : Carry E Digest) (proposal : Digest × Digest) :
     Carry E Digest :=
   { c with
     proposed := proposal
-    eta := ctx.eta c.segIdx ⟨ctx.planDigest, c.ts, proposal.1, c.memRoot, proposal.2⟩
+    eta := s.eta c.segIdx ⟨s.planDigest, c.ts, proposal.1, c.memRoot, proposal.2⟩
     products := ⟨1, 1, 1, 1⟩
-    seen := ⟨ctx.header .ops, ctx.header .mem, ctx.header .mem⟩
+    seen := ⟨s.header .ops, s.header .mem, s.header .mem⟩
     idx := 0 }
 
 /-- The carry that spec §11.2 `step` writes: the three chain links over the
 step's own records, the products, the timestamp, and the index. -/
-def advance (ctx : Context E Digest) (c : Carry E Digest) (z : StepRecords) : Carry E Digest :=
+def advance (s : Setup E Digest) (c : Carry E Digest) (z : StepRecords) : Carry E Digest :=
   { c with
-    seen := ⟨ctx.hash (.chain .ops c.idx c.seen.ops (opsPacked ctx.plan z)),
-      ctx.hash (.chain .mem c.idx c.seen.initial (initialPacked ctx.plan z)),
-      ctx.hash (.chain .mem c.idx c.seen.final (finalPacked ctx.plan z))⟩
-    products := stepProducts ctx.plan c.eta c.ts c.idx z c.products
+    seen := ⟨s.hash (.chain .ops c.idx c.seen.ops (opsPacked s.geometry z)),
+      s.hash (.chain .mem c.idx c.seen.initial (initialPacked s.geometry z)),
+      s.hash (.chain .mem c.idx c.seen.final (finalPacked s.geometry z))⟩
+    products := stepProducts s.geometry c.eta c.ts c.idx z c.products
     ts := c.ts + activeCount z
     idx := c.idx + 1 }
 
 /-- Spec §11.2 `open`. -/
-def openSegment (ctx : Context E Digest) (c : Carry E Digest) (proposal : Digest × Digest) :
+def openSegment (s : Setup E Digest) (c : Carry E Digest) (proposal : Digest × Digest) :
     Option (Carry E Digest) :=
-  if c.segIdx < ctx.plan.sMax then some (openedCarry ctx c proposal) else none
+  if c.segIdx < s.geometry.sMax then some (openedCarry s c proposal) else none
 
 open Classical in
 /-- Spec §11.2 `step`: the §8 rows on the invocation's own records, then
 `advance`. -/
-noncomputable def stepSegment (ctx : Context E Digest) (c : Carry E Digest) (z : StepRecords) :
+noncomputable def stepSegment (s : Setup E Digest) (c : Carry E Digest) (z : StepRecords) :
     Option (Carry E Digest) :=
-  if StepRows ctx.plan c.ts z then some (advance ctx c z) else none
+  if StepRows s.geometry c.ts z then some (advance s c z) else none
 
 open Classical in
 /-- Spec §11.2 `close`. -/
-noncomputable def closeSegment (_ctx : Context E Digest) (c : Carry E Digest) :
+noncomputable def closeSegment (_s : Setup E Digest) (c : Carry E Digest) :
     Option (Carry E Digest) :=
   if c.seen.ops = c.proposed.1 ∧ c.seen.initial = c.memRoot ∧ c.seen.final = c.proposed.2 ∧
       c.products.initial * c.products.write = c.products.read * c.products.final then
@@ -137,38 +148,38 @@ noncomputable def closeSegment (_ctx : Context E Digest) (c : Carry E Digest) :
   else none
 
 /-- `close` exactly when `step` has set `idx = N`. -/
-noncomputable def finishStep (ctx : Context E Digest) (c : Carry E Digest) :
+noncomputable def finishStep (s : Setup E Digest) (c : Carry E Digest) :
     Option (Carry E Digest) :=
-  if c.idx = ctx.plan.n then closeSegment ctx c else some c
+  if c.idx = s.geometry.n then closeSegment s c else some c
 
 /-- Spec §12: the input carry selects the arm. A closed carry (`idx = N`)
 reopens; any other carry continues. -/
-noncomputable def invoke (ctx : Context E Digest) (c : Carry E Digest)
+noncomputable def invoke (s : Setup E Digest) (c : Carry E Digest)
     (inv : Invocation σ Digest) : Option (Carry E Digest) :=
   let opened : Option (Carry E Digest) :=
-    if c.idx = ctx.plan.n then openSegment ctx c inv.proposal else some c
-  (opened.bind fun c => stepSegment ctx c inv.records).bind (finishStep ctx)
+    if c.idx = s.geometry.n then openSegment s c inv.proposal else some c
+  (opened.bind fun c => stepSegment s c inv.records).bind (finishStep s)
 
 /-- The invocations of a run from carry `c`. -/
-noncomputable def continueRun (ctx : Context E Digest) (c : Carry E Digest)
+noncomputable def continueRun (s : Setup E Digest) (c : Carry E Digest)
     (run : List (Invocation σ Digest)) : Option (Carry E Digest) :=
-  run.foldlM (fun c inv => invoke ctx c inv) c
+  run.foldlM (fun c inv => invoke s c inv) c
 
 /-- The final carry of a run, from the start carry. An empty run ends at the
 start carry, whose `seg_idx = 0` fails the terminal check (spec §13 rejects
 `T = 0`). -/
 noncomputable def finalCarry (ctx : Context E Digest) (run : List (Invocation σ Digest)) :
     Option (Carry E Digest) :=
-  continueRun ctx (startCarry ctx) run
+  continueRun ctx.setup (startCarry ctx) run
 
 /-- Each invocation is one application step on its own ports. -/
-def AppThread {p : Plan} (app : Application p σ) : σ → List (Invocation σ Digest) → σ → Prop
+def AppThread {p : Geometry} (app : Application p σ) : σ → List (Invocation σ Digest) → σ → Prop
   | s, [], s' => s = s'
   | s, inv :: rest, s' => app.Step s inv.ports inv.next ∧ AppThread app inv.next rest s'
 
 /-- Spec §12 and §13 on an extracted run: the terminal checks, the final
 carry, and the application thread. -/
-structure Accepts (ctx : Context E Digest) (app : Application ctx.plan σ)
+structure Accepts (ctx : Context E Digest) (app : Application ctx.plan.toGeometry σ)
     (stmt : Statement σ Digest) (run : List (Invocation σ Digest)) : Prop where
   steps : run.length = stmt.steps
   segmentsRange : 1 ≤ stmt.segments ∧ stmt.segments ≤ ctx.plan.sMax
@@ -187,7 +198,7 @@ def tsBefore (run : List (Invocation σ Digest)) (i : ℕ) : ℕ :=
   ((run.take i).map fun inv => activeCount inv.records).sum
 
 /-- Invocations `k·N … k·N + N − 1`. -/
-def segmentRun (p : Plan) (run : List (Invocation σ Digest)) (k : ℕ) :
+def segmentRun (p : Geometry) (run : List (Invocation σ Digest)) (k : ℕ) :
     List (Invocation σ Digest) :=
   (run.drop (k * p.n)).take p.n
 
@@ -214,16 +225,16 @@ def segmentView (ctx : Context E Digest) (run : List (Invocation σ Digest)) (k 
     | 0 => ctx.initRoot
     | k + 1 => (proposalAt ctx run k).2
   proposal := proposalAt ctx run k
-  records := (segmentRun ctx.plan run k).map Invocation.records
+  records := (segmentRun ctx.plan.toGeometry run k).map Invocation.records
 
 /-- The multisets of consecutive steps from timestamp `ts` and index `idx`. -/
-def segmentMultisets (p : Plan) : ℕ → ℕ → List StepRecords → Multisets
+def segmentMultisets (p : Geometry) : ℕ → ℕ → List StepRecords → Multisets
   | _, _, [] => 0
   | ts, idx, z :: rest =>
     stepMultisets p ts idx z + segmentMultisets p (ts + activeCount z) (idx + 1) rest
 
 /-- The rows of consecutive steps from timestamp `ts`. -/
-def SegmentRows (p : Plan) : ℕ → List StepRecords → Prop
+def SegmentRows (p : Geometry) : ℕ → List StepRecords → Prop
   | _, [] => True
   | ts, z :: rest => StepRows p ts z ∧ SegmentRows p (ts + activeCount z) rest
 
@@ -238,34 +249,34 @@ def eta (ctx : Context E Digest) (v : SegmentView Digest) : E × E :=
   ctx.eta v.index (v.etaInput ctx)
 
 /-- The four multisets of the segment. -/
-def multisets (p : Plan) (v : SegmentView Digest) : Multisets :=
+def multisets (p : Geometry) (v : SegmentView Digest) : Multisets :=
   segmentMultisets p v.openTs 0 v.records
 
 /-- The packed ops lanes, one per step. -/
-def opsLanes (p : Plan) (v : SegmentView Digest) : List (List ℕ) := v.records.map (opsPacked p)
+def opsLanes (p : Geometry) (v : SegmentView Digest) : List (List ℕ) := v.records.map (opsPacked p)
 
 /-- The packed IS lanes, one per step. -/
-def initialLanes (p : Plan) (v : SegmentView Digest) : List (List ℕ) :=
+def initialLanes (p : Geometry) (v : SegmentView Digest) : List (List ℕ) :=
   v.records.map (initialPacked p)
 
 /-- The packed FS lanes, one per step. -/
-def finalLanes (p : Plan) (v : SegmentView Digest) : List (List ℕ) :=
+def finalLanes (p : Geometry) (v : SegmentView Digest) : List (List ℕ) :=
   v.records.map (finalPacked p)
 
 /-- The close checks of spec §11.2 on a whole segment, with challenges `η`. -/
 structure ClosesAt (ctx : Context E Digest) (η : E × E) (v : SegmentView Digest) : Prop where
   length : v.records.length = ctx.plan.n
-  rows : SegmentRows ctx.plan v.openTs v.records
-  opsRoot : chainRoot ctx.hash .ops ctx.planDigest (v.opsLanes ctx.plan) = v.proposal.1
-  initialRoot : chainRoot ctx.hash .mem ctx.planDigest (v.initialLanes ctx.plan) = v.memIn
-  finalRoot : chainRoot ctx.hash .mem ctx.planDigest (v.finalLanes ctx.plan) = v.proposal.2
-  products : (v.multisets ctx.plan).ProductEq η
+  rows : SegmentRows ctx.plan.toGeometry v.openTs v.records
+  opsRoot : chainRoot ctx.hash .ops ctx.planDigest (v.opsLanes ctx.plan.toGeometry) = v.proposal.1
+  initialRoot : chainRoot ctx.hash .mem ctx.planDigest (v.initialLanes ctx.plan.toGeometry) = v.memIn
+  finalRoot : chainRoot ctx.hash .mem ctx.planDigest (v.finalLanes ctx.plan.toGeometry) = v.proposal.2
+  products : (v.multisets ctx.plan.toGeometry).ProductEq η
 
 /-- The hash inputs of the segment's three chains. -/
 def chainInputs (ctx : Context E Digest) (v : SegmentView Digest) : List (HashInput Digest) :=
-  Nebula.chainInputs ctx.hash .ops ctx.planDigest (v.opsLanes ctx.plan) ++
-    Nebula.chainInputs ctx.hash .mem ctx.planDigest (v.initialLanes ctx.plan) ++
-    Nebula.chainInputs ctx.hash .mem ctx.planDigest (v.finalLanes ctx.plan)
+  Nebula.chainInputs ctx.hash .ops ctx.planDigest (v.opsLanes ctx.plan.toGeometry) ++
+    Nebula.chainInputs ctx.hash .mem ctx.planDigest (v.initialLanes ctx.plan.toGeometry) ++
+    Nebula.chainInputs ctx.hash .mem ctx.planDigest (v.finalLanes ctx.plan.toGeometry)
 
 end SegmentView
 
@@ -274,17 +285,17 @@ end SegmentView
 /-- `advance` over consecutive steps. -/
 private def runSteps (ctx : Context E Digest) (c : Carry E Digest) (zs : List StepRecords) :
     Carry E Digest :=
-  zs.foldl (advance ctx) c
+  zs.foldl (advance ctx.setup) c
 
 private theorem runSteps_cons (ctx : Context E Digest) (c : Carry E Digest) (z : StepRecords)
-    (zs : List StepRecords) : runSteps ctx c (z :: zs) = runSteps ctx (advance ctx c z) zs := rfl
+    (zs : List StepRecords) : runSteps ctx c (z :: zs) = runSteps ctx (advance ctx.setup c z) zs := rfl
 
 private theorem read_add (a b : Multisets) : (a + b).read = a.read + b.read := rfl
 private theorem write_add (a b : Multisets) : (a + b).write = a.write + b.write := rfl
 private theorem initial_add (a b : Multisets) : (a + b).initial = a.initial + b.initial := rfl
 private theorem final_add (a b : Multisets) : (a + b).final = a.final + b.final := rfl
 
-private theorem segmentRows_cons (p : Plan) (ts : ℕ) (z : StepRecords) (zs : List StepRecords) :
+private theorem segmentRows_cons (p : Geometry) (ts : ℕ) (z : StepRecords) (zs : List StepRecords) :
     SegmentRows p ts (z :: zs) ↔ StepRows p ts z ∧ SegmentRows p (ts + activeCount z) zs :=
   Iff.rfl
 
@@ -296,7 +307,7 @@ private theorem runSteps_fixed (ctx : Context E Digest) :
         (runSteps ctx c zs).ts = c.ts + (zs.map activeCount).sum
   | [], c => ⟨rfl, rfl, rfl, rfl, rfl⟩
   | z :: zs, c => by
-    obtain ⟨hSeg, hProp, hMem, hIdx, hTs⟩ := runSteps_fixed ctx zs (advance ctx c z)
+    obtain ⟨hSeg, hProp, hMem, hIdx, hTs⟩ := runSteps_fixed ctx zs (advance ctx.setup c z)
     rw [runSteps_cons]
     refine ⟨hSeg, hProp, hMem, ?_, ?_⟩
     · rw [hIdx, List.length_cons]
@@ -309,52 +320,52 @@ private theorem runSteps_fixed (ctx : Context E Digest) :
 private theorem runSteps_seen (ctx : Context E Digest) :
     ∀ (zs : List StepRecords) (c : Carry E Digest),
       ((runSteps ctx c zs).seen.ops, (runSteps ctx c zs).idx) =
-          (zs.map (opsPacked ctx.plan)).foldl
+          (zs.map (opsPacked ctx.plan.toGeometry)).foldl
             (fun acc P => (ctx.hash (.chain .ops acc.2 acc.1 P), acc.2 + 1)) (c.seen.ops, c.idx) ∧
         ((runSteps ctx c zs).seen.initial, (runSteps ctx c zs).idx) =
-          (zs.map (initialPacked ctx.plan)).foldl
+          (zs.map (initialPacked ctx.plan.toGeometry)).foldl
             (fun acc P => (ctx.hash (.chain .mem acc.2 acc.1 P), acc.2 + 1))
             (c.seen.initial, c.idx) ∧
         ((runSteps ctx c zs).seen.final, (runSteps ctx c zs).idx) =
-          (zs.map (finalPacked ctx.plan)).foldl
+          (zs.map (finalPacked ctx.plan.toGeometry)).foldl
             (fun acc P => (ctx.hash (.chain .mem acc.2 acc.1 P), acc.2 + 1)) (c.seen.final, c.idx)
   | [], _ => ⟨rfl, rfl, rfl⟩
   | z :: zs, c => by
     rw [runSteps_cons]
     simp only [List.map_cons, List.foldl_cons]
-    exact runSteps_seen ctx zs (advance ctx c z)
+    exact runSteps_seen ctx zs (advance ctx.setup c z)
 
 private theorem runSteps_products (ctx : Context E Digest) :
     ∀ (zs : List StepRecords) (c : Carry E Digest),
       (runSteps ctx c zs).products =
-        ⟨c.products.read * product c.eta (segmentMultisets ctx.plan c.ts c.idx zs).read,
-         c.products.write * product c.eta (segmentMultisets ctx.plan c.ts c.idx zs).write,
-         c.products.initial * product c.eta (segmentMultisets ctx.plan c.ts c.idx zs).initial,
-         c.products.final * product c.eta (segmentMultisets ctx.plan c.ts c.idx zs).final⟩
+        ⟨c.products.read * product c.eta (segmentMultisets ctx.plan.toGeometry c.ts c.idx zs).read,
+         c.products.write * product c.eta (segmentMultisets ctx.plan.toGeometry c.ts c.idx zs).write,
+         c.products.initial * product c.eta (segmentMultisets ctx.plan.toGeometry c.ts c.idx zs).initial,
+         c.products.final * product c.eta (segmentMultisets ctx.plan.toGeometry c.ts c.idx zs).final⟩
   | [], c => by
     change c.products = ⟨c.products.read * product c.eta 0, c.products.write * product c.eta 0,
       c.products.initial * product c.eta 0, c.products.final * product c.eta 0⟩
     simp only [product, Multiset.map_zero, Multiset.prod_zero, mul_one]
   | z :: zs, c => by
-    rw [runSteps_cons, runSteps_products ctx zs (advance ctx c z)]
+    rw [runSteps_cons, runSteps_products ctx zs (advance ctx.setup c z)]
     simp only [advance, stepProducts_eq, segmentMultisets, read_add, write_add, initial_add,
       final_add, product_add, mul_assoc]
 
 /-- The fields of a segment run from `open` on `c`, before `close`. -/
 private theorem runSteps_opened {ctx : Context E Digest} {c r : Carry E Digest}
     {proposal : Digest × Digest} {zs : List StepRecords}
-    (run : r = runSteps ctx (openedCarry ctx c proposal) zs) :
+    (run : r = runSteps ctx (openedCarry ctx.setup c proposal) zs) :
     r.segIdx = c.segIdx ∧ r.idx = zs.length ∧ r.ts = c.ts + (zs.map activeCount).sum ∧
       r.proposed = proposal ∧ r.memRoot = c.memRoot ∧
-      r.seen.ops = chainRoot ctx.hash .ops ctx.planDigest (zs.map (opsPacked ctx.plan)) ∧
-      r.seen.initial = chainRoot ctx.hash .mem ctx.planDigest (zs.map (initialPacked ctx.plan)) ∧
-      r.seen.final = chainRoot ctx.hash .mem ctx.planDigest (zs.map (finalPacked ctx.plan)) ∧
+      r.seen.ops = chainRoot ctx.hash .ops ctx.planDigest (zs.map (opsPacked ctx.plan.toGeometry)) ∧
+      r.seen.initial = chainRoot ctx.hash .mem ctx.planDigest (zs.map (initialPacked ctx.plan.toGeometry)) ∧
+      r.seen.final = chainRoot ctx.hash .mem ctx.planDigest (zs.map (finalPacked ctx.plan.toGeometry)) ∧
       ((r.products.initial * r.products.write = r.products.read * r.products.final) ↔
-        (segmentMultisets ctx.plan c.ts 0 zs).ProductEq
+        (segmentMultisets ctx.plan.toGeometry c.ts 0 zs).ProductEq
           (ctx.eta c.segIdx ⟨ctx.planDigest, c.ts, proposal.1, c.memRoot, proposal.2⟩)) := by
   subst run
-  obtain ⟨hSeg, hProp, hMem, hIdx, hTs⟩ := runSteps_fixed ctx zs (openedCarry ctx c proposal)
-  obtain ⟨hOps, hInit, hFin⟩ := runSteps_seen ctx zs (openedCarry ctx c proposal)
+  obtain ⟨hSeg, hProp, hMem, hIdx, hTs⟩ := runSteps_fixed ctx zs (openedCarry ctx.setup c proposal)
+  obtain ⟨hOps, hInit, hFin⟩ := runSteps_seen ctx zs (openedCarry ctx.setup c proposal)
   refine ⟨hSeg, hIdx.trans (Nat.zero_add _), hTs, hProp, hMem, congrArg Prod.fst hOps,
     congrArg Prod.fst hInit, congrArg Prod.fst hFin, ?_⟩
   rw [runSteps_products]
@@ -362,18 +373,18 @@ private theorem runSteps_opened {ctx : Context E Digest} {c r : Carry E Digest}
   rfl
 
 private theorem stepSegment_of_rows {ctx : Context E Digest} {c : Carry E Digest}
-    {z : StepRecords} (rows : StepRows ctx.plan c.ts z) :
-    stepSegment ctx c z = some (advance ctx c z) := by
+    {z : StepRecords} (rows : StepRows ctx.plan.toGeometry c.ts z) :
+    stepSegment ctx.setup c z = some (advance ctx.setup c z) := by
   unfold stepSegment
   rw [if_pos rows]
 
 private theorem stepSegment_of_not_rows {ctx : Context E Digest} {c : Carry E Digest}
-    {z : StepRecords} (rows : ¬ StepRows ctx.plan c.ts z) : stepSegment ctx c z = none := by
+    {z : StepRecords} (rows : ¬ StepRows ctx.plan.toGeometry c.ts z) : stepSegment ctx.setup c z = none := by
   unfold stepSegment
   rw [if_neg rows]
 
 private theorem closeSegment_eq_some {ctx : Context E Digest} {r c' : Carry E Digest} :
-    closeSegment ctx r = some c' ↔
+    closeSegment ctx.setup r = some c' ↔
       (r.seen.ops = r.proposed.1 ∧ r.seen.initial = r.memRoot ∧ r.seen.final = r.proposed.2 ∧
         r.products.initial * r.products.write = r.products.read * r.products.final) ∧
       { r with memRoot := r.proposed.2, segIdx := r.segIdx + 1 } = c' := by
@@ -385,21 +396,21 @@ private theorem closeSegment_eq_some {ctx : Context E Digest} {r c' : Carry E Di
 private theorem continueRun_cons_open {ctx : Context E Digest} {d : Carry E Digest}
     (isOpen : d.idx < ctx.plan.n) (inv : Invocation σ Digest)
     (rest : List (Invocation σ Digest)) :
-    continueRun ctx d (inv :: rest) =
-      ((stepSegment ctx d inv.records).bind (finishStep ctx)).bind
-        fun d' => continueRun ctx d' rest := by
+    continueRun ctx.setup d (inv :: rest) =
+      ((stepSegment ctx.setup d inv.records).bind (finishStep ctx.setup)).bind
+        fun d' => continueRun ctx.setup d' rest := by
   simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, if_neg isOpen.ne,
     Option.bind_some]
 
 private theorem continueRun_reopen {ctx : Context E Digest} {c c' : Carry E Digest}
     {inv : Invocation σ Digest} {rest : List (Invocation σ Digest)}
     (closed : c.idx = ctx.plan.n) :
-    continueRun ctx c (inv :: rest) = some c' ↔ c.segIdx < ctx.plan.sMax ∧
-      (((stepSegment ctx (openedCarry ctx c inv.proposal) inv.records).bind
-        (finishStep ctx)).bind fun d => continueRun ctx d rest) = some c' := by
+    continueRun ctx.setup c (inv :: rest) = some c' ↔ c.segIdx < ctx.plan.sMax ∧
+      (((stepSegment ctx.setup (openedCarry ctx.setup c inv.proposal) inv.records).bind
+        (finishStep ctx.setup)).bind fun d => continueRun ctx.setup d rest) = some c' := by
   have reopen : c.idx = ctx.plan.n := closed
-  have opens : openSegment ctx c inv.proposal =
-      if c.segIdx < ctx.plan.sMax then some (openedCarry ctx c inv.proposal) else none := rfl
+  have opens : openSegment ctx.setup c inv.proposal =
+      if c.segIdx < ctx.plan.sMax then some (openedCarry ctx.setup c inv.proposal) else none := rfl
   by_cases fits : c.segIdx < ctx.plan.sMax
   · simp only [continueRun, List.foldlM_cons, Option.bind_eq_bind, invoke, if_pos reopen, opens,
       fits, if_true, Option.bind_some, true_and]
@@ -411,23 +422,23 @@ closes at the last one. -/
 private theorem steps_eq_some (ctx : Context E Digest) (c' : Carry E Digest)
     (rest : List (Invocation σ Digest)) :
     ∀ (c : Carry E Digest) (inv : Invocation σ Digest), c.idx + rest.length + 1 = ctx.plan.n →
-      ((((stepSegment ctx c inv.records).bind (finishStep ctx)).bind
-          fun d => continueRun ctx d rest) = some c' ↔
-        SegmentRows ctx.plan c.ts ((inv :: rest).map Invocation.records) ∧
-          closeSegment ctx (runSteps ctx c ((inv :: rest).map Invocation.records)) = some c') := by
+      ((((stepSegment ctx.setup c inv.records).bind (finishStep ctx.setup)).bind
+          fun d => continueRun ctx.setup d rest) = some c' ↔
+        SegmentRows ctx.plan.toGeometry c.ts ((inv :: rest).map Invocation.records) ∧
+          closeSegment ctx.setup (runSteps ctx c ((inv :: rest).map Invocation.records)) = some c') := by
   induction rest with
   | nil =>
     intro c inv len
-    by_cases rows : StepRows ctx.plan c.ts inv.records
-    · have closes : (advance ctx c inv.records).idx = ctx.plan.n := by
+    by_cases rows : StepRows ctx.plan.toGeometry c.ts inv.records
+    · have closes : (advance ctx.setup c inv.records).idx = ctx.plan.n := by
         simp only [List.length_nil] at len
         exact len
-      have fin : finishStep ctx (advance ctx c inv.records) =
-          closeSegment ctx (advance ctx c inv.records) := by
+      have fin : finishStep ctx.setup (advance ctx.setup c inv.records) =
+          closeSegment ctx.setup (advance ctx.setup c inv.records) := by
         unfold finishStep
         rw [if_pos closes]
       have done : ∀ o : Option (Carry E Digest),
-          (o.bind fun d => continueRun ctx d ([] : List (Invocation σ Digest))) = o := by
+          (o.bind fun d => continueRun ctx.setup d ([] : List (Invocation σ Digest))) = o := by
         intro o
         cases o <;> rfl
       rw [stepSegment_of_rows rows, Option.bind_some, fin, done]
@@ -437,14 +448,14 @@ private theorem steps_eq_some (ctx : Context E Digest) (c' : Carry E Digest)
   | cons inv' rest ih =>
     intro c inv len
     simp only [List.length_cons] at len
-    by_cases rows : StepRows ctx.plan c.ts inv.records
-    · have isOpen : (advance ctx c inv.records).idx < ctx.plan.n := by
+    by_cases rows : StepRows ctx.plan.toGeometry c.ts inv.records
+    · have isOpen : (advance ctx.setup c inv.records).idx < ctx.plan.n := by
         show c.idx + 1 < _
         omega
-      have fin : finishStep ctx (advance ctx c inv.records) = some (advance ctx c inv.records) := by
+      have fin : finishStep ctx.setup (advance ctx.setup c inv.records) = some (advance ctx.setup c inv.records) := by
         unfold finishStep
         rw [if_neg isOpen.ne]
-      have next := ih (advance ctx c inv.records) inv' (by show c.idx + 1 + _ + 1 = _; omega)
+      have next := ih (advance ctx.setup c inv.records) inv' (by show c.idx + 1 + _ + 1 = _; omega)
       rw [← continueRun_cons_open isOpen] at next
       rw [stepSegment_of_rows rows, Option.bind_some, fin]
       simp only [Option.bind_some]
@@ -462,9 +473,9 @@ private theorem continueRun_segment {ctx : Context E Digest} {c : Carry E Digest
     (index : v.index = c.segIdx) (openTs : v.openTs = c.ts) (memIn : v.memIn = c.memRoot)
     (proposal : v.proposal = inv.proposal)
     (records : v.records = (inv :: rest).map Invocation.records) :
-    ((∃ c', continueRun ctx c (inv :: rest) = some c') ↔
+    ((∃ c', continueRun ctx.setup c (inv :: rest) = some c') ↔
         c.segIdx < ctx.plan.sMax ∧ v.ClosesAt ctx (v.eta ctx)) ∧
-      ∀ c', continueRun ctx c (inv :: rest) = some c' →
+      ∀ c', continueRun ctx.setup c (inv :: rest) = some c' →
         c'.idx = ctx.plan.n ∧ c'.segIdx = c.segIdx + 1 ∧
           c'.ts = c.ts + (((inv :: rest).map Invocation.records).map activeCount).sum ∧
           c'.memRoot = inv.proposal.2 := by
@@ -476,9 +487,9 @@ private theorem continueRun_segment {ctx : Context E Digest} {c : Carry E Digest
   obtain ⟨rSeg, rIdx, rTs, rProp, rMem, rOps, rInit, rFin, rProd⟩ :=
     runSteps_opened (ctx := ctx) (c := c) (proposal := inv.proposal)
       (zs := (inv :: rest).map Invocation.records) rfl
-  have key : ∀ c', continueRun ctx c (inv :: rest) = some c' ↔ c.segIdx < ctx.plan.sMax ∧
-      SegmentRows ctx.plan c.ts ((inv :: rest).map Invocation.records) ∧
-        closeSegment ctx (runSteps ctx (openedCarry ctx c inv.proposal)
+  have key : ∀ c', continueRun ctx.setup c (inv :: rest) = some c' ↔ c.segIdx < ctx.plan.sMax ∧
+      SegmentRows ctx.plan.toGeometry c.ts ((inv :: rest).map Invocation.records) ∧
+        closeSegment ctx.setup (runSteps ctx (openedCarry ctx.setup c inv.proposal)
           ((inv :: rest).map Invocation.records)) = some c' := by
     intro c'
     rw [continueRun_reopen closed,
@@ -507,15 +518,15 @@ private theorem continueRun_segment {ctx : Context E Digest} {c : Carry E Digest
 /-- The first `k` segments of a run of `S · N` invocations. -/
 private theorem prefix_run {ctx : Context E Digest} {run : List (Invocation σ Digest)} {S : ℕ}
     (valid : ctx.plan.Valid) (count : run.length = S * ctx.plan.n) (k : ℕ) (hk : k ≤ S) :
-    ((∃ c, continueRun ctx (startCarry ctx) (run.take (k * ctx.plan.n)) = some c) ↔
+    ((∃ c, continueRun ctx.setup (startCarry ctx) (run.take (k * ctx.plan.n)) = some c) ↔
         k ≤ ctx.plan.sMax ∧
           ∀ j < k, (segmentView ctx run j).ClosesAt ctx ((segmentView ctx run j).eta ctx)) ∧
-      ∀ c, continueRun ctx (startCarry ctx) (run.take (k * ctx.plan.n)) = some c →
+      ∀ c, continueRun ctx.setup (startCarry ctx) (run.take (k * ctx.plan.n)) = some c →
         c.idx = ctx.plan.n ∧ c.segIdx = k ∧ c.ts = tsBefore run (k * ctx.plan.n) ∧
           c.memRoot = (segmentView ctx run k).memIn := by
   induction k with
   | zero =>
-    have start : continueRun ctx (startCarry ctx) (run.take (0 * ctx.plan.n)) =
+    have start : continueRun ctx.setup (startCarry ctx) (run.take (0 * ctx.plan.n)) =
         some (startCarry ctx) := by
       rw [Nat.zero_mul, List.take_zero]
       rfl
@@ -527,14 +538,14 @@ private theorem prefix_run {ctx : Context E Digest} {run : List (Invocation σ D
     simp [tsBefore, startCarry]
   | succ k ih =>
     obtain ⟨ihIff, ihFields⟩ := ih (by omega)
-    have segLen : (segmentRun ctx.plan run k).length = ctx.plan.n := by
+    have segLen : (segmentRun ctx.plan.toGeometry run k).length = ctx.plan.n := by
       have within : k * ctx.plan.n + ctx.plan.n ≤ S * ctx.plan.n := by
         rw [← Nat.add_one_mul]
         exact Nat.mul_le_mul_right _ hk
       simp only [segmentRun, List.length_take, List.length_drop, count]
       omega
-    obtain ⟨inv, rest, hseg⟩ : ∃ inv rest, segmentRun ctx.plan run k = inv :: rest := by
-      cases h : segmentRun ctx.plan run k with
+    obtain ⟨inv, rest, hseg⟩ : ∃ inv rest, segmentRun ctx.plan.toGeometry run k = inv :: rest := by
+      cases h : segmentRun ctx.plan.toGeometry run k with
       | nil =>
         rw [h, List.length_nil] at segLen
         exact absurd segLen.symm (Nat.ne_of_gt valid.positive.2.2.1)
@@ -553,13 +564,13 @@ private theorem prefix_run {ctx : Context E Digest} {run : List (Invocation σ D
         (((inv :: rest).map Invocation.records).map activeCount).sum := by
       rw [tsBefore, split, List.map_append, List.sum_append, List.map_map]
       rfl
-    have runEq : continueRun ctx (startCarry ctx) (run.take ((k + 1) * ctx.plan.n)) =
-        (continueRun ctx (startCarry ctx) (run.take (k * ctx.plan.n))).bind
-          fun c => continueRun ctx c (inv :: rest) := by
+    have runEq : continueRun ctx.setup (startCarry ctx) (run.take ((k + 1) * ctx.plan.n)) =
+        (continueRun ctx.setup (startCarry ctx) (run.take (k * ctx.plan.n))).bind
+          fun c => continueRun ctx.setup c (inv :: rest) := by
       rw [split]
       simp only [continueRun, List.foldlM_append, Option.bind_eq_bind]
     rw [runEq]
-    cases hprev : continueRun ctx (startCarry ctx) (run.take (k * ctx.plan.n)) with
+    cases hprev : continueRun ctx.setup (startCarry ctx) (run.take (k * ctx.plan.n)) with
     | none =>
       refine ⟨⟨fun ⟨c, hc⟩ => (by cases hc), fun ⟨fits, closes⟩ => ?_⟩,
         fun c hc => by cases hc⟩
@@ -574,7 +585,7 @@ private theorem prefix_run {ctx : Context E Digest} {run : List (Invocation σ D
         exact segLen
       obtain ⟨segIff, segFields⟩ := continueRun_segment (v := segmentView ctx run k) cIdx len
         cSeg.symm cTs.symm cMem.symm head
-        (by show (segmentRun ctx.plan run k).map _ = _; rw [hseg])
+        (by show (segmentRun ctx.plan.toGeometry run k).map _ = _; rw [hseg])
       simp only [Option.bind_some]
       refine ⟨?_, fun c' hc' => ?_⟩
       · rw [segIff, cSeg]
@@ -595,7 +606,7 @@ private theorem prefix_run {ctx : Context E Digest} {run : List (Invocation σ D
 closed start carry. -/
 private theorem finalCarry_eq_prefix {ctx : Context E Digest} {run : List (Invocation σ Digest)}
     {S : ℕ} (count : run.length = S * ctx.plan.n) :
-    finalCarry ctx run = continueRun ctx (startCarry ctx) (run.take (S * ctx.plan.n)) := by
+    finalCarry ctx run = continueRun ctx.setup (startCarry ctx) (run.take (S * ctx.plan.n)) := by
   rw [← count, List.take_length]
   rfl
 

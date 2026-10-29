@@ -110,7 +110,7 @@ theorem SegmentView.ClosesAt.of_withChallenges {ctx : Context E Digest} {S : ℕ
 
 namespace Game
 
-variable (ctx : Context E Digest) (app : Application ctx.plan σ)
+variable (ctx : Context E Digest) (app : Application ctx.plan.toGeometry σ)
   (g : Game E Digest σ Coins ctx.plan.sMax)
 
 /-- The extracted run is accepted with the sampled challenges. -/
@@ -143,7 +143,7 @@ noncomputable def play (k : Fin ctx.plan.sMax) (c : Coins) (e : Fin ctx.plan.sMa
 read against the committed transcript input, are not balanced. -/
 def Unbalanced (k : Fin ctx.plan.sMax) (c : Coins) (e : Fin ctx.plan.sMax → E × E)
     (z : List StepRecords) : Prop :=
-  ¬ (((g.commit c e k).view k z).multisets ctx.plan).Balanced
+  ¬ (((g.commit c e k).view k z).multisets ctx.plan.toGeometry).Balanced
 
 /-- The retry-disagreement term of Lemma 3 part 2 for segment `k` from the
 prefix `(c, e)`. -/

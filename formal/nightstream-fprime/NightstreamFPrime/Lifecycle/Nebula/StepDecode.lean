@@ -84,7 +84,7 @@ theorem packWords_eq {bits : List F} (allBits : ∀ x ∈ bits, IsBit x) :
 
 namespace OpSlotBits
 
-variable {p : Plan} (slot : OpSlotBits p)
+variable {p : Geometry} (slot : OpSlotBits p)
 
 /-- The typed operation slot of spec §6.1. -/
 def decode : OpSlot :=
@@ -103,7 +103,7 @@ end OpSlotBits
 
 namespace ScanSlotBits
 
-variable {p : Plan} (slot : ScanSlotBits p)
+variable {p : Geometry} (slot : ScanSlotBits p)
 
 /-- The typed scan slot of spec §6.2. -/
 def decode : ScanSlot := ⟨bitsNat slot.value, bitsNat slot.stamp⟩
@@ -117,7 +117,7 @@ end ScanSlotBits
 
 namespace StepWitness
 
-variable {p : Plan} {a : AppShape} (w : StepWitness p a)
+variable {p : Geometry} {a : AppShape} (w : StepWitness p a)
 
 /-- The typed records of the step. -/
 def records : StepRecords :=

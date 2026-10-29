@@ -15,7 +15,7 @@ open NightstreamFPrime.Lifecycle.Nebula
 
 /-- The `TerminalChecks` fields after `state`, decided, under their fixture
 names. -/
-def decisions (p : Plan) (carry : Fin 39 → F) (steps segments finalTs : ℕ) (finalRoot : Digest) :
+def decisions (p : Geometry) (carry : Fin 39 → F) (steps segments finalTs : ℕ) (finalRoot : Digest) :
     List (String × Bool) :=
   [("closed", decide ((decodeCarry carry).idx = p.n)),
     ("segments_range", decide (1 ≤ segments ∧ segments ≤ p.sMax)),
@@ -26,7 +26,7 @@ def decisions (p : Plan) (carry : Fin 39 → F) (steps segments finalTs : ℕ) (
 
 /-- The decisions are the fields of `TerminalChecks`, in order: all hold
 exactly when the checks hold on the state words of `finalApp` and `carry`. -/
-theorem terminalChecks_iff {width : ℕ} (p : Plan) (finalApp : Fin width → F)
+theorem terminalChecks_iff {width : ℕ} (p : Geometry) (finalApp : Fin width → F)
     (carry : Fin 39 → F) (steps segments finalTs : ℕ) (finalRoot : Digest) :
     TerminalChecks p (stateWords (List.ofFn finalApp) (List.ofFn carry)) finalApp carry steps
         segments finalTs finalRoot ↔
@@ -86,7 +86,7 @@ private def natsJson (values : List ℕ) : String :=
 
 /-- The fixture entry of one case. The application and carry words are
 functions over word lists, as `TerminalChecks` reads them. -/
-def Case.json (p : Plan) (c : Case) : String :=
+def Case.json (p : Geometry) (c : Case) : String :=
   let finalApp : Fin 2 → F := fun i => [natWord c.final.1, natWord c.final.2].getD i 0
   let carry : Fin 39 → F := fun i => c.carry.getD i 0
   let canonical :=
@@ -103,6 +103,6 @@ def Case.json (p : Plan) (c : Case) : String :=
 
 /-- The fixture of `p`, one case per line. -/
 def fixture (p : Plan) : String :=
-  "{\"cases\":[\n" ++ ",\n".intercalate ((cases p).map (Case.json p)) ++ "\n]}\n"
+  "{\"cases\":[\n" ++ ",\n".intercalate ((cases p).map (Case.json p.toGeometry)) ++ "\n]}\n"
 
 end NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal

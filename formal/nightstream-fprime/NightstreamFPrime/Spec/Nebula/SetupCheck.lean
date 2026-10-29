@@ -1,7 +1,7 @@
 import Mathlib.Analysis.SpecialFunctions.Pow.Real
 import NightstreamFPrime.Spec.Nebula.Plan
 
-/-! Owns spec §4.2 rule 6, the setup check of security note §5: a plan passes
+/-! Owns spec §4.2 rule 6, the setup check of security note §5: a geometry passes
 exactly when one fingerprint check over `K` has error at most the
 owner-approved floor `2^−109.91`, that is, when `R + M + N · B_ops ≤ 139,509`.
 The check bounds the per-check value; it does not own the Fiat–Shamir query
@@ -10,7 +10,7 @@ loss. -/
 namespace NightstreamFPrime.Spec.Nebula
 
 /-- Spec §4.2 rule 6: `m_mem = R + M + N · B_ops ≤ 139,509`. -/
-def Plan.Secure (p : Plan) : Prop := p.maxTuples ≤ 139509
+def Geometry.Secure (p : Geometry) : Prop := p.maxTuples ≤ 139509
 
 /-- The integer form of `2·m/q² ≤ 2^−109.91`. -/
 private theorem floor_nat_iff (m : ℕ) :
@@ -30,7 +30,7 @@ private theorem floor_nat_iff (m : ℕ) :
 
 /-- Security note §5: rule 6 holds exactly when
 `ε_test = 2·m_mem/q² ≤ 2^−109.91`. -/
-theorem Plan.secure_iff (p : Plan) :
+theorem Geometry.secure_iff (p : Geometry) :
     p.Secure ↔
       (2 * p.maxTuples : ℝ) / (goldilocksModulus : ℝ) ^ 2 ≤ (2 : ℝ) ^ (-(10991 / 100 : ℝ)) := by
   have floor : ((2 : ℝ) ^ (-(10991 / 100 : ℝ))) ^ 100 = ((2 : ℝ) ^ 10991)⁻¹ := by
@@ -42,7 +42,7 @@ theorem Plan.secure_iff (p : Plan) :
   have modulus : (0 : ℝ) < (goldilocksModulus : ℝ) ^ 200 :=
     pow_pos (by norm_num [goldilocksModulus]) _
   have two : (0 : ℝ) < (2 : ℝ) ^ 10991 := pow_pos two_pos _
-  rw [Plan.Secure, ← floor_nat_iff, ← pow_le_pow_iff_left₀ left right (by norm_num : 100 ≠ 0),
+  rw [Geometry.Secure, ← floor_nat_iff, ← pow_le_pow_iff_left₀ left right (by norm_num : 100 ≠ 0),
     floor, div_pow, ← pow_mul, show 2 * 100 = 200 from rfl, div_le_iff₀ modulus,
     ← div_eq_inv_mul, le_div_iff₀ two]
   norm_cast

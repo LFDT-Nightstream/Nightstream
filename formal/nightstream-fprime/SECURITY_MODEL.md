@@ -189,7 +189,7 @@ collision.
   application that is chosen after it, is outside the model.
 
 The proof follows the interactive SuperNeo v1.2 extraction and replaces each
-fresh verifier coin by an oracle read. Each module header states its part:
+fresh verifier coin by an oracle read. The Lean column names the declaration for each step:
 
 | Lemma | Step | Lean |
 |---|---|---|

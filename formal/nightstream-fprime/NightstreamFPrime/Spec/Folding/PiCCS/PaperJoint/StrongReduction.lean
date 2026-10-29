@@ -327,6 +327,7 @@ def publicOutput
       pad := probe.response.fullOutput.padCoordinate source
       matrix := probe.response.fullOutput.matrixCoordinate source
     }]
+    -- Not `.ambient`: that would conflate `R₂` with `R₂'` in SuperNeo v1.2 Theorem 12.
     stage := .fresh
   }
 

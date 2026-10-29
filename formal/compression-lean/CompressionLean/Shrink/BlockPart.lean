@@ -1,6 +1,9 @@
 import CompressionLean.Shrink.Diagonal
 import CompressionLean.Shrink.Layout
 
+/-! A kind whose rows (or cells) are a power of two has an empty narrow part; Rust
+gives it no variables (`layout.rs`, `bits`). -/
+
 namespace CompressionLean.Shrink
 
 open CompressionLean.Layer1

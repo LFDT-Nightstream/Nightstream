@@ -5,7 +5,9 @@ import NightstreamFPrime.Spec.Poseidon2
 import NightstreamFPrime.Spec.Folding.Nifs
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix.UniformSignedDigits
 
-/-! HyperNova Construction 2 state hash. Rust parity surface: every function is computable (spec §11). -/
+/-! HyperNova Construction 2 state hash. Rust parity surface: every function is computable (spec §11).
+The children's public inputs are the verifier-computed split of the parent (SuperNeo
+Π_DEC verifier step 2). -/
 
 namespace NightstreamFPrime.Lifecycle
 

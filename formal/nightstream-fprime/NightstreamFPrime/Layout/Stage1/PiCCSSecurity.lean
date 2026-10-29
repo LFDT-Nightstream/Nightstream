@@ -318,7 +318,8 @@ theorem committed_authority_statement_finalState_identify_or_failure
   · exact Or.inr (Or.inl componentFailure)
   · exact Or.inr (Or.inr (Or.inl contextFailure))
 
-/-- HyperNova Construction 2: the context is the `vk_fs` slot of the state hash. -/
+/-- HyperNova Construction 2: the context is the `vk_fs` slot of the state hash. Unlike
+Construction 3's `hs = ρ(pp, s)`, the context does not seed the transcript. -/
 structure PriorLink
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤

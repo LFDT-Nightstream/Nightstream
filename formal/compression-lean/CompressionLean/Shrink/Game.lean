@@ -2,6 +2,9 @@ import CompressionLean.Shrink.Evaluate
 import CompressionLean.Shrink.Rounds
 import CompressionLean.Layer1.HonestStage
 
+/-! The statement words are the shape run's public words; Rust checks that they equal the
+program's statement (`mod.rs:272`). -/
+
 namespace CompressionLean.Shrink
 
 open CompressionLean.Layer1 Polynomial

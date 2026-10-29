@@ -760,11 +760,17 @@ generated relation MUST supply the exact census.
      need their own Ob7 and Ob5 (`PortApp.sound`, `PortApp.complete`). Until
      a package for that geometry exists and the Rust rows match it, its
      memory rows are checked by tests only;
-   - the binding rows of the Rust memory backend: that the slots of a catalog
-     application bind its events in order (spec §10.1 rules 4 to 6), with
-     disjoint regions. Until a later unit proves or pins these rows, they are
-     an assumption. The match between the Lean copy and `MemoryTrace.v` is
-     checked by reading only;
+   - the binding rows of the Rust memory backend (`nebula::CatalogBinding`,
+     spec §10.1 rules I1 to I6): that, when they hold, the active slots of
+     each step bind the events of the step in order, each event is in range,
+     and the regions are disjoint (the hypotheses of
+     `memoryConsistent_of_executes`). The rows are Rust only, and no Lean
+     proof covers them yet. Rust tests check that the honest rows of a test
+     catalog bind a Rust copy of `eventsForRow` in order, and that each of
+     twelve broken rows that keep the memory rows true fails the binding rows.
+     A manual mutation check removed each of the ten kinds of binding row in
+     turn, and each time one of the broken rows passed. The match between the
+     Lean copy and `MemoryTrace.v` is checked by reading only;
    - adaptive program choice: §5 bounds an adversary against a program fixed
      before it runs (§1). For a program that the adversary chooses after it
      sees the setup, the claim and the `Experiment` must carry the program,

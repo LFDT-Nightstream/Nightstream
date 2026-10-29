@@ -624,6 +624,57 @@ its namespace. For the same reason, an event value at or above `2^32` has no
 valid access. A catalog with larger values needs to split them into 32-bit
 memories.
 
+**Rust backend.** `nebula::CatalogBinding` takes a catalog, one region for
+each checked memory, and a slot plan. The plan gives, for each operation
+slot, the checked ports that share the slot, by their rank: the position of
+the port among the ports of the checked memories, in catalog order. A memory
+without a region is host-checked. For a port `p`, `a_p` is its activation as
+an expression: `1` for `Always`, `c` for `When(c)`, and `1 − c` for
+`Unless(c)`. The backend MUST obey these rules. Rules I1 to I4 are rows of
+the application relation, and the backend checks the other conditions when it
+builds the binding:
+
+- **I1. Slot.** A slot is active exactly when one of its ports is active, and
+  then it shows that port: its namespace, mode, address, and values. The
+  rows are `1 − pad_j = Σ a_p`, `is_write_j = Σ a_p` over the write ports,
+  and `is_ram_j = Σ a_p` over the RAM ports, for the ports `p` of slot `j`,
+  and `c · (c − 1) = 0` for each activation column `c`. So a port cannot be
+  active while its slot is inactive or shows another port.
+- **I2. Order.** The active slots, in slot order, list the active ports in
+  catalog order, which is the event order of `eventsForRow`. For each port
+  `p` that has ports `q` of a higher rank in earlier slots, the row is
+  `a_p · Σ a_q = 0`.
+- **I3. Address.** Each address part of an active port fits its width, and
+  the slot address is the region base plus the little-endian parts. The base
+  of a region MUST be a multiple of the region size `2^Σw`. Then the rows
+  read each part from its run of the slot's address bits, and the bits above
+  the region from the base, so a part needs no other range check. This is
+  stricter than Lean `Region`, which allows any base, and the theorem applies
+  to an aligned region. At build, the regions of one namespace MUST be
+  disjoint and inside the namespace, and each port MUST have one address
+  column for each width.
+- **I4. Values.** For a read port, `v_r = value` (and `v_w = v_r` by O3). For
+  a write port, `v_w = value`, and `v_r = prior` when the prior column is
+  named.
+- **I5. Host-checked memories.** A memory without a region has no slot and no
+  row. The binding names it as host-checked.
+- **I6. Plan.** The slot plan changes only completeness and cost, never
+  soundness. A plan that puts two co-active ports in one slot, or co-active
+  ports out of catalog order, makes the rows of that honest row fail. At
+  build, the plan MUST have `B_ops` slots and name each checked port exactly
+  once.
+
+The rows of I2, I3, and I4 for port `p` have the form `a_p · e = 0`, so an
+inactive port has no constraint. Each row is one rank-one constraint, and the
+rows add no witness word. For each slot there are three rows. For each port
+there are one row for each address part, one for the bits above the region
+(when the region is smaller than its namespace), one for the value, one for
+the prior column (when it is named), and one for the order (when I2 needs
+it). Each activation column adds one row. When these rows hold, the active
+slots of each step bind the events of the step in order, and each event is in
+range. Then the theorem above applies to the catalog of the checked memories.
+The rows are Rust only: no Lean proof covers them yet (security note §7).
+
 ## 11. Memory carry
 
 ### 11.1 MemoryCarry

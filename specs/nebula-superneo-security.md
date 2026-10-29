@@ -709,9 +709,25 @@ generated relation MUST supply the exact census.
      structural identifier. `planDigest` reads only the geometry, so each
      package serves every program of its geometry. The Rust verifier takes the
      program (`nebula::Program`), checks its images against the geometry and
-     the image rules of `Plan.Valid`, and computes its `D_init`.
+     the image rules of `Plan.Valid`, and computes its `D_init`;
+   - the memory events of catalog applications (spec §10.1;
+     `Spec/Nebula/MemoryTrace.lean`, `Spec/Nebula/EventBinding.lean`,
+     `Lifecycle/Nebula/FreeApp.lean`). An execution whose active ports bind
+     the events of a catalog trace gives `MemoryConsistent` for the Lean copy
+     of `MemoryTrace.v` (`memoryConsistent_of_executes`). This discharges the
+     memory-consistency assumption of the Rocq proof of the WASM relation
+     (`formal/wasm-rocq` on `main`) for the bound memories, when the regions
+     are disjoint, the events are in range, and the initial state holds the
+     plan images. The free application (`freeApp`) is a `PortApp` with no
+     rows, so §5 applies to it when its memory program fits `2^28`: outside
+     the bad events of §5, an accepted proof of it attests such an execution.
 
    Still open:
+   - the binding rows of the Rust memory backend: that the slots of a catalog
+     application bind its events in order (spec §10.1 rules 4 to 6), with
+     disjoint regions. Until a later unit proves or pins these rows, they are
+     an assumption. The match between the Lean copy and `MemoryTrace.v` is
+     checked by reading only;
    - a Lean theorem that the relation of a plan does not read its images, so
      that the soundness statement for a second program applies to the package
      emitted for the first. By inspection, `planDigest` was the only reader.

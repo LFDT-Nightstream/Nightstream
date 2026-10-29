@@ -58,13 +58,13 @@ theorem slotAt_slot {start width count j i : ℕ} (hj : j < count) (hi : i < wid
   have mod : (i + j * width) % width = i := by
     rw [Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hi]
   unfold slotAt
-  rw [dif_pos ⟨by omega, by rw [sub, div]; exact hj⟩]
+  rw [dite_eq_left ⟨by omega, by rw [sub, div]; exact hj⟩]
   simp only [sub, div, mod]
 
 theorem slotAt_above {start width count k : ℕ} (pos : 0 < width)
     (above : start + count * width ≤ k) : slotAt start width count k = none := by
   unfold slotAt
-  rw [dif_neg]
+  rw [dite_eq_right]
   rintro ⟨-, inside⟩
   have := (Nat.div_lt_iff_lt_mul pos).mp inside
   omega
@@ -92,6 +92,7 @@ theorem slotAt_offset {start width count k : ℕ} {j : Fin count} {i : ℕ} (pos
 
 theorem Words.opWords_pos : 0 < Words.opWords p := by simp [Words.opWords, Geometry.opWidth]
 
+set_option backward.isDefEq.respectTransparency false in
 /-- Word `k` of slot `j` of a word vector is word `Words.op p j k`. -/
 theorem OpSlotBits.word_ofWords (v : ℕ → F) (j : ℕ) {k : ℕ} (hk : k < Words.opWords p) :
     (OpSlotBits.ofWords p v j).word k = v (Words.op p j k) := by
@@ -99,7 +100,7 @@ theorem OpSlotBits.word_ofWords (v : ℕ → F) (j : ℕ) {k : ℕ} (hk : k < Wo
   unfold OpSlotBits.word OpSlotBits.ofWords
   simp only [Words.opPad, Words.opIsWrite, Words.opIsRam, Words.opAddr, Words.opVr, Words.opVw,
     Words.opRt, Words.opDiff, Geometry.opWidth]
-  split_ifs <;> first | rfl | omega | (congr 2; omega)
+  split_ifs <;> first | omega | (congr 2; omega)
 
 /-! ### Slot facts -/
 
@@ -144,16 +145,16 @@ theorem env_appIn (i : Fin a.width) : v.env i = v.appIn i := by
 
 theorem env_appOut (i : Fin a.width) : v.env (a.width + i) = v.appOut i := by
   have := i.isLt
-  simp (disch := omega) only [env, dif_neg, dif_pos, Nat.add_sub_cancel_left, Fin.eta]
+  simp (disch := omega) only [env, dite_eq_right, dite_eq_left, Nat.add_sub_cancel_left, Fin.eta]
 
 theorem env_aux (i : Fin a.aux) : v.env (2 * a.width + i) = v.aux i := by
   have := i.isLt
-  simp (disch := first | omega | (simp only [slotStart]; omega)) only [env, dif_neg, dif_pos,
+  simp (disch := first | omega | (simp only [slotStart]; omega)) only [env, dite_eq_right, dite_eq_left,
     Nat.add_sub_cancel_left, Fin.eta]
 
 theorem env_op (j : Fin p.bOps) {k : ℕ} (hk : k < Words.opWords p) :
     v.env (slotStart a + j * Words.opWords p + k) = (v.ops j).word k := by
-  simp (disch := first | omega | (simp only [slotStart]; omega)) only [env, dif_neg,
+  simp (disch := first | omega | (simp only [slotStart]; omega)) only [env, dite_eq_right,
     slotAt_slot j.isLt hk, Fin.eta]
 
 end AppView
@@ -171,6 +172,7 @@ def Words.appVar (p : Geometry) (a : AppShape) (k : ℕ) : ℕ :=
 def StepWitness.view {a : AppShape} (w : StepWitness p a) : AppView p a :=
   ⟨w.appIn, w.appOut, w.aux, w.ops⟩
 
+set_option backward.isDefEq.respectTransparency false in
 /-- On a word vector that is zero past the witness, local variable `k` of the
 decoded view is witness word `Words.appVar p a k`. -/
 theorem env_appVar {a : AppShape} (v : ℕ → F) (zero : ∀ k, Words.count p a ≤ k → v k = 0) :
@@ -179,14 +181,14 @@ theorem env_appVar {a : AppShape} (v : ℕ → F) (zero : ∀ k, Words.count p a
   simp only [Function.comp_apply, Words.appVar, AppView.env, StepWitness.view,
     StepWitness.ofWords, AppView.slotStart]
   by_cases hw : k < a.width
-  · rw [dif_pos hw, if_pos (by omega)]; rfl
+  · rw [dite_eq_left hw, ite_eq_left (by omega)]; rfl
   by_cases h2 : k < 2 * a.width
-  · rw [dif_neg hw, dif_pos h2, if_pos (by omega)]
+  · rw [dite_eq_right hw, dite_eq_left h2, ite_eq_left (by omega)]
     simp only [Words.appOut]; congr 1; omega
   by_cases hs : k < 2 * a.width + a.aux
-  · rw [dif_neg hw, dif_neg h2, dif_pos hs, if_pos hs]
+  · rw [dite_eq_right hw, dite_eq_right h2, dite_eq_left hs, ite_eq_left hs]
     simp only [Words.aux]; congr 1; omega
-  rw [dif_neg hw, dif_neg h2, dif_neg hs, if_neg hs]
+  rw [dite_eq_right hw, dite_eq_right h2, dite_eq_right hs, ite_eq_right hs]
   rcases slot : slotAt (2 * a.width + a.aux) (Words.opWords p) p.bOps k with _ | ⟨j, i⟩
   · simp only
     exact (zero _ (by omega)).symm

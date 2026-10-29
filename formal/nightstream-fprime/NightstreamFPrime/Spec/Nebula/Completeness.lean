@@ -502,7 +502,7 @@ private theorem honestRun_proposal (npos : 0 < ctx.plan.n) {k : ℕ}
     (hk : k * ctx.plan.n < steps.length) :
     proposalAt ctx (honestRun ctx ms st steps) k = honestProposal ctx ms steps k := by
   rw [proposalAt, honestRun, ← List.map_drop, List.range_eq_range', List.drop_range',
-    List.head?_map, List.head?_range', if_neg (by omega)]
+    List.head?_map, List.head?_range', ite_eq_right (by omega)]
   simp [honestInvocation, Nat.mul_div_cancel _ npos]
 
 private theorem honestRun_app {app : Application ctx.plan.toGeometry σ}

@@ -218,13 +218,13 @@ theorem eval_addrE (j : Fin p.bOps) : (addrE p j).eval v.env = bitsWord (v.ops j
   funext k
   have := k.isLt
   rw [eval_slotE v j (by rw [opWords_eq]; omega)]
-  simp (disch := omega) only [OpSlotBits.word, if_neg, dif_pos, Nat.add_sub_cancel_left, Fin.eta]
+  simp (disch := omega) only [OpSlotBits.word, ite_eq_right, dite_eq_left, Nat.add_sub_cancel_left, Fin.eta]
 
 theorem eval_vrBitE (j : Fin p.bOps) (k : Fin 32) :
     (vrBitE p j k).eval v.env = (v.ops j).vr k := by
   have := k.isLt
   rw [vrBitE, eval_slotE v j (by rw [opWords_eq]; omega)]
-  simp (disch := omega) only [OpSlotBits.word, if_neg, dif_neg, dif_pos]
+  simp (disch := omega) only [OpSlotBits.word, ite_eq_right, dite_eq_right, dite_eq_left]
   congr 1; ext; simp only; omega
 
 theorem eval_vrE (j : Fin p.bOps) : (vrE p j).eval v.env = bitsWord (v.ops j).vr := by
@@ -237,7 +237,7 @@ theorem eval_vwE (j : Fin p.bOps) : (vwE p j).eval v.env = bitsWord (v.ops j).vw
   funext k
   have := k.isLt
   rw [eval_slotE v j (by rw [opWords_eq]; omega)]
-  simp (disch := omega) only [OpSlotBits.word, if_neg, dif_neg, dif_pos]
+  simp (disch := omega) only [OpSlotBits.word, ite_eq_right, dite_eq_right, dite_eq_left]
   congr 1; ext; simp only; omega
 
 theorem rows_iff : ConstraintsHold v.env (rows p) ↔ PortRows two v := by
@@ -492,7 +492,7 @@ theorem complete {s s' : State} {ports : List (Option PortAccess)} (ops : Fin p.
     simp only [fetch] at write0 ram0 addr0 vr0
     have write0 := bit_of_toBool (wf (fetchSlot two)).fieldBits.2.1 write0
     have ram0 := bit_of_toBool (wf (fetchSlot two)).fieldBits.2.2.1 ram0
-    simp only [Bool.false_eq_true, if_false] at write0 ram0
+    simp only [Bool.false_eq_true, ite_false] at write0 ram0
     have addrWord : bitsWord (ops (fetchSlot two)).addr = natWord s.pc := by
       rw [bitsWord_eq addrF, addr0]
     have split := bitsNat_split (ops (fetchSlot two)).vr
@@ -546,7 +546,7 @@ theorem complete {s s' : State} {ports : List (Option PortAccess)} (ops : Fin p.
       obtain ⟨pad1, write1, ram1, addr1, vr1, vw1⟩ := (wf (dataSlot two)).active decoded.2
       have write1 := bit_of_toBool (wf (dataSlot two)).fieldBits.2.1 write1
       have ram1 := bit_of_toBool (wf (dataSlot two)).fieldBits.2.2.1 ram1
-      simp only [Bool.false_eq_true, if_false, if_true] at write1 ram1
+      simp only [Bool.false_eq_true, ite_false, ite_true] at write1 ram1
       have addrData : bitsWord (ops (dataSlot two)).addr = natWord (word / 4) := by
         rw [bitsWord_eq addrD, addr1]
       have vrData : bitsWord (ops (dataSlot two)).vr = natWord data := by
@@ -573,7 +573,7 @@ theorem complete {s s' : State} {ports : List (Option PortAccess)} (ops : Fin p.
       obtain ⟨pad1, write1, ram1, addr1, -, vw1⟩ := (wf (dataSlot two)).active decoded.2
       have write1 := bit_of_toBool (wf (dataSlot two)).fieldBits.2.1 write1
       have ram1 := bit_of_toBool (wf (dataSlot two)).fieldBits.2.2.1 ram1
-      simp only [if_true] at write1 ram1
+      simp only [ite_true] at write1 ram1
       have addrData : bitsWord (ops (dataSlot two)).addr = natWord (word / 4) := by
         rw [bitsWord_eq addrD, addr1]
       have vwData : bitsWord (ops (dataSlot two)).vw = natWord s.acc := by

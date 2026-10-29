@@ -94,7 +94,7 @@ theorem pack_affine {l : List Circuit.Expr} (each : ∀ x ∈ l, R1CS.IsAffine x
   induction l using Nebula.Expr.pack.induct with
   | case1 => simp [Nebula.Expr.pack, Poseidon2.ListAffine]
   | case2 l nonempty ih =>
-    rw [Nebula.Expr.pack, dif_neg nonempty]
+    rw [Nebula.Expr.pack, dite_eq_right nonempty]
     intro e member
     rcases List.mem_cons.mp member with rfl | member
     · exact chunk_affine fun x hx => each x (List.mem_of_mem_take hx)
@@ -360,7 +360,7 @@ theorem pack_length_le (l : List Circuit.Expr) : (Nebula.Expr.pack l).length ≤
   induction l using Nebula.Expr.pack.induct with
   | case1 => simp [Nebula.Expr.pack]
   | case2 l nonempty ih =>
-    rw [Nebula.Expr.pack, dif_neg nonempty, List.length_cons]
+    rw [Nebula.Expr.pack, dite_eq_right nonempty, List.length_cons]
     have positive : 0 < l.length := List.length_pos_of_ne_nil nonempty
     simp only [List.length_drop] at ih
     omega

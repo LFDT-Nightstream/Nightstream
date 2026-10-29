@@ -55,7 +55,7 @@ theorem bitsWord_natBits {n x : ℕ} (small : x < 2 ^ n) : bitsWord (natBits n x
 def fieldInverse (x : F) : F := @Inv.inv (ZMod goldilocksModulus) _ x
 
 theorem mul_fieldInverse {x : F} (nonzero : x ≠ 0) : x * fieldInverse x = 1 := by
-  letI : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
+  let : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
   have key : ∀ y : ZMod goldilocksModulus, y ≠ 0 → y * y⁻¹ = 1 := fun _ h => mul_inv_cancel₀ h
   exact key x nonzero
 
@@ -129,40 +129,40 @@ theorem accepted {c' : MemoryCarry} (accepts : invoke (setup p) c inv = some c')
   have segBelow : c.idx = p.n → c.segIdx < p.sMax := by
     intro opens
     by_contra no
-    rw [if_pos opens, Spec.Nebula.openSegment,
-      if_neg (show ¬ c.segIdx < (setup p).geometry.sMax from no)] at accepts
+    rw [ite_eq_left opens, Spec.Nebula.openSegment,
+      ite_eq_right (show ¬ c.segIdx < (setup p).geometry.sMax from no)] at accepts
     simp at accepts
   have opened : (if c.idx = p.n then Spec.Nebula.openSegment (setup p) c inv.proposal
       else some c) =
       some (start p c inv) := by
     unfold start
     by_cases opens : c.idx = p.n
-    · rw [if_pos opens, if_pos opens, Spec.Nebula.openSegment,
-        if_pos (show c.segIdx < (setup p).geometry.sMax from segBelow opens)]
-    · rw [if_neg opens, if_neg opens]
+    · rw [ite_eq_left opens, ite_eq_left opens, Spec.Nebula.openSegment,
+        ite_eq_left (show c.segIdx < (setup p).geometry.sMax from segBelow opens)]
+    · rw [ite_eq_right opens, ite_eq_right opens]
   rw [opened, Option.bind_some] at accepts
   have rows : StepRows p c.ts inv.records := by
     by_contra no
-    rw [stepSegment, if_neg (by rw [start_ts]; exact no)] at accepts
+    rw [stepSegment, ite_eq_right (by rw [start_ts]; exact no)] at accepts
     simp at accepts
-  rw [stepSegment, if_pos (by rw [start_ts]; exact rows), Option.bind_some] at accepts
+  rw [stepSegment, ite_eq_left (by rw [start_ts]; exact rows), Option.bind_some] at accepts
   change finishStep (setup p) (stepped p c inv) = some c' at accepts
   unfold finishStep at accepts
   by_cases closes : (stepped p c inv).idx = p.n
-  · rw [if_pos (show (stepped p c inv).idx = (setup p).geometry.n from closes), closeSegment]
+  · rw [ite_eq_left (show (stepped p c inv).idx = (setup p).geometry.n from closes), closeSegment]
       at accepts
     by_cases checks : CloseChecks (stepped p c inv)
-    · rw [if_pos (by unfold CloseChecks at checks; exact checks)] at accepts
+    · rw [ite_eq_left (by unfold CloseChecks at checks; exact checks)] at accepts
       refine ⟨⟨segBelow, rows, fun _ => checks⟩, ?_⟩
       unfold finished
-      rw [if_pos closes]
+      rw [ite_eq_left closes]
       exact (Option.some.inj accepts).symm
-    · rw [if_neg (by unfold CloseChecks at checks; exact checks)] at accepts
+    · rw [ite_eq_right (by unfold CloseChecks at checks; exact checks)] at accepts
       simp at accepts
-  · rw [if_neg (show ¬ (stepped p c inv).idx = (setup p).geometry.n from closes)] at accepts
+  · rw [ite_eq_right (show ¬ (stepped p c inv).idx = (setup p).geometry.n from closes)] at accepts
     refine ⟨⟨segBelow, rows, fun h => absurd h closes⟩, ?_⟩
     unfold finished
-    rw [if_neg closes]
+    rw [ite_eq_right closes]
     exact (Option.some.inj accepts).symm
 
 /-! ### The witness -/

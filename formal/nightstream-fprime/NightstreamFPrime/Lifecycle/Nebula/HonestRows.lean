@@ -194,7 +194,7 @@ theorem seenPrev_row (i : Fin 12) :
     headerWords p i + (1 - bitWord (decide (c.idx = p.n))) * carryVector c ⟨23 + i.val, _⟩
   unfold start
   by_cases h : c.idx = p.n
-  · simp only [h, if_true, decide_true, bitWord, one_mul, sub_self, zero_mul, add_zero]
+  · simp only [h, ite_true, decide_true, bitWord, one_mul, sub_self, zero_mul, add_zero]
     fin_cases i <;> rfl
   · simp [h, bitWord]
 
@@ -225,7 +225,7 @@ theorem eta_row (i : Fin 4) :
     (1 - bitWord (decide (c.idx = p.n))) * ![c.eta.1.c0, c.eta.1.c1, c.eta.2.c0, c.eta.2.c1] i
   unfold start
   by_cases h : c.idx = p.n
-  · simp only [h, if_true, decide_true, bitWord, one_mul, sub_self, zero_mul, add_zero]
+  · simp only [h, ite_true, decide_true, bitWord, one_mul, sub_self, zero_mul, add_zero]
     rfl
   · simp [h, bitWord]
 
@@ -404,33 +404,33 @@ theorem startProducts :
       (witness p c inv appIn appOut aux).startProduct 11 = (start p c inv).products.initial ∧
       (witness p c inv appIn appOut aux).startProduct 13 = (start p c inv).products.final := by
   by_cases h : c.idx = p.n
-  · simp only [StepWitness.startProduct_open _ _ (isOpen_open appIn appOut aux h), start, if_pos h]
+  · simp only [StepWitness.startProduct_open _ _ (isOpen_open appIn appOut aux h), start, ite_eq_left h]
     exact ⟨rfl, rfl, rfl, rfl⟩
-  · simp only [StepWitness.startProduct_continue _ _ (isOpen_continue appIn appOut aux h), start, if_neg h]
+  · simp only [StepWitness.startProduct_continue _ _ (isOpen_continue appIn appOut aux h), start, ite_eq_right h]
     exact ⟨rfl, rfl, rfl, rfl⟩
 
 theorem opsProductAfter_val : ∀ k ≤ p.bOps,
     (witness p c inv appIn appOut aux).opsProductAfter 0 k = (opsAfter p c inv k).1 ∧
       (witness p c inv appIn appOut aux).opsProductAfter 1 k = (opsAfter p c inv k).2
   | 0, _ => by
-    simp only [StepWitness.opsProductAfter, if_true, opsAfter, List.take_zero, opsFactors,
+    simp only [StepWitness.opsProductAfter, ite_true, opsAfter, List.take_zero, opsFactors,
       mul_one]
     exact ⟨(startProducts appIn appOut aux).1, (startProducts appIn appOut aux).2.1⟩
   | k + 1, hk => by
-    simp only [StepWitness.opsProductAfter, Nat.add_one_ne_zero, if_false,
-      Nat.add_sub_cancel, dif_pos (show k < p.bOps by omega)]
+    simp only [StepWitness.opsProductAfter, Nat.add_one_ne_zero, ite_false,
+      Nat.add_sub_cancel, dite_eq_left (show k < p.bOps by omega)]
     exact ⟨rfl, rfl⟩
 
 theorem scanProductAfter_val : ∀ k ≤ p.bScan,
     (witness p c inv appIn appOut aux).scanProductAfter 0 k = (scanAfter p c inv k).1 ∧
       (witness p c inv appIn appOut aux).scanProductAfter 1 k = (scanAfter p c inv k).2
   | 0, _ => by
-    simp only [StepWitness.scanProductAfter, if_true, scanAfter, List.take_zero, scanFactor,
+    simp only [StepWitness.scanProductAfter, ite_true, scanAfter, List.take_zero, scanFactor,
       mul_one]
     exact ⟨(startProducts appIn appOut aux).2.2.1, (startProducts appIn appOut aux).2.2.2⟩
   | k + 1, hk => by
-    simp only [StepWitness.scanProductAfter, Nat.add_one_ne_zero, if_false,
-      Nat.add_sub_cancel, dif_pos (show k < p.bScan by omega)]
+    simp only [StepWitness.scanProductAfter, Nat.add_one_ne_zero, ite_false,
+      Nat.add_sub_cancel, dite_eq_left (show k < p.bScan by omega)]
     exact ⟨rfl, rfl⟩
 
 theorem eta_pair : ((witness p c inv appIn appOut aux).eta1, (witness p c inv appIn appOut aux).eta2) = (start p c inv).eta := by
@@ -456,9 +456,9 @@ theorem globalIndex_val (valid : p.Valid) (accepted : Accepted p c inv) (j : Fin
   have addr := fits.1
   unfold Geometry.cells Geometry.ramSize at cells
   cases (opSlot inv j).isRam
-  · simp only [bitWord, Bool.false_eq_true, if_false, zero_mul, add_zero, PortAccess.globalIndex]
+  · simp only [bitWord, Bool.false_eq_true, ite_false, zero_mul, add_zero, PortAccess.globalIndex]
     exact natWord_val (by omega)
-  · simp only [bitWord, if_true, one_mul, PortAccess.globalIndex, ← natWord_add]
+  · simp only [bitWord, ite_true, one_mul, PortAccess.globalIndex, ← natWord_add]
     rw [natWord_val (by omega)]
     omega
 
@@ -510,7 +510,7 @@ theorem writeProduct_row (valid : p.Valid) (accepted : Accepted p c inv) (j : Fi
     rw [cIn_val appIn appOut aux (by decide), carryVector_ts, cntBefore_val appIn appOut aux accepted (j.val + 1) j.isLt,
       ← natWord_add, step,
       natWord_val_small (k := p.wTs) (by omega) (by have := valid.fieldEncoding; omega)]
-    simp only [Bool.false_eq_true, if_false]
+    simp only [Bool.false_eq_true, ite_false]
     rw [Nat.add_assoc]
   · simp only [↓reduceIte]
 

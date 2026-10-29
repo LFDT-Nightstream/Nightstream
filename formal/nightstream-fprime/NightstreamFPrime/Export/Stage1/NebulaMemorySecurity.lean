@@ -308,7 +308,7 @@ theorem clampOutput_eq_of_checks (valid : p.Valid) (bound : ℕ)
     clampOutput app bound x = x := by
   unfold clampOutput at checks ⊢
   split at checks
-  · rw [if_pos ‹_›]
+  · rw [ite_eq_left ‹_›]
   · have steps : 0 = m.segments * p.n := checks.terminal.stepCount
     have : 0 < m.segments * p.n := Nat.mul_pos checks.terminal.segmentsRange.1 valid.positive.2.2.1
     omega
@@ -323,7 +323,7 @@ theorem clampOutput_eq_of_input_checks (bound : ℕ) (below : p.sMax * p.n ≤ b
     rw [checks.terminal.stepCount]
     exact (Nat.mul_le_mul_right p.n checks.terminal.segmentsRange.2).trans below
   unfold clampOutput
-  rw [if_pos short]
+  rw [ite_eq_left short]
 
 /-- The adversary on its own tape with clamped outputs. With
 `S_max · N ≤ bound`, a clamped output passes the spec §13 checks exactly when
@@ -364,7 +364,7 @@ private theorem clamp_bad_eq (valid : p.Valid)
       (HyperNovaVisitedLaw.listSource (MemoryApp.program p.toGeometry app) x.1.iteration (c.stage.results tape))
       x.1 x.2).toOuterMeasure)
     ext r
-    simp only [badSamples, Set.mem_preimage, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+    simp only [badSamples, Set.mem_preimage, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
     exact fun bad => no bad.2.1
   rw [ClaimedStage.law, ClaimedStage.lawAt, ClaimedStage.lawAt, PMF.toOuterMeasure_bind_apply,
     PMF.toOuterMeasure_bind_apply]

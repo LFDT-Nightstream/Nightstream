@@ -71,7 +71,7 @@ scoped instance : IsDomain K := NoZeroDivisors.to_isDomain K
 attribute [scoped instance] kFintype
 
 scoped instance : CharP K goldilocksModulus := by
-  haveI : CharP (QuadraticAlgebra (ZMod goldilocksModulus) 7 0) goldilocksModulus :=
+  have : CharP (QuadraticAlgebra (ZMod goldilocksModulus) 7 0) goldilocksModulus :=
     charP_of_injective_algebraMap QuadraticAlgebra.algebraMap_injective _
   exact charP_of_injective_ringHom (f := carrierEquiv.ringEquiv.symm.toRingHom)
     carrierEquiv.ringEquiv.symm.injective _

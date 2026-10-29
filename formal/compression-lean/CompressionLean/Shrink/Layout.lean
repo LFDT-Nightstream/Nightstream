@@ -30,6 +30,8 @@ structure R1csRow (F : Type) where
   c : List (ℕ × F)
 
 open Classical in
+/-- A column past `columns` reads the zero form; Rust asserts that none is (`r1cs.rs:42`,
+`record.rs:451`). -/
 noncomputable def expand {F : Type} [Field F] (side : List (ℕ × F)) (columns : List (Form F)) :
     List (Wire × F) :=
   side.flatMap fun t =>

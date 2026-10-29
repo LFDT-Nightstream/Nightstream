@@ -25,6 +25,7 @@ def tracksStep (t b : ℕ) : List (Track K) → ℕ → K × ℕ
 def nextBelow (countBit b below : ℕ) : ℕ :=
   if b < countBit then 1 else if countBit < b then 0 else below
 
+/-- `layout.rs:246-276`; Rust skips zero values (`layout.rs:250-252`), which add nothing. -/
 def walkStep (tracks : List (Track K)) (count t : ℕ) (states : ℕ → ℕ → K) (carry' below' : ℕ) : K :=
   ∑ carry ∈ Finset.range (2 ^ tracks.length), ∑ below ∈ Finset.range 2, ∑ b ∈ Finset.range 2,
     if (tracksStep t b tracks carry).2 = carry' ∧ nextBelow (count / 2 ^ t % 2) b below = below' then

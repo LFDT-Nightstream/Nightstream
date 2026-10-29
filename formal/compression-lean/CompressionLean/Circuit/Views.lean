@@ -2,6 +2,8 @@ import Lean.Data.Json
 import CompressionLean.Circuit.Hash
 import CompressionLean.Replay.Gkr
 
+/-! A relation whose shapes Rust rejects is out of scope. -/
+
 namespace CompressionLean.Circuit
 
 open Lean (FromJson)

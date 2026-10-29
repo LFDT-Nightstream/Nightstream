@@ -11,16 +11,26 @@ and the composed bound. It evaluates the bound at the current values.
 
 The prover controls all proof bytes, witnesses, memory records, and proposed
 roots. The verifier controls the verifier key, the application package, the
-plan, the setup seed, and the public statement.
+program, the setup seed, and the public statement.
 
-A package is a geometry: every plan field except the images (spec §4.1). A
-program is the ROM and RAM images. The key of a program is its `D_init`, which
-the verifier computes from the images and puts in the start carry (spec §9.2,
-§11.1). `plan_digest` does not read the images, so one package and one setup
-serve every program of a geometry, and `D_init` is the only path by which the
-program enters a proof. Two programs with different images have different
-initial snapshots, so they have different `D_init`, except with a collision
-(Lemmas 1 and 2).
+This note uses *relation* for the circuit that a package proves and *program*
+for the ROM and RAM images. A package is the relation of one application at
+one geometry. The geometry is every plan field except the images (spec §4.1).
+The key of a program is its `D_init`, which the verifier computes from the
+images and puts in the start carry (spec §9.2, §11.1). The relation and
+`plan_digest` read no image, so one package and one setup serve every program
+of a geometry: setups are one per (application, geometry). `D_init` is the
+only path by which the program enters a proof. Two programs with different
+images have different initial snapshots, so they have different `D_init`,
+except with a collision (Lemmas 1 and 2). In Lean, the relation
+`MemoryApp.program` takes a `Geometry`, which has no image field, so two plans
+with one geometry have one relation (`MemoryApp.program_eq_of_geometry`).
+
+**Program choice.** Security holds for a program fixed before the adversary
+runs: the plan is a parameter of the end-to-end statement (§5), and the
+adversary does not choose it. An adversary that chooses the program after it
+sees the setup is not covered. That case needs the claim and the `Experiment`
+to carry the program, and it is an open item (§7).
 
 **Current values.** The F′ Stage 1 system has these levels:
 
@@ -388,7 +398,7 @@ This proof needs no range check on IS or FS timestamps.
 with the bound of §5, there is one execution of the application relation with
 these properties:
 
-- it starts from the statement's initial state and the plan's initial memory;
+- it starts from the statement's initial state and the program's initial memory;
 - it has `T = S · N` steps and ends in the statement's final state;
 - its memory accesses are sequentially consistent across all segments;
 - its final memory has the FS root `final_memory_root`.
@@ -413,7 +423,7 @@ these properties:
    `D_init`.
    By step 2, the input carry of `A[0]` is that carry, except with a
    state-digest collision. So by Lemmas 1 and 2, the IS
-   records equal the plan images with `t = 0`, except with a collision. For
+   records equal the program images with `t = 0`, except with a collision. For
    segment `k + 1`, `D_seen.is = D_mem`, which is the FS root of segment `k`.
    The IS and FS chains share formulas, so by Lemmas 1 and 2 the IS records of
    segment `k + 1` equal the FS records of segment `k`, cell by cell, except
@@ -456,8 +466,10 @@ the value of `error_j`. The target value of `error_mem` is about
 with a union bound.
 
 In Lean, this is `NebulaMemorySecurity.bad_le` (§7 item 5). It holds for
-every application with a port interface whose memory program fits `2^28`,
-for every commitment setup and every valid plan. Its premises are A4
+every application with a port interface whose memory relation fits `2^28`,
+for every commitment setup and every valid plan, so for every program of the
+package's geometry: the relation is `MemoryApp.program p.toGeometry app` for
+the plan `p`. Its premises are A4
 (`Assumption1`, `Closed`, and an admitted start stage), the step bound
 (`depthBound`), and A6 (`MemoryRound`); the right side is `badBound`. For an
 adversary whose outputs can be longer, `NebulaMemorySecurity.bad_le_clamp`
@@ -475,7 +487,7 @@ count `Q` (decision 2026-10-12), so each term stays a formula:
   (`formal/nightstream-fprime/SECURITY_MODEL.md`, adversary 3). Lean proves
   `4589/q²` for the F′ shape with one fresh claim
   (`VerifierErrorBudget.test_error_eq`), and every application that fits
-  `2^28` has this shape, so a memory program that fits has it too. The value
+  `2^28` has this shape, so a memory relation that fits has it too. The value
   `f_fold = 5,161` of A1 and the table below is the Rust summary at the
   largest fresh count that the PiRLC guard allows (287), so it is the more
   conservative value.
@@ -496,17 +508,17 @@ way: its adversary is the last reverse stage, so its `Q_η` counts the queries
 of every rerun. The Lean statement is correct for every depth. A useful number
 needs a Stage 1 argument whose error does not grow in this way with the depth.
 
-**Setup check (spec §4.2 rule 6).** For the final relation shape and the plan,
-setup MUST check that `ε_test ≤ 2^−109.91`, the owner-approved floor. This
-holds exactly when `R + M + N · B_ops ≤ 139,509` (Lean `Plan.secure_iff`).
-Setup MUST reject the plan if the check fails. In Lean, every memory package
-that `lake exe emit` writes gets its program from
+**Setup check (spec §4.2 rule 6).** For the final relation shape and the
+geometry, setup MUST check that `ε_test ≤ 2^−109.91`, the owner-approved
+floor. This holds exactly when `R + M + N · B_ops ≤ 139,509` (Lean
+`Geometry.secure_iff`). Setup MUST reject the geometry if the check fails. In
+Lean, every memory package that `lake exe emit` writes gets its relation from
 `NebulaMemoryPackage.application`, which takes the proofs of rules 1–6. A
 larger memory needs a new owner decision. The check applies to the per-check
 value. The A6 error adds the query loss, as the Stage 1 error does for the
 fold term.
 
-**Above the cap.** The recommended upgrade for a plan with more than 139,509
+**Above the cap.** The recommended upgrade for a geometry with more than 139,509
 tuples per segment is a second, independent challenge pair. Then `ε_test`
 becomes `(2·m_mem/|𝕂|)²`: 219.83 bits at the example geometry, for about +2%
 coordinates. It needs an owner decision and a spec change before use. It is not
@@ -625,11 +637,11 @@ generated relation MUST supply the exact census.
      `Machine.portApp`): one machine step between the states that its two
      words give; its Ob7 and its completeness are proved from the decoded
      ports;
-   - a memory application as a Stage 1 application program
-     (`Lifecycle/Nebula/MemoryProgram.lean`). Its circuit holds exactly when
-     the output state is the state digest of the output words and the decoded
-     witness satisfies the memory rows and the application's rows, and every
-     row reads only supported variables;
+   - a memory application as a Stage 1 relation (`Application.Program`,
+     `Lifecycle/Nebula/MemoryProgram.lean`) for a geometry. Its circuit holds
+     exactly when the output state is the state digest of the output words
+     and the decoded witness satisfies the memory rows and the application's
+     rows, and every row reads only supported variables;
    - the soundness refinement of that relation: canonical decoding of the
      carry words (the carry part of Ob1; Lean types the statement fields), the
      field-bit packing of the lanes (Ob2), one invocation's rows to the
@@ -640,7 +652,7 @@ generated relation MUST supply the exact census.
      and an application's rows have no variable for `η`, a product, or a
      carry word (spec §6.4);
    - the run-level join (`accepts_or_collision`): a chain of states whose
-     steps satisfy the program's predicate (`MemoryApp.holds_of_valid`), with
+     steps satisfy the relation's predicate (`MemoryApp.holds_of_valid`), with
      the spec §13 terminal checks, gives a run that the model accepts, or a
      collision between two state-digest inputs of the run: at a link of the
      chain, or between the words after the last step and the statement's
@@ -655,7 +667,7 @@ generated relation MUST supply the exact census.
      `Lifecycle/Nebula/HonestStep.lean`, `MemoryApp.complete`): for a
      reachable carry, an invocation that `invoke` accepts, and one
      application step on its ports, the honest witness words with the
-     application's private words satisfy the program's validity predicate,
+     application's private words satisfy the relation's validity predicate,
      and the step function gives the state digest of the output state and the
      output carry. The witness writes the segment bits, the timestamp bits,
      and the O4 words `diff_j`, and `MemoryApp.decode` reads the words back as
@@ -664,7 +676,7 @@ generated relation MUST supply the exact census.
      `Lifecycle/Nebula/HonestRun.lean`): the model's `invoke` keeps a carry
      reachable (`MemoryApp.reach_invoke`), and every execution of `S · N`
      steps with `1 ≤ S ≤ S_max` has a Stage 1 step history of the memory
-     program whose statement passes the §13 checks
+     relation whose statement passes the §13 checks
      (`MemoryApp.history_of_execution`). This includes `S = S_max`, idle
      steps, and every reachable counter value;
    - the end-to-end statement (`Lifecycle/Nebula/EndToEnd.lean`,
@@ -694,22 +706,36 @@ generated relation MUST supply the exact census.
      code for all five integers, and `memory_conformance` checks the same
      rejection through `nebula::Verifier::verify` with a real proof;
    - the first memory package (`Export/Stage1/NebulaMemoryV1Package.lean`)
-     for the test plan `FirstPlan` (ROM and RAM of four words, `N = 2`,
-     `S_max = 4`) and the machine. Its row, column, and carrier bounds give
-     the Stage 1 fixed point and the `2^28` domain (`plan_fixedPoint`,
-     `jointDomain_le_twoPow28`). A second test package
-     (`NebulaMemoryN1Package`, plan `SecondPlan`: `N = 1`, `r < μ`) covers
-     the spec §14 cases that the first plan cannot reach. Both use the
-     plan-independent geometry of `NebulaMemoryPackage`, and both get their
-     program from `NebulaMemoryPackage.application`, which takes the proofs of
-     spec §4.2 rules 1–6 (`Plan.Valid`, `Plan.Secure`). `lake exe emit` writes
-     only these two memory packages. The relation `MemoryApp.program` is
-     defined for every plan, so the setup rule binds the packages, not every
-     Lean term. The Rust crate loads each emitted package with a pinned
-     structural identifier. `planDigest` reads only the geometry, so each
-     package serves every program of its geometry. The Rust verifier takes the
-     program (`nebula::Program`), checks its images against the geometry and
-     the image rules of `Plan.Valid`, and computes its `D_init`;
+     for the test geometry `FirstPlan.geometry` (ROM and RAM of four words,
+     `N = 2`, `S_max = 4`) and the machine. Its row, column, and carrier
+     bounds give the Stage 1 fixed point and the `2^28` domain
+     (`plan_fixedPoint`, `jointDomain_le_twoPow28`). A second test package
+     (`NebulaMemoryN1Package`, geometry `SecondPlan.geometry`: `N = 1`,
+     `r < μ`) covers the spec §14 cases that the first geometry cannot reach.
+     Both use the shared package bounds of `NebulaMemoryPackage`, and both get
+     their relation from `NebulaMemoryPackage.application`, which takes the
+     proofs of spec §4.2 rules 1–6 (`Geometry.Valid`, `Geometry.Secure`).
+     `lake exe emit` writes only these two memory packages. The relation
+     `MemoryApp.program` is defined for every geometry, so the setup rule
+     binds the packages, not every Lean term. The Rust crate loads each
+     emitted package with a pinned structural identifier. The Rust verifier
+     takes the program (`nebula::Program`, `u32` words), whose constructor
+     checks the image sizes against the geometry and computes `D_init` once;
+   - one setup per geometry (`Spec/Nebula/Plan.lean`): a `Geometry` has the
+     seven fields of `plan_digest`, and a `Plan` extends it with the images.
+     `planDigest`, `PortApp`, `MemoryApp.program`, the packages, and every
+     row-level definition take a `Geometry`, and the carry transitions take a
+     `Setup` (geometry, hash, challenges, `plan_digest`). Only the initial
+     memory, `D_init`, the start carry, and the statement of soundness read a
+     `Plan`. So two plans with one geometry have one relation
+     (`MemoryApp.program_eq_of_geometry`), and `NebulaMemorySecurity.bad_le`
+     covers every program of a package. The Rust tests run a second program
+     of the V1 geometry: its honest invocations through the package circuit
+     (`first_package_executes_a_second_program`), and, ignored, a proof of
+     each program that verifies with its own program and fails the Stage 1
+     state link with the other (`each_program_verifies_only_its_own_proof_on_cpu`).
+     `d_init_matches_lean` checks `D_init` against Lean for a program with a
+     distinct nonzero word in every cell (`FirstPlan.otherPlan`);
    - the memory events of catalog applications (spec §10.1;
      `Spec/Nebula/MemoryTrace.lean`, `Spec/Nebula/EventBinding.lean`,
      `Lifecycle/Nebula/FreeApp.lean`). An execution whose active ports bind
@@ -718,8 +744,8 @@ generated relation MUST supply the exact census.
      memory-consistency assumption of the Rocq proof of the WASM relation
      (`formal/wasm-rocq` on `main`) for the bound memories, when the regions
      are disjoint, the events are in range, and the initial state holds the
-     plan images. The free application (`freeApp`) is a `PortApp` with no
-     rows, so §5 applies to it when its memory program fits `2^28`: outside
+     program images. The free application (`freeApp`) is a `PortApp` with no
+     rows, so §5 applies to it when its memory relation fits `2^28`: outside
      the bad events of §5, an accepted proof of it attests such an execution.
 
    Still open:
@@ -728,26 +754,25 @@ generated relation MUST supply the exact census.
      disjoint regions. Until a later unit proves or pins these rows, they are
      an assumption. The match between the Lean copy and `MemoryTrace.v` is
      checked by reading only;
-   - a Lean theorem that the relation of a plan does not read its images, so
-     that the soundness statement for a second program applies to the package
-     emitted for the first. By inspection, `planDigest` was the only reader.
-     The Rust test `programs_of_one_geometry_share_the_circuit` checks that
-     the Rust-built circuit of another program has the same identity and rows;
+   - adaptive program choice: §5 bounds an adversary against a program fixed
+     before it runs (§1). For a program that the adversary chooses after it
+     sees the setup, the claim and the `Experiment` must carry the program,
+     and no theorem states that case;
    - values for the adversary time `t` and the query counts `Q` and `Q_η`.
      They stay symbolic until the owner sets them (decision 2026-10-12); §5
      gives each term as a formula in them;
    - concrete values for the end-to-end bound. With the error that PR #155
      motivates, the depth limit of §5 (shared with Stage 1) makes the bound
      useless when the depth `S_max · N` is more than one or two;
-   - a package for a production plan, deferred to the real application
+   - a package for a production geometry, deferred to the real application
      (decision 2026-10-12). It needs: the application with a `PortApp`
      instance (a model over its state words, private words, rows, `sound`,
-     `complete`); the
-     plan fields `R`, `μ`, `M`, `W_ts`, `B_ops` (the application's ports),
-     `B_scan`, `N`, `S_max`, and the ROM and RAM images, which must pass spec
+     `complete`); the geometry fields `R`, `μ`, `M`, `W_ts`, `B_ops` (the
+     application's ports), `B_scan`, `N`, and `S_max`, which must pass spec
      §4.2 (rule 6: `R + M + N·B_ops ≤ 139,509`); the package bounds and the
      fixed point in `2^28`; and the Rust native run and word layout of that
-     application.
+     application. The package needs no image: the verifier takes each
+     program at verify time.
 6. **Shared with Stage 1:** useful values of the Assumption 1 errors (A4,
    A6), a Stage 1 argument whose error does not grow with the depth (§5), the
    concrete extractor time (A4), the arity adaptation of HyperNova Lemma 4,

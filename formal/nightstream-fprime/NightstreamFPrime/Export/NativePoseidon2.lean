@@ -1,11 +1,5 @@
 import NightstreamFPrime.Export.NativePoseidon2RoundCore
 
-/-!
-Owns native Poseidon2 constants, the exact 4/22/4 schedule, and the streaming
-sponge. Fixed-width Goldilocks arithmetic and round operations belong to
-`NativeGoldilocks` and `NativePoseidon2RoundCore`.
--/
-
 namespace NightstreamFPrime.Export.NativePoseidon2
 
 open NightstreamFPrime.Spec

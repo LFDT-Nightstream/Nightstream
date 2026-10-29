@@ -70,7 +70,7 @@ fn place(size: impl Fn(Kind) -> usize, counts: &[usize; KINDS.len()]) -> ([[Part
             }
         }
     }
-    slots.sort_by(|a, b| b.0.cmp(&a.0));
+    slots.sort_by_key(|&(stride, _, _)| std::cmp::Reverse(stride));
     let mut parts = [[Part::default(); 2]; KINDS.len()];
     let mut start = 0;
     for (stride, kind, part) in slots {

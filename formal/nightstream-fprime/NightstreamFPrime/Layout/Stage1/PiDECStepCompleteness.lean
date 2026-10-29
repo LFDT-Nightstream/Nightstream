@@ -4,14 +4,6 @@ import NightstreamFPrime.Layout.Stage1.StateEncoding
 import NightstreamFPrime.Lifecycle.Stage1.Application
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 
-/-!
-Owns the selected recursive step adapter to pilot, C/R/D, running-transition,
-and next-preimage witness construction. The actual semantic step supplies
-NIFS acceptance and the prior public link. The selected state validity and
-successor bound supply canonical state framing. Application construction and
-physical lowering remain separate.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiDECStepCompleteness
 
 open NightstreamFPrime.Spec

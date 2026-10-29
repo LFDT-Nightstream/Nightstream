@@ -5,40 +5,7 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Law
 import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
 
-/-!
-Owns the `Π_RLC` extraction of the production NIFS key in the random-oracle
-model (Lemma 5 of SECURITY_MODEL.md).
-
-Inputs: an adaptive oracle adversary that outputs a claim (running and fresh
-statements, a NIFS proof, and witnesses for the sixteen children), the
-production key, and one retry answer per `Π_RLC` coordinate.
-
-Outputs:
-- `Accepts`: the key's NIFS verifier with every coin read from the oracle,
-  and valid witnesses for the exact children it returns. At the sponge reads
-  it is `PaperNonInteractive.verify` (`RandomOracleFidelity.accepts_iff_verify`);
-- `SucceedsOf`, `ForkValidOf`, `completeForkOf`: the same checks on the
-  claims that runs output (`ForkClaims`), with no adversary. `Succeeds`,
-  `ForkValid` and `completeFork` are these checks at the adversary's own
-  claims;
-- `completeFork`: a base acceptance and one valid retry per coordinate form
-  the paper's complete coordinate fork over the base batch, so
-  `extracted_ambient` opens every `Π_CCS` output of the base probe;
-- `fork_failure_le`: the retries fail to form that fork with probability at
-  most `17 * (Q + 17) * ε_sample`, plus the chance that a retry changes the
-  running statement (`mismatchChance`; with `PriorLink` it is a state-hash
-  collision, `Export.Stage1.RandomOracleLink.mismatch_collision`);
-- `expected_retries_at_le`, `expected_retries_le`: at most `Q + 17`
-  expected retries at each coordinate, so at most `17 * (Q + 17)` in all.
-
-A retry resamples the oracle answer at one `Π_RLC` point and reruns the
-adversary until that point succeeds again (`RandomOracle.retryWeight`).
-The adversary may query many candidate outputs; each queried point is
-charged once (`RandomOracle.repeat_le`).
-
-Does not own: the `Π_CCS` test error (`RandomOracleTest`), uniqueness across
-two extractions, or the binding reduction.
--/
+/-! Random-oracle model, SECURITY_MODEL.md Lemma 5. -/
 
 set_option autoImplicit false
 
@@ -85,7 +52,7 @@ theorem fiber_mass_le (scalar : Phi81StrongSet.Scalar) :
       sampleError := by
   open Spec.Folding.Nifs.NonInteractive.PiRlcSampler in
   have card : Fintype.card Answer = drawCount := by
-    rw [Fintype.card_fun, Fintype.card_fin, Fintype.card_fin]
+    simp only [Fintype.card_fun, Fintype.card_fin]
     rfl
   let test : Phi81StrongSet.Scalar → ℝ := fun value => if value = scalar then 1 else 0
   have sampled : mass {answer : Answer | sample answer = scalar} = sampledExpect test := by
@@ -253,7 +220,8 @@ theorem rho_update {degree : Nat} (oracle : Point logicalWidth publicFits degree
   by_cases same : other = index
   · subst same
     simp [rho]
-  · rw [if_neg same]
+    exact (ite_eq_left rfl).symm
+  · rw [ite_eq_right same]
     exact congrArg readRho (update_ne oracle fresh proof (by simpa using same) answer)
 
 omit relation ajtai in
@@ -381,7 +349,7 @@ noncomputable def completeForkOf (fork : ForkClaims relation)
   changed index := by
     change rho fork.oracle _ _ index ≠ rho (fork.forked relation index) _ _ index
     rw [fork_rho relation ajtai (valid index) index]
-    simp only [if_true]
+    erw [ite_eq_left rfl]
     exact fun same => (valid index).2.1 ((readRho_eq_iff _ _).mp same).symm
 
 variable {Output : Type}
@@ -490,7 +458,7 @@ theorem forkValid_iff (oracle : Oracle) (retries : Fin (Nifs.PaperProfile.arity)
     (index : Fin (Nifs.PaperProfile.arity).total) :
     ForkValid relation ajtai adversary claim oracle retries index ↔
       retries index ∉ badRetries relation ajtai adversary claim oracle index := by
-  simp only [badRetries, Set.mem_setOf_eq, not_not]
+  simp only [badRetries, Set.mem_ofPred_eq, not_not]
   rfl
 
 private theorem mass_union_le (left right : Set Answer) :
@@ -526,8 +494,8 @@ private theorem sum_hits (index : Fin (Nifs.PaperProfile.arity).total)
       if Succeeds relation ajtai adversary claim oracle then
         term (rhoPoint relation adversary claim index oracle) oracle else 0 := by
   by_cases succeeds : Succeeds relation ajtai adversary claim oracle
-  · simp only [Hits, succeeds, true_and, if_true]
-    exact (Finset.sum_ite_eq Finset.univ _ _).trans (if_pos (Finset.mem_univ _))
+  · simp only [Hits, succeeds, true_and, ite_true]
+    exact (Finset.sum_ite_eq Finset.univ _ _).trans (ite_eq_left (Finset.mem_univ _))
   · simp [Hits, succeeds]
 
 theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries) :
@@ -551,15 +519,15 @@ theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries)
         (if Succeeds relation ajtai adversary claim oracle then
           ∑ index, mismatchChance relation ajtai adversary claim index oracle else 0) := by
     by_cases succeeds : Succeeds relation ajtai adversary claim oracle
-    · simp only [if_pos succeeds]
+    · simp only [ite_eq_left succeeds]
       have failure (retries : Fin (Nifs.PaperProfile.arity).total → Answer) :
           (if ∀ index, ForkValid relation ajtai adversary claim oracle retries index then (0 : ℝ) else 1) ≤
             ∑ index, if retries index ∈ badRetries relation ajtai adversary claim oracle index
               then 1 else 0 := by
         by_cases every : ∀ index, ForkValid relation ajtai adversary claim oracle retries index
-        · rw [if_pos every]
+        · rw [ite_eq_left every]
           exact Finset.sum_nonneg fun _ _ => by split <;> norm_num
-        · rw [if_neg every]
+        · rw [ite_eq_right every]
           obtain ⟨index, invalid⟩ := not_forall.mp every
           have inside : retries index ∈ badRetries relation ajtai adversary claim oracle index :=
             by_contra fun outside =>
@@ -580,7 +548,7 @@ theorem fork_failure_le {queries : Nat} (bounded : adversary.QueryBound queries)
       apply div_le_div_of_nonneg_right _ (mass_nonnegative _)
       refine (mass_mono ?_).trans (mass_union_le _ _)
       rintro answer ⟨inside, invalid⟩
-      simp only [badRetries, Set.mem_setOf_eq] at invalid
+      simp only [badRetries, Set.mem_ofPred_eq] at invalid
       change ¬ (answer ∈ lineSet (Hits relation ajtai adversary claim index)
         (rhoPoint relation adversary claim index oracle) oracle ∧ _ ∧ _) at invalid
       simp only [not_and_or, not_not] at invalid

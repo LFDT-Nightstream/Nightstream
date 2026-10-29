@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.NativePoseidon2RoundCore
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingArithmetic
 import Mathlib.Tactic.SplitIfs
 
-/-!
-Native-word execution of the existing PiDEC ring product and fixed-width
-accumulation. Field arithmetic is owned by NativePoseidon2RoundCore.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECNativeProduct

@@ -2,11 +2,6 @@ import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 
-/-!
-Connect stored PiDEC digits to the selected honest witness and message
-specification.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
@@ -61,7 +56,6 @@ theorem splitChecked_honestWitness
   refine ⟨witnessExact, ?_, ?_⟩
   · simp only [PiDEC.PaperVerifier.honestMessages, ← witnessExact]
   · simp only [PiDEC.childrenOf, ← witnessExact]
-    rfl
 
 theorem splitChecked_block_honestWitness
     (parentWitness : Phi81Relation.Assignment selectedShape)

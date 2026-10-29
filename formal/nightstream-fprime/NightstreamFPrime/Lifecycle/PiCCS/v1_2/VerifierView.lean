@@ -1,13 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 
-/-!
-Owns the cross-phase verifier view of one accepted PiCCS execution.
-
-This
-module exposes the key-owned round point needed by the zero-copy PiRLC input
-bridge without unfolding any child operation or restating PiCCS acceptance.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.VerifierView
 
 open NightstreamFPrime.Circuit

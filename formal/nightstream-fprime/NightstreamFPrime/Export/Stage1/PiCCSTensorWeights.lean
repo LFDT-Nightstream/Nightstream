@@ -1,7 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericBooleanDomain
 
-/-! Cache the reference tensor weights in two coordinate tables. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSTensorWeights
@@ -97,9 +95,9 @@ theorem lookup_prepare (ops : InterpolationOps Field) (laws : WeightProductLaws 
   by_cases high : index / 2 ^ (coordinates.length / 2) <
       2 ^ (coordinates.length - coordinates.length / 2)
   · simp only [lookup, prepare, Array.size_ofFn, Array.getElem?_ofFn,
-      dif_pos low, dif_pos high]
+      dite_eq_left low, dite_eq_left high]
     exact (split_value ops laws coordinates index).symm
   · simp only [lookup, prepare, Array.size_ofFn, Array.getElem?_ofFn,
-      dif_pos low, dif_neg high]
+      dite_eq_left low, dite_eq_right high]
 
 end NightstreamFPrime.Export.Stage1.PiCCSTensorWeights

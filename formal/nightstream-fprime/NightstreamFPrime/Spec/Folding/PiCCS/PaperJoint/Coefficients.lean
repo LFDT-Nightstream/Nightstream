@@ -1,19 +1,6 @@
 import NightstreamFPrime.Spec.SumCheck.Polynomial
 
-/-!
-Finite coefficient ownership for the SuperNeo v1.2 joint `Pi_CCS` polynomial.
-
-Owns: the selected SuperNeo v1.2 Section 7.3 / Appendix B.2 gamma-block index layout, finite
-alpha coefficient vectors, the three formula-agnostic residual families, and
-the theorem reducing joint coefficient truth to three independently stated
-obligation families.
-
-Does not own: construction of residuals from CCS matrices or witnesses,
-SumCheck rounds, sampled challenges, root counting, Fiat--Shamir, the
-production data-layout refinement, Rust, R1CS, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
@@ -21,8 +8,6 @@ open NightstreamFPrime.Spec.SumCheck
 
 universe uField uLeft uRight
 
-/-- `freshCount`, `runningCount`, `matrixCount`, and `coefficientCount` correspond
-to `K`, `k`, `t`, and `d`. `cubeVariables` is `log m`. -/
 structure Shape where
   cubeVariables : Nat
   freshCount : Nat
@@ -33,6 +18,7 @@ deriving Repr, DecidableEq
 
 namespace Shape
 
+@[implicit_reducible]
 def sourceCount (shape : Shape) : Nat :=
   shape.freshCount + shape.runningCount
 
@@ -77,8 +63,6 @@ theorem constraintOffset_eq (shape : Shape) :
 
 end Shape
 
-/-- A zero-based coordinate for the paper's `Eval_K` coefficient
-`I_K(i,l)`. -/
 structure PadCoordinate (shape : Shape) where
   running : Fin shape.runningCount
   coefficient : Fin shape.coefficientCount
@@ -86,8 +70,6 @@ deriving Repr, DecidableEq
 
 namespace PadCoordinate
 
-/-- The paper's local exponent
-`I_K(i,l) = (i-(K+1)) + k*(l-1)`, with zero-based fields. -/
 def localGammaExponent {shape : Shape}
     (coordinate : PadCoordinate shape) : Nat :=
   coordinate.running.val + shape.runningCount * coordinate.coefficient.val
@@ -98,8 +80,6 @@ def gammaExponent {shape : Shape}
 
 end PadCoordinate
 
-/-- A zero-based coordinate for the paper's `Eval_A` coefficient
-`I_A(i,j,l)`. -/
 structure MatrixCoordinate (shape : Shape) where
   running : Fin shape.runningCount
   matrix : Fin shape.matrixCount
@@ -108,8 +88,6 @@ deriving Repr, DecidableEq
 
 namespace MatrixCoordinate
 
-/-- The paper's local exponent
-`I(i,j,l) = (i-(K+1)) + k*(j-1) + k*t*(l-1)`, with zero-based fields. -/
 def localGammaExponent {shape : Shape}
     (coordinate : MatrixCoordinate shape) : Nat :=
   coordinate.running.val + shape.runningCount * coordinate.matrix.val +
@@ -447,8 +425,7 @@ structure AlphaMonomial (shape : Shape) where
   arity : exponents.length = shape.cubeVariables
 deriving Repr, DecidableEq
 
-/-- Verifier-owned finite basis for polynomials in Appendix B.2's indeterminates
-`A_1, ..., A_logm`. -/
+/-- SuperNeo v1.2 Appendix B.2. -/
 structure AlphaBasis (shape : Shape) where
   monomials : List (AlphaMonomial shape)
   nodup : monomials.Nodup

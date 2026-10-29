@@ -4,13 +4,6 @@ import NightstreamFPrime.Export.Stage1.InvocationLastOutput
 import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns 64 zero-pin rows that bind the four direct PiCCS transcript endpoint
-states to the exact lifecycle compiler variables.
-
-This module does not assemble the other PiCCS leaves.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 
 open NightstreamFPrime.Layout
@@ -25,6 +18,7 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 
 def familyCount : Nat := 4
+@[implicit_reducible]
 def laneCount : Nat := Spec.Poseidon2.width
 def rowCount : Nat := familyCount * laneCount
 
@@ -347,8 +341,8 @@ theorem sourceForm_eval
       apply Fin.ext
       exact output
     subst family
-    rw [sourceForm, dif_pos (by rfl)]
-    rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encoding.outputEndpoint]
+    rw [sourceForm, dite_eq_left (by rfl)]
+    rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encoding.outputEndpoint lane]
     have sourceEq :
         (PiCCSOrdinaryRetainedBlocks.outputEndpointBlock program).source lane =
           RunningTransitionRetainedBlocks.packageSourceColumn program
@@ -366,7 +360,7 @@ theorem sourceForm_eval
         norm_num [PiCCSStarts.statementWitnessStart_eq,
           PiCCSOrdinarySourceSupport.transcriptInvocationCount_eq]
         omega)).symm
-  · rw [sourceForm, dif_neg output,
+  · rw [sourceForm, dite_eq_right output,
       PiCCSOrdinaryDirectPlan.Location.form_eval geometry assignment base
         groupValue encoding]
     rw [PiCCSOrdinaryDirectPlan.Location.sourceColumn, proofLogicalIndex_source]
@@ -749,7 +743,6 @@ private theorem zeroState_eq_evalZero (env : Env) :
   unfold Spec.Poseidon2.zeroState Layer.evalState Hash.zeroE
   change List.replicate 16 0 = List.ofFn (fun _ : Fin 16 => (0 : F))
   norm_num [List.ofFn_succ]
-  rfl
 
 theorem statementActions_eq_of_shape
     (relationLogicalWidth : Nat)
@@ -1214,7 +1207,6 @@ theorem transcriptOutputs_of_forms
           (PiCCSOrdinaryRetainedGeometry.poseidonGeometry ordinaryGeometry)
           (Fin.decodeProd slot).1 (Fin.decodeProd slot).2).eval assignment := by
       rw [PiCCSOrdinaryDirectPlan.Location.form_transcriptOutput]
-      rfl
     _ = _ := by
       rw [stateEq]
       rfl

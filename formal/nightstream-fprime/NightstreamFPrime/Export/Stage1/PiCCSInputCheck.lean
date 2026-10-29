@@ -4,16 +4,6 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 
-/-!
-Owns an executable PiCCS check on caller-supplied messages and running claims.
-It does not construct a proof or establish valid openings.
-Input schema: [2, commitment[1188], public[270], rounds[28][9][2],
-Eval_K[17][54][2], Eval_A[17][4][54][2], running]. The running statement is
-[point[28][2], commitments[16][1188], public[16][270],
-Eval_K[16][54][2], Eval_A[16][4][54][2]]. Words are canonical Goldilocks
-integers. The file is canonical numeric JSON with an optional final newline.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 
 open NightstreamFPrime.Export.Codec

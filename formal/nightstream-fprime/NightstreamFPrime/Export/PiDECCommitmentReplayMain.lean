@@ -4,13 +4,6 @@ import NightstreamFPrime.Export.Stage1.PiDECCommitmentFold
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit
 
-/-!
-Accumulate a selected range of PiDEC commitment contributions from a Lean
-parent file. Keys and signed digits are computed here. Expected commitments
-are not inputs. Missing parent blocks denote zero; all sixteen children and
-twenty-two key rows are included in the returned partial sum.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiDECCommitmentReplay

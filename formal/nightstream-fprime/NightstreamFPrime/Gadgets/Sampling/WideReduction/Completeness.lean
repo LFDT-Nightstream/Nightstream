@@ -61,14 +61,14 @@ variable {base : Env} {offset draw : Nat} {check : Nat → Nat}
 theorem completedEnv_below (index : Nat) (below : index < quotientStart offset) :
     completedEnv base offset draw check index = base index := by
   unfold completedEnv
-  rw [if_neg (by omega)]
+  rw [ite_eq_right (by omega)]
 
 theorem quotientBit_eval (bit : Nat) (below : bit < quotientBitCount) :
     ((quotientBit offset bit).eval (completedEnv base offset draw check)).val =
       draw / scalarCount / 2 ^ bit % 2 := by
   change (completedEnv base offset draw check (quotientStart offset + bit)).val = _
   unfold completedEnv honestNew
-  rw [if_pos (by simp [newBitCount] at *; omega), Nat.add_sub_cancel_left, if_pos below,
+  rw [ite_eq_left (by simp [newBitCount] at *; omega), Nat.add_sub_cancel_left, ite_eq_left below,
     honestBit_val]
 
 theorem digitBit_eval (digit bit : Nat) (digitBelow : digit < digitCount)
@@ -80,7 +80,7 @@ theorem digitBit_eval (digit bit : Nat) (digitBelow : digit < digitCount)
   unfold completedEnv honestNew
   simp only [digitStart, digitCount, digitBitCount, quotientBitCount, checkBias,
     newBitCount, checkBitCount] at *
-  rw [if_pos (by omega), if_neg (by omega), if_pos (by omega), honestBit_val]
+  erw [ite_eq_left (by omega), ite_eq_right (by omega), ite_eq_left (by omega), honestBit_val]
   have quotientDigit :
       (quotientStart offset + 131 + 3 * digit + bit - quotientStart offset - 131) / 3 = digit := by
     omega
@@ -98,7 +98,7 @@ theorem checkBit_eval (index : Nat) (bit : Nat) (bitBelow : bit < checkBitCount)
   unfold completedEnv honestNew
   simp only [checkStart, digitStart, digitCount, digitBitCount, quotientBitCount, checkBias,
     newBitCount, checkBitCount, checkCount] at *
-  rw [if_pos (by omega), if_neg (by omega), if_neg (by omega), honestBit_val]
+  erw [ite_eq_left (by omega), ite_eq_right (by omega), ite_eq_right (by omega), honestBit_val]
   have quotientIndex :
       (quotientStart offset + 131 + 54 * 3 + 10 * index + bit - quotientStart offset -
         (131 + 54 * 3)) / 10 = index := by
@@ -116,7 +116,7 @@ theorem newVariable_bit (position : Nat) :
   by_cases below : position < newBitCount
   · left
     unfold completedEnv
-    rw [if_pos (by omega), Nat.add_sub_cancel_left]
+    rw [ite_eq_left (by omega), Nat.add_sub_cancel_left]
     have bitValue : ∀ value : Nat, honestBit value * (honestBit value - 1) = 0 := by
       intro value
       rcases Nat.mod_two_eq_zero_or_one value with zero | one
@@ -269,7 +269,7 @@ theorem completeNew_agreesOutside (interface : Interface) (base : Env) (offset :
     AgreesOutside base (completeNew interface base offset) (quotientStart offset) newBitCount := by
   intro index outside
   unfold completeNew completedEnv
-  rw [if_neg (by omega)]
+  rw [ite_eq_right (by omega)]
 
 theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hint) (base : Env)
     (offset : Nat)
@@ -378,7 +378,7 @@ theorem completeNew_certificate (interface : Interface) (hints : Nat → List Hi
     have divides : m ∣ left index - right index :=
       (Nat.modEq_iff_dvd' ordered).mp (rightModEq.trans leftModEq.symm)
     have quotientEq : quotients index.val = (left index - right index) / m := by
-      simp only [quotients, checkQuotients, dif_pos index.isLt, Fin.eta]
+      simp only [quotients, checkQuotients, dite_eq_left index.isLt, Fin.eta]
       rfl
     refine ⟨?_, ?_⟩
     · rw [quotientEq, Nat.mul_div_cancel' divides]

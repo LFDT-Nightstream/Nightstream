@@ -2,37 +2,13 @@ import CompressionLean.Final.Parent
 import NightstreamFPrime.Spec.AjtaiSetupV1
 import Mathlib.Data.List.Sort
 
-/-!
-Owns the Lean port of Rust's layer-1 setup of the F′ circuit and of the sizes
-that Rust passes for the PiRLC parent. From them it proves the premises of
-`parent_holds`.
-
-- `build`: `neo_spartan::Setup::build` (`lib.rs`, `key` and `oracle`) over
-  `Tables::from_rows` (`matrix.rs`), from the runs that
-  `MatrixRows::visit_rows` pushes (`Push`).
-- `ReadsBack`: the setup's runs are the pushed runs in some order, each with
-  its row, matrix and coefficient, and its slot gives its start, length and
-  ratio. `readsBack_of_build` proves it of `build`. The Rust test
-  `derived_structure_steps_read_back_the_runs` checks it of `from_rows`.
-- `honestSetup_of_build`: `HonestSetup` for the key of the seeded Ajtai setup
-  (`AjtaiSetupV1.Setup.verifierKey`), when the pushed runs give F′'s matrices
-  (`RunsGive`).
-- `parentShape_of`: `ParentShape` from Rust's constants.
-
-Does not own the source of the runs (`PackageRows` over F′'s package) or the
-parity of Rust's SHAKE128 expander with `AjtaiSetupV1`.
--/
+/-! Rust test `derived_structure_steps_read_back_the_runs` checks `ReadsBack` of `from_rows`. -/
 
 namespace CompressionLean.Final
 
 open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-! ## The pushed runs -/
-
-/-- One `MatrixRowSink::push_run`: the row, the matrix and the
-`GeometricRowRun`. The run gives column `start + t`, `t < len`, the value
-`initial·ratio^t`. -/
 structure Push where
   row : ℕ
   matrix : ℕ
@@ -43,38 +19,28 @@ structure Push where
 
 namespace Push
 
-/-- The padding run of the setup columns: all zero. -/
 def pad : Push := ⟨0, 0, 0, 0, 0, 0⟩
 
-/-- The value that the run gives column `c`. -/
 def value (p : Push) (c : ℕ) : Gl :=
   if p.start ≤ c ∧ c < p.start + p.len then p.initial * p.ratio ^ (c - p.start) else 0
 
-/-- `Class::ratio`: the canonical ratio, and one for a run of one column. -/
 def ratioWord (p : Push) : ℕ := if p.len = 1 then 1 else p.ratio.val
 
-/-- `Class` as one number. Its order is the derived order of `(len, ratio)`. -/
 def classCode (p : Push) : ℕ := p.len * 2 ^ 64 + p.ratioWord
 
 end Push
 
-/-- Entry `(i, c)` of matrix `j` as the pushed runs give it. -/
 def pushedEntry (pushes : List Push) (j i c : ℕ) : Gl :=
   (pushes.map fun p => if p.matrix = j ∧ p.row = i then p.value c else 0).sum
 
 variable {lw : ℕ} {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
 
-/-- **The source premise.** The pushed runs name rows of the cube, and they
-give every entry of every completed CCS matrix of `relation`, row `i` in F′'s
-little-endian order. -/
 structure RunsGive (pushes : List Push) (relation : ProductionKey.LogicalRelation lw pf) : Prop where
   row_lt : ∀ p ∈ pushes, p.row < 2 ^ cubeVariables
   entry : ∀ (j : Fin productionProfile.ccsMatrices) (i : ℕ) (c : Fin (Phi81CarrierLayout.carrierWidth lw)),
     i < 2 ^ cubeVariables →
       pushedEntry pushes j i c = gl ((PaperAlgebra.matrixSource relation.system).matrices j (vertexAt cubeVariables i) c)
 
-/-- Run `k` of the setup is `runs[k]`: its row, matrix and coefficient, and a
-slot with its start, its length and, past one column, its ratio. -/
 structure Lists (S : Layer1.Setup Gl) (runs : List Push) : Prop where
   count : S.runs = runs.length
   run : ∀ k, k < runs.length →
@@ -84,11 +50,8 @@ structure Lists (S : Layer1.Setup Gl) (runs : List Push) : Prop where
       S.slotLength (S.runSlot k) = (runs.getD k Push.pad).len ∧
       ((runs.getD k Push.pad).len = 1 ∨ S.slotRatio (S.runSlot k) = (runs.getD k Push.pad).ratio)
 
-/-- The setup's runs are the pushed runs in some order. -/
 def ReadsBack (S : Layer1.Setup Gl) (pushes : List Push) : Prop :=
   ∃ runs, runs.Perm pushes ∧ Lists S runs
-
-/-! ## Entries from the runs -/
 
 theorem sum_range_getD {M : Type} [AddCommMonoid M] (g : Push → M) :
     ∀ l : List Push, ∑ k ∈ Finset.range l.length, g (l.getD k Push.pad) = (l.map g).sum
@@ -97,7 +60,6 @@ theorem sum_range_getD {M : Type} [AddCommMonoid M] (g : Push → M) :
       rw [List.length_cons, Finset.sum_range_succ', List.map_cons, List.sum_cons, add_comm]
       simp only [List.getD_cons_succ, List.getD_cons_zero, sum_range_getD g l]
 
-/-- A setup that reads back the pushed runs gives the entries that they give. -/
 theorem runEntry_eq {S : Layer1.Setup Gl} {pushes : List Push} (back : ReadsBack S pushes) (j i c : ℕ) :
     runEntry S ringDegree j i c = pushedEntry pushes j i c := by
   obtain ⟨runs, perm, lists⟩ := back
@@ -119,7 +81,6 @@ theorem runEntry_eq {S : Layer1.Setup Gl} {pushes : List Push} (back : ReadsBack
     by_cases hm : p.matrix = j <;> by_cases hr : p.row = i <;> simp [hm, hr, hin, power]
   · by_cases hm : p.matrix = j <;> by_cases hr : p.row = i <;> simp [hm, hr, hin]
 
-/-- The rows of a setup that reads back the pushed runs are theirs. -/
 theorem runRow_mem {S : Layer1.Setup Gl} {pushes : List Push} (back : ReadsBack S pushes) {k : ℕ}
     (inside : k < S.runs) : ∃ p ∈ pushes, S.runRow k = p.row := by
   obtain ⟨runs, perm, lists⟩ := back
@@ -128,50 +89,32 @@ theorem runRow_mem {S : Layer1.Setup Gl} {pushes : List Push} (back : ReadsBack 
   rw [List.getD_eq_getElem _ _ inside]
   exact List.getElem_mem inside
 
-/-! ## The port of `Tables::from_rows` and `key` -/
-
-/-- Sorted distinct values: a `BTreeSet`, or a sort and a `dedup`. -/
 def sortedSet (l : List ℕ) : List ℕ := l.dedup.insertionSort (· ≤ ·)
 
 theorem mem_sortedSet {l : List ℕ} {x : ℕ} : x ∈ sortedSet l ↔ x ∈ l := by
   rw [sortedSet, List.mem_insertionSort, List.mem_dedup]
 
-/-- `Collect` keeps the runs of each matrix in visit order, and `from_rows`
-puts the matrices in order. -/
 def runList (matrices : ℕ) (pushes : List Push) : List Push :=
   (List.range matrices).flatMap fun j => pushes.filter fun p => p.matrix = j
 
-/-- The run classes, sorted. -/
 def classesOf (runs : List Push) : List ℕ := sortedSet (runs.map Push.classCode)
 
-/-- The slot key of a run: its class, lane and block in one word, class high.
-Rust packs it in a `u64` as `class << 40 | lane << 32 | block`. The port is
-that word while the blocks are below `2^32` and the classes at most `2^24`;
-`from_rows` refuses wider keys. -/
+/-- Rust packs this key as `class << 40 | lane << 32 | block`; valid while blocks are below `2^32` and classes at most `2^24` (`from_rows` refuses wider keys). -/
 def slotKey (classes : List ℕ) (p : Push) : ℕ :=
   classes.idxOf p.classCode * 2 ^ 40 + p.start % ringDegree * 2 ^ 32 + p.start / ringDegree
 
-/-- The slots, sorted. -/
 def keysOf (runs : List Push) : List ℕ := sortedSet (runs.map (slotKey (classesOf runs)))
 
-/-- The start column of slot `σ`: its block times `D` plus its lane. -/
 def slotStart (keys : List ℕ) (σ : ℕ) : ℕ :=
   keys.getD σ 0 % 2 ^ 32 * ringDegree + keys.getD σ 0 / 2 ^ 32 % 2 ^ 8
 
-/-- The class of slot `σ`. -/
 def slotClass (runs : List Push) (σ : ℕ) : ℕ :=
   (classesOf runs).getD ((keysOf runs).getD σ 0 / 2 ^ 40) 0
 
-/-- Key row `i` on the cube (`oracle`): coefficient `l` of the seeded Ajtai
-key element `(i, b)` at `2^6·b + l` for `l < 54` and `b < blocks`, and zero
-elsewhere. -/
 def seedKey (seed : List ℕ) (blocks i x : ℕ) : Gl :=
   if x % 64 < ringDegree ∧ x / 64 < blocks then (AjtaiSetupV1.wideCoefficientNat seed i (x / 64) (x % 64) : Gl)
   else 0
 
-/-- The setup that `Setup::build` writes for the runs in setup order: the key
-rows, the run columns (row, slot, coefficient, zero past the runs) and per
-slot its block, lane, length and ratio. -/
 def setupOfRuns (seed : List ℕ) (blocks : ℕ) (runs : List Push) : Layer1.Setup Gl where
   key := seedKey seed blocks
   runRow k := (runs.getD k Push.pad).row
@@ -185,9 +128,6 @@ def setupOfRuns (seed : List ℕ) (blocks : ℕ) (runs : List Push) : Layer1.Set
   slotRatio σ := ((slotClass runs σ % 2 ^ 64 : ℕ) : Gl)
   slots := (keysOf runs).length
 
-/-- The checks of `from_rows` and `key` on the columns and the runs: whole
-blocks, a matrix, one to `MAX_MESSAGE_COLUMNS` blocks, and runs of a matrix
-in range, no longer than a block, that end inside the columns. -/
 def Accepts (columns matrices : ℕ) (pushes : List Push) : Prop :=
   columns % ringDegree = 0 ∧ 0 < matrices ∧ 0 < columns / ringDegree ∧ columns / ringDegree ≤ 4708530 ∧
     ∀ p ∈ pushes, p.matrix < matrices ∧ p.len ≤ ringDegree ∧ p.start + p.len ≤ columns
@@ -196,13 +136,9 @@ instance (columns matrices : ℕ) (pushes : List Push) : Decidable (Accepts colu
   unfold Accepts
   infer_instance
 
-/-- `Setup::build` over `columns` columns and `matrices` matrices: the setup,
-or `none` where Rust stops with an error. -/
 def build (seed : List ℕ) (columns matrices : ℕ) (pushes : List Push) : Option (Layer1.Setup Gl) :=
   if Accepts columns matrices pushes then some (setupOfRuns seed (columns / ringDegree) (runList matrices pushes))
   else none
-
-/-! ## The port reads back the runs -/
 
 theorem runList_perm (pushes : List Push) :
     ∀ m, (runList m pushes).Perm (pushes.filter fun p => p.matrix < m)
@@ -241,8 +177,6 @@ theorem slotKey_eq {classes : List ℕ} {p : Push} (block : p.start / ringDegree
 theorem getD_idxOf {l : List ℕ} {x : ℕ} (member : x ∈ l) : l.getD (l.idxOf x) 0 = x := by
   rw [List.getD_eq_getElem _ _ (List.idxOf_lt_length_of_mem member), List.getElem_idxOf]
 
-/-- The port of `from_rows` lists its runs, when every run starts in a block
-below `2^32`, so that the slot key keeps its block. -/
 theorem lists_setupOfRuns (seed : List ℕ) (blocks : ℕ) (runs : List Push)
     (block : ∀ p ∈ runs, p.start / ringDegree < 2 ^ 32) : Lists (setupOfRuns seed blocks runs) runs := by
   refine ⟨rfl, fun k inside => ?_⟩
@@ -262,7 +196,7 @@ theorem lists_setupOfRuns (seed : List ℕ) (blocks : ℕ) (runs : List Push)
     · exact (ZMod.val_lt p.ratio).trans (by norm_num [goldilocksModulus])
   have cls : slotClass runs ((keysOf runs).idxOf (slotKey (classesOf runs) p)) = p.classCode := by
     rw [slotClass, key, index, code]
-  simp only [setupOfRuns, if_pos inside]
+  simp only [setupOfRuns, ite_eq_left inside]
   refine ⟨rfl, rfl, rfl, ?_, ?_, ?_⟩
   · rw [slotStart, key, start]
     exact Nat.div_add_mod p.start ringDegree
@@ -272,10 +206,8 @@ theorem lists_setupOfRuns (seed : List ℕ) (blocks : ℕ) (runs : List Push)
     · exact Or.inl one
     · right
       rw [cls, Push.classCode, show (p.len * 2 ^ 64 + p.ratioWord) % 2 ^ 64 = p.ratioWord by omega,
-        Push.ratioWord, if_neg one, ZMod.natCast_zmod_val]
+        Push.ratioWord, ite_eq_right one, ZMod.natCast_zmod_val]
 
-/-- **The port reads back the runs.** A setup that `build` returns lists the
-pushed runs in setup order. -/
 theorem readsBack_of_build {seed : List ℕ} {columns matrices : ℕ} {pushes : List Push} {S : Layer1.Setup Gl}
     (built : build seed columns matrices pushes = some S) :
     ReadsBack S pushes ∧ S.key = seedKey seed (columns / ringDegree) := by
@@ -292,17 +224,11 @@ theorem readsBack_of_build {seed : List ℕ} {columns matrices : ℕ} {pushes : 
   simp only [Nat.reducePow]
   omega
 
-/-! ## The honest setup and the shape -/
-
 theorem gl_natCast (n : ℕ) (small : n < goldilocksModulus) : ((n : ℕ) : Gl) = gl ⟨n, small⟩ := by
   apply ZMod.val_injective
   rw [ZMod.val_natCast, Nat.mod_eq_of_lt small]
   rfl
 
-/-- **The honest setup from the port.** A setup that `build` returns for the
-seed of an Ajtai setup, over the carrier's columns and F′'s four matrices, is
-an honest setup for that setup's key, when the pushed runs give F′'s
-matrices. -/
 theorem honestSetup_of_build (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
       (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)))
@@ -319,7 +245,7 @@ theorem honestSetup_of_build (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : 
     have lane := l.isLt
     have low : (64 * b.val + l.val) % 64 = l.val := by simp only [ringDegree] at lane; omega
     have high : (64 * b.val + l.val) / 64 = b.val := by simp only [ringDegree] at lane; omega
-    rw [key, lanes, seedKey, show (2 : ℕ) ^ 6 = 64 from rfl, low, high, blocks, if_pos ⟨lane, b.isLt⟩]
+    rw [key, lanes, seedKey, show (2 : ℕ) ^ 6 = 64 from rfl, low, high, blocks, ite_eq_left ⟨lane, b.isLt⟩]
     exact gl_natCast _ _
   · obtain ⟨p, member, row⟩ := runRow_mem back inside
     rw [row]
@@ -327,14 +253,7 @@ theorem honestSetup_of_build (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : 
   · rw [D, runEntry_eq back]
     exact gives.entry j i c inside
 
-/-- **Rust's sizes.** `Relation::new` for the parent gets `D = 54`
-(`neo_math::D`), six lane variables (`LANE_VARIABLES`), `κ = 22`
-(`PRODUCTION_VERIFIER_ROWS`), four matrices, five public blocks
-(`PI_CCS_V1_2_PRIOR_PUBLIC_INPUT_WORDS / D`), the `⌈lw / 54⌉` blocks of the
-key, and `H = 3672` (`compression_bound`). These give `ParentShape`. The Rust
-tests `relation_shape_has_the_lean_constants` (`neo-spartan`) and
-`parent_relation_arguments_are_the_lean_constants` (`nightstream`) pin the
-same numbers. -/
+/-- Rust tests `relation_shape_has_the_lean_constants` and `parent_relation_arguments_are_the_lean_constants` pin these numbers. -/
 theorem parentShape_of (s : Layer1.Shape) (lw : ℕ) (D : s.D = 54) (lanes : s.laneVars = 6)
     (kappa : s.kappa = 22) (matrices : s.matrices = 4) (publicBlocks : s.publicBlocks = 5)
     (blocks : s.blocks = (lw + 53) / 54) (norm : s.normBound = 3672) : ParentShape s lw where

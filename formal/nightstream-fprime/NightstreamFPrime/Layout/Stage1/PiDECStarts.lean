@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.PiDECInputs
 
-/-!
-Owns all constrained-input, logical, physical-row, and R1CS-fresh starts for
-the canonical PiDEC Stage 1 packet. Export modules consume these definitions
-and do not restate layout constants.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiDECStarts
 
 open NightstreamFPrime.Lifecycle.PiDEC.v1_2

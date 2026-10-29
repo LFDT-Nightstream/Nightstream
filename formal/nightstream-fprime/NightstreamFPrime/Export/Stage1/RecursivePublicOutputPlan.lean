@@ -4,16 +4,6 @@ import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectPlan
 import NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignment
 import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
 
-/-!
-Owns the four final relation rows that bind the recursive public instance to
-the digest produced by the augmented step. The 270 public coordinates encode
-`encHash(outputDigest)`; the prior-state public link remains retained private
-advice in the low-norm relation.
-
-It decodes each public digest word with the exact HyperNova `decodeHashWord`
-weights and equates it to the existing constrained pilot output-digest form.
--/
-
 namespace NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
 
 open NightstreamFPrime.Layout
@@ -244,7 +234,7 @@ theorem rowsZero_iff_matches
     change (difference geometry word).eval assignment = 0
     unfold difference
     rw [SparseForm.add_eval, SparseForm.scale_eval,
-      publicWordForm_eval, matching word]
+      publicWordForm_eval (word := word), matching word]
     simp
 
 theorem Matches.outputDigest_eq_decodeHash

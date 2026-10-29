@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.StoredWitnessExecution
 import NightstreamFPrime.Export.RowSemantics
 
-/-!
-Stored execution of the existing ordinary witness instruction.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.StoredInstructionExecution

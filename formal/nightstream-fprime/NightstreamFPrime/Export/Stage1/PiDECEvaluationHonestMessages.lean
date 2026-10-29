@@ -3,12 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights
 import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 
-/-!
-Compute the selected child Pad and matrix evaluation families from the same
-stored assignments and parent point, then connect them to the honest PiDEC
-messages.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECEvaluationHonestMessages

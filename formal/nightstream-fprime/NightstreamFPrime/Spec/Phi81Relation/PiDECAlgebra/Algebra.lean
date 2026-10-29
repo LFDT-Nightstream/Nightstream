@@ -1,21 +1,6 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Commitment
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PublicInput
 
-/-!
-Complete typed Phi81 algebra used by the semantic `Pi_DEC` verifier.
-
-Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 16`.
-
-Owns: one concrete `PiDEC.Algebra` assembled from deterministic signed-binary
-splitting, exact assignment recomposition, typed Ajtai commitment
-recomposition, whole-ring public-input recomposition, exact evaluation
-recomposition, and both production norm directions.
-
-Does not own: child CE membership, PiCCS or PiRLC acceptance, Ajtai/MSIS
-binding security, key generation or serialization, transcript binding, NIFS
-composition, Rust/R1CS refinement, row removal, or constraint counts.
--/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Algebra
 
 open NightstreamFPrime.Spec

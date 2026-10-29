@@ -4,12 +4,6 @@ import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 import NightstreamFPrime.Export.Stage1.PiDECProductRow
 
-/-!
-Measure existing matrix-row evaluation at the first and last valid row of
-every compact program block. Poseidon rows use the proved numeric evaluator.
-The coordinate-derived read is a feasibility probe, not witness conformance.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiDECMatrixRowsMeasure

@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.MatrixProgram
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectSource
 
-/-! The physical row schedule for checked reduction and coefficient words,
-in scalar order. Each scalar contributes two intervals around its advance
-permutation. The permutation has its own matrix plan. -/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryMatrixSchedule
 
 open NightstreamFPrime.Layout.MatrixProgram NightstreamFPrime.Layout.Stage1
@@ -55,7 +51,7 @@ private theorem sourceRanges_valid (source minimum limit : Nat) (suffix : List I
   simp [sourceRanges, reductionRange, wordRange, validIndexRanges, IndexRange.endExclusive,
     PiRLCStarts.rangeRowStart, PiRLCStarts.challengeWordRowStart, PiRLCStarts.advanceRowStart,
     minimumLe, endLe, suffixValid]
-  all_goals omega
+  exact decide_eq_true (by omega)
 
 private theorem sourceInterval_valid (start count minimum limit : Nat)
     (minimumLe : minimum ≤ PiRLCStarts.samplerSourceRowStart start + 1096)

@@ -1,9 +1,6 @@
 import NightstreamFPrime.Layout.Range.CanonicalU64
 import NightstreamFPrime.Gadgets.Sampling.WideReduction.Program
 
-/-! Structural R1CS cost of the unchanged checked range gadget. This is the
-witness-construction view used by the production sampler layout. -/
-
 namespace NightstreamFPrime.Layout.Sampling.WideReduction
 
 open NightstreamFPrime.Spec NightstreamFPrime.Circuit

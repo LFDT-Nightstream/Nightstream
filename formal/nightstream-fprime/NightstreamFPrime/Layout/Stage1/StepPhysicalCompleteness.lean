@@ -2,14 +2,6 @@ import NightstreamFPrime.Layout.Stage1.StepWitnessPrefix
 import NightstreamFPrime.Layout.Stage1.SpartanRows
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 
-/-!
-Owns sequential physical witness construction for the selected semantic step.
-Each phase is lowered before the next logical phase is constructed. Earlier
-physical rows are preserved below their certified endpoints. The final source
-is copied through the existing Spartan inverse; no row representation or
-caller-supplied physical witness is introduced.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness
 
 open NightstreamFPrime.Spec
@@ -339,7 +331,7 @@ private def spartan_copy (source : Env) : Env := fun column =>
 
 private theorem spartan_copy_source (source : Env) (column : Nat) (bound : column < Spartan.SourceColumnCount) :
     Spartan.pullback (spartan_copy source) column = source column := by
-  simp only [Spartan.pullback, spartan_copy, if_neg (Spartan.sourceToSpartan_ne_constant column bound),
+  simp only [Spartan.pullback, spartan_copy, ite_eq_right (Spartan.sourceToSpartan_ne_constant column bound),
     Spartan.spartanToSource_sourceToSpartan column bound, Option.map_some, Option.getD_some]
 
 theorem complete

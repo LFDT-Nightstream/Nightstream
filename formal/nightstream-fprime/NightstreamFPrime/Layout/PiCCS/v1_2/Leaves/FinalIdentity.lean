@@ -505,12 +505,12 @@ def footprint
   freshColumnCount_eq := by
     intro offset
     unfold Formal.finalIdentityCircuit
-    rw [FormalCircuit.withConstantFootprint_main]
+    erw [FormalCircuit.withConstantFootprint_main]
     exact core_totalFreshCount _ offset (inputs offset)
   physicalRowCount_eq := by
     intro offset
     unfold Formal.finalIdentityCircuit
-    rw [FormalCircuit.withConstantFootprint_main]
+    erw [FormalCircuit.withConstantFootprint_main]
     exact core_totalRowCount _ offset (inputs offset)
 
 theorem freshColumnCount_eq

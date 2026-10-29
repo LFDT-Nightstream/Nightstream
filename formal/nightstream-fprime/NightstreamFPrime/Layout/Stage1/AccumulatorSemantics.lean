@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.AccumulatorInputs
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 
-/-!
-Owns the deterministic cross-phase semantics of the Stage 1 accumulator.
-
-The proofs identify the existing zero-copy PiRLC and PiDEC views with the one
-production NIFS verifier graph. This module emits no row and does not inspect
-the canonical artifact.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
 
 open NightstreamFPrime.Circuit

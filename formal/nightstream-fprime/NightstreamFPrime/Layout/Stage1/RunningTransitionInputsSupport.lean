@@ -2,8 +2,6 @@ import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
 import NightstreamFPrime.Layout.Stage1.RunningTransitionOutputSupport
 import NightstreamFPrime.Layout.Stage1.RunningTransitionRecursiveSupport
 
-/-! Owns compact support for the complete running-transition interface. -/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 
 open NightstreamFPrime.Circuit

@@ -3,12 +3,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 import NightstreamFPrime.Spec.GoldilocksPrime
 
-/-!
-Owns the round representability of the paper PiCCS polynomial at the
-verifier's selected width: after `α` and `γ`, every round polynomial of every
-prefix fits in that width. `RoundByRound` consumes it.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
 
 open NightstreamFPrime.Spec

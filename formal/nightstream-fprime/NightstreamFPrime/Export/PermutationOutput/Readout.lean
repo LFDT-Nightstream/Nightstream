@@ -1,11 +1,5 @@
 import NightstreamFPrime.Export.PermutationOutput
 
-/-!
-Owns readout of a contiguous family of canonical Poseidon2 permutations.
-Address proofs use symbolic family geometry, so their cost does not depend
-on a concrete package layout. No row acceptance is assumed by the readout.
--/
-
 namespace NightstreamFPrime.Export.PermutationOutput.Readout
 
 open NightstreamFPrime.Circuit
@@ -47,8 +41,8 @@ theorem decode_outputColumn (start : Nat) {count : Nat}
   have quotient : (index.val * 1096 + lane.val) / 1096 = index.val := by omega
   have remainder : (index.val * 1096 + lane.val) % 1096 = lane.val := by omega
   unfold decode
-  rw [dif_pos lower]
-  simp only [offset, quotient, remainder, dif_pos index.isLt, dif_pos lane.isLt]
+  rw [dite_eq_left lower]
+  simp only [offset, quotient, remainder, dite_eq_left index.isLt, dite_eq_left lane.isLt]
 
 theorem decode_source (start : Nat) {count column : Nat}
     {index : Fin count} {lane : Fin 16}

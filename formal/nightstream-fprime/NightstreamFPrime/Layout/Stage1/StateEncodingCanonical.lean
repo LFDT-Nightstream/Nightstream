@@ -1,12 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.StateDecoder
 
-/-!
-Owns the fixed-word checks for an honestly serialized Stage 1 state. The
-serializer starts with the constant domain chunk that PiCCS StateBinding pins,
-and places the context words at the start of the tail. This adds no rows or
-alternate state representation.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Layout.Stage1.StateEncodingCanonical

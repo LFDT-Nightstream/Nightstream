@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Lifecycle.VerifierContext
 
-/-! Shared input and file boundary for the isolated parity executables. -/
-
 namespace NightstreamFPrime.Export.ParityEmitter
 
 open NightstreamFPrime.Export.Codec

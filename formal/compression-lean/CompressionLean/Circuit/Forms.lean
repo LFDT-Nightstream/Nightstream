@@ -3,29 +3,10 @@ import CompressionLean.Circuit.Valid
 import CompressionLean.Circuit.Rows
 import Mathlib.Tactic.LinearCombination
 
-/-!
-Owns what the rows of each lowering step say about its forms: the value of a
-form at the wire values `v` (`Form.evaluate`), and for each part of the
-lowering, the fact that its rows give about its result (`Sound`).
-
-- `Form.evaluate` is `Form::evaluate` (`record.rs:78-88`): the terms, and the
-  constant on the one column. Merging terms, dropping zero coefficients and
-  moving the constant onto the one column keep the value, so a form's row
-  terms have its value (`termsValue_rowTerms`, `combine_value`).
-- `State.Holds`: every row of every call holds at `v`, and every block's
-  output cells are `perm` of its input cells.
-- `Sound v perm m Q`: `m` only adds calls, glue cells and blocks
-  (`State.Adds`), and its result has `Q` whenever its end state holds. The
-  rows of a part are in its end state, and the end state of a run holds, so
-  each part may use its own rows.
--/
-
 namespace CompressionLean.Shrink
 
 variable {F : Type} [CommRing F]
 
-/-- `Form::evaluate` (`record.rs:78-88`): the terms, and the constant on the
-one column. -/
 def Form.evaluate (v : Wire → F) (f : Form F) : F := termsValue v f.terms + f.constant * v (.pub 0)
 
 @[simp] theorem termsValue_nil (v : Wire → F) : termsValue v ([] : List (Wire × F)) = 0 := rfl
@@ -121,8 +102,6 @@ theorem termsValue_expand (side : List (ℕ × F)) (columns : List (Form F)) :
         rw [termsValue_nil, zero]
         ring
 
-/-- A row call of at most three products holds when its products sum to its
-linear side. -/
 theorem ofCall_holds {products : List (List (Wire × F) × List (Wire × F))} {linear : List (Wire × F)}
     (three : products.length ≤ 3) (holds : (GlueRow.ofCall products linear).Holds v) :
     (products.map fun p => termsValue v p.1 * termsValue v p.2).sum = termsValue v linear := by
@@ -150,8 +129,6 @@ theorem termsValue_filter (terms : List (Wire × F)) :
       · rw [List.filter_cons_of_neg (by simp [zero]), ih, termsValue_cons, zero, zero_mul, zero_add]
       · rw [List.filter_cons_of_pos (by simp [zero]), termsValue_cons, termsValue_cons, ih]
 
-/-- `combine` keeps the value: its terms and its constant on the one column are
-`Σ weight·value`. -/
 theorem combine_value (parts : List (Form F × F)) :
     termsValue v (combine parts).1 + (combine parts).2 * v (.pub 0) =
       (parts.map fun p => p.1.evaluate v * p.2).sum := by
@@ -182,16 +159,12 @@ section Logic
 
 variable {F : Type} [Field F] (v : Wire → F) (perm : List F → List F)
 
-/-- Block `b`'s output cells are `perm` of its input cells. -/
 def BlockPermutes (b : ℕ) : Prop :=
   List.ofFn (fun k : Fin 16 => v (.block b (outputCell + k))) = perm (List.ofFn fun k : Fin 16 => v (.block b k))
 
-/-- Every row of every call holds at `v`, and every block permutes. -/
 def State.Holds (s : State F) : Prop :=
   (∀ c ∈ s.calls, ∀ row ∈ c.rows, row.Holds v) ∧ ∀ b < s.blocks, BlockPermutes v perm b
 
-/-- `t` is `s` with more calls, glue cells and blocks; its values and statement
-words are those of `s`. -/
 structure State.Adds (s t : State F) : Prop where
   calls : ∀ c ∈ s.calls, c ∈ t.calls
   blocks : s.blocks ≤ t.blocks
@@ -211,8 +184,6 @@ theorem State.Holds.mono {s t : State F} (calls : ∀ c ∈ s.calls, c ∈ t.cal
     (h : t.Holds v perm) : s.Holds v perm :=
   ⟨fun c hc => h.1 c (calls c hc), fun b hb => h.2 b (lt_of_lt_of_le hb blocks)⟩
 
-/-- `m` only adds calls, glue cells and blocks, and its result has `Q`
-whenever the rows and blocks of its end state hold. -/
 def Sound {α : Type} (m : Lower F α) (Q : α → Prop) : Prop :=
   ∀ s, s.Adds (go m s).2 ∧ ((go m s).2.Holds v perm → Q (go m s).1)
 
@@ -282,9 +253,9 @@ theorem form_sound (terms : List (Wire × F)) (constant : F) :
     Sound v perm (form terms constant) fun f => f.evaluate v = termsValue v terms + constant * v (.pub 0) := by
   unfold form
   by_cases short : terms.length ≤ 4
-  · rw [if_pos short]
+  · rw [ite_eq_left short]
     exact Sound.pure rfl
-  rw [if_neg short]
+  rw [ite_eq_right short]
   refine cell_sound.bind fun c => (row_sound _ _ _).bind fun _ => Sound.pure fun holds isCell => ?_
   obtain ⟨c, rfl⟩ := isCell
   have row := ofCall_holds v (by simp) holds
@@ -305,18 +276,18 @@ theorem mul_sound (one : v (.pub 0) = 1) (a b : Form F) :
     Sound v perm (mul a b) fun f => f.evaluate v = a.evaluate v * b.evaluate v := by
   unfold mul
   by_cases ca : a.isConstant = true
-  · rw [if_pos ca]
+  · rw [ite_eq_left ca]
     refine (linear_sound _).weaken fun f h => ?_
     rw [h]
     simp [Form.evaluate, terms_of_isConstant ca, one]
     ring
-  rw [if_neg ca]
+  rw [ite_eq_right ca]
   by_cases cb : b.isConstant = true
-  · rw [if_pos cb]
+  · rw [ite_eq_left cb]
     refine (linear_sound _).weaken fun f h => ?_
     rw [h]
     simp [Form.evaluate, terms_of_isConstant cb, one]
-  rw [if_neg cb]
+  rw [ite_eq_right cb]
   refine cell_sound.bind fun p => (row_sound _ _ _).bind fun _ => Sound.pure fun holds isCell => ?_
   obtain ⟨c, rfl⟩ := isCell
   have row := ofCall_holds v (by simp) holds
@@ -324,7 +295,6 @@ theorem mul_sound (one : v (.pub 0) = 1) (a b : Form F) :
     termsValue_wire] at row
   rw [evaluate_wire, ← row]
 
-/-- The products of row `k` of `a·b` sum to coordinate `k` of the product. -/
 theorem extRow_value (a b : Fin 3 → Form F) (k : Fin 3) :
     ((extRow a b k).map fun p => termsValue v p.1 * termsValue v p.2).sum =
       extProduct (fun i => (a i).evaluate v) (fun i => (b i).evaluate v) k := by
@@ -353,7 +323,7 @@ theorem extMul_sound (one : v (.pub 0) = 1) (a b : Fin 3 → Form F) :
       ∀ k, (fs k).evaluate v = extProduct (fun i => (a i).evaluate v) (fun i => (b i).evaluate v) k := by
   unfold extMul
   by_cases hc : (constants a || constants b) = true
-  · rw [if_pos hc]
+  · rw [ite_eq_left hc]
     dsimp only
     refine fromFn_sound
       (P := fun k f => f.evaluate v = extProduct (fun i => (a i).evaluate v) (fun i => (b i).evaluate v) k)
@@ -362,17 +332,16 @@ theorem extMul_sound (one : v (.pub 0) = 1) (a b : Fin 3 → Form F) :
     by_cases ca : constants a = true
     · have consts := terms_of_constants ca
       have value : ∀ i, (a i).evaluate v = (a i).constant := fun i => by simp [Form.evaluate, consts i, one]
-      simp only [ca, if_true, value]
+      simp only [ca, ite_true, value]
       fin_cases k <;> simp [extProduct] <;> ring
     · have cb : constants b = true := by simpa [ca] using hc
       have consts := terms_of_constants cb
       have value : ∀ i, (b i).evaluate v = (b i).constant := fun i => by simp [Form.evaluate, consts i, one]
-      simp only [ca, Bool.false_eq_true, if_false, value]
+      simp only [ca, Bool.false_eq_true, ite_false, value]
       fin_cases k <;> simp [extProduct] <;> ring
-  · rw [if_neg hc]
+  · rw [ite_eq_right hc]
     exact fromFn_sound (extCell_sound a b)
 
-/-- Cramer's rule: the inverse that `extInverse` finds is an inverse. -/
 theorem extInverse_mul {a u : Fin 3 → F} (h : extInverse a = some u) : extProduct a u = ![1, 0, 0] := by
   unfold extInverse at h
   dsimp only at h
@@ -424,7 +393,6 @@ theorem assertZero_sound (a : Form F) : Sound v perm (assertZero a) fun _ => a.e
   · exact (row_sound _ _ _).weaken fun _ h => by simpa [termsValue_rowTerms] using (ofCall_holds v (by simp) h).symm
 
 omit [DecidableEq F] in
-/-- A field element equal to its square is 0 or 1. -/
 private theorem boolean_of_sq {x : F} (h : x * x = x) : x = 0 ∨ x = 1 := by
   have : x * (x - 1) = 0 := by rw [mul_sub, h, mul_one, sub_self]
   rcases mul_eq_zero.mp this with h0 | h1
@@ -457,7 +425,6 @@ theorem chain_sound (one : v (.pub 0) = 1) :
       rw [hf, hnext, evaluate_wire, List.map_cons, List.prod_cons]
       ring
 
-/-- Booleans that sum to zero are zero, when no count up to `n` is zero in `F`. -/
 private theorem booleans_zero {n : ℕ} (small : ∀ k : ℕ, k ≤ n → (k : F) = 0 → k = 0) :
     ∀ l : List F, l.length ≤ n → (∀ x ∈ l, x = 0 ∨ x = 1) → l.sum = 0 → ∀ x ∈ l, x = 0 := by
   have count : ∀ l : List F, (∀ x ∈ l, x = 0 ∨ x = 1) → l.sum = ((l.filter (· = 1)).length : F) := by

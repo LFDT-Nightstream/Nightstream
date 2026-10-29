@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
 
-/-!
-Owns the shared forms between final PiRLC accumulators and PiDEC parents. The
-four PiDEC parent views select existing PiRLC coordinates.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiDECValueWiring
 
 open NightstreamFPrime.Layout
@@ -28,7 +23,7 @@ private theorem final_logicalIndex (family : Family)
     (finalDescriptor family index).logicalIndex = index.val := by
   dsimp only [Descriptor.logicalIndex, finalDescriptor]
   rw [← PiRLCCombinationInvocations.indexOf_val,
-    PiRLCCombinationInvocations.indexOf_coordinates]
+    PiRLCCombinationInvocations.indexOf_coordinates index]
 
 private def finalSlot : Family → Nat
   | .commitment => PiDECRetainedGeometry.parentCommitmentSlot
@@ -47,8 +42,8 @@ private theorem final_invocation (family : Family)
     (finalDescriptor family index).invocation.val = finalSlot family + index.val := by
   cases family <;>
     simp only [finalDescriptor, Descriptor.invocation, Descriptor.familyIndex,
-      PiRLCCombinationInvocations.indexOf_coordinates,
-      Fin.val_castAdd, Fin.val_natAdd, Fin.encodeProd, Fin.mkDivMod]
+      PiRLCCombinationInvocations.indexOf_coordinates index,
+      Fin.castAdd, Fin.castLE, Fin.natAdd, Fin.encodeProd, Fin.mkDivMod]
   all_goals
     norm_num only [Family.commitment_invocationCount, Family.publicInput_invocationCount,
       Family.evalK_invocationCount, Family.privateCount, Family.blockCount,
@@ -84,7 +79,7 @@ private theorem parentCommitment_source (program : Lifecycle.Stage1.Application.
       (Spartan.sourceToSpartan (parentSource .commitment + index.val)) =
     PerApplicationPackage.shiftColumn program
       (Spartan.sourceToSpartan (finalDescriptor .commitment index).outputColumn)
-  rw [final_outputColumn]
+  rw [final_outputColumn .commitment index]
 
 theorem parentCommitment_form_eq_output
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -100,7 +95,7 @@ theorem parentCommitment_form_eq_output
   · change PiRLCRetainedGeometry.productOutputStart program + 19008 * 41 +
       index.val * 41 = PiRLCRetainedGeometry.productOutputStart program +
         (finalDescriptor .commitment index).invocation.val * 41
-    rw [final_invocation]
+    rw [final_invocation .commitment index]
     change _ = PiRLCRetainedGeometry.productOutputStart program +
       (19008 + index.val) * 41
     ring
@@ -132,7 +127,7 @@ theorem parentCommitmentEncodes
       PiRLCRetainedGeometry.productOutputStart program +
         ((19008 + index.val) * 41 + coordinate.val)
     ring
-  rw [columns, parentCommitment_source]
+  rw [columns, parentCommitment_source program index]
   exact output (parentCommitmentSlot index) coordinate
 
 private def parentPublicInputSlot (index : Fin 270) : Fin invocationCount :=
@@ -156,7 +151,7 @@ private theorem parentPublicInput_source (program : Lifecycle.Stage1.Application
       (Spartan.sourceToSpartan (parentSource .publicInput + index.val)) =
     PerApplicationPackage.shiftColumn program
       (Spartan.sourceToSpartan (finalDescriptor .publicInput index).outputColumn)
-  rw [final_outputColumn]
+  rw [final_outputColumn .publicInput index]
 
 theorem parentPublicInput_form_eq_output
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -172,7 +167,7 @@ theorem parentPublicInput_form_eq_output
   · change PiRLCRetainedGeometry.productOutputStart program + 24516 * 41 +
       index.val * 41 = PiRLCRetainedGeometry.productOutputStart program +
         (finalDescriptor .publicInput index).invocation.val * 41
-    rw [final_invocation]
+    rw [final_invocation .publicInput index]
     change _ = PiRLCRetainedGeometry.productOutputStart program +
       (24516 + index.val) * 41
     ring
@@ -204,7 +199,7 @@ theorem parentPublicInputEncodes
       PiRLCRetainedGeometry.productOutputStart program +
         ((24516 + index.val) * 41 + coordinate.val)
     ring
-  rw [columns, parentPublicInput_source]
+  rw [columns, parentPublicInput_source program index]
   exact output (parentPublicInputSlot index) coordinate
 
 private def parentEvalKSlot (index : Fin 108) : Fin invocationCount :=
@@ -228,7 +223,7 @@ private theorem parentEvalK_source (program : Lifecycle.Stage1.Application.Progr
       (Spartan.sourceToSpartan (parentSource .evalK + index.val)) =
     PerApplicationPackage.shiftColumn program
       (Spartan.sourceToSpartan (finalDescriptor .evalK index).outputColumn)
-  rw [final_outputColumn]
+  rw [final_outputColumn .evalK index]
 
 theorem parentEvalK_form_eq_output
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -244,7 +239,7 @@ theorem parentEvalK_form_eq_output
   · change PiRLCRetainedGeometry.productOutputStart program + 26514 * 41 +
       index.val * 41 = PiRLCRetainedGeometry.productOutputStart program +
         (finalDescriptor .evalK index).invocation.val * 41
-    rw [final_invocation]
+    rw [final_invocation .evalK index]
     change _ = PiRLCRetainedGeometry.productOutputStart program +
       (26514 + index.val) * 41
     ring
@@ -276,7 +271,7 @@ theorem parentEvalKEncodes
       PiRLCRetainedGeometry.productOutputStart program +
         ((26514 + index.val) * 41 + coordinate.val)
     ring
-  rw [columns, parentEvalK_source]
+  rw [columns, parentEvalK_source program index]
   exact output (parentEvalKSlot index) coordinate
 
 private def parentEvalASlot (index : Fin 432) : Fin invocationCount :=
@@ -300,7 +295,7 @@ private theorem parentEvalA_source (program : Lifecycle.Stage1.Application.Progr
       (Spartan.sourceToSpartan (parentSource .evalA + index.val)) =
     PerApplicationPackage.shiftColumn program
       (Spartan.sourceToSpartan (finalDescriptor .evalA index).outputColumn)
-  rw [final_outputColumn]
+  rw [final_outputColumn .evalA index]
 
 theorem parentEvalA_form_eq_output
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -316,7 +311,7 @@ theorem parentEvalA_form_eq_output
   · change PiRLCRetainedGeometry.productOutputStart program + 33534 * 41 +
       index.val * 41 = PiRLCRetainedGeometry.productOutputStart program +
         (finalDescriptor .evalA index).invocation.val * 41
-    rw [final_invocation]
+    rw [final_invocation .evalA index]
     change _ = PiRLCRetainedGeometry.productOutputStart program +
       (33534 + index.val) * 41
     ring
@@ -348,7 +343,7 @@ theorem parentEvalAEncodes
       PiRLCRetainedGeometry.productOutputStart program +
         ((33534 + index.val) * 41 + coordinate.val)
     ring
-  rw [columns, parentEvalA_source]
+  rw [columns, parentEvalA_source program index]
   exact output (parentEvalASlot index) coordinate
 
 end NightstreamFPrime.Export.Stage1.PiDECValueWiring

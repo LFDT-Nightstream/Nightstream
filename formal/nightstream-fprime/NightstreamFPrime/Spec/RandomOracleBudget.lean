@@ -1,35 +1,6 @@
 import NightstreamFPrime.Spec.RandomOracle
 import Mathlib.Algebra.BigOperators.Fin
 
-/-!
-Owns rewinding algorithms with a strict budget of adversary runs, the
-conversion from expected work to strict work (Markov's inequality on the
-coin tape), and the laws of the run-until-success loops that such algorithms
-run.
-
-Inputs: a reduction that runs the adversary once per step on an oracle built
-from its state and one fresh uniform sample, a goal on its final states, and a
-certificate of potentials on its reachable states.
-
-Outputs:
-- `RunMachine.program`, `program_bound`: the reduction with budget `T` is an
-  oracle program whose queries are adversary runs and whose answers are run
-  records. It holds no adversary, and it makes at most `T` runs on every tape;
-- `RunMachine.rewinding`, `run_program`: the same reduction against fixed
-  records, as a step machine; `Rewinding.run_embed` moves runs along a map of
-  states that commutes with the steps;
-- `Bounds.expect_runs_le`: the expected runs are at most the work potential,
-  for every budget;
-- `Bounds.budget_mul_le`: with budget `T`, the machine reaches the goal with
-  chance at least the success potential minus `work / T`;
-- `lineAverage`, `lineLaw_eq_retryWeight`, `line_work_step`: a retry loop
-  ends uniform on its line, and sequential loops give `RandomOracle.retryWeight`;
-- `restart_success_eq`, `restart_work_eq`: the success and the work of a loop
-  that restarts after each failed attempt.
-
-Does not own: which reduction an application of these laws runs.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.RandomOracleBudget
@@ -96,12 +67,12 @@ theorem RunMachine.run_program (records : Point → Record) (budget : ℕ) (stat
       unfold RunMachine.program Rewinding.run
       have haltedEq : (reduction.rewinding records).halted state = reduction.halted state := rfl
       by_cases halted : reduction.halted state = true
-      · simp only [haltedEq, halted, if_true]
+      · simp only [haltedEq, halted, ite_true]
         exact ⟨rfl, rfl⟩
       · have unhalted : reduction.halted state = false := by simpa using halted
         have rest := induction (reduction.next state (tape 0) (records (reduction.query state (tape 0))))
           (Fin.tail tape)
-        simp only [haltedEq, unhalted, Bool.false_eq_true, if_false]
+        simp only [haltedEq, unhalted, Bool.false_eq_true, ite_false]
         exact ⟨rest.1, congrArg (· + 1) rest.2⟩
 
 end RunMachine
@@ -115,7 +86,7 @@ private theorem runs_eq_of_not_halted (budget : ℕ) (state : State) (tape : Fin
       unfold Rewinding.run at unfinished ⊢
       by_cases halted : machine.halted state = true
       · simp [halted] at unfinished
-      · simp only [halted, Bool.false_eq_true, if_false] at unfinished ⊢
+      · simp only [halted, Bool.false_eq_true, ite_false] at unfinished ⊢
         exact congrArg (· + 1) (induction _ _ unfinished)
 
 theorem Rewinding.run_embed {State' : Type*} (machine' : Rewinding State' Sample) (embed : State → State')
@@ -131,9 +102,9 @@ theorem Rewinding.run_embed {State' : Type*} (machine' : Rewinding State' Sample
       unfold Rewinding.run
       rw [halted_eq]
       by_cases halted : machine.halted state = true
-      · simp only [halted, if_true]
+      · simp only [halted, ite_true]
       · have unhalted : machine.halted state = false := by simpa using halted
-        simp only [unhalted, Bool.false_eq_true, if_false]
+        simp only [unhalted, Bool.false_eq_true, ite_false]
         rw [step_eq state (tape 0) unhalted, induction]
 
 variable [Fintype Sample] [Nonempty Sample]
@@ -190,7 +161,7 @@ theorem Rewinding.Bounds.expect_runs_le (budget : ℕ) {state : State} (good : b
       exact bounds.work_nonnegative state good
   | succ budget induction =>
       by_cases halted : machine.halted state = true
-      · simp only [Rewinding.run, halted, if_true, Nat.cast_zero, Finset.expect_const_zero]
+      · simp only [Rewinding.run, halted, ite_true, Nat.cast_zero, Finset.expect_const_zero]
         exact bounds.work_nonnegative state good
       · have unhalted : machine.halted state = false := by simpa using halted
         rw [expect_run_succ machine budget state unhalted (fun result => (result.runs : ℝ))]
@@ -217,15 +188,15 @@ private theorem success_le_chance_add (budget : ℕ) {state : State} (good : bou
       simp only [ended]
       rw [Fintype.expect_const, Fintype.expect_const]
       by_cases halted : machine.halted state = true
-      · simp only [halted, Bool.true_eq_false, if_false, add_zero]
+      · simp only [halted, Bool.true_eq_false, ite_false, add_zero]
         exact bounds.success_halted state good halted
       · have unhalted : machine.halted state = false := by simpa using halted
         have one := bounds.success_le_one state good
-        simp only [unhalted, if_true]
+        simp only [unhalted, ite_true]
         split <;> linarith
   | succ budget induction =>
       by_cases halted : machine.halted state = true
-      · simp only [Rewinding.chance, Rewinding.run, halted, if_true, Bool.true_eq_false, if_false,
+      · simp only [Rewinding.chance, Rewinding.run, halted, ite_true, Bool.true_eq_false, ite_false,
           Fintype.expect_const, add_zero]
         exact bounds.success_halted state good halted
       · have unhalted : machine.halted state = false := by simpa using halted
@@ -361,7 +332,7 @@ private theorem lineLaw_eq_sum {n : ℕ} (sets : Fin n → Set Answer) (value : 
             if other = retries then 1 else 0 := by
         simp [funext_iff]
       simp only [List.map_nil, List.prod_nil, one_mul, only, ite_mul, zero_mul, one_mul,
-        Finset.sum_ite_eq', Finset.mem_univ, if_true, lineLaw]
+        Finset.sum_ite_eq', Finset.mem_univ, ite_true, lineLaw]
   | index :: rest, nodup, retries => by
       rw [List.nodup_cons] at nodup
       rw [lineLaw, lineAverage_eq_sum]
@@ -385,7 +356,7 @@ private theorem lineLaw_eq_sum {n : ℕ} (sets : Fin n → Set Answer) (value : 
                 rw [Function.update_self, same]
               · rw [Function.update_of_ne at_index]
                 exact holds j (by rw [List.mem_cons, not_or]; exact ⟨at_index, outside⟩)
-          simp only [same, if_true, one_mul, iff]
+          simp only [same, ite_true, one_mul, iff]
         · have fails : ¬ ∀ j ∉ rest, other j = Function.update retries index answer j := fun holds =>
             same (by simpa using holds index nodup.1)
           simp [same, fails]
@@ -398,7 +369,7 @@ private theorem lineLaw_eq_sum {n : ℕ} (sets : Fin n → Set Answer) (value : 
           unfold factor
           ring
         _ = _ := by
-          rw [← Finset.sum_mul, Finset.sum_mul_boole, if_pos (Finset.mem_univ _), List.map_cons,
+          rw [← Finset.sum_mul, Finset.sum_mul_boole, ite_eq_left (Finset.mem_univ _), List.map_cons,
             List.prod_cons]
           ring
 
@@ -409,7 +380,7 @@ theorem lineLaw_eq_retryWeight {n : ℕ} (sets : Fin n → Set Answer) (value : 
   refine Finset.sum_congr rfl fun other _ => ?_
   have all : ∀ index ∉ List.finRange n, other index = retries index := fun index outside =>
     absurd (List.mem_finRange index) outside
-  rw [if_pos all, mul_one, retryWeight, Fin.prod_univ_def]
+  rw [ite_eq_left all, mul_one, retryWeight, Fin.prod_univ_def]
   rfl
 
 end Loops

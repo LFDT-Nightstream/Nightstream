@@ -1,14 +1,6 @@
 import Batteries.Data.Fin.Coding
 import NightstreamFPrime.Layout.LowNormBlock
 
-/-!
-Owns the augmented source suffix and retained low-norm block for fixed
-Phi81 quotient coefficients. Each invocation contributes 1 general-field
-quotient value in invocation-major order.
-
-This module does not select a concrete invocation schedule.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.ProductRetainedBlock
 
 open NightstreamFPrime.Spec
@@ -56,7 +48,7 @@ def sourceAssignment (baseSourceWidth invocationCount : Nat)
         (baseColumn baseSourceWidth invocationCount column) =
       base column := by
   unfold sourceAssignment baseColumn
-  rw [dif_pos column.isLt]
+  rw [dite_eq_left column.isLt]
 
 @[simp] theorem sourceAssignment_group
     (baseSourceWidth invocationCount : Nat)

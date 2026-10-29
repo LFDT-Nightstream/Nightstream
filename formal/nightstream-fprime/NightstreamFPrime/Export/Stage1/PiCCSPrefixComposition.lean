@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixRound
 
-/-! Original-source contribution composition after a challenge prefix.
-This module owns coefficient algebra, not retained-array or file provenance. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPrefixComposition
@@ -119,7 +116,7 @@ theorem components_eq_roundPolynomial (data : ProtocolPolynomial.Data K producti
     ← FiniteSumAlgebra.sumMap_add extensionOps extensionLaws]
   apply FiniteSumAlgebra.sumMap_congr
   intro suffix _
-  simpa only [PiCCSPrefixRound.numericPair, Nat.zero_add, dif_pos suffix.isLt, coefficient_add] using
+  simpa only [PiCCSPrefixRound.numericPair, Nat.zero_add, dite_eq_left suffix.isLt, coefficient_add] using
     congrArg (fun polynomial => coefficient polynomial index)
       (pair_components data alpha gamma challenges dimension (NumericBooleanDomain.vertex remaining suffix))
 

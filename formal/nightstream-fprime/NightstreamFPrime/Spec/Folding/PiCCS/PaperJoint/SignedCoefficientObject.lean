@@ -1,25 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedCoefficientPolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TableResiduals
 
-/-!
-Unsampled signed coefficient object for paper-level joint `Pi_CCS`.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: alpha/gamma compression boundary before SumCheck.
-Constraint family: finite Pad, matrix, CCS, and norm residuals before
-the verifier samples `alpha` and `gamma`.
-
-Owns: a finite signed coefficient type, its canonical four-block object,
-coefficient truth, exact alpha specialization into the executable gamma
-polynomial, table-obligation equivalence, and the deterministic signed
-mixing-root event.
-
-Does not own: construction of concrete CCS/norm/ring tables, target-convention
-approval, root-counting probability, SumCheck round or terminal truth,
-Fiat--Shamir, Rust, R1CS, or counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedCoefficientObject
 

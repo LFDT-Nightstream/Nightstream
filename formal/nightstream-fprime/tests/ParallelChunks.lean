@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.ParallelChunks
 
-/-! Regression checks for the chunk scheduler: result order, exactly-once execution,
-the thread limit, and a failing chunk that must not leave other chunks writing into
-a removed temporary directory. -/
-
 namespace NightstreamFPrime.Tests.ParallelChunks
 
 open NightstreamFPrime.Export

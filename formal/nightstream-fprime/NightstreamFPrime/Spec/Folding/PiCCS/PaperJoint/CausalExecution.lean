@@ -1,12 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.GoldilocksCausal
 
-/-!
-One PiCCS prover with its private coins fixed. Round messages use only the
-already sampled alpha/gamma and the past round prefix. The final full-output
-message and witness may use the complete challenge stream. Either stage can
-abort.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 
 open NightstreamFPrime.Spec

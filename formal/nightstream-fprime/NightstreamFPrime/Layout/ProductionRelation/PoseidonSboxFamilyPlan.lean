@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedRows
 
-/-!
-Owns an invocation-major family of fixed 150-row Poseidon2 plans. One shared
-constant-one column and one indexed set of input, retained S-box, and output
-forms produce one actual 4-matrix plan.
-
-This module does not select a concrete invocation schedule.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxFamilyPlan
 
 open NightstreamFPrime.Spec
@@ -50,7 +42,7 @@ theorem invocation_output_eq_trace {logicalWidth invocationCount : Nat}
   unfold PoseidonSboxPlan.fullOutput PoseidonSboxPlan.sboxOutputAt
   have bounded : 134 + lane.val < PoseidonRetainedSlots.rows.length :=
     (PoseidonRetainedSlots.finalRow lane).isLt
-  rw [dif_pos bounded]
+  rw [dite_eq_left bounded]
   rfl
 
 def rowAt {logicalWidth invocationCount : Nat}
@@ -94,7 +86,7 @@ theorem plan_rowImage_at {logicalWidth invocationCount : Nat}
           (ProductionRelation.Plan.indexedRow invocationCount 150
             invocation row)) =
       (rowAt interface invocation row).portImages assignment := by
-  rw [ProductionRelation.Plan.rowImage_toVertex]
+  erw [ProductionRelation.Plan.rowImage_toVertex]
   funext port
   unfold PoseidonSboxPlan.Row.portImages
   cases found : ProductionRelation.meaningfulPort? port with

@@ -1,37 +1,8 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaFirstFailure
 
-/-!
-Owns the history security bound of the selected HyperNova IVC under HyperNova
-errata Assumption 1, in the form of Definition 7 knowledge soundness of the
-Poseidon2 NIFS, and the reverse extractor of HyperNova Lemma 17 (Appendix H.3).
-
-Inputs:
-- an application that fits the `2^28` profile and a commitment setup, fixed
-  before the adversary runs;
-- `Assumption1 Admitted Efficient error`: for every admitted NIFS adversary
-  there is an efficient extractor that reads the adversary's tape and its own
-  coins (so it may rerun the adversary), and fails after a real NIFS success
-  with probability at most `error` of that adversary;
-- `Closed Admitted StageAdmitted Efficient`: an admitted stage (the reverse
-  extractor so far, as one algorithm) gives an admitted NIFS adversary, and one
-  reverse step of an admitted stage with an efficient extractor is again an
-  admitted stage;
-- an IVC adversary whose start stage is admitted, and a bound on its
-  advertised iteration.
-
-Outputs: `reverseStages`, `reverse_input_event` and `history_failure_le`.
-
-`Admitted`, `StageAdmitted` and `Efficient` are abstract. Their intended
-meaning is expected polynomial time; Lean states no running-time model. Assumption 1 is not a
-theorem here. `RandomOracleSetup.production_knowledge_error_lt` proves a
-random-oracle analogue for one fold, with the same prior-state link, which
-motivates the value of `error`; the step circuit
-recomputes the previous challenges with Poseidon2, so no random-oracle model
-covers the history.
-
-Does not own: numerical hardness, collision resistance of the state hash, or
-query applicability.
--/
+/-! HyperNova errata Assumption 1, Definition 7 and Lemma 17 (Appendix H.3).
+`Admitted`, `StageAdmitted` and `Efficient` are abstract, meant as expected polynomial
+time; Lean states no running-time model. Assumption 1 is a premise, not a theorem. -/
 
 set_option autoImplicit false
 
@@ -58,9 +29,7 @@ theorem event_ne_top {Sample : Type*} (distribution : PMF Sample) (event : Set S
   rw [PMF.toOuterMeasure_apply]
   exact distribution.tsum_coe_indicator_ne_top event
 
-/-- A plain-model adversary against the production NIFS (HyperNova
-Definition 7): its random tape, and the NIFS source input and real output
-(prior preimage, proof and child witnesses) that it computes from the tape. -/
+/-- HyperNova Definition 7 plain-model NIFS adversary. -/
 structure NifsAdversary (application : Lifecycle.Stage1.Application.Program)
     (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
     (setup : PerApplicationCanonicalPackage.CommitmentSetup application) where
@@ -86,14 +55,8 @@ def ExtractionFails (adversary : NifsAdversary application fits setup) (extracto
     ¬ CheckedWitnessExtraction.SourceReturned (PiCCSStoredWitnessCheck.commit application setup) productionGlobalParams
       (PiCCSStoredWitnessCheck.statement application fits (adversary.run draw.1).1) (extractor.run draw.1 draw.2)
 
-/-- HyperNova errata Assumption 1, in the form of Definition 7 knowledge
-soundness of the non-interactive NIFS: every admitted adversary has an
-efficient extractor whose failure after a real success is at most `error` of
-that adversary. The success event adds the prior-state link, which the bare
-NIFS verifier does not check. This joint form implies Definition 7's
-difference form `Pr[success] - Pr[extraction] ≤ error`. The public parameters
-are a fixed commitment setup, not sampled, the structure is a fixed
-application, and `error` replaces `negl(λ)`. -/
+/-- HyperNova errata Assumption 1 as Definition 7 knowledge soundness. The setup and
+application are fixed, not sampled, and `error` replaces `negl(λ)`. -/
 def Assumption1 (Admitted : NifsAdversary application fits setup → Prop)
     (Efficient : (adversary : NifsAdversary application fits setup) → NifsExtractor adversary → Prop)
     (error : NifsAdversary application fits setup → ℝ) : Prop :=
@@ -133,6 +96,7 @@ def start (adversary : IvcAdversary application fits setup) : Stage application 
   input := adversary.output
   results _ := []
 
+@[implicit_reducible]
 noncomputable def next (stage : Stage application fits setup) (extractor : NifsExtractor stage.nifs) : Stage application fits setup where
   Tape := stage.Tape × extractor.Coins
   tape := extractor.law
@@ -164,12 +128,7 @@ theorem next_marginal (stage : Stage application fits setup) (extractor : NifsEx
 
 end Stage
 
-/-- The composition premise of Lemma 17. `StageAdmitted` is a class of whole
-stages: the reverse extractor so far, as one algorithm. An admitted stage gives
-an admitted NIFS adversary, which computes its current visit from the stage's
-output, and one reverse step of an admitted stage with an efficient extractor
-is again an admitted stage. For a constant number of steps and expected
-polynomial time this is the paper's composition. -/
+/-- HyperNova Lemma 17 composition premise. -/
 structure Closed (Admitted : NifsAdversary application fits setup → Prop) (StageAdmitted : Stage application fits setup → Prop)
     (Efficient : (adversary : NifsAdversary application fits setup) → NifsExtractor adversary → Prop) : Prop where
   nifs : ∀ stage, StageAdmitted stage → Admitted stage.nifs
@@ -182,8 +141,7 @@ variable {Admitted : NifsAdversary application fits setup → Prop} {StageAdmitt
   (assumption : Assumption1 Admitted Efficient error) (closed : Closed Admitted StageAdmitted Efficient)
   (adversary : IvcAdversary application fits setup) (admitted : StageAdmitted (Stage.start adversary))
 
-/-- HyperNova Lemma 17: stage `j + 1` runs stage `j` and then the extractor
-that Assumption 1 gives for stage `j`'s NIFS adversary. -/
+/-- HyperNova Lemma 17. -/
 noncomputable def reverseStages : Nat → {stage : Stage application fits setup // StageAdmitted stage}
   | 0 => ⟨Stage.start adversary, admitted⟩
   | steps + 1 =>
@@ -281,7 +239,7 @@ theorem hash_term (steps extra : Nat) :
   have visitEq (tape : (stages steps).1.Tape) :
       (stages steps).1.visit tape = pathVisit application fits setup ((stages steps).1.input tape) ((stages steps).1.results tape) steps := by
     simp only [Stage.visit, results_length]
-  simp only [Set.mem_setOf_eq, pathVisit, List.take_take, min_self] at event ⊢
+  simp only [Set.mem_ofPred_eq, pathVisit, List.take_take, min_self] at event ⊢
   simpa only [visitEq, pathVisit] using event
 
 theorem realSuccess_of_goodActive (stage : Stage application fits setup) (tape : stage.Tape)
@@ -318,7 +276,7 @@ theorem failure_term_le (steps extra : Nat) :
     simp only [pathVisit, List.take_take, Nat.min_eq_left (Nat.le_succ steps)]
   have entry (results : List (SourceResult application)) :
       (results.take (steps + 1)).getD steps none = results.getD steps none := by
-    simp only [List.getD_eq_getElem?_getD, List.getElem?_take, Nat.lt_succ_self, if_true]
+    simp only [List.getD_eq_getElem?_getD, List.getElem?_take, Nat.lt_succ_self, ite_true]
   have equal := stage_event assumption closed adversary admitted (steps + 1) extra event
   calc
     _ = (stages (steps + 1 + extra)).1.tape.toOuterMeasure
@@ -326,12 +284,12 @@ theorem failure_term_le (steps extra : Nat) :
             ((stages (steps + 1 + extra)).1.results tape).take (steps + 1)) ∈ event} := by
         congr 1
         ext tape
-        simp only [Set.mem_setOf_eq, MarkedSourceFailure, event, restrict, entry]
+        simp only [Set.mem_ofPred_eq, MarkedSourceFailure, event, restrict, entry]
         constructor
         · rintro ⟨good, failed⟩
-          exact ⟨good, by simpa only [if_pos good] using failed⟩
+          exact ⟨good, by simpa only [ite_eq_left good] using failed⟩
         · rintro ⟨good, failed⟩
-          exact ⟨good, by simpa only [if_pos good] using failed⟩
+          exact ⟨good, by simpa only [ite_eq_left good] using failed⟩
     _ = (stages (steps + 1)).1.tape.toOuterMeasure
           {tape | ((stages (steps + 1)).1.input tape, (stages (steps + 1)).1.results tape) ∈ event} :=
         equal
@@ -426,8 +384,7 @@ theorem per_tape (depth : Nat)
   rw [HyperNovaVisitedLaw.visitedLaw_listSource application fits setup _ _ _ (by omega), PMF.pure_bind,
     HyperNovaVisitedLaw.guardedDraw_listSource application fits setup _ _ _ (by omega)]
 
-/-- History knowledge soundness under Assumption 1 (HyperNova Definition 11
-(ii) and Lemma 17). -/
+/-- HyperNova Definition 11 (ii) and Lemma 17. -/
 theorem history_failure_le (depth : Nat)
     (depthBound : ∀ tape ∈ adversary.tape.support, (adversary.output tape).1.iteration ≤ depth) :
     ((stages depth).1.reverseLaw.toOuterMeasure

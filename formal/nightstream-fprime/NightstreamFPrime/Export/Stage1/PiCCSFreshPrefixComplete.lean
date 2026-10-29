@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixContribution
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedPrefixComplete
 
-/-! Complete pure fresh-prefix coefficient range. This module does not prove
-file provenance, decoding, or mutable IO task execution. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixComplete
@@ -115,8 +112,8 @@ theorem range_coefficients_eq (input : PiCCSPublicReplay.Input)
   apply coefficientRange_eq_range
   intro offset inside
   have inDomain : first + offset < 2 ^ remaining := by omega
-  simp only [pairCoefficients?, dif_pos inDomain, numericTerm]
-  simpa only [dif_pos inDomain] using
+  simp only [pairCoefficients?, dite_eq_left inDomain, numericTerm]
+  simpa only [dite_eq_left inDomain] using
     PiCCSFreshPrefixContribution.coefficients_eq_freshTerm input masks challenges dimension
       (NumericBooleanDomain.vertex remaining ⟨first + offset, inDomain⟩)
 
@@ -257,7 +254,7 @@ private theorem numericTerm_padding (input : PiCCSPublicReplay.Input)
     (PiCCSFreshComplete.verifierInput_eq_sourceProtocolData input
       (PiCCSFirstRoundComposition.witness masks))
     (PiCCSFreshPolynomial.selected_terms_positive input)
-  rw [numericTerm, dif_pos upper]
+  rw [numericTerm, dite_eq_left upper]
   exact freshTerm_zero _ _ _ challenges dimension suffix positive lowZero highZero
 
 private theorem fullRange_eq_sum
@@ -272,7 +269,7 @@ private theorem fullRange_eq_sum
   rw [PiCCSPolynomialRange.range_eq_sum extensionOps extensionLaws]
   apply congrArg (FixedPolynomial.sum extensionOps.toOps (canonicalFinIndices (2 ^ remaining)))
   funext index
-  simp only [Nat.zero_add, numericTerm, dif_pos index.isLt]
+  simp only [Nat.zero_add, numericTerm, dite_eq_left index.isLt]
 
 theorem coefficients_eq_fullSum (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (challenges : List K) {remaining : Nat}

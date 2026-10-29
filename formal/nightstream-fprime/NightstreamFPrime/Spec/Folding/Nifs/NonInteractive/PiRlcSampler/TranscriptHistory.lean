@@ -1,11 +1,6 @@
 import Mathlib.Tactic.IntervalCases
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.ScheduleLaw
 
-/-! The block-oracle query histories replay the exact additive Poseidon2
-schedule. A rate block is one four-field answer; a zero block represents
-the permutation after the read. This is a value correspondence, not a
-random-oracle assumption about the concrete permutation. -/
-
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.TranscriptHistory
 
 open NightstreamFPrime.Spec OracleModel ScheduleLaw

@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSCompletedReadout
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptDirectSemantics
 
-/-!
-Owns the four indexed views of the existing physical C invocation list.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSInvocationSlices

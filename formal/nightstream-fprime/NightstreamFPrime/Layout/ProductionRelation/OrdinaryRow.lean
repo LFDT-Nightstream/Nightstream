@@ -2,15 +2,6 @@ import NightstreamFPrime.Layout.ProductionRelation
 import NightstreamFPrime.Layout.R1CS
 import NightstreamFPrime.Spec.ProductionRelation.RowSemantics
 
-/-!
-Owns the ordinary-row branch of the production gate compiler. One source
-R1CS equation supplies only the `A`, `B`, and `C` matrix images. The fixed
-3-term gate then checks exactly the source equation.
-
-Programs are indexed functions, not artifact-sized lists. This module does
-not choose retained source slots or construct their low-norm substitutions.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.OrdinaryRow
 
 open NightstreamFPrime.Spec
@@ -128,7 +119,7 @@ theorem planOfForms_residual_zero_iff {logicalWidth rowCount : Nat}
         (forms row).portImages assignment := by
     funext port
     unfold ProductionRelation.Plan.rowImage Forms.portImages
-    rw [(planOfForms rowCount_le forms).rowLayout.toColumn_toVertex]
+    erw [(planOfForms rowCount_le forms).rowLayout.toColumn_toVertex]
     exact congrArg (fun form => form.eval assignment)
       (planOfForms_portForm rowCount_le forms row port)
   rw [images]
@@ -165,7 +156,7 @@ private theorem rowImage_at {logicalWidth : Nat}
         (program.toPlan.rowLayout.toVertex row) port =
       (program.row row).forms.portImages assignment port := by
   unfold ProductionRelation.Plan.rowImage Forms.portImages
-  rw [program.toPlan.rowLayout.toColumn_toVertex]
+  erw [program.toPlan.rowLayout.toColumn_toVertex]
   exact congrArg (fun form => form.eval assignment)
     (toPlan_portForm program row port)
 

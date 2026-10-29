@@ -1,18 +1,5 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
 
-/-!
-Centered Goldilocks inequalities used by concrete Phi81 norm growth.
-
-Protocol: SuperNeo `Pi_RLC`.
-
-Owns: the exact cyclic distance induced by the active `Fin q` carrier,
-centered triangle inequalities, and the two-times bound for multiplication by
-one production five-symbol coefficient.
-
-Does not own: quotient-ring support, assignment folding, arity arithmetic,
-Rust/R1CS refinement, or row removal.
--/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
 
 open NightstreamFPrime.Spec

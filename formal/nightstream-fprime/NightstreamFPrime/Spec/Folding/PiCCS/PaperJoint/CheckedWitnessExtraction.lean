@@ -1,12 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.WitnessProjection
 
-/-!
-Owns the source-return event: a returned source witness satisfies the source
-relation after its fresh prefixes are restored from the verifier statement
-through Phi81Relation's actual map. `HyperNovaFirstFailure.MarkedSourceFailure`
-reads this event.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction

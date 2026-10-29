@@ -1,14 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
-/-!
-Test-only application used to compare the generic streamed per-application
-emitter with the canonical materialized codec value.
-
-This module does not select a production application. The circuit proves the
-four-word identity transition, has no witness words, and allocates no local
-variables.
--/
-
 namespace NightstreamFPrime.Tests.PerApplicationEmitterFixture
 
 open NightstreamFPrime.Circuit
@@ -118,6 +109,7 @@ private theorem localLength_assertions (expressions : List Expr) :
     (flatConstraints (Circuit.ops (main interface) offset)).length = 4 := by
   rw [main_ops, flatConstraints_opsAt]
   simp [assertions, Application.stateWordCount]
+  exact List.length_ofFn
 
 def circuit (interface : Interface) : FormalCircuit where
   main := main interface

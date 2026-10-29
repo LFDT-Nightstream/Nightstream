@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Export.Stage1.PerApplicationDecodedIO
 
-/-!
-Owns the verifier-side binding of the four recursive context words in one
-per-application raw assignment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationVerifierBoundAssignment
 
 open NightstreamFPrime.Circuit
@@ -97,7 +92,7 @@ private theorem shiftedExpectedContext
       NightstreamFPrime.Export.Stage1.Package.circuitPackage_layout_values.2.2.1
     rw [constant]
     norm_num [Spartan.expectedContextPublicStart]
-  rw [if_neg lower, if_neg startLower]
+  rw [ite_eq_right lower, ite_eq_right startLower]
   omega
 
 private theorem boundBase_expectedContext
@@ -111,7 +106,7 @@ private theorem boundBase_expectedContext
       (verifierContextDigest fits commitmentSetup).getD lane.val 0 := by
   have shifted := shiftedExpectedContext application lane
   dsimp only [bind, bindContextBase, PiRLCProductPlan.shiftedPackageColumn]
-  rw [dif_pos]
+  rw [dite_eq_left]
   · apply congrArg (fun index =>
       (verifierContextDigest fits commitmentSetup).getD index 0)
     rw [shifted]

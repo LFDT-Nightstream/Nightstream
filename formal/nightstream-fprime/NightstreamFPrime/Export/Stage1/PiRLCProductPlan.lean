@@ -6,15 +6,6 @@ import NightstreamFPrime.Layout.ProductionRelation.ProductRetainedBlock
 import NightstreamFPrime.Layout.ProductionRelation.SourceCompiler
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the direct 4-matrix plan for the canonical PiRLC Phi81 product
-invocations of one Lean-authored application package.
-
-The plan is parameterized only by a proved source map into the final low-norm
-assignment. It does not select the complete retained set or close the final
-application fixed point.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductPlan
 
 open NightstreamFPrime.Spec
@@ -48,6 +39,7 @@ theorem directBaseSourceWidth_eq_baseSourceWidth
   funext program
   exact (directBaseSourceWidth_eq_baseSourceWidth program).symm
 
+@[implicit_reducible]
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   ProductRetainedBlock.sourceWidth (baseSourceWidth program)
     PiRLCProductSchedule.invocationCount
@@ -324,7 +316,7 @@ theorem baseEnv_eq_mappedPackageColumn
     (sourceToSpartan_lt_basePackage column bound)
   unfold baseEnv Spartan.pullback PerApplicationPackage.baseEnv
     SourceCompiler.sourceEnv mappedPackageColumn shiftedPackageColumn
-  rw [dif_pos mappedBound]
+  rw [dite_eq_left mappedBound]
 
 theorem baseEnv_valueColumn
     (program : Lifecycle.Stage1.Application.Program)

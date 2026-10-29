@@ -4,14 +4,6 @@ import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.PiDECInputs
 import NightstreamFPrime.Layout.Stage1.Spartan
 
-/-!
-Owns the compact source families selected for PiCCS ordinary-row lowering.
-
-The source predicate is stated before Spartan remapping. `Target` is its exact
-image under the established Spartan column permutation. This module does not
-prove that PiCCS constraints use only these families.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupport
 
 def InRange (start count column : Nat) : Prop :=

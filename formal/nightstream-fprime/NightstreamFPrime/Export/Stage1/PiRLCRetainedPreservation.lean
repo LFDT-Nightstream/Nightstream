@@ -1,13 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedInputs
 
-/-!
-Owns the preservation contract for the canonical retained PiRLC geometry.
-One source assignment contains package values and product-group values.
-Each compact block encodes that same assignment at its fixed interval.
-
-This module does not assume that matrix rows vanish.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCRetainedPreservation
 
 open NightstreamFPrime.Spec
@@ -176,7 +168,7 @@ theorem productInputs_preserves
       ((challengeBlock program).form (challengeStart program) (challengeFits geometry)
         (PiRLCProductSourceBlocks.challengeIndex
           (PiRLCProductSchedule.descriptor invocation).source lane)).eval assignment = _
-    rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.challenge]
+    erw [LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.challenge]
     exact (congrArg (sourceAssignment program base groupValue)
       (PiRLCProductSourceBlocks.challengeBlock_source program
         (PiRLCProductSchedule.descriptor invocation) lane)).trans
@@ -194,7 +186,7 @@ theorem productInputs_preserves
     dsimp only
     split
     · simp
-    · rw [LowNormBlock.Block.form_eval _ _ _ assignment _
+    · erw [LowNormBlock.Block.form_eval _ _ _ assignment _
           encodes.productOutput]
       rw [productOutputBlock_source]
       rw [sourceAssignment_outputColumn]
@@ -205,7 +197,7 @@ theorem productInputs_preserves
       ((productOutputBlock program).form
         (productOutputStart program) (productOutputFits geometry)
           invocation).eval assignment = _
-    rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.productOutput]
+    erw [LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.productOutput]
     rw [productOutputBlock_source]
     rw [sourceAssignment_outputColumn]
     rfl
@@ -214,7 +206,7 @@ theorem productInputs_preserves
       ((productGroupBlock program).form
         (productGroupStart program) (productGroupFits geometry)
           (Fin.encodeProd (invocation, group))).eval assignment = _
-    rw [LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.productGroup]
+    erw [LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.productGroup]
     rw [productGroupBlock_source]
     rw [sourceAssignment_group]
 

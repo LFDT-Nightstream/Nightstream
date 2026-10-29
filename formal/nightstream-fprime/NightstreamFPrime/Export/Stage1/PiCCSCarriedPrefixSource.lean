@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSFirstRoundComposition
 import NightstreamFPrime.Export.Stage1.PiCCSPadPrefix
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixRound
 
-/-! Proof-only transport of original carried scalar reads through the existing
-prefix fold to the original weighted message fields.
-File decoding and parity accumulation are not owned here. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCarriedPrefixSource
@@ -84,7 +80,7 @@ theorem matrixPrefix_value (input : PiCCSPublicReplay.Input)
           (NumericBooleanDomain.vertex cubeVariables
             ⟨row.val, Nat.lt_of_lt_of_le row.isLt rows_fit⟩))) := by
     funext row
-    rw [PiCCSCarriedComplete.matrixRow?, dif_pos (Nat.lt_of_lt_of_le row.isLt rows_fit)]
+    rw [PiCCSCarriedComplete.matrixRow?, dite_eq_left (Nat.lt_of_lt_of_le row.isLt rows_fit)]
     exact PiCCSCarriedSource.matrix_sourceProtocolData input
       (PiCCSFirstRoundComposition.witness masks) gamma _
   rw [actions]
@@ -106,7 +102,7 @@ private theorem padPrefix_block (masks : Array (Array (Nat × Nat))) (gamma : K)
     change (block.val * 54 + lane.val) % 54 = lane.val
     omega
   simp only [padPrefix, Array.getD_eq_getD_getElem?, Array.getElem?_ofFn,
-    dif_pos live, Option.getD_some, quotient, remainder, PiCCSPadPrefix.blockValues_value]
+    dite_eq_left live, Option.getD_some, quotient, remainder, PiCCSPadPrefix.blockValues_value]
 
 theorem pad_foldedBlock (masks : Array (Array (Nat × Nat))) (gamma challenge : K)
     (block : Fin PiCCSSourceImages.blockCount) (pair : Fin PiCCSNormSource.PairCount) :
@@ -116,7 +112,7 @@ theorem pad_foldedBlock (masks : Array (Array (Nat × Nat))) (gamma challenge : 
         (PiCCSNormSource.pairIndex block.val pair) K.zero := by
   have lowLive : 2 * pair.val < ringDegree := (PiCCSNormSource.lowLane pair).isLt
   have highLive : 2 * pair.val + 1 < ringDegree := (PiCCSNormSource.highLane pair).isLt
-  rw [PiCCSPadPrefix.foldedBlock_getD, dif_pos lowLive, dif_pos highLive]
+  rw [PiCCSPadPrefix.foldedBlock_getD, dite_eq_left lowLive, dite_eq_left highLive]
   have folded := PrefixFold.foldOne_getD extensionOps extensionLaws
     (padPrefix masks gamma) challenge (PiCCSNormSource.pairIndex block.val pair)
   rw [← PiCCSNormSource.highLane_global block.val pair,
@@ -135,8 +131,8 @@ private theorem reference_table {arity : Nat} (value : BooleanVertex arity → K
   funext vertex
   simp only [reference, Array.getD_eq_getD_getElem?, Array.getElem?_ofFn]
   by_cases live : NumericBooleanDomain.index vertex < count
-  · simp only [dif_pos live, Option.getD_some, NumericBooleanDomain.vertex_index]
-  · simp only [dif_neg live, Option.getD_none]
+  · simp only [dite_eq_left live, Option.getD_some, NumericBooleanDomain.vertex_index]
+  · simp only [dite_eq_right live, Option.getD_none]
     exact (padding vertex (Nat.le_of_not_lt live)).symm
 
 private theorem fold_reference_evaluate {arity remaining : Nat}
@@ -262,7 +258,7 @@ theorem padPrefix_endpoint (input : PiCCSPublicReplay.Input)
   cases bit <;> simpa only [PiCCSPrefixRound.point,
     BooleanVertex.toCubePoint_coordinates, BooleanVertex.fieldCoordinates,
     Bool.false_eq_true,
-    if_false, if_true] using! value
+    ite_false, ite_true] using! value
 
 theorem matrixPrefix_endpoint (input : PiCCSPublicReplay.Input)
     (masks : Array (Array (Nat × Nat))) (gamma : K) (challenges : List K)
@@ -285,7 +281,7 @@ theorem matrixPrefix_endpoint (input : PiCCSPublicReplay.Input)
   cases bit <;> simpa only [PiCCSPrefixRound.point,
     BooleanVertex.toCubePoint_coordinates, BooleanVertex.fieldCoordinates,
     Bool.false_eq_true,
-    if_false, if_true] using! value
+    ite_false, ite_true] using! value
 
 theorem padPrefix_size (masks : Array (Array (Nat × Nat))) (gamma : K) :
     (padPrefix masks gamma).size = PiCCSSourceImages.shape.carrierWidth := by

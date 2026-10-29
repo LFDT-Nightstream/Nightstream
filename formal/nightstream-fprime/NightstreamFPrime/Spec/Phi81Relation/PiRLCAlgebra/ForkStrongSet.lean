@@ -2,11 +2,6 @@ import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
 
-/-!
-Owns the exact production scalar-ring and strong-set unit bridge used by the
-PiRLC coordinate-fork extractor.
--/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
 
 open NightstreamFPrime.Spec

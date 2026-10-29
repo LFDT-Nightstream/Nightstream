@@ -1,9 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime.Export.SharedFormulas
 
-/-! Checks the fixed exported templates against their existing Lean owners.
-These execution checks do not prove the Rust interpreter or generic assembly. -/
-
 namespace NightstreamFPrime.Tests.SharedFormulas
 
 open NightstreamFPrime.Export.SharedFormulas

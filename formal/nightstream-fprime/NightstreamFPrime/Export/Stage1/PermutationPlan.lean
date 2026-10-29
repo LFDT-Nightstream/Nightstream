@@ -2,8 +2,6 @@ import Batteries.Data.Fin.Coding
 import NightstreamFPrime.Export.Stage1.Data
 import NightstreamFPrime.Export.Stage1.PiCCSProjection
 
-/-! Owns the Lean-authored generative plan for Stage 1 Poseidon2 invocations. -/
-
 namespace NightstreamFPrime.Export.Stage1.PermutationPlan
 
 open NightstreamFPrime.Circuit
@@ -19,8 +17,7 @@ open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 abbrev EState := Invocations.EState
 abbrev ActionShape := Formal.ActionShape
 
-/-- Recover an eight-lane state from its wire list. Canonical plans always
-carry exactly eight values; Rust rejects any other length. -/
+/-- Rust rejects any wire list whose length is not eight. -/
 def stateOfList (values : List Expr) : EState :=
   fun lane => values.getD lane.val 0
 
@@ -62,6 +59,8 @@ def format : Format ActionShape where
         rfl
     | readK pair =>
         simp
+        erw [dite_eq_left pair.isLt]
+        rfl
 
 end ActionShape
 
@@ -554,7 +553,7 @@ theorem samplerSourceBlockAt_witnessStarts (source : Nat)
       [samplerSourceWitnessStartAt source step] := by
   by_cases entry : step.val = 0
   · unfold samplerSourceBlockAt samplerSourceWitnessStartAt
-    rw [if_pos entry, if_pos entry]
+    rw [ite_eq_left entry, ite_eq_left entry]
     change ((samplerEntryBlock source).expand.map
       fun invocation => invocation.witnessStart) = _
     rw [samplerEntryBlock_expand]
@@ -564,7 +563,7 @@ theorem samplerSourceBlockAt_witnessStarts (source : Nat)
       TranscriptAbsorption.constantWords, TranscriptAbsorption.frameWords,
       Hash.inputChunks, Spec.Poseidon2.rate]
   · unfold samplerSourceBlockAt samplerSourceWitnessStartAt
-    rw [if_neg entry, if_neg entry]
+    rw [ite_eq_right entry, ite_eq_right entry]
     simp [Block.expand, samplerAdvanceBlock, DirectBlock.expand,
       DirectBlock.ofState, Invocations.invocation_witnessStart]
 

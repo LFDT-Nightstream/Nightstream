@@ -2,18 +2,10 @@ import CompressionLean.Layer1.Cube
 import Mathlib.Algebra.BigOperators.Field
 import Mathlib.Algebra.BigOperators.Intervals
 
-/-!
-Owns the fraction trees of `crates/neo-spartan/src/gkr.rs`: a level is
-numerator factors and a denominator; the level above combines nodes `y` and
-`y + half` into `(p₀q₁ + p₁q₀, q₀q₁)`. A tree's root is `Σ_x p(x)/q(x)` over
-its leaves whenever the root denominator is nonzero (`root_fraction`).
--/
-
 namespace CompressionLean.Layer1
 
 variable {K : Type} [Field K]
 
-/-- One level of a fraction tree: the numerator is the product of the factors. -/
 structure Level (K : Type) where
   factors : List (ℕ → K)
   denominator : ℕ → K
@@ -22,12 +14,10 @@ namespace Level
 
 def numerator (L : Level K) (x : ℕ) : K := (L.factors.map fun f => f x).prod
 
-/-- The level above: node `y` combines nodes `y` and `y + half`. -/
 def up (L : Level K) (half : ℕ) : Level K where
   factors := [fun y => L.numerator y * L.denominator (y + half) + L.numerator (y + half) * L.denominator y]
   denominator := fun y => L.denominator y * L.denominator (y + half)
 
-/-- Level `depth - m` of the tree whose leaves are `L` at level `depth`. -/
 def above (L : Level K) (depth : ℕ) : ℕ → Level K
   | 0 => L
   | m + 1 => (L.above depth m).up (2 ^ (depth - m - 1))
@@ -40,8 +30,6 @@ theorem up_numerator (L : Level K) (half y : ℕ) :
 theorem up_denominator (L : Level K) (half y : ℕ) :
     (L.up half).denominator y = L.denominator y * L.denominator (y + half) := rfl
 
-/-- Each level has the leaves' fraction sum, and a nonzero level forces
-nonzero leaves. -/
 theorem above_fraction (L : Level K) (depth : ℕ) :
     ∀ m, m ≤ depth → (∀ y, y < 2 ^ (depth - m) → (L.above depth m).denominator y ≠ 0) →
       (∀ x, x < 2 ^ depth → L.denominator x ≠ 0) ∧
@@ -85,7 +73,6 @@ theorem above_fraction (L : Level K) (depth : ℕ) :
       congr 1
       ring
 
-/-- The root of a tree with nonzero root denominator is the leaves' fraction sum. -/
 theorem root_fraction (L : Level K) (depth : ℕ)
     (nonzero : (L.above depth depth).denominator 0 ≠ 0) :
     (∀ x, x < 2 ^ depth → L.denominator x ≠ 0) ∧

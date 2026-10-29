@@ -1,21 +1,6 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 
-/-!
-Typed Ajtai commitment recomposition for the concrete Phi81 `Pi_DEC` algebra.
-
-Protocol: SuperNeo `Pi_DEC` at production `b = 2`, `k = 16`.
-
-Owns: base-field scaling of one typed public Ajtai commitment; the canonical
-head-first finite base-scalar fold; specialization to the verifier-fixed
-`2^i` radix weights; and the exact theorem required by
-`Folding.PiDEC.Algebra.commit_hom`.
-
-Does not own: digit splitting, the Ajtai key, key generation or serialization,
-Ajtai binding or MSIS security, child-opening validity, transcript binding,
-Rust/R1CS refinement, row removal, or constraint counts.
--/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Commitment
 
 open NightstreamFPrime.Spec

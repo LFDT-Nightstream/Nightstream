@@ -6,11 +6,6 @@ import NightstreamFPrime.Spec.Folding.Nifs.PaperSecurityComposition
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
 import NightstreamFPrime.Spec.Phi81StrongSet.LowNormInvertibility
 
-/-!
-Owns the deterministic binding reduction for one verifier-selected canonical
-Stage 1 application package.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationSecurity
 
 open NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage

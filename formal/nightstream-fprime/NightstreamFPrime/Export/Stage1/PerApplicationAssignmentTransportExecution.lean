@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExpressions
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportProducts
 
-/-!
-Owns the executable meaning of the serialized per-application assignment
-transport.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExecution
 
 open NightstreamFPrime.Circuit
@@ -157,7 +152,7 @@ private theorem blockValue_coordinateAt_eq
   · have rightInside : index < right.coordinateCount := by
       rw [← countEq]
       exact inside
-    rw [dif_pos inside, dif_pos rightInside]
+    rw [dite_eq_left inside, dite_eq_left rightInside]
     dsimp only
     let leftSlot : Fin left.block.slotCount :=
       ⟨index / left.block.kind.width, by
@@ -212,7 +207,7 @@ private theorem blockValue_coordinateAt_eq
   · have rightOutside : ¬ index < right.coordinateCount := by
       rw [← countEq]
       exact inside
-    rw [dif_neg inside, dif_neg rightOutside]
+    rw [dite_eq_right inside, dite_eq_right rightOutside]
 
 private theorem canonicalBlock_kind (program : Program)
     (raw : RawValues program) (kind : BlockKind) :
@@ -259,7 +254,7 @@ private theorem canonicalBlock_coordinateAt (program : Program)
         (kind.expand raw).source
           ((kind.expand raw).block.source ⟨slot, rightBound⟩)
     unfold blockSlotValue
-    rw [dif_pos
+    rw [dite_eq_left
       (PerApplicationAssignmentBlocks.BlockPlan.ofKind_sourceRuns_count
         program kind)]
     rw [canonical_runSource program kind slot entryBound]
@@ -301,12 +296,12 @@ private theorem canonicalBlocks_coordinateAt_aux (program : Program)
       · have rightInside : index < (kind.expand raw).coordinateCount := by
           rw [← countEq]
           exact inside
-        rw [dif_pos inside, dif_pos rightInside]
+        rw [dite_eq_left inside, dite_eq_left rightInside]
         exact canonicalBlock_coordinateAt program raw kind index
       · have rightOutside : ¬ index < (kind.expand raw).coordinateCount := by
           rw [← countEq]
           exact inside
-        rw [dif_neg inside, dif_neg rightOutside, countEq]
+        rw [dite_eq_right inside, dite_eq_right rightOutside, countEq]
         exact inductionHypothesis _
 
 private theorem canonicalBlocks_coordinateAt (program : Program)
@@ -383,8 +378,8 @@ private theorem canonical_execute_eq_plan_execute (program : Program)
   unfold CanonicalBlockAssignment.assignment
   by_cases publicRegion :
       column.val < ProductionAssignment.publicWidth
-  · rw [dif_pos publicRegion, dif_pos publicRegion]
-  · rw [dif_neg publicRegion, dif_neg publicRegion]
+  · rw [dite_eq_left publicRegion, dite_eq_left publicRegion]
+  · rw [dite_eq_right publicRegion, dite_eq_right publicRegion]
     exact canonicalBlocks_coordinateAt program raw _
 
 def execute (program : Program) (plan : Plan) (base : BaseValues program) :
@@ -399,7 +394,7 @@ theorem canonical_execute_eq_assignment (program : Program)
     execute program (PerApplicationAssignmentTransport.canonical program) base =
       some (canonicalRawValues program base).assignment := by
   unfold execute
-  rw [if_pos rfl, canonical_execute_eq_plan_execute,
+  rw [ite_eq_left rfl, canonical_execute_eq_plan_execute,
     PerApplicationAssignmentPlan.execute_eq_assignment]
 
 theorem canonical_execute_eq_assignment_pointwise (program : Program)

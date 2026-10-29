@@ -1,11 +1,6 @@
 import NightstreamFPrime.Circuit.VariableSupport
 import NightstreamFPrime.Lifecycle.Stage1.RunningTransition
 
-/-!
-Owns generic variable-support propagation for the Stage 1 running
-transition. It does not select physical columns or a retained assignment.
--/
-
 namespace NightstreamFPrime.Lifecycle.Stage1.RunningTransition
 
 open NightstreamFPrime.Circuit

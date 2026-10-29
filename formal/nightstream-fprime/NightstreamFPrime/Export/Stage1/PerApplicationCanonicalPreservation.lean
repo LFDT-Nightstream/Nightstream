@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationCompactPreservation
 
-/-!
-Owns the unconditional preservation theorem for the validated Stage 1 prefix
-inside every Lean-authored per-application package.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPreservation
 
 open NightstreamFPrime.Circuit

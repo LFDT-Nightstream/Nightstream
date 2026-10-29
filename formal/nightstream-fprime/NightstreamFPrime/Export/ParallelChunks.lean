@@ -1,11 +1,3 @@
-/-!
-Run independent chunks on a fixed number of dedicated threads. Each thread takes
-the next unstarted chunk, so the thread count is the configured worker count and
-the chunk count only sets the size of one work item. Results keep chunk order.
-After a chunk fails, the chunks not yet started are skipped with an error. This
-is scheduling only; callers combine the results in their canonical order.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.ParallelChunks

@@ -2,14 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCRetainedPreservation
 import NightstreamFPrime.Layout.Stage1.RunningTransitionSourceSupport
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the compact field-source views needed by the direct running-transition
-rows.
-
-This module does not compile rows or claim that a final assignment encodes the
-blocks.
--/
-
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks
 
 open NightstreamFPrime.Layout
@@ -17,6 +9,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 
+@[implicit_reducible]
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 

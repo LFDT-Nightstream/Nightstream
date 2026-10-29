@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.PiDECParentRange
 
-/-! Regression checks for the parent range reader of the PiDEC commitment and
-Pad range commands: it returns exactly the selected records of a valid file and
-rejects broken framing, order, coefficients and ranges anywhere in the file. -/
-
 namespace NightstreamFPrime.Tests.PiDECParentRange
 
 open NightstreamFPrime.Spec

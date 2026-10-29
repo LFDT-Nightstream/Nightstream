@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSTensorWeights
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 
-/-! Reuse the prepared suffix tensor weights in the existing first-round
-selector. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCachedSelector

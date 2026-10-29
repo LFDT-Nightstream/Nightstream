@@ -1,24 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.MatrixCoefficientSource
 
-/-!
-Concrete logical-column to Phi81 block/lane layout.
-
-Protocol: SuperNeo coefficient embedding (Section 5) and the concrete
-`d = 54` assignment representation.
-Phase: logical CCS column layout before coefficient-expanded matrix images.
-Constraint family: flat column / ring block / coefficient lane / final padding.
-
-Owns: the exact quotient/remainder ordering of a logical flat column inside
-54-coefficient Phi81 blocks; the ceiling block count; a partial inverse from
-padded block/lane positions to logical columns; and explicit recognition of
-the zero-padding suffix of the final block.
-
-Does not own: proof that Rust uses this layout, matrix-entry values, the Phi81
-bar transform, transcript, SumCheck, R1CS lowering, row removal, or constraint
-counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 5. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81ColumnLayout
 
@@ -28,6 +10,7 @@ open MatrixCoefficientSource
 def blockCount (columns : Nat) : Nat :=
   (columns + ringDegree - 1) / ringDegree
 
+@[implicit_reducible]
 def flatIndex
     {columns : Nat}
     (block : Fin (blockCount columns))
@@ -78,7 +61,8 @@ private theorem flatIndex_mod
     (block : Fin (blockCount columns))
     (coefficient : Fin ringDegree) :
     flatIndex block coefficient % ringDegree = coefficient.val := by
-  simp [flatIndex, ringDegree]
+  have bound : coefficient.val < 54 := coefficient.isLt
+  simp [flatIndex, ringDegree, bound]
 
 theorem decode_encode
     {columns : Nat}
@@ -140,8 +124,7 @@ theorem flatIndex_lt_paddedWidth
     (coefficient : Fin ringDegree) :
     flatIndex block coefficient < blockCount columns * ringDegree := by
   have blockBound := block.isLt
-  have coefficientBound : coefficient.val < 54 := by
-    simp [ringDegree]
+  have coefficientBound : coefficient.val < 54 := coefficient.isLt
   change
     block.val * 54 + coefficient.val < blockCount columns * 54
   omega

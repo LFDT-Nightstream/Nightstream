@@ -14,9 +14,8 @@ are not checked.
 
 ## What Lean checks
 
-- The kernel of the official Lean v4.32.2 toolchain, with Mathlib v4.32.2 and
-  the CompPoly revision that `lakefile.toml` pins. Final validation uses the
-  official toolchain. The lean4-optimized fork is used only to iterate.
+- The kernel of the official Lean v4.35.0 toolchain, with Mathlib v4.35.0 and
+  the CompPoly revision that `lakefile.toml` pins.
 - `scripts/validate.sh` runs on the developer Mac. Its `build`, `axioms`,
   `executables` and `all` phases use `lake build --wfail`, and single files
   run with `warningAsError`, so any warning fails a gate. `all` runs the
@@ -190,7 +189,7 @@ collision.
   application that is chosen after it, is outside the model.
 
 The proof follows the interactive SuperNeo v1.2 extraction and replaces each
-fresh verifier coin by an oracle read. Each module header states its part:
+fresh verifier coin by an oracle read. The Lean column names the declaration for each step:
 
 | Lemma | Step | Lean |
 |---|---|---|

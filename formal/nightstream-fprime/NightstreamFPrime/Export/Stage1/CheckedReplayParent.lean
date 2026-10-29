@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSOriginalPadPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixRange
 import NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse
 
-/-!
-Derive the actual computed R parent opening from the original seventeen
-openings and the existing C/R source kernels.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.CheckedReplayParent

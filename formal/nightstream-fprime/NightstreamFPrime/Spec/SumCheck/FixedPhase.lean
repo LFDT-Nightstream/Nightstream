@@ -1,18 +1,6 @@
 import NightstreamFPrime.Spec.SumCheck.FixedPolynomial
 import NightstreamFPrime.Spec.SumCheck.HypercubeTruth
 
-/-!
-Ghost-free SumCheck verification with one exact coefficient width per phase.
-
-Owns: the fixed-width certificate, its logical and executable claimed-chain
-verifiers, semantic rounds derived from one explicit hypercube polynomial,
-honest-certificate existence from representability, and the deterministic
-projection of a false accepted claim to a symbolic bad challenge.
-
-Does not own: challenge generation, root counting, Fiat--Shamir, a
-protocol-specific polynomial, Rust, R1CS, or constraint costs.
--/
-
 namespace NightstreamFPrime.Spec.SumCheck.Finite.FixedPhase
 
 universe uField

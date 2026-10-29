@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 
-/-!
-Owns the PiCCS arithmetic environment decoded from an arbitrary logical
-assignment. Transcript contracts and phase closure are separate.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSAssignmentSoundness
 
 open NightstreamFPrime.Circuit

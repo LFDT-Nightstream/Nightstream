@@ -3,10 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.RetainedValues
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedPreservation
 import NightstreamFPrime.Export.Stage1.PoseidonActionSemantics
 
-/-!
-Owns the value-preservation bridge for the direct PiCCS Poseidon2 plan.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonPreservation
 
 open NightstreamFPrime.Spec
@@ -92,7 +88,7 @@ theorem payloadLaneValue_absorb
           lane.val 0 := by
   unfold payloadLaneValue
   by_cases rateLane : lane.val < Spec.Poseidon2.rate
-  · rw [dif_pos rateLane]
+  · rw [dite_eq_left rateLane]
     unfold PiCCSActionPayloadBlock.payloadValue
     rw [PiCCSActionPayloadBlock.payloadExpression_encode]
     unfold PiCCSActionPayloadBlock.payloadExpr
@@ -109,7 +105,7 @@ theorem payloadLaneValue_absorb
     exact (List.getD_map (n := lane.val) block (0 : Circuit.Expr)
       (Circuit.Expr.eval
         (PiCCSActionPayloadBlock.packageEnv program prefixAssignment))).symm
-  · rw [dif_neg rateLane]
+  · rw [dite_eq_right rateLane]
     have wellFormed := PiCCSActionPayloadBlock.kindAt_wellFormed invocation
     rw [found] at wellFormed
     change block.length ≤ Spec.Poseidon2.rate at wellFormed
@@ -213,7 +209,7 @@ theorem inputState_eval
             previousValue geometry assignment invocation lane by
         exact congrFun
           (previousOutput_eval geometry assignment invocation) lane]
-      rw [payloadForm_eval payloadForms geometry assignment prefixAssignment encoding]
+      erw [payloadForm_eval payloadForms geometry assignment prefixAssignment encoding]
 
 structure CanonicalSemantics
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -245,16 +241,11 @@ theorem previousState_eq_previousValue
       List.ofFn (previousValue geometry assignment current) := by
   unfold PoseidonActionSemantics.previousState previousValue valueState
   by_cases first : current.val = 0
-  · rw [dif_pos first, dif_pos first]
+  · rw [dite_eq_left first, dite_eq_left first]
     unfold Spec.Poseidon2.zeroState
     change List.replicate 16 0 = List.ofFn (fun _ : Fin 16 => (0 : F))
     norm_num [List.ofFn_succ]
-    rfl
-  · rw [dif_neg first, dif_neg first]
-    apply congrArg (fun index =>
-      List.ofFn (outputValue geometry assignment index))
-    apply Fin.ext
-    rfl
+  · rw [dite_eq_right first, dite_eq_right first]
 
 theorem indexedSemantics
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}

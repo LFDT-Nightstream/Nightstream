@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNativeDot
 import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 
-/-! Aggregate original running sources and Phi81 output weights before a
-matrix row reads a column. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCarriedRead

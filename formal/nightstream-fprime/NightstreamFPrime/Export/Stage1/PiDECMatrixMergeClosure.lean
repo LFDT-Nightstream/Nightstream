@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECMatrixRangeSum
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch
 
-/-!
-Two composition links for the complete matrix replay: an ordered fold of
-adjacent computed ranges is the complete prefix, and scalar-split parent blocks
-are the complete blocks of the same successful stored split.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixMergeClosure

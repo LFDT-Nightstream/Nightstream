@@ -1,14 +1,5 @@
 import NightstreamFPrime.Circuit.Basic
 
-/-!
-Owns the physical R1CS lowering of logical circuit expressions. A recipe that
-is affine, one product of affine expressions, or such a product plus an affine
-expression is one row. In the general lowering, every multiplication allocates
-one fresh physical variable and one row, and every logical zero assertion
-adds one final row. The proof is structural in the
-expression syntax and does not evaluate an emitted artifact in the kernel.
--/
-
 namespace NightstreamFPrime.Layout.R1CS
 
 open NightstreamFPrime.Spec

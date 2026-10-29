@@ -1,10 +1,5 @@
 import NightstreamFPrime.Circuit.VariableSupport
 
-/-!
-Owns variable-support propagation for the canonical straight-line witness IR.
-It does not select a protocol support set or a circuit layout.
--/
-
 namespace NightstreamFPrime.Circuit
 
 theorem recipeConstraints_varsSatisfy

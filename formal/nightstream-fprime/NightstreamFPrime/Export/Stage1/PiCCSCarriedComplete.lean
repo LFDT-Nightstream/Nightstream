@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedSource
 
-/-! Selected carried accumulation from original assignments.
-This is a pure kernel theorem, not a proof of the IO task or cache loop. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCarriedComplete
@@ -79,7 +76,7 @@ private theorem atRow_toVertex {columns : Nat} (covered : columns ≤ 2 ^ cubeVa
     (value : BooleanVertex cubeVariables → K) (column : Fin columns) :
     atRow value column.val =
       value ((Folding.PiCCS.CanonicalRowLayout.layout cubeVariables columns covered).toVertex column) := by
-  rw [atRow, dif_pos (Nat.lt_of_lt_of_le column.isLt covered)]
+  rw [atRow, dite_eq_left (Nat.lt_of_lt_of_le column.isLt covered)]
   rfl
 
 private theorem carrierColumn_val {logicalWidth : Nat}
@@ -133,7 +130,7 @@ private theorem matrixRow?_value (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (row : Nat) (inside : row < 2 ^ cubeVariables) :
     matrixRow? witness gamma row = some (matrixRow input witness gamma row) := by
-  rw [matrixRow?, dif_pos inside, matrixRow, atRow, dif_pos inside]
+  rw [matrixRow?, dite_eq_left inside, matrixRow, atRow, dite_eq_left inside]
   exact PiCCSCarriedSource.matrix_sourceProtocolData input witness gamma _
 
 def matrixMoment? (input : PiCCSPublicReplay.Input)
@@ -210,7 +207,7 @@ private theorem padRow_zero (input : PiCCSPublicReplay.Input)
     (gamma : K) (row : Nat)
     (lower : Phi81CarrierLayout.carrierWidth PiCCSSourceImages.logicalWidth ≤ row)
     (upper : row < 2 ^ cubeVariables) : padRow input witness gamma row = extensionOps.zero := by
-  rw [padRow, atRow, dif_pos upper]
+  rw [padRow, atRow, dite_eq_left upper]
   apply PiCCSCarriedSource.originalPad_padding
   rw [NumericBooleanDomain.index_vertex]
   have width := fullShape_carrierWidth PiCCSSourceImages.logicalWidth PiCCSSourceImages.publicFits
@@ -222,7 +219,7 @@ private theorem matrixRow_zero (input : PiCCSPublicReplay.Input)
     (witness : StrongReduction.OutputWitness productionShape PiCCSSourceImages.shape.carrierWidth)
     (gamma : K) (row : Nat) (lower : selectedProgram.rowCount ≤ row) (upper : row < 2 ^ cubeVariables) :
     matrixRow input witness gamma row = extensionOps.zero := by
-  rw [matrixRow, atRow, dif_pos upper]
+  rw [matrixRow, atRow, dite_eq_left upper]
   apply PiCCSCarriedSource.originalMatrix_padding
   simpa only [NumericBooleanDomain.index_vertex] using lower
 
@@ -244,11 +241,11 @@ theorem selected_moment (input : PiCCSPublicReplay.Input)
     (padRow_zero input witness gamma) (matrixRow_zero input witness gamma)
     (by
       intro pair
-      rw [padRow, atRow, dif_pos (endpoint_bound pair bit), ← endpoint_vertex pair bit]
+      rw [padRow, atRow, dite_eq_left (endpoint_bound pair bit), ← endpoint_vertex pair bit]
       rfl)
     (by
       intro pair
-      rw [matrixRow, atRow, dif_pos (endpoint_bound pair bit), ← endpoint_vertex pair bit]
+      rw [matrixRow, atRow, dite_eq_left (endpoint_bound pair bit), ← endpoint_vertex pair bit]
       rfl)
   rw [source_prior input witness] at complete
   exact complete

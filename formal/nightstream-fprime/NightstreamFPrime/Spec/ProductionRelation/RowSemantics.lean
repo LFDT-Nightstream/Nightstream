@@ -1,12 +1,5 @@
 import NightstreamFPrime.Spec.ProductionRelation
 
-/-!
-Owns the named 4-port image interface used by the production gate compiler.
-Each row constructor is interpreted by the sole fixed 3-term gate polynomial.
-
-This module does not assign columns or construct sparse matrices.
--/
-
 namespace NightstreamFPrime.Spec.ProductionRelation.RowSemantics
 
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint

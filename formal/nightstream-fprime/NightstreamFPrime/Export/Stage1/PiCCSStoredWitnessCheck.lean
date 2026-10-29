@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CheckedWitnessExtraction
 
-/-!
-Owns the PiCCS source statement of one application: its matrix source and the
-Ajtai key of its commitment setup.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSStoredWitnessCheck

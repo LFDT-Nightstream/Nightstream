@@ -1,12 +1,6 @@
 import NightstreamFPrime.Circuit.Quadratic
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation
 
-/-!
-Owns one quadratic-extension read for the Poseidon2 duplex gadget. It reads
-the rate lanes `2 · pair` and `2 · pair + 1` of the current state and does not
-permute. It allocates no recipe and defines no protocol schedule.
--/
-
 namespace NightstreamFPrime.Gadgets.Poseidon2.Duplex.Read
 
 open NightstreamFPrime.Spec

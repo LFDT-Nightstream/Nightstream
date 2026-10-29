@@ -2,14 +2,6 @@ import NightstreamFPrime.Layout.ProductionRelation.CcsOpening
 import NightstreamFPrime.Layout.ProductionRelation.SparseEvaluation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PrefixFold
 
-/-!
-Owns the fresh scalar prefixes read from one production plan and assignment.
-The matrix prefixes execute stored sparse entries; the assignment prefix
-includes exact carrier completion. Both are proved equal to the tables of
-the actual production-key statement with literal zero running witnesses.
-This module does not compute SumCheck round sums or full ring outputs.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle
 
 open NightstreamFPrime.Spec
@@ -62,10 +54,10 @@ private theorem embeddedPrefix_getD {arity count : Nat}
   by_cases live : NumericBooleanDomain.index vertex < count
   · simp only [Array.getD_eq_getD_getElem?, Array.getElem?_ofFn, 
       Option.getD_some, ColumnLayout.paddedValue, CanonicalRowLayout.layout,
-      dif_pos live]
+      dite_eq_left live]
   · simp only [Array.getD_eq_getD_getElem?, Array.getElem?_ofFn, 
       Option.getD_none, ColumnLayout.paddedValue, CanonicalRowLayout.layout,
-      dif_neg live]
+      dite_eq_right live]
     exact embed_literal_zero.symm
 
 theorem matrixPrefix_getD {logicalWidth : Nat} (plan : Plan logicalWidth)
@@ -110,7 +102,7 @@ private theorem sourceWitness_running {logicalWidth : Nat}
     (column : Fin (Phi81CarrierLayout.carrierWidth logicalWidth)) :
     (sourceWitness assignment).assignments (runningSourceIndex index) column = 0 := by
   change (if 1 + index.val = 0 then _ else (0 : F)) = 0
-  rw [if_neg (by omega)]
+  rw [ite_eq_right (by omega)]
 
 section
 

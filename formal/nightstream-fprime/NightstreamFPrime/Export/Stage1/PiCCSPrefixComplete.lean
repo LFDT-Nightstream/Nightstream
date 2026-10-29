@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixComplete
 import NightstreamFPrime.Export.Stage1.PiCCSNormFirstPrefix
 
-/-! Complete later-round source coefficients from the existing fresh,
-carried and norm contribution kernels. File IO and transcript replay
-are separate from this pure coefficient composition. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPrefixComplete

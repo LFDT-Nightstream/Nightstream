@@ -1,13 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.PiDECProtocolCompleteness
 
-/-!
-Owns one environment for the existing pilot and local C/R/D rows. Pilot
-witnesses are constructed first. NIFS consumes the same external source
-values and preserves those witnesses through the existing phase intervals.
-Application, running-transition, next-preimage, and physical lowering remain
-with their own constructors.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PilotNifsCompleteness
 
 open NightstreamFPrime.Spec

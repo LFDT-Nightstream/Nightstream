@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationPackage
 import NightstreamFPrime.Export.Stage1.PiCCSInvocationSchedule
 
-/-! Owns physical row preservation for the generic per-application package. -/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationPreservation
 
 open NightstreamFPrime.Layout.R1CS (mapCombinationColumns mapRowColumns mapCombinationColumns_zero mapCombinationColumns_const mapCombinationColumns_one mapCombinationColumns_ofVar mapCombinationColumns_add mapCombinationColumns_scale)
@@ -534,7 +532,7 @@ private theorem shiftedHashInvocationInput
   · subst invocation
     simp only []
     by_cases absorbing : 0 < chain.absorbCount
-    · simp only [absorbing, if_pos]
+    · simp only [absorbing, ite_eq_left]
       by_cases present : lane < 12 ∧ 0 * 12 + lane < chain.inputLength
       · have inputEnd := layout.inputEnd
         have inputShift := shiftColumn_add_of_private program chain.inputStart
@@ -574,9 +572,9 @@ private theorem shiftedHashInvocationInput
               ((invocation - 1) * 1096 + 1080 + lane) := shifted
         _ = shiftColumn program chain.witnessStart +
               (invocation - 1) * 1096 + 1080 + lane := by omega
-    simp only [isFirst, if_false]
+    simp only [isFirst, ite_false]
     by_cases absorbing : invocation < chain.absorbCount
-    · simp only [absorbing, if_pos]
+    · simp only [absorbing, ite_eq_left]
       by_cases present : lane < 12 ∧ invocation * 12 + lane < chain.inputLength
       · have inputEnd := layout.inputEnd
         have inputShift := shiftColumn_add_of_private program chain.inputStart
@@ -667,8 +665,11 @@ theorem shiftedCompactInputColumn
             CompactRangeCompatible program current := by
           intro current member
           exact compatible current (by simp [member])
-        simpa [compactInputColumn, shiftCompactInputRange, selected] using
-          inductionHypothesis tailCompatible
+        unfold compactInputColumn
+        rw [List.map_cons,
+          List.find?_cons_of_neg (by rw [Bool.not_eq_true]; exact decide_eq_false selected),
+          List.find?_cons_of_neg (by rw [Bool.not_eq_true]; exact decide_eq_false selected)]
+        exact inductionHypothesis tailCompatible
 
 structure CompactInvocationPrivate
     (program : Lifecycle.Stage1.Application.Program)

@@ -1,15 +1,5 @@
 import CompressionLean.Layer1.Late
 
-/-!
-Owns the encoding identity of the two-level scatter (`matrix.rs`): with the
-true slot sums, the weights the slots put on block `b` (`slotWeights`) are the
-Eval_A part of the batched ring weights at `ζ`,
-`Σ_{l < D} τ_l·Σ_j (λ^{re}·Re + λ^{im}·Im)(M_jᵀ χ_r)_{D·b + l}` (`slotWeights_eq`).
-
-The proof splits the late leaves into (slot, part), keeps the two blocks a
-run can touch, swaps the slot and lane sums, and regroups the runs by slot.
--/
-
 namespace CompressionLean.Layer1
 
 open Polynomial
@@ -18,13 +8,11 @@ variable {F K : Type} [Field F] [Field K] [Algebra F K]
 
 local notation "ι" => algebraMap F K
 
-/-- The Eval_A weights of column `c`, batched by the Eval_A rows' powers of `λ`. -/
 noncomputable def evalAColumn (s : Shape) (S : Setup F) (st : Statement F) (lam : K) (c : ℕ) : K :=
   ∑ j ∈ Finset.range s.matrices,
     (lam ^ s.evalARow j 0 * ι (evalAWeight S st s.D j c).1 +
       lam ^ s.evalARow j 1 * ι (evalAWeight S st s.D j c).2)
 
-/-- The run part of a column weight: what a run's slot puts on it. -/
 theorem runWeight_block (s : Shape) (S : Setup F) (fits : S.Fits s) (σ b l : ℕ) (lane : l < s.D)
     (inside : runWeight (K := K) s S σ (s.D * b + l) ≠ 0) :
     b = S.slotBlock σ ∨ b = S.slotBlock σ + 1 := by
@@ -50,7 +38,6 @@ theorem runWeight_block (s : Shape) (S : Setup F) (fits : S.Fits s) (σ b l : �
   · exact absurd rfl inside
 
 open Classical in
-/-- The late leaves split into (slot, part). -/
 theorem slotWeights_split (s : Shape) (S : Setup F) (lam : K) (τ : ℕ → K) (U : ℕ → ℕ → F × F) (b : ℕ) :
     slotWeights s S lam τ U b =
       ∑ σ ∈ Finset.range (2 ^ s.slotVars),
@@ -74,7 +61,6 @@ theorem slotWeights_split (s : Shape) (S : Setup F) (lam : K) (τ : ℕ → K) (
     rw [high, low]
 
 open Classical in
-/-- One slot: its two parts are the lane sums of its weights on block `b`. -/
 theorem slot_parts (s : Shape) (S : Setup F) (fits : S.Fits s) (τ : ℕ → K) (u : K) (σ b : ℕ)
     (N : ℕ) (cast : ∀ a c : ℕ, a < N → c < N → (a : K) = c → a = c) (b_lt : b < N)
     (block_lt : S.slotBlock σ + 1 < N) (outside : S.slots ≤ σ → u = 0) :
@@ -87,13 +73,13 @@ theorem slot_parts (s : Shape) (S : Setup F) (fits : S.Fits s) (τ : ℕ → K) 
         (blockColumn S σ + ((t : ℕ) : K) = (b : K)) ↔ S.slotBlock σ + t = b := by
       rw [column, ← Nat.cast_add]
       exact ⟨fun h => cast _ _ (by omega) b_lt h, fun h => by rw [h]⟩
-    simp only [laneSplit, real, if_true]
+    simp only [laneSplit, real, ite_true]
     rw [if_congr (iff 0 (by norm_num)) rfl rfl, if_congr (iff 1 le_rfl) rfl rfl]
     by_cases here : S.slotBlock σ + 0 = b
-    · rw [if_pos here, if_neg (by omega), add_zero, ← here, add_zero]
+    · rw [ite_eq_left here, ite_eq_right (by omega), add_zero, ← here, add_zero]
     · by_cases next : S.slotBlock σ + 1 = b
-      · rw [if_neg here, if_pos next, zero_add, ← next]
-      · rw [if_neg here, if_neg next, add_zero, eq_comm, mul_eq_zero]
+      · rw [ite_eq_right here, ite_eq_left next, zero_add, ← next]
+      · rw [ite_eq_right here, ite_eq_right next, add_zero, eq_comm, mul_eq_zero]
         right
         apply Finset.sum_eq_zero
         intro l inside
@@ -104,7 +90,6 @@ theorem slot_parts (s : Shape) (S : Setup F) (fits : S.Fits s) (τ : ℕ → K) 
   · have zero := outside (by omega)
     simp [zero]
 
-/-- One run's term in the batched Eval_A weights of matrix `j`. -/
 noncomputable def runTerm (s : Shape) (S : Setup F) (st : Statement F) (lam : K) (j k : ℕ) : K :=
   lam ^ s.evalARow j 0 * ι (S.runCoef k) * ι (st.chi (S.runRow k)).1 +
     lam ^ s.evalARow j 1 * ι (S.runCoef k) * ι (st.chi (S.runRow k)).2
@@ -143,11 +128,11 @@ theorem evalAColumn_true (s : Shape) (S : Setup F) (st : Statement F) (fits : S.
     by_cases matrix : S.runMatrix k = j
     · by_cases covers : s.D * S.slotBlock (S.runSlot k) + S.slotLane (S.runSlot k) ≤ c ∧
           c < s.D * S.slotBlock (S.runSlot k) + S.slotLane (S.runSlot k) + S.slotLength (S.runSlot k)
-      · rw [if_pos ⟨matrix, covers⟩, if_pos matrix, if_pos covers]
+      · rw [ite_eq_left ⟨matrix, covers⟩, ite_eq_left matrix, ite_eq_left covers]
         simp only [runTerm, Prod.smul_fst, Prod.smul_snd, smul_eq_mul, map_mul, map_pow]
         ring
-      · rw [if_neg (fun h => covers h.2), if_pos matrix, if_neg covers, mul_zero]
-    · rw [if_neg (fun h => matrix h.1), if_neg matrix]
+      · rw [ite_eq_right (fun h => covers h.2), ite_eq_left matrix, ite_eq_right covers, mul_zero]
+    · rw [ite_eq_right (fun h => matrix h.1), ite_eq_right matrix]
   · intro k inside outside
     have zero := (fits.padding k (by simp at inside outside; omega)).1
     split
@@ -155,7 +140,6 @@ theorem evalAColumn_true (s : Shape) (S : Setup F) (st : Statement F) (fits : S.
     · rfl
 
 open Classical in
-/-- The slots' weights against a column regroup into the batched Eval_A weights. -/
 theorem ubar_runWeight (s : Shape) (S : Setup F) (st : Statement F) (fits : S.Fits s) (lam : K) (c : ℕ) :
     ∑ σ ∈ Finset.range (2 ^ s.slotVars), ubar s lam (trueU s S st) σ * runWeight s S σ c =
       evalAColumn s S st lam c := by
@@ -169,7 +153,7 @@ theorem ubar_runWeight (s : Shape) (S : Setup F) (st : Statement F) (fits : S.Fi
   intro k _
   have slot_lt := fits.slot_lt k
   by_cases matrix : S.runMatrix k = j
-  · rw [if_pos matrix]
+  · rw [ite_eq_left matrix]
     have collapse : ∑ σ ∈ Finset.range (2 ^ s.slotVars),
         (if S.runMatrix k = j ∧ S.runSlot k = σ then runTerm s S st lam j k else 0) * runWeight s S σ c =
         ∑ σ ∈ Finset.range (2 ^ s.slotVars),
@@ -177,13 +161,13 @@ theorem ubar_runWeight (s : Shape) (S : Setup F) (st : Statement F) (fits : S.Fi
       apply Finset.sum_congr rfl
       intro σ _
       by_cases slot : S.runSlot k = σ
-      · rw [if_pos ⟨matrix, slot⟩, if_pos slot]
-      · rw [if_neg (fun h => slot h.2), if_neg slot, zero_mul]
-    rw [collapse, Finset.sum_ite_eq, if_pos (Finset.mem_range.mpr slot_lt)]
-  · rw [if_neg matrix]
+      · rw [ite_eq_left ⟨matrix, slot⟩, ite_eq_left slot]
+      · rw [ite_eq_right (fun h => slot h.2), ite_eq_right slot, zero_mul]
+    rw [collapse, Finset.sum_ite_eq, ite_eq_left (Finset.mem_range.mpr slot_lt)]
+  · rw [ite_eq_right matrix]
     apply Finset.sum_eq_zero
     intro σ _
-    rw [if_neg (fun h => matrix h.1), zero_mul]
+    rw [ite_eq_right (fun h => matrix h.1), zero_mul]
 
 theorem ubar_true_outside (s : Shape) (S : Setup F) (st : Statement F) (fits : S.Fits s) (lam : K)
     (σ : ℕ) (outside : S.slots ≤ σ) : ubar s lam (trueU s S st) σ = 0 := by
@@ -200,8 +184,6 @@ theorem ubar_true_outside (s : Shape) (S : Setup F) (st : Statement F) (fits : S
     · simp [runTerm, (fits.padding k (by omega)).1]
   · rfl
 
-/-- The encoding identity: with the true slot sums, the slots' weights on
-block `b` are the Eval_A part of the batched ring weights at `ζ`. -/
 theorem slotWeights_eq (s : Shape) (S : Setup F) (st : Statement F) (fits : S.Fits s) (lam : K)
     (τ : ℕ → K) (b N : ℕ) (cast : ∀ a c : ℕ, a < N → c < N → (a : K) = c → a = c) (b_lt : b < N)
     (block_lt : ∀ σ, σ < S.slots → S.slotBlock σ + 1 < N) :

@@ -1,27 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
 
-/-!
-Phi81 single-matrix source over the complete coefficient carrier.
-
-Protocol: SuperNeo coefficient embedding (Section 5) and `Pi_CCS`
-(SuperNeo v1.2 Section 7.3 / Appendix B.2).
-Phase: original CCS matrix to all carried CE coefficient matrices.
-Constraint family: logical matrix prefix / completed matrix suffix / Phi81
-coefficient image.
-
-Owns: the paper shape with `d = 54`; construction of one authoritative matrix
-source over the complete carrier; zero extension of the original CCS matrix;
-derivation of every carried coefficient matrix through the independent Phi81
-kernel; and exact constant-coefficient agreement with the completed CCS
-matrix.
-
-Does not own: fresh or carried assignments, proof that production Rust builds
-this source, the runtime bar-matrix artifact, matrix-cache loops, transcript,
-SumCheck, R1CS lowering, row removal, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo Section 5; Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81MatrixSource
 
@@ -29,6 +9,7 @@ open NightstreamFPrime.Spec
 open PaperLinearAlgebra
 open MatrixCoefficientSource
 
+@[implicit_reducible]
 def phi81Shape
     (cubeVariables freshCount runningCount matrixCount : Nat) : Shape where
   cubeVariables := cubeVariables

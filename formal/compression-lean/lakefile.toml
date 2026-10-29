@@ -1,6 +1,7 @@
 name = "compression_lean"
 version = "0.1.0"
 defaultTargets = ["CompressionLean", "CompressionLeanTests"]
+allowNonModules = true
 
 [[require]]
 name = "nightstream_fprime"
@@ -13,7 +14,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_lib]]
 name = "CompressionLeanTests"
-roots = ["CompressionLeanTests.Axioms", "CompressionLeanTests.BlockDigest"]
+roots = ["CompressionLeanTests.Axioms", "CompressionLeanTests.BlockDigest", "CompressionLeanTests.SpecCensus"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false }
 
 [[lean_exe]]

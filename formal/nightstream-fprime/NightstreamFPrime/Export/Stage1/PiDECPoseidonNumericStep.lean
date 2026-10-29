@@ -1,11 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
 import NightstreamFPrime.Layout.ProductionRelation.SparseEvaluation
 
-/-!
-Numeric evaluation of one existing Poseidon sparse compiler step under an
-arbitrary assignment.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericStep
@@ -90,7 +85,7 @@ private theorem partialState_value {logicalWidth : Nat} (read : Fin logicalWidth
   funext selected
   by_cases zero : selected.val = 0 <;>
     simp only [PoseidonSboxPlan.partialState, PoseidonSboxPlan.partialOutput,
-      SparseLayer.evalState, zero, if_true, if_false, retainedValue,
+      SparseLayer.evalState, zero, ite_true, ite_false, retainedValue,
       stateValues_get, SparseForm.evalSparse_eq_eval]
 
 def stateStep {logicalWidth : Nat} (read : Fin logicalWidth → F)

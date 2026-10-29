@@ -1,9 +1,6 @@
 import Mathlib.SetTheory.Cardinal.Finite
 import NightstreamFPrime.Spec.Profile
 
-/-! Exact carrier sizes and the ordered two-coordinate basis for the selected
-field tower. The field laws and quadratic nonresidue are proved separately. -/
-
 namespace NightstreamFPrime.Spec.FieldTower
 
 private def coefficients : K ≃ F × F where

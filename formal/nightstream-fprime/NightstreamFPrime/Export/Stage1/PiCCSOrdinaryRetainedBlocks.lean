@@ -5,12 +5,6 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks
 import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the retained field blocks and shared preimage views for PiCCS ordinary
-rows. Source-support and direct-plan theorems own row coverage and
-preservation.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
 
 open NightstreamFPrime.Export.Package
@@ -19,6 +13,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 
+@[implicit_reducible]
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 
@@ -126,6 +121,7 @@ def expectedContextBlock (program : Lifecycle.Stage1.Application.Program) :
 def proofInputCount : Nat :=
   PiCCSOrdinarySourceSupport.proofInputCount
 
+@[implicit_reducible]
 def transcriptInvocationCount : Nat :=
   PiCCSOrdinarySourceSupport.transcriptInvocationCount
 
@@ -260,7 +256,7 @@ def ordinaryLogicalSlot (index : Fin ordinaryLogicalCount) :
     proofLogicalSource (proofInputSlot index) =
       PiCCSInputs.priorChildrenStart + index.val := by
   unfold proofLogicalSource proofInputSlot
-  rw [dif_pos index.isLt]
+  rw [dite_eq_left index.isLt]
 
 @[simp] theorem proofLogicalSource_transcriptOutput
     (index : Fin transcriptOutputCount) :
@@ -271,7 +267,7 @@ def ordinaryLogicalSlot (index : Fin ordinaryLogicalCount) :
   have transcript : proofInputCount + index.val <
       proofInputCount + transcriptOutputCount := by omega
   unfold proofLogicalSource transcriptOutputSlot
-  rw [dif_neg notProof, dif_pos transcript]
+  rw [dite_eq_right notProof, dite_eq_left transcript]
   apply congrArg transcriptOutputSource
   apply Fin.ext
   simp
@@ -285,7 +281,7 @@ def ordinaryLogicalSlot (index : Fin ordinaryLogicalCount) :
   have notTranscript : ¬proofInputCount + transcriptOutputCount + index.val <
       proofInputCount + transcriptOutputCount := by omega
   unfold proofLogicalSource ordinaryLogicalSlot
-  rw [dif_neg notProof, dif_neg notTranscript]
+  rw [dite_eq_right notProof, dite_eq_right notTranscript]
   simp
 
 def proofLogicalBlock (program : Lifecycle.Stage1.Application.Program) :

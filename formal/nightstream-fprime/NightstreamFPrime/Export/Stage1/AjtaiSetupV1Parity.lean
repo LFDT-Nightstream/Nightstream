@@ -2,13 +2,6 @@ import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1SetupAuthority
 import NightstreamFPrime.Spec.AjtaiSetupV1
 
-/-!
-Owns compact executable conformance vectors for the SHAKE128 wide-reduction
-Ajtai setup. It includes the FIPS 202 SHAKE128 example, selected indexed
-coefficients, the complete raw authority descriptor, and one complete key
-element.
--/
-
 namespace NightstreamFPrime.Export.Stage1.AjtaiSetupV1Parity
 
 open NightstreamFPrime.Export.Codec
@@ -34,10 +27,7 @@ def coordinateValue (seed : Seed) (row block lane : Nat) : Value :=
   .array [.atom row, .atom block, .atom lane,
     .atom (wideCoefficientNat seed.bytes row block lane)]
 
-/-- Canonical setup fixture. Entry 3 is the first 32 bytes of SHAKE128 of
-the empty message (FIPS 202 example). The last entry is all 1,728 output
-bytes of production element (1, 32768); coefficients 5, 10, 15, 26, 31, 36,
-47 and 52 cross a 168-byte rate boundary. -/
+/-- Entry 3 is the FIPS 202 SHAKE128 example for the empty message. -/
 def parityValue : Value :=
   .array [
     .atom schema,

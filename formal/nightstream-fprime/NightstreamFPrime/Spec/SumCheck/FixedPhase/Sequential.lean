@@ -1,17 +1,5 @@
 import NightstreamFPrime.Spec.SumCheck.FixedPhase
 
-/-!
-Sequential honest-prover construction for a fixed-width SumCheck phase.
-
-Owns: a generic message-before-challenge replay over typed fixed
-polynomials, exact-list reindexing, and an existence theorem constructing
-rounds that are honest at the challenge vector produced by their own replay.
-
-Does not own: any concrete transcript encoding, phase tags, Poseidon2,
-protocol-specific degree bounds, terminal/output authority, Rust, R1CS, rows,
-costs, or row removal.
--/
-
 namespace NightstreamFPrime.Spec.SumCheck.Finite.FixedPhase.Sequential
 
 universe uField uState uElement

@@ -1,10 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81MatrixSource
 
-/-!
-Reduce one original matrix entry at a complete Phi81 carrier block/lane to its
-logical-width bound check.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECEvaluationSourceEntry
@@ -33,8 +28,8 @@ theorem source_paddedMatrixEntry
   rw [Phi81CarrierLayout.layout_encode?_isSome]
   by_cases within : block.val * ringDegree + lane.val < logicalWidth
   · simp only [Phi81CarrierLayout.extendMatrix, Phi81CarrierLayout.logicalColumn?,
-      Phi81ColumnLayout.flatIndex, dif_pos within]
+      Phi81ColumnLayout.flatIndex, dite_eq_left within]
   · simp only [Phi81CarrierLayout.extendMatrix, Phi81CarrierLayout.logicalColumn?,
-      Phi81ColumnLayout.flatIndex, dif_neg within]
+      Phi81ColumnLayout.flatIndex, dite_eq_right within]
 
 end NightstreamFPrime.Export.Stage1.PiDECEvaluationSourceEntry

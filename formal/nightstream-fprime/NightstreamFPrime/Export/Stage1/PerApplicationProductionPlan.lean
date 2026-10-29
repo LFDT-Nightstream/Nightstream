@@ -1,11 +1,6 @@
 import NightstreamFPrime.Layout.PiDEC.v1_2.Values
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
-/-!
-Owns the compact Lean instruction program for one per-application 4-matrix
-relation.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationProductionPlan
 
 open NightstreamFPrime.Export.Codec

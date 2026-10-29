@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 import NightstreamFPrime.Export.Stage1.PiRLCWitnessAction
 import Mathlib.Tactic.SplitIfs
 
-/-!
-Executable PiRLC combination of one complete witness block.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCWitnessBlock
@@ -153,9 +149,9 @@ private theorem productOrFallback_toRing (challenge : RingF)
       change some product.toRing =
         (if accepted then some (ringFMul challenge source.toRing) else none) at correct
       by_cases success : accepted
-      · rw [if_pos success] at correct
+      · rw [ite_eq_left success] at correct
         exact Option.some.inj correct
-      · rw [if_neg success] at correct
+      · rw [ite_eq_right success] at correct
         cases correct
 
 private theorem preparedProduct_toRing (challenge : RingF)

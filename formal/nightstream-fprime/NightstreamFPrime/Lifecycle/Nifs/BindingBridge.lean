@@ -3,11 +3,6 @@ import NightstreamFPrime.Lifecycle.PaperExtractionAlgebra
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkBinding
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.RelaxedBinding
 
-/-!
-The selected fork extractor and relaxed-binding game use the same scalar
-and assignment operations. No statement about arbitrary ambient openings is used.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Lifecycle.Nifs.BindingBridge

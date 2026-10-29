@@ -54,6 +54,16 @@ pub enum EngineError {
     },
 }
 
+/// A fixed-key commitment failed: a witness is not a signed-unit matrix of
+/// the key's shape, or the engine failed.
+#[derive(Debug, thiserror::Error)]
+pub enum CommitError {
+    #[error("fixed-key commitment input: {0}")]
+    Input(String),
+    #[error(transparent)]
+    Engine(#[from] EngineError),
+}
+
 pub(crate) enum Backend {
     #[cfg(feature = "metal")]
     Metal(std::sync::Arc<std::sync::Mutex<neo_prover_metal::MetalRowProver>>),
@@ -63,22 +73,19 @@ pub(crate) enum Backend {
 }
 
 impl Backend {
-    pub(crate) fn commit<W: Borrow<Mat<F>>>(&self, witnesses: &[W]) -> Result<Vec<Commitment>, EngineError> {
-        let failure = |reason: String| EngineError::Failure {
-            engine: self.engine(),
-            reason,
-        };
+    /// The CPU commitment only rejects input; the device can also fail.
+    pub(crate) fn commit<W: Borrow<Mat<F>>>(&self, witnesses: &[W]) -> Result<Vec<Commitment>, CommitError> {
         match self {
             #[cfg(feature = "metal")]
             Self::Metal(device) => metal::lock(device)?
                 .commit_production_prefixes(witnesses)
-                .map_err(|error| failure(error.to_string())),
+                .map_err(|error| metal::device_error(error, |error| CommitError::Input(error.to_string()))),
             _ => match witnesses {
                 [witness] => nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix(witness.borrow())
                     .map(|commitment| vec![commitment])
-                    .map_err(|error| failure(error.to_string())),
+                    .map_err(|error| CommitError::Input(error.to_string())),
                 _ => nightstream_fprime_setup::commit_production_signed_unit_prefix_matrices(witnesses)
-                    .map_err(|error| failure(error.to_string())),
+                    .map_err(|error| CommitError::Input(error.to_string())),
             },
         }
     }
@@ -247,6 +254,19 @@ impl Backend {
                 std::sync::Arc::clone(device),
             ))),
             _ => neo_spartan::Accelerator::cpu(),
+        }
+    }
+
+    /// Route an error of a compression prover that ran on `accelerator`.
+    /// A device failure judged nothing, so it is an engine failure.
+    pub(crate) fn accelerator_error(&self, error: neo_spartan::Error) -> CompressionError {
+        match error {
+            neo_spartan::Error::Device(reason) => ProveError::Engine(EngineError::Failure {
+                engine: self.engine(),
+                reason,
+            })
+            .into(),
+            error => error.into(),
         }
     }
 

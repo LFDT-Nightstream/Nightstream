@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Rows
 
-/-!
-Owns fail-closed reconstruction of ordinary R1CS source rows from the two
-classified row fields stored in a circuit package.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PackageSourceRows
 
 open NightstreamFPrime.Export.Package

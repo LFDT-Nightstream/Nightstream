@@ -2,16 +2,8 @@ import NightstreamFPrime.Lifecycle.XOut
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript
 
 /-!
-Owns the Stage 1 Fiat–Shamir transcript over the Poseidon2 sponge: duplex
-absorb, the Π_CCS oracle (a constant fold-domain chunk, the statement absorb,
-one absorb per sum-check round, and coins read from consecutive rate lane
-pairs), absorption of the complete Π_CCS output, and the total Π_RLC
-challenge sampler into the strong set `𝓒 = {coefficients in {−2,…,2}}`. The
-fixed pattern has no labels and no length prefixes; the domain chunk binds it. Each scalar uses one four-field Poseidon2
-window, interpreted in base Goldilocks and reduced modulo `5^54`. The absorb
-order is the public-coin order of SuperNeo v1.2, Section 7.3: every coin is
-read only after the data it must depend on has been absorbed. All
-parity-surface definitions are computable.
+SuperNeo v1.2 Section 7.3 public-coin absorb order.
+Rust parity surface: every definition is computable.
 -/
 
 namespace NightstreamFPrime.Lifecycle.Transcript

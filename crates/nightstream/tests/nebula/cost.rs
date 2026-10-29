@@ -1,7 +1,9 @@
 //! The per-step cost of the Rust-built memory relation for the free
 //! application (no state word, no private word, no row) with `B_ops = 21`, a
 //! ROM of `2^12` cells, and a RAM of `2^16` cells, at each feasible `N` with
-//! `S_max = 1` and the smallest `W_ts` that spec §4.2 rule 2 allows. A step's
+//! `S_max = 1` and the smallest `W_ts` that spec §4.2 rule 2 allows; and for
+//! the geometry, state words, and private words of the WASM test of
+//! `neo-wasm` (`tests/wasm_nebula.rs`), without its rows. A step's
 //! Stage 1 words are its witness words (the memory words of
 //! `WitnessWords.lean`) and its local words (the variables of the Poseidon2
 //! sponges and of the product rows). The F′ carrier of the shared verifier
@@ -13,8 +15,12 @@ use neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH;
 use super::memory_circuit;
 use crate::nebula::{Application, Expr, Geometry, Memory, Transition, View};
 
+/// An application with `width` state words, `aux` private words, and no row.
 #[derive(Clone, Copy, Debug)]
-struct Free;
+struct Free {
+    width: usize,
+    aux: usize,
+}
 
 impl Application for Free {
     type Input = ();
@@ -22,15 +28,15 @@ impl Application for Free {
     type Error = std::convert::Infallible;
 
     fn width(&self) -> usize {
-        0
+        self.width
     }
 
     fn aux(&self) -> usize {
-        0
+        self.aux
     }
 
     fn words(&self, _: &()) -> Vec<u64> {
-        Vec::new()
+        vec![0; self.width]
     }
 
     fn rows(&self, _: &View) -> Vec<Expr> {
@@ -42,7 +48,7 @@ impl Application for Free {
     }
 }
 
-/// Build the relation of `N = n` and `S_max = s_max` with the smallest
+/// Build the free relation of `N = n` and `S_max = s_max` with the smallest
 /// `W_ts`, print its counts, and return whether it fits; `None` for a
 /// geometry that breaks spec §4.2.
 fn measure(n: usize, s_max: usize) -> Option<bool> {
@@ -57,11 +63,19 @@ fn measure(n: usize, s_max: usize) -> Option<bool> {
         n,
         s_max,
     };
+    count(&geometry, Free { width: 0, aux: 0 })
+}
+
+/// Print the counts of the relation of `geometry` and `app`, and return
+/// whether it fits; `None` for a geometry that breaks spec §4.2.
+fn count(geometry: &Geometry, app: Free) -> Option<bool> {
     if !geometry.is_valid() || !geometry.is_secure() {
         return None;
     }
+    let n = geometry.n;
+    let s_max = geometry.s_max;
     let started = std::time::Instant::now();
-    let circuit = memory_circuit(&geometry, &Free).unwrap();
+    let circuit = memory_circuit(geometry, &app).unwrap();
     let (witness, local) = (circuit.private_input_count(), circuit.generated_range().len());
     let carrier = crate::assembly::logical_width(&circuit);
     let fits = carrier
@@ -94,4 +108,22 @@ fn free_application_words_per_step() {
     eprintln!("budget MAX_CARRIER_WIDTH={MAX_CARRIER_WIDTH} smallest fitting N={smallest}");
     // One more timestamp bit at the smallest N: S_max = 2.
     measure(smallest, 2);
+}
+
+/// The WASM test geometry with its 61 state words and 8,549 private words.
+#[test]
+#[ignore = "Prints the per-step words of the WASM test geometry."]
+fn wasm_geometry_words_per_step() {
+    let geometry = Geometry {
+        r: 8,
+        mu: 8,
+        w_ts: 8,
+        b_ops: 18,
+        b_scan: 64,
+        n: 8,
+        s_max: 1,
+    };
+    eprintln!("N S_max B_scan W_ts witness local words rows carrier fits seconds");
+    assert_eq!(count(&geometry, Free { width: 61, aux: 8_549 }), Some(true));
+    eprintln!("budget MAX_CARRIER_WIDTH={MAX_CARRIER_WIDTH}");
 }

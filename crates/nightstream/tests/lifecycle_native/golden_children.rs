@@ -9,7 +9,7 @@ use neo_ajtai::nightstream_fprime_setup::{
 };
 use neo_math::{Rq, D, F};
 use neo_transcript::Poseidon2Transcript;
-use nightstream_fprime::load_per_application_package;
+use nightstream_fprime::{load_per_application_package, StructuralIdentifier};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use serde_json::{json, Value};
 
@@ -67,7 +67,8 @@ pub(super) fn check(
     let started = Instant::now();
     assert!(!output.exists(), "use a fresh external recomposition record");
     let bytes = fs::read(candidate).expect("canonical candidate package");
-    let package = load_per_application_package(&bytes, expected).expect("selected package identity");
+    let package = load_per_application_package(&bytes, StructuralIdentifier::from_words(expected))
+        .expect("selected package identity");
     let binding = package
         .production_verifier_binding()
         .expect("selected verifier binding");

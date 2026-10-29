@@ -8,7 +8,7 @@ use neo_ajtai::{nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS, Commitment};
 use neo_math::{D, F, K};
 use neo_reductions::{
     common::{project_x_from_witness_mat, validate_fresh_witness_tail_zero},
-    superneo_eval::{evaluate_terminal_rows, SuperneoCachedRelationError, SuperneoZBlocks},
+    superneo_eval::SuperneoCachedRelationError,
     PiCcsError,
 };
 use nightstream_fprime::{PackageError, PI_CCS_V1_2_ROUND_COUNT, PI_DEC_V1_2_CHILD_COUNT};
@@ -23,8 +23,8 @@ use super::{
 
 #[derive(Debug, thiserror::Error)]
 pub enum VerifyError {
-    #[error("selected terminal commitment: {0}")]
-    Commitment(#[from] crate::engine::EngineError),
+    #[error("selected terminal engine: {0}")]
+    Engine(#[from] crate::engine::EngineError),
     #[error("selected terminal device evaluation: {0}")]
     Device(#[source] PiCcsError),
     #[error("selected terminal statement: {0}")]
@@ -51,7 +51,7 @@ impl PreparedLifecycle {
     /// Check the selected `Terminal.HoldsFor` boundary. The external state
     /// fixes the advertised endpoint. Active envelopes perform full CE and
     /// CCS opening checks, with no extra fold or caller-supplied evaluator.
-    pub fn verify(&self, expected_state: &Stage1State, envelope: &Stage1Envelope) -> Result<(), VerifyError> {
+    pub(crate) fn verify(&self, expected_state: &Stage1State, envelope: &Stage1Envelope) -> Result<(), VerifyError> {
         if envelope.state() != expected_state {
             return Err(VerifyError::Statement("envelope differs from the external state"));
         }
@@ -105,7 +105,7 @@ impl PreparedLifecycle {
                     reason: "evaluation shape or nonzero surplus coefficients",
                 });
             }
-            let projected = project_x_from_witness_mat(witness, self.structure.m, claim.m_in).map_err(|_| {
+            let projected = project_x_from_witness_mat(witness, self.structure.m(), claim.m_in).map_err(|_| {
                 VerifyError::Running {
                     index,
                     reason: "complete witness shape",
@@ -152,7 +152,7 @@ impl PreparedLifecycle {
                 "public input differs from the recomputed terminal state hash",
             ));
         }
-        validate_fresh_witness_tail_zero(&fresh.witness.Z, self.structure.m, "selected terminal")
+        validate_fresh_witness_tail_zero(&fresh.witness.Z, self.structure.m(), "selected terminal")
             .map_err(|_| VerifyError::Fresh("complete witness shape or nonzero fresh completion tail"))?;
         for (column, value) in fresh.claim.x.iter().enumerate() {
             if fresh.witness.Z[(column % D, column / D)] != *value {
@@ -176,39 +176,12 @@ impl PreparedLifecycle {
         }
 
         let rows = self.matrix_rows();
-        let workspace_bytes = self.matrix_workspace_bytes()?;
-        let evaluated = match &self.backend {
-            #[cfg(feature = "metal")]
-            crate::engine::Backend::Metal(device) => device
-                .lock()
-                .map_err(|_| device_lock_error())?
-                .evaluate_terminal_rows(
-                    &rows,
-                    workspace_bytes,
-                    &self.structure,
-                    &running.witnesses,
-                    point,
-                    &fresh.witness.Z,
-                )
-                .map_err(VerifyError::Device)?,
-            _ => {
-                let blocks = running
-                    .witnesses
-                    .iter()
-                    .enumerate()
-                    .map(|(index, witness)| {
-                        SuperneoZBlocks::from_witness_mat(witness, self.structure.m).map_err(|_| VerifyError::Running {
-                            index,
-                            reason: "complete witness block conversion",
-                        })
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                let fresh_blocks = SuperneoZBlocks::from_witness_mat(&fresh.witness.Z, self.structure.m)
-                    .map_err(|_| VerifyError::Fresh("complete witness block conversion"))?;
-                evaluate_terminal_rows(&rows, point, &blocks, &self.structure.f, &fresh_blocks, workspace_bytes)
-                    .map_err(VerifyError::RunningOpenings)?
-            }
-        };
+        let evaluated = self.backend.evaluate_terminal_rows(
+            self.fold_context(&rows)?,
+            &running.witnesses,
+            point,
+            &fresh.witness.Z,
+        )?;
         if let Some(row) = evaluated.first_unsatisfied_row {
             return Err(VerifyError::FreshRelation(
                 SuperneoCachedRelationError::UnsatisfiedRow { row },
@@ -243,17 +216,9 @@ impl PreparedLifecycle {
     }
 }
 
-#[cfg(feature = "metal")]
-fn device_lock_error() -> VerifyError {
-    VerifyError::Device(PiCcsError::BackendFailure {
-        backend: "metal",
-        reason: "terminal device session lock was poisoned".into(),
-    })
-}
-
 fn commitment_has_selected_shape(commitment: &Commitment) -> bool {
     let rows = PRODUCTION_VERIFIER_ROWS as usize;
-    commitment.d == D && commitment.kappa == rows && commitment.data.len() == D * rows
+    commitment.d() == D && commitment.kappa() == rows && commitment.data().len() == D * rows
 }
 
 fn evaluation_matches(recorded: &[K], expected: &[K]) -> bool {

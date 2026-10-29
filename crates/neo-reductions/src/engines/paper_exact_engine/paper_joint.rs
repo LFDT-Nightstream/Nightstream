@@ -4,8 +4,6 @@
 //! genuine CCS matrices. This file uses explicit loops and owns its formula
 //! copy. It does not import optimized evaluators, caches, or protocol flow.
 
-#![allow(non_snake_case)]
-
 use neo_ajtai::Commitment as Cmt;
 use neo_ccs::{CcsClaim, CcsMatrix, CcsStructure, CcsWitness, CeClaim, Mat};
 use neo_math::{Fq, D, K};
@@ -29,38 +27,41 @@ pub(super) fn dimensions<Ff>(
 where
     Ff: Field + PrimeCharacteristicRing + Copy,
 {
-    if structure.n == 0 || structure.m == 0 || fresh_count == 0 {
+    if structure.n() == 0 || structure.m() == 0 || fresh_count == 0 {
         return Err(PiCcsError::InvalidInput(
             "PaperExact requires nonzero dimensions and at least one fresh source".into(),
         ));
     }
-    if fresh_count > neo_params::goldilocks_paper_b2::MAX_FRESH_K as usize {
+    let max_fresh_count = params
+        .max_fresh_count_from_rlc_guard()
+        .map_err(|error| PiCcsError::InvalidInput(format!("PaperExact RLC guard: {error}")))?;
+    if fresh_count > max_fresh_count as usize {
         return Err(PiCcsError::InvalidInput(
-            "PaperExact fresh source count exceeds the paper profile".into(),
+            "PaperExact fresh source count exceeds the RLC guard of the selected parameters".into(),
         ));
     }
-    if running_count > params.k_rho as usize {
+    if running_count > params.k_rho() as usize {
         return Err(PiCcsError::InvalidInput(
             "PaperExact running source count exceeds k_rho".into(),
         ));
     }
-    if structure.f.eval(&vec![Ff::ZERO; structure.t()]) != Ff::ZERO {
+    if structure.f().eval(&vec![Ff::ZERO; structure.t()]) != Ff::ZERO {
         return Err(PiCcsError::InvalidInput(
             "PaperExact zero-row padding requires f(0,...,0)=0".into(),
         ));
     }
 
-    let assignment_width = structure.m.div_ceil(D) * D;
+    let assignment_width = structure.m().div_ceil(D) * D;
     let variables = structure.cube_variables();
     let row_count = 1 << variables;
     let matrix_count = structure.t();
     let degree = (structure.max_degree() as usize + 1)
-        .max(2 * params.b as usize)
+        .max(2 * params.b() as usize)
         .max(2);
     params
         .padded_row_security_check_for_shape(
             structure.domain_rows(),
-            structure.m,
+            structure.m(),
             structure.t(),
             structure.max_degree(),
             neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
@@ -85,7 +86,7 @@ where
     Ff: Field + Copy,
 {
     for (index, claim) in fresh.iter().enumerate() {
-        if claim.m_in > structure.m || claim.x.len() != claim.m_in || claim.m_in % D != 0 {
+        if claim.m_in > structure.m() || claim.x.len() != claim.m_in || claim.m_in % D != 0 {
             return Err(PiCcsError::InvalidInput(format!(
                 "PaperExact fresh claim {index} is not a complete whole-ring public input"
             )));
@@ -94,7 +95,7 @@ where
     let matrix_count = structure.t();
     let evaluation_width = D.next_power_of_two();
     for (index, claim) in running.iter().enumerate() {
-        if claim.m_in > structure.m
+        if claim.m_in > structure.m()
             || claim.X.rows() != D
             || neo_ccs::superneo_public_x_cols(claim.m_in) != Some(claim.X.cols())
             || claim.eval_k.len() != evaluation_width
@@ -394,7 +395,7 @@ where
             .map(|evaluation| evaluation.first().copied())
             .collect::<Option<Vec<_>>>()
             .ok_or_else(|| PiCcsError::InvalidInput("PaperExact Eval_A output is empty".into()))?;
-        fresh_residual += gamma_power(challenges.gamma, source) * structure.f.eval_in_ext::<K>(&matrix_evaluations);
+        fresh_residual += gamma_power(challenges.gamma, source) * structure.f().eval_in_ext::<K>(&matrix_evaluations);
     }
     let mut norm = K::ZERO;
     for (source, output) in outputs.iter().enumerate() {
@@ -402,7 +403,7 @@ where
             .eval_k
             .first()
             .ok_or_else(|| PiCcsError::InvalidInput("PaperExact Eval_K output is missing".into()))?;
-        norm += gamma_power(challenges.gamma, source) * range_product::<Ff>(assignment_value, params.b);
+        norm += gamma_power(challenges.gamma, source) * range_product::<Ff>(assignment_value, params.b());
     }
     let running_count = outputs.len() - fresh_count;
     let mut eval_k = K::ZERO;
@@ -563,7 +564,7 @@ where
                 })
                 .collect();
             fresh_residual +=
-                gamma_power(self.challenges.gamma, source) * self.structure.f.eval_in_ext::<K>(&application_values);
+                gamma_power(self.challenges.gamma, source) * self.structure.f().eval_in_ext::<K>(&application_values);
         }
 
         let mut norm = K::ZERO;
@@ -579,7 +580,7 @@ where
                 .iter()
                 .enumerate()
                 .fold(K::ZERO, |sum, (row, &entry)| sum + boolean_weight(point, row) * entry);
-            norm += gamma_power(self.challenges.gamma, source) * range_product::<Ff>(value, self.params.b);
+            norm += gamma_power(self.challenges.gamma, source) * range_product::<Ff>(value, self.params.b());
         }
 
         let matrix_count = self.structure.t();
@@ -704,7 +705,7 @@ where
         let (eval_k, eval_a) = openings(&witness.Z)?;
         outputs.push(CeClaim {
             c: claim.c.clone(),
-            X: direct_public_input(&witness.Z, structure.m, claim.m_in)?,
+            X: direct_public_input(&witness.Z, structure.m(), claim.m_in)?,
             r: point.to_vec(),
             eval_k,
             eval_a,

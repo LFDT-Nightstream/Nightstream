@@ -241,7 +241,9 @@ impl PreparedLifecycle {
         let last = self.last_fold(envelope)?;
         // Layer 1 and the shrink make no Ajtai commitment, so a kept key
         // would only add to their peak.
-        self.backend.release_commitment_key_rows();
+        self.backend
+            .release_commitment_key_rows()
+            .map_err(ProveError::from)?;
         let terminal_inputs = self.terminal_inputs(&last)?;
         let key = &setup.key;
         let relation = key.relation()?;
@@ -271,7 +273,7 @@ impl PreparedLifecycle {
 
     /// Run PiCCS and PiRLC on the running and fresh claims of `envelope`.
     pub(crate) fn last_fold(&self, envelope: &Stage1Envelope) -> Result<LastFold, CompressionError> {
-        let state = envelope.state().clone();
+        let state = *envelope.state();
         let Some((running, fresh)) = envelope.active_parts() else {
             return Err(CompressionError::Input("an initial proof has no fold to finish"));
         };
@@ -284,43 +286,11 @@ impl PreparedLifecycle {
         let fresh_claim = fresh.claim.clone();
 
         let rows = self.matrix_rows();
-        let workspace_bytes = self.matrix_workspace_bytes()?;
+        let context = self.fold_context(&rows).map_err(ProveError::from)?;
         let mut transcript = Transcript::session();
-        let (pi_ccs, parent, _) = match &self.backend {
-            #[cfg(feature = "metal")]
-            crate::engine::Backend::Metal(device) => {
-                let mut device = device.lock().map_err(|_| {
-                    ProveError::from(crate::EngineError::Failure {
-                        engine: crate::Engine::Metal,
-                        reason: "device session lock was poisoned".into(),
-                    })
-                })?;
-                crate::engine::metal::prove_parent(
-                    &mut device,
-                    &mut transcript,
-                    &self.params,
-                    &self.structure,
-                    &rows,
-                    workspace_bytes,
-                    fresh,
-                    running,
-                )?
-            }
-            crate::engine::Backend::Optimized => nifs::prove_parent_with_rows(
-                &mut transcript,
-                &self.params,
-                &self.structure,
-                &rows,
-                workspace_bytes,
-                fresh,
-                running,
-            )?,
-            crate::engine::Backend::PaperExact | crate::engine::Backend::Crosscheck => {
-                return Err(CompressionError::Input(
-                    "compression runs only on the Optimized and Metal engines",
-                ));
-            }
-        };
+        let (pi_ccs, parent, _) = self
+            .backend
+            .prove_parent(&mut transcript, context, fresh, running)?;
         Ok(LastFold {
             state,
             running: semantic,
@@ -357,7 +327,7 @@ impl PreparedLifecycle {
             "the fold error leaves no room under the security minimum",
         ))?;
         let package = terminal::package()?;
-        if !package.checks(&self.structure.f) {
+        if !package.checks(self.structure.f()) {
             return Err(CompressionError::Key(
                 "the terminal package checks another CCS polynomial",
             ));
@@ -441,7 +411,7 @@ impl PreparedLifecycle {
 
     /// PiRLC's guard bound `sources · T · (b - 1)`.
     fn compression_bound(&self) -> u32 {
-        PI_CCS_V1_2_SOURCE_COUNT as u32 * self.params.inner().T * (self.params.b() - 1)
+        PI_CCS_V1_2_SOURCE_COUNT as u32 * self.params.inner().T() * (self.params.b() - 1)
     }
 
     /// The bits each compression layer must reach: layer 1 and the shrink

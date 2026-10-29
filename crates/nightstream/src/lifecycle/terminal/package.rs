@@ -84,21 +84,24 @@ pub(crate) fn preload() {
 #[error("the terminal package does not load: {0}")]
 pub struct TerminalPackageError(String);
 
+impl From<PackageError> for TerminalPackageError {
+    fn from(error: PackageError) -> Self {
+        Self(error.to_string())
+    }
+}
+
 /// The embedded package, loaded once.
 pub(crate) fn package() -> Result<&'static Package, TerminalPackageError> {
     static PACKAGE: OnceLock<Result<Package, TerminalPackageError>> = OnceLock::new();
-    PACKAGE
-        .get_or_init(|| load().map_err(|error| TerminalPackageError(error.to_string())))
-        .as_ref()
-        .map_err(Clone::clone)
+    PACKAGE.get_or_init(load).as_ref().map_err(Clone::clone)
 }
 
-fn load() -> Result<Package, PackageError> {
+fn load() -> Result<Package, TerminalPackageError> {
     let (loaded, outputs) = load_terminal_package(ARTIFACT, IDENTIFIER)?;
     // `apply` reads the first caller inputs as the prior state preimage.
     if loaded.prior_preimage_inputs() != Some(0..PI_CCS_V1_2_STATE_PREIMAGE_WORDS) {
-        return Err(PackageError::Invalid(
-            "the prior state preimage is not the first caller input",
+        return Err(TerminalPackageError(
+            "the prior state preimage is not the first caller input".into(),
         ));
     }
     let matrices = loaded.ordered_r1cs()?;
@@ -137,11 +140,11 @@ fn load() -> Result<Package, PackageError> {
     for row in 0..matrices.a().rows() {
         system.push(&side(sides[0], row), &side(sides[1], row), &side(sides[2], row));
     }
-    let map = |columns: &[usize]| -> Result<Vec<usize>, PackageError> {
+    let map = |columns: &[usize]| -> Result<Vec<usize>, TerminalPackageError> {
         columns
             .iter()
             .map(|&column| match index[column] {
-                u32::MAX => Err(PackageError::Invalid("terminal output column without a row")),
+                u32::MAX => Err(TerminalPackageError("terminal output column without a row".into())),
                 system => Ok(system as usize),
             })
             .collect()

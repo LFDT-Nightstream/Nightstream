@@ -85,7 +85,7 @@ impl Term {
                 substitution: SourceSubstitution::decode(&fields[2])?,
                 lane_count: usize_atom(&fields[3], "Poseidon2 affine lane count")?,
             }),
-            _ => Err(PackageError::Invalid("Poseidon2 input term")),
+            _ => Err(PackageError::Malformed("Poseidon2 input term")),
         }
     }
 
@@ -137,7 +137,7 @@ impl Term {
                 )?;
                 match values
                     .get(index)
-                    .ok_or(PackageError::Invalid("Poseidon2 optional constant table"))?
+                    .ok_or(PackageError::Malformed("Poseidon2 optional constant table"))?
                 {
                     None => Ok(Form::default()),
                     Some(coefficient) => constant_form(logical_width, one_column, *coefficient, "Poseidon2 one column"),
@@ -155,7 +155,7 @@ impl Term {
                 )?;
                 let combination = values
                     .get(index)
-                    .ok_or(PackageError::Invalid("Poseidon2 affine word table"))?;
+                    .ok_or(PackageError::Malformed("Poseidon2 affine word table"))?;
                 substitution.compile_combination(logical_width, one_column, combination)
             }
         }
@@ -221,7 +221,7 @@ impl Program {
             .collect::<Result<Vec<_>, _>>()?;
         lanes
             .try_into()
-            .map_err(|_| PackageError::Invalid("Poseidon2 input state"))
+            .map_err(|_| PackageError::Malformed("Poseidon2 input state"))
     }
 }
 
@@ -235,7 +235,7 @@ fn decode_optional_constants(value: &Value) -> Result<Vec<Option<Goldilocks>>, P
                 [tag, coefficient] if tag.as_u64() == Some(1) => {
                     field_atom(coefficient, "Poseidon2 optional constant").map(Some)
                 }
-                _ => Err(PackageError::Invalid("Poseidon2 optional constant")),
+                _ => Err(PackageError::Malformed("Poseidon2 optional constant")),
             }
         })
         .collect()
@@ -263,7 +263,7 @@ fn constant_form(
     location: &'static str,
 ) -> Result<Form, PackageError> {
     if one_column >= logical_width {
-        return Err(PackageError::Invalid(location));
+        return Err(PackageError::Malformed(location));
     }
     Ok(Form::singleton(one_column, coefficient))
 }

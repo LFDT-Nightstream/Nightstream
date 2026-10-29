@@ -18,20 +18,30 @@ fn record(bytes: usize) {
     }
 }
 
+// SAFETY: every method passes its arguments unchanged to `System`, so the
+// probe keeps `System`'s allocator contract. `record` touches only
+// const-initialized thread-local `Cell`s that have no destructor, so it never
+// allocates.
 unsafe impl GlobalAlloc for AllocationProbe {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
         record(layout.size());
+        // SAFETY: the caller meets `GlobalAlloc::alloc`'s contract for `layout`.
         unsafe { System.alloc(layout) }
     }
     unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
         record(layout.size());
+        // SAFETY: the caller meets `GlobalAlloc::alloc_zeroed`'s contract for `layout`.
         unsafe { System.alloc_zeroed(layout) }
     }
     unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
         record(size);
+        // SAFETY: the caller meets `GlobalAlloc::realloc`'s contract, and
+        // `pointer` came from this allocator, which is `System`.
         unsafe { System.realloc(pointer, layout, size) }
     }
     unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
+        // SAFETY: the caller meets `GlobalAlloc::dealloc`'s contract, and
+        // `pointer` came from this allocator, which is `System`.
         unsafe { System.dealloc(pointer, layout) }
     }
 }
@@ -52,7 +62,7 @@ fn zero_suffix_does_not_allocate_host_mask_words() {
     let session = MetalSession::new().unwrap();
     let matrix = Mat::<F>::compact_signed_unit_from_column_masks(D, 2, &[1, 2], &[4, 8]).unwrap();
     let active = SuperneoZBlocks::from_witness_mat(&matrix, D + 1).unwrap();
-    let count = neo_params::NeoParams::nightstream_goldilocks_k16().k_rho as usize + 1;
+    let count = neo_params::NeoParams::nightstream_goldilocks_k16().k_rho() as usize + 1;
     let mut sources = vec![SuperneoZBlocks::with_block_len(2); count];
     sources[0] = active;
     // Initialize the driver before comparing Rust host allocations.

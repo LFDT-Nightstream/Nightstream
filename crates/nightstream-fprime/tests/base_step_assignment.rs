@@ -9,7 +9,8 @@ use std::{fs, path::PathBuf, time::Instant};
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ccs::{crypto::poseidon2_goldilocks::poseidon2_hash, Mat};
 use nightstream_fprime::{
-    derive_pi_ccs_v1_2_transcript, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage, WitnessAssignment,
+    derive_pi_ccs_v1_2_transcript, load_poseidon2_hash_chain_v1_package, LoadedPerApplicationPackage,
+    StructuralIdentifier, WitnessAssignment,
 };
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks;
@@ -222,8 +223,11 @@ fn external_pi_rlc_value_wiring_rejects_detached_values() {
         .expect("external paths");
     let inputs: Inputs = serde_json::from_str(&input).expect("external assignment inputs");
     let sealed = fs::read(inputs.package).expect("candidate package");
-    let package = nightstream_fprime::load_per_application_package(&sealed, inputs.structural_identity)
-        .expect("selected candidate identity");
+    let package = nightstream_fprime::load_per_application_package(
+        &sealed,
+        StructuralIdentifier::from_words(inputs.structural_identity),
+    )
+    .expect("selected candidate identity");
     let Fixture(schema, context, private, public, _) =
         serde_json::from_slice(&fs::read(inputs.caller_fixture).expect("nonzero caller fixture"))
             .expect("caller fixture schema");
@@ -449,7 +453,12 @@ fn checked_base_fixture(package: &LoadedPerApplicationPackage, bytes: &[u8]) -> 
     Fixture(schema, context, private, public, expected)
 }
 
-pub fn check_base_assignment(package: LoadedPerApplicationPackage, sealed: Vec<u8>, bytes: Vec<u8>, expanded: Vec<u8>) {
+pub(crate) fn check_base_assignment(
+    package: LoadedPerApplicationPackage,
+    sealed: Vec<u8>,
+    bytes: Vec<u8>,
+    expanded: Vec<u8>,
+) {
     let fixture = checked_base_fixture(&package, &bytes);
     check_assignment(package, sealed, fixture, expanded);
 }
@@ -679,7 +688,7 @@ fn base_step_assignment_has_a_selected_key_commitment() {
     );
 }
 
-pub fn check_base_commitment(package: LoadedPerApplicationPackage, bytes: Vec<u8>) -> Vec<u64> {
+pub(crate) fn check_base_commitment(package: LoadedPerApplicationPackage, bytes: Vec<u8>) -> Vec<u64> {
     let started = Instant::now();
     let Fixture(_, _, private, public, expected) = checked_base_fixture(&package, &bytes);
     let physical = package
@@ -718,9 +727,9 @@ pub fn check_base_commitment(package: LoadedPerApplicationPackage, bytes: Vec<u8
     );
     let commitment =
         commit_production_signed_unit_prefix_matrix(&carrier).expect("actual selected-key base commitment");
-    assert_eq!((commitment.d, commitment.kappa), (54, 22));
+    assert_eq!((commitment.d(), commitment.kappa()), (54, 22));
     let words = commitment
-        .data
+        .data()
         .iter()
         .map(|word| word.as_canonical_u64())
         .collect::<Vec<_>>();
@@ -741,7 +750,7 @@ fn base_step_rows_reject_a_detached_application_output() {
     check_detached_application(package, sealed, bytes);
 }
 
-pub fn check_detached_application(package: LoadedPerApplicationPackage, sealed: Vec<u8>, bytes: Vec<u8>) {
+pub(crate) fn check_detached_application(package: LoadedPerApplicationPackage, sealed: Vec<u8>, bytes: Vec<u8>) {
     let started = Instant::now();
     let Fixture(_, _, private, public, expected) = checked_base_fixture(&package, &bytes);
     let physical = package

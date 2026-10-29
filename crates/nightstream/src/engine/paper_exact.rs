@@ -130,7 +130,7 @@ fn sample_rhos(
         transcript.absorb_v1_2(&[F::from_u64(4), F::from_usize(source)]);
         let digest = transcript.squeeze_digest_v1_2();
         let symbols = decode_pi_rlc_coefficients(&digest);
-        let mut column: Vec<F> = symbols.into_iter().map(|value| F::from_i8(value)).collect();
+        let mut column: Vec<F> = symbols.into_iter().map(F::from_i8).collect();
         let mut matrix = Mat::zero(D, D, F::ZERO);
         for index in 0..D {
             for row in 0..D {

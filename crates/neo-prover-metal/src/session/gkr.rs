@@ -6,15 +6,13 @@
 //! allocation). Does not own the protocol or the tables: the caller draws
 //! every challenge, builds every layer and reads the children.
 
-use std::marker::PhantomData;
-
 use neo_math::F;
 use objc2::runtime::ProtocolObject;
 use objc2_metal::{MTLBuffer, MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder, MTLResourceUsage};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
-use super::{Buffer, MetalSession};
+use super::{dft::WrappedPages, Arg, Buffer, Grid, MetalSession};
 use crate::MetalError;
 
 /// Address slots of the table list; `GKR_PARTS` in `gkr.metal`.
@@ -31,14 +29,13 @@ type Ext = [u64; 3];
 /// logical entry `j` of a table sits at element `j·2^r`.
 pub struct MetalGkrLayer<'a> {
     /// Each tree's factor count and parts (factors, then the denominator).
-    trees: Vec<(usize, Vec<Buffer>)>,
-    eq: Buffer,
+    trees: Vec<(usize, Vec<WrappedPages<&'a mut [u64]>>)>,
+    eq: WrappedPages<&'a mut [u64]>,
     /// One partial sum per message group, sized for the first round.
     partials: Buffer,
     stride: usize,
     /// Pairs of the next round: half the eq table's live length.
     pairs: usize,
-    tables: PhantomData<&'a mut [u64]>,
 }
 
 impl MetalSession {
@@ -64,7 +61,7 @@ impl MetalSession {
             ));
         }
         let partials = self.buffer(pairs.div_ceil(THREADS) * NODES * 3 * size_of::<u64>())?;
-        let wrap = |table: &mut [u64]| {
+        let wrap = |table| {
             self.wrap_pages(table)
                 .ok_or(MetalError::Shape("a GKR table must span whole pages"))
         };
@@ -82,7 +79,6 @@ impl MetalSession {
             partials,
             stride: 1,
             pairs,
-            tables: PhantomData,
         })
     }
 
@@ -113,7 +109,7 @@ impl MetalSession {
             shape.extend(weight);
             first += parts.len();
         }
-        let tables: Vec<&Buffer> = layer.trees.iter().flat_map(|(_, parts)| parts).collect();
+        let tables: Vec<_> = layer.trees.iter().flat_map(|(_, parts)| parts).collect();
         let mut addresses = [0u64; PARTS];
         for (slot, table) in addresses.iter_mut().zip(&tables) {
             *slot = table.gpuAddress();
@@ -121,18 +117,24 @@ impl MetalSession {
         let groups = layer.pairs.div_ceil(THREADS);
         let command = self.command_buffer("nightstream.gkr.message")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.gkr_message);
-        unsafe {
-            set_words(&encoder, &addresses, 0);
-            encoder.setBuffer_offset_atIndex(Some(&layer.eq), 0, 1);
-            set_words(&encoder, &shape, 2);
-            encoder.setBuffer_offset_atIndex(Some(&layer.partials), 0, 3);
-        }
         // Tables reached through addresses must be made resident.
         for table in &tables {
             encoder.useResource_usage(ProtocolObject::from_ref(&***table), MTLResourceUsage::Read);
         }
-        self.dispatch_threadgroups(&encoder, &self.gkr_message, groups, THREADS);
+        self.launch(
+            &encoder,
+            &self.gkr_message,
+            &[
+                Arg::Words(0, &addresses),
+                Arg::Buffer(1, &layer.eq),
+                Arg::Words(2, &shape),
+                Arg::Buffer(3, &layer.partials),
+            ],
+            Grid::Groups {
+                groups,
+                threads: THREADS,
+            },
+        );
         encoder.endEncoding();
         self.finish(&command)?;
         let words = self.read_buffer_parallel::<u64>(&layer.partials, groups * NODES * 3);
@@ -155,17 +157,17 @@ impl MetalSession {
         let (table_shape, eq_shape) = (shape(2 * layer.pairs), shape(layer.pairs));
         let command = self.command_buffer("nightstream.gkr.fold")?;
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&self.gkr_fold);
         let tables = layer.trees.iter().flat_map(|(_, parts)| parts);
         let folds = tables
             .map(|table| (table, &table_shape, 2 * layer.pairs))
             .chain([(&layer.eq, &eq_shape, layer.pairs)]);
         for (table, shape, count) in folds {
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(table), 0, 0);
-                set_words(&encoder, shape, 1);
-            }
-            self.dispatch(&encoder, &self.gkr_fold, count);
+            self.launch(
+                &encoder,
+                &self.gkr_fold,
+                &[Arg::Buffer(0, table), Arg::Words(1, shape)],
+                Grid::Threads(count),
+            );
         }
         encoder.endEncoding();
         self.finish(&command)?;
@@ -173,14 +175,4 @@ impl MetalSession {
         layer.pairs /= 2;
         Ok(())
     }
-}
-
-/// Bind `words` by value at `index` (no buffer allocation).
-///
-/// # Safety
-///
-/// `index` must be a kernel argument that reads at most `words.len()` words.
-unsafe fn set_words(encoder: &ProtocolObject<dyn MTLComputeCommandEncoder>, words: &[u64], index: usize) {
-    let bytes = std::ptr::NonNull::from(words).cast::<std::ffi::c_void>();
-    unsafe { encoder.setBytes_length_atIndex(bytes, size_of_val(words), index) };
 }

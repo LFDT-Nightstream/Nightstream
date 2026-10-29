@@ -19,7 +19,8 @@ fn engine_rejects_parameters_selected_for_fewer_matrices() {
     .expect("identity relation with many matrices");
 
     assert!(
-        neo_reductions::engines::pi_ccs_joint::build_joint_dims(&params, &structure, 1, params.k_rho as usize).is_err(),
+        neo_reductions::engines::pi_ccs_joint::build_joint_dims(&params, &structure, 1, params.k_rho() as usize)
+            .is_err(),
         "engine preprocessing must charge the concrete matrix count"
     );
 }

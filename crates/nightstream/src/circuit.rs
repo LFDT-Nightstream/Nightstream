@@ -12,8 +12,8 @@ use crate::application::{ApplicationCircuit, ApplicationError};
 use crate::assembly::{self, AssemblyError};
 use crate::engine::{Backend, Engine, EngineError};
 use crate::lifecycle::{
-    CompressionError, ExtendError, FinalProof, PreparedLifecycle, ProofCodecError, Stage1Envelope, Stage1State,
-    VerifyError,
+    CompleteStepError, CompressionError, ExtendError, FinalProof, PreparedLifecycle, ProofCodecError, ProveError,
+    Stage1Envelope, Stage1State, VerifyError,
 };
 pub use crate::lifecycle::{CompressionKey, CompressionSetup};
 
@@ -21,6 +21,8 @@ mod storage;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    /// The selected engine or its device failed. It did not judge the proof
+    /// or the input, so another attempt or another engine can succeed.
     #[error(transparent)]
     Engine(#[from] EngineError),
     #[error(transparent)]
@@ -29,18 +31,48 @@ pub enum Error {
     Application(#[from] ApplicationError),
     #[error(transparent)]
     Package(#[from] nightstream_fprime::PackageError),
+    #[error("invalid compiled circuit: {0}")]
+    Circuit(&'static str),
     #[error(transparent)]
     Io(#[from] std::io::Error),
     #[error(transparent)]
-    Extend(#[from] ExtendError),
+    Extend(ExtendError),
     #[error(transparent)]
-    Verify(#[from] VerifyError),
+    Verify(VerifyError),
     #[error(transparent)]
-    Compression(#[from] CompressionError),
+    Compression(CompressionError),
     #[error(transparent)]
     ProofBytes(#[from] ProofCodecError),
     #[error(transparent)]
     Parameters(#[from] neo_params::ParamsError),
+}
+
+impl From<ExtendError> for Error {
+    fn from(error: ExtendError) -> Self {
+        match error {
+            ExtendError::Prove(ProveError::Engine(error))
+            | ExtendError::Complete(CompleteStepError::Commitment(error)) => Self::Engine(error),
+            error => Self::Extend(error),
+        }
+    }
+}
+
+impl From<VerifyError> for Error {
+    fn from(error: VerifyError) -> Self {
+        match error {
+            VerifyError::Engine(error) => Self::Engine(error),
+            error => Self::Verify(error),
+        }
+    }
+}
+
+impl From<CompressionError> for Error {
+    fn from(error: CompressionError) -> Self {
+        match error {
+            CompressionError::Prove(ProveError::Engine(error)) => Self::Engine(error),
+            error => Self::Compression(error),
+        }
+    }
 }
 
 struct CompiledCircuit {
@@ -106,7 +138,7 @@ impl Circuit {
     /// value without recomputing it, so equality does not authenticate a loaded
     /// package. The caller selects the expected verifier configuration.
     pub fn identity(&self) -> [u64; 4] {
-        self.compiled.binding.package_identity()
+        self.compiled.binding.package_identity().words()
     }
 
     /// Require the selected profile to meet the caller's positive statistical minimum.
@@ -124,7 +156,7 @@ pub struct Prover {
 impl Prover {
     fn new(compiled: Arc<CompiledCircuit>, backend: Backend, minimum_security_bits: u32) -> Result<Self, Error> {
         let mut lifecycle = compiled.lifecycle(backend, minimum_security_bits)?;
-        lifecycle.keep_commitment_key_when_it_fits();
+        lifecycle.keep_commitment_key_when_it_fits()?;
         Ok(Self { compiled, lifecycle })
     }
 

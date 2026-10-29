@@ -2,10 +2,10 @@
 //! later folds own only the current dense prefix. Missing coordinates are zero.
 
 use neo_math::{F, K};
-use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder, MTLComputeCommandEncoder};
+use objc2_metal::{MTLCommandBuffer, MTLCommandEncoder};
 use p3_field::PrimeCharacteristicRing;
 
-use super::{support::k_words, Buffer, MetalError, MetalSession, MetalWitnessMasks};
+use super::{support::k_words, Arg, Buffer, Grid, MetalError, MetalSession, MetalWitnessMasks};
 
 enum Prefix {
     Masks(Buffer),
@@ -161,27 +161,33 @@ impl AssignmentTables {
         let command = session.command_buffer("nightstream.pi_ccs.joint.assignment.fold")?;
         if let Some(values) = &next_values {
             let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-            encoder.setComputePipelineState(&session.joint_fold_assignment_values);
-            unsafe {
-                encoder.setBuffer_offset_atIndex(Some(self.values()), 0, 0);
-                encoder.setBuffer_offset_atIndex(Some(&challenge), 0, 1);
-                encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
-                encoder.setBuffer_offset_atIndex(Some(values), 0, 3);
-            }
-            session.dispatch(&encoder, &session.joint_fold_assignment_values, next_alphabet.unwrap());
+            session.launch(
+                &encoder,
+                &session.joint_fold_assignment_values,
+                &[
+                    Arg::Buffer(0, self.values()),
+                    Arg::Buffer(1, &challenge),
+                    Arg::Buffer(2, &shape),
+                    Arg::Buffer(3, values),
+                ],
+                Grid::Threads(next_alphabet.unwrap()),
+            );
             encoder.endEncoding();
         }
         let encoder = command.computeCommandEncoder().ok_or(MetalError::Encoder)?;
-        encoder.setComputePipelineState(&session.joint_fold_assignments);
-        unsafe {
-            encoder.setBuffer_offset_atIndex(Some(self.data(masks)), 0, 0);
-            encoder.setBuffer_offset_atIndex(Some(&challenge), 0, 1);
-            encoder.setBuffer_offset_atIndex(Some(&shape), 0, 2);
-            encoder.setBuffer_offset_atIndex(Some(&output), 0, 3);
-            encoder.setBuffer_offset_atIndex(Some(&self.sources), 0, 4);
-            encoder.setBuffer_offset_atIndex(Some(self.values()), 0, 5);
-        }
-        session.dispatch(&encoder, &session.joint_fold_assignments, entries);
+        session.launch(
+            &encoder,
+            &session.joint_fold_assignments,
+            &[
+                Arg::Buffer(0, self.data(masks)),
+                Arg::Buffer(1, &challenge),
+                Arg::Buffer(2, &shape),
+                Arg::Buffer(3, &output),
+                Arg::Buffer(4, &self.sources),
+                Arg::Buffer(5, self.values()),
+            ],
+            Grid::Threads(entries),
+        );
         encoder.endEncoding();
         session.finish(&command)?;
         self.prefix = match next_values {

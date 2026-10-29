@@ -17,6 +17,7 @@ pub enum ApplicationError {
     PrivateInputCount { expected: usize, actual: usize },
     WitnessLength { expected: usize, actual: usize },
     UnsatisfiedRow(usize),
+    Prepared(&'static str),
     Records(PackageError),
 }
 
@@ -34,6 +35,7 @@ impl fmt::Display for ApplicationError {
                 write!(f, "application needs {expected} witness values; got {actual}")
             }
             Self::UnsatisfiedRow(index) => write!(f, "application row {index} is not satisfied"),
+            Self::Prepared(location) => write!(f, "invalid prepared application: {location}"),
             Self::Records(error) => write!(f, "application records: {error}"),
         }
     }
@@ -239,16 +241,16 @@ impl ApplicationCircuit {
         let first = self
             .row_count()
             .checked_sub(4)
-            .ok_or(PackageError::Invalid("prepared output rows"))?;
+            .ok_or(ApplicationError::Prepared("prepared output rows"))?;
         let mut forms = [0; 4];
         for (lane, output) in self.outputs.iter().enumerate() {
             if output.row != first + lane {
-                return Err(PackageError::Invalid("prepared output row order").into());
+                return Err(ApplicationError::Prepared("prepared output row order"));
             }
             forms[lane] = match output.form {
                 ApplicationForm::A => 0,
                 ApplicationForm::C => 2,
-                ApplicationForm::B => return Err(PackageError::Invalid("prepared output form").into()),
+                ApplicationForm::B => return Err(ApplicationError::Prepared("prepared output form")),
             };
         }
         Ok(forms)
@@ -261,12 +263,12 @@ impl ApplicationCircuit {
         let records = Arc::clone(
             package
                 .application_records()
-                .ok_or(PackageError::Invalid("prepared native records"))?,
+                .ok_or(ApplicationError::Prepared("prepared native records"))?,
         );
         let first = records
             .row_count()
             .checked_sub(4)
-            .ok_or(PackageError::Invalid("prepared output rows"))?;
+            .ok_or(ApplicationError::Prepared("prepared output rows"))?;
         let private_count = package.application().witness_word_count();
         let generated_start = private_count
             .checked_add(8)
@@ -283,7 +285,7 @@ impl ApplicationCircuit {
             let form = match tag {
                 0 => ApplicationForm::A,
                 2 => ApplicationForm::C,
-                _ => return Err(PackageError::Invalid("prepared output form").into()),
+                _ => return Err(ApplicationError::Prepared("prepared output form")),
             };
             let derived = if records.row_header(row)?.term_counts[ApplicationForm::C.index()] == 0 {
                 ApplicationForm::A
@@ -291,7 +293,7 @@ impl ApplicationCircuit {
                 ApplicationForm::C
             };
             if form != derived {
-                return Err(PackageError::Invalid("prepared output form differs from its row").into());
+                return Err(ApplicationError::Prepared("prepared output form differs from its row"));
             }
             outputs[lane] = OutputRow { row, form };
         }
@@ -394,7 +396,7 @@ impl ApplicationCircuit {
                 values
                     .get(index)
                     .map(PrimeField64::as_canonical_u64)
-                    .ok_or(PackageError::Invalid("application record variable out of scope"))
+                    .ok_or(ApplicationError::VariableOutOfScope(index))
             })?
             .map(Goldilocks::from_u64))
     }
@@ -409,7 +411,7 @@ impl ApplicationCircuit {
             values
                 .get(index)
                 .map(PrimeField64::as_canonical_u64)
-                .ok_or(PackageError::Invalid("application record variable out of scope"))
+                .ok_or(ApplicationError::VariableOutOfScope(index))
         })?;
         Ok(Goldilocks::from_u64(value))
     }

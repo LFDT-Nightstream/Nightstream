@@ -34,11 +34,22 @@ fn cache_aware_matrix_digest_changes_when_csc_value_changes() {
     let s = sparse_two_matrix_structure();
     let baseline = digest_ccs_matrices(&s);
 
-    let mut tampered = s.clone();
-    let CcsMatrix::Csc(csc) = &mut tampered.matrices[0] else {
+    let mut matrices = s.matrices().to_vec();
+    let CcsMatrix::Csc(csc) = &matrices[0] else {
         panic!("expected sparse matrix");
     };
-    csc.vals[0] += F::ONE;
+    let mut vals = csc.vals().to_vec();
+    vals[0] += F::ONE;
+    let changed_csc = CscMat::new(
+        csc.nrows(),
+        csc.ncols(),
+        csc.col_ptr().to_vec(),
+        csc.row_idx().to_vec(),
+        vals,
+    )
+    .expect("changed value stays canonical");
+    matrices[0] = CcsMatrix::Csc(changed_csc);
+    let tampered = CcsStructure::new_sparse(matrices, s.f().clone()).expect("tampered structure");
 
     let changed = digest_ccs_matrices(&tampered);
     assert_ne!(baseline, changed);
@@ -49,8 +60,9 @@ fn cache_aware_matrix_digest_changes_when_matrix_order_changes() {
     let s = sparse_two_matrix_structure();
     let baseline = digest_ccs_matrices(&s);
 
-    let mut swapped = s.clone();
-    swapped.matrices.swap(0, 1);
+    let mut matrices = s.matrices().to_vec();
+    matrices.swap(0, 1);
+    let swapped = CcsStructure::new_sparse(matrices, s.f().clone()).expect("swapped structure");
 
     let changed = digest_ccs_matrices(&swapped);
     assert_ne!(baseline, changed);
@@ -63,10 +75,10 @@ fn single_entry_structure(row: usize, col: usize) -> CcsStructure<F> {
 }
 
 fn csc_vals(s: &CcsStructure<F>) -> &[F] {
-    let CcsMatrix::Csc(csc) = &s.matrices[0] else {
+    let CcsMatrix::Csc(csc) = &s.matrices()[0] else {
         panic!("expected sparse matrix");
     };
-    &csc.vals
+    csc.vals()
 }
 
 #[test]

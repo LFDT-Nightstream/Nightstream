@@ -8,7 +8,7 @@ use super::{
     reference::{matrix::MatrixProgram, source::SourcePackage},
 };
 
-pub fn evaluate_family(
+pub(crate) fn evaluate_family(
     bytes: &[u8],
     logical_width: usize,
     row_count: usize,

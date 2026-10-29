@@ -13,14 +13,16 @@ const RECIPE_BATCH_HEADER_WORDS: usize = 16;
 pub(crate) fn native_relation_identifier(
     fixed: &Value,
     application: &PreparedApplication,
-) -> Result<[u64; 4], PackageError> {
+) -> Result<StructuralIdentifier, PackageError> {
     let mut input = poseidon2::Poseidon2Hasher::default();
     update_words(&mut input, &IDENTITY_DOMAIN);
     visit_native_preimage_words(fixed, application, &mut |words| {
         update_words(&mut input, words);
         Ok(())
     })?;
-    Ok(input.finalize().map(|value| value.as_canonical_u64()))
+    Ok(StructuralIdentifier(
+        input.finalize().map(|value| value.as_canonical_u64()),
+    ))
 }
 
 pub(crate) fn native_application_identity(
@@ -35,7 +37,7 @@ pub(crate) fn native_application_identity(
         Ok(())
     })?;
     if emitted != word_count {
-        return Err(PackageError::Invalid("application identity word coverage"));
+        return Err(PackageError::Malformed("application identity word coverage"));
     }
     Ok(ApplicationIdentity {
         digest: input.finalize().map(|value| value.as_canonical_u64()),
@@ -52,15 +54,15 @@ pub(crate) fn native_application_word_count(application: &PreparedApplication) -
                 .witness_columns()
                 .len()
                 .checked_mul(4)
-                .ok_or(PackageError::Invalid("application identity length"))?,
+                .ok_or(PackageError::Malformed("application identity length"))?,
         )
         .and_then(|count| count.checked_add(records.row_preimage_word_count()))
-        .ok_or(PackageError::Invalid("application identity length"))?;
+        .ok_or(PackageError::Malformed("application identity length"))?;
     if records.recipe_count() != 0 {
         word_count = word_count
             .checked_add(RECIPE_BATCH_HEADER_WORDS)
             .and_then(|count| count.checked_add(records.recipe_preimage_word_count()))
-            .ok_or(PackageError::Invalid("application identity length"))?;
+            .ok_or(PackageError::Malformed("application identity length"))?;
     }
     Ok(word_count)
 }
@@ -130,9 +132,9 @@ fn source_rows(
         let index = tuple(row, 4)?[0]
             .as_u64()
             .and_then(|index| usize::try_from(index).ok())
-            .ok_or(PackageError::Invalid("native fixed row index"))?;
+            .ok_or(PackageError::Malformed("native fixed row index"))?;
         if range.contains(&index) || (inserted && index < range.start) {
-            return Err(PackageError::Invalid("native application row insertion"));
+            return Err(PackageError::Malformed("native application row insertion"));
         }
         if !inserted && index >= range.start {
             application_rows(application, sink)?;
@@ -197,7 +199,7 @@ fn application_rows(application: &PreparedApplication, sink: &mut CanonicalSink<
                 ApplicationForm::C => 2,
             };
             if next < form {
-                return Err(PackageError::Invalid("native application term order"));
+                return Err(PackageError::Malformed("native application term order"));
             }
             while form < next {
                 form += 1;
@@ -214,7 +216,7 @@ fn application_rows(application: &PreparedApplication, sink: &mut CanonicalSink<
             combination_header(&header, form, sink)?;
         }
         if flow.is_break() || counts != header.term_counts {
-            return Err(PackageError::Invalid("native application row coverage"));
+            return Err(PackageError::Malformed("native application row coverage"));
         }
     }
     Ok(())
@@ -256,7 +258,7 @@ fn application_batch(application: &PreparedApplication, sink: &mut CanonicalSink
             Ok(ControlFlow::Continue(()))
         })?;
         if flow.is_break() {
-            return Err(PackageError::Invalid("native application recipe coverage"));
+            return Err(PackageError::Malformed("native application recipe coverage"));
         }
     }
     sink.array(0)
@@ -264,20 +266,17 @@ fn application_batch(application: &PreparedApplication, sink: &mut CanonicalSink
 
 fn add(left: usize, right: usize) -> Result<usize, PackageError> {
     left.checked_add(right)
-        .ok_or(PackageError::Invalid("native identity length"))
+        .ok_or(PackageError::Malformed("native identity length"))
 }
 
 fn array(value: &Value) -> Result<&[Value], PackageError> {
-    value
-        .as_array()
-        .map(Vec::as_slice)
-        .ok_or(PackageError::Invalid("native identity array"))
+    crate::package::json::array(value, "native identity array")
 }
 
 fn tuple(value: &Value, length: usize) -> Result<&[Value], PackageError> {
     let values = array(value)?;
     if values.len() != length {
-        return Err(PackageError::Invalid("native identity tuple"));
+        return Err(PackageError::Malformed("native identity tuple"));
     }
     Ok(values)
 }

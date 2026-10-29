@@ -14,11 +14,11 @@ use crate::circuit::Backend;
 use crate::field::{Ext, Gl};
 use crate::gkr::{self, GkrView, TreeShape};
 use crate::matrix::{EarlyChallenges, EarlyValues};
+use crate::relation::{kappa, p1_points, setup_point, Relation};
 use crate::ring::{self, Mixing};
 use crate::setup::{self, LeafView, FOLD};
 use crate::whir::{self, OpeningView};
-use crate::{kappa, mle, p1_points, setup_point, sumcheck, ClaimWords, Error, Proof, Relation};
-use crate::{LANE_VARIABLES, RUN_ORACLES};
+use crate::{mle, sumcheck, ClaimWords, Error, Proof, LANE_VARIABLES, RUN_ORACLES};
 
 /// A layer-1 proof as backend words, or zeros of its shape.
 pub(crate) struct ProofView<'p, B: Backend> {

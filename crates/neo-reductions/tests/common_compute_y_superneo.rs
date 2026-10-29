@@ -44,9 +44,9 @@ fn make_z(seed: u64, m: usize) -> Mat<F> {
 fn manual_compute_v1_2_evaluations(s: &CcsStructure<F>, Z: &Mat<F>, r: &[K], ell_d: usize) -> V1_2Evaluations<K> {
     let d_pad = 1usize << ell_d;
     let rb = tensor_point::<K>(r);
-    let n_eff = core::cmp::min(s.n, rb.len());
+    let n_eff = core::cmp::min(s.n(), rb.len());
     let cache = build_superneo_eval_cache(s).expect("expected SuperNeo cache");
-    let z = decode_superneo_coeffs_from_witness_mat(Z, s.m).expect("decode packed coefficients");
+    let z = decode_superneo_coeffs_from_witness_mat(Z, s.m()).expect("decode packed coefficients");
     let mut identity = [K::ZERO; D];
     for (row, &weight) in rb.iter().take(z.len()).enumerate() {
         let block = row / D;
@@ -139,7 +139,7 @@ fn compute_v1_2_evaluations_nondiv_width_use_packed_layout() {
     );
 
     let Z = make_z(1200, m);
-    validate_superneo_witness_shape(&Z, s.m).expect("packed layout must be accepted");
+    validate_superneo_witness_shape(&Z, s.m()).expect("packed layout must be accepted");
 
     let r = vec![
         K::from(F::from_u64(2)),

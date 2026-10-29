@@ -1,21 +1,21 @@
 //! Selected radix-two decomposition under the existing production key.
 use super::{
     ajtai_dec_mixer, has_canonical_evaluations, kernels as engine, superneo_has_canonical_x_shape,
-    superneo_public_x_cols, CeClaim, DecMixer, Params, Structure,
+    superneo_public_x_cols, CeClaim, DecMixer, FoldContext, Params, Structure,
 };
 use neo_ajtai::nightstream_fprime_setup::{
     commit_production_signed_unit_prefix_matrices, MAX_MESSAGE_COLUMNS, PRODUCTION_VERIFIER_ROWS,
 };
 use neo_ccs::Mat;
 use neo_math::{balanced::within_nc_bound, D, F};
-use neo_reductions::superneo_eval::{eval_real_v1_2_openings_from_rows, MatrixRows, MatrixShape, SuperneoZBlocks};
+use neo_reductions::superneo_eval::{eval_real_v1_2_openings_from_rows, MatrixShape, SuperneoZBlocks};
 use p3_field::PrimeField64;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("PiDEC child count {got}, expected {expected}")]
     ChildCount { expected: usize, got: usize },
-    #[error("PiDEC public recomposition failed")]
-    VerifyRejected,
+    #[error("PiDEC public recomposition failed: {0}")]
+    VerifyRejected(#[source] neo_reductions::PiCcsError),
     #[error("PiDEC public shape in {0}")]
     NoncanonicalXShape(&'static str),
     #[error("PiDEC child public input exceeds unit norm")]
@@ -40,28 +40,31 @@ pub(crate) struct Children {
     pub witnesses: Vec<Mat<F>>,
 }
 #[derive(Clone, Debug, PartialEq)]
-pub struct Proof {
+pub(crate) struct Proof {
     pub children: Vec<CeClaim>,
 }
 pub(crate) fn prove_with_production_key(
-    pp: &Params,
-    s: &Structure,
-    rows: &dyn MatrixRows,
-    workspace_bytes: usize,
+    context: FoldContext<'_>,
     parent: &CeClaim,
     parent_witness: Mat<F>,
 ) -> Result<(Children, Proof), Error> {
+    let FoldContext {
+        params: pp,
+        structure: s,
+        rows,
+        workspace_bytes,
+    } = context;
     let production = Params::production();
-    let blocks = s.m.div_ceil(D);
+    let blocks = s.m().div_ceil(D);
     if pp.b() != production.b()
         || pp.k_rho() != production.k_rho()
         || pp.big_b() != production.big_b()
-        || u64::from(pp.inner().kappa) != PRODUCTION_VERIFIER_ROWS
+        || u64::from(pp.inner().kappa()) != PRODUCTION_VERIFIER_ROWS
         || blocks == 0
         || blocks > MAX_MESSAGE_COLUMNS as usize
         || rows.shape()
             != (MatrixShape {
-                rows: s.n,
+                rows: s.n(),
                 columns: blocks * D,
                 matrices: s.t(),
             })
@@ -74,7 +77,7 @@ pub(crate) fn prove_with_production_key(
     if parent.adv.is_some() {
         return Err(Error::Auxiliary);
     }
-    neo_reductions::common::validate_superneo_witness_shape(&parent_witness, s.m).map_err(engine::Error::from)?;
+    neo_reductions::common::validate_superneo_witness_shape(&parent_witness, s.m()).map_err(engine::Error::from)?;
     let split =
         neo_reductions::common::split_b_matrix_k_with_nonzero_flags(&parent_witness, pp.k_rho() as usize, pp.b())
             .map_err(engine::Error::from)?;
@@ -84,7 +87,7 @@ pub(crate) fn prove_with_production_key(
     let blocks = split
         .planes()
         .iter()
-        .map(|witness| SuperneoZBlocks::from_witness_mat(witness, s.m))
+        .map(|witness| SuperneoZBlocks::from_witness_mat(witness, s.m()))
         .collect::<Result<Vec<_>, _>>()
         .map_err(engine::Error::from)?;
     let openings =
@@ -117,7 +120,7 @@ pub(crate) fn prove_with_production_key(
     ))
 }
 
-pub fn verify(
+pub(crate) fn verify(
     pp: &Params,
     s: &Structure,
     combine: DecMixer,
@@ -125,10 +128,7 @@ pub fn verify(
     proof: &Proof,
 ) -> Result<Vec<CeClaim>, Error> {
     validate_verifier_inputs(pp, s, parent, proof)?;
-    let ok = engine::verify_pi_dec(pp, s, parent, &proof.children, |cs, b| combine(cs, b));
-    if !ok {
-        return Err(Error::VerifyRejected);
-    }
+    engine::verify_pi_dec(pp, s, parent, &proof.children, combine).map_err(Error::VerifyRejected)?;
     Ok(proof.children.clone())
 }
 

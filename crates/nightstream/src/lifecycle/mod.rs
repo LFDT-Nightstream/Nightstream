@@ -24,21 +24,24 @@ mod prove;
 mod step_inputs;
 mod terminal;
 mod verify;
-pub use complete::{CompleteStepError, Stage1Envelope};
-pub use encoding::ProofCodecError;
-pub use extend::ExtendError;
-pub use finish::{CompressionError, CompressionKey, CompressionSetup, FinalProof};
-pub use inputs::{
+pub(crate) use complete::CompleteStepError;
+pub use complete::Stage1Envelope;
+pub(crate) use encoding::ProofCodecError;
+pub(crate) use extend::ExtendError;
+pub(crate) use finish::CompressionError;
+pub use finish::{CompressionKey, CompressionSetup, FinalProof};
+pub(crate) use inputs::{
     encode_pi_ccs_v1_2_public_input, pi_ccs_v1_2_prior_children, pi_ccs_v1_2_state_hash,
     serialize_pi_ccs_v1_2_state_preimage, PiCcsV1_2PackageBridgeError, PiCcsV1_2ProofInputs,
 };
-pub use prove::ProveError;
-pub use step_inputs::{Stage1State, Stage1StepInputs, StepInputError};
+pub(crate) use prove::ProveError;
+pub use step_inputs::Stage1State;
+pub(crate) use step_inputs::{Stage1StepInputs, StepInputError};
 #[cfg(test)]
 pub(crate) use terminal::{package as terminal_package, TERMINAL_PACKAGE_IDENTIFIER};
-pub use verify::VerifyError;
+pub(crate) use verify::VerifyError;
 
-pub struct PreparedLifecycle {
+pub(crate) struct PreparedLifecycle {
     package: std::sync::Arc<LoadedPerApplicationPackage>,
     structure: Structure,
     binding: Stage1VerifierBinding,
@@ -56,17 +59,19 @@ impl PreparedLifecycle {
         minimum_security_bits: u32,
     ) -> Result<Self, super::Error> {
         if package.production_verifier_binding()? != binding {
-            return Err(PackageError::Invalid("lifecycle binding differs from the prepared relation").into());
+            return Err(super::Error::Circuit(
+                "lifecycle binding differs from the prepared relation",
+            ));
         }
         let structure = package.ccs_structure_header()?;
         let params = crate::folding::Params::for_ccs_shape(
             structure.domain_rows(),
-            structure.m,
+            structure.m(),
             structure.t(),
             structure.max_degree(),
             minimum_security_bits,
         )?;
-        validate_key_prefix(structure.m, binding.verifier_context().commitment_key_words())?;
+        validate_key_prefix(structure.m(), binding.verifier_context().commitment_key_words())?;
         if matches!(backend.engine(), Engine::PaperExact | Engine::Crosscheck) {
             package.validate_all_matrix_rows()?;
         }
@@ -94,7 +99,7 @@ impl PreparedLifecycle {
         &self.structure
     }
     #[cfg(test)]
-    pub fn package_identity(&self) -> [u64; 4] {
+    pub(crate) fn package_identity(&self) -> nightstream_fprime::PackageIdentity {
         self.binding.package_identity()
     }
     pub(crate) fn execute_step_witness(
@@ -108,14 +113,14 @@ impl PreparedLifecycle {
     }
 }
 /// The package binds its exact prefix dimensions; the selected seed and rows are fixed.
-pub(crate) fn validate_key_prefix(logical_width: usize, commitment_key_words: &[u64]) -> Result<(), PackageError> {
+pub(crate) fn validate_key_prefix(logical_width: usize, commitment_key_words: &[u64]) -> Result<(), super::Error> {
     if logical_width == 0 || logical_width > MAX_CARRIER_WIDTH {
-        return Err(PackageError::Invalid("logical width exceeds the approved key capacity"));
+        return Err(super::Error::Circuit("logical width exceeds the approved key capacity"));
     }
     let columns = logical_width.div_ceil(D) as u64;
     let expected = authority_words(PRODUCTION_VERIFIER_ROWS, columns, &PRODUCTION_SEED);
     if commitment_key_words != expected {
-        return Err(PackageError::Invalid(
+        return Err(super::Error::Circuit(
             "commitment authority differs from the exact production key prefix",
         ));
     }

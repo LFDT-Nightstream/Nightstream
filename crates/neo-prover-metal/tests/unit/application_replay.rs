@@ -94,8 +94,10 @@ impl Fixture {
                 neo_params::goldilocks_paper_b2::CHALLENGE_ALPHABET.len() as u32,
             )
             .unwrap();
-        params.lambda = params.lambda.min(security.security_bits);
-        let dims = build_joint_dims(&params, &structure, 1, params.k_rho as usize).unwrap();
+        params = params
+            .with_lambda(params.lambda().min(security.security_bits))
+            .unwrap();
+        let dims = build_joint_dims(&params, &structure, 1, params.k_rho() as usize).unwrap();
         let blocks = columns.div_ceil(D);
         let mut fresh = Mat::zero(D, blocks, F::ZERO);
         for column in 0..columns {
@@ -103,7 +105,7 @@ impl Fixture {
         }
         fresh[(0, 0)] = F::ONE;
         fresh[(0, 1)] = F::ONE;
-        let running = (0..params.k_rho as usize)
+        let running = (0..params.k_rho() as usize)
             .map(|source| {
                 let mut witness = Mat::zero(D, blocks, F::ZERO);
                 for column in 0..blocks * D {
@@ -308,19 +310,22 @@ fn terminal_replay_reports_the_global_row_in_the_final_window() {
     let fixture = Fixture::new(7);
     let session = MetalSession::new().unwrap();
     let source = CachedMatrixRows::new(fixture.cache.superneo()).unwrap();
-    let metadata_workspace = matrix_workspace(&source, 0..fixture.structure.n);
+    let metadata_workspace = matrix_workspace(&source, 0..fixture.structure.n());
     let plan = session
         .prepare_joint_matrix_plan(&source, metadata_workspace)
         .unwrap();
     let mut witness = fixture.fresh[0].Z.clone();
     for expected in [None, Some(6)] {
-        let blocks = SuperneoZBlocks::from_witness_mat(&witness, fixture.structure.m).unwrap();
-        let cpu =
-            match check_ccs_relation_zero_cached_with_blocks(fixture.cache.superneo(), &fixture.structure.f, &blocks) {
-                Ok(()) => None,
-                Err(SuperneoCachedRelationError::UnsatisfiedRow { row }) => Some(row),
-                Err(error) => panic!("unexpected CPU relation error: {error}"),
-            };
+        let blocks = SuperneoZBlocks::from_witness_mat(&witness, fixture.structure.m()).unwrap();
+        let cpu = match check_ccs_relation_zero_cached_with_blocks(
+            fixture.cache.superneo(),
+            fixture.structure.f(),
+            &blocks,
+        ) {
+            Ok(()) => None,
+            Err(SuperneoCachedRelationError::UnsatisfiedRow { row }) => Some(row),
+            Err(error) => panic!("unexpected CPU relation error: {error}"),
+        };
         assert_eq!(cpu, expected);
         assert_eq!(
             session

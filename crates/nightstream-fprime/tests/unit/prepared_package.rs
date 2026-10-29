@@ -3,6 +3,8 @@ use crate::application_records::{
     ApplicationForm, ApplicationRecipeNode, ApplicationRecordsWriter, ApplicationRowHeader, ApplicationTerm,
 };
 use crate::package::load_prepared_application_records;
+use p3_field::PrimeField64;
+use p3_goldilocks::Goldilocks;
 use serde_json::json;
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
@@ -125,7 +127,7 @@ fn with_fixed_mutation(encoded: &[u8], mutate: impl FnOnce(&mut Value)) -> Vec<u
 #[test]
 fn prepared_round_trip_preserves_frozen_binding_and_exact_record_stream() {
     let (original, encoded) = fixture();
-    let loaded = load_trusted_compiled_application_package(encoded.as_slice()).unwrap();
+    let loaded = load_prepared_package(encoded.as_slice()).unwrap();
     assert_eq!(loaded.structural_identifier(), original.structural_identifier());
     assert_eq!(loaded.application(), original.application());
     assert_eq!(loaded.row_count(), original.row_count());
@@ -163,10 +165,10 @@ fn prepared_loading_keeps_cached_identity_components_non_authoritative() {
     let (original, encoded) = fixture();
     let mut changed = encoded.clone();
     let start = MAGIC.len() + size_of::<u64>();
-    let replacement = (original.structural_identifier()[0] + 1) % GOLDILOCKS_MODULUS;
+    let replacement = (original.structural_identifier().words()[0] + 1) % Goldilocks::ORDER_U64;
     changed[start..start + 8].copy_from_slice(&replacement.to_le_bytes());
-    let loaded = load_trusted_compiled_application_package(changed.as_slice()).unwrap();
-    assert_eq!(loaded.structural_identifier()[0], replacement);
+    let loaded = load_prepared_package(changed.as_slice()).unwrap();
+    assert_eq!(loaded.structural_identifier().words()[0], replacement);
     assert_ne!(
         loaded.production_verifier_binding().unwrap(),
         original.production_verifier_binding().unwrap()
@@ -178,19 +180,19 @@ fn prepared_loading_rejects_bad_framing_fields_and_cached_word_count() {
     let (_, encoded) = fixture();
     let mut bad = encoded.clone();
     bad[0] ^= 1;
-    assert!(load_trusted_compiled_application_package(bad.as_slice()).is_err());
-    assert!(load_trusted_compiled_application_package(&encoded[..encoded.len() - 1]).is_err());
+    assert!(load_prepared_package(bad.as_slice()).is_err());
+    assert!(load_prepared_package(&encoded[..encoded.len() - 1]).is_err());
     let mut bad = encoded.clone();
     bad.push(0);
     assert!(matches!(
-        load_trusted_compiled_application_package(bad.as_slice()),
-        Err(PackageError::Invalid("prepared package has trailing bytes"))
+        load_prepared_package(bad.as_slice()),
+        Err(PackageError::Malformed("prepared package has trailing bytes"))
     ));
     let mut bad = encoded.clone();
     let start = MAGIC.len() + size_of::<u64>();
-    bad[start..start + 8].copy_from_slice(&GOLDILOCKS_MODULUS.to_le_bytes());
+    bad[start..start + 8].copy_from_slice(&Goldilocks::ORDER_U64.to_le_bytes());
     assert!(matches!(
-        load_trusted_compiled_application_package(bad.as_slice()),
+        load_prepared_package(bad.as_slice()),
         Err(PackageError::NonCanonicalField { .. })
     ));
     let mut bad = encoded.clone();
@@ -198,8 +200,8 @@ fn prepared_loading_rejects_bad_framing_fields_and_cached_word_count() {
     let count = u64::from_le_bytes(bad[start..start + 8].try_into().unwrap());
     bad[start..start + 8].copy_from_slice(&(count + 1).to_le_bytes());
     assert!(matches!(
-        load_trusted_compiled_application_package(bad.as_slice()),
-        Err(PackageError::Invalid("prepared application identity word count"))
+        load_prepared_package(bad.as_slice()),
+        Err(PackageError::Malformed("prepared application identity word count"))
     ));
 }
 
@@ -208,8 +210,8 @@ fn prepared_source_byte_bound_is_checked_before_copy_or_body_decode() {
     let mut encoded = MAGIC.to_vec();
     encoded.extend_from_slice(&(MAX_FIXED_SOURCE_BYTES + 1).to_le_bytes());
     assert!(matches!(
-        load_trusted_compiled_application_package(encoded.as_slice()),
-        Err(PackageError::Invalid(
+        load_prepared_package(encoded.as_slice()),
+        Err(PackageError::TooLarge(
             "prepared fixed envelope exceeds compiler byte bound"
         ))
     ));
@@ -224,6 +226,6 @@ fn prepared_loading_retains_profile_layout_and_matrix_validation() {
         with_fixed_mutation(encoded, |fixed| fixed[3][6] = json!(fixed[3][6].as_u64().unwrap() + 1)),
         with_fixed_mutation(encoded, |fixed| fixed[2] = json!([])),
     ] {
-        assert!(load_trusted_compiled_application_package(changed.as_slice()).is_err());
+        assert!(load_prepared_package(changed.as_slice()).is_err());
     }
 }

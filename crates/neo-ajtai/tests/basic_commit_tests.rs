@@ -89,7 +89,7 @@ fn verify_rejects_wrong_opening() {
     );
 
     let mut z_wrong = z_correct.clone();
-    z_wrong[0] = z_wrong[0] + Fq::ONE;
+    z_wrong[0] += Fq::ONE;
 
     assert!(
         !verify_open(&pp, &commitment, &z_wrong),
@@ -110,7 +110,7 @@ fn different_inputs_produce_different_commitments() {
 
     let z1: Vec<Fq> = (0..d * m).map(|i| Fq::from_u64(i as u64)).collect();
     let mut z2 = z1.clone();
-    z2[0] = z2[0] + Fq::ONE;
+    z2[0] += Fq::ONE;
 
     let c1 = commit(&pp, &z1);
     let c2 = commit(&pp, &z2);
@@ -194,7 +194,7 @@ fn constant_time_variants_basic_functionality() {
     assert_eq!(c_precomp, c_precomp_2, "Precomp CT should be deterministic");
 
     let mut z_different = z_test.clone();
-    z_different[0] = z_different[0] + Fq::ONE;
+    z_different[0] += Fq::ONE;
 
     let c_masked_diff = commit_masked_ct(&pp, &z_different);
     let c_precomp_diff = commit_precomp_ct(&pp, &z_different);
@@ -295,7 +295,7 @@ fn rows_for_coords_matches_commit() {
     let mut c_flat_expected = vec![Fq::ZERO; num_coords];
     for i in 0..kappa {
         for r in 0..d {
-            c_flat_expected[i * d + r] = c.data[i * d + r];
+            c_flat_expected[i * d + r] = c.data()[i * d + r];
         }
     }
 

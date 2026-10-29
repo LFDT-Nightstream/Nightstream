@@ -15,7 +15,7 @@
 use std::fs::File;
 use std::io;
 use std::marker::PhantomData;
-use std::sync::{Arc, OnceLock};
+use std::sync::{Arc, Mutex, PoisonError};
 
 use neo_ccs::crypto::poseidon2_goldilocks::DIGEST_LEN;
 use p3_commit_v08::{BatchOpening, BatchOpeningRef, Mmcs as Scheme};
@@ -27,7 +27,7 @@ use p3_symmetric_v08::{CryptographicHasher, PseudoCompressionFunction};
 use rayon::prelude::*;
 
 use crate::device::Accelerator;
-use crate::field::Gl;
+use crate::field::{as_words, Gl};
 use crate::hash::{permutation, plain, Compress, Packed, Plain, Sponge};
 use crate::{scratch, Error};
 
@@ -41,7 +41,7 @@ pub(crate) struct Mmcs {
     plain: Plain,
     accelerator: Accelerator,
     /// The first scratch-file failure, shared with every clone of one prover.
-    failure: Arc<OnceLock<String>>,
+    failure: Arc<Mutex<Option<io::Error>>>,
 }
 
 impl Mmcs {
@@ -54,11 +54,14 @@ impl Mmcs {
     }
 
     /// Fail if a commitment or an opening of this prover lost a scratch
-    /// file; it then read zeros.
+    /// file; it then read zeros. The failure is returned once.
     pub(crate) fn check(&self) -> Result<(), Error> {
-        self.failure
-            .get()
-            .map_or(Ok(()), |reason| Err(Error::Scratch(reason.clone())))
+        let failure = self
+            .failure
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .take();
+        failure.map_or(Ok(()), |error| Err(Error::Io(error)))
     }
 
     /// Commit to `rows` rows of `width` words that arrive one coset at a
@@ -98,7 +101,7 @@ impl<M> Tree<M> {
         widths: Vec<usize>,
         cosets: usize,
         accelerator: &Accelerator,
-        failure: &OnceLock<String>,
+        failure: &Mutex<Option<io::Error>>,
         coset: impl FnMut(usize, &mut Vec<Gl>),
     ) -> Self {
         let width: usize = widths.iter().sum();
@@ -118,7 +121,7 @@ impl<M> Tree<M> {
         let (file, root) = match built {
             Ok((file, root)) => (Some(file), root),
             Err(error) => {
-                let _ = failure.set(format!("Merkle: {error}"));
+                record(failure, error);
                 (None, [Gl::ZERO; DIGEST_LEN])
             }
         };
@@ -140,19 +143,19 @@ impl<M> Tree<M> {
 
     /// `count` words at word `offset` of the scratch file; zeros, and a
     /// failure recorded in the opener's `failure`, if the read fails.
-    fn read(&self, offset: usize, count: usize, failure: &OnceLock<String>) -> Vec<Gl> {
+    fn read(&self, offset: usize, count: usize, failure: &Mutex<Option<io::Error>>) -> Vec<Gl> {
         let mut words = vec![0; count];
         if let Err(error) = self
             .file
             .as_ref()
             .map_or(Ok(()), |file| scratch::read(file, offset, &mut words))
         {
-            let _ = failure.set(format!("Merkle read: {error}"));
+            record(failure, error);
         }
         words.into_iter().map(Gl::new).collect()
     }
 
-    fn rows(&self, index: usize, failure: &OnceLock<String>) -> Vec<Vec<Gl>> {
+    fn rows(&self, index: usize, failure: &Mutex<Option<io::Error>>) -> Vec<Vec<Gl>> {
         let width: usize = self.widths.iter().sum();
         let mut words = self
             .read(width * self.position(index), width, failure)
@@ -169,7 +172,7 @@ impl<M> Tree<M> {
     }
 
     /// Node `node` of layer `layer`, the leaves' digests being layer 0.
-    fn digest(&self, layer: usize, node: usize, failure: &OnceLock<String>) -> Digest {
+    fn digest(&self, layer: usize, node: usize, failure: &Mutex<Option<io::Error>>) -> Digest {
         let width: usize = self.widths.iter().sum();
         let slot = if layer == 0 { self.position(node) } else { node };
         let words = self.read(
@@ -181,7 +184,7 @@ impl<M> Tree<M> {
     }
 
     /// The siblings on the path from leaf `index` to the root.
-    fn path(&self, mut index: usize, failure: &OnceLock<String>) -> Vec<Digest> {
+    fn path(&self, mut index: usize, failure: &Mutex<Option<io::Error>>) -> Vec<Digest> {
         (0..self.depth())
             .map(|layer| {
                 let sibling = self.digest(layer, index ^ 1, failure);
@@ -193,7 +196,7 @@ impl<M> Tree<M> {
 
     /// Plonky3's pruned siblings of `indices`: level by level, in node
     /// order, the other node of each pair that holds exactly one known node.
-    fn pruned(&self, indices: &[usize], failure: &OnceLock<String>) -> Vec<Digest> {
+    fn pruned(&self, indices: &[usize], failure: &Mutex<Option<io::Error>>) -> Vec<Digest> {
         let mut known = indices.to_vec();
         known.sort_unstable();
         known.dedup();
@@ -214,6 +217,14 @@ impl<M> Tree<M> {
         }
         siblings
     }
+}
+
+/// Keep `error` unless `failure` already holds an earlier one.
+fn record(failure: &Mutex<Option<io::Error>>, error: io::Error) {
+    failure
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .get_or_insert(error);
 }
 
 /// Rows of one subtree: its digest layers go to the scratch file before
@@ -337,11 +348,9 @@ fn leaf<M: Matrix<Gl>>(matrices: &[M], r: usize) -> impl Iterator<Item = Gl> + '
 /// The leaf digests of the rows of `width` words in `values`, on the device
 /// when it takes them.
 fn leaves(values: &[Gl], width: usize, accelerator: &Accelerator) -> Vec<Digest> {
-    // SAFETY: `Goldilocks` is `repr(transparent)` over `u64`.
-    let words = unsafe { std::slice::from_raw_parts(values.as_ptr().cast::<u64>(), values.len()) };
     match accelerator
         .device()
-        .and_then(|device| device.merkle_leaves(words, width))
+        .and_then(|device| device.merkle_leaves(as_words(values), width))
     {
         Some(digests) => digests
             .into_iter()
@@ -483,7 +492,10 @@ impl Scheme<Gl> for Mmcs {
     }
 
     fn get_matrices<'a, M: Matrix<Gl>>(&self, _tree: &'a Tree<M>) -> Vec<&'a M> {
-        unreachable!("WHIR reads committed rows only through openings; the rows live in the scratch file")
+        unreachable!(
+            "the rows live in the scratch file; this scheme overrides `get_matrix_heights` and \
+             `get_max_height`, the Plonky3 0.8 defaults that call `get_matrices`"
+        )
     }
 
     fn get_matrix_heights<M: Matrix<Gl>>(&self, tree: &Tree<M>) -> Vec<usize> {

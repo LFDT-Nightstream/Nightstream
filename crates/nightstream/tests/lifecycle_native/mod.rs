@@ -71,7 +71,7 @@ fn evaluation(value: &Value) -> Vec<K> {
 fn commitment(value: &Value) -> Commitment {
     let data = fields(value);
     assert_eq!(data.len(), D * 22);
-    Commitment { d: D, kappa: 22, data }
+    Commitment::new(22, data).expect("commitment shape")
 }
 
 fn frame(words: [u64; 4]) -> [u8; 32] {
@@ -201,7 +201,7 @@ impl Fixture {
         assert!(proof.canonical_bytes() == wire, "exact retained native proof");
         let params = Params::for_ccs_shape(
             package.structure().domain_rows(),
-            package.structure().m,
+            package.structure().m(),
             package.structure().t(),
             package.structure().max_degree(),
             114,
@@ -381,7 +381,7 @@ fn actual_nifs_builds_the_checked_successor_assignment() {
         )
         .is_err());
     let mut detached_child = proof.clone();
-    detached_child.pi_dec.children[0].c.data[0] += F::ONE;
+    detached_child.pi_dec.children[0].c.data_mut()[0] += F::ONE;
     assert!(package
         .step_inputs(
             &state,
@@ -411,8 +411,8 @@ fn selected_plain_step_rejects_auxiliary_commitments() {
     let fixture = Fixture::load();
     let _ = fixture.packet();
     for value in [F::ZERO, F::ONE] {
-        let mut commitment = Commitment::zeros(D, fixture.fresh.c.kappa);
-        commitment.data[0] = value;
+        let mut commitment = Commitment::zeros(fixture.fresh.c.kappa());
+        commitment.data_mut()[0] = value;
         let auxiliary = LaneCommitments {
             ops: commitment.clone(),
             is: commitment.clone(),
@@ -491,7 +491,7 @@ fn saved_proof_and_transcript_match_lean() {
     let fixture = Fixture::load();
     let params = Params::for_ccs_shape(
         fixture.package.structure.domain_rows(),
-        fixture.package.structure.m,
+        fixture.package.structure.m(),
         fixture.package.structure.t(),
         fixture.package.structure.max_degree(),
         114,

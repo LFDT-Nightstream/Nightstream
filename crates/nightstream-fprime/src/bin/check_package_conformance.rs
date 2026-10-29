@@ -18,7 +18,7 @@ mod candidate;
 mod logical_checks;
 #[path = "../../tests/support/recursive_step.rs"]
 mod recursive_checks;
-#[allow(dead_code, unused_imports)]
+#[allow(dead_code)]
 #[path = "check_package_conformance/support.rs"]
 mod support;
 

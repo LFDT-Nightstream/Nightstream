@@ -2,7 +2,7 @@
 
 use super::{artifact, fs, load_poseidon2_hash_chain_v1_package, PreparedLifecycle};
 use neo_ajtai::nightstream_fprime_setup::PRODUCTION_CARRIER_WIDTH;
-use neo_ccs::GeometricRowRun;
+use neo_ccs::{CcsStructure, GeometricRowRun};
 use neo_math::F;
 use neo_reductions::superneo_eval::{MatrixRowSink, MatrixRows, MatrixShape, MatrixWindow};
 use neo_reductions::PiCcsError;
@@ -141,7 +141,7 @@ fn fixed_prefix_rows_fit_the_minimum_matrix_workspace() {
     let mut package =
         PreparedLifecycle::from_package(loaded.into(), binding, crate::engine::Backend::Optimized, 114).unwrap();
     assert_eq!(
-        package.structure.n,
+        package.structure.n(),
         dimension(manifest.geometry.logical_rows, manifest.reference),
         "fixture uses the selected manifest row geometry"
     );
@@ -151,11 +151,16 @@ fn fixed_prefix_rows_fit_the_minimum_matrix_workspace() {
     let maximum_application_rows = manifest.geometry.domain - manifest.geometry.source_rows[0];
     let maximum_rows = dimension(manifest.geometry.logical_rows, [0, 0, maximum_application_rows]);
     assert!(maximum_rows <= manifest.geometry.domain);
-    let actual_shape = (package.structure.n, package.structure.m);
-    package.structure.n = maximum_rows;
-    package.structure.m = PRODUCTION_CARRIER_WIDTH;
+    let actual = package.structure.clone();
+    package.structure = CcsStructure::new_verifier_artifact_header(
+        maximum_rows,
+        PRODUCTION_CARRIER_WIDTH,
+        actual.t(),
+        actual.f().clone(),
+    )
+    .unwrap();
     let minimum_workspace = package.matrix_workspace_bytes().unwrap();
-    (package.structure.n, package.structure.m) = actual_shape;
+    package.structure = actual;
     assert!(package.matrix_workspace_bytes().unwrap() >= minimum_workspace);
 
     let source = package.matrix_rows();

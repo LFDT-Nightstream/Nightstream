@@ -84,7 +84,7 @@ impl PreparedLifecycle {
         }
         Ok(Shape {
             public_width,
-            witness_columns: self.structure.m.div_ceil(D),
+            witness_columns: self.structure.m().div_ceil(D),
             matrices: self.structure.t(),
         })
     }
@@ -197,10 +197,10 @@ impl Writer {
     }
 
     fn commitment(&mut self, commitment: &Commitment) -> Result<(), ProofCodecError> {
-        if commitment.d != D || commitment.kappa != KAPPA || commitment.data.len() != D * KAPPA {
+        if commitment.d() != D || commitment.kappa() != KAPPA || commitment.data().len() != D * KAPPA {
             return Err(ProofCodecError("commitment shape"));
         }
-        self.fields(&commitment.data);
+        self.fields(commitment.data());
         Ok(())
     }
 
@@ -298,11 +298,7 @@ impl<'a> Reader<'a> {
     }
 
     fn commitment(&mut self) -> Result<Commitment, ProofCodecError> {
-        Ok(Commitment {
-            d: D,
-            kappa: KAPPA,
-            data: self.fields(D * KAPPA)?,
-        })
+        Ok(Commitment::new(KAPPA, self.fields(D * KAPPA)?).expect("commitment shape"))
     }
 
     fn claim(&mut self, shape: &Shape) -> Result<CeClaim, ProofCodecError> {

@@ -242,13 +242,13 @@ fn compact_relation_authority_matches_exact_rowwise_ccs_satisfaction() {
     };
 
     check_ccs_rowwise_zero(&structure, &assignment, &[]).expect("raw rowwise relation");
-    check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &as_blocks(&assignment))
+    check_ccs_relation_zero_cached_with_blocks(&cache, structure.f(), &as_blocks(&assignment))
         .expect("column-mask rowwise relation");
 
     assignment[7] = -F::ONE;
     assert!(check_ccs_rowwise_zero(&structure, &assignment, &[]).is_err());
     assert_eq!(
-        check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &as_blocks(&assignment)),
+        check_ccs_relation_zero_cached_with_blocks(&cache, structure.f(), &as_blocks(&assignment)),
         Err(SuperneoCachedRelationError::UnsatisfiedRow { row: 7 }),
     );
 }
@@ -263,11 +263,11 @@ fn compact_relation_authority_checks_padded_width_and_real_assignment() {
     .expect("padded relation");
     let cache = build_superneo_eval_cache(&structure).expect("SuperNeo cache");
     let mut assignment = vec![K::ZERO; 2 * D];
-    check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &SuperneoZBlocks::from_z(&assignment))
+    check_ccs_relation_zero_cached_with_blocks(&cache, structure.f(), &SuperneoZBlocks::from_z(&assignment))
         .expect("complete block width");
 
     assert_eq!(
-        check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &SuperneoZBlocks::with_block_len(1)),
+        check_ccs_relation_zero_cached_with_blocks(&cache, structure.f(), &SuperneoZBlocks::with_block_len(1)),
         Err(SuperneoCachedRelationError::AssignmentWidth {
             expected: 2 * D,
             got: D,
@@ -275,7 +275,7 @@ fn compact_relation_authority_checks_padded_width_and_real_assignment() {
     );
     assignment[0] = K::from_coeffs([F::ZERO, F::ONE]);
     assert_eq!(
-        check_ccs_relation_zero_cached_with_blocks(&cache, &structure.f, &SuperneoZBlocks::from_z(&assignment)),
+        check_ccs_relation_zero_cached_with_blocks(&cache, structure.f(), &SuperneoZBlocks::from_z(&assignment)),
         Err(SuperneoCachedRelationError::NonRealAssignment),
     );
 }

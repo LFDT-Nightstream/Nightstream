@@ -17,7 +17,7 @@ fn sample_commitment_with_kappa(kappa: usize) -> Commitment {
             _ => Fq::from_u64(23),
         });
     }
-    Commitment { d: D, kappa, data }
+    Commitment::new(kappa, data).expect("commitment shape")
 }
 
 fn sample_commitment() -> Commitment {
@@ -44,7 +44,7 @@ fn s_mul_add_from_rot_col_matches_ring_action_from_zero() {
     let rho = sample_rho();
     let rot_col = cf(rho);
 
-    let mut observed = Commitment::zeros(commitment.d, commitment.kappa);
+    let mut observed = Commitment::zeros(commitment.kappa());
     s_mul_add_from_rot_col(&mut observed, &rot_col, &commitment);
 
     let expected = s_mul(&rho, &commitment);

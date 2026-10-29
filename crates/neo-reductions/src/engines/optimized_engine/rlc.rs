@@ -491,7 +491,7 @@ where
         Zs,
         ell_d,
         combine_commit,
-        |rhos, witnesses| rlc_mix_witnesses(s.m, rhos, witnesses),
+        |rhos, witnesses| rlc_mix_witnesses(s.m(), rhos, witnesses),
     )
 }
 

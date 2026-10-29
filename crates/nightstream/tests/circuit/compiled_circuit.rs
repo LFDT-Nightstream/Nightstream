@@ -101,7 +101,7 @@ fn extension_errors_leave_the_supplied_proof_unchanged() {
         crate::folding::RunningInstance::default(),
         crate::folding::CcsInstance {
             claim: crate::folding::CcsClaim {
-                c: neo_ajtai::Commitment::zeros(neo_math::D, 22),
+                c: neo_ajtai::Commitment::zeros(22),
                 x: Vec::new(),
                 m_in: 0,
                 adv: None,
@@ -419,19 +419,21 @@ fn shaped_proof(prover: &Prover) -> Stage1Envelope {
 
     let structure = prover.lifecycle.structure();
     let public_width = prover.compiled.package.logical_public_input_count();
-    let columns = structure.m.div_ceil(D);
+    let columns = structure.m().div_ceil(D);
     let extension = |value: u64| neo_math::from_complex(F::from_u64(value), F::from_u64(value + 1));
     let evaluations = |seed: u64| {
         let mut values: Vec<K> = (0..D as u64).map(|lane| extension(seed + lane)).collect();
         values.resize(D.next_power_of_two(), K::ZERO);
         values
     };
-    let commitment = |seed: u64| neo_ajtai::Commitment {
-        d: D,
-        kappa: 22,
-        data: (0..D as u64 * 22)
-            .map(|word| F::from_u64(seed + word))
-            .collect(),
+    let commitment = |seed: u64| {
+        neo_ajtai::Commitment::new(
+            22,
+            (0..D as u64 * 22)
+                .map(|word| F::from_u64(seed + word))
+                .collect(),
+        )
+        .expect("commitment shape")
     };
     let claim = |seed: u64| CeClaim {
         c: commitment(seed),
@@ -477,7 +479,7 @@ fn proof_offsets(prover: &Prover) -> (usize, usize, usize) {
     let d = neo_math::D;
     let header = 16 + 8 + 9 * 8;
     let claim = (d * 22 + public_width + 2 * 28 + (structure.t() + 1) * 2 * d) * 8;
-    let witness = structure.m.div_ceil(d) * 16;
+    let witness = structure.m().div_ceil(d) * 16;
     (header, claim, witness)
 }
 
@@ -619,4 +621,31 @@ fn verifier_requires_the_padded_evaluation_width() {
             "Eval_K width {width}"
         );
     }
+}
+
+#[test]
+fn engine_failures_reach_the_caller_as_engine_errors() {
+    let failure = || EngineError::Failure {
+        engine: Engine::Metal,
+        reason: "device lost".into(),
+    };
+    assert!(matches!(
+        Error::from(ExtendError::Prove(ProveError::Engine(failure()))),
+        Error::Engine(_)
+    ));
+    assert!(matches!(
+        Error::from(ExtendError::Complete(CompleteStepError::Commitment(failure()))),
+        Error::Engine(_)
+    ));
+    assert!(matches!(Error::from(VerifyError::Engine(failure())), Error::Engine(_)));
+    // `Prover::new` returns a failure to keep the commitment key directly.
+    assert!(matches!(Error::from(failure()), Error::Engine(_)));
+    assert!(matches!(
+        Error::from(CompressionError::Prove(ProveError::Engine(failure()))),
+        Error::Engine(_)
+    ));
+    assert!(
+        matches!(Error::from(VerifyError::Statement("rejected")), Error::Verify(_)),
+        "a rejection stays a verify error"
+    );
 }

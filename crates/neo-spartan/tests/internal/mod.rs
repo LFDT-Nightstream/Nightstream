@@ -172,7 +172,7 @@ impl Toy {
 /// `c_i = Σ_b a_{i,b} · z_b mod Φ81` with the production key prefix.
 pub(super) fn commit(witness: &Mat<F>) -> Commitment {
     let kappa = PRODUCTION_VERIFIER_ROWS as usize;
-    let mut commitment = Commitment::zeros(D, kappa);
+    let mut commitment = Commitment::zeros(kappa);
     for row in 0..kappa {
         let mut total = Rq([F::ZERO; D]);
         for block in 0..witness.cols() {

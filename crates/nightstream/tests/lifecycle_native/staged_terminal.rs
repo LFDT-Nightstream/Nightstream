@@ -90,7 +90,7 @@ pub(super) fn accept(root: &Path, step: u64, engine: EvaluationEngine) {
     save(
         &root.join(format!("terminal-{step}-accepted.json")),
         &json!({
-            "schema":1, "package_identity":package.package_identity(), "iteration":step,
+            "schema":1, "package_identity":package.package_identity().words(), "iteration":step,
             "z0":expected.z0().map(|value| value.as_canonical_u64()),
             "current":expected.current().map(|value| value.as_canonical_u64()),
             "running_claims":&running.claims,
@@ -131,6 +131,6 @@ pub(super) fn reject(root: &Path, step: u64, engine: EvaluationEngine) {
     );
     save(
         &root.join(format!("terminal-{step}-rejected.json")),
-        &json!({"schema":1,"package_identity":package.package_identity(),"iteration":step,"case":"fresh relation mismatch after public input rehash and recommit","rejected":true,"rejection":format!("{error:?}")}),
+        &json!({"schema":1,"package_identity":package.package_identity().words(),"iteration":step,"case":"fresh relation mismatch after public input rehash and recommit","rejected":true,"rejection":format!("{error:?}")}),
     );
 }

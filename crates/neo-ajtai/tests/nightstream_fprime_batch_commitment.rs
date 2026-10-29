@@ -34,7 +34,7 @@ fn column_packed(witness: &Mat<F>) -> Mat<F> {
 }
 
 fn independent_commitment(witness: &Mat<F>) -> Commitment {
-    let mut commitment = Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize);
+    let mut commitment = Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize);
     if witness.virtual_constant_value() == Some(&F::ZERO) {
         return commitment;
     }
@@ -49,7 +49,7 @@ fn independent_commitment(witness: &Mat<F>) -> Commitment {
             }));
             let product = key.mul(&message);
             for lane in 0..D {
-                commitment.data[row * D + lane] += product.0[lane];
+                commitment.data_mut()[row * D + lane] += product.0[lane];
             }
         }
     }
@@ -132,7 +132,7 @@ fn empty_and_zero_batches_preserve_order_and_prefix_dimensions() {
     ];
     assert_eq!(
         commit_production_signed_unit_prefix_matrices(&witnesses).unwrap(),
-        vec![Commitment::zeros(D, PRODUCTION_VERIFIER_ROWS as usize); witnesses.len()]
+        vec![Commitment::zeros(PRODUCTION_VERIFIER_ROWS as usize); witnesses.len()]
     );
 }
 

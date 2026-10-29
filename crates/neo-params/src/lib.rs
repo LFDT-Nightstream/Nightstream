@@ -14,7 +14,6 @@
 
 use core::fmt;
 use num_bigint::BigUint;
-use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub mod poseidon2_goldilocks;
@@ -22,20 +21,22 @@ pub mod poseidon2_goldilocks;
 const R1CS_MATRIX_COUNT: usize = 3;
 const R1CS_POLY_DEGREE: u32 = 2;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// A validated parameter set. The fields are private, so no code can change
+/// `b`, `k_rho` or `B` after `new` checks them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[allow(non_snake_case)]
 pub struct NeoParams {
-    pub q: u64,
-    pub eta: u32,
-    pub d: u32,
-    pub kappa: u32,
-    pub m: u64,
-    pub b: u32,
-    pub k_rho: u32,
-    pub B: u64,
-    pub T: u32,
-    pub s: u32,
-    pub lambda: u32,
+    q: u64,
+    eta: u32,
+    d: u32,
+    kappa: u32,
+    m: u64,
+    b: u32,
+    k_rho: u32,
+    B: u64,
+    T: u32,
+    s: u32,
+    lambda: u32,
 }
 
 /// Single source of truth for the SuperNeo v1.2 Section 8.2 Goldilocks profile.
@@ -52,7 +53,6 @@ pub mod goldilocks_paper_b2 {
     pub const T: u32 = 216;
     pub const EXTENSION_DEGREE: u32 = 2;
     pub const LAMBDA: u32 = 125;
-    pub const MAX_FRESH_K: u32 = 61;
     pub const B_INV_FLOOR: u64 = 2_500_000_000;
     pub const CHALLENGE_SET_CARDINALITY: u128 = 55_511_151_231_257_827_021_181_583_404_541_015_625;
     pub static PHI_COEFFS: [i32; D] = {
@@ -145,8 +145,8 @@ impl NeoParams {
         if m == 0 {
             return Err(ParamsError::Invalid("m must be > 0"));
         }
-        if b < 2 {
-            return Err(ParamsError::Invalid("b must be >= 2"));
+        if b != 2 {
+            return Err(ParamsError::Invalid("Nightstream fixes the decomposition base b = 2"));
         }
         if k_rho == 0 {
             return Err(ParamsError::Invalid("k_rho must be > 0"));
@@ -185,7 +185,63 @@ impl NeoParams {
         })
     }
 
+    pub fn q(&self) -> u64 {
+        self.q
+    }
+
+    pub fn eta(&self) -> u32 {
+        self.eta
+    }
+
+    pub fn d(&self) -> u32 {
+        self.d
+    }
+
+    pub fn kappa(&self) -> u32 {
+        self.kappa
+    }
+
+    pub fn m(&self) -> u64 {
+        self.m
+    }
+
+    pub fn b(&self) -> u32 {
+        self.b
+    }
+
+    pub fn k_rho(&self) -> u32 {
+        self.k_rho
+    }
+
+    /// The norm bound `B = b^k_rho`.
     #[allow(non_snake_case)]
+    pub fn B(&self) -> u64 {
+        self.B
+    }
+
+    /// The strong-set expansion factor.
+    #[allow(non_snake_case)]
+    pub fn T(&self) -> u32 {
+        self.T
+    }
+
+    /// The extension degree of `K` over the base field.
+    pub fn s(&self) -> u32 {
+        self.s
+    }
+
+    pub fn lambda(&self) -> u32 {
+        self.lambda
+    }
+
+    /// The same parameters with a different positive statistical target.
+    pub fn with_lambda(self, lambda: u32) -> Result<Self, ParamsError> {
+        if lambda == 0 {
+            return Err(ParamsError::Invalid("lambda must be > 0"));
+        }
+        Ok(Self { lambda, ..self })
+    }
+
     pub fn goldilocks_paper_b2() -> Self {
         Self::new(
             goldilocks_paper_b2::Q,
@@ -202,7 +258,6 @@ impl NeoParams {
         .unwrap()
     }
 
-    #[allow(non_snake_case)]
     pub fn nightstream_goldilocks_k16() -> Self {
         Self::new(
             nightstream_goldilocks_k16::Q,

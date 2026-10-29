@@ -81,7 +81,7 @@ struct RingForms {
 }
 
 #[derive(Clone, Debug)]
-pub struct Block {
+pub(crate) struct Block {
     families: Vec<Family>,
     one_column: usize,
     challenge: RetainedBlock,
@@ -93,7 +93,7 @@ pub struct Block {
 }
 
 impl Block {
-    pub fn decode(value: &Value, logical_width: usize) -> Result<Self> {
+    pub(crate) fn decode(value: &Value, logical_width: usize) -> Result<Self> {
         let fields = exact_array(value, 8, "Phi81 matrix block")?;
         let block = Self {
             families: decode_list(&fields[0], Family::decode, "Phi81 families")?,
@@ -114,14 +114,14 @@ impl Block {
         Ok(block)
     }
 
-    pub fn row_count(&self) -> Result<usize> {
+    pub(crate) fn row_count(&self) -> Result<usize> {
         let rings = self.families.iter().try_fold(0usize, |count, family| {
             checked_add(count, family.ring_count()?, "Phi81 ring count")
         })?;
         checked_mul(rings, ROWS_PER_RING, "Phi81 row count")
     }
 
-    pub fn row(&self, logical_width: usize, ordinal: usize) -> Result<RowForms> {
+    pub(crate) fn row(&self, logical_width: usize, ordinal: usize) -> Result<RowForms> {
         if ordinal >= self.row_count()? || self.one_column >= logical_width {
             return Err("Phi81 matrix row is out of range".into());
         }
@@ -130,7 +130,7 @@ impl Block {
         self.evaluation_row(&forms, ordinal % ROWS_PER_RING)
     }
 
-    pub fn visit_rows(
+    pub(crate) fn visit_rows(
         &self,
         logical_width: usize,
         start: usize,

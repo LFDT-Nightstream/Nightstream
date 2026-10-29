@@ -642,14 +642,19 @@ struct ScheduledBlock {
 }
 
 #[derive(Clone, Debug)]
-pub struct MatrixProgram {
+pub(crate) struct MatrixProgram {
     blocks: Vec<ScheduledBlock>,
     logical_width: usize,
     row_count: usize,
 }
 
 impl MatrixProgram {
-    pub fn decode(value: &Value, sources: &SourcePackage, logical_width: usize, expected_rows: usize) -> Result<Self> {
+    pub(crate) fn decode(
+        value: &Value,
+        sources: &SourcePackage,
+        logical_width: usize,
+        expected_rows: usize,
+    ) -> Result<Self> {
         let mut cursor = 0usize;
         let blocks = array(value, "matrix program")?
             .iter()
@@ -684,16 +689,16 @@ impl MatrixProgram {
     }
 
     #[allow(dead_code)]
-    pub fn block_ends(&self) -> impl Iterator<Item = usize> + '_ {
+    pub(crate) fn block_ends(&self) -> impl Iterator<Item = usize> + '_ {
         self.blocks.iter().map(|block| block.end)
     }
 
     #[allow(dead_code)]
-    pub fn block_opcodes(&self) -> impl Iterator<Item = usize> + '_ {
+    pub(crate) fn block_opcodes(&self) -> impl Iterator<Item = usize> + '_ {
         self.blocks.iter().map(|block| block.block.opcode())
     }
 
-    pub fn row(&self, ordinal: usize, sources: &SourcePackage) -> Result<RowForms> {
+    pub(crate) fn row(&self, ordinal: usize, sources: &SourcePackage) -> Result<RowForms> {
         if ordinal >= self.row_count {
             return Err("logical matrix row ordinal is out of range".into());
         }
@@ -715,7 +720,7 @@ impl MatrixProgram {
         Ok(row)
     }
 
-    pub fn visit_rows(
+    pub(crate) fn visit_rows(
         &self,
         start: usize,
         end: usize,

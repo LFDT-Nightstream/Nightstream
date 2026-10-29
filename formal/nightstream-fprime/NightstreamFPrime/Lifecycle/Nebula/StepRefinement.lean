@@ -415,10 +415,10 @@ theorem RowsHold.opened (valid : p.Valid) (rows : w.RowsHold zIn)
     (if w.inCarry.idx = p.n then Spec.Nebula.openSegment (setup p) w.inCarry w.proposals
       else some w.inCarry) = some w.stepStart := by
   rcases rows.arm valid with ⟨opens, closed⟩ | ⟨continues, notClosed⟩
-  · rw [if_pos closed]
+  · rw [ite_eq_left closed]
     have segBelow := rows.segBelow w valid reach
     rw [Spec.Nebula.openSegment,
-      if_pos (show w.inCarry.segIdx < (setup p).geometry.sMax from segBelow)]
+      ite_eq_left (show w.inCarry.segIdx < (setup p).geometry.sMax from segBelow)]
     congr 1
     have proposedOut : ∀ i : Fin 8, carryWord w.carryOut (15 + i) = w.proposal i := fun i => by
       simpa [opens, cOut] using rows.proposed i
@@ -445,9 +445,9 @@ theorem RowsHold.opened (valid : p.Valid) (rows : w.RowsHold zIn)
     · show (w.proposalDigest 0, w.proposalDigest 4) =
         (carryDigest w.carryOut 15, carryDigest w.carryOut 19)
       congr 1 <;> funext i <;> simp only [proposalDigest, carryDigest]
-      · rw [dif_pos (by omega), ← proposedOut]
+      · rw [dite_eq_left (by omega), ← proposedOut]
         simp
-      · rw [dif_pos (by omega), ← proposedOut]
+      · rw [dite_eq_left (by omega), ← proposedOut]
         simp only
         congr 1
         omega
@@ -455,18 +455,18 @@ theorem RowsHold.opened (valid : p.Valid) (rows : w.RowsHold zIn)
           hash (.header .mem (planDigest p))⟩ : Roots Digest) =
         ⟨w.previousDigest 0, w.previousDigest 4, w.previousDigest 8⟩
       congr 1 <;> funext i <;> simp only [previousDigest] <;>
-        rw [dif_pos (by omega), seenStart] <;> simp only [headerWords]
-      · rw [if_pos (by omega)]
+        rw [dite_eq_left (by omega), seenStart] <;> simp only [headerWords]
+      · rw [ite_eq_left (by omega)]
         congr 1
         exact Fin.ext (by simp; omega)
-      · rw [if_neg (by omega)]
+      · rw [ite_eq_right (by omega)]
         congr 1
         exact Fin.ext (by simp; omega)
-      · rw [if_neg (by omega)]
+      · rw [ite_eq_right (by omega)]
         congr 1
         exact Fin.ext (by simp; omega)
     · rfl
-  · rw [if_neg notClosed]
+  · rw [ite_eq_right notClosed]
     congr 1
     have proposedOut : ∀ i : Fin 8, carryWord w.carryOut (15 + i) = carryWord w.carryIn (15 + i) :=
       fun i => by simpa [continues, cOut, cIn] using rows.proposed i
@@ -503,7 +503,7 @@ theorem RowsHold.opened (valid : p.Valid) (rows : w.RowsHold zIn)
           Roots Digest) = ⟨w.previousDigest 0, w.previousDigest 4, w.previousDigest 8⟩
       rw [readDigest_eq, readDigest_eq, readDigest_eq]
       congr 1 <;> funext i <;> simp only [carryDigest, previousDigest] <;>
-        rw [dif_pos (by omega), seenStart] <;> simp only <;> congr 1 <;> omega
+        rw [dite_eq_left (by omega), seenStart] <;> simp only <;> congr 1 <;> omega
     · rfl
 
 end StepWitness
@@ -526,9 +526,9 @@ theorem gatedK_bit {pad : F} (bit : IsBit pad) (f : K) :
     gatedK pad f = if toBool pad then 1 else f := by
   rcases bit with rfl | rfl
   · have : toBool (0 : F) = false := by simp [toBool, StepWitness.modulus_ne_one]
-    rw [this, if_neg (by simp)]
+    rw [this, ite_eq_right (by simp)]
     simp [gatedK, embed, K.add, K.mul]
-  · rw [show toBool (1 : F) = true from by simp [toBool], if_pos rfl, GoldilocksExtensionRing.one_eq]
+  · rw [show toBool (1 : F) = true from by simp [toBool], ite_eq_left rfl, GoldilocksExtensionRing.one_eq]
     simp [gatedK, embed, K.add, K.mul, K.one]
 
 namespace StepWitness
@@ -580,7 +580,7 @@ theorem RowsHold.globalIndex_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : 
     exact natWord_val (by unfold goldilocksModulus at *; omega)
   · have decodeRam : (w.ops j).decode.isRam = true := by simp [OpSlotBits.decode, one, toBool]
     simp only [globalIndex, isRam, one, one_mul, addr, slotIndex, PortAccess.globalIndex,
-      decodeRam, if_true, ← natWord_add]
+      decodeRam, ite_true, ← natWord_add]
     rw [natWord_val (by unfold goldilocksModulus at *; omega)]
     simp only [OpSlotBits.decode]
     omega
@@ -598,7 +598,7 @@ theorem RowsHold.wt_val (valid : p.Valid) (rows : w.RowsHold zIn) (j : Fin p.bOp
   rw [split, activeLength_append] at count
   have inactive : (w.ops j).decode.pad = false := by
     simp [OpSlotBits.decode, active, toBool, modulus_ne_one]
-  rw [inactive, if_neg (by simp)] at count
+  rw [inactive, ite_eq_right (by simp)] at count
   have length : w.records.ops.length = p.bOps := by simp [records]
   have prefixSmall : activeLength (w.records.ops.take j.val) ≤ p.bOps := by
     have := activeLength_le (w.records.ops.take j.val)
@@ -669,7 +669,7 @@ theorem RowsHold.writeProducts (valid : p.Valid) (rows : w.RowsHold zIn)
         rows.globalIndex_val w valid, rows.vw_val w]
       rfl
     · have padTrue : toBool (w.ops ⟨k, hk'⟩).pad = true := by simp [one, toBool]
-      simp only [padTrue, OpSlotBits.decode, if_true]
+      simp only [padTrue, OpSlotBits.decode, ite_true]
 
 theorem scanBits {slot : ScanSlotBits p} (all : ∀ x ∈ slot.lane, IsBit x) :
     (∀ k, IsBit (slot.value k)) ∧ (∀ k, IsBit (slot.stamp k)) := by

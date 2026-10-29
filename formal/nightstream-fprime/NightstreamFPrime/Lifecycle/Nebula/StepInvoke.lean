@@ -109,7 +109,7 @@ theorem RowsHold.stepped (valid : p.Valid) (rows : w.RowsHold zIn) (reach : Reac
     show StepRows p w.inCarry.ts w.records
     rw [inTs]
     exact rows.stepRows w valid (inTs_lt reach)
-  rw [stepSegment, if_pos holds]
+  rw [stepSegment, ite_eq_left holds]
 
 /-- Spec §11.2 `step`: the chain rows, the product rows, and the boundary rows
 give the model's `advance` on the step-start carry. -/
@@ -175,7 +175,7 @@ theorem RowsHold.finished (valid : p.Valid) (rows : w.RowsHold zIn)
       rw [notClose, sub_zero, show w.cOut 1 = natWord p.n by
         rw [← closed']; exact (natWord_of_val _).symm, sub_self, zero_mul] at test
       exact absurd test (by decide)
-    rw [if_neg stays]
+    rw [ite_eq_right stays]
     congr 1
     apply carry_ext <;> try rfl
     · show w.inCarry.segIdx = (w.cOut 0).val
@@ -217,7 +217,7 @@ theorem RowsHold.finished (valid : p.Valid) (rows : w.RowsHold zIn)
         simp only [← GoldilocksExtensionRing.mul_eq, ← GoldilocksExtensionRing.sub_eq,
           ← GoldilocksExtensionRing.zero_eq, one_mul, sub_eq_zero] at row
         exact row
-    rw [if_pos closed, closeSegment, if_pos checks]
+    rw [ite_eq_left closed, closeSegment, ite_eq_left checks]
     congr 1
     apply carry_ext <;> try rfl
     · show w.inCarry.segIdx + 1 = (w.cOut 0).val

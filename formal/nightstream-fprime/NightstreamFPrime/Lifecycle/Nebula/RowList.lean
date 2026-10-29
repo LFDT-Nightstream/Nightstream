@@ -77,7 +77,7 @@ def bitRow (x : Circuit.Expr) : Circuit.Expr := x * (x - 1)
 
 /-- In `F`, `x · (x − 1) = 0` exactly for the bits. -/
 theorem mul_sub_one_eq_zero_iff (x : F) : x * (x - 1) = 0 ↔ IsBit x := by
-  letI : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
+  let : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩
   have key : ∀ y : ZMod goldilocksModulus, y * (y - 1) = 0 ↔ y = 0 ∨ y = 1 := fun y => by
     rw [mul_eq_zero, sub_eq_zero]
   exact key x
@@ -94,7 +94,7 @@ namespace Rows
 
 variable (p : Geometry)
 
-open Sym (word cIn cOut eta1 eta2 eta1Sq isOpen openInverse isClose closeInverse idxEff
+open _root_.NightstreamFPrime.Lifecycle.Nebula.Sym (word cIn cOut eta1 eta2 eta1Sq isOpen openInverse isClose closeInverse idxEff
   isWrite isRam addrBit vrBit vwBit rtBit diffBit addr vr vw rt diff opLane scanValue scanStamp
   scanLane tsWord segWord cntBefore wt globalIndex scanIndex opsProductAfter scanProductAfter)
 

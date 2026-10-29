@@ -162,7 +162,7 @@ theorem segment_multisets_card {ctx : Context E Digest} {η : E × E} {v : Segme
     rw [List.length_map, closes.length]
   have ops : (segmentOps v.openTs v.records).length ≤ ctx.plan.n * ctx.plan.bOps := by
     rw [segmentOps_length, ← steps, ← smul_eq_mul]
-    refine List.sum_le_card_nsmul _ _ fun x hx => ?_
+    refine List.sum_le_length_nsmul _ _ fun x hx => ?_
     obtain ⟨z, hz, rfl⟩ := List.mem_map.1 hx
     exact (List.length_filterMap_le _ _).trans
       (closes.opsShaped z.ops (List.mem_map.2 ⟨z, hz, rfl⟩)).1.le

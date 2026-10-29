@@ -77,7 +77,7 @@ theorem packWords_eq {bits : List F} (allBits : ∀ x ∈ bits, IsBit x) :
   | case1 => simp [packWords, pack_nil]
   | case2 bits nonempty ih =>
     have mapped : bits.map toBool ≠ [] := by simpa using nonempty
-    rw [packWords, dif_neg nonempty, pack_of_ne_nil mapped, List.map_cons,
+    rw [packWords, dite_eq_right nonempty, pack_of_ne_nil mapped, List.map_cons,
       ih (fun x hx => allBits x (List.mem_of_mem_drop hx)), ← List.map_take, ← List.map_drop]
     congr 1
     exact chunkWord_eq (fun x hx => allBits x (List.mem_of_mem_take hx))

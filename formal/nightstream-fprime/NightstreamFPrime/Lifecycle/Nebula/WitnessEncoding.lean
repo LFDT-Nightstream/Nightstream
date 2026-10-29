@@ -12,6 +12,7 @@ open NightstreamFPrime.Spec.Nebula
 
 variable {p : Geometry} {a : AppShape}
 
+set_option backward.isDefEq.respectTransparency false in
 theorem OpSlotBits.ofWords_word (slot : OpSlotBits p) (v : ℕ → F) (j : ℕ)
     (words : ∀ k < Words.opWords p, v (Words.op p j k) = slot.word k) :
     OpSlotBits.ofWords p v j = slot := by
@@ -28,33 +29,34 @@ theorem OpSlotBits.ofWords_word (slot : OpSlotBits p) (v : ℕ → F) (j : ℕ)
     · have := k.isLt
       rw [words _ (by simp [Words.opAddr]; omega)]
       simp only [OpSlotBits.word, Words.opAddr]
-      rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), dif_pos (by omega)]
+      rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega), dite_eq_left (by omega)]
       congr 1; ext; simp only; omega
     · have := k.isLt
       rw [words _ (by simp [Words.opVr]; omega)]
       simp only [OpSlotBits.word, Words.opVr]
-      rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), dif_neg (by omega),
-        dif_pos (by omega)]
+      rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega), dite_eq_right (by omega),
+        dite_eq_left (by omega)]
       congr 1; ext; simp only; omega
     · have := k.isLt
       rw [words _ (by simp [Words.opVw]; omega)]
       simp only [OpSlotBits.word, Words.opVw]
-      rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), dif_neg (by omega),
-        dif_neg (by omega), dif_pos (by omega)]
+      rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega), dite_eq_right (by omega),
+        dite_eq_right (by omega), dite_eq_left (by omega)]
       congr 1; ext; simp only; omega
     · have := k.isLt
       rw [words _ (by simp [Words.opRt]; omega)]
       simp only [OpSlotBits.word, Words.opRt]
-      rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), dif_neg (by omega),
-        dif_neg (by omega), dif_neg (by omega), dif_pos (by omega)]
+      rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega), dite_eq_right (by omega),
+        dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_left (by omega)]
       congr 1; ext; simp only; omega
     · have := k.isLt
       rw [words _ (by simp [Words.opDiff, Geometry.opWidth]; omega)]
       simp only [OpSlotBits.word, Words.opDiff, Geometry.opWidth]
-      rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), dif_neg (by omega),
-        dif_neg (by omega), dif_neg (by omega), dif_neg (by omega), dif_pos (by omega)]
+      rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega), dite_eq_right (by omega),
+        dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_left (by omega)]
       congr 1; ext; simp only; omega
 
+set_option backward.isDefEq.respectTransparency false in
 theorem ScanSlotBits.ofWords_word (slot : ScanSlotBits p) (v : ℕ → F) (base : ℕ)
     (words : ∀ k < p.scanWidth, v (base + k) = slot.word k) :
     ScanSlotBits.ofWords p v base = slot := by
@@ -65,11 +67,11 @@ theorem ScanSlotBits.ofWords_word (slot : ScanSlotBits p) (v : ℕ → F) (base 
     · have := k.isLt
       rw [words _ (by simp only [Words.scanValue, Geometry.scanWidth]; omega)]
       simp only [ScanSlotBits.word, Words.scanValue]
-      rw [dif_pos (by omega)]
+      rw [dite_eq_left (by omega)]
     · have := k.isLt
       rw [words _ (by simp only [Words.scanStamp, Geometry.scanWidth]; omega)]
       simp only [ScanSlotBits.word, Words.scanStamp]
-      rw [dif_neg (by omega), dif_pos (by omega)]
+      rw [dite_eq_right (by omega), dite_eq_left (by omega)]
       congr 1; ext; simp only; omega
 
 namespace Words
@@ -144,7 +146,7 @@ variable (w : StepWitness p a)
 
 /-- Evaluates the branch tests of `wordAt` with `omega`. -/
 macro "read_word" : tactic =>
-  `(tactic| simp (disch := omega) only [StepWitness.wordAt, dif_pos, dif_neg, if_pos, if_neg,
+  `(tactic| simp (disch := omega) only [StepWitness.wordAt, dite_eq_left, dite_eq_right, ite_eq_left, ite_eq_right,
     ↓reduceIte, ↓reduceDIte, Fin.eta, Nat.add_sub_cancel_left])
 
 theorem wordAt_carryIn (i : Fin 39) : w.wordAt (Words.carryIn i) = w.carryIn i := by
@@ -183,14 +185,14 @@ theorem wordAt_idxEff : w.wordAt Words.idxEff = w.idxEff := by
 theorem wordAt_op (j : Fin p.bOps) {k : ℕ} (hk : k < Words.opWords p) :
     w.wordAt (Words.op p j k) = (w.ops j).word k := by
   simp only [Words.op]
-  simp (disch := omega) only [StepWitness.wordAt, dif_neg, if_neg, slotAt_slot j.isLt hk, Fin.eta]
+  simp (disch := omega) only [StepWitness.wordAt, dite_eq_right, ite_eq_right, slotAt_slot j.isLt hk, Fin.eta]
 
 theorem wordAt_initial (j : Fin p.bScan) {k : ℕ} (hk : k < p.scanWidth) :
     w.wordAt (Words.initial p j k) = (w.initial j).word k := by
   have := Words.opWords_pos (p := p)
   have start : Words.initialStart p = 109 + p.bOps * Words.opWords p := rfl
   simp only [Words.initial]
-  simp (disch := omega) only [StepWitness.wordAt, dif_neg, if_neg, slotAt_above,
+  simp (disch := omega) only [StepWitness.wordAt, dite_eq_right, ite_eq_right, slotAt_above,
     slotAt_slot j.isLt hk, Fin.eta]
 
 theorem wordAt_final (j : Fin p.bScan) {k : ℕ} (hk : k < p.scanWidth) :
@@ -200,7 +202,7 @@ theorem wordAt_final (j : Fin p.bScan) {k : ℕ} (hk : k < p.scanWidth) :
   have start : Words.initialStart p = 109 + p.bOps * Words.opWords p := rfl
   have final : Words.finalStart p = Words.initialStart p + p.bScan * p.scanWidth := rfl
   simp only [Words.final]
-  simp (disch := omega) only [StepWitness.wordAt, dif_neg, if_neg, slotAt_above,
+  simp (disch := omega) only [StepWitness.wordAt, dite_eq_right, ite_eq_right, slotAt_above,
     slotAt_slot j.isLt hk, Fin.eta]
 
 /-- Past the three slot ranges, `wordAt` is `tailWord`. -/
@@ -209,7 +211,7 @@ theorem wordAt_tail {k : ℕ} (past : Words.tsBits p 0 ≤ k) : w.wordAt k = w.t
   have := Words.scanWidth_pos (p := p)
   simp only [Words.tsBits, Words.finalStart, Words.initialStart] at past
   unfold StepWitness.wordAt
-  simp (disch := omega) only [dif_neg, if_neg, slotAt_above, Words.finalStart, Words.initialStart]
+  simp (disch := omega) only [dite_eq_right, ite_eq_right, slotAt_above, Words.finalStart, Words.initialStart]
 
 /-- The tail positions in order. -/
 theorem tail_order : Words.tsBits p 0 ≤ Words.segBits p 0 ∧
@@ -224,7 +226,7 @@ theorem wordAt_appIn (i : Fin a.width) : w.wordAt (Words.appIn p i) = w.appIn i 
   have := tail_order (p := p)
   rw [wordAt_tail w (by simp only [Words.appIn]; omega)]
   unfold StepWitness.tailWord
-  simp (disch := (simp only [Words.appIn]; omega)) only [dif_neg, dif_pos]
+  simp (disch := (simp only [Words.appIn]; omega)) only [dite_eq_right, dite_eq_left]
   congr 1; ext; simp only [Words.appIn]; omega
 
 theorem wordAt_appOut (i : Fin a.width) : w.wordAt (Words.appOut p a i) = w.appOut i := by
@@ -232,7 +234,7 @@ theorem wordAt_appOut (i : Fin a.width) : w.wordAt (Words.appOut p a i) = w.appO
   have := tail_order (p := p)
   rw [wordAt_tail w (by simp only [Words.appOut]; omega)]
   unfold StepWitness.tailWord
-  simp (disch := (simp only [Words.appOut]; omega)) only [dif_neg, dif_pos]
+  simp (disch := (simp only [Words.appOut]; omega)) only [dite_eq_right, dite_eq_left]
   congr 1; ext; simp only [Words.appOut]; omega
 
 theorem wordAt_aux (i : Fin a.aux) : w.wordAt (Words.aux p a i) = w.aux i := by
@@ -240,22 +242,22 @@ theorem wordAt_aux (i : Fin a.aux) : w.wordAt (Words.aux p a i) = w.aux i := by
   have := tail_order (p := p)
   rw [wordAt_tail w (by simp only [Words.aux]; omega)]
   unfold StepWitness.tailWord
-  simp (disch := (simp only [Words.aux, Words.count]; omega)) only [dif_neg, dif_pos]
+  simp (disch := (simp only [Words.aux, Words.count]; omega)) only [dite_eq_right, dite_eq_left]
   congr 1; ext; simp only [Words.aux]; omega
 
 theorem wordAt_tsBits (k : Fin p.wTs) : w.wordAt (Words.tsBits p k) = w.tsBits k := by
   have := k.isLt
   rw [wordAt_tail w (by simp only [Words.tsBits]; omega)]
   unfold StepWitness.tailWord
-  simp (disch := (simp only [Words.segBits, Words.tsBits]; omega)) only [dif_pos]
+  simp (disch := (simp only [Words.segBits, Words.tsBits]; omega)) only [dite_eq_left]
   congr 1; ext; simp only [Words.tsBits]; omega
 
 theorem wordAt_segBits (k : Fin p.segWidth) : w.wordAt (Words.segBits p k) = w.segBits k := by
   have := k.isLt
   rw [wordAt_tail w (by simp only [Words.segBits, Words.tsBits]; omega)]
   unfold StepWitness.tailWord
-  rw [dif_neg (by simp only [Words.segBits, Words.tsBits]; omega),
-    dif_pos (by simp only [Words.opsProducts, Words.segBits, Words.tsBits]; omega)]
+  rw [dite_eq_right (by simp only [Words.segBits, Words.tsBits]; omega),
+    dite_eq_left (by simp only [Words.opsProducts, Words.segBits, Words.tsBits]; omega)]
   congr 1; ext; simp only [Words.segBits]; omega
 
 theorem wordAt_opsProducts (j : Fin p.bOps) (c : Fin 4) :
@@ -264,9 +266,9 @@ theorem wordAt_opsProducts (j : Fin p.bOps) (c : Fin 4) :
   have := c.isLt
   rw [wordAt_tail w (by simp only [Words.opsProducts, Words.segBits, Words.tsBits]; omega)]
   unfold StepWitness.tailWord
-  rw [dif_neg (by simp only [Words.opsProducts, Words.segBits, Words.tsBits]; omega),
-    dif_neg (by simp only [Words.opsProducts, Words.segBits, Words.tsBits]; omega),
-    dif_pos (by simp only [Words.scanProducts, Words.opsProducts, Words.segBits, Words.tsBits]; omega)]
+  rw [dite_eq_right (by simp only [Words.opsProducts, Words.segBits, Words.tsBits]; omega),
+    dite_eq_right (by simp only [Words.opsProducts, Words.segBits, Words.tsBits]; omega),
+    dite_eq_left (by simp only [Words.scanProducts, Words.opsProducts, Words.segBits, Words.tsBits]; omega)]
   congr 1 <;> ext <;> simp only [Words.opsProducts] <;> omega
 
 theorem wordAt_scanProducts (j : Fin p.bScan) (c : Fin 4) :
@@ -287,7 +289,7 @@ theorem wordAt_scanProducts (j : Fin p.bScan) (c : Fin 4) :
     simp only [Words.memoryCount, Words.scanProducts]; omega
   rw [wordAt_tail w (by omega)]
   unfold StepWitness.tailWord
-  rw [dif_neg (by omega), dif_neg (by omega), dif_neg (by omega), dif_pos (by omega)]
+  rw [dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_right (by omega), dite_eq_left (by omega)]
   congr 1 <;> ext <;> simp only <;> omega
 
 theorem length_words : w.words.length = Words.count p a := by simp [words]

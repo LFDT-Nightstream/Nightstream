@@ -170,7 +170,7 @@ private theorem cell_injective (disjoint : b.Disjoint catalog) {i j : ℕ} {ri r
   unfold Live at li lj
   have flag : isRam catalog i = isRam catalog j := by
     cases ri' : isRam catalog i <;> cases rj' : isRam catalog j <;>
-      simp only [ri', rj', Bool.false_eq_true, if_true, if_false] at same li lj ⊢ <;> omega
+      simp only [ri', rj', Bool.false_eq_true, ite_true, ite_false] at same li lj ⊢ <;> omega
   have addr : ri.addr x = rj.addr y := by
     rw [flag] at same
     split at same <;> omega
@@ -194,9 +194,9 @@ private theorem agrees_initial {p : Plan} {initial : MemoryState}
   unfold Live at live
   simp only [initialMachine, initialMemory, cellIndex]
   cases ram : isRam catalog memory <;>
-    simp only [ram, Bool.false_eq_true, if_true, if_false] at live ⊢
-  · rw [if_pos live]
-  · rw [if_neg (by omega), Nat.add_sub_cancel_left]
+    simp only [ram, Bool.false_eq_true, ite_true, ite_false] at live ⊢
+  · rw [ite_eq_left live]
+  · rw [ite_eq_right (by omega), Nat.add_sub_cancel_left]
 
 /-- The cell that a valid access at an in-range address names. -/
 private theorem at_cell {memory : ℕ} {address : Address} {a : PortAccess}
@@ -255,7 +255,7 @@ private theorem step_agrees (disjoint : b.Disjoint catalog) {state : MemoryState
         simp [update, ← index, written]
       · have differ : cellIndex p catalog memory' r' address' ≠ a.globalIndex p := fun same =>
           cell (cell_injective disjoint hr' hr fits' fits live' live (same.trans index))
-        rw [if_neg differ, ← agree memory' r' address' hr' fits' live']
+        rw [ite_eq_right differ, ← agree memory' r' address' hr' fits' live']
         unfold update
         split_ifs with h₁ h₂
         · exact absurd ⟨h₁, h₂⟩ cell

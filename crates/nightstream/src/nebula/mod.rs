@@ -2,7 +2,8 @@
 //! the `Application` contract: the geometry and the program, the record
 //! chains and challenge transcript, the carry, the segment runner that writes
 //! each invocation's witness words, the spec §13 terminal checks, the memory
-//! circuit, and the memory verifier. `Machine` is the first application.
+//! circuit, the memory verifier, and the memory backend of catalog
+//! applications (`CatalogBinding`). `Machine` is the first application.
 //! A memory circuit comes from a pinned Lean-emitted package (`Package::load`)
 //! or from the Rust-built relation (`Circuit::compile`), and
 //! `tests/nebula/parity.rs` requires the machine's Rust relation to equal each
@@ -10,6 +11,7 @@
 
 mod app;
 mod carry;
+mod catalog;
 mod circuit;
 mod expr;
 mod geometry;
@@ -25,9 +27,14 @@ use p3_goldilocks::Goldilocks as F;
 
 pub use app::{Application, Memory, Transition};
 pub use carry::{Carry, Products};
+pub use catalog::{CatalogBinding, CatalogBindingError, CatalogRowError, Region};
 pub use expr::Expr;
 pub use geometry::Geometry;
 pub use machine::{Machine, MachineError, MachineState, Step};
+pub use neo_application::{
+    ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth, MemoryCatalog, MemoryCatalogError, MemoryKind,
+    MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec,
+};
 pub use records::PortAccess;
 pub use rows::View;
 use segment::Cell;

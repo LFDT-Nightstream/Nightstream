@@ -21,15 +21,15 @@ needs = ["ports", "statusPage"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 # The executables, their readers and the Lean side of the Rust test programs.
-# Each module with a `main` is the root of one `lean_exe` below.
+# Each module with a `main` is the root of one `lean_exe` below. Only `status`
+# builds its root module (see there).
 [[lean_lib]]
 name = "CompressionLeanExe"
 roots = ["CompressionLeanExe.Digest", "CompressionLeanExe.EmitTerminal",
   "CompressionLeanExe.Fixtures", "CompressionLeanExe.Key", "CompressionLeanExe.LowerCheck",
   "CompressionLeanExe.Parse", "CompressionLeanExe.ReplayLayer1", "CompressionLeanExe.Runs",
   "CompressionLeanExe.RunsCheck", "CompressionLeanExe.SetupCheck",
-  "CompressionLeanExe.SetupRootCheck", "CompressionLeanExe.Status",
-  "CompressionLeanExe.TerminalCheck"]
+  "CompressionLeanExe.SetupRootCheck", "CompressionLeanExe.TerminalCheck"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 # The ports gate reads these files, so a change to them reruns it.
@@ -81,6 +81,10 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsErro
 [[lean_exe]]
 name = "status"
 root = "CompressionLeanExe.Status"
+# The page reads ports.json when the root module compiles, so the module needs
+# it. A module's trace includes the `needs` of the target that builds it, so a
+# second owner without `needs` would rebuild it in turn.
+needs = ["ports"]
 # The page pretty-prints the claims' binders, which runs imported code.
 supportInterpreter = true
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }

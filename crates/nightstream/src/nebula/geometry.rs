@@ -1,13 +1,14 @@
-//! The verifier-owned memory plan of spec §4 and its derived widths.
-//! Mirrors `Spec/Nebula/Plan.lean`; `FirstPlan.lean` and `SecondPlan.lean` own the
-//! package plans.
+//! The memory geometry of spec §4 and its derived widths. Mirrors
+//! `Geometry` in `Spec/Nebula/Plan.lean`; `FirstPlan.lean` and
+//! `SecondPlan.lean` own the package geometries. A geometry has no image, so
+//! the relation, the plan digest, and the witness layout read no program.
 
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks as F;
 
-/// Spec §4.1 `NebulaPlan`. Images hold 32-bit words.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Plan {
+/// Spec §4.1 without the images.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Geometry {
     pub r: usize,
     pub mu: usize,
     pub w_ts: usize,
@@ -15,15 +16,12 @@ pub struct Plan {
     pub b_scan: usize,
     pub n: usize,
     pub s_max: usize,
-    pub rom: Vec<u64>,
-    pub ram: Vec<u64>,
 }
 
-impl Plan {
-    /// The first memory-application package plan (`FirstPlan.lean`): ROM and
-    /// RAM of four words, two ports, segments of two steps, at most four
-    /// segments, 5-bit timestamps, and the ROM program
-    /// `loadi 5; store 0; load 0; halt`.
+impl Geometry {
+    /// The first memory-application package (`FirstPlan.lean`): ROM and RAM
+    /// of four words, two ports, segments of two steps, at most four
+    /// segments, and 5-bit timestamps.
     pub(super) fn first() -> Self {
         Self {
             r: 2,
@@ -33,18 +31,14 @@ impl Plan {
             b_scan: 4,
             n: 2,
             s_max: 4,
-            rom: vec![23, 2, 1, 0],
-            ram: vec![0; 4],
         }
     }
 
-    /// The second package plan (`SecondPlan.lean`), for the spec §14 cases
-    /// that the first plan cannot reach: ROM of four words and RAM of eight
-    /// (`r < μ`), segments of one step, at most four segments, 4-bit
-    /// timestamps, and the ROM program `load 0; store 1; load 1; store 0`.
+    /// The second package (`SecondPlan.lean`), for the spec §14 cases that
+    /// the first geometry cannot reach: ROM of four words and RAM of eight
+    /// (`r < μ`), segments of one step, at most four segments, and 4-bit
+    /// timestamps.
     pub(super) fn second() -> Self {
-        let mut ram = vec![0; 8];
-        ram[0] = 7;
         Self {
             r: 2,
             mu: 3,
@@ -53,8 +47,6 @@ impl Plan {
             b_scan: 12,
             n: 1,
             s_max: 4,
-            rom: vec![1, 6, 5, 2],
-            ram,
         }
     }
 
@@ -77,7 +69,7 @@ impl Plan {
 
     /// `-log2` of the memory fingerprint error `2·m_mem/q²` (security note
     /// §5). Spec §4.2 rule 6 requires at least 109.91 bits (Lean
-    /// `Plan.secure_iff`).
+    /// `Geometry.secure_iff`).
     pub fn memory_security_bits(&self) -> f64 {
         2.0 * (F::ORDER_U64 as f64).log2() - (2.0 * self.max_tuples() as f64).log2()
     }
@@ -95,14 +87,5 @@ impl Plan {
     /// `W_seg`: enough bits for every value below `S_max` (Lean `Nat.log2 + 1`).
     pub fn seg_width(&self) -> usize {
         (usize::BITS - self.s_max.leading_zeros()) as usize
-    }
-
-    /// The image word of global cell `g` (spec §5).
-    pub fn image(&self, g: usize) -> u64 {
-        if g < self.rom_size() {
-            self.rom[g]
-        } else {
-            self.ram[g - self.rom_size()]
-        }
     }
 }

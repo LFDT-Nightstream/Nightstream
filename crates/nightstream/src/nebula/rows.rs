@@ -8,13 +8,13 @@ use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
 
 use super::expr::{Expr, KExpr};
-use super::plan::Plan;
+use super::geometry::Geometry;
 use super::words::{self, Layout};
 use crate::application::Variable;
 
-/// The symbols of `RowExprs.lean` over the witness wires of one plan.
+/// The symbols of `RowExprs.lean` over the witness wires of one geometry.
 pub(super) struct Sym<'a> {
-    plan: &'a Plan,
+    geometry: &'a Geometry,
     layout: Layout,
     wires: &'a [Variable],
     headers: [F; 12],
@@ -66,10 +66,10 @@ fn gated(pad: Expr, f: KExpr) -> KExpr {
 }
 
 impl<'a> Sym<'a> {
-    pub(super) fn new(plan: &'a Plan, wires: &'a [Variable], headers: [F; 12]) -> Self {
+    pub(super) fn new(geometry: &'a Geometry, wires: &'a [Variable], headers: [F; 12]) -> Self {
         Self {
-            plan,
-            layout: Layout::new(plan),
+            geometry,
+            layout: Layout::new(geometry),
             wires,
             headers,
         }
@@ -145,7 +145,7 @@ impl<'a> Sym<'a> {
     }
 
     fn addr_bits(&self, j: usize) -> Vec<Expr> {
-        self.bits(j, Layout::op_addr, self.plan.mu)
+        self.bits(j, Layout::op_addr, self.geometry.mu)
     }
 
     fn vr_bits(&self, j: usize) -> Vec<Expr> {
@@ -157,11 +157,11 @@ impl<'a> Sym<'a> {
     }
 
     fn rt_bits(&self, j: usize) -> Vec<Expr> {
-        self.bits(j, Layout::op_rt, self.plan.w_ts)
+        self.bits(j, Layout::op_rt, self.geometry.w_ts)
     }
 
     fn diff_bits(&self, j: usize) -> Vec<Expr> {
-        self.bits(j, Layout::op_diff, self.plan.w_ts)
+        self.bits(j, Layout::op_diff, self.geometry.w_ts)
     }
 
     /// The lane bits of operation slot `j` (spec §6.3).
@@ -186,7 +186,7 @@ impl<'a> Sym<'a> {
     }
 
     fn scan_stamp_bits(&self, base: usize) -> Vec<Expr> {
-        (0..self.plan.w_ts)
+        (0..self.geometry.w_ts)
             .map(|k| self.word(base + 32 + k))
             .collect()
     }
@@ -201,7 +201,7 @@ impl<'a> Sym<'a> {
 
     fn ts_word(&self) -> Expr {
         chunk(
-            (0..self.plan.w_ts)
+            (0..self.geometry.w_ts)
                 .map(|k| self.word(self.layout.ts_bits(k)))
                 .collect(),
         )
@@ -209,14 +209,14 @@ impl<'a> Sym<'a> {
 
     fn seg_word(&self) -> Expr {
         chunk(
-            (0..self.plan.seg_width())
+            (0..self.geometry.seg_width())
                 .map(|k| self.word(self.layout.seg_bits(k)))
                 .collect(),
         )
     }
 
     fn cnt_before(&self, k: usize) -> Expr {
-        sum((0..self.plan.b_ops.min(k))
+        sum((0..self.geometry.b_ops.min(k))
             .map(|j| c(1) - self.pad(j))
             .collect())
     }
@@ -226,11 +226,11 @@ impl<'a> Sym<'a> {
     }
 
     fn global_index(&self, j: usize) -> Expr {
-        chunk(self.addr_bits(j)) + self.is_ram(j) * c(self.plan.rom_size() as u64)
+        chunk(self.addr_bits(j)) + self.is_ram(j) * c(self.geometry.rom_size() as u64)
     }
 
     fn scan_index(&self, j: usize) -> Expr {
-        self.idx_eff() * c(self.plan.b_scan as u64) + c(j as u64)
+        self.idx_eff() * c(self.geometry.b_scan as u64) + c(j as u64)
     }
 
     fn start_product(&self, k: usize) -> KExpr {
@@ -259,21 +259,21 @@ impl<'a> Sym<'a> {
     }
 
     fn ops_product_after(&self, pair: usize, k: usize) -> KExpr {
-        self.product_after(7, pair, k, self.plan.b_ops, Layout::ops_products)
+        self.product_after(7, pair, k, self.geometry.b_ops, Layout::ops_products)
     }
 
     fn scan_product_after(&self, pair: usize, k: usize) -> KExpr {
-        self.product_after(11, pair, k, self.plan.b_scan, Layout::scan_products)
+        self.product_after(11, pair, k, self.geometry.b_scan, Layout::scan_products)
     }
 
     /// `memoryRows`: bits, arm, slots, scans, close, in that order.
     pub(super) fn memory_rows(&self) -> Vec<Expr> {
         let mut rows = self.bit_rows();
         rows.extend(self.arm_rows());
-        for j in 0..self.plan.b_ops {
+        for j in 0..self.geometry.b_ops {
             rows.extend(self.slot_rows(j));
         }
-        for j in 0..self.plan.b_scan {
+        for j in 0..self.geometry.b_scan {
             rows.extend(self.scan_rows(j));
         }
         rows.extend(self.close_rows());
@@ -281,35 +281,39 @@ impl<'a> Sym<'a> {
     }
 
     fn bit_rows(&self) -> Vec<Expr> {
-        let plan = self.plan;
-        let mut rows: Vec<Expr> = (0..plan.b_ops)
+        let geometry = self.geometry;
+        let mut rows: Vec<Expr> = (0..geometry.b_ops)
             .flat_map(|j| self.op_lane(j))
             .map(bit_row)
             .collect();
-        rows.extend((0..plan.b_ops).flat_map(|j| self.diff_bits(j)).map(bit_row));
         rows.extend(
-            (0..plan.b_scan)
+            (0..geometry.b_ops)
+                .flat_map(|j| self.diff_bits(j))
+                .map(bit_row),
+        );
+        rows.extend(
+            (0..geometry.b_scan)
                 .flat_map(|j| self.scan_lane(self.initial(j)))
                 .map(bit_row),
         );
         rows.extend(
-            (0..plan.b_scan)
+            (0..geometry.b_scan)
                 .flat_map(|j| self.scan_lane(self.final_(j)))
                 .map(bit_row),
         );
-        rows.extend((0..plan.w_ts).map(|k| bit_row(self.word(self.layout.ts_bits(k)))));
-        rows.extend((0..plan.seg_width()).map(|k| bit_row(self.word(self.layout.seg_bits(k)))));
+        rows.extend((0..geometry.w_ts).map(|k| bit_row(self.word(self.layout.ts_bits(k)))));
+        rows.extend((0..geometry.seg_width()).map(|k| bit_row(self.word(self.layout.seg_bits(k)))));
         rows.extend([bit_row(self.is_open()), bit_row(self.is_close())]);
         rows
     }
 
     fn arm_rows(&self) -> Vec<Expr> {
-        let plan = self.plan;
-        let (is_open, n) = (self.is_open(), c(plan.n as u64));
+        let geometry = self.geometry;
+        let (is_open, n) = (self.is_open(), c(geometry.n as u64));
         let mut rows = vec![
             (self.c_in(1) - n.clone()) * is_open.clone(),
             (self.c_in(1) - n) * self.word(words::OPEN_INVERSE) - (c(1) - is_open.clone()),
-            is_open.clone() * (c(plan.s_max as u64 - 1) - self.c_in(0) - self.seg_word()),
+            is_open.clone() * (c(geometry.s_max as u64 - 1) - self.c_in(0) - self.seg_word()),
             self.idx_eff() - (c(1) - is_open.clone()) * self.c_in(1),
         ];
         rows.extend((0..12).map(|i| {
@@ -329,7 +333,7 @@ impl<'a> Sym<'a> {
     }
 
     fn slot_rows(&self, j: usize) -> Vec<Expr> {
-        let plan = self.plan;
+        let geometry = self.geometry;
         let (pad, is_write, is_ram) = (self.pad(j), self.is_write(j), self.is_ram(j));
         let (vr, vw) = (chunk(self.vr_bits(j)), chunk(self.vw_bits(j)));
         let mut rows = vec![
@@ -341,7 +345,7 @@ impl<'a> Sym<'a> {
             self.addr_bits(j)
                 .into_iter()
                 .enumerate()
-                .filter(|(k, _)| plan.r <= *k)
+                .filter(|(k, _)| geometry.r <= *k)
                 .map(|(_, bit)| (c(1) - is_ram.clone()) * bit),
         );
         rows.extend(self.op_lane(j).into_iter().skip(1).map(|x| pad.clone() * x));
@@ -385,19 +389,19 @@ impl<'a> Sym<'a> {
     }
 
     fn close_rows(&self) -> Vec<Expr> {
-        let plan = self.plan;
+        let geometry = self.geometry;
         let is_close = self.is_close();
         let k_out = |a: usize| KExpr::of(self.c_out(a), self.c_out(a + 1));
         let mut rows = vec![
-            self.c_out(2) - (self.c_in(2) + self.cnt_before(plan.b_ops)),
+            self.c_out(2) - (self.c_in(2) + self.cnt_before(geometry.b_ops)),
             self.c_out(2) - self.ts_word(),
             self.c_out(1) - (self.idx_eff() + c(1)),
         ];
-        rows.extend(k_out(7).equalities(self.ops_product_after(0, plan.b_ops)));
-        rows.extend(k_out(9).equalities(self.ops_product_after(1, plan.b_ops)));
-        rows.extend(k_out(11).equalities(self.scan_product_after(0, plan.b_scan)));
-        rows.extend(k_out(13).equalities(self.scan_product_after(1, plan.b_scan)));
-        let n = c(plan.n as u64);
+        rows.extend(k_out(7).equalities(self.ops_product_after(0, geometry.b_ops)));
+        rows.extend(k_out(9).equalities(self.ops_product_after(1, geometry.b_ops)));
+        rows.extend(k_out(11).equalities(self.scan_product_after(0, geometry.b_scan)));
+        rows.extend(k_out(13).equalities(self.scan_product_after(1, geometry.b_scan)));
+        let n = c(geometry.n as u64);
         rows.push((self.c_out(1) - n.clone()) * is_close.clone());
         rows.push((self.c_out(1) - n) * self.word(words::CLOSE_INVERSE) - (c(1) - is_close.clone()));
         rows.extend((0..4).map(|i| is_close.clone() * (self.c_out(23 + i) - self.c_out(15 + i))));

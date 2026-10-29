@@ -3,7 +3,7 @@
 //! first, then the machine's words (`Lifecycle/Nebula/MachineApp.lean`): two
 //! input state words, two output state words, and the idle flag.
 
-use super::plan::Plan;
+use super::geometry::Geometry;
 
 pub const CARRY_IN: usize = 0;
 pub const CARRY_OUT: usize = 39;
@@ -21,7 +21,7 @@ const OPS_START: usize = 109;
 /// The machine's state words `(pc, acc)`.
 pub(super) const APP_WIDTH: usize = 2;
 
-/// Offsets that depend on the plan.
+/// Offsets that depend on the geometry.
 #[derive(Clone, Copy, Debug)]
 pub struct Layout {
     op_words: usize,
@@ -38,21 +38,21 @@ pub struct Layout {
 }
 
 impl Layout {
-    pub fn new(plan: &Plan) -> Self {
-        let op_width = plan.op_width();
-        let op_words = op_width + plan.w_ts;
-        let scan_width = plan.scan_width();
-        let initial_start = OPS_START + plan.b_ops * op_words;
-        let final_start = initial_start + plan.b_scan * scan_width;
-        let ts_bits = final_start + plan.b_scan * scan_width;
-        let seg_bits = ts_bits + plan.w_ts;
-        let ops_products = seg_bits + plan.seg_width();
-        let scan_products = ops_products + 4 * plan.b_ops;
-        let memory_count = scan_products + 4 * plan.b_scan;
+    pub fn new(geometry: &Geometry) -> Self {
+        let op_width = geometry.op_width();
+        let op_words = op_width + geometry.w_ts;
+        let scan_width = geometry.scan_width();
+        let initial_start = OPS_START + geometry.b_ops * op_words;
+        let final_start = initial_start + geometry.b_scan * scan_width;
+        let ts_bits = final_start + geometry.b_scan * scan_width;
+        let seg_bits = ts_bits + geometry.w_ts;
+        let ops_products = seg_bits + geometry.seg_width();
+        let scan_products = ops_products + 4 * geometry.b_ops;
+        let memory_count = scan_products + 4 * geometry.b_scan;
         Self {
             op_words,
             op_width,
-            mu: plan.mu,
+            mu: geometry.mu,
             scan_width,
             initial_start,
             final_start,

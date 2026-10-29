@@ -116,18 +116,18 @@ impl Harness {
     /// memory, its records, and the memories that the scans and the FS
     /// proposal read. No host check runs.
     fn first_segment(&self, fault: impl Fn(&mut FirstSegment)) -> Vec<Invocation> {
-        let plan = self.context.plan();
+        let (geometry, program) = (self.context.geometry(), self.context.program());
         let mut segment = FirstSegment {
-            execution: initial_memory(plan),
-            start: initial_memory(plan),
+            execution: initial_memory(&program.rom, &program.ram),
+            start: initial_memory(&program.rom, &program.ram),
             executed: Vec::new(),
             proposal_records: None,
             final_: Vec::new(),
         };
         fault(&mut segment);
-        let steps = vec![Step::Execute; plan.n];
+        let steps = vec![Step::Execute; geometry.n];
         let (executed, final_memory, _) =
-            execute_steps(plan, MachineState::default(), &segment.execution, 0, &steps).unwrap();
+            execute_steps(&geometry, MachineState::default(), &segment.execution, 0, &steps).unwrap();
         segment.executed = executed;
         segment.final_ = final_memory;
         fault(&mut segment);
@@ -160,9 +160,9 @@ struct FirstSegment {
 
 fn conformance(engine: Engine) {
     let h = Harness::new(engine, &FIRST);
-    let plan = h.context.plan();
-    let ram = plan.rom_size();
-    let memory = initial_memory(plan);
+    let (geometry, program) = (h.context.geometry(), h.context.program());
+    let ram = geometry.rom_size();
+    let memory = initial_memory(&program.rom, &program.ram);
     let honest = h
         .context
         .run_segment(h.context.start_carry(), MachineState::default(), &memory, &EXECUTE)
@@ -170,7 +170,7 @@ fn conformance(engine: Engine) {
     let base = h.step(None, &honest.invocations[0]).unwrap();
 
     // An input carry or application words that do not open the input state.
-    for word in [words::CARRY_IN + 2, Layout::new(plan).app_in(1)] {
+    for word in [words::CARRY_IN + 2, Layout::new(&geometry).app_in(1)] {
         let mut changed = honest.invocations[0].clone();
         changed.words[word] += F::ONE;
         h.reject(None, &changed, "state_in");
@@ -234,7 +234,7 @@ fn conformance(engine: Engine) {
         },
         "close D_seen.ops = D_pre.ops",
     );
-    // Segment-0 IS records that differ from the plan images.
+    // Segment-0 IS records that differ from the program images.
     second(
         &|s| {
             if s.executed.is_empty() {
@@ -248,7 +248,7 @@ fn conformance(engine: Engine) {
     second(
         &|s| {
             if s.executed.len() == 2 {
-                let cells = ram..ram + plan.b_scan;
+                let cells = ram..ram + geometry.b_scan;
                 let start = s.start[cells.clone()].to_vec();
                 s.start[cells.clone()].copy_from_slice(&s.final_[cells.clone()]);
                 s.final_[cells].copy_from_slice(&start);
@@ -269,8 +269,9 @@ fn conformance(engine: Engine) {
 
     // Fresh memory at a segment boundary.
     let opened = h.step(Some(&base), &honest.invocations[1]).unwrap();
-    let fresh = initial_memory(plan);
-    let (executed, final_memory, _) = execute_steps(plan, honest.state, &fresh, honest.carry.ts, &EXECUTE).unwrap();
+    let fresh = initial_memory(&program.rom, &program.ram);
+    let (executed, final_memory, _) =
+        execute_steps(&geometry, honest.state, &fresh, honest.carry.ts, &EXECUTE).unwrap();
     let invocations = h.context.invocations(
         honest.carry,
         h.context.proposal(&executed, &final_memory),
@@ -307,14 +308,14 @@ fn packing_puts_at_most_63_bits_in_one_element() {
     }
 }
 
-/// The case that the first plan cannot reach: its ROM fills its address
-/// space, so it has no O6 rows. The second plan has `r < μ`.
+/// The case that the first geometry cannot reach: its ROM fills its address
+/// space, so it has no O6 rows. The second geometry has `r < μ`.
 fn n1_conformance(engine: Engine) {
     let h = Harness::new(engine, &N1);
     // A ROM address with a bit at or above `r`: O6.
     let invocations = h.first_segment(|s| {
         if let Some(step) = s.executed.first_mut() {
-            step.ops[0].addr = 1 << h.context.plan().r;
+            step.ops[0].addr = 1 << h.context.geometry().r;
         }
     });
     h.reject(None, &invocations[0], "O6 slot 0");

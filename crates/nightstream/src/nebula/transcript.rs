@@ -8,7 +8,7 @@ use neo_math::K;
 use p3_field::{BasedVectorSpace, PrimeCharacteristicRing};
 use p3_goldilocks::Goldilocks as F;
 
-use super::plan::Plan;
+use super::geometry::Geometry;
 
 pub type Digest = [F; 4];
 pub type State = [F; WIDTH];
@@ -80,11 +80,19 @@ pub(super) fn chain_tag(lane: Lane) -> &'static str {
 
 /// Spec §4.3 `plan_digest`: the geometry only. The images enter through
 /// `D_init`.
-pub fn plan_digest(plan: &Plan) -> Digest {
-    let fields: Vec<F> = [plan.r, plan.mu, plan.w_ts, plan.b_ops, plan.b_scan, plan.n, plan.s_max]
-        .iter()
-        .map(|value| F::from_usize(*value))
-        .collect();
+pub fn plan_digest(geometry: &Geometry) -> Digest {
+    let fields: Vec<F> = [
+        geometry.r,
+        geometry.mu,
+        geometry.w_ts,
+        geometry.b_ops,
+        geometry.b_scan,
+        geometry.n,
+        geometry.s_max,
+    ]
+    .iter()
+    .map(|value| F::from_usize(*value))
+    .collect();
     digest(&absorbed(&[&text("Nightstream/Nebula/v3/plan"), &fields]))
 }
 

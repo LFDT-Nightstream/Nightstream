@@ -4,7 +4,7 @@
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
 
-use super::plan::Plan;
+use super::geometry::Geometry;
 
 /// One port access of spec §10: `(is_write, is_ram, addr, v_r, v_w)`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -18,10 +18,10 @@ pub struct PortAccess {
 
 impl PortAccess {
     /// `g = addr + is_ram · R` (spec §6.1).
-    pub fn global_index(&self, plan: &Plan) -> usize {
+    pub fn global_index(&self, geometry: &Geometry) -> usize {
         let addr = self.addr as usize;
         if self.is_ram {
-            plan.rom_size() + addr
+            geometry.rom_size() + addr
         } else {
             addr
         }
@@ -61,12 +61,12 @@ impl OpSlot {
     }
 
     /// Spec §6.3 encoding: field order, little-endian bits.
-    pub fn bits(&self, plan: &Plan) -> Vec<bool> {
+    pub fn bits(&self, geometry: &Geometry) -> Vec<bool> {
         let mut bits = vec![self.pad, self.is_write, self.is_ram];
-        push_bits(&mut bits, self.addr, plan.mu);
+        push_bits(&mut bits, self.addr, geometry.mu);
         push_bits(&mut bits, self.vr, 32);
         push_bits(&mut bits, self.vw, 32);
-        push_bits(&mut bits, self.rt, plan.w_ts);
+        push_bits(&mut bits, self.rt, geometry.w_ts);
         bits
     }
 }
@@ -79,10 +79,10 @@ pub struct ScanSlot {
 }
 
 impl ScanSlot {
-    pub fn bits(&self, plan: &Plan) -> Vec<bool> {
-        let mut bits = Vec::with_capacity(plan.scan_width());
+    pub fn bits(&self, geometry: &Geometry) -> Vec<bool> {
+        let mut bits = Vec::with_capacity(geometry.scan_width());
         push_bits(&mut bits, self.value, 32);
-        push_bits(&mut bits, self.stamp, plan.w_ts);
+        push_bits(&mut bits, self.stamp, geometry.w_ts);
         bits
     }
 }
@@ -92,13 +92,13 @@ pub fn push_bits(bits: &mut Vec<bool>, value: u64, width: usize) {
 }
 
 /// The ops lane of a step: slot-major.
-pub fn ops_lane(plan: &Plan, ops: &[OpSlot]) -> Vec<bool> {
-    ops.iter().flat_map(|slot| slot.bits(plan)).collect()
+pub fn ops_lane(geometry: &Geometry, ops: &[OpSlot]) -> Vec<bool> {
+    ops.iter().flat_map(|slot| slot.bits(geometry)).collect()
 }
 
 /// An IS or FS lane of a step: slot-major.
-pub fn scan_lane(plan: &Plan, scan: &[ScanSlot]) -> Vec<bool> {
-    scan.iter().flat_map(|slot| slot.bits(plan)).collect()
+pub fn scan_lane(geometry: &Geometry, scan: &[ScanSlot]) -> Vec<bool> {
+    scan.iter().flat_map(|slot| slot.bits(geometry)).collect()
 }
 
 /// Spec §9.1 packing: chunks of 63 bits, each read little-endian.

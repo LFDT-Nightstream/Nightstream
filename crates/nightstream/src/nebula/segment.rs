@@ -9,8 +9,8 @@ use p3_field::{Field, PrimeCharacteristicRing};
 use p3_goldilocks::Goldilocks as F;
 
 use super::carry::{k_words, Carry, Products};
+use super::geometry::Geometry;
 use super::machine::{data_port, exec, fetch, MachineState};
-use super::plan::Plan;
 use super::records::{ops_lane, pack, scan_lane, OpSlot, PortAccess, ScanSlot};
 use super::transcript::{chain_link, chain_root, eta_challenges, header, plan_digest, state_words, Digest, Lane};
 use super::words::{self, Layout};
@@ -48,49 +48,43 @@ pub enum Step {
     Execute,
 }
 
-/// Plan constants that every invocation reads.
+/// The constants of a program that every invocation reads.
 #[derive(Clone, Debug)]
 pub struct Context {
-    plan: Plan,
+    program: Program,
     plan_digest: Digest,
     header_ops: Digest,
     header_mem: Digest,
-    d_init: Digest,
     layout: Layout,
 }
 
 impl Context {
     pub fn new(program: &Program) -> Self {
-        let plan = program.plan.clone();
-        let plan_digest = plan_digest(&plan);
-        let memory = initial_memory(&plan);
-        let d_init = chain_root(Lane::Mem, &plan_digest, &memory_lanes(&plan, &memory));
+        let geometry = program.package.geometry();
+        let plan_digest = plan_digest(&geometry);
         Self {
+            program: program.clone(),
             header_ops: header(Lane::Ops, &plan_digest),
             header_mem: header(Lane::Mem, &plan_digest),
-            layout: Layout::new(&plan),
-            plan,
+            layout: Layout::new(&geometry),
             plan_digest,
-            d_init,
         }
     }
 
-    pub fn plan(&self) -> &Plan {
-        &self.plan
+    pub fn program(&self) -> &Program {
+        &self.program
+    }
+
+    pub fn geometry(&self) -> Geometry {
+        self.program.package.geometry()
     }
 
     pub fn witness_word_count(&self) -> usize {
         self.layout.count()
     }
 
-    /// `D_init`: the IS root of the program's images (spec §9.2), the
-    /// program's key.
-    pub fn d_init(&self) -> Digest {
-        self.d_init
-    }
-
     pub fn start_carry(&self) -> Carry {
-        Carry::start(self.plan.n, self.d_init)
+        Carry::start(self.geometry().n, self.program.d_init)
     }
 
     /// The Stage 1 state words of application words and a carry.
@@ -99,20 +93,27 @@ impl Context {
     }
 }
 
-/// The plan images with every stamp zero (spec §5).
-pub fn initial_memory(plan: &Plan) -> Vec<Cell> {
-    (0..plan.cells())
-        .map(|g| Cell {
-            value: plan.image(g),
+/// The images with every stamp zero (spec §5): ROM cells, then RAM cells.
+pub(crate) fn initial_memory(rom: &[u32], ram: &[u32]) -> Vec<Cell> {
+    rom.iter()
+        .chain(ram)
+        .map(|word| Cell {
+            value: u64::from(*word),
             stamp: 0,
         })
         .collect()
 }
 
-fn scan_of(plan: &Plan, memory: &[Cell], step: usize) -> Vec<ScanSlot> {
-    (0..plan.b_scan)
+/// `D_init`: the IS root of the images (spec §9.2).
+pub(super) fn initial_root(geometry: &Geometry, rom: &[u32], ram: &[u32]) -> Digest {
+    let memory = initial_memory(rom, ram);
+    chain_root(Lane::Mem, &plan_digest(geometry), &memory_lanes(geometry, &memory))
+}
+
+fn scan_of(geometry: &Geometry, memory: &[Cell], step: usize) -> Vec<ScanSlot> {
+    (0..geometry.b_scan)
         .map(|slot| {
-            let cell = memory[step * plan.b_scan + slot];
+            let cell = memory[step * geometry.b_scan + slot];
             ScanSlot {
                 value: cell.value,
                 stamp: cell.stamp,
@@ -121,9 +122,9 @@ fn scan_of(plan: &Plan, memory: &[Cell], step: usize) -> Vec<ScanSlot> {
         .collect()
 }
 
-fn memory_lanes(plan: &Plan, memory: &[Cell]) -> Vec<Vec<F>> {
-    (0..plan.n)
-        .map(|step| pack(&scan_lane(plan, &scan_of(plan, memory, step))))
+fn memory_lanes(geometry: &Geometry, memory: &[Cell]) -> Vec<Vec<F>> {
+    (0..geometry.n)
+        .map(|step| pack(&scan_lane(geometry, &scan_of(geometry, memory, step))))
         .collect()
 }
 
@@ -165,7 +166,7 @@ pub(crate) struct Segment {
 }
 
 fn execute(
-    plan: &Plan,
+    geometry: &Geometry,
     state: MachineState,
     memory: &mut [Cell],
     ts: u64,
@@ -180,17 +181,17 @@ fn execute(
         }
         Step::Execute => {
             let pc = usize::try_from(state.pc).map_err(|_| SegmentError::ProgramCounter)?;
-            if pc >= plan.rom_size() {
+            if pc >= geometry.rom_size() {
                 return Err(SegmentError::ProgramCounter);
             }
             let word = memory[pc].value;
             let data = match word % 4 {
                 1 | 2 => {
                     let address = usize::try_from(word / 4).map_err(|_| SegmentError::DataAddress)?;
-                    if address >= plan.ram_size() {
+                    if address >= geometry.ram_size() {
                         return Err(SegmentError::DataAddress);
                     }
-                    memory[plan.rom_size() + address].value
+                    memory[geometry.rom_size() + address].value
                 }
                 _ => 0,
             };
@@ -209,10 +210,10 @@ fn execute(
             }
             Some(access) => {
                 active += 1;
-                let g = access.global_index(plan);
+                let g = access.global_index(geometry);
                 let rt = memory[g].stamp;
                 let wt = ts + active;
-                if wt >= 1 << plan.w_ts {
+                if wt >= 1 << geometry.w_ts {
                     return Err(SegmentError::Timestamp);
                 }
                 ops.push(OpSlot::active(access, rt));
@@ -237,7 +238,7 @@ fn execute(
 /// Execute the steps of one segment from `memory`; return the step records,
 /// the memory after the segment, and the machine state after it.
 fn execute_steps(
-    plan: &Plan,
+    geometry: &Geometry,
     state: MachineState,
     memory: &[Cell],
     ts: u64,
@@ -248,7 +249,7 @@ fn execute_steps(
     let mut machine = state;
     let mut ts = ts;
     for step in steps {
-        let result = execute(plan, machine, &mut memory, ts, *step)?;
+        let result = execute(geometry, machine, &mut memory, ts, *step)?;
         machine = result.state_out;
         ts += result.active;
         executed.push(result);
@@ -278,17 +279,17 @@ impl Context {
         memory: &[Cell],
         steps: &[Step],
     ) -> Result<Segment, SegmentError> {
-        let plan = &self.plan;
-        if steps.len() != plan.n {
+        let geometry = &self.geometry();
+        if steps.len() != geometry.n {
             return Err(SegmentError::StepCount);
         }
-        if carry.idx != plan.n as u64 || carry.seg_idx >= plan.s_max as u64 {
+        if carry.idx != geometry.n as u64 || carry.seg_idx >= geometry.s_max as u64 {
             return Err(SegmentError::Carry);
         }
-        if chain_root(Lane::Mem, &self.plan_digest, &memory_lanes(plan, memory)) != carry.mem_root {
+        if chain_root(Lane::Mem, &self.plan_digest, &memory_lanes(geometry, memory)) != carry.mem_root {
             return Err(SegmentError::MemoryRoot);
         }
-        let (executed, final_memory, machine) = execute_steps(plan, state, memory, carry.ts, steps)?;
+        let (executed, final_memory, machine) = execute_steps(geometry, state, memory, carry.ts, steps)?;
         let proposal = self.proposal(&executed, &final_memory);
         let invocations = self.invocations(carry, proposal, &executed, memory, &final_memory);
         let last = invocations.last().ok_or(SegmentError::StepCount)?.carry;
@@ -308,11 +309,15 @@ impl Context {
     fn proposal(&self, executed: &[Executed], final_memory: &[Cell]) -> (Digest, Digest) {
         let ops: Vec<Vec<F>> = executed
             .iter()
-            .map(|step| pack(&ops_lane(&self.plan, &step.ops)))
+            .map(|step| pack(&ops_lane(&self.geometry(), &step.ops)))
             .collect();
         (
             chain_root(Lane::Ops, &self.plan_digest, &ops),
-            chain_root(Lane::Mem, &self.plan_digest, &memory_lanes(&self.plan, final_memory)),
+            chain_root(
+                Lane::Mem,
+                &self.plan_digest,
+                &memory_lanes(&self.geometry(), final_memory),
+            ),
         )
     }
 
@@ -327,21 +332,21 @@ impl Context {
         start_memory: &[Cell],
         final_memory: &[Cell],
     ) -> Vec<Invocation> {
-        let plan = &self.plan;
-        let initial_packed = memory_lanes(plan, start_memory);
-        let final_packed = memory_lanes(plan, final_memory);
+        let geometry = &self.geometry();
+        let initial_packed = memory_lanes(geometry, start_memory);
+        let final_packed = memory_lanes(geometry, final_memory);
         let mut current = carry;
         executed
             .iter()
             .enumerate()
             .map(|(k, step)| {
-                let ops = pack(&ops_lane(plan, &step.ops));
+                let ops = pack(&ops_lane(geometry, &step.ops));
                 let (words, next) = self.invocation(
                     &current,
                     proposal,
                     step,
-                    &scan_of(plan, start_memory, k),
-                    &scan_of(plan, final_memory, k),
+                    &scan_of(geometry, start_memory, k),
+                    &scan_of(geometry, final_memory, k),
                     [&ops, &initial_packed[k], &final_packed[k]],
                 );
                 current = next;
@@ -364,9 +369,9 @@ impl Context {
         final_: &[ScanSlot],
         packed: [&Vec<F>; 3],
     ) -> (Vec<F>, Carry) {
-        let plan = &self.plan;
+        let geometry = &self.geometry();
         let layout = &self.layout;
-        let n = plan.n as u64;
+        let n = geometry.n as u64;
         let opens = input.idx == n;
         let fresh = eta_challenges(
             &self.plan_digest,
@@ -398,10 +403,10 @@ impl Context {
             w[base(0)] = F::from_bool(slot.pad);
             w[base(1)] = F::from_bool(slot.is_write);
             w[base(2)] = F::from_bool(slot.is_ram);
-            set_bits(&mut w, |k| base(layout.op_addr(k)), slot.addr, plan.mu);
+            set_bits(&mut w, |k| base(layout.op_addr(k)), slot.addr, geometry.mu);
             set_bits(&mut w, |k| base(layout.op_vr(k)), slot.vr, 32);
             set_bits(&mut w, |k| base(layout.op_vw(k)), slot.vw, 32);
-            set_bits(&mut w, |k| base(layout.op_rt(k)), slot.rt, plan.w_ts);
+            set_bits(&mut w, |k| base(layout.op_rt(k)), slot.rt, geometry.w_ts);
             if !slot.pad {
                 let wt = step.write_stamps[j];
                 // A dishonest record with `rt ≥ wt` has no `W_ts`-bit word
@@ -410,7 +415,7 @@ impl Context {
                     &mut w,
                     |k| base(layout.op_diff(k)),
                     wt.wrapping_sub(slot.rt + 1),
-                    plan.w_ts,
+                    geometry.w_ts,
                 );
                 let access = PortAccess {
                     is_write: slot.is_write,
@@ -419,7 +424,7 @@ impl Context {
                     vr: slot.vr,
                     vw: slot.vw,
                 };
-                let g = access.global_index(plan) as u64;
+                let g = access.global_index(geometry) as u64;
                 read *= fingerprint(eta, slot.rt, g, slot.vr);
                 write *= fingerprint(eta, wt, g, slot.vw);
             }
@@ -429,12 +434,12 @@ impl Context {
         // Scan slots and the running IS and FS products.
         let mut is_product = effective.products.initial;
         let mut fs_product = effective.products.final_;
-        for j in 0..plan.b_scan {
+        for j in 0..geometry.b_scan {
             set_bits(&mut w, |k| layout.initial(j, k), initial[j].value, 32);
-            set_bits(&mut w, |k| layout.initial(j, 32 + k), initial[j].stamp, plan.w_ts);
+            set_bits(&mut w, |k| layout.initial(j, 32 + k), initial[j].stamp, geometry.w_ts);
             set_bits(&mut w, |k| layout.final_(j, k), final_[j].value, 32);
-            set_bits(&mut w, |k| layout.final_(j, 32 + k), final_[j].stamp, plan.w_ts);
-            let g = idx * plan.b_scan as u64 + j as u64;
+            set_bits(&mut w, |k| layout.final_(j, 32 + k), final_[j].stamp, geometry.w_ts);
+            let g = idx * geometry.b_scan as u64 + j as u64;
             is_product *= fingerprint(eta, initial[j].stamp, g, initial[j].value);
             fs_product *= fingerprint(eta, final_[j].stamp, g, final_[j].value);
             set_k(&mut w, layout.scan_products(j, 0), is_product);
@@ -495,10 +500,10 @@ impl Context {
             w[words::SEEN_PREV + 4 * lane..words::SEEN_PREV + 4 * lane + 4].copy_from_slice(digest);
         }
         w[words::IDX_EFF] = F::from_u64(idx);
-        set_bits(&mut w, |k| layout.ts_bits(k), output.ts, plan.w_ts);
+        set_bits(&mut w, |k| layout.ts_bits(k), output.ts, geometry.w_ts);
         if opens {
-            let room = plan.s_max as u64 - 1 - input.seg_idx;
-            set_bits(&mut w, |k| layout.seg_bits(k), room, plan.seg_width());
+            let room = geometry.s_max as u64 - 1 - input.seg_idx;
+            set_bits(&mut w, |k| layout.seg_bits(k), room, geometry.seg_width());
         }
         (w, output)
     }

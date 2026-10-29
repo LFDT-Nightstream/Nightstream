@@ -70,6 +70,9 @@ jobs:
     - name: Check Lean artifact digests and links
       run: timeout --signal=KILL 300 python3 -B formal/nightstream-fprime/scripts/check_artifacts.py
 
+    - name: Check SPEC.md paths, pin form and parameters table
+      run: timeout --signal=KILL 300 python3 -B scripts/check_spec.py
+
     - name: Install Rust
       uses: dtolnay/rust-toolchain@stable
 
@@ -96,6 +99,6 @@ jobs:
 
     - name: Run conformance coordinator tests
       run: |
-        timeout --signal=KILL 300 python3 -B -m unittest scripts.tests.test_golden_conformance_ci scripts.tests.test_golden_conformance_changes scripts.lean_graph.tests.test_guard scripts.lean_graph.tests.test_replay_coverage
+        timeout --signal=KILL 300 python3 -B -m unittest scripts.tests.test_golden_conformance_ci scripts.tests.test_golden_conformance_changes scripts.lean_graph.tests.test_guard scripts.lean_graph.tests.test_replay_coverage scripts.tests.test_check_spec
         timeout --signal=KILL 300 python3 -B -m unittest discover -s crates/nightstream/tests -p 'test_*.py'
         timeout --signal=KILL 300 python3 -B -m unittest discover -s formal/nightstream-fprime/tests -p 'test_*.py'

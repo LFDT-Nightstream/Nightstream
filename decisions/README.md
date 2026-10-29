@@ -21,5 +21,5 @@ Each decision must use one kebab-case file with these sections:
 Keep each record short. Link to the normative rule and its evidence. Do not
 put implementation history, migration plans, generated row counts, benchmark
 results, or status diaries here. A decision that changes accepted inputs,
-proof messages, transcript order, or proof bytes must also update the protocol
-contract.
+proof messages, transcript order, or proof bytes must also update
+[SPEC.md](../SPEC.md), which describes the current protocol.

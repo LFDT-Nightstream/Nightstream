@@ -99,6 +99,7 @@
   {"lean": "CompressionLean.Circuit.KxVar.zero", "rust": "crates/neo-spartan/src/circuit/algebra.rs::Kx::zero", "hash": "c363db6fd4825d77"},
   {"lean": "CompressionLean.Circuit.LateOpeningsView", "rust": "crates/neo-spartan/src/matrix.rs::LateOpenings", "hash": "0c6682a9b4b3170a"},
   {"lean": "CompressionLean.Circuit.Layer1Key", "rust": "crates/neo-spartan/tests/internal/lowering.rs::layer1_input", "hash": "fd07d9a6bfcdddb8"},
+  {"lean": "CompressionLean.Circuit.Layer1Key", "rust": "crates/neo-spartan/tests/internal/replay.rs::relation_json", "hash": "0e7d04724c6dc0d4"},
   {"lean": "CompressionLean.Circuit.LeafView", "rust": "crates/neo-spartan/src/setup.rs::LeafView", "hash": "e9020032b55afacc"},
   {"lean": "CompressionLean.Circuit.LeafView.read", "rust": "crates/neo-spartan/src/setup.rs::LeafView::read", "hash": "f3d692d65f816fb7"},
   {"lean": "CompressionLean.Circuit.MixingVar", "rust": "crates/neo-spartan/src/ring.rs::Mixing", "hash": "9aad2e480866030c"},
@@ -556,5 +557,8 @@
   {"lean": "CompressionLean.Shrink.walkStep", "rust": "crates/neo-spartan/src/shrink/layout.rs::diagonal", "hash": "5d33a83730943491"},
   {"lean": "CompressionLean.Shrink.weight", "rust": "crates/neo-spartan/src/shrink/mod.rs::weights", "hash": "42ce5ae938822643"},
   {"lean": "CompressionLean.Shrink.wide", "rust": "crates/neo-spartan/src/shrink/layout.rs::split", "hash": "cae6d1ab94b5622e"},
-  {"lean": "CompressionLean.Shrink.zValue", "rust": "crates/neo-spartan/src/shrink/mod.rs::verify", "hash": "b675f9959d6ed0a2"}
+  {"lean": "CompressionLean.Shrink.zValue", "rust": "crates/neo-spartan/src/shrink/mod.rs::verify", "hash": "b675f9959d6ed0a2"},
+  {"lean": "CompressionLeanExe.Runs.readColumns", "rust": "crates/neo-spartan/tests/internal/setup_columns.rs::production_setup_columns", "hash": "1eb3d67cfeb7534d"},
+  {"lean": "CompressionLeanExe.Runs.readRuns", "rust": "crates/nightstream/tests/lifecycle_native/setup_runs.rs::Writer::push_run", "hash": "d501b8d53fc2a3c5"},
+  {"lean": "CompressionLeanExe.Runs.readRuns", "rust": "crates/nightstream/tests/lifecycle_native/setup_runs.rs::production_runs_rebuild_the_layer1_key", "hash": "2b471d1b3ee78d80"}
 ]

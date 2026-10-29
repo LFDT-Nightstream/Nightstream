@@ -90,12 +90,17 @@ timeout --signal=KILL 1500 .lake/build/bin/emitTerminal artifacts/compression-te
 `lake build` builds the library, the executables and the gates, with warnings as errors:
 
 - the axiom audit (`Axioms.lean`): every theorem of the library and of the gates uses only
-  `propext`, `Classical.choice` and `Quot.sound`;
+  `propext`, `Classical.choice` and `Quot.sound`, and no module of this package declares an
+  axiom. It imports every gate, and the ports gate fails when it does not;
 - the ports gate (`Ports.lean`): every definition of `Ports/` has a `ports.json` entry or a reason
   in `notPorts`, and `Ports/` holds no theorem. It also fails when `STATUS.md` is not what
   `lake exe status` prints, and the page fails when a premise of a claim has no entry in
-  `Inventory.lean`;
-- the folder gate (`Layers.lean`);
+  `Inventory.lean`. It reads files that Lake does not track, so
+  `../nightstream-fprime/scripts/validate.sh compression` reruns it after the build;
+- the folder gate (`Layers.lean`): the library imports no module of `CompressionLeanExe/` or
+  `CompressionLeanTests/`;
+- the stack gate (`Stack.lean`): `setupCheck` decides a bounded `∀` over the production runs in
+  constant stack;
 - the reading gate (`Reading.lean`): a valid program witness has a reading given WHIR's openings
   and `MerkleBinds`. `Bridge/Merkle.lean` proves that honest leaves meet `MerkleBinds` under the
   honest key root unless Poseidon2 collides;

@@ -1,4 +1,5 @@
 import Lean
+import CompressionLeanExe.Runs
 
 namespace CompressionLeanTests.Inventory
 
@@ -17,6 +18,9 @@ def claims : List (Name × List Name) := [
   (`CompressionLean.Claims.runsGive_of_check, standardAxioms)]
 
 def claimsModule : Name := `CompressionLean.Claims
+
+/-- The roots of this package's executables and gates. The library imports neither. -/
+def upperRoots : List Name := [`CompressionLeanExe, `CompressionLeanTests]
 
 inductive Met where
   | rustFiles

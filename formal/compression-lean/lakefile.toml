@@ -18,7 +18,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsErro
 name = "CompressionLeanTests"
 roots = ["CompressionLeanTests.Axioms", "CompressionLeanTests.BlockDigest", "CompressionLeanTests.Inventory", "CompressionLeanTests.Layers",
   "CompressionLeanTests.Ports", "CompressionLeanTests.Reading", "CompressionLeanTests.SpecCensus",
-  "CompressionLeanTests.Vocabulary"]
+  "CompressionLeanTests.Stack", "CompressionLeanTests.Vocabulary"]
 needs = ["ports", "statusPage"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 

@@ -5,8 +5,10 @@ open Lean Elab Command CompressionLeanTests.Inventory
 
 def portsOutside : List (Name × String) :=
   let lower := "a generic definition that the layer-1 game reads too; `Layer1/` is below `Ports/`"
+  let reader := "a reader of a file that a Rust test writes; only the executables read these files"
   [(``CompressionLean.Lib.eqAt, lower), (``CompressionLean.Lib.eqEval, lower),
-    (``CompressionLean.Lib.roundValues, lower), (``CompressionLean.Game.sumcheck, lower)]
+    (``CompressionLean.Lib.roundValues, lower), (``CompressionLean.Game.sumcheck, lower),
+    (``CompressionLeanExe.Runs.readRuns, reader), (``CompressionLeanExe.Runs.readColumns, reader)]
 
 def notPorts : List (String × List Name) := [
   ("the program as data and its handles (`Var`, `ExtVar`, the instruction list and the state that writes it); Rust calls `Backend` directly and keeps no list",
@@ -118,6 +120,19 @@ elab "#check_citations" : command => do
     throwError "these lines cite Rust by line number, which drifts; cite the item (`file.rs::Item`):\n{bad}"
   logInfo m!"no Rust line citations outside the pinned crates"
 
+elab "#check_audited" : command => do
+  let imports := ((← IO.FS.readFile "CompressionLeanTests/Axioms.lean").splitOn "\n").map (·.replace "import " "")
+  let mut missing := #[]
+  for file in ← System.FilePath.walkDir "CompressionLeanTests" do
+    let some stem := file.fileStem | continue
+    let module := s!"CompressionLeanTests.{stem}"
+    unless file.extension != some "lean" || stem == "Axioms" || imports.contains module do
+      missing := missing.push module
+  unless missing.isEmpty do
+    throwError "Axioms.lean does not import these gates, so the axiom audit does not read them:\n{missing}"
+  logInfo m!"Axioms.lean imports every gate"
+
 #check_ports
 #check_status
 #check_citations
+#check_audited

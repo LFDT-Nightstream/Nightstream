@@ -54,7 +54,7 @@ pub use layout::{column_families, named_column_family, Column, ColumnFamilySpec,
 pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness};
 pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
 pub use memory_id::WasmMemoryId;
-pub use memory_routing::{plan_wasm_memory_slots, WasmMemorySlotPlan};
+pub use memory_routing::{plan_ordered_wasm_memory_slots, plan_wasm_memory_slots, WasmMemorySlotPlan};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
 pub use preprocess::{continuity_words, host_event_top_level_initial_state, top_level_initial_state};
 pub use range_check::write_range_check_bits;

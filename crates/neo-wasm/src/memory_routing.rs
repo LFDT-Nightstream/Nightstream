@@ -66,3 +66,50 @@ pub fn plan_wasm_memory_slots(memories: &[MemorySpec<WasmMemoryId>]) -> WasmMemo
         support_loads,
     }
 }
+
+/// A slot plan that keeps declaration order: when two ports may be active on
+/// one row, the earlier port gets the earlier slot. So a binding that needs a
+/// row's active slots in catalog order accepts every row the relation accepts.
+/// Two `When` ports may be active together only when their supports intersect;
+/// every other port may be active with any port. Each port goes one slot after
+/// the last slot of an earlier port that may be active with it, so the slot
+/// count is the longest chain of such ports, the fewest such a plan can have.
+pub fn plan_ordered_wasm_memory_slots(memories: &[MemorySpec<WasmMemoryId>]) -> WasmMemorySlotPlan {
+    let supports = activation_supports();
+    let ports: Vec<Option<&BTreeSet<usize>>> = memories
+        .iter()
+        .flat_map(|memory| &memory.ports)
+        .map(|port| match port.activation {
+            MemoryPortActivation::When(gate) => supports.get(&gate),
+            MemoryPortActivation::Always | MemoryPortActivation::Unless(_) => None,
+        })
+        .collect();
+    let mut support_loads = BTreeMap::new();
+    for &atom in ports.iter().flatten().copied().flatten() {
+        *support_loads.entry(atom).or_insert(0) += 1;
+    }
+    let mut slot_of: Vec<usize> = Vec::with_capacity(ports.len());
+    for (index, support) in ports.iter().enumerate() {
+        let slot = ports[..index]
+            .iter()
+            .zip(&slot_of)
+            .filter(|(earlier, _)| match (earlier, support) {
+                (Some(earlier), Some(support)) => !earlier.is_disjoint(support),
+                _ => true,
+            })
+            .map(|(_, slot)| slot + 1)
+            .max()
+            .unwrap_or(0);
+        slot_of.push(slot);
+    }
+    let mut slots = vec![Vec::new(); slot_of.iter().max().map_or(0, |last| last + 1)];
+    for (index, slot) in slot_of.into_iter().enumerate() {
+        slots[slot].push(index);
+    }
+    WasmMemorySlotPlan {
+        slots,
+        logical_ports: ports.len(),
+        conservative_singletons: ports.iter().filter(|support| support.is_none()).count(),
+        support_loads,
+    }
+}

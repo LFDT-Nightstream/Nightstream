@@ -1,28 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteJointData
 
-/-!
-One authoritative assignment family for every SuperNeo v1.2 `Pi_CCS`
-obligation.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: source ownership before CCS, norm, and carried-evaluation residuals.
-Constraint family: semantic witness connectivity only; this file emits no
-rows.
-
-Owns: the paper's zero-padding injection from assignment columns into its
-Boolean row cube, including the exact consequence `columns <= 2^variables`;
-one typed family of the exact `K+k` source assignments; canonical
-fresh/running source injections; and derived CCS, norm, Pad-evaluation, and
-matrix-evaluation views that provably read the same `z_i` values.
-
-Does not own: commitment/public-input binding, proof that coefficient-expanded
-matrix coefficient expansions come from Pad and the structure matrices,
-extension-field lifting,
-the nonlinear protocol polynomial, Fiat--Shamir, Rust, R1CS, or constraint
-counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
@@ -32,8 +10,6 @@ open PaperLinearAlgebra
 
 universe uExtension
 
-/-- Exact layout for the paper requirement `n_F <= m = 2^ell`.
-This is the typed form of `M_1 = [I; 0]`. -/
 structure ColumnLayout (variables columns : Nat) where
   columns_le : columns <= 2 ^ variables
   toVertex : Fin columns -> BooleanVertex variables
@@ -93,7 +69,6 @@ def paddedValue
   | some column => assignment column
   | none => zero
 
-/-- One entry of the paper's padded first matrix `M_1 = [I; 0]`. -/
 def paddedIdentityEntry
     {Value : Type}
     {variables columns : Nat}

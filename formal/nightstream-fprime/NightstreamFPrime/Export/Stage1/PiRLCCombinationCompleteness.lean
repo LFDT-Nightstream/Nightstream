@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCCombinationProjection
 import NightstreamFPrime.Export.Stage1.PiRLCPackageCompleteness
 import NightstreamFPrime.Layout.R1CS.Segments
 
-/-!
-Owns the constructive direction from exact PiRLC combination-family physical
-rows to the canonical compact invocations.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationCompleteness
 
 open NightstreamFPrime.Circuit

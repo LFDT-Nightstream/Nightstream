@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECValueWiring
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment
 
-/-!
-Owns the proof that the compact per-application assignment canonically encodes
-every retained Stage 1 block.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationCanonicalEncodes
 
 open NightstreamFPrime.Layout
@@ -294,18 +289,18 @@ private theorem outputInputSource_eq (application : Program)
   have mapped : Layout.Stage1.Spartan.sourceToSpartan (28089 + slot.val) =
       27819 + slot.val := by
     unfold Layout.Stage1.Spartan.sourceToSpartan
-    rw [if_pos (by change 28089 + slot.val < 5141760; omega)]
+    rw [ite_eq_left (by change 28089 + slot.val < 5141760; omega)]
     unfold Layout.PilotSpartan.sourceToSpartan
-    rw [if_neg (by change ¬ (28089 + slot.val < 27819); omega),
-      if_neg (by change ¬ (28089 + slot.val < 28089); omega),
-      if_pos (by change 28089 + slot.val < 55908; omega)]
+    rw [ite_eq_right (by change ¬ (28089 + slot.val < 27819); omega),
+      ite_eq_right (by change ¬ (28089 + slot.val < 28089); omega),
+      ite_eq_left (by change 28089 + slot.val < 55908; omega)]
     have offset : 28089 + slot.val - Layout.PilotSpartan.outputPreimageStart =
         slot.val := by
       change 28089 + slot.val - 28089 = slot.val
       omega
     rw [offset]
     unfold Layout.Stage1.Spartan.liftPilotColumn
-    rw [if_pos (by change 27819 + slot.val < 55638; omega)]
+    rw [ite_eq_left (by change 27819 + slot.val < 55638; omega)]
     rw [Layout.PilotSpartan.secondPrivateStart_value]
   have constant : PerApplicationPackage.basePackage.layout.constantColumn =
       11464596 :=
@@ -840,7 +835,7 @@ private theorem applicationOutputEncodes {application : Program}
           slot)) := by
     apply Fin.ext
     change 27819 + (27815 + slot.val) = Layout.Stage1.ApplicationInputs.outputColumn slot
-    rw [Layout.Stage1.ApplicationInputs.outputColumn_value]
+    rw [Layout.Stage1.ApplicationInputs.outputColumn_value (index := slot)]
     omega
   have value := view slot coordinate
   change raw.assignment

@@ -1,15 +1,6 @@
 import NightstreamFPrime.Spec.Folding.Nifs.PaperSecurityComposition
 
-/-!
-SuperNeo v1.2, Theorem 13 and Appendix B.4: consume the valid output witness
-of the reduction experiment. The exact returned running product supplies all
-child openings, and their radix recomposition opens the accepted parent.
-
-The output witness is supplied by a successful output-relation experiment,
-or by a later relation/terminal extractor. Public verifier acceptance alone
-does not supply it. No commitment inversion or cryptographic assumption is
-used here.
--/
+/-! SuperNeo v1.2 Theorem 13, Appendix B.4. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 
@@ -121,7 +112,7 @@ theorem outputWitness_excludes_childOpeningFailure
   exact failure ⟨childOpeningsOfOutput key running fresh proof result attempt
     attemptEq accepted outputWitness outputValid⟩
 
-/-- Theorem 13's deterministic extraction step. -/
+/-- SuperNeo v1.2 Theorem 13. -/
 theorem accepted_outputWitness_extracts_parent
     (attemptEq : key.piDecAttempt running fresh proof = some attempt)
     (accepted : verify key running fresh proof = some result)

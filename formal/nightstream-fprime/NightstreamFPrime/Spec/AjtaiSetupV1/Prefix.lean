@@ -1,14 +1,6 @@
 import NightstreamFPrime.Spec.AjtaiSetupV1
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
 
-/-!
-Same-seed Ajtai key prefixes and suffix zero-extension of complete carriers.
-The smaller integer kernel becomes a kernel of the larger key at the same
-strict norm bound. Padding starts after the smaller full carrier; it does
-not restore deleted interior positions or preserve setup authority words.
-No key evaluation, hardness, probability, or runtime claim is added.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.AjtaiSetupV1.Prefix
@@ -40,13 +32,13 @@ private theorem zeroExtend_prefix {Value : Type*} [Zero Value]
     (value : Fin smallWidth → Value) (column : Fin smallWidth) :
     zeroExtend fits value (Fin.castLE fits column) = value column := by
   change (if inside : column.val < smallWidth then value ⟨column.val, inside⟩ else 0) = value column
-  rw [dif_pos column.isLt]
+  rw [dite_eq_left column.isLt]
 
 private theorem zeroExtend_outside {Value : Type*} [Zero Value]
     {smallWidth largeWidth : Nat} (fits : smallWidth ≤ largeWidth)
     (value : Fin smallWidth → Value) (column : Fin largeWidth)
     (outside : smallWidth ≤ column.val) : zeroExtend fits value column = 0 := by
-  exact dif_neg (Nat.not_lt_of_ge outside)
+  exact dite_eq_right (Nat.not_lt_of_ge outside)
 
 private theorem blockCount_mono {smallWidth largeWidth : Nat}
     (fits : smallWidth ≤ largeWidth) :
@@ -159,8 +151,8 @@ private theorem zeroExtend_intCast {smallWidth largeWidth : Nat}
       zeroExtend fits (fun column => (value column : ZMod goldilocksModulus)) := by
   funext column
   by_cases inside : column.val < smallWidth
-  · simp only [zeroExtend, dif_pos inside]
-  · simp only [zeroExtend, dif_neg inside, Int.cast_zero]
+  · simp only [zeroExtend, dite_eq_left inside]
+  · simp only [zeroExtend, dite_eq_right inside, Int.cast_zero]
 
 private theorem kernel_bound_positive {shape : Phi81Relation.Shape} {rows bound : Nat}
     {key : Commitment.Key shape rows} (solution : Binding.ShortKernelVector key bound) :
@@ -190,8 +182,8 @@ def extendShortKernel {rows bound : Nat} {smallShape largeShape : Phi81Relation.
   bounded := by
     intro column
     by_cases inside : column.val < smallShape.carrierWidth
-    · simpa only [zeroExtend, dif_pos inside] using solution.bounded ⟨column.val, inside⟩
-    · rw [zeroExtend, dif_neg inside, Int.natAbs_zero]
+    · simpa only [zeroExtend, dite_eq_left inside] using solution.bounded ⟨column.val, inside⟩
+    · rw [zeroExtend, dite_eq_right inside, Int.natAbs_zero]
       exact kernel_bound_positive solution
   kernel := by
     rw [zeroExtend_intCast]

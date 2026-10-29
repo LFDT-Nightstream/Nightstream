@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.PilotPoseidonPlan
 
-/-!
-Owns the compact wire input programs and Poseidon2 matrix blocks for the two
-pilot state-hash chains.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram

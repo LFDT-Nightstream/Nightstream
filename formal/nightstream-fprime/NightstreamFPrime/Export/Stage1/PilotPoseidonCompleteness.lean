@@ -3,8 +3,6 @@ import NightstreamFPrime.Export.Stage1.PilotPoseidonPreservation
 import NightstreamFPrime.Export.PermutationOutput
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompleteness
 
-/-! Owns the pilot hash-row consumer for the complete canonical source copy. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PilotPoseidonCompleteness
@@ -110,7 +108,7 @@ private theorem retainedSource_private
         applicationPrivate baseColumn :=
       congrArg (fun base : BaseValues application => base baseColumn) baseEq
     _ = target column.val := by
-      simp only [PerApplicationSourceAssignment.ofCompleted, dif_pos before]
+      simp only [PerApplicationSourceAssignment.ofCompleted, dite_eq_left before]
       rfl
 
 private theorem priorSlot_source (application : Lifecycle.Stage1.Application.Program)
@@ -255,7 +253,8 @@ private theorem output_form
     _ = _ := rfl
 
 
-private theorem priorInput_form (slot : Fin Data.priorChain.inputLength) :
+private theorem priorInput_form
+    (slot : Fin (PiRLCPoseidonGeometry.priorInputBlock application).slotCount) :
     ((PiRLCPoseidonGeometry.priorInputBlock application).form
       (PiRLCPoseidonGeometry.priorInputStart application)
       (PiRLCPoseidonGeometry.priorInputFits pilotGeometry) slot).eval raw.assignment =
@@ -266,7 +265,8 @@ private theorem priorInput_form (slot : Fin Data.priorChain.inputLength) :
   exact Nat.lt_of_lt_of_le (Nat.add_lt_add_left slot.isLt _)
     PoseidonInputRetainedBlock.priorInputEnd
 
-private theorem outputInput_form (slot : Fin Data.outputChain.inputLength) :
+private theorem outputInput_form
+    (slot : Fin (PiRLCPoseidonGeometry.outputInputBlock application).slotCount) :
     ((PiRLCPoseidonGeometry.outputInputBlock application).form
       (PiRLCPoseidonGeometry.outputInputStart application)
       (PiRLCPoseidonGeometry.outputInputFits pilotGeometry) slot).eval raw.assignment =
@@ -341,7 +341,7 @@ private theorem previous_eval {sourceWidth count logicalWidth : Nat}
           1080 + lane.val) := by
   by_cases first : invocation.val = 0
   · simp [PilotPoseidonPlan.previousOutput, first]
-  · simp only [PilotPoseidonPlan.previousOutput, dif_neg first, if_neg first]
+  · simp only [PilotPoseidonPlan.previousOutput, dite_eq_right first, ite_eq_right first]
     exact congrFun (outputs _) lane
 
 private theorem prior_input

@@ -1,19 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81Evaluation
 
-/-!
-Typed, batch-invariant carriers for the paper Phi81 CCS/CE relation.
-
-Protocol: SuperNeo v1.2 Definitions 19--21 specialized to the Phi81 carrier.
-
-Owns: dimensions that remain fixed across bootstrap and active folds; exact
-typed assignment, public-input, point, and evaluation carriers; one original
-matrix/polynomial structure; canonical completion to the Phi81 carrier; and
-the sole derived coefficient-matrix source.
-
-Does not own: fresh/running batch counts, relation membership, commitments,
-Ajtai keys, norm predicates, NIFS acceptance, transcript derivation, Rust,
-R1CS, or constraint counts.
--/
+/-! SuperNeo v1.2 Definitions 19–21. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation
 
@@ -32,12 +19,14 @@ structure Shape where
 
 namespace Shape
 
+@[implicit_reducible]
 def carrierWidth (shape : Shape) : Nat :=
   Phi81CarrierLayout.carrierWidth shape.logicalWidth
 
 def publicWidth (shape : Shape) : Nat :=
   ringDegree * shape.publicRingColumns
 
+@[implicit_reducible]
 def sourceShape (shape : Shape) :
     NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Shape :=
   Phi81MatrixSource.phi81Shape shape.rowVariables 0 0 shape.matrixCount

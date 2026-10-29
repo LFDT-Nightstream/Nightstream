@@ -12,15 +12,6 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.GeneratedSupport
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerGeneratedSupport
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns physical preservation for the complete Stage 1 row order.
-
-The first theorem family is structural: one final row predicate decomposes
-into the exact validated prefix, selected application, and NextPreimage
-blocks, then into every phase-local physical predicate. No emitted row list is
-evaluated in the kernel.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.Preservation
 
 open NightstreamFPrime.Circuit

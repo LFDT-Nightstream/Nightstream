@@ -3,13 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerInvocations
 import NightstreamFPrime.Layout.PilotValues
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedSlots
 
-/-!
-Owns the constant-time footprint guard for the current all-direct Poseidon2
-low-norm plan. This is not a complete Stage 1 fit theorem.
-
-This module does not select or authorize a replacement binding schedule.
--/
-
 namespace NightstreamFPrime.Export.Stage1.DirectPoseidonFootprint
 
 open NightstreamFPrime.Layout

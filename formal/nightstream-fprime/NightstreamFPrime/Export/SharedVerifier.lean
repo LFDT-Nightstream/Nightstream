@@ -2,13 +2,6 @@ import Lean.Data.Json
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 
-/-!
-Exports ownership and relocation metadata for the unchanged shared verifier.
-The reference package remains the source of rows and witness recipes. The
-manifest identifies its children and the existing application insertion rules.
-It does not construct an application, change a layout, or prove Rust assembly.
--/
-
 namespace NightstreamFPrime.Export.SharedVerifier
 
 open NightstreamFPrime.Export

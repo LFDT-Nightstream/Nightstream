@@ -2,14 +2,6 @@ import NightstreamFPrime.Layout.ProductionRelation.ZeroRunningOracle
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ZeroRunningPolynomial
 
-/-!
-Owns numeric completion sums of the canonical zero-running PiCCS polynomial.
-The executable path folds the plan-derived scalar prefixes and sums only
-their stored support. Matrix and norm loops have separate extents. The
-Boolean cube and the protocol polynomial occur only on the proof side.
-This does not compute the separate full ring output families.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.ZeroRunningRoundSum
 
 open NightstreamFPrime.Spec
@@ -155,14 +147,14 @@ private theorem matrixTerm_outside {logicalWidth : Nat} (plan : Plan logicalWidt
     rw [folded_size]
     exact Nat.le_trans
       (foldedWidth_mono fixed _ _ (matrixPrefix_size_le plan assignment matrix)) outside
-  rw [matrixTerm, dif_pos inside, zeroImages, polynomial_zero]
+  rw [matrixTerm, dite_eq_left inside, zeroImages, polynomial_zero]
   exact extensionLaws.mul_zero _
 
 private theorem normTerm_outside (fixed : List K) (arity : Nat)
     (alpha : CubePoint K cubeVariables) (values : Array K) (index : Nat)
     (outside : values.size ≤ index) (inside : index < 2 ^ arity) :
     normTerm fixed arity alpha values index = K.zero := by
-  rw [normTerm, dif_pos inside, getD_outside values index outside, strictNorm_zero]
+  rw [normTerm, dite_eq_left inside, getD_outside values index outside, strictNorm_zero]
   exact extensionLaws.mul_zero _
 
 private def completionPoint (fixed : List K) {arity : Nat}
@@ -300,8 +292,8 @@ private theorem term_eq_polynomial (plan : Plan logicalWidth)
     rw [List.length_append, BooleanVertex.fieldCoordinates_length]
     change fixed.length + arity = cubeVariables
     omega
-  rw [ProtocolPolynomial.polynomial, dif_pos pointDimension]
-  simp only [matrixTerm, normTerm, dif_pos inside, NumericBooleanDomain.vertex_index]
+  rw [ProtocolPolynomial.polynomial, dite_eq_left pointDimension]
+  simp only [matrixTerm, normTerm, dite_eq_left inside, NumericBooleanDomain.vertex_index]
   rw [weighted_add, images, freshRead]
   exact reduction.symm
 

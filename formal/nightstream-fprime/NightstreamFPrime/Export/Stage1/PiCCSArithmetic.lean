@@ -3,26 +3,6 @@ import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalRows
 
-/-!
-Owns the compact ordinary-row packet for the eight non-permutation PiCCS
-leaves.
-
-The canonical PiCCS phase assembler remains
-`Lifecycle.PiCCS.v1_2.Formal`. This module only lowers its arithmetic children
-at their proved offsets, applies the Stage 1 Spartan column permutation, and
-encodes each physical row as one witness instruction or sparse assertion.
-
-Parent coverage:
-- `PiCCS.v1_2.Formal.statementBindingCircuit`
-- `PiCCS.v1_2.Formal.initialClaimCircuit`
-- `PiCCS.v1_2.Formal.sumcheckCircuit`
-- `PiCCS.v1_2.Formal.evalKCircuit`
-- `PiCCS.v1_2.Formal.evalACircuit`
-- `PiCCS.v1_2.Formal.ccsCircuit`
-- `PiCCS.v1_2.Formal.normCircuit`
-- `PiCCS.v1_2.Formal.finalIdentityCircuit`
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSArithmetic
 
 open NightstreamFPrime.Circuit

@@ -1,17 +1,6 @@
 import NightstreamFPrime.Circuit.Sequence
 import NightstreamFPrime.Lifecycle.Stage1.Interface
 
-/-!
-Owns the first complete opaque-child order for the Stage 1 augmented circuit.
-
-It also owns the sole Stage 1 logical
-`FormalCircuit`. The physical layout supplies its proof-only root completion;
-that proof does not change the circuit operations or semantic predicate.
-
-HyperNova's terminal checks are outside `F'`. They are therefore not an
-operation in this circuit. `Stage1.Terminal` owns that outer verifier boundary.
--/
-
 namespace NightstreamFPrime.Lifecycle.Stage1
 
 open NightstreamFPrime.Circuit

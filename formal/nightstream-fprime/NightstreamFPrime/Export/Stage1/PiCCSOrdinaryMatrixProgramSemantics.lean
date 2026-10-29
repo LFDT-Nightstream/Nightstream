@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 
-/-!
-Proves row-by-row equality between the compact PiCCS ordinary matrix program
-and the canonical direct 4-matrix plan.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram
@@ -99,7 +94,7 @@ theorem matrixProgram_row?
     exact global.isLt
   rw [show matrixProgram geometry =
       MatrixProgram.Program.mk [.ordinary (block geometry)] by rfl]
-  rw [MatrixProgram.Program.singleton_row?, if_pos blockBound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left blockBound]
   change (do
     let forms ← (block geometry).row? logicalWidth sourceRow global.val
     pure forms.meaningfulForm) = _

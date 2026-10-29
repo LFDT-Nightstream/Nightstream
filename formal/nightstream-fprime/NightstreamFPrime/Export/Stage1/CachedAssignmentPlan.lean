@@ -1,11 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
 
-/-!
-Cache the base-source boundary before constructing per-slot readers.
-The existing product source-assignment function owns the suffix, and BlockKind.template
-owns every block geometry.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.CachedAssignmentPlan

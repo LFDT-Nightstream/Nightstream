@@ -5,11 +5,6 @@ import NightstreamFPrime.Export.Stage1.PilotDigestBindingPlan
 import NightstreamFPrime.Export.Stage1.PiCCSCompletedReadout
 import NightstreamFPrime.Layout.Stage1.SpartanRows
 
-/-!
-Owns the pilot ordinary and digest-binding plans on the canonical completed
-assignment.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PilotCompletedAssignment
@@ -64,7 +59,7 @@ private theorem copied_pilotEnv
   have mapped : Spartan.sourceToSpartan source =
       Spartan.liftPilotColumn (PilotSpartan.sourceToSpartan source) := by
     unfold Spartan.sourceToSpartan
-    rw [if_pos (by simpa only [Spartan.pilotSourceColumnCount_matches] using pilotBound)]
+    rw [ite_eq_left (by simpa only [Spartan.pilotSourceColumnCount_matches] using pilotBound)]
   have same := PiCCSCompletedReadout.transitionEnv_of_completed application relation target suffix
     (phases relation target rows).2 source bound
   change RunningTransitionDirectPlan.transitionEnv application

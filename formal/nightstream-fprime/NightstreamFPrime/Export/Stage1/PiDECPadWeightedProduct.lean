@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFLaws
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 
-/-!
-Combine all 54 Pad basis weights before multiplying the same complete child
-blocks.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECPadWeightedProduct
@@ -85,8 +80,8 @@ private theorem keyPrefix_product (weights : Vector F ringDegree) (count : Nat)
           weights.get ⟨count, live⟩ * CarrierAction.kernelImage ⟨count, live⟩ right output
         else 0)
       by_cases live : count < ringDegree
-      · rw [dif_pos live, dif_pos live, addBasis_product, inductionHypothesis]
-      · rw [dif_neg live, dif_neg live, Fin.add_zero, inductionHypothesis]
+      · rw [dite_eq_left live, dite_eq_left live, addBasis_product, inductionHypothesis]
+      · rw [dite_eq_right live, dite_eq_right live, Fin.add_zero, inductionHypothesis]
 
 def weightedKey (weights : Vector F ringDegree) : StoredRing :=
   keyPrefix weights ringDegree
@@ -170,9 +165,9 @@ theorem products_value {count : Nat} (weights : Vector K ringDegree)
       apply congrArg (numericSum extensionOps ringDegree)
       funext index
       by_cases live : index < ringDegree
-      · simp only [dif_pos live, map_get, K.mul, K.embed,
+      · simp only [dite_eq_left live, map_get, K.mul, K.embed,
           Fin.mul_zero, Fin.add_zero, Fin.zero_add]
-      · simp only [dif_neg live, K.zero]
+      · simp only [dite_eq_right live, K.zero]
     _ = _ := numericSum_pair ringDegree _ _
 
 end NightstreamFPrime.Export.Stage1.PiDECPadWeightedProduct

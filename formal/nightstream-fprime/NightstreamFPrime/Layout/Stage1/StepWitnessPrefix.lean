@@ -3,13 +3,6 @@ import NightstreamFPrime.Layout.Stage1.StepSourceSpecs
 import NightstreamFPrime.Layout.Stage1.PiCCSProofReadback
 import NightstreamFPrime.Lifecycle.VerifierContext
 
-/-!
-Owns constructive sequencing of the existing pilot, C/R/D, running-transition,
-and next-preimage rows from a selected semantic step and an actual NIFS run.
-The source words and phase specifications are derived after construction.
-Application witness construction and physical lowering remain separate.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.StepWitnessPrefix
 
 open NightstreamFPrime.Spec

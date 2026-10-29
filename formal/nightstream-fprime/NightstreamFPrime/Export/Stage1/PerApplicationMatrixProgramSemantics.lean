@@ -9,11 +9,6 @@ import NightstreamFPrime.Export.Stage1.PilotOrdinaryMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PilotPoseidonMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgramSemantics
 
-/-!
-Proves row-by-row equality between the complete compact per-application matrix
-program and the exact Lean structural plan.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgramSemantics
 
 open NightstreamFPrime.Layout.MatrixProgram

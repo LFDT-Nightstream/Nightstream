@@ -1,11 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Semantics
 
-/-!
-Completes the six-child PiDEC v1.2 logical assembler. This file owns only
-ordered child-witness composition and the sole parent `FormalCircuit`. It adds
-no protocol predicate or verifier row.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiDEC.v1_2.Formal
 
 open NightstreamFPrime.Circuit

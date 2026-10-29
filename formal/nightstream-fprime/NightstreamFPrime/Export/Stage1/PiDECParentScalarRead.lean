@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCWitnessAction
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 
-/-!
-Read one PiDEC child Phi81 coefficient from its stored parent block.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECParentScalarRead
@@ -30,11 +26,11 @@ private theorem signedTerm_eq_mul (coefficient value : F)
     simp only [signedTerm]
     exact (baseLaws.mul_zero value).symm
   · subst coefficient
-    simp only [signedTerm, if_neg (show (1 : F) ≠ 0 by decide)]
+    simp only [signedTerm, ite_eq_right (show (1 : F) ≠ 0 by decide)]
     exact (baseLaws.mul_one value).symm
   · subst coefficient
-    simp only [signedTerm, if_neg (show (-1 : F) ≠ 0 by decide),
-      if_neg (show (-1 : F) ≠ 1 by decide)]
+    simp only [signedTerm, ite_eq_right (show (-1 : F) ≠ 0 by decide),
+      ite_eq_right (show (-1 : F) ≠ 1 by decide)]
     calc
       -value = -(1 * value) :=
         congrArg (fun entry : F => -entry) (baseLaws.one_mul value).symm
@@ -70,7 +66,7 @@ theorem coefficient_value (challenge : MaterializedRingF) (source : RingF)
     CarrierAction.ringFMul_apply_eq_rightLinear]
   apply sumRange_congr
   intro index live
-  simp only [dif_pos live, PiRLCWitnessAction.prepare, FixedArray.get_ofFn,
+  simp only [dite_eq_left live, PiRLCWitnessAction.prepare, FixedArray.get_ofFn,
     MaterializedRingF.toRing_ofRing, CarrierAction.rightCoefficient]
   exact signedTerm_eq_mul _ _ (signed ⟨index, live⟩)
 
@@ -78,7 +74,7 @@ private theorem splitScalar_signed (value : F) (child : Radix.ChildIndex)
     (bounded : centeredMagnitude value < Radix.combinedBound) :
     Radix.splitScalar value child = 0 ∨
       Radix.splitScalar value child = 1 ∨ Radix.splitScalar value child = -1 := by
-  simp only [Radix.splitScalar, if_pos bounded]
+  simp only [Radix.splitScalar, ite_eq_left bounded]
   have digitBound := Radix.magnitudeDigit_lt_two value child
   have casesDigit : Radix.magnitudeDigit value child = 0 ∨
       Radix.magnitudeDigit value child = 1 := by omega

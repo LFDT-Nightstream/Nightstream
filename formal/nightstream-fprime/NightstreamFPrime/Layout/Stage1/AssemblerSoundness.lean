@@ -3,18 +3,6 @@ import NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
 import NightstreamFPrime.Layout.Stage1.StateDecoder
 import NightstreamFPrime.Lifecycle.Stage1.Accumulator
 
-/-!
-Owns deterministic semantic composition for the eight-child Stage 1 parent.
-
-The representation record names the exact typed HyperNova input and output
-carried by the symbolic wires. The canonical theorem composes the compact
-PiCCS, PiRLC, and PiDEC phase results into the recursive SuperNeo accumulator
-graph and derives the complete fixed augmented-step relation.
-
-This file does not emit rows, select an application, close the recursive fixed
-point, or include the outer terminal verifier.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.AssemblerSoundness
 
 open NightstreamFPrime.Circuit
@@ -83,10 +71,7 @@ theorem outputRunningValue_eq_of_serialized
     unfold RunningTransition.outputWords
     rw [List.length_ofFn]
   · intro index _leftBound rightBound
-    unfold StateDecoder.slice
-    rw [List.getElem_ofFn]
-    change (RunningTransition.outputWords interface.running offset env).getD
-        (PiCCSInputs.priorRunningStart + index - PiCCSInputs.priorRunningStart) 0 = _
+    simp only [StateDecoder.slice, List.getElem_ofFn]
     rw [Nat.add_sub_cancel_left]
     exact List.getD_eq_getElem _ _ rightBound
 
@@ -260,7 +245,7 @@ theorem compactPiRlcInputs_eq_keyOutputs
           (nifsProofValue (AssemblerInputs.interface relation program) template
             (AssemblerInputs.piCcsOffset program)
             (AssemblerInputs.piDecOffset program) env)).coins.roundPoint := by
-    simpa [nifsProofValue] using! piCcsPhase.roundPoint
+    exact piCcsPhase.roundPoint
   have pointEq := (compactPoint_eq_roundTranscript program env).trans phasePoint
   change (fun source =>
       PiRLC.v1_2.InputBinding.evalInput relation

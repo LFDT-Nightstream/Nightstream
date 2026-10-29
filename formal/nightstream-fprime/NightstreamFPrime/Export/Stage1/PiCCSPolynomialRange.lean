@@ -1,7 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSFirstRound
 
-/-! Numeric ranges of existing fixed-width polynomial objects. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange

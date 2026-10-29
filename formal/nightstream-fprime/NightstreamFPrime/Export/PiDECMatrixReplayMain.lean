@@ -12,13 +12,6 @@ import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 import NightstreamFPrime.Export.Codec
 
-/-!
-Execute a contiguous selected matrix-row range from the independent
-Lean parent. The accepted C execution supplies the point. Every child, matrix
-port and Phi81 output coefficient is computed; native outputs are not inputs.
-This is a staged matrix replay result, not a complete matrix-family result.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiDECMatrixReplay

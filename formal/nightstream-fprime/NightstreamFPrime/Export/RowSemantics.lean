@@ -3,13 +3,6 @@ import NightstreamFPrime.Layout.R1CS
 import NightstreamFPrime.Circuit.StraightLine
 import NightstreamFPrime.Layout.R1CS.ColumnMap
 
-/-!
-Owns the Lean semantics of the compact circuit-package row program. Template
-rows instantiate to ordinary `Layout.R1CS.Row` values. Hash-chain substitution
-uses only package fields. Rust may execute this program, but it does not define
-its meaning.
--/
-
 namespace NightstreamFPrime.Export.Package
 
 open NightstreamFPrime.Layout.R1CS (mapCombinationColumns mapRowColumns mapCombinationColumns_zero mapCombinationColumns_const mapCombinationColumns_one mapCombinationColumns_ofVar mapCombinationColumns_add mapCombinationColumns_scale)

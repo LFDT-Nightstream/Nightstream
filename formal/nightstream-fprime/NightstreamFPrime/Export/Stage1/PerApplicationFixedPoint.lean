@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.DirectApplicationPrefixPlan
 
-/-!
-Owns the finite recursive relation construction for one Lean-authored
-application.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
 open NightstreamFPrime.Layout

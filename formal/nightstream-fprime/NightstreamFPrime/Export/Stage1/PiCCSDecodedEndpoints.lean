@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSDecodedTranscript
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptEndpointPlan
 
-/-!
-Owns the connection from the existing endpoint pin rows to the four PiCCS
-transcript states in the arbitrary decoded environment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSDecodedEndpoints
 
 open NightstreamFPrime.Circuit
@@ -103,8 +98,8 @@ private theorem decoded_output
     simp only [PiCCSOrdinaryDirectPlan.sourceMap,
       PiCCSOrdinaryDirectPlan.classifyTarget, column, inverse,
       output_classify_none, PiCCSOrdinaryDirectPlan.endpointForm,
-      dif_pos inside, sourceForm,
-      dif_pos (show outputFamily.val = 3 from rfl)]
+      dite_eq_left inside, sourceForm,
+      dite_eq_left (show outputFamily.val = 3 from rfl)]
     exact congrArg _ sameIndex
   change SourceCompiler.sourceEnv
       (fun c => ((PiCCSOrdinaryDirectPlan.sourceMap geometry).form c).eval
@@ -126,7 +121,7 @@ theorem sourceForm_eval
       (.proofLogical (proofLogicalIndex family output lane))
     rw [PiCCSOrdinaryDirectPlan.Location.sourceColumn,
       proofLogicalIndex_source] at mapped
-    simpa only [PiCCSTranscriptEndpointPlan.sourceForm, dif_neg output,
+    simpa only [PiCCSTranscriptEndpointPlan.sourceForm, dite_eq_right output,
       Spartan.pullback] using mapped.symm
 
 theorem rowsZero_implies_endpointStates
@@ -145,7 +140,7 @@ theorem rowsZero_implies_endpointStates
   funext lane
   have rowZero := (PiCCSTranscriptEndpointPlan.rowsZero_iff poseidon ordinary
     assignment).mp rows (row family lane)
-  rw [bindingForm, descriptor_row, SparseForm.add_eval,
+  rw [bindingForm, descriptor_row (lane := lane), SparseForm.add_eval,
     SparseForm.scale_eval] at rowZero
   have formsEq : (directForm poseidon family lane).eval assignment =
       (PiCCSTranscriptEndpointPlan.sourceForm ordinary family lane).eval assignment := by

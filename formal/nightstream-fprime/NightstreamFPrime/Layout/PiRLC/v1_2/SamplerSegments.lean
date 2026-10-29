@@ -1,9 +1,6 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.Sampler
 import NightstreamFPrime.Layout.R1CS.Segments
 
-/-! Structural projection of the four opaque scalar children. The checked
-range owns all 144 lowering columns; the other three children add none. -/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.Sampler
 
 open NightstreamFPrime.Circuit NightstreamFPrime.Layout

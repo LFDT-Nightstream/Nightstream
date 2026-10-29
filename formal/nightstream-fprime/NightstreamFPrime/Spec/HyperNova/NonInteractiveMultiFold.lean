@@ -1,19 +1,9 @@
-/-!
-Paper-owned non-interactive multi-fold verifier interface.
-
-Source: HyperNova Section 3, Definitions 7 and 9, and Section 6.2,
-Definition 12.
-
-Owns: the single-message deterministic verifier surface `NIFS.V`, its exact
-acceptance equation, and soundness/completeness with respect to an independently
-stated public transition relation.
--/
+/-! HyperNova Section 3, Definitions 7 and 9; Section 6.2, Definition 12. -/
 
 namespace NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold
 
 universe uKey uRunning uFresh uProof
 
-/-- HyperNova's non-interactive verifier.  `Proof` is the sole prover message. -/
 structure Verifier
     (Key : Type uKey)
     (Running : Type uRunning)

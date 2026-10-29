@@ -33,8 +33,6 @@ import NightstreamFPrime.Layout.R1CS.Segments
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 import NightstreamFPrime.Spec.Phi81StrongSet
 
-/-! Axiom audits for the compact PiRLC Stage 1 export bridge. -/
-
 #audit_axioms NightstreamFPrime.Export.Stage1.ActualPiDECMessages.proof_commitment_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.ActualPiDECMessages.proof_evalK_eq
 #audit_axioms NightstreamFPrime.Export.Stage1.ActualPiDECMessages.proof_evalA_eq

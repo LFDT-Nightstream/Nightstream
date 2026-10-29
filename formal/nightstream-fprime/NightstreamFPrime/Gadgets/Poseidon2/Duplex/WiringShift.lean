@@ -1,9 +1,5 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringSupport
 
-/-!
-Proves uniform column relocation for the recipe-free Poseidon2 Duplex wiring.
--/
-
 namespace NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal.WiringShift
 
 open NightstreamFPrime.Circuit

@@ -7,17 +7,19 @@ use crate::folding::{
     transcript::{Poseidon2TranscriptSnapshot, Transcript},
     CcsInstance, FoldContext, NifsProof, RunningInstance,
 };
+use crate::lifecycle::ProveError;
 use neo_math::F;
 use neo_reductions::paper_exact_engine::PaperMatrixRows;
 
-/// `context` serves the Optimized prover; PaperExact reads `rows`.
+/// `context` serves the Optimized prover; PaperExact reads `rows`. When both
+/// reject at the same transcript, the result is the Optimized rejection.
 pub(crate) fn prove(
     transcript: &mut Transcript,
     context: FoldContext<'_>,
     rows: &dyn PaperMatrixRows<F>,
     fresh: CcsInstance,
     running: RunningInstance,
-) -> Result<(RunningInstance, NifsProof), EngineError> {
+) -> Result<(RunningInstance, NifsProof), ProveError> {
     let mut optimized_transcript = transcript.clone();
     let mut reference_transcript = transcript.clone();
     let reference_fresh = fresh.clone();
@@ -34,11 +36,11 @@ pub(crate) fn prove(
             )
         });
         let optimized = folding::prove_owned_with_rows(&mut optimized_transcript, context, fresh, running);
-        let reference = reference.join().map_err(|_| EngineError::Failure {
-            engine: Engine::PaperExact,
-            reason: "cross-check worker panicked".into(),
-        })?;
-        Ok((optimized, reference))
+        (optimized, reference.join())
+    });
+    let reference = reference.map_err(|_| EngineError::Failure {
+        engine: Engine::PaperExact,
+        reason: "cross-check worker panicked".into(),
     })?;
 
     let (optimized, reference) = match (optimized, reference) {
@@ -47,15 +49,13 @@ pub(crate) fn prove(
             if optimized_transcript.snapshot() != reference_transcript.snapshot() {
                 return Err(EngineError::CrosscheckMismatch {
                     boundary: "rejected transcript",
-                });
+                }
+                .into());
             }
-            return Err(EngineError::Failure {
-                engine: Engine::Optimized,
-                reason: error.to_string(),
-            });
+            return Err(error.into());
         }
         (Ok(_), Err(_)) | (Err(_), Ok(_)) => {
-            return Err(EngineError::CrosscheckMismatch { boundary: "acceptance" });
+            return Err(EngineError::CrosscheckMismatch { boundary: "acceptance" }.into());
         }
     };
     require_match(

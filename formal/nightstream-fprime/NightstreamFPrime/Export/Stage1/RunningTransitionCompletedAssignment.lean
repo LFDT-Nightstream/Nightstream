@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSCompletedReadout
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceAssignment
 import NightstreamFPrime.Layout.Stage1.SpartanRows
 
-/-!
-Owns the running-transition plan on the completed canonical assignment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionCompletedAssignment
 
 open NightstreamFPrime.Circuit

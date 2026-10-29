@@ -1,16 +1,6 @@
 import CompressionLean.Layer1.Weights
 import Mathlib.Tactic.LinearCombination
 
-/-!
-Owns the linear stage of the layer-1 verifier (`verifier.rs`, from `λ` to
-the linear claim): `λ`, the quotient `Q`, `ζ`, the linear sum-check (block
-bits, then lane bits) on `Σ_b Ω_b·Σ_l Λ(l)·z(b, l)`, the finals and the check
-`last = Ω~(s_b)·Λ~(s_l)·z~(s)` (`linear_world`).
-
-The sum-check is replayed as one: the block rounds and the lane rounds are
-two product sum-checks whose claims chain (`prove_linear` runs them so).
--/
-
 namespace CompressionLean.Layer1
 
 open Polynomial
@@ -19,7 +9,6 @@ variable {F K : Type} [Field F] [Field K] [Algebra F K]
 
 local notation "ι" => algebraMap F K
 
-/-- The linear stage's transcript. -/
 structure LinearOut (K : Type) where
   lam : K
   quotient : ℕ → K
@@ -32,17 +21,14 @@ structure LinearOut (K : Type) where
   omegaValue : K
   zValue : K
 
-/-- The prover's quotient from its `D - 1` coefficients. -/
 noncomputable def quotientPoly (s : Shape) (q : ℕ → K) : K[X] :=
   ∑ i ∈ Finset.range (s.D - 1), C (q i) * X ^ i
 
-/-- `Ȳ(ζ) + Q(ζ)·Φ(ζ)` (`ring::lifted_target`). -/
 noncomputable def liftedTarget (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
     (lam zeta : K) (Q : K[X]) : K :=
   ∑ ρ ∈ Finset.range s.rows, lam ^ ρ * (((relationRows s bar S st).target ρ).map (algebraMap F K)).eval zeta +
     Q.eval zeta * (Φ.map (algebraMap F K)).eval zeta
 
-/-- The verifier's `Ω~(s_b)`: scaled key value, Eval_K, the opened `Ω^A~`, public. -/
 noncomputable def omegaComputed (s : Shape) (bar : ℕ → ℕ → F) (st : Statement F) (lam zeta : K)
     (blockPoint : List K) (keyValue omegaValue : K) : K :=
   laneScale zeta s.laneVars * keyValue +
@@ -50,22 +36,18 @@ noncomputable def omegaComputed (s : Shape) (bar : ℕ → ℕ → F) (st : Stat
     lam ^ s.evalKRow 1 * mle blockPoint (evalKTable s bar st zeta 1) +
     omegaValue + mle blockPoint (publicPart s lam)
 
-/-- The linear check (and no pole of the lane weights). -/
 def LinearCheck (s : Shape) (bar : ℕ → ℕ → F) (st : Statement F) (o : LinearOut K) : Prop :=
   NoLanePole o.zeta s.laneVars ∧
     o.last = omegaComputed s bar st o.lam o.zeta o.blockPoint o.keyValue o.omegaValue *
       mle o.lanePart (laneTable s o.zeta) * o.zValue
 
-/-- `X₀·X₁`. -/
 noncomputable def productComb : MvPolynomial (Fin 2) K := MvPolynomial.X 0 * MvPolynomial.X 1
 
-/-- Block rounds: `Ω` and `u(b) = Σ_l Λ(l)·z(2^laneVars·b + l)`. -/
 noncomputable def blockTables (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
     (lam zeta : K) (z : ℕ → F) : Fin 2 → ℕ → K := fun i =>
   if i = 0 then omegaTrue s bar S st lam zeta
   else fun b => ∑ l ∈ Finset.range (2 ^ s.laneVars), laneTable s zeta l * ι (z (2 ^ s.laneVars * b + l))
 
-/-- Lane rounds: `Ω~(s_b)·Λ(l)` and `z(l, s_b)`. -/
 noncomputable def laneTables (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
     (lam zeta : K) (z : ℕ → F) (blockPoint : List K) : Fin 2 → ℕ → K := fun i =>
   if i = 0 then fun l => mle blockPoint (omegaTrue s bar S st lam zeta) * laneTable s zeta l
@@ -86,7 +68,6 @@ theorem productComb_degree : (productComb : MvPolynomial (Fin 2) K).totalDegree 
   refine (MvPolynomial.totalDegree_mul _ _).trans ?_
   rw [MvPolynomial.totalDegree_X, MvPolynomial.totalDegree_X]
 
-/-- The verifier's `Ω~(s_b)` is the true one when its key and `Ω^A` values are. -/
 theorem omegaComputed_true (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
     (fits : S.Fits s) (public_le : s.publicBlocks ≤ s.blocks) (D_le : s.D ≤ 2 ^ s.laneVars)
     (lam zeta : K) (blockPoint : List K) (keyValue omegaValue : K) (poles : NoLanePole zeta s.laneVars)
@@ -118,7 +99,6 @@ theorem omegaComputed_true (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (
   rw [keyTrue, omega, mle_add, mle_mul_left, mle_mul_left]
   ring
 
-/-- The block rounds' total is the batched row plus the target at `ζ`. -/
 theorem blockTables_total (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
     (blocks_le : s.blocks ≤ 2 ^ s.blockVars) (D_le : s.D ≤ 2 ^ s.laneVars) (lam zeta : K) (z : ℕ → F) :
     cubeSum s.blockVars (fun b => blockTables s bar S st lam zeta z 0 b * blockTables s bar S st lam zeta z 1 b) =
@@ -127,11 +107,11 @@ theorem blockTables_total (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (s
   have rows_eq : (relationRows s bar S st).rows = s.rows := rfl
   have blocks_eq : (relationRows s bar S st).blocks = s.blocks := rfl
   rw [RingRows.batched_eval, rows_eq, blocks_eq, sub_add_cancel, cubeSum_eq_sum_range]
-  simp only [blockTables, if_true, show (1 : Fin 2) ≠ 0 by decide, if_false]
+  simp only [blockTables, ite_true, show (1 : Fin 2) ≠ 0 by decide, ite_false]
   rw [← Finset.sum_subset (Finset.range_mono blocks_le)]
   · apply Finset.sum_congr rfl
     intro b inside
-    rw [omegaTrue, if_pos (Finset.mem_range.mp inside)]
+    rw [omegaTrue, ite_eq_left (Finset.mem_range.mp inside)]
     congr 1
     rw [witnessBlock, eval_coeffPoly, ← Finset.sum_subset (Finset.range_mono D_le)]
     · apply Finset.sum_congr rfl
@@ -140,15 +120,14 @@ theorem blockTables_total (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (s
     · intro l inside' outside
       simp [laneTable, show ¬ l < s.D by simpa using outside]
   · intro b _ outside
-    rw [omegaTrue, if_neg (by simpa using outside), zero_mul]
+    rw [omegaTrue, ite_eq_right (by simpa using outside), zero_mul]
 
-/-- The lane rounds start where the block rounds end. -/
 theorem laneTables_nil (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F) (lam zeta : K)
     (z : ℕ → F) (blockPoint : List K) :
     cubeSum s.laneVars (fun l => laneTables s bar S st lam zeta z blockPoint 0 l *
         laneTables s bar S st lam zeta z blockPoint 1 l) =
       mle blockPoint (blockTables s bar S st lam zeta z 0) * mle blockPoint (blockTables s bar S st lam zeta z 1) := by
-  simp only [laneTables, blockTables, if_true, show (1 : Fin 2) ≠ 0 by decide, if_false]
+  simp only [laneTables, blockTables, ite_true, show (1 : Fin 2) ≠ 0 by decide, ite_false]
   rw [cubeSum_eq_sum_range, mle_finset_sum, Finset.mul_sum]
   apply Finset.sum_congr rfl
   intro l _
@@ -158,18 +137,16 @@ theorem laneTables_nil (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st :
   rw [this]
   ring
 
-/-- The lane rounds end at `Ω~(s_b)·Λ~(s_l)·z~(s_l, s_b)`. -/
 theorem laneTables_final (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F) (lam zeta : K)
     (z : ℕ → F) (blockPoint lanePart : List K) (length : lanePart.length = s.laneVars) :
     combTruth lanePart.length (laneTables s bar S st lam zeta z blockPoint) productComb lanePart =
       mle blockPoint (omegaTrue s bar S st lam zeta) * mle lanePart (laneTable s zeta) *
         mle (lanePart ++ blockPoint) (fun x => ι (z x)) := by
   rw [product_truth_final]
-  simp only [laneTables, if_true, show (1 : Fin 2) ≠ 0 by decide, if_false]
+  simp only [laneTables, ite_true, show (1 : Fin 2) ≠ 0 by decide, ite_false]
   rw [mle_mul_left, mle_swap, mle_append_split, length]
 
 open Classical in
-/-- The linear stage: `λ`, `Q`, `ζ`, the block and lane rounds, the finals and the check. -/
 noncomputable def linearGame [Fintype K] [DecidableEq K] (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F)
     (S : Setup F) (st : Statement F) (cands : List (P0Tables F)) : Game (Option (LinearOut K)) :=
   .draw K (Finset.univ.biUnion fun w : Fin cands.length =>
@@ -191,8 +168,6 @@ noncomputable def linearGame [Fintype K] [DecidableEq K] (s : Shape) (Φ : F[X])
       .pure (some ⟨lam, quotient, zeta, first.1, first.2, second.1, second.2, finals.1, finals.2.1, finals.2.2⟩)
     else .pure none
 
-/-- The linear stage forces every ring row of a candidate whose openings
-agree, when the key and `Ω^A` values are true, off the bad sets. -/
 theorem linear_world [Fintype K] [DecidableEq K] (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F)
     (S : Setup F) (st : Statement F) (fits : S.Fits s) (public_le : s.publicBlocks ≤ s.blocks)
     (D_le : s.D ≤ 2 ^ s.laneVars) (blocks_le : s.blocks ≤ 2 ^ s.blockVars)
@@ -213,7 +188,6 @@ theorem linear_world [Fintype K] [DecidableEq K] (s : Shape) (Φ : F[X]) (bar : 
   obtain ⟨poles, last⟩ := check
   have omegaTrue_eq := omegaComputed_true s bar S st fits public_le D_le o.lam o.zeta o.blockPoint
     o.keyValue o.omegaValue poles key omega
-  -- The lane rounds' end is true, so their start is.
   have laneEnd : o.last =
       combTruth s.laneVars (laneTables s bar S st o.lam o.zeta w.z o.blockPoint) productComb o.lanePart := by
     rw [← laneLength, laneTables_final _ _ _ _ _ _ _ _ _ laneLength, last, omegaTrue_eq, zTrue]
@@ -221,7 +195,6 @@ theorem linear_world [Fintype K] [DecidableEq K] (s : Shape) (Φ : F[X]) (bar : 
       combTruth s.laneVars (laneTables s bar S st o.lam o.zeta w.z o.blockPoint) productComb [] := by
     by_contra wrong
     exact second wrong laneEnd
-  -- The block rounds' end is the lane rounds' start, so their start is true.
   have blockEnd : o.middle =
       combTruth s.blockVars (blockTables s bar S st o.lam o.zeta w.z) productComb o.blockPoint := by
     rw [middle, product_truth_nil, laneTables_nil, ← blockLength, product_truth_final]

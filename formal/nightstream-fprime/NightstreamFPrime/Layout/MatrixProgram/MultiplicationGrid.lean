@@ -2,12 +2,6 @@ import Batteries.Data.Fin.Coding
 import NightstreamFPrime.Layout.MatrixProgram.AffineGrid
 import NightstreamFPrime.Layout.ProductionRelation.MultiplicationFamilyPlan
 
-/-!
-Owns a generic executable multiplication family over a three-axis grid.
-The package supplies the grid shape and affine operand programs. The
-interpreter does not select phase dimensions, retained blocks, or formulas.
--/
-
 namespace NightstreamFPrime.Layout.MatrixProgram.MultiplicationGrid
 
 open NightstreamFPrime.Layout
@@ -52,7 +46,7 @@ theorem Shape.coordinate?_of_coordinates (shape : Shape)
       let inner := Fin.decodeProd decoded.2
       some (AffineGrid.Coordinate.mk decoded.1.val inner.1.val inner.2.val)
     else none) = _
-  rw [dif_pos (Fin.encodeProd (major,
+  rw [dite_eq_left (Fin.encodeProd (major,
     Fin.encodeProd (middle, minor))).isLt]
   simp only
   rw [Fin.decodeProd_encodeProd, Fin.decodeProd_encodeProd]
@@ -114,7 +108,7 @@ theorem Block.row?_of_results (block : Block) {logicalWidth : Nat}
         some output := by
     simpa [oneEqual] using outputLoaded
   unfold Block.row?
-  rw [oneEqual, if_pos oneColumn.isLt]
+  rw [oneEqual, ite_eq_left oneColumn.isLt]
   rw [Shape.coordinate?_of_coordinates]
   change (do
     let loadedLeft ← block.left.form? logicalWidth oneColumn.val

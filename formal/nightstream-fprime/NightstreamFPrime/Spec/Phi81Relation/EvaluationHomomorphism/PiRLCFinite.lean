@@ -2,22 +2,7 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLC
 import NightstreamFPrime.Spec.Phi81Relation.Semantics
 import NightstreamFPrime.Spec.Folding.PiRLC
 
-/-!
-Finite-batch evaluation homomorphism for the typed Phi81 `Pi_RLC` action.
-
-Protocol: SuperNeo v1.2 Theorem 11, evaluation-homomorphism branch of `Pi_RLC`.
-
-Owns: raw width-only and typed head-first finite `RingF` combinations of
-complete assignments; their exact equality; the matching head-first finite
-combination of one `RingK` evaluation; the verifier-owned fixed-matrix array
-operation; and the theorem with exactly the same system/point/challenge shape as
-`Folding.PiRLC.Algebra.evaluations_hom`.
-
-Does not own: the quotient-ring proof behind the per-challenge product-order
-law, commitments, public-input projection, norm preservation, a complete
-`PiRLC.Algebra`, transcript derivation, Rust/R1CS refinement, row removal, or
-counts.
--/
+/-! SuperNeo v1.2 Theorem 11. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLCFinite
 

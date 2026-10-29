@@ -1,12 +1,6 @@
 import NightstreamFPrime.Layout.Multilinear.PointEquality
 import NightstreamFPrime.Gadgets.Multilinear.PointWeightedHorner
 
-/-!
-Owns physical R1CS composition for the reusable owned point-weighted Horner
-gadget. The two child row lists are concatenated without a boundary copy row.
-This module does not own a protocol coefficient family or point dimension.
--/
-
 namespace NightstreamFPrime.Layout.Multilinear.PointWeightedHorner
 
 open NightstreamFPrime.Circuit

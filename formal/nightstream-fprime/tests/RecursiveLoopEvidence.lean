@@ -1,10 +1,6 @@
 import tests.CheckedReplayEvidence
 import tests.EvidenceMetadata
 
-/-! Exact accepted-successor and next-prior target for the fresh recursive
-replay. Source, evaluation, returned-block, carrier, input and context custody
-remain explicit. Full execution and byte comparisons are separate evidence. -/
-
 set_option autoImplicit false
 
 namespace LeanGraph.Targets

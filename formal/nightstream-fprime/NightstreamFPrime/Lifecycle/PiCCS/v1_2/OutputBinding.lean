@@ -27,9 +27,6 @@ Parent coverage:
 - `v1_2.Coverage.output_eval_K`;
 - `v1_2.Coverage.output_eval_A`;
 - `Key.piCcsExecution.outgoingState`.
-
-The generic Duplex child owns Poseidon2 operations. This leaf owns only the
-exact v1.2 output order and the zero-copy protocol handoff.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding

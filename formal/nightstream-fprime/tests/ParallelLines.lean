@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.ParallelLines
 import NightstreamFPrime.Export.SignedUnitSourceInput
 
-/-! Regression checks for parallel line decoding: every part size gives the lines
-and offsets of a sequential split, invalid UTF-8 is rejected, and the source
-loader keeps its header, order, terminator and end-of-file checks. -/
-
 namespace NightstreamFPrime.Tests.ParallelLines
 
 open NightstreamFPrime.Export

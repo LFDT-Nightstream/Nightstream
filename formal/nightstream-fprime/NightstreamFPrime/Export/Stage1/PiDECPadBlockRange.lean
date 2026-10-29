@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECPadWeightedProduct
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationFromBlocks
 
-/-!
-The weighted Pad product equals the existing complete-block row range.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECPadBlockRange
@@ -89,7 +85,7 @@ theorem padRow_basis
   have within : block.val * ringDegree + basis.val < selectedShape.carrierWidth :=
     Phi81CarrierLayout.flatIndex_lt_carrierWidth
       (logicalWidth := selectedShape.logicalWidth) block basis
-  rw [PiDECEvaluationFromBlocks.padRow, dif_pos within, singleton_kernel]
+  rw [PiDECEvaluationFromBlocks.padRow, dite_eq_left within, singleton_kernel]
   change CarrierAction.kernelImage
       (Phi81ColumnLayout.decode
         (Phi81CarrierLayout.carrierColumn (logicalWidth := selectedShape.logicalWidth)
@@ -99,7 +95,7 @@ theorem padRow_basis
           (Phi81CarrierLayout.carrierColumn (logicalWidth := selectedShape.logicalWidth)
             block basis)).1.val).get child).get output = _
   rw [Phi81CarrierLayout.decode_carrierColumn,
-    PiDECEvaluationFromBlocks.blockAt, dif_pos block.isLt]
+    PiDECEvaluationFromBlocks.blockAt, dite_eq_left block.isLt]
 
 def weights (point : PaperAlgebra.Point) (block : Fin blockCount) : Vector K ringDegree :=
   Vector.ofFn fun basis =>
@@ -142,7 +138,7 @@ theorem products_eq_range
   rw [products, PiDECPadWeightedProduct.products_value, PiDECEvaluationBatch.range_value]
   apply numericSum_congr ringDegree
   intro index live
-  rw [dif_pos live, weights_get, padRow_basis blocks block ⟨index, live⟩ child]
+  rw [dite_eq_left live, weights_get, padRow_basis blocks block ⟨index, live⟩ child]
   rfl
 
 def sumPrefix (blocks : Fin blockCount → Vector StoredRing productionGlobalParams.k)
@@ -184,7 +180,7 @@ theorem prefix_eq_range
       calc
         _ = ringKAdd ((sumPrefix blocks point count).get child).toRing
             ((products blocks point ⟨count, live⟩).get child).toRing := by
-          rw [prefix_succ, dif_pos live, PiDECEvaluationBatch.add_value]
+          rw [prefix_succ, dite_eq_left live, PiDECEvaluationBatch.add_value]
         _ = ringKAdd
             ((PiDECEvaluationBatch.range 0 (count * ringDegree) point
               (PiDECEvaluationFromBlocks.padRow blocks)).get child).toRing

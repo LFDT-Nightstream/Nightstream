@@ -6,4 +6,4 @@ import NightstreamFPrime.Spec.Folding.PiCCS.EvalA
 import NightstreamFPrime.Spec.Folding.PiCCS.FinalIdentity
 import NightstreamFPrime.Spec.Folding.PiCCS.Accepted
 
-/-! Canonical SuperNeo v1.2 `Pi_CCS` verifier semantics (paper Section 7.3). -/
+/-! SuperNeo v1.2 Section 7.3. -/

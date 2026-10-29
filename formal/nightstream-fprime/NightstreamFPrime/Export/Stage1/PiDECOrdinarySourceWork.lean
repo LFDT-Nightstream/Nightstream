@@ -3,12 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 import NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
-/-!
-Counted indexed generation of the selected PiDEC commitment packet.
-One coordinate builds sixteen child terms in A, constant one in B, and its
-parent in C.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECOrdinarySourceWork
@@ -139,6 +133,7 @@ private theorem child_expr {logicalWidth : Nat}
   have flattened := coordinate_flat coordinate
   omega
 
+set_option backward.isDefEq.respectTransparency false in
 private theorem constraints_eq {logicalWidth : Nat}
     {publicFits : ringDegree * PaperAlgebra.publicRingColumns ≤
       Phi81CarrierLayout.carrierWidth logicalWidth} :
@@ -188,7 +183,7 @@ private theorem late_column (start index : Nat) (late : Spartan.piCcsPhaseOffset
     change ¬ start + index < 5141764
     omega
   have third : ¬ start + index < Spartan.piCcsPhaseOffset := by omega
-  simp only [Spartan.sourceToSpartan, if_neg first, if_neg second, if_neg third]
+  simp only [Spartan.sourceToSpartan, ite_eq_right first, ite_eq_right second, ite_eq_right third]
 
 private def parentColumn (coordinate : Fin 1188) : Result Nat :=
   ⟨6320050 + coordinate.val, 4⟩

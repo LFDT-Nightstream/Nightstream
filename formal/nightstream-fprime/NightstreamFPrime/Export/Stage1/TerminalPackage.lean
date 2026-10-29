@@ -1,14 +1,6 @@
 import NightstreamFPrime.Export.Package
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 
-/-!
-Owns canonical package metadata for the outer Stage 1 terminal verifier.
-
-The terminal verifier reuses the complete F′ relation. It checks 16 running
-CE claims and one fresh CCS claim against the same 4 matrices, so this edge
-adds no circuit row or column.
--/
-
 namespace NightstreamFPrime.Export.Stage1.TerminalPackage
 
 open NightstreamFPrime.Export.Package

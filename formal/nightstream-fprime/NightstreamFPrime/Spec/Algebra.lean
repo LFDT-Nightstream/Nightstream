@@ -1,10 +1,3 @@
-/-!
-Owns the concrete Goldilocks algebra of the production profile: the field
-`F`, its quadratic extension `K = F[X]/(X² − 7)`, the cyclotomic rings
-`F[X]/Φ₈₁` and `K[X]/Φ₈₁` with `Φ₈₁ = X⁵⁴ + X²⁷ + 1`, the centered ∞-norm,
-column-major packing, and the Ajtai matrix action. Executable semantics only.
--/
-
 namespace NightstreamFPrime.Spec
 
 def goldilocksModulus : Nat := 18446744069414584321

@@ -1,9 +1,5 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverse
 
-/-! Execute the stored extended-GCD candidate and check its result with the
-protocol RingF multiplication. Cases cover field normalization, reduction
-across the Phi81 boundary, and a dense Bezout cofactor. -/
-
 namespace NightstreamFPrime.Tests.StoredRingInverse
 
 open NightstreamFPrime.Spec

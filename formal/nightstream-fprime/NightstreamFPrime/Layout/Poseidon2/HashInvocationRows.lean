@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.Poseidon2
 
-/-!
-Owns the per-invocation recipe-row projection of the existing Poseidon2 hash
-compiler. Absorption and final padding retain their source compiler inputs,
-outputs, and witness starts. No invocation list or alternate trace is created.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Layout.Poseidon2.HashInvocationRows
@@ -73,10 +67,10 @@ theorem absorption_rows (env : Env) (start : Nat)
                 start + (index + 1) * 1096 := by omega
             have previousStart : start + 1096 + (index - 1) * 1096 + 1080 =
                 start + index * 1096 + 1080 := by omega
-            simp only [if_neg first] at tail
+            simp only [ite_eq_right first] at tail
             rw [nextStart, previousStart] at tail
             simpa only [Nat.succ_eq_add_one, Nat.add_sub_cancel,
-              Nat.succ_ne_zero, if_false, List.getD_cons_succ] using tail
+              Nat.succ_ne_zero, ite_false, List.getD_cons_succ] using tail
 
 theorem hash_rows (env : Env) (start : Nat) (input : List Expr)
     (rows : ConstraintsHold env
@@ -104,12 +98,12 @@ theorem hash_rows (env : Env) (start : Nat) (input : List Expr)
     exact (constraintsHold_append env _ _).mp rows
   dsimp only
   by_cases absorbing : invocation < blocks.length
-  · rw [if_pos absorbing]
+  · rw [ite_eq_left absorbing]
     exact absorption_rows env start Hash.zeroE blocks separated.1 invocation absorbing
   · have final : invocation = blocks.length :=
       Nat.le_antisymm bound (Nat.le_of_not_gt absorbing)
     subst invocation
-    rw [if_neg (Nat.lt_irrefl _)]
+    rw [ite_eq_right (Nat.lt_irrefl _)]
     have previous : (Hash.compileAbsorptions start Hash.zeroE blocks).output =
         if blocks.length = 0 then Hash.zeroE else
           Permutation.freshState (start + (blocks.length - 1) * 1096 + 1080) := by

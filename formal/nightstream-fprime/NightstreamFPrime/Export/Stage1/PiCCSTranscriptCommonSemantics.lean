@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSCommonEnvironmentCustody
 
-/-!
-Owns transport of the four PiCCS transcript specifications into the complete
-PiRLC sampler environment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSTranscriptCommonSemantics
 
 open NightstreamFPrime.Circuit

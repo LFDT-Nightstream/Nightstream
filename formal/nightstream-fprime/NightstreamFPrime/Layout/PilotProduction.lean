@@ -3,13 +3,6 @@ import NightstreamFPrime.Layout.PilotValues
 import NightstreamFPrime.Layout.Poseidon2
 import NightstreamFPrime.Layout.Range.CanonicalPublicU64
 
-/-!
-Owns the fixed Stage 1 pilot ABI. The production lifecycle carries the
-verifier-key digest and both application-state boundaries as four Goldilocks
-words. Prior-state columns come first, then its 270-cell encoded public input,
-the output-state preimage, and the four-word output digest.
--/
-
 namespace NightstreamFPrime.Layout.PilotProduction
 
 open NightstreamFPrime.Spec
@@ -771,6 +764,7 @@ theorem eval_outputDigest (values : ExternalValues) :
     unfold externalColumnCount digestWords
     norm_num [PilotValues.digestWords]
   simp [loadExternal, afterPrior, afterPriorPublic, afterOutput, inDigest]
+  rfl
 
 def fixedList {count : Nat} (values : List F)
     (lengthEquals : values.length = count) : Fin count → F :=

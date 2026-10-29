@@ -2,16 +2,6 @@ import NightstreamFPrime.Layout.PiCCS.v1_2.Leaves.OutputBinding
 import NightstreamFPrime.Layout.PiRLC.v1_2.Composition
 import NightstreamFPrime.Layout.Stage1.PiCCSStarts
 
-/-!
-Owns the zero-copy PiCCS-to-PiRLC interface in the cumulative Stage 1 source
-layout.
-
-The bridge reuses the exact PiCCS `K + k` commitments and public inputs. It
-uses the PiCCS-derived round point, separate output `Eval_K` and `Eval_A`
-families, and post-output transcript state. It allocates no boundary column or
-row. The later Spartan layout owns the one final column permutation.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiRLCInputs
 
 open NightstreamFPrime.Spec
@@ -171,7 +161,6 @@ theorem sourceInput_eq_canonical
       omega
     simp [sourceInput, freshPositive, freshEq,
       UnifiedSources.freshSourceIndex]
-    constructor <;> congr 1
   · have sourceEq : UnifiedSources.runningSourceIndex running =
         Fin.natAdd productionShape.freshCount running := by
       apply Fin.ext

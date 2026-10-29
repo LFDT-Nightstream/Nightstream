@@ -1,13 +1,6 @@
 import Mathlib.Analysis.SpecificLimits.Basic
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 
-/-!
-Connects the response-trace probability law to the actual typed PiRLC search.
-The challenge carrier contains only verifier-valid scalars. Oracle failures
-remain in the probability trace and are omitted only when passing candidate
-assignments to the existing first-response selector.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw

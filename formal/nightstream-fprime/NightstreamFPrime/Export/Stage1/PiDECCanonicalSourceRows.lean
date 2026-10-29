@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiDECSourceIndex
 import NightstreamFPrime.Export.Stage1.PiDECPiCCSPacketSource
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 
-/-!
-Read canonical PiCCS source rows through their existing packet schedule.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceRows
@@ -49,7 +45,7 @@ theorem sourceRow_value (program : Lifecycle.Stage1.Application.Program)
   | some ordinal =>
       dsimp only
       by_cases bounded : ordinal < PiCCSOrdinaryMatrixProgram.rowSchedule.count
-      · rw [if_pos bounded]
+      · rw [ite_eq_left bounded]
         have bound : ordinal < 37317 := by
           simpa only [PiCCSOrdinaryMatrixProgram.rowSchedule_count] using bounded
         have selected := findOrdinal_value PiCCSOrdinaryMatrixProgram.rowSchedule
@@ -59,6 +55,6 @@ theorem sourceRow_value (program : Lifecycle.Stage1.Application.Program)
           Option.map_some, PerApplicationCanonicalPackage.sourceRow_eq_packageSource]
         exact (PerApplicationPackageSourceRows.piCcsPackageSourceRow?_eq_some
           program relation ⟨ordinal, bound⟩ source selected).symm
-      · rw [if_neg bounded]
+      · rw [ite_eq_right bounded]
 
 end NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceRows

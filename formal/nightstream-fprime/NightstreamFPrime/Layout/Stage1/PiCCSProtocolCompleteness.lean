@@ -4,13 +4,6 @@ import NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions
 import NightstreamFPrime.Layout.Stage1.PiCCSInputSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.PhaseTransport
 
-/-!
-Owns PiCCS witness construction from the existing typed protocol input.
-Canonical prior/output states and the verifier-owned context establish the
-state-binding checks. Actual PiCCS acceptance then constructs the local
-prefix and derives its output specification. No generated output is assumed.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Layout.Stage1.PiCCSProtocolCompleteness
@@ -70,7 +63,7 @@ private theorem pilot_prior_word (values : PilotProduction.ExternalValues)
     simpa only [PilotProduction.priorPublicInputStart, PilotProduction.priorPreimageStart,
       Nat.zero_add] using index.isLt
   simp only [PilotProduction.loadExternal, PilotProduction.priorPreimageStart,
-    Nat.zero_add, dif_pos inside]
+    Nat.zero_add, dite_eq_left inside]
 
 private theorem pilot_output_word (values : PilotProduction.ExternalValues)
     (index : Fin PilotProduction.stateHashWords) :
@@ -85,8 +78,8 @@ private theorem pilot_output_word (values : PilotProduction.ExternalValues)
   have inside : PilotProduction.outputPreimageStart + index.val < PilotProduction.outputDigestStart := by
     unfold PilotProduction.outputDigestStart
     omega
-  simp only [PilotProduction.loadExternal, dif_neg afterPrior, dif_neg afterPublic,
-    dif_pos inside, Nat.add_sub_cancel_left]
+  simp only [PilotProduction.loadExternal, dite_eq_right afterPrior, dite_eq_right afterPublic,
+    dite_eq_left inside, Nat.add_sub_cancel_left]
 
 theorem prior_word (index : Fin PilotProduction.stateHashWords) :
     (PiCCSInputs.priorStateWord index.val).eval

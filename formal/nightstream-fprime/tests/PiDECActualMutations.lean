@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.ParityEmitter
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 
-/-! Check supplied PiDEC mutations after one actual accepted C/R execution.
-The canonical decoder owns encoding failures; the paper verifier and exact
-output comparison own public failures. No synthetic parent is substituted. -/
-
 namespace NightstreamFPrime.Tests.PiDECActualMutations
 
 open NightstreamFPrime.Export.Stage1

@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPhysicalPackets
 import NightstreamFPrime.Export.Stage1.PiCCSCompleteness
 import NightstreamFPrime.Layout.R1CS.Segments
 
-/-!
-Owns the ordinary-row projection from the actual PiCCS physical lowering.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryPhysicalCompleteness

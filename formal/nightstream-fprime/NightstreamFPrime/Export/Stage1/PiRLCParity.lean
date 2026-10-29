@@ -3,12 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSParity
 import NightstreamFPrime.Export.Stage1.PiRLCNonzero
 import NightstreamFPrime.Export.Stage1.PiRLCPartialTrace
 
-/-!
-Paper authority: SuperNeo v1.2, Section 7.4, steps 1--3.
-Obligation: emit one complete nonzero PiRLC input and verifier-computed result
-for Lean--Rust conformance. The result ends at the paper PiRLC output. It does
-not include Rust's separate projection-proof transcript plumbing.
--/
+/-! SuperNeo v1.2, Section 7.4, steps 1--3. -/
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCParity
 
@@ -28,9 +23,7 @@ def challengesValue (challenges : Fin SourceCount → RingF) : Value :=
   .array ((List.finRange SourceCount).map fun source =>
     challengeValue (challenges source))
 
-/-- A successful typed sampler batch carries a theorem that every indexed
-challenge is in the production strong set. Rust checks each result again from
-the serialized coefficients. -/
+/-- Rust rechecks each membership from the serialized coefficients. -/
 def membershipValue : Value :=
   .array (List.replicate SourceCount (PiCCSParity.boolValue true))
 
@@ -288,8 +281,7 @@ def parityValueIO (context packageIdentity : VerifierContext.Digest4) : IO Value
   | none =>
       throw (IO.userError "incomplete PiRLC indexed partial grid")
 
-/-- Schema 3 carries the selected package identity. The consumer checks it
-and the supplied context against its separately loaded canonical binding. -/
+/-- The consumer checks the identity and context against its own canonical binding. -/
 def parityValue (context packageIdentity : VerifierContext.Digest4) : Value :=
   let computed := PiCCSNonzero.compute () context.toList
   .array [.atom paritySchema, inputValue computed packageIdentity, resultValue computed]

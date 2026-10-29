@@ -1,16 +1,6 @@
 import NightstreamFPrime.Layout.LowNormAssignment
 import NightstreamFPrime.Layout.ProductionRelation.RetainedSlot
 
-/-!
-Owns a compact homogeneous block of retained low-norm slots. A block stores
-only its kind, count, and source-index function. Its direct coordinate and
-sparse-form operations do not construct the expanded slot list.
-
-`expanded` is the proof-oriented reference view. The structural theorems
-connect the direct block geometry to that view without evaluating a
-production-sized block.
--/
-
 namespace NightstreamFPrime.Layout.LowNormBlock
 
 open NightstreamFPrime.Spec
@@ -99,6 +89,7 @@ def coordinateCount {sourceWidth : Nat} (block : Block sourceWidth) : Nat :=
     (block.slice offset count fits).coordinateCount = count * block.kind.width := by
   rfl
 
+@[implicit_reducible]
 def expanded {sourceWidth : Nat} (block : Block sourceWidth) :
     List (LowNormAssignment.Slot sourceWidth) :=
   List.ofFn fun slot =>
@@ -195,7 +186,7 @@ theorem encodesAt_slice
     unfold column coordinateOffset parentSlot
     simp only [slice_kind]
     ring
-  rw [columnEq, slice_source]
+  erw [columnEq, slice_source]
   exact encodes parentSlot coordinate
 
 theorem encodesAt_start_eq

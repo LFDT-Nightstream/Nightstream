@@ -3,19 +3,10 @@ import Mathlib.Tactic.NormNum.Prime
 import NightstreamFPrime.Spec.Algebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NormRange
 
-/-!
-Owns the kernel-checked Lucas certificate that the Goldilocks modulus is prime
-and the derived `EuclidPrime` / `BaseFieldNoZeroDivisors` facts the NIFS key
-consumes. The modular exponentiation is fuel-structural so the kernel reduces
-it; every residue is stated exactly so fuel exhaustion (poison `0`) fails.
--/
-
 namespace NightstreamFPrime.Spec.GoldilocksPrime
 
 open NightstreamFPrime.Spec
 
-/-- Modular exponentiation by repeated squaring, structural on `fuel` so the
-kernel can reduce it. Fuel exhaustion returns the poison value `0`. -/
 def powMod (modulus : Nat) : Nat → Nat → Nat → Nat
   | 0, _, _ => 0
   | _, _, 0 => 1 % modulus
@@ -115,7 +106,7 @@ theorem powMod_cast
           rw [hsquare, ← pow_two, ← pow_mul]
           congr
           omega
-        · rw [if_pos hodd]
+        · rw [ite_eq_left hodd]
           simp
           rw [ih (base * base % modulus) (exponent / 2) hhalf]
           rw [hsquare, ← pow_two, ← pow_mul, ← pow_succ]
@@ -137,7 +128,7 @@ set_option maxRecDepth 100000 in -- fixed-size: 64-bit Lucas certificate, not ar
 private theorem zmod_natCast_ne_one
     {value : Nat} (hvalue : value < goldilocksModulus) (hne : value ≠ 1) :
     (value : ZMod goldilocksModulus) ≠ 1 := by
-  letI : Fact (1 < goldilocksModulus) := ⟨by decide⟩
+  let : Fact (1 < goldilocksModulus) := ⟨by decide⟩
   intro hequal
   have hvalues := congrArg ZMod.val hequal
   rw [ZMod.val_natCast_of_lt hvalue] at hvalues

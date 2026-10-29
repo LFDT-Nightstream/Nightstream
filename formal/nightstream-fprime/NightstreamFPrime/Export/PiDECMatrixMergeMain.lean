@@ -5,14 +5,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 
-/-!
-Merge selected matrix ranges and the complete Pad result at the point derived
-by accepted C execution. Validate canonical fields, dimensions, exact counts
-and contiguous coverage before writing the complete evaluation family.
-All addition runs in Lean.
-The range producers retain ownership of their computed partial values.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiDECMatrixMerge

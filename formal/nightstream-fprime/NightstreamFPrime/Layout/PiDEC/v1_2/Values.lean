@@ -1,9 +1,6 @@
 import NightstreamFPrime.Layout.PiDEC.v1_2.Lowering
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.PublicInputSplit.Values
 
-/-! Production values for the derived PiDEC physical footprints. Core
-composition and lowering use owner counts and do not import this module. -/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2
 
 open NightstreamFPrime.Circuit

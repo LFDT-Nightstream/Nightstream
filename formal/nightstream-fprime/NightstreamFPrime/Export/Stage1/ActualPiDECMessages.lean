@@ -3,10 +3,6 @@ import NightstreamFPrime.Export.Stage1.ActualPiDECParent
 import NightstreamFPrime.Export.Stage1.ActualStep
 import NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
 
-/-!
-Owns the complete NIFS proof decoded from the actual selected assignment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualPiDECMessages
 
 open NightstreamFPrime.Circuit

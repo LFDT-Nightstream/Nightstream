@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.AssemblerPiDECCompleteness
 
-/-!
-Owns the sixth opaque-child append for the compact Stage 1 assembler. The
-running-transition child keeps its existing base/recursive semantics and
-canonical witness builder. This file adds no branch rule or row.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.AssemblerRunningCompleteness
 
 open NightstreamFPrime.Circuit

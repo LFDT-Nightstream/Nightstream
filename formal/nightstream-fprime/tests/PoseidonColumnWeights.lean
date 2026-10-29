@@ -1,8 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported
 
-/-! Compare prepared Poseidon weights with the numeric row evaluator, and
-check that zero sources do not evaluate any invocation input forms. -/
-
 namespace NightstreamFPrime.Tests.PoseidonColumnWeights
 
 open NightstreamFPrime.Spec
@@ -63,7 +60,6 @@ private def zeroPreparation : IO Unit := do
   let selected := interface 0
   let traced : PoseidonSboxPlan.Interface 32 :=
     { selected with input := fun lane => dbg_trace "invocation input evaluated"; selected.input lane }
-  -- Read flags inside the capture so the compiler cannot specialize an all-true predicate.
   let flags ← IO.mkRef (Vector.replicate productionShape.sourceCount true)
   let (trace, actual) ← IO.FS.withIsolatedStreams do
     let zeroSource ← flags.get

@@ -2,14 +2,6 @@ import Mathlib.Algebra.BigOperators.Fin
 import Mathlib.Data.Fintype.BigOperators
 import NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep
 
-/-!
-Owns the structural production footprint of one PiRLC combination step.
-
-The proof counts the fixed 54-lane Phi81 convolution once, transports that
-cost through the circuit's exact block/lane/cell index equivalence, and never
-reduces a complete 17-source family in the kernel.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.CombinationStep
 
 open NightstreamFPrime.Spec
@@ -79,12 +71,12 @@ private theorem foldlMulCount
       simp only [List.foldl_cons]
       by_cases included : source ≤ degree ∧
           degree - source < ringDegree
-      · rw [if_pos included, inductionHypothesis _ restBound]
+      · rw [ite_eq_left included, inductionHypothesis _ restBound]
         simp [rawTermCount, included,
           NightstreamFPrime.Lifecycle.PiRLC.v1_2.CombinationStep.exprCoeff,
           sourceBound, challengeCount, valueCount, R1CS.mulCount]
         omega
-      · rw [if_neg included, inductionHypothesis _ restBound]
+      · rw [ite_eq_right included, inductionHypothesis _ restBound]
         simp [rawTermCount, included]
 
 private theorem rawExprMulCount

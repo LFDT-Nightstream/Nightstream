@@ -1,46 +1,20 @@
 import CompressionLean.Layer1.Cost
 
-/-!
-Owns the layer-1 budget at Rust's split (`layer1_budget`): layer 1 gets
-`2^-t`, with `t` the layer bits of `finish.rs`, and each of its two WHIR
-commitments gets `2^-(t+1)` (`Relation::new` targets `t + 1` bits).
-
-Plonky3 composes each commitment's error as its WHIR terms plus every term
-the caller charges, times the commitment's candidate count. P0 is charged
-the draws of `outer_terms` (`crates/neo-spartan/src/lib.rs`), each
-`degree · L1 / 2^191` (`rustDegrees`, written term by term below); P1 is
-charged the setup queries, `L1 · 2^(1-t_q)`. `Pcs::new` accepts a
-configuration only when each composed error is at most `2^-(t+1)`, which is
-what `p0` and `p1` state. `layer1Count_le_rust` shows that the Lean count is
-at most what Rust charges, so the two checks bound the whole layer.
-
-The query leaves are low bits of Goldilocks words. With at most 35 setup
-variables a leaf lands in a wrong fold's agreement set with probability at
-most `1/2` (`query_half`), so the charge holds under that law.
--/
+/-! `p0` and `p1` are Plonky3's `Pcs::new` check: each commitment's composed error is at most `2^-(t+1)`. -/
 
 namespace CompressionLean.Layer1
 
-/-- `outer_terms`' degree of a GKR: per layer `k`, four per round and one
-per tree that reaches `k`. -/
 def rustGkr (s : GkrShape) : ℕ :=
   ∑ k ∈ Finset.Ico 1 (s.layers + 1), (4 * k + (s.active k).length)
 
-/-- The early terms of `outer_terms`: norm logUp, row lookup, slot scatter,
-early GKR and the slot-block test. -/
 def rustEarly (s : Shape) : ℕ :=
   (2 ^ s.cubeVars + (2 * s.normBound + 1)) + 3 * (2 ^ s.runVars + 2 ^ s.rowVars) +
     (2 ^ s.runVars + 2 ^ (s.slotVars + s.matrixVars) + 1) + rustGkr (earlyShape s) + s.runVars
 
-/-- The linear terms: ring-row batching, the quotient at `ζ` and the linear
-sum-check. -/
 def rustLinear (s : Shape) : ℕ := (s.rows - 1) + (2 * s.D - 2) + 2 * s.cubeVars
 
-/-- The late terms: block scatter and late GKR. -/
 def rustLate (s : Shape) : ℕ := (2 ^ (s.slotVars + 1) + 2 ^ s.blockVars) + rustGkr (lateShape s)
 
-/-- Every degree of `outer_terms`; the run group (3) and the honest-fold
-partials (6) are the `9`. -/
 def rustDegrees (s : Shape) : ℕ := rustEarly s + rustLinear s + 9 + rustLate s
 
 theorem gkrLayerCost_le_rust (s : GkrShape) (small : ∀ t, s.factors t ≤ 2) (n : ℕ) (E : ℕ → ℕ) (k : ℕ)
@@ -73,30 +47,26 @@ theorem gkrCost_le_rust (s : GkrShape) (small : ∀ t, s.factors t ≤ 2) (n : �
         show k + (r + 1) = k + 1 + r by omega]
       exact Nat.add_le_add (gkrLayerCost_le_rust s small n E k positive) (ih (k + 1) (by omega))
 
-/-- A whole GKR costs at most `n` times its `outer_terms` degree, plus its
-riding values. -/
 theorem gkrCost_le_rustGkr (s : GkrShape) (small : ∀ t, s.factors t ≤ 2) (n : ℕ) (E : ℕ → ℕ) :
     gkrCost s n E s.layers 1 ≤ n * rustGkr s + ∑ j ∈ Finset.Ico 1 (s.layers + 1), j * E j := by
   have bound := gkrCost_le_rust s small n E s.layers 1 le_rfl
   rw [show 1 + s.layers = s.layers + 1 by omega, Finset.sum_add_distrib, ← Finset.mul_sum] at bound
   exact bound
 
-/-- The Lean count of layer 1 is at most what Rust charges P0. -/
 theorem layer1Count_le_rust (s : Shape) (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) :
     layer1Count s L0 L1 ≤ L0 * L1 * rustDegrees s := by
   have earlySmall : ∀ t, (earlyShape s).factors t ≤ 2 := by
     intro t; simp only [earlyShape]; split_ifs <;> omega
   have lateSmall : ∀ t, (lateShape s).factors t ≤ 2 := by
     intro t; simp only [lateShape]; split_ifs <;> omega
-  -- The slot-block test rides on the run layer only.
   have ride : ∑ j ∈ Finset.Ico 1 ((earlyShape s).layers + 1), j * earlyRide s L0 j ≤ s.runVars * L0 := by
     have each : ∀ j ∈ Finset.Ico 1 ((earlyShape s).layers + 1),
         j * earlyRide s L0 j = if s.runVars = j then s.runVars * L0 else 0 := by
       intro j _
       unfold earlyRide
       by_cases same : j = s.runVars
-      · rw [if_pos same, if_pos same.symm, same]
-      · rw [if_neg same, if_neg (Ne.symm same), mul_zero]
+      · rw [ite_eq_left same, ite_eq_left same.symm, same]
+      · rw [ite_eq_right same, ite_eq_right (Ne.symm same), mul_zero]
     rw [Finset.sum_congr rfl each, Finset.sum_ite_eq]
     split_ifs <;> omega
   have earlyGkr := gkrCost_le_rustGkr (earlyShape s) earlySmall L0 (earlyRide s L0)
@@ -117,18 +87,13 @@ theorem layer1Count_le_rust (s : Shape) (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 �
   unfold layer1Count rustDegrees
   nlinarith [Nat.mul_le_mul_right (rustEarly s) product, Nat.mul_le_mul_right (rustLinear s) product]
 
-/-- The Goldilocks order: `sample_bits` reads a uniform canonical word below it. -/
 def goldilocks : ℕ := 2 ^ 64 - 2 ^ 32 + 1
 
 instance : NeZero goldilocks := ⟨by decide⟩
 
-/-- `2·(2^(v-3) - 1)·(⌊p / 2^(v-2)⌋ + 1) ≤ p` up to `v = 35`; it fails at `36`. -/
 theorem goldilocks_half : ∀ v < 36, 2 * ((2 ^ (v - 3) - 1) * (goldilocks / 2 ^ (v - 2) + 1)) ≤ goldilocks := by
   decide
 
-/-- A query leaf drawn as the low `setupVars - 2` bits of a Goldilocks word
-agrees with a wrong fold at most half the time, for at most 35 setup
-variables. -/
 theorem query_half (s : Shape) (index : s.setupVars ≤ 35) :
     ((((2 ^ (s.setupVars - 3) - 1) * (goldilocks / 2 ^ (s.setupVars - 2) + 1) : ℕ) : ℝ) / goldilocks) ≤
       1 / 2 := by
@@ -136,11 +101,6 @@ theorem query_half (s : Shape) (index : s.setupVars ≤ 35) :
   exact_mod_cast (by have := goldilocks_half s.setupVars (by omega); omega :
     (2 ^ (s.setupVars - 3) - 1) * (goldilocks / 2 ^ (s.setupVars - 2) + 1) * 2 ≤ 1 * goldilocks)
 
-/-- **The layer-1 budget at Rust's split.** If each commitment's composed
-error, as Plonky3 charges it, is at most `2^-(t+1)`, the whole layer errs
-with probability at most `2^-t`. `whirP0`, `whirP1` are the WHIR errors of
-the idealized openings (`Opens`). The query leaves are the low bits of
-Goldilocks words; `index` is the setup bound of `query_half`. -/
 theorem layer1_budget (s : Shape) (L0 L1 size t : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (big : 2 ^ 191 ≤ size)
     (index : s.setupVars ≤ 35) (whirP0 whirP1 : ℝ)
     (p0 : whirP0 + L0 * L1 * rustDegrees s / 2 ^ 191 ≤ 1 / 2 ^ (t + 1))

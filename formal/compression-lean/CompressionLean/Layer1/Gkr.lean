@@ -1,32 +1,13 @@
 import CompressionLean.Layer1.GkrLayer
 
-/-!
-Owns the batched fraction-sum GKR verifier of `crates/neo-spartan/src/gkr.rs`
-as a game, and its soundness against several candidate worlds.
-
-The prover sends every root `(P, Q)`. Layer `k` (from 1 to the largest depth)
-draws `μ`, `ν`, runs `k - 1` sum-check rounds on the batched claim
-`Σ_i ν^i·(P_i + μ·Q_i)`, receives each active tree's part pairs, checks the
-last claim against `eq(ρ, next)·Σ_i ν^i·(p₀q₁ + p₁q₀ + μ·q₀q₁)`, draws `τ`, and
-reduces every pair at `τ`. A tree of depth `k` ends there with its leaf claim.
-
-Soundness (`gkr_avoids`): in a world where some root is false, some tree
-ends with a false leaf value, unless a challenge hit a bad set. Per layer and
-world the bad sets hold at most `1` (`μ`), `A - 1` (`ν`, `A` active trees),
-`degree` per round, and `1` (`τ`) challenges. `extra` rides on the rounds and
-`τ` of each layer; every leaf point avoided it (`Path`).
--/
-
 namespace CompressionLean.Layer1
 
 open Polynomial
 
 variable {K : Type} [Field K]
 
-/-- `C a + X·C b`: a pair's difference after the reduction at `X`. -/
 noncomputable def linePoly (a b : K) : K[X] := C a + X * C b
 
-/-- `Σ_i δ(lᵢ)·X^i` by Horner's rule. -/
 noncomputable def wpoly (δ : ℕ → K) : List ℕ → K[X]
   | [] => 0
   | t :: rest => C (δ t) + X * wpoly δ rest
@@ -109,7 +90,6 @@ theorem exists_ne_of_combineVals_ne {pairs pairs' : ℕ → K × K} {μ : K} {n 
   rw [List.map_congr_left (fun j m => congrArg Prod.fst (same j m)),
     List.map_congr_left (fun j m => congrArg Prod.snd (same j m)), none n le_rfl]
 
-/-- The verifier's claims during the batched GKR. -/
 structure GkrClaims (K : Type) where
   roots : ℕ → K × K
   point : List K
@@ -117,7 +97,6 @@ structure GkrClaims (K : Type) where
   leafPoint : ℕ → List K
   leafValues : ℕ → ℕ → K
 
-/-- Reduce at `τ`: inner trees keep `(P, Q)` at layer `k`; trees of depth `k` end. -/
 def advance (s : GkrShape) (k : ℕ) (st : GkrClaims K) (next : List K) (children : ℕ → ℕ → K × K)
     (τ : K) : GkrClaims K where
   roots := st.roots
@@ -134,20 +113,17 @@ section Bad
 variable (s : GkrShape) (batch : W → Batch K) (k : ℕ) (st : GkrClaims K)
 
 open Classical in
-/-- `μ` lets the first false tree's claim become true. -/
 noncomputable def badMu (w : W) : Finset K :=
   if h : ∃ t ∈ s.active k, st.current t ≠ trueClaim s (batch w) k t st.point then
     zeros (linePoly ((st.current h.choose).1 - (trueClaim s (batch w) k h.choose st.point).1)
       ((st.current h.choose).2 - (trueClaim s (batch w) k h.choose st.point).2))
   else ∅
 
-/-- `ν` cancels the batched difference. -/
 noncomputable def badNu (μ : K) (w : W) : Finset K :=
   zeros (wpoly (fun t => ((st.current t).1 + μ * (st.current t).2) -
     ((trueClaim s (batch w) k t st.point).1 + μ * (trueClaim s (batch w) k t st.point).2)) (s.active k))
 
 open Classical in
-/-- `τ` lets the first false pair's reduction become true. -/
 noncomputable def badTau (next : List K) (children : ℕ → ℕ → K × K) (w : W) : Finset K :=
   if h : ∃ t ∈ s.active k, ∃ j ≤ s.partFactors k t,
       children t j ≠ trueChildren s (batch w) k t next j then
@@ -164,7 +140,7 @@ theorem badMu_spec {w : W} (h : ∃ t ∈ s.active k, st.current t ≠ trueClaim
         zeros (linePoly ((st.current t).1 - (trueClaim s (batch w) k t st.point).1)
           ((st.current t).2 - (trueClaim s (batch w) k t st.point).2)) := by
   classical
-  exact ⟨h.choose, h.choose_spec.1, h.choose_spec.2, by simp only [badMu, dif_pos h]⟩
+  exact ⟨h.choose, h.choose_spec.1, h.choose_spec.2, by simp only [badMu, dite_eq_left h]⟩
 
 theorem badTau_spec {next : List K} {children : ℕ → ℕ → K × K} {w : W}
     (h : ∃ t ∈ s.active k, ∃ j ≤ s.partFactors k t, children t j ≠ trueChildren s (batch w) k t next j) :
@@ -175,11 +151,10 @@ theorem badTau_spec {next : List K} {children : ℕ → ℕ → K × K} {w : W}
             ((trueChildren s (batch w) k t next j).2 - (trueChildren s (batch w) k t next j).1))) := by
   classical
   exact ⟨h.choose, h.choose_spec.1, h.choose_spec.2.choose, h.choose_spec.2.choose_spec.1,
-    h.choose_spec.2.choose_spec.2, by simp only [badTau, dif_pos h]⟩
+    h.choose_spec.2.choose_spec.2, by simp only [badTau, dite_eq_left h]⟩
 
 end Bad
 
-/-- Layers `k ..` of the batched GKR, `remaining` of them. -/
 noncomputable def gkrLayers (s : GkrShape) (worlds : Finset W) (batch : W → Batch K)
     (extra : ℕ → List K → Finset K) : ℕ → ℕ → GkrClaims K → Game (Option (GkrClaims K))
   | 0, _, st => .pure (some st)
@@ -198,7 +173,6 @@ noncomputable def gkrLayers (s : GkrShape) (worlds : Finset W) (batch : W → Ba
                 gkrLayers s worlds batch extra remaining (k + 1) (advance s k st result.1 children τ)
             else .pure none
 
-/-- The batched GKR: the roots, then every layer. -/
 noncomputable def gkr (s : GkrShape) (worlds : Finset W) (batch : W → Batch K)
     (extra : ℕ → List K → Finset K) : Game (Option (GkrClaims K)) :=
   .recv (ℕ → K × K) fun roots =>
@@ -209,21 +183,17 @@ section Soundness
 
 variable (s : GkrShape) (batch : Batch K)
 
-/-- The true value of part `j` of tree `t` at its leaf point. -/
 def trueLeaf (t : ℕ) (point : List K) (j : ℕ) : K :=
   mle point (treePart s batch (s.depth t) t j)
 
-/-- The true root `(P, Q)` of tree `t`. -/
 def trueRoot (t : ℕ) : K × K :=
   ((treeLevel s batch t 0).numerator 0, (treeLevel s batch t 0).denominator 0)
 
-/-- At layer `k`: an active claim or an ended leaf value is false. -/
 def Doomed (k : ℕ) (st : GkrClaims K) : Prop :=
   (∃ t ∈ s.active k, st.current t ≠ trueClaim s batch k t st.point) ∨
     ∃ t, t < s.trees ∧ s.depth t < k ∧ ∃ j ≤ s.factors t,
       st.leafValues t j ≠ trueLeaf s batch t (st.leafPoint t) j
 
-/-- Some leaf value is false. -/
 def LeafFalse (st : GkrClaims K) : Prop :=
   ∃ t, t < s.trees ∧ ∃ j ≤ s.factors t, st.leafValues t j ≠ trueLeaf s batch t (st.leafPoint t) j
 
@@ -238,7 +208,6 @@ theorem Path.append_single {extra : List K → Finset K} {point : List K} :
       intro c path outside
       exact ⟨path.1, ih path.2 (by simpa using outside)⟩
 
-/-- One layer keeps a doomed world doomed, off the bad sets. -/
 theorem doomed_step (fits : batch.Fits s) {k : ℕ} (low : 1 ≤ k) {st : GkrClaims K}
     (length : st.point.length = k - 1) {μ ν τ : K} {next : List K} {last : K}
     {children : ℕ → ℕ → K × K} (nextLength : next.length = k - 1)
@@ -253,7 +222,7 @@ theorem doomed_step (fits : batch.Fits s) {k : ℕ} (low : 1 ≤ k) {st : GkrCla
     (doomed : Doomed s batch k st) : Doomed s batch (k + 1) (advance s k st next children τ) := by
   classical
   rcases doomed with ⟨t, member, false_claim⟩ | ⟨t, tree, ended, j, le, false_leaf⟩
-  · -- μ keeps one tree's combined claim false; ν keeps the batch false.
+  ·
     obtain ⟨t₁, t₁_member, t₁_false, mu_bad⟩ :=
       badMu_spec s (fun _ : Unit => batch) k st (w := ()) ⟨t, member, false_claim⟩
     have mu_live : (st.current t₁).1 - (trueClaim s batch k t₁ st.point).1 +
@@ -268,7 +237,7 @@ theorem doomed_step (fits : batch.Fits s) {k : ℕ} (low : 1 ≤ k) {st : GkrCla
       apply hμ
       rw [mu_bad]
       unfold zeros
-      rw [if_neg nonzero]
+      rw [ite_eq_right nonzero]
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, linePoly_eval]
       exact zero
     have batch_false : wsum ν (fun t => (st.current t).1 + μ * (st.current t).2) (s.active k) ≠
@@ -278,7 +247,7 @@ theorem doomed_step (fits : batch.Fits s) {k : ℕ} (low : 1 ≤ k) {st : GkrCla
       rw [← sub_eq_zero, wsum_sub, ← wpoly_eval] at equal
       apply hν
       unfold badNu zeros
-      rw [if_neg (wpoly_ne_zero t₁_member (by intro h; apply mu_live; rw [← h]; ring))]
+      rw [ite_eq_right (wpoly_ne_zero t₁_member (by intro h; apply mu_live; rw [← h]; ring))]
       simpa using equal
     have last_false := transfer batch_false
     rw [show k - 1 = next.length by omega, combTruth_final,
@@ -289,7 +258,6 @@ theorem doomed_step (fits : batch.Fits s) {k : ℕ} (low : 1 ≤ k) {st : GkrCla
             (s.active k) := by
       intro equal
       exact last_false (by rw [equal])
-    -- Some pair differs; τ keeps its reduction false.
     obtain ⟨t₂, member₂, combined⟩ := exists_ne_of_wsum_ne sums_differ
     obtain ⟨j₂, le₂, pair_false⟩ := exists_ne_of_combineVals_ne combined
     obtain ⟨t₃, t₃_member, j₃, j₃_le, j₃_false, tau_bad⟩ :=
@@ -311,7 +279,7 @@ theorem doomed_step (fits : batch.Fits s) {k : ℕ} (low : 1 ≤ k) {st : GkrCla
       apply hτ
       rw [tau_bad]
       unfold zeros
-      rw [if_neg nonzero]
+      rw [ite_eq_right nonzero]
       simp only [Finset.mem_filter, Finset.mem_univ, true_and, linePoly_eval]
       simp only [reduce] at equal
       rw [← sub_eq_zero] at equal
@@ -319,12 +287,12 @@ theorem doomed_step (fits : batch.Fits s) {k : ℕ} (low : 1 ≤ k) {st : GkrCla
       ring
     obtain ⟨tree₃, reach₃⟩ := (s.mem_active).mp t₃_member
     rcases Nat.lt_or_ge k (s.depth t₃) with inner | leaf
-    · -- An inner tree keeps a false claim at layer `k + 1`.
+    ·
       left
       refine ⟨t₃, (s.mem_active).mpr ⟨tree₃, inner⟩, ?_⟩
       have one : s.partFactors k t₃ = 1 := by simp [GkrShape.partFactors, Nat.ne_of_lt' inner]
       intro equal
-      simp only [advance, if_pos inner, trueClaim, Nat.add_sub_cancel] at equal
+      simp only [advance, ite_eq_left inner, trueClaim, Nat.add_sub_cancel] at equal
       have numerator : (treeLevel s batch t₃ k).numerator = treePart s batch k t₃ 0 := by
         funext y
         rw [numerator_parts s batch fits tree₃ reach₃, one]
@@ -337,23 +305,22 @@ theorem doomed_step (fits : batch.Fits s) {k : ℕ} (low : 1 ≤ k) {st : GkrCla
       rcases Nat.le_one_iff_eq_zero_or_eq_one.mp j₃_le with zero | one'
       · exact reduced_false (by rw [zero] at *; exact (Prod.ext_iff.mp equal).1)
       · exact reduced_false (by rw [one'] at *; exact (Prod.ext_iff.mp equal).2)
-    · -- A tree of depth `k` ends with a false leaf value.
+    ·
       have depth : s.depth t₃ = k := le_antisymm leaf reach₃
       right
       refine ⟨t₃, tree₃, by omega, j₃, ?_, ?_⟩
       · simpa [GkrShape.partFactors, depth] using j₃_le
-      · simp only [advance, trueLeaf, depth, if_true]
+      · simp only [advance, trueLeaf, depth, ite_true]
         exact reduced_false
-  · -- An ended tree keeps its false leaf value.
+  ·
     right
     have other : s.depth t ≠ k := by omega
     refine ⟨t, tree, by omega, j, le, ?_⟩
     simp only [advance]
-    rw [if_neg other, if_neg other]
+    rw [ite_eq_right other, ite_eq_right other]
     exact false_leaf
 
 variable {s} in
-/-- Soundness of the layers `k ..`: a doomed world ends with a false leaf value. -/
 theorem gkrLayers_avoids (worlds : Finset W) (batch : W → Batch K) (extra : ℕ → List K → Finset K)
     (fits : ∀ w ∈ worlds, (batch w).Fits s)
     (distinct : ∀ k, 1 ≤ k → k ≤ s.layers → NodesDistinct K (s.degree k - 1)) :
@@ -406,19 +373,19 @@ theorem gkrLayers_avoids (worlds : Finset W) (batch : W → Batch K) (extra : �
               Path (extra (s.depth t)) [] ((advance s k st next children τ).leafPoint t) := by
           intro t tree shallow
           by_cases here : s.depth t = k
-          · simp only [advance, if_pos here]
+          · simp only [advance, ite_eq_left here]
             refine ⟨by simp [count]; omega, ?_⟩
             rw [here]
             exact Path.append_single path
               (fun hit => hτ (Finset.mem_union_right _ (by simpa using hit)))
-          · simp only [advance, if_neg here]
+          · simp only [advance, ite_eq_right here]
             exact ended t tree (by omega)
         have stays_shared : ∀ t t', s.depth t < k + 1 → s.depth t = s.depth t' →
             (advance s k st next children τ).leafPoint t = (advance s k st next children τ).leafPoint t' := by
           intro t t' shallow same
           by_cases here : s.depth t = k
-          · simp only [advance, if_pos here, if_pos (same ▸ here)]
-          · simp only [advance, if_neg here, if_neg (same ▸ here)]
+          · simp only [advance, ite_eq_left here, ite_eq_left (same ▸ here)]
+          · simp only [advance, ite_eq_right here, ite_eq_right (same ▸ here)]
             exact shared t t' (by omega) same
         refine (ih (k + 1) _ (by omega) (by omega) (by simp [advance, count]; omega) stays
           stays_shared).mono ?_
@@ -436,8 +403,6 @@ theorem gkrLayers_avoids (worlds : Finset W) (batch : W → Batch K) (extra : �
       · exact Or.inl rfl
 
 variable {s} in
-/-- Soundness of the batched GKR: in a world where some root is false, some
-tree ends with a false leaf value, unless a challenge hit a bad set. -/
 theorem gkr_avoids (worlds : Finset W) (batch : W → Batch K) (extra : ℕ → List K → Finset K)
     (fits : ∀ w ∈ worlds, (batch w).Fits s) (deep : ∀ t, t < s.trees → 1 ≤ s.depth t)
     (distinct : ∀ k, 1 ≤ k → k ≤ s.layers → NodesDistinct K (s.degree k - 1)) :
@@ -469,13 +434,9 @@ section Cost
 
 variable (s : GkrShape)
 
-/-- Bad challenges of layer `k`, counted over `n` worlds with `E k` riding
-values per draw of the layer: `μ` (1), `ν` (`A - 1`), each round (`degree`),
-`τ` (1). -/
 def gkrLayerCost (n : ℕ) (E : ℕ → ℕ) (k : ℕ) : ℕ :=
   n + n * ((s.active k).length - 1) + (k - 1) * (n * s.degree k + E k) + (n + E k)
 
-/-- Bad challenges of `remaining` layers from layer `k`. -/
 def gkrCost (n : ℕ) (E : ℕ → ℕ) : ℕ → ℕ → ℕ
   | 0, _ => 0
   | remaining + 1, k => gkrLayerCost s n E k + gkrCost n E remaining (k + 1)

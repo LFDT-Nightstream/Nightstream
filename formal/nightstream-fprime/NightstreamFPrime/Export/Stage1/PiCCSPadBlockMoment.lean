@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedRead
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 
-/-! One already combined complete block supplies both carried Pad moments. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment
@@ -36,8 +34,8 @@ private theorem paritySum_value (count : Nat) (term : Nat → K) :
         else ((paritySum count term).1, extensionOps.add (paritySum count term).2 (term count))) = _
       rw [inductionHypothesis]
       by_cases even : count % 2 = 0
-      · simp only [if_pos even, numericSum, Nat.fold_succ, extensionLaws.add_zero]
-      · simp only [if_neg even, numericSum, Nat.fold_succ, extensionLaws.add_zero]
+      · simp only [ite_eq_left even, numericSum, Nat.fold_succ, extensionLaws.add_zero]
+      · simp only [ite_eq_right even, numericSum, Nat.fold_succ, extensionLaws.add_zero]
 
 private theorem paritySum_zero (count : Nat) :
     paritySum count (fun _ => extensionOps.zero) =
@@ -97,7 +95,7 @@ theorem blockMoment_value (basis : FixedArray (Vector K ringDegree) ringDegree)
       if index % 2 = 0 then extensionOps.zero else column index))
   by_cases empty : values = Vector.replicate ringDegree K.zero
   · subst values
-    rw [blockMoment, if_pos rfl]
+    rw [blockMoment, ite_eq_left rfl]
     have columnsZero : column = fun _ => extensionOps.zero := by
       funext index
       dsimp only [column]
@@ -105,7 +103,7 @@ theorem blockMoment_value (basis : FixedArray (Vector K ringDegree) ringDegree)
     have sumZero := paritySum_zero ringDegree
     rw [← columnsZero] at sumZero
     exact sumZero.symm.trans (paritySum_value ringDegree column)
-  · rw [blockMoment, if_neg empty]
+  · rw [blockMoment, ite_eq_right empty]
     exact paritySum_value ringDegree column
 
 end NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment

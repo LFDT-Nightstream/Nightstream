@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows
 import NightstreamFPrime.Export.Stage1.PiDECParentSparseRead
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 
-/-! Original-assignment reads for PiCCS source images. The caller shares the
-existing compact program and source accessor.
-Preservation proofs are in PiCCSSourceImagesPreservation, outside the runner. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSSourceImages

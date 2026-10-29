@@ -6,13 +6,6 @@ import NightstreamFPrime.Layout.PilotSpartan
 import NightstreamFPrime.Layout.PilotValues
 import NightstreamFPrime.Layout.R1CS
 
-/-!
-Owns the executable data of the canonical Stage 1 pilot package. Physical
-positions and counts come only from `Layout.PilotProduction` and
-`Layout.PilotSpartan`; this module serializes them. `Export.Pilot` owns the
-proofs that connect the data to the production lifecycle layout.
--/
-
 namespace NightstreamFPrime.Export.PilotData
 
 open NightstreamFPrime.Spec

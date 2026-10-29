@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Gadgets.SumCheck.FixedChain
 
-/-!
-Owns physical R1CS cost proofs for the reusable SumCheck chain with stored
-round evaluations. It counts one generic round and composes that result by
-list induction. It does not own transcript challenges, protocol round count,
-or terminal checks.
--/
-
 namespace NightstreamFPrime.Layout.SumCheck.FixedChain
 
 open NightstreamFPrime.Circuit

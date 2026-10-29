@@ -169,12 +169,12 @@ def footprint
   freshColumnCount_eq := by
     intro offset
     unfold Formal.evalACircuit
-    rw [FormalCircuit.withConstantFootprint_main]
+    erw [FormalCircuit.withConstantFootprint_main]
     exact core_totalFreshCount _ offset (inputs offset)
   physicalRowCount_eq := by
     intro offset
     unfold Formal.evalACircuit
-    rw [FormalCircuit.withConstantFootprint_main]
+    erw [FormalCircuit.withConstantFootprint_main]
     exact core_totalRowCount _ offset (inputs offset)
 
 theorem freshColumnCount_eq
@@ -207,7 +207,7 @@ theorem physicalPrivateColumnCount_eq
       localLength (Circuit.ops (Formal.evalACircuit interface).main offset) =
         10475 := by
     unfold Formal.evalACircuit
-    rw [FormalCircuit.withConstantFootprint_main]
+    erw [FormalCircuit.withConstantFootprint_main]
     exact
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalATerminal.localLength_eq
         (Formal.evalAInterface interface) offset

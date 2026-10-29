@@ -5,11 +5,6 @@ import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericBlock
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationFromBlocks
 
-/-!
-Connect one selected Poseidon invocation to its canonical matrix range. The
-parent supplies digits; the selected program supplies all matrix rows.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixSelectedBatch
@@ -80,11 +75,11 @@ private theorem parentRead_value (parents : Fin blockCount → StoredRing)
           (column.val / ringDegree)).get child).get output := by
   dsimp only [parentRead]
   by_cases live : column.val / ringDegree < blockCount
-  · rw [dif_pos live, PiDECParentSparseRead.read_eq_splitScalar]
-    simp only [PiDECEvaluationFromBlocks.blockAt, dif_pos live,
+  · rw [dite_eq_left live, PiDECParentSparseRead.read_eq_splitScalar]
+    simp only [PiDECEvaluationFromBlocks.blockAt, dite_eq_left live,
       splitBlocks, get_ofFn, get_ofFn_function]
-  · rw [dif_neg live]
-    simp only [PiDECEvaluationFromBlocks.blockAt, dif_neg live,
+  · rw [dite_eq_right live]
+    simp only [PiDECEvaluationFromBlocks.blockAt, dite_eq_right live,
       get_replicate, PiDECCommitmentFold.zero_value]
     rw [CarrierAction.kernelImage_eq_ringFMul, CarrierAction.ringFMul_zero_right]
     rfl
@@ -199,7 +194,7 @@ theorem selectedInvocation_eq_range
   rw [PiDECMatrixInvocation.sum_prepare_value, PiDECEvaluationBatch.range_value]
   apply numericSum_congr 150
   intro index live
-  rw [dif_pos live]
+  rw [dite_eq_left live]
   have globalBound : first + index < selectedPlan.rowCount := by omega
   let globalRow : Fin selectedPlan.rowCount := ⟨first + index, globalBound⟩
   have encoded :
@@ -226,7 +221,7 @@ theorem selectedInvocation_eq_range
   rw [rowValue]
   apply congrArg (fun value : F =>
     extensionOps.mul (PiDECEvaluationWeights.weight point (first + index)) (K.embed value))
-  rw [PiDECEvaluationFromBlocks.matrixRow, dif_pos globalBound,
+  rw [PiDECEvaluationFromBlocks.matrixRow, dite_eq_left globalBound,
     PiDECEvaluationFromBlocks.programForm_value,
     PiDECEvaluationBlockSupport.kernel_eq_evalSparse]
   apply congrArg (SparseForm.evalSparse (selectedPlan.portForm globalRow port))
@@ -254,12 +249,12 @@ theorem intParentRead_map_valMinAbs {count columns : Nat}
   funext output column
   dsimp only [intParentRead, parentRead]
   by_cases live : column.val / ringDegree < count
-  · simp only [dif_pos live]
+  · simp only [dite_eq_left live]
     exact PiDECParentIntRead.sparseRead_map_valMinAbs
       (PiDECParentSparseRead.prepare ()) (parents ⟨column.val / ringDegree, live⟩)
       (bounded ⟨column.val / ringDegree, live⟩)
       ⟨column.val % ringDegree, Nat.mod_lt _ (by decide)⟩ child output
-  · simp only [dif_neg live]
+  · simp only [dite_eq_right live]
 
 theorem selectedIntInvocation_eq_range
     (parents : Fin blockCount → StoredRing)
@@ -366,7 +361,7 @@ theorem selectedIntInvocationRange_eq_range
   unfold PiDECMatrixInvocationRange.sum
   apply sumInvocationParts_eq_range first count point _ _ port child
   intro index live
-  rw [dif_pos live]
+  rw [dite_eq_left live]
   let invocation : Fin block.invocationCount := ⟨firstInvocation + index, by omega⟩
   have loadedIndex :
       PiDECPoseidonNumericBlock.loadInvocation? block selectedColumns invocation =
@@ -418,7 +413,7 @@ theorem selectedIntSparseRange_eq_range
   rw [PiDECMatrixSparseRange.sum_value, PiDECEvaluationBatch.range_value]
   apply numericSum_congr count
   intro index live
-  rw [dif_pos live]
+  rw [dite_eq_left live]
   have globalBound : firstRow + index < selectedPlan.rowCount := by omega
   let globalRow : Fin selectedPlan.rowCount := ⟨firstRow + index, globalBound⟩
   have canonical :=
@@ -433,7 +428,7 @@ theorem selectedIntSparseRange_eq_range
         (parentRead parents child output))) = _
   apply congrArg (fun value : F =>
     extensionOps.mul (PiDECEvaluationWeights.weight point (firstRow + index)) (K.embed value))
-  rw [PiDECEvaluationFromBlocks.matrixRow, dif_pos globalBound,
+  rw [PiDECEvaluationFromBlocks.matrixRow, dite_eq_left globalBound,
     PiDECEvaluationFromBlocks.programForm_value,
     PiDECEvaluationBlockSupport.kernel_eq_evalSparse]
   apply congrArg (SparseForm.evalSparse (selectedPlan.portForm globalRow port))

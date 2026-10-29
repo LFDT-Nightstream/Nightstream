@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectPlan
 import NightstreamFPrime.Layout.Poseidon2.HashInvocationRows
 import NightstreamFPrime.Layout.Stage1.Spartan
 
-/-!
-Owns projection of the actual pilot physical rows to its ordinary compiler
-rows.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryPhysicalCompleteness
@@ -62,7 +57,7 @@ private theorem priorRows_of_physical (target : Env)
     PilotOrdinaryDirectSource.physicalSource_lt column supported
   change target (Spartan.liftPilotColumn (PilotSpartan.sourceToSpartan column)) =
     target (Spartan.sourceToSpartan column)
-  rw [Spartan.sourceToSpartan, if_pos bounded]
+  rw [Spartan.sourceToSpartan, ite_eq_left bounded]
 
 private theorem outputState_pilotColumn (lane : Fin 4) :
     PilotSpartan.sourceToSpartan (PilotOrdinaryDirectPlan.Location.outputState lane).sourceColumn =
@@ -79,14 +74,14 @@ private theorem outputDigest_pilotColumn (lane : Fin 4) :
   change PilotSpartan.sourceToSpartan (PilotSpartan.outputDigestStart + lane.val) =
     PilotSpartan.secondPublicStart + lane.val
   unfold PilotSpartan.sourceToSpartan
-  rw [if_neg (by
+  rw [ite_eq_right (by
     rw [PilotSpartan.outputDigestStart_value, PilotSpartan.priorPublicStart_value]
     omega)]
-  rw [if_neg (by
+  rw [ite_eq_right (by
     rw [PilotSpartan.outputDigestStart_value, PilotSpartan.outputPreimageStart_value]
     omega)]
-  rw [if_neg (by omega)]
-  rw [if_pos (by
+  rw [ite_eq_right (by omega)]
+  rw [ite_eq_left (by
     rw [PilotSpartan.outputDigestStart_value, PilotSpartan.witnessStart_value]
     omega)]
   rw [Nat.add_sub_cancel_left]

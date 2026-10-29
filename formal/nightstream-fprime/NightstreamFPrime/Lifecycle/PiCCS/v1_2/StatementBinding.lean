@@ -26,9 +26,6 @@ Parent coverage:
 - `v1_2.Coverage.input_eval_K`;
 - `v1_2.Coverage.input_eval_A`;
 - `v1_2.Statement.Holds`.
-
-It does not add a second statement
-carrier, and it does not replace binding with an assumption.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementBinding

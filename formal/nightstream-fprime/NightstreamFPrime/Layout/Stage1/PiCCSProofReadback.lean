@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.PiCCSProofInputs
 
-/-!
-Owns the inverse from an actual selected NIFS proof to the existing PiCCS
-source values. Round coefficients and
-both output families are read from that proof; D messages stay in its template.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiCCSProofReadback
 
 open NightstreamFPrime.Spec

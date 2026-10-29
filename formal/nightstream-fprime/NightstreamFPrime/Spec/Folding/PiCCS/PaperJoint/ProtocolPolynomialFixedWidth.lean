@@ -1,23 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree
 import NightstreamFPrime.Spec.SumCheck.FixedPhase.RawCertificate
 
-/-!
-Paper-polynomial verification over one verifier-owned SumCheck width.
-
-Source: SuperNeo v1.2 Definition 11, Section 7.3, and Appendix B.2.  The paper bounds
-each round polynomial's degree but does not impose a canonical
-variable-length coefficient serialization.
-
-Owns: the fixed-width raw-message PiCCS checker and its deterministic
-reduction to residual truth, the alpha/gamma mixing root, one fixed-width
-SumCheck bad challenge, or the existing output-message mismatch.
-
-Does not own: challenge distribution, root probabilities, Fiat--Shamir,
-transcript serialization, Poseidon2, Ajtai, Rust, R1CS, artifacts,
-minimality, or costs.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Definition 11, Section 7.3, Appendix B.2. -/
 
 set_option autoImplicit false
 
@@ -126,7 +110,7 @@ theorem accepted_implies_tableTruth_or_badEvent
         qAtPoint ops data alpha gamma roundPoint =
           q roundPoint.coordinates := by
       unfold q polynomial
-      rw [dif_pos roundPoint.dimension]
+      rw [dite_eq_left roundPoint.dimension]
     have terminalExact :
         terminalFromMessage ops data.toVerifierInput alpha gamma roundPoint
             message =

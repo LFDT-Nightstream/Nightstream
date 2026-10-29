@@ -39,8 +39,8 @@ class IdentityTests(unittest.TestCase):
     def test_commented_pin_cannot_hide_a_changed_live_definition(self):
         name = identity.PINS[1]
         old = self.rust[self.rust.index('pub const ' + name):]
-        old = old[:old.index('];') + 2]
-        changed = self.rust.replace(old, '/* ' + old + ' */\npub const ' + name + ': [u64; 4] = [0; 4];')
+        old = old[:old.index(']);') + 3]
+        changed = self.rust.replace(old, '/* ' + old + ' */\npub const ' + name + ': PackageIdentity = PackageIdentity([0; 4]);')
         with self.assertRaisesRegex(ValueError, 'Expected one literal Rust pin'):
             identity.check(self.expected, self.expected, changed)
 

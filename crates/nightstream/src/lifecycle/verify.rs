@@ -27,6 +27,8 @@ pub enum VerifyError {
     Engine(#[from] crate::engine::EngineError),
     #[error("selected terminal device evaluation: {0}")]
     Device(#[source] PiCcsError),
+    #[error("selected terminal commitment: {0}")]
+    Commitment(#[from] crate::engine::CommitError),
     #[error("selected terminal statement: {0}")]
     Statement(&'static str),
     #[error("selected terminal running child {index}: {reason}")]

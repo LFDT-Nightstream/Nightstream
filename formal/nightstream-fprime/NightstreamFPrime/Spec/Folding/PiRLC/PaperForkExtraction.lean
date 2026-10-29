@@ -2,18 +2,7 @@ import NightstreamFPrime.Spec.Folding.PiRLC
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperCorrections
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkAlgebra
 
-/-!
-Operational coordinate-fork extraction for the paper `Pi_RLC` weak reduction.
-
-Protocol: SuperNeo `Pi_RLC` (v1.2 Lemma 8 and Appendix B.3).
-Phase: deterministic extraction from one complete coordinate fork.
-Constraint family: none; this file emits no rows.
-
-Owns: a shared-system/shared-point input batch, prover responses whose public
-outputs are computed by `PiRLC.combinedOutput`, the exact special-set fork
-shape, the Appendix B.3 inverse-difference extractor, and corrected ambient
-membership of every extracted source opening.
--/
+/-! SuperNeo v1.2 Lemma 8, Appendix B.3. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 
@@ -95,8 +84,7 @@ def Success
 
 end Response
 
-/-- The strong-set fact used by Appendix B.3: two distinct valid challenges
-have an invertible difference. -/
+/-- SuperNeo v1.2 Appendix B.3. -/
 structure StrongSetUnits
     {Scalar : Type uScalar}
     (ring : PaperForkAlgebra.CommutativeRingOps Scalar)
@@ -249,7 +237,7 @@ def coordinateUnit
 
 end CompleteFork
 
-/-- Appendix B.3's extracted assignment at one coordinate. -/
+/-- SuperNeo v1.2 Appendix B.3. -/
 def extractedAssignment
     {Structure : Type uStructure}
     {Assignment : Type uAssignment}

@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.Composition
 
-/-!
-Owns the exact structural boundary between each opaque PiRLC child and the
-constraint list used by the phase lowering. These equalities let later export
-proofs preserve child opacity without a large definitional reduction.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.PacketBoundaries
 
 open NightstreamFPrime.Circuit

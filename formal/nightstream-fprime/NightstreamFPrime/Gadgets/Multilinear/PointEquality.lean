@@ -20,8 +20,6 @@ Constraint groups:
 - C1: materialize one affine equality factor per coordinate;
 - C2: multiply the factors through one causal witness batch;
 - C3: two output-component equalities.
-
-No challenge is a witness output.
 -/
 
 namespace NightstreamFPrime.Gadgets.Multilinear.PointEquality

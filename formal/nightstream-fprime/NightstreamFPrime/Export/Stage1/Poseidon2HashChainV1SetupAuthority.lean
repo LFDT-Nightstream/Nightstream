@@ -1,10 +1,5 @@
 import NightstreamFPrime.Spec.AjtaiSetupV1
 
-/-!
-Owns the small executable authority for the verifier-selected
-`Poseidon2HashChainV1` Ajtai setup.
--/
-
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1SetupAuthority
 
 open NightstreamFPrime.Spec

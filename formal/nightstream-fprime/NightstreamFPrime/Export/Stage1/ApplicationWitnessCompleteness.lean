@@ -6,11 +6,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationDecodedIO
 import NightstreamFPrime.Layout.Stage1.ApplicationSemantics
 import NightstreamFPrime.Layout.Stage1.StepPhysicalCompleteness
 
-/-!
-Owns construction of an application's private suffix from its real witness
-and the state frames constructed by the physical prefix, for every application.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ApplicationWitnessCompleteness
 
 open NightstreamFPrime.Spec
@@ -39,7 +34,7 @@ private theorem loadWitness_read (env : Env) (witness : AppWitness)
       ApplicationInputs.witnessStart + index.val <
         ApplicationInputs.witnessStart + application.witnessWordCount :=
     ⟨Nat.le_add_right _ _, Nat.add_lt_add_left index.isLt _⟩
-  simp only [loadWitness, if_pos inside, Nat.add_sub_cancel_left]
+  simp only [loadWitness, ite_eq_left inside, Nat.add_sub_cancel_left]
 
 private theorem loadWitness_agrees (env : Env) (witness : AppWitness) :
     AgreesOutside env (loadWitness application env witness) ApplicationInputs.witnessStart
@@ -48,7 +43,7 @@ private theorem loadWitness_agrees (env : Env) (witness : AppWitness) :
   have notInside : ¬ (ApplicationInputs.witnessStart ≤ index ∧
       index < ApplicationInputs.witnessStart + application.witnessWordCount) := by
     omega
-  simp only [loadWitness, if_neg notInside]
+  simp only [loadWitness, ite_eq_right notInside]
 
 private theorem witnessValue_loaded (env : Env) (witness : AppWitness)
     (width : witness.length = application.witnessWordCount) :
@@ -138,7 +133,7 @@ private theorem sourceCopied_of_built
     change SourceCompiler.sourceEnv base (⟨index, bound⟩ : Fin (PiRLCProductPlan.baseSourceWidth application)).val = _
     rw [SourceCompiler.sourceEnv_at]
     change PerApplicationSourceAssignment.ofCompleted application target suffix ⟨index, bound⟩ = built index
-    rw [PerApplicationSourceAssignment.ofCompleted, dif_pos (by rw [base_constant]; exact below)]
+    rw [PerApplicationSourceAssignment.ofCompleted, dite_eq_left (by rw [base_constant]; exact below)]
     exact (before index below).symm
   have inside (index : Nat) (lower : Spartan.privateColumnCount ≤ index)
       (upper : index < ApplicationDirectSource.sourceWidth application) : SourceCompiler.sourceEnv base index = built index := by
@@ -333,7 +328,7 @@ private theorem application_rowsZero_of_source_rows
   change (if bounded : index < ApplicationRetainedBlocks.sourceWidth application then
       raw.applicationSource ⟨index, bounded⟩ else 0) = _
   have sourceBound : index < ApplicationRetainedBlocks.sourceWidth application := below
-  rw [dif_pos sourceBound]
+  rw [dite_eq_left sourceBound]
   exact DirectApplicationPrefixPlan.applicationSource_eq_sourceEnv application raw.base ⟨index, sourceBound⟩
 
 /-- The witness width is the application's input ABI, also enforced by the

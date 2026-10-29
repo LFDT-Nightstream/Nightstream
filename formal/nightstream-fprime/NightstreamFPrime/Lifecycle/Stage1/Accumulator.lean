@@ -1,17 +1,5 @@
 import NightstreamFPrime.Lifecycle.Relation
 
-/-!
-Owns the deterministic Stage 1 accumulator update.
-
-SuperNeo's accumulator output is exactly the `k` PiDEC child CE instances.
-HyperNova installs that one NIFS verifier output into the selected running
-slot. This module names that existing verifier graph; it adds no accumulator
-digest, verifier check, or circuit row.
-
-Security extraction, base-branch selection, running-slot selection, and the
-final recursive fixed point belong to separate Stage 1 results.
--/
-
 namespace NightstreamFPrime.Lifecycle.Stage1.Accumulator
 
 open NightstreamFPrime.Spec

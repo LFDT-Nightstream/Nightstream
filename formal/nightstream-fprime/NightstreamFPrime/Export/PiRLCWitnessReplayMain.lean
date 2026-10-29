@@ -1,13 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCInputCheck
 import NightstreamFPrime.Export.SignedUnitSourceInput
 
-/-!
-Replay PiRLC from original signed-unit source blocks and an accepted C input.
-The expected Rust parent is not an argument. A source file stores nonzero
-blocks in increasing order; omitted blocks contain zero in every source.
-Output ranges retain their complete extent, including zero blocks and tails.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiRLCWitnessReplay

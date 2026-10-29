@@ -3,13 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 import Mathlib.Algebra.BigOperators.Group.Finset.Basic
 
-/-!
-Owns the value connection from arbitrary accepted product rows to PiCCS
-operands and PiDEC parents.
-
-Sampler transcript validity and the full augmented step are separate claims.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualPiRLCValues
 
 open NightstreamFPrime.Layout
@@ -176,8 +169,8 @@ private theorem prefix_sum
       have equation := rowsZero_implies_equation geometry assignment one rows
         (withSource descriptor ⟨0, bound⟩)
       have first : (withSource descriptor ⟨0, bound⟩).source.val = 0 := rfl
-      rw [dif_pos first] at equation
-      simpa only [contributionAt, dif_pos bound,
+      rw [dite_eq_left first] at equation
+      simpa only [contributionAt, dite_eq_left bound,
         Nat.zero_add, Finset.range_one, Finset.sum_singleton, zero_add] using equation
   | succ source inductionHypothesis =>
       have smaller : source < PiRLCCombinationInvocations.sourceCount := by omega
@@ -186,14 +179,14 @@ private theorem prefix_sum
       have notFirst : (withSource descriptor ⟨source + 1, bound⟩).source.val ≠ 0 := by
         change source + 1 ≠ 0
         omega
-      rw [dif_neg notFirst] at equation
+      rw [dite_eq_right notFirst] at equation
       have previous : (withSource descriptor ⟨source + 1, bound⟩).previousSource notFirst =
           withSource descriptor ⟨source, smaller⟩ := by
         cases descriptor
         rfl
       rw [previous, inductionHypothesis smaller] at equation
       rw [Finset.sum_range_succ]
-      simpa only [contributionAt, dif_pos bound] using equation
+      simpa only [contributionAt, dite_eq_left bound] using! equation
 
 theorem rowsZero_implies_sum
     (geometry : PiDECRetainedGeometry.Geometry program logicalWidth)

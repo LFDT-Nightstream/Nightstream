@@ -23,10 +23,6 @@ def fold : List K → (ℕ → K) → ℕ → K
 def mle (point : List K) (t : ℕ → K) : K :=
   fold point t 0
 
-/-- The eq weight of index `i` at `ρ`: `Π_t (ρ_t if bit t of i else 1 - ρ_t)`.
-Coordinate `t` goes with bit `t` of `i`, low bit first, as in Rust's `eq_at`
-(`shrink/mod.rs`) and `eq_table` (`field.rs`), whose entry `i` is this
-weight. -/
 def eqAt : List K → ℕ → K
   | [], _ => 1
   | r :: rest, i => (if i % 2 = 1 then r else 1 - r) * eqAt rest (i / 2)

@@ -5,29 +5,6 @@ import CompressionLean.Final.Claim
 import CompressionLean.Production
 import CompressionLean.Spec.Program
 
-/-!
-Owns the terminal part of `ProgramEncodes`: when the executor accepts the
-final program (`FinalProgram::run`, `lifecycle/terminal/mod.rs::FinalProgram::run`), its
-run holds a terminal assignment for its statement, and the claim and state
-handles that `Package::apply` (`terminal/package.rs::Package::apply`) hands to layer 1
-hold the output values of that assignment.
-
-- `finalProgram_eq`: `finalProgram` is `terminalPrefix` (`Spec/Program.lean`,
-  the nine statement words, the iteration check, `apply`), then layer 1.
-- `terminalEnv`: the package assignment of a run. A column that a row names
-  holds the value of its system column, and every other column `unnamed`.
-- `Handoff`: what layer 1 receives. The assignment is a terminal assignment
-  for the run's statement (`TerminalFor`, `statementOf`), and the claim and
-  state handles hold its output values (`ClaimHolds`, `StateHolds`).
-- `terminalPrefix_ensures`: when the first nine values are the statement
-  words (`ReadsStatement`), an accepting run of `terminalPrefix` meets
-  `Handoff`. `finalProgram_exec` proves those values from the instruction
-  shape of the final program (`Appends`), for a layer 1 that has its own
-  `Ensures` lemma.
-
-Does not own layer 1 or the meaning of the rows (`Terminal/Soundness.lean`).
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Spec
@@ -37,24 +14,15 @@ open CompressionLean.Replay (Word)
 open NightstreamFPrime.Circuit (Env Expr)
 open NightstreamFPrime.Layout
 
-/-! ## The program -/
-
-/-- The statement of a run: its first nine statement words
-(`FinalProgram::statement`, `terminal/mod.rs::FinalProgram::statement`). -/
 def statementOf (c : Ctx NightstreamFPrime.Spec.F) : Spec.StateWords := fun k => c.stmt.getD k 0
 
-/-- The first nine values of the run are the statement words
-(`terminal/mod.rs::FinalProgram::run`). -/
 def ReadsStatement (c : Ctx NightstreamFPrime.Spec.F) : Prop := ∀ k : Fin 9, c.val k = statementOf c k
 
-/-- `FinalProgram::run` is `terminalPrefix`, then `verify_with`
-(`terminal/mod.rs::FinalProgram::run`). -/
 theorem finalProgram_eq {α : Type} (package : Loaded) (context : Array Word)
     (layer1 : ClaimVars → (Fin 16 → Var) → Build α) :
     finalProgram package context layer1 = terminalPrefix package context >>= fun r => layer1 r.1 r.2 :=
   rfl
 
-/-- Each `public` call appends one `pub` instruction (`terminal/mod.rs::FinalProgram::run`). -/
 private theorem pubs_run {δ : Type} : ∀ (xs : List δ) (p : Builder), (xs.mapM fun _ => Build.pub).run p =
     (List.range' p.values xs.length,
       { instrs := p.instrs ++ Array.replicate xs.length Instr.pub, values := p.values + xs.length })
@@ -68,8 +36,6 @@ private theorem pubs_run {δ : Type} : ∀ (xs : List δ) (p : Builder), (xs.map
       refine ⟨Array.toList_inj.mp ?_, by omega⟩
       simp [List.replicate_succ]
 
-/-- The statement handles are the next nine values, after nine `pub`
-instructions (`terminal/mod.rs::FinalProgram::run`). -/
 theorem statementHandles_run (p : Builder) : statementHandles.run p =
     ((List.range' p.values 9).toArray,
       { instrs := p.instrs ++ Array.replicate 9 Instr.pub, values := p.values + 9 }) := by
@@ -78,8 +44,6 @@ theorem statementHandles_run (p : Builder) : statementHandles.run p =
   rw [pubs_run]
   simp [statementWords]
 
-/-- The statement handles, read as `statement[index]`
-(`terminal/mod.rs::FinalProgram::run`, `terminal/package.rs::Package::apply`). -/
 private theorem range_getD (j : ℕ) : (List.range' 0 9).toArray.getD j 0 = if j < 9 then j else 0 := by
   rw [Array.getD_eq_getD_getElem?, List.getElem?_toArray]
   by_cases h : j < 9
@@ -90,19 +54,12 @@ private theorem range_getD (j : ℕ) : (List.range' 0 9).toArray.getD j 0 = if j
 
 instance statementHandles_appends : Appends statementHandles := by unfold statementHandles; appends
 
-/-- The nine `public` words, simulated (`terminal/mod.rs::FinalProgram::run`). -/
 theorem statementHandles_ensures {c : Ctx NightstreamFPrime.Spec.F} {n : ℕ} :
     Ensures c n statementHandles fun s m => s = (List.range' n 9).toArray ∧ m = n + 9 :=
   fun p hp _ _ _ _ _ _ => by
     rw [statementHandles_run, hp]
     exact ⟨rfl, rfl⟩
 
-/-! ## The columns -/
-
-/-- What `column` gives for one source (`terminal/package.rs::Package::apply`): a
-handle below `m`. The one column holds one, a public context column its
-context word, and a statement column of the prior preimage its statement
-handle. -/
 private def ColumnHolds (c : Ctx NightstreamFPrime.Spec.F) (statement : Array Var) (context : Array Word) (src : Source)
     (h : Var) (m : ℕ) : Prop :=
   h < m ∧ match src with
@@ -112,7 +69,6 @@ private def ColumnHolds (c : Ctx NightstreamFPrime.Spec.F) (statement : Array Va
     | .pub i => publicContextStart ≤ i → c.val h = Word.cast (context.getD (i - publicContextStart) 0)
     | .computed _ => True
 
-/-- A column handle stays below a larger count (`terminal/package.rs::Package::apply`). -/
 private theorem ColumnHolds.mono {c : Ctx NightstreamFPrime.Spec.F} {statement : Array Var} {context : Array Word}
     {src : Source} {h : Var} {m m' : ℕ} (hold : ColumnHolds c statement context src h m) (le : m ≤ m') :
     ColumnHolds c statement context src h m' :=
@@ -122,7 +78,6 @@ instance column_appends (statement : Array Var) (context : Array Word) (computed
     Appends (column statement context computed src) := by
   cases src <;> simp only [column] <;> appends
 
-/-- `column`, simulated (`terminal/package.rs::Package::apply`). -/
 private theorem column_ensures {c : Ctx NightstreamFPrime.Spec.F} {n : ℕ} (statement : Array Var)
     (context : Array Word) (computed : Var) (src : Source) (hs : ∀ j, statement.getD j 0 < n)
     (hc : ∀ i, src = .computed i → computed + i < n) :
@@ -149,10 +104,6 @@ private theorem column_ensures {c : Ctx NightstreamFPrime.Spec.F} {n : ℕ} (sta
       · exact priv_ensures.post fun _ m w => ⟨fresh w, fun lo => absurd lo h1⟩
   | computed k => exact Ensures.pure ⟨hc k rfl, trivial⟩
 
-/-! ## The terminal layout -/
-
-/-- A fold that pushes one entry per step keeps its prefix
-(`private_input_index`, `nightstream-fprime/src/package.rs::LoadedPackage::private_input_index`). -/
 private theorem foldl_prefix {α β γ : Type} {f : Array α × β → γ → Array α × β}
     (hf : ∀ acc x, ∃ y, (f acc x).1 = acc.1.push y) :
     ∀ (l : List γ) acc, ∃ more, (l.foldl f acc).1.toList = acc.1.toList ++ more
@@ -162,8 +113,6 @@ private theorem foldl_prefix {α β γ : Type} {f : Array α × β → γ → Ar
       obtain ⟨more, e⟩ := foldl_prefix hf l (f acc x)
       exact ⟨y :: more, by rw [List.foldl_cons, e, hy]; simp⟩
 
-/-- The prior state preimage is the first caller input, from package column
-0, as `load` requires (`terminal/package.rs::load`). -/
 private theorem callerSegments_head : ∃ more, callerSegments (CompressionLean.Terminal.circuitPackage ()).layout =
     (⟨NightstreamFPrime.Export.Stage1.Data.Role.priorPreimage, 0, PilotProduction.stateHashWords⟩, 0) :: more := by
   obtain ⟨rest, hrest⟩ : ∃ rest, (CompressionLean.Terminal.circuitPackage ()).layout.privateSegments =
@@ -173,24 +122,18 @@ private theorem callerSegments_head : ∃ more, callerSegments (CompressionLean.
   rw [hrest, List.filter_cons_of_pos (by decide), List.foldl_cons]
   exact foldl_prefix (fun acc x => ⟨_, rfl⟩) _ _
 
-/-- A column of the prior preimage is the private input of its own index
-(`private_input_index`, `nightstream-fprime/src/package.rs::LoadedPackage::private_input_index`). -/
 private theorem privateInput_prior {pc : ℕ} (hpc : pc < PilotProduction.stateHashWords) :
     privateInput (callerSegments (CompressionLean.Terminal.circuitPackage ()).layout) pc = some pc := by
   obtain ⟨more, h⟩ := callerSegments_head
   rw [h, privateInput]
   simp [hpc]
 
-/-- The statement words of the prior preimage are the package columns from
-`contextStart + 4` on (`STATE_CONTEXT_START`, `terminal/package.rs::Package::apply`). -/
 private theorem priorColumn (k : Fin 9) :
     Stage1.Spartan.sourceToSpartan (PilotProduction.priorPreimageStart +
       (NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + 4 + k.val)) = contextStart + 4 + k := by
   revert k
   decide
 
-/-- The column counts of the terminal layout (`PUBLIC_CONTEXT_START`,
-`terminal/package.rs::PUBLIC_CONTEXT_START`; `STATE_CONTEXT_START`, `lifecycle/inputs.rs::STATE_CONTEXT_START`). -/
 private theorem layout_facts :
     (CompressionLean.Terminal.circuitPackage ()).layout.privateColumnCount = Stage1.Spartan.privateColumnCount ∧
     (CompressionLean.Terminal.circuitPackage ()).layout.constantColumn = Stage1.Spartan.privateColumnCount ∧
@@ -205,18 +148,11 @@ private theorem layout_facts :
     show 27819 < 5141486 + _
     omega
 
-/-! ## What layer 1 receives -/
-
-/-- Handles `hs` lie below `m` and hold the values of the expressions `list`
-on `env`, in order (`terminal/package.rs::Package::apply`). -/
 def HoldsValues (c : Ctx NightstreamFPrime.Spec.F) (m : ℕ) (env : Env) (hs : List Var) (list : List Expr) : Prop :=
   List.Forall₂ (fun h e => h < m ∧ c.val h = e.eval env) hs list
 
-/-- The handles of word pairs, in order (`terminal/package.rs::Package::apply`). -/
 def pairHandles (pairs : Array (Var × Var)) : List Var := pairs.toList.flatMap fun p => [p.1, p.2]
 
-/-- The claim handles hold the output values of the PiRLC parent on `env`, in
-`claimOf`'s order (`terminal/package.rs::Package::apply`). -/
 def ClaimHolds (c : Ctx NightstreamFPrime.Spec.F) (m : ℕ) (claim : ClaimVars) (env : Env) : Prop :=
   HoldsValues c m env (claim.commitment.toList.flatMap Array.toList) CompressionLean.Terminal.outputs.commitment ∧
   HoldsValues c m env (claim.publicInput.toList.flatMap Array.toList) CompressionLean.Terminal.outputs.publicInput ∧
@@ -224,29 +160,18 @@ def ClaimHolds (c : Ctx NightstreamFPrime.Spec.F) (m : ℕ) (claim : ClaimVars) 
   HoldsValues c m env (pairHandles claim.evalK) CompressionLean.Terminal.outputs.eval_K ∧
   HoldsValues c m env (claim.evalA.toList.flatMap pairHandles) CompressionLean.Terminal.outputs.eval_A
 
-/-- The state handles hold the sampler's output state on `env`
-(`terminal/package.rs::Package::apply`). -/
 def StateHolds (c : Ctx NightstreamFPrime.Spec.F) (m : ℕ) (state : Fin 16 → Var) (env : Env) : Prop :=
   HoldsValues c m env (List.ofFn state) CompressionLean.Terminal.outputs.state
 
-/-- Every ring row of the claim has `D` words, and every `Eval_A` row `D` pairs
-(`chunks_exact`, `terminal/package.rs::Package::apply`). -/
 def _root_.CompressionLean.Terminal.Program.ClaimVars.Shaped (claim : ClaimVars) : Prop :=
   (∀ row ∈ claim.commitment, row.size = Replay.D) ∧ (∀ row ∈ claim.publicInput, row.size = Replay.D) ∧
     ∀ row ∈ claim.evalA, row.size = Replay.D
 
-/-- What `apply` hands to `verify_with` (`terminal/mod.rs::FinalProgram::run`): a terminal
-assignment for the run's statement, whose output values the claim and state
-handles hold, in rows of the claim's shape. -/
 def Handoff (c : Ctx NightstreamFPrime.Spec.F) (authority : NightstreamFPrime.Lifecycle.VerifierContext.Authority)
     (r : ClaimVars × (Fin 16 → Var)) (m : ℕ) : Prop :=
   ∃ env, Spec.TerminalFor authority (statementOf c) env ∧ ClaimHolds c m r.1 env ∧ StateHolds c m r.2 env ∧
     r.1.Shaped
 
-/-! ## Chunks -/
-
-/-- The first `q` chunks of `xs`, joined (`chunks_exact`,
-`terminal/package.rs::Package::apply`). -/
 private theorem chunks_take {α : Type} (n : ℕ) (xs : Array α) :
     ∀ q, n * q ≤ xs.size →
       ((List.range q).flatMap fun k => (xs.extract (n * k) (n * k + n)).toList) = xs.toList.take (n * q)
@@ -257,15 +182,12 @@ private theorem chunks_take {α : Type} (n : ℕ) (xs : Array α) :
         Array.toList_extract, List.extract_eq_take_drop, Nat.mul_succ, List.take_add]
       simp
 
-/-- Chunks of a size that divides the length join to the list (`chunks_exact`,
-`terminal/package.rs::Package::apply`). -/
 private theorem chunks_flatten {α : Type} {n : ℕ} {xs : Array α} (dvd : n ∣ xs.size) :
     (chunks n xs).toList.flatMap Array.toList = xs.toList := by
   rw [Terminal.Program.chunks, Array.toList_map, Array.toList_range, List.flatMap_map,
     chunks_take n xs _ (Nat.mul_div_le xs.size n), Nat.mul_div_cancel' dvd]
   simp
 
-/-- Every chunk has `n` entries (`chunks_exact`, `terminal/package.rs::Package::apply`). -/
 private theorem chunks_size {α : Type} {n : ℕ} {xs : Array α} {chunk : Array α} (mem : chunk ∈ chunks n xs) :
     chunk.size = n := by
   rw [Terminal.Program.chunks, Array.mem_map] at mem
@@ -276,8 +198,6 @@ private theorem chunks_size {α : Type} {n : ℕ} {xs : Array α} {chunk : Array
   rw [Array.size_extract]
   omega
 
-/-- Pairs of an even list join to the list (`chunks_exact(2)`,
-`terminal/package.rs::Package::apply`). -/
 private theorem pairs_flatten {xs : Array Var} (dvd : 2 ∣ xs.size) : pairHandles (pairs xs) = xs.toList := by
   rw [pairHandles, pairs, Array.toList_map, List.flatMap_map, ← chunks_flatten dvd]
   refine List.flatMap_congr fun pair mem => ?_
@@ -286,12 +206,6 @@ private theorem pairs_flatten {xs : Array Var} (dvd : 2 ∣ xs.size) : pairHandl
   match l, size with
   | [a, b], _ => rfl
 
-/-! ## The assignment -/
-
-/-- The values of the package columns that no row names: one on the one
-column, the context words on the public context columns, the statement words
-on the statement columns of the prior preimage, and zero elsewhere
-(`terminal/package.rs::Package::apply`). -/
 private def unnamed (c : Ctx NightstreamFPrime.Spec.F) (context : Array Word) (pc : ℕ) : NightstreamFPrime.Spec.F :=
   if pc = Stage1.Spartan.privateColumnCount then 1
   else if Stage1.Spartan.expectedContextPublicStart ≤ pc then
@@ -299,8 +213,6 @@ private def unnamed (c : Ctx NightstreamFPrime.Spec.F) (context : Array Word) (p
   else if contextStart + 4 ≤ pc ∧ pc < PilotProduction.stateHashWords then c.stmt.getD (pc - (contextStart + 4)) 0
   else 0
 
-/-- The package assignment of a run: a named column holds the value of its
-system column (`assignment`, `terminal/package.rs::Package::apply`). -/
 private def terminalEnv (c : Ctx NightstreamFPrime.Spec.F) (context : Array Word) (columns : Array Var) : Env :=
   assignment (numbering (CompressionLean.Terminal.circuitPackage ())).1 (fun j => (columns.toList.map c.val).getD j 0)
     (unnamed c context)
@@ -310,8 +222,6 @@ section Assignment
 variable {c : Ctx NightstreamFPrime.Spec.F} {statement : Array Var} {context : Array Word} {columns : Array Var}
   {m : ℕ} {loaded : Loaded}
 
-/-- A computed source names a hint output (`Source::Computed`,
-`terminal/package.rs::Package::apply`). -/
 private theorem computed_lt
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded) :
     ∀ x ∈ loaded.sources, ∀ i, x = .computed i → i < loaded.computed.size := by
@@ -322,20 +232,15 @@ private theorem computed_lt
   obtain ⟨k, hk, rfl⟩ := Array.mem_iff_getElem.mp mem
   exact (numbering_numbered _).computed k hk i e
 
-/-- Every column handle lies below the count (`terminal/package.rs::Package::apply`). -/
 private theorem columns_lt : ∀ {xs : List Source} {hs : List Var},
     List.Forall₂ (fun x a => ColumnHolds c statement context x a m) xs hs → ∀ h ∈ hs, h < m
   | _, _, .nil => fun _ mem => absurd mem List.not_mem_nil
   | _, _, .cons hold rest => fun h mem => (List.mem_cons.mp mem).elim (fun e => e ▸ hold.1) (columns_lt rest h)
 
-/-- The numbering has an entry for every package column (`load`,
-`terminal/package.rs::load`). -/
 private theorem index_some (pc : ℕ) (lt : pc < (CompressionLean.Terminal.circuitPackage ()).layout.totalColumnCount) :
     ∃ x, (numbering (CompressionLean.Terminal.circuitPackage ())).1[pc]? = some x :=
   ⟨_, Array.getElem?_eq_getElem (by rw [(numbering_numbered _).size]; exact lt)⟩
 
-/-- A named column: its source, what `column` gives for it, and its value in
-`terminalEnv` (`terminal/package.rs::Package::apply`). -/
 private theorem env_named
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (cols : List.Forall₂ (fun x a => ColumnHolds c statement context x a m) loaded.sources.toList columns.toList)
@@ -365,7 +270,6 @@ private theorem env_named
   rw [terminalEnv, assignment, ite_eq_right (by rw [hk]; simp), bang, Option.getD_some]
   simp [List.getD_eq_getElem?_getD, klt]
 
-/-- The one column holds one (`Source::One`, `terminal/package.rs::Package::apply`). -/
 private theorem env_one
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (cols : List.Forall₂ (fun x a => ColumnHolds c statement context x a m) loaded.sources.toList columns.toList) :
@@ -385,8 +289,6 @@ private theorem env_one
       | pub i => exact absurd src.1 (by rw [hpc]; omega)
       | computed i => exact absurd src.1 (by rw [hpc]; omega)
 
-/-- The public context columns hold the context digest
-(`terminal/package.rs::Package::apply`). -/
 private theorem env_context
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (cols : List.Forall₂ (fun x a => ColumnHolds c statement context x a m) loaded.sources.toList columns.toList)
@@ -422,8 +324,6 @@ private theorem env_context
       | priv i => exact absurd src.1 (by rw [hpc, hstart]; omega)
       | computed i => exact absurd src.1 (by rw [hpc, hstart]; omega)
 
-/-- The statement words of the prior preimage are the run's statement
-(`terminal/package.rs::Package::apply`). -/
 private theorem env_prior
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (cols : List.Forall₂ (fun x a => ColumnHolds c statement context x a m) loaded.sources.toList columns.toList)
@@ -462,7 +362,6 @@ private theorem env_prior
           rw [privateInput_prior (by omega)] at e
           cases e
 
-/-- The rows hold on `terminalEnv` (`b.r1cs`, `terminal/package.rs::Package::apply`). -/
 private theorem env_rows
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
@@ -472,8 +371,6 @@ private theorem env_rows
   (system_holds_iff loads valid (fun j => (columns.toList.map c.val).getD j 0) (unnamed c context)
     (env_one loads cols)).mp fun r mem => rows r (Array.mem_toList_iff.mpr mem)
 
-/-- The handles of an output list hold its values (`columns[list[i]]`,
-`terminal/package.rs::Package::apply`). -/
 private theorem read_holds
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (cols : List.Forall₂ (fun x a => ColumnHolds c statement context x a m) loaded.sources.toList columns.toList)
@@ -500,10 +397,6 @@ private theorem read_holds
 
 end Assignment
 
-/-! ## The program, simulated -/
-
-/-- The lengths of the output lists that `ring` and `extension` read
-(`terminal/package.rs::Package::apply`). -/
 theorem outputs_length :
     CompressionLean.Terminal.outputs.commitment.length = Production.kappa * Replay.D ∧
     CompressionLean.Terminal.outputs.publicInput.length = Production.publicBlocks * Replay.D ∧
@@ -515,7 +408,6 @@ theorem outputs_length :
     simp [CompressionLean.Terminal.outputs, CompressionLean.Terminal.extension, List.length_flatten, List.map_ofFn,
       Function.comp_def] <;> decide
 
-/-- The state handles, as a list (`terminal/package.rs::Package::apply`). -/
 private theorem state_list {columns : Array Var} {ks : Array ℕ} (size : ks.size = 16) :
     List.ofFn (fun lane : Fin 16 => columns.getD (ks.getD lane 0) 0) = ks.toList.map fun k => columns.getD k 0 := by
   apply List.ext_getElem (by simp [size])
@@ -540,7 +432,6 @@ instance checkedApply_appends (package : Loaded) (context : Array Word) (stateme
 instance terminalPrefix_appends (package : Loaded) (context : Array Word) : Appends (terminalPrefix package context) := by
   unfold terminalPrefix; appends
 
-/-- `Package::apply`, simulated (`terminal/package.rs::Package::apply`). -/
 theorem apply_ensures
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
@@ -601,8 +492,6 @@ theorem apply_ensures
     simp only [pairs, Terminal.Program.chunks, Array.size_map, Array.size_range, chunks_size mem']
     omega
 
-/-- The iteration check, then `Package::apply`, simulated: the check gives a
-nonzero iteration (`terminal/mod.rs::FinalProgram::run`). -/
 theorem checkedApply_ensures
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
@@ -626,11 +515,6 @@ theorem checkedApply_ensures
   rw [word_mul, cast, cast, word_one, zero, show c.val 0 = statementOf c 0 from reads 0, zero0, zero_mul] at this
   exact absurd this (by decide)
 
-/-- **The terminal part of `ProgramEncodes`.** When the run's checks hold and
-its first nine values are the statement words, `terminalPrefix`
-(`FinalProgram::run` up to `verify_with`, `terminal/mod.rs::FinalProgram::run`) hands to
-layer 1 claim and state handles that hold the output values of a terminal
-assignment for the run's statement (`terminal/package.rs::Package::apply`). -/
 theorem terminalPrefix_ensures
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)
     (valid : (CompressionLean.Terminal.circuitPackage ()).CompactTemplatesValid)
@@ -640,11 +524,7 @@ theorem terminalPrefix_ensures
     Ensures c 0 (terminalPrefix loaded context) (Handoff c authority) :=
   statementHandles_ensures.bind fun _ _ _ h => checkedApply_ensures loads valid hctx h.1 (by omega) reads
 
-/-- **An accepting run of the final program.** Its instruction shape makes
-its first nine values the statement words, so layer 1 receives `Handoff` at
-the state that the terminal part leaves, and its result meets `R`
-(`terminal/mod.rs::FinalProgram::run`). The run is of `program`, which is the final
-program, so that a caller can keep `program` irreducible. -/
+/-- Stated for `program`, so that a caller can keep it irreducible. -/
 theorem finalProgram_exec {α : Type} {layer1 : ClaimVars → (Fin 16 → Var) → Build α} {R : α → ℕ → Prop}
     {program : Build α} (eq : program = finalProgram loaded context layer1)
     (loads : load (CompressionLean.Terminal.circuitPackage ()) CompressionLean.Terminal.outputs = .ok loaded)

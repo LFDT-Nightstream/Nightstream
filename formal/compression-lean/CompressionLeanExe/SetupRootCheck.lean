@@ -1,12 +1,5 @@
 import CompressionLean.Bridge.TableRoot
 
-/-!
-The `setupRootCheck` executable. It reads the export of `neo-spartan`'s
-`tests/internal/replay.rs` (`setupVars`, the setup oracle tables in leaf
-order and the key root), computes `tableRoot`, prints both roots and exits
-with 0 only if they are equal.
--/
-
 open Lean CompressionLean.Replay CompressionLean.Bridge
 
 namespace CompressionLeanExe.SetupRootCheck

@@ -1,16 +1,5 @@
 import CompressionLean.Sim.Calculus
 
-/-!
-Owns what each instruction of `Ir.lean` ensures (`X_ensures` for `Build.X`):
-its outputs are the replay's values of its inputs, and an assertion's check
-is the replay's equality. `bits` also gives its tape cells and its check,
-which names those cells. `extInv_ensures` is in `Algebra.lean`, where the
-coordinates of `Ext` are.
-
-The lemmas that compute with words need a field of characteristic `p`; the
-others do not.
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
@@ -26,15 +15,12 @@ theorem const_ensures (g : Word) : Ensures c n (Build.const g) fun h m => IsWord
     rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
     rfl
 
-/-- `private`: a proof word, a raw tape cell, the next handle. -/
 theorem priv_ensures : Ensures c n Build.priv fun h m => h = n ∧ m = n + 1 ∧ c.val h = c.tape h :=
   Ensures.emit _ fun E hl hF _ => by
     refine ⟨rfl, rfl, ?_⟩
     rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
     rfl
 
-/-- `r1cs` (`record.rs::Recorder::r1cs`): the rows hold on the values of the column
-handles. -/
 theorem r1cs_ensures {rows : List (Shrink.R1csRow Word)} {columns : List Var} (hc : ∀ h ∈ columns, h < n) :
     Ensures c n (Build.r1cs rows columns) fun _ _ =>
       ∀ r ∈ rows, R1csRow.Holds (fun j => (columns.map c.val).getD j 0) r := by
@@ -44,8 +30,6 @@ theorem r1cs_ensures {rows : List (Shrink.R1csRow Word)} {columns : List Var} (h
   rw [List.map_congr_left fun h mem => Ctx.follows_of_step hF h (hl ▸ hc h mem)] at holds
   exact holds.2
 
-/-- `bits`: `count` tape cells after the `n` values, which the check makes
-the bits of `a`. -/
 theorem bits_ensures {a : Var} {ga : Word} (count : ℕ) (ha : IsWord c n a ga) :
     Ensures c n (Build.bits a count) fun bs m => (∀ i, bs i = n + i ∧ bs i < m ∧ c.val (bs i) = c.tape (bs i)) ∧
       Bits (Word.cast ga) count fun i => c.tape (n + i) :=
@@ -58,14 +42,12 @@ theorem bits_ensures {a : Var} {ga : Word} (count : ℕ) (ha : IsWord c n a ga) 
       rw [ha.read (Ctx.follows_of_step hF) hl, hl] at holds
       exact holds.2).map fun _ _ ⟨⟨first, cells⟩, check⟩ => ⟨fun i => ⟨by rw [← first]; rfl, cells i⟩, check⟩
 
-/-- `hint`: `count` free proof words, raw tape cells. -/
 theorem hint_ensures (count : ℕ) :
     Ensures c n (Build.hint count) fun hs m => ∀ i, hs i = n + i ∧ hs i < m ∧ c.val (hs i) = c.tape (hs i) :=
   (Ensures.emit (Q := fun h m => h = n ∧ ∀ i : Fin count, h + i < m ∧ c.val (h + i) = c.tape (h + i)) _
     fun E hl hF _ => ⟨rfl, fun i => ⟨by simp [Instr.outputs], by rw [← hl, Ctx.val_next hF (by simp)]; simp⟩⟩).map
     fun _ _ ⟨first, cells⟩ i => ⟨by rw [← first]; rfl, cells i⟩
 
-/-- `permute`: one Poseidon2 block, the replay's permutation. -/
 theorem permute_ensures {state : Fin 16 → Var} {gs : Array Word} (hp : Permutes c.perm)
     (hs : ∀ k, IsWord c n (state k) gs[k]!) :
     Ensures c n (Build.permute state) fun r m => ∀ k, IsWord c m (r k) (Replay.permute gs)[k]! :=
@@ -114,7 +96,6 @@ theorem mul_ensures {a b : Var} {ga gb : Word} (ha : IsWord c n a ga) (hb : IsWo
     rw [← hl, ← Nat.add_zero E.values.length, Ctx.val_next hF (by simp)]
     simp [ha.read hE hl, hb.read hE hl, word_mul]
 
-/-- `assert_zero`: the check holds iff the word is zero. -/
 theorem assertZero_ensures {a : Var} {ga : Word} (ha : IsWord c n a ga) :
     Ensures c n (Build.assertZero a) fun _ _ => ga = 0 := by
   refine (Ensures.emit (Q := fun _ _ => ga = 0) (.assertZero a) fun E hl hF hh => ?_).bind

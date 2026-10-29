@@ -4,22 +4,6 @@ import Std.Data.HashSet.Lemmas
 import CompressionLean.Lib.List
 import CompressionLean.Spec.Checks
 
-/-!
-Owns the proof of the check of the layer-1 setup that Rust builds for the
-production key (`setupFailure`, `Spec/Checks.lean`). On the key and the runs
-that `PackageRows::visit_rows` pushes, the check decides that `build` returns `poseidon2Setup` at the carrier of the
-Poseidon2 hash chain, that this setup fits the key's shape (`Setup.Fits`) and
-that the key's structure describes it (`Structure.Describes`).
-`setupFailure_sound` proves that a pass gives the three facts. The runs are
-read at run time, so the `setupCheck` executable runs the check on the runs
-that it reads. `columnsFailure_sound` proves that a pass of the column check
-makes `poseidon2Setup`'s run oracles the columns that Rust commits.
-
-The check reads the runs a fixed number of times. It computes `classesOf` and
-`keysOf` with a hash set of the distinct values and a sort of them
-(`sortedValues`), which is `sortedSet` (`sortedValues_toList`).
--/
-
 namespace CompressionLean.Checks
 
 open CompressionLean.Spec
@@ -28,10 +12,6 @@ open CompressionLean.Lib
 open NightstreamFPrime.Spec NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open CompressionLean.Circuit (Layer1Key)
 
-/-! ## Sorted sets in one pass -/
-
-/-- A sorted list without repeats is the `sortedSet` of every list with its
-members. -/
 theorem sortedSet_eq_of {l r : List ℕ} (sorted : r.Pairwise (· ≤ ·)) (nodup : r.Nodup)
     (mem : ∀ x, x ∈ r ↔ x ∈ l) : sortedSet l = r := by
   refine List.Perm.eq_of_pairwise (fun _ _ _ _ => Nat.le_antisymm) (List.pairwise_insertionSort _ _) sorted ?_
@@ -52,7 +32,6 @@ theorem mem_foldl_insert (f : Push → ℕ) (x : ℕ) : ∀ (pushes : List Push)
         List.mem_cons, eq_comm (a := x)]
       tauto
 
-/-- `sortedValues` is the `sortedSet` of the values. -/
 theorem sortedValues_toList (f : Push → ℕ) (pushes : List Push) :
     (sortedValues f pushes).toList = sortedSet (pushes.map f) := by
   rw [sortedValues, List.toList_toArray]
@@ -63,8 +42,6 @@ theorem sortedValues_toList (f : Push → ℕ) (pushes : List Push) :
   · rw [List.mem_mergeSort, Std.HashSet.mem_toList, mem_foldl_insert]
     simp
 
-/-! ## The run list -/
-
 theorem runList_length (pushes : List Push) (m : ℕ) :
     (runList m pushes).length = pushes.countP fun p => p.matrix < m := by
   rw [(runList_perm pushes m).length_eq, List.countP_eq_length_filter]
@@ -73,8 +50,6 @@ theorem runList_succ (pushes : List Push) (m : ℕ) :
     runList (m + 1) pushes = runList m pushes ++ pushes.filter fun p => p.matrix = m := by
   simp [runList, List.range_succ, List.flatMap_append]
 
-/-- The runs of the run list from the count of the runs of the matrices below
-`j` to the count of those up to `j` are the runs of matrix `j`. -/
 theorem runList_matrix (pushes : List Push) {m j k : ℕ} (lt : j < m)
     (lo : (pushes.countP fun p => p.matrix < j) ≤ k) (hi : k < pushes.countP fun p => p.matrix < j + 1) :
     ((runList m pushes).getD k Push.pad).matrix = j := by
@@ -96,14 +71,11 @@ theorem runList_matrix (pushes : List Push) {m j k : ℕ} (lt : j < m)
         rw [List.getD_append_right _ _ _ _ (by omega), List.getD_eq_getElem _ _ inside]
         simpa using (List.mem_filter.mp (List.getElem_mem inside)).2
 
-/-- With every run in a matrix below `m`, the run list holds the runs. -/
 theorem runList_perm_of {pushes : List Push} {m : ℕ} (inside : ∀ p ∈ pushes, p.matrix < m) :
     (runList m pushes).Perm pushes := by
   have := runList_perm pushes m
   rwa [List.filter_eq_self.mpr fun p member => by simpa using inside p member] at this
 
-/-- With every run in a matrix below `m`, the run list has the classes and the
-slot keys that the checks sort from the runs. -/
 theorem runList_sorted {pushes : List Push} {m : ℕ} (inside : ∀ p ∈ pushes, p.matrix < m) :
     classesOf (runList m pushes) = (sortedValues Push.classCode pushes).toList ∧
       keysOf (runList m pushes) =
@@ -123,14 +95,9 @@ theorem getD_mem_or_pad (l : List Push) (k : ℕ) : l.getD k Push.pad ∈ l ∨ 
   · exact Or.inl (List.getD_eq_getElem _ _ inside ▸ List.getElem_mem inside)
   · exact Or.inr (List.getD_eq_default _ _ past)
 
-/-! ## The check -/
-
 theorem poseidon2Columns_eq : poseidon2Columns = Phi81CarrierLayout.carrierWidth 43963750 := by
   rw [poseidon2Columns, Production.poseidon2Width_eq]
 
-/-- **The setup check.** When the key and the runs fail no fact of the check,
-`build` returns `poseidon2Setup` at the carrier of the Poseidon2 hash chain,
-the setup fits the key's shape, and the key's structure describes it. -/
 theorem setupFailure_sound {key : Layer1Key} {pushes : List Push} (seed : List ℕ)
     (pass : setupFailure key pushes = none) :
     build seed poseidon2Columns Production.matrices pushes = some (poseidon2Setup seed pushes) ∧
@@ -215,9 +182,6 @@ theorem setupFailure_sound {key : Layer1Key} {pushes : List Push} (seed : List �
       rw [word]
       exact shape
 
-/-- **The column check.** When the setup check and the column check pass, the
-run oracles of `poseidon2Setup` (`setupOracle` past the key rows) are the
-columns that Rust commits, padded with zeros. -/
 theorem columnsFailure_sound {key : Layer1Key} {pushes : List Push} {cols : SetupColumns} (seed : List ℕ)
     (setup : setupFailure key pushes = none) (pass : columnsFailure pushes cols = none) (x : ℕ) :
     ((poseidon2Setup seed pushes).runRow x : Gl) = cols.row.getD x 0 ∧

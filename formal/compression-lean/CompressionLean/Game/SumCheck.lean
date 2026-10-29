@@ -7,7 +7,6 @@ open CompressionLean.Lib Polynomial
 
 variable {K : Type} [Field K] [Fintype K] [DecidableEq K]
 
-/-- Draw `m` coordinates, each off the bad set of the point so far. -/
 noncomputable def drawPoint (bad : List K → Finset K) : ℕ → List K → Game (List K)
   | 0, point => .pure point
   | m + 1, point => .draw K (bad point) fun c => drawPoint bad m (point ++ [c])

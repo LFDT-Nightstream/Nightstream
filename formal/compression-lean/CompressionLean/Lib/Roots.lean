@@ -43,8 +43,6 @@ section Line
 
 omit [Fintype K] [DecidableEq K]
 
-/-- `C a + X·C b`: the line `a + X·b`. A GKR pair's difference after the
-reduction at `X` and a fold's next value are lines. -/
 noncomputable def linePoly (a b : K) : K[X] := C a + X * C b
 
 theorem linePoly_eval (a b c : K) : (linePoly a b).eval c = a + c * b := by

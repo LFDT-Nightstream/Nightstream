@@ -7,32 +7,6 @@ import CompressionLean.Checks.Runs
 import CompressionLean.Checks.Templates
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
 
-/-!
-Owns the claims of the library: the production bound, and the theorems that
-link its premises to a proof or to a check. Each claim is stated in full here,
-in the vocabulary of `Spec/` and of the model and port folders
-(`CompressionLeanTests/Vocabulary.lean`); its proof is in the library.
-
-- `production_bound`: the soundness bound of `CompressionKey::verify` for the
-  production final program, for the relation of an application of any logical
-  width `lw`. It takes `ParentShape` at `lw`.
-- `poseidon2_bound`: `production_bound` for F′'s relation of the Poseidon2
-  hash-chain application, the application of the production key. It takes
-  `WidthFits` in place of `ParentShape`, and the runs, the Ajtai setup and
-  the passes of `setupCheck` and `runsCheck` in place of the setup and its
-  facts.
-- `honest_setup_of_build`: the honest setup from Rust's setup build and
-  `RunsGive`.
-- `key_facts_of_check`, `width_fits_of_check`, `package_templates_of_check`,
-  `setup_facts_of_check`, `runsGive_of_check`: a key, a terminal package or
-  runs that pass the check of `lowerCheck`, `terminalCheck`, `setupCheck` or
-  `runsCheck` have the premises that the check decides.
-
-`CompressionLeanTests/Axioms.lean` pins the axioms of exactly these theorems.
-`STATUS.md` lists every hypothesis of each claim and how each premise is met;
-`TRUST.md` lists what the claims trust.
--/
-
 namespace CompressionLean.Claims
 
 open CompressionLean.Spec
@@ -47,18 +21,7 @@ open CompressionLean.Circuit (Layer1Key)
 open CompressionLean.Terminal.Package (Loaded load)
 open CompressionLean.Final CompressionLean.Setup
 
-/-- **The production bound** (`CompressionKey::verify`,
-`lifecycle/finish.rs::CompressionKey::verify`). Take the production final program for the
-layer-1 key `key` (`productionProgram`), the terminal package with the context
-words of `authority`, and an honest setup `S` of an F′ relation of logical
-width `lw`. Under Fiat–Shamir, with the charged terms of each commitment
-within Rust's split, a prover with `calls` queries makes the final verifier
-accept a statement whose F′ claim (`ParentClaim`) is false, while every
-program witness among the shrink candidates has a reading (`Reads`) whose walk
-under the layer-1 log accepts, with probability at most `calls / 2^t`. A
-reading's challenges are the program's Poseidon2 outputs, so the bound covers a
-valid program witness only where those are the oracle's answers; Fiat–Shamir
-inside the program is assumed (`TRUST.md` §3). -/
+/-- Soundness of `lifecycle/finish.rs::CompressionKey::verify`; Fiat–Shamir inside the program is assumed (`TRUST.md` §3). -/
 theorem production_bound {lw : ℕ}
     {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
     (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word)
@@ -94,9 +57,6 @@ theorem production_bound {lw : ℕ}
     (shrinkRun_valid key loaded context) authority (Reads key loaded context S L0 L1)
     (programEncodes S facts fits describes L0 L1 loads valid hctx) calls prover
 
-/-- **The honest setup from the build** (`neo_spartan::Setup::build`). A setup
-that `build` returns for the seed of an Ajtai setup, from runs that give F′'s
-matrices (`RunsGive`), is an honest setup for that setup's key. -/
 theorem honest_setup_of_build {lw : ℕ}
     {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
     (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
@@ -108,28 +68,17 @@ theorem honest_setup_of_build {lw : ℕ}
     HonestSetup s S relation setup.verifierKey :=
   Final.build_honest s D lanes setup relation pushes built gives
 
-/-- **The key check** of `lowerCheck` and `terminalCheck`: a key that fails no
-check has `KeyFacts`. -/
 theorem key_facts_of_check {key : Layer1Key} (pass : keyFailure key = none) : KeyFacts key :=
   Checks.keyFailure_sound pass
 
-/-- **The width check** of `lowerCheck` and `terminalCheck`: a key for which
-they print that it fits the Poseidon2 hash chain (`poseidon2Fits`) has the
-blocks of that application. -/
 theorem width_fits_of_check {key : Layer1Key} (pass : poseidon2Fits key = true) :
     WidthFits key Production.poseidon2Width :=
   of_decide_eq_true pass
 
-/-- **The package check** of `terminalCheck`: a package whose compact row
-invocations all name a template has `CompactTemplatesValid`. -/
 theorem package_templates_of_check {package : CircuitPackage}
     (named : Spec.templatesNamed package = true) : package.CompactTemplatesValid :=
   Checks.templatesNamed_sound named
 
-/-- **The setup check** of `setupCheck`: for a key and runs that fail no fact
-of `setupFailure`, `build` returns `poseidon2Setup` at the carrier of the
-Poseidon2 hash chain and F′'s matrices, the setup fits the key's shape
-(`Setup.Fits`), and the key's structure describes it (`Structure.Describes`). -/
 theorem setup_facts_of_check {key : Layer1Key} {pushes : List Push} (seed : List ℕ)
     (pass : setupFailure key pushes = none) :
     build seed (Phi81CarrierLayout.carrierWidth Production.poseidon2Width) productionProfile.ccsMatrices pushes =
@@ -138,19 +87,10 @@ theorem setup_facts_of_check {key : Layer1Key} {pushes : List Push} (seed : List
       (structureOf key.relation.key.layout).Describes (shapeOf key.relation) (poseidon2Setup seed pushes) :=
   Checks.setupFailure_sound seed pass
 
-/-- **The run check** of `runsCheck`: runs for which `runsFailure` finds no
-failing row give F′'s matrices of the Poseidon2 hash chain (`RunsGive`). -/
 theorem runsGive_of_check {pushes : List Push} (pass : runsFailure pushes = none) :
     RunsGive pushes Production.poseidon2Relation :=
   Checks.runsFailure_sound pass
 
-/-- **The production bound for the Poseidon2 hash chain**: `production_bound`
-for F′'s relation of `Poseidon2HashChainV1Package.application`, at its
-logical width of 43,963,750 columns. The production key is of this
-application. The setup is the one that `build` returns for the seed of the
-Ajtai setup and the runs (`poseidon2Setup`). The claim takes `WidthFits` in
-place of `ParentShape`, and the passes of `setupCheck` and `runsCheck` in
-place of the facts of the setup. -/
 theorem poseidon2_bound (key : Layer1Key) (loaded : Loaded) (context : Array Replay.Word)
     (authority : Lifecycle.VerifierContext.Authority) (pushes : List Push)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth

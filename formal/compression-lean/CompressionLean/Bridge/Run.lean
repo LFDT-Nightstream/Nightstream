@@ -151,8 +151,6 @@ theorem Except.ensure_ok {ok : Bool} {what : String} {u : Unit} (h : (ensure ok 
   · cases h
   · rfl
 
-/-! ## Runs forward -/
-
 theorem runs_bind {α β : Type} {x : ReplayM α} {f : α → ReplayM β} {t t' t'' : Transcript} {a : α} {b : β}
     (hx : Runs x t a t') (hf : Runs (f a) t' b t'') : Runs (x >>= f) t b t'' := by
   unfold Runs at *
@@ -279,9 +277,6 @@ theorem whirTranscript_grows (shape : WhirShape) (o : Opening) : Grows (whirTran
     | with_reducible exact grows_observeExt _ | with_reducible exact grows_sampleExt
     | with_reducible apply grows_bind | with_reducible apply grows_forM | with_reducible intro)
 
-/-! ## Sum-check rounds -/
-
-/-- Replaying `l₁ ++ l₂` replays `l₁`, then `l₂` from its point and claim. -/
 theorem sumcheckRounds_append (l₁ l₂ : List (Array Ext)) (point : Array Ext) (claim : Ext) :
     sumcheckRounds (l₁ ++ l₂) point claim =
       sumcheckRounds l₁ point claim >>= fun r => sumcheckRounds l₂ r.1 r.2 := by
@@ -289,7 +284,6 @@ theorem sumcheckRounds_append (l₁ l₂ : List (Array Ext)) (point : Array Ext)
   | nil => simp [sumcheckRounds]
   | cons msg rest ih => simp [sumcheckRounds, ih, bind_assoc]
 
-/-- Replaying from `point` appends the new challenges to `point` (`sumcheck.rs::replay`). -/
 theorem sumcheckRounds_point (l : List (Array Ext)) (point : Array Ext) (claim : Ext) :
     sumcheckRounds l point claim = (fun r => (point ++ r.1, r.2)) <$> sumcheckRounds l #[] claim := by
   induction l generalizing point claim with

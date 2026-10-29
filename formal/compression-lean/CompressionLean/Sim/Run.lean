@@ -3,21 +3,6 @@ import CompressionLean.Ports.Circuit.Hash
 import CompressionLean.Bridge.Field
 import Mathlib.Data.List.GetD
 
-/-!
-Owns the executor's run as the simulation reads it: what the executor runs
-with (`Ctx`, with `val`, the values of the last state of the run), the steps
-of a run and the handles that read as replay words.
-
-- Handle `h` is the word `g` among `n` values (`IsWord`) when `h < n` and
-  `val h = Word.cast g`. `IsExt` and `IsPair` lift it to extension values and
-  pairs. Their `mono` lemmas raise the count; `omega` proves the bound.
-- The field has characteristic `p`, so `Word.cast` is a ring map on words
-  (`word_add`, `word_mul`, `word_sub`) and is injective.
-- `Permutes perm`: on words, `perm` is the replay's Poseidon2 permutation.
-
-It does not own the calculus (`Calculus.lean`).
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
@@ -26,8 +11,6 @@ open CompressionLean.Replay (Word Ext)
 open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
-
-/-! ## Words in a field of characteristic `p` -/
 
 section Words
 
@@ -64,10 +47,6 @@ theorem word_injective : Function.Injective (Word.cast : Word → F) := fun a b 
 end Words
 
 
-/-! ## Runs -/
-
-/-- What the executor runs with, and `val`, the values of the last state of
-the run. -/
 structure Ctx (F : Type) where
   perm : List F → List F
   stmt : List F
@@ -78,19 +57,15 @@ namespace Ctx
 
 variable (c : Ctx F)
 
-/-- One instruction. -/
 def step (E : Exec.State F) (i : Instr) : Exec.State F := Exec.step c.perm c.stmt c.tape E i
 
-/-- The state after `L` from `E`. -/
 def steps (L : List Instr) (E : Exec.State F) : Exec.State F := L.foldl c.step E
 
-/-- `E` has `val`'s value at each of its handles. -/
 def Follows (E : Exec.State F) : Prop := ∀ h < E.values.length, E.value h = c.val h
 
 theorem steps_append (L L' : List Instr) (E : Exec.State F) : c.steps (L ++ L') E = c.steps L' (c.steps L E) :=
   List.foldl_append
 
-/-- An instruction appends its outputs. -/
 theorem step_values (E : Exec.State F) (i : Instr) :
     ∃ more : List F, (c.step E i).values = E.values ++ more ∧ more.length = i.outputs := by
   cases i <;> exact ⟨_, rfl, by simp [Instr.outputs]⟩
@@ -112,7 +87,6 @@ theorem follows_of_steps {c : Ctx F} {L : List Instr} {E : Exec.State F} (h : c.
   have := h v (by rw [hm]; simp; omega)
   rwa [Exec.State.value, hm, List.getD_append _ _ _ _ hv] at this
 
-/-- Checks only accumulate: a step that holds started from a state that held. -/
 theorem holds_of_step {c : Ctx F} {E : Exec.State F} {i : Instr} (h : (c.step E i).holds) : E.holds := by
   cases i <;> simp only [Ctx.step, Exec.step, Exec.State.next] at h <;> first | exact h | exact h.1
 
@@ -121,9 +95,6 @@ theorem holds_of_steps {c : Ctx F} {L : List Instr} {E : Exec.State F} (h : (c.s
   | nil => exact h
   | cons i L ih => exact holds_of_step (ih h)
 
-/-- **The statement words.** A program that starts with `k` `public`
-instructions (`record.rs::Recorder::public`): the first `k` values of its run are the
-first `k` statement words. -/
 theorem run_pubs {L : Array Instr} {k : ℕ} {rest : List Instr} (pre : L.toList = List.replicate k .pub ++ rest)
     {j : ℕ} (hj : j < k) : (Exec.run c.perm c.stmt c.tape L).value j = c.stmt.getD j 0 := by
   have pubs : ∀ k, (c.steps (List.replicate k .pub) Exec.start).values = (List.range k).map (c.stmt.getD · 0) ∧
@@ -145,12 +116,8 @@ theorem run_pubs {L : Array Instr} {k : ℕ} {rest : List Instr} (pre : L.toList
 
 end Ctx
 
-/-- Handle `h` is one of the first `n` values, and `val` gives it the word
-`g`. -/
 def IsWord (c : Ctx F) (n : ℕ) (h : Var) (g : Word) : Prop := h < n ∧ c.val h = Word.cast g
 
-/-- A handle among `n` values is among `m ≥ n`; `omega` proves the bound from
-the counts in context. -/
 theorem IsWord.mono {c : Ctx F} {n m : ℕ} {h : Var} {g : Word} (w : IsWord c n h g) (le : n ≤ m := by omega) :
     IsWord c m h g :=
   ⟨lt_of_lt_of_le w.1 le, w.2⟩
@@ -159,25 +126,19 @@ theorem IsWord.congr {c : Ctx F} {n : ℕ} {h : Var} {g g' : Word} (w : IsWord c
     IsWord c n h g' :=
   ⟨w.1, w.2.trans e⟩
 
-/-- An executor state that follows `val` reads a word's value. -/
 theorem IsWord.read {c : Ctx F} {n : ℕ} {h : Var} {g : Word} (w : IsWord c n h g) {E : Exec.State F}
     (hF : c.Follows E) (hl : E.values.length = n) : E.value h = Word.cast g :=
   (hF h (hl ▸ w.1)).trans w.2
 
 
-/-! ## Extension values -/
-
-/-- The coordinates of an extension value. -/
 def _root_.CompressionLean.Replay.Ext.coord (e : Ext) : Fin 3 → Word := ![e.c0, e.c1, e.c2]
 
-/-- The three handles of `a` are the coordinates of `e`. -/
 def IsExt (c : Ctx F) (n : ℕ) (a : ExtVar) (e : Ext) : Prop := ∀ k, IsWord c n (a k) (e.coord k)
 
 theorem IsExt.mono {c : Ctx F} {n m : ℕ} {a : ExtVar} {e : Ext} (h : IsExt c n a e) (le : n ≤ m := by omega) :
     IsExt c m a e :=
   fun k => (h k).mono le
 
-/-- Both values of a pair. -/
 def IsPair (c : Ctx F) (n : ℕ) (a : ExtVar × ExtVar) (g : Ext × Ext) : Prop := IsExt c n a.1 g.1 ∧ IsExt c n a.2 g.2
 
 theorem IsPair.mono {c : Ctx F} {n m : ℕ} {a : ExtVar × ExtVar} {g : Ext × Ext} (h : IsPair c n a g)
@@ -185,7 +146,6 @@ theorem IsPair.mono {c : Ctx F} {n m : ℕ} {a : ExtVar × ExtVar} {g : Ext × E
     IsPair c m a g :=
   ⟨h.1.mono le, h.2.mono le⟩
 
-/-- `Permutes perm`: on words, `perm` is the replay's Poseidon2 permutation. -/
 def Permutes (perm : List F → List F) : Prop :=
   ∀ (s : Array Word) (k : Fin 16), (perm (List.ofFn fun i : Fin 16 => Word.cast s[i]!)).getD k 0 = Word.cast (Replay.permute s)[k]!
 
@@ -196,7 +156,6 @@ variable {c : Ctx F}
 theorem follows_of_step {E : Exec.State F} {i : Instr} (h : c.Follows (c.step E i)) : c.Follows E :=
   follows_of_steps (L := [i]) h
 
-/-- Output `k` of a step that appends `outs`. -/
 theorem val_next {E : Exec.State F} {outs : List F} {check : Prop} (hF : c.Follows (E.next outs check)) {k : ℕ}
     (hk : k < outs.length) : c.val (E.values.length + k) = outs.getD k 0 := by
   rw [← hF _ (by simp [Exec.State.next]; omega), Exec.State.value]

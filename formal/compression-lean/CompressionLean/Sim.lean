@@ -22,14 +22,3 @@ import CompressionLean.Sim.Verify
 import CompressionLean.Sim.Views
 import CompressionLean.Sim.Whir
 
-/-!
-`Sim/` owns the simulation of the circuit's programs: the calculus
-(`Calculus`: the instruction shape `Appends` and what a program `Ensures`;
-`Instr`: what each instruction ensures; `Tracks`: a transcript program beside
-the replay), one file per part of the verifier and of the terminal program,
-and the encoding premise for the production final program (`Encodes`,
-`programEncodes`).
-
-It does not own the programs (`Ports/Circuit/`) or the lowering proofs
-(`Lowering/`).
--/

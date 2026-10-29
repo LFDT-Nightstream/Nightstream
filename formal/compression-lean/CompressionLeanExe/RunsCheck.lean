@@ -1,13 +1,6 @@
 import CompressionLean.Checks.Runs
 import CompressionLeanExe.Runs
 
-/-!
-The `runsCheck` executable. It reads the runs that `nightstream`'s
-`setup_runs.rs` writes (`production_runs.bin`) and runs the run check
-(`runsFailure`) on them. It prints `runs give the matrices`, or the first
-row and matrix that fail and exits with 1.
--/
-
 open CompressionLeanExe.Runs in
 def main (args : List String) : IO UInt32 := do
   let [runs] := args | IO.eprintln "usage: runsCheck <runs.bin>"; return 2

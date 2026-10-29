@@ -1,21 +1,8 @@
 import CompressionLean
 import CompressionLeanTests.Inventory
 
-/-!
-The vocabulary gate. `lake build` runs it.
-
-A claim is stated in the vocabulary of `Spec/` and of the model and port
-folders: every constant in the type of a claim of `Inventory.claims` is
-declared in a module of a folder of `vocabularyFolders`, or outside
-`CompressionLean` (F′, Mathlib, core). A constant of a proof folder (`Lib`,
-`Shrink`, `Lowering`, `Bridge`, `Final`, `Checks`, `Sim`, `Claims`) fails the
-build. The gate checks the names in a claim's type, not their bodies;
-`TRUST.md` names the definitions of proof folders that the bodies reach.
--/
-
 open Lean Elab Command CompressionLeanTests.Inventory
 
-/-- The folders whose definitions a claim's type may name. -/
 def vocabularyFolders : List String := ["Fields", "Production", "Game", "Terminal", "Layer1", "Ports", "Spec"]
 
 elab "#check_vocabulary" : command => do

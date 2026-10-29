@@ -43,7 +43,6 @@ def observe (value : Var) : Transcript Unit := do
   modify fun d => { d with output := #[], input := d.input.push value }
   if (← get).input.size = rate then duplexing
 
-/-- `hash.rs::Duplex::observe_slice`. -/
 def observeSlice (values : Array Var) : Transcript Unit :=
   values.forM observe
 

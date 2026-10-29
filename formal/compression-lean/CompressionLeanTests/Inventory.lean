@@ -1,25 +1,11 @@
 import Lean
 
-/-!
-Owns what the library claims and what the claims rest on, as data: the pinned
-claims, every premise of each claim with how it is met, the hand ports of Rust
-(`ports.json`) and the Rust tests that pin digests that Lean computes. It also owns `STATUS.md`
-(`statusPage`). It does not import `CompressionLean`; `lake exe status`
-computes the page when it compiles (`CompressionLeanExe/Status.lean`).
-
-The gates are in `Axioms.lean` and `Ports.lean`. Paths are relative to
-`formal/compression-lean`.
--/
-
 namespace CompressionLeanTests.Inventory
 
 open Lean
 
-/-- The axioms of every claim. -/
 def standardAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
 
-/-- The claims: the theorems of `CompressionLean.Claims`, each with the axioms
-that it uses exactly. -/
 def claims : List (Name × List Name) := [
   (`CompressionLean.Claims.production_bound, standardAxioms),
   (`CompressionLean.Claims.poseidon2_bound, standardAxioms),
@@ -30,10 +16,8 @@ def claims : List (Name × List Name) := [
   (`CompressionLean.Claims.setup_facts_of_check, standardAxioms),
   (`CompressionLean.Claims.runsGive_of_check, standardAxioms)]
 
-/-- The module of the claims. -/
 def claimsModule : Name := `CompressionLean.Claims
 
-/-- How a premise of a claim is met (`Met.meaning`). -/
 inductive Met where
   | rustFiles
   | leanValue
@@ -52,15 +36,11 @@ def Met.meaning : Met → String
   | .rust => "Rust checks it when it runs. Lean does not check it."
   | .proved => "a Lean proof gives it where another claim uses this claim."
 
-/-- A premise of a claim: its binder and how it is met. -/
 structure Premise where
   binder : Name
   met : Met
   how : String
 
-/-- Every premise of every claim: each Prop-valued binder of its type. The
-status gate fails when a claim has a premise that is not here, or when an
-entry names no premise of its claim. -/
 def premises : List (Name × List Premise) :=
   let pf : Premise := ⟨`pf, .proved,
     "F′ proves it for an application (`Poseidon2HashChainV1Package.fits`, in `poseidon2_bound`)."⟩
@@ -108,11 +88,8 @@ def premises : List (Name × List Premise) :=
     (`CompressionLean.Claims.setup_facts_of_check, [⟨`pass, .rustFiles, setupPass⟩]),
     (`CompressionLean.Claims.runsGive_of_check, [⟨`pass, .rustFiles, runsPass⟩])]
 
-/-- The folder of the hand ports of Rust: `CompressionLean/Ports/` and every
-module under it. -/
 def portRoot : Name := `CompressionLean.Ports
 
-/-- The Rust tests that pin a digest that Lean computes: the file, then the test. -/
 def digestPins : List (String × String) := [
   ("crates/neo-spartan/tests/internal/circuit.rs", "permutation_template_matches_lean"),
   ("crates/neo-spartan/tests/internal/lowering.rs", "toy_layer1_digest_is_pinned"),
@@ -120,9 +97,7 @@ def digestPins : List (String × String) := [
   ("crates/nightstream/tests/lifecycle_native/terminal_ir.rs", "terminal_digest_is_pinned"),
   ("crates/nightstream/tests/lifecycle_native/terminal_ir.rs", "final_program_digest_is_pinned")]
 
-/-- One hand transcription: a Lean declaration, the Rust item that it
-transcribes and the hash of the item's tokens, which the Rust test
-`lean_ports_match_their_rust_items` checks. -/
+/-- The Rust test `lean_ports_match_their_rust_items` checks each hash. -/
 structure Port where
   lean : Name
   rust : String
@@ -132,24 +107,19 @@ deriving FromJson
 def readPorts : IO (Array Port) := do
   IO.ofExcept <| (Json.parse (← IO.FS.readFile "ports.json")).bind fromJson?
 
-/-- The file of a Rust item path. -/
 def rustFile (path : String) : String := (path.splitOn ".rs::").headD "" ++ ".rs"
 
-/-- The module that declares `n`. -/
 def moduleOf (env : Environment) (n : Name) : Name :=
   match env.getModuleIdxFor? n with
   | some idx => env.header.moduleNames[idx.toNat]!
   | none => .anonymous
 
-/-- `ty` on one line, with the table separator escaped. -/
 def cell (ty : Expr) : MetaM String := do
   let text := (← Meta.ppExpr ty).pretty 1000000
   let words := (String.ofList (text.toList.map fun c => if c.isWhitespace then ' ' else c)).splitOn " "
     |>.filter (· ≠ "")
   return (" ".intercalate words).replace "|" "\\|"
 
-/-- The binders of a claim, each as `name : type` with its binder brackets,
-and whether it is a premise (Prop-valued). -/
 def binders (type : Expr) : MetaM (List (Name × String × Bool)) :=
   Meta.forallTelescope type fun xs _ => xs.toList.mapM fun x => do
     let decl ← x.fvarId!.getDecl
@@ -161,15 +131,11 @@ def binders (type : Expr) : MetaM (List (Name × String × Bool)) :=
       | .default => entry
     return (decl.userName, shown, ← Meta.isProp decl.type)
 
-/-- How many times each key occurs, in key order. -/
 def counts (keys : List String) : List (String × Nat) :=
   (keys.mergeSort (· ≤ ·)).splitBy (· == ·) |>.map fun g => (g.headD "", g.length)
 
 def code (s : String) : String := s!"`{s}`"
 
-/-- `STATUS.md`. It fails when a premise of a claim has no entry in
-`premises`, or an entry names no premise. It prints names in full, wherever
-it runs. -/
 def statusPage (ports : Array Port) : CoreM String :=
     withReader (fun ctx => { ctx with currNamespace := .anonymous, openDecls := [] }) do
   let env ← getEnv

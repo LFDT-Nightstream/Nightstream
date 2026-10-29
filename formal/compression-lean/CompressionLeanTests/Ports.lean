@@ -1,37 +1,13 @@
 import CompressionLean
 import CompressionLeanTests.Inventory
 
-/-!
-The ports gate and the status gate. `lake build` runs both, and rebuilds them
-when `ports.json` or `STATUS.md` changes.
-
-- `Ports/` (`Inventory.portRoot`) holds definitions only: a theorem written
-  there fails. Lean's own declarations (constructors, projections,
-  recursors, equation lemmas, derived instances) are not written there.
-- A port's namespace is its path without `Ports/`: a declaration of
-  `Ports/X.lean` or `Ports/X/…` is in `CompressionLean.X`.
-- Every definition, structure and inductive written in `Ports/` has an entry
-  in `ports.json`, or in `notPorts` with the reason. Instances and notation
-  are not checked: an instance holds an operation of a type that has its own
-  entry.
-- Every Lean name in `ports.json` is declared, and in `Ports/` or in
-  `portsOutside` with the reason.
-- `STATUS.md` is what `lake exe status` prints. The page fails when a
-  Prop-valued binder of a claim has no entry in `Inventory.premises`.
-- No source line cites Rust by line number (`.rs:` and then a digit), which drifts with
-  every Rust edit; a citation names the item (`file.rs::Item`). The pinned
-  crate versions in `pinnedLineCitations` keep their lines.
--/
-
 open Lean Elab Command CompressionLeanTests.Inventory
 
-/-- The `ports.json` entries outside `Ports/`, each with the reason. -/
 def portsOutside : List (Name × String) :=
   let lower := "a generic definition that the layer-1 game reads too; `Layer1/` is below `Ports/`"
   [(``CompressionLean.Lib.eqAt, lower), (``CompressionLean.Lib.eqEval, lower),
     (``CompressionLean.Lib.roundValues, lower), (``CompressionLean.Game.sumcheck, lower)]
 
-/-- The definitions of `Ports/` that have no `ports.json` entry, by reason. -/
 def notPorts : List (String × List Name) := [
   ("the program as data and its handles (`Var`, `ExtVar`, the instruction list and the state that writes it); Rust calls `Backend` directly and keeps no list",
     [``CompressionLean.Circuit.Var, ``CompressionLean.Circuit.ExtVar, ``CompressionLean.Circuit.Builder,
@@ -68,11 +44,8 @@ def notPorts : List (String × List Name) := [
     [``CompressionLean.Shrink.Transcript, ``CompressionLean.Shrink.tauBad, ``CompressionLean.Shrink.trueValues,
       ``CompressionLean.Shrink.rhoBad, ``CompressionLean.Shrink.batchPoly])]
 
-/-- The types of Lean's syntax declarations (notation, macros), which a port
-file may hold. -/
 def syntaxTypes : List Name := [``ParserDescr, ``TrailingParserDescr, ``Macro, ``PrettyPrinter.Unexpander]
 
-/-- `n` or a prefix of it is an instance, so a derived instance's parts too. -/
 def underInstance (env : Environment) : Name → Bool
   | .anonymous => false
   | n@(.str p _) | n@(.num p _) => Meta.isInstanceCore env n || underInstance env p
@@ -130,7 +103,6 @@ elab "#check_status" : command => do
 that the workspace pins exactly, so they do not move. -/
 def pinnedLineCitations : List String := ["report.rs:100-111", "prescribed_pcs.rs:91-110"]
 
-/-- `line` cites a Rust line: `.rs:` and then a digit, outside `pinnedLineCitations`. -/
 def citesRustLine (line : String) : Bool :=
   let rest := pinnedLineCitations.foldl (fun s pinned => s.replace pinned "") line
   (rest.splitOn ".rs:").drop 1 |>.any fun after => after.toList.head?.any Char.isDigit

@@ -1,41 +1,11 @@
 import CompressionLean.Sim.Run
 
-/-!
-Owns the simulation calculus: what a builder program ensures about the run
-of the instructions that it writes.
-
-- `Appends b`: from every builder state, `b` appends instructions and one
-  value per output. This is the instruction shape of `b`, apart from what
-  the run means. Instances hold it for each instruction and named program;
-  the `appends` tactic proves it for a program from its binds, loops,
-  branches and binders. A transcript program has it at every duplex.
-- `Keeps t`: a transcript program that only calls the builder ends at the
-  duplex where it starts. The `keeps` tactic proves it in the same way.
-- `EnsuresAt c p b Q`: from the builder state `p`, when the instructions
-  that `b` appends run from an executor state with `p.values` values, follow
-  `val` and pass their checks, the result of `b` meets `Q` at the new value
-  count. `Ensures c n b Q` is `EnsuresAt` from every builder state with `n`
-  values.
-- `Ensures.bind`: the rest of the program receives the result of `b`, the
-  new count and what `b` ensures about them as hypotheses. `appends` gives
-  the instruction shape of both parts.
-- `EnsuresAt.exec`: an accepting run of a program from the empty builder
-  meets what the program ensures.
-
-A fact that a lemma needs is a hypothesis of the lemma. Only what the run
-means depends on it, never which instructions the program writes.
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
 open CompressionLean.Lowering
 open CompressionLean.Replay (Word)
 
-/-! ## Instruction shape -/
-
-/-- **`b` appends.** From every builder state, `b` appends instructions and
-one value per output. -/
 class Appends {α : Type} (b : Build α) : Prop where
   out : ∀ p : Builder, ∃ new : List Instr, (b.run p).2.instrs = p.instrs ++ new.toArray ∧
     (b.run p).2.values = p.values + (new.map Instr.outputs).sum
@@ -109,8 +79,6 @@ theorem mapM_list {f : δ → Build α} (h : ∀ x, Appends (f x)) : ∀ l : Lis
 theorem mapM_array {f : δ → Build α} (h : ∀ x, Appends (f x)) (xs : Array δ) : Appends (xs.mapM f) := by
   rw [Array.mapM_eq_mapM_toList]
   exact map _ (mapM_list h _)
-
-/-! A transcript program appends at every duplex. -/
 
 instance tpure (a : α) (d : Duplex) : Appends ((Pure.pure a : Transcript α).run d) := pure _
 
@@ -187,8 +155,6 @@ theorem tmapM_array {f : δ → Transcript α} (h : ∀ x d, Appends ((f x).run 
 
 end Appends
 
-/-- **`t` keeps the duplex.** From every duplex and builder state, `t` ends at
-the duplex where it starts: it calls the builder and draws nothing. -/
 class Keeps {α : Type} (t : Transcript α) : Prop where
   keeps : ∀ d p, ((t.run d).run p).1.2 = d
 
@@ -254,7 +220,6 @@ section Tactic
 
 open Lean Meta Elab Tactic
 
-/-- The loop lemma for the collection `ρ` of a `forIn`. -/
 private def forInRule (ρ : Expr) (list array range : Name) : MetaM (Option Name) := do
   return match (← whnfR ρ).getAppFn with
     | .const ``List _ => some list
@@ -262,9 +227,6 @@ private def forInRule (ρ : Expr) (list array range : Name) : MetaM (Option Name
     | .const ``Std.Legacy.Range _ => some range
     | _ => none
 
-/-- The structural lemma of `Appends` for the head of the program `b`: a bind,
-a map, a loop, a `mapM` or a branch of a builder program, or the same of a
-transcript program at a duplex, or a lift into a transcript. -/
 private def appendsRule (b : Expr) : MetaM (Option Name) := do
   let forIn := forInRule
   match b.getAppFn with
@@ -290,8 +252,6 @@ private def appendsRule (b : Expr) : MetaM (Option Name) := do
     | _ => return none
   | _ => return none
 
-/-- One step of unfolding an abbreviation at the head of the program `b`, or of
-the transcript program in `b`. -/
 private def unfoldAbbrev? (b : Expr) : MetaM (Option Expr) := do
   let unfold (e : Expr) : MetaM (Option Expr) := do
     let .const name _ := e.getAppFn | return none
@@ -303,8 +263,6 @@ private def unfoldAbbrev? (b : Expr) : MetaM (Option Expr) := do
     return (← unfold args[3]!).map fun t => mkAppN b.getAppFn (args.set! 3 t)
   | _ => unfold b
 
-/-- The structural lemma of `Keeps` for the head of the transcript program `t`:
-a bind, a map, a loop, a `mapM` or a branch. -/
 private def keepsRule (t : Expr) : MetaM (Option Name) := do
   match t.getAppFn with
   | .const ``Bind.bind _ => return some ``Keeps.bind
@@ -316,11 +274,6 @@ private def keepsRule (t : Expr) : MetaM (Option Name) := do
   | .const ``List.mapM _ => return some ``Keeps.mapM_list
   | _ => return none
 
-/-- One step on the goal `g` of the shape class `cls` (`Appends` or `Keeps`): a
-binder, an instance of a named program or instruction, a let, the structural
-lemma `rule` of the program's head, an abbreviation, or a `split` of a
-`match`. A let of data is any value, since the shape does not depend on it; a
-join point, a function into programs, is substituted. -/
 private def shapeStep (cls : Name) (rule : Expr → MetaM (Option Name)) (g : MVarId) : TacticM (List MVarId) :=
     g.withContext do
   let ty ← instantiateMVars (← g.getType)
@@ -351,7 +304,6 @@ private def shapeStep (cls : Name) (rule : Expr → MetaM (Option Name)) (g : MV
   catch _ => throwError "{cls}: no rule for the program{indentExpr b}"
   getGoals
 
-/-- Prove a shape goal of `cls` by `shapeStep`, one head at a time. -/
 private def shape (cls : Name) (rule : Expr → MetaM (Option Name)) : TacticM Unit := do
   let open_ ← Meta.repeat' (shapeStep cls rule) [← getMainGoal]
   if let g :: _ := open_ then
@@ -359,19 +311,11 @@ private def shape (cls : Name) (rule : Expr → MetaM (Option Name)) : TacticM U
     throwError "{cls}: open goals remain"
   replaceMainGoal []
 
-/-- **Prove that a program appends**: the instances of its instructions and
-named programs, and the structural lemmas of its binds, loops, branches, lets
-and binders, one head at a time. -/
 elab "appends" : tactic => shape ``Appends appendsRule
 
-/-- **Prove that a transcript program keeps the duplex**: its lifts of builder
-calls, and the structural lemmas of its binds, loops, branches, lets and
-binders. -/
 elab "keeps" : tactic => shape ``Keeps keepsRule
 
 end Tactic
-
-/-! The instructions and the builder's combinations (`Ir.lean`). -/
 
 instance const_appends (g : Word) : Appends (Build.const g) := Appends.emit _
 instance priv_appends : Appends Build.priv := Appends.emit _
@@ -403,22 +347,13 @@ instance assertExtZero_appends (a : ExtVar) : Appends (Build.assertExtZero a) :=
 instance assertExtEqual_appends (a b : ExtVar) : Appends (Build.assertExtEqual a b) := by
   unfold Build.assertExtEqual; appends
 
-/-! ## Meaning -/
-
 variable {F : Type} [CommRing F]
 
-/-- **What `b` ensures from the builder state `p`.** When the instructions
-`new` that `b` appends after `p` run from an executor state with `p.values`
-values, follow `val` and pass their checks, the result of `b` meets `Q` at
-the new count. A result that means something only once a check passes (a
-bit, a Merkle path) then feeds the rest of the program. -/
 def EnsuresAt {α : Type} (c : Ctx F) (p : Builder) (b : Build α) (Q : α → ℕ → Prop) : Prop :=
   ∀ (E : Exec.State F) (new : List Instr), E.values.length = p.values →
     (b.run p).2.instrs = p.instrs ++ new.toArray → c.Follows (c.steps new E) → (c.steps new E).holds →
     Q (b.run p).1 (b.run p).2.values
 
-/-- **What `b` ensures after `n` values**: `EnsuresAt` from every builder state
-with `n` values. -/
 def Ensures {α : Type} (c : Ctx F) (n : ℕ) (b : Build α) (Q : α → ℕ → Prop) : Prop :=
   ∀ p : Builder, p.values = n → EnsuresAt c p b Q
 
@@ -426,7 +361,6 @@ variable {c : Ctx F} {α β γ δ : Type} {n : ℕ} {Q : α → ℕ → Prop}
 
 namespace EnsuresAt
 
-/-- `bind` at the state that `b` leaves, with the result that `b` returns. -/
 theorem bind {p : Builder} {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} (hb : EnsuresAt c p b Q)
     (hf : p.values ≤ (b.run p).2.values → Q (b.run p).1 (b.run p).2.values →
       EnsuresAt c (b.run p).2 (f (b.run p).1) R)
@@ -451,7 +385,6 @@ theorem post {p : Builder} {b : Build α} {Q' : α → ℕ → Prop} (h : Ensure
     (hq : Q (b.run p).1 (b.run p).2.values → Q' (b.run p).1 (b.run p).2.values) : EnsuresAt c p b Q' :=
   fun E new hE hi hF hh => hq (h E new hE hi hF hh)
 
-/-- **An accepting run meets what the program ensures from the empty builder.** -/
 theorem exec {b : Build α} (h : EnsuresAt c {} b Q) (hval : c.val = (Exec.run c.perm c.stmt c.tape b.program).value)
     (accepts : Exec c.perm b.program c.stmt c.tape) : Q (b.run {}).1 (b.run {}).2.values := by
   have run : Exec.run c.perm c.stmt c.tape b.program = c.steps b.program.toList Exec.start := rfl
@@ -465,30 +398,23 @@ namespace Ensures
 
 theorem pure {a : α} (h : Q a n) : Ensures c n (Pure.pure a) Q := fun _ hp _ _ _ _ _ _ => hp ▸ h
 
-/-- **`b`, then `f` of its result.** The rest receives the result, the new
-count and what `b` ensures as hypotheses. -/
 theorem bind {b : Build α} {f : α → Build β} {R : β → ℕ → Prop} (hb : Ensures c n b Q)
     (hf : ∀ a m, n ≤ m → Q a m → Ensures c m (f a) R)
     (hb' : Appends b := by appends) (hf' : ∀ a, Appends (f a) := by appends) : Ensures c n (b >>= f) R :=
   fun p hp => (hb p hp).bind (fun le hq => hf _ _ (hp ▸ le) hq _ rfl) hb' hf'
 
-/-- A transcript program that keeps the duplex ends at its duplex, with no
-fewer values. -/
 theorem keeps {t : Transcript α} {d : Duplex} (hk : Keeps t := by keeps) (ht : Appends (t.run d) := by appends) :
     Ensures c n (t.run d) fun r m => n ≤ m ∧ r.2 = d :=
   fun p hp _ _ _ _ _ _ => ⟨hp ▸ ht.le p, hk.keeps d p⟩
 
-/-- Weaken the result. -/
 theorem post {b : Build α} {Q' : α → ℕ → Prop} (h : Ensures c n b Q) (hq : ∀ a m, Q a m → Q' a m) :
     Ensures c n b Q' :=
   fun p hp E new hE hi hF hh => hq _ _ (h p hp E new hE hi hF hh)
 
-/-- `f <$> b`. -/
 theorem map {b : Build α} {f : α → β} {Q' : β → ℕ → Prop} (h : Ensures c n b Q) (hq : ∀ a m, Q a m → Q' (f a) m) :
     Ensures c n (f <$> b) Q' :=
   fun p hp E new hE hi hF hh => hq _ _ (h p hp E new hE hi hF hh)
 
-/-- One instruction, from what one step of the executor gives. -/
 theorem emit (i : Instr) {Q : Var → ℕ → Prop}
     (h : ∀ E : Exec.State F, E.values.length = n → c.Follows (c.step E i) → (c.step E i).holds →
       Q n (n + i.outputs)) :
@@ -503,7 +429,6 @@ theorem emit (i : Instr) {Q : Var → ℕ → Prop}
   subst hp
   exact h E hE hF hh
 
-/-- A loop from step `j` on. -/
 private theorem loop_from {xs : List δ} {body : δ → γ → Build (ForInStep γ)} (I : ℕ → γ → ℕ → Prop)
     (step : ∀ k (hk : k < xs.length) acc m, n ≤ m → I k acc m →
       Ensures c m (body xs[k] acc) fun r m' => r = .yield r.value ∧ I (k + 1) r.value m')
@@ -525,8 +450,6 @@ private theorem loop_from {xs : List δ} {body : δ → γ → Build (ForInStep 
         | done b => exact Appends.pure _
         | yield b => exact Appends.forIn_list _ _ hb
 
-/-- **A loop over a list.** `I k acc m`: after `k` steps the accumulator is
-`acc`, with `m` values. -/
 theorem loop {xs : List δ} {init : γ} {body : δ → γ → Build (ForInStep γ)} (I : ℕ → γ → ℕ → Prop)
     (h0 : I 0 init n)
     (step : ∀ k (hk : k < xs.length) acc m, n ≤ m → I k acc m →
@@ -535,7 +458,6 @@ theorem loop {xs : List δ} {init : γ} {body : δ → γ → Build (ForInStep �
     Ensures c n (forIn xs init body) fun r m => I xs.length r m :=
   loop_from I step hb _ 0 rfl (Nat.zero_le _) init n le_rfl h0
 
-/-- **A loop over an array.** -/
 theorem loopArray {xs : Array δ} {init : γ} {body : δ → γ → Build (ForInStep γ)} (I : ℕ → γ → ℕ → Prop)
     (h0 : I 0 init n)
     (step : ∀ k (hk : k < xs.size) acc m, n ≤ m → I k acc m →
@@ -547,7 +469,6 @@ theorem loopArray {xs : Array δ} {init : γ} {body : δ → γ → Build (ForIn
     simpa only [Array.getElem_toList] using step k (by simpa using hk) acc m le hI) hb
   simpa only [Array.length_toList] using h
 
-/-- **A loop over `[a:b]`.** Step `k` reads `a + k`. -/
 theorem loopRange {a b : ℕ} {init : γ} {body : ℕ → γ → Build (ForInStep γ)} (I : ℕ → γ → ℕ → Prop)
     (h0 : I 0 init n)
     (step : ∀ k < b - a, ∀ acc m, n ≤ m → I k acc m →
@@ -560,7 +481,6 @@ theorem loopRange {a b : ℕ} {init : γ} {body : ℕ → γ → Build (ForInSte
   rw [List.getElem_range', Nat.one_mul]
   exact step k (by simpa [size] using hk) acc m le hI
 
-/-- `t >>= g` in a transcript. -/
 theorem tbind {t : Transcript α} {g : α → Transcript β} {d : Duplex} {Q : α × Duplex → ℕ → Prop}
     {R : β × Duplex → ℕ → Prop} (ht : Ensures c n (t.run d) Q)
     (hg : ∀ a e m, n ≤ m → Q (a, e) m → Ensures c m ((g a).run e) R)
@@ -569,14 +489,12 @@ theorem tbind {t : Transcript α} {g : α → Transcript β} {d : Duplex} {Q : �
   rw [StateT.run_bind]
   exact ht.bind (fun r m le hq => hg r.1 r.2 m le hq) ht' fun r => hg' r.1 r.2
 
-/-- A builder call in a transcript keeps the duplex. -/
 theorem lift {b : Build α} {d : Duplex} (h : Ensures c n b Q) (hb : Appends b := by appends) :
     Ensures c n ((liftM b : Transcript α).run d) fun r m => Q r.1 m ∧ r.2 = d := by
   show Ensures c n ((monadLift b : Transcript α).run d) _
   rw [StateT.run_monadLift]
   exact h.bind (fun a m _ hq => Ensures.pure ⟨hq, rfl⟩) hb
 
-/-- A builder call in a transcript, then the rest at the same duplex. -/
 theorem liftBind {b : Build α} {g : α → Transcript β} {d : Duplex} {R : β × Duplex → ℕ → Prop}
     (hb : Ensures c n b Q) (hg : ∀ a m, n ≤ m → Q a m → Ensures c m ((g a).run d) R)
     (hb' : Appends b := by appends) (hg' : ∀ a e, Appends ((g a).run e) := by appends) :
@@ -587,7 +505,6 @@ theorem liftBind {b : Build α} {g : α → Transcript β} {d : Duplex} {R : β 
     subst he
     exact hg a m le hq) (Appends.tlift hb') hg'
 
-/-- A transcript loop from step `j` on. -/
 private theorem loopT_from {xs : List δ} {body : δ → γ → Transcript (ForInStep γ)} (I : ℕ → γ → Duplex → ℕ → Prop)
     (step : ∀ k (hk : k < xs.length) acc e m, n ≤ m → I k acc e m →
       Ensures c m ((body xs[k] acc).run e) fun r m' => r.1 = .yield r.1.value ∧ I (k + 1) r.1.value r.2 m')
@@ -612,8 +529,6 @@ private theorem loopT_from {xs : List δ} {body : δ → γ → Transcript (ForI
         | done b => exact Appends.pure _
         | yield b => exact Appends.tforIn_list _ _ hb
 
-/-- **A loop over a list in a transcript.** `I k acc e m`: after `k` steps
-the accumulator is `acc` and the duplex `e`, with `m` values. -/
 theorem loopT {xs : List δ} {init : γ} {body : δ → γ → Transcript (ForInStep γ)} {d : Duplex}
     (I : ℕ → γ → Duplex → ℕ → Prop) (h0 : I 0 init d n)
     (step : ∀ k (hk : k < xs.length) acc e m, n ≤ m → I k acc e m →
@@ -622,7 +537,6 @@ theorem loopT {xs : List δ} {init : γ} {body : δ → γ → Transcript (ForIn
     Ensures c n ((forIn xs init body).run d) fun r m => I xs.length r.1 r.2 m :=
   loopT_from I step hb _ 0 rfl (Nat.zero_le _) init d n le_rfl h0
 
-/-- **A loop over an array in a transcript.** -/
 theorem loopTArray {xs : Array δ} {init : γ} {body : δ → γ → Transcript (ForInStep γ)} {d : Duplex}
     (I : ℕ → γ → Duplex → ℕ → Prop) (h0 : I 0 init d n)
     (step : ∀ k (hk : k < xs.size) acc e m, n ≤ m → I k acc e m →
@@ -634,8 +548,6 @@ theorem loopTArray {xs : Array δ} {init : γ} {body : δ → γ → Transcript 
     simpa only [Array.getElem_toList] using step k (by simpa using hk) acc e m le hI) hb
   simpa only [Array.length_toList] using h
 
-/-- `mapM` over a list: result `i` meets `R` at entry `i`, which survives
-later values. -/
 theorem listMapM {f : δ → Build α} (R : δ → α → ℕ → Prop) (mono : ∀ x a m m', R x a m → m ≤ m' → R x a m')
     (hf : ∀ x, Appends (f x)) :
     ∀ (xs : List δ) {n : ℕ}, (∀ x ∈ xs, ∀ m, n ≤ m → Ensures c m (f x) (R x)) →
@@ -651,7 +563,6 @@ theorem listMapM {f : δ → Build α} (R : δ → α → ℕ → Prop) (mono : 
         (fun as m' le' has => Ensures.pure (List.Forall₂.cons (mono _ _ _ _ ha le') has))
         (Appends.mapM_list hf xs) fun _ => Appends.pure _
 
-/-- `mapM` over an array. -/
 theorem mapM {xs : Array δ} {f : δ → Build α} (R : δ → α → ℕ → Prop)
     (mono : ∀ x a m m', R x a m → m ≤ m' → R x a m') (h : ∀ x ∈ xs, ∀ m, n ≤ m → Ensures c m (f x) (R x))
     (hf : ∀ x, Appends (f x) := by appends) :

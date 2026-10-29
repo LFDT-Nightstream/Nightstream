@@ -1,22 +1,11 @@
 import CompressionLean
 
-/-!
-The folder gate. `lake build` runs it.
-
-The folders of `CompressionLean/` are layers in `layers` order. A module
-imports modules of its own folder or of a lower one. A module of a folder
-that `layers` does not name fails the build.
--/
-
 open Lean Elab Command
 
-/-- The folders, lowest first. A top-level file (`Fields.lean`, `Production.lean`, `Claims.lean`)
-is a folder of its own. -/
 def layers : List String :=
   ["Lib", "Fields", "Production", "Game", "Terminal", "Layer1", "Ports", "Shrink", "Lowering", "Spec", "Bridge",
     "Final", "Checks", "Sim", "Claims"]
 
-/-- The folder of a library module: the component after `CompressionLean`. -/
 def folderOf (m : Name) : Option String :=
   match m.components with
   | `CompressionLean :: f :: _ => some f.toString

@@ -2,29 +2,11 @@ import CompressionLean.Ports.Terminal.Package
 import CompressionLean.Lowering.Exec
 import NightstreamFPrime.Export.PackageExpansion
 
-/-!
-Owns the package-rows lemma (`system_holds_iff`): the system that `load` hands
-to `Package::apply` holds, with the one column at one, exactly when F′'s rows
-hold (`CircuitPackage.RowsHold`) under the package assignment of the system
-values (`assignment`).
-
-- Sides: `side` keeps the value of a side when the one column is one
-  (`row_holds`).
-- Rows: `orderedRows` holds every row of `CircuitPackage.expandedRows`,
-  normalized, and no other row (`mem_orderedRows`).
-- Columns: every package column below the column count that a row names has
-  a system column (`Numbered.named`), with the source that `load` gives it
-  (`SourceOf`). `reindex` reads that system column, as `assignment` does.
-
-Does not own the program that reads the system (`Terminal.lean`).
--/
-
 namespace CompressionLean.Replay.Word
 
 open NightstreamFPrime.Spec NightstreamFPrime.Export.NativePoseidon2
 
 open Fin.CommRing in
-/-- A word of F′'s field reads back. -/
 theorem cast_ofF (x : F) : (ofF x).cast = x := by
   have denote := ofNat64_denote x.val
   have canonical := ofNat64_canonical x.val
@@ -50,7 +32,6 @@ section Sides
 
 variable (env : ℕ → NightstreamFPrime.Spec.F)
 
-/-- The value of package terms. -/
 def termsValue (terms : List (ℕ × NightstreamFPrime.Spec.F)) : NightstreamFPrime.Spec.F :=
   (terms.map fun t => t.2 * env t.1).sum
 
@@ -79,7 +60,6 @@ theorem termsValue_collect (terms : List (ℕ × NightstreamFPrime.Spec.F)) :
   | case3 terms short =>
       rw [collect.eq_2 terms short]
 
-/-- Dropping zero sums and writing words keeps the value. -/
 theorem words_value (terms : List (ℕ × NightstreamFPrime.Spec.F)) :
     ((terms.filterMap fun (c, x) => if x = 0 then none else some (c, Word.ofF x)).map
       fun t => env t.1 * Word.cast t.2).sum = termsValue env terms := by
@@ -95,8 +75,6 @@ theorem words_value (terms : List (ℕ × NightstreamFPrime.Spec.F)) :
         rw [ih, Word.cast_ofF]
         simp [termsValue, mul_comm]
 
-/-- A side as `finish_row` writes it has the side's value when the one column
-is one. -/
 theorem side_value (constant : ℕ) (one : env constant = 1) (combination : R1CS.LinearCombination) :
     ((side constant combination).map fun t => env t.1 * Word.cast t.2).sum = combination.eval env := by
   unfold side
@@ -104,8 +82,6 @@ theorem side_value (constant : ℕ) (one : env constant = 1) (combination : R1CS
     ← termsValue, termsValue_filter]
   simp [termsValue, R1CS.LinearCombination.eval, one]
 
-/-- A row as `finish_row` writes it holds exactly when F′'s row holds, when
-the one column is one. -/
 theorem row_holds (constant : ℕ) (one : env constant = 1) (r : R1CS.Row) :
     R1csRow.Holds env (row constant r) ↔ r.Holds env := by
   simp only [R1csRow.Holds, row, R1CS.Row.Holds, side_value env constant one]
@@ -121,8 +97,6 @@ theorem foldl_push {α β : Type} (h : α → β) :
       rw [List.foldl_cons, foldl_push h l]
       simp
 
-/-- The producer loop of `orderedRows`: before each producer it moves the
-assertions that start earlier, then it writes the producer's rows. -/
 theorem scheduleFold_mem (f : R1CS.Row → R1csRow Word) (g : SparseRow → R1csRow Word)
     (rows : Producer → List R1CS.Row) (q : Producer → SparseRow → Bool) :
     ∀ (ps : List Producer) (acc : Array (R1csRow Word) × List SparseRow) (x : R1csRow Word),
@@ -164,8 +138,6 @@ theorem mem_scheduleRows (package : CircuitPackage) (r : R1CS.Row) :
     · exact ⟨.compact invocation, Or.inl (Or.inr ⟨invocation, member, rfl⟩), inside⟩
     · exact ⟨.generic instruction, Or.inr ⟨instruction, member, rfl⟩, by simp [Producer.rows]⟩
 
-/-- **The ordered rows are F′'s rows**, each written as `finish_row` writes
-it: the expanded rows of the package, in another order. -/
 theorem mem_orderedRows (package : CircuitPackage) (x : R1csRow Word) :
     x ∈ orderedRows package ↔ ∃ r ∈ package.expandedRows, x = row package.layout.constantColumn r := by
   have ordered : x ∈ orderedRows package ↔
@@ -229,7 +201,6 @@ theorem mark_sets (used : Array Bool) (terms : List (ℕ × Word)) (t : ℕ × W
         simp [Array.set!, lt]
       · exact ih _ inside (by simp [Array.set!, lt])
 
-/-- Mark the columns of one row. -/
 abbrev markRow (used : Array Bool) (r : R1csRow Word) : Array Bool := mark (mark (mark used r.a) r.b) r.c
 
 theorem markRows_size (rows : List (R1csRow Word)) (used : Array Bool) :
@@ -244,7 +215,6 @@ theorem markRows_mono (rows : List (R1csRow Word)) (used : Array Bool) (c : ℕ)
   | nil => exact marked
   | cons r rest ih => exact ih _ (mark_mono _ _ c (mark_mono _ _ c (mark_mono _ _ c marked)))
 
-/-- A column below `total` that some row names is named. -/
 theorem named_mem (total : ℕ) (rows : Array (R1csRow Word)) (r : R1csRow Word) (member : r ∈ rows)
     (t : ℕ × Word) (side : t ∈ r.a ∨ t ∈ r.b ∨ t ∈ r.c) (lt : t.1 < total) :
     (named total rows)[t.1]? = some true := by
@@ -271,16 +241,12 @@ end Named
 
 section Numbering
 
-/-- The source that `load` gives package column `c`. -/
 def SourceOf (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (c : ℕ) : Source → Prop
   | .one => c = layout.privateColumnCount
   | .pub i => layout.privateColumnCount < c ∧ i = c - layout.privateColumnCount - 1
   | .priv i => c < layout.privateColumnCount ∧ privateInput segments c = some i
   | .computed _ => c < layout.privateColumnCount ∧ privateInput segments c = none
 
-/-- What the numbering keeps once the columns below `j` are numbered: every
-system column has the source of its package column, every named column below
-`j` has a system column, and every computed index names a computed value. -/
 structure Numbered (layout : PhysicalLayout) (segments : List (Segment × ℕ)) (used : Array Bool) (j : ℕ)
     (state : Numbering) : Prop where
   size : state.1.size = layout.totalColumnCount
@@ -380,7 +346,6 @@ theorem number_numbered (layout : PhysicalLayout) (segments : List (Segment × �
       simp only [List.foldl_cons, List.foldl_nil, zero_add, one_mul]
       exact numberColumn_numbered (ih (by omega)) (by omega)
 
-/-- `load`'s numbering of a package's columns. -/
 def numbering (package : CircuitPackage) : Numbering :=
   number package.layout (callerSegments package.layout)
     (named package.layout.totalColumnCount (orderedRows package))
@@ -391,8 +356,6 @@ theorem numbering_numbered (package : CircuitPackage) :
       package.layout.totalColumnCount (numbering package) :=
   number_numbered _ _ _
 
-/-- Every package column below the column count that an ordered row names has
-a system column, and no column past the count does. -/
 theorem numbering_named (package : CircuitPackage) (x : R1csRow Word) (member : x ∈ orderedRows package)
     (t : ℕ × Word) (side : t ∈ x.a ∨ t ∈ x.b ∨ t ∈ x.c) : (numbering package).1[t.1]? ≠ some none := by
   have numbered := numbering_numbered package
@@ -441,8 +404,6 @@ theorem map_ok {α β ε : Type} (g : α → β) (m : Except ε α) (b : β) (h 
   | error e => cases h
   | ok a => exact ⟨a, rfl, by cases h; rfl⟩
 
-/-- An output list that `load` looks up: one system column per entry, each the
-system column of a package column below the column count. -/
 theorem outputColumns_ok {layout : PhysicalLayout} {index : Array (Option ℕ)}
     {list : List NightstreamFPrime.Circuit.Expr} {ks : Array ℕ} (h : outputColumns layout index list = .ok ks) :
     ks.size = list.length ∧ ∀ i (hi : i < list.length), ∃ c k, list[i] = .var c ∧
@@ -471,9 +432,6 @@ theorem outputColumns_ok {layout : PhysicalLayout} {index : Array (Option ℕ)}
   | add _ _ => cases fy
   | mul _ _ => cases fy
 
-/-- What `load` gives when it succeeds: the ordered rows on system columns,
-the numbering's sources and computed columns, and each output list looked up
-in the numbering. -/
 theorem load_ok {package : CircuitPackage} {map : Terminal.Outputs} {loaded : Loaded}
     (h : load package map = .ok loaded) :
     loaded.system = (orderedRows package).map (fun r =>
@@ -513,9 +471,6 @@ end Load
 
 section System
 
-/-- The package assignment of system values `value`: a column with a system
-column takes that column's value, read where `reindex` reads it, and a column
-below the column count that no row names takes `rest`. -/
 def assignment (index : Array (Option ℕ)) (value rest : ℕ → NightstreamFPrime.Spec.F) (c : ℕ) :
     NightstreamFPrime.Spec.F :=
   if index[c]? = some none then rest c else value ((index[c]!).getD 0)
@@ -531,9 +486,6 @@ theorem reindex_value (index : Array (Option ℕ)) (value rest : ℕ → Nightst
   intro t member
   simp only [Function.comp_apply, assignment, ite_eq_right (named t member)]
 
-/-- A row on system columns holds on the system values exactly when the row
-holds on the package assignment, when every column it names has a system
-column or lies past the column count. -/
 theorem reindex_holds (index : Array (Option ℕ)) (value rest : ℕ → NightstreamFPrime.Spec.F) (r : R1csRow Word)
     (named : ∀ t, t ∈ r.a ∨ t ∈ r.b ∨ t ∈ r.c → index[t.1]? ≠ some none) :
     R1csRow.Holds value ⟨reindex index r.a, reindex index r.b, reindex index r.c⟩ ↔
@@ -543,10 +495,6 @@ theorem reindex_holds (index : Array (Option ℕ)) (value rest : ℕ → Nightst
     reindex_value index value rest r.b fun t m => named t (Or.inr (Or.inl m)),
     reindex_value index value rest r.c fun t m => named t (Or.inr (Or.inr m))]
 
-/-- **The package-rows lemma.** If `load` gives `loaded` and every compact
-invocation of the package names a template, then the rows of `loaded.system`
-hold on the system values `value`, with the one column at one, exactly when
-F′'s rows hold on the package assignment of `value`. -/
 theorem system_holds_iff {package : CircuitPackage} {map : Terminal.Outputs} {loaded : Loaded}
     (loads : load package map = .ok loaded) (valid : package.CompactTemplatesValid)
     (value rest : ℕ → NightstreamFPrime.Spec.F)

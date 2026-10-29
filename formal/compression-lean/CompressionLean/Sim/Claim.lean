@@ -4,23 +4,6 @@ import CompressionLean.Sim.Terminal
 import CompressionLean.Bridge.Relation
 import CompressionLean.Spec.Program
 
-/-!
-Owns the claim that layer 1 reads from the terminal package (`verify_with`,
-`terminal/mod.rs::FinalProgram::run`): its decoding to the replay's statement, and that
-statement as the bridge reads it.
-
-- `ClaimVars.view`, `ClaimView.decode` (`Spec/Program.lean`): the claim
-  handles as the verifier's statement view, which `terminalCheck` passes to
-  `verifyWith`, and that view read through `w`.
-- `isClaim_decode`: handles below `m` hold the decoded statement (`IsClaim`).
-- `ClaimHolds` keeps only the flat handle lists, so the last two lemmas also
-  take the row shape (`ClaimVars.Shaped`, `Terminal.lean`), which
-  `Handoff` gives.
-- `fits_decode`, `statementOf_decode`: under `ClaimHolds`, the decoded
-  statement has the production sizes, and `statementOf` reads it as
-  `Final.claimOf env`.
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
@@ -41,7 +24,6 @@ private theorem isKs_map (hw : Decodes c w) {xs : Array KVar} (h : ∀ p ∈ xs,
   have := h _ (Array.getElem_mem hi)
   exact ⟨⟨this.1, hw _⟩, ⟨this.2, hw _⟩⟩
 
-/-- Decoded handles below `m` hold the decoded statement. -/
 theorem isClaim_decode (hw : Decodes c w) {v : ClaimView} (below : ∀ h ∈ v.words, h < m) :
     IsClaim c m v (v.decode w) := by
   have pair : ∀ p ∈ v.point ++ v.evalK ++ v.evalA.flatten, p.1 < m ∧ p.2 < m := fun p hp =>
@@ -153,7 +135,6 @@ private theorem claim_sizes {claim : ClaimVars} (holds : ClaimHolds c m claim en
   simp only [D] at com pub k a ⊢
   omega
 
-/-- The handles of the claim view are below `m`. -/
 theorem claimHolds_words_lt {claim : ClaimVars} (holds : ClaimHolds c m claim env) :
     ∀ h ∈ claim.view.words, h < m := by
   obtain ⟨hcom, hpub, hpt, hk, ha⟩ := holds
@@ -172,7 +153,6 @@ theorem claimHolds_words_lt {claim : ClaimVars} (holds : ClaimHolds c m claim en
     exact holds_lt ha h (List.mem_flatMap.mpr ⟨row, Array.mem_toList_iff.mpr hrow,
       List.mem_flatMap.mpr ⟨(a, b), Array.mem_toList_iff.mpr hp, by rcases e with rfl | rfl <;> simp⟩⟩)
 
-/-- With the production sizes, the decoded statement fits the relation. -/
 theorem fits_decode {claim : ClaimVars} (w : Var → Word) {rel : Replay.Relation} (holds : ClaimHolds c m claim env)
     (shaped : claim.Shaped) (kappa : rel.kappa = Production.kappa) (blocks : rel.publicBlocks = Production.publicBlocks)
     (point : rel.pointVariables = Production.pointVariables) (matrices : rel.matrices = Production.matrices) : (claim.view.decode w).fits rel = true := by
@@ -210,7 +190,6 @@ private theorem row_toF {rows : Array (Array Var)} (shaped : ∀ row ∈ rows, r
         rw [Option.bind_some, Array.getElem?_eq_none (by rw [shaped r (Array.mem_of_getElem? h)]; omega)]
         exact toF_default
 
-/-- The bridge reads the decoded statement as the claim of `env`. -/
 theorem statementOf_decode (hw : Decodes c w) {claim : ClaimVars} (holds : ClaimHolds c m claim env)
     (shaped : claim.Shaped) : Spec.statementOf (claim.view.decode w) = Final.claimOf (F := Gl) env := by
   obtain ⟨-, -, spt, sk, -⟩ := claim_sizes holds shaped

@@ -1,20 +1,6 @@
 import CompressionLean.Checks.PoseidonRows
 import CompressionLean.Spec.Runs
 
-/-!
-Owns the proof of the run check (`runsFailure`, `Spec/Runs.lean`):
-`runsFailure_sound` proves that runs that pass it give F′'s matrices of the
-Poseidon2 hash chain (`RunsGive`).
-
-- `matchRuns_sum`: runs that give a list of entries give its sum at each
-  column.
-- `unitRows_row`: each row of a unit of `unitRows` has the coefficients of
-  that row of F′'s matrix program.
-- `matrixSource_row`, `matrixSource_padding`: a row of F′'s matrix program
-  gives the entries of F′'s completed CCS matrices at its vertex, and a
-  vertex past the rows has none.
--/
-
 namespace CompressionLean.Checks
 
 open CompressionLean.Spec CompressionLean.Spec.PoseidonRows CompressionLean.Setup
@@ -22,9 +8,6 @@ open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Layout NightstreamFPrime.Layout.ProductionRelation NightstreamFPrime.Layout.MatrixProgram
 
-/-! ## Runs against entries -/
-
-/-- The sum of the coefficients of the entries at column `x`. -/
 def entrySum {n : ℕ} (es : List (SparseEntry n)) (x : ℕ) : Gl :=
   (es.map fun e => if e.column.val = x then gl e.coefficient else 0).sum
 
@@ -54,8 +37,6 @@ theorem matchRun_sum {n : ℕ} (r : Gl) : ∀ (k c : ℕ) (v : Gl) (es rest : Li
           ring
         · rw [ite_eq_right inside, ite_eq_right (by omega)]
 
-/-- Runs that give the entries `es`, one after another, give at each column
-the sum of the entries there. -/
 theorem matchRuns_sum {n : ℕ} : ∀ (ps : List Push) (es : List (SparseEntry n)), matchRuns ps es = true →
     ∀ x, (ps.map (·.value x)).sum = entrySum es x
   | [], es, found, x => by
@@ -70,8 +51,6 @@ theorem matchRuns_sum {n : ℕ} : ∀ (ps : List Push) (es : List (SparseEntry n
           matchRun_sum p.ratio p.len p.start p.initial es rest first x, Push.value]
       · simp at found
 
-/-- The entries' sum at column `x` is the form's coefficient below the width,
-and zero past it. -/
 theorem entrySum_eq {n : ℕ} (es : List (SparseEntry n)) (x : ℕ) :
     entrySum es x = if h : x < n then gl ((⟨es⟩ : SparseForm n).coefficient ⟨x, h⟩) else 0 := by
   split_ifs with below
@@ -96,8 +75,6 @@ theorem normalEntries_coefficient {n : ℕ} (form : SparseForm n) (c : Fin n) :
   · rfl
   · exact normalize_coefficient form c
 
-/-- A row that passes `rowFailure`: the runs of each matrix give the row's
-entries. -/
 theorem rowFailure_sum {n : ℕ} {forms : RowForms n} {runs : List Push} (pass : rowFailure forms runs = none)
     (j : Fin Spec.ProductionRelation.meaningfulPortCount) (x : ℕ) :
     ((runs.filter (·.matrix = j.val)).map (·.value x)).sum =
@@ -111,8 +88,6 @@ theorem rowFailure_sum {n : ℕ} {forms : RowForms n} {runs : List Push} (pass :
   split_ifs with below
   · rw [normalEntries_coefficient]
   · rfl
-
-/-! ## The runs of a row -/
 
 theorem pushedEntry_eq (pushes : List Push) (j i x : ℕ) :
     pushedEntry pushes j i x = (((pushes.filter (·.row = i)).filter (·.matrix = j)).map (·.value x)).sum := by
@@ -134,16 +109,12 @@ theorem foldl_modify_getD (i : ℕ) : ∀ (pushes : List Push) (byRow : Array (L
       · simp [row, Array.getElem?_eq_getElem inside]
       · simp [row]
 
-/-- The runs of row `i`, in push order. -/
 theorem runsByRow_getD {rows i : ℕ} (pushes : List Push) (inside : i < rows) :
     ((runsByRow rows pushes).getD i []).reverse = pushes.filter (·.row = i) := by
   rw [runsByRow, foldl_modify_getD i pushes _ (by rwa [Array.size_replicate]), Array.getD_eq_getD_getElem?,
     Array.getElem?_eq_getElem (by rwa [Array.size_replicate]), Array.getElem_replicate]
   simp
 
-/-! ## Units and blocks -/
-
-/-- The first row of block `k` of a matrix program. -/
 def blockStart (blocks : List MatrixProgram.Block) (k : ℕ) : ℕ :=
   ((blocks.take k).map MatrixProgram.Block.rowCount).sum
 
@@ -165,8 +136,6 @@ theorem select_blockStart (lw : ℕ) (sourceRow : ℕ → Option R1CS.Row) :
           blockStart rest k + o by rw [blockStart]; omega]
       exact select_blockStart lw sourceRow rest k block o found small
 
-/-- Row `blockStart k + o` of a matrix program is row `o` of its block `k`
-(`Program.row?`). -/
 theorem row?_blockStart (lw : ℕ) (sourceRow : ℕ → Option R1CS.Row)
     (program : MatrixProgram.Program) (k : ℕ) (block : MatrixProgram.Block) (o : ℕ)
     (found : program.blocks[k]? = some block) (small : o < block.rowCount) :
@@ -174,7 +143,6 @@ theorem row?_blockStart (lw : ℕ) (sourceRow : ℕ → Option R1CS.Row)
   cases program with
   | mk blocks => exact select_blockStart lw sourceRow blocks k block o found small
 
-/-- A row of a matrix program is a row of one of its blocks. -/
 theorem exists_blockStart : ∀ (blocks : List MatrixProgram.Block) (i : ℕ),
     i < (blocks.map MatrixProgram.Block.rowCount).sum →
       ∃ k block o, blocks[k]? = some block ∧ o < block.rowCount ∧ i = blockStart blocks k + o
@@ -188,7 +156,6 @@ theorem exists_blockStart : ∀ (blocks : List MatrixProgram.Block) (i : ℕ),
         rw [blockStart, List.take_succ_cons, List.map_cons, List.sum_cons, ← blockStart]
         omega
 
-/-- Every unit of every block has a job. -/
 theorem mem_unitJobs : ∀ (blocks : List MatrixProgram.Block) (start k u : ℕ) (block : MatrixProgram.Block),
     blocks[k]? = some block → u < unitCount block → (block, start + blockStart blocks k, u) ∈ unitJobs start blocks
   | [], _, _, _, _, found, _ => by simp at found
@@ -210,8 +177,6 @@ theorem unitSize_mul_unitCount (block : MatrixProgram.Block) : unitSize block * 
   cases block <;> simp [unitSize, unitCount, MatrixProgram.Block.rowCount, Poseidon.Block.rowCount,
     Phi81Product.Block.rowCount, Nat.mul_comm]
 
-/-- A unit that passes `unitFailure`: its rows, one per row of the unit, each
-pass `rowFailure` against the runs of its row. -/
 theorem unitFailure_rows {n : ℕ} {sourceRow : ℕ → Option R1CS.Row} {byRow : Array (List Push)}
     {block : MatrixProgram.Block} {start u : ℕ} (pass : unitFailure n sourceRow byRow (block, start, u) = none) :
     ∃ rows, unitRows n sourceRow block u = some rows ∧ rows.size = unitSize block ∧
@@ -225,16 +190,10 @@ theorem unitFailure_rows {n : ℕ} {sourceRow : ℕ → Option R1CS.Row} {byRow 
     refine ⟨rows, computed, size, fun r small => ?_⟩
     exact Option.map_eq_none_iff.mp (List.findSome?_eq_none_iff.mp pass r (List.mem_range.mpr small))
 
-/-! ## F′'s rows -/
-
 section application
 
 variable (application : Lifecycle.Stage1.Application.Program) (fits : PerApplicationFixedPoint.FitsTwoPow28 application)
 
-/-- **The rows of a unit.** Row `r` of unit `u` of block `k` of an
-application's matrix program, as `unitRows` gives it over the stored source
-rows, has the coefficients of row `blockStart k + size·u + r` of F′'s
-`Program.row?`. -/
 theorem unitRows_row {k : ℕ} {block : MatrixProgram.Block}
     (found : (PerApplicationMatrixProgram.matrixProgram application).blocks[k]? = some block) {u : ℕ}
     {rows : Array (RowForms (PerApplicationFixedPoint.logicalWidth application))}
@@ -323,10 +282,6 @@ theorem system_matrices :
   rw [← PerApplicationFixedPoint.relation_matrices]
   rfl
 
-/-- **A row of F′'s matrices.** A row of an application's matrix program
-(`Program.row?`) gives row `i` of every completed CCS matrix of F′'s relation
-(`PaperAlgebra.matrixSource`): matrix `j` has at column `c` the coefficient
-of port `j` below the logical width, and zero past it. -/
 theorem matrixSource_row {i : ℕ} {forms : RowForms (PerApplicationFixedPoint.logicalWidth application)}
     (row : (PerApplicationMatrixProgram.matrixProgram application).row? (PerApplicationFixedPoint.logicalWidth application)
       (PerApplicationCanonicalPackage.sourceRow application fits) i = some forms)
@@ -365,7 +320,6 @@ theorem plan_matrix_padding {lw : ℕ} (plan : ProductionRelation.Plan lw) {i : 
   unfold ProductionRelation.Plan.matrix
   rw [decoded]
 
-/-- A vertex past F′'s rows has no entries. -/
 theorem matrixSource_padding {i : ℕ} (past : (PerApplicationFixedPoint.structuralPlan application fits).rowCount ≤ i)
     (cube : i < 2 ^ Lifecycle.cubeVariables) (j : Fin productionProfile.ccsMatrices)
     (c : Fin (Phi81CarrierLayout.carrierWidth (PerApplicationFixedPoint.logicalWidth application))) :
@@ -382,11 +336,6 @@ theorem matrixSource_padding {i : ℕ} (past : (PerApplicationFixedPoint.structu
 
 end application
 
-/-! ## The check -/
-
-/-- **The run check.** Runs that pass `runsFailure` give F′'s matrices of
-the Poseidon2 hash chain: they name rows of the cube, and they give every
-entry of every completed CCS matrix. -/
 theorem runsFailure_sound {pushes : List Push} (pass : runsFailure pushes = none) :
     RunsGive pushes Production.poseidon2Relation := by
   unfold runsFailure at pass

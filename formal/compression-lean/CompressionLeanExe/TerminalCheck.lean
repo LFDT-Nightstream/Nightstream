@@ -6,23 +6,6 @@ import CompressionLean.Checks.Templates
 import CompressionLeanExe.Digest
 import CompressionLeanExe.Key
 
-/-!
-The `terminalCheck` executable. It reads an export of `nightstream`'s
-`tests/lifecycle_native/terminal_ir.rs`: the context words, the IR that Rust
-logs for `FinalProgram::run`, and for a run that stops at `verify_with` the
-claim and state handles that `Package::apply` hands to layer 1. It loads the
-Lean terminal package (`Terminal.Package.load`), after it checks that every compact
-row invocation names a template (`templatesNamed`), and writes
-`finalProgram`. Without a
-layer-1 key the layer-1 step returns its arguments, and the check requires
-the same instructions, one by one, and the same handles. With the key file
-of `neo-spartan`'s `lowering.rs` the step is `verifyWith`, the key must have
-`KeyFacts` (`keyFailure`), the check prints whether the key fits the Poseidon2
-hash chain (`poseidon2Fits`), and it requires every instruction of the final
-program. It prints `match`, the counts and the run digest of Lean's
-program (`runDigest`), or the first difference and exits with 1.
--/
-
 namespace CompressionLeanExe.TerminalCheck
 
 open CompressionLean.Spec
@@ -36,14 +19,10 @@ def handles : Parser (List Var) := do many (← nat) nat
 
 def flatPairs (list : Array (Var × Var)) : List Var := list.toList.flatMap fun (re, im) => [re, im]
 
-/-- The run digest of a program: its lowering's counts and rows. The rows do
-not depend on the statement values. -/
 def digest (instrs : Array Instr) : List ℕ :=
   let run := lower (F := Gl) instrs []
   (runDigest run (run.calls.flatMap Call.computedRows).toArray).toList.map Word.toNat
 
-/-- Compare `finalProgram` on `package` with the export: up to layer 1, or
-with `verifyWith` for `key`. -/
 def check (package : Loaded) (key : Option Layer1Key) : Parser String := do
   keyword "context"
   let context := (← many (← nat) glWord).toArray

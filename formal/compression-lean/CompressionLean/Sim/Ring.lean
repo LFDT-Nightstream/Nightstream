@@ -3,22 +3,6 @@ import CompressionLean.Ports.Circuit.Ring
 import CompressionLean.Ports.Circuit.Mle
 import CompressionLean.Fields
 
-/-!
-Owns the simulation of the ring rows of `Ring.lean` (`ring.rs`) and the
-closed forms of `Mle.lean` (`mle.rs`) against the replay's formulas
-(`Ports/Replay/Formulas.lean`).
-
-- `IsK`, `IsKs`, `IsClaim`: statement handles hold the statement's words.
-  `IsMixing`: the powers of `λ`, one per row, as the replay's `Mixing`
-  reads them.
-- An identity of `Ext` holds when it holds in the challenge field `Cubic`
-  (`Ext.eq_of_toK`). Proof words that pass the inverse check are the
-  replay's inverse (`extInv_ensures`), so `Mle.scaledEqPoint_ensures` finds
-  no pole.
-
-`EvalK.lean` owns `eval_k`.
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
@@ -26,8 +10,6 @@ open CompressionLean.Lib
 open CompressionLean.Replay (Word Ext Kx Relation D)
 open NightstreamFPrime.Spec (goldilocksModulus)
 open Polynomial
-
-/-! ## Identities in the challenge field -/
 
 theorem ext_add_zero (a : Ext) : a + 0 = a :=
   Ext.eq_of_toK (K := Cubic) (by rw [Ext.toK_add, Ext.toK_zero, add_zero])
@@ -43,8 +25,6 @@ private theorem ext_isZero {a : Ext} (h : a ≠ 0) : a.isZero = false := by
   · rfl
   · exact absurd (Ext.eq_of_beq e) h
 
-/-! ## Sums and arrays -/
-
 theorem sumRange_zero (f : ℕ → Ext) : Replay.sumRange 0 f = 0 := rfl
 
 theorem map_range_succ' {α : Type} (f : ℕ → α) (k : ℕ) :
@@ -52,7 +32,6 @@ theorem map_range_succ' {α : Type} (f : ℕ → α) (k : ℕ) :
   apply Array.ext'
   simp [List.range_succ_eq_map]
 
-/-- Entry `i` of a `mapM` result over `range k` meets `R i`. -/
 theorem forall₂_range {α : Type} [Inhabited α] {R : ℕ → α → Prop} {k : ℕ} {xs : Array α}
     (h : List.Forall₂ R (Array.range k).toList xs.toList) : xs.size = k ∧ ∀ i < k, R i xs[i]! := by
   have size := h.length_eq
@@ -62,18 +41,14 @@ theorem forall₂_range {α : Type} [Inhabited α] {R : ℕ → α → Prop} {k 
   rw [getElem!_pos xs i (by omega)]
   simpa using this
 
-/-! ## Statement handles and the mixing -/
-
 variable {F : Type} [CommRing F]
 
-/-- The two handles of `a` are the words of the `K` value `g`, `(re, im)`. -/
 def IsK (c : Ctx F) (n : ℕ) (a : KVar) (g : Word × Word) : Prop := IsWord c n a.1 g.1 ∧ IsWord c n a.2 g.2
 
 theorem IsK.mono {c : Ctx F} {n m : ℕ} {a : KVar} {g : Word × Word} (h : IsK c n a g) (le : n ≤ m := by omega) :
     IsK c m a g :=
   ⟨h.1.mono le, h.2.mono le⟩
 
-/-- `xs` and `gs` have one size, and each pair of handles is its `K` value. -/
 def IsKs (c : Ctx F) (n : ℕ) (xs : Array KVar) (gs : Array (Word × Word)) : Prop :=
   xs.size = gs.size ∧ ∀ i < xs.size, IsK c n xs[i]! gs[i]!
 
@@ -96,7 +71,6 @@ theorem extract (h : IsKs c n xs gs) (a : ℕ) : IsKs c n (xs.extract a) (gs.ext
 
 end IsKs
 
-/-- The statement view holds the statement's words, field by field. -/
 structure IsClaim (c : Ctx F) (n : ℕ) (v : ClaimView) (st : Replay.Statement) : Prop where
   commitment : v.commitment.size = st.commitment.size ∧
     ∀ i < v.commitment.size, IsWords c n v.commitment[i]! st.commitment[i]!
@@ -112,7 +86,6 @@ theorem IsClaim.mono {c : Ctx F} {n m : ℕ} {v : ClaimView} {st : Replay.Statem
     ⟨h.publicInput.1, fun i hi => (h.publicInput.2 i hi).mono le⟩, h.point.mono le, h.evalK.mono le,
     ⟨h.evalA.1, fun j hj => (h.evalA.2 j hj).mono le⟩⟩
 
-/-- The handles of `v` are the powers of `m.lam`, one per row, and `v` has `m`'s sizes. -/
 def IsMixing (c : Ctx F) (n : ℕ) (v : MixingVar) (m : Replay.Mixing) : Prop :=
   v.kappa = m.kappa ∧ v.matrices = m.matrices ∧ ∀ i < v.powers.size, IsExt c n v.powers[i]! (m.lam.pow i)
 
@@ -148,7 +121,6 @@ namespace IsExts
 
 variable {c : Ctx F} {n : ℕ} {xs : Array ExtVar} {gs : Array Ext}
 
-/-- Handle `i` is `g i` for each `i < k`. -/
 theorem map_range_iff {k : ℕ} {g : ℕ → Ext} :
     IsExts c n xs ((Array.range k).map g) ↔ xs.size = k ∧ ∀ i < k, IsExt c n xs[i]! (g i) := by
   refine ⟨fun h => ⟨by simpa using h.1, fun i hi => ?_⟩, fun h => ⟨by simpa using h.1, fun i hi => ?_⟩⟩
@@ -159,8 +131,6 @@ theorem map_range_iff {k : ℕ} {g : ℕ → Ext} :
     exact h.2 i (h.1 ▸ hi)
 
 end IsExts
-
-/-! ## Ring rows -/
 
 instance MixingVar.new_appends (lambda : ExtVar) (rel : Relation) : Appends (MixingVar.new lambda rel) := by
   unfold MixingVar.new; appends
@@ -179,7 +149,6 @@ section Rows
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `Mixing::new` (`ring.rs::Mixing::new`): `1, λ, λ², …`, one power per row. -/
 theorem MixingVar.new_ensures {lambda : ExtVar} {lam : Ext} (rel : Relation) (hl : IsExt c n lambda lam) :
     Ensures c n (MixingVar.new lambda rel)
       fun v m => IsMixing c m v ⟨lam, rel.kappa, rel.matrices⟩ ∧ v.powers.size = rel.rowCount := by
@@ -203,14 +172,12 @@ theorem MixingVar.new_ensures {lambda : ExtVar} {lam : Ext} (rel : Relation) (hl
     rw [show rel.rowCount - 1 + 1 = rel.rowCount by omega] at size get
     exact ⟨⟨rfl, rfl, fun i hi => get i (size ▸ hi)⟩, size⟩
 
-/-- `project` (`ring.rs::project`): `weights.1·Re + weights.2·Im`. -/
 theorem Ring.project_ensures {value : KVar} {gv : Word × Word} {weights : ExtVar × ExtVar} {gw : Ext × Ext}
     (hv : IsK c n value gv) (hw : IsExt c n weights.1 gw.1 ∧ IsExt c n weights.2 gw.2) :
     Ensures c n (Ring.project value weights) fun r m => IsExt c m r (Replay.project gv gw) :=
   (extScale_ensures hw.1 hv.1).bind fun _ _ _ hre => (extScale_ensures hw.2.mono hv.2.mono).bind
     fun _ _ _ him => extAdd_ensures hre.mono him
 
-/-- `targets` (`ring.rs::targets`): `Ȳ = Σ_rows λ^row·y_row`, lane by lane. -/
 theorem Ring.targets_ensures {v : ClaimView} {st : Replay.Statement} {mv : MixingVar} {lam : Ext} {rel : Relation}
     (fits : st.fits rel = true) (hv : IsClaim c n v st) (hm : IsMixing c n mv ⟨lam, rel.kappa, rel.matrices⟩)
     (hsize : mv.powers.size = rel.rowCount) :
@@ -295,7 +262,6 @@ theorem Ring.targets_ensures {v : ClaimView} {st : Replay.Statement} {mv : Mixin
       Ensures.pure ⟨rfl, by rw [sumRange_succ, ← ext_add_assoc]; exact htotal⟩
   rwa [Array.size_zipIdx, hv.publicInput.1] at htotal₄
 
-/-- `lifted_target` (`ring.rs::lifted_target`): `Ȳ(ζ) + Q(ζ)·Φ81(ζ)` with `Φ81 = X⁵⁴ + X²⁷ + 1`. -/
 theorem Ring.liftedTarget_ensures {target quotient : Array ExtVar} {zeta : ExtVar} {gt gq : Array Ext} {gz : Ext}
     (ht : IsExts c n target gt) (hq : IsExts c n quotient gq) (hz : IsExt c n zeta gz) :
     Ensures c n (Ring.liftedTarget target quotient zeta) fun r m => IsExt c m r (Replay.liftedTarget gt gq gz) := by
@@ -317,7 +283,6 @@ theorem Ring.liftedTarget_ensures {target quotient : Array ExtVar} {zeta : ExtVa
   refine (extAdd_ensures htarget.mono hlifted).post fun _ _ h => ?_
   rwa [show (27 - 1 + 1 : ℕ) = 27 from rfl] at h
 
-/-- `tau` (`ring.rs::tau`): `τ_l = Σ_p bar(p, l)·ζ^p`. -/
 theorem Ring.tau_ensures {zeta : ExtVar} {gz : Ext} (hz : IsExt c n zeta gz) :
     Ensures c n (Ring.tau zeta) fun r m => IsExts c m r (Replay.tau gz) := by
   obtain ⟨S, hS⟩ : ∃ S : ℕ → ℕ → Ext,
@@ -389,10 +354,6 @@ theorem Ring.tau_ensures {zeta : ExtVar} {gz : Ext} (hz : IsExt c n zeta gz) :
 
 end Rows
 
-/-! ## The scaled eq point -/
-
-/-- `κ = Π_t (1 + c^{2^t})` and `x_t = c^{2^t}/(1 + c^{2^t})` when no denominator is a pole; `sq t` is
-`c^{2^t}`. -/
 private theorem scaledEqPoint_eq (bits : ℕ) : ∀ sq : ℕ → Ext, (∀ t, sq (t + 1) = sq t * sq t) →
     (∀ t < bits, 1 + sq t ≠ 0) →
       Replay.scaledEqPoint (sq 0) bits =
@@ -417,8 +378,6 @@ section ScaledEqPoint
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `scaled_eq_point` (`mle.rs::scaled_eq_point`): once each inverse checks, no denominator is a pole, the replay returns
-`κ` and the point, and the handles hold them. -/
 theorem Mle.scaledEqPoint_ensures {cv : ExtVar} {gc : Ext} (bits : ℕ) (hc : IsExt c n cv gc) :
     Ensures c n (Mle.scaledEqPoint cv bits)
       fun res m => ∃ kappa point, Replay.scaledEqPoint gc bits = .ok (kappa, point) ∧

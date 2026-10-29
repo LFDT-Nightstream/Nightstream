@@ -2,18 +2,6 @@ import CompressionLean.Ports.Circuit.Linear
 import CompressionLean.Sim.EvalK
 import CompressionLean.Sim.Honest
 
-/-!
-Owns the simulation of the linear stage of `Linear.lean` (`verifier.rs::verify`) against
-`Replay.linearStage`.
-
-- `linearStage_tracks`: once the circuit's checks hold, the circuit's linear stage tracks the
-  replay's, and `IsLinearOut` gives what the honest fold, the late stage and the openings read.
-- The circuit runs one sum-check over every linear round and splits its point at the block bits; the
-  replay runs one sum-check per part (`splitSumcheck_tracks`, from `runs_sumcheckReplay_split`).
-- The circuit adds the terms of `Ω~` in Rust's order, and `omegaComputed` sums the public terms first.
-  Field addition is associative, so the values agree.
--/
-
 namespace CompressionLean.Sim
 
 open CompressionLean.Circuit
@@ -22,8 +10,6 @@ open NightstreamFPrime.Spec (goldilocksModulus)
 
 variable {F : Type} [CommRing F]
 
-/-! ## Instruction shape -/
-
 instance laneValue_appends (zeta : ExtVar) (point : Array ExtVar) : Appends (Circuit.laneValue zeta point) := by
   unfold Circuit.laneValue; appends
 instance linearStage_appends (rel : Relation) (statement : ClaimView) (quotient : Array ExtVar)
@@ -31,15 +17,12 @@ instance linearStage_appends (rel : Relation) (statement : ClaimView) (quotient 
     Appends ((Circuit.linearStage rel statement quotient linear finals).run d) := by
   unfold Circuit.linearStage; appends
 
-/-- What the honest fold, the late stage and the openings read of the linear stage
-(`verifier.rs::verify`): the mixing, `τ`, the block, lane and linear points, and the finals. -/
 def IsLinearOut (c : Ctx F) (m : ℕ) (rel : Relation) (v : LinearView) (out : Replay.LinearOut) : Prop :=
   (IsMixing c m v.mixing out.mixing ∧ v.mixing.powers.size = rel.rowCount) ∧ IsExts c m v.tau out.tau ∧
     IsExts c m v.blockPoint out.blockPoint ∧ IsExts c m v.lanePoint out.lanePoint ∧
     IsExts c m v.linearPoint (out.lanePart ++ out.blockPoint) ∧ IsExt c m v.keyValue out.keyValue ∧
     IsExt c m v.omegaValue out.omegaValue ∧ IsExt c m v.zValue out.zValue
 
-/-- `IsLinearOut` survives later values. -/
 theorem IsLinearOut.mono {c : Ctx F} {n m : ℕ} {rel : Relation} {v : LinearView} {out : Replay.LinearOut}
     (h : IsLinearOut c n rel v out) (le : n ≤ m := by omega) : IsLinearOut c m rel v out := by
   obtain ⟨⟨mix, size⟩, tau, block, lane, linear, key, omega, z⟩ := h
@@ -50,7 +33,6 @@ section Stage
 
 variable [CharP F goldilocksModulus] {c : Ctx F} {n : ℕ}
 
-/-- `lane_value` (`verifier.rs::lane_value`): `Σ_{l<D} eq(x, l)·ζ^l`. -/
 private theorem laneValue_ensures {zeta : ExtVar} {point : Array ExtVar} {gz : Ext} {gpoint : Array Ext}
     (size : D ≤ 2 ^ gpoint.size) (hz : IsExt c n zeta gz) (hp : IsExts c n point gpoint) :
     Ensures c n (Circuit.laneValue zeta point) fun r m => IsExt c m r (Replay.laneValue gz gpoint) := by
@@ -79,8 +61,6 @@ private theorem laneValue_ensures {zeta : ExtVar} {point : Array ExtVar} {gz : E
     rw [Array.size_extract, eqSize, Nat.min_eq_left size, Nat.sub_zero] at e
     exact e
 
-/-- The Eval_K terms `Σ weight·value` added to `Ω~` (`verifier.rs::verify`), which the replay
-computes without a transcript step. -/
 private theorem pairs_tracks {xs : List (ExtVar × ExtVar)} {gxs : List (Ext × Ext)} {init : ExtVar}
     {ginit : Ext} (hlen : xs.length = gxs.length)
     (hx : ∀ k (hk : k < xs.length), IsExt c n xs[k].1 (gxs[k]!).1 ∧ IsExt c n xs[k].2 (gxs[k]!).2)
@@ -107,8 +87,6 @@ private theorem pairs_tracks {xs : List (ExtVar × ExtVar)} {gxs : List (Ext × 
     rw [List.take_of_length_le (by omega)] at hres
     exact ⟨(), t, Bridge.runs_pure _ _, he, hres⟩
 
-/-- The public terms `Σ_b eq(s_b, b)·λ^(public row b)` added to `Ω~` (`verifier.rs::verify`), which
-the replay computes without a transcript step. -/
 private theorem public_tracks {point : Array ExtVar} {gpoint : Array Ext} {mixing : MixingVar}
     {mix : Replay.Mixing} {blocks : ℕ} {init : ExtVar} {ginit : Ext} (hp : IsExts c n point gpoint)
     (hm : IsMixing c n mixing mix) (hsize : mix.kappa + 2 + 2 * mix.matrices + blocks ≤ mixing.powers.size)
@@ -142,8 +120,6 @@ private theorem public_tracks {point : Array ExtVar} {gpoint : Array Ext} {mixin
     rw [show (List.range' 0 [:blocks].size 1).length = blocks by simp [Std.Legacy.Range.size]] at hres
     exact ⟨(), t, Bridge.runs_pure _ _, he, hres⟩
 
-/-- The circuit's one sum-check over every round (`verifier.rs::verify`), then the rest, tracks the
-replay's two, split at `k` (`runs_sumcheckReplay_split`). -/
 private theorem splitSumcheck_tracks {γ δ : Type} (hp : Permutes c.perm) {rounds : Array (Array ExtVar)}
     {grounds : Array (Array Ext)} {claim : ExtVar} {gclaim : Ext} (k : ℕ) (hr : rounds.size = grounds.size)
     (hm : ∀ i < rounds.size, IsExts c n rounds[i]! grounds[i]!) (hne : ∀ g ∈ grounds, 0 < g.size)
@@ -162,9 +138,6 @@ private theorem splitSumcheck_tracks {γ δ : Type} (hp : Permutes c.perm) {roun
   refine (hg res first middle second out.2 m le size₁ size₂ (hpoint ▸ hpt) hfin e t' hdx).post
     fun _ _ ⟨b, t'', run', hdx', hr'⟩ => ⟨b, t'', Bridge.runs_bind run₁ (Bridge.runs_bind run₂ run'), hdx', hr'⟩
 
-/-- **The linear stage** (`verifier.rs::verify`). Once the circuit's checks hold, the circuit's
-linear stage tracks the replay's, and the circuit's outputs are the replay's. `long` is
-`EvalKBits.long`: `eval_k`'s coordinate bits fit the statement point. -/
 theorem linearStage_tracks {rel : Relation} {statement : ClaimView} {st : Replay.Statement}
     {quotient : Array ExtVar} {linear : Array (Array ExtVar)} {finals : Array ExtVar} {proof : Replay.Proof}
     (hp : Permutes c.perm) (fits : st.fits rel = true) (hst : IsClaim c n statement st)

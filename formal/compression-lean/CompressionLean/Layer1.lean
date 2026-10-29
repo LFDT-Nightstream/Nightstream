@@ -19,14 +19,3 @@ import CompressionLean.Layer1.Soundness
 import CompressionLean.Layer1.Stages
 import CompressionLean.Layer1.Weights
 
-/-!
-`Layer1/` owns the soundness of the layer-1 verifier
-(`crates/neo-spartan/src/verifier.rs`) as a game: the model of the key, the
-statement and the setup (`Model`), each stage and what it forces (`Early`,
-`Linear`, `HonestStage`, `Late`, `Stages`), the whole game and its accepting
-paths (`Soundness`), its cost (`Cost`), and the closed
-forms that the bridge reads (`ClosedForms`, `EvalK`, `KeyStructure`).
-
-It does not own the replay (`Ports/Replay/`), the circuit (`Ports/Circuit/`), the link
-between them (`Bridge/`) or the budget at Rust's split (`Final/Budget.lean`).
--/

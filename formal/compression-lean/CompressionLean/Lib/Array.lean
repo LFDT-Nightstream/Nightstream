@@ -2,11 +2,6 @@ import Mathlib.Data.List.GetD
 import Mathlib.Tactic.SplitIfs
 import Mathlib.Order.MinMax
 
-/-!
-Owns generic facts about arrays: entries read with `[i]!` or `getD` after
-`set!`, `++`, `extract` and `map` over `Array.range`.
--/
-
 namespace CompressionLean.Lib
 
 theorem getElem!_set! {α : Type} [Inhabited α] (xs : Array α) (j i : ℕ) (x : α) (h : i < xs.size) :
@@ -14,13 +9,11 @@ theorem getElem!_set! {α : Type} [Inhabited α] (xs : Array α) (j i : ℕ) (x 
   rw [Array.set!_eq_setIfInBounds, getElem!_pos _ _ (by simpa using h), Array.getElem_setIfInBounds h,
     getElem!_pos xs i h]
 
-/-- An entry of an append. -/
 theorem getElem!_append {α : Type} [Inhabited α] (a b : Array α) (i : ℕ) :
     (a ++ b)[i]! = if i < a.size then a[i]! else b[i - a.size]! := by
   simp only [getElem!_def, Array.getElem?_append]
   split_ifs <;> rfl
 
-/-- An entry of a prefix. -/
 theorem getElem!_extract_zero {α : Type} [Inhabited α] (a : Array α) {i k : ℕ} (hi : i < k) :
     (a.extract 0 k)[i]! = a[i]! := by
   simp only [getElem!_def, Array.getElem?_extract]

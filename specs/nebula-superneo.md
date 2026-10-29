@@ -675,6 +675,20 @@ slots of each step bind the events of the step in order, and each event is in
 range. Then the theorem above applies to the catalog of the checked memories.
 The rows are Rust only: no Lean proof covers them yet (security note §7).
 
+**Images.** `CatalogBinding::program` builds the program of a preload (the
+`MemoryPreload` of `neo-application`). The cell at address `a` of a checked
+memory is the image word at `base + packParts(a)` of its region: in the RAM
+image for a RAM memory, and in the ROM image for every other memory. Every
+other word is zero. A memory without a region has no cell in the images. A
+cell whose address does not fit its region (rule 2) is an error. Packing is
+injective on the addresses that fit, and the regions of one namespace are
+disjoint, so no two cells share a word. Thus `Binding.Initial` holds for the
+initial state that has the preload value at each preloaded cell and zero at
+each other in-range address. A cell that the preload does not have starts at
+zero. For that cell of a ROM, or of a RAM that the `neo-application` checker
+reads only after a write (`RamInitialization::Explicit`), Nebula accepts a
+read of zero where that checker rejects the read.
+
 ## 11. Memory carry
 
 ### 11.1 MemoryCarry

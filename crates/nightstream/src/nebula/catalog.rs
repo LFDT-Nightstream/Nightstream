@@ -2,14 +2,15 @@
 //! `CatalogBinding` maps the events of the checked memories of a
 //! `MemoryCatalog` to the operation slots of a geometry, as Lean
 //! `MemoryTrace.Binding` (`Spec/Nebula/EventBinding.lean`) needs: it gives the
-//! binding rows over the application's columns and the ports of one row.
-//! Every rule that soundness needs is a row, so a slot plan changes only
-//! which honest rows prove and what the rows cost. It does not own the slot
-//! plan, the regions, or the application's other rows.
+//! binding rows over the application's columns, the ports of one row, and
+//! the program images of a preload. Every rule that soundness needs is a row,
+//! so a slot plan changes only which honest rows prove and what the rows
+//! cost. It does not own the slot plan, the regions, or the application's
+//! other rows.
 
 use std::collections::BTreeSet;
 
-use neo_application::{MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind};
+use neo_application::{MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind, MemoryPreload};
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks as F;
 
@@ -18,6 +19,7 @@ use super::expr::Expr;
 use super::geometry::Geometry;
 use super::records::PortAccess;
 use super::rows::{bit_row, chunk, View};
+use super::Program;
 
 /// A memory's region in its namespace (Lean `Region`): the first address and
 /// the bit width of each address part, least significant part first. A RAM
@@ -30,7 +32,29 @@ pub struct Region {
     pub widths: Vec<usize>,
 }
 
-/// Why a catalog, regions, and a slot plan give no binding.
+impl Region {
+    /// Lean `Region.addr` of an address that fits the region (Lean
+    /// `Region.Fits`): `base + x₀ + 2^w₀ · (x₁ + …)`. `None` for another
+    /// number of parts or a part at or above `2^w`.
+    fn addr(&self, parts: &[u64]) -> Option<u64> {
+        if parts.len() != self.widths.len() {
+            return None;
+        }
+        let mut offset = 0;
+        let mut address = self.base;
+        for (part, width) in parts.iter().zip(&self.widths) {
+            if part >> width != 0 {
+                return None;
+            }
+            address += part << offset;
+            offset += width;
+        }
+        Some(address)
+    }
+}
+
+/// Why a catalog, regions, and a slot plan give no binding, or a preload no
+/// program.
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum CatalogBindingError {
     #[error("the geometry breaks spec §4.2")]
@@ -49,6 +73,8 @@ pub enum CatalogBindingError {
     SlotCount,
     #[error("the slot plan does not name each checked port exactly once")]
     Plan,
+    #[error("a preload cell has an address that the region of its memory does not hold")]
+    Preload,
 }
 
 /// Why a row has no ports. An honest row of a good slot plan has none of
@@ -119,19 +145,14 @@ impl Port {
         }
     }
 
-    /// The namespace address `base + x₀ + 2^w₀ · (x₁ + …)` (Lean `Region.addr`).
+    /// The namespace address of the port's address parts in `row`.
     fn address(&self, row: &[F]) -> Result<u64, CatalogRowError> {
-        let mut offset = 0;
-        let mut address = self.region.base;
-        for (column, width) in self.address.iter().zip(&self.region.widths) {
-            let part = row[*column].as_canonical_u64();
-            if part >> width != 0 {
-                return Err(CatalogRowError::Address);
-            }
-            address += part << offset;
-            offset += width;
-        }
-        Ok(address)
+        let parts: Vec<u64> = self
+            .address
+            .iter()
+            .map(|column| row[*column].as_canonical_u64())
+            .collect();
+        self.region.addr(&parts).ok_or(CatalogRowError::Address)
     }
 }
 
@@ -146,7 +167,16 @@ fn sum(terms: impl Iterator<Item = Expr>) -> Expr {
 pub struct CatalogBinding<Id> {
     geometry: Geometry,
     slots: Vec<Vec<Port>>,
+    checked: Vec<Checked<Id>>,
     host_checked: Vec<Id>,
+}
+
+/// A memory with a region, in its namespace.
+#[derive(Clone, Debug)]
+struct Checked<Id> {
+    id: Id,
+    is_ram: bool,
+    region: Region,
 }
 
 impl<Id: Clone + Eq> CatalogBinding<Id> {
@@ -178,6 +208,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
         }
         let mut spans = Vec::new();
         let mut ports = Vec::new();
+        let mut checked = Vec::new();
         let mut host_checked = Vec::new();
         for (memory, region) in memories.iter().zip(bound) {
             let Some(region) = region else {
@@ -215,6 +246,11 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
                     value: port.value_column,
                 }));
             }
+            checked.push(Checked {
+                id: memory.id.clone(),
+                is_ram,
+                region,
+            });
         }
         for (i, (ram, start, end)) in spans.iter().enumerate() {
             if spans[..i]
@@ -246,6 +282,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
         Ok(Self {
             geometry: *geometry,
             slots,
+            checked,
             host_checked,
         })
     }
@@ -253,6 +290,34 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
     /// The memories without a region, in catalog order. The host checks them.
     pub fn host_checked(&self) -> &[Id] {
         &self.host_checked
+    }
+
+    /// The program whose images hold the preloaded cells of the checked
+    /// memories (Lean `Binding.Initial`): the cell at address `a` of memory
+    /// `m` is the image word at `base + packParts(a)` of the region of `m`,
+    /// in the RAM image for a RAM memory and in the ROM image otherwise. Every
+    /// other word is zero. A memory without a region has no cell in the
+    /// images. Packing is injective on the addresses that fit a region, and
+    /// the regions of one namespace are disjoint, so no two cells share a word.
+    pub fn program(&self, preload: &MemoryPreload<Id>) -> Result<Program, CatalogBindingError>
+    where
+        Id: Copy + Ord,
+    {
+        let mut rom = vec![0; self.geometry.rom_size()];
+        let mut ram = vec![0; self.geometry.ram_size()];
+        for (memory, address, value) in preload.entries() {
+            let Some(checked) = self.checked.iter().find(|checked| checked.id == memory) else {
+                continue;
+            };
+            let parts: Vec<u64> = address.into_iter().map(u64::from).collect();
+            let addr = checked
+                .region
+                .addr(&parts)
+                .ok_or(CatalogBindingError::Preload)?;
+            let image = if checked.is_ram { &mut ram } else { &mut rom };
+            image[addr as usize] = value;
+        }
+        Ok(Program::new(self.geometry, rom, ram).expect("the images have the sizes of a valid geometry"))
     }
 
     /// The binding rows over `view` and the expression of each catalog

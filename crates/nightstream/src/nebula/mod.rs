@@ -33,7 +33,7 @@ pub use geometry::Geometry;
 pub use machine::{Machine, MachineError, MachineState, Step};
 pub use neo_application::{
     ColumnFamilySpec, ColumnRegistry, ColumnRegistryError, ColumnWidth, MemoryCatalog, MemoryCatalogError, MemoryKind,
-    MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemorySpec,
+    MemoryPortActivation, MemoryPortKind, MemoryPortSpec, MemoryPreload, MemorySpec,
 };
 pub use records::PortAccess;
 pub use rows::View;

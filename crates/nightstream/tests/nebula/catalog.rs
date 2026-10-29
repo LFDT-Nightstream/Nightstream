@@ -16,7 +16,7 @@ use crate::nebula::segment::initial_memory;
 use crate::nebula::{
     Application, CatalogBinding, CatalogBindingError, CatalogRowError, ColumnFamilySpec, ColumnRegistry, ColumnWidth,
     Context, Expr, Geometry, Invocation, Memory, MemoryCatalog, MemoryKind, MemoryPortActivation, MemoryPortKind,
-    MemoryPortSpec, MemorySpec, PortAccess, Program, Region, Run, Transition, View,
+    MemoryPortSpec, MemoryPreload, MemorySpec, PortAccess, Program, Region, Run, Transition, View,
 };
 
 const FETCH: usize = 0;
@@ -792,6 +792,34 @@ fn bad_configurations_make_no_binding() {
             CatalogBinding::new(&catalog, &geometry(), regions, &slots).err(),
             Some(expected),
             "{name}"
+        );
+    }
+}
+
+/// Lean `Binding.Initial`: the images hold each checked memory's preloaded
+/// cells at `base + packParts(address)` and zero elsewhere, and the
+/// host-checked I/O memory has no cell in them. A cell with a part at or
+/// above `2^width`, or with another number of parts, makes no program.
+#[test]
+fn program_images_hold_the_preloaded_cells_of_checked_memories() {
+    let binding = setup().binding;
+    let mut preload = MemoryPreload::default();
+    for (address, value) in [([0, 0], 11), ([1, 0], 12), ([0, 1], 13), ([1, 1], 14)] {
+        preload.insert(0, address.to_vec(), value);
+    }
+    preload.insert(1, vec![2], 3);
+    preload.insert(2, vec![1], 5);
+    preload.insert(3, vec![5], 99);
+    // Code (x₀, x₁) is ROM x₀ + 2·x₁; heap a is RAM a; stack a is RAM 4 + a.
+    let expected = Program::new(geometry(), vec![11, 12, 13, 14], vec![0, 0, 3, 0, 0, 5, 0, 0]).unwrap();
+    assert_eq!(binding.program(&preload), Ok(expected));
+    for (memory, address) in [(0, vec![2, 0]), (0, vec![1]), (2, vec![2])] {
+        let mut outside = preload.clone();
+        outside.insert(memory, address.clone(), 1);
+        assert_eq!(
+            binding.program(&outside),
+            Err(CatalogBindingError::Preload),
+            "memory {memory} address {address:?}"
         );
     }
 }

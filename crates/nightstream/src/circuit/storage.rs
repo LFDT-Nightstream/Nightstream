@@ -1,4 +1,6 @@
 //! Versioned package framing and atomic publication. Trust is chosen by the caller.
+//! A file is the magic, the four output forms, the four output rows (each a
+//! little-endian `u64`), then the prepared package.
 
 use std::{
     fs::{self, File, OpenOptions},
@@ -17,7 +19,7 @@ use nightstream_fprime::load_prepared_package;
 
 use super::{ApplicationCircuit, ApplicationError, CompiledCircuit, Error};
 
-const MAGIC: &[u8; 8] = b"NSCIR\0\0\x01";
+const MAGIC: &[u8; 8] = b"NSCIR\0\0\x02";
 static NEXT_FILE: AtomicU64 = AtomicU64::new(0);
 
 struct PendingFile {
@@ -72,6 +74,9 @@ pub(super) fn write(path: &Path, circuit: &CompiledCircuit) -> Result<(), Error>
         .as_ref()
         .ok_or(ApplicationError::NoApplication)?;
     output.write_all(&application.prepared_output_forms()?)?;
+    for row in application.prepared_output_rows() {
+        output.write_all(&(row as u64).to_le_bytes())?;
+    }
     circuit.package.write_prepared(&mut output)?;
     output.flush()?;
     output.get_ref().sync_all()?;
@@ -94,13 +99,20 @@ pub(super) fn read(path: &Path) -> Result<CompiledCircuit, Error> {
     if output_forms.iter().any(|tag| !matches!(tag, 0 | 2)) {
         return Err(ApplicationError::Prepared("prepared output form").into());
     }
+    let mut output_rows = [0; 4];
+    for row in &mut output_rows {
+        let mut bytes = [0; 8];
+        input.read_exact(&mut bytes)?;
+        *row = usize::try_from(u64::from_le_bytes(bytes))
+            .map_err(|_| ApplicationError::Prepared("prepared output rows"))?;
+    }
     let package = load_prepared_package(&mut input)?;
     let binding = package.production_verifier_binding()?;
     crate::lifecycle::validate_key_prefix(
         package.logical_column_count(),
         binding.verifier_context().commitment_key_words(),
     )?;
-    let application = ApplicationCircuit::from_prepared(&package, output_forms)?;
+    let application = ApplicationCircuit::from_prepared(&package, output_forms, output_rows)?;
     Ok(CompiledCircuit {
         application: Some(application),
         package: Arc::new(package),

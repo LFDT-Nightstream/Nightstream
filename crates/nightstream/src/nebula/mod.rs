@@ -201,6 +201,14 @@ impl<A: Application> Circuit<A> {
         })
     }
 
+    /// Save a `Circuit::compile` circuit for a prover in another process
+    /// (`crate::Prover::load`). The destination must not exist. A Lean
+    /// package has no Rust application to save. A verifier compiles its own
+    /// circuit and never loads this file.
+    pub fn write(&self, path: impl AsRef<std::path::Path>) -> Result<(), crate::Error> {
+        self.circuit.write(path)
+    }
+
     /// The prover of the circuit. `minimum_security_bits` bounds the folding
     /// profile and the memory fingerprint term (`Geometry::memory_security_bits`).
     pub fn prover(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<crate::Prover, crate::Error> {

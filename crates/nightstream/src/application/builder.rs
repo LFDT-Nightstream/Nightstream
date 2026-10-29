@@ -231,7 +231,6 @@ impl ApplicationBuilder {
 
     /// Finish when `rows` already bind the output state: row `rows[k]` is
     /// `output_k · 1 = value`, the `equality_row` shape with the value on C.
-    /// `Circuit::write` cannot save the result unless `rows` are the last four.
     pub(crate) fn finish_with_output_rows(self, rows: [usize; 4]) -> Result<ApplicationCircuit, ApplicationError> {
         self.into_circuit(rows.map(|row| OutputRow {
             row,
@@ -267,15 +266,8 @@ pub struct ApplicationCircuit {
 
 impl ApplicationCircuit {
     pub(crate) fn prepared_output_forms(&self) -> Result<[u8; 4], ApplicationError> {
-        let first = self
-            .row_count()
-            .checked_sub(4)
-            .ok_or(ApplicationError::Prepared("prepared output rows"))?;
         let mut forms = [0; 4];
         for (lane, output) in self.outputs.iter().enumerate() {
-            if output.row != first + lane {
-                return Err(ApplicationError::Prepared("prepared output row order"));
-            }
             forms[lane] = match output.form {
                 ApplicationForm::A => 0,
                 ApplicationForm::C => 2,
@@ -285,19 +277,21 @@ impl ApplicationCircuit {
         Ok(forms)
     }
 
+    /// The row that binds each output state word.
+    pub(crate) fn prepared_output_rows(&self) -> [usize; 4] {
+        self.outputs.map(|output| output.row)
+    }
+
     pub(crate) fn from_prepared(
         package: &nightstream_fprime::LoadedPerApplicationPackage,
         forms: [u8; 4],
+        rows: [usize; 4],
     ) -> Result<Self, ApplicationError> {
         let records = Arc::clone(
             package
                 .application_records()
                 .ok_or(ApplicationError::Prepared("prepared native records"))?,
         );
-        let first = records
-            .row_count()
-            .checked_sub(4)
-            .ok_or(ApplicationError::Prepared("prepared output rows"))?;
         let private_count = package.application().witness_word_count();
         let generated_start = private_count
             .checked_add(8)
@@ -309,8 +303,10 @@ impl ApplicationCircuit {
             row: 0,
             form: ApplicationForm::A,
         }; 4];
-        for (lane, tag) in forms.into_iter().enumerate() {
-            let row = first + lane;
+        for (lane, (tag, row)) in forms.into_iter().zip(rows).enumerate() {
+            if row >= records.row_count() {
+                return Err(ApplicationError::Prepared("prepared output rows"));
+            }
             let form = match tag {
                 0 => ApplicationForm::A,
                 2 => ApplicationForm::C,

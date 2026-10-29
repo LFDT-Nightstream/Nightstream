@@ -167,6 +167,12 @@ impl Circuit {
         self.compiled.package.application().row_range()
     }
 
+    /// The Rust application, for tests that execute a loaded circuit.
+    #[cfg(test)]
+    pub(crate) fn application(&self) -> Option<&ApplicationCircuit> {
+        self.compiled.application.as_ref()
+    }
+
     /// Return the package's claimed circuit identifier.
     /// Compilation computes it from the circuit. Loading preserves the saved
     /// value without recomputing it, so equality does not authenticate a loaded

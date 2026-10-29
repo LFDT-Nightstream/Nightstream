@@ -720,7 +720,13 @@ generated relation MUST supply the exact census.
      binds the packages, not every Lean term. The Rust crate loads each
      emitted package with a pinned structural identifier. The Rust verifier
      takes the program (`nebula::Program`, `u32` words), whose constructor
-     checks the image sizes against the geometry and computes `D_init` once;
+     checks the image sizes against the geometry and computes `D_init` once.
+     The Rust crate also builds a memory relation in Rust for any application
+     of the `nebula::Application` contract (`nebula::Circuit::compile`). It
+     rejects a geometry that breaks spec §4.2 rules 1–6, and its verifier
+     compiles the relation itself, so it never takes a circuit from a prover.
+     For the machine at the two package geometries, `tests/nebula/parity.rs`
+     requires its rows to equal the Lean package rows;
    - one setup per geometry (`Spec/Nebula/Plan.lean`): a `Geometry` has the
      seven fields of `plan_digest`, and a `Plan` extends it with the images.
      `planDigest`, `PortApp`, `MemoryApp.program`, the packages, and every
@@ -749,6 +755,11 @@ generated relation MUST supply the exact census.
      the bad events of §5, an accepted proof of it attests such an execution.
 
    Still open:
+   - the Rust-built relation for another geometry or another application:
+     no Lean package pins its memory rows, and the application's own rows
+     need their own Ob7 and Ob5 (`PortApp.sound`, `PortApp.complete`). Until
+     a package for that geometry exists and the Rust rows match it, its
+     memory rows are checked by tests only;
    - the binding rows of the Rust memory backend: that the slots of a catalog
      application bind its events in order (spec §10.1 rules 4 to 6), with
      disjoint regions. Until a later unit proves or pins these rows, they are

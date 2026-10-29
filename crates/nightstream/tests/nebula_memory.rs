@@ -761,6 +761,29 @@ fn invalid_geometries_make_no_program_and_no_circuit() {
     }
 }
 
+/// Spec §4.2 rule 6 (Lean `Geometry.Secure`): setup rejects a valid geometry
+/// with `m_mem > 139,509`. This one has one port and one scan slot, so its
+/// relation is small, but `m_mem = R + M + N · B_ops = 2^18`.
+#[test]
+fn insecure_geometry_makes_no_circuit() {
+    let insecure = nightstream::nebula::Geometry {
+        r: 16,
+        mu: 16,
+        w_ts: 18,
+        b_ops: 1,
+        b_scan: 1,
+        n: 1 << 17,
+        s_max: 1,
+    };
+    assert!(insecure.is_valid());
+    assert!(insecure.max_tuples() > 139_509);
+    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+    assert!(matches!(
+        nightstream::nebula::Circuit::compile(&reference, insecure, Machine),
+        Err(nightstream::Error::Circuit("the memory geometry breaks spec §4.2"))
+    ));
+}
+
 /// One segment of the first package's default program proved by `prover`,
 /// with the native outputs as the Rust application's outputs.
 fn prove_segment<A: Application<Input = Step, State = MachineState>>(

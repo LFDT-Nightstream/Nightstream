@@ -1,18 +1,6 @@
 import CompressionLean.Layer1.Early
 import Mathlib.Tactic.Linarith
 
-/-!
-Owns the soundness of the early stage for one P0 candidate (`early_world`):
-if the setup claims at the run point are the setup's values and the P0
-openings agree with the candidate, then the early checks, off the bad sets,
-force the candidate's norm, its run values `e = χ_r(row)`, its slot sums
-`U` and its slot-block copy.
-
-The argument: every early leaf claim is the true leaf value, so GKR leaves
-every root true (`gkr_avoids`); the true roots are the fraction sums, and the
-root checks are then the logUp identities of `Lookups`.
--/
-
 namespace CompressionLean.Layer1
 
 open CompressionLean.Lib
@@ -22,14 +10,12 @@ variable {F K : Type} [Field F] [Field K] [Algebra F K]
 
 local notation "ι" => algebraMap F K
 
-/-- The setup claims at the run point are the setup columns' values. -/
 def SetupTrue (s : Shape) (S : Setup F) (o : EarlyOut F K) : Prop :=
   o.rowClaim = mle o.runPoint (rowColumn S) ∧
     o.slotClaim s S = mle o.runPoint (slotColumn S) ∧
     o.coefClaim = mle o.runPoint (coefColumn S) ∧
     o.embeddedBlock s = mle o.runPoint (blockColumn S)
 
-/-- The early P0 openings agree with candidate `w`. -/
 def EarlyConsistent (s : Shape) (o : EarlyOut F K) (w : P0Tables F) : Prop :=
   mle o.normPoint (fun x => ι (w.z x)) = o.zLeaf ∧
     mle o.runPoint (fun k => ι (w.e k).1) = o.values.eRe ∧
@@ -66,7 +52,6 @@ section Leaves
 
 variable (s : Shape) (S : Setup F) (st : Statement F) (o : EarlyOut F K) (w : P0Tables F)
 
-/-- The true early leaf value of part `j` of tree `t`. -/
 noncomputable def earlyLeaf (t j : ℕ) : K :=
   trueLeaf (earlyShape s) (earlyBatch s S st o.challenges w) t (o.gkr.leafPoint t) j
 
@@ -81,7 +66,6 @@ theorem earlyLeaf_eq (t j : ℕ) :
 
 end Leaves
 
-/-- The pair factor's extension: the matrix part weights each matrix's `U` at the slot part. -/
 theorem mle_pairFactor (s : Shape) (point : List K) (μ : K) (U : ℕ → ℕ → K × K)
     (length : point.length = s.slotVars + s.matrixVars) (matrices_le : s.matrices ≤ 2 ^ s.matrixVars) :
     mle point (fun x => if x / 2 ^ s.slotVars < s.matrices then
@@ -109,7 +93,7 @@ theorem mle_pairFactor (s : Shape) (point : List K) (μ : K) (U : ℕ → ℕ �
       rw [Nat.add_mul_div_left _ _ (by positivity), Nat.div_eq_of_lt lt, zero_add]
     have remainder : (y + 2 ^ s.slotVars * j) % 2 ^ s.slotVars = y := by
       rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt lt]
-    rw [divide, remainder, if_pos (Finset.mem_range.mp inside)]
+    rw [divide, remainder, ite_eq_left (Finset.mem_range.mp inside)]
   · intro j _ outside
     rw [mul_eq_zero]
     right
@@ -119,7 +103,7 @@ theorem mle_pairFactor (s : Shape) (point : List K) (μ : K) (U : ℕ → ℕ �
           rw [take_length] at lt
           have divide : (y + 2 ^ s.slotVars * j) / 2 ^ s.slotVars = j := by
             rw [Nat.add_mul_div_left _ _ (by positivity), Nat.div_eq_of_lt lt, zero_add]
-          rw [divide, if_neg (fun h => outside (Finset.mem_range.mpr h))]
+          rw [divide, ite_eq_right (fun h => outside (Finset.mem_range.mpr h))]
       _ = 0 := mle_const _ _
 
 section Trees
@@ -161,7 +145,6 @@ theorem earlyBatch_4 : earlyBatch s S st ch w 4 =
 
 end Trees
 
-/-- Every early leaf claim is the true leaf value of candidate `w`. -/
 theorem early_leaves_true (s : Shape) (S : Setup F) (st : Statement F) (o : EarlyOut F K)
     (w : P0Tables F) (checks : EarlyChecks s st o) (setup : SetupTrue s S o)
     (consistent : EarlyConsistent s o w) (shared : o.gkr.leafPoint 1 = o.gkr.leafPoint 3)
@@ -181,12 +164,12 @@ theorem early_leaves_true (s : Shape) (S : Setup F) (st : Statement F) (o : Earl
   obtain ⟨f0, f1, f2, f3, f4⟩ := early_factors s
   rcases cases with rfl | rfl | rfl | rfl | rfl
   · obtain rfl : j = 0 := by rw [f0] at le; omega
-    rw [f0, earlyBatch_0, if_neg (lt_irrefl 0), mle_sub, mle_const]
+    rw [f0, earlyBatch_0, ite_eq_right (lt_irrefl 0), mle_sub, mle_const]
     unfold EarlyOut.normPoint EarlyOut.zLeaf at zTrue
     rw [zTrue]
     ring
   · obtain rfl : j = 0 := by rw [f1] at le; omega
-    rw [f1, earlyBatch_1, if_neg (lt_irrefl 0)]
+    rw [f1, earlyBatch_1, ite_eq_right (lt_irrefl 0)]
     dsimp only
     rw [mle_tuple, shared]
     unfold EarlyOut.runPoint at eReTrue eImTrue rowTrue
@@ -195,27 +178,27 @@ theorem early_leaves_true (s : Shape) (S : Setup F) (st : Statement F) (o : Earl
   · rw [f2] at le
     rw [f2, earlyBatch_2]
     rcases (show j = 0 ∨ j = 1 by omega) with rfl | rfl
-    · rw [if_pos (by norm_num)]
+    · rw [ite_eq_left (by norm_num)]
       simp only [List.getD_cons_zero]
       unfold EarlyOut.rowPoint EarlyOut.multValue at multTrue
       exact multTrue.symm
-    · rw [if_neg (lt_irrefl 1)]
+    · rw [ite_eq_right (lt_irrefl 1)]
       dsimp only
       rw [mle_tuple, lookupRow]
       rfl
   · rw [f3] at le
     rw [f3, earlyBatch_3]
     rcases (show j = 0 ∨ j = 1 ∨ j = 2 by omega) with rfl | rfl | rfl
-    · rw [if_pos (by norm_num)]
+    · rw [ite_eq_left (by norm_num)]
       simp only [List.getD_cons_zero]
       unfold EarlyOut.runPoint EarlyOut.coefClaim at coefTrue
       exact coefTrue
-    · rw [if_pos (by norm_num)]
+    · rw [ite_eq_left (by norm_num)]
       simp only [List.getD_cons_succ, List.getD_cons_zero]
       rw [mle_add, mle_mul_left, scatterRun]
       unfold EarlyOut.runPoint at eReTrue eImTrue
       rw [eReTrue, eImTrue]
-    · rw [if_neg (lt_irrefl 2)]
+    · rw [ite_eq_right (lt_irrefl 2)]
       dsimp only
       rw [mle_sub, mle_const, mle_add, mle_mul_left]
       unfold EarlyOut.slotClaim EarlyOut.runPoint at slotTrue
@@ -224,7 +207,7 @@ theorem early_leaves_true (s : Shape) (S : Setup F) (st : Statement F) (o : Earl
   · rw [f4] at le
     rw [f4, earlyBatch_4]
     rcases (show j = 0 ∨ j = 1 by omega) with rfl | rfl
-    · rw [if_pos (by norm_num)]
+    · rw [ite_eq_left (by norm_num)]
       simp only [List.getD_cons_zero]
       rw [scatterPair]
       have factor := mle_pairFactor (K := K) s (o.gkr.leafPoint 4) o.challenges.scatter.2
@@ -237,12 +220,11 @@ theorem early_leaves_true (s : Shape) (S : Setup F) (st : Statement F) (o : Earl
       unfold EarlyOut.pairPoint at pair
       rw [pair.1, pair.2]
       rfl
-    · rw [if_neg (lt_irrefl 1)]
+    · rw [ite_eq_right (lt_irrefl 1)]
       dsimp only
       rw [mle_sub, mle_const, scatterIndex]
       rfl
 
-/-- What the early stage forces on candidate `w`. -/
 def EarlyFacts (s : Shape) (S : Setup F) (st : Statement F) (w : P0Tables F) : Prop :=
   (∀ x, x < 2 ^ s.cubeVars → ∃ t, t < 2 * s.normBound + 1 ∧ ι (w.z x) = slotValue s.normBound t) ∧
     (∀ k, k < 2 ^ s.runVars → w.e k = st.chi (S.runRow k)) ∧
@@ -253,7 +235,6 @@ def EarlyFacts (s : Shape) (S : Setup F) (st : Statement F) (w : P0Tables F) : P
           (fun k => S.runMatrix k = j ∧ S.runSlot k = σ), coefColumn S k * ι (w.e k).2) ∧
     ∀ σ, σ < 2 ^ s.slotVars → ι (w.blockCopy σ) = blockColumn S σ
 
-/-- A true root with a nonzero denominator is the leaves' fraction sum. -/
 theorem root_sum (s : GkrShape) (batch : Batch K) (t : ℕ) (root : K × K)
     (true_root : root = trueRoot s batch t) (nonzero : root.2 ≠ 0) :
     (∀ x, x < 2 ^ s.depth t → (batch t).denominator x ≠ 0) ∧
@@ -266,7 +247,7 @@ theorem pair_fraction {x y : K × K} (check : PairCheck x y) : x.1 / x.2 = y.1 /
   obtain ⟨hx, hy, cross⟩ := check
   rw [div_eq_div_iff hx hy, cross]
 
-/-- The early stage forces the candidate's facts, off the bad sets. -/
+set_option backward.isDefEq.respectTransparency false in
 theorem early_world (s : Shape) (S : Setup F) (st : Statement F) (o : EarlyOut F K) (w : P0Tables F)
     (N : ℕ) (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b)
     (big_cube : 2 ^ s.cubeVars < N) (big_runs : 2 ^ s.runVars < N) (big_rows : 2 ^ s.rowVars ≤ N)
@@ -296,7 +277,7 @@ theorem early_world (s : Shape) (S : Setup F) (st : Statement F) (o : EarlyOut F
     have := cast c 0 (by omega) (by omega) (by simpa using zero)
     omega
   refine ⟨?_, ?_, ?_, ?_⟩
-  · -- Norm: the root is the fraction sum, the check makes it the histogram sum.
+  ·
     obtain ⟨poles, sum⟩ := root_sum (earlyShape s) _ 0 _ (roots 0 (by norm_num)) root0
     rw [d0, earlyBatch_0] at poles sum
     simp only [Level.numerator, List.map_nil, List.prod_nil] at sum
@@ -306,7 +287,7 @@ theorem early_world (s : Shape) (S : Setup F) (st : Statement F) (o : EarlyOut F
     exact norm_sound s.cubeVars s.normBound (fun x => ι (w.z x)) (fun t => ι (o.histogram t))
       (count _ big_cube) o.challenges.beta hβ
       (fun x lt => sub_ne_zero.mp (poles x lt)) betaTable equal
-  · -- Lookup: the two roots' fraction sums agree, so every run tuple is a table tuple.
+  ·
     obtain ⟨poles1, sum1⟩ := root_sum (earlyShape s) _ 1 _ (roots 1 (by norm_num)) pair12.1
     obtain ⟨poles2, sum2⟩ := root_sum (earlyShape s) _ 2 _ (roots 2 (by norm_num)) pair12.2.1
     rw [d1, earlyBatch_1] at poles1 sum1
@@ -326,7 +307,7 @@ theorem early_world (s : Shape) (S : Setup F) (st : Statement F) (o : EarlyOut F
     have row_eq : S.runRow k = i := cast _ _ (by have := fits.row_lt k; omega) (by omega) row
     subst row_eq
     exact Prod.ext ((algebraMap F K).injective re) ((algebraMap F K).injective im)
-  · -- Scatter: every pair's numerators are its runs' sums.
+  ·
     obtain ⟨poles3, sum3⟩ := root_sum (earlyShape s) _ 3 _ (roots 3 (by norm_num)) pair34.1
     obtain ⟨poles4, sum4⟩ := root_sum (earlyShape s) _ 4 _ (roots 4 (by norm_num)) pair34.2.1
     rw [d3, earlyBatch_3] at poles3 sum3
@@ -364,7 +345,7 @@ theorem early_world (s : Shape) (S : Setup F) (st : Statement F) (o : EarlyOut F
       rw [Nat.add_mul_div_left _ _ (by positivity), Nat.div_eq_of_lt hσ, zero_add]
     have remainder : (σ + 2 ^ s.slotVars * j) % 2 ^ s.slotVars = σ := by
       rw [Nat.add_mul_mod_self_left, Nat.mod_eq_of_lt hσ]
-    simp only [scatterData, divide, remainder, if_pos hj, Scatter.sums] at pair
+    simp only [scatterData, divide, remainder, ite_eq_left hj, Scatter.sums] at pair
     have filters : (Finset.range (2 ^ s.runVars)).filter
         (fun k => slotColumn S k + (2 ^ s.slotVars : K) * matrixColumn S k =
           ((σ + 2 ^ s.slotVars * j : ℕ) : K)) =
@@ -394,7 +375,7 @@ theorem early_world (s : Shape) (S : Setup F) (st : Statement F) (o : EarlyOut F
     rw [filters] at pair
     obtain ⟨re, im⟩ := Prod.ext_iff.mp pair
     exact ⟨re, im⟩
-  · -- Slot blocks: the embedded check and the riding identity test.
+  ·
     obtain ⟨_, _, _, embedded⟩ := setup
     obtain ⟨_, _, _, _, blockTrue, _⟩ := consistent
     unfold EarlyOut.embeddedBlock EarlyOut.runPoint at embedded
@@ -407,7 +388,7 @@ theorem early_world (s : Shape) (S : Setup F) (st : Statement F) (o : EarlyOut F
       intro σ big
       rw [take_length] at big
       simp only [blockColumn]
-      rw [if_neg (by have := fits.slots_le; omega)]
+      rw [ite_eq_right (by have := fits.slots_le; omega)]
     rw [split, mle_low_support _ _ _ low_zero] at embedded
     rw [← split] at embedded
     have path_split := (Path.append_iff (blockTest s S w) [] (rp.take s.slotVars) (rp.drop s.slotVars)).mp

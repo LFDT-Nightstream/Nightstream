@@ -8,11 +8,6 @@ import NightstreamFPrime.Export.Stage1.PilotDirectSemantics
 import NightstreamFPrime.Layout.PiDEC.v1_2.Values
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 
-/-!
-Owns the first complete ordered direct 4-matrix prefix through PiDEC and the
-running-instance transition.
--/
-
 namespace NightstreamFPrime.Export.Stage1.DirectPiDECPrefixPlan
 
 open NightstreamFPrime.Layout

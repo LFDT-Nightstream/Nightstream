@@ -3,9 +3,6 @@ import NightstreamFPrime.Layout.PiRLC.v1_2.Leaves.TranscriptAbsorption
 import NightstreamFPrime.Layout.Poseidon2.PermutationOwned
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler
 
-/-! Exact physical cost of one scalar. Parent proofs use the certified child
-costs; they do not expand the permutation or checked-range row lists. -/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.Sampler
 
 open NightstreamFPrime.Spec NightstreamFPrime.Circuit

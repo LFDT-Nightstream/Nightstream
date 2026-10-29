@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Lifecycle.Stage1.Terminal
 
-/-!
-Owns the outer terminal verifier for one verifier-selected application
-package.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationTerminal
 
 open NightstreamFPrime.Lifecycle

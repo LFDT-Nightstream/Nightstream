@@ -2,15 +2,6 @@ import Batteries.Data.Fin.Coding
 import NightstreamFPrime.Layout.LowNormBlock
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedSlots
 
-/-!
-Owns the compact retained-slot block for any ordered list of canonical
-Poseidon2 invocations. Slot order is invocation-major and then direct S-box
-row order. Each invocation contributes exactly 150 general-field slots.
-
-The caller owns only the invocation witness starts and proves that each full
-1096-column local interval is inside the source assignment.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedBlock
 
 open NightstreamFPrime.Layout

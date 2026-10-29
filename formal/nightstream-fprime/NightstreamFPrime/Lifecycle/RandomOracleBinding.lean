@@ -1,37 +1,7 @@
 import NightstreamFPrime.Lifecycle.RandomOracleUniqueness
 import NightstreamFPrime.Lifecycle.Nifs.BindingBridge
 
-/-!
-Owns the binding reduction of Lemma 6 (SECURITY_MODEL.md): a
-function of the two runs that `RandomOracleUniqueness.collisionChance`
-compares, which returns a short kernel vector of the same Ajtai key.
-
-Inputs: a base run and a rerun that are `PairedOf`: both extract, and the rerun
-outputs the base run's running and fresh statements.
-
-Outputs:
-- `rerunKernelOf`: the reduction on the claims of two runs and their retries,
-  with no adversary; `rerunKernel` is it at the adversary's own claims. At
-  the first coordinate where the two complete `Π_RLC` forks
-  extract different assignments, the `(2B, C)`-relaxed binding collision of
-  the forks' challenge and response differences (`PaperForkBinding.collisionAt`,
-  SuperNeo v1.2 Appendix B), as a nonzero integer kernel vector with every
-  coordinate below `8TB` (`Binding.relaxedBindingCollision_to_shortKernel`);
-  `none` when the runs are not paired or extract the same assignments;
-- `rerunKernel_isSome`: every pair of runs that `collisionChance` counts makes
-  `rerunKernel` return a vector;
-- `kernelChance`, `collisionChance_le_kernelChance`: the chance that the
-  reduction returns a vector, under the law of `collisionChance`, bounds
-  `collisionChance`.
-
-The vector is a function of the two runs. The definition is `noncomputable`:
-it decides the run conditions classically and takes each strong-set inverse,
-which is unique, with `Classical.choose` (`ForkStrongSet.strongSetUnits`).
-The extracted witnesses satisfy only the corrected ambient relation, so the
-step uses relaxed binding, not ordinary binding. Does not own: the hardness of
-the resulting MSIS instance, or the reduction as an algorithm with a strict
-budget of runs (`RandomOracleReduction`).
--/
+/-! Random-oracle model, SECURITY_MODEL.md Lemma 6; SuperNeo v1.2 Appendix B. -/
 
 set_option autoImplicit false
 
@@ -160,11 +130,11 @@ theorem rerunKernel_isSome {oracle other : Oracle} {retries otherRetries : Retri
     simp only [not_exists, not_not] at same
     apply collides.2
     unfold witnessOf
-    rw [dif_pos otherValid, dif_pos valid]
+    rw [dite_eq_left otherValid, dite_eq_left valid]
     exact congrArg (fun assignments => some (Nifs.PaperStrongInterface.outputWitnessOfAssignments
       (ProductionKey.key relation ajtai) assignments)) (funext same).symm
   unfold rerunKernel rerunKernelOf
-  rw [dif_pos paired, dif_pos different]
+  rw [dite_eq_left paired, dite_eq_left different]
   rfl
 
 noncomputable def kernelChance : ℝ :=

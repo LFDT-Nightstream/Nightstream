@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.FreshCommitmentBlock
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 
-/-! Complete the existing native block accumulator over an explicit finite
-index order. Runtime partition coverage and file decoding are separate. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.FreshCommitmentFold

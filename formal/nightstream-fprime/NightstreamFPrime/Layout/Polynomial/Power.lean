@@ -1,15 +1,6 @@
 import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Gadgets.Polynomial.Power
 
-/-!
-Owns the exact physical footprint of the reusable fixed-exponent power
-gadget. Each stored extension product is three rank-one rows and needs no
-lowering cell.
-
-This module proves cost from the symbolic compiler. It does not evaluate a
-fixed exponent or own a protocol exponent schedule.
--/
-
 namespace NightstreamFPrime.Layout.Polynomial.Power
 
 open NightstreamFPrime.Spec

@@ -1,12 +1,6 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringShift
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.GeneratedSupport
 
-/-!
-Owns uniform offset relocation for PiRLC sampler-generated expressions.
-All results use the existing direct fresh-variable formulas. This module
-changes no sampler, transcript, circuit, row, or semantic predicate.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiRLCGeneratedRelocation
 
 open NightstreamFPrime.Circuit

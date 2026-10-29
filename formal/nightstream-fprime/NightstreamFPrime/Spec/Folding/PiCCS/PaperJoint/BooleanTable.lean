@@ -1,22 +1,6 @@
 import Std
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Coefficients
 
-/-!
-Canonical Boolean-table coefficient transform for the paper-level `Pi_CCS`
-model.
-
-Owns: the verifier-owned squarefree alpha basis, an explicit finite Boolean
-table, the recursive coefficient transform `p0 + A * (p1 - p0)`, and
-coefficient-zero equivalence with leafwise table zero.
-
-Does not own: evaluation of the derived coefficients at Boolean points, an MLE
-correctness theorem, construction of CCS or norm residual tables, range
-semantics, SumCheck, transcript sampling, root counting, Rust, R1CS, or
-constraint counts.
-
-Emits constraints: no.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 open NightstreamFPrime.Spec.SumCheck

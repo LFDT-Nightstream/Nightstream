@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiDECEvaluationSourceEntry
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentFold
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1MatrixRows
 
-/-!
-Connect the selected structural-plan row product to its existing Phi81 block-row
-semantics on the same complete stored child assignment.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedRows
@@ -43,15 +38,15 @@ private theorem rowBlock_eq_blockRowRing_of_coefficients
     else 0)
   apply sumRange_congr baseOps ringDegree
   intro index indexLt
-  rw [dif_pos indexLt, dif_pos indexLt]
+  rw [dite_eq_left indexLt, dite_eq_left indexLt]
   rw [Phi81Relation.Structure.matrixSource]
   dsimp only [Phi81Relation.Shape.sourceShape, Phi81Relation.Shape.carrierWidth]
   erw [PiDECEvaluationSourceEntry.source_paddedMatrixEntry
     shape.rowVariables 0 0 shape.matrixCount shape.logicalWidth
     system.matrices system.constraintPolynomial matrix vertex block ⟨index, indexLt⟩]
   by_cases within : block.val * ringDegree + index < shape.logicalWidth
-  · rw [dif_pos within, dif_pos within, same]
-  · rw [dif_neg within, dif_neg within, Fin.zero_mul]
+  · rw [dite_eq_left within, dite_eq_left within, same]
+  · rw [dite_eq_right within, dite_eq_right within, Fin.zero_mul]
 
 private abbrev selectedShape :=
   PaperAlgebra.FullShape

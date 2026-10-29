@@ -2,15 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 import NightstreamFPrime.Export.Stage1.PiRLCParity
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongInterface
 
-/-!
-Continue the actual checked PiCCS input through the selected PiRLC sampler
-and all 17 indexed combinations. The input is the existing PiCCS schema;
-the point, transcript state and source claims come from that execution.
-The result preserves the complete PiCCS fields, then appends the PiRLC input
-and result in the existing parity encoding. Opening validity remains with
-the source-opening owner.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCInputCheck

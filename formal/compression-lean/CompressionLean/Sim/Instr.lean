@@ -75,7 +75,7 @@ theorem permute_ensures {state : Fin 16 → Var} {gs : Array Word} (hp : Permute
     refine fun k => ⟨Nat.add_lt_add_left k.isLt n, ?_⟩
     rw [← hl, Ctx.val_next hF (by simp)]
     simp only [List.getD_eq_getElem?_getD, List.getElem?_ofFn]
-    rw [dif_pos k.isLt, Option.getD_some, ← hp gs k, rs, List.getD_eq_getElem?_getD]).map fun _ _ h k => h k
+    rw [dite_eq_left k.isLt, Option.getD_some, ← hp gs k, rs, List.getD_eq_getElem?_getD]).map fun _ _ h k => h k
 
 section Words
 

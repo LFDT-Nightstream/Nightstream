@@ -340,7 +340,7 @@ theorem Ring.tau_ensures {zeta : ExtVar} {gz : Ext} (hz : IsExt c n zeta gz) :
       ((Array.range D).map fun l => if l < col then S (p + 1) l else S p l)) ?_
     fun col hcol acc' m' _ hacc' => ?_).bind fun tau' m₄ _ htau' => ?_
   · exact IsExts.map_range_iff.mpr ⟨(IsExts.map_range_iff.mp htau).1, fun i hi => by
-      rw [if_neg (Nat.not_lt_zero _)]
+      rw [ite_eq_right (Nat.not_lt_zero _)]
       exact (IsExts.map_range_iff.mp htau).2 i hi⟩
   · rw [Nat.zero_add]
     have hc : col < D := by simpa using hcol
@@ -355,15 +355,15 @@ theorem Ring.tau_ensures {zeta : ExtVar} {gz : Ext} (hz : IsExt c n zeta gz) :
       have e := get i hi
       by_cases ic : i = col
       · subst ic
-        rw [if_neg (Nat.lt_irrefl _)] at e
-        rw [if_pos (Nat.lt_succ_self _), succ, Replay.Word.eq_of_beq zero, ext_scale_zero, ext_add_zero]
+        rw [ite_eq_right (Nat.lt_irrefl _)] at e
+        rw [ite_eq_left (Nat.lt_succ_self _), succ, Replay.Word.eq_of_beq zero, ext_scale_zero, ext_add_zero]
         exact e
       · by_cases lt : i < col
-        · rwa [if_pos lt, if_pos (by omega)] at *
-        · rwa [if_neg lt, if_neg (by omega)] at *
+        · rw [ite_eq_left lt, ite_eq_left (by omega)] at *; assumption
+        · rw [ite_eq_right lt, ite_eq_right (by omega)] at *; assumption
     · have entry : IsExt c m' acc'[col]! (S p col) := by
         have e := (IsExts.map_range_iff.mp hacc').2 col hc
-        rwa [if_neg (Nat.lt_irrefl _)] at e
+        rwa [ite_eq_right (Nat.lt_irrefl _)] at e
       refine (extScaleConstant_ensures (Replay.bar p col) hpower.mono).bind fun term _ _ hterm => ?_
       refine (extAdd_ensures entry.mono hterm).bind fun x m₆ _ hx => Ensures.pure ⟨rfl, ?_⟩
       obtain ⟨size, get⟩ := IsExts.map_range_iff.mp (hacc'.mono (m := m₆))
@@ -373,19 +373,19 @@ theorem Ring.tau_ensures {zeta : ExtVar} {gz : Ext} (hz : IsExt c n zeta gz) :
       rw [getElem!_set! _ _ _ _ (by simp [size]; exact hi)]
       by_cases ic : col = i
       · subst ic
-        rw [if_pos rfl, if_pos (Nat.lt_succ_self _)]
+        rw [ite_eq_left rfl, ite_eq_left (Nat.lt_succ_self _)]
         exact hx
-      · rw [if_neg ic]
+      · rw [ite_eq_right ic]
         have e := get i hi
         by_cases lt : i < col
-        · rwa [if_pos lt, if_pos (by omega)] at *
-        · rwa [if_neg lt, if_neg (by omega)] at *
+        · rw [ite_eq_left lt, ite_eq_left (by omega)] at *; assumption
+        · rw [ite_eq_right lt, ite_eq_right (by omega)] at *; assumption
   · refine (extMul_ensures hpower.mono hz.mono).bind fun power m₅ _ hpower' =>
       Ensures.pure ⟨rfl, ?_, by rw [ext_pow_succ]; exact hpower'⟩
     obtain ⟨size, get⟩ := IsExts.map_range_iff.mp (htau'.mono (m := m₅))
     refine IsExts.map_range_iff.mpr ⟨size, fun i hi => ?_⟩
     have e := get i hi
-    rwa [if_pos (show i < D - 0 from hi)] at e
+    rwa [ite_eq_left (show i < D - 0 from hi)] at e
 
 end Rows
 
@@ -410,7 +410,7 @@ private theorem scaledEqPoint_eq (bits : ℕ) : ∀ sq : ℕ → Ext, (∀ t, sq
       have rest := ih (fun t => sq (t + 1)) (fun t => hsq (t + 1)) fun t ht => poles (t + 1) (by omega)
       rw [Nat.zero_add, hsq 0] at rest
       rw [Replay.scaledEqPoint]
-      simp only [p0, Bool.false_eq_true, if_false, rest, bind_pure_comp, Except.map_ok, prodRange_succ',
+      simp only [p0, Bool.false_eq_true, ite_false, rest, bind_pure_comp, Except.map_ok, prodRange_succ',
         map_range_succ']
 
 section ScaledEqPoint

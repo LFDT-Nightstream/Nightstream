@@ -3,20 +3,6 @@ import NightstreamFPrime.Lifecycle.PiDEC.v1_2.SignedSplitScalar
 import NightstreamFPrime.Lifecycle.XOut
 import NightstreamFPrime.Spec.GoldilocksPrime
 
-/-!
-Owns the canonical state-word checks used by the PiCCS statement boundary.
-
-The pilot hashes fixed-width word arrays. These rows pin the constant domain
-chunk of each array and bind the four verifier-context words in both states to
-one verifier-owned public value. They also split every packed prior parent
-word into the sixteen child digits that the PiCCS running statement reads.
-Each lane owns one hinted sign column. The shared Π_DEC rows
-(`PiDEC.v1_2.SignedSplitScalar`) check that the sign is Boolean and every
-digit is zero or `1 - 2 · sign`, and the three recomposed lanes pack into the
-hashed word. The hint is not authority; the rows bind it. The other running
-values stay in their existing zero-copy columns.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.StateBinding
 
 open NightstreamFPrime.Spec
@@ -667,7 +653,8 @@ theorem assertions_length (interface : Interface) (offset : Nat) :
     (assertions interface offset).length = 4712 := by
   have children : (childAssertions interface offset).length = 4680 := by
     rw [childAssertions, List.length_flatMap]
-    simp [wordAssertions_length, packedParentWords]
+    simp only [wordAssertions_length]
+    simp [packedParentWords]
   simp [assertions, stateWordAssertions, stateAssertions, contextAssertions,
     fixedWords_length, children]
 

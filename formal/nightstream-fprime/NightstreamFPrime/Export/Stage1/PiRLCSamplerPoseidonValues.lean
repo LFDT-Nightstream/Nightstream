@@ -3,12 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCRetainedCompleteness
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerRetainedCustody
 import NightstreamFPrime.Export.PermutationOutput
 
-/-!
-Owns the exact retained sampler S-box and output readback from the existing
-physical invocation list. The sampler slice follows the PiCCS slice in the same
-retained block.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonValues

@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Pilot
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedSlots
 
-/-!
-Owns the physical final-layer contract of a canonical Poseidon2 invocation.
-Its output is the external linear layer of the same invocation's final
-retained S-box values. This contract does not select a protocol or layout.
--/
-
 namespace NightstreamFPrime.Export.PermutationOutput
 
 open NightstreamFPrime.Circuit

@@ -92,12 +92,12 @@ theorem compress_ensures {l r : DigestVar} {gl gr : Array Word} (hp : Permutes c
   · obtain ⟨⟨sl, wl⟩, ⟨sr, wr⟩⟩ := And.intro hl hr
     rw [Fin.getElem!_fin, getElem!_append, getElem!_append, Array.size_append, sl, sr]
     by_cases k4 : k.val < 4
-    · rw [dif_pos k4, if_pos (by omega), if_pos k4]
+    · rw [dite_eq_left k4, ite_eq_left (by omega), ite_eq_left k4]
       simpa using (wl ⟨k, k4⟩).mono l₁
     by_cases k8 : k.val < 8
-    · rw [dif_neg k4, dif_pos k8, if_pos (by omega), if_neg k4]
+    · rw [dite_eq_right k4, dite_eq_left k8, ite_eq_left (by omega), ite_eq_right k4]
       simpa using (wr ⟨k - 4, by omega⟩).mono l₁
-    · rw [dif_neg k4, dif_neg k8, if_neg (by omega), getElem!_pos _ _ (by simp [Replay.width]; omega),
+    · rw [dite_eq_right k4, dite_eq_right k8, ite_eq_right (by omega), getElem!_pos _ _ (by simp [Replay.width]; omega),
         Array.getElem_replicate]
       exact hz
   · have lt := lane.isLt
@@ -189,13 +189,13 @@ theorem merkleRoot_ensures [CharP F goldilocksModulus] {leaf : DigestVar} {bits 
       fun acc _ _ hacc => ?_
     · have j4 : j < 4 := by simpa using hj
       obtain ⟨s₁, s₂, prev⟩ := hacc
-      rw [show (List.finRange 4)[j] = ⟨j, j4⟩ by simp]
+      rw [show (List.finRange 4)[j]'(by simpa using j4) = ⟨j, j4⟩ by simp]
       refine (select_ensures (b := b) hb.mono (hnode.2 ⟨j, j4⟩).mono (hs.2 ⟨j, j4⟩).mono).bind
         fun x _ _ wx => ?_
       refine (add_ensures (hnode.2 ⟨j, j4⟩).mono (hs.2 ⟨j, j4⟩).mono).bind fun both _ _ hboth => ?_
       refine (sub_ensures (gb := if b then gp[(⟨j, j4⟩ : Fin 4)]! else gn[(⟨j, j4⟩ : Fin 4)]!) hboth ?_).bind
         fun y _ _ wy => Ensures.pure ⟨rfl, ?_⟩
-      · rw [Fin.getElem!_fin, getElem!_set! _ _ _ _ (by rw [s₁]; exact j4), if_pos rfl]
+      · rw [Fin.getElem!_fin, getElem!_set! _ _ _ _ (by rw [s₁]; exact j4), ite_eq_left rfl]
         exact wx.mono
       · simp only [Fin.getElem!_fin] at wx wy
         dsimp only [ForInStep.value]
@@ -203,11 +203,11 @@ theorem merkleRoot_ensures [CharP F goldilocksModulus] {leaf : DigestVar} {bits 
         rw [getElem!_set! _ _ _ _ (by rw [s₁]; omega), getElem!_set! _ _ _ _ (by rw [s₂]; omega)]
         by_cases e : j = i
         · subst e
-          rw [if_pos rfl, if_pos rfl]
+          rw [ite_eq_left rfl, ite_eq_left rfl]
           refine ⟨wx.mono.congr ?_, wy.congr ?_⟩ <;> cases b
-          all_goals simp only [Bool.false_eq_true, if_true, if_false, word_sub, word_add]
+          all_goals simp only [Bool.false_eq_true, ite_true, ite_false, word_sub, word_add]
           all_goals ring
-        · rw [if_neg e, if_neg e]
+        · rw [ite_eq_right e, ite_eq_right e]
           exact ⟨(prev i (by omega)).1.mono, (prev i (by omega)).2.mono⟩
     · obtain ⟨s₁, s₂, all⟩ := hacc
       refine (compress_ensures hp ⟨?_, fun lane => (all lane (by simp)).1⟩

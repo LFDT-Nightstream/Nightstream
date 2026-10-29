@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PilotDecodedEnvironment
 import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 
-/-!
-Owns the arbitrary-assignment connection from the selected pilot rows to the
-existing two-child pilot specification.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PilotDecodedPhase
 
 open NightstreamFPrime.Circuit

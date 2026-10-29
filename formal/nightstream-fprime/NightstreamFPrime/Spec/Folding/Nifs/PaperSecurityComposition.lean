@@ -1,15 +1,6 @@
 import NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive.Verifier
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 
-/-!
-Owns the deterministic PiCCS--PiRLC security composition for the paper NIFS.
-
-The verifier supplies the exact PiCCS probe and the exact PiRLC public input
-batch. A complete coordinate fork supplies only successful combined openings.
-The theorem constructs the PiCCS output witness from those extracted openings
-and concludes source validity or one named PiCCS algebraic failure.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.PaperSecurityComposition

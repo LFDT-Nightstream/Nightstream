@@ -1,14 +1,6 @@
 import NightstreamFPrime.Circuit.VariableSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 
-/-!
-Owns the generic source-support contract for caller-owned PiCCS expressions.
-
-This mirrors `Formal.ExternalInputsBelow` but preserves a caller-selected
-source predicate instead of only a numeric upper bound. It does not select a
-physical layout, retained slots, or a production application.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 
 open NightstreamFPrime.Circuit

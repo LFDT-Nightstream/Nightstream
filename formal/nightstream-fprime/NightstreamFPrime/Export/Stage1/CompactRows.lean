@@ -2,15 +2,6 @@ import NightstreamFPrime.Export.Stage1.Rows
 import NightstreamFPrime.Layout.R1CS.Completeness
 import NightstreamFPrime.Layout.R1CS.ColumnMap
 
-/-!
-Owns the generic compact-row template compiler and its lossless expansion
-theorems.
-
-Templates contain Lean-built expressions and R1CS rows. An invocation only
-renames input columns and shifts the contiguous R1CS-fresh interval. The proof
-is structural in one expression and does not inspect an emitted artifact.
--/
-
 namespace NightstreamFPrime.Export.Stage1.CompactRows
 
 open NightstreamFPrime.Spec
@@ -533,7 +524,7 @@ private theorem copyCompactLocals_agreesOutside
       localStart count := by
   intro index outside
   unfold copyCompactLocals
-  rw [if_neg]
+  rw [ite_eq_right]
   intro inside
   rcases outside with before | after <;> omega
 
@@ -569,7 +560,7 @@ theorem compactConstraintTemplate_complete
     · exact logical
     · intro index below
       unfold abstract compactInputEnv
-      rw [if_pos below, relocate_input inputCount (localStart - inputCount)
+      rw [ite_eq_left below, relocate_input inputCount (localStart - inputCount)
         inputColumn index below]
   have sourceAgrees : AgreesOutside abstract source inputCount count := by
     exact R1CS.executeConstraint_agreesOutside abstract expression inputCount
@@ -586,10 +577,10 @@ theorem compactConstraintTemplate_complete
     · rw [relocate_input inputCount (localStart - inputCount) inputColumn
         index input]
       unfold completed copyCompactLocals
-      rw [if_neg]
+      rw [ite_eq_right]
       · unfold abstract compactInputEnv at sourceAgrees
         have stable := sourceAgrees index (Or.inl input)
-        simpa only [if_pos input] using stable.symm
+        simpa only [ite_eq_left input] using stable.symm
       · intro inside
         rcases inputsOutside index input with before | after
         · omega
@@ -604,7 +595,7 @@ theorem compactConstraintTemplate_complete
           index + (localStart - inputCount) < localStart + count := by
         constructor <;> omega
       unfold completed copyCompactLocals
-      rw [if_pos inside]
+      rw [ite_eq_left inside]
       congr 1
       omega
   refine ⟨completed,
@@ -662,7 +653,7 @@ theorem compactTemplate_complete
     · exact logical
     · intro index below
       unfold abstract compactInputEnv
-      rw [if_pos below, relocate_input inputCount (localStart - inputCount)
+      rw [ite_eq_left below, relocate_input inputCount (localStart - inputCount)
         inputColumn index below]
   have sourceAgrees : AgreesOutside abstract source inputCount count := by
     exact R1CS.executeExpression_agreesOutside abstract expression inputCount
@@ -694,10 +685,10 @@ theorem compactTemplate_complete
     · rw [relocate_input inputCount (localStart - inputCount) inputColumn
         index input]
       unfold completed copyCompactLocals
-      rw [if_neg]
+      rw [ite_eq_right]
       · unfold abstract compactInputEnv at sourceAgrees
         have stable := sourceAgrees index (Or.inl input)
-        simpa only [if_pos input] using stable.symm
+        simpa only [ite_eq_left input] using stable.symm
       · intro inside
         rcases inputsOutside index input with before | after
         · omega
@@ -710,7 +701,7 @@ theorem compactTemplate_complete
           index + (localStart - inputCount) < localStart + count := by
         constructor <;> omega
       unfold completed copyCompactLocals
-      rw [if_pos inside]
+      rw [ite_eq_left inside]
       congr 1
       omega
   refine ⟨completed,
@@ -791,7 +782,7 @@ theorem instantiate_compactTemplate_remap
   by_cases input : column < inputCount
   · simp [input]
   · have inputBound : inputCount ≤ column := Nat.le_of_not_gt input
-    simp only [if_neg input]
+    simp only [ite_eq_right input]
     have sourceColumn : column + (sourceFresh - inputCount) =
         sourceFresh + (column - inputCount) := by omega
     have finalColumn : column + (finalFresh - inputCount) =

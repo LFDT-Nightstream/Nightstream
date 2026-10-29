@@ -1,17 +1,5 @@
 import NightstreamFPrime.Spec.SumCheck.VerifierCertificate
 
-/-!
-Canonical finite SumCheck truth path for an explicit hypercube polynomial.
-
-Owns: recursive Boolean completion sums, the exact finite expected polynomial
-at each challenge prefix, the terminal full-point evaluation, and construction
-of `SemanticGhosts.Honest` from round/challenge shape equality.
-
-Does not own: a protocol-specific polynomial, polynomial degree bounds,
-verifier messages, challenge sampling, root counting, Fiat--Shamir, Rust,
-R1CS, or counts.
--/
-
 namespace NightstreamFPrime.Spec.SumCheck.Finite.HypercubeTruth
 
 universe uField

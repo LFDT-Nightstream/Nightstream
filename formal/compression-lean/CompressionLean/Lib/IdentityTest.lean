@@ -1,26 +1,14 @@
 import CompressionLean.Lib.SumCheck
 
-/-!
-Owns the identity test of a table at a point whose coordinates are drawn one
-by one: a table that is nonzero on its cube keeps a nonzero fold after each
-coordinate, except for at most one bad value (`foldBad`). Its extension at
-the whole point is then nonzero (`mle_ne_zero_of_path`).
-
-The honest fold uses it for `α`; the early run point uses it to bind the
-copied slot blocks to the setup column.
--/
-
 namespace CompressionLean.Lib
 
 open Polynomial
 
 variable {K : Type} [Field K] [Fintype K] [DecidableEq K]
 
-/-- `d` is nonzero somewhere on the `m`-cube. -/
 def NonzeroOn (m : ℕ) (d : ℕ → K) : Prop := ∃ i, i < 2 ^ m ∧ d i ≠ 0
 
 open Classical in
-/-- The value of the next coordinate that would zero the fold of `d` (on `m` variables). -/
 noncomputable def foldBad (d : ℕ → K) (m : ℕ) (point : List K) : Finset K :=
   if h : ∃ i, i < 2 ^ (m - point.length - 1) ∧
       (fold point d (2 * i) ≠ 0 ∨ fold point d (2 * i + 1) ≠ 0) then
@@ -42,9 +30,8 @@ theorem foldBad_spec (d : ℕ → K) (m : ℕ) (point : List K)
       foldBad d m point = zeros (linePoly (fold point d (2 * j))
         (fold point d (2 * j + 1) - fold point d (2 * j))) := by
   classical
-  exact ⟨h.choose, h.choose_spec.1, h.choose_spec.2, by simp only [foldBad, dif_pos h]⟩
+  exact ⟨h.choose, h.choose_spec.1, h.choose_spec.2, by simp only [foldBad, dite_eq_left h]⟩
 
-/-- One coordinate off the bad value keeps the fold nonzero. -/
 theorem nonzero_bindLow (d : ℕ → K) (m : ℕ) (point : List K) (short : point.length < m)
     (nonzero : NonzeroOn (m - point.length) (fold point d)) {c : K}
     (outside : c ∉ foldBad d m point) : NonzeroOn (m - (point ++ [c]).length) (fold (point ++ [c]) d) := by
@@ -74,14 +61,13 @@ theorem nonzero_bindLow (d : ℕ → K) (m : ℕ) (point : List K) (short : poin
   apply outside
   rw [bad_eq]
   unfold zeros
-  rw [if_neg nonzero_line]
+  rw [ite_eq_right nonzero_line]
   simp only [Finset.mem_filter, Finset.mem_univ, true_and, linePoly_eval]
   rw [fold_append_single] at zero
   simp only [bindLow] at zero
   rw [← zero]
   ring
 
-/-- Along a point that avoided the bad values, a nonzero table has a nonzero extension. -/
 theorem mle_ne_zero_of_path (d : ℕ → K) (m : ℕ) :
     ∀ (rest point : List K), point.length + rest.length = m →
       NonzeroOn (m - point.length) (fold point d) → Path (foldBad d m) point rest →
@@ -119,7 +105,6 @@ theorem Path.append_iff (extra : List K → Finset K) :
       simp [and_assoc]
 
 omit [Field K] [Fintype K] [DecidableEq K] in
-/-- A path whose bad sets shrink while the prefix is short stays a path. -/
 theorem Path.mono_short {extra extra' : List K → Finset K} (bound : ℕ)
     (subset : ∀ q : List K, q.length < bound → extra' q ⊆ extra q) :
     ∀ (point l : List K), point.length + l.length ≤ bound → Path extra point l → Path extra' point l := by
@@ -132,7 +117,6 @@ theorem Path.mono_short {extra extra' : List K → Finset K} (bound : ℕ)
       exact ih (point ++ [c]) (by simp at fits ⊢; omega) path.2
 
 omit [Fintype K] [DecidableEq K] in
-/-- A path past a prefix length whose bad sets are `{1}` avoids `1`. -/
 theorem Path.ne_one {extra : List K → Finset K} (bound : ℕ)
     (one : ∀ q : List K, bound ≤ q.length → extra q = {1}) :
     ∀ (point l : List K), bound ≤ point.length → Path extra point l → ∀ x ∈ l, x ≠ 1 := by
@@ -149,7 +133,6 @@ theorem Path.ne_one {extra : List K → Finset K} (bound : ℕ)
       · exact ih (point ++ [c]) (by simp; omega) path.2 x inside
 
 omit [Field K] [Fintype K] [DecidableEq K] in
-/-- A path stays a path for smaller bad sets. -/
 theorem Path.mono {extra extra' : List K → Finset K} (subset : ∀ q, extra' q ⊆ extra q) :
     ∀ (point l : List K), Path extra point l → Path extra' point l := by
   intro point l

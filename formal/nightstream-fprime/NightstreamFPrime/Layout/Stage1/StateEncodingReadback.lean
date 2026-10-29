@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.StateEncodingCanonical
 
-/-!
-Owns exact typed readback of the existing state-preimage word interval.
-Canonical framing and serializer injectivity establish the decoder inverse;
-no digest is used as authority and no new state representation is introduced.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.StateEncodingReadback
 
 open NightstreamFPrime.Spec

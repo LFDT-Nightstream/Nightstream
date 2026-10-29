@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.MatrixProgram.SparseWork
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 
-/-!
-Counted Phi81 coefficient expansion of one already constructed sparse row.
-All 54 source lanes use duplicate-aware stored-entry scans. The logical-width
-guard applies to each source lane, including when the queried assignment
-column lies in the carrier completion suffix. Row generation is a separate
-caller cost. No matrix function is executed by this program.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Layout.MatrixProgram.CoefficientWork
@@ -140,7 +132,7 @@ theorem coefficient_value (arity freshCount runningCount matrixCount logicalWidt
     Phi81ColumnLayout.layout, MatrixSource.paddedEntry]
   apply sumRange_congr baseOps ringDegree
   intro lane live
-  simp only [dif_pos live]
+  simp only [dite_eq_left live]
   have termEq := term_value form (matrices matrix) vertex same output column lane live
   cases encoded : Phi81ColumnLayout.encode? (Phi81ColumnLayout.decode column).1 ⟨lane, live⟩ <;>
     simp only [encoded] at termEq ⊢ <;>

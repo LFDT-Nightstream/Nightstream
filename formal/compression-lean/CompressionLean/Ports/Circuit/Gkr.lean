@@ -1,27 +1,16 @@
 import CompressionLean.Ports.Circuit.Sumcheck
 import CompressionLean.Ports.Circuit.Views
 
-/-!
-Owns the batched GKR verifier of `crates/neo-spartan/src/gkr.rs`
-(`gkrVerify`, `gkr.rs::verify`) as a builder program, with its child
-combination (`gkr.rs::combine`). It calls `Build` in Rust's order. The caller
-checks each tree's root and leaf values.
--/
-
 namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (TreeShape)
 
-/-- One tree's root fraction and its leaf claim (`TreeClaim`, `gkr.rs::TreeClaim`):
-the factors' values, then the denominator's, at `point`. -/
 structure TreeClaimView where
   root : ExtVar × ExtVar
   point : Array ExtVar
   values : Array ExtVar
 deriving Inhabited
 
-/-- `p0·q1 + p1·q0 + μ·q0·q1` from one tree's child values, each part's pair
-in turn (`combine`, `gkr.rs::combine`). -/
 def gkrCombine (children : Array ExtVar) (mu : ExtVar) : Build ExtVar := do
   let factors := children.size / 2 - 1
   let numerator (side : ℕ) : Build ExtVar := do
@@ -39,10 +28,6 @@ def gkrCombine (children : Array ExtVar) (mu : ExtVar) : Build ExtVar := do
   let sum ← Build.extAdd a c
   Build.extAdd sum d
 
-/-- `gkr::verify` (`gkr.rs::verify`): bind the roots, then per layer `k` draw
-`μ, ν`, replay the batched sum-check of the active trees, check its last
-claim, bind the children and reduce them at `τ`. A tree's claim is fixed at
-its leaf layer. -/
 def gkrVerify (view : GkrView) (shapes : Array TreeShape) : Transcript (Array TreeClaimView) := do
   for (p, q) in view.roots do
     Duplex.observeExt p

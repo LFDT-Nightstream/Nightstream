@@ -1,7 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionCost
 
-/-! Owns the sole R1CS lowering plan for the Stage 1 running transition. -/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionLayout
 
 open NightstreamFPrime.Spec

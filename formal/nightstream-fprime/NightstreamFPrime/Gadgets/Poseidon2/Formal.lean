@@ -1,12 +1,5 @@
 import NightstreamFPrime.Gadgets.Poseidon2.RawFormal
 
-/-!
-Owns the one proof-carrying Poseidon2 hash circuit. The interface supplies
-external input and digest expressions for each call offset. The child exports
-only its hash specification; its recipes and assertions remain opaque to
-parents.
--/
-
 namespace NightstreamFPrime.Gadgets.Poseidon2.Formal
 
 open NightstreamFPrime.Spec

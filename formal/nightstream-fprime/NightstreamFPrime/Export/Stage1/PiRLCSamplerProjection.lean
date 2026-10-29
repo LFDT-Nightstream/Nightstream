@@ -2,12 +2,6 @@ import NightstreamFPrime.Export.Stage1.InvocationLastOutput
 import NightstreamFPrime.Export.Stage1.PiCCSProjection
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerRows
 
-/-!
-Owns the recipe-free symbolic projection of PiRLC sampler transcript states.
-
-The full Duplex compiler remains the semantic authority.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerProjection
 
 open NightstreamFPrime.Gadgets.Poseidon2

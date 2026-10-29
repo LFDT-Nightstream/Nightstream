@@ -4,7 +4,7 @@ import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Algebra.Order.BigOperators.Ring.Finset
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Data.Rat.BigOperators
-import Mathlib.Data.Real.Basic
+import Mathlib.Basic.Real.Basic
 import Mathlib.Data.Fintype.BigOperators
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
@@ -13,15 +13,7 @@ import Mathlib.Tactic.Ring
 import NightstreamFPrime.Spec.AjtaiSetupV1.ReductionBias
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
 
-/-!
-Owns the ideal-model programming step of the SHAKE128 setup argument.
-
-Premise P1, SHAKE128 as a random oracle, makes the chunks independent and
-uniform, and independent of every other oracle value. P1 is not proved here.
-`Extra` holds the other oracle values that an attacker reads and its coins.
-MSIS hardness (premise P2) and the running time of the simulation are not
-modeled.
--/
+/-! Assumes SHAKE128 is a random oracle (premise P1); P1 is not proved here. -/
 
 set_option autoImplicit false
 
@@ -83,12 +75,12 @@ private theorem hybrid_step {ι α : Type} [Fintype ι] [DecidableEq ι] [Fintyp
       apply prod_congr rfl
       intro i member
       have other : i ≠ k := by simpa using member
-      simp only [other, if_false]
+      simp only [other, ite_false]
     have atK : hybridWeight μ ν s k (values k) = μ (values k) := by
-      simp only [hybridWeight, fresh, if_false]
+      simp only [hybridWeight, fresh, ite_false]
     have atInserted : hybridWeight μ ν (insert k s) k (values k) = ν (values k) := by
-      simp only [hybridWeight, mem_insert_self, if_true]
-    rw [others, atK, atInserted, if_pos rfl, ← sub_mul, abs_mul,
+      simp only [hybridWeight, mem_insert_self, ite_true]
+    rw [others, atK, atInserted, ite_eq_left rfl, ← sub_mul, abs_mul,
       abs_of_nonneg (prod_nonneg fun i _ => weight_nonneg i (values i))]
   rw [sum_congr rfl fun values _ => pointwise values,
     sum_prod_eq_prod_sum (fun i a => if i = k then |μ a - ν a| else hybridWeight μ ν s i a),
@@ -97,10 +89,10 @@ private theorem hybrid_step {ι α : Type} [Fintype ι] [DecidableEq ι] [Fintyp
       ∑ a, (if i = k then |μ a - ν a| else hybridWeight μ ν s i a) = 1 := by
     intro i member
     have other : i ≠ k := by simpa using member
-    simp only [other, if_false]
+    simp only [other, ite_false]
     exact weight_sum i
   rw [prod_congr rfl ones, prod_const_one, mul_one]
-  simp only [if_true]
+  simp only [ite_true]
 
 theorem product_difference_le {ι α : Type} [Fintype ι] [DecidableEq ι] [Fintype α]
     (μ ν : α → ℚ) (μ_nonneg : ∀ a, 0 ≤ μ a) (ν_nonneg : ∀ a, 0 ≤ ν a)
@@ -128,7 +120,7 @@ theorem product_difference_le {ι α : Type} [Fintype ι] [DecidableEq ι] [Fint
               push_cast
               ring
   have ends := hybrids univ
-  simp only [hybrid, hybridWeight, notMem_empty, if_false, mem_univ, if_true, card_univ] at ends
+  simp only [hybrid, hybridWeight, notMem_empty, ite_false, mem_univ, ite_true, card_univ] at ends
   exact ends
 
 abbrev Chunk := Fin (2 ^ 256)
@@ -448,7 +440,8 @@ theorem expect_le_programmed {ι : Type} [Fintype ι] [DecidableEq ι] (value : 
       (mul_le_mul_of_nonneg_left reducedWeight_difference_le (Nat.cast_nonneg _))
     have cast := (Rat.cast_le (K := ℝ)).mpr rational
     push_cast at cast
-    exact cast
+    convert cast using 3
+    norm_num
   rw [real, programmed, ← sub_le_iff_le_add', ← Finset.sum_sub_distrib]
   calc ∑ matrix : ι → F, ((∏ index, (reducedWeight (matrix index) : ℝ)) * average matrix -
         (∏ _index : ι, (1 / goldilocksModulus : ℝ)) * average matrix)

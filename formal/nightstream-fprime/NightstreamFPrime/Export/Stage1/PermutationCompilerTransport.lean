@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Invocations
 
-/-!
-Owns value-level transport for the fixed Poseidon2 straight-line compiler.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PermutationCompilerTransport
 
 open NightstreamFPrime.Circuit
@@ -203,9 +199,9 @@ private theorem partialStepRecipes_eval_eq (leftEnv rightEnv : Env)
     funext lane
     unfold Layer.evalState Permutation.partialSboxState
     by_cases zero : lane.val = 0
-    · simp only [zero, if_true]
+    · simp only [zero, ite_true]
       rw [getD_eval, getD_eval, sboxes.2]
-    · simp only [zero, if_false]
+    · simp only [zero, ite_false]
       exact congrFun stateEq lane
   simp only [List.map_append]
   rw [sboxes.1]

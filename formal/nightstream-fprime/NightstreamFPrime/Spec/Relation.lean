@@ -1,11 +1,4 @@
-/-!
-Owns the semantic shape of norm-bounded CCS and CE membership and the
-verifier-owned global parameters (SuperNeo v1.2 Definitions
-20–22). The algebra, commitment, projection, norm, and
-evaluation operations are the
-`RelationSemantics` record; `Spec.Profile` instantiates it. Does not own
-folding, transcripts, or circuits.
--/
+/-! SuperNeo v1.2 Definitions 20–22. -/
 
 namespace NightstreamFPrime.Spec
 

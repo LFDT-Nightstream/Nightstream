@@ -1,14 +1,6 @@
 import CompressionLean.Bridge.EvalK
 import CompressionLean.Spec.Messages
 
-/-!
-Owns the bridge of the linear stage (`Replay.linearStage`) to the model's
-`linearGame`. A successful linear replay is a path of `linearGame`: it draws
-the replay's `λ`, `ζ` and sum-check challenges, receives the quotient and
-the finals, and ends in the model's `LinearOut` of the replay's values,
-whose `LinearCheck` the replay's checks give (`linear_reaches`).
--/
-
 namespace CompressionLean.Bridge
 
 open CompressionLean.Spec
@@ -18,12 +10,10 @@ open CompressionLean.Replay CompressionLean.Layer1
 
 variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-/-- The model's linear output of the replay's. -/
 def linearOutOf (proof : Replay.Proof) (lin : Replay.LinearOut) : Layer1.LinearOut K :=
   ⟨lin.lam.toK, tableK proof.quotient, lin.zeta.toK, pointK lin.blockPoint, lin.middle.toK, pointK lin.lanePart,
     lin.last.toK, lin.keyValue.toK, lin.omegaValue.toK, lin.zValue.toK⟩
 
-/-- What the later stages read of a successful linear replay. -/
 structure LinearRun (rel : Replay.Relation) (proof : Replay.Proof) (lin : Replay.LinearOut) : Prop where
   mixing : lin.mixing = ⟨lin.lam, rel.kappa, rel.matrices⟩
   tau : lin.tau = Replay.tau lin.zeta
@@ -41,9 +31,6 @@ theorem mem_extract {a : Array (Array Ext)} {i j : ℕ} {m : Array Ext} (member 
 
 variable [DecidableEq K]
 
-/-- A successful linear replay is a path of `linearGame` that receives the
-proof's messages, draws the replay's challenges and ends in the model's
-`LinearOut` of the replay's values; along it `LinearCheck` holds. -/
 theorem linear_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof)
     (shape : ProofShape rel proof) (fits : st.fits rel = true) (bits : EvalKBits rel)
     (publicFits : rel.publicBlocks ≤ 2 ^ rel.blockVars) (S : Setup Gl) (cands : List (P0Tables Gl)) (q : ℕ)
@@ -100,7 +87,7 @@ theorem linear_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : 
     refine Game.Reaches.bind reachB ?_
     refine Game.Reaches.congr (Game.Reaches.bind reachL ?_) rfl (List.append_nil _)
     apply Game.Reaches.recv (proof.finals[0]!.toK, proof.finals[1]!.toK, proof.finals[2]!.toK)
-    rw [if_pos]
+    rw [ite_eq_left]
     · exact Game.Reaches.pure _
     · refine ⟨poles, ?_⟩
       dsimp only

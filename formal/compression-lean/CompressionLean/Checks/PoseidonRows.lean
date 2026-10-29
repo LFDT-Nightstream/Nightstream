@@ -49,27 +49,27 @@ theorem merge_coefficient {n : Nat} (xs ys : Entries n) (c : Fin n) :
   | case1 ys => rw [merge]; simp [SparseForm.coefficient]
   | case2 x xs => rw [merge]; simp [SparseForm.coefficient]
   | case3 x xs y ys lt ih =>
-      rw [merge, if_pos lt, coefficient_cons, ih, coefficient_cons x]
+      rw [merge, ite_eq_left lt, coefficient_cons, ih, coefficient_cons x]
       ring
   | case4 x xs y ys nlt gt ih =>
-      rw [merge, if_neg nlt, if_pos gt, coefficient_cons, ih, coefficient_cons y]
+      rw [merge, ite_eq_right nlt, ite_eq_left gt, coefficient_cons, ih, coefficient_cons y]
       ring
   | case5 x xs y ys nlt ngt zero ih =>
       have same : x.column = y.column := Fin.ext (by omega)
-      rw [merge, if_neg nlt, if_neg ngt, if_pos zero, ih, coefficient_cons, coefficient_cons y, ← same]
+      rw [merge, ite_eq_right nlt, ite_eq_right ngt, ite_eq_left zero, ih, coefficient_cons, coefficient_cons y, ← same]
       by_cases hc : x.column = c
-      · rw [if_pos hc, if_pos hc]
+      · rw [ite_eq_left hc, ite_eq_left hc]
         linear_combination -zero
-      · rw [if_neg hc, if_neg hc]
+      · rw [ite_eq_right hc, ite_eq_right hc]
         ring
   | case6 x xs y ys nlt ngt nonzero ih =>
       have same : x.column = y.column := Fin.ext (by omega)
-      rw [merge, if_neg nlt, if_neg ngt, if_neg nonzero, coefficient_cons, ih, coefficient_cons,
+      rw [merge, ite_eq_right nlt, ite_eq_right ngt, ite_eq_right nonzero, coefficient_cons, ih, coefficient_cons,
         coefficient_cons y, ← same]
       by_cases hc : x.column = c
-      · rw [if_pos hc, if_pos hc, if_pos hc]
+      · rw [ite_eq_left hc, ite_eq_left hc, ite_eq_left hc]
         ring
-      · rw [if_neg hc, if_neg hc, if_neg hc]
+      · rw [ite_eq_right hc, ite_eq_right hc, ite_eq_right hc]
         ring
 
 theorem combine_coefficient {n : Nat} (xs : Entries n) (c : Fin n) :
@@ -83,24 +83,24 @@ theorem combine_coefficient {n : Nat} (xs : Entries n) (c : Fin n) :
       | nil =>
           by_cases zero : e.coefficient = 0
           · simp [zero, SparseForm.coefficient]
-          · simp only [if_neg zero, coefficient_cons]
+          · simp only [ite_eq_right zero, coefficient_cons]
       | cons h t =>
           simp only
           by_cases same : h.column = e.column
-          · rw [if_pos same, coefficient_cons h, same]
+          · rw [ite_eq_left same, coefficient_cons h, same]
             by_cases zero : e.coefficient + h.coefficient = 0
-            · rw [if_pos zero]
+            · rw [ite_eq_left zero]
               by_cases hc : e.column = c
-              · rw [if_pos hc, if_pos hc, ← add_assoc, zero, zero_add]
-              · rw [if_neg hc, if_neg hc, zero_add, zero_add]
-            · rw [if_neg zero, coefficient_cons]
+              · rw [ite_eq_left hc, ite_eq_left hc, ← add_assoc, zero, zero_add]
+              · rw [ite_eq_right hc, ite_eq_right hc, zero_add, zero_add]
+            · rw [ite_eq_right zero, coefficient_cons]
               by_cases hc : e.column = c
-              · rw [if_pos hc, if_pos hc, if_pos hc, add_assoc]
-              · rw [if_neg hc, if_neg hc, if_neg hc, zero_add, zero_add]
-          · rw [if_neg same]
+              · rw [ite_eq_left hc, ite_eq_left hc, ite_eq_left hc, add_assoc]
+              · rw [ite_eq_right hc, ite_eq_right hc, ite_eq_right hc, zero_add, zero_add]
+          · rw [ite_eq_right same]
             by_cases zero : e.coefficient = 0
-            · rw [if_pos zero, zero, ite_self, zero_add]
-            · rw [if_neg zero, coefficient_cons]
+            · rw [ite_eq_left zero, zero, ite_self, zero_add]
+            · rw [ite_eq_right zero, coefficient_cons]
 
 theorem normalize_coefficient {n : Nat} (form : SparseForm n) (c : Fin n) :
     (⟨normalize form⟩ : SparseForm n).coefficient c = form.coefficient c := by
@@ -149,9 +149,9 @@ theorem eval_zero : eval atom Sym.zero c = 0 := by
 theorem eval_atom {a : Nat} (inside : a < 167) : eval atom (Sym.atom a) c = (atom a).coefficient c := by
   unfold eval
   rw [Finset.sum_eq_single a]
-  · rw [Sym.coef_atom, if_pos ⟨inside, rfl⟩, one_mul]
+  · rw [Sym.coef_atom, ite_eq_left ⟨inside, rfl⟩, one_mul]
   · intro b _ other
-    rw [Sym.coef_atom, if_neg fun h => other h.2, zero_mul]
+    rw [Sym.coef_atom, ite_eq_right fun h => other h.2, zero_mul]
   · intro outside
     exact absurd (Finset.mem_range.mpr inside) outside
 
@@ -178,8 +178,8 @@ theorem foldl_merge_coefficient {n : Nat} (g : Nat → F) (forms : Nat → Entri
   | a :: l, acc => by
       rw [List.foldl_cons, foldl_merge_coefficient g forms c l, List.map_cons, List.sum_cons]
       by_cases zero : g a = 0
-      · rw [if_pos zero, zero, zero_mul, zero_add]
-      · rw [if_neg zero, merge_coefficient, scaled_coefficient, add_assoc]
+      · rw [ite_eq_left zero, zero, zero_mul, zero_add]
+      · rw [ite_eq_right zero, merge_coefficient, scaled_coefficient, add_assoc]
 
 theorem flatMap_coefficient {n : Nat} (f : Nat → Entries n) (c : Fin n) :
     ∀ l : List Nat, (⟨l.flatMap f⟩ : SparseForm n).coefficient c =
@@ -200,28 +200,28 @@ theorem expand_coefficient {n : Nat} (atoms : Atoms n) (v : Sym) (c : Fin n) :
     else scaled (Sym.coef v (16 + k)) (atoms.sbox[k]?.getD [])) c (List.range 150)
   have one : (⟨if Sym.coef v 166 = 0 then [] else [⟨atoms.one, Sym.coef v 166⟩]⟩ : SparseForm n).coefficient c =
       Sym.coef v 166 * (atoms.form 166).coefficient c := by
-    rw [Atoms.form, if_neg (show ¬166 < 16 by omega), if_neg (show ¬166 < 166 by omega),
+    rw [Atoms.form, ite_eq_right (show ¬166 < 16 by omega), ite_eq_right (show ¬166 < 166 by omega),
       SparseForm.singleton_coefficient]
     by_cases zero : Sym.coef v 166 = 0
-    · rw [if_pos zero, zero, zero_mul]
+    · rw [ite_eq_left zero, zero, zero_mul]
       rfl
-    · rw [if_neg zero, coefficient_cons]
+    · rw [ite_eq_right zero, coefficient_cons]
       by_cases same : atoms.one = c <;> simp [same, SparseForm.coefficient]
   have parts : ∀ k ∈ Finset.range 150, (⟨if Sym.coef v (16 + k) = 0 then []
       else scaled (Sym.coef v (16 + k)) (atoms.sbox[k]?.getD [])⟩ : SparseForm n).coefficient c =
       Sym.coef v (16 + k) * (atoms.form (16 + k)).coefficient c := by
     intro k member
     have small := Finset.mem_range.mp member
-    rw [Atoms.form, if_neg (show ¬16 + k < 16 by omega), if_pos (show 16 + k < 166 by omega),
+    rw [Atoms.form, ite_eq_right (show ¬16 + k < 16 by omega), ite_eq_left (show 16 + k < 166 by omega),
       show 16 + k - 16 = k by omega]
     by_cases zero : Sym.coef v (16 + k) = 0
-    · rw [if_pos zero, zero, zero_mul]
+    · rw [ite_eq_left zero, zero, zero_mul]
       rfl
-    · rw [if_neg zero, scaled_coefficient]
+    · rw [ite_eq_right zero, scaled_coefficient]
   have lanes : ∀ l ∈ Finset.range 16, Sym.coef v l * (⟨atoms.inputs[l]?.getD []⟩ : SparseForm n).coefficient c =
       Sym.coef v l * (atoms.form l).coefficient c := by
     intro l member
-    rw [Atoms.form, if_pos (Finset.mem_range.mp member)]
+    rw [Atoms.form, ite_eq_left (Finset.mem_range.mp member)]
   simp only [Atoms.expand, merge_coefficient, inputs, sboxes, one, sum_range_list]
   rw [eval, sum_range_atoms, Finset.sum_congr rfl parts, Finset.sum_congr rfl lanes]
   simp [SparseForm.coefficient]
@@ -279,7 +279,7 @@ theorem rep_addConstant {f : SparseForm n} {s : Sym} (hf : Rep I f s) (value : F
     Rep I (SparseLayer.addConstant I.oneColumn f value) (addConstant s value) := by
   refine rep_add hf fun c => ?_
   have one : atomOf I 166 = SparseForm.singleton I.oneColumn 1 := by
-    rw [atomOf, dif_neg (show ¬166 < 16 by decide), if_neg (show ¬166 < 166 by decide)]
+    rw [atomOf, dite_eq_right (show ¬166 < 16 by decide), ite_eq_right (show ¬166 < 166 by decide)]
   rw [SparseLayer.constant, eval_scale, eval_atom _ _ (by decide : 166 < 167), one,
     SparseForm.singleton_coefficient, SparseForm.singleton_coefficient]
   split_ifs <;> simp
@@ -328,11 +328,11 @@ theorem rep_sboxAt (index : Nat) : Rep I (PoseidonSboxPlan.sboxOutputAt I index)
   unfold sboxAt
   split_ifs with small
   · intro c
-    rw [eval_atom _ _ (show 16 + index < 167 by omega), atomOf, dif_neg (show ¬16 + index < 16 by omega),
-      if_pos (show 16 + index < 166 by omega), show 16 + index - 16 = index by omega]
+    rw [eval_atom _ _ (show 16 + index < 167 by omega), atomOf, dite_eq_right (show ¬16 + index < 16 by omega),
+      ite_eq_left (show 16 + index < 166 by omega), show 16 + index - 16 = index by omega]
   · have empty : PoseidonSboxPlan.sboxOutputAt I index = .empty := by
       unfold PoseidonSboxPlan.sboxOutputAt
-      rw [dif_neg (by rw [PoseidonRetainedSlots.rows_length]; exact small)]
+      rw [dite_eq_right (by rw [PoseidonRetainedSlots.rows_length]; exact small)]
     rw [empty]
     exact rep_empty
 
@@ -397,7 +397,7 @@ theorem rep_compile : ∀ (steps : List Permutation.Step) (nextSbox : Nat) {S : 
 
 theorem rep_input : StateRep I I.input (Vector.ofFn fun lane => Sym.atom lane.val) := by
   intro lane c
-  rw [Fin.getElem_fin, Vector.getElem_ofFn, eval_atom _ _ (by omega), atomOf, dif_pos lane.isLt]
+  rw [Fin.getElem_fin, Vector.getElem_ofFn, eval_atom _ _ (by omega), atomOf, dite_eq_left lane.isLt]
 
 /-- **The trace over the atoms.** Row `r` of F′'s trace has the input of row
 `r` of `atomRows` over the atoms of the interface, and the S-box output it names. -/
@@ -447,6 +447,7 @@ theorem sboxOutput_eq (k : Nat) (small : k < PoseidonRetainedSlots.rows.length) 
   show block.retained.semantic.form _ _ _ = _
   congr 1
 
+set_option backward.isDefEq.respectTransparency false in
 /-- The atom forms of `atomsOf` have the coefficients of the atom forms of the
 interface that `Poseidon.Block.row?` builds. -/
 theorem atomsOf_form (a : Nat) (inside : a < 167) (c : Fin n) :
@@ -454,17 +455,17 @@ theorem atomsOf_form (a : Nat) (inside : a < 167) (c : Fin n) :
       (atomOf (block.invocationInterface n oneBound slotCountEq fits input inv) a).coefficient c := by
   unfold Atoms.form atomOf
   by_cases lane : a < 16
-  · rw [if_pos lane, dif_pos lane, atomsOf, Vector.getElem?_ofFn, dif_pos lane, Option.getD_some,
+  · rw [ite_eq_left lane, dite_eq_left lane, atomsOf, Vector.getElem?_ofFn, dite_eq_left lane, Option.getD_some,
       normalize_coefficient]
     rfl
-  · rw [if_neg lane, dif_neg lane]
+  · rw [ite_eq_right lane, dite_eq_right lane]
     by_cases sbox : a < 166
     · have small : a - 16 < PoseidonRetainedSlots.rows.length := by
         rw [PoseidonRetainedSlots.rows_length]
         omega
-      rw [if_pos sbox, if_pos sbox, atomsOf, Vector.getElem?_ofFn, dif_pos (by omega), Option.getD_some,
-        slotEntries_coefficient, PoseidonSboxPlan.sboxOutputAt, dif_pos small, sboxOutput_eq]
-    · rw [if_neg sbox, if_neg sbox]
+      rw [ite_eq_left sbox, ite_eq_left sbox, atomsOf, Vector.getElem?_ofFn, dite_eq_left (by omega), Option.getD_some,
+        slotEntries_coefficient, PoseidonSboxPlan.sboxOutputAt, dite_eq_left small, sboxOutput_eq]
+    · rw [ite_eq_right sbox, ite_eq_right sbox]
       rfl
 
 end invocation
@@ -526,14 +527,14 @@ theorem invocationRows?_spec {block : Poseidon.Block} {n inv : Nat} {rows : Arra
     by_cases sbox : atomRows[r].output < 150
     · have form := atomsOf_form block n oneBound slotCountEq fits input ⟨inv, invBound⟩ (16 + atomRows[r].output)
         (by omega) c
-      rw [Atoms.form, if_neg (show ¬16 + atomRows[r].output < 16 by omega),
-        if_pos (show 16 + atomRows[r].output < 166 by omega), show 16 + atomRows[r].output - 16 = atomRows[r].output by omega,
-        atomOf, dif_neg (show ¬16 + atomRows[r].output < 16 by omega), if_pos (show 16 + atomRows[r].output < 166 by omega),
+      rw [Atoms.form, ite_eq_right (show ¬16 + atomRows[r].output < 16 by omega),
+        ite_eq_left (show 16 + atomRows[r].output < 166 by omega), show 16 + atomRows[r].output - 16 = atomRows[r].output by omega,
+        atomOf, dite_eq_right (show ¬16 + atomRows[r].output < 16 by omega), ite_eq_left (show 16 + atomRows[r].output < 166 by omega),
         show 16 + atomRows[r].output - 16 = atomRows[r].output by omega] at form
       exact form
     · have none : (atomsOf block n oneBound slotCountEq fits input ⟨inv, invBound⟩).sbox[atomRows[r].output]? = none :=
         by simp [sbox]
-      rw [none, PoseidonSboxPlan.sboxOutputAt, dif_neg (by rw [PoseidonRetainedSlots.rows_length]; exact sbox)]
+      rw [none, PoseidonSboxPlan.sboxOutputAt, dite_eq_right (by rw [PoseidonRetainedSlots.rows_length]; exact sbox)]
       rfl
 
 end CompressionLean.Checks

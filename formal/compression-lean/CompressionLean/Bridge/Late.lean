@@ -1,17 +1,6 @@
 import CompressionLean.Bridge.Linear
 import CompressionLean.Spec.Messages
 
-/-!
-Owns the bridge of the late stage (`Replay.lateStage`) to the model's
-`lateGame`. The replay's lane split is the model's head and tail
-(`toK_head`, `toK_tail`), and its slot step over the key's segments is the
-extension of the model's lane split (`toK_slotStep`), under the key
-structure facts of `KeyStructure.lean`. A successful late replay is a path
-of `lateGame` that draws the replay's `β` and GKR challenges and ends in the
-model's `LateOut` of the replay's values, whose `LateChecks` hold
-(`late_reaches`).
--/
-
 namespace CompressionLean.Bridge
 
 open CompressionLean.Spec
@@ -22,8 +11,6 @@ open CompressionLean.Replay CompressionLean.Layer1
 variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
 local notation "ι" => algebraMap Gl K
-
-/-! ## The lane split -/
 
 theorem toK_headFrom (tau : Array Ext) (length : ℕ) (ratio : Word) (d : ℕ) :
     (Replay.headFrom tau length ratio (ratio.pow length) d).toK (K := K) =
@@ -61,8 +48,6 @@ theorem toK_tail (tau : Array Ext) (length : ℕ) (ratio : Word) {lane : ℕ} (i
     rfl
   · exact toK_default
 
-/-! ## The slot step -/
-
 theorem toList_map_range {α β : Type} [Inhabited α] (a : Array α) (f : α → β) :
     a.toList.map f = (List.range a.size).map fun i => f a[i]! := by
   apply List.ext_getElem (by simp)
@@ -74,7 +59,6 @@ section Key
 
 variable (rel : Replay.Relation) (S : Setup Gl)
 
-/-- Each segment's lane is a lane of the ring: its first slot has it. -/
 theorem segment_lane (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
     (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S) {i : ℕ}
     (inside : i < rel.key.layout.segments.size) : (rel.key.layout.segments[i]!).lane < D := by
@@ -82,7 +66,7 @@ theorem segment_lane (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.k
   have strict : (structureOf rel.key.layout).segmentStart i < (structureOf rel.key.layout).segmentStart (i + 1) := by
     have inside' : i < (structureOf rel.key.layout).segments := inside
     unfold Structure.segmentStart
-    rw [if_pos inside']
+    rw [ite_eq_left inside']
     split_ifs with next
     · exact checked.segment_mono i next
     · exact checked.segment_last i (by simp [structureOf] at next ⊢; omega)
@@ -91,8 +75,6 @@ theorem segment_lane (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.k
   rw [lane] at this
   exact this
 
-/-- The replay's slot step over the key's segments is the extension of the
-model's lane split at part `t`. -/
 theorem toK_slotStep (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
     (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S) (tau : Array Ext) (point : Array Ext)
     (t : ℕ) (part : t < 2) :
@@ -124,23 +106,19 @@ theorem toK_slotStep (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.k
     · exact toK_tail tau _ _ lane
   rw [List.map_congr_left fun i member => value i (List.mem_range.mp member)]
   rcases (show t = 0 ∨ t = 1 by omega) with rfl | rfl
-  · simp only [if_true]
+  · simp only [ite_true]
     exact slotStep_head (shapeOf rel) S (structureOf rel.key.layout) fits checked describes (tableK tau) _
-  · simp only [show (1 : ℕ) ≠ 0 by omega, if_false]
+  · simp only [show (1 : ℕ) ≠ 0 by omega, ite_false]
     exact slotStep_tail (shapeOf rel) S (structureOf rel.key.layout) fits checked describes (tableK tau) _
 
 end Key
 
-/-! ## The stage -/
-
-/-- The openings `checkLate` returns. -/
 def lateOpeningsOf (layout : Layout) (beta : Ext) (claims : Replay.GkrClaims) : LateOpenings where
   pairPoint := (claims.leafPoint[0]!).extract 0 layout.slotVariables
   block := beta - claims.leafValue 0 2 - (claims.leafPoint[0]!)[layout.slotVariables]!
   blockPoint := claims.leafPoint[1]!
   omega := claims.leafValue 1 0
 
-/-- What `checkLate` checked and returned. -/
 structure LateChecked (layout : Layout) (beta : Ext) (m : Mixing) (lanes : Array (Array Ext × Array Ext))
     (claims : Replay.GkrClaims) (pairs : Array (Ext × Ext)) (op : LateOpenings) : Prop where
   pair : pairCheck claims.roots[0]! claims.roots[1]! "block scatter" = .ok ()
@@ -181,10 +159,6 @@ theorem pointK_extract_take (p : Array Ext) (n : ℕ) : pointK (K := K) (p.extra
 
 variable [DecidableEq K]
 
-/-- A successful late replay is a path of `lateGame` that receives the
-proof's messages, draws the replay's `β` and GKR challenges and ends in the
-model's `LateOut` of the replay's values; along it every `LateChecks`
-condition holds. -/
 theorem late_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : ProofShape rel proof) (S : Setup Gl)
     (fits : S.Fits (shapeOf rel)) (checked : (structureOf rel.key.layout).Checked (shapeOf rel))
     (describes : (structureOf rel.key.layout).Describes (shapeOf rel) S) {lin : Replay.LinearOut}
@@ -245,7 +219,7 @@ theorem late_reaches (rel : Replay.Relation) (proof : Replay.Proof) (shape : Pro
     apply Game.Reaches.draw beta.toK
     refine Game.Reaches.congr (Game.Reaches.bind reachG ?_) rfl (List.append_nil _)
     apply Game.Reaches.recv (fun j => pairK (proof.lateValues[j]!))
-    rw [if_pos checks]
+    rw [ite_eq_left checks]
     exact Game.Reaches.pure _
 
 end CompressionLean.Bridge

@@ -2,15 +2,6 @@ import NightstreamFPrime.Layout.PiDEC.v1_2.Ownership
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
 
-/-!
-Owns the zero-copy PiRLC-to-PiDEC bridge and the constrained PiDEC input ABI.
-
-The parent commitment, public input, point, separate `Eval_K`, and 14 separate
-`Eval_A` families reuse the exact PiRLC output wires. New private input words
-hold the 16 prover messages and the 16×54 verifier-computed child public-input
-values. These words are non-authoritative until the PiDEC rows accept them.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiDECInputs
 
 open NightstreamFPrime.Circuit

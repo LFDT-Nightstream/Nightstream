@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.Poseidon2
 import NightstreamFPrime.Lifecycle.Pilot
 
-/-!
-Owns the physical pilot layout. Logical prior-state rows come first, followed
-by logical output-hash rows. R1CS multiplication variables start after both
-logical witness ranges. Every physical row has one phase and logical-row
-owner.
--/
-
 namespace NightstreamFPrime.Layout.Pilot
 
 open NightstreamFPrime.Spec

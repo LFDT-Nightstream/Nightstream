@@ -165,7 +165,7 @@ theorem Mle.lessThan_ensures {point : Array ExtVar} {gpoint : Array Ext} (bound 
   split
   · rename_i big
     refine extOne_ensures.post fun _ _ e => ?_
-    rw [Replay.lessThan, ← hp.1, ← Nat.shiftRight_eq_div_pow, if_pos big]
+    rw [Replay.lessThan, ← hp.1, ← Nat.shiftRight_eq_div_pow, ite_eq_left big]
     exact e
   · rename_i small
     set xs := (List.range point.size).reverse with hxs
@@ -190,18 +190,18 @@ theorem Mle.lessThan_ensures {point : Array ExtVar} {gpoint : Array Ext} (bound 
         refine (extMul_ensures hhead.mono hlow).bind fun term _ _ hterm => ?_
         refine (extAdd_ensures htotal.mono hterm).bind fun total' _ _ htotal' => ?_
         refine (extMul_ensures hhead.mono hx.mono).bind fun head' _ _ hhead' => Ensures.pure ⟨rfl, ?_, ?_⟩ <;>
-          rw [G_succ, lessThanStep, if_pos cond]
+          rw [G_succ, lessThanStep, ite_eq_left cond]
         · exact htotal'.mono
         · exact hhead'
       · rename_i bit
         have cond : ¬(bound / 2 ^ xs[k]) % 2 = 1 := by simpa [Nat.testBit_eq_decide_div_mod_eq] using bit
         refine (extMul_ensures hhead.mono hlow).bind fun head' _ _ hhead' => Ensures.pure ⟨rfl, ?_, ?_⟩ <;>
-          rw [G_succ, lessThanStep, if_neg cond]
+          rw [G_succ, lessThanStep, ite_eq_right cond]
         · exact htotal.mono
         · exact hhead'
     · have e := hr.1
       simp only [G, List.take_length] at e
-      rw [Replay.lessThan, ← hp.1, if_neg (by rw [← Nat.shiftRight_eq_div_pow]; exact small), lessThanScan_eq]
+      rw [Replay.lessThan, ← hp.1, ite_eq_right (by rw [← Nat.shiftRight_eq_div_pow]; exact small), lessThanScan_eq]
       exact e
 
 /-- `step`: `values[s]` on `[starts[s], starts[s + 1])`, the last segment
@@ -419,7 +419,7 @@ theorem reducedOf_size {shapes : Array TreeShape} {k u : ℕ} {layer : Replay.Gk
     have key : pair.1 = u := by simpa using List.find?_some found
     have size := Array.all_eq_true'.mp childSizes pair (Array.mem_toList_iff.mp (List.mem_of_find?_eq_some found))
     simp only [beq_iff_eq] at size
-    rw [Array.size_map, Array.size_range, size, key, Replay.partFactors, if_pos ends]
+    rw [Array.size_map, Array.size_range, size, key, Replay.partFactors, ite_eq_left ends]
     omega
   · rename_i missing
     exact absurd (List.find?_eq_none.mp missing _ member) (by simp [← hsu])
@@ -438,7 +438,7 @@ theorem gkrLayers_sizes {shapes : Array TreeShape} :
   | [], k, cl, g, t, t', run, _, _, vsize, psize => by
       rw [Replay.gkrLayers] at run
       obtain ⟨rfl, rfl⟩ := Bridge.run_pure run
-      exact ⟨rfl, vsize, psize, fun u _ => by rw [if_neg (by simp)]⟩
+      exact ⟨rfl, vsize, psize, fun u _ => by rw [ite_eq_right (by simp)]⟩
   | layer :: rest, k, cl, g, t, t', run, one, ok, vsize, psize => by
       rw [Replay.gkrLayers] at run
       obtain ⟨_, t1, -, run⟩ := Bridge.run_bind run
@@ -473,9 +473,9 @@ theorem gkrLayers_sizes {shapes : Array TreeShape} :
         exact getElem!_map_range _ _ (by omega)
       rw [adv, advPoint]
       by_cases e : shapes[u]!.depth = k
-      · rw [if_neg (by omega), if_pos e, if_pos e, if_pos (by simp; omega), reducedOf_size ok₀ hu e, Array.size_push,
+      · rw [ite_eq_right (by omega), ite_eq_left e, ite_eq_left e, ite_eq_left (by simp; omega), reducedOf_size ok₀ hu e, Array.size_push,
           rounds, e, Nat.sub_add_cancel one]
-      · rw [if_neg e, if_neg e]
+      · rw [ite_eq_right e, ite_eq_right e]
         simp only [List.length_cons]
         split_ifs <;> first | rfl | omega
 
@@ -495,7 +495,7 @@ theorem gkrVerify_sizes {proof : Replay.GkrProof} {shapes : Array TreeShape} {t 
   refine ⟨roots, fun u hu => ?_⟩
   have bounds := depth_bounds read hu
   have e := values u hu
-  rw [if_pos ⟨bounds.1, by rw [Array.length_toList, layersSize]; omega⟩] at e
+  rw [ite_eq_left ⟨bounds.1, by rw [Array.length_toList, layersSize]; omega⟩] at e
   exact Prod.mk.inj e
 
 

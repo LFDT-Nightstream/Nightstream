@@ -3,10 +3,6 @@ import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Radix
 import Init.Data.Vector.Lemmas
 import Init.Data.Vector.OfFn
 
-/-!
-Stored signed-binary PiDEC splitting.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit
@@ -58,7 +54,7 @@ theorem splitChecked_value {width : Nat}
   change (Vector.ofFn (fun digit =>
     parent.map (fun value => Radix.boundedDigit value digit)))[child.val][column.val] = _
   rw [Vector.getElem_ofFn, Vector.getElem_map]
-  rw [Radix.splitScalar, if_pos (parentBound column)]
+  rw [Radix.splitScalar, ite_eq_left (parentBound column)]
   rfl
 
 theorem splitChecked_assignment {shape : Shape}
@@ -79,7 +75,7 @@ theorem kernel_eq_spec {width : Nat} (parent : StoredAssignment width) :
       else none := by
   by_cases parentBound :
       ∀ column, centeredMagnitude (parent.get column) < Radix.combinedBound
-  · rw [if_pos parentBound]
+  · rw [ite_eq_left parentBound]
     apply (splitChecked_eq_some_iff parent _).2
     refine ⟨parentBound, ?_⟩
     apply Vector.ext
@@ -88,9 +84,9 @@ theorem kernel_eq_spec {width : Nat} (parent : StoredAssignment width) :
     apply Vector.ext
     intro column columnLt
     rw [Vector.getElem_ofFn, Vector.getElem_map]
-    rw [Radix.splitScalar, if_pos (parentBound ⟨column, columnLt⟩)]
+    rw [Radix.splitScalar, ite_eq_left (parentBound ⟨column, columnLt⟩)]
     rfl
-  · rw [if_neg parentBound]
+  · rw [ite_eq_right parentBound]
     cases result : splitChecked parent with
     | none => rfl
     | some children =>

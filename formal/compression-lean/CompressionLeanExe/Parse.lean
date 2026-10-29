@@ -1,22 +1,11 @@
 import CompressionLean.Ports.Circuit.Ir
 
-/-!
-Owns the format of the IR exports that `neo-spartan`'s
-`tests/internal/lowering.rs` and `nightstream`'s
-`tests/lifecycle_native/terminal_ir.rs` write: whitespace-separated tokens,
-one instruction per opcode (`Log` in both files). It reads an export, writes
-an instruction as `Log` does (`line`) and compares Lean's program with
-Rust's (`samePrograms`). It also reads the JSON files of those tests
-(`readJson`).
--/
-
 namespace CompressionLeanExe.Parse
 
 open CompressionLean CompressionLean.Shrink CompressionLean.Circuit
 open CompressionLean.Replay (Word)
 open NightstreamFPrime.Spec
 
-/-- Whitespace-separated tokens of the export. -/
 abbrev Parser := StateT ℕ (ReaderT ByteArray (Except String))
 
 def isSpace (b : UInt8) : Bool := b == 32 || b == 10 || b == 13 || b == 9
@@ -29,7 +18,6 @@ def tokenEnd (data : ByteArray) (pos : ℕ) : ℕ :=
   if h : pos < data.size then if isSpace data[pos] then pos else tokenEnd data (pos + 1) else pos
 termination_by data.size - pos
 
-/-- The next token's bytes. -/
 def token : Parser ByteArray := do
   let data ← readThe ByteArray
   let start := skipSpaces data (← get)
@@ -56,7 +44,6 @@ def glWord : Parser Word := do
   if value < goldilocksModulus then pure (Word.ofNat value)
   else throw s!"word {value} is not a canonical Goldilocks value"
 
-/-- `count` items, read in a loop: the terminal export has lists of millions. -/
 def many {α : Type} (count : ℕ) (item : Parser α) : Parser (List α) := do
   let mut out := Array.mkEmpty count
   for _ in [0:count] do
@@ -71,7 +58,6 @@ def term : Parser (ℕ × Word) := do
   let index ← nat
   pure (index, ← glWord)
 
-/-- One instruction after its opcode (`Log`, `lowering.rs`). -/
 def instr : String → Parser Instr
   | "c" => do pure (.const (← glWord))
   | "p" => pure .priv
@@ -101,7 +87,6 @@ def instr : String → Parser Instr
       pure (.r1cs rows columns)
   | other => throw s!"unknown instruction {other}"
 
-/-- The instructions up to `end`. -/
 def program : Parser (Array Instr) := do
   let mut out := #[]
   for _ in [0:(← readThe ByteArray).size] do

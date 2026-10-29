@@ -1,13 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CausalExecution
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SignedMixingProbability
 
-/-!
-Owns `testError`, the PiCCS test error of SuperNeo v1.2 Appendix B.2,
-equation (14), for one execution over the extension field: the round losses
-`cubeVariables · width / p²` and the α and γ losses
-`(cubeVariables + jointCoefficientCount − 1) / p²`. `RandomOracleTest`
-charges it once for each oracle query.
--/
+/-! SuperNeo v1.2 Appendix B.2, Equation (14). -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 

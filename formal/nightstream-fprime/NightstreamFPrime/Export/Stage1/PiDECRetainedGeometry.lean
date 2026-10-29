@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECRetainedBlocks
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedGeometry
 
-/-!
-Owns the two PiDEC allocations after the pilot ordinary prefix.
-The four parent views share the final PiRLC output coordinates.
-The proof view shares the earlier running-transition PiDEC coordinates.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiDECRetainedGeometry
 
 open NightstreamFPrime.Layout
@@ -135,10 +129,18 @@ theorem parentEvalAFits {program : Lifecycle.Stage1.Application.Program}
         (PiDECRetainedBlocks.parentEvalABlock program).coordinateCount ≤
       logicalWidth := by
   have fits := PiRLCRetainedGeometry.productOutputFits (piRlcGeometry geometry)
-  change PiRLCRetainedGeometry.productOutputStart program + 33966 * 41 ≤
-    logicalWidth at fits
-  change PiRLCRetainedGeometry.productOutputStart program + 33534 * 41 +
-    432 * 41 ≤ logicalWidth
+  have outputCount :
+      (PiRLCRetainedGeometry.productOutputBlock program).coordinateCount = 1392606 := by
+    simp [PiRLCRetainedGeometry.productOutputBlock]
+  have evalACount : (PiDECRetainedBlocks.parentEvalABlock program).coordinateCount =
+      Lifecycle.productionShape.matrixCount * (Spec.ringDegree * 2) * 41 := rfl
+  have matrices : Lifecycle.productionShape.matrixCount = Spec.productionProfile.ccsMatrices := rfl
+  have ccs : Spec.productionProfile.ccsMatrices = 4 := by decide
+  have degree : Spec.ringDegree = 54 := rfl
+  rw [matrices, ccs, degree] at evalACount
+  have startEq : parentEvalAStart program =
+      PiRLCRetainedGeometry.productOutputStart program + parentEvalASlot * 41 := rfl
+  have slotEq : parentEvalASlot = 33534 := rfl
   omega
 
 theorem proofFits {program : Lifecycle.Stage1.Application.Program}

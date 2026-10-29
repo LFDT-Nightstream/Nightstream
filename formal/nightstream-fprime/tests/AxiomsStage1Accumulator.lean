@@ -5,8 +5,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSTranscriptCommonSemantics
 import NightstreamFPrime.Export.Stage1.DirectPiCCSCommonPhaseSemantics
 import NightstreamFPrime.Export.Stage1.DirectAccumulatorCommonSemantics
 
-/-! Axiom audits for the zero-row Stage 1 accumulator composition edge. -/
-
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Accumulator.holds_iff_checks
 #audit_axioms NightstreamFPrime.Lifecycle.Stage1.Accumulator.output_unique
 #audit_axioms NightstreamFPrime.Layout.Stage1.PiRLCInputs.sourceInput_eq_canonical

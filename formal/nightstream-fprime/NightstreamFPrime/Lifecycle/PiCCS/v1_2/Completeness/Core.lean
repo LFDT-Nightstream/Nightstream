@@ -1,10 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 
-/-!
-Owns the proof-only transport rules shared by the PiCCS v1_2 assembler.
-It adds no protocol predicate, circuit row, or alternate verifier path.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.CompletenessSupport
 
 open NightstreamFPrime.Spec

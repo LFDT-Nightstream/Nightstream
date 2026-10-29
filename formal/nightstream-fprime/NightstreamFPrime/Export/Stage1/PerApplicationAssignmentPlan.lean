@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment
 
-/-!
-Owns the compact transport plan for the canonical per-application assignment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
 
 open NightstreamFPrime.Export.Codec

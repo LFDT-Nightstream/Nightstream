@@ -3,23 +3,6 @@ import CompressionLean.Shrink.Layout
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation
 import CompressionLean.Lib.List
 
-/-!
-Owns the facts about the Poseidon2 block template (`Ports/Circuit/Block.lean`)
-that the lowering reads.
-
-- `Template.Holds`: every row of a template holds on the cells of one block
-  (`Kind::failure`, `block.rs::Kind::failure`).
-- `poseidonTemplate_wellFormed`: every entry of the template names a row and
-  a cell of the block.
-- `block_sound`: if every row holds, the output cells `166..182` are
-  `Spec.Poseidon2.permute` of the input cells `0..16`. These are the cells
-  that `Recorder::block` ties to its inputs and returns
-  (`record.rs::Recorder::block`, `record.rs::Recorder::permute`).
-
-The proof evaluates each step's forms to F′'s `Permutation.applyF`.
-`runF_eq_reference` and `runReference_schedule` give the permutation.
--/
-
 namespace CompressionLean.Lowering.Block
 
 open CompressionLean.Lib
@@ -31,30 +14,21 @@ section Template
 
 variable {R : Type} [CommRing R]
 
-
-/-- An entry's term on the cells `c` of one block; `none` is the constant
-one. -/
 def _root_.CompressionLean.Shrink.TemplateEntry.value (c : ℕ → R) (e : TemplateEntry R) : R :=
   e.coef * (e.cell.map c).getD 1
 
-/-- `(M_j·z)(r)` on the cells `c` of one block (`block.rs::Kind::failure`). -/
 def _root_.CompressionLean.Shrink.Template.rowValue (T : Template R) (c : ℕ → R) (j : Fin 8) (r : ℕ) : R :=
   (T.entries.map fun e => if e.matrix = j ∧ e.row = r then e.value c else 0).sum
 
-/-- Every row of `T` holds on the cells `c` of one block (`Kind::failure`,
-`block.rs::Kind::failure`). -/
 def _root_.CompressionLean.Shrink.Template.Holds (T : Template R) (c : ℕ → R) : Prop :=
   ∀ r < T.rows, constraint (fun j => T.rowValue c j r) = 0
 
 end Template
 
-/-! ## Forms -/
-
 namespace Linear
 
 open CompressionLean.Circuit.Block.Linear
 
-/-- `Σ coefficient·c(cell)` over a term list. -/
 private def termsValue (c : ℕ → F) (ts : List (ℕ × F)) : F := (ts.map fun t => t.2 * c t.1).sum
 
 private theorem eval_eq (c : ℕ → F) (l : Linear) : l.eval c = l.constant + termsValue c l.terms := rfl
@@ -68,10 +42,10 @@ private theorem termsValue_addTerm (c : ℕ → F) :
   | [], t => by simp [addTerm, termsValue]
   | u :: rest, t => by
       by_cases same : u.1 = t.1
-      · rw [addTerm, if_pos same, termsValue_cons, termsValue_cons]
+      · rw [addTerm, ite_eq_left same, termsValue_cons, termsValue_cons]
         simp only [same]
         ring
-      · rw [addTerm, if_neg same, termsValue_cons, termsValue_cons, termsValue_addTerm c rest t]
+      · rw [addTerm, ite_eq_right same, termsValue_cons, termsValue_cons, termsValue_addTerm c rest t]
         ring
 
 private theorem termsValue_foldl (c : ℕ → F) (w : F) :
@@ -129,13 +103,9 @@ private theorem eval_shift (c : ℕ → F) (l : Linear) (a : F) :
 
 end Linear
 
-/-! ## Each step evaluates to F′'s step -/
-
-/-- The lane values of a state on the cells `c`. -/
 private def evalState (c : ℕ → F) (state : List Linear) : Layer.FState :=
   fun lane => (state.getD lane .zero).eval c
 
-/-- S-box output cell `16 + k` holds the S-box of S-box input `k`. -/
 private def SboxRows (c : ℕ → F) (inputs : List Linear) : Prop :=
   ∀ k < inputs.length, c (16 + k) = Spec.Poseidon2.sbox ((inputs.getD k .zero).eval c)
 
@@ -204,7 +174,6 @@ private theorem fullRound_eval (c : ℕ → F) (rows : List (List ℕ)) (round :
   rw [show 16 + b.inputs.length + lane.val = 16 + (b.inputs.length + lane.val) by omega, row]
   rfl
 
-/-- The lanes of `Layer.partialF` after its S-box. -/
 private def sboxLanes (round : ℕ) (state : Layer.FState) : Layer.FState := fun lane =>
   if lane.val = 0 then
     Layer.sboxF (state lane + Spec.Poseidon2.ofNat (Spec.Poseidon2.internalConstants.getD round 0))
@@ -221,7 +190,7 @@ private theorem partialRound_eval (c : ℕ → F) (round : ℕ) (b : Build)
       Layer.getF (sboxLanes round (evalState c b.state)) k := by
     intro k hk
     rw [partialLanes, getD_range_map _ _ hk]
-    simp only [Layer.getF, hk, dif_pos, sboxLanes]
+    simp only [Layer.getF, hk, dite_eq_left, sboxLanes]
     by_cases zero : k = 0
     · subst zero
       simpa using first
@@ -245,7 +214,7 @@ private theorem partialRound_eval (c : ℕ → F) (round : ℕ) (b : Build)
   simp only [List.map_cons, List.map_nil, List.sum_cons, List.sum_nil]
   rw [sum, lanes _ lane.isLt]
   show _ = Layer.internalF (sboxLanes round (evalState c b.state)) lane
-  simp only [Layer.internalF, Layer.getF, lane.isLt, dif_pos]
+  simp only [Layer.internalF, Layer.getF, lane.isLt, dite_eq_left]
   ring
 
 private theorem step_eval (c : ℕ → F) (b : Build) (s : Permutation.Step) (sbox : SboxRows c (step b s).inputs) :
@@ -290,9 +259,6 @@ private theorem run_eval (c : ℕ → F) :
       rw [run_eval c rest (step b s) rows, step_eval c b s here]
       rfl
 
-/-! ## Sizes and cell bounds -/
-
-/-- The S-boxes of one step. -/
 private def sboxCount : Permutation.Step → ℕ
   | .initialLayer => 0
   | .initialFullRound _ => 16
@@ -327,7 +293,6 @@ namespace Linear
 
 open CompressionLean.Circuit.Block.Linear
 
-/-- Every term of the form names a cell below `n`. -/
 private def _root_.CompressionLean.Circuit.Block.Linear.Below (n : ℕ) (l : Linear) : Prop := ∀ t ∈ l.terms, t.1 < n
 
 private theorem _root_.CompressionLean.Circuit.Block.Linear.Below.mono {n m : ℕ} {l : Linear} (h : l.Below n) (le : n ≤ m) : l.Below m :=
@@ -340,11 +305,11 @@ private theorem below_addTerm {n : ℕ} :
       exact member ▸ ht
   | v :: rest, t, hts, ht, u, member => by
       by_cases same : v.1 = t.1
-      · rw [addTerm, if_pos same, List.mem_cons] at member
+      · rw [addTerm, ite_eq_left same, List.mem_cons] at member
         rcases member with rfl | member
         · exact hts v List.mem_cons_self
         · exact hts u (List.mem_cons_of_mem _ member)
-      · rw [addTerm, if_neg same, List.mem_cons] at member
+      · rw [addTerm, ite_eq_right same, List.mem_cons] at member
         rcases member with rfl | member
         · exact hts u List.mem_cons_self
         · exact below_addTerm rest t (fun w hw => hts w (List.mem_cons_of_mem _ hw)) ht u member
@@ -395,8 +360,6 @@ private theorem below_range_map {n : ℕ} {f : ℕ → Linear} (h : ∀ k < 16, 
 
 end Linear
 
-/-- Every lane form and every S-box input names a cell below
-`16 + inputs`. -/
 private def _root_.CompressionLean.Circuit.Block.Build.Below (b : Build) : Prop :=
   (∀ k, (b.state.getD k .zero).Below (16 + b.inputs.length)) ∧
     ∀ l ∈ b.inputs, l.Below (16 + b.inputs.length)
@@ -482,8 +445,6 @@ private theorem build_below : build.Below :=
   foldl_below _ _ ⟨Linear.below_range_map fun k hk => Linear.below_cell (by simp [start]; omega),
     by simp [start]⟩
 
-/-! ## Well-formedness -/
-
 private theorem mem_push {m : Fin 8} {row : ℕ} {form : Linear} {sign : F} {e : TemplateEntry F}
     (member : e ∈ push m row form sign) :
     e.matrix = m ∧ e.row = row ∧ ∀ k, e.cell = some k → ∃ t ∈ form.terms, t.1 = k := by
@@ -500,7 +461,6 @@ private theorem rowCell_eq (row : ℕ) : rowCell row = 16 + row := by
   unfold rowCell output
   split_ifs <;> omega
 
-/-- Every entry names a template row and a template cell. -/
 theorem poseidonTemplate_wellFormed : poseidonTemplate.WellFormed := by
   obtain ⟨hstate, hinputs⟩ := build_below
   rw [build_inputs_length] at hstate hinputs
@@ -540,8 +500,6 @@ theorem poseidonTemplate_wellFormed : poseidonTemplate.WellFormed := by
       simp only [output]
       omega
 
-/-! ## Rows -/
-
 private theorem push_rowSum (c : ℕ → F) (m : Fin 8) (row : ℕ) (form : Linear) (sign : F) (j : Fin 8) (r : ℕ) :
     ((push m row form sign).map fun e => if e.matrix = j ∧ e.row = r then e.value c else 0).sum =
       if m = j ∧ row = r then sign * form.eval c else 0 := by
@@ -560,15 +518,15 @@ private theorem push_rowSum (c : ℕ → F) (m : Fin 8) (row : ℕ) (form : Line
       by_cases zero : form.constant = 0
       · simp [zero]
       · simp [zero, here, TemplateEntry.value]
-    rw [push, List.map_append, List.sum_append, terms, constant, if_pos here, Linear.eval_eq]
+    rw [push, List.map_append, List.sum_append, terms, constant, ite_eq_left here, Linear.eval_eq]
     ring
-  · rw [if_neg here]
+  · rw [ite_eq_right here]
     apply List.sum_eq_zero
     intro x member
     rw [List.mem_map] at member
     obtain ⟨e, he, rfl⟩ := member
     obtain ⟨hm, hrow, -⟩ := mem_push he
-    rw [if_neg (by rw [hm, hrow]; exact here)]
+    rw [ite_eq_right (by rw [hm, hrow]; exact here)]
 
 private theorem zipIdx_rowSum (c : ℕ → F) (m : Fin 8) (base : ℕ) (sign : F) (j : Fin 8) (r : ℕ) :
     ∀ (L : List Linear) (first : ℕ),
@@ -585,12 +543,12 @@ private theorem zipIdx_rowSum (c : ℕ → F) (m : Fin 8) (base : ℕ) (sign : F
       · by_cases here : base + first = r
         · subst here
           simp [hm]
-        · rw [if_neg (fun h => here h.2), zero_add, List.length_cons]
+        · rw [ite_eq_right (fun h => here h.2), zero_add, List.length_cons]
           by_cases inside : base + (first + 1) ≤ r ∧ r < base + (first + 1) + L.length
-          · rw [if_pos ⟨hm, inside⟩, if_pos ⟨hm, by omega, by omega⟩]
+          · rw [ite_eq_left ⟨hm, inside⟩, ite_eq_left ⟨hm, by omega, by omega⟩]
             obtain ⟨k, hk⟩ : ∃ k, r - (base + first) = k + 1 := ⟨r - (base + first) - 1, by omega⟩
             rw [hk, List.getD_cons_succ, show r - (base + (first + 1)) = k by omega]
-          · rw [if_neg (fun h => inside h.2), if_neg (fun h => inside ⟨by omega, by omega⟩)]
+          · rw [ite_eq_right (fun h => inside h.2), ite_eq_right (fun h => inside ⟨by omega, by omega⟩)]
       · simp [hm]
 
 private theorem ident_rowSum (c : ℕ → F) (j : Fin 8) (r : ℕ) :
@@ -605,11 +563,11 @@ private theorem ident_rowSum (c : ℕ → F) (j : Fin 8) (r : ℕ) :
       by_cases hj : j = 7
       · subst hj
         by_cases hr : r < n
-        · rw [if_pos ⟨rfl, hr⟩, if_neg (by omega), if_pos ⟨rfl, by omega⟩, add_zero]
+        · rw [ite_eq_left ⟨rfl, hr⟩, ite_eq_right (by omega), ite_eq_left ⟨rfl, by omega⟩, add_zero]
         · by_cases hn : n = r
           · subst hn
             simp
-          · rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), add_zero]
+          · rw [ite_eq_right (by omega), ite_eq_right (by omega), ite_eq_right (by omega), add_zero]
       · simp [hj, Ne.symm hj]
 
 private theorem rowValue_eq (c : ℕ → F) (j : Fin 8) (r : ℕ) :
@@ -649,11 +607,6 @@ private theorem output_row (c : ℕ → F) (holds : poseidonTemplate.Holds c) {i
   rw [cell, List.getD_eq_getElem?_getD]
   exact neg_add_eq_zero.mp row
 
-/-! ## Soundness -/
-
-/-- **Block soundness.** If every row of the Poseidon2 template holds on the
-cells `c` of one block, the output cells `166..182` are the Poseidon2
-permutation of the input cells `0..16`. -/
 theorem block_sound (c : ℕ → F) (holds : poseidonTemplate.Holds c) :
     List.ofFn (fun i : Fin 16 => c (output + i)) =
       Spec.Poseidon2.permute (List.ofFn fun i : Fin 16 => c i) := by

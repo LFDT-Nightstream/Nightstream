@@ -2,28 +2,17 @@ import CompressionLean.Ports.Shrink.Layout
 import CompressionLean.Shrink.Ccs
 import Mathlib.Data.Nat.Log
 
-/-!
-Owns what a shape run must meet for its CCS (`Ports/Shrink/Layout.lean`) to
-fit the cubes: a well-formed template (`Template.WellFormed`), wires inside
-the run (`Run.Valid`), and the proof (`ccs_fits`). The lowering proves that
-a recorded run meets them (`Lowering/`).
--/
-
 namespace CompressionLean.Shrink
 
-/-- The template's entries name its rows and cells. -/
 structure Template.WellFormed {F : Type} (T : Template F) : Prop where
   row_lt : ∀ e ∈ T.entries, e.row < T.rows
   cell_lt : ∀ e ∈ T.entries, ∀ k, e.cell = some k → k < T.cells
 
-/-- A wire names a cell of the run. The recorder creates no other wire
-(`record.rs::Recorder`). -/
 def Wire.Valid {F : Type} (T : Template F) (run : Run F) : Wire → Prop
   | .glue c => c < run.cells
   | .block b k => b < run.blocks ∧ k < T.cells
   | .pub i => i ≤ run.publics.length
 
-/-- Every term of every glue row names a cell of the run. -/
 def Run.Valid {F : Type} [Field F] (T : Template F) (run : Run F) : Prop :=
   ∀ row ∈ run.rows, ∀ side, ∀ t ∈ row.side side, t.1.Valid T run
 
@@ -50,8 +39,6 @@ theorem le_pow_variablesFor (count : ℕ) : count ≤ 2 ^ variablesFor count :=
 
 variable {F : Type} (T : Template F) (s : Counts)
 
-/-- A glue entry from row number `g` on sits in some later glue row and names
-the column of one of that row's wires. -/
 theorem mem_glueEntries {e : Entry F} :
     ∀ (g : ℕ) (rows : List (GlueRow F)), e ∈ Layout.glueEntries T s g rows →
       ∃ k, k < rows.length ∧ e.row = Layout.glueRow T s (g + k) ∧
@@ -67,7 +54,6 @@ theorem mem_glueEntries {e : Entry F} :
         refine ⟨k + 1, by simp; omega, by rw [rowEq]; congr 1; omega, r, List.mem_cons_of_mem _ member,
           side, t, tm, colEq⟩
 
-/-- On a run with the shape's counts, every entry sits inside the cubes. -/
 theorem ccs_fits [Field F] (run : Run F) (wf : T.WellFormed) (valid : run.Valid T) (counts : run.counts = s) :
     (run.ccs T s).Fits := by
   have blocks : run.blocks = s.blocks := congrArg Counts.blocks counts

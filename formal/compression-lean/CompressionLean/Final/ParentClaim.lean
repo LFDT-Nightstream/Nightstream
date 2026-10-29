@@ -3,18 +3,6 @@ import CompressionLean.Final.Soundness
 import CompressionLean.Lib.List
 import CompressionLean.Spec.Parent
 
-/-!
-Owns the soundness of the claim of a final proof in F′'s terms
-(`ParentClaim`, `Spec/Parent.lean`) over the concrete fields.
-
-- `claimOf_parent`: the layer-1 claim that the final program reads from the
-  terminal output columns is the statement of the PiRLC parent there.
-- `parentClaim_of_terminalClaim`: under the honest setup, the terminal claim
-  gives the F′ claim.
-- `final_restore_budget_parent`: `final_restore_budget` for the F′ claim,
-  over `Gl` and `Cubic`.
--/
-
 namespace CompressionLean.Final
 
 open CompressionLean.Spec
@@ -24,12 +12,8 @@ open Polynomial NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifec
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CoefficientKernel
-
 variable {lw : ℕ} {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
 
-/-! ## Reading the output columns -/
-
-/-- The word that `claimOf` reads at a position of a list of words. -/
 theorem word_eq (list : List Circuit.Expr) (env : Circuit.Env) (k : ℕ) (values : List F)
     (eval : list.map (fun expression => expression.eval env) = values) :
     (word list env k : Gl) = gl (values.getD k 0) := by
@@ -37,9 +21,6 @@ theorem word_eq (list : List Circuit.Expr) (env : Circuit.Env) (k : ℕ) (values
   rw [eval]
   exact ZMod.natCast_zmod_val (n := goldilocksModulus) _
 
-/-- **The claim names the parent.** The layer-1 claim that the final program
-reads from the terminal output columns (`claimOf`) is the statement of the
-PiRLC parent in those columns. -/
 theorem claimOf_parent (relation : ProductionKey.LogicalRelation lw pf)
     (env : Circuit.Env) :
     (claimOf env : Layer1.Statement Gl) = statementOf (Terminal.parent relation env) := by
@@ -70,17 +51,17 @@ theorem claimOf_parent (relation : ProductionKey.LogicalRelation lw pf)
   · funext ρ l
     split_ifs with hl h h
     · rw [word_eq _ env _ _ commitment, getD_flatten ringDegree 0 _ (rows _ _ _) ρ l hl,
-        dif_pos (by simpa using h.1), List.getElem_ofFn, getD_ofFn, dif_pos hl]
+        dite_eq_left (by simpa using h.1), List.getElem_ofFn, getD_ofFn, dite_eq_left hl]
     · rw [word_eq _ env _ _ commitment, getD_flatten ringDegree 0 _ (rows _ _ _) ρ l hl,
-        dif_neg (by simpa using fun lt => h ⟨lt, hl⟩)]
+        dite_eq_right (by simpa using fun lt => h ⟨lt, hl⟩)]
       rfl
     · exact absurd h.2 hl
     · rfl
   · funext j l
     split_ifs with hl h h
-    · rw [word_eq _ env _ _ publicInput, getD_ofFn, dif_pos (show ringDegree * j + l <
+    · rw [word_eq _ env _ _ publicInput, getD_ofFn, dite_eq_left (show ringDegree * j + l <
         (PaperAlgebra.FullShape lw pf).publicWidth from h.2)]
-    · rw [word_eq _ env _ _ publicInput, getD_ofFn, dif_neg (show ¬ (ringDegree * j + l <
+    · rw [word_eq _ env _ _ publicInput, getD_ofFn, dite_eq_right (show ¬ (ringDegree * j + l <
         (PaperAlgebra.FullShape lw pf).publicWidth) from fun lt => h ⟨hl, lt⟩)]
       rfl
     · exact absurd h.1 hl
@@ -95,14 +76,14 @@ theorem claimOf_parent (relation : ProductionKey.LogicalRelation lw pf)
       have small : k < (Terminal.parent relation env).point.coordinates.length := by simpa [length] using inside
       rw [List.getElem_map, List.getElem_map, List.getElem_range, word_eq _ env _ _ point,
         word_eq _ env _ _ point, show 2 * k = 2 * k + 0 from rfl, getD_flatten 2 0 _ coordinates k 0 (by decide),
-        getD_flatten 2 0 _ coordinates k 1 (by decide), dif_pos (by simpa using small),
-        dif_pos (by simpa using small)]
+        getD_flatten 2 0 _ coordinates k 1 (by decide), dite_eq_left (by simpa using small),
+        dite_eq_left (by simpa using small)]
       simp
   · funext l
     split_ifs with hl
     · rw [word_eq _ env _ _ evalK, word_eq _ env _ _ evalK, family, show 2 * l = 2 * l + 0 from rfl,
         getD_flatten 2 0 _ (pairs _ _ _) l 0 (by decide), getD_flatten 2 0 _ (pairs _ _ _) l 1 (by decide),
-        dif_pos (by rw [List.length_ofFn]; exact hl), dif_pos (by rw [List.length_ofFn]; exact hl)]
+        dite_eq_left (by rw [List.length_ofFn]; exact hl), dite_eq_left (by rw [List.length_ofFn]; exact hl)]
       simp
     · rfl
   · funext j l
@@ -112,27 +93,22 @@ theorem claimOf_parent (relation : ProductionKey.LogicalRelation lw pf)
       rw [word_eq _ env _ _ evalA, word_eq _ env _ _ evalA, family,
         show 2 * ringDegree * j + 2 * l + 1 = 2 * ringDegree * j + (2 * l + 1) by ring,
         getD_flatten (2 * ringDegree) 0 _ blocks j (2 * l) lane, getD_flatten (2 * ringDegree) 0 _ blocks j _ lane',
-        dif_pos (by rw [List.length_ofFn]; exact h.1), dif_pos (by rw [List.length_ofFn]; exact h.1),
+        dite_eq_left (by rw [List.length_ofFn]; exact h.1), dite_eq_left (by rw [List.length_ofFn]; exact h.1),
         List.getElem_ofFn, show 2 * l = 2 * l + 0 from rfl, getD_flatten 2 0 _ (pairs _ _ _) l 0 (by decide),
-        getD_flatten 2 0 _ (pairs _ _ _) l 1 (by decide), dif_pos (by rw [List.length_ofFn]; exact hl),
-        dif_pos (by rw [List.length_ofFn]; exact hl)]
+        getD_flatten 2 0 _ (pairs _ _ _) l 1 (by decide), dite_eq_left (by rw [List.length_ofFn]; exact hl),
+        dite_eq_left (by rw [List.length_ofFn]; exact hl)]
       simp
     · have lane : 2 * l < 2 * ringDegree := by omega
       have lane' : 2 * l + 1 < 2 * ringDegree := by omega
       rw [word_eq _ env _ _ evalA, word_eq _ env _ _ evalA,
         show 2 * ringDegree * j + 2 * l + 1 = 2 * ringDegree * j + (2 * l + 1) by ring,
         getD_flatten (2 * ringDegree) 0 _ blocks j (2 * l) lane, getD_flatten (2 * ringDegree) 0 _ blocks j _ lane',
-        dif_neg (by rw [List.length_ofFn]; exact fun lt => h ⟨lt, hl⟩),
-        dif_neg (by rw [List.length_ofFn]; exact fun lt => h ⟨lt, hl⟩)]
+        dite_eq_right (by rw [List.length_ofFn]; exact fun lt => h ⟨lt, hl⟩),
+        dite_eq_right (by rw [List.length_ofFn]; exact fun lt => h ⟨lt, hl⟩)]
       rfl
     · exact absurd h.2 hl
     · rfl
 
-/-! ## The F′ claim of a final proof -/
-
-/-- Under the honest setup, the terminal claim is the F′ claim: the layer-1
-witness of the parent claim is a witness of F′'s relation for the PiRLC
-parent (`parent_holds`). -/
 theorem parentClaim_of_terminalClaim (s1 : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Layer1.Setup Gl)
     (relation : ProductionKey.LogicalRelation lw pf)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))
@@ -146,16 +122,9 @@ theorem parentClaim_of_terminalClaim (s1 : Layer1.Shape) (bar : ℕ → ℕ → 
   exact ⟨env, terminal, check, parent, _,
     parent_holds s1 bar S relation ajtai _ shape blocks_le barEq honest rfl rfl rfl holds⟩
 
-/-! ## End-to-end soundness for F′'s relation -/
-
 theorem modulus_natDegree : modulus.natDegree = ringDegree :=
   natDegree_eq_of_degree_eq_some degree_modulus
 
-/-- **The production bound.** Under Fiat–Shamir, over the Goldilocks field
-and its cubic extension, and with the charged terms of each commitment
-within Rust's split (as in `final_restore_budget`), a prover with `calls`
-queries makes the final verifier accept a statement whose F′ claim is false
-with probability at most `calls / 2^t`. -/
 theorem final_restore_budget_parent (s1 : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Layer1.Setup Gl)
     (relation : ProductionKey.LogicalRelation lw pf)
     (ajtai : PaperAlgebra.AjtaiKey (logicalWidth := lw) (publicFits := pf))

@@ -1,11 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 
-/-!
-Owns semantic transport for PiRLC across environments with explicitly equal
-evaluated inputs and child-owned outputs. It adds no verifier predicate,
-challenge, row, or layout assumption.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
 open NightstreamFPrime.Circuit

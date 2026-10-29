@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.R1CS
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.OutputBinding
 
-/-!
-Owns the zero-row physical view of the canonical PiRLC output claim.
-
-The output fields are definitionally the final combination variables and the
-sampler state. This leaf allocates no witness, fresh R1CS column, copy row, or
-boundary row.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.Leaves.OutputBinding
 
 open NightstreamFPrime.Spec

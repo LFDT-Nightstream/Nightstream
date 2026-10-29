@@ -2,16 +2,6 @@ import NightstreamFPrime.Gadgets.Polynomial.Horner
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 
-/-!
-Owns circuit evaluation of one explicit sparse constraint polynomial over the
-production quadratic extension.
-
-The polynomial is static relation data. Its point values are symbolic parent
-inputs. The gadget mirrors `CCSResidualTable.evaluatePolynomial`. The owned
-variant stores each extension product in three rank-one cells and the result
-in two cells.
--/
-
 namespace NightstreamFPrime.Gadgets.Polynomial.Sparse
 
 open NightstreamFPrime.Spec
@@ -61,7 +51,7 @@ theorem eval_multiplyPower (env : Env) (accumulated value : KExpr)
   by_cases zero : exponent = 0
   · subst exponent
     simp [multiplyPower, CCSResidualTable.pow, extensionLaws.mul_one]
-  · simp only [multiplyPower, zero, if_false, KExpr.eval_mul]
+  · simp only [multiplyPower, zero, ite_false, KExpr.eval_mul]
     rw [eval_pow]
     rfl
 
@@ -71,7 +61,7 @@ theorem multiplyPower_varsBelow (accumulated value : KExpr) (exponent bound : Na
     (multiplyPower accumulated value exponent).VarsBelow bound := by
   by_cases zero : exponent = 0
   · simp [multiplyPower, zero, accumulatedBelow]
-  · simp only [multiplyPower, zero, if_false]
+  · simp only [multiplyPower, zero, ite_false]
     exact KExpr.mul_varsBelow _ _ bound accumulatedBelow
       (pow_varsBelow value bound valueBelow exponent)
 

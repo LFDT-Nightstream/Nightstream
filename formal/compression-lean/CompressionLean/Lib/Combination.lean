@@ -2,23 +2,12 @@ import CompressionLean.Lib.SumCheck
 import Mathlib.Algebra.MvPolynomial.Degrees
 import Mathlib.Algebra.Polynomial.BigOperators
 
-/-!
-Owns the true round polynomials of a sum-check over the cube sum of a
-polynomial combination of tables: `Σ_x comb((T_s(x))_s)`, one variable `s` per table.
-
-After the point `p` binds the low variables, every table is a line in the next
-variable, so a round polynomial is `comb` of lines: its degree is at most the
-total degree of `comb` (`combRound_truth`). After all variables are bound, the
-partial sum is `comb` of the table extensions at the point (`combTruth_final`).
--/
-
 namespace CompressionLean.Lib
 
 open Polynomial
 
 variable {K : Type} [Field K] {σ : Type}
 
-/-- The table `t` restricted to the line through indices `2i` and `2i + 1`. -/
 noncomputable def lineAt (t : ℕ → K) (i : ℕ) : K[X] :=
   C (t (2 * i)) * (1 - X) + C (t (2 * i + 1)) * X
 
@@ -35,7 +24,6 @@ theorem lineAt_natDegree (t : ℕ → K) (i : ℕ) : (lineAt t i).natDegree ≤ 
     · simp
   · exact (natDegree_C_mul_le _ _).trans natDegree_X_le
 
-/-- A combination of lines has degree at most the combination's total degree. -/
 theorem natDegree_aeval_le (P : MvPolynomial σ K) (v : σ → K[X])
     (linear : ∀ j, (v j).natDegree ≤ 1) : (MvPolynomial.aeval v P).natDegree ≤ P.totalDegree := by
   rw [MvPolynomial.aeval_def, MvPolynomial.eval₂_eq]
@@ -72,12 +60,10 @@ theorem natDegree_cubeSum_le (n : ℕ) (f : ℕ → K[X]) (d : ℕ) (each : ∀ 
   | succ n ih =>
       exact (natDegree_add_le _ _).trans (max_le (ih _ fun i => each _) (ih _ fun i => each _))
 
-/-- The partial sum of `comb` over `n` variables after binding `point`. -/
 noncomputable def combTruth (n : ℕ) (tables : σ → ℕ → K) (comb : MvPolynomial σ K)
     (point : List K) : K :=
   cubeSum (n - point.length) fun i => MvPolynomial.eval (fun j => fold point (tables j) i) comb
 
-/-- The true round polynomial after binding `point`. -/
 noncomputable def combRound (n : ℕ) (tables : σ → ℕ → K) (comb : MvPolynomial σ K)
     (point : List K) : K[X] :=
   cubeSum (n - point.length - 1) fun i =>
@@ -105,12 +91,10 @@ theorem combRound_truth (n d : ℕ) (tables : σ → ℕ → K) (comb : MvPolyno
     rw [eval_aeval]
     exact eval_congr comb fun j => by rw [lineAt_eval, fold_append_single]
 
-/-- After every variable is bound, the partial sum is `comb` of the extensions. -/
 theorem combTruth_final (tables : σ → ℕ → K) (comb : MvPolynomial σ K) (point : List K) :
     combTruth point.length tables comb point = MvPolynomial.eval (fun j => mle point (tables j)) comb := by
   simp [combTruth, cubeSum, mle]
 
-/-- Before any variable is bound, the partial sum is the cube sum. -/
 theorem combTruth_nil (n : ℕ) (tables : σ → ℕ → K) (comb : MvPolynomial σ K) :
     combTruth n tables comb [] = cubeSum n fun i => MvPolynomial.eval (fun j => tables j i) comb := by
   simp [combTruth, fold]

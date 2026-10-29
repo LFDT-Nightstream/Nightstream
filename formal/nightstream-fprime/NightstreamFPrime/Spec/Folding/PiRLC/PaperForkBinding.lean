@@ -1,12 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 
-/-!
-Relaxed-binding collisions from two actual coordinate forks. The openings
-are the differences of the B-bounded response assignments, not arbitrary
-ambient openings. Their challenge differences and commitment equations are
-retained in the constructed collision. Hardness is not a premise here.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.PiRLC.PaperForkBinding

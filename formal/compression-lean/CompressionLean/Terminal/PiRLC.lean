@@ -1,15 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
 import CompressionLean.Terminal.Rows
 
-/-!
-Owns the PiRLC edge of the terminal package: its rows imply the exact
-seven-child PiRLC specification and phase, with the sampler challenges and
-the combined parent.
-
-The proofs are F′'s `Export/Stage1/Package` proofs with the terminal package
-in place of the Stage 1 package. Only the membership steps differ.
--/
-
 namespace CompressionLean.Terminal
 
 open NightstreamFPrime.Export
@@ -190,7 +181,6 @@ private theorem familyInvocationRows (env : Env)
   rw [CompactRows.instantiateRows_eq_package]
   exact packageRows
 
-/-- The four PiRLC combination families hold with their Lean templates. -/
 theorem piRlcCombinationRows (env : Env)
     (holds : (circuitPackage ()).RowsHold env) :
     Package.PiRLCCombinationRowsHold env := by
@@ -221,7 +211,6 @@ theorem piRlcCombinationRows (env : Env)
     apply List.mem_append_right
     exact PiRLCCombinationInvocations.familyInvocation_mem _ _ _ _ _ _ _ source index
 
-/-- The terminal rows imply the exact seven-child PiRLC parent specification. -/
 theorem piRlcSpecHolds
     (relation : ProductionKey.LogicalRelation lw pf)
     (env : Env) (holds : (circuitPackage ()).RowsHold env) :
@@ -279,7 +268,6 @@ theorem piRlcSpecHolds
     intro operation member
     cases member
 
-/-- The terminal rows imply the exact deterministic PiRLC phase. -/
 theorem piRlcPhaseHolds
     (relation : ProductionKey.LogicalRelation lw pf)
     (ajtai : AjtaiKey

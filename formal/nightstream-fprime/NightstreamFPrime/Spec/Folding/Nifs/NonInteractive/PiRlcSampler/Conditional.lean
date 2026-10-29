@@ -1,10 +1,5 @@
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Hybrid
 
-/-! Conditional averaging retains the four raw field values in the security
-experiment. Replacing a sampled challenge by a uniform challenge must also
-sample a consistent raw preimage; it must not expose an unrelated uniform
-challenge next to an unchanged raw block. -/
-
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 
 open Finset
@@ -28,9 +23,9 @@ theorem fiberAverage_le_one (map : α → β) (test : α → ℝ)
     (atMostOne : ∀ input, test input ≤ 1) (value : β) :
     fiberAverage map test value ≤ 1 := by
   by_cases inhabited : Nonempty {input // map input = value}
-  · letI := inhabited
+  · let := inhabited
     exact average_le_one _ (fun input => atMostOne input.val)
-  · letI : IsEmpty {input // map input = value} := not_nonempty_iff.mp inhabited
+  · let : IsEmpty {input // map input = value} := not_nonempty_iff.mp inhabited
     simp [fiberAverage, average]
 
 theorem average_fiberAverage (map : α → β) (test : α → ℝ) :
@@ -52,19 +47,19 @@ theorem average_fiberAverage (map : α → β) (test : α → ℝ) :
     ((∑ input : {input // map input = value}, test input.val) /
       Fintype.card {input // map input = value}) = _
   by_cases inhabited : Nonempty {input // map input = value}
-  · letI := inhabited
+  · let := inhabited
     have nonzero : (Fintype.card {input // map input = value} : ℝ) ≠ 0 := by
       exact_mod_cast Fintype.card_ne_zero
     field_simp
     rfl
-  · letI : IsEmpty {input // map input = value} := not_nonempty_iff.mp inhabited
+  · let : IsEmpty {input // map input = value} := not_nonempty_iff.mp inhabited
     simp
 
 omit [Fintype β] in
 theorem fiberAverage_comp (map : α → β) (test : β → ℝ) (value : β)
     (inhabited : Nonempty {input // map input = value}) :
     fiberAverage map (test ∘ map) value = test value := by
-  letI := inhabited
+  let := inhabited
   have same : ∀ input : {input // map input = value}, test (map input.val) = test value :=
     fun input => congrArg test input.property
   have nonzero : (Fintype.card {input // map input = value} : ℝ) ≠ 0 := by

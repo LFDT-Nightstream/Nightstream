@@ -1,13 +1,5 @@
 import CompressionLean.Layer1.Encoding
 
-/-!
-Owns the batched ring weights at `ζ` and the parts the verifier assembles
-them from (`verifier.rs`, linear claim): `Ω_b = Σ_ρ λ^ρ·g_{ρ,b}(ζ)` is the key
-part, the Eval_K part, the Eval_A part and the public part
-(`omegaTrue_parts`). The key part is read through the scaled eq point:
-`Σ_{l < 2^m} ζ^l·f(l) = κ_ζ·f~(x_ζ)` (`scaled_eq`).
--/
-
 namespace CompressionLean.Layer1
 
 open CompressionLean.Lib
@@ -17,17 +9,14 @@ variable {F K : Type} [Field F] [Field K] [Algebra F K]
 
 local notation "ι" => algebraMap F K
 
-/-- `x_t = ζ^{2^t} / (1 + ζ^{2^t})`, the scaled eq point (`mle::scaled_eq_point`). -/
 noncomputable def lanePoint (zeta : K) : ℕ → List K
   | 0 => []
   | m + 1 => zeta / (1 + zeta) :: lanePoint (zeta ^ 2) m
 
-/-- `κ = Π_t (1 + ζ^{2^t})`. -/
 noncomputable def laneScale (zeta : K) : ℕ → K
   | 0 => 1
   | m + 1 => (1 + zeta) * laneScale (zeta ^ 2) m
 
-/-- No `1 + ζ^{2^t}` vanishes (else the verifier rejects). -/
 def NoLanePole (zeta : K) : ℕ → Prop
   | 0 => True
   | m + 1 => 1 + zeta ≠ 0 ∧ NoLanePole (zeta ^ 2) m
@@ -37,7 +26,6 @@ theorem lanePoint_length (zeta : K) (m : ℕ) : (lanePoint zeta m).length = m :=
   | zero => rfl
   | succ m ih => simp [lanePoint, ih]
 
-/-- The power-weighted cube sum is the scaled extension at the scaled eq point. -/
 theorem scaled_eq (m : ℕ) (zeta : K) (poles : NoLanePole zeta m) (f : ℕ → K) :
     cubeSum m (fun l => zeta ^ l * f l) = laneScale zeta m * mle (lanePoint zeta m) f := by
   induction m generalizing zeta f with
@@ -56,14 +44,11 @@ theorem scaled_eq (m : ℕ) (zeta : K) (poles : NoLanePole zeta m) (f : ℕ → 
       field_simp
       ring
 
-/-- The lane weights `Λ(l) = ζ^l` on the used lanes. -/
 def laneTable (s : Shape) (zeta : K) (l : ℕ) : K := if l < s.D then zeta ^ l else 0
 
-/-- The key group `Σ_{i<κ} λ^i·a_i` on the cube. -/
 noncomputable def keyGroup (s : Shape) (S : Setup F) (lam : K) (x : ℕ) : K :=
   ∑ i ∈ Finset.range s.kappa, lam ^ i * ι (S.key i x)
 
-/-- The parts of `Ω_b`: key, Eval_K, Eval_A, public. -/
 noncomputable def keyPart (s : Shape) (S : Setup F) (lam zeta : K) (b : ℕ) : K :=
   ∑ l ∈ Finset.range s.D, zeta ^ l * keyGroup s S lam (2 ^ s.laneVars * b + l)
 
@@ -83,7 +68,6 @@ noncomputable def evalAPart (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) 
 noncomputable def publicPart (s : Shape) (lam : K) (b : ℕ) : K :=
   ∑ j ∈ Finset.range s.publicBlocks, if b = j then lam ^ s.publicRow j else 0
 
-/-- The true batched weight of block `b` at `ζ`; zero past the used blocks. -/
 noncomputable def omegaTrue (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
     (lam zeta : K) (b : ℕ) : K :=
   if b < s.blocks then
@@ -115,7 +99,6 @@ theorem sum_range_pairs {M : Type} [AddCommMonoid M] (n : ℕ) (g : ℕ → M) :
       rw [show 2 * (n + 1) = 2 * n + 1 + 1 by ring, Finset.sum_range_succ, Finset.sum_range_succ, ih,
         Finset.sum_range_succ, add_assoc]
 
-/-- `Ω_b` is the key, Eval_K, Eval_A and public parts. -/
 theorem omegaTrue_parts (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F) (fits : S.Fits s)
     (public_le : s.publicBlocks ≤ s.blocks) (D_le : s.D ≤ 2 ^ s.laneVars) (lam zeta : K) (b : ℕ) :
     omegaTrue s bar S st lam zeta b =
@@ -134,7 +117,7 @@ theorem omegaTrue_parts (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st 
       rw [Finset.sum_comm]
       apply Finset.sum_congr rfl
       intro ρ member
-      simp only [relationRows, if_pos (Finset.mem_range.mp member), eval_coeffPoly, Finset.mul_sum]
+      simp only [relationRows, ite_eq_left (Finset.mem_range.mp member), eval_coeffPoly, Finset.mul_sum]
       apply Finset.sum_congr rfl
       intro l _
       ring
@@ -143,10 +126,10 @@ theorem omegaTrue_parts (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st 
           (algebraMap F K)).eval zeta = evalKPart s bar st lam zeta b := by
       rw [Finset.sum_range_succ, Finset.sum_range_succ, Finset.sum_range_zero, zero_add]
       simp only [relationRows, add_zero]
-      rw [if_neg (lt_irrefl _), if_pos (by omega : s.kappa < s.kappa + 2),
-        if_neg (by omega : ¬ (s.kappa + 1 < s.kappa)), if_pos (by omega : s.kappa + 1 < s.kappa + 2)]
-      simp only [eval_barPoly, evalKPart, evalKTable, if_pos inside, Shape.evalKRow, add_zero,
-        if_true, show s.kappa + 1 ≠ s.kappa by omega, if_false, show (1 : ℕ) ≠ 0 by omega]
+      rw [ite_eq_right (lt_irrefl _), ite_eq_left (by omega : s.kappa < s.kappa + 2),
+        ite_eq_right (by omega : ¬ (s.kappa + 1 < s.kappa)), ite_eq_left (by omega : s.kappa + 1 < s.kappa + 2)]
+      simp only [eval_barPoly, evalKPart, evalKTable, ite_eq_left inside, Shape.evalKRow, add_zero,
+        ite_true, show s.kappa + 1 ≠ s.kappa by omega, ite_false, show (1 : ℕ) ≠ 0 by omega]
     have evalA : ∑ r ∈ Finset.range (2 * s.matrices),
         lam ^ (s.kappa + (2 + r)) * (((relationRows s bar S st).weight (s.kappa + (2 + r)) b).map
           (algebraMap F K)).eval zeta = evalAPart s bar S st lam zeta b := by
@@ -164,12 +147,12 @@ theorem omegaTrue_parts (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st 
         show ¬ (s.kappa + (2 + (2 * j + 1)) < s.kappa + 2) by omega,
         show s.kappa + (2 + 2 * j) < s.kappa + 2 + 2 * s.matrices by omega,
         show s.kappa + (2 + (2 * j + 1)) < s.kappa + 2 + 2 * s.matrices by omega,
-        if_false, if_true, eval_barPoly]
+        ite_false, ite_true, eval_barPoly]
       simp only [show s.kappa + (2 + 2 * j) - s.kappa - 2 = 2 * j by omega,
         show s.kappa + (2 + (2 * j + 1)) - s.kappa - 2 = 2 * j + 1 by omega,
         show 2 * j % 2 = 0 by omega, show (2 * j + 1) % 2 = 1 by omega,
         show 2 * j / 2 = j by omega, show (2 * j + 1) / 2 = j by omega,
-        if_true, show (1 : ℕ) ≠ 0 by omega, if_false, Finset.mul_sum, ← Finset.sum_add_distrib]
+        ite_true, show (1 : ℕ) ≠ 0 by omega, ite_false, Finset.mul_sum, ← Finset.sum_add_distrib]
       apply Finset.sum_congr rfl
       intro l _
       rw [show s.kappa + 2 + 2 * j + 0 = s.kappa + (2 + 2 * j) by ring,
@@ -186,7 +169,7 @@ theorem omegaTrue_parts (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st 
       simp only [show ¬ (s.kappa + (2 + (2 * s.matrices + j)) < s.kappa) by omega,
         show ¬ (s.kappa + (2 + (2 * s.matrices + j)) < s.kappa + 2) by omega,
         show ¬ (s.kappa + (2 + (2 * s.matrices + j)) < s.kappa + 2 + 2 * s.matrices) by omega,
-        if_false, show s.kappa + (2 + (2 * s.matrices + j)) - (s.kappa + 2 + 2 * s.matrices) = j by omega]
+        ite_false, show s.kappa + (2 + (2 * s.matrices + j)) - (s.kappa + 2 + 2 * s.matrices) = j by omega]
       split <;> simp [show s.kappa + 2 + 2 * s.matrices + j = s.kappa + (2 + (2 * s.matrices + j)) by ring]
     rw [key, evalK, evalA, publicSum]
     ring
@@ -219,7 +202,7 @@ theorem omegaTrue_parts (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st 
       unfold publicPart
       apply Finset.sum_eq_zero
       intro j member
-      rw [if_neg (by have := Finset.mem_range.mp member; omega)]
+      rw [ite_eq_right (by have := Finset.mem_range.mp member; omega)]
     rw [key, evalK, evalA, publicZero]
     ring
 

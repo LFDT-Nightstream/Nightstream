@@ -2,17 +2,14 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomi
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseCorrect
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ForkStrongSet
 
-/-!
-The executed stored inverse agrees with every unit witness of the selected
-PiRLC scalar ring.
--/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseUnit
 
 open NightstreamFPrime.Spec
 open StoredRingInverse
 open CompPoly (CPolynomial)
 open Folding.PiRLC.PaperForkAlgebra
+
+attribute [local implicit_reducible] ZMod NightstreamFPrime.Spec.goldilocksModulus
 
 private abbrev Base := ZMod goldilocksModulus
 local instance : Fact (Nat.Prime goldilocksModulus) := ⟨GoldilocksPrime.goldilocks_natPrime⟩

@@ -1,9 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixComposition
 
-/-! Source values of the existing fresh-row prefix folds.
-This module does not certify external files or IO task order. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixSource
@@ -83,6 +80,6 @@ theorem endpoint_port (input : PiCCSPublicReplay.Input)
     ProtocolPolynomial.messageAt, PiCCSPrefixRound.point,
     BooleanVertex.toCubePoint_coordinates, BooleanVertex.fieldCoordinates,
     Bool.false_eq_true,
-    if_false, if_true] using! value
+    ite_false, ite_true] using! value
 
 end NightstreamFPrime.Export.Stage1.PiCCSFreshPrefixSource

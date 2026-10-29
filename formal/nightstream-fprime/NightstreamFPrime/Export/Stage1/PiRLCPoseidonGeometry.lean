@@ -1,18 +1,12 @@
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry
 import NightstreamFPrime.Export.Stage1.PoseidonInputRetainedBlock
 
-/-!
-Owns the append-only retained geometry for the two pilot Poseidon2 preimages.
-The existing PiRLC retained prefix does not move.
-
-This module does not select later PiCCS or PiRLC permutation inputs.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCPoseidonGeometry
 
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
+@[implicit_reducible]
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiRLCRetainedGeometry.sourceWidth program
 

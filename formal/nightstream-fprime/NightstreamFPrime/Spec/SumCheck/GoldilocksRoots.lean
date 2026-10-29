@@ -6,8 +6,6 @@ import NightstreamFPrime.Spec.GoldilocksExtension
 import NightstreamFPrime.Spec.FieldTower
 import NightstreamFPrime.Spec.SumCheck.FixedPhase
 
-/-! Root counts for the verifier's actual coefficient lists over `K`. -/
-
 namespace NightstreamFPrime.Spec.SumCheck.Finite.GoldilocksRoots
 
 private def carrierEquiv : K ≃ QuadraticAlgebra (ZMod goldilocksModulus) 7 0 where

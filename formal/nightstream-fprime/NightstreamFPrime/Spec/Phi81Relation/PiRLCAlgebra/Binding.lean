@@ -2,12 +2,11 @@ import Mathlib.Data.ZMod.ValMinAbs
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Norm.Centered
 
-/-! Deterministic reduction from bounded Ajtai opening collisions to short
-integer kernel vectors of the same key. Hardness is a separate premise. -/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Binding
 
 open EvaluationHomomorphism
+
+attribute [local implicit_reducible] ZMod NightstreamFPrime.Spec.goldilocksModulus
 
 def difference {shape : Shape} (left right : Assignment shape) : Assignment shape :=
   fun column => left column - right column

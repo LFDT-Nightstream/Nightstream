@@ -5,13 +5,6 @@ import NightstreamFPrime.Lifecycle.Stage1.Application
 import NightstreamFPrime.Lifecycle.Relation
 import NightstreamFPrime.Lifecycle.VerifierContext
 
-/-!
-Owns the running-transition and next-preimage specifications read from an
-actual selected semantic step. Exact bounded source words identify the prior
-and next typed states. The base branch uses the default running vector; only
-the positive branch consumes the actual NIFS output equality.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.StepSourceSpecs
 
 open NightstreamFPrime.Spec

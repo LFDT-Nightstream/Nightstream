@@ -1,20 +1,6 @@
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLCFinite
 
-/-!
-Whole-ring public-input homomorphism for the typed Phi81 `Pi_RLC` action.
-
-Protocol: SuperNeo v1.2 Theorem 11, public-input branch of `Pi_RLC`.
-
-Owns: the block/lane view of the exact `54 * publicRingColumns` public carrier;
-the independently executable `RingF` action on that carrier; the proof that
-projection of one complete-assignment action equals the public-only action;
-canonical finite public-input combination; and the exact
-`PiRLC.Algebra.publicInput_hom`-shaped theorem.
-
-Does not own: the assignment or evaluation action, commitments, challenge-set
-membership, norm growth, transcript derivation, Rust/R1CS refinement, row
-removal, or constraint counts.
--/
+/-! SuperNeo v1.2 Theorem 11. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.PublicInput
 

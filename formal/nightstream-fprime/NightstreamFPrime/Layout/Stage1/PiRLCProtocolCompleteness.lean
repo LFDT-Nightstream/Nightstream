@@ -3,14 +3,6 @@ import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
 import NightstreamFPrime.Layout.Stage1.AccumulatorSemantics
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 
-/-!
-Owns construction of the canonical local C/R witnesses from protocol inputs.
-The C constructor supplies its transcript state; the R constructor samples
-from that state without a failure condition. Existing source support preserves
-C through R, and the resulting R output is the production parent.
-This module adds no rows and does not construct the pilot or physical lowering.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiRLCProtocolCompleteness
 
 open NightstreamFPrime.Spec

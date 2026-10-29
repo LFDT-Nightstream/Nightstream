@@ -38,7 +38,7 @@ theorem matchRun_sum {n : ℕ} (r : Gl) : ∀ (k c : ℕ) (v : Gl) (es rest : Li
   | 0, c, v, es, rest, found, x => by
       rw [matchRun, Option.some.injEq] at found
       subst found
-      rw [if_neg (by omega), zero_add]
+      rw [ite_eq_right (by omega), zero_add]
   | k + 1, c, v, [], rest, found, x => by simp [matchRun] at found
   | k + 1, c, v, e :: es, rest, found, x => by
       rw [matchRun] at found
@@ -47,12 +47,12 @@ theorem matchRun_sum {n : ℕ} (r : Gl) : ∀ (k c : ℕ) (v : Gl) (es rest : Li
       congr 1
       by_cases first : c = x
       · subst first
-        rw [if_pos rfl, if_neg (by omega), if_pos (by omega), Nat.sub_self, pow_zero, mul_one, add_zero]
-      · rw [if_neg first, zero_add]
+        rw [ite_eq_left rfl, ite_eq_right (by omega), ite_eq_left (by omega), Nat.sub_self, pow_zero, mul_one, add_zero]
+      · rw [ite_eq_right first, zero_add]
         by_cases inside : c + 1 ≤ x ∧ x < c + 1 + k
-        · rw [if_pos inside, if_pos (by omega), show x - c = x - (c + 1) + 1 by omega, pow_succ]
+        · rw [ite_eq_left inside, ite_eq_left (by omega), show x - c = x - (c + 1) + 1 by omega, pow_succ]
           ring
-        · rw [if_neg inside, if_neg (by omega)]
+        · rw [ite_eq_right inside, ite_eq_right (by omega)]
 
 /-- Runs that give the entries `es`, one after another, give at each column
 the sum of the entries there. -/
@@ -80,14 +80,14 @@ theorem entrySum_eq {n : ℕ} (es : List (SparseEntry n)) (x : ℕ) :
     | cons e es ih =>
         rw [entrySum_cons, ih, coefficient_cons]
         by_cases same : e.column.val = x
-        · rw [if_pos same, if_pos (Fin.ext same)]
+        · rw [ite_eq_left same, ite_eq_left (Fin.ext same)]
           rfl
-        · rw [if_neg same, if_neg fun equal => same (congrArg Fin.val equal)]
+        · rw [ite_eq_right same, ite_eq_right fun equal => same (congrArg Fin.val equal)]
           rfl
   · induction es with
     | nil => rfl
     | cons e es ih =>
-        rw [entrySum_cons, ih, if_neg (by have := e.column.isLt; omega), zero_add]
+        rw [entrySum_cons, ih, ite_eq_right (by have := e.column.isLt; omega), zero_add]
 
 theorem normalEntries_coefficient {n : ℕ} (form : SparseForm n) (c : Fin n) :
     (⟨normalEntries form⟩ : SparseForm n).coefficient c = form.coefficient c := by
@@ -105,7 +105,7 @@ theorem rowFailure_sum {n : ℕ} {forms : RowForms n} {runs : List Push} (pass :
   have matched : matchRuns (runs.filter (·.matrix = j.val)) (normalEntries (forms j)) = true := by
     by_contra fails
     have none := List.findSome?_eq_none_iff.mp pass j (List.mem_finRange j)
-    rw [if_neg fails] at none
+    rw [ite_eq_right fails] at none
     exact Option.some_ne_none _ none
   rw [matchRuns_sum _ _ matched x, entrySum_eq]
   split_ifs with below
@@ -283,8 +283,8 @@ theorem unitRows_row {k : ℕ} {block : MatrixProgram.Block}
       refine ⟨(Phi81ProductPlan.rowAt interface ⟨r, small'⟩).meaningfulForm, ?_, fun port c => ?_⟩
       · refine Phi81Product.Block.row?_of_loaded b _ (108 * u + r) inside descriptor (by rw [quotient]; exact selected)
           interface (by rw [← PiDECProductInterface.interface?_value]; exact loaded) _ ?_
-        rw [remainder, Phi81ProductPlan.rows, List.getElem?_ofFn, dif_pos small']
-      · rw [Array.getD_eq_getD_getElem?, Array.getElem?_map, Array.getElem?_ofFn, dif_pos small']
+        rw [remainder, Phi81ProductPlan.rows, List.getElem?_ofFn, dite_eq_left small']
+      · rw [Array.getD_eq_getD_getElem?, Array.getElem?_map, Array.getElem?_ofFn, dite_eq_left small']
         rfl
 
 theorem select_lt_rowCount (lw : ℕ) (sourceRow : ℕ → Option R1CS.Row) :
@@ -308,14 +308,14 @@ theorem source_entry {cv fresh running count lw : ℕ}
       matrices j vertex ⟨c.val, below⟩ := by
   show Phi81CarrierLayout.extendMatrix 0 (matrices j) vertex c = _
   unfold Phi81CarrierLayout.extendMatrix Phi81CarrierLayout.logicalColumn?
-  rw [dif_pos below]
+  rw [dite_eq_left below]
 
 theorem plan_matrix {lw : ℕ} (plan : ProductionRelation.Plan lw) (row : Fin plan.rowCount)
     (port : Fin Spec.ProductionRelation.matrixCount) (below : port.val < Spec.ProductionRelation.meaningfulPortCount)
     (column : Fin lw) :
     plan.matrix port (plan.rowLayout.toVertex row) column = (plan.forms row ⟨port.val, below⟩).coefficient column := by
   unfold ProductionRelation.Plan.matrix ProductionRelation.Plan.portForm ProductionRelation.meaningfulPort?
-  rw [plan.rowLayout.toColumn_toVertex, dif_pos below]
+  rw [plan.rowLayout.toColumn_toVertex, dite_eq_left below]
 
 theorem system_matrices :
     (PerApplicationFixedPoint.relation application fits).system.matrices =

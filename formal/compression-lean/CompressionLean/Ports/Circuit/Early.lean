@@ -1,42 +1,19 @@
 import CompressionLean.Ports.Circuit.Mle
 import CompressionLean.Ports.Circuit.Gkr
 
-/-!
-Owns the parts of the layer-1 verifier's early stage that are not GKR, as
-builder programs, each in the call order of its Rust counterpart:
-
-- the root binding of a commitment (`whir/mod.rs::observe_root`);
-- the histogram's fraction sum (`norm.rs::table_sum`);
-- the early leaf checks (`Structure::check_early`, `matrix.rs::Structure::check_early`,
-  with `tuple`, `check_pair` and `matrix_step`, over the closed forms of
-  `Mle.lean`);
-- the binding of the early values (`observe_early`, `verifier.rs::observe_early`).
-
-The late stage reads `checkPair`, `Mle.identity`, `Mle.step` and
-`observePairs` too.
--/
-
 namespace CompressionLean.Circuit
 
 open CompressionLean.Replay (Word Ext Layout)
 
-/-- The prover's early values (`matrix::EarlyValues`, `matrix.rs::EarlyValues`):
-`e_re`, `e_im` and the row column at the run point, the matrix pairs and the
-slot blocks. -/
 structure EarlyValuesView where
   runs : Array ExtVar
   pairs : Array (ExtVar × ExtVar)
   block : ExtVar
 
-/-- The lookup challenges `(β, γ)` and the scatter challenges `(β, μ)`
-(`matrix::EarlyChallenges`, `matrix.rs::EarlyChallenges`). -/
 structure EarlyChallengesView where
   lookup : ExtVar × ExtVar
   scatter : ExtVar × ExtVar
 
-/-- What the early leaf checks leave to openings (`matrix::EarlyOpenings`,
-`matrix.rs::EarlyOpenings`): `setup` is the run columns `i`, `σ`, `m` at the run
-point. -/
 structure EarlyOpeningsView where
   runPoint : Array ExtVar
   pairPoint : Array ExtVar
@@ -44,15 +21,11 @@ structure EarlyOpeningsView where
   mult : ExtVar
   setup : ExtVar × ExtVar × ExtVar
 
-/-- `observe_root`: the commitment separator `seed` as constants, then the
-root (`whir/mod.rs::observe_root`). -/
 def observeRoot (seed : Array Word) (root : DigestVar) : Transcript Unit := do
   for word in seed do
     Duplex.observe (← Build.const word)
   Duplex.observeSlice (Array.ofFn root)
 
-/-- `table_sum`: `Σ_t m_t / (β - t)` over `t ∈ [-bound, bound]`, slot
-`t + bound` (`norm.rs::table_sum`). -/
 def tableSum (counts : Array Var) (bound : ℕ) (beta : ExtVar) : Build ExtVar := do
   let mut total ← Algebra.extZero
   for (count, slot) in counts.zipIdx do
@@ -63,15 +36,12 @@ def tableSum (counts : Array Var) (bound : ℕ) (beta : ExtVar) : Build ExtVar :
     total ← Build.extAdd total term
   pure total
 
-/-- `tuple`: `i + γ·(re + γ·im)` (`matrix.rs::tuple`). -/
 def tuple (index gamma re im : ExtVar) : Build ExtVar := do
   let a ← Build.extMul gamma im
   let c ← Build.extAdd re a
   let d ← Build.extMul gamma c
   Build.extAdd index d
 
-/-- `check_pair`: `P_x·Q_y = P_y·Q_x` with both denominators nonzero
-(`matrix.rs::check_pair`). -/
 def checkPair (x y : TreeClaimView) : Build Unit := do
   let (px, qx) := x.root
   let (py, qy) := y.root
@@ -81,14 +51,10 @@ def checkPair (x y : TreeClaimView) : Build Unit := do
   let right ← Build.extMul py qx
   Build.assertExtEqual left right
 
-/-- `matrix_step`: `j~` over runs, matrix `j` on its run range and zero on
-padding runs (`matrix.rs::Structure::matrix_step`). -/
 def matrixStep (layout : Layout) (point : Array ExtVar) : Build ExtVar := do
   let values ← (Array.range layout.matrices).mapM fun j => Algebra.extConstant (Ext.ofGl (Word.ofNat j))
   Mle.step point (layout.runBounds.extract 0 layout.matrices) values layout.runBounds[layout.matrices]!
 
-/-- `Structure::check_early` (`matrix.rs::Structure::check_early`): the claims are the
-lookup runs, lookup rows, scatter runs and scatter pairs, in that order. -/
 def checkEarly (layout : Layout) (r : Array KVar) (challenges : EarlyChallengesView)
     (claims : Array TreeClaimView) (values : EarlyValuesView) : Build EarlyOpeningsView := do
   let (lookupRuns, lookupRows) := (claims[0]!, claims[1]!)
@@ -130,13 +96,11 @@ def checkEarly (layout : Layout) (r : Array KVar) (challenges : EarlyChallengesV
   pure { runPoint, pairPoint := pairPoint.extract 0 layout.slotVariables, rowPoint,
          mult := lookupRows.values[0]!, setup := (row, slot, scatterRuns.values[0]!) }
 
-/-- `observe_pairs` (`verifier.rs::observe_pairs`). -/
 def observePairs (pairs : Array (ExtVar × ExtVar)) : Transcript Unit :=
   pairs.forM fun (a, b) => do
     Duplex.observeExt a
     Duplex.observeExt b
 
-/-- `observe_early` (`verifier.rs::observe_early`). -/
 def observeEarly (values : EarlyValuesView) : Transcript Unit := do
   values.runs.forM Duplex.observeExt
   observePairs values.pairs

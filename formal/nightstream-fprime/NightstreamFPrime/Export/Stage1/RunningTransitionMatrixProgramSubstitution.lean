@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
 import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 
-/-!
-Proves exact source custody for the compact running-transition ordinary-row
-program.
--/
-
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram
@@ -75,13 +70,13 @@ private theorem outputTarget
   change index.val < 27819 at bound
   rw [RunningTransitionSourceSupport.outputStart_eq]
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by norm_num [Spartan.pilotSourceColumnCount]; omega)]
+  rw [ite_eq_left (by norm_num [Spartan.pilotSourceColumnCount]; omega)]
   unfold PilotSpartan.sourceToSpartan
-  rw [if_neg (by rw [PilotSpartan.priorPublicStart_value]; omega)]
-  rw [if_neg (by rw [PilotSpartan.outputPreimageStart_value]; omega)]
-  rw [if_pos (by rw [PilotSpartan.outputDigestStart_value]; omega)]
+  rw [ite_eq_right (by rw [PilotSpartan.priorPublicStart_value]; omega)]
+  rw [ite_eq_right (by rw [PilotSpartan.outputPreimageStart_value]; omega)]
+  rw [ite_eq_left (by rw [PilotSpartan.outputDigestStart_value]; omega)]
   unfold Spartan.liftPilotColumn
-  rw [if_pos (by
+  rw [ite_eq_left (by
     rw [PilotSpartan.secondPrivateStart_value,
       PilotSpartan.outputPreimageStart_value]
     norm_num [Spartan.pilotInputPrivateColumnCount]
@@ -197,7 +192,7 @@ theorem piDecRange_form?
           (RunningTransitionSourceSupport.piDecStart + index.val)) =
       some ((RunningTransitionDirectPlan.Location.piDec index).form geometry) := by
   rw [piDecTarget]
-  simpa [piDecRange, RunningTransitionDirectPlan.Location.form] using
+  simpa [piDecRange, RunningTransitionDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (piDecBlock program) (piDecStart program)
       (Spartan.sourceToSpartan RunningTransitionSourceSupport.piDecStart)
       RunningTransitionSourceSupport.piDecCount 0
@@ -211,7 +206,7 @@ theorem freshRange_form?
           (RunningTransitionInputs.phaseOffset + index.val)) =
       some ((RunningTransitionDirectPlan.Location.fresh index).form geometry) := by
   rw [freshTarget]
-  simpa [freshRange, RunningTransitionDirectPlan.Location.form] using
+  simpa [freshRange, RunningTransitionDirectPlan.Location.form] using!
     (SourceRange.form?_ofSemantic (freshBlock program) (freshStart program)
       (Spartan.sourceToSpartan RunningTransitionInputs.phaseOffset)
       freshCount 0 (freshFits geometry) (by rfl) index)

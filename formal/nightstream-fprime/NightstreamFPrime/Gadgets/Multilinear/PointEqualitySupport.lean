@@ -2,12 +2,6 @@ import NightstreamFPrime.Circuit.SupportRange
 import NightstreamFPrime.Gadgets.Multilinear.PointEquality
 import NightstreamFPrime.Gadgets.Polynomial.HornerSupport
 
-/-!
-Owns variable-support propagation for the child-owned multilinear
-point-equality compiler. The structural compiler remains the semantic
-authority.
--/
-
 namespace NightstreamFPrime.Gadgets.Multilinear.PointEquality
 
 open NightstreamFPrime.Circuit

@@ -2,20 +2,12 @@ import CompressionLean.Bridge.Formulas
 import CompressionLean.Bridge.Run
 import CompressionLean.Spec.Relation
 
-/-!
-Owns `Φ81 = X⁵⁴ + X²⁷ + 1` (`phi`), the point of the replay's statement
-(`statement_point`), and what `readProof` checks (`ProofShape`,
-`readProof_ok`). The model's sizes, statement and structure of a replay
-relation are in `Spec/Relation.lean`.
--/
-
 namespace CompressionLean.Bridge
 
 open CompressionLean.Spec
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-/-- `Φ81 = X⁵⁴ + X²⁷ + 1`. -/
 noncomputable def phi : Gl[X] := X ^ 54 + X ^ 27 + 1
 
 theorem statement_point (st : Replay.Statement) : (statementOf st).point = quadPoint st.point.toList := by
@@ -24,7 +16,6 @@ theorem statement_point (st : Replay.Statement) : (statementOf st).point = quadP
 theorem statement_r_length (st : Replay.Statement) : (statementOf st).r.length = st.point.size := by
   simp [statementOf]
 
-/-- What `readProof` checked. -/
 structure ProofShape (rel : Replay.Relation) (proof : Replay.Proof) : Prop where
   histogram : proof.histogram.size = 2 * rel.normBound + 1
   pairs : proof.earlyValues.pairs.size = rel.matrices

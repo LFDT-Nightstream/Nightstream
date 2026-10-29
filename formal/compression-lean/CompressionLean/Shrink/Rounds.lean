@@ -2,19 +2,6 @@ import CompressionLean.Ports.Shrink.Rounds
 import CompressionLean.Shrink.Ccs
 import CompressionLean.Lib.Combination
 
-/-!
-Owns the true sums of the shrink sum-checks of `Ports/Shrink/Rounds.lean`.
-
-- Outer: the true sum is the extension of the constraint table at `τ`
-  (`outer_truth_nil`); at the end it is `eq(τ, rx)·P(M̃_j·z(rx))`
-  (`outer_truth_final`). `outerComb` has degree 8 (`outerComb_degree`).
-- Batching: claimed values that differ from the true ones differ in a
-  nonzero polynomial of degree at most 7 in `ρ` (`batchPoly_ne_zero`,
-  `batch_ne`).
-- Inner: the true sum is the batch of the true values (`inner_truth_nil`);
-  at the end it is `Σ_j ρ^j·M̃_j(rx, ry)·z̃(ry)` (`inner_truth_final`).
--/
-
 namespace CompressionLean.Shrink
 
 open CompressionLean.Lib Polynomial
@@ -52,7 +39,6 @@ theorem outerComb_degree [Field K] : (outerComb : MvPolynomial (Option (Fin 8)) 
   rw [x]
   omega
 
-/-- The zero-check's true sum is the constraint table's extension at `τ`. -/
 theorem outer_truth_nil (es : List (Entry F)) (z : ℕ → F) (τ : List K) (m : ℕ) (length : τ.length = m) :
     combTruth m (outerTables es z τ) outerComb [] = mle τ (constraintTable es z) := by
   rw [combTruth_nil, mle_eq_cubeSum, length]
@@ -61,7 +47,6 @@ theorem outer_truth_nil (es : List (Entry F)) (z : ℕ → F) (τ : List K) (m :
   rw [eval_outerComb]
   simp only [outerTables, constraintTable, map_constraint]
 
-/-- At the end of the outer rounds the partial sum is `eq(τ, rx)·P(M̃_j·z(rx))`. -/
 theorem outer_truth_final (es : List (Entry F)) (z : ℕ → F) (τ rx : List K) (length : rx.length = τ.length) :
     combTruth rx.length (outerTables es z τ) outerComb rx =
       eqEval τ rx * constraint fun j => mle rx fun r => ι (rowValue es z j r) := by
@@ -92,38 +77,35 @@ theorem batchPoly_ne_zero {v t : Fin 8 → K} (differ : v ≠ t) : batchPoly v t
   have coefficient := congrArg (fun p => p.coeff (j : ℕ)) zero
   simp only [batchPoly, finsetSum_coeff, coeff_C_mul_X_pow, coeff_zero, Fin.val_inj] at coefficient
   rw [Finset.sum_ite_eq] at coefficient
-  simp only [Finset.mem_univ, if_true] at coefficient
+  simp only [Finset.mem_univ, ite_true] at coefficient
   exact hj (sub_eq_zero.mp coefficient)
 
-/-- Off the roots of `batchPoly`, wrong values give a wrong batch. -/
 theorem batch_ne [Fintype K] [DecidableEq K] {v t : Fin 8 → K} {ρ : K} (differ : v ≠ t)
     (outside : ρ ∉ zeros (batchPoly v t)) : batch ρ v ≠ batch ρ t := by
   intro equal
   apply outside
   unfold zeros
-  rw [if_neg (batchPoly_ne_zero differ)]
+  rw [ite_eq_right (batchPoly_ne_zero differ)]
   simp [batchPoly_eval, equal]
 
 end Batch
 
 section Inner
 
-/-- The inner sum-check's true sum is the batch of the true matrix values. -/
 theorem inner_truth_nil (es : List (Entry F)) (z : ℕ → F) (rx : List K) (ρ : K) (n : ℕ)
     (rows : ∀ e ∈ es, e.row < 2 ^ rx.length) (cols : ∀ e ∈ es, e.col < 2 ^ n) :
     combTruth n (innerTables es z rx ρ) productComb [] =
       batch ρ fun j => mle rx fun r => ι (rowValue es z j r) := by
   rw [product_truth_nil]
-  simp only [innerTables, if_true, show (1 : Fin 2) ≠ 0 by decide, if_false]
+  simp only [innerTables, ite_true, show (1 : Fin 2) ≠ 0 by decide, ite_false]
   exact cubeSum_weight_rows es z rx ρ n rows cols
 
-/-- At the end of the inner rounds the partial sum is `Σ_j ρ^j·M̃_j(rx, ry)·z̃(ry)`. -/
 theorem inner_truth_final (es : List (Entry F)) (z : ℕ → F) (rx ry : List K) (ρ : K)
     (cols : ∀ e ∈ es, e.col < 2 ^ ry.length) :
     combTruth ry.length (innerTables es z rx ρ) productComb ry =
       matrixValue es rx ry ρ * mle ry fun y => ι (z y) := by
   rw [product_truth_final]
-  simp only [innerTables, if_true, show (1 : Fin 2) ≠ 0 by decide, if_false]
+  simp only [innerTables, ite_true, show (1 : Fin 2) ≠ 0 by decide, ite_false]
   rw [mle_weight es rx ry ρ cols]
 
 end Inner

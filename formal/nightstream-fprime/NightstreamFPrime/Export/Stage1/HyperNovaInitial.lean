@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationTerminal
 
-/-!
-Owns the canonical initial HyperNova statement and empty proof envelope.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaInitial

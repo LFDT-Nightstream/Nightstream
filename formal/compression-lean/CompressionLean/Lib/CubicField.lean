@@ -4,35 +4,17 @@ import Mathlib.Tactic.ComputeDegree
 import Mathlib.Tactic.LinearCombination
 import NightstreamFPrime.Spec.GoldilocksPrime
 
-/-!
-Owns the irreducibility of `x³ - x - 1` over the Goldilocks field
-(`cubic_irreducible`). Plonky3's `CubicTrinomialExtensionField`, the layer-1
-challenge field (`crates/neo-spartan/src/field.rs`), is built on this
-trinomial, so it is a field with `p³` elements.
-
-The proof computes `x^p` in `F_p[x]/(x³ - x - 1)` with a loop the kernel
-evaluates (`cubicPow`, after `GoldilocksPrime.powMod`). If the cubic had a
-root `a` in `F_p`, then `a^p = a` would make `g = x^p - x` vanish at `a`. But
-`g` has an explicit inverse in the quotient ring, so `0 = 1`.
-
-The primality of `p` is an instance argument; `Fields.lean` owns the fact.
--/
-
 namespace CompressionLean.Lib
 
 open Polynomial NightstreamFPrime.Spec
 
-/-- `a + b·x + c·x²` in `F_p[x]/(x³ - x - 1)`, as residues. -/
 abbrev CubicResidues := ℕ × ℕ × ℕ
 
-/-- The product, with `x³ = x + 1` and `x⁴ = x² + x`. -/
 def cubicMul (p : ℕ) (u v : CubicResidues) : CubicResidues :=
   ((u.1 * v.1 + (u.2.1 * v.2.2 + u.2.2 * v.2.1)) % p,
     (u.1 * v.2.1 + u.2.1 * v.1 + (u.2.1 * v.2.2 + u.2.2 * v.2.1) + u.2.2 * v.2.2) % p,
     (u.1 * v.2.2 + u.2.1 * v.2.1 + u.2.2 * v.1 + u.2.2 * v.2.2) % p)
 
-/-- Power by repeated squaring, structural on `fuel` so the kernel reduces it.
-Fuel exhaustion returns the poison value `0`. -/
 def cubicPow (p : ℕ) : ℕ → CubicResidues → ℕ → CubicResidues
   | 0, _, _ => (0, 0, 0)
   | _, _, 0 => (1 % p, 0, 0)
@@ -40,7 +22,6 @@ def cubicPow (p : ℕ) : ℕ → CubicResidues → ℕ → CubicResidues
       if exponent % 2 = 1 then cubicMul p (cubicPow p fuel (cubicMul p base base) (exponent / 2)) base
       else cubicPow p fuel (cubicMul p base base) (exponent / 2)
 
-/-- The value of a residue triple at `a`. -/
 def cubicEval {p : ℕ} (a : ZMod p) (u : CubicResidues) : ZMod p :=
   (u.1 : ZMod p) + (u.2.1 : ZMod p) * a + (u.2.2 : ZMod p) * a ^ 2
 
@@ -75,28 +56,25 @@ theorem cubicPow_eval {p : ℕ} (a : ZMod p) (root : a ^ 3 - a - 1 = 0) (fuel : 
       have square : cubicEval a (cubicMul p base base) = cubicEval a base ^ 2 := by
         rw [cubicEval_mul a root, pow_two]
       rcases Nat.mod_two_eq_zero_or_one exponent with even | odd
-      · rw [if_neg (by omega), ih _ _ half, square, ← pow_mul]
+      · rw [ite_eq_right (by omega), ih _ _ half, square, ← pow_mul]
         congr 1
         omega
-      · rw [if_pos odd, cubicEval_mul a root, ih _ _ half, square, ← pow_mul, ← pow_succ]
+      · rw [ite_eq_left odd, cubicEval_mul a root, ih _ _ half, square, ← pow_mul, ← pow_succ]
         congr 1
         omega
 
 set_option maxRecDepth 100000 in -- fixed-size: one 64-bit exponent, not artifact data
-/-- `x^p` in the quotient ring. -/
 theorem frobenius :
     cubicPow goldilocksModulus 70 (0, 1, 0) goldilocksModulus =
       (10615703402128488253, 10050274602728160328, 11746561000929144102) := by
   decide
 
 set_option maxRecDepth 100000 in -- fixed-size: one product, not artifact data
-/-- `x^p - x` times its inverse is `1`. -/
 theorem frobenius_inverse :
     cubicMul goldilocksModulus (10615703402128488253, 10050274602728160327, 11746561000929144102)
         (991315191999139912, 15238614666038134874, 11086490780951302402) = (1, 0, 0) := by
   decide
 
-/-- `x³ - x - 1` has no root in the Goldilocks field. -/
 theorem cubic_no_root [Fact (Nat.Prime goldilocksModulus)] (a : ZMod goldilocksModulus) :
     a ^ 3 - a - 1 ≠ 0 := by
   intro root
@@ -111,7 +89,6 @@ theorem cubic_no_root [Fact (Nat.Prime goldilocksModulus)] (a : ZMod goldilocksM
   rw [frobenius_inverse, vanish, zero_mul] at one
   simp [cubicEval] at one
 
-/-- `x³ - x - 1` is irreducible over the Goldilocks field. -/
 theorem cubic_irreducible [Fact (Nat.Prime goldilocksModulus)] :
     Irreducible (X ^ 3 - X - 1 : (ZMod goldilocksModulus)[X]) := by
   apply Polynomial.irreducible_of_degree_le_three_of_not_isRoot

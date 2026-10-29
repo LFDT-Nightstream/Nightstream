@@ -1,12 +1,6 @@
 import NightstreamFPrime.Layout.R1CS
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.InputBinding
 
-/-!
-Owns the zero-row physical view of the exact PiDEC operational input binding.
-The binding shares verifier-owned values definitionally and allocates no
-witness, R1CS intermediate, copy row, or boundary row.
--/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2.Leaves.InputBinding
 
 open NightstreamFPrime.Circuit

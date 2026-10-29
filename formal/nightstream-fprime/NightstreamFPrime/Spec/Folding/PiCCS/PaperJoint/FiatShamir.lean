@@ -1,26 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteJointData
 
-/-!
-Verifier-owned Fiat--Shamir authority for paper-level joint `Pi_CCS`.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: pre-SumCheck alpha/gamma sampling and interleaved SumCheck rounds.
-Constraint family: transcript ownership and challenge schedule only.
-
-Owns: a typed challenge-label schedule, a certificate containing only finite
-polynomial messages, deterministic derivation of alpha, gamma, and every
-SumCheck round challenge from public context plus those messages, and an
-explicit residual-table audit checker retained for differential reasoning.
-
-Does not own: construction of a complete public statement from `Context`, the
-nonlinear off-cube paper polynomial, the prover's output evaluation message,
-absorption of that message into the outgoing transcript, a concrete transcript
-encoding, Poseidon2, domain-tag field values, random-oracle or collision
-security, challenge-distribution bounds, root-counting probability, the exact
-semantic degree theorem, Rust, R1CS, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiatShamir
 
@@ -108,8 +88,7 @@ structure PreSumcheck (Field : Type uField) (State : Type uState)
   gamma : Field
   state : State
 
-/-- Derive alpha and gamma from the public context before absorbing any prover
-message, matching step 1 of the paper protocol. -/
+/-- SuperNeo v1.2 Section 7.3, Step 1. -/
 def derivePreSumcheck
     {Context : Type uContext}
     {Field : Type uField}

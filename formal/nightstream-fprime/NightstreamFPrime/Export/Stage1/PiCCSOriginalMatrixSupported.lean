@@ -2,12 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixBatch
 import NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange
 import NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights
 
-/-!
-Skip a complete source sum when its supplied zero flag is true, then retain
-all original source/port slots. The caller validates loaders and derives the
-flags from the complete masks. Preservation is in the separate proof module.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported

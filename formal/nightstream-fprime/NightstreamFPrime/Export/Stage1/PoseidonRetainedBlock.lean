@@ -4,17 +4,13 @@ import NightstreamFPrime.Export.Stage1.PerApplicationPreservation
 import NightstreamFPrime.Export.Stage1.PermutationPlan
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedBlock
 
-/-!
-Owns the compact retained low-norm field block for every Poseidon2 invocation
-in the current Stage 1 prefix.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PoseidonRetainedBlock
 
 open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
+@[implicit_reducible]
 def basePackage (_delay : Unit := ()) : CircuitPackage :=
   PerApplicationPackage.basePackage ()
 
@@ -113,7 +109,7 @@ theorem outputWitnessStart_bound (invocation : Fin outputInvocationCount) :
 
 def laterWitnessStart (invocation : Fin laterInvocationCount) : Nat :=
   let index : Fin basePackage.permutationInvocations.length :=
-    ⟨invocation.val, by simp [laterInvocationCount]⟩
+    ⟨invocation.val, by simpa [laterInvocationCount] using invocation.isLt⟩
   (basePackage.permutationInvocations.get index).witnessStart
 
 def laterWitnessStartsArray (_delay : Unit := ()) : Array Nat :=
@@ -140,7 +136,7 @@ theorem directLaterWitnessStart_eq_laterWitnessStart
         data_permutationInvocations_length]
       exact invocation.isLt)) =
     (basePackage.permutationInvocations[invocation.val]'(by
-      simp [laterInvocationCount])).witnessStart
+      simpa [laterInvocationCount] using invocation.isLt)).witnessStart
   simp only [List.getElem_toArray,
     PermutationPlan.canonicalWitnessStarts_materializes, List.getElem_map,
     basePackage_permutationInvocations_eq]
@@ -154,7 +150,7 @@ theorem laterWitnessStart_bound (invocation : Fin laterInvocationCount) :
     laterWitnessStart invocation + PoseidonScheduleTrace.localColumnCount ≤
       basePackage.layout.constantColumn := by
   let index : Fin basePackage.permutationInvocations.length :=
-    ⟨invocation.val, by simp [laterInvocationCount]⟩
+    ⟨invocation.val, by simpa [laterInvocationCount] using invocation.isLt⟩
   change
     (basePackage.permutationInvocations.get index).witnessStart + 1096 ≤
       basePackage.layout.constantColumn

@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.CheckedReplaySuccessor
 import NightstreamFPrime.Export.Stage1.HyperNovaInput
 
-/-!
-Reuse the accepted exact successor as the next checked replay's prior.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.CheckedReplayHandoff

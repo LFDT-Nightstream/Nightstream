@@ -1,13 +1,6 @@
 import NightstreamFPrime.Export.Stage1.ActualContextSecurity
 
-/-!
-Owns the deterministic reverse step of HyperNova Construction 2, Appendix
-H.3. An accepted terminal opening identifies the decoded application step
-and its predecessor, or supplies the existing state-hash collision.
-
-The recursive case consumes valid openings for the exact decoded source
-instances. Their extraction is a separate obligation.
--/
+/-! HyperNova Construction 2, Appendix H.3. -/
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaPredecessor
 
@@ -55,11 +48,11 @@ private theorem step_implies_predecessor
   change FixedAugmentedTransition (Lifecycle.setup relation ajtai context)
     (Lifecycle.machineFor publicFits application) functionIndex input output at step
   rcases step.2.2.2 with base | recursive
-  · rw [if_pos base.1]
+  · rw [ite_eq_left base.1]
     exact (Stage1.Terminal.holdsFor_bottom_iff relation ajtai context application _).mpr
       ⟨valid, base.1, base.2.1.symm⟩
   · rcases recursive with ⟨pcValid, positive, publicLink, _fold, _unchanged⟩
-    rw [if_neg (Nat.ne_of_gt positive)]
+    rw [ite_eq_right (Nat.ne_of_gt positive)]
     apply (Stage1.Terminal.holdsFor_recursive_iff relation ajtai context application _ _).mpr
     refine ⟨valid, priorCanonical, pcValid, positive, publicLink, ?_, ?_⟩
     · intro slot

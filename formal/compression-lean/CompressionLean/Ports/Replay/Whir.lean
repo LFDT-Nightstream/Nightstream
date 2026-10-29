@@ -1,16 +1,7 @@
 import CompressionLean.Ports.Replay.Gkr
 
-/-!
-Owns the WHIR openings as the model idealizes them (`Soundness.lean`,
-`Opens`): the opened values (`Opening.evals`) are taken as given, and the
-transcript of `whir::verify` is replayed so that every WHIR draw matches
-Rust's. The WHIR checks themselves (Merkle paths, folds, the final
-polynomial and the final sum-check) are not replayed.
--/
-
 namespace CompressionLean.Replay
 
-/-- The opening has the shape's counts (`OpeningView::read`). -/
 def readOpening (shape : WhirShape) (o : Opening) : Except String Unit := do
   ensure (o.rounds.size == shape.rounds.size && o.evals.size == shape.batches.size &&
     o.initialOod.size == shape.oodSamples &&
@@ -22,7 +13,6 @@ def readOpening (shape : WhirShape) (o : Opening) : Except String Unit := do
   ensure (o.finalPoly.size == shape.finalPolyLen) "WHIR proof shape"
   ensure (o.finalSumcheck.size == shape.finalSumcheck.rounds) "WHIR sum-check shape"
 
-/-- A quadratic sum-check: its separator, then per round `(h(0), h(∞))` and a draw. -/
 def whirSumcheck (shape : SumcheckShape) (pairs : Array (Ext × Ext)) : ReplayM Unit := do
   unless pairs.isEmpty do
     observeAll shape.seed
@@ -30,14 +20,12 @@ def whirSumcheck (shape : SumcheckShape) (pairs : Array (Ext × Ext)) : ReplayM 
       observeExts #[pair.1, pair.2]
       let _ ← sampleExt
 
-/-- `draws` query indices: a sample, rejected when it is `p - 1` (`query_index`). -/
 def whirQueries (draws : Nat) : ReplayM Unit :=
   (List.range draws).forM fun _ => do
     let word ← sampleWord
     ensure (!(word + 1 == 0)) "WHIR query sample p - 1"
     record (.sample word)
 
-/-- The transcript of one WHIR opening. -/
 def whirTranscript (shape : WhirShape) (o : Opening) : ReplayM Unit := do
   o.initialOod.toList.forM fun answer => do
     observeAll shape.virtualSeed

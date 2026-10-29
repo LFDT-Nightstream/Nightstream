@@ -1,13 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedPlan
 
-/-!
-Connects every row of the compact PiRLC product matrix program to the exact
-canonical product plan.
-
-Later Stage 1 phases are composed by the enclosing prefix plan.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram

@@ -2,13 +2,6 @@ import CompressionLean.Ports.Shrink.Evaluate
 import CompressionLean.Shrink.BlockPart
 import CompressionLean.Lib.List
 
-/-!
-Owns the value of the verifier's matrix value of `Ports/Shrink/Evaluate.lean`
-(`verifierMatrices_eq`): the entry sum `matrixValue` over the run's CCS.
-`splitEq` is the eq weight (`splitEq_eq`), and the calls' sums are the entry
-sums of the glue rows that `Trace` stores (`glueTotal_eq`).
--/
-
 namespace CompressionLean.Shrink
 
 open CompressionLean.Lib
@@ -33,7 +26,6 @@ theorem sideValue_append (a b : List (Wire × F)) :
     sideValue T s ry (a ++ b) = sideValue T s ry a + sideValue T s ry b := by
   simp [sideValue]
 
-/-- A column's form times its coefficient, as `expand` writes it out. -/
 theorem sideValue_expand (columns : List (Form F)) :
     ∀ terms : List (ℕ × F), sideValue T s ry (expand terms columns) = r1csSideValue T s ry columns terms
   | [] => by simp [expand, sideValue, r1csSideValue]
@@ -57,7 +49,7 @@ theorem sideValue_expand (columns : List (Form F)) :
       rw [terms]
       by_cases zero : form.constant = 0
       · simp [zero, sideValue]
-      · simp only [zero, ne_eq, not_false_eq_true, if_true, if_false, sideValue, List.map_cons, List.map_nil,
+      · simp only [zero, ne_eq, not_false_eq_true, ite_true, ite_false, sideValue, List.map_cons, List.map_nil,
           List.sum_cons, List.sum_nil, map_mul]
         ring
 
@@ -82,7 +74,6 @@ theorem sum_map_flatMap {α β : Type} (f : α → List β) (h : β → K) :
   | [] => rfl
   | a :: l => by rw [List.flatMap_cons, List.map_append, List.sum_append, sum_map_flatMap f h l]; rfl
 
-/-- One glue row's entry sum: its row weight times `Σ_side ρ^(side+1)·side`. -/
 theorem matrixValue_rowEntries (g : ℕ) (row : GlueRow F) :
     matrixValue (Layout.rowEntries T s g row) rx ry ρ =
       eqAt rx (Layout.glueRow T s g) * ∑ side : Fin 7, ρ ^ ((side : ℕ) + 1) * sideValue T s ry (row.side side) := by
@@ -100,7 +91,6 @@ theorem matrixValue_rowEntries (g : ℕ) (row : GlueRow F) :
 
 theorem sideValue_nil : sideValue T s ry ([] : List (Wire × F)) = 0 := rfl
 
-/-- A row call's sides in matrix order give `Evaluate::row`'s sum. -/
 theorem rowCall_sides (products : List (List (Wire × F) × List (Wire × F))) (linear : List (Wire × F))
     (three : products.length ≤ 3) :
     ∑ side : Fin 7, ρ ^ ((side : ℕ) + 1) * sideValue T s ry ((GlueRow.ofCall products linear).side side) =
@@ -120,8 +110,6 @@ theorem rowCall_sides (products : List (List (Wire × F) × List (Wire × F))) (
       ring
   | _ :: _ :: _ :: _ :: _, four => simp at four
 
-/-- An R1CS call's rows: `Evaluate::r1cs` sums each row from its column
-forms' values, which is the row call's sum over the expanded sides. -/
 theorem r1csValue_eq (columns : List (Form F)) :
     ∀ (g : ℕ) (rows : List (R1csRow F)), r1csValue T s rx ry ρ columns g rows =
       matrixValue (Layout.glueEntries T s g (rows.map fun r =>
@@ -134,8 +122,6 @@ theorem r1csValue_eq (columns : List (Form F)) :
       simp only [rowCallValue, productsValue, r1csRowValue, sideValue_expand]
       ring
 
-/-- **The shape run's total.** From glue row `g` on, `Evaluate`'s total is
-the entry sum of the glue rows that its calls emit. -/
 theorem glueTotal_eq : ∀ (g : ℕ) (calls : List (Call F)),
     glueTotal T s rx ry ρ g calls = matrixValue (Layout.glueEntries T s g (calls.flatMap Call.rows)) rx ry ρ
   | _, [] => by simp [glueTotal, Layout.glueEntries, matrixValue]
@@ -154,8 +140,6 @@ section Matrices
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [DecidableEq K]
 
-/-- **The verifier's matrix value.** At points of the layout's lengths, the
-value that the verifier computes is the entry sum over the run's CCS. -/
 theorem verifierMatrices_eq (T : Template F) (s : Counts) (run : Run F) (rx ry : List K) (ρ : K)
     (wf : T.WellFormed) (rxLength : rx.length = Layout.rowVars T s)
     (ryLength : ry.length = Layout.cellVars T s + 1) :

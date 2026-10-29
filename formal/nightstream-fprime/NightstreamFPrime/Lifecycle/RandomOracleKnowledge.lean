@@ -1,36 +1,7 @@
 import NightstreamFPrime.Lifecycle.RandomOracleUniqueness
 import NightstreamFPrime.Lifecycle.Nifs.VerifierErrorBudget
 
-/-!
-Owns the knowledge error of the production NIFS key in the random-oracle
-model: Lemmas 5 and 6 of SECURITY_MODEL.md together.
-
-Inputs: an adaptive oracle adversary with at most `Q` queries that outputs a
-claim (running and fresh statements, a NIFS proof, and child witnesses).
-
-Outputs:
-- `Extracts`: the extractor's retries form a complete `Π_RLC` fork, and the
-  fork's witness satisfies the source relation of the claimed statement;
-- `statisticalError_le`, `statisticalError_two_pow_64`: each oracle query adds
-  at most `50 / (87 · 2 ^ 115)` of statistical error, so at `Q = 2 ^ 64` it is
-  below `2 ^ -51`;
-- `knowledge_error_le`: the extractor succeeds with probability at least the
-  acceptance probability minus `17 (Q + 17) sampleError + (Q + 74) testError`,
-  the running-mismatch chance of Lemma 5, and the two binding-reduction
-  chances of Lemma 6;
-- `extract`, `runWeight`, `failure_eq`: the extractor's output, the law of a
-  run, and the failure mass (accepted, yet nothing returned) as the
-  acceptance probability minus the extraction probability.
-
-The extractor's retry law has total mass one after every acceptance
-(`RandomOracle.retryWeight_sum_eq_one`), so a missing retry counts as a
-failure. It runs `17 (Q + 17)` expected retries
-(`RandomOracleExtraction.expected_retries_le`).
-
-Does not own: the hardness of MSIS or of the state hash, which bound the
-binding-reduction and running-mismatch chances, or the fit of the oracle to
-Poseidon2.
--/
+/-! Random-oracle model, SECURITY_MODEL.md Lemmas 5 and 6. -/
 
 set_option autoImplicit false
 
@@ -70,16 +41,11 @@ def Extracts (oracle : Oracle) (retries : Retries) : Prop :=
         (claimed relation adversary claim oracle).fresh)
       (extractedWitness relation ajtai adversary claim oracle retries valid.1 valid.2)
 
-/-- The statistical error `17 (Q + 17) sampleError + (Q + 74) testError` of an
-adversary with at most `queries` oracle queries. -/
 noncomputable def statisticalError (queries : Nat) : ℝ :=
   (Nifs.PaperProfile.arity).total *
       (((queries + (Nifs.PaperProfile.arity).total : Nat) : ℝ) * sampleError) +
     ((queries + challenges.length : Nat) : ℝ) * IndependentExecution.testError productionShape 8
 
-/-- Each oracle query adds at most `50 / (87 · 2 ^ 115)` of statistical error:
-`ε_test = 4589 / p²` (`VerifierErrorBudget.test_error_eq`) and
-`ε_sample < 5 ^ -54 + 2 ^ -132` (`PiRlcSampler.distance_lt`). -/
 theorem statisticalError_le (queries : Nat) :
     statisticalError queries ≤ ((queries : ℝ) + 74) * (50 / (87 * 2 ^ 115)) := by
   have sample : sampleError < 1 / 5 ^ 54 + 1 / 2 ^ 132 := by
@@ -111,7 +77,6 @@ theorem statisticalError_le (queries : Nat) :
       nlinarith
     _ ≤ _ := mul_le_mul_of_nonneg_left perQuery.le (by positivity)
 
-/-- At `Q = 2 ^ 64` queries the statistical error is below `2 ^ -51`. -/
 theorem statisticalError_two_pow_64 : statisticalError (2 ^ 64) < 1 / 2 ^ 51 := by
   refine (statisticalError_le (2 ^ 64)).trans_lt ?_
   norm_num
@@ -146,7 +111,7 @@ theorem knowledge_error_le {queries : Nat} (bounded : adversary.QueryBound queri
       Finset.sum_nonneg fun retries _ => mul_nonneg (weight_nonnegative relation ajtai adversary claim
         oracle retries) (by split <;> norm_num)
     by_cases succeeds : Succeeds relation ajtai adversary claim oracle
-    · rw [if_pos succeeds, if_pos succeeds, ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
+    · rw [ite_eq_left succeeds, ite_eq_left succeeds, ← Finset.sum_add_distrib, ← Finset.sum_add_distrib]
       have total : ∑ retries, weight relation ajtai adversary claim oracle retries = 1 :=
         retryWeight_sum_eq_one _ fun index =>
           mass_ne_zero (base_mem_retrySets relation ajtai adversary claim succeeds index)
@@ -166,7 +131,7 @@ theorem knowledge_error_le {queries : Nat} (bounded : adversary.QueryBound queri
       have third : (0 : ℝ) ≤ if SourceFails relation ajtai adversary claim oracle retries then 1 else 0 := by
         split <;> norm_num
       by_cases forks : ∀ index, ForkValid relation ajtai adversary claim oracle retries index
-      · rw [if_pos forks]
+      · rw [ite_eq_left forks]
         by_cases holds : SourceHolds extensionOps K.embed (PaperAlgebra.openingMaps ajtai)
             productionGlobalParams
             ((ProductionKey.key relation ajtai).statement (claimed relation adversary claim oracle).running
@@ -174,15 +139,15 @@ theorem knowledge_error_le {queries : Nat} (bounded : adversary.QueryBound queri
             (extractedWitness relation ajtai adversary claim oracle retries succeeds forks)
         · have extracted : Extracts relation ajtai adversary claim oracle retries :=
             ⟨⟨succeeds, forks⟩, holds⟩
-          rw [if_pos extracted]
+          rw [ite_eq_left extracted]
           linarith
         · have failed : SourceFails relation ajtai adversary claim oracle retries :=
             ⟨⟨succeeds, forks⟩, holds⟩
-          rw [if_pos failed]
+          rw [ite_eq_left failed]
           linarith
-      · rw [if_neg forks]
+      · rw [ite_eq_right forks]
         linarith
-    · rw [if_neg succeeds, if_neg succeeds]
+    · rw [ite_eq_right succeeds, ite_eq_right succeeds]
       linarith
   have lemma5 := fork_failure_le relation ajtai adversary claim bounded
   have lemma6 := source_error_le relation ajtai adversary claim bounded
@@ -235,10 +200,10 @@ theorem runWeight_sum : ∑ run, runWeight relation ajtai adversary claim run = 
     rw [← Finset.sum_div]
     refine congrArg (· / (Fintype.card Oracle : ℝ)) ?_
     by_cases succeeds : Succeeds relation ajtai adversary claim oracle
-    · simp only [if_pos succeeds]
+    · simp only [ite_eq_left succeeds]
       exact weight_sum_eq_one relation ajtai adversary claim succeeds
     · have retries : (0 : ℝ) < Fintype.card Retries := by exact_mod_cast Fintype.card_pos
-      simp only [if_neg succeeds, Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
+      simp only [ite_eq_right succeeds, Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
       field_simp
   rw [Fintype.sum_prod_type]
   simp only [each, Finset.sum_const, Finset.card_univ, nsmul_eq_mul]
@@ -251,13 +216,13 @@ theorem extract_holds {oracle : Oracle} {retries : Retries} {witness}
         (claimed relation adversary claim oracle).fresh) witness := by
   unfold extract at returned
   by_cases extracts : Extracts relation ajtai adversary claim oracle retries
-  · rw [if_pos extracts] at returned
+  · rw [ite_eq_left extracts] at returned
     obtain ⟨valid, holds⟩ := extracts
     unfold witnessOf at returned
-    rw [dif_pos valid] at returned
+    rw [dite_eq_left valid] at returned
     cases returned
     exact holds
-  · rw [if_neg extracts] at returned
+  · rw [ite_eq_right extracts] at returned
     cases returned
 
 theorem failure_eq :
@@ -285,7 +250,7 @@ theorem failure_eq :
         · have none : extract relation ajtai adversary claim oracle retries = none :=
             (extract_eq_none_iff relation ajtai adversary claim oracle retries).mpr extracts
           simp [runWeight, succeeds, extracts, none]
-      · simp only [succeeds, false_and, if_false, mul_zero, zero_div]
+      · simp only [succeeds, false_and, ite_false, mul_zero, zero_div]
     _ = ((∑ oracle : Oracle, if Succeeds relation ajtai adversary claim oracle then (1 : ℝ) else 0) -
           ∑ oracle : Oracle, ∑ retries, weight relation ajtai adversary claim oracle retries *
             (if Extracts relation ajtai adversary claim oracle retries then 1 else 0)) /
@@ -295,11 +260,12 @@ theorem failure_eq :
       rw [← Finset.sum_div]
       refine congrArg (· / (Fintype.card Oracle : ℝ)) ?_
       by_cases succeeds : Succeeds relation ajtai adversary claim oracle
-      · simp only [if_pos succeeds]
+      · simp only [ite_eq_left succeeds]
         rw [Finset.sum_sub_distrib, weight_sum_eq_one relation ajtai adversary claim succeeds]
       · have never (retries : Retries) : ¬ Extracts relation ajtai adversary claim oracle retries :=
           fun extracts => succeeds extracts.fst.1
-        simp [succeeds, never]
+        simp [succeeds]
+        exact Finset.sum_eq_zero fun retries _ => ite_eq_right (never retries)
     _ = _ := by
       rw [Finset.expect_eq_sum_div_card, Finset.expect_eq_sum_div_card, Finset.card_univ, sub_div]
 

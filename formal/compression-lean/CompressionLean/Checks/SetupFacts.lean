@@ -173,13 +173,13 @@ theorem setupFailure_sound {key : Layer1Key} {pushes : List Push} (seed : List �
     ⟨by rw [poseidon2Columns_eq]; decide, by decide, by rw [poseidon2Columns_eq]; decide,
       by rw [poseidon2Columns_eq]; decide, fun p member =>
       ⟨(runs p member).1, (runs p member).2.1, (runs p member).2.2.1⟩⟩
-  refine ⟨by rw [build, if_pos accepts], ?_, ?_⟩ <;> simp only [setupOfRuns, hc, hk]
+  refine ⟨by rw [build, ite_eq_left accepts], ?_, ?_⟩ <;> simp only [setupOfRuns, hc, hk]
   · refine ⟨?_, fun k past => ?_, fun k => ?_, fun k => ?_, fun k => ?_, ?_, fun k inside => ?_, fun k inside => ?_,
       fun σ => Nat.mod_lt _ (by decide), fun σ => (size σ).1, fun σ => (size σ).2, fun i b l lane pad => ?_⟩ <;>
       dsimp only [shapeOf, Replay.Relation.matrices, Replay.laneVars] at *
     · rw [runList_length, ← bound m le_rfl]
       exact count
-    · rw [List.getD_eq_default (runList m pushes) Push.pad past, if_neg (not_lt.mpr past)]
+    · rw [List.getD_eq_default (runList m pushes) Push.pad past, ite_eq_right (not_lt.mpr past)]
       exact ⟨rfl, rfl, rfl, rfl⟩
     · rcases run k with member | pad
       · exact (runs _ member).2.2.2
@@ -193,14 +193,14 @@ theorem setupFailure_sound {key : Layer1Key} {pushes : List Push} (seed : List �
       · rw [pad]
         exact Nat.two_pow_pos _
     · simpa using slotBits
-    · rw [if_pos inside]
+    · rw [ite_eq_left inside]
       exact List.idxOf_lt_length_of_mem (keyMem k inside)
     · rw [matrices]
       exact (runs _ (runMem k inside)).1
     · have low : (64 * b + l) % 64 = l := by omega
       have high : (64 * b + l) / 64 = b := by omega
       have same : Replay.D = ringDegree := rfl
-      rw [seedKey, show (2 : ℕ) ^ 6 = 64 from rfl, low, high, if_neg]
+      rw [seedKey, show (2 : ℕ) ^ 6 = 64 from rfl, low, high, ite_eq_right]
       omega
   · refine ⟨?_, fun j k lt lo hi => ?_, slots, cover, fun i σ lt lo hi => ?_⟩ <;>
       dsimp only [shapeOf, Replay.Relation.matrices] at *
@@ -247,7 +247,7 @@ theorem columnsFailure_sound {key : Layer1Key} {pushes : List Push} {cols : Setu
   rcases Nat.lt_or_ge x (runList Production.matrices pushes).length with inside | past
   · refine ⟨by rw [rows x inside, get], ?_, by rw [coefs x inside, get], ?_⟩
     · obtain ⟨small, same⟩ := slots x inside
-      rw [if_pos inside, get] at *
+      rw [ite_eq_left inside, get] at *
       rw [← same, ← word, List.getD_eq_getElem _ _ (by simpa using small), nodup.idxOf_getElem,
         ZMod.natCast_zmod_val]
     · split_ifs with slot
@@ -257,7 +257,7 @@ theorem columnsFailure_sound {key : Layer1Key} {pushes : List Push} {cols : Setu
     refine ⟨?_, ?_, ?_, ?_⟩
     · rw [pad, beyond _ _ (by omega)]
       rfl
-    · rw [if_neg (not_lt.mpr past), beyond _ _ (by omega)]
+    · rw [ite_eq_right (not_lt.mpr past), beyond _ _ (by omega)]
       rfl
     · rw [pad, beyond _ _ (by omega)]
       rfl

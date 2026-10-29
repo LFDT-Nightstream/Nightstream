@@ -1,12 +1,5 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.Composition
 
-/-!
-Owns the one physical R1CS lowering plan for the exact PiRLC v1_2 phase.
-
-The plan starts all R1CS intermediates after the seven logical child intervals.
-It lowers the unchanged ordered phase constraints from `Composition`.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2
 
 open NightstreamFPrime.Spec

@@ -218,4 +218,4 @@ The Rust tests that pin a digest that Lean computes.
 
 ## Toolchain
 
-Lean 4.32.2.
+Lean 4.35.0.

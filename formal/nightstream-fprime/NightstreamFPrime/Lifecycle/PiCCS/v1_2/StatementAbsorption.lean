@@ -26,11 +26,6 @@ Parent coverage:
 - `v1_2.Coverage.transcript` committed-statement prefix;
 - pilot-to-PiCCS prior-digest wiring;
 - the fresh statement.
-
-This leaf reads no coin and accepts no witness-supplied challenge. The
-complete running statement remains available to the other PiCCS leaves, but
-this leaf does not absorb it again. The generic Duplex child owns all
-Poseidon2 operations; this leaf owns only typed serialization and wiring.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.StatementAbsorption
@@ -165,8 +160,8 @@ private theorem serializePublicInputExpr_length {logicalWidth : Nat}
       Phi81CarrierLayout.carrierWidth logicalWidth}
     (input : Fin (FullShape logicalWidth publicFits).publicWidth → Expr) :
     (serializePublicInputExpr input).length = 270 := by
-  simp [serializePublicInputExpr, fullShape,
-    Phi81Relation.Shape.publicWidth, publicRingColumns, ringDegree]
+  simp only [serializePublicInputExpr, List.length_map, List.length_finRange]
+  simp [fullShape, Phi81Relation.Shape.publicWidth, publicRingColumns, ringDegree]
 
 theorem serializeEvalKExpr_length (evaluation : EvaluationExpr) :
     (serializeEvalKExpr evaluation).length = 108 := by
@@ -505,9 +500,9 @@ private theorem publicInputActions_recipeCount {logicalWidth : Nat}
     (interface : Interface logicalWidth publicFits) (offset : Nat) :
     Formal.recipeCount (publicInputActions interface offset) = 134808 := by
   unfold publicInputActions
-  simp only [Formal.recipeCount, List.map_cons, List.map_nil, List.sum_cons,
-    List.sum_nil, domain_recipeCount]
-  rw [absorb_recipeCount, publicInputBlocks_flatten_length]
+  simp only [Formal.recipeCount, List.map_cons, List.map_nil]
+  rw [List.sum_cons, List.sum_cons, List.sum_nil, domain_recipeCount, absorb_recipeCount,
+    publicInputBlocks_flatten_length]
   norm_num
 
 def actions {logicalWidth : Nat}
@@ -566,7 +561,8 @@ theorem finalState_eq_finalStateFast_pointwise {logicalWidth : Nat}
     (actions interface offset)).2]
   simp only [actions, publicInputActions, Formal.compileWiring]
   rw [chunksEq, Formal.compileAbsorbWiring_output_cons, restLength,
-    Formal.compileAbsorbWiring_next, domainLength]
+    Formal.compileAbsorbWiring_next, domainLength,
+    show offset + 1 * 1096 + 121 * 1096 = offset + 122 * 1096 by omega]
   rfl
 
 @[csimp] theorem finalState_eq_finalStateFast :
@@ -869,7 +865,6 @@ private theorem eval_zeroE_eq_initialState (env : Env) :
     NightstreamFPrime.Spec.Poseidon2.zeroState
   change List.ofFn (fun _ : Fin 16 => (0 : F)) = List.replicate 16 0
   norm_num [List.ofFn_succ]
-  rfl
 
 theorem spec_implies_keyInitialState
     {logicalWidth : Nat}

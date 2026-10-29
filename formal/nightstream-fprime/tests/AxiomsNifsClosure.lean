@@ -31,8 +31,6 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomi
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverseUnit
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StoredWitnessCheckEntries
 
-/-! Axiom audits for the selected NIFS profile and interactive composition. -/
-
 
 
 

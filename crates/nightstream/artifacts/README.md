@@ -31,7 +31,7 @@ The blueprint and manifest come from the current canonical Lean package.
 The manifest source is
 `formal/nightstream-fprime/NightstreamFPrime/Export/SharedVerifier.lean`.
 It emits version 3 with one reference application and fourteen phase children.
-The repository toolchain remains `leanprover/lean4:v4.32.2`. A compatible local
+The repository toolchain remains `leanprover/lean4:v4.35.0`. A compatible local
 compiler can be selected with `elan run TOOLCHAIN`. All artifacts use
 `b = 2`, `k_rho = 16`, and `B = 65536`.
 

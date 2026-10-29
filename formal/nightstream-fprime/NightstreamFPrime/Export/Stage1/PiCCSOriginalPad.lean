@@ -3,9 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiDECPadWeightedProduct
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
 import NightstreamFPrime.Export.Stage1.PiCCSTensorWeights
 
-/-! Complete original-source Pad block ranges.
-Reference assignments and full-family transport belong to the proof module. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOriginalPad

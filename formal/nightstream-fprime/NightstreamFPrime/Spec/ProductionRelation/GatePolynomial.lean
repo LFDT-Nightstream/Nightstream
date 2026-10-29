@@ -3,29 +3,14 @@ import NightstreamFPrime.Spec.Algebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 import NightstreamFPrime.Spec.Profile
 
-/-!
-Paper authority: SuperNeo v1.2, Definitions 19--20 and Section 7.3.
-Compiler obligation: one low-norm CCS gate for the fixed Nightstream circuit.
-
-Inputs:
-- 4 matrix images, one for each port `a`, `b`, `c`, and the S-box input;
-- Pad is not an input here and remains the separate `Eval_K` family.
-
-Gate: `f = a * b - c + sboxInput ^ 7`. A row sets the product pair or the
-S-box input, never both. The gate has no constant term, so zero padding rows
-pass.
-
-Parent coverage:
-- `ProductionRelation.polynomial`;
-- the `F` term in SuperNeo v1.2 PiCCS;
-- the production CCS matrix family, without Pad-as-matrix-zero compression.
--/
+/-! SuperNeo v1.2 Definitions 19–20 and Section 7.3. -/
 
 namespace NightstreamFPrime.Spec.ProductionRelation.GatePolynomial
 
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 
+@[implicit_reducible]
 def matrixCount : Nat := productionProfile.ccsMatrices
 
 def meaningfulPortCount : Nat := 4

@@ -173,20 +173,20 @@ private theorem set (h : IsStates c n next g) (slot nb : ℕ) {a : KxVar} {v : K
   rw [getElem!_set! _ _ _ _ (by rw [h.1]; exact hr)]
   by_cases e : slot = rem
   · subst e
-    rw [if_pos rfl]
+    rw [ite_eq_left rfl]
     refine ⟨by simp [(h.2 slot hr).1], fun below hb' => ?_⟩
     rw [getElem!_set! _ _ _ _ (by rw [(h.2 slot hr).1]; exact hb')]
     dsimp only
     by_cases e' : nb = below
     · subst e'
-      rw [if_pos rfl, if_pos (⟨rfl, rfl⟩ : slot = slot ∧ nb = nb)]
+      rw [ite_eq_left rfl, ite_eq_left (⟨rfl, rfl⟩ : slot = slot ∧ nb = nb)]
       exact ha
-    · rw [if_neg e', if_neg fun h' : slot = slot ∧ below = nb => e' h'.2.symm]
+    · rw [ite_eq_right e', ite_eq_right fun h' : slot = slot ∧ below = nb => e' h'.2.symm]
       exact (h.2 slot hr).2 below hb'
-  · rw [if_neg e]
+  · rw [ite_eq_right e]
     exact ⟨(h.2 rem hr).1, fun below hb' => by
       dsimp only
-      rw [if_neg fun h' : rem = slot ∧ below = nb => e h'.1.symm]
+      rw [ite_eq_right fun h' : rem = slot ∧ below = nb => e h'.1.symm]
       exact (h.2 rem hr).2 below hb'⟩
 
 /-- A digit that moves no state. -/
@@ -211,8 +211,8 @@ private theorem move {R B Bt : ℕ} (h : IsStates c n next (digitSum gr gs block
   simp only [Replay.contribution]
   by_cases e : slot = rem ∧ nb = below
   · obtain ⟨rfl, rfl⟩ := e
-    rw [if_pos ⟨rfl, rfl⟩, if_pos ⟨rfl, rfl⟩]
-  · rw [if_neg fun h' => e ⟨h'.1.symm, h'.2.symm⟩, if_neg e, kx_add_zero]
+    rw [ite_eq_left ⟨rfl, rfl⟩, ite_eq_left ⟨rfl, rfl⟩]
+  · rw [ite_eq_right fun h' => e ⟨h'.1.symm, h'.2.symm⟩, ite_eq_right e, kx_add_zero]
 
 end IsStates
 
@@ -242,20 +242,20 @@ theorem Mle.evalK_ensures {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Arr
     rw [getElem!_set! _ _ _ _ (by simpa using hr)]
     by_cases e : 0 = rem
     · subst e
-      rw [if_pos rfl]
+      rw [ite_eq_left rfl]
       refine ⟨rfl, fun below hb => ?_⟩
       beta_reduce
       rw [evalKStates_zero _ _ _ _ hr hb]
       rcases (show below = 0 ∨ below = 1 by omega) with rfl | rfl
       · show IsKx c m₂ one _
-        rw [if_pos ⟨rfl, rfl⟩]
+        rw [ite_eq_left ⟨rfl, rfl⟩]
         exact hone
       · show _ = Kx.zero
-        rw [if_neg (by omega)]
-    · rw [if_neg e, getElem!_pos _ rem (by simpa using hr), Array.getElem_replicate]
+        rw [ite_eq_right (by omega)]
+    · rw [ite_eq_right e, getElem!_pos _ rem (by simpa using hr), Array.getElem_replicate]
       refine ⟨rfl, fun below hb => ?_⟩
       beta_reduce
-      rw [evalKStates_zero _ _ _ _ hr hb, if_neg (by omega)]
+      rw [evalKStates_zero _ _ _ _ hr hb, ite_eq_right (by omega)]
       rcases (show below = 0 ∨ below = 1 by omega) with rfl | rfl <;> rfl
   · have hk' : k < cb := by simpa using hk
     rw [show (List.range cb).reverse[k] = cb - 1 - k by simp [List.getElem_reverse]]
@@ -303,20 +303,20 @@ theorem Mle.evalK_ensures {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Arr
       generalize hnbv : (if B = 1 ∨ q < blocks / 2 ^ t % 2 then some 1 else if q = blocks / 2 ^ t % 2 then some 0
         else none) = nbo at hstep
       by_cases skip : t ≥ sBlock.size ∧ q = 1
-      · rw [if_pos skip]
+      · rw [ite_eq_left skip]
         refine Ensures.pure ⟨rfl, hnext''.skip fun rem below => ?_⟩
-        rw [dec.1, dec.2.1, dec.2.2, hstep, if_pos (by rw [← hs.1]; exact skip)]
+        rw [dec.1, dec.2.1, dec.2.2, hstep, ite_eq_left (by rw [← hs.1]; exact skip)]
         rfl
-      rw [if_neg skip]
+      rw [ite_eq_right skip]
       rcases nbo with _ | nb
       · refine Ensures.pure ⟨rfl, hnext''.skip fun rem below => ?_⟩
-        rw [dec.1, dec.2.1, dec.2.2, hstep, if_neg (by rw [← hs.1]; exact skip)]
+        rw [dec.1, dec.2.1, dec.2.2, hstep, ite_eq_right (by rw [← hs.1]; exact skip)]
         rfl
       dsimp only
       have hnb2 : nb < 2 := by
         split_ifs at hnbv <;> cases hnbv <;> omega
       have step : Replay.divStep blocks gs.size t R B Bt = some (2 * R + Bt - D * q, nb, q) := by
-        rw [hstep, if_neg (by rw [← hs.1]; exact skip)]
+        rw [hstep, ite_eq_right (by rw [← hs.1]; exact skip)]
         rfl
       have hX : IsKx c m₅ (if Bt = 0 then rLow else rT)
           (if Bt = 0 then (Kx.ofK gr[t]!).oneMinus else Kx.ofK gr[t]!) := by
@@ -330,18 +330,18 @@ theorem Mle.evalK_ensures {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Arr
         rw [divFactor_ifs _ _ _ _ _ hBt', hs.1]
       rcases hex : (next''[2 * R + Bt - D * q]!)[nb]! with _ | existing
       · by_cases hlt : t < sBlock.size
-        · rw [if_pos hlt]
+        · rw [ite_eq_left hlt]
           by_cases hq1 : q = 1
-          · rw [if_pos hq1, pure_bind]
+          · rw [ite_eq_left hq1, pure_bind]
             refine (KxVar.scale_ensures hX.mono (hs.get (by rw [← hs.1]; exact hlt)).mono).bind
               fun factor _ _ hfactor => ?_
             refine (KxVar.mul_ensures hvalue.mono hfactor).bind fun product _ _ hproduct => ?_
             dsimp only
             rw [pure_bind]
             refine Ensures.pure ⟨rfl, hnext''.mono.move hB' hBt' step ?_⟩
-            rw [hnext''.absent hslot hnb2 hex, kx_zero_add, fac, if_pos hlt, if_pos hq1]
+            rw [hnext''.absent hslot hnb2 hex, kx_zero_add, fac, ite_eq_left hlt, ite_eq_left hq1]
             exact hproduct
-          · rw [if_neg hq1]
+          · rw [ite_eq_right hq1]
             refine (oneMinus_ensures (hs.get (by rw [← hs.1]; exact hlt)).mono).bind
               fun weight _ _ hweight => ?_
             refine (KxVar.scale_ensures hX.mono hweight).bind fun factor _ _ hfactor => ?_
@@ -349,28 +349,28 @@ theorem Mle.evalK_ensures {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Arr
             dsimp only
             rw [pure_bind]
             refine Ensures.pure ⟨rfl, hnext''.mono.move hB' hBt' step ?_⟩
-            rw [hnext''.absent hslot hnb2 hex, kx_zero_add, fac, if_pos hlt, if_neg hq1]
+            rw [hnext''.absent hslot hnb2 hex, kx_zero_add, fac, ite_eq_left hlt, ite_eq_right hq1]
             exact hproduct
-        · rw [if_neg hlt]
+        · rw [ite_eq_right hlt]
           refine (KxVar.mul_ensures hvalue.mono hX.mono).bind fun product _ _ hproduct => ?_
           dsimp only
           rw [pure_bind]
           refine Ensures.pure ⟨rfl, hnext''.mono.move hB' hBt' step ?_⟩
-          rw [hnext''.absent hslot hnb2 hex, kx_zero_add, fac, if_neg hlt]
+          rw [hnext''.absent hslot hnb2 hex, kx_zero_add, fac, ite_eq_right hlt]
           exact hproduct
       · by_cases hlt : t < sBlock.size
-        · rw [if_pos hlt]
+        · rw [ite_eq_left hlt]
           by_cases hq1 : q = 1
-          · rw [if_pos hq1, pure_bind]
+          · rw [ite_eq_left hq1, pure_bind]
             refine (KxVar.scale_ensures hX.mono (hs.get (by rw [← hs.1]; exact hlt)).mono).bind
               fun factor _ _ hfactor => ?_
             refine (KxVar.mul_ensures hvalue.mono hfactor).bind fun product _ _ hproduct => ?_
             dsimp only
             refine (KxVar.add_ensures (hnext''.existing hslot hnb2 hex).mono hproduct).bind
               fun merged _ _ hmerged => Ensures.pure ⟨rfl, hnext''.mono.move hB' hBt' step ?_⟩
-            rw [fac, if_pos hlt, if_pos hq1]
+            rw [fac, ite_eq_left hlt, ite_eq_left hq1]
             exact hmerged
-          · rw [if_neg hq1]
+          · rw [ite_eq_right hq1]
             refine (oneMinus_ensures (hs.get (by rw [← hs.1]; exact hlt)).mono).bind
               fun weight _ _ hweight => ?_
             refine (KxVar.scale_ensures hX.mono hweight).bind fun factor _ _ hfactor => ?_
@@ -378,14 +378,14 @@ theorem Mle.evalK_ensures {r : Array KVar} {sBlock tau : Array ExtVar} {gr : Arr
             dsimp only
             refine (KxVar.add_ensures (hnext''.existing hslot hnb2 hex).mono hproduct).bind
               fun merged _ _ hmerged => Ensures.pure ⟨rfl, hnext''.mono.move hB' hBt' step ?_⟩
-            rw [fac, if_pos hlt, if_neg hq1]
+            rw [fac, ite_eq_left hlt, ite_eq_right hq1]
             exact hmerged
-        · rw [if_neg hlt]
+        · rw [ite_eq_right hlt]
           refine (KxVar.mul_ensures hvalue.mono hX.mono).bind fun product _ _ hproduct => ?_
           dsimp only
           refine (KxVar.add_ensures (hnext''.existing hslot hnb2 hex).mono hproduct).bind
             fun merged _ _ hmerged => Ensures.pure ⟨rfl, hnext''.mono.move hB' hBt' step ?_⟩
-          rw [fac, if_neg hlt]
+          rw [fac, ite_eq_right hlt]
           exact hmerged
     · refine hnext.congr fun rem hr below hb => ?_
       rw [show 4 * (D - 0) = 4 * D by omega, evalKStates_succ _ _ _ _ _ hr hb, ht', hprev]

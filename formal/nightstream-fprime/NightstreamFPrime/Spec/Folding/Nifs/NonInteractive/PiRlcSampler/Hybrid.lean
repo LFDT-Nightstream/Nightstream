@@ -1,22 +1,10 @@
 import Mathlib.Algebra.Order.BigOperators.Group.Finset
 import Mathlib.Data.Fin.Tuple.Basic
-import Mathlib.Data.Real.Basic
+import Mathlib.Basic.Real.Basic
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 import Mathlib.Tactic.Ring
 import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Law
-
-/-!
-Owns the hybrid argument for the whole-vector PiRLC sampler.
-
-Experiment: each coordinate of the challenge vector is `sample` applied to its
-own four independent uniform field values.
-Per-call bound: `distance < 2^-132` from `Law`.
-Cumulative bound: for `n` challenge coordinates, every acceptance test with
-values in `[0, 1]` changes by at most `n * distance`.
-
-The sampler has no failure event. No law is assigned to Poseidon2.
--/
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler
 

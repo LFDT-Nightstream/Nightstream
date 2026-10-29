@@ -1,15 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.AssemblerSoundness
 import NightstreamFPrime.Layout.Stage1.Preservation
 
-/-!
-Closes physical preservation for the sole compact Stage 1 logical parent.
-
-The phase-local preservation theorems remain in `Preservation`. This module
-owns only the final running-transition relocation, eight-child parent
-assembly, and composition with the exact HyperNova step relation. It does not
-define rows, another circuit, or another semantic predicate.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PreservationClosure
 
 open NightstreamFPrime.Circuit

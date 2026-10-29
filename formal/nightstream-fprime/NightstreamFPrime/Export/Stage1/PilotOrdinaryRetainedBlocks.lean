@@ -2,12 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryRetainedBlocks
 import NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectSource
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the three field blocks missing from the existing PiCCS retained set for
-the non-Poseidon pilot rows: canonical-word locals, R1CS fresh values, and
-the four public output-digest words.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedBlocks
 
 open NightstreamFPrime.Layout
@@ -15,6 +9,7 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Layout.Stage1
 open NightstreamFPrime.Lifecycle
 
+@[implicit_reducible]
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiCCSOrdinaryRetainedBlocks.sourceWidth program
 

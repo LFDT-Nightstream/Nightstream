@@ -4,10 +4,6 @@ import NightstreamFPrime.Layout.R1CS.Support
 import NightstreamFPrime.Layout.Stage1.PiDECSourceSupportData
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Support.VariableSupport
 
-/-!
-Owns exact retained-source support for the canonical PiDEC ordinary rows.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiDECDirectSupport
 
 open NightstreamFPrime.Circuit

@@ -2,24 +2,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanHypercubeSum
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericBooleanDomain
 
-/-!
-Boolean-selector reproduction for the canonical `Pi_CCS` hypercube.
-
-Protocol: shared `Pi_CCS` polynomial infrastructure.
-Phase: Boolean restriction and multilinear reproduction.
-Constraint family: none; this file emits no rows.
-
-Owns: the canonical Bool-to-field point embedding, partition of unity for the
-canonical equality weights, reproduction of an explicit Boolean table, and
-reproduction of the shared little-endian numeric tensor selector.
-
-Does not own: construction of protocol tables, arbitrary-point equality
-polynomials, off-cube polynomial degree, SumCheck, Fiat--Shamir, Rust, R1CS,
-or constraint counts.
-
-Emits constraints: no.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
 universe uField uIndex
@@ -321,7 +303,7 @@ theorem sumMap_ite_eq_of_mem_nodup
                 (fun index =>
                   if index = selected then value index else ops.zero)) by
               simp only [FiniteSumAlgebra.sumMap, List.map_cons,
-                BooleanTable.finiteSum, if_pos]]
+                BooleanTable.finiteSum, ite_eq_left]]
         have tailZero :
             FiniteSumAlgebra.sumMap ops tail
                 (fun index =>
@@ -348,7 +330,7 @@ theorem sumMap_ite_eq_of_mem_nodup
                 (fun index =>
                   if index = selected then value index else ops.zero)) by
               simp only [FiniteSumAlgebra.sumMap, List.map_cons,
-                BooleanTable.finiteSum, headSelected, if_false]]
+                BooleanTable.finiteSum, headSelected, ite_false]]
         rw [inductionHypothesis selectedInTail parts.2, laws.zero_add]
 
 theorem equalityWeighted_equalityWeight_eq_equalityWeight

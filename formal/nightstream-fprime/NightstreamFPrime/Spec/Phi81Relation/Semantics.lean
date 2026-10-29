@@ -1,20 +1,7 @@
 import NightstreamFPrime.Spec.Phi81Relation.Evaluation
 import NightstreamFPrime.Spec.Relation
 
-/-!
-Typed CCS/CE membership for the batch-invariant paper Phi81 relation.
-
-Protocol: SuperNeo v1.2 Definitions 19--21 specialized to the Phi81 carrier.
-
-Owns: the independent norm and CCS predicates; the one concrete
-`RelationSemantics` instantiation; exact membership expansions; canonical
-honest statements; and an all-matrix, all-lane characterization of CE output
-authority.
-
-Does not own: an Ajtai construction or binding theorem, source-batch folding,
-PiRLC/PiDEC homomorphism, `yZcol`, transcripts, Rust, R1CS, row removal, or
-constraint counts.
--/
+/-! SuperNeo v1.2 Definitions 19–21. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation
 
@@ -33,8 +20,7 @@ def publicInputMatches {shape : Shape}
     (assignment : Assignment shape) (publicInput : PublicInput shape) : Prop :=
   projectPublicInput assignment = publicInput
 
-/-- SuperNeo v1.2 Definition 20's CCS predicate over the sole original matrix family and
-explicit sparse constraint polynomial. -/
+/-- SuperNeo v1.2 Definition 20. -/
 def ccsSatisfied {shape : Shape}
     (system : Structure shape) (assignment : Assignment shape) : Prop :=
   CCSResidualTable.ConstraintSatisfied ConcreteCarrier.baseOps

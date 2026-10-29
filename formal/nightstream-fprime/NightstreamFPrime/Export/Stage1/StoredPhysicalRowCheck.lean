@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.RowSemantics
 
-/-!
-Final-state checks for the existing physical package components.
-These checks do not establish canonical component coverage or input origin.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.StoredPhysicalRowCheck

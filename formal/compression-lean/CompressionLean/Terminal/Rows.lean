@@ -1,18 +1,6 @@
 import NightstreamFPrime.Export.Stage1.Package
 import CompressionLean.Terminal.Data
 
-/-!
-Owns the projection of terminal-package satisfaction onto the F′ component
-families: the prior hash chain, the permutation invocations, the compact
-PiRLC rows, and the ordinary rows.
-
-Each theorem only proves membership of an F′ component in the terminal
-package. The family lemmas of F′ give the meaning of the rows. F′'s row
-builders take the logical width as a parameter, but their output does not
-depend on it, so the package rows are F′'s rows at every width
-(`arithmeticRows_at`, `permutationInvocations_at`).
--/
-
 namespace CompressionLean.Terminal
 
 open NightstreamFPrime.Export
@@ -51,7 +39,6 @@ theorem circuitPackage_assertionRows :
       priorAssertions () ++ Rows.assertionRowsTR (arithmeticRows ()) := by
   rfl
 
-/-- The pilot column lift, as F′ uses it. -/
 def pilotEnv (env : Env) : Env :=
   fun column => env (NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn column)
 
@@ -78,7 +65,6 @@ private theorem liftPilotInstruction_holds
   rw [liftPilotCombination_eval, liftPilotCombination_eval]
   rfl
 
-/-- The prior-state rows of the pilot hold on the lifted columns. -/
 theorem priorExtraRows_hold (env : Env)
     (holds : (circuitPackage ()).RowsHold env) :
     R1CS.RowsHold (pilotEnv env)
@@ -102,7 +88,6 @@ theorem priorExtraRows_hold (env : Env)
     rw [priorAssertions, Data.liftPilotRows, Rows.assertionRowsTR_eq]
     exact List.mem_map_of_mem member
 
-/-- The ordinary PiCCS and PiRLC sampler rows hold. -/
 theorem arithmeticRows_hold (env : Env)
     (holds : (circuitPackage ()).RowsHold env) :
     R1CS.RowsHold env ((arithmeticRows ()).map Rows.CompiledRow.toR1CS) := by
@@ -140,8 +125,6 @@ theorem piRlcSamplerOrdinaryRows_hold (env : Env)
   rw [arithmeticRows_at lw pf, List.map_append] at combined
   exact ((R1CS.rowsHold_append env _ _).mp combined).2
 
-/-- Every F′ Stage 1 permutation invocation holds with the one canonical
-Poseidon2 template. -/
 theorem permutationInvocation_holds (env : Env)
     (holds : (circuitPackage ()).RowsHold env)
     (invocation : PermutationInvocation)
@@ -149,13 +132,11 @@ theorem permutationInvocation_holds (env : Env)
     PermutationInvocationHolds (PilotData.circuitPackage ()) invocation env :=
   holds.2.1 invocation member
 
-/-- The prior hash chain holds with the canonical template. -/
 theorem priorChain_holds (env : Env)
     (holds : (circuitPackage ()).RowsHold env) :
     HashChainHolds (PilotData.circuitPackage ()) Data.priorChain env :=
   holds.1 Data.priorChain (List.mem_singleton_self _)
 
-/-- The compact rows of every PiRLC combination invocation hold. -/
 theorem compactInvocation_holds (env : Env)
     (holds : (circuitPackage ()).RowsHold env)
     (invocation : CompactRowInvocation)

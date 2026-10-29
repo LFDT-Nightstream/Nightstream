@@ -97,9 +97,11 @@ compression() {
     return 2
   fi
   # No target names: Lake builds the package's own defaultTargets.
+  # Lake does not track the document that the census reads; rerun it.
   (cd ../compression-lean &&
     capped lake build --wfail &&
-    capped lake build --wfail $(executables))
+    capped lake build --wfail $(executables) &&
+    lean_file CompressionLeanTests/SpecCensus.lean)
 }
 
 executables() {

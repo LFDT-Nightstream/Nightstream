@@ -34,10 +34,12 @@ if lean_files | xargs grep -nE '^import Nightstream\.' 2>/dev/null; then
   fail "import from formal/nightstream-lean is prohibited"
 fi
 
-if lean_files | xargs grep -n 'native_decide\|ofReduceBool' 2>/dev/null; then
-  fail "native_decide / ofReduceBool is prohibited"
+if lean_files | xargs grep -nE 'native_decide|ofReduceBool|\+native\b|\bnative\s*:=\s*true\b' 2>/dev/null; then
+  fail "native_decide / decide +native / ofReduceBool is prohibited"
 fi
-if lean_files | xargs grep -nE '^\s*(axiom|unsafe)\b|\bsorry\b|\badmit\b' 2>/dev/null; then
+# A doc comment, attributes and modifiers can come before `axiom` or
+# `unsafe` on its line. A comment that only names the word passes.
+if lean_files | xargs grep -nE '^\s*(/--.*-/\s*)?(@\[.*\]\s*)?((private|protected|public|noncomputable|unsafe)\s+)*(axiom|unsafe)\b|\bsorry\b|\badmit\b' 2>/dev/null; then
   fail "sorry / admit / axiom / unsafe is prohibited"
 fi
 

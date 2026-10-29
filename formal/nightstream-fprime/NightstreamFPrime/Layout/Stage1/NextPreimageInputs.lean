@@ -2,12 +2,6 @@ import NightstreamFPrime.Layout.Stage1.PiCCSOrdinarySourceSupportData
 import NightstreamFPrime.Layout.Stage1.RunningTransitionData
 import NightstreamFPrime.Lifecycle.Stage1.NextPreimage
 
-/-!
-Owns the zero-copy column map for HyperNova's next-preimage counter and
-initial-state equations. The raw interface uses the two pilot preimage blocks.
-The Spartan interface applies the one proved source-column permutation.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.NextPreimageInputs
 
 open NightstreamFPrime.Circuit

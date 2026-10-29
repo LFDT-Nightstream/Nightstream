@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns expression-level value preservation for the sealed assignment transport.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExpressions
 
 open NightstreamFPrime.Circuit
@@ -78,7 +74,7 @@ private theorem packageEnv_outputDigest_eq_pilot
         NightstreamFPrime.Layout.Stage1.Spartan.liftPilotColumn
           (PilotSpartan.sourceToSpartan column) := by
     unfold NightstreamFPrime.Layout.Stage1.Spartan.sourceToSpartan
-    rw [if_pos pilotBound]
+    rw [ite_eq_left pilotBound]
   rw [← sourceMap]
   rfl
 

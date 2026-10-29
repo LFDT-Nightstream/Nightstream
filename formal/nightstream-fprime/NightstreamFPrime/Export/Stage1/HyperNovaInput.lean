@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECInputCheck
 
-/-!
-Connect decoded HyperNova claims to the existing NIFS checker input, at every
-application width.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaInput
@@ -60,6 +55,7 @@ def runningInput (value : Running) : PiCCSInputCheck.RunningInput where
   evalA := Vector.ofFn fun source => Vector.ofFn fun matrix =>
     Vector.ofFn ((value.evaluations source).matrix matrix)
 
+set_option backward.isDefEq.respectTransparency false in
 theorem runningFromInput_runningInput (value : Running) :
     PiCCSInputCheck.runningFromInput (runningInput value) = value := by
   apply running_ext
@@ -101,6 +97,7 @@ theorem running_ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.
     PiCCSInputCheck.running (ofClaims running fresh proof) = running :=
   runningFromInput_runningInput running
 
+set_option backward.isDefEq.respectTransparency false in
 theorem fresh_ofClaims (running : Running) (fresh : Fresh) (proof : Lifecycle.Proof 8) :
     PiCCSInputCheck.fresh (ofClaims running fresh proof) = fresh := by
   apply fresh_ext

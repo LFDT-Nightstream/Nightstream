@@ -1,8 +1,6 @@
 import tests.AxiomAudit
 import NightstreamFPrime
 
-/-! Axiom audits for the PiRLC layout and compact-package tail. -/
-
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.CommitmentCombination.physical_complete
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.PublicInputCombination.totalFreshCount_eq
 #audit_axioms NightstreamFPrime.Layout.PiRLC.v1_2.PublicInputCombination.totalRowCount_eq

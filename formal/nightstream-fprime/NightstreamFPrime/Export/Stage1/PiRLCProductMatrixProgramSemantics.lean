@@ -1,11 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram
 
-/-!
-Proves that the compact PiRLC product matrix block selects the exact
-complete-ring SuperNeo family schedule and retained forms used by
-`PiRLCProductPlan`.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram
@@ -16,6 +10,9 @@ open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+
+attribute [local implicit_reducible] commitmentFamily publicInputFamily evalKFamily
+  evalAFamily PiRLCProductSchedule.Family.blockCount PiRLCProductSchedule.Family.cellCount
 
 private theorem coordinates_indexOf {blockCount cellCount : Nat}
     (block : Fin blockCount) (lane : Fin ringDegree)
@@ -88,7 +85,8 @@ theorem challengeSlot_eq
     challengeSlotStart + source.val * challengeSourceStride + lane.val =
       (PiRLCProductSourceBlocks.challengeIndex source lane).val := by
   simp [challengeSlotStart, challengeSourceStride,
-    PiRLCProductSourceBlocks.challengeIndex, Fin.encodeProd, ringDegree, Nat.mul_comm]
+    PiRLCProductSourceBlocks.challengeIndex, Fin.encodeProd, Fin.mkDivMod, ringDegree,
+    Nat.mul_comm]
 
 @[simp] theorem block_oneColumn?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -96,7 +94,7 @@ theorem challengeSlot_eq
     (block geometry).oneColumn? logicalWidth =
       some (PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)) := by
   unfold MatrixProgram.Phi81Product.Block.oneColumn? block
-  rw [dif_pos (PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)).isLt]
+  rw [dite_eq_left (PiRLCRetainedGeometry.oneColumn (prefixGeometry geometry)).isLt]
 
 theorem challenge_form?
     {program : Lifecycle.Stage1.Application.Program} {logicalWidth : Nat}
@@ -130,6 +128,7 @@ theorem challengeState?
   simpa [block, wireDescriptor_source] using
     challenge_form? geometry descriptor lane
 
+set_option maxRecDepth 2000 in -- fixed-size: the four `PiRLCProductSchedule.Family` counts
 @[simp] theorem wireDescriptor_invocationAtLane
     (descriptor : PiRLCProductSchedule.Descriptor) (lane : Fin ringDegree) :
     (wireDescriptor descriptor).invocationAtLane lane =
@@ -343,13 +342,13 @@ theorem priorState?
   unfold MatrixProgram.Phi81Product.Block.priorState?
   rw [wireDescriptor_source]
   by_cases first : descriptor.source.val = 0
-  · rw [if_pos first]
+  · rw [ite_eq_left first]
     apply congrArg some
     funext lane
     simp [PiRLCProductPlan.priorForm,
       PiRLCProductSchedule.descriptor_invocation,
       PiRLCProductSchedule.Descriptor.withLane, first]
-  · rw [if_neg first]
+  · rw [ite_eq_right first]
     apply loadFin?_of_some
     intro lane
     have notFirst : (descriptor.withLane lane).source.val ≠ 0 := by
@@ -460,7 +459,7 @@ theorem block_row?
         some semanticRow := by
     rw [remainder]
     simp only [Phi81ProductPlan.rows, List.getElem?_ofFn, localRow.isLt,
-      dif_pos, semanticRow, Phi81ProductFamilyPlan.rowAt, semanticInterface]
+      dite_eq_left, semanticRow, Phi81ProductFamilyPlan.rowAt, semanticInterface]
   have loaded := MatrixProgram.Phi81Product.Block.row?_of_loaded
     (block geometry) logicalWidth ordinal bound (wireRingDescriptor descriptor)
       selected (semanticInterface geometry descriptor)
@@ -488,7 +487,7 @@ theorem matrixProgram_invocation_row?
     omega
   rw [show matrixProgram geometry = MatrixProgram.Program.mk
       [.phi81Product (block geometry)] by rfl]
-  rw [MatrixProgram.Program.singleton_row?, if_pos bound]
+  rw [MatrixProgram.Program.singleton_row?, ite_eq_left bound]
   exact exactRow
 
 theorem matrixProgram_row?

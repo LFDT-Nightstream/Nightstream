@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonValues
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlanSemantics
 
-/-!
-Owns canonical ordinary sampler row completeness from actual cumulative
-physical rows. Agreement is restricted to the existing ordinary source set:
-Poseidon entry outputs, checked core/fresh values, and coefficient words.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryCompleteness
@@ -39,7 +33,7 @@ private theorem poseidonOutputColumn (source : Fin sourceCount) (lane : Fin 4) :
       PermutationPlan.samplerSourceWitnessStartAt pair.1.val pair.2)
       (Fin.decodeProd_encodeProd (source, (⟨0, by decide⟩ : Fin PermutationPlan.samplerStepsPerSource)))
   rw [decoded]
-  simp only [PermutationPlan.samplerSourceWitnessStartAt, if_true,
+  simp only [PermutationPlan.samplerSourceWitnessStartAt, ite_true,
     PiRLCSamplerInvocations.sourceLogicalStart, Sampler.rateLane]
   have localStart : Spartan.piCcsPhaseOffset ≤ PiRLCStarts.samplerSourceLogicalStart source.val := by
     simp only [PiRLCStarts.samplerSourceLogicalStart, SamplerChain.sourceOffset,
@@ -92,7 +86,8 @@ private theorem form_source (location : PiRLCSamplerOrdinaryDirectPlan.Location)
         (PiRLCSamplerOrdinaryRetainedGeometry.logicalStart application)
         (PiRLCSamplerOrdinaryRetainedGeometry.logicalFits geometry)
         (logicalSlot source position)).eval assignment = _
-      rw [LowNormBlock.Block.form_eval _ _ _ assignment _ ordinary.logical, logicalBlock_source]
+      rw [LowNormBlock.Block.form_eval _ _ _ assignment _ ordinary.logical
+        (logicalSlot source position), logicalBlock_source]
       exact RunningTransitionDirectPlan.sourceAssignment_packageSource application base
         groupValue _ (logicalSource_lt source position)
   | fresh source position =>
@@ -100,8 +95,8 @@ private theorem form_source (location : PiRLCSamplerOrdinaryDirectPlan.Location)
         (PiRLCSamplerOrdinaryRetainedGeometry.freshStart application)
         (PiRLCSamplerOrdinaryRetainedGeometry.freshFits geometry)
         (freshSlot source position)).eval assignment = _
-      rw [LowNormBlock.Block.form_eval _ _ _ assignment _ ordinary.fresh,
-        freshBlock_source]
+      rw [LowNormBlock.Block.form_eval _ _ _ assignment _ ordinary.fresh
+        (freshSlot source position), freshBlock_source]
       exact RunningTransitionDirectPlan.sourceAssignment_packageSource application base
         groupValue _ (freshSource_lt source position)
   | word source position =>
@@ -109,7 +104,8 @@ private theorem form_source (location : PiRLCSamplerOrdinaryDirectPlan.Location)
         (PiRLCRetainedGeometry.challengeStart application)
         (PiRLCRetainedGeometry.challengeFits (PiRLCSamplerOrdinaryDirectPlan.piRlcGeometry geometry))
         (PiRLCProductSourceBlocks.challengeIndex source position)).eval assignment = _
-      rw [LowNormBlock.Block.form_eval _ _ _ assignment _ retained.challenge]
+      rw [LowNormBlock.Block.form_eval _ _ _ assignment _ retained.challenge
+        (PiRLCProductSourceBlocks.challengeIndex source position)]
       simp only [PiRLCRetainedGeometry.challengeBlock, PiRLCProductSourceBlocks.challengeBlock,
         PiRLCProductSourceBlocks.challengeIndex, Fin.decodeProd_encodeProd]
       rw [PiRLCRetainedPreservation.sourceAssignment_package]

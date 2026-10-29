@@ -2,9 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSCarriedMoments
 import NightstreamFPrime.Export.Stage1.PiCCSNumericSumOrder
 import NightstreamFPrime.Export.Stage1.PiCCSPadBlockMoment
 
-/-! Proof-only scalar accumulation from exact source callbacks to the two
-complete carried moments. This file makes no IO/cache-loop claim. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCarriedAccumulation
@@ -56,18 +53,18 @@ theorem blockMoments_eq_flat_sum
     have parity : (block * ringDegree + lane) % 2 = lane % 2 := by
       change (block * 54 + lane) % 2 = lane % 2
       omega
-    simp only [dif_pos bounded, parity, read_value block live ⟨lane, bounded⟩]
-  · simp only [high, show ¬ (1 : Nat) = 0 by decide, if_false]
+    simp only [dite_eq_left bounded, parity, read_value block live ⟨lane, bounded⟩]
+  · simp only [high, show ¬ (1 : Nat) = 0 by decide, ite_false]
     apply numericSum_congr extensionOps extensionLaws
     intro lane bounded
     have parity : (block * ringDegree + lane) % 2 = lane % 2 := by
       change (block * 54 + lane) % 2 = lane % 2
       omega
-    simp only [dif_pos bounded, parity, read_value block live ⟨lane, bounded⟩]
+    simp only [dite_eq_left bounded, parity, read_value block live ⟨lane, bounded⟩]
     by_cases even : lane % 2 = 0
-    · simp only [even, show ¬ (0 : Nat) = 1 by decide, if_false, if_true]
+    · simp only [even, show ¬ (0 : Nat) = 1 by decide, ite_false, ite_true]
     · have odd : lane % 2 = 1 := by omega
-      simp only [odd, show ¬ (1 : Nat) = 0 by decide, if_false, if_true]
+      simp only [odd, show ¬ (1 : Nat) = 0 by decide, ite_false, ite_true]
 
 private def sourcePad (ops : InterpolationOps Field) {shape : Shape}
     (data : ProtocolPolynomial.Data Field shape) (gamma : Field)

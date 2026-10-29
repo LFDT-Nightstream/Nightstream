@@ -3,20 +3,6 @@ import CompressionLean.Circuit.Parse
 import CompressionLean.Circuit.Verifier
 import CompressionLean.Circuit.Digest
 
-/-!
-The `terminalCheck` executable. It reads an export of `nightstream`'s
-`tests/lifecycle_native/terminal_ir.rs`: the context words, the IR that Rust
-logs for `FinalProgram::run`, and for a run that stops at `verify_with` the
-claim and state handles that `Package::apply` hands to layer 1. It loads the
-Lean terminal package (`Package.load`) and writes `finalProgram`. Without a
-layer-1 key the layer-1 step returns its arguments, and the check requires
-the same instructions, one by one, and the same handles. With the key file
-of `neo-spartan`'s `lowering.rs` the step is `verifyWith`, and the check
-requires every instruction of the final program. It prints `match`, the
-counts and the run digest of Lean's program (`runDigest`), or the first
-difference and exits with 1.
--/
-
 namespace CompressionLean.TerminalCheck
 
 open CompressionLean.Shrink CompressionLean.Circuit CompressionLean.Circuit.Parse
@@ -27,11 +13,9 @@ instance : BEq (R1csRow Gl) := ⟨fun x y => x.a == y.a && x.b == y.b && x.c == 
 
 def coordinates {n : ℕ} (a : Fin n → Var) : List Var := List.ofFn a
 
-/-- The first index where two arrays differ, if any. -/
 def firstDifference {α : Type} [BEq α] (x y : Array α) : Option ℕ :=
   (List.range (max x.size y.size)).find? fun k => !(x[k]? == y[k]?)
 
-/-- Why two instructions differ, or `none` when they are equal. -/
 def difference : Instr → Instr → Option String
   | .const a, .const b => if a == b then none else s!"constants {a.toNat}, {b.toNat}"
   | .priv, .priv | .pub, .pub => none
@@ -58,7 +42,6 @@ def handles : Parser (List Var) := do many (← nat) nat
 
 def flatPairs (list : Array (Var × Var)) : List Var := list.toList.flatMap fun (re, im) => [re, im]
 
-/-- Lean's instructions against Rust's, one by one. -/
 def sameInstrs (lean rust : Array Instr) : Parser Unit := do
   for k in [0:max lean.size rust.size] do
     match lean[k]?, rust[k]? with
@@ -66,19 +49,14 @@ def sameInstrs (lean rust : Array Instr) : Parser Unit := do
         if let some why := difference l r then throw s!"instruction {k}: {why} (Lean, Rust)"
     | _, _ => throw s!"instructions: Lean {lean.size}, Rust {rust.size}"
 
-/-- The terminal claim as the verifier's statement. -/
 def claimView (claim : ClaimVars) : ClaimView :=
   { commitment := claim.commitment, publicInput := claim.publicInput, point := claim.point,
     evalK := claim.evalK, evalA := claim.evalA }
 
-/-- The run digest of a program: its lowering's counts and rows. The rows do
-not depend on the statement values. -/
 def digest (instrs : Array Instr) : List ℕ :=
   let run := lower (F := G) instrs []
   (runDigest run (run.calls.flatMap Call.computedRows).toArray).toList.map Gl.toNat
 
-/-- Compare `finalProgram` on `package` with the export: up to layer 1, or
-with `verifyWith` for `key`. -/
 def check (package : Loaded) (key : Option Layer1Input) : Parser String := do
   keyword "context"
   let context := (← many (← nat) glWord).toArray

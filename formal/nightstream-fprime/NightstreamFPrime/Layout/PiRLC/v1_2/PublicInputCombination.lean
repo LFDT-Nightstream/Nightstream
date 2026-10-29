@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.PublicInputCombination
 
-/-!
-Owns the physical PiRLC public-input combination family.
-
-This owner selects the exact canonical public-column view. It adds no
-commitment, evaluation, transcript, copy, or boundary rows.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.PublicInputCombination
 
 open NightstreamFPrime.Spec

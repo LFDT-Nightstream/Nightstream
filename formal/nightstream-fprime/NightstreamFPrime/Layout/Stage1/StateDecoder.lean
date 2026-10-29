@@ -2,15 +2,6 @@ import Mathlib.Data.List.OfFn
 import NightstreamFPrime.Layout.Stage1.RunningTransitionData
 import NightstreamFPrime.Layout.Stage1.StateEncoding
 
-/-!
-Owns structural decoding of the fixed Stage 1 state block.
-
-The decoder is a value view only. It reads the running fields and the tail in
-place and takes every child public input as `split_b` of the unpacked parent.
-It does not select a package, application, verification key, or
-transcript.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.StateDecoder
 
 open NightstreamFPrime.Spec

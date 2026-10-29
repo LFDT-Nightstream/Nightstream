@@ -2,12 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock
 import NightstreamFPrime.Layout.Stage1.PiCCSInputSupport
 import NightstreamFPrime.Layout.Stage1.PiCCSTranscriptSupport
 
-/-!
-Owns affine recognition and exact source support for the PiCCS action payload
-expressions.
-PiCCSPayloadWiring owns compilation through the parent's source map.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSActionPayloadSupport
 
 open NightstreamFPrime.Circuit

@@ -2,11 +2,7 @@ import NightstreamFPrime.Circuit.VariableSupport
 import NightstreamFPrime.Gadgets.Poseidon2.Formal
 import NightstreamFPrime.Lifecycle.Relation
 
-/-!
-Owns the logical builder for HyperNova Construction-2's public output digest.
-It specializes the proved Poseidon2 child to `nextHashPreimage` and exports the
-exact `OutputHolds` relation-slot theorem.
--/
+/-! HyperNova Construction 2, public output digest. -/
 
 namespace NightstreamFPrime.Lifecycle.OutputHash
 

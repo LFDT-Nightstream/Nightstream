@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
 import NightstreamFPrime.Layout.ProductionRelation.CanonicalBlockAssignmentNorm
 
-/-! Every current retained block uses the total field encoding. The canonical
-assignment and its zero extension therefore satisfy the low-norm bound for
-all raw values, independently of row acceptance. -/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationCanonicalAssignment
 
 open NightstreamFPrime.Layout NightstreamFPrime.Layout.ProductionRelation

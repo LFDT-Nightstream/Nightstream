@@ -1,10 +1,6 @@
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Sampler
 import NightstreamFPrime.Lifecycle.Types
 
-/-! The 17 transcript-chained PiRLC sampler calls. The outgoing state of
-each call is the next call's input; centered coefficients are expression
-views of the checked digits. No copy or boundary rows are added. -/
-
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerChain
 
 open NightstreamFPrime.Spec NightstreamFPrime.Circuit

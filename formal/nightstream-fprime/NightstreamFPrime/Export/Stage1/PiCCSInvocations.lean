@@ -6,13 +6,6 @@ import NightstreamFPrime.Layout.Stage1.PiRLCStarts
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalRows
 
-/-!
-Owns the four Poseidon2-only PiCCS row packets in the current Stage 1 package.
-
-The action lists come from the lifecycle leaves. This file owns only their
-physical row starts, source witness starts, phase tags, and compact assembly.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSInvocations
 
 open NightstreamFPrime.Spec
@@ -149,7 +142,7 @@ theorem outputWitnessStart_matches
       Formal.outputBindingOffset relation
         (parentInterface logicalWidth publicFits) phaseOffset := by
   unfold Formal.outputBindingOffset Formal.nextOffset Formal.childLength
-  rw [Formal.finalIdentityOffset_eq_finalIdentityRowOffset relation,
+  erw [Formal.finalIdentityOffset_eq_finalIdentityRowOffset relation,
     Formal.finalIdentityCircuit,
     FormalCircuit.withConstantFootprint_main,
     FinalIdentity.localLength_eq]
@@ -1164,7 +1157,9 @@ theorem challengeTrace_scheduleWithin (logicalWidth : Nat)
       (interface.initialState challengeWitnessStart lane).VarsBelow
         challengeWitnessStart := by
     have startMatch := challengeWitnessStart_matches logicalWidth publicFits
-    simpa [interface, challengeInterface, startMatch] using! stateBelowAtFormal
+    intro lane
+    rw [startMatch]
+    exact stateBelowAtFormal lane
   have stateBelow : ∀ lane,
       ((statementTrace logicalWidth publicFits).state lane).VarsBelow
         challengeWitnessStart := by
@@ -1255,7 +1250,9 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
         roundWitnessStart := by
     have startMatch := roundWitnessStart_matches logicalWidth publicFits
     have below := transcript.roundTranscript.1
-    simpa [interface, roundInterface, startMatch] using! below
+    intro lane
+    rw [startMatch]
+    exact below lane
   have stateBelow : ∀ lane,
       ((challengeTrace logicalWidth publicFits).state lane).VarsBelow
         roundWitnessStart := by
@@ -1275,8 +1272,8 @@ theorem roundTrace_scheduleWithin (logicalWidth : Nat)
   have roundAssumptions : RoundTranscript.Assumptions interface
       roundWitnessStart (fun _ => 0) := by
     have startMatch := roundWitnessStart_matches logicalWidth publicFits
-    simpa [interface, roundInterface, startMatch] using!
-      transcript.roundTranscript
+    rw [startMatch]
+    exact transcript.roundTranscript
   have strongBelow := RoundTranscript.layoutActions_below interface
     roundWitnessStart roundAssumptions
   have actionsBelow := actionsInvocationInputsBelow_of_actionsBelow

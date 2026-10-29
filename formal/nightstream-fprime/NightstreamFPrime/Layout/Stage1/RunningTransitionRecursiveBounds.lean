@@ -1,7 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionData
 
-/-! Owns bounds for the PiDEC child fields used by the running transition. -/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 
 open NightstreamFPrime.Spec

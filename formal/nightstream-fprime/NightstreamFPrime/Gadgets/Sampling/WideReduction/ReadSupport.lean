@@ -136,7 +136,7 @@ theorem temporary_read_exclusion (interface : Interface) (hints : Nat → List H
     apply Expr.eval_eq_of_agree_satisfy expression _ _ _ (support expression member)
     intro index outside
     unfold replaceTemporary
-    rw [if_neg (by omega)]
+    rw [ite_eq_right (by omega)]
   constructor <;> intro rows expression member
   · rw [← same expression member]
     exact rows expression member

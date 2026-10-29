@@ -1,17 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.Spartan
 import NightstreamFPrime.Lifecycle.Stage1.Application
 
-/-!
-Owns the zero-copy Stage 1 application column map.
-
-The input state is the four-word `current` block of the prior state preimage.
-The output state is the same block of the next state preimage. Application
-witness words occupy the first new private suffix. No copy row is added.
-
-This module does not select a concrete application or change the prefix
-Spartan layout.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.ApplicationInputs
 
 open NightstreamFPrime.Circuit
@@ -56,13 +45,13 @@ theorem inputColumn_value
   simp only [Lifecycle.Stage1.Application.stateWordCount] at bound
   change Spartan.sourceToSpartan (27815 + index.val) = 27815 + index.val
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by
+  rw [ite_eq_left (by
     norm_num [Spartan.pilotSourceColumnCount]
     omega)]
   unfold PilotSpartan.sourceToSpartan
-  rw [if_pos (by rw [PilotSpartan.priorPublicStart_value]; omega)]
+  rw [ite_eq_left (by rw [PilotSpartan.priorPublicStart_value]; omega)]
   unfold Spartan.liftPilotColumn
-  rw [if_pos (by
+  rw [ite_eq_left (by
     norm_num [Spartan.pilotInputPrivateColumnCount]
     omega)]
 
@@ -73,19 +62,19 @@ theorem outputColumn_value
   simp only [Lifecycle.Stage1.Application.stateWordCount] at bound
   change Spartan.sourceToSpartan (55904 + index.val) = 55634 + index.val
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by
+  rw [ite_eq_left (by
     norm_num [Spartan.pilotSourceColumnCount]
     omega)]
   unfold PilotSpartan.sourceToSpartan
-  rw [if_neg (by rw [PilotSpartan.priorPublicStart_value]; omega)]
-  rw [if_neg (by rw [PilotSpartan.outputPreimageStart_value]; omega)]
-  rw [if_pos (by rw [PilotSpartan.outputDigestStart_value]; omega)]
+  rw [ite_eq_right (by rw [PilotSpartan.priorPublicStart_value]; omega)]
+  rw [ite_eq_right (by rw [PilotSpartan.outputPreimageStart_value]; omega)]
+  rw [ite_eq_left (by rw [PilotSpartan.outputDigestStart_value]; omega)]
   rw [PilotSpartan.secondPrivateStart_value,
     PilotSpartan.outputPreimageStart_value]
   have difference : 55904 + index.val - 28089 = 27815 + index.val := by omega
   rw [difference]
   unfold Spartan.liftPilotColumn
-  rw [if_pos (by
+  rw [ite_eq_left (by
     norm_num [Spartan.pilotInputPrivateColumnCount]
     omega)]
   omega

@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.HyperNovaCompleteness
 import NightstreamFPrime.Layout.Stage1.StateEncoding
 
-/-!
-Owns the semantic step data of any application after the honest NIFS call
-returns. Physical and complete assignment construction remain separate.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaStepData

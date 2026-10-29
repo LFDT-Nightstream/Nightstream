@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PermutationPlan
 import NightstreamFPrime.Export.Stage1.WitnessPlan
 
-/-! Owns the compact, Lean-authored emission plan for the Stage 1 package. -/
-
 namespace NightstreamFPrime.Export.Stage1.PackagePlan
 
 open NightstreamFPrime.Export

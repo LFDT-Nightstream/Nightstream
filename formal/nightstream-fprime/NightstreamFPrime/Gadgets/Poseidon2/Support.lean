@@ -1,12 +1,6 @@
 import NightstreamFPrime.Circuit.StraightLineSupport
 import NightstreamFPrime.Gadgets.Poseidon2.Formal
 
-/-!
-Owns arbitrary variable-support propagation for the canonical Poseidon2 hash
-compiler. It does not change the hash semantics, permutation schedule, or
-physical layout.
--/
-
 namespace NightstreamFPrime.Gadgets.Poseidon2.Support
 
 open NightstreamFPrime.Circuit
@@ -178,11 +172,11 @@ private theorem partialSboxState_supported (start round : Nat)
     StateSupported (Permutation.partialSboxState start round state) allowed := by
   intro lane
   by_cases hzero : lane.val = 0
-  · simp only [Permutation.partialSboxState, hzero, if_true]
+  · simp only [Permutation.partialSboxState, hzero, ite_true]
     rw [List.getD_eq_get (Permutation.compileSboxes start
       [Permutation.partialInput round state]).outputs 0 ⟨0, by simp⟩]
     exact outputsSupported _ (List.get_mem _ _)
-  · simp only [Permutation.partialSboxState, hzero, if_false]
+  · simp only [Permutation.partialSboxState, hzero, ite_false]
     exact stateSupported lane
 
 private theorem freshState_supported (start size : Nat)

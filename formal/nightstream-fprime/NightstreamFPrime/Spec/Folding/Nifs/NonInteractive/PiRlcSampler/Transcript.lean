@@ -2,10 +2,6 @@ import NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Definitio
 import NightstreamFPrime.Spec.Phi81StrongSet
 import NightstreamFPrime.Spec.Poseidon2
 
-/-! PiRLC transcript schedule: enter the scalar domain, read one joint
-four-field block, and advance once. This deterministic specification makes
-no randomness claim about Poseidon2. -/
-
 namespace NightstreamFPrime.Spec.Folding.Nifs.NonInteractive.PiRlcSampler.Transcript
 
 open NightstreamFPrime.Spec

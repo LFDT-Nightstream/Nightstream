@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.CompactRowExecution
 
-/-!
-The optimized constraint branch of the compact row executor.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.CompactConstraintExecution

@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.CompactConstraintExecution
 
-/-!
-Relate physical compact row execution to the normalized row executor.
-The output-recipe write and array bounds are separate obligations.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.CompactRowRelocation
@@ -36,7 +31,7 @@ private theorem pullback_setLocal (inputCount localStart count : Nat)
     have physicalNe : inputColumn index ≠ localStart + localIndex := by
       rcases inputsOutside index input with before | after <;> omega
     have normalizedNe : index ≠ inputCount + localIndex := by omega
-    simp only [physicalNe, normalizedNe, if_false]
+    simp only [physicalNe, normalizedNe, ite_false]
   · rw [CompactRows.relocate_local inputCount (localStart - inputCount)
       inputColumn index (Nat.le_of_not_gt input)]
     have sameTarget :
@@ -71,7 +66,7 @@ theorem outputLocal_bound (inputCount count : Nat)
           rw [selected]
           simp [R1CS.LinearCombination.ofVar])
       by_cases targetLocal : inputCount ≤ target
-      · simp only [CompactRows.outputLocal?, recognized, if_pos targetLocal,
+      · simp only [CompactRows.outputLocal?, recognized, ite_eq_left targetLocal,
           Option.some.injEq] at found
         omega
       · simp [CompactRows.outputLocal?, recognized, targetLocal] at found

@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation
 
-/-!
-Sum a contiguous ordered vector of loaded Poseidon interfaces.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixInvocationRange

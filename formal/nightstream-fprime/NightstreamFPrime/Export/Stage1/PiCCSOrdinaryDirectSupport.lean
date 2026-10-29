@@ -13,12 +13,6 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.NormTerminal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.StatementBinding
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support.SumcheckChain
 
-/-!
-Owns retained-source support for the complete canonical PiCCS ordinary-row
-packet. The emitted constraint list and R1CS lowering remain the established
-Lean authority. This module adds no row, column, or retained coordinate.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectSupport
 
 open NightstreamFPrime.Circuit
@@ -593,11 +587,11 @@ theorem emittedConstraints_varsSatisfy
     · exact evalKRows expression (by
         simpa [PiCCSArithmetic.evalKConstraints,
           NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
-          Formal.evalKCircuit] using evalKMember)
+          Formal.evalKCircuit] using! evalKMember)
     · exact evalARows expression (by
         simpa [PiCCSArithmetic.evalAConstraints,
           NightstreamFPrime.Layout.PiCCS.v1_2.childConstraints,
-          Formal.evalACircuit] using evalAMember)
+          Formal.evalACircuit] using! evalAMember)
     · exact ccsRows expression (by
         simpa [PiCCSArithmetic.ccsConstraints, PiCCSArithmetic.mainConstraints,
           Formal.ccsRowMain, ccsInterface] using ccsMember)

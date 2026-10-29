@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationRows
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.InputBinding
 
-/-!
-Numeric row selectors for the selected matrix and full-carrier Pad prefixes.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedPrefix
@@ -50,8 +46,8 @@ private theorem zero_row_of_coefficients {shape : Phi81Relation.Shape}
   dsimp only [Phi81Relation.Shape.sourceShape, Phi81Relation.Shape.carrierWidth]
   erw [PiDECEvaluationSourceEntry.source_paddedMatrixEntry]
   by_cases within : block.val * ringDegree + lane.val < shape.logicalWidth
-  · rw [dif_pos within, zero]
-  · rw [dif_neg within]
+  · rw [dite_eq_left within, zero]
+  · rw [dite_eq_right within]
 
 private abbrev selectedShape :=
   PaperAlgebra.FullShape
@@ -90,14 +86,14 @@ theorem matrixRow_outside
     (matrix : Fin Spec.ProductionRelation.matrixCount) (index : Nat)
     (outside : selectedPlan.rowCount ≤ index) :
     (matrixRow assignments child matrix index).get = ringFZero := by
-  rw [matrixRow, dif_neg (Nat.not_lt.mpr outside), PiDECCommitmentFold.zero_value]
+  rw [matrixRow, dite_eq_right (Nat.not_lt.mpr outside), PiDECCommitmentFold.zero_value]
 
 theorem padRow_outside
     (assignments : Vector (Vector F selectedShape.carrierWidth) productionGlobalParams.k)
     (child : Fin productionGlobalParams.k) (index : Nat)
     (outside : selectedShape.carrierWidth ≤ index) :
     (padRow assignments child index).get = ringFZero := by
-  rw [padRow, dif_neg (Nat.not_lt.mpr outside), PiDECCommitmentFold.zero_value]
+  rw [padRow, dite_eq_right (Nat.not_lt.mpr outside), PiDECCommitmentFold.zero_value]
 
 private theorem matrix_padding_zero
     (assignments : Vector (Vector F selectedShape.carrierWidth) productionGlobalParams.k)
@@ -131,7 +127,7 @@ theorem matrixRow_value
         selectedPlan.rowCount selectedPlan.rowCount_le vertex _).2 rfl
     have placed := selectedPlan.rowLayout.toVertex_toColumn vertex
       ⟨NumericBooleanDomain.index vertex, live⟩ decoded
-    rw [matrixRow, dif_pos live, PiDECEvaluationRows.matrixRow_value, placed]
+    rw [matrixRow, dite_eq_left live, PiDECEvaluationRows.matrixRow_value, placed]
   · rw [matrixRow_outside assignments child matrix _ (Nat.le_of_not_lt live)]
     exact (matrix_padding_zero assignments child matrix vertex (Nat.le_of_not_lt live)).symm
 
@@ -164,7 +160,7 @@ theorem padRow_value
       (CanonicalRowLayout.toColumn?_eq_some_iff Lifecycle.cubeVariables
         selectedShape.carrierWidth selectedRelation.cubeFits vertex _).2 rfl
     erw [form_of_some selectedPadLayout vertex _ decoded] at value
-    rw [padRow, dif_pos live]
+    rw [padRow, dite_eq_left live]
     exact value
   · have decoded : selectedPadLayout.toColumn? vertex = none :=
       (CanonicalRowLayout.toColumn?_eq_none_iff Lifecycle.cubeVariables

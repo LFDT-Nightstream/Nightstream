@@ -1,8 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionLowering
 
-/-! Production values for the running-transition endpoints. Core data and
-lowering use the shared endpoint and do not import this module. -/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionLayout
 
 open NightstreamFPrime.Lifecycle

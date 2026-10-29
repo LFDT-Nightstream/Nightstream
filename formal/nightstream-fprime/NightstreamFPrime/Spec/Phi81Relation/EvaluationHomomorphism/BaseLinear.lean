@@ -1,22 +1,7 @@
 import NightstreamFPrime.Spec.Phi81Relation.Evaluation
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 
-/-!
-Base-field linearity of the typed Phi81 carried-evaluation map.
-
-Protocol: SuperNeo v1.2 Theorem 11 restricted to constant-ring scalars, and the
-base-`b` recomposition used by `Pi_DEC`.
-
-Owns: raw width-only and typed relation assignment operations; their exact
-refinement equality; the corresponding operations on all 54 `RingK` lanes;
-canonical finite base-field combinations; generic zero/add/scale laws for
-`K`-valued Boolean table evaluation; and proofs that `matrixEvaluation`
-preserves them.
-
-Does not own: arbitrary `RingF` challenge action, complete-carrier block
-packing, Phi81 multiplication associativity, commitments, public-input
-projection, norm bounds, transcripts, Rust, R1CS, row removal, or counts.
--/
+/-! SuperNeo v1.2 Theorem 11. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
 

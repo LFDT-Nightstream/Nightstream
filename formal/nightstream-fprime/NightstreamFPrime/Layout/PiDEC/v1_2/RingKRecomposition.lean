@@ -1,12 +1,6 @@
 import NightstreamFPrime.Layout.PiDEC.v1_2.RadixRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.RingKRecomposition
 
-/-!
-Owns typed `c0, c1` physical lowering for the reusable PiDEC `RingK`
-recomposition family. It preserves the exact block, ring-lane, and extension
-cell order selected by the logical circuit.
--/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2.RingKRecomposition
 
 open NightstreamFPrime.Circuit

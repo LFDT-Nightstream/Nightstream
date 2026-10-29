@@ -2,12 +2,6 @@ import NightstreamFPrime.Export.Stage1.HyperNovaHistory
 import NightstreamFPrime.Export.Stage1.ActualTerminalSecurity
 import NightstreamFPrime.Export.Stage1.NifsRealSuccess
 
-/-!
-The actual local proof and current child witnesses for one recursive reverse
-step. This is a deterministic event link, with no adversary translation,
-probability, or work premise.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaRealInput
@@ -78,6 +72,7 @@ noncomputable def output (payload : HyperNovaHistory.Payload application) :
   makeOutput (PerApplicationFixedPoint.relation application fits) (prior application fits setup payload)
     (HyperNovaHistory.decodedInput application fits payload).nifsProof (payload.runningWitness functionIndex)
 
+set_option backward.isDefEq.respectTransparency false in
 theorem realSuccess_of_terminal
     (statement : HyperNovaHistory.Statement) (payload : HyperNovaHistory.Payload application)
     (accepted : PerApplicationTerminal.Holds application fits setup

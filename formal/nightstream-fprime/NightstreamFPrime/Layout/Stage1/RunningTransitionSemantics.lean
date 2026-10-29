@@ -1,8 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionBounds
 import NightstreamFPrime.Layout.Stage1.StateDecoder
 
-/-! Owns typed base and recursive semantics for the running transition. -/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 
 open NightstreamFPrime.Spec

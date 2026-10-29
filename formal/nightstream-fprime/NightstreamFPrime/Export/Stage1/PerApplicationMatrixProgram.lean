@@ -13,10 +13,6 @@ import NightstreamFPrime.Export.Stage1.PinMatrixPrograms
 import NightstreamFPrime.Export.Stage1.RunningTransitionMatrixProgram
 import NightstreamFPrime.Layout.PiDEC.v1_2.Values
 
-/-!
-Owns the exact compact 4-matrix row program for one Lean-authored application.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram

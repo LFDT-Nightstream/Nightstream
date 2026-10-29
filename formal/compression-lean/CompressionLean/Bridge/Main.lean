@@ -1,27 +1,9 @@
 import CompressionLean.Bridge.Openings
 
-/-!
-Owns the bridge of the whole replay (`Replay.verify`) to the model's
-`layer1Game`. A run that the replay accepts is a path of `layer1Game`: the
-replay's draws before WHIR's are the path's challenges, and the path ends in
-the model's transcript of the replay's values (`replay_accepts_implies_path`).
-This holds under WHIR at the points that the replay returns (`WhirOpens`),
-Merkle binding (`MerkleBinds`) and the relation facts that the replay does
-not check (`RelationFacts`).
-
-With `layer1Game_avoids`, a path that avoids every bad set ends in a
-statement that a P0 candidate satisfies (`replay_accepts_sound`). The other
-paths are the event that `layer1_sound` bounds. The bridge's game meets two
-more premises of `layer1_sound`: distinct query points (`queryAt_distinct`)
-and a monic `Φ81` of degree `D` (`phi_monic`, `phi_natDegree`).
--/
-
 namespace CompressionLean.Bridge
 
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
-
-/-! ## The game's parameters -/
 
 theorem phi_natDegree : phi.natDegree = 54 := by
   unfold phi
@@ -37,7 +19,6 @@ theorem phi_ne_one : phi ≠ 1 := by
   rw [one, natDegree_one] at degree
   omega
 
-/-- Plonky3's generator of order `2^m` has order `2^m`. -/
 theorem twoAdic_order (m : ℕ) (high : m ≤ 32) : orderOf (twoAdic m) = 2 ^ m := by
   cases m with
   | zero => rw [twoAdic, Nat.sub_zero, generator_pow_32, orderOf_one, pow_zero]
@@ -50,7 +31,6 @@ theorem twoAdic_order (m : ℕ) (high : m ≤ 32) : orderOf (twoAdic m) = 2 ^ m 
 variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
 
 omit [Fintype K] [ChallengeField K] in
-/-- Distinct leaves have distinct query points. -/
 theorem queryAt_distinct (rel : Replay.Relation) (high : rel.setupVars + 1 ≤ 32) :
     ∀ i j, i < 2 ^ (rel.setupVars - 2) → j < 2 ^ (rel.setupVars - 2) →
       queryAt (K := K) rel i = queryAt rel j → i = j := by
@@ -64,8 +44,6 @@ theorem queryAt_distinct (rel : Replay.Relation) (high : rel.setupVars + 1 ≤ 3
 
 variable [DecidableEq K]
 
-/-- The relation facts that the replay does not check: sizes, and the key's
-structure for the setup `S`. -/
 structure RelationFacts (rel : Replay.Relation) (S : Setup Fp) : Prop where
   rowFits : rel.key.layout.rowVariables ≤ rel.pointVariables
   matricesFit : rel.matrices ≤ 2 ^ rel.matrixVars
@@ -77,10 +55,6 @@ structure RelationFacts (rel : Replay.Relation) (S : Setup Fp) : Prop where
   checked : (structureOf rel.key.layout).Checked (shapeOf rel)
   describes : (structureOf rel.key.layout).Describes (shapeOf rel) S
 
-/-- **The bridge.** Take a run that the replay accepts, with WHIR's guarantee
-at the points that it returns. Some path of `layer1Game` draws the replay's
-challenges before WHIR's own and ends in a model transcript of the replay's
-statement and the prover's P0 candidates. -/
 theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Fp) (facts : RelationFacts rel S)
     (seed : Array Gl) (st : Replay.Statement) (proof : Replay.Proof) (merkle : MerkleBinds rel S proof.leaves)
     (L0 L1 : ℕ) (cands : List (P0Tables Fp)) (short0 : cands.length ≤ L0) (p1 : List (P1Tables K))
@@ -140,12 +114,6 @@ theorem replay_accepts_implies_path (rel : Replay.Relation) (S : Setup Fp) (fact
     · exact Game.Reaches.pure _
     · exact absurd opens holds
 
-/-- **The bridge, composed with the model.** A run that the replay accepts,
-with WHIR's guarantee at the points that it returns, is a path of
-`layer1Game` that draws the replay's challenges and accepts. If the path
-avoids every bad set, a P0 candidate is a CE(B) witness for the replay's
-statement. The paths that do not avoid them are the event that
-`layer1_sound` bounds. -/
 theorem replay_accepts_sound (rel : Replay.Relation) (S : Setup Fp) (facts : RelationFacts rel S) (N : ℕ)
     (sizes : (shapeOf rel).Sizes N) (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b) (seed : Array Gl)
     (st : Replay.Statement) (proof : Replay.Proof) (merkle : MerkleBinds rel S proof.leaves) (L0 L1 : ℕ)

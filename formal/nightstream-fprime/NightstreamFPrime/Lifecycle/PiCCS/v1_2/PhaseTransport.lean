@@ -1,13 +1,6 @@
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Core
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Support
 
-/-!
-Owns semantic transport for one complete PiCCS phase across environments that
-agree on the exact caller-selected source support. Phase-local transcript
-outputs are supplied as explicit equalities. This module adds no row or
-alternate verifier predicate.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseTransport
 
 open NightstreamFPrime.Circuit

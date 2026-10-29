@@ -1,11 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.SamplerGeneratedSupport
 
-/-!
-Owns lower-support equality for PiRLC combination outputs and the canonical
-public attempt. All generated coordinates are direct variables from the
-existing combination children.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiRLC.v1_2
 
 open NightstreamFPrime.Circuit

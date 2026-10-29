@@ -5,45 +5,28 @@ import Mathlib.Algebra.Ring.Basic
 import Mathlib.Tactic.Ring
 import Mathlib.Tactic.Abel
 
-/-!
-Owns tables on the Boolean cube and their multilinear extensions, in the
-layer-1 order: index bit `t` is variable `t`, low bit first, as in
-`crates/neo-spartan` (`fold_low`, `eq_table`).
-
-- `bindLow c t` binds the low variable of `t` to `c`; `fold point t` binds the
-  low variables in order. `mle point t = fold point t 0`.
-- `cubeSum n t` sums `t` over the `n`-cube, low bit first.
-- `eqAt ρ i` is the eq weight of index `i`; `eqEval ρ x` is its extension.
--/
-
 namespace CompressionLean.Layer1
 
 variable {K : Type} [CommRing K]
 
-/-- The sum of a table over the `n`-cube: even indices, then odd indices. -/
 def cubeSum {M : Type} [AddCommMonoid M] : ℕ → (ℕ → M) → M
   | 0, t => t 0
   | n + 1, t => cubeSum n (fun i => t (2 * i)) + cubeSum n (fun i => t (2 * i + 1))
 
-/-- The table with its low variable bound to `c`. -/
 def bindLow (c : K) (t : ℕ → K) : ℕ → K :=
   fun i => (1 - c) * t (2 * i) + c * t (2 * i + 1)
 
-/-- The table with its low variables bound to `point`, in order. -/
 def fold : List K → (ℕ → K) → ℕ → K
   | [], t => t
   | c :: rest, t => fold rest (bindLow c t)
 
-/-- The multilinear extension of a table at a point, low variable first. -/
 def mle (point : List K) (t : ℕ → K) : K :=
   fold point t 0
 
-/-- The eq weight of index `i` at `ρ`: `Π_t (ρ_t if bit t of i else 1 - ρ_t)`. -/
 def eqAt : List K → ℕ → K
   | [], _ => 1
   | r :: rest, i => (if i % 2 = 1 then r else 1 - r) * eqAt rest (i / 2)
 
-/-- `eq(ρ, x) = Π_t (ρ_t·x_t + (1 - ρ_t)·(1 - x_t))`. -/
 def eqEval : List K → List K → K
   | r :: ρ, x :: xs => (r * x + (1 - r) * (1 - x)) * eqEval ρ xs
   | _, _ => 1
@@ -71,7 +54,6 @@ theorem cubeSum_mul_left (n : ℕ) (a : K) (t : ℕ → K) :
       simp only [cubeSum]
       rw [ih (fun i => t (2 * i)), ih (fun i => t (2 * i + 1)), mul_add]
 
-/-- A homomorphism of additive monoids passes through the cube sum. -/
 theorem map_cubeSum {M N : Type} [AddCommMonoid M] [AddCommMonoid N] (f : M →+ N) (n : ℕ)
     (t : ℕ → M) : f (cubeSum n t) = cubeSum n (fun i => f (t i)) := by
   induction n generalizing t with
@@ -164,7 +146,6 @@ theorem mle_const (p : List K) (a : K) : mle p (fun _ => a) = a := by
   unfold mle
   rw [fold_const]
 
-/-- Tables equal on the cube have equal extensions. -/
 theorem fold_congr (p : List K) (n : ℕ) {t u : ℕ → K}
     (equal : ∀ i, i < 2 ^ (p.length + n) → t i = u i) :
     ∀ i, i < 2 ^ n → fold p t i = fold p u i := by
@@ -186,7 +167,6 @@ theorem mle_congr (p : List K) {t u : ℕ → K} (equal : ∀ i, i < 2 ^ p.lengt
   unfold mle
   exact fold_congr p 0 (by simpa using equal) 0 (by norm_num)
 
-/-- The extension is the eq-weighted sum of the table. -/
 theorem mle_eq_cubeSum (point : List K) (t : ℕ → K) :
     mle point t = cubeSum point.length (fun i => eqAt point i * t i) := by
   induction point generalizing t with
@@ -198,13 +178,12 @@ theorem mle_eq_cubeSum (point : List K) (t : ℕ → K) :
       have odd (i : ℕ) : (2 * i + 1) % 2 = 1 := by omega
       have half (i : ℕ) : (2 * i) / 2 = i := by omega
       have half' (i : ℕ) : (2 * i + 1) / 2 = i := by omega
-      simp only [even, odd, half, half', if_true, show ¬ ((0 : ℕ) = 1) by omega, if_false]
+      simp only [even, odd, half, half', ite_true, show ¬ ((0 : ℕ) = 1) by omega, ite_false]
       rw [← cubeSum_add]
       congr 1
       funext i
       ring
 
-/-- The extension of the eq table is the eq polynomial. -/
 theorem mle_eqAt (ρ x : List K) (length : x.length = ρ.length) : mle x (eqAt ρ) = eqEval ρ x := by
   induction ρ generalizing x with
   | nil =>
@@ -221,12 +200,11 @@ theorem mle_eqAt (ρ x : List K) (length : x.length = ρ.length) : mle x (eqAt �
         have odd : (2 * i + 1) % 2 = 1 := by omega
         have half : (2 * i) / 2 = i := by omega
         have half' : (2 * i + 1) / 2 = i := by omega
-        rw [even, odd, half, half', if_pos rfl, if_neg (by omega)]
+        rw [even, odd, half, half', ite_eq_left rfl, ite_eq_right (by omega)]
         ring
       rw [bound, mle_mul_left, ih xs (by simpa using length)]
       rfl
 
-/-- Folding `ρ` reads the table shifted by whole copies of the `ρ`-cube. -/
 theorem fold_shift (ρ : List K) (t : ℕ → K) (i : ℕ) :
     fold ρ t i = mle ρ (fun y => t (y + 2 ^ ρ.length * i)) := by
   induction ρ generalizing t i with
@@ -239,7 +217,6 @@ theorem fold_shift (ρ : List K) (t : ℕ → K) (i : ℕ) :
       simp only [bindLow, pow_succ]
       congr 2 <;> congr 1 <;> ring
 
-/-- A top variable splits the extension into the low and high halves. -/
 theorem mle_append_top (ρ : List K) (τ : K) (t : ℕ → K) :
     mle (ρ ++ [τ]) t = (1 - τ) * mle ρ t + τ * mle ρ (fun y => t (y + 2 ^ ρ.length)) := by
   rw [mle_append]
@@ -247,7 +224,6 @@ theorem mle_append_top (ρ : List K) (τ : K) (t : ℕ → K) :
   rw [fold_shift ρ t 0, fold_shift ρ t 1]
   simp [mle]
 
-/-- The extension at `p ++ q`: the `q`-extension of the `p`-extensions of the columns. -/
 theorem mle_append_split (p q : List K) (t : ℕ → K) :
     mle (p ++ q) t = mle q (fun j => mle p (fun y => t (y + 2 ^ p.length * j))) := by
   rw [mle_append]
@@ -255,7 +231,6 @@ theorem mle_append_split (p q : List K) (t : ℕ → K) :
   funext j
   exact fold_shift p t j
 
-/-- The extension of a table with one value at index `0`. -/
 theorem mle_delta (q : List K) (c : K) :
     mle q (fun j => if j = 0 then c else 0) = c * (q.map fun x => 1 - x).prod := by
   induction q generalizing c with
@@ -273,7 +248,6 @@ theorem mle_delta (q : List K) (c : K) :
       simp only [List.map_cons, List.prod_cons]
       ring
 
-/-- A table supported on the low cube: the high coordinates contribute `Π (1 - x)`. -/
 theorem mle_low_support (p q : List K) (t : ℕ → K) (zero : ∀ i, 2 ^ p.length ≤ i → t i = 0) :
     mle (p ++ q) t = mle p t * (q.map fun x => 1 - x).prod := by
   rw [mle_append_split]
@@ -296,7 +270,6 @@ theorem mle_low_support (p q : List K) (t : ℕ → K) (zero : ∀ i, 2 ^ p.leng
   rw [column]
   exact mle_delta q (mle p t)
 
-/-- Trailing zero coordinates read index `0` of the folded table. -/
 theorem mle_append_zeros (p : List K) (k : ℕ) (t : ℕ → K) :
     mle (p ++ List.replicate k 0) t = mle p t := by
   rw [mle_append]
@@ -332,7 +305,6 @@ theorem mle_finset_sum {ι : Type} (p : List K) (T : Finset ι) (f : ι → ℕ 
       simp only [Finset.sum_insert notin]
       rw [mle_add, ih]
 
-/-- Nested extensions commute. -/
 theorem mle_swap (p q : List K) (t : ℕ → ℕ → K) :
     mle p (fun l => mle q (fun b => t l b)) = mle q (fun b => mle p (fun l => t l b)) := by
   simp only [mle_eq_cubeSum, cubeSum_eq_sum_range, Finset.mul_sum]

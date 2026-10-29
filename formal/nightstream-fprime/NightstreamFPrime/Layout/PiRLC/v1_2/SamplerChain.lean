@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain.Lowering
 import NightstreamFPrime.Layout.R1CS.Completeness
 
-/-!
-Owns physical lowering and preservation for the exact 17-sampler PiRLC chain.
-
-The imported composition theorem fixes the logical row order and footprint.
-This module lowers that certified list without unfolding it across the module
-boundary. It adds no copy or boundary row.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.SamplerChain
 
 open NightstreamFPrime.Circuit

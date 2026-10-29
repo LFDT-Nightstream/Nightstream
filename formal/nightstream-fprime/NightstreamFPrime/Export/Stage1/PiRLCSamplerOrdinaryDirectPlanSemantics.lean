@@ -1,11 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlan
 
-/-!
-Owns the row-count, shape-independence, and row-semantics theorems for the
-direct PiRLC sampler ordinary plan. The executable resolver and plan remain in
-`PiRLCSamplerOrdinaryDirectPlan`.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlan
 
 open NightstreamFPrime.Circuit

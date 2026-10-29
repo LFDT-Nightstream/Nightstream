@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PilotOrdinaryRetainedGeometry
 import NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the executable source resolver and direct 4-matrix plan for the exact 686
-non-Poseidon pilot rows.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PilotOrdinaryDirectPlan
 
 open NightstreamFPrime.Circuit
@@ -139,7 +134,7 @@ theorem stage1Map (location : Location) :
       Spartan.liftPilotColumn
         (PilotSpartan.sourceToSpartan location.sourceColumn) := by
   unfold Spartan.sourceToSpartan
-  rw [if_pos]
+  rw [ite_eq_left]
   have bound := location.sourceColumn_lt
   rw [PilotSpartan.sourceColumnCount_eq] at bound
   simpa [Spartan.pilotSourceColumnCount] using bound
@@ -353,8 +348,8 @@ private theorem liftPriorDigestTarget (lane : Fin 4) :
     Spartan.liftPilotColumn (2598342 + lane.val) = 2613534 + lane.val := by
   have laneBound := lane.isLt
   unfold Spartan.liftPilotColumn
-  rw [if_neg (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
-  rw [if_pos (by norm_num [Spartan.pilotPrivateColumnCount]; omega)]
+  rw [ite_eq_right (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
+  rw [ite_eq_left (by norm_num [Spartan.pilotPrivateColumnCount]; omega)]
   norm_num [Spartan.proofInputColumnCount]
   omega
 
@@ -362,8 +357,8 @@ private theorem liftOutputStateTarget (lane : Fin 4) :
     Spartan.liftPilotColumn (5141326 + lane.val) = 5156518 + lane.val := by
   have laneBound := lane.isLt
   unfold Spartan.liftPilotColumn
-  rw [if_neg (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
-  rw [if_pos (by norm_num [Spartan.pilotPrivateColumnCount]; omega)]
+  rw [ite_eq_right (by norm_num [Spartan.pilotInputPrivateColumnCount]; omega)]
+  rw [ite_eq_left (by norm_num [Spartan.pilotPrivateColumnCount]; omega)]
   norm_num [Spartan.proofInputColumnCount]
   omega
 
@@ -378,7 +373,7 @@ private theorem priorFinalColumn_eq (lane : Fin 4) :
     rw [PilotSpartan.sourceColumnCount_eq] at bound
     simpa [Spartan.pilotSourceColumnCount] using bound
   unfold Spartan.sourceToSpartan
-  rw [if_pos sourceBound]
+  rw [ite_eq_left sourceBound]
   change _ = Spartan.liftPilotColumn
     (PilotSpartan.sourceToSpartan
       (PilotProduction.priorDigestStart + lane.val))
@@ -398,7 +393,7 @@ private theorem outputFinalColumn_eq (lane : Fin 4) :
     rw [PilotSpartan.sourceColumnCount_eq] at bound
     simpa [Spartan.pilotSourceColumnCount] using bound
   unfold Spartan.sourceToSpartan
-  rw [if_pos sourceBound]
+  rw [ite_eq_left sourceBound]
   change _ = Spartan.liftPilotColumn
     (PilotSpartan.sourceToSpartan
       (PilotProduction.lifecycleOutputOffset +

@@ -2,10 +2,6 @@ import Std.Data.HashMap.Lemmas
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 
-/-!
-Index the existing canonical source rows once.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache

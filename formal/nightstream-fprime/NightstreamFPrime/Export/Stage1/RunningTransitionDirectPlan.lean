@@ -3,14 +3,6 @@ import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry
 import NightstreamFPrime.Export.Stage1.PiCCSTranscriptOutputForms
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the executable source resolver and direct 4-matrix plan for the
-running-instance transition.
-
-This module does not append the plan to other Stage 1 phases or construct a
-final package identity.
--/
-
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionDirectPlan
 
 open NightstreamFPrime.Circuit
@@ -279,39 +271,39 @@ theorem classifySource_complete {column : Nat}
     RunningTransitionSourceSupport.stateStart
       RunningTransitionSourceSupport.stateCount column
   · unfold classifySource
-    rw [dif_pos state]
+    rw [dite_eq_left state]
     rfl
   by_cases output : RunningTransitionSourceSupport.InRange
     RunningTransitionSourceSupport.outputStart
       RunningTransitionSourceSupport.outputCount column
   · unfold classifySource
-    rw [dif_neg state, dif_pos output]
+    rw [dite_eq_right state, dite_eq_left output]
     rfl
   cases c0 : pointCoordinate?
       RunningTransitionInputs.roundSampleC0Offset column with
   | some point =>
     unfold classifySource
-    rw [dif_neg state, dif_neg output, c0]
+    rw [dite_eq_right state, dite_eq_right output, c0]
     rfl
   | none =>
     cases c1 : pointCoordinate?
         RunningTransitionInputs.roundSampleC1Offset column with
     | some point =>
       unfold classifySource
-      rw [dif_neg state, dif_neg output, c0, c1]
+      rw [dite_eq_right state, dite_eq_right output, c0, c1]
       rfl
     | none =>
       by_cases piDec : RunningTransitionSourceSupport.InRange
         RunningTransitionSourceSupport.piDecStart
           RunningTransitionSourceSupport.piDecCount column
       · unfold classifySource
-        rw [dif_neg state, dif_neg output, c0, c1, dif_pos piDec]
+        rw [dite_eq_right state, dite_eq_right output, c0, c1, dite_eq_left piDec]
         rfl
       by_cases fresh : RunningTransitionSourceSupport.InRange
         RunningTransitionInputs.phaseOffset freshCount column
       · unfold classifySource
-        rw [dif_neg state, dif_neg output, c0, c1, dif_neg piDec,
-          dif_pos fresh]
+        rw [dite_eq_right state, dite_eq_right output, c0, c1, dite_eq_right piDec,
+          dite_eq_left fresh]
         rfl
       · exfalso
         rcases support with external | localSupport
@@ -453,7 +445,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
       exact PiCCSTranscriptOutputForms.pointForm_eval (poseidonGeometry geometry)
         assignment base groupValue encodes.sboxes coordinate 1
   | state index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.state]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.state index]
       have sourceEq : (stateBlock program).source index =
           packageSourceColumn program (Location.state index).sourceColumn
             (Location.state index).sourceColumn_lt := by
@@ -474,7 +466,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           PiCCSStarts.statementWitnessStart_eq] using same
       omega
   | output index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.output]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.output index]
       have sourceEq : (outputBlock program).source index =
           packageSourceColumn program (Location.output index).sourceColumn
             (Location.output index).sourceColumn_lt := by
@@ -495,7 +487,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           PiCCSStarts.statementWitnessStart_eq] using same
       omega
   | piDec index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.piDec]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.piDec index]
       have sourceEq : (piDecBlock program).source index =
           packageSourceColumn program (Location.piDec index).sourceColumn
             (Location.piDec index).sourceColumn_lt := by
@@ -516,7 +508,7 @@ theorem form_eval {program : Lifecycle.Stage1.Application.Program}
           PiCCSStarts.statementWitnessStart_eq] using same
       omega
   | fresh index =>
-      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.fresh]
+      rw [form, LowNormBlock.Block.form_eval _ _ _ assignment _ encodes.fresh index]
       have sourceEq : (freshBlock program).source index =
           packageSourceColumn program (Location.fresh index).sourceColumn
             (Location.fresh index).sourceColumn_lt := by

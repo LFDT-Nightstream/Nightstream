@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCWitnessBlock
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperCompleteness
 
-/-!
-The prepared witness replay returns the assignment of the existing honest
-PiRLC response for the selected Stage 1 algebra and fixed production key.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiRLCWitnessHonestResponse

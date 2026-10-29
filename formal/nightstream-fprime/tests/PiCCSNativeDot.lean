@@ -1,7 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNativeDot
 
-/-! Executable checks of the native dot loop against the original arithmetic. -/
-
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier

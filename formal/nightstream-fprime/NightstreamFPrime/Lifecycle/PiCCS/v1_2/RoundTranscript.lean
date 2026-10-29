@@ -26,10 +26,6 @@ Constraint groups:
 Parent coverage:
 - the round suffix of `v1_2.Coverage.transcript`;
 - `Key.piCcsExecution.coins.roundPoint` and `.finalState`.
-
-The generic Duplex child owns Poseidon2 operations. The generic FixedChain
-child owns SumCheck equations. This leaf owns only transcript order and shared
-wire mapping.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.RoundTranscript
@@ -163,7 +159,7 @@ def challenge {degreeBound : Nat} (interface : Interface degreeBound)
   (layoutProgram interface offset).samples.get ⟨roundIndex.val, by
     have samplesLength := layoutProgram_samples_length interface offset
     rw [samplesLength]
-    simp [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]⟩
+    exact roundIndex.isLt⟩
 
 def challengeFast {degreeBound : Nat} (interface : Interface degreeBound)
     (offset : Nat) (roundIndex : Fin productionShape.cubeVariables) : KExpr :=
@@ -177,7 +173,7 @@ theorem challenge_eq_challengeFast_pointwise {degreeBound : Nat}
   have roundBound : roundIndex.val <
       (layoutProgram interface offset).samples.length := by
     rw [layoutProgram_samples_length]
-    simp [productionShape, Phi81MatrixSource.phi81Shape, cubeVariables]
+    exact roundIndex.isLt
   calc
     challenge interface offset roundIndex =
         (layoutProgram interface offset).samples.get

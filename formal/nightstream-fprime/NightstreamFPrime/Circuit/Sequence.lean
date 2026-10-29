@@ -1,10 +1,5 @@
 import NightstreamFPrime.Circuit.StraightLine
 
-/-!
-Owns the proof-only sequencing rule for opaque `FormalCircuit` children.
-It does not define a second circuit representation.
--/
-
 namespace NightstreamFPrime.Circuit.Sequence
 
 open NightstreamFPrime.Circuit

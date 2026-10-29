@@ -2,15 +2,6 @@ import NightstreamFPrime.Gadgets.Poseidon2.Duplex.WiringShift
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalRows
 
-/-!
-Owns offset relocation for the symbolic PiCCS transcript outputs used by the
-compact Stage 1 assembler.
-
-The proofs compare only the fixed action shape and use the existing
-recipe-free-wiring agreement theorem. They change no transcript action,
-challenge order, circuit, row, or semantic predicate.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiCCSTranscriptRelocation
 
 open NightstreamFPrime.Circuit
@@ -565,7 +556,9 @@ theorem formalRoundOutputs_localSupport
   have roundSupport := formalRoundOutputs_exactLocalSupport interface offset
   have finishLe : formalRoundEnd interface offset ≤
       offset + 1068869 := by
-    simp [formalRoundEnd, Formal.roundTranscriptStart, Formal.atOffset]
+    simp only [formalRoundEnd, Formal.roundTranscriptStart, Formal.atOffset]
+    rw [show offset + 135078 + 4384 + 61376 = offset + 200838 by ring]
+    exact Nat.add_le_add_left (by norm_num) offset
   constructor
   · intro coordinate
     have support := roundSupport.1 coordinate

@@ -2,15 +2,6 @@ import Mathlib.Tactic.FinCases
 import NightstreamFPrime.Layout.LowNormBlock
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
 
-/-!
-Owns the low-level wire operands used by a compact sparse 4-matrix program.
-The first operand is one retained low-norm block. It carries only the data
-that determines final sparse forms: slot kind, slot count, and final-column
-start. Semantic source functions remain in Lean and are not package data.
-
-This module does not select Stage 1 blocks or their order.
--/
-
 namespace NightstreamFPrime.Layout.MatrixProgram
 
 open NightstreamFPrime.Layout
@@ -93,6 +84,7 @@ def RetainedBlock.semantic (block : RetainedBlock) :
   slotCount := block.slotCount
   source := id
 
+@[implicit_reducible]
 def RetainedBlock.coordinateCount (block : RetainedBlock) : Nat :=
   block.slotCount * block.kind.width
 
@@ -125,8 +117,8 @@ theorem RetainedBlock.form?_ofSemantic {sourceWidth logicalWidth : Nat}
     (ofSemantic block start).form? logicalWidth slot.val =
       some (block.form start fits slot) := by
   unfold form? ofSemantic
-  rw [dif_pos slot.isLt]
-  rw [dif_pos (by simpa only [coordinateCount,
+  rw [dite_eq_left slot.isLt]
+  rw [dite_eq_left (by simpa only [coordinateCount,
     LowNormBlock.Block.coordinateCount] using fits)]
   rfl
 
@@ -183,7 +175,7 @@ theorem RetainedBlock.externalForm?_ofSemantic
     fun selected bound => RetainedBlock.form?_ofSemantic block retainedStart
       fits ⟨slotBase + selected, slotBound ⟨selected, bound⟩⟩
   unfold externalForm?
-  rw [dif_pos lane.isLt]
+  rw [dite_eq_left lane.isLt]
   rw [laneEq 0 (by decide), laneEq 1 (by decide), laneEq 2 (by decide), laneEq 3 (by decide), laneEq 4 (by decide), laneEq 5 (by decide), laneEq 6 (by decide), laneEq 7 (by decide), laneEq 8 (by decide), laneEq 9 (by decide), laneEq 10 (by decide), laneEq 11 (by decide), laneEq 12 (by decide), laneEq 13 (by decide), laneEq 14 (by decide), laneEq 15 (by decide)]
   apply congrArg some
   apply congrArg (fun state => SparseLayer.external state lane)
@@ -212,15 +204,15 @@ theorem SourceRange.form?_eq_none_of_before (range : SourceRange)
     (logicalWidth source : Nat) (before : source < range.sourceStart) :
     range.form? logicalWidth source = none := by
   unfold form?
-  rw [if_neg (by omega)]
+  rw [ite_eq_right (by omega)]
 
 theorem SourceRange.form?_eq_none_of_after (range : SourceRange)
     (logicalWidth source : Nat)
     (after : range.sourceStart + range.sourceCount ≤ source) :
     range.form? logicalWidth source = none := by
   unfold form?
-  rw [if_pos (by omega)]
-  rw [if_neg (by omega)]
+  rw [ite_eq_left (by omega)]
+  rw [ite_eq_right (by omega)]
 
 def SourceRange.ofSemantic {sourceWidth : Nat}
     (block : LowNormBlock.Block sourceWidth) (retainedStart sourceStart
@@ -247,9 +239,9 @@ theorem SourceRange.form?_ofSemantic {sourceWidth logicalWidth : Nat}
           (slotStart + (sourceStart + offset.val - sourceStart))
       else none
     else none) = _
-  rw [if_pos (by omega)]
+  rw [ite_eq_left (by omega)]
   rw [show sourceStart + offset.val - sourceStart = offset.val by omega]
-  rw [if_pos offset.isLt]
+  rw [ite_eq_left offset.isLt]
   exact RetainedBlock.form?_ofSemantic block retainedStart fits
     ⟨slotStart + offset.val, by omega⟩
 
@@ -299,6 +291,7 @@ def SourceGrid.form? (grid : SourceGrid) (logicalWidth source : Nat) :
     else none
   else none
 
+@[implicit_reducible]
 def SourceGrid.ofSemantic {sourceWidth : Nat}
     (block : LowNormBlock.Block sourceWidth)
     (retainedStart sourceStart majorCount majorSourceStride minorCount
@@ -316,6 +309,7 @@ def SourceGrid.ofSemantic {sourceWidth : Nat}
   majorSlotStride := majorSlotStride
   minorSlotStride := minorSlotStride
 
+@[implicit_reducible]
 def SourceGrid.externalOfSemantic {sourceWidth : Nat}
     (block : LowNormBlock.Block sourceWidth)
     (retainedStart sourceStart majorCount majorSourceStride minorCount
@@ -341,7 +335,7 @@ theorem SourceGrid.form?_eq_none_of_before (grid : SourceGrid)
     (logicalWidth source : Nat) (before : source < grid.sourceStart) :
     grid.form? logicalWidth source = none := by
   unfold form?
-  rw [if_neg (by omega)]
+  rw [ite_eq_right (by omega)]
 
 theorem SourceGrid.form?_eq_none_of_after (grid : SourceGrid)
     (logicalWidth source : Nat)
@@ -350,9 +344,9 @@ theorem SourceGrid.form?_eq_none_of_after (grid : SourceGrid)
       grid.majorCount * grid.majorSourceStride ≤ source) :
     grid.form? logicalWidth source = none := by
   unfold form?
-  rw [if_pos (by omega), if_pos positive]
+  rw [ite_eq_left (by omega), ite_eq_left positive]
   simp only
-  rw [if_neg]
+  rw [ite_eq_right]
   intro inside
   have lower : grid.majorCount ≤
       (source - grid.sourceStart) / grid.majorSourceStride := by
@@ -373,24 +367,24 @@ theorem SourceGrid.form?_eq_none_at_gap (grid : SourceGrid)
         (grid.sourceStart + major.val * grid.majorSourceStride +
           minor.val * grid.minorSourceStride + offset) = none := by
   simp only [form?]
-  rw [if_pos (by omega)]
+  rw [ite_eq_left (by omega)]
   rw [show
       grid.sourceStart + major.val * grid.majorSourceStride +
           minor.val * grid.minorSourceStride + offset - grid.sourceStart =
         major.val * grid.majorSourceStride +
           (minor.val * grid.minorSourceStride + offset) by omega]
-  rw [if_pos majorPositive]
+  rw [ite_eq_left majorPositive]
   rw [stride_div major.val
       (minor.val * grid.minorSourceStride + offset)
       grid.majorSourceStride majorPositive minorCellBound]
   rw [stride_mod major.val
       (minor.val * grid.minorSourceStride + offset)
       grid.majorSourceStride minorCellBound]
-  rw [if_pos major.isLt, if_pos minorPositive]
+  rw [ite_eq_left major.isLt, ite_eq_left minorPositive]
   rw [stride_div minor.val offset grid.minorSourceStride minorPositive
       offsetBound]
   rw [stride_mod minor.val offset grid.minorSourceStride offsetBound]
-  rw [if_pos minor.isLt, if_neg (by omega)]
+  rw [ite_eq_left minor.isLt, ite_eq_right (by omega)]
 
 theorem SourceGrid.form?_eq_none_at_minorAfter (grid : SourceGrid)
     (logicalWidth : Nat) (major : Fin grid.majorCount)
@@ -405,21 +399,21 @@ theorem SourceGrid.form?_eq_none_at_minorAfter (grid : SourceGrid)
         (grid.sourceStart + major.val * grid.majorSourceStride +
           minor * grid.minorSourceStride + offset) = none := by
   simp only [form?]
-  rw [if_pos (by omega)]
+  rw [ite_eq_left (by omega)]
   rw [show
       grid.sourceStart + major.val * grid.majorSourceStride +
           minor * grid.minorSourceStride + offset - grid.sourceStart =
         major.val * grid.majorSourceStride +
           (minor * grid.minorSourceStride + offset) by omega]
-  rw [if_pos majorPositive]
+  rw [ite_eq_left majorPositive]
   rw [stride_div major.val (minor * grid.minorSourceStride + offset)
       grid.majorSourceStride majorPositive minorCellBound]
   rw [stride_mod major.val (minor * grid.minorSourceStride + offset)
       grid.majorSourceStride minorCellBound]
-  rw [if_pos major.isLt, if_pos minorPositive]
+  rw [ite_eq_left major.isLt, ite_eq_left minorPositive]
   rw [stride_div minor offset grid.minorSourceStride minorPositive offsetBound]
   rw [stride_mod minor offset grid.minorSourceStride offsetBound]
-  rw [if_neg (by omega)]
+  rw [ite_eq_right (by omega)]
 
 theorem SourceGrid.form?_ofSemantic {sourceWidth logicalWidth : Nat}
     (block : LowNormBlock.Block sourceWidth)
@@ -443,24 +437,24 @@ theorem SourceGrid.form?_ofSemantic {sourceWidth logicalWidth : Nat}
           minor.val * minorSourceStride + offset.val) =
       some (block.form retainedStart fits ⟨_, slotBound⟩) := by
   simp only [form?, ofSemantic]
-  rw [if_pos (by omega)]
+  rw [ite_eq_left (by omega)]
   rw [show
       sourceStart + major.val * majorSourceStride +
           minor.val * minorSourceStride + offset.val - sourceStart =
         major.val * majorSourceStride +
           (minor.val * minorSourceStride + offset.val) by omega]
-  rw [if_pos majorPositive]
+  rw [ite_eq_left majorPositive]
   rw [stride_div major.val
       (minor.val * minorSourceStride + offset.val) majorSourceStride
       majorPositive minorCellBound]
   rw [stride_mod major.val
       (minor.val * minorSourceStride + offset.val) majorSourceStride
       minorCellBound]
-  rw [if_pos major.isLt, if_pos minorPositive]
+  rw [ite_eq_left major.isLt, ite_eq_left minorPositive]
   rw [stride_div minor.val offset.val minorSourceStride minorPositive
       offsetBound]
   rw [stride_mod minor.val offset.val minorSourceStride offsetBound]
-  rw [if_pos minor.isLt, if_pos offset.isLt]
+  rw [ite_eq_left minor.isLt, ite_eq_left offset.isLt]
   exact RetainedBlock.form?_ofSemantic block retainedStart fits
     ⟨slotStart + major.val * majorSlotStride +
       minor.val * minorSlotStride + offset.val, slotBound⟩
@@ -494,24 +488,24 @@ theorem SourceGrid.form?_externalOfSemantic
             minor.val * minorSlotStride + lane.val, slotBound lane⟩)
         ⟨offset.val, laneBound⟩) := by
   simp only [form?, externalOfSemantic, ofSemantic]
-  rw [if_pos (by omega)]
+  rw [ite_eq_left (by omega)]
   rw [show
       sourceStart + major.val * majorSourceStride +
           minor.val * minorSourceStride + offset.val - sourceStart =
         major.val * majorSourceStride +
           (minor.val * minorSourceStride + offset.val) by omega]
-  rw [if_pos majorPositive]
+  rw [ite_eq_left majorPositive]
   rw [stride_div major.val
       (minor.val * minorSourceStride + offset.val) majorSourceStride
       majorPositive minorCellBound]
   rw [stride_mod major.val
       (minor.val * minorSourceStride + offset.val) majorSourceStride
       minorCellBound]
-  rw [if_pos major.isLt, if_pos minorPositive]
+  rw [ite_eq_left major.isLt, ite_eq_left minorPositive]
   rw [stride_div minor.val offset.val minorSourceStride minorPositive
       offsetBound]
   rw [stride_mod minor.val offset.val minorSourceStride offsetBound]
-  rw [if_pos minor.isLt, if_pos offset.isLt]
+  rw [ite_eq_left minor.isLt, ite_eq_left offset.isLt]
   exact RetainedBlock.externalForm?_ofSemantic block retainedStart fits
     (slotStart + major.val * majorSlotStride +
       minor.val * minorSlotStride) slotBound ⟨offset.val, laneBound⟩
@@ -690,10 +684,10 @@ theorem IndexSchedule.index?_eq_getElem? (schedule : IndexSchedule)
       | cons range rest inductionHypothesis =>
           simp only [IndexSchedule.index?.select, List.flatMap_cons]
           by_cases inside : ordinal < range.count
-          · rw [if_pos inside, List.getElem?_append_left]
+          · rw [ite_eq_left inside, List.getElem?_append_left]
             · simp [IndexRange.indices, inside]
             · simpa using inside
-          · rw [if_neg inside, List.getElem?_append_right]
+          · rw [ite_eq_right inside, List.getElem?_append_right]
             · simpa [IndexRange.indices] using
                 inductionHypothesis (ordinal - range.count)
             · simp [IndexRange.indices, Nat.le_of_not_gt inside]

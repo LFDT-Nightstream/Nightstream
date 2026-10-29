@@ -5,11 +5,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationVerifierBoundAssignment
 import NightstreamFPrime.Layout.Stage1.PiRLCInputBounds
 import NightstreamFPrime.Layout.Stage1.RunningTransitionPreservation
 
-/-!
-Owns the deterministic semantic edge from one self-derived per-application
-matrix plan to the exact verifier-selected HyperNova augmented step.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationFixedPointSoundness
 
 open NightstreamFPrime.Circuit

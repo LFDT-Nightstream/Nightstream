@@ -1,18 +1,6 @@
 import NightstreamFPrime.Circuit.VariableSupport
 import NightstreamFPrime.Lifecycle.Types
 
-/-!
-Owns the Lean interface for one verifier-selected Stage 1 application.
-
-Each production application supplies one closed `Program`. Its circuit proves
-the exact transition implemented by `step`. The final Stage 1 assembler fixes
-that program before package construction; neither the prover nor the runtime
-package loader supplies it.
-
-This module does not select a production application, assign physical columns,
-compute an application identity, or modify the canonical package.
--/
-
 namespace NightstreamFPrime.Lifecycle.Stage1.Application
 
 open NightstreamFPrime.Circuit

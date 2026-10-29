@@ -1,23 +1,5 @@
 import CompressionLean.Shrink.Game
 
-/-!
-Owns what the shrink verifier's accepting paths give (`shrinkGame_avoids`):
-along every path that avoids the bad sets, an accepted transcript has a
-candidate that satisfies its program's CCS.
-
-The chain runs backwards from the last check, for the candidate that the
-opening names (`programGame_avoids`):
-
-- the inner check and the opening make the inner rounds' last claim true,
-  so their first claim, the batch `Σ_j ρ^j·v_j`, is true;
-- off the roots of `batchPoly`, the claimed values are the true `M̃_j·z(rx)`;
-- the outer check then makes the outer rounds' last claim true, so their
-  first claim `0` is the zero-check sum, the extension at `τ` of `P` on the
-  rows;
-- off `foldBad` at each coordinate of `τ`, that sum is nonzero unless `P`
-  vanishes on every row, so the CCS holds.
--/
-
 namespace CompressionLean.Shrink
 
 open CompressionLean.Layer1 Polynomial
@@ -27,16 +9,10 @@ variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq
 local notation "ι" => algebraMap F K
 
 omit [Fintype K] [DecidableEq K] in
-/-- The nodes `0, ..., d + 1` for `d ≤ 7` are distinct when the integers
-below 9 are. -/
 theorem shrinkNodes (cast : ∀ a b : ℕ, a < 9 → b < 9 → (a : K) = b → a = b) (d : ℕ) (small : d ≤ 7) :
     NodesDistinct K d :=
   fun i j equal => Fin.ext (cast i j (by omega) (by omega) equal)
 
-/-- Along every path that avoids the bad sets, an accepted transcript names
-this program and has a candidate that satisfies `C`, when the shape check
-puts `C` inside the cubes and the verifier's matrix value is the entry sum
-at points of the cubes' lengths. -/
 theorem programGame_avoids {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matrices : List K → List K → K → K)
     (L : ℕ) (fits : shapeOk → C.Fits)
     (agree : ∀ rx ry ρ, rx.length = C.rowVars → ry.length = C.cellVars + 1 →
@@ -81,7 +57,6 @@ theorem programGame_avoids {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matr
   have rowsRx : ∀ e ∈ C.entries, e.row < 2 ^ rx.length := by rw [rxLen]; exact fit.row_lt
   have colsRy : ∀ e ∈ C.entries, e.col < 2 ^ ry.length := by rw [ryLen]; exact fit.col_lt
   rw [agree rx ry rho rxLen ryLen] at innerCheck
-  -- The inner check and the opening make the inner rounds end true, so they start true.
   have innerEnd : innerLast =
       combTruth (C.cellVars + 1) (innerTables C.entries (C.z (cands.1.get k)) rx rho) productComb ry := by
     rw [← ryLen, inner_truth_final _ _ _ _ _ colsRy, mle_z C _ ry ryLen fit.statement_le, innerCheck,
@@ -91,12 +66,10 @@ theorem programGame_avoids {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matr
     by_contra wrong
     exact innerTransfer k (Finset.mem_univ k) wrong innerEnd
   rw [inner_truth_nil _ _ _ _ _ rowsRx fit.col_lt] at innerStart
-  -- Off the batching roots, the claimed values are the true ones.
   have valuesTrue : values = trueValues C (cands.1.get k) rx := by
     by_contra differ
     refine batch_ne differ (fun hit => rhoOut ?_) innerStart
     exact Finset.mem_biUnion.mpr ⟨k, Finset.mem_univ k, hit⟩
-  -- The outer check then makes the outer rounds end true, so they start true.
   have outerEnd : outerLast =
       combTruth C.rowVars (outerTables C.entries (C.z (cands.1.get k)) tau) outerComb rx := by
     rw [← rxLen, outer_truth_final _ _ _ _ (rxLen.trans tauLength.symm), outerCheck, valuesTrue]
@@ -106,7 +79,6 @@ theorem programGame_avoids {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matr
     by_contra wrong
     exact outerTransfer k (Finset.mem_univ k) wrong outerEnd
   rw [outer_truth_nil _ _ _ _ tauLength] at outerStart
-  -- Off `foldBad`, a row where `P` fails would make the zero-check sum nonzero.
   intro r inside
   by_contra failing
   have path : Path (foldBad (constraintTable C.entries (C.z (cands.1.get k))) tau.length) [] tau := by
@@ -117,8 +89,6 @@ theorem programGame_avoids {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matr
       fun zero => failing ((map_eq_zero_iff (algebraMap F K) (algebraMap F K).injective).mp zero)⟩
   exact mle_ne_zero_of_path' _ tau nonzero path outerStart.symm
 
-/-- **Shrink soundness, paths.** Along every path that avoids the bad sets,
-an accepted transcript has a candidate that satisfies its program's CCS. -/
 theorem shrinkGame_avoids {I : Type} [Nonempty I] (T : Template F) (s : Counts) (prog : I → Run F) (L : ℕ)
     (wf : T.WellFormed) (valid : ∀ i, (prog i).Valid T) (nodes7 : NodesDistinct K 7)
     (nodes1 : NodesDistinct K 1) :

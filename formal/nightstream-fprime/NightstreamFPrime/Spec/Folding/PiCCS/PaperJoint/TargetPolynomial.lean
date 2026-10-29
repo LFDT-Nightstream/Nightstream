@@ -1,12 +1,6 @@
 import Std
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetConvention
 
-/-!
-Finite SuperNeo v1.2 target polynomial. The target is exactly
-`T_K + gamma^(k*d) * T_A`; Pad and matrix coefficients have separate typed
-owners and canonical traversals.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.TargetPolynomial
 
 open NightstreamFPrime.Spec.SumCheck
@@ -105,7 +99,6 @@ def evaluatePad
     (canonicalPadCoordinates shape).map fun coordinate =>
       padTerm ops coefficients gamma coordinate
 
-/-- The local matrix target `T_A` before the `k*d` shift. -/
 def evaluateMatrixLocal
     {Field : Type uField}
     {shape : Shape}
@@ -126,7 +119,6 @@ def evaluateMatrix
     (canonicalMatrixCoordinates shape).map fun coordinate =>
       matrixTerm ops coefficients gamma coordinate
 
-/-- Exact v1.2 claimed sum `T_K + gamma^(k*d) * T_A`. -/
 def evaluate
     {Field : Type uField}
     {shape : Shape}

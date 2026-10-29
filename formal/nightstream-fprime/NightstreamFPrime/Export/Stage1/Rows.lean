@@ -1,16 +1,5 @@
 import NightstreamFPrime.Export.RowSemantics
 
-/-!
-Owns the compact encoding of ordinary Stage 1 R1CS rows.
-
-One row becomes:
-- a `WitnessInstruction` when its `C` side is exactly one target variable;
-- a `SparseRow` otherwise.
-
-The conversion is lossless. It does not classify Poseidon2 template rows;
-those use `PermutationInvocation` and are assembled separately.
--/
-
 namespace NightstreamFPrime.Export.Stage1.Rows
 
 open NightstreamFPrime.Spec
@@ -115,7 +104,7 @@ theorem compileRow_toR1CS (freshStart rowIndex : Nat) (row : R1CS.Row) :
         sparseCombination_toR1CS]
   | some target =>
       by_cases fresh : freshStart ≤ target
-      · simp only [fresh, if_pos, CompiledRow.toR1CS,
+      · simp only [fresh, ite_eq_left, CompiledRow.toR1CS,
           WitnessInstruction.toR1CS, sparseCombination_toR1CS]
         have cEquals : row.c = R1CS.LinearCombination.ofVar target :=
           target?_eq_some found

@@ -1,13 +1,6 @@
 import NightstreamFPrime.Export.Stage1.StoredWitnessExecution
 import NightstreamFPrime.Export.Pilot
 
-/-!
-Materialize one canonical permutation locally, then copy its witness cells.
-The recipe list and all expression arithmetic retain their existing owners.
-This proves equality with the existing completion procedure; it does not
-assert row satisfaction when input cells overlap the destination interval.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.StoredPermutationExecution
@@ -35,10 +28,10 @@ private theorem localInput_env (invocation : PermutationInvocation) (values : Ar
       else 0 := by
   funext column
   by_cases live : column < 1112
-  · simp only [asEnv, localInput, Array.getElem?_ofFn, dif_pos live, Option.getD_some]
+  · simp only [asEnv, localInput, Array.getElem?_ofFn, dite_eq_left live, Option.getD_some]
   · have outsideInputs : ¬ column < 16 := by omega
-    simp only [asEnv, localInput, Array.getElem?_ofFn, dif_neg live,
-      Option.getD_none, if_neg outsideInputs]
+    simp only [asEnv, localInput, Array.getElem?_ofFn, dite_eq_right live,
+      Option.getD_none, ite_eq_right outsideInputs]
 
 private theorem canonicalRecipes_length : (PilotData.canonicalRecipes ()).length = 1096 :=
   Permutation.compile_schedule_recipe_count 16 PilotData.canonicalState

@@ -1,11 +1,6 @@
 import NightstreamFPrime.Layout.PiDEC.v1_2.RingKRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.EvalKRecomposition
 
-/-!
-Owns the separate Pad `Eval_K` PiDEC physical footprint: one 54-coefficient
-ring, two extension-field cells per coefficient, and no matrix-zero encoding.
--/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2.EvalKRecomposition
 
 open NightstreamFPrime.Circuit

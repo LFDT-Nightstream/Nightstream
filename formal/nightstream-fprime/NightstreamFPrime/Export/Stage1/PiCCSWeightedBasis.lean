@@ -1,7 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSSparseEvaluation
 
-/-! Prepare extension-field weights for an existing family of sparse forms. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSWeightedBasis

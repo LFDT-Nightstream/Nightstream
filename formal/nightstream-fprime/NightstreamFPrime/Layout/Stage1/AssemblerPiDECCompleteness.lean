@@ -1,12 +1,6 @@
 import NightstreamFPrime.Layout.Stage1.AssemblerPiRLCCompleteness
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.Completeness
 
-/-!
-Owns the exact PiRLC-to-PiDEC semantic handoff and the fifth opaque-child
-append for the compact Stage 1 assembler. It adds no row, copy value, or
-alternate verifier predicate.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.AssemblerPiDECCompleteness
 
 open NightstreamFPrime.Circuit

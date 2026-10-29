@@ -2,10 +2,6 @@ import NightstreamFPrime.Lifecycle.ProductionKey
 import NightstreamFPrime.Spec.Folding.Nifs.PaperStrongCompleteness
 import NightstreamFPrime.Spec.Folding.Nifs.PaperWeakCompleteness
 
-/-!
-Honest completeness of the selected interactive C/R/D sequence.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Lifecycle.Nifs.InteractiveCompleteness

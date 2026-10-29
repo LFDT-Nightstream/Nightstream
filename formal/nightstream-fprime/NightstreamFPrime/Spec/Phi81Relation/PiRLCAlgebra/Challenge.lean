@@ -1,17 +1,6 @@
 import NightstreamFPrime.Spec.Phi81StrongSet
 
-/-!
-Challenge-validity predicate for the typed Phi81 `PiRLC.Algebra`.
-
-Protocol: SuperNeo v1.2 Definitions 6 and 22 and `Pi_RLC`.
-
-Owns: the exact unary algebra-field predicate and its connection to the
-independently defined 54-coordinate five-symbol production set.
-
-Does not own: Poseidon2 transcript derivation, rejection sampling, decoded
-Rust/R1CS challenge membership, the low-norm invertibility proof, norm
-growth of folded witnesses, row removal, or constraint counts.
--/
+/-! SuperNeo v1.2 Definitions 6 and 22. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Challenge
 

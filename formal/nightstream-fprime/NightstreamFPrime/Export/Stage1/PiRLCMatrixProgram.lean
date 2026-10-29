@@ -1,8 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgramAllRows
 
-/-! The PiRLC arithmetic matrix program uses the four canonical Phi81 product
-families. Sampler rows are owned by the preceding sampler block. -/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCMatrixProgram
 
 open NightstreamFPrime.Layout NightstreamFPrime.Layout.MatrixProgram

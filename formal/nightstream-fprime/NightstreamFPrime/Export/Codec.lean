@@ -1,11 +1,5 @@
 import Mathlib.Data.List.Defs
 
-/-!
-Owns the small canonical value codec used by the circuit-package serializer.
-The wire value has only natural-number atoms and arrays. Package modules own
-all schema tags and validation; this module owns only lossless composition.
--/
-
 namespace NightstreamFPrime.Export.Codec
 
 inductive Value where
@@ -78,8 +72,7 @@ def list (item : Format Alpha) : Format (List Alpha) where
     | .atom _ => .error "expected an array"
   decode_encode := decodeList_map_encode item
 
-/-- Deterministic JSON-compatible rendering. The Rust decoder accepts only
-this numeric-array subset, so no escaping or object-key ordering is involved. -/
+/-- The Rust decoder accepts only this numeric-array subset. -/
 def Value.render : Value → String
   | .atom value => toString value
   | .array values =>

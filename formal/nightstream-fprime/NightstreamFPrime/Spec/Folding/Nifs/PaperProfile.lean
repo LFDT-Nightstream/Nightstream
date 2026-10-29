@@ -3,23 +3,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperProduct
 import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 import NightstreamFPrime.Spec.Folding.PiRLC
 
-/-!
-Independent fixed-active SuperNeo NIFS paper profile.
-
-Protocol: SuperNeo Sections 7.3--7.5.
-Phase: `Pi_CCS -> Pi_RLC -> Pi_DEC` at the production-selected arity.
-Constraint family: abstract relation obligations only; this file emits no
-rows.
-
-Owns: the exact `1 CCS + 16 CE -> 17 CE -> 1 CE -> 16 CE` semantic graph;
-the abstract relation and tail algebras; source membership and common-shape
-obligations; one new row point; seventeen strong-set challenges; the operational
-Section-7.5 `Pi_DEC` verifier, including exact evaluation arity; and the
-canonical honest-completeness constructor.
-
-The final `-> 16 CE` edge comes from SuperNeo Section 7.5. Sections 7.3--7.4
-alone end at the single combined `CE(B)` parent.
--/
+/-! SuperNeo Sections 7.3–7.5. -/
 
 namespace NightstreamFPrime.Spec.Folding.Nifs.PaperProfile
 

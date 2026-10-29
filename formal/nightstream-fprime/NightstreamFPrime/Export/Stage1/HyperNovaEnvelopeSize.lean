@@ -1,11 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationTerminal
 
-/-!
-Owns the iteration-independent size of the existing HyperNova proof envelope.
-This is a dense field-word count with the existing claim framing, not a Rust
-wire format, heap-size bound, or execution-cost claim.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.HyperNovaEnvelopeSize

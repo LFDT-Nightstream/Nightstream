@@ -1,12 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PreparedPhysicalSources
 
-/-!
-Task results retain the checked source indices.
-The runtime schedules the existing independent work; collection preserves
-canonical source order. This module does not change emitter records or prove
-whole physical-plan coverage.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PreparedPhysicalSourceTasks

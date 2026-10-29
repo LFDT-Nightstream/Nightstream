@@ -1,13 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.ApplicationInputs
 
-/-!
-Owns the typed value bridge for the zero-copy Stage 1 application columns.
-
-The proofs select only the fixed four-word `current` slice from each already
-represented pilot preimage. They do not evaluate the complete state hash or
-reconstruct the running instances.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.ApplicationInputs
 
 open NightstreamFPrime.Circuit

@@ -1,13 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiRLC
 
-/-!
-Paper authority: SuperNeo v1.2, Section 7.4, PiRLC input and output.
-Obligation: All 17 PiRLC inputs are fresh CE claims for one structure and one
-evaluation point.
-
-This predicate is exactly the `inputFresh`, `sameStructure`, and `samePoint`
-prefix of `PiRLC.Equations`. It does not define another PiRLC relation.
--/
+/-! SuperNeo v1.2 Section 7.4. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiRLC.v1_2.InputBinding
 

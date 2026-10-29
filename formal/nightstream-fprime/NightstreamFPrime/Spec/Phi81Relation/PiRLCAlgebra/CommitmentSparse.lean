@@ -1,9 +1,5 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.Commitment
 
-/-!
-Owns structural elimination of zero blocks from the exact Ajtai row sum.
--/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.CommitmentSparse
 
 open NightstreamFPrime.Spec
@@ -83,9 +79,9 @@ theorem commit_singleBlock {shape : Shape} {verifierRows : Nat}
   funext row
   unfold commit ajtaiRow blockSum
   rw [ringFSum_eq_single _ selected]
-  · rw [assignmentBlock_singleBlock, if_pos rfl]
+  · rw [assignmentBlock_singleBlock, ite_eq_left rfl]
   · intro block different
-    rw [assignmentBlock_singleBlock, if_neg different]
+    rw [assignmentBlock_singleBlock, ite_eq_right different]
     exact CarrierAction.ringFMul_zero_right _
 
 theorem singleBlock_monomial_coordinate {shape : Shape}
@@ -99,7 +95,7 @@ theorem singleBlock_monomial_coordinate {shape : Shape}
     simp only []
     change CarrierAction.assignmentBlock
       (singleBlock selected (ringFMonomial lane.val scalar)) selected lane = scalar
-    rw [assignmentBlock_singleBlock, if_pos rfl]
+    rw [assignmentBlock_singleBlock, ite_eq_left rfl]
     simp [ringFMonomial]
   · have different : Phi81ColumnLayout.decode column ≠ (selected, lane) := by
       intro packed

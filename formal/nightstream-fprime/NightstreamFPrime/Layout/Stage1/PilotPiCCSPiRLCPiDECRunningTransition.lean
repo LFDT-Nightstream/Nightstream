@@ -2,11 +2,6 @@ import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC
 import NightstreamFPrime.Layout.Stage1.RunningTransitionOwnership
 import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 
-/-!
-Owns the cumulative Stage 1 layout through the running-instance transition.
-The transition follows PiDEC directly and adds no copy or boundary row.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDECRunningTransition
 
 open NightstreamFPrime.Circuit

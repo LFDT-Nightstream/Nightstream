@@ -1,13 +1,6 @@
 import NightstreamFPrime.Layout.PiCCS.v1_2.Composition
 
-/-!
-Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5.
-Obligation: Derive every physical child-input shape from the caller-owned
-production wires and the proved outputs of preceding children.
-
-This file is the production `InputShapes` assembler. It does not supply
-protocol values, challenges, or alternate constraints.
--/
+/-! Paper authority: SuperNeo v1.2, section 7.3, PiCCS Steps 1--5. -/
 
 namespace NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs
 

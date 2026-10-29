@@ -89,5 +89,3 @@ import NightstreamFPrime.Lifecycle.Nebula.HonestStep
 import NightstreamFPrime.Lifecycle.Nebula.HonestRun
 import NightstreamFPrime.Lifecycle.Nebula.MemoryBound
 import NightstreamFPrime.Lifecycle.Nebula.FreeApp
-
-/-! Lifecycle layer root. Lists the modules of this layer explicitly. -/

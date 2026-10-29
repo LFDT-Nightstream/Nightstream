@@ -3,13 +3,6 @@ import NightstreamFPrime.Lifecycle.XOut
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.ZeroRunningPolynomial
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolPolynomialDegree.Support
 
-/-!
-Owns the canonical base dummy's deterministic PiCCS acceptance. The fresh
-commitment is zero and its public input is the encoded prior hash. No zero
-opening of that public input is asserted. PiRLC sampling and PiDEC acceptance
-remain separate from this first constructor step.
--/
-
 namespace NightstreamFPrime.Lifecycle.Nifs.BaseCompleteness
 
 open NightstreamFPrime.Spec

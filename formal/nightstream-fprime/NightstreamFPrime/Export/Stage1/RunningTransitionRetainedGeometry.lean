@@ -2,13 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock
 import NightstreamFPrime.Export.Stage1.RunningTransitionRetainedBlocks
 import NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan.Retained
 
-/-!
-Owns the canonical low-norm placement for the direct running-transition
-source support.
-
-This module does not compile transition rows or construct an assignment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.RunningTransitionRetainedGeometry
 
 open NightstreamFPrime.Layout

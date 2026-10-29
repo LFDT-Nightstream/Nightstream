@@ -41,7 +41,7 @@ def require(condition, message):
 
 def package_pin(path):
     matches = re.findall(
-        r"pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY:\s*\[u64;\s*4\]\s*=\s*\[([\d_,\s]+)\];",
+        r"pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY:\s*PackageIdentity\s*=\s*PackageIdentity\(\[([\d_,\s]+)\]\);",
         rust_code(path.read_text()),
     )
     require(len(matches) == 1, "expected one selected package identity pin")

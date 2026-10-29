@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.StoredCompactRowExecution
 import NightstreamFPrime.Export.Stage1.CompactOutputExecution
 import NightstreamFPrime.Export.Stage1.CompactRowRelocation
 
-/-!
-Compose stored execution, physical row relocation and the canonical lowerers
-for the two compact-template constructors.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.StoredCompactCompletion
@@ -44,7 +39,7 @@ private theorem logical_after_physical_output
       simp only [physical, normalized, Env.set_self]
     · have earlier : index < outputInput := by omega
       have physicalNe := outputDistinct index earlier
-      simp only [physical, normalized, Env.set, same, physicalNe, if_false, inputEnv]
+      simp only [physical, normalized, Env.set, same, physicalNe, ite_false, inputEnv]
   have scope : (Expr.var outputInput - recipe).VarsBelow (outputInput + 1) :=
     Expr.VarsBelow.sub _ _ _ (Nat.lt_succ_self _)
       (recipeScope.mono recipe (Nat.le_succ _))

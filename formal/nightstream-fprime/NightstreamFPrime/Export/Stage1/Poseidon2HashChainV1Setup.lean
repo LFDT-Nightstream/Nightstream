@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1SetupAuthority
 import NightstreamFPrime.Spec.AjtaiSetupV1.Framing
 
-/-!
-Owns the verifier-selected Ajtai setup for the canonical
-`Poseidon2HashChainV1` package.
--/
-
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 
 open NightstreamFPrime.Lifecycle

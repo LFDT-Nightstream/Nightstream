@@ -1,14 +1,6 @@
 import NightstreamFPrime.Export.MatrixProgram.Program
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPlan
 
-/-!
-Owns the compact matrix program for the 34 PiRLC sampler Poseidon2
-invocations. The package carries the cross-family previous-state wires and
-one optional constant per invocation lane.
-
-This module does not own sampler reduction or coefficient-word rows.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram

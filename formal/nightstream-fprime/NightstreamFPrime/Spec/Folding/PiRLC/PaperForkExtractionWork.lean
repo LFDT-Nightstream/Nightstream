@@ -1,11 +1,5 @@
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 
-/-!
-Owns `Result`: a value together with its declared mathematical clock. Charged
-programs return it. The clock is a declared count, not a measured Lean or Rust
-runtime.
--/
-
 namespace NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
 open NightstreamFPrime.Spec

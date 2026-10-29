@@ -1,11 +1,5 @@
 import NightstreamFPrime.Layout.LowNormBlock
 
-/-!
-Owns a generic suffix of derived general-field source values. Existing source
-columns remain a fixed prefix. The derived values and their retained slots
-use one exact indexed order.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.FieldSuffixBlock
 
 open NightstreamFPrime.Spec
@@ -45,7 +39,7 @@ def sourceAssignment (baseSourceWidth derivedCount : Nat)
         (baseColumn baseSourceWidth derivedCount column) =
       base column := by
   unfold sourceAssignment baseColumn
-  rw [dif_pos column.isLt]
+  rw [dite_eq_left column.isLt]
 
 @[simp] theorem sourceAssignment_derived (baseSourceWidth derivedCount : Nat)
     (base : Fin baseSourceWidth → F) (derived : Fin derivedCount → F)

@@ -3,13 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerRows
 import NightstreamFPrime.Layout.PiRLC.v1_2.CombinationFamily
 import NightstreamFPrime.Layout.PiRLC.v1_2.Composition
 
-/-!
-Owns list-level conformance between the compact PiRLC combination export and the
-exact production parent constraints.
-
-This module does not own templates, package assembly, or witness data.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationConformance
 
 open NightstreamFPrime.Spec

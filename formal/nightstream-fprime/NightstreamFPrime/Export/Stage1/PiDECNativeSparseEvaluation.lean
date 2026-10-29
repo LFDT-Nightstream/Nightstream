@@ -1,9 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.SparseEvaluation
 import NightstreamFPrime.Export.NativePoseidon2RoundCore
 
-/-! Native-word accumulation for the existing stored sparse form. Field
-arithmetic belongs to the existing proved Goldilocks word operations. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation

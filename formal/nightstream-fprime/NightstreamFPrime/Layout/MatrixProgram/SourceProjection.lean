@@ -2,15 +2,6 @@ import NightstreamFPrime.Layout.MatrixProgram
 import NightstreamFPrime.Layout.R1CS.ColumnMap
 import NightstreamFPrime.Layout.R1CS.Completeness
 
-/-!
-Owns the Lean-authored column projection applied to one package source row
-before ordinary selective compilation. A projection is either the identity or
-a finite set of disjoint affine ranges. Lookup fails on missing or overlapping
-ranges.
-
-This module does not select Stage 1 ranges or source rows.
--/
-
 namespace NightstreamFPrime.Layout.MatrixProgram
 
 open NightstreamFPrime.Layout.R1CS (mapCombinationColumns mapRowColumns)
@@ -36,24 +27,24 @@ theorem SourceProjectionRange.column?_at (range : SourceProjectionRange)
     range.column? (range.packageStart + offset.val) =
       some (range.sourceStart + offset.val) := by
   unfold column?
-  rw [if_pos (by omega)]
+  rw [ite_eq_left (by omega)]
   rw [show range.packageStart + offset.val - range.packageStart =
       offset.val by omega]
-  rw [if_pos offset.isLt]
+  rw [ite_eq_left offset.isLt]
 
 theorem SourceProjectionRange.column?_eq_none_of_before
     (range : SourceProjectionRange) (column : Nat)
     (before : column < range.packageStart) :
     range.column? column = none := by
   unfold column?
-  rw [if_neg (by omega)]
+  rw [ite_eq_right (by omega)]
 
 theorem SourceProjectionRange.column?_eq_none_of_after
     (range : SourceProjectionRange) (column : Nat)
     (after : range.packageStart + range.count ≤ column) :
     range.column? column = none := by
   unfold column?
-  rw [if_pos (by omega), if_neg (by omega)]
+  rw [ite_eq_left (by omega), ite_eq_right (by omega)]
 
 inductive SourceProjection where
   | identity

@@ -3,13 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryDirectPlan
 import NightstreamFPrime.Export.Stage1.PiRLCSamplerPoseidonPreservation
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns the exact source-column custody bridge from the retained sampler
-Poseidon2 suffix to the canonical PiRLC sampler ordinary rows.
-
-This module does not add rows or retained values.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCSamplerRetainedCustody
 
 open NightstreamFPrime.Circuit
@@ -92,8 +85,7 @@ theorem laterWitnessStart_sampler
           · congr 2
           · rename_i outside
             exfalso
-            apply outside
-            simp [PermutationPlan.samplerStepsPerSource]
+            exact outside current.isLt
     let leftIndex : Fin
         (PiRLCSamplerInvocations.invocations
           (logicalWidth := Data.logicalWidth)
@@ -537,7 +529,7 @@ theorem semanticEnv_state
     let lane : Fin 4 := ⟨location.lane.val, laneLt⟩
     have sourceEq : location.sourceColumn =
         (PiRLCSamplerOrdinaryDirectPlan.Location.poseidon location.source lane).sourceColumn := by
-      rw [PiRLCSamplerOrdinaryDirectPlan.poseidonColumn]
+      rw [PiRLCSamplerOrdinaryDirectPlan.poseidonColumn (source := location.source)]
       simp only [StateLocation.sourceColumn, stepZero, Nat.zero_mul,
         Nat.add_zero, stateOutputOffset, Sampler.counts.1]
       dsimp only [lane]

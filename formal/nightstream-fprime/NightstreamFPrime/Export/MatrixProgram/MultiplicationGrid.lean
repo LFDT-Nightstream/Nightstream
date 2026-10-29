@@ -2,8 +2,6 @@ import NightstreamFPrime.Layout.MatrixProgram.MultiplicationGrid
 import NightstreamFPrime.Export.Codec
 import NightstreamFPrime.Export.MatrixProgram.AffineGrid
 
-/-! Canonical codecs for the shared Layout MatrixProgram types. -/
-
 namespace NightstreamFPrime.Layout.MatrixProgram.MultiplicationGrid
 
 open NightstreamFPrime.Export.Codec

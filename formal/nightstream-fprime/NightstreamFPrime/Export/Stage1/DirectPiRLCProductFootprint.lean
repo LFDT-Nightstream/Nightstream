@@ -1,10 +1,5 @@
 import NightstreamFPrime.Lifecycle.Types
 
-/-!
-Owns the fast closed-form footprint of the direct quotient-check compiler for
-every PiRLC combination invocation.
--/
-
 namespace NightstreamFPrime.Export.Stage1.DirectPiRLCProductFootprint
 
 def invocationCount : Nat := 33966

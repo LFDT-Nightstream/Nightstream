@@ -1,11 +1,7 @@
 import Mathlib.Data.List.OfFn
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout
 
-/-!
-Owns preservation of the scalar CCS matrix image under canonical Phi81
-carrier completion. SuperNeo v1.2 Definition 20 uses the original scalar
-matrix image; packing adds zero columns and does not change that image.
--/
+/-! SuperNeo v1.2 Definition 20. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.Phi81CarrierLayout
 

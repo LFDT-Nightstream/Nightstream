@@ -1,31 +1,11 @@
 import CompressionLean.Layer1.Restoration
 
-/-!
-Owns the composition of two public-coin verifier games into one experiment.
-
-- In sequence (`pair`, `pair_sound`): the first game, then the second. Along
-  every path that avoids both games' bad sets, both results hold their
-  claims. So a prover breaks either claim with probability at most the sum
-  of the two errors.
-- Side by side under Fiat–Shamir (`restorePair`, `restorePair_sound`): one
-  state-restoration experiment (`Layer1/Restoration.lean`) with one log per
-  game. Each query names a node of either game. The prover outputs one path
-  of the first game. The result is its walk and the walk of every path of
-  the second game under that game's log. Each query costs at most `ε`.
-
-One log per game models two transcripts that share no prefix: an oracle
-answer to one never answers the other.
-
-Does not own a protocol or an error term.
--/
-
 namespace CompressionLean.Final
 
 open CompressionLean.Layer1 CompressionLean.Layer1.Game
 
 variable {α β : Type}
 
-/-- A larger event has a larger probability. -/
 theorem prob_mono (s : Strategy α) (g : Game α) {E E' : α → Prop} (imp : ∀ a, E a → E' a) :
     prob s g E ≤ prob s g E' := by
   classical
@@ -33,19 +13,15 @@ theorem prob_mono (s : Strategy α) (g : Game α) {E E' : α → Prop} (imp : �
   | pure a =>
       simp only [prob]
       by_cases h : E a
-      · rw [if_pos h, if_pos (imp a h)]
-      · rw [if_neg h]
+      · rw [ite_eq_left h, ite_eq_left (imp a h)]
+      · rw [ite_eq_right h]
         split_ifs <;> norm_num
   | draw C bad next ih => exact Finset.expect_le_expect fun c _ => ih c
   | recv M next ih => exact ih _
 
-/-- Two verifiers in sequence: `g`, then `h`. -/
 def pair (g : Game α) (h : Game β) : Game (α × β) :=
   g.bind fun a => h.bind fun b => .pure (a, b)
 
-/-- **Sequential composition.** If `g` and `h` are sound with errors `εg`
-and `εh`, a prover breaks the claim of either result with probability at
-most `εg + εh`. -/
 theorem pair_sound (s : Strategy (α × β)) (g : Game α) (h : Game β) (Q : α → Prop) (R : β → Prop)
     (εg εh : ℝ) (avoidsG : g.Avoids Q) (avoidsH : h.Avoids R) (costG : g.CostLe εg)
     (costH : h.CostLe εh) :
@@ -58,7 +34,6 @@ theorem pair_sound (s : Strategy (α × β)) (g : Game α) (h : Game β) (Q : α
   rw [add_zero] at cost
   exact prob_not_le s _ _ _ avoids cost
 
-/-- A walk that accepts ends at the leaf it returns. -/
 theorem node_of_walk (log : Log α) (g : Game α) :
     ∀ (p : Pos g) (a : α), walk log g p = some a → Pos.node g p = .pure a := by
   induction g with
@@ -84,10 +59,6 @@ theorem node_of_walk (log : Log α) (g : Game α) :
 instance (g : Game α) (h : Game β) : Nonempty (Pos g ⊕ Pos h) :=
   ⟨.inl (Classical.arbitrary _)⟩
 
-/-- The state-restoration experiment over two games with one log each: `q`
-queries, each at a node of `g` or of `h`, then one output path of `g`. The
-result is the walk of that path and the walk of every path of `h` under the
-log of `h`. -/
 noncomputable def restorePair (g : Game α) (h : Game β) :
     ℕ → Log α → Log β → Game (Option α × (Pos h → Option β))
   | 0, lg, lh => .recv (Pos g) fun p => .pure (walk lg g p, walk lh h)
@@ -162,11 +133,6 @@ theorem restorePair_cost (g : Game α) (h : Game β) (ε : ℝ) (densityG : g.De
         | pure b => exact (ih lg lh).mono (by push_cast; linarith)
         | recv M next => exact (ih lg lh).mono (by push_cast; linarith)
 
-/-- **State-restoration soundness of two games.** If every avoiding path of
-`g` ends in `Q`, every avoiding path of `h` ends in `R`, and every bad set of
-both games has density at most `ε`, a prover with `q` queries ends with an
-accepted path of either game outside its claim with probability at most
-`q·ε`. An accepted path of `h` ends at the leaf it returns. -/
 theorem restorePair_sound (g : Game α) (h : Game β) (s : Strategy (Option α × (Pos h → Option β)))
     (Q : α → Prop) (R : β → Prop) (ε : ℝ) (avoidsG : g.Avoids Q) (avoidsH : h.Avoids R)
     (densityG : g.DensityLe ε) (densityH : h.DensityLe ε) (nonneg : 0 ≤ ε) (q : ℕ) :

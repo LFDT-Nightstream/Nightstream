@@ -2,11 +2,6 @@ import NightstreamFPrime.Layout.R1CS.Completeness
 import NightstreamFPrime.Layout.R1CS.Support
 import NightstreamFPrime.Layout.Stage1.Spartan
 
-/-!
-Owns static column bounds for the Stage 1 Spartan row remapping. It does not
-select source rows or change the Spartan layout.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.Spartan
 
 open NightstreamFPrime.Layout

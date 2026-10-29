@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PoseidonActionSemantics
 import NightstreamFPrime.Export.Stage1.InvocationLastOutput
 
-/-!
-Owns the indexed input-value law for the existing compact Duplex compiler.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.InvocationInputLaw
@@ -43,7 +39,7 @@ private theorem compileBlocks_last_or_initial
   · have nonzero : blocks.length ≠ 0 := by
       intro lengthZero
       exact empty (List.length_eq_zero_iff.mp lengthZero)
-    rw [if_neg nonzero]
+    rw [ite_eq_right nonzero]
     exact InvocationLastOutput.compileBlocks_state_last phase rowStart witnessStart state blocks empty
 
 private theorem previous_shift
@@ -57,7 +53,7 @@ private theorem previous_shift
   by_cases first : index = 0
   · subst index
     simpa using head
-  · rw [if_neg first, if_neg (by omega)]
+  · rw [ite_eq_right first, ite_eq_right (by omega)]
     apply congrArg permutationOutput
     omega
 
@@ -86,7 +82,7 @@ private theorem compileBlocks_at
             by_cases first : index = 0
             · subst index
               simp
-            · rw [if_neg first]
+            · rw [ite_eq_right first]
               have address : witnessStart + 1096 + (index - 1) * 1096 =
                   witnessStart + index * 1096 := by
                 obtain ⟨prior, rfl⟩ := Nat.exists_eq_succ_of_ne_zero first
@@ -102,7 +98,7 @@ private theorem compileBlocks_at
                   (if index + 1 = 0 then state
                     else permutationOutput (witnessStart + (index + 1 - 1) * 1096)) current))
           rw [inductionHypothesis]
-          simp only [rowEq, witnessEq, previousEq, Nat.succ_ne_zero, if_false,
+          simp only [rowEq, witnessEq, previousEq, Nat.succ_ne_zero, ite_false,
             Nat.add_sub_cancel]
 
 private theorem compileActions_at
@@ -170,7 +166,7 @@ private theorem compiled_invocation
          | .absorb block => Hash.absorbE previous block) := by
   have selected := compileActions_at phase rowStart witnessStart state actions index.val
   rw [← PoseidonActionSchedule.kindAt_materializes, List.getElem?_ofFn,
-    dif_pos index.isLt, Option.map_some] at selected
+    dite_eq_left index.isLt, Option.map_some] at selected
   have bounded : index.val <
       (compileActions phase rowStart witnessStart state actions).invocations.length := by
     rw [compileActions_invocations_length]
@@ -236,8 +232,8 @@ theorem compileActions_input_eval
   have previousValue : previous.getD lane.val 0 =
       (previousExpr lane).eval (Spartan.pullback target) := by
     by_cases first : index.val = 0
-    · simp only [previous, PoseidonActionSemantics.previousState, dif_pos first,
-        previousExpr, if_pos first]
+    · simp only [previous, PoseidonActionSemantics.previousState, dite_eq_left first,
+        previousExpr, ite_eq_left first]
       exact Lifecycle.PriorStateHash.ofFn_getD _ lane (0 : F)
     · let priorIndex : Fin (invocationCount actions) := ⟨index.val - 1, by
         have bounded := index.isLt
@@ -249,7 +245,7 @@ theorem compileActions_input_eval
       have startLocal : Spartan.piCcsPhaseOffset ≤ witnessStart + (index.val - 1) * 1096 := by omega
       calc
         previous.getD lane.val 0 = target ((selectedInvocation priorIndex).witnessStart + 1080 + lane.val) := by
-          simp only [previous, PoseidonActionSemantics.previousState, dif_neg first, outputs]
+          simp only [previous, PoseidonActionSemantics.previousState, dite_eq_right first, outputs]
           exact Lifecycle.PriorStateHash.ofFn_getD _ lane (0 : F)
         _ = target (Spartan.sourceToSpartan (witnessStart + (index.val - 1) * 1096) + 1080 + lane.val) :=
           congrArg (fun start => target (start + 1080 + lane.val)) position
@@ -259,7 +255,7 @@ theorem compileActions_input_eval
             (witnessStart + (index.val - 1) * 1096) (1080 + lane.val) startLocal
           simpa only [Nat.add_assoc] using mapped.symm
         _ = (previousExpr lane).eval (Spartan.pullback target) := by
-          simp only [previousExpr, if_neg first, permutationOutput,
+          simp only [previousExpr, ite_eq_right first, permutationOutput,
             Permutation.freshState, Expr.eval_var, Spartan.pullback]
   dsimp only [selectedInvocation, trace]
   rw [compiled_invocation phase rowStart witnessStart state actions index, invocation_input]

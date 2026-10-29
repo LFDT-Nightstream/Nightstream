@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.AffineRuns
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentPlan
 
-/-!
-Owns compact source-index metadata for the final retained assignment program.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentBlocks
 
 open NightstreamFPrime.Export.Codec

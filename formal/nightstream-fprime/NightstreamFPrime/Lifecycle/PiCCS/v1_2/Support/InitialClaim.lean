@@ -1,11 +1,6 @@
 import NightstreamFPrime.Gadgets.Polynomial.HornerSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.InitialClaim
 
-/-!
-Owns variable-support propagation for the PiCCS initial-claim Horner leaf.
-It changes no coefficient order, circuit, or row.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.InitialClaim
 
 open NightstreamFPrime.Circuit

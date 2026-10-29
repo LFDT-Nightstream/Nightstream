@@ -1,14 +1,6 @@
 import NightstreamFPrime.Layout.MatrixProgram
 import NightstreamFPrime.Layout.ProductionRelation.PinFamilyPlan
 
-/-!
-Owns the generic executable interpreter for small explicit zero-pin families
-in a compact sparse 4-matrix program. The package supplies each value form in
-order.
-
-This module does not select Stage 1 pin families or their order.
--/
-
 namespace NightstreamFPrime.Layout.MatrixProgram.Pin
 
 open NightstreamFPrime.Layout

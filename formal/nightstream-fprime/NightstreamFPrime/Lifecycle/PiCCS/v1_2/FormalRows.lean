@@ -1,11 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 
-/-!
-Owns relation-free executable projections of the fixed production PiCCS
-assembler. The projections do not define another verifier. Each equality
-theorem ties one projection to the corresponding child of `Formal.circuit`.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal
 
 open NightstreamFPrime.Circuit
@@ -230,7 +224,7 @@ theorem evalAOffset_eq_evalARowOffset
     (offset : Nat) :
     evalAOffset interface offset = evalARowOffset degreeBound offset := by
   unfold evalAOffset evalARowOffset nextOffset childLength evalKCircuit
-  rw [FormalCircuit.withConstantFootprint_main, EvalKTerminal.localLength_eq,
+  erw [FormalCircuit.withConstantFootprint_main, EvalKTerminal.localLength_eq,
     evalKOffset_eq_evalKRowOffset]
   rfl
 
@@ -245,7 +239,7 @@ theorem ccsOffset_eq_ccsRowOffset
     (offset : Nat) :
     ccsOffset interface offset = ccsRowOffset degreeBound offset := by
   unfold ccsOffset ccsRowOffset nextOffset childLength evalACircuit
-  rw [FormalCircuit.withConstantFootprint_main, EvalATerminal.localLength_eq,
+  erw [FormalCircuit.withConstantFootprint_main, EvalATerminal.localLength_eq,
     evalAOffset_eq_evalARowOffset]
   rfl
 
@@ -311,7 +305,7 @@ theorem outputBindingOffset_eq_outputBindingRowOffset
       outputBindingRowOffset interface offset := by
   unfold outputBindingOffset outputBindingRowOffset nextOffset childLength
     finalIdentityCircuit
-  rw [finalIdentityOffset_eq_finalIdentityRowOffset,
+  erw [finalIdentityOffset_eq_finalIdentityRowOffset,
     FormalCircuit.withConstantFootprint_main, FinalIdentity.localLength_eq]
   rfl
 

@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.Invocations
 
-/-!
-Owns the structural last-output theorem for a nonempty Duplex invocation
-schedule. It does not evaluate a concrete production action list.
--/
-
 namespace NightstreamFPrime.Export.Stage1.InvocationLastOutput
 
 open NightstreamFPrime.Circuit

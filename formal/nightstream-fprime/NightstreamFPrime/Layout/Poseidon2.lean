@@ -1,12 +1,6 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Formal
 import NightstreamFPrime.Layout.R1CS
 
-/-!
-Owns the syntactic proof that the staged Poseidon2 witness program lowers to
-one physical R1CS row per recipe. The proof follows compiler structure and
-does not unfold an emitted hash schedule.
--/
-
 namespace NightstreamFPrime.Layout.Poseidon2
 
 open NightstreamFPrime.Spec
@@ -180,7 +174,7 @@ theorem partialSboxState_affine (start round : Nat) (state : Layer.EState)
     StateAffine (Permutation.partialSboxState start round state) := by
   intro lane
   by_cases zeroLane : lane.val = 0
-  · simp only [Permutation.partialSboxState, zeroLane, if_true]
+  · simp only [Permutation.partialSboxState, zeroLane, ite_true]
     rw [List.getD_eq_get
       (Permutation.compileSboxes start
         [Permutation.partialInput round state]).outputs 0

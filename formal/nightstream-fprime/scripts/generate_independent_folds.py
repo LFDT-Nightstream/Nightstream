@@ -14,6 +14,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tomllib
 
 REPO = Path(__file__).resolve().parents[3]
 FORMAL = REPO / "formal/nightstream-fprime"
@@ -27,7 +28,6 @@ ROWS, CARRIER = 1004131, BLOCKS * 54
 SECOND_FOLD_BUDGET = CAPS["lean"] / 2
 NORM_PREFIX_CHUNK = 131072
 STATE_MESSAGE_WIDTH = 27819
-TOOLCHAIN = "nightstream-lean-4.32.2-5b34cacf"
 ARTIFACT = FORMAL / "artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"
 
 
@@ -153,6 +153,21 @@ def native_test_completed(command, log):
         f"test {argument} ... ok" in log.splitlines() for argument in command[1:])
 
 
+def lean_compiler():
+    words = subprocess.check_output(["lean", "--version"], cwd=FORMAL, text=True).split()
+    version, commit = words[2].rstrip(","), words[words.index("commit") + 1].rstrip(",")
+    with (FORMAL / "lakefile.toml").open("rb") as stream:
+        executables = tomllib.load(stream)["lean_exe"]
+    for executable in executables:
+        if (FORMAL / ".lake/build/bin" / executable["name"]).exists():
+            olean = FORMAL / ".lake/build/lib/lean" / (executable["root"].replace(".", "/") + ".olean")
+            with olean.open("rb") as stream:
+                built = stream.read(80)[40:].decode()
+            require(built == commit,
+                    f"{executable['name']} was built by Lean commit {built}, not the current {commit}")
+    return version, commit
+
+
 def source_snapshot(root):
     names = subprocess.check_output([
         "git", "ls-files", "--cached", "--others", "--exclude-standard", "--",
@@ -164,10 +179,10 @@ def source_snapshot(root):
         if path.is_file() and (path.suffix in (".lean", ".rs", ".py", ".sh", ".toml", ".lock")
                                or path.name in ("lean-toolchain", "lake-manifest.json")):
             sources[name] = path
+    version, commit = lean_compiler()
     record = {"base_commit": subprocess.check_output(["git", "rev-parse", "HEAD"],
               cwd=REPO, text=True).strip(), "files": identities(sources), "package": identity(ARTIFACT),
-              "lean_toolchain": TOOLCHAIN,
-              "compiler_commit": "5b34cacf5be147b191f6577a2dc67550970a62f3"}
+              "lean_toolchain": version, "compiler_commit": commit}
     encoded = json.dumps(record, sort_keys=True, separators=(",", ":")).encode()
     directory = root / "source-snapshots"
     directory.mkdir(parents=True, exist_ok=True)

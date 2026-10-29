@@ -28,8 +28,10 @@ This specification adds one Nebula memory phase to the Stage 1 F′ system, as
 
 An accepting proof attests one execution of the verifier-selected application
 relation. The execution starts from the statement's initial application state
-and the plan's initial memory. It ends in the statement's final application
-state. Every memory access goes through a port and is sequentially consistent.
+and the initial memory of the verifier-selected program. It ends in the
+statement's final application state. Every memory access goes through a port
+and is sequentially consistent. This specification uses *relation* for the
+circuit that a package proves and *program* for the ROM and RAM images.
 
 Out of scope: application semantics (for example WASM), stacks, private
 initial memory, zero knowledge, more than one checked step per fresh claim, and
@@ -194,9 +196,11 @@ program, the two images. The verifier key binds the geometry:
 | `rom_image` | `R` words of 32 bits |
 | `ram_image` | `M` words of 32 bits |
 
-A package is a geometry, and a program is its images. One package serves
-every program of its geometry. The key of a program is its `D_init` (§9.2),
-which the verifier computes from the images. A cell value is one 32-bit word.
+A package is the relation of one application at one geometry, and a program
+is the two images. The relation reads no image, so one package and one setup
+serve every program of its geometry: setups are one per (application,
+geometry). The key of a program is its `D_init` (§9.2), which the verifier
+computes from the images. A cell value is one 32-bit word.
 The verifier accepts at most `S_max · N` steps. This is the fixed iteration
 bound of HyperNova Lemma 4 for this verifier key. Security note A4 states how the bound covers an adversary whose
 outputs can be longer.
@@ -218,10 +222,20 @@ Setup MUST reject a plan that breaks any of these rules:
 5. **Positive sizes:** `B_ops, B_scan, N, S_max ≥ 1`.
 6. **Security:** the plan passes the setup check in the security note §5.
 
-In Lean, every memory package that `lake exe emit` writes gets its program from
-`NebulaMemoryPackage.application`. That function takes the proofs of rules 1–5
-(`Plan.Valid`) and rule 6 (`Plan.Secure`), so `lake exe emit` cannot write a
-package for a plan that breaks a rule.
+In Lean, every memory package that `lake exe emit` writes gets its relation
+from `NebulaMemoryPackage.application`. That function takes the proofs of
+rules 1–5 (`Geometry.Valid`) and rule 6 (`Geometry.Secure`), so `lake exe emit`
+cannot write a package for a geometry that breaks a rule. The relation
+`MemoryApp.program` takes a `Geometry`, which has no image field, so two plans
+with one geometry have one relation (`MemoryApp.program_eq_of_geometry`).
+
+**Program images.** The verifier MUST reject a program unless its ROM image
+has exactly `R` words and its RAM image exactly `M` words, each below `2^32`.
+It MUST make this check before it computes `D_init` (§9.2). A scan slot holds
+32 value bits (§6.2), so a word `v ≥ 2^32` would get the `D_init` of a smaller
+word while the machine reads `v`. `Plan.Valid` states the same rules in Lean.
+The Rust `nebula::Program` holds `u32` words, and `Program::new` rejects other
+image sizes.
 
 The segment range of `open` (§11.2) decomposes `S_max − 1 − seg_idx` into
 `W_seg` bits:
@@ -230,7 +244,7 @@ The segment range of `open` (§11.2) decomposes `S_max − 1 − seg_idx` into
 W_seg = ⌈log2(S_max + 1)⌉    holds every value in [0, S_max]
 ```
 
-An implementation MUST derive `W_seg` from the plan. It MUST NOT use a fixed
+An implementation MUST derive `W_seg` from the geometry. It MUST NOT use a fixed
 width. The relation needs no width for `idx` or `cnt`. The arm and close tests
 (§12) keep `idx` in `[0, N]`, and `cnt` is a field sum of at most `B_ops < q`
 terms.
@@ -243,8 +257,9 @@ plan_digest = Digest("Nightstream/Nebula/v3/plan",
 ```
 
 Each integer enters as one canonical field element. The images do not enter
-`plan_digest`, so the package rows do not depend on the program. The verifier
-computes `plan_digest`. A prover-supplied value is invalid.
+`plan_digest` (Lean `planDigest` takes a `Geometry`), so the package rows do
+not depend on the program. The verifier computes `plan_digest`. A
+prover-supplied value is invalid.
 
 The verifier binds `plan_digest` and `D_init` (§9.2) without a separate
 verifier-context field. `plan_digest` binds the geometry, and `D_init` binds
@@ -595,12 +610,12 @@ the memory rows are its only checks. It is a `PortApp`, so each result for a
 
 **Theorem** (`MemoryTrace.memoryConsistent_of_executes`). Let the binding obey
 rule 3. Let every event of the trace be in range. Let the initial state hold
-the plan images on the in-range set (`Binding.Initial`): an address of a RAM
-memory starts at the RAM image word of its packed address, and an address of
-a ROM memory starts at the ROM image word. If an execution from the plan
+the program images on the in-range set (`Binding.Initial`): an address of a
+RAM memory starts at the RAM image word of its packed address, and an address
+of a ROM memory starts at the ROM image word. If an execution from the program
 images has active ports that bind the events of the trace in order, then the
 trace is `MemoryConsistent`. `memoryConsistent_of_accessAll` gives the same
-result for each list of accesses that replays from the plan images, and
+result for each list of accesses that replays from the program images, and
 `executes_accessAll` gives that replay for each execution.
 
 The rule that each region is inside its namespace is for completeness only.
@@ -732,7 +747,9 @@ final_timestamp     ts of the final carry
 final_memory_root   D_mem of the final carry
 ```
 
-The verifier key binds the geometry, and the verifier takes the program.
+The verifier key binds the geometry, and the verifier takes the program. It
+checks the program images (§4.2) and computes `D_init` before the terminal
+check.
 
 For a Nebula verifier key, the verifier MUST reject the Stage 1 initial
 envelope (`T = 0`). A proof has at least one segment.
@@ -773,7 +790,10 @@ verifier and cover at least these cases:
 | A last segment filled with idle steps | accept |
 | Two segments with RAM written in the first and read in the second | accept |
 | Fresh memory at a segment boundary | reject at `D_seen.is = D_mem` |
-| Segment-0 IS records that differ from the plan images | reject at `D_seen.is = D_mem` |
+| Segment-0 IS records that differ from the program images | reject at `D_seen.is = D_mem` |
+| A second program of the package's geometry, verified with that program | accept |
+| A proof of one program, verified with another program of the same package | reject at the Stage 1 state link |
+| A ROM image without `R` words, a RAM image without `M` words, or an image word at or above `2^32` | reject before `D_init` (§4.2); a Rust `u32` word cannot be at or above `2^32` |
 | An input carry or application words that do not open the input state | reject at the state digest check (§11.1) |
 | A final carry that does not open the final state | reject at the Stage 1 state link |
 | An initial or final application word, or a `final_timestamp`, at or above `q` | reject at canonical decoding (§13) |

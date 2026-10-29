@@ -28,4 +28,4 @@ paths. `#![forbid(unsafe_code)]`.
 The active Lean transcript model defines which data the transcript must absorb
 before each challenge. It is the formal authority. Rust framing
 and red-team checks live in `crates/neo-transcript/tests`.
-See [Transcript & digests](../protocol/transcript-and-digests.md).
+See [SPEC.md](../../SPEC.md), section 5.

@@ -21,4 +21,4 @@ the old sampler in the canonical layout; it does not add a second package.
 Protocol-binding hashes use Poseidon2.
 
 See [lifecycle](lifecycle.md), [applications](frontends.md), and
-[terminal verification](decider.md).
+[terminal verification](../../SPEC.md) (Algorithm 6).

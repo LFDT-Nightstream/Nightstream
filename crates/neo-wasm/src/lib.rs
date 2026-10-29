@@ -56,7 +56,7 @@ pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, L
 pub use memory_id::WasmMemoryId;
 pub use memory_routing::{plan_wasm_memory_slots, WasmMemorySlotPlan};
 pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
-pub use preprocess::{host_event_top_level_initial_state, top_level_initial_state};
+pub use preprocess::{continuity_words, host_event_top_level_initial_state, top_level_initial_state};
 pub use range_check::write_range_check_bits;
 pub use relation_layout::{
     build_wasm_relation_layout, LinearMemoryColumns, SignExtensionColumns, WasmAuxiliaryRelations,

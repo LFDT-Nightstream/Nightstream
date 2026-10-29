@@ -74,6 +74,13 @@ impl Geometry {
                 .all(|count| *count > 0)
     }
 
+    /// Lean `Geometry.Secure`, spec §4.2 rule 6, for a valid geometry:
+    /// `m_mem ≤ 139,509`, so the memory fingerprint error is at most
+    /// `2^−109.91` (Lean `Geometry.secure_iff`).
+    pub(super) fn is_secure(&self) -> bool {
+        self.max_tuples() <= 139_509
+    }
+
     pub fn rom_size(&self) -> usize {
         1 << self.r
     }

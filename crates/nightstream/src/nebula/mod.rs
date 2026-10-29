@@ -187,10 +187,11 @@ pub struct Circuit<A> {
 }
 
 impl<A: Application> Circuit<A> {
-    /// Build the memory relation of a valid geometry (Lean `Geometry.Valid`)
-    /// and `app` in Rust, and compile it with the Stage 1 reference package.
+    /// Build the memory relation of a valid, secure geometry (Lean
+    /// `Geometry.Valid` and `Geometry.Secure`) and `app` in Rust, and compile
+    /// it with the Stage 1 reference package.
     pub fn compile(reference_bytes: &[u8], geometry: Geometry, app: A) -> Result<Self, crate::Error> {
-        if !geometry.is_valid() {
+        if !geometry.is_valid() || !geometry.is_secure() {
             return Err(crate::Error::Circuit("the memory geometry breaks spec §4.2"));
         }
         let application = circuit::memory_circuit(&geometry, &app)?;

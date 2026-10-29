@@ -71,7 +71,7 @@ section Handles
 
 variable {c : Ctx F} {n : ℕ}
 
-/-- `setup_point` (`lib.rs::setup_point`): a point of at most `vars` coordinates,
+/-- `setup_point` (`relation.rs::setup_point`): a point of at most `vars` coordinates,
 padded with zeros. -/
 theorem setupPoint_ensures {point : Array ExtVar} {gpoint : Array Ext} {vars : ℕ} (hp : IsExts c n point gpoint)
     (size : gpoint.size ≤ vars) :

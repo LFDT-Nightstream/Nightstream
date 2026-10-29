@@ -112,7 +112,7 @@ structure ProductionConstants (rel : Replay.Relation) : Prop where
 that the in-circuit verifier reads, the relation facts of the bridge, the
 production constants, and the size conditions of the layer-1 argument at the
 Goldilocks modulus. Rust's `Structure::check` (`neo-spartan/src/matrix.rs::Structure::check`)
-enforces `checked`. `Relation::new` (`neo-spartan/src/lib.rs::Relation::new`) enforces
+enforces `checked`. `Relation::new` (`neo-spartan/src/relation.rs::Relation::new`) enforces
 `high`, and `publicFits` through `public_blocks ≤ blocks`. -/
 structure KeyFacts (key : Layer1Key) : Prop where
   circuit : CircuitFacts key.relation key.p1Key key.p0Key

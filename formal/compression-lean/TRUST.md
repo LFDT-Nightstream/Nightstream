@@ -168,7 +168,7 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   outputs: `permutation_template_matches_lean` hashes with F′'s `Poseidon2.hash`, and the run
   digests hash with `Replay.hashLeaf`.
 - The error charges (`Layer1.rustDegrees`, `Shrink.rustDegrees`). If one differs from
-  `outer_terms` (`lib.rs`) or from `terms` (`shrink/mod.rs`), the premises `p0`, `p1` and `rust`
+  `outer_terms` (`relation.rs`) or from `terms` (`shrink/mod.rs`), the premises `p0`, `p1` and `rust`
   are not the checks that `Pcs::new` makes. `outer_terms` charges `ring::row_count(shape) - 1`
   for the ring-row batching, and `Layer1.rustLinear` charges `s.rows - 1`, the same sum of
   `kappa`, `matrices` and `publicBlocks`; `ports.json` pins `rustLinear` to `row_count` too.

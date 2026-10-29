@@ -1,7 +1,7 @@
 import CompressionLean.Layer1.Cost
 
 /-!
-Owns the port of `outer_terms` (`crates/neo-spartan/src/lib.rs`): the
+Owns the port of `outer_terms` (`crates/neo-spartan/src/relation.rs`): the
 degrees of the layer-1 draws that Rust charges P0, each
 `degree · L1 / 2^191`, written term by term (`rustDegrees`).
 `Final/Budget.lean` bounds the layer-1 error with them.

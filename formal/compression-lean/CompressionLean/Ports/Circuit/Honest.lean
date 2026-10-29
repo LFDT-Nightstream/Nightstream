@@ -3,7 +3,7 @@ import CompressionLean.Ports.Circuit.Early
 /-!
 Owns the honest-fold stage of the layer-1 verifier (`verifier.rs::verify`)
 and the setup query point (`setup::query_point`, `verifier.rs::verify`) as
-builder programs, with the parts they call: `setup_point` (`lib.rs::setup_point`),
+builder programs, with the parts they call: `setup_point` (`relation.rs::setup_point`),
 `combine` (`verifier.rs::combine`) and the leaf check `setup::check`
 (`setup.rs::check`). Each one calls `Build` in the order of its Rust
 counterpart.
@@ -18,7 +18,7 @@ namespace CompressionLean.Circuit
 open CompressionLean.Replay (Word Relation foldVars runOracles generator twoAdicGenerator)
 
 /-- `setup_point`: `point` cut or padded to `vars` coordinates with one
-zero, which is written even when no coordinate needs it (`lib.rs::setup_point`). -/
+zero, which is written even when no coordinate needs it (`relation.rs::setup_point`). -/
 def setupPoint (point : Array ExtVar) (vars : ℕ) : Build (Array ExtVar) := do
   let zero ← Algebra.extZero
   pure (point.extract 0 vars ++ Array.replicate (vars - point.size) zero)

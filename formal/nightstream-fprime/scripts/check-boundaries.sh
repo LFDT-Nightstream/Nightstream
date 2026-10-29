@@ -84,6 +84,35 @@ while IFS= read -r file; do
   module_path["$module"]="$file"
 done < <(lean_files)
 
+# The modules that a file imports: the `import` tokens of its header, up to the
+# first other token. Comments are removed first, and block comments nest, so a
+# comment that holds an `import` line imports nothing.
+imports_of() {
+  awk '
+    {
+      rest = $0; code = ""
+      while (rest != "") {
+        o = index(rest, "/-"); c = index(rest, "-/")
+        if (depth > 0) {
+          if (c && (!o || c < o)) { depth--; rest = substr(rest, c + 2) }
+          else if (o) { depth++; rest = substr(rest, o + 2) }
+          else rest = ""
+        } else {
+          d = index(rest, "--")
+          if (d && (!o || d < o)) { code = code substr(rest, 1, d - 1); rest = "" }
+          else if (o) { code = code substr(rest, 1, o - 1) " "; depth++; rest = substr(rest, o + 2) }
+          else { code = code rest; rest = "" }
+        }
+      }
+      n = split(code, word)
+      for (i = 1; i <= n; i++) {
+        if (name) { print word[i]; name = 0 }
+        else if (word[i] == "import") name = 1
+        else exit
+      }
+    }' "$1"
+}
+
 while IFS= read -r module; do
   queue+=("$module")
 done < <(awk '
@@ -109,7 +138,7 @@ while (( queue_index < ${#queue[@]} )); do
   while IFS= read -r imported; do
     [[ -n "${module_path[$imported]:-}" ]] || continue
     [[ -n "${reachable[$imported]+present}" ]] || queue+=("$imported")
-  done < <(sed -nE 's/^import[[:space:]]+([A-Za-z0-9_.]+).*$/\1/p' "$file")
+  done < <(imports_of "$file")
 done
 
 for module in "${!module_path[@]}"; do

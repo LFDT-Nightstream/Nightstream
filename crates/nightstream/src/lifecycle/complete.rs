@@ -80,7 +80,7 @@ pub enum CompleteStepError {
     #[error(transparent)]
     Package(#[from] PackageError),
     #[error(transparent)]
-    Commitment(#[from] crate::engine::EngineError),
+    Commitment(#[from] crate::engine::CommitError),
 }
 
 impl PreparedLifecycle {

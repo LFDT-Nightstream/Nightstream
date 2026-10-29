@@ -6,6 +6,7 @@ use crate::folding::{
     transcript::{Poseidon2TranscriptSnapshot, Transcript},
     CcsClaim, CcsInstance, CcsWitness, FoldContext, NifsProof, Params, RunningInstance, Structure,
 };
+use crate::lifecycle::ProveError;
 use neo_ajtai::nightstream_fprime_setup::commit_production_signed_unit_prefix_matrix;
 use neo_ccs::{poly::Term, Mat, SparsePoly};
 use neo_math::{D, F, K};
@@ -365,7 +366,10 @@ fn crosscheck_rejects_different_rows_without_updating_the_transcript() {
         fixture.fresh.clone(),
         fixture.running.clone(),
     );
-    assert!(matches!(result, Err(EngineError::CrosscheckMismatch { .. })));
+    assert!(matches!(
+        result,
+        Err(ProveError::Engine(EngineError::CrosscheckMismatch { .. }))
+    ));
     assert_eq!(transcript.snapshot(), before);
 }
 
@@ -385,7 +389,9 @@ fn crosscheck_rejects_a_prover_error_without_updating_the_transcript() {
     );
     assert!(matches!(
         result,
-        Err(EngineError::CrosscheckMismatch { boundary: "acceptance" })
+        Err(ProveError::Engine(EngineError::CrosscheckMismatch {
+            boundary: "acceptance"
+        }))
     ));
     assert_eq!(transcript.snapshot(), before);
 }
@@ -414,10 +420,10 @@ fn crosscheck_rejects_a_worker_panic_without_updating_the_transcript() {
     );
     assert!(matches!(
         result,
-        Err(EngineError::Failure {
+        Err(ProveError::Engine(EngineError::Failure {
             engine: Engine::PaperExact,
             ..
-        })
+        }))
     ));
     assert_eq!(transcript.snapshot(), before);
 }
@@ -434,22 +440,27 @@ fn optimized_matches_metal() {
 
 /// Each child commitment must come from its own digit witness. A commitment
 /// derived from the parent passes the PiDEC recomposition check by construction.
+/// Crosscheck engines that reject at the same transcript return the rejection.
 #[test]
-#[cfg_attr(not(feature = "metal"), allow(clippy::single_element_loop))]
 fn engines_refuse_a_fresh_commitment_that_does_not_open() {
     let mut fixture = Fixture::bit();
     fixture.fresh.claim.c.data_mut()[0] += F::ONE;
     for engine in [
         Engine::Optimized,
+        Engine::Crosscheck,
         #[cfg(feature = "metal")]
         Engine::Metal,
     ] {
         let error = run(engine, &fixture)
             .err()
             .unwrap_or_else(|| panic!("{engine:?} folded a fresh commitment that does not open"));
+        let rejection = match error.downcast_ref::<ProveError>() {
+            Some(ProveError::Nifs(error)) => Some(error),
+            _ => error.downcast_ref::<folding::Error>(),
+        };
         assert!(
             matches!(
-                error.downcast_ref::<folding::Error>(),
+                rejection,
                 Some(folding::Error::Dec(folding::pi_dec::Error::Engine(
                     folding::kernels::Error::PiDecPublicCheckFailed { ok_c: false, .. }
                 )))

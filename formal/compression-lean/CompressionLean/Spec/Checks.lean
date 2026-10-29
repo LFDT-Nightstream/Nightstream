@@ -14,6 +14,16 @@ open NightstreamFPrime.Export.Package
 open CompressionLean.Replay (D)
 open CompressionLean.Circuit (Layer1Key WhirKey)
 
+/-- `List.decidableBAll` recurses once per element, so `setupCheck` overflows the stack on the
+38,533,993 production runs. At runtime this decides the same proposition with `List.all`. -/
+def decidableBAllTR {α : Type _} (p : α → Prop) [DecidablePred p] (l : List α) :
+    Decidable (∀ x ∈ l, p x) :=
+  decidable_of_iff (l.all fun x => decide (p x)) (by simp)
+
+@[csimp] theorem decidableBAll_eq_decidableBAllTR : @List.decidableBAll = @decidableBAllTR := by
+  funext α p _ l
+  exact Subsingleton.elim _ _
+
 structure Fact where
   name : String
   holds : Prop

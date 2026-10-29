@@ -1,6 +1,7 @@
 import CompressionLean
+import CompressionLeanTests.Inventory
 
-open Lean Elab Command
+open Lean Elab Command CompressionLeanTests.Inventory
 
 def layers : List String :=
   ["Lib", "Fields", "Production", "Game", "Terminal", "Layer1", "Ports", "Shrink", "Lowering", "Spec", "Bridge",
@@ -21,6 +22,8 @@ elab "#check_layers" : command => do
   for (m, data) in env.header.moduleNames.zip env.header.moduleData do
     if (folderOf m).isNone then continue
     for i in data.imports do
+      if upperRoots.contains i.module.getRoot then
+        throwError "{m} imports {i.module}; the library imports no executable or gate module"
       if (folderOf i.module).isNone then continue
       if (← rank i.module) > (← rank m) then
         throwError "{m} imports {i.module}, a module of a higher folder"

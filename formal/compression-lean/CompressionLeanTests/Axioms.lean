@@ -1,6 +1,12 @@
 import CompressionLean
+import CompressionLeanTests.BlockDigest
 import CompressionLeanTests.Inventory
+import CompressionLeanTests.Layers
+import CompressionLeanTests.Ports
 import CompressionLeanTests.Reading
+import CompressionLeanTests.SpecCensus
+import CompressionLeanTests.Stack
+import CompressionLeanTests.Vocabulary
 open Lean Elab Command CompressionLeanTests.Inventory
 
 def allowedAxioms : Array Name := #[``propext, ``Classical.choice, ``Quot.sound]
@@ -17,6 +23,14 @@ elab "#audit_library_axioms " root:ident : command => do
     unless bad.isEmpty do
       throwError m!"{name} depends on disallowed axioms: {bad}"
   logInfo m!"{count} theorems in {root.getId} use only {allowedAxioms}"
+elab "#no_package_axioms" : command => do
+  let env ← getEnv
+  let roots := `CompressionLean :: upperRoots
+  let declared := env.constants.toList.filterMap fun (name, info) =>
+    let m := if (env.getModuleIdxFor? name).isSome then moduleOf env name else env.mainModule
+    if info matches .axiomInfo _ && roots.contains m.getRoot then some name else none
+  unless declared.isEmpty do throwError m!"these declarations of {roots} are axioms: {declared}"
+  logInfo m!"no imported module of {roots} declares an axiom"
 elab "#pin_claims" : command => do
   let env ← getEnv
   for (claim, pinned) in claims do
@@ -32,5 +46,7 @@ elab "#pin_claims" : command => do
 #audit_library_axioms CompressionLean
 
 #audit_library_axioms CompressionLeanTests
+
+#no_package_axioms
 
 #pin_claims

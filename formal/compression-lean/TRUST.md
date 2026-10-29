@@ -9,10 +9,12 @@ A claim means what the definitions that it names mean. `CompressionLeanTests/Voc
 keeps the constants that a claim's type names in `Spec/`, the model and port folders (`Fields`,
 `Production`, `Game`, `Terminal`, `Layer1`, `Ports`), F′, Mathlib and core. It does not follow
 their bodies. Through them a claim also reads generic definitions of `Lib/` (such as `mle` and
-`univ`), `Ccs.Relation` in `Shrink/Ccs.lean`, and definitions in `Lowering/`: the executor
-(`Exec.run`, `Exec.step`), the tape of a witness (`tapeOf`) and the row semantics
-(`R1csRow.Holds`). A reader of the claims reads these too; they sit in files that also hold
-proofs.
+`univ`), `Ccs.Relation` in `Shrink/Ccs.lean`, and these definitions of `Lowering/`: the executor
+and the row semantics in `Lowering/Exec.lean` (`Exec.start`, `Exec.step`, `Exec.run`, the state
+`Exec.State`, `Bits` and `R1csRow.Holds`), the values of a row's terms and wires in
+`Lowering/Rows.lean` (`termsValue`, `Run.wireValue`), the value of a form in `Lowering/Forms.lean`
+(`Shrink.Form.evaluate`) and the tape of a witness in `Lowering/Sound.lean` (`tapeOf`). A reader of
+the claims reads these too; they sit in files that also hold proofs.
 
 ## 1. The Lean kernel and the build cache
 
@@ -107,7 +109,8 @@ of a claim has no entry there.
 ## 5. The ports
 
 Lean transcribes parts of Rust by hand. Every transcription is a definition in `Ports/`, whose
-folders follow the Rust modules; the proofs about them are in the folders above. The
+folders follow the Rust modules, except the readers of the files that the Rust tests write
+(`CompressionLeanExe/Runs.lean`); the proofs about them are in the folders above. The
 transcriptions are of two kinds.
 
 **Ports that can make a claim false.** The claims are about these objects. If one differs from its
@@ -121,9 +124,9 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   (`Ports/Shrink/BlockPart.lean`, `Ports/Shrink/Diagonal.lean`). The layout that these read, and
   the sizes, statement words and counts of a run (`Ports/Shrink/Layout.lean`, `Run.ccs`,
   `Run.counts`). The sum-check rounds and the eq weights that the game takes from layer 1
-  (`Game.sumcheck`, `Lib.roundValues`, `Lib.eqAt`, `Lib.eqEval`). These four are the only
-  `ports.json` entries outside `Ports/` (`portsOutside`): `Layer1/`, which sits below `Ports/`,
-  reads them too. `Lib.eqAt` puts
+  (`Game.sumcheck`, `Lib.roundValues`, `Lib.eqAt`, `Lib.eqEval`). These four and the two
+  readers below are the only `ports.json` entries outside `Ports/` (`portsOutside`): `Layer1/`,
+  which sits below `Ports/`, reads these four too. `Lib.eqAt` puts
   coordinate `t` with bit `t` of the index, as `eq_at` and `eq_table` (`field.rs`) do; `ports.json`
   pins it to both.
 - The circuit programs and their lowering (`Ports/Circuit/`), with the parts of `Ports/Replay/`
@@ -172,8 +175,10 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   are not the checks that `Pcs::new` makes. `outer_terms` charges `ring::row_count(shape) - 1`
   for the ring-row batching, and `Layer1.rustLinear` charges `s.rows - 1`, the same sum of
   `kappa`, `matrices` and `publicBlocks`; `ports.json` pins `rustLinear` to `row_count` too.
-- The readers of the files that the Rust tests write (`Layer1Key`, `readRuns` and `readColumns`
-  in `CompressionLeanExe/Runs.lean`): transcriptions of their formats.
+- The readers of the files that the Rust tests write, which transcribe their formats:
+  `Layer1Key`'s JSON (`layer1_input` and `relation_json` write it), and `readRuns` and
+  `readColumns` (`CompressionLeanExe/Runs.lean`; `setup_runs.rs` and `setup_columns.rs` write
+  them). `ports.json` pins each reader to its writers.
 
 **Code that a cross-check compares with Rust but that cannot make a claim false.** The rest of
 `Ports/Replay/`: the replay of the layer-1 verifier, with its transcript, stages, formulas, GKR and WHIR.

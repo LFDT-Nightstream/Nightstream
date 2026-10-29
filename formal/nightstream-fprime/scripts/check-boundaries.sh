@@ -37,9 +37,9 @@ fi
 if lean_files | xargs grep -nE 'native_decide|ofReduceBool|\+native\b|\bnative\s*:=\s*true\b' 2>/dev/null; then
   fail "native_decide / decide +native / ofReduceBool is prohibited"
 fi
-# A doc comment, attributes and modifiers can come before `axiom` or
-# `unsafe` on its line. A comment that only names the word passes.
-if lean_files | xargs grep -nE '^\s*(/--.*-/\s*)?(@\[.*\]\s*)?((private|protected|public|noncomputable|unsafe)\s+)*(axiom|unsafe)\b|\bsorry\b|\badmit\b' 2>/dev/null; then
+# `set_option … in`, a doc comment, attributes and modifiers can come before
+# `axiom` or `unsafe` on its line. A comment that only names the word passes.
+if lean_files | xargs grep -nE '^\s*(set_option\s+\S+\s+\S+\s+in\s+)*(/--.*-/\s*)?(@\[.*\]\s*)?((private|protected|public|noncomputable|unsafe)\s+)*(axiom|unsafe)\b|\bsorry\b|\badmit\b' 2>/dev/null; then
   fail "sorry / admit / axiom / unsafe is prohibited"
 fi
 

@@ -64,10 +64,10 @@ def check(actual, expected, rust):
         raise ValueError('Canonical binding differs from the committed fixture')
     rust = rust_code(rust)
     for position, name in PINS.items():
-        matches = re.findall(r'pub const ' + name + r':\s*\[u64;\s*4\]\s*=\s*\[([\d_,\s]+)\];', rust)
+        matches = re.findall(r'pub const ' + name + r':\s*(\w+)\s*=\s*\1\(\[([\d_,\s]+)\]\);', rust)
         if len(matches) != 1:
             raise ValueError('Expected one literal Rust pin: ' + name)
-        words = [int(word.strip().replace('_', '')) for word in matches[0].split(',') if word.strip()]
+        words = [int(word.strip().replace('_', '')) for word in matches[0][1].split(',') if word.strip()]
         if len(words) != 4 or words != actual[position]:
             raise ValueError('Canonical binding differs from Rust pin: ' + name)
 

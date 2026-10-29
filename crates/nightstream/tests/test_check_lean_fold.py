@@ -52,8 +52,8 @@ class LeanFoldCheckTests(unittest.TestCase):
 
     def test_carried_identity_cannot_select_the_key(self):
         pin = self.directory / "identity.rs"
-        pin.write_text("// pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: [u64; 4] = [9,9,9,9];\n"
-                       "pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: [u64; 4] = [1,2,3,4];\n")
+        pin.write_text("// pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: PackageIdentity = PackageIdentity([9,9,9,9]);\n"
+                       "pub const POSEIDON2_HASH_CHAIN_V1_PACKAGE_IDENTITY: PackageIdentity = PackageIdentity([1,2,3,4]);\n")
         selected = check.package_pin(pin)
         self.assertEqual(selected, [1, 2, 3, 4])
         (self.directory / "actual_result.json").write_text(json.dumps({"package_identity": [9, 9, 9, 9]}))

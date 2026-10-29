@@ -5,8 +5,22 @@ version = { workspace = true }
 authors = { workspace = true }
 license = "Apache-2.0"
 
-[lints]
-workspace = true
+# The workspace allows, plus the lints that main's neo-wasm code trips. Main's CI runs no clippy.
+[lints.clippy]
+uninlined_format_args = "allow"
+too_many_arguments = "allow"
+needless_range_loop = "allow"
+type_complexity = "allow"
+absurd_extreme_comparisons = "allow"
+doc_lazy_continuation = "allow"
+err_expect = "allow"
+manual_async_fn = "allow"
+manual_range_contains = "allow"
+needless_borrow = "allow"
+non_canonical_clone_impl = "allow"
+redundant_closure = "allow"
+unnecessary_cast = "allow"
+useless_conversion = "allow"
 
 [features]
 default = []
@@ -23,24 +37,12 @@ path = "tests/wasm_column_audit.rs"
 required-features = ["audit-html"]
 
 [dependencies]
-neo-ajtai = { path = "../neo-ajtai" }
 neo-application = { path = "../neo-application" }
 neo-ccs = { path = "../neo-ccs" }
-neo-fold-clean = { path = "../neo-fold-clean" }
 neo-math = { path = "../neo-math" }
-neo-params = { path = "../neo-params" }
-neo-reductions = { path = "../neo-reductions" }
-neo-transcript = { path = "../neo-transcript" }
-bincode = { workspace = true }
-ff = { workspace = true, features = ["derive"] }
 futures = "0.3"
 p3-field = { workspace = true }
 p3-goldilocks = { workspace = true }
-rayon = { workspace = true }
-rand_chacha_p3 = { workspace = true }
-serde = { workspace = true }
-sha2 = "0.10"
-spartan2 = { workspace = true }
 thiserror = { workspace = true }
 wasmparser = "0.240"
 wasmtime = { version = "50", default-features = false, features = [
@@ -55,7 +57,5 @@ wasmtime = { version = "50", default-features = false, features = [
 ] }
 
 [dev-dependencies]
-object = "0.37"
-rand_chacha = { workspace = true }
 serde_json = { workspace = true }
 wat = "1"

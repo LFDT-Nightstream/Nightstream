@@ -85,8 +85,8 @@ fn first_export_locals_start_zero_without_aux_rows() {
     assert_eq!(initial.sp, 2);
     assert_eq!(initial.stack_frame_base, 2);
     assert_eq!(
-        neo_wasm::semantic_state_digest(initial),
-        common::verifier_initial_state_digest(&checked.artifacts),
+        initial,
+        common::verifier_initial_state(&checked.artifacts),
         "the verifier must reserve the first frame without pending zeroing"
     );
 }

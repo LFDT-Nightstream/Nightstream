@@ -78,19 +78,14 @@ pub(super) fn chain_tag(lane: Lane) -> &'static str {
     }
 }
 
-/// Spec §4.3 `plan_digest`.
+/// Spec §4.3 `plan_digest`: the geometry only. The images enter through
+/// `D_init`.
 pub fn plan_digest(plan: &Plan) -> Digest {
     let fields: Vec<F> = [plan.r, plan.mu, plan.w_ts, plan.b_ops, plan.b_scan, plan.n, plan.s_max]
         .iter()
         .map(|value| F::from_usize(*value))
         .collect();
-    let rom: Vec<F> = (0..plan.rom_size())
-        .map(|a| F::from_u64(plan.rom[a]))
-        .collect();
-    let ram: Vec<F> = (0..plan.ram_size())
-        .map(|a| F::from_u64(plan.ram[a]))
-        .collect();
-    digest(&absorbed(&[&text("Nightstream/Nebula/v3/plan"), &fields, &rom, &ram]))
+    digest(&absorbed(&[&text("Nightstream/Nebula/v3/plan"), &fields]))
 }
 
 /// `header_l` of spec §9.2.

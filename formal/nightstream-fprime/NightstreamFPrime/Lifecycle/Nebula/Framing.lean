@@ -68,12 +68,12 @@ def squeezeDigest (s : Poseidon2.State) : Digest := fun i => s.getD i 0
 /-- The spec §9.1 digest of a record-chain input. -/
 def hash (x : HashInput Digest) : Digest := squeezeDigest (absorbed (blocks x))
 
-/-- Spec §4.3 `plan_digest`. -/
+/-- Spec §4.3 `plan_digest`: the geometry only. The images enter through
+`D_init` (`Context.initRoot`), so one package serves every program of a
+geometry. -/
 def planDigest (p : Plan) : Digest :=
   squeezeDigest (absorbed [textWords "Nightstream/Nebula/v3/plan",
-    [p.r, p.μ, p.wTs, p.bOps, p.bScan, p.n, p.sMax].map natWord,
-    (List.range p.romSize).map fun a => natWord (p.rom a),
-    (List.range p.ramSize).map fun a => natWord (p.ram a)])
+    [p.r, p.μ, p.wTs, p.bOps, p.bScan, p.n, p.sMax].map natWord])
 
 /-- The absorbed blocks of the spec §9.3 challenge transcript. -/
 def etaInputBlocks (inp : EtaInput Digest) : List (List F) :=

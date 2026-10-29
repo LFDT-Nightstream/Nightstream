@@ -10,6 +10,7 @@ use std::ops::Range;
 
 use super::*;
 use crate::lifecycle::{VerifyError, FAILED_ASSERTION_ROW, UNCHECKED_WITNESS};
+use crate::nebula::Package;
 use crate::{Engine, Error, Proof, Prover, Verifier};
 
 /// `loadi 5; store 0`, then `load 0; halt`.
@@ -58,7 +59,7 @@ impl Harness {
             "names cover the rows"
         );
         Self {
-            context: Context::new(fixture.package),
+            context: Context::new(&fixture.package.program()),
             prover: loaded.prover(engine, 114).unwrap(),
             verifier: Verifier::from_package(&loaded.circuit, engine, 114).unwrap(),
             checks: named

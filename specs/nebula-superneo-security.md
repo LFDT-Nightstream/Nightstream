@@ -13,6 +13,15 @@ The prover controls all proof bytes, witnesses, memory records, and proposed
 roots. The verifier controls the verifier key, the application package, the
 plan, the setup seed, and the public statement.
 
+A package is a geometry: every plan field except the images (spec §4.1). A
+program is the ROM and RAM images. The key of a program is its `D_init`, which
+the verifier computes from the images and puts in the start carry (spec §9.2,
+§11.1). `plan_digest` does not read the images, so one package and one setup
+serve every program of a geometry, and `D_init` is the only path by which the
+program enters a proof. Two programs with different images have different
+initial snapshots, so they have different `D_init`, except with a collision
+(Lemmas 1 and 2).
+
 **Current values.** The F′ Stage 1 system has these levels:
 
 | Quantity | Level | Source |
@@ -399,8 +408,9 @@ these properties:
    products. A6 gives `IS ∪ WS = RS ∪ FS`, except with `error_mem`; Lemma 3
    motivates its value. Lemma 5 gives one sequential history per segment.
 4. **Segment joins.** For segment 0, `D_seen.is = D_init`. The verifier
-   computed `D_init` with the same chain and packing over the plan images, and
-   it computes the initial state from the start carry, which holds `D_init`.
+   computed `D_init` with the same chain and packing over the program's
+   images, and it computes the initial state from the start carry, which holds
+   `D_init`.
    By step 2, the input carry of `A[0]` is that carry, except with a
    state-digest collision. So by Lemmas 1 and 2, the IS
    records equal the plan images with `t = 0`, except with a collision. For
@@ -696,9 +706,17 @@ generated relation MUST supply the exact census.
      only these two memory packages. The relation `MemoryApp.program` is
      defined for every plan, so the setup rule binds the packages, not every
      Lean term. The Rust crate loads each emitted package with a pinned
-     structural identifier.
+     structural identifier. `planDigest` reads only the geometry, so each
+     package serves every program of its geometry. The Rust verifier takes the
+     program (`nebula::Program`), checks its images against the geometry and
+     the image rules of `Plan.Valid`, and computes its `D_init`.
 
    Still open:
+   - a Lean theorem that the relation of a plan does not read its images, so
+     that the soundness statement for a second program applies to the package
+     emitted for the first. By inspection, `planDigest` was the only reader.
+     The Rust test `programs_of_one_geometry_share_the_circuit` checks that
+     the Rust-built circuit of another program has the same identity and rows;
    - values for the adversary time `t` and the query counts `Q` and `Q_η`.
      They stay symbolic until the owner sets them (decision 2026-10-12); §5
      gives each term as a formula in them;

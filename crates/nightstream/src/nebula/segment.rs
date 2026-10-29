@@ -14,7 +14,7 @@ use super::plan::Plan;
 use super::records::{ops_lane, pack, scan_lane, OpSlot, PortAccess, ScanSlot};
 use super::transcript::{chain_link, chain_root, eta_challenges, header, plan_digest, state_words, Digest, Lane};
 use super::words::{self, Layout};
-use super::Package;
+use super::Program;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SegmentError {
@@ -60,8 +60,8 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(package: Package) -> Self {
-        let plan = package.plan();
+    pub fn new(program: &Program) -> Self {
+        let plan = program.plan.clone();
         let plan_digest = plan_digest(&plan);
         let memory = initial_memory(&plan);
         let d_init = chain_root(Lane::Mem, &plan_digest, &memory_lanes(&plan, &memory));
@@ -83,7 +83,8 @@ impl Context {
         self.layout.count()
     }
 
-    /// `D_init`: the IS root of the plan images (spec §9.2).
+    /// `D_init`: the IS root of the program's images (spec §9.2), the
+    /// program's key.
     pub fn d_init(&self) -> Digest {
         self.d_init
     }

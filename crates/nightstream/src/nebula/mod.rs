@@ -30,9 +30,10 @@ use segment::Cell;
 pub use segment::{Context, Invocation, SegmentError, Step};
 pub use transcript::{state_words, Digest};
 
-/// A Lean-emitted memory package: the plan that it proves and its pinned
-/// structural identifier. The verifier key binds the plan (spec §4.1), so a
-/// memory run and a memory verifier exist only for these packages.
+/// A Lean-emitted memory package: the memory geometry that it proves and its
+/// pinned structural identifier. The verifier key binds the geometry
+/// (spec §4.3), so a memory run and a memory verifier exist only for these
+/// packages. A program of the geometry is a `Program`.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Package {
     /// `artifacts/nightstream-fprime-stage2-nebula-memory-v1.json` (`FirstPlan.lean`).
@@ -42,10 +43,19 @@ pub enum Package {
 }
 
 impl Package {
+    /// The package's geometry with the images of its default program.
     pub fn plan(self) -> Plan {
         match self {
             Package::V1 => Plan::first(),
             Package::N1 => Plan::second(),
+        }
+    }
+
+    /// The program of the Lean plan that the package was emitted from.
+    pub fn program(self) -> Program {
+        Program {
+            package: self,
+            plan: self.plan(),
         }
     }
 
@@ -64,24 +74,68 @@ impl Package {
     pub(crate) fn application(
         self,
     ) -> Result<crate::application::ApplicationCircuit, crate::application::ApplicationError> {
-        circuit::memory_circuit(self)
+        circuit::memory_circuit(&self.plan())
     }
 
     fn structural_identifier(self) -> [u64; 4] {
         match self {
             Package::V1 => [
-                7606418978967494273,
-                7012554739737736582,
-                16451068804121006463,
-                2787927620498818402,
+                3172882483849057180,
+                8567705847331220519,
+                8030146092339936618,
+                10432117065660733435,
             ],
             Package::N1 => [
-                2732929784355259483,
-                2352438795120520828,
-                6712609518222072634,
-                2244383376532064420,
+                5065087233990754590,
+                15874026430280222715,
+                856469097843029471,
+                17098359820501084920,
             ],
         }
+    }
+}
+
+/// A program of a package's geometry: its ROM and RAM images (spec §4.1).
+/// The program enters a proof only through `D_init`, its key, which the
+/// verifier computes from the images (spec §9.2). One package serves every
+/// program of its geometry.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Program {
+    package: Package,
+    plan: Plan,
+}
+
+/// Why images are not a program of a package's geometry.
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum ProgramError {
+    #[error("the ROM image needs 2^r words and the RAM image 2^μ words")]
+    Size,
+    #[error("an image word is not below 2^32")]
+    Word,
+}
+
+impl Program {
+    /// Check the images against the geometry of `package`, as Lean
+    /// `Plan.Valid` does: `2^r` ROM words and `2^μ` RAM words, each below
+    /// `2^32`.
+    pub fn new(package: Package, rom: Vec<u64>, ram: Vec<u64>) -> Result<Self, ProgramError> {
+        let plan = Plan {
+            rom,
+            ram,
+            ..package.plan()
+        };
+        if plan.rom.len() != plan.rom_size() || plan.ram.len() != plan.ram_size() {
+            return Err(ProgramError::Size);
+        }
+        if plan
+            .rom
+            .iter()
+            .chain(&plan.ram)
+            .any(|word| *word >> 32 != 0)
+        {
+            return Err(ProgramError::Word);
+        }
+        Ok(Self { package, plan })
     }
 }
 
@@ -143,6 +197,8 @@ impl PackageCircuit {
 /// Why a memory proof does not verify.
 #[derive(Debug, thiserror::Error)]
 pub enum VerifyError {
+    #[error("the program is for another package")]
+    Package,
     #[error(transparent)]
     Terminal(#[from] TerminalError),
     #[error(transparent)]
@@ -150,9 +206,10 @@ pub enum VerifyError {
 }
 
 /// The memory verifier of one package: the spec §13 terminal checks, then
-/// the Stage 1 verifier of the package's relation.
+/// the Stage 1 verifier of the package's relation. It verifies proofs of
+/// every program of the package's geometry.
 pub struct Verifier {
-    context: Context,
+    package: Package,
     stage1: crate::Verifier,
 }
 
@@ -167,7 +224,7 @@ impl Verifier {
     ) -> Result<Self, crate::Error> {
         circuit.check_memory_security(minimum_security_bits)?;
         Ok(Self {
-            context: Context::new(circuit.package),
+            package: circuit.package,
             stage1: crate::Verifier::from_package(&circuit.circuit, engine, minimum_security_bits)?,
         })
     }
@@ -177,11 +234,22 @@ impl Verifier {
         self.stage1.decode_proof(bytes)
     }
 
-    /// Verify a memory proof (spec §13): the terminal checks on the final
-    /// carry, then the Stage 1 verification of `proof` with the initial and
-    /// final states that the statement and the carry open.
-    pub fn verify(&self, statement: &Statement, final_carry: &Carry, proof: &crate::Proof) -> Result<(), VerifyError> {
-        let (initial, last) = self.context.terminal_states(statement, final_carry)?;
+    /// Verify a memory proof of `program` (spec §13): the terminal checks on
+    /// the final carry, then the Stage 1 verification of `proof` with the
+    /// initial and final states that the statement and the carry open. The
+    /// initial state opens the start carry, which holds the program's
+    /// `D_init`.
+    pub fn verify(
+        &self,
+        program: &Program,
+        statement: &Statement,
+        final_carry: &Carry,
+        proof: &crate::Proof,
+    ) -> Result<(), VerifyError> {
+        if program.package != self.package {
+            return Err(VerifyError::Package);
+        }
+        let (initial, last) = Context::new(program).terminal_states(statement, final_carry)?;
         self.stage1
             .verify(&crate::State::new(statement.steps, initial, last), proof)?;
         Ok(())

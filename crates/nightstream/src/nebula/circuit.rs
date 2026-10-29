@@ -15,7 +15,7 @@ use super::expr::{lower_affine, lower_constraint, Expr};
 use super::rows::{pack, Sym};
 use super::transcript::{chain_tag, header, plan_digest, text, Lane, ETA_TAG, STATE_TAG};
 use super::words::{self, Layout};
-use super::Package;
+use super::Plan;
 use crate::application::{permutation, Affine, ApplicationBuilder, ApplicationCircuit, ApplicationError, Variable};
 
 type State = [Affine; WIDTH];
@@ -78,16 +78,16 @@ fn text_words(tag: &str) -> Vec<Expr> {
     text(tag).into_iter().map(Expr::Const).collect()
 }
 
-/// The Rust-built application circuit of a memory package.
-pub(super) fn memory_circuit(package: Package) -> Result<ApplicationCircuit, ApplicationError> {
-    let plan = package.plan();
-    let layout = Layout::new(&plan);
+/// The Rust-built application circuit of a memory plan. It reads the
+/// geometry only, so every program of a package has the same circuit.
+pub(super) fn memory_circuit(plan: &Plan) -> Result<ApplicationCircuit, ApplicationError> {
+    let layout = Layout::new(plan);
     let mut builder = ApplicationBuilder::new(layout.count())?;
     let wires: Vec<Variable> = builder.private_inputs().to_vec();
-    let digest = plan_digest(&plan);
+    let digest = plan_digest(plan);
     let (ops_header, mem_header) = (header(Lane::Ops, &digest), header(Lane::Mem, &digest));
     let headers = std::array::from_fn(|i| if i < 4 { ops_header[i] } else { mem_header[i % 4] });
-    let sym = Sym::new(&plan, &wires, headers);
+    let sym = Sym::new(plan, &wires, headers);
     let constants = round_constants();
     let run = |count: usize, index: &dyn Fn(usize) -> usize| (0..count).map(|k| sym.word(index(k))).collect::<Vec<_>>();
 

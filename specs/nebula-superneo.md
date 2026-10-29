@@ -180,7 +180,8 @@ challenges. The memory challenges are `η`.
 
 ### 4.1 Plan fields
 
-The verifier key binds one `NebulaPlan`:
+A `NebulaPlan` is a geometry, every field except the two images, and a
+program, the two images. The verifier key binds the geometry:
 
 | Field | Meaning |
 |---|---|
@@ -193,9 +194,11 @@ The verifier key binds one `NebulaPlan`:
 | `rom_image` | `R` words of 32 bits |
 | `ram_image` | `M` words of 32 bits |
 
-A cell value is one 32-bit word. The verifier accepts at most `S_max · N`
-steps. This is the fixed iteration bound of HyperNova Lemma 4 for this
-verifier key. Security note A4 states how the bound covers an adversary whose
+A package is a geometry, and a program is its images. One package serves
+every program of its geometry. The key of a program is its `D_init` (§9.2),
+which the verifier computes from the images. A cell value is one 32-bit word.
+The verifier accepts at most `S_max · N` steps. This is the fixed iteration
+bound of HyperNova Lemma 4 for this verifier key. Security note A4 states how the bound covers an adversary whose
 outputs can be longer.
 
 ### 4.2 Validity rules
@@ -236,17 +239,18 @@ terms.
 
 ```text
 plan_digest = Digest("Nightstream/Nebula/v3/plan",
-                     [r, μ, W_ts, B_ops, B_scan, N, S_max],
-                     rom_image, ram_image)
+                     [r, μ, W_ts, B_ops, B_scan, N, S_max])
 ```
 
-Each integer and each image word enters as one canonical field element. The
-verifier computes `plan_digest`. A prover-supplied value is invalid.
+Each integer enters as one canonical field element. The images do not enter
+`plan_digest`, so the package rows do not depend on the program. The verifier
+computes `plan_digest`. A prover-supplied value is invalid.
 
 The verifier binds `plan_digest` and `D_init` (§9.2) without a separate
-verifier-context field. `plan_digest` is a package constant: the package rows
-fix it, as they fix the Stage 1 verifier-context digest, and the relation MUST
-read it as a constant (the headers and the §9.3 transcript). A witness copy of
+verifier-context field. `plan_digest` binds the geometry, and `D_init` binds
+the program. `plan_digest` is a package constant: the package rows fix it, as
+they fix the Stage 1 verifier-context digest, and the relation MUST read it as
+a constant (the headers and the §9.3 transcript). A witness copy of
 `plan_digest` is invalid. The verifier computes `D_init` and puts it in the
 start carry (§11.1). The relation reads `D_mem` from its input carry, which
 the state digest binds to the input state. So step 0 reads `D_init` because
@@ -486,8 +490,9 @@ equals the IS root of segment `k + 1` when the snapshots are equal.
 
 `D_init` is the IS root over the initial snapshot: for each step `j`, the IS
 slots of the cells `j · B_scan … (j+1) · B_scan − 1` with the image values and
-`t = 0`. The verifier computes `D_init` at setup and binds it through the start
-carry (§4.3).
+`t = 0`. The verifier computes `D_init` from the program's images and binds it
+through the start carry (§4.3). `D_init` is the only path by which the program
+enters a proof.
 
 ### 9.3 Challenge transcript
 
@@ -676,7 +681,7 @@ final_timestamp     ts of the final carry
 final_memory_root   D_mem of the final carry
 ```
 
-The verifier key binds the plan.
+The verifier key binds the geometry, and the verifier takes the program.
 
 For a Nebula verifier key, the verifier MUST reject the Stage 1 initial
 envelope (`T = 0`). A proof has at least one segment.

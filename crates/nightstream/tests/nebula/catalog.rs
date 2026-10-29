@@ -6,6 +6,8 @@
 //! the binding rows: a circuit without the binding rows accepts its witness,
 //! and the circuit with them rejects it. Each broken row escapes every
 //! binding row but one kind, so each kind of row has a witness that needs it.
+//! A second plan shows two ports of distinct memories out of catalog order,
+//! and the honest rows still hold.
 
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 use p3_goldilocks::Goldilocks as F;
@@ -43,6 +45,10 @@ const COLUMNS: usize = 18;
 /// Fetch and the heap read are exclusive by construction. The pop sits
 /// before the push, so a row that pushes and pops is out of catalog order.
 const PLAN: [&[usize]; 3] = [&[0, 1], &[2, 4], &[3]];
+
+/// The push (rank 3) before the heap write (rank 2): two memories, so the
+/// pair may show in either order. The push still sits before the pop.
+const SWAPPED_PLAN: [&[usize]; 3] = [&[0, 1], &[3], &[2, 4]];
 
 /// ROM of 4 cells and RAM of 8, three slots, one segment of four steps.
 fn geometry() -> Geometry {
@@ -555,6 +561,74 @@ fn honest_rows_bind_the_lean_events_in_order_and_hold() {
     );
 }
 
+/// A plan that shows two ports of distinct memories out of catalog order
+/// accepts the honest rows. The accesses of each row bind its Lean events in
+/// slot order, and each pair of one memory with a write keeps catalog order
+/// (Lean `Reorders`).
+#[test]
+fn independent_ports_may_leave_catalog_order() {
+    let plan: Vec<Vec<usize>> = SWAPPED_PLAN.iter().map(|slot| slot.to_vec()).collect();
+    let setup = Setup {
+        binding: CatalogBinding::new(&catalog(), &geometry(), regions(), &plan).unwrap(),
+        ..setup()
+    };
+    let (run, invocations) = setup.run(None, &honest_rows());
+    let checked = checked_catalog();
+    let ports: Vec<(u32, &MemoryPortSpec)> = checked
+        .iter()
+        .flat_map(|memory| memory.ports.iter().map(move |port| (memory.id, port)))
+        .collect();
+    let writes = |rank: usize| matches!(ports[rank].1.kind, MemoryPortKind::Write { .. });
+    let dependent = |p: usize, q: usize| ports[p].0 == ports[q].0 && (writes(p) || writes(q));
+    let mut memory = setup.memory();
+    let mut swapped = false;
+    for (k, w) in honest_rows().iter().enumerate() {
+        let accesses: Vec<PortAccess> = setup
+            .binding
+            .ports(w, &Memory::new(&setup.geometry, &memory))
+            .unwrap()
+            .into_iter()
+            .flatten()
+            .collect();
+        let ranks: Vec<usize> = SWAPPED_PLAN
+            .iter()
+            .filter_map(|slot| {
+                slot.iter()
+                    .copied()
+                    .find(|rank| active(w, ports[*rank].1.activation))
+            })
+            .collect();
+        let mut catalog_order = ranks.clone();
+        catalog_order.sort_unstable();
+        let events = events_for_row(&checked, w);
+        assert_eq!(accesses.len(), events.len(), "row {k}: one access per event");
+        for (rank, access) in ranks.iter().zip(&accesses) {
+            let event = &events[catalog_order.binary_search(rank).unwrap()];
+            assert!(binds(event, access), "row {k}: {access:?} binds {event:?}");
+        }
+        for (i, p) in ranks.iter().enumerate() {
+            for q in &ranks[i + 1..] {
+                assert!(
+                    !dependent(*p, *q) || p < q,
+                    "row {k}: ports {p} and {q} keep catalog order"
+                );
+            }
+        }
+        swapped |= ranks != catalog_order;
+        for access in accesses {
+            memory[access.global_index(&setup.geometry)].value = access.vw;
+        }
+    }
+    assert!(swapped, "a row shows two ports out of catalog order");
+
+    let bound = setup.circuit(true);
+    let mut input = run.initial_state();
+    for invocation in &invocations {
+        bound.execute(input, &invocation.words).unwrap();
+        input = invocation.output;
+    }
+}
+
 /// Rows that need a dishonest slot: the forged ports give it and keep every
 /// memory row true. The binding's ports refuse the row or give other slots.
 #[test]
@@ -566,7 +640,7 @@ fn binding_rows_reject_each_forged_slot() {
         // Push 9 to stack 1 and pop stack 1. In catalog order the pop reads
         // 9; in slot order it runs first and reads 0.
         (
-            "co-active ports out of catalog order",
+            "a dependent pair out of catalog order",
             lead(row(&[
                 (FETCH, 1),
                 (CODE_VALUE, 11),

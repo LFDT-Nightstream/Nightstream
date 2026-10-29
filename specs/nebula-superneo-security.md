@@ -745,14 +745,16 @@ generated relation MUST supply the exact census.
    - the memory events of catalog applications (spec §10.1;
      `Spec/Nebula/MemoryTrace.lean`, `Spec/Nebula/EventBinding.lean`,
      `Lifecycle/Nebula/FreeApp.lean`). An execution whose active ports bind
-     the events of a catalog trace gives `MemoryConsistent` for the Lean copy
-     of `MemoryTrace.v` (`memoryConsistent_of_executes`). This discharges the
-     memory-consistency assumption of the Rocq proof of the WASM relation
-     (`formal/wasm-rocq` on `main`) for the bound memories, when the regions
-     are disjoint, the events are in range, and the initial state holds the
-     program images. The free application (`freeApp`) is a `PortApp` with no
-     rows, so §5 applies to it when its memory relation fits `2^28`: outside
-     the bad events of §5, an accepted proof of it attests such an execution.
+     a reorder of the events of a catalog trace (`Reorders`: each pair of
+     one memory with a write keeps its order) gives `MemoryConsistent` for
+     the Lean copy of `MemoryTrace.v` (`memoryConsistent_of_executes`). This
+     discharges the memory-consistency assumption of the Rocq proof of the
+     WASM relation (`formal/wasm-rocq` on `main`) for the bound memories, when
+     the regions are disjoint, the events are in range, and the initial state
+     holds the program images. The free application (`freeApp`) is a `PortApp`
+     with no rows, so §5 applies to it when its memory relation fits `2^28`:
+     outside the bad events of §5, an accepted proof of it attests such an
+     execution.
 
    Still open:
    - the Rust-built relation for another geometry or another application:
@@ -762,11 +764,13 @@ generated relation MUST supply the exact census.
      memory rows are checked by tests only;
    - the binding rows of the Rust memory backend (`nebula::CatalogBinding`,
      spec §10.1 rules I1 to I6): that, when they hold, the active slots of
-     each step bind the events of the step in order, each event is in range,
+     each step bind a reorder of the events of the step, each event is in range,
      and the regions are disjoint (the hypotheses of
      `memoryConsistent_of_executes`). The rows are Rust only, and no Lean
      proof covers them yet. Rust tests check that the honest rows of a test
-     catalog bind a Rust copy of `eventsForRow` in order, and that each of
+     catalog bind a Rust copy of `eventsForRow` in order, that a plan that
+     shows two ports of distinct memories out of catalog order accepts the
+     honest rows and keeps each dependent pair in order, and that each of
      twelve broken rows that keep the memory rows true fails the binding rows.
      A manual mutation check removed each of the ten kinds of binding row in
      turn, and each time one of the broken rows passed. The image builder

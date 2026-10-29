@@ -601,7 +601,11 @@ A binding maps the events to port accesses (Lean `MemoryTrace.Binding` in
    the event has a prior value, the read value is that value. When it has none,
    the read value is the current value of the cell, and Nebula checks it.
 6. An inactive port has no access, so its slot is a pad slot. The active slots
-   of all steps, in order, bind the events of the trace in order.
+   of all steps, in order, bind a reorder of the events of the trace
+   (`Reorders`). A reorder lists each event once and keeps each dependent
+   pair in trace order: two events of one memory where one is a write. Two
+   events of distinct memories, or two reads, may show in either order,
+   because they swap with the same replay (`replay_of_reorders`).
 
 The free application (Lean `freeApp`) has a selected number of state words, no
 private words, and no rows. Its model accepts every step of `B_ops` ports, so
@@ -613,8 +617,8 @@ rule 3. Let every event of the trace be in range. Let the initial state hold
 the program images on the in-range set (`Binding.Initial`): an address of a
 RAM memory starts at the RAM image word of its packed address, and an address
 of a ROM memory starts at the ROM image word. If an execution from the program
-images has active ports that bind the events of the trace in order, then the
-trace is `MemoryConsistent`. `memoryConsistent_of_accessAll` gives the same
+images has active ports that bind a reorder of the events of the trace, then
+the trace is `MemoryConsistent`. `memoryConsistent_of_accessAll` gives the same
 result for each list of accesses that replays from the program images, and
 `executes_accessAll` gives that replay for each execution.
 
@@ -641,8 +645,10 @@ builds the binding:
   and `c · (c − 1) = 0` for each activation column `c`. So a port cannot be
   active while its slot is inactive or shows another port.
 - **I2. Order.** The active slots, in slot order, list the active ports in
-  catalog order, which is the event order of `eventsForRow`. For each port
-  `p` that has ports `q` of a higher rank in earlier slots, the row is
+  an order that keeps each dependent pair in catalog order, which is the
+  event order of `eventsForRow`. Two ports are dependent when they are ports
+  of one memory and one of them is a write port. For each port `p` that has
+  dependent ports `q` of a higher rank in earlier slots, the row is
   `a_p · Σ a_q = 0`.
 - **I3. Address.** Each address part of an active port fits its width, and
   the slot address is the region base plus the little-endian parts. The base
@@ -659,8 +665,9 @@ builds the binding:
 - **I5. Host-checked memories.** A memory without a region has no slot and no
   row. The binding names it as host-checked.
 - **I6. Plan.** The slot plan changes only completeness and cost, never
-  soundness. A plan that puts two co-active ports in one slot, or co-active
-  ports out of catalog order, makes the rows of that honest row fail. At
+  soundness. A plan that puts two co-active ports in one slot, or two
+  co-active dependent ports out of catalog order, makes the rows of that
+  honest row fail. At
   build, the plan MUST have `B_ops` slots and name each checked port exactly
   once.
 
@@ -671,8 +678,9 @@ there are one row for each address part, one for the bits above the region
 (when the region is smaller than its namespace), one for the value, one for
 the prior column (when it is named), and one for the order (when I2 needs
 it). Each activation column adds one row. When these rows hold, the active
-slots of each step bind the events of the step in order, and each event is in
-range. Then the theorem above applies to the catalog of the checked memories.
+slots of each step bind a reorder of the events of the step, and each event
+is in range. The steps keep their order, so the active slots of all steps
+bind a reorder of the events of the trace. Then the theorem above applies to the catalog of the checked memories.
 The rows are Rust only: no Lean proof covers them yet (security note §7).
 
 **Images.** `CatalogBinding::program` builds the program of a preload (the

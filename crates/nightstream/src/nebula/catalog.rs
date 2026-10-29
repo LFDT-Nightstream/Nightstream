@@ -87,7 +87,7 @@ pub enum CatalogRowError {
     Address,
     #[error("a value of an active port does not fit 32 bits")]
     Value,
-    #[error("two active ports share a slot, or the active slots leave catalog order")]
+    #[error("two active ports share a slot, or two dependent active ports leave catalog order")]
     Plan,
 }
 
@@ -97,6 +97,8 @@ struct Port {
     /// The position of the port among the checked ports in catalog order:
     /// the order of its events (Lean `eventsForRow`).
     rank: usize,
+    /// The position of the port's memory among the checked memories.
+    memory: usize,
     activation: MemoryPortActivation,
     kind: MemoryPortKind,
     is_ram: bool,
@@ -128,6 +130,15 @@ fn word(row: &[F], column: usize) -> Result<u64, CatalogRowError> {
 }
 
 impl Port {
+    /// Whether the events of the two ports may not swap (Lean
+    /// `Event.Dependent`): one memory, and one of them writes. Two memories
+    /// have disjoint cells, and two reads keep the memory, so every other
+    /// pair may show in either order.
+    fn depends_on(&self, other: &Port) -> bool {
+        let writes = |port: &Port| matches!(port.kind, MemoryPortKind::Write { .. });
+        self.memory == other.memory && (writes(self) || writes(other))
+    }
+
     /// `1` when the port is active, as a 0/1 expression over the columns.
     fn active(&self, columns: &[Expr]) -> Expr {
         match self.activation {
@@ -238,6 +249,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
                 }
                 ports.push(Some(Port {
                     rank: ports.len(),
+                    memory: checked.len(),
                     activation: port.activation,
                     kind: port.kind,
                     is_ram,
@@ -327,8 +339,9 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
     ///
     /// - I1: the slot is active exactly when one of its ports is active, and
     ///   then it shows that port: its namespace, mode, address, and values;
-    /// - I2: an active port has no active port of a higher rank in an earlier
-    ///   slot, so the active slots list the events in catalog order;
+    /// - I2: an active port has no dependent active port of a higher rank in
+    ///   an earlier slot, so the active slots list the events in an order that
+    ///   keeps each dependent pair (Lean `Reorders`);
     /// - I3: each address part of an active port is the run of the slot's
     ///   address bits at its offset, so it fits its width, and the bits above
     ///   the region hold its base;
@@ -387,7 +400,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
                 let mut later = self.slots[..j]
                     .iter()
                     .flatten()
-                    .filter(|earlier| earlier.rank > port.rank)
+                    .filter(|earlier| earlier.rank > port.rank && earlier.depends_on(port))
                     .peekable();
                 if later.peek().is_some() {
                     rows.push(port.gate(columns, sum(later.map(|earlier| earlier.active(columns)))));
@@ -403,7 +416,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
     /// runner applies them.
     pub fn ports(&self, row: &[F], memory: &Memory) -> Result<Vec<Option<PortAccess>>, CatalogRowError> {
         let mut ports: Vec<Option<PortAccess>> = Vec::with_capacity(self.slots.len());
-        let mut last_rank = None;
+        let mut shown_ports: Vec<&Port> = Vec::new();
         for slot in &self.slots {
             let mut shown = None;
             for port in slot {
@@ -415,10 +428,13 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
                 ports.push(None);
                 continue;
             };
-            if last_rank.is_some_and(|last| last > port.rank) {
+            if shown_ports
+                .iter()
+                .any(|earlier| earlier.rank > port.rank && earlier.depends_on(port))
+            {
                 return Err(CatalogRowError::Plan);
             }
-            last_rank = Some(port.rank);
+            shown_ports.push(port);
             let (is_ram, addr) = (port.is_ram, port.address(row)?);
             let value = word(row, port.value)?;
             let vr = match port.kind {

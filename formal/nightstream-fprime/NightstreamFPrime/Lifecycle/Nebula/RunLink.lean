@@ -16,7 +16,9 @@ open NightstreamFPrime.Spec.Nebula
 open NightstreamFPrime.Circuit
 open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 
-variable {p : Plan} (app : PortApp p)
+section Geometry
+
+variable {p : Geometry} (app : PortApp p)
 
 namespace StepWitness
 
@@ -40,7 +42,7 @@ end StepWitness
 
 /-- The spec §13 terminal checks on the final state words `zT`, with the
 statement fields and the prover's final carry words. -/
-structure TerminalChecks {width : ℕ} (p : Plan) (zT : List F) (finalApp : Fin width → F)
+structure TerminalChecks {width : ℕ} (p : Geometry) (zT : List F) (finalApp : Fin width → F)
     (carry : Fin 39 → F)
     (steps segments finalTs : ℕ) (finalRoot : Digest) : Prop where
   state : zT = stateWords (List.ofFn finalApp) (List.ofFn carry)
@@ -50,11 +52,6 @@ structure TerminalChecks {width : ℕ} (p : Plan) (zT : List F) (finalApp : Fin 
   segIdx : (decodeCarry carry).segIdx = segments
   ts : (decodeCarry carry).ts = finalTs
   root : (decodeCarry carry).memRoot = finalRoot
-
-theorem decodeCarry_startCarry (valid : p.Valid) :
-    decodeCarry (carryVector (startCarry (context p))) = startCarry (context p) :=
-  decodeCarry_carryVector ⟨by simp [startCarry, goldilocksModulus], Plan.n_lt valid,
-    by simp [startCarry, goldilocksModulus]⟩
 
 /-- Equal state words over `n` application words and 39 carry words give
 equal words, or a collision between these two inputs. -/
@@ -70,15 +67,15 @@ theorem state_eq_or_collision {n : ℕ} (small : n < goldilocksModulus) {app app
   · exact Or.inl ⟨List.ofFn_injective appEq, List.ofFn_injective carryEq⟩
   · exact Or.inr collision
 
-private theorem continueRun_snoc {E Digest σ : Type} [CommRing E] {ctx : Context E Digest}
+private theorem continueRun_snoc {E Digest σ : Type} [CommRing E] {s : Setup E Digest}
     {c d d' : Carry E Digest} {run : List (Invocation σ Digest)} {inv : Invocation σ Digest}
-    (before : continueRun ctx c run = some d) (step : invoke ctx d inv = some d') :
-    continueRun ctx c (run ++ [inv]) = some d' := by
+    (before : continueRun s c run = some d) (step : invoke s d inv = some d') :
+    continueRun s c (run ++ [inv]) = some d' := by
   unfold continueRun at before ⊢
   rw [List.foldlM_append, before]
   simp [step]
 
-private theorem appThread_snoc {Digest σ : Type} {q : Plan} {app : Application q σ} :
+private theorem appThread_snoc {Digest σ : Type} {q : Geometry} {app : Application q σ} :
     ∀ {s s' : σ} {run : List (Invocation σ Digest)} {inv : Invocation σ Digest},
       AppThread app s run s' → app.Step s' inv.ports inv.next →
         AppThread app s (run ++ [inv]) inv.next
@@ -87,22 +84,33 @@ private theorem appThread_snoc {Digest σ : Type} {q : Plan} {app : Application 
     exact ⟨step, rfl⟩
   | _, _, _ :: _, _, thread, step => ⟨thread.1, appThread_snoc thread.2 step⟩
 
-variable {a : AppShape}
-
-/-- The application words and the carry words after `k` invocations. -/
-def wordsAfter (w : ℕ → StepWitness p a) (initialApp : Fin a.width → F) :
-    ℕ → (Fin a.width → F) × (Fin 39 → F)
-  | 0 => (initialApp, carryVector (startCarry (context p)))
-  | k + 1 => ((w k).appOut, (w k).carryOut)
-
 /-- The extracted run of the first `k` invocations. -/
 def runOf (w : ℕ → StepWitness p app.toAppShape) (k : ℕ) : List (Invocation app.State Digest) :=
   (List.range k).map fun i => (w i).invocation app
 
+end Geometry
+
+/-! ### Runs of a program
+
+The run starts from the program's start carry, which holds its `D_init`. -/
+
+variable {p : Plan} {a : AppShape}
+
+theorem decodeCarry_startCarry (valid : p.Valid) :
+    decodeCarry (carryVector (startCarry (context p))) = startCarry (context p) :=
+  decodeCarry_carryVector ⟨by simp [startCarry, goldilocksModulus], Geometry.n_lt valid.toValid,
+    by simp [startCarry, goldilocksModulus]⟩
+
+/-- The application words and the carry words after `k` invocations. -/
+def wordsAfter (w : ℕ → StepWitness p.toGeometry a) (initialApp : Fin a.width → F) :
+    ℕ → (Fin a.width → F) × (Fin 39 → F)
+  | 0 => (initialApp, carryVector (startCarry (context p)))
+  | k + 1 => ((w k).appOut, (w k).carryOut)
+
 /-- A state-digest collision at link `k` of the chain: the input words of
 invocation `k` and the words after `k` invocations differ and have the same
 state digest. -/
-def LinkCollision (w : ℕ → StepWitness p a) (initialApp : Fin a.width → F) (k : ℕ) : Prop :=
+def LinkCollision (w : ℕ → StepWitness p.toGeometry a) (initialApp : Fin a.width → F) (k : ℕ) : Prop :=
   StateCollision (List.ofFn (w k).appIn) (List.ofFn (w k).carryIn)
     (List.ofFn (wordsAfter w initialApp k).1) (List.ofFn (wordsAfter w initialApp k).2)
 
@@ -110,16 +118,16 @@ def LinkCollision (w : ℕ → StepWitness p a) (initialApp : Fin a.width → F)
 chain, or between the words after the last invocation and the statement's
 final words. Both sides of each collision are data of the run, so a
 compressing hash does not make this event certain. -/
-def RunStateCollision (w : ℕ → StepWitness p a) (initialApp finalApp : Fin a.width → F)
+def RunStateCollision (w : ℕ → StepWitness p.toGeometry a) (initialApp finalApp : Fin a.width → F)
     (finalCarry : Fin 39 → F) (T : ℕ) : Prop :=
   (∃ k < T, LinkCollision w initialApp k) ∨
     StateCollision (List.ofFn (wordsAfter w initialApp T).1)
       (List.ofFn (wordsAfter w initialApp T).2) (List.ofFn finalApp) (List.ofFn finalCarry)
 
-variable {app}
+variable {app : PortApp p.toGeometry}
 
 /-- The state words after `k` invocations open to `wordsAfter k`. -/
-theorem state_wordsAfter {T : ℕ} {z : ℕ → List F} {w : ℕ → StepWitness p app.toAppShape}
+theorem state_wordsAfter {T : ℕ} {z : ℕ → List F} {w : ℕ → StepWitness p.toGeometry app.toAppShape}
     {initialApp : Fin app.width → F}
     (start : z 0 = stateWords (List.ofFn initialApp) (carryWords (startCarry (context p))))
     (steps : ∀ i < T, (w i).Holds app (z i) (z (i + 1))) :
@@ -131,12 +139,12 @@ theorem state_wordsAfter {T : ℕ} {z : ℕ → List F} {w : ℕ → StepWitness
 /-- The model runs the first `k` invocations to the decoded carry of
 `wordsAfter k`, along the application thread, or a link before `k` collides. -/
 theorem prefix_or_collision (valid : p.Valid) {T : ℕ} {z : ℕ → List F}
-    {w : ℕ → StepWitness p app.toAppShape} {initialApp : Fin app.width → F}
+    {w : ℕ → StepWitness p.toGeometry app.toAppShape} {initialApp : Fin app.width → F}
     (start : z 0 = stateWords (List.ofFn initialApp) (carryWords (startCarry (context p))))
     (steps : ∀ i < T, (w i).Holds app (z i) (z (i + 1))) :
-    ∀ k ≤ T, (continueRun (context p) (startCarry (context p)) (runOf app w k) =
+    ∀ k ≤ T, (continueRun (setup p.toGeometry) (startCarry (context p)) (runOf app w k) =
         some (decodeCarry (wordsAfter w initialApp k).2) ∧
-      Reach p (decodeCarry (wordsAfter w initialApp k).2) ∧
+      Reach p.toGeometry (decodeCarry (wordsAfter w initialApp k).2) ∧
       AppThread app.model initialApp (runOf app w k) (wordsAfter w initialApp k).1) ∨
       ∃ j < k, LinkCollision w initialApp j
   | 0, _ => by
@@ -155,11 +163,11 @@ theorem prefix_or_collision (valid : p.Valid) {T : ℕ} {z : ℕ → List F}
           rw [StepWitness.inCarry, carryIn]
         rw [← inCarry] at before reach
         obtain ⟨invoked, reachOut⟩ :=
-          holds.rows.invoke valid reach (w k).appOut
+          holds.rows.invoke valid.toValid reach (w k).appOut
         have step : app.model.Step (w k).appIn ((w k).invocation app).ports
             ((w k).invocation app).next := by
           rw [StepWitness.invocation_ports]
-          exact app.sound valid (w k).view
+          exact app.sound valid.toValid (w k).view
             (fun j => StepWitness.PolyRows.wellFormed (w k) holds.rows.toPolyRows j) holds.application
         rw [appIn] at step
         refine Or.inl ⟨?_, reachOut, ?_⟩
@@ -176,11 +184,11 @@ memory rows and the application's rows, with the spec §13 terminal checks, is
 accepted by the model on the extracted run, or two state-digest inputs of the
 run collide. -/
 theorem accepts_or_collision (valid : p.Valid) {T : ℕ} {z : ℕ → List F}
-    {w : ℕ → StepWitness p app.toAppShape} {initialApp finalApp : Fin app.width → F}
+    {w : ℕ → StepWitness p.toGeometry app.toAppShape} {initialApp finalApp : Fin app.width → F}
     {finalCarry : Fin 39 → F} {segments finalTs : ℕ} {finalRoot : Digest}
     (start : z 0 = stateWords (List.ofFn initialApp) (carryWords (startCarry (context p))))
     (steps : ∀ i < T, (w i).Holds app (z i) (z (i + 1)))
-    (terminal : TerminalChecks p (z T) finalApp finalCarry T segments finalTs finalRoot) :
+    (terminal : TerminalChecks p.toGeometry (z T) finalApp finalCarry T segments finalTs finalRoot) :
     Accepts (context p) app.model ⟨T, initialApp, finalApp, segments, finalTs, finalRoot⟩
         (runOf app w T) ∨ RunStateCollision w initialApp finalApp finalCarry T := by
   rcases prefix_or_collision valid start steps T le_rfl with ⟨ran, -, thread⟩ | collision

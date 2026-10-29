@@ -10,14 +10,14 @@ functions take no challenge, which is hash residency (spec §6.4, Ob6). -/
 namespace NightstreamFPrime.Spec.Nebula
 
 /-- Rows O3, O5, O6, and O7 of one operation slot. -/
-structure OpSlot.Rows (p : Plan) (s : OpSlot) : Prop where
+structure OpSlot.Rows (p : Geometry) (s : OpSlot) : Prop where
   readKeeps : s.isWrite = false → s.vw = s.vr
   noRomWrite : s.isWrite = true → s.isRam = true
   romRange : s.isRam = false → s.addr < p.romSize
   padZero : s.pad = true → s = OpSlot.padSlot
 
 /-- All memory rows of one step entered with timestamp `ts` (spec §8). -/
-structure StepRows (p : Plan) (ts : ℕ) (z : StepRecords) : Prop where
+structure StepRows (p : Geometry) (ts : ℕ) (z : StepRecords) : Prop where
   shaped : z.Shaped p
   slots : ∀ s ∈ z.ops, s.Rows p
   fresh : ∀ o ∈ activeOps ts z.ops, o.rt < o.wt
@@ -34,7 +34,7 @@ variable {E : Type} [CommRing E]
 
 /-- Rows O8 and O9 over the slots in order: a pad slot multiplies by `1`, an
 active slot by the fingerprint of its read and write tuples. -/
-def opsFactors (p : Plan) (η : E × E) : ℕ → List OpSlot → E × E
+def opsFactors (p : Geometry) (η : E × E) : ℕ → List OpSlot → E × E
   | _, [] => (1, 1)
   | ts, s :: rest =>
     if s.pad then opsFactors p η ts rest
@@ -49,7 +49,7 @@ def scanFactor (η : E × E) : ℕ → List ScanSlot → E
   | base, c :: rest => fingerprint η (c.stamp, base, c.value) * scanFactor η (base + 1) rest
 
 /-- The carry products after one step. -/
-def stepProducts (p : Plan) (η : E × E) (ts idx : ℕ) (z : StepRecords) (h : Products E) :
+def stepProducts (p : Geometry) (η : E × E) (ts idx : ℕ) (z : StepRecords) (h : Products E) :
     Products E :=
   ⟨h.read * (opsFactors p η ts z.ops).1, h.write * (opsFactors p η ts z.ops).2,
    h.initial * scanFactor η (idx * p.bScan) z.initialScan,
@@ -59,7 +59,7 @@ private theorem product_coe (η : E × E) (l : List Tuple) :
     product η (l : Multiset Tuple) = (l.map (fingerprint η)).prod := by
   simp [product]
 
-private theorem opsFactors_eq (p : Plan) (η : E × E) (ts : ℕ) (ops : List OpSlot) :
+private theorem opsFactors_eq (p : Geometry) (η : E × E) (ts : ℕ) (ops : List OpSlot) :
     opsFactors p η ts ops =
       (product η ((activeOps ts ops).map (MemOp.read p) : List Tuple),
        product η ((activeOps ts ops).map (MemOp.write p) : List Tuple)) := by
@@ -79,7 +79,7 @@ private theorem scanFactor_eq (η : E × E) (base : ℕ) (scan : List ScanSlot) 
 
 /-- Security note Lemma 4: the rows compute the fingerprint products of the
 step's multisets. -/
-theorem stepProducts_eq (p : Plan) (η : E × E) (ts idx : ℕ) (z : StepRecords)
+theorem stepProducts_eq (p : Geometry) (η : E × E) (ts idx : ℕ) (z : StepRecords)
     (h : Products E) :
     stepProducts p η ts idx z h =
       ⟨h.read * product η (stepMultisets p ts idx z).read,
@@ -126,7 +126,7 @@ theorem activeOps_append (ts : ℕ) (l : List OpSlot) (s : OpSlot) :
 
 variable {E : Type} [CommRing E] in
 /-- One more slot at the end: rows O8 and O9 multiply by its gated factors. -/
-theorem opsFactors_append (p : Plan) (η : E × E) (ts : ℕ) (l : List OpSlot) (s : OpSlot) :
+theorem opsFactors_append (p : Geometry) (η : E × E) (ts : ℕ) (l : List OpSlot) (s : OpSlot) :
     opsFactors p η ts (l ++ [s]) =
       ((opsFactors p η ts l).1 *
           (if s.pad then 1 else fingerprint η (s.rt,
@@ -202,7 +202,7 @@ private theorem mem_scanTuplesFrom {τ : Tuple} {base : ℕ} {scan : List ScanSl
       refine ⟨c', List.mem_cons_of_mem _ hc', j + 1, by simp; omega, ?_⟩
       rw [Nat.add_assoc, Nat.add_comm 1 j]
 
-private theorem tuple_small {p : Plan} (valid : p.Valid) {τ : Tuple} (ht : τ.1 < 2 ^ p.wTs)
+private theorem tuple_small {p : Geometry} (valid : p.Valid) {τ : Tuple} (ht : τ.1 < 2 ^ p.wTs)
     (hg : τ.2.1 < p.cells) (hv : τ.2.2 < 2 ^ 32) :
     τ.Small ∧ τ.1 < 2 ^ p.wTs ∧ τ.2.1 < p.cells ∧ τ.2.2 < 2 ^ 32 := by
   have hts : 2 ^ p.wTs < goldilocksModulus :=
@@ -213,7 +213,7 @@ private theorem tuple_small {p : Plan} (valid : p.Valid) {τ : Tuple} (ht : τ.1
 
 /-- Security note Lemma 4, ranges: every tuple of a step whose rows hold is
 small, with `t < 2 ^ W_ts`, `g < R + M`, and `v < 2 ^ 32`. -/
-theorem stepMultisets_small {p : Plan} (valid : p.Valid) {ts idx : ℕ} {z : StepRecords}
+theorem stepMultisets_small {p : Geometry} (valid : p.Valid) {ts idx : ℕ} {z : StepRecords}
     (rows : StepRows p ts z) (hidx : idx < p.n) :
     ∀ τ ∈ (stepMultisets p ts idx z).all, τ.Small ∧ τ.1 < 2 ^ p.wTs ∧ τ.2.1 < p.cells ∧
       τ.2.2 < 2 ^ 32 := by
@@ -232,7 +232,7 @@ theorem stepMultisets_small {p : Plan} (valid : p.Valid) {ts idx : ℕ} {z : Ste
       exact (Option.some.inj port).symm
     refine ⟨rt ▸ fit.2.2.2, hi.trans_lt rows.boundary, ?_, access ▸ fit.2.1, access ▸ fit.2.2.1⟩
     rw [access]
-    unfold PortAccess.globalIndex Plan.cells Plan.ramSize
+    unfold PortAccess.globalIndex Geometry.cells Geometry.ramSize
     cases hr : s.isRam
     · have := romRange hr
       simp only [Bool.false_eq_true, ite_false]

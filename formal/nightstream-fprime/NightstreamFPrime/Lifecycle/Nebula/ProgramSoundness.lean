@@ -12,7 +12,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
 open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 
-variable {p : Plan} {app : PortApp p}
+variable {p : Geometry} {app : PortApp p}
 
 /-- A valid program step with the program's output state is a run-link step. -/
 theorem MemoryApp.holds_of_valid {input witness output : List F}

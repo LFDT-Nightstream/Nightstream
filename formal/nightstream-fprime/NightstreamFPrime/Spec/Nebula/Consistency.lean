@@ -12,7 +12,7 @@ check is needed. -/
 
 namespace NightstreamFPrime.Spec.Nebula
 
-private theorem snapshot_eq (p : Plan) (mem : Memory) :
+private theorem snapshot_eq (p : Geometry) (mem : Memory) :
     snapshot p mem = (Multiset.range p.cells).map fun g => ((mem g).stamp, g, (mem g).value) :=
   rfl
 
@@ -23,7 +23,7 @@ private theorem cell_ext {a b : Cell} (value : a.value = b.value) (stamp : a.sta
   simp_all
 
 /-- Updating one cell below `R + M` swaps one tuple of the snapshot. -/
-theorem snapshot_update (p : Plan) (mem : Memory) {g : ℕ} (hg : g < p.cells) (c : Cell) :
+theorem snapshot_update (p : Geometry) (mem : Memory) {g : ℕ} (hg : g < p.cells) (c : Cell) :
     snapshot p (Function.update mem g c) + {((mem g).stamp, g, (mem g).value)} =
       snapshot p mem + {(c.stamp, g, c.value)} := by
   have split : Multiset.range p.cells = g ::ₘ (Multiset.range p.cells).erase g :=
@@ -39,7 +39,7 @@ theorem snapshot_update (p : Plan) (mem : Memory) {g : ℕ} (hg : g < p.cells) (
   simp only [add_comm, add_left_comm]
 
 /-- Equal snapshots agree on every cell below `R + M`. -/
-theorem eqOn_of_snapshot_eq {p : Plan} {mem₁ mem₂ : Memory}
+theorem eqOn_of_snapshot_eq {p : Geometry} {mem₁ mem₂ : Memory}
     (same : snapshot p mem₁ = snapshot p mem₂) :
     Set.EqOn mem₁ mem₂ (Set.Iio p.cells) := by
   intro g hg
@@ -59,7 +59,7 @@ private theorem coe_map_append (f : MemOp → Tuple) (ops : List MemOp) (o : Mem
   rfl
 
 /-- Security note Lemma 5. -/
-theorem segment_sequential (p : Plan) {start : Machine} {final : Memory} {ops : List MemOp}
+theorem segment_sequential (p : Geometry) {start : Machine} {final : Memory} {ops : List MemOp}
     (stamps : ∀ k (hk : k < ops.length), (ops.get ⟨k, hk⟩).wt = start.ts + k + 1)
     (fresh : ∀ o ∈ ops, o.rt < o.wt) (valid : ∀ o ∈ ops, o.access.Valid p)
     (balanced : snapshot p start.memory + ((ops.map (MemOp.write p) : List Tuple) : Multiset Tuple) =
@@ -134,13 +134,13 @@ theorem segment_sequential (p : Plan) {start : Machine} {final : Memory} {ops : 
 
 /-- The honest operations of a replay: `rt` is the stamp of the cell when the
 access runs, and `wt` is the new global timestamp. -/
-def honestOps (p : Plan) : Machine → List PortAccess → List MemOp
+def honestOps (p : Geometry) : Machine → List PortAccess → List MemOp
   | _, [] => []
   | m, a :: rest => ⟨a, (m.memory (a.globalIndex p)).stamp, m.ts + 1⟩ :: honestOps p (m.apply p a) rest
 
 /-- Converse of Lemma 5: an honest replay from a machine whose stamps do not
 exceed its timestamp is balanced, fresh, and has consecutive write stamps. -/
-theorem honest_balanced (p : Plan) {start m : Machine} {as : List PortAccess}
+theorem honest_balanced (p : Geometry) {start m : Machine} {as : List PortAccess}
     (below : ∀ g, (start.memory g).stamp ≤ start.ts)
     (run : accessAll p start as = some m) :
     (honestOps p start as).map MemOp.access = as ∧

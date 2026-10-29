@@ -13,7 +13,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
 open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 
-variable {p : Plan} {σ Coins : Type} [Fintype Coins] (app : Application p σ)
+variable {p : Plan} {σ Coins : Type} [Fintype Coins] (app : Application p.toGeometry σ)
   (g : Game K Digest σ Coins p.sMax)
 
 theorem context_hash (p : Plan) : (context p).hash = hash := rfl

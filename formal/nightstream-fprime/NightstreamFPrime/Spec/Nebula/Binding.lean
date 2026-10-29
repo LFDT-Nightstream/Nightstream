@@ -10,28 +10,28 @@ namespace NightstreamFPrime.Spec.Nebula
 variable {E Digest σ : Type} [CommRing E]
 
 /-- The scan chunks of a memory: chunk `j` holds the cells `j · B_scan + i`. -/
-def scansOf (p : Plan) (mem : Memory) : List (List ScanSlot) := (List.range p.n).map (scanOf p mem)
+def scansOf (p : Geometry) (mem : Memory) : List (List ScanSlot) := (List.range p.n).map (scanOf p mem)
 
 /-- The memory that scan chunks describe: cell `g` is slot `g mod B_scan` of
 chunk `g / B_scan`. -/
-def scanMemory (p : Plan) (scans : List (List ScanSlot)) : Memory := fun g =>
+def scanMemory (p : Geometry) (scans : List (List ScanSlot)) : Memory := fun g =>
   let c := (scans.getD (g / p.bScan) []).getD (g % p.bScan) ⟨0, 0⟩
   ⟨c.value, c.stamp⟩
 
 /-- Cells below `R + M` hold 32-bit values and stamps below `2 ^ W_ts`. -/
-def Memory.Fits (p : Plan) (mem : Memory) : Prop :=
+def Memory.Fits (p : Geometry) (mem : Memory) : Prop :=
   ∀ g < p.cells, (mem g).value < 2 ^ 32 ∧ (mem g).stamp < 2 ^ p.wTs
 
 /-- Scan chunks of the plan's shape. -/
-def ScansShaped (p : Plan) (scans : List (List ScanSlot)) : Prop :=
+def ScansShaped (p : Geometry) (scans : List (List ScanSlot)) : Prop :=
   ∀ c ∈ scans, c.length = p.bScan ∧ ∀ s ∈ c, s.Fits p
 
 /-- Operation lanes of the plan's shape. -/
-def OpsShaped (p : Plan) (ops : List (List OpSlot)) : Prop :=
+def OpsShaped (p : Geometry) (ops : List (List OpSlot)) : Prop :=
   ∀ c ∈ ops, c.length = p.bOps ∧ ∀ s ∈ c, s.Fits p
 
 /-- The number of packed elements of each lane of a step (spec §6.3, §9.1). -/
-def Plan.laneLength (p : Plan) : Lane → ℕ
+def Geometry.laneLength (p : Geometry) : Lane → ℕ
   | .ops => packedLength (p.bOps * p.opWidth)
   | .mem => packedLength (p.bScan * p.scanWidth)
 
@@ -56,11 +56,11 @@ def segmentOps (ts : ℕ) : List StepRecords → List MemOp
   | z :: rest => activeOps ts z.ops ++ segmentOps (ts + activeCount z) rest
 
 /-- The scan tuples of consecutive chunks from step index `idx`. -/
-def chunkTuples (p : Plan) : ℕ → List (List ScanSlot) → Multiset Tuple
+def chunkTuples (p : Geometry) : ℕ → List (List ScanSlot) → Multiset Tuple
   | _, [] => 0
   | idx, c :: rest => (scanTuples p idx c : Multiset Tuple) + chunkTuples p (idx + 1) rest
 
-theorem segmentMultisets_read (p : Plan) (ts idx : ℕ) (rs : List StepRecords) :
+theorem segmentMultisets_read (p : Geometry) (ts idx : ℕ) (rs : List StepRecords) :
     (segmentMultisets p ts idx rs).read =
       (((segmentOps ts rs).map (MemOp.read p) : List Tuple) : Multiset Tuple) := by
   induction rs generalizing ts idx with
@@ -71,7 +71,7 @@ theorem segmentMultisets_read (p : Plan) (ts idx : ℕ) (rs : List StepRecords) 
     rw [ih, segmentOps, List.map_append, ← Multiset.coe_add]
     rfl
 
-theorem segmentMultisets_write (p : Plan) (ts idx : ℕ) (rs : List StepRecords) :
+theorem segmentMultisets_write (p : Geometry) (ts idx : ℕ) (rs : List StepRecords) :
     (segmentMultisets p ts idx rs).write =
       (((segmentOps ts rs).map (MemOp.write p) : List Tuple) : Multiset Tuple) := by
   induction rs generalizing ts idx with
@@ -82,7 +82,7 @@ theorem segmentMultisets_write (p : Plan) (ts idx : ℕ) (rs : List StepRecords)
     rw [ih, segmentOps, List.map_append, ← Multiset.coe_add]
     rfl
 
-theorem segmentMultisets_initial (p : Plan) (ts idx : ℕ) (rs : List StepRecords) :
+theorem segmentMultisets_initial (p : Geometry) (ts idx : ℕ) (rs : List StepRecords) :
     (segmentMultisets p ts idx rs).initial =
       chunkTuples p idx (rs.map StepRecords.initialScan) := by
   induction rs generalizing ts idx with
@@ -93,7 +93,7 @@ theorem segmentMultisets_initial (p : Plan) (ts idx : ℕ) (rs : List StepRecord
     rw [ih]
     rfl
 
-theorem segmentMultisets_final (p : Plan) (ts idx : ℕ) (rs : List StepRecords) :
+theorem segmentMultisets_final (p : Geometry) (ts idx : ℕ) (rs : List StepRecords) :
     (segmentMultisets p ts idx rs).final = chunkTuples p idx (rs.map StepRecords.finalScan) := by
   induction rs generalizing ts idx with
   | nil => rfl
@@ -170,14 +170,14 @@ private theorem scanTuplesFrom_range' (mem : Memory) (base n : ℕ) :
   | zero => rfl
   | succ n ih => simp only [List.range'_succ, List.map_cons, scanTuplesFrom, ih]
 
-private theorem scanOf_eq (p : Plan) (mem : Memory) (j : ℕ) :
+private theorem scanOf_eq (p : Geometry) (mem : Memory) (j : ℕ) :
     scanOf p mem j = (List.range' (j * p.bScan) p.bScan).map fun g =>
       (⟨(mem g).value, (mem g).stamp⟩ : ScanSlot) := by
   apply List.ext_getElem (by simp [scanOf])
   intro i h₁ h₂
   simp [scanOf, List.getElem_range']
 
-private theorem chunkTuples_range' (p : Plan) (mem : Memory) (idx k : ℕ) :
+private theorem chunkTuples_range' (p : Geometry) (mem : Memory) (idx k : ℕ) :
     chunkTuples p idx ((List.range' idx k).map (scanOf p mem)) =
       (((List.range' (idx * p.bScan) (k * p.bScan)).map fun g =>
         ((mem g).stamp, g, (mem g).value) : List Tuple) : Multiset Tuple) := by
@@ -190,12 +190,12 @@ private theorem chunkTuples_range' (p : Plan) (mem : Memory) (idx k : ℕ) :
       scanTuplesFrom_range', Multiset.coe_add, ← List.map_append, e₁, e₂, List.range'_append]
 
 /-- The scan tuples of a memory's own chunks are its snapshot (exact cover). -/
-theorem chunkTuples_scansOf {p : Plan} (valid : p.Valid) (mem : Memory) :
+theorem chunkTuples_scansOf {p : Geometry} (valid : p.Valid) (mem : Memory) :
     chunkTuples p 0 (scansOf p mem) = snapshot p mem := by
   rw [scansOf, List.range_eq_range', chunkTuples_range', Nat.zero_mul, valid.exactCover, snapshot,
     List.range_eq_range']
 
-theorem initialMemory_fits {p : Plan} (valid : p.Valid) : (initialMemory p).Fits p := by
+theorem initialMemory_fits {p : Plan} (valid : p.Valid) : (initialMemory p).Fits p.toGeometry := by
   intro g hg
   unfold initialMemory
   split_ifs with h
@@ -204,14 +204,14 @@ theorem initialMemory_fits {p : Plan} (valid : p.Valid) : (initialMemory p).Fits
     have : g < p.romSize + p.ramSize := hg
     omega
 
-private theorem cell_lt {p : Plan} (valid : p.Valid) {j i : ℕ} (hj : j < p.n) (hi : i < p.bScan) :
+private theorem cell_lt {p : Geometry} (valid : p.Valid) {j i : ℕ} (hj : j < p.n) (hi : i < p.bScan) :
     j * p.bScan + i < p.cells := by
   rw [← valid.exactCover]
   calc j * p.bScan + i < j * p.bScan + p.bScan := by omega
     _ = (j + 1) * p.bScan := by ring
     _ ≤ p.n * p.bScan := Nat.mul_le_mul_right _ hj
 
-theorem scansOf_shaped {p : Plan} (valid : p.Valid) {mem : Memory} (fits : mem.Fits p) :
+theorem scansOf_shaped {p : Geometry} (valid : p.Valid) {mem : Memory} (fits : mem.Fits p) :
     ScansShaped p (scansOf p mem) := by
   intro c hc
   simp only [scansOf, List.mem_map, List.mem_range] at hc
@@ -221,13 +221,13 @@ theorem scansOf_shaped {p : Plan} (valid : p.Valid) {mem : Memory} (fits : mem.F
   obtain ⟨i, hi, rfl⟩ := hs
   exact fits _ (cell_lt valid hj hi)
 
-theorem memoryLanes_eq (p : Plan) (mem : Memory) :
+theorem memoryLanes_eq (p : Geometry) (mem : Memory) :
     memoryLanes p mem = (scansOf p mem).map fun c => pack (scanLane p c) := by
   rw [memoryLanes, scansOf, List.map_map]
   rfl
 
 /-- The scan memory of a memory's own chunks agrees with it below `R + M`. -/
-theorem scanMemory_scansOf {p : Plan} (valid : p.Valid) (mem : Memory) :
+theorem scanMemory_scansOf {p : Geometry} (valid : p.Valid) (mem : Memory) :
     Set.EqOn (scanMemory p (scansOf p mem)) mem (Set.Iio p.cells) := by
   intro g hg
   have hb := valid.positive.2.1
@@ -246,7 +246,7 @@ private theorem div_mod_cell {b j i : ℕ} (hi : i < b) :
 
 /-- A memory that agrees with the scan memory of shaped chunks has those
 chunks as its own. -/
-theorem scansOf_scanMemory {p : Plan} (valid : p.Valid) {scans : List (List ScanSlot)}
+theorem scansOf_scanMemory {p : Geometry} (valid : p.Valid) {scans : List (List ScanSlot)}
     (length : scans.length = p.n) (shaped : ScansShaped p scans) {mem : Memory}
     (agree : Set.EqOn mem (scanMemory p scans) (Set.Iio p.cells)) :
     scansOf p mem = scans := by
@@ -275,16 +275,16 @@ private theorem eq_of_map_eq {α β : Type} {f : α → β} {xs ys : List α}
       rw [inj x (by simp) y (by simp) same.1,
         ih (fun a ha b hb => inj a (by simp [ha]) b (by simp [hb])) same.2]
 
-private theorem scanLane_length (p : Plan) (c : List ScanSlot) :
+private theorem scanLane_length (p : Geometry) (c : List ScanSlot) :
     (scanLane p c).length = c.length * p.scanWidth := by
   simp [scanLane, List.length_flatMap, ScanSlot.bits_length]
 
-private theorem opsLane_length (p : Plan) (c : List OpSlot) :
+private theorem opsLane_length (p : Geometry) (c : List OpSlot) :
     (opsLane p c).length = c.length * p.opWidth := by
   simp [opsLane, List.length_flatMap, OpSlot.bits_length]
 
-/-- Every packed lane of a valid plan has fewer than `q` elements. -/
-theorem Plan.laneLength_lt {p : Plan} (valid : p.Valid) (lane : Lane) :
+/-- Every packed lane of a valid geometry has fewer than `q` elements. -/
+theorem Geometry.laneLength_lt {p : Geometry} (valid : p.Valid) (lane : Lane) :
     p.laneLength lane < goldilocksModulus := by
   have shrink : ∀ n, packedLength n ≤ n := fun n => by unfold packedLength; omega
   cases lane
@@ -293,7 +293,7 @@ theorem Plan.laneLength_lt {p : Plan} (valid : p.Valid) (lane : Lane) :
 
 /-- Packed scan lanes of shaped chunks have the plan's length and elements
 below `2 ^ 63`. -/
-theorem scanLanes_shape {p : Plan} {scans : List (List ScanSlot)} (shaped : ScansShaped p scans) :
+theorem scanLanes_shape {p : Geometry} {scans : List (List ScanSlot)} (shaped : ScansShaped p scans) :
     ∀ P ∈ scans.map (fun c => pack (scanLane p c)),
       P.length = p.laneLength .mem ∧ ∀ x ∈ P, x < 2 ^ 63 := by
   intro P member
@@ -304,7 +304,7 @@ theorem scanLanes_shape {p : Plan} {scans : List (List ScanSlot)} (shaped : Scan
 
 /-- Packed operation lanes of shaped slots have the plan's length and elements
 below `2 ^ 63`. -/
-theorem opsLanes_shape {p : Plan} {ops : List (List OpSlot)} (shaped : OpsShaped p ops) :
+theorem opsLanes_shape {p : Geometry} {ops : List (List OpSlot)} (shaped : OpsShaped p ops) :
     ∀ P ∈ ops.map (fun c => pack (opsLane p c)),
       P.length = p.laneLength .ops ∧ ∀ x ∈ P, x < 2 ^ 63 := by
   intro P member
@@ -314,7 +314,7 @@ theorem opsLanes_shape {p : Plan} {ops : List (List OpSlot)} (shaped : OpsShaped
   rfl
 
 /-- Lemmas 1 and 2 for scan chunks. -/
-theorem scans_eq_or_collision (H : HashInput Digest → Digest) (p : Plan) (pd : Digest)
+theorem scans_eq_or_collision (H : HashInput Digest → Digest) (p : Geometry) (pd : Digest)
     {xs ys : List (List ScanSlot)} (shapedX : ScansShaped p xs) (shapedY : ScansShaped p ys)
     (same : chainRoot H .mem pd (xs.map fun c => pack (scanLane p c)) =
       chainRoot H .mem pd (ys.map fun c => pack (scanLane p c))) :
@@ -328,7 +328,7 @@ theorem scans_eq_or_collision (H : HashInput Digest → Digest) (p : Plan) (pd :
     (pack_injective (by rw [scanLane_length, scanLane_length, lengthA, lengthB]) packed)
 
 /-- Lemmas 1 and 2 for operation lanes. -/
-theorem ops_eq_or_collision (H : HashInput Digest → Digest) (p : Plan) (pd : Digest)
+theorem ops_eq_or_collision (H : HashInput Digest → Digest) (p : Geometry) (pd : Digest)
     {xs ys : List (List OpSlot)} (shapedX : OpsShaped p xs) (shapedY : OpsShaped p ys)
     (same : chainRoot H .ops pd (xs.map fun c => pack (opsLane p c)) =
       chainRoot H .ops pd (ys.map fun c => pack (opsLane p c))) :
@@ -341,7 +341,7 @@ theorem ops_eq_or_collision (H : HashInput Digest → Digest) (p : Plan) (pd : D
   exact opsLane_injective fitA fitB (lengthA.trans lengthB.symm)
     (pack_injective (by rw [opsLane_length, opsLane_length, lengthA, lengthB]) packed)
 
-private theorem segmentRows_shaped {p : Plan} {ts : ℕ} {rs : List StepRecords}
+private theorem segmentRows_shaped {p : Geometry} {ts : ℕ} {rs : List StepRecords}
     (rows : SegmentRows p ts rs) : ∀ z ∈ rs, z.Shaped p := by
   induction rs generalizing ts with
   | nil => simp
@@ -356,19 +356,19 @@ namespace SegmentView.ClosesAt
 
 variable {ctx : Context E Digest} {η : E × E} {v : SegmentView Digest}
 
-theorem opsShaped (closes : v.ClosesAt ctx η) : OpsShaped ctx.plan v.opsSlots := by
+theorem opsShaped (closes : v.ClosesAt ctx η) : OpsShaped ctx.plan.toGeometry v.opsSlots := by
   intro c hc
   obtain ⟨z, hz, rfl⟩ := List.mem_map.1 hc
   have shaped := segmentRows_shaped closes.rows z hz
   exact ⟨shaped.opsLength, shaped.opsFit⟩
 
-theorem initialShaped (closes : v.ClosesAt ctx η) : ScansShaped ctx.plan v.initialScans := by
+theorem initialShaped (closes : v.ClosesAt ctx η) : ScansShaped ctx.plan.toGeometry v.initialScans := by
   intro c hc
   obtain ⟨z, hz, rfl⟩ := List.mem_map.1 hc
   have shaped := segmentRows_shaped closes.rows z hz
   exact ⟨shaped.initialLength, shaped.initialFit⟩
 
-theorem finalShaped (closes : v.ClosesAt ctx η) : ScansShaped ctx.plan v.finalScans := by
+theorem finalShaped (closes : v.ClosesAt ctx η) : ScansShaped ctx.plan.toGeometry v.finalScans := by
   intro c hc
   obtain ⟨z, hz, rfl⟩ := List.mem_map.1 hc
   have shaped := segmentRows_shaped closes.rows z hz
@@ -378,35 +378,35 @@ end SegmentView.ClosesAt
 
 namespace SegmentView
 
-private theorem opsLanes_eq (p : Plan) (v : SegmentView Digest) :
+private theorem opsLanes_eq (p : Geometry) (v : SegmentView Digest) :
     v.opsLanes p = v.opsSlots.map fun c => pack (opsLane p c) := by
   rw [opsLanes, opsSlots, List.map_map]
   rfl
 
-private theorem initialLanes_eq (p : Plan) (v : SegmentView Digest) :
+private theorem initialLanes_eq (p : Geometry) (v : SegmentView Digest) :
     v.initialLanes p = v.initialScans.map fun c => pack (scanLane p c) := by
   rw [initialLanes, initialScans, List.map_map]
   rfl
 
-private theorem finalLanes_eq (p : Plan) (v : SegmentView Digest) :
+private theorem finalLanes_eq (p : Geometry) (v : SegmentView Digest) :
     v.finalLanes p = v.finalScans.map fun c => pack (scanLane p c) := by
   rw [finalLanes, finalScans, List.map_map]
   rfl
 
 omit [CommRing E] in
 private theorem opsInputs_subset {ctx : Context E Digest} (v : SegmentView Digest) :
-    Nebula.chainInputs ctx.hash .ops ctx.planDigest (v.opsLanes ctx.plan) ⊆ v.chainInputs ctx :=
+    Nebula.chainInputs ctx.hash .ops ctx.planDigest (v.opsLanes ctx.plan.toGeometry) ⊆ v.chainInputs ctx :=
   fun _ h => by simp [chainInputs, h]
 
 omit [CommRing E] in
 private theorem initialInputs_subset {ctx : Context E Digest} (v : SegmentView Digest) :
-    Nebula.chainInputs ctx.hash .mem ctx.planDigest (v.initialLanes ctx.plan) ⊆
+    Nebula.chainInputs ctx.hash .mem ctx.planDigest (v.initialLanes ctx.plan.toGeometry) ⊆
       v.chainInputs ctx :=
   fun _ h => by simp [chainInputs, h]
 
 omit [CommRing E] in
 private theorem finalInputs_subset {ctx : Context E Digest} (v : SegmentView Digest) :
-    Nebula.chainInputs ctx.hash .mem ctx.planDigest (v.finalLanes ctx.plan) ⊆
+    Nebula.chainInputs ctx.hash .mem ctx.planDigest (v.finalLanes ctx.plan.toGeometry) ⊆
       v.chainInputs ctx :=
   fun _ h => by simp [chainInputs, h]
 
@@ -433,25 +433,25 @@ theorem SegmentView.ClosesAt.chainInputs_canonical {ctx : Context E Digest} {η 
 /-- Every input of the `D_init` chain is canonical. -/
 theorem initialInputs_canonical {p : Plan} (valid : p.Valid) (H : HashInput Digest → Digest)
     (pd : Digest) :
-    ∀ x ∈ chainInputs H .mem pd (memoryLanes p (initialMemory p)),
+    ∀ x ∈ chainInputs H .mem pd (memoryLanes p.toGeometry (initialMemory p)),
       x.Canonical p.laneLength p.n := by
   rw [memoryLanes_eq]
   exact chainInputs_canonical _ _ _ (by simp [scansOf])
-    (scanLanes_shape (scansOf_shaped valid (initialMemory_fits valid)))
+    (scanLanes_shape (scansOf_shaped valid.toValid (initialMemory_fits valid)))
 
 /-- Segment 0 reads the plan images, or the IS chain and the `D_init` chain
 collide. -/
 theorem initial_scans_or_collision {ctx : Context E Digest} {run : List (Invocation σ Digest)}
     {η : E × E} (valid : ctx.plan.Valid) (closes : (segmentView ctx run 0).ClosesAt ctx η) :
-    (segmentView ctx run 0).initialScans = scansOf ctx.plan (initialMemory ctx.plan) ∨
+    (segmentView ctx run 0).initialScans = scansOf ctx.plan.toGeometry (initialMemory ctx.plan) ∨
       CollisionIn ctx.hash ((segmentView ctx run 0).chainInputs ctx)
         (chainInputs ctx.hash .mem ctx.planDigest
-          (memoryLanes ctx.plan (initialMemory ctx.plan))) := by
+          (memoryLanes ctx.plan.toGeometry (initialMemory ctx.plan))) := by
   have root := closes.initialRoot
   rw [SegmentView.initialLanes_eq] at root
   rw [memoryLanes_eq]
-  refine (scans_eq_or_collision ctx.hash ctx.plan ctx.planDigest closes.initialShaped
-    (scansOf_shaped valid (initialMemory_fits valid)) ?_).imp_right fun collision => ?_
+  refine (scans_eq_or_collision ctx.hash ctx.plan.toGeometry ctx.planDigest closes.initialShaped
+    (scansOf_shaped valid.toValid (initialMemory_fits valid)) ?_).imp_right fun collision => ?_
   · rw [root, ← memoryLanes_eq]
     rfl
   · rw [← SegmentView.initialLanes_eq] at collision
@@ -465,7 +465,7 @@ theorem join_scans_or_collision {ctx : Context E Digest} {run : List (Invocation
     (segmentView ctx run (k + 1)).initialScans = (segmentView ctx run k).finalScans ∨
       CollisionIn ctx.hash ((segmentView ctx run (k + 1)).chainInputs ctx)
         ((segmentView ctx run k).chainInputs ctx) := by
-  refine (scans_eq_or_collision ctx.hash ctx.plan ctx.planDigest closesNext.initialShaped
+  refine (scans_eq_or_collision ctx.hash ctx.plan.toGeometry ctx.planDigest closesNext.initialShaped
     closes.finalShaped ?_).imp_right fun collision => ?_
   · rw [← SegmentView.initialLanes_eq, ← SegmentView.finalLanes_eq, closesNext.initialRoot,
       closes.finalRoot]
@@ -493,15 +493,15 @@ theorem records_eq_or_collision {ctx : Context E Digest} {v w : SegmentView Dige
   have sameOps : v.proposal.1 = w.proposal.1 := congrArg EtaInput.opsRoot same
   have sameMem : v.memIn = w.memIn := congrArg EtaInput.memRoot same
   have sameFinal : v.proposal.2 = w.proposal.2 := congrArg EtaInput.finalRoot same
-  have ops := ops_eq_or_collision ctx.hash ctx.plan ctx.planDigest closesV.opsShaped
+  have ops := ops_eq_or_collision ctx.hash ctx.plan.toGeometry ctx.planDigest closesV.opsShaped
     closesW.opsShaped (by
       rw [← SegmentView.opsLanes_eq, ← SegmentView.opsLanes_eq, closesV.opsRoot, closesW.opsRoot,
         sameOps])
-  have initial := scans_eq_or_collision ctx.hash ctx.plan ctx.planDigest closesV.initialShaped
+  have initial := scans_eq_or_collision ctx.hash ctx.plan.toGeometry ctx.planDigest closesV.initialShaped
     closesW.initialShaped (by
       rw [← SegmentView.initialLanes_eq, ← SegmentView.initialLanes_eq, closesV.initialRoot,
         closesW.initialRoot, sameMem])
-  have final := scans_eq_or_collision ctx.hash ctx.plan ctx.planDigest closesV.finalShaped
+  have final := scans_eq_or_collision ctx.hash ctx.plan.toGeometry ctx.planDigest closesV.finalShaped
     closesW.finalShaped (by
       rw [← SegmentView.finalLanes_eq, ← SegmentView.finalLanes_eq, closesV.finalRoot,
         closesW.finalRoot, sameFinal])

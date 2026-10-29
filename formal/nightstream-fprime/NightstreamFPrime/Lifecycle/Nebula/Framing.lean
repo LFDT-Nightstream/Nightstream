@@ -71,7 +71,7 @@ def hash (x : HashInput Digest) : Digest := squeezeDigest (absorbed (blocks x))
 /-- Spec §4.3 `plan_digest`: the geometry only. The images enter through
 `D_init` (`Context.initRoot`), so one package serves every program of a
 geometry. -/
-def planDigest (p : Plan) : Digest :=
+def planDigest (p : Geometry) : Digest :=
   squeezeDigest (absorbed [textWords "Nightstream/Nebula/v3/plan",
     [p.r, p.μ, p.wTs, p.bOps, p.bScan, p.n, p.sMax].map natWord])
 
@@ -87,9 +87,13 @@ def etaChallenges (inp : EtaInput Digest) : K × K :=
   let (η2, _) := squeezeK s
   (η1, η2)
 
-/-- The verifier context of a plan: Poseidon2 chains, the §9.3 transcript, and
-the plan digest that the verifier computes. -/
-def context (p : Plan) : Context K Digest := ⟨p, hash, fun _ => etaChallenges, planDigest p⟩
+/-- The verifier setup of a geometry: Poseidon2 chains, the §9.3 transcript,
+and the plan digest that the verifier computes. -/
+def setup (p : Geometry) : Setup K Digest := ⟨p, hash, fun _ => etaChallenges, planDigest p⟩
+
+/-- The verifier context of a plan: the setup of its geometry and its images. -/
+def context (p : Plan) : Context K Digest :=
+  ⟨p, hash, fun _ => etaChallenges, planDigest p.toGeometry⟩
 
 /-! ### Word digests for executable code
 
@@ -110,7 +114,7 @@ def wordHash : HashInput (List F) → List F
   | .chain lane j D P => digestWords (hash (.chain lane j (ofWords D) P))
 
 /-- A memory root over word lists is the memory root over digests. -/
-theorem ofWords_memoryRoot (p : Plan) (pd : Digest) (mem : Memory) :
+theorem ofWords_memoryRoot (p : Geometry) (pd : Digest) (mem : Memory) :
     ofWords (memoryRoot wordHash p (digestWords pd) mem) = memoryRoot hash p pd mem := by
   have links : ∀ (packed : List (List ℕ)) (w : List F) (k : ℕ),
       ofWords (packed.foldl (fun acc P => (wordHash (.chain .mem acc.2 acc.1 P), acc.2 + 1)) (w, k)).1 =
@@ -127,7 +131,7 @@ theorem ofWords_memoryRoot (p : Plan) (pd : Digest) (mem : Memory) :
 
 /-- `D_init` of a plan for executable code (`ofWords_initRootWords`). -/
 def initRootWords (p : Plan) : List F :=
-  memoryRoot wordHash p (digestWords (planDigest p)) (initialMemory p)
+  memoryRoot wordHash p.toGeometry (digestWords (planDigest p.toGeometry)) (initialMemory p)
 
 theorem ofWords_initRootWords (p : Plan) : ofWords (initRootWords p) = (context p).initRoot := by
   simp only [initRootWords, Context.initRoot, context, ofWords_memoryRoot]
@@ -302,7 +306,7 @@ private theorem packed_injective {P P' : List ℕ} (small : ∀ x ∈ P, x < 2 ^
     ((small' _ (List.getElem_mem h')).trans modulus) word
 
 /-- Canonical inputs have canonical block lengths. -/
-private theorem blocks_small {p : Plan} (valid : p.Valid) {x : HashInput Digest}
+private theorem blocks_small {p : Geometry} (valid : p.Valid) {x : HashInput Digest}
     (canonical : x.Canonical p.laneLength p.n) :
     ∀ b ∈ blocks x, b.length < goldilocksModulus := by
   cases x with
@@ -320,17 +324,17 @@ private theorem blocks_small {p : Plan} (valid : p.Valid) {x : HashInput Digest}
     · cases lane <;> decide
     · simp [digestWords, goldilocksModulus]
     · rw [List.length_map, length]
-      exact Plan.laneLength_lt valid lane
+      exact Geometry.laneLength_lt valid lane
 
 /-- The framing separates canonical inputs (Ob3). -/
-theorem blocks_injective {p : Plan} (valid : p.Valid) {x y : HashInput Digest}
+theorem blocks_injective {p : Geometry} (valid : p.Valid) {x y : HashInput Digest}
     (canonicalX : x.Canonical p.laneLength p.n) (canonicalY : y.Canonical p.laneLength p.n)
     (same : blocks x = blocks y) : x = y := by
   have indices : p.n < goldilocksModulus := by
     have := valid.belowModulus
     have := valid.exactCover
     have := valid.positive.2.1
-    unfold Plan.cells at *
+    unfold Geometry.cells at *
     nlinarith
   cases x with
   | header lane pd =>
@@ -363,11 +367,11 @@ theorem collision_transcript {ctx : Context K Digest} (concrete : ctx.hash = has
   obtain ⟨a, ha, b, hb, differ, same⟩ := collision
   rw [concrete] at same
   refine ⟨a, ha, b, hb, fun chunksEqual => differ ?_, same⟩
-  exact blocks_injective valid (canonicalX a ha) (canonicalY b hb)
-    (blockChunks_injective (blocks_small valid (canonicalX a ha))
-      (blocks_small valid (canonicalY b hb)) chunksEqual)
+  exact blocks_injective valid.toValid (canonicalX a ha) (canonicalY b hb)
+    (blockChunks_injective (blocks_small valid.toValid (canonicalX a ha))
+      (blocks_small valid.toValid (canonicalY b hb)) chunksEqual)
 
-variable {σ : Type} {ctx : Context K Digest} {app : Application ctx.plan σ}
+variable {σ : Type} {ctx : Context K Digest} {app : Application ctx.plan.toGeometry σ}
   {stmt : Statement σ Digest} {run : List (Invocation σ Digest)}
 
 /-- Ob3 for the record chains: when the context uses the Poseidon2 chains, a

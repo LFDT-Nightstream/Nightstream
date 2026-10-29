@@ -17,7 +17,7 @@ memory application layer (`Lifecycle/Nebula`): framing, carry, step rows,
 their refinement to the model, the honest witness (Ob5), and the memory
 packages' bounds. -/
 
-#audit_axioms NightstreamFPrime.Spec.Nebula.Plan.romSize_le_ramSize
+#audit_axioms NightstreamFPrime.Spec.Nebula.Geometry.romSize_le_ramSize
 #audit_axioms NightstreamFPrime.Spec.Nebula.pack_lt
 #audit_axioms NightstreamFPrime.Spec.Nebula.pack_injective
 #audit_axioms NightstreamFPrime.Spec.Nebula.pack_cast_injective
@@ -85,13 +85,13 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Spec.Nebula.pack_length
 #audit_axioms NightstreamFPrime.Spec.Nebula.chainInputs_canonical
 #audit_axioms NightstreamFPrime.Spec.Nebula.mem_activeOps
-#audit_axioms NightstreamFPrime.Spec.Nebula.Plan.laneLength_lt
+#audit_axioms NightstreamFPrime.Spec.Nebula.Geometry.laneLength_lt
 #audit_axioms NightstreamFPrime.Spec.Nebula.scanLanes_shape
 #audit_axioms NightstreamFPrime.Spec.Nebula.opsLanes_shape
 #audit_axioms NightstreamFPrime.Spec.Nebula.SegmentView.ClosesAt.chainInputs_canonical
 #audit_axioms NightstreamFPrime.Spec.Nebula.initialInputs_canonical
 #audit_axioms NightstreamFPrime.Spec.Nebula.runInputs_canonical
-#audit_axioms NightstreamFPrime.Spec.Nebula.Plan.secure_iff
+#audit_axioms NightstreamFPrime.Spec.Nebula.Geometry.secure_iff
 #audit_axioms NightstreamFPrime.Spec.Nebula.GoldilocksFingerprint.goldilocks_segment_fingerprint_bound
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.absorbBlocks_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.blockChunks_cons
@@ -147,10 +147,10 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.scanLane_ofFn
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.reach_startCarry
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.two_pow_lt_modulus
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Plan.n_lt
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Plan.wTs_small
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Plan.sMax_small
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Plan.bOps_small
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Geometry.n_lt
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Geometry.wTs_small
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Geometry.sMax_small
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Geometry.bOps_small
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.cIn_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.cOut_eq
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.RowsHold.arm
@@ -213,8 +213,8 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.val_add_one
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.toBool_zero
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.StepWitness.toBool_one
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Plan.two_pow_mu_lt
-#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Plan.mu_le
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Geometry.two_pow_mu_lt
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.Geometry.mu_le
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.bitsNat_split
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.OpSlotBits.port_pad
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.OpSlotBits.port_active
@@ -353,6 +353,7 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.child_ends
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.localLength_opsAt
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.supported
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.program_eq_of_geometry
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.MemoryApp.holds_of_valid
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sponge.compileAbsorptions_output
 #audit_axioms NightstreamFPrime.Lifecycle.Nebula.Sponge.output_eq_program

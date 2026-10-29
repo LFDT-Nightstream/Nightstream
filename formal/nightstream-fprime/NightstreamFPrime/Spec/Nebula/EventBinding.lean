@@ -139,24 +139,24 @@ theorem packParts_injective {ws : List ℕ} {xs ys : Address}
 /-! ### Simulation -/
 
 /-- The global index (spec §6.1 `g`) of an address in region `r` of `memory`. -/
-private def cellIndex (p : Plan) (catalog : List MemorySpec) (memory : ℕ) (r : Region)
+private def cellIndex (p : Geometry) (catalog : List MemorySpec) (memory : ℕ) (r : Region)
     (address : Address) : ℕ :=
   if isRam catalog memory then p.romSize + r.addr address else r.addr address
 
 /-- The region address lies in the memory's namespace, as a valid access needs. -/
-private def Live (p : Plan) (catalog : List MemorySpec) (memory : ℕ) (r : Region)
+private def Live (p : Geometry) (catalog : List MemorySpec) (memory : ℕ) (r : Region)
     (address : Address) : Prop :=
   if isRam catalog memory then r.addr address < p.ramSize else r.addr address < p.romSize
 
 /-- Every in-range address in its namespace holds the value of its Nebula
 cell. -/
-private def Agrees (p : Plan) (catalog : List MemorySpec) (b : Binding) (state : MemoryState)
+private def Agrees (p : Geometry) (catalog : List MemorySpec) (b : Binding) (state : MemoryState)
     (mem : Memory) : Prop :=
   ∀ memory r address, b.region memory = some r → r.Fits address →
     Live p catalog memory r address →
       state memory address = some ((mem (cellIndex p catalog memory r address)).value : ℤ)
 
-variable {p : Plan} {catalog : List MemorySpec} {b : Binding}
+variable {p : Geometry} {catalog : List MemorySpec} {b : Binding}
 
 /-- Distinct in-range addresses in their namespaces have distinct cells. -/
 private theorem cell_injective (disjoint : b.Disjoint catalog) {i j : ℕ} {ri rj : Region}
@@ -185,8 +185,9 @@ private theorem cell_injective (disjoint : b.Disjoint catalog) {i j : ℕ} {ri r
     unfold Region.size at apart
     omega
 
-private theorem agrees_initial {initial : MemoryState} (start : b.Initial catalog p initial) :
-    Agrees p catalog b initial (initialMachine p).memory := by
+private theorem agrees_initial {p : Plan} {initial : MemoryState}
+    (start : b.Initial catalog p initial) :
+    Agrees p.toGeometry catalog b initial (initialMachine p).memory := by
   intro memory r address hr fits live
   rw [start memory r address hr fits]
   unfold Live at live
@@ -285,12 +286,12 @@ private theorem replay_of_agrees (disjoint : b.Disjoint catalog) {events : List 
 /-- If every event of the trace is in range, the initial state holds the plan
 images on the in-range set, and accesses that bind the events in order replay
 from the plan images, then the trace is `MemoryConsistent`. -/
-theorem memoryConsistent_of_accessAll {initial : MemoryState} {rows : List Witness}
+theorem memoryConsistent_of_accessAll {p : Plan} {initial : MemoryState} {rows : List Witness}
     {accesses : List PortAccess} {final : Machine} (disjoint : b.Disjoint catalog)
     (inRange : ∀ e ∈ eventsForTrace catalog rows, b.InRange e.memory e.address)
     (start : b.Initial catalog p initial)
     (bound : List.Forall₂ (b.Binds catalog) (eventsForTrace catalog rows) accesses)
-    (replays : accessAll p (initialMachine p) accesses = some final) :
+    (replays : accessAll p.toGeometry (initialMachine p) accesses = some final) :
     MemoryConsistent catalog initial rows :=
   replay_of_agrees disjoint bound (agrees_initial start) inRange replays
 
@@ -307,9 +308,9 @@ theorem executes_accessAll {σ : Type} {app : Application p σ} {s s' : σ} {m m
 /-- Nebula's memory guarantee for a bound catalog: an execution from the plan
 images whose active ports, step after step, bind the events of the trace in
 order gives `MemoryConsistent`. -/
-theorem memoryConsistent_of_executes {σ : Type} {app : Application p σ} {s s' : σ}
-    {final : Machine} {steps : List (List (Option PortAccess))} {initial : MemoryState}
-    {rows : List Witness} (exec : Executes p app s (initialMachine p) steps s' final)
+theorem memoryConsistent_of_executes {p : Plan} {σ : Type} {app : Application p.toGeometry σ}
+    {s s' : σ} {final : Machine} {steps : List (List (Option PortAccess))} {initial : MemoryState}
+    {rows : List Witness} (exec : Executes p.toGeometry app s (initialMachine p) steps s' final)
     (disjoint : b.Disjoint catalog)
     (inRange : ∀ e ∈ eventsForTrace catalog rows, b.InRange e.memory e.address)
     (start : b.Initial catalog p initial)

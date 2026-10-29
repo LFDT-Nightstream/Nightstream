@@ -13,7 +13,7 @@ open NightstreamFPrime.Circuit
 open NightstreamFPrime.Gadgets.Poseidon2
 open NightstreamFPrime.Lifecycle.Stage1
 
-variable (p : Plan) (app : PortApp p) (i : AppInterface p app) (offset : ℕ) (env : Env)
+variable (p : Geometry) (app : PortApp p) (i : AppInterface p app) (offset : ℕ) (env : Env)
 
 /-- The witness words that the circuit reads at `env`. -/
 abbrev values : ℕ → F := wordOf (Application.witnessValue i offset env)

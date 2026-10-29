@@ -17,7 +17,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
 open NightstreamFPrime.Circuit
 
-variable {p : Plan}
+variable {p : Geometry}
 
 /-! ### Slot words -/
 
@@ -90,15 +90,15 @@ theorem slotAt_offset {start width count k : ℕ} {j : Fin count} {i : ℕ} (pos
     omega
   · cases h
 
-theorem Words.opWords_pos : 0 < Words.opWords p := by simp [Words.opWords, Plan.opWidth]
+theorem Words.opWords_pos : 0 < Words.opWords p := by simp [Words.opWords, Geometry.opWidth]
 
 /-- Word `k` of slot `j` of a word vector is word `Words.op p j k`. -/
 theorem OpSlotBits.word_ofWords (v : ℕ → F) (j : ℕ) {k : ℕ} (hk : k < Words.opWords p) :
     (OpSlotBits.ofWords p v j).word k = v (Words.op p j k) := by
-  simp only [Words.opWords, Plan.opWidth] at hk
+  simp only [Words.opWords, Geometry.opWidth] at hk
   unfold OpSlotBits.word OpSlotBits.ofWords
   simp only [Words.opPad, Words.opIsWrite, Words.opIsRam, Words.opAddr, Words.opVr, Words.opVw,
-    Words.opRt, Words.opDiff, Plan.opWidth]
+    Words.opRt, Words.opDiff, Geometry.opWidth]
   split_ifs <;> first | rfl | omega | (congr 2; omega)
 
 /-! ### Slot facts -/
@@ -114,7 +114,7 @@ structure OpSlotBits.WellFormed (slot : OpSlotBits p) : Prop where
 /-! ### The application view -/
 
 /-- The values that an application's rows read. -/
-structure AppView (p : Plan) (a : AppShape) where
+structure AppView (p : Geometry) (a : AppShape) where
   appIn : Fin a.width → F
   appOut : Fin a.width → F
   aux : Fin a.aux → F
@@ -126,7 +126,7 @@ namespace AppView
 def slotStart (a : AppShape) : ℕ := 2 * a.width + a.aux
 
 /-- The number of local variables. -/
-def count (p : Plan) (a : AppShape) : ℕ := slotStart a + p.bOps * Words.opWords p
+def count (p : Geometry) (a : AppShape) : ℕ := slotStart a + p.bOps * Words.opWords p
 
 variable {a : AppShape} (v : AppView p a)
 
@@ -161,7 +161,7 @@ end AppView
 /-- The witness word of local variable `k`: the application words in their
 order, then the slot words. Past the local variables it is a word past the
 witness. -/
-def Words.appVar (p : Plan) (a : AppShape) (k : ℕ) : ℕ :=
+def Words.appVar (p : Geometry) (a : AppShape) (k : ℕ) : ℕ :=
   if k < AppView.slotStart a then Words.memoryCount p + k
   else match slotAt (AppView.slotStart a) (Words.opWords p) p.bOps k with
     | some (j, i) => Words.op p j i
@@ -199,7 +199,7 @@ theorem env_appVar {a : AppShape} (v : ℕ → F) (zero : ∀ k, Words.count p a
 model application over its state words, its private words, and its rows over
 `AppView.env`. The state is the state words, so a claim names the words that
 the statement carries, and completeness and soundness name the same state. -/
-structure PortApp (p : Plan) extends AppShape where
+structure PortApp (p : Geometry) extends AppShape where
   model : Application p (Fin width → F)
   rows : List Circuit.Expr
   /-- The state words fit the length word of the §11.1 state digest. -/

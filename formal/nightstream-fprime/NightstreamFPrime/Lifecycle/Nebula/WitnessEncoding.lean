@@ -10,13 +10,13 @@ namespace NightstreamFPrime.Lifecycle.Nebula
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
 
-variable {p : Plan} {a : AppShape}
+variable {p : Geometry} {a : AppShape}
 
 theorem OpSlotBits.ofWords_word (slot : OpSlotBits p) (v : ℕ → F) (j : ℕ)
     (words : ∀ k < Words.opWords p, v (Words.op p j k) = slot.word k) :
     OpSlotBits.ofWords p v j = slot := by
   have opWords : Words.opWords p = 3 + p.μ + 64 + p.wTs + p.wTs := by
-    simp [Words.opWords, Plan.opWidth]
+    simp [Words.opWords, Geometry.opWidth]
   cases slot with
   | mk pad isWrite isRam addr vr vw rt diff =>
     simp only [OpSlotBits.ofWords, OpSlotBits.mk.injEq]
@@ -49,8 +49,8 @@ theorem OpSlotBits.ofWords_word (slot : OpSlotBits p) (v : ℕ → F) (j : ℕ)
         dif_neg (by omega), dif_neg (by omega), dif_pos (by omega)]
       congr 1; ext; simp only; omega
     · have := k.isLt
-      rw [words _ (by simp [Words.opDiff, Plan.opWidth]; omega)]
-      simp only [OpSlotBits.word, Words.opDiff, Plan.opWidth]
+      rw [words _ (by simp [Words.opDiff, Geometry.opWidth]; omega)]
+      simp only [OpSlotBits.word, Words.opDiff, Geometry.opWidth]
       rw [if_neg (by omega), if_neg (by omega), if_neg (by omega), dif_neg (by omega),
         dif_neg (by omega), dif_neg (by omega), dif_neg (by omega), dif_pos (by omega)]
       congr 1; ext; simp only; omega
@@ -63,18 +63,18 @@ theorem ScanSlotBits.ofWords_word (slot : ScanSlotBits p) (v : ℕ → F) (base 
     simp only [ScanSlotBits.ofWords, ScanSlotBits.mk.injEq]
     refine ⟨funext fun k => ?_, funext fun k => ?_⟩
     · have := k.isLt
-      rw [words _ (by simp only [Words.scanValue, Plan.scanWidth]; omega)]
+      rw [words _ (by simp only [Words.scanValue, Geometry.scanWidth]; omega)]
       simp only [ScanSlotBits.word, Words.scanValue]
       rw [dif_pos (by omega)]
     · have := k.isLt
-      rw [words _ (by simp only [Words.scanStamp, Plan.scanWidth]; omega)]
+      rw [words _ (by simp only [Words.scanStamp, Geometry.scanWidth]; omega)]
       simp only [ScanSlotBits.word, Words.scanStamp]
       rw [dif_neg (by omega), dif_pos (by omega)]
       congr 1; ext; simp only; omega
 
 namespace Words
 
-theorem scanWidth_pos : 0 < p.scanWidth := by simp [Plan.scanWidth]
+theorem scanWidth_pos : 0 < p.scanWidth := by simp [Geometry.scanWidth]
 
 theorem memoryCount_eq : Words.memoryCount p = 109 + p.bOps * Words.opWords p +
     p.bScan * p.scanWidth + p.bScan * p.scanWidth + p.wTs + p.segWidth + 4 * p.bOps +

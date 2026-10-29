@@ -29,7 +29,7 @@ theorem appendSponge {initial : Env} {base : ℕ} (before : Sequence.Prefix init
   rw [endEq]
   exact congrArg (start + ·) (Sponge.localLength_eq child start)
 
-variable (p : Plan) (app : PortApp p) (i : AppInterface p app) (offset : ℕ)
+variable (p : Geometry) (app : PortApp p) (i : AppInterface p app) (offset : ℕ)
 
 section Assumptions
 

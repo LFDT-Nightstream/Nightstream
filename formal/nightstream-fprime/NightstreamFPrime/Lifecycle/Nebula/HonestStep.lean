@@ -16,7 +16,7 @@ open NightstreamFPrime.Spec.Nebula
 open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 open Fin.CommRing
 
-variable {p : Plan} {c : MemoryCarry} {σ : Type} {inv : Invocation σ Digest}
+variable {p : Geometry} {c : MemoryCarry} {σ : Type} {inv : Invocation σ Digest}
 variable {a : AppShape} (appIn appOut : Fin a.width → F) (aux : Fin a.aux → F)
 
 /-! ### Chains and the challenge transcript -/
@@ -43,7 +43,7 @@ theorem scanLaneBits_eq (l : List ScanSlot) (length : l.length = p.bScan) :
 
 theorem idxEff_val (valid : p.Valid) (reach : Reach p c) :
     (witness p c inv appIn appOut aux).idxEff.val = (start p c inv).idx :=
-  natWord_val (lt_trans (start_idx_lt valid reach) (Plan.n_lt valid))
+  natWord_val (lt_trans (start_idx_lt valid reach) (Geometry.n_lt valid))
 
 theorem previous_ops : (witness p c inv appIn appOut aux).previousDigest 0 = (start p c inv).seen.ops := by
   funext i
@@ -142,7 +142,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
 open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 
-variable {p : Plan} {app : PortApp p}
+variable {p : Geometry} {app : PortApp p}
 
 /-- The honest slots of an accepted invocation are well formed and decode to
 its ports. -/
@@ -172,7 +172,7 @@ memory program's validity predicate, and the program's step function gives
 the state digest of the output state and the output carry. -/
 theorem complete (valid : p.Valid) {c c' : MemoryCarry} (reach : Reach p c)
     {s : app.State} {inv : Invocation app.State Digest}
-    (accepts : invoke (context p) c inv = some c') (step : app.model.Step s inv.ports inv.next) :
+    (accepts : invoke (setup p) c inv = some c') (step : app.model.Step s inv.ports inv.next) :
     ∃ witness : List F, witness.length = Words.count p app.toAppShape ∧
       MemoryApp.valid p app (stateWords (List.ofFn s) (carryWords c)) witness ∧
       MemoryApp.step p app (stateWords (List.ofFn s) (carryWords c)) witness =

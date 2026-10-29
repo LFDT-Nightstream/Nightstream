@@ -149,7 +149,7 @@ theorem eval_gatedE (env : Env) (pad : Circuit.Expr) (f : KExpr) :
 
 namespace Sym
 
-variable (p : Plan)
+variable (p : Geometry)
 
 def word (k : ℕ) : Circuit.Expr := .var k
 
@@ -235,7 +235,7 @@ end Sym
 
 namespace Sym
 
-variable (p : Plan) (a : AppShape) (v : ℕ → F)
+variable (p : Geometry) (a : AppShape) (v : ℕ → F)
 
 local notation "W" => StepWitness.ofWords p a v
 

@@ -17,15 +17,15 @@ variable {E Digest σ : Type} [CommRing E]
 def honestStatement (ctx : Context E Digest) (initial final : σ) (machine : Machine)
     (segments : ℕ) : Statement σ Digest :=
   ⟨segments * ctx.plan.n, initial, final, segments, machine.ts,
-    memoryRoot ctx.hash ctx.plan ctx.planDigest machine.memory⟩
+    memoryRoot ctx.hash ctx.plan.toGeometry ctx.planDigest machine.memory⟩
 
 /-! ### Machines of an execution -/
 
 /-- Accesses applied without checks. -/
-private def replay (p : Plan) (m : Machine) (as : List PortAccess) : Machine :=
+private def replay (p : Geometry) (m : Machine) (as : List PortAccess) : Machine :=
   as.foldl (Machine.apply p) m
 
-private theorem replay_ts (p : Plan) (m : Machine) (as : List PortAccess) :
+private theorem replay_ts (p : Geometry) (m : Machine) (as : List PortAccess) :
     (replay p m as).ts = m.ts + as.length := by
   induction as generalizing m with
   | nil => rfl
@@ -35,7 +35,7 @@ private theorem replay_ts (p : Plan) (m : Machine) (as : List PortAccess) :
     simp only [Machine.apply, List.length_cons]
     omega
 
-private theorem apply_below {p : Plan} {m : Machine} (a : PortAccess)
+private theorem apply_below {p : Geometry} {m : Machine} (a : PortAccess)
     (below : ∀ g, (m.memory g).stamp ≤ m.ts) :
     ∀ g, ((m.apply p a).memory g).stamp ≤ (m.apply p a).ts := by
   intro g
@@ -44,14 +44,14 @@ private theorem apply_below {p : Plan} {m : Machine} (a : PortAccess)
   · exact le_rfl
   · exact Nat.le_succ_of_le (below g)
 
-private theorem replay_below {p : Plan} {m : Machine} {as : List PortAccess}
+private theorem replay_below {p : Geometry} {m : Machine} {as : List PortAccess}
     (below : ∀ g, (m.memory g).stamp ≤ m.ts) :
     ∀ g, ((replay p m as).memory g).stamp ≤ (replay p m as).ts := by
   induction as generalizing m with
   | nil => exact below
   | cons a as ih => exact ih (apply_below a below)
 
-private theorem replay_values {p : Plan} {m : Machine} {as : List PortAccess}
+private theorem replay_values {p : Geometry} {m : Machine} {as : List PortAccess}
     (written : ∀ a ∈ as, a.vw < 2 ^ 32) (values : ∀ g < p.cells, (m.memory g).value < 2 ^ 32) :
     ∀ g < p.cells, ((replay p m as).memory g).value < 2 ^ 32 := by
   induction as generalizing m with
@@ -64,7 +64,7 @@ private theorem replay_values {p : Plan} {m : Machine} {as : List PortAccess}
     · exact written a (List.mem_cons.2 (Or.inl rfl))
     · exact values g hg
 
-private theorem accessAll_eq_some {p : Plan} {m m' : Machine} {as : List PortAccess}
+private theorem accessAll_eq_some {p : Geometry} {m m' : Machine} {as : List PortAccess}
     (run : accessAll p m as = some m') : m' = replay p m as ∧ ∀ a ∈ as, a.Valid p := by
   induction as generalizing m with
   | nil =>
@@ -83,7 +83,7 @@ private theorem accessAll_eq_some {p : Plan} {m m' : Machine} {as : List PortAcc
       · exact valid b hb
     · cases run
 
-private theorem honestOps_append (p : Plan) (m : Machine) (as bs : List PortAccess) :
+private theorem honestOps_append (p : Geometry) (m : Machine) (as bs : List PortAccess) :
     honestOps p m (as ++ bs) = honestOps p m as ++ honestOps p (replay p m as) bs := by
   induction as generalizing m with
   | nil => rfl
@@ -107,12 +107,12 @@ private theorem getD_mem {steps : List (List (Option PortAccess))} {i : ℕ}
   exact List.getElem_mem hi
 
 /-- The machine before step `i`, from `m`. -/
-private def machineAt (p : Plan) (m : Machine) (steps : List (List (Option PortAccess))) :
+private def machineAt (p : Geometry) (m : Machine) (steps : List (List (Option PortAccess))) :
     ℕ → Machine
   | 0 => m
   | i + 1 => replay p (machineAt p m steps i) (stepAccesses steps i)
 
-private theorem machineAt_cons (p : Plan) (m : Machine) (ports : List (Option PortAccess))
+private theorem machineAt_cons (p : Geometry) (m : Machine) (ports : List (Option PortAccess))
     (rest : List (List (Option PortAccess))) :
     ∀ i, machineAt p m (ports :: rest) (i + 1) =
       machineAt p (replay p m (ports.filterMap id)) rest i
@@ -122,7 +122,7 @@ private theorem machineAt_cons (p : Plan) (m : Machine) (ports : List (Option Po
       replay p (machineAt p (replay p m (ports.filterMap id)) rest i) (stepAccesses rest i)
     rw [machineAt_cons p m ports rest i, stepAccesses_cons_succ]
 
-private theorem executes_trace {p : Plan} {app : Application p σ} {s s' : σ} {m m' : Machine}
+private theorem executes_trace {p : Geometry} {app : Application p σ} {s s' : σ} {m m' : Machine}
     {steps : List (List (Option PortAccess))} (exec : Executes p app s m steps s' m') :
     (∀ i < steps.length,
         accessAll p (machineAt p m steps i) (stepAccesses steps i) =
@@ -165,18 +165,18 @@ run on the machine before it. -/
 private structure Trace (p : Plan) (steps : List (List (Option PortAccess)))
     (ms : ℕ → Machine) : Prop where
   start : ms 0 = initialMachine p
-  next : ∀ i < steps.length, accessAll p (ms i) (stepAccesses steps i) = some (ms (i + 1))
+  next : ∀ i < steps.length, accessAll p.toGeometry (ms i) (stepAccesses steps i) = some (ms (i + 1))
 
 section Trace
 
 variable {p : Plan} {steps : List (List (Option PortAccess))} {ms : ℕ → Machine}
 
 private theorem trace_replay (tr : Trace p steps ms) {i : ℕ} (hi : i < steps.length) :
-    ms (i + 1) = replay p (ms i) (stepAccesses steps i) :=
+    ms (i + 1) = replay p.toGeometry (ms i) (stepAccesses steps i) :=
   (accessAll_eq_some (tr.next i hi)).1
 
 private theorem trace_valid (tr : Trace p steps ms) {i : ℕ} (hi : i < steps.length) :
-    ∀ a ∈ stepAccesses steps i, a.Valid p :=
+    ∀ a ∈ stepAccesses steps i, a.Valid p.toGeometry :=
   (accessAll_eq_some (tr.next i hi)).2
 
 private theorem trace_ts_succ (tr : Trace p steps ms) {i : ℕ} (hi : i < steps.length) :
@@ -225,7 +225,7 @@ private theorem trace_values (valid : p.Valid) (tr : Trace p steps ms) :
 
 private theorem trace_fits (valid : p.Valid) (width : ∀ ports ∈ steps, ports.length = p.bOps)
     (bound : steps.length * p.bOps < 2 ^ p.wTs) (tr : Trace p steps ms) {i : ℕ}
-    (hi : i ≤ steps.length) : (ms i).memory.Fits p := fun g hg =>
+    (hi : i ≤ steps.length) : (ms i).memory.Fits p.toGeometry := fun g hg =>
   ⟨trace_values valid tr i hi g hg,
     lt_of_le_of_lt (trace_below tr i hi g) (trace_ts_lt width bound tr hi)⟩
 
@@ -235,14 +235,14 @@ end Trace
 
 /-- The operation slots of one step: the pad slot for an inactive port, and the
 access with the current stamp of its cell for an active port. -/
-private def honestSlots (p : Plan) : Machine → List (Option PortAccess) → List OpSlot
+private def honestSlots (p : Geometry) : Machine → List (Option PortAccess) → List OpSlot
   | _, [] => []
   | m, none :: rest => OpSlot.padSlot :: honestSlots p m rest
   | m, some a :: rest =>
     ⟨false, a.isWrite, a.isRam, a.addr, a.vr, a.vw, (m.memory (a.globalIndex p)).stamp⟩ ::
       honestSlots p (m.apply p a) rest
 
-private theorem honestSlots_ports (p : Plan) (m : Machine) (ports : List (Option PortAccess)) :
+private theorem honestSlots_ports (p : Geometry) (m : Machine) (ports : List (Option PortAccess)) :
     (honestSlots p m ports).map OpSlot.port = ports := by
   induction ports generalizing m with
   | nil => rfl
@@ -253,18 +253,18 @@ private theorem honestSlots_ports (p : Plan) (m : Machine) (ports : List (Option
       simp only [honestSlots, List.map_cons, ih]
       rfl
 
-private theorem honestSlots_length (p : Plan) (m : Machine) (ports : List (Option PortAccess)) :
+private theorem honestSlots_length (p : Geometry) (m : Machine) (ports : List (Option PortAccess)) :
     (honestSlots p m ports).length = ports.length := by
   simpa using congrArg List.length (honestSlots_ports p m ports)
 
-private theorem honestSlots_filterMap (p : Plan) (m : Machine)
+private theorem honestSlots_filterMap (p : Geometry) (m : Machine)
     (ports : List (Option PortAccess)) :
     (honestSlots p m ports).filterMap OpSlot.port = ports.filterMap id := by
   conv_rhs => rw [← honestSlots_ports p m ports]
   rw [List.filterMap_map]
   rfl
 
-private theorem activeOps_honestSlots (p : Plan) (m : Machine)
+private theorem activeOps_honestSlots (p : Geometry) (m : Machine)
     (ports : List (Option PortAccess)) :
     activeOps m.ts (honestSlots p m ports) = honestOps p m (ports.filterMap id) := by
   induction ports generalizing m with
@@ -279,11 +279,11 @@ private theorem activeOps_honestSlots (p : Plan) (m : Machine)
           honestOps p (m.apply p a) (rest.filterMap id)
       rw [ih]
 
-private theorem padSlot_fits_rows (p : Plan) : OpSlot.padSlot.Fits p ∧ OpSlot.padSlot.Rows p :=
+private theorem padSlot_fits_rows (p : Geometry) : OpSlot.padSlot.Fits p ∧ OpSlot.padSlot.Rows p :=
   ⟨⟨Nat.two_pow_pos _, Nat.two_pow_pos _, Nat.two_pow_pos _, Nat.two_pow_pos _⟩,
     ⟨fun _ => rfl, fun h => absurd h (by decide), fun _ => Nat.two_pow_pos _, fun _ => rfl⟩⟩
 
-private theorem activeSlot_fits_rows {p : Plan} (valid : p.Valid) {a : PortAccess}
+private theorem activeSlot_fits_rows {p : Geometry} (valid : p.Valid) {a : PortAccess}
     (ok : a.Valid p) {t : ℕ} (ht : t < 2 ^ p.wTs) :
     (OpSlot.mk false a.isWrite a.isRam a.addr a.vr a.vw t).Fits p ∧
       (OpSlot.mk false a.isWrite a.isRam a.addr a.vr a.vw t).Rows p := by
@@ -291,12 +291,12 @@ private theorem activeSlot_fits_rows {p : Plan} (valid : p.Valid) {a : PortAcces
   have rom : a.isRam = false → a.addr < p.romSize := fun h => by simpa [h] using range
   have addr : a.addr < 2 ^ p.μ := by
     cases h : a.isRam
-    · exact lt_of_lt_of_le (rom h) (Plan.romSize_le_ramSize valid)
+    · exact lt_of_lt_of_le (rom h) (Geometry.romSize_le_ramSize valid)
     · have ram : a.addr < p.ramSize := by simpa [h] using range
       exact ram
   exact ⟨⟨addr, vr, vw, ht⟩, ⟨keeps, noRom, rom, fun h => by simp at h⟩⟩
 
-private theorem honestSlots_fit {p : Plan} (valid : p.Valid) {m : Machine}
+private theorem honestSlots_fit {p : Geometry} (valid : p.Valid) {m : Machine}
     {ports : List (Option PortAccess)} (below : ∀ g, (m.memory g).stamp ≤ m.ts)
     (bound : m.ts + (ports.filterMap id).length < 2 ^ p.wTs)
     (accessValid : ∀ a ∈ ports.filterMap id, a.Valid p) :
@@ -324,12 +324,12 @@ private theorem honestSlots_fit {p : Plan} (valid : p.Valid) {m : Machine}
 
 /-- The records of step `i`: its slots, and chunk `i mod N` of the snapshots at
 the open and the close of its segment. -/
-private def honestRecords (p : Plan) (ms : ℕ → Machine) (steps : List (List (Option PortAccess)))
+private def honestRecords (p : Geometry) (ms : ℕ → Machine) (steps : List (List (Option PortAccess)))
     (i : ℕ) : StepRecords :=
   ⟨honestSlots p (ms i) (steps.getD i []), scanOf p (ms (i / p.n * p.n)).memory (i % p.n),
     scanOf p (ms ((i / p.n + 1) * p.n)).memory (i % p.n)⟩
 
-private theorem honestRecords_segment {p : Plan} {ms : ℕ → Machine}
+private theorem honestRecords_segment {p : Geometry} {ms : ℕ → Machine}
     {steps : List (List (Option PortAccess))} (npos : 0 < p.n) {k j : ℕ} (hj : j < p.n) :
     honestRecords p ms steps (k * p.n + j) =
       ⟨honestSlots p (ms (k * p.n + j)) (steps.getD (k * p.n + j) []),
@@ -340,7 +340,7 @@ private theorem honestRecords_segment {p : Plan} {ms : ℕ → Machine}
     rw [Nat.add_comm, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt hj]
   simp only [honestRecords, div, mod]
 
-private theorem activeCount_honestRecords (p : Plan) (ms : ℕ → Machine)
+private theorem activeCount_honestRecords (p : Geometry) (ms : ℕ → Machine)
     (steps : List (List (Option PortAccess))) (i : ℕ) :
     activeCount (honestRecords p ms steps i) = (stepAccesses steps i).length := by
   rw [activeCount, show (honestRecords p ms steps i).ops = honestSlots p (ms i) (steps.getD i [])
@@ -354,30 +354,30 @@ variable {p : Plan} {steps : List (List (Option PortAccess))} {ms : ℕ → Mach
 private theorem honest_stepRows (valid : p.Valid) (width : ∀ ports ∈ steps, ports.length = p.bOps)
     (count : steps.length = S * p.n) (bound : steps.length * p.bOps < 2 ^ p.wTs)
     (tr : Trace p steps ms) {i : ℕ} (hi : i < steps.length) :
-    StepRows p (ms i).ts (honestRecords p ms steps i) := by
+    StepRows p.toGeometry (ms i).ts (honestRecords p.toGeometry ms steps i) := by
   have npos : 0 < p.n := valid.positive.2.2.1
   have hk : i / p.n + 1 ≤ S := (Nat.div_lt_iff_lt_mul npos).2 (count ▸ hi)
   have hstart : i / p.n * p.n ≤ steps.length := le_trans (Nat.div_mul_le_self i p.n) hi.le
   have hend : (i / p.n + 1) * p.n ≤ steps.length := by
     rw [count]
     exact Nat.mul_le_mul_right _ hk
-  have scans : ∀ j ≤ steps.length, ∀ c ∈ scanOf p (ms j).memory (i % p.n), c.Fits p :=
-    fun j hj => (scansOf_shaped valid (trace_fits valid width bound tr hj) _
+  have scans : ∀ j ≤ steps.length, ∀ c ∈ scanOf p.toGeometry (ms j).memory (i % p.n), c.Fits p.toGeometry :=
+    fun j hj => (scansOf_shaped valid.toValid (trace_fits valid width bound tr hj) _
       (List.mem_map.2 ⟨i % p.n, List.mem_range.2 (Nat.mod_lt i npos), rfl⟩)).2
   have next : (ms i).ts + (stepAccesses steps i).length < 2 ^ p.wTs := by
     rw [← trace_ts_succ tr hi]
     exact trace_ts_lt width bound tr hi
-  have slots := honestSlots_fit valid (trace_below tr i hi.le) next (trace_valid tr hi)
+  have slots := honestSlots_fit valid.toValid (trace_below tr i hi.le) next (trace_valid tr hi)
   refine ⟨⟨?_, ?_, ?_, fun s hs => (slots s hs).1, scans _ hstart, scans _ hend⟩,
     fun s hs => (slots s hs).2, ?_, ?_⟩
-  · rw [show (honestRecords p ms steps i).ops = honestSlots p (ms i) (steps.getD i []) from rfl,
+  · rw [show (honestRecords p.toGeometry ms steps i).ops = honestSlots p.toGeometry (ms i) (steps.getD i []) from rfl,
       honestSlots_length]
     exact width _ (getD_mem hi)
   · simp [honestRecords, scanOf]
   · simp [honestRecords, scanOf]
-  · show ∀ o ∈ activeOps (ms i).ts (honestSlots p (ms i) (steps.getD i [])), o.rt < o.wt
+  · show ∀ o ∈ activeOps (ms i).ts (honestSlots p.toGeometry (ms i) (steps.getD i [])), o.rt < o.wt
     rw [activeOps_honestSlots]
-    exact (honest_balanced p (trace_below tr i hi.le) (tr.next i hi)).2.1
+    exact (honest_balanced p.toGeometry (trace_below tr i hi.le) (tr.next i hi)).2.1
   · rw [activeCount_honestRecords]
     exact next
 
@@ -385,7 +385,7 @@ private theorem segment_rows (valid : p.Valid) (width : ∀ ports ∈ steps, por
     (count : steps.length = S * p.n) (bound : steps.length * p.bOps < 2 ^ p.wTs)
     (tr : Trace p steps ms) :
     ∀ len i₀, i₀ + len ≤ steps.length →
-      SegmentRows p (ms i₀).ts ((List.range' i₀ len).map (honestRecords p ms steps))
+      SegmentRows p.toGeometry (ms i₀).ts ((List.range' i₀ len).map (honestRecords p.toGeometry ms steps))
   | 0, _, _ => trivial
   | len + 1, i₀, h => by
     have hi : i₀ < steps.length := by omega
@@ -396,7 +396,7 @@ private theorem segment_rows (valid : p.Valid) (width : ∀ ports ∈ steps, por
 
 private theorem segment_accessAll (tr : Trace p steps ms) :
     ∀ len i₀, i₀ + len ≤ steps.length →
-      accessAll p (ms i₀) ((List.range' i₀ len).flatMap (stepAccesses steps)) =
+      accessAll p.toGeometry (ms i₀) ((List.range' i₀ len).flatMap (stepAccesses steps)) =
         some (ms (i₀ + len))
   | 0, _, _ => rfl
   | len + 1, i₀, h => by
@@ -407,32 +407,32 @@ private theorem segment_accessAll (tr : Trace p steps ms) :
 
 private theorem segment_ops (tr : Trace p steps ms) :
     ∀ len i₀, i₀ + len ≤ steps.length →
-      segmentOps (ms i₀).ts ((List.range' i₀ len).map (honestRecords p ms steps)) =
-        honestOps p (ms i₀) ((List.range' i₀ len).flatMap (stepAccesses steps))
+      segmentOps (ms i₀).ts ((List.range' i₀ len).map (honestRecords p.toGeometry ms steps)) =
+        honestOps p.toGeometry (ms i₀) ((List.range' i₀ len).flatMap (stepAccesses steps))
   | 0, _, _ => rfl
   | len + 1, i₀, h => by
     have hi : i₀ < steps.length := by omega
     rw [List.range'_succ, List.map_cons, List.flatMap_cons, segmentOps, honestOps_append,
       activeCount_honestRecords, ← trace_ts_succ tr hi, ← trace_replay tr hi,
       segment_ops tr len (i₀ + 1) (by omega),
-      show (honestRecords p ms steps i₀).ops = honestSlots p (ms i₀) (steps.getD i₀ []) from rfl,
+      show (honestRecords p.toGeometry ms steps i₀).ops = honestSlots p.toGeometry (ms i₀) (steps.getD i₀ []) from rfl,
       activeOps_honestSlots]
     rfl
 
 private theorem segment_scans (npos : 0 < p.n) (k : ℕ) :
-    ((List.range' (k * p.n) p.n).map (honestRecords p ms steps)).map StepRecords.initialScan =
-        scansOf p (ms (k * p.n)).memory ∧
-      ((List.range' (k * p.n) p.n).map (honestRecords p ms steps)).map StepRecords.finalScan =
-        scansOf p (ms ((k + 1) * p.n)).memory := by
+    ((List.range' (k * p.n) p.n).map (honestRecords p.toGeometry ms steps)).map StepRecords.initialScan =
+        scansOf p.toGeometry (ms (k * p.n)).memory ∧
+      ((List.range' (k * p.n) p.n).map (honestRecords p.toGeometry ms steps)).map StepRecords.finalScan =
+        scansOf p.toGeometry (ms ((k + 1) * p.n)).memory := by
   simp only [List.range'_eq_map_range, List.map_map, scansOf]
   constructor <;> refine List.map_congr_left fun j hj => ?_ <;>
     simp only [Function.comp_apply, honestRecords_segment npos (List.mem_range.1 hj)]
 
 private theorem segment_lanes (npos : 0 < p.n) (k : ℕ) :
-    ((List.range' (k * p.n) p.n).map (honestRecords p ms steps)).map (initialPacked p) =
-        memoryLanes p (ms (k * p.n)).memory ∧
-      ((List.range' (k * p.n) p.n).map (honestRecords p ms steps)).map (finalPacked p) =
-        memoryLanes p (ms ((k + 1) * p.n)).memory := by
+    ((List.range' (k * p.n) p.n).map (honestRecords p.toGeometry ms steps)).map (initialPacked p.toGeometry) =
+        memoryLanes p.toGeometry (ms (k * p.n)).memory ∧
+      ((List.range' (k * p.n) p.n).map (honestRecords p.toGeometry ms steps)).map (finalPacked p.toGeometry) =
+        memoryLanes p.toGeometry (ms ((k + 1) * p.n)).memory := by
   obtain ⟨initial, final⟩ := segment_scans (ms := ms) (steps := steps) npos k
   rw [memoryLanes_eq, memoryLanes_eq, ← initial, ← final]
   simp only [List.map_map]
@@ -448,12 +448,12 @@ private def honestProposal (ctx : Context E Digest) (ms : ℕ → Machine)
     (steps : List (List (Option PortAccess))) (k : ℕ) : Digest × Digest :=
   (chainRoot ctx.hash .ops ctx.planDigest
       ((List.range' (k * ctx.plan.n) ctx.plan.n).map fun i =>
-        opsPacked ctx.plan (honestRecords ctx.plan ms steps i)),
-    memoryRoot ctx.hash ctx.plan ctx.planDigest (ms ((k + 1) * ctx.plan.n)).memory)
+        opsPacked ctx.plan.toGeometry (honestRecords ctx.plan.toGeometry ms steps i)),
+    memoryRoot ctx.hash ctx.plan.toGeometry ctx.planDigest (ms ((k + 1) * ctx.plan.n)).memory)
 
 private def honestInvocation (ctx : Context E Digest) (ms : ℕ → Machine) (st : ℕ → σ)
     (steps : List (List (Option PortAccess))) (i : ℕ) : Invocation σ Digest :=
-  ⟨honestProposal ctx ms steps (i / ctx.plan.n), honestRecords ctx.plan ms steps i, st (i + 1)⟩
+  ⟨honestProposal ctx ms steps (i / ctx.plan.n), honestRecords ctx.plan.toGeometry ms steps i, st (i + 1)⟩
 
 private def honestRun (ctx : Context E Digest) (ms : ℕ → Machine) (st : ℕ → σ)
     (steps : List (List (Option PortAccess))) : List (Invocation σ Digest) :=
@@ -475,14 +475,14 @@ private theorem honestRun_ports : (honestRun ctx ms st steps).map Invocation.por
 
 private theorem sum_activeCount (tr : Trace ctx.plan steps ms) :
     ∀ i ≤ steps.length,
-      ((List.range i).map fun j => activeCount (honestRecords ctx.plan ms steps j)).sum = (ms i).ts
+      ((List.range i).map fun j => activeCount (honestRecords ctx.plan.toGeometry ms steps j)).sum = (ms i).ts
   | 0, _ => by
     rw [tr.start]
     rfl
   | i + 1, hi => by
     rw [List.range_succ, List.map_append, List.sum_append,
       sum_activeCount tr i (Nat.le_of_succ_le hi), trace_ts_succ tr hi,
-      ← activeCount_honestRecords ctx.plan ms steps i]
+      ← activeCount_honestRecords ctx.plan.toGeometry ms steps i]
     simp
 
 private theorem honestRun_tsBefore (tr : Trace ctx.plan steps ms) {i : ℕ}
@@ -491,7 +491,7 @@ private theorem honestRun_tsBefore (tr : Trace ctx.plan steps ms) {i : ℕ}
   exact sum_activeCount tr i hi
 
 private theorem honestRun_segment {k : ℕ} (hk : (k + 1) * ctx.plan.n ≤ steps.length) :
-    segmentRun ctx.plan (honestRun ctx ms st steps) k =
+    segmentRun ctx.plan.toGeometry (honestRun ctx ms st steps) k =
       (List.range' (k * ctx.plan.n) ctx.plan.n).map (honestInvocation ctx ms st steps) := by
   have e : (k + 1) * ctx.plan.n = k * ctx.plan.n + ctx.plan.n := Nat.add_one_mul _ _
   rw [segmentRun, honestRun, ← List.map_drop, ← List.map_take, List.range_eq_range',
@@ -505,7 +505,7 @@ private theorem honestRun_proposal (npos : 0 < ctx.plan.n) {k : ℕ}
     List.head?_map, List.head?_range', if_neg (by omega)]
   simp [honestInvocation, Nat.mul_div_cancel _ npos]
 
-private theorem honestRun_app {app : Application ctx.plan σ}
+private theorem honestRun_app {app : Application ctx.plan.toGeometry σ}
     (stStep : ∀ i < steps.length, app.Step (st i) (steps.getD i []) (st (i + 1))) :
     ∀ len i₀, i₀ + len ≤ steps.length →
       AppThread app (st i₀) ((List.range' i₀ len).map (honestInvocation ctx ms st steps))
@@ -515,7 +515,7 @@ private theorem honestRun_app {app : Application ctx.plan σ}
     rw [List.range'_succ, List.map_cons]
     refine ⟨?_, ?_⟩
     · have step := stStep i₀ (by omega)
-      rwa [← honestSlots_ports ctx.plan (ms i₀) (steps.getD i₀ [])] at step
+      rwa [← honestSlots_ports ctx.plan.toGeometry (ms i₀) (steps.getD i₀ [])] at step
     · have rest := honestRun_app stStep len (i₀ + 1) (by omega)
       rwa [show i₀ + 1 + len = i₀ + (len + 1) by omega] at rest
 
@@ -532,9 +532,9 @@ private theorem honest_segmentView (valid : ctx.plan.Valid) {S : ℕ}
     (hk : k < S) :
     segmentView ctx (honestRun ctx ms st steps) k =
       ⟨k, (ms (k * ctx.plan.n)).ts,
-        memoryRoot ctx.hash ctx.plan ctx.planDigest (ms (k * ctx.plan.n)).memory,
+        memoryRoot ctx.hash ctx.plan.toGeometry ctx.planDigest (ms (k * ctx.plan.n)).memory,
         honestProposal ctx ms steps k,
-        (List.range' (k * ctx.plan.n) ctx.plan.n).map (honestRecords ctx.plan ms steps)⟩ := by
+        (List.range' (k * ctx.plan.n) ctx.plan.n).map (honestRecords ctx.plan.toGeometry ms steps)⟩ := by
   have npos : 0 < ctx.plan.n := valid.positive.2.2.1
   have e : (k + 1) * ctx.plan.n = k * ctx.plan.n + ctx.plan.n := Nat.add_one_mul _ _
   have hend : (k + 1) * ctx.plan.n ≤ steps.length := by
@@ -575,36 +575,36 @@ private theorem honest_closes (valid : ctx.plan.Valid)
     congrArg (chainRoot ctx.hash .mem ctx.planDigest) finalLanes, productEq_of_balanced η ?_⟩
   · simp only [SegmentView.opsLanes, List.map_map]
     rfl
-  · obtain ⟨-, -, -, balanced, -, -⟩ := honest_balanced ctx.plan
+  · obtain ⟨-, -, -, balanced, -, -⟩ := honest_balanced ctx.plan.toGeometry
       (trace_below tr (k * ctx.plan.n) (by omega))
       (segment_accessAll tr ctx.plan.n (k * ctx.plan.n) hend)
     simp only [Multisets.Balanced, SegmentView.multisets]
     rw [segmentMultisets_initial, segmentMultisets_write, segmentMultisets_read,
-      segmentMultisets_final, initialScans, finalScans, chunkTuples_scansOf valid,
-      chunkTuples_scansOf valid, segment_ops tr ctx.plan.n (k * ctx.plan.n) hend, e]
+      segmentMultisets_final, initialScans, finalScans, chunkTuples_scansOf valid.toValid,
+      chunkTuples_scansOf valid.toValid, segment_ops tr ctx.plan.n (k * ctx.plan.n) hend, e]
     exact balanced
 
 end Closes
 
 /-- Ob5. -/
-theorem completeness {ctx : Context E Digest} {app : Application ctx.plan σ}
+theorem completeness {ctx : Context E Digest} {app : Application ctx.plan.toGeometry σ}
     {s₀ s : σ} {final : Machine} {steps : List (List (Option PortAccess))} {segments : ℕ}
     (valid : ctx.plan.Valid) (width : ∀ ports ∈ steps, ports.length = ctx.plan.bOps)
     (count : steps.length = segments * ctx.plan.n)
     (range : 1 ≤ segments ∧ segments ≤ ctx.plan.sMax)
-    (exec : Executes ctx.plan app s₀ (initialMachine ctx.plan) steps s final) :
+    (exec : Executes ctx.plan.toGeometry app s₀ (initialMachine ctx.plan) steps s final) :
     ∃ run : List (Invocation σ Digest),
       Accepts ctx app (honestStatement ctx s₀ s final segments) run ∧
         run.map Invocation.ports = steps := by
   have npos : 0 < ctx.plan.n := valid.positive.2.2.1
   obtain ⟨next, last, st, st0, stStep, stLast⟩ := executes_trace exec
-  have tr : Trace ctx.plan steps (machineAt ctx.plan (initialMachine ctx.plan) steps) :=
+  have tr : Trace ctx.plan steps (machineAt ctx.plan.toGeometry (initialMachine ctx.plan) steps) :=
     ⟨rfl, next⟩
   have bound : steps.length * ctx.plan.bOps < 2 ^ ctx.plan.wTs := by
     rw [count]
     exact lt_of_le_of_lt (Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ range.2))
       valid.timestampRange
-  have hlen : (honestRun ctx (machineAt ctx.plan (initialMachine ctx.plan) steps) st steps).length =
+  have hlen : (honestRun ctx (machineAt ctx.plan.toGeometry (initialMachine ctx.plan) steps) st steps).length =
       segments * ctx.plan.n := by
     rw [honestRun_length, count]
   obtain ⟨c, hc⟩ := (finalCarry_isSome_iff valid hlen).2
@@ -617,13 +617,13 @@ theorem completeness {ctx : Context E Digest} {app : Application ctx.plan σ}
   · rw [hts, honestRun_length, honestRun_tsBefore tr le_rfl, last]
     rfl
   · rw [hroot, honestRun_proposal npos hlast]
-    show memoryRoot ctx.hash ctx.plan ctx.planDigest
-        (machineAt ctx.plan (initialMachine ctx.plan) steps
+    show memoryRoot ctx.hash ctx.plan.toGeometry ctx.planDigest
+        (machineAt ctx.plan.toGeometry (initialMachine ctx.plan) steps
           ((segments - 1 + 1) * ctx.plan.n)).memory = _
     rw [Nat.sub_add_cancel range.1, ← count, last]
     rfl
   · have thread := honestRun_app (ctx := ctx)
-      (ms := machineAt ctx.plan (initialMachine ctx.plan) steps) stStep steps.length 0 (by simp)
+      (ms := machineAt ctx.plan.toGeometry (initialMachine ctx.plan) steps) stStep steps.length 0 (by simp)
     rw [Nat.zero_add, ← List.range_eq_range', st0, stLast] at thread
     exact thread
 

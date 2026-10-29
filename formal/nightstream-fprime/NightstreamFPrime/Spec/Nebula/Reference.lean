@@ -32,30 +32,30 @@ def initialMachine (p : Plan) : Machine := ⟨initialMemory p, 0⟩
 
 /-- The machine after an access: the cell becomes `(v_w, ts + 1)` and `ts`
 advances. -/
-def Machine.apply (p : Plan) (m : Machine) (a : PortAccess) : Machine :=
+def Machine.apply (p : Geometry) (m : Machine) (a : PortAccess) : Machine :=
   ⟨Function.update m.memory (a.globalIndex p) ⟨a.vw, m.ts + 1⟩, m.ts + 1⟩
 
 /-- One active access (spec §5): a valid access whose value matches the cell
 applies. -/
-def access (p : Plan) (m : Machine) (a : PortAccess) : Option Machine :=
+def access (p : Geometry) (m : Machine) (a : PortAccess) : Option Machine :=
   if a.Valid p ∧ (m.memory (a.globalIndex p)).value = a.vr then some (m.apply p a) else none
 
 /-- The accesses of one or more steps, in order. -/
-def accessAll (p : Plan) (m : Machine) (as : List PortAccess) : Option Machine :=
+def accessAll (p : Geometry) (m : Machine) (as : List PortAccess) : Option Machine :=
   as.foldlM (access p) m
 
 /-- The ports of an idle step: all inactive (spec §10). -/
-def idlePorts (p : Plan) : List (Option PortAccess) := List.replicate p.bOps none
+def idlePorts (p : Geometry) : List (Option PortAccess) := List.replicate p.bOps none
 
 /-- An application relation over states `σ`. Memory is reached only through
 ports (Ob7), and an idle step keeps the state (spec §10 MUST). -/
-structure Application (p : Plan) (σ : Type) where
+structure Application (p : Geometry) (σ : Type) where
   Step : σ → List (Option PortAccess) → σ → Prop
   idle : ∀ s, Step s (idlePorts p) s
 
 /-- An execution: each step is an application step whose active ports are
 valid accesses against the current memory. -/
-inductive Executes {σ : Type} (p : Plan) (app : Application p σ) :
+inductive Executes {σ : Type} (p : Geometry) (app : Application p σ) :
     σ → Machine → List (List (Option PortAccess)) → σ → Machine → Prop
   | nil (s : σ) (m : Machine) : Executes p app s m [] s m
   | step {s s' s'' : σ} {m m' m'' : Machine} {ports : List (Option PortAccess)}
@@ -64,43 +64,43 @@ inductive Executes {σ : Type} (p : Plan) (app : Application p σ) :
       Executes p app s' m' rest s'' m'' → Executes p app s m (ports :: rest) s'' m''
 
 /-- The snapshot of a memory: one tuple per cell (spec §5, IS and FS). -/
-def snapshot (p : Plan) (mem : Memory) : Multiset Tuple :=
+def snapshot (p : Geometry) (mem : Memory) : Multiset Tuple :=
   ((List.range p.cells).map fun g => ((mem g).stamp, g, (mem g).value) : List Tuple)
 
 /-- The scan slots of step `j` of a segment: cells `j · B_scan + i`. -/
-def scanOf (p : Plan) (mem : Memory) (j : ℕ) : List ScanSlot :=
+def scanOf (p : Geometry) (mem : Memory) (j : ℕ) : List ScanSlot :=
   (List.range p.bScan).map fun i => ⟨(mem (j * p.bScan + i)).value, (mem (j * p.bScan + i)).stamp⟩
 
 /-- The packed IS or FS lanes of a whole snapshot, one per step. -/
-def memoryLanes (p : Plan) (mem : Memory) : List (List ℕ) :=
+def memoryLanes (p : Geometry) (mem : Memory) : List (List ℕ) :=
   (List.range p.n).map fun j => pack (scanLane p (scanOf p mem j))
 
 /-- The FS root of a memory (spec §9.2). `D_init` is the root of the initial
 memory. -/
-def memoryRoot {Digest : Type} (H : HashInput Digest → Digest) (p : Plan) (pd : Digest)
+def memoryRoot {Digest : Type} (H : HashInput Digest → Digest) (p : Geometry) (pd : Digest)
     (mem : Memory) : Digest :=
   chainRoot H .mem pd (memoryLanes p mem)
 
-theorem accessAll_nil (p : Plan) (m : Machine) : accessAll p m [] = some m := rfl
+theorem accessAll_nil (p : Geometry) (m : Machine) : accessAll p m [] = some m := rfl
 
-theorem accessAll_append (p : Plan) (m : Machine) (as bs : List PortAccess) :
+theorem accessAll_append (p : Geometry) (m : Machine) (as bs : List PortAccess) :
     accessAll p m (as ++ bs) = (accessAll p m as).bind fun m' => accessAll p m' bs := by
   unfold accessAll
   rw [List.foldlM_append]
   rfl
 
 /-- A valid access names a cell below `R + M`. -/
-theorem PortAccess.Valid.globalIndex_lt {p : Plan} {a : PortAccess} (valid : a.Valid p) :
+theorem PortAccess.Valid.globalIndex_lt {p : Geometry} {a : PortAccess} (valid : a.Valid p) :
     a.globalIndex p < p.cells := by
   obtain ⟨range, -⟩ := valid
-  unfold PortAccess.globalIndex Plan.cells
+  unfold PortAccess.globalIndex Geometry.cells
   cases h : a.isRam
   · simp only [h, Bool.false_eq_true, ite_false] at range ⊢
     exact Nat.lt_add_right _ range
   · simp only [h, ite_true] at range ⊢
     exact Nat.add_lt_add_left range _
 
-private theorem apply_congr {p : Plan} {m₁ m₂ : Machine} (ts : m₁.ts = m₂.ts)
+private theorem apply_congr {p : Geometry} {m₁ m₂ : Machine} (ts : m₁.ts = m₂.ts)
     (agree : Set.EqOn m₁.memory m₂.memory (Set.Iio p.cells)) (a : PortAccess) :
     (m₁.apply p a).ts = (m₂.apply p a).ts ∧
       Set.EqOn (m₁.apply p a).memory (m₂.apply p a).memory (Set.Iio p.cells) := by
@@ -113,7 +113,7 @@ private theorem apply_congr {p : Plan} {m₁ m₂ : Machine} (ts : m₁.ts = m�
 
 /-- Accesses read and write only valid global indices, so two machines that
 agree below `R + M` stay in agreement. -/
-theorem accessAll_congr {p : Plan} {m₁ m₂ : Machine} (ts : m₁.ts = m₂.ts)
+theorem accessAll_congr {p : Geometry} {m₁ m₂ : Machine} (ts : m₁.ts = m₂.ts)
     (agree : Set.EqOn m₁.memory m₂.memory (Set.Iio p.cells)) (as : List PortAccess) :
     ((accessAll p m₁ as).map Machine.ts = (accessAll p m₂ as).map Machine.ts) ∧
       ∀ m₁' m₂', accessAll p m₁ as = some m₁' → accessAll p m₂ as = some m₂' →
@@ -143,7 +143,7 @@ theorem accessAll_congr {p : Plan} {m₁ m₂ : Machine} (ts : m₁.ts = m₂.ts
     · obtain ⟨ts', agree'⟩ := apply_congr ts agree a
       simpa [unfold, h₁, h₂] using ih (m₁ := m₁.apply p a) (m₂ := m₂.apply p a) ts' agree'
 
-private theorem scanOf_congr {p : Plan} (valid : p.Valid) {mem₁ mem₂ : Memory}
+private theorem scanOf_congr {p : Geometry} (valid : p.Valid) {mem₁ mem₂ : Memory}
     (agree : Set.EqOn mem₁ mem₂ (Set.Iio p.cells)) {j : ℕ} (hj : j < p.n) :
     scanOf p mem₁ j = scanOf p mem₂ j := by
   unfold scanOf
@@ -156,7 +156,7 @@ private theorem scanOf_congr {p : Plan} (valid : p.Valid) {mem₁ mem₂ : Memor
   rw [agree (Set.mem_Iio.mpr lt)]
 
 /-- The memory root reads only cells below `R + M`. -/
-theorem memoryRoot_congr {Digest : Type} (H : HashInput Digest → Digest) {p : Plan}
+theorem memoryRoot_congr {Digest : Type} (H : HashInput Digest → Digest) {p : Geometry}
     (valid : p.Valid) (pd : Digest) {mem₁ mem₂ : Memory}
     (agree : Set.EqOn mem₁ mem₂ (Set.Iio p.cells)) :
     memoryRoot H p pd mem₁ = memoryRoot H p pd mem₂ := by
@@ -166,7 +166,7 @@ theorem memoryRoot_congr {Digest : Type} (H : HashInput Digest → Digest) {p : 
   rw [scanOf_congr valid agree (List.mem_range.mp hj)]
 
 /-- Spec §10: an execution extends by idle steps. -/
-theorem executes_padIdle {σ : Type} {p : Plan} {app : Application p σ} {s₀ s : σ}
+theorem executes_padIdle {σ : Type} {p : Geometry} {app : Application p σ} {s₀ s : σ}
     {m₀ m : Machine} {steps : List (List (Option PortAccess))}
     (exec : Executes p app s₀ m₀ steps s m) (k : ℕ) :
     Executes p app s₀ m₀ (steps ++ List.replicate k (idlePorts p)) s m := by

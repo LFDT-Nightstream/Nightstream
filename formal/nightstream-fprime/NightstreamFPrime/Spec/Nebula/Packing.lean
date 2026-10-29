@@ -114,13 +114,13 @@ theorem pack_cast_injective {R : Type} [AddGroupWithOne R] [CharP R goldilocksMo
   pack_injective length (map_cast_injective (pack_lt xs) (pack_lt ys) same)
 
 /-- Every operation-slot encoding has the plan's width. -/
-theorem OpSlot.bits_length (p : Plan) (s : OpSlot) : (s.bits p).length = p.opWidth := by
-  simp only [OpSlot.bits, bitsLE, Plan.opWidth, List.length_append, List.length_map,
+theorem OpSlot.bits_length (p : Geometry) (s : OpSlot) : (s.bits p).length = p.opWidth := by
+  simp only [OpSlot.bits, bitsLE, Geometry.opWidth, List.length_append, List.length_map,
     List.length_range, List.length_cons, List.length_nil]
 
 /-- Every scan-slot encoding has the plan's width. -/
-theorem ScanSlot.bits_length (p : Plan) (c : ScanSlot) : (c.bits p).length = p.scanWidth := by
-  simp only [ScanSlot.bits, bitsLE, Plan.scanWidth, List.length_append, List.length_map,
+theorem ScanSlot.bits_length (p : Geometry) (c : ScanSlot) : (c.bits p).length = p.scanWidth := by
+  simp only [ScanSlot.bits, bitsLE, Geometry.scanWidth, List.length_append, List.length_map,
     List.length_range]
 
 theorem bitsLE_injective {w x y : ℕ} (hx : x < 2 ^ w) (hy : y < 2 ^ w)
@@ -133,7 +133,7 @@ theorem bitsLE_injective {w x y : ℕ} (hx : x < 2 ^ w) (hy : y < 2 ^ w)
     rw [Nat.testBit_lt_two_pow (lt_of_lt_of_le hx wide),
       Nat.testBit_lt_two_pow (lt_of_lt_of_le hy wide)]
 
-private theorem opSlot_bits_injective {p : Plan} {s t : OpSlot} (fitS : s.Fits p)
+private theorem opSlot_bits_injective {p : Geometry} {s t : OpSlot} (fitS : s.Fits p)
     (fitT : t.Fits p) (same : s.bits p = t.bits p) : s = t := by
   obtain ⟨sPad, sWrite, sRam, sAddr, sVr, sVw, sRt⟩ := s
   obtain ⟨tPad, tWrite, tRam, tAddr, tVr, tVw, tRt⟩ := t
@@ -151,7 +151,7 @@ private theorem opSlot_bits_injective {p : Plan} {s t : OpSlot} (fitS : s.Fits p
   obtain rfl : sRt = tRt := bitsLE_injective sRtFits tRtFits rt
   rfl
 
-private theorem scanSlot_bits_injective {p : Plan} {c d : ScanSlot} (fitC : c.Fits p)
+private theorem scanSlot_bits_injective {p : Geometry} {c d : ScanSlot} (fitC : c.Fits p)
     (fitD : d.Fits p) (same : c.bits p = d.bits p) : c = d := by
   obtain ⟨cValue, cStamp⟩ := c
   obtain ⟨dValue, dStamp⟩ := d
@@ -181,13 +181,13 @@ private theorem flatMap_injective {α : Type} {encode : α → List Bool} {width
         (fun y mem => fitB y (by simp [mem])) (by simpa using length) tails]
 
 /-- The §6.3 encoding of operation slots is injective on slots that fit. -/
-theorem opsLane_injective {p : Plan} {a b : List OpSlot}
+theorem opsLane_injective {p : Geometry} {a b : List OpSlot}
     (fitA : ∀ s ∈ a, s.Fits p) (fitB : ∀ s ∈ b, s.Fits p)
     (length : a.length = b.length) (same : opsLane p a = opsLane p b) : a = b :=
   flatMap_injective (OpSlot.bits_length p) opSlot_bits_injective fitA fitB length same
 
 /-- The §6.3 encoding of scan slots is injective on slots that fit. -/
-theorem scanLane_injective {p : Plan} {a b : List ScanSlot}
+theorem scanLane_injective {p : Geometry} {a b : List ScanSlot}
     (fitA : ∀ c ∈ a, c.Fits p) (fitB : ∀ c ∈ b, c.Fits p)
     (length : a.length = b.length) (same : scanLane p a = scanLane p b) : a = b :=
   flatMap_injective (ScanSlot.bits_length p) scanSlot_bits_injective fitA fitB length same

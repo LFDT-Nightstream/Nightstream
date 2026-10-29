@@ -15,7 +15,7 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Nebula
 
 /-- The bits of one operation slot (spec §6.1), and the O4 auxiliary word. -/
-structure OpSlotBits (p : Plan) where
+structure OpSlotBits (p : Geometry) where
   pad : F
   isWrite : F
   isRam : F
@@ -26,17 +26,17 @@ structure OpSlotBits (p : Plan) where
   diff : Fin p.wTs → F
 
 /-- The bits of one scan slot (spec §6.2). -/
-structure ScanSlotBits (p : Plan) where
+structure ScanSlotBits (p : Geometry) where
   value : Fin 32 → F
   stamp : Fin p.wTs → F
 
 /-- The lane bits of an operation slot in field order (spec §6.3). -/
-def OpSlotBits.lane {p : Plan} (slot : OpSlotBits p) : List F :=
+def OpSlotBits.lane {p : Geometry} (slot : OpSlotBits p) : List F :=
   [slot.pad, slot.isWrite, slot.isRam] ++ List.ofFn slot.addr ++ List.ofFn slot.vr ++
     List.ofFn slot.vw ++ List.ofFn slot.rt
 
 /-- The lane bits of a scan slot. -/
-def ScanSlotBits.lane {p : Plan} (slot : ScanSlotBits p) : List F :=
+def ScanSlotBits.lane {p : Geometry} (slot : ScanSlotBits p) : List F :=
   List.ofFn slot.value ++ List.ofFn slot.stamp
 
 /-- The word counts of an application's circuit side (spec §10): its state
@@ -47,7 +47,7 @@ structure AppShape where
 
 /-- The witness of one invocation. Bit fields are field words that the rows
 force into `{0, 1}`. The application words come last. -/
-structure StepWitness (p : Plan) (a : AppShape) where
+structure StepWitness (p : Geometry) (a : AppShape) where
   carryIn : Fin 39 → F
   carryOut : Fin 39 → F
   proposal : Fin 8 → F
@@ -96,7 +96,7 @@ def gatedK (pad : F) (f : K) : K := K.add (embed pad) (K.mul (embed (1 - pad)) f
 
 namespace StepWitness
 
-variable {p : Plan} {a : AppShape} (w : StepWitness p a)
+variable {p : Geometry} {a : AppShape} (w : StepWitness p a)
 
 /-! ### Carry fields -/
 
@@ -202,14 +202,14 @@ def chainLink (lane : Lane) (index : F) (previous : Digest) (packed : List F) : 
   digestOfBlocks [textWords (chainTag lane), index :: digestWords previous, packed]
 
 /-- The header digests that an open resets the three chains to. -/
-def headerWords (p : Plan) (i : ℕ) : F :=
+def headerWords (p : Geometry) (i : ℕ) : F :=
   if i < 4 then hash (.header .ops (planDigest p)) ⟨i % 4, Nat.mod_lt _ (by decide)⟩
   else hash (.header .mem (planDigest p)) ⟨i % 4, Nat.mod_lt _ (by decide)⟩
 
 /-- The polynomial equations of one memory-application invocation: the memory
 rows of spec §8 and the carry actions of §11.2 with the arms of §12. Indices
 follow spec §11.1 carry word order. -/
-structure StepWitness.PolyRows {p : Plan} {a : AppShape} (w : StepWitness p a) : Prop where
+structure StepWitness.PolyRows {p : Geometry} {a : AppShape} (w : StepWitness p a) : Prop where
   -- O1, S1, and the auxiliary bits
   opsBits : ∀ j, ∀ x ∈ (w.ops j).lane, IsBit x
   diffBits : ∀ j k, IsBit ((w.ops j).diff k)
@@ -271,7 +271,7 @@ structure StepWitness.PolyRows {p : Plan} {a : AppShape} (w : StepWitness p a) :
 /-- Every equation that the circuit of one memory-application invocation
 checks, except the output state, which is the step function: the polynomial
 rows, the §9.2 chains, the §9.3 challenges, and the §11.1 input state `zIn`. -/
-structure StepWitness.RowsHold {p : Plan} {a : AppShape} (w : StepWitness p a) (zIn : List F) : Prop
+structure StepWitness.RowsHold {p : Geometry} {a : AppShape} (w : StepWitness p a) (zIn : List F) : Prop
     extends w.PolyRows where
   chainOps : StepWitness.carryDigest w.carryOut 23 =
     chainLink .ops w.idxEff (w.previousDigest 0) (packWords w.opsLaneBits)

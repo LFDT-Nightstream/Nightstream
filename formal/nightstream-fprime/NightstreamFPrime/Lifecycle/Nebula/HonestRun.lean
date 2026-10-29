@@ -15,12 +15,14 @@ open scoped NightstreamFPrime.Spec.GoldilocksExtensionRing
 open NightstreamFPrime.Spec.HyperNova.Construction2.Paper (TerminalStatement)
 open NightstreamFPrime.Lifecycle.Stage1
 
-variable {p : Plan} {app : PortApp p}
+section Geometry
+
+variable {p : Geometry} {app : PortApp p}
 
 /-- The model's `invoke` keeps the carry reachable. -/
 theorem MemoryApp.reach_invoke (valid : p.Valid) {c c' : MemoryCarry} {σ : Type}
     {inv : Invocation σ Digest} (reach : Reach p c)
-    (accepts : invoke (context p) c inv = some c') : Reach p c' := by
+    (accepts : invoke (setup p) c inv = some c') : Reach p c' := by
   obtain ⟨accepted, rfl⟩ := Honest.accepted p c inv accepts
   have below : c.segIdx < p.sMax := by
     by_cases opens : c.idx = p.n
@@ -46,7 +48,7 @@ theorem MemoryApp.reach_invoke (valid : p.Valid) {c c' : MemoryCarry} {σ : Type
 carry. -/
 theorem MemoryApp.reach_continueRun (valid : p.Valid) {σ : Type} :
     ∀ {run : List (Invocation σ Digest)} {c c' : MemoryCarry},
-      Reach p c → continueRun (context p) c run = some c' → Reach p c'
+      Reach p c → continueRun (setup p) c run = some c' → Reach p c'
   | [], _, _, reach, ran => by
     simp only [continueRun, List.foldlM_nil, Option.pure_def, Option.some.injEq] at ran
     exact ran ▸ reach
@@ -60,7 +62,7 @@ application thread, is a step history of the memory program between the two
 state digests. -/
 private theorem MemoryApp.history_of_run (valid : p.Valid) :
     ∀ {run : List (Invocation app.State Digest)} {c c' : MemoryCarry} {s s' : app.State},
-      Reach p c → continueRun (context p) c run = some c' →
+      Reach p c → continueRun (setup p) c run = some c' →
       AppThread app.model s run s' →
       ∃ z witness : ℕ → List F,
         z 0 = stateWords (List.ofFn s) (carryWords c) ∧
@@ -108,33 +110,35 @@ private theorem executes_width {s s' : app.State} {m m' : Machine}
     · exact app.portsLength machine
     · exact ih ports member
 
+end Geometry
+
 /-- Ob5 for a memory application at the run level: every execution of
 `S · N` steps with `1 ≤ S ≤ S_max` has a Stage 1 step history of the memory
 program for the statement that the verifier computes, and that statement
 passes the spec §13 checks. This includes `S = S_max`, idle steps, and every
 reachable counter value. -/
-theorem MemoryApp.history_of_execution (valid : p.Valid)
+theorem MemoryApp.history_of_execution {p : Plan} {app : PortApp p.toGeometry} (valid : p.Valid)
     {s₀ s : app.State} {final : Machine} {steps : List (List (Option PortAccess))}
     {segments : ℕ} (count : steps.length = segments * p.n)
     (range : 1 ≤ segments ∧ segments ≤ p.sMax)
-    (exec : Executes p app.model s₀ (initialMachine p) steps s final) :
+    (exec : Executes p.toGeometry app.model s₀ (initialMachine p) steps s final) :
     ∃ (carry : Fin 39 → F) (z witness : ℕ → List F),
       let m : EndToEnd.MemoryStatement app.width :=
         ⟨s₀, s, carry, segments, final.ts,
-          memoryRoot hash p (planDigest p) final.memory⟩
+          memoryRoot hash p.toGeometry (planDigest p.toGeometry) final.memory⟩
       let statement : TerminalStatement AppState :=
         ⟨segments * p.n, stateWords (List.ofFn m.initialApp) (carryWords (startCarry (context p))),
           stateWords (List.ofFn m.finalApp) (List.ofFn m.finalCarry)⟩
-      EndToEnd.History (MemoryApp.program p app) statement z witness ∧
-        (∀ i < segments * p.n, (witness i).length = Words.count p app.toAppShape) ∧
+      EndToEnd.History (MemoryApp.program p.toGeometry app) statement z witness ∧
+        (∀ i < segments * p.n, (witness i).length = Words.count p.toGeometry app.toAppShape) ∧
         EndToEnd.VerifierChecks p statement m := by
   obtain ⟨run, accepted, -⟩ := Spec.Nebula.completeness (ctx := context p)
     (app := app.model) valid (executes_width exec) count range exec
   obtain ⟨c, ran, idx, seg, ts, root⟩ := accepted.terminal
   have decoded := decodeCarry_carryVector
-    (Honest.canonical valid (MemoryApp.reach_continueRun valid reach_startCarry ran))
+    (Honest.canonical valid.toValid (MemoryApp.reach_continueRun valid.toValid reach_startCarry ran))
   obtain ⟨z, witness, z0, zT, steps, lengths⟩ :=
-    MemoryApp.history_of_run valid reach_startCarry ran accepted.application
+    MemoryApp.history_of_run valid.toValid reach_startCarry ran accepted.application
   have length : run.length = segments * p.n := accepted.steps
   rw [length] at zT steps lengths
   refine ⟨carryVector c, z, witness, ⟨z0, zT, steps⟩, lengths, rfl, ?_⟩

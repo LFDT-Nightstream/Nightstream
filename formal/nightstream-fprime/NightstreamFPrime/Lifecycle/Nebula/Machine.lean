@@ -50,8 +50,8 @@ def Step (s : State) (ports : List (Option PortAccess)) (s' : State) : Prop :=
   (ports = [none, none] ∧ s' = s) ∨
     ∃ word data, ports = [some (fetch s word), dataPort s word data] ∧ s' = exec s word data
 
-/-- The machine as a Nebula application of a plan with two ports. -/
-def application (p : Plan) (twoPorts : p.bOps = 2) : Application p State where
+/-- The machine as a Nebula application of a geometry with two ports. -/
+def application (p : Geometry) (twoPorts : p.bOps = 2) : Application p State where
   Step := Step
   idle := fun s => Or.inl ⟨by simp [idlePorts, twoPorts], rfl⟩
 

@@ -124,7 +124,7 @@ private theorem scanTuplesFrom_length (base : ℕ) (cs : List ScanSlot) :
   | nil => rfl
   | cons c cs ih => simp [scanTuplesFrom, ih]
 
-private theorem chunkTuples_card (p : Plan) (idx : ℕ) (cs : List (List ScanSlot))
+private theorem chunkTuples_card (p : Geometry) (idx : ℕ) (cs : List (List ScanSlot))
     (shaped : ∀ c ∈ cs, c.length = p.bScan) :
     Multiset.card (chunkTuples p idx cs) = cs.length * p.bScan := by
   induction cs generalizing idx with
@@ -138,24 +138,24 @@ private theorem chunkTuples_card (p : Plan) (idx : ℕ) (cs : List (List ScanSlo
 tuples. -/
 theorem segment_multisets_card {ctx : Context E Digest} {η : E × E} {v : SegmentView Digest}
     (valid : ctx.plan.Valid) (closes : v.ClosesAt ctx η) :
-    Multiset.card ((v.multisets ctx.plan).initial + (v.multisets ctx.plan).write) ≤
+    Multiset.card ((v.multisets ctx.plan.toGeometry).initial + (v.multisets ctx.plan.toGeometry).write) ≤
         ctx.plan.maxTuples ∧
-      Multiset.card ((v.multisets ctx.plan).read + (v.multisets ctx.plan).final) ≤
+      Multiset.card ((v.multisets ctx.plan.toGeometry).read + (v.multisets ctx.plan.toGeometry).final) ≤
         ctx.plan.maxTuples := by
-  have scans (cs : List (List ScanSlot)) (shaped : ScansShaped ctx.plan cs)
-      (length : cs.length = ctx.plan.n) : Multiset.card (chunkTuples ctx.plan 0 cs) =
+  have scans (cs : List (List ScanSlot)) (shaped : ScansShaped ctx.plan.toGeometry cs)
+      (length : cs.length = ctx.plan.n) : Multiset.card (chunkTuples ctx.plan.toGeometry 0 cs) =
         ctx.plan.cells := by
     rw [chunkTuples_card _ _ _ fun c hc => (shaped c hc).1, length, valid.exactCover]
-  have initial : Multiset.card (v.multisets ctx.plan).initial = ctx.plan.cells := by
+  have initial : Multiset.card (v.multisets ctx.plan.toGeometry).initial = ctx.plan.cells := by
     rw [SegmentView.multisets, segmentMultisets_initial]
     exact scans _ closes.initialShaped (by rw [List.length_map, closes.length])
-  have final : Multiset.card (v.multisets ctx.plan).final = ctx.plan.cells := by
+  have final : Multiset.card (v.multisets ctx.plan.toGeometry).final = ctx.plan.cells := by
     rw [SegmentView.multisets, segmentMultisets_final]
     exact scans _ closes.finalShaped (by rw [List.length_map, closes.length])
-  have read : Multiset.card (v.multisets ctx.plan).read =
+  have read : Multiset.card (v.multisets ctx.plan.toGeometry).read =
       (segmentOps v.openTs v.records).length := by
     rw [SegmentView.multisets, segmentMultisets_read, Multiset.coe_card, List.length_map]
-  have write : Multiset.card (v.multisets ctx.plan).write =
+  have write : Multiset.card (v.multisets ctx.plan.toGeometry).write =
       (segmentOps v.openTs v.records).length := by
     rw [SegmentView.multisets, segmentMultisets_write, Multiset.coe_card, List.length_map]
   have steps : (v.records.map activeCount).length = ctx.plan.n := by
@@ -166,7 +166,7 @@ theorem segment_multisets_card {ctx : Context E Digest} {η : E × E} {v : Segme
     obtain ⟨z, hz, rfl⟩ := List.mem_map.1 hx
     exact (List.length_filterMap_le _ _).trans
       (closes.opsShaped z.ops (List.mem_map.2 ⟨z, hz, rfl⟩)).1.le
-  unfold Plan.maxTuples
+  unfold Geometry.maxTuples
   rw [Multiset.card_add, Multiset.card_add, initial, final, read, write]
   omega
 
@@ -175,7 +175,7 @@ private theorem all_add (a b : Multisets) : (a + b).all = a.all + b.all := by
     a.read + a.write + a.initial + a.final + (b.read + b.write + b.initial + b.final)
   abel
 
-private theorem segmentMultisets_small {p : Plan} (valid : p.Valid) {ts idx : ℕ}
+private theorem segmentMultisets_small {p : Geometry} (valid : p.Valid) {ts idx : ℕ}
     {rs : List StepRecords} (rows : SegmentRows p ts rs) (fits : idx + rs.length ≤ p.n) :
     ∀ τ ∈ (segmentMultisets p ts idx rs).all, τ.Small := by
   induction rs generalizing ts idx with
@@ -195,16 +195,16 @@ private theorem segmentMultisets_small {p : Plan} (valid : p.Valid) {ts idx : �
 /-- Every tuple of a closing segment is small. -/
 theorem segment_multisets_small {ctx : Context E Digest} {η : E × E} {v : SegmentView Digest}
     (valid : ctx.plan.Valid) (closes : v.ClosesAt ctx η) :
-    ∀ τ ∈ ((v.multisets ctx.plan).initial + (v.multisets ctx.plan).write) +
-      ((v.multisets ctx.plan).read + (v.multisets ctx.plan).final), τ.Small := by
+    ∀ τ ∈ ((v.multisets ctx.plan.toGeometry).initial + (v.multisets ctx.plan.toGeometry).write) +
+      ((v.multisets ctx.plan.toGeometry).read + (v.multisets ctx.plan.toGeometry).final), τ.Small := by
   intro τ hτ
-  have all : (v.multisets ctx.plan).initial + (v.multisets ctx.plan).write +
-      ((v.multisets ctx.plan).read + (v.multisets ctx.plan).final) =
-        (v.multisets ctx.plan).all := by
+  have all : (v.multisets ctx.plan.toGeometry).initial + (v.multisets ctx.plan.toGeometry).write +
+      ((v.multisets ctx.plan.toGeometry).read + (v.multisets ctx.plan.toGeometry).final) =
+        (v.multisets ctx.plan.toGeometry).all := by
     unfold Multisets.all
     abel
   rw [all] at hτ
-  exact segmentMultisets_small valid closes.rows (by simp [closes.length]) τ hτ
+  exact segmentMultisets_small valid.toValid closes.rows (by simp [closes.length]) τ hτ
 
 /-- `Finset.mem_filter` for any decision instance: the filters of the retry
 count use classical decisions that instance search does not rebuild. -/
@@ -221,16 +221,16 @@ theorem segment_fingerprint_bound {ctx : Context E Digest} (valid : ctx.plan.Val
     (inp : EtaInput Digest) (k : ℕ) {Coins : Type} [Fintype Coins]
     (play : (E × E) × Coins → Option (List StepRecords))
     (closes : ∀ c z, play c = some z → (inp.view k z).ClosesAt ctx c.1) :
-    ((errors play fun z => ¬ ((inp.view k z).multisets ctx.plan).Balanced).card : ℚ≥0) /
+    ((errors play fun z => ¬ ((inp.view k z).multisets ctx.plan.toGeometry).Balanced).card : ℚ≥0) /
         Fintype.card ((E × E) × Coins) ≤
       2 * (ctx.plan.maxTuples : ℚ≥0) / Fintype.card E +
-        ((disagreements play fun z => ¬ ((inp.view k z).multisets ctx.plan).Balanced).card :
+        ((disagreements play fun z => ¬ ((inp.view k z).multisets ctx.plan.toGeometry).Balanced).card :
             ℚ≥0) /
           ((Fintype.card ((E × E) × Coins) : ℚ≥0) * (successes play).card) ∧
-      ∀ q ∈ disagreements play (fun z => ¬ ((inp.view k z).multisets ctx.plan).Balanced),
+      ∀ q ∈ disagreements play (fun z => ¬ ((inp.view k z).multisets ctx.plan.toGeometry).Balanced),
         ∃ z z', play q.1 = some z ∧ play q.2 = some z' ∧
           CollisionIn ctx.hash ((inp.view k z).chainInputs ctx) ((inp.view k z').chainInputs ctx) := by
-  refine ⟨(retry_frequency play (fun z => ¬ ((inp.view k z).multisets ctx.plan).Balanced)
+  refine ⟨(retry_frequency play (fun z => ¬ ((inp.view k z).multisets ctx.plan.toGeometry).Balanced)
     (bound := 2 * ctx.plan.maxTuples * Fintype.card E * Fintype.card Coins)
     fun z bad => ?_).trans (add_le_add ?_ le_rfl), fun q hq => ?_⟩
   · by_cases hit : ∃ c, play c = some z
@@ -238,8 +238,8 @@ theorem segment_fingerprint_bound {ctx : Context E Digest} (valid : ctx.plan.Val
       have size := segment_multisets_card valid (closes c₀ z hc₀)
       have small := segment_multisets_small valid (closes c₀ z hc₀)
       refine (Finset.card_le_card (t := BadChallenges (E := E)
-          (((inp.view k z).multisets ctx.plan).initial + ((inp.view k z).multisets ctx.plan).write)
-          (((inp.view k z).multisets ctx.plan).read + ((inp.view k z).multisets ctx.plan).final) ×ˢ
+          (((inp.view k z).multisets ctx.plan.toGeometry).initial + ((inp.view k z).multisets ctx.plan.toGeometry).write)
+          (((inp.view k z).multisets ctx.plan.toGeometry).read + ((inp.view k z).multisets ctx.plan.toGeometry).final) ×ˢ
           (Finset.univ : Finset Coins)) fun c hc => ?_).trans ?_
       · have product := (productEq_iff c.1 _).1 (closes c z (mem_filter_any.1 hc).2).products
         exact Finset.mem_product.2

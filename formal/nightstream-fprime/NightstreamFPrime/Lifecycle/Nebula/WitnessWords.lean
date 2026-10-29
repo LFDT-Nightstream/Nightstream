@@ -14,7 +14,7 @@ open NightstreamFPrime.Spec.Nebula
 
 namespace Words
 
-variable (p : Plan)
+variable (p : Geometry)
 
 /-- Words of one operation slot: the lane bits of spec §6.3, then the O4
 difference bits. -/
@@ -77,10 +77,10 @@ def scanStamp (k : ℕ) : ℕ := 32 + k
 
 end Words
 
-variable {p : Plan}
+variable {p : Geometry}
 
 /-- The operation slot `j` of a word vector. -/
-def OpSlotBits.ofWords (p : Plan) (v : ℕ → F) (j : ℕ) : OpSlotBits p where
+def OpSlotBits.ofWords (p : Geometry) (v : ℕ → F) (j : ℕ) : OpSlotBits p where
   pad := v (Words.op p j Words.opPad)
   isWrite := v (Words.op p j Words.opIsWrite)
   isRam := v (Words.op p j Words.opIsRam)
@@ -91,12 +91,12 @@ def OpSlotBits.ofWords (p : Plan) (v : ℕ → F) (j : ℕ) : OpSlotBits p where
   diff k := v (Words.op p j (Words.opDiff p k))
 
 /-- A scan slot of a word vector, at the slot's first word `base`. -/
-def ScanSlotBits.ofWords (p : Plan) (v : ℕ → F) (base : ℕ) : ScanSlotBits p where
+def ScanSlotBits.ofWords (p : Geometry) (v : ℕ → F) (base : ℕ) : ScanSlotBits p where
   value k := v (base + Words.scanValue k)
   stamp k := v (base + Words.scanStamp k)
 
 /-- The step witness of a word vector. -/
-def StepWitness.ofWords (p : Plan) (a : AppShape) (v : ℕ → F) : StepWitness p a where
+def StepWitness.ofWords (p : Geometry) (a : AppShape) (v : ℕ → F) : StepWitness p a where
   carryIn i := v (Words.carryIn i)
   carryOut i := v (Words.carryOut i)
   proposal i := v (Words.proposal i)

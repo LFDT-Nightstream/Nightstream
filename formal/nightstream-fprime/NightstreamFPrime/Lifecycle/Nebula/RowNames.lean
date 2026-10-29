@@ -29,7 +29,7 @@ theorem checkNames_flatMap_count {α : Type} (l : List α) (f : α → Checks) :
 
 namespace Rows
 
-variable (p : Plan)
+variable (p : Geometry)
 
 /-- The names of `polyRows`, in row order. -/
 def names (app : PortApp p) : List (String × ℕ) :=
@@ -41,7 +41,7 @@ def names (app : PortApp p) : List (String × ℕ) :=
 end Rows
 
 /-- The names of `MemoryApp.assertions`, in constraint order. -/
-def MemoryApp.assertionNames (p : Plan) (app : PortApp p) (i : MemoryApp.AppInterface p app)
+def MemoryApp.assertionNames (p : Geometry) (app : PortApp p) (i : MemoryApp.AppInterface p app)
     (offset : ℕ) : List (String × ℕ) :=
   checkNames (MemoryApp.hashChecks p app i offset) ++ Rows.names p app
 
@@ -52,7 +52,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula.Rows
 open NightstreamFPrime.Spec.Nebula
 
 /-- The names cover the polynomial rows exactly. -/
-theorem names_count (p : Plan) (app : PortApp p) :
+theorem names_count (p : Geometry) (app : PortApp p) :
     ((names p app).map Prod.snd).sum = (polyRows p app).length := by
   simp only [names, polyRows, memoryRows, appRows, List.map_append, List.sum_append,
     List.length_append, checkNames_count, checkNames_flatMap_count, List.length_map, List.map_cons,
@@ -66,7 +66,7 @@ namespace NightstreamFPrime.Lifecycle.Nebula.MemoryApp
 open NightstreamFPrime.Spec.Nebula
 
 /-- The names cover the assertions exactly. -/
-theorem assertionNames_count (p : Plan) (app : PortApp p) (i : AppInterface p app) (offset : ℕ) :
+theorem assertionNames_count (p : Geometry) (app : PortApp p) (i : AppInterface p app) (offset : ℕ) :
     ((assertionNames p app i offset).map Prod.snd).sum = (assertions p app i offset).length := by
   simp only [assertionNames, assertions, List.map_append, List.sum_append, List.length_append,
     checkNames_count, Rows.names_count, List.length_map]

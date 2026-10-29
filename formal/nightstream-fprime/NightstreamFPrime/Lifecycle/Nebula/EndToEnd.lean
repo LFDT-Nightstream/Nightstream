@@ -45,7 +45,7 @@ structure MemoryStatement (width : ℕ) where
   finalTs : ℕ
   finalRoot : Digest
 
-variable {p : Plan} {app : PortApp p}
+variable {p : Plan} {app : PortApp p.toGeometry}
 
 /-- The checks of the Rust `nebula::Verifier::verify` (spec §13) on a Stage 1
 statement: it opens to the memory statement's states, and the terminal checks
@@ -53,11 +53,11 @@ hold. -/
 structure VerifierChecks {width : ℕ} (p : Plan) (statement : TerminalStatement AppState)
     (m : MemoryStatement width) : Prop where
   start : statement.z0 = stateWords (List.ofFn m.initialApp) (carryWords (startCarry (context p)))
-  terminal : TerminalChecks p statement.zi m.finalApp m.finalCarry statement.iteration m.segments
+  terminal : TerminalChecks p.toGeometry statement.zi m.finalApp m.finalCarry statement.iteration m.segments
     m.finalTs m.finalRoot
 
 /-- The typed statement that a memory statement claims after `T` steps. -/
-def MemoryStatement.typed (app : PortApp p) (m : MemoryStatement app.width) (T : ℕ) :
+def MemoryStatement.typed (app : PortApp p.toGeometry) (m : MemoryStatement app.width) (T : ℕ) :
     Nebula.Statement app.State Digest :=
   ⟨T, m.initialApp, m.finalApp, m.segments, m.finalTs, m.finalRoot⟩
 
@@ -84,8 +84,8 @@ namespace Experiment
 variable (app) {Sample : Type} (x : Experiment app.width Sample)
 
 /-- The step witnesses that the extractor returns. -/
-def steps (s : Sample) (i : ℕ) : StepWitness p app.toAppShape :=
-  MemoryApp.decode p app (x.witness s i)
+def steps (s : Sample) (i : ℕ) : StepWitness p.toGeometry app.toAppShape :=
+  MemoryApp.decode p.toGeometry app (x.witness s i)
 
 /-- The extracted run of the model. -/
 def run (s : Sample) : List (Invocation app.State Digest) :=
@@ -124,7 +124,7 @@ def Unbalanced (s : Sample) : Prop :=
 history is not a history that attests the claim (security note §5). -/
 def Bad (Accepted : Sample → Prop) (s : Sample) : Prop :=
   Accepted s ∧ VerifierChecks p (x.statement s) (x.memory s) ∧
-    ¬ (History (MemoryApp.program p app) (x.statement s) (x.states s) (x.witness s) ∧
+    ¬ (History (MemoryApp.program p.toGeometry app) (x.statement s) (x.states s) (x.witness s) ∧
       x.Attested app s)
 
 end Experiment
@@ -136,7 +136,7 @@ bad sample has a Stage 1 failure, a state-link collision, a chain collision,
 or an accepted extracted run with a claimed segment that passes the product
 test with unbalanced multisets. -/
 theorem bad_subset (valid : p.Valid)
-    (extraction : Stage1Extraction (MemoryApp.program p app) x Accepted Failure) :
+    (extraction : Stage1Extraction (MemoryApp.program p.toGeometry app) x Accepted Failure) :
     {s | x.Bad app Accepted s} ⊆
       {s | Failure s} ∪ {s | x.StateLinkCollision app s} ∪ {s | x.ChainCollision app s} ∪
         {s | x.Unbalanced app s} := by
@@ -159,7 +159,7 @@ open scoped ENNReal
 
 /-- The deterministic cover as a bound on the mass of any law of samples. -/
 theorem bad_le_sum (valid : p.Valid)
-    (extraction : Stage1Extraction (MemoryApp.program p app) x Accepted Failure)
+    (extraction : Stage1Extraction (MemoryApp.program p.toGeometry app) x Accepted Failure)
     (law : PMF Sample) :
     law.toOuterMeasure {s | x.Bad app Accepted s} ≤
       law.toOuterMeasure {s | Failure s} + law.toOuterMeasure {s | x.StateLinkCollision app s} +

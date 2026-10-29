@@ -3,7 +3,7 @@ import NightstreamFPrime.Lifecycle.Nebula.StepRefinement
 import NightstreamFPrime.Lifecycle.Nebula.Machine
 
 /-! Owns the first memory application at the circuit level: the machine of
-`Machine` as a `PortApp` of a plan with two ports. Its state words are
+`Machine` as a `PortApp` of a geometry with two ports. Its state words are
 `(pc, acc)`, its one private word is the idle flag, and its rows tie the fetch
 port and the data port to the instruction (spec §10). It owns the machine's
 Ob7 (`Machine.sound`) and its half of Ob5 (`Machine.complete`). It does not
@@ -19,13 +19,13 @@ open Fin.CommRing
 theorem val_add_one {x : F} (small : x.val + 1 < goldilocksModulus) : (x + 1).val = x.val + 1 := by
   rw [← natWord_of_val x, ← natWord_one, ← natWord_add, natWord_val small, natWord_of_val]
 
-theorem Plan.two_pow_mu_lt {p : Plan} (valid : p.Valid) : 2 ^ p.μ < goldilocksModulus := by
+theorem Geometry.two_pow_mu_lt {p : Geometry} (valid : p.Valid) : 2 ^ p.μ < goldilocksModulus := by
   have below := valid.belowModulus
   have ram : 2 ^ p.μ ≤ p.cells := Nat.le_add_left _ _
   omega
 
-theorem Plan.mu_le {p : Plan} (valid : p.Valid) : p.μ ≤ 63 := by
-  have below := Plan.two_pow_mu_lt valid
+theorem Geometry.mu_le {p : Geometry} (valid : p.Valid) : p.μ ≤ 63 := by
+  have below := Geometry.two_pow_mu_lt valid
   by_contra large
   have : 2 ^ 64 ≤ 2 ^ p.μ := Nat.pow_le_pow_right (by norm_num) (by omega)
   have : (2 : ℕ) ^ 64 > goldilocksModulus := by decide
@@ -49,7 +49,7 @@ theorem bitsWord_zeros {n : ℕ} {bits : Fin n → F} (zero : ∀ k, bits k = 0)
 
 namespace OpSlotBits
 
-variable {p : Plan} {slot : OpSlotBits p}
+variable {p : Geometry} {slot : OpSlotBits p}
 
 theorem port_pad (pad : slot.pad = 1) : slot.decode.port = none := by
   simp [decode, OpSlot.port, pad, StepWitness.toBool_one]
@@ -113,7 +113,7 @@ theorem State.words_ofWords (w : Fin 2 → F) : (State.ofWords w).words = w := b
   funext i
   fin_cases i <;> simp [State.words, State.ofWords, natWord_of_val]
 
-variable {p : Plan} (two : p.bOps = 2)
+variable {p : Geometry} (two : p.bOps = 2)
 
 /-- Port 0, the fetch port. -/
 def fetchSlot : Fin p.bOps := ⟨0, by omega⟩
@@ -158,28 +158,28 @@ structure PortRows : Prop where
 /-! ### The rows over local variables -/
 
 /-- Local variable `k` of slot `j`. -/
-def slotE (p : Plan) (j k : ℕ) : Circuit.Expr :=
+def slotE (p : Geometry) (j k : ℕ) : Circuit.Expr :=
   .var (AppView.slotStart shape + j * Words.opWords p + k)
 
 def inE (i : ℕ) : Circuit.Expr := .var i
 def outE (i : ℕ) : Circuit.Expr := .var (2 + i)
 def idleE : Circuit.Expr := .var 4
-def padE (p : Plan) (j : ℕ) : Circuit.Expr := slotE p j 0
-def isWriteE (p : Plan) (j : ℕ) : Circuit.Expr := slotE p j 1
-def isRamE (p : Plan) (j : ℕ) : Circuit.Expr := slotE p j 2
-def addrE (p : Plan) (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.μ => slotE p j (3 + k)
-def vrBitE (p : Plan) (j k : ℕ) : Circuit.Expr := slotE p j (3 + p.μ + k)
-def vrE (p : Plan) (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin 32 => vrBitE p j k
-def vwE (p : Plan) (j : ℕ) : Circuit.Expr :=
+def padE (p : Geometry) (j : ℕ) : Circuit.Expr := slotE p j 0
+def isWriteE (p : Geometry) (j : ℕ) : Circuit.Expr := slotE p j 1
+def isRamE (p : Geometry) (j : ℕ) : Circuit.Expr := slotE p j 2
+def addrE (p : Geometry) (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin p.μ => slotE p j (3 + k)
+def vrBitE (p : Geometry) (j k : ℕ) : Circuit.Expr := slotE p j (3 + p.μ + k)
+def vrE (p : Geometry) (j : ℕ) : Circuit.Expr := Expr.bits fun k : Fin 32 => vrBitE p j k
+def vwE (p : Geometry) (j : ℕ) : Circuit.Expr :=
   Expr.bits fun k : Fin 32 => slotE p j (3 + p.μ + 32 + k)
-def isLoadE (p : Plan) : Circuit.Expr := vrBitE p 0 0 * (1 - vrBitE p 0 1)
-def isStoreE (p : Plan) : Circuit.Expr := (1 - vrBitE p 0 0) * vrBitE p 0 1
-def isLoadiE (p : Plan) : Circuit.Expr := vrBitE p 0 0 * vrBitE p 0 1
-def argumentE (p : Plan) : Circuit.Expr :=
+def isLoadE (p : Geometry) : Circuit.Expr := vrBitE p 0 0 * (1 - vrBitE p 0 1)
+def isStoreE (p : Geometry) : Circuit.Expr := (1 - vrBitE p 0 0) * vrBitE p 0 1
+def isLoadiE (p : Geometry) : Circuit.Expr := vrBitE p 0 0 * vrBitE p 0 1
+def argumentE (p : Geometry) : Circuit.Expr :=
   Expr.chunk ((List.ofFn fun k : Fin 32 => vrBitE p 0 k).drop 2)
 
 /-- The machine's rows over its local variables. -/
-def rows (p : Plan) : List Circuit.Expr :=
+def rows (p : Geometry) : List Circuit.Expr :=
   [bitRow idleE,
     padE p 0 - idleE,
     isWriteE p 0,
@@ -194,7 +194,7 @@ def rows (p : Plan) : List Circuit.Expr :=
     outE 1 - (isLoadE p * vrE p 1 + isLoadiE p * argumentE p + (1 - isLoadE p - isLoadiE p) * inE 1)]
 
 theorem opWords_eq : Words.opWords p = 3 + p.μ + 64 + p.wTs + p.wTs := by
-  simp [Words.opWords, Plan.opWidth]
+  simp [Words.opWords, Geometry.opWidth]
 
 theorem eval_slotE (j : Fin p.bOps) {k : ℕ} (hk : k < Words.opWords p) :
     (slotE p j k).eval v.env = (v.ops j).word k :=
@@ -342,10 +342,10 @@ theorem sound (valid : p.Valid) (wf : ∀ j, (v.ops j).WellFormed) (rows : PortR
     rw [fetchRead, sub_zero, one_mul, sub_eq_zero] at keeps
     have pc : (v.appIn 0).val = bitsNat (v.ops (fetchSlot two)).addr := by
       rw [← fetchAddr]
-      exact StepWitness.bitsWord_val addrF (Plan.mu_le valid)
+      exact StepWitness.bitsWord_val addrF (Geometry.mu_le valid)
     have pcSmall : (v.appIn 0).val + 1 < goldilocksModulus := by
       have := bitsNat_lt (v.ops (fetchSlot two)).addr
-      have := Plan.two_pow_mu_lt valid
+      have := Geometry.two_pow_mu_lt valid
       omega
     have fetchPort : (v.ops (fetchSlot two)).decode.port =
         some (fetch (State.ofWords v.appIn) (v.ops (fetchSlot two)).decode.vr) := by
@@ -361,7 +361,7 @@ theorem sound (valid : p.Valid) (wf : ∀ j, (v.ops j).WellFormed) (rows : PortR
     have dataWrite := rows.dataWrite
     have dataRam := rows.dataRam
     have addrVal : (bitsWord (v.ops (dataSlot two)).addr).val = bitsNat (v.ops (dataSlot two)).addr :=
-      StepWitness.bitsWord_val addrD (Plan.mu_le valid)
+      StepWitness.bitsWord_val addrD (Geometry.mu_le valid)
     have vrVal : (bitsWord (v.ops (dataSlot two)).vr).val = bitsNat (v.ops (dataSlot two)).vr :=
       StepWitness.bitsWord_val vrD (by norm_num)
     have vwVal : (bitsWord (v.ops (dataSlot two)).vw).val = bitsNat (v.ops (dataSlot two)).vw :=
@@ -605,12 +605,12 @@ theorem complete {s s' : State} {ports : List (Option PortAccess)} (ops : Fin p.
 
 /-- The machine over its two state words: one machine step between the
 decoded states. -/
-def wordApplication (p : Plan) (two : p.bOps = 2) : Application p (Fin 2 → F) where
+def wordApplication (p : Geometry) (two : p.bOps = 2) : Application p (Fin 2 → F) where
   Step w ports w' := Step (State.ofWords w) ports (State.ofWords w')
   idle w := (application p two).idle (State.ofWords w)
 
-/-- The machine as a port application of a plan with two ports. -/
-def portApp (p : Plan) (two : p.bOps = 2) : PortApp p where
+/-- The machine as a port application of a geometry with two ports. -/
+def portApp (p : Geometry) (two : p.bOps = 2) : PortApp p where
   width := 2
   aux := 1
   model := wordApplication p two

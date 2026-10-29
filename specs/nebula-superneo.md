@@ -558,6 +558,57 @@ words, the output state words, and the private words. The first test
 application (Lean `MachineApp`) has two state words `(pc, acc)` and one
 private word, the idle flag.
 
+### 10.1 Memory events of catalog applications
+
+A catalog application describes its memory in the form of the Rocq proof of
+the WASM relation (`formal/wasm-rocq/MemoryTrace.v` on `main`). A catalog is a
+list of memories. Each memory has an id, a kind (RAM or ROM), and ports. A
+port has address columns, a value column, a kind (a read, or a write with an
+optional prior column), and an activation. Each active port of a row gives one
+event. The events of a trace come in this order: rows, then catalog memories,
+then ports. The Rocq proof assumes that the events replay from the initial
+state (`MemoryConsistent`). Lean copies the model in
+`Spec/Nebula/MemoryTrace.lean`.
+
+A binding maps the events to port accesses (Lean `MemoryTrace.Binding` in
+`Spec/Nebula/EventBinding.lean`). These are its rules:
+
+1. A bound memory has a region: a base address and one bit width per address
+   part. A memory that the catalog declares RAM is in the RAM namespace. Every
+   other memory is in the ROM namespace. An address packs little-endian, as
+   `base + x₀ + 2^w₀ · (x₁ + 2^w₁ · …)`.
+2. An address is in range when its memory is bound, it has one part per
+   width, and each part is in `[0, 2^w)`.
+3. Two different memories in one namespace have disjoint regions
+   (`Binding.Disjoint`).
+4. A read event is a read access. Its read value is the event value.
+5. A write event is a write access. Its written value is the event value. When
+   the event has a prior value, the read value is that value. When it has none,
+   the read value is the current value of the cell, and Nebula checks it.
+6. An inactive port has no access, so its slot is a pad slot. The active slots
+   of all steps, in order, bind the events of the trace in order.
+
+The free application (Lean `freeApp`) has a selected number of state words, no
+private words, and no rows. Its model accepts every step of `B_ops` ports, so
+the memory rows are its only checks. It is a `PortApp`, so each result for a
+`PortApp` applies to it.
+
+**Theorem** (`MemoryTrace.memoryConsistent_of_executes`). Let the binding obey
+rule 3. Let every event of the trace be in range. Let the initial state hold
+the plan images on the in-range set (`Binding.Initial`): an address of a RAM
+memory starts at the RAM image word of its packed address, and an address of
+a ROM memory starts at the ROM image word. If an execution from the plan
+images has active ports that bind the events of the trace in order, then the
+trace is `MemoryConsistent`. `memoryConsistent_of_accessAll` gives the same
+result for each list of accesses that replays from the plan images, and
+`executes_accessAll` gives that replay for each execution.
+
+The rule that each region is inside its namespace is for completeness only.
+Soundness does not need it, because the access rule rejects an address outside
+its namespace. For the same reason, an event value at or above `2^32` has no
+valid access. A catalog with larger values needs to split them into 32-bit
+memories.
+
 ## 11. Memory carry
 
 ### 11.1 MemoryCarry

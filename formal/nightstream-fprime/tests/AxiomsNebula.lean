@@ -6,6 +6,7 @@ import NightstreamFPrime.Lifecycle.Nebula.RunLink
 import NightstreamFPrime.Lifecycle.Nebula.RowMeaning
 import NightstreamFPrime.Lifecycle.Nebula.EndToEnd
 import NightstreamFPrime.Lifecycle.Nebula.HonestRun
+import NightstreamFPrime.Lifecycle.Nebula.FreeApp
 import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
 import NightstreamFPrime.Export.Stage1.NebulaMemorySecurity
@@ -626,6 +627,16 @@ packages' bounds. -/
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package.fits
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package.fits
 #audit_axioms NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal.terminalChecks_iff
+
+/-! Memory events of catalog applications (`MemoryTrace`, `EventBinding`) and the
+free application (`FreeApp`). -/
+
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.packParts_lt
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.packParts_injective
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.memoryConsistent_of_accessAll
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.executes_accessAll
+#audit_axioms NightstreamFPrime.Spec.Nebula.MemoryTrace.memoryConsistent_of_executes
+#audit_axioms NightstreamFPrime.Lifecycle.Nebula.freeApp
 
 /-! End-to-end bound over the HyperNova reverse extractor (`NebulaMemorySecurity`). -/
 

@@ -1,19 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction
 
-/-!
-Deterministic completeness and public coins for the paper `Pi_RLC` reduction.
-
-Source: SuperNeo v1.2 Section 7.4 and Appendix B.3, Lemma 11.
-
-Owns: perfect completeness for an arbitrary valid public `CE(b)` batch, the
-verifier's public challenge vector, the honest combined witness, and a
-successful response for the exact verifier-computed `PiRLC.combinedOutput`.
-Canonical fresh inputs made directly from assignments are a separate
-corollary, not the primary completeness statement.
-
-`Algebra.norm_growth` is the abstract form of the paper's expansion-factor
-calculation `(K + k) * T * (b - 1) < B` stored in `GlobalParams.rlc_bound`.
--/
+/-! SuperNeo v1.2 Section 7.4, Appendix B.3, Lemma 11. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiRLC.PaperCompleteness
 

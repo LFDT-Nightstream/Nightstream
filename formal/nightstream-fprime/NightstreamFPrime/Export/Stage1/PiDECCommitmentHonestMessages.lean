@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECCommitmentFold
 import NightstreamFPrime.Export.Stage1.PiDECStoredSplitHonestWitness
 
-/-! The summed block contributions equal the selected honest child commitments. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECCommitmentHonestMessages

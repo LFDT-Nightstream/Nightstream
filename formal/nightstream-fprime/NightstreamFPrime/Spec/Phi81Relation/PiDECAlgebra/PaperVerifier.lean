@@ -1,25 +1,14 @@
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.Algebra
 import NightstreamFPrime.Spec.Folding.PiDEC.PaperVerifier
 
-/-!
-Concrete Phi81 public splitter for the paper-exact `Pi_DEC` verifier.
-
-Protocol: SuperNeo Section 7.5 at production `b = 2`, `k = 16`.
-
-Owns: assembly of the coordinatewise public split, unconditional public
-recomposition, the projection-commuting law, and the exact structure-owned
-evaluation arity used by `PiDEC.PaperVerifier`.
-
-Does not own: prover messages, acceptance, child CE membership, Ajtai binding,
-transcript binding, Rust/R1CS refinement, costs, or row removal.
--/
+/-! SuperNeo v1.2 Section 7.5. -/
 
 namespace NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.PaperVerifier
 
 open NightstreamFPrime.Spec.Phi81Relation
 open NightstreamFPrime.Spec.Folding
 
-/-- The exact public split run by the concrete Section-7.5 verifier. -/
+/-- SuperNeo v1.2 Section 7.5. -/
 def publicInputSplit {shape : Shape} {verifierRows : Nat}
     (key : PiRLCAlgebra.Commitment.Key shape verifierRows) :
     PiDEC.PaperVerifier.PublicInputSplit (Algebra.concrete key) where

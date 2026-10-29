@@ -3,9 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationSelectedPrefix
 import NightstreamFPrime.Export.Stage1.PiDECCanonicalSourceCache
 
-/-! Proof-only transport from the original scalar and coefficient reads to
-all four sourceProtocolData endpoint families. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSSourceImages
@@ -64,10 +61,9 @@ private theorem eval_kernelRead_eq_row {columns : Nat} (form : SparseForm column
   apply congrArg (fun read : Fin columns → F => form.evalSparse read)
   funext column
   by_cases live : column.val / ringDegree < blockCount
-  · simp only [kernelRead, blockAt, dif_pos live,
+  · simp only [kernelRead, blockAt, dite_eq_left live,
       PiDECCommitmentFold.childBlocks_value, stored_get]
-    rfl
-  · simp only [kernelRead, blockAt, dif_neg live, get_replicate,
+  · simp only [kernelRead, blockAt, dite_eq_right live, get_replicate,
       PiDECCommitmentFold.zero_value]
 
 theorem coefficientRead_value {columns : Nat}
@@ -134,7 +130,7 @@ theorem matrixImage_value (assignment : Phi81Relation.Assignment shape)
   by_cases live : NumericBooleanDomain.index vertex < selectedPlan.rowCount
   · have programLive : NumericBooleanDomain.index vertex < selectedProgram.rowCount :=
       counts.symm ▸ live
-    simp only [matrixImage?, rowValues?, if_pos programLive]
+    simp only [matrixImage?, rowValues?, ite_eq_left programLive]
     have loaded := canonical_numericRow Poseidon2HashChainV1Package.application
       Poseidon2HashChainV1Package.fits (kernelRead assignment output)
       ⟨NumericBooleanDomain.index vertex, live⟩ matrix
@@ -145,12 +141,12 @@ theorem matrixImage_value (assignment : Phi81Relation.Assignment shape)
       exact (eval_kernelRead_eq_row
         (selectedPlan.portForm ⟨NumericBooleanDomain.index vertex, live⟩ matrix)
         assignment output).trans (by
-          simpa only [PiDECEvaluationSelectedPrefix.matrixRow, dif_pos live] using reference)
+          simpa only [PiDECEvaluationSelectedPrefix.matrixRow, dite_eq_left live] using reference)
     exact loaded.trans (congrArg some evaluated)
   · have programOutside : ¬ NumericBooleanDomain.index vertex < selectedProgram.rowCount :=
       counts.symm ▸ live
-    simp only [matrixImage?, rowValues?, if_neg programOutside, Option.map_some, get_replicate]
-    rw [PiDECEvaluationSelectedPrefix.matrixRow, dif_neg live,
+    simp only [matrixImage?, rowValues?, ite_eq_right programOutside, Option.map_some, get_replicate]
+    rw [PiDECEvaluationSelectedPrefix.matrixRow, dite_eq_right live,
       PiDECCommitmentFold.zero_value] at reference
     exact congrArg some reference
 
@@ -215,16 +211,16 @@ private theorem kernelImage_constant_output (basis : Fin ringDegree) (source : R
     _ = sumRange baseOps ringDegree (fun index => if index = basis.val then term index else 0) := by
       apply sumRange_congr baseOps ringDegree
       intro index live
-      rw [dif_pos live, constant_weight]
+      rw [dite_eq_left live, constant_weight]
       by_cases equal : index = basis.val
       · subst index
         simp [term]
       · have different : basis ≠ (⟨index, live⟩ : Fin ringDegree) := by
           intro found
           exact equal (congrArg Fin.val found).symm
-        simp only [if_neg different, if_neg equal, Fin.mul_zero]
+        simp only [ite_eq_right different, ite_eq_right equal, Fin.mul_zero]
     _ = term basis.val := sumRange_select baseOps baseLaws ringDegree basis.val term basis.isLt
-    _ = source basis := by simp only [term, dif_pos basis.isLt]
+    _ = source basis := by simp only [term, dite_eq_left basis.isLt]
 
 private theorem logicalBlock_bound {width : Nat} (column : Fin width) :
     column.val / ringDegree <
@@ -250,7 +246,7 @@ theorem kernelRead_constant (assignment : Phi81Relation.Assignment shape)
     (column : Fin logicalWidth) :
     kernelRead assignment Phi81CoefficientKernel.constant column = plainRead assignment column := by
   have live : column.val / ringDegree < blockCount := logicalBlock_bound column
-  rw [kernelRead, blockAt, dif_pos live, kernelImage_constant_output]
+  rw [kernelRead, blockAt, dite_eq_left live, kernelImage_constant_output]
   exact assignmentBlock_logical assignment column live
 
 private theorem freshMatrixImage_eq (program : MatrixProgram.Program)
@@ -420,7 +416,6 @@ private theorem fresh_endpoint_for
         (witness.assignments (freshSourceIndex source)) vertex) := by
   erw [statement_fresh_endpoint (statementFor relation input) witness source matrix vertex,
     statementFor_matrixSource, source_matrices_eq]
-  rfl
 
 private theorem assignment_endpoint_for
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

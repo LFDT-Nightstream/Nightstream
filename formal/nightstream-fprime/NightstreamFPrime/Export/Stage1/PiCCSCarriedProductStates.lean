@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSCarriedReadCache
 
-/-!
-Carried rows of one Phi81 product invocation from its state values.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSCarriedProductStates
@@ -120,7 +116,7 @@ theorem invocation_value {columns : Nat}
   have rowSome : PiDECProductRow.row? interface row.val =
       some (Phi81ProductPlan.rowAt interface row) := by
     unfold PiDECProductRow.row?
-    rw [dif_pos row.isLt]
+    rw [dite_eq_left row.isLt]
   rw [rowSome, Option.map_some, ← rowValues_eq]
   dsimp only [invocation]
   rw [reads]

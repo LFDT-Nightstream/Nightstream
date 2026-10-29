@@ -1,7 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNormScanCorrectness
 
-/-! Ordered merging of the implemented norm scan's worker polynomials. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSNormRangeMerge

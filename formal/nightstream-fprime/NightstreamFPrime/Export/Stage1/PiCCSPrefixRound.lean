@@ -1,12 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixSelector
 import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
 
-/-!
-One sum-check round after a challenge prefix, using the original protocol
-shape and output-message type. This semantic kernel owns no stored-table,
-source-reader or IO correspondence and makes no executed replay claim.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPrefixRound
@@ -128,7 +122,7 @@ theorem pairPolynomial_evaluate (ops : InterpolationOps Field)
       have length :
           (challenges ++ value :: BooleanVertex.fieldCoordinates ops suffix).length =
             shape.cubeVariables := (point ops challenges dimension value suffix).dimension
-      simp only [ProtocolPolynomial.polynomial, dif_pos length]
+      simp only [ProtocolPolynomial.polynomial, dite_eq_left length]
       rfl
 
 def numericPair (ops : InterpolationOps Field)
@@ -150,7 +144,7 @@ private theorem numericPair_index (ops : InterpolationOps Field)
     (suffix : BooleanVertex remaining) :
     numericPair ops data alpha gamma challenges dimension (NumericBooleanDomain.index suffix) =
       pairPolynomial ops data alpha gamma challenges dimension suffix := by
-  simp only [numericPair, dif_pos (NumericBooleanDomain.index_lt_twoPow suffix),
+  simp only [numericPair, dite_eq_left (NumericBooleanDomain.index_lt_twoPow suffix),
     NumericBooleanDomain.vertex_index]
 
 private theorem range_evaluate (ops : InterpolationOps Field)

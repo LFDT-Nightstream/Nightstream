@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.PermutationActionCompleteness
 import NightstreamFPrime.Export.Stage1.PiCCSInvocations
 import NightstreamFPrime.Layout.PiCCS.v1_2.Preservation
 
-/-!
-Owns the projection of actual PiCCS physical rows to the existing compact
-transcript invocation packets.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPhysicalPackets

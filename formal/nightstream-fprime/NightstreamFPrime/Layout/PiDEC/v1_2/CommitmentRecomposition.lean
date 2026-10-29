@@ -1,11 +1,6 @@
 import NightstreamFPrime.Layout.PiDEC.v1_2.RadixRecomposition
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.CommitmentRecomposition
 
-/-!
-Owns the typed physical footprint for the 22×54 PiDEC commitment
-recomposition family. It selects no evaluation family and adds no copy row.
--/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2.CommitmentRecomposition
 
 open NightstreamFPrime.Circuit

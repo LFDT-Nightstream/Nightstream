@@ -3,11 +3,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOrdinaryDirectPlan
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 import NightstreamFPrime.Layout.R1CS.Support
 
-/-!
-Owns the five-row 4-matrix plan for HyperNova Construction 2's next-preimage
-wiring. It reuses the retained prior/output preimage forms already owned by
-PiCCS.
--/
+/-! HyperNova Construction 2. -/
 
 namespace NightstreamFPrime.Export.Stage1.NextPreimageDirectPlan
 

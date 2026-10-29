@@ -1,14 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECMatrixSparseRange
 import NightstreamFPrime.Export.Stage1.PiDECNativeSparseEvaluation
 
-/-!
-Evaluate rows that share their columns by pushing the row weights through the
-columns. The 108 rows of one Phi81 product invocation list the same columns in
-the same order with different coefficients, so for each port and lane
-`Σ_r w_r Σ_j c_rj x_j = Σ_j (Σ_r w_r c_rj) x_j`: one pass over the columns
-replaces one pass per row.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixWeightedRange
@@ -369,9 +361,9 @@ private theorem add_value {columns : Nat} (merged : Merged columns) (column : Fi
   split
   · rename_i slot _
     by_cases bound : slot < merged.weights.size
-    · rw [dif_pos bound]
+    · rw [dite_eq_left bound]
       by_cases key : merged.keys[slot]? = some column
-      · rw [if_pos key]
+      · rw [ite_eq_left key]
         refine ⟨by simp [sizes], ?_⟩
         have keyBound : slot < merged.keys.size := by omega
         have keyValue : merged.keys[slot] = column := by
@@ -384,9 +376,9 @@ private theorem add_value {columns : Nat} (merged : Merged columns) (column : Fi
         change dot (merged.weights.toList.set slot
             (extensionOps.add merged.weights[slot] weight)) _ = _
         rw [set, ← keyValue]
-      · rw [if_neg key]
+      · rw [ite_eq_right key]
         exact push_value merged column weight values sizes
-    · rw [dif_neg bound]
+    · rw [dite_eq_right bound]
       exact push_value merged column weight values sizes
   · exact push_value merged column weight values sizes
 
@@ -455,14 +447,14 @@ theorem evaluate_prepare_toRing {columns arity count : Nat} (firstRow : Nat)
   rw [MaterializedRingK.toRing_ofRing, PiDECMatrixSparseRange.sum_value,
     PiDECNativeSparseEvaluation.nativeEvalPair_eq_spec]
   by_cases same : aligned forms = true
-  · simp only [prepare, if_pos same, get_ofFn]
+  · simp only [prepare, ite_eq_left same, get_ofFn]
     rw [pairEntries_eval]
     have lengths : ∀ index, index < count →
         (rowCoefficients forms port index).length =
           ((columnsOf forms port).map fun column => K.embed (read output column)).length := by
       intro index live
       rw [List.length_map, ← aligned_rows forms same port index live]
-      simp only [rowCoefficients, dif_pos live, List.length_map]
+      simp only [rowCoefficients, dite_eq_left live, List.length_map]
     have terms : ∀ index, index < count →
         extensionOps.mul (PiDECEvaluationWeights.weight point (firstRow + index))
             (K.embed (if live : index < count then
@@ -471,8 +463,8 @@ theorem evaluate_prepare_toRing {columns arity count : Nat} (firstRow : Nat)
             (dot ((rowCoefficients forms port index).map K.embed)
               ((columnsOf forms port).map fun column => K.embed (read output column))) := by
       intro index live
-      rw [dif_pos live, embed_evalSparse, ← aligned_rows forms same port index live]
-      simp only [rowCoefficients, dif_pos live, List.map_map]
+      rw [dite_eq_left live, embed_evalSparse, ← aligned_rows forms same port index live]
+      simp only [rowCoefficients, dite_eq_left live, List.map_map]
       rfl
     have result := fold_dot (fun index => PiDECEvaluationWeights.weight point (firstRow + index))
       (rowCoefficients forms port)
@@ -482,7 +474,7 @@ theorem evaluate_prepare_toRing {columns arity count : Nat} (firstRow : Nat)
     unfold portWeights
     rw [coordinateForms_eval (read output) _ _ result.1.symm]
     exact result.2
-  · simp only [prepare, if_neg same, get_ofFn]
+  · simp only [prepare, ite_eq_right same, get_ofFn]
     rw [pairEntries_eval]
     have terms : ∀ index, index < count →
         extensionOps.mul (PiDECEvaluationWeights.weight point (firstRow + index))
@@ -493,8 +485,8 @@ theorem evaluate_prepare_toRing {columns arity count : Nat} (firstRow : Nat)
               ((rowEntries forms port index).map fun entry =>
                 K.embed (read output entry.column))) := by
       intro index live
-      rw [dif_pos live, embed_evalSparse]
-      simp only [rowEntries, dif_pos live]
+      rw [dite_eq_left live, embed_evalSparse]
+      simp only [rowEntries, dite_eq_left live]
     have result := fold_merged (fun index => PiDECEvaluationWeights.weight point (firstRow + index))
       (rowEntries forms port) (fun column => K.embed (read output column)) _ count terms
     unfold mergedPort

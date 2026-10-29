@@ -19,10 +19,6 @@ Constraint groups:
 
 Parent coverage:
 - `ProtocolPolynomial.VerifierInput.initial` inside production `piCcsCheck`.
-
-This leaf reuses the generic Horner compiler and owns its output expression.
-The parent wires that expression directly into the SumCheck chain. A file
-boundary adds no expected-output copy rows.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.InitialClaim
@@ -96,7 +92,8 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
 
 theorem coefficientExprs_length (interface : Interface) (offset : Nat) :
     (coefficientExprs interface offset).length = 4320 := by
-  simp [coefficientExprs, canonicalPadCoordinates_length,
+  simp only [coefficientExprs, List.length_append, List.length_map]
+  simp [canonicalPadCoordinates_length,
     canonicalMatrixCoordinates_length, productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape, Shape.padEvaluationCount,
     Shape.matrixEvaluationCount, cubeVariables, ringDegree]

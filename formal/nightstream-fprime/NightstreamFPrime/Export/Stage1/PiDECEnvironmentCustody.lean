@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCProductSemanticCustody
 import NightstreamFPrime.Export.Stage1.PiDECOrdinaryDirectSource
 
-/-!
-Owns exact environment custody for the PiDEC direct-row source support.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiDECEnvironmentCustody
 
 open NightstreamFPrime.Circuit

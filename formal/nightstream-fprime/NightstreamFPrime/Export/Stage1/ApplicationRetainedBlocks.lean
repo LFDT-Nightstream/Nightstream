@@ -1,16 +1,13 @@
 import NightstreamFPrime.Export.Stage1.ApplicationDirectSource
 import NightstreamFPrime.Layout.LowNormBlock
 
-/-!
-Owns the retained witness and local field blocks for one selected application.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ApplicationRetainedBlocks
 
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 open NightstreamFPrime.Lifecycle
 
+@[implicit_reducible]
 def sourceWidth (application : Lifecycle.Stage1.Application.Program) : Nat :=
   ApplicationDirectSource.sourceWidth application
 

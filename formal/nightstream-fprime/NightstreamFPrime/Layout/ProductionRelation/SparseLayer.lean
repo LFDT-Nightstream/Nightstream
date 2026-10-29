@@ -1,14 +1,6 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Layer
 import NightstreamFPrime.Layout.ProductionRelation
 
-/-!
-Owns the Poseidon2 linear-layer formulas over final sparse matrix forms. The
-evaluation theorems connect these forms to the existing field-level
-`Gadgets.Poseidon2.Layer` authority lane by lane.
-
-This module contains no S-box relation and allocates no assignment columns.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.SparseLayer
 
 open NightstreamFPrime.Gadgets.Poseidon2

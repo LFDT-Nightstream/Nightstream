@@ -1,22 +1,9 @@
 import CompressionLean.Layer1.Restoration
 
-/-!
-Owns the paths of a game. A path is a position (`Pos`, the output type of
-the state-restoration experiment) that ends in a result. `Pos.draws` lists
-the challenges it drew, in order and with their types; `Pos.Avoids` says
-that each of them was off its bad set. `Reaches g ds a`: some path of `g`
-draws `ds` and ends in `a`.
-
-An avoiding path of a game whose avoiding paths end in `Q` ends in `Q`
-(`Pos.sound`). So a path breaks the claim only by a draw in a bad set: the
-event that `prob_not_le` and `restore_sound` bound.
--/
-
 namespace CompressionLean.Layer1.Game
 
 variable {α β : Type}
 
-/-- The challenges a position drew, in order, each with its type. -/
 def Pos.draws : (g : Game α) → Pos g → List (Σ C : Type, C)
   | pure _, _ => []
   | draw _ _ _, none => []
@@ -24,7 +11,6 @@ def Pos.draws : (g : Game α) → Pos g → List (Σ C : Type, C)
   | recv _ _, none => []
   | recv _ next, some ⟨m, p⟩ => Pos.draws (next m) p
 
-/-- Every draw of a position is off its bad set. -/
 def Pos.Avoids : (g : Game α) → Pos g → Prop
   | pure _, _ => True
   | draw _ _ _, none => True
@@ -32,7 +18,6 @@ def Pos.Avoids : (g : Game α) → Pos g → Prop
   | recv _ _, none => True
   | recv _ next, some ⟨m, p⟩ => Pos.Avoids (next m) p
 
-/-- Some path of `g` draws `ds` and ends in `a`. -/
 def Reaches (g : Game α) (ds : List (Σ C : Type, C)) (a : α) : Prop :=
   ∃ p : Pos g, Pos.node g p = .pure a ∧ Pos.draws g p = ds
 
@@ -71,7 +56,6 @@ theorem Reaches.bind {g : Game α} {f : α → Game β} {ds₁ ds₂ : List (Σ 
 theorem Reaches.congr {g : Game α} {ds ds' : List (Σ C : Type, C)} {a : α} (h : Reaches g ds a) (same : ds = ds') :
     Reaches g ds' a := same ▸ h
 
-/-- An avoiding path of a game that avoids `Q` ends in `Q`. -/
 theorem Pos.sound {g : Game α} {Q : α → Prop} (avoids : g.Avoids Q) :
     ∀ (p : Pos g) (a : α), Pos.Avoids g p → Pos.node g p = .pure a → Q a := by
   induction g with

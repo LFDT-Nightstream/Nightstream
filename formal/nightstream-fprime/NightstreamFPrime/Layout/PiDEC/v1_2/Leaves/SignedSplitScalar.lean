@@ -1,15 +1,6 @@
 import NightstreamFPrime.Layout.Polynomial.Horner
 import NightstreamFPrime.Lifecycle.PiDEC.v1_2.SignedSplitScalar
 
-/-!
-Owns the exact canonical R1CS footprint of one PiDEC signed scalar split.
-
-The logical circuit remains the authority. This module proves how the fixed
-R1CS compiler lowers its Boolean-sign product, sixteen signed-digit products,
-and affine radix recomposition. It does not own the 54-coordinate parent,
-phase composition, package rows, or assignment generation.
--/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2.Leaves.SignedSplitScalar
 
 open NightstreamFPrime.Circuit

@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportExecution
 
-/-!
-Cache the canonical product recipes, selected source blocks and base width.
-The existing transport owns all arithmetic and source-column selection.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.CachedAssignmentProducts
@@ -73,9 +68,10 @@ private theorem blockValue_eq {program : Program}
   unfold blockValue PerApplicationAssignmentTransportProducts.baseBlockValue
   by_cases bounded :
       slot < (PerApplicationAssignmentBlocks.entry program kind).block.slotCount
-  · simp only [dif_pos bounded, sourceValue_eq, SourceCompiler.sourceEnv,
+  · simp only [dite_eq_left bounded, sourceValue_eq, SourceCompiler.sourceEnv,
       PerApplicationAssignmentBlocks.sourceIndex]
-  · simp only [dif_neg bounded]
+    rfl
+  · simp only [dite_eq_right bounded]
 
 private def challengeRing {program : Program}
     (prepared : Prepared program) (base : BaseValues program)

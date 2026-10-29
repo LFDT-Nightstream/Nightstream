@@ -16,17 +16,6 @@ import NightstreamFPrime.Lifecycle.PiCCS.v1_2.OutputBinding
 Paper authority: SuperNeo v1.2, Section 7.3, complete `Pi_CCS` reduction.
 Obligation: Assemble every proved PiCCS leaf into the only production PiCCS
 logical circuit, with definitionally shared values and exact transcript order.
-
-Child order:
-1. statement binding and absorption;
-2. verifier-owned `alpha` and `gamma` derivation;
-3. indexed round transcript and fixed SumCheck chain;
-4. separate `Eval_K`, `Eval_A`, CCS, and norm terminal values;
-5. exact v1.2 final identity;
-6. reduced-output and outgoing-state binding.
-
-The parent owns only wiring and child order. It does not unfold a child's
-operations. In particular, `Eval_K` is never represented as matrix zero.
 -/
 
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal

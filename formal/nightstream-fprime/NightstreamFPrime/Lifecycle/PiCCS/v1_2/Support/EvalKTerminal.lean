@@ -1,11 +1,6 @@
 import NightstreamFPrime.Gadgets.Multilinear.PointWeightedHornerSupport
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal
 
-/-!
-Owns variable-support propagation for the production PiCCS Eval-K terminal.
-It changes no coordinate order, circuit, or row.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.EvalKTerminal
 
 open NightstreamFPrime.Circuit

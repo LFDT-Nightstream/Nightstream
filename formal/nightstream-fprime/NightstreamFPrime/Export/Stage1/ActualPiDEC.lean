@@ -4,11 +4,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationFixedPoint
 import NightstreamFPrime.Layout.Stage1.PiDECInputBounds
 import NightstreamFPrime.Layout.Stage1.SpartanValues
 
-/-!
-Owns PiDEC values and its opaque phase contract on arbitrary accepted rows.
-The NIFS parent connection is separate.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ActualPiDEC
 
 open NightstreamFPrime.Circuit

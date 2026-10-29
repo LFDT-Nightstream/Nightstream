@@ -2,8 +2,6 @@ import NightstreamFPrime.Layout.Stage1.PiDECInputs
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLCPiDEC
 import NightstreamFPrime.Lifecycle.Stage1.RunningTransition
 
-/-! Owns the fixed zero-copy data map for the Stage 1 running transition. -/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 
 open NightstreamFPrime.Spec

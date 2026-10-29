@@ -2,9 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages
 import NightstreamFPrime.Export.Stage1.PiCCSGammaAggregation
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImagesPreservation
 
-/-! Proof-only transport from nested original-source weighted reads to the
-existing optional numeric matrix interpreter. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSAggregatedImages
@@ -158,9 +155,9 @@ private theorem scalarRows_reference (program : MatrixProgram.Program)
         program.row? PiCCSSourceImages.logicalWidth sourceRow (NumericBooleanDomain.index vertex)
        else some (fun _ => SparseForm.empty)).map (PiDECMatrixNumericRows.sparseValues read) := by
   by_cases active : NumericBooleanDomain.index vertex < program.rowCount
-  · simpa only [PiCCSSourceImages.rowValues?, if_pos active] using
+  · simpa only [PiCCSSourceImages.rowValues?, ite_eq_left active] using
       PiDECMatrixNumericRows.row?_eq program sourceRow read (NumericBooleanDomain.index vertex)
-  · simp only [PiCCSSourceImages.rowValues?, if_neg active, Option.map_some, sparseValues_empty]
+  · simp only [PiCCSSourceImages.rowValues?, ite_eq_right active, Option.map_some, sparseValues_empty]
 
 private theorem carriedRows_reference (program : MatrixProgram.Program)
     (sourceRow : Nat → Option R1CS.Row)
@@ -189,9 +186,9 @@ private theorem carriedRows_reference (program : MatrixProgram.Program)
                 (PiCCSSourceImages.preparedRead forms
                   (assignments (runningSourceIndex source)) output))))))) := by
   by_cases active : NumericBooleanDomain.index vertex < program.rowCount
-  · simpa only [if_pos active] using row?_prepared program sourceRow forms outputWeight
+  · simpa only [ite_eq_left active] using row?_prepared program sourceRow forms outputWeight
       powers assignments (NumericBooleanDomain.index vertex) port
-  · simp only [if_neg active, Option.map_some, get_replicate]
+  · simp only [ite_eq_right active, Option.map_some, get_replicate]
     cases meaningfulPort? port <;>
       simp only [SparseForm.evalSparse, SparseForm.empty, List.foldl_nil,
         show K.embed (0 : F) = extensionOps.zero from rfl,
@@ -352,12 +349,12 @@ theorem endpoint_images (program : MatrixProgram.Program)
             some (fromRows layout assignments (prepare forms powers).1
               (combinedBlock powers assignments) powers vertex fresh (Vector.ofFn aggregate)) := by
         by_cases active : NumericBooleanDomain.index vertex < program.rowCount
-        · simp only [if_pos active] at matrixLoaded
-          simp only [endpoint?, freshLoaded, if_pos active, matrixLoaded, bind, Option.bind]
+        · simp only [ite_eq_left active] at matrixLoaded
+          simp only [endpoint?, freshLoaded, ite_eq_left active, matrixLoaded, bind, Option.bind]
           rfl
-        · simp only [if_neg active] at matrixLoaded
+        · simp only [ite_eq_right active] at matrixLoaded
           have emptyRows := Option.some.inj matrixLoaded
-          simp only [endpoint?, freshLoaded, if_neg active, bind, Option.bind, emptyRows]
+          simp only [endpoint?, freshLoaded, ite_eq_right active, bind, Option.bind, emptyRows]
           rfl
       rw [joined]
       apply congrArg some

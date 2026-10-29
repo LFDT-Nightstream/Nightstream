@@ -3,31 +3,7 @@ import CompressionLean.Final.Claim
 import CompressionLean.Layer1.FiatShamir
 import CompressionLean.Shrink.Budget
 
-/-!
-Owns the end-to-end soundness of the final verifier (`CompressionKey::verify`,
-`lifecycle/finish.rs:131-145`). The shrink layer, layer 1 and the terminal
-package chain through the encoding premise (`Claim.lean`, `ProgramEncodes`):
-
-- the shrink verifier accepts `x`, so a candidate `w` satisfies the CCS of
-  program `x`, unless a shrink challenge is bad (`Shrink/Soundness.lean`);
-- `w` holds a terminal assignment for `x` and accepting layer-1 paths for
-  its parent claim (`ProgramEncodes`);
-- the leaf of such a path has a P0 candidate that is a CE(B) witness of the
-  parent claim, unless a layer-1 challenge is bad (`Layer1/Soundness.lean`);
-- so the terminal claim for `x` holds (`TerminalClaim`).
-
-Both layers' games run in one experiment (`Compose.lean`), so one bad-set
-argument covers both, and layer 1's prover is not built from the shrink
-prover. The shrink extraction may return any candidate that satisfies the
-program's CCS, so the read condition covers every such candidate.
-
-Read condition: each such candidate has a reading that the layer-1 verifier
-ran. In sequence (`final_sound`), the reading ends at the leaf where layer 1
-ended. Under Fiat–Shamir (`final_restore_sound`), the reading's walk under the
-layer-1 log accepts, so each of its challenges is an oracle answer. This is
-the random-oracle model for the hash inside the program, and the WHIR model
-for the openings inside it.
--/
+/-! Model: random oracle for the in-program hash; idealized WHIR openings. -/
 
 namespace CompressionLean.Final
 
@@ -35,13 +11,9 @@ open CompressionLean NightstreamFPrime Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
 
-/-- The outcome in sequence: layer 1's result, then the shrink's. -/
 abbrev Outcome (F K : Type) (t L : ℕ) :=
   Option (Layer1.Transcript F K t L) × Option (Shrink.Transcript StateWords F K)
 
-/-- In sequence: the final verifier accepts the statement `x = tr.inst`, the
-claim `Claim x` is false, and every program witness among the shrink
-candidates has a reading that ends where layer 1 ended. -/
 def FinalBreak {t L : ℕ} (Claim : StateWords → Prop)
     (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
     (g : Layer1.Game (Option (Layer1.Transcript F K t L)))
@@ -52,7 +24,6 @@ def FinalBreak {t L : ℕ} (Claim : StateWords → Prop)
     ¬ Claim tr.inst
 
 omit [Field K] [Algebra F K] [Fintype K] [DecidableEq K] in
-/-- A weaker claim breaks less often. -/
 theorem finalBreak_mono {t L : ℕ} {Claim Claim' : StateWords → Prop} (imp : ∀ x, Claim x → Claim' x)
     (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
     (g : Layer1.Game (Option (Layer1.Transcript F K t L))) (Reads : StateWords → (ℕ → F) → g.Pos → Prop)
@@ -60,10 +31,6 @@ theorem finalBreak_mono {t L : ℕ} {Claim Claim' : StateWords → Prop} (imp : 
   obtain ⟨tr, accepted, reads, notClaim⟩ := break_
   exact ⟨tr, accepted, reads, fun claim => notClaim (imp _ claim)⟩
 
-/-- **End-to-end soundness, in sequence.** Under the encoding premise and
-with idealized WHIR openings, a prover makes the final verifier accept a
-statement whose terminal claim is false with probability at most the sum of
-the layer errors. -/
 theorem final_sound (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F)
     (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K) (N : ℕ) (sizes : s1.Sizes N)
     (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b)
@@ -102,15 +69,9 @@ theorem final_sound (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S
     rw [← Layer1.Game.pure.inj node]
     exact layer1)
 
-/-- The outcome under Fiat–Shamir: the shrink walk, and the walk of every
-path of the layer-1 game `g` under the layer-1 log. -/
 abbrev RestoreOutcome {t L : ℕ} (F K : Type) (g : Layer1.Game (Option (Layer1.Transcript F K t L))) :=
   Option (Option (Shrink.Transcript StateWords F K)) × (g.Pos → Option (Option (Layer1.Transcript F K t L)))
 
-/-- Under Fiat–Shamir: the final verifier accepts the statement
-`x = tr.inst`, the claim `Claim x` is false, and every program witness among
-the shrink candidates has a reading whose walk under the layer-1 log
-accepts. -/
 def FinalRestoreBreak {t L : ℕ} (Claim : StateWords → Prop)
     (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
     (g : Layer1.Game (Option (Layer1.Transcript F K t L)))
@@ -120,7 +81,6 @@ def FinalRestoreBreak {t L : ℕ} (Claim : StateWords → Prop)
     ¬ Claim tr.inst
 
 omit [Field K] [Algebra F K] [Fintype K] [DecidableEq K] in
-/-- A weaker claim breaks less often. -/
 theorem finalRestoreBreak_mono {t L : ℕ} {Claim Claim' : StateWords → Prop} (imp : ∀ x, Claim x → Claim' x)
     (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
     (g : Layer1.Game (Option (Layer1.Transcript F K t L))) (Reads : StateWords → (ℕ → F) → g.Pos → Prop)
@@ -129,10 +89,6 @@ theorem finalRestoreBreak_mono {t L : ℕ} {Claim Claim' : StateWords → Prop} 
   obtain ⟨tr, accepted, reads, notClaim⟩ := break_
   exact ⟨tr, accepted, reads, fun claim => notClaim (imp _ claim)⟩
 
-/-- **End-to-end soundness under Fiat–Shamir.** In the state-restoration
-experiment over both layers, a prover with `calls` queries in total makes
-the final verifier accept a statement whose terminal claim is false with
-probability at most `calls` times the larger layer error. -/
 theorem final_restore_sound (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F)
     (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K) (N : ℕ) (sizes : s1.Sizes N)
     (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b)
@@ -174,12 +130,6 @@ theorem final_restore_sound (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ �
     rw [← Layer1.Game.pure.inj node]
     exact extracts)
 
-/-- **End-to-end budget at Rust's split, in sequence.** Rust gives each
-layer the error `2^-t` for the layer bits `t` (`finish.rs:434-440`).
-`Pcs::new` accepts a configuration only when each layer-1 commitment's
-composed error is at most `2^-(t+1)` (`p0`, `p1`) and the shrink
-commitment's is at most `2^-t` (`rust`). Then the WHIR errors plus the final
-error are at most `2 / 2^t`, the error that the fold leaves. -/
 theorem final_budget (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F)
     (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (big : 2 ^ 191 ≤ Fintype.card K)
     (index : s1.setupVars ≤ 35) (t : ℕ) (whirP0 whirP1 whirS : ℝ)
@@ -213,10 +163,6 @@ theorem final_budget (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (
   have split : (2 : ℝ) / 2 ^ t = 1 / 2 ^ t + 1 / 2 ^ t := by ring
   linarith
 
-/-- **End-to-end budget at Rust's split under Fiat–Shamir.** With the
-charged terms of each commitment within its share, as in
-`layer1_restore_budget` and `shrink_restore_budget`, a prover with `calls`
-queries breaks the final verifier with probability at most `calls / 2^t`. -/
 theorem final_restore_budget (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F)
     (L0 L1 : ℕ) (h0 : 1 ≤ L0) (h1 : 1 ≤ L1) (big : 2 ^ 191 ≤ Fintype.card K)
     (index : s1.setupVars ≤ 35) (t : ℕ)

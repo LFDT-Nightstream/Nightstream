@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.PermutationCompilerTransport
 import NightstreamFPrime.Layout.Poseidon2.HashInvocationRows
 import NightstreamFPrime.Layout.Stage1.SpartanRows
 
-/-!
-Owns the pilot compiler-row connection from the actual completed Spartan
-prefix to the existing package hash-chain predicates and compact pilot rows.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PilotHashRowsCompleteness
@@ -50,14 +45,14 @@ private theorem chunk_word (input : List Expr) (invocation lane : Nat)
   · have localBound : lane < ((input.drop (invocation * Poseidon2.rate)).take Poseidon2.rate).length := by
       simp only [List.length_take, List.length_drop]
       omega
-    rw [if_pos present, List.getD_eq_getElem (l :=
+    rw [ite_eq_left present, List.getD_eq_getElem (l :=
       (input.drop (invocation * Poseidon2.rate)).take Poseidon2.rate) (d := 0) localBound,
       List.getElem_take, List.getElem_drop,
       List.getD_eq_getElem (l := input) (d := 0) present.2]
   · have outside : ((input.drop (invocation * Poseidon2.rate)).take Poseidon2.rate).length ≤ lane := by
       simp only [List.length_take, List.length_drop]
       omega
-    rw [if_neg present, List.getD_eq_default (l :=
+    rw [ite_eq_right present, List.getD_eq_default (l :=
       (input.drop (invocation * Poseidon2.rate)).take Poseidon2.rate) (d := 0) outside]
 
 private theorem chain_input
@@ -93,36 +88,36 @@ private theorem chain_input
           (chain.absorbCount + 1) * 1096 := by
         have laneBound := lane.isLt
         omega
-      simpa only [if_neg first, R1CS.LinearCombination.eval_ofVar,
+      simpa only [ite_eq_right first, R1CS.LinearCombination.eval_ofVar,
         Permutation.freshState, Expr.eval_var, Nat.add_assoc] using
         localValues ((invocation - 1) * 1096 + 1080 + lane.val) localBound
   by_cases absorbing : invocation < chain.absorbCount
   · have sourceBound : invocation < (Hash.inputChunks input).length := by simpa only [count] using absorbing
     have word := chunk_word input invocation lane.val sourceBound
     rw [count]
-    simp only [invocationInput, localCount, outputStart, rate, if_pos absorbing]
+    simp only [invocationInput, localCount, outputStart, rate, ite_eq_left absorbing]
     change _ = (Hash.absorbE _ _ lane).eval source
     rw [Hash.absorbE, Expr.eval_hadd, word]
     by_cases present : lane.val < Poseidon2.rate ∧ invocation * Poseidon2.rate + lane.val < input.length
     · have chainPresent : lane.val < Poseidon2.rate ∧
           invocation * Poseidon2.rate + lane.val < chain.inputLength := by
         simpa only [inputLength] using present
-      rw [if_pos present, if_pos chainPresent, R1CS.LinearCombination.eval_add,
+      rw [ite_eq_left present, ite_eq_left chainPresent, R1CS.LinearCombination.eval_add,
         R1CS.LinearCombination.eval_ofVar, previous, inputValues _ present.2]
     · have chainAbsent : ¬(lane.val < Poseidon2.rate ∧
           invocation * Poseidon2.rate + lane.val < chain.inputLength) := by
         simpa only [inputLength] using present
-      rw [if_neg present, if_neg chainAbsent, previous]
+      rw [ite_eq_right present, ite_eq_right chainAbsent, previous]
       simp [Expr.eval]
   · rw [count]
-    simp only [invocationInput, localCount, outputStart, rate, if_neg absorbing]
+    simp only [invocationInput, localCount, outputStart, rate, ite_eq_right absorbing]
     change _ = (Hash.padE _ lane).eval source
     unfold Hash.padE
     by_cases zero : lane.val = 0
-    · rw [if_pos zero, if_pos zero, R1CS.LinearCombination.eval_add,
+    · rw [ite_eq_left zero, ite_eq_left zero, R1CS.LinearCombination.eval_add,
         R1CS.LinearCombination.eval_one, Expr.eval_hadd, previous]
       rfl
-    · rw [if_neg zero, if_neg zero, previous]
+    · rw [ite_eq_right zero, ite_eq_right zero, previous]
 
 private theorem hashChain_of_sourceRows
     (chain : HashChain) (target source : Env) (start : Nat) (input : List Expr)
@@ -169,9 +164,9 @@ private theorem prior_input_map (index : Fin PilotProduction.stateHashWords) :
   have bound : index.val < 27819 := by simpa only [PilotProduction.stateHashWords_eq] using index.isLt
   change Spartan.sourceToSpartan (0 + index.val) = Spartan.liftPilotColumn 0 + index.val
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by change 0 + index.val < 5141760; omega)]
+  rw [ite_eq_left (by change 0 + index.val < 5141760; omega)]
   unfold PilotSpartan.sourceToSpartan
-  rw [if_pos (by change 0 + index.val < 27819; omega)]
+  rw [ite_eq_left (by change 0 + index.val < 27819; omega)]
   exact Spartan.liftPilotColumn_add_of_input 0 index.val (by
     change 0 + index.val < 55638
     omega)
@@ -182,11 +177,11 @@ private theorem output_input_map (index : Fin PilotProduction.stateHashWords) :
   have bound : index.val < 27819 := by simpa only [PilotProduction.stateHashWords_eq] using index.isLt
   change Spartan.sourceToSpartan (28089 + index.val) = Spartan.liftPilotColumn 27819 + index.val
   unfold Spartan.sourceToSpartan
-  rw [if_pos (by change 28089 + index.val < 5141760; omega)]
+  rw [ite_eq_left (by change 28089 + index.val < 5141760; omega)]
   unfold PilotSpartan.sourceToSpartan
-  rw [if_neg (by change ¬28089 + index.val < 27819; omega)]
-  rw [if_neg (by change ¬28089 + index.val < 28089; omega)]
-  rw [if_pos (by change 28089 + index.val < 55908; omega)]
+  rw [ite_eq_right (by change ¬28089 + index.val < 27819; omega)]
+  rw [ite_eq_right (by change ¬28089 + index.val < 28089; omega)]
+  rw [ite_eq_left (by change 28089 + index.val < 55908; omega)]
   change Spartan.liftPilotColumn (27819 + ((28089 + index.val) - 28089)) = _
   rw [Nat.add_sub_cancel_left]
   exact Spartan.liftPilotColumn_add_of_input 27819 index.val (by
@@ -200,7 +195,7 @@ private theorem pilot_witness_map (start index : Nat)
       Spartan.liftPilotColumn (PilotSpartan.witnessPrivateStart +
         (start - PilotProduction.witnessOffset + index)) := by
   unfold Spartan.sourceToSpartan
-  rw [if_pos beforeEnd]
+  rw [ite_eq_left beforeEnd]
   have position : start + index = PilotProduction.witnessOffset +
       (start - PilotProduction.witnessOffset + index) := by omega
   rw [position, PilotSpartan.sourceToSpartan_pilotWitness]

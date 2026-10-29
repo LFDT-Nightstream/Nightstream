@@ -1,19 +1,6 @@
 import NightstreamFPrime.Spec.SumCheck.Abstract
 import NightstreamFPrime.Spec.SumCheck.Polynomial
 
-/-!
-Finite verifier-visible SumCheck certificates and their symbolic projection.
-
-Owns: the raw round-message product, exact claimed-chain relation, executable
-checker, checker equivalence, completeness from a canonical finite chain, and
-a one-way bridge into the existing symbolic `SumCheck.Accepted` predicate.
-
-Does not own: challenges, initial claims, terminal identities, maximum degree,
-semantic truth polynomials, or challenge-set size as certificate data. It also
-does not own root counting, Fiat--Shamir, PiCCS arithmetization, or any Rust or
-R1CS representation.
--/
-
 namespace NightstreamFPrime.Spec.SumCheck.Finite
 
 universe uField

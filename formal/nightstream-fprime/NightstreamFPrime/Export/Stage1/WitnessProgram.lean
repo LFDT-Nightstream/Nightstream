@@ -3,10 +3,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCSamplerOrdinaryRows
 import NightstreamFPrime.Export.Stage1.PiDECArithmetic
 import NightstreamFPrime.Export.Stage1.RunningTransitionArithmetic
 
-/-!
-Owns the canonical logical witness-program IR through the running transition.
--/
-
 namespace NightstreamFPrime.Export.Stage1.WitnessProgram
 
 open NightstreamFPrime.Circuit

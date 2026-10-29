@@ -3,11 +3,6 @@ import NightstreamFPrime.Layout.Stage1.PiCCSInputs
 import NightstreamFPrime.Layout.Stage1.PiRLCInputs
 import NightstreamFPrime.Layout.Stage1.Spartan
 
-/-!
-Owns the exact compact-template invocations for all four PiRLC combination
-families.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationInvocations
 
 open NightstreamFPrime.Spec
@@ -95,7 +90,7 @@ theorem commitmentValueSource_affine (source block cell offset : Nat)
         PiCCSInputs.expectedContextWords, Spartan.piCcsPhaseOffset,
         ringDegree] at blockLt offsetLt ⊢
       omega
-  · simp only [commitmentValueSourceStart, if_neg first]
+  · simp only [commitmentValueSourceStart, ite_eq_right first]
     apply Spartan.sourceToSpartan_add_of_pilotPriorPrivate
     norm_num [PiCCSInputs.runningCommitmentStart,
       PiCCSInputs.priorRunningStart, PiCCSInputs.runningCommitmentWords,
@@ -122,7 +117,7 @@ theorem publicInputValueSource_affine (source block cell offset : Nat)
         NightstreamFPrime.Lifecycle.PriorStateHash.publicWidth_eq,
         ringDegree] at blockLt offsetLt ⊢
       omega
-  · simp only [publicInputValueSourceStart, if_neg first]
+  · simp only [publicInputValueSourceStart, ite_eq_right first]
     apply Spartan.sourceToSpartan_add_of_proofInput
     · norm_num [PiCCSInputs.runningPublicStart, PiCCSInputs.priorChildrenStart,
         PiCCSInputs.expectedContextStart, PiCCSInputs.expectedContextWords,
@@ -477,6 +472,7 @@ theorem indexOf_coordinates {blockCount cellCount : Nat}
       ((finProdFinEquiv.symm index).1,
         finProdFinEquiv (finProdFinEquiv.symm (finProdFinEquiv.symm index).2)) = index
   simp only [Equiv.apply_symm_apply, Prod.eta]
+  exact finProdFinEquiv.apply_symm_apply index
 
 def sourcePrior (logicalStart blockCount cellCount source block lane cell : Nat) :
     Expr :=
@@ -757,8 +753,7 @@ theorem renamedConstraint_eq_sourceConstraint
         (PiRLCCombinationTemplates.challenge current)) =
       sourceChallenge source := by
     funext current
-    have currentBound : current.val < 54 := by
-      simp [ringDegree]
+    have currentBound : current.val < 54 := current.isLt
     simp [CompactRows.renameExpr, PiRLCCombinationTemplates.challenge,
       sourceChallenge,
       sourceInputColumn, PiRLCCombinationTemplates.challengeInputStart,
@@ -770,8 +765,7 @@ theorem renamedConstraint_eq_sourceConstraint
         (PiRLCCombinationTemplates.value current)) =
       sourceValue valueStride source block cell valueSourceStart := by
     funext current
-    have currentBound : current.val < 54 := by
-      simp [ringDegree]
+    have currentBound : current.val < 54 := current.isLt
     have notChallenge : ¬ 54 + current.val < 54 := by omega
     have beforePrior : 54 + current.val < 108 := by omega
     simp [CompactRows.renameExpr, PiRLCCombinationTemplates.value, sourceValue,
@@ -1295,10 +1289,12 @@ theorem familyInvocation_mem
   simp
 
 theorem laneFreshCosts_length : laneFreshCosts.length = 54 := by
-  simp [laneFreshCosts, ringDegree]
+  simp only [laneFreshCosts, List.length_ofFn]
+  rfl
 
 theorem laneRowCosts_length : laneRowCosts.length = 54 := by
-  simp [laneRowCosts, laneFreshCosts, ringDegree]
+  simp only [laneRowCosts, laneFreshCosts, List.length_map, List.length_ofFn]
+  rfl
 
 theorem laneFreshCosts_sum : laneFreshCosts.sum = 8100 := by
   exact PiRLCCombinationTemplates.laneFreshCount_sum

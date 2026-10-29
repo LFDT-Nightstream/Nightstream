@@ -7,13 +7,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSTensorWeights
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit
 
-/-!
-Compute a complete Pad range from the original Lean R parent stream. The
-accepted C execution supplies the common point. Lean splits each present
-parent block, computes both weighted products and sums every child value.
-Omitted blocks denote zero. Native or expected evaluations are not inputs.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiDECEvaluationReplay

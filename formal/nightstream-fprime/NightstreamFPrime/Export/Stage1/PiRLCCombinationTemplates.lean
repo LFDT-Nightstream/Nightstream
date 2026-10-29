@@ -2,14 +2,6 @@ import NightstreamFPrime.Export.Stage1.CompactRows
 import NightstreamFPrime.Layout.PiRLC.v1_2.CombinationCost
 import NightstreamFPrime.Layout.Stage1.PiRLCStarts
 
-/-!
-Owns the normalized Lean row templates for the repeated PiRLC Phi81 combination
-constraints.
-
-Each lane has two templates: source zero has a constant-zero prior, while all
-later sources read the prior logical output.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCCombinationTemplates
 
 open NightstreamFPrime.Spec
@@ -140,16 +132,14 @@ theorem constraint_varsBelow (firstSource : Bool)
         unfold challenge
         apply Expr.VarsBelow.sub
         · change challengeInputStart + current.val < inputCount
-          have currentBound : current.val < 54 := by
-            simp [ringDegree]
+          have currentBound : current.val < 54 := current.isLt
           norm_num [challengeInputStart, inputCount]
           omega
         · trivial
       · intro current
         unfold value
         change valueInputStart + current.val < inputCount
-        have currentBound : current.val < 54 := by
-          simp [ringDegree]
+        have currentBound : current.val < 54 := current.isLt
         norm_num [valueInputStart, inputCount]
         omega
 
@@ -174,28 +164,22 @@ theorem template_rows_length (firstSource : Bool)
   rw [generic, template_localColumnCount]
 
 @[simp] theorem firstTemplates_length : firstTemplates.length = 54 := by
-  simp [firstTemplates, ringDegree]
+  simp only [firstTemplates, List.length_map, List.length_finRange]
+  rfl
 
 @[simp] theorem laterTemplates_length : laterTemplates.length = 54 := by
-  simp [laterTemplates, ringDegree]
+  simp only [laterTemplates, List.length_map, List.length_finRange]
+  rfl
 
 @[simp] theorem templates_length : templates.length = 108 := by
   simp [templates]
 
 theorem templateIndex_lt (source : Nat) (lane : Fin ringDegree) :
     templateIndex source lane.val < templates.length := by
-  have laneLt : lane.val < 54 := by
-    simp [ringDegree]
+  have laneLt : lane.val < 54 := lane.isLt
   rw [templates_length]
   unfold templateIndex
   split <;> norm_num [ringDegree] <;> omega
-
-private theorem map_finRange_getElem? {count : Nat} {Alpha : Type}
-    (entry : Fin count → Alpha) (index : Nat) (bound : index < count) :
-    ((List.finRange count).map entry)[index]? =
-      some (entry ⟨index, bound⟩) := by
-  rw [List.getElem?_eq_getElem (by simpa using bound)]
-  simp
 
 theorem template_getElem? (source : Nat) (lane : Fin ringDegree) :
     templates[templateIndex source lane.val]? =
@@ -203,13 +187,12 @@ theorem template_getElem? (source : Nat) (lane : Fin ringDegree) :
   by_cases first : source = 0
   · subst source
     unfold templates templateIndex
-    rw [if_pos rfl]
+    rw [ite_eq_left rfl]
     rw [List.getElem?_append_left (by
       simp [firstTemplates])]
-    simpa [firstTemplates] using
-      map_finRange_getElem? (template true) lane.val lane.isLt
+    simp [firstTemplates]
   · unfold templates templateIndex
-    rw [if_neg first]
+    rw [ite_eq_right first]
     have notFirst : (source == 0) = false :=
       beq_eq_false_iff_ne.mpr first
     rw [List.getElem?_append_right (by
@@ -219,8 +202,7 @@ theorem template_getElem? (source : Nat) (lane : Fin ringDegree) :
     have shifted : ringDegree + lane.val - 54 = lane.val := by
       norm_num [ringDegree]
     rw [shifted]
-    simpa [laterTemplates, notFirst] using
-      map_finRange_getElem? (template false) lane.val lane.isLt
+    simp [laterTemplates, notFirst]
 
 theorem laneFreshCount_sum :
     (List.ofFn CombinationStep.laneFreshCount).sum = 8100 := by

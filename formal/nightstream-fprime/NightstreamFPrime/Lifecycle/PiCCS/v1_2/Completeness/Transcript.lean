@@ -1,10 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Core
 
-/-!
-Proof-only PiCCS v1_2 assembler group. It composes opaque leaf contracts and
-adds no protocol predicate, circuit row, or alternate path.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.CompletenessSupport
 
 open NightstreamFPrime.Spec
@@ -275,7 +270,7 @@ theorem completeTranscriptPrefix
     apply p2to4.values index
     rw [n2]
     simp at below ⊢
-    omega
+    exact lt_of_lt_of_eq below (by ring)
   have statementSpecP4 := StatementAbsorption.specHolds_of_agree_below
     (statementAbsorptionInterface (atOffset interface offset))
       (statementAbsorptionOffset interface offset) p2.current p4.current

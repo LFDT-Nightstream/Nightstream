@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.ApplicationRetainedGeometry
 import NightstreamFPrime.Layout.ProductionRelation.OrdinarySourcePlan
 
-/-!
-Owns the executable source resolver and direct 4-matrix plan for one
-verifier-selected Stage 1 application.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ApplicationDirectPlan
 
 open NightstreamFPrime.Circuit
@@ -187,7 +182,7 @@ theorem classifySource_complete
       rw [Layout.Stage1.ApplicationInputs.inputColumn_value]
       exact ⟨by omega, by have := index.isLt; omega⟩
     unfold classifySource
-    rw [dif_pos inside]
+    rw [dite_eq_left inside]
     rfl
   · rcases witness with ⟨index, rfl⟩
     have notInput : ¬ InRange Layout.Stage1.ApplicationInputs.currentWordStart
@@ -204,7 +199,7 @@ theorem classifySource_complete
       unfold InRange Layout.Stage1.ApplicationInputs.witnessColumn
       exact ⟨by omega, by have := index.isLt; omega⟩
     unfold classifySource
-    rw [dif_neg notInput, dif_pos inside]
+    rw [dite_eq_right notInput, dite_eq_left inside]
     rfl
   · rcases output with ⟨index, rfl⟩
     have notInput : ¬ InRange Layout.Stage1.ApplicationInputs.currentWordStart
@@ -228,7 +223,7 @@ theorem classifySource_complete
       rw [Layout.Stage1.ApplicationInputs.outputColumn_value]
       exact ⟨by omega, by have := index.isLt; omega⟩
     unfold classifySource
-    rw [dif_neg notInput, dif_neg notWitness, dif_pos inside]
+    rw [dite_eq_right notInput, dite_eq_right notWitness, dite_eq_left inside]
     rfl
   · have notInput : ¬ InRange
         Layout.Stage1.ApplicationInputs.currentWordStart
@@ -263,8 +258,8 @@ theorem classifySource_complete
       unfold ApplicationRetainedBlocks.sourceWidth at startLe ⊢
       omega
     unfold classifySource
-    rw [dif_neg notInput, dif_neg notWitness, dif_neg notOutput,
-      dif_pos inside]
+    rw [dite_eq_right notInput, dite_eq_right notWitness, dite_eq_right notOutput,
+      dite_eq_left inside]
     rfl
 
 def sourceMap {application : Lifecycle.Stage1.Application.Program}
@@ -299,7 +294,7 @@ theorem sourceMap_form_eval
         | some value => value.location.form geometry).eval assignment = _
       rw [found, Location.form_eval geometry assignment source encodes]
       unfold sourceEnv
-      rw [dif_pos column.isLt]
+      rw [dite_eq_left column.isLt]
       apply congrArg source
       apply Fin.ext
       exact located.owns

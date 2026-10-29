@@ -4,13 +4,6 @@ import NightstreamFPrime.Export.Pilot
 import NightstreamFPrime.Gadgets.Poseidon2.Duplex.Formal
 import NightstreamFPrime.Layout.Poseidon2.Duplex
 
-/-!
-Owns the compact Poseidon2 invocation schedule for Stage 1 transcript leaves.
-
-The compiler follows the authoritative Duplex action list. It does not infer
-transcript order from Rust or from expanded R1CS rows.
--/
-
 namespace NightstreamFPrime.Export.Stage1.Invocations
 
 open NightstreamFPrime.Spec

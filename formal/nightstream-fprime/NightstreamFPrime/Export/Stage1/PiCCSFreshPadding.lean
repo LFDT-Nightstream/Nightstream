@@ -2,8 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial
 import NightstreamFPrime.Export.Stage1.PiCCSPublicReplay
 import NightstreamFPrime.Export.Stage1.PiCCSSourceImages
 
-/-! Proof-only zero suffix for the selected fresh CCS polynomial. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial
@@ -53,6 +51,6 @@ theorem freshMatrixImage?_zero_of_pair_beyond
       omega
     · change ¬ 1 + 2 * NumericBooleanDomain.index suffix < program.rowCount
       omega
-  simp only [PiCCSSourceImages.freshMatrixImage?, PiCCSSourceImages.rowValues?, if_neg outside]
+  simp only [PiCCSSourceImages.freshMatrixImage?, PiCCSSourceImages.rowValues?, ite_eq_right outside]
 
 end NightstreamFPrime.Export.Stage1.PiCCSFreshPolynomial

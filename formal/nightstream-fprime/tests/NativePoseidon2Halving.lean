@@ -1,7 +1,5 @@
 import NightstreamFPrime.Export.NativePoseidon2RoundCore
 
-/-! Regression checks for the fixed-half lanes in the native partial round. -/
-
 namespace NightstreamFPrime.Tests.NativePoseidon2Halving
 
 open NightstreamFPrime.Export.NativePoseidon2

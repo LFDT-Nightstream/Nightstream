@@ -2,12 +2,6 @@ import NightstreamFPrime.Layout.MatrixProgram.PlanBridge
 import NightstreamFPrime.Export.Stage1.PerApplicationSourceProjection
 import NightstreamFPrime.Export.Stage1.PiDECDirectPlan
 
-/-!
-Owns the compact matrix program for the four nonempty PiDEC row families. Lean
-fixes all source ranges, physical row ranges, and the exact parent order: public
-split, commitment, Eval_K, then Eval_A.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixProgram
 
 open NightstreamFPrime.Layout.MatrixProgram

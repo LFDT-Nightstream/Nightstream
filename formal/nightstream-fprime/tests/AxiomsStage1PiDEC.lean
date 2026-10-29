@@ -84,8 +84,6 @@ import NightstreamFPrime.Layout.Stage1.SpartanValues
 import NightstreamFPrime.Layout.Stage1.RunningTransitionValues
 import NightstreamFPrime.Export.Stage1.PiDECPoseidonColumnWeights
 
-/-! Axiom audits for the strict production PiDEC public split. -/
-
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiRLC.ExplicitMatrix.rowRing_eq_sumRange
 
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit.splitChecked_eq_some_iff

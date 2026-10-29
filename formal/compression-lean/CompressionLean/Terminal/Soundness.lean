@@ -3,22 +3,6 @@ import CompressionLean.Terminal.PiCCS
 import CompressionLean.Terminal.PiRLC
 import CompressionLean.Terminal.Outputs
 
-/-!
-Owns the soundness edge of the terminal package.
-
-If every terminal row holds, then:
-- the prior state preimage hashes to the fresh public input (the complete
-  270-cell prior-state relation of the pilot);
-- the production SuperNeo verifier accepts PiCCS for the running and fresh
-  claims and the proof read from the package columns;
-- its PiRLC parent exists and is the instance in the PiRLC output columns;
-- the sampler's output columns hold the transcript state after the 17 PiRLC
-  draws, started from the PiCCS outgoing state. Layer 1 continues from it.
-
-The parent is the CE(B) claim that layer 1 of the compression proves. The
-package proves no PiDEC check and no next state.
--/
-
 namespace CompressionLean.Terminal
 
 open NightstreamFPrime.Export
@@ -32,7 +16,6 @@ open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
-/-- The terminal rows enforce the complete 270-cell prior-state relation. -/
 theorem priorSpec (env : Env) (holds : (circuitPackage ()).RowsHold env) :
     PriorStateHash.SpecHolds PilotProduction.priorInterface
       PilotProduction.witnessOffset
@@ -114,8 +97,6 @@ theorem priorSpec (env : Env) (holds : (circuitPackage ()).RowsHold env) :
       (PilotSpartan.pullback (pilotEnv env))).1
     rawSpec postHashRows
 
-/-- The PiRLC sampler starts at the PiCCS outgoing state of the production
-key. -/
 theorem samplerInitialState_eq
     {logicalWidth : Nat}
     {publicFits : ringDegree * publicRingColumns ≤
@@ -162,8 +143,6 @@ theorem samplerInitialState_eq
           rfl
     _ = _ := piCcsPhase.outgoingState
 
-/-- The terminal soundness edge. The running claims, the fresh claim and the
-proof are the F′ accumulator views of the package columns. -/
 theorem circuitPackage_implies_terminal
     (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
     (ajtai : AjtaiKey

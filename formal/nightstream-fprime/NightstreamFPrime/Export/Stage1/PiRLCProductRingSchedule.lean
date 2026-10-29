@@ -1,10 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCProductSchedule
 
-/-!
-Owns the complete-ring view of the existing PiRLC product schedule. Ring order
-is family, source, block, cell.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductRingSchedule
 
 open NightstreamFPrime.Spec
@@ -66,6 +61,7 @@ def Descriptor.familyIndex (value : Descriptor) : Fin (familyCount value.family)
     (index : Fin (familyCount family)) :
     (familyDescriptor family index).familyIndex = index := by
   simp [familyDescriptor, Descriptor.familyIndex]
+  exact Fin.encodeProd_decodeProd index
 
 def invocationCount : Nat :=
   familyCount .commitment +

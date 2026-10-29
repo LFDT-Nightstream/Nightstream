@@ -1,23 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericBooleanDomain
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
-/-!
-Canonical prefix injection into a Boolean cube.
-
-Protocol: shared row layout for the joint paper `Pi_CCS` model.
-Phase: logical-index to Boolean-domain normalization.
-Constraint family: none; this file emits no rows.
-
-Owns: the little-endian prefix layout in which logical index `i` owns Boolean
-vertex `NumericBooleanDomain.vertex variables i`; exact live-index
-round-trips; and exact recognition of the padding suffix.
-
-Does not own: selected production dimensions, matrix rows, assignment values,
-CCS acceptance, SumCheck, Rust, R1CS, or constraint counts.
-
-Emits constraints: no.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.CanonicalRowLayout

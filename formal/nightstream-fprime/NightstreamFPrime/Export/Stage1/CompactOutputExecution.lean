@@ -1,9 +1,5 @@
 import NightstreamFPrime.Export.Stage1.CompactConstraintExecution
 
-/-!
-Connect the initial output write to both canonical compact row families.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.CompactOutputExecution

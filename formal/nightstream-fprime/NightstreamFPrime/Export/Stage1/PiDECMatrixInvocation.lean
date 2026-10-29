@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiDECPoseidonNumericRows
 import NightstreamFPrime.Export.Stage1.PiDECEvaluationBatch
 
-/-!
-Prepare one Poseidon invocation for all Phi81 output reads, then weight its 150
-global rows.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation
@@ -51,14 +46,14 @@ private theorem row_value (prepared : Vector (Vector PortValues 150) ringDegree)
       if bounded : index < 150 then ((prepared.get output).get ⟨index, bounded⟩).get matrix
       else 0 := by
   have lower : start ≤ start + index := by omega
-  rw [row, if_pos lower, Nat.add_sub_cancel_left]
+  rw [row, ite_eq_left lower, Nat.add_sub_cancel_left]
   by_cases bounded : index < 150
-  · rw [dif_pos bounded, dif_pos bounded]
+  · rw [dite_eq_left bounded, dite_eq_left bounded]
     change ((Vector.ofFn (fun port : Fin matrixCount =>
       Vector.ofFn (fun lane : Fin ringDegree =>
         ((prepared.get lane).get ⟨index, bounded⟩).get port)))[matrix.val])[output.val] = _
     rw [Vector.getElem_ofFn, Vector.getElem_ofFn]
-  · rw [dif_neg bounded, dif_neg bounded]
+  · rw [dite_eq_right bounded, dite_eq_right bounded]
     change ((Vector.replicate matrixCount
       (Vector.replicate ringDegree (0 : F)))[matrix.val])[output.val] = 0
     rw [Vector.getElem_replicate, Vector.getElem_replicate]
@@ -98,7 +93,7 @@ theorem sum_prepare_value {columns arity : Nat}
   apply congrArg (NumericCompletionSum.numericSum extensionOps 150)
   funext index
   by_cases bounded : index < 150
-  · simp only [dif_pos bounded, prepare_value]
-  · simp only [dif_neg bounded]
+  · simp only [dite_eq_left bounded, prepare_value]
+  · simp only [dite_eq_right bounded]
 
 end NightstreamFPrime.Export.Stage1.PiDECMatrixInvocation

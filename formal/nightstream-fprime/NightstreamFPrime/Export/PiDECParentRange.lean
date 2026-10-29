@@ -2,14 +2,6 @@ import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 import NightstreamFPrime.Export.ParallelLines
 import NightstreamFPrime.Spec.Phi81Relation.PiDECAlgebra.StoredSplit
 
-/-!
-Read the records of one sparse PiRLC parent range file that a range command
-computes. The lines are decoded on the configured worker threads; the header,
-the selected range, canonical field words, increasing record order, the
-terminator and the end of the file are then checked in file order over the
-complete stream. Omitted blocks denote zero.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.PiDECParentRange

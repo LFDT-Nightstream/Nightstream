@@ -9,11 +9,6 @@ import NightstreamFPrime.Lifecycle.PiRLC.v1_2.Semantics
 import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.FormalPhase
 
-/-!
-Owns structural proofs for the one Stage 1 pilot + PiCCS + PiRLC + PiDEC +
-running-transition package.
--/
-
 namespace NightstreamFPrime.Export.Stage1.Package
 
 open NightstreamFPrime.Export.Package
@@ -1149,9 +1144,6 @@ theorem circuitPackage_compactRowCount :
     Data.compactRowTemplates_eq, Data.compactRowInvocations_eq]
   exact piRlcCombination_compactRowCount
 
-/-- All template and ordinary row families account for the exact physical
-row count. Exact row-index ordering is proved by the phase compilers and is
-also checked by the strict Rust loader. -/
 theorem circuitPackage_row_coverage
     (relation : ProductionKey.LogicalRelation Data.logicalWidth
       Data.publicFits) :

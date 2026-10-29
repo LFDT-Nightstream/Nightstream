@@ -1,11 +1,6 @@
 import NightstreamFPrime.Gadgets.Polynomial.HornerSupport
 import NightstreamFPrime.Gadgets.Polynomial.Sparse
 
-/-!
-Owns variable-support propagation for the owned sparse constraint-polynomial
-evaluator. The polynomial and evaluation order remain unchanged.
--/
-
 namespace NightstreamFPrime.Gadgets.Polynomial.Sparse
 
 open NightstreamFPrime.Spec

@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiRLCCombinationConformance
 import NightstreamFPrime.Export.Stage1.PiRLCProductSemanticCustody
 
-/-!
-Owns the direct semantic bridge from the retained PiRLC product plan to the four
-canonical combination-family relations.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCProductDirectSemantics
 
 open NightstreamFPrime.Circuit

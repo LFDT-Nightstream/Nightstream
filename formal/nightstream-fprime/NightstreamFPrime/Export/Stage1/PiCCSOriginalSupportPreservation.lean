@@ -1,11 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalSupport
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalReadsPreservation
 
-/-!
-A successful complete mask check gives the zero original assignment and zero
-coefficient callbacks.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOriginalSupport
@@ -32,7 +27,7 @@ theorem assignment_eq_zero (masks : Array (Array (Nat × Nat)))
   funext column
   unfold PiCCSOriginalReads.assignment SignedUnitSourceInput.scalar
   rw [pair_eq_zero masks source zero (column.val / ringDegree)]
-  simp only [Nat.zero_testBit, Bool.false_eq_true, if_false]
+  simp only [Nat.zero_testBit, Bool.false_eq_true, ite_false]
 
 theorem read_eq_zero {columns : Nat}
     (tables : FixedArray (FixedArray (SparseForm ringDegree) ringDegree) ringDegree)

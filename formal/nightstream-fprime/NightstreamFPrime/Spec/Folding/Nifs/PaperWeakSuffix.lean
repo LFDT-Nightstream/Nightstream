@@ -2,12 +2,7 @@ import NightstreamFPrime.Spec.Folding.PiDEC.OutputWitnessConsumer
 import NightstreamFPrime.Spec.Folding.PiRLC.CoordinateForkLaw
 import NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtractionWork
 
-/-!
-Owns the reply of one resumed PiRLC/PiDEC suffix call (SuperNeo B.1, B.3,
-B.4): its final child messages and witnesses (`Reply`), and the PiDEC attempt
-that the verifier forms from the fixed PiCCS batch and the call's challenge
-vector (`attempt`). The parent is public; it is not part of the reply.
--/
+/-! SuperNeo v1.2 Appendix B.1, B.3 and B.4. -/
 
 set_option autoImplicit false
 

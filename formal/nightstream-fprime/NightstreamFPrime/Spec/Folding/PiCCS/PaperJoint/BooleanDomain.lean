@@ -1,23 +1,6 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanTable
 
-/-!
-Canonical Boolean-domain ownership for paper-level joint `Pi_CCS` residuals.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: common Boolean-domain indexing before residual-family construction.
-Constraint family: shared infrastructure for CCS, norm, and carried-evaluation
-tables; this file owns no residual formula itself.
-
-Owns: a typed Boolean vertex, its canonical recursive enumeration, construction
-of a `BooleanTable` from a value at every vertex, and the exact leaf-order and
-leafwise-zero theorems for that construction.
-
-Does not own: CCS, norm, or carried-evaluation formulas, external integer/bit
-serialization, matrix row numbering, alpha/gamma identities, SumCheck,
-Fiat--Shamir, Rust, R1CS, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 

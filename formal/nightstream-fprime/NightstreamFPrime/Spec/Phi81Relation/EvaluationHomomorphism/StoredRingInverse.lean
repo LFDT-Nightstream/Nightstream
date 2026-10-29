@@ -3,10 +3,6 @@ import Mathlib.Algebra.Field.ZMod
 import NightstreamFPrime.Spec.GoldilocksPrime
 import Init.Data.Vector.OfFn
 
-/-!
-Executable normalized extended-GCD candidate for the fixed Phi81 ring.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.StoredRingInverse
@@ -34,10 +30,12 @@ def candidate (value : StoredRing) : StoredRing :=
   let polynomial := candidatePolynomial value
   Vector.ofFn fun index => polynomial.coeff index.val
 
+set_option backward.isDefEq.respectTransparency false in
 private theorem get_ofFn {count : Nat} (value : Fin count → F) (index : Fin count) :
     (Vector.ofFn value).get index = value index := by
   simp [Vector.get, Vector.ofFn]
 
+set_option backward.isDefEq.respectTransparency false in
 theorem encode_coeff (value : StoredRing) (index : Fin ringDegree) :
     (encode value).coeff index.val = value.get index := by
   rw [encode, CPolynomial.coeff_ofArray]

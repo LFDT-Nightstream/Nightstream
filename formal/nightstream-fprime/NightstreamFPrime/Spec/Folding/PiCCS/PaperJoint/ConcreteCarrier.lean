@@ -2,25 +2,7 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.Algebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier.NoZeroDivisors
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ProtocolDataRefinement
 
-/-!
-Concrete carrier closure for canonical SuperNeo v1.2 `Pi_CCS`.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: concrete embedding semantics.
-Constraint family: protocol-level semantic refinement only; this file emits
-no rows.
-
-Owns: protocol-level zero reflection, strict-norm compatibility of `K.embed`,
-and the concrete `ProtocolDataRefinement.ProtocolLift`.
-
-Does not own: base/extension operations or algebra laws, sparse-polynomial
-evaluation laws, proofs of the modulus-level Euclid and seven-nonresidue
-properties, proof that Rust field arithmetic refines these definitions,
-coefficient-expanded matrix derivation, transcript hashing, SumCheck degree
-bounds, output CE projection, Pi_RLC handoff, R1CS, row removal, or counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.ConcreteCarrier
 

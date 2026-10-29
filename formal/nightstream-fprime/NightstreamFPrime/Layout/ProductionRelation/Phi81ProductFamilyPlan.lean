@@ -1,15 +1,6 @@
 import NightstreamFPrime.Layout.ProductionRelation.Phi81ProductPlan
 import NightstreamFPrime.Layout.ProductionRelation.PlanComposition
 
-/-!
-Owns an invocation-major family of 108-row Phi81 quotient product plans.
-Each invocation owns one complete ring product, its prior and output rings,
-and 54 retained quotient coefficients. Each row is one rank-one row of the
-fixed gate polynomial.
-
-This module does not select the concrete Stage 1 invocation schedule.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.Phi81ProductFamilyPlan
 
 open NightstreamFPrime.Spec
@@ -72,7 +63,7 @@ theorem plan_rowImage_at {logicalWidth invocationCount : Nat}
           (ProductionRelation.Plan.indexedRow invocationCount 108
             invocation row)) =
       (rowAt interface invocation row).portImages assignment := by
-  rw [ProductionRelation.Plan.rowImage_toVertex]
+  erw [ProductionRelation.Plan.rowImage_toVertex]
   funext port
   unfold OrdinaryRow.Forms.portImages
   cases found : ProductionRelation.meaningfulPort? port with

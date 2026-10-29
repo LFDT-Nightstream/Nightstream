@@ -1,15 +1,8 @@
 import NightstreamFPrime.Export.Stage1.SetupBinding
 import NightstreamFPrime.Export.Stage1.PerApplicationSecurity
 
-/-!
-The approved Nightstream-specific premise is public-seed MSIS hardness
-for the selected setup, not SuperNeo's uniform-matrix assumption. This
-package freezes `productionSeed`; its assumption concerns that specific
-matrix. No uniform-setup estimate is inherited. The complete premise is in
-`decisions/fprime-ajtai-public-seed-msis-assumption.md`.
-
-A prover-supplied expected identity is not verifier authority.
--/
+/-! Premise: public-seed MSIS hardness for `productionSeed`, not SuperNeo's
+uniform-matrix assumption (`decisions/fprime-ajtai-public-seed-msis-assumption.md`). -/
 
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 

@@ -1,11 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSInvocations
 
-/-!
-Owns the final schedule composition theorem for the four PiCCS transcript
-packets. Executable traces and the four child schedule proofs remain in
-`PiCCSInvocations`.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSInvocations
 
 open NightstreamFPrime.Spec

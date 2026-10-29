@@ -1,13 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.PilotPiCCSPiRLC
 
-/-!
-Owns all source-column, physical-row, and R1CS-fresh starts for the canonical
-PiRLC Stage 1 packet.
-
-The formulas follow the exact parent order. Export modules consume these
-starts and do not restate layout constants.
--/
-
 namespace NightstreamFPrime.Layout.Stage1.PiRLCStarts
 
 open NightstreamFPrime.Spec

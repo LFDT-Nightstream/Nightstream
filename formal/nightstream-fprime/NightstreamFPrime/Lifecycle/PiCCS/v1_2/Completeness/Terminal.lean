@@ -1,10 +1,5 @@
 import NightstreamFPrime.Lifecycle.PiCCS.v1_2.Completeness.Evaluation
 
-/-!
-Proof-only PiCCS v1_2 assembler group. It composes opaque leaf contracts and
-adds no protocol predicate, circuit row, or alternate path.
--/
-
 namespace NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.CompletenessSupport
 
 open NightstreamFPrime.Spec

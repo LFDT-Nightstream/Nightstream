@@ -2,25 +2,6 @@ import CompressionLean.Circuit.Forms
 import Mathlib.Data.List.GetD
 import NightstreamFPrime.Spec.GoldilocksPrime
 
-/-!
-Owns `lower_sound`: a witness of a lowered run's CCS gives an accepting run
-of the executor (`Exec`), on the tape read out of the witness (`tapeOf`).
-
-- The wire values are `z` at each wire's column (`Run.wireValue`). There every
-  glue row and every block holds (`Rows.lean`), so every lowering state of
-  the run holds (`State.Holds`): each step only adds calls and blocks.
-- Tape word `n` is the value of handle `n`'s form under the witness. The
-  executor reads it only at the free handles: `priv`, `hint`, `bits` and
-  `extInv`.
-- The simulation (`Agrees`): at each step, the value of every handle's form
-  is the executor's value, and the executor has read as many statement words
-  as the lowering. The rows of a step give its check (`Forms.lean`).
-
-The core (`lower_exec`) is generic in the field, the template and the
-permutation. `lower_sound` takes Goldilocks, the Poseidon2 template and
-Poseidon2.
--/
-
 namespace CompressionLean.Circuit
 
 open CompressionLean.Shrink
@@ -47,8 +28,6 @@ section Simulation
 
 variable {F : Type} [Field F] [DecidableEq F] {v : Wire → F} {perm : List F → List F}
 
-/-- `t` extends `s`: more calls, glue cells and blocks, and more values and
-statement words after those of `s`. -/
 structure State.Extends (s t : State F) : Prop where
   calls : ∀ c ∈ s.calls, c ∈ t.calls
   blocks : s.blocks ≤ t.blocks
@@ -69,7 +48,6 @@ theorem State.Extends.trans {s t u : State F} (h : s.Extends t) (h' : t.Extends 
     ⟨p ++ p', by rw [hp', hp]; simp⟩⟩
 
 omit [Field F] [DecidableEq F] in
-/-- A part that only adds, then a push of `forms`. -/
 theorem State.Adds.extends_push {s t : State F} (h : s.Adds t) (forms : List (Form F)) :
     s.Extends { t with values := t.values ++ forms.toArray } :=
   ⟨h.calls, h.blocks, ⟨forms, by rw [h.values]⟩, ⟨[], by simp [h.publics]⟩⟩
@@ -82,7 +60,7 @@ omit [Field F] [DecidableEq F] in
 theorem State.Extends.values_getD {s t : State F} (h : s.Extends t) {n : ℕ} (hn : n < s.values.size) (d : Form F) :
     t.values.getD n d = s.values.getD n d := by
   obtain ⟨more, hm⟩ := h.values
-  rw [hm, array_getD_append, if_pos hn]
+  rw [hm, array_getD_append, ite_eq_left hn]
 
 omit [Field F] [DecidableEq F] in
 theorem State.Extends.values_size {s t : State F} (h : s.Extends t) : s.values.size ≤ t.values.size := by
@@ -94,7 +72,7 @@ omit [Field F] [DecidableEq F] in
 theorem State.Extends.publics_getD {s t : State F} (h : s.Extends t) {k : ℕ} (hk : k < s.publics.size) (d : F) :
     t.publics.getD k d = s.publics.getD k d := by
   obtain ⟨more, hm⟩ := h.publics
-  rw [hm, array_getD_append, if_pos hk]
+  rw [hm, array_getD_append, ite_eq_left hk]
 
 omit [Field F] [DecidableEq F] in
 theorem State.Extends.publics_size {s t : State F} (h : s.Extends t) : s.publics.size ≤ t.publics.size := by
@@ -103,7 +81,6 @@ theorem State.Extends.publics_size {s t : State F} (h : s.Extends t) : s.publics
   simp
 
 omit [DecidableEq F] in
-/-- A push changes neither calls nor blocks. -/
 theorem State.Holds.of_push {s : State F} {forms : Array (Form F)}
     (h : ({ s with values := s.values ++ forms } : State F).Holds v perm) : s.Holds v perm := h
 
@@ -114,9 +91,6 @@ omit [DecidableEq F] in
 @[simp] theorem go_readValues (vs : List Var) (s : State F) :
     go (readValues vs) s = (vs.map fun v => s.values.getD v (.const 0), s) := rfl
 
-/-- The forms of `n` handles, as `readCoordinates` reads them, so that
-`go_readCoordinates` is `rfl`. Rewriting them to `coordinates_apply`'s form
-under `extInv` made the kernel check of `step_extends` take about a minute. -/
 def coordinates {n : ℕ} (s : State F) (a : Fin n → Var) : Fin n → Form F :=
   fun k => (Array.ofFn fun k => s.values.getD (a k) (.const 0)).getD k (.const 0)
 
@@ -138,7 +112,6 @@ omit [DecidableEq F] in
     go (statementWord stmt) s =
       (.wire (.pub (s.publics.size + 1)), { s with publics := s.publics.push (stmt.getD s.publics.size 0) }) := rfl
 
-/-- Each step extends its state. -/
 theorem step_extends (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (k : F) = 0 → k = 0) (stmt : Array F)
     (i : Instr) (s : State F) : s.Extends (go (step stmt i) s).2 := by
   cases i with
@@ -184,8 +157,6 @@ theorem steps_extends (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → 
   | i :: rest, s => (step_extends one small stmt i s).trans (steps_extends one small stmt rest _)
 
 variable (v) in
-/-- The simulation: every handle's form has the executor's value, the two have
-read the same statement words, and every check so far holds. -/
 structure Agrees (S : State F) (E : Exec.State F) : Prop where
   length : E.values.length = S.values.size
   value : ∀ n, (S.values.getD n (.const 0)).evaluate v = E.value n
@@ -193,7 +164,6 @@ structure Agrees (S : State F) (E : Exec.State F) : Prop where
   holds : E.holds
 
 omit [DecidableEq F] in
-/-- Appending forms and their values keeps the simulation. -/
 theorem Agrees.append {S S' : State F} {E : Exec.State F} (agrees : Agrees v S E) {forms : List (Form F)}
     {outputs : List F} {reads : ℕ} {holds : Prop} (values : S'.values = S.values ++ forms.toArray)
     (evaluates : forms.map (·.evaluate v) = outputs) (hr : reads = S'.publics.size) (hh : holds) :
@@ -203,9 +173,9 @@ theorem Agrees.append {S S' : State F} {E : Exec.State F} (agrees : Agrees v S E
   · show _ = (E.values ++ outputs).getD n 0
     rw [values, array_getD_append, list_getD_append, agrees.length]
     by_cases h : n < S.values.size
-    · rw [if_pos h, if_pos h]
+    · rw [ite_eq_left h, ite_eq_left h]
       exact agrees.value n
-    · rw [if_neg h, if_neg h]
+    · rw [ite_eq_right h, ite_eq_right h]
       have read := List.getD_map (fun f : Form F => f.evaluate v) (l := forms) (n := n - S.values.size)
         (d := .const 0)
       rw [evaluate_const, zero_mul] at read
@@ -219,7 +189,6 @@ theorem Agrees.next {S S' : State F} {E : Exec.State F} (agrees : Agrees v S E) 
   agrees.append values evaluates (by rw [publics, agrees.reads]) ⟨agrees.holds, hc⟩
 
 omit [DecidableEq F] in
-/-- The tape at the new handles is the new forms' values. -/
 theorem tape_forms {S S' : State F} {forms : List (Form F)} {tape : ℕ → F}
     (values : S'.values = S.values ++ forms.toArray)
     (free : ∀ n < S'.values.size, tape n = (S'.values.getD n (.const 0)).evaluate v) :
@@ -228,11 +197,10 @@ theorem tape_forms {S S' : State F} {forms : List (Form F)} {tape : ℕ → F}
   intro i h1 _
   have hi : i < forms.length := by simpa using h1
   simp only [List.getElem_map, List.getElem_range]
-  rw [free (S.values.size + i) (by rw [values]; simp; omega), values, array_getD_append, if_neg (by omega),
+  rw [free (S.values.size + i) (by rw [values]; simp; omega), values, array_getD_append, ite_eq_right (by omega),
     show S.values.size + i - S.values.size = i by omega, List.getD_eq_getElem _ _ hi]
 
 omit [DecidableEq F] in
-/-- A decomposition is about its first `count` bits only. -/
 theorem Bits.congr {a : F} {count : ℕ} {b b' : ℕ → F} (h : ∀ i < count, b i = b' i) (bits : Bits a count b) :
     Bits a count b' := by
   refine ⟨fun i hi => h i hi ▸ bits.boolean i hi, ?_, fun c64 high i hi => ?_⟩
@@ -244,8 +212,6 @@ theorem Bits.congr {a : F} {count : ℕ} {b b' : ℕ → F} (h : ∀ i < count, 
   · rw [← h i (by omega)]
     exact bits.canonical c64 (fun j lo hj => by rw [h j (by omega)]; exact high j lo hj) i hi
 
-/-- **One step keeps the simulation.** Its end state's rows and blocks hold,
-the tape is its forms' values, and its statement wires are its words. -/
 theorem step_agrees (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (k : F) = 0 → k = 0) (stmt : List F)
     (tape : ℕ → F) (i : Instr) {S : State F} {E : Exec.State F} (agrees : Agrees v S E)
     (holds : (go (step stmt.toArray i) S).2.Holds v perm)
@@ -400,10 +366,6 @@ theorem step_agrees (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (k
       unfold R1csRow.Holds
       exact row
 
-/-- **The simulation of a program.** From a state that agrees with the
-executor, the lowering of `L` agrees with the executor's run of `L`, when the
-end state's rows and blocks hold, the tape is the end state's forms' values,
-and the statement wires are its words. -/
 theorem steps_agrees (one : v (.pub 0) = 1) (small : ∀ k : ℕ, k ≤ 32 → (k : F) = 0 → k = 0) (stmt : List F)
     (tape : ℕ → F) :
     ∀ (L : List Instr) (S : State F) (E : Exec.State F), Agrees v S E →
@@ -428,17 +390,10 @@ section Lowering
 
 variable {F : Type} [Field F] [DecidableEq F]
 
-/-- **The tape of a witness.** Tape word `n` is the value of handle `n`'s form
-at the wire values of `w`. The executor reads it only at the free handles,
-whose forms are glue cells or, for a folded `extInv`, constants. -/
 noncomputable def tapeOf (T : Template F) (L : Array Instr) (stmt : List F) (w : ℕ → F) (n : ℕ) : F :=
   ((steps stmt.toArray L.toList {}).values.getD n (.const 0)).evaluate
     ((lower L stmt).wireValue T (lower L stmt).counts w)
 
-/-- **Lowering soundness**, for any field, template and permutation: if the
-template's rows force its output cells to be `perm` of its input cells, and no
-count up to 32 is zero in `F`, then a witness of the lowered run's CCS gives an
-accepting run of the executor on the witness's tape. -/
 theorem lower_exec (T : Template F) (wf : T.WellFormed) (perm : List F → List F)
     (permutes : ∀ c : ℕ → F, T.Holds c →
       List.ofFn (fun k : Fin 16 => c (outputCell + k)) = perm (List.ofFn fun k : Fin 16 => c k))
@@ -467,11 +422,9 @@ namespace Goldilocks
 
 open NightstreamFPrime.Spec
 
-/-- Goldilocks is a field (`goldilocks_natPrime`). -/
 scoped instance field : Field F :=
   @ZMod.instField goldilocksModulus ⟨GoldilocksPrime.goldilocks_natPrime⟩
 
-/-- No count up to 32 is zero in Goldilocks. -/
 theorem small (k : ℕ) (hk : k ≤ 32) (zero : (k : F) = 0) : k = 0 := by
   have : goldilocksModulus ∣ k := (ZMod.natCast_eq_zero_iff k goldilocksModulus).mp zero
   exact Nat.eq_zero_of_dvd_of_lt this (by unfold goldilocksModulus; omega)
@@ -479,10 +432,6 @@ theorem small (k : ℕ) (hk : k ≤ 32) (zero : (k : F) = 0) : k = 0 := by
 end Goldilocks
 
 open NightstreamFPrime Goldilocks Fin.CommRing in
-/-- **Lowering soundness.** If `w` satisfies the CCS of the lowered run of
-program `L` on the statement words `stmt`, with the Poseidon2 block template,
-then the executor accepts `L` on `stmt` and the tape read out of `w`, with
-Poseidon2 blocks. -/
 theorem lower_sound (L : Array Instr) (stmt : List Spec.F) (w : ℕ → Spec.F)
     (holds : ((lower L stmt).ccs Block.poseidonTemplate (lower L stmt).counts).Relation w) :
     Exec Spec.Poseidon2.permute L stmt (tapeOf Block.poseidonTemplate L stmt w) :=

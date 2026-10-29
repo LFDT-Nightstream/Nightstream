@@ -6,8 +6,6 @@ import NightstreamFPrime.Export.MatrixProgram.Phi81Product
 import NightstreamFPrime.Export.MatrixProgram.Pin
 import NightstreamFPrime.Export.MatrixProgram.Poseidon
 
-/-! Canonical codecs for the shared Layout MatrixProgram types. -/
-
 namespace NightstreamFPrime.Layout.MatrixProgram
 
 open NightstreamFPrime.Export.Codec

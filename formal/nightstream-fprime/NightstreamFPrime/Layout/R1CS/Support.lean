@@ -1,14 +1,6 @@
 import NightstreamFPrime.Circuit.VariableSupport
 import NightstreamFPrime.Layout.R1CS
 
-/-!
-Owns generic variable-support preservation for the R1CS lowerer. A lowered
-row can use only source variables selected by the caller or variables in the
-exact fresh interval allocated by that lowering.
-
-This module does not select a protocol support set or change lowering.
--/
-
 namespace NightstreamFPrime.Layout.R1CS
 
 open NightstreamFPrime.Circuit
@@ -516,7 +508,7 @@ private theorem rankOneConstraint_row_varsSatisfy (expression : Expr)
   | .add constant (.mul (.const coefficient) (.mul left right)), scope, result,
       found =>
       by_cases coefficientEquals : coefficient = -1
-      · rw [rankOneConstraint, dif_pos coefficientEquals] at found
+      · rw [rankOneConstraint, dite_eq_left coefficientEquals] at found
         cases constantEq : lowerAffine constant with
         | none => simp [constantEq] at found
         | some loweredConstant =>
@@ -535,7 +527,7 @@ private theorem rankOneConstraint_row_varsSatisfy (expression : Expr)
                         loweredRight rightEq,
                       lowerAffine_varsSatisfy constant allowed scope.1
                         loweredConstant constantEq⟩
-      · rw [rankOneConstraint, dif_neg coefficientEquals] at found
+      · rw [rankOneConstraint, dite_eq_right coefficientEquals] at found
         cases found
   | .mul left right, scope, result, found =>
       cases leftEq : lowerAffine left with
@@ -607,7 +599,7 @@ private theorem directConstraint_row_varsSatisfy (expression : Expr)
               cases coefficientExpr with
               | const coefficient =>
                   by_cases coefficientEquals : coefficient = -1
-                  · rw [directConstraint, dif_pos coefficientEquals] at found
+                  · rw [directConstraint, dite_eq_left coefficientEquals] at found
                     cases recipeEq : directRecipeRow output recipe with
                     | none =>
                         rw [recipeEq] at found
@@ -621,7 +613,7 @@ private theorem directConstraint_row_varsSatisfy (expression : Expr)
                         subst result
                         exact directRecipeRow_row_varsSatisfy output allowed
                           recipe scope.1 scope.2.2 recipeResult recipeEq
-                  · rw [directConstraint, dif_neg coefficientEquals] at found
+                  · rw [directConstraint, dite_eq_right coefficientEquals] at found
                     exact affineConstraint_row_varsSatisfy
                       (.add (.var output) (.mul (.const coefficient) recipe))
                       allowed scope result found

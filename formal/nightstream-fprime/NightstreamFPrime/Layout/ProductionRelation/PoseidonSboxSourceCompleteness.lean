@@ -1,13 +1,5 @@
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
 
-/-!
-Owns the adjacent conversion from satisfying canonical permutation recipe
-rows to the compact compiler's retained S-box equations. The source trace,
-schedule, and retained-output order are the existing owners' definitions.
-The proof composes one schedule step at a time and never enumerates package
-invocations or evaluates a row family.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxSourceCompleteness
@@ -272,7 +264,7 @@ theorem equations_of_sourceRows
   have rowBound : index < PoseidonRetainedSlots.rows.length := by
     rw [← retained_outputs_eq, List.length_map] at bound
     exact bound
-  rw [Nat.zero_add, sboxOutputAt, dif_pos rowBound, retained]
+  rw [Nat.zero_add, sboxOutputAt, dite_eq_left rowBound, retained]
   rw [← retained_outputs_eq]
   rw [List.getD_eq_getElem
     (l := PoseidonRetainedSlots.rows.map (fun row => row.outputExpression))

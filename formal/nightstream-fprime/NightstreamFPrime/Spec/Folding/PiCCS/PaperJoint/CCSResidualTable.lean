@@ -1,24 +1,7 @@
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.FiniteSumAlgebra
 
-/-!
-Concrete CCS residual tables for the paper-level joint `Pi_CCS` model.
-
-Protocol: SuperNeo v1.2 `Pi_CCS` (Section 7.3 / Appendix B.2).
-Phase: construction of the uncompressed CCS block of `F(X, C)`.
-Constraint family: one fresh-source CCS zero-set obligation per Boolean row.
-
-Owns: an explicit sparse constraint polynomial, its evaluation over shared
-finite matrix images, the CCS residual at each Boolean row, and construction
-of the CCS family on the shared canonical Boolean domain.
-
-Does not own: commitments, public-input projection, norm constraints, carried
-evaluation constraints, the base-field-to-extension-field embedding,
-`eq(X, A)`, gamma mixing, the signed `T - sum Q` identity, SumCheck,
-Fiat--Shamir, production row order, Rust, R1CS, or constraint counts.
-
-Emits constraints: no.
--/
+/-! SuperNeo v1.2 Section 7.3, Appendix B.2. -/
 
 namespace NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.CCSResidualTable
 
@@ -42,8 +25,7 @@ def totalDegree
 
 end Monomial
 
-/-- SuperNeo v1.2 Definition 19's finite sparse polynomial
-`f in F^{<u}[X_1,...,X_t]`. -/
+/-- SuperNeo v1.2 Definition 19. -/
 structure ConstraintPolynomial (Field : Type uField) (matrixCount : Nat) where
   degreeBound : Nat
   terms : List (Monomial Field matrixCount)
@@ -145,7 +127,7 @@ theorem canonicalEqualityGatedDegreeBound_le_degreeBound
 
 end ConstraintPolynomial
 
-/-- Paper-level Definition 19 data at the dimensions owned by `Shape`. -/
+/-- SuperNeo v1.2 Definition 19. -/
 structure Structure
     (Field : Type uField)
     (shape : Shape)
@@ -225,8 +207,6 @@ def matrixImagesAt
   fun matrix =>
     matrixVectorAt ops (system.matrices matrix) assignment vertex
 
-/-- One paper CCS residual
-`f((M_1 z)(x), ..., (M_t z)(x))` at a Boolean row. -/
 def residualAt
     {Field : Type uField}
     (ops : InterpolationOps Field)
@@ -238,7 +218,7 @@ def residualAt
   evaluatePolynomial ops system.constraintPolynomial
     (matrixImagesAt ops system assignment vertex)
 
-/-- Independent CCS zero-set obligation from Definition 20 / Lemma 9 Item 1. -/
+/-- SuperNeo Definition 20, Lemma 9 Item 1. -/
 def ConstraintSatisfied
     {Field : Type uField}
     (ops : InterpolationOps Field)

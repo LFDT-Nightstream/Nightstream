@@ -3,29 +3,16 @@ import CompressionLean.Layer1.Roots
 import Mathlib.Algebra.Field.GeomSum
 import Mathlib.Tactic.FieldSimp
 
-/-!
-Owns the honest fold of the setup oracles (`setup.rs`, M2 "Honest fold"):
-
-- `univ_split`: `Ô_t(Y) = Σ_{u < 2^f} Y^u·P_u(Y^{2^f})` with `P_u = parts f m t u`;
-- `univ_fold`: the table folded at `α` (low variables) has the form
-  `Σ_u α^[u]·P_u`, with `α^[u] = Π_i α_i^{bit i of u}` (`monomial`);
-- `leaf_formula`: the verifier's weights on the `2^f` coset values
-  `Ô_t(y·ω^v)` give the folded form at `y^{2^f}` (an inverse DFT; `ω` of
-  order `2^f`).
--/
-
 namespace CompressionLean.Layer1
 
 open Polynomial
 
 variable {K : Type} [Field K]
 
-/-- `α^[u] = Π_i α_i^{bit i of u}`, low bit first. -/
 def monomial : List K → ℕ → K
   | [], _ => 1
   | a :: rest, u => (if u % 2 = 1 then a else 1) * monomial rest (u / 2)
 
-/-- The coset parts of the form: `Ô_t(Y) = Σ_u Y^u·P_u(Y^{2^f})`. -/
 noncomputable def parts : ℕ → ℕ → (ℕ → K) → ℕ → K[X]
   | 0, m, t, _ => univ m t
   | f + 1, m, t, u =>
@@ -75,7 +62,7 @@ theorem univ_split (f m : ℕ) (t : ℕ → K) :
       have odd (u : ℕ) : (2 * u + 1) % 2 = 1 := by omega
       have half (u : ℕ) : (2 * u) / 2 = u := by omega
       have half' (u : ℕ) : (2 * u + 1) / 2 = u := by omega
-      simp only [parts, even, odd, half, half', if_true, show (1 : ℕ) ≠ 0 by omega, if_false]
+      simp only [parts, even, odd, half, half', ite_true, show (1 : ℕ) ≠ 0 by omega, ite_false]
       rw [expand_cubeSum, expand_cubeSum, ← cubeSum_mul_left]
       have power : 2 * 2 ^ f = 2 ^ (f + 1) := by ring
       congr 1
@@ -102,7 +89,7 @@ theorem univ_fold (m : ℕ) (t : ℕ → K) (α : List K) :
       have odd (u : ℕ) : (2 * u + 1) % 2 = 1 := by omega
       have half (u : ℕ) : (2 * u) / 2 = u := by omega
       have half' (u : ℕ) : (2 * u + 1) / 2 = u := by omega
-      simp only [even, odd, half, half', if_true, show (1 : ℕ) ≠ 0 by omega, if_false,
+      simp only [even, odd, half, half', ite_true, show (1 : ℕ) ≠ 0 by omega, ite_false,
         show ¬ ((0 : ℕ) = 1) by omega, one_mul]
       rw [← cubeSum_add]
       congr 1
@@ -110,7 +97,6 @@ theorem univ_fold (m : ℕ) (t : ℕ → K) (α : List K) :
       rw [rewrite, parts_add, parts_mul_left, map_mul]
       ring
 
-/-- Characters of the cyclic group of order `2^f` are orthogonal. -/
 theorem orthogonal (n : ℕ) (ω : K) (root : ω ^ n = 1) (primitive : ∀ k, 0 < k → k < n → ω ^ k ≠ 1)
     {u u' : ℕ} (hu : u < n) (hu' : u' < n) :
     ∑ v ∈ Finset.range n, ω⁻¹ ^ (u * v) * ω ^ (u' * v) = if u = u' then (n : K) else 0 := by
@@ -139,8 +125,6 @@ theorem orthogonal (n : ℕ) (ω : K) (root : ω ^ n = 1) (primitive : ∀ k, 0 
         inv_one, one_pow, one_pow, mul_one]
     rw [geom_sum_eq ratio_ne, power, sub_self, zero_div]
 
-/-- The verifier's leaf value: weights on the coset values `Ô_t(y·ω^v)` give
-the folded form at `y^N`, `N = 2^{α.length}`. -/
 theorem leaf_formula (m : ℕ) (t : ℕ → K) (α : List K) (y ω : K) (y_ne : y ≠ 0)
     (root : ω ^ (2 ^ α.length) = 1) (primitive : ∀ k, 0 < k → k < 2 ^ α.length → ω ^ k ≠ 1)
     (size : ((2 ^ α.length : ℕ) : K) ≠ 0) :
@@ -173,7 +157,7 @@ theorem leaf_formula (m : ℕ) (t : ℕ → K) (α : List K) (y ω : K) (y_ne : 
       intro v _
       ring
     rw [Finset.sum_congr rfl each]
-    simp only [ite_mul, zero_mul, Finset.sum_ite_eq, Finset.mem_range, if_pos inside]
+    simp only [ite_mul, zero_mul, Finset.sum_ite_eq, Finset.mem_range, ite_eq_left inside]
   calc ∑ v ∈ Finset.range N,
         (∑ u ∈ Finset.range N, monomial α u * (N : K)⁻¹ * y⁻¹ ^ u * ω⁻¹ ^ (u * v)) *
           ∑ u' ∈ Finset.range N, y ^ u' * ω ^ (u' * v) * P u'

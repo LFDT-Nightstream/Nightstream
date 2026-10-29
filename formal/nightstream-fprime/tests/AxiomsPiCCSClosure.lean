@@ -97,8 +97,6 @@ import NightstreamFPrime.Layout.PiCCS.v1_2.ProductionInputs
 import NightstreamFPrime.Export.Stage1.PiCCSOwnershipAudit
 import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 
-/-! Fail-closed axiom coverage for the complete PiCCS compiler closure. -/
-
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership.sourceHolds_iff_memberships
 #audit_axioms NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.SourceMembership.fixedWidthAcceptedProbe_implies_memberships_or_badEvent
 

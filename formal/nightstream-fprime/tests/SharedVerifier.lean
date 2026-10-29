@@ -2,9 +2,6 @@ import tests.AxiomAudit
 import tests.PerApplicationEmitterFixture
 import NightstreamFPrime.Export.SharedVerifier
 
-/-! Checks the export against the existing hash-chain and identity programs.
-No application definition, circuit, layout, or proof is added here. -/
-
 namespace NightstreamFPrime.Tests.SharedVerifier
 
 open NightstreamFPrime.Export

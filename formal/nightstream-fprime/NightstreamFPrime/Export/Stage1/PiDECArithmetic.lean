@@ -2,15 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSArithmetic
 import NightstreamFPrime.Layout.Stage1.PiDECInputs
 import NightstreamFPrime.Layout.Stage1.PiDECStarts
 
-/-!
-Owns the ordinary-row encoding of the exact PiDEC v1_2 phase.
-
-The relation-parameterized input and output binding children have no rows. The
-exported list therefore contains, in parent order, only the public split,
-commitment recomposition, separate `Eval_K` recomposition, and separate 4-matrix
-`Eval_A` recomposition constraints.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiDECArithmetic
 
 open NightstreamFPrime.Circuit

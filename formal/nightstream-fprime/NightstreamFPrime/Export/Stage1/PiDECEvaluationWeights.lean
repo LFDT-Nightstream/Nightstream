@@ -4,10 +4,6 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.NumericCompletionSum
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.BooleanReproduction
 import NightstreamFPrime.Export.NativePoseidon2RoundCore
 
-/-!
-Store a common-point weighted sum of computed base-ring rows.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiDECEvaluationWeights

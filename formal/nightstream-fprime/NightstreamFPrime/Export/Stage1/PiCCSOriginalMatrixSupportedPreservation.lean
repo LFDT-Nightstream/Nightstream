@@ -2,10 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported
 import NightstreamFPrime.Export.Stage1.PiCCSOriginalSupportPreservation
 import NightstreamFPrime.Export.Stage1.PiDECMatrixZeroRead
 
-/-!
-Complete source/port preservation for guarded original matrix sums.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSOriginalMatrixSupported
@@ -37,9 +33,9 @@ theorem weighted_source_port {columns arity count : Nat}
   rw [PiCCSOriginalMatrixBatch.sum_source_port]
   simp only [weighted, get_ofFn, Fin.decodeProd_encodeProd]
   by_cases zero : zeroSource source = true
-  · rw [if_pos zero, PiDECEvaluationBatch.zero_value, zeroRead zero,
+  · rw [ite_eq_left zero, PiDECEvaluationBatch.zero_value, zeroRead zero,
       PiDECMatrixZeroRead.sparse_sum_zero]
-  · simp only [if_neg zero]
+  · simp only [ite_eq_right zero]
     exact PiDECMatrixWeightedRange.evaluate_prepare_toRing firstRow point (read source) forms port
 
 theorem invocations_source_port {columns arity count : Nat}
@@ -55,13 +51,13 @@ theorem invocations_source_port {columns arity count : Nat}
         (Fin.encodeProd (source, port))).toRing := by
   rw [PiCCSOriginalMatrixBatch.sumInvocations_source_port]
   by_cases allZero : ∀ source, zeroSource source = true
-  · rw [invocations, if_pos allZero, PiDECEvaluationBatch.zero_value, zeroRead (allZero source),
+  · rw [invocations, ite_eq_left allZero, PiDECEvaluationBatch.zero_value, zeroRead (allZero source),
       PiDECMatrixZeroRead.invocation_sum_zero]
-  · simp only [invocations, if_neg allZero, get_ofFn, Fin.decodeProd_encodeProd]
+  · simp only [invocations, ite_eq_right allZero, get_ofFn, Fin.decodeProd_encodeProd]
     by_cases zero : zeroSource source = true
-    · rw [if_pos zero, PiDECEvaluationBatch.zero_value, zeroRead zero,
+    · rw [ite_eq_left zero, PiDECEvaluationBatch.zero_value, zeroRead zero,
         PiDECMatrixZeroRead.invocation_sum_zero]
-    · simp only [if_neg zero]
+    · simp only [ite_eq_right zero]
       exact PiDECPoseidonColumnWeights.evaluate_prepare_toRing firstRow point (read source)
         interfaces port
 

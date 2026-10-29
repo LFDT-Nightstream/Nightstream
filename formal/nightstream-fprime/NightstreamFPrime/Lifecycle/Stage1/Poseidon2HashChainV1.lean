@@ -1,12 +1,6 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Support
 import NightstreamFPrime.Lifecycle.Stage1.Application
 
-/-!
-Owns the first verifier-selected Stage 1 application. The application hashes
-one exact 40-byte domain tag, the four-word prior state, and the four-word
-message. This module does not select a package, key, or verifier policy.
--/
-
 namespace NightstreamFPrime.Lifecycle.Stage1.Poseidon2HashChainV1
 
 open NightstreamFPrime.Circuit
@@ -65,7 +59,8 @@ def circuit (interface : Application.Interface messageWordCount) :
 @[simp] theorem inputExpressions_length
     (interface : Application.Interface messageWordCount) (offset : Nat) :
     (inputExpressions interface offset).length = 48 := by
-  simp [inputExpressions, Application.stateWordCount, messageWordCount]
+  simp only [inputExpressions, List.length_append, List.length_map, List.length_ofFn]
+  simp [Application.stateWordCount, messageWordCount]
 
 theorem inputChunks_length
     (interface : Application.Interface messageWordCount) (offset : Nat) :

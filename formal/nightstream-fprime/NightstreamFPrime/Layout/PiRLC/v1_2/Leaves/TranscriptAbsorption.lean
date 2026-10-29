@@ -1,12 +1,6 @@
 import NightstreamFPrime.Layout.Poseidon2.Duplex
 import NightstreamFPrime.Lifecycle.PiRLC.v1_2.TranscriptAbsorption
 
-/-!
-Owns the physical lowering of one Π_RLC scalar-domain entry.
-
-The lifecycle leaf absorbs `[4, coordinate]` with one Poseidon2 permutation.
--/
-
 namespace NightstreamFPrime.Layout.PiRLC.v1_2.Leaves.TranscriptAbsorption
 
 open NightstreamFPrime.Circuit

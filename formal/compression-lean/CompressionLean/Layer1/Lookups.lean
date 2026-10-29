@@ -2,20 +2,6 @@ import CompressionLean.Layer1.LogUp
 import CompressionLean.Layer1.Gkr
 import Mathlib.Tactic.LinearCombination
 
-/-!
-Owns the four logUp identities of the layer-1 verifier and what each one
-forces off its bad set:
-
-- `twoSided`: a left and a right fraction sum that agree at `β` agree pole by
-  pole, unless `β` is a root of `twoSidedPoly` (degree below the term count).
-- `lookup_sound` (row lookup, `(β, γ)` drawn together): every run tuple
-  `(r, e₁, e₂)` is a table tuple `(i, t₁(i), t₂(i))`. A bad `γ` merges a run
-  tuple with a table tuple (at most `2·M` values); a bad `β` is a root.
-- `scatter_sound` (slot scatter, `(β, μ)` drawn together): each pair's
-  numerators are the sums of its runs' numerators, both coordinates.
-- The norm and the block scatter use `twoSided` directly.
--/
-
 namespace CompressionLean.Layer1
 
 open Polynomial
@@ -26,7 +12,6 @@ section TwoSided
 
 variable {ι κ : Type}
 
-/-- Both sides as one sum: the right side with negated numerators. -/
 noncomputable def twoSidedPoly (left : Finset ι) (a b : ι → K) (right : Finset κ) (c d : κ → K) : K[X] :=
   residuePoly (left.disjSum right) (Sum.elim a fun k => -c k) (Sum.elim b d)
 
@@ -45,10 +30,8 @@ theorem residue_disjSum (left : Finset ι) (a b : ι → K) (right : Finset κ) 
   congr 1
   apply Finset.sum_congr rfl
   intro k _
-  split <;> simp
+  by_cases same : d k = v <;> simp [same]
 
-/-- Agreement at `β` off the poles, with a pole whose residues differ, puts `β`
-among the roots of `twoSidedPoly`. -/
 theorem twoSided [Fintype K] (left : Finset ι) (a b : ι → K) (right : Finset κ) (c d : κ → K) {v : K}
     (live : residue left a b v ≠ residue right c d v) (β : K)
     (no_pole_left : ∀ i ∈ left, β ≠ b i) (no_pole_right : ∀ k ∈ right, β ≠ d k)
@@ -71,7 +54,6 @@ section Joint
 variable [Fintype K]
 
 open Classical in
-/-- Bad pairs of a joint draw: a bad second coordinate, or a root in the first. -/
 noncomputable def jointBad (Γ : Finset K) (poly : K → K[X]) : Finset (K × K) :=
   Finset.univ.filter fun pair => pair.2 ∈ Γ ∨ pair.1 ∈ zeros (poly pair.2)
 
@@ -105,7 +87,6 @@ section Checks
 variable [Fintype K]
 
 omit [Fintype K] in
-/-- A pole's residue on one side, when a single term has that pole. -/
 theorem residue_range_single (n : ℕ) (c : ℕ → K) (distinct : ∀ x y, x < n → y < n → (x : K) = y → x = y)
     {x : ℕ} (inside : x < n) : residue (Finset.range n) c (fun y => (y : K)) (x : K) = c x := by
   unfold residue
@@ -117,10 +98,8 @@ theorem residue_range_single (n : ℕ) (c : ℕ → K) (distinct : ∀ x y, x < 
     simp only [Finset.mem_filter, Finset.mem_range, not_and] at outside
     exact absurd trivial (outside inside)
 
-/-- The value of histogram slot `t`: `t - H`, as `norm::table_sum` reads it. -/
 def slotValue (H t : ℕ) : K := (t : K) - (H : K)
 
-/-- Norm: `Σ_x 1/(β - z(x)) = Σ_t m_t/(β - (t - H))` over the `2H + 1` slots. -/
 noncomputable def normPoly (n H : ℕ) (z : ℕ → K) (hist : ℕ → K) : K[X] :=
   twoSidedPoly (Finset.range (2 ^ n)) (fun _ => 1) z (Finset.range (2 * H + 1)) hist (slotValue H)
 
@@ -130,7 +109,6 @@ theorem normPoly_natDegree (n H : ℕ) (z : ℕ → K) (hist : ℕ → K) :
   refine (twoSidedPoly_natDegree _ _ _ _ _ _).trans ?_
   simp
 
-/-- Off its bad set, the norm identity puts every cell in `[-H, H]`. -/
 theorem norm_sound (n H : ℕ) (z : ℕ → K) (hist : ℕ → K)
     (count : ∀ c : ℕ, 0 < c → c ≤ 2 ^ n → (c : K) ≠ 0) (β : K) (outside : β ∉ zeros (normPoly n H z hist))
     (no_pole_left : ∀ x, x < 2 ^ n → β ≠ z x) (no_pole_right : ∀ t, t < 2 * H + 1 → β ≠ slotValue H t)
@@ -157,7 +135,6 @@ theorem norm_sound (n H : ℕ) (z : ℕ → K) (hist : ℕ → K)
   · exact Finset.card_pos.mpr ⟨x, Finset.mem_filter.mpr ⟨Finset.mem_range.mpr inside, rfl⟩⟩
   · exact (Finset.card_filter_le _ _).trans (by simp)
 
-/-- `r + γ·(e₁ + γ·e₂)`, the tuple compression of `matrix.rs`. -/
 def tuple (γ r e₁ e₂ : K) : K := r + γ * (e₁ + γ * e₂)
 
 noncomputable def tuplePoly (r e₁ e₂ : K) : K[X] := C r + X * (C e₁ + X * C e₂)
@@ -185,7 +162,6 @@ theorem tuplePoly_injective {r e₁ e₂ r' e₁' e₂' : K}
   simp [tuplePoly, coeff_X_mul, coeff_C] at c0 c1 c2
   exact ⟨c0, c1, c2⟩
 
-/-- The row lookup: runs `(r, e₁, e₂)`, `k < N`; the table `(i, t₁ i, t₂ i)`, `i < M`. -/
 structure Lookup (K : Type) where
   runs : ℕ
   rows : ℕ
@@ -197,7 +173,6 @@ namespace Lookup
 
 variable (d : Lookup K)
 
-/-- Run `k`'s tuple is the table tuple of some row. -/
 def InTable (k : ℕ) : Prop :=
   ∃ i, i < d.rows ∧ d.run k = ((i : K), (d.table i).1, (d.table i).2)
 
@@ -206,7 +181,6 @@ def runTuple (γ : K) (k : ℕ) : K := tuple γ (d.run k).1 (d.run k).2.1 (d.run
 def tableTuple (γ : K) (i : ℕ) : K := tuple γ (i : K) (d.table i).1 (d.table i).2
 
 open Classical in
-/-- The `γ` that merge the first missing run tuple with a table tuple. -/
 noncomputable def gammaBad : Finset K :=
   if h : ∃ k, k < d.runs ∧ ¬ d.InTable k then
     (Finset.range d.rows).biUnion fun i =>
@@ -217,7 +191,6 @@ noncomputable def gammaBad : Finset K :=
 noncomputable def poly (γ : K) : K[X] :=
   twoSidedPoly (Finset.range d.runs) (fun _ => 1) (d.runTuple γ) (Finset.range d.rows) d.mult (d.tableTuple γ)
 
-/-- The bad pairs `(β, γ)` of the row lookup. -/
 noncomputable def bad : Finset (K × K) := jointBad d.gammaBad d.poly
 
 theorem bad_card : d.bad.card ≤ (2 * d.rows + (d.runs + d.rows)) * Fintype.card K := by
@@ -231,7 +204,6 @@ theorem bad_card : d.bad.card ≤ (2 * d.rows + (d.runs + d.rows)) * Fintype.car
     refine zeros_card_le_of_natDegree_le ((twoSidedPoly_natDegree _ _ _ _ _ _).trans ?_)
     simp
 
-/-- Off its bad pairs, the row lookup puts every run tuple in the table. -/
 theorem sound (count : ∀ c : ℕ, 0 < c → c ≤ d.runs → (c : K) ≠ 0) (β γ : K) (outside : (β, γ) ∉ d.bad)
     (no_pole_left : ∀ k, k < d.runs → β ≠ d.runTuple γ k)
     (no_pole_right : ∀ i, i < d.rows → β ≠ d.tableTuple γ i)
@@ -250,7 +222,7 @@ theorem sound (count : ∀ c : ℕ, 0 < c → c ≤ d.runs → (c : K) ≠ 0) (�
   have apart : ∀ i, i < d.rows → d.runTuple γ k ≠ d.tableTuple γ i := by
     intro i inside equal_at
     apply gamma_good
-    simp only [gammaBad, dif_pos h]
+    simp only [gammaBad, dite_eq_left h]
     refine Finset.mem_biUnion.mpr ⟨i, Finset.mem_range.mpr inside, ?_⟩
     have different : tuplePoly (d.run k).1 (d.run k).2.1 (d.run k).2.2 ≠
         tuplePoly (i : K) (d.table i).1 (d.table i).2 := by
@@ -258,7 +230,7 @@ theorem sound (count : ∀ c : ℕ, 0 < c → c ≤ d.runs → (c : K) ≠ 0) (�
       obtain ⟨r, e₁, e₂⟩ := tuplePoly_injective same
       exact k_missing ⟨i, inside, Prod.ext r (Prod.ext e₁ e₂)⟩
     unfold zeros
-    rw [if_neg (sub_ne_zero.mpr different)]
+    rw [ite_eq_right (sub_ne_zero.mpr different)]
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, eval_sub, tuplePoly_eval]
     exact sub_eq_zero.mpr equal_at
   apply beta_good
@@ -280,8 +252,6 @@ theorem sound (count : ∀ c : ℕ, 0 < c → c ≤ d.runs → (c : K) ≠ 0) (�
 
 end Lookup
 
-/-- The slot scatter: runs `k < N` with `coef k·(e₁ + μ·e₂)` at pole `tag k`;
-pairs `x < P` with `U₁ x + μ·U₂ x` at pole `x`. -/
 structure Scatter (K : Type) where
   runs : ℕ
   pairs : ℕ
@@ -294,13 +264,11 @@ namespace Scatter
 
 variable (d : Scatter K)
 
-/-- The runs' numerators summed at pair `x`. -/
 def sums (x : ℕ) : K × K :=
   (∑ k ∈ (Finset.range d.runs).filter (fun k => d.tag k = (x : K)), d.coef k * (d.e k).1,
     ∑ k ∈ (Finset.range d.runs).filter (fun k => d.tag k = (x : K)), d.coef k * (d.e k).2)
 
 open Classical in
-/-- The `μ` that cancel the first wrong pair's two coordinates. -/
 noncomputable def muBad : Finset K :=
   if h : ∃ x, x < d.pairs ∧ d.U x ≠ d.sums x then
     zeros (linePoly ((d.sums h.choose).1 - (d.U h.choose).1) ((d.sums h.choose).2 - (d.U h.choose).2))
@@ -310,7 +278,6 @@ noncomputable def poly (μ : K) : K[X] :=
   twoSidedPoly (Finset.range d.runs) (fun k => d.coef k * ((d.e k).1 + μ * (d.e k).2)) d.tag
     (Finset.range d.pairs) (fun x => (d.U x).1 + μ * (d.U x).2) (fun x => (x : K))
 
-/-- The bad pairs `(β, μ)` of the slot scatter. -/
 noncomputable def bad : Finset (K × K) := jointBad d.muBad d.poly
 
 theorem bad_card : d.bad.card ≤ (1 + (d.runs + d.pairs)) * Fintype.card K := by
@@ -323,7 +290,6 @@ theorem bad_card : d.bad.card ≤ (1 + (d.runs + d.pairs)) * Fintype.card K := b
     refine zeros_card_le_of_natDegree_le ((twoSidedPoly_natDegree _ _ _ _ _ _).trans ?_)
     simp
 
-/-- Off its bad pairs, the slot scatter makes every pair the sum of its runs. -/
 theorem sound (distinct : ∀ x y, x < d.pairs → y < d.pairs → (x : K) = y → x = y)
     (β μ : K) (outside : (β, μ) ∉ d.bad)
     (no_pole_left : ∀ k, k < d.runs → β ≠ d.tag k)
@@ -348,9 +314,9 @@ theorem sound (distinct : ∀ x y, x < d.pairs → y < d.pairs → (x : K) = y �
       exact x_wrong (Prod.ext (sub_eq_zero.mp both.1).symm (sub_eq_zero.mp both.2).symm)
     intro zero
     apply mu_good
-    simp only [muBad, dif_pos h]
+    simp only [muBad, dite_eq_left h]
     unfold zeros
-    rw [if_neg nonzero]
+    rw [ite_eq_right nonzero]
     simp only [Finset.mem_filter, Finset.mem_univ, true_and, linePoly_eval]
     exact zero
   apply beta_good

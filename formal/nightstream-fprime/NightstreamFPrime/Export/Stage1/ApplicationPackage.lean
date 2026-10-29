@@ -5,11 +5,6 @@ import NightstreamFPrime.Lifecycle.Stage1.Application
 import NightstreamFPrime.Lifecycle.VerifierContext
 import NightstreamFPrime.Layout.Stage1.ApplicationSemantics
 
-/-!
-Owns the standalone canonical package for one Lean-authored Stage 1
-application.
--/
-
 namespace NightstreamFPrime.Export.Stage1.ApplicationPackage
 
 open NightstreamFPrime.Export.Codec

@@ -2,12 +2,6 @@ import NightstreamFPrime.Export.Stage1.PiRLCParent
 import NightstreamFPrime.Export.Stage1.HyperNovaStepData
 import NightstreamFPrime.Export.Stage1.HyperNovaInput
 
-/-!
-Compose the actual checked C/R/D fields into the selected NIFS return.
-Child openings and the next fresh assignment remain separate consumers of this
-exact result.
--/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.CheckedReplayNifs
@@ -45,6 +39,7 @@ private theorem point_ext {arity : Nat} (left right : CubePoint K arity)
   cases same
   rfl
 
+set_option backward.isDefEq.respectTransparency false in
 private theorem execution_point (input : PiCCSInputCheck.Input)
     (messages : PiDECInputCheck.Messages) :
     (selectedKey.piCcsExecution (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input)
@@ -112,6 +107,7 @@ private theorem execute_outgoing (input : PiCCSInputCheck.Input) :
         (PiCCSProofInputs.output (PiCCSInputCheck.proofValues input)) := by
   rfl
 
+set_option backward.isDefEq.respectTransparency false in
 private theorem execution_outgoing (input : PiCCSInputCheck.Input)
     (messages : PiDECInputCheck.Messages) :
     (selectedKey.piCcsExecution (PiCCSInputCheck.selectedRunning input) (PiCCSInputCheck.selectedFresh input)
@@ -153,6 +149,7 @@ private theorem parent_eq (input : PiCCSInputCheck.Input)
   rw [execution_point, probe_eq]
   exact combined.symm
 
+set_option backward.isDefEq.respectTransparency false in
 private theorem attempt_eq (input : PiCCSInputCheck.Input)
     (batch : PiRLCParent.Batch) (parent : PiRLCParent.Values)
     (messages : PiDECInputCheck.Messages)
@@ -190,6 +187,7 @@ private theorem running_ext
   cases evaluations
   rfl
 
+set_option backward.isDefEq.respectTransparency false in
 private theorem output_eq (input : PiCCSInputCheck.Input)
     (parent : PiRLCParent.Values) (messages : PiDECInputCheck.Messages)
     (checked : PiDECInputCheck.accepted parent messages = true) :

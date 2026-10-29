@@ -1,13 +1,5 @@
 import NightstreamFPrime.Layout.PiDEC.v1_2.Preservation
 
-/-!
-Owns the total row and column maps for the exact PiDEC v1_2 layout.
-
-Every lowered row names its logical child and row role. Every physical column
-is external, one of the 270 public-split sign cells, or an R1CS intermediate.
-The parent adds no copy row or boundary column.
--/
-
 namespace NightstreamFPrime.Layout.PiDEC.v1_2.Ownership
 
 open NightstreamFPrime.Circuit
@@ -202,7 +194,7 @@ theorem columnOwner_external
     (below : column.val < offset) :
     columnOwner relation interface offset column = .external column.val := by
   unfold columnOwner
-  rw [if_pos below]
+  rw [ite_eq_left below]
 
 theorem columnOwner_publicInputSplit
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -213,7 +205,7 @@ theorem columnOwner_publicInputSplit
     columnOwner relation interface offset column =
       .publicInputSplit (column.val - offset) := by
   unfold columnOwner
-  rw [if_neg (Nat.not_lt.mpr atOrAbove), if_pos below]
+  rw [ite_eq_right (Nat.not_lt.mpr atOrAbove), ite_eq_left below]
 
 theorem columnOwner_r1csIntermediate
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
@@ -229,8 +221,8 @@ theorem columnOwner_r1csIntermediate
       omega
     exact Nat.le_trans logicalAbove atOrAbove
   unfold columnOwner
-  rw [if_neg (Nat.not_lt.mpr phaseAbove),
-    if_neg (Nat.not_lt.mpr atOrAbove)]
+  rw [ite_eq_right (Nat.not_lt.mpr phaseAbove),
+    ite_eq_right (Nat.not_lt.mpr atOrAbove)]
 
 theorem columnOwner_unique
     (relation : ProductionKey.LogicalRelation logicalWidth publicFits)

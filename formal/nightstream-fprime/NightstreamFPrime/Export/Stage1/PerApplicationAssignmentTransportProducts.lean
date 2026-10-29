@@ -3,11 +3,6 @@ import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalEncodes
 import NightstreamFPrime.Export.Stage1.PiRLCProductMatrixProgramSemantics
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedInputs
 
-/-!
-Owns the value-level interpreter for the compact Phi81 quotient recipe in the
-per-application assignment transport.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransportProducts
 
 open NightstreamFPrime.Circuit
@@ -111,9 +106,9 @@ private theorem baseBlockValue_eq_source (program : Program) (base : BaseValues 
       base ⟨PerApplicationAssignmentBlocks.sourceIndex program kind
         ⟨slot, slotBound⟩, sourceBound⟩ := by
   unfold baseBlockValue
-  rw [dif_pos slotBound]
+  rw [dite_eq_left slotBound]
   dsimp only
-  rw [dif_pos sourceBound]
+  rw [dite_eq_left sourceBound]
 
 private theorem canonical_challengeSlot
     (source : Fin PiRLCCombinationInvocations.sourceCount) (lane : Fin ringDegree) :

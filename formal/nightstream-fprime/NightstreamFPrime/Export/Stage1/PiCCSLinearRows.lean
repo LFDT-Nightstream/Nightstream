@@ -1,8 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PiCCSSparseEvaluation
 import NightstreamFPrime.Export.Stage1.PiDECMatrixNumericRows
 
-/-! Evaluate existing matrix rows on aggregated extension-field reads. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSLinearRows

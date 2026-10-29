@@ -1,10 +1,6 @@
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalEncodes
 import NightstreamFPrime.Export.Stage1.RecursivePublicOutputPlan
 
-/-!
-Owns the four public-output rows of the canonical assignment.
--/
-
 namespace NightstreamFPrime.Export.Stage1.CanonicalPublicOutput
 
 open NightstreamFPrime.Circuit

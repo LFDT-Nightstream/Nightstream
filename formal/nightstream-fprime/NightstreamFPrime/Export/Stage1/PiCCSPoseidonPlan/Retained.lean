@@ -2,11 +2,6 @@ import NightstreamFPrime.Export.Stage1.LaterPoseidonRetainedBlocks
 import NightstreamFPrime.Export.Stage1.PiCCSActionPayloadBlock
 import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedFamily
 
-/-!
-Owns the shared PiCCS retained coordinates and output forms. The phase plan
-and its parent source map use these contracts without importing each other.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiCCSPoseidonPlan
 
 open NightstreamFPrime.Spec
@@ -15,11 +10,13 @@ open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
 open NightstreamFPrime.Layout
 open NightstreamFPrime.Layout.ProductionRelation
 
+@[implicit_reducible]
 def invocationCount : Nat := PiCCSActionPayloadBlock.invocationCount
 
 @[simp] theorem invocationCount_eq : invocationCount = 948 := by
   exact PiCCSActionPayloadBlock.invocationCount_eq
 
+@[implicit_reducible]
 def sourceWidth (program : Lifecycle.Stage1.Application.Program) : Nat :=
   PiCCSActionPayloadBlock.sourceWidth program
 
@@ -37,13 +34,13 @@ def retainedBlock (program : Lifecycle.Stage1.Application.Program) :
 @[simp] theorem retainedBlock_slotCount
     (program : Lifecycle.Stage1.Application.Program) :
     (retainedBlock program).slotCount = 142200 := by
-  rw [retainedBlock, LowNormBlock.Block.lift_slotCount,
+  erw [retainedBlock, LowNormBlock.Block.lift_slotCount,
     LaterPoseidonRetainedBlocks.piCcsBlock_slotCount]
 
 @[simp] theorem retainedBlock_coordinateCount
     (program : Lifecycle.Stage1.Application.Program) :
     (retainedBlock program).coordinateCount = 5830200 := by
-  rw [retainedBlock, LowNormBlock.Block.lift_coordinateCount,
+  erw [retainedBlock, LowNormBlock.Block.lift_coordinateCount,
     LaterPoseidonRetainedBlocks.piCcsBlock_coordinateCount]
 
 def schedule (program : Lifecycle.Stage1.Application.Program) :
@@ -104,7 +101,10 @@ theorem retainedBlock_encodesAt
       LaterPoseidonRetainedBlocks.piCcsStart program +
           (LaterPoseidonRetainedBlocks.piCcsBlock program).coordinateCount ≤
         logicalWidth := by
-    simpa [retainedStart, retainedBlock] using retainedFits geometry
+    have fits := retainedFits geometry
+    rw [retainedBlock_coordinateCount] at fits
+    rw [LaterPoseidonRetainedBlocks.piCcsBlock_coordinateCount]
+    exact fits
   have sliced :
       (LaterPoseidonRetainedBlocks.piCcsBlock program).EncodesAt
         (LaterPoseidonRetainedBlocks.piCcsStart program) sliceFits assignment

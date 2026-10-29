@@ -1,8 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiCCSNormRangeMerge
 
-/-! Proof-only connection of ordered polynomial worker results to one complete
-range. -/
-
 set_option autoImplicit false
 
 namespace NightstreamFPrime.Export.Stage1.PiCCSPolynomialRangeMerge

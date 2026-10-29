@@ -1,7 +1,5 @@
 import NightstreamFPrime.Layout.Stage1.RunningTransitionData
 
-/-! Owns the closed-form PiCCS round-point wire bound. -/
-
 namespace NightstreamFPrime.Layout.Stage1.RunningTransitionInputs
 
 open NightstreamFPrime.Spec

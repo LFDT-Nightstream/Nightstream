@@ -1,9 +1,6 @@
 import NightstreamFPrime.Spec.AjtaiSetupV1.IndexEncoding
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 
-/-! Instantiates the indexed setup's encoding bounds at the selected production
-key dimensions. No key coefficients or circuit rows are materialized. -/
-
 namespace NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Setup
 
 open NightstreamFPrime.Spec

@@ -37,7 +37,7 @@ def Present (env : Env) (start : Nat) (draw : Draw) : Prop :=
 theorem present (base : Env) (start : Nat) (draw : Draw) :
     Present (environment base start draw) start draw := by
   intro index lower upper
-  simp only [environment, if_pos (And.intro lower upper)]
+  simp only [environment, ite_eq_left (And.intro lower upper)]
 
 theorem present_of_agree (left right : Env) (start : Nat) (draw : Draw)
     (present : Present left start draw)
@@ -45,24 +45,24 @@ theorem present_of_agree (left right : Env) (start : Nat) (draw : Draw)
       right index = left index) : Present right start draw := by
   intro index lower upper
   rw [same index lower upper, present index lower upper]
-  simp only [environment, if_pos (And.intro lower upper)]
+  simp only [environment, ite_eq_left (And.intro lower upper)]
 
 theorem below (base : Env) (start : Nat) (draw : Draw) (index : Nat) (bound : index < start) :
     environment base start draw index = base index := by
   unfold environment
-  rw [if_neg (by omega)]
+  rw [ite_eq_right (by omega)]
 
 theorem outside (base : Env) (start : Nat) (draw : Draw) :
     AgreesOutside base (environment base start draw) start HintProgram.helperCount := by
   intro index outside
   unfold environment
-  rw [if_neg (by omega)]
+  rw [ite_eq_right (by omega)]
 
 private theorem assigned (base : Env) (start : Nat) (draw : Draw) (position : Nat)
     (bound : position < HintProgram.helperCount) :
     environment base start draw (start + position) = fieldOfNat (value draw position) := by
   unfold environment
-  rw [if_pos (by omega), Nat.add_sub_cancel_left]
+  rw [ite_eq_left (by omega), Nat.add_sub_cancel_left]
 
 theorem source_bit (base : Env) (start : Nat) (draw : Draw) (lane : Fin 4) (bit : Nat)
     (bound : bit < 64) :
@@ -70,7 +70,7 @@ theorem source_bit (base : Env) (start : Nat) (draw : Draw) (lane : Fin 4) (bit 
       fieldOfNat ((draw lane).val / 2 ^ bit % 2) := by
   rw [Nat.add_assoc, assigned base start draw _ (by have := lane.isLt; change _ < 1404; omega)]
   unfold value
-  rw [if_pos (by have := lane.isLt; omega)]
+  rw [ite_eq_left (by have := lane.isLt; omega)]
   have divide : (lane.val * 64 + bit) / 64 = lane.val := by omega
   have modulo : (lane.val * 64 + bit) % 64 = bit := by omega
   simp only [divide, modulo, Nat.mod_eq_of_lt lane.isLt, Fin.eta]
@@ -83,7 +83,7 @@ theorem accumulator (base : Env) (start : Nat) (draw : Draw) (position : Nat)
     HintProgram.accumulatorBits
   rw [Nat.add_assoc, assigned base start draw _ (by change _ < 1404; omega)]
   unfold value
-  rw [if_neg (by omega), if_pos (by omega)]
+  rw [ite_eq_right (by omega), ite_eq_left (by omega)]
   simp
 
 theorem accumulator_bit (base : Env) (start : Nat) (draw : Draw) (position bit : Nat)
@@ -97,13 +97,13 @@ theorem accumulator_bit (base : Env) (start : Nat) (draw : Draw) (position bit :
     omega
   rw [coordinate, assigned base start draw _ (by change _ < 1404; omega)]
   unfold value
-  rw [if_neg (by omega), if_pos (by omega)]
+  rw [ite_eq_right (by omega), ite_eq_left (by omega)]
   have subtract : 256 + position * 38 + 1 + bit - 256 = position * 38 + 1 + bit := by omega
   have divide : (position * 38 + 1 + bit) / 38 = position := by omega
   have modulo : (position * 38 + 1 + bit) % 38 = 1 + bit := by omega
   rw [subtract]
   dsimp only
-  rw [divide, modulo, if_neg (by omega)]
+  rw [divide, modulo, ite_eq_right (by omega)]
   rw [show 1 + bit - 1 = bit by omega]
 
 theorem division (base : Env) (start : Nat) (draw : Draw) (round position : Nat)
@@ -122,11 +122,11 @@ theorem division (base : Env) (start : Nat) (draw : Draw) (round position : Nat)
   constructor
   · rw [assigned base start draw _ (by change _ < 1404; omega)]
     unfold value
-    rw [if_neg (by omega), if_neg (by omega)]
+    rw [ite_eq_right (by omega), ite_eq_right (by omega)]
     have hsub : 864 + round * 10 + 2 * position - 864 = round * 10 + 2 * position := by omega
     rw [hsub]
     dsimp only
-    rw [if_pos (by omega)]
+    rw [ite_eq_left (by omega)]
     have hround : (round * 10 + 2 * position) / 10 = round := by omega
     have hposition : (round * 10 + 2 * position) % 10 / 2 = position := by omega
     rw [hround, hposition]
@@ -134,12 +134,12 @@ theorem division (base : Env) (start : Nat) (draw : Draw) (round position : Nat)
         start + (864 + round * 10 + 2 * position + 1) by omega,
         assigned base start draw _ (by change _ < 1404; omega)]
     unfold value
-    rw [if_neg (by omega), if_neg (by omega)]
+    rw [ite_eq_right (by omega), ite_eq_right (by omega)]
     have hsub : 864 + round * 10 + 2 * position + 1 - 864 =
         round * 10 + 2 * position + 1 := by omega
     rw [hsub]
     dsimp only
-    rw [if_neg (by omega)]
+    rw [ite_eq_right (by omega)]
     have hround : (round * 10 + 2 * position + 1) / 10 = round := by omega
     have hposition : (round * 10 + 2 * position + 1) % 10 / 2 = position := by omega
     rw [hround, hposition]

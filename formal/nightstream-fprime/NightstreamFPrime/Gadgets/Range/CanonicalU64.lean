@@ -3,7 +3,7 @@ import NightstreamFPrime.Circuit.VariableSupport
 import NightstreamFPrime.Spec.GoldilocksPrime
 
 /-!
-Owns the exact canonical 64-bit decomposition of one Goldilocks field value.
+Obligation: exact canonical 64-bit decomposition of one Goldilocks field value.
 
 Inputs:
 - one caller-owned field expression below the allocation offset.

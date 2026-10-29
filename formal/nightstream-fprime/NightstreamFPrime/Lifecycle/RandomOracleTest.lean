@@ -5,33 +5,8 @@ import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.IndependentExecution
 import NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.RoundByRound
 
 /-!
-Owns the PiCCS test error of the production NIFS key in the random-oracle
-model: a random function of each challenge's address (its calls and its lane
-pair) replaces the sponge read.
-
-Inputs: the production key, a fixed running statement, a fixed witness, and an
-adaptive oracle adversary with at most `Q` queries that outputs a fresh
-statement and a NIFS proof.
-
-Outputs:
-- `oracleProbe`: the key's PiCCS probe with oracle coins in place of the
-  sponge reads (`TranscriptCoverage.piCcsProbe_coins`); the response is the
-  key's own;
-- `test_error_le`: the oracle probe is accepted with an output that the
-  witness opens, while the witness fails the source relation, with
-  probability at most `(Q + 1) * IndependentExecution.testError`;
-- `hits_error_le`: the sum over the PiCCS coins that `test_error_le` and
-  Lemma 6 (`RandomOracleUniqueness`) share.
-
-Invariant: each challenge's bad set reads the oracle only at the other
-challenges of the same execution (`point_injective`),
-and equal calls give equal bad sets (`TranscriptCoverage.proverCalls_identify`).
-
-The statement is adaptive; the witness and the running statement are fixed.
-At a fork the extractor fixes both before the second run.
-
-Does not own: the oracle model's fit to Poseidon2, the `Π_RLC` and `Π_DEC`
-extraction, or the forking argument.
+Random-oracle model, SECURITY_MODEL.md Lemma 4: a random function of each
+challenge's address replaces the Poseidon2 sponge read.
 -/
 
 set_option autoImplicit false
@@ -91,10 +66,11 @@ theorem expect_decodeK (value : K → ℝ) :
     (fun words : (F × F) × (F × F) => value ⟨words.1.1, words.1.2⟩) fun _ => rfl).trans ?_
   simp only [pairs, Finset.expect_eq_sum_div_card, Finset.sum_map, Finset.card_map,
     Finset.card_univ, Fintype.card_prod, Fintype.sum_prod_type, Finset.sum_const, nsmul_eq_mul,
-    ← Finset.mul_sum, Function.Embedding.coeFn_mk]
+    ← Finset.mul_sum]
   have positive : (0 : ℝ) < Fintype.card F := by exact_mod_cast Fintype.card_pos
   push_cast
   field_simp
+  rfl
 
 variable {logicalWidth : Nat}
   {publicFits : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth logicalWidth}
@@ -162,7 +138,7 @@ theorem read_challengeAddress {degree : Nat}
     (proof : Proof degree) (challenge : Challenge) :
     read oracle (challengeAddress fresh proof challenge) =
       decodeK (oracle (point fresh proof challenge)) :=
-  dif_pos _
+  dite_eq_left _
 
 variable (relation : ProductionKey.LogicalRelation logicalWidth publicFits)
   (ajtai : AjtaiKey (logicalWidth := logicalWidth) (publicFits := publicFits))
@@ -478,7 +454,7 @@ private theorem coinBad_probability_le (challenge : Challenge) (coins : PublicCo
           rw [pairs_card, ProductionKey.degreeBound_eq]
           simp [error]
   | rho =>
-      simp only [coinBad, error, Set.mem_empty_iff_false, if_false, Finset.expect_const_zero,
+      simp only [coinBad, error, Set.mem_empty_iff_false, ite_false, Finset.expect_const_zero,
         le_refl]
 
 theorem bad_mass_le (challenge : Challenge) (target : Point logicalWidth publicFits Degree)
@@ -500,11 +476,11 @@ theorem bad_mass_le (challenge : Challenge) (target : Point logicalWidth publicF
     exact (le_of_eq uniform).trans bound
   · have empty : bad relation ajtai running witness challenge target oracle = ∅ := by
       ext answer
-      simp only [bad, Set.mem_setOf_eq, Set.mem_empty_iff_false, iff_false]
+      simp only [bad, Set.mem_ofPred_eq, Set.mem_empty_iff_false, iff_false]
       rintro ⟨fresh, proof, same, _⟩
       exact located ⟨fresh, proof, same⟩
     rw [empty]
-    simp only [mass, Set.mem_empty_iff_false, if_false, Finset.expect_const_zero]
+    simp only [mass, Set.mem_empty_iff_false, ite_false, Finset.expect_const_zero]
     exact error_nonnegative challenge
 
 omit relation ajtai running witness in
@@ -513,7 +489,7 @@ private theorem indicator_le_sum {Index : Type} [Fintype Index] (event : Index �
     (1 : ℝ) ≤ ∑ index, if event index then (1 : ℝ) else 0 := by
   have single := Finset.single_le_sum (f := fun index => if event index then (1 : ℝ) else 0)
     (fun index _ => by split <;> norm_num) (Finset.mem_univ chosen)
-  simpa only [if_pos holds] using single
+  simpa only [ite_eq_left holds] using single
 
 omit relation ajtai running witness in
 private theorem indicator_sum_nonnegative {Index : Type} [Fintype Index] (event : Index → Prop) :
@@ -574,16 +550,16 @@ theorem hits_error_le (event : Oracle → Prop) (hit : Challenge → Oracle → 
     have rounds := indicator_sum_nonnegative fun index => hit (.round index) oracle
     have gamma : (0 : ℝ) ≤ if hit .gamma oracle then (1 : ℝ) else 0 := by split <;> norm_num
     by_cases happens : event oracle
-    · rw [if_pos happens]
+    · rw [ite_eq_left happens]
       rcases hits oracle happens with ⟨index, holds⟩ | holds | ⟨index, holds⟩
       · have := indicator_le_sum (fun index => hit (.alpha index) oracle) index holds
         linarith
       · have : (1 : ℝ) ≤ if hit .gamma oracle then (1 : ℝ) else 0 := by
-          rw [if_pos holds]
+          rw [ite_eq_left holds]
         linarith
       · have := indicator_le_sum (fun index => hit (.round index) oracle) index holds
         linarith
-    · rw [if_neg happens]
+    · rw [ite_eq_right happens]
       linarith
   have alphaBound : 𝔼 oracle, (∑ index, if hit (.alpha index) oracle then (1 : ℝ) else 0) ≤
       productionShape.cubeVariables * (scale * error (.alpha ⟨0, by decide⟩)) := by

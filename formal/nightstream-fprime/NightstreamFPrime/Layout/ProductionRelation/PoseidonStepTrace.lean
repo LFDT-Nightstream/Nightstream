@@ -1,15 +1,5 @@
 import NightstreamFPrime.Gadgets.Poseidon2.Permutation
 
-/-!
-Owns the exact fixed-step trace selected by the production Poseidon2 rewrite.
-Each step exposes its S-box inputs and outputs plus its eight final affine
-output recipes. The trace is definitionally derived from the canonical
-permutation builder.
-
-This module proves source-to-trace soundness and exact replacement row counts.
-It does not construct final sparse low-norm forms.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonStepTrace
 
 open NightstreamFPrime.Spec

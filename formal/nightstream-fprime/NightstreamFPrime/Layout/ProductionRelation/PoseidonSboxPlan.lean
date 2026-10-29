@@ -3,16 +3,6 @@ import NightstreamFPrime.Layout.ProductionRelation.PoseidonRetainedSlots
 import NightstreamFPrime.Layout.ProductionRelation.SboxRow
 import NightstreamFPrime.Layout.ProductionRelation.SparseLayer
 
-/-!
-Owns the compact direct selective plan for one Poseidon2 permutation. The
-plan retains and constrains only the 150 S-box outputs. All linear layers are
-computed as sparse forms. Eight final pin rows bind the computed output to
-the caller-owned output forms.
-
-This module is one fixed-size template. Invocation placement belongs to the
-Stage 1 export layer.
--/
-
 namespace NightstreamFPrime.Layout.ProductionRelation.PoseidonSboxPlan
 
 open NightstreamFPrime.Gadgets.Poseidon2
@@ -555,7 +545,7 @@ theorem plan_rowImage_at {logicalWidth : Nat}
       ((rows interface).get row).portImages assignment := by
   funext port
   unfold ProductionRelation.Plan.rowImage
-  rw [(plan interface).rowLayout.toColumn_toVertex]
+  erw [(plan interface).rowLayout.toColumn_toVertex]
   rfl
 
 theorem plan_residual_at {logicalWidth : Nat}

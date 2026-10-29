@@ -1,40 +1,11 @@
 import Mathlib.Algebra.Order.BigOperators.Expect
 import Mathlib.Data.Fintype.Pi
-import Mathlib.Data.Real.Basic
+import Mathlib.Basic.Real.Basic
 import Mathlib.Tactic.FieldSimp
 import Mathlib.Tactic.Linarith
 import Mathlib.Tactic.Positivity
 
-/-!
-Owns the random-oracle model of the Fiat–Shamir knowledge proof: a uniformly
-random function from a finite point type to a finite answer type, adaptive
-oracle computations, and the escape bound.
-
-Inputs: an oracle computation with a query bound, and a bad set of answers at
-each point.
-
-Outputs:
-- `escape_le`: the probability that some queried point has its answer in its
-  bad set is at most `Q * ε`;
-- `pinned_le`: the same for one point of the output, at most `(Q + 1) * ε`;
-- `repeat_le`, `retries_le`: a rewinding extractor that resamples one point
-  until it succeeds again repeats the base answer's key with total chance at
-  most `Q * ε`, after at most `Q` expected retries; each queried point is
-  charged once (`expect_queried_le`, `mem_queries_update_iff`);
-- `expected_bad_retries`: under independent retries (`retryWeight`), the
-  expected number of bad retries is the sum of the per-coordinate chances;
-- `OracleComp.record`, `run_congr`: what one run shows, its output and its
-  queries; a run reads its oracle only at the points it queries.
-
-`escape_le` restates Ironwood's `escapesDuringC_measure_le'`, whose escape sets
-read the table and are blind at their own point, as `Local` sets are here;
-`pinned_le` is its `xEscAtPoint_measure_le` for such sets (zcash/ironwood
-86e3c7026db8, Apache-2.0 or MIT). Both are restated with finite averages. The
-rewinding lemmas have no Ironwood counterpart: its extractor does not rewind.
-
-Does not own: which points a protocol queries, a claim that a concrete hash
-behaves as this oracle, or quantum queries.
--/
+/-! `escape_le` and `pinned_le` restate Ironwood's `escapesDuringC_measure_le'` and `xEscAtPoint_measure_le` (zcash/ironwood 86e3c7026db8, Apache-2.0 or MIT). -/
 
 set_option autoImplicit false
 
@@ -298,7 +269,7 @@ private theorem escape_le_over {computation : OracleComp Point Answer Output} {b
   induction bounded generalizing fixed values with
   | done output bound =>
       simp only [Escapes, OracleComp.queries, List.not_mem_nil, false_and, exists_false,
-        if_false, Finset.expect_const_zero]
+        ite_false, Finset.expect_const_zero]
       positivity
   | query point next bound _ inductionHypothesis =>
       by_cases inside : point ∈ fixed
@@ -324,21 +295,21 @@ private theorem escape_le_over {computation : OracleComp Point Answer Output} {b
           have laterNonnegative : (0 : ℝ) ≤ if later oracle then 1 else 0 := by
             split <;> norm_num
           by_cases escapes : Escapes bad (.query point next) fixed (overlay fixed values oracle)
-          · rw [if_pos escapes]
+          · rw [ite_eq_left escapes]
             obtain ⟨other, member, outside, isBad⟩ := escapes
             by_cases same : other = point
             · rw [same] at isBad
               have holds : first oracle := isBad
-              rw [if_pos holds]
+              rw [ite_eq_left holds]
               linarith
             · have tail : other ∈ (next (overlay fixed values oracle point)).queries
                   (overlay fixed values oracle) := by
                 simpa [OracleComp.queries, same] using member
               have holds : later oracle :=
                 ⟨other, tail, by simp [same, outside], isBad⟩
-              rw [if_pos holds]
+              rw [ite_eq_left holds]
               linarith
-          · rw [if_neg escapes]
+          · rw [ite_eq_right escapes]
             linarith
         have firstBound :
             𝔼 oracle, (if first oracle then (1 : ℝ) else 0) ≤ ε := by
@@ -389,9 +360,9 @@ theorem pinned_le {computation : OracleComp Point Answer Output} {bound : Nat}
   · have queried : ∃ asked ∈ (computation.thenQuery point).queries oracle,
         oracle asked ∈ bad asked oracle :=
       ⟨_, computation.mem_queries_thenQuery point oracle, isBad⟩
-    simp only [if_pos isBad, if_pos queried]
+    simp only [ite_eq_left isBad, ite_eq_left queried]
     norm_num
-  · simp only [if_neg isBad]
+  · simp only [ite_eq_right isBad]
     split <;> norm_num
 
 omit [Nonempty Answer] in
@@ -400,7 +371,7 @@ theorem mass_mono {small large : Set Answer} (inside : small ⊆ large) :
   Finset.expect_le_expect fun answer _ => by
     by_cases member : answer ∈ small
     · simp [member, inside member]
-    · simp only [member, if_false]
+    · simp only [member, ite_false]
       split <;> norm_num
 
 omit [Nonempty Answer] in
@@ -465,7 +436,7 @@ private theorem queried_of_mass {computation : OracleComp Point Answer Output}
   by_contra absent
   apply positive
   unfold mass
-  refine Finset.expect_eq_zero fun answer _ => if_neg fun inside => absent ?_
+  refine Finset.expect_eq_zero fun answer _ => ite_eq_right fun inside => absent ?_
   exact (OracleComp.mem_queries_update_iff oracle point answer computation).mp
     (queried point _ inside)
 
@@ -490,16 +461,16 @@ private theorem line_term_le {computation : OracleComp Point Answer Output}
           bound / mass (lineSet success point oracle) else 0) :=
       Finset.expect_le_expect fun answer _ => by
         by_cases inside : answer ∈ lineSet success point oracle
-        · simp only [if_pos inside]
+        · simp only [ite_eq_left inside]
           exact local_ _ answer inside
-        · simp only [if_neg inside, le_refl]
+        · simp only [ite_eq_right inside, le_refl]
     _ = bound / mass (lineSet success point oracle) * mass (lineSet success point oracle) :=
       expect_indicator _ _
     _ ≤ bound * (if point ∈ computation.queries oracle then 1 else 0) := by
       by_cases positive : mass (lineSet success point oracle) = 0
       · rw [positive, mul_zero]
         split <;> nlinarith
-      · rw [div_mul_cancel₀ _ positive, if_pos (queried_of_mass success queried point oracle positive),
+      · rw [div_mul_cancel₀ _ positive, ite_eq_left (queried_of_mass success queried point oracle positive),
           mul_one]
 
 theorem repeat_le {Key : Type*} (key : Answer → Key) (ε : ℝ)
@@ -596,7 +567,7 @@ theorem expected_bad_retries {Index : Type*} [Fintype Index] [DecidableEq Index]
             (if coordinate = index then
               (if retries coordinate ∈ bad coordinate then 1 else 0) else 1) := by
       refine Finset.sum_congr rfl fun index _ => Finset.sum_congr rfl fun retries _ => ?_
-      simp only [Finset.prod_mul_distrib, Finset.prod_ite_eq', Finset.mem_univ, if_true,
+      simp only [Finset.prod_mul_distrib, Finset.prod_ite_eq', Finset.mem_univ, ite_true,
         retryWeight]
     _ = ∑ index, ∏ coordinate, ∑ answer : Answer,
           (if answer ∈ sets coordinate then (1 : ℝ) else 0) /
@@ -624,7 +595,7 @@ theorem retryWeight_sum_eq_one {Index : Type*} [Fintype Index] [DecidableEq Inde
     simp [single]
   · have nonempty : Nonempty Index := not_isEmpty_iff.mp empty
     have total := expected_bad_retries sets positive (fun _ => Set.univ)
-    simp only [Set.mem_univ, if_true, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one,
+    simp only [Set.mem_univ, ite_true, Finset.sum_const, Finset.card_univ, nsmul_eq_mul, mul_one,
       Set.inter_univ, div_self (positive _)] at total
     have count : (0 : ℝ) < Fintype.card Index := by exact_mod_cast Fintype.card_pos
     rw [← Finset.sum_mul] at total

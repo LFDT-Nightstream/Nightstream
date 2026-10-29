@@ -1,13 +1,5 @@
 import NightstreamFPrime.Export.Stage1.PiRLCRetainedGeometry
 
-/-!
-Owns the concrete sparse-form inputs for the direct PiRLC product plan.
-The parent supplies the PiCCS-owned value forms. Challenge, prior,
-and final values use their checked block slots.
-
-This module does not construct the final assignment or compose other phases.
--/
-
 namespace NightstreamFPrime.Export.Stage1.PiRLCRetainedInputs
 
 open NightstreamFPrime.Layout

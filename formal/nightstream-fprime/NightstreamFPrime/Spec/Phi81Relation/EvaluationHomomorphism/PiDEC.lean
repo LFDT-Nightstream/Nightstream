@@ -3,20 +3,6 @@ import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.BaseLinear
 import NightstreamFPrime.Spec.Phi81Relation.Semantics
 import NightstreamFPrime.Spec.Folding.PiDEC
 
-/-!
-Production-parameter evaluation recomposition for the typed Phi81 `PiDEC`
-algebra.
-
-Owns: the verifier-fixed `b = 2`, `k = 16` base-field weights; raw width-only
-and typed recomposition of complete assignments; their exact equality;
-fixed-shape recomposition of all matrix-evaluation arrays; and the concrete
-theorem with the exact type of `PiDEC.Algebra.evaluations_hom`.
-
-Does not own: digit splitting, digit norm bounds, commitment or public-input
-homomorphisms, construction of a complete `PiDEC.Algebra`, Rust/R1CS
-refinement, row removal, or constraint counts.
--/
-
 namespace NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.PiDEC
 
 open NightstreamFPrime.Spec

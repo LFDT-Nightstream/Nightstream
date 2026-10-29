@@ -1,10 +1,5 @@
 import NightstreamFPrime.Circuit.StraightLine
 
-/-!
-Owns a generic predicate for the variable indices read by one circuit
-expression. It does not select a protocol support set.
--/
-
 namespace NightstreamFPrime.Circuit.Expr
 
 def VarsSatisfy (allowed : Nat → Prop) : Expr → Prop

@@ -1,7 +1,10 @@
 import CompressionLean.Bridge.Honest
+import CompressionLean.Spec.Openings
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
+open CompressionLean.Lib
 open Polynomial
 open NightstreamFPrime.Spec
 open CompressionLean.Replay CompressionLean.Layer1
@@ -10,39 +13,36 @@ def squarings : ℕ → ℕ → ℕ
   | 0, x => x
   | n + 1, x => squarings n (x * x % goldilocksModulus)
 
-theorem squarings_cast (n x : ℕ) : ((squarings n x : ℕ) : Fp) = (x : Fp) ^ (2 ^ n) := by
+theorem squarings_cast (n x : ℕ) : ((squarings n x : ℕ) : Gl) = (x : Gl) ^ (2 ^ n) := by
   induction n generalizing x with
   | zero => simp [squarings]
   | succ n ih => rw [squarings, ih, ZMod.natCast_mod, Nat.cast_mul, ← sq, ← pow_mul, pow_succ']
 
-/-- Plonky3's `two_adic_generator(bits)`. -/
-def twoAdic (bits : ℕ) : Fp := (0x185629dcda58878c : Fp) ^ (2 ^ (32 - bits))
-
 theorem toF_twoAdicGenerator (bits : ℕ) : (twoAdicGenerator bits).toF = twoAdic bits := by
   unfold twoAdicGenerator twoAdic
-  have squares : ∀ (l : List ℕ) (g : Gl), (l.foldl (fun g _ => g * g) g).toF = g.toF ^ (2 ^ l.length) := by
+  have squares : ∀ (l : List ℕ) (g : Word), (l.foldl (fun g _ => g * g) g).toF = g.toF ^ (2 ^ l.length) := by
     intro l
     induction l with
     | nil => intro g; simp
     | cons _ rest ih =>
         intro g
-        rw [List.foldl_cons, ih, Gl.toF_mul, ← sq, ← pow_mul, List.length_cons, pow_succ']
-  rw [squares, List.length_range, Gl.toF_ofNat]
+        rw [List.foldl_cons, ih, Word.toF_mul, ← sq, ← pow_mul, List.length_cons, pow_succ']
+  rw [squares, List.length_range, Word.toF_ofNat]
   norm_num
 
-theorem generator_pow_31 : (0x185629dcda58878c : Fp) ^ (2 ^ 31) = -1 := by
+theorem generator_pow_31 : (0x185629dcda58878c : Gl) ^ (2 ^ 31) = -1 := by
   have computed : squarings 31 0x185629dcda58878c = goldilocksModulus - 1 := by decide
   have := squarings_cast 31 0x185629dcda58878c
   rw [computed, Nat.cast_sub (by decide), ZMod.natCast_self, Nat.cast_one, zero_sub, Nat.cast_ofNat] at this
   exact this.symm
 
-theorem generator_pow_32 : (0x185629dcda58878c : Fp) ^ (2 ^ 32) = 1 := by
+theorem generator_pow_32 : (0x185629dcda58878c : Gl) ^ (2 ^ 32) = 1 := by
   rw [pow_succ, pow_mul, generator_pow_31]
   norm_num
 
-theorem neg_one_ne_one : (-1 : Fp) ≠ 1 := by
+theorem neg_one_ne_one : (-1 : Gl) ≠ 1 := by
   intro same
-  have two : (2 : Fp) = 0 := by linear_combination -same
+  have two : (2 : Gl) = 0 := by linear_combination -same
   have := (ZMod.natCast_eq_zero_iff 2 goldilocksModulus).mp (by exact_mod_cast two)
   have := Nat.le_of_dvd (by norm_num) this
   have := three_le_modulus
@@ -58,7 +58,7 @@ theorem omega_pow_eight : twoAdic 3 ^ 8 = 1 := by
   rw [show (8 : ℕ) = 2 ^ 3 by norm_num, ← omega_order]
   exact pow_orderOf_eq_one _
 
-theorem generator_ne_zero : (0x185629dcda58878c : Fp) ≠ 0 := by
+theorem generator_ne_zero : (0x185629dcda58878c : Gl) ≠ 0 := by
   intro zero
   have := generator_pow_32
   rw [zero, zero_pow (by norm_num)] at this
@@ -71,11 +71,7 @@ theorem twoAdic_pow_eight (n : ℕ) (low : 2 ≤ n) (high : n + 1 ≤ 32) : twoA
   congr 2
   omega
 
-def leafY (n i : ℕ) : Fp := 7 * twoAdic (n + 1) ^ i
-
-def queryPoint (n i : ℕ) : Fp := 7 ^ 8 * twoAdic (n - 2) ^ i
-
-theorem seven_ne_zero : (7 : Fp) ≠ 0 := by
+theorem seven_ne_zero : (7 : Gl) ≠ 0 := by
   intro zero
   have := (ZMod.natCast_eq_zero_iff 7 goldilocksModulus).mp (by exact_mod_cast zero)
   have := Nat.le_of_dvd (by norm_num) this
@@ -88,20 +84,20 @@ theorem leafY_ne_zero (n i : ℕ) : leafY n i ≠ 0 :=
 theorem leafY_pow_eight (n i : ℕ) (low : 2 ≤ n) (high : n + 1 ≤ 32) : leafY n i ^ 8 = queryPoint n i := by
   rw [leafY, queryPoint, mul_pow, ← pow_mul, mul_comm i 8, pow_mul, twoAdic_pow_eight n low high]
 
-theorem toF_powerFromBits (bits : ℕ) : ∀ (g : Gl) (index : ℕ),
+theorem toF_powerFromBits (bits : ℕ) : ∀ (g : Word) (index : ℕ),
     (powerFromBits g index bits).toF = g.toF ^ (index % 2 ^ bits) := by
   induction bits with
   | zero => intro g index; simp [powerFromBits, Nat.mod_one]
   | succ bits ih =>
       intro g index
-      rw [powerFromBits, Gl.toF_mul, ih, Gl.toF_mul, ← sq, ← pow_mul, pow_succ', Nat.mod_mul, pow_add, pow_mul]
+      rw [powerFromBits, Word.toF_mul, ih, Word.toF_mul, ← sq, ← pow_mul, pow_succ', Nat.mod_mul, pow_add, pow_mul]
       rcases Nat.mod_two_eq_zero_or_one index with even | odd
-      · rw [ite_eq_right (by omega), Gl.toF_one, even, pow_zero, one_mul]
+      · rw [ite_eq_right (by omega), Word.toF_one, even, pow_zero, one_mul]
       · rw [ite_eq_left odd, odd, pow_one]
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-local notation "ι" => algebraMap Fp K
+local notation "ι" => algebraMap Gl K
 
 theorem toK_monomial : ∀ (alpha : List Ext) (u : ℕ),
     (Replay.monomial alpha u).toK (K := K) = Layer1.monomial (alpha.map Ext.toK) u
@@ -111,24 +107,24 @@ theorem toK_monomial : ∀ (alpha : List Ext) (u : ℕ),
       split_ifs <;> simp
 
 omit [Fintype K] [ChallengeField K] in
-theorem powerPoint_map (x : Fp) : ∀ n, (powerPoint x n).map (algebraMap Fp K) = powerPoint (ι x) n := by
+theorem powerPoint_map (x : Gl) : ∀ n, (powerPoint x n).map (algebraMap Gl K) = powerPoint (ι x) n := by
   intro n
   induction n generalizing x with
   | zero => rfl
   | succ n ih => simp [powerPoint, ih, map_pow]
 
 omit [Fintype K] [ChallengeField K] in
-theorem mle_map (p : List Fp) (t : ℕ → Fp) : ι (mle p t) = mle (p.map ι) fun i => ι (t i) := by
+theorem mle_map (p : List Gl) (t : ℕ → Gl) : ι (mle p t) = mle (p.map ι) fun i => ι (t i) := by
   rw [mle_eq_cubeSum, mle_eq_cubeSum, cubeSum_eq_sum_range, cubeSum_eq_sum_range, List.length_map, map_sum]
   apply Finset.sum_congr rfl
   intro i _
   rw [map_mul, eqAt_map]
 
 omit [Fintype K] [ChallengeField K] in
-theorem univ_map (n : ℕ) (t : ℕ → Fp) (x : Fp) : ι ((univ n t).eval x) = (univ n fun i => ι (t i)).eval (ι x) := by
+theorem univ_map (n : ℕ) (t : ℕ → Gl) (x : Gl) : ι ((univ n t).eval x) = (univ n fun i => ι (t i)).eval (ι x) := by
   rw [univ_eval, univ_eval, mle_map, powerPoint_map]
 
-omit [Algebra Fp K] [Fintype K] [ChallengeField K] in
+omit [Algebra Gl K] [Fintype K] [ChallengeField K] in
 theorem univ_sum (n m : ℕ) (f : ℕ → ℕ → K) :
     univ n (fun x => ∑ k ∈ Finset.range m, f k x) = ∑ k ∈ Finset.range m, univ n (f k) := by
   induction m with
@@ -139,24 +135,11 @@ theorem univ_sum (n m : ℕ) (f : ℕ → ℕ → K) :
       simp only [Finset.sum_range_succ]
       rw [univ_add, ih]
 
-def setupOracle (rel : Replay.Relation) (S : Setup Fp) (o x : ℕ) : Fp :=
-  if o < rel.kappa then S.key o x
-  else if o = rel.kappa then (S.runRow x : Fp)
-  else if o = rel.kappa + 1 then (S.runSlot x : Fp)
-  else if o = rel.kappa + 2 then S.runCoef x
-  else if x < S.slots then (S.slotBlock x : Fp) else 0
-
-/-- Assumption: Merkle binding (hash collision resistance), not proved here. -/
-def MerkleBinds (rel : Replay.Relation) (S : Setup Fp) (leaves : Array Leaf) : Prop :=
-  ∀ leaf ∈ leaves.toList, ∀ i, pathOk rel.key.root i leaf = true → ∀ o v, o < rel.kappa + runOracles →
-    v < 2 ^ foldVars → (leaf.values[o * 2 ^ foldVars + v]!).toF =
-      (univ rel.setupVars (setupOracle rel S o)).eval (leafY rel.setupVars i * twoAdic 3 ^ v)
-
-omit [Algebra Fp K] [Fintype K] [ChallengeField K] in
+omit [Algebra Gl K] [Fintype K] [ChallengeField K] in
 theorem pow_mod_eight {w : K} (root : w ^ 8 = 1) (n : ℕ) : w ^ (n % 8) = w ^ n := by
   conv_rhs => rw [← Nat.div_add_mod n 8, pow_add, pow_mul, root, one_pow, one_mul]
 
-omit [Algebra Fp K] [Fintype K] [ChallengeField K] in
+omit [Algebra Gl K] [Fintype K] [ChallengeField K] in
 theorem pow_dft {w : K} (root : w ^ 8 = 1) {u : ℕ} (small : u < 8) (v : ℕ) :
     w ^ ((8 - u) * v % 8) = w⁻¹ ^ (u * v) := by
   have nonzero : w ≠ 0 := fun zero => by rw [zero, zero_pow (by norm_num)] at root; exact zero_ne_one root
@@ -167,7 +150,7 @@ theorem pow_dft {w : K} (root : w ^ 8 = 1) {u : ℕ} (small : u < 8) (v : ℕ) :
 omit [Fintype K] [ChallengeField K] in
 theorem omega_K : (ι (twoAdic 3)) ^ 8 = 1 := by rw [← map_pow, omega_pow_eight, map_one]
 
-theorem toK_leafWeight (alpha : Array Ext) (y : Fp) (yInverse : Gl) (hy : yInverse.toF = y⁻¹) (v : ℕ) :
+theorem toK_leafWeight (alpha : Array Ext) (y : Gl) (yInverse : Word) (hy : yInverse.toF = y⁻¹) (v : ℕ) :
     (leafWeight alpha yInverse (twoAdicGenerator foldVars) v).toK (K := K) =
       ∑ u ∈ Finset.range (2 ^ foldVars), Layer1.monomial (pointK alpha) u * ((2 ^ foldVars : ℕ) : K)⁻¹ *
         (ι y)⁻¹ ^ u * (ι (twoAdic 3))⁻¹ ^ (u * v) := by
@@ -176,7 +159,7 @@ theorem toK_leafWeight (alpha : Array Ext) (y : Fp) (yInverse : Gl) (hy : yInver
   intro u inside
   have small : u < 8 := Finset.mem_range.mp inside
   have eight : (2 : ℕ) ^ foldVars = 8 := rfl
-  rw [Ext.toK_scale, Ext.toK_scale, Gl.toF_mul, Gl.toF_pow, Gl.toF_pow, Gl.toF_inv, Gl.toF_ofNat, hy,
+  rw [Ext.toK_scale, Ext.toK_scale, Word.toF_mul, Word.toF_pow, Word.toF_pow, Word.toF_inv, Word.toF_ofNat, hy,
     toF_twoAdicGenerator, map_mul, map_pow, map_pow, map_inv₀, map_inv₀, map_natCast, eight,
     show foldVars = 3 from rfl, pow_dft omega_K small, toK_monomial]
   simp only [pointK, inv_pow]
@@ -186,24 +169,24 @@ omit [Fintype K] [ChallengeField K] in
 theorem omega_K_primitive : ∀ k, 0 < k → k < 2 ^ 3 → (ι (twoAdic 3)) ^ k ≠ 1 := by
   intro k positive small one
   apply pow_ne_one_of_lt_orderOf (x := twoAdic 3) (n := k) (by omega) (by rw [omega_order]; exact small)
-  apply (algebraMap Fp K).injective
+  apply (algebraMap Gl K).injective
   rw [map_pow, one, map_one]
 
 omit [Fintype K] [ChallengeField K] in
 theorem eight_ne_zero : ((2 ^ 3 : ℕ) : K) ≠ 0 := by
-  rw [← map_natCast (algebraMap Fp K)]
-  refine (map_ne_zero (algebraMap Fp K)).mpr ?_
+  rw [← map_natCast (algebraMap Gl K)]
+  refine (map_ne_zero (algebraMap Gl K)).mpr ?_
   intro zero
   have := (ZMod.natCast_eq_zero_iff (2 ^ 3) goldilocksModulus).mp (by exact_mod_cast zero)
   have := Nat.le_of_dvd (by norm_num) this
   have : (9 : ℕ) ≤ goldilocksModulus := by decide
   omega
 
-theorem toK_groupValue (rel : Replay.Relation) (S : Setup Fp) (leaf : Leaf) (index : ℕ)
+theorem toK_groupValue (rel : Replay.Relation) (S : Setup Gl) (leaf : Leaf) (index : ℕ)
     (codeword : ∀ o v, o < rel.kappa + runOracles → v < 2 ^ foldVars →
       (leaf.values[o * 2 ^ foldVars + v]!).toF =
         (univ rel.setupVars (setupOracle rel S o)).eval (leafY rel.setupVars index * twoAdic 3 ^ v))
-    (alpha : Array Ext) (alphaSize : alpha.size = foldVars) (yInverse : Gl)
+    (alpha : Array Ext) (alphaSize : alpha.size = foldVars) (yInverse : Word)
     (hy : yInverse.toF = (leafY rel.setupVars index)⁻¹) (weights : Array Ext) (offset : ℕ)
     (fit : offset + weights.size ≤ rel.kappa + runOracles) (G : ℕ → K)
     (group : ∀ x, G x = ∑ k ∈ Finset.range weights.size, (weights[k]!).toK * ι (setupOracle rel S (offset + k) x))
@@ -225,7 +208,7 @@ theorem toK_groupValue (rel : Replay.Relation) (S : Setup Fp) (leaf : Leaf) (ind
       univ_mul_left, eval_mul, eval_C, map_mul, map_pow]
   have length : (pointK (K := K) alpha).length = 3 := by rw [pointK_length, alphaSize]; rfl
   have formula := leaf_formula (rel.setupVars - 3) G (pointK alpha) (ι (leafY rel.setupVars index))
-    (ι (twoAdic 3)) ((map_ne_zero (algebraMap Fp K)).mpr (leafY_ne_zero _ _)) (by rw [length]; exact omega_K)
+    (ι (twoAdic 3)) ((map_ne_zero (algebraMap Gl K)).mpr (leafY_ne_zero _ _)) (by rw [length]; exact omega_K)
     (by rw [length]; exact omega_K_primitive) (by rw [length]; exact eight_ne_zero)
   have target : (ι (leafY rel.setupVars index)) ^ 2 ^ (pointK (K := K) alpha).length =
       ι (queryPoint rel.setupVars index) := by
@@ -240,8 +223,8 @@ theorem toK_groupValue (rel : Replay.Relation) (S : Setup Fp) (leaf : Leaf) (ind
 
 theorem toF_yInverse (n index : ℕ) (inside : index < 2 ^ (n - 2)) (low : 2 ≤ n) :
     (powerFromBits (twoAdicGenerator (n + 1)).inv index (n + 1 - foldVars) * generator.inv).toF = (leafY n index)⁻¹ := by
-  have seven : generator.toF = 7 := Gl.toF_lit 7
-  rw [Gl.toF_mul, toF_powerFromBits, Gl.toF_inv, Gl.toF_inv, toF_twoAdicGenerator, seven,
+  have seven : generator.toF = 7 := Word.toF_lit 7
+  rw [Word.toF_mul, toF_powerFromBits, Word.toF_inv, Word.toF_inv, toF_twoAdicGenerator, seven,
     show n + 1 - foldVars = n - 2 by simp only [foldVars]; omega, Nat.mod_eq_of_lt inside, leafY, mul_inv, inv_pow,
     mul_comm]
 
@@ -250,7 +233,7 @@ theorem two_groups (a b : Array Ext) (f : Array Ext × ℕ → Ext) :
       #[f (a, 0), f (b, a.size)] := by
   simp
 
-theorem setupCheck_value (rel : Replay.Relation) (S : Setup Fp) {leaves : Array Leaf} (merkle : MerkleBinds rel S leaves)
+theorem setupCheck_value (rel : Replay.Relation) (S : Setup Gl) {leaves : Array Leaf} (merkle : MerkleBinds rel S leaves)
     {index : ℕ} (inside : index < 2 ^ (rel.setupVars - 2)) {leaf : Leaf} (member : leaf ∈ leaves.toList) (lam mu : Ext)
     {alpha : Array Ext} (alphaSize : alpha.size = foldVars) (setup : 3 ≤ rel.setupVars) (high : rel.setupVars + 1 ≤ 32)
     {vals : Array Ext}
@@ -264,7 +247,7 @@ theorem setupCheck_value (rel : Replay.Relation) (S : Setup Fp) {leaves : Array 
         (fold (pointK alpha) (runGroup S mu.toK))).eval (ι (queryPoint rel.setupVars index)) := by
   unfold setupCheck at ok
   obtain ⟨_, path, ok⟩ := Except.bind_ok ok
-  have codeword := merkle leaf member index (Except.ensure_ok path)
+  have codeword := merkle leaf member index inside (Except.ensure_ok path)
   have yInverse := toF_yInverse rel.setupVars index inside (by omega)
   dsimp only at ok
   rw [two_groups] at ok
@@ -292,7 +275,7 @@ theorem setupCheck_value (rel : Replay.Relation) (S : Setup Fp) {leaves : Array 
       show ¬ (rel.kappa + 3 < rel.kappa) by omega, show rel.kappa + 1 ≠ rel.kappa by omega,
       show rel.kappa + 2 ≠ rel.kappa by omega, show rel.kappa + 2 ≠ rel.kappa + 1 by omega,
       show rel.kappa + 3 ≠ rel.kappa by omega, show rel.kappa + 3 ≠ rel.kappa + 1 by omega,
-      show rel.kappa + 3 ≠ rel.kappa + 2 by omega, add_zero, map_natCast, apply_ite (algebraMap Fp K), map_zero]
+      show rel.kappa + 3 ≠ rel.kappa + 2 by omega, add_zero, map_natCast, apply_ite (algebraMap Gl K), map_zero]
     ring
 
 end CompressionLean.Bridge

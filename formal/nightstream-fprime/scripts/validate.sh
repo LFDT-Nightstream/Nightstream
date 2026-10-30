@@ -97,10 +97,12 @@ compression() {
     return 2
   fi
   # No target names: Lake builds the package's own defaultTargets.
-  # Lake does not track the document that the census reads; rerun it.
+  # Lake does not track the files that the ports gate and the census read
+  # (Lean and Rust sources, STATUS.md's tests, SPEC.md); rerun both.
   (cd ../compression-lean &&
     capped lake build --wfail &&
     capped lake build --wfail $(executables) &&
+    lean_file CompressionLeanTests/Ports.lean &&
     lean_file CompressionLeanTests/SpecCensus.lean)
 }
 

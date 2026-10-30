@@ -3,6 +3,7 @@ import Mathlib.Tactic.LinearCombination
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K]
@@ -41,8 +42,6 @@ def LinearCheck (s : Shape) (bar : ℕ → ℕ → F) (st : Statement F) (o : Li
     o.last = omegaComputed s bar st o.lam o.zeta o.blockPoint o.keyValue o.omegaValue *
       mle o.lanePart (laneTable s o.zeta) * o.zValue
 
-noncomputable def productComb : MvPolynomial (Fin 2) K := MvPolynomial.X 0 * MvPolynomial.X 1
-
 noncomputable def blockTables (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
     (lam zeta : K) (z : ℕ → F) : Fin 2 → ℕ → K := fun i =>
   if i = 0 then omegaTrue s bar S st lam zeta
@@ -53,21 +52,6 @@ noncomputable def laneTables (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F)
   if i = 0 then fun l => mle blockPoint (omegaTrue s bar S st lam zeta) * laneTable s zeta l
   else fun l => mle blockPoint fun b => ι (z (l + 2 ^ s.laneVars * b))
 
-theorem product_truth_nil (n : ℕ) (T : Fin 2 → ℕ → K) :
-    combTruth n T productComb [] = cubeSum n fun i => T 0 i * T 1 i := by
-  rw [combTruth_nil]
-  simp [productComb]
-
-theorem product_truth_final (p : List K) (T : Fin 2 → ℕ → K) :
-    combTruth p.length T productComb p = mle p (T 0) * mle p (T 1) := by
-  rw [combTruth_final]
-  simp [productComb]
-
-theorem productComb_degree : (productComb : MvPolynomial (Fin 2) K).totalDegree ≤ 1 + 1 := by
-  unfold productComb
-  refine (MvPolynomial.totalDegree_mul _ _).trans ?_
-  rw [MvPolynomial.totalDegree_X, MvPolynomial.totalDegree_X]
-
 theorem omegaComputed_true (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (st : Statement F)
     (fits : S.Fits s) (public_le : s.publicBlocks ≤ s.blocks) (D_le : s.D ≤ 2 ^ s.laneVars)
     (lam zeta : K) (blockPoint : List K) (keyValue omegaValue : K) (poles : NoLanePole zeta s.laneVars)
@@ -77,7 +61,7 @@ theorem omegaComputed_true (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (
       mle blockPoint (omegaTrue s bar S st lam zeta) := by
   have parts : omegaTrue s bar S st lam zeta = fun b =>
       keyPart s S lam zeta b + evalKPart s bar st lam zeta b + evalAPart s bar S st lam zeta b +
-        publicPart s lam b := funext (omegaTrue_parts s bar S st fits public_le lam zeta)
+        publicPart s lam b := funext (omegaTrue_parts s bar S st fits public_le D_le lam zeta)
   have keyTrue : laneScale zeta s.laneVars * keyValue = mle blockPoint (keyPart s S lam zeta) := by
     rw [key, mle_append_split, lanePoint_length, ← mle_mul_left]
     congr 1
@@ -92,7 +76,8 @@ theorem omegaComputed_true (s : Shape) (bar : ℕ → ℕ → F) (S : Setup F) (
       unfold keyGroup
       rw [Finset.sum_eq_zero, mul_zero]
       intro i _
-      rw [add_comm, fits.key_zero i b l (Or.inr (by simp at inside outside; omega)), map_zero, mul_zero]
+      rw [add_comm, fits.key_zero i b l (Finset.mem_range.mp inside) (Or.inr (by simp at inside outside; omega)),
+        map_zero, mul_zero]
   rw [parts]
   simp only [mle_add]
   unfold omegaComputed evalKPart
@@ -155,10 +140,10 @@ noncomputable def linearGame [Fintype K] [DecidableEq K] (s : Shape) (Φ : F[X])
   .draw K (Finset.univ.biUnion fun w : Fin cands.length =>
       (relationRows s bar S st).zetaBad Φ (witnessBlock s (cands.get w).z) lam (quotientPoly s quotient))
     fun zeta =>
-  Game.bind (sumcheck Finset.univ 1
+  Game.bind (Game.sumcheck Finset.univ 1
       (fun w : Fin cands.length => combRound s.blockVars (blockTables s bar S st lam zeta (cands.get w).z) productComb)
       (fun _ => ∅) s.blockVars [] (liftedTarget s Φ bar S st lam zeta (quotientPoly s quotient))) fun first =>
-  Game.bind (sumcheck Finset.univ 1
+  Game.bind (Game.sumcheck Finset.univ 1
       (fun w : Fin cands.length =>
         combRound s.laneVars (laneTables s bar S st lam zeta (cands.get w).z first.1) productComb)
       (fun _ => ∅) s.laneVars [] first.2) fun second =>

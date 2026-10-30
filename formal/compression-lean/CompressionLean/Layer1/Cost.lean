@@ -2,6 +2,7 @@ import CompressionLean.Layer1.Soundness
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
@@ -56,19 +57,19 @@ theorem earlyGame_cost (s : Shape) (S : Setup F) (st : Statement F) (L0 : ℕ)
   have short := cands.2
   have count : (Finset.univ : Finset (Fin cands.1.length)).card ≤ L0 := by simpa using short
   unfold earlyCount
-  apply draw_step _ _ _ _ (density_le _ _ ?_)
+  apply Game.draw_step _ _ _ _ (Game.density_le _ _ ?_)
   swap
   · refine (card_biUnion_le_mul _ _ (2 ^ s.cubeVars + (2 * s.normBound + 1)) fun w _ =>
       zeros_card_le_of_natDegree_le (normPoly_natDegree _ _ _ _)).trans (Nat.mul_le_mul_right _ count)
   intro beta
-  apply draw_step _ _ _ _ (density_pair _ _ ?_)
+  apply Game.draw_step _ _ _ _ (density_pair _ _ ?_)
   swap
   · refine (card_biUnion_le_mul _ _ ((2 * 2 ^ s.rowVars + (2 ^ s.runVars + 2 ^ s.rowVars)) * Fintype.card K)
       fun w _ => Lookup.bad_card _).trans ?_
     rw [← mul_assoc]
     exact Nat.mul_le_mul_right _ (Nat.mul_le_mul_right _ count)
   intro lookup
-  apply draw_step _ _ _ _ (density_pair _ _ ?_)
+  apply Game.draw_step _ _ _ _ (density_pair _ _ ?_)
   swap
   · refine (card_biUnion_le_mul _ _ ((1 + (2 ^ s.runVars + 2 ^ (s.slotVars + s.matrixVars))) * Fintype.card K)
       fun w _ => Scatter.bad_card _).trans ?_
@@ -143,12 +144,12 @@ theorem linearGame_cost (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : S
     (linearGame (K := K) s Φ bar S st cands).CostLe ((linearCount s L0 : ℝ) / Fintype.card K) := by
   have count : (Finset.univ : Finset (Fin cands.length)).card ≤ L0 := by simpa using short
   unfold linearCount
-  apply draw_step _ _ _ _ (density_le _ _ ?_)
+  apply Game.draw_step _ _ _ _ (Game.density_le _ _ ?_)
   swap
   · exact (card_biUnion_le_mul _ _ (s.rows - 1) fun w _ => RingRows.lambdaBad_card _ _ _).trans
       (Nat.mul_le_mul_right _ count)
   intro lam quotient
-  apply draw_step _ _ _ _ (density_le _ _ ?_)
+  apply Game.draw_step _ _ _ _ (Game.density_le _ _ ?_)
   swap
   · exact (card_biUnion_le_mul _ _ (2 * s.D - 2) fun w _ => RingRows.zetaBad_card _ _ _ s.D lam _
       (relationRows_weight_degree s bar S st) (fun b => coeffPoly_natDegree _ _)
@@ -157,9 +158,9 @@ theorem linearGame_cost (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : S
   intro zeta
   have rounds : ∀ (n : ℕ) (T : Fin cands.length → Fin 2 → ℕ → K) (point : List K) (claim : K),
       point.length + n ≤ n →
-      (sumcheck Finset.univ 1 (fun w => combRound n (T w) productComb) (fun _ => ∅) n point claim).CostLe
+      (Game.sumcheck Finset.univ 1 (fun w => combRound n (T w) productComb) (fun _ => ∅) n point claim).CostLe
         (n * (((Finset.univ : Finset (Fin cands.length)).card * (1 + 1) + 0 : ℕ) / (Fintype.card K : ℝ))) :=
-    fun n T => sumcheck_cost Finset.univ 1 nodes _ (fun _ => ∅) n 0
+    fun n T => Game.sumcheck_cost Finset.univ 1 nodes _ (fun _ => ∅) n 0
       (fun w _ => (combRound_truth n 1 (T w) productComb productComb_degree).degree) (by simp) n
   refine (Game.costLe_bind (rounds s.blockVars _ [] _ (by simp)) fun first =>
     Game.costLe_bind (δ := 0) (rounds s.laneVars _ [] _ (by simp)) fun second => ?_).mono ?_
@@ -188,14 +189,14 @@ theorem honestGame_cost (s : Shape) (S : Setup F) (L1 L P : ℕ) [NeZero L] [NeZ
     (distinct : ∀ i j, i < L → j < L → q i = q j → i = j) (o : EarlyOut F K) (lin : LinearOut K) :
     (honestGame s S L1 L P q o lin).CostLe (((9 : ℕ) : ℝ) / Fintype.card K + queryError s L1 L P) := by
   refine ⟨((3 : ℕ) : ℝ) * (((2 : ℕ) : ℝ) / Fintype.card K) + queryError s L1 L P, ?_, fun mu partials => ?_⟩
-  · have := density_le (zeros (runGroupPoly s S o)) 3
+  · have := Game.density_le (zeros (runGroupPoly s S o)) 3
       (zeros_card_le_of_natDegree_le (runGroupPoly_natDegree s S o))
     have nine : ((9 : ℕ) : ℝ) / Fintype.card K =
         ((3 : ℕ) : ℝ) / Fintype.card K + ((3 : ℕ) : ℝ) * (((2 : ℕ) : ℝ) / Fintype.card K) := by
       push_cast; ring
     rw [nine]
     linarith
-  refine Game.costLe_bind (drawPoint_cost _ 2 (fun point => ?_) 3 []) fun alpha => ?_
+  refine Game.costLe_bind (Game.drawPoint_cost _ 2 (fun point => ?_) 3 []) fun alpha => ?_
   · refine (Finset.card_union_le _ _).trans ?_
     have := foldBad_card (fun u => partials 0 u - truePartials (keyGroup s S lin.lam) (keyPoint s lin) u) 3 point
     have := foldBad_card (fun u => partials 1 u - truePartials (runGroup S mu) (padded s.setupVars o.runPoint) u)
@@ -256,7 +257,7 @@ theorem lateGame_cost (s : Shape) (S : Setup F) (lam : K) (τ : ℕ → K) (cand
   have count : (Finset.univ : Finset (Fin cands.length × Fin p1.length)).card ≤ L0 * L1 := by
     simpa using Nat.mul_le_mul short0 short1
   unfold lateCount
-  apply draw_step _ _ _ _ (density_le _ _ ?_)
+  apply Game.draw_step _ _ _ _ (Game.density_le _ _ ?_)
   swap
   · refine (card_biUnion_le_mul _ _ (2 ^ (s.slotVars + 1) + 2 ^ s.blockVars) fun w _ =>
       zeros_card_le_of_natDegree_le ?_).trans (Nat.mul_le_mul_right _ count)
@@ -321,33 +322,6 @@ theorem layer1Game_cost (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : S
     unfold layer1Error layer1Count
     push_cast
     ring
-
-theorem layer1_sound (s : Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Setup F)
-    (L0 L1 L P : ℕ) [NeZero L] [NeZero P] (q : ℕ → K) (N : ℕ) (sizes : s.Sizes N)
-    (cast : ∀ a b : ℕ, a < N → b < N → (a : K) = b → a = b)
-    (distinct : ∀ i j, i < L → j < L → q i = q j → i = j) (fits : S.Fits s) (monic : Φ.Monic)
-    (degree : Φ.natDegree = s.D) (two : 2 ≤ s.D) (prover : Game.Strategy (Option (Transcript F K s.queries L))) :
-    Game.prob prover (layer1Game s Φ bar S L0 L1 L P q)
-        (fun r => ∃ tr, r = some tr ∧ ¬ ∃ w ∈ tr.early.candidates, Relation s Φ bar S tr.statement w.z) ≤
-      layer1Error s L0 L1 L P (Fintype.card K) := by
-  have proper : Φ ≠ 1 := by
-    rintro rfl
-    rw [natDegree_one] at degree
-    omega
-  rw [Game.prob_congr _ _ (E' := fun r =>
-    ¬ ∀ tr, r = some tr → ∃ w ∈ tr.early.candidates, Relation s Φ bar S tr.statement w.z)]
-  · exact Game.prob_not_le _ _ _ _ (layer1Game_avoids s Φ bar S L0 L1 L P q N sizes cast fits monic proper)
-      (layer1Game_cost s Φ bar S L0 L1 L P q distinct (nodes_of_cast N cast sizes.big_nodes) degree two)
-  · intro r
-    constructor
-    · rintro ⟨tr, rfl, none⟩ all
-      exact none (all tr rfl)
-    · intro not
-      by_contra nothing
-      apply not
-      intro tr equal
-      by_contra no
-      exact nothing ⟨tr, equal, no⟩
 
 end Main
 

@@ -1,24 +1,20 @@
 import CompressionLean.Bridge.Formulas
-import CompressionLean.Bridge.Path
+import CompressionLean.Game.Path
 import CompressionLean.Bridge.Run
-import CompressionLean.Layer1.Budget
+import CompressionLean.Layer1.Cost
+import CompressionLean.Lib.Array
+import CompressionLean.Spec.Messages
+import CompressionLean.Spec.Replay
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
+open CompressionLean.Lib
+open NightstreamFPrime.Spec (goldilocksModulus)
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
-
-theorem goldilocks_eq_modulus : goldilocks = NightstreamFPrime.Spec.goldilocksModulus := by decide
-
-theorem word_lt (w : Gl) : w.word.toNat < goldilocks := goldilocks_eq_modulus ▸ w.canonical
-
-def drawn (queries : ℕ) : Draw → (Σ C : Type, C)
-  | .ext v => ⟨K, v.toK⟩
-  | .pair a b => ⟨K × K, (a.toK, b.toK)⟩
-  | .words ws => ⟨Fin queries → Fin goldilocks, fun j => ⟨(ws[j.val]!).word.toNat, word_lt _⟩⟩
-  | .sample w => ⟨Fin goldilocks, ⟨w.word.toNat, word_lt w⟩⟩
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
 section Lagrange
 
@@ -59,19 +55,19 @@ theorem toK_interpolate (values : Array Ext) (x : Ext) :
   rw [interpolate, toK_sumRange]
   apply Finset.sum_congr rfl
   intro i _
-  rw [Ext.toK_mul, Ext.toK_scale, toK_prodRange, Gl.toF_inv, map_inv₀, toF_prodRangeGl, map_prod]
+  rw [Ext.toK_mul, Ext.toK_scale, toK_prodRange, Word.toF_inv, map_inv₀, toF_prodRangeGl, map_prod]
   congr 2
   · apply Finset.prod_congr rfl
     intro j _
     split_ifs
     · exact Ext.toK_one
-    · rw [Ext.toK_sub, Ext.toK_ofGl, Gl.toF_ofNat, map_natCast]
+    · rw [Ext.toK_sub, Ext.toK_ofGl, Word.toF_ofNat, map_natCast]
   · congr 1
     apply Finset.prod_congr rfl
     intro j _
     split_ifs
-    · rw [Gl.toF_one, map_one]
-    · rw [Gl.toF_sub, Gl.toF_ofNat, Gl.toF_ofNat, map_sub, map_natCast, map_natCast]
+    · rw [Word.toF_one, map_one]
+    · rw [Word.toF_sub, Word.toF_ofNat, Word.toF_ofNat, map_sub, map_natCast, map_natCast]
 
 theorem roundValues_size (d : ℕ) (m : Array Ext) (size : m.size = d + 1) (claim : Ext) :
     (Replay.roundValues m claim).size = d + 2 := by
@@ -81,10 +77,10 @@ theorem roundValues_size (d : ℕ) (m : Array Ext) (size : m.size = d + 1) (clai
 
 theorem roundValues_get (d : ℕ) (m : Array Ext) (size : m.size = d + 1) (claim : Ext) (i : Fin (d + 2)) :
     ((Replay.roundValues m claim)[(i : ℕ)]!).toK (K := K) =
-      Layer1.roundValues d claim.toK (fun j => (m[(j : ℕ)]!).toK) i := by
+      Lib.roundValues d claim.toK (fun j => (m[(j : ℕ)]!).toK) i := by
   obtain ⟨i, hi⟩ := i
   rw [getElem!_pos (Replay.roundValues m claim) i (by rw [roundValues_size d m size]; exact hi)]
-  simp only [Layer1.roundValues]
+  simp only [Lib.roundValues]
   rcases (show i = 0 ∨ i = 1 ∨ 2 ≤ i by omega) with rfl | rfl | two
   · simp [Replay.roundValues]
   · simp [Replay.roundValues, Ext.toK_sub]
@@ -122,8 +118,8 @@ theorem sumcheck_reaches {W : Type} (worlds : Finset W) (d : ℕ) (round : W →
       (result : Array Ext × Ext),
       (∀ m ∈ rounds, m.size = d + 1) → Runs (sumcheckRounds rounds point claim) t result t' →
       ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧
-        Game.Reaches (sumcheck worlds d round extra rounds.length (pointK point) claim.toK)
-          (ds.map (drawn (K := K) q)) (pointK result.1, result.2.toK)
+        Game.Reaches (Game.sumcheck worlds d round extra rounds.length (pointK point) claim.toK)
+          (sumcheckMsgs (K := K) d rounds) (ds.map (drawn (K := K) q)) (pointK result.1, result.2.toK)
   | [], point, claim, t, t', result, _, run => by
       rw [sumcheckRounds] at run
       obtain ⟨rfl, rfl⟩ := run_pure run
@@ -135,7 +131,7 @@ theorem sumcheck_reaches {W : Type} (worlds : Finset W) (d : ℕ) (round : W →
       obtain ⟨ds, draws, reaches⟩ := sumcheck_reaches worlds d round extra q rest _ _ t2 t' result
         (fun m' member => sizes m' (List.mem_cons_of_mem m member)) run
       refine ⟨.ext r :: ds, by rw [draws, run_sampleExt h2, run_observeExts h1]; simp, ?_⟩
-      rw [List.length_cons, sumcheck, List.map_cons, drawn_ext]
+      rw [List.length_cons, Game.sumcheck, List.map_cons, drawn_ext]
       apply Game.Reaches.recv (fun j : Fin (d + 1) => (m[(j : ℕ)]!).toK (K := K))
       apply Game.Reaches.draw r.toK
       rw [← pointK_push, ← toK_round d m (sizes m (by simp)) claim r]
@@ -216,11 +212,6 @@ theorem layers_eq (agree : ShapesAgree gs shapes) : gs.layers = layerCount shape
 
 end Shapes
 
-def childrenOf (pairs : List (ℕ × Array Ext)) (t j : ℕ) : K × K :=
-  match pairs.find? (·.1 == t) with
-  | some pair => ((pair.2[2 * j]!).toK, (pair.2[2 * j + 1]!).toK)
-  | none => (0, 0)
-
 theorem find_of_mem {pairs : List (ℕ × Array Ext)} (nodup : (pairs.map Prod.fst).Nodup) {t : ℕ} {v : Array Ext}
     (member : (t, v) ∈ pairs) : pairs.find? (·.1 == t) = some (t, v) := by
   induction pairs with
@@ -292,11 +283,6 @@ theorem toK_batchExpected (mu nu : Ext) (pairs : List (ℕ × Array Ext)) (nodup
       funext j
       rw [childrenOf_mem nodup member]
 
-theorem getElem!_map_range {α : Type} [Inhabited α] (n : ℕ) (f : ℕ → α) {t : ℕ} (inside : t < n) :
-    ((Array.range n).map f)[t]! = f t := by
-  rw [getElem!_pos _ t (by simpa using inside)]
-  simp
-
 theorem advance_agrees {gs : GkrShape} {shapes : Array TreeShape} (agree : ShapesAgree gs shapes) (k : ℕ)
     {c : Replay.GkrClaims} {mc : Layer1.GkrClaims K} (claims : ClaimsAgree shapes.size c mc)
     (pairs : List (ℕ × Array Ext)) (even : ∀ p ∈ pairs, 2 ∣ p.2.size) (next : Array Ext) (tau : Ext) :
@@ -357,8 +343,8 @@ theorem gkrLayers_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : Sh
       ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧ ∃ mc', ClaimsAgree shapes.size c' mc' ∧
         (∀ u, u < shapes.size → (shapes[u]!).depth < k + layers.length →
           (c'.leafPoint[u]!).size = (shapes[u]!).depth) ∧
-        Game.Reaches (Layer1.gkrLayers gs worlds batch extra layers.length k mc) (ds.map (drawn (K := K) q))
-          (some mc')
+        Game.Reaches (Layer1.gkrLayers gs worlds batch extra layers.length k mc)
+          (gkrLayersMsgs (K := K) shapes layers k) (ds.map (drawn (K := K) q)) (some mc')
   | [], k, c, mc, t, t', c', _, _, claims, _, lengths, run => by
       rw [Replay.gkrLayers] at run
       obtain ⟨rfl, rfl⟩ := run_pure run
@@ -436,6 +422,7 @@ theorem gkrLayers_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : Sh
             wsum nu.toK (fun t => (mc.current t).1 + mu.toK * (mc.current t).2) (gs.active k) := by
           rw [toK_batchClaim c.current mu nu mc shapes.size claims.current pairs small, firsts]
         rw [Array.length_toList, roundsSize, claim0, show pointK (K := K) #[] = [] from rfl] at reachS
+        rw [gkrLayersMsgs, ← degree_eq agree k]
         refine Game.Reaches.bind reachS ?_
         apply Game.Reaches.recv (childrenOf pairs)
         rw [ite_eq_left]
@@ -444,7 +431,7 @@ theorem gkrLayers_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : Sh
         · dsimp only
           rw [Ext.toK_of_beq check, Ext.toK_mul, toK_eqEval, ← claims.point,
             toK_batchExpected mu nu pairs nodup (Replay.partFactors shapes k) sizes pairs (fun _ m => m), firsts]
-          refine congrArg (fun x => Layer1.eqEval mc.point (pointK result.1) * x) (wsum_congr _ fun t member => ?_)
+          refine congrArg (fun x => Lib.eqEval mc.point (pointK result.1) * x) (wsum_congr _ fun t member => ?_)
           rw [partFactors_eq agree k t (active_lt k t (by rwa [← active_eq agree]))]
 
 theorem gkr_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : ShapesAgree gs shapes)
@@ -453,7 +440,8 @@ theorem gkr_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : ShapesAg
     (run : Runs (gkrVerify proof shapes) t c t') :
     ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧ ∃ mc, ClaimsAgree shapes.size c mc ∧
       (∀ u, u < shapes.size → (c.leafPoint[u]!).size = (shapes[u]!).depth) ∧
-      Game.Reaches (Layer1.gkr gs worlds batch extra) (ds.map (drawn (K := K) q)) (some mc) := by
+      Game.Reaches (Layer1.gkr gs worlds batch extra) (gkrMsgs (K := K) shapes proof) (ds.map (drawn (K := K) q))
+        (some mc) := by
   obtain ⟨roots, layers, layersOk⟩ := readGkr_ok read
   unfold gkrVerify at run
   obtain ⟨_, t1, h1, run⟩ := run_bind run
@@ -494,5 +482,122 @@ theorem gkr_reaches {gs : GkrShape} {shapes : Array TreeShape} (agree : ShapesAg
   exact reaches
 
 end Games
+
+end CompressionLean.Bridge
+
+namespace CompressionLean.Bridge
+
+open CompressionLean.Spec
+open CompressionLean.Replay
+
+theorem runs_sumcheckReplay_split {rounds : Array (Array Ext)} {claim : Ext} (k : ℕ)
+    {t t' : Transcript} {point : Array Ext} {final : Ext}
+    (run : Runs (sumcheckReplay rounds claim) t (point, final) t') :
+    ∃ first middle t₁ second, Runs (sumcheckReplay (rounds.extract 0 k) claim) t (first, middle) t₁ ∧
+      Runs (sumcheckReplay (rounds.extract k) middle) t₁ (second, final) t' ∧ point = first ++ second ∧
+      first.size = min k rounds.size ∧ second.size = rounds.size - k := by
+  have split : rounds.toList = (rounds.extract 0 k).toList ++ (rounds.extract k).toList := by
+    simp only [Array.toList_extract, List.extract_eq_take_drop, List.drop_zero, Nat.sub_zero]
+    rw [List.take_of_length_le (l := List.drop k rounds.toList) (by simp)]
+    simp
+  unfold sumcheckReplay at run
+  rw [split, sumcheckRounds_append] at run
+  obtain ⟨⟨first, middle⟩, t₁, h₁, h₂⟩ := run_bind run
+  rw [sumcheckRounds_point] at h₂
+  obtain ⟨⟨second, final'⟩, h₂, e⟩ := run_map h₂
+  simp only [Prod.mk.injEq] at e
+  obtain ⟨rfl, rfl⟩ := e
+  refine ⟨first, middle, t₁, second, h₁, h₂, rfl, ?_, ?_⟩
+  · rw [Bridge.sumcheckRounds_size _ _ _ _ _ _ h₁]
+    simp
+  · rw [Bridge.sumcheckRounds_size _ _ _ _ _ _ h₂]
+    simp
+
+theorem gkrLayers_append (shapes : Array TreeShape) (l₁ l₂ : List GkrLayer) (k : ℕ) (claims : GkrClaims) :
+    gkrLayers shapes k (l₁ ++ l₂) claims =
+      gkrLayers shapes k l₁ claims >>= fun c => gkrLayers shapes (k + l₁.length) l₂ c := by
+  induction l₁ generalizing k claims with
+  | nil => simp [gkrLayers]
+  | cons layer rest ih =>
+      simp only [List.cons_append, gkrLayers, ih, bind_assoc, List.length_cons]
+      rw [show k + (rest.length + 1) = k + 1 + rest.length by omega]
+
+theorem runs_gkrLayers_succ {shapes : Array TreeShape} {layers : Array GkrLayer} {j : ℕ}
+    (hj : j < layers.size) {init c c' : GkrClaims} {t₀ t t' : Transcript}
+    (pre : Runs (gkrLayers shapes 1 (layers.toList.take j) init) t₀ c t)
+    (step : Runs (gkrLayers shapes (j + 1) [layers[j]!] c) t c' t') :
+    Runs (gkrLayers shapes 1 (layers.toList.take (j + 1)) init) t₀ c' t' := by
+  have e : layers.toList.take (j + 1) = layers.toList.take j ++ [layers[j]!] := by
+    rw [List.take_add_one, List.getElem?_eq_getElem (by simpa using hj), Option.toList_some, Array.getElem_toList,
+      ← getElem!_pos layers j hj]
+  rw [e, gkrLayers_append, List.length_take, Array.length_toList, Nat.min_eq_left hj.le, Nat.add_comm 1 j]
+  exact runs_bind pre step
+
+theorem runs_gkrLayer {shapes : Array TreeShape} {k : ℕ} {layer : GkrLayer} {claims : GkrClaims}
+    {t tmu tnu ts tobs t' : Transcript} {mu nu tau final : Ext} {point : Array Ext}
+    (hmu : Runs sampleExt t mu tmu) (hnu : Runs sampleExt tmu nu tnu)
+    (sum : Runs (sumcheckReplay layer.rounds
+      (batchClaim claims.current mu nu ((activeTrees shapes k).zip layer.children).toList)) tnu (point, final) ts)
+    (check : final = eqEval claims.point point * batchExpected mu nu ((activeTrees shapes k).zip layer.children).toList)
+    (hobs : Runs (observeExts layer.children.flatten) ts () tobs) (htau : Runs sampleExt tobs tau t') :
+    Runs (gkrLayers shapes k [layer] claims) t
+      (advance shapes k claims ((activeTrees shapes k).zip layer.children).toList point tau) t' := by
+  rw [gkrLayers]
+  exact runs_bind hmu (runs_bind hnu (runs_bind sum (runs_bind (runs_ensure (by rw [← check]; exact Ext.beq_self _) _ _)
+    (runs_bind hobs (runs_bind htau (runs_pure _ _))))))
+
+theorem depth_le_layerCount (shapes : Array TreeShape) {t : ℕ} (inside : t < shapes.size) :
+    shapes[t]!.depth ≤ layerCount shapes := by
+  unfold layerCount
+  suffices h : ∀ l : List ℕ, t ∈ l → shapes[t]!.depth ≤ l.foldr (fun t d => max d shapes[t]!.depth) 0 from
+    h _ (List.mem_range.mpr inside)
+  intro l member
+  induction l with
+  | nil => cases member
+  | cons u rest ih =>
+      rw [List.foldr_cons]
+      rcases List.mem_cons.mp member with rfl | inside
+      · exact le_max_right _ _
+      · exact (ih inside).trans (le_max_left _ _)
+
+theorem three_le_layerDegree (factors : Array ℕ) : 3 ≤ layerDegree factors := by
+  unfold layerDegree
+  rw [← Array.foldr_toList]
+  induction factors.toList with
+  | nil => exact le_rfl
+  | cons f rest ih => exact ih.trans (le_max_left _ _)
+
+theorem readGkr_depth {proof : GkrProof} {shapes : Array TreeShape} (read : readGkr proof shapes = .ok ())
+    {t : ℕ} (inside : t < shapes.size) : 1 ≤ shapes[t]!.depth := by
+  unfold readGkr at read
+  split_ifs at read with bad
+  · obtain ⟨_, thrown, _⟩ := Except.bind_ok read
+    cases thrown
+  · simp only [Bool.or_eq_true, bne_iff_ne, ne_eq, not_or] at bad
+    have := bad.1.1
+    simp only [Array.any_eq_true, not_exists, Bool.or_eq_true, beq_iff_eq, decide_eq_true_eq, not_or] at this
+    rw [getElem!_pos shapes t inside]
+    have := (this t inside).1
+    omega
+
+theorem layerShapeOk_facts {shapes : Array TreeShape} {k : ℕ} {layer : GkrLayer}
+    (ok : layerShapeOk shapes k layer = true) :
+    layer.rounds.size = k - 1 ∧ (∀ m ∈ layer.rounds, 3 ≤ m.size) ∧
+      layer.children.size = (activeTrees shapes k).size ∧
+      ∀ s < layer.children.size,
+        layer.children[s]!.size = 2 * (partFactors shapes k (activeTrees shapes k)[s]! + 1) := by
+  simp only [layerShapeOk, Bool.and_eq_true, beq_iff_eq] at ok
+  obtain ⟨⟨⟨rounds, degree⟩, children⟩, sizes⟩ := ok
+  rw [← Array.all_toList, List.all_eq_true] at degree
+  rw [Array.all_eq_true] at sizes
+  refine ⟨rounds, fun m member => ?_, children, fun s hs => ?_⟩
+  · have := degree m (Array.mem_toList_iff.mpr member)
+    simp only [beq_iff_eq] at this
+    rw [this]
+    exact three_le_layerDegree _
+  · have := sizes s (by simp [children]; omega)
+    simp only [Array.getElem_zip, beq_iff_eq] at this
+    rw [getElem!_pos _ s hs, getElem!_pos _ s (by omega)]
+    exact this
 
 end CompressionLean.Bridge

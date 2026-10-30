@@ -4,6 +4,7 @@ import Mathlib.Basic.Real.Basic
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {K : Type} [Field K]

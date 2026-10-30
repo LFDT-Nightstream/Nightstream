@@ -144,15 +144,16 @@ theorem samplerInitialState_eq
     _ = _ := piCcsPhase.outgoingState
 
 theorem circuitPackage_implies_terminal
-    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
+    {lw : Nat} {pf : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
+    (relation : ProductionKey.LogicalRelation lw pf)
     (ajtai : AjtaiKey
-      (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
+      (logicalWidth := lw) (publicFits := pf))
     (env : Env) (holds : (circuitPackage ()).RowsHold env) :
     let pulled := NightstreamFPrime.Layout.Stage1.Spartan.pullback env
     let running := NightstreamFPrime.Layout.Stage1.AccumulatorInputs.running
-      Data.logicalWidth Data.publicFits pulled
+      lw pf pulled
     let fresh := NightstreamFPrime.Layout.Stage1.AccumulatorInputs.fresh
-      Data.logicalWidth Data.publicFits pulled
+      lw pf pulled
     let proof := NightstreamFPrime.Layout.Stage1.AccumulatorInputs.proof
       relation pulled
     Nifs.PaperNonInteractive.piCcsCheck (ProductionKey.key relation ajtai)
@@ -160,7 +161,7 @@ theorem circuitPackage_implies_terminal
       (ProductionKey.key relation ajtai).parent running fresh proof =
         some (PiRLC.v1_2.Semantics.evalOutput relation
           (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
-            (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
+            (logicalWidth := lw) (publicFits := pf))
           NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset pulled) ∧
       PriorStateHash.SpecHolds PilotProduction.priorInterface
         PilotProduction.witnessOffset
@@ -173,7 +174,7 @@ theorem circuitPackage_implies_terminal
   have piCcsPhase :
       NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds relation ajtai
         (NightstreamFPrime.Layout.Stage1.AccumulatorInputs.piCcsInterface
-          Data.logicalWidth Data.publicFits)
+          lw pf)
         NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset pulled proof := by
     simpa [PiCCSInvocations.parentInterface,
       NightstreamFPrime.Layout.Stage1.AccumulatorInputs.piCcsInterface] using

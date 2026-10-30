@@ -1,8 +1,9 @@
-import CompressionLean.Layer1.Combination
-import CompressionLean.Layer1.Fraction
+import CompressionLean.Lib.Combination
+import CompressionLean.Lib.Fraction
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 def wsum {R : Type} [CommSemiring R] (ν : R) (f : ℕ → R) : List ℕ → R

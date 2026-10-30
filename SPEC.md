@@ -13,7 +13,7 @@ Lean proves these results. `formal/nightstream-fprime/SECURITY_MODEL.md` gives t
 - One fold is knowledge sound in the random-oracle model (`Export.Stage1.RandomOracleSetup.production_knowledge_error_lt` (`709bb7698524ce34`)).
 - A false history is accepted with probability at most the sum of the per-stage errors, under HyperNova errata Assumption 1 (`Export.Stage1.HyperNovaFalseAcceptance.probability_bound` (`4106ba4f56189715`), `Export.Stage1.HyperNovaVisitedSecurity.history_failure_le` (`ea7ead2ec7b3627d`)). With the errors that the random-oracle result motivates, this bound is useful for one or two folds only (`SECURITY_MODEL.md`, trust item 4).
 - The honest prover's first proof is accepted, and an accepted proof gives an accepted next proof, for a witness that the application accepts (`Export.Stage1.HyperNovaInitial.initial_accepted` (`cc4df317635879dd`), `Export.Stage1.HyperNovaAcceptedNext.base_extend` (`d7d06d7ddc3a8971`), `Export.Stage1.HyperNovaAcceptedNext.recursive_extend` (`b237776203d41507`)).
-- If the final verifier accepts, the F′ claim of the last fold is true, except with probability `layer1Error + shrinkError` (`CompressionLean.Final.final_sound_parent` (`bc972925ba8e29a0`)). WHIR and Poseidon2 as a random oracle are premises (`formal/compression-lean/README.md`).
+- If the final verifier accepts, the F′ claim of the last fold is true, except with probability `calls / 2^t` in the state-restoration experiment at Rust's layer bits `t` (`CompressionLean.Claims.production_bound` (`ab6fab37dd9e07c1`)). For the reference application, each premise of this result is met by a Lean proof, a Lean check of Rust's files, Rust, or a Lean value that compiled code evaluates and the kernel does not check (`CompressionLean.Claims.poseidon2_bound` (`e16446c27a0f32d2`)). For another application, four premises are open: the parent shape, the honest setup, and that the setup fits and that the key describes it (`formal/compression-lean/STATUS.md`). Idealized WHIR openings, Poseidon2 as a random oracle, Fiat–Shamir inside the final program and a key root that is the honest root of the claims' setup are assumptions (`formal/compression-lean/TRUST.md`, sections 3 and 5).
 
 Every audited theorem uses only the axioms `propext`, `Classical.choice` and `Quot.sound`. The repository claims no single security level for the system (`SECURITY_MODEL.md`, Out of scope).
 
@@ -372,7 +372,7 @@ Each step proves one instance of HyperNova Construction 2's augmented step (`Lif
 
 **Rejects.** None.
 
-**Source.** `crates/nightstream/src/lifecycle/finish.rs` (not checked against Lean). The terminal package is the F′ rows up to Π_RLC, without change (`CompressionLean.Terminal.circuitPackage_implies_terminal` (`b758e323e45c0152`), `Terminal/Data.lean`).
+**Source.** `crates/nightstream/src/lifecycle/finish.rs` (not checked against Lean). The terminal package is the F′ rows up to Π_RLC, without change (`CompressionLean.Terminal.circuitPackage_implies_terminal` (`575cb76bc24d795c`), `Terminal/Data.lean`).
 
 ### Algorithm 8. Final verifier
 
@@ -388,7 +388,7 @@ Each step proves one instance of HyperNova Construction 2's augmented step (`Lif
 
 **Rejects.** Each step's failure.
 
-**Source.** `CompressionKey::verify` and `Verifier::verify_final` (`crates/nightstream/src/lifecycle/finish.rs`, `crates/nightstream/src/circuit.rs`; not checked against Lean). The layer-1 verifier is sound except with probability `layer1Error` (`CompressionLean.Layer1.layer1_sound` (`853fcf680964360b`)), and the shrink verifier except with `shrinkError` (`CompressionLean.Shrink.shrink_sound` (`661f1ba396058fe8`)). Together they bound an accepted false F′ claim by `layer1Error + shrinkError` (`CompressionLean.Final.final_sound` (`94d3494c5be0d22f`), `CompressionLean.Final.final_sound_parent` (`bc972925ba8e29a0`)), and by `calls / 2^t` in the state-restoration experiment at Rust's layer bits `t` (`CompressionLean.Final.final_restore_budget_parent` (`958011d679b3e00a`)). That the shrink CCS encodes the layer-1 verifier is a premise, not a result (`formal/compression-lean/README.md`).
+**Source.** `CompressionKey::verify` and `Verifier::verify_final` (`crates/nightstream/src/lifecycle/finish.rs`, `crates/nightstream/src/circuit.rs`; not checked against Lean). Layer 1 and the shrink layer run in one state-restoration experiment, so one bad-set argument covers both. At Rust's layer bits `t`, it bounds an accepted false F′ claim by `calls / 2^t` (`CompressionLean.Final.final_restore_budget_parent` (`36f3e4c5d4c18992`)). That theorem has the premise that the shrink CCS encodes the final program, which is the terminal package and the layer-1 verifier. Lean proves this premise for the production final program (`Sim/Encodes.lean`), and the claim joins the two (`CompressionLean.Claims.production_bound` (`ab6fab37dd9e07c1`)). Its premises about the key and the setup are met for the reference application only (`CompressionLean.Claims.poseidon2_bound` (`e16446c27a0f32d2`), `formal/compression-lean/STATUS.md`). Three things are assumed, not proved: the bound includes no WHIR error; it covers a valid program witness only where its in-program challenges are the experiment's oracle answers (the read condition); and the key's root is the honest root of the claims' setup (`formal/compression-lean/TRUST.md`, sections 3 and 5).
 
 ### Lifecycle rules
 

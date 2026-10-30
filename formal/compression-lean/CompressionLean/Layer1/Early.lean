@@ -1,8 +1,9 @@
 import CompressionLean.Layer1.Model
-import CompressionLean.Layer1.IdentityTest
+import CompressionLean.Lib.IdentityTest
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K]

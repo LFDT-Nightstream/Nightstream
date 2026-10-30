@@ -141,6 +141,14 @@ fn rust_built_circuit_writes_and_loads() {
     fs::remove_file(&path).unwrap();
     let loaded = loaded.unwrap();
     assert_eq!(loaded.identity(), circuit.circuit.identity());
+    let application = loaded.application().unwrap();
+    let size = crate::ApplicationSize {
+        witness_words: application.private_input_count(),
+        local_words: application.generated_range().len(),
+        rows: application.row_count(),
+    };
+    assert_eq!(circuit.application_size(), Some(size));
+    assert_eq!(loaded.application_size(), Some(size));
     let (execute, idle) = ([Step::Execute; 2], [Step::Idle; 2]);
     assert_application_executes(
         loaded.application().unwrap(),

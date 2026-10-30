@@ -99,6 +99,17 @@ impl CompiledCircuit {
     }
 }
 
+/// The size of an application in the F′ step. These are the three numbers
+/// that the shared verifier's row and width formulas take
+/// (`artifacts/shared-verifier-v1.json`), so they set the step's cost.
+/// `scripts/fprime_breakdown.py` charts the step from them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ApplicationSize {
+    pub witness_words: usize,
+    pub local_words: usize,
+    pub rows: usize,
+}
+
 /// Reusable circuit data and bindings, independent of the execution engine.
 /// The caller chooses whether this package is its expected verifier configuration.
 pub struct Circuit {
@@ -173,6 +184,18 @@ impl Circuit {
     #[cfg(test)]
     pub(crate) fn application(&self) -> Option<&ApplicationCircuit> {
         self.compiled.application.as_ref()
+    }
+
+    /// The size of the Rust application, or `None` for a Lean-emitted package.
+    pub fn application_size(&self) -> Option<ApplicationSize> {
+        self.compiled
+            .application
+            .as_ref()
+            .map(|application| ApplicationSize {
+                witness_words: application.private_input_count(),
+                local_words: application.generated_range().len(),
+                rows: application.row_count(),
+            })
     }
 
     /// Return the package's claimed circuit identifier.

@@ -20,8 +20,16 @@ Proof.
   rewrite Hf in Hg. injection Hg as <-. lia.
 Qed.
 
-Example result_block_rejected : forall callees body, ~ Supported callees (BLOCK (_RESULT (Some valtype_I32)) body).
-Proof. intros callees body H. inversion H. Qed.
+Example result_block_supported :
+  Supported noCallees (BLOCK (_RESULT (Some valtype_I32)) [LOCAL_GET (mk_uN 0)]).
+Proof. apply supported_block; [repeat constructor | right; reflexivity]. Qed.
+
+(* Blocks hold at most one i32 result and take no parameters. *)
+Example i64_block_rejected : forall callees body, ~ Supported callees (BLOCK (_RESULT (Some valtype_I64)) body).
+Proof. intros callees body H. inversion H as [ | | | | | ? ? _ [Hr | Hr] | | ]; discriminate. Qed.
+
+Example typed_block_rejected : forall callees x body, ~ Supported callees (BLOCK (_IDX x) body).
+Proof. intros callees x body H. inversion H. Qed.
 
 (* Branches leave blocks, never the function. *)
 Example br_if_outside_block_rejected : ~ codeBranches noCallees 0 [LOCAL_GET (mk_uN 0); BR_IF (mk_uN 0)] 0.

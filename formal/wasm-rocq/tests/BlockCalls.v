@@ -88,8 +88,8 @@ Proof.
   - intros [ | [ | index]] g Hg; cbn in Hg; [injection Hg as <- .. | destruct index; discriminate].
     + split; [repeat constructor | vm_compute; tauto].
     + split; [ | vm_compute; tauto]. constructor; [ | constructor; [constructor | constructor]].
-      apply supported_block. constructor; [ | constructor].
-      apply supported_block. constructor; [ | constructor; [constructor | constructor]].
+      apply supported_block; [ | left; reflexivity]. constructor; [ | constructor].
+      apply supported_block; [ | left; reflexivity]. constructor; [ | constructor; [constructor | constructor]].
       apply supported_call with (f := blockGuest 0 [LOCAL_GET (mk_uN 0)] 0); [reflexivity | cbn; lia | cbn; lia].
 Qed.
 

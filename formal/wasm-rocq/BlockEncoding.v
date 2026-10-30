@@ -93,11 +93,11 @@ Proof.
       unfold instructionRom; rewrite Hpc; try reflexivity; destruct (choice =? 0); reflexivity).
 Qed.
 
-Lemma encoded_path_block_entry : forall labels inner offset body,
-  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (BLOCK (_RESULT None) body) ->
+Lemma encoded_path_block_entry : forall labels inner offset bt body,
+  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (BLOCK bt body) ->
   controlImage memory (pathPC labels offset) CODE_BLOCK (pathPC labels offset + 1).
 Proof.
-  intros labels inner offset body Hpath Hi.
+  intros labels inner offset bt body Hpath Hi.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.
   destruct labels; cbv iota in Hpc;
   unfold controlImage; repeat split; try intro choice; program_cell Hloaded; unfold encodeProgram;

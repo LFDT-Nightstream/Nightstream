@@ -111,70 +111,74 @@ Definition functionRom (program : Program) (memory : nat) (reference : Z) : opti
       else None
   end.
 
-(* Each flattened slot's branch drop, laid out like flattenInstruction. A taken
-   br_if l at operand height h discards the h - 1 operands below its condition and
-   those below the l labels inside its target; `labels` holds, innermost first, the
-   operand height below each enclosing block. Blocks carry no results, so a taken
-   branch keeps nothing. A return's slot holds its frame's whole operand height. *)
-Fixpoint instructionDrops (callees : CalleeEnvironment) (labels : list nat) (height : option nat) (i : instr)
-    : list (option nat) :=
+(* A branch to label l, from `height` operands in the innermost block: it keeps the
+   label's arity of top operands and drops the operands below them, down to the
+   label's base. `heights` holds the operand height below each enclosing label and
+   `arities` their arities, innermost first. *)
+Definition labelSlide (heights arities : list nat) (height l : nat) : option (nat * nat) :=
+  match nth_error arities l with
+  | Some kept => if Nat.leb kept height then Some (kept, height - kept + fold_right Nat.add 0 (firstn l heights))%nat
+      else None
+  | None => None
+  end.
+
+(* A br_if at `height` operands: its condition, then the label's operands below it. *)
+Definition branchSlide (heights arities : list nat) (height l : nat) : option (nat * nat) :=
+  match height with S below => labelSlide heights arities below l | O => None end.
+
+(* Each flattened slot's slide, laid out like flattenInstruction: what a taken
+   br_if or a return keeps and drops of its frame's operands. A return is the
+   branch to the function's own label, the outermost one. *)
+Fixpoint instructionDrops (callees : CalleeEnvironment) (heights arities : list nat) (height : option nat) (i : instr)
+    : list (option (nat * nat)) :=
   match i with
-  | BLOCK _ body =>
-      let inner := (match height with Some h => h | None => 0 end :: labels)%nat in
-      None :: (fix bodyDrops (code : list instr) (h : option nat) : list (option nat) :=
+  | BLOCK bt body =>
+      let innerHeights := (match height with Some h => h | None => 0 end :: heights)%nat in
+      None :: (fix bodyDrops (code : list instr) (h : option nat) : list (option (nat * nat)) :=
         match code with
         | [] => []
-        | j :: rest => instructionDrops callees inner h j ++
+        | j :: rest => instructionDrops callees innerHeights (blockResults bt :: arities) h j ++
             bodyDrops rest (match h with Some h => sourceHeight callees j h | None => None end)
         end) body (option_map (fun _ => 0%nat) height) ++ [None]
-  | BR_IF l =>
-      [match height with
-       | Some (S below) =>
-           let target := N.to_nat (l :> N) in
-           if (target <? length labels)%nat then Some (below + fold_right Nat.add 0 (firstn target labels))%nat
-           else None
-       | _ => None
-       end]
-  | RETURN => [match height with Some h => Some (h + fold_right Nat.add 0 labels)%nat | None => None end]
+  | BR_IF l => [match height with Some h => branchSlide heights arities h (N.to_nat (l :> N)) | None => None end]
+  | RETURN => [match height with Some h => labelSlide heights arities h (length arities - 1) | None => None end]
   | _ => [None]
   end.
 
-Definition codeDrops (callees : CalleeEnvironment) : list instr -> option nat -> list (option nat) :=
-  fix codeDrops (code : list instr) (h : option nat) : list (option nat) :=
+(* A function body runs inside its own label, which holds the results. *)
+Definition codeDrops (callees : CalleeEnvironment) (results : nat) : list instr -> option nat -> list (option (nat * nat)) :=
+  fix codeDrops (code : list instr) (h : option nat) : list (option (nat * nat)) :=
     match code with
     | [] => []
-    | j :: rest => instructionDrops callees [] h j ++
+    | j :: rest => instructionDrops callees [0%nat] [results] h j ++
         codeDrops rest (match h with Some h => sourceHeight callees j h | None => None end)
     end.
 
-(* The frame slide each taken edge seeds: the operands it keeps and how far down
-   they move. A function's END or a return keeps its results and drops its locals
-   and every operand below the results; a slide that moves nothing keeps nothing. *)
+(* A slide's ROM words: the operands it keeps and how far down they move. A slide
+   that moves nothing keeps nothing. *)
+Definition slideWord (remaining : bool) (kept distance : nat) : Z :=
+  if remaining then (if Nat.eqb distance 0 then 0 else Z.of_nat kept) else Z.of_nat distance.
+
 (* The slide ROM's entry at a slot of f's flattened code, for the slots whose
-   edges can slide: f's END, its returns, and its br_ifs. Other slots have none. *)
+   edges can slide: f's END and returns drop its locals too; a br_if's taken edge
+   slides within the frame. Other slots have none. *)
 Definition functionSlide (program : Program) (memory : nat) (f : GuestFunction) (offset : nat) (choice : Z)
     : option Z :=
-  let frame := Z.of_nat (guestParams f + guestLocals f) in
+  let frame := (guestParams f + guestLocals f)%nat in
   let remaining := Nat.eqb memory frameSlideRemainingId in
+  let drops := codeDrops (programCallees program (guestModule f)) (guestResults f) (guestBody f) (Some 0%nat) in
   match nth_error (flattenCode (guestBody f)) offset with
-  | None =>
-      if choice =? 0 then Some (if remaining then (if frame =? 0 then 0 else Z.of_nat (guestResults f)) else frame)
-      else None
+  | None => if choice =? 0 then Some (slideWord remaining (guestResults f) frame) else None
   | Some (flatInstruction (Some RETURN) _) =>
-      match nth_error (codeDrops (programCallees program (guestModule f)) (guestBody f) (Some 0%nat)) offset with
-      | Some (Some height) =>
-          if (choice =? 0) && Nat.leb (guestResults f) height then
-            let distance := frame + Z.of_nat (height - guestResults f) in
-            Some (if remaining then (if distance =? 0 then 0 else Z.of_nat (guestResults f)) else distance)
-          else None
+      match nth_error drops offset with
+      | Some (Some (kept, dropped)) => if choice =? 0 then Some (slideWord remaining kept (frame + dropped)) else None
       | _ => None
       end
   | Some (flatInstruction (Some (BR_IF _)) _) =>
-      if remaining then (if (choice =? 0) || (choice =? 1) then Some 0 else None)
-      else if choice =? 0 then Some 0
+      if choice =? 0 then Some 0
       else if choice =? 1 then
-        match nth_error (codeDrops (programCallees program (guestModule f)) (guestBody f) (Some 0%nat)) offset with
-        | Some (Some dropped) => Some (Z.of_nat dropped)
+        match nth_error drops offset with
+        | Some (Some (kept, dropped)) => Some (slideWord remaining kept dropped)
         | _ => None
         end
       else None

@@ -11,13 +11,6 @@ Require Import Wasm2 WasmIntegers R1CS Columns Range FullRelation MemoryTrace Me
 Import ListNotations.
 Open Scope Z_scope.
 
-Lemma split_top_values : forall (values : list Z) n,
-  (n <= length values)%nat -> exists prefix top, values = prefix ++ top /\ length top = n.
-Proof.
-  intros values n H. exists (firstn (length values - n) values), (skipn (length values - n) values).
-  split; [symmetry; apply firstn_skipn | rewrite length_skipn; lia].
-Qed.
-
 Lemma stack_config_rejoin : forall z values results code,
   stackPrefix values (instructionSuffix code (mk_config z (List.map i32Constant results))) =
     stackConfig z (values ++ results) code.
@@ -951,14 +944,15 @@ Proof.
   rewrite (full_selected_choice_pinned row COL_SEL_RETURN Hprime Hfull ltac:(vm_compute; tauto) Hsel
     ltac:(vm_compute; intuition discriminate)) in Hkept, Hrom.
   match type of Hkept with context [Nat.leb ?r ?t] => assert (Hfits : (r <= t)%nat) end.
-  { unfold viewOperands. cbn [viewSegments viewValues]. rewrite length_app. lia. }
+  { lia. }
   rewrite (proj2 (Nat.leb_le _ _) Hfits) in Hkept, Hrom. change ((0 =? 0)%Z && true) with true in Hkept, Hrom.
   cbn iota in Hkept, Hrom.
   injection Hkept as HremRom. injection Hrom as HdistRom.
   unfold viewOperands in Hfits, HremRom, HdistRom, Hbounds, Hcells, Hsp. cbn [viewSegments viewValues] in *.
-  rewrite !Nat.add_0_r in Hfits, HremRom, HdistRom.
+  rewrite !Nat.add_0_r in HremRom, HdistRom.
   (* The operands below the results, and the results. *)
-  destruct (split_top_values (concat segments ++ values) (guestResults f) Hfits) as [dropped [returned [Hsplit Hlength]]].
+  destruct (split_top_values (concat segments ++ values) (guestResults f) ltac:(rewrite length_app; lia))
+    as [dropped [returned [Hsplit Hlength]]].
   assert (Hdropped : length dropped = (length (concat segments ++ values) - guestResults f)%nat)
     by (rewrite Hsplit, length_app; lia).
   assert (HcalleeWf : wf_frame (activeFrame f locals))
@@ -969,8 +963,10 @@ Proof.
   - rewrite <- Hsplit. exact Hbounds.
   - rewrite <- Hsplit. exact Hcells.
   - rewrite <- Hsplit. exact Hsp.
-  - rewrite HdistRom, Hdropped. unfold frameLocals. lia.
-  - rewrite HremRom, Hdropped. unfold frameLocals. reflexivity.
+  - rewrite HdistRom, Hdropped. unfold slideWord, frameLocals. lia.
+  - rewrite HremRom, Hdropped. unfold slideWord, frameLocals.
+    destruct (Nat.eqb _ 0) eqn:Hnat, (_ =? 0)%Z eqn:Hint; try reflexivity;
+      [apply Nat.eqb_eq in Hnat; apply Z.eqb_neq in Hint | apply Nat.eqb_neq in Hnat; apply Z.eqb_eq in Hint]; lia.
   - intros caller Hcaller.
     unfold frameConfig. cbn [viewPosition positionLabels viewSegments].
     rewrite (skipn_at_instruction _ _ _ Hi).

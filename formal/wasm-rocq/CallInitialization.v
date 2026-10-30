@@ -501,22 +501,31 @@ Proof.
     solve [reflexivity | cbn; tauto | vm_compute; discriminate].
 Qed.
 
+(* A branch starts no zeroing: an idle countdown has none pending after it. *)
+Lemma branch_no_zeroing : forall (w : Witness) chosen,
+  fieldPrime -> FullRelation.satFull w -> In chosen selectorColumns -> w chosen = 1 ->
+  In chosen [COL_SEL_BR; COL_SEL_BR_IF_EQZ; COL_SEL_BR_TABLE] ->
+  initializationIdle (beforeBoundary w) -> w COL_LOCAL_ZERO_REMAINING_AFTER = 0.
+Proof.
+  intros w chosen Hprime Hfull Hin Hchosen Hbranch [Hz [_ [Hza _]]].
+  cbn [beforeBoundary boundaryZeroRemaining boundaryZeroActive] in *.
+  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
+  destruct (full_branch_frame w chosen Hprime Hfull Hin Hchosen Hbranch) as [_ _ Hguest Hturn _].
+  circuit_row ([(COL_ONE, 1); (COL_GUEST_ENTRY_ACTIVE, -1); (COL_TURN_BOUNDARY, -1);
+    (COL_LOCAL_ZERO_ACTIVE_BEFORE, -1)],
+    [(COL_LOCAL_ZERO_REMAINING_AFTER, 1); (COL_LOCAL_ZERO_REMAINING_BEFORE, -1)], ([] : SparseRow)) Hrow.
+  expand_row Hrow. normalize_columns. rewrite Hone, Hguest, Hturn, Hza, Hz in Hrow.
+  pose proof (value_bound w COL_LOCAL_ZERO_REMAINING_AFTER). field_linear Hrow.
+Qed.
+
 (* A branch whose slide keeps nothing leaves an idle countdown idle. *)
 Lemma branch_keeps_idle : forall (w : Witness) chosen,
   fieldPrime -> FullRelation.satFull w -> In chosen selectorColumns -> w chosen = 1 ->
   In chosen [COL_SEL_BR; COL_SEL_BR_IF_EQZ; COL_SEL_BR_TABLE] -> w COL_FRAME_MOVE_REMAINING_AFTER = 0 ->
   initializationIdle (beforeBoundary w) -> initializationIdle (afterBoundary w).
 Proof.
-  intros w chosen Hprime Hfull Hin Hchosen Hbranch HpAfter [Hz [Hp [Hza Hpa]]].
-  cbn [beforeBoundary boundaryZeroRemaining boundaryMoveRemaining boundaryZeroActive boundaryMoveActive] in *.
-  assert (Hone : w COL_ONE = 1) by exact (proj1 Hfull).
-  destruct (full_branch_frame w chosen Hprime Hfull Hin Hchosen Hbranch) as [_ _ Hguest Hturn _].
-  assert (HzAfter : w COL_LOCAL_ZERO_REMAINING_AFTER = 0).
-  { circuit_row ([(COL_ONE, 1); (COL_GUEST_ENTRY_ACTIVE, -1); (COL_TURN_BOUNDARY, -1);
-      (COL_LOCAL_ZERO_ACTIVE_BEFORE, -1)],
-      [(COL_LOCAL_ZERO_REMAINING_AFTER, 1); (COL_LOCAL_ZERO_REMAINING_BEFORE, -1)], ([] : SparseRow)) Hrow.
-    expand_row Hrow. normalize_columns. rewrite Hone, Hguest, Hturn, Hza, Hz in Hrow.
-    pose proof (value_bound w COL_LOCAL_ZERO_REMAINING_AFTER). field_linear Hrow. }
+  intros w chosen Hprime Hfull Hin Hchosen Hbranch HpAfter Hidle.
+  pose proof (branch_no_zeroing w chosen Hprime Hfull Hin Hchosen Hbranch Hidle) as HzAfter.
   destruct (full_initialization_flags w Hprime Hfull) as [HpFlag HzFlag].
   rewrite HpAfter in HpFlag. rewrite HzAfter, HpAfter in HzFlag.
   cbn [afterBoundary boundaryZeroRemaining boundaryMoveRemaining boundaryZeroActive boundaryMoveActive].

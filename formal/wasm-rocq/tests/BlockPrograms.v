@@ -177,7 +177,7 @@ Example conditional_body_supported :
   supportedCode (programCallees conditionalProgram conditionalModule) conditionalCode.
 Proof.
   constructor; [ | constructor; [constructor | constructor]].
-  apply supported_block. repeat constructor.
+  apply supported_block; [ | left; reflexivity]. repeat constructor.
 Qed.
 
 Example conditional_program_supported : programSupported conditionalProgram.

@@ -83,7 +83,7 @@ Example computed_body_supported :
   supportedCode (programCallees computedProgram computedModule) computedCode.
 Proof.
   constructor; [ | constructor; [constructor | constructor]].
-  apply supported_block. repeat constructor.
+  apply supported_block; [ | left; reflexivity]. repeat constructor.
 Qed.
 
 Example computed_program_supported : programSupported computedProgram.
@@ -148,7 +148,7 @@ Definition computedInteriorMemory := loadProgram computedProgram (fun memory add
   else computedRam 7 memory address).
 Definition computedInteriorConfig := stackPrefix []
   (instructionSuffix [LOCAL_GET (mk_uN 1)]
-    (SpecTecBranches.blockContext (stackConfig (computedState 7) [4294967294] (skipn 3 computedBranches)))).
+    (SpecTecBranches.blockContext 0 (stackConfig (computedState 7) [4294967294] (skipn 3 computedBranches)))).
 
 (* Inside the label, the decoder splits the operand stack at the block's height. *)
 Example computed_interior_config :

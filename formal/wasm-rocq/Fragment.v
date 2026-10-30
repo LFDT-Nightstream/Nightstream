@@ -6,12 +6,15 @@ From Stdlib Require Import List ZArith NArith Arith.
 Require Import Wasm2 StraightLineSpec CallerSpec.
 Import ListNotations.
 
+(* The operands a block leaves: its label's arity. *)
+Definition blockResults (bt : blocktype) : nat := match bt with _RESULT (Some _) => 1 | _ => 0 end.
+
 (* The operand height at the next instruction in program order, when control falls
    through to it. None where nothing falls through (after a return), or where the
    operands would underflow, which validation rules out. *)
 Definition sourceHeight (callees : CalleeEnvironment) (i : instr) (height : nat) : option nat :=
   match i with
-  | BLOCK _ _ => Some height
+  | BLOCK bt _ => Some (height + blockResults bt)%nat
   | RETURN => None
   | CALL x => match callees (x :> N) with
       | Some f => if Nat.leb (guestParams f) height then Some (height - guestParams f + guestResults f)%nat else None
@@ -61,8 +64,9 @@ Inductive Supported (callees : CalleeEnvironment) : instr -> Prop :=
    metadata holds the parameter and result counts in one byte each. *)
 | supported_call : forall x f, callees (x :> N) = Some f ->
     (guestParams f < 256)%nat -> (guestResults f < 256)%nat -> Supported callees (CALL x)
-(* Zero-result blocks, nested to any depth. *)
-| supported_block : forall body, Forall (Supported callees) body -> Supported callees (BLOCK (_RESULT None) body)
+(* Blocks without parameters and with at most one i32 result, nested to any depth. *)
+| supported_block : forall result body, Forall (Supported callees) body ->
+    (result = None \/ result = Some valtype_I32) -> Supported callees (BLOCK (_RESULT result) body)
 (* Branches to an enclosing block, where codeBranches allows them. *)
 | supported_br_if : forall l, Supported callees (BR_IF l)
 (* Returns from any depth of blocks, discarding the operands below the results. *)

@@ -81,5 +81,7 @@ tests/UnwindingRun.v
 tests/UnwindingWitness.v
 tests/EarlyReturnTrace.v
 tests/EarlyReturnWitness.v
+tests/ResultBlockTrace.v
+tests/ResultBlockWitness.v
 tests/DeepBranches.v
 tests/RangeSearch.v

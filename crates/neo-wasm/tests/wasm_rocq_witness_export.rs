@@ -60,6 +60,17 @@ const EARLY_RETURN: &str = r#"(module
     block local.get 1 local.get 0 return end
     local.get 1))"#;
 
+/// A taken br_if out of a result block: it keeps the block's result and drops the
+/// operand below it, so the result moves down; the outer block's END carries its
+/// result out.
+const RESULT_BLOCKS: &str = r#"(module
+  (func (export "main") (param i32 i32) (result i32)
+    block (result i32)
+      block (result i32) local.get 0 local.get 1 local.get 0 br_if 0 i32.add end
+      local.get 1
+      i32.sub
+    end))"#;
+
 /// The longest run of program, zero and move rows ending just before the final END,
 /// which finishes the activation, as `name`, one dense row per trace row.
 fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
@@ -118,4 +129,5 @@ fn export_witnesses() {
     export_witness(BLOCK_CALLS, &[], "blockCallRows", "BlockCallTrace.v");
     export_witness(UNWINDING_BRANCH, &[7], "unwindingRows", "UnwindingTrace.v");
     export_witness(EARLY_RETURN, &[7], "earlyReturnRows", "EarlyReturnTrace.v");
+    export_witness(RESULT_BLOCKS, &[7, 9], "resultBlockRows", "ResultBlockTrace.v");
 }

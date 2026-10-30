@@ -697,3 +697,41 @@ fn idle_proof_times_on_metal() {
     let program = Program::new(geometry, vec![0; 1 << geometry.r], vec![0; 1 << geometry.mu]).unwrap();
     time_on_metal(app, geometry, &program, (), &vec![(); geometry.n]);
 }
+
+/// The F′ step sizes of the `fib(2)` circuit and of its idle control, and the
+/// `scripts/fprime_breakdown.py` command that charts the step with its memory
+/// part (the control) and its WASM part (the difference).
+#[test]
+#[ignore = "Compiles two circuits; run separately under the 300-second cap."]
+fn fibonacci_step_size_for_the_breakdown_chart() {
+    use nightstream::nebula::Circuit;
+    use nightstream::ApplicationSize;
+    let setup = Setup::of(vec![traced(&fib_wat(FIB_ROUNDS), FIB_STEPS)], FIB_STEPS);
+    let (wasm, geometry) = setup.complete();
+    let idle = Idle {
+        width: wasm.links.len(),
+        b_ops: geometry.b_ops,
+    };
+    let step = Circuit::compile(&reference(), geometry, wasm)
+        .unwrap()
+        .application_size()
+        .unwrap();
+    let memory = Circuit::compile(&reference(), geometry, idle)
+        .unwrap()
+        .application_size()
+        .unwrap();
+    let relation = ApplicationSize {
+        witness_words: step.witness_words - memory.witness_words,
+        local_words: step.local_words - memory.local_words,
+        rows: step.rows - memory.rows,
+    };
+    let numbers = |size: ApplicationSize| format!("{},{},{}", size.witness_words, size.local_words, size.rows);
+    println!(
+        "python3 scripts/fprime_breakdown.py --name 'Enzo fib({FIB_ROUNDS}) WASM step' --application {} \
+         --part 'Nebula memory and state words={}' --part 'WASM relation, binding, and private words={}' \
+         --out wasm-fib-step.html",
+        numbers(step),
+        numbers(memory),
+        numbers(relation)
+    );
+}

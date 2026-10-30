@@ -217,6 +217,12 @@ impl<A: Application> Circuit<A> {
         self.circuit.write(path)
     }
 
+    /// The size of the memory relation and the application in the F′ step,
+    /// or `None` for a Lean package.
+    pub fn application_size(&self) -> Option<crate::ApplicationSize> {
+        self.circuit.application_size()
+    }
+
     /// The prover of the circuit. `minimum_security_bits` bounds the folding
     /// profile and the memory fingerprint term (`Geometry::memory_security_bits`).
     pub fn prover(&self, engine: crate::Engine, minimum_security_bits: u32) -> Result<crate::Prover, crate::Error> {

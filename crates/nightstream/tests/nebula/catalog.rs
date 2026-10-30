@@ -205,6 +205,10 @@ impl Application for CatalogApp {
         self.columns
     }
 
+    fn port_count(&self) -> usize {
+        self.binding.port_count()
+    }
+
     fn words(&self, _: &()) -> Vec<u64> {
         Vec::new()
     }
@@ -565,6 +569,24 @@ fn honest_rows_bind_the_lean_events_in_order_and_hold() {
 /// accepts the honest rows. The accesses of each row bind its Lean events in
 /// slot order, and each pair of one memory with a write keeps catalog order
 /// (Lean `Reorders`).
+/// A row without every catalog column gives an error, not a panic.
+#[test]
+fn short_rows_give_a_width_error() {
+    let setup = setup();
+    let cells = setup.memory();
+    let memory = Memory::new(&setup.geometry, &cells);
+    assert!(setup.binding.ports(&fetch_row(), &memory).is_ok());
+    for len in [0, CODE_VALUE] {
+        assert!(
+            matches!(
+                setup.binding.ports(&fetch_row()[..len], &memory),
+                Err(CatalogRowError::Width)
+            ),
+            "{len} words"
+        );
+    }
+}
+
 #[test]
 fn independent_ports_may_leave_catalog_order() {
     let plan: Vec<Vec<usize>> = SWAPPED_PLAN.iter().map(|slot| slot.to_vec()).collect();

@@ -675,6 +675,10 @@ impl Application for Changed {
         Machine.aux()
     }
 
+    fn port_count(&self) -> usize {
+        Machine.port_count()
+    }
+
     fn words(&self, state: &MachineState) -> Vec<u64> {
         Machine.words(state)
     }
@@ -781,6 +785,29 @@ fn insecure_geometry_makes_no_circuit() {
     assert!(matches!(
         nightstream::nebula::Circuit::compile(&reference, insecure, Machine),
         Err(nightstream::Error::Circuit("the memory geometry breaks spec §4.2"))
+    ));
+}
+
+/// Lean `Machine.portApp` is for `bOps = 2`, and Lean `PortApp.portsLength`
+/// gives every step `B_ops` ports. No machine row fixes a third port, so a
+/// step could write any RAM cell through it: the geometry makes no circuit.
+#[test]
+fn machine_makes_no_circuit_with_a_third_port() {
+    let mut geometry = Package::V1.geometry();
+    geometry.b_ops = 3;
+    assert!(geometry.is_valid() && geometry.max_tuples() <= 139_509);
+    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+    assert!(matches!(
+        nightstream::nebula::Circuit::compile(&reference, geometry, Machine),
+        Err(nightstream::Error::Circuit(
+            "the application's port count is not the geometry's b_ops"
+        ))
+    ));
+    assert!(matches!(
+        nightstream::nebula::size_parts(&geometry, &Machine),
+        Err(nightstream::Error::Circuit(
+            "the application's port count is not the geometry's b_ops"
+        ))
     ));
 }
 

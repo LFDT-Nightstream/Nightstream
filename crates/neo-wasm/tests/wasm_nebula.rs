@@ -136,6 +136,10 @@ impl Application for Wasm {
         self.columns
     }
 
+    fn port_count(&self) -> usize {
+        self.binding.port_count()
+    }
+
     fn words(&self, state: &Vec<u64>) -> Vec<u64> {
         state.clone()
     }
@@ -663,6 +667,10 @@ impl Application for Idle {
 
     fn aux(&self) -> usize {
         0
+    }
+
+    fn port_count(&self) -> usize {
+        self.b_ops
     }
 
     fn words(&self, _: &()) -> Vec<u64> {

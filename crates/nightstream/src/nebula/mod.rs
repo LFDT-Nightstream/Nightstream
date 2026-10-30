@@ -183,6 +183,15 @@ pub enum TerminalError {
 }
 
 /// The circuit of a memory relation: its geometry, its application, and the
+fn check_port_count<A: Application>(geometry: &Geometry, app: &A) -> Result<(), crate::Error> {
+    if app.port_count() != geometry.b_ops {
+        return Err(crate::Error::Circuit(
+            "the application's port count is not the geometry's b_ops",
+        ));
+    }
+    Ok(())
+}
+
 /// One named part of the application size of a memory circuit.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct SizePart {
@@ -199,6 +208,7 @@ pub fn size_parts<A: Application>(geometry: &Geometry, app: &A) -> Result<Vec<Si
     if !geometry.is_valid() {
         return Err(crate::Error::Circuit("the memory geometry breaks spec §4.2"));
     }
+    check_port_count(geometry, app)?;
     let (_, phases) = circuit::memory_circuit_phases(geometry, app)?;
     let size = |witness_words, local_words, rows| crate::ApplicationSize {
         witness_words,
@@ -238,11 +248,13 @@ pub struct Circuit<A> {
 impl<A: Application> Circuit<A> {
     /// Build the memory relation of a valid, secure geometry (Lean
     /// `Geometry.Valid` and `Geometry.Secure`) and `app` in Rust, and compile
-    /// it with the Stage 1 reference package.
+    /// it with the Stage 1 reference package. `app` must have the geometry's
+    /// `b_ops` ports (Lean `PortApp.portsLength`).
     pub fn compile(reference_bytes: &[u8], geometry: Geometry, app: A) -> Result<Self, crate::Error> {
         if !geometry.is_valid() || !geometry.is_secure() {
             return Err(crate::Error::Circuit("the memory geometry breaks spec §4.2"));
         }
+        check_port_count(&geometry, &app)?;
         let application = circuit::memory_circuit(&geometry, &app)?;
         Ok(Self {
             circuit: crate::Circuit::compile(reference_bytes, application)?,

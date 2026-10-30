@@ -89,6 +89,9 @@ pub enum CatalogRowError {
     Value,
     #[error("two active ports share a slot, or two dependent active ports leave catalog order")]
     Plan,
+    /// Only a host can give it: a step's row has every catalog column.
+    #[error("the row has no word at a column of the catalog")]
+    Width,
 }
 
 /// One port of a checked memory as its slot sees it.
@@ -114,14 +117,20 @@ fn is_active(activation: MemoryPortActivation, row: &[F]) -> Result<bool, Catalo
         MemoryPortActivation::When(column) => (column, 1),
         MemoryPortActivation::Unless(column) => (column, 0),
     };
-    match row[column].as_canonical_u64() {
+    match column_value(row, column)? {
         bit @ (0 | 1) => Ok(bit == active_value),
         _ => Err(CatalogRowError::Activation),
     }
 }
 
+fn column_value(row: &[F], column: usize) -> Result<u64, CatalogRowError> {
+    row.get(column)
+        .map(|value| value.as_canonical_u64())
+        .ok_or(CatalogRowError::Width)
+}
+
 fn word(row: &[F], column: usize) -> Result<u64, CatalogRowError> {
-    let value = row[column].as_canonical_u64();
+    let value = column_value(row, column)?;
     if value >> 32 == 0 {
         Ok(value)
     } else {
@@ -158,11 +167,11 @@ impl Port {
 
     /// The namespace address of the port's address parts in `row`.
     fn address(&self, row: &[F]) -> Result<u64, CatalogRowError> {
-        let parts: Vec<u64> = self
+        let parts = self
             .address
             .iter()
-            .map(|column| row[*column].as_canonical_u64())
-            .collect();
+            .map(|&column| column_value(row, column))
+            .collect::<Result<Vec<u64>, _>>()?;
         self.region.addr(&parts).ok_or(CatalogRowError::Address)
     }
 }
@@ -297,6 +306,11 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
             checked,
             host_checked,
         })
+    }
+
+    /// The `b_ops` slots of the plan, for `Application::port_count`.
+    pub fn port_count(&self) -> usize {
+        self.slots.len()
     }
 
     /// The memories without a region, in catalog order. The host checks them.

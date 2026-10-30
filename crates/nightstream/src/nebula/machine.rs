@@ -108,6 +108,11 @@ impl Application for Machine {
         1
     }
 
+    /// Lean `Machine.portApp` is for `bOps = 2`.
+    fn port_count(&self) -> usize {
+        2
+    }
+
     fn words(&self, state: &MachineState) -> Vec<u64> {
         vec![state.pc, state.acc]
     }

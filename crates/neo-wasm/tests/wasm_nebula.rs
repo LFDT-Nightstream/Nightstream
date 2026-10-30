@@ -581,32 +581,35 @@ fn wasm_proof_verifies_and_rejects_a_changed_load_on_cpu() {
     eprintln!("wasm elapsed={:?}", started.elapsed());
 }
 
-/// Enzo's Fibonacci program proved and verified on Metal in one segment, with
+/// `fib(2)` is 32 rows, so it fills a 32-step segment with no padding step.
+const FIB_ROUNDS: u32 = 2;
+const FIB_STEPS: usize = 32;
+
+/// Prove and verify one segment of `inputs` from `initial` on Metal, and print
 /// the time of each phase and of each step.
-#[test]
-#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
-fn fibonacci_proof_times_on_metal() {
+fn time_on_metal<A: Application + Clone>(
+    app: A,
+    geometry: Geometry,
+    program: &Program,
+    initial: A::State,
+    inputs: &[A::Input],
+) {
     use nightstream::nebula::{Circuit, Verifier};
     use std::time::Instant;
-    const ROUNDS: u32 = 2;
-    const STEPS: usize = 32;
-    let started = Instant::now();
-    let setup = Setup::of(vec![traced(&fib_wat(ROUNDS), STEPS)], STEPS);
-    let (app, geometry) = setup.complete();
-    let traced = &setup.programs[0];
-    eprintln!("fib({ROUNDS}) rows={} {geometry:?}", traced.real);
     let engine = nightstream::Engine::Metal;
+    let started = Instant::now();
+    eprintln!("{geometry:?}");
     let circuit = Circuit::compile(&reference(), geometry, app.clone()).unwrap();
     eprintln!("compile elapsed={:?}", started.elapsed());
     let prover = circuit.prover(engine, 114).unwrap();
     let verifier = Verifier::new(&circuit, engine, 114).unwrap();
     eprintln!("setup elapsed={:?}", started.elapsed());
 
-    let (program, mut run) = setup.run(&app, traced);
-    let invocations = run.segment(&traced.rows).unwrap();
+    let mut run = Run::new(Context::new(app, program), initial);
+    let invocations = run.segment(inputs).unwrap();
     eprintln!("witness words per step={}", invocations[0].words.len());
     let proving = Instant::now();
-    let mut proofs: Vec<nightstream::Proof> = Vec::with_capacity(STEPS);
+    let mut proofs: Vec<nightstream::Proof> = Vec::with_capacity(invocations.len());
     for (k, invocation) in invocations.iter().enumerate() {
         let step = Instant::now();
         let proof = match proofs.last() {
@@ -617,11 +620,80 @@ fn fibonacci_proof_times_on_metal() {
         eprintln!("step {k} elapsed={:?}", step.elapsed());
         proofs.push(proof);
     }
-    eprintln!("prove {STEPS} steps elapsed={:?}", proving.elapsed());
+    eprintln!("prove {} steps elapsed={:?}", proofs.len(), proving.elapsed());
     let verifying = Instant::now();
     verifier
-        .verify(&program, &run.statement(), run.carry(), &proofs[STEPS - 1])
+        .verify(program, &run.statement(), run.carry(), proofs.last().unwrap())
         .unwrap();
     eprintln!("verify elapsed={:?}", verifying.elapsed());
     eprintln!("total elapsed={:?}", started.elapsed());
+}
+
+/// Enzo's Fibonacci program proved and verified on Metal in one segment.
+#[test]
+#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
+fn fibonacci_proof_times_on_metal() {
+    let setup = Setup::of(vec![traced(&fib_wat(FIB_ROUNDS), FIB_STEPS)], FIB_STEPS);
+    let (app, geometry) = setup.complete();
+    let traced = &setup.programs[0];
+    eprintln!("fib({FIB_ROUNDS}) rows={}", traced.real);
+    let program = app
+        .binding
+        .program(&traced.preload)
+        .expect("the regions hold the preload");
+    time_on_metal(app, geometry, &program, traced.initial.clone(), &traced.rows);
+}
+
+/// The memory rows of a geometry with `width` state words and no private word
+/// or row. Every step is idle.
+#[derive(Clone)]
+struct Idle {
+    width: usize,
+    b_ops: usize,
+}
+
+impl Application for Idle {
+    type Input = ();
+    type State = ();
+    type Error = std::convert::Infallible;
+
+    fn width(&self) -> usize {
+        self.width
+    }
+
+    fn aux(&self) -> usize {
+        0
+    }
+
+    fn words(&self, _: &()) -> Vec<u64> {
+        vec![0; self.width]
+    }
+
+    fn rows(&self, _: &View) -> Vec<Expr> {
+        Vec::new()
+    }
+
+    fn step(&self, _: &(), _: &(), _: &Memory) -> Result<Transition<()>, Self::Error> {
+        Ok(Transition {
+            next: (),
+            ports: vec![None; self.b_ops],
+            aux: Vec::new(),
+        })
+    }
+}
+
+/// The control of `fibonacci_proof_times_on_metal`: its geometry and state
+/// words with no WASM row and no private word, so a step costs only the
+/// recursion and the memory rows.
+#[test]
+#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
+fn idle_proof_times_on_metal() {
+    let setup = Setup::of(vec![traced(&fib_wat(FIB_ROUNDS), FIB_STEPS)], FIB_STEPS);
+    let (wasm, geometry) = setup.complete();
+    let app = Idle {
+        width: wasm.links.len(),
+        b_ops: geometry.b_ops,
+    };
+    let program = Program::new(geometry, vec![0; 1 << geometry.r], vec![0; 1 << geometry.mu]).unwrap();
+    time_on_metal(app, geometry, &program, (), &vec![(); geometry.n]);
 }

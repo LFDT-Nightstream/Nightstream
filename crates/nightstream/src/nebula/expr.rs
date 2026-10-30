@@ -5,6 +5,7 @@
 //! `Expr` trees over a `View`. It does not own any row list.
 
 use std::{
+    collections::BTreeSet,
     ops::{Add, Mul, Neg, Sub},
     rc::Rc,
 };
@@ -26,6 +27,17 @@ pub enum Expr {
 impl Expr {
     pub fn constant(value: u64) -> Self {
         Self::Const(F::from_u64(value))
+    }
+
+    /// The first variable of the tree that is not in `scope`.
+    pub(super) fn variable_outside(&self, scope: &BTreeSet<Variable>) -> Option<Variable> {
+        match self {
+            Self::Var(variable) => (!scope.contains(variable)).then_some(*variable),
+            Self::Const(_) => None,
+            Self::Add(left, right) | Self::Mul(left, right) => left
+                .variable_outside(scope)
+                .or_else(|| right.variable_outside(scope)),
+        }
     }
 }
 

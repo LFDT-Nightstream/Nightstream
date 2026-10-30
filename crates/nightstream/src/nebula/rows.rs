@@ -5,6 +5,8 @@
 //! node, because the lowering of a generic row depends on its shape. It does
 //! not own the hash rows or any application's rows.
 
+use std::collections::BTreeSet;
+
 use p3_field::PrimeCharacteristicRing;
 use p3_goldilocks::Goldilocks as F;
 
@@ -444,6 +446,14 @@ impl<'a> View<'a> {
 
     fn local(&self, k: usize) -> Expr {
         self.sym.word(self.sym.layout.app_var(k))
+    }
+
+    /// The variables of the view's words. An application row reads no
+    /// other: not `η`, the carry, or any other memory word.
+    pub(super) fn variables(&self) -> BTreeSet<Variable> {
+        (0..self.sym.layout.slot_local(self.sym.geometry.b_ops, 0))
+            .filter_map(|k| self.sym.wires.get(self.sym.layout.app_var(k)).copied())
+            .collect()
     }
 
     fn slot(&self, j: usize, k: usize) -> Expr {

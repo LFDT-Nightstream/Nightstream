@@ -811,6 +811,66 @@ fn machine_makes_no_circuit_with_a_third_port() {
     ));
 }
 
+/// An application whose row reads witness word `self.0` through a public
+/// `Variable`, outside its view.
+struct ReadsWord(usize);
+
+impl Application for ReadsWord {
+    type Input = ();
+    type State = ();
+    type Error = std::convert::Infallible;
+
+    fn width(&self) -> usize {
+        0
+    }
+
+    fn aux(&self) -> usize {
+        0
+    }
+
+    fn port_count(&self) -> usize {
+        2
+    }
+
+    fn words(&self, _: &()) -> Vec<u64> {
+        Vec::new()
+    }
+
+    fn rows(&self, view: &View) -> Vec<Expr> {
+        let word = nightstream::application::ApplicationBuilder::new(self.0 + 1)
+            .unwrap()
+            .private_inputs()[self.0];
+        vec![view.pad(0) * (view.vr(0) - Expr::Var(word))]
+    }
+
+    fn step(&self, _: &(), _: &(), _: &Memory) -> Result<Transition<()>, Self::Error> {
+        Ok(Transition {
+            next: (),
+            ports: vec![None, None],
+            aux: Vec::new(),
+        })
+    }
+}
+
+/// Lean `PortApp` rows read only the view (`AppView.env`), and the security
+/// note needs rows that do not see `η`. A row that reads witness word 90 (the
+/// fresh `η1`) or word 0 (the carry) makes no circuit.
+#[test]
+fn application_rows_outside_the_view_make_no_circuit() {
+    let reference = package("nightstream-fprime-stage1-poseidon2-hash-chain-v1.json");
+    for word in [90, 0] {
+        assert!(
+            matches!(
+                nightstream::nebula::Circuit::compile(&reference, Package::V1.geometry(), ReadsWord(word)),
+                Err(nightstream::Error::Application(
+                    nightstream::application::ApplicationError::VariableOutOfScope(_)
+                ))
+            ),
+            "word {word}"
+        );
+    }
+}
+
 /// One segment of the first package's default program proved by `prover`,
 /// with the native outputs as the Rust application's outputs.
 fn prove_segment<A: Application<Input = Step, State = MachineState>>(

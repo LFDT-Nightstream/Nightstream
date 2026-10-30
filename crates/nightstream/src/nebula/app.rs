@@ -44,7 +44,8 @@ pub trait Application {
     fn words(&self, state: &Self::State) -> Vec<u64>;
 
     /// The application's rows over the step's view (Ob7). Each row is zero
-    /// on an honest step.
+    /// on an honest step and reads only the view's words (Lean `AppView`);
+    /// a memory circuit rejects a row with any other variable.
     fn rows(&self, view: &View) -> Vec<Expr>;
 
     /// One native step from `state`. `memory` holds the cells before the

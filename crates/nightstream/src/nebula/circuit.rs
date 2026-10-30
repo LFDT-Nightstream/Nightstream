@@ -203,7 +203,12 @@ pub(super) fn memory_circuit_phases<A: Application>(
         }
         mark(&builder, name);
     }
-    for row in &app.rows(&View::new(&sym)) {
+    let view = View::new(&sym);
+    let readable = view.variables();
+    for row in &app.rows(&view) {
+        if let Some(variable) = row.variable_outside(&readable) {
+            return Err(ApplicationError::VariableOutOfScope(variable.index()));
+        }
         lower_constraint(&mut builder, row)?;
     }
     mark(&builder, "Application rows");

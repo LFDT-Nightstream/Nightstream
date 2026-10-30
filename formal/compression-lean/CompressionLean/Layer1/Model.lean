@@ -1,9 +1,11 @@
 import CompressionLean.Layer1.RingRows
 import CompressionLean.Layer1.Lookups
+import CompressionLean.Lib.List
 import Mathlib.Algebra.QuadraticAlgebra.Defs
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 structure Shape where
@@ -75,9 +77,6 @@ structure P1Tables (K : Type) where
   foldRun : ℕ → K
   omegaA : ℕ → K
 
-instance candidates_nonempty {α : Type} (L : ℕ) : Nonempty {l : List α // l.length ≤ L} :=
-  ⟨⟨[], by simp⟩⟩
-
 variable {F : Type} [Field F]
 
 noncomputable def coeffPoly (D : ℕ) (v : ℕ → F) : F[X] :=
@@ -109,7 +108,7 @@ structure Setup.Fits (S : Setup F) (s : Shape) : Prop where
   lane_lt : ∀ σ, S.slotLane σ < s.D
   length_le : ∀ σ, S.slotLength σ ≤ s.D
   inside : ∀ σ, s.D * S.slotBlock σ + S.slotLane σ + S.slotLength σ ≤ s.D * s.blocks
-  key_zero : ∀ i b l, (s.blocks ≤ b ∨ s.D ≤ l) → S.key i (2 ^ s.laneVars * b + l) = 0
+  key_zero : ∀ i b l, l < 2 ^ s.laneVars → (s.blocks ≤ b ∨ s.D ≤ l) → S.key i (2 ^ s.laneVars * b + l) = 0
 
 noncomputable def witnessBlock (s : Shape) (z : ℕ → F) (b : ℕ) : F[X] :=
   coeffPoly s.D fun l => z (2 ^ s.laneVars * b + l)

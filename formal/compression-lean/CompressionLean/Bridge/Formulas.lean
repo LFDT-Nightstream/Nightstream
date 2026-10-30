@@ -1,20 +1,17 @@
 import CompressionLean.Bridge.Field
 import CompressionLean.Layer1.EvalK
 import CompressionLean.Layer1.KeyStructure
+import CompressionLean.Spec.Relation
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
+open CompressionLean.Lib
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-local notation "ι" => algebraMap Fp K
-
-def pointK (p : Array Ext) : List K := p.toList.map Ext.toK
-
-def tableK (a : Array Ext) (i : ℕ) : K := (a[i]!).toK
-
-def pairK (v : Ext × Ext) : K × K := (v.1.toK, v.2.toK)
+local notation "ι" => algebraMap Gl K
 
 @[simp] theorem pointK_length (p : Array Ext) : (pointK (K := K) p).length = p.size := by simp [pointK]
 
@@ -46,22 +43,22 @@ theorem toK_eq1 (x y : Ext) : (eq1 x y).toK (K := K) = x.toK * y.toK + (1 - x.to
   ring
 
 theorem toK_eqEvalList : ∀ xs ys : List Ext,
-    (eqEvalList xs ys).toK (K := K) = Layer1.eqEval (xs.map Ext.toK) (ys.map Ext.toK)
-  | [], ys => by cases ys <;> simp [eqEvalList, Layer1.eqEval]
-  | x :: xs, [] => by simp [eqEvalList, Layer1.eqEval]
+    (eqEvalList xs ys).toK (K := K) = Lib.eqEval (xs.map Ext.toK) (ys.map Ext.toK)
+  | [], ys => by cases ys <;> simp [eqEvalList, Lib.eqEval]
+  | x :: xs, [] => by simp [eqEvalList, Lib.eqEval]
   | x :: xs, y :: ys => by
-      simp only [eqEvalList, Layer1.eqEval, List.map_cons, Ext.toK_mul, toK_eqEvalList xs ys, toK_eq1]
+      simp only [eqEvalList, Lib.eqEval, List.map_cons, Ext.toK_mul, toK_eqEvalList xs ys, toK_eq1]
 
-theorem toK_eqEval (x y : Array Ext) : (Replay.eqEval x y).toK (K := K) = Layer1.eqEval (pointK x) (pointK y) :=
+theorem toK_eqEval (x y : Array Ext) : (Replay.eqEval x y).toK (K := K) = Lib.eqEval (pointK x) (pointK y) :=
   toK_eqEvalList _ _
 
-theorem toK_eqAtList : ∀ (xs : List Ext) (i : ℕ), (eqAtList xs i).toK (K := K) = Layer1.eqAt (xs.map Ext.toK) i
-  | [], i => by simp [eqAtList, Layer1.eqAt]
+theorem toK_eqAtList : ∀ (xs : List Ext) (i : ℕ), (eqAtList xs i).toK (K := K) = Lib.eqAt (xs.map Ext.toK) i
+  | [], i => by simp [eqAtList, Lib.eqAt]
   | x :: xs, i => by
-      simp only [eqAtList, Layer1.eqAt, List.map_cons, Ext.toK_mul, toK_eqAtList xs (i / 2)]
+      simp only [eqAtList, Lib.eqAt, List.map_cons, Ext.toK_mul, toK_eqAtList xs (i / 2)]
       split_ifs <;> simp [toK_oneMinus]
 
-theorem toK_eqAt (p : Array Ext) (i : ℕ) : (Replay.eqAt p i).toK (K := K) = Layer1.eqAt (pointK p) i :=
+theorem toK_eqAt (p : Array Ext) (i : ℕ) : (Replay.eqAt p i).toK (K := K) = Lib.eqAt (pointK p) i :=
   toK_eqAtList _ _
 
 theorem eqTable_size (p : Array Ext) : (eqTable p).size = 2 ^ p.size := by simp [eqTable]
@@ -149,25 +146,25 @@ theorem toK_step (p : Array Ext) (segs : List (ℕ × Ext)) (stop : ℕ) :
     (Replay.step p segs stop).toK (K := K) = stepValue (pointK p) stop (segs.map fun s => (s.1, s.2.toK)) := by
   rw [Replay.step, stepValue, nextStart_map, ← toK_lessThan, stepLoop_toK, zero_add]
 
-def quadPoint (r : List (Gl × Gl)) : List (Quad Fp) := r.map fun v => ⟨v.1.toF, v.2.toF⟩
+def quadPoint (r : List (Word × Word)) : List (Quad Gl) := r.map fun v => ⟨v.1.toF, v.2.toF⟩
 
-theorem toQ_chiFactor (r : Gl × Gl) (x : Ext) :
-    (let scaled := (Kx.ofK r).scale (x + x - 1); ({ scaled with re := scaled.re + oneMinus x } : Kx)).toQ (K := K) =
-      (1 - algebraMap K (QuadX K) x.toK) + fromK (K := K) (⟨r.1.toF, r.2.toF⟩ : Quad Fp) *
+theorem toQ_chiFactor (r : Word × Word) (x : Ext) :
+    (chiFactor r (some x)).toQ (K := K) =
+      (1 - algebraMap K (QuadX K) x.toK) + fromK (K := K) (⟨r.1.toF, r.2.toF⟩ : Quad Gl) *
         (2 * algebraMap K (QuadX K) x.toK - 1) := by
   ext
-  · simp [Kx.toQ, Kx.scale, Kx.ofK, Ext.toK_add, Ext.toK_mul, Ext.toK_sub, Ext.toK_ofGl, toK_oneMinus,
+  · simp [chiFactor, Kx.toQ, Kx.scale, Kx.ofK, Ext.toK_add, Ext.toK_mul, Ext.toK_sub, Ext.toK_ofGl, toK_oneMinus,
       QuadraticAlgebra.algebraMap_eq, -QuadraticAlgebra.C_eq_algebraMap, QuadraticAlgebra.re_one,
       QuadraticAlgebra.im_one, QuadraticAlgebra.re_ofNat, QuadraticAlgebra.im_ofNat]
     ring
-  · simp only [Kx.toQ, Kx.scale, Kx.ofK, Ext.toK_add, Ext.toK_mul, Ext.toK_sub, Ext.toK_ofGl, Ext.toK_one,
+  · simp only [chiFactor, Kx.toQ, Kx.scale, Kx.ofK, Ext.toK_add, Ext.toK_mul, Ext.toK_sub, Ext.toK_ofGl, Ext.toK_one,
       QuadraticAlgebra.algebraMap_eq, QuadraticAlgebra.im_one, QuadraticAlgebra.re_ofNat, QuadraticAlgebra.im_ofNat,
       QuadraticAlgebra.im_add, QuadraticAlgebra.im_sub, QuadraticAlgebra.im_mul, QuadraticAlgebra.re_one,
       QuadraticAlgebra.re_sub, QuadraticAlgebra.re_mul, QuadraticAlgebra.re_C, QuadraticAlgebra.im_C,
       fromK_re, fromK_im]
     ring
 
-theorem toQ_chiList : ∀ (r : List (Gl × Gl)) (xs : List Ext),
+theorem toQ_chiList : ∀ (r : List (Word × Word)) (xs : List Ext),
     (chiList r xs).toQ (K := K) =
       chiValue ((quadPoint r).map (fromK (K := K))) ((xs.map Ext.toK).map (algebraMap K (QuadX K)))
   | [], xs => by simp [chiList, chiValue, quadPoint]
@@ -176,11 +173,11 @@ theorem toQ_chiList : ∀ (r : List (Gl × Gl)) (xs : List Ext),
       rw [Kx.toQ_mul, toQ_chiFactor, toQ_chiList rs xs]
       rfl
   | r :: rs, [] => by
-      simp only [chiList, quadPoint, List.map_cons, List.map_nil, chiValue]
+      simp only [chiList, chiFactor, quadPoint, List.map_cons, List.map_nil, chiValue]
       rw [Kx.toQ_mul, Kx.toQ_oneMinus, Kx.toQ_ofK, toQ_chiList rs []]
       rfl
 
-theorem toQ_chi (r : Array (Gl × Gl)) (p : Array Ext) :
+theorem toQ_chi (r : Array (Word × Word)) (p : Array Ext) :
     (Replay.chi r p).toQ (K := K) =
       chiValue ((quadPoint r.toList).map (fromK (K := K))) ((pointK p).map (algebraMap K (QuadX K))) :=
   toQ_chiList _ _
@@ -200,7 +197,7 @@ theorem toK_evalA (m : Mixing) (j : ℕ) :
     (m.public block).toK (K := K) = m.lam.toK ^ (m.kappa + 2 + 2 * m.matrices + block) :=
   Ext.toK_pow _ _
 
-theorem toK_project (value : Gl × Gl) (weights : Ext × Ext) :
+theorem toK_project (value : Word × Word) (weights : Ext × Ext) :
     (project value weights).toK (K := K) = weights.1.toK * ι value.1.toF + weights.2.toK * ι value.2.toF := by
   simp [project, Ext.toK_add, Ext.toK_scale]
 

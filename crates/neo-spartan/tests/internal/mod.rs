@@ -10,6 +10,7 @@ mod merkle;
 mod mle;
 mod replay;
 mod setup;
+mod setup_columns;
 mod shrink;
 mod verifier;
 mod whir;

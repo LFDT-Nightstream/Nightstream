@@ -1,45 +1,18 @@
+import CompressionLean.Ports.Setup
 import CompressionLean.Final.Parent
-import NightstreamFPrime.Spec.AjtaiSetupV1
-import Mathlib.Data.List.Sort
+import CompressionLean.Production
+import CompressionLean.Spec.Parent
 
 /-! Rust test `derived_structure_steps_read_back_the_runs` checks `ReadsBack` of `from_rows`. -/
 
 namespace CompressionLean.Final
 
+open CompressionLean.Spec
 open NightstreamFPrime NightstreamFPrime.Spec NightstreamFPrime.Lifecycle
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
-
-structure Push where
-  row : ℕ
-  matrix : ℕ
-  start : ℕ
-  len : ℕ
-  initial : Gl
-  ratio : Gl
-
-namespace Push
-
-def pad : Push := ⟨0, 0, 0, 0, 0, 0⟩
-
-def value (p : Push) (c : ℕ) : Gl :=
-  if p.start ≤ c ∧ c < p.start + p.len then p.initial * p.ratio ^ (c - p.start) else 0
-
-def ratioWord (p : Push) : ℕ := if p.len = 1 then 1 else p.ratio.val
-
-def classCode (p : Push) : ℕ := p.len * 2 ^ 64 + p.ratioWord
-
-end Push
-
-def pushedEntry (pushes : List Push) (j i c : ℕ) : Gl :=
-  (pushes.map fun p => if p.matrix = j ∧ p.row = i then p.value c else 0).sum
+open CompressionLean.Setup
 
 variable {lw : ℕ} {pf : ringDegree * PaperAlgebra.publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
-
-structure RunsGive (pushes : List Push) (relation : ProductionKey.LogicalRelation lw pf) : Prop where
-  row_lt : ∀ p ∈ pushes, p.row < 2 ^ cubeVariables
-  entry : ∀ (j : Fin productionProfile.ccsMatrices) (i : ℕ) (c : Fin (Phi81CarrierLayout.carrierWidth lw)),
-    i < 2 ^ cubeVariables →
-      pushedEntry pushes j i c = gl ((PaperAlgebra.matrixSource relation.system).matrices j (vertexAt cubeVariables i) c)
 
 structure Lists (S : Layer1.Setup Gl) (runs : List Push) : Prop where
   count : S.runs = runs.length
@@ -89,56 +62,8 @@ theorem runRow_mem {S : Layer1.Setup Gl} {pushes : List Push} (back : ReadsBack 
   rw [List.getD_eq_getElem _ _ inside]
   exact List.getElem_mem inside
 
-def sortedSet (l : List ℕ) : List ℕ := l.dedup.insertionSort (· ≤ ·)
-
 theorem mem_sortedSet {l : List ℕ} {x : ℕ} : x ∈ sortedSet l ↔ x ∈ l := by
   rw [sortedSet, List.mem_insertionSort, List.mem_dedup]
-
-def runList (matrices : ℕ) (pushes : List Push) : List Push :=
-  (List.range matrices).flatMap fun j => pushes.filter fun p => p.matrix = j
-
-def classesOf (runs : List Push) : List ℕ := sortedSet (runs.map Push.classCode)
-
-/-- Rust packs this key as `class << 40 | lane << 32 | block`; valid while blocks are below `2^32` and classes at most `2^24` (`from_rows` refuses wider keys). -/
-def slotKey (classes : List ℕ) (p : Push) : ℕ :=
-  classes.idxOf p.classCode * 2 ^ 40 + p.start % ringDegree * 2 ^ 32 + p.start / ringDegree
-
-def keysOf (runs : List Push) : List ℕ := sortedSet (runs.map (slotKey (classesOf runs)))
-
-def slotStart (keys : List ℕ) (σ : ℕ) : ℕ :=
-  keys.getD σ 0 % 2 ^ 32 * ringDegree + keys.getD σ 0 / 2 ^ 32 % 2 ^ 8
-
-def slotClass (runs : List Push) (σ : ℕ) : ℕ :=
-  (classesOf runs).getD ((keysOf runs).getD σ 0 / 2 ^ 40) 0
-
-def seedKey (seed : List ℕ) (blocks i x : ℕ) : Gl :=
-  if x % 64 < ringDegree ∧ x / 64 < blocks then (AjtaiSetupV1.wideCoefficientNat seed i (x / 64) (x % 64) : Gl)
-  else 0
-
-def setupOfRuns (seed : List ℕ) (blocks : ℕ) (runs : List Push) : Layer1.Setup Gl where
-  key := seedKey seed blocks
-  runRow k := (runs.getD k Push.pad).row
-  runMatrix k := (runs.getD k Push.pad).matrix
-  runSlot k := if k < runs.length then (keysOf runs).idxOf (slotKey (classesOf runs) (runs.getD k Push.pad)) else 0
-  runCoef k := (runs.getD k Push.pad).initial
-  runs := runs.length
-  slotBlock σ := slotStart (keysOf runs) σ / ringDegree
-  slotLane σ := slotStart (keysOf runs) σ % ringDegree
-  slotLength σ := slotClass runs σ / 2 ^ 64
-  slotRatio σ := ((slotClass runs σ % 2 ^ 64 : ℕ) : Gl)
-  slots := (keysOf runs).length
-
-def Accepts (columns matrices : ℕ) (pushes : List Push) : Prop :=
-  columns % ringDegree = 0 ∧ 0 < matrices ∧ 0 < columns / ringDegree ∧ columns / ringDegree ≤ 4708530 ∧
-    ∀ p ∈ pushes, p.matrix < matrices ∧ p.len ≤ ringDegree ∧ p.start + p.len ≤ columns
-
-instance (columns matrices : ℕ) (pushes : List Push) : Decidable (Accepts columns matrices pushes) := by
-  unfold Accepts
-  infer_instance
-
-def build (seed : List ℕ) (columns matrices : ℕ) (pushes : List Push) : Option (Layer1.Setup Gl) :=
-  if Accepts columns matrices pushes then some (setupOfRuns seed (columns / ringDegree) (runList matrices pushes))
-  else none
 
 theorem runList_perm (pushes : List Push) :
     ∀ m, (runList m pushes).Perm (pushes.filter fun p => p.matrix < m)
@@ -156,8 +81,8 @@ theorem runList_perm (pushes : List Push) :
       · exact List.filter_congr fun p _ => by by_cases h : p.matrix < m <;> simp [h] <;> omega
 
 theorem slotKey_eq {classes : List ℕ} {p : Push} (block : p.start / ringDegree < 2 ^ 32) :
-    slotKey classes p % 2 ^ 32 * ringDegree + slotKey classes p / 2 ^ 32 % 2 ^ 8 = p.start ∧
-      slotKey classes p / 2 ^ 40 = classes.idxOf p.classCode := by
+    keyStart (slotKey classes p) = p.start ∧
+      keyCode classes (slotKey classes p) = classes.getD (classes.idxOf p.classCode) 0 := by
   have lane : p.start % ringDegree < 2 ^ 8 := (Nat.mod_lt _ (by decide)).trans (by decide)
   have shape : slotKey classes p =
       p.start / ringDegree + (classes.idxOf p.classCode * 2 ^ 8 + p.start % ringDegree) * 2 ^ 32 := by
@@ -167,12 +92,27 @@ theorem slotKey_eq {classes : List ℕ} {p : Push} (block : p.start / ringDegree
     rw [shape, Nat.add_mul_mod_self_right, Nat.mod_eq_of_lt block]
   have high : slotKey classes p / 2 ^ 32 = classes.idxOf p.classCode * 2 ^ 8 + p.start % ringDegree := by
     rw [shape, Nat.add_mul_div_right _ _ (by positivity), Nat.div_eq_of_lt block, zero_add]
-  refine ⟨?_, ?_⟩
-  · rw [low, high, Nat.mul_add_mod_of_lt lane]
-    exact Nat.div_add_mod' p.start ringDegree
-  · rw [show (2 : ℕ) ^ 40 = 2 ^ 32 * 2 ^ 8 by norm_num, ← Nat.div_div_eq_div_mul, high]
+  have index : slotKey classes p / 2 ^ 40 = classes.idxOf p.classCode := by
+    rw [show (2 : ℕ) ^ 40 = 2 ^ 32 * 2 ^ 8 by norm_num, ← Nat.div_div_eq_div_mul, high]
     simp only [Nat.reducePow] at lane ⊢
     omega
+  refine ⟨?_, by rw [keyCode, index]⟩
+  rw [keyStart, low, high, Nat.mul_add_mod_of_lt lane]
+  exact Nat.div_add_mod' p.start ringDegree
+
+theorem classCode_decode (p : Push) :
+    codeLength p.classCode = p.len ∧ (p.len = 1 ∨ codeRatio p.classCode = p.ratio) := by
+  have word : p.ratioWord < 2 ^ 64 := by
+    unfold Push.ratioWord
+    split_ifs
+    · norm_num
+    · exact (ZMod.val_lt p.ratio).trans (by norm_num [goldilocksModulus])
+  refine ⟨by rw [codeLength, Push.classCode]; omega, ?_⟩
+  by_cases one : p.len = 1
+  · exact Or.inl one
+  · right
+    rw [codeRatio, Push.classCode, show (p.len * 2 ^ 64 + p.ratioWord) % 2 ^ 64 = p.ratioWord by omega,
+      Push.ratioWord, ite_eq_right one, ZMod.natCast_zmod_val]
 
 theorem getD_idxOf {l : List ℕ} {x : ℕ} (member : x ∈ l) : l.getD (l.idxOf x) 0 = x := by
   rw [List.getD_eq_getElem _ _ (List.idxOf_lt_length_of_mem member), List.getElem_idxOf]
@@ -189,24 +129,13 @@ theorem lists_setupOfRuns (seed : List ℕ) (blocks : ℕ) (runs : List Push)
   have code : (classesOf runs).getD ((classesOf runs).idxOf p.classCode) 0 = p.classCode :=
     getD_idxOf (mem_sortedSet.mpr (List.mem_map.mpr ⟨p, member, rfl⟩))
   obtain ⟨start, index⟩ := slotKey_eq (classes := classesOf runs) (block p member)
-  have word : p.ratioWord < 2 ^ 64 := by
-    unfold Push.ratioWord
-    split_ifs
-    · norm_num
-    · exact (ZMod.val_lt p.ratio).trans (by norm_num [goldilocksModulus])
-  have cls : slotClass runs ((keysOf runs).idxOf (slotKey (classesOf runs) p)) = p.classCode := by
-    rw [slotClass, key, index, code]
+  obtain ⟨length, ratio⟩ := classCode_decode p
   simp only [setupOfRuns, ite_eq_left inside]
   refine ⟨rfl, rfl, rfl, ?_, ?_, ?_⟩
-  · rw [slotStart, key, start]
+  · rw [key, start]
     exact Nat.div_add_mod p.start ringDegree
-  · rw [cls, Push.classCode]
-    omega
-  · by_cases one : p.len = 1
-    · exact Or.inl one
-    · right
-      rw [cls, Push.classCode, show (p.len * 2 ^ 64 + p.ratioWord) % 2 ^ 64 = p.ratioWord by omega,
-        Push.ratioWord, ite_eq_right one, ZMod.natCast_zmod_val]
+  · rwa [key, index, code]
+  · rwa [key, index, code]
 
 theorem readsBack_of_build {seed : List ℕ} {columns matrices : ℕ} {pushes : List Push} {S : Layer1.Setup Gl}
     (built : build seed columns matrices pushes = some S) :
@@ -229,7 +158,7 @@ theorem gl_natCast (n : ℕ) (small : n < goldilocksModulus) : ((n : ℕ) : Gl) 
   rw [ZMod.val_natCast, Nat.mod_eq_of_lt small]
   rfl
 
-theorem honestSetup_of_build (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
+theorem build_honest (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
     (setup : AjtaiSetupV1.Setup productionProfile.commitmentWidth
       (Phi81ColumnLayout.blockCount (Phi81CarrierLayout.carrierWidth lw)))
     (relation : ProductionKey.LogicalRelation lw pf) (pushes : List Push) {S : Layer1.Setup Gl}
@@ -254,15 +183,16 @@ theorem honestSetup_of_build (s : Layer1.Shape) (D : s.D = ringDegree) (lanes : 
     exact gives.entry j i c inside
 
 /-- Rust tests `relation_shape_has_the_lean_constants` and `parent_relation_arguments_are_the_lean_constants` pin these numbers. -/
-theorem parentShape_of (s : Layer1.Shape) (lw : ℕ) (D : s.D = 54) (lanes : s.laneVars = 6)
-    (kappa : s.kappa = 22) (matrices : s.matrices = 4) (publicBlocks : s.publicBlocks = 5)
-    (blocks : s.blocks = (lw + 53) / 54) (norm : s.normBound = 3672) : ParentShape s lw where
+theorem parentShape_of (s : Layer1.Shape) (lw : ℕ) (D : s.D = ringDegree) (lanes : s.laneVars = 6)
+    (kappa : s.kappa = Production.kappa) (matrices : s.matrices = Production.matrices)
+    (publicBlocks : s.publicBlocks = Production.publicBlocks) (blocks : s.blocks = Phi81ColumnLayout.blockCount lw)
+    (norm : s.normBound = Production.normBound) : ParentShape s lw where
   D := D
   laneVars := lanes
   kappa := kappa
   matrices := matrices
   publicBlocks := publicBlocks
-  blocks := by rw [blocks, Phi81CarrierLayout.blockCount_carrierWidth]; rfl
+  blocks := by rw [blocks, Phi81CarrierLayout.blockCount_carrierWidth]
   norm := by rw [norm]; decide
 
 end CompressionLean.Final

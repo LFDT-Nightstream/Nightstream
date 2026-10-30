@@ -46,6 +46,40 @@ const CALL: &str = r#"(module
         i32.const 5
         call $add_one))"#;
 
+/// Enzo's iterative Fibonacci program (`tests/wasm_fibonacci.rs`): `n` loop
+/// rounds, then `fib(n)`.
+fn fib_wat(n: u32) -> String {
+    format!(
+        r#"
+(module
+  (func (export "main") (result i32)
+    (local i32 i32 i32)
+    i32.const {n}
+    local.set 0
+    i32.const 1
+    local.set 1
+    i32.const 0
+    local.set 2
+    (loop $L
+      local.get 1
+      local.get 2
+      i32.add
+      local.get 2
+      local.set 1
+      local.set 2
+      local.get 0
+      i32.const 1
+      i32.sub
+      local.tee 0
+      br_if $L
+    )
+    local.get 2
+  )
+)
+"#
+    )
+}
+
 /// Steps per segment: the call trace has 8 rows, the linear-memory trace 6
 /// rows and 2 padding rows.
 const N: usize = 8;
@@ -179,7 +213,8 @@ fn bits(value: u64) -> usize {
 
 /// A test program as its verifier and prover see it.
 struct Traced {
-    /// The witness of each trace row, then of each padding row, `N` in all.
+    /// The witness of each trace row, then of each padding row, one segment
+    /// in all.
     rows: Vec<Vec<F>>,
     real: usize,
     preload: WasmMemoryPreload,
@@ -187,7 +222,7 @@ struct Traced {
     initial: Vec<u64>,
 }
 
-fn traced(wat: &str) -> Traced {
+fn traced(wat: &str, n: usize) -> Traced {
     let checked = common::checked_main(wat);
     let tables = &checked.artifacts.tables;
     // `main` is the last function of each test module.
@@ -207,10 +242,10 @@ fn traced(wat: &str) -> Traced {
         .map(F::as_canonical_u64)
         .collect();
     let real = checked.trace.len();
-    assert!(real <= N, "the trace fits one segment");
-    let batch = build_batched_witness(&checked.trace, N, 0);
+    assert!(real <= n, "the trace fits one segment");
+    let batch = build_batched_witness(&checked.trace, n, 0);
     Traced {
-        rows: batch.chunks(batch.len() / N).map(<[F]>::to_vec).collect(),
+        rows: batch.chunks(batch.len() / n).map(<[F]>::to_vec).collect(),
         real,
         preload,
         initial,
@@ -270,56 +305,67 @@ fn regions(
 }
 
 /// The smallest valid, secure geometry for the namespaces and `b_ops` slots:
-/// one segment of `N` steps.
-fn geometry(log2: [usize; 2], b_ops: usize) -> Geometry {
+/// one segment of `n` steps.
+fn geometry(log2: [usize; 2], b_ops: usize, n: usize) -> Geometry {
     // Spec §4.2 rule 4: the RAM is at least as large as the ROM.
     let (r, mu) = (log2[0], log2[0].max(log2[1]));
     Geometry {
         r,
         mu,
-        w_ts: bits((N * b_ops) as u64),
+        w_ts: bits((n * b_ops) as u64),
         b_ops,
-        b_scan: ((1 << r) + (1 << mu)) / N,
-        n: N,
+        b_scan: ((1 << r) + (1 << mu)) / n,
+        n,
         s_max: 1,
     }
 }
 
 struct Setup {
-    programs: [Traced; 2],
+    programs: Vec<Traced>,
     activations: Vec<MemoryPortActivation>,
     regions: Vec<(WasmMemoryId, Region)>,
     log2: [usize; 2],
+    /// Steps per segment.
+    n: usize,
 }
 
+/// The linear-memory and call programs, `N` steps each.
 fn setup() -> Setup {
-    let catalog = &build_wasm_relation_layout().auxiliary.memory;
-    let programs = [traced(LINEAR_MEMORY), traced(CALL)];
-    let (regions, log2) = regions(
-        catalog,
-        &[&programs[0].preload, &programs[1].preload],
-        &programs
-            .iter()
-            .flat_map(|traced| traced.rows.clone())
-            .collect::<Vec<_>>(),
-    );
-    Setup {
-        activations: catalog
-            .entries()
-            .iter()
-            .flat_map(|memory| memory.ports.iter().map(|port| port.activation))
-            .collect(),
-        regions,
-        log2,
-        programs,
-    }
+    Setup::of(vec![traced(LINEAR_MEMORY, N), traced(CALL, N)], N)
 }
 
 impl Setup {
+    /// One circuit for `programs`, each traced to one segment of `n` steps.
+    fn of(programs: Vec<Traced>, n: usize) -> Setup {
+        let catalog = &build_wasm_relation_layout().auxiliary.memory;
+        let (regions, log2) = regions(
+            catalog,
+            &programs
+                .iter()
+                .map(|traced| &traced.preload)
+                .collect::<Vec<_>>(),
+            &programs
+                .iter()
+                .flat_map(|traced| traced.rows.clone())
+                .collect::<Vec<_>>(),
+        );
+        Setup {
+            activations: catalog
+                .entries()
+                .iter()
+                .flat_map(|memory| memory.ports.iter().map(|port| port.activation))
+                .collect(),
+            regions,
+            log2,
+            programs,
+            n,
+        }
+    }
+
     /// The application and geometry of a slot plan.
     fn app(&self, slots: &[Vec<usize>]) -> (Wasm, Geometry) {
         let layout = build_wasm_relation_layout();
-        let geometry = geometry(self.log2, slots.len());
+        let geometry = geometry(self.log2, slots.len(), self.n);
         let (relation, columns) = relation();
         let app = Wasm {
             relation: Arc::new(relation),
@@ -417,7 +463,7 @@ fn enzo_slot_plan_breaks_a_dependent_pair_on_an_honest_row() {
     let setup = setup();
     let plan = plan_wasm_memory_slots(build_wasm_relation_layout().auxiliary.memory.entries());
     let (app, _) = setup.app(&plan.slots);
-    let [linear, call] = &setup.programs;
+    let (linear, call) = (&setup.programs[0], &setup.programs[1]);
     let (_, mut run) = setup.run(&app, linear);
     run.segment(&linear.rows)
         .expect("the linear-memory trace runs");
@@ -467,6 +513,15 @@ fn load(traced: &Traced) -> (usize, usize) {
         .expect("the trace loads")
 }
 
+/// The Stage 1 package that every Nebula circuit extends.
+fn reference() -> Vec<u8> {
+    std::fs::read(
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../nightstream/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
+    )
+    .unwrap()
+}
+
 /// The linear-memory program through `Circuit::compile`, the prover, and the
 /// memory verifier. The honest proof verifies. The `i32.load` step with
 /// another load value and honest memory words fails the relation, so the
@@ -481,12 +536,7 @@ fn wasm_proof_verifies_and_rejects_a_changed_load_on_cpu() {
     let (app, geometry) = setup.complete();
     let traced = &setup.programs[0];
     let engine = nightstream::Engine::Optimized;
-    let reference = std::fs::read(
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../nightstream/artifacts/nightstream-fprime-stage1-poseidon2-hash-chain-v1.json"),
-    )
-    .unwrap();
-    let circuit = Circuit::compile(&reference, geometry, app.clone()).unwrap();
+    let circuit = Circuit::compile(&reference(), geometry, app.clone()).unwrap();
     let prover = circuit.prover(engine, 114).unwrap();
     let verifier = Verifier::new(&circuit, engine, 114).unwrap();
     eprintln!("wasm setup elapsed={:?}", started.elapsed());
@@ -529,4 +579,49 @@ fn wasm_proof_verifies_and_rejects_a_changed_load_on_cpu() {
         Err(VerifyError::Proof(_))
     ));
     eprintln!("wasm elapsed={:?}", started.elapsed());
+}
+
+/// Enzo's Fibonacci program proved and verified on Metal in one segment, with
+/// the time of each phase and of each step.
+#[test]
+#[ignore = "Metal timing run; build with --features nightstream/metal and run separately under the 300-second cap."]
+fn fibonacci_proof_times_on_metal() {
+    use nightstream::nebula::{Circuit, Verifier};
+    use std::time::Instant;
+    const ROUNDS: u32 = 2;
+    const STEPS: usize = 32;
+    let started = Instant::now();
+    let setup = Setup::of(vec![traced(&fib_wat(ROUNDS), STEPS)], STEPS);
+    let (app, geometry) = setup.complete();
+    let traced = &setup.programs[0];
+    eprintln!("fib({ROUNDS}) rows={} {geometry:?}", traced.real);
+    let engine = nightstream::Engine::Metal;
+    let circuit = Circuit::compile(&reference(), geometry, app.clone()).unwrap();
+    eprintln!("compile elapsed={:?}", started.elapsed());
+    let prover = circuit.prover(engine, 114).unwrap();
+    let verifier = Verifier::new(&circuit, engine, 114).unwrap();
+    eprintln!("setup elapsed={:?}", started.elapsed());
+
+    let (program, mut run) = setup.run(&app, traced);
+    let invocations = run.segment(&traced.rows).unwrap();
+    eprintln!("witness words per step={}", invocations[0].words.len());
+    let proving = Instant::now();
+    let mut proofs: Vec<nightstream::Proof> = Vec::with_capacity(STEPS);
+    for (k, invocation) in invocations.iter().enumerate() {
+        let step = Instant::now();
+        let proof = match proofs.last() {
+            None => prover.prove(run.initial_state(), &invocation.words),
+            Some(last) => prover.extend(last, &invocation.words),
+        }
+        .unwrap();
+        eprintln!("step {k} elapsed={:?}", step.elapsed());
+        proofs.push(proof);
+    }
+    eprintln!("prove {STEPS} steps elapsed={:?}", proving.elapsed());
+    let verifying = Instant::now();
+    verifier
+        .verify(&program, &run.statement(), run.carry(), &proofs[STEPS - 1])
+        .unwrap();
+    eprintln!("verify elapsed={:?}", verifying.elapsed());
+    eprintln!("total elapsed={:?}", started.elapsed());
 }

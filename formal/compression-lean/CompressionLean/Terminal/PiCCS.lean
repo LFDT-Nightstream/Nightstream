@@ -13,36 +13,36 @@ open NightstreamFPrime.Lifecycle.PaperAlgebra
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
+variable {lw : Nat} {pf : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
+
 theorem piCcsTranscriptSpecs
-    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
+    (relation : ProductionKey.LogicalRelation lw pf)
     (env : Env) (holds : (circuitPackage ()).RowsHold env) :
-    PiCCSInvocations.TranscriptSpecs Data.logicalWidth Data.publicFits env := by
-  apply PiCCSInvocations.invocations_imply_transcriptSpecs Data.logicalWidth
-    Data.publicFits relation env
+    PiCCSInvocations.TranscriptSpecs lw pf env := by
+  apply PiCCSInvocations.invocations_imply_transcriptSpecs lw pf relation env
   intro invocation member
   apply permutationInvocation_holds env holds invocation
-  rw [Data.permutationInvocations_eq]
+  rw [permutationInvocations_at lw pf]
   exact List.mem_append_left _ member
 
 theorem piCcsSpecHolds
-    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
+    (relation : ProductionKey.LogicalRelation lw pf)
     (env : Env) (holds : (circuitPackage ()).RowsHold env) :
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.SpecHolds relation
-      (PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits)
+      (PiCCSInvocations.parentInterface lw pf)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
-  let parent := PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits
+  let parent := PiCCSInvocations.parentInterface lw pf
   have assumptions :=
     NightstreamFPrime.Layout.PiCCS.v1_2.Assumptions.production relation parent
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
-      (NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear
-        Data.logicalWidth Data.publicFits)
+      (NightstreamFPrime.Layout.Stage1.PiCCSInputs.externalInputsLinear lw pf)
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
   have transcripts := piCcsTranscriptSpecs relation env holds
   have packets := PiCCSArithmetic.arithmeticRows_imply_packetHolds
-    Data.logicalWidth Data.publicFits env (piCcsArithmeticRows_hold env holds)
+    lw pf env (piCcsArithmeticRows_hold env holds)
   have arithmetic := PiCCSArithmetic.packetHolds_imply_arithmeticSpecs
-    Data.logicalWidth Data.publicFits relation env assumptions packets
+    lw pf relation env assumptions packets
   exact {
     statementBinding := arithmetic.statementBinding_parent
     statementAbsorption := transcripts.statementAbsorption_parent
@@ -58,13 +58,13 @@ theorem piCcsSpecHolds
     outputBinding := transcripts.outputBinding_parent relation }
 
 theorem piCcsPhaseHolds
-    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
+    (relation : ProductionKey.LogicalRelation lw pf)
     (ajtai : AjtaiKey
-      (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
+      (logicalWidth := lw) (publicFits := pf))
     (template : Proof (ProductionKey.degreeBound relation))
     (env : Env) (holds : (circuitPackage ()).RowsHold env) :
     NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.PhaseHolds relation ajtai
-      (PiCCSInvocations.parentInterface Data.logicalWidth Data.publicFits)
+      (PiCCSInvocations.parentInterface lw pf)
       NightstreamFPrime.Layout.Stage1.PiCCSInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) template := by
   apply NightstreamFPrime.Lifecycle.PiCCS.v1_2.Formal.spec_implies_phaseHolds
@@ -72,7 +72,7 @@ theorem piCcsPhaseHolds
   exact piCcsSpecHolds relation env holds
 
 theorem selectedVerifierContext
-    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
+    (relation : ProductionKey.LogicalRelation lw pf)
     (authority : VerifierContext.Authority)
     (env : Env)
     (selected : Package.SelectedVerifierContext authority env)

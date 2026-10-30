@@ -1,0 +1,109 @@
+import CompressionLean.Ports.Circuit.Mle
+import CompressionLean.Ports.Circuit.Gkr
+
+namespace CompressionLean.Circuit
+
+open CompressionLean.Replay (Word Ext Layout)
+
+structure EarlyValuesView where
+  runs : Array ExtVar
+  pairs : Array (ExtVar × ExtVar)
+  block : ExtVar
+
+structure EarlyChallengesView where
+  lookup : ExtVar × ExtVar
+  scatter : ExtVar × ExtVar
+
+structure EarlyOpeningsView where
+  runPoint : Array ExtVar
+  pairPoint : Array ExtVar
+  rowPoint : Array ExtVar
+  mult : ExtVar
+  setup : ExtVar × ExtVar × ExtVar
+
+def observeRoot (seed : Array Word) (root : DigestVar) : Transcript Unit := do
+  for word in seed do
+    Duplex.observe (← Build.const word)
+  Duplex.observeSlice (Array.ofFn root)
+
+def tableSum (counts : Array Var) (bound : ℕ) (beta : ExtVar) : Build ExtVar := do
+  let mut total ← Algebra.extZero
+  for (count, slot) in counts.zipIdx do
+    let value ← Algebra.extConstant (Ext.ofGl (Word.ofNat slot - Word.ofNat bound))
+    let denominator ← Build.extSub beta value
+    let inverse ← Build.extInv denominator
+    let term ← Build.extScale inverse count
+    total ← Build.extAdd total term
+  pure total
+
+def tuple (index gamma re im : ExtVar) : Build ExtVar := do
+  let a ← Build.extMul gamma im
+  let c ← Build.extAdd re a
+  let d ← Build.extMul gamma c
+  Build.extAdd index d
+
+def checkPair (x y : TreeClaimView) : Build Unit := do
+  let (px, qx) := x.root
+  let (py, qy) := y.root
+  let _ ← Build.extInv qx
+  let _ ← Build.extInv qy
+  let left ← Build.extMul px qy
+  let right ← Build.extMul py qx
+  Build.assertExtEqual left right
+
+def matrixStep (layout : Layout) (point : Array ExtVar) : Build ExtVar := do
+  let values ← (Array.range layout.matrices).mapM fun j => Algebra.extConstant (Ext.ofGl (Word.ofNat j))
+  Mle.step point (layout.runBounds.extract 0 layout.matrices) values layout.runBounds[layout.matrices]!
+
+def checkEarly (layout : Layout) (r : Array KVar) (challenges : EarlyChallengesView)
+    (claims : Array TreeClaimView) (values : EarlyValuesView) : Build EarlyOpeningsView := do
+  let (lookupRuns, lookupRows) := (claims[0]!, claims[1]!)
+  let (scatterRuns, scatterPairs) := (claims[2]!, claims[3]!)
+  checkPair lookupRuns lookupRows
+  checkPair scatterRuns scatterPairs
+  let (beta, gamma) := challenges.lookup
+  let (eRe, eIm, row) := (values.runs[0]!, values.runs[1]!, values.runs[2]!)
+  let combined ← tuple row gamma eRe eIm
+  let expected ← Build.extSub beta combined
+  Build.assertExtEqual lookupRuns.values[0]! expected
+  let rowPoint := lookupRows.point
+  let chi ← Mle.chi r rowPoint
+  let index ← Mle.identity rowPoint
+  let combined ← tuple index gamma chi.re chi.im
+  let expected ← Build.extSub beta combined
+  Build.assertExtEqual lookupRows.values[1]! expected
+  let (beta, mu) := challenges.scatter
+  let mixed ← Build.extMul mu eIm
+  let e ← Build.extAdd eRe mixed
+  Build.assertExtEqual scatterRuns.values[1]! e
+  let runPoint := scatterRuns.point
+  let matrix ← matrixStep layout runPoint
+  let tag ← Algebra.extScaleConstant matrix (Word.ofNat (2 ^ layout.slotVariables))
+  let rest ← Build.extSub beta scatterRuns.values[2]!
+  let slot ← Build.extSub rest tag
+  let pairPoint := scatterPairs.point
+  let eq ← Algebra.eqTable (pairPoint.extract layout.slotVariables pairPoint.size)
+  let mut combined ← Algebra.extZero
+  for ((re, im), weight) in values.pairs.zip eq do
+    let mixed ← Build.extMul mu im
+    let value ← Build.extAdd re mixed
+    let term ← Build.extMul weight value
+    combined ← Build.extAdd combined term
+  Build.assertExtEqual scatterPairs.values[0]! combined
+  let index ← Mle.identity pairPoint
+  let expected ← Build.extSub beta index
+  Build.assertExtEqual scatterPairs.values[1]! expected
+  pure { runPoint, pairPoint := pairPoint.extract 0 layout.slotVariables, rowPoint,
+         mult := lookupRows.values[0]!, setup := (row, slot, scatterRuns.values[0]!) }
+
+def observePairs (pairs : Array (ExtVar × ExtVar)) : Transcript Unit :=
+  pairs.forM fun (a, b) => do
+    Duplex.observeExt a
+    Duplex.observeExt b
+
+def observeEarly (values : EarlyValuesView) : Transcript Unit := do
+  values.runs.forM Duplex.observeExt
+  observePairs values.pairs
+  Duplex.observeExt values.block
+
+end CompressionLean.Circuit

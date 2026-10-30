@@ -1,8 +1,10 @@
-import CompressionLean.Shrink.Game
+import CompressionLean.Ports.Shrink.Game
+import CompressionLean.Shrink.Evaluate
+import CompressionLean.Shrink.Rounds
 
 namespace CompressionLean.Shrink
 
-open CompressionLean.Layer1 Polynomial
+open CompressionLean.Lib Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K] [Fintype K] [DecidableEq K]
 
@@ -22,12 +24,12 @@ theorem programGame_avoids {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matr
       ∀ tr, r = some tr → tr.inst = i ∧ ∃ w ∈ tr.cands, C.Relation w := by
   intro cands
   rw [Game.avoids_bind]
-  refine (drawPoint_avoids (tauBad C cands.1) C.rowVars []).mono ?_
+  refine (Game.drawPoint_avoids (tauBad C cands.1) C.rowVars []).mono ?_
   rintro tau ⟨tauCs, tauEq, tauLength, tauPath⟩
   simp only [List.nil_append] at tauEq
   subst tauEq
   rw [Game.avoids_bind]
-  refine (sumcheck_avoids Finset.univ 7 nodes7 _ _ (fun _ => ∅) C.rowVars
+  refine (Game.sumcheck_avoids Finset.univ 7 nodes7 _ _ (fun _ => ∅) C.rowVars
     (fun k _ => combRound_truth C.rowVars 7 (outerTables C.entries (C.z (cands.1.get k)) tau) outerComb
       outerComb_degree) C.rowVars [] 0 (by simp)).mono ?_
   rintro ⟨rx, outerLast⟩ ⟨⟨rxCs, rxEq, rxLength, -⟩, outerTransfer⟩ values
@@ -38,7 +40,7 @@ theorem programGame_avoids {I : Type} (i : I) (C : Ccs F) (shapeOk : Prop) (matr
     cases none
   intro rho rhoOut
   rw [Game.avoids_bind]
-  refine (sumcheck_avoids Finset.univ 1 nodes1 _ _ (fun _ => ∅) (C.cellVars + 1)
+  refine (Game.sumcheck_avoids Finset.univ 1 nodes1 _ _ (fun _ => ∅) (C.cellVars + 1)
     (fun k _ => combRound_truth (C.cellVars + 1) 1 (innerTables C.entries (C.z (cands.1.get k)) rx rho)
       productComb productComb_degree) (C.cellVars + 1) [] (batch rho values) (by simp)).mono ?_
   rintro ⟨ry, innerLast⟩ ⟨⟨ryCs, ryEq, ryLength, -⟩, innerTransfer⟩ opened

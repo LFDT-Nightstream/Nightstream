@@ -1,11 +1,14 @@
 import CompressionLean.Bridge.EvalK
+import CompressionLean.Spec.Messages
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
+open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
 def linearOutOf (proof : Replay.Proof) (lin : Replay.LinearOut) : Layer1.LinearOut K :=
   ⟨lin.lam.toK, tableK proof.quotient, lin.zeta.toK, pointK lin.blockPoint, lin.middle.toK, pointK lin.lanePart,
@@ -30,11 +33,11 @@ variable [DecidableEq K]
 
 theorem linear_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : Replay.Proof)
     (shape : ProofShape rel proof) (fits : st.fits rel = true) (bits : EvalKBits rel)
-    (publicFits : rel.publicBlocks ≤ 2 ^ rel.blockVars) (S : Setup Fp) (cands : List (P0Tables Fp)) (q : ℕ)
+    (publicFits : rel.publicBlocks ≤ 2 ^ rel.blockVars) (S : Setup Gl) (cands : List (P0Tables Gl)) (q : ℕ)
     {t t' : Replay.Transcript} {lin : Replay.LinearOut} (run : Runs (linearStage rel st proof) t lin t') :
     ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds ∧ LinearRun (K := K) rel proof lin ∧
       Game.Reaches (linearGame (K := K) (shapeOf rel) phi barOf S (statementOf st) cands)
-        (ds.map (drawn (K := K) q)) (some (linearOutOf proof lin)) := by
+        (linearMsgs (K := K) rel proof) (ds.map (drawn (K := K) q)) (some (linearOutOf proof lin)) := by
   have sizes := fits
   simp only [Replay.Statement.fits, Bool.and_eq_true, beq_iff_eq] at sizes
   have pointSize : st.point.size = rel.pointVariables := sizes.1.1.1.2
@@ -76,13 +79,13 @@ theorem linear_reaches (rel : Replay.Relation) (st : Replay.Statement) (proof : 
   refine ⟨.ext lam :: .ext zeta :: (dsB ++ dsL), ?_, ⟨rfl, rfl, lanePointValue, blockSize, laneSize, rfl, rfl, rfl⟩, ?_⟩
   · rw [run_observeExts h6, drawsL, drawsB, run_sampleExt h3, run_observeExts h2, run_sampleExt h1]
     simp
-  · unfold linearGame
+  · unfold linearGame linearMsgs
     simp only [List.map_cons, List.map_append, drawn_ext]
     apply Game.Reaches.draw lam.toK
     apply Game.Reaches.recv (tableK proof.quotient)
     apply Game.Reaches.draw zeta.toK
     refine Game.Reaches.bind reachB ?_
-    refine Game.Reaches.congr (Game.Reaches.bind reachL ?_) (List.append_nil _)
+    refine Game.Reaches.congr (Game.Reaches.bind reachL ?_) rfl (List.append_nil _)
     apply Game.Reaches.recv (proof.finals[0]!.toK, proof.finals[1]!.toK, proof.finals[2]!.toK)
     rw [ite_eq_left]
     · exact Game.Reaches.pure _

@@ -1,8 +1,10 @@
-import CompressionLean.Replay.Stages
+import CompressionLean.Ports.Replay.Stages
+import CompressionLean.Spec.Replay
 
-namespace CompressionLean.Replay
+namespace CompressionLean.Bridge
 
-def eval {α : Type} (x : ReplayM α) (t : Transcript) : Except String α × Transcript := (x.run.run t).run
+open CompressionLean.Spec
+open CompressionLean.Replay
 
 theorem eval_bind {α β : Type} (x : ReplayM α) (f : α → ReplayM β) (t : Transcript) :
     eval (x >>= f) t = match eval x t with
@@ -21,9 +23,6 @@ theorem eval_map {α β : Type} (f : α → β) (x : ReplayM α) (t : Transcript
   rw [ExceptT.run_map, StateT.run_map, Id.run_map]
   rcases (ExceptT.run x).run t with ⟨e, s⟩
   cases e <;> rfl
-
-def Runs {α : Type} (x : ReplayM α) (t : Transcript) (a : α) (t' : Transcript) : Prop :=
-  eval x t = (.ok a, t')
 
 theorem run_bind {α β : Type} {x : ReplayM α} {f : α → ReplayM β} {t : Transcript} {b : β} {t'' : Transcript}
     (h : Runs (x >>= f) t b t'') : ∃ a t', Runs x t a t' ∧ Runs (f a) t' b t'' := by
@@ -51,7 +50,7 @@ theorem run_pure {α : Type} {a b : α} {t t' : Transcript} (h : Runs (Pure.pure
   cases h
   exact ⟨rfl, rfl⟩
 
-theorem run_observeAll {vs : Array Gl} {t t' : Transcript} {u : Unit} (h : Runs (observeAll vs) t u t') :
+theorem run_observeAll {vs : Array Word} {t t' : Transcript} {u : Unit} (h : Runs (observeAll vs) t u t') :
     t'.draws = t.draws := by
   cases h
   rfl
@@ -64,7 +63,7 @@ theorem run_observeExt {v : Ext} {t t' : Transcript} {u : Unit} (h : Runs (obser
     t'.draws = t.draws :=
   run_observeAll h
 
-theorem run_sampleWord {t t' : Transcript} {w : Gl} (h : Runs sampleWord t w t') : t'.draws = t.draws := by
+theorem run_sampleWord {t t' : Transcript} {w : Word} (h : Runs sampleWord t w t') : t'.draws = t.draws := by
   cases h
   rfl
 
@@ -110,7 +109,7 @@ theorem run_samplePair {t t' : Transcript} {v : Ext × Ext} (h : Runs samplePair
   rw [run_record h3, Array.toList_push, run_drawExt h2, run_drawExt h1]
 
 theorem run_wordsLoop :
-    ∀ (l : List ℕ) (init : Array Gl) (t t' : Transcript) (ws : Array Gl),
+    ∀ (l : List ℕ) (init : Array Word) (t t' : Transcript) (ws : Array Word),
       Runs (l.foldlM (fun values _ => do pure (values.push (← sampleWord))) init) t ws t' →
         t'.draws = t.draws ∧ ws.size = init.size + l.length := by
   intro l
@@ -128,7 +127,7 @@ theorem run_wordsLoop :
       obtain ⟨draws, size⟩ := ih _ _ _ _ h
       refine ⟨by rw [draws, run_sampleWord h2], by rw [size, Array.size_push, List.length_cons]; omega⟩
 
-theorem run_sampleWords {n : ℕ} {t t' : Transcript} {ws : Array Gl} (h : Runs (sampleWords n) t ws t') :
+theorem run_sampleWords {n : ℕ} {t t' : Transcript} {ws : Array Word} (h : Runs (sampleWords n) t ws t') :
     t'.draws.toList = t.draws.toList ++ [.words ws] ∧ ws.size = n := by
   obtain ⟨values, t1, h1, h⟩ := run_bind h
   obtain ⟨_, t2, h2, h⟩ := run_bind h
@@ -152,6 +151,50 @@ theorem Except.ensure_ok {ok : Bool} {what : String} {u : Unit} (h : (ensure ok 
   · cases h
   · rfl
 
+theorem runs_bind {α β : Type} {x : ReplayM α} {f : α → ReplayM β} {t t' t'' : Transcript} {a : α} {b : β}
+    (hx : Runs x t a t') (hf : Runs (f a) t' b t'') : Runs (x >>= f) t b t'' := by
+  unfold Runs at *
+  rw [eval_bind, hx]
+  exact hf
+
+theorem runs_pure {α : Type} (a : α) (t : Transcript) : Runs (Pure.pure a) t a t := rfl
+
+theorem runs_sampleWord (t : Transcript) :
+    Runs sampleWord t t.duplex.sample.1 { t with duplex := t.duplex.sample.2 } := rfl
+
+theorem runs_drawExt (t : Transcript) :
+    Runs drawExt t ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
+      { t with duplex := t.duplex.sample.2.sample.2.sample.2 } := rfl
+
+theorem runs_sampleExt (t : Transcript) :
+    let v : Ext := ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
+    Runs sampleExt t v { duplex := t.duplex.sample.2.sample.2.sample.2, draws := t.draws.push (.ext v) } := rfl
+
+theorem runs_samplePair (t : Transcript) :
+    let first : Ext := ⟨t.duplex.sample.1, t.duplex.sample.2.sample.1, t.duplex.sample.2.sample.2.sample.1⟩
+    let d := t.duplex.sample.2.sample.2.sample.2
+    let second : Ext := ⟨d.sample.1, d.sample.2.sample.1, d.sample.2.sample.2.sample.1⟩
+    Runs samplePair t (first, second)
+      { duplex := d.sample.2.sample.2.sample.2, draws := t.draws.push (.pair first second) } := rfl
+
+theorem runs_record (d : Draw) (t : Transcript) : Runs (record d) t () { t with draws := t.draws.push d } := rfl
+
+theorem runs_observeAll (vs : Array Word) (t : Transcript) :
+    Runs (observeAll vs) t () { t with duplex := vs.foldl Duplex.observe t.duplex } := rfl
+
+theorem runs_observeExts (vs : Array Ext) (t : Transcript) :
+    Runs (observeExts vs) t ()
+      { t with duplex := (vs.flatMap fun v => #[v.c0, v.c1, v.c2]).foldl Duplex.observe t.duplex } := rfl
+
+theorem runs_ensure {ok : Bool} (h : ok = true) (what : String) (t : Transcript) : Runs (ensure ok what) t () t := by
+  subst h
+  rfl
+
+theorem runs_liftExcept {α : Type} {e : Except String α} {a : α} (h : e = .ok a) (t : Transcript) :
+    Runs (liftExcept e) t a t := by
+  subst h
+  rfl
+
 def Grows {α : Type} (x : ReplayM α) : Prop :=
   ∀ t a t', Runs x t a t' → ∃ ds : List Draw, t'.draws.toList = t.draws.toList ++ ds
 
@@ -174,7 +217,7 @@ theorem grows_map {α β : Type} (f : α → β) {x : ReplayM α} (hx : Grows x)
   obtain ⟨a, h1, -⟩ := run_map h
   exact hx _ _ _ h1
 
-theorem grows_observeAll (vs : Array Gl) : Grows (observeAll vs) :=
+theorem grows_observeAll (vs : Array Word) : Grows (observeAll vs) :=
   grows_of_draws fun _ _ _ h => run_observeAll h
 
 theorem grows_observeExts (vs : Array Ext) : Grows (observeExts vs) :=
@@ -234,4 +277,23 @@ theorem whirTranscript_grows (shape : WhirShape) (o : Opening) : Grows (whirTran
     | with_reducible exact grows_observeExt _ | with_reducible exact grows_sampleExt
     | with_reducible apply grows_bind | with_reducible apply grows_forM | with_reducible intro)
 
-end CompressionLean.Replay
+theorem sumcheckRounds_append (l₁ l₂ : List (Array Ext)) (point : Array Ext) (claim : Ext) :
+    sumcheckRounds (l₁ ++ l₂) point claim =
+      sumcheckRounds l₁ point claim >>= fun r => sumcheckRounds l₂ r.1 r.2 := by
+  induction l₁ generalizing point claim with
+  | nil => simp [sumcheckRounds]
+  | cons msg rest ih => simp [sumcheckRounds, ih, bind_assoc]
+
+theorem sumcheckRounds_point (l : List (Array Ext)) (point : Array Ext) (claim : Ext) :
+    sumcheckRounds l point claim = (fun r => (point ++ r.1, r.2)) <$> sumcheckRounds l #[] claim := by
+  induction l generalizing point claim with
+  | nil => simp [sumcheckRounds]
+  | cons msg rest ih =>
+      simp only [sumcheckRounds, map_bind]
+      refine bind_congr fun _ => bind_congr fun r => ?_
+      rw [ih (point.push r), ih (#[].push r), Functor.map_map]
+      congr 1
+      funext a
+      rw [Array.push_eq_append, Array.push_eq_append, Array.empty_append, Array.append_assoc]
+
+end CompressionLean.Bridge

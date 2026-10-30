@@ -11,7 +11,7 @@ groups=(
   '-p nightstream -- --skip lifecycle:: --skip engine::'
   '-p nightstream-fprime --test component_forms --test package_loader --test per_application_logical_matrix_conformance --test pi_ccs_opening_arithmetic --test pi_ccs_opening_values --test pilot_lean_nonzero_parity --test production_binding --test statement_binding_rows'
   '-p neo-spartan'
-  '-p neo-ccs --test packed_witness --test red_team'
+  '-p neo-ccs --test packed_witness --test red_team --test poseidon2_round_constants'
   '-p neo-params --test red_team'
   '-p neo-math --test signed_sums'
   '-p neo-ajtai --lib key::tests'

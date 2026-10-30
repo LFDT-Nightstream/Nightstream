@@ -8,6 +8,21 @@ open NightstreamFPrime.Export.Package
 open NightstreamFPrime.Export.Stage1
 open NightstreamFPrime.Circuit
 open NightstreamFPrime.Layout
+open NightstreamFPrime.Spec (ringDegree)
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Lifecycle.PaperAlgebra (publicRingColumns)
+
+theorem arithmeticRows_at (lw : Nat)
+    (pf : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw) :
+    arithmeticRows () = PiCCSArithmetic.arithmeticRows lw pf ++
+      PiRLCSamplerOrdinaryRows.rows (logicalWidth := lw) (publicFits := pf) := by
+  rfl
+
+theorem permutationInvocations_at (lw : Nat)
+    (pf : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw) :
+    Data.permutationInvocations () = PiCCSInvocations.invocations lw pf ++
+      PiRLCSamplerInvocations.invocations (logicalWidth := lw) (publicFits := pf) := by
+  rfl
 
 theorem circuitPackage_witnessInstructions :
     (circuitPackage ()).witnessInstructions =
@@ -87,22 +102,23 @@ theorem arithmeticRows_hold (env : Env)
     rw [Rows.assertionRowsTR_eq]
     exact member
 
+variable {lw : Nat} {pf : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
+
 theorem piCcsArithmeticRows_hold (env : Env)
     (holds : (circuitPackage ()).RowsHold env) :
     R1CS.RowsHold env
-      ((PiCCSArithmetic.arithmeticRows Data.logicalWidth Data.publicFits).map
-        Rows.CompiledRow.toR1CS) := by
+      ((PiCCSArithmetic.arithmeticRows lw pf).map Rows.CompiledRow.toR1CS) := by
   have combined := arithmeticRows_hold env holds
-  rw [arithmeticRows, List.map_append] at combined
+  rw [arithmeticRows_at lw pf, List.map_append] at combined
   exact ((R1CS.rowsHold_append env _ _).mp combined).1
 
 theorem piRlcSamplerOrdinaryRows_hold (env : Env)
     (holds : (circuitPackage ()).RowsHold env) :
     R1CS.RowsHold env
-      ((PiRLCSamplerOrdinaryRows.rows (logicalWidth := Data.logicalWidth)
-        (publicFits := Data.publicFits)).map Rows.CompiledRow.toR1CS) := by
+      ((PiRLCSamplerOrdinaryRows.rows (logicalWidth := lw)
+        (publicFits := pf)).map Rows.CompiledRow.toR1CS) := by
   have combined := arithmeticRows_hold env holds
-  rw [arithmeticRows, List.map_append] at combined
+  rw [arithmeticRows_at lw pf, List.map_append] at combined
   exact ((R1CS.rowsHold_append env _ _).mp combined).2
 
 theorem permutationInvocation_holds (env : Env)

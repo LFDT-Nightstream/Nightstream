@@ -39,7 +39,15 @@ def notPorts : List (String × List Name) := [
   ("Plonky3's field arithmetic or constants, or a map between words and fields for the proofs; `ports.json` names items of this repository's crates",
     [``CompressionLean.Replay.Word.ofNat, ``CompressionLean.Replay.Word.toNat, ``CompressionLean.Replay.Word.pow,
       ``CompressionLean.Replay.Word.inv, ``CompressionLean.Replay.Word.toF, ``CompressionLean.Replay.Word.cast,
-      ``CompressionLean.Replay.Ext.pow, ``CompressionLean.Replay.generator, ``CompressionLean.Replay.twoAdicGenerator]),
+      ``CompressionLean.Replay.Ext.pow, ``CompressionLean.Replay.generator, ``CompressionLean.Replay.twoAdicGenerator,
+      ``CompressionLean.Replay.Word.instAdd, ``CompressionLean.Replay.Word.instSub,
+      ``CompressionLean.Replay.Word.instMul, ``CompressionLean.Replay.Word.instNeg,
+      ``CompressionLean.Replay.Word.instOfNat, ``CompressionLean.Replay.Word.instBEq,
+      ``CompressionLean.Replay.Word.instInhabited, ``CompressionLean.Replay.Ext.instAdd,
+      ``CompressionLean.Replay.Ext.instSub, ``CompressionLean.Replay.Ext.instMul, ``CompressionLean.Replay.Ext.instNeg,
+      ``CompressionLean.Replay.Ext.instOfNat, ``CompressionLean.Replay.Ext.instBEq]),
+  ("a decision procedure for a proposition of `Ports/`, which the executables evaluate; the proposition's entries name its Rust items",
+    [``CompressionLean.Setup.instDecidableAccepts]),
   ("the shrink CCS as a list of entries, the model's form; Rust's matrices are the block template and the glue rows",
     [``CompressionLean.Shrink.Ccs, ``CompressionLean.Shrink.Entry]),
   ("the game model's transcript, bad sets, true values and batch polynomial; Rust has none",
@@ -51,6 +59,12 @@ def syntaxTypes : List Name := [``ParserDescr, ``TrailingParserDescr, ``Macro, `
 def underInstance (env : Environment) : Name → Bool
   | .anonymous => false
   | n@(.str p _) | n@(.num p _) => Meta.isInstanceCore env n || underInstance env p
+
+/-- An instance that `deriving` makes has no text of its own; its type has the entry. -/
+def derived (env : Environment) (lines : List String) (n : Name) : Bool :=
+  underInstance env n && match declRangeExt.find? (level := .server) env n with
+    | some r => (((lines.getD (r.range.pos.line - 1) "").splitOn " ").filter (· != "")).head? == some "deriving"
+    | none => false
 
 elab "#check_ports" : command => do
   let env ← getEnv
@@ -75,6 +89,7 @@ elab "#check_ports" : command => do
   for (m, data) in modules do
     let some top := m.components[2]? | continue
     let space := `CompressionLean ++ top
+    let lines := (← IO.FS.readFile (m.toString.replace "." "/" ++ ".lean")).splitOn "\n"
     for n in data.constNames do
       let some info := env.find? n | continue
       unless (declRangeExt.find? (level := .server) env n).isSome do continue
@@ -85,7 +100,7 @@ elab "#check_ports" : command => do
       if info matches .thmInfo _ then
         theorems := theorems.push user
         continue
-      if underInstance env n then continue
+      if derived env lines n then continue
       count := count + 1
       unless listed.contains user do unlisted := unlisted.push user
   unless theorems.isEmpty do
@@ -121,12 +136,13 @@ elab "#check_citations" : command => do
   logInfo m!"no Rust line citations outside the pinned crates"
 
 elab "#check_audited" : command => do
-  let imports := ((← IO.FS.readFile "CompressionLeanTests/Axioms.lean").splitOn "\n").map (·.replace "import " "")
+  let path := "CompressionLeanTests/Axioms.lean"
+  let (imports, _, _) ← Elab.parseImports (← IO.FS.readFile path) path
   let mut missing := #[]
   for file in ← System.FilePath.walkDir "CompressionLeanTests" do
     let some stem := file.fileStem | continue
-    let module := s!"CompressionLeanTests.{stem}"
-    unless file.extension != some "lean" || stem == "Axioms" || imports.contains module do
+    let module := `CompressionLeanTests ++ stem.toName
+    unless file.extension != some "lean" || stem == "Axioms" || imports.any (·.module == module) do
       missing := missing.push module
   unless missing.isEmpty do
     throwError "Axioms.lean does not import these gates, so the axiom audit does not read them:\n{missing}"

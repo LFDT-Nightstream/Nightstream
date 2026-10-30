@@ -22,6 +22,11 @@ def claimsModule : Name := `CompressionLean.Claims
 /-- The roots of this package's executables and gates. The library imports neither. -/
 def upperRoots : List Name := [`CompressionLeanExe, `CompressionLeanTests]
 
+/-- The modules of the `.lean` files under `root`. -/
+def modulesUnder (root : System.FilePath) : IO (Array Name) := do
+  let files := (← System.FilePath.walkDir root).filter (·.extension == some "lean")
+  return files.map fun file => ((file.withExtension "").toString.replace "/" ".").toName
+
 inductive Met where
   | rustFiles
   | leanValue

@@ -19,7 +19,8 @@ name = "CompressionLeanTests"
 roots = ["CompressionLeanTests.Axioms", "CompressionLeanTests.BlockDigest", "CompressionLeanTests.Inventory", "CompressionLeanTests.Layers",
   "CompressionLeanTests.Ports", "CompressionLeanTests.Reading", "CompressionLeanTests.SpecCensus",
   "CompressionLeanTests.Stack", "CompressionLeanTests.Vocabulary"]
-needs = ["ports", "statusPage"]
+# The axiom audit reads the build of each executable, so the executables build first.
+needs = ["ports", "statusPage", "CompressionLeanExe"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 # The executables, their readers and the Lean side of the Rust test programs.

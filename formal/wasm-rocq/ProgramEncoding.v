@@ -182,5 +182,7 @@ Proof.
     by (apply nth_error_None; unfold codeSize; lia).
   split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
     unfold pc; rewrite (slide_at_function_pc _ _ _ _ (codeSize (guestBody f)) choice Hf ltac:(lia));
-    unfold functionSlide; rewrite Hnone; destruct (choice =? 0); reflexivity.
+    unfold functionSlide; rewrite Hnone; destruct (choice =? 0); try reflexivity;
+    unfold slideWord, frame; cbn [Nat.eqb frameSlideRemainingId frameSlideDistanceId];
+    destruct (guestParams f + guestLocals f)%nat; reflexivity.
 Qed.

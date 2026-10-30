@@ -2,11 +2,12 @@
 
 `run_refinement` proves circuit traces against SpecTec's Wasm 2.0 semantics for
 `i32.add/sub`, `local.get/set`, direct guest calls, `return` from any depth of
-blocks, and zero-result blocks with `br_if` to any enclosing block. Blocks nest to any depth, calls nest to any depth,
-and any supported instruction, calls included, may appear inside a block.
+blocks, and blocks with no or one i32 result with `br_if` to any enclosing block. Blocks nest to any depth, calls
+nest to any depth, and any supported instruction, calls included, may appear inside a block.
 Conditions may be computed, with multiple branches per block; a taken branch
-discards every operand above its target block's base, as the circuit's frame
-slide does; a `return` likewise keeps only its function's results. Code after a
+keeps its target block's results and discards every other operand above the
+block's base, as the circuit's frame slide does; a `return` likewise keeps only
+its function's results. Code after a
 `return` is dead: nothing falls through to it, so it needs no stack height.
 `Fragment.v` lists the supported instructions, one constructor each with its
 restrictions, and states the branch-site rule (`codeBranches`). Parameters, results, locals and stack values are i32. The theorem
@@ -18,7 +19,7 @@ every function in the store must pass SpecTec validation. A run may stop anywher
 in its base frame, including inside blocks, inside calls, or during a callee's
 frame initialization; the final shape resumes the next run. The store is an input:
 the circuit does not hold it. A run's activation never finishes (no export return
-or trap). Padding is supported. Host rows, indirect calls, loops, `if`, `br`/`br_table`, branches
+or trap). Padding is supported. Host rows, indirect calls, loops, `if`, `br`/`br_table`, blocks with parameters or typed by index, branches
 to the function's own label and returning out of the base frame are excluded.
 Selected zero-test steps are also proved.
 Field primality and memory-event consistency are assumed; the offline memory

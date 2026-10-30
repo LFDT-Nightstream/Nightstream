@@ -278,11 +278,11 @@ Proof.
   rewrite (code_offset_next _ _ _ Hi). lia.
 Qed.
 
-Lemma ordinary_facts : forall localCount resultCount callees i h,
-  (exists op, encodedOpcode i = Some op) -> instrFacts localCount resultCount callees i h ->
+Lemma ordinary_facts : forall localCount resultCount arities callees i h,
+  (exists op, encodedOpcode i = Some op) -> instrFacts localCount resultCount arities callees i h ->
   wf_instr i /\ programTyped localCount h [i] /\ sourceHeight callees i h = instructionStackHeight i h.
 Proof.
-  intros localCount resultCount callees i h [op Hop] H.
+  intros localCount resultCount arities callees i h [op Hop] H.
   destruct (encoded_opcode_cases _ _ Hop) as [[-> _] | [[-> _] | [[x [-> _]] | [x [-> _]]]]];
     destruct H as [Hw Ht].
   all: split; [exact Hw | split; [exact Ht | reflexivity]].
@@ -374,6 +374,13 @@ Proof.
   split; [exact H1 | exact H2].
 Qed.
 
+Lemma split_top_values : forall (values : list Z) n,
+  (n <= length values)%nat -> exists prefix top, values = prefix ++ top /\ length top = n.
+Proof.
+  intros values n H. exists (firstn (length values - n) values), (skipn (length values - n) values).
+  split; [symmetry; apply firstn_skipn | rewrite length_skipn; lia].
+Qed.
+
 Section Rows.
 Variables (program : Program) (s : store).
 Hypothesis Hstore : store_FUNCS s = program.
@@ -409,7 +416,7 @@ Proof.
   set (code := innerCode f (codePosition index labels offset)) in *.
   rewrite (skipn_at_instruction _ _ _ Hi) in Hfacts. cbn [codeFacts] in Hfacts.
   destruct Hfacts as [Hinstr Hrest]. rewrite Nat.add_0_r in Hinstr, Hrest.
-  destruct (ordinary_facts _ _ _ _ _ Hop Hinstr) as [Hwi [Htyped Hsource]].
+  destruct (ordinary_facts _ _ _ _ _ _ Hop Hinstr) as [Hwi [Htyped Hsource]].
   pose proof (encoded_path_ordinary _ _ _ _ Hloaded Hf _ _ _ _ Hpath Hi Hop) as Himage.
   unfold pathPC in Himage. change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in Hpc.
   rewrite <- Hpc in Himage.
@@ -477,7 +484,7 @@ Qed.
 Lemma exit_label_state : forall memory boundary index labels b segments segment locals f inner bt body,
   functionAt program index = Some f ->
   pathCode (guestBody f) labels = Some inner -> nth_error inner b = Some (BLOCK bt body) ->
-  pathHeights (programCallees program (guestModule f)) (guestBody f) labels b =
+  pathHeights (programCallees program (guestModule f)) (guestBody f) labels (S b) =
     Some (map (@length Z) segments, length segment) ->
   0 <= boundaryLocalsBase boundary ->
   boundaryStackBase boundary = boundaryLocalsBase boundary + Z.of_nat (frameLocals f) ->
@@ -505,23 +512,22 @@ Proof.
   - apply frame_at_unmoved_intro;
       cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset viewOperands];
       try rewrite Hinner; try assumption.
-    rewrite Nat.add_0_r. exact (path_heights_step _ _ _ _ _ _ _ _ _ Hpath Hb Hheights Logic.eq_refl).
+    rewrite Nat.add_0_r. exact Hheights.
   - assert (b < length inner)%nat by (apply nth_error_Some; rewrite Hb; discriminate). lia.
   - exact Hsp.
   - exact Hpc.
   - exact Hidle.
 Qed.
 
-Lemma code_block_enter_row : forall view f body initial final row inner,
+Lemma code_block_enter_row : forall view f bt body initial final row inner,
   fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
   row COL_ACTIVATION_FINISHED_AFTER = 0 -> Replay initial (eventsForRow memories row) final ->
   ActiveState program s initial (beforeBoundary row) (atCode view) inner ->
   functionAt program (positionFunction (viewPosition view)) = Some f ->
-  nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) =
-    Some (BLOCK (_RESULT None) body) ->
+  nth_error (innerCode f (viewPosition view)) (positionOffset (viewPosition view)) = Some (BLOCK bt body) ->
   RowResult initial final row f inner view.
 Proof.
-  intros view f body initial final row inner Hprime Hloaded Hfull Hprogram Hhalt Hreplay Hstate Hf Hi.
+  intros view f bt body initial final row inner Hprime Hloaded Hfull Hprogram Hhalt Hreplay Hstate Hf Hi.
   destruct (program_row_active _ _ _ _ _ _ Hprime Hfull Hprogram Hstate)
     as [f' [Hframe [Hoffset [Hsp [Hpc [Hidle ->]]]]]].
   pose proof Hframe as [Hf' [Hpath [Hheights [Hfbp0 [Hbase0 [Hbounds [_ [Hllen [Hlb Hlc]]]]]]]]].
@@ -530,13 +536,15 @@ Proof.
   destruct view as [[index labels offset] segments values locals].
   cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels positionOffset viewOperands]
     in *.
-  destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [Hfacts [_ [_ [_ [Hready Hwfcode]]]]].
-  cbn [viewPosition viewValues viewSegments positionLabels positionOffset] in Hfacts, Hready, Hwfcode.
+  destruct (view_facts _ _ _ _ _ _ _ _ _ _ Hstore Hvalid Hframe) as [Hfacts [[Hsup _] [_ [_ [Hready Hwfcode]]]]].
+  cbn [viewPosition viewValues viewSegments positionLabels positionOffset] in Hfacts, Hsup, Hready, Hwfcode.
   set (code := innerCode f (codePosition index labels offset)) in *.
-  rewrite (skipn_at_instruction _ _ _ Hi) in Hfacts. cbn [codeFacts] in Hfacts. destruct Hfacts as [Hblock _].
-  destruct (proj1 (block_facts _ _ _ _ _ _) Hblock) as [Hwb [Hzero Hbody]].
+  rewrite (skipn_at_instruction _ _ _ Hi) in Hfacts, Hsup. cbn [codeFacts] in Hfacts. destruct Hfacts as [Hblock _].
+  destruct (proj1 (block_facts _ _ _ _ _ _ _) Hblock) as [Hwb [Hzero Hbody]].
+  inversion Hsup as [ | ? ? Hsupported _]; subst.
+  inversion Hsupported as [ | | | | | result ? _ Hresult | | ]; subst.
   assert (Hwbody : Forall wf_instr body) by (inversion Hwb; assumption).
-  pose proof (encoded_path_block_entry _ _ _ _ Hloaded Hf _ _ _ _ Hpath Hi) as Himage.
+  pose proof (encoded_path_block_entry _ _ _ _ Hloaded Hf _ _ _ _ _ Hpath Hi) as Himage.
   unfold pathPC in Himage.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset)) in Hpc.
   rewrite <- Hpc in Himage.
@@ -572,7 +580,7 @@ Proof.
     rewrite (skipn_at_instruction _ _ _ Hi), <- (app_nil_r values), stack_config_split, app_nil_r.
     apply steps_with_stack_prefix; [exact (proj2 Hvb) | ].
     apply steps_with_instruction_suffix; [apply forall_skipn; exact Hwfcode | ].
-    exact (enter_empty_block z body Hz Hwbody).
+    exact (enter_block z result body Hresult Hz Hwbody).
   - split; [ | split; [split; [exact Hdepth' | split; assumption] |
       eapply quiet_row_frame_effect; eassumption]].
     pose proof (idle_active_state program s final (afterBoundary row) f
@@ -654,16 +662,18 @@ Proof.
   destruct (innermost_label _ _ _ _ _ _ _ _ _ _ _ _ _ Hframe Hne)
     as [labels' [b [segments' [segment [outer [bt [-> [-> [Hlen' [Hpath' [Hb [Hheights' Htop]]]]]]]]]]]].
   set (body := innerCode f (codePosition index (labels' ++ [b]) offset)) in *.
+  (* The block's values are its results. *)
   rewrite Hend, firstn_all in Htop. pose proof (Hzero _ Htop) as Hvalues.
-  destruct values; [ | cbn in Hvalues; lia]. clear Hvalues.
+  rewrite (path_arities_app _ [] _ _ _ _ _ Hpath' Hb), last_last, Nat.add_0_r in Hvalues.
   destruct (function_facts _ _ _ _ Hstore Hvalid Hf) as [Hfacts _].
-  pose proof (code_facts_wf _ _ _ _ _ Hfacts) as Hwfbody.
+  pose proof (code_facts_wf _ _ _ _ _ _ Hfacts) as Hwfbody.
   pose proof (path_code_wf _ _ _ Hwfbody Hpath') as Hwfouter.
   pose proof Hbounds as Hvb. unfold viewOperands in Hvb. cbn [viewSegments viewValues] in Hvb.
-  rewrite app_nil_r, concat_app in Hvb. cbn [concat] in Hvb. rewrite app_nil_r in Hvb.
-  pose proof (proj2 (proj1 (Forall_app _ _ _) Hvb)) as Hsegment.
+  rewrite concat_app in Hvb. cbn [concat] in Hvb. rewrite app_nil_r, <- app_assoc in Hvb.
+  pose proof (proj2 (proj1 (Forall_app _ _ _) Hvb)) as Hinner. apply Forall_app in Hinner as [Hsegment Hresults].
+  pose proof (proj1 (proj1 (Forall_app _ _ _) Hvb)) as Houter.
   assert (Hready' : LabelsReady (guestBody f) labels' segments')
-    by exact (labels_ready _ _ _ _ Hwfbody Hpath' Hlen' (proj1 (proj1 (Forall_app _ _ _) Hvb))).
+    by exact (labels_ready _ _ _ _ Hwfbody Hpath' Hlen' Houter).
   pose proof (encoded_path_block_end _ _ _ _ Hloaded Hf (labels' ++ [b]) body Hne Hpath) as Himage.
   unfold pathPC in Himage. rewrite <- Hend in Himage.
   change (row COL_PC_BEFORE = guestEntry f + Z.of_nat (pathOffset (guestBody f) (labels' ++ [b]) offset)) in Hpc.
@@ -681,29 +691,29 @@ Proof.
   pose proof (no_stack_writes_preserve _ _ _ Hreplay Hwrites) as HstackMem.
   set (z := mk_state s (activeFrame f locals)).
   assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
-  exists (frameView (codePosition index labels' (S b)) segments' segment locals),
-    (frameConfig f (frameView (codePosition index labels' (S b)) segments' segment locals)
-      (stackConfig z segment (skipn (S b) outer))).
+  exists (frameView (codePosition index labels' (S b)) segments' (segment ++ values) locals),
+    (frameConfig f (frameView (codePosition index labels' (S b)) segments' (segment ++ values) locals)
+      (stackConfig z (segment ++ values) (skipn (S b) outer))).
   cbn [viewPosition positionFunction]. split; [exact Hf | ].
   split.
   - unfold frameConfig. cbn [viewPosition viewSegments positionLabels].
     rewrite Hend, skipn_all, (wrap_labels_snoc _ _ _ _ _ _ segments' segment _ Hpath' Hb Hlen').
     apply steps_in_labels; [exact Hready' | ].
-    change (stackConfig z segment (skipn (S b) outer)) with
-      (stackPrefix segment (instructionSuffix (skipn (S b) outer) (stackConfig z [] []))).
+    rewrite <- stack_prefix_config, <- (app_nil_l (skipn (S b) outer)), <- instruction_suffix_config.
     apply steps_with_stack_prefix; [exact Hsegment | ].
     apply steps_with_instruction_suffix; [apply forall_skipn; exact Hwfouter | ].
-    exact (exit_empty_block z Hz).
+    rewrite <- Hvalues. exact (exit_block z values Hz Hresults).
   - split; [ | split; [split; [exact Hdepth' | split; assumption] | eapply quiet_row_frame_effect; eassumption]].
-    apply (exit_label_state _ _ _ _ _ _ _ _ _ _ _ _ Hf Hpath' Hb Hheights').
+    apply (exit_label_state _ _ _ _ _ _ _ _ _ _ _ _ Hf Hpath' Hb).
+    + rewrite length_app, Hvalues. exact (path_heights_step _ _ _ _ _ _ _ _ _ Hpath' Hb Hheights' Logic.eq_refl).
     + cbn [afterBoundary boundaryLocalsBase]. normalize_columns. lia.
     + cbn [afterBoundary boundaryLocalsBase boundaryStackBase]. normalize_columns. lia.
     + exact Hvb.
     + intros index' value Hv. cbn [afterBoundary boundaryStackBase]. rewrite Hbase', HstackMem.
-      apply Hcells. unfold viewOperands. cbn [viewSegments viewValues]. rewrite app_nil_r, concat_app.
-      cbn [concat]. rewrite app_nil_r. exact Hv.
-    + unfold viewOperands in Hsp. cbn [viewSegments viewValues] in Hsp. rewrite app_nil_r, concat_app in Hsp.
-      cbn [concat] in Hsp. rewrite app_nil_r in Hsp.
+      apply Hcells. unfold viewOperands. cbn [viewSegments viewValues]. rewrite concat_app.
+      cbn [concat]. rewrite app_nil_r, <- app_assoc. exact Hv.
+    + unfold viewOperands in Hsp. cbn [viewSegments viewValues] in Hsp. rewrite concat_app in Hsp.
+      cbn [concat] in Hsp. rewrite app_nil_r, <- app_assoc in Hsp.
       cbn [afterBoundary beforeBoundary boundarySP boundaryStackBase] in Hsp |- *. normalize_columns. lia.
     + exact Hllen.
     + exact Hlb.
@@ -713,13 +723,15 @@ Proof.
     + exact HidleAfter.
 Qed.
 
-(* A branch to label l drops the operands of the l labels inside its target. *)
+(* A branch to label l drops the operands of the l labels inside its target; the
+   function's label lies further out. *)
 Lemma branch_drop_labels : forall (segsHead : list (list Z)) (segT : list Z) (segsTail : list (list Z)),
-  fold_right Nat.add 0%nat (firstn (length segsTail) (rev (map (@length Z) (segsHead ++ segT :: segsTail)))) =
+  fold_right Nat.add 0%nat
+    (firstn (length segsTail) (rev (map (@length Z) (segsHead ++ segT :: segsTail)) ++ [0%nat])) =
     length (concat segsTail).
 Proof.
   intros segsHead segT segsTail.
-  rewrite map_app, rev_app_distr. cbn [map rev]. rewrite <- app_assoc.
+  rewrite map_app, rev_app_distr. cbn [map rev]. rewrite <- !app_assoc.
   rewrite firstn_app, length_rev, length_map, Nat.sub_diag, firstn_O, app_nil_r.
   rewrite firstn_all2 by (rewrite length_rev, length_map; lia).
   assert (Hshift : forall a xs, fold_right Nat.add a xs = (a + fold_right Nat.add 0 xs)%nat).
@@ -729,8 +741,9 @@ Proof.
 Qed.
 
 (* A br_if l: on zero it falls through; otherwise it leaves the l blocks inside
-   its target and the target itself, discarding every operand above the target's
-   base, and resumes after the target's END. *)
+   its target and the target itself, keeping the target's results and discarding
+   every other operand above the target's base, and resumes after the target's
+   END, with the results still to move down. *)
 Lemma code_branch_row : forall view f l initial final row inner,
   fieldPrime -> programLoaded program initial -> FullRelation.satFull row -> row COL_IS_PROGRAM_ROW = 1 ->
   Replay initial (eventsForRow memories row) final ->
@@ -753,10 +766,11 @@ Proof.
   cbn [viewPosition viewValues viewSegments positionLabels positionOffset] in Hfacts, Hbranches, Hready, Hwfcode.
   set (code := innerCode f (codePosition index labels offset)) in *.
   rewrite (skipn_at_instruction _ _ _ Hi) in Hfacts, Hbranches. destruct Hbranches as [Hexits _].
-  destruct Hfacts as [[_ Hone] _].
+  destruct Hfacts as [[_ [n [Harity Hkeep]]] _].
   (* The condition is the top operand; `under` are the operands below it. *)
-  assert (Hnonempty : values <> []) by (intros ->; cbn in Hone; lia).
-  destruct (exists_last Hnonempty) as [under [condition ->]]. clear Hnonempty Hone.
+  assert (Hnonempty : values <> []) by (intros ->; cbn in Hkeep; lia).
+  destruct (exists_last Hnonempty) as [under [condition ->]]. clear Hnonempty.
+  rewrite length_app, Nat.add_0_r in Hkeep. cbn [length] in Hkeep.
   assert (Hwfl : wf_uN 32%N l).
   { pose proof (proj1 (Forall_forall _ _) Hwfcode _ (nth_error_In _ _ Hi)) as H. inversion H; assumption. }
   cbn [instrBranches] in Hexits.
@@ -771,7 +785,7 @@ Proof.
   assert (Hpost : length post = depth) by lia.
   assert (HtailLen : length segsTail = depth) by lia.
   destruct (path_heights_split _ _ _ _ _ _ _ _ Hheights)
-    as [outer [bt [body [hsHead' [below [hsTail' [Hpath' [Hb [Hheights' [Hhs' _]]]]]]]]]].
+    as [outer [bt [body [hsHead' [below [hsTail' [Hpath' [Hb [Hheights' [Hhs' HheightsTail]]]]]]]]]].
   pose proof (path_heights_length _ _ _ _ _ _ Hheights') as HheadLen.
   rewrite map_app in Hhs'. cbn [map] in Hhs'.
   destruct (app_split_eq _ (map (@length Z) segsHead) _ hsHead' _ ltac:(rewrite length_map; lia) Hhs') as [Hhead' Htail''].
@@ -779,8 +793,17 @@ Proof.
   rewrite <- Hhead', <- Hbelow in Hheights'.
   pose proof Hpath as Hinside. rewrite path_code_app, Hpath' in Hinside. cbn [pathCode] in Hinside.
   rewrite Hb in Hinside.
+  (* The target's arity: validation puts its results below the condition. *)
+  assert (HtargetArity : nth_error (rev (pathArities (guestBody f) (pre ++ b :: post)) ++ [guestResults f]) depth =
+      Some (blockResults bt)).
+  { assert (Htail : length (pathArities body post) = depth)
+      by (rewrite (path_arities_length _ _ _ _ _ _ HheightsTail), (path_heights_length _ _ _ _ _ _ HheightsTail);
+          exact Hpost).
+    rewrite (path_arities_app _ _ _ _ _ _ _ Hpath' Hb), rev_app_distr. cbn [rev]. rewrite <- !app_assoc.
+    rewrite nth_error_app2 by (rewrite length_rev; lia). rewrite length_rev, Htail, Nat.sub_diag. reflexivity. }
+  rewrite HtargetArity in Harity. injection Harity as <-.
   destruct (function_facts _ _ _ _ Hstore Hvalid Hf) as [Hfacts _].
-  pose proof (code_facts_wf _ _ _ _ _ Hfacts) as Hwfbody.
+  pose proof (code_facts_wf _ _ _ _ _ _ Hfacts) as Hwfbody.
   pose proof (path_code_wf _ _ _ Hwfbody Hpath') as Hwfouter.
   assert (Hwfblock : Forall wf_instr body).
   { pose proof (proj1 (Forall_forall _ _) Hwfouter _ (nth_error_In _ _ Hb)) as H. inversion H; assumption. }
@@ -806,12 +829,14 @@ Proof.
     as [Hpush Hpop].
   pose proof (frame_stack_matches _ _ (beforeBoundary row) _ _ _ _ _ Hframe Hsp) as Hstack.
   unfold viewOperands in Hstack. cbn [viewSegments viewValues] in Hstack.
-  (* Its slide keeps nothing; taken, it drops the operands above the target's base
-     other than the condition. *)
-  assert (HslideAfter : row COL_FRAME_MOVE_REMAINING_AFTER = 0 /\
+  (* Falling through slides nothing. Taken, the slide keeps the target's results
+     and drops the operands below them, down to the target's base. *)
+  set (distance := (length under - blockResults bt + length (concat segsTail))%nat).
+  assert (HslideAfter : row COL_FRAME_MOVE_REMAINING_AFTER =
+        (if Z.eqb (row (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0 then 0
+         else slideWord true (blockResults bt) distance) /\
       row COL_FRAME_MOVE_DISTANCE_AFTER =
-        if Z.eqb (row (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0 then 0
-        else Z.of_nat (length under + length (concat segsTail))).
+        if Z.eqb (row (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0 then 0 else Z.of_nat distance).
   { assert (Hslide : row COL_FRAME_SLIDE_ACTIVE = 1).
     { rewrite (full_frame_slide_gate row Hprime Hfull), Hpop, Hchosen.
       repeat rewrite (full_opcode_selector_exclusive row COL_SEL_BR_IF_EQZ) by
@@ -819,20 +844,20 @@ Proof.
     destruct (circuit_row_slide_fetch _ _ _ Hreplay Hslide) as [Hremaining Hdistance].
     destruct (encoded_branch_slide _ _ _ _ _ _ _ _ _ _ (row COL_CONTROL_CHOICE) Hloaded Hf Hpath Hi Hheights)
       as [Hkept Hrom].
-    rewrite <- Hpc, Hremaining in Hkept.
+    rewrite <- Hpc, Hremaining, (full_br_if_choice row Hprime Hfull Hchosen) in Hkept.
     rewrite <- Hpc, Hdistance, (full_br_if_choice row Hprime Hfull Hchosen) in Hrom.
-    destruct (Z.eqb (row (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0); cbn in Hkept, Hrom;
-      injection Hkept as ->; split; [reflexivity | | reflexivity | ]; [injection Hrom as ->; reflexivity | ].
-    rewrite length_app, Nat.add_0_r in Hrom. cbn [length] in Hrom. rewrite Nat.add_1_r in Hrom.
-    cbn [branchDrop] in Hrom.
-    (* Validation puts the target among the enclosing labels. *)
-    match type of Hrom with context [if ?test then _ else _] => destruct test eqn:Htest end; cbn in Hrom;
-      [ | apply Nat.ltb_ge in Htest; rewrite length_rev in Htest;
-          rewrite (path_heights_length _ _ _ _ _ _ Hheights), !length_app in Htest; cbn [length] in Htest;
-          change (proj_uN_0 l) with (l :> N) in Htest; unfold depth in Hexits; lia ].
-    injection Hrom as Hrom. rewrite Hrom.
-    match goal with |- context [firstn ?n _] => replace n with (length segsTail) by (rewrite HtailLen; reflexivity) end.
-    rewrite branch_drop_labels. reflexivity. }
+    destruct (Z.eqb (row (nth 0%nat COL_STACK_READ_VALUE_LO 0%nat)) 0).
+    { change ((0 =? 1)%Z) with false in Hkept, Hrom. cbv iota in Hkept, Hrom.
+      injection Hkept as ->. injection Hrom as ->. split; reflexivity. }
+    change ((1 =? 1)%Z) with true in Hkept, Hrom. cbv iota in Hkept, Hrom.
+    match type of Hkept with context [branchSlide ?hs ?ars ?top ?target] =>
+      assert (Hcompute : branchSlide hs ars top target = Some (blockResults bt, distance));
+      [replace target with depth by reflexivity | rewrite Hcompute in Hkept, Hrom] end.
+    { rewrite length_app, Nat.add_0_r. cbn [length]. rewrite Nat.add_1_r. unfold branchSlide, labelSlide.
+      rewrite HtargetArity. replace (Nat.leb (blockResults bt) (length under)) with true
+        by (symmetry; apply Nat.leb_le; lia).
+      rewrite <- HtailLen, branch_drop_labels. reflexivity. }
+    unfold slideEntry in Hkept, Hrom. injection Hkept as ->. injection Hrom as ->. split; reflexivity. }
   destruct HslideAfter as [HkeptAfter HdistAfter].
   assert (Hshape : UnaryStackShape row true false).
   { apply full_br_if_stack_shape; [exact Hprime | exact Hfull | exact Hchosen | ].
@@ -851,7 +876,7 @@ Proof.
       (2 * (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat (length (concat (segsHead ++ segT :: segsTail) ++ under))))
       in HreadCell by (rewrite Hsp, !length_app; cbn [length]; lia).
     congruence. }
-  rewrite Hread in Hnext, HdistAfter.
+  rewrite Hread in Hnext, HkeptAfter, HdistAfter.
   pose proof (full_br_if_frame_unchanged row Hprime Hfull Hchosen) as Hfbp.
   assert (Hwrites : filter isStackWrite (eventsForRow memories row) = []).
   { rewrite stack_writes_in_row. unfold stackPortWrites, writeIf.
@@ -862,8 +887,6 @@ Proof.
   assert (Heffect : FrameEffect (row COL_LOCALS_FBP_BEFORE) initial final)
     by (eapply quiet_row_frame_effect; [exact Hreplay | exact Hwrites | exact Hpush | exact Hsuspend |
       exact HcontextRead]).
-  pose proof (branch_keeps_idle row COL_SEL_BR_IF_EQZ Hprime Hfull ltac:(vm_compute; tauto) Hchosen
-    ltac:(vm_compute; tauto) HkeptAfter Hidle) as HidleAfter.
   (* SpecTec: the same choice. *)
   set (z := mk_state s (activeFrame f locals)).
   assert (Hz : wf_state z) by exact (frame_state_wf _ _ _ _ _ Hstore Hwf Hf Hlb).
@@ -878,6 +901,9 @@ Proof.
     reflexivity. }
   destruct (Z.eqb condition 0) eqn:Hzero.
   - (* Fall through: every label stays, and the condition is gone. *)
+    cbv iota in HkeptAfter.
+    pose proof (branch_keeps_idle row COL_SEL_BR_IF_EQZ Hprime Hfull ltac:(vm_compute; tauto) Hchosen
+      ltac:(vm_compute; tauto) HkeptAfter Hidle) as HidleAfter.
     rewrite app_assoc in Hstack.
     destruct (stack_matches_pop row initial final _ condition false Hshape Hreplay (fun _ => HdistAfter)
       ltac:(intro H; discriminate H) Hstack) as [_ HstackAfter].
@@ -916,49 +942,100 @@ Proof.
       * cbn [afterBoundary boundaryPC]. rewrite Hnext, Hpc, (path_offset_step _ _ _ _ _ Hpath Hi).
         change (instructionSize (BR_IF l)) with 1%nat. lia.
       * exact HidleAfter.
-  - (* Taken: carry the operands out of the labels inside the target, then drop
-       them with the target's label. *)
+  - (* Taken: carry the operands out of the labels inside the target; the target's
+       label keeps its results, `kept`, and drops the operands below them. The
+       circuit's slide leaves `kept` to move down by `distance`. *)
+    cbv iota in HkeptAfter, HdistAfter.
     assert (Hindex : l = mk_uN (N.of_nat (length post + 0))).
     { destruct l as [ln]. cbn in Hpost |- *. rewrite Nat.add_0_r, Hpost. f_equal. unfold depth. cbn. lia. }
     rewrite Hindex in Hsteps, Hwfl, Hbefore.
-    destruct (wrap_labels_exit post body _ segsTail z under 0 _ Hinside ltac:(lia) HreadyTail Hz
-      (proj2 (Forall_app _ _ _) (conj Htail Hunder)) Hwfl Hwfrest) as [rest' [Hrest' Hexit]].
-    exists (frameView (codePosition index pre (S b)) segsHead segT locals),
-      (frameConfig f (frameView (codePosition index pre (S b)) segsHead segT locals)
-        (stackConfig z segT (skipn (S b) outer))).
+    destruct (split_top_values under (blockResults bt) ltac:(lia)) as [dropped [kept [-> Hlength]]].
+    apply Forall_app in Hunder as [Hdropped Hkept].
+    destruct (wrap_labels_exit post body _ segsTail z (dropped ++ kept) 0 _ Hinside ltac:(lia) HreadyTail Hz
+      (proj2 (Forall_app _ _ _) (conj Htail (proj2 (Forall_app _ _ _) (conj Hdropped Hkept)))) Hwfl Hwfrest)
+      as [rest' [Hrest' Hexit]].
+    set (resumed := frameView (codePosition index pre (S b)) segsHead (segT ++ kept) locals).
+    assert (HinnerPre : innerCode f (codePosition index pre (S b)) = outer)
+      by (unfold innerCode; cbn [positionLabels]; rewrite Hpath'; reflexivity).
+    exists resumed, (frameConfig f resumed (stackConfig z (segT ++ kept) (skipn (S b) outer))).
     cbn [viewPosition positionFunction]. split; [exact Hf | ].
     split.
     + rewrite Hbefore, (wrap_labels_app pre (b :: post) _ _ segsHead (segT :: segsTail) _ Hpath' ltac:(lia)).
       cbn [wrapLabels]. rewrite Hb.
-      unfold frameConfig. cbn [viewPosition viewSegments positionLabels].
+      unfold frameConfig, resumed. cbn [viewPosition viewSegments positionLabels].
       apply steps_in_labels; [exact HreadyHead | ].
-      change (stackConfig z segT (skipn (S b) outer)) with
-        (stackPrefix segT (instructionSuffix (skipn (S b) outer) (stackConfig z [] []))).
+      replace (stackConfig z (segT ++ kept) (skipn (S b) outer)) with
+        (stackPrefix segT (instructionSuffix (skipn (S b) outer) (stackConfig z kept [])))
+        by (rewrite instruction_suffix_config, stack_prefix_config; reflexivity).
       apply steps_with_stack_prefix; [exact Hsegment | ].
       apply steps_with_instruction_suffix; [apply forall_skipn; exact Hwfouter | ].
       eapply spec_steps_transitive; [apply steps_in_block; eapply spec_steps_transitive;
         [exact (steps_in_labels _ _ _ _ _ HreadyTail Hsteps) | exact Hexit] | ].
-      exact (br_exit_target_dropping z _ rest' Hz (proj2 (Forall_app _ _ _) (conj Htail Hunder)) Hrest').
+      rewrite <- Hlength, app_assoc. apply br_exit_target; [exact Hz | | exact Hrest'].
+      rewrite <- app_assoc. apply Forall_app. split; [exact Htail | apply Forall_app; split; assumption].
     + split; [ | split; [exact Hregs | exact Heffect]].
       cbn [beforeBoundary boundarySP boundaryStackBase] in Hsp.
-      apply (exit_label_state _ _ _ _ _ _ _ _ _ _ _ _ Hf Hpath' Hb Hheights').
-      * cbn [afterBoundary boundaryLocalsBase]. normalize_columns. lia.
-      * pose proof (local_stack_base_after _ _ _ Hshape).
-        cbn [afterBoundary boundaryLocalsBase boundaryStackBase]. normalize_columns. lia.
-      * exact (proj2 (Forall_app _ _ _) (conj Hhead Hsegment)).
-      * intros index' value Hv. cbn [afterBoundary boundaryStackBase].
-        rewrite (local_stack_base_after _ _ _ Hshape), HstackMem. apply Hcells.
-        unfold viewOperands. cbn [viewSegments viewValues]. rewrite concat_app. cbn [concat].
-        rewrite <- !app_assoc, app_assoc.
-        rewrite nth_error_app1; [exact Hv | apply nth_error_Some; rewrite Hv; discriminate].
-      * cbn [afterBoundary boundarySP boundaryStackBase].
-        rewrite (local_stack_pointer_after _ _ _ Hshape), (local_stack_base_after _ _ _ Hshape), HdistAfter, Hsp.
-        cbn. rewrite !length_app, concat_app. cbn [concat length]. rewrite !length_app. lia.
-      * exact Hllen.
-      * exact Hlb.
-      * intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp, HstackMem. exact (Hlc _ _ Hv).
-      * cbn [afterBoundary boundaryPC]. rewrite Hnext. reflexivity.
-      * exact HidleAfter.
+      set (L := length (concat segsHead ++ segT)).
+      (* Below the kept results nothing moves; they sit `distance` cells higher. *)
+      assert (Hcell : forall n i, n = (L + length kept)%nat ->
+          operandCell (row COL_STACK_FRAME_BASE_BEFORE) n (Z.to_nat (row COL_FRAME_MOVE_REMAINING_AFTER))
+            (row COL_FRAME_MOVE_DISTANCE_AFTER) i =
+          row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat i + (if (i <? L)%nat then 0 else Z.of_nat distance)).
+      { intros n' i ->. unfold operandCell. rewrite HkeptAfter, HdistAfter. unfold slideWord.
+        destruct (Nat.eqb distance 0) eqn:Hd0.
+        - apply Nat.eqb_eq in Hd0. rewrite Hd0. cbn [Z.to_nat Z.of_nat].
+          destruct (_ <? _)%nat, (_ <? _)%nat; lia.
+        - replace (Z.to_nat (Z.of_nat (blockResults bt))) with (length kept) by lia.
+          replace (L + length kept - length kept)%nat with L by lia. reflexivity. }
+      assert (Hshift : forall (xs ys : list Z) k, nth_error (xs ++ ys) (length xs + k) = nth_error ys k)
+        by (intros xs ys k; rewrite nth_error_app2 by lia; f_equal; lia).
+      exists f. cbn [afterBoundary boundaryMoveRemaining boundaryStackBase boundaryLocalsBase boundaryMoveDistance
+        boundarySP boundaryPC boundaryZeroRemaining].
+      unfold resumed. cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels
+        positionOffset viewOperands]. rewrite HinnerPre.
+      rewrite (local_stack_base_after _ _ _ Hshape).
+      split; [ | split; [ | split; [ | split; [ | split; [ | split; [ | split; [ | reflexivity]]]]]]].
+      * unfold FrameAt, viewOperands. cbn [viewPosition viewSegments viewValues viewLocals positionFunction positionLabels
+          positionOffset]. rewrite HinnerPre.
+        split; [exact Hf | ]. split; [exact Hpath' | ].
+        split; [rewrite length_app, Hlength, Nat.add_0_r;
+          exact (path_heights_step _ _ _ _ _ _ _ _ _ Hpath' Hb Hheights' Logic.eq_refl) | ].
+        split; [cbn [afterBoundary boundaryLocalsBase]; normalize_columns; lia | ].
+        split; [cbn [afterBoundary boundaryLocalsBase]; normalize_columns; lia | ].
+        split; [rewrite app_assoc; exact (proj2 (Forall_app _ _ _) (conj
+          (proj2 (Forall_app _ _ _) (conj Hhead Hsegment)) Hkept)) | ].
+        split; [ | split; [exact Hllen | split; [exact Hlb | ]]].
+        -- intros i value Hv. rewrite Hcell by (rewrite !length_app; unfold L; rewrite length_app; lia).
+           rewrite HstackMem.
+           destruct (Nat.lt_ge_cases i L) as [Hlt | Hge].
+           ++ replace (i <? L)%nat with true by (symmetry; apply Nat.ltb_lt; lia). rewrite Z.add_0_r.
+              apply Hcells. rewrite app_assoc, nth_error_app1 in Hv by (unfold L in Hlt; exact Hlt).
+              unfold viewOperands. cbn [viewSegments viewValues]. rewrite concat_app. cbn [concat]. rewrite <- !app_assoc, app_assoc, nth_error_app1 by exact Hlt.
+              exact Hv.
+           ++ replace (i <? L)%nat with false by (symmetry; apply Nat.ltb_ge; lia).
+              rewrite app_assoc in Hv. replace i with (L + (i - L))%nat in Hv by lia.
+              unfold L in Hv. rewrite Hshift in Hv. fold L in Hv.
+              assert (Hj : (i - L < length kept)%nat) by (apply nth_error_Some; rewrite Hv; discriminate).
+              replace (row COL_STACK_FRAME_BASE_BEFORE + Z.of_nat i + Z.of_nat distance) with
+                (row COL_STACK_FRAME_BASE_BEFORE +
+                  Z.of_nat (L + (length (concat segsTail ++ dropped) + (i - L)))) by
+                (unfold distance; rewrite !length_app; lia).
+              apply Hcells. unfold viewOperands. cbn [viewSegments viewValues]. rewrite concat_app. cbn [concat].
+              replace ((concat segsHead ++ segT ++ concat segsTail) ++ (dropped ++ kept) ++ [condition]) with
+                ((concat segsHead ++ segT) ++ (concat segsTail ++ dropped) ++ kept ++ [condition])
+                by (rewrite <- !app_assoc; reflexivity).
+              unfold L. rewrite !Hshift, nth_error_app1 by exact Hj. exact Hv.
+        -- intros index' value Hv. cbn [afterBoundary boundaryLocalsBase]. rewrite Hfbp, HstackMem.
+           exact (Hlc _ _ Hv).
+      * assert (b < length outer)%nat by (apply nth_error_Some; rewrite Hb; discriminate). lia.
+      * unfold viewOperands in Hsp. cbn [viewSegments viewValues] in Hsp. rewrite concat_app in Hsp.
+        cbn [concat] in Hsp. rewrite (local_stack_pointer_after _ _ _ Hshape), HdistAfter, Hsp.
+        unfold distance, viewOperands. cbn [viewSegments viewValues]. rewrite !length_app. cbn [length]. lia.
+      * rewrite Hnext. reflexivity.
+      * exact (full_initialization_flags row Hprime Hfull).
+      * exact (branch_no_zeroing row COL_SEL_BR_IF_EQZ Hprime Hfull ltac:(vm_compute; tauto) Hchosen
+          ltac:(vm_compute; tauto) Hidle).
+      * rewrite HkeptAfter. unfold slideWord. rewrite length_app. destruct (Nat.eqb distance 0); lia.
 Qed.
 
 End Rows.

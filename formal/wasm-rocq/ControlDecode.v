@@ -85,6 +85,14 @@ Fixpoint pathHeights (callees : CalleeEnvironment) (code : list instr) (labels :
 
 Definition totalHeight (heights : list nat * nat) : nat := fold_right Nat.add (snd heights) (fst heights).
 
+(* The arity of each enclosing label, outermost first. *)
+Fixpoint pathArities (code : list instr) (labels : list nat) : list nat :=
+  match labels with
+  | [] => []
+  | b :: rest => match nth_error code b with
+      | Some (BLOCK bt body) => blockResults bt :: pathArities body rest | _ => [] end
+  end.
+
 (* The operands below each label, then the innermost ones. *)
 Fixpoint splitSegments (heights : list nat) (values : list Z) : list (list Z) * list Z :=
   match heights with
@@ -98,8 +106,9 @@ Fixpoint wrapLabels (code : list instr) (labels : list nat) (segments : list (li
   match labels, segments with
   | b :: rest, segment :: more =>
       match nth_error code b with
-      | Some (BLOCK _ body) =>
-          stackPrefix segment (instructionSuffix (skipn (S b) code) (blockContext (wrapLabels body rest more c)))
+      | Some (BLOCK bt body) =>
+          stackPrefix segment (instructionSuffix (skipn (S b) code)
+            (blockContext (blockResults bt) (wrapLabels body rest more c)))
       | _ => c
       end
   | _, _ => c

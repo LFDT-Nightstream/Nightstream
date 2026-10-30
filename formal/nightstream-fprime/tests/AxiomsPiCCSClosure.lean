@@ -22,6 +22,7 @@ import NightstreamFPrime.Export.Stage1.PiCCSOriginalReadsPreservation
 import NightstreamFPrime.Export.Stage1.PiCCSPrefixCodeFold
 import NightstreamFPrime.Export.Stage1.PiCCSPolynomialRange
 import NightstreamFPrime.Export.Stage1.PiCCSNormBuckets
+import NightstreamFPrime.Export.Stage1.PiCCSNormTritSums
 import NightstreamFPrime.Export.Stage1.PiCCSNormSource
 import NightstreamFPrime.Export.Stage1.PiCCSNormScan
 import NightstreamFPrime.Export.Stage1.PiCCSNormScanCorrectness
@@ -397,6 +398,11 @@ import NightstreamFPrime.Export.Stage1.PiCCSInputCheck
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormBuckets.pairTable_diagonal
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormBuckets.finish_empty
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormBuckets.finish_add
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormTritSums.finish_zero
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormTritSums.finish_add
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormTritSums.finish_foldl
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormTritSums.finish_sums
+#audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormTritSums.pairTerm_of_codes
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormSource.signedValue_sourceCode
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormSource.sourceCode_sourceAssignment
 #audit_axioms NightstreamFPrime.Export.Stage1.PiCCSNormSource.lowLane_global

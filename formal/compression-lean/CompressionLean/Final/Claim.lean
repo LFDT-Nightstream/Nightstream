@@ -1,10 +1,12 @@
 import CompressionLean.Terminal.Soundness
 import CompressionLean.Layer1.Soundness
-import CompressionLean.Layer1.Restoration
+import CompressionLean.Game.Restoration
 import CompressionLean.Shrink.Layout
+import CompressionLean.Spec.Parent
 
 namespace CompressionLean.Final
 
+open CompressionLean.Spec
 open CompressionLean NightstreamFPrime Polynomial
 
 variable {F K : Type} [Field F]
@@ -29,36 +31,23 @@ def claimOf (env : Circuit.Env) : Layer1.Statement F where
         word Terminal.outputs.eval_A env (2 * Spec.ringDegree * j + 2 * l + 1))
     else 0
 
-abbrev StateWords := Fin 9 → Spec.F
-
-def priorStatement (env : Circuit.Env) : StateWords := fun k =>
-  (Layout.Stage1.PiCCSInputs.priorStateWord
-    (Lifecycle.PiCCS.v1_2.StateBinding.contextWordStart + 4 + k.val)).eval
-    (Layout.Stage1.Spartan.pullback env)
-
-def TerminalFor (authority : Lifecycle.VerifierContext.Authority) (x : StateWords)
-    (env : Circuit.Env) : Prop :=
-  (Terminal.circuitPackage ()).RowsHold env ∧
-    Export.Stage1.Package.SelectedVerifierContext authority env ∧
-    priorStatement env = x ∧ x 0 ≠ 0
-
 def TerminalClaim (s : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F)
     (authority : Lifecycle.VerifierContext.Authority) (x : StateWords) : Prop :=
   ∃ env, TerminalFor authority x env ∧ ∃ z, Layer1.Relation s Φ bar S (claimOf env) z
 
 def ProgramEncodes {t L : ℕ} (T : Shrink.Template F) (s : Shrink.Counts) (prog : StateWords → Shrink.Run F)
-    (authority : Lifecycle.VerifierContext.Authority) (g : Layer1.Game (Option (Layer1.Transcript F K t L)))
+    (authority : Lifecycle.VerifierContext.Authority) (g : Game (Option (Layer1.Transcript F K t L)))
     (Reads : StateWords → (ℕ → F) → g.Pos → Prop) : Prop :=
   ∀ x w, ((prog x).ccs T s).Relation w → ∃ env, TerminalFor authority x env ∧
-    ∀ p, Reads x w p → ∃ tr, Layer1.Game.Pos.node g p = .pure (some tr) ∧ tr.statement = claimOf env
+    ∀ p, Reads x w p → ∃ tr, Game.Pos.node g p = .pure (some tr) ∧ tr.statement = claimOf env
 
 theorem terminalClaim_of {t L : ℕ} {T : Shrink.Template F} {s : Shrink.Counts}
     {prog : StateWords → Shrink.Run F} {authority : Lifecycle.VerifierContext.Authority}
-    {g : Layer1.Game (Option (Layer1.Transcript F K t L))} {Reads : StateWords → (ℕ → F) → g.Pos → Prop}
+    {g : Game (Option (Layer1.Transcript F K t L))} {Reads : StateWords → (ℕ → F) → g.Pos → Prop}
     (s1 : Layer1.Shape) (Φ : F[X]) (bar : ℕ → ℕ → F) (S : Layer1.Setup F)
     (encodes : ProgramEncodes T s prog authority g Reads) {x : StateWords} {w : ℕ → F}
     (holds : ((prog x).ccs T s).Relation w) {p : g.Pos} (reads : Reads x w p)
-    (extracts : ∀ r, Layer1.Game.Pos.node g p = .pure r →
+    (extracts : ∀ r, Game.Pos.node g p = .pure r →
       ∀ tr, r = some tr → ∃ v ∈ tr.early.candidates, Layer1.Relation s1 Φ bar S tr.statement v.z) :
     TerminalClaim s1 Φ bar S authority x := by
   obtain ⟨env, terminal, leaves⟩ := encodes x w holds

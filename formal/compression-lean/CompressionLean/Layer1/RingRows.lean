@@ -1,10 +1,11 @@
-import CompressionLean.Layer1.Roots
+import CompressionLean.Lib.Roots
 import Mathlib.Algebra.Polynomial.Div
 import Mathlib.Algebra.Polynomial.BigOperators
 import Mathlib.Tactic.LinearCombination
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
 open Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K]

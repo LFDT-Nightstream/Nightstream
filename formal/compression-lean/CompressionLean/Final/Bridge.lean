@@ -1,10 +1,14 @@
-import CompressionLean.Final.Fields
+import CompressionLean.Fields
 import CompressionLean.Layer1.Weights
 import NightstreamFPrime.Lifecycle.PaperAlgebra
 import NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
+import CompressionLean.Lib.List
+import CompressionLean.Spec.Parent
 
 namespace CompressionLean.Final
 
+open CompressionLean.Spec
+open CompressionLean.Lib
 open Polynomial NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Phi81Relation.EvaluationHomomorphism.RingFPolynomial
@@ -34,9 +38,6 @@ theorem toQuad_ops_sub (a b : K) :
     toQuad (ConcreteCarrier.extensionOps.sub a b) = toQuad a - toQuad b := by
   change toQuad (K.add a (K.sub K.zero b)) = _
   rw [toQuad_add, toQuad_sub, toQuad_zero, zero_sub, sub_eq_add_neg]
-
-def vertexAt (n i : ℕ) : BooleanVertex n :=
-  NumericBooleanDomain.vertex n ⟨i % 2 ^ n, Nat.mod_lt _ (by positivity)⟩
 
 theorem index_vertexAt (n i : ℕ) : NumericBooleanDomain.index (vertexAt n i) = i % 2 ^ n :=
   NumericBooleanDomain.index_vertex n _
@@ -68,12 +69,12 @@ theorem vertexAt_bit (n i : ℕ) (bit : Bool) (small : i < 2 ^ n) :
 
 theorem evaluate_tabulate (n : ℕ) (f : BooleanVertex n → K) (point : List K) (length : point.length = n) :
     toQuad ((BooleanTable.tabulate f).evaluateCoordinates ConcreteCarrier.extensionOps point) =
-      ∑ i ∈ Finset.range (2 ^ n), Layer1.eqAt (point.map toQuad) i * toQuad (f (vertexAt n i)) := by
+      ∑ i ∈ Finset.range (2 ^ n), Lib.eqAt (point.map toQuad) i * toQuad (f (vertexAt n i)) := by
   induction n generalizing point with
   | zero =>
       obtain rfl : point = [] := List.length_eq_zero_iff.mp length
       simp only [BooleanTable.tabulate, BooleanTable.evaluateCoordinates, pow_zero,
-        Finset.sum_range_one, List.map_nil, Layer1.eqAt, one_mul]
+        Finset.sum_range_one, List.map_nil, Lib.eqAt, one_mul]
       rfl
   | succ n ih =>
       obtain ⟨c, rest, rfl⟩ := List.exists_cons_of_length_eq_add_one length
@@ -87,7 +88,7 @@ theorem evaluate_tabulate (n : ℕ) (f : BooleanVertex n → K) (point : List K)
         simpa using vertexAt_bit n j false small
       have odd (j : ℕ) (small : j < 2 ^ n) : vertexAt (n + 1) (2 * j + 1) = .cons true (vertexAt n j) := by
         simpa using vertexAt_bit n j true small
-      simp only [List.map_cons, Layer1.eqAt]
+      simp only [List.map_cons, Lib.eqAt]
       have halfEven (j : ℕ) : 2 * j / 2 = j := by omega
       have halfOdd (j : ℕ) : (2 * j + 1) / 2 = j := by omega
       have modEven (j : ℕ) : ¬ (2 * j % 2 = 1) := by omega
@@ -99,14 +100,6 @@ theorem evaluate_tabulate (n : ℕ) (f : BooleanVertex n → K) (point : List K)
       have small := Finset.mem_range.mp member
       rw [even j small, odd j small]
       ring
-
-abbrev gl (x : F) : Gl := x
-
-theorem foldl_add_eq_sum {α M : Type} [AddCommMonoid M] (g : α → M) (l : List α) (init : M) :
-    l.foldl (fun acc x => acc + g x) init = init + (l.map g).sum := by
-  induction l generalizing init with
-  | nil => simp
-  | cons x rest ih => rw [List.foldl_cons, ih, List.map_cons, List.sum_cons, add_assoc]
 
 theorem matrixVectorAt_eq {n columns : ℕ} (M : PaperLinearAlgebra.BooleanMatrix F n columns)
     (a : PaperLinearAlgebra.Assignment F columns) (v : BooleanVertex n) :

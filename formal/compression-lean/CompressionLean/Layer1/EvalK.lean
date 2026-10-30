@@ -3,6 +3,8 @@ import CompressionLean.Layer1.Weights
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
+
 variable {A : Type} [CommRing A]
 
 section Loop

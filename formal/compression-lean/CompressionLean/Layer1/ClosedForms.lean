@@ -2,6 +2,8 @@ import CompressionLean.Layer1.Late
 
 namespace CompressionLean.Layer1
 
+open CompressionLean.Lib
+
 section Ring
 
 variable {K : Type} [CommRing K]

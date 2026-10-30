@@ -2,12 +2,14 @@ import CompressionLean.Bridge.Early
 
 namespace CompressionLean.Bridge
 
+open CompressionLean.Spec
+open CompressionLean.Lib
 open Polynomial
 open CompressionLean.Replay CompressionLean.Layer1
 
-variable {K : Type} [Field K] [Algebra Fp K] [Fintype K] [ChallengeField K]
+variable {K : Type} [Field K] [Algebra Gl K] [Fintype K] [ChallengeField K]
 
-local notation "ι" => algebraMap Fp K
+local notation "ι" => algebraMap Gl K
 
 theorem scaledEqPoint_ok (bits : ℕ) : ∀ (c : Ext) {kappa : Ext} {point : Array Ext},
     scaledEqPoint c bits = .ok (kappa, point) →
@@ -73,7 +75,7 @@ theorem toK_laneValue (s : Layer1.Shape) (hD : s.D = D) (zeta : Ext) (point : Ar
   rw [Ext.toK_mul, eqTable_get point (by rw [size, split]; omega), toK_eqAt, Ext.toK_pow, laneTable,
     ite_eq_left (by rw [hD]; exact lt)]
 
-def targetCoeff (s : Layer1.Shape) (st : Layer1.Statement Fp) (ρ l : ℕ) : Fp :=
+def targetCoeff (s : Layer1.Shape) (st : Layer1.Statement Gl) (ρ l : ℕ) : Gl :=
   if ρ < s.kappa then st.commitment ρ l
   else if ρ < s.kappa + 2 then (if ρ = s.evalKRow 0 then (st.evalK l).1 else (st.evalK l).2)
   else if ρ < s.kappa + 2 + 2 * s.matrices then
@@ -81,7 +83,7 @@ def targetCoeff (s : Layer1.Shape) (st : Layer1.Statement Fp) (ρ l : ℕ) : Fp 
     else (st.evalA ((ρ - s.kappa - 2) / 2) l).2)
   else st.publicInput (ρ - (s.kappa + 2 + 2 * s.matrices)) l
 
-theorem target_eq (s : Layer1.Shape) (bar : ℕ → ℕ → Fp) (S : Setup Fp) (st : Layer1.Statement Fp) (ρ : ℕ) :
+theorem target_eq (s : Layer1.Shape) (bar : ℕ → ℕ → Gl) (S : Setup Gl) (st : Layer1.Statement Gl) (ρ : ℕ) :
     (relationRows s bar S st).target ρ = coeffPoly s.D (targetCoeff s st ρ) := by
   simp only [relationRows]
   by_cases h1 : ρ < s.kappa
@@ -105,7 +107,7 @@ theorem target_eq (s : Layer1.Shape) (bar : ℕ → ℕ → Fp) (S : Setup Fp) (
     simp [targetCoeff, h1, h2, h3]
 
 omit [Fintype K] [ChallengeField K] in
-theorem rows_split (s : Layer1.Shape) (st : Layer1.Statement Fp) (lam : K) (l : ℕ) :
+theorem rows_split (s : Layer1.Shape) (st : Layer1.Statement Gl) (lam : K) (l : ℕ) :
     ∑ ρ ∈ Finset.range s.rows, lam ^ ρ * ι (targetCoeff s st ρ l) =
       ∑ row ∈ Finset.range s.kappa, lam ^ row * ι (st.commitment row l) +
         (lam ^ s.kappa * ι (st.evalK l).1 + lam ^ (s.kappa + 1) * ι (st.evalK l).2) +
@@ -181,7 +183,7 @@ theorem phi_eval (zeta : K) : (phi.map ι).eval zeta = zeta ^ 54 + zeta ^ 27 + 1
   simp [phi]
 
 theorem toK_liftedTarget (rel : Replay.Relation) (st : Replay.Statement) (fits : st.fits rel = true)
-    (lam zeta : Ext) (quotient : Array Ext) (size : quotient.size = D - 1) (S : Setup Fp) :
+    (lam zeta : Ext) (quotient : Array Ext) (size : quotient.size = D - 1) (S : Setup Gl) :
     (Replay.liftedTarget (targets st ⟨lam, rel.kappa, rel.matrices⟩) quotient zeta).toK (K := K) =
       Layer1.liftedTarget (shapeOf rel) phi barOf S (statementOf st) lam.toK zeta.toK
         (quotientPoly (shapeOf rel) (tableK quotient)) := by

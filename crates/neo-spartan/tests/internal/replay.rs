@@ -10,7 +10,9 @@
 //! Rust's. The replay takes WHIR openings as the Lean model does: it replays
 //! their transcript but not their checks, so a variant that Rust rejects
 //! inside WHIR must be rejected later by the replay, after every draw Rust
-//! made.
+//! made. A second test writes the setup oracle tables and the key root to
+//! `target/lean-replay/setup-root.json`, and Lean's `setupRootCheck` requires
+//! its `tableRoot` of the tables to be that root.
 
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
@@ -571,4 +573,41 @@ fn lean_replay_matches_the_rust_verifier() {
             lean.draws.len()
         );
     }
+}
+
+#[test]
+#[ignore = "needs the Lean setup root: lake build setupRootCheck in formal/compression-lean"]
+fn lean_setup_root_matches_the_rust_key() {
+    let (_toy, setup, _scratch) = setup_toy(2, 4, 6);
+    let key = setup.key();
+    let (variables, count) = (key.setup_variables(), crate::kappa() + crate::RUN_ORACLES);
+    let tables: Vec<Vec<Gl>> = (0..count)
+        .map(|k| crate::oracle(&setup.tables, key.blocks, k, variables))
+        .collect();
+    let root = crate::setup::build(variables, count, |k| tables[k].clone(), None).unwrap();
+    assert_eq!(root, key.root(), "the key's root commits to these tables");
+    let dir = workspace().join("target/lean-replay");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("setup-root.json");
+    let json = object(&[
+        ("setupVars", variables.to_string()),
+        ("tables", list(tables.iter().map(|table| words(table.iter().copied())))),
+        ("root", words(key.root())),
+    ]);
+    std::fs::write(&path, json).unwrap();
+
+    let check = workspace().join("formal/compression-lean/.lake/build/bin/setupRootCheck");
+    assert!(
+        check.exists(),
+        "wrote {}; build the check with `lake build setupRootCheck` in formal/compression-lean",
+        path.display()
+    );
+    let output = Command::new(&check).arg(&path).output().unwrap();
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    eprint!("{stdout}");
+    assert!(
+        output.status.success(),
+        "{stdout}{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 }

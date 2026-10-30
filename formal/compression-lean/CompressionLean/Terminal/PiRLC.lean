@@ -15,15 +15,17 @@ open NightstreamFPrime.Lifecycle.PiRLC.v1_2
 open NightstreamFPrime.Spec
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 
+variable {lw : Nat} {pf : ringDegree * publicRingColumns ≤ Phi81CarrierLayout.carrierWidth lw}
+
 theorem piRlcSamplerInvocations_hold (env : Env)
     (holds : (circuitPackage ()).RowsHold env) :
     ∀ invocation ∈
       PiRLCSamplerInvocations.invocations
-        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits),
+        (logicalWidth := lw) (publicFits := pf),
       PermutationInvocationHolds (PilotData.circuitPackage ()) invocation env := by
   intro invocation member
   apply permutationInvocation_holds env holds invocation
-  rw [Data.permutationInvocations_eq]
+  rw [permutationInvocations_at lw pf]
   exact List.mem_append_right _ member
 
 private theorem piRlcEntry (env : Env)
@@ -31,7 +33,7 @@ private theorem piRlcEntry (env : Env)
     (source : Nat) (sourceLt : source < PiRLCSamplerInvocations.sourceCount) :
     TranscriptAbsorption.SpecHolds
       (PiRLCSamplerInvocations.sourceInterface
-        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits) source)
+        (logicalWidth := lw) (publicFits := pf) source)
       source (PiRLCSamplerInvocations.sourceLogicalStart source)
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
   apply PiRLCSamplerInvocations.entryTrace_implies_spec source env
@@ -49,13 +51,13 @@ private theorem piRlcAdvance (env : Env)
     (source : Nat) (sourceLt : source < PiRLCSamplerInvocations.sourceCount) :
     Permutation.Owned.SpecHolds
       (Sampler.advanceInterface
-        (PiRLCSamplerInvocations.sourceInterface (logicalWidth := Data.logicalWidth)
-          (publicFits := Data.publicFits) source) source
+        (PiRLCSamplerInvocations.sourceInterface (logicalWidth := lw)
+          (publicFits := pf) source) source
         (PiRLCSamplerInvocations.sourceLogicalStart source))
       (NightstreamFPrime.Layout.Stage1.PiRLCStarts.advanceLogicalStart source)
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
   apply PiRLCSamplerInvocations.advanceInvocation_implies_spec source env
-  apply piRlcSamplerInvocations_hold env holds
+  apply piRlcSamplerInvocations_hold (lw := lw) (pf := pf) env holds
   apply List.mem_flatMap.mpr
   refine ⟨source, List.mem_range.mpr sourceLt, ?_⟩
   simp [PiRLCSamplerInvocations.sourceInvocations]
@@ -64,14 +66,14 @@ private theorem samplerSourceRows (env : Env)
     (holds : (circuitPackage ()).RowsHold env)
     (source : Nat) (sourceLt : source < PiRLCSamplerInvocations.sourceCount) :
     R1CS.RowsHold env ((PiRLCSamplerOrdinaryRows.rangeRows
-      (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+      (logicalWidth := lw) (publicFits := pf)
       source).map Rows.CompiledRow.toR1CS) ∧
     R1CS.RowsHold env ((PiRLCSamplerOrdinaryRows.wordRows source).map
       Rows.CompiledRow.toR1CS) := by
-  have all := piRlcSamplerOrdinaryRows_hold env holds
+  have all := piRlcSamplerOrdinaryRows_hold (lw := lw) (pf := pf) env holds
   have selected : R1CS.RowsHold env
-      ((PiRLCSamplerOrdinaryRows.sourceRows (logicalWidth := Data.logicalWidth)
-        (publicFits := Data.publicFits) source).map Rows.CompiledRow.toR1CS) := by
+      ((PiRLCSamplerOrdinaryRows.sourceRows (logicalWidth := lw)
+        (publicFits := pf) source).map Rows.CompiledRow.toR1CS) := by
     intro row member
     obtain ⟨compiled, inside, rfl⟩ := List.mem_map.mp member
     apply all
@@ -85,15 +87,15 @@ private theorem piRlcSamplerSpec (env : Env)
     (holds : (circuitPackage ()).RowsHold env)
     (source : Nat) (sourceLt : source < PiRLCSamplerInvocations.sourceCount)
     (assumptions : Sampler.Assumptions
-      (PiRLCSamplerInvocations.sourceInterface (logicalWidth := Data.logicalWidth)
-        (publicFits := Data.publicFits) source)
+      (PiRLCSamplerInvocations.sourceInterface (logicalWidth := lw)
+        (publicFits := pf) source)
       (PiRLCSamplerInvocations.sourceLogicalStart source)) :
     Sampler.SpecHolds
-      (PiRLCSamplerInvocations.sourceInterface (logicalWidth := Data.logicalWidth)
-        (publicFits := Data.publicFits) source)
+      (PiRLCSamplerInvocations.sourceInterface (logicalWidth := lw)
+        (publicFits := pf) source)
       source (PiRLCSamplerInvocations.sourceLogicalStart source)
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
-  have ordinary := samplerSourceRows env holds source sourceLt
+  have ordinary := samplerSourceRows (lw := lw) (pf := pf) env holds source sourceLt
   have range := PiRLCSamplerOrdinaryRows.rangeRows_imply_spec source env
     (by
       rw [PiRLCSamplerOrdinaryRows.rangeInterface_eq]
@@ -116,17 +118,17 @@ private theorem piRlcSamplerSpec (env : Env)
 theorem piRlcSamplerChain (env : Env)
     (holds : (circuitPackage ()).RowsHold env)
     (assumptions : SamplerChain.Assumptions
-      (PiRLCSamplerRows.samplerInterface (logicalWidth := Data.logicalWidth)
-        (publicFits := Data.publicFits))
+      (PiRLCSamplerRows.samplerInterface (logicalWidth := lw)
+        (publicFits := pf))
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart) :
     SamplerChain.SpecHolds
-      (PiRLCSamplerRows.samplerInterface (logicalWidth := Data.logicalWidth)
-        (publicFits := Data.publicFits))
+      (PiRLCSamplerRows.samplerInterface (logicalWidth := lw)
+        (publicFits := pf))
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
   apply SamplerChain.soundness
-    (PiRLCSamplerRows.samplerInterface (logicalWidth := Data.logicalWidth)
-      (publicFits := Data.publicFits))
+    (PiRLCSamplerRows.samplerInterface (logicalWidth := lw)
+      (publicFits := pf))
     (NightstreamFPrime.Layout.Stage1.Spartan.pullback env)
     NightstreamFPrime.Layout.Stage1.PiRLCStarts.samplerLogicalStart
   · exact @assumptions
@@ -210,11 +212,11 @@ theorem piRlcCombinationRows (env : Env)
     exact PiRLCCombinationInvocations.familyInvocation_mem _ _ _ _ _ _ _ source index
 
 theorem piRlcSpecHolds
-    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
+    (relation : ProductionKey.LogicalRelation lw pf)
     (env : Env) (holds : (circuitPackage ()).RowsHold env) :
     Formal.SpecHolds relation
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
-        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
+        (logicalWidth := lw) (publicFits := pf))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
   have assumptions := NightstreamFPrime.Layout.Stage1.PiRLCInputBounds.assumptions
@@ -239,41 +241,41 @@ theorem piRlcSpecHolds
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.commitmentLogicalStart,
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart] using
       PiRLCCombinationConformance.commitmentFamilyRows_imply_canonical
-        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+        (logicalWidth := lw) (publicFits := pf)
         env combinationRows.commitment
   · simpa [PiRLCCombinationInvocations.productionPublicInputFamilyInterface,
       PiRLCCombinationInvocations.productionSharedInterface,
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.publicInputLogicalStart,
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart] using
       PiRLCCombinationConformance.publicInputFamilyRows_imply_canonical
-        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+        (logicalWidth := lw) (publicFits := pf)
         env combinationRows.publicInput
   · simpa [PiRLCCombinationInvocations.productionEvalKFamilyInterface,
       PiRLCCombinationInvocations.productionSharedInterface,
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalKLogicalStart,
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart] using
       PiRLCCombinationConformance.evalKFamilyRows_imply_canonical
-        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+        (logicalWidth := lw) (publicFits := pf)
         env combinationRows.eval_K
   · simpa [PiRLCCombinationInvocations.productionEvalAFamilyInterface,
       PiRLCCombinationInvocations.productionSharedInterface,
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.evalALogicalStart,
       NightstreamFPrime.Layout.Stage1.PiRLCStarts.phaseLogicalStart] using
       PiRLCCombinationConformance.evalAFamilyRows_imply_canonical
-        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits)
+        (logicalWidth := lw) (publicFits := pf)
         env combinationRows.eval_A
   · apply OutputBinding.soundness
     intro operation member
     cases member
 
 theorem piRlcPhaseHolds
-    (relation : ProductionKey.LogicalRelation Data.logicalWidth Data.publicFits)
+    (relation : ProductionKey.LogicalRelation lw pf)
     (ajtai : AjtaiKey
-      (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
+      (logicalWidth := lw) (publicFits := pf))
     (env : Env) (holds : (circuitPackage ()).RowsHold env) :
     Semantics.PhaseHolds relation ajtai
       (NightstreamFPrime.Layout.Stage1.PiRLCInputs.interface
-        (logicalWidth := Data.logicalWidth) (publicFits := Data.publicFits))
+        (logicalWidth := lw) (publicFits := pf))
       NightstreamFPrime.Layout.Stage1.PiRLCInputs.phaseOffset
       (NightstreamFPrime.Layout.Stage1.Spartan.pullback env) := by
   apply Semantics.spec_implies_phaseHolds

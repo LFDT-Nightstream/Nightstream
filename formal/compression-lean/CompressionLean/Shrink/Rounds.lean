@@ -1,18 +1,16 @@
+import CompressionLean.Ports.Shrink.Rounds
 import CompressionLean.Shrink.Ccs
-import CompressionLean.Layer1.Linear
+import CompressionLean.Lib.Combination
 
 namespace CompressionLean.Shrink
 
-open CompressionLean.Layer1 Polynomial
+open CompressionLean.Lib Polynomial
 
 variable {F K : Type} [Field F] [Field K] [Algebra F K]
 
 local notation "ι" => algebraMap F K
 
 section Outer
-
-noncomputable def outerComb : MvPolynomial (Option (Fin 8)) K :=
-  MvPolynomial.X none * constraint fun j => MvPolynomial.X (some j)
 
 omit [Field K] in
 theorem eval_outerComb [Field K] (f : Option (Fin 8) → K) :
@@ -41,13 +39,6 @@ theorem outerComb_degree [Field K] : (outerComb : MvPolynomial (Option (Fin 8)) 
   rw [x]
   omega
 
-def outerTables (es : List (Entry F)) (z : ℕ → F) (τ : List K) : Option (Fin 8) → ℕ → K
-  | none => eqAt τ
-  | some j => fun r => ι (rowValue es z j r)
-
-def constraintTable (es : List (Entry F)) (z : ℕ → F) (r : ℕ) : K :=
-  ι (constraint fun j => rowValue es z j r)
-
 theorem outer_truth_nil (es : List (Entry F)) (z : ℕ → F) (τ : List K) (m : ℕ) (length : τ.length = m) :
     combTruth m (outerTables es z τ) outerComb [] = mle τ (constraintTable es z) := by
   rw [combTruth_nil, mle_eq_cubeSum, length]
@@ -66,10 +57,6 @@ theorem outer_truth_final (es : List (Entry F)) (z : ℕ → F) (τ rx : List K)
 end Outer
 
 section Batch
-
-def batch (ρ : K) (v : Fin 8 → K) : K := ∑ j : Fin 8, ρ ^ (j : ℕ) * v j
-
-noncomputable def batchPoly (v t : Fin 8 → K) : K[X] := ∑ j : Fin 8, C (v j - t j) * X ^ (j : ℕ)
 
 theorem batchPoly_eval (v t : Fin 8 → K) (ρ : K) : (batchPoly v t).eval ρ = batch ρ v - batch ρ t := by
   simp only [batchPoly, batch, eval_finsetSum, eval_mul, eval_C, eval_pow, eval_X, ← Finset.sum_sub_distrib]
@@ -104,9 +91,6 @@ theorem batch_ne [Fintype K] [DecidableEq K] {v t : Fin 8 → K} {ρ : K} (diffe
 end Batch
 
 section Inner
-
-def innerTables (es : List (Entry F)) (z : ℕ → F) (rx : List K) (ρ : K) : Fin 2 → ℕ → K :=
-  fun i => if i = 0 then weight es rx ρ else fun y => ι (z y)
 
 theorem inner_truth_nil (es : List (Entry F)) (z : ℕ → F) (rx : List K) (ρ : K) (n : ℕ)
     (rows : ∀ e ∈ es, e.row < 2 ^ rx.length) (cols : ∀ e ∈ es, e.col < 2 ^ n) :

@@ -698,40 +698,62 @@ fn idle_proof_times_on_metal() {
     time_on_metal(app, geometry, &program, (), &vec![(); geometry.n]);
 }
 
-/// The F′ step sizes of the `fib(2)` circuit and of its idle control, and the
-/// `scripts/fprime_breakdown.py` command that charts the step with its memory
-/// part (the control) and its WASM part (the difference).
+/// The parts of the `fib(2)` step for `scripts/fprime_breakdown.py`: the
+/// memory phases and witness regions of `nebula::size_parts`, with the
+/// application rows split into the WASM relation, the constant and
+/// continuity rows, and the catalog binding. They sum to the compiled
+/// circuit's application size. It prints the chart command.
 #[test]
-#[ignore = "Compiles two circuits; run separately under the 300-second cap."]
+#[ignore = "Compiles one circuit; run separately under the 300-second cap."]
 fn fibonacci_step_size_for_the_breakdown_chart() {
-    use nightstream::nebula::Circuit;
+    use nightstream::nebula::{size_parts, Circuit};
     use nightstream::ApplicationSize;
     let setup = Setup::of(vec![traced(&fib_wat(FIB_ROUNDS), FIB_STEPS)], FIB_STEPS);
     let (wasm, geometry) = setup.complete();
-    let idle = Idle {
-        width: wasm.links.len(),
-        b_ops: geometry.b_ops,
+    let rows = |rows| ApplicationSize {
+        witness_words: 0,
+        local_words: 0,
+        rows,
     };
-    let step = Circuit::compile(&reference(), geometry, wasm)
+    let mut parts: Vec<(String, ApplicationSize)> = Vec::new();
+    for part in size_parts(&geometry, &wasm).unwrap() {
+        match part.name {
+            "Application rows" => {
+                assert_eq!(part.size.local_words, 0, "the WASM rows are rank-one rows");
+                let (relation, links) = (wasm.relation.len(), 1 + 2 * wasm.links.len());
+                parts.push(("WASM step / Relation rows".into(), rows(relation)));
+                parts.push(("WASM step / Constant and continuity rows".into(), rows(links)));
+                parts.push((
+                    "WASM step / Catalog binding rows".into(),
+                    rows(part.size.rows - relation - links),
+                ));
+            }
+            "Application state words" => parts.push(("WASM step / Continuity state words".into(), part.size)),
+            "Application private words" => parts.push(("WASM step / Witness z (private words)".into(), part.size)),
+            name => parts.push((format!("Nebula memory / {name}"), part.size)),
+        }
+    }
+    let total = parts
+        .iter()
+        .fold(rows(0), |total, (_, size)| ApplicationSize {
+            witness_words: total.witness_words + size.witness_words,
+            local_words: total.local_words + size.local_words,
+            rows: total.rows + size.rows,
+        });
+    let compiled = Circuit::compile(&reference(), geometry, wasm)
         .unwrap()
         .application_size()
         .unwrap();
-    let memory = Circuit::compile(&reference(), geometry, idle)
-        .unwrap()
-        .application_size()
-        .unwrap();
-    let relation = ApplicationSize {
-        witness_words: step.witness_words - memory.witness_words,
-        local_words: step.local_words - memory.local_words,
-        rows: step.rows - memory.rows,
-    };
-    let numbers = |size: ApplicationSize| format!("{},{},{}", size.witness_words, size.local_words, size.rows);
+    assert_eq!(total, compiled, "the parts sum to the compiled application size");
+    let numbers = |size: &ApplicationSize| format!("{},{},{}", size.witness_words, size.local_words, size.rows);
+    let flags: Vec<String> = parts
+        .iter()
+        .map(|(name, size)| format!("--part '{name}={}'", numbers(size)))
+        .collect();
     println!(
-        "python3 scripts/fprime_breakdown.py --name 'Enzo fib({FIB_ROUNDS}) WASM step' --application {} \
-         --part 'Nebula memory and state words={}' --part 'WASM relation, binding, and private words={}' \
+        "python3 scripts/fprime_breakdown.py --name 'Enzo fib({FIB_ROUNDS}) WASM step' --application {} {} \
          --out wasm-fib-step.html",
-        numbers(step),
-        numbers(memory),
-        numbers(relation)
+        numbers(&total),
+        flags.join(" ")
     );
 }

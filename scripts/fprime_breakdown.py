@@ -4,24 +4,35 @@
 The shared verifier manifest (`crates/nightstream/artifacts/shared-verifier-v1.json`,
 emitted by Lean `Export/SharedVerifier.lean`) gives the rows of each verifier
 component and the coordinate slots of each assignment block as affine forms of
-three application numbers: witness words, local words, and rows. This script
-evaluates them for one application, checks the totals against the manifest's
-own formulas, prints a table, and writes a two-tab HTML page. Without
-`--application` it charts the manifest's reference application
+three application numbers: witness words, local words, and rows. The finer
+leaves inside each component come from the literal counts that Lean theorems
+and definitions state (`LEAN_FACTS`), and the leaves of each component must sum
+to the manifest's value for it. The script prints a table and writes a two-tab
+HTML page, and with `--png` a PNG image of each tab.
+
+Without `--application` it charts the manifest's reference application
 (Poseidon2HashChainV1). A Rust program reads its three numbers from
-`nightstream::Circuit::application_size`.
+`nightstream::Circuit::application_size`, and a Nebula program its parts from
+`nightstream::nebula::size_parts`. A part named `Section / Leaf` goes under its
+section.
 """
 
 import argparse
 import html
 import json
+import re
+import shutil
+import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "crates/nightstream/artifacts/shared-verifier-v1.json"
+LEAN = ROOT / "formal/nightstream-fprime/NightstreamFPrime"
 PARAMETERS = ["witness_words", "local_words", "application_rows"]
+CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 
 # Lean `PerApplicationAssignmentPlan.canonicalKinds`, in opcode order.
 BLOCK_KINDS = [
@@ -38,6 +49,49 @@ CHILDREN = {
     "pi_ccs_endpoint", "pi_rlc_sampler_poseidon", "pi_rlc_sampler_ordinary", "pi_rlc_combination",
     "pi_dec", "running_transition", "application", "next_preimage", "recursive_public_output",
 }
+
+# Each fact: (file under LEAN, kind, name). `theorem` reads the first `= N :=`
+# of the theorem, `def` reads `def|abbrev name : Nat := N`.
+LEAN_FACTS = {
+    "permutation_rows": ("Layout/ProductionRelation/PoseidonRetainedSlots.lean", "theorem", "rows_length"),
+    "permutation_slots": ("Layout/ProductionRelation/PoseidonRetainedSlots.lean", "theorem", "slots_length"),
+    "prior_permutations": ("Export/Stage1/PoseidonRetainedBlock.lean", "theorem", "priorInvocationCount_eq"),
+    "output_permutations": ("Export/Stage1/PoseidonRetainedBlock.lean", "theorem", "outputInvocationCount_eq"),
+    "statement_permutations": ("Export/Stage1/PiCCSInvocations.lean", "theorem", "statementInvocationCount_eq"),
+    "challenge_permutations": ("Export/Stage1/PiCCSInvocations.lean", "theorem", "challengeInvocationCount_eq"),
+    "round_permutations": ("Export/Stage1/PiCCSInvocations.lean", "theorem", "roundInvocationCount_eq"),
+    "output_binding_permutations": ("Export/Stage1/PiCCSInvocations.lean", "theorem", "outputInvocationCount_eq"),
+    "sampler_permutations": ("Export/Stage1/PiRLCSamplerPoseidonPlan.lean", "theorem", "invocationCount_eq"),
+    "statement_binding_rows": ("Export/Stage1/PiCCSArithmetic.lean", "theorem", "statementBindingRows_length"),
+    "initial_claim_rows": ("Export/Stage1/PiCCSArithmetic.lean", "theorem", "initialClaimRows_length"),
+    "sumcheck_rows": ("Export/Stage1/PiCCSArithmetic.lean", "theorem", "sumcheckRows_length"),
+    "eval_k_rows": ("Export/Stage1/PiCCSArithmetic.lean", "theorem", "evalKRows_length"),
+    "eval_a_rows": ("Export/Stage1/PiCCSArithmetic.lean", "theorem", "evalARows_length"),
+    "ccs_rows": ("Export/Stage1/PiCCSArithmetic.lean", "theorem", "ccsRows_length"),
+    "norm_rows": ("Export/Stage1/PiCCSArithmetic.lean", "theorem", "normRows_length"),
+    "final_identity_rows": ("Export/Stage1/PiCCSArithmetic.lean", "theorem", "finalIdentityRows_length"),
+    "commitment_products": ("Export/Stage1/PiRLCProductSchedule.lean", "theorem", "commitment_invocationCount"),
+    "public_input_products": ("Export/Stage1/PiRLCProductSchedule.lean", "theorem", "publicInput_invocationCount"),
+    "eval_k_products": ("Export/Stage1/PiRLCProductSchedule.lean", "theorem", "evalK_invocationCount"),
+    "eval_a_products": ("Export/Stage1/PiRLCProductSchedule.lean", "theorem", "evalA_invocationCount"),
+    "sampler_sources": ("Export/Stage1/PiRLCSamplerInvocations.lean", "def", "sourceCount"),
+    "sampler_range_rows": ("Export/Stage1/PiRLCSamplerOrdinaryRows.lean", "theorem", "rangeRows_length"),
+    "sampler_word_rows": ("Export/Stage1/PiRLCSamplerOrdinaryRows.lean", "theorem", "wordRows_length"),
+    "wide_fields": ("Gadgets/Sampling/WideReduction.lean", "def", "fieldCount"),
+    "canonical_rows": ("Gadgets/Range/CanonicalU64.lean", "def", "exactRowCount"),
+    "canonical_fresh": ("Layout/Range/CanonicalU64.lean", "theorem", "totalFreshCount_eq"),
+    "wide_new_bits": ("Gadgets/Sampling/WideReduction/Footprint.lean", "theorem", "newBitCount_eq"),
+    "wide_digits": ("Gadgets/Sampling/WideReduction.lean", "def", "digitCount"),
+    "wide_checks": ("Gadgets/Sampling/WideReduction.lean", "def", "checkCount"),
+    "running_mux_words": ("Lifecycle/Stage1/RunningTransition.lean", "def", "exactWordCount"),
+    "running_state_words": ("Lifecycle/Stage1/RunningTransition.lean", "def", "stateWordCount"),
+    "running_rows": ("Lifecycle/Stage1/RunningTransition.lean", "def", "exactRowCount"),
+}
+# Lean `RunningTransition.flagConstraint` and `bindingConstraint`: rows, not literals.
+RUNNING_FLAG_AND_BINDING_ROWS = 2
+# Lean `DirectPiRLCProductFootprint.rowCount` and `PiDEC.v1_2.exactRowDeltas`.
+PRODUCT_ROWS = ("Export/Stage1/DirectPiRLCProductFootprint.lean", r"def rowCount : Nat := invocationCount \* (\d+)")
+PI_DEC_DELTAS = ("Layout/PiDEC/v1_2/Values.lean", r"exactRowDeltas = \[([\d, ]+)\] := by rfl")
 
 CATEGORIES = {
     "hash": ("Poseidon2 hashing", "#378ADD"),
@@ -61,10 +115,6 @@ class Size:
     local_words: int
     rows: int
 
-    def __sub__(self, other):
-        return Size(self.witness_words - other.witness_words, self.local_words - other.local_words,
-                    self.rows - other.rows)
-
 
 @dataclass(frozen=True)
 class Application:
@@ -84,7 +134,32 @@ def evaluate(form, size):
 
 def check(condition, message):
     if not condition:
-        raise ManifestError(f"{message}; update scripts/fprime_breakdown.py to the new manifest")
+        raise ManifestError(f"{message}; update scripts/fprime_breakdown.py to the new manifest or Lean")
+
+
+def lean_facts(root=LEAN):
+    """Every `LEAN_FACTS` count, the PiRLC product rows per invocation, and the
+    PiDEC row deltas, read from the Lean sources under `root`."""
+    texts = {}
+
+    def text(path):
+        if path not in texts:
+            texts[path] = (root / path).read_text()
+        return texts[path]
+
+    def find(path, regex, name):
+        match = re.search(regex, text(path), re.MULTILINE)
+        check(match is not None, f"Lean {path} has no {name}")
+        return match.group(1)
+
+    facts = {}
+    for key, (path, kind, name) in LEAN_FACTS.items():
+        regex = (rf"theorem {re.escape(name)}\b[\s\S]*?=\s*(\d+)\s*:=" if kind == "theorem"
+                 else rf"^(?:def|abbrev) {re.escape(name)} : Nat := (\d+)\s*$")
+        facts[key] = int(find(path, regex, name))
+    facts["product_rows_per_invocation"] = int(find(*PRODUCT_ROWS, "rowCount"))
+    facts["pi_dec_deltas"] = [int(value) for value in find(*PI_DEC_DELTAS, "exactRowDeltas").split(",")]
+    return facts
 
 
 def parse_size(text):
@@ -102,9 +177,9 @@ def parse_part(text):
     return name, parse_size(numbers)
 
 
-def breakdown(manifest, application):
+def breakdown(manifest, application, facts):
     """The row and coordinate groups of `application`: (rows, coordinates), each a
-    list of (group, [(section, [(leaf, value, category)])])."""
+    list of (group, [(section, [(leaf, value, category)])]), leaves largest first."""
     check(manifest.get("parameters") == PARAMETERS, "manifest parameters changed")
     size = application.size
     if application.parts:
@@ -125,84 +200,142 @@ def breakdown(manifest, application):
     check(form["applicationWitness"] == [0, 1, 0, 0] and form["applicationLocal"] == [0, 0, 1, 0],
           "application blocks changed")
     slots = {kind: evaluate(slot_form, size) for kind, slot_form in form.items()}
+
+    f = facts
+    per_row, per_slot = f["permutation_rows"], f["permutation_slots"]
     state_hash = rows["pilot_poseidon"] // 2
-    check(children["pilot_poseidon"]["block_count"] == 2 and rows["pilot_poseidon"] == 2 * state_hash
-          and slots["priorPoseidon"] == state_hash == slots["outputPoseidon"], "state hash blocks changed")
-    check(slots["laterPoseidon"] == rows["pi_ccs_poseidon"] + rows["pi_rlc_sampler_poseidon"],
+    check(children["pilot_poseidon"]["block_count"] == 2
+          and f["prior_permutations"] * per_row == state_hash == f["output_permutations"] * per_row
+          and rows["pilot_poseidon"] == 2 * state_hash
+          and slots["priorPoseidon"] == f["prior_permutations"] * per_slot
+          and slots["outputPoseidon"] == f["output_permutations"] * per_slot, "state hashes changed")
+    families = [("Output binding: absorb y′", f["output_binding_permutations"]),
+                ("Statement absorption", f["statement_permutations"]),
+                ("Round transcript", f["round_permutations"]),
+                ("Challenge derivation", f["challenge_permutations"])]
+    piccs_permutations = sum(count for _, count in families)
+    check(piccs_permutations * per_row == rows["pi_ccs_poseidon"], "PiCCS hash families changed")
+    check(f["sampler_permutations"] * per_row == rows["pi_rlc_sampler_poseidon"], "sampler hash changed")
+    check(slots["laterPoseidon"] == (piccs_permutations + f["sampler_permutations"]) * per_slot,
           "later Poseidon2 blocks changed")
+    arithmetic = [("Initial claim", f["initial_claim_rows"]), ("Eval_A terminal", f["eval_a_rows"]),
+                  ("Statement binding", f["statement_binding_rows"]),
+                  ("Final identity v = Q(r′)", f["final_identity_rows"]), ("Eval_K terminal", f["eval_k_rows"]),
+                  ("Norm terminal", f["norm_rows"]), ("Sum-check chain", f["sumcheck_rows"]),
+                  ("CCS terminal", f["ccs_rows"])]
+    check(sum(value for _, value in arithmetic) == rows["pi_ccs_ordinary"], "PiCCS arithmetic changed")
+    products = [("commitment", f["commitment_products"]), ("public input", f["public_input_products"]),
+                ("Eval_A", f["eval_a_products"]), ("Eval_K", f["eval_k_products"])]
+    product_count = sum(count for _, count in products)
+    check(product_count * f["product_rows_per_invocation"] == rows["pi_rlc_combination"]
+          and product_count == slots["productGroup"] == slots["productOutput"], "PiRLC product families changed")
+    sources, fields = f["sampler_sources"], f["wide_fields"]
+    wide = [(f"Wide sampler: canonical u64 checks ({sources} × {fields} × {f['canonical_rows']})",
+             sources * fields * f["canonical_rows"]),
+            (f"Wide sampler: new-bit booleanity ({sources} × {f['wide_new_bits']})", sources * f["wide_new_bits"]),
+            (f"Wide sampler: canonical u64 lowering ({sources} × {fields} × {f['canonical_fresh']})",
+             sources * fields * f["canonical_fresh"]),
+            (f"Wide sampler: digit range ({sources} × {f['wide_digits']})", sources * f["wide_digits"]),
+            (f"Wide sampler: challenge-word packing ({sources} × {f['sampler_word_rows']})",
+             sources * f["sampler_word_rows"]),
+            (f"Wide sampler: modular checks ({sources} × {f['wide_checks']})", sources * f["wide_checks"])]
+    check(f["sampler_range_rows"] == fields * (f["canonical_rows"] + f["canonical_fresh"]) + f["wide_new_bits"]
+          + f["wide_digits"] + f["wide_checks"]
+          and sum(value for _, value in wide) == rows["pi_rlc_sampler_ordinary"], "wide sampler changed")
+    deltas = [delta for delta in f["pi_dec_deltas"] if delta]
+    check(len(deltas) == 4 and sum(deltas) == rows["pi_dec"], "PiDEC phases changed")
+    running = rows["running_transition"]
+    check(f["running_rows"] == running == f["running_mux_words"] + f["running_state_words"]
+          + RUNNING_FLAG_AND_BINDING_ROWS, "running transition changed")
 
     geometry = manifest["geometry"]
     field = geometry["field_slot_width"]
     width = evaluate(geometry["logical_width"], size)
     carrier = -(-width // geometry["ring_degree"]) * geometry["ring_degree"]
 
-    def application_leaves(label, value_of):
-        if application.parts:
-            return [(name, value_of(part), "app") for name, part in application.parts]
-        return [(label, value_of(size), "app")]
+    def application_sections(label, value_of):
+        if not application.parts:
+            return [(application.name, [(label, value_of(size), "app")])]
+        sections = {}
+        for name, part in application.parts:
+            section, separator, leaf = name.partition(" / ")
+            if not separator:
+                section, leaf = application.name, name
+            sections.setdefault(section, []).append((leaf, value_of(part), "app"))
+        return list(sections.items())
 
     row_groups = [
         (GLUE, [
             ("Prior-state hash: check input digest", [
-                ("Hash of carried state", state_hash, "hash"),
+                (f"Hash of carried state ({f['prior_permutations']:,} perms)", state_hash, "hash"),
                 ("State framing and digest encoding", rows["pilot_ordinary"], "other"),
                 ("Digest equality pins", rows["pilot_digest_binding"], "other")]),
-            ("Output-state hash: make next digest", [("Hash of next state", state_hash, "hash")]),
-            ("Running transition: base or recursive", [("Base/running mux", rows["running_transition"], "other")]),
+            ("Output-state hash: make next digest", [
+                (f"Hash of next state ({f['output_permutations']:,} perms)", state_hash, "hash")]),
+            ("Running transition: base or recursive", [
+                (f"Base/running mux ({f['running_mux_words']:,} words)", f["running_mux_words"], "other"),
+                (f"Base state z0 = zi ({f['running_state_words']} words)", f["running_state_words"], "other"),
+                ("Flag and binding rows", RUNNING_FLAG_AND_BINDING_ROWS, "other")]),
             ("Final input/output binding", [
                 ("Binding rows", rows["next_preimage"] + rows["recursive_public_output"], "other")])]),
         (VERIFIER, [
-            ("PiCCS.V: check the sum-check proof", [
-                ("Transcript and output hashing", rows["pi_ccs_poseidon"], "hash"),
-                ("Sum-check and final-identity arithmetic", rows["pi_ccs_ordinary"], "piccs"),
-                ("Endpoint pins", rows["pi_ccs_endpoint"], "piccs")]),
-            ("PiRLC.V: sample ρ, combine 17", [
-                ("Ring products: combine 17 claims", rows["pi_rlc_combination"], "ring"),
-                ("Wide sampler: division and range", rows["pi_rlc_sampler_ordinary"], "samp"),
-                ("Sampler hash", rows["pi_rlc_sampler_poseidon"], "hash")]),
-            ("PiDEC.V: check the 16 children", [("Split and recomposition checks", rows["pi_dec"], "other")])]),
-        (APPLICATION, [(application.name, application_leaves("Application rows", lambda part: part.rows))]),
+            ("PiCCS.V: check the sum-check proof",
+             [(f"{label} ({count:,} perms)", count * per_row, "hash") for label, count in families]
+             + [(label, value, "piccs") for label, value in arithmetic]
+             + [("Endpoint pins", rows["pi_ccs_endpoint"], "piccs")]),
+            ("PiRLC.V: sample ρ, combine 17",
+             [(f"Ring products: {label}", count * f["product_rows_per_invocation"], "ring")
+              for label, count in products]
+             + [(label, value, "samp") for label, value in wide]
+             + [(f"Sampler hash ({f['sampler_permutations']} perms)", rows["pi_rlc_sampler_poseidon"], "hash")]),
+            ("PiDEC.V: check the 16 children", [
+                ("Public-input split and range", deltas[0], "other"),
+                ("Commitment recomposition", deltas[1], "other"),
+                ("Eval_K recomposition", deltas[2], "other"),
+                ("Eval_A recomposition", deltas[3], "other")])]),
+        (APPLICATION, application_sections("Application rows", lambda part: part.rows)),
     ]
 
-    def fields(*kinds):
+    def fields_of(*kinds):
         return field * sum(slots[kind] for kind in kinds)
 
     coordinate_groups = [
         (GLUE, [
             ("Prior-state hash: check input digest", [
-                ("S-boxes of carried-state hash", fields("priorPoseidon"), "hash"),
-                (f"Prior state preimage ({slots['priorPoseidonInput']:,} words)", fields("priorPoseidonInput"), "other"),
-                ("Framing and digest fields", fields("pilotCanonicalLocal", "pilotCanonicalFresh", "pilotOutputDigest"),
-                 "other")]),
+                ("S-boxes of carried-state hash", fields_of("priorPoseidon"), "hash"),
+                (f"Prior state preimage ({slots['priorPoseidonInput']:,} words)", fields_of("priorPoseidonInput"),
+                 "other"),
+                ("Framing and digest fields", fields_of("pilotCanonicalLocal", "pilotCanonicalFresh",
+                                                        "pilotOutputDigest"), "other")]),
             ("Output-state hash: make next digest", [
-                ("S-boxes of next-state hash", fields("outputPoseidon"), "hash"),
-                (f"Next state preimage ({slots['outputPoseidonInput']:,} words)", fields("outputPoseidonInput"), "other")]),
+                ("S-boxes of next-state hash", fields_of("outputPoseidon"), "hash"),
+                (f"Next state preimage ({slots['outputPoseidonInput']:,} words)", fields_of("outputPoseidonInput"),
+                 "other")]),
             ("Running transition: base or recursive", [
-                (f"Carried running words ({slots['runningPiDec']:,})", fields("runningPiDec"), "other"),
-                (f"Flag fields ({slots['runningFresh']})", fields("runningFresh"), "other")]),
+                (f"Carried running words ({slots['runningPiDec']:,})", fields_of("runningPiDec"), "other"),
+                (f"Flag fields ({slots['runningFresh']})", fields_of("runningFresh"), "other")]),
             ("Public prefix and alignment", [
                 (f"Public prefix {geometry['logical_public']} + alignment {carrier - width}",
                  geometry["logical_public"] + carrier - width, "other")])]),
         (VERIFIER, [
-            ("PiCCS.V: check the sum-check proof", [
-                ("Transcript and output S-boxes", field * rows["pi_ccs_poseidon"], "hash"),
-                (f"Proof values ({slots['piCcsProofLogical']:,} fields)", fields("piCcsProofLogical"), "piccs"),
-                (f"Arithmetic scratch ({slots['piCcsFresh']:,} fields)", fields("piCcsFresh"), "piccs"),
-                ("Claim boundary fields", fields("piCcsPriorLast", "piCcsOutputLast"), "piccs"),
-                ("Fresh public input", fields("piCcsFreshPublicInput"), "piccs"),
-                ("Context and endpoint fields", fields("piCcsExpectedContext", "piCcsOutputEndpoint"), "piccs")]),
-            ("PiRLC.V: sample ρ, combine 17", [
-                ("Ring product groups", fields("productGroup"), "ring"),
-                ("Ring product outputs", fields("productOutput"), "ring"),
-                (f"Sampler core fields ({slots['samplerLogical']:,})", fields("samplerLogical"), "samp"),
-                (f"Sampler range fields ({slots['samplerFresh']:,})", fields("samplerFresh"), "samp"),
-                (f"Challenge coefficients ρ ({slots['challengeWords']} fields)", fields("challengeWords"), "samp"),
-                ("Sampler hash S-boxes", field * rows["pi_rlc_sampler_poseidon"], "hash")]),
+            ("PiCCS.V: check the sum-check proof",
+             [(f"{label} S-boxes", field * count * per_slot, "hash") for label, count in families]
+             + [(f"Proof values ({slots['piCcsProofLogical']:,} fields)", fields_of("piCcsProofLogical"), "piccs"),
+                (f"Arithmetic scratch ({slots['piCcsFresh']:,} fields)", fields_of("piCcsFresh"), "piccs"),
+                ("Claim boundary fields", fields_of("piCcsPriorLast", "piCcsOutputLast"), "piccs"),
+                ("Fresh public input", fields_of("piCcsFreshPublicInput"), "piccs"),
+                ("Context and endpoint fields", fields_of("piCcsExpectedContext", "piCcsOutputEndpoint"), "piccs")]),
+            ("PiRLC.V: sample ρ, combine 17",
+             [(f"Ring products: {label}", field * 2 * count, "ring") for label, count in products]
+             + [(f"Sampler core fields ({slots['samplerLogical']:,})", fields_of("samplerLogical"), "samp"),
+                (f"Sampler range fields ({slots['samplerFresh']:,})", fields_of("samplerFresh"), "samp"),
+                (f"Challenge coefficients ρ ({slots['challengeWords']} fields)", fields_of("challengeWords"), "samp"),
+                ("Sampler hash S-boxes", field * f["sampler_permutations"] * per_slot, "hash")]),
             ("PiDEC.V: check the 16 children", [
-                ("Public-input fields", fields("piDecLogical"), "other"),
-                ("Fresh fields", fields("piDecFresh"), "other")])]),
-        (APPLICATION, [(application.name, application_leaves(
-            "Witness and local fields", lambda part: field * (part.witness_words + part.local_words)))]),
+                ("Public-input fields", fields_of("piDecLogical"), "other"),
+                ("Fresh fields", fields_of("piDecFresh"), "other")])]),
+        (APPLICATION, application_sections(
+            "Witness and local fields", lambda part: field * (part.witness_words + part.local_words))),
     ]
 
     def total(groups):
@@ -211,11 +344,12 @@ def breakdown(manifest, application):
     check(total(row_groups) == evaluate(geometry["logical_rows"], size), "row total differs from the manifest")
     check(total(coordinate_groups) == carrier, "coordinate total differs from the manifest")
 
-    def nonzero(groups):
-        return [(group, [(section, [leaf for leaf in leaves if leaf[1]]) for section, leaves in sections])
+    def shown(groups):
+        return [(group, [(section, sorted((leaf for leaf in leaves if leaf[1]), key=lambda leaf: -leaf[1]))
+                         for section, leaves in sections if any(leaf[1] for leaf in leaves)])
                 for group, sections in groups]
 
-    return nonzero(row_groups), nonzero(coordinate_groups)
+    return shown(row_groups), shown(coordinate_groups)
 
 
 def table(title, groups):
@@ -243,7 +377,7 @@ p{color:var(--muted);margin:0 0 14px}
 .fb-btn{font:inherit;padding:8px 14px;border:1px solid var(--strong);border-radius:8px;background:transparent;color:var(--text);cursor:pointer;margin:0 8px 8px 0}
 .fb-btn.on{background:var(--surface);font-weight:600}
 .fb-row{display:flex;align-items:center;gap:12px;padding:3px 0;font-size:13px}
-.fb-name{flex:0 0 40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fb-name{flex:0 0 40%;box-sizing:border-box;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .fb-bar{flex:1;display:flex;gap:2px;height:12px;min-width:0}
 .fb-seg{height:100%;border-radius:3px;min-width:2px}
 .fb-val{flex:0 0 170px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -265,6 +399,8 @@ p{color:var(--muted);margin:0 0 14px}
 (function(){
 var C=__CATEGORIES__;
 var D=__DATA__;
+var q=new URLSearchParams(location.search);
+if(q.get("theme"))document.documentElement.setAttribute("data-theme",q.get("theme"));
 function fmt(n){return n.toLocaleString("en-US")}
 function pct(v,t){var p=100*v/t;if(p<0.001)return "<0.001%";if(p<0.1)return p.toFixed(3)+"%";return p.toFixed(1)+"%"}
 function sum(a){var s=0;for(var i=0;i<a.length;i++)s+=a[i];return s}
@@ -292,7 +428,7 @@ document.getElementById("fb-b-coords").classList.toggle("on",key==="coords");
 }
 document.getElementById("fb-b-rows").addEventListener("click",function(){render("rows")});
 document.getElementById("fb-b-coords").addEventListener("click",function(){render("coords")});
-render("rows");
+render(q.get("tab")==="coords"?"coords":"rows");
 })();
 </script>
 </body></html>
@@ -302,7 +438,7 @@ render("rows");
 def page(application, row_groups, coordinate_groups, manifest_path):
     size = application.size
     subtitle = (f"{application.name}: {size.witness_words:,} witness words, {size.local_words:,} local words, "
-                f"{size.rows:,} rows. From {manifest_path.name} (Lean Export/SharedVerifier.lean).")
+                f"{size.rows:,} rows. From {manifest_path.name} and the Lean counts it splits.")
     data = {"rows": {"total": "Total logical CCS rows", "groups": row_groups},
             "coords": {"total": "Total committed coordinates", "groups": coordinate_groups}}
     replacements = {
@@ -317,6 +453,26 @@ def page(application, row_groups, coordinate_groups, manifest_path):
     return text
 
 
+def write_png(page_path, png_path, tab, groups, theme, chrome):
+    """Render one tab of the page with headless Chrome. The window is tall
+    enough for every line; Pillow, when present, trims the empty bottom."""
+    lines = 1 + sum(1 + len(sections) + sum(len(leaves) for _, leaves in sections) for _, sections in groups)
+    height = 190 + 24 * lines + 22 * len(groups)
+    url = f"{page_path.resolve().as_uri()}?tab={tab}&theme={theme}"
+    subprocess.run([chrome, "--headless=new", "--disable-gpu", "--hide-scrollbars", "--force-device-scale-factor=2",
+                    f"--window-size=1200,{height}", f"--screenshot={png_path}", url],
+                   check=True, capture_output=True, timeout=120)
+    try:
+        from PIL import Image, ImageChops
+    except ImportError:
+        return
+    image = Image.open(png_path).convert("RGB")
+    background = Image.new("RGB", image.size, image.getpixel((2, image.height - 2)))
+    box = ImageChops.difference(image, background).getbbox()
+    if box:
+        image.crop((0, 0, image.width, min(image.height, box[3] + 32))).save(png_path)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--manifest", type=Path, default=MANIFEST)
@@ -326,6 +482,10 @@ def main(argv=None):
     parser.add_argument("--part", type=parse_part, action="append", default=[], metavar="NAME=WITNESS,LOCAL,ROWS",
                         help="one part of the application; the parts must sum to --application")
     parser.add_argument("--out", type=Path, help="write the HTML page here")
+    parser.add_argument("--png", type=Path, metavar="PREFIX",
+                        help="write PREFIX-rows.png and PREFIX-coordinates.png with headless Chrome")
+    parser.add_argument("--theme", choices=("dark", "light"), default="dark", help="the theme of the PNG images")
+    parser.add_argument("--chrome", default=shutil.which("google-chrome") or CHROME, help="the Chrome binary")
     args = parser.parse_args(argv)
 
     manifest = json.loads(args.manifest.read_text())
@@ -333,15 +493,24 @@ def main(argv=None):
     name = args.name or ("Poseidon2HashChainV1" if args.application is None else "Application")
     application = Application(name, size, tuple(args.part))
     try:
-        row_groups, coordinate_groups = breakdown(manifest, application)
+        row_groups, coordinate_groups = breakdown(manifest, application, lean_facts())
     except (ManifestError, ValueError) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     print(table("Logical CCS rows", row_groups))
     print(table("Committed coordinates", coordinate_groups))
+    text = page(application, row_groups, coordinate_groups, args.manifest)
     if args.out:
-        args.out.write_text(page(application, row_groups, coordinate_groups, args.manifest))
+        args.out.write_text(text)
         print(f"wrote {args.out}")
+    if args.png:
+        with tempfile.TemporaryDirectory() as scratch:
+            page_path = Path(scratch) / "page.html"
+            page_path.write_text(text)
+            for tab, groups, suffix in (("rows", row_groups, "rows"), ("coords", coordinate_groups, "coordinates")):
+                png_path = Path(f"{args.png}-{suffix}.png").resolve()
+                write_png(page_path, png_path, tab, groups, args.theme, args.chrome)
+                print(f"wrote {png_path}")
     return 0
 
 

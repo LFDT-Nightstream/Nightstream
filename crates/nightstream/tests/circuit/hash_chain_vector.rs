@@ -170,3 +170,20 @@ fn two_link_hash_chain_folds_on_metal() {
         )))
     ));
 }
+
+#[cfg(feature = "metal")]
+#[test]
+#[ignore = "Full production Metal and CPU folds; run this test separately under the 300-second cap."]
+fn metal_and_cpu_folds_encode_the_same_proof() {
+    let circuit = Circuit::compile(&reference(), two_link_hash_chain().unwrap()).unwrap();
+    let initial = [1, 2, 3, 4].map(F::from_u64);
+    let first = [5, 6, 7, 8, 9, 10, 11, 12].map(F::from_u64);
+    let second = [13, 14, 15, 16, 17, 18, 19, 20].map(F::from_u64);
+    let [metal, cpu] = [Engine::Metal, Engine::Optimized].map(|engine| {
+        let prover = circuit.prover(engine, 114).unwrap();
+        let base = prover.prove(initial, &first).unwrap();
+        let proof = prover.extend(&base, &second).unwrap();
+        prover.encode_proof(&proof).unwrap()
+    });
+    assert!(metal == cpu, "Metal and CPU proofs differ");
+}

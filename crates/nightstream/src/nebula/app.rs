@@ -33,6 +33,12 @@ pub trait Application {
     /// The number of private words (Lean `AppShape.aux`).
     fn aux(&self) -> usize;
 
+    /// The number of ports of every step (Lean `PortApp.portsLength`). The
+    /// application's rows must fix each of them. A memory circuit needs a
+    /// geometry with this `b_ops`: a slot that no row fixes would let a step
+    /// change memory.
+    fn port_count(&self) -> usize;
+
     /// The `width` state words of `state`. The terminal checks reject a
     /// statement with a word at or above `q` (Ob1).
     fn words(&self, state: &Self::State) -> Vec<u64>;

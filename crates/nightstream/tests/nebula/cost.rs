@@ -15,11 +15,13 @@ use neo_ajtai::nightstream_fprime_setup::MAX_CARRIER_WIDTH;
 use super::memory_circuit;
 use crate::nebula::{Application, Expr, Geometry, Memory, Transition, View};
 
-/// An application with `width` state words, `aux` private words, and no row.
+/// An application with `width` state words, `aux` private words, `ports`
+/// ports, and no row.
 #[derive(Clone, Copy, Debug)]
 struct Free {
     width: usize,
     aux: usize,
+    ports: usize,
 }
 
 impl Application for Free {
@@ -33,6 +35,10 @@ impl Application for Free {
 
     fn aux(&self) -> usize {
         self.aux
+    }
+
+    fn port_count(&self) -> usize {
+        self.ports
     }
 
     fn words(&self, _: &()) -> Vec<u64> {
@@ -63,7 +69,14 @@ fn measure(n: usize, s_max: usize) -> Option<bool> {
         n,
         s_max,
     };
-    count(&geometry, Free { width: 0, aux: 0 })
+    count(
+        &geometry,
+        Free {
+            width: 0,
+            aux: 0,
+            ports: geometry.b_ops,
+        },
+    )
 }
 
 /// Print the counts of the relation of `geometry` and `app`, and return
@@ -124,7 +137,17 @@ fn wasm_geometry_words_per_step() {
         s_max: 1,
     };
     eprintln!("N S_max B_scan W_ts witness local words rows carrier fits seconds");
-    assert_eq!(count(&geometry, Free { width: 61, aux: 8_549 }), Some(true));
+    assert_eq!(
+        count(
+            &geometry,
+            Free {
+                width: 61,
+                aux: 8_549,
+                ports: geometry.b_ops,
+            }
+        ),
+        Some(true)
+    );
     eprintln!("budget MAX_CARRIER_WIDTH={MAX_CARRIER_WIDTH}");
 }
 
@@ -141,7 +164,11 @@ fn size_parts_sum_to_the_circuit_counts() {
         n: 4,
         s_max: 1,
     };
-    let app = Free { width: 2, aux: 3 };
+    let app = Free {
+        width: 2,
+        aux: 3,
+        ports: geometry.b_ops,
+    };
     let parts = crate::nebula::size_parts(&geometry, &app).unwrap();
     let circuit = memory_circuit(&geometry, &app).unwrap();
     let total = parts

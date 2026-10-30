@@ -204,9 +204,11 @@ These checks compare a transcription with its Rust:
 - `ports.json` names the Rust item that each transcription follows, with a hash of its tokens. The
   CI test `lean_ports` fails when a Rust item changes, until someone re-reads the Lean declaration
   and updates the hash. It detects a change; it does not show that the transcription is right.
-  `lake build` fails when a definition of `Ports/` has neither an entry nor a reason in
-  `notPorts` (`CompressionLeanTests/Ports.lean`), when `Ports/` holds a theorem, and when an
-  entry names a declaration outside `Ports/` that `portsOutside` does not list.
+  A Rust constant whose value a transcription writes as a number has its own entry, so a change
+  to the value shows too. `lake build` fails when a definition of `Ports/` has neither an entry
+  nor a reason in `notPorts` (`CompressionLeanTests/Ports.lean`), when `Ports/` holds a theorem,
+  and when an entry names a declaration outside `Ports/` that `portsOutside` does not list. An
+  instance that `deriving` makes needs neither: its type has the entry.
 - Ignored Rust tests compare the replay's draws and verdicts, the programs' instructions, and the
   toy key's setup root with Rust on fixed inputs. They run by hand, not in CI
   (`scripts/crosschecks.sh`). The terminal checks run on the pinned artifact with one context; the

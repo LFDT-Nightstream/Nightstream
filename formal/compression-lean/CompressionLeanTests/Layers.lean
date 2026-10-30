@@ -18,13 +18,16 @@ elab "#check_layers" : command => do
     let some f := folderOf m | throwError "{m} is not a library module"
     let some r := layers.findIdx? (· == f) | throwError "{m} is in the folder {f}, which `layers` does not name"
     return r
+  let outside := (← modulesUnder "CompressionLean").filter (env.getModuleIdx? · |>.isNone)
+  unless outside.isEmpty do
+    throwError "`CompressionLean` does not import these library modules, so no gate reads them:\n{outside}"
   let mut count : Nat := 0
   for (m, data) in env.header.moduleNames.zip env.header.moduleData do
-    if (folderOf m).isNone then continue
+    unless m == `CompressionLean || (folderOf m).isSome do continue
     for i in data.imports do
       if upperRoots.contains i.module.getRoot then
         throwError "{m} imports {i.module}; the library imports no executable or gate module"
-      if (folderOf i.module).isNone then continue
+      if (folderOf m).isNone || (folderOf i.module).isNone then continue
       if (← rank i.module) > (← rank m) then
         throwError "{m} imports {i.module}, a module of a higher folder"
       count := count + 1

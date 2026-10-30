@@ -26,11 +26,19 @@ elab "#audit_library_axioms " root:ident : command => do
 elab "#no_package_axioms" : command => do
   let env ← getEnv
   let roots := `CompressionLean :: upperRoots
-  let declared := env.constants.toList.filterMap fun (name, info) =>
+  let mut declared := env.constants.toList.filterMap fun (name, info) =>
     let m := if (env.getModuleIdxFor? name).isSome then moduleOf env name else env.mainModule
     if info matches .axiomInfo _ && roots.contains m.getRoot then some name else none
+  -- This file imports the library and every gate, so only executables remain. Lake builds
+  -- them first (`needs`), except `Status`, which imports a gate.
+  for m in ← modulesUnder "CompressionLeanExe" do
+    if (env.getModuleIdx? m).isSome || m == `CompressionLeanExe.Status then continue
+    let olean : System.FilePath := ".lake/build/lib/lean" / (m.toString.replace "." "/" ++ ".olean")
+    unless ← olean.pathExists do throwError "{m} is not built"
+    let (data, _) ← readModuleData olean
+    declared := declared ++ (data.constants.filter (· matches .axiomInfo _)).toList.map (·.name)
   unless declared.isEmpty do throwError m!"these declarations of {roots} are axioms: {declared}"
-  logInfo m!"no imported module of {roots} declares an axiom"
+  logInfo m!"no module of {roots} declares an axiom"
 elab "#pin_claims" : command => do
   let env ← getEnv
   for (claim, pinned) in claims do

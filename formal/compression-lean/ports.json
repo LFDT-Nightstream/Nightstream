@@ -279,6 +279,8 @@
   {"lean": "CompressionLean.Lib.eqEval", "rust": "crates/neo-spartan/src/shrink/mod.rs::eq", "hash": "de853d247c1624b3"},
   {"lean": "CompressionLean.Lib.roundValues", "rust": "crates/neo-spartan/src/shrink/mod.rs::replay", "hash": "b88c9e5c2f026ef8"},
   {"lean": "CompressionLean.Layer1.rustDegrees", "rust": "crates/neo-spartan/src/relation.rs::outer_terms", "hash": "49360202661e271c"},
+  {"lean": "CompressionLean.Layer1.rustDegrees", "rust": "crates/neo-spartan/src/lib.rs::RUN_ORACLES", "hash": "e45dd49bb9eabc0f"},
+  {"lean": "CompressionLean.Layer1.rustDegrees", "rust": "crates/neo-spartan/src/setup.rs::FOLD", "hash": "bafbee06cd84d80f"},
   {"lean": "CompressionLean.Layer1.rustEarly", "rust": "crates/neo-spartan/src/relation.rs::outer_terms", "hash": "49360202661e271c"},
   {"lean": "CompressionLean.Layer1.rustGkr", "rust": "crates/neo-spartan/src/relation.rs::outer_terms", "hash": "49360202661e271c"},
   {"lean": "CompressionLean.Layer1.rustLate", "rust": "crates/neo-spartan/src/relation.rs::outer_terms", "hash": "49360202661e271c"},
@@ -393,6 +395,8 @@
   {"lean": "CompressionLean.Replay.honestStage", "rust": "crates/neo-spartan/src/verifier.rs::verify", "hash": "e282d78664828a1f"},
   {"lean": "CompressionLean.Replay.horner", "rust": "crates/neo-spartan/src/circuit/algebra.rs::horner", "hash": "38ad4ee5b7ae586a"},
   {"lean": "CompressionLean.Replay.identityValue", "rust": "crates/neo-spartan/src/mle.rs::identity", "hash": "c87142c773ec7fee"},
+  {"lean": "CompressionLean.Replay.instFromJsonExt", "rust": "crates/neo-spartan/tests/internal/replay.rs::ext", "hash": "9650a74a682fd8d6"},
+  {"lean": "CompressionLean.Replay.instFromJsonWord", "rust": "crates/neo-spartan/tests/internal/replay.rs::words", "hash": "a3d21623e7c21a62"},
   {"lean": "CompressionLean.Replay.interpolate", "rust": "crates/neo-spartan/src/circuit/algebra.rs::interpolate", "hash": "967cfed62daed3a3"},
   {"lean": "CompressionLean.Replay.laneSplit", "rust": "crates/neo-spartan/src/mle.rs::lane_split", "hash": "30293a4e58eb4ff4"},
   {"lean": "CompressionLean.Replay.laneValue", "rust": "crates/neo-spartan/src/verifier.rs::lane_value", "hash": "2d09c763dd8c15e3"},
@@ -540,6 +544,8 @@
   {"lean": "CompressionLean.Shrink.rowCallValue", "rust": "crates/neo-spartan/src/shrink/evaluate.rs::Evaluate::row", "hash": "bcaedfcee780fadd"},
   {"lean": "CompressionLean.Shrink.rowValue", "rust": "crates/neo-spartan/src/shrink/mod.rs::products", "hash": "88f0f281adc91c22"},
   {"lean": "CompressionLean.Shrink.rustDegrees", "rust": "crates/neo-spartan/src/shrink/mod.rs::terms", "hash": "8bfb58755f824f58"},
+  {"lean": "CompressionLean.Shrink.rustDegrees", "rust": "crates/neo-spartan/src/circuit/block.rs::MATRICES", "hash": "d11aad73ef916b51"},
+  {"lean": "CompressionLean.Shrink.rustDegrees", "rust": "crates/neo-spartan/src/shrink/mod.rs::DEGREE", "hash": "42aa6cf4b8598092"},
   {"lean": "CompressionLean.Shrink.shrinkGame", "rust": "crates/neo-spartan/src/shrink/mod.rs::Shrink::new", "hash": "effa2ada51b9976b"},
   {"lean": "CompressionLean.Shrink.shrinkGame", "rust": "crates/neo-spartan/src/shrink/mod.rs::verify", "hash": "b675f9959d6ed0a2"},
   {"lean": "CompressionLean.Shrink.sideValue", "rust": "crates/neo-spartan/src/shrink/evaluate.rs::Evaluate::side", "hash": "fcd063941dc2b450"},
@@ -560,5 +566,7 @@
   {"lean": "CompressionLean.Shrink.zValue", "rust": "crates/neo-spartan/src/shrink/mod.rs::verify", "hash": "b675f9959d6ed0a2"},
   {"lean": "CompressionLeanExe.Runs.readColumns", "rust": "crates/neo-spartan/tests/internal/setup_columns.rs::production_setup_columns", "hash": "1eb3d67cfeb7534d"},
   {"lean": "CompressionLeanExe.Runs.readRuns", "rust": "crates/nightstream/tests/lifecycle_native/setup_runs.rs::Writer::push_run", "hash": "d501b8d53fc2a3c5"},
-  {"lean": "CompressionLeanExe.Runs.readRuns", "rust": "crates/nightstream/tests/lifecycle_native/setup_runs.rs::production_runs_rebuild_the_layer1_key", "hash": "2b471d1b3ee78d80"}
+  {"lean": "CompressionLeanExe.Runs.readRuns", "rust": "crates/nightstream/tests/lifecycle_native/setup_runs.rs::production_runs_rebuild_the_layer1_key", "hash": "2b471d1b3ee78d80"},
+  {"lean": "CompressionLeanExe.Runs.readRuns", "rust": "crates/nightstream/tests/lifecycle_native/setup_runs.rs::HEADER", "hash": "276daef6ecc5ed5e"},
+  {"lean": "CompressionLeanExe.Runs.readRuns", "rust": "crates/nightstream/tests/lifecycle_native/setup_runs.rs::RECORD", "hash": "fdc8e486b386babf"}
 ]

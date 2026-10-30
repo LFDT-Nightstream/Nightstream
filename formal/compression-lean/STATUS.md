@@ -120,7 +120,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 
 ## Ports
 
-`ports.json` has 562 entries: 515 Lean declarations transcribe 296 Rust items.
+`ports.json` has 570 entries: 517 Lean declarations transcribe 302 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -146,7 +146,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `CompressionLean.Ports.Circuit.Views` | 17 |
 | `CompressionLean.Ports.Circuit.Whir` | 19 |
 | `CompressionLean.Ports.Layer1.Budget` | 5 |
-| `CompressionLean.Ports.Replay.Data` | 37 |
+| `CompressionLean.Ports.Replay.Data` | 39 |
 | `CompressionLean.Ports.Replay.Field` | 16 |
 | `CompressionLean.Ports.Replay.Formulas` | 39 |
 | `CompressionLean.Ports.Replay.Gkr` | 18 |
@@ -171,7 +171,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-math/src/ring.rs` | 3 |
 | `crates/neo-params/src/poseidon2_goldilocks.rs` | 2 |
 | `crates/neo-spartan/src/circuit/algebra.rs` | 24 |
-| `crates/neo-spartan/src/circuit/block.rs` | 4 |
+| `crates/neo-spartan/src/circuit/block.rs` | 5 |
 | `crates/neo-spartan/src/circuit/fold.rs` | 8 |
 | `crates/neo-spartan/src/circuit/hash.rs` | 13 |
 | `crates/neo-spartan/src/circuit/mod.rs` | 7 |
@@ -190,12 +190,12 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-spartan/src/setup.rs` | 6 |
 | `crates/neo-spartan/src/shrink/evaluate.rs` | 8 |
 | `crates/neo-spartan/src/shrink/layout.rs` | 15 |
-| `crates/neo-spartan/src/shrink/mod.rs` | 13 |
+| `crates/neo-spartan/src/shrink/mod.rs` | 14 |
 | `crates/neo-spartan/src/sumcheck.rs` | 1 |
 | `crates/neo-spartan/src/verifier.rs` | 9 |
 | `crates/neo-spartan/src/whir/mod.rs` | 22 |
 | `crates/neo-spartan/tests/internal/lowering.rs` | 3 |
-| `crates/neo-spartan/tests/internal/replay.rs` | 5 |
+| `crates/neo-spartan/tests/internal/replay.rs` | 7 |
 | `crates/neo-spartan/tests/internal/setup_columns.rs` | 1 |
 | `crates/neo-transcript/src/poseidon2.rs` | 1 |
 | `crates/nightstream-fprime/src/package.rs` | 5 |
@@ -205,7 +205,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/nightstream/src/lifecycle/inputs.rs` | 2 |
 | `crates/nightstream/src/lifecycle/terminal/mod.rs` | 1 |
 | `crates/nightstream/src/lifecycle/terminal/package.rs` | 5 |
-| `crates/nightstream/tests/lifecycle_native/setup_runs.rs` | 2 |
+| `crates/nightstream/tests/lifecycle_native/setup_runs.rs` | 4 |
 
 ## Digest pins
 

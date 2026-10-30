@@ -267,18 +267,26 @@ impl<'a> Sym<'a> {
         self.product_after(11, pair, k, self.geometry.b_scan, Layout::scan_products)
     }
 
-    /// `memoryRows`: bits, arm, slots, scans, close, in that order.
-    pub(super) fn memory_rows(&self) -> Vec<Expr> {
-        let mut rows = self.bit_rows();
-        rows.extend(self.arm_rows());
-        for j in 0..self.geometry.b_ops {
-            rows.extend(self.slot_rows(j));
-        }
-        for j in 0..self.geometry.b_scan {
-            rows.extend(self.scan_rows(j));
-        }
-        rows.extend(self.close_rows());
-        rows
+    /// `memoryRows`: bits, arm, slots, scans, close, in that order, each
+    /// group with its name.
+    pub(super) fn memory_row_groups(&self) -> [(&'static str, Vec<Expr>); 5] {
+        [
+            ("Bit rows", self.bit_rows()),
+            ("Arm rows", self.arm_rows()),
+            (
+                "Operation slot rows",
+                (0..self.geometry.b_ops)
+                    .flat_map(|j| self.slot_rows(j))
+                    .collect(),
+            ),
+            (
+                "Scan slot rows",
+                (0..self.geometry.b_scan)
+                    .flat_map(|j| self.scan_rows(j))
+                    .collect(),
+            ),
+            ("Close rows", self.close_rows()),
+        ]
     }
 
     fn bit_rows(&self) -> Vec<Expr> {

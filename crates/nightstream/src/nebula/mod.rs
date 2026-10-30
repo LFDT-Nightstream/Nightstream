@@ -183,6 +183,48 @@ pub enum TerminalError {
 }
 
 /// The circuit of a memory relation: its geometry, its application, and the
+/// One named part of the application size of a memory circuit.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SizePart {
+    pub name: &'static str,
+    pub size: crate::ApplicationSize,
+}
+
+/// The parts of the memory circuit of `geometry` and `app`: the phases of its
+/// rows (the sponges, the hash bindings, the memory rows, and the
+/// application's rows), then the regions of its witness words. They sum to
+/// the application size of `Circuit::compile` for `geometry` and `app`, and
+/// `scripts/fprime_breakdown.py` charts them. It builds no Stage 1 package.
+pub fn size_parts<A: Application>(geometry: &Geometry, app: &A) -> Result<Vec<SizePart>, crate::Error> {
+    if !geometry.is_valid() {
+        return Err(crate::Error::Circuit("the memory geometry breaks spec §4.2"));
+    }
+    let (_, phases) = circuit::memory_circuit_phases(geometry, app)?;
+    let size = |witness_words, local_words, rows| crate::ApplicationSize {
+        witness_words,
+        local_words,
+        rows,
+    };
+    let regions = words::Layout::new(geometry, app.width(), app.aux())
+        .memory_regions()
+        .into_iter()
+        .chain([
+            ("Application state words", 2 * app.width()),
+            ("Application private words", app.aux()),
+        ]);
+    Ok(phases
+        .into_iter()
+        .map(|phase| SizePart {
+            name: phase.name,
+            size: size(0, phase.local_words, phase.rows),
+        })
+        .chain(regions.map(|(name, words)| SizePart {
+            name,
+            size: size(words, 0, 0),
+        }))
+        .collect())
+}
+
 /// Stage 1 circuit. Only `Package::load` (a pinned Lean package) and
 /// `Circuit::compile` (the Rust-built relation) make one, so a memory verifier
 /// never takes its circuit from a prover. The memory prover and the memory

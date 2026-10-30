@@ -97,6 +97,16 @@ impl ApplicationBuilder {
         std::array::from_fn(|lane| Variable(self.generated_start - 4 + lane))
     }
 
+    /// The rows so far.
+    pub(crate) fn row_count(&self) -> usize {
+        self.records.row_count()
+    }
+
+    /// The local variables so far.
+    pub(crate) fn local_count(&self) -> usize {
+        self.variable_count - self.generated_start
+    }
+
     fn validate(&self, expression: &Affine, causal: bool) -> Result<(), ApplicationError> {
         expression.expression.validate(
             self.variable_count,

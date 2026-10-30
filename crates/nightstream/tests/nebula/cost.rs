@@ -127,3 +127,42 @@ fn wasm_geometry_words_per_step() {
     assert_eq!(count(&geometry, Free { width: 61, aux: 8_549 }), Some(true));
     eprintln!("budget MAX_CARRIER_WIDTH={MAX_CARRIER_WIDTH}");
 }
+
+/// The parts of `size_parts` sum to the counts of the memory circuit, and
+/// each phase and region has its own name.
+#[test]
+fn size_parts_sum_to_the_circuit_counts() {
+    let geometry = Geometry {
+        r: 2,
+        mu: 3,
+        w_ts: 4,
+        b_ops: 3,
+        b_scan: 3,
+        n: 4,
+        s_max: 1,
+    };
+    let app = Free { width: 2, aux: 3 };
+    let parts = crate::nebula::size_parts(&geometry, &app).unwrap();
+    let circuit = memory_circuit(&geometry, &app).unwrap();
+    let total = parts
+        .iter()
+        .fold((0, 0, 0), |(witness, local, rows), part| {
+            (
+                witness + part.size.witness_words,
+                local + part.size.local_words,
+                rows + part.size.rows,
+            )
+        });
+    assert_eq!(
+        total,
+        (
+            circuit.private_input_count(),
+            circuit.generated_range().len(),
+            circuit.row_count()
+        )
+    );
+    let mut names: Vec<&str> = parts.iter().map(|part| part.name).collect();
+    names.sort_unstable();
+    names.dedup();
+    assert_eq!(names.len(), parts.len());
+}

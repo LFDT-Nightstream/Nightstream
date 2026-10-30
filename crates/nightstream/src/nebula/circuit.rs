@@ -79,12 +79,28 @@ fn text_words(tag: &str) -> Vec<Expr> {
     text(tag).into_iter().map(Expr::Const).collect()
 }
 
+/// The rows and local variables that one named phase of `memory_circuit`
+/// adds, in build order.
+pub(super) struct Phase {
+    pub name: &'static str,
+    pub rows: usize,
+    pub local_words: usize,
+}
+
 /// The Rust-built circuit of a memory geometry and an application. It reads no
 /// program, so every program of the geometry has the same circuit.
 pub(super) fn memory_circuit<A: Application>(
     geometry: &Geometry,
     app: &A,
 ) -> Result<ApplicationCircuit, ApplicationError> {
+    memory_circuit_phases(geometry, app).map(|(circuit, _)| circuit)
+}
+
+/// `memory_circuit` with the rows and local variables of each phase.
+pub(super) fn memory_circuit_phases<A: Application>(
+    geometry: &Geometry,
+    app: &A,
+) -> Result<(ApplicationCircuit, Vec<Phase>), ApplicationError> {
     let layout = Layout::new(geometry, app.width(), app.aux());
     let mut builder = ApplicationBuilder::new(layout.count())?;
     let wires: Vec<Variable> = builder.private_inputs().to_vec();
@@ -126,21 +142,39 @@ pub(super) fn memory_circuit<A: Application>(
     let absorbing = |builder: &mut ApplicationBuilder, blocks: &[Vec<Expr>]| {
         absorb(builder, &constants, zero_state(), &transcript_chunks(blocks))
     };
+    let mut phases = Vec::new();
+    let mut mark = |builder: &ApplicationBuilder, name: &'static str| {
+        let (rows, local_words) = phases.iter().fold((0, 0), |(rows, local), phase: &Phase| {
+            (rows + phase.rows, local + phase.local_words)
+        });
+        phases.push(Phase {
+            name,
+            rows: builder.row_count() - rows,
+            local_words: builder.local_count() - local_words,
+        });
+    };
     let state_in = absorbing(&mut builder, &state_blocks(Layout::app_in, words::CARRY_IN))?;
+    mark(&builder, "State digest sponge (input)");
     let state_out = absorbing(&mut builder, &state_blocks(Layout::app_out, words::CARRY_OUT))?;
+    mark(&builder, "State digest sponge (output)");
     let chain_ops = absorbing(&mut builder, &chain_blocks(Lane::Ops, 0, ops_lanes))?;
+    mark(&builder, "Operation record chain sponge");
     let chain_initial = absorbing(
         &mut builder,
         &chain_blocks(Lane::Mem, 4, scan_lanes(&|j| sym.initial(j))),
     )?;
+    mark(&builder, "Initial-scan record chain sponge");
     let chain_final = absorbing(
         &mut builder,
         &chain_blocks(Lane::Mem, 8, scan_lanes(&|j| sym.final_(j))),
     )?;
+    mark(&builder, "Final-scan record chain sponge");
     let eta = absorbing(&mut builder, &eta_blocks)?;
+    mark(&builder, "η transcript sponge");
     let squeeze1 = absorb(&mut builder, &constants, eta.clone(), &[Vec::new()])?;
     let squeeze2 = absorb(&mut builder, &constants, squeeze1.clone(), &[Vec::new()])?;
     let squeeze3 = absorb(&mut builder, &constants, squeeze2.clone(), &[Vec::new()])?;
+    mark(&builder, "η squeezes");
 
     let input = builder.input_state();
     let output = builder.output_state();
@@ -162,10 +196,18 @@ pub(super) fn memory_circuit<A: Application>(
     {
         lower_constraint(&mut builder, &(lane(state, 0) - sym.word(words::ETA_FRESH + k)))?;
     }
-    for row in sym.memory_rows().iter().chain(&app.rows(&View::new(&sym))) {
+    mark(&builder, "Sponge output bindings");
+    for (name, rows) in sym.memory_row_groups() {
+        for row in &rows {
+            lower_constraint(&mut builder, row)?;
+        }
+        mark(&builder, name);
+    }
+    for row in &app.rows(&View::new(&sym)) {
         lower_constraint(&mut builder, row)?;
     }
-    builder.finish_with_output_rows(output_rows)
+    mark(&builder, "Application rows");
+    Ok((builder.finish_with_output_rows(output_rows)?, phases))
 }
 
 #[cfg(test)]

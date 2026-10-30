@@ -78,6 +78,18 @@ impl Layout {
         self.width
     }
 
+    /// The memory's witness regions and their word counts, in layout order.
+    pub fn memory_regions(&self) -> [(&'static str, usize); 6] {
+        [
+            ("Carry, proposal, and control words", OPS_START),
+            ("Operation slot words", self.initial_start - OPS_START),
+            ("Scan slot words (initial and final)", self.ts_bits - self.initial_start),
+            ("Timestamp and segment bits", self.ops_products - self.ts_bits),
+            ("Operation product words", self.scan_products - self.ops_products),
+            ("Scan product words", self.memory_count - self.scan_products),
+        ]
+    }
+
     /// Input state word `k` of the application.
     pub fn app_in(&self, k: usize) -> usize {
         self.memory_count + k

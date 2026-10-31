@@ -410,6 +410,26 @@ fn toy_program_proves_verifies_and_rejects_mutations() {
     ));
 }
 
+const TOY_PROOF_BYTES: (usize, u64) = (20070, 2147401111984846564);
+
+/// The prover runs on one thread: with more, the bytes differ from run to run.
+#[test]
+fn toy_proof_bytes_are_pinned() {
+    let (prover, verifier) = Toy::honest(17, 4);
+    let one_thread = rayon::ThreadPoolBuilder::new()
+        .num_threads(1)
+        .build()
+        .unwrap();
+    let proof = one_thread
+        .install(|| prove(&shrink_of(&verifier), &prover, &Accelerator::cpu()))
+        .unwrap();
+    let bytes = bincode::serialize(&proof).unwrap();
+    let hash = bytes.iter().fold(0xcbf2_9ce4_8422_2325u64, |hash, &byte| {
+        (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01b3)
+    });
+    assert_eq!((bytes.len(), hash), TOY_PROOF_BYTES);
+}
+
 /// The toy's key and statement with no checks: a smaller shape.
 struct Short(Toy);
 

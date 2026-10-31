@@ -47,3 +47,13 @@ protocol, and section 8 lists the differences from Nebula.
 6. **Packages.** Lean emits two test packages for the machine application.
    A package for a production geometry waits for the production application
    (2026-10-12).
+7. **Several trace rows in one step** (owner, 2026-10-31). A catalog
+   application can prove a fixed number of trace rows in each step, so that
+   the rows share the fixed F′ cost of a fold. The step uses the batched
+   catalog of `SPEC.md` section 7.6, and Lean proves that batched steps are
+   memory consistent exactly when their rows are. The protocol, the F′
+   relation and the memory rows do not change. On CPU, 8 WASM rows took
+   68.7 s at one row in each step and 29.4 s at two rows in each step. On
+   Metal, select the number of rows by a measurement: at 8 rows, a fold has
+   about 62.3M coordinates, and above 60.5M the Metal prover does not keep
+   the commitment key.

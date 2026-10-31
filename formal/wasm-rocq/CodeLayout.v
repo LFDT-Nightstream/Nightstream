@@ -27,7 +27,7 @@ Fixpoint flattenInstruction (outer : list nat) (i : instr) : list FlatInstructio
            | j :: rest =>
                let tail := blockCode rest in
                match j with
-               | BR_IF l => flatInstruction (Some j) (branchDistance outer l (length tail)) :: tail
+               | BR_IF l | BR l => flatInstruction (Some j) (branchDistance outer l (length tail)) :: tail
                | _ => flattenInstruction (map (Nat.add (S (length tail))) (0 :: outer)) j ++ tail
                end
            end) body ++ [flatInstruction None None]
@@ -42,7 +42,7 @@ Definition blockCode (outer : list nat) : list instr -> list FlatInstruction :=
     | j :: rest =>
         let tail := blockCode rest in
         match j with
-        | BR_IF l => flatInstruction (Some j) (branchDistance outer l (length tail)) :: tail
+        | BR_IF l | BR l => flatInstruction (Some j) (branchDistance outer l (length tail)) :: tail
         | _ => flattenInstruction (map (Nat.add (S (length tail))) (0 :: outer)) j ++ tail
         end
     end.
@@ -77,7 +77,8 @@ Proof. reflexivity. Qed.
 
 Lemma block_code_unfold : forall outer j rest, blockCode outer (j :: rest) =
   match j with
-  | BR_IF l => flatInstruction (Some j) (branchDistance outer l (length (blockCode outer rest))) :: blockCode outer rest
+  | BR_IF l | BR l =>
+      flatInstruction (Some j) (branchDistance outer l (length (blockCode outer rest))) :: blockCode outer rest
   | _ => flattenInstruction (map (Nat.add (S (length (blockCode outer rest)))) (0 :: outer)) j ++ blockCode outer rest
   end.
 Proof. reflexivity. Qed.
@@ -147,7 +148,7 @@ Proof. intros. unfold codeOffset. rewrite <- code_size_app, firstn_skipn. reflex
    a nested block learns the distances around it. *)
 Definition blockSlot (outer : list nat) (i : instr) (rest : list instr) : list FlatInstruction :=
   match i with
-  | BR_IF l => [flatInstruction (Some i) (branchDistance outer l (codeSize rest))]
+  | BR_IF l | BR l => [flatInstruction (Some i) (branchDistance outer l (codeSize rest))]
   | _ => flattenInstruction (map (Nat.add (S (codeSize rest))) (0 :: outer)) i
   end.
 
@@ -156,7 +157,7 @@ Proof. intros outer i rest. destruct i; try reflexivity; apply flatten_length. Q
 
 Lemma block_slot_head : forall outer i rest, exists more,
   blockSlot outer i rest = flatInstruction (Some i)
-    (match i with BR_IF l => branchDistance outer l (codeSize rest) | _ => None end) :: more.
+    (match i with BR_IF l | BR l => branchDistance outer l (codeSize rest) | _ => None end) :: more.
 Proof. intros outer i rest. destruct i; eexists; reflexivity. Qed.
 
 Lemma block_code_length : forall outer code, length (blockCode outer code) = codeSize code.
@@ -291,26 +292,26 @@ Fixpoint bodyExits (outer : list nat) (body : list instr) (labels : list nat) : 
       end
   end.
 
-Lemma block_branch_distance : forall labels body outer inner offset l t,
-  pathCode body labels = Some inner -> nth_error inner offset = Some (BR_IF l) ->
+Lemma block_branch_distance : forall labels body outer inner offset i l t,
+  pathCode body labels = Some inner -> nth_error inner offset = Some i -> (i = BR_IF l \/ i = BR l) ->
   nth_error (bodyExits outer body labels) (N.to_nat (l :> N)) = Some t ->
   exists d, branchDistance (bodyOuter outer body labels) l (codeSize (skipn (S offset) inner)) = Some d /\
     pathOffset body labels offset + d = t.
 Proof.
-  induction labels as [ | b rest IH]; intros body outer inner offset l t Hpath Hi Ht.
+  induction labels as [ | b rest IH]; intros body outer inner offset i l t Hpath Hi Hbranch Ht.
   - injection Hpath as <-. cbn [bodyExits bodyOuter pathOffset] in *. unfold branchDistance.
     rewrite nth_error_map in Ht.
     destruct (nth_error (0 :: outer) (N.to_nat (l :> N))) as [e | ]; cbn [Datatypes.option_map] in Ht |- *; [ | discriminate].
     injection Ht as <-. eexists. split; [reflexivity | ].
     pose proof (code_size_split body (S offset)) as Hsplit. rewrite (code_offset_next _ _ _ Hi) in Hsplit.
-    change (instructionSize (BR_IF l)) with 1 in Hsplit. lia.
+    replace (instructionSize i) with 1 in Hsplit by (destruct Hbranch as [-> | ->]; reflexivity). lia.
   - cbn [pathCode bodyExits bodyOuter pathOffset] in *.
     destruct (nth_error body b) as [j | ] eqn:Hb; [ | discriminate]. destruct j; try discriminate.
     rewrite nth_error_map in Ht.
     match goal with H : Datatypes.option_map _ (nth_error ?exits _) = _ |- _ =>
       destruct (nth_error exits (N.to_nat (l :> N))) as [t2 | ] eqn:Ht2; cbn in H; [ | discriminate];
       injection H as <- end.
-    destruct (IH _ _ _ _ _ _ Hpath Hi Ht2) as [d [Hd Hsum]]. exists d. split; [exact Hd | lia].
+    destruct (IH _ _ _ _ _ _ _ Hpath Hi Hbranch Ht2) as [d [Hd Hsum]]. exists d. split; [exact Hd | lia].
 Qed.
 
 Lemma body_exits_beyond : forall labels body outer inner k,
@@ -344,20 +345,20 @@ Qed.
 
 (* A branch at a function's code path, to the block at b after pre: its distance
    lands just after that block. *)
-Lemma flatten_branch_target : forall code labels inner offset l pre b post,
-  pathCode code labels = Some inner -> nth_error inner offset = Some (BR_IF l) ->
+Lemma flatten_branch_target : forall code labels inner offset i l pre b post,
+  pathCode code labels = Some inner -> nth_error inner offset = Some i -> (i = BR_IF l \/ i = BR l) ->
   labels = pre ++ b :: post -> N.to_nat (l :> N) = length post ->
   exists d, branchDistance (pathOuter code labels) l (codeSize (skipn (S offset) inner)) = Some d /\
     pathOffset code labels offset + d = pathOffset code pre (S b).
 Proof.
-  intros code labels inner offset l pre b post Hpath Hi -> Hl.
+  intros code labels inner offset i l pre b post Hpath Hi Hbranch -> Hl.
   destruct pre as [ | b0 pre]; cbn [app pathCode pathOuter pathOffset] in *.
   - destruct (nth_error code b) as [j | ] eqn:Hb; [ | discriminate]. destruct j; try discriminate.
     pose proof (body_exits_beyond _ _ [] _ 0 Hpath) as Ht. rewrite Nat.add_0_r, <- Hl in Ht. cbn in Ht.
-    destruct (block_branch_distance _ _ _ _ _ _ _ Hpath Hi Ht) as [d [Hd Hsum]].
+    destruct (block_branch_distance _ _ _ _ _ _ _ _ Hpath Hi Hbranch Ht) as [d [Hd Hsum]].
     exists d. split; [exact Hd | ]. rewrite (code_offset_next _ _ _ Hb), block_instruction_size. lia.
   - destruct (nth_error code b0) as [j | ] eqn:Hb; [ | discriminate]. destruct j; try discriminate.
     pose proof (body_exits_prefix _ _ _ _ [] _ Hpath) as Ht. rewrite <- Hl in Ht.
-    destruct (block_branch_distance _ _ _ _ _ _ _ Hpath Hi Ht) as [d [Hd Hsum]].
+    destruct (block_branch_distance _ _ _ _ _ _ _ _ Hpath Hi Hbranch Ht) as [d [Hd Hsum]].
     exists d. split; [exact Hd | lia].
 Qed.

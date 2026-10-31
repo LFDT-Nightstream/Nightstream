@@ -25,7 +25,7 @@ Definition pathSlot (code : list instr) (labels : list nat) (i : instr) (rest : 
   match labels with [] => flattenInstruction [] i | _ :: _ => blockSlot (pathOuter code labels) i rest end.
 
 Definition pathBranch (code : list instr) (labels : list nat) (i : instr) (rest : list instr) : option nat :=
-  match labels, i with _ :: _, BR_IF l => branchDistance (pathOuter code labels) l (codeSize rest) | _, _ => None end.
+  match labels, i with _ :: _, (BR_IF l | BR l) => branchDistance (pathOuter code labels) l (codeSize rest) | _, _ => None end.
 
 Lemma path_slot_head : forall code labels i rest, exists more,
   pathSlot code labels i rest = flatInstruction (Some i) (pathBranch code labels i rest) :: more.
@@ -126,7 +126,7 @@ Lemma encoded_path_branch : forall labels inner offset l pre b post,
 Proof.
   intros labels inner offset l pre b post Hpath Hi Hsplit Hl.
   pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.
-  destruct (flatten_branch_target _ _ _ _ _ _ _ _ Hpath Hi Hsplit Hl) as [d [Hd Htarget]].
+  destruct (flatten_branch_target _ _ _ _ _ _ _ _ _ Hpath Hi (or_introl Logic.eq_refl) Hsplit Hl) as [d [Hd Htarget]].
   assert (Hbranch : pathBranch (guestBody f) labels (BR_IF l) (skipn (S offset) inner) = Some d)
     by (subst labels; destruct pre; exact Hd).
   rewrite Hbranch in Hpc.
@@ -137,6 +137,27 @@ Proof.
     unfold instructionRom; rewrite Hpc; try reflexivity.
   all: rewrite ?Nat.eqb_refl; destruct (choice =? 0); [ | destruct (choice =? 1)]; cbn beta iota; try reflexivity;
     f_equal; lia.
+Qed.
+
+(* A br to the block at b after pre: its one edge targets the instruction after
+   that block. *)
+Lemma encoded_path_br : forall labels inner offset l pre b post,
+  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (BR l) ->
+  labels = pre ++ b :: post -> N.to_nat (l :> N) = length post ->
+  controlImage memory (pathPC labels offset) CODE_BR (pathPC pre (S b)).
+Proof.
+  intros labels inner offset l pre b post Hpath Hi Hsplit Hl.
+  pose proof (encoded_path_head _ _ _ _ Hpath Hi) as Hpc.
+  destruct (flatten_branch_target _ _ _ _ _ _ _ _ _ Hpath Hi (or_intror Logic.eq_refl) Hsplit Hl) as [d [Hd Htarget]].
+  assert (Hbranch : pathBranch (guestBody f) labels (BR l) (skipn (S offset) inner) = Some d)
+    by (subst labels; destruct pre; exact Hd).
+  rewrite Hbranch in Hpc.
+  assert (Hpcs : pathPC pre (S b) = pathPC labels offset + Z.of_nat d) by (unfold pathPC; rewrite <- Htarget; lia).
+  rewrite Hpcs.
+  unfold controlImage. repeat split; try intro choice; program_cell Hloaded; unfold encodeProgram;
+    cbn [Nat.eqb pcRomId pcFunctionRefId functionEntryId functionLocalCountId functionCallMetadataId orb];
+    unfold instructionRom; rewrite Hpc; try reflexivity.
+  destruct (choice =? 0); reflexivity.
 Qed.
 
 (* A direct call's ROM image at a code path: target, return pc and callee metadata. *)

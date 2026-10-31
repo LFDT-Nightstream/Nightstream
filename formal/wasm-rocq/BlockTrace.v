@@ -39,18 +39,20 @@ Proof.
   rewrite Hpc, Hkind in Hedge. congruence.
 Qed.
 
-Lemma br_if_depth_preserved : forall (w : Witness),
-  fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR_IF_EQZ = 1 ->
+Lemma branch_depth_preserved : forall (w : Witness) chosen,
+  fieldPrime -> FullRelation.satFull w -> In chosen [COL_SEL_BR; COL_SEL_BR_IF_EQZ] -> w chosen = 1 ->
   w COL_CALL_STACK_DEPTH_AFTER = w COL_CALL_STACK_DEPTH_BEFORE.
 Proof.
-  intros w Hprime Hfull Hchosen.
-  assert (Hin : In COL_SEL_BR_IF_EQZ selectorColumns) by (vm_compute; tauto).
+  intros w chosen Hprime Hfull Hbranch Hchosen.
+  assert (Hin : In chosen selectorColumns) by (destruct Hbranch as [<- | [<- | []]]; vm_compute; tauto).
   pose proof (proj1 Hfull) as Hone.
-  assert (Hpush : w COL_CALL_STACK_PUSH_PRESENT = 0).
-  { selected_row COL_SEL_BR_IF_EQZ callStackPushRow Hrow.
-    pose proof (value_bound w COL_CALL_STACK_PUSH_PRESENT). field_linear Hrow. }
-  assert (Hpop : w COL_CALL_STACK_POP_PRESENT = 0).
-  { selected_row COL_SEL_BR_IF_EQZ callStackPopSupportRow Hrow. rewrite Hone in Hrow.
-    pose proof (value_bound w COL_CALL_STACK_POP_PRESENT). field_linear Hrow. }
-  pose proof (full_call_depth_balance w COL_SEL_BR_IF_EQZ Hprime Hfull Hin Hchosen). lia.
+  pose proof (full_call_depth_balance w chosen Hprime Hfull Hin Hchosen).
+  pose proof (value_bound w COL_CALL_STACK_PUSH_PRESENT). pose proof (value_bound w COL_CALL_STACK_POP_PRESENT).
+  destruct Hbranch as [<- | [<- | []]].
+  - selected_row COL_SEL_BR callStackPushRow Hpush. selected_row COL_SEL_BR callStackPopSupportRow Hpop.
+    rewrite Hone in Hpop. assert (w COL_CALL_STACK_PUSH_PRESENT = 0) by field_linear Hpush.
+    assert (w COL_CALL_STACK_POP_PRESENT = 0) by field_linear Hpop. normalize_columns. lia.
+  - selected_row COL_SEL_BR_IF_EQZ callStackPushRow Hpush. selected_row COL_SEL_BR_IF_EQZ callStackPopSupportRow Hpop.
+    rewrite Hone in Hpop. assert (w COL_CALL_STACK_PUSH_PRESENT = 0) by field_linear Hpush.
+    assert (w COL_CALL_STACK_POP_PRESENT = 0) by field_linear Hpop. normalize_columns. lia.
 Qed.

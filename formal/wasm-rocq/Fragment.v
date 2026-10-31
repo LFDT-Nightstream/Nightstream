@@ -15,7 +15,7 @@ Definition blockResults (bt : blocktype) : nat := match bt with _RESULT (Some _)
 Definition sourceHeight (callees : CalleeEnvironment) (i : instr) (height : nat) : option nat :=
   match i with
   | BLOCK bt _ => Some (height + blockResults bt)%nat
-  | RETURN => None
+  | RETURN | BR _ => None
   | CALL x => match callees (x :> N) with
       | Some f => if Nat.leb (guestParams f) height then Some (height - guestParams f + guestResults f)%nat else None
       | None => None
@@ -31,12 +31,12 @@ Fixpoint sourceHeights (callees : CalleeEnvironment) (code : list instr) (height
       | Some next => sourceHeights callees rest next | None => None end
   end.
 
-(* A br_if leaves an enclosing block, never the function: `exits` counts the
+(* A br or br_if leaves an enclosing block, never the function: `exits` counts the
    enclosing blocks. A taken branch discards the operands above its target's base.
    Code nothing falls through to is dead and unconstrained. *)
 Fixpoint instrBranches (callees : CalleeEnvironment) (i : instr) (height exits : nat) : Prop :=
   match i with
-  | BR_IF l => (N.to_nat (l :> N) < exits)%nat
+  | BR_IF l | BR l => (N.to_nat (l :> N) < exits)%nat
   | BLOCK _ body =>
       (fix bodyBranches (code : list instr) (h : nat) : Prop :=
          match code with
@@ -69,6 +69,7 @@ Inductive Supported (callees : CalleeEnvironment) : instr -> Prop :=
     (result = None \/ result = Some valtype_I32) -> Supported callees (BLOCK (_RESULT result) body)
 (* Branches to an enclosing block, where codeBranches allows them. *)
 | supported_br_if : forall l, Supported callees (BR_IF l)
+| supported_br : forall l, Supported callees (BR l)
 (* Returns from any depth of blocks, discarding the operands below the results. *)
 | supported_return : Supported callees RETURN.
 

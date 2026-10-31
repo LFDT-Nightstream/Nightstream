@@ -71,6 +71,15 @@ const RESULT_BLOCKS: &str = r#"(module
       i32.sub
     end))"#;
 
+/// A br out of two blocks to a result block: it keeps the block's result and drops
+/// the outer block's operand below it, so the result moves down.
+const BR_OUT: &str = r#"(module
+  (func (export "main") (param i32 i32) (result i32)
+    block (result i32)
+      local.get 0
+      block local.get 1 br 1 end
+    end))"#;
+
 /// The longest run of program, zero and move rows ending just before the final END,
 /// which finishes the activation, as `name`, one dense row per trace row.
 fn export_witness(wat: &str, params: &[i32], name: &str, file: &str) {
@@ -130,4 +139,5 @@ fn export_witnesses() {
     export_witness(UNWINDING_BRANCH, &[7], "unwindingRows", "UnwindingTrace.v");
     export_witness(EARLY_RETURN, &[7], "earlyReturnRows", "EarlyReturnTrace.v");
     export_witness(RESULT_BLOCKS, &[7, 9], "resultBlockRows", "ResultBlockTrace.v");
+    export_witness(BR_OUT, &[7, 9], "brRows", "BrTrace.v");
 }

@@ -219,3 +219,31 @@ Proof.
   all: replace (top + fold_right Nat.add 0 (rev hs) - guestResults f)%nat
     with (top - guestResults f + fold_right Nat.add 0 (rev hs))%nat by lia; reflexivity.
 Qed.
+
+(* The ROM's slide at a br: its one edge keeps its target's arity and drops what
+   the static heights give. *)
+Lemma encoded_br_slide : forall program memory index f labels inner offset l hs top choice,
+  programLoaded program memory -> functionAt program index = Some f ->
+  pathCode (guestBody f) labels = Some inner -> nth_error inner offset = Some (BR l) ->
+  pathHeights (programCallees program (guestModule f)) (guestBody f) labels offset = Some (hs, top) ->
+  let pc := guestEntry f + Z.of_nat (pathOffset (guestBody f) labels offset) in
+  let slide := labelSlide (rev hs ++ [0%nat]) (rev (pathArities (guestBody f) labels) ++ [guestResults f]) top
+    (N.to_nat (l :> N)) in
+  memory frameSlideRemainingId [pc; choice] = Some (if (choice =? 0)%Z then slideEntry true slide else 0%Z) /\
+  memory frameSlideDistanceId [pc; choice] = Some (if (choice =? 0)%Z then slideEntry false slide else 0%Z).
+Proof.
+  intros program memory index f labels inner offset l hs top choice Hloaded Hf Hpath Hi Hheights pc slide.
+  destruct (path_slot_head (guestBody f) labels (BR l) (skipn (S offset) inner)) as [more Hhead].
+  pose proof (flatten_at_path _ _ _ _ _ 0 _ Hpath Hi ltac:(rewrite Hhead; reflexivity)) as Hslot.
+  rewrite Nat.add_0_r in Hslot.
+  assert (Hbound : (pathOffset (guestBody f) labels offset <= codeSize (guestBody f))%nat).
+  { assert (pathOffset (guestBody f) labels offset < length (flattenCode (guestBody f)))%nat
+      by (apply nth_error_Some; rewrite Hslot; discriminate).
+    unfold codeSize. lia. }
+  pose proof (drops_at_path _ _ _ _ _ _ _ _ [0%nat] [guestResults f] Hpath Hi ltac:(discriminate) Hheights) as Hdrop.
+  rewrite <- code_drops_body in Hdrop. cbn [instructionDrops nth_error] in Hdrop.
+  split; program_cell Hloaded; unfold encodeProgram; cbn [Nat.eqb pcRomId frameSlideRemainingId frameSlideDistanceId orb];
+    unfold pc; rewrite (slide_at_function_pc _ _ _ _ _ choice Hf Hbound); unfold functionSlide; cbv zeta;
+    rewrite Hslot, Hdrop; fold slide; cbn [Nat.eqb frameSlideRemainingId frameSlideDistanceId].
+  all: destruct slide as [[kept dropped] | ]; destruct (choice =? 0)%Z; reflexivity.
+Qed.

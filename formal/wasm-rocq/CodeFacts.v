@@ -35,6 +35,8 @@ Fixpoint instrFacts (localCount resultCount : nat) (arities : list nat) (callees
   | RETURN => wf_instr i /\ (resultCount <= height)%nat
   (* A br_if's operands hold its target's results below the condition. *)
   | BR_IF l => wf_instr i /\ exists n, nth_error arities (N.to_nat (l :> N)) = Some n /\ (S n <= height)%nat
+  (* A br's operands hold its target's results. *)
+  | BR l => wf_instr i /\ exists n, nth_error arities (N.to_nat (l :> N)) = Some n /\ (n <= height)%nat
   | _ => wf_instr i /\ programTyped localCount height [i]
   end.
 
@@ -97,7 +99,7 @@ Proof.
   { intros Hop extra. split; [exact Hw | ].
     pose proof (proj1 (validated_instruction_height _ _ _ _ Hi Hop) extra [] I) as H.
     rewrite Hlocals, repeat_length in H. exact H. }
-  inversion Hsupport as [ | | | | x f Hf Hp Hr | result body | l | ]; subst.
+  inversion Hsupport as [ | | | | x f Hf Hp Hr | result body | l | l | ]; subst.
   - split; [exact (Hordinary ltac:(eexists; reflexivity)) | ].
     inversion Hi; subst. intros extra. left. cbn [length]. rewrite Nat.add_comm. cbn. f_equal; lia.
   - split; [exact (Hordinary ltac:(eexists; reflexivity)) | ].
@@ -131,6 +133,20 @@ Proof.
     intros extra. left. rewrite length_app. cbn [length].
     match goal with |- sourceHeight _ _ (extra + (length ?ts + 1)) = _ =>
       replace (extra + (length ts + 1))%nat with (S (extra + length ts)) by lia end. reflexivity.
+  - inversion Hi; subst.
+    match goal with H : is_true (_ == _) |- _ => apply (elimT eqP) in H; rename H into Hlabel end.
+    match goal with H : is_true (N.ltb _ _) |- _ => apply N.ltb_lt in H; rename H into Hbound end.
+    rewrite Hlabels in Hlabel, Hbound.
+    assert (Hsize : forall (xs : list (res_list valtype)), seq.size xs = length xs)
+      by (induction xs as [ | x xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
+    rewrite Hsize, length_map in Hbound.
+    destruct (nth_error arities (N.to_nat (l :> N))) as [n | ] eqn:Hn; [ | apply nth_error_None in Hn; lia].
+    erewrite spec_lookup_from_nth_error in Hlabel; [ | rewrite nth_error_map, Hn; reflexivity].
+    cbn [i32Results proj_list_0] in Hlabel. subst.
+    split; [intros extra; split; [exact Hw | exists n; split; [exact Hn | ]] | intros extra; right; reflexivity].
+    assert (Hlength : forall (xs ys : list valtype), length (seq.cat xs ys) = (length xs + length ys)%nat)
+      by (intros xs ys; induction xs as [ | x xs IH]; [reflexivity | cbn; rewrite IH; reflexivity]).
+    rewrite Hlength, repeat_length. lia.
   - inversion Hi; subst.
     match goal with H : is_true (_ == _) |- _ => apply (elimT eqP) in H end.
     rewrite Hreturn in *. match goal with H : Some _ = Some _ |- _ => injection H as Hresults end.
@@ -170,7 +186,7 @@ Proof.
   - intros Hsize localCount resultCount arities callees Hfits Hsupport.
     pose proof (Forall_inv Hsupport) as Hsup.
     destruct (instr_block_cases i) as [[bt [body ->]] | Hnot].
-    + inversion Hsup as [ | | | | | result body' Hbody' Hresult | | ]; subst. inversion Hi; subst.
+    + inversion Hsup as [ | | | | | result body' Hbody' Hresult | | | ]; subst. inversion Hi; subst.
       match goal with Hbt : Blocktype_ok _ _ _ |- _ => inversion Hbt; subst end.
       rewrite block_size in Hsize.
       match goal with Hbody : Instrs_ok _ body _ |- _ => pose proof (IHn _ _ _ Hbody ltac:(lia)) as Hinner end.

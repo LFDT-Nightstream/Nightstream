@@ -52,19 +52,40 @@ Proof.
     pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
 Qed.
 
-Lemma full_br_if_frame_unchanged : forall (w : Witness),
-  fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR_IF_EQZ = 1 ->
+Lemma full_branch_fbp_unchanged : forall (w : Witness) chosen,
+  fieldPrime -> FullRelation.satFull w -> In chosen [COL_SEL_BR; COL_SEL_BR_IF_EQZ] -> w chosen = 1 ->
   w COL_LOCALS_FBP_AFTER = w COL_LOCALS_FBP_BEFORE.
 Proof.
-  intros w Hprime Hfull Hchosen.
-  assert (Hin : In COL_SEL_BR_IF_EQZ selectorColumns) by (vm_compute; tauto).
+  intros w chosen Hprime Hfull Hbranch Hchosen.
+  assert (Hin : In chosen selectorColumns) by (destruct Hbranch as [<- | [<- | []]]; vm_compute; tauto).
   pose proof (proj1 Hfull) as Hone.
-  destruct (full_branch_frame w COL_SEL_BR_IF_EQZ Hprime Hfull Hin Hchosen ltac:(vm_compute; tauto))
-    as [Hpop Hpush _ Hturn _].
-  selected_row COL_SEL_BR_IF_EQZ localsBasePreservedRow Hrow. zero_host_switch Hrow.
-  rewrite Hone, Hpush, Hpop, Hturn in Hrow.
-  pose proof (value_bound w COL_LOCALS_FBP_BEFORE).
-  pose proof (value_bound w COL_LOCALS_FBP_AFTER). field_linear Hrow.
+  destruct (full_branch_frame w chosen Hprime Hfull Hin Hchosen
+    ltac:(destruct Hbranch as [<- | [<- | []]]; cbn; tauto)) as [Hpop Hpush _ Hturn _].
+  pose proof (value_bound w COL_LOCALS_FBP_BEFORE). pose proof (value_bound w COL_LOCALS_FBP_AFTER).
+  destruct Hbranch as [<- | [<- | []]];
+    [selected_row COL_SEL_BR localsBasePreservedRow Hrow | selected_row COL_SEL_BR_IF_EQZ localsBasePreservedRow Hrow];
+    zero_host_switch Hrow; rewrite Hone, Hpush, Hpop, Hturn in Hrow; field_linear Hrow.
+Qed.
+
+(* A br pops nothing and slides by its distance. *)
+Theorem full_br_stack : forall (w : Witness),
+  fieldPrime -> FullRelation.satFull w -> w COL_SEL_BR = 1 -> 0 <= w COL_SP_BEFORE ->
+  w COL_SP_AFTER = w COL_SP_BEFORE - w COL_FRAME_MOVE_DISTANCE_AFTER /\
+  w COL_STACK_FRAME_BASE_AFTER = w COL_STACK_FRAME_BASE_BEFORE /\
+  filter isStackWrite (eventsForRow memories w) = [].
+Proof.
+  unary_stack_facts COL_SEL_BR 0 0 0.
+  split; [ | split].
+  - selected_row COL_SEL_BR stackPointerBalanceRow Hrow. zero_host_switch Hrow. zero_gather_kinds Hkinds Hrow.
+    rewrite Hone, Hreads, Hwrites, Hdiscard, Hlocal, Houtput, Hcapture, Hparams in Hrow.
+    circuit_range COL_SP_AFTER Hspa. circuit_range COL_SP_BEFORE Hspb. circuit_range COL_FRAME_MOVE_DISTANCE_AFTER Hd.
+    field_linear Hrow.
+  - selected_row COL_SEL_BR stackFrameBasePreservedRow Hrow. zero_host_switch Hrow.
+    rewrite Hone, Hguest, Hturn, Hpop in Hrow.
+    pose proof (value_bound w COL_STACK_FRAME_BASE_BEFORE).
+    pose proof (value_bound w COL_STACK_FRAME_BASE_AFTER). field_linear Hrow.
+  - rewrite stack_writes_in_row. unfold stackPortWrites, writeIf.
+    rewrite Hwrite, HwriteHi, HlocalWrite, HgatherLocal, HgatherLocalLo. reflexivity.
 Qed.
 
 Definition branchImage (memory : MemoryState) (pc fallthrough target : Z) : Prop :=

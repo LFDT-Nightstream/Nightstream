@@ -73,6 +73,8 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
             else None
         | Some (flatInstruction (Some (BR_IF _)) (Some distance)) =>
             if choice =? 0 then Some (pc + 1) else if choice =? 1 then Some (pc + Z.of_nat distance) else None
+        | Some (flatInstruction (Some (BR _)) (Some distance)) =>
+            if choice =? 0 then Some (pc + Z.of_nat distance) else None
         | Some (flatInstruction (Some RETURN) _) => None
         | Some _ => if choice =? 0 then Some (pc + 1) else None
         | None => None end
@@ -81,6 +83,7 @@ Definition instructionRom (program : Program) (memory : nat) (pc : Z) (choice : 
         | Some (flatInstruction (Some (CALL _)) _) => Some CODE_CALL
         | Some (flatInstruction (Some (BLOCK _ _)) _) => Some CODE_BLOCK
         | Some (flatInstruction (Some (BR_IF _)) _) => Some CODE_BR_IF
+        | Some (flatInstruction (Some (BR _)) _) => Some CODE_BR
         | Some (flatInstruction (Some RETURN) _) => Some CODE_RETURN
         | Some (flatInstruction (Some i) _) => encodedOpcode i
         | _ => Some CODE_END end
@@ -126,8 +129,8 @@ Definition labelSlide (heights arities : list nat) (height l : nat) : option (na
 Definition branchSlide (heights arities : list nat) (height l : nat) : option (nat * nat) :=
   match height with S below => labelSlide heights arities below l | O => None end.
 
-(* Each flattened slot's slide, laid out like flattenInstruction: what a taken
-   br_if or a return keeps and drops of its frame's operands. A return is the
+(* Each flattened slot's slide, laid out like flattenInstruction: what a br, a
+   taken br_if or a return keeps and drops of its frame's operands. A return is the
    branch to the function's own label, the outermost one. *)
 Fixpoint instructionDrops (callees : CalleeEnvironment) (heights arities : list nat) (height : option nat) (i : instr)
     : list (option (nat * nat)) :=
@@ -141,6 +144,7 @@ Fixpoint instructionDrops (callees : CalleeEnvironment) (heights arities : list 
             bodyDrops rest (match h with Some h => sourceHeight callees j h | None => None end)
         end) body (option_map (fun _ => 0%nat) height) ++ [None]
   | BR_IF l => [match height with Some h => branchSlide heights arities h (N.to_nat (l :> N)) | None => None end]
+  | BR l => [match height with Some h => labelSlide heights arities h (N.to_nat (l :> N)) | None => None end]
   | RETURN => [match height with Some h => labelSlide heights arities h (length arities - 1) | None => None end]
   | _ => [None]
   end.
@@ -160,8 +164,8 @@ Definition slideWord (remaining : bool) (kept distance : nat) : Z :=
   if remaining then (if Nat.eqb distance 0 then 0 else Z.of_nat kept) else Z.of_nat distance.
 
 (* The slide ROM's entry at a slot of f's flattened code, for the slots whose
-   edges can slide: f's END and returns drop its locals too; a br_if's taken edge
-   slides within the frame. Other slots have none. *)
+   edges can slide: f's END and returns drop its locals too; a br and a br_if's
+   taken edge slide within the frame. Other slots have none. *)
 Definition functionSlide (program : Program) (memory : nat) (f : GuestFunction) (offset : nat) (choice : Z)
     : option Z :=
   let frame := (guestParams f + guestLocals f)%nat in
@@ -172,6 +176,11 @@ Definition functionSlide (program : Program) (memory : nat) (f : GuestFunction) 
   | Some (flatInstruction (Some RETURN) _) =>
       match nth_error drops offset with
       | Some (Some (kept, dropped)) => if choice =? 0 then Some (slideWord remaining kept (frame + dropped)) else None
+      | _ => None
+      end
+  | Some (flatInstruction (Some (BR _)) _) =>
+      match nth_error drops offset with
+      | Some (Some (kept, dropped)) => if choice =? 0 then Some (slideWord remaining kept dropped) else None
       | _ => None
       end
   | Some (flatInstruction (Some (BR_IF _)) _) =>

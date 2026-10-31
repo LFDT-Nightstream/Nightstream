@@ -368,7 +368,7 @@ Proof.
     rewrite (skipn_at_instruction _ _ _ Hb) in Hbr. destruct Hbr as [Hbr _].
     apply (proj1 (block_branches _ _ _ _ _)) in Hbr.
     pose proof (proj1 (Forall_forall _ _) Hsupport _ (nth_error_In _ _ Hb)) as Hsup.
-    inversion Hsup as [ | | | | x f Hf Hp Hr | result body' Hbs Hresult | l | ]; subst.
+    inversion Hsup as [ | | | | x f Hf Hp Hr | result body' Hbs Hresult | l | l | ]; subst.
     destruct (IH _ body _ inner offset hs t Hbody Hbs Hbr Hpath Hin) as [Hf [Hs [Hbranch Hdeeper]]].
     cbn [pathArities]. rewrite Hb. cbn [rev]. rewrite <- app_assoc.
     split; [exact Hf | ]. split; [exact Hs | ]. split; [cbn [length]; rewrite <- Nat.add_succ_comm; exact Hbranch | ].

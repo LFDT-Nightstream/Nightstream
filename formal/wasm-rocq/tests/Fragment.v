@@ -16,7 +16,7 @@ Proof. repeat constructor. Qed.
 Example wide_call_rejected : forall callees x f, callees (x :> N) = Some f -> guestParams f = 256%nat ->
   ~ Supported callees (CALL x).
 Proof.
-  intros callees x f Hf Hparams H. inversion H as [ | | | | ? g Hg Hp _ | | | ]; subst.
+  intros callees x f Hf Hparams H. inversion H as [ | | | | ? g Hg Hp _ | | | | ]; subst.
   rewrite Hf in Hg. injection Hg as <-. lia.
 Qed.
 
@@ -26,7 +26,7 @@ Proof. apply supported_block; [repeat constructor | right; reflexivity]. Qed.
 
 (* Blocks hold at most one i32 result and take no parameters. *)
 Example i64_block_rejected : forall callees body, ~ Supported callees (BLOCK (_RESULT (Some valtype_I64)) body).
-Proof. intros callees body H. inversion H as [ | | | | | ? ? _ [Hr | Hr] | | ]; discriminate. Qed.
+Proof. intros callees body H. inversion H as [ | | | | | ? ? _ [Hr | Hr] | | | ]; discriminate. Qed.
 
 Example typed_block_rejected : forall callees x body, ~ Supported callees (BLOCK (_IDX x) body).
 Proof. intros callees x body H. inversion H. Qed.
@@ -54,6 +54,13 @@ Proof. vm_compute. repeat split; lia. Qed.
 
 Example outer_branch_above_value : codeBranches noCallees 0 (aboveValue 1) 0.
 Proof. vm_compute. repeat split; lia. Qed.
+
+(* A br leaves an enclosing block; code after it is dead. *)
+Example br_out_of_block : codeBranches noCallees 0 [BLOCK (_RESULT None) [BR (mk_uN 0); LOCAL_SET (mk_uN 0)]] 0.
+Proof. vm_compute. repeat split; lia. Qed.
+
+Example br_to_function_rejected : ~ codeBranches noCallees 0 [BLOCK (_RESULT None) [BR (mk_uN 1)]] 0.
+Proof. intros H. vm_compute in H. intuition lia. Qed.
 
 Definition unwindingBody :=
   [LOCAL_GET (mk_uN 0); LOCAL_GET (mk_uN 1); BR_IF (mk_uN 0); LOCAL_SET (mk_uN 0)].

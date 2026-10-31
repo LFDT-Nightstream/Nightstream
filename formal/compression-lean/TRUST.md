@@ -172,9 +172,9 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   digests hash with `Replay.hashLeaf`.
 - The error charges (`Layer1.rustDegrees`, `Shrink.rustDegrees`). If one differs from
   `outer_terms` (`relation.rs`) or from `terms` (`shrink/mod.rs`), the premises `p0`, `p1` and `rust`
-  are not the checks that `Pcs::new` makes. `outer_terms` charges `ring::row_count(shape) - 1`
-  for the ring-row batching, and `Layer1.rustLinear` charges `s.rows - 1`, the same sum of
-  `kappa`, `matrices` and `publicBlocks`; `ports.json` pins `rustLinear` to `row_count` too.
+  are not the checks that `Pcs::new` makes. The integer degrees of both charges are Rust in
+  `neo-verified` (`degrees.rs`), proved equal to their ports (`CompressionLeanRust/Degrees.lean`).
+  `outer_terms` and `terms`, which turn each degree into an `f64` term, keep a token hash.
 - The readers of the files that the Rust tests write, which transcribe their formats:
   `Layer1Key`'s JSON (`layer1_input` and `relation_json` write it), and `readRuns` and
   `readColumns` (`CompressionLeanExe/Runs.lean`; `setup_runs.rs` and `setup_columns.rs` write
@@ -201,7 +201,17 @@ These checks compare a transcription with its Rust:
 
 - Rust tests in CI pin digests that Lean computes from the lowered programs, so a change to the
   circuit's instruction stream fails CI.
-- `ports.json` names the Rust item that each transcription follows, with a hash of its tokens. The
+- For a port of Rust in `crates/neo-verified`, `ports.json` names two theorems in place of a
+  hash. Aeneas translates the crate (`scripts/aeneas_extract.sh`), and `CompressionLeanRust` proves
+  the translation equal to the port. `Sound` has no premise: if the translated function returns,
+  it returns the port's value. `Complete` gives a premise, an input that meets it, and a value on
+  every input that meets it. `CompressionLeanRustTests` checks the shape of both. The `aeneas` CI
+  job translates the crate again, fails when the committed translation differs, builds the proofs
+  and rechecks them with `leanchecker --fresh`. This trusts Charon, Aeneas and the Aeneas models
+  of the Rust items in `formal/aeneas/std-models.txt`. The run check
+  (`crates/neo-verified/tests/run_check.rs`) runs the translation and each model against Rust on
+  fixed inputs in CI.
+- `ports.json` names the Rust item that each other transcription follows, with a hash of its tokens. The
   CI test `lean_ports` fails when a Rust item changes, until someone re-reads the Lean declaration
   and updates the hash. It detects a change; it does not show that the transcription is right.
   A Rust constant whose value a transcription writes as a number has its own entry, so a change

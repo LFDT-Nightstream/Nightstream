@@ -26,3 +26,4 @@ import NightstreamFPrime.Spec.Folding.Refresh.Security
 import NightstreamFPrime.Spec.Folding.Refresh.Completeness
 import NightstreamFPrime.Spec.Folding.Refresh.Bound
 import NightstreamFPrime.Spec.Folding.Schedule
+import NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth

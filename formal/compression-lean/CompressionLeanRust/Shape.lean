@@ -14,6 +14,12 @@ def Complete {α β γ : Type} (H : α → Prop) (f : α → Result β) (view : 
     Prop :=
   (∃ x, H x) ∧ ∀ x, H x → ∃ y, f x = .ok y ∧ view y = copy x
 
+/-- `Sound` and `Complete` from the two halves that each proof shows. -/
+theorem complete_of {α β γ : Type} {H : α → Prop} {f : α → Result β} {view : β → γ} {copy : α → γ}
+    (sound : Sound f view copy) (witness : ∃ x, H x) (succeeds : ∀ x, H x → ∃ y, f x = .ok y) :
+    Complete H f view copy :=
+  ⟨witness, fun x hx => let ⟨y, hy⟩ := succeeds x hx; ⟨y, hy, sound x y hy⟩⟩
+
 def usizeValue (x : Usize) : ℕ := x.val
 
 def usizeValues {n : Usize} (a : Aeneas.Std.Array Usize n) : List ℕ := a.val.map (·.val)
@@ -45,8 +51,28 @@ theorem placeValue_injective : Function.Injective placeValue := by
   rw [Aeneas.Std.Array.ext a b ((List.map_injective_iff.mpr partValue_injective) h.1),
     usizeValue_injective h.2]
 
+/-- A translated `Gl` as its word, canonical or not. -/
+def glValue (x : neo_verified.field.Gl) : ℕ := x.val
+
+/-- A translated `Ext` as its three words. -/
+def extValue (x : neo_verified.field.Ext) : ℕ × ℕ × ℕ := (x.c0.val, x.c1.val, x.c2.val)
+
+def optionValue (x : Option neo_verified.field.Gl) : Option ℕ := x.map glValue
+
+theorem glValue_injective : Function.Injective glValue :=
+  fun a b h => UScalar.val_eq_imp a b h
+
+theorem extValue_injective : Function.Injective extValue := by
+  rintro ⟨a0, a1, a2⟩ ⟨b0, b1, b2⟩ h
+  simp only [extValue, Prod.mk.injEq] at h
+  rw [glValue_injective h.1, glValue_injective h.2.1, glValue_injective h.2.2]
+
+theorem optionValue_injective : Function.Injective optionValue :=
+  Option.map_injective glValue_injective
+
 /-- The views that a `Sound` or `Complete` theorem may use. `CompressionLeanRustTests` checks
 that each has a theorem `<view>_injective`. -/
-def views : List Lean.Name := [``usizeValue, ``usizeValues, ``placeValue]
+def views : List Lean.Name :=
+  [``usizeValue, ``usizeValues, ``placeValue, ``glValue, ``extValue, ``optionValue]
 
 end CompressionLeanRust

@@ -35,7 +35,7 @@ use crate::circuit::r1cs::R1cs;
 use crate::circuit::record::{Form, Recorder, Sink, Term, Trace};
 use crate::circuit::{algebra, Backend, Native};
 use crate::device::Accelerator;
-use crate::field::{eq_table, fold_low, gl, Ext, Gl};
+use crate::field::{eq_table, fold_low, from_verified, gl, Ext, Gl};
 use crate::hash::{permutation, Challenger};
 use crate::pcs::{self, Pcs, TablePlan};
 use crate::{sumcheck, Error};
@@ -186,13 +186,11 @@ fn key_of(program: &impl Program) -> Result<Vec<Gl>, Error> {
 }
 
 fn canonical(words: Vec<u64>, what: &'static str) -> Result<Vec<Gl>, Error> {
-    if words
-        .iter()
-        .any(|&word| word >= <Gl as p3_field_v08::PrimeField64>::ORDER_U64)
-    {
-        return Err(Error::Shape(what));
-    }
-    Ok(words.into_iter().map(Gl::new).collect())
+    words
+        .into_iter()
+        .map(|word| neo_verified::field::canonical(word).map(from_verified))
+        .collect::<Option<_>>()
+        .ok_or(Error::Shape(what))
 }
 
 /// Prove that `program` accepts its statement. The Merkle leaves hash on

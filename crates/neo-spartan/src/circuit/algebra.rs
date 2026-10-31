@@ -2,10 +2,11 @@
 //! and `K ⊗ Ext` values, eq tables and interpolation. Points are low bit
 //! first.
 
-use p3_field_v08::{Field, PrimeCharacteristicRing, PrimeField64};
+use neo_verified::field::gl_inv;
+use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
 
 use super::Backend;
-use crate::field::{ext_words, Ext, Gl};
+use crate::field::{ext_words, from_verified, to_verified, Ext, Gl};
 
 /// A constant from a layer-1 field value.
 pub(crate) fn constant<B: Backend>(b: &mut B, value: Gl) -> B::F {
@@ -132,7 +133,7 @@ pub(crate) fn interpolate<B: Backend>(b: &mut B, values: &[B::E], x: B::E) -> B:
                 denominator *= Gl::from_usize(i) - Gl::from_usize(j);
             }
         }
-        let weight = ext_scale_constant(b, numerator, denominator.inverse());
+        let weight = ext_scale_constant(b, numerator, from_verified(gl_inv(to_verified(denominator))));
         let term = b.ext_mul(value, weight);
         total = b.ext_add(total, term);
     }

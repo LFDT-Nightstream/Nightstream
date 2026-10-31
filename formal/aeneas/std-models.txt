@@ -13,6 +13,7 @@ Usize.checked_mul
 Usize.checked_sub
 core.array.equality.PartialEqArray.eq
 core.clone.Clone
+core.cmp.Eq
 core.cmp.PartialEq
 core.cmp.PartialEqUsize
 core.cmp.impls.OrdUsize.max
@@ -20,6 +21,12 @@ core.cmp.impls.PartialEqU16.eq
 core.cmp.impls.PartialEqU32.eq
 core.marker.Copy
 core.marker.StructuralPartialEq
+core.num.U64.is_multiple_of
+core.num.U64.wrapping_add
+core.num.U64.wrapping_mul
+core.num.U64.wrapping_shl
+core.num.U64.wrapping_shr
+core.num.U64.wrapping_sub
 core.num.Usize.BITS
 core.num.Usize.leading_zeros
 core.num.Usize.wrapping_shl

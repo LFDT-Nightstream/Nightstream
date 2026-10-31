@@ -10,6 +10,8 @@ def u32 (n : ℕ) : U32 := ⟨BitVec.ofNat _ n⟩
 
 def u16 (n : ℕ) : U16 := ⟨BitVec.ofNat _ n⟩
 
+def u64 (n : ℕ) : U64 := ⟨BitVec.ofNat _ n⟩
+
 def outcome {α : Type} (r : Result α) (render : α → String) : String :=
   match r.match with
   | .ok a => s!"ok {render a}"
@@ -152,6 +154,77 @@ def degreesCase : String → List ℕ → Option String
   | "UScalar.cast.u32", [x] => s!"ok {value (UScalar.cast .U32 (usize x))}"
   | _, _ => none
 
+open neo_verified in
+def ext : List ℕ → Option field.Ext
+  | [a, b, c] => some ⟨u64 a, u64 b, u64 c⟩
+  | _ => none
+
+open neo_verified in
+def extWords (e : field.Ext) : String := s!"{value e.c0} {value e.c1} {value e.c2}"
+
+open neo_verified in
+/-- The translated field, its private word functions and the models that they call. -/
+def fieldCase : String → List ℕ → Option String
+  | "MODULUS", [] => s!"ok {value field.MODULUS}"
+  | "GL_ZERO", [] => s!"ok {value field.GL_ZERO}"
+  | "GL_ONE", [] => s!"ok {value field.GL_ONE}"
+  | "EXT_ZERO", [] => s!"ok {extWords field.EXT_ZERO}"
+  | "EXT_ONE", [] => s!"ok {extWords field.EXT_ONE}"
+  | "canonical", [x] => outcome (field.canonical (u64 x)) fun o => option o value
+  | "reduce", [x] => outcome (field.reduce (u64 x)) value
+  | "reduce_word", [x] => outcome (field.reduce_word (u64 x)) value
+  | "gl_word", [x] => outcome (field.gl_word (u64 x)) value
+  | "low_half", [x] => outcome (field.low_half (u64 x)) value
+  | "high_half", [x] => outcome (field.high_half (u64 x)) value
+  | "fold_high", [x] => outcome (field.fold_high (u64 x)) value
+  | "add_words", [x, y] => outcome (field.add_words (u64 x) (u64 y)) value
+  | "sub_words", [x, y] => outcome (field.sub_words (u64 x) (u64 y)) value
+  | "mul_words", [x, y] => outcome (field.mul_words (u64 x) (u64 y)) value
+  | "gl_add", [x, y] => outcome (field.gl_add (u64 x) (u64 y)) value
+  | "gl_sub", [x, y] => outcome (field.gl_sub (u64 x) (u64 y)) value
+  | "gl_mul", [x, y] => outcome (field.gl_mul (u64 x) (u64 y)) value
+  | "gl_neg", [x] => outcome (field.gl_neg (u64 x)) value
+  | "gl_pow", [x, e] => outcome (field.gl_pow (u64 x) (u64 e)) value
+  | "gl_inv", [x] => outcome (field.gl_inv (u64 x)) value
+  | "ext_of_gl", [x] => outcome (field.ext_of_gl (u64 x)) extWords
+  | "ext_neg", xs => (ext xs).map fun a => outcome (field.ext_neg a) extWords
+  | "ext_pow", [a, b, c, e] => (ext [a, b, c]).map fun x => outcome (field.ext_pow x (u64 e)) extWords
+  | "ext_scale", [a, b, c, g] => (ext [a, b, c]).map fun x => outcome (field.ext_scale x (u64 g)) extWords
+  | "ext_add", [a, b, c, d, e, f] => do
+    let x ← ext [a, b, c]
+    let y ← ext [d, e, f]
+    outcome (field.ext_add x y) extWords
+  | "ext_sub", [a, b, c, d, e, f] => do
+    let x ← ext [a, b, c]
+    let y ← ext [d, e, f]
+    outcome (field.ext_sub x y) extWords
+  | "ext_mul", [a, b, c, d, e, f] => do
+    let x ← ext [a, b, c]
+    let y ← ext [d, e, f]
+    outcome (field.ext_mul x y) extWords
+  | "UScalar.cast.u32", [x] => s!"ok {value (UScalar.cast .U32 (u64 x))}"
+  | "UScalar.cast.u64", [x] => s!"ok {value (UScalar.cast .U64 (u32 x))}"
+  | "core.num.U64.wrapping_shr", [x, k] => s!"ok {value (core.num.U64.wrapping_shr (u64 x) (u32 k))}"
+  | "core.num.U64.wrapping_shl", [x, k] => s!"ok {value (core.num.U64.wrapping_shl (u64 x) (u32 k))}"
+  | "core.num.U64.wrapping_add", [x, y] => s!"ok {value (core.num.U64.wrapping_add (u64 x) (u64 y))}"
+  | "core.num.U64.wrapping_sub", [x, y] => s!"ok {value (core.num.U64.wrapping_sub (u64 x) (u64 y))}"
+  | "core.num.U64.wrapping_mul", [x, y] => s!"ok {value (core.num.U64.wrapping_mul (u64 x) (u64 y))}"
+  | "core.num.U64.is_multiple_of", [x, m] => outcome (core.num.U64.is_multiple_of (u64 x) (u64 m)) toString
+  | "core.cmp.PartialEq.eq.gl", [x, y] =>
+    outcome (core.cmp.PartialEq.eq field.Gl.Insts.CoreCmpPartialEqGl (u64 x) (u64 y)) toString
+  | "core.cmp.PartialEq.eq.ext", [a, b, c, d, e, f] => do
+    let x ← ext [a, b, c]
+    let y ← ext [d, e, f]
+    outcome (core.cmp.PartialEq.eq field.Ext.Insts.CoreCmpPartialEqExt x y) toString
+  | "core.clone.Clone.clone.gl", [x] => outcome (core.clone.Clone.clone field.Gl.Insts.CoreCloneClone (u64 x)) value
+  | "core.clone.Clone.clone.ext", xs =>
+    (ext xs).map fun a => outcome (core.clone.Clone.clone field.Ext.Insts.CoreCloneClone a) extWords
+  | "core.cmp.Eq.gl", [x] =>
+    outcome (core.cmp.Eq.assert_fields_are_eq field.Gl.Insts.CoreCmpEq (u64 x)) fun _ => "unit"
+  | "core.cmp.Eq.ext", xs =>
+    (ext xs).map fun a => outcome (core.cmp.Eq.assert_fields_are_eq field.Ext.Insts.CoreCmpEq a) fun _ => "unit"
+  | _, _ => none
+
 def run : String → List ℕ → Option String
   | "split", [x] => outcome (neo_verified.layout.split (usize x)) fun a => " ".intercalate (a.val.map value)
   | "variables", [x] => outcome (neo_verified.layout.variables (usize x)) value
@@ -164,8 +237,8 @@ def run : String → List ℕ → Option String
   | "core.option.Option.unwrap.none", [] => outcome (core.option.Option.unwrap (none : Option Usize)) value
   | "core.num.Usize.BITS", [] => s!"ok {value core.num.Usize.BITS}"
   | "Array.make", [x, y] => s!"ok {" ".intercalate ((Aeneas.Std.Array.make 2#usize [usize x, usize y]).val.map value)}"
-  | case, words => ((layoutCase case words).orElse fun _ => modelCase case words).orElse fun _ =>
-    degreesCase case words
+  | case, words => (((layoutCase case words).orElse fun _ => modelCase case words).orElse fun _ =>
+    degreesCase case words).orElse fun _ => fieldCase case words
 
 end CompressionLeanRust.RunCheck
 

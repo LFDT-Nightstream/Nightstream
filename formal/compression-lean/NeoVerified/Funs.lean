@@ -542,6 +542,387 @@ def degrees.shrink (shape : layout.Shape) : Result Std.Usize := do
   let i1 ← degrees.add i batching
   degrees.add i1 inner
 
+/-- [neo_verified::field::MODULUS]
+    Source: 'crates/neo-verified/src/field.rs', lines 17:0-17:47
+    Visibility: public -/
+@[global_simps, irreducible]
+def field.MODULUS : Std.U64 := 18446744069414584321#u64
+
+/-- [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Gl}::clone]:
+    Source: 'crates/neo-verified/src/field.rs', lines 20:9-20:14
+    Visibility: public -/
+def field.Gl.Insts.CoreCloneClone.clone
+  (self : field.Gl) : Result field.Gl := do
+  ok self
+
+/-- Trait implementation: [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Gl}]
+    Source: 'crates/neo-verified/src/field.rs', lines 20:9-20:14 -/
+@[reducible]
+def field.Gl.Insts.CoreCloneClone : core.clone.Clone field.Gl := {
+  clone := field.Gl.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [neo_verified::field::{impl core::marker::Copy for neo_verified::field::Gl}]
+    Source: 'crates/neo-verified/src/field.rs', lines 20:16-20:20 -/
+@[reducible]
+def field.Gl.Insts.CoreMarkerCopy : core.marker.Copy field.Gl := {
+  cloneInst := field.Gl.Insts.CoreCloneClone
+}
+
+/-- Trait implementation: [neo_verified::field::{impl core::marker::StructuralPartialEq for neo_verified::field::Gl}]
+    Source: 'crates/neo-verified/src/field.rs', lines 20:22-20:31 -/
+@[reducible]
+def field.Gl.Insts.CoreMarkerStructuralPartialEq :
+  core.marker.StructuralPartialEq field.Gl := {
+}
+
+/-- [neo_verified::field::{impl core::cmp::PartialEq<neo_verified::field::Gl> for neo_verified::field::Gl}::eq]:
+    Source: 'crates/neo-verified/src/field.rs', lines 20:22-20:31
+    Visibility: public -/
+def field.Gl.Insts.CoreCmpPartialEqGl.eq
+  (self : field.Gl) (other : field.Gl) : Result Bool := do
+  ok (self = other)
+
+/-- Trait implementation: [neo_verified::field::{impl core::cmp::PartialEq<neo_verified::field::Gl> for neo_verified::field::Gl}]
+    Source: 'crates/neo-verified/src/field.rs', lines 20:22-20:31 -/
+@[reducible]
+def field.Gl.Insts.CoreCmpPartialEqGl : core.cmp.PartialEq field.Gl field.Gl
+  := {
+  eq := field.Gl.Insts.CoreCmpPartialEqGl.eq
+}
+
+/-- [neo_verified::field::{impl core::cmp::Eq for neo_verified::field::Gl}::assert_fields_are_eq]:
+    Source: 'crates/neo-verified/src/field.rs', lines 20:33-20:35
+    Visibility: public -/
+def field.Gl.Insts.CoreCmpEq.assert_fields_are_eq
+  (self : field.Gl) : Result Unit := do
+  ok ()
+
+/-- Trait implementation: [neo_verified::field::{impl core::cmp::Eq for neo_verified::field::Gl}]
+    Source: 'crates/neo-verified/src/field.rs', lines 20:33-20:35 -/
+@[reducible]
+def field.Gl.Insts.CoreCmpEq : core.cmp.Eq field.Gl := {
+  partialEqInst := field.Gl.Insts.CoreCmpPartialEqGl
+  assert_fields_are_eq := field.Gl.Insts.CoreCmpEq.assert_fields_are_eq
+}
+
+/-- [neo_verified::field::GL_ZERO]
+    Source: 'crates/neo-verified/src/field.rs', lines 23:0-23:30
+    Visibility: public -/
+@[global_simps, irreducible] def field.GL_ZERO : field.Gl := 0#u64
+
+/-- [neo_verified::field::GL_ONE]
+    Source: 'crates/neo-verified/src/field.rs', lines 24:0-24:29
+    Visibility: public -/
+@[global_simps, irreducible] def field.GL_ONE : field.Gl := 1#u64
+
+/-- [neo_verified::field::canonical]:
+    Source: 'crates/neo-verified/src/field.rs', lines 27:0-33:1
+    Visibility: public -/
+def field.canonical (word : Std.U64) : Result (Option field.Gl) := do
+  if word < field.MODULUS
+  then ok (some word)
+  else ok none
+
+/-- [neo_verified::field::reduce_word]:
+    Source: 'crates/neo-verified/src/field.rs', lines 46:0-52:1 -/
+def field.reduce_word (word : Std.U64) : Result Std.U64 := do
+  if word < field.MODULUS
+  then ok word
+  else ok (core.num.U64.wrapping_sub word field.MODULUS)
+
+/-- [neo_verified::field::reduce]:
+    Source: 'crates/neo-verified/src/field.rs', lines 36:0-38:1
+    Visibility: public -/
+def field.reduce (word : Std.U64) : Result field.Gl := do
+  let i ← field.reduce_word word
+  ok i
+
+/-- [neo_verified::field::gl_word]:
+    Source: 'crates/neo-verified/src/field.rs', lines 41:0-43:1
+    Visibility: public -/
+def field.gl_word (a : field.Gl) : Result Std.U64 := do
+  field.reduce_word a
+
+/-- [neo_verified::field::add_words]:
+    Source: 'crates/neo-verified/src/field.rs', lines 55:0-62:1 -/
+def field.add_words (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
+  let room ← lift (core.num.U64.wrapping_sub field.MODULUS b)
+  if a < room
+  then ok (core.num.U64.wrapping_add a b)
+  else ok (core.num.U64.wrapping_sub a room)
+
+/-- [neo_verified::field::sub_words]:
+    Source: 'crates/neo-verified/src/field.rs', lines 65:0-71:1 -/
+def field.sub_words (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
+  if b <= a
+  then ok (core.num.U64.wrapping_sub a b)
+  else
+    let i ← lift (core.num.U64.wrapping_sub b a)
+    ok (core.num.U64.wrapping_sub field.MODULUS i)
+
+/-- [neo_verified::field::low_half]:
+    Source: 'crates/neo-verified/src/field.rs', lines 74:0-76:1 -/
+def field.low_half (word : Std.U64) : Result Std.U64 := do
+  let i ← lift (UScalar.cast .U32 word)
+  ok (UScalar.cast .U64 i)
+
+/-- [neo_verified::field::high_half]:
+    Source: 'crates/neo-verified/src/field.rs', lines 79:0-81:1 -/
+def field.high_half (word : Std.U64) : Result Std.U64 := do
+  ok (core.num.U64.wrapping_shr word 32#u32)
+
+/-- [neo_verified::field::fold_high]:
+    Source: 'crates/neo-verified/src/field.rs', lines 85:0-88:1 -/
+def field.fold_high (word : Std.U64) : Result Std.U64 := do
+  let low ← field.low_half word
+  let i ← lift (core.num.U64.wrapping_shl low 32#u32)
+  let i1 ← lift (core.num.U64.wrapping_sub i low)
+  let i2 ← field.high_half word
+  field.sub_words i1 i2
+
+/-- [neo_verified::field::mul_words]:
+    Source: 'crates/neo-verified/src/field.rs', lines 92:0-106:1 -/
+def field.mul_words (a : Std.U64) (b : Std.U64) : Result Std.U64 := do
+  let a0 ← field.low_half a
+  let a1 ← field.high_half a
+  let b0 ← field.low_half b
+  let b1 ← field.high_half b
+  let p00 ← lift (core.num.U64.wrapping_mul a0 b0)
+  let p10 ← lift (core.num.U64.wrapping_mul a1 b0)
+  let i ← field.high_half p00
+  let t0 ← lift (core.num.U64.wrapping_add p10 i)
+  let p01 ← lift (core.num.U64.wrapping_mul a0 b1)
+  let i1 ← field.low_half t0
+  let t1 ← lift (core.num.U64.wrapping_add p01 i1)
+  let i2 ← field.low_half t1
+  let i3 ← lift (core.num.U64.wrapping_shl i2 32#u32)
+  let i4 ← field.low_half p00
+  let low ← lift (core.num.U64.wrapping_add i3 i4)
+  let p11 ← lift (core.num.U64.wrapping_mul a1 b1)
+  let i5 ← field.high_half t0
+  let i6 ← lift (core.num.U64.wrapping_add p11 i5)
+  let i7 ← field.high_half t1
+  let high ← lift (core.num.U64.wrapping_add i6 i7)
+  let i8 ← field.reduce_word low
+  let i9 ← field.fold_high high
+  field.add_words i8 i9
+
+/-- [neo_verified::field::gl_add]:
+    Source: 'crates/neo-verified/src/field.rs', lines 108:0-110:1
+    Visibility: public -/
+def field.gl_add (a : field.Gl) (b : field.Gl) : Result field.Gl := do
+  let i ← field.reduce_word a
+  let i1 ← field.reduce_word b
+  let i2 ← field.add_words i i1
+  ok i2
+
+/-- [neo_verified::field::gl_sub]:
+    Source: 'crates/neo-verified/src/field.rs', lines 112:0-114:1
+    Visibility: public -/
+def field.gl_sub (a : field.Gl) (b : field.Gl) : Result field.Gl := do
+  let i ← field.reduce_word a
+  let i1 ← field.reduce_word b
+  let i2 ← field.sub_words i i1
+  ok i2
+
+/-- [neo_verified::field::gl_neg]:
+    Source: 'crates/neo-verified/src/field.rs', lines 116:0-118:1
+    Visibility: public -/
+def field.gl_neg (a : field.Gl) : Result field.Gl := do
+  field.gl_sub field.GL_ZERO a
+
+/-- [neo_verified::field::gl_mul]:
+    Source: 'crates/neo-verified/src/field.rs', lines 120:0-122:1
+    Visibility: public -/
+def field.gl_mul (a : field.Gl) (b : field.Gl) : Result field.Gl := do
+  let i ← field.reduce_word a
+  let i1 ← field.reduce_word b
+  let i2 ← field.mul_words i i1
+  ok i2
+
+/-- [neo_verified::field::gl_pow]:
+    Source: 'crates/neo-verified/src/field.rs', lines 125:0-136:1
+    Visibility: public -/
+def field.gl_pow (a : field.Gl) (e : Std.U64) : Result field.Gl := do
+  if e = 0#u64
+  then ok field.GL_ONE
+  else
+    let g ← field.gl_mul a a
+    let i ← lift (core.num.U64.wrapping_shr e 1#u32)
+    let half ← field.gl_pow g i
+    let b ← core.num.U64.is_multiple_of e 2#u64
+    if b
+    then ok half
+    else field.gl_mul half a
+partial_fixpoint
+
+/-- [neo_verified::field::gl_inv]:
+    Source: 'crates/neo-verified/src/field.rs', lines 139:0-141:1
+    Visibility: public -/
+def field.gl_inv (a : field.Gl) : Result field.Gl := do
+  let i ← lift (core.num.U64.wrapping_sub field.MODULUS 2#u64)
+  field.gl_pow a i
+
+/-- [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Ext}::clone]:
+    Source: 'crates/neo-verified/src/field.rs', lines 144:9-144:14
+    Visibility: public -/
+def field.Ext.Insts.CoreCloneClone.clone
+  (self : field.Ext) : Result field.Ext := do
+  ok self
+
+/-- Trait implementation: [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Ext}]
+    Source: 'crates/neo-verified/src/field.rs', lines 144:9-144:14 -/
+@[reducible]
+def field.Ext.Insts.CoreCloneClone : core.clone.Clone field.Ext := {
+  clone := field.Ext.Insts.CoreCloneClone.clone
+}
+
+/-- Trait implementation: [neo_verified::field::{impl core::marker::Copy for neo_verified::field::Ext}]
+    Source: 'crates/neo-verified/src/field.rs', lines 144:16-144:20 -/
+@[reducible]
+def field.Ext.Insts.CoreMarkerCopy : core.marker.Copy field.Ext := {
+  cloneInst := field.Ext.Insts.CoreCloneClone
+}
+
+/-- Trait implementation: [neo_verified::field::{impl core::marker::StructuralPartialEq for neo_verified::field::Ext}]
+    Source: 'crates/neo-verified/src/field.rs', lines 144:22-144:31 -/
+@[reducible]
+def field.Ext.Insts.CoreMarkerStructuralPartialEq :
+  core.marker.StructuralPartialEq field.Ext := {
+}
+
+/-- [neo_verified::field::{impl core::cmp::PartialEq<neo_verified::field::Ext> for neo_verified::field::Ext}::eq]:
+    Source: 'crates/neo-verified/src/field.rs', lines 144:22-144:31
+    Visibility: public -/
+def field.Ext.Insts.CoreCmpPartialEqExt.eq
+  (self : field.Ext) (other : field.Ext) : Result Bool := do
+  let b ← field.Gl.Insts.CoreCmpPartialEqGl.eq self.c0 other.c0
+  if b
+  then
+    let b1 ← field.Gl.Insts.CoreCmpPartialEqGl.eq self.c1 other.c1
+    if b1
+    then field.Gl.Insts.CoreCmpPartialEqGl.eq self.c2 other.c2
+    else ok false
+  else ok false
+
+/-- Trait implementation: [neo_verified::field::{impl core::cmp::PartialEq<neo_verified::field::Ext> for neo_verified::field::Ext}]
+    Source: 'crates/neo-verified/src/field.rs', lines 144:22-144:31 -/
+@[reducible]
+def field.Ext.Insts.CoreCmpPartialEqExt : core.cmp.PartialEq field.Ext
+  field.Ext := {
+  eq := field.Ext.Insts.CoreCmpPartialEqExt.eq
+}
+
+/-- [neo_verified::field::{impl core::cmp::Eq for neo_verified::field::Ext}::assert_fields_are_eq]:
+    Source: 'crates/neo-verified/src/field.rs', lines 144:33-144:35
+    Visibility: public -/
+def field.Ext.Insts.CoreCmpEq.assert_fields_are_eq
+  (self : field.Ext) : Result Unit := do
+  ok ()
+
+/-- Trait implementation: [neo_verified::field::{impl core::cmp::Eq for neo_verified::field::Ext}]
+    Source: 'crates/neo-verified/src/field.rs', lines 144:33-144:35 -/
+@[reducible]
+def field.Ext.Insts.CoreCmpEq : core.cmp.Eq field.Ext := {
+  partialEqInst := field.Ext.Insts.CoreCmpPartialEqExt
+  assert_fields_are_eq := field.Ext.Insts.CoreCmpEq.assert_fields_are_eq
+}
+
+/-- [neo_verified::field::EXT_ZERO]
+    Source: 'crates/neo-verified/src/field.rs', lines 151:0-155:2
+    Visibility: public -/
+@[global_simps, irreducible]
+def field.EXT_ZERO : field.Ext :=
+  { c0 := field.GL_ZERO, c1 := field.GL_ZERO, c2 := field.GL_ZERO }
+
+/-- [neo_verified::field::EXT_ONE]
+    Source: 'crates/neo-verified/src/field.rs', lines 157:0-161:2
+    Visibility: public -/
+@[global_simps, irreducible]
+def field.EXT_ONE : field.Ext :=
+  { c0 := field.GL_ONE, c1 := field.GL_ZERO, c2 := field.GL_ZERO }
+
+/-- [neo_verified::field::ext_of_gl]:
+    Source: 'crates/neo-verified/src/field.rs', lines 163:0-169:1
+    Visibility: public -/
+def field.ext_of_gl (a : field.Gl) : Result field.Ext := do
+  let i ← field.reduce_word a
+  ok { c0 := i, c1 := field.GL_ZERO, c2 := field.GL_ZERO }
+
+/-- [neo_verified::field::ext_add]:
+    Source: 'crates/neo-verified/src/field.rs', lines 171:0-177:1
+    Visibility: public -/
+def field.ext_add (a : field.Ext) (b : field.Ext) : Result field.Ext := do
+  let g ← field.gl_add a.c0 b.c0
+  let g1 ← field.gl_add a.c1 b.c1
+  let g2 ← field.gl_add a.c2 b.c2
+  ok { c0 := g, c1 := g1, c2 := g2 }
+
+/-- [neo_verified::field::ext_sub]:
+    Source: 'crates/neo-verified/src/field.rs', lines 179:0-185:1
+    Visibility: public -/
+def field.ext_sub (a : field.Ext) (b : field.Ext) : Result field.Ext := do
+  let g ← field.gl_sub a.c0 b.c0
+  let g1 ← field.gl_sub a.c1 b.c1
+  let g2 ← field.gl_sub a.c2 b.c2
+  ok { c0 := g, c1 := g1, c2 := g2 }
+
+/-- [neo_verified::field::ext_neg]:
+    Source: 'crates/neo-verified/src/field.rs', lines 187:0-189:1
+    Visibility: public -/
+def field.ext_neg (a : field.Ext) : Result field.Ext := do
+  field.ext_sub field.EXT_ZERO a
+
+/-- [neo_verified::field::ext_mul]:
+    Source: 'crates/neo-verified/src/field.rs', lines 192:0-203:1
+    Visibility: public -/
+def field.ext_mul (a : field.Ext) (b : field.Ext) : Result field.Ext := do
+  let g ← field.gl_mul a.c1 b.c2
+  let g1 ← field.gl_mul a.c2 b.c1
+  let d3 ← field.gl_add g g1
+  let d4 ← field.gl_mul a.c2 b.c2
+  let g2 ← field.gl_mul a.c0 b.c0
+  let g3 ← field.gl_add g2 d3
+  let g4 ← field.gl_mul a.c0 b.c1
+  let g5 ← field.gl_mul a.c1 b.c0
+  let g6 ← field.gl_add g4 g5
+  let g7 ← field.gl_add g6 d3
+  let g8 ← field.gl_add g7 d4
+  let g9 ← field.gl_mul a.c0 b.c2
+  let g10 ← field.gl_mul a.c1 b.c1
+  let g11 ← field.gl_add g9 g10
+  let g12 ← field.gl_mul a.c2 b.c0
+  let g13 ← field.gl_add g11 g12
+  let g14 ← field.gl_add g13 d4
+  ok { c0 := g3, c1 := g8, c2 := g14 }
+
+/-- [neo_verified::field::ext_scale]:
+    Source: 'crates/neo-verified/src/field.rs', lines 205:0-211:1
+    Visibility: public -/
+def field.ext_scale
+  (a : field.Ext) («by» : field.Gl) : Result field.Ext := do
+  let g ← field.gl_mul a.c0 «by»
+  let g1 ← field.gl_mul a.c1 «by»
+  let g2 ← field.gl_mul a.c2 «by»
+  ok { c0 := g, c1 := g1, c2 := g2 }
+
+/-- [neo_verified::field::ext_pow]:
+    Source: 'crates/neo-verified/src/field.rs', lines 214:0-225:1
+    Visibility: public -/
+def field.ext_pow (a : field.Ext) (e : Std.U64) : Result field.Ext := do
+  if e = 0#u64
+  then ok field.EXT_ONE
+  else
+    let e1 ← field.ext_mul a a
+    let i ← lift (core.num.U64.wrapping_shr e 1#u32)
+    let half ← field.ext_pow e1 i
+    let b ← core.num.U64.is_multiple_of e 2#u64
+    if b
+    then ok half
+    else field.ext_mul half a
+partial_fixpoint
+
 /-- [neo_verified::layout::{impl core::clone::Clone for neo_verified::layout::Shape}::clone]:
     Source: 'crates/neo-verified/src/layout.rs', lines 16:9-16:14
     Visibility: public -/

@@ -77,12 +77,6 @@ theorem index_ok {α : Type} {n : Usize} (v : Aeneas.Std.Array α n) (i : Usize)
 
 theorem lift_ok {α : Type} (x : α) : lift x = ok x := rfl
 
-/-- `Sound` and `Complete` from the two halves that each proof shows. -/
-theorem complete_of {α β γ : Type} {H : α → Prop} {f : α → Result β} {view : β → γ} {copy : α → γ}
-    (sound : Sound f view copy) (witness : ∃ x, H x) (succeeds : ∀ x, H x → ∃ y, f x = ok y) :
-    Complete H f view copy :=
-  ⟨witness, fun x hx => let ⟨y, hy⟩ := succeeds x hx; ⟨y, hy, sound x y hy⟩⟩
-
 /-! ## `place` and `slot` -/
 
 theorem split_parts {size : Usize} {a : Aeneas.Std.Array Usize 2#usize} (h : layout.split size = ok a) :

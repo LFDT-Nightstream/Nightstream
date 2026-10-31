@@ -7,7 +7,7 @@ use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing};
 
 use super::word;
 use crate::circuit::algebra::Kx;
-use crate::circuit::Native;
+use crate::circuit::Fast;
 use crate::field::{eq_table, re_im, Ext, Gl};
 use crate::mle::{chi, eval_k, identity, lane_split, less_than, scaled_eq_point, step};
 use crate::sumcheck;
@@ -30,7 +30,7 @@ fn words(r: &[K]) -> Vec<[Gl; 2]> {
 }
 
 /// A `K ⊗ Ext` value as `[re, im]`.
-fn pair(value: Kx<Native>) -> [Ext; 2] {
+fn pair(value: Kx<Fast>) -> [Ext; 2] {
     [value.re, value.im]
 }
 
@@ -57,7 +57,7 @@ fn scaled_eq_point_matches_power_weights() {
         .collect();
     let c = ext(3);
     let direct: Ext = (0..64u64).map(|i| c.exp_u64(i) * f[i as usize]).sum();
-    let (kappa, point) = scaled_eq_point(&mut Native, c, 6).unwrap();
+    let (kappa, point) = scaled_eq_point(&mut Fast, c, 6).unwrap();
     assert_eq!(direct, kappa * sumcheck::evaluate(&f, &point));
     // Control: the unscaled point (c, c^2, ...) is not the right one.
     let unscaled: Vec<Ext> = (0..6).map(|t| c.exp_u64(1 << t)).collect();
@@ -71,7 +71,7 @@ fn intervals_steps_and_identity_match_their_tables() {
     let eq = eq_table(&point);
     for bound in [0u64, 1, 77, 200, 255, 256] {
         let direct: Ext = eq.iter().take(bound as usize).copied().sum();
-        assert_eq!(less_than(&mut Native, &point, bound), direct, "bound {bound}");
+        assert_eq!(less_than(&mut Fast, &point, bound), direct, "bound {bound}");
     }
     let starts = [0u64, 9, 40, 41, 130, 199];
     let values: Vec<Ext> = (0..starts.len()).map(|s| ext(50 + s as u64)).collect();
@@ -83,18 +83,15 @@ fn intervals_steps_and_identity_match_their_tables() {
         })
         .collect();
     assert_eq!(
-        step(&mut Native, &point, &starts, &values, end),
+        step(&mut Fast, &point, &starts, &values, end),
         sumcheck::evaluate(&table, &point)
     );
     assert_ne!(
-        step(&mut Native, &point, &starts, &values, end + 1),
+        step(&mut Fast, &point, &starts, &values, end + 1),
         sumcheck::evaluate(&table, &point)
     );
     let identity_table: Vec<Ext> = (0..256u64).map(|x| Ext::from(Gl::from_u64(x))).collect();
-    assert_eq!(
-        identity(&mut Native, &point),
-        sumcheck::evaluate(&identity_table, &point)
-    );
+    assert_eq!(identity(&mut Fast, &point), sumcheck::evaluate(&identity_table, &point));
 }
 
 #[test]
@@ -103,7 +100,7 @@ fn chi_at_an_ext_point_matches_the_k_table() {
     let point = points(5, 6);
     let eq = eq_table(&point);
     let direct = k_sum((0..64).map(|x| (chi_at(&r, x), eq[x])));
-    assert_eq!(pair(chi(&mut Native, &words(&r), &point)), direct);
+    assert_eq!(pair(chi(&mut Fast, &words(&r), &point)), direct);
 }
 
 #[test]
@@ -116,7 +113,7 @@ fn lane_split_matches_every_run_start() {
     let g = |c: usize| block_weight[c / D] * tau[c % D];
     for (length, ratio) in [(41, 3u64), (1, 1), (54, 5), (17, 2)] {
         let ratio = Gl::from_u64(ratio);
-        let [head, tail] = lane_split(&mut Native, &tau, length, ratio);
+        let [head, tail] = lane_split(&mut Fast, &tau, length, ratio);
         for c in 0..=D * blocks - length {
             let (b, l) = (c / D, c % D);
             let direct: Ext = (0..length)
@@ -131,7 +128,7 @@ fn lane_split_matches_every_run_start() {
     }
     // Control: a tail exponent of 53 - l instead of 54 - l breaks the split.
     let ratio = Gl::from_u64(3);
-    let [head, tail] = lane_split(&mut Native, &tau, 41, ratio);
+    let [head, tail] = lane_split(&mut Fast, &tau, 41, ratio);
     let c = D * 2 + 30;
     let direct: Ext = (0..41).map(|k| g(c + k) * ratio.exp_u64(k as u64)).sum();
     let wrong_tail = tail[30] * ratio.inverse();
@@ -152,14 +149,10 @@ fn eval_k_division_matches_brute_force() {
                 .map(|(b, l)| (chi_at(&r, D * b + l), eq[b] * tau[l])),
         );
         let r = words(&r);
-        assert_eq!(
-            pair(eval_k(&mut Native, &r, &s, &tau, blocks)),
-            direct,
-            "{blocks} blocks"
-        );
+        assert_eq!(pair(eval_k(&mut Fast, &r, &s, &tau, blocks)), direct, "{blocks} blocks");
         // Control: one block too many.
         if blocks < 64 {
-            assert_ne!(pair(eval_k(&mut Native, &r, &s, &tau, blocks + 1)), direct);
+            assert_ne!(pair(eval_k(&mut Fast, &r, &s, &tau, blocks + 1)), direct);
         }
     }
 }

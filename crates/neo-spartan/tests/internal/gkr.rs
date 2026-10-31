@@ -3,7 +3,7 @@
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing};
 
 use super::{fresh, gkr_verify, word};
-use crate::circuit::Native;
+use crate::circuit::Fast;
 use crate::field::{signed, Ext, Gl};
 use crate::gkr::{prove, GkrProof, Leaves, Tree, TreeClaim, TreeShape};
 use crate::norm::{histogram, words};
@@ -37,7 +37,7 @@ fn run_verify(proof: &GkrProof, shapes: &[TreeShape]) -> Option<Vec<TreeClaim<Ex
 }
 
 fn table_sum(counts: &[u32], beta: Ext) -> Ext {
-    crate::norm::table_sum(&mut Native, &words(counts), BOUND, beta).unwrap()
+    crate::norm::table_sum(&mut Fast, &words(counts), BOUND, beta).unwrap()
 }
 
 #[test]

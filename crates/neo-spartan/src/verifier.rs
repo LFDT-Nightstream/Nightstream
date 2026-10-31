@@ -6,6 +6,7 @@
 //! the seed: the fold transcript (or a circuit replay of it) supplies it.
 
 use neo_math::D;
+use neo_verified::degrees::{FOLD, RUN_ORACLES};
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing};
 
 use crate::circuit::algebra;
@@ -16,9 +17,9 @@ use crate::gkr::{self, GkrView, TreeShape};
 use crate::matrix::{EarlyChallenges, EarlyValues};
 use crate::relation::{kappa, p1_points, setup_point, Relation};
 use crate::ring::{self, Mixing};
-use crate::setup::{self, LeafView, FOLD};
+use crate::setup::{self, LeafView};
 use crate::whir::{self, OpeningView};
-use crate::{mle, sumcheck, ClaimWords, Error, Proof, LANE_VARIABLES, RUN_ORACLES};
+use crate::{mle, sumcheck, ClaimWords, Error, Proof, LANE_VARIABLES};
 
 /// A layer-1 proof as backend words, or zeros of its shape.
 pub(crate) struct ProofView<'p, B: Backend> {
@@ -245,7 +246,16 @@ pub(crate) fn verify<B: Backend>(
     let root = key.root().map(|word| algebra::constant(b, word));
     let mut queried = Vec::with_capacity(2 * relation.queries);
     for (bits, leaf) in index_bits.iter().zip(&proof.leaves) {
-        queried.extend(setup::check(b, root, variables, bits, leaf, &groups, &alpha)?);
+        queried.extend(neo_verified::setup::check(
+            b,
+            root,
+            variables,
+            bits,
+            &leaf.values,
+            &leaf.path,
+            &groups,
+            &alpha,
+        )?);
     }
 
     let beta = duplex.sample_ext(b);

@@ -1,12 +1,19 @@
 name = "compression_lean"
 version = "0.1.0"
 defaultTargets = ["CompressionLean", "CompressionLeanTests", "CompressionLeanExe", "emitTerminal", "replayLayer1",
-  "lowerCheck", "terminalCheck", "setupCheck", "setupRootCheck", "runsCheck", "status"]
+  "lowerCheck", "terminalCheck", "setupCheck", "setupRootCheck", "runsCheck", "status", "NeoVerified",
+  "CompressionLeanRust", "CompressionLeanRustTests", "CompressionLeanRustClaims"]
 allowNonModules = true
 
 [[require]]
 name = "nightstream_fprime"
 path = "../nightstream-fprime"
+
+[[require]]
+name = "aeneas"
+git = "https://github.com/AeneasVerif/aeneas.git"
+rev = "de16f3cf877976e966906dc890f63dcb418884fa"
+subDir = "backends/lean"
 
 # Warnings are errors, so a plain `lake build` fails as a strict check would.
 [[lean_lib]]
@@ -21,6 +28,32 @@ roots = ["CompressionLeanTests.Axioms", "CompressionLeanTests.BlockDigest", "Com
   "CompressionLeanTests.Stack", "CompressionLeanTests.Vocabulary"]
 # The axiom audit reads the build of each executable, so the executables build first.
 needs = ["ports", "statusPage", "CompressionLeanExe"]
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
+
+# Aeneas's translation of `crates/neo-verified`. `scripts/aeneas_extract.sh` writes it, and
+# CI fails when a file differs from the script's output.
+[[lean_lib]]
+name = "NeoVerified"
+roots = ["NeoVerified.Types", "NeoVerified.Funs1", "NeoVerified.Funs2", "NeoVerified.Funs3", "NeoVerified.Funs4",
+  "NeoVerified.Funs5", "NeoVerified.Funs6", "NeoVerified.Funs7", "NeoVerified.Funs"]
+
+[[lean_lib]]
+name = "CompressionLeanRust"
+roots = ["CompressionLeanRust"]
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
+
+# The claims for the Rust shrink verifier (`CompressionLeanRust/Verifier.lean`). It imports
+# `CompressionLean.Claims`, so the aeneas CI job, which builds the translation and its proofs, does
+# not build it.
+[[lean_lib]]
+name = "CompressionLeanRustClaims"
+roots = ["CompressionLeanRustClaims"]
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
+
+[[lean_lib]]
+name = "CompressionLeanRustTests"
+roots = ["CompressionLeanRustTests"]
+needs = ["ports"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 # The executables, their readers and the Lean side of the Rust test programs.

@@ -15,6 +15,7 @@ neo-ccs = { path = "../neo-ccs" }
 neo-math = { path = "../neo-math" }
 neo-reductions = { path = "../neo-reductions" }
 neo-transcript = { path = "../neo-transcript" }
+neo-verified = { path = "../neo-verified" }
 p3-field = { workspace = true }
 bincode = { workspace = true }
 rand_chacha_p3 = { workspace = true }

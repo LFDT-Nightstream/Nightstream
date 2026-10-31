@@ -16,9 +16,8 @@ mod package;
 pub(crate) use package::IDENTIFIER as TERMINAL_PACKAGE_IDENTIFIER;
 pub(crate) use package::{package, preload, Package, TerminalPackageError};
 
-use neo_math::F;
-use neo_spartan::{Backend, Error, Relation};
-use p3_field::{Field, PrimeCharacteristicRing, PrimeField64};
+use neo_spartan::{Backend, Error, Hint, Relation};
+use p3_field::PrimeField64;
 
 use super::finish::TerminalProof;
 use super::Stage1State;
@@ -58,11 +57,7 @@ impl neo_spartan::shrink::Program for FinalProgram<'_> {
             .map(|word| b.public(word))
             .collect();
         // An active proof has a positive iteration.
-        let inverse = b.hint(&[statement[0]], 1, &|values| {
-            vec![F::from_u64(values[0])
-                .try_inverse()
-                .map_or(0, |v| v.as_canonical_u64())]
-        })[0];
+        let inverse = b.hint(&[statement[0]], 1, &Hint::Inverse)[0];
         let product = b.mul(statement[0], inverse);
         let one = b.constant(1);
         b.assert_equal(product, one, "positive iteration")?;

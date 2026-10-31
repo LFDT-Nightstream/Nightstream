@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CRATES = {
     "nightstream", "nightstream-fprime",
     "neo-math", "neo-params", "neo-ccs", "neo-ajtai", "neo-transcript",
-    "neo-reductions", "neo-prover-metal", "neo-prover-cuda", "neo-spartan",
+    "neo-reductions", "neo-prover-metal", "neo-prover-cuda", "neo-spartan", "neo-verified",
     "neo-application",
 }
 NATIVE = ("native", "metal")

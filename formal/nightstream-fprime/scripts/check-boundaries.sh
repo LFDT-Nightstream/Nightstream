@@ -39,8 +39,18 @@ if lean_files | xargs grep -nE 'native_decide|ofReduceBool|\+native\b|\bnative\s
 fi
 # The end of a doc comment, `set_option … in`, `open … in`, a doc comment,
 # attributes and modifiers can come before `axiom` or `unsafe` on its line.
-# A comment that only names the word passes.
-if lean_files | xargs grep -nE '^\s*(-/\s*)?((set_option\s+\S+\s+\S+|open(\s+\S+)+)\s+in\s+)*(/--.*-/\s*)?(@\[.*\]\s*)?((private|protected|public|noncomputable|unsafe)\s+)*(axiom|unsafe)\b|\bsorry\b|\badmit\b' 2>/dev/null; then
+# A comment that only names the word passes. The rejection tests of the
+# axiom audit need these tokens: marked lines of F′'s tests/AuditNegative.lean
+# pass, and check 9 fails any module that imports that file.
+without_audit_fixtures() {
+  if [[ "$package" == "$ROOT" ]]; then
+    grep -vE '^tests/AuditNegative\.lean:[0-9]+:.* -- audit-negative fixture$'
+  else
+    cat
+  fi
+}
+if lean_files | xargs grep -nE '^\s*(-/\s*)?((set_option\s+\S+\s+\S+|open(\s+\S+)+)\s+in\s+)*(/--.*-/\s*)?(@\[.*\]\s*)?((private|protected|public|noncomputable|unsafe)\s+)*(axiom|unsafe)\b|\bsorry\b|\badmit\b' 2>/dev/null \
+   | without_audit_fixtures; then
   fail "sorry / admit / axiom / unsafe is prohibited"
 fi
 
@@ -137,6 +147,7 @@ while (( queue_index < ${#queue[@]} )); do
   [[ -n "$file" ]] || continue
   reachable["$module"]=1
   while IFS= read -r imported; do
+    [[ "$imported" != tests.AuditNegative ]] || fail "$file imports tests.AuditNegative, the axiom audit's rejection fixtures"
     [[ -n "${module_path[$imported]:-}" ]] || continue
     [[ -n "${reachable[$imported]+present}" ]] || queue+=("$imported")
   done < <(imports_of "$file")

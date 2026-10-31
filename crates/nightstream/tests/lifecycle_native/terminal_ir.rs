@@ -33,7 +33,7 @@ use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_math::{D, F};
 use neo_reductions::superneo_eval::{CachedMatrixRows, SuperneoEvalCacheBuilder};
 use neo_spartan::shrink::{run_digest, Program};
-use neo_spartan::{Backend, Error, Key, Native, R1cs, Relation};
+use neo_spartan::{Backend, Error, Hint, Key, Native, R1cs, Rejected, Relation};
 use p3_field::{PrimeCharacteristicRing, PrimeField64};
 
 use super::super::finish::CompressionKey;
@@ -130,17 +130,17 @@ impl Backend for Log {
         std::array::from_fn(|i| self.mul(a[i], by))
     }
 
-    fn ext_inverse(&mut self, a: [u32; 3], _what: &'static str) -> Result<[u32; 3], Error> {
+    fn ext_inverse(&mut self, a: [u32; 3], _what: &'static str) -> Result<[u32; 3], Rejected> {
         let inverse = self.emit(&format!("i{}", handles(&a)), 3);
         Ok([inverse[0], inverse[1], inverse[2]])
     }
 
-    fn assert_zero(&mut self, a: u32, _what: &'static str) -> Result<(), Error> {
+    fn assert_zero(&mut self, a: u32, _what: &'static str) -> Result<(), Rejected> {
         self.emit(&format!("z {a}"), 0);
         Ok(())
     }
 
-    fn bits(&mut self, a: u32, count: usize, _what: &'static str) -> Result<Vec<u32>, Error> {
+    fn bits(&mut self, a: u32, count: usize, _what: &'static str) -> Result<Vec<u32>, Rejected> {
         Ok(self.emit(&format!("b {a} {count}"), count))
     }
 
@@ -155,11 +155,11 @@ impl Backend for Log {
         std::array::from_fn(|lane| outputs[lane])
     }
 
-    fn hint(&mut self, _inputs: &[u32], len: usize, _compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<u32> {
+    fn hint(&mut self, _inputs: &[u32], len: usize, _hint: &Hint) -> Vec<u32> {
         self.emit(&format!("h {len}"), len)
     }
 
-    fn r1cs(&mut self, system: &R1cs, columns: &[u32], _what: &'static str) -> Result<(), Error> {
+    fn r1cs(&mut self, system: &R1cs, columns: &[u32], _what: &'static str) -> Result<(), Rejected> {
         let mut line = format!("r {} {}{}", system.rows(), columns.len(), handles(columns));
         for row in 0..system.rows() {
             for side in system.row(row) {
@@ -301,12 +301,12 @@ fn terminal_program_matches_lean() {
         .into_iter()
         .map(|word| replay.public(word))
         .collect();
-    let inverse = replay.hint(&[statement[0]], 1, &|_| Vec::new())[0];
+    let inverse = replay.hint(&[statement[0]], 1, &Hint::Inverse)[0];
     let product = replay.mul(statement[0], inverse);
     let one = replay.constant(1);
-    replay
+    assert!(replay
         .assert_equal(product, one, "positive iteration")
-        .unwrap();
+        .is_ok());
     let (claim, transcript) = package
         .apply(&mut replay, &statement, context, None)
         .unwrap();
@@ -457,15 +457,15 @@ impl Backend for Moved {
         Native.ext_scale(a, by)
     }
 
-    fn ext_inverse(&mut self, a: Self::E, what: &'static str) -> Result<Self::E, Error> {
+    fn ext_inverse(&mut self, a: Self::E, what: &'static str) -> Result<Self::E, Rejected> {
         Native.ext_inverse(a, what)
     }
 
-    fn assert_zero(&mut self, a: Self::F, what: &'static str) -> Result<(), Error> {
+    fn assert_zero(&mut self, a: Self::F, what: &'static str) -> Result<(), Rejected> {
         Native.assert_zero(a, what)
     }
 
-    fn bits(&mut self, a: Self::F, count: usize, what: &'static str) -> Result<Vec<Self::F>, Error> {
+    fn bits(&mut self, a: Self::F, count: usize, what: &'static str) -> Result<Vec<Self::F>, Rejected> {
         Native.bits(a, count, what)
     }
 
@@ -477,8 +477,8 @@ impl Backend for Moved {
         Native.permute(state)
     }
 
-    fn hint(&mut self, inputs: &[Self::F], len: usize, compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<Self::F> {
-        let mut words = Native.hint(inputs, len, compute);
+    fn hint(&mut self, inputs: &[Self::F], len: usize, hint: &Hint) -> Vec<Self::F> {
+        let mut words = Native.hint(inputs, len, hint);
         if !self.done {
             self.done = true;
             words[0] = Native.add(words[0], Native.constant(1));
@@ -486,7 +486,7 @@ impl Backend for Moved {
         words
     }
 
-    fn r1cs(&mut self, system: &R1cs, columns: &[Self::F], what: &'static str) -> Result<(), Error> {
+    fn r1cs(&mut self, system: &R1cs, columns: &[Self::F], what: &'static str) -> Result<(), Rejected> {
         Native.r1cs(system, columns, what)
     }
 }

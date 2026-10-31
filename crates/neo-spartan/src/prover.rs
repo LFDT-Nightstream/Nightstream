@@ -8,11 +8,12 @@
 use neo_ccs::Mat;
 use neo_math::{D, F};
 use neo_transcript::Poseidon2Transcript;
+use neo_verified::degrees::{FOLD, RUN_ORACLES};
 use p3_challenger_v08::{CanObserve, FieldChallenger};
 use p3_field_v08::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
-use crate::circuit::Native;
+use crate::circuit::Fast;
 use crate::device::Accelerator;
 use crate::field::{coordinates, eq_table, gl, Ext, Gl};
 use crate::gkr::{self, Leaves, Tree};
@@ -20,8 +21,8 @@ use crate::hash::{self, Challenger};
 use crate::matrix::{EarlyChallenges, EarlyValues, Tables};
 use crate::relation::{p1_points, setup_point, Relation, Shape};
 use crate::ring::{self, Mixing};
-use crate::setup::{self, FOLD};
-use crate::{mle, norm, sumcheck, Claim, ClaimWords, Error, Proof, Setup, LANES, LANE_VARIABLES, RUN_ORACLES};
+use crate::setup;
+use crate::{mle, norm, sumcheck, Claim, ClaimWords, Error, Proof, Setup, LANES, LANE_VARIABLES};
 
 /// Prove `claim` for `witness` (54 × blocks), continuing `transcript`. The
 /// Merkle leaves hash on `accelerator`.
@@ -64,13 +65,13 @@ pub fn prove(
     let early_values = tables.early_values(&early, &claims[1..]);
     observe_early(&early_values, &mut challenger);
 
-    let mixing = Mixing::new(&mut Native, challenger.sample_algebra_element(), shape);
+    let mixing = Mixing::new(&mut Fast, challenger.sample_algebra_element(), shape);
     let ubar = tables.slot_weights(&early, &mixing.eval_a());
     let key_weights = ring::key_weights(shape, &mixing, accelerator);
     let eval_a = tables.column_weights(&ubar, shape.blocks);
     let weights = ring::block_weights(shape, &claim.r, &mixing, &eval_a, &key_weights);
     drop(eval_a);
-    let (quotient, _) = ring::divide(&weights, &z, LANES, &ring::targets(&mut Native, &statement, &mixing));
+    let (quotient, _) = ring::divide(&weights, &z, LANES, &ring::targets(&mut Fast, &statement, &mixing));
     challenger.observe_algebra_slice(&quotient);
     let zeta: Ext = challenger.sample_algebra_element();
     let omega = padded(ring::evaluate(&weights, zeta), shape.block_variables);
@@ -79,13 +80,13 @@ pub fn prove(
     drop(z);
     let block_point = &linear_point[LANE_VARIABLES..];
 
-    let (_, lane_point) = mle::scaled_eq_point(&mut Native, zeta, LANE_VARIABLES)
+    let (_, lane_point) = mle::scaled_eq_point(&mut Fast, zeta, LANE_VARIABLES)
         .map_err(|_| Error::Witness("ζ is a pole of the lane weights"))?;
     let variables = key.setup_variables();
-    let key_point = setup_point(&mut Native, &[lane_point.as_slice(), block_point].concat(), variables);
+    let key_point = setup_point(&mut Fast, &[lane_point.as_slice(), block_point].concat(), variables);
     let key_table = key_table(&key_weights, variables);
     drop(key_weights);
-    let lanes = structure.lane_tables(&mut Native, &ring::tau(&mut Native, zeta));
+    let lanes = structure.lane_tables(&mut Fast, &ring::tau(&mut Fast, zeta));
     let omega_a = tables.block_weights(&ubar, &lanes, shape.block_variables);
     let finals = [
         sumcheck::evaluate(&key_table, &key_point),
@@ -95,7 +96,7 @@ pub fn prove(
     challenger.observe_algebra_slice(&finals);
 
     let mu: Ext = challenger.sample_algebra_element();
-    let run_point = setup_point(&mut Native, &claims[1].point, variables);
+    let run_point = setup_point(&mut Fast, &claims[1].point, variables);
     let run_table = run_table(tables, mu, variables);
     let partials = [
         setup::partials(&key_table, &key_point[FOLD..]),
@@ -140,7 +141,7 @@ pub fn prove(
             let bits: Vec<Gl> = (0..variables + 1 - FOLD)
                 .map(|t| Gl::from_usize((index >> t) & 1))
                 .collect();
-            setup::query_point(&mut Native, variables, &bits)
+            setup::query_point(&mut Fast, variables, &bits)
         })
         .collect();
     let p1_points = p1_points(&key_point, &run_point, query_points, block_point, &late[1].point);

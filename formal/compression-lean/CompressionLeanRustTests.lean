@@ -1,0 +1,115 @@
+import Lean
+import CompressionLeanRust
+
+namespace CompressionLeanRustTests
+
+open Lean Elab Command Meta
+
+def standardAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
+
+/-- The Rust path of a translated item: `module.f` is `module.rs::f`, and a method `module.Type.f`
+is `module.rs::Type::f`. -/
+def rustItem (f : Name) : Option String :=
+  match f.components.map toString with
+  | "neo_verified" :: rest@(_ :: _ :: _) =>
+    let path := rest.dropLast
+    match path.reverse with
+    | ty :: modules@(_ :: _) =>
+      if ty.front.isUpper then some s!"crates/neo-verified/src/{"/".intercalate modules.reverse}.rs::{ty}::{rest.getLast!}"
+      else some s!"crates/neo-verified/src/{"/".intercalate path}.rs::{rest.getLast!}"
+    | _ => some s!"crates/neo-verified/src/{"/".intercalate path}.rs::{rest.getLast!}"
+  | _ => none
+
+/-- The backends that a function generic over `B: Backend` may run on: the copies' `Build`, and
+Aeneas's translation of the verifier's `Native`, whose values the `Replay` copies read. -/
+def backends : List Name :=
+  [``CompressionLeanRust.build, ``neo_verified.native.Native.Insts.Neo_verifiedBackendBackendGlExt]
+
+/-- The constant `c` on one tuple of its explicit arguments, `fun x => c x.1 x.2.1 … x.2.2`, or `c`
+itself when it takes one argument. A function generic over `B: Backend` runs on `backend`: its type
+arguments and its backend are fixed first. -/
+def tupled (c backend : Name) : MetaM Expr := do
+  let mut fn ← mkConstWithLevelParams c
+  let generic ← forallTelescope (← inferType fn) fun args _ => do
+    for arg in args do
+      if (← arg.fvarId!.getBinderInfo).isExplicit then
+        return (← inferType arg).isAppOf ``neo_verified.backend.Backend
+    return false
+  if generic then
+    let levels := (← getConstInfo c).levelParams.map fun _ => Level.zero
+    fn ← mkAppM' (mkConst c levels) #[mkConst backend]
+  forallTelescope (← inferType fn) fun args _ => do
+    for arg in args do
+      unless (← arg.fvarId!.getBinderInfo).isExplicit do throwError "{c} takes an implicit argument"
+    if args.size ≤ 1 then return fn
+    let types ← args.mapM inferType
+    let tuple ← types.pop.foldrM (fun t acc => mkAppM ``Prod #[t, acc]) types.back!
+    withLocalDeclD `x tuple fun x => do
+      let mut rest := x
+      let mut parts := #[]
+      for _ in [0:args.size - 1] do
+        parts := parts.push (← mkAppM ``Prod.fst #[rest])
+        rest ← mkAppM ``Prod.snd #[rest]
+      mkLambdaFVars #[x] (mkAppN fn (parts.push rest))
+
+def statement (thm shape : Name) : MetaM (List Expr) := do
+  let some info := (← getEnv).find? thm | throwError "ports.json names {thm}, which is not declared"
+  unless info.type.isAppOf shape do throwError "{thm} does not state {shape}"
+  let axioms := (← collectAxioms thm).toList
+  unless axioms.all standardAxioms.contains do throwError "{thm} uses the axioms {axioms}"
+  return (info.type.getAppArgs.toList.drop 3)
+
+def checkEntry (entry : Json) : MetaM Bool := do
+  let some proof := (entry.getObjVal? "proof").toOption | return false
+  let port ← IO.ofExcept (entry.getObjValAs? Name "lean")
+  let rust ← IO.ofExcept (entry.getObjValAs? String "rust")
+  let sound ← IO.ofExcept (proof.getObjValAs? Name "sound")
+  let complete ← IO.ofExcept (proof.getObjValAs? Name "complete")
+  let [f, view, copy] ← statement sound ``CompressionLeanRust.Sound
+    | throwError "{sound} has the wrong number of arguments"
+  let [_, f', view', copy'] ← statement complete ``CompressionLeanRust.Complete
+    | throwError "{complete} has the wrong number of arguments"
+  unless f == f' && view == view' && copy == copy' do
+    throwError "{sound} and {complete} state different functions, views or copies"
+  let some fn ← lambdaTelescope f fun _ body => pure body.getAppFn.constName?
+    | throwError "{sound} states a function that is not a constant"
+  let onBackend ← backends.anyM fun backend => do
+    let t ← tupled fn backend
+    withReducible (isDefEq f t)
+  unless onBackend do
+    throwError "{sound} states {f}, which is not {fn} on one tuple of its arguments"
+  unless rustItem fn == some rust do
+    throwError "{sound} is about {fn}, which is not Aeneas's translation of {rust}"
+  unless view.getAppFn.constName?.any CompressionLeanRust.views.contains do
+    throwError "{sound} reads the output through {view}, which is not in CompressionLeanRust.views"
+  unless (copy.find? (·.isConstOf port)).isSome do
+    throwError "{sound} states a copy that does not use {port}"
+  return true
+
+elab "#check_rust_proofs" : command => liftTermElabM do
+  for view in CompressionLeanRust.views do
+    unless (← getEnv).contains (view.appendAfter "_injective") do
+      throwError "{view} is in CompressionLeanRust.views and has no {view}_injective theorem"
+  let ports ← IO.ofExcept ((Json.parse (← IO.FS.readFile "ports.json")).bind (·.getArr?))
+  let checked ← ports.filterM fun entry => checkEntry entry
+  if checked.isEmpty then throwError "ports.json names no proof"
+
+#check_rust_proofs
+
+/-- Every theorem of `CompressionLeanRust` uses only the standard axioms, including those that no
+`ports.json` entry names, such as the shrink verifier's statement and models. -/
+elab "#check_rust_axioms" : command => liftTermElabM do
+  let env ← getEnv
+  let mut count := 0
+  for entry in env.constants.toList do
+    unless entry.2 matches .thmInfo _ do continue
+    let some idx := env.getModuleIdxFor? entry.1 | continue
+    unless (`CompressionLeanRust : Name).isPrefixOf env.header.moduleNames[idx.toNat]! do continue
+    count := count + 1
+    let axioms := (← collectAxioms entry.1).toList
+    unless axioms.all standardAxioms.contains do throwError "{entry.1} uses the axioms {axioms}"
+  if count == 0 then throwError "no theorem of CompressionLeanRust was checked"
+
+#check_rust_axioms
+
+end CompressionLeanRustTests

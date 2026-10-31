@@ -1,15 +1,98 @@
+/-
+Provenance: the full-name check and the compiled-body override check of `#audit_axioms` come
+from dcSpark/ProtogaLattice `formal/tests/Meta/AxiomAudit.lean` at commit 96b57a1c801b, which
+adapted this file and ported the checks from Ironwood's `Zcash/Meta/AxiomCheck.lean`. Unlike that
+copy, the override walk here does not enter proofs.
+-/
 import Lean
 
+namespace AxiomAudit
+
+open Lean Elab Command
+
+/-- Module roots of the Lean toolchain and Mathlib's pinned dependency stack. Compiled-body
+overrides under these roots are trusted; every other root, ours and CompPoly included, is not. -/
+def ambientRoots : List Name :=
+  [`Init, `Std, `Lean, `Lake, `Batteries, `Mathlib, `Aesop, `Qq, `Plausible, `ProofWidgets,
+    `ImportGraph, `LeanSearchClient, `Cli]
+
+def isAmbient (env : Environment) (c : Name) : Bool :=
+  match env.getModuleIdxFor? c with
+  | some idx => ambientRoots.contains env.header.moduleNames[idx.toNat]!.getRoot
+  | none => false
+
+/-- The attributes on `c` that make compiled code run a body the kernel never checked. -/
+def overrideAttrs (env : Environment) (c : Name) : List Name :=
+  (if (Compiler.getImplementedBy? env c).isSome then [Compiler.implementedByAttr.attr.name] else [])
+    ++ (if isExtern env c then [externAttr.attr.name] else [])
+
+/-- Imported constants whose closure an earlier audit in this module walked without finding an
+override. Attributes can only be attached in a constant's own module, so the verdict holds for the
+rest of this module; constants of this module are walked every time. -/
+initialize cleanImports : EnvExtension NameSet ← registerEnvExtension (pure {})
+
+/-- The non-ambient constants that carry an override in the closure of `root` through statements
+and definition bodies, rendered as `c (@[attr])`, and the imported constants the walk visited. The
+walk does not enter ambient constants: no ambient module imports ours, so everything an ambient
+constant mentions is ambient too. -/
+def overridesInClosure (env : Environment) (root : Name) : List String × Array Name := Id.run do
+  let clean := cleanImports.getState env
+  let mut seen : NameSet := {}
+  let mut imported : Array Name := #[]
+  let mut todo := #[root]
+  let mut found : Array (Name × List Name) := #[]
+  while !todo.isEmpty do
+    let c := todo.back!
+    todo := todo.pop
+    if seen.contains c || clean.contains c || isAmbient env c then continue
+    seen := seen.insert c
+    if (env.getModuleIdxFor? c).isSome then imported := imported.push c
+    let attrs := overrideAttrs env c
+    unless attrs.isEmpty do found := found.push (c, attrs)
+    let some info := env.find? c | continue
+    todo := todo ++ info.type.getUsedConstants
+    -- The kernel checks proofs by reduction, never by compiled code, so an override reached
+    -- only through a proof changes nothing that runs. Walking proofs made the audit 4x slower.
+    unless info matches .thmInfo _ do
+      if let some v := info.value? (allowOpaque := true) then todo := todo ++ v.getUsedConstants
+    if let .inductInfo v := info then todo := todo ++ v.ctors.toArray
+  let rendered := (found.qsort (fun a b => Name.lt a.1 b.1)).toList.map fun (c, attrs) =>
+    s!"{c} ({", ".intercalate (attrs.map fun a => s!"@[{a}]")})"
+  return (rendered, imported)
+
+end AxiomAudit
+
 open Lean Elab Command in
+/-- `#audit_axioms foo` fails unless all three hold:
+* `foo` is written as the full name of the declaration it resolves to, so no enclosing namespace
+  or `open` can point the line at a different declaration;
+* `foo` depends on no axiom beyond `propext`, `Classical.choice` and `Quot.sound`;
+* no constant outside `AxiomAudit.ambientRoots` that `foo`'s statement reaches through statements
+  and definition bodies has its compiled body overridden (`implemented_by`, `extern`).
+
+`tests/AuditNegative.lean` pins its rejections. -/
 elab "#audit_axioms " decl:ident : command => do
   let name ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo decl
+  let written := decl.getId
+  let env ← getEnv
+  if written != name then
+    if env.contains written then
+      throwError m!"{written} resolves here to {name}, a different declaration; audit it \
+        outside the namespace or `open` that captures it"
+    throwError m!"{written} is not fully qualified; it resolves to {name}. \
+      Write `#audit_axioms {name}`."
   let axioms ← liftCoreM <| Lean.collectAxioms name
   let allowed : List Name := [``propext, ``Classical.choice, ``Quot.sound]
   let bad := axioms.toList.filter (fun a => !allowed.contains a)
-  if bad.isEmpty then
-    logInfo m!"{name}: {axioms.toList}"
-  else
+  unless bad.isEmpty do
     throwError m!"{name} depends on disallowed axioms: {bad}"
+  let (overrides, imported) := AxiomAudit.overridesInClosure env name
+  unless overrides.isEmpty do
+    throwError m!"{name} reaches compiled-body overrides outside \
+      `AxiomAudit.ambientRoots`: {", ".intercalate overrides}"
+  modifyEnv fun env =>
+    AxiomAudit.cleanImports.modifyState env fun s => imported.foldl NameSet.insert s
+  logInfo m!"{name}: {axioms.toList}"
 
 namespace DocumentCensus
 

@@ -1,14 +1,15 @@
 //! Honest setup oracles at toy size: the streaming root against a direct
 //! encoding, the store round trip, and the honest fold with tampering.
 
+use neo_verified::degrees::FOLD;
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, TwoAdicField};
 
 use super::{word, Scratch};
 use crate::circuit::algebra::eq_eval;
-use crate::circuit::Native;
+use crate::circuit::Fast;
 use crate::field::{eq_table, Ext, Gl};
 use crate::hash::{compress, hash_leaf};
-use crate::setup::{build, check, fold, partials, query_point, Leaf, LeafView, Store, FOLD};
+use crate::setup::{build, fold, partials, query_point, Leaf, LeafView, Store};
 use crate::sumcheck::evaluate;
 use crate::Error;
 
@@ -32,7 +33,7 @@ fn bits(index: usize) -> Vec<Gl> {
 }
 
 fn point_of(index: usize) -> Vec<Ext> {
-    query_point(&mut Native, VARIABLES, &bits(index))
+    query_point(&mut Fast, VARIABLES, &bits(index))
 }
 
 /// The leaf check on plain values.
@@ -43,9 +44,18 @@ fn run_check(
     groups: &[Vec<Ext>],
     alpha: &[Ext; FOLD],
 ) -> Result<Vec<Ext>, Error> {
-    let b = &mut Native;
+    let b = &mut Fast;
     let view = LeafView::read(b, Some(leaf), COUNT, VARIABLES)?;
-    check(b, *root, VARIABLES, &bits(index), &view, groups, alpha)
+    Ok(neo_verified::setup::check(
+        b,
+        *root,
+        VARIABLES,
+        &bits(index),
+        &view.values,
+        &view.path,
+        groups,
+        alpha,
+    )?)
 }
 
 fn lift(values: &[Gl]) -> Vec<Ext> {
@@ -157,7 +167,7 @@ fn honest_fold_accepts_and_tampering_rejects() {
             .sum();
         assert_eq!(
             moved - expected,
-            eq_eval(&mut Native, &alpha, &[Ext::ONE, Ext::ZERO, Ext::ONE])
+            eq_eval(&mut Fast, &alpha, &[Ext::ONE, Ext::ZERO, Ext::ONE])
         );
     }
 

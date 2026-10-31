@@ -116,6 +116,6 @@ theorem freshWitnessKernels : FreshWitnessKernels := by
   · intro rows columns setup row block digit initial
     exact FreshCommitmentBlock.accumulatePrepared_value setup row block digit initial
 
-#audit_axioms freshWitnessKernels
+#audit_axioms LeanGraph.Targets.freshWitnessKernels
 
 end LeanGraph.Targets

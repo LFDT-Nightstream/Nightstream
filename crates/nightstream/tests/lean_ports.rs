@@ -1,5 +1,6 @@
 //! Checks `formal/compression-lean/ports.json`: each Lean port names a Rust
-//! item and the hash of its tokens, without comments or formatting. A path is
+//! item and either the hash of its tokens, without comments or formatting, or
+//! the theorems that `CompressionLeanRustTests` checks. A path is
 //! `<file>::<item>` or `<file>::<Type>::<fn>` (a method of `impl Type`,
 //! `impl Trait for Type` or `trait Type`); a name that two items share is an error.
 
@@ -11,10 +12,12 @@ use std::path::Path;
 use syn::{File, ImplItem, Item, TraitItem, Type};
 
 #[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
 struct Port {
     lean: String,
     rust: String,
-    hash: String,
+    hash: Option<String>,
+    proof: Option<serde_json::Value>,
 }
 
 #[test]
@@ -40,11 +43,13 @@ fn lean_ports_match_their_rust_items() {
         {
             Ok(tokens) => {
                 let hash = format!("{:016x}", fnv1a(&without_docs(tokens).to_string()));
-                if hash != port.hash {
-                    failures.push(format!(
+                match (&port.hash, &port.proof) {
+                    (Some(pinned), None) if *pinned != hash => failures.push(format!(
                         "{}: changed; re-read {}; new hash {hash}",
                         port.rust, port.lean
-                    ));
+                    )),
+                    (Some(_), None) | (None, Some(_)) => {}
+                    _ => failures.push(format!("{}: give either a hash or a proof", port.lean)),
                 }
             }
             Err(error) => failures.push(format!("{}: {error}; re-read {}", port.rust, port.lean)),

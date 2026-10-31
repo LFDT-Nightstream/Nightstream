@@ -45,8 +45,9 @@ pub trait Application {
 
     /// The application's rows over the step's view (Ob7). Each row is zero
     /// on an honest step and reads only the view's words (Lean `AppView`);
-    /// a memory circuit rejects a row with any other variable.
-    fn rows(&self, view: &View) -> Vec<Expr>;
+    /// a memory circuit rejects a row with any other variable. An error
+    /// means the application has no rows for the view's geometry.
+    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error>;
 
     /// One native step from `state`. `memory` holds the cells before the
     /// step's accesses. The runner applies the active ports in slot order and

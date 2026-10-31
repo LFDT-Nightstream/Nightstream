@@ -213,12 +213,12 @@ impl Application for CatalogApp {
         Vec::new()
     }
 
-    fn rows(&self, view: &View) -> Vec<Expr> {
+    fn rows(&self, view: &View) -> Result<Vec<Expr>, crate::Error> {
         let columns: Vec<Expr> = (0..self.columns).map(|column| view.aux(column)).collect();
         if self.bound {
             self.binding.rows(view, &columns)
         } else {
-            Vec::new()
+            Ok(Vec::new())
         }
     }
 
@@ -569,6 +569,28 @@ fn honest_rows_bind_the_lean_events_in_order_and_hold() {
 /// accepts the honest rows. The accesses of each row bind its Lean events in
 /// slot order, and each pair of one memory with a write keeps catalog order
 /// (Lean `Reorders`).
+/// Binding rows for another geometry, or over fewer columns than the
+/// catalog reads, make no circuit.
+#[test]
+fn binding_rows_need_their_geometry_and_columns() {
+    let setup = setup();
+    let mut other = setup.geometry;
+    other.w_ts = 5;
+    assert!(other.is_valid() && other != setup.geometry);
+    assert!(matches!(
+        memory_circuit(&other, &setup.app(true, None)),
+        Err(crate::Error::Circuit("the catalog binding is for another geometry"))
+    ));
+    let mut narrow = setup.app(true, None);
+    narrow.columns = 2;
+    assert!(matches!(
+        memory_circuit(&setup.geometry, &narrow),
+        Err(crate::Error::Circuit(
+            "the binding has fewer columns than its catalog reads"
+        ))
+    ));
+}
+
 /// A row without every catalog column gives an error, not a panic.
 #[test]
 fn short_rows_give_a_width_error() {

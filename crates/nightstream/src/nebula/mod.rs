@@ -53,6 +53,14 @@ pub enum Package {
 }
 
 impl Package {
+    /// Whether `identifier` pins a memory package, whose verifier is
+    /// `nebula::Verifier`.
+    pub(crate) fn pinned(identifier: [u64; 4]) -> bool {
+        [Package::V1, Package::N1]
+            .into_iter()
+            .any(|package| package.structural_identifier() == identifier)
+    }
+
     /// The memory geometry that the package proves.
     pub fn geometry(self) -> Geometry {
         match self {
@@ -84,9 +92,7 @@ impl Package {
     /// The package's relation built in Rust, row for row as Lean builds it
     /// (`tests/nebula/parity.rs`).
     #[cfg(test)]
-    pub(crate) fn application(
-        self,
-    ) -> Result<crate::application::ApplicationCircuit, crate::application::ApplicationError> {
+    pub(crate) fn application(self) -> Result<crate::application::ApplicationCircuit, crate::Error> {
         circuit::memory_circuit(&self.geometry(), &Machine)
     }
 
@@ -172,6 +178,10 @@ pub enum TerminalError {
     /// below `q`, so it has the word of a smaller integer.
     #[error("a statement integer is not a canonical field element")]
     NonCanonical,
+    /// A state of the statement has another number of words than the
+    /// application's width (Lean `Fin width → F`).
+    #[error("a statement state has another word count than the application's width")]
+    Width,
     #[error("the final carry is inside a segment")]
     OpenCarry,
     #[error("the segment count is outside 1..=S_max")]
@@ -182,7 +192,6 @@ pub enum TerminalError {
     Field,
 }
 
-/// The circuit of a memory relation: its geometry, its application, and the
 fn check_port_count<A: Application>(geometry: &Geometry, app: &A) -> Result<(), crate::Error> {
     if app.port_count() != geometry.b_ops {
         return Err(crate::Error::Circuit(
@@ -235,6 +244,7 @@ pub fn size_parts<A: Application>(geometry: &Geometry, app: &A) -> Result<Vec<Si
         .collect())
 }
 
+/// The circuit of a memory relation: its geometry, its application, and the
 /// Stage 1 circuit. Only `Package::load` (a pinned Lean package) and
 /// `Circuit::compile` (the Rust-built relation) make one, so a memory verifier
 /// never takes its circuit from a prover. The memory prover and the memory
@@ -257,7 +267,7 @@ impl<A: Application> Circuit<A> {
         check_port_count(&geometry, &app)?;
         let application = circuit::memory_circuit(&geometry, &app)?;
         Ok(Self {
-            circuit: crate::Circuit::compile(reference_bytes, application)?,
+            circuit: crate::Circuit::compile_memory(reference_bytes, application)?,
             geometry,
             app,
         })
@@ -326,7 +336,7 @@ impl<A: Application + Clone> Verifier<A> {
         Ok(Self {
             geometry: circuit.geometry,
             app: circuit.app.clone(),
-            stage1: crate::Verifier::from_package(&circuit.circuit, engine, minimum_security_bits)?,
+            stage1: crate::Verifier::of_memory(&circuit.circuit, engine, minimum_security_bits)?,
         })
     }
 
@@ -353,6 +363,31 @@ impl<A: Application + Clone> Verifier<A> {
         let (initial, last) = terminal_states(&self.app, program, statement, final_carry)?;
         self.stage1
             .verify(&crate::State::new(statement.steps, initial, last), proof)?;
+        Ok(())
+    }
+
+    /// The trusted compression key of the circuit (`crate::Verifier::compression_key`).
+    pub fn compression_key(&self) -> Result<crate::CompressionKey, crate::Error> {
+        self.stage1.compression_key()
+    }
+
+    /// Verify a finished memory proof (`crate::Prover::finish_with_spartan`)
+    /// as `verify` does: the terminal checks, then
+    /// `crate::Verifier::verify_final` with `key`.
+    pub fn verify_final(
+        &self,
+        program: &Program,
+        statement: &Statement<A::State>,
+        final_carry: &Carry,
+        key: &crate::CompressionKey,
+        proof: &crate::FinalProof,
+    ) -> Result<(), VerifyError> {
+        if program.geometry != self.geometry {
+            return Err(VerifyError::Geometry);
+        }
+        let (initial, last) = terminal_states(&self.app, program, statement, final_carry)?;
+        self.stage1
+            .verify_final(&crate::State::new(statement.steps, initial, last), key, proof)?;
         Ok(())
     }
 }
@@ -389,6 +424,9 @@ fn terminal_states<A: Application>(
         final_root: _,
     } = statement;
     let (initial, final_) = (app.words(initial), app.words(final_));
+    if initial.len() != app.width() || final_.len() != app.width() {
+        return Err(TerminalError::Width);
+    }
     if initial
         .iter()
         .chain(&final_)

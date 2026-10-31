@@ -3,6 +3,10 @@ use neo_verified::degrees::{
     early, early_terms, gkr, late, late_terms, layer1, linear, linear_terms, row_count, shrink, shrink_terms, Relation,
     FIXED,
 };
+use neo_verified::field::{
+    canonical, ext_add, ext_mul, ext_neg, ext_of_gl, ext_pow, ext_scale, ext_sub, gl_add, gl_inv, gl_mul, gl_neg,
+    gl_pow, gl_sub, gl_word, reduce, Ext, EXT_ONE, EXT_ZERO, GL_ONE, GL_ZERO, MODULUS,
+};
 use neo_verified::layout::{
     block_cell, block_row, cell_variables, column, entry_column, glue_row, one, place, row_variables, slot, split,
     variables, Part, Shape,
@@ -199,6 +203,7 @@ fn cases() -> Vec<String> {
     layout_cases(&mut case);
     model_cases(&mut case);
     degrees_cases(&mut case);
+    field_cases(&mut case);
     cases
 }
 
@@ -564,6 +569,185 @@ fn degrees_cases(case: &mut impl FnMut(&str, &[u64], String)) {
             outcome(|| shrink_terms(&shape), |v| show_values(&v)),
         );
         case("shrink", &s, outcome(|| shrink(&shape), |v| v.to_string()));
+    }
+}
+
+/// Words at the edges of the Goldilocks reductions, canonical and not.
+const WORDS: [u64; 16] = [
+    0,
+    1,
+    2,
+    0xffff_fffe,
+    0xffff_ffff,
+    1 << 32,
+    (1 << 32) + 1,
+    1 << 63,
+    MODULUS - 0xffff_ffff,
+    MODULUS - 2,
+    MODULUS - 1,
+    MODULUS,
+    MODULUS + 1,
+    MODULUS + (1 << 31),
+    u64::MAX - 1,
+    u64::MAX,
+];
+
+const EXPONENTS: [u64; 10] = [0, 1, 2, 3, 7, 63, 64, MODULUS - 2, MODULUS - 1, u64::MAX];
+
+fn field_words() -> Vec<u64> {
+    let mut state: u64 = 0x676f_6c64_696c_6f63;
+    let mut words = WORDS.to_vec();
+    for _ in 0..100 {
+        words.push(random(&mut state) as u64);
+    }
+    words
+}
+
+fn ext_words(e: Ext) -> [u64; 3] {
+    [e.c0, e.c1, e.c2].map(gl_word)
+}
+
+fn show_ext(e: Ext) -> String {
+    format!("ok {}", show(&ext_words(e)))
+}
+
+fn exts(words: &[u64]) -> Vec<Ext> {
+    (0..words.len())
+        .map(|i| Ext {
+            c0: reduce(words[i]),
+            c1: reduce(words[(i + 5) % words.len()]),
+            c2: reduce(words[(i + 11) % words.len()]),
+        })
+        .collect()
+}
+
+/// The private word functions of `field.rs`, as `NativeGoldilocks.lean` writes them.
+fn add_words(a: u64, b: u64) -> u64 {
+    let room = MODULUS.wrapping_sub(b);
+    if a < room {
+        a.wrapping_add(b)
+    } else {
+        a.wrapping_sub(room)
+    }
+}
+
+fn sub_words(a: u64, b: u64) -> u64 {
+    if b <= a {
+        a.wrapping_sub(b)
+    } else {
+        MODULUS.wrapping_sub(b.wrapping_sub(a))
+    }
+}
+
+fn fold_high(w: u64) -> u64 {
+    let low = w as u32 as u64;
+    sub_words((low << 32).wrapping_sub(low), w >> 32)
+}
+
+/// The field of `neo_verified::field`, its private word functions and the models they call.
+fn field_cases(case: &mut impl FnMut(&str, &[u64], String)) {
+    let words = field_words();
+    let gl = |w: u64| format!("ok {}", gl_word(reduce(w)));
+    case("MODULUS", &[], format!("ok {MODULUS}"));
+    case("GL_ZERO", &[], format!("ok {}", gl_word(GL_ZERO)));
+    case("GL_ONE", &[], format!("ok {}", gl_word(GL_ONE)));
+    case("EXT_ZERO", &[], show_ext(EXT_ZERO));
+    case("EXT_ONE", &[], show_ext(EXT_ONE));
+    for &x in &words {
+        let a = reduce(x);
+        let w = gl_word(a);
+        case("canonical", &[x], format!("ok {}", option(canonical(x).map(gl_word))));
+        case("reduce", &[x], gl(x));
+        case("reduce_word", &[x], format!("ok {}", x % MODULUS));
+        case("gl_word", &[w], format!("ok {w}"));
+        case("low_half", &[x], format!("ok {}", x as u32 as u64));
+        case("high_half", &[x], format!("ok {}", x >> 32));
+        case("fold_high", &[x], format!("ok {}", fold_high(x)));
+        case("gl_neg", &[w], format!("ok {}", gl_word(gl_neg(a))));
+        case("gl_inv", &[w], format!("ok {}", gl_word(gl_inv(a))));
+        case("ext_of_gl", &[w], show_ext(ext_of_gl(a)));
+        case("UScalar.cast.u32", &[x], format!("ok {}", x as u32));
+        case(
+            "UScalar.cast.u64",
+            &[x as u32 as u64],
+            format!("ok {}", x as u32 as u64),
+        );
+        case(
+            "core.num.U64.wrapping_shr",
+            &[x, 32],
+            format!("ok {}", x.wrapping_shr(32)),
+        );
+        case(
+            "core.num.U64.wrapping_shr",
+            &[x, 1],
+            format!("ok {}", x.wrapping_shr(1)),
+        );
+        case(
+            "core.num.U64.wrapping_shl",
+            &[x, 32],
+            format!("ok {}", x.wrapping_shl(32)),
+        );
+        case(
+            "core.num.U64.is_multiple_of",
+            &[x, 2],
+            format!("ok {}", x.is_multiple_of(2)),
+        );
+        for e in EXPONENTS {
+            case("gl_pow", &[w, e], format!("ok {}", gl_word(gl_pow(a, e))));
+        }
+        for &y in &WORDS {
+            let b = reduce(y);
+            let v = gl_word(b);
+            case("add_words", &[x, y], format!("ok {}", add_words(x, y)));
+            case("sub_words", &[x, y], format!("ok {}", sub_words(x, y)));
+            let product = (u128::from(x) * u128::from(y) % u128::from(MODULUS)) as u64;
+            case("mul_words", &[x, y], format!("ok {product}"));
+            case("gl_add", &[w, v], format!("ok {}", gl_word(gl_add(a, b))));
+            case("gl_sub", &[w, v], format!("ok {}", gl_word(gl_sub(a, b))));
+            case("gl_mul", &[w, v], format!("ok {}", gl_word(gl_mul(a, b))));
+            case(
+                "core.num.U64.wrapping_add",
+                &[x, y],
+                format!("ok {}", x.wrapping_add(y)),
+            );
+            case(
+                "core.num.U64.wrapping_sub",
+                &[x, y],
+                format!("ok {}", x.wrapping_sub(y)),
+            );
+            case(
+                "core.num.U64.wrapping_mul",
+                &[x, y],
+                format!("ok {}", x.wrapping_mul(y)),
+            );
+            case("core.cmp.PartialEq.eq.gl", &[w, v], format!("ok {}", a == b));
+        }
+        case("core.clone.Clone.clone.gl", &[w], format!("ok {w}"));
+        case("core.cmp.Eq.gl", &[w], "ok unit".to_string());
+    }
+    let values = exts(&words);
+    for (i, &a) in values.iter().enumerate() {
+        let wa = ext_words(a);
+        case("ext_neg", &wa, show_ext(ext_neg(a)));
+        case("core.clone.Clone.clone.ext", &wa, show_ext(a));
+        case("core.cmp.Eq.ext", &wa, "ok unit".to_string());
+        for e in EXPONENTS {
+            case("ext_pow", &[&wa[..], &[e]].concat(), show_ext(ext_pow(a, e)));
+        }
+        let g = reduce(words[(7 * i) % words.len()]);
+        case(
+            "ext_scale",
+            &[&wa[..], &[gl_word(g)]].concat(),
+            show_ext(ext_scale(a, g)),
+        );
+        for &b in values.iter().step_by(7) {
+            let args = [wa, ext_words(b)].concat();
+            case("ext_add", &args, show_ext(ext_add(a, b)));
+            case("ext_sub", &args, show_ext(ext_sub(a, b)));
+            case("ext_mul", &args, show_ext(ext_mul(a, b)));
+            case("core.cmp.PartialEq.eq.ext", &args, format!("ok {}", a == b));
+        }
+        case("core.cmp.PartialEq.eq.ext", &[wa, wa].concat(), "ok true".to_string());
     }
 }
 

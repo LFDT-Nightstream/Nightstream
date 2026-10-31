@@ -1,6 +1,7 @@
 //! Crate-private tests of layer 1.
 
 mod circuit;
+mod field;
 mod gkr;
 mod layer1;
 mod lowering;

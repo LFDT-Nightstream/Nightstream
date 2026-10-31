@@ -120,7 +120,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 
 ## Ports
 
-`ports.json` has 567 entries: 517 Lean declarations transcribe 307 Rust items.
+`ports.json` has 584 entries: 529 Lean declarations transcribe 324 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -147,7 +147,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `CompressionLean.Ports.Circuit.Whir` | 19 |
 | `CompressionLean.Ports.Layer1.Budget` | 5 |
 | `CompressionLean.Ports.Replay.Data` | 39 |
-| `CompressionLean.Ports.Replay.Field` | 16 |
+| `CompressionLean.Ports.Replay.Field` | 28 |
 | `CompressionLean.Ports.Replay.Formulas` | 39 |
 | `CompressionLean.Ports.Replay.Gkr` | 18 |
 | `CompressionLean.Ports.Replay.Stages` | 33 |
@@ -200,6 +200,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-transcript/src/poseidon2.rs` | 1 |
 | `crates/neo-verified/src/circuit.rs` | 6 |
 | `crates/neo-verified/src/degrees.rs` | 9 |
+| `crates/neo-verified/src/field.rs` | 17 |
 | `crates/neo-verified/src/layout.rs` | 14 |
 | `crates/nightstream-fprime/src/package.rs` | 5 |
 | `crates/nightstream-fprime/src/package/r1cs.rs` | 3 |

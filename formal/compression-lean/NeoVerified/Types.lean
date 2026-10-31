@@ -64,4 +64,18 @@ structure layout.Shape where
   glue_cells : Std.Usize
   publics : Std.Usize
 
+/-- [neo_verified::field::Gl]
+    Source: 'crates/neo-verified/src/field.rs', lines 21:0-21:19
+    Visibility: public -/
+@[reducible]
+def field.Gl := Std.U64
+
+/-- [neo_verified::field::Ext]
+    Source: 'crates/neo-verified/src/field.rs', lines 145:0-149:1
+    Visibility: public -/
+structure field.Ext where
+  c0 : field.Gl
+  c1 : field.Gl
+  c2 : field.Gl
+
 end neo_verified

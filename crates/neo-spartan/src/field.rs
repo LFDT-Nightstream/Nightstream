@@ -3,13 +3,15 @@
 //! Owns: the Goldilocks and cubic-extension aliases in Plonky3 0.8, the
 //! conversions from workspace values (Plonky3 0.5 field values by `gl` and
 //! `re_im`, raw words such as key coefficients and Poseidon2 constants by
-//! `from_word`), the in-place slice views over their words (the crate's
-//! only `unsafe` code outside `scratch.rs`), multilinear helpers, and the
-//! point-order conversion. Does not own: words that enter a `Backend`
-//! (`circuit`), device outputs, or words that the prover reads back from
-//! its own files.
+//! `from_word`), the conversions to and from `neo_verified::field`, which
+//! read a Plonky3 value by its canonical word, the in-place slice views over
+//! their words (the crate's only `unsafe` code outside `scratch.rs`),
+//! multilinear helpers, and the point-order conversion. Does not own: words
+//! that enter a `Backend` (`circuit`), device outputs, or words that the
+//! prover reads back from its own files.
 
 use neo_math::{KExtensions, F, K};
+use neo_verified::field as verified;
 use p3_field::PrimeField64;
 use p3_field_v08::extension::CubicTrinomialExtensionField;
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64 as _};
@@ -58,11 +60,17 @@ pub(crate) fn gl(value: F) -> Gl {
 
 /// A workspace word as a field element, reduced to canonical form.
 pub(crate) fn from_word(word: u64) -> Gl {
-    Gl::new(if word < Gl::ORDER_U64 {
-        word
-    } else {
-        word - Gl::ORDER_U64
-    })
+    from_verified(verified::reduce(word))
+}
+
+/// `value` in `neo_verified`, by its canonical word: a Plonky3 value may
+/// hold any word.
+pub(crate) fn to_verified(value: Gl) -> verified::Gl {
+    verified::reduce(value.as_canonical_u64())
+}
+
+pub(crate) fn from_verified(value: verified::Gl) -> Gl {
+    Gl::new(verified::gl_word(value))
 }
 
 /// The coordinates of `K = F[u] / (u^2 - 7)` in the basis `(1, u)`.

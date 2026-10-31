@@ -131,7 +131,9 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   pins it to both.
 - The circuit programs and their lowering (`Ports/Circuit/`), with the parts of `Ports/Replay/`
   that the programs read: the data types (`Ports/Replay/Data.lean`), the fields
-  (`Ports/Replay/Field.lean`), the bar transform (`Replay.bar`) and the GKR shape functions
+  (`Ports/Replay/Field.lean`, whose `Word` and `Ext` operations are proved equal to the field of
+  `neo-verified` in `CompressionLeanRust/Field.lean`; the verifier still computes with Plonky3's
+  field, except the inverse in `interpolate`), the bar transform (`Replay.bar`) and the GKR shape functions
   (`layerCount`, `layerDegree`, `layerFactors`, `partFactors`, `activeTrees`).
 - The terminal loader (`Terminal.Package.load`). Its rows are F′'s row instantiation
   (`Producer.rows`); Rust pushes the rows of its templates (`expand_matrix`). The final program

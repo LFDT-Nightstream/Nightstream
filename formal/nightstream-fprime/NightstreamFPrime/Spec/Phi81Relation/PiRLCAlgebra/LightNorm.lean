@@ -41,4 +41,23 @@ theorem norm_law {shape : Shape} {verifierRows : Nat}
     (CarrierAction.act challenge fresh column) (running column)
   omega
 
+/-- The production form of `Light.Rlc.ExtractionNormLaw`: the extracted accumulator
+`w − ρ · u` has each coordinate within `T = 216` of `w`. -/
+theorem sub_act_bound {shape : Shape} (accumulated fresh : Assignment shape)
+    (challenge : RingF) (valid : Challenge.challengeValid challenge) (bound : Nat)
+    (accumulatedBounded : assignmentNormBounded bound accumulated)
+    (freshTernary : assignmentNormBounded 2 fresh) :
+    assignmentNormBounded (bound + 216)
+      (fun column => accumulated column + -(CarrierAction.act challenge fresh column)) := by
+  intro column
+  have accumulatedColumn := accumulatedBounded column
+  have freshAct := Norm.Finite.act_coordinate_le_expansion challenge fresh valid
+    freshTernary column
+  have sum := Norm.Centered.centeredMagnitude_add_le (accumulated column)
+    (-(CarrierAction.act challenge fresh column))
+  rw [Norm.Centered.centeredMagnitude_neg] at sum
+  change centeredMagnitude
+    (accumulated column + -(CarrierAction.act challenge fresh column)) < bound + 216
+  omega
+
 end NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm

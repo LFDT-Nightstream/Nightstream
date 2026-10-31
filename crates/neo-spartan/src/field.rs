@@ -73,6 +73,17 @@ pub(crate) fn from_verified(value: verified::Gl) -> Gl {
     Gl::new(verified::gl_word(value))
 }
 
+/// `value` in `neo_verified`, coordinate by coordinate.
+pub(crate) fn ext_to_verified(value: Ext) -> verified::Ext {
+    let [c0, c1, c2] = ext_words(value).map(to_verified);
+    verified::Ext { c0, c1, c2 }
+}
+
+pub(crate) fn ext_from_verified(value: verified::Ext) -> Ext {
+    let coordinates = [value.c0, value.c1, value.c2].map(from_verified);
+    Ext::from_basis_coefficients_fn(|i| coordinates[i])
+}
+
 /// The coordinates of `K = F[u] / (u^2 - 7)` in the basis `(1, u)`.
 pub(crate) fn re_im(value: K) -> [Gl; 2] {
     value.as_coeffs().map(gl)

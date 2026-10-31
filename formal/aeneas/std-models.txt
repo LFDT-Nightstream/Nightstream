@@ -1,8 +1,11 @@
 # The Aeneas models of Rust standard items that the translation calls. The proofs trust
 # them. scripts/aeneas_extract.sh fails when this list changes, and the run check needs a
 # case for each one.
+Array.empty
+Array.index_mut_usize
 Array.index_usize
 Array.make
+Array.repeat
 Array.to_slice
 Array.update
 Slice.index_usize
@@ -12,16 +15,31 @@ UScalar.cast
 Usize.checked_add
 Usize.checked_mul
 Usize.checked_sub
+alloc.vec.CloneVec.clone
+alloc.vec.FromVecArray.from
+alloc.vec.Vec
+alloc.vec.Vec.deref
+alloc.vec.Vec.index
+alloc.vec.Vec.index_mut
+alloc.vec.Vec.len
+alloc.vec.Vec.new
+alloc.vec.Vec.push
 core.array.equality.PartialEqArray.eq
 core.clone.Clone
+core.clone.CloneArray
+core.clone.CloneU64
+core.clone.impls.CloneUsize.clone
 core.cmp.Eq
 core.cmp.PartialEq
+core.cmp.PartialEq.ne.trait_default
 core.cmp.PartialEqUsize
 core.cmp.impls.OrdUsize.max
 core.cmp.impls.PartialEqU16.eq
 core.cmp.impls.PartialEqU32.eq
+core.convert.FromSame
 core.marker.Copy
 core.marker.StructuralPartialEq
+core.num.U32.wrapping_add
 core.num.U64.is_multiple_of
 core.num.U64.wrapping_add
 core.num.U64.wrapping_mul
@@ -29,7 +47,20 @@ core.num.U64.wrapping_shl
 core.num.U64.wrapping_shr
 core.num.U64.wrapping_sub
 core.num.Usize.BITS
+core.num.Usize.is_multiple_of
 core.num.Usize.leading_zeros
 core.num.Usize.wrapping_add
 core.num.Usize.wrapping_shl
+core.num.Usize.wrapping_shr
+core.num.Usize.wrapping_sub
+core.ops.control_flow.ControlFlow.Break
+core.ops.control_flow.ControlFlow.Continue
+core.option.Option.is_none
 core.option.Option.unwrap
+core.result.Result
+core.result.Result.Err
+core.result.Result.Insts.CoreOpsTry.branch
+core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual
+core.result.Result.Ok
+core.slice.Slice.is_empty
+core.slice.index.SliceIndexUsizeSlice

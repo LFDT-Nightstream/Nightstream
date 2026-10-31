@@ -1,102 +1,40 @@
 //! One verifier, two readings.
 //!
-//! Owns: the `Backend` contract that compression verifiers are written in,
-//! and `Native`, the reading on plain values. `Recorder` (record.rs) reads
-//! the same code as a constraint system. `Backend` is public so that a
-//! caller can write its own verifier (nightstream's final program); every
-//! value enters as a `u64`, so no Plonky3 0.8 type crosses.
+//! The `Backend` contract, `Native` (the reading on plain values) and `Recorder` (the
+//! reading as a constraint system) are in `neo_verified`, which Aeneas translates to Lean.
+//! `Backend` is public so that a caller can write its own verifier (nightstream's final
+//! program); every value enters as a `u64`, so no Plonky3 0.8 type crosses.
 //!
-//! Rules for code written over `Backend`:
-//! - It never branches on a value. Every loop bound and length comes from a
-//!   key or a fixed shape. No method returns a value to the caller.
-//! - Proof words enter as `private`, statement words as `public`. They have
-//!   no authority until a later check uses them.
-//! - `hint` outputs are unconstrained; the caller must constrain each one.
-//! - `Native` returns the first failed check as `Err`. `Recorder` notes it and
-//!   continues, so the rows it records never depend on the values.
+//! Owns: `Fast`, the prover's reading on Plonky3 0.8 values, which tests compare with
+//! `Native`; the conversions of layer-1 values into `neo_verified` words (`algebra`); and the
+//! prover's fast paths behind `Sink` (`record::Trace`, `block`).
 
 pub(crate) mod algebra;
 pub(crate) mod block;
 pub(crate) mod fold;
-pub(crate) mod hash;
 pub(crate) mod poseidon2;
 pub(crate) mod r1cs;
 pub(crate) mod record;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+pub use neo_verified::backend::{Backend, Hint, Rejected};
+use neo_verified::native::hint_words;
+pub use neo_verified::native::Native;
+use neo_verified::r1cs::R1cs;
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, PrimeField64};
+use p3_symmetric_v08::Permutation;
 
-use self::r1cs::R1cs;
-use crate::field::{from_verified, to_verified, Ext, Gl};
-use crate::Error;
+use crate::field::{Ext, Gl};
 
-pub trait Backend {
-    /// A Goldilocks value or wire.
-    type F: Copy;
-    /// A cubic-extension value or wire (three base coordinates).
-    type E: Copy;
-
-    /// A constant. Every `u64` input to this trait is taken modulo p.
-    fn constant(&mut self, value: u64) -> Self::F;
-    /// A proof word.
-    fn private(&mut self, value: u64) -> Self::F;
-    /// The next statement word.
-    fn public(&mut self, value: u64) -> Self::F;
-
-    fn add(&mut self, a: Self::F, b: Self::F) -> Self::F;
-    fn sub(&mut self, a: Self::F, b: Self::F) -> Self::F;
-    fn scale(&mut self, a: Self::F, by: u64) -> Self::F;
-    fn mul(&mut self, a: Self::F, b: Self::F) -> Self::F;
-
-    fn ext(&mut self, coordinates: [Self::F; 3]) -> Self::E;
-    fn coordinates(&mut self, a: Self::E) -> [Self::F; 3];
-    /// An extension constant from its three coordinates.
-    fn ext_constant(&mut self, value: [u64; 3]) -> Self::E;
-    fn ext_add(&mut self, a: Self::E, b: Self::E) -> Self::E;
-    fn ext_sub(&mut self, a: Self::E, b: Self::E) -> Self::E;
-    fn ext_mul(&mut self, a: Self::E, b: Self::E) -> Self::E;
-    /// `a·by` for a base-field `by`.
-    fn ext_scale(&mut self, a: Self::E, by: Self::F) -> Self::E;
-    /// Rejects zero.
-    fn ext_inverse(&mut self, a: Self::E, what: &'static str) -> Result<Self::E, Error>;
-
-    fn assert_zero(&mut self, a: Self::F, what: &'static str) -> Result<(), Error>;
-    /// `count` little-endian bits of the canonical integer of `a`; the value
-    /// must be below `2^count` (and below p for `count = 64`).
-    fn bits(&mut self, a: Self::F, count: usize, what: &'static str) -> Result<Vec<Self::F>, Error>;
-    /// `bit ? one : zero` for a constrained bit.
-    fn select(&mut self, bit: Self::F, zero: Self::F, one: Self::F) -> Self::F;
-    /// The workspace Poseidon2 permutation (width 16).
-    fn permute(&mut self, state: [Self::F; WIDTH]) -> [Self::F; WIDTH];
-    /// `len` private words computed from the values of `inputs`. A shape run
-    /// passes zeros. The caller must constrain every output.
-    fn hint(&mut self, inputs: &[Self::F], len: usize, compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<Self::F>;
-    /// Every row of `system`, with `columns[k]` as its column `k`.
-    fn r1cs(&mut self, system: &R1cs, columns: &[Self::F], what: &'static str) -> Result<(), Error>;
-
-    fn assert_ext_zero(&mut self, a: Self::E, what: &'static str) -> Result<(), Error> {
-        for coordinate in self.coordinates(a) {
-            self.assert_zero(coordinate, what)?;
-        }
-        Ok(())
-    }
-
-    fn assert_equal(&mut self, a: Self::F, b: Self::F, what: &'static str) -> Result<(), Error> {
-        let difference = self.sub(a, b);
-        self.assert_zero(difference, what)
-    }
-
-    fn assert_ext_equal(&mut self, a: Self::E, b: Self::E, what: &'static str) -> Result<(), Error> {
-        let difference = self.ext_sub(a, b);
-        self.assert_ext_zero(difference, what)
-    }
+pub(crate) mod hash {
+    pub(crate) use neo_verified::hash::{hash_leaf, merkle_root, Duplex};
 }
 
-/// The plain verifier: values only, `Err` on the first failed check. Its
-/// words are layer-1 field values; no caller reads them.
-pub struct Native;
+/// The prover's values: Plonky3 0.8 arithmetic and permutation, `Err` on the first failed
+/// check. Its words are layer-1 field values that the prover reads.
+pub(crate) struct Fast;
 
-impl Backend for Native {
+impl Backend for Fast {
     type F = Gl;
     type E = Ext;
 
@@ -157,22 +95,22 @@ impl Backend for Native {
         a * by
     }
 
-    fn ext_inverse(&mut self, a: Ext, what: &'static str) -> Result<Ext, Error> {
-        a.try_inverse().ok_or(Error::Rejected(what))
+    fn ext_inverse(&mut self, a: Ext, what: &'static str) -> Result<Ext, Rejected> {
+        a.try_inverse().ok_or(Rejected(what))
     }
 
-    fn assert_zero(&mut self, a: Gl, what: &'static str) -> Result<(), Error> {
+    fn assert_zero(&mut self, a: Gl, what: &'static str) -> Result<(), Rejected> {
         if a == Gl::ZERO {
             Ok(())
         } else {
-            Err(Error::Rejected(what))
+            Err(Rejected(what))
         }
     }
 
-    fn bits(&mut self, a: Gl, count: usize, what: &'static str) -> Result<Vec<Gl>, Error> {
+    fn bits(&mut self, a: Gl, count: usize, what: &'static str) -> Result<Vec<Gl>, Rejected> {
         let value = a.as_canonical_u64();
         if count < 64 && value >> count != 0 {
-            return Err(Error::Rejected(what));
+            return Err(Rejected(what));
         }
         Ok((0..count).map(|i| Gl::from_u64((value >> i) & 1)).collect())
     }
@@ -185,21 +123,25 @@ impl Backend for Native {
         }
     }
 
-    fn permute(&mut self, state: [Gl; WIDTH]) -> [Gl; WIDTH] {
-        neo_verified::poseidon2::permute(state.map(to_verified)).map(from_verified)
+    fn permute(&mut self, mut state: [Gl; WIDTH]) -> [Gl; WIDTH] {
+        crate::hash::permutation().permute_mut(&mut state);
+        state
     }
 
-    fn hint(&mut self, inputs: &[Gl], len: usize, compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<Gl> {
+    fn hint(&mut self, inputs: &[Gl], len: usize, hint: &Hint) -> Vec<Gl> {
         let inputs: Vec<u64> = inputs.iter().map(Gl::as_canonical_u64).collect();
-        let mut values: Vec<Gl> = compute(&inputs).into_iter().map(Gl::from_u64).collect();
+        let mut values: Vec<Gl> = hint_words(hint, &inputs)
+            .into_iter()
+            .map(Gl::from_u64)
+            .collect();
         values.resize(len, Gl::ZERO);
         values
     }
 
-    fn r1cs(&mut self, system: &R1cs, columns: &[Gl], what: &'static str) -> Result<(), Error> {
+    fn r1cs(&mut self, system: &R1cs, columns: &[Gl], what: &'static str) -> Result<(), Rejected> {
         assert_eq!(columns.len(), system.columns(), "one wire per R1CS column");
         if r1cs::fails(system, columns) {
-            Err(Error::Rejected(what))
+            Err(Rejected(what))
         } else {
             Ok(())
         }

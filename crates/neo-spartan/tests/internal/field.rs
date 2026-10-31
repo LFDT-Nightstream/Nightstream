@@ -120,6 +120,8 @@ fn verified_extension_matches_plonky3() {
         let va = ext_in(a);
         assert!(same_ext(va, a), "conversion of value {i}");
         assert!(same_ext(verified::ext_neg(va), -a), "-value {i}");
+        let inverse = a.try_inverse().unwrap_or(Ext::ZERO);
+        assert!(same_ext(verified::ext_inv(va), inverse), "value {i}^-1");
         for e in exponents {
             assert!(same_ext(verified::ext_pow(va, e), a.exp_u64(e)), "value {i}^{e}");
         }

@@ -3,7 +3,7 @@
 module
 public import Aeneas
 public import NeoVerified.Types
-public import NeoVerified.Funs1
+public import NeoVerified.Funs6
 @[expose] public section
 open Aeneas Aeneas.Std Result ControlFlow Error
 set_option linter.dupNamespace false
@@ -17,347 +17,374 @@ set_option linter.internalConstructors false
 
 
 namespace neo_verified
-/-- [neo_verified::poseidon2::DIAGONAL]
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 202:0-219:2
+/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::ext_inverse]:
+    Source: 'crates/neo-verified/src/record.rs', lines 531:4-557:5
     Visibility: public -/
-@[global_simps, irreducible]
-def poseidon2.DIAGONAL : Array Std.U64 16#usize :=
-  Array.make 16#usize [
-    18446744069414584319#u64, 1#u64, 2#u64, 9223372034707292161#u64, 3#u64,
-    4#u64, 9223372034707292160#u64, 18446744069414584318#u64,
-    18446744069414584317#u64, 16140901060737761281#u64,
-    17293822565076172801#u64, 17870283317245378561#u64,
-    2305843008676823040#u64, 1152921504338411520#u64, 576460752169205760#u64,
-    18446744065119617026#u64
-    ]
-
-/-- [neo_verified::poseidon2::external_layer]: loop body 0:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 276:4-299:5 -/
-@[rust_loop_body]
-def poseidon2.external_layer_loop0.body
-  (state : Array field.Gl 16#usize) (mixed : Array field.Gl 16#usize)
-  (sum0 : field.Gl) (sum1 : field.Gl) (sum2 : field.Gl) (sum3 : field.Gl)
-  («at» : Std.Usize) :
-  Result (ControlFlow ((Array field.Gl 16#usize) × field.Gl × field.Gl ×
-    field.Gl × field.Gl × Std.Usize) ((Array field.Gl 16#usize) × field.Gl
-    × field.Gl × field.Gl × field.Gl))
+def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext_inverse
+  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
+  (a : Array record.Form 3#usize) (what : Str) :
+  Result ((core.result.Result (Array record.Form 3#usize) backend.Rejected) ×
+    (record.Recorder S))
   := do
-  if «at» < circuit.WIDTH
+  let value ← record.ext_value a
+  let zero ← native.ext_is_zero value
+  let inverse_value ← if zero
+                        then ok field.EXT_ZERO
+                        else field.ext_inv value
+  let b ← record.all_constant a
+  if b
   then
-    let x0 ← Array.index_usize state «at»
-    let i ← lift (core.num.Usize.wrapping_add «at» 1#usize)
-    let x1 ← Array.index_usize state i
-    let i1 ← lift (core.num.Usize.wrapping_add «at» 2#usize)
-    let x2 ← Array.index_usize state i1
-    let i2 ← lift (core.num.Usize.wrapping_add «at» 3#usize)
-    let x3 ← Array.index_usize state i2
-    let t01 ← field.gl_add x0 x1
-    let t23 ← field.gl_add x2 x3
-    let t0123 ← field.gl_add t01 t23
-    let t01123 ← field.gl_add t0123 x1
-    let t01233 ← field.gl_add t0123 x3
-    let y0 ← field.gl_add t01123 t01
-    let g ← field.gl_add x2 x2
-    let y1 ← field.gl_add t01123 g
-    let y2 ← field.gl_add t01233 t23
-    let g1 ← field.gl_add x0 x0
-    let y3 ← field.gl_add t01233 g1
-    let mixed1 ← Array.update mixed «at» y0
-    let i3 ← lift (core.num.Usize.wrapping_add «at» 1#usize)
-    let mixed2 ← Array.update mixed1 i3 y1
-    let i4 ← lift (core.num.Usize.wrapping_add «at» 2#usize)
-    let mixed3 ← Array.update mixed2 i4 y2
-    let i5 ← lift (core.num.Usize.wrapping_add «at» 3#usize)
-    let a ← Array.update mixed3 i5 y3
-    let sum01 ← field.gl_add sum0 y0
-    let sum11 ← field.gl_add sum1 y1
-    let sum21 ← field.gl_add sum2 y2
-    let sum31 ← field.gl_add sum3 y3
-    let at1 ← lift (core.num.Usize.wrapping_add «at» 4#usize)
-    ok (cont (a, sum01, sum11, sum21, sum31, at1))
-  else ok (done (mixed, sum0, sum1, sum2, sum3))
+    if zero
+    then
+      let c ← record.ext_coordinates inverse_value
+      let g ← Array.index_usize c 0#usize
+      let (x, self1) ← record.Recorder.cell SinkInst self g
+      let g1 ← Array.index_usize c 1#usize
+      let (y, self2) ← record.Recorder.cell SinkInst self1 g1
+      let g2 ← Array.index_usize c 2#usize
+      let (z, self3) ← record.Recorder.cell SinkInst self2 g2
+      let rows ← record.ext_rows a (Array.make 3#usize [ x, y, z ])
+      let e ← record.ext_value (Array.make 3#usize [ x, y, z ])
+      let e1 ← field.ext_mul value e
+      let product ← record.ext_coordinates e1
+      let v ← Array.index_usize rows 0#usize
+      let s := alloc.vec.Vec.deref v
+      let s1 ←
+        lift (Array.to_slice
+          (Array.make 1#usize [ (record.ONE, field.GL_ONE) ]))
+      let g3 ← Array.index_usize product 0#usize
+      let g4 ← field.gl_sub g3 field.GL_ONE
+      let self4 ← record.Recorder.row SinkInst self3 s s1 g4 what
+      let v1 ← Array.index_usize rows 1#usize
+      let s2 := alloc.vec.Vec.deref v1
+      let s3 ←
+        lift (Array.to_slice (Std.Array.empty (circuit.Wire × field.Gl)))
+      let g5 ← Array.index_usize product 1#usize
+      let self5 ← record.Recorder.row SinkInst self4 s2 s3 g5 what
+      let v2 ← Array.index_usize rows 2#usize
+      let s4 := alloc.vec.Vec.deref v2
+      let s5 ←
+        lift (Array.to_slice (Std.Array.empty (circuit.Wire × field.Gl)))
+      let g6 ← Array.index_usize product 2#usize
+      let self6 ← record.Recorder.row SinkInst self5 s4 s5 g6 what
+      ok (core.result.Result.Ok (Array.make 3#usize [ x, y, z ]), self6)
+    else
+      let c ← record.ext_coordinates inverse_value
+      let g ← Array.index_usize c 0#usize
+      let f ← record.Form.of_constant g
+      let g1 ← Array.index_usize c 1#usize
+      let f1 ← record.Form.of_constant g1
+      let g2 ← Array.index_usize c 2#usize
+      let f2 ← record.Form.of_constant g2
+      ok (core.result.Result.Ok (Array.make 3#usize [ f, f1, f2 ]), self)
+  else
+    let c ← record.ext_coordinates inverse_value
+    let g ← Array.index_usize c 0#usize
+    let (x, self1) ← record.Recorder.cell SinkInst self g
+    let g1 ← Array.index_usize c 1#usize
+    let (y, self2) ← record.Recorder.cell SinkInst self1 g1
+    let g2 ← Array.index_usize c 2#usize
+    let (z, self3) ← record.Recorder.cell SinkInst self2 g2
+    let rows ← record.ext_rows a (Array.make 3#usize [ x, y, z ])
+    let e ← record.ext_value (Array.make 3#usize [ x, y, z ])
+    let e1 ← field.ext_mul value e
+    let product ← record.ext_coordinates e1
+    let v ← Array.index_usize rows 0#usize
+    let s := alloc.vec.Vec.deref v
+    let s1 ←
+      lift (Array.to_slice (Array.make 1#usize [ (record.ONE, field.GL_ONE) ]))
+    let g3 ← Array.index_usize product 0#usize
+    let g4 ← field.gl_sub g3 field.GL_ONE
+    let self4 ← record.Recorder.row SinkInst self3 s s1 g4 what
+    let v1 ← Array.index_usize rows 1#usize
+    let s2 := alloc.vec.Vec.deref v1
+    let s3 ←
+      lift (Array.to_slice (Std.Array.empty (circuit.Wire × field.Gl)))
+    let g5 ← Array.index_usize product 1#usize
+    let self5 ← record.Recorder.row SinkInst self4 s2 s3 g5 what
+    let v2 ← Array.index_usize rows 2#usize
+    let s4 := alloc.vec.Vec.deref v2
+    let s5 ←
+      lift (Array.to_slice (Std.Array.empty (circuit.Wire × field.Gl)))
+    let g6 ← Array.index_usize product 2#usize
+    let self6 ← record.Recorder.row SinkInst self5 s4 s5 g6 what
+    ok (core.result.Result.Ok (Array.make 3#usize [ x, y, z ]), self6)
 
-/-- [neo_verified::poseidon2::external_layer]: loop 0:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 276:4-299:5 -/
-@[rust_loop]
-def poseidon2.external_layer_loop0
-  (state : Array field.Gl 16#usize) (mixed : Array field.Gl 16#usize)
-  (sum0 : field.Gl) (sum1 : field.Gl) (sum2 : field.Gl) (sum3 : field.Gl)
-  («at» : Std.Usize) :
-  Result ((Array field.Gl 16#usize) × field.Gl × field.Gl × field.Gl ×
-    field.Gl)
+/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::ext_scale]:
+    Source: 'crates/neo-verified/src/record.rs', lines 524:4-529:5
+    Visibility: public -/
+def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext_scale
+  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
+  (a : Array record.Form 3#usize) («by» : record.Form) :
+  Result ((Array record.Form 3#usize) × (record.Recorder S))
   := do
-  loop
-    (fun (mixed1, sum01, sum11, sum21, sum31, at1) =>
-      poseidon2.external_layer_loop0.body state mixed1 sum01 sum11 sum21 sum31
-      at1)
-    (mixed, sum0, sum1, sum2, sum3, «at»)
+  let f ← Array.index_usize a 0#usize
+  let (x, self1) ←
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.mul SinkInst
+      self f «by»
+  let f1 ← Array.index_usize a 1#usize
+  let (y, self2) ←
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.mul SinkInst
+      self1 f1 «by»
+  let f2 ← Array.index_usize a 2#usize
+  let (z, self3) ←
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.mul SinkInst
+      self2 f2 «by»
+  ok (Array.make 3#usize [ x, y, z ], self3)
 
-/-- [neo_verified::poseidon2::external_layer]: loop body 1:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 302:4-308:5 -/
-@[rust_loop_body]
-def poseidon2.external_layer_loop1.body
-  (mixed : Array field.Gl 16#usize) (sum0 : field.Gl) (sum1 : field.Gl)
-  (sum2 : field.Gl) (sum3 : field.Gl) (out : Array field.Gl 16#usize)
-  («at» : Std.Usize) :
-  Result (ControlFlow ((Array field.Gl 16#usize) × Std.Usize) (Array field.Gl
-    16#usize))
+/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::ext_mul]:
+    Source: 'crates/neo-verified/src/record.rs', lines 495:4-522:5
+    Visibility: public -/
+def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext_mul
+  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
+  (a : Array record.Form 3#usize) (b : Array record.Form 3#usize) :
+  Result ((Array record.Form 3#usize) × (record.Recorder S))
   := do
-  if «at» < circuit.WIDTH
+  let e ← record.ext_value a
+  let e1 ← record.ext_value b
+  let e2 ← field.ext_mul e e1
+  let product ← record.ext_coordinates e2
+  let b1 ← record.all_constant a
+  if b1
   then
-    let g ← Array.index_usize mixed «at»
-    let g1 ← field.gl_add g sum0
-    let out1 ← Array.update out «at» g1
-    let i ← lift (core.num.Usize.wrapping_add «at» 1#usize)
-    let g2 ← Array.index_usize mixed i
-    let g3 ← field.gl_add g2 sum1
-    let i1 ← lift (core.num.Usize.wrapping_add «at» 1#usize)
-    let out2 ← Array.update out1 i1 g3
-    let i2 ← lift (core.num.Usize.wrapping_add «at» 2#usize)
-    let g4 ← Array.index_usize mixed i2
-    let g5 ← field.gl_add g4 sum2
-    let i3 ← lift (core.num.Usize.wrapping_add «at» 2#usize)
-    let out3 ← Array.update out2 i3 g5
-    let i4 ← lift (core.num.Usize.wrapping_add «at» 3#usize)
-    let g6 ← Array.index_usize mixed i4
-    let g7 ← field.gl_add g6 sum3
-    let i5 ← lift (core.num.Usize.wrapping_add «at» 3#usize)
-    let a ← Array.update out3 i5 g7
-    let at1 ← lift (core.num.Usize.wrapping_add «at» 4#usize)
-    ok (cont (a, at1))
-  else ok (done out)
+    let f ← Array.index_usize a 0#usize
+    let f1 ← Array.index_usize a 1#usize
+    let f2 ← Array.index_usize a 2#usize
+    record.Recorder.ext_scale_by SinkInst self
+      { c0 := f.constant, c1 := f1.constant, c2 := f2.constant } b
+  else
+    let b2 ← record.all_constant b
+    if b2
+    then
+      let f ← Array.index_usize b 0#usize
+      let f1 ← Array.index_usize b 1#usize
+      let f2 ← Array.index_usize b 2#usize
+      record.Recorder.ext_scale_by SinkInst self
+        { c0 := f.constant, c1 := f1.constant, c2 := f2.constant } a
+    else
+      let rows ← record.ext_rows a b
+      let v ← Array.index_usize rows 0#usize
+      let s := alloc.vec.Vec.deref v
+      let g ← Array.index_usize product 0#usize
+      let (x, self1) ← record.Recorder.ext_cell SinkInst self s g
+      let v1 ← Array.index_usize rows 1#usize
+      let s1 := alloc.vec.Vec.deref v1
+      let g1 ← Array.index_usize product 1#usize
+      let (y, self2) ← record.Recorder.ext_cell SinkInst self1 s1 g1
+      let v2 ← Array.index_usize rows 2#usize
+      let s2 := alloc.vec.Vec.deref v2
+      let g2 ← Array.index_usize product 2#usize
+      let (z, self3) ← record.Recorder.ext_cell SinkInst self2 s2 g2
+      ok (Array.make 3#usize [ x, y, z ], self3)
 
-/-- [neo_verified::poseidon2::external_layer]: loop 1:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 302:4-308:5 -/
-@[rust_loop]
-def poseidon2.external_layer_loop1
-  (mixed : Array field.Gl 16#usize) (sum0 : field.Gl) (sum1 : field.Gl)
-  (sum2 : field.Gl) (sum3 : field.Gl) (out : Array field.Gl 16#usize)
-  («at» : Std.Usize) :
-  Result (Array field.Gl 16#usize)
+/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::ext_sub]:
+    Source: 'crates/neo-verified/src/record.rs', lines 488:4-493:5
+    Visibility: public -/
+def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext_sub
+  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
+  (a : Array record.Form 3#usize) (b : Array record.Form 3#usize) :
+  Result ((Array record.Form 3#usize) × (record.Recorder S))
   := do
-  loop
-    (fun (out1, at1) => poseidon2.external_layer_loop1.body mixed sum0 sum1
-      sum2 sum3 out1 at1)
-    (out, «at»)
+  let f ← Array.index_usize a 0#usize
+  let f1 ← Array.index_usize b 0#usize
+  let (x, self1) ←
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.sub SinkInst
+      self f f1
+  let f2 ← Array.index_usize a 1#usize
+  let f3 ← Array.index_usize b 1#usize
+  let (y, self2) ←
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.sub SinkInst
+      self1 f2 f3
+  let f4 ← Array.index_usize a 2#usize
+  let f5 ← Array.index_usize b 2#usize
+  let (z, self3) ←
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.sub SinkInst
+      self2 f4 f5
+  ok (Array.make 3#usize [ x, y, z ], self3)
 
-/-- [neo_verified::poseidon2::external_layer]:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 269:0-310:1 -/
-def poseidon2.external_layer
-  (state : Array field.Gl 16#usize) : Result (Array field.Gl 16#usize) := do
-  let (mixed, sum0, sum1, sum2, sum3) ←
-    poseidon2.external_layer_loop0 state state field.GL_ZERO field.GL_ZERO
-      field.GL_ZERO field.GL_ZERO 0#usize
-  poseidon2.external_layer_loop1 mixed sum0 sum1 sum2 sum3 mixed 0#usize
-
-/-- [neo_verified::poseidon2::internal_layer]: loop body 0:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 316:4-319:5 -/
-@[rust_loop_body]
-def poseidon2.internal_layer_loop0.body
-  (state : Array field.Gl 16#usize) (sum : field.Gl) (lane : Std.Usize) :
-  Result (ControlFlow (field.Gl × Std.Usize) field.Gl)
+/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::ext_add]:
+    Source: 'crates/neo-verified/src/record.rs', lines 481:4-486:5
+    Visibility: public -/
+def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext_add
+  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
+  (a : Array record.Form 3#usize) (b : Array record.Form 3#usize) :
+  Result ((Array record.Form 3#usize) × (record.Recorder S))
   := do
-  if lane < circuit.WIDTH
-  then
-    let g ← Array.index_usize state lane
-    let sum1 ← field.gl_add sum g
-    let lane1 ← lift (core.num.Usize.wrapping_add lane 1#usize)
-    ok (cont (sum1, lane1))
-  else ok (done sum)
+  let f ← Array.index_usize a 0#usize
+  let f1 ← Array.index_usize b 0#usize
+  let (x, self1) ←
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.add SinkInst
+      self f f1
+  let f2 ← Array.index_usize a 1#usize
+  let f3 ← Array.index_usize b 1#usize
+  let (y, self2) ←
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.add SinkInst
+      self1 f2 f3
+  let f4 ← Array.index_usize a 2#usize
+  let f5 ← Array.index_usize b 2#usize
+  let (z, self3) ←
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.add SinkInst
+      self2 f4 f5
+  ok (Array.make 3#usize [ x, y, z ], self3)
 
-/-- [neo_verified::poseidon2::internal_layer]: loop 0:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 316:4-319:5 -/
-@[rust_loop]
-def poseidon2.internal_layer_loop0
-  (state : Array field.Gl 16#usize) (sum : field.Gl) (lane : Std.Usize) :
-  Result field.Gl
+/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::ext_constant]:
+    Source: 'crates/neo-verified/src/record.rs', lines 473:4-479:5
+    Visibility: public -/
+def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext_constant
+  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
+  (value : Array Std.U64 3#usize) :
+  Result ((Array record.Form 3#usize) × (record.Recorder S))
   := do
-  loop
-    (fun (sum1, lane1) => poseidon2.internal_layer_loop0.body state sum1 lane1)
-    (sum, lane)
+  let i ← Array.index_usize value 0#usize
+  let g ← field.reduce i
+  let f ← record.Form.of_constant g
+  let i1 ← Array.index_usize value 1#usize
+  let g1 ← field.reduce i1
+  let f1 ← record.Form.of_constant g1
+  let i2 ← Array.index_usize value 2#usize
+  let g2 ← field.reduce i2
+  let f2 ← record.Form.of_constant g2
+  ok (Array.make 3#usize [ f, f1, f2 ], self)
 
-/-- [neo_verified::poseidon2::internal_layer]: loop body 1:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 322:4-325:5 -/
-@[rust_loop_body]
-def poseidon2.internal_layer_loop1.body
-  (state : Array field.Gl 16#usize) (sum : field.Gl)
-  (out : Array field.Gl 16#usize) (lane : Std.Usize) :
-  Result (ControlFlow ((Array field.Gl 16#usize) × Std.Usize) (Array field.Gl
-    16#usize))
+/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::coordinates]:
+    Source: 'crates/neo-verified/src/record.rs', lines 469:4-471:5
+    Visibility: public -/
+def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.coordinates
+  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
+  (a : Array record.Form 3#usize) :
+  Result ((Array record.Form 3#usize) × (record.Recorder S))
   := do
-  if lane < circuit.WIDTH
-  then
-    let i ← Array.index_usize poseidon2.DIAGONAL lane
-    let g ← field.reduce i
-    let g1 ← Array.index_usize state lane
-    let g2 ← field.gl_mul g g1
-    let g3 ← field.gl_add g2 sum
-    let a ← Array.update out lane g3
-    let lane1 ← lift (core.num.Usize.wrapping_add lane 1#usize)
-    ok (cont (a, lane1))
-  else ok (done out)
+  ok (a, self)
 
-/-- [neo_verified::poseidon2::internal_layer]: loop 1:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 322:4-325:5 -/
-@[rust_loop]
-def poseidon2.internal_layer_loop1
-  (state : Array field.Gl 16#usize) (sum : field.Gl)
-  (out : Array field.Gl 16#usize) (lane : Std.Usize) :
-  Result (Array field.Gl 16#usize)
+/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::ext]:
+    Source: 'crates/neo-verified/src/record.rs', lines 465:4-467:5
+    Visibility: public -/
+def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext
+  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
+  (coordinates : Array record.Form 3#usize) :
+  Result ((Array record.Form 3#usize) × (record.Recorder S))
   := do
-  loop
-    (fun (out1, lane1) => poseidon2.internal_layer_loop1.body state sum out1
-      lane1)
-    (out, lane)
+  ok (coordinates, self)
 
-/-- [neo_verified::poseidon2::internal_layer]:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 313:0-327:1 -/
-def poseidon2.internal_layer
-  (state : Array field.Gl 16#usize) : Result (Array field.Gl 16#usize) := do
-  let sum ← poseidon2.internal_layer_loop0 state field.GL_ZERO 0#usize
-  poseidon2.internal_layer_loop1 state sum state 0#usize
-
-/-- [neo_verified::poseidon2::sbox]:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 243:0-247:1 -/
-def poseidon2.sbox (x : field.Gl) : Result field.Gl := do
-  let x2 ← field.gl_mul x x
-  let x4 ← field.gl_mul x2 x2
-  let g ← field.gl_mul x4 x2
-  field.gl_mul g x
-
-/-- [neo_verified::poseidon2::partial_round]:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 261:0-265:1 -/
-def poseidon2.partial_round
-  (state : Array field.Gl 16#usize) (constant : Std.U64) :
-  Result (Array field.Gl 16#usize)
+/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::scale]:
+    Source: 'crates/neo-verified/src/record.rs', lines 448:4-450:5
+    Visibility: public -/
+def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.scale
+  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
+  (a : record.Form) («by» : Std.U64) :
+  Result (record.Form × (record.Recorder S))
   := do
-  let g ← Array.index_usize state 0#usize
-  let g1 ← field.reduce constant
-  let g2 ← field.gl_add g g1
-  let g3 ← poseidon2.sbox g2
-  let state1 ← Array.update state 0#usize g3
-  poseidon2.internal_layer state1
+  let g ← field.reduce «by»
+  let s ← lift (Array.to_slice (Array.make 1#usize [ (a, g) ]))
+  record.Recorder.linear SinkInst self s
 
-/-- [neo_verified::poseidon2::full_round]: loop body 0:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 253:4-256:5 -/
-@[rust_loop_body]
-def poseidon2.full_round_loop.body
-  (state : Array field.Gl 16#usize) (constants : Array Std.U64 16#usize)
-  (boxed : Array field.Gl 16#usize) (lane : Std.Usize) :
-  Result (ControlFlow ((Array field.Gl 16#usize) × Std.Usize) (Array field.Gl
-    16#usize))
+/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::public]:
+    Source: 'crates/neo-verified/src/record.rs', lines 432:4-438:5
+    Visibility: public -/
+def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.public
+  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
+  (value : Std.U64) :
+  Result (record.Form × (record.Recorder S))
   := do
-  if lane < circuit.WIDTH
-  then
-    let g ← Array.index_usize state lane
-    let i ← Array.index_usize constants lane
-    let g1 ← field.reduce i
-    let g2 ← field.gl_add g g1
-    let g3 ← poseidon2.sbox g2
-    let a ← Array.update boxed lane g3
-    let lane1 ← lift (core.num.Usize.wrapping_add lane 1#usize)
-    ok (cont (a, lane1))
-  else ok (done boxed)
+  let value1 ← field.reduce value
+  let i ← lift (core.num.U32.wrapping_add self.publics 1#u32)
+  let t ← SinkInst.«public» self.sink value1
+  let f ← record.Form.of_wire (circuit.Wire.Public self.publics) value1
+  ok (f, { self with sink := t, publics := i })
 
-/-- [neo_verified::poseidon2::full_round]: loop 0:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 253:4-256:5 -/
-@[rust_loop]
-def poseidon2.full_round_loop
-  (state : Array field.Gl 16#usize) (constants : Array Std.U64 16#usize)
-  (boxed : Array field.Gl 16#usize) (lane : Std.Usize) :
-  Result (Array field.Gl 16#usize)
+/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::private]:
+    Source: 'crates/neo-verified/src/record.rs', lines 428:4-430:5
+    Visibility: public -/
+def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.private
+  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
+  (value : Std.U64) :
+  Result (record.Form × (record.Recorder S))
   := do
-  loop
-    (fun (boxed1, lane1) => poseidon2.full_round_loop.body state constants
-      boxed1 lane1)
-    (boxed, lane)
+  let g ← field.reduce value
+  record.Recorder.cell SinkInst self g
 
-/-- [neo_verified::poseidon2::full_round]:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 250:0-258:1 -/
-def poseidon2.full_round
-  (state : Array field.Gl 16#usize) (constants : Array Std.U64 16#usize) :
-  Result (Array field.Gl 16#usize)
+/-- [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}::constant]:
+    Source: 'crates/neo-verified/src/record.rs', lines 424:4-426:5
+    Visibility: public -/
+def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.constant
+  {S : Type _} (SinkInst : record.Sink S) (self : record.Recorder S)
+  (value : Std.U64) :
+  Result (record.Form × (record.Recorder S))
   := do
-  let boxed ← poseidon2.full_round_loop state constants state 0#usize
-  poseidon2.external_layer boxed
+  let g ← field.reduce value
+  let f ← record.Form.of_constant g
+  ok (f, self)
 
-/-- [neo_verified::poseidon2::full_rounds]: loop body 0:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 235:4-238:5 -/
-@[rust_loop_body]
-def poseidon2.full_rounds_loop.body
-  (rows : Array (Array Std.U64 16#usize) 4#usize)
-  (state : Array field.Gl 16#usize) (round : Std.Usize) :
-  Result (ControlFlow ((Array field.Gl 16#usize) × Std.Usize) (Array field.Gl
-    16#usize))
-  := do
-  if round < poseidon2.HALF_FULL_ROUNDS
-  then
-    let a ← Array.index_usize rows round
-    let state1 ← poseidon2.full_round state a
-    let round1 ← lift (core.num.Usize.wrapping_add round 1#usize)
-    ok (cont (state1, round1))
-  else ok (done state)
-
-/-- [neo_verified::poseidon2::full_rounds]: loop 0:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 235:4-238:5 -/
-@[rust_loop]
-def poseidon2.full_rounds_loop
-  (state : Array field.Gl 16#usize)
-  (rows : Array (Array Std.U64 16#usize) 4#usize) (round : Std.Usize) :
-  Result (Array field.Gl 16#usize)
-  := do
-  loop
-    (fun (state1, round1) => poseidon2.full_rounds_loop.body rows state1
-      round1)
-    (state, round)
-
-/-- [neo_verified::poseidon2::full_rounds]:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 233:0-240:1 -/
+/-- Trait implementation: [neo_verified::record::{impl neo_verified::backend::Backend<neo_verified::record::Form, [neo_verified::record::Form; 3usize]> for neo_verified::record::Recorder<S>}]
+    Source: 'crates/neo-verified/src/record.rs', lines 420:0-666:1 -/
 @[reducible]
-def poseidon2.full_rounds
-  (state : Array field.Gl 16#usize)
-  (rows : Array (Array Std.U64 16#usize) 4#usize) :
-  Result (Array field.Gl 16#usize)
-  := do
-  poseidon2.full_rounds_loop state rows 0#usize
-
-/-- [neo_verified::poseidon2::permute]: loop body 0:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 225:4-228:5
-    Visibility: public -/
-@[rust_loop_body]
-def poseidon2.permute_loop.body
-  (state : Array field.Gl 16#usize) (round : Std.Usize) :
-  Result (ControlFlow ((Array field.Gl 16#usize) × Std.Usize) (Array field.Gl
-    16#usize))
-  := do
-  if round < poseidon2.PARTIAL_ROUNDS
-  then
-    let i ← Array.index_usize poseidon2.PARTIAL round
-    let state1 ← poseidon2.partial_round state i
-    let round1 ← lift (core.num.Usize.wrapping_add round 1#usize)
-    ok (cont (state1, round1))
-  else ok (done state)
-
-/-- [neo_verified::poseidon2::permute]: loop 0:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 225:4-228:5
-    Visibility: public -/
-@[rust_loop]
-def poseidon2.permute_loop
-  (state : Array field.Gl 16#usize) (round : Std.Usize) :
-  Result (Array field.Gl 16#usize)
-  := do
-  loop
-    (fun (state1, round1) => poseidon2.permute_loop.body state1 round1)
-    (state, round)
-
-/-- [neo_verified::poseidon2::permute]:
-    Source: 'crates/neo-verified/src/poseidon2.rs', lines 222:0-230:1
-    Visibility: public -/
-def poseidon2.permute
-  (input : Array field.Gl 16#usize) : Result (Array field.Gl 16#usize) := do
-  let a ← poseidon2.external_layer input
-  let state ← poseidon2.full_rounds a poseidon2.INITIAL
-  let state1 ← poseidon2.permute_loop state 0#usize
-  poseidon2.full_rounds state1 poseidon2.TERMINAL
+impl_def record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3 {S :
+  Type _} (SinkInst : record.Sink S) : backend.Backend (record.Recorder S)
+  record.Form (Array record.Form 3#usize) := {
+  coremarkerCopyInst := record.Form.Insts.CoreMarkerCopy
+  ValueInst := backend.Value.Blanket (Array.Insts.CoreMarkerCopy 3#usize
+    record.Form.Insts.CoreMarkerCopy)
+  constant :=
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.constant
+    SinkInst
+  «private» :=
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.private
+    SinkInst
+  «public» :=
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.public
+    SinkInst
+  add := record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.add
+    SinkInst
+  sub := record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.sub
+    SinkInst
+  scale := record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.scale
+    SinkInst
+  mul := record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.mul
+    SinkInst
+  ext := record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext
+    SinkInst
+  coordinates :=
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.coordinates
+    SinkInst
+  ext_constant :=
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext_constant
+    SinkInst
+  ext_add :=
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext_add
+    SinkInst
+  ext_sub :=
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext_sub
+    SinkInst
+  ext_mul :=
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext_mul
+    SinkInst
+  ext_scale :=
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext_scale
+    SinkInst
+  ext_inverse :=
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.ext_inverse
+    SinkInst
+  assert_zero :=
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.assert_zero
+    SinkInst
+  bits := record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.bits
+    SinkInst
+  select :=
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.select
+    SinkInst
+  permute :=
+    record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.permute
+    SinkInst
+  hint := record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.hint
+    SinkInst
+  r1cs := record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3.r1cs
+    SinkInst
+  assert_ext_zero := backend.Backend.assert_ext_zero.default
+    (record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3 SinkInst)
+  assert_equal := backend.Backend.assert_equal.default
+    (record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3 SinkInst)
+  assert_ext_equal := backend.Backend.assert_ext_equal.default
+    (record.Recorder.Insts.Neo_verifiedBackendBackendFormArrayForm3 SinkInst)
+}
 
 end neo_verified

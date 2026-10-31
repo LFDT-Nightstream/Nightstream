@@ -11,7 +11,6 @@
 //! Points are in Plonky3 order (most significant variable first) inside this
 //! file; callers pass low-bit-first points, as everywhere else.
 
-pub(crate) mod paths;
 pub(crate) mod prover;
 pub(crate) mod seeds;
 
@@ -20,9 +19,11 @@ use p3_sumcheck_v08::layout::plan_stacked_layout;
 use p3_whir::pcs::proof::QueryOpenings;
 use p3_whir::transcript::WhirShape;
 
+use neo_verified::paths::Paths;
+
 use crate::circuit::hash::{hash_leaf, merkle_root, Duplex};
-use crate::circuit::{algebra, Backend};
-use crate::field::{ext_words, Ext, Gl};
+use crate::circuit::{algebra, Backend, Hint};
+use crate::field::{ext_words, to_verified, Ext, Gl};
 use crate::pcs::{Opening, Pcs};
 use crate::Error;
 
@@ -445,35 +446,41 @@ fn stir<B: Backend>(
         }
     }
     let words: Vec<B::F> = indices.iter().map(|(_, word)| *word).collect();
-    let rows_native: Option<Vec<Vec<Gl>>> = view_proof.map(|openings| match openings {
-        QueryOpenings::Base(opening) => opening.rows.clone(),
-        QueryOpenings::Extension(opening) => opening
-            .rows
-            .iter()
-            .map(|row| row.iter().flat_map(|&value| ext_words(value)).collect())
-            .collect(),
-    });
-    let siblings: Option<Vec<[Gl; 4]>> = view_proof.map(|openings| match openings {
-        QueryOpenings::Base(opening) => opening.proof.sibling_hashes.clone(),
-        QueryOpenings::Extension(opening) => opening.proof.sibling_hashes.clone(),
-    });
-    let path_words = b.hint(&words, words.len() * index_bits * 4, &|values| {
-        let zeros = vec![0; values.len() * index_bits * 4];
-        let (Some(rows), Some(siblings)) = (&rows_native, &siblings) else {
-            return zeros;
-        };
-        let indices: Vec<usize> = values.iter().map(|&v| v as usize).collect();
-        let leaves: Vec<[Gl; 4]> = rows.iter().map(|row| crate::hash::hash_leaf(row)).collect();
-        match paths::expand(&indices, &leaves, siblings, index_bits) {
-            Some(paths) => paths
-                .into_iter()
-                .flatten()
-                .flatten()
-                .map(|word| p3_field_v08::PrimeField64::as_canonical_u64(&word))
-                .collect(),
-            None => zeros,
+    let hint = match view_proof {
+        Some(openings) => {
+            let (leaves, siblings): (Vec<[Gl; 4]>, &[[Gl; 4]]) = match openings {
+                QueryOpenings::Base(opening) => (
+                    opening
+                        .rows
+                        .iter()
+                        .map(|row| crate::hash::hash_leaf(row))
+                        .collect(),
+                    &opening.proof.sibling_hashes,
+                ),
+                QueryOpenings::Extension(opening) => (
+                    opening
+                        .rows
+                        .iter()
+                        .map(|row| {
+                            let words: Vec<Gl> = row.iter().flat_map(|&value| ext_words(value)).collect();
+                            crate::hash::hash_leaf(&words)
+                        })
+                        .collect(),
+                    &opening.proof.sibling_hashes,
+                ),
+            };
+            Hint::Paths(Paths {
+                leaves: leaves
+                    .into_iter()
+                    .map(|leaf| leaf.map(to_verified))
+                    .collect(),
+                siblings: siblings.iter().map(|node| node.map(to_verified)).collect(),
+                depth: index_bits,
+            })
         }
-    });
+        None => Hint::Words(Vec::new()),
+    };
+    let path_words = b.hint(&words, words.len() * index_bits * 4, &hint);
     let generator = Gl::two_adic_generator(log_folded_domain);
     let mut statements = Vec::with_capacity(indices.len());
     for (d, (bits, _)) in indices.iter().enumerate() {

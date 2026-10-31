@@ -1,22 +1,13 @@
-//! Uniform blocks: a fixed set of rows over the block's own cells.
-//!
-//! Owns: the inputs and outputs of each block kind
-//! (`neo_verified::circuit::Kind`), and its rows as entries of the eight CCS
-//! matrices `X, A_0, B_0, A_1, B_1, A_2, B_2, C`. A row holds when
-//! `(X·z)^7 + Σ_i (A_i·z)·(B_i·z) − C·z = 0`. The first `inputs` cells of a
-//! block are its inputs; its outputs are the cells in `outputs`.
+//! The prover's view of uniform blocks (`neo_verified::block`): each kind's entries with
+//! Plonky3 0.8 coefficients, built once, and the cell values of a block.
 
-use std::ops::Range;
 use std::sync::OnceLock;
 
-use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
-use neo_verified::circuit::{Kind, CELLS};
+pub(crate) use neo_verified::block::{C, X};
+use neo_verified::circuit::{Kind, KINDS};
 
 use super::poseidon2;
-use crate::field::Gl;
-
-pub(crate) const X: usize = 0;
-pub(crate) const C: usize = 7;
+use crate::field::{from_verified, Gl};
 
 /// One nonzero of a block row: the matrix, the template row, the block cell
 /// (`None` for the constant one) and the coefficient.
@@ -28,26 +19,26 @@ pub(crate) struct Entry {
     pub(crate) coefficient: Gl,
 }
 
-pub(crate) fn inputs(kind: Kind) -> usize {
-    match kind {
-        Kind::Permutation => WIDTH,
-    }
-}
-
-pub(crate) fn outputs(kind: Kind) -> Range<usize> {
-    match kind {
-        Kind::Permutation => poseidon2::OUTPUT..CELLS,
-    }
-}
-
 pub(crate) fn entries(kind: Kind) -> &'static [Entry] {
-    static ENTRIES: OnceLock<[Vec<Entry>; 1]> = OnceLock::new();
-    &ENTRIES.get_or_init(|| [poseidon2::entries()])[kind.index()]
+    static ENTRIES: OnceLock<[Vec<Entry>; KINDS.len()]> = OnceLock::new();
+    &ENTRIES.get_or_init(|| {
+        KINDS.map(|kind| {
+            neo_verified::block::entries(kind)
+                .into_iter()
+                .map(|entry| Entry {
+                    matrix: entry.matrix,
+                    row: entry.row,
+                    cell: entry.cell,
+                    coefficient: from_verified(entry.coefficient),
+                })
+                .collect()
+        })
+    })[kind.index()]
 }
 
 /// The cell values of one block with these inputs.
 pub(crate) fn trace(kind: Kind, inputs: &[Gl]) -> Vec<Gl> {
-    assert_eq!(inputs.len(), self::inputs(kind));
+    assert_eq!(inputs.len(), neo_verified::block::inputs(kind));
     match kind {
         Kind::Permutation => poseidon2::trace(&std::array::from_fn(|lane| inputs[lane])),
     }

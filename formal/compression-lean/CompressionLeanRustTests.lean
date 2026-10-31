@@ -7,16 +7,32 @@ open Lean Elab Command Meta
 
 def standardAxioms : List Name := [``propext, ``Classical.choice, ``Quot.sound]
 
+/-- The Rust path of a translated item: `module.f` is `module.rs::f`, and a method `module.Type.f`
+is `module.rs::Type::f`. -/
 def rustItem (f : Name) : Option String :=
   match f.components.map toString with
   | "neo_verified" :: rest@(_ :: _ :: _) =>
-    some s!"crates/neo-verified/src/{"/".intercalate rest.dropLast}.rs::{rest.getLast!}"
+    let path := rest.dropLast
+    match path.reverse with
+    | ty :: modules@(_ :: _) =>
+      if ty.front.isUpper then some s!"crates/neo-verified/src/{"/".intercalate modules.reverse}.rs::{ty}::{rest.getLast!}"
+      else some s!"crates/neo-verified/src/{"/".intercalate path}.rs::{rest.getLast!}"
+    | _ => some s!"crates/neo-verified/src/{"/".intercalate path}.rs::{rest.getLast!}"
   | _ => none
 
 /-- The constant `c` on one tuple of its explicit arguments, `fun x => c x.1 x.2.1 … x.2.2`, or `c`
-itself when it takes one argument. -/
+itself when it takes one argument. A function generic over `B: Backend` runs on
+`CompressionLeanRust.build`: its type arguments and its backend are fixed first. -/
 def tupled (c : Name) : MetaM Expr := do
-  let fn ← mkConstWithLevelParams c
+  let mut fn ← mkConstWithLevelParams c
+  let generic ← forallTelescope (← inferType fn) fun args _ => do
+    for arg in args do
+      if (← arg.fvarId!.getBinderInfo).isExplicit then
+        return (← inferType arg).isAppOf ``neo_verified.backend.Backend
+    return false
+  if generic then
+    let levels := (← getConstInfo c).levelParams.map fun _ => Level.zero
+    fn ← mkAppM' (mkConst c levels) #[mkConst ``CompressionLeanRust.build]
   forallTelescope (← inferType fn) fun args _ => do
     for arg in args do
       unless (← arg.fvarId!.getBinderInfo).isExplicit do throwError "{c} takes an implicit argument"

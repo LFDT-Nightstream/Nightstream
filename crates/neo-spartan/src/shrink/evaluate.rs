@@ -6,10 +6,13 @@ use neo_verified::layout::{column, glue_row, Shape};
 use p3_field_v08::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
+use neo_verified::field as verified;
+use neo_verified::r1cs::R1cs;
+
 use crate::circuit::block::C;
-use crate::circuit::r1cs::{R1cs, Side};
-use crate::circuit::record::{Form, Sink, Term};
-use crate::field::{eq_table, Ext, Gl};
+use crate::circuit::r1cs::{sides, Side};
+use crate::circuit::record::{evaluate, Form, Sink, Term};
+use crate::field::{eq_table, from_verified, Ext, Gl};
 
 /// `eq(point, i)` from a low and a high table.
 pub(crate) struct SplitEq {
@@ -80,7 +83,7 @@ impl<'l> Evaluate<'l> {
     fn side(&self, terms: &[Term]) -> Ext {
         terms
             .iter()
-            .map(|&(wire, coefficient)| self.columns.at(column(self.shape, wire)) * coefficient)
+            .map(|&(wire, coefficient)| self.columns.at(column(self.shape, wire)) * from_verified(coefficient))
             .sum()
     }
 }
@@ -97,16 +100,17 @@ impl Sink for Evaluate<'_> {
         self.glue_rows += 1;
     }
 
-    fn cell(&mut self, _: Gl) {
+    fn cell(&mut self, _: verified::Gl) {
         self.glue_cells += 1;
     }
 
-    fn block(&mut self, kind: Kind, _: &[Gl]) {
+    fn block(&mut self, kind: Kind, _: &[verified::Gl]) -> Vec<verified::Gl> {
         self.blocks[kind.index()] += 1;
+        Vec::new()
     }
 
-    fn public(&mut self, value: Gl) {
-        self.publics.push(value);
+    fn public(&mut self, value: verified::Gl) {
+        self.publics.push(from_verified(value));
     }
 
     /// One `eq` per column, then the rows in parallel.
@@ -117,20 +121,20 @@ impl Sink for Evaluate<'_> {
         }
         let at: Vec<Ext> = columns
             .par_iter()
-            .map(|form| form.evaluate(|wire| self.columns.at(column(self.shape, wire))))
+            .map(|form| evaluate(form, |wire| self.columns.at(column(self.shape, wire))))
             .collect();
         let side = |(columns, coefficients): Side<'_>| -> Ext {
             columns
                 .iter()
                 .zip(coefficients)
-                .map(|(&column, &coefficient)| at[column as usize] * coefficient)
+                .map(|(&column, &coefficient)| at[column as usize] * from_verified(coefficient))
                 .sum()
         };
         let start = self.glue_rows;
         let total: Ext = (0..system.rows())
             .into_par_iter()
             .map(|row| {
-                let [a, b, c] = system.sides(row);
+                let [a, b, c] = sides(system, row);
                 let sum = self.rho[1] * side(a) + self.rho[2] * side(b) + self.rho[C] * side(c);
                 self.rows.at(glue_row(self.shape, start + row)) * sum
             })

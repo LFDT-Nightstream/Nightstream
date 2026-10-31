@@ -1,3 +1,5 @@
+use neo_verified::algebra::{dot, eq_at, eq_eval, eq_table, horner, interpolate, power_from_bits};
+use neo_verified::backend::Rejected;
 use neo_verified::circuit::{Kind, Wire};
 use neo_verified::degrees::{
     early, early_terms, gkr, late, late_terms, layer1, linear, linear_terms, row_count, shrink, shrink_terms, Relation,
@@ -7,11 +9,15 @@ use neo_verified::field::{
     canonical, ext_add, ext_mul, ext_neg, ext_of_gl, ext_pow, ext_scale, ext_sub, gl_add, gl_inv, gl_mul, gl_neg,
     gl_pow, gl_sub, gl_word, reduce, Ext, EXT_ONE, EXT_ZERO, GL_ONE, GL_ZERO, MODULUS,
 };
+use neo_verified::field::{ext_inv, Gl};
+use neo_verified::hash::{compress, hash_leaf, merkle_root};
 use neo_verified::layout::{
     block_cell, block_row, cell_variables, column, entry_column, glue_row, one, place, row_variables, slot, split,
     variables, Part, Shape,
 };
+use neo_verified::native::Native;
 use neo_verified::poseidon2::{permute, DIAGONAL, HALF_FULL_ROUNDS, INITIAL, PARTIAL, PARTIAL_ROUNDS, TERMINAL};
+use std::ops::ControlFlow;
 use std::panic::{catch_unwind, UnwindSafe};
 use std::path::Path;
 use std::process::Command;
@@ -206,6 +212,7 @@ fn cases() -> Vec<String> {
     degrees_cases(&mut case);
     field_cases(&mut case);
     poseidon2_cases(&mut case);
+    circuit_cases(&mut case);
     cases
 }
 
@@ -836,4 +843,228 @@ fn translation_runs_as_rust() {
     let stderr = String::from_utf8_lossy(&output.stderr);
     assert!(output.status.success(), "{stdout}{stderr}");
     assert_eq!(stdout.trim(), format!("rustCheck: {} cases agree", cases.len()));
+}
+
+fn show_exts(values: &[Ext]) -> String {
+    let words: Vec<u64> = values.iter().flat_map(|&e| ext_words(e)).collect();
+    show(&words)
+}
+
+fn show_gls(values: &[Gl]) -> String {
+    let words: Vec<u64> = values.iter().map(|&g| gl_word(g)).collect();
+    show(&words)
+}
+
+fn rejected(r: Result<u64, Rejected>) -> Result<u64, ()> {
+    r.map_err(|_| ())
+}
+
+fn try_twice(r: Result<u64, Rejected>) -> Result<u64, Rejected> {
+    let v = r?;
+    Ok(v)
+}
+
+/// The circuit helpers run on `Native`, and the models that only the circuit core calls. A
+/// sequence of extension values is its length, then three words per value.
+fn circuit_cases(case: &mut impl FnMut(&str, &[u64], String)) {
+    let pool = field_words();
+    let values = exts(&pool);
+    for (i, &a) in values.iter().enumerate() {
+        case("ext_inv", &ext_words(a), show_ext(ext_inv(a)));
+        let n = 1 + i % 5;
+        let xs: Vec<Ext> = (0..n).map(|k| values[(i + 3 * k) % values.len()]).collect();
+        let ys: Vec<Ext> = (0..n + i % 2)
+            .map(|k| values[(i + 7 * k + 1) % values.len()])
+            .collect();
+        let xw: Vec<u64> = xs.iter().flat_map(|&e| ext_words(e)).collect();
+        let yw: Vec<u64> = ys.iter().flat_map(|&e| ext_words(e)).collect();
+        let pair = [&[n as u64][..], &xw, &yw].concat();
+        case("eq_eval", &pair, show_ext(eq_eval(&mut Native, &xs, &ys)));
+        case("dot", &pair, show_ext(dot(&mut Native, &xs, &ys)));
+        let x = values[(5 * i) % values.len()];
+        let with_x = [&[n as u64][..], &xw, &ext_words(x)].concat();
+        case("interpolate", &with_x, show_ext(interpolate(&mut Native, &xs, x)));
+        case("horner", &with_x, show_ext(horner(&mut Native, &xs, x)));
+        let index = pool[i % pool.len()] as usize;
+        case(
+            "eq_at",
+            &[&[index as u64][..], &xw].concat(),
+            show_ext(eq_at(&mut Native, &xs, index)),
+        );
+        case(
+            "eq_table",
+            &xw,
+            format!("ok {}", show_exts(&eq_table(&mut Native, &xs))),
+        );
+        let bits: Vec<Gl> = (0..n)
+            .map(|k| reduce(pool[(i + k) % pool.len()] % 2))
+            .collect();
+        let g = pool[(3 * i) % pool.len()];
+        case(
+            "power_from_bits",
+            &[&[g][..], &bits.iter().map(|&b| gl_word(b)).collect::<Vec<_>>()].concat(),
+            format!("ok {}", gl_word(power_from_bits(&mut Native, reduce(g), &bits))),
+        );
+        let leaf: Vec<Gl> = (0..3 * n + i % 13)
+            .map(|k| reduce(pool[(i + k) % pool.len()]))
+            .collect();
+        case("hash_leaf", &leaf.iter().map(|&g| gl_word(g)).collect::<Vec<_>>(), {
+            format!("ok {}", show_gls(&hash_leaf(&mut Native, &leaf)))
+        });
+        let left: [Gl; 4] = std::array::from_fn(|k| reduce(pool[(i + k) % pool.len()]));
+        let right: [Gl; 4] = std::array::from_fn(|k| reduce(pool[(2 * i + k) % pool.len()]));
+        let nodes: Vec<u64> = left.iter().chain(&right).map(|&g| gl_word(g)).collect();
+        case(
+            "compress",
+            &nodes,
+            format!("ok {}", show_gls(&compress(&mut Native, left, right))),
+        );
+        let path: Vec<[Gl; 4]> = (0..n)
+            .map(|k| std::array::from_fn(|l| reduce(pool[(i + k + l) % pool.len()])))
+            .collect();
+        let path_words: Vec<u64> = path.iter().flatten().map(|&g| gl_word(g)).collect();
+        let bit_words: Vec<u64> = bits.iter().map(|&b| gl_word(b)).collect();
+        case(
+            "merkle_root",
+            &[&nodes[..4], &[n as u64], &bit_words, &path_words].concat(),
+            format!("ok {}", show_gls(&merkle_root(&mut Native, left, &bits, &path))),
+        );
+    }
+    let list = [3u64, 0, u64::MAX, 7];
+    case("alloc.vec.Vec.new", &[], "ok ".to_string());
+    case("alloc.vec.Vec.push", &list, format!("ok {}", show(&list)));
+    case("alloc.vec.Vec.len", &list, format!("ok {}", list.len()));
+    case("alloc.vec.Vec.deref", &list, format!("ok {}", show(&list)));
+    case("alloc.vec.CloneVec.clone", &list, format!("ok {}", show(&list)));
+    case(
+        "alloc.vec.FromVecArray.from",
+        &list[..2],
+        format!("ok {}", show(&list[..2])),
+    );
+    for i in [0usize, 1, 3, 4, usize::MAX] {
+        let v = list.to_vec();
+        case(
+            "alloc.vec.Vec.index",
+            &[&[i as u64][..], &list].concat(),
+            outcome(move || v[i], |x| x.to_string()),
+        );
+        let mut v = list.to_vec();
+        case(
+            "alloc.vec.Vec.index_mut",
+            &[&[i as u64, 9][..], &list].concat(),
+            outcome(
+                move || {
+                    v[i] = 9;
+                    v
+                },
+                |v| show(&v),
+            ),
+        );
+        let s = list;
+        case(
+            "core.slice.index.SliceIndexUsizeSlice",
+            &[&[i as u64][..], &list].concat(),
+            outcome(move || s[i], |x| x.to_string()),
+        );
+        let mut a = [7u64, 9];
+        case(
+            "Array.index_mut_usize",
+            &[7, 9, i as u64, 5],
+            outcome(
+                move || {
+                    a[i] = 5;
+                    a
+                },
+                |a| show(&a),
+            ),
+        );
+    }
+    case("core.slice.Slice.is_empty", &[], "ok true".to_string());
+    case("core.slice.Slice.is_empty", &list, "ok false".to_string());
+    case("Array.empty", &[], "ok 0".to_string());
+    case("Array.repeat", &[5], "ok 5 5 5".to_string());
+    case("core.clone.CloneArray", &[7, 9, 1, 2], "ok 7 9 1 2".to_string());
+    case("core.clone.CloneU64", &[u64::MAX], format!("ok {}", u64::MAX));
+    case(
+        "core.clone.impls.CloneUsize.clone",
+        &[u64::MAX],
+        format!("ok {}", u64::MAX),
+    );
+    case("core.convert.FromSame", &[5], "ok 5".to_string());
+    for (x, y) in [(0u32, 0u32), (u32::MAX, 1), (5, u32::MAX)] {
+        case(
+            "core.num.U32.wrapping_add",
+            &[x.into(), y.into()],
+            format!("ok {}", x.wrapping_add(y)),
+        );
+    }
+    for x in EDGES {
+        for m in [0usize, 1, 2, 3] {
+            case(
+                "core.num.Usize.is_multiple_of",
+                &words(&[x, m]),
+                format!("ok {}", x.is_multiple_of(m)),
+            );
+        }
+        for k in SHIFTS {
+            case(
+                "core.num.Usize.wrapping_shr",
+                &[x as u64, k.into()],
+                format!("ok {}", x.wrapping_shr(k)),
+            );
+        }
+        for y in EDGES {
+            case(
+                "core.num.Usize.wrapping_sub",
+                &words(&[x, y]),
+                format!("ok {}", x.wrapping_sub(y)),
+            );
+        }
+    }
+    for w in WIRES {
+        for v in WIRES {
+            case(
+                "core.cmp.PartialEq.ne.trait_default",
+                &[wire_words(w), wire_words(v)].concat(),
+                format!("ok {}", w != v),
+            );
+        }
+    }
+    case("core.option.Option.is_none", &[0], "ok true".to_string());
+    case("core.option.Option.is_none", &[1, 5], "ok false".to_string());
+    let show_flow = |flow: ControlFlow<(), u64>| match flow {
+        ControlFlow::Continue(v) => format!("ok continue {v}"),
+        ControlFlow::Break(()) => "ok break".to_string(),
+    };
+    case(
+        "core.ops.control_flow.ControlFlow.Continue",
+        &[5],
+        show_flow(ControlFlow::Continue(5)),
+    );
+    case(
+        "core.ops.control_flow.ControlFlow.Break",
+        &[],
+        show_flow(ControlFlow::Break(())),
+    );
+    let show_result = |r: Result<u64, ()>| match r {
+        Ok(v) => format!("ok ok {v}"),
+        Err(()) => "ok err".to_string(),
+    };
+    case("core.result.Result.Ok", &[5], show_result(rejected(Ok(5))));
+    case("core.result.Result.Err", &[], show_result(rejected(Err(Rejected("x")))));
+    case(
+        "core.result.Result.Insts.CoreOpsTry.branch",
+        &[1, 5],
+        show_result(rejected(try_twice(Ok(5)))),
+    );
+    case(
+        "core.result.Result.Insts.CoreOpsTry.branch",
+        &[0],
+        show_result(rejected(try_twice(Err(Rejected("x"))))),
+    );
+    case(
+        "core.result.Result.Insts.CoreOpsTry_traitFromResidualResult.from_residual",
+        &[],
+        show_result(rejected(try_twice(Err(Rejected("x"))))),
+    );
 }

@@ -67,7 +67,7 @@ use p3_field_v08::PrimeCharacteristicRing;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
-use crate::field::{from_word, gl, re_im, Ext, Gl};
+use crate::field::{from_word, gl, re_im, to_verified, Ext, Gl};
 use crate::gkr::GkrProof;
 use crate::matrix::{EarlyValues, Structure, Tables};
 use crate::relation::{kappa, Shape};
@@ -75,11 +75,11 @@ use crate::setup::{Leaf, Store};
 use crate::verifier::ProofView;
 
 pub use crate::circuit::fold::FoldTranscript;
-pub use crate::circuit::r1cs::R1cs;
-pub use crate::circuit::{Backend, Native};
+pub use crate::circuit::{Backend, Hint, Native, Rejected};
 pub use crate::device::{Accelerator, Device, GkrLayer};
 pub use crate::prover::prove;
 pub use crate::relation::Relation;
+pub use neo_verified::r1cs::R1cs;
 
 /// The claim this crate proves.
 pub type Claim = neo_ccs::CeClaim<Commitment, F, K>;
@@ -87,6 +87,12 @@ pub type Claim = neo_ccs::CeClaim<Commitment, F, K>;
 /// Lanes per block on the committed cube: `D = 54`, padded to a power of two.
 const LANE_VARIABLES: usize = 6;
 const LANES: usize = 1 << LANE_VARIABLES;
+
+impl From<Rejected> for Error {
+    fn from(rejected: Rejected) -> Self {
+        Error::Rejected(rejected.0)
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -318,8 +324,8 @@ pub fn verify(
     if transcript.absorbed() != 0 {
         return Err(Error::Shape("the fold transcript holds a partial chunk"));
     }
-    let claim = ClaimWords::new(&relation.shape, claim)?;
-    let transcript = FoldTranscript::from_state(transcript.state().map(gl));
+    let claim = ClaimWords::new(&relation.shape, claim)?.map(to_verified);
+    let transcript = FoldTranscript::from_state(transcript.state().map(|word| to_verified(gl(word))));
     verify_with(&mut Native, relation, transcript, &claim, Some(proof))
 }
 
@@ -389,6 +395,17 @@ impl ClaimWords<Gl> {
 }
 
 impl<F: Copy> ClaimWords<F> {
+    fn map<G>(&self, f: impl Fn(F) -> G) -> ClaimWords<G> {
+        let pair = |words: [F; 2]| words.map(&f);
+        ClaimWords {
+            commitment: self.commitment.iter().map(|row| row.map(&f)).collect(),
+            public: self.public.iter().map(|row| row.map(&f)).collect(),
+            point: self.point.iter().map(|&words| pair(words)).collect(),
+            eval_k: self.eval_k.map(pair),
+            eval_a: self.eval_a.iter().map(|ring| ring.map(pair)).collect(),
+        }
+    }
+
     fn check_shape(&self, shape: &Shape) -> Result<(), Error> {
         if self.commitment.len() != shape.kappa
             || self.public.len() != shape.public_blocks

@@ -13,7 +13,7 @@ use p3_sumcheck_v08::OpeningBatch;
 use p3_whir::pcs::proof::QueryOpenings;
 
 use super::{commit, word, Scratch, Toy};
-use crate::circuit::Native;
+use crate::circuit::Fast;
 use crate::device::Accelerator;
 use crate::field::{Ext, Gl};
 use crate::prover::witness_table;
@@ -46,7 +46,7 @@ fn holds(setup: &Setup, relation: &Relation<'_>, claim: &Claim, witness: &Mat<F>
     let shape = &relation.shape;
     let statement = ClaimWords::new(shape, claim).unwrap();
     let lambda = Ext::from_basis_coefficients_fn(|i| Gl::from_u64(word(77, i as u64)));
-    let mixing = Mixing::new(&mut Native, lambda, shape);
+    let mixing = Mixing::new(&mut Fast, lambda, shape);
     let early = setup.tables.early(&claim.r);
     let ubar = setup.tables.slot_weights(&early, &mixing.eval_a());
     let eval_a = setup.tables.column_weights(&ubar, shape.blocks);
@@ -58,7 +58,7 @@ fn holds(setup: &Setup, relation: &Relation<'_>, claim: &Claim, witness: &Mat<F>
         &ring::key_weights(shape, &mixing, &crate::device::Accelerator::cpu()),
     );
     let z = witness_table(shape, witness).unwrap();
-    let (_, remainder) = ring::divide(&weights, &z, LANES, &ring::targets(&mut Native, &statement, &mixing));
+    let (_, remainder) = ring::divide(&weights, &z, LANES, &ring::targets(&mut Fast, &statement, &mixing));
     remainder.iter().all(|&value| value == Ext::ZERO)
 }
 

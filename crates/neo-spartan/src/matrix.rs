@@ -411,7 +411,7 @@ fn check_pair<B: Backend>(
     b.ext_inverse(qy, name)?;
     let left = b.ext_mul(px, qy);
     let right = b.ext_mul(py, qx);
-    b.assert_ext_equal(left, right, name)
+    Ok(b.assert_ext_equal(left, right, name)?)
 }
 
 /// `χ_r(i)` for every `i < 2^variables`; the higher coordinates of `r` see bit zero.

@@ -204,7 +204,7 @@ pub(crate) fn query_point<B: Backend>(b: &mut B, variables: usize, bits: &[B::F]
     let mut q = algebra::scale(b, rotation, Gl::GENERATOR.exp_u64(LEAF as u64));
     (0..variables - FOLD)
         .map(|_| {
-            let value = algebra::lift(b, q);
+            let value = algebra::lift_word(b, q);
             q = b.mul(q, q);
             value
         })

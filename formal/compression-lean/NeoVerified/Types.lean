@@ -16,15 +16,145 @@ set_option linter.internalConstructors false
 
 namespace neo_verified
 
+/-- [neo_verified::field::Gl]
+    Source: 'crates/neo-verified/src/field.rs', lines 21:0-21:19
+    Visibility: public -/
+@[reducible]
+def field.Gl := Std.U64
+
+/-- [neo_verified::r1cs::R1cs]
+    Source: 'crates/neo-verified/src/r1cs.rs', lines 12:0-18:1
+    Visibility: public -/
+structure r1cs.R1cs where
+  columns : Std.Usize
+  ends : alloc.vec.Vec (Array Std.U32 3#usize)
+  column : alloc.vec.Vec Std.U32
+  coefficient : alloc.vec.Vec field.Gl
+
+/-- [neo_verified::paths::Paths]
+    Source: 'crates/neo-verified/src/paths.rs', lines 18:0-22:1
+    Visibility: public -/
+structure paths.Paths where
+  leaves : alloc.vec.Vec (Array field.Gl 4#usize)
+  siblings : alloc.vec.Vec (Array field.Gl 4#usize)
+  depth : Std.Usize
+
+/-- [neo_verified::backend::Hint]
+    Source: 'crates/neo-verified/src/backend.rs', lines 33:0-40:1
+    Visibility: public -/
+@[discriminant isize]
+inductive backend.Hint where
+| Inverse : backend.Hint
+| Words : alloc.vec.Vec Std.U64 → backend.Hint
+| Paths : paths.Paths → backend.Hint
+
+/-- Trait declaration: [neo_verified::backend::Value]
+    Source: 'crates/neo-verified/src/backend.rs', lines 27:0-27:24
+    Visibility: public -/
+structure backend.Value (Self : Type _) where
+  coremarkerCopyInst : core.marker.Copy Self
+
+/-- [neo_verified::backend::Rejected]
+    Source: 'crates/neo-verified/src/backend.rs', lines 22:0-22:38
+    Visibility: public -/
+@[reducible]
+def backend.Rejected := Str
+
+/-- Trait declaration: [neo_verified::backend::Backend]
+    Source: 'crates/neo-verified/src/backend.rs', lines 42:0-102:1
+    Visibility: public -/
+structure backend.Backend (Self : Type _) (Self_F : Type _) (Self_E : Type _)
+  where
+  coremarkerCopyInst : core.marker.Copy Self_F
+  ValueInst : backend.Value Self_E
+  constant : Self → Std.U64 → Result (Self_F × Self)
+  «private» : Self → Std.U64 → Result (Self_F × Self)
+  «public» : Self → Std.U64 → Result (Self_F × Self)
+  add : Self → Self_F → Self_F → Result (Self_F × Self)
+  sub : Self → Self_F → Self_F → Result (Self_F × Self)
+  scale : Self → Self_F → Std.U64 → Result (Self_F × Self)
+  mul : Self → Self_F → Self_F → Result (Self_F × Self)
+  ext : Self → Array Self_F 3#usize → Result (Self_E × Self)
+  coordinates : Self → Self_E → Result ((Array Self_F 3#usize) × Self)
+  ext_constant : Self → Array Std.U64 3#usize → Result (Self_E × Self)
+  ext_add : Self → Self_E → Self_E → Result (Self_E × Self)
+  ext_sub : Self → Self_E → Self_E → Result (Self_E × Self)
+  ext_mul : Self → Self_E → Self_E → Result (Self_E × Self)
+  ext_scale : Self → Self_E → Self_F → Result (Self_E × Self)
+  ext_inverse : Self → Self_E → Str → Result ((core.result.Result Self_E
+    backend.Rejected) × Self)
+  assert_zero : Self → Self_F → Str → Result ((core.result.Result Unit
+    backend.Rejected) × Self)
+  bits : Self → Self_F → Std.Usize → Str → Result ((core.result.Result
+    (alloc.vec.Vec Self_F) backend.Rejected) × Self)
+  select : Self → Self_F → Self_F → Self_F → Result (Self_F × Self)
+  permute : Self → Array Self_F 16#usize → Result ((Array Self_F 16#usize)
+    × Self)
+  hint : Self → Slice Self_F → Std.Usize → backend.Hint → Result
+    ((alloc.vec.Vec Self_F) × Self)
+  r1cs : Self → r1cs.R1cs → Slice Self_F → Str → Result
+    ((core.result.Result Unit backend.Rejected) × Self)
+  assert_ext_zero : Self → Self_E → Str → Result ((core.result.Result
+    Unit backend.Rejected) × Self)
+  assert_equal : Self → Self_F → Self_F → Str → Result
+    ((core.result.Result Unit backend.Rejected) × Self)
+  assert_ext_equal : Self → Self_E → Self_E → Str → Result
+    ((core.result.Result Unit backend.Rejected) × Self)
+
+/-- [neo_verified::field::Ext]
+    Source: 'crates/neo-verified/src/field.rs', lines 145:0-149:1
+    Visibility: public -/
+structure field.Ext where
+  c0 : field.Gl
+  c1 : field.Gl
+  c2 : field.Gl
+
+/-- [neo_verified::algebra::Kx]
+    Source: 'crates/neo-verified/src/algebra.rs', lines 184:0-187:1
+    Visibility: public -/
+structure algebra.Kx (B : Type _) (Clause0_F : Type _) (Clause0_E : Type _)
+  where
+  re : Clause0_E
+  im : Clause0_E
+
+/-- [neo_verified::block::Entry]
+    Source: 'crates/neo-verified/src/block.rs', lines 26:0-31:1
+    Visibility: public -/
+structure block.Entry where
+  matrix : Std.Usize
+  row : Std.Usize
+  cell : Option Std.Usize
+  coefficient : field.Gl
+
+/-- [neo_verified::block::Linear]
+    Source: 'crates/neo-verified/src/block.rs', lines 35:0-39:1
+    Visibility: public -/
+structure block.Linear where
+  terms : alloc.vec.Vec (Std.Usize × field.Gl)
+  constant : field.Gl
+
+/-- [neo_verified::block::Template]
+    Source: 'crates/neo-verified/src/block.rs', lines 42:0-45:1
+    Visibility: public -/
+structure block.Template where
+  sbox_inputs : alloc.vec.Vec block.Linear
+  outputs : alloc.vec.Vec block.Linear
+
 /-- [neo_verified::circuit::Kind]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 14:0-16:1
+    Source: 'crates/neo-verified/src/circuit.rs', lines 17:0-19:1
     Visibility: public -/
 @[discriminant isize]
 inductive circuit.Kind where
 | Permutation : circuit.Kind
 
+/-- [neo_verified::block::Sum]
+    Source: 'crates/neo-verified/src/block.rs', lines 75:0-78:1 -/
+structure block.Sum where
+  merged : alloc.vec.Vec (Std.Usize × field.Gl)
+  constant : field.Gl
+
 /-- [neo_verified::circuit::Wire]
-    Source: 'crates/neo-verified/src/circuit.rs', lines 40:0-45:1
+    Source: 'crates/neo-verified/src/circuit.rs', lines 43:0-48:1
     Visibility: public -/
 @[discriminant isize]
 inductive circuit.Wire where
@@ -64,18 +194,59 @@ structure layout.Shape where
   glue_cells : Std.Usize
   publics : Std.Usize
 
-/-- [neo_verified::field::Gl]
-    Source: 'crates/neo-verified/src/field.rs', lines 21:0-21:19
+/-- [neo_verified::hash::Duplex]
+    Source: 'crates/neo-verified/src/hash.rs', lines 16:0-20:1
+    Visibility: public -/
+structure hash.Duplex (B : Type _) (Clause0_F : Type _) (Clause0_E : Type _)
+  where
+  state : Array Clause0_F 16#usize
+  input : alloc.vec.Vec Clause0_F
+  output : alloc.vec.Vec Clause0_F
+
+/-- [neo_verified::native::Native]
+    Source: 'crates/neo-verified/src/native.rs', lines 14:0-14:18
     Visibility: public -/
 @[reducible]
-def field.Gl := Std.U64
+def native.Native := Unit
 
-/-- [neo_verified::field::Ext]
-    Source: 'crates/neo-verified/src/field.rs', lines 145:0-149:1
+/-- [neo_verified::paths::Level]
+    Source: 'crates/neo-verified/src/paths.rs', lines 73:0-78:1 -/
+structure paths.Level where
+  fetched : alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize))
+  known : alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize))
+  parents : alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize))
+
+/-- [neo_verified::record::Form]
+    Source: 'crates/neo-verified/src/record.rs', lines 30:0-35:1
     Visibility: public -/
-structure field.Ext where
-  c0 : field.Gl
-  c1 : field.Gl
-  c2 : field.Gl
+structure record.Form where
+  terms : Array (circuit.Wire × field.Gl) 4#usize
+  len : Std.U8
+  constant : field.Gl
+  value : field.Gl
+
+/-- Trait declaration: [neo_verified::record::Sink]
+    Source: 'crates/neo-verified/src/record.rs', lines 168:0-193:1
+    Visibility: public -/
+structure record.Sink (Self : Type _) where
+  row : Self → Slice ((alloc.vec.Vec (circuit.Wire × field.Gl)) ×
+    (alloc.vec.Vec (circuit.Wire × field.Gl))) → Slice (circuit.Wire ×
+    field.Gl) → Result Self
+  cell : Self → field.Gl → Result Self
+  block : Self → circuit.Kind → Slice field.Gl → Result ((alloc.vec.Vec
+    field.Gl) × Self)
+  «public» : Self → field.Gl → Result Self
+  r1cs : Self → r1cs.R1cs → Slice record.Form → Result Self
+  values : Self → Result Bool
+
+/-- [neo_verified::record::Recorder]
+    Source: 'crates/neo-verified/src/record.rs', lines 196:0-202:1
+    Visibility: public -/
+structure record.Recorder (S : Type _) where
+  sink : S
+  glue : Std.U32
+  blocks : Array Std.U32 1#usize
+  publics : Std.U32
+  failure : Option Str
 
 end neo_verified

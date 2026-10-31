@@ -30,12 +30,14 @@ pub use neo_verified::layout::Shape;
 
 use self::evaluate::Evaluate;
 use self::layout::{block_part, cell_parts, row_parts, words};
+use neo_verified::field as verified;
+use neo_verified::r1cs::R1cs;
+
 use crate::circuit::block::{entries, Entry, C, X};
-use crate::circuit::r1cs::R1cs;
 use crate::circuit::record::{Form, Recorder, Sink, Term, Trace};
 use crate::circuit::{algebra, Backend, Native};
 use crate::device::Accelerator;
-use crate::field::{eq_table, fold_low, from_verified, gl, Ext, Gl};
+use crate::field::{eq_table, ext_from_verified, ext_to_verified, fold_low, from_verified, gl, Ext, Gl};
 use crate::hash::{permutation, Challenger};
 use crate::pcs::{self, Pcs, TablePlan};
 use crate::{sumcheck, Error};
@@ -64,15 +66,16 @@ impl Sink for Count {
         self.0.glue_rows += 1;
     }
 
-    fn cell(&mut self, _: Gl) {
+    fn cell(&mut self, _: verified::Gl) {
         self.0.glue_cells += 1;
     }
 
-    fn block(&mut self, kind: Kind, _: &[Gl]) {
+    fn block(&mut self, kind: Kind, _: &[verified::Gl]) -> Vec<verified::Gl> {
         self.0.blocks[kind.index()] += 1;
+        Vec::new()
     }
 
-    fn public(&mut self, _: Gl) {
+    fn public(&mut self, _: verified::Gl) {
         self.0.publics += 1;
     }
     fn r1cs(&mut self, system: &R1cs, _: &[Form]) {
@@ -333,7 +336,8 @@ fn replay(rounds: &[Vec<Ext>], mut claim: Ext, challenger: &mut Challenger) -> (
         let mut values = vec![message[0], claim - message[0]];
         values.extend_from_slice(&message[1..]);
         let r = sumcheck::send(message, challenger);
-        claim = algebra::interpolate(&mut Native, &values, r);
+        let values: Vec<verified::Ext> = values.into_iter().map(ext_to_verified).collect();
+        claim = ext_from_verified(algebra::interpolate(&mut Native, &values, ext_to_verified(r)));
         point.push(r);
     }
     (point, claim)

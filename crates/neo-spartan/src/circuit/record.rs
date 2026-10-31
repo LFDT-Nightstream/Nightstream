@@ -1,469 +1,48 @@
-//! The constraint reading of `Backend`.
+//! The prover's sink: `Trace` keeps every row, cell and block of a run in Plonky3 0.8 values.
 //!
-//! Owns: forms (short linear combinations with their value), wires, the glue
-//! rows, the permutation blocks, and the first failed check. Does not own
-//! where rows and cells sit in the shrink cube.
-//!
-//! A glue row is `Σ_{i<3} (A_i·z)·(B_i·z) − C·z = 0`. A permutation is one
-//! block (`block.rs`) whose rows its template fixes; its inputs are tied to
-//! the caller's forms by one linear glue row each. A fixed R1CS system
-//! (`r1cs.rs`) is one glue row per row. The value of every row is computed
-//! when it is emitted, so the first failed check is known without stopping:
-//! the rows never depend on the values.
+//! `Recorder`, `Form` and `Sink` are in `neo_verified::record`. A trace computes each block's
+//! cells here (`block::trace`) and fills R1CS rows in parallel.
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
-use neo_verified::circuit::{Kind, Wire, KINDS};
-use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, PrimeField64};
+use neo_verified::circuit::{Kind, Wire, CELLS, KINDS};
+use neo_verified::field as verified;
+use neo_verified::r1cs::R1cs;
+use neo_verified::record::expand;
+pub(crate) use neo_verified::record::{Form, Recorder, Sink, Term, ONE};
+use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
 
-use super::block::{outputs, trace};
-use super::r1cs::{self, R1cs, Side};
-use super::Backend;
-use crate::field::{Ext, Gl};
+use super::block::trace;
+use super::poseidon2::OUTPUT;
+use super::r1cs::{sides, Side};
+use crate::field::{from_verified, to_verified, Ext, Gl};
 use crate::hash::{absorb, squeeze};
-use crate::Error;
 
-pub(crate) const ONE: Wire = Wire::Public(0);
-pub(crate) type Term = (Wire, Gl);
+/// A row entry of a trace: a wire and its coefficient.
+pub(crate) type Entry = (Wire, Gl);
 
-/// Terms a form carries before it becomes a cell.
-const FORM_TERMS: usize = 4;
-
-/// `Σ coefficient·wire + constant`, and its value.
-#[derive(Clone, Copy)]
-pub(crate) struct Form {
-    terms: [Term; FORM_TERMS],
-    len: u8,
-    constant: Gl,
-    value: Gl,
+/// The terms of `form`.
+pub(crate) fn terms(form: &Form) -> impl Iterator<Item = Term> + '_ {
+    (0..form.term_count()).map(|k| form.term(k))
 }
 
-impl Form {
-    fn constant(value: Gl) -> Self {
-        Self {
-            terms: [(ONE, Gl::ZERO); FORM_TERMS],
-            len: 0,
-            constant: value,
-            value,
-        }
-    }
-
-    fn wire(wire: Wire, value: Gl) -> Self {
-        let mut form = Self::constant(Gl::ZERO);
-        form.terms[0] = (wire, Gl::ONE);
-        form.len = 1;
-        form.value = value;
-        form
-    }
-
-    pub(crate) fn value(&self) -> Gl {
-        self.value
-    }
-
-    fn is_constant(&self) -> bool {
-        self.len == 0
-    }
-
-    fn terms(&self) -> &[Term] {
-        &self.terms[..self.len as usize]
-    }
-
-    /// `Σ coefficient·at(wire)`, the constant on the one column.
-    pub(crate) fn evaluate(&self, at: impl Fn(Wire) -> Ext) -> Ext {
-        let constant = if self.constant == Gl::ZERO {
-            Ext::ZERO
-        } else {
-            at(ONE) * self.constant
-        };
-        self.terms()
-            .iter()
-            .fold(constant, |sum, &(wire, coefficient)| sum + at(wire) * coefficient)
-    }
-
-    /// The terms with the constant as a term on the one column.
-    fn row_terms(&self) -> Vec<Term> {
-        let mut terms = self.terms().to_vec();
-        if self.constant != Gl::ZERO {
-            terms.push((ONE, self.constant));
-        }
-        terms
-    }
+/// `Σ coefficient·at(wire)` of `form`, the constant on the one column.
+pub(crate) fn evaluate(form: &Form, at: impl Fn(Wire) -> Ext) -> Ext {
+    let offset = from_verified(form.offset());
+    let constant = if offset == Gl::ZERO {
+        Ext::ZERO
+    } else {
+        at(ONE) * offset
+    };
+    terms(form).fold(constant, |sum, (wire, coefficient)| {
+        sum + at(wire) * from_verified(coefficient)
+    })
 }
 
-/// `Σ weight·form` as a merged term list, a constant and a value.
-fn combine(parts: &[(Form, Gl)]) -> (Vec<Term>, Gl, Gl) {
-    let mut terms: Vec<Term> = Vec::new();
-    let (mut constant, mut value) = (Gl::ZERO, Gl::ZERO);
-    for &(form, weight) in parts {
-        constant += form.constant * weight;
-        value += form.value * weight;
-        for &(wire, coefficient) in form.terms() {
-            match terms.iter_mut().find(|(w, _)| *w == wire) {
-                Some((_, existing)) => *existing += coefficient * weight,
-                None => terms.push((wire, coefficient * weight)),
-            }
-        }
-    }
-    terms.retain(|&(_, coefficient)| coefficient != Gl::ZERO);
-    (terms, constant, value)
-}
-
-/// `Σ coefficient·columns[column]` as row terms, the constants on the one
-/// column. Repeated wires stay separate terms; a row sums them.
-pub(crate) fn expand(side: Side<'_>, columns: &[Form]) -> Vec<Term> {
-    let mut terms = Vec::new();
-    for (&column, &coefficient) in side.0.iter().zip(side.1) {
-        let form = &columns[column as usize];
-        terms.extend(
-            form.terms()
-                .iter()
-                .map(|&(wire, c)| (wire, c * coefficient)),
-        );
-        if form.constant != Gl::ZERO {
-            terms.push((ONE, form.constant * coefficient));
-        }
-    }
+fn entries(terms: &[Term]) -> impl Iterator<Item = Entry> + '_ {
     terms
-}
-
-/// Where recorded rows, cells and blocks go.
-pub(crate) trait Sink {
-    /// One glue row: `Σ (Σ a)·(Σ b) − Σ c`, with each side's terms.
-    fn row(&mut self, products: &[(Vec<Term>, Vec<Term>)], linear: &[Term]);
-    fn cell(&mut self, value: Gl);
-    /// The cells of one block, in template order (empty when the sink
-    /// takes no values).
-    fn block(&mut self, kind: Kind, cells: &[Gl]);
-    fn public(&mut self, value: Gl);
-    /// The rows of `system` as glue rows, in order, with `columns[k]` as its
-    /// column `k`.
-    fn r1cs(&mut self, system: &R1cs, columns: &[Form]) {
-        for row in 0..system.rows() {
-            let [a, b, c] = system.sides(row).map(|side| expand(side, columns));
-            self.row(&[(a, b)], &c);
-        }
-    }
-    /// Whether the sink reads block cell values. A shape run that only
-    /// counts or evaluates rows does not, so blocks are not computed.
-    fn values(&self) -> bool {
-        true
-    }
-}
-
-/// The constraint reading of a verifier run.
-pub(crate) struct Recorder<S: Sink> {
-    sink: S,
-    glue: u32,
-    blocks: [u32; KINDS.len()],
-    publics: u32,
-    failure: Option<&'static str>,
-}
-
-impl<S: Sink> Recorder<S> {
-    pub(crate) fn new(sink: S) -> Self {
-        Self {
-            sink,
-            glue: 0,
-            blocks: [0; KINDS.len()],
-            publics: 1,
-            failure: None,
-        }
-    }
-
-    /// The sink and the first failed check, if any.
-    pub(crate) fn finish(self) -> (S, Option<&'static str>) {
-        (self.sink, self.failure)
-    }
-
-    fn fail(&mut self, what: &'static str) {
-        self.failure.get_or_insert(what);
-    }
-
-    fn cell(&mut self, value: Gl) -> Form {
-        let wire = Wire::Glue(self.glue);
-        self.glue += 1;
-        self.sink.cell(value);
-        Form::wire(wire, value)
-    }
-
-    /// Emit a row; `value` is its value under the witness.
-    fn row(&mut self, products: &[(Vec<Term>, Vec<Term>)], linear: &[Term], value: Gl, what: &'static str) {
-        if value != Gl::ZERO {
-            self.fail(what);
-        }
-        self.sink.row(products, linear);
-    }
-
-    /// A form from merged terms; a new cell and one linear row if too long.
-    fn form(&mut self, terms: Vec<Term>, constant: Gl, value: Gl) -> Form {
-        if terms.len() <= FORM_TERMS {
-            let mut form = Form::constant(constant);
-            form.terms[..terms.len()].copy_from_slice(&terms);
-            form.len = terms.len() as u8;
-            form.value = value;
-            return form;
-        }
-        let cell = self.cell(value);
-        let mut linear = vec![(cell.terms[0].0, Gl::ONE)];
-        linear.extend(
-            terms
-                .iter()
-                .map(|&(wire, coefficient)| (wire, -coefficient)),
-        );
-        if constant != Gl::ZERO {
-            linear.push((ONE, -constant));
-        }
-        self.row(&[], &linear, Gl::ZERO, "linear cell");
-        cell
-    }
-
-    /// One block of `kind` on `inputs`; returns its output cells.
-    fn block(&mut self, kind: Kind, inputs: &[Form]) -> Vec<Form> {
-        let block = self.blocks[kind.index()];
-        self.blocks[kind.index()] += 1;
-        let cells = if self.sink.values() {
-            let values: Vec<Gl> = inputs.iter().map(Form::value).collect();
-            trace(kind, &values)
-        } else {
-            Vec::new()
-        };
-        self.sink.block(kind, &cells);
-        for (cell, form) in inputs.iter().enumerate() {
-            let mut linear = vec![(Wire::Block(kind, block, cell as u16), Gl::ONE)];
-            linear.extend(form.row_terms().into_iter().map(|(wire, c)| (wire, -c)));
-            self.row(&[], &linear, Gl::ZERO, "block input");
-        }
-        outputs(kind)
-            .map(|cell| {
-                let value = cells.get(cell).copied().unwrap_or(Gl::ZERO);
-                Form::wire(Wire::Block(kind, block, cell as u16), value)
-            })
-            .collect()
-    }
-
-    fn linear(&mut self, parts: &[(Form, Gl)]) -> Form {
-        let (terms, constant, value) = combine(parts);
-        self.form(terms, constant, value)
-    }
-
-    /// Row `k` of a cubic-extension product `a·b`: `Σ_i a_i·L_ik(b)` with the
-    /// structure constants of `x^3 = x + 1`.
-    fn ext_rows(a: &[Form; 3], b: &[Form; 3]) -> [Vec<(Vec<Term>, Vec<Term>)>; 3] {
-        let sum = |forms: &[Form]| -> Vec<Term> {
-            let parts: Vec<(Form, Gl)> = forms.iter().map(|&f| (f, Gl::ONE)).collect();
-            let (mut terms, constant, _) = combine(&parts);
-            if constant != Gl::ZERO {
-                terms.push((ONE, constant));
-            }
-            terms
-        };
-        let pair = |i: usize, forms: &[Form]| (a[i].row_terms(), sum(forms));
-        [
-            vec![pair(0, &[b[0]]), pair(1, &[b[2]]), pair(2, &[b[1]])],
-            vec![pair(0, &[b[1]]), pair(1, &[b[0], b[2]]), pair(2, &[b[1], b[2]])],
-            vec![pair(0, &[b[2]]), pair(1, &[b[1]]), pair(2, &[b[0], b[2]])],
-        ]
-    }
-}
-
-fn ext_value(a: &[Form; 3]) -> Ext {
-    Ext::from_basis_coefficients_fn(|i| a[i].value)
-}
-
-fn ext_coordinates(value: Ext) -> [Gl; 3] {
-    let slice = <Ext as BasedVectorSpace<Gl>>::as_basis_coefficients_slice(&value);
-    [slice[0], slice[1], slice[2]]
-}
-
-impl<S: Sink> Backend for Recorder<S> {
-    type F = Form;
-    type E = [Form; 3];
-
-    fn constant(&mut self, value: u64) -> Form {
-        Form::constant(Gl::from_u64(value))
-    }
-
-    fn private(&mut self, value: u64) -> Form {
-        self.cell(Gl::from_u64(value))
-    }
-
-    fn public(&mut self, value: u64) -> Form {
-        let value = Gl::from_u64(value);
-        let wire = Wire::Public(self.publics);
-        self.publics += 1;
-        self.sink.public(value);
-        Form::wire(wire, value)
-    }
-
-    fn add(&mut self, a: Form, b: Form) -> Form {
-        self.linear(&[(a, Gl::ONE), (b, Gl::ONE)])
-    }
-
-    fn sub(&mut self, a: Form, b: Form) -> Form {
-        self.linear(&[(a, Gl::ONE), (b, -Gl::ONE)])
-    }
-
-    fn scale(&mut self, a: Form, by: u64) -> Form {
-        self.linear(&[(a, Gl::from_u64(by))])
-    }
-
-    fn mul(&mut self, a: Form, b: Form) -> Form {
-        if a.is_constant() {
-            return self.linear(&[(b, a.constant)]);
-        }
-        if b.is_constant() {
-            return self.linear(&[(a, b.constant)]);
-        }
-        let product = self.cell(a.value * b.value);
-        self.row(&[(a.row_terms(), b.row_terms())], product.terms(), Gl::ZERO, "product");
-        product
-    }
-
-    fn ext(&mut self, coordinates: [Form; 3]) -> [Form; 3] {
-        coordinates
-    }
-
-    fn coordinates(&mut self, a: [Form; 3]) -> [Form; 3] {
-        a
-    }
-
-    fn ext_constant(&mut self, value: [u64; 3]) -> [Form; 3] {
-        value.map(|word| Form::constant(Gl::from_u64(word)))
-    }
-
-    fn ext_add(&mut self, a: [Form; 3], b: [Form; 3]) -> [Form; 3] {
-        std::array::from_fn(|i| self.add(a[i], b[i]))
-    }
-
-    fn ext_sub(&mut self, a: [Form; 3], b: [Form; 3]) -> [Form; 3] {
-        std::array::from_fn(|i| self.sub(a[i], b[i]))
-    }
-
-    fn ext_mul(&mut self, a: [Form; 3], b: [Form; 3]) -> [Form; 3] {
-        let product = ext_coordinates(ext_value(&a) * ext_value(&b));
-        if a.iter().all(Form::is_constant) || b.iter().all(Form::is_constant) {
-            let (constant, other) = if a.iter().all(Form::is_constant) {
-                (a, b)
-            } else {
-                (b, a)
-            };
-            let c = Ext::from_basis_coefficients_fn(|i| constant[i].constant);
-            // Column j of multiplication by c: the coordinates of c·w^j.
-            let columns: [[Gl; 3]; 3] = std::array::from_fn(|j| {
-                ext_coordinates(c * Ext::from_basis_coefficients_fn(|i| Gl::from_bool(i == j)))
-            });
-            return std::array::from_fn(|k| {
-                let parts: Vec<(Form, Gl)> = (0..3).map(|j| (other[j], columns[j][k])).collect();
-                self.linear(&parts)
-            });
-        }
-        let rows = Self::ext_rows(&a, &b);
-        std::array::from_fn(|k| {
-            let cell = self.cell(product[k]);
-            self.row(&rows[k], cell.terms(), Gl::ZERO, "extension product");
-            cell
-        })
-    }
-
-    fn ext_scale(&mut self, a: [Form; 3], by: Form) -> [Form; 3] {
-        std::array::from_fn(|i| self.mul(a[i], by))
-    }
-
-    fn ext_inverse(&mut self, a: [Form; 3], what: &'static str) -> Result<[Form; 3], Error> {
-        let value = ext_value(&a);
-        let inverse = value.try_inverse();
-        if let (true, Some(inverse)) = (a.iter().all(Form::is_constant), inverse) {
-            return Ok(ext_coordinates(inverse).map(Form::constant));
-        }
-        // A constant zero falls through: its rows cannot hold, so the shrink
-        // proves the failure too.
-        let coordinates = ext_coordinates(inverse.unwrap_or(Ext::ZERO));
-        let inverse: [Form; 3] = std::array::from_fn(|i| self.cell(coordinates[i]));
-        let rows = Self::ext_rows(&a, &inverse);
-        let product = ext_coordinates(value * ext_value(&inverse));
-        for (k, row) in rows.iter().enumerate() {
-            let one = Gl::from_bool(k == 0);
-            let linear = if k == 0 { vec![(ONE, Gl::ONE)] } else { Vec::new() };
-            self.row(row, &linear, product[k] - one, what);
-        }
-        Ok(inverse)
-    }
-
-    fn assert_zero(&mut self, a: Form, what: &'static str) -> Result<(), Error> {
-        // A nonzero constant still gets its row, `c·1 = 0`, which cannot
-        // hold, so the shrink proves the failure too.
-        if a.is_constant() && a.constant == Gl::ZERO {
-            return Ok(());
-        }
-        self.row(&[], &a.row_terms(), a.value, what);
-        Ok(())
-    }
-
-    fn bits(&mut self, a: Form, count: usize, what: &'static str) -> Result<Vec<Form>, Error> {
-        let value = a.value.as_canonical_u64();
-        let bits: Vec<Form> = (0..count)
-            .map(|i| self.cell(Gl::from_u64((value >> i) & 1)))
-            .collect();
-        for bit in &bits {
-            let wire = bit.terms();
-            self.row(&[(wire.to_vec(), wire.to_vec())], wire, Gl::ZERO, what);
-        }
-        let mut linear = a.row_terms();
-        let mut sum = Gl::ZERO;
-        for (i, bit) in bits.iter().enumerate() {
-            let weight = Gl::from_u64(1u64 << i);
-            linear.push((bit.terms[0].0, -weight));
-            sum += weight * bit.value;
-        }
-        self.row(&[], &linear, a.value - sum, what);
-        if count == 64 {
-            // Canonical: the high 32 bits all one forces the low 32 bits to zero.
-            let mut high = bits[32];
-            for bit in &bits[33..] {
-                high = self.mul(high, *bit);
-            }
-            let low: Vec<Term> = bits[..32].iter().map(|bit| bit.terms[0]).collect();
-            let low_value = bits[..32].iter().fold(Gl::ZERO, |acc, bit| acc + bit.value);
-            self.row(&[(high.row_terms(), low)], &[], high.value * low_value, what);
-        }
-        Ok(bits)
-    }
-
-    fn select(&mut self, bit: Form, zero: Form, one: Form) -> Form {
-        let difference = self.sub(one, zero);
-        let chosen = self.mul(bit, difference);
-        self.add(zero, chosen)
-    }
-
-    fn permute(&mut self, state: [Form; WIDTH]) -> [Form; WIDTH] {
-        let outputs = self.block(Kind::Permutation, &state);
-        std::array::from_fn(|lane| outputs[lane])
-    }
-
-    fn r1cs(&mut self, system: &R1cs, columns: &[Form], what: &'static str) -> Result<(), Error> {
-        assert_eq!(columns.len(), system.columns(), "one wire per R1CS column");
-        if self.sink.values() {
-            let values: Vec<Gl> = columns.iter().map(Form::value).collect();
-            if r1cs::fails(system, &values) {
-                self.fail(what);
-            }
-        }
-        self.sink.r1cs(system, columns);
-        Ok(())
-    }
-
-    fn hint(&mut self, inputs: &[Form], len: usize, compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<Form> {
-        let values: Vec<u64> = inputs
-            .iter()
-            .map(|form| form.value.as_canonical_u64())
-            .collect();
-        let outputs = compute(&values);
-        assert_eq!(outputs.len(), len, "a hint must return its declared length");
-        outputs
-            .into_iter()
-            .map(|value| self.cell(Gl::from_u64(value)))
-            .collect()
-    }
+        .iter()
+        .map(|&(wire, coefficient)| (wire, from_verified(coefficient)))
 }
 
 /// Every row, cell and block of a run, for the shrink prover and for tests.
@@ -477,7 +56,7 @@ pub(crate) struct Trace {
     pub(crate) public: Vec<Gl>,
     /// Row entries; `rows[r]` holds the start of each of the seven sides
     /// `A0, B0, A1, B1, A2, B2, C` and the end.
-    pub(crate) entries: Vec<Term>,
+    pub(crate) entries: Vec<Entry>,
     pub(crate) rows: Vec<[u32; 8]>,
 }
 
@@ -485,30 +64,35 @@ impl Sink for Trace {
     fn row(&mut self, products: &[(Vec<Term>, Vec<Term>)], linear: &[Term]) {
         assert!(products.len() <= 3);
         let mut offsets = [0u32; 8];
-        let empty: Vec<Term> = Vec::new();
         for side in 0..6 {
             offsets[side] = self.entries.len() as u32;
-            let terms = products
-                .get(side / 2)
-                .map_or(&empty, |pair| if side % 2 == 0 { &pair.0 } else { &pair.1 });
-            self.entries.extend_from_slice(terms);
+            if let Some(pair) = products.get(side / 2) {
+                let terms = if side % 2 == 0 { &pair.0 } else { &pair.1 };
+                self.entries.extend(entries(terms));
+            }
         }
         offsets[6] = self.entries.len() as u32;
-        self.entries.extend_from_slice(linear);
+        self.entries.extend(entries(linear));
         offsets[7] = self.entries.len() as u32;
         self.rows.push(offsets);
     }
 
-    fn cell(&mut self, value: Gl) {
-        self.glue.push(value);
+    fn cell(&mut self, value: verified::Gl) {
+        self.glue.push(from_verified(value));
     }
 
-    fn block(&mut self, kind: Kind, cells: &[Gl]) {
-        self.blocks[kind.index()].extend_from_slice(cells);
+    fn block(&mut self, kind: Kind, inputs: &[verified::Gl]) -> Vec<verified::Gl> {
+        let inputs: Vec<Gl> = inputs.iter().map(|&value| from_verified(value)).collect();
+        let cells = trace(kind, &inputs);
+        self.blocks[kind.index()].extend_from_slice(&cells);
+        cells[OUTPUT..CELLS]
+            .iter()
+            .map(|&value| to_verified(value))
+            .collect()
     }
 
-    fn public(&mut self, value: Gl) {
-        self.public.push(value);
+    fn public(&mut self, value: verified::Gl) {
+        self.public.push(from_verified(value));
     }
 
     /// The default's rows and entries, built in parallel: every row's entries
@@ -519,13 +103,13 @@ impl Sink for Trace {
             side.iter()
                 .map(|&column| {
                     let form = &columns[column as usize];
-                    form.terms().len() + usize::from(form.constant != Gl::ZERO)
+                    form.term_count() + usize::from(form.offset() != verified::GL_ZERO)
                 })
                 .sum()
         };
         let sizes: Vec<[usize; 3]> = (0..system.rows())
             .into_par_iter()
-            .map(|row| system.sides(row).map(size))
+            .map(|row| sides(system, row).map(size))
             .collect();
         let start = self.entries.len();
         let mut at = start;
@@ -554,12 +138,12 @@ impl Sink for Trace {
             rest = tail;
         }
         slices.into_par_iter().enumerate().for_each(|(row, out)| {
-            let terms = system
-                .sides(row)
+            let (first, [a, b, c]) = system.bounds(row);
+            let terms = [(first, a), (a, b), (b, c)]
                 .into_iter()
-                .flat_map(|side| expand(side, columns));
-            for (slot, term) in out.iter_mut().zip(terms) {
-                *slot = term;
+                .flat_map(|(from, to)| expand(system, from, to, columns));
+            for (slot, (wire, coefficient)) in out.iter_mut().zip(terms) {
+                *slot = (wire, from_verified(coefficient));
             }
         });
     }

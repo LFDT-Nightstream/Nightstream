@@ -246,7 +246,16 @@ pub(crate) fn verify<B: Backend>(
     let root = key.root().map(|word| algebra::constant(b, word));
     let mut queried = Vec::with_capacity(2 * relation.queries);
     for (bits, leaf) in index_bits.iter().zip(&proof.leaves) {
-        queried.extend(setup::check(b, root, variables, bits, leaf, &groups, &alpha)?);
+        queried.extend(neo_verified::setup::check(
+            b,
+            root,
+            variables,
+            bits,
+            &leaf.values,
+            &leaf.path,
+            &groups,
+            &alpha,
+        )?);
     }
 
     let beta = duplex.sample_ext(b);

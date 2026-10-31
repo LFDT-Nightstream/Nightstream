@@ -120,7 +120,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 
 ## Ports
 
-`ports.json` has 585 entries: 529 Lean declarations transcribe 329 Rust items.
+`ports.json` has 586 entries: 530 Lean declarations transcribe 331 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -147,7 +147,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `CompressionLean.Ports.Circuit.Whir` | 19 |
 | `CompressionLean.Ports.Layer1.Budget` | 5 |
 | `CompressionLean.Ports.Replay.Data` | 39 |
-| `CompressionLean.Ports.Replay.Field` | 28 |
+| `CompressionLean.Ports.Replay.Field` | 29 |
 | `CompressionLean.Ports.Replay.Formulas` | 39 |
 | `CompressionLean.Ports.Replay.Gkr` | 18 |
 | `CompressionLean.Ports.Replay.Stages` | 33 |
@@ -182,7 +182,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-spartan/src/norm.rs` | 1 |
 | `crates/neo-spartan/src/relation.rs` | 7 |
 | `crates/neo-spartan/src/ring.rs` | 11 |
-| `crates/neo-spartan/src/setup.rs` | 5 |
+| `crates/neo-spartan/src/setup.rs` | 4 |
 | `crates/neo-spartan/src/shrink/evaluate.rs` | 8 |
 | `crates/neo-spartan/src/shrink/layout.rs` | 1 |
 | `crates/neo-spartan/src/shrink/mod.rs` | 10 |
@@ -199,13 +199,14 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-verified/src/circuit.rs` | 6 |
 | `crates/neo-verified/src/degrees.rs` | 9 |
 | `crates/neo-verified/src/diagonal.rs` | 8 |
-| `crates/neo-verified/src/field.rs` | 17 |
+| `crates/neo-verified/src/field.rs` | 18 |
 | `crates/neo-verified/src/hash.rs` | 13 |
 | `crates/neo-verified/src/layout.rs` | 14 |
 | `crates/neo-verified/src/native.rs` | 3 |
 | `crates/neo-verified/src/poseidon2.rs` | 1 |
 | `crates/neo-verified/src/r1cs.rs` | 1 |
 | `crates/neo-verified/src/record.rs` | 35 |
+| `crates/neo-verified/src/setup.rs` | 2 |
 | `crates/neo-verified/src/sumcheck.rs` | 2 |
 | `crates/nightstream-fprime/src/package.rs` | 5 |
 | `crates/nightstream-fprime/src/package/r1cs.rs` | 3 |

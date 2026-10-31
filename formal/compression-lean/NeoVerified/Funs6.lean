@@ -17,6 +17,20 @@ set_option linter.internalConstructors false
 
 
 namespace neo_verified
+/-- [neo_verified::record::{neo_verified::record::Form}::row_terms]:
+    Source: 'crates/neo-verified/src/record.rs', lines 78:4-84:5 -/
+def record.Form.row_terms
+  (self : record.Form) :
+  Result (alloc.vec.Vec (circuit.Wire × field.Gl))
+  := do
+  let terms ← record.Form.wire_terms self
+  let b ←
+    core.cmp.PartialEq.ne.trait_default field.Gl.Insts.CoreCmpPartialEqGl
+      self.constant field.GL_ZERO
+  if b
+  then alloc.vec.Vec.push terms (record.ONE, self.constant)
+  else ok terms
+
 /-- [neo_verified::record::add_term]: loop body 0:
     Source: 'crates/neo-verified/src/record.rs', lines 101:4-106:5 -/
 @[rust_loop_body]

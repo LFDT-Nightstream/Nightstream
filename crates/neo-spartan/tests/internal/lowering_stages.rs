@@ -543,7 +543,7 @@ impl Program for Honest<'_> {
         let groups = [commitment_rows, run_weights];
         let root = key.root().map(|word| algebra::constant(b, word));
         for (bits, leaf) in index_bits.iter().zip(&leaves) {
-            setup::check(b, root, variables, bits, leaf, &groups, &alpha)?;
+            neo_verified::setup::check(b, root, variables, bits, &leaf.values, &leaf.path, &groups, &alpha)?;
         }
         for bits in &index_bits {
             setup::query_point(b, variables, bits);
@@ -834,7 +834,17 @@ impl<'a> Openings<'a> {
         let mut queried = Vec::new();
         for (bits, leaf) in index_bits.iter().zip(&proof.leaves) {
             let leaf = LeafView::read(b, Some(leaf), kappa() + RUN_ORACLES, variables).unwrap();
-            queried.extend(setup::check(b, key.root(), variables, bits, &leaf, &groups, &alpha).unwrap());
+            let folded = neo_verified::setup::check(
+                b,
+                key.root(),
+                variables,
+                bits,
+                &leaf.values,
+                &leaf.path,
+                &groups,
+                &alpha,
+            );
+            queried.extend(folded.unwrap_or_else(|_| panic!("the honest leaf passes")));
         }
 
         let late_beta = duplex.sample_ext(b);

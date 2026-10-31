@@ -140,6 +140,18 @@ pub fn gl_inv(a: Gl) -> Gl {
     gl_pow(a, MODULUS.wrapping_sub(2))
 }
 
+/// Plonky3's `two_adic_generator(bits)`: its generator of order `2^32`, squared `32 - bits`
+/// times. Panics for `bits` above 32, as Plonky3 does.
+pub fn two_adic_generator(bits: usize) -> Gl {
+    let mut squarings = 32usize.checked_sub(bits).unwrap();
+    let mut g = Gl(0x1856_29dc_da58_878c);
+    while squarings > 0 {
+        g = gl_mul(g, g);
+        squarings = squarings.wrapping_sub(1);
+    }
+    g
+}
+
 /// `c0 + c1·w + c2·w^2` with `w^3 = w + 1`.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Ext {

@@ -13,3 +13,4 @@ import CompressionLeanRust.Native
 import CompressionLeanRust.Cube
 import CompressionLeanRust.Rounds
 import CompressionLeanRust.Diagonal
+import CompressionLeanRust.Setup

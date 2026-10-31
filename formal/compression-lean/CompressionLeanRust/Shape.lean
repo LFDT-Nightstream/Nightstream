@@ -85,6 +85,7 @@ def views : List Lean.Name :=
     `CompressionLeanRust.built, `CompressionLeanRust.builtVec, `CompressionLeanRust.builtKx, `CompressionLeanRust.builtDigest,
     `CompressionLeanRust.builtNew, `CompressionLeanRust.builtStep, `CompressionLeanRust.builtSample,
     `CompressionLeanRust.builtBits, `CompressionLeanRust.nativeValues, `CompressionLeanRust.nativeExt,
-    `CompressionLeanRust.nativeExts, `CompressionLeanRust.extUsizeValue, `CompressionLeanRust.statesValue]
+    `CompressionLeanRust.nativeExts, `CompressionLeanRust.extUsizeValue, `CompressionLeanRust.statesValue,
+    `CompressionLeanRust.nativeChecked, `CompressionLeanRust.builtChecked]
 
 end CompressionLeanRust

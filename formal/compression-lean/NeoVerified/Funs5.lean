@@ -17,6 +17,21 @@ set_option linter.internalConstructors false
 
 
 namespace neo_verified
+/-- [neo_verified::paths::insert]: loop 0:
+    Source: 'crates/neo-verified/src/paths.rs', lines 42:4-52:5 -/
+@[rust_loop]
+def paths.insert_loop
+  (nodes : alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))
+  (index : Std.Usize) (node : Array field.Gl 4#usize)
+  (sorted : alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize)))
+  (placed : Bool) (k : Std.Usize) :
+  Result ((alloc.vec.Vec (Std.Usize × (Array field.Gl 4#usize))) × Bool)
+  := do
+  loop
+    (fun (sorted1, placed1, k1) => paths.insert_loop.body nodes index node
+      sorted1 placed1 k1)
+    (sorted, placed, k)
+
 /-- [neo_verified::paths::insert]:
     Source: 'crates/neo-verified/src/paths.rs', lines 38:0-57:1 -/
 def paths.insert
@@ -1187,19 +1202,5 @@ def record.Form.wire_terms
   := do
   record.Form.wire_terms_loop self (alloc.vec.Vec.new (circuit.Wire ×
     field.Gl)) 0#usize
-
-/-- [neo_verified::record::{neo_verified::record::Form}::row_terms]:
-    Source: 'crates/neo-verified/src/record.rs', lines 78:4-84:5 -/
-def record.Form.row_terms
-  (self : record.Form) :
-  Result (alloc.vec.Vec (circuit.Wire × field.Gl))
-  := do
-  let terms ← record.Form.wire_terms self
-  let b ←
-    core.cmp.PartialEq.ne.trait_default field.Gl.Insts.CoreCmpPartialEqGl
-      self.constant field.GL_ZERO
-  if b
-  then alloc.vec.Vec.push terms (record.ONE, self.constant)
-  else ok terms
 
 end neo_verified

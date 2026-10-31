@@ -289,14 +289,14 @@ def degrees.shrink (shape : layout.Shape) : Result Std.Usize := do
   degrees.add i1 inner
 
 /-- [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Ext}::clone]:
-    Source: 'crates/neo-verified/src/field.rs', lines 144:9-144:14
+    Source: 'crates/neo-verified/src/field.rs', lines 156:9-156:14
     Visibility: public -/
 def field.Ext.Insts.CoreCloneClone.clone
   (self : field.Ext) : Result field.Ext := do
   ok self
 
 /-- Trait implementation: [neo_verified::field::{impl core::clone::Clone for neo_verified::field::Ext}]
-    Source: 'crates/neo-verified/src/field.rs', lines 144:9-144:14 -/
+    Source: 'crates/neo-verified/src/field.rs', lines 156:9-156:14 -/
 @[reducible]
 def field.Ext.Insts.CoreCloneClone : core.clone.Clone field.Ext := {
   clone := field.Ext.Insts.CoreCloneClone.clone
@@ -410,7 +410,7 @@ def diagonal.walk_bits
   diagonal.walk_bits_loop tracks bits i
 
 /-- [neo_verified::field::ext_sub]:
-    Source: 'crates/neo-verified/src/field.rs', lines 188:0-194:1
+    Source: 'crates/neo-verified/src/field.rs', lines 200:0-206:1
     Visibility: public -/
 def field.ext_sub (a : field.Ext) (b : field.Ext) : Result field.Ext := do
   let g ← field.gl_sub a.c0 b.c0
@@ -419,7 +419,7 @@ def field.ext_sub (a : field.Ext) (b : field.Ext) : Result field.Ext := do
   ok { c0 := g, c1 := g1, c2 := g2 }
 
 /-- [neo_verified::field::ext_reduce]:
-    Source: 'crates/neo-verified/src/field.rs', lines 164:0-170:1
+    Source: 'crates/neo-verified/src/field.rs', lines 176:0-182:1
     Visibility: public -/
 def field.ext_reduce (a : field.Ext) : Result field.Ext := do
   let i := a.c0
@@ -450,7 +450,7 @@ def diagonal.track_factor
        else ok field.EXT_ONE
 
 /-- [neo_verified::field::ext_mul]:
-    Source: 'crates/neo-verified/src/field.rs', lines 201:0-212:1
+    Source: 'crates/neo-verified/src/field.rs', lines 213:0-224:1
     Visibility: public -/
 def field.ext_mul (a : field.Ext) (b : field.Ext) : Result field.Ext := do
   let g ← field.gl_mul a.c1 b.c2
@@ -548,7 +548,7 @@ def diagonal.next_below
        else ok below
 
 /-- [neo_verified::field::ext_add]:
-    Source: 'crates/neo-verified/src/field.rs', lines 180:0-186:1
+    Source: 'crates/neo-verified/src/field.rs', lines 192:0-198:1
     Visibility: public -/
 def field.ext_add (a : field.Ext) (b : field.Ext) : Result field.Ext := do
   let g ← field.gl_add a.c0 b.c0
@@ -866,22 +866,55 @@ def field.canonical (word : Std.U64) : Result (Option field.Gl) := do
   then ok (some word)
   else ok none
 
+/-- [neo_verified::field::two_adic_generator]: loop body 0:
+    Source: 'crates/neo-verified/src/field.rs', lines 148:4-151:5
+    Visibility: public -/
+@[rust_loop_body]
+def field.two_adic_generator_loop.body
+  (squarings : Std.Usize) (g : field.Gl) :
+  Result (ControlFlow (Std.Usize × field.Gl) field.Gl)
+  := do
+  if squarings > 0#usize
+  then
+    let g1 ← field.gl_mul g g
+    let squarings1 ← lift (core.num.Usize.wrapping_sub squarings 1#usize)
+    ok (cont (squarings1, g1))
+  else ok (done g)
+
+/-- [neo_verified::field::two_adic_generator]: loop 0:
+    Source: 'crates/neo-verified/src/field.rs', lines 148:4-151:5
+    Visibility: public -/
+@[rust_loop]
+def field.two_adic_generator_loop
+  (squarings : Std.Usize) (g : field.Gl) : Result field.Gl := do
+  loop
+    (fun (squarings1, g1) => field.two_adic_generator_loop.body squarings1 g1)
+    (squarings, g)
+
+/-- [neo_verified::field::two_adic_generator]:
+    Source: 'crates/neo-verified/src/field.rs', lines 145:0-153:1
+    Visibility: public -/
+def field.two_adic_generator (bits : Std.Usize) : Result field.Gl := do
+  let o ← lift (Usize.checked_sub 32#usize bits)
+  let squarings ← core.option.Option.unwrap o
+  field.two_adic_generator_loop squarings 1753635133440165772#u64
+
 /-- Trait implementation: [neo_verified::field::{impl core::marker::Copy for neo_verified::field::Ext}]
-    Source: 'crates/neo-verified/src/field.rs', lines 144:16-144:20 -/
+    Source: 'crates/neo-verified/src/field.rs', lines 156:16-156:20 -/
 @[reducible]
 def field.Ext.Insts.CoreMarkerCopy : core.marker.Copy field.Ext := {
   cloneInst := field.Ext.Insts.CoreCloneClone
 }
 
 /-- Trait implementation: [neo_verified::field::{impl core::marker::StructuralPartialEq for neo_verified::field::Ext}]
-    Source: 'crates/neo-verified/src/field.rs', lines 144:22-144:31 -/
+    Source: 'crates/neo-verified/src/field.rs', lines 156:22-156:31 -/
 @[reducible]
 def field.Ext.Insts.CoreMarkerStructuralPartialEq :
   core.marker.StructuralPartialEq field.Ext := {
 }
 
 /-- [neo_verified::field::{impl core::cmp::PartialEq<neo_verified::field::Ext> for neo_verified::field::Ext}::eq]:
-    Source: 'crates/neo-verified/src/field.rs', lines 144:22-144:31
+    Source: 'crates/neo-verified/src/field.rs', lines 156:22-156:31
     Visibility: public -/
 def field.Ext.Insts.CoreCmpPartialEqExt.eq
   (self : field.Ext) (other : field.Ext) : Result Bool := do
@@ -895,7 +928,7 @@ def field.Ext.Insts.CoreCmpPartialEqExt.eq
   else ok false
 
 /-- Trait implementation: [neo_verified::field::{impl core::cmp::PartialEq<neo_verified::field::Ext> for neo_verified::field::Ext}]
-    Source: 'crates/neo-verified/src/field.rs', lines 144:22-144:31 -/
+    Source: 'crates/neo-verified/src/field.rs', lines 156:22-156:31 -/
 @[reducible]
 impl_def field.Ext.Insts.CoreCmpPartialEqExt : core.cmp.PartialEq field.Ext
   field.Ext := {
@@ -904,14 +937,14 @@ impl_def field.Ext.Insts.CoreCmpPartialEqExt : core.cmp.PartialEq field.Ext
 }
 
 /-- [neo_verified::field::{impl core::cmp::Eq for neo_verified::field::Ext}::assert_fields_are_eq]:
-    Source: 'crates/neo-verified/src/field.rs', lines 144:33-144:35
+    Source: 'crates/neo-verified/src/field.rs', lines 156:33-156:35
     Visibility: public -/
 def field.Ext.Insts.CoreCmpEq.assert_fields_are_eq
   (self : field.Ext) : Result Unit := do
   ok ()
 
 /-- Trait implementation: [neo_verified::field::{impl core::cmp::Eq for neo_verified::field::Ext}]
-    Source: 'crates/neo-verified/src/field.rs', lines 144:33-144:35 -/
+    Source: 'crates/neo-verified/src/field.rs', lines 156:33-156:35 -/
 @[reducible]
 def field.Ext.Insts.CoreCmpEq : core.cmp.Eq field.Ext := {
   partialEqInst := field.Ext.Insts.CoreCmpPartialEqExt
@@ -919,13 +952,13 @@ def field.Ext.Insts.CoreCmpEq : core.cmp.Eq field.Ext := {
 }
 
 /-- [neo_verified::field::ext_neg]:
-    Source: 'crates/neo-verified/src/field.rs', lines 196:0-198:1
+    Source: 'crates/neo-verified/src/field.rs', lines 208:0-210:1
     Visibility: public -/
 def field.ext_neg (a : field.Ext) : Result field.Ext := do
   field.ext_sub field.EXT_ZERO a
 
 /-- [neo_verified::field::ext_scale]:
-    Source: 'crates/neo-verified/src/field.rs', lines 214:0-220:1
+    Source: 'crates/neo-verified/src/field.rs', lines 226:0-232:1
     Visibility: public -/
 def field.ext_scale
   (a : field.Ext) («by» : field.Gl) : Result field.Ext := do
@@ -935,7 +968,7 @@ def field.ext_scale
   ok { c0 := g, c1 := g1, c2 := g2 }
 
 /-- [neo_verified::field::ext_pow]:
-    Source: 'crates/neo-verified/src/field.rs', lines 223:0-234:1
+    Source: 'crates/neo-verified/src/field.rs', lines 235:0-246:1
     Visibility: public -/
 def field.ext_pow (a : field.Ext) (e : Std.U64) : Result field.Ext := do
   if e = 0#u64
@@ -951,7 +984,7 @@ def field.ext_pow (a : field.Ext) (e : Std.U64) : Result field.Ext := do
 partial_fixpoint
 
 /-- [neo_verified::field::ext_inv]:
-    Source: 'crates/neo-verified/src/field.rs', lines 239:0-252:1
+    Source: 'crates/neo-verified/src/field.rs', lines 251:0-264:1
     Visibility: public -/
 def field.ext_inv (a : field.Ext) : Result field.Ext := do
   let s ← field.gl_add a.c0 a.c2
@@ -1176,34 +1209,5 @@ def hash.Duplex.observe_slice_loop.body
     let i2 ← lift (core.num.Usize.wrapping_add i 1#usize)
     ok (cont (self1, b1, i2))
   else ok (done (self, b))
-
-/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::observe_slice]: loop 0:
-    Source: 'crates/neo-verified/src/hash.rs', lines 42:8-45:9
-    Visibility: public -/
-@[rust_loop]
-def hash.Duplex.observe_slice_loop
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E)
-  (self : hash.Duplex B Clause0_F Clause0_E) (b : B) (values : Slice Clause0_F)
-  (i : Std.Usize) :
-  Result ((hash.Duplex B Clause0_F Clause0_E) × B)
-  := do
-  loop
-    (fun (self1, b1, i1) => hash.Duplex.observe_slice_loop.body
-      backendBackendInst values self1 b1 i1)
-    (self, b, i)
-
-/-- [neo_verified::hash::{neo_verified::hash::Duplex<B, Clause0_F, Clause0_E>}::observe_slice]:
-    Source: 'crates/neo-verified/src/hash.rs', lines 40:4-46:5
-    Visibility: public -/
-@[reducible]
-def hash.Duplex.observe_slice
-  {B : Type _} {Clause0_F : Type _} {Clause0_E : Type _} (backendBackendInst :
-  backend.Backend B Clause0_F Clause0_E)
-  (self : hash.Duplex B Clause0_F Clause0_E) (b : B) (values : Slice Clause0_F)
-  :
-  Result ((hash.Duplex B Clause0_F Clause0_E) × B)
-  := do
-  hash.Duplex.observe_slice_loop backendBackendInst self b values 0#usize
 
 end neo_verified

@@ -70,9 +70,17 @@ theorem extValue_injective : Function.Injective extValue := by
 theorem optionValue_injective : Function.Injective optionValue :=
   Option.map_injective glValue_injective
 
+/-- A translated array of `Gl` as its words, canonical or not. -/
+def glValues {n : Usize} (a : Aeneas.Std.Array neo_verified.field.Gl n) : List ℕ := a.val.map glValue
+
+theorem glValues_injective {n : Usize} : Function.Injective (@glValues n) := by
+  intro a b h
+  exact Aeneas.Std.Array.ext a b ((List.map_injective_iff.mpr glValue_injective)
+    (show List.map glValue a.val = List.map glValue b.val from h))
+
 /-- The views that a `Sound` or `Complete` theorem may use. `CompressionLeanRustTests` checks
 that each has a theorem `<view>_injective`. -/
 def views : List Lean.Name :=
-  [``usizeValue, ``usizeValues, ``placeValue, ``glValue, ``extValue, ``optionValue]
+  [``usizeValue, ``usizeValues, ``placeValue, ``glValue, ``extValue, ``optionValue, ``glValues]
 
 end CompressionLeanRust

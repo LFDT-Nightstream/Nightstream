@@ -120,7 +120,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 
 ## Ports
 
-`ports.json` has 584 entries: 529 Lean declarations transcribe 324 Rust items.
+`ports.json` has 585 entries: 529 Lean declarations transcribe 325 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -202,6 +202,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-verified/src/degrees.rs` | 9 |
 | `crates/neo-verified/src/field.rs` | 17 |
 | `crates/neo-verified/src/layout.rs` | 14 |
+| `crates/neo-verified/src/poseidon2.rs` | 1 |
 | `crates/nightstream-fprime/src/package.rs` | 5 |
 | `crates/nightstream-fprime/src/package/r1cs.rs` | 3 |
 | `crates/nightstream-fprime/src/package/terminal.rs` | 2 |

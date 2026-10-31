@@ -11,6 +11,7 @@ use neo_verified::layout::{
     block_cell, block_row, cell_variables, column, entry_column, glue_row, one, place, row_variables, slot, split,
     variables, Part, Shape,
 };
+use neo_verified::poseidon2::{permute, DIAGONAL, HALF_FULL_ROUNDS, INITIAL, PARTIAL, PARTIAL_ROUNDS, TERMINAL};
 use std::panic::{catch_unwind, UnwindSafe};
 use std::path::Path;
 use std::process::Command;
@@ -204,6 +205,7 @@ fn cases() -> Vec<String> {
     model_cases(&mut case);
     degrees_cases(&mut case);
     field_cases(&mut case);
+    poseidon2_cases(&mut case);
     cases
 }
 
@@ -748,6 +750,49 @@ fn field_cases(case: &mut impl FnMut(&str, &[u64], String)) {
             case("core.cmp.PartialEq.eq.ext", &args, format!("ok {}", a == b));
         }
         case("core.cmp.PartialEq.eq.ext", &[wa, wa].concat(), "ok true".to_string());
+    }
+}
+
+/// The permutation on states of one edge word, on a state of all the edge words, and on random
+/// states, with its tables and the models that only it calls. Lean reads each word as given,
+/// canonical or not; Rust reduces it first, as `neo-spartan`'s `to_verified` does.
+fn poseidon2_cases(case: &mut impl FnMut(&str, &[u64], String)) {
+    let mut states: Vec<[u64; 16]> = WORDS.iter().map(|&word| [word; 16]).collect();
+    states.push(WORDS);
+    let mut state: u64 = 0x706f_7365_6964_6f6e;
+    for _ in 0..40 {
+        states.push(std::array::from_fn(|_| random(&mut state) as u64));
+    }
+    for words in states {
+        let output = permute(words.map(reduce)).map(gl_word);
+        case("permute", &words, format!("ok {}", show(&output)));
+    }
+    case("HALF_FULL_ROUNDS", &[], format!("ok {HALF_FULL_ROUNDS}"));
+    case("PARTIAL_ROUNDS", &[], format!("ok {PARTIAL_ROUNDS}"));
+    case("INITIAL", &[], format!("ok {}", show(&INITIAL.concat())));
+    case("PARTIAL", &[], format!("ok {}", show(&PARTIAL)));
+    case("TERMINAL", &[], format!("ok {}", show(&TERMINAL.concat())));
+    case("DIAGONAL", &[], format!("ok {}", show(&DIAGONAL)));
+    for x in EDGES {
+        for y in EDGES {
+            case(
+                "core.num.Usize.wrapping_add",
+                &words(&[x, y]),
+                format!("ok {}", x.wrapping_add(y)),
+            );
+        }
+    }
+    for i in [0, 1, 2, usize::MAX] {
+        let update = move || {
+            let mut array = [7usize, 9];
+            array[i] = 5;
+            array
+        };
+        case(
+            "Array.update",
+            &words(&[7, 9, i, 5]),
+            outcome(update, |a| show_values(&a)),
+        );
     }
 }
 

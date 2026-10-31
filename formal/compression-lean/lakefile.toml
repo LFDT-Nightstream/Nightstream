@@ -34,7 +34,7 @@ leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsErro
 # CI fails when a file differs from the script's output.
 [[lean_lib]]
 name = "NeoVerified"
-roots = ["NeoVerified.Types", "NeoVerified.Funs"]
+roots = ["NeoVerified.Types", "NeoVerified.Funs1", "NeoVerified.Funs"]
 
 [[lean_lib]]
 name = "CompressionLeanRust"

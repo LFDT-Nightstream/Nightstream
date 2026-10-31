@@ -225,6 +225,28 @@ def fieldCase : String → List ℕ → Option String
     (ext xs).map fun a => outcome (core.cmp.Eq.assert_fields_are_eq field.Ext.Insts.CoreCmpEq a) fun _ => "unit"
   | _, _ => none
 
+open neo_verified in
+/-- A state of sixteen words, canonical or not. -/
+def state16 (xs : List ℕ) : Option (Aeneas.Std.Array field.Gl 16#usize) :=
+  if h : (xs.map u64).length = 16 then some (Aeneas.Std.Array.make 16#usize (xs.map u64) (by simp [h])) else none
+
+def words64 {n : Usize} (a : Aeneas.Std.Array U64 n) : String := " ".intercalate (a.val.map value)
+
+open neo_verified in
+/-- The translated permutation, its tables and the models that only it calls. -/
+def poseidon2Case : String → List ℕ → Option String
+  | "permute", xs => (state16 xs).map fun s => outcome (poseidon2.permute s) words64
+  | "HALF_FULL_ROUNDS", [] => s!"ok {value poseidon2.HALF_FULL_ROUNDS}"
+  | "PARTIAL_ROUNDS", [] => s!"ok {value poseidon2.PARTIAL_ROUNDS}"
+  | "INITIAL", [] => s!"ok {" ".intercalate (poseidon2.INITIAL.val.map words64)}"
+  | "PARTIAL", [] => s!"ok {words64 poseidon2.PARTIAL}"
+  | "TERMINAL", [] => s!"ok {" ".intercalate (poseidon2.TERMINAL.val.map words64)}"
+  | "DIAGONAL", [] => s!"ok {words64 poseidon2.DIAGONAL}"
+  | "core.num.Usize.wrapping_add", [x, y] => s!"ok {value (core.num.Usize.wrapping_add (usize x) (usize y))}"
+  | "Array.update", [x, y, i, v] =>
+    outcome (Array.update (Aeneas.Std.Array.make 2#usize [usize x, usize y]) (usize i) (usize v)) values
+  | _, _ => none
+
 def run : String → List ℕ → Option String
   | "split", [x] => outcome (neo_verified.layout.split (usize x)) fun a => " ".intercalate (a.val.map value)
   | "variables", [x] => outcome (neo_verified.layout.variables (usize x)) value
@@ -237,8 +259,8 @@ def run : String → List ℕ → Option String
   | "core.option.Option.unwrap.none", [] => outcome (core.option.Option.unwrap (none : Option Usize)) value
   | "core.num.Usize.BITS", [] => s!"ok {value core.num.Usize.BITS}"
   | "Array.make", [x, y] => s!"ok {" ".intercalate ((Aeneas.Std.Array.make 2#usize [usize x, usize y]).val.map value)}"
-  | case, words => (((layoutCase case words).orElse fun _ => modelCase case words).orElse fun _ =>
-    degreesCase case words).orElse fun _ => fieldCase case words
+  | case, words => ((((layoutCase case words).orElse fun _ => modelCase case words).orElse fun _ =>
+    degreesCase case words).orElse fun _ => fieldCase case words).orElse fun _ => poseidon2Case case words
 
 end CompressionLeanRust.RunCheck
 

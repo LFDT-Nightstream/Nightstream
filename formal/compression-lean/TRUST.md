@@ -163,7 +163,11 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
 - The Merkle hash that `MerkleBinds` reads (`Replay.pathOk`, `merkleRoot`, `compress`,
   `hashLeaf`). The Merkle binding of section 3 gives a Poseidon2 collision only if this is the
   hash that made the key root. Its permutation `Replay.permute` is F′'s `permute64`, which F′
-  proves is `Poseidon2.permute` over F′'s constants. Rust draws its constants from `SEED`.
+  proves is `Poseidon2.permute` over F′'s constants. The native verifier's `Native::permute` runs
+  the permutation of `neo-verified`, which `CompressionLeanRust/Poseidon2.lean` proves equal to
+  `Replay.permute`, constant tables included. The sponge, the compression and the Merkle hash of
+  layer 1 (`hash::permutation`) still draw their constants from `SEED`, and
+  `verified_permutation_matches_plonky3` (`neo-spartan`) compares the two permutations.
   `exported_round_constants_match_fprime_lean_spec` (`neo-ccs`, `tests/poseidon2_round_constants.rs`)
   compares them with F′'s, and `exported_round_constants_rebuild_the_canonical_permutation` shows
   that they make the workspace permutation; CI runs both (the `neo-ccs` group of

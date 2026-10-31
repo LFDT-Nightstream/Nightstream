@@ -14,3 +14,5 @@ import CompressionLeanRust.Cube
 import CompressionLeanRust.Rounds
 import CompressionLeanRust.Diagonal
 import CompressionLeanRust.Setup
+import CompressionLeanRust.Verifier
+import CompressionLeanRust.VerifierModels

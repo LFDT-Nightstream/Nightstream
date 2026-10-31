@@ -2,7 +2,7 @@ name = "compression_lean"
 version = "0.1.0"
 defaultTargets = ["CompressionLean", "CompressionLeanTests", "CompressionLeanExe", "emitTerminal", "replayLayer1",
   "lowerCheck", "terminalCheck", "setupCheck", "setupRootCheck", "runsCheck", "status", "NeoVerified",
-  "CompressionLeanRust", "CompressionLeanRustTests"]
+  "CompressionLeanRust", "CompressionLeanRustTests", "CompressionLeanRustClaims"]
 allowNonModules = true
 
 [[require]]
@@ -40,6 +40,14 @@ roots = ["NeoVerified.Types", "NeoVerified.Funs1", "NeoVerified.Funs2", "NeoVeri
 [[lean_lib]]
 name = "CompressionLeanRust"
 roots = ["CompressionLeanRust"]
+leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
+
+# The claims for the Rust shrink verifier (`CompressionLeanRust/Verifier.lean`). It imports
+# `CompressionLean.Claims`, so the aeneas CI job, which builds the translation and its proofs, does
+# not build it.
+[[lean_lib]]
+name = "CompressionLeanRustClaims"
+roots = ["CompressionLeanRustClaims"]
 leanOptions = { autoImplicit = false, relaxedAutoImplicit = false, warningAsError = true }
 
 [[lean_lib]]

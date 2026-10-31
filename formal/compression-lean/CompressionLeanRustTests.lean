@@ -96,4 +96,20 @@ elab "#check_rust_proofs" : command => liftTermElabM do
 
 #check_rust_proofs
 
+/-- Every theorem of `CompressionLeanRust` uses only the standard axioms, including those that no
+`ports.json` entry names, such as the shrink verifier's statement and models. -/
+elab "#check_rust_axioms" : command => liftTermElabM do
+  let env ← getEnv
+  let mut count := 0
+  for entry in env.constants.toList do
+    unless entry.2 matches .thmInfo _ do continue
+    let some idx := env.getModuleIdxFor? entry.1 | continue
+    unless (`CompressionLeanRust : Name).isPrefixOf env.header.moduleNames[idx.toNat]! do continue
+    count := count + 1
+    let axioms := (← collectAxioms entry.1).toList
+    unless axioms.all standardAxioms.contains do throwError "{entry.1} uses the axioms {axioms}"
+  if count == 0 then throwError "no theorem of CompressionLeanRust was checked"
+
+#check_rust_axioms
+
 end CompressionLeanRustTests

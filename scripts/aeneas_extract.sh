@@ -44,6 +44,12 @@ aeneas -backend lean -split-files -abort-on-error -warnings-as-errors -dest "$wo
 if grep -E '\[(Error|Warn)' "$work/aeneas.log"; then fail "aeneas reported the lines above"; fi
 
 written=$(cd "$work/lean" && ls | tr '\n' ' ')
+# formal/nightstream-fprime/scripts/check-boundaries.sh rejects unscoped heartbeat and
+# recursion overrides, and Aeneas writes one of each at the top of every file.
+for file in "$work/lean"/*.lean; do
+  sed -E -i.orig '/^\/- You can set the `max(Heartbeats|RecDepth)` value/d; /^set_option max(Heartbeats|RecDepth) [0-9]+$/d' "$file"
+  rm -f "$file.orig"
+done
 [ "$written" = "Funs.lean Types.lean " ] || fail "aeneas wrote $written; any other file than Funs.lean and Types.lean holds hand-written models of items that it could not translate"
 hatches='\b(sorry|admit|opaque|implemented_by|extern|skipKernelTC|native_decide)\b'
 if grep -nE "$hatches" "$work/lean"/*.lean "$lean/CompressionLeanRust.lean" "$lean/CompressionLeanRust"/*.lean; then

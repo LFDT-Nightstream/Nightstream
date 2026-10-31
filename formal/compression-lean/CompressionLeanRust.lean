@@ -1,2 +1,3 @@
 import CompressionLeanRust.Shape
 import CompressionLeanRust.Layout
+import CompressionLeanRust.RunCheck

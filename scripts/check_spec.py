@@ -14,7 +14,11 @@ from the header of the Lean-emitted package; the field names come from the Lean 
 `Export/Package.lean`. Every value needs a label in LABELS and every label a value, so the
 table never drops or invents a row.
 
-  python3 scripts/check_spec.py            check pins, paths and the table
+The repository has one protocol specification (`AGENTS.md`, Specs). So the script also fails when
+a tracked file is in a `specs/` folder, when a Markdown file outside SPEC_FILES has "spec" in its
+name, or when a Lean or Rust file cites `spec §`, the citation form of the deleted spec files.
+
+  python3 scripts/check_spec.py            check pins, paths, the table and the spec files
   python3 scripts/check_spec.py --write    rewrite the table (pins are never edited)
 """
 
@@ -23,6 +27,7 @@ import json
 import math
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -34,6 +39,10 @@ PACKAGE = ROOT / "formal/nightstream-fprime/artifacts/nightstream-fprime-stage1-
 FORMATS = FPRIME / "Export/Package.lean"
 SEALED = FPRIME / "Export/Stage1/PerApplicationCanonicalPackage.lean"
 BEGIN, END = "<!-- params -->", "<!-- /params -->"
+# The Markdown files whose names say "spec": the protocol specification, a strategy document, and
+# the scope of a profiling tool.
+SPEC_FILES = {"SPEC.md", "FPRIME_LEAN_ARCHITECTURE_SPEC.md", "scripts/gpuscope/SPEC.md"}
+OLD_CITATION = re.compile(r"[Ss]pec §")
 
 PIN = re.compile(r"`((?:Export|Layout|Lifecycle|Spec|CompressionLean)\.[^`\s]*)` \(`([^`\s.]*)`\)")
 FINGERPRINT = re.compile(r"[0-9a-f]{16}")
@@ -258,6 +267,34 @@ def path_errors(text):
                    f"{', '.join(rel(base) or '.' for base in BASES)}")
 
 
+def tracked_files():
+    listing = subprocess.run(["git", "ls-files", "-z"], cwd=ROOT, capture_output=True, check=True)
+    return [path for path in listing.stdout.decode("utf-8").split("\0") if path]
+
+
+def layout_errors(paths):
+    for path in paths:
+        parts = Path(path).parts
+        if "specs" in parts[:-1]:
+            yield f"`{path}` is in a `specs/` folder; protocol text goes in SPEC.md (AGENTS.md, Specs)"
+        elif parts[-1].lower().endswith(".md") and "spec" in parts[-1].lower() and path not in SPEC_FILES:
+            yield f"`{path}` is a separate spec file; protocol text goes in SPEC.md (AGENTS.md, Specs)"
+
+
+def citation_errors(files):
+    for path, text in files:
+        for match in OLD_CITATION.finditer(text):
+            line = text.count("\n", 0, match.start()) + 1
+            yield f"{path}:{line} cites `spec §`; cite a SPEC.md section or algorithm, or a Lean name"
+
+
+def repository_errors():
+    paths = tracked_files()
+    sources = [(path, (ROOT / path).read_text(encoding="utf-8", errors="replace")) for path in paths
+               if path.endswith((".lean", ".rs")) and (ROOT / path).is_file()]
+    return [*layout_errors(paths), *citation_errors(sources)]
+
+
 def main():
     parser = argparse.ArgumentParser(description="Check SPEC.md's pins, paths and parameters table.")
     parser.add_argument("--write", action="store_true", help="rewrite the parameters table")
@@ -278,9 +315,13 @@ def main():
         errors.append("the parameters table is stale; run python3 scripts/check_spec.py --write")
     for error in errors:
         print(f"{args.spec.name}: {error}")
-    if errors:
-        sys.exit(f"spec: {len(errors)} errors")
-    print(f"spec: {args.spec.name} has well-formed pins, existing paths and a current parameters table")
+    repository = repository_errors()
+    for error in repository:
+        print(f"repository: {error}")
+    if errors or repository:
+        sys.exit(f"spec: {len(errors) + len(repository)} errors")
+    print(f"spec: {args.spec.name} has well-formed pins, existing paths and a current parameters table, "
+          "and no other spec file or `spec §` citation exists")
 
 
 if __name__ == "__main__":

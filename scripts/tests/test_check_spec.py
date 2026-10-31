@@ -1,3 +1,4 @@
+import importlib.util
 from pathlib import Path
 import subprocess
 import sys
@@ -7,6 +8,9 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts/check_spec.py"
 SPEC = ROOT / "SPEC.md"
+LOADER = importlib.util.spec_from_file_location("check_spec", SCRIPT)
+CHECK_SPEC = importlib.util.module_from_spec(LOADER)
+LOADER.loader.exec_module(CHECK_SPEC)
 
 
 def check(text):
@@ -39,6 +43,26 @@ class CheckSpecTests(unittest.TestCase):
         result = check(SPEC.read_text(encoding="utf-8") + "\n`Spec.production_parameter_values` (`12ab`)\n")
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("not 16 hex digits", result.stdout)
+
+    def test_specs_folder_fails(self):
+        errors = list(CHECK_SPEC.layout_errors(["specs/nebula-superneo.md", "specs/vectors.json"]))
+        self.assertEqual(len(errors), 2, errors)
+        self.assertIn("`specs/nebula-superneo.md` is in a `specs/` folder", errors[0])
+
+    def test_separate_spec_file_fails(self):
+        errors = list(CHECK_SPEC.layout_errors(["formal/nightstream-fprime/NEBULA_SPEC.md"]))
+        self.assertEqual(len(errors), 1, errors)
+        self.assertIn("is a separate spec file", errors[0])
+
+    def test_known_documents_pass(self):
+        paths = [*CHECK_SPEC.SPEC_FILES, "formal/nightstream-fprime/SECURITY_MODEL.md",
+                 "decisions/nebula-memory-checking.md", "formal/nightstream-fprime/NightstreamFPrime/Spec/Nebula.lean"]
+        self.assertEqual(list(CHECK_SPEC.layout_errors(paths)), [])
+
+    def test_old_citation_fails(self):
+        files = [("crates/a.rs", "/// Row O4.\n/// See spec §8.1.\n"), ("b.lean", "/-- SPEC.md section 7.3. -/")]
+        errors = list(CHECK_SPEC.citation_errors(files))
+        self.assertEqual(errors, ["crates/a.rs:2 cites `spec §`; cite a SPEC.md section or algorithm, or a Lean name"])
 
 
 if __name__ == "__main__":

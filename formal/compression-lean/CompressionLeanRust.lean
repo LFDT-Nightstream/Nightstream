@@ -8,3 +8,5 @@ import CompressionLeanRust.Poseidon2
 import CompressionLeanRust.Backend
 import CompressionLeanRust.Algebra
 import CompressionLeanRust.Hash
+import CompressionLeanRust.Duplex
+import CompressionLeanRust.Native

@@ -20,10 +20,15 @@ def rustItem (f : Name) : Option String :=
     | _ => some s!"crates/neo-verified/src/{"/".intercalate path}.rs::{rest.getLast!}"
   | _ => none
 
+/-- The backends that a function generic over `B: Backend` may run on: the copies' `Build`, and
+Aeneas's translation of the verifier's `Native`, whose values the `Replay` copies read. -/
+def backends : List Name :=
+  [``CompressionLeanRust.build, ``neo_verified.native.Native.Insts.Neo_verifiedBackendBackendGlExt]
+
 /-- The constant `c` on one tuple of its explicit arguments, `fun x => c x.1 x.2.1 … x.2.2`, or `c`
-itself when it takes one argument. A function generic over `B: Backend` runs on
-`CompressionLeanRust.build`: its type arguments and its backend are fixed first. -/
-def tupled (c : Name) : MetaM Expr := do
+itself when it takes one argument. A function generic over `B: Backend` runs on `backend`: its type
+arguments and its backend are fixed first. -/
+def tupled (c backend : Name) : MetaM Expr := do
   let mut fn ← mkConstWithLevelParams c
   let generic ← forallTelescope (← inferType fn) fun args _ => do
     for arg in args do
@@ -32,7 +37,7 @@ def tupled (c : Name) : MetaM Expr := do
     return false
   if generic then
     let levels := (← getConstInfo c).levelParams.map fun _ => Level.zero
-    fn ← mkAppM' (mkConst c levels) #[mkConst ``CompressionLeanRust.build]
+    fn ← mkAppM' (mkConst c levels) #[mkConst backend]
   forallTelescope (← inferType fn) fun args _ => do
     for arg in args do
       unless (← arg.fvarId!.getBinderInfo).isExplicit do throwError "{c} takes an implicit argument"
@@ -68,7 +73,10 @@ def checkEntry (entry : Json) : MetaM Bool := do
     throwError "{sound} and {complete} state different functions, views or copies"
   let some fn ← lambdaTelescope f fun _ body => pure body.getAppFn.constName?
     | throwError "{sound} states a function that is not a constant"
-  unless ← withReducible (isDefEq f (← tupled fn)) do
+  let onBackend ← backends.anyM fun backend => do
+    let t ← tupled fn backend
+    withReducible (isDefEq f t)
+  unless onBackend do
     throwError "{sound} states {f}, which is not {fn} on one tuple of its arguments"
   unless rustItem fn == some rust do
     throwError "{sound} is about {fn}, which is not Aeneas's translation of {rust}"

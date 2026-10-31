@@ -166,7 +166,10 @@ Rust, a claim is about a verifier, a program, a file or a check that Rust does n
   proves is `Poseidon2.permute` over F′'s constants. The native verifier's `Native::permute` runs
   the permutation of `neo-verified`, which `CompressionLeanRust/Poseidon2.lean` proves equal to
   `Replay.permute`, constant tables included, so the native verifier's sponge and compression run
-  the proved permutation too. The prover, the leaf hashes in hints and the trace digest use
+  the proved permutation too. `CompressionLeanRust/Native.lean` proves the Rust `hash_leaf`,
+  `compress` and `merkle_root`, run on `Native`, equal to `Replay.hashLeaf`, `Replay.compress` and
+  `Replay.merkleRoot`; `Replay.pathOk` keeps a hash until `setup.rs::check` moves. The prover, the
+  leaf hashes in hints and the trace digest use
   `hash::permutation`, which draws its constants from `SEED`, and
   `verified_permutation_matches_plonky3` (`neo-spartan`) compares the two permutations.
   `exported_round_constants_match_fprime_lean_spec` (`neo-ccs`, `tests/poseidon2_round_constants.rs`)
@@ -209,8 +212,8 @@ These checks compare a transcription with its Rust:
 - Rust tests in CI pin digests that Lean computes from the lowered programs, so a change to the
   circuit's instruction stream fails CI.
 - For a port of Rust in `crates/neo-verified` that has a proof, `ports.json` names two theorems
-  in place of a hash. The other ports of `neo-verified` code (`Recorder`, `Native`, `Duplex`, the
-  block template) keep a hash. Aeneas translates the crate (`scripts/aeneas_extract.sh`), and `CompressionLeanRust` proves
+  in place of a hash. The other ports of `neo-verified` code (`Recorder`, `Native`, the block
+  template, the Replay duplex and transcript, and `Replay.pathOk`) keep a hash. Aeneas translates the crate (`scripts/aeneas_extract.sh`), and `CompressionLeanRust` proves
   the translation equal to the port. `Sound` has no premise: if the translated function returns,
   it returns the port's value. `Complete` gives a premise, an input that meets it, and a value on
   every input that meets it. `CompressionLeanRustTests` checks the shape of both. The `aeneas` CI

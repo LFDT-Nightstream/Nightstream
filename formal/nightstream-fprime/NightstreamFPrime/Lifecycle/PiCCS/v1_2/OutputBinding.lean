@@ -41,73 +41,84 @@ open NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
 open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.UnifiedSources
 
-structure OutputExpr where
-  padCoordinate : Fin productionShape.sourceCount →
-    Fin productionShape.coefficientCount → KExpr
-  matrixCoordinate : Fin productionShape.sourceCount →
-    Fin productionShape.matrixCount →
-    Fin productionShape.coefficientCount → KExpr
+/-- The output expressions for a Π_CCS shape: the production shape, or option B's light shape. -/
+structure ShapeOutputExpr (shape : Shape) where
+  padCoordinate : Fin shape.sourceCount →
+    Fin shape.coefficientCount → KExpr
+  matrixCoordinate : Fin shape.sourceCount →
+    Fin shape.matrixCount →
+    Fin shape.coefficientCount → KExpr
 
-structure Interface where
-  roundPoint : Nat → Fin productionShape.cubeVariables → KExpr
+abbrev OutputExpr := ShapeOutputExpr productionShape
+
+structure ShapeInterface (shape : Shape) where
+  roundPoint : Nat → Fin shape.cubeVariables → KExpr
   initialState : Nat → Layer.EState
-  output : Nat → OutputExpr
+  output : Nat → ShapeOutputExpr shape
 
-def reducedPoint (interface : Interface) (offset : Nat)
-    (_source : Fin productionShape.sourceCount) :=
+abbrev Interface := ShapeInterface productionShape
+
+section Shape
+
+variable {shape : Shape}
+
+def reducedPoint (interface : ShapeInterface shape) (offset : Nat)
+    (_source : Fin shape.sourceCount) :=
   interface.roundPoint offset
 
-def reducedEval_K (interface : Interface) (offset : Nat)
-    (source : Fin productionShape.sourceCount)
-    (coefficient : Fin productionShape.coefficientCount) : KExpr :=
+def reducedEval_K (interface : ShapeInterface shape) (offset : Nat)
+    (source : Fin shape.sourceCount)
+    (coefficient : Fin shape.coefficientCount) : KExpr :=
   (interface.output offset).padCoordinate source coefficient
 
-def reducedEval_A (interface : Interface) (offset : Nat)
-    (source : Fin productionShape.sourceCount)
-    (matrix : Fin productionShape.matrixCount)
-    (coefficient : Fin productionShape.coefficientCount) : KExpr :=
+def reducedEval_A (interface : ShapeInterface shape) (offset : Nat)
+    (source : Fin shape.sourceCount)
+    (matrix : Fin shape.matrixCount)
+    (coefficient : Fin shape.coefficientCount) : KExpr :=
   (interface.output offset).matrixCoordinate source matrix coefficient
 
-@[simp] theorem reducedPoint_eq (interface : Interface) (offset : Nat)
-    (source : Fin productionShape.sourceCount) :
+@[simp] theorem reducedPoint_eq (interface : ShapeInterface shape) (offset : Nat)
+    (source : Fin shape.sourceCount) :
     reducedPoint interface offset source = interface.roundPoint offset := by
   rfl
 
-@[simp] theorem reducedEval_K_eq (interface : Interface) (offset : Nat)
-    (source : Fin productionShape.sourceCount)
-    (coefficient : Fin productionShape.coefficientCount) :
+@[simp] theorem reducedEval_K_eq (interface : ShapeInterface shape) (offset : Nat)
+    (source : Fin shape.sourceCount)
+    (coefficient : Fin shape.coefficientCount) :
     reducedEval_K interface offset source coefficient =
       (interface.output offset).padCoordinate source coefficient := by
   rfl
 
-@[simp] theorem reducedEval_A_eq (interface : Interface) (offset : Nat)
-    (source : Fin productionShape.sourceCount)
-    (matrix : Fin productionShape.matrixCount)
-    (coefficient : Fin productionShape.coefficientCount) :
+@[simp] theorem reducedEval_A_eq (interface : ShapeInterface shape) (offset : Nat)
+    (source : Fin shape.sourceCount)
+    (matrix : Fin shape.matrixCount)
+    (coefficient : Fin shape.coefficientCount) :
     reducedEval_A interface offset source matrix coefficient =
       (interface.output offset).matrixCoordinate source matrix coefficient := by
   rfl
 
-def padWords (output : OutputExpr)
-    (source : Fin productionShape.sourceCount) : List Expr :=
-  (List.finRange productionShape.coefficientCount).flatMap fun coefficient =>
+def padWords (output : ShapeOutputExpr shape)
+    (source : Fin shape.sourceCount) : List Expr :=
+  (List.finRange shape.coefficientCount).flatMap fun coefficient =>
     StatementAbsorption.serializeKExpr
       (output.padCoordinate source coefficient)
 
-def matrixWords (output : OutputExpr)
-    (source : Fin productionShape.sourceCount) : List Expr :=
-  (List.finRange productionShape.matrixCount).flatMap fun matrix =>
-    (List.finRange productionShape.coefficientCount).flatMap fun coefficient =>
+def matrixWords (output : ShapeOutputExpr shape)
+    (source : Fin shape.sourceCount) : List Expr :=
+  (List.finRange shape.matrixCount).flatMap fun matrix =>
+    (List.finRange shape.coefficientCount).flatMap fun coefficient =>
       StatementAbsorption.serializeKExpr
         (output.matrixCoordinate source matrix coefficient)
 
-def sourceWords (output : OutputExpr)
-    (source : Fin productionShape.sourceCount) : List Expr :=
+def sourceWords (output : ShapeOutputExpr shape)
+    (source : Fin shape.sourceCount) : List Expr :=
   padWords output source ++ matrixWords output source
 
-def outputWords (interface : Interface) (offset : Nat) : List Expr :=
-  (List.finRange productionShape.sourceCount).flatMap fun source =>
+def outputWords (interface : ShapeInterface shape) (offset : Nat) : List Expr :=
+  (List.finRange shape.sourceCount).flatMap fun source =>
     sourceWords (interface.output offset) source
+
+end Shape
 
 private theorem padWords_length (output : OutputExpr)
     (source : Fin productionShape.sourceCount) :
@@ -145,29 +156,33 @@ theorem outputWords_length (interface : Interface) (offset : Nat) :
   norm_num [productionShape, productionProfile,
     Phi81MatrixSource.phi81Shape, Shape.sourceCount]
 
-def actions (interface : Interface) (offset : Nat) : List Formal.Action :=
+section Shape
+
+variable {shape : Shape}
+
+def actions (interface : ShapeInterface shape) (offset : Nat) : List Formal.Action :=
   [.absorb (outputWords interface offset)]
 
-def duplexInterface (interface : Interface) : Formal.Owned.Interface where
+def duplexInterface (interface : ShapeInterface shape) : Formal.Owned.Interface where
   initial := interface.initialState
   actions := actions interface
 
-def finalState (interface : Interface) (offset : Nat) : Layer.EState :=
+def finalState (interface : ShapeInterface shape) (offset : Nat) : Layer.EState :=
   Formal.Owned.output (duplexInterface interface) offset
 
-theorem finalState_eq_compile (interface : Interface) (offset : Nat) :
+theorem finalState_eq_compile (interface : ShapeInterface shape) (offset : Nat) :
     finalState interface offset =
       (Formal.compile offset (interface.initialState offset)
         (actions interface offset)).output := by
   rfl
 
-abbrev Assumptions (interface : Interface) (offset : Nat) (env : Env) : Prop :=
+abbrev Assumptions (interface : ShapeInterface shape) (offset : Nat) (env : Env) : Prop :=
   Formal.Owned.Assumptions (duplexInterface interface) offset env
 
-abbrev SpecHolds (interface : Interface) (offset : Nat) (env : Env) : Prop :=
+abbrev SpecHolds (interface : ShapeInterface shape) (offset : Nat) (env : Env) : Prop :=
   Formal.Owned.SpecHolds (duplexInterface interface) offset env
 
-theorem trace_implies_specHolds (interface : Interface) (offset : Nat)
+theorem trace_implies_specHolds (interface : ShapeInterface shape) (offset : Nat)
     (env : Env)
     (trace : Formal.TraceHolds
       (List.ofFn (Layer.evalState env (interface.initialState offset)))
@@ -176,20 +191,20 @@ theorem trace_implies_specHolds (interface : Interface) (offset : Nat)
     SpecHolds interface offset env :=
   trace
 
-def circuit (interface : Interface) : FormalCircuit :=
+def circuit (interface : ShapeInterface shape) : FormalCircuit :=
   Formal.Owned.circuit (duplexInterface interface)
 
-theorem soundness (interface : Interface) (env : Env) (offset : Nat)
+theorem soundness (interface : ShapeInterface shape) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
     (rows : holds env (Circuit.ops (circuit interface).main offset)) :
     SpecHolds interface offset env :=
   Formal.Owned.soundness (duplexInterface interface) env offset assumptions rows
 
-theorem noAssertions (interface : Interface) (offset : Nat) :
+theorem noAssertions (interface : ShapeInterface shape) (offset : Nat) :
     Formal.Owned.allAssertions (duplexInterface interface) offset = [] := by
   rfl
 
-theorem build (interface : Interface) (env : Env) (offset : Nat)
+theorem build (interface : ShapeInterface shape) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
@@ -198,7 +213,7 @@ theorem build (interface : Interface) (env : Env) (offset : Nat)
   Formal.Owned.build_of_no_assertions (duplexInterface interface) env offset
     assumptions (noAssertions interface offset)
 
-theorem completeness (interface : Interface) (env : Env) (offset : Nat)
+theorem completeness (interface : ShapeInterface shape) (env : Env) (offset : Nat)
     (assumptions : Assumptions interface offset env)
     (specification : SpecHolds interface offset env) :
     ∃ completed,
@@ -208,7 +223,7 @@ theorem completeness (interface : Interface) (env : Env) (offset : Nat)
   Formal.Owned.completeness (duplexInterface interface) env offset assumptions
     specification
 
-theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
+theorem flatConstraints_varsBelow (interface : ShapeInterface shape) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ expression ∈ flatConstraints
       (Circuit.ops (circuit interface).main offset),
@@ -217,16 +232,18 @@ theorem flatConstraints_varsBelow (interface : Interface) (offset : Nat)
   Formal.Owned.flatConstraints_varsBelow (duplexInterface interface) offset env
     assumptions
 
-theorem finalState_varsBelow (interface : Interface) (offset : Nat)
+theorem finalState_varsBelow (interface : ShapeInterface shape) (offset : Nat)
     (env : Env) (assumptions : Assumptions interface offset env) :
     ∀ lane, (finalState interface offset lane).VarsBelow
       (offset + localLength (Circuit.ops (circuit interface).main offset)) :=
   Formal.Owned.output_varsBelow (duplexInterface interface) offset env
     assumptions
 
-theorem actions_length (interface : Interface) (offset : Nat) :
+theorem actions_length (interface : ShapeInterface shape) (offset : Nat) :
     (actions interface offset).length = 1 := by
   rfl
+
+end Shape
 
 def recipeCount (interface : Interface) (offset : Nat) : Nat :=
   Formal.recipeCount (actions interface offset)
@@ -272,18 +289,22 @@ theorem flatConstraints_length (interface : Interface) (offset : Nat) :
   simp [duplexInterface, actions, Formal.assertionCount,
     Formal.Action.assertionCount]
 
+section Shape
+
+variable {shape : Shape}
+
 def valuePadWords
-    (output : FullOutputCoordinates.FullOutput K productionShape)
-    (source : Fin productionShape.sourceCount) : List F :=
-  (List.finRange productionShape.coefficientCount).flatMap fun coefficient =>
+    (output : FullOutputCoordinates.FullOutput K shape)
+    (source : Fin shape.sourceCount) : List F :=
+  (List.finRange shape.coefficientCount).flatMap fun coefficient =>
     NightstreamFPrime.Lifecycle.serializeK
       (output.padCoordinate source coefficient)
 
 def valueMatrixWords
-    (output : FullOutputCoordinates.FullOutput K productionShape)
-    (source : Fin productionShape.sourceCount) : List F :=
-  (List.finRange productionShape.matrixCount).flatMap fun matrix =>
-    (List.finRange productionShape.coefficientCount).flatMap fun coefficient =>
+    (output : FullOutputCoordinates.FullOutput K shape)
+    (source : Fin shape.sourceCount) : List F :=
+  (List.finRange shape.matrixCount).flatMap fun matrix =>
+    (List.finRange shape.coefficientCount).flatMap fun coefficient =>
       NightstreamFPrime.Lifecycle.serializeK
         (output.matrixCoordinate source matrix coefficient)
 
@@ -306,12 +327,12 @@ private theorem map_flatMap_congr
       rw [List.flatMap_cons, List.map_append, List.flatMap_cons,
         each, inductionHypothesis]
 
-private theorem padWords_eval (interface : Interface) (offset : Nat)
-    (env : Env) (output : FullOutputCoordinates.FullOutput K productionShape)
+private theorem padWords_eval (interface : ShapeInterface shape) (offset : Nat)
+    (env : Env) (output : FullOutputCoordinates.FullOutput K shape)
     (padEq : ∀ source coefficient,
       ((interface.output offset).padCoordinate source coefficient).eval env =
         output.padCoordinate source coefficient)
-    (source : Fin productionShape.sourceCount) :
+    (source : Fin shape.sourceCount) :
     (padWords (interface.output offset) source).map (Expr.eval env) =
       valuePadWords output source := by
   unfold padWords valuePadWords
@@ -328,13 +349,13 @@ private theorem padWords_eval (interface : Interface) (offset : Nat)
           (output.padCoordinate source coefficient) := by
       rw [padEq]
 
-private theorem matrixWords_eval (interface : Interface) (offset : Nat)
-    (env : Env) (output : FullOutputCoordinates.FullOutput K productionShape)
+private theorem matrixWords_eval (interface : ShapeInterface shape) (offset : Nat)
+    (env : Env) (output : FullOutputCoordinates.FullOutput K shape)
     (matrixEq : ∀ source matrix coefficient,
       ((interface.output offset).matrixCoordinate source matrix
         coefficient).eval env =
         output.matrixCoordinate source matrix coefficient)
-    (source : Fin productionShape.sourceCount) :
+    (source : Fin shape.sourceCount) :
     (matrixWords (interface.output offset) source).map (Expr.eval env) =
       valueMatrixWords output source := by
   unfold matrixWords valueMatrixWords
@@ -353,8 +374,8 @@ private theorem matrixWords_eval (interface : Interface) (offset : Nat)
           (output.matrixCoordinate source matrix coefficient) := by
       rw [matrixEq]
 
-private theorem sourceWords_eval (interface : Interface) (offset : Nat)
-    (env : Env) (output : FullOutputCoordinates.FullOutput K productionShape)
+private theorem sourceWords_eval (interface : ShapeInterface shape) (offset : Nat)
+    (env : Env) (output : FullOutputCoordinates.FullOutput K shape)
     (padEq : ∀ source coefficient,
       ((interface.output offset).padCoordinate source coefficient).eval env =
         output.padCoordinate source coefficient)
@@ -362,11 +383,55 @@ private theorem sourceWords_eval (interface : Interface) (offset : Nat)
       ((interface.output offset).matrixCoordinate source matrix
         coefficient).eval env =
         output.matrixCoordinate source matrix coefficient)
-    (source : Fin productionShape.sourceCount) :
+    (source : Fin shape.sourceCount) :
     (sourceWords (interface.output offset) source).map (Expr.eval env) =
       valuePadWords output source ++ valueMatrixWords output source := by
   rw [sourceWords, List.map_append, padWords_eval interface offset env output
     padEq, matrixWords_eval interface offset env output matrixEq]
+
+theorem outputWords_eval_values (interface : ShapeInterface shape) (offset : Nat) (env : Env)
+    (output : FullOutputCoordinates.FullOutput K shape)
+    (padEq : ∀ source coefficient,
+      ((interface.output offset).padCoordinate source coefficient).eval env =
+        output.padCoordinate source coefficient)
+    (matrixEq : ∀ source matrix coefficient,
+      ((interface.output offset).matrixCoordinate source matrix
+        coefficient).eval env =
+        output.matrixCoordinate source matrix coefficient) :
+    Hash.evalList env (outputWords interface offset) =
+      (List.finRange shape.sourceCount).flatMap fun source =>
+        valuePadWords output source ++ valueMatrixWords output source := by
+  unfold Hash.evalList outputWords
+  apply map_flatMap_congr
+  intro source
+  exact sourceWords_eval interface offset env output padEq matrixEq source
+
+/-- The rows absorb every source's output words into the transcript state they start from
+(SuperNeo v1.2 Section 7.3, Step 5). -/
+theorem spec_implies_absorb (interface : ShapeInterface shape) (offset : Nat) (env : Env)
+    (state : Poseidon2.State) (output : FullOutputCoordinates.FullOutput K shape)
+    (initialEq : List.ofFn (Layer.evalState env (interface.initialState offset)) = state)
+    (padEq : ∀ source coefficient,
+      ((interface.output offset).padCoordinate source coefficient).eval env =
+        output.padCoordinate source coefficient)
+    (matrixEq : ∀ source matrix coefficient,
+      ((interface.output offset).matrixCoordinate source matrix
+        coefficient).eval env =
+        output.matrixCoordinate source matrix coefficient)
+    (specification : SpecHolds interface offset env) :
+    List.ofFn (Layer.evalState env (finalState interface offset)) =
+      NightstreamFPrime.Lifecycle.Transcript.absorb state
+        ((List.finRange shape.sourceCount).flatMap fun source =>
+          valuePadWords output source ++ valueMatrixWords output source) := by
+  have trace := specification
+  change Absorb.reference
+      (List.ofFn (Layer.evalState env (interface.initialState offset)))
+      (Hash.evalList env (outputWords interface offset)) =
+    List.ofFn (Layer.evalState env (finalState interface offset)) at trace
+  rw [outputWords_eval_values interface offset env output padEq matrixEq, initialEq] at trace
+  exact trace.symm
+
+end Shape
 
 theorem outputWords_eval (interface : Interface) (offset : Nat) (env : Env)
     (output : FullOutputCoordinates.FullOutput K productionShape)

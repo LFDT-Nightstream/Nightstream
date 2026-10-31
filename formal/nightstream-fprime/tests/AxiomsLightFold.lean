@@ -5,6 +5,8 @@ import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm
 import NightstreamFPrime.Spec.Folding.Light.Completeness
 import NightstreamFPrime.Spec.Folding.Light.Strong
 import NightstreamFPrime.Spec.Folding.Light.Binding
+import NightstreamFPrime.Spec.Folding.Light.Security
+import NightstreamFPrime.Spec.Folding.Light.ErrorBudget
 
 #audit_axioms NightstreamFPrime.Spec.GlobalParams.accumulatorBound_lt_bigB
 #audit_axioms NightstreamFPrime.Spec.GlobalParams.production_accumulatorBound_lt_bigB
@@ -26,3 +28,6 @@ import NightstreamFPrime.Spec.Folding.Light.Binding
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.difference_commits
 #audit_axioms NightstreamFPrime.Spec.Folding.Light.Rlc.collisionAt
 #audit_axioms NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm.sub_act_bound
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.accepted_implies_securityOutcome
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.ErrorBudget.production_testNumerator
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.ErrorBudget.production_forkCoordinates

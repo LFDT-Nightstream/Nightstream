@@ -19,3 +19,6 @@ import NightstreamFPrime.Export
 import NightstreamFPrime.Spec.Folding.Light.Bound
 import NightstreamFPrime.Spec.Folding.Light.Completeness
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.LightNorm
+import NightstreamFPrime.Spec.Folding.Light.Security
+import NightstreamFPrime.Spec.Folding.Light.Binding
+import NightstreamFPrime.Spec.Folding.Light.ErrorBudget

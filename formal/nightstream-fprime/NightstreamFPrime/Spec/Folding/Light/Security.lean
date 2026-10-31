@@ -1,0 +1,181 @@
+import NightstreamFPrime.Spec.Folding.Light.Verifier
+import NightstreamFPrime.Spec.Folding.Light.Strong
+import NightstreamFPrime.Spec.Folding.Light.Extraction
+
+/-! SuperNeo v1.2 Theorem 12 for the light fold, with Cyclo (ePrint 2026/359) Theorem 3,
+item 2. When `verify` accepts and two outputs differ only in `ρ`, the extracted fresh witness
+satisfies the CCS with norm below `b`, the extracted accumulator opens at the output bound
+plus `T · (b − 1)` with its claims true at the prior point, or a Π_CCS bad event occurred. -/
+
+set_option autoImplicit false
+
+namespace NightstreamFPrime.Spec.Folding.Light
+
+open NightstreamFPrime.Spec
+open NightstreamFPrime.Spec.Folding
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.StrongReduction
+open NightstreamFPrime.Spec.Folding.PiCCS.PaperJoint.PaperLinearAlgebra
+open NightstreamFPrime.Spec.Folding.PiRLC.PaperForkExtraction (ExtractionAlgebra StrongSetUnits)
+open NightstreamFPrime.Spec.Folding.Nifs.PaperNonInteractive (Fresh Running)
+
+universe uCommitment uPublicInput uScalar uState
+
+variable {Commitment : Type uCommitment} {PublicInput : Type uPublicInput}
+  {Scalar : Type uScalar} {State : Type uState} {shape : Shape}
+  {columns blockCount width : Nat}
+
+namespace Key
+
+variable (key : Key Commitment PublicInput Scalar State shape columns blockCount width)
+
+def outputs (running : Running K Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape) (proof : Proof shape width) :=
+  (key.statement running fresh).publicOutput (key.probe running fresh proof)
+
+/-- Two accepted outputs of one light proof that differ only in `ρ`. -/
+abbrev Fork (running : Running K Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape) (proof : Proof shape width) (bound : Nat) :=
+  Rlc.Fork key.piRlcAlgebra key.one bound key.relationSource
+    (key.probe running fresh proof).coins.roundPoint
+    (key.outputs running fresh proof key.freshSource)
+    (key.outputs running fresh proof key.runningSource)
+
+def extractedWitness (running : Running K Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape) (proof : Proof shape width) (bound : Nat)
+    (laws : ExtractionAlgebra key.piRlcSemantics key.params key.piRlcAlgebra)
+    (strongSet : StrongSetUnits laws.ring key.piRlcAlgebra.challengeValid)
+    (fork : key.Fork running fresh proof bound) : OutputWitness shape columns where
+  assignments := fun source =>
+    if source.val = 0 then fork.freshAssignment laws strongSet
+    else fork.runningAssignment laws strongSet
+
+end Key
+
+/-- The knowledge outcome: both inputs of the light fold, with the light norm bounds. -/
+structure Knowledge
+    (key : Key Commitment PublicInput Scalar State shape columns blockCount width)
+    (running : Running K Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (bound : Nat) (witness : OutputWitness shape columns) : Prop where
+  freshOpening : Opening.Holds
+    (paperRelationSemantics (shape := shape) (blockCount := blockCount)
+      key.baseOps key.extensionOps key.lift key.openingMaps)
+    key.params.b ((key.statement running fresh).commitments key.freshSource)
+    ((key.statement running fresh).publicInputs key.freshSource)
+    (witness.assignments key.freshSource)
+  runningOpening : Opening.Holds key.piRlcSemantics
+    (bound + key.params.expansionT * (key.params.b - 1))
+    ((key.statement running fresh).commitments key.runningSource)
+    ((key.statement running fresh).publicInputs key.runningSource)
+    (witness.assignments key.runningSource)
+  truth : PiCCS.SemanticTruth
+    (((key.statement running fresh).sourceConnectedInputs witness).toUnifiedInputs key.baseOps)
+    key.baseOps key.extensionOps key.lift
+
+private theorem paperAmbient
+    (key : Key Commitment PublicInput Scalar State shape columns blockCount width)
+    (statement : CE.Instance (RelationSource shape columns blockCount) PublicInput
+      (CubePoint K shape.cubeVariables) (EvaluationFamily K shape) Commitment)
+    (system : statement.constraintSystem = key.relationSource)
+    (assignment : Assignment F columns)
+    (holds : PiRLC.PaperCorrections.CorrectedAmbientHolds key.piRlcSemantics key.params
+      statement assignment) :
+    PiRLC.PaperCorrections.CorrectedAmbientHolds
+      (paperRelationSemantics key.baseOps key.extensionOps key.lift key.openingMaps)
+      key.params statement assignment := by
+  refine ⟨(key.openingAgreement _ _ _ _).mpr holds.1, trivial, ?_⟩
+  have evaluations := holds.2.2
+  rw [system] at evaluations ⊢
+  exact (key.evaluationAgreement assignment statement.point).2.symm.trans evaluations
+
+/-- SuperNeo v1.2 Theorem 12 for the light fold, with Cyclo Theorem 3, item 2. -/
+theorem accepted_implies_securityOutcome
+    (key : Key Commitment PublicInput Scalar State shape columns blockCount width)
+    (running : Running K Commitment PublicInput shape)
+    (fresh : Fresh Commitment PublicInput shape)
+    (proof : Proof shape width)
+    (result : CE.Instance (RelationSource shape columns blockCount) PublicInput
+      (CubePoint K shape.cubeVariables) (EvaluationFamily K shape) Commitment)
+    (accepted : verify key running fresh proof = some result)
+    (freshBound : key.params.b = 2)
+    (challengeSetSize bound : Nat)
+    (laws : ExtractionAlgebra key.piRlcSemantics key.params key.piRlcAlgebra)
+    (strongSet : StrongSetUnits laws.ring key.piRlcAlgebra.challengeValid)
+    (oneEq : key.one = laws.ring.one)
+    (normLaw : Rlc.ExtractionNormLaw laws)
+    (fork : key.Fork running fresh proof bound) :
+    let witness := key.extractedWitness running fresh proof bound laws strongSet fork
+    Knowledge key running fresh bound witness ∨
+      SignedCoefficientObject.MixingRoot key.extensionOps
+        ((PiCCS.protocolData key.baseOps key.lift
+          (((key.statement running fresh).sourceConnectedInputs witness).toUnifiedInputs
+            key.baseOps)).toJointData key.extensionOps)
+        (key.probe running fresh proof).coins.alpha
+        (key.probe running fresh proof).coins.gamma ∨
+      PiCCS.SumCheckFailure key.extensionOps key.lift (key.statement running fresh) width
+        challengeSetSize (key.probe running fresh proof) witness := by
+  intro witness
+  have checked : PiCCS.check key.extensionOps key.lift (key.statement running fresh) width
+      (key.probe running fresh proof) = true := by
+    by_contra rejected
+    simp [verify, rejected] at accepted
+  have freshValue : witness.assignments key.freshSource = fork.freshAssignment laws strongSet := by
+    simp [witness, Key.extractedWitness, Key.freshSource]
+  have runningValue :
+      witness.assignments key.runningSource = fork.runningAssignment laws strongSet := by
+    simp [witness, Key.extractedWitness, Key.runningSource]
+  have sourceCases : ∀ source : Fin shape.sourceCount,
+      source = key.freshSource ∨ source = key.runningSource := by
+    intro source
+    have bound : source.val < 2 := by
+      have := source.isLt
+      simp only [Shape.sourceCount, key.freshCount_eq, key.runningCount_eq] at this
+      exact this
+    by_cases first : source.val = 0
+    · exact Or.inl (Fin.ext first)
+    · exact Or.inr (Fin.ext (by simp only [Key.runningSource]; omega))
+  obtain ⟨freshAmbient, runningAmbient⟩ := Rlc.fork_extracts laws strongSet oneEq fork
+    rfl rfl rfl rfl 1 rfl rfl
+  have ambient : AmbientOutputHolds key.extensionOps key.lift key.openingMaps key.params
+      (key.statement running fresh) (key.probe running fresh proof) witness := by
+    intro source
+    rcases sourceCases source with same | same <;> subst same
+    · rw [freshValue]
+      exact paperAmbient key _ rfl _ freshAmbient
+    · rw [runningValue]
+      exact paperAmbient key _ rfl _ runningAmbient
+  rcases PiCCS.accepted_extracts_or_badEvent key.baseLaws key.baseZero key.noZeroDivisors
+      key.extensionOps key.extensionLaws key.extensionZeroLaws key.lift key.liftLaws
+      key.openingMaps key.params (key.statement running fresh) key.constantLaw width
+      (Nat.le_of_eq (key.statement_sumcheckDegreeBound_eq running fresh)) challengeSetSize
+      (key.probe running fresh proof) witness ambient checked with
+    truth | mixingRoot | sumCheck
+  · left
+    have freshNorm : ∀ column,
+        centeredMagnitude (witness.assignments key.freshSource column) < key.params.b := by
+      intro column
+      rw [freshBound]
+      exact truth.2.1 key.freshSource (by
+        simp only [Key.freshSource, key.freshCount_eq]
+        omega) column
+    have freshPaperOpening : Opening.Holds
+        (paperRelationSemantics (shape := shape) (blockCount := blockCount)
+          key.baseOps key.extensionOps key.lift key.openingMaps)
+        key.params.b ((key.statement running fresh).commitments key.freshSource)
+        ((key.statement running fresh).publicInputs key.freshSource)
+        (witness.assignments key.freshSource) :=
+      ⟨(ambient key.freshSource).1.1, (ambient key.freshSource).1.2.1, freshNorm⟩
+    have freshPiRlcNorm : key.piRlcSemantics.normBounded key.params.b
+        (fork.freshAssignment laws strongSet) := by
+      rw [← freshValue]
+      exact ((key.openingAgreement _ _ _ _).mp freshPaperOpening).2.2
+    have runningNorm := Rlc.runningAssignment_normBounded laws strongSet normLaw fork
+      freshPiRlcNorm
+    refine ⟨freshPaperOpening, ?_, truth⟩
+    rw [runningValue]
+    exact ⟨runningAmbient.1.1, runningAmbient.1.2.1, runningNorm⟩
+  · exact Or.inr (Or.inl mixingRoot)
+  · exact Or.inr (Or.inr sumCheck)
+
+end NightstreamFPrime.Spec.Folding.Light

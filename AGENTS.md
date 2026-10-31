@@ -26,6 +26,19 @@ circuit artifacts, and Rust embeds them and pins their identifiers.
   F′ circuits. It proves the layer-1 verifier sound. That proof assumes WHIR
   and treats Poseidon2 as a random oracle.
 
+## Specs
+
+- `SPEC.md` is the only protocol specification. It restates the Lean, and
+  where the two differ, the Lean is correct. Add a new protocol part as a
+  section of `SPEC.md`, in its format (Input, Output, Steps, Rejects,
+  Source), with a census pin for each theorem that it cites.
+- Put each adversary and each premise in
+  `formal/nightstream-fprime/SECURITY_MODEL.md`. Put each owner design
+  choice in `decisions/`, in the format of `decisions/README.md`.
+- Do not add a separate spec file, a `specs/` folder, prose proofs, or
+  status lists. Put progress and review history in the PR description.
+- In a comment, cite a `SPEC.md` section or algorithm, or a Lean name.
+
 ## Rules
 
 - Do not change this file without explicit approval.

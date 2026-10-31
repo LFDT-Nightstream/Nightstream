@@ -117,6 +117,77 @@ theorem rowsZero_iff_rowsHold {application : Program} {logicalWidth : Nat}
   exact bridge.trans (ApplicationDirectSource.program_holds_iff_rowsHold
     application fits (decodedEnv geometry assignment))
 
+private theorem inputEq {application : Program} {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth) :
+    Lifecycle.Stage1.Application.inputState
+      (Layout.Stage1.ApplicationInputs.interface application)
+      (Layout.Stage1.ApplicationInputs.localStart application)
+      (decodedEnv geometry assignment) =
+    List.ofFn (fun index : Lifecycle.Stage1.Application.StateIndex =>
+      ((PiRLCPoseidonGeometry.priorInputBlock application).form
+        (PiRLCPoseidonGeometry.priorInputStart application)
+        (PiRLCPoseidonGeometry.priorInputFits
+          (ApplicationRetainedGeometry.pilotGeometry geometry))
+        (Location.preimageWord index)).eval assignment) := by
+  apply congrArg List.ofFn
+  funext index
+  change decodedEnv geometry assignment
+    (Location.input (application := application) index).sourceColumn = _
+  rw [decodedEnv_location, Location.input_form_eq_pilot]
+
+private theorem outputEq {application : Program} {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth) :
+    Lifecycle.Stage1.Application.outputState
+      (Layout.Stage1.ApplicationInputs.interface application)
+      (Layout.Stage1.ApplicationInputs.localStart application)
+      (decodedEnv geometry assignment) =
+    List.ofFn (fun index : Lifecycle.Stage1.Application.StateIndex =>
+      ((PiRLCPoseidonGeometry.outputInputBlock application).form
+        (PiRLCPoseidonGeometry.outputInputStart application)
+        (PiRLCPoseidonGeometry.outputInputFits
+          (ApplicationRetainedGeometry.pilotGeometry geometry))
+        (Location.preimageWord index)).eval assignment) := by
+  apply congrArg List.ofFn
+  funext index
+  change decodedEnv geometry assignment
+    (Location.output (application := application) index).sourceColumn = _
+  rw [decodedEnv_location, Location.output_form_eq_pilot]
+
+private theorem witnessEq {application : Program} {logicalWidth : Nat}
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth) :
+    Lifecycle.Stage1.Application.witnessValue
+      (Layout.Stage1.ApplicationInputs.interface application)
+      (Layout.Stage1.ApplicationInputs.localStart application)
+      (decodedEnv geometry assignment) =
+    List.ofFn (fun index : Fin application.witnessWordCount =>
+      ((Location.witness index).form geometry).eval assignment) := by
+  apply congrArg List.ofFn
+  funext index
+  simpa only [Layout.Stage1.ApplicationInputs.interface, Expr.eval_var,
+    Location.sourceColumn] using
+    decodedEnv_location geometry assignment (.witness index)
+
+private theorem rowsZero_implies_spec {application : Program} {logicalWidth : Nat}
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (one : assignment (ApplicationRetainedGeometry.oneColumn geometry) = 1)
+    (rows : (ApplicationDirectPlan.plan fits geometry).RowsZero assignment) :
+    Lifecycle.Stage1.Application.Holds application.step
+        (Layout.Stage1.ApplicationInputs.interface application)
+        (Layout.Stage1.ApplicationInputs.localStart application)
+        (decodedEnv geometry assignment) ∧
+      Lifecycle.Stage1.Application.Valid application.valid
+        (Layout.Stage1.ApplicationInputs.interface application)
+        (Layout.Stage1.ApplicationInputs.localStart application)
+        (decodedEnv geometry assignment) :=
+  ApplicationDirectSource.rowsHold_implies_applicationSpec
+    application (decodedEnv geometry assignment)
+    ((rowsZero_iff_rowsHold fits geometry assignment one).mp rows)
+
 theorem rowsZero_implies_step {application : Program} {logicalWidth : Nat}
     (fits : PerApplicationPackage.FitsTwoPow28 application)
     (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
@@ -138,55 +209,32 @@ theorem rowsZero_implies_step {application : Program} {logicalWidth : Nat}
             (Location.preimageWord index)).eval assignment)
         (List.ofFn fun index : Fin application.witnessWordCount =>
           ((Location.witness index).form geometry).eval assignment) := by
-  have holds := ApplicationDirectSource.rowsHold_implies_applicationHolds
-    application (decodedEnv geometry assignment)
-    ((rowsZero_iff_rowsHold fits geometry assignment one).mp rows)
-  have inputEq :
-      Lifecycle.Stage1.Application.inputState
-        (Layout.Stage1.ApplicationInputs.interface application)
-        (Layout.Stage1.ApplicationInputs.localStart application)
-        (decodedEnv geometry assignment) =
-      List.ofFn (fun index : Lifecycle.Stage1.Application.StateIndex =>
+  have holds := (rowsZero_implies_spec fits geometry assignment one rows).1
+  unfold Lifecycle.Stage1.Application.Holds at holds
+  rw [inputEq, outputEq, witnessEq] at holds
+  exact holds
+
+/-- Every accepted logical assignment makes the selected application's
+validity predicate hold on its actual pilot input current state and its
+decoded witness. -/
+theorem rowsZero_implies_valid {application : Program} {logicalWidth : Nat}
+    (fits : PerApplicationPackage.FitsTwoPow28 application)
+    (geometry : ApplicationRetainedGeometry.Geometry application logicalWidth)
+    (assignment : Assignment F logicalWidth)
+    (one : assignment (ApplicationRetainedGeometry.oneColumn geometry) = 1)
+    (rows : (ApplicationDirectPlan.plan fits geometry).RowsZero assignment) :
+    application.valid
+      (List.ofFn fun index : Lifecycle.Stage1.Application.StateIndex =>
         ((PiRLCPoseidonGeometry.priorInputBlock application).form
           (PiRLCPoseidonGeometry.priorInputStart application)
           (PiRLCPoseidonGeometry.priorInputFits
             (ApplicationRetainedGeometry.pilotGeometry geometry))
-          (Location.preimageWord index)).eval assignment) := by
-    apply congrArg List.ofFn
-    funext index
-    change decodedEnv geometry assignment
-      (Location.input (application := application) index).sourceColumn = _
-    rw [decodedEnv_location, Location.input_form_eq_pilot]
-  have outputEq :
-      Lifecycle.Stage1.Application.outputState
-        (Layout.Stage1.ApplicationInputs.interface application)
-        (Layout.Stage1.ApplicationInputs.localStart application)
-        (decodedEnv geometry assignment) =
-      List.ofFn (fun index : Lifecycle.Stage1.Application.StateIndex =>
-        ((PiRLCPoseidonGeometry.outputInputBlock application).form
-          (PiRLCPoseidonGeometry.outputInputStart application)
-          (PiRLCPoseidonGeometry.outputInputFits
-            (ApplicationRetainedGeometry.pilotGeometry geometry))
-          (Location.preimageWord index)).eval assignment) := by
-    apply congrArg List.ofFn
-    funext index
-    change decodedEnv geometry assignment
-      (Location.output (application := application) index).sourceColumn = _
-    rw [decodedEnv_location, Location.output_form_eq_pilot]
-  have witnessEq :
-      Lifecycle.Stage1.Application.witnessValue
-        (Layout.Stage1.ApplicationInputs.interface application)
-        (Layout.Stage1.ApplicationInputs.localStart application)
-        (decodedEnv geometry assignment) =
-      List.ofFn (fun index : Fin application.witnessWordCount =>
+          (Location.preimageWord index)).eval assignment)
+      (List.ofFn fun index : Fin application.witnessWordCount =>
         ((Location.witness index).form geometry).eval assignment) := by
-    apply congrArg List.ofFn
-    funext index
-    simpa only [Layout.Stage1.ApplicationInputs.interface, Expr.eval_var,
-      Location.sourceColumn] using
-      decodedEnv_location geometry assignment (.witness index)
-  unfold Lifecycle.Stage1.Application.Holds at holds
-  rw [inputEq, outputEq, witnessEq] at holds
-  exact holds
+  have valid := (rowsZero_implies_spec fits geometry assignment one rows).2
+  unfold Lifecycle.Stage1.Application.Valid at valid
+  rw [inputEq, witnessEq] at valid
+  exact valid
 
 end NightstreamFPrime.Export.Stage1.ApplicationAssignmentSoundness

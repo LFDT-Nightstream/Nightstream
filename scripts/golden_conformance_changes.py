@@ -20,6 +20,7 @@ CRATES = {
     "nightstream", "nightstream-fprime",
     "neo-math", "neo-params", "neo-ccs", "neo-ajtai", "neo-transcript",
     "neo-reductions", "neo-prover-metal", "neo-prover-cuda", "neo-spartan",
+    "neo-application",
 }
 NATIVE = ("native", "metal")
 ALL = ("native", "lean_reference", "metal")

@@ -1,0 +1,68 @@
+#![recursion_limit = "512"]
+
+pub mod adapters;
+pub mod batch;
+pub mod ccs;
+pub mod comm_chain;
+mod gadgets;
+pub mod host_event_bindings;
+mod host_event_layout;
+pub mod ir;
+pub mod isa;
+mod ivc_state;
+pub mod layout;
+mod lookup_circuit;
+pub mod lookup_semantics;
+mod memory_activation;
+mod memory_id;
+mod memory_routing;
+pub mod memory_semantics;
+#[doc(hidden)]
+pub mod preprocess;
+pub mod range_check;
+pub mod relation_layout;
+mod sparse_r1cs;
+pub mod tables;
+pub mod tagged_r1cs_builder;
+pub mod witness_builder;
+mod witness_layout;
+
+pub use adapters::wasmtime::{
+    build_pc_rom_from_binary, collect_wasmtime_component_run, collect_wasmtime_component_run_with_linker,
+    collect_wasmtime_component_run_with_linker_and_args, collect_wasmtime_steps,
+    extract_first_component_core_program_artifacts, extract_wasm_program_artifacts, traces_from_wasmtime_component,
+    traces_from_wasmtime_component_with_linker, traces_from_wasmtime_steps,
+    traces_from_wasmtime_steps_with_host_events, traces_from_wasmtime_wasm_bytes, WasmProgramArtifacts,
+    WasmProgramDecodeEntry, WasmProgramTables, WasmTraceSink, WasmtimeTraceHandler, WasmtimeTraceMemoryAccess,
+    WasmtimeTraceRegistry, WasmtimeTraceRun, WasmtimeTraceState, WasmtimeTraceStep,
+};
+pub use ccs::build_wasm_relation;
+pub use ccs::host_event_chain::write_turn_schedule_guard_witness;
+pub use comm_chain::CommChainState;
+pub use ir::{
+    boundary_states, LinearMemoryAccess, LinearMemoryWordLane, StackValueAccess, WasmAuxOpcode, WasmBoundaryState,
+    WasmBuildError, WasmCountdownState, WasmEventAbsorbState, WasmFrameMoveState, WasmHostContext,
+    WasmHostEventMemoryWidth, WasmHostEventRomEntry, WasmHostEventRomVariant, WasmHostEventSlotKind,
+    WasmHostEventState, WasmOutputState, WasmPcEdgeKind, WasmProgramError, WasmRowKind, WasmStepState, WasmVmStep,
+};
+pub use isa::{
+    opcode_code, opcode_info_from_code, WasmMemoryAccessInfo, WasmMemoryAccessKind, WasmMemoryExtension, WasmOpTable,
+    WasmOpcode, WasmOpcodeClass, WasmOpcodeInfo,
+};
+pub use layout::{column_families, named_column_family, Column, ColumnFamilySpec, ColumnWidth, NAMED_COLUMN_COUNT};
+#[doc(hidden)]
+pub use lookup_circuit::{audit_compact_lookup_auxiliary_load_bearing, audit_compact_lookup_witness};
+pub use lookup_semantics::{sanity_check_lookup_row, LookupBuiltin, LookupExpr, LookupPredicate, LookupSemantics};
+pub use memory_id::WasmMemoryId;
+pub use memory_routing::{plan_ordered_wasm_memory_slots, plan_wasm_memory_slots, WasmMemorySlotPlan};
+pub use memory_semantics::{preload_from_program_artifacts, sanity_check_memory_rows, WasmMemoryPreload};
+pub use preprocess::{continuity_words, host_event_top_level_initial_state, top_level_initial_state};
+pub use range_check::write_range_check_bits;
+pub use relation_layout::{
+    build_wasm_relation_layout, LinearMemoryColumns, SignExtensionColumns, WasmAuxiliaryRelations,
+    WasmLookupBindingSpec, WasmLookupFamilyKind, WasmLookupFamilySpec, WasmRelationLayout,
+};
+pub use tables::WasmLookupArity;
+pub use tagged_r1cs_builder::{WasmConstraintCatalog, WasmConstraintScope, WasmConstraintTag};
+pub use witness_builder::build_witness_vector;
+pub use witness_layout::{RANGE_BITS_REGION, RANGE_CHECKED_WITNESS_WIDTH};

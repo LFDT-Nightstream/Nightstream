@@ -19,6 +19,7 @@ pub enum ApplicationError {
     UnsatisfiedRow(usize),
     Prepared(&'static str),
     Records(PackageError),
+    NoApplication,
 }
 
 impl fmt::Display for ApplicationError {
@@ -37,6 +38,7 @@ impl fmt::Display for ApplicationError {
             Self::UnsatisfiedRow(index) => write!(f, "application row {index} is not satisfied"),
             Self::Prepared(location) => write!(f, "invalid prepared application: {location}"),
             Self::Records(error) => write!(f, "application records: {error}"),
+            Self::NoApplication => write!(f, "a loaded package has no Rust application"),
         }
     }
 }
@@ -95,6 +97,16 @@ impl ApplicationBuilder {
         std::array::from_fn(|lane| Variable(self.generated_start - 4 + lane))
     }
 
+    /// The rows so far.
+    pub(crate) fn row_count(&self) -> usize {
+        self.records.row_count()
+    }
+
+    /// The local variables so far.
+    pub(crate) fn local_count(&self) -> usize {
+        self.variable_count - self.generated_start
+    }
+
     fn validate(&self, expression: &Affine, causal: bool) -> Result<(), ApplicationError> {
         expression.expression.validate(
             self.variable_count,
@@ -139,6 +151,19 @@ impl ApplicationBuilder {
 
     pub fn assert_equal(&mut self, left: Affine, right: Affine) -> Result<(), ApplicationError> {
         self.equality_row(left, right).map(|_| ())
+    }
+
+    /// The row `a · b = c` as given, with no generated variable. A circuit
+    /// that mirrors a Lean lowering row by row uses it; it returns the row.
+    pub(crate) fn constrain(&mut self, a: Affine, b: Affine, c: Affine) -> Result<usize, ApplicationError> {
+        for form in [&a, &b, &c] {
+            self.validate(form, false)?;
+        }
+        self.append_row(&R1csRow {
+            a: a.flatten_if_nested_shared(),
+            b: b.flatten_if_nested_shared(),
+            c: c.flatten_if_nested_shared(),
+        })
     }
 
     fn equality_row(&mut self, left: Affine, right: Affine) -> Result<OutputRow, ApplicationError> {
@@ -211,12 +236,25 @@ impl ApplicationBuilder {
         for ((slot, expression), output) in output_rows.iter_mut().zip(outputs).zip(self.output_state()) {
             *slot = self.equality_row(expression, output.into())?;
         }
+        self.into_circuit(output_rows)
+    }
+
+    /// Finish when `rows` already bind the output state: row `rows[k]` is
+    /// `output_k · 1 = value`, the `equality_row` shape with the value on C.
+    pub(crate) fn finish_with_output_rows(self, rows: [usize; 4]) -> Result<ApplicationCircuit, ApplicationError> {
+        self.into_circuit(rows.map(|row| OutputRow {
+            row,
+            form: ApplicationForm::C,
+        }))
+    }
+
+    fn into_circuit(self, outputs: [OutputRow; 4]) -> Result<ApplicationCircuit, ApplicationError> {
         Ok(ApplicationCircuit {
             private_inputs: self.private_inputs.into(),
             generated_start: self.generated_start,
             variable_count: self.variable_count,
             records: Arc::new(self.records.finish()?),
-            outputs: output_rows,
+            outputs,
         })
     }
 }
@@ -238,15 +276,8 @@ pub struct ApplicationCircuit {
 
 impl ApplicationCircuit {
     pub(crate) fn prepared_output_forms(&self) -> Result<[u8; 4], ApplicationError> {
-        let first = self
-            .row_count()
-            .checked_sub(4)
-            .ok_or(ApplicationError::Prepared("prepared output rows"))?;
         let mut forms = [0; 4];
         for (lane, output) in self.outputs.iter().enumerate() {
-            if output.row != first + lane {
-                return Err(ApplicationError::Prepared("prepared output row order"));
-            }
             forms[lane] = match output.form {
                 ApplicationForm::A => 0,
                 ApplicationForm::C => 2,
@@ -256,19 +287,21 @@ impl ApplicationCircuit {
         Ok(forms)
     }
 
+    /// The row that binds each output state word.
+    pub(crate) fn prepared_output_rows(&self) -> [usize; 4] {
+        self.outputs.map(|output| output.row)
+    }
+
     pub(crate) fn from_prepared(
         package: &nightstream_fprime::LoadedPerApplicationPackage,
         forms: [u8; 4],
+        rows: [usize; 4],
     ) -> Result<Self, ApplicationError> {
         let records = Arc::clone(
             package
                 .application_records()
                 .ok_or(ApplicationError::Prepared("prepared native records"))?,
         );
-        let first = records
-            .row_count()
-            .checked_sub(4)
-            .ok_or(ApplicationError::Prepared("prepared output rows"))?;
         let private_count = package.application().witness_word_count();
         let generated_start = private_count
             .checked_add(8)
@@ -280,8 +313,10 @@ impl ApplicationCircuit {
             row: 0,
             form: ApplicationForm::A,
         }; 4];
-        for (lane, tag) in forms.into_iter().enumerate() {
-            let row = first + lane;
+        for (lane, (tag, row)) in forms.into_iter().zip(rows).enumerate() {
+            if row >= records.row_count() {
+                return Err(ApplicationError::Prepared("prepared output rows"));
+            }
             let form = match tag {
                 0 => ApplicationForm::A,
                 2 => ApplicationForm::C,

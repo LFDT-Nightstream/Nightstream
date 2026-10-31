@@ -2,6 +2,7 @@
 
 use p3_field::PrimeField64;
 use p3_goldilocks::Goldilocks;
+use rayon::prelude::*;
 use serde_json::Value;
 
 use crate::WitnessAssignment;
@@ -63,14 +64,21 @@ impl LoadedAssignmentPlan {
 
         let mut values = Vec::with_capacity(self.logical_width);
         append_public(output_digest, self.logical_public_width, &mut values)?;
+        let mut slots = Vec::new();
         for block in &self.blocks {
             for source in block.sources() {
-                encode_slot(domains.value(block.domain, source?)?, &mut values)?;
+                slots.push(canonical_slot(domains.value(block.domain, source?)?)?);
             }
         }
-        if values.len() != self.logical_width {
+        if values.len() + slots.len() * FIELD_COORDINATES != self.logical_width {
             return Err(PackageError::Malformed("logical assignment width"));
         }
+        let public = values.len();
+        values.resize(self.logical_width, 0);
+        values[public..]
+            .par_chunks_mut(FIELD_COORDINATES)
+            .zip(slots.par_iter())
+            .for_each(|(slot, &value)| encode_field(value, slot));
         Ok(LogicalAssignment { values })
     }
 
@@ -826,32 +834,27 @@ fn append_public(
     Ok(())
 }
 
-fn encode_slot(value: u64, output: &mut Vec<i8>) -> Result<(), PackageError> {
+fn canonical_slot(value: u64) -> Result<u64, PackageError> {
     if value >= Goldilocks::ORDER_U64 {
         return Err(PackageError::NonCanonicalField {
             location: "logical assignment source",
             value,
         });
     }
-    let start = output.len();
-    encode_field(value, output);
-    if output.len() - start != FIELD_COORDINATES {
-        return Err(PackageError::Malformed("assignment slot coordinate width"));
-    }
-    Ok(())
+    Ok(value)
 }
 
-fn encode_field(value: u64, output: &mut Vec<i8>) {
+fn encode_field(value: u64, output: &mut [i8]) {
     let negative = value > CENTERED_HALF_MODULUS;
     let mut magnitude = if negative { Goldilocks::ORDER_U64 - value } else { value };
-    for _ in 0..FIELD_COORDINATES {
+    for coordinate in output {
         let remainder = magnitude % 3;
         let unsigned = match remainder {
             0 => 0,
             1 => 1,
             _ => -1,
         };
-        output.push(if negative { -unsigned } else { unsigned });
+        *coordinate = if negative { -unsigned } else { unsigned };
         magnitude = magnitude / 3 + u64::from(remainder == 2);
     }
     debug_assert_eq!(magnitude, 0);

@@ -1,4 +1,8 @@
 //! Versioned package framing and atomic publication. Trust is chosen by the caller.
+//! A file is the magic, the four output forms, the four output rows (each a
+//! little-endian `u64`), then the prepared package. The magic also names a
+//! memory relation, so a loaded memory circuit still configures only
+//! `nebula::Verifier`.
 
 use std::{
     fs::{self, File, OpenOptions},
@@ -15,9 +19,10 @@ use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
 
 use nightstream_fprime::load_prepared_package;
 
-use super::{ApplicationCircuit, ApplicationError, CompiledCircuit, Error};
+use super::{ApplicationCircuit, ApplicationError, CompiledCircuit, Error, Role};
 
-const MAGIC: &[u8; 8] = b"NSCIR\0\0\x01";
+const MAGIC: &[u8; 8] = b"NSCIR\0\0\x02";
+const MEMORY_MAGIC: &[u8; 8] = b"NSMEM\0\0\x02";
 static NEXT_FILE: AtomicU64 = AtomicU64::new(0);
 
 struct PendingFile {
@@ -66,8 +71,18 @@ pub(super) fn write(path: &Path, circuit: &CompiledCircuit) -> Result<(), Error>
         .unwrap_or(Path::new("."));
     let (pending, file) = PendingFile::create(parent)?;
     let mut output = BufWriter::new(file);
-    output.write_all(MAGIC)?;
-    output.write_all(&circuit.application.prepared_output_forms()?)?;
+    output.write_all(match circuit.role {
+        Role::Stage1 => MAGIC,
+        Role::Memory => MEMORY_MAGIC,
+    })?;
+    let application = circuit
+        .application
+        .as_ref()
+        .ok_or(ApplicationError::NoApplication)?;
+    output.write_all(&application.prepared_output_forms()?)?;
+    for row in application.prepared_output_rows() {
+        output.write_all(&(row as u64).to_le_bytes())?;
+    }
     circuit.package.write_prepared(&mut output)?;
     output.flush()?;
     output.get_ref().sync_all()?;
@@ -82,13 +97,22 @@ pub(super) fn read(path: &Path) -> Result<CompiledCircuit, Error> {
     let mut input = BufReader::new(File::open(path)?);
     let mut magic = [0; MAGIC.len()];
     input.read_exact(&mut magic)?;
-    if magic != *MAGIC {
-        return Err(Error::Circuit("compiled circuit file version"));
-    }
+    let role = match &magic {
+        MAGIC => Role::Stage1,
+        MEMORY_MAGIC => Role::Memory,
+        _ => return Err(Error::Circuit("compiled circuit file version")),
+    };
     let mut output_forms = [0; 4];
     input.read_exact(&mut output_forms)?;
     if output_forms.iter().any(|tag| !matches!(tag, 0 | 2)) {
         return Err(ApplicationError::Prepared("prepared output form").into());
+    }
+    let mut output_rows = [0; 4];
+    for row in &mut output_rows {
+        let mut bytes = [0; 8];
+        input.read_exact(&mut bytes)?;
+        *row = usize::try_from(u64::from_le_bytes(bytes))
+            .map_err(|_| ApplicationError::Prepared("prepared output rows"))?;
     }
     let package = load_prepared_package(&mut input)?;
     let binding = package.production_verifier_binding()?;
@@ -96,9 +120,10 @@ pub(super) fn read(path: &Path) -> Result<CompiledCircuit, Error> {
         package.logical_column_count(),
         binding.verifier_context().commitment_key_words(),
     )?;
-    let application = ApplicationCircuit::from_prepared(&package, output_forms)?;
+    let application = ApplicationCircuit::from_prepared(&package, output_forms, output_rows)?;
     Ok(CompiledCircuit {
-        application,
+        role,
+        application: Some(application),
         package: Arc::new(package),
         binding,
         matrix_window: Arc::default(),

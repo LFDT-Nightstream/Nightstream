@@ -94,6 +94,7 @@ theorem complete
       (publicFits := PerApplicationFixedPoint.publicFits application))
     (step : StepHoldsFor (PerApplicationFixedPoint.relation application fits)
       ajtai context.toList application input output)
+    (valid : application.valid input.zi input.witness)
     (priorWellFormed : StateEncoding.WellFormed
       (priorHashPreimage (setup (PerApplicationFixedPoint.relation application fits)
         ajtai context.toList) input))
@@ -120,7 +121,7 @@ theorem complete
       actualWitness, outputDigest, publicInput, applicationRows⟩ :=
     ApplicationWitnessCompleteness.complete application fits
       (PerApplicationFixedPoint.relation application fits) ajtai context input output result
-      step priorWellFormed nextWellFormed freshPublic accepted recursiveResult witnessWidth
+      step valid priorWellFormed nextWellFormed freshPublic accepted recursiveResult witnessWidth
   let raw := canonicalRawValues application
     (PerApplicationSourceAssignment.ofCompleted application target suffix)
   have prefixRows := prefix_rowsZero_of_completed application

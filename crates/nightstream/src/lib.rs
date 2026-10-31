@@ -7,8 +7,9 @@ mod circuit;
 mod engine;
 mod folding;
 mod lifecycle;
+pub mod nebula;
 
-pub use circuit::{Circuit, CompressionKey, CompressionSetup, Error, Prover, Verifier};
+pub use circuit::{ApplicationSize, Circuit, CompressionKey, CompressionSetup, Error, Prover, Verifier};
 pub use engine::{Engine, EngineError};
 pub use lifecycle::{FinalProof, Stage1Envelope as Proof, Stage1State as State};
 /// The Goldilocks field of every state, input and output word, and the

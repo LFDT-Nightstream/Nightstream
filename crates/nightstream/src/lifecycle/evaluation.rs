@@ -2,7 +2,7 @@
 //! consumers request windows from the unchanged relation.
 
 use super::PreparedLifecycle;
-use crate::engine::{EngineError, CPU_MEMORY_LIMIT_BYTES};
+use crate::engine::EngineError;
 use crate::folding::FoldContext;
 use neo_ccs::GeometricRowRun;
 use neo_math::{D, F};
@@ -81,20 +81,14 @@ impl PreparedLifecycle {
     }
 
     /// A prover commits at every step, so a Metal prover keeps the commitment
-    /// key on the device when the key fits in the headroom that its ceiling
-    /// has above the CPU engines' ceiling. Rows then keep at least the working
-    /// space that the CPU ceiling gives them. A wider circuit streams key rows.
+    /// key on the device when the rows still get at least as much working
+    /// space as the key takes. A wider circuit streams key rows.
     pub(crate) fn keep_commitment_key_when_it_fits(&mut self) -> Result<(), crate::EngineError> {
-        let headroom = self
-            .backend
-            .memory_limit_bytes()
-            .saturating_sub(CPU_MEMORY_LIMIT_BYTES);
         let columns = self.structure.m().div_ceil(D);
-        if let Some(key) = self
-            .backend
-            .commitment_key_bytes(columns)
-            .filter(|&key| key <= headroom)
-        {
+        if let Some(key) = self.backend.commitment_key_bytes(columns).filter(|&key| {
+            self.matrix_workspace_bytes()
+                .is_ok_and(|rows| key.saturating_mul(2) <= rows)
+        }) {
             self.backend.keep_commitment_key()?;
             self.kept_key_bytes = key;
         }

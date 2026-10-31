@@ -64,6 +64,40 @@ if [ "$models" != "$(listed "$pins/std-models.txt")" ]; then
   fail "the standard-library models (left) differ from formal/aeneas/std-models.txt (right)"
 fi
 
+# formal/nightstream-fprime/scripts/check-boundaries.sh rejects a Lean file of 1,500 lines or more.
+# Aeneas writes the definitions in dependency order, so any doc comment at the top level starts a
+# suffix that needs only the lines before it. Funs.lean is cut there into parts of about 1,200 lines;
+# each part imports the one before, and the last keeps the name Funs.lean. Lake builds only the
+# modules that a library names, so each part is a root of the NeoVerified library.
+if grep -qE '^mutual' "$work/lean/Funs.lean"; then fail "Funs.lean has a mutual block, which the split cannot cut"; fi
+mkdir "$work/split"
+awk -v dir="$work/split" -v limit=1200 '
+  { line[NR] = $0 }
+  $0 == "namespace neo_verified" && !start { start = NR }
+  $0 == "end neo_verified" { stop = NR }
+  END {
+    parts = 1; first[1] = start + 1
+    for (i = start + 1; i < stop; i++)
+      if (line[i] ~ /^\/-- / && start + i - first[parts] > limit) first[++parts] = i
+    first[parts + 1] = stop
+    for (p = 1; p <= parts; p++) {
+      file = dir "/Funs" (p < parts ? p : "") ".lean"
+      for (i = 1; i <= start; i++) {
+        print line[i] > file
+        if (p > 1 && line[i] == "public import NeoVerified.Types") print "public import NeoVerified.Funs" (p - 1) > file
+      }
+      for (i = first[p]; i < first[p + 1]; i++) print line[i] > file
+      print "end neo_verified" > file
+    }
+  }' "$work/lean/Funs.lean"
+
+for part in "$work/split"/*.lean; do
+  part=$(basename "$part" .lean)
+  grep -qF "\"NeoVerified.$part\"" "$lean/lakefile.toml" ||
+    fail "the NeoVerified roots in formal/compression-lean/lakefile.toml do not name NeoVerified.$part"
+done
+
 mkdir -p "$out"
-cp "$work/lean/Types.lean" "$work/lean/Funs.lean" "$out/"
+rm -f "$out"/Funs*.lean
+cp "$work/lean/Types.lean" "$work/split/"*.lean "$out/"
 echo "aeneas_extract: wrote ${out#"$root"/}"

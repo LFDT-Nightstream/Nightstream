@@ -97,6 +97,22 @@ mutations=(
   'field.rs|/^pub fn ext_scale/,/^}/s/c1: gl_mul(a.c1, by),/c1: gl_mul(a.c0, by),/'
   'field.rs|/^pub fn ext_pow/,/^}/s/ext_mul(half, a)/ext_mul(half, half)/'
   'field.rs|/^pub fn ext_pow/,/^}/s/if e.is_multiple_of(2) {/if !e.is_multiple_of(2) {/'
+  'poseidon2.rs|s/    while round < PARTIAL_ROUNDS {/    while round < 21 {/'
+  'poseidon2.rs|s/    while round < HALF_FULL_ROUNDS {/    while round < 3 {/'
+  'poseidon2.rs|s/^        15504881536434223753,$/        15504881536434223754,/'
+  'poseidon2.rs|s/^    3785078240232899765,$/    3785078240232899766,/'
+  'poseidon2.rs|s/^        7482194551502142718,$/        7482194551502142719,/'
+  'poseidon2.rs|/^pub const DIAGONAL/,/^];/s/^    2,$/    5,/'
+  'poseidon2.rs|s/    gl_mul(gl_mul(x4, x2), x)/    gl_mul(x4, x2)/'
+  'poseidon2.rs|s/let y1 = gl_add(t01123, gl_add(x2, x2));/let y1 = gl_add(t01123, x2);/'
+  'poseidon2.rs|s/let y3 = gl_add(t01233, gl_add(x0, x0));/let y3 = gl_add(t01233, gl_add(x1, x1));/'
+  'poseidon2.rs|s/out\[at\] = gl_add(mixed\[at\], sum0);/out[at] = gl_add(mixed[at], sum1);/'
+  'poseidon2.rs|s/gl_add(gl_mul(reduce(DIAGONAL\[lane\]), state\[lane\]), sum)/gl_add(state[lane], sum)/'
+  'poseidon2.rs|s/sum = gl_add(sum, state\[lane\]);/sum = gl_add(sum, state[0]);/'
+  'poseidon2.rs|s/boxed\[0\] = sbox(gl_add(state\[0\], reduce(constant)));/boxed[1] = sbox(gl_add(state[1], reduce(constant)));/'
+  'poseidon2.rs|s/reduce(constants\[lane\])/reduce(constants[0])/'
+  'poseidon2.rs|s/full_rounds(state, \&TERMINAL)/full_rounds(state, \&INITIAL)/'
+  'poseidon2.rs|s/full_rounds(external_layer(input), \&INITIAL)/full_rounds(input, \&INITIAL)/'
 )
 survived=0
 for mutation in "${mutations[@]}"; do

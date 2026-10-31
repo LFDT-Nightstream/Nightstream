@@ -10,3 +10,4 @@ pub mod circuit;
 pub mod degrees;
 pub mod field;
 pub mod layout;
+pub mod poseidon2;

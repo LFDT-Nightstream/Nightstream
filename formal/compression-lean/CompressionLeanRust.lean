@@ -4,3 +4,4 @@ import CompressionLeanRust.RunCheck
 import CompressionLeanRust.Positions
 import CompressionLeanRust.Degrees
 import CompressionLeanRust.Field
+import CompressionLeanRust.Poseidon2

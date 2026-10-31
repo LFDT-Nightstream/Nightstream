@@ -25,10 +25,9 @@ pub(crate) mod record;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use p3_field_v08::{BasedVectorSpace, Field, PrimeCharacteristicRing, PrimeField64};
-use p3_symmetric_v08::Permutation;
 
 use self::r1cs::R1cs;
-use crate::field::{Ext, Gl};
+use crate::field::{from_verified, to_verified, Ext, Gl};
 use crate::Error;
 
 pub trait Backend {
@@ -187,7 +186,7 @@ impl Backend for Native {
     }
 
     fn permute(&mut self, state: [Gl; WIDTH]) -> [Gl; WIDTH] {
-        crate::hash::permutation().permute(state)
+        neo_verified::poseidon2::permute(state.map(to_verified)).map(from_verified)
     }
 
     fn hint(&mut self, inputs: &[Gl], len: usize, compute: &dyn Fn(&[u64]) -> Vec<u64>) -> Vec<Gl> {

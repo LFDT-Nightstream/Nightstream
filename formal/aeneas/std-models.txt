@@ -4,6 +4,7 @@
 Array.index_usize
 Array.make
 Array.to_slice
+Array.update
 Slice.index_usize
 Slice.len
 U32.checked_sub
@@ -29,5 +30,6 @@ core.num.U64.wrapping_shr
 core.num.U64.wrapping_sub
 core.num.Usize.BITS
 core.num.Usize.leading_zeros
+core.num.Usize.wrapping_add
 core.num.Usize.wrapping_shl
 core.option.Option.unwrap

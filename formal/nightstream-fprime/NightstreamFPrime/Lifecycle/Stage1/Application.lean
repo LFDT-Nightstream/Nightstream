@@ -64,14 +64,21 @@ def Holds (step : AppState → AppWitness → AppState)
   outputState interface offset env =
     step (inputState interface offset env) (witnessValue interface offset env)
 
+def Valid (valid : AppState → AppWitness → Prop)
+    {witnessWordCount : Nat} (interface : Interface witnessWordCount)
+    (offset : Nat) (env : Env) : Prop :=
+  valid (inputState interface offset env) (witnessValue interface offset env)
+
 structure Program where
   witnessWordCount : Nat
   step : AppState → AppWitness → AppState
   step_length : ∀ state witness, state.length = stateWordCount →
     (step state witness).length = stateWordCount
+  valid : AppState → AppWitness → Prop
   circuit : Interface witnessWordCount → FormalCircuit
   spec_iff : ∀ interface offset env,
-    (circuit interface).spec offset env ↔ Holds step interface offset env
+    (circuit interface).spec offset env ↔
+      Holds step interface offset env ∧ Valid valid interface offset env
   assumptions_of_inputsBelow : ∀ interface offset env,
     InputsBelow interface offset → (circuit interface).assumptions offset env
   constraintsSupported : ∀ interface offset env allowed,
@@ -144,18 +151,27 @@ theorem scope (program : Program)
   apply (Expr.varsSatisfy_lt_iff_varsBelow expression bound).1
   exact supported expression member
 
+theorem soundness_valid (program : Program)
+    (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env)
+    (assumptions : (program.circuit interface).assumptions offset env)
+    (rows : holds env (Circuit.ops (program.circuit interface).main offset)) :
+    Holds program.step interface offset env ∧
+      Valid program.valid interface offset env := by
+  apply (program.spec_iff interface offset env).mp
+  exact (program.circuit interface).soundness env offset assumptions rows
+
 theorem soundness (program : Program)
     (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env)
     (assumptions : (program.circuit interface).assumptions offset env)
     (rows : holds env (Circuit.ops (program.circuit interface).main offset)) :
-    Holds program.step interface offset env := by
-  apply (program.spec_iff interface offset env).mp
-  exact (program.circuit interface).soundness env offset assumptions rows
+    Holds program.step interface offset env :=
+  (program.soundness_valid interface offset env assumptions rows).1
 
 theorem completeness (program : Program)
     (interface : Interface program.witnessWordCount) (offset : Nat) (env : Env)
     (assumptions : (program.circuit interface).assumptions offset env)
-    (specification : Holds program.step interface offset env) :
+    (specification : Holds program.step interface offset env ∧
+      Valid program.valid interface offset env) :
     ∃ completed,
       AgreesOutside env completed offset
         (localLength (Circuit.ops (program.circuit interface).main offset)) ∧
@@ -196,6 +212,20 @@ theorem holds_of_agree_below
       after before (inputs.output index) agrees
   rw [outputEq, inputEq, witnessEq]
   exact holds
+
+theorem valid_of_values_eq
+    (program : Program)
+    (interface : Interface program.witnessWordCount)
+    (offset : Nat) (before after : Env)
+    (inputEq : inputState interface offset before =
+      inputState interface offset after)
+    (witnessEq : witnessValue interface offset before =
+      witnessValue interface offset after)
+    (valid : Valid program.valid interface offset before) :
+    Valid program.valid interface offset after := by
+  unfold Valid
+  rw [← inputEq, ← witnessEq]
+  exact valid
 
 theorem holds_of_values_eq
     (program : Program)

@@ -28,7 +28,7 @@ def FalseAcceptance (input : Statement × Envelope application) : Prop :=
 theorem falseAcceptance_not_adviceReturned (sample : Sample application)
     (invalid : FalseAcceptance application fits setup (sample.1, sample.2.1)) :
     ¬ AdviceReturned application fits sample := by
-  rintro ⟨advice, _unused, returned, length, evaluated⟩
+  rintro ⟨advice, _unused, returned, length, evaluated, _valid⟩
   exact invalid.2 ⟨advice, HyperNovaHistory.run_witness_length application fits _ _ _ returned,
     length, evaluated⟩
 

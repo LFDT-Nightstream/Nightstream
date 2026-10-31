@@ -185,7 +185,8 @@ private theorem complete_suffix
         (serializePreimage (publicFits := publicFits) next).getD index.val 0)
     (witness : AppWitness)
     (width : witness.length = application.witnessWordCount)
-    (step : next.current = application.step prior.current witness) :
+    (step : next.current = application.step prior.current witness)
+    (valid : application.valid prior.current witness) :
     ∃ suffix : Fin (PerApplicationPackage.addedPrivateColumnCount application) → F,
       R1CS.RowsHold (SourceCompiler.sourceEnv (PerApplicationSourceAssignment.ofCompleted application target suffix))
         (ApplicationDirectSource.sourceRows application) ∧
@@ -217,10 +218,17 @@ private theorem complete_suffix
     rw [(stateValues_loaded application target witness).1, (stateValues_loaded application target witness).2,
       witnessValue_loaded application target witness width, inputValue, outputValue]
     exact step
+  have applicationValid : Lifecycle.Stage1.Application.Valid application.valid interface localStart loaded := by
+    change application.valid (Lifecycle.Stage1.Application.inputState _ _ loaded)
+      (Lifecycle.Stage1.Application.witnessValue _ _ loaded)
+    rw [(stateValues_loaded application target witness).1,
+      witnessValue_loaded application target witness width, inputValue]
+    exact valid
   have assumptions := application.assumptions interface localStart loaded
     (ApplicationInputs.externalBelow application)
   obtain ⟨built, agrees, logicalRows⟩ :=
-    application.completeness interface localStart loaded assumptions applicationHolds
+    application.completeness interface localStart loaded assumptions
+      ⟨applicationHolds, applicationValid⟩
   let constraints := ApplicationPackage.constraints application (ApplicationPackage.productionColumns application)
     localStart
   let freshStart := ApplicationPackage.r1csFreshStart application
@@ -346,6 +354,7 @@ theorem complete
       (Running (logicalWidth := logicalWidth) (publicFits := publicFits)) slotCount)
     (result : Running (logicalWidth := logicalWidth) (publicFits := publicFits))
     (step : StepHoldsFor relation ajtai context.toList application input output)
+    (valid : application.valid input.zi input.witness)
     (priorWellFormed : StateEncoding.WellFormed (priorHashPreimage (setup relation ajtai context.toList) input))
     (nextWellFormed : StateEncoding.WellFormed (nextHashPreimage (setup relation ajtai context.toList) input output))
     (freshPublic : input.fresh.publicInputs ⟨0, by decide⟩ =
@@ -391,7 +400,7 @@ theorem complete
   obtain ⟨suffix, applicationRows, actualWitness⟩ := complete_suffix application target
     (priorHashPreimage (setup relation ajtai context.toList) input)
     (nextHashPreimage (setup relation ajtai context.toList) input output)
-    priorWellFormed.1 nextWellFormed.1 priorWords nextWords input.witness witnessWidth step.2.1
+    priorWellFormed.1 nextWellFormed.1 priorWords nextWords input.witness witnessWidth step.2.1 valid
   have outputDigest := outputDigest_of_completed application target suffix
     (priorHashPreimage (setup relation ajtai context.toList) input)
     (nextHashPreimage (setup relation ajtai context.toList) input output)

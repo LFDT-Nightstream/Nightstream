@@ -372,7 +372,7 @@ Each step proves one instance of HyperNova Construction 2's augmented step (`Lif
 3. Prove with the shrink layer, SuperSpartan and one WHIR commitment, that the final program accepts the terminal package's rows and the layer-1 transcript for the state.
 4. The final proof is the state and the shrink proof. It carries no witness and cannot be extended.
 
-**Rejects.** None.
+**Rejects.** None, with one exception. A WHIR query sample of `p − 1` fails Algorithm 8, so `finish_with_spartan` returns an error and no proof (lifecycle rule 2). This has a probability of about `2^−64` for each query draw. The proof is deterministic, so a new call at the same state fails again, but the prover can extend one step and then finish.
 
 **Source.** `crates/nightstream/src/lifecycle/finish.rs` (not checked against Lean). The terminal package is the F′ rows up to Π_RLC, without change (`CompressionLean.Terminal.circuitPackage_implies_terminal` (`575cb76bc24d795c`), `Terminal/Data.lean`).
 
@@ -388,7 +388,7 @@ Each step proves one instance of HyperNova Construction 2's augmented step (`Lif
 2. Require that the proof's state is the expected state, and `0 < i < q`.
 3. Verify the shrink proof for the final program of the key and the state.
 
-**Rejects.** Each step's failure.
+**Rejects.** Each step's failure. In step 3, a WHIR query sample of `p − 1` is a failure, where Plonky3 draws again. This check is stricter than Plonky3 and affects only completeness, not soundness (`crates/neo-spartan/src/whir/mod.rs`; the Lean final program makes the same check, `Sim/Whir.lean`).
 
 **Source.** `CompressionKey::verify` and `Verifier::verify_final` (`crates/nightstream/src/lifecycle/finish.rs`, `crates/nightstream/src/circuit.rs`; not checked against Lean). Layer 1 and the shrink layer run in one state-restoration experiment, so one bad-set argument covers both. At Rust's layer bits `t`, it bounds an accepted false F′ claim by `calls / 2^t` (`CompressionLean.Final.final_restore_budget_parent` (`36f3e4c5d4c18992`)). That theorem has the premise that the shrink CCS encodes the final program, which is the terminal package and the layer-1 verifier. Lean proves this premise for the production final program (`Sim/Encodes.lean`), and the claim joins the two (`CompressionLean.Claims.production_bound` (`ab6fab37dd9e07c1`)). Its premises about the key and the setup are met for the reference application only (`CompressionLean.Claims.poseidon2_bound` (`3974c561a95f556a`), `formal/compression-lean/STATUS.md`). Three things are assumed, not proved: the bound includes no WHIR error; it covers a valid program witness only where its in-program challenges are the experiment's oracle answers (the read condition); and the key's root is the honest root of the claims' setup (`formal/compression-lean/TRUST.md`, sections 3 and 5).
 

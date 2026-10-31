@@ -63,6 +63,8 @@ pub enum WasmApplicationError {
 
 #[derive(Debug, thiserror::Error)]
 pub enum WasmStepError {
+    #[error("the step input has {words} words, not the {expected} words of its rows")]
+    Width { words: usize, expected: usize },
     #[error("the first row does not start from the state")]
     State,
     #[error(transparent)]
@@ -251,6 +253,12 @@ impl Application for WasmApplication {
     }
 
     fn step(&self, state: &Vec<u64>, z: &Vec<F>, memory: &Memory) -> Result<Transition<Vec<u64>>, WasmStepError> {
+        if z.len() != self.aux() {
+            return Err(WasmStepError::Width {
+                words: z.len(),
+                expected: self.aux(),
+            });
+        }
         if self.link_words(z, 0, before) != *state {
             return Err(WasmStepError::State);
         }

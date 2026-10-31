@@ -1,0 +1,182 @@
+//! Owns the columns carried from one wasm IVC step to the next.
+//!
+//! These links are not lookup or memory bindings. They define which `_after`
+//! columns from row `i` must equal `_before` columns in row `i + 1`.
+
+use neo_application::{ContinuityGroup, ContinuityLink};
+
+use super::layout::{
+    COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE, COL_CALL_STACK_DEPTH_AFTER,
+    COL_CALL_STACK_DEPTH_BEFORE, COL_COMM_CHAIN_AFTER, COL_COMM_CHAIN_BEFORE, COL_EVBUF_AFTER, COL_EVBUF_BEFORE,
+    COL_FRAME_MOVE_ACTIVE_AFTER, COL_FRAME_MOVE_ACTIVE_BEFORE, COL_FRAME_MOVE_DISTANCE_AFTER,
+    COL_FRAME_MOVE_DISTANCE_BEFORE, COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_MOVE_REMAINING_BEFORE,
+    COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE, COL_HOST_EVENTS_REMAINING_AFTER,
+    COL_HOST_EVENTS_REMAINING_BEFORE, COL_HOST_EVENT_ARGS_BASE_AFTER, COL_HOST_EVENT_ARGS_BASE_BEFORE,
+    COL_HOST_EVENT_INDEX_AFTER, COL_HOST_EVENT_INDEX_BEFORE, COL_HOST_EVENT_SLOT_CURSOR_AFTER,
+    COL_HOST_EVENT_SLOT_CURSOR_BEFORE, COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE, COL_LOCAL_ZERO_ACTIVE_AFTER,
+    COL_LOCAL_ZERO_ACTIVE_BEFORE, COL_LOCAL_ZERO_REMAINING_AFTER, COL_LOCAL_ZERO_REMAINING_BEFORE,
+    COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE, COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE,
+    COL_OBJECT_ACTIVE_AFTER, COL_OBJECT_ACTIVE_BEFORE, COL_OUTER_CHAIN_AFTER, COL_OUTER_CHAIN_BEFORE,
+    COL_OUTER_PREFIX_AFTER, COL_OUTER_PREFIX_BEFORE, COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE,
+    COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE, COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE,
+    COL_PC_AFTER, COL_PC_BEFORE, COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE, COL_PERM_ROUND_AFTER,
+    COL_PERM_ROUND_BEFORE, COL_PERM_STATE_AFTER, COL_PERM_STATE_BEFORE, COL_SP_AFTER, COL_SP_BEFORE,
+    COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE, COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE,
+    COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE,
+};
+
+const fn link(previous_step_column: usize, next_step_column: usize) -> ContinuityLink {
+    ContinuityLink {
+        previous_step_column,
+        next_step_column,
+    }
+}
+
+pub(crate) fn build_ivc_state_continuity_links() -> Vec<ContinuityGroup> {
+    use crate::layout::{
+        COL_HOST_AWAITING_AFTER, COL_HOST_AWAITING_BEFORE, COL_HOST_FRAME_DEPTH_AFTER, COL_HOST_FRAME_DEPTH_BEFORE,
+    };
+    vec![
+        ContinuityGroup {
+            name: "host_activation_continuity",
+            role: "suspended host context and execution mode",
+            links: vec![
+                link(COL_HOST_FRAME_DEPTH_AFTER, COL_HOST_FRAME_DEPTH_BEFORE),
+                link(COL_HOST_AWAITING_AFTER, COL_HOST_AWAITING_BEFORE),
+                link(
+                    crate::layout::COL_HOST_SUSPEND_PENDING_AFTER,
+                    crate::layout::COL_HOST_SUSPEND_PENDING_BEFORE,
+                ),
+            ],
+        },
+        ContinuityGroup {
+            name: "activation_finished_continuity",
+            role: "row[i].activation_finished_after must match row[i+1].activation_finished_before",
+            links: vec![link(COL_ACTIVATION_FINISHED_AFTER, COL_ACTIVATION_FINISHED_BEFORE)],
+        },
+        ContinuityGroup {
+            name: "pc_continuity",
+            role: "row[i].pc_after must match row[i+1].pc_before",
+            links: vec![link(COL_PC_AFTER, COL_PC_BEFORE)],
+        },
+        ContinuityGroup {
+            name: "sp_continuity",
+            role: "row[i].sp_after must match row[i+1].sp_before",
+            links: vec![link(COL_SP_AFTER, COL_SP_BEFORE)],
+        },
+        ContinuityGroup {
+            name: "stack_frame_base_continuity",
+            role: "row[i].stack_frame_base_after must match row[i+1].stack_frame_base_before",
+            links: vec![link(COL_STACK_FRAME_BASE_AFTER, COL_STACK_FRAME_BASE_BEFORE)],
+        },
+        ContinuityGroup {
+            name: "output_continuity",
+            role: "row[i].simple output carry must match row[i+1].simple output carry",
+            links: vec![
+                link(COL_OUTPUT_ENABLED_AFTER, COL_OUTPUT_ENABLED_BEFORE),
+                link(COL_OUTPUT_VALUE_LO_AFTER, COL_OUTPUT_VALUE_LO_BEFORE),
+                link(COL_OUTPUT_VALUE_HI_AFTER, COL_OUTPUT_VALUE_HI_BEFORE),
+            ],
+        },
+        ContinuityGroup {
+            name: "call_stack_depth_continuity",
+            role: "row[i].call_stack_depth_after must match row[i+1].call_stack_depth_before",
+            links: vec![link(COL_CALL_STACK_DEPTH_AFTER, COL_CALL_STACK_DEPTH_BEFORE)],
+        },
+        ContinuityGroup {
+            name: "memory_pages_continuity",
+            role: "row[i].memory_pages_after must match row[i+1].memory_pages_before",
+            links: vec![link(COL_MEMORY_PAGES_AFTER, COL_MEMORY_PAGES_BEFORE)],
+        },
+        ContinuityGroup {
+            name: "max_memory_pages_continuity",
+            role: "row[i].max_memory_pages_after must match row[i+1].max_memory_pages_before (carried constant)",
+            links: vec![link(COL_MAX_MEMORY_PAGES_AFTER, COL_MAX_MEMORY_PAGES_BEFORE)],
+        },
+        ContinuityGroup {
+            name: "locals_fbp_continuity",
+            role: "row[i].locals_fbp_after must match row[i+1].locals_fbp_before",
+            links: vec![link(COL_LOCALS_FBP_AFTER, COL_LOCALS_FBP_BEFORE)],
+        },
+        ContinuityGroup {
+            name: "trapped_continuity",
+            role: "row[i].trapped_after must match row[i+1].trapped_before",
+            links: vec![link(COL_TRAPPED_AFTER, COL_TRAPPED_BEFORE)],
+        },
+        ContinuityGroup {
+            name: "local_zero_continuity",
+            role: "row[i].local_zero_after state must match row[i+1].local_zero_before state",
+            links: vec![
+                link(COL_LOCAL_ZERO_ACTIVE_AFTER, COL_LOCAL_ZERO_ACTIVE_BEFORE),
+                link(COL_LOCAL_ZERO_REMAINING_AFTER, COL_LOCAL_ZERO_REMAINING_BEFORE),
+            ],
+        },
+        ContinuityGroup {
+            name: "frame_move_continuity",
+            role: "row[i].frame_move_after state must match row[i+1].frame_move_before state",
+            links: vec![
+                link(COL_FRAME_MOVE_ACTIVE_AFTER, COL_FRAME_MOVE_ACTIVE_BEFORE),
+                link(COL_FRAME_MOVE_REMAINING_AFTER, COL_FRAME_MOVE_REMAINING_BEFORE),
+                link(COL_FRAME_MOVE_DISTANCE_AFTER, COL_FRAME_MOVE_DISTANCE_BEFORE),
+            ],
+        },
+        ContinuityGroup {
+            name: "host_call_attribution_continuity",
+            role: "row[i].host callee fref must match row[i+1]",
+            links: vec![link(COL_HOST_CALLEE_FREF_AFTER, COL_HOST_CALLEE_FREF_BEFORE)],
+        },
+        ContinuityGroup {
+            name: "turn_export_fref_continuity",
+            role: "row[i].turn export fref must match row[i+1]",
+            links: vec![link(COL_TURN_EXPORT_FREF_AFTER, COL_TURN_EXPORT_FREF_BEFORE)],
+        },
+        ContinuityGroup {
+            name: "comm_chain_continuity",
+            role: "row[i].active commitment chain must match row[i+1].active commitment chain",
+            links: COL_COMM_CHAIN_AFTER
+                .into_iter()
+                .zip(COL_COMM_CHAIN_BEFORE)
+                .map(|(after, before)| link(after, before))
+                .collect(),
+        },
+        ContinuityGroup {
+            name: "host_event_gather_continuity",
+            role: "row[i].host_events gather machinery (schedule, args base, cursor) must match row[i+1]",
+            links: vec![
+                link(COL_HOST_EVENTS_REMAINING_AFTER, COL_HOST_EVENTS_REMAINING_BEFORE),
+                link(COL_HOST_EVENT_INDEX_AFTER, COL_HOST_EVENT_INDEX_BEFORE),
+                link(COL_HOST_EVENT_ARGS_BASE_AFTER, COL_HOST_EVENT_ARGS_BASE_BEFORE),
+                link(COL_HOST_EVENT_SLOT_CURSOR_AFTER, COL_HOST_EVENT_SLOT_CURSOR_BEFORE),
+            ],
+        },
+        ContinuityGroup {
+            name: "event_absorb_continuity",
+            role: "row[i].host-event absorb state (block buffer and perm group) must match row[i+1]",
+            links: {
+                let mut links = vec![
+                    link(COL_OBJECT_ACTIVE_AFTER, COL_OBJECT_ACTIVE_BEFORE),
+                    link(COL_PERM_PENDING_AFTER, COL_PERM_PENDING_BEFORE),
+                    link(COL_PERM_ROUND_AFTER, COL_PERM_ROUND_BEFORE),
+                ];
+                links.extend(
+                    COL_EVBUF_AFTER
+                        .into_iter()
+                        .zip(COL_EVBUF_BEFORE)
+                        .chain(COL_PERM_STATE_AFTER.into_iter().zip(COL_PERM_STATE_BEFORE))
+                        .chain(
+                            COL_OUTER_CHAIN_AFTER
+                                .into_iter()
+                                .zip(COL_OUTER_CHAIN_BEFORE),
+                        )
+                        .chain(
+                            COL_OUTER_PREFIX_AFTER
+                                .into_iter()
+                                .zip(COL_OUTER_PREFIX_BEFORE),
+                        )
+                        .map(|(after, before)| link(after, before)),
+                );
+                links
+            },
+        },
+    ]
+}

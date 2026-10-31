@@ -164,6 +164,7 @@ theorem terminal_one_implies_baseOrCollision
         (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
         (PerApplicationCanonicalPackage.verifierContextDigest fits commitmentSetup)
         application { iteration := 0, z0 := statement.z0, zi := statement.z0 } .bottom ∧
+      input.zi = statement.z0 ∧
       statement.zi = application.step statement.z0 input.witness) ∨
       PiCCSSecurity.StateHashCollision (decodedNext application assignment)
         (terminalPreimage application fits commitmentSetup statement payload) := by
@@ -191,7 +192,7 @@ theorem terminal_one_implies_baseOrCollision
       · rcases recursive with ⟨_pcValid, positive, _⟩
         exact False.elim ((Nat.ne_of_gt positive) zero)
     have priorState : input.zi = statement.z0 := baseState.symm.trans initial
-    refine ⟨?_, ?_⟩
+    refine ⟨?_, priorState, ?_⟩
     · apply (Stage1.Terminal.holdsFor_bottom_iff
         (PerApplicationFixedPoint.relation application fits)
         (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)

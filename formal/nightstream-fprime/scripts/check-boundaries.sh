@@ -211,12 +211,12 @@ then
   fail "row plans or default-value proofs crossed an allocation data interface"
 fi
 
-for retired in crates/neo-fold-legacy crates/neo-wasm crates/wip-spartan tools/recursive-constraint-minimizer/bridge; do
+for retired in crates/neo-fold-legacy crates/wip-spartan tools/recursive-constraint-minimizer/bridge; do
   if [[ -f "$ROOT/../../$retired/Cargo.toml" ]]; then
     fail "retired Rust consumer remains supported: $retired"
   fi
 done
-if grep -nE 'neo-fold-legacy|neo-wasm|wip-spartan|legacy-adapter' "$ROOT/../../Cargo.toml" "$ROOT/../../crates/"*/Cargo.toml; then
+if grep -nE 'neo-fold-legacy|wip-spartan|legacy-adapter' "$ROOT/../../Cargo.toml" "$ROOT/../../crates/"*/Cargo.toml; then
   fail "retired lifecycle dependency or feature remains supported"
 fi
 

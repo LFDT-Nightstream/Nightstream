@@ -85,6 +85,16 @@ fn assemble(
     Ok(serde_json::to_value(reference)?)
 }
 
+/// The F′ carrier width of an application after the dimension checks of
+/// `prepare`, for a cost measurement that does not assemble the package.
+#[cfg(test)]
+pub(crate) fn logical_width(application: &ApplicationCircuit) -> Result<usize, AssemblyError> {
+    let manifest = Manifest::parse(include_bytes!("../../artifacts/shared-verifier-v1.json"))?;
+    let counts = Counts::of(application);
+    manifest.check_dimensions(counts)?;
+    manifest.geometry.logical_width.eval(counts)
+}
+
 #[cfg(test)]
 #[path = "../../tests/assembly_internal/encoding.rs"]
 mod encoding_tests;

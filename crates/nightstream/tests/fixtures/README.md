@@ -76,6 +76,41 @@ The selected verifier blueprint has one package copy under `artifacts`, shared
 by assembly and lifecycle tests. These test-only saved outputs are never read
 by `Circuit::compile`, `load`, `prove`, `extend`, or `verify`.
 
+`nebula-memory-v1-rows.json` and `nebula-memory-n1-rows.json` name the
+assertion rows of the two Nebula memory packages as `[name, first, end]`,
+counted from the application's first package row. Each name comes from the
+same SPEC.md section 7 check group that defines its rows (`Checks` in
+`Lifecycle/Nebula/RowList.lean` and `MemoryCircuit.lean`).
+The SPEC.md section 9 rejection tests (`tests/nebula/conformance.rs`) use it to name the
+check that a faulty step fails.
+
+`nebula-memory-v1-start.json` and `nebula-memory-n1-start.json` hold `D_init`
+of each package's default program (`initRootWords`, proved equal to
+`(context plan).initRoot`). `nebula-memory-v1-other-start.json` holds `D_init`
+of `FirstPlan.otherPlan`, a second program of the V1 geometry with a distinct
+nonzero word in every ROM and RAM cell. `tests/nebula_memory.rs` compares the
+verifier's own `D_init` with each.
+
+`nebula-memory-v1-terminal.json` and `nebula-memory-n1-terminal.json` hold
+SPEC.md Algorithm 10 terminal-check cases of each plan (`NebulaMemoryTerminal.cases`):
+the statement, the final carry words, whether every statement integer that
+becomes a field word is below `q`, each `TerminalChecks` field as Lean decides
+it (`terminalChecks_iff`), and the final state words.
+`terminal_checks_match_lean` requires the verifier's terminal check to agree
+on every case.
+
+Regenerate these fixtures with the memory packages, from `formal/nightstream-fprime`:
+
+```sh
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-rows nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-rows.json
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-rows nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-rows.json
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-start.json
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-start.json
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-start nebula-memory-v1-other ../../crates/nightstream/tests/fixtures/nebula-memory-v1-other-start.json
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-terminal nebula-memory-v1 ../../crates/nightstream/tests/fixtures/nebula-memory-v1-terminal.json
+bash scripts/validate.sh lean-executable .lake/build/bin/emit --application-terminal nebula-memory-n1 ../../crates/nightstream/tests/fixtures/nebula-memory-n1-terminal.json
+```
+
 `compression/key.bin` and `compression/final-proof.bin` are the production
 compression key and one final proof after one fold. CI verifies the proof
 (`committed_final_proof_verifies_and_rejects_changes`) and pins the

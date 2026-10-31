@@ -3,8 +3,12 @@ import NightstreamFPrime.Export.Stage1.OrdinaryRowPlan
 import NightstreamFPrime.Export.Stage1.PackagePlan
 import NightstreamFPrime.Export.Stage1.PerApplicationCanonicalPackage
 import NightstreamFPrime.Export.Stage1.PerApplicationAssignmentTransport
+import NightstreamFPrime.Export.Stage1.PerApplicationCachedBlocks
 import NightstreamFPrime.Export.Stage1.PerApplicationCachedShift
 import NightstreamFPrime.Export.Stage1.Poseidon2HashChainV1Package
+import NightstreamFPrime.Export.Stage1.NebulaMemoryV1Package
+import NightstreamFPrime.Export.Stage1.NebulaMemoryN1Package
+import NightstreamFPrime.Export.Stage1.NebulaMemoryTerminal
 import NightstreamFPrime.Export.Stage1.PiCCSPackets
 import NightstreamFPrime.Export.TypedWriter
 import NightstreamFPrime.Export.MatrixProgram.Program
@@ -676,6 +680,28 @@ def emitExpanded (path : System.FilePath) : IO Unit :=
   emitPerApplicationExpanded Stage1.Poseidon2HashChainV1Package.application
     Stage1.Poseidon2HashChainV1Package.fits path
 
+/-- Write a memory package's named assertion row ranges as
+`[[name, first, end], ...]`, counted from the application's first row. -/
+def emitNebulaMemoryRows (ranges : List (String × ℕ × ℕ)) (path : System.FilePath) : IO Unit := do
+  let entries := ranges.map fun (name, first, stop) => s!"[\"{name}\",{first},{stop}]"
+  IO.FS.writeFile path ("[" ++ ",".intercalate entries ++ "]\n")
+  IO.println s!"emitted_application_rows={path}"
+
+/-- Write `D_init` of `plan` (SPEC.md section 7.4, the start carry's `D_mem`) as
+`{"d_init":[...]}`. `ofWords_initRootWords`: the words are
+`(context plan).initRoot`. Rust tests compare their own value with it. -/
+def emitNebulaMemoryStart (plan : Spec.Nebula.Plan) (path : System.FilePath) : IO Unit := do
+  let words := (Lifecycle.Nebula.initRootWords plan).map fun w => toString w.val
+  IO.FS.writeFile path ("{\"d_init\":[" ++ ",".intercalate words ++ "]}\n")
+  IO.println s!"emitted_application_start={path}"
+
+/-- Write the SPEC.md Algorithm 10 terminal-check cases of `plan` with the decided
+`TerminalChecks` fields (`NebulaMemoryTerminal.fixture`). Rust tests require
+their own terminal check to agree on each case. -/
+def emitNebulaMemoryTerminal (plan : Spec.Nebula.Plan) (path : System.FilePath) : IO Unit := do
+  IO.FS.writeFile path (Stage1.NebulaMemoryTerminal.fixture plan)
+  IO.println s!"emitted_application_terminal={path}"
+
 def run (arguments : List String) : IO UInt32 := do
   match arguments with
   | [path] | ["--", path] =>
@@ -684,8 +710,49 @@ def run (arguments : List String) : IO UInt32 := do
   | ["--expanded", path] | ["--", "--expanded", path] =>
       emitExpanded ⟨path⟩
       pure 0
+  | ["--application", "nebula-memory-v1", path]
+  | ["--", "--application", "nebula-memory-v1", path] =>
+      emitPerApplication Stage1.NebulaMemoryV1Package.application
+        Stage1.NebulaMemoryV1Package.fits ⟨path⟩
+      pure 0
+  | ["--application-rows", "nebula-memory-v1", path]
+  | ["--", "--application-rows", "nebula-memory-v1", path] =>
+      emitNebulaMemoryRows Stage1.NebulaMemoryV1Package.namedRowRanges ⟨path⟩
+      pure 0
+  | ["--application-start", "nebula-memory-v1", path]
+  | ["--", "--application-start", "nebula-memory-v1", path] =>
+      emitNebulaMemoryStart Lifecycle.Nebula.FirstPlan.plan ⟨path⟩
+      pure 0
+  | ["--application-start", "nebula-memory-v1-other", path]
+  | ["--", "--application-start", "nebula-memory-v1-other", path] =>
+      emitNebulaMemoryStart Lifecycle.Nebula.FirstPlan.otherPlan ⟨path⟩
+      pure 0
+  | ["--application-terminal", "nebula-memory-v1", path]
+  | ["--", "--application-terminal", "nebula-memory-v1", path] =>
+      emitNebulaMemoryTerminal Lifecycle.Nebula.FirstPlan.plan ⟨path⟩
+      pure 0
+  | ["--application", "nebula-memory-n1", path]
+  | ["--", "--application", "nebula-memory-n1", path] =>
+      emitPerApplication Stage1.NebulaMemoryN1Package.application
+        Stage1.NebulaMemoryN1Package.fits ⟨path⟩
+      pure 0
+  | ["--application-rows", "nebula-memory-n1", path]
+  | ["--", "--application-rows", "nebula-memory-n1", path] =>
+      emitNebulaMemoryRows Stage1.NebulaMemoryN1Package.namedRowRanges ⟨path⟩
+      pure 0
+  | ["--application-start", "nebula-memory-n1", path]
+  | ["--", "--application-start", "nebula-memory-n1", path] =>
+      emitNebulaMemoryStart Lifecycle.Nebula.SecondPlan.plan ⟨path⟩
+      pure 0
+  | ["--application-terminal", "nebula-memory-n1", path]
+  | ["--", "--application-terminal", "nebula-memory-n1", path] =>
+      emitNebulaMemoryTerminal Lifecycle.Nebula.SecondPlan.plan ⟨path⟩
+      pure 0
   | _ =>
-      IO.eprintln "usage: lake exe emit -- [--expanded] <output-path>"
+      IO.eprintln
+        ("usage: lake exe emit -- [--expanded | --application[-rows | -start | -terminal] " ++
+          "(nebula-memory-v1 | nebula-memory-n1) | --application-start nebula-memory-v1-other] " ++
+          "<output-path>")
       pure 2
 
 end NightstreamFPrime.Export.Main

@@ -71,6 +71,23 @@ inductive Failure where
   | sourceAbort
   deriving DecidableEq, Repr
 
+/-- Each advice word list satisfies the application's validity predicate at the
+state that the earlier advice reaches from `initial`. -/
+def ValidAdvice (initial : AppState) : List AppWitness → Prop
+  | [] => True
+  | advice :: rest =>
+      application.valid initial advice ∧ ValidAdvice (application.step initial advice) rest
+
+theorem validAdvice_append_singleton (initial : AppState) (earlier : List AppWitness)
+    (last : AppWitness) :
+    ValidAdvice application initial (earlier ++ [last]) ↔
+      ValidAdvice application initial earlier ∧
+        application.valid (earlier.foldl application.step initial) last := by
+  induction earlier generalizing initial with
+  | nil => simp only [List.nil_append, ValidAdvice, and_true, true_and, List.foldl_nil]
+  | cons advice rest induction =>
+      simp only [List.cons_append, ValidAdvice, List.foldl_cons, induction, and_assoc]
+
 private def walk (statement : Statement) (proof : Envelope application)
     (results : List (SourceResult application)) (suffix : List AppWitness) :
     Except Failure (List AppWitness × List (SourceResult application)) :=
@@ -259,12 +276,13 @@ private theorem walk_correct (statement : Statement) (proof : Envelope applicati
     ∃ earlier unused,
       walk application fits statement proof results suffix = .ok (earlier ++ suffix, unused) ∧
       earlier.length = statement.iteration ∧
-      earlier.foldl application.step statement.z0 = statement.zi := by
+      earlier.foldl application.step statement.z0 = statement.zi ∧
+      ValidAdvice application statement.z0 earlier := by
   cases proof with
   | bottom =>
       rcases (PerApplicationTerminal.holds_bottom_iff application fits setup statement).mp
         accepted with ⟨_valid, zero, initial⟩
-      refine ⟨[], results, ?_, ?_, ?_⟩
+      refine ⟨[], results, ?_, ?_, ?_, trivial⟩
       · rw [walk]
         simp only [ite_eq_left zero, ite_eq_left initial, List.nil_append]
       · exact zero.symm
@@ -284,13 +302,17 @@ private theorem walk_correct (statement : Statement) (proof : Envelope applicati
       · have first : statement.iteration = 1 := by omega
         rcases HyperNovaPredecessor.terminal_one_implies_baseOrCollision
             application fits setup statement payload first accepted with
-          ⟨_bottom, transition⟩ | collision
-        · refine ⟨[(decodedInput application fits payload).witness], results, ?_, ?_, ?_⟩
+          ⟨_bottom, prior, transition⟩ | collision
+        · refine ⟨[(decodedInput application fits payload).witness], results, ?_, ?_, ?_, ?_⟩
           · rw [walk]
             simp only [ite_eq_right notZero, ite_eq_left counter, ite_eq_left zero,
               List.singleton_append]
           · simpa only [List.length_singleton] using first.symm
           · exact transition.symm
+          · refine ⟨?_, trivial⟩
+            rw [← prior]
+            exact ActualContextSecurity.terminal_implies_valid application fits setup
+              statement payload accepted
         · exact False.elim (currentSafe collision)
       · have previousPositive : 0 < (decodedInput application fits payload).iteration := Nat.pos_of_ne_zero zero
         cases resultsEq : results with
@@ -325,8 +347,9 @@ private theorem walk_correct (statement : Statement) (proof : Envelope applicati
                     (.recursive (predecessorPayload application fits payload values)) tail
                     ((decodedInput application fits payload).witness :: suffix)
                     previous sourceAndTail.2 tailSafe with
-                  ⟨earlier, unused, executed, length, reached⟩
-                refine ⟨earlier ++ [(decodedInput application fits payload).witness], unused, ?_, ?_, ?_⟩
+                  ⟨earlier, unused, executed, length, reached, valid⟩
+                refine ⟨earlier ++ [(decodedInput application fits payload).witness], unused,
+                  ?_, ?_, ?_, ?_⟩
                 · rw [walk]
                   simpa only [ite_eq_right notZero, ite_eq_left counter, ite_eq_right zero,
                     resultsEq, List.append_assoc, List.singleton_append] using executed
@@ -336,6 +359,13 @@ private theorem walk_correct (statement : Statement) (proof : Envelope applicati
                 · rw [foldl_singleton_append, ← initial]
                   exact (congrArg (fun state => application.step state (decodedInput application fits payload).witness)
                     reached).trans transition.symm
+                · rw [validAdvice_append_singleton, ← initial]
+                  refine ⟨valid, ?_⟩
+                  change application.valid (earlier.foldl application.step
+                    (predecessorStatement application fits payload).z0) _
+                  rw [reached]
+                  exact ActualContextSecurity.terminal_implies_valid application fits setup
+                    statement payload accepted
 termination_by results.length
 decreasing_by
   rw [resultsEq]
@@ -348,9 +378,10 @@ theorem run_correct (statement : Statement) (proof : Envelope application) (resu
     ∃ advice unused,
       run application fits statement proof results = .ok (advice, unused) ∧
       advice.length = statement.iteration ∧
-      advice.foldl application.step statement.z0 = statement.zi := by
+      advice.foldl application.step statement.z0 = statement.zi ∧
+      ValidAdvice application statement.z0 advice := by
   rcases walk_correct application fits setup statement proof results [] accepted sources safe with
-    ⟨advice, unused, executed, length, reached⟩
-  exact ⟨advice, unused, by simpa only [run, List.append_nil] using executed, length, reached⟩
+    ⟨advice, unused, executed, length, reached, valid⟩
+  exact ⟨advice, unused, by simpa only [run, List.append_nil] using executed, length, reached, valid⟩
 
 end NightstreamFPrime.Export.Stage1.HyperNovaHistory

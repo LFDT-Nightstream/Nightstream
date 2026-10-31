@@ -135,18 +135,28 @@ fn assert_same_data(expected: &Circuit, actual: &Circuit) {
     let expected_witness = expected
         .compiled
         .application
+        .as_ref()
+        .unwrap()
         .execute(input, &private)
         .unwrap();
     let actual_witness = actual
         .compiled
         .application
+        .as_ref()
+        .unwrap()
         .execute(input, &private)
         .unwrap();
     assert_eq!(expected_witness.output_state(), [169, 4, 5, 17].map(F::from_u64));
     assert_eq!(actual_witness.values(), expected_witness.values());
     assert_eq!(actual_witness.output_state(), expected_witness.output_state());
     assert_eq!(
-        actual.compiled.application.prepared_output_forms().unwrap(),
+        actual
+            .compiled
+            .application
+            .as_ref()
+            .unwrap()
+            .prepared_output_forms()
+            .unwrap(),
         [2, 0, 2, 0]
     );
 
@@ -181,7 +191,7 @@ fn compiled_roundtrip_preserves_identity_witness_and_selected_matrix_rows() {
 }
 
 #[test]
-fn compiled_load_rejects_bad_root_magic_output_tags_trailing_and_truncated_data() {
+fn compiled_load_rejects_bad_root_magic_output_tags_rows_trailing_and_truncated_data() {
     let directory = TestDirectory::new();
     let source = directory.path("valid.package");
     compiled_fixture().write(&source).unwrap();
@@ -191,6 +201,7 @@ fn compiled_load_rejects_bad_root_magic_output_tags_trailing_and_truncated_data(
         ("bad-magic", 0, b'!'),
         ("output-b", 8, 1),
         ("output-unknown", 11, u8::MAX),
+        ("output-row", 19, u8::MAX),
     ] {
         let path = directory.path(name);
         fs::copy(&source, &path).unwrap();
@@ -212,7 +223,12 @@ fn compiled_load_rejects_bad_root_magic_output_tags_trailing_and_truncated_data(
     assert!(Circuit::load(&path).is_err(), "accepted trailing data");
 
     let length = fs::metadata(&source).unwrap().len();
-    for (name, end) in [("short-magic", 7), ("short-output", 11), ("short-record", length - 1)] {
+    for (name, end) in [
+        ("short-magic", 7),
+        ("short-output", 11),
+        ("short-output-rows", 43),
+        ("short-record", length - 1),
+    ] {
         let path = directory.path(name);
         fs::copy(&source, &path).unwrap();
         OpenOptions::new()
@@ -245,6 +261,8 @@ fn compiled_load_rejects_identity_unbound_output_form_substitution() {
             changed
                 .compiled
                 .application
+                .as_ref()
+                .unwrap()
                 .prepared_output_forms()
                 .unwrap(),
             [0, 0, 2, 0]
@@ -255,11 +273,15 @@ fn compiled_load_rejects_identity_unbound_output_form_substitution() {
         assert!(original
             .compiled
             .application
+            .as_ref()
+            .unwrap()
             .execute(input, &private)
             .is_ok());
         assert!(changed
             .compiled
             .application
+            .as_ref()
+            .unwrap()
             .execute(input, &private)
             .is_err());
     }
@@ -320,13 +342,13 @@ fn private_zero_application(coefficient: F) -> ApplicationCircuit {
 
 #[cfg(feature = "metal")]
 fn copy_cached_identity_components(original: &Path, changed: &Path) {
-    const CACHE_START: usize = 8 + 4 + 8 + 8;
+    const CACHE_START: usize = 8 + 4 + 32 + 8 + 8;
     const CACHE_END: usize = CACHE_START + (4 + 4 + 1) * 8;
     let prefix = |path| {
         let mut bytes = [0; CACHE_END];
         File::open(path).unwrap().read_exact(&mut bytes).unwrap();
-        assert_eq!(&bytes[..8], b"NSCIR\0\0\x01");
-        assert_eq!(&bytes[12..20], b"NSFPREP1");
+        assert_eq!(&bytes[..8], b"NSCIR\0\0\x02");
+        assert_eq!(&bytes[44..52], b"NSFPREP1");
         bytes
     };
     let intended = prefix(original);
@@ -368,13 +390,20 @@ fn metal_verifier_rejects_changed_constraint_with_original_cached_identity_and_s
     );
     let initial = [2, 3, 5, 7].map(F::from_u64);
     assert!(matches!(
-        original.compiled.application.execute(initial, &[F::ONE]),
+        original
+            .compiled
+            .application
+            .as_ref()
+            .unwrap()
+            .execute(initial, &[F::ONE]),
         Err(ApplicationError::UnsatisfiedRow(0))
     ));
     assert_eq!(
         changed
             .compiled
             .application
+            .as_ref()
+            .unwrap()
             .execute(initial, &[F::ONE])
             .unwrap()
             .output_state(),

@@ -120,6 +120,7 @@ theorem recursive_extend
     (accepted : PerApplicationTerminal.Holds application fits commitmentSetup
       statement (.recursive payload))
     (adviceWidth : advice.length = application.witnessWordCount)
+    (adviceValid : application.valid statement.zi advice)
     (nonwrap : statement.iteration + 1 < goldilocksModulus) :
     let relation := PerApplicationFixedPoint.relation application fits
     let key := ProductionKey.key relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
@@ -177,7 +178,7 @@ theorem recursive_extend
       accepted verified nonwrap
   obtain ⟨raw, rows, bounded, _publicInput, actualAdvice, digest⟩ :=
     SelectedAssignmentCompleteness.complete application fits (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) context before after result
-      step priorWellFormed nextWellFormed freshPublic verified (fun _ => resultEq) adviceWidth
+      step adviceValid priorWellFormed nextWellFormed freshPublic verified (fun _ => resultEq) adviceWidth
   have freshMember := freshHolds_of_rows application fits (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) raw rows bounded
   have priorValid := ((PerApplicationTerminal.holds_recursive_iff
     application fits commitmentSetup statement payload).mp accepted).1
@@ -195,7 +196,8 @@ theorem recursive_extend
 theorem base_extend
     (statement : HyperNovaHistory.Statement) (advice : AppWitness)
     (accepted : PerApplicationTerminal.Holds application fits commitmentSetup statement .bottom)
-    (adviceWidth : advice.length = application.witnessWordCount) :
+    (adviceWidth : advice.length = application.witnessWordCount)
+    (adviceValid : application.valid statement.zi advice) :
     let relation := PerApplicationFixedPoint.relation application fits
     let key := ProductionKey.key relation (PerApplicationCanonicalPackage.commitmentKey commitmentSetup)
     let context := (PerApplicationCanonicalPackage.verifierContextDescriptor fits commitmentSetup).digest4
@@ -283,7 +285,7 @@ theorem base_extend
     exact False.elim ((Nat.ne_of_gt positive) beforeZero)
   obtain ⟨raw, rows, bounded, _publicInput, actualAdvice, digest⟩ :=
     SelectedAssignmentCompleteness.complete application fits (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) context before after dummyResult
-      step priorWellFormed nextWellFormed freshPublic beforeVerified recursiveResult adviceWidth
+      step adviceValid priorWellFormed nextWellFormed freshPublic beforeVerified recursiveResult adviceWidth
   have freshMember := freshHolds_of_rows application fits (PerApplicationCanonicalPackage.commitmentKey commitmentSetup) raw rows bounded
   let next : HyperNovaHistory.Statement := {
     iteration := statement.iteration + 1

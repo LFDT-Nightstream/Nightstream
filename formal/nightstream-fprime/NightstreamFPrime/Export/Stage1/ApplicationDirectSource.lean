@@ -149,12 +149,15 @@ theorem program_holds_iff_rowsHold
   · intro holds index
     exact holds _ (List.get_mem _ index)
 
-theorem rowsHold_implies_applicationHolds
+theorem rowsHold_implies_applicationSpec
     (application : Lifecycle.Stage1.Application.Program) (env : Env)
     (rows : R1CS.RowsHold env (sourceRows application)) :
     Lifecycle.Stage1.Application.Holds application.step
-      (Layout.Stage1.ApplicationInputs.interface application)
-      (Layout.Stage1.ApplicationInputs.localStart application) env := by
+        (Layout.Stage1.ApplicationInputs.interface application)
+        (Layout.Stage1.ApplicationInputs.localStart application) env ∧
+      Lifecycle.Stage1.Application.Valid application.valid
+        (Layout.Stage1.ApplicationInputs.interface application)
+        (Layout.Stage1.ApplicationInputs.localStart application) env := by
   let columns := ApplicationPackage.productionColumns application
   let privateStart := Layout.Stage1.ApplicationInputs.localStart application
   have loweredRows : R1CS.RowsHold env
@@ -172,9 +175,19 @@ theorem rowsHold_implies_applicationHolds
   have assumptions := application.assumptions
     (Layout.Stage1.ApplicationInputs.interface application) privateStart env
     (Layout.Stage1.ApplicationInputs.externalBelow application)
-  exact application.soundness
+  exact application.soundness_valid
     (Layout.Stage1.ApplicationInputs.interface application) privateStart env
     assumptions (holdsFlat_implies_holds env
       (ApplicationPackage.operations application columns privateStart) flattened)
+
+/-- Exact satisfaction of the direct source rows implies the selected Lean
+application transition for an arbitrary source assignment. -/
+theorem rowsHold_implies_applicationHolds
+    (application : Lifecycle.Stage1.Application.Program) (env : Env)
+    (rows : R1CS.RowsHold env (sourceRows application)) :
+    Lifecycle.Stage1.Application.Holds application.step
+      (Layout.Stage1.ApplicationInputs.interface application)
+      (Layout.Stage1.ApplicationInputs.localStart application) env :=
+  (rowsHold_implies_applicationSpec application env rows).1
 
 end NightstreamFPrime.Export.Stage1.ApplicationDirectSource

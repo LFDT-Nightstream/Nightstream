@@ -44,6 +44,9 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.input_bound
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.per_tape
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.history_failure_le
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.runsBack_append
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.runsBack_of_runs
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity.slot_accepted
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

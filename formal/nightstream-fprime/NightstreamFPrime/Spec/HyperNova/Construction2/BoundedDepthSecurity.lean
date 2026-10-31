@@ -368,4 +368,77 @@ theorem history_failure_le (depth : Nat)
   exact realBound.trans (Finset.sum_le_sum fun j _ =>
     reverseExtractor_error assumption closed adversary admitted j.val)
 
+section TwoSlot
+
+open NightstreamFPrime.Spec.HyperNova.NonInteractiveMultiFold (Accepts)
+open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthKnowledge
+  (Runs Execution MachineStep slotHistory slot_runs)
+
+/-- Each fold of a forward history with the running claim it starts from. -/
+def links : Running Claim → List (Fold Key Claim Fresh Proof) → List (Link Key Claim Fresh Proof)
+  | _, [] => []
+  | start, fold :: rest => (start, fold) :: links fold.output rest
+
+/-- The running claim the oldest fold of a history, last fold first, starts from. -/
+def oldest : Running Claim → List (Link Key Claim Fresh Proof) → Running Claim
+  | final, [] => final
+  | _, link :: older => oldest link.1 older
+
+theorem runsBack_append :
+    ∀ (back : List (Link Key Claim Fresh Proof)) (final : Running Claim)
+      (link : Link Key Claim Fresh Proof),
+      RunsBack cap folds final back → link.2.output = oldest final back →
+      link.2.input = link.1.1 →
+      Accepts (verifier cap folds link.2.circuit) link.2.key link.1 link.2.fresh link.2.proof
+        link.2.output →
+      RunsBack cap folds final (back ++ [link]) ∧ oldest final (back ++ [link]) = link.1
+  | [], _, _, _, output, input, accepted => ⟨⟨output, input, accepted, trivial⟩, rfl⟩
+  | newer :: older, _, link, ⟨outputEq, inputEq, acceptedNewer, olderRuns⟩, output, input,
+      accepted => by
+      obtain ⟨runs, oldestEq⟩ := runsBack_append older newer.1 link olderRuns output input accepted
+      exact ⟨⟨outputEq, inputEq, acceptedNewer, runs⟩, oldestEq⟩
+
+/-- A forward history of accepted folds, read last fold first. -/
+theorem runsBack_of_runs :
+    ∀ (history : List (Fold Key Claim Fresh Proof)) (start final : Running Claim),
+      Runs cap folds start history final →
+        RunsBack cap folds final (links start history).reverse ∧
+          oldest final (links start history).reverse = start
+  | [], start, final, runs => by
+      simp only [Runs] at runs
+      subst runs
+      exact ⟨trivial, rfl⟩
+  | fold :: rest, start, final, ⟨inputEq, accepted, later⟩ => by
+      obtain ⟨runs, oldestEq⟩ := runsBack_of_runs rest fold.output final later
+      simp only [links, List.reverse_cons]
+      exact runsBack_append _ final (start, fold) runs oldestEq.symm inputEq accepted
+
+variable {Digest State StepWitness Encoded : Type}
+
+/-- The one-slot output of a two-slot execution: the slot's history, last fold first, and a
+witness of its final claim. -/
+def slotOutput (verifierKeys : Fin 2 → Key) (start final : Fin 2 → Running Claim) (slot : Fin 2)
+    (trace : List (MachineStep Key Claim Fresh Proof Digest State StepWitness)) (bound : Nat)
+    (witness : ClaimWitness) : Output Key Claim Fresh Proof ClaimWitness where
+  final := final slot
+  back := (links (start slot) (slotHistory verifierKeys slot trace)).reverse
+  bound := bound
+  witness := witness
+
+/-- An accepted two-slot execution and a decider check of one slot's final claim below `B`
+make that slot's output accepted, so `history_failure_le` bounds its extraction failure. -/
+theorem slot_accepted (verifierKeys : Fin 2 → Key) (defaultClaim : Claim)
+    (machine : Paper.Machine Key Digest State StepWitness (Running Claim) Fresh Encoded 2)
+    (trace : List (MachineStep Key Claim Fresh Proof Digest State StepWitness))
+    (start final : Fin 2 → Running Claim)
+    (execution : Execution (setup cap folds verifierKeys defaultClaim) machine start trace final)
+    (slot : Fin 2) (bound : Nat) (witness : ClaimWitness)
+    (holds : Holds bound (final slot).1 witness) (atMostB : bound ≤ p.bigB) :
+    Accepted p cap folds Holds (slotOutput verifierKeys start final slot trace bound witness) :=
+  ⟨(runsBack_of_runs _ _ _
+      (slot_runs verifierKeys defaultClaim machine slot trace start final execution)).1,
+    holds, atMostB⟩
+
+end TwoSlot
+
 end NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepthSecurity

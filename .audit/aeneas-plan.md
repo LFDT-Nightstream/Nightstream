@@ -148,6 +148,12 @@ Status, 2026-10-30 (uncommitted, in worktree `aeneas-rust-lean-compiler-019889`)
 Check: the theorems build in CI with only `propext`, `Classical.choice`, and
 `Quot.sound`. Size: small to medium.
 
+Status, 2026-10-31: done in two steps, 1a (layout) and 1b (degrees). 18 function ports have
+Sound and Complete theorems. neo-verified keeps no `Layout` struct: each position is a pure
+function of `Shape`, so Sound needs no premise about cached fields. Type ports and the `f64`
+code keep token hashes. 50 source mutations each break a proof, and the proof bytes do not
+change.
+
 ## Phase 2. Give `neo-verified` its own field
 
 1. Write `Gl` and `Ext = Gl[w]/(w^3 - w - 1)` in safe scalar Rust with canonical values.

@@ -52,8 +52,10 @@ protocol, and section 8 lists the differences from Nebula.
    the rows share the fixed F′ cost of a fold. The step uses the batched
    catalog of `SPEC.md` section 7.6, and Lean proves that batched steps are
    memory consistent exactly when their rows are. The protocol, the F′
-   relation and the memory rows do not change. On CPU, 8 WASM rows took
-   68.7 s at one row in each step and 29.4 s at two rows in each step. On
-   Metal, select the number of rows by a measurement: at 8 rows, a fold has
-   about 62.3M coordinates, and above 60.5M the Metal prover does not keep
-   the commitment key.
+   relation and the memory rows do not change. On Metal, with the memory
+   scan of a segment of 32 steps, a fold of 2 rows took 4.31 s and a fold
+   of 1 row 4.28 s. In segments of 16 steps, a row took 2.72 s at 2 rows in
+   each step, 0.80 s at 8 rows and 0.57 s at 16 rows (medians of 3 runs of
+   `fib`). A fold of 8 rows has 63.8M coordinates, which is above the 60.5M
+   at which the Metal prover keeps the commitment key, and a fold of 16
+   rows has 87.9M. The caller selects the rows for each step.

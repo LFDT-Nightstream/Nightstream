@@ -38,4 +38,6 @@ import NightstreamFPrime.Lifecycle.OptionB.Keys
 import NightstreamFPrime.Lifecycle.OptionB.Step
 import NightstreamFPrime.Lifecycle.OptionB.StateHashGadget
 import NightstreamFPrime.Lifecycle.OptionB.LightCommitment
+import NightstreamFPrime.Lifecycle.OptionB.LightPublicInput
+import NightstreamFPrime.Lifecycle.OptionB.LightEvaluation
 import NightstreamFPrime.Spec.Phi81Relation.PiRLCAlgebra.ChainBinding

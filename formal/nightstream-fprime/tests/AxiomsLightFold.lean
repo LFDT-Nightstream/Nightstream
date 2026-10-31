@@ -1,0 +1,12 @@
+import tests.AxiomAudit
+import NightstreamFPrime.Spec.Folding.Light.Bound
+import NightstreamFPrime.Spec.Folding.Light.PiCCSCompleteness
+
+#audit_axioms NightstreamFPrime.Spec.GlobalParams.accumulatorBound_lt_bigB
+#audit_axioms NightstreamFPrime.Spec.GlobalParams.production_accumulatorBound_lt_bigB
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.PiCCS.protocolData_toJointData_eq
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.PiCCS.independentInputs_semanticTruth_iff
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.PiCCS.jointTableTruth
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.PiCCS.messageAt_protocolData
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.PiCCS.initial_true
+#audit_axioms NightstreamFPrime.Spec.Folding.Light.PiCCS.exists_honest_prover

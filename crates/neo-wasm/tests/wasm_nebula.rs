@@ -147,7 +147,7 @@ impl Application for Wasm {
     /// Each R1CS row as `C·z − (A·z)(B·z)`, one rank-one row each; `z[0] = 1`;
     /// the `_BEFORE` columns equal the input state and the `_AFTER` columns
     /// the output state; then the binding rows.
-    fn rows(&self, view: &View) -> Vec<Expr> {
+    fn rows(&self, view: &View) -> Result<Vec<Expr>, nightstream::Error> {
         let z: Vec<Expr> = (0..self.columns).map(|column| view.aux(column)).collect();
         let affine = |terms: &Terms| {
             terms
@@ -166,8 +166,8 @@ impl Application for Wasm {
             rows.push(z[before(link)].clone() - view.input(k));
             rows.push(z[after(link)].clone() - view.output(k));
         }
-        rows.extend(self.binding.rows(view, &z));
-        rows
+        rows.extend(self.binding.rows(view, &z)?);
+        Ok(rows)
     }
 
     fn step(&self, state: &Vec<u64>, z: &Vec<F>, memory: &Memory) -> Result<Transition<Vec<u64>>, WasmStepError> {
@@ -677,8 +677,8 @@ impl Application for Idle {
         vec![0; self.width]
     }
 
-    fn rows(&self, _: &View) -> Vec<Expr> {
-        Vec::new()
+    fn rows(&self, _: &View) -> Result<Vec<Expr>, nightstream::Error> {
+        Ok(Vec::new())
     }
 
     fn step(&self, _: &(), _: &(), _: &Memory) -> Result<Transition<()>, Self::Error> {

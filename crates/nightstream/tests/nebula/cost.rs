@@ -45,8 +45,8 @@ impl Application for Free {
         vec![0; self.width]
     }
 
-    fn rows(&self, _: &View) -> Vec<Expr> {
-        Vec::new()
+    fn rows(&self, _: &View) -> Result<Vec<Expr>, crate::Error> {
+        Ok(Vec::new())
     }
 
     fn step(&self, _: &(), _: &(), _: &Memory) -> Result<Transition<()>, Self::Error> {

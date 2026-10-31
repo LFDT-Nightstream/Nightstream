@@ -77,7 +77,16 @@ impl From<CompressionError> for Error {
     }
 }
 
+/// The verifier that a circuit configures. A memory relation proves only
+/// steps: the spec §13 terminal checks of `nebula::Verifier` give its claim.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Role {
+    Stage1,
+    Memory,
+}
+
 struct CompiledCircuit {
+    role: Role,
     /// The Rust application, or `None` for a Lean-emitted package whose own
     /// witness program fills the application's local variables.
     application: Option<ApplicationCircuit>,
@@ -118,6 +127,15 @@ pub struct Circuit {
 
 impl Circuit {
     pub fn compile(reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
+        Self::compile_as(Role::Stage1, reference_bytes, application)
+    }
+
+    /// `compile` for a memory relation (`nebula::Circuit::compile`).
+    pub(crate) fn compile_memory(reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
+        Self::compile_as(Role::Memory, reference_bytes, application)
+    }
+
+    fn compile_as(role: Role, reference_bytes: &[u8], application: ApplicationCircuit) -> Result<Self, Error> {
         let (package, binding) = assembly::prepare(reference_bytes, &application)?;
         crate::lifecycle::validate_key_prefix(
             package.logical_column_count(),
@@ -125,6 +143,7 @@ impl Circuit {
         )?;
         Ok(Self {
             compiled: Arc::new(CompiledCircuit {
+                role,
                 application: Some(application),
                 package: Arc::new(package),
                 binding,
@@ -148,8 +167,14 @@ impl Circuit {
             package.logical_column_count(),
             binding.verifier_context().commitment_key_words(),
         )?;
+        let role = if crate::nebula::Package::pinned(expected_structural_identifier) {
+            Role::Memory
+        } else {
+            Role::Stage1
+        };
         Ok(Self {
             compiled: Arc::new(CompiledCircuit {
+                role,
                 application: None,
                 package: Arc::new(package),
                 binding,
@@ -326,8 +351,21 @@ pub struct Verifier {
 impl Verifier {
     /// Use the caller-selected package as the expected circuit configuration.
     /// This does not establish the package's provenance.
-    /// Reject a profile below the caller's positive statistical minimum.
+    /// Reject a profile below the caller's positive statistical minimum, and
+    /// a memory relation, whose verifier is `nebula::Verifier`.
     pub fn from_package(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
+        if package.compiled.role == Role::Memory {
+            return Err(Error::Circuit("a memory relation needs nebula::Verifier"));
+        }
+        Self::configured(package, engine, minimum_security_bits)
+    }
+
+    /// The Stage 1 verifier inside `nebula::Verifier`.
+    pub(crate) fn of_memory(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
+        Self::configured(package, engine, minimum_security_bits)
+    }
+
+    fn configured(package: &Circuit, engine: Engine, minimum_security_bits: u32) -> Result<Self, Error> {
         Ok(Self {
             lifecycle: package
                 .compiled

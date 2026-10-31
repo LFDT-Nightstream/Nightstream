@@ -89,10 +89,7 @@ pub(super) struct Phase {
 
 /// The Rust-built circuit of a memory geometry and an application. It reads no
 /// program, so every program of the geometry has the same circuit.
-pub(super) fn memory_circuit<A: Application>(
-    geometry: &Geometry,
-    app: &A,
-) -> Result<ApplicationCircuit, ApplicationError> {
+pub(super) fn memory_circuit<A: Application>(geometry: &Geometry, app: &A) -> Result<ApplicationCircuit, crate::Error> {
     memory_circuit_phases(geometry, app).map(|(circuit, _)| circuit)
 }
 
@@ -100,7 +97,7 @@ pub(super) fn memory_circuit<A: Application>(
 pub(super) fn memory_circuit_phases<A: Application>(
     geometry: &Geometry,
     app: &A,
-) -> Result<(ApplicationCircuit, Vec<Phase>), ApplicationError> {
+) -> Result<(ApplicationCircuit, Vec<Phase>), crate::Error> {
     let layout = Layout::new(geometry, app.width(), app.aux());
     let mut builder = ApplicationBuilder::new(layout.count())?;
     let wires: Vec<Variable> = builder.private_inputs().to_vec();
@@ -205,9 +202,9 @@ pub(super) fn memory_circuit_phases<A: Application>(
     }
     let view = View::new(&sym);
     let readable = view.variables();
-    for row in &app.rows(&view) {
+    for row in &app.rows(&view)? {
         if let Some(variable) = row.variable_outside(&readable) {
-            return Err(ApplicationError::VariableOutOfScope(variable.index()));
+            return Err(ApplicationError::VariableOutOfScope(variable.index()).into());
         }
         lower_constraint(&mut builder, row)?;
     }

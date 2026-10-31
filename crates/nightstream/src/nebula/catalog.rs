@@ -139,6 +139,26 @@ fn word(row: &[F], column: usize) -> Result<u64, CatalogRowError> {
 }
 
 impl Port {
+    /// The catalog columns that the port reads.
+    fn columns(&self) -> Vec<usize> {
+        let activation = match self.activation {
+            MemoryPortActivation::Always => None,
+            MemoryPortActivation::When(column) | MemoryPortActivation::Unless(column) => Some(column),
+        };
+        let prior = match self.kind {
+            MemoryPortKind::Write {
+                value_before_column: Some(prior),
+            } => Some(prior),
+            _ => None,
+        };
+        activation
+            .into_iter()
+            .chain(self.address.iter().copied())
+            .chain([self.value])
+            .chain(prior)
+            .collect()
+    }
+
     /// Whether the events of the two ports may not swap (Lean
     /// `Event.Dependent`): one memory, and one of them writes. Two memories
     /// have disjoint cells, and two reads keep the memory, so every other
@@ -364,8 +384,22 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
     ///
     /// Each activation column is a bit, so `When` and `Unless` agree with
     /// Lean `active`.
-    pub fn rows(&self, view: &View, columns: &[Expr]) -> Vec<Expr> {
-        assert_eq!(*view.geometry(), self.geometry, "the binding is for another geometry");
+    pub fn rows(&self, view: &View, columns: &[Expr]) -> Result<Vec<Expr>, crate::Error> {
+        if *view.geometry() != self.geometry {
+            return Err(crate::Error::Circuit("the catalog binding is for another geometry"));
+        }
+        let needed = self
+            .slots
+            .iter()
+            .flatten()
+            .flat_map(Port::columns)
+            .max()
+            .map_or(0, |column| column + 1);
+        if columns.len() < needed {
+            return Err(crate::Error::Circuit(
+                "the binding has fewer columns than its catalog reads",
+            ));
+        }
         let activation_columns: BTreeSet<usize> = self
             .slots
             .iter()
@@ -421,7 +455,7 @@ impl<Id: Clone + Eq> CatalogBinding<Id> {
                 }
             }
         }
-        rows
+        Ok(rows)
     }
 
     /// The `B_ops` ports of one row in slot order (`None` for an inactive

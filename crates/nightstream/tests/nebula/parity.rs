@@ -73,6 +73,21 @@ fn logical_row(package: &LoadedPerApplicationPackage, index: usize) -> LogicalMa
     found.unwrap()
 }
 
+/// A Stage 1 verifier checks no spec §13 terminal condition, so it would
+/// accept a state inside an open segment, whose reads no product test has
+/// checked. A memory package makes only the memory verifier.
+#[test]
+fn memory_packages_make_no_stage1_verifier() {
+    let loaded = Package::V1
+        .load(&artifact("nightstream-fprime-stage2-nebula-memory-v1.json"))
+        .unwrap();
+    assert!(matches!(
+        crate::Verifier::from_package(&loaded.circuit, crate::Engine::Optimized, 114),
+        Err(crate::Error::Circuit("a memory relation needs nebula::Verifier"))
+    ));
+    assert!(crate::nebula::Verifier::new(&loaded, crate::Engine::Optimized, 114).is_ok());
+}
+
 #[test]
 fn first_package_relation_matches_lean() {
     assert_same_relation(Package::V1, "nightstream-fprime-stage2-nebula-memory-v1.json");
@@ -141,6 +156,10 @@ fn rust_built_circuit_writes_and_loads() {
     fs::remove_file(&path).unwrap();
     let loaded = loaded.unwrap();
     assert_eq!(loaded.identity(), circuit.circuit.identity());
+    assert!(matches!(
+        crate::Verifier::from_package(&loaded, crate::Engine::Optimized, 114),
+        Err(crate::Error::Circuit("a memory relation needs nebula::Verifier"))
+    ));
     let application = loaded.application().unwrap();
     let size = crate::ApplicationSize {
         witness_words: application.private_input_count(),

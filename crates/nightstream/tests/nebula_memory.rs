@@ -683,12 +683,12 @@ impl Application for Changed {
         Machine.words(state)
     }
 
-    fn rows(&self, view: &View) -> Vec<Expr> {
-        let mut rows = Machine.rows(view);
+    fn rows(&self, view: &View) -> Result<Vec<Expr>, nightstream::Error> {
+        let mut rows = Machine.rows(view)?;
         if let Changed::Row = self {
             rows[2] = rows[2].clone() * Expr::constant(2);
         }
-        rows
+        Ok(rows)
     }
 
     fn step(
@@ -836,11 +836,11 @@ impl Application for ReadsWord {
         Vec::new()
     }
 
-    fn rows(&self, view: &View) -> Vec<Expr> {
+    fn rows(&self, view: &View) -> Result<Vec<Expr>, nightstream::Error> {
         let word = nightstream::application::ApplicationBuilder::new(self.0 + 1)
             .unwrap()
             .private_inputs()[self.0];
-        vec![view.pad(0) * (view.vr(0) - Expr::Var(word))]
+        Ok(vec![view.pad(0) * (view.vr(0) - Expr::Var(word))])
     }
 
     fn step(&self, _: &(), _: &(), _: &Memory) -> Result<Transition<()>, Self::Error> {
@@ -869,6 +869,62 @@ fn application_rows_outside_the_view_make_no_circuit() {
             "word {word}"
         );
     }
+}
+
+/// An application whose state is a word list of any length, with width 2.
+#[derive(Clone)]
+struct Listed;
+
+impl Application for Listed {
+    type Input = ();
+    type State = Vec<u64>;
+    type Error = std::convert::Infallible;
+
+    fn width(&self) -> usize {
+        2
+    }
+
+    fn aux(&self) -> usize {
+        0
+    }
+
+    fn port_count(&self) -> usize {
+        2
+    }
+
+    fn words(&self, state: &Vec<u64>) -> Vec<u64> {
+        state.clone()
+    }
+
+    fn rows(&self, _: &View) -> Result<Vec<Expr>, nightstream::Error> {
+        Ok(Vec::new())
+    }
+
+    fn step(&self, state: &Vec<u64>, _: &(), _: &Memory) -> Result<Transition<Vec<u64>>, Self::Error> {
+        Ok(Transition {
+            next: state.clone(),
+            ports: vec![None, None],
+            aux: Vec::new(),
+        })
+    }
+}
+
+/// A statement state is `width` words (Lean `Fin width → F`); one with
+/// another count would need a state-digest collision to verify.
+#[test]
+fn terminal_checks_reject_a_state_of_another_width() {
+    let mut run = Run::new(Context::new(Listed, &Package::V1.program()), vec![0, 0]);
+    run.segment(&vec![(); Package::V1.geometry().n]).unwrap();
+    let mut statement = run.statement();
+    assert!(run
+        .context()
+        .terminal_states(&statement, run.carry())
+        .is_ok());
+    statement.initial = vec![0, 0, 0];
+    assert_eq!(
+        run.context().terminal_states(&statement, run.carry()),
+        Err(TerminalError::Width)
+    );
 }
 
 /// One segment of the first package's default program proved by `prover`,

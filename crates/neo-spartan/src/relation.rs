@@ -8,6 +8,7 @@
 
 use neo_ajtai::nightstream_fprime_setup::PRODUCTION_VERIFIER_ROWS;
 use neo_math::D;
+use neo_verified::degrees::{self, FOLD};
 use p3_challenger_v08::{CanObserve, CanSampleBits};
 use p3_field_v08::{Field, PrimeCharacteristicRing, PrimeField64, TwoAdicField};
 use p3_security_v08::{ErrorBits, SecurityTerm};
@@ -17,9 +18,7 @@ use crate::field::{Ext, Gl};
 use crate::hash::{self, Challenger};
 use crate::matrix::Structure;
 use crate::pcs::{self, Pcs, TablePlan};
-use crate::ring;
-use crate::setup::FOLD;
-use crate::{block_variables, ClaimWords, Error, Key, LANE_VARIABLES, RUN_ORACLES};
+use crate::{block_variables, ClaimWords, Error, Key, LANE_VARIABLES};
 
 pub(crate) fn kappa() -> usize {
     PRODUCTION_VERIFIER_ROWS as usize
@@ -252,38 +251,47 @@ pub(crate) fn p1_points<E: Clone>(
     points
 }
 
-/// Every layer-1 draw made after P0, as a degree over |Ext|. Plonky3 charges
-/// each over P0's candidates; `extra_log2` also charges it over P1's, since
-/// a prover picks both candidates only at the openings.
+/// Every layer-1 draw made after P0, as a degree over |Ext|
+/// (`neo_verified::degrees`). Plonky3 charges each over P0's candidates;
+/// `extra_log2` also charges it over P1's, since a prover picks both
+/// candidates only at the openings.
 fn outer_terms(shape: &Shape, structure: &Structure, extra_log2: f64) -> Vec<SecurityTerm> {
     let field_bits = (<Ext as Field>::bits() - 1) as f64;
-    let term =
-        |label, degree: f64| SecurityTerm::new(label, ErrorBits::from_log2(field_bits - degree.log2() - extra_log2));
-    let size = |variables: usize| (1u64 << variables) as f64;
-    // Per layer: rounds of degree at most 4, the batching draws and τ.
-    let gkr = |depths: &[usize]| -> f64 {
-        let deepest = depths.iter().copied().max().unwrap_or(0);
-        (1..=deepest)
-            .map(|k| (4 * k + depths.iter().filter(|&&depth| depth >= k).count()) as f64)
-            .sum()
+    let term = |label, degree: usize| {
+        SecurityTerm::new(
+            label,
+            ErrorBits::from_log2(field_bits - (degree as f64).log2() - extra_log2),
+        )
     };
-    let (cube, runs, rows) = (shape.cube_variables(), structure.run_variables, structure.row_variables);
-    let pairs = structure.slot_variables + structure.matrix_variables();
-    let blocks = structure.slot_variables + 1;
+    let relation = degrees::Relation {
+        d: D,
+        lane_variables: LANE_VARIABLES,
+        block_variables: shape.block_variables,
+        kappa: shape.kappa,
+        matrices: shape.matrices,
+        public_blocks: shape.public_blocks,
+        norm_bound: shape.norm_bound,
+        run_variables: structure.run_variables,
+        row_variables: structure.row_variables,
+        slot_variables: structure.slot_variables,
+        matrix_variables: structure.matrix_variables(),
+    };
+    let [norm, lookup, scatter, early_gkr, slot_block] = degrees::early_terms(&relation);
+    let [ring_rows, quotient, linear] = degrees::linear_terms(&relation);
+    let [run_group, fold_partials] = degrees::FIXED;
+    let [block_scatter, late_gkr] = degrees::late_terms(&relation);
     vec![
-        term("norm logUp", size(cube) + f64::from(2 * shape.norm_bound + 1)),
-        term("row lookup", 3.0 * (size(runs) + size(rows))),
-        term("slot scatter", size(runs) + size(pairs) + 1.0),
-        term("early GKR", gkr(&[cube, runs, rows, runs, pairs])),
-        // The P0 slot-block copy against the setup block column at the early
-        // run point, then `1 - x ≠ 0` on its high coordinates: one draw each.
-        term("slot-block test", runs as f64),
-        term("ring-row batching", (ring::row_count(shape) - 1) as f64),
-        term("quotient at zeta", (2 * D - 2) as f64),
-        term("linear sum-check", 2.0 * cube as f64),
-        term("run group", (RUN_ORACLES - 1) as f64),
-        term("honest-fold partials", (2 * FOLD) as f64),
-        term("block scatter", size(blocks) + size(shape.block_variables)),
-        term("late GKR", gkr(&[blocks, shape.block_variables])),
+        term("norm logUp", norm),
+        term("row lookup", lookup),
+        term("slot scatter", scatter),
+        term("early GKR", early_gkr),
+        term("slot-block test", slot_block),
+        term("ring-row batching", ring_rows),
+        term("quotient at zeta", quotient),
+        term("linear sum-check", linear),
+        term("run group", run_group),
+        term("honest-fold partials", fold_partials),
+        term("block scatter", block_scatter),
+        term("late GKR", late_gkr),
     ]
 }

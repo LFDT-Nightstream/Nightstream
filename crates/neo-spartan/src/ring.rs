@@ -16,6 +16,7 @@ use std::sync::OnceLock;
 
 use neo_ajtai::nightstream_fprime_setup::{coefficient_block, PRODUCTION_SEED};
 use neo_math::{ring::superneo_bar_matrix, D, F, K};
+use neo_verified::degrees::row_count;
 use p3_field::PrimeCharacteristicRing as _;
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
 use rayon::prelude::*;
@@ -33,11 +34,6 @@ const PRODUCT: usize = 2 * D - 1;
 /// `Φ81 = X^54 + X^27 + 1`.
 const PHI_MIDDLE: usize = 27;
 
-/// Commitment rows, Eval_K (2), Eval_A (2 per matrix), public blocks.
-pub(crate) fn row_count(shape: &Shape) -> usize {
-    shape.kappa + 2 + 2 * shape.matrices + shape.public_blocks
-}
-
 /// Powers of λ in row order. The order here is the only row list.
 pub(crate) struct Mixing<E> {
     powers: Vec<E>,
@@ -48,7 +44,7 @@ pub(crate) struct Mixing<E> {
 impl<E: Copy> Mixing<E> {
     pub(crate) fn new<B: Backend<E = E>>(b: &mut B, lambda: E, shape: &Shape) -> Self {
         let mut powers = vec![algebra::ext_one(b)];
-        for _ in 1..row_count(shape) {
+        for _ in 1..row_count(shape.kappa, shape.matrices, shape.public_blocks) {
             let last = *powers.last().expect("one power");
             powers.push(b.ext_mul(last, lambda));
         }

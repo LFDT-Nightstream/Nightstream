@@ -8,9 +8,9 @@
 
 use serde::{Deserialize, Serialize};
 
-use crate::circuit::block::{entries, MATRICES};
+use crate::circuit::block::entries;
 use crate::field::{eq_table, Ext, Gl};
-use neo_verified::circuit::{Kind, KINDS};
+use neo_verified::circuit::{Kind, KINDS, MATRICES};
 use neo_verified::layout::{cell_variables, place, row_variables, Part, Shape};
 use p3_field_v08::PrimeCharacteristicRing;
 

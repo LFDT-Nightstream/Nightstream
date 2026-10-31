@@ -19,6 +19,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
+use neo_verified::degrees::RUN_ORACLES;
 use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
 use p3_sumcheck_v08::layout::plan_stacked_layout;
 use p3_whir::transcript::WhirShape;
@@ -580,7 +581,7 @@ fn lean_replay_matches_the_rust_verifier() {
 fn lean_setup_root_matches_the_rust_key() {
     let (_toy, setup, _scratch) = setup_toy(2, 4, 6);
     let key = setup.key();
-    let (variables, count) = (key.setup_variables(), crate::kappa() + crate::RUN_ORACLES);
+    let (variables, count) = (key.setup_variables(), crate::kappa() + RUN_ORACLES);
     let tables: Vec<Vec<Gl>> = (0..count)
         .map(|k| crate::oracle(&setup.tables, key.blocks, k, variables))
         .collect();

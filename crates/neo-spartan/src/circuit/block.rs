@@ -15,7 +15,6 @@ use neo_verified::circuit::{Kind, CELLS};
 use super::poseidon2;
 use crate::field::Gl;
 
-pub(crate) const MATRICES: usize = 8;
 pub(crate) const X: usize = 0;
 pub(crate) const C: usize = 7;
 
@@ -57,6 +56,7 @@ pub(crate) fn trace(kind: Kind, inputs: &[Gl]) -> Vec<Gl> {
 /// The first row of `cells` that fails, if any.
 #[cfg(test)]
 pub(crate) fn failure(kind: Kind, cells: &[Gl]) -> Option<usize> {
+    use neo_verified::circuit::MATRICES;
     use p3_field_v08::PrimeCharacteristicRing;
     let mut sides = vec![[Gl::ZERO; MATRICES]; kind.rows()];
     for entry in entries(kind) {

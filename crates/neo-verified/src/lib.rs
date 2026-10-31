@@ -7,4 +7,5 @@
 #![deny(clippy::arithmetic_side_effects)]
 
 pub mod circuit;
+pub mod degrees;
 pub mod layout;

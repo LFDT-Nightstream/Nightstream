@@ -9,6 +9,7 @@
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_math::D;
+use neo_verified::degrees::{FOLD, RUN_ORACLES};
 use p3_field_v08::{PrimeCharacteristicRing, PrimeField64};
 
 use super::verifier::statement_input;
@@ -22,12 +23,11 @@ use crate::gkr::{self, GkrView, TreeShape};
 use crate::matrix::{Class, EarlyChallenges, EarlyOpenings, EarlyValues, LateOpenings, Structure};
 use crate::relation::{kappa, p1_points, setup_point};
 use crate::ring::{self, Mixing};
-use crate::setup::{self, LeafView, FOLD};
+use crate::setup::{self, LeafView};
 use crate::shrink::Program;
 use crate::verifier::{combine, early_shapes, from_coordinates, lane_value, observe_early, observe_pairs};
 use crate::whir::OpeningView;
-use crate::{mle, norm, sumcheck, whir, Claim, ClaimWords, Error, Proof, Relation};
-use crate::{LANE_VARIABLES, RUN_ORACLES};
+use crate::{mle, norm, sumcheck, whir, Claim, ClaimWords, Error, Proof, Relation, LANE_VARIABLES};
 
 /// Every branch of `record.rs`: merged, cancelled, zero-weight and long
 /// forms; constant sides of products; extension products by and from

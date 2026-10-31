@@ -61,6 +61,7 @@ use neo_ajtai::Commitment;
 use neo_math::{D, F, K};
 use neo_reductions::superneo_eval::MatrixRows;
 use neo_transcript::Poseidon2Transcript;
+use neo_verified::degrees::{FOLD, RUN_ORACLES};
 use p3_field::PrimeCharacteristicRing as _;
 use p3_field_v08::PrimeCharacteristicRing;
 use rayon::prelude::*;
@@ -70,7 +71,7 @@ use crate::field::{from_word, gl, re_im, Ext, Gl};
 use crate::gkr::GkrProof;
 use crate::matrix::{EarlyValues, Structure, Tables};
 use crate::relation::{kappa, Shape};
-use crate::setup::{Leaf, Store, FOLD};
+use crate::setup::{Leaf, Store};
 use crate::verifier::ProofView;
 
 pub use crate::circuit::fold::FoldTranscript;
@@ -86,8 +87,6 @@ pub type Claim = neo_ccs::CeClaim<Commitment, F, K>;
 /// Lanes per block on the committed cube: `D = 54`, padded to a power of two.
 const LANE_VARIABLES: usize = 6;
 const LANES: usize = 1 << LANE_VARIABLES;
-/// Setup oracles after the key rows: run rows, slots, coefficients, slot blocks.
-const RUN_ORACLES: usize = 4;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

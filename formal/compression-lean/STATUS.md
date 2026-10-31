@@ -120,7 +120,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 
 ## Ports
 
-`ports.json` has 570 entries: 517 Lean declarations transcribe 303 Rust items.
+`ports.json` has 567 entries: 517 Lean declarations transcribe 307 Rust items.
 
 | Lean module | Declarations |
 |---|---:|
@@ -171,7 +171,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-math/src/ring.rs` | 3 |
 | `crates/neo-params/src/poseidon2_goldilocks.rs` | 2 |
 | `crates/neo-spartan/src/circuit/algebra.rs` | 24 |
-| `crates/neo-spartan/src/circuit/block.rs` | 3 |
+| `crates/neo-spartan/src/circuit/block.rs` | 2 |
 | `crates/neo-spartan/src/circuit/fold.rs` | 8 |
 | `crates/neo-spartan/src/circuit/hash.rs` | 13 |
 | `crates/neo-spartan/src/circuit/mod.rs` | 7 |
@@ -181,16 +181,16 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-spartan/src/field.rs` | 4 |
 | `crates/neo-spartan/src/gkr.rs` | 10 |
 | `crates/neo-spartan/src/hash.rs` | 2 |
-| `crates/neo-spartan/src/lib.rs` | 13 |
+| `crates/neo-spartan/src/lib.rs` | 12 |
 | `crates/neo-spartan/src/matrix.rs` | 21 |
 | `crates/neo-spartan/src/mle.rs` | 7 |
 | `crates/neo-spartan/src/norm.rs` | 1 |
 | `crates/neo-spartan/src/relation.rs` | 7 |
-| `crates/neo-spartan/src/ring.rs` | 12 |
-| `crates/neo-spartan/src/setup.rs` | 6 |
+| `crates/neo-spartan/src/ring.rs` | 11 |
+| `crates/neo-spartan/src/setup.rs` | 5 |
 | `crates/neo-spartan/src/shrink/evaluate.rs` | 8 |
 | `crates/neo-spartan/src/shrink/layout.rs` | 2 |
-| `crates/neo-spartan/src/shrink/mod.rs` | 14 |
+| `crates/neo-spartan/src/shrink/mod.rs` | 13 |
 | `crates/neo-spartan/src/sumcheck.rs` | 1 |
 | `crates/neo-spartan/src/verifier.rs` | 9 |
 | `crates/neo-spartan/src/whir/mod.rs` | 22 |
@@ -199,6 +199,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-spartan/tests/internal/setup_columns.rs` | 1 |
 | `crates/neo-transcript/src/poseidon2.rs` | 1 |
 | `crates/neo-verified/src/circuit.rs` | 6 |
+| `crates/neo-verified/src/degrees.rs` | 9 |
 | `crates/neo-verified/src/layout.rs` | 14 |
 | `crates/nightstream-fprime/src/package.rs` | 5 |
 | `crates/nightstream-fprime/src/package/r1cs.rs` | 3 |

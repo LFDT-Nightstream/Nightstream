@@ -16,7 +16,8 @@
 mod evaluate;
 pub(crate) mod layout;
 
-use neo_verified::circuit::{Kind, Wire, KINDS};
+use neo_verified::circuit::{Kind, Wire, KINDS, MATRICES};
+use neo_verified::degrees::{self, DEGREE};
 use neo_verified::layout::{block_cell, block_row, cell_variables, column, entry_column, glue_row, one, row_variables};
 use p3_challenger_v08::{CanObserve, FieldChallenger};
 use p3_field_v08::{Algebra, Field, PrimeCharacteristicRing};
@@ -29,7 +30,7 @@ pub use neo_verified::layout::Shape;
 
 use self::evaluate::Evaluate;
 use self::layout::{block_part, cell_parts, row_parts, words};
-use crate::circuit::block::{entries, Entry, C, MATRICES, X};
+use crate::circuit::block::{entries, Entry, C, X};
 use crate::circuit::r1cs::R1cs;
 use crate::circuit::record::{Form, Recorder, Sink, Term, Trace};
 use crate::circuit::{algebra, Backend, Native};
@@ -41,8 +42,6 @@ use crate::{sumcheck, Error};
 
 /// Names the shrink protocol at the start of its transcript.
 const DOMAIN: &[u8] = b"Nightstream/SuperNeo/shrink/v1";
-/// Outer sum-check degree: `eq` times the S-box term `(X·z)^7`.
-const DEGREE: usize = 8;
 
 /// A verifier written once over `Backend`.
 pub trait Program {
@@ -144,13 +143,14 @@ impl Shrink {
 /// The sum-check draws charged over WHIR's candidates, as degrees over |Ext|.
 fn terms(shape: &Shape) -> Vec<SecurityTerm> {
     let field_bits = (<Ext as Field>::bits() - 1) as f64;
-    let term = |label, degree: f64| SecurityTerm::new(label, ErrorBits::from_log2(field_bits - degree.log2()));
-    let (m, n) = (row_variables(shape) as f64, cell_variables(shape) as f64);
+    let term =
+        |label, degree: usize| SecurityTerm::new(label, ErrorBits::from_log2(field_bits - (degree as f64).log2()));
+    let [point, outer, batching, inner] = degrees::shrink_terms(shape);
     vec![
-        term("zero-check point", m),
-        term("outer sum-check", DEGREE as f64 * m),
-        term("matrix batching", (MATRICES - 1) as f64),
-        term("inner sum-check", 2.0 * (n + 1.0)),
+        term("zero-check point", point),
+        term("outer sum-check", outer),
+        term("matrix batching", batching),
+        term("inner sum-check", inner),
     ]
 }
 

@@ -5,7 +5,7 @@ use std::time::Instant;
 
 use neo_ccs::crypto::poseidon2_goldilocks::WIDTH;
 use neo_math::D;
-use neo_verified::circuit::{Kind, KINDS};
+use neo_verified::circuit::{Kind, KINDS, MATRICES};
 use neo_verified::layout::{block_row, cell_variables, entry_column, row_variables, Shape};
 use p3_challenger_v08::{CanObserve, FieldChallenger};
 use p3_field_v08::{BasedVectorSpace, PrimeCharacteristicRing, PrimeField64};
@@ -14,7 +14,7 @@ use p3_symmetric_v08::Permutation;
 use super::layer1::{relation_of, setup_toy, transcript};
 use super::verifier::statement_input;
 use super::word;
-use crate::circuit::block::{entries, C, MATRICES, X};
+use crate::circuit::block::{entries, C, X};
 use crate::circuit::record::{Recorder, Sink, Term, Trace};
 use crate::circuit::{algebra, Backend};
 use crate::device::Accelerator;

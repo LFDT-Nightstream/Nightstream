@@ -2,3 +2,4 @@ import CompressionLeanRust.Shape
 import CompressionLeanRust.Layout
 import CompressionLeanRust.RunCheck
 import CompressionLeanRust.Positions
+import CompressionLeanRust.Degrees

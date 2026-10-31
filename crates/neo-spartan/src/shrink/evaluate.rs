@@ -1,12 +1,12 @@
 //! The glue part of `Σ_j ρ^j·M̃_j(rx, ry)`, accumulated while a shape run of
 //! the program emits its rows. No row is stored.
 
-use neo_verified::circuit::{Kind, KINDS};
+use neo_verified::circuit::{Kind, KINDS, MATRICES};
 use neo_verified::layout::{column, glue_row, Shape};
 use p3_field_v08::PrimeCharacteristicRing;
 use rayon::prelude::*;
 
-use crate::circuit::block::{C, MATRICES};
+use crate::circuit::block::C;
 use crate::circuit::r1cs::{R1cs, Side};
 use crate::circuit::record::{Form, Sink, Term};
 use crate::field::{eq_table, Ext, Gl};

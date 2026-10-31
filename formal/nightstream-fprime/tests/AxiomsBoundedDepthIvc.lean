@@ -10,8 +10,17 @@ open NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.accepted_bounds
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.transition_depthStep
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.runDepths_lights
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.slot_cases
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.depthStep_light
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.depthStep_refresh
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.runDepths_refreshBlock
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.runDepths_refreshBlocks
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.runDepths_refreshPeriod
 #audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.runDepths_refreshSchedule
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.count_flatten_replicate
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.refreshPeriod_count
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.runDepths_light_count
+#audit_axioms NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth.light_count_le
 
 /-- One refresh per period starves slot 1: it takes a light fold each time the light circuit
 follows the refresh circuit and is never refreshed. -/

@@ -11,7 +11,8 @@ Soundness: the accepted folds on any slot form an admissible schedule, so the bo
 Completeness: the wrapper accepts every fold the underlying verifier accepts below the cap. The
 control function sees only the application state, so the application must schedule refreshes.
 Each slot is refreshed only when the refresh circuit runs right after that slot's circuit, so
-slot 1 needs two refresh steps in a row. `refreshSchedule` never reaches the cap. -/
+slot 1 needs two refresh steps in a row. `refreshSchedule` never reaches the cap and refreshes
+one step in `cap + 1`. `light_count_le` shows that no schedule refreshes less often. -/
 
 set_option autoImplicit false
 
@@ -203,39 +204,142 @@ theorem runDepths_lights (cap : Nat) (rest : List (Fin 2)) :
         omega
       · simp [zero]
 
-/-- One period: a light step folds into the refresh slot, `cap` light steps fill the light slot,
-and two refresh steps reset the light slot and then the refresh slot. -/
+theorem slot_cases (slot : Fin 2) : slot = 0 ∨ slot = 1 :=
+  match slot with
+  | ⟨0, _⟩ => .inl rfl
+  | ⟨1, _⟩ => .inr rfl
+
+theorem depthStep_light {cap : Nat} {depth : Fin 2 → Nat} {prior : Fin 2}
+    (room : depth prior < cap) :
+    depthStep cap depth prior 0 =
+      some fun slot => if slot = prior then depth prior + 1 else depth slot := by
+  have open_ : ¬(circuitStep 0 = .light ∧ cap ≤ depth prior) := fun ⟨_, atCap⟩ => by omega
+  simp only [depthStep, eq_false open_, ↓reduceIte]
+  rfl
+
+theorem depthStep_refresh (cap : Nat) (depth : Fin 2 → Nat) (prior : Fin 2) :
+    depthStep cap depth prior 1 = some fun slot => if slot = prior then 0 else depth slot := by
+  simp [depthStep, circuitStep, nextDepth]
+
+/-- One block: `cap + 1` light steps and a refresh step. The first light step folds into the
+refresh slot, the next `cap` fill the light slot, and the refresh step resets the light slot. -/
+def refreshBlock (cap : Nat) : List (Fin 2) :=
+  List.replicate (cap + 1) 0 ++ [1]
+
+/-- One period: `cap` blocks, then a refresh step that resets the refresh slot. -/
 def refreshPeriod (cap : Nat) : List (Fin 2) :=
-  0 :: (List.replicate cap 0 ++ [1, 1])
+  (List.replicate cap (refreshBlock cap)).flatten ++ [1]
 
 /-- After a refresh step, any number of periods runs without reaching the cap. -/
 def refreshSchedule (cap periods : Nat) : List (Fin 2) :=
   (List.replicate periods (refreshPeriod cap)).flatten
 
-theorem runDepths_refreshPeriod {cap : Nat} (capPositive : 0 < cap) (rest : List (Fin 2)) :
+/-- A block takes one light fold into the refresh slot and leaves the light slot at 0. -/
+theorem runDepths_refreshBlock {cap used : Nat} (room : used < cap) (depth : Fin 2 → Nat)
+    (lightSlot : depth 0 = 0) (refreshSlot : depth 1 = used) (rest : List (Fin 2)) :
+    runDepths cap depth 1 (refreshBlock cap ++ rest) =
+      runDepths cap (fun slot => if slot = 0 then 0 else used + 1) 1 rest := by
+  rw [refreshBlock, List.append_assoc, List.replicate_succ, List.cons_append, runDepths,
+    depthStep_light (by omega), Option.bind_some,
+    runDepths_lights cap _ cap _ (by simp [lightSlot]), List.singleton_append, runDepths,
+    depthStep_refresh, Option.bind_some]
+  congr 1
+  funext slot
+  rcases slot_cases slot with rfl | rfl <;> simp [refreshSlot]
+
+theorem runDepths_refreshBlocks {cap : Nat} (rest : List (Fin 2)) :
+    ∀ (blocks used : Nat) (depth : Fin 2 → Nat), used + blocks ≤ cap → depth 0 = 0 →
+      depth 1 = used →
+      runDepths cap depth 1 ((List.replicate blocks (refreshBlock cap)).flatten ++ rest) =
+        runDepths cap (fun slot => if slot = 0 then 0 else used + blocks) 1 rest
+  | 0, used, depth, _, lightSlot, refreshSlot => by
+      simp only [List.replicate_zero, List.flatten_nil, List.nil_append, Nat.add_zero]
+      congr 1
+      funext slot
+      rcases slot_cases slot with rfl | rfl <;> simp [lightSlot, refreshSlot]
+  | blocks + 1, used, depth, room, lightSlot, refreshSlot => by
+      rw [List.replicate_succ, List.flatten_cons, List.append_assoc,
+        runDepths_refreshBlock (by omega) depth lightSlot refreshSlot,
+        runDepths_refreshBlocks rest blocks (used + 1) _ (by omega) (by simp) (by simp),
+        show used + 1 + blocks = used + (blocks + 1) by omega]
+
+theorem runDepths_refreshPeriod (cap : Nat) (rest : List (Fin 2)) :
     runDepths cap (fun _ => 0) 1 (refreshPeriod cap ++ rest) =
       runDepths cap (fun _ => 0) 1 rest := by
-  have intoRefreshSlot : ¬(circuitStep 0 = .light ∧ cap ≤ 0) := fun ⟨_, atCap⟩ => by omega
-  simp only [refreshPeriod, List.cons_append, runDepths, depthStep, intoRefreshSlot,
-    ↓reduceIte, Option.bind_some]
-  rw [List.append_assoc, runDepths_lights cap _ cap _ (by simp)]
-  have refreshedLight : ∀ depth : Nat, ¬(circuitStep 1 = .light ∧ cap ≤ depth) :=
-    fun _ ⟨light, _⟩ => by simp [circuitStep] at light
-  simp only [List.cons_append, List.nil_append, runDepths, depthStep, refreshedLight,
-    ↓reduceIte, Option.bind_some]
-  congr
+  rw [refreshPeriod, List.append_assoc, runDepths_refreshBlocks _ cap 0 _ (by omega) rfl rfl,
+    List.singleton_append, runDepths, depthStep_refresh, Option.bind_some]
+  congr 1
   funext slot
-  match slot with
-  | ⟨0, _⟩ => simp [circuitStep, nextDepth]
-  | ⟨1, _⟩ => simp [circuitStep, nextDepth]
+  rcases slot_cases slot with rfl | rfl <;> simp
 
 /-- An honest prover that follows `refreshSchedule` never meets the depth cap. -/
-theorem runDepths_refreshSchedule {cap : Nat} (capPositive : 0 < cap) :
+theorem runDepths_refreshSchedule (cap : Nat) :
     ∀ periods, runDepths cap (fun _ => 0) 1 (refreshSchedule cap periods) = some fun _ => 0
   | 0 => rfl
   | periods + 1 => by
       simp only [refreshSchedule, List.replicate_succ, List.flatten_cons]
-      rw [runDepths_refreshPeriod capPositive]
-      exact runDepths_refreshSchedule capPositive periods
+      rw [runDepths_refreshPeriod]
+      exact runDepths_refreshSchedule cap periods
+
+theorem count_flatten_replicate (slot : Fin 2) (block : List (Fin 2)) :
+    ∀ copies, ((List.replicate copies block).flatten).count slot = copies * block.count slot
+  | 0 => by simp
+  | copies + 1 => by
+      rw [List.replicate_succ, List.flatten_cons, List.count_append,
+        count_flatten_replicate slot block copies, Nat.succ_mul]
+      exact Nat.add_comm _ _
+
+/-- A period takes `cap` light steps per refresh step: one step in `cap + 1` is a refresh. -/
+theorem refreshPeriod_count (cap : Nat) :
+    (refreshPeriod cap).count 0 = cap * (refreshPeriod cap).count 1 := by
+  simp only [refreshPeriod, List.count_append, count_flatten_replicate]
+  simp [refreshBlock, List.count_replicate]
+
+/-- Each light step adds 1 to a depth and each refresh step removes at most `cap`, so a run that
+never meets the cap takes at most `cap` light steps per refresh step, plus what the final depths
+hold. -/
+theorem runDepths_light_count {cap : Nat} :
+    ∀ (circuits : List (Fin 2)) (depth : Fin 2 → Nat) (prior : Fin 2) (final : Fin 2 → Nat),
+      (∀ slot, depth slot ≤ cap) → runDepths cap depth prior circuits = some final →
+      (∀ slot, final slot ≤ cap) ∧
+        circuits.count 0 + (depth 0 + depth 1) ≤ cap * circuits.count 1 + (final 0 + final 1)
+  | [], depth, _, final, bounded, ran => by
+      simp only [runDepths, Option.some.injEq] at ran
+      subst ran
+      exact ⟨bounded, by simp⟩
+  | circuit :: rest, depth, prior, final, bounded, ran => by
+      cases step : depthStep cap depth prior circuit with
+      | none => simp [runDepths, step] at ran
+      | some next =>
+          simp only [runDepths, step, Option.bind_some] at ran
+          have priorBound := bounded prior
+          rcases slot_cases circuit with rfl | rfl
+          · have room : depth prior < cap := Nat.lt_of_not_le fun atCap => by
+              simp [depthStep, circuitStep, atCap] at step
+            rw [depthStep_light room, Option.some.injEq] at step
+            subst step
+            obtain ⟨finalBound, count⟩ := runDepths_light_count rest _ 0 final
+              (fun slot => by by_cases same : slot = prior <;> simp [same, bounded] <;> omega)
+              ran
+            refine ⟨finalBound, ?_⟩
+            rcases slot_cases prior with rfl | rfl <;> simp at count ⊢ <;> omega
+          · rw [depthStep_refresh, Option.some.injEq] at step
+            subst step
+            obtain ⟨finalBound, count⟩ := runDepths_light_count rest _ 1 final
+              (fun slot => by by_cases same : slot = prior <;> simp [same, bounded])
+              ran
+            refine ⟨finalBound, ?_⟩
+            rcases slot_cases prior with rfl | rfl <;> simp [Nat.mul_add] at count ⊢ <;> omega
+
+/-- A run that starts with every depth at 0 and never meets the cap takes at most `cap` light
+steps per refresh step, plus `2 · cap`. `refreshPeriod_count` meets this rate exactly. -/
+theorem light_count_le {cap : Nat} (circuits : List (Fin 2)) (prior : Fin 2)
+    (final : Fin 2 → Nat) (ran : runDepths cap (fun _ => 0) prior circuits = some final) :
+    circuits.count 0 ≤ cap * circuits.count 1 + 2 * cap := by
+  obtain ⟨finalBound, count⟩ := runDepths_light_count circuits _ prior final
+    (fun _ => Nat.zero_le cap) ran
+  have := finalBound 0
+  have := finalBound 1
+  omega
 
 end NightstreamFPrime.Spec.HyperNova.Construction2.BoundedDepth

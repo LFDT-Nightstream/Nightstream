@@ -189,7 +189,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-spartan/src/ring.rs` | 12 |
 | `crates/neo-spartan/src/setup.rs` | 6 |
 | `crates/neo-spartan/src/shrink/evaluate.rs` | 8 |
-| `crates/neo-spartan/src/shrink/layout.rs` | 15 |
+| `crates/neo-spartan/src/shrink/layout.rs` | 13 |
 | `crates/neo-spartan/src/shrink/mod.rs` | 14 |
 | `crates/neo-spartan/src/sumcheck.rs` | 1 |
 | `crates/neo-spartan/src/verifier.rs` | 9 |
@@ -198,6 +198,7 @@ Parameters: `{pushes : List CompressionLean.Setup.Push}`.
 | `crates/neo-spartan/tests/internal/replay.rs` | 7 |
 | `crates/neo-spartan/tests/internal/setup_columns.rs` | 1 |
 | `crates/neo-transcript/src/poseidon2.rs` | 1 |
+| `crates/neo-verified/src/layout.rs` | 2 |
 | `crates/nightstream-fprime/src/package.rs` | 5 |
 | `crates/nightstream-fprime/src/package/r1cs.rs` | 3 |
 | `crates/nightstream-fprime/src/package/terminal.rs` | 2 |

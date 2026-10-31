@@ -33,10 +33,10 @@ are not checked.
 ## Applications and setups
 
 An application is a step program (`Lifecycle.Stage1.Application.Program`).
-Every adversary result below holds for every application that fits the
+The results for adversaries 1 to 4 hold for every application that fits the
 `2^28` profile (`Export.Stage1.PerApplicationFixedPoint.FitsTwoPow28`), at its
-own relation (`Export.Stage1.PerApplicationFixedPoint.relation`). Adversary 1
-holds for
+own relation (`Export.Stage1.PerApplicationFixedPoint.relation`). Adversary 5
+also requires a valid memory plan and a `PortApp` model. Adversary 1 holds for
 every Ajtai key, adversaries 2 and 4 for every commitment setup
 (`Export.Stage1.PerApplicationCanonicalPackage.CommitmentSetup`, with key
 `Export.Stage1.PerApplicationCanonicalPackage.commitmentKey`), and adversary 3
@@ -114,8 +114,10 @@ digest (`Export.Stage1.PerApplicationCanonicalPackage.structuralValue`).
   bound and a slot (`Lifecycle.RandomOracleTest.Point`).
 - **Does not control:** the application, the setup chunks, which are uniform
   256-bit values (trust item 2), and `H`, a uniform random function of each
-  challenge's address, its exact call list and its slot (trust item 1). The adversary is chosen before
-  the chunks, so it cannot contain a kernel vector of the key.
+  challenge's address, its exact call list and its slot (trust item 1). The
+  adversary is fixed before the chunks and receives no advice about the
+  sampled key. A kernel vector found after reading the chunks is charged to
+  the MSIS term.
 - **Wins:** the oracle verifier accepts the claim, the child witnesses open
   the returned children, the prior preimage links the claim, and extraction
   returns no source-valid witness. The link
@@ -264,7 +266,7 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
   statement read the adversary's own tape
   (`Export.Stage1.NebulaMemorySecurity.input_adversaryTape`). For an
   adversary whose outputs can have more than `S_max · N` steps, the same
-  bound holds for its clamped form
+  bound holds for its clamped form when its start stage is admitted
   (`Export.Stage1.NebulaMemorySecurity.bad_le_clamp`).
 - **Deterministic part:** an accepted run gives an execution, a Poseidon2
   collision among the run's own chain inputs and the `D_init` chain, or a
@@ -341,8 +343,8 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
      `solverAdvantage T` is the success of `solve`. So MSIS hardness at the
      work of `T` runs applies to `solverAdvantage T`. The
      2026-09-08 public-seed MSIS approval covered the ChaCha20 matrix only.
-     For ordinary binding collisions under the SHAKE128 matrix of the
-     reference application,
+     For ordinary binding collisions in the SHAKE128 random-oracle setup
+     game for the reference application,
      `Export.Stage1.Poseidon2HashChainV1Setup.production_binding_lt_solver` gives an
      MSIS solution for a uniform matrix, with error below `2^-190`.
    - If Poseidon2 state-hash collisions are hard to find, then
@@ -490,7 +492,8 @@ fresh verifier coin by an oracle read. The Lean column names the declaration for
 - Completeness does not follow from a knowledge bound: a bound on the
   adversary is not evidence that an honest proof is accepted. The honest
   prover has separate results, for every application that fits the `2^28`
-  profile and every commitment setup: the initial statement is accepted
+  profile and every commitment setup: an initial statement with a state of
+  four words is accepted
   (`Export.Stage1.HyperNovaInitial.initial_accepted`), and an accepted proof
   with advice of the application's witness width that satisfies the
   application's validity predicate gives an accepted next proof
